@@ -1,4 +1,8 @@
-# Copyright (c) 2023-Present Matt Kaes
+#================================================================================#
+#                                                                                #
+#                  Copyright (c) 2023-Present Matt Kaes                          #
+#                                                                                #
+#================================================================================#
 
 All Rights Reserved, however permission is hereby granted, free of charge, to any 
 person obtaining a copy of this software and associated documentation files from
@@ -6,8 +10,8 @@ source (the "Software"), to build and use it for their own personal usage, inclu
 copying, modifying, merging, publishing and distributing derivative works, subject
 to the following conditions:
 
-1. The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software including derivative works.
+1. The above copyright notice and this permission notice shall be included in 
+all copies or substantial portions of the Software including derivative works.
 
 2. Derivative Software built using or integrating substantial portions of this
 Software's source shall not be distributed commercially or used for commercial
