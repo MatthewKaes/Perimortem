@@ -1,0 +1,31 @@
+Copyright (c) 2023-Present Matt Kaes
+
+All Rights Reserved, however permission is hereby granted, free of charge, to any 
+person obtaining a copy of this software and associated documentation files from
+source (the "Software"), to build and use it for their own personal usage, including
+copying, modifying, merging, publishing and distributing derivative works, subject
+to the following conditions:
+
+1. The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software including derivative works.
+
+2. Derivative Software built using or integrating substantial portions of this
+Software's source shall not be distributed commercially or used for commercial
+purposes.
+
+3. Media including branding, images, and texts that do not include documentation
+and source code may only be distributed as official packaged releases and are
+not included with the permissions provided to the Software.
+
+Software developed using this Software, either from source or a packaged
+release, may additionally be sold or generally dsitributed with commercial
+intent as long as no media or meaningful piece of this Software is shipped
+as part of the secondary work.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
