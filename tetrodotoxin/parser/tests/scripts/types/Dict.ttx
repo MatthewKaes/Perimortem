@@ -1,0 +1,13 @@
+Dict;
+Dict[];
+Dict[Void];
+Dict[Int];
+Dict[Int  Str];
+Dict[Int, Str];
+Dict[Int, Void];
+Dict[Int, Int, Int];
+Dict[List[Value], Int];
+Dict[Int, List[Value]];
+Dict[Value, List[]];
+Dict[Int, Dict[Int, List[Value]]];
+Dict[Int, Dict[Int, List[Value]];

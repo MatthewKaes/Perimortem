@@ -1,0 +1,55 @@
+{
+  // Use IntelliSense to learn about possible attributes.
+  // Hover to view descriptions of existing attributes.
+  // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Editor (Linux)",
+      "type": "lldb",
+      "request": "launch",
+      "program": "${workspaceFolder}/.bin/bin/main/editor",
+      "args": [ "--test" ],
+      "cwd": "${workspaceFolder}",
+      // Why are you like this VSCode???
+      "sourceMap": { 
+        "/proc/self/cwd/external/": "${workspaceFolder}/.bin/external/",
+        "/proc/self/cwd/": "${workspaceFolder}"
+      },
+      "preLaunchTask": "Full Build (Linux) [Debug]",
+      "presentation": {
+          "clear": true
+        }
+    },
+    {
+      "name": "Tests (Linux)",
+      "type": "lldb",
+      "request": "launch",
+      "program": "${workspaceFolder}/.bin/bin/tetrodotoxin/tests",
+      "args": [ ],
+      "cwd": "${workspaceFolder}",
+      // Why are you like this VSCode???
+      "sourceMap": { 
+        "/proc/self/cwd/external/": "${workspaceFolder}/.bin/Perimortem/external/",
+        "/proc/self/cwd/": "${workspaceFolder}"
+      },
+      "preLaunchTask": "Full Build (Linux) [Debug]",
+      "presentation": {
+          "clear": true
+      }
+    },
+		{
+			"name": "Launch TTX client",
+			"type": "extensionHost",
+			"request": "launch",
+			"runtimeExecutable": "${execPath}",
+			"args": ["--extensionDevelopmentPath=${workspaceRoot}/tetrodotoxin/lsp/client/"],
+			"outFiles": [
+				"${workspaceRoot}/out/**/*.js",
+				"${workspaceRoot}/server/out/**/*.js"
+			],
+			"autoAttachChildProcesses": true,
+			"preLaunchTask": "TTX LSP Build",
+		},
+  ]
+}

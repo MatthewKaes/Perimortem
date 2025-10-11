@@ -1,0 +1,5 @@
+#option-defaults
+common --symlink_prefix=./.bin/
+common --spawn_strategy=standalone
+test --test_output=errors
+test --spawn_strategy=standalone

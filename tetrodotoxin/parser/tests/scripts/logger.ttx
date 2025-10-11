@@ -1,0 +1,16 @@
+//
+// An Empty library for testing.
+//
+@TTX=Library
+
+global const magic_number: Int = 10;
+global header: String = "Original";
+
+[=>>]
+func print() -> Void {
+  debug(header);
+}
+
+[=>>] print:func = () -> Void {
+  debug(header);
+}

@@ -1,0 +1,50 @@
+{
+  // See https://go.microsoft.com/fwlink/?LinkId=733558
+  // for the documentation about the tasks.json format
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Full Build (Linux) [Debug]",
+      "type": "shell",
+      "command": "bazel",
+      "problemMatcher": [
+        "$gcc"
+      ],
+      "args": [
+        "build",
+        "...",
+        "-c",
+        "dbg", // Need to split to as VSCode will wrap it.
+        "--copt=\"-fdiagnostics-color=always\"",
+        "--copt=\"-g\"",
+        "--copt=\"-O0\"",
+      ],
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "detail": "Performs a full Bazel build of the Platform.",
+      "presentation": {
+        "clear": true
+      }
+    },
+    {
+      "label": "TTX LSP Build",
+      "type": "npm",
+      "script": "compile",
+      "group": "build",
+      "detail": "Performs a build of the TTX LSP extension.",
+      "presentation": {
+				"panel": "dedicated",
+				"reveal": "never"
+      },
+      "problemMatcher": [
+        "$tsc"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}/tetrodotoxin/lsp/client/"
+      },
+      "dependsOn": "Full Build (Linux) [Debug]"
+    }
+  ]
+}

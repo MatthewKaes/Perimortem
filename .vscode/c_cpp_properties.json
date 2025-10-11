@@ -1,0 +1,20 @@
+{
+    "configurations": [
+        {
+            "name": "Linux (Editor)",
+            "includePath": [
+                "${workspaceFolder}/**",
+                ".bin/Perimortem/external/bazel_tools/"
+            ],
+            "defines": [
+                "PERI_LINUX",
+                "PERI_EDITOR"
+            ],
+            "compilerPath": "/usr/bin/clang",
+            "cStandard": "c17",
+            "cppStandard": "c++23",
+            "intelliSenseMode": "linux-clang-x64"
+        }
+    ],
+    "version": 4
+}

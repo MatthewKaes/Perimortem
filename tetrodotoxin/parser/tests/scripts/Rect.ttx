@@ -1,0 +1,177 @@
+//
+// A basic class for testing parsing
+//
+library Rectangle; // The top type for the file that is exported.
+@Colorize
+
+// Importing the top type from another file.
+// Top types are always constant references and can not be new-ed
+// even though they live on the heap. (they are singletons).
+import Empty from "./Empty.ttx";
+
+// Constant object - Must be a Stack type and foldable.
+// Generally all keywords and types are this. You generally should have
+// your types be constant.
+[=/=] magic_number:Int = 10;
+// Dynamic object - May be any type, exported and serialized.
+[=>>] global_value:Int = 24;
+// Hidden object - May be any type, not exported but is serialized.
+[=!=] static_value:Int = 92;
+// Temporary object - May be any type, not exported and not serialized.
+// Can be used as private variables or working objects.
+[***] temp_value:Int = 92;
+
+// All types are constructable, but are either a Stack or Heap type.
+// Stack types use `init` while Heap types use `new`.
+[***] temp_default:Int = Int -> new(); // returns 0
+
+// Type aliases are easy enough to make. Just make sure they are const.
+[=/=] Vec2D:type = Vec[Num, 2];
+
+// You can also reexport if neccessary. Since it's const it will get
+// dedupped during compliation.
+[=/=] MyType:type = Empty.TestType;
+
+// `init type` -> Creates a new Stack Type
+// Stack types are copied by value but they aren't dynamically allocated.
+// Stack types can only include other stack types.
+// Stack types assign by memcpy which makes them super speedy
+[=/=] Size : type = init type {
+  [=>>] width  : Int = 0;
+  [=>>] height : Int = 0;
+  // This won't work as it requires a Heap type.
+  // [=>>] info:Text = Text -> new();
+
+  // Temporary functions act more or less as static functions as the
+  // function exists on the type.
+  [=>>] create  : func(
+        width   : Int,
+        height  : Int
+      ) return -> Size =
+  {
+    // In constant functions the this refers
+    debug(this); // Prints "Size:type"
+    this.width = width;
+    this.height = height;
+  }
+
+  [=>>] create  : func (
+        width   : Int,
+        height  : Int
+    )   return -> Size {
+    // In constant functions the this refers
+    debug(this); // Prints "Size:type"
+    this.width = width;
+    this.height = height;
+  }
+}
+
+// `new type` -> Creates a new Heap Type
+// Heap types are always passed by "valid pointers"
+// You can not have a null heap type.
+// Stack types assign by memcpy which makes them super speedy
+[=>>] Rect:type = new type {
+  // Constant object - Must be a Stack type and foldable.
+  // Const values do not add storage to the object.
+  [=/=] const_value:Int = 10;
+  // Dynamic object - Accessable outside of type, serialized.
+  // Typical Godot like variable.
+  [=>>] public_variable:Int = 24;
+  // Hidden object - Not accessable outside of type, serialized.
+  // Private variable typically for cleaning up API.
+  [=!=] private_variable:Int = 92;
+  // Hidden object - Not accessable outside of type, not serialized.
+  // Variables 
+  [***] temp_value:Int = 92;
+
+  // Tetrodotoxin avoids constructors and the ordering from them.
+  // Instead all variables and functions are initalized to a base state when
+  // allocated. (Order is not gurenteed)
+  [***] size     : Size = Size -> new();
+  [=!=] colors   : Dict[Str, Str] = Dict[Str, Str] -> new();
+  [=!=] constant : Dict[Str, Str] = Dict[Str, Str] -> new();
+
+  // [=/=] All functions are stored in variables. Blocks are generated
+  // as lambdas which are linked at the LLVM level.
+  // Constant functions are powerful as their "address" is constant
+  // enabling a number of optimizations.
+  // Constant functions add no size to instantiations of the type.
+  [=/=] area:func = () -> Int {
+    return this.size.x * this.size.y;
+  }
+
+  // [=>>] Just like regular dynamic attributes these functions can
+  // be changed at runtime, as long as it always points to a valid
+  // location.
+  // Even if you plan to always change the function, you must point
+  // it to a valid function to start.
+  [=>>] grow:func = (size:Size) -> Rect = {
+    this.size.width += size.width;
+    this.size.height += size.height;
+
+    // Return this object on the stack.
+    return this;
+  }
+
+  // [=!=] Hidden functions can be used as private objects.
+  // You can also fully qualify the func, but it's unneccessary
+  // Note that all functions must have a return type.
+  //
+  // If you fully quality the function call, it's 
+  [=!=] grow:func[Rect, Size, Rect] = (this:Rect, size:Size) -> Rect {
+    this.size.width += size.width;
+    this.size.height += size.height;
+
+    // Return this object on the stack.
+    return this;
+  }
+
+  // Temporary functions act more or less as static functions as the
+  // function exists on the types.
+  [***] create_size:func = (this:type) -> Size {
+    // In constant functions the this refers
+    debug(this); // Prints "Size:type"
+    this.width = width;
+    this.height = height;
+  }
+};
+
+// The types technically live in the singleton object, so a fully
+// qualified type line would be the following:
+[=/=] grow_rect:func = (
+  src  : Rectangle.Rect,
+  size : Rectangle.Size
+) = Rectangle.Rect {
+  // Types can be used, but since this is attached to a singleton
+  // it's fine to just use it how you want.
+  this -> log(this.magic_number);
+
+  //
+  [=>>] res:Rect = src;
+  return res -> grow(size);
+}
+
+[=>>] log:func(src:Any) -> Rect {
+  // Functions can technically export variables, but generally 
+  // you'll want it to live on an easier to track singleton than the lambda.
+  [=>>] tag:Vec[Byt, 10] = "[Log] ";
+  debug(tag + src);
+}
+
+// Temporary functions are special and can only be called from a local
+// `on_load` function. They are only invocable by the TTX loader.
+[***] on_load:func() -> Byt {
+  [***] rect:Rect = Rect -> new();
+  [***] i:Int = 0;
+
+  for(i = 0; i < 5; i++) {
+    debug("Value is " + i);
+  }
+
+  Rectangle.log.tag = "[New] ";
+  Rectangle -> grow_rect(rect, new Size(10, 10));
+  Rectangle -> log(rect -> area());
+
+  debug("Area of Rect is: " + rect -> area());
+  return 0;
+}

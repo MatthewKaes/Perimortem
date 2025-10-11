@@ -1,0 +1,9 @@
+# Languages on Github
+*.cpp linguist-language=C++
+*.hpp linguist-language=C++
+*.bazel linguist-language=Bazel
+BUILD linguist-language=Bazel
+*.ttx linguist-language=Tetrodotoxin
+
+# Normalize EOL for all files that Git considers text files
+* text=auto eol=lf

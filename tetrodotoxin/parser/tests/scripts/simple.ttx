@@ -1,0 +1,8 @@
+//
+// A basic class for testing parsing
+//
+library Test;
+
+__init {
+  debug(7 + 1);
+}

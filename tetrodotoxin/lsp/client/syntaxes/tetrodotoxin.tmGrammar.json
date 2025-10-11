@@ -1,0 +1,41 @@
+{
+  "name": "Tetrodotoxin",
+  "scopeName": "source.tetrodotoxin",
+  "patterns": [
+    {
+      "include": "#comments"
+    },
+    {
+      "include": "#strings"
+    },
+    {
+      "include": "#types"
+    }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        {
+          "match": "//[^$]*$",
+          "name": "comment.tetrodotoxin"
+        }
+      ]
+    },
+    "types": {
+      "patterns": [
+        {
+          "match": "[A-Z][a-zA-Z0-9]*",
+          "name": "type.tetrodotoxin"
+        }
+      ]
+    },
+    "strings": {
+      "patterns": [
+        {
+          "match": "\"[^\"]*\"",
+          "name": "string.quoted.double.tetrodotoxin"
+        }
+      ]
+    }
+  }
+}
