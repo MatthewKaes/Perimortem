@@ -2,63 +2,53 @@
 // Copyright © Matt Kaes
 
 #include "parser/ttx.hpp"
+#include "parser/ast/attribute.hpp"
 
 #include <filesystem>
-#include <sstream>
 
 using namespace Tetrodotoxin::Language::Parser;
 
 // Parsing Ttx from an existing tokenizer
-Ttx::Ttx(const std::string_view& source_map, const ByteView& source_)
-    : source_map(source_map), source(source_.begin(), source_.end()) {
+auto Ttx::parse(const std::string_view& source_map, const ByteView& source)
+    -> std::unique_ptr<Ttx> {
   Tokenizer tokenizer(source);
 
-  Context ctx(source_map, source, tokenizer, errors);
-
-  // Schema
-  // Comment
-  // attribute<Ttx (values: Library)>
-  // (Class | Function | __init)
+  std::unique_ptr<Ttx> ttx(new Ttx(source_map, source));
+  Context ctx(source_map, source, tokenizer, ttx->errors);
 
   // Documentation | Attributes
-  documentation = Comment::parse(ctx);
-  if (!documentation) {
-    TTX_ERROR(
-        "TTX script does not start with the required documentation comment.");
+  auto token = &ctx.current();
+  ttx->documentation = Comment::parse(ctx);
+  if (!ttx->documentation) {
+    ctx.range_error(
+        "TTX script is missing required documentation comment at start of "
+        "file.",
+        *token, ctx.current());
   }
 
   // Library Type
-  parse_header(ctx);
+  ttx->parse_header(ctx);
+
+  while (auto attribute = Attribute::parse(ctx)) {
+    // TODO: Pull out any meta data that we want.
+    ttx->config[std::string(attribute->name)] = attribute->value;
+  }
+
+  return ttx;
 }
 
 auto Ttx::parse_header(Context& ctx) -> void {
   auto token = &ctx.current();
-  switch (token->klass) {
-    case Classifier::K_library:
-      type = Type::Library;
-      break;
-    case Classifier::K_game_object:
-      type = Type::Object;
-      break;
-    default: {
-      TTX_TOKEN_FATAL("Expected TTX header type (library|game_object) but got "
-                      << klass_name(token->klass));
-      break;
-    }
-  }
+  if (ctx.check_klass(Classifier::K_library, token->klass))
+    return;
 
   token = &ctx.advance();
-  if (token->klass != Classifier::Type) {
-    TTX_TOKEN_FATAL("Expected TTX header type (library|game_object) but got "
-                    << klass_name(token->klass));
-  }
+  if (ctx.check_klass(Classifier::Type, token->klass))
+    return;
 
   name = {(char*)token->data.data(), token->data.size()};
   token = &ctx.advance();
-  if (token->klass != Classifier::EndStatement) {
-    TTX_TOKEN_FATAL("Expected " << klass_name(Classifier::EndStatement)
-                                << " but got " << klass_name(token->klass));
-  }
 
+  ctx.check_klass(Classifier::EndStatement, token->klass);
   token = &ctx.advance();
 }

@@ -10,6 +10,8 @@
 #include "parser/tokenizer.hpp"
 
 #include <memory>
+#include <string>
+#include <unordered_map>
 
 namespace Tetrodotoxin::Language::Parser {
 
@@ -21,19 +23,19 @@ class Ttx {
     std::string type;
   };
 
-  enum class Type { None, Library, Object };
-
-  Ttx(const std::string_view& source_map, const ByteView& source);
-
+  static auto parse(const std::string_view& source_map, const ByteView& source)
+      -> std::unique_ptr<Ttx>;
   inline auto get_errors() const -> const Errors& { return errors; }
 
   std::string name;
   std::optional<Comment> documentation;
+  std::unordered_map<std::string, std::string> config;
   std::optional<Init> __init;
-  Type type = Type::None;
   const std::string source_map;
 
  private:
+  Ttx(const std::string_view& source_map, const ByteView& source)
+      : source_map(source_map), source(source.begin(), source.end()) {};
   auto parse_header(Context& ctx) -> void;
 
   const Bytes source;

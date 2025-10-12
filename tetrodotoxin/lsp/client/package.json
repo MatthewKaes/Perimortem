@@ -94,6 +94,11 @@
         "description": "TTX Type"
       },
       {
+        "id": "cppA",
+        "superType": "keyword",
+        "description": "TTX Type"
+      },
+      {
         "id": "cppD",
         "superType": "keyword",
         "description": "TTX Type"
@@ -232,7 +237,7 @@
           "ttxM": { "foreground": "#ff7d85"},
           "ttxD": { "foreground": "#ff7d85"},
           "ttxL": { "foreground": "#ff7d85"},
-          "ttxA": { "foreground": "#78d14f" , "fontStyle": "italic" },
+          "ttxA": { "foreground": "#5e5e5e" , "fontStyle": "bold italic" },
           "ttxCm": { "foreground": "#8f8f8f", "fontStyle": "italic" }
         }
       },

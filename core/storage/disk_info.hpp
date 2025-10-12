@@ -57,17 +57,20 @@ constexpr std::endian file_endian = std::endian::little;
 
 // Blob Options
 enum class StorageOptions : int8_t {
+  None = -1,
   Virtualized,
   Preload,
   Streamed,
   ReadOnly,
-  _PERIMORTEM_ENABLE_BITFLAG(StorageOptions, uint8_t)
+  TOTAL_FLAGS,
 };
 
+using StorageFlags = Concepts::BitFlag<StorageOptions, uint8_t>;
+
 struct FileData {
-  StorageOptionsFlags options = StorageOptions::None;
   std::string_view path;
   ByteView data;
+  StorageFlags options = StorageOptions::None;
 };
 
 } // namespace Perimortem::Storage

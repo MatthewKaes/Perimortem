@@ -11,12 +11,12 @@
 namespace Tetrodotoxin::Language::Parser {
 
 class Attribute {
-public:
+ public:
   Attribute(std::string_view name) : name(name) {};
-  static auto parse(Context &ctx) -> std::optional<Attribute>;
+  static auto parse(Context& ctx) -> std::optional<Attribute>;
 
   std::string_view name;
   std::string_view value;
 };
 
-} // namespace Tetrodotoxin::Language::Parser
+}  // namespace Tetrodotoxin::Language::Parser

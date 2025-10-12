@@ -6,35 +6,10 @@
 #include "parser/error.hpp"
 #include "parser/tokenizer.hpp"
 
+#include <format>
 #include <memory>
 
 namespace Tetrodotoxin::Language::Parser {
-
-#define TTX_ERROR(msg)                                                         \
-  {                                                                            \
-    std::stringstream __details;                                               \
-    __details << msg << std::endl;                                             \
-    ctx.errors.push_back(Error(ctx.source_map, __details.view(), ctx.source)); \
-  }
-
-#define TTX_TOKEN_FATAL(msg)           \
-  {                                    \
-    std::stringstream __details;       \
-    __details << msg << ".";           \
-    ctx.token_error(__details.view()); \
-    return;                            \
-  }
-
-#define TTX_TOKEN_ERROR(msg)           \
-  {                                    \
-    std::stringstream __details;       \
-    __details << msg << ".";           \
-    ctx.token_error(__details.view()); \
-  }
-
-#define TTX_EXPECTED_CLASS_ERROR(expected, actual)                   \
-  TTX_TOKEN_ERROR("Expected " << klass_name(expected) << " but got " \
-                              << klass_name(actual));
 
 struct Context {
   Context(const std::string_view& source_map,
@@ -110,7 +85,21 @@ struct Context {
     return ((uint64_t)current_token - (uint64_t)start_token) / sizeof(Token);
   }
 
-  inline auto token_error(std::string_view details) const -> void {
+  inline auto check_klass(Classifier expected, Classifier actual) const
+      -> bool {
+    if (expected == actual)
+      return false;
+
+    token_error(std::format("Expected {} but got {}", klass_name(expected),
+                            klass_name(actual)));
+    return true;
+  }
+
+  inline auto generic_error(const std::string& details) const -> void {
+    errors.push_back(Error(source_map, details, source));
+  }
+
+  inline auto token_error(const std::string& details) const -> void {
     // Try to look back one token if we are at EoF.
     int32_t offset = current().klass == Classifier::EndOfStream ? 1 : 0;
     range_error(details, *(current_token - offset), *(current_token - offset),
@@ -145,8 +134,8 @@ struct Context {
         end++;
 
       line_range = std::string_view((char*)source.data() + start, end - start);
-      error_range = end_token.location.parse_index -
-                    begin_token.location.source_index;
+      error_range =
+          end_token.location.parse_index - begin_token.location.source_index;
     }
 
     errors.push_back(

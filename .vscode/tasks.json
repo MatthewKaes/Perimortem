@@ -29,12 +29,27 @@
       }
     },
     {
+      "label": "TTX LSP Install",
+      "type": "npm",
+      "script": "install",
+      "group": "build",
+      "detail": "Performs a npm install of TTX LSP dependencies.",
+      "presentation": {
+        "clear": true,
+      },
+      "options": {
+        "cwd": "${workspaceFolder}/tetrodotoxin/lsp/client/"
+      },
+      "dependsOn": "Full Build (Linux) [Debug]"
+    },
+    {
       "label": "TTX LSP Build",
       "type": "npm",
       "script": "compile",
       "group": "build",
       "detail": "Performs a build of the TTX LSP extension.",
       "presentation": {
+        "clear": true,
 				"panel": "dedicated",
 				"reveal": "never"
       },
@@ -44,7 +59,7 @@
       "options": {
         "cwd": "${workspaceFolder}/tetrodotoxin/lsp/client/"
       },
-      "dependsOn": "Full Build (Linux) [Debug]"
+      "dependsOn": "TTX LSP Install"
     }
   ]
 }

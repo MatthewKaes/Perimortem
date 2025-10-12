@@ -48,7 +48,7 @@ struct Context {
   Location loc;
   const ByteView& source;
   TokenStream& tokens;
-  TtxStateFlags options;
+  Perimortem::Concepts::BitFlag<TtxState, uint64_t> options;
 };
 
 inline auto can_parse(Context& context) -> bool {
@@ -73,11 +73,11 @@ auto parse_attribute(Context& context) -> void {
       context.loc.parse_index - context.loc.source_index - 1);
 
   // Compiler configuration
-  constexpr const char color_flag[] = "Colorize";
+  constexpr const char color_flag[] = "UseCppTheme";
   if (token.size() == sizeof(color_flag) - 1 &&
       token.data()[0] == color_flag[0] &&
       !std::memcmp(token.data(), color_flag, sizeof(color_flag) - 1)) {
-    context.options += TtxState::Colorize;
+    context.options += TtxState::CppTheme;
   }
 
   if (!token.empty())
@@ -224,9 +224,6 @@ auto parse_identifier(Context& context) -> void {
     K_SECTION(7)
     KEYWORD_RECLASS(library)
     KEYWORD_RECLASS(on_load)
-    K_END()
-    K_SECTION(11)
-    KEYWORD_RECLASS(game_object)
     K_END()
   }
 
@@ -494,7 +491,6 @@ auto Tokenizer::dump_tokens() -> std::string {
       CLASS_DUMP(K_import)
       CLASS_DUMP(K_from)
       CLASS_DUMP(K_library)
-      CLASS_DUMP(K_game_object)
       CLASS_DUMP(K_debug)
       CLASS_DUMP(K_warning)
       CLASS_DUMP(K_error)

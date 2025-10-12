@@ -59,12 +59,13 @@ TEST_F(ManagerTests, single_resource) {
   ASSERT_FALSE(std::filesystem::exists(get_disk(Path::Sector::User)));
   ASSERT_FALSE(std::filesystem::exists(get_disk(Path::Sector::Scripts)));
 
-  VirtualDiskReader res(get_disk(Path::Sector::Resource));
+  auto res = VirtualDiskReader::mount_disk(get_disk(Path::Sector::Resource));
 
-  ASSERT_EQ(res.get_files().size(), 1);
+  ASSERT_TRUE(res);
+  ASSERT_EQ(res->get_files().size(), 1);
 
-  ASSERT_EQ(res.get_files()[0].path, "test/file.txt");
-  compare_buffers(res.get_files()[0].data, raw_data);
+  ASSERT_EQ(res->get_files()[0].path, "test/file.txt");
+  compare_buffers(res->get_files()[0].data, raw_data);
 }
 
 TEST_F(ManagerTests, user_resource) {
@@ -87,15 +88,16 @@ TEST_F(ManagerTests, user_resource) {
   ASSERT_FALSE(std::filesystem::exists(get_disk(Path::Sector::Resource)));
   ASSERT_FALSE(std::filesystem::exists(get_disk(Path::Sector::Scripts)));
 
-  VirtualDiskReader usr(get_disk(Path::Sector::User));
+  auto usr = VirtualDiskReader::mount_disk(get_disk(Path::Sector::User));
 
-  ASSERT_EQ(usr.get_files().size(), 2);
+  ASSERT_TRUE(usr);
+  ASSERT_EQ(usr->get_files().size(), 2);
 
-  ASSERT_EQ(usr.get_files()[0].path, "test/file_user");
-  ASSERT_EQ(usr.get_files()[1].path, "test/file_generic");
+  ASSERT_EQ(usr->get_files()[0].path, "test/file_user");
+  ASSERT_EQ(usr->get_files()[1].path, "test/file_generic");
 
-  compare_buffers(usr.get_files()[0].data, raw_data);
-  compare_buffers(usr.get_files()[1].data, raw_data);
+  compare_buffers(usr->get_files()[0].data, raw_data);
+  compare_buffers(usr->get_files()[1].data, raw_data);
 }
 
 TEST_F(ManagerTests, recreate_resource) {
@@ -144,12 +146,13 @@ TEST_F(ManagerTests, import_file) {
   ASSERT_FALSE(std::filesystem::exists(get_disk(Path::Sector::User)));
   ASSERT_FALSE(std::filesystem::exists(get_disk(Path::Sector::Scripts)));
 
-  VirtualDiskReader usr(get_disk(Path::Sector::Resource));
+  auto res = VirtualDiskReader::mount_disk(get_disk(Path::Sector::Resource));
 
-  ASSERT_EQ(usr.get_files().size(), 1);
+  ASSERT_TRUE(res);
+  ASSERT_EQ(res->get_files().size(), 1);
 
-  ASSERT_EQ(usr.get_files()[0].path, path.get_origin());
-  ASSERT_EQ(usr.get_files()[0].data.size(), 0); // File should be on disk.
+  ASSERT_EQ(res->get_files()[0].path, path.get_origin());
+  ASSERT_EQ(res->get_files()[0].data.size(), 0); // File should be on disk.
 }
 
 TEST_F(ManagerTests, load_from_file) {

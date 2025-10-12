@@ -3,11 +3,9 @@
 
 #include "parser/ast/attribute.hpp"
 
-#include <sstream>
-
 using namespace Tetrodotoxin::Language::Parser;
 
-auto Attribute::parse(Context &ctx) -> std::optional<Attribute> {
+auto Attribute::parse(Context& ctx) -> std::optional<Attribute> {
   auto token = &ctx.current();
   if (token->klass != Classifier::Attribute)
     return std::nullopt;
@@ -27,10 +25,7 @@ auto Attribute::parse(Context &ctx) -> std::optional<Attribute> {
 
   // Didn't get any string data even though it was requested.
   if (token->klass != Classifier::String) {
-    std::stringstream details;
-    details << "Attribute " << attribute.name << " expected a String but got "
-            << klass_name(token->klass) << " '" << token->to_string() << "'";
-    ctx.range_error(details.view(), *token, *start_token, *token);
+    ctx.range_error(std::format("TTX Script Attribute @{} expected a String after `=` but got {}", attribute.name, klass_name(token->klass)), *token, *start_token, *token);
     ctx.advance();
     return std::nullopt;
   }

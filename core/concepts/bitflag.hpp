@@ -1,20 +1,43 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
+//
+// A generalized Bit Flag concept that enables wrapping any type that support
+// that supports bit like opperations and can be stored into a storage type.
+/*
+  The classic usage is for enum classes, however you can use a struct or class
+  which implements taking in the type and converting it to a bit position in a
+  unique and stable way.
+
+  Example usage with enum Class:
+
+  // File optoins
+  enum class StorageOptions : uint8_t {
+    None = -1,
+    Preload,
+    Stream,
+    Compress,
+    TOTAL_FLAGS,
+  };
+
+  Here you can use StorageOptions::None for empty flag set.
+*/
+
 #pragma once
 
 #include <cstdint>
 #include <type_traits>
 #include <utility>
 
-// Example usage:
+// Example usag with enum Class:
 //
 // // File optoins
 // enum class StorageOptions : uint8_t {
+//   None = -1,
 //   Preload,
 //   Stream,
 //   Compress,
-//   _PERIMORTEM_ENABLE_BITFLAG(StorageOptions)
+//   TOTAL_FLAGS,
 // };
 //
 // use StorageOptions::None for empty flag set.
@@ -30,22 +53,69 @@ concept flag_storage_supported =
 
 template <class T, typename S>
 concept marked_byte_flag =
-    std::conditional_t<static_cast<S>(T::_ENABLE_BITFLAG) ==
-                           static_cast<S>(-37),
-                       std::true_type,
-                       std::false_type>::type::value &&
     std::conditional_t<static_cast<S>(T::None) == static_cast<S>(-1),
                        std::true_type,
                        std::false_type>::type::value &&
-    std::conditional_t<static_cast<S>(T::_MAX_BITFLAG) <= sizeof(S) * 8,
+    std::conditional_t<(static_cast<S>(T::TOTAL_FLAGS) <= sizeof(S) * 8),
+                       std::true_type,
+                       std::false_type>::type::value;
+
+template <class T>
+concept uses_uint8_t_stroage =
+    std::conditional_t<static_cast<uint16_t>(T::None) == static_cast<uint16_t>(-1),
+                       std::true_type,
+                       std::false_type>::type::value &&
+    std::conditional_t<(static_cast<uint16_t>(T::TOTAL_FLAGS) <= sizeof(uint8_t) * 8),
+                       std::true_type,
+                       std::false_type>::type::value;
+
+template <class T>
+concept uses_uint16_t_stroage =
+    std::conditional_t<static_cast<uint16_t>(T::None) == static_cast<uint16_t>(-1),
+                       std::true_type,
+                       std::false_type>::type::value &&
+    std::conditional_t<(static_cast<uint16_t>(T::TOTAL_FLAGS) > sizeof(uint8_t) * 8),
+                       std::true_type,
+                       std::false_type>::type::value &&
+    std::conditional_t<(static_cast<uint16_t>(T::TOTAL_FLAGS) <= sizeof(uint16_t) * 8),
+                       std::true_type,
+                       std::false_type>::type::value;
+
+template <class T>
+concept uses_uint32_t_stroage =
+    std::conditional_t<static_cast<uint16_t>(T::None) == static_cast<uint16_t>(-1),
+                       std::true_type,
+                       std::false_type>::type::value &&
+    std::conditional_t<(static_cast<uint16_t>(T::TOTAL_FLAGS) > sizeof(uint16_t) * 8),
+                       std::true_type,
+                       std::false_type>::type::value &&
+    std::conditional_t<(static_cast<uint16_t>(T::TOTAL_FLAGS) <= sizeof(uint32_t) * 8),
+                       std::true_type,
+                       std::false_type>::type::value;
+
+template <class T>
+concept uses_uint64_t_stroage =
+    std::conditional_t<static_cast<uint16_t>(T::None) == static_cast<uint16_t>(-1),
+                       std::true_type,
+                       std::false_type>::type::value &&
+    std::conditional_t<(static_cast<uint16_t>(T::TOTAL_FLAGS) > sizeof(uint32_t) * 8),
+                       std::true_type,
+                       std::false_type>::type::value &&
+    std::conditional_t<(static_cast<uint16_t>(T::TOTAL_FLAGS) <= sizeof(uint64_t) * 8),
                        std::true_type,
                        std::false_type>::type::value;
 
 template <typename flag_source, typename storage_type>
-  requires std::is_scoped_enum_v<flag_source> &&
-           flag_storage_supported<storage_type> &&
+  requires flag_storage_supported<storage_type> &&
            marked_byte_flag<flag_source, storage_type>
 class BitFlag {
+  static_assert(Perimortem::Concepts::flag_storage_supported<storage_type>,
+                "Not the correct storage type. Valid types=uint8_t, "
+                "uint16_t, uint32_t, uint64_t");
+  static_assert(
+      static_cast<uint64_t>(flag_source::TOTAL_FLAGS) <= sizeof(storage_type) * 8,
+      "Bit flag contains more flags than it does bits! Use a larger storage size.");
+
  public:
   static constexpr uint8_t storage_size = sizeof(storage_type);
 
@@ -144,25 +214,64 @@ class BitFlag {
 
 }  // namespace Perimortem::Concepts
 
-#define _PERIMORTEM_ENABLE_BITFLAG(e, storage)                                \
-  _MAX_BITFLAG, None = static_cast<std::underlying_type_t<e>>(-1),            \
-                _ENABLE_BITFLAG = static_cast<std::underlying_type_t<e>>(-37) \
-  }                                                                           \
-  ;                                                                           \
-  static_assert(Perimortem::Concepts::flag_storage_supported<storage>,        \
-                "Not the correct storage type. Valid types=uint8_t, "         \
-                "uint16_t, uint32_t, uint64_t");                              \
-  static_assert(                                                              \
-      static_cast<size_t>(e::_MAX_BITFLAG) <= sizeof(storage) * 8,            \
-      "Bit flag <enum class" #e                                               \
-      "> contains more flags than it does bits! Use a larger storage size."); \
-  using e##Flags = Perimortem::Concepts::BitFlag<e, storage>;                 \
-  inline Perimortem::Concepts::BitFlag<e, storage> operator|(e lhs, e rhs) {  \
-    return Perimortem::Concepts::BitFlag<e, storage>(lhs) |                   \
-           Perimortem::Concepts::BitFlag<e, storage>(rhs);                    \
-  }                                                                           \
-  inline Perimortem::Concepts::BitFlag<e, storage> operator&(e lhs, e rhs) {  \
-    return Perimortem::Concepts::BitFlag<e, storage>(lhs) &                   \
-           Perimortem::Concepts::BitFlag<e, storage>(rhs);                    \
-  }                                                                           \
-  namespace {  // Empty namespace to capture the closing }
+//
+// Globally overloaded | operator for supporting types.
+//
+template <typename flag_source>
+requires Perimortem::Concepts::uses_uint8_t_stroage<flag_source>
+inline Perimortem::Concepts::BitFlag<flag_source, uint8_t> operator|(flag_source lhs, flag_source rhs) {
+  return Perimortem::Concepts::BitFlag<flag_source, uint8_t>(lhs) |
+         Perimortem::Concepts::BitFlag<flag_source, uint8_t>(rhs);
+}
+
+template <typename flag_source>
+requires Perimortem::Concepts::uses_uint16_t_stroage<flag_source>
+inline Perimortem::Concepts::BitFlag<flag_source, uint16_t> operator|(flag_source lhs, flag_source rhs) {
+  return Perimortem::Concepts::BitFlag<flag_source, uint16_t>(lhs) |
+         Perimortem::Concepts::BitFlag<flag_source, uint16_t>(rhs);
+}
+
+template <typename flag_source>
+requires Perimortem::Concepts::uses_uint32_t_stroage<flag_source>
+inline Perimortem::Concepts::BitFlag<flag_source, uint32_t> operator|(flag_source lhs, flag_source rhs) {
+  return Perimortem::Concepts::BitFlag<flag_source, uint32_t>(lhs) |
+         Perimortem::Concepts::BitFlag<flag_source, uint32_t>(rhs);
+}
+
+template <typename flag_source>
+requires Perimortem::Concepts::uses_uint64_t_stroage<flag_source>
+inline Perimortem::Concepts::BitFlag<flag_source, uint64_t> operator|(flag_source lhs, flag_source rhs) {
+  return Perimortem::Concepts::BitFlag<flag_source, uint64_t>(lhs) |
+         Perimortem::Concepts::BitFlag<flag_source, uint64_t>(rhs);
+}
+
+//
+// Globally overloaded & operator for supporting types.
+//
+template <typename flag_source>
+requires Perimortem::Concepts::uses_uint8_t_stroage<flag_source>
+inline Perimortem::Concepts::BitFlag<flag_source, uint8_t> operator&(flag_source lhs, flag_source rhs) {
+  return Perimortem::Concepts::BitFlag<flag_source, uint8_t>(lhs) &
+         Perimortem::Concepts::BitFlag<flag_source, uint8_t>(rhs);
+}
+
+template <typename flag_source>
+requires Perimortem::Concepts::uses_uint16_t_stroage<flag_source>
+inline Perimortem::Concepts::BitFlag<flag_source, uint16_t> operator&(flag_source lhs, flag_source rhs) {
+  return Perimortem::Concepts::BitFlag<flag_source, uint16_t>(lhs) &
+         Perimortem::Concepts::BitFlag<flag_source, uint16_t>(rhs);
+}
+
+template <typename flag_source>
+requires Perimortem::Concepts::uses_uint32_t_stroage<flag_source>
+inline Perimortem::Concepts::BitFlag<flag_source, uint32_t> operator&(flag_source lhs, flag_source rhs) {
+  return Perimortem::Concepts::BitFlag<flag_source, uint32_t>(lhs) &
+         Perimortem::Concepts::BitFlag<flag_source, uint32_t>(rhs);
+}
+
+template <typename flag_source>
+requires Perimortem::Concepts::uses_uint64_t_stroage<flag_source>
+inline Perimortem::Concepts::BitFlag<flag_source, uint64_t> operator&(flag_source lhs, flag_source rhs) {
+  return Perimortem::Concepts::BitFlag<flag_source, uint64_t>(lhs) &
+         Perimortem::Concepts::BitFlag<flag_source, uint64_t>(rhs);
+}

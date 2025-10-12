@@ -3,8 +3,6 @@
 
 #include "parser/ast/comment.hpp"
 
-#include <sstream>
-
 using namespace Tetrodotoxin::Language::Parser;
 
 auto Comment::parse(Context& ctx) -> std::optional<Comment> {

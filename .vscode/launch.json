@@ -22,7 +22,24 @@
         }
     },
     {
-      "name": "Tests (Linux)",
+      "name": "[Tests] Core (Linux)",
+      "type": "lldb",
+      "request": "launch",
+      "program": "${workspaceFolder}/.bin/bin/core/tests",
+      "args": [ ],
+      "cwd": "${workspaceFolder}",
+      // Why are you like this VSCode???
+      "sourceMap": { 
+        "/proc/self/cwd/external/": "${workspaceFolder}/.bin/Perimortem/external/",
+        "/proc/self/cwd/": "${workspaceFolder}"
+      },
+      "preLaunchTask": "Full Build (Linux) [Debug]",
+      "presentation": {
+          "clear": true
+      }
+    },
+    {
+      "name": "[Tests] TTX (Linux)",
       "type": "lldb",
       "request": "launch",
       "program": "${workspaceFolder}/.bin/bin/tetrodotoxin/tests",
@@ -39,7 +56,7 @@
       }
     },
 		{
-			"name": "Launch TTX client",
+			"name": "[LSP] Launch TTX client",
 			"type": "extensionHost",
 			"request": "launch",
 			"runtimeExecutable": "${execPath}",

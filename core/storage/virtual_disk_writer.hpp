@@ -22,7 +22,7 @@ public:
 
   // Populating Disk
   auto write_resource(const std::string_view &path, const Byte *data,
-                      const SizeBlock size, StorageOptionsFlags flags) -> void;
+                      const SizeBlock size, StorageFlags flags) -> void;
 
   // Write the actual virtual disk
   auto write_disk(const std::filesystem::path &path) -> bool;

@@ -64,7 +64,7 @@ protected:
     std::filesystem::path p = "core/storage/tests/disks/";
     p /= ::testing::UnitTest::GetInstance()->current_test_info()->name();
     p.replace_extension(virutal_disk_extension);
-    reader = std::make_unique<VirtualDiskReader>(p);
+    reader = VirtualDiskReader::mount_disk(p);
   }
 
   virtual void TearDown() {

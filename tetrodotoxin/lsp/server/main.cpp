@@ -30,8 +30,7 @@ auto lsp_tokens(Tetrodotoxin::Language::Parser::Tokenizer& tokenizer,
                 int32_t id) -> std::string {
   Tetrodotoxin::Language::Parser::ClassifierFlags library_types =
       Tetrodotoxin::Language::Parser::Classifier::K_import |
-      Tetrodotoxin::Language::Parser::Classifier::K_library |
-      Tetrodotoxin::Language::Parser::Classifier::K_game_object;
+      Tetrodotoxin::Language::Parser::Classifier::K_library;
   std::unordered_set<std::string_view> imports;
   std::unordered_set<std::string_view> parameters;
   int scopes = 0;
@@ -40,8 +39,8 @@ auto lsp_tokens(Tetrodotoxin::Language::Parser::Tokenizer& tokenizer,
   // Assume basic jsonrpc 2.0 simplified header is enough.
   info_stream << "{\"jsonrpc\":" << jsonrpc << ",\"id\":" << id
               << ",\"result\":{\"color\":"
-              << tokenizer.get_options().has(
-                     Tetrodotoxin::Language::Parser::TtxState::Colorize)
+              << !tokenizer.get_options().has(
+                     Tetrodotoxin::Language::Parser::TtxState::CppTheme)
               << ",\"tokens\":[";
 
   const auto& tokens = tokenizer.get_tokens();
@@ -116,7 +115,6 @@ auto lsp_tokens(Tetrodotoxin::Language::Parser::Tokenizer& tokenizer,
         LSP_REDEFINE(L, K_import)
         LSP_REDEFINE(L, K_from)
         LSP_REDEFINE(L, K_library)
-        LSP_REDEFINE(L, K_game_object)
         LSP_REDEFINE(K, K_debug)
         LSP_REDEFINE(K, K_warning)
         LSP_REDEFINE(K, K_error)
@@ -175,8 +173,7 @@ auto lsp_tokens(Tetrodotoxin::Language::Parser::Tokenizer& tokenizer,
         break;
       case Tetrodotoxin::Language::Parser::Classifier::EndOfStream:
       case Tetrodotoxin::Language::Parser::Classifier::None:
-      case Tetrodotoxin::Language::Parser::Classifier::_MAX_BITFLAG:
-      case Tetrodotoxin::Language::Parser::Classifier::_ENABLE_BITFLAG:
+      case Tetrodotoxin::Language::Parser::Classifier::TOTAL_FLAGS:
         continue;
     }
 

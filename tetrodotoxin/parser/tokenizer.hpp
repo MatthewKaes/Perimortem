@@ -15,10 +15,12 @@ namespace Tetrodotoxin::Language::Parser {
 // If the ByteView source is destroyed then the parser itself no longer has a
 // meaningful frame of reference and will cause memory errors.
 enum class TtxState : int8_t {
-  Colorize,
+  None = -1, // Always the first flag for validating.
+
+  CppTheme,
   ParamTokenizing,
 
-  _PERIMORTEM_ENABLE_BITFLAG(TtxState, uint8_t)
+  TOTAL_FLAGS,  // Always the last flag for validating.
 };
 
 class Tokenizer {
@@ -29,7 +31,8 @@ class Tokenizer {
     return tokens;
   };
 
-  inline constexpr auto get_options() const -> const TtxStateFlags {
+  inline constexpr auto get_options() const
+      -> const Perimortem::Concepts::BitFlag<TtxState, uint64_t> {
     return options;
   };
 
@@ -41,7 +44,7 @@ class Tokenizer {
  private:
   // Output artifacts
   TokenStream tokens;
-  TtxStateFlags options;
+  Perimortem::Concepts::BitFlag<TtxState, uint64_t> options;
 };
 
 }  // namespace Tetrodotoxin::Language::Parser

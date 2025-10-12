@@ -2,12 +2,12 @@
 // A basic class for testing parsing
 //
 library Rectangle; // The top type for the file that is exported.
-@Colorize
+// @UseCppTheme
 
 // Importing the top type from another file.
 // Top types are always constant references and can not be new-ed
 // even though they live on the heap. (they are singletons).
-import Empty from "./Empty.ttx";
+import Empty from "Empty.ttx";
 
 // Constant object - Must be a Stack type and foldable.
 // Generally all keywords and types are this. You generally should have

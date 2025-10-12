@@ -13,7 +13,7 @@
 using namespace Perimortem::Storage;
 using namespace Perimortem::Resource;
 
-auto get_time(const std::filesystem::path &p) -> Resource::Time {
+auto get_time(const std::filesystem::path& p) -> Resource::Time {
   if (std::filesystem::exists(p))
     return std::filesystem::last_write_time(p).time_since_epoch().count();
 
@@ -29,7 +29,7 @@ auto Resource::read_content() const -> const ByteView {
   return source;
 }
 
-auto Resource::write_content(const Bytes &&data) -> void {
+auto Resource::write_content(const Bytes&& data) -> void {
   if (flags == StorageOptions::ReadOnly) {
     return;
   }
@@ -40,7 +40,7 @@ auto Resource::write_content(const Bytes &&data) -> void {
   time = std::chrono::file_clock::now().time_since_epoch().count();
 }
 
-Manager::Manager(const std::filesystem::path &data_root_) {
+Manager::Manager(const std::filesystem::path& data_root_) {
   data_root = data_root_;
 
   // Load script virtual disk if it exists.
@@ -48,16 +48,15 @@ Manager::Manager(const std::filesystem::path &data_root_) {
   for (int i = 0; i < Path::logical_disks.size(); i++) {
     std::filesystem::path sector_disk = data_root / Path::logical_disks[i];
     sector_disk.replace_extension(virutal_disk_extension);
-    sectors[i].create(sector_disk);
 
     // No disk exists for this sector.
-    if (!sectors[i].reader)
+    if (!sectors[i].create(sector_disk))
       continue;
 
-    for (const auto &file : sectors[i].reader->get_files()) {
+    for (const auto& file : sectors[i].reader->get_files()) {
       Path p = Path(static_cast<Path::Sector>(i), file.path);
       directory.insert({p, std::make_unique<Resource>(Resource())});
-      auto &res = directory.at(p);
+      auto& res = directory.at(p);
       res->content.clear();
       res->flags = file.options;
       res->dirty = false;
@@ -81,20 +80,22 @@ Manager::~Manager() {
 #endif
 }
 
-auto Manager::lookup(const Path &p) -> Resource * {
+auto Manager::lookup(const Path& p) -> Resource* {
   // Unknown file
   if (!exists(p))
     return nullptr;
 
   // Manage ondemand files.
-  auto &res = *directory.at(p);
+  auto& res = *directory.at(p);
   load_file(p, res);
   return directory.at(p).get();
 }
 
-auto Manager::exists(const Path &p) -> bool { return directory.contains(p); }
+auto Manager::exists(const Path& p) -> bool {
+  return directory.contains(p);
+}
 
-auto Manager::move(const Path &src, const Path &dest) -> bool {
+auto Manager::move(const Path& src, const Path& dest) -> bool {
   if (src == dest)
     return false;
 
@@ -107,7 +108,7 @@ auto Manager::move(const Path &src, const Path &dest) -> bool {
   auto handle = directory.extract(src);
   handle.key() = dest;
   directory.insert(std::move(handle));
-  auto &res = *directory.at(dest);
+  auto& res = *directory.at(dest);
   res.time = std::chrono::file_clock::now().time_since_epoch().count();
 
   if (res.flags != StorageOptions::Virtualized) {
@@ -123,7 +124,7 @@ auto Manager::move(const Path &src, const Path &dest) -> bool {
   return true;
 }
 
-auto Manager::copy(const Path &src, const Path &dest) -> bool {
+auto Manager::copy(const Path& src, const Path& dest) -> bool {
   if (src == dest)
     return false;
 
@@ -133,10 +134,11 @@ auto Manager::copy(const Path &src, const Path &dest) -> bool {
   if (exists(dest))
     return false;
 
-  auto &res = *directory.at(src);
+  auto& res = *directory.at(src);
   load_file(src, res);
   directory.insert({dest, res.clone()});
-  directory.at(dest)->time = std::chrono::file_clock::now().time_since_epoch().count();
+  directory.at(dest)->time =
+      std::chrono::file_clock::now().time_since_epoch().count();
 
   if (res.flags != StorageOptions::Virtualized) {
     std::filesystem::path origin_src = data_root / src.get_path();
@@ -150,7 +152,7 @@ auto Manager::copy(const Path &src, const Path &dest) -> bool {
   return true;
 }
 
-auto Manager::remove(const Path &p) -> bool {
+auto Manager::remove(const Path& p) -> bool {
   if (!exists(p))
     return false;
 
@@ -166,13 +168,13 @@ auto Manager::remove(const Path &p) -> bool {
   return true;
 }
 
-auto Manager::create(const Path &p, Bytes &&data, StorageOptionsFlags options)
-    -> Resource * {
+auto Manager::create(const Path& p, Bytes&& data, StorageFlags options)
+    -> Resource* {
   if (directory.contains(p))
     return nullptr;
 
   directory.insert({p, std::make_unique<Resource>(Resource())});
-  auto &res = directory.at(p);
+  auto& res = directory.at(p);
   res->content = std::move(data);
   res->time = std::chrono::file_clock::now().time_since_epoch().count();
   res->flags = options;
@@ -183,8 +185,9 @@ auto Manager::create(const Path &p, Bytes &&data, StorageOptionsFlags options)
   return directory.at(p).get();
 }
 
-auto Manager::import(const Path &p, std::filesystem::path src,
-                     StorageOptionsFlags options) -> Resource * {
+auto Manager::import(const Path& p,
+                     std::filesystem::path src,
+                     StorageFlags options) -> Resource* {
   if (directory.contains(p))
     return nullptr;
 
@@ -206,7 +209,7 @@ auto Manager::import(const Path &p, std::filesystem::path src,
 
   // New data
   directory.insert({p, std::make_unique<Resource>(Resource())});
-  auto &res = directory.at(p);
+  auto& res = directory.at(p);
   res->content.clear();
   res->content.reserve(length);
   res->flags = options;
@@ -219,11 +222,11 @@ auto Manager::import(const Path &p, std::filesystem::path src,
   return res.get();
 }
 
-auto Manager::config(const Path &p, StorageOptionsFlags options) -> bool {
+auto Manager::config(const Path& p, StorageFlags options) -> bool {
   if (!directory.contains(p))
     return false;
 
-  auto &res = directory.at(p);
+  auto& res = directory.at(p);
   res->flags = options;
 
   load_file(p, *res);
@@ -240,7 +243,7 @@ auto Manager::config(Path::Sector sector, Storage::DiskType type) -> bool {
   return true;
 }
 
-auto Manager::load_file(const Path &p, Resource &res) -> void {
+auto Manager::load_file(const Path& p, Resource& res) -> void {
   // Nothing to do.
   if (res.is_virtual())
     return;
@@ -250,7 +253,7 @@ auto Manager::load_file(const Path &p, Resource &res) -> void {
       return;
 
     // The file requested streaming but we don't have a disk to load it from.
-    auto &disk = sectors[(int)p.get_sector()].reader;
+    auto& disk = sectors[(int)p.get_sector()].reader;
     if (!disk) {
       // TODO: Error handling
       __builtin_debugtrap();
@@ -306,7 +309,7 @@ auto Manager::load_file(const Path &p, Resource &res) -> void {
   res.dirty = false;
 }
 
-auto Manager::flush_file(const Path &p) -> void {
+auto Manager::flush_file(const Path& p) -> void {
   if (!exists(p))
     return;
 
@@ -314,8 +317,8 @@ auto Manager::flush_file(const Path &p) -> void {
   // - It's virtual
   // - It has no changes (save disk writes)
   // - The file was never loaded (don't wipe the file)
-  auto &res = *directory.at(p);
-  const auto &bytes = res.read_content();
+  auto& res = *directory.at(p);
+  const auto& bytes = res.read_content();
   std::filesystem::path origin =
       data_root / std::filesystem::path(p.get_path());
   if (res.is_virtual() || !res.dirty || !res.loaded) {
@@ -337,14 +340,14 @@ auto Manager::flush_file(const Path &p) -> void {
     __builtin_debugtrap();
   }
 
-  source_stream.write((const char *)bytes.data(), bytes.size() * sizeof(Byte));
-  res.dirty = false; // Data is now flushed
+  source_stream.write((const char*)bytes.data(), bytes.size() * sizeof(Byte));
+  res.dirty = false;  // Data is now flushed
 }
 
 auto Manager::flush_changes() -> void {
   // If we are only referencing a file on disk and have a change of it in
   // memory then we can flush it out to disk. Useful for save files.
-  for (const auto &entry : directory)
+  for (const auto& entry : directory)
     flush_file(entry.first);
 
   // Number of virtualized tables
@@ -354,14 +357,14 @@ auto Manager::flush_changes() -> void {
   }
 
   bool has_data[Path::sector_count] = {false};
-  for (const auto &entry : directory) {
+  for (const auto& entry : directory) {
     has_data[(int)entry.first.get_sector()] = true;
 
     auto content = ByteView();
     if (entry.second->is_virtual())
       content = entry.second->read_content();
 
-    VirtualDiskWriter &table = vtables[(int32_t)entry.first.get_sector()];
+    VirtualDiskWriter& table = vtables[(int32_t)entry.first.get_sector()];
     table.write_resource(entry.first.get_origin(), content.data(),
                          content.size(), entry.second->flags);
   }
@@ -372,4 +375,20 @@ auto Manager::flush_changes() -> void {
       vtables[i].write_disk(data_root / Path::logical_disks[i]);
     }
   }
+}
+
+auto Manager::SectorData::create(const std::filesystem::path& autogenetic)
+    -> bool {
+  type = DiskType::Standard;
+  if (!std::filesystem::is_regular_file(autogenetic))
+    return false;
+
+  reader = Storage::VirtualDiskReader::mount_disk(autogenetic);
+
+  // provided a file
+  if (!reader)
+    return false;
+
+  type = reader->get_format();
+  return true;
 }

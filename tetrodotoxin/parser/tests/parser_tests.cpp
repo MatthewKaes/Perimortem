@@ -17,7 +17,7 @@
 #define ERROR_TEST(count)              \
   EXPECT_EQ(ctx.errors.size(), count); \
   for (const auto& err : ctx.errors) { \
-    std::cout << err.msg;              \
+    std::cout << err.get_message();    \
   }                                    \
   errors.clear();
 #else
@@ -25,7 +25,7 @@
   EXPECT_EQ(ctx.errors.size(), count);   \
   if (ctx.errors.size() != count) {      \
     for (const auto& err : ctx.errors) { \
-      std::cout << err.msg;              \
+      std::cout << err.get_message();    \
     }                                    \
   }                                      \
   errors.clear();
@@ -44,25 +44,24 @@ auto source_to_bytes(const char* source) -> ByteView;
 
 // Demonstrate some basic assertions.
 TEST_F(ParserTests, empty) {
-  Ttx ttx("<empty>", source_to_bytes(""));
-  EXPECT_EQ(ttx.get_errors().size(), 2);
+  auto ttx = Ttx::parse("<empty>", source_to_bytes(""));
+  EXPECT_EQ(ttx->get_errors().size(), 2);
 }
 
 // Demonstrate some basic assertions.
 TEST_F(ParserTests, simple_ttx) {
   auto bytes = read_all_bytes("tetrodotoxin/parser/tests/scripts/simple.ttx");
-  Ttx ttx("tetrodotoxin/parser/tests/scripts/simple.ttx", bytes);
-  EXPECT_EQ(ttx.get_errors().size(), 0);
+  auto ttx = Ttx::parse("tetrodotoxin/parser/tests/scripts/simple.ttx", bytes);
+  EXPECT_EQ(ttx->get_errors().size(), 0);
 
   // Output any errors
-  for (const auto& err : ttx.get_errors()) {
-    std::cout << err.msg;
+  for (const auto& err : ttx->get_errors()) {
+    std::cout << err.get_message();
   }
 
-  ASSERT_TRUE(ttx.documentation);
-  EXPECT_EQ(ttx.documentation->body, "A basic class for testing parsing");
-  EXPECT_EQ(ttx.type, Ttx::Type::Library);
-  EXPECT_EQ(ttx.name, "Test");
+  ASSERT_TRUE(ttx->documentation);
+  EXPECT_EQ(ttx->documentation->body, "A basic class for testing parsing");
+  EXPECT_EQ(ttx->name, "Test");
 }
 
 #define TYPE_TEST(type_name, base)                    \
@@ -72,7 +71,7 @@ TEST_F(ParserTests, simple_ttx) {
   EXPECT_EQ(ctx.errors.size(), 0);                    \
   EXPECT_FALSE(type->parameters);                     \
   EXPECT_EQ(type->handler, Type::Handler::type_name); \
-  EXPECT_##base(Type::uses_stack(type->handler));        \
+  EXPECT_##base(Type::uses_stack(type->handler));     \
   errors.clear();
 
 TEST_F(ParserTests, type_base) {
@@ -211,7 +210,7 @@ TEST_F(ParserTests, type_dict) {
   ASSERT_TRUE(type->parameters);
   ASSERT_TRUE(type->parameters->size() == 2);
   EXPECT_EQ(type->parameters->at(0).handler, Type::Handler::Int);
-  EXPECT_EQ(type->parameters->at(1).handler, Type::Handler::List);
+  ASSERT_EQ(type->parameters->at(1).handler, Type::Handler::List);
   EXPECT_EQ(type->parameters->at(1).parameters->at(0).handler,
             Type::Handler::Defined);
   EXPECT_EQ(type->parameters->at(1).parameters->at(0).name, "Value");
