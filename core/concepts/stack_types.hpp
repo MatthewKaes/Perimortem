@@ -64,34 +64,4 @@ constexpr uint64_t array_size(T (&)[N]) {
   return N;
 }
 
-// Gets the largest power of 2 stride we can take without overshooting
-// the bounds of an array. Only goes up to 8 as anything beyond has
-// diminishing returns for Perimortem usecases.
-inline static constexpr uint8_t radix_stride(uint64_t value) {
-  constexpr const uint8_t max_bit = 4;
-  constexpr const uint8_t test_count = max_bit - 1;
-
-  uint8_t radix_count = 0;
-  while (radix_count < test_count) {
-    if ((value & (1 << radix_count)) != 0)
-      break;
-
-    radix_count++;
-  }
-
-  return 1 << radix_count;
-}
-
-// Simple test to ensure it's working but also as self documentation.
-static_assert(radix_stride(0) == 8);
-static_assert(radix_stride(1) == 1);
-static_assert(radix_stride(2) == 2);
-static_assert(radix_stride(3) == 1);
-static_assert(radix_stride(4) == 4);
-static_assert(radix_stride(5) == 1);
-static_assert(radix_stride(6) == 2);
-static_assert(radix_stride(7) == 1);
-static_assert(radix_stride(8) == 8);
-static_assert(radix_stride(9) == 1);
-
 }  // namespace Perimortem::Concepts

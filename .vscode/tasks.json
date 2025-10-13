@@ -29,6 +29,31 @@
       }
     },
     {
+      "label": "Full Build (Linux) [Release]",
+      "type": "shell",
+      "command": "bazel",
+      "problemMatcher": [
+        "$gcc"
+      ],
+      "args": [
+        "build",
+        "...",
+        "-c",
+        "opt", // Need to split to as VSCode will wrap it.
+        "--copt=\"-fdiagnostics-color=always\"",
+        "--copt=\"-O2\"",
+        "--copt=\"-DNDEBUG\""
+      ],
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "detail": "Performs a full Bazel build of the Platform.",
+      "presentation": {
+        "clear": true
+      }
+    },
+    {
       "label": "TTX LSP Install",
       "type": "npm",
       "script": "install",
