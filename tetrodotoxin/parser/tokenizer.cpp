@@ -157,61 +157,42 @@ auto parse_type(Context& context) -> void {
   context.loc.column += context.loc.parse_index - context.loc.source_index;
 }
 
-constexpr auto classify_keyword(const ByteView& view, Classifier original)
+namespace KeywordTable {
+using value_type = Classifier;
+constexpr auto sparse_factor = 120;
+constexpr auto seed = 5793162292815167211UL;
+constexpr TablePair<const char*, value_type> data[] = {
+    make_pair("if", Classifier::If),
+    make_pair("else", Classifier::Else),
+    make_pair("for", Classifier::For),
+    make_pair("while", Classifier::While),
+    make_pair("return", Classifier::Return),
+    make_pair("func", Classifier::FuncDef),
+    make_pair("type", Classifier::TypeDef),
+    make_pair("this", Classifier::This),
+    make_pair("from", Classifier::From),
+    make_pair("true", Classifier::True),
+    make_pair("false", Classifier::False),
+    make_pair("new", Classifier::New),
+    make_pair("init", Classifier::Init),
+    make_pair("package", Classifier::Package),
+    make_pair("requires", Classifier::Requires),
+    make_pair("debug", Classifier::Debug),
+    make_pair("error", Classifier::Error),
+};
 
-    -> Classifier {
-  // constexpr std::unordered_map
+// constexpr auto search_result =
+//     SeedFinder<255, Classifier, array_size(able), table,
+//     sparse_factor, seed, false >::candidate_search();
 
-  // switch (view.size()) {
-  //   case 2: {
-  //     constexpr uint8_t valid_size = 2 + 1;
-  //     if (keyword_test<valid_size + 1>(view, "if"))
-  //       return Classifier::K_if;
-  //   } break;
+using lookup =
+    SparseLookupTable<value_type, array_size(data), data, sparse_factor, seed>;
 
-  //   case 3: {
-  //     if (keyword_test(view, "if"))
-  //       return Classifier::K_if;
-  //   } break;
-  //     K_SECTION(2)
-  //     KEYWORD_RECLASS(if)
-  //     K_END()
-  //     K_SECTION(3)
-  //   KEYWORD_RECLASS(for)
-  //   KEYWORD_RECLASS(new)
-  //   K_END()
-  //   K_SECTION(4)
-  //   KEYWORD_RECLASS(else)
-  //   KEYWORD_RECLASS(from)
-  //   KEYWORD_RECLASS(true)
-  //   static_assert(sizeof("func") - 1 == section_bytes);
-  //   if (view.data()[0] == "func"[0] &&
-  //       !std::memcmp(view.data(), "func", sizeof("func") - 1)) {
-  //     klass = Classifier::K_func;
-  //     context.options += TtxState::ParamTokenizing;  // enable function
-  //     parsing break;
-  //   }
-  //   KEYWORD_RECLASS(type)
-  //   KEYWORD_RECLASS(init)
-  //   KEYWORD_RECLASS(this)
-  //   K_END()
-  //   K_SECTION(5)
-  //   KEYWORD_RECLASS(false)
-  //   KEYWORD_RECLASS(error)
-  //   KEYWORD_RECLASS(debug)
-  //   K_END()
-  //   K_SECTION(6)
-  //   KEYWORD_RECLASS(return)
-  //   KEYWORD_RECLASS(import)
-  //   K_END()
-  //   K_SECTION(7)
-  //   KEYWORD_RECLASS(package)
-  //   KEYWORD_RECLASS(on_load)
-  //   K_END()
-  // }
-
-  return original;
-}
+static_assert(lookup::has_perfect_hash());
+static_assert(sizeof(lookup::sparse_table) <= 512,
+              "Ideally keyword sparse table would be less than 512 bytes. "
+              "Try to find a smaller size.");
+}  // namespace KeywordTable
 
 auto parse_identifier(Context& context) -> void {
   // Eat any unknown tokens including whitespace
@@ -221,10 +202,6 @@ auto parse_identifier(Context& context) -> void {
     return;
   }
 
-  // Can't be a number since that's handle in the main switch.
-  Classifier klass = context.options.has(TtxState::ParamTokenizing)
-                         ? Classifier::Parameter
-                         : Classifier::Identifier;
   while (is_identifier(peak_ahead(context, 1)))
     context.loc.parse_index++;
 
@@ -233,6 +210,14 @@ auto parse_identifier(Context& context) -> void {
   const auto view = context.source.subspan(
       context.loc.source_index,
       context.loc.parse_index - context.loc.source_index);
+
+  // Can't be a number since that's handle in the main switch.
+  Classifier klass = context.options.has(TtxState::ParamTokenizing)
+                         ? Classifier::Parameter
+                         : Classifier::Identifier;
+  // Check if we need to reclass as a keyword.
+  klass = KeywordTable::lookup::find_or_default((char*)view.data(), view.size(),
+                                                klass);
 
   context.tokens.push_back({klass, view, context.loc});
   context.loc.column += context.loc.parse_index - context.loc.source_index;

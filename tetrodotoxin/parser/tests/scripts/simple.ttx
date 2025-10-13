@@ -1,7 +1,7 @@
 //
 // A basic class for testing parsing
 //
-library Test;
+package Test;
 
 __init {
   debug(7 + 1);

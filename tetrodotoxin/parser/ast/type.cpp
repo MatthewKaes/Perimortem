@@ -15,7 +15,8 @@ auto Type::parse(Context& ctx) -> std::optional<Type> {
 
   Type type;
   type.name = start_token->to_string();
-  type.handler = detect_handler(type.name);
+  type.handler = HandlerTable::lookup::find_or_default(
+      type.name.data(), type.name.size(), Type::Handler::Defined);
 
   auto token = &ctx.advance();
 
@@ -99,7 +100,7 @@ auto Type::validate_type(Context& ctx,
       if (!type.parameters) {
         ctx.range_error(
             std::format("{} requires specialization to be used.", type.name),
-            *start_token, *token);
+            *start_token, *start_token);
         return false;
       } else if (type.handler == Handler::List &&
                  type.parameters->size() != 1) {

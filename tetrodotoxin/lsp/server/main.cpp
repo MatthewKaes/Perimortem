@@ -29,7 +29,7 @@ auto lsp_tokens(Tetrodotoxin::Language::Parser::Tokenizer& tokenizer,
                 std::string_view jsonrpc,
                 int32_t id) -> std::string {
   Tetrodotoxin::Language::Parser::ClassifierFlags library_types =
-      Tetrodotoxin::Language::Parser::Classifier::K_package;
+      Tetrodotoxin::Language::Parser::Classifier::Package;
   std::unordered_set<std::string_view> imports;
   std::unordered_set<std::string_view> parameters;
   int scopes = 0;
@@ -98,25 +98,25 @@ auto lsp_tokens(Tetrodotoxin::Language::Parser::Tokenizer& tokenizer,
         LSP_REDEFINE(O, ModOp)
         LSP_REDEFINE(O, NotOp)
         LSP_REDEFINE(Cm, Comment)
-        LSP_REDEFINE(Z, K_this)
-        LSP_REDEFINE(K, K_new)
-        LSP_REDEFINE(Nm, K_on_load)
-        LSP_REDEFINE(K, K_init)
-        LSP_REDEFINE(K, K_if)
-        LSP_REDEFINE(K, K_for)
-        LSP_REDEFINE(K, K_else)
-        LSP_REDEFINE(K, K_while)
-        LSP_REDEFINE(K, K_return)
-        LSP_REDEFINE(K, K_true)
-        LSP_REDEFINE(K, K_false)
-        LSP_REDEFINE(D, K_func)
-        LSP_REDEFINE(D, K_type)
-        LSP_REDEFINE(L, K_package)
-        LSP_REDEFINE(L, K_requires)
-        LSP_REDEFINE(L, K_from)
-        LSP_REDEFINE(K, K_debug)
-        LSP_REDEFINE(K, K_warning)
-        LSP_REDEFINE(K, K_error)
+        LSP_REDEFINE(Z, This)
+        LSP_REDEFINE(K, New)
+        LSP_REDEFINE(Nm, OnLoad)
+        LSP_REDEFINE(K, Init)
+        LSP_REDEFINE(K, If)
+        LSP_REDEFINE(K, For)
+        LSP_REDEFINE(K, Else)
+        LSP_REDEFINE(K, While)
+        LSP_REDEFINE(K, Return)
+        LSP_REDEFINE(K, True)
+        LSP_REDEFINE(K, False)
+        LSP_REDEFINE(D, FuncDef)
+        LSP_REDEFINE(D, TypeDef)
+        LSP_REDEFINE(L, Package)
+        LSP_REDEFINE(L, Requires)
+        LSP_REDEFINE(L, From)
+        LSP_REDEFINE(K, Debug)
+        LSP_REDEFINE(K, Warning)
+        LSP_REDEFINE(K, Error)
         LSP_REDEFINE(M1, Constant)
         LSP_REDEFINE(M2, Dynamic)
         LSP_REDEFINE(M3, Hidden)
@@ -124,7 +124,7 @@ auto lsp_tokens(Tetrodotoxin::Language::Parser::Tokenizer& tokenizer,
       case Tetrodotoxin::Language::Parser::Classifier::String:
         if (i > 0) {
           switch (tokens[i - 1].klass) {
-            case Tetrodotoxin::Language::Parser::Classifier::K_from:
+            case Tetrodotoxin::Language::Parser::Classifier::From:
               info_stream << "[\"In\",";
               break;
             default:

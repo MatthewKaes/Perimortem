@@ -67,28 +67,28 @@ enum class Classifier : int8_t {
   OrOp,         // |
 
   // Keywords
-  K_if,
-  K_else,
-  K_for,
-  K_while,
-  K_return,
-  K_func,
-  K_type,
-  K_this,
-  K_from,
-  K_true,
-  K_false,
-  K_new,
-  K_init,
-  K_on_load,
+  If,
+  Else,
+  For,
+  While,
+  Return,
+  FuncDef,
+  TypeDef,
+  This,
+  From,
+  True,
+  False,
+  New,
+  Init,
+  OnLoad,
 
   // Script types
-  K_package,
-  K_requires,
+  Package,
+  Requires,
 
-  K_debug,    // Special function
-  K_warning,  // Special function
-  K_error,    // Special function
+  Debug,    // Special function
+  Warning,  // Special function
+  Error,    // Special function
 
   EndOfStream,
 
@@ -190,43 +190,43 @@ inline constexpr auto klass_name(Classifier klass) -> const char * {
     return "OrOp";
   case Classifier::NotOp:
     return "NotOp";
-  case Classifier::K_if:
+  case Classifier::If:
     return "`if`";
-  case Classifier::K_for:
+  case Classifier::For:
     return "`for`";
-  case Classifier::K_else:
+  case Classifier::Else:
     return "`else`";
-  case Classifier::K_while:
+  case Classifier::While:
     return "`while`";
-  case Classifier::K_return:
+  case Classifier::Return:
     return "`return`";
-  case Classifier::K_func:
+  case Classifier::FuncDef:
     return "function definition";
-  case Classifier::K_type:
-    return "Keyword `type`";
-  case Classifier::K_requires:
+  case Classifier::TypeDef:
+    return "type definition";
+  case Classifier::Requires:
     return "import statement `requires";
-  case Classifier::K_from:
+  case Classifier::From:
     return "Keyword `from`";
-  case Classifier::K_true:
+  case Classifier::True:
     return "boolean value `true`";
-  case Classifier::K_false:
+  case Classifier::False:
     return "boolean value `false`";
-  case Classifier::K_package:
+  case Classifier::Package:
     return "package decleration";
-  case Classifier::K_debug:
+  case Classifier::Debug:
     return "Keyword `debug`";
-  case Classifier::K_warning:
+  case Classifier::Warning:
     return "Keyword `warning`";
-  case Classifier::K_error:
+  case Classifier::Error:
     return "Keyword `error`";
-  case Classifier::K_new:
-    return "heap creator";
-  case Classifier::K_on_load:
+  case Classifier::OnLoad:
     return "module load function";
-  case Classifier::K_init:
+  case Classifier::Init:
     return "stack creator";
-  case Classifier::K_this:
+  case Classifier::New:
+    return "heap creator";
+  case Classifier::This:
     return "`this` accessor";
   case Classifier::EndOfStream:
     return "end of file";

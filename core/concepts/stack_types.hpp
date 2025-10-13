@@ -12,12 +12,13 @@
   what you are doing. :)
 */
 
-#pragma once
+#pragma once 
 
 #include <array>
 #include <cstddef>
 #include <cstdint>
 #include <limits>
+#include <string>
 
 namespace Perimortem::Concepts {
 // A fixed array string on the stack. It serves as a hybrid between std::array

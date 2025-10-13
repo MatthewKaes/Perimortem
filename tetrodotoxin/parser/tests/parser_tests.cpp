@@ -66,6 +66,9 @@ TEST_F(ParserTests, simple_ttx) {
 
 #define TYPE_TEST(type_name, base)                    \
   type = Type::parse(ctx);                            \
+  for (const auto& err : ctx.errors) {                \
+    std::cout << err.get_message();                   \
+  }                                                   \
   ctx.advance();                                      \
   ASSERT_TRUE(type);                                  \
   EXPECT_EQ(ctx.errors.size(), 0);                    \
@@ -86,8 +89,9 @@ TEST_F(ParserTests, type_base) {
   TYPE_TEST(Byt, TRUE);
   TYPE_TEST(Int, TRUE);
   TYPE_TEST(Num, TRUE);
+  TYPE_TEST(Str, TRUE);
   TYPE_TEST(Vec, TRUE);
-  TYPE_TEST(Any, FALSE);
+  TYPE_TEST(Any, TRUE);
 }
 
 TEST_F(ParserTests, type_list) {

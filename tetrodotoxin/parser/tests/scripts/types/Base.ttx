@@ -1,5 +1,6 @@
 Byt;
 Int;
 Num;
-Str;
+Str[12];
+Vec;
 Any;

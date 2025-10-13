@@ -10,6 +10,8 @@
 #include <cstdint>
 
 namespace Perimortem::Concepts {
+constexpr uint64_t default_table_seed = 0x506572696d6f7274;
+
 //
 // Perimortem SparseLookupTable
 //
@@ -47,8 +49,10 @@ template <typename value_type,
           uint64_t element_count,
           const TablePair<const char*, value_type> (&source)[element_count],
           uint64_t sparse_factor = 2'00,
-          uint64_t sparse_seed = 0x506572696d6f7274,
-          bool use_radix_hashing = true>
+          uint64_t sparse_seed = default_table_seed,
+          // Compressing the search only works well on very large strings.
+          // By default this is off.
+          bool use_radix_hashing = false>
 class SparseLookupTable {
   // constexpr goop that needs to be at the top of the class.
  private:
@@ -75,20 +79,20 @@ class SparseLookupTable {
           return d;
         }
         case 2: {
-          for (uint32_t i = 0; i < length; i += 2)
+          for (uint32_t i = 0; i < length; i += step_count)
             d = (d ^ static_cast<uint64_t>(str[i] ^ str[i + 1])) *
                 static_cast<uint64_t>(0x100000001b3ull);
           return d;
         }
         case 4: {
-          for (uint32_t i = 0; i < length; i += 4)
+          for (uint32_t i = 0; i < length; i += step_count)
             d = (d ^ static_cast<uint64_t>(str[i] ^ str[i + 1] ^ str[i + 2] ^
                                            str[i + 3])) *
                 static_cast<uint64_t>(0x100000001b3ull);
           return d;
         }
         case 8: {
-          for (uint32_t i = 0; i < length; i += 4)
+          for (uint32_t i = 0; i < length; i += step_count)
             d = (d ^ static_cast<uint64_t>(
                          str[i] ^ str[i + 1] ^ str[i + 2] ^ str[i + 3] ^
                          str[i + 4] ^ str[i + 5] ^ str[i + 6] ^ str[i + 7])) *
@@ -194,12 +198,16 @@ class SparseLookupTable {
         if (entry.key.size() != size)
           continue;
 
+        bool match = true;
         for (uint64_t i = 0; i < size; i++) {
-          if (entry.key.data()[i] != data[i])
-            continue;
+          if (entry.key.data()[i] != data[i]) {
+            match = false;
+            break;
+          }
         }
 
-        return entry.value;
+        if (match)
+          return entry.value;
       }
 
       return default_value;
@@ -226,7 +234,6 @@ class SparseLookupTable {
 
   static constexpr auto has_broken_hash() -> bool { return max_checks() == -1; }
 
- private:
   static constexpr auto check_counts() -> std::array<uint64_t, element_count> {
     std::array<uint64_t, element_count> counts = {};
     for (uint32_t i = 0; i < element_count; i++) {
@@ -234,8 +241,9 @@ class SparseLookupTable {
     }
     return counts;
   }
+ private:
 
-  static constexpr auto check_count(const char* data) -> value_type {
+  static constexpr auto check_count(const char* data) -> uint64_t {
     uint64_t size = std::char_traits<char>::length(data);
     return check_count(data, size);
   }
@@ -279,15 +287,15 @@ template <uint64_t search_depth,
           uint64_t element_count,
           const TablePair<const char*, value_type> (&source)[element_count],
           uint64_t sparse_factor = 2'00,
-          uint64_t sparse_seed = 0x506572696d6f7274,
+          uint64_t sparse_seed = default_table_seed,
           bool use_radix_hashing = true,
           uint32_t collision_threshold = 1>
 class SeedFinder {
  public:
-  static_assert(false,
-                "SeedFinder should never be instantiated as part of the build. "
-                "Make sure to remove before building as it massively slows "
-                "down build time.");
+  // static_assert(false,
+  //               "SeedFinder should never be instantiated as part of the build. "
+  //               "Make sure to remove before building as it massively slows "
+  //               "down build time.");
   static_assert(search_depth <= 255,
                 "Search depth is greater than maximum allowed depth of 255.");
 

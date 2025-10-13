@@ -3,9 +3,12 @@
 
 #pragma once
 
+#include "concepts/sparse_lookup.hpp"
 #include "parser/ast/context.hpp"
 
 #include <optional>
+
+using namespace Perimortem::Concepts;
 
 namespace Tetrodotoxin::Language::Parser {
 
@@ -38,71 +41,38 @@ class Type {
                             const Token* token,
                             const Type& type) -> bool;
 
-  static constexpr auto detect_handler(const std::string_view& name)
-      -> Handler {
-    switch (name.size()) {
-      case 3: {
-        // Stack types (Always 3 characters)
-        if (!std::memcmp(name.data(), "Byt", sizeof("Byt") - 1))
-          return Handler::Byt;
-
-        if (!std::memcmp(name.data(), "Int", sizeof("Int") - 1))
-          return Handler::Int;
-
-        if (!std::memcmp(name.data(), "Num", sizeof("Num") - 1))
-          return Handler::Num;
-
-        if (!std::memcmp(name.data(), "Vec", sizeof("Vec") - 1))
-          return Handler::Vec;
-        break;
-
-        if (!std::memcmp(name.data(), "Str", sizeof("Str") - 1))
-          return Handler::Str;
-        break;
-
-        if (!std::memcmp(name.data(), "Any", sizeof("Any") - 1))
-          return Handler::Any;
-      } break;
-
-      case 4: {
-        // Heap Types (Always 4 character)
-        if (!std::memcmp(name.data(), "Text", sizeof("Text") - 1))
-          return Handler::Byt;
-
-        if (!std::memcmp(name.data(), "Dict", sizeof("Dict") - 1))
-          return Handler::Int;
-
-        if (!std::memcmp(name.data(), "List", sizeof("List") - 1))
-          return Handler::Num;
-
-        if (!std::memcmp(name.data(), "Func", sizeof("Func") - 1))
-          return Handler::Vec;
-      } break;
-
-      default:
-        break;
-    }
-
-    return Handler::Defined;
-  }
 
   static constexpr auto uses_stack(Handler handler) -> bool {
-    switch (handler) {
-      case Handler::Byt:
-      case Handler::Int:
-      case Handler::Num:
-      case Handler::Vec:
-      case Handler::Str:
-      case Handler::Any:
-        return true;
-      default:
-        return false;
-    }
+    return static_cast<uint32_t>(handler) <= static_cast<uint32_t>(Handler::Any);
   }
 
   Handler handler = Handler::Any;
   std::string_view name;
   std::unique_ptr<std::vector<Type>> parameters;
 };
+
+namespace HandlerTable {
+using value_type = Type::Handler;
+static constexpr auto sparse_factor = 120;
+static constexpr auto seed = 5793162292815167211UL;
+static constexpr TablePair<const char*, value_type> data[] = {
+    make_pair("Byt", value_type::Byt),   make_pair("Int", value_type::Int),
+    make_pair("Num", value_type::Num),   make_pair("Str", value_type::Str),
+    make_pair("Vec", value_type::Vec),   make_pair("Any", value_type::Any),
+    make_pair("Text", value_type::Text), make_pair("List", value_type::List),
+    make_pair("Dict", value_type::Dict), make_pair("Func", value_type::Func),
+};
+
+using lookup = SparseLookupTable<value_type,
+                                          array_size(data),
+                                          data,
+                                          sparse_factor,
+                                          seed>;
+
+static_assert(lookup::has_perfect_hash());
+static_assert(sizeof(lookup::sparse_table) <= 512,
+              "Ideally keyword sparse table would be less than 512 bytes. "
+              "Try to find a smaller size.");
+}
 
 }  // namespace Tetrodotoxin::Language::Parser
