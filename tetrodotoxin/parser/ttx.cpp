@@ -39,7 +39,7 @@ auto Ttx::parse(const std::string_view& source_map, const ByteView& source)
 
 auto Ttx::parse_header(Context& ctx) -> void {
   auto token = &ctx.current();
-  if (ctx.check_klass(Classifier::K_library, token->klass))
+  if (ctx.check_klass(Classifier::K_package, token->klass))
     return;
 
   token = &ctx.advance();

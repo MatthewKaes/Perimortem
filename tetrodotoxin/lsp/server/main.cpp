@@ -29,8 +29,7 @@ auto lsp_tokens(Tetrodotoxin::Language::Parser::Tokenizer& tokenizer,
                 std::string_view jsonrpc,
                 int32_t id) -> std::string {
   Tetrodotoxin::Language::Parser::ClassifierFlags library_types =
-      Tetrodotoxin::Language::Parser::Classifier::K_import |
-      Tetrodotoxin::Language::Parser::Classifier::K_library;
+      Tetrodotoxin::Language::Parser::Classifier::K_package;
   std::unordered_set<std::string_view> imports;
   std::unordered_set<std::string_view> parameters;
   int scopes = 0;
@@ -98,7 +97,6 @@ auto lsp_tokens(Tetrodotoxin::Language::Parser::Tokenizer& tokenizer,
         LSP_REDEFINE(O, MulOp)
         LSP_REDEFINE(O, ModOp)
         LSP_REDEFINE(O, NotOp)
-        LSP_REDEFINE(O, ValidOp)
         LSP_REDEFINE(Cm, Comment)
         LSP_REDEFINE(Z, K_this)
         LSP_REDEFINE(K, K_new)
@@ -107,14 +105,15 @@ auto lsp_tokens(Tetrodotoxin::Language::Parser::Tokenizer& tokenizer,
         LSP_REDEFINE(K, K_if)
         LSP_REDEFINE(K, K_for)
         LSP_REDEFINE(K, K_else)
+        LSP_REDEFINE(K, K_while)
         LSP_REDEFINE(K, K_return)
         LSP_REDEFINE(K, K_true)
         LSP_REDEFINE(K, K_false)
         LSP_REDEFINE(D, K_func)
         LSP_REDEFINE(D, K_type)
-        LSP_REDEFINE(L, K_import)
+        LSP_REDEFINE(L, K_package)
+        LSP_REDEFINE(L, K_requires)
         LSP_REDEFINE(L, K_from)
-        LSP_REDEFINE(L, K_library)
         LSP_REDEFINE(K, K_debug)
         LSP_REDEFINE(K, K_warning)
         LSP_REDEFINE(K, K_error)

@@ -65,16 +65,15 @@ enum class Classifier : int8_t {
   NotOp,        // !
   AndOp,        // &
   OrOp,         // |
-  ValidOp,      // rect?
 
   // Keywords
   K_if,
-  K_for,
   K_else,
+  K_for,
+  K_while,
   K_return,
   K_func,
   K_type,
-  K_import,
   K_this,
   K_from,
   K_true,
@@ -84,7 +83,8 @@ enum class Classifier : int8_t {
   K_on_load,
 
   // Script types
-  K_library,
+  K_package,
+  K_requires,
 
   K_debug,    // Special function
   K_warning,  // Special function
@@ -190,29 +190,29 @@ inline constexpr auto klass_name(Classifier klass) -> const char * {
     return "OrOp";
   case Classifier::NotOp:
     return "NotOp";
-  case Classifier::ValidOp:
-    return "ValidOp";
   case Classifier::K_if:
-    return "Keyword `if`";
+    return "`if`";
   case Classifier::K_for:
-    return "Keyword `for`";
+    return "`for`";
   case Classifier::K_else:
-    return "Keyword `else`";
+    return "`else`";
+  case Classifier::K_while:
+    return "`while`";
   case Classifier::K_return:
-    return "Keyword `return`";
+    return "`return`";
   case Classifier::K_func:
-    return "Keyword `func`";
+    return "function definition";
   case Classifier::K_type:
     return "Keyword `type`";
-  case Classifier::K_import:
-    return "import statement";
+  case Classifier::K_requires:
+    return "import statement `requires";
   case Classifier::K_from:
     return "Keyword `from`";
   case Classifier::K_true:
     return "boolean value `true`";
   case Classifier::K_false:
     return "boolean value `false`";
-  case Classifier::K_library:
+  case Classifier::K_package:
     return "package decleration";
   case Classifier::K_debug:
     return "Keyword `debug`";

@@ -36,11 +36,6 @@ class Tokenizer {
     return options;
   };
 
-  // Get a persistible human view of the token parsing.
-  // Mostly used for debugging and testing. Parsing the view is actually vastly
-  // slower than tokenizing from source.
-  auto dump_tokens() -> std::string;
-
  private:
   // Output artifacts
   TokenStream tokens;

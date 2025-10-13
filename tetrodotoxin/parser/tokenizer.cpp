@@ -3,12 +3,13 @@
 
 #include "tokenizer.hpp"
 
+#include "concepts/sparse_lookup.hpp"
+
 #include <cmath>
 #include <cstring>
-#include <iomanip>
 #include <sstream>
-#include <unordered_set>
 
+using namespace Perimortem::Concepts;
 using namespace Tetrodotoxin::Language::Parser;
 
 constexpr auto is_whitespace(uint8_t c) -> bool {
@@ -156,20 +157,61 @@ auto parse_type(Context& context) -> void {
   context.loc.column += context.loc.parse_index - context.loc.source_index;
 }
 
-#define K_SECTION(size) \
-  case size: {          \
-    constexpr uint64_t section_bytes = size;
-#define K_END(size) \
-  break;            \
-  }
+constexpr auto classify_keyword(const ByteView& view, Classifier original)
 
-#define KEYWORD_RECLASS(keyword)                                   \
-  static_assert(sizeof(#keyword) - 1 == section_bytes);            \
-  if (view.data()[0] == #keyword[0] &&                             \
-      !std::memcmp(view.data(), #keyword, sizeof(#keyword) - 1)) { \
-    klass = Classifier::K_##keyword;                               \
-    break;                                                         \
-  }
+    -> Classifier {
+  // constexpr std::unordered_map
+
+  // switch (view.size()) {
+  //   case 2: {
+  //     constexpr uint8_t valid_size = 2 + 1;
+  //     if (keyword_test<valid_size + 1>(view, "if"))
+  //       return Classifier::K_if;
+  //   } break;
+
+  //   case 3: {
+  //     if (keyword_test(view, "if"))
+  //       return Classifier::K_if;
+  //   } break;
+  //     K_SECTION(2)
+  //     KEYWORD_RECLASS(if)
+  //     K_END()
+  //     K_SECTION(3)
+  //   KEYWORD_RECLASS(for)
+  //   KEYWORD_RECLASS(new)
+  //   K_END()
+  //   K_SECTION(4)
+  //   KEYWORD_RECLASS(else)
+  //   KEYWORD_RECLASS(from)
+  //   KEYWORD_RECLASS(true)
+  //   static_assert(sizeof("func") - 1 == section_bytes);
+  //   if (view.data()[0] == "func"[0] &&
+  //       !std::memcmp(view.data(), "func", sizeof("func") - 1)) {
+  //     klass = Classifier::K_func;
+  //     context.options += TtxState::ParamTokenizing;  // enable function
+  //     parsing break;
+  //   }
+  //   KEYWORD_RECLASS(type)
+  //   KEYWORD_RECLASS(init)
+  //   KEYWORD_RECLASS(this)
+  //   K_END()
+  //   K_SECTION(5)
+  //   KEYWORD_RECLASS(false)
+  //   KEYWORD_RECLASS(error)
+  //   KEYWORD_RECLASS(debug)
+  //   K_END()
+  //   K_SECTION(6)
+  //   KEYWORD_RECLASS(return)
+  //   KEYWORD_RECLASS(import)
+  //   K_END()
+  //   K_SECTION(7)
+  //   KEYWORD_RECLASS(package)
+  //   KEYWORD_RECLASS(on_load)
+  //   K_END()
+  // }
+
+  return original;
+}
 
 auto parse_identifier(Context& context) -> void {
   // Eat any unknown tokens including whitespace
@@ -180,7 +222,9 @@ auto parse_identifier(Context& context) -> void {
   }
 
   // Can't be a number since that's handle in the main switch.
-  Classifier klass = context.options.has(TtxState::ParamTokenizing) ? Classifier::Parameter : Classifier::Identifier;
+  Classifier klass = context.options.has(TtxState::ParamTokenizing)
+                         ? Classifier::Parameter
+                         : Classifier::Identifier;
   while (is_identifier(peak_ahead(context, 1)))
     context.loc.parse_index++;
 
@@ -189,43 +233,6 @@ auto parse_identifier(Context& context) -> void {
   const auto view = context.source.subspan(
       context.loc.source_index,
       context.loc.parse_index - context.loc.source_index);
-  switch (view.size()) {
-    K_SECTION(2)
-    KEYWORD_RECLASS(if)
-    K_END()
-    K_SECTION(3)
-    KEYWORD_RECLASS(for)
-    KEYWORD_RECLASS(new)
-    K_END()
-    K_SECTION(4)
-    KEYWORD_RECLASS(else)
-    KEYWORD_RECLASS(from)
-    KEYWORD_RECLASS(true)
-    static_assert(sizeof("func") - 1 == section_bytes);
-    if (view.data()[0] == "func"[0] &&
-        !std::memcmp(view.data(), "func", sizeof("func") - 1)) {
-      klass = Classifier::K_func;
-      context.options += TtxState::ParamTokenizing;  // enable function parsing
-      break;
-    }
-    KEYWORD_RECLASS(type)
-    KEYWORD_RECLASS(init)
-    KEYWORD_RECLASS(this)
-    K_END()
-    K_SECTION(5)
-    KEYWORD_RECLASS(false)
-    KEYWORD_RECLASS(error)
-    KEYWORD_RECLASS(debug)
-    K_END()
-    K_SECTION(6)
-    KEYWORD_RECLASS(return)
-    KEYWORD_RECLASS(import)
-    K_END()
-    K_SECTION(7)
-    KEYWORD_RECLASS(library)
-    KEYWORD_RECLASS(on_load)
-    K_END()
-  }
 
   context.tokens.push_back({klass, view, context.loc});
   context.loc.column += context.loc.parse_index - context.loc.source_index;
@@ -415,7 +422,6 @@ Tokenizer::Tokenizer(const ByteView& source) {
         PARSE_SIMPLE('|', OrOp);
         PARSE_SIMPLE('.', AccessOp);
         PARSE_SIMPLE('!', NotOp);
-        PARSE_SIMPLE('?', ValidOp);
         PARSE_SIMPLE(',', Seperator);
         PARSE_SIMPLE(':', Define);
         PARSE_SIMPLE(';', EndStatement);
@@ -430,85 +436,4 @@ Tokenizer::Tokenizer(const ByteView& source) {
   options = context.options;
   context.loc.source_index = ++context.loc.parse_index;
   context.tokens.push_back({Classifier::EndOfStream, ByteView(), context.loc});
-}
-
-#define CLASS_DUMP(klass)                                \
-  case Classifier::klass:                                \
-    info_stream << std::left << std::setw(12) << #klass; \
-    break;
-
-auto Tokenizer::dump_tokens() -> std::string {
-  std::stringstream info_stream;
-  info_stream << "Token stream size: " << tokens.size() << std::endl;
-  info_stream << std::left << std::setw(12) << "KLASS";
-  info_stream << std::left << std::setw(8) << "LINE";
-  info_stream << std::left << std::setw(8) << "COLUMN";
-  info_stream << std::left << "  DATA" << std::endl;
-  for (const auto& token : tokens) {
-    switch (token.klass) {
-      CLASS_DUMP(Comment)
-      CLASS_DUMP(String)
-      CLASS_DUMP(Numeric)
-      CLASS_DUMP(Float)
-      CLASS_DUMP(Attribute)
-      CLASS_DUMP(Identifier)
-      CLASS_DUMP(Type)
-      CLASS_DUMP(ScopeStart)
-      CLASS_DUMP(ScopeEnd)
-      CLASS_DUMP(GroupStart)
-      CLASS_DUMP(GroupEnd)
-      CLASS_DUMP(IndexStart)
-      CLASS_DUMP(IndexEnd)
-      CLASS_DUMP(Seperator)
-      CLASS_DUMP(Assign)
-      CLASS_DUMP(AddAssign)
-      CLASS_DUMP(SubAssign)
-      CLASS_DUMP(Define)
-      CLASS_DUMP(EndStatement)
-      CLASS_DUMP(AddOp)
-      CLASS_DUMP(SubOp)
-      CLASS_DUMP(DivOp)
-      CLASS_DUMP(MulOp)
-      CLASS_DUMP(ModOp)
-      CLASS_DUMP(LessOp)
-      CLASS_DUMP(GreaterOp)
-      CLASS_DUMP(LessEqOp)
-      CLASS_DUMP(GreaterEqOp)
-      CLASS_DUMP(CmpOp)
-      CLASS_DUMP(CallOp)
-      CLASS_DUMP(AccessOp)
-      CLASS_DUMP(AndOp)
-      CLASS_DUMP(OrOp)
-      CLASS_DUMP(NotOp)
-      CLASS_DUMP(ValidOp)
-      CLASS_DUMP(K_this)
-      CLASS_DUMP(K_if)
-      CLASS_DUMP(K_for)
-      CLASS_DUMP(K_else)
-      CLASS_DUMP(K_return)
-      CLASS_DUMP(K_func)
-      CLASS_DUMP(K_type)
-      CLASS_DUMP(K_import)
-      CLASS_DUMP(K_from)
-      CLASS_DUMP(K_library)
-      CLASS_DUMP(K_debug)
-      CLASS_DUMP(K_warning)
-      CLASS_DUMP(K_error)
-      CLASS_DUMP(K_true)
-      CLASS_DUMP(K_false)
-      CLASS_DUMP(K_new)
-      CLASS_DUMP(K_init)
-      default:
-        // Unknown
-        break;
-    }
-
-    info_stream << std::right << std::setw(8) << token.location.line;
-    info_stream << std::right << std::setw(8) << token.location.column;
-    info_stream << "  \""
-                << std::string_view((char*)token.data.data(), token.data.size())
-                << "\"" << std::endl;
-  }
-
-  return info_stream.str();
 }

@@ -5,12 +5,13 @@
 
 #include <memory>
 
-namespace Perimortem {
+namespace Perimortem::Concepts {
 
-template <typename T> class Singleton {
-public:
-  static T &
-  instance() noexcept(std::is_nothrow_default_constructible<T>::value) {
+template <typename T>
+class Singleton {
+ public:
+  static T& instance() noexcept(
+      std::is_nothrow_default_constructible<T>::value) {
     // Inject a class that locks down the parent class.
     struct LockAbstract final : T {
       void AbstractInjectionLock() const noexcept override {}
@@ -20,17 +21,17 @@ public:
     return instance;
   }
 
-protected:
+ protected:
   Singleton() = default;
-  Singleton(const Singleton &) = delete;
-  Singleton(Singleton &&) = delete;
-  Singleton &operator=(const Singleton &) = delete;
-  Singleton &operator=(Singleton &&) = delete;
+  Singleton(const Singleton&) = delete;
+  Singleton(Singleton&&) = delete;
+  Singleton& operator=(const Singleton&) = delete;
+  Singleton& operator=(Singleton&&) = delete;
   virtual ~Singleton() = default;
 
-private:
+ private:
   // Create a fake distructor that only classes under singleton override.
   virtual void AbstractInjectionLock() const noexcept = 0;
 };
 
-} // namespace Perimortem
+}  // namespace Perimortem::Concepts

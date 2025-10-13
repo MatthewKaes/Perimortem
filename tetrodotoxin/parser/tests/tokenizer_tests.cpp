@@ -11,6 +11,84 @@
 
 using namespace Tetrodotoxin::Language::Parser;
 
+#define CLASS_DUMP(klass)                                \
+  case Classifier::klass:                                \
+    info_stream << std::left << std::setw(12) << #klass; \
+    break;
+
+auto dump_tokens(Tokenizer& tokenizer) -> std::string {
+  std::stringstream info_stream;
+  info_stream << "Token stream size: " << tokenizer.get_tokens().size() << std::endl;
+  info_stream << std::left << std::setw(12) << "KLASS";
+  info_stream << std::left << std::setw(8) << "LINE";
+  info_stream << std::left << std::setw(8) << "COLUMN";
+  info_stream << std::left << "  DATA" << std::endl;
+  for (const auto& token : tokenizer.get_tokens()) {
+    switch (token.klass) {
+      CLASS_DUMP(Comment)
+      CLASS_DUMP(String)
+      CLASS_DUMP(Numeric)
+      CLASS_DUMP(Float)
+      CLASS_DUMP(Attribute)
+      CLASS_DUMP(Identifier)
+      CLASS_DUMP(Type)
+      CLASS_DUMP(ScopeStart)
+      CLASS_DUMP(ScopeEnd)
+      CLASS_DUMP(GroupStart)
+      CLASS_DUMP(GroupEnd)
+      CLASS_DUMP(IndexStart)
+      CLASS_DUMP(IndexEnd)
+      CLASS_DUMP(Seperator)
+      CLASS_DUMP(Assign)
+      CLASS_DUMP(AddAssign)
+      CLASS_DUMP(SubAssign)
+      CLASS_DUMP(Define)
+      CLASS_DUMP(EndStatement)
+      CLASS_DUMP(AddOp)
+      CLASS_DUMP(SubOp)
+      CLASS_DUMP(DivOp)
+      CLASS_DUMP(MulOp)
+      CLASS_DUMP(ModOp)
+      CLASS_DUMP(LessOp)
+      CLASS_DUMP(GreaterOp)
+      CLASS_DUMP(LessEqOp)
+      CLASS_DUMP(GreaterEqOp)
+      CLASS_DUMP(CmpOp)
+      CLASS_DUMP(CallOp)
+      CLASS_DUMP(AccessOp)
+      CLASS_DUMP(AndOp)
+      CLASS_DUMP(OrOp)
+      CLASS_DUMP(NotOp)
+      CLASS_DUMP(K_this)
+      CLASS_DUMP(K_if)
+      CLASS_DUMP(K_for)
+      CLASS_DUMP(K_else)
+      CLASS_DUMP(K_return)
+      CLASS_DUMP(K_func)
+      CLASS_DUMP(K_type)
+      CLASS_DUMP(K_from)
+      CLASS_DUMP(K_debug)
+      CLASS_DUMP(K_warning)
+      CLASS_DUMP(K_error)
+      CLASS_DUMP(K_true)
+      CLASS_DUMP(K_false)
+      CLASS_DUMP(K_new)
+      CLASS_DUMP(K_init)
+      default:
+        // Unknown
+        break;
+    }
+
+    info_stream << std::right << std::setw(8) << token.location.line;
+    info_stream << std::right << std::setw(8) << token.location.column;
+    info_stream << "  \""
+                << std::string_view((char*)token.data.data(), token.data.size())
+                << "\"" << std::endl;
+  }
+
+  return info_stream.str();
+}
+
 struct TokenizerTests : public ::testing::Test {
 protected:
   virtual void SetUp() {}
@@ -96,5 +174,5 @@ TEST_F(TokenizerTests, token_rect_ttx) {
   auto token_stream = read_all_bytes("tetrodotoxin/parser/tests/token_streams/Rect.ttx");
   std::string str = std::string((char *)token_stream.data(), token_stream.size());
   std::cout << str;
-  EXPECT_TRUE(str == t.dump_tokens());
+  EXPECT_TRUE(str == dump_tokens(t));
 }

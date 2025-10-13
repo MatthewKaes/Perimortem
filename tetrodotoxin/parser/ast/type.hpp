@@ -12,19 +12,17 @@ namespace Tetrodotoxin::Language::Parser {
 class Type {
  public:
   enum class Handler {
-    Byt,      // Stack - 8 byts
-    Int,      // Stack
-    Num,      // Stack
-    Vec,      // Stack - Takes Size parameter
-    Defined,  // Class - Could be Stack or Heap depending TODO: Split hanlder
+    Byt,  // Stack - 8 byts
+    Int,  // Stack
+    Num,  // Stack
+    Str,  // Stack - Takes Size parameter
+    Vec,  // Stack - Takes Size parameter and type
+    Any,  // Stack - Contains type info and fixed data, Vec -> List, Str -> Text
     Text,     // Heap
     List,     // Heap - Generic
     Dict,     // Heap - Generic
     Func,     // Heap - Generic
-    Any,      // Heap - Top Type (Boxed)
-    // Tetrodotoxin doesn't support extending paramaterized types and has no
-    // Unit type.
-
+    Defined,  // Class - Could be Stack or Heap depending TODO: Split hanlder
   };
 
   Type() {};
@@ -40,35 +38,49 @@ class Type {
                             const Token* token,
                             const Type& type) -> bool;
 
-#define PARSE_HANDLER(type_name, handler_name)                           \
-  case #type_name[0]: {                                                  \
-    if (name.size() == sizeof(#type_name) - 1 &&                         \
-        !std::memcmp(name.data(), #type_name, sizeof(#type_name) - 1)) { \
-      return Handler::handler_name;                                      \
-    } else {                                                             \
-      return Handler::Defined;                                           \
-    }                                                                    \
-  }
-
-#define PARSE_CONCRETE(type_name) PARSE_HANDLER(type_name, type_name)
-
-#define PARSE_GENERIC(type_name) PARSE_HANDLER(type_name, type_name)
-
   static constexpr auto detect_handler(const std::string_view& name)
       -> Handler {
-    switch (name[0]) {
-      // Stack types (Always 3 characters)
-      PARSE_CONCRETE(Byt);
-      PARSE_CONCRETE(Int);
-      PARSE_CONCRETE(Num);
-      PARSE_CONCRETE(Vec);
+    switch (name.size()) {
+      case 3: {
+        // Stack types (Always 3 characters)
+        if (!std::memcmp(name.data(), "Byt", sizeof("Byt") - 1))
+          return Handler::Byt;
 
-      // Heap Types (Always 4 character)
-      PARSE_GENERIC(Text);
-      // Generics
-      PARSE_GENERIC(Dict);
-      PARSE_GENERIC(List);
-      PARSE_GENERIC(Func);
+        if (!std::memcmp(name.data(), "Int", sizeof("Int") - 1))
+          return Handler::Int;
+
+        if (!std::memcmp(name.data(), "Num", sizeof("Num") - 1))
+          return Handler::Num;
+
+        if (!std::memcmp(name.data(), "Vec", sizeof("Vec") - 1))
+          return Handler::Vec;
+        break;
+
+        if (!std::memcmp(name.data(), "Str", sizeof("Str") - 1))
+          return Handler::Str;
+        break;
+
+        if (!std::memcmp(name.data(), "Any", sizeof("Any") - 1))
+          return Handler::Any;
+      } break;
+
+      case 4: {
+        // Heap Types (Always 4 character)
+        if (!std::memcmp(name.data(), "Text", sizeof("Text") - 1))
+          return Handler::Byt;
+
+        if (!std::memcmp(name.data(), "Dict", sizeof("Dict") - 1))
+          return Handler::Int;
+
+        if (!std::memcmp(name.data(), "List", sizeof("List") - 1))
+          return Handler::Num;
+
+        if (!std::memcmp(name.data(), "Func", sizeof("Func") - 1))
+          return Handler::Vec;
+      } break;
+
+      default:
+        break;
     }
 
     return Handler::Defined;
@@ -80,6 +92,8 @@ class Type {
       case Handler::Int:
       case Handler::Num:
       case Handler::Vec:
+      case Handler::Str:
+      case Handler::Any:
         return true;
       default:
         return false;
