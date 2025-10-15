@@ -1,7 +1,7 @@
 //
 // A basic class for testing parsing
 //
-library Rectangle; // The top type for the file that is exported.
+package Rectangle; // The top type for the file that is exported.
 // @UseCppTheme
 
 // Importing the top type from another file.
@@ -50,9 +50,9 @@ requires Empty via "Empty.ttx";
       ) return -> Size =
   {
     // In constant functions the this refers
-    debug(this); // Prints "Size:class"
-    this.width = width;
-    this.height = height;
+    debug(<$>); // Prints "Size:class"
+    <$>.width = width;
+    <$>.height = height;
   }
 
   [=>>] create  : func (
@@ -60,9 +60,9 @@ requires Empty via "Empty.ttx";
         height  : Int
     )   return -> Size {
     // In constant functions the this refers
-    debug(this); // Prints "Size:class"
-    this.width = width;
-    this.height = height;
+    debug(<$>); // Prints "Size:class"
+    <$>.width = width;
+    <$>.height = height;
   }
 }
 
@@ -97,7 +97,7 @@ requires Empty via "Empty.ttx";
   // enabling a number of optimizations.
   // Constant functions add no size to instantiations of the type.
   [=/=] area:func = () -> Int {
-    return this.size.x * this.size.y;
+    return <$>.size.x * <$>.size.y;
   }
 
   // [=>>] Just like regular dynamic attributes these functions can
@@ -106,11 +106,11 @@ requires Empty via "Empty.ttx";
   // Even if you plan to always change the function, you must point
   // it to a valid function to start.
   [=>>] grow:func = (size:Size) -> Rect = {
-    this.size.width += size.width;
-    this.size.height += size.height;
+    <$>.size.width += size.width;
+    <$>.size.height += size.height;
 
     // Return this object on the stack.
-    return this;
+    return <$>;
   }
 
   // [=!=] Hidden functions can be used as private objects.
@@ -118,21 +118,21 @@ requires Empty via "Empty.ttx";
   // Note that all functions must have a return type.
   //
   // If you fully quality the function call, it's 
-  [=!=] grow:func[Rect, Size, Rect] = (this:Rect, size:Size) -> Rect {
-    this.size.width += size.width;
-    this.size.height += size.height;
+  [=!=] grow:func[Rect, Size, Rect] = (<$>:Rect, size:Size) -> Rect {
+    <$>.size.width += size.width;
+    <$>.size.height += size.height;
 
     // Return this object on the stack.
-    return this;
+    return <$>;
   }
 
   // Temporary functions act more or less as static functions as the
   // function exists on the types.
-  [***] create_size:func = (this:class) -> Size {
+  [***] create_size:func = (<$>:class) -> Size {
     // In constant functions the this refers
-    debug(this); // Prints "Size:class"
-    this.width = width;
-    this.height = height;
+    debug(<$>); // Prints "Size:class"
+    <$>.width = width;
+    <$>.height = height;
   }
 };
 
@@ -144,7 +144,7 @@ requires Empty via "Empty.ttx";
 ) = Rectangle.Rect {
   // Types can be used, but since this is attached to a singleton
   // it's fine to just use it how you want.
-  this -> log(this.magic_number);
+  <$> -> log(<$>.magic_number);
 
   //
   [=>>] res:Rect = src;

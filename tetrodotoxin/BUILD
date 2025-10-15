@@ -27,12 +27,8 @@ cc_test(
     name = "tests",
     size = "small",
     srcs = glob(["parser/tests/*.cpp"]),
-    copts = ["-I.bin/Perimortem/external/google_benchmark+/include"],
-    cxxopts = ["-I.bin/Perimortem/external/google_benchmark+/include"],
     deps = [
         ":parser",
-        "@google_benchmark//:benchmark",
-        "@google_benchmark//:benchmark_main",
         "@googletest//:gtest",
         "@googletest//:gtest_main",
     ],

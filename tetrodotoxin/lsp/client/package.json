@@ -7,7 +7,7 @@
   "author": "Matt Kaes",
   "license": "MIT",
   "icon": "icon.png",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "pricing": "Free",
   "repository": {
     "type": "git",
@@ -207,7 +207,7 @@
     "configurationDefaults": {
       "editor.semanticTokenColorCustomizations": {
         "rules": {
-          "ttxId": { "foreground": "#d4d4d4"}, 
+          "ttxId": { "foreground": "#d8d8d8"}, 
           "ttxP": { "foreground": "#92e5e7", "fontStyle": "italic" }, 
           "ttxC": { "foreground": "#8f8f8f" },
           "ttxO": { "foreground": "#8f8f8f" },
@@ -254,7 +254,8 @@
     }
   },
   "scripts": {
-    "compile": "tsc -b"
+    "compile": "tsc -b",
+    "package": "vsce package"
   },
   "dependencies": {
     "vscode-languageclient": "^9.0.1"

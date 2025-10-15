@@ -3,8 +3,7 @@
 
 #include "tokenizer.hpp"
 
-#include "concepts/sparse_lookup.hpp"
-#include "parser/parse_tables.hpp"
+#include "concepts/narrow_resolver.hpp"
 
 #include <cmath>
 #include <cstring>
@@ -158,12 +157,38 @@ auto parse_type(Context& context) -> void {
   context.loc.column += context.loc.parse_index - context.loc.source_index;
 }
 
+static inline constexpr auto check_keyword(std::string_view value,
+                                           Classifier default_value)
+    -> Classifier {
+  static constexpr TablePair<std::string_view, Classifier> data[] = {
+      {"if", Classifier::If},           {"for", Classifier::For},
+      {"new", Classifier::New},         {"via", Classifier::Via},
+      {"else", Classifier::Else},       {"func", Classifier::FuncDef},
+      {"init", Classifier::Init},       {"true", Classifier::True},
+      {"class", Classifier::TypeDef},   {"debug", Classifier::Debug},
+      {"error", Classifier::Error},     {"false", Classifier::False},
+      {"while", Classifier::While},     {"return", Classifier::Return},
+      {"on_load", Classifier::OnLoad},  {"package", Classifier::Package},
+      {"warning", Classifier::Warning}, {"requires", Classifier::Requires},
+  };
+
+  using keyword_resolver = NarrowResolver<Classifier, array_size(data), data>;
+  static_assert(sizeof(keyword_resolver::sparse_table) <= 4800,
+                "Keyword sparse table should be less than 4800 bytes. "
+                "Use keywords only 8 characters or shorter.");
+
+  return keyword_resolver::find_or_default(value, default_value);
+}
+
+template <bool forced_identifier>
 auto parse_identifier(Context& context) -> void {
   // Eat any unknown tokens including whitespace
-  if (!is_identifier(peak_ahead(context, 0))) {
-    context.loc.column++;
-    context.loc.parse_index++;
-    return;
+  if (!forced_identifier) {
+    if (!is_identifier(peak_ahead(context, 0))) {
+      context.loc.column++;
+      context.loc.parse_index++;
+      return;
+    }
   }
 
   while (is_identifier(peak_ahead(context, 1)))
@@ -179,12 +204,15 @@ auto parse_identifier(Context& context) -> void {
   Classifier klass = context.options.has(TtxState::ParamTokenizing)
                          ? Classifier::Parameter
                          : Classifier::Identifier;
-  // Check if we need to reclass as a keyword.
-  klass = KeywordTable::lookup::find_or_default((char*)view.data(), view.size(),
-                                                klass);
 
-  if (klass == Classifier::FuncDef)
+  if (!forced_identifier) {
+    // Check if we need to reclass as a keyword.
+    klass =
+        check_keyword(std::string_view((char*)view.data(), view.size()), klass);
+
+    if (klass == Classifier::FuncDef)
       context.options += TtxState::ParamTokenizing;
+  }
 
   context.tokens.push_back({klass, view, context.loc});
   context.loc.column += context.loc.parse_index - context.loc.source_index;
@@ -270,6 +298,10 @@ Tokenizer::Tokenizer(const ByteView& source) {
         if (peak_ahead(context, 1) == '=') {
           SIMPLE_TOKEN(LessEqOp, 2);
           break;
+        } else if (peak_ahead(context, 1) == '$' &&
+                   peak_ahead(context, 2) == '>') {
+          SIMPLE_TOKEN(This, 3);
+          break;
         } else {
           SIMPLE_TOKEN(LessOp, 1);
           break;
@@ -351,10 +383,6 @@ Tokenizer::Tokenizer(const ByteView& source) {
         SIMPLE_TOKEN(IndexStart, 1);
         break;
 
-        // Simple spot tokens
-        PARSE_SIMPLE('{', ScopeStart);
-        PARSE_SIMPLE('}', ScopeEnd);
-        PARSE_SIMPLE('(', GroupStart);
       case ')':
         context.loc.parse_index += 1;
         tokens.push_back({Classifier::GroupEnd,
@@ -364,10 +392,18 @@ Tokenizer::Tokenizer(const ByteView& source) {
         context.options -=
             TtxState::ParamTokenizing;  // disable function parsing.
         break;
+
+      // leading underscores force an indentifier so we can optimize for that
+      // case.
+      case '_':
+        parse_identifier<true>(context);
+        break;
+
+        // Simple spot tokens
+        PARSE_SIMPLE('{', ScopeStart);
+        PARSE_SIMPLE('}', ScopeEnd);
+        PARSE_SIMPLE('(', GroupStart);
         PARSE_SIMPLE(']', IndexEnd);
-        // PARSE_SIMPLE('+', AddOp); // Can't be simple due to +=
-        // PARSE_SIMPLE('-', SubOp); // Can't be simple due to calls -> and -=
-        // PARSE_SIMPLE('/', DivOp); // Can't be simple if comments are //
         PARSE_SIMPLE('*', MulOp);
         PARSE_SIMPLE('%', ModOp);
         PARSE_SIMPLE('&', AndOp);
@@ -377,10 +413,10 @@ Tokenizer::Tokenizer(const ByteView& source) {
         PARSE_SIMPLE(',', Seperator);
         PARSE_SIMPLE(':', Define);
         PARSE_SIMPLE(';', EndStatement);
-        PARSE_SIMPLE('$', This);
 
       default:
-        parse_identifier(context);
+        // Parse an identifier that could be a keyword.
+        parse_identifier<false>(context);
         break;
     }
   }

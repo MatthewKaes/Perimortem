@@ -87,6 +87,8 @@ TEST_F(ParserTests, type_base) {
               tokenizer, errors);
 
   TYPE_TEST(Byt, TRUE);
+  TYPE_TEST(Enu, TRUE);
+  TYPE_TEST(Flg, TRUE);
   TYPE_TEST(Int, TRUE);
   TYPE_TEST(Num, TRUE);
   TYPE_TEST(Str, TRUE);

@@ -2,10 +2,26 @@
 // Copyright © Matt Kaes
 
 #include "parser/ast/type.hpp"
+#include "concepts/narrow_resolver.hpp"
 
 using namespace Tetrodotoxin::Language::Parser;
+using namespace Perimortem::Concepts;
 
 auto Type::parse(Context& ctx) -> std::optional<Type> {
+  static constexpr TablePair<std::string_view, Handler> data[] = {
+      {"Byt", Handler::Byt},   {"Enu", Handler::Enu},
+      {"Flg", Handler::Flg},   {"Int", Handler::Int},
+      {"Num", Handler::Num},   {"Str", Handler::Str},
+      {"Vec", Handler::Vec},   {"Any", Handler::Any},
+      {"Text", Handler::Text}, {"List", Handler::List},
+      {"Dict", Handler::Dict}, {"Func", Handler::Func}};
+
+  using type_resolver = NarrowResolver<Handler, array_size(data), data, 'A', 'Z'>;
+
+  static_assert(sizeof(type_resolver::sparse_table) <= 2400,
+                "Type sparse table should be less than 2400 bytes. "
+                "Use keywords only 8 characters or shorter.");
+
   auto start_token = &ctx.current();
 
   if (ctx.check_klass(Classifier::Type, start_token->klass)) {
@@ -15,8 +31,8 @@ auto Type::parse(Context& ctx) -> std::optional<Type> {
 
   Type type;
   type.name = start_token->to_string();
-  type.handler = HandlerTable::lookup::find_or_default(
-      type.name.data(), type.name.size(), Type::Handler::Defined);
+  type.handler =
+      type_resolver::find_or_default(type.name, Type::Handler::Defined);
 
   auto token = &ctx.advance();
 
