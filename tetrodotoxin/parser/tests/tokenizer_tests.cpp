@@ -66,7 +66,6 @@ auto dump_tokens(Tokenizer& tokenizer) -> std::string {
       CLASS_DUMP(Return)
       CLASS_DUMP(FuncDef)
       CLASS_DUMP(TypeDef)
-      CLASS_DUMP(From)
       CLASS_DUMP(Debug)
       CLASS_DUMP(Warning)
       CLASS_DUMP(Error)

@@ -377,6 +377,7 @@ Tokenizer::Tokenizer(const ByteView& source) {
         PARSE_SIMPLE(',', Seperator);
         PARSE_SIMPLE(':', Define);
         PARSE_SIMPLE(';', EndStatement);
+        PARSE_SIMPLE('$', This);
 
       default:
         parse_identifier(context);

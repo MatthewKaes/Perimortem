@@ -24,7 +24,7 @@ class SparseIndexTable {
     for (uint32_t i = 0; i < element_count; i++) {
       max = std::max(std::char_traits<char>::length(source[i].key), max);
     }
-    return max;
+    return max + 1;
   }
 
   // Constexpr evaluates how many entries should be in the sparse table (data +

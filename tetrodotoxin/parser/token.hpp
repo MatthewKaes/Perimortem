@@ -65,30 +65,30 @@ enum class Classifier : int8_t {
   NotOp,        // !
   AndOp,        // &
   OrOp,         // |
+  This,         // $
 
   // Keywords
   If,
-  Else,
   For,
+  New,
+  Via,
+  Else,
+  FuncDef, // func
+  Init,
+  True,
+  TypeDef, // class
+  Error,    // Special function
+  Debug,    // Special function
+  False,
   While,
   Return,
-  FuncDef,
-  TypeDef,
-  This,
-  From,
-  True,
-  False,
-  New,
-  Init,
   OnLoad,
-
-  // Script types
   Package,
+  Warning,  // Special function
   Requires,
 
-  Debug,    // Special function
-  Warning,  // Special function
-  Error,    // Special function
+  // Script types
+
 
   EndOfStream,
 
@@ -191,23 +191,23 @@ inline constexpr auto klass_name(Classifier klass) -> const char * {
   case Classifier::NotOp:
     return "NotOp";
   case Classifier::If:
-    return "`if`";
+    return "if";
   case Classifier::For:
-    return "`for`";
+    return "for";
   case Classifier::Else:
-    return "`else`";
+    return "else";
   case Classifier::While:
-    return "`while`";
+    return "while";
   case Classifier::Return:
-    return "`return`";
+    return "return";
   case Classifier::FuncDef:
     return "function definition";
   case Classifier::TypeDef:
     return "type definition";
   case Classifier::Requires:
-    return "import statement `requires";
-  case Classifier::From:
-    return "Keyword `from`";
+    return "import package statement";
+  case Classifier::Via:
+    return "import path specifier";
   case Classifier::True:
     return "boolean value `true`";
   case Classifier::False:

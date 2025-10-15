@@ -113,7 +113,7 @@ auto lsp_tokens(Tetrodotoxin::Language::Parser::Tokenizer& tokenizer,
         LSP_REDEFINE(D, TypeDef)
         LSP_REDEFINE(L, Package)
         LSP_REDEFINE(L, Requires)
-        LSP_REDEFINE(L, From)
+        LSP_REDEFINE(L, Via)
         LSP_REDEFINE(K, Debug)
         LSP_REDEFINE(K, Warning)
         LSP_REDEFINE(K, Error)
@@ -124,7 +124,7 @@ auto lsp_tokens(Tetrodotoxin::Language::Parser::Tokenizer& tokenizer,
       case Tetrodotoxin::Language::Parser::Classifier::String:
         if (i > 0) {
           switch (tokens[i - 1].klass) {
-            case Tetrodotoxin::Language::Parser::Classifier::From:
+            case Tetrodotoxin::Language::Parser::Classifier::Via:
               info_stream << "[\"In\",";
               break;
             default:

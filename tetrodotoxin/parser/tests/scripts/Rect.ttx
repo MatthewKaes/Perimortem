@@ -7,7 +7,7 @@ library Rectangle; // The top type for the file that is exported.
 // Importing the top type from another file.
 // Top types are always constant references and can not be new-ed
 // even though they live on the heap. (they are singletons).
-import Empty from "Empty.ttx";
+requires Empty via "Empty.ttx";
 
 // Constant object - Must be a Stack type and foldable.
 // Generally all keywords and types are this. You generally should have
@@ -26,17 +26,17 @@ import Empty from "Empty.ttx";
 [***] temp_default:Int = Int -> new(); // returns 0
 
 // Type aliases are easy enough to make. Just make sure they are const.
-[=/=] Vec2D:type = Vec[Num, 2];
+[=/=] Vec2D:class = Vec[Num, 2];
 
 // You can also reexport if neccessary. Since it's const it will get
 // dedupped during compliation.
-[=/=] MyType:type = Empty.TestType;
+[=/=] MyType:class = Empty.TestType;
 
-// `init type` -> Creates a new Stack Type
+// `init class` -> Creates a new Stack Type
 // Stack types are copied by value but they aren't dynamically allocated.
 // Stack types can only include other stack types.
 // Stack types assign by memcpy which makes them super speedy
-[=/=] Size : type = init type {
+[=/=] Size : init class {
   [=>>] width  : Int = 0;
   [=>>] height : Int = 0;
   // This won't work as it requires a Heap type.
@@ -50,7 +50,7 @@ import Empty from "Empty.ttx";
       ) return -> Size =
   {
     // In constant functions the this refers
-    debug(this); // Prints "Size:type"
+    debug(this); // Prints "Size:class"
     this.width = width;
     this.height = height;
   }
@@ -60,17 +60,17 @@ import Empty from "Empty.ttx";
         height  : Int
     )   return -> Size {
     // In constant functions the this refers
-    debug(this); // Prints "Size:type"
+    debug(this); // Prints "Size:class"
     this.width = width;
     this.height = height;
   }
 }
 
-// `new type` -> Creates a new Heap Type
+// `new class` -> Creates a new Heap Type
 // Heap types are always passed by "valid pointers"
 // You can not have a null heap type.
 // Stack types assign by memcpy which makes them super speedy
-[=>>] Rect:type = new type {
+[=>>] Rect : new class {
   // Constant object - Must be a Stack type and foldable.
   // Const values do not add storage to the object.
   [=/=] const_value:Int = 10;
@@ -128,9 +128,9 @@ import Empty from "Empty.ttx";
 
   // Temporary functions act more or less as static functions as the
   // function exists on the types.
-  [***] create_size:func = (this:type) -> Size {
+  [***] create_size:func = (this:class) -> Size {
     // In constant functions the this refers
-    debug(this); // Prints "Size:type"
+    debug(this); // Prints "Size:class"
     this.width = width;
     this.height = height;
   }
