@@ -19,7 +19,7 @@
 
 using json = nlohmann::json;
 
-namespace Tetrodotoxin::LSP {
+namespace Tetrodotoxin::Lsp {
 
 class UnixJsonRPC {
  public:
@@ -52,4 +52,4 @@ class UnixJsonRPC {
   std::condition_variable cv;
 };
 
-}  // namespace Tetrodotoxin::LSP
+}  // namespace Tetrodotoxin::Lsp

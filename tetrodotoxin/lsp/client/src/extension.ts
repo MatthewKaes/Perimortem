@@ -27,7 +27,7 @@ export function activate(context: ExtensionContext) {
   //   path.join("..", "..", "..", ".bin", "bin", "tetrodotoxin", "lsp", "server", "ttx-lang-server")
   // );
 
-  ttxChannel.appendLine(`Launching LSP Server using path: ${serverPath}`);
+  ttxChannel.appendLine(`Launching Lsp Server using path: ${serverPath}`);
 
   const serverOptions: ServerOptions = {
     run: {
@@ -70,7 +70,7 @@ export function activate(context: ExtensionContext) {
   });
 
   client.start();
-  ttxChannel.appendLine("LSP client started.");
+  ttxChannel.appendLine("Lsp client started.");
 
   // Semantic highlighting
   const tokenTypes = [
@@ -163,10 +163,10 @@ export function activate(context: ExtensionContext) {
 
         const tokensBuilder = new vscode.SemanticTokensBuilder(legend);
         const typeHeader = result.color ? 'ttx' : 'cpp';
-        ttxChannel.appendLine(`LSP header: ${typeHeader}`);
+        ttxChannel.appendLine(`Lsp header: ${typeHeader}`);
         result.tokens.forEach((token) => {
           if (!tokenTypes.includes(typeHeader + token[0])) {
-            ttxChannel.appendLine(`unknown LSP type: ${typeHeader}${token[0]}`);
+            ttxChannel.appendLine(`unknown Lsp type: ${typeHeader}${token[0]}`);
             return;
           }
 
@@ -185,12 +185,33 @@ export function activate(context: ExtensionContext) {
 
   let syntax_client = vscode.languages.registerDocumentSemanticTokensProvider(lang_selector, semantic_provider, legend);
   context.subscriptions.push(syntax_client);
+
+  vscode.languages.registerDocumentFormattingEditProvider(lang_selector, {
+    provideDocumentFormattingEdits(document: vscode.TextDocument): vscode.ProviderResult<vscode.TextEdit[]> {
+      return new Promise<vscode.TextEdit[]>(async (resolve) => {
+        // analyze the document and return semantic tokens
+        class TtxFormat {
+          document: string
+        };
+
+        const result = await client.sendRequest("format", {
+          "source": document.getText(),
+          "name": document.fileName,
+        }) as TtxFormat;
+
+        var firstLine = document.lineAt(0);
+        var lastLine = document.lineAt(document.lineCount - 1);
+        var textRange = new vscode.Range(firstLine.range.start, lastLine.range.end);
+        resolve([vscode.TextEdit.replace(textRange, result.document)]);
+      });
+    }
+  });
 }
 
 export function deactivate(): Thenable<void> | undefined {
   if (!client) {
     return undefined;
   }
-  ttxChannel.appendLine("LSP client stopped.");
+  ttxChannel.appendLine("Lsp client stopped.");
   return client.stop();
 }

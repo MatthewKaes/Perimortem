@@ -8,7 +8,7 @@
 
 // TODO: This should all be async with promises
 
-using namespace Tetrodotoxin::LSP;
+using namespace Tetrodotoxin::Lsp;
 
 UnixJsonRPC::UnixJsonRPC(const std::string& pipe_data_)
     : pipe_name(pipe_data_) {
@@ -132,7 +132,7 @@ auto UnixJsonRPC::process() -> void {
       }
 
       if (bytes_read == 0) {
-        std::cout << "LSP pipe closed client side" << std::endl;
+        std::cout << "Lsp pipe closed client side" << std::endl;
         valid = false;
         break;
       }
@@ -143,12 +143,12 @@ auto UnixJsonRPC::process() -> void {
 
       // More data to process. Tehcnically you could have an object right on
       // the edge but the odds that happens should be zero at 1KB.
-      // TODO: Double check the LSP standard.
+      // TODO: Double check the Lsp standard.
       if (bytes_read == buffer_size) {
         continue;
       }
 
-      // TODO: We don't currently use the LSP / LSIF header packets.
+      // TODO: We don't currently use the Lsp / LSIF header packets.
       if (data.starts_with("Content-Length:") ||
           data.starts_with("Content-Type:")) {
         data.clear();

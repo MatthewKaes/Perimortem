@@ -39,7 +39,7 @@
       }
     },
     {
-      "name": "[Tests] TTX (Linux)",
+      "name": "[Tests] Ttx (Linux)",
       "type": "lldb",
       "request": "launch",
       "program": "${workspaceFolder}/.bin/bin/tetrodotoxin/tests",
@@ -54,7 +54,24 @@
       "presentation": {
           "clear": true
       }
-    },,
+    },
+    {
+      "name": "[Tests] Lsp (Linux)",
+      "type": "lldb",
+      "request": "launch",
+      "program": "${workspaceFolder}/.bin/bin/tetrodotoxin/lsp/server/tests",
+      "args": [ ],
+      "cwd": "${workspaceFolder}",
+      // Why are you like this VSCode???
+      "sourceMap": { 
+        "/proc/self/cwd/external/": "${workspaceFolder}/.bin/Perimortem/external/",
+        "/proc/self/cwd/": "${workspaceFolder}"
+      },
+      "preLaunchTask": "Full Build (Linux) [Debug]",
+      "presentation": {
+          "clear": true
+      }
+    },
     {
       "name": "[Benchmarks] TTX (Linux)",
       "type": "lldb",
@@ -73,7 +90,7 @@
       }
     },
 		{
-			"name": "[LSP] Launch TTX client",
+			"name": "[Lsp] Launch TTX client",
 			"type": "extensionHost",
 			"request": "launch",
 			"runtimeExecutable": "${execPath}",
@@ -83,7 +100,7 @@
 				"${workspaceRoot}/server/out/**/*.js"
 			],
 			"autoAttachChildProcesses": true,
-			"preLaunchTask": "TTX LSP Build",
+			"preLaunchTask": "TTX Lsp Build",
 		},
   ]
 }

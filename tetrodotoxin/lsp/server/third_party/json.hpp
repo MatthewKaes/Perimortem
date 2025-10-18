@@ -1,4 +1,4 @@
-// TODO: Remove with a lighter weight JSON parser for the LSP.
+// TODO: Remove with a lighter weight JSON parser for the Lsp.
 
 //     __ _____ _____ _____
 //  __|  |   __|     |   | |  JSON for Modern C++
@@ -996,31 +996,31 @@ NLOHMANN_JSON_NAMESPACE_END
     #define JSON_HEDLEY_GCC_HAS_EXTENSION(extension,major,minor,patch) JSON_HEDLEY_GCC_VERSION_CHECK(major,minor,patch)
 #endif
 
-#if defined(JSON_HEDLEY_HAS_DECLSPEC_ATTRIBUTE)
-    #undef JSON_HEDLEY_HAS_DECLSPEC_ATTRIBUTE
+#if defined(JSON_HEDLEY_HAS_DECLspEC_ATTRIBUTE)
+    #undef JSON_HEDLEY_HAS_DECLspEC_ATTRIBUTE
 #endif
 #if defined(__has_declspec_attribute)
-    #define JSON_HEDLEY_HAS_DECLSPEC_ATTRIBUTE(attribute) __has_declspec_attribute(attribute)
+    #define JSON_HEDLEY_HAS_DECLspEC_ATTRIBUTE(attribute) __has_declspec_attribute(attribute)
 #else
-    #define JSON_HEDLEY_HAS_DECLSPEC_ATTRIBUTE(attribute) (0)
+    #define JSON_HEDLEY_HAS_DECLspEC_ATTRIBUTE(attribute) (0)
 #endif
 
-#if defined(JSON_HEDLEY_GNUC_HAS_DECLSPEC_ATTRIBUTE)
-    #undef JSON_HEDLEY_GNUC_HAS_DECLSPEC_ATTRIBUTE
+#if defined(JSON_HEDLEY_GNUC_HAS_DECLspEC_ATTRIBUTE)
+    #undef JSON_HEDLEY_GNUC_HAS_DECLspEC_ATTRIBUTE
 #endif
 #if defined(__has_declspec_attribute)
-    #define JSON_HEDLEY_GNUC_HAS_DECLSPEC_ATTRIBUTE(attribute,major,minor,patch) __has_declspec_attribute(attribute)
+    #define JSON_HEDLEY_GNUC_HAS_DECLspEC_ATTRIBUTE(attribute,major,minor,patch) __has_declspec_attribute(attribute)
 #else
-    #define JSON_HEDLEY_GNUC_HAS_DECLSPEC_ATTRIBUTE(attribute,major,minor,patch) JSON_HEDLEY_GNUC_VERSION_CHECK(major,minor,patch)
+    #define JSON_HEDLEY_GNUC_HAS_DECLspEC_ATTRIBUTE(attribute,major,minor,patch) JSON_HEDLEY_GNUC_VERSION_CHECK(major,minor,patch)
 #endif
 
-#if defined(JSON_HEDLEY_GCC_HAS_DECLSPEC_ATTRIBUTE)
-    #undef JSON_HEDLEY_GCC_HAS_DECLSPEC_ATTRIBUTE
+#if defined(JSON_HEDLEY_GCC_HAS_DECLspEC_ATTRIBUTE)
+    #undef JSON_HEDLEY_GCC_HAS_DECLspEC_ATTRIBUTE
 #endif
 #if defined(__has_declspec_attribute)
-    #define JSON_HEDLEY_GCC_HAS_DECLSPEC_ATTRIBUTE(attribute,major,minor,patch) __has_declspec_attribute(attribute)
+    #define JSON_HEDLEY_GCC_HAS_DECLspEC_ATTRIBUTE(attribute,major,minor,patch) __has_declspec_attribute(attribute)
 #else
-    #define JSON_HEDLEY_GCC_HAS_DECLSPEC_ATTRIBUTE(attribute,major,minor,patch) JSON_HEDLEY_GCC_VERSION_CHECK(major,minor,patch)
+    #define JSON_HEDLEY_GCC_HAS_DECLspEC_ATTRIBUTE(attribute,major,minor,patch) JSON_HEDLEY_GCC_VERSION_CHECK(major,minor,patch)
 #endif
 
 #if defined(JSON_HEDLEY_HAS_WARNING)
@@ -2363,10 +2363,10 @@ JSON_HEDLEY_DIAGNOSTIC_POP
 #endif
 #define JSON_HEDLEY_CLANG_HAS_EXTENSION(extension) JSON_HEDLEY_HAS_EXTENSION(extension)
 
-#if defined(JSON_HEDLEY_CLANG_HAS_DECLSPEC_DECLSPEC_ATTRIBUTE)
-    #undef JSON_HEDLEY_CLANG_HAS_DECLSPEC_DECLSPEC_ATTRIBUTE
+#if defined(JSON_HEDLEY_CLANG_HAS_DECLspEC_DECLspEC_ATTRIBUTE)
+    #undef JSON_HEDLEY_CLANG_HAS_DECLspEC_DECLspEC_ATTRIBUTE
 #endif
-#define JSON_HEDLEY_CLANG_HAS_DECLSPEC_ATTRIBUTE(attribute) JSON_HEDLEY_HAS_DECLSPEC_ATTRIBUTE(attribute)
+#define JSON_HEDLEY_CLANG_HAS_DECLspEC_ATTRIBUTE(attribute) JSON_HEDLEY_HAS_DECLspEC_ATTRIBUTE(attribute)
 
 #if defined(JSON_HEDLEY_CLANG_HAS_WARNING)
     #undef JSON_HEDLEY_CLANG_HAS_WARNING
@@ -25534,7 +25534,7 @@ inline void swap(nlohmann::NLOHMANN_BASIC_JSON_TPL& j1, nlohmann::NLOHMANN_BASIC
 #undef JSON_HEDLEY_CLANG_HAS_ATTRIBUTE
 #undef JSON_HEDLEY_CLANG_HAS_BUILTIN
 #undef JSON_HEDLEY_CLANG_HAS_CPP_ATTRIBUTE
-#undef JSON_HEDLEY_CLANG_HAS_DECLSPEC_DECLSPEC_ATTRIBUTE
+#undef JSON_HEDLEY_CLANG_HAS_DECLspEC_DECLspEC_ATTRIBUTE
 #undef JSON_HEDLEY_CLANG_HAS_EXTENSION
 #undef JSON_HEDLEY_CLANG_HAS_FEATURE
 #undef JSON_HEDLEY_CLANG_HAS_WARNING
@@ -25572,7 +25572,7 @@ inline void swap(nlohmann::NLOHMANN_BASIC_JSON_TPL& j1, nlohmann::NLOHMANN_BASIC
 #undef JSON_HEDLEY_GCC_HAS_ATTRIBUTE
 #undef JSON_HEDLEY_GCC_HAS_BUILTIN
 #undef JSON_HEDLEY_GCC_HAS_CPP_ATTRIBUTE
-#undef JSON_HEDLEY_GCC_HAS_DECLSPEC_ATTRIBUTE
+#undef JSON_HEDLEY_GCC_HAS_DECLspEC_ATTRIBUTE
 #undef JSON_HEDLEY_GCC_HAS_EXTENSION
 #undef JSON_HEDLEY_GCC_HAS_FEATURE
 #undef JSON_HEDLEY_GCC_HAS_WARNING
@@ -25582,7 +25582,7 @@ inline void swap(nlohmann::NLOHMANN_BASIC_JSON_TPL& j1, nlohmann::NLOHMANN_BASIC
 #undef JSON_HEDLEY_GNUC_HAS_ATTRIBUTE
 #undef JSON_HEDLEY_GNUC_HAS_BUILTIN
 #undef JSON_HEDLEY_GNUC_HAS_CPP_ATTRIBUTE
-#undef JSON_HEDLEY_GNUC_HAS_DECLSPEC_ATTRIBUTE
+#undef JSON_HEDLEY_GNUC_HAS_DECLspEC_ATTRIBUTE
 #undef JSON_HEDLEY_GNUC_HAS_EXTENSION
 #undef JSON_HEDLEY_GNUC_HAS_FEATURE
 #undef JSON_HEDLEY_GNUC_HAS_WARNING
@@ -25592,7 +25592,7 @@ inline void swap(nlohmann::NLOHMANN_BASIC_JSON_TPL& j1, nlohmann::NLOHMANN_BASIC
 #undef JSON_HEDLEY_HAS_BUILTIN
 #undef JSON_HEDLEY_HAS_CPP_ATTRIBUTE
 #undef JSON_HEDLEY_HAS_CPP_ATTRIBUTE_NS
-#undef JSON_HEDLEY_HAS_DECLSPEC_ATTRIBUTE
+#undef JSON_HEDLEY_HAS_DECLspEC_ATTRIBUTE
 #undef JSON_HEDLEY_HAS_EXTENSION
 #undef JSON_HEDLEY_HAS_FEATURE
 #undef JSON_HEDLEY_HAS_WARNING

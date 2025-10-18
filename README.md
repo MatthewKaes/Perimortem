@@ -34,7 +34,7 @@ If you are fine without it then go ham.
 
 ### Tetrodotoxin support
 
-Perimortem support Tetrodotoxin in VSCode via an LSP (language server protocol) service.
+Perimortem support Tetrodotoxin in VSCode via an Lsp (language server protocol) service.
 You can build and launch a version of VSCode with the TTX extension using:
 
 > debug Launch TTX Client
