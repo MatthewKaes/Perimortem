@@ -1,4 +1,14 @@
 //
 // An Empty library for testing.
 //
-@TTX=Library
+package Empty;
+
+/> <Add package variables here>
+
+// Package loader
+[***] on_load : func() -> Byt = {
+
+  /> <Code to run during package load>
+  return 0;
+
+}

@@ -15,6 +15,7 @@ class Formatter {
 
  private:
   auto document_header() -> void;
+  auto package_name(std::string_view name) -> void;
   auto process_comment_block(int start_range, int end_range, int indent) -> void;
   const Tetrodotoxin::Language::Parser::TokenStream& tokens;
   std::stringstream output;

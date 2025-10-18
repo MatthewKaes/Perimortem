@@ -1,8 +1,15 @@
 //
 // A basic class for testing parsing
 //
-package Test;
+package Simple;
 
-__init {
+/> <Add package variables here>
+
+// Package loader
+[***] on_load : func() -> Byt = {
+
+  /> <Code to run during package load>
   debug(7 + 1);
+  return 0;
+
 }

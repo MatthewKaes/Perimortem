@@ -59,9 +59,34 @@ auto Formatter::process_comment_block(int start_range,
   }
 }
 
-Formatter::Formatter(Tetrodotoxin::Language::Parser::Tokenizer& tokenizer, std::string_view name)
+Formatter::Formatter(Tetrodotoxin::Language::Parser::Tokenizer& tokenizer,
+                     std::string_view name)
     : tokens(tokenizer.get_tokens()) {
   document_header();
+  package_name(name);
+
+  // If the block is empty then add some info.
+  if (tokens[parse_index].klass == Classifier::EndOfStream) {
+    output << "/> <Add package variables here>\\n\\n// Package loader\\n";
+    output << "[***] on_load : func() -> Byt = {\\n\\n";
+    output << "  /> <Code to run during package load>\\n";
+    output << "  return 0;\\n\\n";
+    output << "}\\n";
+  }
+
+  const ClassifierFlags new_line_klasses = Classifier::EndOfStream | Classifier::ScopeEnd | Classifier::ScopeEnd;
+  bool has_content = false;
+  while (tokens[parse_index].klass != Classifier::EndOfStream) {
+    output << (has_content ? " " : "") << tokens[parse_index].to_string();
+    if (new_line_klasses.has(tokens[parse_index].klass)) {
+      output << "\\n";
+      has_content = false;
+    } else {
+      has_content = true;
+    }
+
+    parse_index++;
+  }
 };
 
 auto Formatter::document_header() -> void {
@@ -87,5 +112,36 @@ auto Formatter::document_header() -> void {
     start_range = -1;
   }
 
-  output << "\\n//\\n\\n";
+  output << "\\n//\\n";
+}
+
+auto Formatter::package_name(std::string_view name) -> void {
+  if (tokens[parse_index].klass != Classifier::Package) {
+    std::string sanatized_name;
+    for (int i = 0; i < name.size(); i++) {
+      switch (name[i]) {
+        case 'A' ... 'Z':
+          sanatized_name += name[i];
+          break;
+        case 'a' ... 'z':
+          if (sanatized_name.empty() || (i > 0 && name[i - 1] == '_'))
+            sanatized_name += name[i] - ('a' - 'A');
+          else
+            sanatized_name += name[i];
+          break;
+        case '0' ... '1':
+          if (!sanatized_name.empty())
+            sanatized_name += name[i];
+          break;
+        default:
+          break;
+      }
+    }
+
+    if (sanatized_name.empty()) {
+      sanatized_name = "PackageType";
+    }
+
+    output << "package " << sanatized_name << ";\\n\\n";
+  }
 }

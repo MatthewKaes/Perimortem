@@ -1,15 +1,14 @@
+//
 // A basic class for things
-namespace test::sample
+//
+package Fib;
 
-func fib(x : @int) -> @int {
-  if (x < 3) {
-    return 1;
-  } else {
-    return fib(x - 1) + fib(x - 2);
-  }
-}
+/> <Add package variables here>
 
-// Special function that runs when script is loaded.
-func __init() -> @void {
-  print(fib());
+// Package loader
+[***] on_load : func() -> Byt = {
+
+  /> <Code to run during package load>
+  return 0;
+
 }
