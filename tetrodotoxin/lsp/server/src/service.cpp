@@ -44,7 +44,9 @@ auto Service::lsp_tokens(Tetrodotoxin::Language::Parser::Tokenizer& tokenizer,
   for (int i = 0; i < tokens.size(); i++) {
     const auto& token = tokens[i];
     switch (token.klass) {
-    Lsp_REDEFINE(A, Attribute) Lsp_REDEFINE(I, Numeric) Lsp_REDEFINE(
+      Lsp_REDEFINE(A, Attribute);
+      Lsp_REDEFINE(I, Numeric);
+    Lsp_REDEFINE(
         N, Float) case Tetrodotoxin::Language::Parser::Classifier::Parameter:
       info_stream << "[\""
                      "P"
@@ -68,47 +70,58 @@ auto Service::lsp_tokens(Tetrodotoxin::Language::Parser::Tokenizer& tokenizer,
           parameters.clear();
         }
         break;
-      Lsp_REDEFINE(GS, GroupStart) Lsp_REDEFINE(GE, GroupEnd) Lsp_REDEFINE(
-          IS, IndexStart) Lsp_REDEFINE(IE, IndexEnd) Lsp_REDEFINE(_, Seperator)
-          Lsp_REDEFINE(E, EndStatement) Lsp_REDEFINE(C, LessOp) Lsp_REDEFINE(
-              C, GreaterOp) Lsp_REDEFINE(C, LessEqOp) Lsp_REDEFINE(C,
-                                                                   GreaterEqOp)
-              Lsp_REDEFINE(C, CmpOp) Lsp_REDEFINE(C, AndOp) Lsp_REDEFINE(
-                  C, OrOp) Lsp_REDEFINE(O, Define) Lsp_REDEFINE(O, AccessOp)
-                  Lsp_REDEFINE(O, CallOp) Lsp_REDEFINE(O, Assign) Lsp_REDEFINE(
-                      O, AddAssign) Lsp_REDEFINE(O,
-                                                 SubAssign) Lsp_REDEFINE(O,
-                                                                         AddOp)
-                      Lsp_REDEFINE(O, SubOp) Lsp_REDEFINE(O, DivOp) Lsp_REDEFINE(
-                          O, MulOp) Lsp_REDEFINE(O, ModOp) Lsp_REDEFINE(O,
-                                                                        NotOp)
-                          Lsp_REDEFINE(Cm, Comment) Lsp_REDEFINE(
-                              Z, This) Lsp_REDEFINE(K, New) Lsp_REDEFINE(Nm,
-                                                                         OnLoad)
-                              Lsp_REDEFINE(K, Init) Lsp_REDEFINE(
-                                  K, If) Lsp_REDEFINE(K, For) Lsp_REDEFINE(K,
-                                                                           Else)
-                                  Lsp_REDEFINE(K, While) Lsp_REDEFINE(
-                                      K, Return) Lsp_REDEFINE(K, True)
-                                      Lsp_REDEFINE(K, False) Lsp_REDEFINE(
-                                          D, FuncDef) Lsp_REDEFINE(D, TypeDef)
-                                          Lsp_REDEFINE(L, Package) Lsp_REDEFINE(
-                                              L, Requires) Lsp_REDEFINE(L, Via)
-                                              Lsp_REDEFINE(K, Debug) Lsp_REDEFINE(
-                                                  K,
-                                                  Warning) Lsp_REDEFINE(K,
-                                                                        Error)
-                                                  Lsp_REDEFINE(
-                                                      M1,
-                                                      Constant) Lsp_REDEFINE(M2,
-                                                                             Dynamic)
-                                                      Lsp_REDEFINE(M3, Hidden)
-                                                          Lsp_REDEFINE(
-                                                              M4,
-                                                              Temporary) case Tetrodotoxin::
-                                                              Language::Parser::
-                                                                  Classifier::
-                                                                      String:
+        Lsp_REDEFINE(GS, GroupStart);
+        Lsp_REDEFINE(GE, GroupEnd);
+        Lsp_REDEFINE(IS, IndexStart);
+        Lsp_REDEFINE(IE, IndexEnd);
+        Lsp_REDEFINE(_, Seperator);
+        Lsp_REDEFINE(E, EndStatement);
+        Lsp_REDEFINE(C, LessOp);
+        Lsp_REDEFINE(C, GreaterOp);
+        Lsp_REDEFINE(C, LessEqOp);
+        Lsp_REDEFINE(C, GreaterEqOp);
+        Lsp_REDEFINE(C, CmpOp);
+        Lsp_REDEFINE(C, AndOp);
+        Lsp_REDEFINE(C, OrOp);
+        Lsp_REDEFINE(O, Define);
+        Lsp_REDEFINE(O, AccessOp);
+        Lsp_REDEFINE(O, CallOp);
+        Lsp_REDEFINE(O, Assign);
+        Lsp_REDEFINE(O, AddAssign);
+        Lsp_REDEFINE(O, SubAssign);
+        Lsp_REDEFINE(O, AddOp);
+        Lsp_REDEFINE(O, SubOp);
+        Lsp_REDEFINE(O, DivOp);
+        Lsp_REDEFINE(O, MulOp);
+        Lsp_REDEFINE(O, ModOp);
+        Lsp_REDEFINE(O, NotOp);
+        Lsp_REDEFINE(Cm, Comment);
+        Lsp_REDEFINE(Dis, Disabled);
+        Lsp_REDEFINE(Z, This);
+        Lsp_REDEFINE(K, New);
+        Lsp_REDEFINE(Nm, OnLoad);
+        Lsp_REDEFINE(K, Init);
+        Lsp_REDEFINE(K, If);
+        Lsp_REDEFINE(K, For);
+        Lsp_REDEFINE(K, Else);
+        Lsp_REDEFINE(K, While);
+        Lsp_REDEFINE(K, Return);
+        Lsp_REDEFINE(K, True);
+        Lsp_REDEFINE(K, False);
+        Lsp_REDEFINE(D, FuncDef);
+        Lsp_REDEFINE(D, TypeDef);
+        Lsp_REDEFINE(L, Package);
+        Lsp_REDEFINE(L, Requires);
+        Lsp_REDEFINE(L, Via);
+        Lsp_REDEFINE(K, Debug);
+        Lsp_REDEFINE(K, Warning);
+        Lsp_REDEFINE(K, Error);
+        Lsp_REDEFINE(M1, Constant);
+        Lsp_REDEFINE(M2, Dynamic);
+        Lsp_REDEFINE(M3, Hidden);
+      Lsp_REDEFINE(
+          M4,
+          Temporary) case Tetrodotoxin::Language::Parser::Classifier::String:
         if (i > 0) {
           switch (tokens[i - 1].klass) {
             case Tetrodotoxin::Language::Parser::Classifier::Via:

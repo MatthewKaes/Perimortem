@@ -92,11 +92,6 @@ auto parse_comment(Context& context) -> void {
 
   context.loc.parse_index += 2;  // trim comment "//"
 
-  // If there is a default space (which is standard) consume it from the
-  // comment.
-  if (peak_ahead(context, 0) == ' ')
-    context.loc.parse_index++;
-
   uint32_t start_comment = context.loc.parse_index;
 
   while (can_parse(context) && context.source[context.loc.parse_index] != '\n')
@@ -107,6 +102,28 @@ auto parse_comment(Context& context) -> void {
        context.source.subspan(start_comment,
                               context.loc.parse_index - start_comment),
        context.loc});
+
+  // No need for column validation as we are about to end the file or start a
+  // new line.
+}
+
+auto parse_disabled(Context& context, bool strip) -> void {
+  context.loc.source_index = context.loc.parse_index;
+
+  context.loc.parse_index += 2;  // trim comment "//"
+
+  uint32_t start_comment = context.loc.parse_index;
+
+  while (can_parse(context) && context.source[context.loc.parse_index] != '\n')
+    context.loc.parse_index++;
+
+  // Strip disabled lines if requested.
+  if (!strip)
+    context.tokens.push_back(
+        {Classifier::Disabled,
+         context.source.subspan(start_comment,
+                                context.loc.parse_index - start_comment),
+         context.loc});
 
   // No need for column validation as we are about to end the file or start a
   // new line.
@@ -230,7 +247,7 @@ auto parse_identifier(Context& context) -> void {
     SIMPLE_TOKEN(klass, 1);        \
     break;
 
-Tokenizer::Tokenizer(const ByteView& source) {
+Tokenizer::Tokenizer(const ByteView& source, bool strip_disabled) {
   // Take an estimated best guess on the token count. This helps save on
   // resizes even if we end up oversized.
   // Assume larger files are more likely to have comments and have a
@@ -254,6 +271,9 @@ Tokenizer::Tokenizer(const ByteView& source) {
       case '/':
         if (peak_ahead(context, 1) == '/') {
           parse_comment(context);
+          break;
+        } else if (peak_ahead(context, 1) == '>') {
+          parse_disabled(context, strip_disabled);
           break;
         } else {
           SIMPLE_TOKEN(DivOp, 1);

@@ -85,7 +85,8 @@ auto main(int argc, char* argv[]) -> int {
         Tetrodotoxin::Language::Parser::Tokenizer tokenizer(
             Tetrodotoxin::Language::Parser::ByteView{
                 (Tetrodotoxin::Language::Parser::Byte*)source_code.data(),
-                source_code.size()});
+                source_code.size()},
+            false);
 
         return Service::lsp_tokens(tokenizer, jsonrpc.get<std::string>(),
                                    id.get<int32_t>());
@@ -118,7 +119,8 @@ auto main(int argc, char* argv[]) -> int {
         Tetrodotoxin::Language::Parser::Tokenizer tokenizer(
             Tetrodotoxin::Language::Parser::ByteView{
                 (Tetrodotoxin::Language::Parser::Byte*)source_code.data(),
-                source_code.size()});
+                source_code.size()},
+            false);
 
         return Service::format(tokenizer, name, jsonrpc.get<std::string>(),
                                id.get<int32_t>());

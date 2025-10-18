@@ -23,6 +23,7 @@ enum class Classifier : int8_t {
 
   // Macro objects
   Comment,     // //
+  Disabled,    // </>
   String,      // " "
   Numeric,     // 0-1 no decemial
   Float,       // 9. 0.9 as floats 9.. isn't valid TODO: Handle 9...?
@@ -122,6 +123,8 @@ inline constexpr auto klass_name(Classifier klass) -> const char * {
   switch (klass) {
   case Classifier::Comment:
     return "comment";
+  case Classifier::Disabled:
+    return "disabled";
   case Classifier::Parameter:
     return "function parameter";
   case Classifier::String:

@@ -81,6 +81,7 @@ export function activate(context: ExtensionContext) {
     'ttxDT', // Definition Type
     'ttxDI', // Definition ID
     'ttxCm', // Comment
+    'ttxDis', // Disabled
     'ttxIn', // imports
     'ttxNm', // Package Name
     'ttxM1', // Constant
@@ -117,6 +118,7 @@ export function activate(context: ExtensionContext) {
     'cppDT', // Definition Type
     'cppDI', // Definition ID
     'cppCm', // Comment
+    'cppDis', // Disabled
     'cppIn', // imports
     'cppNm', // Package Name
     'cppM1', // Constant

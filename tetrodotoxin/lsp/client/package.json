@@ -49,6 +49,11 @@
         "description": "TTX Type"
       },
       {
+        "id": "cppDis",
+        "superType": "comment",
+        "description": "TTX Type"
+      },
+      {
         "id": "cppT",
         "superType": "type",
         "description": "TTX Type"
@@ -237,8 +242,9 @@
           "ttxM": { "foreground": "#ff7d85"},
           "ttxD": { "foreground": "#ff7d85"},
           "ttxL": { "foreground": "#ff7d85"},
-          "ttxA": { "foreground": "#5e5e5e" , "fontStyle": "bold italic" },
-          "ttxCm": { "foreground": "#8f8f8f", "fontStyle": "italic" }
+          "ttxA": { "foreground": "#db3944" , "fontStyle": "bold italic" },
+          "ttxCm": { "foreground": "#8f8f8f", "fontStyle": "italic" },
+          "ttxDis": { "foreground": "#5e5e5e", "fontStyle": "italic" }
         }
       },
       "editor.tokenColorCustomizations": {

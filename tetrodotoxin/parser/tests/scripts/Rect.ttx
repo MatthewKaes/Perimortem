@@ -1,8 +1,11 @@
+// A basic class for testing parsing asdf
 //
-// A basic class for testing parsing
+//    
+// along with a bunch
+// of other gunk
 //
-package Rectangle; // The top type for the file that is exported.
-// @UseCppTheme
+package Rectangle;
+/> @UseCppTheme
 
 // Importing the top type from another file.
 // Top types are always constant references and can not be new-ed

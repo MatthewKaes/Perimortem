@@ -25,7 +25,7 @@ enum class TtxState : int8_t {
 
 class Tokenizer {
  public:
-  Tokenizer(const ByteView& source);
+  Tokenizer(const ByteView& source, bool strip_disabled = true);
 
   inline constexpr auto get_tokens() const -> const TokenStream& {
     return tokens;
