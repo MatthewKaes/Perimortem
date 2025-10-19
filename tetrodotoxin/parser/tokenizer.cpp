@@ -74,11 +74,13 @@ auto parse_attribute(Context& context) -> void {
       context.loc.parse_index - context.loc.source_index - 1);
 
   // Compiler configuration
-  constexpr const char color_flag[] = "UseCppTheme";
-  if (token.size() == sizeof(color_flag) - 1 &&
-      token.data()[0] == color_flag[0] &&
-      !std::memcmp(token.data(), color_flag, sizeof(color_flag) - 1)) {
-    context.options += TtxState::CppTheme;
+  if (!context.options.has(TtxState::DisableCommands)) {
+    constexpr const char color_flag[] = "UseCppTheme";
+    if (token.size() == sizeof(color_flag) - 1 &&
+        token.data()[0] == color_flag[0] &&
+        !std::memcmp(token.data(), color_flag, sizeof(color_flag) - 1)) {
+      context.options += TtxState::CppTheme;
+    }
   }
 
   if (!token.empty())
@@ -107,26 +109,53 @@ auto parse_comment(Context& context) -> void {
   // new line.
 }
 
-auto parse_disabled(Context& context, bool strip) -> void {
+auto recursive_strip(Context& context) {
+  while (can_parse(context)) {
+    switch (context.source[context.loc.parse_index++]) {
+      case '\n':
+        context.loc.line += 1;
+        break;
+      case '}':
+        return;
+      case '{':
+        recursive_strip(context);
+        break;
+      default:
+        break;
+    }
+  }
+}
+
+auto parse_disabled(Context& context, bool strip_disabled) -> void {
   context.loc.source_index = context.loc.parse_index;
-
-  context.loc.parse_index += 2;  // trim comment "//"
-
-  uint32_t start_comment = context.loc.parse_index;
-
-  while (can_parse(context) && context.source[context.loc.parse_index] != '\n')
-    context.loc.parse_index++;
+  context.loc.parse_index += 2;  // "/>"
 
   // Strip disabled lines if requested.
-  if (!strip)
+  if (!strip_disabled) {
     context.tokens.push_back(
         {Classifier::Disabled,
-         context.source.subspan(start_comment,
-                                context.loc.parse_index - start_comment),
+         context.source.subspan(
+             context.loc.source_index,
+             context.loc.parse_index - context.loc.source_index),
          context.loc});
+    context.loc.column += 2;
+    context.options += TtxState::DisableCommands;
+  } else {
+    // The parser pass is more expensive than tokenization so if we can strip
+    // out disabled code then optimize by removing the tokens.
+    while (can_parse(context) &&
+           context.source[context.loc.parse_index] != '\n') {
+      if (context.source[context.loc.parse_index] == '{') {
+        recursive_strip(context);
+        continue;
+      }
 
-  // No need for column validation as we are about to end the file or start a
-  // new line.
+      context.loc.parse_index++;
+    }
+
+    // No need for column validation as we are about to end the file or start a
+    // new line.
+  }
 }
 
 auto parse_number(Context& context) -> void {
@@ -247,7 +276,8 @@ auto parse_identifier(Context& context) -> void {
     SIMPLE_TOKEN(klass, 1);        \
     break;
 
-Tokenizer::Tokenizer(const ByteView& source, bool strip_disabled) {
+Tokenizer::Tokenizer(const ByteView& source_, bool strip_disabled)
+    : source(source_) {
   // Take an estimated best guess on the token count. This helps save on
   // resizes even if we end up oversized.
   // Assume larger files are more likely to have comments and have a
@@ -265,6 +295,7 @@ Tokenizer::Tokenizer(const ByteView& source, bool strip_disabled) {
         context.loc.line++;
         context.loc.column = 1;
         context.loc.parse_index++;
+        context.options -= TtxState::DisableCommands;
         break;
 
         // Comment or divide
@@ -364,7 +395,7 @@ Tokenizer::Tokenizer(const ByteView& source, bool strip_disabled) {
           context.loc.parse_index++;
 
         // Consume the closing quote if we found it.
-        if (source[context.loc.parse_index] == '"') {
+        if (can_parse(context) && source[context.loc.parse_index] == '"') {
           context.loc.parse_index++;  // closing quote
         }
 

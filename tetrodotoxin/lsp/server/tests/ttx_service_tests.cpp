@@ -35,11 +35,11 @@ struct TtxLspServiceTests : public ::testing::Test {
 
 // Demonstrate some basic assertions.
 TEST_F(TtxLspServiceTests, format) {
-  auto bytes = read_all_bytes("tetrodotoxin/parser/tests/scripts/Rect.ttx");
+  auto bytes = read_all_bytes("tetrodotoxin/parser/tests/scripts/Simple.ttx");
   Tokenizer t(bytes);
 
   std::string result =
-      Service::format(t, "Rect.ttx", "2.0", 0);
+      Service::format(t, "Simple.ttx", "2.0", 0);
 
   std::cout << result << std::endl;
 }

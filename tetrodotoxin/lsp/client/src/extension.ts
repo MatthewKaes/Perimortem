@@ -172,12 +172,41 @@ export function activate(context: ExtensionContext) {
             return;
           }
 
-          tokensBuilder.push(
-            new vscode.Range(
-              new vscode.Position(token[1], token[2]),
-              new vscode.Position(token[1], token[2] + token[3])),
-            typeHeader + token[0]
-          );
+          // VSCode doesn't support multi column tokens.
+          if (token[1] != token[3]) {
+            // Start Line
+            tokensBuilder.push(
+              new vscode.Range(
+                new vscode.Position(token[1], token[2]),
+                new vscode.Position(token[1], document.lineAt(token[1]).range.end.character)),
+              typeHeader + token[0]
+            );
+
+            // Middle Lines (Completely covered)
+            for (var i = token[1] + 1; i < token[3]; i++) {
+              tokensBuilder.push(
+                new vscode.Range(
+                  new vscode.Position(i, 0),
+                  new vscode.Position(i, document.lineAt(i).range.end.character)),
+                typeHeader + token[0]
+              );
+            }
+
+            // End Line
+            tokensBuilder.push(
+              new vscode.Range(
+                new vscode.Position(token[3], 0),
+                new vscode.Position(token[3], token[4])),
+              typeHeader + token[0]
+            );
+          } else {
+            tokensBuilder.push(
+              new vscode.Range(
+                new vscode.Position(token[1], token[2]),
+                new vscode.Position(token[3], token[4])),
+              typeHeader + token[0]
+            );
+          }
         });
 
         resolve(tokensBuilder.build());

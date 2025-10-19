@@ -10,16 +10,28 @@ namespace Tetrodotoxin::Lsp {
 
 class Formatter {
  public:
-  Formatter(Tetrodotoxin::Language::Parser::Tokenizer& tokenizer, std::string_view name);
+  Formatter() = default;
+
+  // A simple formatter that looks at tokenized state. It doesn't requrie any
+  // parse state and does best effort based on the token stream.
+  auto tokenized_format(Tetrodotoxin::Language::Parser::Tokenizer& tokenizer,
+                        std::string_view name) -> void;
+
   auto get_content() const -> std::string { return output.str(); }
 
  private:
-  auto document_header() -> void;
-  auto package_name(std::string_view name) -> void;
-  auto process_comment_block(int start_range, int end_range, int indent) -> void;
-  const Tetrodotoxin::Language::Parser::TokenStream& tokens;
+  auto document_header(
+      const Tetrodotoxin::Language::Parser::TokenStream& tokens,
+      uint32_t& parse_index) -> void;
+  auto package_name(const Tetrodotoxin::Language::Parser::TokenStream& tokens,
+                    uint32_t parse_index,
+                    std::string_view name) -> void;
+  auto process_comment_block(
+      const Tetrodotoxin::Language::Parser::TokenStream& tokens,
+      uint32_t start_range,
+      uint32_t end_range,
+      uint32_t indent) -> void;
   std::stringstream output;
-  int parse_index = 0;
 };
 
 }  // namespace Tetrodotoxin::Lsp

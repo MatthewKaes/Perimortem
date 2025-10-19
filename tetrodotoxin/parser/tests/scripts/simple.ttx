@@ -1,15 +1,19 @@
 //
-// A basic class for testing parsing
+// <Document String>
 //
 package Simple;
 
-/> <Add package variables here>
+// Import any dependency packages into a scoped type.
+/> requires Type via "./Path.ttx";
 
-// Package loader
-[***] on_load : func() -> Byt = {
+// Declare any package scoped variables or types.
+/> [=/=] constant_value : Int = 1;
+/> [=/=] public_static : Int = 2;
+/> [=!=] hidden_static : Int = 3;
+/> [=/=] thread_local : Int = 4;
 
-  /> <Code to run during package load>
-  debug(7 + 1);
+// Loader function that runs once before any packages that import this one.
+/> [***] on_load : func() -> Byt = {
+  // The return value of on_load is saved on the type.
   return 0;
-
 }

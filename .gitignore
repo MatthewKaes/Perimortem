@@ -1,0 +1,12 @@
+# Perimortem .gitignore config
+
+# Buildsystem
+.bin/*
+.reference/*
+MODULE.bazel.lock
+
+# LSP Client
+tetrodotoxin/lsp/client/package-lock.json
+tetrodotoxin/lsp/client/*.vsix
+tetrodotoxin/lsp/client/out/*
+tetrodotoxin/lsp/client/node_modules/*
