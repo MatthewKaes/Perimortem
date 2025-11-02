@@ -3,12 +3,8 @@
 
 #include <benchmark/benchmark.h>
 
-#include "parser/token.hpp"
-#include "parser/ttx.hpp"
+#include "parser/tokenizer.hpp"
 
-#include "concepts/narrow_resolver.hpp"
-#include "concepts/sparse_index.hpp"
-#include "concepts/sparse_lookup.hpp"
 
 #include <fstream>
 #include <filesystem>
@@ -16,17 +12,18 @@
 using namespace Perimortem::Concepts;
 using namespace Tetrodotoxin::Language::Parser;
 
-auto read_all_bytes(const std::filesystem::path &p) -> Bytes {
+auto read_all_bytes(const std::filesystem::path &p) -> std::string {
   if(!std::filesystem::is_regular_file(p))
-    return Bytes();
+    return std::string();
 
   std::ifstream ifs(p, std::ios::binary | std::ios::ate);
   std::ifstream::pos_type pos = ifs.tellg();
 
   if (pos == 0)
-    return Bytes();
+    return std::string();
 
-  Bytes data(pos);
+  std::string data;
+  data.resize(pos);
   ifs.seekg(0, std::ios::beg);
   ifs.read((char *)data.data(), pos);
   return data;

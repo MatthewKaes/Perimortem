@@ -5,10 +5,10 @@ import * as path from "path";
 import * as vscode from "vscode";
 import { ExtensionContext, OutputChannel, window, workspace } from "vscode";
 import {
-  LanguageClient,
-  LanguageClientOptions,
-  ServerOptions,
-  TransportKind,
+    LanguageClient,
+    LanguageClientOptions,
+    ServerOptions,
+    TransportKind,
 } from "vscode-languageclient/node";
 
 let client: LanguageClient;
@@ -165,7 +165,6 @@ export function activate(context: ExtensionContext) {
 
         const tokensBuilder = new vscode.SemanticTokensBuilder(legend);
         const typeHeader = result.color ? 'ttx' : 'cpp';
-        ttxChannel.appendLine(`Lsp header: ${typeHeader}`);
         result.tokens.forEach((token) => {
           if (!tokenTypes.includes(typeHeader + token[0])) {
             ttxChannel.appendLine(`unknown Lsp type: ${typeHeader}${token[0]}`);

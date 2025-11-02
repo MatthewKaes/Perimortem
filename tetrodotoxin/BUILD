@@ -11,11 +11,11 @@ cc_library(
     name = "parser",
     srcs = glob([
         "parser/*.cpp",
-        "parser/ast/*.cpp",
+        "parser/*.cpp",
     ]),
     hdrs = glob([
         "parser/*.hpp",
-        "parser/ast/*.hpp",
+        "parser/*.hpp",
     ]),
     includes = ["."],
     deps = [

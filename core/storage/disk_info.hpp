@@ -65,7 +65,7 @@ enum class StorageOptions : int8_t {
   TOTAL_FLAGS,
 };
 
-using StorageFlags = Concepts::BitFlag<StorageOptions, uint8_t>;
+using StorageFlags = Concepts::BitFlag<StorageOptions>;
 
 struct FileData {
   std::string_view path;

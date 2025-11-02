@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include "parser/ast/context.hpp"
+#include "parser/context.hpp"
 
 #include <optional>
 
@@ -12,19 +12,20 @@ namespace Tetrodotoxin::Language::Parser {
 class Type {
  public:
   enum class Handler : uint8_t {
-    Byt,  // Stack
-    Enu,  // Stack
-    Flg,  // Stack
-    Int,  // Stack
-    Num,  // Stack
-    Str,  // Stack - Takes Size parameter
-    Vec,  // Stack - Takes Size parameter and type
-    Any,  // Stack - Contains type info and fixed data, Boxes: Vec -> List, Str -> Text
-    Text,     // Heap
-    List,     // Heap - Generic
-    Dict,     // Heap - Generic
-    Func,     // Heap - Generic
-    Defined,  // Class - Could be Stack or Heap depending TODO: Split hanlder
+    Any,   // Stack - Contains type info and fixed data, Boxes: Vec -> List, Str
+           // -> Text
+    Byt,   // Stack
+    Enu,   // Stack
+    Flg,   // Stack
+    Int,   // Stack
+    Num,   // Stack
+    Str,   // Stack - Takes Size parameter
+    Vec,   // Stack - Takes Size parameter and type
+    Text,  // Heap
+    List,  // Heap - Generic
+    Dict,  // Heap - Generic
+    Func,  // Heap - Generic Node Lib
+    Type, 
   };
 
   Type() {};

@@ -8,6 +8,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <filesystem>
 
 namespace Tetrodotoxin::Language::Parser {
 
@@ -20,9 +21,9 @@ struct Error {
   static std::string error_color_tertiary;
   static std::string error_color_highlight;
 
-  Error(std::string_view source_map,
+  Error(const std::filesystem::path& source_map,
         std::string_view details,
-        const ByteView& source,
+        std::string_view source,
         std::optional<Location> loc = std::nullopt,
         std::optional<std::string_view> line_range = std::nullopt,
         std::optional<uint32_t> error_range = std::nullopt);

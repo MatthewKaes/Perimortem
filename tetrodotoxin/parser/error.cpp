@@ -18,9 +18,9 @@ std::string Error::error_color_secondary = "\x1b[38;2;222;122;101m";
 std::string Error::error_color_tertiary = "\x1b[38;2;245;147;85m";
 std::string Error::error_color_highlight = "\x1b[38;2;255;201;107m";
 
-Error::Error(std::string_view source_map,
+Error::Error(const std::filesystem::path& source_map,
              std::string_view details_,
-             const ByteView& source,
+             std::string_view source,
              std::optional<Location> loc,
              std::optional<std::string_view> line_range,
              std::optional<uint32_t> error_range) {
@@ -34,7 +34,7 @@ Error::Error(std::string_view source_map,
       Error::colorful ? error_color_highlight.c_str() : "";
 
   details << err_primary << "\x1b[1m[ERROR] " << err_secondary
-          << "\x1b[3m\x1b[38;2;143;28;0m" << source_map << ":";
+          << "\x1b[3m\x1b[38;2;255;102;102m" << source_map.c_str() << ":";
   if (loc) {
     details << loc->line << ":" << loc->column << ":";
   }

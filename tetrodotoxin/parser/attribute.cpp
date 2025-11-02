@@ -1,7 +1,7 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
-#include "parser/ast/attribute.hpp"
+#include "parser/attribute.hpp"
 
 using namespace Tetrodotoxin::Language::Parser;
 
@@ -11,7 +11,7 @@ auto Attribute::parse(Context& ctx) -> std::optional<Attribute> {
     return std::nullopt;
 
   auto start_token = token;
-  Attribute attribute = Attribute(token->to_string());
+  Attribute attribute = Attribute(token->data);
 
   // Check if we don't have an assignment
   token = &ctx.advance();
@@ -30,7 +30,7 @@ auto Attribute::parse(Context& ctx) -> std::optional<Attribute> {
     return std::nullopt;
   }
 
-  attribute.value = token->to_string();
+  attribute.value = token->data;
   ctx.advance();
   return attribute;
 }

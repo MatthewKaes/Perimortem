@@ -1,9 +1,0 @@
-//
-// A basic class for things
-//
-package Fib;
-
-// Package loader
-[***] on_load : func() -> Byt = {
-  return 0;
-}

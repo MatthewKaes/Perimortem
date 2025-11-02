@@ -43,13 +43,13 @@ constexpr auto is_num(uint8_t c) -> bool {
 
 // Used for tracking during parsing
 struct Context {
-  Context(const ByteView& source, TokenStream& tokens)
+  Context(const std::string_view& source, TokenStream& tokens)
       : source(source), tokens(tokens) {};
 
   Location loc;
-  const ByteView& source;
+  const std::string_view& source;
   TokenStream& tokens;
-  Perimortem::Concepts::BitFlag<TtxState, uint64_t> options;
+  Perimortem::Concepts::BitFlag<TtxState> options;
 };
 
 inline auto can_parse(Context& context) -> bool {
@@ -69,7 +69,7 @@ auto parse_attribute(Context& context) -> void {
     context.loc.parse_index++;
 
   context.loc.parse_index++;
-  const auto token = context.source.subspan(
+  const auto token = context.source.substr(
       context.loc.source_index + 1 /* skip @ */,
       context.loc.parse_index - context.loc.source_index - 1);
 
@@ -101,8 +101,8 @@ auto parse_comment(Context& context) -> void {
 
   context.tokens.push_back(
       {Classifier::Comment,
-       context.source.subspan(start_comment,
-                              context.loc.parse_index - start_comment),
+       context.source.substr(start_comment,
+                             context.loc.parse_index - start_comment),
        context.loc});
 
   // No need for column validation as we are about to end the file or start a
@@ -134,7 +134,7 @@ auto parse_disabled(Context& context, bool strip_disabled) -> void {
   if (!strip_disabled) {
     context.tokens.push_back(
         {Classifier::Disabled,
-         context.source.subspan(
+         context.source.substr(
              context.loc.source_index,
              context.loc.parse_index - context.loc.source_index),
          context.loc});
@@ -178,12 +178,11 @@ auto parse_number(Context& context) -> void {
 
   // Consume the peak_ahead
   context.loc.parse_index++;
-  context.tokens.push_back(
-      {klass,
-       context.source.subspan(
-           context.loc.source_index,
-           context.loc.parse_index - context.loc.source_index),
-       context.loc});
+  context.tokens.push_back({klass,
+                            context.source.substr(context.loc.source_index,
+                                                  context.loc.parse_index -
+                                                      context.loc.source_index),
+                            context.loc});
   context.loc.column += context.loc.parse_index - context.loc.source_index;
 }
 
@@ -194,12 +193,11 @@ auto parse_type(Context& context) -> void {
 
   // Consume the peak_ahead
   context.loc.parse_index++;
-  context.tokens.push_back(
-      {Classifier::Type,
-       context.source.subspan(
-           context.loc.source_index,
-           context.loc.parse_index - context.loc.source_index),
-       context.loc});
+  context.tokens.push_back({Classifier::Type,
+                            context.source.substr(context.loc.source_index,
+                                                  context.loc.parse_index -
+                                                      context.loc.source_index),
+                            context.loc});
   context.loc.column += context.loc.parse_index - context.loc.source_index;
 }
 
@@ -207,15 +205,18 @@ static inline constexpr auto check_keyword(std::string_view value,
                                            Classifier default_value)
     -> Classifier {
   static constexpr TablePair<std::string_view, Classifier> data[] = {
-      {"if", Classifier::If},           {"for", Classifier::For},
-      {"new", Classifier::New},         {"via", Classifier::Via},
-      {"else", Classifier::Else},       {"func", Classifier::FuncDef},
-      {"init", Classifier::Init},       {"true", Classifier::True},
-      {"class", Classifier::TypeDef},   {"debug", Classifier::Debug},
-      {"error", Classifier::Error},     {"false", Classifier::False},
-      {"while", Classifier::While},     {"return", Classifier::Return},
+      {"as", Classifier::As},           {"if", Classifier::If},
+      {"for", Classifier::For},         {"new", Classifier::New},
+      {"else", Classifier::Else},       {"func", Classifier::Func},
+      {"init", Classifier::Init},       {"self", Classifier::Self},
+      {"true", Classifier::True},       {"alis", Classifier::Alias},
+      {"debug", Classifier::Debug},     {"error", Classifier::Error},
+      {"false", Classifier::False},     {"using", Classifier::Using},
+      {"while", Classifier::While},     {"entity", Classifier::Entity},
+      {"object", Classifier::Object},   {"return", Classifier::Return},
+      {"struct", Classifier::Struct},   {"library", Classifier::Library},
       {"on_load", Classifier::OnLoad},  {"package", Classifier::Package},
-      {"warning", Classifier::Warning}, {"requires", Classifier::Requires},
+      {"warning", Classifier::Warning},
   };
 
   using keyword_resolver = NarrowResolver<Classifier, array_size(data), data>;
@@ -242,9 +243,9 @@ auto parse_identifier(Context& context) -> void {
 
   // Consume the peak_ahead
   context.loc.parse_index++;
-  const auto view = context.source.subspan(
-      context.loc.source_index,
-      context.loc.parse_index - context.loc.source_index);
+  const auto view =
+      context.source.substr(context.loc.source_index,
+                            context.loc.parse_index - context.loc.source_index);
 
   // Can't be a number since that's handle in the main switch.
   Classifier klass = context.options.has(TtxState::ParamTokenizing)
@@ -256,7 +257,7 @@ auto parse_identifier(Context& context) -> void {
     klass =
         check_keyword(std::string_view((char*)view.data(), view.size()), klass);
 
-    if (klass == Classifier::FuncDef)
+    if (klass == Classifier::Func)
       context.options += TtxState::ParamTokenizing;
   }
 
@@ -264,11 +265,11 @@ auto parse_identifier(Context& context) -> void {
   context.loc.column += context.loc.parse_index - context.loc.source_index;
 }
 
-#define SIMPLE_TOKEN(klass, len)                                   \
-  context.loc.parse_index += len;                                  \
-  tokens.push_back({Classifier::klass,                             \
-                    source.subspan(context.loc.source_index, len), \
-                    context.loc});                                 \
+#define SIMPLE_TOKEN(klass, len)                                  \
+  context.loc.parse_index += len;                                 \
+  tokens.push_back({Classifier::klass,                            \
+                    source.substr(context.loc.source_index, len), \
+                    context.loc});                                \
   context.loc.column += len;
 
 #define PARSE_SIMPLE(token, klass) \
@@ -276,7 +277,7 @@ auto parse_identifier(Context& context) -> void {
     SIMPLE_TOKEN(klass, 1);        \
     break;
 
-Tokenizer::Tokenizer(const ByteView& source_, bool strip_disabled)
+Tokenizer::Tokenizer(const std::string_view& source_, bool strip_disabled)
     : source(source_) {
   // Take an estimated best guess on the token count. This helps save on
   // resizes even if we end up oversized.
@@ -349,10 +350,6 @@ Tokenizer::Tokenizer(const ByteView& source_, bool strip_disabled)
         if (peak_ahead(context, 1) == '=') {
           SIMPLE_TOKEN(LessEqOp, 2);
           break;
-        } else if (peak_ahead(context, 1) == '$' &&
-                   peak_ahead(context, 2) == '>') {
-          SIMPLE_TOKEN(This, 3);
-          break;
         } else {
           SIMPLE_TOKEN(LessOp, 1);
           break;
@@ -401,8 +398,8 @@ Tokenizer::Tokenizer(const ByteView& source_, bool strip_disabled)
 
         tokens.push_back(
             {Classifier::String,
-             source.subspan(context.loc.source_index,
-                            context.loc.parse_index - context.loc.source_index),
+             source.substr(context.loc.source_index,
+                           context.loc.parse_index - context.loc.source_index),
              context.loc});
         context.loc.column +=
             context.loc.parse_index - context.loc.source_index;
@@ -437,7 +434,7 @@ Tokenizer::Tokenizer(const ByteView& source_, bool strip_disabled)
       case ')':
         context.loc.parse_index += 1;
         tokens.push_back({Classifier::GroupEnd,
-                          source.subspan(context.loc.source_index, 1),
+                          source.substr(context.loc.source_index, 1),
                           context.loc});
         context.loc.column += 1;
         context.options -=
@@ -475,5 +472,6 @@ Tokenizer::Tokenizer(const ByteView& source_, bool strip_disabled)
   // End of file
   options = context.options;
   context.loc.source_index = ++context.loc.parse_index;
-  context.tokens.push_back({Classifier::EndOfStream, ByteView(), context.loc});
+  context.tokens.push_back(
+      {Classifier::EndOfStream, std::string_view(), context.loc});
 }

@@ -3,14 +3,15 @@
 
 #pragma once
 
+#include "parser/context.hpp"
+
 #include <optional>
-#include "parser/ast/context.hpp"
 
 namespace Tetrodotoxin::Language::Parser {
 
-class Comment {
+class Init {
  public:
-  static auto parse(Context& ctx) -> std::optional<Comment>;
+  static auto parse(Context& ctx) -> std::unique_ptr<Init>;
 
   std::string body;
 };

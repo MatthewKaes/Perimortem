@@ -92,7 +92,7 @@ auto Service::lsp_tokens(Tetrodotoxin::Language::Parser::Tokenizer& tokenizer,
       Lsp_REDEFINE(O, ModOp);
       Lsp_REDEFINE(O, NotOp);
       Lsp_REDEFINE(Cm, Comment);
-      Lsp_REDEFINE(Z, This);
+      Lsp_REDEFINE(Z, Self);
       Lsp_REDEFINE(K, New);
       Lsp_REDEFINE(Nm, OnLoad);
       Lsp_REDEFINE(K, Init);
@@ -103,10 +103,15 @@ auto Service::lsp_tokens(Tetrodotoxin::Language::Parser::Tokenizer& tokenizer,
       Lsp_REDEFINE(K, Return);
       Lsp_REDEFINE(K, True);
       Lsp_REDEFINE(K, False);
-      Lsp_REDEFINE(D, FuncDef);
-      Lsp_REDEFINE(D, TypeDef);
+      Lsp_REDEFINE(D, Func);
+      Lsp_REDEFINE(D, Alias);
+      Lsp_REDEFINE(D, Object);
+      Lsp_REDEFINE(D, Struct);
+      Lsp_REDEFINE(P, Entity);
+      Lsp_REDEFINE(P, Library);
       Lsp_REDEFINE(L, Package);
-      Lsp_REDEFINE(L, Requires);
+      Lsp_REDEFINE(L, Using);
+      Lsp_REDEFINE(L, As);
       Lsp_REDEFINE(L, Via);
       Lsp_REDEFINE(K, Debug);
       Lsp_REDEFINE(K, Warning);
@@ -222,8 +227,6 @@ auto Service::lsp_tokens(Tetrodotoxin::Language::Parser::Tokenizer& tokenizer,
 
         i -= 1;
         auto& end_token = tokens[i];
-        std::cout << "final token: " << (uint32_t)end_token.klass << "="
-                  << end_token.to_string() << std::endl;
 
         // Lsp is zero indexed compared to LLVM, clang, and editors which starts
         // at one so we need to do a quick index conversion.

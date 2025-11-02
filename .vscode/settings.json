@@ -109,6 +109,7 @@
       "stop_token": "cpp",
       "thread": "cpp",
       "typeindex": "cpp",
-      "typeinfo": "cpp"
+      "typeinfo": "cpp",
+      "filesystem": "cpp"
     }
 }

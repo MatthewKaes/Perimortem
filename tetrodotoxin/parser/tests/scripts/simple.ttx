@@ -1,7 +1,7 @@
 //
 // <Document String>
 //
-package Simple;
+package library;
 
 // Import any dependency packages into a scoped type.
 /> requires Type via "./Path.ttx";

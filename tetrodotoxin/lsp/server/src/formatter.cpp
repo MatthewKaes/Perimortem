@@ -15,7 +15,7 @@ constexpr auto whitespace_only_comment(const Token& token) -> bool {
   if (token.klass != Classifier::Comment)
     return false;
 
-  auto view = token.to_string();
+  auto view = token.data;
   for (int i = 0; i < view.size(); i++) {
     if (view[i] != ' ' || view[i] != '\t')
       return false;
@@ -69,20 +69,20 @@ auto Formatter::tokenized_format(
         if (control_flow.has(tokens[parse_index - 2].klass))
           output << " ";
         eat_space = true;
-        output << token.to_string();
+        output << token.data;
         continue;
       case Classifier::GroupEnd:
         in_group = false;
-        output << token.to_string();
+        output << token.data;
         break;
       case Classifier::AccessOp:
       case Classifier::IndexStart:
         eat_space = true;
-        output << token.to_string();
+        output << token.data;
         continue;
       case Classifier::Seperator:
       case Classifier::IndexEnd:
-        output << token.to_string();
+        output << token.data;
         break;
       case Classifier::EndOfStream:
         output << "\\n\\n";
@@ -110,7 +110,7 @@ auto Formatter::tokenized_format(
         if (has_content)
           output << "\\n";
 
-        output << std::string(indent * indent_width, ' ') << token.to_string();
+        output << std::string(indent * indent_width, ' ') << token.data;
 
         // Fold else blocks onto the same line.
         if (tokens[parse_index].klass == Classifier::Else) {
@@ -145,20 +145,20 @@ auto Formatter::tokenized_format(
         break;
       case Classifier::Attribute:
         if (has_content) {
-          output << (eat_space ? "@" : " @") << token.to_string();
+          output << (eat_space ? "@" : " @") << token.data;
         } else {
           output << std::string(indent * indent_width, ' ') << "@"
-                 << token.to_string();
+                 << token.data;
         }
 
         has_content = true;
         break;
       default:
         if (has_content) {
-          output << (eat_space ? "" : " ") << token.to_string();
+          output << (eat_space ? "" : " ") << token.data;
         } else {
           output << std::string(indent * indent_width, ' ')
-                 << token.to_string();
+                 << token.data;
         }
 
         has_content = true;
@@ -228,7 +228,7 @@ auto Formatter::package_name(
       sanatized_name = "PackageType";
     }
 
-    output << "package " << sanatized_name << ";\\n\\n";
+    output << "package Lib;\\n\\n";
   }
 }
 
@@ -251,7 +251,7 @@ auto Formatter::process_comment_block(
       continue;
     }
 
-    std::ispanstream ss(tokens[i].to_string());
+    std::ispanstream ss(tokens[i].data);
     std::string word;
     while (ss >> word) {
       if (line_length == 0) {

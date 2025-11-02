@@ -6,20 +6,21 @@
 #include "parser/error.hpp"
 #include "parser/tokenizer.hpp"
 
+#include <filesystem>
 #include <format>
 #include <memory>
 
 namespace Tetrodotoxin::Language::Parser {
 
 struct Context {
-  Context(const std::string_view& source_map,
-          ByteView source,
-          Tokenizer& tokenizer,
+  Context(std::filesystem::path source_map,
+          const Tokenizer& tokenizer,
           Errors& errors)
       : tokenizer(tokenizer),
         errors(errors),
-        source_map(source_map),
-        source(source) {
+        source_map(std::filesystem::relative(source_map)),
+        disk_path(std::filesystem::absolute(source_map)),
+        source(tokenizer.get_source()) {
     start_token = tokenizer.get_tokens().data();
     current_token = start_token;
     terminal_token = start_token + tokenizer.get_tokens().size() - 1;
@@ -144,10 +145,11 @@ struct Context {
 
   inline auto current() const -> const Token& { return *current_token; }
 
-  Tokenizer& tokenizer;
+  const Tokenizer& tokenizer;
   Errors& errors;
-  const std::string_view source_map;
-  const ByteView source;
+  const std::filesystem::path source_map;
+  const std::filesystem::path disk_path;
+  const std::string_view source;
 
  private:
   const Token* current_token;

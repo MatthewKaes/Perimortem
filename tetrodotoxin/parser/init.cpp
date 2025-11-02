@@ -1,7 +1,7 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
-#include "parser/ast/init.hpp"
+#include "parser/init.hpp"
 
 using namespace Tetrodotoxin::Language::Parser;
 

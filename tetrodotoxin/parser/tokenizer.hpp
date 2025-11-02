@@ -28,26 +28,26 @@ enum class TtxState : int8_t {
 
 class Tokenizer {
  public:
-  Tokenizer(const ByteView& source, bool strip_disabled = true);
+  Tokenizer(const std::string_view& source, bool strip_disabled = true);
 
   inline constexpr auto get_tokens() const -> const TokenStream& {
     return tokens;
   };
 
   inline constexpr auto get_options() const
-      -> const Perimortem::Concepts::BitFlag<TtxState, uint64_t> {
+      -> const Perimortem::Concepts::BitFlag<TtxState> {
     return options;
   };
 
-  inline constexpr auto get_source() const -> const ByteView& {
+  inline constexpr auto get_source() const -> const std::string_view& {
     return source;
   };
 
  private:
   // Output artifacts
-  ByteView source;
+  std::string_view source;
   TokenStream tokens;
-  Perimortem::Concepts::BitFlag<TtxState, uint64_t> options;
+  Perimortem::Concepts::BitFlag<TtxState> options;
 };
 
 }  // namespace Tetrodotoxin::Language::Parser

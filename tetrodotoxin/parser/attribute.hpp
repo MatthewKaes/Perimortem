@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include "parser/ast/context.hpp"
+#include "parser/context.hpp"
 #include "parser/tokenizer.hpp"
 
 #include <optional>

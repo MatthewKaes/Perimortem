@@ -30,7 +30,7 @@ class SparseIndexTable {
   // Constexpr evaluates how many entries should be in the sparse table (data +
   // empty). The number of empty cells is determained by the `sprase_factor`.
   inline static constexpr auto calculate_container_size() -> uint64_t {
-    std::array<int, required_storage()> bucket_sizes = {};
+    std::array<uint64_t, required_storage()> bucket_sizes = {};
     for (uint32_t i = 0; i < element_count; i++) {
       const int index = std::char_traits<char>::length(source[i].key) - 1;
       bucket_sizes[index]++;
@@ -38,7 +38,7 @@ class SparseIndexTable {
 
     uint64_t max = 0;
     for (uint32_t i = 0; i < required_storage(); i++) {
-      max = std::max(std::char_traits<char>::length(source[i].key), max);
+      max = std::max(bucket_sizes[i], max);
     }
     return max + 1;
   }

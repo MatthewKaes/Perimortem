@@ -1,0 +1,18 @@
+//
+// A basic package for test parsing.
+//
+package library;
+
+// Constant object - Must be a Stack type and foldable. Generally all keywords
+// and types are this. You generally should have your types be constant.
+[=/=] magic_number : Int = 10;
+
+// Dynamic object - May be any type, exported and serialized.
+[=>>] global_value : Int = 24;
+
+// Hidden object - May be any type, not exported but is serialized.
+[=!=] static_value : Int = 92;
+
+// Temporary object - May be any type, not exported and not serialized. Can be
+// used as private variables or working objects.
+[***] temp_value : Int = 92;
