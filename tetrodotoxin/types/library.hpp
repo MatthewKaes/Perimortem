@@ -37,7 +37,10 @@ class Library : public Abstract {
 
   // The scope of the library is just it's top level context.
   auto resolve_scope(std::string_view name) const -> const Abstract* override {
-    return resolve_context(name);
+    if (!name_index.contains(name))
+      return host.resolve_scope(name);
+
+    return name_index.at(name);
   }
 
   auto expand_context() const -> std::span<const Abstract* const> override {
@@ -46,7 +49,7 @@ class Library : public Abstract {
 
   // The scope of the library is just it's top level context.
   auto expand_scope() const -> std::span<const Abstract* const> override {
-    return ref_table;
+    return expand_context();
   }
 
   auto resolve_host() const -> const Abstract* override { return &host; };

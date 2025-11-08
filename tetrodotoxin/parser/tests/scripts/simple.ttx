@@ -7,11 +7,11 @@ package library;
 /> requires Type via "./Path.ttx";
 
 // Declare any package scoped variables or types.
-/> [=/=] constant_value : Int = 1;
-/> [=/=] public_static : Int = 2;
-/> [=!=] hidden_static : Int = 3;
-/> [=/=] thread_local : Int = 4;
-
+[=/=] constant_value : Int = 1;
+[=/=] public_static : Int = 2;asdfasdf
+[=!=] hidden_static : Int = 3;
+/> as asdfasdflkj [=/=] thread_local : Int = 4;
+/> [=!=] testing : Int = 2;
 // Loader function that runs once before any packages that import this one.
 /> [***] on_load : func() -> Byt = {
   // The return value of on_load is saved on the type.

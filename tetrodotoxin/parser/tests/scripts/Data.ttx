@@ -5,7 +5,7 @@ package library;
 
 // Constant object - Must be a Stack type and foldable. Generally all keywords
 // and types are this. You generally should have your types be constant.
-[=/=] magic_number : Int = 10;
+[=/=] magic_number : Byt = 10;
 
 // Dynamic object - May be any type, exported and serialized.
 [=>>] global_value : Int = 24;

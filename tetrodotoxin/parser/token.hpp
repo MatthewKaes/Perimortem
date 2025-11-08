@@ -126,11 +126,11 @@ inline constexpr auto klass_name(Classifier klass) -> const char* {
     case Classifier::Parameter:
       return "function parameter";
     case Classifier::String:
-      return "String";
+      return "string";
     case Classifier::Numeric:
-      return "Int";
+      return "64bit integer constant";
     case Classifier::Float:
-      return "Float";
+      return "64bit IEEE float constant";
     case Classifier::Attribute:
       return "compiler directive";
     case Classifier::Identifier:

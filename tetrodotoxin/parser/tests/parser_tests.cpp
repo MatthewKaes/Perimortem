@@ -8,6 +8,10 @@
 #include "parser/type.hpp"
 
 #include "types/program.hpp"
+#include "types/std/byt.hpp"
+#include "types/std/dec.hpp"
+#include "types/std/int.hpp"
+#include "types/std/num.hpp"
 
 #include <filesystem>
 #include <fstream>
@@ -80,4 +84,26 @@ TEST_F(ParserTests, simple_ttx) {
 
   EXPECT_EQ(script->doc, "\n <Document String>\n\n");
   EXPECT_FALSE(script->is_entity);
+}
+
+// Demonstrate some basic assertions.
+TEST_F(ParserTests, std_lib) {
+  Errors errors;
+  std::string source =
+      read_all_bytes("tetrodotoxin/parser/tests/scripts/simple.ttx");
+  Tokenizer tokenizer(source);
+  Types::Program host;
+
+  auto script = Script::parse(
+      host, errors,
+      std::filesystem::path("tetrodotoxin/parser/tests/scripts/simple.ttx"),
+      tokenizer);
+  EXPECT_EQ(errors.size(), 0);
+
+  // Output any errors
+  for (const auto& err : errors) {
+    std::cout << err.get_message();
+  }
+
+  script->expand_scope();
 }
