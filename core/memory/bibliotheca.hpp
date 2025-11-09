@@ -3,11 +3,11 @@
 
 #pragma once
 
+#include <stddef.h>
 #include <array>
 #include <cstdint>
-#include <stddef.h>
 
-namespace Perimortem::Concepts {
+namespace Perimortem::Memory {
 
 class Bibliotheca {
  public:
@@ -57,4 +57,4 @@ class Bibliotheca {
   static uint64_t allocated_bytes;
 };
 
-}  // namespace Perimortem::Concepts
+}  // namespace Perimortem::Memory

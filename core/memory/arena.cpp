@@ -1,10 +1,9 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
-#include "core/data/arena.hpp"
+#include "core/memory/arena.hpp"
 
-using namespace Perimortem::Concepts;
-using namespace Perimortem::Data;
+using namespace Perimortem::Memory;
 
 Arena::Arena() {
   rented_block = Bibliotheca::check_out(page_size);

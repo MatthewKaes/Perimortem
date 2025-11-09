@@ -83,6 +83,9 @@ TEST_F(ParserTests, simple_ttx) {
   }
 
   EXPECT_EQ(script->doc, "\n <Document String>\n\n");
+  EXPECT_EQ(script->get_name(),
+            std::filesystem::absolute(
+                "tetrodotoxin/parser/tests/scripts/simple.ttx"));
   EXPECT_FALSE(script->is_entity);
 }
 
@@ -105,7 +108,7 @@ TEST_F(ParserTests, std_lib) {
     std::cout << err.get_message();
   }
 
-  script->expand_scope([](const Types::Abstract * names) {
+  script->expand_scope([](const Types::Abstract* names) {
     std::cout << names->get_name() << std::endl;
   });
 }

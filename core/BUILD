@@ -13,27 +13,18 @@ cc_library(
     # hdrs = glob(["*.hpp"]),
     includes = ["."],
     deps = [
-        ":concepts",
-        ":data",
+        ":memory",
         ":resource",
         ":storage",
     ],
 )
 
-cc_library(
-    name = "concepts",
-    srcs = glob(["concepts/*.cpp"]),
-    hdrs = glob(["concepts/*.hpp"]),
-    includes = ["."],
-    deps = [],
-)
 
 cc_library(
-    name = "data",
-    srcs = glob(["data/*.cpp"]),
-    hdrs = glob(["data/*.hpp"]),
+    name = "memory",
+    srcs = glob(["memory/*.cpp"]),
+    hdrs = glob(["memory/*.hpp"]),
     includes = ["."],
-    deps = [":concepts"],
 )
 
 cc_library(

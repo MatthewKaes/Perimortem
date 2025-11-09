@@ -3,9 +3,9 @@
 
 #pragma once
 
-#include "core/concepts/bibliotheca.hpp"
+#include "core/memory/bibliotheca.hpp"
 
-namespace Perimortem::Data {
+namespace Perimortem::Memory {
 
 // Used for only allocating memory which all shares the same lifetime enabling
 // fast allocation / deallocation.
@@ -17,7 +17,7 @@ class Arena {
  public:
   // Attempt to request blocks in 4k pages including the preface.
   static constexpr uint64_t page_size =
-      (1 << 12) - sizeof(Concepts::Bibliotheca::Preface);
+      (1 << 12) - sizeof(Bibliotheca::Preface);
 
   Arena();
   ~Arena();
@@ -37,7 +37,7 @@ class Arena {
   }
 
  private:
-  Concepts::Bibliotheca::Preface* rented_block;
+  Bibliotheca::Preface* rented_block;
 };
 
-}  // namespace Perimortem::Concepts
+}  // namespace Perimortem::Memory

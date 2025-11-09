@@ -1,11 +1,11 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
-#include "core/concepts/bibliotheca.hpp"
+#include "core/memory/bibliotheca.hpp"
 
 #include <stdlib.h>
 
-using namespace Perimortem::Concepts;
+using namespace Perimortem::Memory;
 
 std::array<Bibliotheca::Archive, Bibliotheca::radix_range>
     Bibliotheca::faceted_archives;

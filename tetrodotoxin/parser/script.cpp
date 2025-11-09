@@ -16,8 +16,7 @@ auto create_library(Types::Program& host, Context& ctx, std::string& doc)
     -> std::unique_ptr<Types::Library> {
   auto token = &ctx.current();
   if (ctx.check_klass(Classifier::Package, token->klass))
-    return std::make_unique<Types::Library>(std::move(doc), host,
-                                            ctx.disk_path, false);
+    return std::make_unique<Types::Library>(host, doc, ctx.disk_path, false);
 
   bool is_entity = false;
   token = &ctx.advance();
@@ -37,8 +36,7 @@ auto create_library(Types::Program& host, Context& ctx, std::string& doc)
     token = &ctx.advance();
   }
 
-  return std::make_unique<Types::Library>(std::move(doc), host, ctx.disk_path,
-                                          is_entity);
+  return std::make_unique<Types::Library>(host, doc, ctx.disk_path, is_entity);
 }
 
 auto Script::parse(Types::Program& host,

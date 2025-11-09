@@ -7,7 +7,8 @@
 #include "types/func.hpp"
 #include "types/name.hpp"
 
-#include "core/data/arena.hpp"
+#include "core/memory/arena.hpp"
+#include "core/memory/managed_string.hpp"
 
 #include <filesystem>
 #include <unordered_map>
@@ -19,9 +20,9 @@ class Library : public Abstract {
  public:
   static constexpr uint32_t uuid = 0xD12AA071;
   constexpr auto get_name() const -> std::string_view override {
-    return source_map.c_str();
+    return source_map.get_view();
   };
-  constexpr auto get_doc() const -> std::string_view override { return doc; };
+  constexpr auto get_doc() const -> std::string_view override { return doc.get_view(); };
   constexpr auto get_uuid() const -> uint32_t override { return uuid; };
   constexpr auto get_usage() const -> Usage override {
     return Usage::Transitory;
@@ -46,8 +47,8 @@ class Library : public Abstract {
   }
 
   // Return all references in this scope (locals and arguments)
-  virtual auto expand_context(std::function<void(const Abstract* const)> fn) const
-      -> void override {
+  virtual auto expand_context(
+      std::function<void(const Abstract* const)> fn) const -> void override {
     for (const auto& named_pair : name_index) {
       fn(named_pair.second);
     }
@@ -67,20 +68,24 @@ class Library : public Abstract {
     return true;
   }
 
-  Library(std::string&& doc,
-          const Abstract& host,
+  Library(const Abstract& host,
+          std::string_view doc,
           std::filesystem::path source_map,
           bool is_entity)
-      : doc(doc), host(host), source_map(source_map), is_entity(is_entity) {}
-
-  const Abstract& host;
-  const std::string doc;
-  const std::filesystem::path source_map;
-  const bool is_entity;
+      : host(host),
+        doc(allocator, doc),
+        source_map(allocator, source_map.c_str()),
+        is_entity(is_entity) {}
 
  private:
+  Perimortem::Memory::Arena allocator;
   std::unordered_map<std::string_view, const Abstract*> name_index;
-  Perimortem::Data::Arena allocator;
+
+ public:
+  const Abstract& host;
+  const Perimortem::Memory::ManagedString doc;
+  const Perimortem::Memory::ManagedString source_map;
+  const bool is_entity;
 };
 
 }  // namespace Tetrodotoxin::Language::Parser::Types
