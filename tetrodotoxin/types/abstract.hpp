@@ -4,7 +4,7 @@
 #pragma once
 
 #include <cstdint>
-#include <span>
+#include <functional>
 #include <string_view>
 
 namespace Tetrodotoxin::Language::Parser::Types {
@@ -106,14 +106,18 @@ class Abstract {
   constexpr virtual auto get_usage() const -> Usage = 0;
   virtual auto get_size() const -> uint32_t = 0;
 
-  virtual auto resolve() const -> const Abstract* = 0;
-  virtual auto resolve_context(std::string_view name) const
-      -> const Abstract* = 0;
-  virtual auto resolve_scope(std::string_view name) const
-      -> const Abstract* = 0;
-  virtual auto resolve_host() const -> const Abstract* = 0;
-  virtual auto expand_context() const -> std::span<const Abstract* const> = 0;
-  virtual auto expand_scope() const -> std::span<const Abstract* const> = 0;
+  virtual auto resolve() const -> const Abstract*  { return this; };
+  virtual auto resolve_context(std::string_view name) const -> const Abstract* {
+    return nullptr;
+  };
+  virtual auto resolve_scope(std::string_view name) const -> const Abstract* {
+    return nullptr;
+  };
+  virtual auto resolve_host() const -> const Abstract* { return nullptr; };
+  virtual auto expand_context(
+      std::function<void(const Abstract* const)> fn) const -> void {};
+  virtual auto expand_scope(std::function<void(const Abstract* const)> fn) const
+      -> void {};
 
   // Used for optimizations
   template <typename T>

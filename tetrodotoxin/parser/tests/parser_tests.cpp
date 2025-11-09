@@ -105,5 +105,7 @@ TEST_F(ParserTests, std_lib) {
     std::cout << err.get_message();
   }
 
-  script->expand_scope();
+  script->expand_scope([](const Types::Abstract * names) {
+    std::cout << names->get_name() << std::endl;
+  });
 }

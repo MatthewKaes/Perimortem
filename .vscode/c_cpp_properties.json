@@ -10,6 +10,7 @@
                 ".bin/Perimortem/external/zstd+/lib/"
             ],
             "defines": [
+                "PERI_DEBUG",
                 "PERI_LINUX",
                 "PERI_EDITOR"
             ],

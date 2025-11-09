@@ -5,6 +5,8 @@
 
 #include "types/abstract.hpp"
 
+#include <string>
+
 namespace Tetrodotoxin::Language::Parser::Types {
 
 class Name : public Abstract {
@@ -33,12 +35,9 @@ class Name : public Abstract {
   // doesn't seem useful so might as well save a little space.
   auto resolve_host() const -> const Abstract* override { return nullptr; }
 
-  auto expand_context() const -> std::span<const Abstract* const> override {
-    resolve()->expand_context();
-  }
-
-  auto expand_scope() const -> std::span<const Abstract* const> override {
-    return {};
+  virtual auto expand_scope(std::function<void(const Abstract* const)> fn) const
+      -> void override {
+    resolve()->expand_context(fn);
   }
 
   Name(std::string&& doc, std::string_view name, Abstract* type, Usage usage)

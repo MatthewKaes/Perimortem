@@ -9,7 +9,7 @@
 
 namespace Tetrodotoxin::Language::Parser::Types {
 
-class Int : public Abstract, public Perimortem::Concepts::Singleton<Abstract> {
+class Int : public Abstract, public Perimortem::Concepts::Singleton<Int> {
  public:
   static constexpr uint32_t uuid = 0x586C9468;
   constexpr auto get_name() const -> std::string_view override {
@@ -19,23 +19,9 @@ class Int : public Abstract, public Perimortem::Concepts::Singleton<Abstract> {
     return "The basic storage type for numeric values. Compiles as a 64 bit "
            "signed integer.";
   };
-  auto get_size() const -> uint32_t override { return sizeof(uint64_t); };
   constexpr auto get_uuid() const -> uint32_t override { return uuid; };
   constexpr virtual auto get_usage() const -> Usage { return Usage::Constant; };
-  auto resolve() const -> const Abstract* override { return this; }
-  auto resolve_context(std::string_view name) const
-      -> const Abstract* override {
-    return nullptr;
-  };
-  auto resolve_scope(std::string_view name) const -> const Abstract* override {
-    return nullptr;
-  }
-  auto expand_context() const -> std::span<const Abstract* const> override {
-    return {};
-  }
-  auto expand_scope() const -> std::span<const Abstract* const> override {
-    return {};
-  }
+  auto get_size() const -> uint32_t override { return sizeof(uint64_t); };
 };
 
 }  // namespace Tetrodotoxin::Language::Parser::Types

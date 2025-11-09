@@ -7,6 +7,8 @@
 #include "types/func.hpp"
 #include "types/name.hpp"
 
+#include "core/data/arena.hpp"
+
 #include <filesystem>
 #include <unordered_map>
 
@@ -43,33 +45,25 @@ class Library : public Abstract {
     return name_index.at(name);
   }
 
-  auto expand_context() const -> std::span<const Abstract* const> override {
-    return ref_table;
+  // Return all references in this scope (locals and arguments)
+  virtual auto expand_context(std::function<void(const Abstract* const)> fn) const
+      -> void override {
+    for (const auto& named_pair : name_index) {
+      fn(named_pair.second);
+    }
   }
 
-  // The scope of the library is just it's top level context.
-  auto expand_scope() const -> std::span<const Abstract* const> override {
-    return expand_context();
+  // Return all references in this scope (locals and arguments)
+  virtual auto expand_scope(std::function<void(const Abstract* const)> fn) const
+      -> void override {
+    expand_context(fn);
   }
 
-  auto resolve_host() const -> const Abstract* override { return &host; };
-
-  auto create_ref(std::string_view name, Abstract* abstract) -> bool {
+  auto create_name(std::string_view name, Abstract* abstract) -> bool {
     if (name_index.contains(name))
       return false;
 
     name_index[name] = abstract;
-    ref_table.push_back(abstract);
-    return true;
-  }
-
-  auto create_name(std::string_view name, Abstract* abstract_to_own) -> bool {
-    if (name_index.contains(name))
-      return false;
-
-    name_index[name] = abstract_to_own;
-    ref_table.push_back(abstract_to_own);
-    owned_types.emplace_back(abstract_to_own);
     return true;
   }
 
@@ -85,9 +79,8 @@ class Library : public Abstract {
   const bool is_entity;
 
  private:
-  std::vector<const Abstract*> ref_table;
-  std::vector<std::unique_ptr<Abstract>> owned_types;
   std::unordered_map<std::string_view, const Abstract*> name_index;
+  Perimortem::Data::Arena allocator;
 };
 
 }  // namespace Tetrodotoxin::Language::Parser::Types

@@ -1,8 +1,6 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
-#pragma once
-
 #include "types/program.hpp"
 
 #include "types/std/byt.hpp"

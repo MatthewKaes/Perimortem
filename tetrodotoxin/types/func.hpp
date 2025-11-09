@@ -6,8 +6,8 @@
 #include "types/name.hpp"
 
 #include <memory>
-#include <vector>
 #include <unordered_map>
+#include <vector>
 
 namespace Tetrodotoxin::Language::Parser::Types {
 
@@ -40,14 +40,17 @@ class Func : public Abstract {
     return host.resolve_scope(name);
   }
 
-  auto expand_context() const -> std::span<const Abstract* const> override {
-    return_type.resolve()->expand_context();
+  auto expand_context(std::function<void(const Abstract* const)> fn) const
+      -> void override {
+    return_type.resolve()->expand_context(fn);
   }
 
   // Return all references in this scope (locals and arguments)
-  virtual auto expand_scope() const
-      -> std::span<const Abstract* const> override {
-    return ref_table;
+  virtual auto expand_scope(std::function<void(const Abstract* const)> fn) const
+      -> void override {
+    for(const auto& named_pair : name_index) {
+      fn(named_pair.second);
+    }
   }
 
   Func(std::string&& doc,
@@ -62,7 +65,6 @@ class Func : public Abstract {
         usage(usage),
         args(std::move(args)) {
     for (const auto& arg : args) {
-      ref_table.push_back(arg.get());
       name_index[arg->name] = arg.get();
     }
   };
@@ -75,7 +77,6 @@ class Func : public Abstract {
   const std::vector<std::unique_ptr<Name>> args;
 
  private:
-  std::vector<const Abstract*> ref_table;
   std::vector<std::unique_ptr<Abstract>> scope_variables;
   std::unordered_map<std::string_view, const Abstract*> name_index;
 };

@@ -34,7 +34,7 @@ class Program : public Abstract {
     if (!path_registry.contains(name))
       return nullptr;
 
-    return path_registry.at(name);
+    return path_registry.at(name).get();
   }
 
   // Program links any external to TTX symbols. This can in practice be viewed
@@ -50,35 +50,37 @@ class Program : public Abstract {
   // extended to host submodules if we ever want
   auto resolve_host() const -> const Abstract* override { return nullptr; }
 
-  auto expand_context() const -> std::span<const Abstract* const> {
-    return module_table;
-  }
-
-  // Program doesn't own any scopes. It only serves as a host context.
-  auto expand_scope() const -> std::span<const Abstract* const> override {
-    return {};
+  auto expand_context(std::function<void(const Abstract* const)> fn) const
+      -> void override {
+    // Include all types compiled from path.
+    for (const auto& named_pair : path_registry) {
+      fn(named_pair.second.get());
+    }
+    // Include all external types.
+    for (const auto& named_pair : external_abstracts) {
+      fn(named_pair.second);
+    }
   }
 
   // Declares a scope level name.
   // Note: Program does not take ownership of these objects as they are
   // expected to either have static linkage, or the injected logic will
   // outlive the program.
-  auto declare_external(const Abstract* abstract)
-      -> bool {
+  auto declare_external(const Abstract* abstract) -> bool {
     if (external_abstracts.contains(abstract->get_name()))
       return false;
 
     external_abstracts[abstract->get_name()] = abstract;
   }
 
+  // TODO: Split out for entities.
   auto create_compile_unit(std::filesystem::path name,
-                           Abstract* abstract_to_own) -> bool {
+                           Abstract* library)
+      -> bool {
     if (path_registry.contains(name))
       return false;
 
-    path_registry[name] = abstract_to_own;
-    module_table.push_back(abstract_to_own);
-    compile_units.emplace_back(abstract_to_own);
+    path_registry.emplace(name, library);
     return true;
   }
 
@@ -89,9 +91,8 @@ class Program : public Abstract {
 
  private:
   std::unordered_map<std::string_view, const Abstract*> external_abstracts;
-  std::vector<const Abstract*> module_table;
-  std::vector<std::unique_ptr<Abstract>> compile_units;
-  std::unordered_map<std::filesystem::path, const Abstract*> path_registry;
+  std::unordered_map<std::filesystem::path, std::unique_ptr<Abstract>>
+      path_registry;
 };
 
 }  // namespace Tetrodotoxin::Language::Parser::Types

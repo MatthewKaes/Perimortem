@@ -18,6 +18,9 @@
         "--copt=\"-fdiagnostics-color=always\"",
         "--copt=\"-g\"",
         "--copt=\"-O0\"",
+        "--copt=\"-DPERI_DEBUG\"",
+        "--copt=\"-DPERI_LINUX\"",
+        "--copt=\"-DPERI_EDITOR\""
       ],
       "group": {
         "kind": "build",
@@ -42,7 +45,8 @@
         "opt", // Need to split to as VSCode will wrap it.
         "--copt=\"-fdiagnostics-color=always\"",
         "--copt=\"-O2\"",
-        "--copt=\"-DNDEBUG\""
+        "--copt=\"-DNDEBUG\"",
+        "--copt=\"-DPERI_LINUX\""
       ],
       "group": {
         "kind": "build",

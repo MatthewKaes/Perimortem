@@ -89,7 +89,9 @@ def _impl(ctx):
                                 "-Wall",
                                 "-Werror",
                                 "-fno-exceptions",
+                                "-fno-rtti",
                                 "-std=c++23",
+                                "-no-canonical-prefixes",
                             ],
                         ),
                     ]),
@@ -110,7 +112,9 @@ def _impl(ctx):
                                 "-Wall",
                                 "-Werror",
                                 "-fno-exceptions",
+                                "-fno-rtti",
                                 "-std=c23",
+                                "-no-canonical-prefixes",
                                 # Force C builds from external libraries to build in C.
                                 "-xc"
                             ],
@@ -141,6 +145,7 @@ def _impl(ctx):
         ctx = ctx,
         features = features,
         cxx_builtin_include_directories = [
+            "/usr/lib/clang/21/include",
             "/usr/lib/clang/20/include",
             "/usr/include",
         ],
