@@ -8,10 +8,6 @@
 #include "parser/type.hpp"
 
 #include "types/program.hpp"
-#include "types/std/byt.hpp"
-#include "types/std/dec.hpp"
-#include "types/std/int.hpp"
-#include "types/std/num.hpp"
 
 #include <filesystem>
 #include <fstream>
@@ -67,13 +63,13 @@ TEST_F(ParserTests, empty) {
 TEST_F(ParserTests, simple_ttx) {
   Errors errors;
   std::string source =
-      read_all_bytes("tetrodotoxin/parser/tests/scripts/simple.ttx");
+      read_all_bytes("tetrodotoxin/parser/tests/scripts/Simple.ttx");
   Tokenizer tokenizer(source);
   Types::Program host;
 
   auto script = Script::parse(
       host, errors,
-      std::filesystem::path("tetrodotoxin/parser/tests/scripts/simple.ttx"),
+      std::filesystem::path("tetrodotoxin/parser/tests/scripts/Simple.ttx"),
       tokenizer);
   EXPECT_EQ(errors.size(), 0);
 
@@ -85,7 +81,7 @@ TEST_F(ParserTests, simple_ttx) {
   EXPECT_EQ(script->doc, "\n <Document String>\n\n");
   EXPECT_EQ(script->get_name(),
             std::filesystem::absolute(
-                "tetrodotoxin/parser/tests/scripts/simple.ttx"));
+                "tetrodotoxin/parser/tests/scripts/Simple.ttx"));
   EXPECT_FALSE(script->is_entity);
 }
 
@@ -93,13 +89,13 @@ TEST_F(ParserTests, simple_ttx) {
 TEST_F(ParserTests, std_lib) {
   Errors errors;
   std::string source =
-      read_all_bytes("tetrodotoxin/parser/tests/scripts/simple.ttx");
+      read_all_bytes("tetrodotoxin/parser/tests/scripts/Simple.ttx");
   Tokenizer tokenizer(source);
   Types::Program host;
 
   auto script = Script::parse(
       host, errors,
-      std::filesystem::path("tetrodotoxin/parser/tests/scripts/simple.ttx"),
+      std::filesystem::path("tetrodotoxin/parser/tests/scripts/Simple.ttx"),
       tokenizer);
   EXPECT_EQ(errors.size(), 0);
 
@@ -111,4 +107,21 @@ TEST_F(ParserTests, std_lib) {
   script->expand_scope([](const Types::Abstract* names) {
     std::cout << names->get_name() << std::endl;
   });
+}
+
+TEST_F(ParserTests, leak_test) {
+  std::string source =
+      read_all_bytes("tetrodotoxin/parser/tests/scripts/Simple.ttx");
+  Tokenizer tokenizer(source);
+
+  auto initial_state = Perimortem::Memory::Bibliotheca::reserved_size();
+  for (int i = 0; i < 100; i++) {
+    Errors errors;
+    Types::Program host;
+    Script::parse(
+        host, errors,
+        std::filesystem::path("tetrodotoxin/parser/tests/scripts/Simple.ttx"),
+        tokenizer);
+  }
+  EXPECT_EQ(initial_state, Perimortem::Memory::Bibliotheca::reserved_size());
 }

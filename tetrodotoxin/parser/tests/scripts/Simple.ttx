@@ -1,0 +1,9 @@
+//
+// <Document String>
+//
+package library;
+
+// Declare any package scoped variables or types.
+[=/=] constant_value : Int = 1;
+[=/=] public_static : Int = 2;
+[=!=] hidden_static : Int = 3;

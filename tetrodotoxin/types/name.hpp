@@ -35,7 +35,8 @@ class Name : public Abstract {
   // doesn't seem useful so might as well save a little space.
   auto resolve_host() const -> const Abstract* override { return nullptr; }
 
-  virtual auto expand_scope(std::function<void(const Abstract* const)> fn) const
+  virtual auto expand_scope(
+      const std::function<void(const Abstract* const)>& fn) const
       -> void override {
     resolve()->expand_context(fn);
   }

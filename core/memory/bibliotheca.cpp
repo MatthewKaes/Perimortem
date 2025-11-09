@@ -61,7 +61,7 @@ auto Bibliotheca::remit(Preface* entry) -> size_type {
 
   // If there are no reservations then return to the appropriate archive.
   if (entry->reservations == 0) {
-    uint8_t archive_index = std::bit_width(entry->capacity);
+    uint8_t archive_index = std::bit_width(entry->capacity) - min_radix;
     entry->previous = faceted_archives[archive_index].initial_entry;
     faceted_archives[archive_index].initial_entry = entry;
   }
@@ -85,10 +85,5 @@ auto Bibliotheca::archive_sizes() -> std::array<uint64_t, radix_range> {
 }
 
 auto Bibliotheca::reserved_size() -> uint64_t {
-  uint64_t total_size = 0;
-  for (auto size : archive_sizes()) {
-    total_size += size;
-  }
-
-  return total_size;
+  return allocated_bytes;
 }

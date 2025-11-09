@@ -50,7 +50,7 @@ class Program : public Abstract {
   // extended to host submodules if we ever want
   auto resolve_host() const -> const Abstract* override { return nullptr; }
 
-  auto expand_context(std::function<void(const Abstract* const)> fn) const
+  auto expand_context(const std::function<void(const Abstract* const)>& fn) const
       -> void override {
     // Include all types compiled from path.
     for (const auto& named_pair : path_registry) {

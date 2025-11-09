@@ -106,7 +106,7 @@ class Abstract {
   constexpr virtual auto get_usage() const -> Usage = 0;
   virtual auto get_size() const -> uint32_t = 0;
 
-  virtual auto resolve() const -> const Abstract*  { return this; };
+  virtual auto resolve() const -> const Abstract* { return this; };
   virtual auto resolve_context(std::string_view name) const -> const Abstract* {
     return nullptr;
   };
@@ -115,9 +115,9 @@ class Abstract {
   };
   virtual auto resolve_host() const -> const Abstract* { return nullptr; };
   virtual auto expand_context(
-      std::function<void(const Abstract* const)> fn) const -> void {};
-  virtual auto expand_scope(std::function<void(const Abstract* const)> fn) const
-      -> void {};
+      const std::function<void(const Abstract* const)>& fn) const -> void {};
+  virtual auto expand_scope(
+      const std::function<void(const Abstract* const)>& fn) const -> void {};
 
   // Used for optimizations
   template <typename T>

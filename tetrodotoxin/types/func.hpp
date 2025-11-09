@@ -40,15 +40,15 @@ class Func : public Abstract {
     return host.resolve_scope(name);
   }
 
-  auto expand_context(std::function<void(const Abstract* const)> fn) const
+  auto expand_context(const std::function<void(const Abstract* const)>& fn) const
       -> void override {
     return_type.resolve()->expand_context(fn);
   }
 
   // Return all references in this scope (locals and arguments)
-  virtual auto expand_scope(std::function<void(const Abstract* const)> fn) const
-      -> void override {
-    for(const auto& named_pair : name_index) {
+  virtual auto expand_scope(const std::function<void(const Abstract* const)>& fn)
+      const -> void override {
+    for (const auto& named_pair : name_index) {
       fn(named_pair.second);
     }
   }

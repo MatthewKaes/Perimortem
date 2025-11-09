@@ -32,14 +32,14 @@ class Alias : public Abstract {
     return nullptr;
   }
 
-  auto expand_context(std::function<void(const Abstract* const)> fn) const
+  auto expand_context(const std::function<void(const Abstract* const)>& fn) const
       -> void override {
     return type->resolve()->expand_context(fn);
   }
 
   // An alias could redirect scope, but this can get real spicy really quickly,
   // so for now we don't let you alias scopes like functions or blocks.
-  auto expand_scope(std::function<void(const Abstract* const)> fn) const
+  auto expand_scope(const std::function<void(const Abstract* const)>& fn) const
       -> void override {
     // type->resolve()->expand_scope();
     return;
