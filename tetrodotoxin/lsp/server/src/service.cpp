@@ -4,7 +4,7 @@
 #include "service.hpp"
 
 #include "formatter.hpp"
-#include "parser/tokenizer.hpp"
+#include "lexical/tokenizer.hpp"
 
 #include <iostream>
 #include <sstream>
@@ -13,24 +13,24 @@
 using namespace Tetrodotoxin::Lsp;
 
 #define Lsp_WRITE(klass)                                  \
-  case Tetrodotoxin::Language::Parser::Classifier::klass: \
+  case Tetrodotoxin::Lexical::Classifier::klass: \
     info_stream << "[\"" #klass "\",";                    \
     break;
 
 #define Lsp_REDEFINE(category, klass)                     \
-  case Tetrodotoxin::Language::Parser::Classifier::klass: \
+  case Tetrodotoxin::Lexical::Classifier::klass: \
     info_stream << "[\"" #category "\",";                 \
     break;
 
 #define Lsp_SKIP(klass)
 
-auto recursive_strip(const Tetrodotoxin::Language::Parser::TokenStream& stream,
+auto recursive_strip(const Tetrodotoxin::Lexical::TokenStream& stream,
                      uint32_t& index) -> void {
   while (index < stream.size() - 1) {
     switch (stream[index].klass) {
-      case Tetrodotoxin::Language::Parser::Classifier::ScopeEnd:
+      case Tetrodotoxin::Lexical::Classifier::ScopeEnd:
         return;
-      case Tetrodotoxin::Language::Parser::Classifier::ScopeStart:
+      case Tetrodotoxin::Lexical::Classifier::ScopeStart:
         index++;
         recursive_strip(stream, index);
         index++;
@@ -42,11 +42,11 @@ auto recursive_strip(const Tetrodotoxin::Language::Parser::TokenStream& stream,
   }
 }
 
-auto Service::lsp_tokens(Tetrodotoxin::Language::Parser::Tokenizer& tokenizer,
+auto Service::lsp_tokens(Tetrodotoxin::Lexical::Tokenizer& tokenizer,
                          std::string_view jsonrpc,
                          int32_t id) -> std::string {
-  Tetrodotoxin::Language::Parser::ClassifierFlags library_types =
-      Tetrodotoxin::Language::Parser::Classifier::Package;
+  Tetrodotoxin::Lexical::ClassifierFlags library_types =
+      Tetrodotoxin::Lexical::Classifier::Package;
   std::unordered_set<std::string_view> imports;
   std::unordered_set<std::string_view> parameters;
   uint32_t scopes = 0;
@@ -56,7 +56,7 @@ auto Service::lsp_tokens(Tetrodotoxin::Language::Parser::Tokenizer& tokenizer,
   info_stream << "{\"jsonrpc\":" << jsonrpc << ",\"id\":" << id
               << ",\"result\":{\"color\":"
               << !tokenizer.get_options().has(
-                     Tetrodotoxin::Language::Parser::TtxState::CppTheme)
+                     Tetrodotoxin::Lexical::TtxState::CppTheme)
               << ",\"tokens\":[";
 
   const auto& tokens = tokenizer.get_tokens();
@@ -120,20 +120,20 @@ auto Service::lsp_tokens(Tetrodotoxin::Language::Parser::Tokenizer& tokenizer,
       Lsp_REDEFINE(M2, Dynamic);
       Lsp_REDEFINE(M3, Hidden);
       Lsp_REDEFINE(M4, Temporary);
-      case Tetrodotoxin::Language::Parser::Classifier::Parameter:
+      case Tetrodotoxin::Lexical::Classifier::Parameter:
         info_stream << "[\""
                        "P"
                        "\",";
         parameters.insert(
             std::string_view{(char*)token.data.data(), token.data.size()});
         break;
-      case Tetrodotoxin::Language::Parser::Classifier::ScopeStart:
+      case Tetrodotoxin::Lexical::Classifier::ScopeStart:
         info_stream << "[\""
                        "SS"
                        "\",";
         scopes += 1;
         break;
-      case Tetrodotoxin::Language::Parser::Classifier::ScopeEnd:
+      case Tetrodotoxin::Lexical::Classifier::ScopeEnd:
         info_stream << "[\""
                        "SE"
                        "\",";
@@ -143,10 +143,10 @@ auto Service::lsp_tokens(Tetrodotoxin::Language::Parser::Tokenizer& tokenizer,
           parameters.clear();
         }
         break;
-      case Tetrodotoxin::Language::Parser::Classifier::String:
+      case Tetrodotoxin::Lexical::Classifier::String:
         if (i > 0) {
           switch (tokens[i - 1].klass) {
-            case Tetrodotoxin::Language::Parser::Classifier::Via:
+            case Tetrodotoxin::Lexical::Classifier::Via:
               info_stream << "[\"In\",";
               break;
             default:
@@ -157,10 +157,10 @@ auto Service::lsp_tokens(Tetrodotoxin::Language::Parser::Tokenizer& tokenizer,
           info_stream << "[\"S\",";
         };
         break;
-      case Tetrodotoxin::Language::Parser::Classifier::Type:
+      case Tetrodotoxin::Lexical::Classifier::Type:
         if (i < tokens.size() - 2 &&
             tokens[i + 1].klass ==
-                Tetrodotoxin::Language::Parser::Classifier::Define) {
+                Tetrodotoxin::Lexical::Classifier::Define) {
           info_stream << "[\"DT\",";
         } else if (i > 0 && library_types.has(tokens[i - 1].klass)) {
           info_stream << "[\"Nm\",";
@@ -173,18 +173,18 @@ auto Service::lsp_tokens(Tetrodotoxin::Language::Parser::Tokenizer& tokenizer,
           info_stream << "[\"T\",";
         }
         break;
-      case Tetrodotoxin::Language::Parser::Classifier::Identifier:
+      case Tetrodotoxin::Lexical::Classifier::Identifier:
         if (i < tokens.size() - 2 &&
             tokens[i + 1].klass ==
-                Tetrodotoxin::Language::Parser::Classifier::Define) {
+                Tetrodotoxin::Lexical::Classifier::Define) {
           info_stream << "[\"DI\",";
         } else if (i > 0 &&
                    tokens[i - 1].klass ==
-                       Tetrodotoxin::Language::Parser::Classifier::CallOp) {
+                       Tetrodotoxin::Lexical::Classifier::CallOp) {
           info_stream << "[\"Fu\",";
         } else if (i > 0 &&
                    tokens[i - 1].klass !=
-                       Tetrodotoxin::Language::Parser::Classifier::AccessOp &&
+                       Tetrodotoxin::Lexical::Classifier::AccessOp &&
                    parameters.contains(std::string_view{
                        (char*)token.data.data(), token.data.size()})) {
           info_stream << "[\"P\",";
@@ -195,7 +195,7 @@ auto Service::lsp_tokens(Tetrodotoxin::Language::Parser::Tokenizer& tokenizer,
 
         // Disabled blocks require a bit of extra parsing for highlighting, but
         // it does condense the entire range into a single tag.
-      case Tetrodotoxin::Language::Parser::Classifier::Disabled: {
+      case Tetrodotoxin::Lexical::Classifier::Disabled: {
         info_stream << "[\"Dis\",";
         i += 1;
         for (; i < tokens.size() - 1; i++) {
@@ -220,7 +220,7 @@ auto Service::lsp_tokens(Tetrodotoxin::Language::Parser::Tokenizer& tokenizer,
           // We didn't pass through a newline so check if we need to start a new
           // scope.
           if (next_token.klass ==
-              Tetrodotoxin::Language::Parser::Classifier::ScopeStart) {
+              Tetrodotoxin::Lexical::Classifier::ScopeStart) {
             recursive_strip(tokens, ++i);
           }
         }
@@ -252,9 +252,9 @@ auto Service::lsp_tokens(Tetrodotoxin::Language::Parser::Tokenizer& tokenizer,
         // Skip emission since we handled it in the block.
         continue;
       }
-      case Tetrodotoxin::Language::Parser::Classifier::EndOfStream:
-      case Tetrodotoxin::Language::Parser::Classifier::None:
-      case Tetrodotoxin::Language::Parser::Classifier::TOTAL_FLAGS:
+      case Tetrodotoxin::Lexical::Classifier::EndOfStream:
+      case Tetrodotoxin::Lexical::Classifier::None:
+      case Tetrodotoxin::Lexical::Classifier::TOTAL_FLAGS:
         continue;
     }
 
@@ -281,7 +281,7 @@ auto Service::lsp_tokens(Tetrodotoxin::Language::Parser::Tokenizer& tokenizer,
   return info_stream.str();
 }
 
-auto Service::format(Tetrodotoxin::Language::Parser::Tokenizer& tokenizer,
+auto Service::format(Tetrodotoxin::Lexical::Tokenizer& tokenizer,
                      std::string_view name,
                      std::string_view jsonrpc,
                      int32_t id) -> std::string {

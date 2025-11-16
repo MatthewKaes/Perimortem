@@ -2,87 +2,125 @@
 // Copyright © Matt Kaes
 
 #include "parser/script.hpp"
-#include "parser/attribute.hpp"
-#include "parser/comment.hpp"
 #include "parser/context.hpp"
+#include "parser/visitor/attribute.hpp"
+#include "parser/visitor/comment.hpp"
 
 #include "types/library.hpp"
 
 #include <filesystem>
 
-using namespace Tetrodotoxin::Language::Parser;
+using namespace Perimortem::Memory;
+using namespace Tetrodotoxin::Lexical;
+using namespace Tetrodotoxin::Parser;
+using namespace Tetrodotoxin::Types;
 
-auto create_library(Types::Program& host, Context& ctx, std::string& doc)
-    -> std::unique_ptr<Types::Library> {
+auto detect_package_type(Context& ctx) -> void {
   auto token = &ctx.current();
-  if (ctx.check_klass(Classifier::Package, token->klass))
-    return std::make_unique<Types::Library>(host, doc, ctx.disk_path, false);
+  if (!ctx.check_klass(Classifier::Package))
+    return;
 
-  bool is_entity = false;
   token = &ctx.advance();
+
   if (token->klass == Classifier::Entity) {
-    is_entity = true;
+    ctx.library.set_entity(true);
   } else if (token->klass != Classifier::Library) {
     ctx.token_error(std::format(
         "Unknown package type `{}`, defaulting to `library`.", token->data));
   };
-
-  token = &ctx.advance();
+  ctx.advance();
 
   // If we correctly have an end statement then consume it, otherwise report a
   // non-fatal token class error.
-  if (!ctx.check_klass(Classifier::EndStatement, token->klass)) {
+  if (ctx.check_klass(Classifier::EndStatement)) {
     // Eat end statement.
     token = &ctx.advance();
   }
+}
 
-  return std::make_unique<Types::Library>(host, doc, ctx.disk_path, is_entity);
+// Registers a name, note for error reporting the ctx state is assumed to be
+// right after parsing the provided abstract.
+auto register_name(Context& ctx,
+                   const Token& start_token,
+                   const Perimortem::Memory::ManagedString& name,
+                   const Abstract* abstract) {
+  if (!ctx.library.create_name(name, abstract)) {
+    ctx.range_error(
+        std::format("Name '{}' has already been declared.", name.get_view()),
+        start_token, *(&ctx.current() - 1));
+  }
 }
 
 auto Script::parse(Types::Program& host,
                    Errors& errors,
                    const std::filesystem::path& source_map,
-                   Tokenizer& tokenizer) -> Types::Library* {
-  Context ctx(source_map, tokenizer, errors);
+                   const std::string_view& source) -> Types::Library& {
+  auto& library = host.create_compile_unit(source_map);
+  library.load(source, optimize);
+  Context ctx(library, source_map, errors);
 
-  // Documentation | Attributes
+  if (library.tokenizer.empty()) {
+    ctx.generic_error("Empty source file provided for parsing.");
+    return library;
+  }
+
+  // Parse the required TTX documentation comment.
   auto token = &ctx.current();
-  auto documentation = Comment::parse(ctx);
-  if (!documentation) {
+  auto documentation = Visitor::parse_comment(ctx);
+  if (documentation.empty()) {
     ctx.range_error(
         "TTX script is missing required documentation comment at start of "
         "file.",
         *token, ctx.current());
-
-    documentation = "";
   }
+
+  // Detect the package type.
+  detect_package_type(ctx);
+  library.set_doc(documentation);
 
   // Library Type
   token = &ctx.current();
-  auto library = create_library(host, ctx, documentation.value());
-
-  while (auto attribute = Attribute::parse(ctx)) {
-  }
+  const Token* comment_start = nullptr;
 
   while (token->valid()) {
     switch (token->klass) {
+      // Comment in Tetrodotoxin are not allowed to be free and must be attached
+      // to a context. Free comments are an error and will be dropped from the
+      // context.
       case Classifier::Comment:
-        documentation = Comment::parse(ctx);
+        comment_start = &ctx.current();
+        documentation = Visitor::parse_comment(ctx);
+        token = &ctx.advance();
+        continue;
+
+      case Classifier::Attribute: {
+        auto attribute = Visitor::parse_attribute(ctx);
+        attribute->doc.take(documentation);
+        register_name(ctx, *token, attribute->name, attribute);
+
+        // Attribute for setting the package name.
+        if (attribute->name == "@Name") {
+          library.set_name(attribute->value);
+        }
         break;
+      }
 
       default:
         // Ignore for now...
-        documentation = std::nullopt;
+        documentation.clear();
         break;
     }
     token = &ctx.advance();
+
+    // Free floating documentation.
+    if (!documentation.empty()) {
+      ctx.range_error(
+          "TTX does not support top level floating comments. Comment blocks "
+          "must be attached to a top level definition.",
+          *comment_start, ctx.current());
+      documentation.clear();
+    }
   }
 
-  // Add the compile unit to the program.
-  // To enable incremental construction make sure to
-  Types::Library* free_library = library.release();
-  host.create_compile_unit(ctx.disk_path, free_library);
-
-  // Return the pointer which is now owned by host.
-  return free_library;
+  return library;
 }

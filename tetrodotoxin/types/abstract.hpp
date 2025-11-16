@@ -7,7 +7,7 @@
 #include <functional>
 #include <string_view>
 
-namespace Tetrodotoxin::Language::Parser::Types {
+namespace Tetrodotoxin::Types {
 // So you've made the mistake of reading Tetrodotoxin source and you've ended up
 // here. Well now that means my problems are your problems so you get to read my
 // diatribe on type systems for type systems.
@@ -101,6 +101,8 @@ class Abstract {
 
   virtual ~Abstract() = 0;
   constexpr virtual auto get_name() const -> std::string_view = 0;
+  // Documentation should actually be an abstract concept but it's so common
+  // that it's a major performance improvement to move it to the abstract level.
   constexpr virtual auto get_doc() const -> std::string_view = 0;
   constexpr virtual auto get_uuid() const -> uint32_t = 0;
   constexpr virtual auto get_usage() const -> Usage = 0;
@@ -121,20 +123,20 @@ class Abstract {
 
   // Used for optimizations
   template <typename T>
-  auto is() -> bool {
+  auto is() const -> bool {
     return get_uuid() == T::uuid;
   }
 
   template <typename T>
-  auto cast() -> T* {
+  auto cast() const -> const T* {
     if (!is<T>())
       return nullptr;
 
-    return static_cast<T*>(this);
+    return reinterpret_cast<const T*>(this);
   }
 };
 
 // Pure abstract destructor implmentation.
 inline Abstract::~Abstract() {}
 
-}  // namespace Tetrodotoxin::Language::Parser::Types
+}  // namespace Tetrodotoxin::Types

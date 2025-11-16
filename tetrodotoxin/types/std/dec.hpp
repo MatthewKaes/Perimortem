@@ -7,7 +7,7 @@
 
 #include "concepts/singleton.hpp"
 
-namespace Tetrodotoxin::Language::Parser::Types {
+namespace Tetrodotoxin::Types {
 
 class Dec : public Abstract, public Perimortem::Concepts::Singleton<Dec> {
  public:
@@ -25,4 +25,4 @@ class Dec : public Abstract, public Perimortem::Concepts::Singleton<Dec> {
   auto get_size() const -> uint32_t override { return sizeof(long double); };
 };
 
-}  // namespace Tetrodotoxin::Language::Parser::Types
+}  // namespace Tetrodotoxin::Types

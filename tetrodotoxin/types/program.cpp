@@ -8,7 +8,7 @@
 #include "types/std/int.hpp"
 #include "types/std/num.hpp"
 
-using namespace Tetrodotoxin::Language::Parser::Types;
+using namespace Tetrodotoxin::Types;
 
 Program::Program(bool include_std_lib) {
   if (!include_std_lib)

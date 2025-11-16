@@ -3,13 +3,13 @@
 
 #include <gtest/gtest.h>
 
-#include "parser/tokenizer.hpp"
+#include "lexical/tokenizer.hpp"
 
 #include <filesystem>
 #include <fstream>
 #include <iostream>
 
-using namespace Tetrodotoxin::Language::Parser;
+using namespace Tetrodotoxin::Lexical;
 
 struct TokenizerTests : public ::testing::Test {
 protected:
@@ -56,21 +56,24 @@ void compare_tokens(const Token &result, Classifier klass,
 
 // Demonstrate some basic assertions.
 TEST_F(TokenizerTests, empty) {
-  Tokenizer t(R"()");
+  Tokenizer t;
+  t.parse(R"()");
   ASSERT_EQ(t.get_tokens().size(), 1);
   ASSERT_EQ(t.get_tokens()[0].klass, Classifier::EndOfStream);
 }
 
 // Demonstrate some basic assertions.
 TEST_F(TokenizerTests, just_whitespace) {
-  Tokenizer t("     \n\n \t  ");
+  Tokenizer t;
+  t.parse("     \n\n \t  ");
   ASSERT_EQ(t.get_tokens().size(), 1);
   ASSERT_EQ(t.get_tokens()[0].klass, Classifier::EndOfStream);
 }
 
 // Demonstrate some basic assertions.
 TEST_F(TokenizerTests, numbers) {
-  Tokenizer t("0 0. 1.123 .0 1var21");
+  Tokenizer t;
+  t.parse("0 0. 1.123 .0 1var21");
   EXPECT_EQ(t.get_tokens().size(), 8);
 
   // Token Stream

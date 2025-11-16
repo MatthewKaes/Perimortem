@@ -8,7 +8,7 @@
 #include <fstream>
 #include <filesystem>
 
-using namespace Tetrodotoxin::Language::Parser;
+using namespace Tetrodotoxin::Lexical;
 using namespace Tetrodotoxin::Lsp;
 
 auto read_all_bytes(const std::filesystem::path &p) -> std::string {
@@ -37,7 +37,8 @@ struct TtxLspServiceTests : public ::testing::Test {
 // Demonstrate some basic assertions.
 TEST_F(TtxLspServiceTests, format) {
   auto bytes = read_all_bytes("tetrodotoxin/parser/tests/scripts/Simple.ttx");
-  Tokenizer t(bytes);
+  Tokenizer t;
+  t.parse(bytes);
 
   std::string result =
       Service::format(t, "Simple.ttx", "2.0", 0);

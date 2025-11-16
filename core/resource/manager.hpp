@@ -99,10 +99,14 @@ class Manager {
               Storage::StorageFlags options = Storage::StorageOptions::None)
       -> Resource*;
 
-  // Set the path to be a real filesystem or a compressed autogenetic
-  // filesystem.
-  auto config(const Path& p, Storage::StorageFlags options) -> bool;
-  auto config(Path::Sector sector, Storage::DiskType type) -> bool;
+  // Changes the properties of a file. This can cause a disk load in the event
+  // of preloading or virtualizing a file. Devirtualization does not result in
+  // any loads.
+  auto change_file_flags(const Path& p, Storage::StorageFlags options) -> bool;
+
+  // Configures a specific sector to use a different disk type for it's
+  // autogenetic export.
+  auto set_sector_type(Path::Sector sector, Storage::DiskType type) -> void;
 
   // Managing data
   auto flush_changes() -> void;

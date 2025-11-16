@@ -4,11 +4,12 @@
 #include "src/language_server.hpp"
 #include "src/service.hpp"
 
-#include "parser/tokenizer.hpp"
+#include "lexical/tokenizer.hpp"
 
 #include <iostream>
 
 using namespace Tetrodotoxin::Lsp;
+using namespace Tetrodotoxin::Lexical;
 
 constexpr const char* Lsp_SUPPORT = "3.17";
 
@@ -82,7 +83,8 @@ auto main(int argc, char* argv[]) -> int {
         }
 
         std::string source_code = data["source"].get<std::string>();
-        Tetrodotoxin::Language::Parser::Tokenizer tokenizer(source_code, false);
+        Tokenizer tokenizer;
+        tokenizer.parse(source_code, false);
 
         return Service::lsp_tokens(tokenizer, jsonrpc.get<std::string>(),
                                    id.get<int32_t>());
@@ -112,9 +114,8 @@ auto main(int argc, char* argv[]) -> int {
         path.replace_extension();
         std::string name = path.filename();
 
-        Tetrodotoxin::Language::Parser::Tokenizer tokenizer(
-            source_code,
-            false);
+        Tokenizer tokenizer;
+        tokenizer.parse(source_code, false);
 
         return Service::format(tokenizer, name, jsonrpc.get<std::string>(),
                                id.get<int32_t>());

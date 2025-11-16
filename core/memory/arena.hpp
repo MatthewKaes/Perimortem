@@ -15,9 +15,9 @@ namespace Perimortem::Memory {
 // go.
 class Arena {
  public:
-  // Attempt to request blocks in 8k pages including the preface.
+  // Attempt to request blocks in 16k pages including the preface.
   static constexpr uint64_t page_size =
-      (1 << 13) - sizeof(Bibliotheca::Preface);
+      (1 << 14) - sizeof(Bibliotheca::Preface);
 
   Arena();
   ~Arena();

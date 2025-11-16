@@ -242,7 +242,7 @@
           "ttxM": { "foreground": "#dd757a"},
           "ttxD": { "foreground": "#dd757a", "fontStyle": "italic"},
           "ttxL": { "foreground": "#dd757a"},
-          "ttxA": { "foreground": "#db3944" , "fontStyle": "bold italic" },
+          "ttxA": { "foreground": "#63ae5a" , "fontStyle": "bold italic" },
           "ttxCm": { "foreground": "#8f8f8f", "fontStyle": "italic" },
           "ttxDis": { "foreground": "#5e5e5e", "fontStyle": "italic" }
         }

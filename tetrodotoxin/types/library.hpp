@@ -11,16 +11,18 @@
 #include "core/memory/managed_lookup.hpp"
 #include "core/memory/managed_string.hpp"
 
+#include "lexical/tokenizer.hpp"
+
 #include <filesystem>
 
-namespace Tetrodotoxin::Language::Parser::Types {
+namespace Tetrodotoxin::Types {
 
-// Typically the file
+// Assosicates a Path as a Tetrodotoxin
 class Library : public Abstract {
  public:
   static constexpr uint32_t uuid = 0xD12AA071;
   constexpr auto get_name() const -> std::string_view override {
-    return source_map.get_view();
+    return package_name.get_view();
   };
   constexpr auto get_doc() const -> std::string_view override {
     return doc.get_view();
@@ -56,7 +58,9 @@ class Library : public Abstract {
     expand_context(fn);
   }
 
-  auto create_name(std::string_view name, Abstract* abstract) -> bool {
+  // Trys to create a name. Returns the conflict
+  auto create_name(const Perimortem::Memory::ManagedString& name,
+                   const Abstract* abstract) -> bool {
     if (name_index.contains(name))
       return false;
 
@@ -64,25 +68,46 @@ class Library : public Abstract {
     return true;
   }
 
-  Library(const Abstract& host,
-          std::string_view doc,
-          std::filesystem::path source_map,
-          bool is_entity)
-      : name_index(allocator),
-        host(host),
-        doc(allocator, doc),
-        source_map(allocator, source_map.c_str()),
-        is_entity(is_entity) {}
+  inline auto set_name(const Perimortem::Memory::ManagedString& name) -> void {
+    package_name = name;
+  }
 
- private:
-  Perimortem::Memory::Arena allocator;
-  Perimortem::Memory::ManagedLookup<Abstract> name_index;
+  inline auto set_doc(Perimortem::Memory::ManagedString& doc_string) -> void {
+    doc.take(doc_string);
+  }
+
+  inline auto set_entity(bool is_entity) -> void {
+    this->uses_entity = is_entity;
+  }
+
+  inline auto is_entity() const -> bool { return uses_entity; }
+
+  inline auto load(const std::string_view& source, bool strip_disabled) -> void {
+    allocator.reset();
+    name_index.reset();
+    doc.clear();
+    package_name.clear();
+    uses_entity = false;
+
+    tokenizer.parse(source, strip_disabled);
+  }
+
+  Library()
+      :  // Ensure allocator is constructed first. Putting it in the initalizer
+         // list will catch bugs if it every moves in the class.
+        allocator(),
+        name_index(allocator),
+        doc() {}
 
  public:
-  const Abstract& host;
-  const Perimortem::Memory::ManagedString doc;
-  const Perimortem::Memory::ManagedString source_map;
-  const bool is_entity;
+  Perimortem::Memory::Arena allocator;
+  Tetrodotoxin::Lexical::Tokenizer tokenizer;
+
+ private:
+  Perimortem::Memory::ManagedLookup<const Abstract> name_index;
+  Perimortem::Memory::ManagedString doc;
+  Perimortem::Memory::ManagedString package_name;
+  bool uses_entity;
 };
 
-}  // namespace Tetrodotoxin::Language::Parser::Types
+}  // namespace Tetrodotoxin::Types

@@ -222,7 +222,7 @@ auto Manager::import(const Path& p,
   return res.get();
 }
 
-auto Manager::config(const Path& p, StorageFlags options) -> bool {
+auto Manager::change_file_flags(const Path& p, StorageFlags options) -> bool {
   if (!directory.contains(p))
     return false;
 
@@ -233,19 +233,14 @@ auto Manager::config(const Path& p, StorageFlags options) -> bool {
   return true;
 }
 
-auto Manager::config(Path::Sector sector, Storage::DiskType type) -> bool {
-  if (sector == Path::Sector::Invalid) {
-    return false;
-  }
-
-  // Set the export type.
+auto Manager::set_sector_type(Path::Sector sector, Storage::DiskType type)
+    -> void {
   sectors[(int)sector].type = type;
-  return true;
 }
 
 auto Manager::load_file(const Path& p, Resource& res) -> void {
   // Nothing to do.
-  if (res.is_virtual())
+  if (res.is_virtual() && res.in_memory())
     return;
 
   if (res.flags == StorageOptions::Streamed) {
@@ -269,12 +264,13 @@ auto Manager::load_file(const Path& p, Resource& res) -> void {
     return;
   }
 
+  // Load the file from origin.
   std::filesystem::path origin =
       data_root / std::filesystem::path(p.get_path());
   std::error_code ec;
   if (!std::filesystem::is_regular_file(origin, ec)) {
     // If the file doesn't exists but it's in memory then it's most likely an
-    // import or a virtual file waiting for a flush.
+    // import or currently a virtual file waiting for a flush.
     if (res.in_memory())
       return;
 
@@ -287,6 +283,7 @@ auto Manager::load_file(const Path& p, Resource& res) -> void {
   if (res.loaded && get_time(origin) <= res.time)
     return;
 
+  // Load the file via a file stream.
   std::ifstream source_stream(origin, std::ios::binary);
   if (!source_stream.is_open()) {
     // TODO: Error messages

@@ -2,6 +2,7 @@
 // A basic package for test parsing.
 //
 package library;
+@Name="Data";
 
 // Constant object - Must be a Stack type and foldable. Generally all keywords
 // and types are this. You generally should have your types be constant.

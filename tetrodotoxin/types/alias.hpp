@@ -5,7 +5,7 @@
 
 #include "types/abstract.hpp"
 
-namespace Tetrodotoxin::Language::Parser::Types {
+namespace Tetrodotoxin::Types {
 
 // Aliases are names that exist in a context.
 // Aliases can't reference types outside the package
@@ -51,4 +51,4 @@ class Alias : public Abstract {
   const Usage usage;
 };
 
-}  // namespace Tetrodotoxin::Language::Parser::Types
+}  // namespace Tetrodotoxin::Types

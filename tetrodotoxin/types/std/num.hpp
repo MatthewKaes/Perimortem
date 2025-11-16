@@ -7,7 +7,7 @@
 
 #include "concepts/singleton.hpp"
 
-namespace Tetrodotoxin::Language::Parser::Types {
+namespace Tetrodotoxin::Types {
 
 class Num : public Abstract, public Perimortem::Concepts::Singleton<Num> {
  public:
@@ -25,4 +25,4 @@ class Num : public Abstract, public Perimortem::Concepts::Singleton<Num> {
   auto get_size() const -> uint32_t override { return sizeof(float); };
 };
 
-}  // namespace Tetrodotoxin::Language::Parser::Types
+}  // namespace Tetrodotoxin::Types

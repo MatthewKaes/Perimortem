@@ -8,8 +8,9 @@
 #include <span>
 #include <vector>
 
-namespace Tetrodotoxin::Language::Parser {
+namespace Tetrodotoxin::Lexical {
 using Byte = char;  // compatability with std::string functions for now.
+
 struct Location {
   uint32_t source_index = 0;
   uint32_t parse_index = 0;
@@ -17,4 +18,4 @@ struct Location {
   uint32_t column = 1;
 };
 
-}  // namespace Tetrodotoxin::Language::Parser
+}  // namespace Tetrodotoxin::Lexical

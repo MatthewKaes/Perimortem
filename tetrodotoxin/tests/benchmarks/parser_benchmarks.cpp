@@ -3,14 +3,14 @@
 
 #include <benchmark/benchmark.h>
 
-#include "parser/token.hpp"
+#include "lexical/token.hpp"
 
 #include "concepts/narrow_resolver.hpp"
 #include "concepts/sparse_index.hpp"
 #include "concepts/sparse_lookup.hpp"
 
 using namespace Perimortem::Concepts;
-using namespace Tetrodotoxin::Language::Parser;
+using namespace Tetrodotoxin::Lexical;
 
 // Number of words to load
 const int tests = 10000;
@@ -72,7 +72,7 @@ static const std::vector<std::string_view> test_data = {
 
 };
 
-namespace Tetrodotoxin::Language::Parser::KeywordTable {
+namespace Tetrodotoxin::Lexical::KeywordTable {
 using value_type = Classifier;
 constexpr auto sparse_factor = 150;
 constexpr auto seed = 5793162292815203644UL;
@@ -103,7 +103,7 @@ static_assert(sizeof(lookup::sparse_table) <= 600,
               "Ideally keyword sparse table would be less than 600 bytes. "
               "Try to find a smaller size.");
 
-}  // namespace Tetrodotoxin::Language::Parser::KeywordTable
+}  // namespace Tetrodotoxin::Lexical::KeywordTable
 
 static void BRUTE_FORCE_compare_table(benchmark::State& state) {
   for (auto _ : state) {
@@ -232,7 +232,7 @@ static void sparse_index_table(benchmark::State& state) {
 }
 BENCHMARK(sparse_index_table);
 
-namespace Tetrodotoxin::Language::Parser {
+namespace Tetrodotoxin::Lexical {
 static inline constexpr auto check_keyword(std::string_view value,
                                            Classifier default_value)
     -> Classifier {
@@ -258,7 +258,7 @@ static inline constexpr auto check_keyword(std::string_view value,
 
   return keyword_table::find_or_default(value, default_value);
 }
-}  // namespace Tetrodotoxin::Language::Parser
+}  // namespace Tetrodotoxin::Lexical
 
 static void sparse_narrow_resolver(benchmark::State& state) {
   for (auto _ : state) {

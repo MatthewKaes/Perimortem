@@ -14,7 +14,7 @@
 #include <string>
 #include <vector>
 
-namespace Tetrodotoxin::Language::Parser {
+namespace Tetrodotoxin::Lexical {
 
 // The type of the actual token.
 // Classifiers are only a linear representation and do not have context.
@@ -254,4 +254,4 @@ inline constexpr auto klass_name(Classifier klass) -> const char* {
       return "unknown";
   }
 };
-}  // namespace Tetrodotoxin::Language::Parser
+}  // namespace Tetrodotoxin::Lexical

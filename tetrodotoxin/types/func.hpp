@@ -9,7 +9,7 @@
 #include <unordered_map>
 #include <vector>
 
-namespace Tetrodotoxin::Language::Parser::Types {
+namespace Tetrodotoxin::Types {
 
 class Func : public Abstract {
  public:
@@ -81,4 +81,4 @@ class Func : public Abstract {
   std::unordered_map<std::string_view, const Abstract*> name_index;
 };
 
-}  // namespace Tetrodotoxin::Language::Parser::Types
+}  // namespace Tetrodotoxin::Types

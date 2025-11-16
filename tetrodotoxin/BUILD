@@ -8,6 +8,20 @@ load("@rules_cc//cc:cc_test.bzl", "cc_test")
 package(default_visibility = ["//visibility:public"])
 
 cc_library(
+    name = "lexical",
+    srcs = glob([
+        "lexical/*.cpp",
+    ]),
+    hdrs = glob([
+        "lexical/*.hpp",
+    ]),
+    includes = ["."],
+    deps = [
+        "//core",
+    ],
+)
+
+cc_library(
     name = "types",
     srcs = glob([
         "types/*.cpp",
@@ -18,6 +32,7 @@ cc_library(
     ]),
     includes = ["."],
     deps = [
+        ":lexical",
         "//core",
     ],
 )
@@ -26,12 +41,15 @@ cc_library(
     name = "parser",
     srcs = glob([
         "parser/*.cpp",
+        "parser/visitor/*.cpp",
     ]),
     hdrs = glob([
         "parser/*.hpp",
+        "parser/visitor/*.hpp",
     ]),
     includes = ["."],
     deps = [
+        ":lexical",
         ":types",
         "//core",
     ],
@@ -40,7 +58,7 @@ cc_library(
 cc_test(
     name = "tests",
     size = "small",
-    srcs = glob(["parser/tests/*.cpp"]),
+    srcs = glob(["tests/*.cpp"]),
     deps = [
         ":parser",
         ":types",
@@ -52,7 +70,7 @@ cc_test(
 cc_test(
     name = "benchmarks",
     size = "small",
-    srcs = glob(["parser/benchmarks/*.cpp"]),
+    srcs = glob(["tests/benchmarks/*.cpp"]),
     deps = [
         ":parser",
         "@google_benchmark//:benchmark",

@@ -6,7 +6,7 @@
 #include <spanstream>
 
 using namespace Tetrodotoxin::Lsp;
-using namespace Tetrodotoxin::Language::Parser;
+using namespace Tetrodotoxin::Lexical;
 
 constexpr int max_line_width = 80;
 constexpr int indent_width = 2;
@@ -25,7 +25,7 @@ constexpr auto whitespace_only_comment(const Token& token) -> bool {
 }
 
 auto Formatter::tokenized_format(
-    Tetrodotoxin::Language::Parser::Tokenizer& tokenizer,
+    Tetrodotoxin::Lexical::Tokenizer& tokenizer,
     std::string_view name) -> void {
   output.clear();
   uint32_t parse_index = 0;
@@ -170,7 +170,7 @@ auto Formatter::tokenized_format(
 }
 
 auto Formatter::document_header(
-    const Tetrodotoxin::Language::Parser::TokenStream& tokens,
+    const Tetrodotoxin::Lexical::TokenStream& tokens,
     uint32_t& parse_index) -> void {
   // EoF only
   if (tokens.size() <= 1) {
@@ -199,7 +199,7 @@ auto Formatter::document_header(
 }
 
 auto Formatter::package_name(
-    const Tetrodotoxin::Language::Parser::TokenStream& tokens,
+    const Tetrodotoxin::Lexical::TokenStream& tokens,
     uint32_t parse_index,
     std::string_view name) -> void {
   if (tokens[parse_index].klass != Classifier::Package) {
@@ -233,7 +233,7 @@ auto Formatter::package_name(
 }
 
 auto Formatter::process_comment_block(
-    const Tetrodotoxin::Language::Parser::TokenStream& tokens,
+    const Tetrodotoxin::Lexical::TokenStream& tokens,
     uint32_t start_range,
     uint32_t end_range,
     uint32_t indent) -> void {

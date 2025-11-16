@@ -5,12 +5,13 @@
 
 #include "types/abstract.hpp"
 #include "types/func.hpp"
+#include "types/library.hpp"
 #include "types/name.hpp"
 
 #include <filesystem>
 #include <unordered_map>
 
-namespace Tetrodotoxin::Language::Parser::Types {
+namespace Tetrodotoxin::Types {
 
 // Typically the file
 class Program : public Abstract {
@@ -50,8 +51,8 @@ class Program : public Abstract {
   // extended to host submodules if we ever want
   auto resolve_host() const -> const Abstract* override { return nullptr; }
 
-  auto expand_context(const std::function<void(const Abstract* const)>& fn) const
-      -> void override {
+  auto expand_context(const std::function<void(const Abstract* const)>& fn)
+      const -> void override {
     // Include all types compiled from path.
     for (const auto& named_pair : path_registry) {
       fn(named_pair.second.get());
@@ -73,15 +74,15 @@ class Program : public Abstract {
     external_abstracts[abstract->get_name()] = abstract;
   }
 
-  // TODO: Split out for entities.
-  auto create_compile_unit(std::filesystem::path name,
-                           Abstract* library)
-      -> bool {
+  // Loads a compile unit to a path name. If the compile unit already exists
+  // then it will be unloaded and the new one will be used.
+  auto create_compile_unit(std::filesystem::path name) -> Library& {
+    name = std::filesystem::absolute(name);
     if (path_registry.contains(name))
-      return false;
+      return *path_registry.at(name);
 
-    path_registry.emplace(name, library);
-    return true;
+    path_registry[name] = std::make_unique<Library>();
+    return *path_registry[name];
   }
 
   // There are a lot of tests and other entry points that can create program.
@@ -91,8 +92,8 @@ class Program : public Abstract {
 
  private:
   std::unordered_map<std::string_view, const Abstract*> external_abstracts;
-  std::unordered_map<std::filesystem::path, std::unique_ptr<Abstract>>
+  std::unordered_map<std::filesystem::path, std::unique_ptr<Library>>
       path_registry;
 };
 
-}  // namespace Tetrodotoxin::Language::Parser::Types
+}  // namespace Tetrodotoxin::Types

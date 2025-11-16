@@ -10,7 +10,7 @@
 #include <sstream>
 
 using namespace Perimortem::Concepts;
-using namespace Tetrodotoxin::Language::Parser;
+using namespace Tetrodotoxin::Lexical;
 
 constexpr auto is_whitespace(uint8_t c) -> bool {
   switch (c) {
@@ -69,13 +69,13 @@ auto parse_attribute(Context& context) -> void {
     context.loc.parse_index++;
 
   context.loc.parse_index++;
-  const auto token = context.source.substr(
-      context.loc.source_index + 1 /* skip @ */,
-      context.loc.parse_index - context.loc.source_index - 1);
+  const auto token =
+      context.source.substr(context.loc.source_index,
+                            context.loc.parse_index - context.loc.source_index);
 
   // Compiler configuration
   if (!context.options.has(TtxState::DisableCommands)) {
-    constexpr const char color_flag[] = "UseCppTheme";
+    constexpr const char color_flag[] = "@UseCppTheme";
     if (token.size() == sizeof(color_flag) - 1 &&
         token.data()[0] == color_flag[0] &&
         !std::memcmp(token.data(), color_flag, sizeof(color_flag) - 1)) {
@@ -86,13 +86,16 @@ auto parse_attribute(Context& context) -> void {
   if (!token.empty())
     context.tokens.push_back({Classifier::Attribute, token, context.loc});
 
-  context.loc.column += 1 /* @ */ + token.size();
+  context.loc.column += token.size();
 }
 
 auto parse_comment(Context& context) -> void {
   context.loc.source_index = context.loc.parse_index;
 
-  context.loc.parse_index += 2;  // trim comment "//"
+  // trim comment "//" and leading space.
+  context.loc.parse_index += 2;
+  if (context.source[context.loc.parse_index] == ' ')
+    context.loc.parse_index++;
 
   uint32_t start_comment = context.loc.parse_index;
 
@@ -101,8 +104,9 @@ auto parse_comment(Context& context) -> void {
 
   context.tokens.push_back(
       {Classifier::Comment,
-       context.source.substr(start_comment,
-                             context.loc.parse_index - start_comment),
+       context.source.substr(start_comment, context.loc.parse_index -
+                                                start_comment +
+                                                (can_parse(context) ? 1 : 0)),
        context.loc});
 
   // No need for column validation as we are about to end the file or start a
@@ -277,8 +281,12 @@ auto parse_identifier(Context& context) -> void {
     SIMPLE_TOKEN(klass, 1);        \
     break;
 
-Tokenizer::Tokenizer(const std::string_view& source_, bool strip_disabled)
-    : source(source_) {
+auto Tokenizer::parse(const std::string_view& source, bool strip_disabled)
+    -> void {
+  // Reset state
+  this->source = source;
+  tokens.clear();
+
   // Take an estimated best guess on the token count. This helps save on
   // resizes even if we end up oversized.
   // Assume larger files are more likely to have comments and have a

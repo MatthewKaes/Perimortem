@@ -9,7 +9,7 @@
 
 #include "token.hpp"
 
-namespace Tetrodotoxin::Language::Parser {
+namespace Tetrodotoxin::Lexical {
 
 // Tokenizer aims to be fast and only takes a view of the data.
 // If the ByteView source is destroyed then the parser itself no longer has a
@@ -28,26 +28,32 @@ enum class TtxState : int8_t {
 
 class Tokenizer {
  public:
-  Tokenizer(const std::string_view& source, bool strip_disabled = true);
+  auto parse(const std::string_view& source, bool strip_disabled = true)
+      -> void;
 
   inline constexpr auto get_tokens() const -> const TokenStream& {
     return tokens;
   };
+
+  // The tokenizer is empty if it has 0 or 1 (EndOfStream) tokens.
+  inline constexpr auto empty() const -> bool {
+    return tokens.size() <= 1;
+  }
 
   inline constexpr auto get_options() const
       -> const Perimortem::Concepts::BitFlag<TtxState> {
     return options;
   };
 
-  inline constexpr auto get_source() const -> const std::string_view& {
+  inline constexpr auto get_source() const -> const std::string& {
     return source;
   };
 
  private:
   // Output artifacts
-  std::string_view source;
+  std::string source;
   TokenStream tokens;
   Perimortem::Concepts::BitFlag<TtxState> options;
 };
 
-}  // namespace Tetrodotoxin::Language::Parser
+}  // namespace Tetrodotoxin::Lexical

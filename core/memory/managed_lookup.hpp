@@ -10,7 +10,7 @@
 
 namespace Perimortem::Memory {
 
-// Converst a string_view into a a
+// A simple linear look up table for associating managed names to a value.
 template <typename T>
 class ManagedLookup {
  public:
@@ -23,11 +23,13 @@ class ManagedLookup {
   };
 
   ManagedLookup(const ManagedLookup&) = default;
-  ManagedLookup(Arena& host) : host(host) {
+  ManagedLookup(Arena& arena) : arena(arena) { reset(); }
+
+  auto reset() -> void {
     size = 0;
     capacity = start_capacity;
     rented_block = reinterpret_cast<Entry*>(
-        host.allocate(sizeof(Entry) * start_capacity, alignof(Entry)));
+        arena.allocate(sizeof(Entry) * start_capacity, alignof(Entry)));
   }
 
   auto apply(const std::function<void(const T*)>& fn) const -> void {
@@ -43,7 +45,7 @@ class ManagedLookup {
     rented_block[size++] = {name, data};
   }
 
-  constexpr auto contains(const std::string_view& name) const -> bool {
+  constexpr auto contains(const ManagedString& name) const -> bool {
     for (int i = 0; i < size; i++) {
       if (rented_block[i].name == name) {
         return true;
@@ -53,7 +55,7 @@ class ManagedLookup {
     return false;
   }
 
-  constexpr auto at(const std::string_view& name) const -> T* {
+  constexpr auto at(const ManagedString& name) const -> T* {
     for (int i = 0; i < size; i++) {
       if (rented_block[i].name == name) {
         return rented_block[i].data;
@@ -69,13 +71,13 @@ class ManagedLookup {
   auto grow() -> void {
     capacity *= growth_factor;
     auto new_block = reinterpret_cast<Entry*>(
-        host.allocate(sizeof(Entry) * capacity, alignof(Entry)));
+        arena.allocate(sizeof(Entry) * capacity, alignof(Entry)));
 
     std::memcpy(new_block, rented_block, sizeof(Entry) * size);
     rented_block = new_block;
   }
 
-  Arena& host;
+  Arena& arena;
   Entry* rented_block;
   uint32_t size;
   uint32_t capacity;

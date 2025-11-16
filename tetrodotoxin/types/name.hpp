@@ -7,7 +7,7 @@
 
 #include <string>
 
-namespace Tetrodotoxin::Language::Parser::Types {
+namespace Tetrodotoxin::Types {
 
 class Name : public Abstract {
  public:
@@ -50,4 +50,4 @@ class Name : public Abstract {
   const Usage usage;
 };
 
-}  // namespace Tetrodotoxin::Language::Parser::Types
+}  // namespace Tetrodotoxin::Types

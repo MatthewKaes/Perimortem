@@ -3,14 +3,14 @@
 
 #include <benchmark/benchmark.h>
 
-#include "parser/tokenizer.hpp"
+#include "lexical/tokenizer.hpp"
 
 
 #include <fstream>
 #include <filesystem>
 
 using namespace Perimortem::Concepts;
-using namespace Tetrodotoxin::Language::Parser;
+using namespace Tetrodotoxin::Lexical;
 
 auto read_all_bytes(const std::filesystem::path &p) -> std::string {
   if(!std::filesystem::is_regular_file(p))
@@ -37,7 +37,8 @@ void doNotOptimizeAway(T&& datum) {
 static void tokenize_rect_ttx(benchmark::State& state) {
   for (auto _ : state) {
     auto bytes = read_all_bytes("tetrodotoxin/parser/tests/scripts/Rect.ttx");
-    Tokenizer t(bytes);
+    Tokenizer t;
+    t.parse(bytes);
     doNotOptimizeAway(t.get_tokens().size());
   }
 }

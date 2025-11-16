@@ -8,7 +8,8 @@
 #include <iomanip>
 #include <sstream>
 
-using namespace Tetrodotoxin::Language::Parser;
+using namespace Tetrodotoxin::Parser;
+using namespace Tetrodotoxin::Lexical;
 
 bool Error::colorful = true;
 
