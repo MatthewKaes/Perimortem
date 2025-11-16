@@ -78,13 +78,13 @@ TEST_F(ParserTests, data_ttx) {
   }
 
   EXPECT_EQ(library.get_doc(), "\nA basic package for test parsing.\n\n");
-  EXPECT_EQ(library.get_name(), "\"Data\"");
+  EXPECT_EQ(library.get_name(), "Data");
   auto maybe_attribute = library.resolve_scope("@Name");
   ASSERT_TRUE(maybe_attribute);
   auto data_attribute = maybe_attribute->cast<Compiler::Attribute>();
   ASSERT_TRUE(data_attribute);
 
-  EXPECT_EQ(data_attribute->value.get_view(), "\"Data\"");
+  EXPECT_EQ(data_attribute->value.get_view(), "Data");
 
   EXPECT_FALSE(library.is_entity());
 }

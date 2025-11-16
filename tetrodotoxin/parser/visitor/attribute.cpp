@@ -3,6 +3,8 @@
 
 #include "parser/visitor/attribute.hpp"
 
+#include "parser/visitor/string.hpp"
+
 using namespace Tetrodotoxin::Lexical;
 using namespace Tetrodotoxin::Parser;
 using namespace Tetrodotoxin::Types;
@@ -17,7 +19,7 @@ auto Visitor::parse_attribute(Context& ctx) -> Compiler::Attribute* {
   }
 
   attribute->name =
-      Perimortem::Memory::ManagedString(ctx.get_allocator(), token->data);
+      Perimortem::Memory::ManagedString(token->data);
 
   auto start_token = token;
 
@@ -35,11 +37,10 @@ auto Visitor::parse_attribute(Context& ctx) -> Compiler::Attribute* {
             "TTX Script Attribute {} expected a String after `=` but got {}",
             attribute->name.get_view(), klass_name(token->klass)),
         *token, *start_token, *token);
+    ctx.advance();
   } else {
-    attribute->value =
-        Perimortem::Memory::ManagedString(ctx.get_allocator(), token->data);
+    attribute->value = parse_string(ctx);
   }
-  ctx.advance();
 
   // If we correctly have an end statement then consume it, otherwise report a
   // non-fatal token class error.

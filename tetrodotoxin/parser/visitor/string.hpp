@@ -5,11 +5,9 @@
 
 #include "parser/context.hpp"
 
-#include "types/compiler/attribute.hpp"
-
 namespace Tetrodotoxin::Parser::Visitor {
 
-auto parse_attribute(Context& ctx)
-    -> Tetrodotoxin::Types::Compiler::Attribute*;
+auto parse_string(Context& ctx)
+    -> std::string_view;
 
 }  // namespace Tetrodotoxin::Parser::Visitor
