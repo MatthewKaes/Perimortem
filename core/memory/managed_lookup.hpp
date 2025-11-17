@@ -7,6 +7,7 @@
 
 #include <cstring>
 #include <string_view>
+#include <functional>
 
 namespace Perimortem::Memory {
 
@@ -23,13 +24,13 @@ class ManagedLookup {
   };
 
   ManagedLookup(const ManagedLookup&) = default;
-  ManagedLookup(Arena& arena) : arena(arena) { reset(); }
+  ManagedLookup(Arena& arena) : arena(&arena) { reset(); }
 
   auto reset() -> void {
     size = 0;
     capacity = start_capacity;
     rented_block = reinterpret_cast<Entry*>(
-        arena.allocate(sizeof(Entry) * start_capacity, alignof(Entry)));
+        arena->allocate(sizeof(Entry) * start_capacity, alignof(Entry)));
   }
 
   auto apply(const std::function<void(const T*)>& fn) const -> void {
@@ -71,13 +72,13 @@ class ManagedLookup {
   auto grow() -> void {
     capacity *= growth_factor;
     auto new_block = reinterpret_cast<Entry*>(
-        arena.allocate(sizeof(Entry) * capacity, alignof(Entry)));
+        arena->allocate(sizeof(Entry) * capacity, alignof(Entry)));
 
     std::memcpy(new_block, rented_block, sizeof(Entry) * size);
     rented_block = new_block;
   }
 
-  Arena& arena;
+  Arena* arena;
   Entry* rented_block;
   uint32_t size;
   uint32_t capacity;

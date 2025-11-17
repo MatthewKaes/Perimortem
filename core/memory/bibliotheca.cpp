@@ -4,6 +4,24 @@
 #include "core/memory/bibliotheca.hpp"
 
 #include <stdlib.h>
+#include <atomic>
+
+// All Archive opperations are supposed to be short lived so we can use a lock
+// free atomic spin.
+class ArchiveLock {
+ public:
+  ArchiveLock() {
+    while (lock.test_and_set(std::memory_order_acquire)) {
+    }
+  }
+
+  ~ArchiveLock() {
+    lock.clear();
+  }
+
+ private:
+  inline static std::atomic_flag lock = ATOMIC_FLAG_INIT;
+};
 
 using namespace Perimortem::Memory;
 
@@ -12,6 +30,8 @@ std::array<Bibliotheca::Archive, Bibliotheca::radix_range>
 uint64_t Bibliotheca::allocated_bytes;
 
 auto Bibliotheca::check_out(size_type requested_bytes) -> Preface* {
+  const ArchiveLock lock;
+
   // Ensure a minimum page size and that we have room for the Preface reserved.
   // Round up to the nearest power of 2.
   const uint32_t actual_bytes = std::max(
@@ -53,10 +73,12 @@ auto Bibliotheca::check_out(size_type requested_bytes) -> Preface* {
 }
 
 auto Bibliotheca::reserve(Preface* entry) -> void {
+  const ArchiveLock lock;
   entry->reservations++;
 }
 
 auto Bibliotheca::remit(Preface* entry) -> size_type {
+  const ArchiveLock lock;
   entry->reservations--;
 
   // If there are no reservations then return to the appropriate archive.
@@ -70,6 +92,7 @@ auto Bibliotheca::remit(Preface* entry) -> size_type {
 }
 
 auto Bibliotheca::archive_sizes() -> std::array<uint64_t, radix_range> {
+  const ArchiveLock lock;
   std::array<uint64_t, radix_range> sizes;
   for (int i = 0; i < faceted_archives.size(); i++) {
     auto archive = faceted_archives[i];

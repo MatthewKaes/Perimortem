@@ -5,9 +5,11 @@
 
 #include <cstring>
 #include <iostream>
+#include <sstream>
 
 // TODO: This should all be async with promises
 
+using namespace Perimortem::Memory;
 using namespace Tetrodotoxin::Lsp;
 
 UnixJsonRPC::UnixJsonRPC(const std::string& pipe_data_)
@@ -32,7 +34,7 @@ UnixJsonRPC::~UnixJsonRPC() {
 
 auto UnixJsonRPC::register_method(
     std::string name,
-    std::function<std::string(const json&, const json&, const json&)> resolver)
+    std::function<std::string(const ManagedString&, uint32_t, const Node&)> resolver)
     -> void {
   method_resolver[name] = resolver;
 }
@@ -50,6 +52,7 @@ auto UnixJsonRPC::process() -> void {
     executors[i] = std::thread([this, i]() {
       uint32_t thread_id = i;
       std::string local_data;
+      Arena json_arena;
       while (valid) {
         {
           std::unique_lock lock(job_mutex);
@@ -61,40 +64,62 @@ auto UnixJsonRPC::process() -> void {
           job_queue.pop_front();
         }
 
-        json data = json::parse(local_data, nullptr, false);
+        std::cout << "[ex=" << thread_id << "] Resetting Arena..." << std::endl;
+        json_arena.reset();
+        uint32_t position;
+        std::cout << local_data << std::endl;
+        auto data = Perimortem::Storage::Json::parse(json_arena, local_data, position);
+        if (!data) {
+          std::cout << "[ex=" << thread_id << "] Failed to parse jsonrpc request..." << std::endl;
+          continue;
+        }
 
-        if (!data.contains("method")) {
+        if (!data->contains("method") && !(*data)["method"]->get_string()) {
           std::cout << "[ex=" << thread_id << "] Job is missing `method`..." << std::endl;
           continue;
         }
+        auto method_name = *(*data)["method"]->get_string();
 
-        json method = data["method"];
-        if (!data.contains("jsonrpc") || !data.contains("id") ||
-            !data.contains("params")) {
-          std::cout << "[ex=" << thread_id << "] Job Rejected: " << method << " not a valid jsonrpc..."
+        if (!data->contains("jsonrpc") && !(*data)["jsonrpc"]->get_string()) {
+          std::cout << "[ex=" << thread_id << "] Job Rejected: " << method_name.get_view() << " for missing `jsonrpc`..."
                     << std::endl;
           continue;
         }
+        auto jsonrpc_version = *(*data)["jsonrpc"]->get_string();
 
-        if (!method_resolver.contains(data["method"])) {
-          std::cout << "[ex=" << thread_id << "] Job Rejected: " << data["method"]
+        if (!data->contains("id") && !(*data)["id"]->get_int()) {
+          std::cout << "[ex=" << thread_id << "] Job Rejected: " << method_name.get_view() << " for missing `id`..."
+                    << std::endl;
+          continue;
+        }
+        uint32_t id_value = *(*data)["id"]->get_int();
+
+        if (!data->contains("params")) {
+          std::cout << "[ex=" << thread_id << "] Job Rejected: " << method_name.get_view() << " for missing `params`..."
+                    << std::endl;
+          continue;
+        }
+        auto params_node = (*data)["params"];
+
+        if (!method_resolver.contains(method_name.get_view())) {
+          std::cout << "[ex=" << thread_id << "] Job Rejected: " << method_name.get_view()
                     << " is not a registered RPC..." << std::endl
                     << std::endl;
           continue;
         }
 
-        std::cout << "[ex=" << thread_id << "] Job accepted: " << data["method"] << std::endl;
-        std::string response = method_resolver[data["method"]](
-            data["jsonrpc"], data["id"], data["params"]);
+        std::cout << "[ex=" << thread_id << "] Job accepted: " << method_name.get_view() << std::endl;
+        std::string response = method_resolver[method_name.get_view()](
+            jsonrpc_version, id_value, *params_node);
 
-        auto write_jsonrpc_frame = [this, &data](const std::string_view& view) {
+        auto write_jsonrpc_frame = [this, &method_name](const std::string_view& view) {
           int32_t bytes_written = 0;
           while (bytes_written < view.size()) {
             int32_t bytes = write(sock_descriptor, view.data() + bytes_written,
                                   view.size() - bytes_written);
             if (bytes < 0) {
               std::cout << "Writting to socket failed while processing job: "
-                        << data["method"] << std::endl;
+                        << method_name.get_view() << std::endl;
               valid = false;
               return;
             }
@@ -111,7 +136,7 @@ auto UnixJsonRPC::process() -> void {
         write_jsonrpc_frame(frame.view());
         // JSON Response frame
         write_jsonrpc_frame(response);
-        std::cout << "[ex=" << thread_id << "] Completed " << data["id"] << std::endl;
+        std::cout << "[ex=" << thread_id << "] Completed " << id_value << std::endl;
       }
     });
   }

@@ -19,7 +19,6 @@ cc_library(
     ],
 )
 
-
 cc_library(
     name = "memory",
     srcs = glob(["memory/*.cpp"]),
@@ -37,8 +36,14 @@ cc_library(
 
 cc_library(
     name = "storage",
-    srcs = glob(["storage/*.cpp"]),
-    hdrs = glob(["storage/*.hpp"]),
+    srcs = glob([
+        "storage/*.cpp",
+        "storage/formats/*.cpp",
+    ]),
+    hdrs = glob([
+        "storage/*.hpp",
+        "storage/formats/*.hpp",
+    ]),
     includes = ["."],
     deps = ["@zstd"],
 )
@@ -48,6 +53,7 @@ cc_test(
     size = "small",
     srcs = [
         "resource/tests/manager_tests.cpp",
+        "storage/tests/json_tests.cpp",
         "storage/tests/virtual_disk_reader_tests.cpp",
         "storage/tests/virtual_disk_writer_tests.cpp",
     ],

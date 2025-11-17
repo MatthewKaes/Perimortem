@@ -53,7 +53,7 @@ auto Service::lsp_tokens(Tetrodotoxin::Lexical::Tokenizer& tokenizer,
 
   std::stringstream info_stream;
   // Assume basic jsonrpc 2.0 simplified header is enough.
-  info_stream << "{\"jsonrpc\":" << jsonrpc << ",\"id\":" << id
+  info_stream << "{\"jsonrpc\":\"" << jsonrpc << "\",\"id\":" << id
               << ",\"result\":{\"color\":"
               << !tokenizer.get_options().has(
                      Tetrodotoxin::Lexical::TtxState::CppTheme)
@@ -298,7 +298,7 @@ auto Service::format(Tetrodotoxin::Lexical::Tokenizer& tokenizer,
 
   std::stringstream info_stream;
   // Assume basic jsonrpc 2.0 simplified header is enough.
-  info_stream << "{\"jsonrpc\":" << jsonrpc << ",\"id\":" << id
+  info_stream << "{\"jsonrpc\":\"" << jsonrpc << "\",\"id\":" << id
               << ",\"result\":{\"document\":\"" << document << "\"}}";
 
   return info_stream.str();

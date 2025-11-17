@@ -7,7 +7,9 @@
 #include "lexical/tokenizer.hpp"
 
 #include <iostream>
+#include <sstream>
 
+using namespace Perimortem::Memory;
 using namespace Tetrodotoxin::Lsp;
 using namespace Tetrodotoxin::Lexical;
 
@@ -39,86 +41,87 @@ auto main(int argc, char* argv[]) -> int {
   std::cout << "   -- initialize" << std::endl;
   jsonrpc.register_method(
       "initialize",
-      [](const json& jsonrpc, const json& id, const json& data) -> std::string {
-        json ServerInfo;
-        ServerInfo["name"] = "Tetrodotoxin Language Server";
-        ServerInfo["version"] = "1.0";
+      [](const ManagedString& jsonrpc, uint32_t id,
+         const Node& data) -> std::string {
+        std::stringstream result;
+        result << "{\"jsonrpc\":\"" << jsonrpc.get_view() << "\",\"id\":" << id
+               << ",\"result\":{";
+        result << "\"serverInfo\":{\"name\":\"Tetrodotoxin Language "
+                  "Server\",\"version\":\"1.0\"},";
+        result << "\"capabilities\":{\"positionEncoding\":\"utf-16\",";
+        // TODO: Add support for completion characters [\".\",\">\"]
+        // result << "\"completionProvider\":{"
+        //           "\"resolveProvider\":true,"
+        //           "\"triggerCharacters\":[\".\",\">\"],"
+        //           "\"completionItem\":{\"labelDetailsSupport\":true}"
+        //           "},";
+        result << "\"textDocumentSync\":{"
+                  "\"openClose\":true,"
+                  "\"change\":\"1\""
+                  "}";
+        result << "}}}";
 
-        json CompletionOptions;
-        CompletionOptions["resolveProvider"] = true;
-        CompletionOptions["triggerCharacters"] = json::array({".", ">"});
-        CompletionOptions["completionItem"] = {{"labelDetailsSupport", true}};
-
-        json TextDocumentSyncOptions;
-        TextDocumentSyncOptions["openClose"] = true;
-        TextDocumentSyncOptions["change"] = "1";  // Send entire script
-
-        json ServerCapabilities;
-        ServerCapabilities["positionEncoding"] = "utf-16";
-        ServerCapabilities["completionProvider"] = CompletionOptions;
-        ServerCapabilities["textDocumentSync"] = TextDocumentSyncOptions;
-
-        json InitializeResult;
-        InitializeResult["capabilities"] = ServerCapabilities;
-        InitializeResult["serverInfo"] = ServerInfo;
-
-        json result_response;
-        result_response["result"] = InitializeResult;
-        result_response["jsonrpc"] = jsonrpc;
-        result_response["id"] = id;
-
-        return result_response.dump();
+        return result.str();
       });
 
   std::cout << "   -- tokenize" << std::endl;
   jsonrpc.register_method(
       "tokenize",
-      [](const json& jsonrpc, const json& id, const json& data) -> std::string {
-        if (!data.contains("source")) {
-          std::stringstream result;
-          result << "{\"jsonrpc\": \"2.0\", \"id\":" << id.get<uint32_t>()
+      [](const ManagedString& jsonrpc, uint32_t id,
+         const Node& data) -> std::string {
+        std::stringstream result;
+        const ManagedString* source_code = data["source"]->get_string();
+        if (!source_code) {
+          result << "{\"jsonrpc\": \"" << jsonrpc.get_view()
+                 << "\", \"id\":" << id
                  << " \"error\": \"Requested Tokenization but no `source` was "
                     "provided!\"}";
           return result.str();
         }
 
-        std::string source_code = data["source"].get<std::string>();
-        Tokenizer tokenizer;
-        tokenizer.parse(source_code, false);
+        // One off tokenizer.
+        static Tokenizer tokenizer;
+        tokenizer.parse(source_code->get_view(), false);
 
-        return Service::lsp_tokens(tokenizer, jsonrpc.get<std::string>(),
-                                   id.get<int32_t>());
+        return Service::lsp_tokens(tokenizer, jsonrpc.get_view(), id);
       });
 
   std::cout << "   -- format" << std::endl;
   jsonrpc.register_method(
       "format",
-      [](const json& jsonrpc, const json& id, const json& data) -> std::string {
-        if (!data.contains("source")) {
-          std::stringstream result;
-          result << "{\"jsonrpc\": \"2.0\", \"id\":" << id.get<uint32_t>()
+      [](const ManagedString& jsonrpc, uint32_t id,
+         const Node& data) -> std::string {
+        std::stringstream result;
+        const ManagedString* source_code = data["source"]->get_string();
+        if (!source_code) {
+          result << "{\"jsonrpc\": \"" << jsonrpc.get_view()
+                 << "\", \"id\":" << id
                  << " \"error\": \"Requested Format but no `source` was "
                     "provided!\"}";
           return result.str();
         }
 
-        if (!data.contains("name")) {
+        const ManagedString* name_string = data["name"]->get_string();
+        if (!name_string) {
           std::stringstream result;
-          result << "{\"jsonrpc\": \"2.0\", \"id\":" << id.get<uint32_t>()
+          result << "{\"jsonrpc\": \"" << jsonrpc.get_view()
+                 << "\", \"id\":" << id
                  << " \"error\": \"Requested Format but no `name` was "
                     "provided!\"}";
           return result.str();
         }
-        std::string source_code = data["source"].get<std::string>();
-        auto path = std::filesystem::path(data["name"].get<std::string>());
-        path.replace_extension();
-        std::string name = path.filename();
+
+        // auto path = std::filesystem::path(name_string->get_view());
+        // std::string name = path.filename();
 
         Tokenizer tokenizer;
-        tokenizer.parse(source_code, false);
+        tokenizer.parse(source_code->get_view(), false);
 
-        return Service::format(tokenizer, name, jsonrpc.get<std::string>(),
-                               id.get<int32_t>());
+        // TODO: For now just return back the source.
+        result << "{\"jsonrpc\":\"" << jsonrpc.get_view() << "\",\"id\":" << id
+               << ",\"result\":{\"document\":\"" << source_code->get_view()
+               << "\"}}";
+        return result.str();
       });
 
   std::cout << " -- Starting JsonRPC..." << std::endl;

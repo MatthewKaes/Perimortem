@@ -16,14 +16,22 @@
 
 namespace Tetrodotoxin::Lexical {
 
-// The type of the actual token.
-// Classifiers are only a linear representation and do not have context.
+// The type of the actual token in the local tokenizer context.
+//
+// Classifiers are only a linear representation and do not have context you
+// would typically assosicate with a parser. "Type" does not mean "Type" and
+// only discribes that the data needs to be operated on by another system.
+//
+// TTX supports exactly 64 logcal transformations. Changing the name or removing
+// a symbol doesn't change that. The names are just handy handles.
+//
+// See `Service::lsp_tokens` in the LSP server an example consumer.
 enum class Classifier : int8_t {
   None = -1,
 
   // Macro objects
   Comment,     // //
-  Disabled,    // </>
+  Disabled,    // />
   String,      // " "
   Numeric,     // 0-1 no decemial
   Float,       // 9. 0.9 as floats 9.. isn't valid TODO: Handle 9...?

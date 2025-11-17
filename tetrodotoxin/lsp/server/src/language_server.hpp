@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include "third_party/json.hpp"
+#include "storage/formats/json.hpp"
 
 #include <sys/socket.h>
 #include <sys/un.h>
@@ -17,7 +17,8 @@
 #include <thread>
 #include <unordered_map>
 
-using json = nlohmann::json;
+using Node = Perimortem::Storage::Json::Node;
+using ManagedString = Perimortem::Memory::ManagedString;
 
 namespace Tetrodotoxin::Lsp {
 
@@ -28,7 +29,7 @@ class UnixJsonRPC {
 
   auto register_method(
       std::string name,
-      std::function<std::string(const json&, const json&, const json&)>
+      std::function<std::string(const ManagedString&, uint32_t, const Node&)>
           resolver) -> void;
   auto process() -> void;
   auto shutdown() -> void;
@@ -44,8 +45,8 @@ class UnixJsonRPC {
   std::mutex job_mutex;
   std::list<std::string> job_queue;
   std::unordered_map<
-      std::string,
-      std::function<std::string(const json&, const json&, const json&)>>
+      std::string_view,
+      std::function<std::string(ManagedString, uint32_t, const Node&)>>
       method_resolver;
 
   std::atomic<bool> valid = false;
