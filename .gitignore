@@ -10,3 +10,7 @@ tetrodotoxin/lsp/client/package-lock.json
 tetrodotoxin/lsp/client/*.vsix
 tetrodotoxin/lsp/client/out/*
 tetrodotoxin/lsp/client/node_modules/*
+
+# Benchmark against 3P
+# nlohmann json, slows down build by quite a bit.
+core/tests/benchmarks/json.hpp

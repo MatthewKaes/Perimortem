@@ -86,6 +86,10 @@ auto parse_string(std::string_view source, uint32_t& position)
   return ManagedString();
 }
 
+auto ignored_characters(char c) {
+  return c == ' ' || c == ':' || c == '\n' || c == ',';
+}
+
 auto parse(Memory::Arena& arena, std::string_view source, uint32_t& position)
     -> Node* {
   if (position > source.size()) {
@@ -98,7 +102,8 @@ auto parse(Memory::Arena& arena, std::string_view source, uint32_t& position)
   Node* node = arena.construct<Node>();
 
   while (position < source.size()) {
-    switch (source[position]) {
+    const auto start_char = source[position];
+    switch (start_char) {
       // Object
       case '{': {
         ManagedLookup<Node> members(arena);
@@ -135,6 +140,11 @@ auto parse(Memory::Arena& arena, std::string_view source, uint32_t& position)
         position++;
 
         while (position < source.size() && source[position] != ']') {
+          if (ignored_characters(source[position])) {
+            position++;
+            continue;
+          }
+          
           auto child = parse(arena, source, position);
           if (!child) {
             return nullptr;
@@ -208,14 +218,16 @@ auto parse(Memory::Arena& arena, std::string_view source, uint32_t& position)
         }
 
         double float_value = value;
+        double divisor = 1.0;
         while (position < source.size() && source[position] >= '0' && source[position] <= '9') {
           float_value *= 10;
+          divisor *= 10;
           float_value += source[position] - '0';
           position++;
         }
 
         if (position < source.size()) {
-          node->set(float_value * (negative ? -1 : 1));
+          node->set((float_value / divisor) * (negative ? -1 : 1));
           return node;
         }
 
@@ -223,8 +235,11 @@ auto parse(Memory::Arena& arena, std::string_view source, uint32_t& position)
       }
 
       default:
-        position++;
-        break;
+        if (ignored_characters(start_char)) [[likely]] {
+          position++;
+          break;
+        }
+        return nullptr;
     }
   }
   return nullptr;

@@ -51,14 +51,24 @@ cc_library(
 cc_test(
     name = "tests",
     size = "small",
-    srcs = [
-        "resource/tests/manager_tests.cpp",
-        "storage/tests/json_tests.cpp",
-        "storage/tests/virtual_disk_reader_tests.cpp",
-        "storage/tests/virtual_disk_writer_tests.cpp",
-    ],
+    srcs = glob([
+        "tests/*.cpp",
+    ]),
     deps = [
         ":core",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "benchmarks",
+    size = "small",
+    srcs = glob(["tests/benchmarks/*.cpp"]),
+    deps = [
+        ":core",
+        "@google_benchmark//:benchmark",
+        "@google_benchmark//:benchmark_main",
         "@googletest//:gtest",
         "@googletest//:gtest_main",
     ],

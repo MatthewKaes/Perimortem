@@ -61,7 +61,7 @@ protected:
 
 
   virtual void SetUp() {
-    std::filesystem::path p = "core/storage/tests/disks/";
+    std::filesystem::path p = "core/tests/disks/";
     p /= ::testing::UnitTest::GetInstance()->current_test_info()->name();
     p.replace_extension(virutal_disk_extension);
     reader = VirtualDiskReader::mount_disk(p);

@@ -53,7 +53,7 @@ protected:
     path /= ::testing::UnitTest::GetInstance()->current_test_info()->name();
     disk_path = path;
     disk_path.replace_extension(virutal_disk_extension);
-    test_disk_path = "core/storage/tests/disks/";
+    test_disk_path = "core/tests/disks/";
     test_disk_path /=
         ::testing::UnitTest::GetInstance()->current_test_info()->name();
     test_disk_path.replace_extension(virutal_disk_extension);

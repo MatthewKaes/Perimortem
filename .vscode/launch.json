@@ -75,6 +75,23 @@
       }
     },
     {
+      "name": "[Benchmarks] Core (Linux)",
+      "type": "lldb",
+      "request": "launch",
+      "program": "${workspaceFolder}/.bin/bin/core/benchmarks",
+      "args": [],
+      "cwd": "${workspaceFolder}",
+      // Why are you like this VSCode???
+      "sourceMap": {
+        "/proc/self/cwd/external/": "${workspaceFolder}/.bin/Perimortem/external/",
+        "/proc/self/cwd/": "${workspaceFolder}"
+      },
+      "preLaunchTask": "Full Build (Linux) [Release]",
+      "presentation": {
+        "clear": true
+      }
+    },
+    {
       "name": "[Benchmarks] TTX (Linux)",
       "type": "lldb",
       "request": "launch",

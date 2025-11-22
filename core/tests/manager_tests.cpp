@@ -156,7 +156,7 @@ TEST_F(ManagerTests, import_file) {
 }
 
 TEST_F(ManagerTests, load_from_file) {
-  Manager manager("core/resource/tests/simple_project");
+  Manager manager("core/tests/simple_project");
   std::filesystem::path svg_path = ".data/icon.svg";
   auto path = Path("[res]://game/images/icon.svg");
 
