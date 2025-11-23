@@ -33,7 +33,7 @@ auto Visitor::parse_comment(Context& ctx) -> Perimortem::Memory::ManagedString {
 
   // Fill an arena buffer with the comment.
   auto buffer =
-      reinterpret_cast<char*>(ctx.get_allocator().allocate(total_bytes, 1));
+      reinterpret_cast<char*>(ctx.get_allocator().allocate(total_bytes));
   for (uint32_t i = start_index; i < end_index; i++) {
     std::memcpy(buffer + line_locations[i - start_index], ctx[i].data.data(), ctx[i].data.size());
   }

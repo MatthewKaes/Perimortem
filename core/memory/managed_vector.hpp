@@ -21,7 +21,7 @@ class ManagedVector {
     size = 0;
     capacity = start_capacity;
     rented_block = reinterpret_cast<T*>(
-        arena->allocate(sizeof(T) * start_capacity, alignof(T)));
+        arena->allocate(sizeof(T) * start_capacity));
   }
 
   auto apply(const std::function<void(const T*)>& fn) const -> void {
@@ -57,7 +57,7 @@ class ManagedVector {
   auto grow() -> void {
     capacity *= growth_factor;
     auto new_block =
-        reinterpret_cast<T*>(arena->allocate(sizeof(T) * capacity, alignof(T)));
+        reinterpret_cast<T*>(arena->allocate(sizeof(T) * capacity));
 
     std::memcpy(new_block, rented_block, sizeof(T) * size);
     rented_block = new_block;

@@ -15,11 +15,11 @@ extern auto compare_buffers(const ByteView &result, const ByteView &target)
 struct ManagerTests : public ::testing::Test {
 protected:
   virtual void SetUp() {
-    test_root = ".bin/resource/tests/";
+    test_root = ".bin/core/tests/";
     test_root /=
         ::testing::UnitTest::GetInstance()->current_test_info()->name();
 
-    source_root = "core/resource/tests/";
+    source_root = "core/core/tests/";
     source_root /=
         ::testing::UnitTest::GetInstance()->current_test_info()->name();
 

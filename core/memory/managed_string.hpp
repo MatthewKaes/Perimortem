@@ -26,7 +26,7 @@ class ManagedString {
 
   // Convert a possibly non-managed string into a managed string.
   ManagedString(Arena& arena, const std::string_view& source) {
-    auto buffer = reinterpret_cast<char*>(arena.allocate(source.size(), 1));
+    auto buffer = reinterpret_cast<char*>(arena.allocate(source.size()));
     std::memcpy(buffer, source.data(), source.size());
 
     size = source.size();
@@ -39,6 +39,12 @@ class ManagedString {
     rented_block = source.data();
   }
 
+  // The string is already managed.
+  ManagedString(const char* source, uint64_t source_size) {
+    size = source_size;
+    rented_block = source;
+  }
+
   inline constexpr auto operator==(const ManagedString& rhs) const -> bool {
     return rhs.size == size &&
            std::memcmp(rented_block, rhs.rented_block, size) == 0;
@@ -49,12 +55,20 @@ class ManagedString {
            std::memcmp(rented_block, rhs.data(), size) == 0;
   }
 
-  inline constexpr auto empty() const -> uint32_t { return size == 0; };
+  inline constexpr auto empty() const -> bool { return size == 0; };
 
   inline constexpr auto get_size() const -> uint32_t { return size; };
 
   inline constexpr auto get_view() const -> std::string_view {
     return std::string_view(rented_block, size);
+  };
+
+  inline constexpr auto slice(uint64_t start, uint64_t size) const -> ManagedString {
+    return ManagedString(rented_block + start, size);
+  };
+
+  inline constexpr auto operator[](uint64_t index) const -> char {
+    return rented_block[index];
   };
 
   inline constexpr auto take(ManagedString& rhs) {

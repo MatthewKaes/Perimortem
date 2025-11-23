@@ -1,5 +1,1 @@
-{
-  "jsonrpc": "2.0",
-  "method": "initialized",
-  "params": {}
-}
+{"jsonrpc":"2.0","id":12,"method":"initialized","params":{}}

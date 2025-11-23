@@ -18,17 +18,43 @@ class Arena {
   // Attempt to request blocks in 16k pages including the preface.
   static constexpr uint64_t page_size =
       (1 << 14) - sizeof(Bibliotheca::Preface);
+  static constexpr uint64_t alignment_filter = alignof(max_align_t) - 1;
 
   Arena();
   ~Arena();
 
-  auto allocate(uint16_t bytes_requested,
-                uint8_t alignment = alignof(max_align_t)) -> uint8_t*;
+  inline auto allocate(uint16_t bytes_requested) -> uint8_t* {
+#ifdef PERI_DEBUG
+    // You can't request more data than the size of a page.
+    if (bytes_requested > page_size) {
+      __builtin_debugtrap();
+    }
+#endif
+
+    // Fetch a new page if we are full,
+    if (rented_block->usage + bytes_requested > rented_block->capacity) {
+      auto rent = Bibliotheca::check_out(page_size);
+
+      // Add the block to our our stack and make it top most block.
+      rent->previous = rented_block;
+      rented_block = rent;
+    }
+
+    uint8_t* root = Bibliotheca::preface_to_corpus(rented_block);
+    rented_block->usage += bytes_requested;
+
+    // Align the page.
+    auto required_alignment = (~rented_block->usage + 1) & (alignment_filter);
+    rented_block->usage += required_alignment;
+
+    return root;
+  }
+
   auto reset() -> void;
 
   template <typename T>
   inline auto construct(uint32_t count = 1) -> T* {
-    T* root = reinterpret_cast<T*>(allocate(sizeof(T) * count, alignof(T)));
+    T* root = reinterpret_cast<T*>(allocate(sizeof(T) * count));
     for (int i = 0; i < count; i++) {
       new (root + i) T();
     }

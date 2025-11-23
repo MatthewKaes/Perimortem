@@ -3,6 +3,8 @@
 
 #include "language_server.hpp"
 
+#include "storage/formats/lazy_json.hpp"
+
 #include <cstring>
 #include <iostream>
 #include <sstream>
@@ -10,6 +12,7 @@
 // TODO: This should all be async with promises
 
 using namespace Perimortem::Memory;
+using namespace Perimortem::Storage::Json;
 using namespace Tetrodotoxin::Lsp;
 
 UnixJsonRPC::UnixJsonRPC(const std::string& pipe_data_)
@@ -34,8 +37,8 @@ UnixJsonRPC::~UnixJsonRPC() {
 
 auto UnixJsonRPC::register_method(
     std::string name,
-    std::function<std::string(const ManagedString&, uint32_t, const Node&)> resolver)
-    -> void {
+    std::function<std::string(const ManagedString&, uint32_t, const Node&)>
+        resolver) -> void {
   method_resolver[name] = resolver;
 }
 
@@ -48,7 +51,7 @@ auto UnixJsonRPC::process() -> void {
 
   std::cout << "   -- Starting executor thread..." << std::endl;
   for (int i = 0; i < executor_count; i++) {
-  std::cout << "   -- Starting executor thread " << i << "..." << std::endl;
+    std::cout << "   -- Starting executor thread " << i << "..." << std::endl;
     executors[i] = std::thread([this, i]() {
       uint32_t thread_id = i;
       std::string local_data;
@@ -64,55 +67,48 @@ auto UnixJsonRPC::process() -> void {
           job_queue.pop_front();
         }
 
-        std::cout << "[ex=" << thread_id << "] Resetting Arena..." << std::endl;
-        json_arena.reset();
-        uint32_t position;
-        std::cout << local_data << std::endl;
-        auto data = Perimortem::Storage::Json::parse(json_arena, local_data, position);
-        if (!data) {
-          std::cout << "[ex=" << thread_id << "] Failed to parse jsonrpc request..." << std::endl;
-          continue;
-        }
+        // Use a a lazy loader to quickly rule out any invalid requests.
+        LazyNode lazy_loader(ManagedString(local_data.data(), local_data.size()));
+        auto header_info = lazy_loader.get_object<3>();
 
-        if (!data->contains("method") && !(*data)["method"]->get_string()) {
-          std::cout << "[ex=" << thread_id << "] Job is missing `method`..." << std::endl;
-          continue;
-        }
-        auto method_name = *(*data)["method"]->get_string();
-
-        if (!data->contains("jsonrpc") && !(*data)["jsonrpc"]->get_string()) {
-          std::cout << "[ex=" << thread_id << "] Job Rejected: " << method_name.get_view() << " for missing `jsonrpc`..."
-                    << std::endl;
-          continue;
-        }
-        auto jsonrpc_version = *(*data)["jsonrpc"]->get_string();
-
-        if (!data->contains("id") && !(*data)["id"]->get_int()) {
-          std::cout << "[ex=" << thread_id << "] Job Rejected: " << method_name.get_view() << " for missing `id`..."
-                    << std::endl;
-          continue;
-        }
-        uint32_t id_value = *(*data)["id"]->get_int();
-
-        if (!data->contains("params")) {
-          std::cout << "[ex=" << thread_id << "] Job Rejected: " << method_name.get_view() << " for missing `params`..."
-                    << std::endl;
-          continue;
-        }
-        auto params_node = (*data)["params"];
-
+        auto jsonrpc_version = header_info["jsonrpc"].get_string();
+        auto id_value = header_info["id"].get_int();
+        auto method_name = header_info["method"].get_string();
         if (!method_resolver.contains(method_name.get_view())) {
-          std::cout << "[ex=" << thread_id << "] Job Rejected: " << method_name.get_view()
+          std::cout << "[ex=" << thread_id
+                    << "] Job Rejected: " << method_name.get_view()
                     << " is not a registered RPC..." << std::endl
                     << std::endl;
           continue;
         }
 
-        std::cout << "[ex=" << thread_id << "] Job accepted: " << method_name.get_view() << std::endl;
+        json_arena.reset();
+        uint32_t position;
+        std::cout << local_data << std::endl;
+        auto data =
+            ::parse(json_arena, local_data, position);
+        if (!data) {
+          std::cout << "[ex=" << thread_id
+                    << "] Failed to parse jsonrpc request..." << std::endl;
+          continue;
+        }
+
+        if (!data->contains("params")) {
+          std::cout << "[ex=" << thread_id
+                    << "] Job Rejected: " << method_name.get_view()
+                    << " for missing `params`..." << std::endl;
+          continue;
+        }
+        auto params_node = (*data)["params"];
+
+
+        std::cout << "[ex=" << thread_id
+                  << "] Job accepted: " << method_name.get_view() << std::endl;
         std::string response = method_resolver[method_name.get_view()](
             jsonrpc_version, id_value, *params_node);
 
-        auto write_jsonrpc_frame = [this, &method_name](const std::string_view& view) {
+        auto write_jsonrpc_frame = [this, &method_name](
+                                       const std::string_view& view) {
           int32_t bytes_written = 0;
           while (bytes_written < view.size()) {
             int32_t bytes = write(sock_descriptor, view.data() + bytes_written,
@@ -136,7 +132,8 @@ auto UnixJsonRPC::process() -> void {
         write_jsonrpc_frame(frame.view());
         // JSON Response frame
         write_jsonrpc_frame(response);
-        std::cout << "[ex=" << thread_id << "] Completed " << id_value << std::endl;
+        std::cout << "[ex=" << thread_id << "] Completed " << id_value
+                  << std::endl;
       }
     });
   }
@@ -144,7 +141,7 @@ auto UnixJsonRPC::process() -> void {
   std::cout << "   -- Starting reader thread..." << std::endl;
   reader = std::thread([this]() {
     // overly large buffer
-    constexpr int32_t buffer_size = 1 << 15;
+    constexpr int32_t buffer_size = 1 << 16;
     char ret_value[buffer_size];
     std::string data;
     while (valid) {

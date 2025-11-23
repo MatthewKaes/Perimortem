@@ -30,7 +30,7 @@ class ManagedLookup {
     size = 0;
     capacity = start_capacity;
     rented_block = reinterpret_cast<Entry*>(
-        arena->allocate(sizeof(Entry) * start_capacity, alignof(Entry)));
+        arena->allocate(sizeof(Entry) * start_capacity));
   }
 
   auto apply(const std::function<void(const T*)>& fn) const -> void {
@@ -72,7 +72,7 @@ class ManagedLookup {
   auto grow() -> void {
     capacity *= growth_factor;
     auto new_block = reinterpret_cast<Entry*>(
-        arena->allocate(sizeof(Entry) * capacity, alignof(Entry)));
+        arena->allocate(sizeof(Entry) * capacity));
 
     std::memcpy(new_block, rented_block, sizeof(Entry) * size);
     rented_block = new_block;

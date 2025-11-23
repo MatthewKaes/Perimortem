@@ -17,34 +17,6 @@ Arena::~Arena() {
   }
 }
 
-auto Arena::allocate(uint16_t bytes_requested, uint8_t alignment) -> uint8_t* {
-#if PERI_DEBUG
-  // You can't request more data than the size of a page.
-  if (bytes_requested > page_size) {
-    __builtin_debugtrap();
-  }
-#endif
-
-  auto required_alignment = alignment - 1 - (rented_block->usage & (alignment - 1));
-
-  // Fetch a new page if we are full,
-  if (rented_block->usage + bytes_requested + required_alignment >
-      rented_block->capacity) {
-    auto rent = Bibliotheca::check_out(page_size);
-
-    // Add the block to our our stack and make it top most block.
-    rent->previous = rented_block;
-    rented_block = rent;
-  } else {
-    // The current page may not be correctly aligned, so apply alignment.
-    rented_block->usage += required_alignment;
-  }
-
-  uint8_t* root = Bibliotheca::preface_to_corpus(rented_block);
-  rented_block->usage += bytes_requested;
-  return root;
-}
-
 auto Arena::reset() -> void {
   // Return all blocks we've rented from the Bibliotheca until we only have a
   // single block left.

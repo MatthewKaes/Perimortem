@@ -14,3 +14,6 @@ tetrodotoxin/lsp/client/node_modules/*
 # Benchmark against 3P
 # nlohmann json, slows down build by quite a bit.
 core/tests/benchmarks/json.hpp
+
+# Profiling
+perf.*

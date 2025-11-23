@@ -70,24 +70,26 @@ auto Node::get_string() const -> const Memory::ManagedString* {
 namespace Perimortem::Storage::Json {
 auto parse_string(std::string_view source, uint32_t& position)
     -> ManagedString {
-  uint32_t start = -1;
-  while (position < source.size()) {
-    if (source[position] == '"') {
-      if (start == -1) {
-        start = position + 1;
-      } else {
-        return ManagedString(source.substr(start, position++ - start));
+  uint32_t start = ++position;
+
+  while (true) {
+    constexpr const uint32_t look_ahead = 4;
+    for (uint32_t i = 0; i < look_ahead; i++) {
+      if (source[position + i] == '"') {
+        position += i;
+        goto finished;
       }
     }
 
-    position++;
+    position += look_ahead;
   }
 
-  return ManagedString();
+finished:
+  return ManagedString(source.substr(start, position++ - start));
 }
 
 auto ignored_characters(char c) {
-  return c == ' ' || c == ':' || c == '\n' || c == ',';
+  return c == ',';
 }
 
 auto parse(Memory::Arena& arena, std::string_view source, uint32_t& position)
@@ -119,6 +121,9 @@ auto parse(Memory::Arena& arena, std::string_view source, uint32_t& position)
             return nullptr;
           }
 
+          // :
+          position++;
+
           auto child = parse(arena, source, position);
           if (!child) {
             return nullptr;
@@ -142,9 +147,8 @@ auto parse(Memory::Arena& arena, std::string_view source, uint32_t& position)
         while (position < source.size() && source[position] != ']') {
           if (ignored_characters(source[position])) {
             position++;
-            continue;
           }
-          
+
           auto child = parse(arena, source, position);
           if (!child) {
             return nullptr;
@@ -198,7 +202,7 @@ auto parse(Memory::Arena& arena, std::string_view source, uint32_t& position)
 
       // Numbers
       case '-':
-      case '0'...'9': {
+      case '0' ... '9': {
         bool negative = false;
         if (source[position] == '-') {
           negative = true;
@@ -206,7 +210,8 @@ auto parse(Memory::Arena& arena, std::string_view source, uint32_t& position)
         }
 
         long value = 0;
-        while (position < source.size() && source[position] >= '0' && source[position] <= '9') {
+        while (position < source.size() && source[position] >= '0' &&
+               source[position] <= '9') {
           value *= 10;
           value += source[position] - '0';
           position++;
@@ -219,7 +224,8 @@ auto parse(Memory::Arena& arena, std::string_view source, uint32_t& position)
 
         double float_value = value;
         double divisor = 1.0;
-        while (position < source.size() && source[position] >= '0' && source[position] <= '9') {
+        while (position < source.size() && source[position] >= '0' &&
+               source[position] <= '9') {
           float_value *= 10;
           divisor *= 10;
           float_value += source[position] - '0';
@@ -234,11 +240,11 @@ auto parse(Memory::Arena& arena, std::string_view source, uint32_t& position)
         return nullptr;
       }
 
+      case ',':
+        position++;
+        break;
+
       default:
-        if (ignored_characters(start_char)) [[likely]] {
-          position++;
-          break;
-        }
         return nullptr;
     }
   }
