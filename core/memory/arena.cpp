@@ -1,7 +1,7 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
-#include "core/memory/arena.hpp"
+#include "memory/arena.hpp"
 
 using namespace Perimortem::Memory;
 

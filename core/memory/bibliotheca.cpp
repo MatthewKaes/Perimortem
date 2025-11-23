@@ -1,7 +1,7 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
-#include "core/memory/bibliotheca.hpp"
+#include "memory/bibliotheca.hpp"
 
 #include <stdlib.h>
 #include <atomic>

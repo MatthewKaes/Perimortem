@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include "core/memory/arena.hpp"
+#include "memory/arena.hpp"
 
 #include <cstring>
 #include <string_view>

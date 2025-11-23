@@ -5,10 +5,10 @@ import * as path from "path";
 import * as vscode from "vscode";
 import { ExtensionContext, OutputChannel, window, workspace } from "vscode";
 import {
-    LanguageClient,
-    LanguageClientOptions,
-    ServerOptions,
-    TransportKind,
+  LanguageClient,
+  LanguageClientOptions,
+  ServerOptions,
+  TransportKind,
 } from "vscode-languageclient/node";
 
 let client: LanguageClient;
@@ -159,8 +159,11 @@ export function activate(context: ExtensionContext) {
           tokens: Array<Array<any>>;
         };
 
+        var buffer = Buffer.from(document.getText());
+        var encoded_source = buffer.toString('base64');
+
         const result = await client.sendRequest("tokenize", {
-          "source": document.getText()
+          "source": encoded_source
         }) as TtxTokens;
 
         const tokensBuilder = new vscode.SemanticTokensBuilder(legend);
@@ -224,8 +227,11 @@ export function activate(context: ExtensionContext) {
           document: string
         };
 
+        var buffer = Buffer.from(document.getText());
+        var encoded_source = buffer.toString('base64');
+
         const result = await client.sendRequest("format", {
-          "source": document.getText(),
+          "source": encoded_source,
           "name": document.fileName,
         }) as TtxFormat;
 

@@ -7,9 +7,9 @@
 #include "types/func.hpp"
 #include "types/name.hpp"
 
-#include "core/memory/arena.hpp"
-#include "core/memory/managed_lookup.hpp"
-#include "core/memory/managed_string.hpp"
+#include "memory/arena.hpp"
+#include "memory/managed_lookup.hpp"
+#include "memory/managed_string.hpp"
 
 #include "lexical/tokenizer.hpp"
 

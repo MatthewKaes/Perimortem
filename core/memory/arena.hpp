@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include "core/memory/bibliotheca.hpp"
+#include "memory/bibliotheca.hpp"
 
 namespace Perimortem::Memory {
 

@@ -72,8 +72,9 @@ auto parse_string(std::string_view source, uint32_t& position)
     -> ManagedString {
   uint32_t start = ++position;
 
+  // Optimize for vectorizing as large source files come over as base 64.
   while (true) {
-    constexpr const uint32_t look_ahead = 4;
+    constexpr const uint32_t look_ahead = 16;
     for (uint32_t i = 0; i < look_ahead; i++) {
       if (source[position + i] == '"') {
         position += i;

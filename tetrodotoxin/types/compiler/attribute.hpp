@@ -5,7 +5,7 @@
 
 #include "types/abstract.hpp"
 
-#include "core/memory/managed_string.hpp"
+#include "memory/managed_string.hpp"
 
 namespace Tetrodotoxin::Types::Compiler {
 

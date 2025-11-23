@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include "core/memory/managed_string.hpp"
+#include "memory/managed_string.hpp"
 
 #include <array>
 #include <cstdint>
