@@ -17,7 +17,7 @@
 #endif
 
 // Number of words to load
-const int tests = 10000;
+const int tests = 1000000;
 
 template <class T>
 void doNotOptimizeAway(T&& datum) {
@@ -55,106 +55,106 @@ auto generate_test_data() -> std::array<std::string, 4> {
   return source;
 }
 
-#ifdef PERI_BENCH_3P
-static void nlohmann_json_rpc(benchmark::State& state) {
-  std::array<std::string, 4> source = generate_test_data();
+// #ifdef PERI_BENCH_3P
+// static void nlohmann_json_rpc(benchmark::State& state) {
+//   std::array<std::string, 4> source = generate_test_data();
 
-  for (auto _ : state) {
-    for (int i = 1; i <= tests; i++) {
-      auto data = nlohmann::json::parse(source[rand() % source.size()]);
-      auto rpc_version = data["jsonrpc"];
-      doNotOptimizeAway(rpc_version == "2.0");
+//   for (auto _ : state) {
+//     for (int i = 1; i <= tests; i++) {
+//       auto data = nlohmann::json::parse(source[rand() % source.size()]);
+//       auto rpc_version = data["jsonrpc"];
+//       doNotOptimizeAway(rpc_version == "2.0");
 
-      auto path = data["params"]["source"];
-      auto size = path.size();
-      doNotOptimizeAway(size);
-    }
-  }
-}
-BENCHMARK(nlohmann_json_rpc);
+//       auto path = data["params"]["source"];
+//       auto size = path.size();
+//       doNotOptimizeAway(size);
+//     }
+//   }
+// }
+// BENCHMARK(nlohmann_json_rpc);
 
-static void nlohmann_json_rpc_with_decode(benchmark::State& state) {
-  std::array<std::string, 4> source = generate_test_data();
+// static void nlohmann_json_rpc_with_decode(benchmark::State& state) {
+//   std::array<std::string, 4> source = generate_test_data();
 
-  for (auto _ : state) {
-    for (int i = 1; i <= tests; i++) {
-      auto data = nlohmann::json::parse(source[rand() % source.size()]);
-      auto rpc_version = data["jsonrpc"];
-      doNotOptimizeAway(rpc_version == "2.0");
+//   for (auto _ : state) {
+//     for (int i = 1; i <= tests; i++) {
+//       auto data = nlohmann::json::parse(source[rand() % source.size()]);
+//       auto rpc_version = data["jsonrpc"];
+//       doNotOptimizeAway(rpc_version == "2.0");
 
-      auto path = data["params"]["source"];
-      Perimortem::Storage::Base64::Decoded decode(
-          Perimortem::Memory::ManagedString(path.get<std::string>()));
-      doNotOptimizeAway(decode.get_view().empty());
-    }
-  }
-}
-BENCHMARK(nlohmann_json_rpc_with_decode);
-#endif
+//       auto path = data["params"]["source"];
+//       Perimortem::Storage::Base64::Decoded decode(
+//           Perimortem::Memory::ManagedString(path.get<std::string>()));
+//       doNotOptimizeAway(decode.get_view().empty());
+//     }
+//   }
+// }
+// BENCHMARK(nlohmann_json_rpc_with_decode);
+// #endif
 
-static void json_rpc(benchmark::State& state) {
-  Perimortem::Memory::Arena json_arena;
-  std::array<std::string, 4> source = generate_test_data();
+// static void json_rpc(benchmark::State& state) {
+//   Perimortem::Memory::Arena json_arena;
+//   std::array<std::string, 4> source = generate_test_data();
 
-  for (auto _ : state) {
-    for (int i = 1; i <= tests; i++) {
-      json_arena.reset();
-      uint32_t position = 0;
-      auto data = Perimortem::Storage::Json::parse(
-          json_arena, source[rand() % source.size()], position);
-      auto rpc_version = (*data)["jsonrpc"]->get_string();
-      doNotOptimizeAway(rpc_version->get_view() == "2.0");
+//   for (auto _ : state) {
+//     for (int i = 1; i <= tests; i++) {
+//       json_arena.reset();
+//       uint32_t position = 0;
+//       auto data = Perimortem::Storage::Json::parse(
+//           json_arena, source[rand() % source.size()], position);
+//       auto rpc_version = (*data)["jsonrpc"]->get_string();
+//       doNotOptimizeAway(rpc_version->get_view() == "2.0");
 
-      auto path = (*(*data)["params"])["source"]->get_string();
-      doNotOptimizeAway(path->get_size());
-    }
-  }
-}
-BENCHMARK(json_rpc);
+//       auto path = (*(*data)["params"])["source"]->get_string();
+//       doNotOptimizeAway(path->get_size());
+//     }
+//   }
+// }
+// BENCHMARK(json_rpc);
 
-static void json_rpc_with_decode(benchmark::State& state) {
-  Perimortem::Memory::Arena json_arena;
-  std::array<std::string, 4> source = generate_test_data();
+// static void json_rpc_with_decode(benchmark::State& state) {
+//   Perimortem::Memory::Arena json_arena;
+//   std::array<std::string, 4> source = generate_test_data();
 
-  for (auto _ : state) {
-    for (int i = 1; i <= tests; i++) {
-      json_arena.reset();
-      uint32_t position = 0;
-      auto data = Perimortem::Storage::Json::parse(
-          json_arena, source[rand() % source.size()], position);
-      auto rpc_version = (*data)["jsonrpc"]->get_string();
-      doNotOptimizeAway(rpc_version->get_view() == "2.0");
+//   for (auto _ : state) {
+//     for (int i = 1; i <= tests; i++) {
+//       json_arena.reset();
+//       uint32_t position = 0;
+//       auto data = Perimortem::Storage::Json::parse(
+//           json_arena, source[rand() % source.size()], position);
+//       auto rpc_version = (*data)["jsonrpc"]->get_string();
+//       doNotOptimizeAway(rpc_version->get_view() == "2.0");
 
-      auto path = (*(*data)["params"])["source"]->get_string();
-      Perimortem::Storage::Base64::Decoded decode{
-          Perimortem::Memory::ManagedString(*path)};
-      doNotOptimizeAway(decode.get_view().empty());
-    }
-  }
-}
-BENCHMARK(json_rpc_with_decode);
+//       auto path = (*(*data)["params"])["source"]->get_string();
+//       Perimortem::Storage::Base64::Decoded decode{
+//           Perimortem::Memory::ManagedString(*path)};
+//       doNotOptimizeAway(decode.get_view().empty());
+//     }
+//   }
+// }
+// BENCHMARK(json_rpc_with_decode);
 
-static void just_source_decode(benchmark::State& state) {
-  Perimortem::Memory::Arena json_arena;
-  std::array<std::string, 4> source = generate_test_data();
+// static void just_source_decode(benchmark::State& state) {
+//   Perimortem::Memory::Arena json_arena;
+//   std::array<std::string, 4> source = generate_test_data();
 
-  json_arena.reset();
-  uint32_t position = 0;
-  auto data = Perimortem::Storage::Json::parse(
-      json_arena, source[rand() % source.size()], position);
-  auto rpc_version = (*data)["jsonrpc"]->get_string();
-  doNotOptimizeAway(rpc_version->get_view() == "2.0");
+//   json_arena.reset();
+//   uint32_t position = 0;
+//   auto data = Perimortem::Storage::Json::parse(
+//       json_arena, source[rand() % source.size()], position);
+//   auto rpc_version = (*data)["jsonrpc"]->get_string();
+//   doNotOptimizeAway(rpc_version->get_view() == "2.0");
 
-  auto path = (*(*data)["params"])["source"]->get_string();
-  for (auto _ : state) {
-    for (int i = 1; i <= tests; i++) {
-      Perimortem::Storage::Base64::Decoded decode{
-          Perimortem::Memory::ManagedString(*path), true};
-      doNotOptimizeAway(decode.get_view().empty());
-    }
-  }
-}
-BENCHMARK(just_source_decode);
+//   auto path = (*(*data)["params"])["source"]->get_string();
+//   for (auto _ : state) {
+//     for (int i = 1; i <= tests; i++) {
+//       Perimortem::Storage::Base64::Decoded decode{
+//           Perimortem::Memory::ManagedString(*path), true};
+//       doNotOptimizeAway(decode.get_view().empty());
+//     }
+//   }
+// }
+// BENCHMARK(just_source_decode);
 
 static void just_source_decode_vectorization(benchmark::State& state) {
   Perimortem::Memory::Arena json_arena;
@@ -178,38 +178,38 @@ static void just_source_decode_vectorization(benchmark::State& state) {
 }
 BENCHMARK(just_source_decode_vectorization);
 
-static void lazy_json_rpc(benchmark::State& state) {
-  std::array<std::string, 4> source = generate_test_data();
+// static void lazy_json_rpc(benchmark::State& state) {
+//   std::array<std::string, 4> source = generate_test_data();
 
-  for (auto _ : state) {
-    for (int i = 1; i <= tests; i++) {
-      const auto& selected = source[rand() % source.size()];
-      auto data = Perimortem::Storage::Json::LazyNode(
-          Perimortem::Memory::ManagedString(selected.c_str(),
-          selected.size()));
-      auto top_level = data.get_object<4>();
-      doNotOptimizeAway(top_level["jsonrpc"].get_view().empty());
+//   for (auto _ : state) {
+//     for (int i = 1; i <= tests; i++) {
+//       const auto& selected = source[rand() % source.size()];
+//       auto data = Perimortem::Storage::Json::LazyNode(
+//           Perimortem::Memory::ManagedString(selected.c_str(),
+//           selected.size()));
+//       auto top_level = data.get_object<4>();
+//       doNotOptimizeAway(top_level["jsonrpc"].get_view().empty());
 
-      auto path = top_level["params"].get_object<8>()["source"].get_string();
-      doNotOptimizeAway(path.get_size());
-    }
-  }
-}
-BENCHMARK(lazy_json_rpc);
+//       auto path = top_level["params"].get_object<8>()["source"].get_string();
+//       doNotOptimizeAway(path.get_size());
+//     }
+//   }
+// }
+// BENCHMARK(lazy_json_rpc);
 
-static void lazy_json_rpc_header_only(benchmark::State& state) {
-  std::array<std::string, 4> source = generate_test_data();
+// static void lazy_json_rpc_header_only(benchmark::State& state) {
+//   std::array<std::string, 4> source = generate_test_data();
 
-  for (auto _ : state) {
-    for (int i = 1; i <= tests; i++) {
-      const auto& selected = source[rand() % source.size()];
-      auto data = Perimortem::Storage::Json::LazyNode(
-          Perimortem::Memory::ManagedString(selected.c_str(),
-          selected.size()));
-      auto top_level = data.get_object<3>();
-      doNotOptimizeAway(top_level["jsonrpc"].get_view().empty());
-      doNotOptimizeAway(top_level["id"].get_view().empty());
-    }
-  }
-}
-BENCHMARK(lazy_json_rpc_header_only);
+//   for (auto _ : state) {
+//     for (int i = 1; i <= tests; i++) {
+//       const auto& selected = source[rand() % source.size()];
+//       auto data = Perimortem::Storage::Json::LazyNode(
+//           Perimortem::Memory::ManagedString(selected.c_str(),
+//           selected.size()));
+//       auto top_level = data.get_object<3>();
+//       doNotOptimizeAway(top_level["jsonrpc"].get_view().empty());
+//       doNotOptimizeAway(top_level["id"].get_view().empty());
+//     }
+//   }
+// }
+// BENCHMARK(lazy_json_rpc_header_only);

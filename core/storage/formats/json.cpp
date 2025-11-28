@@ -3,6 +3,8 @@
 
 #include "storage/formats/json.hpp"
 
+#include <x86intrin.h>
+
 using namespace Perimortem::Memory;
 using namespace Perimortem::Storage::Json;
 
@@ -68,6 +70,21 @@ auto Node::get_string() const -> const Memory::ManagedString* {
 }
 
 namespace Perimortem::Storage::Json {
+
+// auto vectorized_find(std::string_view source,
+//                      const uint32_t position,
+//                      uint8_t search) -> void {
+//   // 
+//   constexpr const auto fused_channels = 2;
+//   constexpr const auto avx2_channel_width = sizeof(__m256i);
+//   constexpr const auto full_channel_width = avx2_channel_width * fused_channels;
+
+//   reg x = _mm256_set1_epi32(needle);
+//   for (int i = position; i < source.size(); i += )
+
+//   return -1;
+// }
+
 auto parse_string(std::string_view source, uint32_t& position)
     -> ManagedString {
   uint32_t start = ++position;

@@ -32,7 +32,7 @@ static_assert(decode_lookup['='] == 0);
 
 Decoded::Decoded(const Memory::ManagedString& source,
                  bool disable_vectorization) {
-  // On AMD processors that don't support AVX512 they "partially" support it by
+  // On AMD processors that don't support AVX512 they "partially" supports it
   // using two fused AVX2 256bit buffers. To make sure we support just about
   // every modern CPU we can use two parallel AVX2 buffers unrolled. This is esp
   // useful as AMD Zen 5 seems to pick up on what we are trying to do and we
@@ -42,7 +42,11 @@ Decoded::Decoded(const Memory::ManagedString& source,
   // This provides AVX2 support for backcompat but allows most modern CPUs to
   // pipeline both commands at the same time. In testing the only downside is
   // the gathering phase and bitmask phases perform worse than native AVX512.
-  constexpr const auto fused_channels = 2;
+  //
+  // UPDATE: Due to the "AndNot" optimization resulting in improved pipelining
+  // and reducing the number of ymm registers we needed we can actually use 3
+  // channels to maximize register usage.
+  constexpr const auto fused_channels = 3;
   constexpr const auto avx2_channel_width = sizeof(__m256i);
   constexpr const auto full_channel_width = avx2_channel_width * fused_channels;
 
@@ -73,7 +77,6 @@ Decoded::Decoded(const Memory::ManagedString& source,
     size--;
     source_bytes--;
   }
-
 
   if (!disable_vectorization) {
     // Use AVX2 for vectorization as it's generally more available than AVX512
@@ -169,9 +172,24 @@ Decoded::Decoded(const Memory::ManagedString& source,
     // '+' -> 0b_010____ -> 2
     // '/' -> 0b1010____ -> 10
     //
-    // The benefit of this is that 0xF is also clamped to a 16 byte range which
-    // means we can That does mess up 'o' in both alpha ranges but at least it
-    // messes them up uniquely!
+    // This almost works but we can do slightly better. Rather than adding the
+    // MSB we can instead negate all the bits and remove it with an AND mask:
+    //
+    // '0' -> 0b1100____ -> 12
+    // '9' -> 0b1100____ -> 12
+    // 'A' -> 0b1011____ -> 11
+    // 'O' -> 0b0011____ -> 3 (top bit masked from 0xF invert mask)
+    // 'Z' -> 0b1010____ -> 10
+    // 'a' -> 0b1001____ -> 9
+    // 'o' -> 0b0001____ -> 1 (top bit masked from 0xF invert mask)
+    // 'z' -> 0b1000____ -> 8
+    // '+' -> 0b1101____ -> 13
+    // '/' -> 0b0101____ -> 5 (top bit masked from 0xF invert mask)
+    //
+    // The benefit of this is that 0xF is also clamped to a 16 byte range still
+    // but we also ensure the control bit is also always disabled by the and
+    // mask with the same and manipulation saving an entire "Or" instruction and
+    // frees up one ymm register that was previous used for a nibble mask.
     //
     // Now the reason this is a code crime is because unlike other vectorization
     // methods I haven't figured out a good way to to validate bad inputs. To
@@ -180,90 +198,91 @@ Decoded::Decoded(const Memory::ManagedString& source,
     // day. If you want data guarantees then use the slower version.
     const __m256i adjustment_values = _mm256_setr_epi8(
         // Lane 1
-        0, 0, /* + */ +19, /* 0 - 9 */ +4, /* 'A' - 'N' */ -65,
-        /* 'P' - 'Z' */ -65, /* 'a' - 'n' */ -71,
-        /* 'p' - 'z' */ -71, 3, 0, /* '/' */ +16, 0,
-        /* 'O' */ -65, 0, /* 'o' */ -71, 0,
+        0, /* 'o' */ -71, 0, /* 'O' */ -65, 0, /* '/' */ +16, 0, 0,
+        /* 'p' - 'z' */ -71, /* 'a' - 'n' */ -71, /* 'P' - 'Z' */ -65,
+        /* 'A' - 'N' */ -65, /* 0 - 9 */ +4, /* + */ +19, 0, 0,
 
         // Lane 2 (same as Lane 1)
-        0, 0, /* + */ +19, /* 0 - 9 */ +4, /* 'A' - 'N' */ -65,
-        /* 'P' - 'Z' */ -65, /* 'a' - 'n' */ -71,
-        /* 'p' - 'z' */ -71, 0, 0, /* '/' */ +16, 0,
-        /* 'O' */ -65, 0, /* 'o' */ -71, 0);
-    const __m256i special_bit = _mm256_setr_epi8(
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0b00001000, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0b00001000);
-    const __m256i nibble_mask = _mm256_set1_epi8(0b00001111);
+        0, /* 'o' */ -71, 0, /* 'O' */ -65, 0, /* '/' */ +16, 0, 0,
+        /* 'p' - 'z' */ -71, /* 'a' - 'n' */ -71, /* 'P' - 'Z' */ -65,
+        /* 'A' - 'N' */ -65, /* 0 - 9 */ +4, /* + */ +19, 0, 0);
+
+    const __m256i invert_mask = _mm256_setr_epi8(
+        // Lane 1 - Note the 0xF case removes an extra bit.
+        0b1111, 0b1111, 0b1111, 0b1111, 0b1111, 0b1111, 0b1111, 0b1111, 0b1111,
+        0b1111, 0b1111, 0b1111, 0b1111, 0b1111, 0b1111, 0b1111,
+
+        // Lane 2 (same as Lane 1)
+        0b1111, 0b1111, 0b1111, 0b1111, 0b1111, 0b1111, 0b1111, 0b1111, 0b1111,
+        0b1111, 0b1111, 0b1111, 0b1111, 0b1111, 0b1111, 0b0111);
     const __m256i repack_shuffle = _mm256_setr_epi8(
         0x02, 0x01, 0x00, 0x06, 0x05, 0x04, 0x0A, 0x09, 0x08, 0x0E, 0x0D, 0x0C,
         0xFF, 0xFF, 0xFF, 0xFF, 0x02, 0x01, 0x00, 0x06, 0x05, 0x04, 0x0A, 0x09,
         0x08, 0x0E, 0x0D, 0x0C, 0xFF, 0xFF, 0xFF, 0xFF);
-    const __m256i lane_shuffle =
-        _mm256_setr_epi32(0x00, 0x01, 0x02, 0x04, 0x05, 0x06, 0xFF, 0xFF);
+    // const __m256i lane_shuffle =
+    //     _mm256_setr_epi32(0x00, 0x01, 0x02, 0x04, 0x05, 0x06, 0xFF, 0xFF);
 
     // Only run on larger chunks.
     while (source_bytes >= full_channel_width) {
-      const __m256i channel_buffers[fused_channels] = {
-          _mm256_loadu_si256(reinterpret_cast<const __m256i*>(source_data)),
-          _mm256_loadu_si256(
-              reinterpret_cast<const __m256i*>(source_data + sizeof(__m256i)))};
+      for (int ymm = 0; ymm < fused_channels; ymm++) {
+        // Load
+        const auto channel_value =
+            _mm256_loadu_si256(reinterpret_cast<const __m256i*>(
+                source_data + sizeof(__m256i) * ymm));
 
-      const __m256i high_bit_set[fused_channels] = {
-          _mm256_shuffle_epi8(special_bit, channel_buffers[0]),
-          _mm256_shuffle_epi8(special_bit, channel_buffers[1])};
+        // Bit hacking the lookup index
+        const auto shift = _mm256_srli_epi64(channel_value, 4);
+        // Always valid for ASCII as the MSB control bit is always 0.
+        const auto nibble_mask =
+            _mm256_shuffle_epi8(invert_mask, channel_value);
+        // AndNot for the speed up that ensures we have a valid shuffle mask
+        // while also performing the out of range clip.
+        const auto adjusted_index = _mm256_andnot_si256(shift, nibble_mask);
 
-      const __m256i high_shift[fused_channels] = {
-          _mm256_srli_epi64(channel_buffers[0], 4),
-          _mm256_srli_epi64(channel_buffers[1], 4)};
+        // Convert to the actual 6 bit value.
+        const auto adjust_value =
+            _mm256_shuffle_epi8(adjustment_values, adjusted_index);
+        const auto bit_value = _mm256_add_epi8(adjust_value, channel_value);
 
-      const __m256i magic_lookup[fused_channels] = {
-          _mm256_and_si256(_mm256_or_si256(high_shift[0], high_bit_set[0]),
-                           nibble_mask),
-          _mm256_and_si256(_mm256_or_si256(high_shift[1], high_bit_set[1]),
-                           nibble_mask)};
+        // Lane merging:
+        //
+        // AAAAAA__ BBBBBB__ CCCCCC__ DDDDDD__
+        // Multiply horizontally at 16 bit boundries using 64 to shift 6 bits.
+        // AAAAAA__ * 1  = AAAAAA__ ________
+        // bbbbbb__ * 64 = ______bb bbbb____
+        // Add multiplications:
+        // AAAAAAbb bbbb____ CCCCCCdd dddd____
+        const __m256i multiply_by_64 = _mm256_set1_epi32(0x01400140);
+        const __m256i multiply_by_4096 = _mm256_set1_epi32(0x00011000);
+        const auto half_merged =
+            _mm256_maddubs_epi16(bit_value, multiply_by_64);
 
-      const __m256i converted_value[fused_channels] = {
-          _mm256_add_epi8(
-              _mm256_shuffle_epi8(adjustment_values, magic_lookup[0]),
-              channel_buffers[0]),
-          _mm256_add_epi8(
-              _mm256_shuffle_epi8(adjustment_values, magic_lookup[1]),
-              channel_buffers[1])};
+        // Now do the same thing horizontally across 32 bit boundries which
+        // gives us a clean stopping point.
+        const auto merged_i32 =
+            _mm256_madd_epi16(half_merged, multiply_by_4096);
+        const auto lane_repack =
+            _mm256_shuffle_epi8(merged_i32, repack_shuffle);
 
-      // AAAAAA__ BBBBBB__ CCCCCC__ DDDDDD__
-      // Multiply horizontally at 16 bit boundries using 64 to shift 6 bits.
-      // AAAAAA__ * 1  = AAAAAA__ ________
-      // bbbbbb__ * 64 = ______bb bbbb____
-      // Add multiplications:
-      // AAAAAAbb bbbb____ CCCCCCdd dddd____
-      const __m256i multiply_by_64 = _mm256_set1_epi32(0x01400140);
-      const __m256i half_merged[fused_channels] = {
-          _mm256_maddubs_epi16(converted_value[0], multiply_by_64),
-          _mm256_maddubs_epi16(converted_value[1], multiply_by_64)};
+        // Rather than premuteevar8x32_epi32 and a store we can just do double
+        // lane store. This saves the lane_shuffle and ymm_repack taking up
+        // registers.
 
-      // Now doe the same thing horizontally across 32 bit boundries which gives
-      // us a clean stopping point.
-      const __m256i multiply_by_4096 = _mm256_set1_epi32(0x00011000);
-      const __m256i long_merge[fused_channels] = {
-          _mm256_madd_epi16(half_merged[0], multiply_by_4096),
-          _mm256_madd_epi16(half_merged[1], multiply_by_4096)};
+        // Store lower lane directly.
+        const auto lower_lane = _mm256_castsi256_si128(lane_repack);
+        _mm_storeu_si128((__m128i*)(output_stream + 24 * ymm), lower_lane);
 
-      // merge the bytes into the correct order, dropping the last 4 bytes of
-      // each 128bit lane.
-      const __m256i repacked_lanes[fused_channels] = {
-          _mm256_shuffle_epi8(long_merge[0], repack_shuffle),
-          _mm256_shuffle_epi8(long_merge[1], repack_shuffle)};
+        // Store upper lane offset by 12. This overwrites the 4 empty bytes from
+        // the first lane.
+        const auto upper_lane = _mm256_extractf128_si256(lane_repack, 1);
+        _mm_storeu_si128((__m128i*)(output_stream + 24 * ymm + 12), upper_lane);
+      };
 
-      const __m256i final_24_bytes[fused_channels] = {
-          _mm256_permutevar8x32_epi32(repacked_lanes[0], lane_shuffle),
-          _mm256_permutevar8x32_epi32(repacked_lanes[1], lane_shuffle)};
-
+      // Linear accounting
+      output_stream +=
+          (avx2_channel_width - avx2_channel_width / 4) * fused_channels;
       source_bytes -= full_channel_width;
       source_data += full_channel_width;
-      // double overlapping stores for a total of 48 bytes of output.
-      _mm256_storeu_si256((__m256i*)output_stream, final_24_bytes[0]);
-      _mm256_storeu_si256((__m256i*)(output_stream + 24), final_24_bytes[1]);
-      output_stream += (avx2_channel_width - avx2_channel_width / 4) * 2;
     }
   }
 
