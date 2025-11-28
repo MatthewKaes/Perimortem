@@ -71,14 +71,6 @@ class ManagedString {
     return rented_block[index];
   };
 
-  inline constexpr auto take(ManagedString& rhs) {
-    rented_block = rhs.rented_block;
-    size = rhs.size;
-
-    rhs.rented_block = "";
-    rhs.size = 0;
-  };
-
   inline constexpr auto clear() {
     rented_block = "";
     size = 0;

@@ -21,7 +21,7 @@ struct JsonTests : public ::testing::Test {
 using namespace Perimortem::Memory;
 using namespace Perimortem::Storage::Json;
 
-auto load_json(const std::filesystem::path& p) -> std::string {
+auto load_text(const std::filesystem::path& p) -> std::string {
   std::ifstream ifs(p, std::ios::binary | std::ios::ate);
   std::ifstream::pos_type pos = ifs.tellg();
 
@@ -39,7 +39,7 @@ auto load_json(const std::filesystem::path& p) -> std::string {
 TEST_F(JsonTests, init_rpc) {
   Arena test;
   uint32_t pos = 0;
-  std::string json = load_json("core/tests/json/init_rpc.json");
+  std::string json = load_text("core/tests/json/init_rpc.json");
   auto data = parse(test, json, pos);
 
   ASSERT_NE(data, nullptr);
@@ -66,7 +66,7 @@ TEST_F(JsonTests, init_rpc) {
 TEST_F(JsonTests, tokenize_rpc) {
   Arena test;
   uint32_t pos = 0;
-  std::string json = load_json("core/tests/json/tokenize_rpc.json");
+  std::string json = load_text("core/tests/json/tokenize_rpc.json");
   auto data = parse(test, json, pos);
 
   ASSERT_NE(data, nullptr);
@@ -88,7 +88,7 @@ TEST_F(JsonTests, tokenize_rpc) {
 }
 
 TEST_F(JsonTests, lazy_init_rpc) {
-  std::string json = load_json("core/tests/json/init_rpc.json");
+  std::string json = load_text("core/tests/json/init_rpc.json");
 
   auto data = Perimortem::Storage::Json::LazyNode(
       Perimortem::Memory::ManagedString(json.c_str(), json.size()));
@@ -115,7 +115,7 @@ TEST_F(JsonTests, lazy_init_rpc) {
 TEST_F(JsonTests, jsonrpc) {
   Arena test;
   uint32_t pos = 0;
-  std::string json = load_json("core/tests/json/initialized_rpc.json");
+  std::string json = load_text("core/tests/json/initialized_rpc.json");
   auto data = parse(test, json, pos);
 
   ASSERT_NE(data, nullptr);

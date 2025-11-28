@@ -73,7 +73,7 @@ class Library : public Abstract {
   }
 
   inline auto set_doc(Perimortem::Memory::ManagedString& doc_string) -> void {
-    doc.take(doc_string);
+    doc = doc_string;
   }
 
   inline auto set_entity(bool is_entity) -> void {

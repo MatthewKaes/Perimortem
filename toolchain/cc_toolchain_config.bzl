@@ -8,7 +8,7 @@ You'll need to make sure you install clang.
 
 For debugging use the CodeLLDB extension in VSCode plus the included .vscode launch and task jsons.
 """
-load("@rules_cc//cc/common:cc_common.bzl", "cc_common")
+
 load("@bazel_tools//tools/build_defs/cc:action_names.bzl", "ACTION_NAMES")
 load(
     "@bazel_tools//tools/cpp:cc_toolchain_config_lib.bzl",
@@ -17,6 +17,7 @@ load(
     "flag_set",
     "tool_path",
 )
+load("@rules_cc//cc/common:cc_common.bzl", "cc_common")
 
 cpp_compile_actions = [
     ACTION_NAMES.cpp_compile,
@@ -35,12 +36,12 @@ all_link_actions = [
 def _impl(ctx):
     tool_paths = [
         tool_path(
-             # Compiler is referenced by the name "gcc" for historic reasons.
+            # Compiler is referenced by the name "gcc" for historic reasons.
             name = "gcc",
             path = "/usr/bin/clang++",
         ),
         tool_path(
-             # Compiler is referenced by the name "gcc" for historic reasons.
+            # Compiler is referenced by the name "gcc" for historic reasons.
             name = "g++",
             path = "/usr/bin/clang++",
         ),
@@ -90,6 +91,7 @@ def _impl(ctx):
                                 "-Werror",
                                 "-fno-exceptions",
                                 "-fno-rtti",
+                                "-mavx2",  # AVX2 support required
                                 "-std=c++23",
                                 "-no-canonical-prefixes",
                             ],
@@ -116,7 +118,7 @@ def _impl(ctx):
                                 "-std=c23",
                                 "-no-canonical-prefixes",
                                 # Force C builds from external libraries to build in C.
-                                "-xc"
+                                "-xc",
                             ],
                         ),
                     ]),

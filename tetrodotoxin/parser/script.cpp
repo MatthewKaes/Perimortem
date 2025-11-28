@@ -95,7 +95,9 @@ auto Script::parse(Types::Program& host,
 
       case Classifier::Attribute: {
         auto attribute = Visitor::parse_attribute(ctx);
-        attribute->doc.take(documentation);
+        attribute->doc = documentation;
+        documentation.clear();
+        
         register_name(ctx, *token, attribute->name, attribute);
 
         // Attribute for setting the package name.
