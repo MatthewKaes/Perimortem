@@ -18,6 +18,9 @@
         "/proc/self/cwd/external/": "${workspaceFolder}/.bin/external/",
         "/proc/self/cwd/": "${workspaceFolder}"
       },
+      "initCommands": [
+        "command source '${workspaceFolder}/.vscode/perimortem.lldb'"
+      ],
       "preLaunchTask": "Full Build (Linux) [Debug]",
       "presentation": {
         "clear": true
@@ -35,6 +38,9 @@
         "/proc/self/cwd/external/": "${workspaceFolder}/.bin/Perimortem/external/",
         "/proc/self/cwd/": "${workspaceFolder}"
       },
+      "initCommands": [
+        "command source '${workspaceFolder}/.vscode/perimortem.lldb'"
+      ],
       "preLaunchTask": "Full Build (Linux) [Debug]",
       "presentation": {
         "clear": true
@@ -52,6 +58,9 @@
         "/proc/self/cwd/external/": "${workspaceFolder}/.bin/Perimortem/external/",
         "/proc/self/cwd/": "${workspaceFolder}"
       },
+      "initCommands": [
+        "command source '${workspaceFolder}/.vscode/perimortem.lldb'"
+      ],
       "preLaunchTask": "Full Build (Linux) [Debug]",
       "presentation": {
         "clear": true
@@ -69,6 +78,9 @@
         "/proc/self/cwd/external/": "${workspaceFolder}/.bin/Perimortem/external/",
         "/proc/self/cwd/": "${workspaceFolder}"
       },
+      "initCommands": [
+        "command source '${workspaceFolder}/.vscode/perimortem.lldb'"
+      ],
       "preLaunchTask": "Full Build (Linux) [Debug]",
       "presentation": {
         "clear": true
@@ -86,6 +98,9 @@
         "/proc/self/cwd/external/": "${workspaceFolder}/.bin/Perimortem/external/",
         "/proc/self/cwd/": "${workspaceFolder}"
       },
+      "initCommands": [
+        "command source '${workspaceFolder}/.vscode/perimortem.lldb'"
+      ],
       "preLaunchTask": "Full Build (Linux) [Release]",
       "presentation": {
         "clear": true
@@ -103,6 +118,9 @@
         "/proc/self/cwd/external/": "${workspaceFolder}/.bin/Perimortem/external/",
         "/proc/self/cwd/": "${workspaceFolder}"
       },
+      "initCommands": [
+        "command source '${workspaceFolder}/.vscode/perimortem.lldb'"
+      ],
       "preLaunchTask": "Full Build (Linux) [Release]",
       "presentation": {
         "clear": true
