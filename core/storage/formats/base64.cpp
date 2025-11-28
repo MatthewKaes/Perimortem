@@ -46,9 +46,12 @@ Decoded::Decoded(const Memory::ManagedString& source,
   // UPDATE: Due to the "AndNot" optimization resulting in improved pipelining
   // and reducing the number of ymm registers we needed we can actually use 3
   // channels to maximize register usage.
-  constexpr const auto fused_channels = 3;
-  constexpr const auto avx2_channel_width = sizeof(__m256i);
-  constexpr const auto full_channel_width = avx2_channel_width * fused_channels;
+  constexpr auto fused_channels = 3;
+  constexpr auto avx2_channel_width = sizeof(__m256i);
+  constexpr auto full_channel_width = avx2_channel_width * fused_channels;
+  constexpr auto upper_lane_underwrite_buffer = sizeof(__m128i) / 2;
+  constexpr uint32_t output_stride = 3;
+  constexpr uint32_t source_stride = 4;
 
   // From the gather phase we write exactly 1 / 4 of an AVX2 channel in extra
   // zeros. The first channel's wastage is actually used by the second channel.
@@ -56,9 +59,13 @@ Decoded::Decoded(const Memory::ManagedString& source,
   // contention seems to be the main reason we don't get full double pump speeds
   // which lets us emulate a single AVX512 write with seemingly minimum cache
   // contention (at least on a 9950x3D).
-  size = source.get_size() / 4 * 3;
-  rented_block = Bibliotheca::check_out(size + avx2_channel_width / 4);
+  size = (source.get_size() / source_stride) * output_stride;
+  rented_block = Bibliotheca::check_out(
+      size + avx2_channel_width / source_stride + upper_lane_underwrite_buffer);
   text = reinterpret_cast<char*>(Bibliotheca::preface_to_corpus(rented_block));
+
+  // Save 8 bytes for bit hacking underwriting :)
+  text += upper_lane_underwrite_buffer;
 
   // Construct source buffers.
   const auto source_view = source.get_view();
@@ -79,6 +86,17 @@ Decoded::Decoded(const Memory::ManagedString& source,
   }
 
   if (!disable_vectorization) {
+    // Make sure we start at the end of the buffer space for vectorization.
+    const auto vectorized_chunks = source.get_size() / full_channel_width;
+    const auto output_vectorized_bytes =
+        vectorized_chunks * full_channel_width * output_stride / source_stride;
+    const auto source_vectorized_bytes =
+        vectorized_chunks * full_channel_width;
+
+    // Set the end location that we will write backwards from.
+    output_stream = text + output_vectorized_bytes;
+    source_data = source_data + source_vectorized_bytes;
+
     // Use AVX2 for vectorization as it's generally more available than AVX512
     // and has less throttling concerns, and this decision single handedly
     // complicates everything.
@@ -216,15 +234,25 @@ Decoded::Decoded(const Memory::ManagedString& source,
         0b1111, 0b1111, 0b1111, 0b1111, 0b1111, 0b1111, 0b1111, 0b1111, 0b1111,
         0b1111, 0b1111, 0b1111, 0b1111, 0b1111, 0b1111, 0b0111);
     const __m256i repack_shuffle = _mm256_setr_epi8(
-        0x02, 0x01, 0x00, 0x06, 0x05, 0x04, 0x0A, 0x09, 0x08, 0x0E, 0x0D, 0x0C,
+        // Lane 1 is properly packed with left alignment.
         0xFF, 0xFF, 0xFF, 0xFF, 0x02, 0x01, 0x00, 0x06, 0x05, 0x04, 0x0A, 0x09,
-        0x08, 0x0E, 0x0D, 0x0C, 0xFF, 0xFF, 0xFF, 0xFF);
-    // const __m256i lane_shuffle =
-    //     _mm256_setr_epi32(0x00, 0x01, 0x02, 0x04, 0x05, 0x06, 0xFF, 0xFF);
+        0x08, 0x0E, 0x0D, 0x0C,
 
-    // Only run on larger chunks.
-    while (source_bytes >= full_channel_width) {
-      for (int ymm = 0; ymm < fused_channels; ymm++) {
+        // Lane 2 is packed to the right to allow for underwriting with no extra
+        // space left at the end.
+        0xFF, 0xFF, 0xFF, 0xFF, 0x02, 0x01, 0x00, 0x06, 0x05, 0x04, 0x0A, 0x09,
+        0x08, 0x0E, 0x0D, 0x0C);
+
+    // Write both the chunks and the pipelined ymm groups in reverse order to
+    // support the underwriting process.
+    for (auto inverse_chunk = vectorized_chunks; inverse_chunk > 0;
+         inverse_chunk--) {
+      // Linear accounting
+      output_stream -=
+          (avx2_channel_width - avx2_channel_width / 4) * fused_channels;
+      source_data -= full_channel_width;
+
+      for (int ymm = fused_channels - 1; ymm >= 0; ymm--) {
         // Load
         const auto channel_value =
             _mm256_loadu_si256(reinterpret_cast<const __m256i*>(
@@ -267,28 +295,29 @@ Decoded::Decoded(const Memory::ManagedString& source,
         // Rather than premuteevar8x32_epi32 and a store we can just do double
         // lane store. This saves the lane_shuffle and ymm_repack taking up
         // registers.
+        //
+        // As an additional optimization we can then also store the upper lane
+        // by under writing the lower lane by 8 bytes, filling the gap created
+        // by the lane repack shuffle.
+        //
+        // This aligns the upper bytes without needing _mm256_extractf128_si256,
+        // which is super slow.
+        _mm256_storeu_si256(
+            (__m256i*)(output_stream + 24 * ymm - upper_lane_underwrite_buffer),
+            lane_repack);
 
-        // Store lower lane directly.
+        // Store lower lane directly at the correct position.
         const auto lower_lane = _mm256_castsi256_si128(lane_repack);
-        _mm_storeu_si128((__m128i*)(output_stream + 24 * ymm), lower_lane);
-
-        // Store upper lane offset by 12. This overwrites the 4 empty bytes from
-        // the first lane.
-        const auto upper_lane = _mm256_extractf128_si256(lane_repack, 1);
-        _mm_storeu_si128((__m128i*)(output_stream + 24 * ymm + 12), upper_lane);
+        _mm_storeu_si128((__m128i*)(output_stream + 24 * ymm - upper_lane_underwrite_buffer / 2), lower_lane);
       };
-
-      // Linear accounting
-      output_stream +=
-          (avx2_channel_width - avx2_channel_width / 4) * fused_channels;
-      source_bytes -= full_channel_width;
-      source_data += full_channel_width;
     }
+
+    // Reset the output location for the scalar process
+    output_stream = text + output_vectorized_bytes;
+    source_data = source_data + source_vectorized_bytes;
+    source_bytes -= source_vectorized_bytes;
   }
 
-  // Accumulate any remaining bytes in either mode.
-  constexpr uint32_t output_stride = 3;
-  constexpr uint32_t source_stride = 4;
   for (uint32_t i = 0, j = 0; j < source_bytes;
        i += output_stride, j += source_stride) {
     output_stream[i] = (decode_lookup[source_data[j]] << 2) |
