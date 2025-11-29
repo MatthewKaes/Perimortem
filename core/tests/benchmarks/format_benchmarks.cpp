@@ -133,7 +133,9 @@ auto generate_test_data() -> std::array<std::string, 4> {
       json_arena.reset();
       uint32_t position = 0;
       auto data = Perimortem::Storage::Json::parse(
-          json_arena, source[rand() % source.size()], position);
+          json_arena,
+          Perimortem::Memory::ManagedString(source[rand() % source.size()]),
+          position);
       auto rpc_version = (*data)["jsonrpc"]->get_string();
       doNotOptimizeAway(rpc_version->get_view() == "2.0");
     }
@@ -149,7 +151,9 @@ auto generate_test_data() -> std::array<std::string, 4> {
       json_arena.reset();
       uint32_t position = 0;
       auto data = Perimortem::Storage::Json::parse(
-          json_arena, source[rand() % source.size()], position);
+          json_arena,
+          Perimortem::Memory::ManagedString(source[rand() % source.size()]),
+          position);
       auto rpc_version = (*data)["jsonrpc"]->get_string();
       doNotOptimizeAway(rpc_version->get_view() == "2.0");
 
@@ -168,7 +172,9 @@ auto generate_test_data() -> std::array<std::string, 4> {
   json_arena.reset();
   uint32_t position = 0;
   auto data = Perimortem::Storage::Json::parse(
-      json_arena, source[rand() % source.size()], position);
+      json_arena,
+      Perimortem::Memory::ManagedString(source[rand() % source.size()]),
+      position);
   auto rpc_version = (*data)["jsonrpc"]->get_string();
   doNotOptimizeAway(rpc_version->get_view() == "2.0");
 
@@ -181,7 +187,6 @@ auto generate_test_data() -> std::array<std::string, 4> {
     }
   }
 }
-
 
 // Configuration
 

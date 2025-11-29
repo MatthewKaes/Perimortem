@@ -63,7 +63,8 @@ class ManagedString {
     return std::string_view(rented_block, size);
   };
 
-  inline constexpr auto slice(uint64_t start, uint64_t size) const -> ManagedString {
+  inline constexpr auto slice(uint64_t start, uint64_t size) const
+      -> ManagedString {
     return ManagedString(rented_block + start, size);
   };
 
@@ -75,6 +76,19 @@ class ManagedString {
     rented_block = "";
     size = 0;
   };
+
+  //======================================================================
+  // Optimized operations
+  //======================================================================
+
+  // Scans a 32 bytes block for the offset of a character.
+  auto scan(uint8_t search, const uint32_t position = 0) -> uint32_t;
+
+  // Scans a 32 bytes block for the offset of a character.
+  //
+  // WARNING: Provides no bounds protection, use only when it's known the block
+  // is valid.
+  auto fast_scan(uint8_t search, const uint32_t position = 0) -> uint32_t;
 
  private:
   const char* rented_block;

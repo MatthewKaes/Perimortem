@@ -48,8 +48,8 @@ class Node {
       value;
 };
 
-
-auto parse(Memory::Arena& arena, std::string_view source, uint32_t& position)
-    -> Node*;
+auto parse(Memory::Arena& arena,
+           Perimortem::Memory::ManagedString source,
+           uint32_t& position) -> Node*;
 
 }  // namespace Perimortem::Storage::Json

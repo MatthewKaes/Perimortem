@@ -110,6 +110,7 @@
       "thread": "cpp",
       "typeindex": "cpp",
       "typeinfo": "cpp",
-      "filesystem": "cpp"
+      "filesystem": "cpp",
+      "test": "cpp"
     }
 }

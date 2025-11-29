@@ -85,213 +85,21 @@ auto optimized_or_merge(__m256i source[channels]) -> __m256i {
   }
 }
 
-auto vectorized_scan(std::string_view source,
-                     const uint32_t position,
-                     uint8_t search) -> uint32_t {
-  // Use 8 AVX2 channels to get out as much performance as we can for long
-  // searches.
-  constexpr const auto fused_channels = 8;
-  constexpr const auto avx2_channel_width = sizeof(__m256i);
-  constexpr const auto full_channel_width = avx2_channel_width * fused_channels;
-
-  auto search_mask = _mm256_set1_epi8(search);
-  uint32_t offset = position;
-  for (; offset < source.size(); offset += full_channel_width) {
-    // Load all channels and check for our target byte.
-    __m256i masks[fused_channels];
-    for (auto ymm = 0; ymm < fused_channels; ymm++) {
-      const auto value = _mm256_loadu_si256(
-          (__m256i*)(source.data() + offset + avx2_channel_width * ymm));
-      masks[ymm] = _mm256_cmpeq_epi8(value, search_mask);
-    }
-
-    // Simple handrolled or optimization for channel depth testing.
-    const auto group_mask =
-        optimized_or_merge<fused_channels, 0, fused_channels>(masks);
-
-    // Check if we found the byte at all.
-    if (!_mm256_testz_si256(group_mask, group_mask)) {
-      auto ymm = 0;
-      for (auto ymm = 0; ymm < fused_channels - 2; ymm += 2) {
-        const uint32_t result_lower = _mm256_movemask_epi8(masks[ymm]);
-        const uint32_t result_upper = _mm256_movemask_epi8(masks[ymm + 1]);
-        const uint64_t result_merged =
-            (uint64_t)result_upper << 32ul | (uint64_t)result_lower;
-
-        // Since we have additional channels only return if we have our target.
-        if (result_merged) {
-          return offset + std::countr_zero(result_merged) +
-                 avx2_channel_width * ymm;
-        }
-      }
-
-      // We must have a left over register so we can just check it.
-      if (ymm == fused_channels - 2) {
-        const uint32_t result_lower = _mm256_movemask_epi8(masks[ymm]);
-        const uint32_t result_upper = _mm256_movemask_epi8(masks[ymm + 1]);
-        const uint64_t result_merged =
-            (uint64_t)result_upper << 32ul | (uint64_t)result_lower;
-        return offset + std::countr_zero(result_merged) +
-               avx2_channel_width * ymm;
-      } else {
-        const uint32_t result = _mm256_movemask_epi8(masks[ymm]);
-        return offset + std::countr_zero(result) + avx2_channel_width * ymm;
-      }
-    }
-  }
-
-  // Scalar fallback
-  for (; offset < source.size(); offset += 1) {
-    if (source[position + offset] == '"') {
-      return offset;
-    }
-  }
-
-  // Not found.
-  return -1;
-}
-
-auto batch_scan_single(std::string_view source,
-                       const uint32_t position,
-                       uint8_t search) -> uint32_t {
-  // AVX tends to perform worse than scalar operations, so "broadcast" the
-  // search value to a simple uint64_t.
-  uint64_t search_mask = static_cast<uint64_t>(search) * 0x0101010101010101ULL;
-  uint32_t offset = position;
-
-  // Read 16 byte chunks at a time.
-  for (; offset < source.size() - sizeof(uint64_t);
-       offset += sizeof(uint64_t)) {
-    uint64_t buffer_1 = *(const uint64_t*)(source.data() + offset);
-
-    // Perform a bit level check. If the bytes are equal we need 0xFF in that
-    // slot.
-    buffer_1 = ~(buffer_1 ^ search_mask);
-
-    // Reduce the results making sure the LSB of each byte is compared with
-    // every other bit in the byte.
-    buffer_1 &= buffer_1 >> 4;
-    buffer_1 &= buffer_1 >> 2;
-    buffer_1 &= buffer_1 >> 1;
-
-    // If there are any zeros (mismatched bytes) the LSB will be zero.
-    // The other bits will have garbage data so wipe them.
-    buffer_1 &= 0x0101010101010101;
-
-    // Check if we found have at least one match.
-    if (buffer_1) {
-      // Get the position by where the bit is
-      const auto zeros_1 = std::countr_zero(buffer_1) / 8;
-      return offset + zeros_1;
-    }
-  }
-
-  // Scalar fallback
-  for (; offset < source.size(); offset += 1) {
-    if (source[offset] == '"') {
-      return offset;
-    }
-  }
-
-  // Not found.
-  return -1;
-}
-
-auto batch_scan(std::string_view source,
-                const uint32_t position,
-                uint8_t search) -> uint32_t {
-  // AVX tends to perform worse than scalar operations, so "broadcast" the
-  // search value to a simple uint64_t.
-  uint64_t search_mask = static_cast<uint64_t>(search) * 0x0101010101010101ULL;
-  uint32_t offset = position;
-
-  // Read 16 byte chunks at a time.
-  for (; offset < source.size() - sizeof(uint64_t) * 2;
-       offset += sizeof(uint64_t) * 2) {
-    uint64_t buffer_1 = *(const uint64_t*)(source.data() + offset);
-    uint64_t buffer_2 =
-        *(const uint64_t*)(source.data() + offset + sizeof(uint64_t));
-
-    // Perform a bit level check. If the bytes are equal we need 0xFF in that
-    // slot.
-    buffer_1 = ~(buffer_1 ^ search_mask);
-    buffer_2 = ~(buffer_2 ^ search_mask);
-
-    // Reduce the results making sure the LSB of each byte is compared with
-    // every other bit in the byte.
-    buffer_1 &= buffer_1 >> 4;
-    buffer_2 &= buffer_2 >> 4;
-    buffer_1 &= buffer_1 >> 2;
-    buffer_2 &= buffer_2 >> 2;
-    buffer_1 &= buffer_1 >> 1;
-    buffer_2 &= buffer_2 >> 1;
-
-    // If there are any zeros (mismatched bytes) the LSB will be zero.
-    // The other bits will have garbage data so wipe them.
-    buffer_1 &= 0x0101010101010101;
-    buffer_2 &= 0x0101010101010101;
-
-    // Check if we found have at least one match.
-    if (buffer_1 | buffer_2) {
-      // Get the position by where the bit is
-      const auto zeros_1 = std::countr_zero(buffer_1) / 8;
-      const auto zeros_2 = std::countr_zero(buffer_2) / 8;
-      return offset + zeros_1 + (zeros_2 * (buffer_1 == 0));
-    }
-  }
-
-  // Scalar fallback
-  for (; offset < source.size(); offset += 1) {
-    if (source[offset] == '"') {
-      return offset;
-    }
-  }
-
-  // Not found.
-  return -1;
-}
-
-// Scans ahead 32 bytes to search for value.
-auto fast_scan(std::string_view source, const uint32_t position, uint8_t search)
-    -> uint32_t {
-  auto search_mask = _mm256_set1_epi8(search);
-  const auto value = _mm256_loadu_si256((__m256i*)(source.data() + position));
-  const auto compare = _mm256_cmpeq_epi8(value, search_mask);
-  const uint32_t offset_mask = _mm256_movemask_epi8(compare);
-  return position + std::countr_zero(offset_mask);
-}
-
-auto parse_string(std::string_view source, uint32_t& position)
+auto parse_string(ManagedString source, uint32_t& position)
     -> ManagedString {
   uint32_t start = ++position;
-  position = vectorized_scan(source, position, '"');
+  position = source.scan('"', position);
 
-  // position = batch_scan(source, position, '"');
-  // position = batch_scan_single(source, position, '"');
-
-  // // Optimize for vectorizing as large source files come over as base 64.
-  // while (true) {
-  //   constexpr const uint32_t look_ahead = 16;
-  //   for (uint32_t i = 0; i < look_ahead; i++) {
-  //     if (source[position + i] == '"') {
-  //       position += i;
-  //       goto finished;
-  //     }
-  //   }
-
-  //   position += look_ahead;
-  // }
-  // finished:
-  return ManagedString(source.substr(start, position++ - start));
+  return source.slice(start, position++ - start);
 }
 
 auto ignored_characters(char c) {
   return c == ',';
 }
 
-auto parse(Memory::Arena& arena, std::string_view source, uint32_t& position)
+auto parse(Memory::Arena& arena, ManagedString source, uint32_t& position)
     -> Node* {
-  if (position > source.size()) {
+  if (position > source.get_size()) {
     return nullptr;
   }
 
@@ -300,7 +108,7 @@ auto parse(Memory::Arena& arena, std::string_view source, uint32_t& position)
   // top level.
   Node* node = arena.construct<Node>();
 
-  while (position < source.size()) {
+  while (position < source.get_size()) {
     const auto start_char = source[position];
     switch (start_char) {
       // Object
@@ -308,7 +116,7 @@ auto parse(Memory::Arena& arena, std::string_view source, uint32_t& position)
         ManagedLookup<Node> members(arena);
         position++;
 
-        while (position < source.size() && source[position] != '}') {
+        while (position < source.get_size() && source[position] != '}') {
           if (source[position] != '"') {
             position++;
             continue;
@@ -318,8 +126,8 @@ auto parse(Memory::Arena& arena, std::string_view source, uint32_t& position)
           // Optimize to assume that most dictionary elements are less than 32
           // characters long.
           const auto start = ++position;
-          position = fast_scan(source, position, '"');
-          auto name = ManagedString(source.substr(start, position++ - start));
+          position = source.fast_scan('"', position);
+          auto name = ManagedString(source.slice(start, position++ - start));
 
           // Encountered an extra long name so try a full parse.
           if (name.get_size() == 32) {
@@ -358,7 +166,7 @@ auto parse(Memory::Arena& arena, std::string_view source, uint32_t& position)
         ManagedVector<Node*> items(arena);
         position++;
 
-        while (position < source.size() && source[position] != ']') {
+        while (position < source.get_size() && source[position] != ']') {
           if (ignored_characters(source[position])) {
             position++;
           }
@@ -388,8 +196,8 @@ auto parse(Memory::Arena& arena, std::string_view source, uint32_t& position)
 
       // true
       case 't': {
-        if (position + 3 >= source.size() ||
-            std::memcmp(source.data() + position, "true", 4)) {
+        if (position + 3 >= source.get_size() ||
+            std::memcmp(source.get_view().data() + position, "true", 4)) {
           return nullptr;
         }
 
@@ -402,8 +210,8 @@ auto parse(Memory::Arena& arena, std::string_view source, uint32_t& position)
 
       // false
       case 'f': {
-        if (position + 4 >= source.size() ||
-            std::memcmp(source.data() + position, "false", 5)) {
+        if (position + 4 >= source.get_size() ||
+            std::memcmp(source.get_view().data() + position, "false", 5)) {
           return nullptr;
         }
 
@@ -424,21 +232,21 @@ auto parse(Memory::Arena& arena, std::string_view source, uint32_t& position)
         }
 
         long value = 0;
-        while (position < source.size() && source[position] >= '0' &&
+        while (position < source.get_size() && source[position] >= '0' &&
                source[position] <= '9') {
           value *= 10;
           value += source[position] - '0';
           position++;
         }
 
-        if (position < source.size() && source[position] != '.') {
+        if (position < source.get_size() && source[position] != '.') {
           node->set(value * (negative ? -1 : 1));
           return node;
         }
 
         double float_value = value;
         double divisor = 1.0;
-        while (position < source.size() && source[position] >= '0' &&
+        while (position < source.get_size() && source[position] >= '0' &&
                source[position] <= '9') {
           float_value *= 10;
           divisor *= 10;
@@ -446,7 +254,7 @@ auto parse(Memory::Arena& arena, std::string_view source, uint32_t& position)
           position++;
         }
 
-        if (position < source.size()) {
+        if (position < source.get_size()) {
           node->set((float_value / divisor) * (negative ? -1 : 1));
           return node;
         }

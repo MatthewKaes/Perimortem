@@ -45,7 +45,10 @@ cc_library(
         "storage/formats/*.hpp",
     ]),
     includes = ["."],
-    deps = ["@zstd"],
+    deps = [
+        ":memory",
+        "@zstd",
+    ],
 )
 
 cc_test(

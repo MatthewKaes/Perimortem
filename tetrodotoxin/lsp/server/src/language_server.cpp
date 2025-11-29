@@ -86,7 +86,7 @@ auto UnixJsonRPC::process() -> void {
         uint32_t position;
         std::cout << local_data << std::endl;
         auto data =
-            ::parse(json_arena, local_data, position);
+            ::parse(json_arena, ManagedString(local_data), position);
         if (!data) {
           std::cout << "[ex=" << thread_id
                     << "] Failed to parse jsonrpc request..." << std::endl;

@@ -40,7 +40,7 @@ TEST_F(JsonTests, init_rpc) {
   Arena test;
   uint32_t pos = 0;
   std::string json = load_text("core/tests/json/init_rpc.json");
-  auto data = parse(test, json, pos);
+  auto data = parse(test, ManagedString(json), pos);
 
   ASSERT_NE(data, nullptr);
   ASSERT_TRUE(data->contains("method") && (*data)["method"]->get_string());
@@ -67,7 +67,7 @@ TEST_F(JsonTests, tokenize_rpc) {
   Arena test;
   uint32_t pos = 0;
   std::string json = load_text("core/tests/json/tokenize_rpc.json");
-  auto data = parse(test, json, pos);
+  auto data = parse(test, ManagedString(json), pos);
 
   ASSERT_NE(data, nullptr);
   ASSERT_TRUE(data->contains("method") && (*data)["method"]->get_string());
@@ -116,7 +116,7 @@ TEST_F(JsonTests, jsonrpc) {
   Arena test;
   uint32_t pos = 0;
   std::string json = load_text("core/tests/json/initialized_rpc.json");
-  auto data = parse(test, json, pos);
+  auto data = parse(test, ManagedString(json), pos);
 
   ASSERT_NE(data, nullptr);
   ASSERT_TRUE(data->contains("method") && (*data)["method"]->get_string());
