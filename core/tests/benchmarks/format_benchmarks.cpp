@@ -116,7 +116,7 @@ auto generate_test_data() -> std::array<std::string, 4> {
           Perimortem::Memory::ManagedString(source[rand() % source.size()]),
           position);
       auto rpc_version = data->at("jsonrpc")->get_string();
-      doNotOptimizeAway(rpc_version->get_view() == "2.0");
+      doNotOptimizeAway(rpc_version == "2.0");
     }
   }
 }
@@ -136,7 +136,7 @@ auto generate_test_data() -> std::array<std::string, 4> {
       auto data = Perimortem::Storage::Json::parse(
           json_arena, Perimortem::Memory::ManagedString(selected), position);
       auto source = data->at("source")->get_string();
-      doNotOptimizeAway(source->get_size());
+      doNotOptimizeAway(source.get_size());
     }
   }
 }
@@ -154,11 +154,11 @@ auto generate_test_data() -> std::array<std::string, 4> {
           Perimortem::Memory::ManagedString(source[rand() % source.size()]),
           position);
       auto rpc_version = data->at("jsonrpc")->get_string();
-      doNotOptimizeAway(rpc_version->get_view() == "2.0");
+      doNotOptimizeAway(rpc_version == "2.0");
 
       auto path = data->at("params")->at("source")->get_string();
       Perimortem::Storage::Base64::Decoded decode{
-          Perimortem::Memory::ManagedString(*path)};
+          Perimortem::Memory::ManagedString(path)};
       doNotOptimizeAway(decode.get_view().empty());
     }
   }
@@ -175,13 +175,13 @@ auto generate_test_data() -> std::array<std::string, 4> {
       Perimortem::Memory::ManagedString(source[rand() % source.size()]),
       position);
   auto rpc_version = data->at("jsonrpc")->get_string();
-  doNotOptimizeAway(rpc_version->get_view() == "2.0");
+  doNotOptimizeAway(rpc_version == "2.0");
 
   auto path = data->at("params")->at("source")->get_string();
   for (auto _ : state) {
     for (int i = 1; i <= test_count_per_round(); i++) {
       Perimortem::Storage::Base64::Decoded decode{
-          Perimortem::Memory::ManagedString(*path)};
+          Perimortem::Memory::ManagedString(path)};
       doNotOptimizeAway(decode.get_view().empty());
     }
   }

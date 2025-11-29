@@ -38,7 +38,7 @@ static void tokenize_rect_ttx(benchmark::State& state) {
   for (auto _ : state) {
     auto bytes = read_all_bytes("tetrodotoxin/parser/tests/scripts/Rect.ttx");
     Tokenizer t;
-    t.parse(bytes);
+    t.parse(Perimortem::Memory::ManagedString(bytes));
     doNotOptimizeAway(t.get_tokens().size());
   }
 }

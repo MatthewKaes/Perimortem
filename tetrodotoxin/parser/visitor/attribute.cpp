@@ -14,7 +14,7 @@ auto Visitor::parse_attribute(Context& ctx) -> Compiler::Attribute* {
       ctx.get_allocator().construct<Types::Compiler::Attribute>();
   auto token = &ctx.current();
 
-  if (token->data.size() == 1) {
+  if (token->data.get_size() == 1) {
     ctx.token_error("TTX Script Attribute has an empty name.");
   }
 

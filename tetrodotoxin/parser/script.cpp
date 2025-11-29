@@ -26,7 +26,7 @@ auto detect_package_type(Context& ctx) -> void {
     ctx.library.set_entity(true);
   } else if (token->klass != Classifier::Library) {
     ctx.token_error(std::format(
-        "Unknown package type `{}`, defaulting to `library`.", token->data));
+        "Unknown package type `{}`, defaulting to `library`.", token->data.get_view()));
   };
   ctx.advance();
 

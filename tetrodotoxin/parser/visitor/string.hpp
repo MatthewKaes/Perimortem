@@ -8,6 +8,6 @@
 namespace Tetrodotoxin::Parser::Visitor {
 
 auto parse_string(Context& ctx)
-    -> std::string_view;
+    -> Perimortem::Memory::ManagedString;
 
 }  // namespace Tetrodotoxin::Parser::Visitor

@@ -43,22 +43,18 @@ TEST_F(JsonTests, init_rpc) {
   auto data = parse(test, ManagedString(json), pos);
 
   ASSERT_NE(data, nullptr);
-  ASSERT_TRUE(data->contains("method") && (*data)["method"]->get_string());
-  auto method_name = *(*data)["method"]->get_string();
-  EXPECT_EQ(method_name.get_view(), "initialize");
+  EXPECT_TRUE(data->contains("method"));
+  EXPECT_EQ(data->at("method")->get_string().get_view(), "initialize");
 
-  ASSERT_TRUE(data->contains("jsonrpc") && (*data)["jsonrpc"]->get_string());
-  auto jsonrpc_version = *(*data)["jsonrpc"]->get_string();
-  EXPECT_EQ(jsonrpc_version.get_view(), "2.0");
+  EXPECT_TRUE(data->contains("jsonrpc"));
+  EXPECT_EQ(data->at("jsonrpc")->get_string().get_view(), "2.0");
 
-  ASSERT_TRUE(data->contains("id") && (*data)["id"]->get_int());
-  uint32_t id_value = *(*data)["id"]->get_int();
-  EXPECT_EQ(id_value, 10);
+  EXPECT_TRUE(data->contains("id"));
+  EXPECT_EQ(data->at("id")->get_int(), 10);
 
-  ASSERT_TRUE(data->contains("params"));
-  auto params = (*data)["params"];
-  ASSERT_TRUE(params->contains("rootPath"));
-  auto path = *(*params)["rootPath"]->get_string();
+  EXPECT_TRUE(data->contains("params"));
+  EXPECT_TRUE(data->at("params")->contains("rootPath"));
+  auto path = data->at("params")->at("rootPath")->get_string();
   EXPECT_EQ(path.get_view(),
             "/home/test/Perimortem/tetrodotoxin/tests/scripts");
 }
@@ -70,20 +66,17 @@ TEST_F(JsonTests, tokenize_rpc) {
   auto data = parse(test, ManagedString(json), pos);
 
   ASSERT_NE(data, nullptr);
-  ASSERT_TRUE(data->contains("method") && (*data)["method"]->get_string());
-  auto method_name = *(*data)["method"]->get_string();
-  EXPECT_EQ(method_name.get_view(), "tokenize");
+  EXPECT_TRUE(data->contains("method"));
+  EXPECT_EQ(data->at("method")->get_string().get_view(), "tokenize");
 
-  ASSERT_TRUE(data->contains("jsonrpc") && (*data)["jsonrpc"]->get_string());
-  auto jsonrpc_version = *(*data)["jsonrpc"]->get_string();
-  EXPECT_EQ(jsonrpc_version.get_view(), "2.0");
+  EXPECT_TRUE(data->contains("jsonrpc"));
+  EXPECT_EQ(data->at("jsonrpc")->get_string().get_view(), "2.0");
 
-  ASSERT_TRUE(data->contains("id") && (*data)["id"]->get_int());
-  uint32_t id_value = *(*data)["id"]->get_int();
-  EXPECT_EQ(id_value, 1);
+  EXPECT_TRUE(data->contains("id"));
+  EXPECT_EQ(data->at("id")->get_int(), 1);
 
   ASSERT_TRUE(data->contains("params"));
-  auto params = (*data)["params"];
+  auto params = data->at("params");
   ASSERT_TRUE(params->contains("source"));
 }
 
@@ -106,10 +99,11 @@ TEST_F(JsonTests, jsonrpc) {
   auto data = parse(test, ManagedString(json), pos);
 
   ASSERT_NE(data, nullptr);
-  ASSERT_TRUE(data->contains("method") && (*data)["method"]->get_string());
-  [[maybe_unused]] auto method_name = *(*data)["method"]->get_string();
-  ASSERT_TRUE(data->contains("jsonrpc") && (*data)["jsonrpc"]->get_string());
-  [[maybe_unused]] auto jsonrpc_version = *(*data)["jsonrpc"]->get_string();
+  EXPECT_TRUE(data->contains("method"));
+  EXPECT_EQ(data->at("method")->get_string().get_view(), "initialized");
+
+  EXPECT_TRUE(data->contains("jsonrpc"));
+  EXPECT_EQ(data->at("jsonrpc")->get_string().get_view(), "2.0");
   ASSERT_TRUE(data->contains("params"));
 
   ASSERT_NE(data, nullptr);
@@ -125,7 +119,7 @@ TEST_F(JsonTests, jsonrpc_from_header) {
 
   ASSERT_NE(data, nullptr);
   ASSERT_TRUE(data->contains("processId"));
-  ASSERT_EQ(*data->at("processId")->get_int(), 18186);
-  ASSERT_EQ(*data->at("clientInfo")->at("name")->get_string(),
+  ASSERT_EQ(data->at("processId")->get_int(), 18186);
+  ASSERT_EQ(data->at("clientInfo")->at("name")->get_string(),
             ManagedString("VisualStudioCode"));
 }

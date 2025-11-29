@@ -4,6 +4,7 @@
 #include "src/language_server.hpp"
 #include "src/service.hpp"
 
+#include "core/storage/formats/json.hpp"
 #include "lexical/tokenizer.hpp"
 
 #include <iostream>
@@ -41,11 +42,11 @@ auto main(int argc, char* argv[]) -> int {
   std::cout << "   -- initialize" << std::endl;
   jsonrpc.register_method(
       "initialize",
-      [](const ManagedString& jsonrpc, uint32_t id,
-         const Node& data) -> std::string {
+      [](Arena& arena, const ManagedString& source,
+         const RpcHeader& info) -> std::string {
         std::stringstream result;
-        result << "{\"jsonrpc\":\"" << jsonrpc.get_view() << "\",\"id\":" << id
-               << ",\"result\":{";
+        result << "{\"jsonrpc\":\"" << info.get_version().get_view()
+               << "\",\"id\":" << info.get_id() << ",\"result\":{";
         result << "\"serverInfo\":{\"name\":\"Tetrodotoxin Language "
                   "Server\",\"version\":\"1.0\"},";
         result << "\"capabilities\":{\"positionEncoding\":\"utf-16\",";
@@ -67,13 +68,14 @@ auto main(int argc, char* argv[]) -> int {
   std::cout << "   -- tokenize" << std::endl;
   jsonrpc.register_method(
       "tokenize",
-      [](const ManagedString& jsonrpc, uint32_t id,
-         const Node& data) -> std::string {
+      [](Arena& arena, const ManagedString& source,
+         const RpcHeader& info) -> std::string {
         std::stringstream result;
-        const ManagedString* source_code = data["source"]->get_string();
-        if (!source_code) {
-          result << "{\"jsonrpc\": \"" << jsonrpc.get_view()
-                 << "\", \"id\":" << id
+        auto position = info.get_params_offset();
+        auto data = Perimortem::Storage::Json::parse(arena, source, position);
+        if (!data->at("source")->null()) {
+          result << "{\"jsonrpc\": \"" << info.get_version().get_view()
+                 << "\", \"id\":" << info.get_id()
                  << " \"error\": \"Requested Tokenization but no `source` was "
                     "provided!\"}";
           return result.str();
@@ -81,31 +83,40 @@ auto main(int argc, char* argv[]) -> int {
 
         // One off tokenizer.
         static Tokenizer tokenizer;
-        tokenizer.parse(source_code->get_view(), false);
+        tokenizer.parse(data->at("source")->get_string(), false);
 
-        return Service::lsp_tokens(tokenizer, jsonrpc.get_view(), id);
+        return Service::lsp_tokens(tokenizer, info);
       });
 
   std::cout << "   -- format" << std::endl;
   jsonrpc.register_method(
       "format",
-      [](const ManagedString& jsonrpc, uint32_t id,
-         const Node& data) -> std::string {
+      [](Arena& arena, const ManagedString& source,
+         const RpcHeader& info) -> std::string {
         std::stringstream result;
-        const ManagedString* source_code = data["source"]->get_string();
-        if (!source_code) {
-          result << "{\"jsonrpc\": \"" << jsonrpc.get_view()
-                 << "\", \"id\":" << id
+        auto position = info.get_params_offset();
+        auto data = Perimortem::Storage::Json::parse(arena, source, position);
+        if (data->null()) {
+          result << "{\"jsonrpc\": \"" << info.get_version().get_view()
+                 << "\", \"id\":" << info.get_id()
+                 << " \"error\": \"Failed to parse format request.\"}";
+          return result.str();
+        }
+
+        const auto source_code = data->at("source")->get_string();
+        if (!data->contains("source")) {
+          result << "{\"jsonrpc\": \"" << info.get_version().get_view()
+                 << "\", \"id\":" << info.get_id()
                  << " \"error\": \"Requested Format but no `source` was "
                     "provided!\"}";
           return result.str();
         }
 
-        const ManagedString* name_string = data["name"]->get_string();
+        const auto name_string = data->at("name");
         if (!name_string) {
           std::stringstream result;
-          result << "{\"jsonrpc\": \"" << jsonrpc.get_view()
-                 << "\", \"id\":" << id
+          result << "{\"jsonrpc\": \"" << info.get_version().get_view()
+                 << "\", \"id\":" << info.get_id()
                  << " \"error\": \"Requested Format but no `name` was "
                     "provided!\"}";
           return result.str();
@@ -115,11 +126,12 @@ auto main(int argc, char* argv[]) -> int {
         // std::string name = path.filename();
 
         Tokenizer tokenizer;
-        tokenizer.parse(source_code->get_view(), false);
+        tokenizer.parse(source_code, false);
 
         // TODO: For now just return back the source.
-        result << "{\"jsonrpc\":\"" << jsonrpc.get_view() << "\",\"id\":" << id
-               << ",\"result\":{\"document\":\"" << source_code->get_view()
+        result << "{\"jsonrpc\": \"" << info.get_version().get_view()
+               << "\", \"id\":" << info.get_id()
+               << ",\"result\":{\"document\":\"" << source_code.get_view()
                << "\"}}";
         return result.str();
       });

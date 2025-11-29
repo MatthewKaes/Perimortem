@@ -24,6 +24,10 @@ class RpcHeader {
     return params_offset;
   }
 
+  inline constexpr auto is_valid() const -> bool {
+    return !json_rpc.empty() && !method.empty() && id >= 0 && params_offset > 0;
+  }
+
  private:
   auto parse_rpc(const Perimortem::Memory::ManagedString& contents,
                  uint32_t& position) -> void;
@@ -36,7 +40,7 @@ class RpcHeader {
 
   Perimortem::Memory::ManagedString json_rpc;
   Perimortem::Memory::ManagedString method;
-  uint32_t id;
+  int32_t id = -1;
   uint32_t params_offset;
 };
 

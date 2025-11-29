@@ -65,6 +65,10 @@ class ManagedString {
     return std::string_view(rented_block, size);
   };
 
+  inline constexpr auto get_data() const -> const char* {
+    return rented_block;
+  };
+
   inline constexpr auto slice(uint64_t start, uint64_t size) const
       -> ManagedString {
     return ManagedString(rented_block + start, size);

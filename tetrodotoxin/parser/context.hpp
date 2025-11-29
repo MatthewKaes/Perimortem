@@ -23,7 +23,7 @@ struct Context {
         errors(errors),
         source_map(std::filesystem::relative(source_map)),
         disk_path(std::filesystem::absolute(source_map)),
-        source(tokenizer.get_source()) {
+        source(tokenizer.get_source().get_view()) {
     start_token = tokenizer.get_tokens().data();
     current_token = start_token;
     terminal_token = start_token + tokenizer.get_tokens().size() - 1;
@@ -56,7 +56,7 @@ struct Context {
 
   inline auto get_error_range(Lexical::Token& begin_token, Lexical::Token& end_token) const
       -> uint32_t {
-    return (end_token.location.column + end_token.data.size()) -
+    return (end_token.location.column + end_token.data.get_size()) -
            begin_token.location.column;
   }
 

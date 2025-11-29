@@ -9,6 +9,7 @@
 #include <cstring>
 #include <sstream>
 
+using namespace Perimortem::Memory;
 using namespace Perimortem::Concepts;
 using namespace Tetrodotoxin::Lexical;
 
@@ -43,21 +44,21 @@ constexpr auto is_num(uint8_t c) -> bool {
 
 // Used for tracking during parsing
 struct Context {
-  Context(const std::string_view& source, TokenStream& tokens)
+  Context(const ManagedString& source, TokenStream& tokens)
       : source(source), tokens(tokens) {};
 
   Location loc;
-  const std::string_view& source;
+  const ManagedString& source;
   TokenStream& tokens;
   Perimortem::Concepts::BitFlag<TtxState> options;
 };
 
 inline auto can_parse(Context& context) -> bool {
-  return context.loc.parse_index < context.source.size();
+  return context.loc.parse_index < context.source.get_size();
 }
 
 auto peak_ahead(Context& context, uint32_t amount) -> Byte {
-  if (context.loc.parse_index + amount >= context.source.size())
+  if (context.loc.parse_index + amount >= context.source.get_size())
     return 0;
 
   return context.source[context.loc.parse_index + amount];
@@ -70,15 +71,15 @@ auto parse_attribute(Context& context) -> void {
 
   context.loc.parse_index++;
   const auto token =
-      context.source.substr(context.loc.source_index,
-                            context.loc.parse_index - context.loc.source_index);
+      context.source.slice(context.loc.source_index,
+                           context.loc.parse_index - context.loc.source_index);
 
   // Compiler configuration
   if (!context.options.has(TtxState::DisableCommands)) {
     constexpr const char color_flag[] = "@UseCppTheme";
-    if (token.size() == sizeof(color_flag) - 1 &&
-        token.data()[0] == color_flag[0] &&
-        !std::memcmp(token.data(), color_flag, sizeof(color_flag) - 1)) {
+    if (token.get_size() == sizeof(color_flag) - 1 &&
+        token[0] == color_flag[0] &&
+        !std::memcmp(token.get_data(), color_flag, sizeof(color_flag) - 1)) {
       context.options += TtxState::CppTheme;
     }
   }
@@ -86,7 +87,7 @@ auto parse_attribute(Context& context) -> void {
   if (!token.empty())
     context.tokens.push_back({Classifier::Attribute, token, context.loc});
 
-  context.loc.column += token.size();
+  context.loc.column += token.get_size();
 }
 
 auto parse_comment(Context& context) -> void {
@@ -104,9 +105,9 @@ auto parse_comment(Context& context) -> void {
 
   context.tokens.push_back(
       {Classifier::Comment,
-       context.source.substr(start_comment, context.loc.parse_index -
-                                                start_comment +
-                                                (can_parse(context) ? 1 : 0)),
+       context.source.slice(start_comment, context.loc.parse_index -
+                                               start_comment +
+                                               (can_parse(context) ? 1 : 0)),
        context.loc});
 
   // No need for column validation as we are about to end the file or start a
@@ -138,7 +139,7 @@ auto parse_disabled(Context& context, bool strip_disabled) -> void {
   if (!strip_disabled) {
     context.tokens.push_back(
         {Classifier::Disabled,
-         context.source.substr(
+         context.source.slice(
              context.loc.source_index,
              context.loc.parse_index - context.loc.source_index),
          context.loc});
@@ -182,11 +183,11 @@ auto parse_number(Context& context) -> void {
 
   // Consume the peak_ahead
   context.loc.parse_index++;
-  context.tokens.push_back({klass,
-                            context.source.substr(context.loc.source_index,
-                                                  context.loc.parse_index -
-                                                      context.loc.source_index),
-                            context.loc});
+  context.tokens.push_back(
+      {klass,
+       context.source.slice(context.loc.source_index,
+                            context.loc.parse_index - context.loc.source_index),
+       context.loc});
   context.loc.column += context.loc.parse_index - context.loc.source_index;
 }
 
@@ -197,11 +198,11 @@ auto parse_type(Context& context) -> void {
 
   // Consume the peak_ahead
   context.loc.parse_index++;
-  context.tokens.push_back({Classifier::Type,
-                            context.source.substr(context.loc.source_index,
-                                                  context.loc.parse_index -
-                                                      context.loc.source_index),
-                            context.loc});
+  context.tokens.push_back(
+      {Classifier::Type,
+       context.source.slice(context.loc.source_index,
+                            context.loc.parse_index - context.loc.source_index),
+       context.loc});
   context.loc.column += context.loc.parse_index - context.loc.source_index;
 }
 
@@ -248,8 +249,8 @@ auto parse_identifier(Context& context) -> void {
   // Consume the peak_ahead
   context.loc.parse_index++;
   const auto view =
-      context.source.substr(context.loc.source_index,
-                            context.loc.parse_index - context.loc.source_index);
+      context.source.slice(context.loc.source_index,
+                           context.loc.parse_index - context.loc.source_index);
 
   // Can't be a number since that's handle in the main switch.
   Classifier klass = context.options.has(TtxState::ParamTokenizing)
@@ -258,8 +259,8 @@ auto parse_identifier(Context& context) -> void {
 
   if (!forced_identifier) {
     // Check if we need to reclass as a keyword.
-    klass =
-        check_keyword(std::string_view((char*)view.data(), view.size()), klass);
+    klass = check_keyword(std::string_view(view.get_data(), view.get_size()),
+                          klass);
 
     if (klass == Classifier::Func)
       context.options += TtxState::ParamTokenizing;
@@ -269,11 +270,11 @@ auto parse_identifier(Context& context) -> void {
   context.loc.column += context.loc.parse_index - context.loc.source_index;
 }
 
-#define SIMPLE_TOKEN(klass, len)                                  \
-  context.loc.parse_index += len;                                 \
-  tokens.push_back({Classifier::klass,                            \
-                    source.substr(context.loc.source_index, len), \
-                    context.loc});                                \
+#define SIMPLE_TOKEN(klass, len)                                         \
+  context.loc.parse_index += len;                                        \
+  tokens.push_back({Classifier::klass,                                   \
+                    context.source.slice(context.loc.source_index, len), \
+                    context.loc});                                       \
   context.loc.column += len;
 
 #define PARSE_SIMPLE(token, klass) \
@@ -281,10 +282,10 @@ auto parse_identifier(Context& context) -> void {
     SIMPLE_TOKEN(klass, 1);        \
     break;
 
-auto Tokenizer::parse(const std::string_view& source, bool strip_disabled)
-    -> void {
+auto Tokenizer::parse(const Perimortem::Memory::ManagedString source_,
+                      bool strip_disabled) -> void {
   // Reset state
-  this->source = source;
+  source = source_.get_view();
   tokens.clear();
 
   // Take an estimated best guess on the token count. This helps save on
@@ -295,7 +296,7 @@ auto Tokenizer::parse(const std::string_view& source, bool strip_disabled)
   constexpr const uint32_t tag_size = sizeof("[***]") - 1;
 
   // Tokenizer Loop
-  Context context(source, tokens);
+  Context context(ManagedString(source), tokens);
   while (context.loc.parse_index < source.size()) {
     context.loc.source_index = context.loc.parse_index;
     switch (source[context.loc.parse_index]) {
@@ -404,11 +405,11 @@ auto Tokenizer::parse(const std::string_view& source, bool strip_disabled)
           context.loc.parse_index++;  // closing quote
         }
 
-        tokens.push_back(
-            {Classifier::String,
-             source.substr(context.loc.source_index,
-                           context.loc.parse_index - context.loc.source_index),
-             context.loc});
+        tokens.push_back({Classifier::String,
+                          context.source.slice(context.loc.source_index,
+                                               context.loc.parse_index -
+                                                   context.loc.source_index),
+                          context.loc});
         context.loc.column +=
             context.loc.parse_index - context.loc.source_index;
         break;
@@ -418,20 +419,28 @@ auto Tokenizer::parse(const std::string_view& source, bool strip_disabled)
         if (context.loc.parse_index + tag_size >= source.size()) {
           SIMPLE_TOKEN(IndexStart, 1);
           break;
-        } else if (std::memcmp("[***]", source.data() + context.loc.parse_index,
-                               tag_size) == 0) {
+        } else if (std::memcmp(
+                       "[***]",
+                       context.source.get_data() + context.loc.parse_index,
+                       tag_size) == 0) {
           SIMPLE_TOKEN(Temporary, tag_size);
           break;
-        } else if (std::memcmp("[=>>]", source.data() + context.loc.parse_index,
-                               tag_size) == 0) {
+        } else if (std::memcmp(
+                       "[=>>]",
+                       context.source.get_data() + context.loc.parse_index,
+                       tag_size) == 0) {
           SIMPLE_TOKEN(Dynamic, tag_size);
           break;
-        } else if (std::memcmp("[=!=]", source.data() + context.loc.parse_index,
-                               tag_size) == 0) {
+        } else if (std::memcmp(
+                       "[=!=]",
+                       context.source.get_data() + context.loc.parse_index,
+                       tag_size) == 0) {
           SIMPLE_TOKEN(Hidden, tag_size);
           break;
-        } else if (std::memcmp("[=/=]", source.data() + context.loc.parse_index,
-                               tag_size) == 0) {
+        } else if (std::memcmp(
+                       "[=/=]",
+                       context.source.get_data() + context.loc.parse_index,
+                       tag_size) == 0) {
           SIMPLE_TOKEN(Constant, tag_size);
           break;
         }
@@ -442,7 +451,7 @@ auto Tokenizer::parse(const std::string_view& source, bool strip_disabled)
       case ')':
         context.loc.parse_index += 1;
         tokens.push_back({Classifier::GroupEnd,
-                          source.substr(context.loc.source_index, 1),
+                          context.source.slice(context.loc.source_index, 1),
                           context.loc});
         context.loc.column += 1;
         context.options -=

@@ -12,14 +12,14 @@
 
 using namespace Tetrodotoxin::Lsp;
 
-#define Lsp_WRITE(klass)                                  \
+#define Lsp_WRITE(klass)                         \
   case Tetrodotoxin::Lexical::Classifier::klass: \
-    info_stream << "[\"" #klass "\",";                    \
+    info_stream << "[\"" #klass "\",";           \
     break;
 
-#define Lsp_REDEFINE(category, klass)                     \
+#define Lsp_REDEFINE(category, klass)            \
   case Tetrodotoxin::Lexical::Classifier::klass: \
-    info_stream << "[\"" #category "\",";                 \
+    info_stream << "[\"" #category "\",";        \
     break;
 
 #define Lsp_SKIP(klass)
@@ -43,8 +43,8 @@ auto recursive_strip(const Tetrodotoxin::Lexical::TokenStream& stream,
 }
 
 auto Service::lsp_tokens(Tetrodotoxin::Lexical::Tokenizer& tokenizer,
-                         std::string_view jsonrpc,
-                         int32_t id) -> std::string {
+                         const Perimortem::Storage::Json::RpcHeader& header)
+    -> std::string {
   Tetrodotoxin::Lexical::ClassifierFlags library_types =
       Tetrodotoxin::Lexical::Classifier::Package;
   std::unordered_set<std::string_view> imports;
@@ -53,8 +53,8 @@ auto Service::lsp_tokens(Tetrodotoxin::Lexical::Tokenizer& tokenizer,
 
   std::stringstream info_stream;
   // Assume basic jsonrpc 2.0 simplified header is enough.
-  info_stream << "{\"jsonrpc\":\"" << jsonrpc << "\",\"id\":" << id
-              << ",\"result\":{\"color\":"
+  info_stream << "{\"jsonrpc\":\"" << header.get_version().get_view()
+              << "\",\"id\":" << header.get_id() << ",\"result\":{\"color\":"
               << !tokenizer.get_options().has(
                      Tetrodotoxin::Lexical::TtxState::CppTheme)
               << ",\"tokens\":[";
@@ -124,8 +124,7 @@ auto Service::lsp_tokens(Tetrodotoxin::Lexical::Tokenizer& tokenizer,
         info_stream << "[\""
                        "P"
                        "\",";
-        parameters.insert(
-            std::string_view{(char*)token.data.data(), token.data.size()});
+        parameters.insert(token.data.get_view());
         break;
       case Tetrodotoxin::Lexical::Classifier::ScopeStart:
         info_stream << "[\""
@@ -159,15 +158,13 @@ auto Service::lsp_tokens(Tetrodotoxin::Lexical::Tokenizer& tokenizer,
         break;
       case Tetrodotoxin::Lexical::Classifier::Type:
         if (i < tokens.size() - 2 &&
-            tokens[i + 1].klass ==
-                Tetrodotoxin::Lexical::Classifier::Define) {
+            tokens[i + 1].klass == Tetrodotoxin::Lexical::Classifier::Define) {
           info_stream << "[\"DT\",";
         } else if (i > 0 && library_types.has(tokens[i - 1].klass)) {
           info_stream << "[\"Nm\",";
           imports.insert(
-              std::string_view{(char*)token.data.data(), token.data.size()});
-        } else if (imports.contains(std::string_view{(char*)token.data.data(),
-                                                     token.data.size()})) {
+              token.data.get_view());
+        } else if (imports.contains(token.data.get_view())) {
           info_stream << "[\"Nm\",";
         } else {
           info_stream << "[\"T\",";
@@ -175,18 +172,15 @@ auto Service::lsp_tokens(Tetrodotoxin::Lexical::Tokenizer& tokenizer,
         break;
       case Tetrodotoxin::Lexical::Classifier::Identifier:
         if (i < tokens.size() - 2 &&
-            tokens[i + 1].klass ==
-                Tetrodotoxin::Lexical::Classifier::Define) {
+            tokens[i + 1].klass == Tetrodotoxin::Lexical::Classifier::Define) {
           info_stream << "[\"DI\",";
-        } else if (i > 0 &&
-                   tokens[i - 1].klass ==
-                       Tetrodotoxin::Lexical::Classifier::CallOp) {
+        } else if (i > 0 && tokens[i - 1].klass ==
+                                Tetrodotoxin::Lexical::Classifier::CallOp) {
           info_stream << "[\"Fu\",";
         } else if (i > 0 &&
                    tokens[i - 1].klass !=
                        Tetrodotoxin::Lexical::Classifier::AccessOp &&
-                   parameters.contains(std::string_view{
-                       (char*)token.data.data(), token.data.size()})) {
+                   parameters.contains(token.data.get_view())) {
           info_stream << "[\"P\",";
         } else {
           info_stream << "[\"Id\",";
@@ -283,8 +277,8 @@ auto Service::lsp_tokens(Tetrodotoxin::Lexical::Tokenizer& tokenizer,
 
 auto Service::format(Tetrodotoxin::Lexical::Tokenizer& tokenizer,
                      std::string_view name,
-                     std::string_view jsonrpc,
-                     int32_t id) -> std::string {
+                     const Perimortem::Storage::Json::RpcHeader& header)
+    -> std::string {
   Formatter formatter;
   formatter.tokenized_format(tokenizer, name);
   std::string document = formatter.get_content();
@@ -298,7 +292,8 @@ auto Service::format(Tetrodotoxin::Lexical::Tokenizer& tokenizer,
 
   std::stringstream info_stream;
   // Assume basic jsonrpc 2.0 simplified header is enough.
-  info_stream << "{\"jsonrpc\":\"" << jsonrpc << "\",\"id\":" << id
+  info_stream << "{\"jsonrpc\":\"" << header.get_method().get_view()
+              << "\",\"id\":" << header.get_id()
               << ",\"result\":{\"document\":\"" << document << "\"}}";
 
   return info_stream.str();

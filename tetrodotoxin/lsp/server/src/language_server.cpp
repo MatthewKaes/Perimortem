@@ -3,8 +3,6 @@
 
 #include "language_server.hpp"
 
-#include "storage/formats/lazy_json.hpp"
-
 #include <cstring>
 #include <iostream>
 #include <sstream>
@@ -35,10 +33,8 @@ UnixJsonRPC::~UnixJsonRPC() {
   close(sock_descriptor);
 }
 
-auto UnixJsonRPC::register_method(
-    std::string name,
-    std::function<std::string(const ManagedString&, uint32_t, const Node&)>
-        resolver) -> void {
+auto UnixJsonRPC::register_method(std::string name, DispatchFunc resolver)
+    -> void {
   method_resolver[name] = resolver;
 }
 
@@ -68,44 +64,26 @@ auto UnixJsonRPC::process() -> void {
         }
 
         // Use a a lazy loader to quickly rule out any invalid requests.
-        LazyNode lazy_loader(ManagedString(local_data.data(), local_data.size()));
-        auto header_info = lazy_loader.get_object<3>();
-
-        auto jsonrpc_version = header_info["jsonrpc"].get_string();
-        auto id_value = header_info["id"].get_int();
-        auto method_name = header_info["method"].get_string();
-        if (!method_resolver.contains(method_name.get_view())) {
+        RpcHeader header_info{ManagedString(local_data)};
+        if (!header_info.is_valid()) {
           std::cout << "[ex=" << thread_id
-                    << "] Job Rejected: " << method_name.get_view()
-                    << " is not a registered RPC..." << std::endl
+                    << "] Job Rejected job due to invalid jsonrpc header..."
                     << std::endl;
           continue;
         }
 
-        json_arena.reset();
-        uint32_t position;
-        std::cout << local_data << std::endl;
-        auto data =
-            ::parse(json_arena, ManagedString(local_data), position);
-        if (!data) {
-          std::cout << "[ex=" << thread_id
-                    << "] Failed to parse jsonrpc request..." << std::endl;
+        auto method_name = header_info.get_method().get_view();
+        if (!method_resolver.contains(header_info.get_method().get_view())) {
+          std::cout << "[ex=" << thread_id << "] Job Rejected job "
+                    << header_info.get_id() << ": " << method_name
+                    << " is not a registered RPC..." << std::endl;
           continue;
         }
 
-        if (!data->contains("params")) {
-          std::cout << "[ex=" << thread_id
-                    << "] Job Rejected: " << method_name.get_view()
-                    << " for missing `params`..." << std::endl;
-          continue;
-        }
-        auto params_node = (*data)["params"];
-
-
-        std::cout << "[ex=" << thread_id
-                  << "] Job accepted: " << method_name.get_view() << std::endl;
-        std::string response = method_resolver[method_name.get_view()](
-            jsonrpc_version, id_value, *params_node);
+        std::cout << "[ex=" << thread_id << "] Job accepted: " << method_name
+                  << std::endl;
+        std::string response = method_resolver[method_name](
+            json_arena, ManagedString(local_data), header_info);
 
         auto write_jsonrpc_frame = [this, &method_name](
                                        const std::string_view& view) {
@@ -115,7 +93,7 @@ auto UnixJsonRPC::process() -> void {
                                   view.size() - bytes_written);
             if (bytes < 0) {
               std::cout << "Writting to socket failed while processing job: "
-                        << method_name.get_view() << std::endl;
+                        << method_name << std::endl;
               valid = false;
               return;
             }
@@ -132,8 +110,11 @@ auto UnixJsonRPC::process() -> void {
         write_jsonrpc_frame(frame.view());
         // JSON Response frame
         write_jsonrpc_frame(response);
-        std::cout << "[ex=" << thread_id << "] Completed " << id_value
+        std::cout << "[ex=" << thread_id << "] Completed " << method_name
                   << std::endl;
+
+        // Reset the arena now that the data has been dumped.
+        json_arena.reset();
       }
     });
   }

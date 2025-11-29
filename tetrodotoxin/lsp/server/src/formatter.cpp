@@ -16,7 +16,7 @@ constexpr auto whitespace_only_comment(const Token& token) -> bool {
     return false;
 
   auto view = token.data;
-  for (int i = 0; i < view.size(); i++) {
+  for (int i = 0; i < view.get_size(); i++) {
     if (view[i] != ' ' || view[i] != '\t')
       return false;
   }
@@ -69,20 +69,20 @@ auto Formatter::tokenized_format(
         if (control_flow.has(tokens[parse_index - 2].klass))
           output << " ";
         eat_space = true;
-        output << token.data;
+        output << token.data.get_view();
         continue;
       case Classifier::GroupEnd:
         in_group = false;
-        output << token.data;
+        output << token.data.get_view();
         break;
       case Classifier::AccessOp:
       case Classifier::IndexStart:
         eat_space = true;
-        output << token.data;
+        output << token.data.get_view();
         continue;
       case Classifier::Seperator:
       case Classifier::IndexEnd:
-        output << token.data;
+        output << token.data.get_view();
         break;
       case Classifier::EndOfStream:
         output << "\\n\\n";
@@ -110,7 +110,7 @@ auto Formatter::tokenized_format(
         if (has_content)
           output << "\\n";
 
-        output << std::string(indent * indent_width, ' ') << token.data;
+        output << std::string(indent * indent_width, ' ') << token.data.get_view();
 
         // Fold else blocks onto the same line.
         if (tokens[parse_index].klass == Classifier::Else) {
@@ -145,20 +145,20 @@ auto Formatter::tokenized_format(
         break;
       case Classifier::Attribute:
         if (has_content) {
-          output << (eat_space ? "@" : " @") << token.data;
+          output << (eat_space ? "@" : " @") << token.data.get_view();
         } else {
           output << std::string(indent * indent_width, ' ') << "@"
-                 << token.data;
+                 << token.data.get_view();
         }
 
         has_content = true;
         break;
       default:
         if (has_content) {
-          output << (eat_space ? "" : " ") << token.data;
+          output << (eat_space ? "" : " ") << token.data.get_view();
         } else {
           output << std::string(indent * indent_width, ' ')
-                 << token.data;
+                 << token.data.get_view();
         }
 
         has_content = true;
@@ -251,7 +251,7 @@ auto Formatter::process_comment_block(
       continue;
     }
 
-    std::ispanstream ss(tokens[i].data);
+    std::ispanstream ss(tokens[i].data.get_view());
     std::string word;
     while (ss >> word) {
       if (line_length == 0) {

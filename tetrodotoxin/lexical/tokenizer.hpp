@@ -3,11 +3,12 @@
 
 #pragma once
 
-#include <string_view>
-
-#include <concepts/bitflag.hpp>
+#include "core/concepts/bitflag.hpp"
+#include "core/memory/managed_string.hpp"
 
 #include "token.hpp"
+
+#include <string>
 
 namespace Tetrodotoxin::Lexical {
 
@@ -28,25 +29,24 @@ enum class TtxState : int8_t {
 
 class Tokenizer {
  public:
-  auto parse(const std::string_view& source, bool strip_disabled = true)
-      -> void;
+  auto parse(const Perimortem::Memory::ManagedString source,
+             bool strip_disabled = true) -> void;
 
   inline constexpr auto get_tokens() const -> const TokenStream& {
     return tokens;
   };
 
   // The tokenizer is empty if it has 0 or 1 (EndOfStream) tokens.
-  inline constexpr auto empty() const -> bool {
-    return tokens.size() <= 1;
-  }
+  inline constexpr auto empty() const -> bool { return tokens.size() <= 1; }
 
   inline constexpr auto get_options() const
       -> const Perimortem::Concepts::BitFlag<TtxState> {
     return options;
   };
 
-  inline constexpr auto get_source() const -> const std::string& {
-    return source;
+  inline constexpr auto get_source() const
+      -> Perimortem::Memory::ManagedString {
+    return Perimortem::Memory::ManagedString(source);
   };
 
  private:

@@ -5,13 +5,12 @@
 
 #include "source.hpp"
 
-#include <concepts/bitflag.hpp>
+#include "core/concepts/bitflag.hpp"
+#include "core/memory/managed_string.hpp"
 
 #include <cstdint>
-#include <cstring>
 #include <limits>
 #include <span>
-#include <string>
 #include <vector>
 
 namespace Tetrodotoxin::Lexical {
@@ -112,12 +111,11 @@ using ClassifierFlags = Perimortem::Concepts::BitFlag<Classifier>;
 // Wrapper for tokenizing a stream.
 struct Token {
   Classifier klass;
-  const std::string_view data;
+  const Perimortem::Memory::ManagedString data;
   Location location;
 
-  inline auto test(std::string_view view) const -> bool {
-    return data.size() == view.size() &&
-           std::memcpy((void*)data.data(), view.data(), data.size());
+  inline auto test(const Perimortem::Memory::ManagedString view) const -> bool {
+    return data == view;
   }
 
   inline auto valid() const -> bool { return klass != Classifier::EndOfStream; }

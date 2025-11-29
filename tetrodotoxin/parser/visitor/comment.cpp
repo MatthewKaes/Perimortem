@@ -26,7 +26,7 @@ auto Visitor::parse_comment(Context& ctx) -> Perimortem::Memory::ManagedString {
   while (token->klass == Classifier::Comment) {
     // Add up the bytes for each line including a new line.
     line_locations[ctx.index() - start_index] = total_bytes;
-    total_bytes += token->data.size();
+    total_bytes += token->data.get_size();
     token = &ctx.advance();
   }
   uint32_t end_index = ctx.index();
@@ -35,7 +35,7 @@ auto Visitor::parse_comment(Context& ctx) -> Perimortem::Memory::ManagedString {
   auto buffer =
       reinterpret_cast<char*>(ctx.get_allocator().allocate(total_bytes));
   for (uint32_t i = start_index; i < end_index; i++) {
-    std::memcpy(buffer + line_locations[i - start_index], ctx[i].data.data(), ctx[i].data.size());
+    std::memcpy(buffer + line_locations[i - start_index], ctx[i].data.get_data(), ctx[i].data.get_size());
   }
   return Perimortem::Memory::ManagedString(std::string_view(buffer, total_bytes));
 }

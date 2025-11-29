@@ -28,6 +28,8 @@ class Node {
   inline constexpr auto set(double value) -> void { this->value = value; }
   inline constexpr auto set(bool value) -> void { this->value = value; }
 
+  auto null() const -> bool;
+
   auto at(uint32_t index) const -> const Node*;
   auto at(const std::string_view& name) const -> const Node*;
 
@@ -36,10 +38,10 @@ class Node {
 
   auto contains(const std::string_view& name) const -> bool;
 
-  auto get_bool() const -> const bool*;
-  auto get_int() const -> const long*;
-  auto get_double() const -> const double*;
-  auto get_string() const -> const Memory::ManagedString*;
+  auto get_bool() const -> const bool;
+  auto get_int() const -> const long;
+  auto get_double() const -> const double;
+  auto get_string() const -> const Memory::ManagedString;
 
  private:
   std::variant<Memory::ManagedString,

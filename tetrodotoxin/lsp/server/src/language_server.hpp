@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include "storage/formats/json.hpp"
+#include "storage/formats/rpc_header.hpp"
 
 #include <sys/socket.h>
 #include <sys/un.h>
@@ -17,8 +17,11 @@
 #include <thread>
 #include <unordered_map>
 
-using Node = Perimortem::Storage::Json::Node;
 using ManagedString = Perimortem::Memory::ManagedString;
+using Arena = Perimortem::Memory::Arena;
+using RpcHeader = Perimortem::Storage::Json::RpcHeader;
+using DispatchFunc = std::function<
+    std::string(Arena&, const ManagedString&, const RpcHeader&)>;
 
 namespace Tetrodotoxin::Lsp {
 
@@ -27,10 +30,7 @@ class UnixJsonRPC {
   UnixJsonRPC(const std::string& pipe_name);
   ~UnixJsonRPC();
 
-  auto register_method(
-      std::string name,
-      std::function<std::string(const ManagedString&, uint32_t, const Node&)>
-          resolver) -> void;
+  auto register_method(std::string name, DispatchFunc resolver) -> void;
   auto process() -> void;
   auto shutdown() -> void;
 
@@ -44,10 +44,7 @@ class UnixJsonRPC {
 
   std::mutex job_mutex;
   std::list<std::string> job_queue;
-  std::unordered_map<
-      std::string_view,
-      std::function<std::string(ManagedString, uint32_t, const Node&)>>
-      method_resolver;
+  std::unordered_map<std::string_view, DispatchFunc> method_resolver;
 
   std::atomic<bool> valid = false;
   std::condition_variable cv;

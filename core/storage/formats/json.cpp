@@ -9,17 +9,23 @@
 using namespace Perimortem::Memory;
 using namespace Perimortem::Storage::Json;
 
+static Node null_node;
+
+auto Node::null() const -> bool {
+  return this == &null_node;
+}
+
 auto Node::at(uint32_t index) const -> const Node* {
   if (std::holds_alternative<ManagedVector<Node*>>(value)) {
     const auto& vec = get<ManagedVector<Node*>>(value);
     if (vec.get_size() >= index) {
-      return nullptr;
+      return &null_node;
     }
 
     return vec.at(index);
   }
 
-  return nullptr;
+  return &null_node;
 }
 
 auto Node::at(const std::string_view& name) const -> const Node* {
@@ -27,7 +33,7 @@ auto Node::at(const std::string_view& name) const -> const Node* {
     return get<ManagedLookup<Node>>(value).at(name);
   }
 
-  return nullptr;
+  return &null_node;
 }
 
 auto Node::operator[](uint32_t index) const -> const Node* {
@@ -46,36 +52,36 @@ auto Node::contains(const std::string_view& name) const -> bool {
   return false;
 }
 
-auto Node::get_bool() const -> const bool* {
+auto Node::get_bool() const -> const bool {
   if (std::holds_alternative<bool>(value)) {
-    return &get<bool>(value);
+    return get<bool>(value);
   }
 
-  return nullptr;
+  return false;
 }
 
-auto Node::get_int() const -> const long* {
+auto Node::get_int() const -> const long {
   if (std::holds_alternative<long>(value)) {
-    return &get<long>(value);
+    return get<long>(value);
   }
 
-  return nullptr;
+  return 0;
 }
 
-auto Node::get_double() const -> const double* {
+auto Node::get_double() const -> const double {
   if (std::holds_alternative<double>(value)) {
-    return &get<double>(value);
+    return get<double>(value);
   }
 
-  return nullptr;
+  return 0.0;
 }
 
-auto Node::get_string() const -> const Memory::ManagedString* {
+auto Node::get_string() const -> const Memory::ManagedString {
   if (std::holds_alternative<ManagedString>(value)) {
-    return &get<ManagedString>(value);
+    return get<ManagedString>(value);
   }
 
-  return nullptr;
+  return ManagedString();
 }
 
 namespace Perimortem::Storage::Json {
@@ -107,7 +113,7 @@ auto ignored_characters(char c) {
 auto parse(Memory::Arena& arena, ManagedString source, uint32_t& position)
     -> Node* {
   if (position > source.get_size()) {
-    return nullptr;
+    return &null_node;
   }
 
   // Allocations are cheap and we throw away the entire stack if the parse is
@@ -128,7 +134,6 @@ auto parse(Memory::Arena& arena, ManagedString source, uint32_t& position)
             position++;
             continue;
           }
-          // position = fast_scan(source, position, '"');
 
           // Optimize to assume that most dictionary elements are less than 32
           // characters long.
@@ -141,21 +146,16 @@ auto parse(Memory::Arena& arena, ManagedString source, uint32_t& position)
             position -= 33;
             name = parse_string(source, position);
             if (name.empty()) {
-              return nullptr;
+              return &null_node;
             }
           }
-
-          // auto name = parse_string(source, position);
-          // if (name.empty()) {
-          //   return nullptr;
-          // }
 
           // :
           position++;
 
           auto child = parse(arena, source, position);
-          if (!child) {
-            return nullptr;
+          if (child->null()) {
+            return child;
           }
 
           members.insert(name, child);
@@ -179,8 +179,8 @@ auto parse(Memory::Arena& arena, ManagedString source, uint32_t& position)
           }
 
           auto child = parse(arena, source, position);
-          if (!child) {
-            return nullptr;
+          if (child->null()) {
+            return child;
           }
 
           items.insert(child);
@@ -266,7 +266,7 @@ auto parse(Memory::Arena& arena, ManagedString source, uint32_t& position)
           return node;
         }
 
-        return nullptr;
+        return &null_node;
       }
 
       case ',':
@@ -274,10 +274,10 @@ auto parse(Memory::Arena& arena, ManagedString source, uint32_t& position)
         break;
 
       default:
-        return nullptr;
+        return &null_node;
     }
   }
-  return nullptr;
+  return &null_node;
 }
 
 }  // namespace Perimortem::Storage::Json
