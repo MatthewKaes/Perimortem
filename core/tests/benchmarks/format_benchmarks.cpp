@@ -5,7 +5,7 @@
 
 #include "storage/formats/base64.hpp"
 #include "storage/formats/json.hpp"
-#include "storage/formats/lazy_json.hpp"
+#include "storage/formats/rpc_header.hpp"
 
 #include <filesystem>
 #include <fstream>
@@ -90,36 +90,15 @@ auto generate_test_data() -> std::array<std::string, 4> {
 }
 #endif
 
-[[maybe_unused]] static void lazy_json_rpc(benchmark::State& state) {
+[[maybe_unused]] static void rpc_header(benchmark::State& state) {
   std::array<std::string, 4> source = generate_test_data();
 
   for (auto _ : state) {
     for (int i = 1; i <= test_count_per_round(); i++) {
       const auto& selected = source[rand() % source.size()];
-      auto data = Perimortem::Storage::Json::LazyNode(
+      auto data = Perimortem::Storage::Json::RpcHeader(
           Perimortem::Memory::ManagedString(selected.c_str(), selected.size()));
-      auto top_level = data.get_object<4>();
-      doNotOptimizeAway(top_level["jsonrpc"].get_view().empty());
-      doNotOptimizeAway(top_level["id"].get_view().empty());
-
-      auto path = top_level["params"].get_object<8>()["source"].get_string();
-      doNotOptimizeAway(path.get_size());
-    }
-  }
-}
-
-[[maybe_unused]] static void lazy_json_rpc_header_only(
-    benchmark::State& state) {
-  std::array<std::string, 4> source = generate_test_data();
-
-  for (auto _ : state) {
-    for (int i = 1; i <= test_count_per_round(); i++) {
-      const auto& selected = source[rand() % source.size()];
-      auto data = Perimortem::Storage::Json::LazyNode(
-          Perimortem::Memory::ManagedString(selected.c_str(), selected.size()));
-      auto top_level = data.get_object<3>();
-      doNotOptimizeAway(top_level["jsonrpc"].get_view().empty());
-      doNotOptimizeAway(top_level["id"].get_view().empty());
+      doNotOptimizeAway(data.get_id());
     }
   }
 }
@@ -136,8 +115,28 @@ auto generate_test_data() -> std::array<std::string, 4> {
           json_arena,
           Perimortem::Memory::ManagedString(source[rand() % source.size()]),
           position);
-      auto rpc_version = (*data)["jsonrpc"]->get_string();
+      auto rpc_version = data->at("jsonrpc")->get_string();
       doNotOptimizeAway(rpc_version->get_view() == "2.0");
+    }
+  }
+}
+
+[[maybe_unused]] static void json_rpc_from_header(benchmark::State& state) {
+  Perimortem::Memory::Arena json_arena;
+  std::array<std::string, 4> source = generate_test_data();
+
+  for (auto _ : state) {
+    for (int i = 1; i <= test_count_per_round(); i++) {
+      const auto& selected = source[rand() % source.size()];
+      auto header = Perimortem::Storage::Json::RpcHeader(
+          Perimortem::Memory::ManagedString(selected));
+      uint32_t position = header.get_params_offset();
+
+      json_arena.reset();
+      auto data = Perimortem::Storage::Json::parse(
+          json_arena, Perimortem::Memory::ManagedString(selected), position);
+      auto source = data->at("source")->get_string();
+      doNotOptimizeAway(source->get_size());
     }
   }
 }
@@ -154,10 +153,10 @@ auto generate_test_data() -> std::array<std::string, 4> {
           json_arena,
           Perimortem::Memory::ManagedString(source[rand() % source.size()]),
           position);
-      auto rpc_version = (*data)["jsonrpc"]->get_string();
+      auto rpc_version = data->at("jsonrpc")->get_string();
       doNotOptimizeAway(rpc_version->get_view() == "2.0");
 
-      auto path = (*(*data)["params"])["source"]->get_string();
+      auto path = data->at("params")->at("source")->get_string();
       Perimortem::Storage::Base64::Decoded decode{
           Perimortem::Memory::ManagedString(*path)};
       doNotOptimizeAway(decode.get_view().empty());
@@ -175,10 +174,10 @@ auto generate_test_data() -> std::array<std::string, 4> {
       json_arena,
       Perimortem::Memory::ManagedString(source[rand() % source.size()]),
       position);
-  auto rpc_version = (*data)["jsonrpc"]->get_string();
+  auto rpc_version = data->at("jsonrpc")->get_string();
   doNotOptimizeAway(rpc_version->get_view() == "2.0");
 
-  auto path = (*(*data)["params"])["source"]->get_string();
+  auto path = data->at("params")->at("source")->get_string();
   for (auto _ : state) {
     for (int i = 1; i <= test_count_per_round(); i++) {
       Perimortem::Storage::Base64::Decoded decode{
@@ -194,9 +193,9 @@ auto generate_test_data() -> std::array<std::string, 4> {
 BENCHMARK(nlohmann_json_rpc);
 BENCHMARK(nlohmann_json_rpc_with_decode);
 #endif
-BENCHMARK(lazy_json_rpc);
-BENCHMARK(lazy_json_rpc_header_only);
+BENCHMARK(rpc_header);
 BENCHMARK(json_rpc);
+BENCHMARK(json_rpc_from_header);
 BENCHMARK(json_rpc_with_decode);
 BENCHMARK(just_source_decode);
 

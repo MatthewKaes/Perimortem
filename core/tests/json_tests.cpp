@@ -4,7 +4,7 @@
 #include <gtest/gtest.h>
 
 #include "storage/formats/json.hpp"
-#include "storage/formats/lazy_json.hpp"
+#include "storage/formats/rpc_header.hpp"
 
 #include <filesystem>
 #include <fstream>
@@ -87,29 +87,16 @@ TEST_F(JsonTests, tokenize_rpc) {
   ASSERT_TRUE(params->contains("source"));
 }
 
-TEST_F(JsonTests, lazy_init_rpc) {
+TEST_F(JsonTests, rpc_header) {
   std::string json = load_text("core/tests/json/init_rpc.json");
 
-  auto data = Perimortem::Storage::Json::LazyNode(
+  auto data = Perimortem::Storage::Json::RpcHeader(
       Perimortem::Memory::ManagedString(json.c_str(), json.size()));
 
-  auto top_level = data.get_object<4>();
-  ASSERT_TRUE(top_level.contains("method"));
-  auto method_name = top_level["method"].get_string();
-  EXPECT_EQ(method_name.get_view(), "initialize");
-
-  ASSERT_TRUE(top_level.contains("jsonrpc"));
-  auto rpc_version = top_level["jsonrpc"].get_string();
-  EXPECT_EQ(rpc_version.get_view(), "2.0");
-
-  ASSERT_TRUE(top_level.contains("id"));
-  auto id_value = top_level["id"].get_int();
-  EXPECT_EQ(id_value, 10);
-
-  ASSERT_TRUE(top_level.contains("params"));
-  auto path = top_level["params"].get_object<8>()["rootPath"].get_string();
-  EXPECT_EQ(path.get_view(),
-            "/home/test/Perimortem/tetrodotoxin/tests/scripts");
+  EXPECT_EQ(data.get_method(), "initialize");
+  EXPECT_EQ(data.get_version(), "2.0");
+  EXPECT_EQ(data.get_id(), 10);
+  EXPECT_EQ(data.get_params_offset(), 56);
 }
 
 TEST_F(JsonTests, jsonrpc) {
@@ -126,4 +113,19 @@ TEST_F(JsonTests, jsonrpc) {
   ASSERT_TRUE(data->contains("params"));
 
   ASSERT_NE(data, nullptr);
+}
+
+TEST_F(JsonTests, jsonrpc_from_header) {
+  Arena test;
+  std::string json = load_text("core/tests/json/init_rpc.json");
+  auto header = Perimortem::Storage::Json::RpcHeader(
+      Perimortem::Memory::ManagedString(json.c_str(), json.size()));
+  uint32_t pos = header.get_params_offset();
+  auto data = parse(test, ManagedString(json), pos);
+
+  ASSERT_NE(data, nullptr);
+  ASSERT_TRUE(data->contains("processId"));
+  ASSERT_EQ(*data->at("processId")->get_int(), 18186);
+  ASSERT_EQ(*data->at("clientInfo")->at("name")->get_string(),
+            ManagedString("VisualStudioCode"));
 }

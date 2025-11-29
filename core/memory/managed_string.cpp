@@ -9,7 +9,7 @@
 using namespace Perimortem::Memory;
 
 template <uint32_t channels, uint32_t index, uint32_t range>
-auto optimized_or_merge(__m256i source[channels]) -> __m256i {
+static auto optimized_or_merge(__m256i source[channels]) -> __m256i {
   if constexpr (range == 1) {
     return source[index];
   } else if constexpr (range == 2) {
@@ -22,7 +22,9 @@ auto optimized_or_merge(__m256i source[channels]) -> __m256i {
   }
 }
 
-auto ManagedString::scan(uint8_t search, const uint32_t position) -> uint32_t {
+// Scans a 32 bytes block for the offset of a character.
+auto ManagedString::scan(uint8_t search, const uint32_t position) const
+    -> uint32_t {
   // Use 8 AVX2 channels to get out as much performance as we can for long
   // searches.
   constexpr const auto fused_channels = 8;
@@ -53,7 +55,8 @@ auto ManagedString::scan(uint8_t search, const uint32_t position) -> uint32_t {
         const uint64_t result_merged =
             (uint64_t)result_upper << 32ul | (uint64_t)result_lower;
 
-        // Since we have additional channels only return if we have our target.
+        // Since we have additional channels only return if we have our
+        // target.
         if (result_merged) {
           return offset + std::countr_zero(result_merged) +
                  avx2_channel_width * ymm;
@@ -87,7 +90,7 @@ auto ManagedString::scan(uint8_t search, const uint32_t position) -> uint32_t {
 }
 
 // Scans ahead 32 bytes to search for value.
-auto ManagedString::fast_scan(uint8_t search, const uint32_t position)
+auto ManagedString::fast_scan(uint8_t search, const uint32_t position) const
     -> uint32_t {
   auto search_mask = _mm256_set1_epi8(search);
   const auto value = _mm256_loadu_si256((__m256i*)(rented_block + position));

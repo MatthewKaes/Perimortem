@@ -9,7 +9,7 @@
 using namespace Perimortem::Memory;
 using namespace Perimortem::Storage::Json;
 
-auto Node::operator[](uint32_t index) const -> const Node* {
+auto Node::at(uint32_t index) const -> const Node* {
   if (std::holds_alternative<ManagedVector<Node*>>(value)) {
     const auto& vec = get<ManagedVector<Node*>>(value);
     if (vec.get_size() >= index) {
@@ -22,12 +22,20 @@ auto Node::operator[](uint32_t index) const -> const Node* {
   return nullptr;
 }
 
-auto Node::operator[](const std::string_view& name) const -> const Node* {
+auto Node::at(const std::string_view& name) const -> const Node* {
   if (std::holds_alternative<ManagedLookup<Node>>(value)) {
     return get<ManagedLookup<Node>>(value).at(name);
   }
 
   return nullptr;
+}
+
+auto Node::operator[](uint32_t index) const -> const Node* {
+  return at(index);
+}
+
+auto Node::operator[](const std::string_view& name) const -> const Node* {
+  return at(name);
 }
 
 auto Node::contains(const std::string_view& name) const -> bool {
@@ -85,8 +93,7 @@ auto optimized_or_merge(__m256i source[channels]) -> __m256i {
   }
 }
 
-auto parse_string(ManagedString source, uint32_t& position)
-    -> ManagedString {
+auto parse_string(ManagedString source, uint32_t& position) -> ManagedString {
   uint32_t start = ++position;
   position = source.scan('"', position);
 

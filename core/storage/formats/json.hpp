@@ -28,6 +28,9 @@ class Node {
   inline constexpr auto set(double value) -> void { this->value = value; }
   inline constexpr auto set(bool value) -> void { this->value = value; }
 
+  auto at(uint32_t index) const -> const Node*;
+  auto at(const std::string_view& name) const -> const Node*;
+
   auto operator[](uint32_t index) const -> const Node*;
   auto operator[](const std::string_view& name) const -> const Node*;
 

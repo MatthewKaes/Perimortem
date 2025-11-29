@@ -5,6 +5,8 @@
 
 #include "memory/arena.hpp"
 
+#include <x86intrin.h>
+#include <bit>
 #include <cstring>
 #include <string_view>
 
@@ -82,13 +84,20 @@ class ManagedString {
   //======================================================================
 
   // Scans a 32 bytes block for the offset of a character.
-  auto scan(uint8_t search, const uint32_t position = 0) -> uint32_t;
+  auto scan(uint8_t search, const uint32_t position = 0) const -> uint32_t;
 
   // Scans a 32 bytes block for the offset of a character.
   //
   // WARNING: Provides no bounds protection, use only when it's known the block
   // is valid.
-  auto fast_scan(uint8_t search, const uint32_t position = 0) -> uint32_t;
+  auto fast_scan(uint8_t search, const uint32_t position = 0) const -> uint32_t;
+
+  inline auto block_compare(const ManagedString& data,
+                            const uint32_t position = 0) const -> bool {
+    return data.size + position < size &&
+           std::memcmp(data.rented_block, rented_block + position, data.size) ==
+               0;
+  }
 
  private:
   const char* rented_block;
