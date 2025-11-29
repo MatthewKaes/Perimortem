@@ -10,7 +10,7 @@ namespace Perimortem::Storage::Base64 {
 
 class Decoded {
  public:
-  Decoded(const Memory::ManagedString& source, bool disable_vectorization = false);
+  Decoded(const Memory::ManagedString& source);
   Decoded(const Decoded& rhs);
   ~Decoded();
 
