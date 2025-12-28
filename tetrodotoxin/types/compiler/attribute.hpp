@@ -5,7 +5,7 @@
 
 #include "types/abstract.hpp"
 
-#include "memory/managed_string.hpp"
+#include "memory/byte_view.hpp"
 
 namespace Tetrodotoxin::Types::Compiler {
 
@@ -22,9 +22,9 @@ class Attribute : public Abstract {
   constexpr virtual auto get_usage() const -> Usage { return Usage::Constant; };
   auto get_size() const -> uint32_t override { return sizeof(uint8_t); };
 
-  Perimortem::Memory::ManagedString name;
-  Perimortem::Memory::ManagedString value;
-  Perimortem::Memory::ManagedString doc;
+  Perimortem::Memory::ByteView name;
+  Perimortem::Memory::ByteView value;
+  Perimortem::Memory::ByteView doc;
 };
 
 }  // namespace Tetrodotoxin::Types::Compiler

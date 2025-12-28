@@ -57,7 +57,7 @@ void compare_tokens(const Token &result, Classifier klass,
 // Demonstrate some basic assertions.
 TEST_F(TokenizerTests, empty) {
   Tokenizer t;
-  t.parse(Perimortem::Memory::ManagedString(R"()"));
+  t.parse(Perimortem::Memory::ByteView(R"()"));
   ASSERT_EQ(t.get_tokens().size(), 1);
   ASSERT_EQ(t.get_tokens()[0].klass, Classifier::EndOfStream);
 }
@@ -65,7 +65,7 @@ TEST_F(TokenizerTests, empty) {
 // Demonstrate some basic assertions.
 TEST_F(TokenizerTests, just_whitespace) {
   Tokenizer t;
-  t.parse(Perimortem::Memory::ManagedString("     \n\n \t  "));
+  t.parse(Perimortem::Memory::ByteView("     \n\n \t  "));
   ASSERT_EQ(t.get_tokens().size(), 1);
   ASSERT_EQ(t.get_tokens()[0].klass, Classifier::EndOfStream);
 }
@@ -73,7 +73,7 @@ TEST_F(TokenizerTests, just_whitespace) {
 // Demonstrate some basic assertions.
 TEST_F(TokenizerTests, numbers) {
   Tokenizer t;
-  t.parse(Perimortem::Memory::ManagedString("0 0. 1.123 .0 1var21"));
+  t.parse(Perimortem::Memory::ByteView("0 0. 1.123 .0 1var21"));
   EXPECT_EQ(t.get_tokens().size(), 8);
 
   // Token Stream

@@ -23,10 +23,6 @@ export function activate(context: ExtensionContext) {
     path.join(".", "ttx-lang-server")
   );
 
-  // const serverPath = context.asAbsolutePath(
-  //   path.join("..", "..", "..", ".bin", "bin", "tetrodotoxin", "lsp", "server", "ttx-lang-server")
-  // );
-
   ttxChannel.appendLine(`Launching Lsp Server using path: ${serverPath}`);
 
   const serverOptions: ServerOptions = {

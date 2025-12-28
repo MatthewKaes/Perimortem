@@ -4,18 +4,18 @@
 #pragma once
 
 #include "memory/bibliotheca.hpp"
-#include "memory/managed_string.hpp"
+#include "memory/byte_view.hpp"
 
 namespace Perimortem::Storage::Base64 {
 
 class Decoded {
  public:
-  Decoded(const Memory::ManagedString& source);
+  Decoded(const Memory::ByteView& source);
   Decoded(const Decoded& rhs);
   ~Decoded();
 
-  inline auto get_view() const -> Memory::ManagedString {
-    return Memory::ManagedString(text, size);
+  inline auto get_view() const -> Memory::ByteView {
+    return Memory::ByteView(text, size);
   }
 
  private:

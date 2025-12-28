@@ -4,108 +4,110 @@
 #pragma once
 
 #include "memory/arena.hpp"
-
-#include <x86intrin.h>
-#include <bit>
-#include <cstring>
-#include <string_view>
+#include "memory/byte_view.hpp"
 
 namespace Perimortem::Memory {
 
-// References a managed string, or creates a managed string in a arena.
-//
-// The life time of a managed string is assumed to be less than the string that
-// it references, even if they don't both exist in the same arena arena.
+// A simple linear string which supports historical views on old data
+// as long as the associated Arena is still alive.
 class ManagedString {
  public:
-  // Default to empty string.
-  ManagedString() {
+  static constexpr uint32_t start_capacity = 32;
+  static constexpr uint32_t growth_factor = 2;
+
+  ManagedString(const ManagedString& rhs) {
+    reset();
+    proxy(rhs);
+  };
+
+  ManagedString(ManagedString&& rhs) {
+    // Take ownership and invalidate the old
+    size = rhs.size;
+    capacity = rhs.capacity;
+    rented_block = rhs.rented_block;
+
+    // Does not change reservation counts on the rented block.
+    rhs.size = 0;
+    rhs.size = 0;
+    rhs.rented_block = nullptr;
+  };
+
+  ManagedString(Arena& arena) : arena(&arena) { reset(); }
+
+  operator ByteView() const { return ByteView(rented_block, size); }
+
+  auto reset() -> void {
     size = 0;
-    rented_block = "";
+    capacity = start_capacity;
+    rented_block = reinterpret_cast<char*>(arena->allocate(start_capacity));
   }
 
-  ManagedString(const ManagedString&) = default;
+  auto append(char c) -> void {
+    if (size == capacity)
+      grow(1);
 
-  // Convert a possibly non-managed string into a managed string.
-  ManagedString(Arena& arena, const std::string_view& source) {
-    auto buffer = reinterpret_cast<char*>(arena.allocate(source.size()));
-    std::memcpy(buffer, source.data(), source.size());
-
-    size = source.size();
-    rented_block = buffer;
+    rented_block[size++] = c;
   }
 
-  // The string is already managed.
-  ManagedString(const std::string_view& source) {
-    size = source.size();
-    rented_block = source.data();
+  auto append(ByteView view) -> void {
+    if (size + view.get_size() >= capacity)
+      grow(view.get_size());
+
+    std::memcpy(rented_block + size, view.get_data(), view.get_size());
+    size += view.get_size();
   }
 
-  // The string is already managed.
-  ManagedString(const char* source, uint64_t source_size) {
-    size = source_size;
-    rented_block = source;
+  auto proxy(ByteView view) -> void {
+    if (view.get_size() >= capacity)
+      grow(view.get_size());
+
+    std::memcpy(rented_block + size, view.get_data(), view.get_size());
+    size = view.get_size();
   }
 
-  inline constexpr auto operator==(const ManagedString& rhs) const -> bool {
-    return rhs.size == size &&
-           std::memcmp(rented_block, rhs.rented_block, size) == 0;
+  auto convert(char source, char target) -> void {
+    for (int i = 0; i < size; i++) {
+      if (rented_block[i] == source) {
+        rented_block[i] = target;
+      }
+    }
   }
 
-  inline constexpr auto operator==(const std::string_view& rhs) const -> bool {
-    return rhs.size() == size &&
-           std::memcmp(rented_block, rhs.data(), size) == 0;
-  }
+  auto operator[](uint32_t index) const -> char {
+    if (index > size)
+      return 0;
 
-  inline constexpr auto empty() const -> bool { return size == 0; };
-
-  inline constexpr auto get_size() const -> uint32_t { return size; };
-
-  inline constexpr auto get_view() const -> std::string_view {
-    return std::string_view(rented_block, size);
-  };
-
-  inline constexpr auto get_data() const -> const char* {
-    return rented_block;
-  };
-
-  inline constexpr auto slice(uint64_t start, uint64_t size) const
-      -> ManagedString {
-    return ManagedString(rented_block + start, size);
-  };
-
-  inline constexpr auto operator[](uint64_t index) const -> char {
     return rented_block[index];
-  };
-
-  inline constexpr auto clear() {
-    rented_block = "";
-    size = 0;
-  };
-
-  //======================================================================
-  // Optimized operations
-  //======================================================================
-
-  // Scans a 32 bytes block for the offset of a character.
-  auto scan(uint8_t search, const uint32_t position = 0) const -> uint32_t;
-
-  // Scans a 32 bytes block for the offset of a character.
-  //
-  // WARNING: Provides no bounds protection, use only when it's known the block
-  // is valid.
-  auto fast_scan(uint8_t search, const uint32_t position = 0) const -> uint32_t;
-
-  inline auto block_compare(const ManagedString& data,
-                            const uint32_t position = 0) const -> bool {
-    return data.size + position < size &&
-           std::memcmp(data.rented_block, rented_block + position, data.size) ==
-               0;
   }
+
+  auto at(uint32_t index) const -> char {
+    if (index > size)
+      return 0;
+
+    return rented_block[index];
+  }
+
+  constexpr auto get_size() const -> uint32_t { return size; };
 
  private:
-  const char* rented_block;
-  uint64_t size;
+  auto grow(uint32_t requested) -> void {
+    // Attempt to grow by a factor of 2.
+    // If that doesn't work than grow to exact size.
+    capacity *= growth_factor;
+    if (capacity < capacity + requested) {
+      capacity = requested;
+    }
+
+    auto new_block = reinterpret_cast<char*>(arena->allocate(capacity));
+
+    std::memcpy(new_block, rented_block, size);
+    rented_block = new_block;
+  }
+
+  Arena* arena;
+  char* rented_block;
+  uint32_t size;
+  uint32_t capacity;
 };
 
 }  // namespace Perimortem::Memory

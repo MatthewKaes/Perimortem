@@ -42,7 +42,7 @@ auto detect_package_type(Context& ctx) -> void {
 // right after parsing the provided abstract.
 auto register_name(Context& ctx,
                    const Token& start_token,
-                   const Perimortem::Memory::ManagedString& name,
+                   const Perimortem::Memory::ByteView& name,
                    const Abstract* abstract) {
   if (!ctx.library.create_name(name, abstract)) {
     ctx.range_error(

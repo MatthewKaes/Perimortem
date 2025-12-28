@@ -19,7 +19,7 @@ auto Visitor::parse_attribute(Context& ctx) -> Compiler::Attribute* {
   }
 
   attribute->name =
-      Perimortem::Memory::ManagedString(token->data);
+      Perimortem::Memory::ByteView(token->data);
 
   auto start_token = token;
 

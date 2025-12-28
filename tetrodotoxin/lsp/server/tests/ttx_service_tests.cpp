@@ -38,7 +38,7 @@ struct TtxLspServiceTests : public ::testing::Test {
 TEST_F(TtxLspServiceTests, format) {
   auto bytes = read_all_bytes("tetrodotoxin/parser/tests/scripts/Simple.ttx");
   Tokenizer t;
-  t.parse(Perimortem::Memory::ManagedString(bytes));
+  t.parse(Perimortem::Memory::ByteView(bytes));
 
   // std::string result =
   //     Service::format(t, "Simple.ttx", "2.0", 0);

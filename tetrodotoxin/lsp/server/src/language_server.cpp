@@ -64,26 +64,25 @@ auto UnixJsonRPC::process() -> void {
         }
 
         // Use a a lazy loader to quickly rule out any invalid requests.
-        RpcHeader header_info{ManagedString(local_data)};
-        if (!header_info.is_valid()) {
+        RpcRequest request{json_arena, ByteView(local_data)};
+        if (!request.is_valid()) {
           std::cout << "[ex=" << thread_id
                     << "] Job Rejected job due to invalid jsonrpc header..."
                     << std::endl;
           continue;
         }
 
-        auto method_name = header_info.get_method().get_view();
-        if (!method_resolver.contains(header_info.get_method().get_view())) {
-          std::cout << "[ex=" << thread_id << "] Job Rejected job "
-                    << header_info.get_id() << ": " << method_name
-                    << " is not a registered RPC..." << std::endl;
+        auto method_name = request.get_method();
+        if (!method_resolver.contains(method_name)) {
+          std::cout << "[ex=" << thread_id << "] Job Rejected unknown rpc `"
+                    << method_name << "`" << std::endl;
           continue;
         }
 
         std::cout << "[ex=" << thread_id << "] Job accepted: " << method_name
                   << std::endl;
-        std::string response = method_resolver[method_name](
-            json_arena, ManagedString(local_data), header_info);
+        request.load_params();
+        auto response = method_resolver[method_name](request);
 
         auto write_jsonrpc_frame = [this, &method_name](
                                        const std::string_view& view) {
@@ -104,14 +103,16 @@ auto UnixJsonRPC::process() -> void {
 
         // Write out the annoying Data Frame
         std::stringstream frame;
-        frame << "Content-Length: " << response.size() << "\r\n\r\n";
+        frame << "Content-Length: " << response.result.get_view() << "\r\n\r\n";
 
         // Header frame
         write_jsonrpc_frame(frame.view());
         // JSON Response frame
-        write_jsonrpc_frame(response);
-        std::cout << "[ex=" << thread_id << "] Completed " << method_name
-                  << std::endl;
+        write_jsonrpc_frame(response.result.get_view());
+
+        // For debugging
+        // std::cout << "[ex=" << thread_id << "] " << response.get_view() <<
+        // std::endl;
 
         // Reset the arena now that the data has been dumped.
         json_arena.reset();

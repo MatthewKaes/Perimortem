@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include "storage/formats/rpc_header.hpp"
+#include "rpc_request.hpp"
 
 #include <sys/socket.h>
 #include <sys/un.h>
@@ -17,16 +17,13 @@
 #include <thread>
 #include <unordered_map>
 
-using ManagedString = Perimortem::Memory::ManagedString;
-using Arena = Perimortem::Memory::Arena;
-using RpcHeader = Perimortem::Storage::Json::RpcHeader;
-using DispatchFunc = std::function<
-    std::string(Arena&, const ManagedString&, const RpcHeader&)>;
+using ByteView = Perimortem::Memory::ByteView;
 
 namespace Tetrodotoxin::Lsp {
 
 class UnixJsonRPC {
  public:
+  using DispatchFunc = std::function<RpcResponse(const RpcRequest&)>;
   UnixJsonRPC(const std::string& pipe_name);
   ~UnixJsonRPC();
 

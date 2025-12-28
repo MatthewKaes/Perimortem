@@ -3,44 +3,50 @@
 
 #pragma once
 
+#include "memory/arena.hpp"
 #include "memory/managed_string.hpp"
 
 namespace Perimortem::Storage::Json {
 
 class RpcHeader {
  public:
-  RpcHeader(const Perimortem::Memory::ManagedString& contents);
+  RpcHeader(Perimortem::Memory::Arena& arena,
+            Perimortem::Memory::ByteView contents);
 
   inline constexpr auto get_version() const
-      -> const Perimortem::Memory::ManagedString {
+      -> const Perimortem::Memory::ByteView {
     return json_rpc;
   }
   inline constexpr auto get_method() const
-      -> const Perimortem::Memory::ManagedString {
+      -> const Perimortem::Memory::ByteView {
     return method;
   }
-  inline constexpr auto get_id() const -> uint32_t { return id; }
+  inline constexpr auto get_id() const -> const Perimortem::Memory::ByteView {
+    return id;
+  }
+
+  inline constexpr auto get_arena() const -> Perimortem::Memory::Arena    & {
+    return arena;
+  }
+
   inline constexpr auto get_params_offset() const -> uint32_t {
     return params_offset;
   }
 
-  inline constexpr auto is_valid() const -> bool {
-    return !json_rpc.empty() && !method.empty() && id >= 0 && params_offset > 0;
-  }
-
  private:
-  auto parse_rpc(const Perimortem::Memory::ManagedString& contents,
+  auto parse_rpc(const Perimortem::Memory::ByteView& contents,
                  uint32_t& position) -> void;
-  auto parse_id(const Perimortem::Memory::ManagedString& contents,
+  auto parse_id(const Perimortem::Memory::ByteView& contents,
                 uint32_t& position) -> void;
-  auto parse_method(const Perimortem::Memory::ManagedString& contents,
+  auto parse_method(const Perimortem::Memory::ByteView& contents,
                     uint32_t& position) -> void;
-  auto parse_params(const Perimortem::Memory::ManagedString& contents,
+  auto parse_params(const Perimortem::Memory::ByteView& contents,
                     uint32_t& position) -> void;
 
-  Perimortem::Memory::ManagedString json_rpc;
-  Perimortem::Memory::ManagedString method;
-  int32_t id = -1;
+  Perimortem::Memory::Arena& arena;
+  Perimortem::Memory::ByteView json_rpc;
+  Perimortem::Memory::ByteView method;
+  Perimortem::Memory::ByteView id;
   uint32_t params_offset;
 };
 

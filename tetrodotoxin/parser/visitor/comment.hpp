@@ -5,10 +5,10 @@
 
 #include "parser/context.hpp"
 
-#include "memory/managed_string.hpp"
+#include "memory/byte_view.hpp"
 
 namespace Tetrodotoxin::Parser::Visitor {
 
-auto parse_comment(Context& ctx) -> Perimortem::Memory::ManagedString;
+auto parse_comment(Context& ctx) -> Perimortem::Memory::ByteView;
 
 }  // namespace Tetrodotoxin::Parser::Visitor

@@ -9,7 +9,7 @@
 
 #include "memory/arena.hpp"
 #include "memory/managed_lookup.hpp"
-#include "memory/managed_string.hpp"
+#include "memory/byte_view.hpp"
 
 #include "lexical/tokenizer.hpp"
 
@@ -59,8 +59,8 @@ class Library : public Abstract {
   }
 
   // Trys to create a name. Returns the conflict
-  auto create_name(const Perimortem::Memory::ManagedString& name,
-                   const Abstract* abstract) -> bool {
+  auto create_name(const Perimortem::Memory::ByteView& name,
+                   const Abstract& abstract) -> bool {
     if (name_index.contains(name))
       return false;
 
@@ -68,11 +68,11 @@ class Library : public Abstract {
     return true;
   }
 
-  inline auto set_name(const Perimortem::Memory::ManagedString& name) -> void {
+  inline auto set_name(const Perimortem::Memory::ByteView& name) -> void {
     package_name = name;
   }
 
-  inline auto set_doc(Perimortem::Memory::ManagedString& doc_string) -> void {
+  inline auto set_doc(Perimortem::Memory::ByteView& doc_string) -> void {
     doc = doc_string;
   }
 
@@ -105,8 +105,8 @@ class Library : public Abstract {
 
  private:
   Perimortem::Memory::ManagedLookup<const Abstract> name_index;
-  Perimortem::Memory::ManagedString doc;
-  Perimortem::Memory::ManagedString package_name;
+  Perimortem::Memory::ByteView doc;
+  Perimortem::Memory::ByteView package_name;
   bool uses_entity;
 };
 

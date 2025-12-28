@@ -54,7 +54,7 @@ def string_view_summary(valueObject, dictionary):
     value = valueObject.GetChildMemberWithName('_M_str').GetSummary()
     return value.lstrip('"').rstrip('"')
 
-def managed_string_summary(valueObject, dictionary):
+def byte_view_summary(valueObject, dictionary):
     size = valueObject.GetChildMemberWithName('size').GetValueAsUnsigned()
     if (size == 0):
       return "... empty ..."
@@ -75,7 +75,7 @@ def rpc_header_summary(valueObject, dictionary):
 
 def __lldb_init_module(debugger, dict):
   debugger.HandleCommand('type summary add -w avx2 --python-function avx2.string_view_summary std::string_view')
-  debugger.HandleCommand('type summary add -w avx2 --python-function avx2.managed_string_summary Perimortem::Memory::ManagedString')
+  debugger.HandleCommand('type summary add -w avx2 --python-function avx2.byte_view_summary Perimortem::Memory::ByteView')
   debugger.HandleCommand('type summary add -w avx2 --python-function avx2.rpc_header_summary Perimortem::Storage::Json::RpcHeader')
   debugger.HandleCommand('type synthetic add -w avx2 -l avx2.__m256iPrinter __m256i')
   debugger.HandleCommand('type summary add --summary-string "AVX2 256bit Register" __m256i')

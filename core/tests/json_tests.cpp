@@ -40,7 +40,7 @@ TEST_F(JsonTests, init_rpc) {
   Arena test;
   uint32_t pos = 0;
   std::string json = load_text("core/tests/json/init_rpc.json");
-  auto data = parse(test, ManagedString(json), pos);
+  auto data = parse(test, ByteView(json), pos);
 
   ASSERT_NE(data, nullptr);
   EXPECT_TRUE(data->contains("method"));
@@ -63,7 +63,7 @@ TEST_F(JsonTests, tokenize_rpc) {
   Arena test;
   uint32_t pos = 0;
   std::string json = load_text("core/tests/json/tokenize_rpc.json");
-  auto data = parse(test, ManagedString(json), pos);
+  auto data = parse(test, ByteView(json), pos);
 
   ASSERT_NE(data, nullptr);
   EXPECT_TRUE(data->contains("method"));
@@ -84,7 +84,7 @@ TEST_F(JsonTests, rpc_header) {
   std::string json = load_text("core/tests/json/init_rpc.json");
 
   auto data = Perimortem::Storage::Json::RpcHeader(
-      Perimortem::Memory::ManagedString(json.c_str(), json.size()));
+      Perimortem::Memory::ByteView(json.c_str(), json.size()));
 
   EXPECT_EQ(data.get_method(), "initialize");
   EXPECT_EQ(data.get_version(), "2.0");
@@ -96,7 +96,7 @@ TEST_F(JsonTests, jsonrpc) {
   Arena test;
   uint32_t pos = 0;
   std::string json = load_text("core/tests/json/initialized_rpc.json");
-  auto data = parse(test, ManagedString(json), pos);
+  auto data = parse(test, ByteView(json), pos);
 
   ASSERT_NE(data, nullptr);
   EXPECT_TRUE(data->contains("method"));
@@ -113,13 +113,13 @@ TEST_F(JsonTests, jsonrpc_from_header) {
   Arena test;
   std::string json = load_text("core/tests/json/init_rpc.json");
   auto header = Perimortem::Storage::Json::RpcHeader(
-      Perimortem::Memory::ManagedString(json.c_str(), json.size()));
+      Perimortem::Memory::ByteView(json.c_str(), json.size()));
   uint32_t pos = header.get_params_offset();
-  auto data = parse(test, ManagedString(json), pos);
+  auto data = parse(test, ByteView(json), pos);
 
   ASSERT_NE(data, nullptr);
   ASSERT_TRUE(data->contains("processId"));
   ASSERT_EQ(data->at("processId")->get_int(), 18186);
   ASSERT_EQ(data->at("clientInfo")->at("name")->get_string(),
-            ManagedString("VisualStudioCode"));
+            ByteView("VisualStudioCode"));
 }

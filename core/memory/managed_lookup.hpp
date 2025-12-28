@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include "memory/managed_string.hpp"
+#include "memory/byte_view.hpp"
 
 #include <cstring>
 #include <string_view>
@@ -19,7 +19,7 @@ class ManagedLookup {
   static constexpr uint32_t growth_factor = 2;
 
   struct Entry {
-    ManagedString name;
+    ByteView name;
     T* data;
   };
 
@@ -39,14 +39,14 @@ class ManagedLookup {
     }
   }
 
-  constexpr auto insert(const ManagedString& name, T* data) -> void {
+  constexpr auto insert(const ByteView& name, T& data) -> void {
     if (size == capacity)
       grow();
 
-    rented_block[size++] = {name, data};
+    rented_block[size++] = {name, &data};
   }
 
-  constexpr auto contains(const ManagedString& name) const -> bool {
+  constexpr auto contains(const ByteView& name) const -> bool {
     for (int i = 0; i < size; i++) {
       if (rented_block[i].name == name) {
         return true;
@@ -56,7 +56,7 @@ class ManagedLookup {
     return false;
   }
 
-  constexpr auto at(const ManagedString& name) const -> T* {
+  constexpr auto at(const ByteView& name) const -> T* {
     for (int i = 0; i < size; i++) {
       if (rented_block[i].name == name) {
         return rented_block[i].data;

@@ -4,7 +4,7 @@
 #pragma once
 
 #include "core/concepts/bitflag.hpp"
-#include "core/memory/managed_string.hpp"
+#include "core/memory/byte_view.hpp"
 
 #include "token.hpp"
 
@@ -29,7 +29,7 @@ enum class TtxState : int8_t {
 
 class Tokenizer {
  public:
-  auto parse(const Perimortem::Memory::ManagedString source,
+  auto parse(const Perimortem::Memory::ByteView source,
              bool strip_disabled = true) -> void;
 
   inline constexpr auto get_tokens() const -> const TokenStream& {
@@ -45,8 +45,8 @@ class Tokenizer {
   };
 
   inline constexpr auto get_source() const
-      -> Perimortem::Memory::ManagedString {
-    return Perimortem::Memory::ManagedString(source);
+      -> Perimortem::Memory::ByteView {
+    return Perimortem::Memory::ByteView(source);
   };
 
  private:

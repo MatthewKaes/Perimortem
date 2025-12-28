@@ -44,11 +44,11 @@ constexpr auto is_num(uint8_t c) -> bool {
 
 // Used for tracking during parsing
 struct Context {
-  Context(const ManagedString& source, TokenStream& tokens)
+  Context(const ByteView& source, TokenStream& tokens)
       : source(source), tokens(tokens) {};
 
   Location loc;
-  const ManagedString& source;
+  const ByteView& source;
   TokenStream& tokens;
   Perimortem::Concepts::BitFlag<TtxState> options;
 };
@@ -282,7 +282,7 @@ auto parse_identifier(Context& context) -> void {
     SIMPLE_TOKEN(klass, 1);        \
     break;
 
-auto Tokenizer::parse(const Perimortem::Memory::ManagedString source_,
+auto Tokenizer::parse(const Perimortem::Memory::ByteView source_,
                       bool strip_disabled) -> void {
   // Reset state
   source = source_.get_view();
@@ -296,7 +296,7 @@ auto Tokenizer::parse(const Perimortem::Memory::ManagedString source_,
   constexpr const uint32_t tag_size = sizeof("[***]") - 1;
 
   // Tokenizer Loop
-  Context context(ManagedString(source), tokens);
+  Context context(ByteView(source), tokens);
   while (context.loc.parse_index < source.size()) {
     context.loc.source_index = context.loc.parse_index;
     switch (source[context.loc.parse_index]) {

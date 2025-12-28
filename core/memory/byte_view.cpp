@@ -1,7 +1,7 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
-#include "memory/managed_string.hpp"
+#include "memory/byte_view.hpp"
 
 #include <x86intrin.h>
 #include <bit>
@@ -23,7 +23,7 @@ static auto optimized_or_merge(__m256i source[channels]) -> __m256i {
 }
 
 // Scans a 32 bytes block for the offset of a character.
-auto ManagedString::scan(uint8_t search, const uint32_t position) const
+auto ByteView::scan(uint8_t search, const uint32_t position) const
     -> uint32_t {
   // Use 8 AVX2 channels to get out as much performance as we can for long
   // searches.
@@ -90,7 +90,7 @@ auto ManagedString::scan(uint8_t search, const uint32_t position) const
 }
 
 // Scans ahead 32 bytes to search for value.
-auto ManagedString::fast_scan(uint8_t search, const uint32_t position) const
+auto ByteView::fast_scan(uint8_t search, const uint32_t position) const
     -> uint32_t {
   auto search_mask = _mm256_set1_epi8(search);
   const auto value = _mm256_loadu_si256((__m256i*)(rented_block + position));

@@ -6,7 +6,7 @@
 #include "source.hpp"
 
 #include "core/concepts/bitflag.hpp"
-#include "core/memory/managed_string.hpp"
+#include "core/memory/byte_view.hpp"
 
 #include <cstdint>
 #include <limits>
@@ -111,10 +111,10 @@ using ClassifierFlags = Perimortem::Concepts::BitFlag<Classifier>;
 // Wrapper for tokenizing a stream.
 struct Token {
   Classifier klass;
-  const Perimortem::Memory::ManagedString data;
+  const Perimortem::Memory::ByteView data;
   Location location;
 
-  inline auto test(const Perimortem::Memory::ManagedString view) const -> bool {
+  inline auto test(const Perimortem::Memory::ByteView view) const -> bool {
     return data == view;
   }
 

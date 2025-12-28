@@ -30,7 +30,7 @@ static_assert(decode_lookup['+'] == 62);
 static_assert(decode_lookup['/'] == 63);
 static_assert(decode_lookup['='] == 0);
 
-Decoded::Decoded(const Memory::ManagedString& source) {
+Decoded::Decoded(const Memory::ByteView& source) {
   // On AMD processors that don't support AVX512 they "partially" supports it
   // using two fused AVX2 256bit buffers. To make sure we support just about
   // every modern CPU we can use two parallel AVX2 buffers unrolled. This is esp

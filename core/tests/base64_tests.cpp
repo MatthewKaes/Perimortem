@@ -24,16 +24,16 @@ using namespace Perimortem::Storage::Base64;
 
 TEST_F(Base64Tests, decode) {
   Decoded decode(
-      ManagedString("QmFzZTY0IHRlc3Qgc3RyaW5nIGZvciBQZXJpbW9ydGVtLg=="));
+      ByteView("QmFzZTY0IHRlc3Qgc3RyaW5nIGZvciBQZXJpbW9ydGVtLg=="));
 
   EXPECT_EQ(decode.get_view(),
-            ManagedString("Base64 test string for Perimortem."));
+            ByteView("Base64 test string for Perimortem."));
 }
 
 TEST_F(Base64Tests, vectorize_decode) {
   auto source = load_text("core/tests/base64/source.ttx");
   auto base64 = load_text("core/tests/base64/source.base64");
-  Decoded decode{ManagedString(base64)};
+  Decoded decode{ByteView(base64)};
 
-  EXPECT_EQ(decode.get_view(), ManagedString(source));
+  EXPECT_EQ(decode.get_view(), ByteView(source));
 }

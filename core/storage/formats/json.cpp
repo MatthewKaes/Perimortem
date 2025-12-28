@@ -9,44 +9,53 @@
 using namespace Perimortem::Memory;
 using namespace Perimortem::Storage::Json;
 
-static Node null_node;
+// Node with no state that only returns itself savely when operations are
+// performed on it.
+const static Node null_node;
 
 auto Node::null() const -> bool {
-  return this == &null_node;
+  if (std::holds_alternative<NodeState>(value)) {
+    return std::get<NodeState>(value) == NodeState::Null;
+  }
+
+  return false;
 }
 
-auto Node::at(uint32_t index) const -> const Node* {
+auto Node::at(uint32_t index) const -> const Node& {
   if (std::holds_alternative<ManagedVector<Node*>>(value)) {
-    const auto& vec = get<ManagedVector<Node*>>(value);
+    const auto& vec = std::get<ManagedVector<Node*>>(value);
     if (vec.get_size() >= index) {
-      return &null_node;
+      return null_node;
     }
 
-    return vec.at(index);
+    return *vec.at(index);
   }
 
-  return &null_node;
+  return null_node;
 }
 
-auto Node::at(const std::string_view& name) const -> const Node* {
+auto Node::at(const std::string_view& name) const -> const Node& {
   if (std::holds_alternative<ManagedLookup<Node>>(value)) {
-    return get<ManagedLookup<Node>>(value).at(name);
+    auto item = std::get<ManagedLookup<Node>>(value).at(name);
+    if (item) {
+      return *item;
+    }
   }
 
-  return &null_node;
+  return null_node;
 }
 
-auto Node::operator[](uint32_t index) const -> const Node* {
+auto Node::operator[](uint32_t index) const -> const Node& {
   return at(index);
 }
 
-auto Node::operator[](const std::string_view& name) const -> const Node* {
+auto Node::operator[](const std::string_view& name) const -> const Node& {
   return at(name);
 }
 
 auto Node::contains(const std::string_view& name) const -> bool {
   if (std::holds_alternative<ManagedLookup<Node>>(value)) {
-    return get<ManagedLookup<Node>>(value).contains(name);
+    return std::get<ManagedLookup<Node>>(value).contains(name);
   }
 
   return false;
@@ -54,7 +63,7 @@ auto Node::contains(const std::string_view& name) const -> bool {
 
 auto Node::get_bool() const -> const bool {
   if (std::holds_alternative<bool>(value)) {
-    return get<bool>(value);
+    return std::get<bool>(value);
   }
 
   return false;
@@ -62,7 +71,7 @@ auto Node::get_bool() const -> const bool {
 
 auto Node::get_int() const -> const long {
   if (std::holds_alternative<long>(value)) {
-    return get<long>(value);
+    return std::get<long>(value);
   }
 
   return 0;
@@ -70,18 +79,18 @@ auto Node::get_int() const -> const long {
 
 auto Node::get_double() const -> const double {
   if (std::holds_alternative<double>(value)) {
-    return get<double>(value);
+    return std::get<double>(value);
   }
 
   return 0.0;
 }
 
-auto Node::get_string() const -> const Memory::ManagedString {
-  if (std::holds_alternative<ManagedString>(value)) {
-    return get<ManagedString>(value);
+auto Node::get_string() const -> const ByteView {
+  if (std::holds_alternative<ByteView>(value)) {
+    return std::get<ByteView>(value);
   }
 
-  return ManagedString();
+  return ByteView();
 }
 
 namespace Perimortem::Storage::Json {
@@ -99,7 +108,7 @@ auto optimized_or_merge(__m256i source[channels]) -> __m256i {
   }
 }
 
-auto parse_string(ManagedString source, uint32_t& position) -> ManagedString {
+auto parse_string(ByteView source, uint32_t& position) -> ByteView {
   uint32_t start = ++position;
   position = source.scan('"', position);
 
@@ -109,17 +118,36 @@ auto parse_string(ManagedString source, uint32_t& position) -> ManagedString {
 auto ignored_characters(char c) {
   return c == ',';
 }
+auto Node::extend(Arena& arena, Node& node) -> void {
+  if (!std::holds_alternative<ManagedVector<Node*>>(value)) {
+    ManagedVector<Node*> items(arena);
+    items.insert(&node);
 
-auto parse(Memory::Arena& arena, ManagedString source, uint32_t& position)
-    -> Node* {
-  if (position > source.get_size()) {
-    return &null_node;
+    set(items);
+  } else {
+    auto& vec = std::get<ManagedVector<Node*>>(value);
+    vec.insert(&node);
   }
+}
 
-  // Allocations are cheap and we throw away the entire stack if the parse is
-  // bad so it profiled slightly faster to just pull out the construct to the
-  // top level.
-  Node* node = arena.construct<Node>();
+auto Node::extend(Arena& arena, ByteView name, Node& node) -> void {
+  if (!std::holds_alternative<ManagedLookup<Node>>(value)) {
+    ManagedLookup<Node> items(arena);
+    items.insert(name, node);
+
+    set(items);
+  } else {
+    auto& lookup = std::get<ManagedLookup<Node>>(value);
+    lookup.insert(name, node);
+  }
+}
+
+auto Node::from_source(Arena& arena, ByteView source, uint32_t position)
+    -> uint32_t {
+  if (position > source.get_size()) {
+    set(NodeState::Null);
+    return position;
+  }
 
   while (position < source.get_size()) {
     const auto start_char = source[position];
@@ -139,33 +167,36 @@ auto parse(Memory::Arena& arena, ManagedString source, uint32_t& position)
           // characters long.
           const auto start = ++position;
           position = source.fast_scan('"', position);
-          auto name = ManagedString(source.slice(start, position++ - start));
+          auto name = ByteView(source.slice(start, position++ - start));
 
           // Encountered an extra long name so try a full parse.
           if (name.get_size() == 32) {
             position -= 33;
             name = parse_string(source, position);
             if (name.empty()) {
-              return &null_node;
+              set(NodeState::Null);
+              return position;
             }
           }
 
           // :
           position++;
 
-          auto child = parse(arena, source, position);
+          Node* child = arena.construct<Node>();
+          position = child->from_source(arena, source, position);
           if (child->null()) {
-            return child;
+            set(NodeState::Null);
+            return position;
           }
 
-          members.insert(name, child);
+          members.insert(name, *child);
         }
 
         // If we are past the end then this is safe as we null out anyway.
         // If we are at a valid closing '}' then this consumes it.
         position++;
-        node->set(members);
-        return node;
+        set(members);
+        return position;
       }
 
       // Array
@@ -178,55 +209,58 @@ auto parse(Memory::Arena& arena, ManagedString source, uint32_t& position)
             position++;
           }
 
-          auto child = parse(arena, source, position);
+          Node* child = arena.construct<Node>();
+          position = child->from_source(arena, source, position);
           if (child->null()) {
-            return child;
+            set(NodeState::Null);
+            return position;
           }
 
           items.insert(child);
-          node->set(items);
         }
 
         // If we are past the end then this is safe as we null out anyway.
         // If we are at a valid closing ']' then this consumes it.
         position++;
-        return node;
+        set(items);
+        return position;
       }
 
       // String
       case '"': {
         auto name = parse_string(source, position);
-
-        node->set(name);
-        return node;
+        set(name);
+        return position;
       }
 
       // true
       case 't': {
         if (position + 3 >= source.get_size() ||
             std::memcmp(source.get_view().data() + position, "true", 4)) {
-          return nullptr;
+          set(NodeState::Null);
+          return position;
         }
 
         // Move past "true"
         position += 4;
 
-        node->set(true);
-        return node;
+        set(true);
+        return position;
       }
 
       // false
       case 'f': {
         if (position + 4 >= source.get_size() ||
             std::memcmp(source.get_view().data() + position, "false", 5)) {
-          return nullptr;
+          set(NodeState::Null);
+          return position;
         }
 
         // Move past "false"
         position += 5;
 
-        node->set(false);
-        return node;
+        set(false);
+        return position;
       }
 
       // Numbers
@@ -247,8 +281,8 @@ auto parse(Memory::Arena& arena, ManagedString source, uint32_t& position)
         }
 
         if (position < source.get_size() && source[position] != '.') {
-          node->set(value * (negative ? -1 : 1));
-          return node;
+          set(value * (negative ? -1 : 1));
+          return position;
         }
 
         double float_value = value;
@@ -262,11 +296,12 @@ auto parse(Memory::Arena& arena, ManagedString source, uint32_t& position)
         }
 
         if (position < source.get_size()) {
-          node->set((float_value / divisor) * (negative ? -1 : 1));
-          return node;
+          set((float_value / divisor) * (negative ? -1 : 1));
+          return position;
         }
 
-        return &null_node;
+        set(NodeState::Null);
+        return position;
       }
 
       case ',':
@@ -274,10 +309,19 @@ auto parse(Memory::Arena& arena, ManagedString source, uint32_t& position)
         break;
 
       default:
-        return &null_node;
+        set(NodeState::Null);
+        return position;
     }
   }
-  return &null_node;
+
+  set(NodeState::Null);
+  return position;
 }
 
 }  // namespace Perimortem::Storage::Json
+
+// auto Node::format(Arena& arena) -> ManagedString {
+//   ManagedString
+
+// }
+// auto Node::inplace_format(ManagedString& arena) -> void {}

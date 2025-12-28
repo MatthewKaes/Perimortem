@@ -41,9 +41,7 @@ auto main(int argc, char* argv[]) -> int {
   std::cout << " -- Method Registration:" << std::endl;
   std::cout << "   -- initialize" << std::endl;
   jsonrpc.register_method(
-      "initialize",
-      [](Arena& arena, const ManagedString& source,
-         const RpcHeader& info) -> std::string {
+      "initialize", [](const RpcHeader&, const ByteView&) -> ByteView {
         std::stringstream result;
         result << "{\"jsonrpc\":\"" << info.get_version().get_view()
                << "\",\"id\":" << info.get_id() << ",\"result\":{";
@@ -62,23 +60,20 @@ auto main(int argc, char* argv[]) -> int {
                   "}";
         result << "}}}";
 
-        return result.str();
+        return ByteView(result.str());
       });
 
   std::cout << "   -- tokenize" << std::endl;
   jsonrpc.register_method(
       "tokenize",
-      [](Arena& arena, const ManagedString& source,
-         const RpcHeader& info) -> std::string {
+      [](const RpcHeader& info, const ByteView& source) -> std::string {
         std::stringstream result;
         auto position = info.get_params_offset();
-        auto data = Perimortem::Storage::Json::parse(arena, source, position);
+        auto data = Perimortem::Storage::Json::parse(info.get_arena(), source,
+                                                     position);
         if (!data->at("source")->null()) {
-          result << "{\"jsonrpc\": \"" << info.get_version().get_view()
-                 << "\", \"id\":" << info.get_id()
-                 << " \"error\": \"Requested Tokenization but no `source` was "
-                    "provided!\"}";
-          return result.str();
+          return info.rpc_error(
+              "Requested Tokenization but no `source` was provided!");
         }
 
         // One off tokenizer.
@@ -90,36 +85,22 @@ auto main(int argc, char* argv[]) -> int {
 
   std::cout << "   -- format" << std::endl;
   jsonrpc.register_method(
-      "format",
-      [](Arena& arena, const ManagedString& source,
-         const RpcHeader& info) -> std::string {
-        std::stringstream result;
-        auto position = info.get_params_offset();
-        auto data = Perimortem::Storage::Json::parse(arena, source, position);
-        if (data->null()) {
-          result << "{\"jsonrpc\": \"" << info.get_version().get_view()
-                 << "\", \"id\":" << info.get_id()
-                 << " \"error\": \"Failed to parse format request.\"}";
-          return result.str();
+      "format", [](const RpcRequest& request) -> RpcResponse {
+        const auto& args = request.get_params();
+        if (args.null()) {
+          return request.rpc_error("\"Failed to parse format request.\"");
         }
 
-        const auto source_code = data->at("source")->get_string();
-        if (!data->contains("source")) {
-          result << "{\"jsonrpc\": \"" << info.get_version().get_view()
-                 << "\", \"id\":" << info.get_id()
-                 << " \"error\": \"Requested Format but no `source` was "
-                    "provided!\"}";
-          return result.str();
+        const auto source_code = args["source"].get_string();
+        if (source_code.empty()) {
+          return request.rpc_error(
+              "Requested Format but no `source` was provided");
         }
 
-        const auto name_string = data->at("name");
-        if (!name_string) {
-          std::stringstream result;
-          result << "{\"jsonrpc\": \"" << info.get_version().get_view()
-                 << "\", \"id\":" << info.get_id()
-                 << " \"error\": \"Requested Format but no `name` was "
-                    "provided!\"}";
-          return result.str();
+        const auto name_string = args["name"].get_string();
+        if (name_string.empty()) {
+          return request.rpc_error(
+              "Requested Format but no `name` was provided");
         }
 
         // auto path = std::filesystem::path(name_string->get_view());
