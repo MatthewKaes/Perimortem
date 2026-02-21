@@ -1,1 +1,3 @@
 command script import /home/matt/Perimortem/.vscode/lldb_scripts/avx2.py
+command script import /home/matt/Perimortem/.vscode/lldb_scripts/data_types.py
+command script import /home/matt/Perimortem/.vscode/lldb_scripts/json.py
