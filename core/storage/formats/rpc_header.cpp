@@ -6,7 +6,7 @@
 using namespace Perimortem::Storage::Json;
 using namespace Perimortem::Memory;
 
-RpcHeader::RpcHeader(Arena& arena, ByteView contents) : arena(arena) {
+RpcHeader::RpcHeader(Arena& arena, const View::Bytes contents) : arena(arena) {
   uint32_t position = 0;
 
   parse_rpc(contents, position);
@@ -15,9 +15,9 @@ RpcHeader::RpcHeader(Arena& arena, ByteView contents) : arena(arena) {
   parse_params(contents, position);
 }
 
-auto RpcHeader::parse_rpc(const Perimortem::Memory::ByteView& contents,
+auto RpcHeader::parse_rpc(const View::Bytes& contents,
                           uint32_t& position) -> void {
-  const ByteView rpc_block("\"jsonrpc\"");
+  const View::Bytes rpc_block("\"jsonrpc\"");
 
   while (position < contents.get_size() && contents[position] != '"') {
     position++;
@@ -42,9 +42,9 @@ auto RpcHeader::parse_rpc(const Perimortem::Memory::ByteView& contents,
   json_rpc = contents.slice(start, end - start);
 }
 
-auto RpcHeader::parse_id(const Perimortem::Memory::ByteView& contents,
+auto RpcHeader::parse_id(const View::Bytes& contents,
                          uint32_t& position) -> void {
-  const ByteView id_block("\"id\"");
+  const View::Bytes id_block("\"id\"");
 
   while (position < contents.get_size() && contents[position] != '"') {
     position++;
@@ -71,9 +71,9 @@ auto RpcHeader::parse_id(const Perimortem::Memory::ByteView& contents,
   id = contents.slice(start, end - start);
 }
 
-auto RpcHeader::parse_method(const Perimortem::Memory::ByteView& contents,
+auto RpcHeader::parse_method(const View::Bytes& contents,
                              uint32_t& position) -> void {
-  const ByteView method_block("\"method\"");
+  const View::Bytes method_block("\"method\"");
 
   while (position < contents.get_size() && contents[position] != '"') {
     position++;
@@ -97,9 +97,9 @@ auto RpcHeader::parse_method(const Perimortem::Memory::ByteView& contents,
 
   method = contents.slice(start, end - start);
 }
-auto RpcHeader::parse_params(const Perimortem::Memory::ByteView& contents,
+auto RpcHeader::parse_params(const View::Bytes& contents,
                              uint32_t& position) -> void {
-  const ByteView params_block("\"params\"");
+  const View::Bytes params_block("\"params\"");
 
   while (position < contents.get_size() && contents[position] != '"') {
     position++;

@@ -28,7 +28,7 @@ class Program : public Abstract {
     return Usage::Transitory;
   };
   auto get_size() const -> uint32_t override { return 0; };
-  auto resolve() const -> const Abstract* override { this; }
+  auto resolve() const -> const Abstract* override { return this; }
 
   auto resolve_context(std::string_view name) const
       -> const Abstract* override {
@@ -51,15 +51,17 @@ class Program : public Abstract {
   // extended to host submodules if we ever want
   auto resolve_host() const -> const Abstract* override { return nullptr; }
 
-  auto expand_context(const std::function<void(const Abstract* const)>& fn)
-      const -> void override {
+  auto expand_context(
+      const std::function<void(const View::Bytes&,
+                               const Abstract* const&)>& fn) const
+      -> void override {
     // Include all types compiled from path.
     for (const auto& named_pair : path_registry) {
-      fn(named_pair.second.get());
+      fn(named_pair.first.c_str(), named_pair.second.get());
     }
     // Include all external types.
     for (const auto& named_pair : external_abstracts) {
-      fn(named_pair.second);
+      fn(named_pair.first, named_pair.second);
     }
   }
 

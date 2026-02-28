@@ -1,14 +1,14 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
-#include "memory/byte_view.hpp"
+#include "memory/view/bytes.hpp"
 
 #include <x86intrin.h>
 #include <bit>
 
 using namespace Perimortem::Memory;
 
-template <uint32_t channels, uint32_t index, uint32_t range>
+template <Bits_32 channels, Bits_32 index, Bits_32 range>
 static auto optimized_or_merge(__m256i source[channels]) -> __m256i {
   if constexpr (range == 1) {
     return source[index];
@@ -23,8 +23,8 @@ static auto optimized_or_merge(__m256i source[channels]) -> __m256i {
 }
 
 // Scans a 32 bytes block for the offset of a character.
-auto ByteView::scan(uint8_t search, const uint32_t position) const
-    -> uint32_t {
+auto View::Bytes::scan(Byte search, Count position) const
+    -> Count {
   // Use 8 AVX2 channels to get out as much performance as we can for long
   // searches.
   constexpr const auto fused_channels = 8;
@@ -32,13 +32,13 @@ auto ByteView::scan(uint8_t search, const uint32_t position) const
   constexpr const auto full_channel_width = avx2_channel_width * fused_channels;
 
   auto search_mask = _mm256_set1_epi8(search);
-  uint32_t offset = position;
+  Count offset = position;
   for (; offset < size; offset += full_channel_width) {
     // Load all channels and check for our target byte.
     __m256i masks[fused_channels];
     for (auto ymm = 0; ymm < fused_channels; ymm++) {
       const auto value = _mm256_loadu_si256(
-          (__m256i*)(rented_block + offset + avx2_channel_width * ymm));
+          (__m256i*)(source_block + offset + avx2_channel_width * ymm));
       masks[ymm] = _mm256_cmpeq_epi8(value, search_mask);
     }
 
@@ -50,10 +50,10 @@ auto ByteView::scan(uint8_t search, const uint32_t position) const
     if (!_mm256_testz_si256(group_mask, group_mask)) {
       auto ymm = 0;
       for (auto ymm = 0; ymm < fused_channels - 2; ymm += 2) {
-        const uint32_t result_lower = _mm256_movemask_epi8(masks[ymm]);
-        const uint32_t result_upper = _mm256_movemask_epi8(masks[ymm + 1]);
-        const uint64_t result_merged =
-            (uint64_t)result_upper << 32ul | (uint64_t)result_lower;
+        const Bits_32 result_lower = _mm256_movemask_epi8(masks[ymm]);
+        const Bits_32 result_upper = _mm256_movemask_epi8(masks[ymm + 1]);
+        const Bits_64 result_merged =
+            (Bits_64)result_upper << 32ul | (Bits_64)result_lower;
 
         // Since we have additional channels only return if we have our
         // target.
@@ -65,14 +65,14 @@ auto ByteView::scan(uint8_t search, const uint32_t position) const
 
       // We must have a left over register so we can just check it.
       if (ymm == fused_channels - 2) {
-        const uint32_t result_lower = _mm256_movemask_epi8(masks[ymm]);
-        const uint32_t result_upper = _mm256_movemask_epi8(masks[ymm + 1]);
-        const uint64_t result_merged =
-            (uint64_t)result_upper << 32ul | (uint64_t)result_lower;
+        const Bits_32 result_lower = _mm256_movemask_epi8(masks[ymm]);
+        const Bits_32 result_upper = _mm256_movemask_epi8(masks[ymm + 1]);
+        const Bits_64 result_merged =
+            (Bits_64)result_upper << 32ul | (Bits_64)result_lower;
         return offset + std::countr_zero(result_merged) +
                avx2_channel_width * ymm;
       } else {
-        const uint32_t result = _mm256_movemask_epi8(masks[ymm]);
+        const Bits_32 result = _mm256_movemask_epi8(masks[ymm]);
         return offset + std::countr_zero(result) + avx2_channel_width * ymm;
       }
     }
@@ -80,7 +80,7 @@ auto ByteView::scan(uint8_t search, const uint32_t position) const
 
   // Scalar fallback
   for (; offset < size; offset += 1) {
-    if (rented_block[position + offset] == '"') {
+    if (source_block[position + offset] == '"') {
       return offset;
     }
   }
@@ -90,11 +90,11 @@ auto ByteView::scan(uint8_t search, const uint32_t position) const
 }
 
 // Scans ahead 32 bytes to search for value.
-auto ByteView::fast_scan(uint8_t search, const uint32_t position) const
-    -> uint32_t {
+auto View::Bytes::fast_scan(Byte search, Count position) const
+    -> Count {
   auto search_mask = _mm256_set1_epi8(search);
-  const auto value = _mm256_loadu_si256((__m256i*)(rented_block + position));
+  const auto value = _mm256_loadu_si256((__m256i*)(source_block + position));
   const auto compare = _mm256_cmpeq_epi8(value, search_mask);
-  const uint32_t offset_mask = _mm256_movemask_epi8(compare);
+  const Bits_32 offset_mask = _mm256_movemask_epi8(compare);
   return position + std::countr_zero(offset_mask);
 }

@@ -4,28 +4,28 @@
 #pragma once
 
 #include "memory/arena.hpp"
-#include "memory/managed_string.hpp"
+#include "memory/managed/bytes.hpp"
 
 namespace Perimortem::Storage::Json {
 
 class RpcHeader {
  public:
-  RpcHeader(Perimortem::Memory::Arena& arena,
-            Perimortem::Memory::ByteView contents);
+  RpcHeader(Memory::Arena& arena,
+            Memory::View::Bytes contents);
 
   inline constexpr auto get_version() const
-      -> const Perimortem::Memory::ByteView {
+      -> const Memory::View::Bytes {
     return json_rpc;
   }
   inline constexpr auto get_method() const
-      -> const Perimortem::Memory::ByteView {
+      -> const Memory::View::Bytes {
     return method;
   }
-  inline constexpr auto get_id() const -> const Perimortem::Memory::ByteView {
+  inline constexpr auto get_id() const -> const Memory::View::Bytes {
     return id;
   }
 
-  inline constexpr auto get_arena() const -> Perimortem::Memory::Arena    & {
+  inline constexpr auto get_arena() const -> Memory::Arena    & {
     return arena;
   }
 
@@ -34,19 +34,19 @@ class RpcHeader {
   }
 
  private:
-  auto parse_rpc(const Perimortem::Memory::ByteView& contents,
+  auto parse_rpc(const Memory::View::Bytes& contents,
                  uint32_t& position) -> void;
-  auto parse_id(const Perimortem::Memory::ByteView& contents,
+  auto parse_id(const Memory::View::Bytes& contents,
                 uint32_t& position) -> void;
-  auto parse_method(const Perimortem::Memory::ByteView& contents,
+  auto parse_method(const Memory::View::Bytes& contents,
                     uint32_t& position) -> void;
-  auto parse_params(const Perimortem::Memory::ByteView& contents,
+  auto parse_params(const Memory::View::Bytes& contents,
                     uint32_t& position) -> void;
 
   Perimortem::Memory::Arena& arena;
-  Perimortem::Memory::ByteView json_rpc;
-  Perimortem::Memory::ByteView method;
-  Perimortem::Memory::ByteView id;
+  Memory::View::Bytes json_rpc;
+  Memory::View::Bytes method;
+  Memory::View::Bytes id;
   uint32_t params_offset;
 };
 

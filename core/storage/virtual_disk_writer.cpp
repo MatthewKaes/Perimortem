@@ -13,7 +13,7 @@
 using namespace Perimortem::Storage;
 
 template <typename T>
-auto write_block(Bytes& source, T block) -> void {
+auto write_block(Memory::Managed::Bytes& source, T block) -> void {
   using stroage_type = T;
   source.resize(source.size() + sizeof(stroage_type));
   stroage_type data = static_cast<stroage_type>(block);
@@ -207,7 +207,7 @@ auto VirtualDiskWriter::write_disk(const std::filesystem::path& p) -> bool {
 
 auto VirtualDiskWriter::compress(Bytes& source) -> bool {
   Bytes compressed;
-  if (!compress(compressed, ByteView(source.data(), source.size())))
+  if (!compress(compressed, View::Byte(source.data(), source.size())))
     return false;
 
   source.swap(compressed);
@@ -215,7 +215,7 @@ auto VirtualDiskWriter::compress(Bytes& source) -> bool {
   return true;
 }
 
-auto VirtualDiskWriter::compress(Bytes& output, ByteView source) -> bool {
+auto VirtualDiskWriter::compress(Bytes& output, View::Byte source) -> bool {
   const int level =
       static_cast<std::underlying_type_t<CompressionLevels>>(compression);
   static auto cctx = ZSTD_createCCtx();

@@ -15,9 +15,7 @@ class ArchiveLock {
     }
   }
 
-  ~ArchiveLock() {
-    lock.clear();
-  }
+  ~ArchiveLock() { lock.clear(); }
 
  private:
   inline static std::atomic_flag lock = ATOMIC_FLAG_INIT;
@@ -50,9 +48,8 @@ auto Bibliotheca::check_out(size_type requested_bytes) -> Preface* {
     if (entry == nullptr) [[unlikely]] {
       __builtin_debugtrap();
     }
-
-    entry->marker = biblio_marker;
 #endif
+
     entry->previous = nullptr;
     entry->usage = sizeof(Preface);
     entry->capacity = actual_bytes;
@@ -67,7 +64,7 @@ auto Bibliotheca::check_out(size_type requested_bytes) -> Preface* {
   faceted_archives[archive_index].initial_entry = entry->previous;
 
   entry->previous = nullptr;
-  entry->usage = sizeof(Preface);
+  entry->usage = 0;
   entry->reservations = 1;
   return entry;
 }
@@ -84,6 +81,13 @@ auto Bibliotheca::remit(Preface* entry) -> size_type {
   // If there are no reservations then return to the appropriate archive.
   if (entry->reservations == 0) {
     uint8_t archive_index = std::bit_width(entry->capacity) - min_radix;
+
+    // Enormous blocks should just be freed.
+    if (archive_index >= faceted_archives.size()) [[unlikely]] {
+      free(entry);
+      return 0;
+    }
+
     entry->previous = faceted_archives[archive_index].initial_entry;
     faceted_archives[archive_index].initial_entry = entry;
   }

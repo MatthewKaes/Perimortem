@@ -8,10 +8,10 @@ using namespace Tetrodotoxin::Parser;
 using namespace Tetrodotoxin::Types;
 using namespace Perimortem::Memory;
 
-auto Visitor::parse_string(Context& ctx) -> ByteView {
+auto Visitor::parse_string(Context& ctx) -> View::Byte {
   if (!ctx.check_klass(Classifier::String)) {
     ctx.advance();
-    return ByteView("");
+    return ""_bv;
   }
 
   auto token = &ctx.current();

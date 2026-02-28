@@ -1,12 +1,12 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
-#include "types/program.hpp"
+#include "tetrodotoxin/virtual_machine/engine/program.hpp"
 
-#include "types/std/byt.hpp"
-#include "types/std/dec.hpp"
-#include "types/std/int.hpp"
-#include "types/std/num.hpp"
+#include "tetrodotoxin/virtual_machine/types/std/byt.hpp"
+#include "tetrodotoxin/virtual_machine/types/std/dec.hpp"
+#include "tetrodotoxin/virtual_machine/types/std/int.hpp"
+#include "tetrodotoxin/virtual_machine/types/std/num.hpp"
 
 using namespace Tetrodotoxin::Types;
 

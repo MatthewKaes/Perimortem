@@ -32,7 +32,7 @@ Perimortem has built in support for VSCode on linux. To run OOTB you'll need the
 If you are running on Arch you will need the closed source version of VSCode in order to run the C++ extensions.
 If you are fine without it then go ham.
 
-### Tetrodotoxin support
+### Tetrodotoxin Toolchain Support
 
 Perimortem support Tetrodotoxin in VSCode via an Lsp (language server protocol) service.
 You can build and launch a version of VSCode with the TTX extension using:
@@ -40,6 +40,8 @@ You can build and launch a version of VSCode with the TTX extension using:
 > debug Launch TTX Client
 
 If you aren't using VSCode you can use `ttx-lang-server` in your engine of choice. The code for the server lives in `tetrodotoxin/lsp/server`, however if you want to build this project it just assumes you are using VSCode on Arch.
+
+If you are looking for the Tetrodotoxin spec check out its dedicated [README](https://github.com/MatthewKaes/Perimortem/blob/main/tetrodotoxin/README.md).
 
 ## OS Support
 

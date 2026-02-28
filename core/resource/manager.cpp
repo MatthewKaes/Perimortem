@@ -22,7 +22,7 @@ auto get_time(const std::filesystem::path& p) -> Resource::Time {
   return Resource::Time();
 }
 
-auto Resource::read_content() const -> const ByteView {
+auto Resource::read_content() const -> const View::Byte {
   if (!content.empty())
     return {content.data(), content.size()};
 
@@ -357,7 +357,7 @@ auto Manager::flush_changes() -> void {
   for (const auto& entry : directory) {
     has_data[(int)entry.first.get_sector()] = true;
 
-    auto content = ByteView();
+    auto content = View::Byte();
     if (entry.second->is_virtual())
       content = entry.second->read_content();
 

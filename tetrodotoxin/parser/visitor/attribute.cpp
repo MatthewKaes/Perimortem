@@ -9,8 +9,8 @@ using namespace Tetrodotoxin::Lexical;
 using namespace Tetrodotoxin::Parser;
 using namespace Tetrodotoxin::Types;
 
-auto Visitor::parse_attribute(Context& ctx) -> Compiler::Attribute* {
-  Types::Compiler::Attribute* attribute =
+auto Visitor::parse_attribute(Context& ctx) -> Compiler::Attribute& {
+  Types::Compiler::Attribute& attribute =
       ctx.get_allocator().construct<Types::Compiler::Attribute>();
   auto token = &ctx.current();
 
@@ -18,8 +18,7 @@ auto Visitor::parse_attribute(Context& ctx) -> Compiler::Attribute* {
     ctx.token_error("TTX Script Attribute has an empty name.");
   }
 
-  attribute->name =
-      Perimortem::Memory::ByteView(token->data);
+  attribute.name = View::Bytes(token->data);
 
   auto start_token = token;
 
@@ -35,11 +34,11 @@ auto Visitor::parse_attribute(Context& ctx) -> Compiler::Attribute* {
     ctx.range_error(
         std::format(
             "TTX Script Attribute {} expected a String after `=` but got {}",
-            attribute->name.get_view(), klass_name(token->klass)),
+            attribute.name.get_view(), klass_name(token->klass)),
         *token, *start_token, *token);
     ctx.advance();
   } else {
-    attribute->value = parse_string(ctx);
+    attribute.value = parse_string(ctx);
   }
 
   // If we correctly have an end statement then consume it, otherwise report a

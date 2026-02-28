@@ -12,13 +12,13 @@
 using namespace Tetrodotoxin::Lexical;
 
 struct TokenizerTests : public ::testing::Test {
-protected:
+ protected:
   virtual void SetUp() {}
   virtual void TearDown() {}
 };
 
-auto read_all_bytes(const std::filesystem::path &p) -> std::string {
-  if(!std::filesystem::is_regular_file(p))
+auto read_all_bytes(const std::filesystem::path& p) -> std::string {
+  if (!std::filesystem::is_regular_file(p))
     return std::string();
 
   std::ifstream ifs(p, std::ios::binary | std::ios::ate);
@@ -30,34 +30,36 @@ auto read_all_bytes(const std::filesystem::path &p) -> std::string {
   std::string data;
   data.resize(pos);
   ifs.seekg(0, std::ios::beg);
-  ifs.read((char *)data.data(), pos);
+  ifs.read((char*)data.data(), pos);
   return data;
 }
 
-void compare_tokens(const Token &result, Classifier klass,
-                    std::string_view data, Location loc) {
+void compare_tokens(const Token& result,
+                    Classifier klass,
+                    View::Bytes data,
+                    Location loc) {
   EXPECT_EQ(result.klass, klass);
 
   EXPECT_EQ(result.location.line, loc.line);
   EXPECT_EQ(result.location.column, loc.column);
 
-  ASSERT_EQ(result.data.get_size(), data.size());
-  for (int i = 0; i < data.size(); ++i) {
+  ASSERT_EQ(result.data.get_size(), data.get_size());
+  for (int i = 0; i < data.get_size(); ++i) {
     EXPECT_EQ(result.data[i], data[i])
         << "views differ at byte " << std::hex << i;
   }
 }
 
 #define START_CHECK() int check_index = 0;
-#define TOKEN_CHECK(klass, data, row, col)                                     \
-  compare_tokens(t.get_tokens()[check_index], Classifier::klass, data,         \
-                 Location(0, 0, row, col));                                          \
+#define TOKEN_CHECK(klass, data, row, col)                             \
+  compare_tokens(t.get_tokens()[check_index], Classifier::klass, data, \
+                 Location(0, 0, row, col));                            \
   check_index++;
 
 // Demonstrate some basic assertions.
 TEST_F(TokenizerTests, empty) {
   Tokenizer t;
-  t.parse(Perimortem::Memory::ByteView(R"()"));
+  t.parse(""_bv);
   ASSERT_EQ(t.get_tokens().size(), 1);
   ASSERT_EQ(t.get_tokens()[0].klass, Classifier::EndOfStream);
 }
@@ -65,7 +67,7 @@ TEST_F(TokenizerTests, empty) {
 // Demonstrate some basic assertions.
 TEST_F(TokenizerTests, just_whitespace) {
   Tokenizer t;
-  t.parse(Perimortem::Memory::ByteView("     \n\n \t  "));
+  t.parse("     \n\n \t  "_bv);
   ASSERT_EQ(t.get_tokens().size(), 1);
   ASSERT_EQ(t.get_tokens()[0].klass, Classifier::EndOfStream);
 }
@@ -73,17 +75,17 @@ TEST_F(TokenizerTests, just_whitespace) {
 // Demonstrate some basic assertions.
 TEST_F(TokenizerTests, numbers) {
   Tokenizer t;
-  t.parse(Perimortem::Memory::ByteView("0 0. 1.123 .0 1var21"));
+  t.parse("0 0. 1.123 .0 1var21"_bv);
   EXPECT_EQ(t.get_tokens().size(), 8);
 
   // Token Stream
   START_CHECK()
-  TOKEN_CHECK(Numeric, "0", 1, 1);
-  TOKEN_CHECK(Float, "0.", 1, 3);
-  TOKEN_CHECK(Float, "1.123", 1, 6);
-  TOKEN_CHECK(AccessOp, ".", 1, 12);
-  TOKEN_CHECK(Numeric, "0", 1, 13);
-  TOKEN_CHECK(Numeric, "1", 1, 15);
-  TOKEN_CHECK(Identifier, "var21", 1, 16);
+  TOKEN_CHECK(Numeric, "0"_bv, 1, 1);
+  TOKEN_CHECK(Float, "0."_bv, 1, 3);
+  TOKEN_CHECK(Float, "1.123"_bv, 1, 6);
+  TOKEN_CHECK(AccessOp, "."_bv, 1, 12);
+  TOKEN_CHECK(Numeric, "0"_bv, 1, 13);
+  TOKEN_CHECK(Numeric, "1"_bv, 1, 15);
+  TOKEN_CHECK(Identifier, "var21"_bv, 1, 16);
   TOKEN_CHECK(EndOfStream, "", 1, sizeof("0 0. 1.123 .0 1var21"));
 }

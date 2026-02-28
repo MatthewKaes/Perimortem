@@ -1,16 +1,16 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
+#include <iostream>
+
+#include "core/storage/formats/base64.hpp"
+#include "core/storage/formats/json.hpp"
+#include "lexical/tokenizer.hpp"
 #include "src/language_server.hpp"
 #include "src/service.hpp"
 
-#include "core/storage/formats/json.hpp"
-#include "lexical/tokenizer.hpp"
-
-#include <iostream>
-#include <sstream>
-
 using namespace Perimortem::Memory;
+using namespace Perimortem::Storage;
 using namespace Tetrodotoxin::Lsp;
 using namespace Tetrodotoxin::Lexical;
 
@@ -41,46 +41,44 @@ auto main(int argc, char* argv[]) -> int {
   std::cout << " -- Method Registration:" << std::endl;
   std::cout << "   -- initialize" << std::endl;
   jsonrpc.register_method(
-      "initialize", [](const RpcHeader&, const ByteView&) -> ByteView {
-        std::stringstream result;
-        result << "{\"jsonrpc\":\"" << info.get_version().get_view()
-               << "\",\"id\":" << info.get_id() << ",\"result\":{";
-        result << "\"serverInfo\":{\"name\":\"Tetrodotoxin Language "
-                  "Server\",\"version\":\"1.0\"},";
-        result << "\"capabilities\":{\"positionEncoding\":\"utf-16\",";
-        // TODO: Add support for completion characters [\".\",\">\"]
-        // result << "\"completionProvider\":{"
-        //           "\"resolveProvider\":true,"
-        //           "\"triggerCharacters\":[\".\",\">\"],"
-        //           "\"completionItem\":{\"labelDetailsSupport\":true}"
-        //           "},";
-        result << "\"textDocumentSync\":{"
-                  "\"openClose\":true,"
-                  "\"change\":\"1\""
-                  "}";
-        result << "}}}";
+      "initialize", [](const RpcRequest& request) -> RpcResponse {
+        auto response = request.create_object(
+            {{"serverInfo", request.create_object({
+                                {"name"_bv, "Tetrodotoxin Language Server"_bv},
+                                {"version"_bv, "1.0"_bv},
+                            })},
+             {"capabilities",
+              request.create_object({
+                  {"positionEncoding"_bv, "utf-16"_bv},
+                  {"textDocumentSync"_bv,
+                   request.create_object(
+                       {{"openClose"_bv, true}, {"change"_bv, "1"_bv}})},
+              })}});
 
-        return ByteView(result.str());
+        return request.rpc_result(response);
       });
 
   std::cout << "   -- tokenize" << std::endl;
   jsonrpc.register_method(
-      "tokenize",
-      [](const RpcHeader& info, const ByteView& source) -> std::string {
-        std::stringstream result;
-        auto position = info.get_params_offset();
-        auto data = Perimortem::Storage::Json::parse(info.get_arena(), source,
-                                                     position);
-        if (!data->at("source")->null()) {
-          return info.rpc_error(
-              "Requested Tokenization but no `source` was provided!");
+      "tokenize", [](const RpcRequest& request) -> RpcResponse {
+        const auto& args = request.get_params();
+        if (args.null()) {
+          return request.rpc_error("\"Failed to parse tokenize request.\"");
+        }
+
+        const auto source_code = args["source"].get_string();
+        if (source_code.empty()) {
+          return request.rpc_error(
+              "Requested Fotokenizemat but no `source` was provided");
         }
 
         // One off tokenizer.
-        static Tokenizer tokenizer;
-        tokenizer.parse(data->at("source")->get_string(), false);
+        Tokenizer tokenizer(request.get_arena());
+        tokenizer.parse(
+            Base64::Decoded(request.get_arena(), source_code).get_view(),
+            false);
 
-        return Service::lsp_tokens(tokenizer, info);
+        return Service::lsp_tokens(tokenizer, request);
       });
 
   std::cout << "   -- format" << std::endl;
@@ -106,15 +104,14 @@ auto main(int argc, char* argv[]) -> int {
         // auto path = std::filesystem::path(name_string->get_view());
         // std::string name = path.filename();
 
-        Tokenizer tokenizer;
-        tokenizer.parse(source_code, false);
+        // One off tokenizer.
+        static Tokenizer tokenizer(request.get_arena());
+        tokenizer.parse(
+            Base64::Decoded(request.get_arena(), source_code).get_view(),
+            false);
 
-        // TODO: For now just return back the source.
-        result << "{\"jsonrpc\": \"" << info.get_version().get_view()
-               << "\", \"id\":" << info.get_id()
-               << ",\"result\":{\"document\":\"" << source_code.get_view()
-               << "\"}}";
-        return result.str();
+        return request.rpc_result(
+            request.create_object({{"document"_bv, source_code}}));
       });
 
   std::cout << " -- Starting JsonRPC..." << std::endl;

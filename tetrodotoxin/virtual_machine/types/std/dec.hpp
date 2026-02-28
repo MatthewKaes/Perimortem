@@ -21,7 +21,7 @@ class Dec : public Abstract, public Perimortem::Concepts::Singleton<Dec> {
            "For long term storage and most regular cases use `Num` instead.";
   };
   constexpr auto get_uuid() const -> uint32_t override { return uuid; };
-  constexpr virtual auto get_usage() const -> Usage { return Usage::Constant; };
+  constexpr virtual auto get_usage() const -> Usage override { return Usage::Constant; };
   auto get_size() const -> uint32_t override { return sizeof(long double); };
 };
 

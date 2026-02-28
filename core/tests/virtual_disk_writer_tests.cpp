@@ -9,13 +9,13 @@ using namespace Perimortem::Storage;
 
 static std::string script;
 static std::string script_path;
-static ByteView script_view;
+static View::Byte script_view;
 static std::string txt;
 static std::string txt_path;
-static ByteView txt_view;
+static View::Byte txt_view;
 static Bytes logo_svg;
 static std::string logo_svg_path;
-static ByteView logo_svg_view;
+static View::Byte logo_svg_view;
 
 extern auto read_all_bytes(const std::filesystem::path &p) -> Bytes;
 

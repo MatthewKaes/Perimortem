@@ -13,7 +13,7 @@ using namespace Perimortem::Memory;
 using namespace Perimortem::Storage::Json;
 using namespace Tetrodotoxin::Lsp;
 
-UnixJsonRPC::UnixJsonRPC(const std::string& pipe_data_)
+UnixJsonRPC::UnixJsonRPC(const std::string_view& pipe_data_)
     : pipe_name(pipe_data_) {
   sock_descriptor = socket(AF_FILE, SOCK_STREAM, 0);
   sockaddr_un address;
@@ -33,7 +33,7 @@ UnixJsonRPC::~UnixJsonRPC() {
   close(sock_descriptor);
 }
 
-auto UnixJsonRPC::register_method(std::string name, DispatchFunc resolver)
+auto UnixJsonRPC::register_method(std::string_view name, DispatchFunc resolver)
     -> void {
   method_resolver[name] = resolver;
 }
@@ -64,7 +64,8 @@ auto UnixJsonRPC::process() -> void {
         }
 
         // Use a a lazy loader to quickly rule out any invalid requests.
-        RpcRequest request{json_arena, ByteView(local_data)};
+        RpcRequest request{json_arena,
+                           View::Bytes(local_data.data(), local_data.size())};
         if (!request.is_valid()) {
           std::cout << "[ex=" << thread_id
                     << "] Job Rejected job due to invalid jsonrpc header..."
@@ -73,26 +74,33 @@ auto UnixJsonRPC::process() -> void {
         }
 
         auto method_name = request.get_method();
-        if (!method_resolver.contains(method_name)) {
+        if (!method_resolver.contains(std::string_view(
+            method_name.get_data(), method_name.get_size()))) {
           std::cout << "[ex=" << thread_id << "] Job Rejected unknown rpc `"
-                    << method_name << "`" << std::endl;
+                    << std::string_view(
+            method_name.get_data(), method_name.get_size()) << "`" << std::endl;
           continue;
         }
 
-        std::cout << "[ex=" << thread_id << "] Job accepted: " << method_name
+        std::cout << "[ex=" << thread_id << "] Job accepted: " << std::string_view(
+            method_name.get_data(), method_name.get_size())
                   << std::endl;
         request.load_params();
-        auto response = method_resolver[method_name](request);
+        auto response = method_resolver[std::string_view(
+            method_name.get_data(), method_name.get_size())](request);
 
-        auto write_jsonrpc_frame = [this, &method_name](
-                                       const std::string_view& view) {
+        auto write_jsonrpc_frame = [this,
+                                    &method_name](const View::Bytes& view) {
           int32_t bytes_written = 0;
-          while (bytes_written < view.size()) {
-            int32_t bytes = write(sock_descriptor, view.data() + bytes_written,
-                                  view.size() - bytes_written);
+          while (bytes_written < view.get_size()) {
+            int32_t bytes =
+                write(sock_descriptor, view.get_data() + bytes_written,
+                      view.get_size() - bytes_written);
             if (bytes < 0) {
               std::cout << "Writting to socket failed while processing job: "
-                        << method_name << std::endl;
+                        << std::string_view(method_name.get_data(),
+                                            method_name.get_size())
+                        << std::endl;
               valid = false;
               return;
             }
@@ -101,14 +109,18 @@ auto UnixJsonRPC::process() -> void {
           }
         };
 
+        auto json_response = response.format(json_arena);
+
         // Write out the annoying Data Frame
-        std::stringstream frame;
-        frame << "Content-Length: " << response.result.get_view() << "\r\n\r\n";
+        Managed::Bytes frame(json_arena);
+        frame.append("Content-Length: ");
+        frame.append((uint64_t)json_response.get_size());
+        frame.append("\r\n\r\n");
 
         // Header frame
-        write_jsonrpc_frame(frame.view());
+        write_jsonrpc_frame(frame.get_view());
         // JSON Response frame
-        write_jsonrpc_frame(response.result.get_view());
+        write_jsonrpc_frame(json_response);
 
         // For debugging
         // std::cout << "[ex=" << thread_id << "] " << response.get_view() <<

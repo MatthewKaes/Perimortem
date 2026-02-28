@@ -7,18 +7,20 @@
 #include "storage/disk_info.hpp"
 
 #include <filesystem>
-#include <fstream>
 #include <memory>
-#include <unordered_map>
-#include <vector>
+
+#include "core/memory/managed/bytes.hpp"
+#include "core/memory/managed/table.hpp"
+#include "core/memory/managed/vector.hpp"
 
 namespace Perimortem::Storage {
 
 class VirtualDiskReader {
  public:
   struct Block {
-    Bytes data;
-    int location;
+    Block(Memory::Arena& disk_arena) : data(disk_arena) {}
+    Memory::Managed::Bytes data;
+    uint64_t location;
   };
 
   // Populating Disk
@@ -28,31 +30,39 @@ class VirtualDiskReader {
       -> std::unique_ptr<VirtualDiskReader>;
 
   inline auto get_format() const -> DiskType { return format; }
-  inline auto get_blocks() const -> const std::vector<Block>& { return blocks; }
-  inline auto get_files() const -> const std::vector<FileData>& {
-    return files;
+  inline auto get_blocks() const -> const Memory::View::Vector<Block> {
+    return blocks.get_view();
+  }
+  inline auto get_files() const -> const Memory::View::Vector<FileData> {
+    return files.get_view();
   }
 
   // Read from a stream instance
-  auto stream_from_disk(const std::string_view& path, Bytes& data) -> bool;
+  auto stream_from_disk(const Memory::View::Bytes path,
+                        Memory::Managed::Bytes& data) -> bool;
 
   // Semi-human readable dump of the disk information
   auto dump_info() const -> std::string;
 
  private:
-  VirtualDiskReader() {};
+  VirtualDiskReader()
+      : disk_arena(),
+        blocks(disk_arena),
+        files(disk_arena),
+        stream_index(disk_arena) {};
 
+  Memory::Arena disk_arena;
   DiskType format;
-  std::vector<Block> blocks;
   std::filesystem::path disk_path;
-  static auto decompress_block(Bytes& data) -> void;
+  static auto decompress_block(Memory::Managed::Bytes& data) -> void;
 
   // Process functions
   auto process_split_table() -> void;
   auto process_inline_table() -> void;
 
-  std::vector<FileData> files;
-  std::unordered_map<std::string_view, int64_t> stream_index;
+  Memory::Managed::Vector<Block> blocks;
+  Memory::Managed::Vector<FileData> files;
+  Memory::Managed::Table<int64_t> stream_index;
 };
 
 }  // namespace Perimortem::Storage

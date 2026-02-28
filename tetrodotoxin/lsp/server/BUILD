@@ -14,7 +14,7 @@ cc_library(
     hdrs = glob(["src/*.hpp"]),
     includes = ["."],
     deps = [
-        "//tetrodotoxin:parser",
+        "//tetrodotoxin:lexical",
     ],
 )
 

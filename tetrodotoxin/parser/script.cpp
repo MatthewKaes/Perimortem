@@ -25,8 +25,9 @@ auto detect_package_type(Context& ctx) -> void {
   if (token->klass == Classifier::Entity) {
     ctx.library.set_entity(true);
   } else if (token->klass != Classifier::Library) {
-    ctx.token_error(std::format(
-        "Unknown package type `{}`, defaulting to `library`.", token->data.get_view()));
+    ctx.token_error(
+        std::format("Unknown package type `{}`, defaulting to `library`.",
+                    token->data.get_view()));
   };
   ctx.advance();
 
@@ -42,8 +43,8 @@ auto detect_package_type(Context& ctx) -> void {
 // right after parsing the provided abstract.
 auto register_name(Context& ctx,
                    const Token& start_token,
-                   const Perimortem::Memory::ByteView& name,
-                   const Abstract* abstract) {
+                   const View::Bytes& name,
+                   const Abstract& abstract) {
   if (!ctx.library.create_name(name, abstract)) {
     ctx.range_error(
         std::format("Name '{}' has already been declared.", name.get_view()),
@@ -95,14 +96,14 @@ auto Script::parse(Types::Program& host,
 
       case Classifier::Attribute: {
         auto attribute = Visitor::parse_attribute(ctx);
-        attribute->doc = documentation;
+        attribute.doc = documentation;
         documentation.clear();
-        
-        register_name(ctx, *token, attribute->name, attribute);
+
+        register_name(ctx, *token, attribute.name, attribute);
 
         // Attribute for setting the package name.
-        if (attribute->name == "@Name") {
-          library.set_name(attribute->value);
+        if (attribute.name == "@Name"_bv) {
+          library.set_name(attribute.value);
         }
         break;
       }

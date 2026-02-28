@@ -3,25 +3,22 @@
 
 #pragma once
 
-#include "memory/bibliotheca.hpp"
-#include "memory/byte_view.hpp"
+#include "memory/arena.hpp"
+#include "memory/view/bytes.hpp"
 
 namespace Perimortem::Storage::Base64 {
 
 class Decoded {
  public:
-  Decoded(const Memory::ByteView& source);
+  Decoded(Memory::Arena& arena, const Memory::View::Bytes source);
   Decoded(const Decoded& rhs);
-  ~Decoded();
 
-  inline auto get_view() const -> Memory::ByteView {
-    return Memory::ByteView(text, size);
+  inline auto get_view() const -> const Memory::View::Bytes {
+    return result;
   }
 
  private:
-  char* text;
-  uint64_t size;
-  Memory::Bibliotheca::Preface* rented_block;
+  Memory::View::Bytes result;
 };
 
 }  // namespace Perimortem::Storage::Base64

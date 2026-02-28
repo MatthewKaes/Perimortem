@@ -9,7 +9,7 @@ using namespace Perimortem::Resource;
 using namespace Perimortem::Storage;
 
 extern auto read_all_bytes(const std::filesystem::path &p) -> Bytes;
-extern auto compare_buffers(const ByteView &result, const ByteView &target)
+extern auto compare_buffers(const View::Byte &result, const View::Byte &target)
     -> void;
 
 struct ManagerTests : public ::testing::Test {

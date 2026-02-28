@@ -7,8 +7,6 @@ using namespace Tetrodotoxin::Lsp;
 using namespace Perimortem::Memory;
 using namespace Perimortem::Storage::Json;
 
-static const Perimortem::Storage::Json::Node null;
-
 auto RpcRequest::load_params() -> void {
   if (!is_valid()) {
     return;
@@ -18,23 +16,21 @@ auto RpcRequest::load_params() -> void {
   call_params.from_source(arena, source, header.get_params_offset());
 }
 
-auto RpcRequest::rpc_error(Perimortem::Memory::ByteView error) const
-    -> RpcResponse {
-  RpcResponse response;
+auto RpcRequest::rpc_error(View::Bytes error) const -> RpcResponse {
   // Escape any error quotes.
-  ManagedString sanatized_error(arena);
+  Managed::Bytes sanatized_error(arena);
   sanatized_error.proxy(error);
   sanatized_error.convert('"', '`');
 
-  ManagedString err(arena);
-  err.append("{\"jsonrpc\": \"");
-  err.append(header.get_version());
-  err.append("\",\"id\":\"");
-  err.append(header.get_id());
-  err.append("\",\"error\":\"");
-  err.append(sanatized_error);
-  err.append("\"}");
+  auto response = create_object({{"jsonrpc"_bv, header.get_version()},
+                                 {"id"_bv, Node::raw(header.get_id())},
+                                 {"error"_bv, sanatized_error.get_view()}});
 
-  response.result = err;
-  return response;
+  return Node(response);
+}
+
+auto RpcRequest::rpc_result(ReponseObject result) const -> RpcResponse {
+  return create_object({{"jsonrpc"_bv, header.get_version()},
+                                 {"id"_bv, Node::raw(header.get_id())},
+                                 {"error"_bv, Node(result)}});
 }

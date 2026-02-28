@@ -25,7 +25,7 @@ class Manager {
 
     friend Manager;
 
-    auto read_content() const -> const Storage::ByteView;
+    auto read_content() const -> const Storage::View::Byte;
     auto write_content(const Storage::Bytes&& data) -> void;
 
     inline auto modified_time() const -> Time { return time; };
@@ -69,7 +69,7 @@ class Manager {
         : content(), source(), dirty(false), loaded(false), time() {}
 
     Storage::Bytes content;
-    Storage::ByteView source;
+    Storage::View::Byte source;
     Time time;
     bool dirty = false;
     bool loaded = false;

@@ -30,7 +30,7 @@ static_assert(decode_lookup['+'] == 62);
 static_assert(decode_lookup['/'] == 63);
 static_assert(decode_lookup['='] == 0);
 
-Decoded::Decoded(const Memory::ByteView& source) {
+Decoded::Decoded(Memory::Arena& arena, const Memory::View::Bytes source) {
   // On AMD processors that don't support AVX512 they "partially" supports it
   // using two fused AVX2 256bit buffers. To make sure we support just about
   // every modern CPU we can use two parallel AVX2 buffers unrolled. This is esp
@@ -58,19 +58,15 @@ Decoded::Decoded(const Memory::ByteView& source) {
   // contention seems to be the main reason we don't get full double pump speeds
   // which lets us emulate a single AVX512 write with seemingly minimum cache
   // contention (at least on a 9950x3D).
-  size = (source.get_size() / source_stride) * output_stride;
-  rented_block = Bibliotheca::check_out(
-      size + avx2_channel_width / source_stride + upper_lane_underwrite_buffer);
-  text = reinterpret_cast<char*>(Bibliotheca::preface_to_corpus(rented_block));
+  uint64_t size = (source.get_size() / source_stride) * output_stride;
+  uint8_t* text = arena.allocate(size + avx2_channel_width / source_stride + upper_lane_underwrite_buffer);
 
   // Save 8 bytes for bit hacking underwriting :)
   text += upper_lane_underwrite_buffer;
 
   // Construct source buffers.
-  const auto source_view = source.get_view();
-  auto source_data = reinterpret_cast<const uint8_t*>(source_view.data());
-  auto source_bytes = source_view.size();
-  auto output_stream = text;
+  auto source_data = reinterpret_cast<const uint8_t*>(source.get_data());
+  auto source_bytes = source.get_size();
 
   // Shrink to the correct size.
   // We don't have to worry about writting extra zeros as we always request
@@ -91,7 +87,7 @@ Decoded::Decoded(const Memory::ByteView& source) {
   const auto source_vectorized_bytes = vectorized_chunks * full_channel_width;
 
   // Set the end location that we will write backwards from.
-  output_stream = text + output_vectorized_bytes;
+  auto output_stream = text + output_vectorized_bytes;
   source_data = source_data + source_vectorized_bytes;
 
   // Use AVX2 for vectorization as it's generally more available than AVX512
@@ -325,15 +321,10 @@ Decoded::Decoded(const Memory::ByteView& source) {
     output_stream[i + 2] = ((decode_lookup[source_data[j + 2]] & 0x03) << 6) |
                            decode_lookup[source_data[j + 3]];
   }
+
+  result = View::Bytes(text, size);
 }
 
 Decoded::Decoded(const Decoded& rhs) {
-  text = rhs.text;
-  size = rhs.size;
-  rented_block = rhs.rented_block;
-  Bibliotheca::reserve(rented_block);
-}
-
-Decoded::~Decoded() {
-  Bibliotheca::remit(rented_block);
+  result = rhs.result;
 }

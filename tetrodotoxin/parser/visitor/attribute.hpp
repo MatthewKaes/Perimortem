@@ -10,6 +10,6 @@
 namespace Tetrodotoxin::Parser::Visitor {
 
 auto parse_attribute(Context& ctx)
-    -> Tetrodotoxin::Types::Compiler::Attribute*;
+    -> Tetrodotoxin::Types::Compiler::Attribute&;
 
 }  // namespace Tetrodotoxin::Parser::Visitor

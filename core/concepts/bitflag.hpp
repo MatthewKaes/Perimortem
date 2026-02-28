@@ -94,7 +94,7 @@ concept uses_uint16_t_stroage =
 
 template <class T>
 concept uses_uint32_t_stroage =
-    std::conditional_t<static_cast<uint16_t>(T::None) ==
+    std::conditional_t<static_cast<uint32_t>(T::None) ==
                            static_cast<uint16_t>(-1),
                        std::true_type,
                        std::false_type>::type::value &&
@@ -102,7 +102,7 @@ concept uses_uint32_t_stroage =
                         sizeof(uint16_t) * 8),
                        std::true_type,
                        std::false_type>::type::value &&
-    std::conditional_t<(static_cast<uint16_t>(T::TOTAL_FLAGS) <=
+    std::conditional_t<(static_cast<uint32_t>(T::TOTAL_FLAGS) <=
                         sizeof(uint32_t) * 8),
                        std::true_type,
                        std::false_type>::type::value;
@@ -117,7 +117,7 @@ concept uses_uint64_t_stroage =
                         sizeof(uint32_t) * 8),
                        std::true_type,
                        std::false_type>::type::value &&
-    std::conditional_t<(static_cast<uint16_t>(T::TOTAL_FLAGS) <=
+    std::conditional_t<(static_cast<uint64_t>(T::TOTAL_FLAGS) <=
                         sizeof(uint64_t) * 8),
                        std::true_type,
                        std::false_type>::type::value;

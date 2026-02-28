@@ -10,8 +10,8 @@ using namespace Perimortem::Memory;
 using namespace Perimortem::Storage::Json;
 
 auto Node::operator[](uint32_t index) const -> const Node* {
-  if (std::holds_alternative<ManagedVector<Node*>>(value)) {
-    const auto& vec = get<ManagedVector<Node*>>(value);
+  if (std::holds_alternative<Managed::Vector<Node*>>(value)) {
+    const auto& vec = get<Managed::Vector<Node*>>(value);
     if (vec.get_size() >= index) {
       return nullptr;
     }
@@ -23,16 +23,16 @@ auto Node::operator[](uint32_t index) const -> const Node* {
 }
 
 auto Node::operator[](const std::string_view& name) const -> const Node* {
-  if (std::holds_alternative<ManagedLookup<Node>>(value)) {
-    return get<ManagedLookup<Node>>(value).at(name);
+  if (std::holds_alternative<ManagedTable<Node>>(value)) {
+    return get<ManagedTable<Node>>(value).at(name);
   }
 
   return nullptr;
 }
 
 auto Node::contains(const std::string_view& name) const -> bool {
-  if (std::holds_alternative<ManagedLookup<Node>>(value)) {
-    return get<ManagedLookup<Node>>(value).contains(name);
+  if (std::holds_alternative<ManagedTable<Node>>(value)) {
+    return get<ManagedTable<Node>>(value).contains(name);
   }
 
   return false;
@@ -62,9 +62,9 @@ auto Node::get_double() const -> const double* {
   return nullptr;
 }
 
-auto Node::get_string() const -> const Memory::ByteView* {
-  if (std::holds_alternative<ByteView>(value)) {
-    return &get<ByteView>(value);
+auto Node::get_string() const -> const Memory::View::Byte* {
+  if (std::holds_alternative<View::Byte>(value)) {
+    return &get<View::Byte>(value);
   }
 
   return nullptr;
@@ -241,7 +241,7 @@ auto fast_scan(std::string_view source, const uint32_t position, uint8_t search)
 }
 
 auto parse_string(std::string_view source, uint32_t& position)
-    -> ByteView {
+    -> View::Byte {
   uint32_t start = ++position;
   position = vectorized_scan(source, position, '"');
 
@@ -261,7 +261,7 @@ auto parse_string(std::string_view source, uint32_t& position)
   //   position += look_ahead;
   // }
 // finished:
-  return ByteView(source.substr(start, position++ - start));
+  return View::Byte(source.substr(start, position++ - start));
 }
 
 auto ignored_characters(char c) {
@@ -284,7 +284,7 @@ auto parse(Memory::Arena& arena, std::string_view source, uint32_t& position)
     switch (start_char) {
       // Object
       case '{': {
-        ManagedLookup<Node> members(arena);
+        ManagedTable<Node> members(arena);
         position++;
 
         while (position < source.size() && source[position] != '}') {
@@ -296,7 +296,7 @@ auto parse(Memory::Arena& arena, std::string_view source, uint32_t& position)
 
           // const auto start = ++position;
           // position = fast_scan(source, position, '"');
-          // auto name = ByteView(source.substr(start, position++ -
+          // auto name = View::Byte(source.substr(start, position++ -
           // start));
 
           // // Encountered an extra long name so try a full parse.
@@ -333,7 +333,7 @@ auto parse(Memory::Arena& arena, std::string_view source, uint32_t& position)
 
       // Array
       case '[': {
-        ManagedVector<Node*> items(arena);
+        Managed::Vector<Node*> items(arena);
         position++;
 
         while (position < source.size() && source[position] != ']') {

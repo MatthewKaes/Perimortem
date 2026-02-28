@@ -4,6 +4,7 @@
 #include "tokenizer.hpp"
 
 #include "concepts/narrow_resolver.hpp"
+#include "concepts/standard_types.hpp"
 
 #include <cmath>
 #include <cstring>
@@ -13,7 +14,7 @@ using namespace Perimortem::Memory;
 using namespace Perimortem::Concepts;
 using namespace Tetrodotoxin::Lexical;
 
-constexpr auto is_whitespace(uint8_t c) -> bool {
+constexpr auto is_whitespace(Byte c) -> bool {
   switch (c) {
     // Skip whitespace
     case ' ':
@@ -25,31 +26,31 @@ constexpr auto is_whitespace(uint8_t c) -> bool {
   return false;
 }
 
-constexpr auto is_attribute(uint8_t c) -> bool {
+constexpr auto is_attribute(Byte c) -> bool {
   return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_';
 }
 
-constexpr auto is_class(uint8_t c) -> bool {
+constexpr auto is_class(Byte c) -> bool {
   return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
          (c >= '0' && c <= '9');
 }
 
-constexpr auto is_identifier(uint8_t c) -> bool {
+constexpr auto is_identifier(Byte c) -> bool {
   return (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '_';
 }
 
-constexpr auto is_num(uint8_t c) -> bool {
+constexpr auto is_num(Byte c) -> bool {
   return (c >= '0' && c <= '9') || c == '.';
 }
 
 // Used for tracking during parsing
 struct Context {
-  Context(const ByteView& source, TokenStream& tokens)
+  Context(const View::Bytes source, Perimortem::Memory::Managed::Vector<Token>& tokens)
       : source(source), tokens(tokens) {};
 
   Location loc;
-  const ByteView& source;
-  TokenStream& tokens;
+  const View::Bytes source;
+  Perimortem::Memory::Managed::Vector<Token>& tokens;
   Perimortem::Concepts::BitFlag<TtxState> options;
 };
 
@@ -85,7 +86,7 @@ auto parse_attribute(Context& context) -> void {
   }
 
   if (!token.empty())
-    context.tokens.push_back({Classifier::Attribute, token, context.loc});
+    context.tokens.insert({Classifier::Attribute, token, context.loc});
 
   context.loc.column += token.get_size();
 }
@@ -103,7 +104,7 @@ auto parse_comment(Context& context) -> void {
   while (can_parse(context) && context.source[context.loc.parse_index] != '\n')
     context.loc.parse_index++;
 
-  context.tokens.push_back(
+  context.tokens.insert(
       {Classifier::Comment,
        context.source.slice(start_comment, context.loc.parse_index -
                                                start_comment +
@@ -137,7 +138,7 @@ auto parse_disabled(Context& context, bool strip_disabled) -> void {
 
   // Strip disabled lines if requested.
   if (!strip_disabled) {
-    context.tokens.push_back(
+    context.tokens.insert(
         {Classifier::Disabled,
          context.source.slice(
              context.loc.source_index,
@@ -183,7 +184,7 @@ auto parse_number(Context& context) -> void {
 
   // Consume the peak_ahead
   context.loc.parse_index++;
-  context.tokens.push_back(
+  context.tokens.insert(
       {klass,
        context.source.slice(context.loc.source_index,
                             context.loc.parse_index - context.loc.source_index),
@@ -198,7 +199,7 @@ auto parse_type(Context& context) -> void {
 
   // Consume the peak_ahead
   context.loc.parse_index++;
-  context.tokens.push_back(
+  context.tokens.insert(
       {Classifier::Type,
        context.source.slice(context.loc.source_index,
                             context.loc.parse_index - context.loc.source_index),
@@ -266,13 +267,13 @@ auto parse_identifier(Context& context) -> void {
       context.options += TtxState::ParamTokenizing;
   }
 
-  context.tokens.push_back({klass, view, context.loc});
+  context.tokens.insert({klass, view, context.loc});
   context.loc.column += context.loc.parse_index - context.loc.source_index;
 }
 
 #define SIMPLE_TOKEN(klass, len)                                         \
   context.loc.parse_index += len;                                        \
-  tokens.push_back({Classifier::klass,                                   \
+  tokens.insert({Classifier::klass,                                   \
                     context.source.slice(context.loc.source_index, len), \
                     context.loc});                                       \
   context.loc.column += len;
@@ -282,22 +283,22 @@ auto parse_identifier(Context& context) -> void {
     SIMPLE_TOKEN(klass, 1);        \
     break;
 
-auto Tokenizer::parse(const Perimortem::Memory::ByteView source_,
+auto Tokenizer::parse(const View::Bytes source_,
                       bool strip_disabled) -> void {
   // Reset state
-  source = source_.get_view();
-  tokens.clear();
+  source = source_;
+  tokens.reset();
 
   // Take an estimated best guess on the token count. This helps save on
   // resizes even if we end up oversized.
   // Assume larger files are more likely to have comments and have a
   // lower proportion of actual tokens.
-  tokens.reserve(pow(source.size(), 0.8));
+  tokens.reset(pow(source.get_size(), 0.8));
   constexpr const uint32_t tag_size = sizeof("[***]") - 1;
 
   // Tokenizer Loop
-  Context context(ByteView(source), tokens);
-  while (context.loc.parse_index < source.size()) {
+  Context context(source, tokens);
+  while (context.loc.parse_index < source.get_size()) {
     context.loc.source_index = context.loc.parse_index;
     switch (source[context.loc.parse_index]) {
       // Newline handling
@@ -405,7 +406,7 @@ auto Tokenizer::parse(const Perimortem::Memory::ByteView source_,
           context.loc.parse_index++;  // closing quote
         }
 
-        tokens.push_back({Classifier::String,
+        tokens.insert({Classifier::String,
                           context.source.slice(context.loc.source_index,
                                                context.loc.parse_index -
                                                    context.loc.source_index),
@@ -416,7 +417,7 @@ auto Tokenizer::parse(const Perimortem::Memory::ByteView source_,
 
         // Index start or tags
       case '[':
-        if (context.loc.parse_index + tag_size >= source.size()) {
+        if (context.loc.parse_index + tag_size >= source.get_size()) {
           SIMPLE_TOKEN(IndexStart, 1);
           break;
         } else if (std::memcmp(
@@ -450,7 +451,7 @@ auto Tokenizer::parse(const Perimortem::Memory::ByteView source_,
 
       case ')':
         context.loc.parse_index += 1;
-        tokens.push_back({Classifier::GroupEnd,
+        tokens.insert({Classifier::GroupEnd,
                           context.source.slice(context.loc.source_index, 1),
                           context.loc});
         context.loc.column += 1;
@@ -489,6 +490,6 @@ auto Tokenizer::parse(const Perimortem::Memory::ByteView source_,
   // End of file
   options = context.options;
   context.loc.source_index = ++context.loc.parse_index;
-  context.tokens.push_back(
-      {Classifier::EndOfStream, std::string_view(), context.loc});
+  context.tokens.insert(
+      {Classifier::EndOfStream, View::Bytes(), context.loc});
 }

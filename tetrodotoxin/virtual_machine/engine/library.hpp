@@ -8,8 +8,8 @@
 #include "types/name.hpp"
 
 #include "memory/arena.hpp"
-#include "memory/managed_lookup.hpp"
-#include "memory/byte_view.hpp"
+#include "memory/view/bytes.hpp"
+#include "memory/managed/table.hpp"
 
 #include "lexical/tokenizer.hpp"
 
@@ -21,10 +21,10 @@ namespace Tetrodotoxin::Types {
 class Library : public Abstract {
  public:
   static constexpr uint32_t uuid = 0xD12AA071;
-  constexpr auto get_name() const -> std::string_view override {
+  constexpr auto get_name() const -> Perimortem::Memory::View::Bytes override {
     return package_name.get_view();
   };
-  constexpr auto get_doc() const -> std::string_view override {
+  constexpr auto get_doc() const -> Perimortem::Memory::View::Bytes override {
     return doc.get_view();
   };
   constexpr auto get_uuid() const -> uint32_t override { return uuid; };
@@ -32,47 +32,55 @@ class Library : public Abstract {
     return Usage::Transitory;
   };
   auto get_size() const -> uint32_t override { return 0; };
-  auto resolve() const -> const Abstract* override { this; }
+  auto resolve() const -> const Abstract* override { return this; }
 
-  auto resolve_context(std::string_view name) const
+  auto resolve_context(Perimortem::Memory::View::Bytes name) const
       -> const Abstract* override {
-    return name_index.at(name);
+    auto abstract = name_index.at(name);
+    if (abstract)
+      return *abstract;
+    return nullptr;
   }
 
   // The scope of the library is just it's top level context.
-  auto resolve_scope(std::string_view name) const -> const Abstract* override {
-    return name_index.at(name);
+  auto resolve_scope(Perimortem::Memory::View::Bytes name) const -> const Abstract* override {
+    auto abstract = name_index.at(name);
+    if (abstract)
+      return *abstract;
+    return nullptr;
   }
 
   // Return all references in this scope (locals and arguments)
   virtual auto expand_context(
-      const std::function<void(const Abstract* const)>& fn) const
-      -> void override {
+      const std::function<void(const Perimortem::Memory::View::Bytes&,
+                               const Abstract* const&)>& fn)
+      const -> void override {
     name_index.apply(fn);
   }
 
   // Return all references in this scope (locals and arguments)
   virtual auto expand_scope(
-      const std::function<void(const Abstract* const)>& fn) const
+      const std::function<void(const Perimortem::Memory::View::Bytes&,
+                               const Abstract* const&)>& fn) const
       -> void override {
     expand_context(fn);
   }
 
   // Trys to create a name. Returns the conflict
-  auto create_name(const Perimortem::Memory::ByteView& name,
+  auto create_name(const Perimortem::Memory::View::Bytes& name,
                    const Abstract& abstract) -> bool {
     if (name_index.contains(name))
       return false;
 
-    name_index.insert(name, abstract);
+    name_index.insert(name, &abstract);
     return true;
   }
 
-  inline auto set_name(const Perimortem::Memory::ByteView& name) -> void {
+  inline auto set_name(const Perimortem::Memory::View::Bytes name) -> void {
     package_name = name;
   }
 
-  inline auto set_doc(Perimortem::Memory::ByteView& doc_string) -> void {
+  inline auto set_doc(const Perimortem::Memory::View::Bytes doc_string) -> void {
     doc = doc_string;
   }
 
@@ -82,10 +90,12 @@ class Library : public Abstract {
 
   inline auto is_entity() const -> bool { return uses_entity; }
 
-  inline auto load(const std::string_view& source, bool strip_disabled) -> void {
+  inline auto load(const std::string_view& source, bool strip_disabled)
+      -> void {
     allocator.reset();
     name_index.reset();
     doc.clear();
+
     package_name.clear();
     uses_entity = false;
 
@@ -104,9 +114,9 @@ class Library : public Abstract {
   Tetrodotoxin::Lexical::Tokenizer tokenizer;
 
  private:
-  Perimortem::Memory::ManagedLookup<const Abstract> name_index;
-  Perimortem::Memory::ByteView doc;
-  Perimortem::Memory::ByteView package_name;
+  Perimortem::Memory::Managed::Table<const Abstract*> name_index;
+  Perimortem::Memory::View::Bytes doc;
+  Perimortem::Memory::View::Bytes package_name;
   bool uses_entity;
 };
 

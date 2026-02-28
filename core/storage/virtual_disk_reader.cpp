@@ -2,6 +2,7 @@
 // Copyright © Matt Kaes
 
 #include "storage/virtual_disk_reader.hpp"
+#include "core/concepts/standard_types.hpp"
 
 #include <bit>
 #include <bitset>
@@ -13,41 +14,21 @@
 #include <zstd.h>
 
 using namespace Perimortem::Storage;
+using namespace Perimortem::Memory;
 
-template <typename T>
-auto read_block(const Byte* source, SizeBlock& pos) -> T {
-  T block = *(T*)(&source[pos]);
-  if (std::endian::native != file_endian) {
-    block = std::byteswap(block);
-  }
-
-  pos += sizeof(T);
-  return block;
-}
-
-template <typename T>
-auto read_block(const Byte* source) -> T {
-  T block = *(T*)(&source);
-  if (std::endian::native != file_endian) {
-    block = std::byteswap(block);
-  }
-
-  return block;
-}
-
-auto read_size(const Byte* source, SizeBlock& pos) -> SizeBlock {
+auto read_size(const View::Bytes source, SizeBlock& pos) -> SizeBlock {
   // Read the run length size encoding byte
-  Byte bytes = read_block<Byte>(source, pos);
+  Byte size_bytes = source.incremental_read<Byte>(pos);
 
-  switch (bytes) {
-    case sizeof(uint8_t):
-      return read_block<uint8_t>(source, pos);
-    case sizeof(uint16_t):
-      return read_block<uint16_t>(source, pos);
-    case sizeof(uint32_t):
-      return read_block<uint32_t>(source, pos);
-    case sizeof(uint64_t):
-      return read_block<uint64_t>(source, pos);
+  switch (size_bytes) {
+    case sizeof(Bits_8):
+      return source.incremental_read<Bits_8>(pos);
+    case sizeof(Bits_16):
+      return source.incremental_read<Bits_16>(pos);
+    case sizeof(Bits_32):
+      return source.incremental_read<Bits_32>(pos);
+    case sizeof(Bits_64):
+      return source.incremental_read<Bits_64>(pos);
   }
 
   // TODO: Error handling.
@@ -110,6 +91,7 @@ auto VirtualDiskReader::mount_disk(const std::filesystem::path& disk)
 
   // Read the two header blocks.
   Byte format_block[sizeof(HeaderBlock) + sizeof(HeaderBlock)];
+  View::Bytes format_view(format_block);
   if (!disk_reader.load_object(format_block)) {
     // TODO: Error handling
     __builtin_debugtrap();
@@ -138,16 +120,17 @@ auto VirtualDiskReader::mount_disk(const std::filesystem::path& disk)
     // This avoid having a second copy of the data in memory.
     case DiskType::Streamed:
     case DiskType::StreamedCompressed:
-      reader->blocks.resize(2);
+      reader->blocks.insert(Block(reader->disk_arena));
+      reader->blocks.insert(Block(reader->disk_arena));
       break;
 
     // Memroy speed reads the data from a single continous buffer.
     case DiskType::Memory:
-      reader->blocks.resize(1);
+      reader->blocks.insert(Block(reader->disk_arena));
       break;
   }
 
-  for (int i = 0; i < reader->blocks.size(); i++) {
+  for (int i = 0; i < reader->blocks.get_size(); i++) {
     uint64_t block_size_pos = 0;
     Byte block_size_buffer[sizeof(SizeBlock)];
     if (!disk_reader.load_object(block_size_buffer)) {
@@ -163,14 +146,17 @@ auto VirtualDiskReader::mount_disk(const std::filesystem::path& disk)
 
     // Load non-empty blocks.
     if (block_size > 0) {
-      block_data.data.resize(block_size);
+      block_data.data.reset(block_size);
 
       // For streamed blocks don't read anything beyond the table.
       if (i > 0 && (reader->format == DiskType::Streamed ||
                     reader->format == DiskType::StreamedCompressed)) {
         disk_reader.sync(block_size);
       } else {
-        if (!disk_reader.load((char*)block_data.data.data(), block_size)) {
+        // Spicy const cast here but we know we explicitly own the arena data.
+        if (!disk_reader.load(
+                const_cast<char*>(block_data.data.get_view().get_data()),
+                block_size)) {
           /* TODO: Error handling. */
           __builtin_debugtrap();
           return nullptr;
@@ -209,8 +195,8 @@ auto VirtualDiskReader::mount_disk(const std::filesystem::path& disk)
   return reader;
 }
 
-auto VirtualDiskReader::stream_from_disk(const std::string_view& path,
-                                         Bytes& data) -> bool {
+auto VirtualDiskReader::stream_from_disk(const View::Bytes path,
+                                         Managed::Bytes& data) -> bool {
   if (!stream_index.contains(path))
     return false;
 
@@ -232,8 +218,8 @@ auto VirtualDiskReader::stream_from_disk(const std::string_view& path,
   // Adjust to the correct position so we are at the start of the buffer.
   disk_reader.sync(run_length - max_run_length_bytes);
 
-  data.resize(block_size);
-  if (!disk_reader.load((char*)data.data(), block_size)) {
+  data.reset(block_size);
+  if (!disk_reader.load(const_cast<char*>(data.get_view().get_data()), block_size)) {
     // TODO: Error handling
     __builtin_debugtrap();
     return false;
@@ -247,7 +233,7 @@ auto VirtualDiskReader::stream_from_disk(const std::string_view& path,
   return true;
 }
 
-auto VirtualDiskReader::decompress_block(Bytes& data) -> void {
+auto VirtualDiskReader::decompress_block(Managed::Bytes& data) -> void {
   static auto dctx = ZSTD_createDCtx();
   if (dctx == nullptr) {
     // TODO: Error handling.
@@ -362,8 +348,9 @@ auto VirtualDiskReader::dump_info() const -> std::string {
     info_stream << std::endl;
     for (const auto& file : get_files()) {
       info_stream << "   " << std::setw(longest_name) << std::left << file.path;
-      if (file.data.size() > 0) {
-        info_stream << "  " << std::setw(16) << std::right << file.data.size();
+      if (file.data.get_size() > 0) {
+        info_stream << "  " << std::setw(16) << std::right
+                    << file.data.get_size();
       } else if (file.options == StorageOptions::Streamed) {
         info_stream << "  " << std::setw(16) << std::right << "Stream";
       } else if (file.options != StorageOptions::Virtualized) {

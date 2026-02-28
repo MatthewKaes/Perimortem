@@ -4,19 +4,16 @@
 #pragma once
 
 #include "concepts/bitflag.hpp"
+#include "memory/view/bytes.hpp"
+#include "core/concepts/standard_types.hpp"
 
 #include <bit>
 #include <filesystem>
 #include <fstream>
-#include <unordered_map>
-#include <vector>
 
 namespace Perimortem::Storage {
-using Byte = uint8_t;
-using Bytes = std::vector<Byte>;
-using ByteView = std::span<const Byte>;
-using HeaderBlock = uint32_t;
-using SizeBlock = uint64_t;
+using HeaderBlock = Bits_32;
+using SizeBlock = Bits_64;
 
 constexpr uint8_t max_run_length_bytes = sizeof(SizeBlock) + 1;
 
@@ -68,8 +65,8 @@ enum class StorageOptions : int8_t {
 using StorageFlags = Concepts::BitFlag<StorageOptions>;
 
 struct FileData {
-  std::string_view path;
-  ByteView data;
+  Memory::View::Bytes path;
+  Memory::View::Bytes data;
   StorageFlags options = StorageOptions::None;
 };
 

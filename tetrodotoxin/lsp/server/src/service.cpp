@@ -3,34 +3,26 @@
 
 #include "service.hpp"
 
-#include "formatter.hpp"
 #include "lexical/tokenizer.hpp"
 
-#include <iostream>
-#include <sstream>
+#include <string_view>
 #include <unordered_set>
 
 using namespace Tetrodotoxin::Lsp;
+using namespace Tetrodotoxin::Lexical;
 
-#define Lsp_WRITE(klass)                         \
-  case Tetrodotoxin::Lexical::Classifier::klass: \
-    info_stream << "[\"" #klass "\",";           \
-    break;
+using NodeArray =
+    Perimortem::Memory::Managed::Vector<Perimortem::Storage::Json::Node>;
+using NodeObject =
+    Perimortem::Memory::Managed::Table<Perimortem::Storage::Json::Node>;
 
-#define Lsp_REDEFINE(category, klass)            \
-  case Tetrodotoxin::Lexical::Classifier::klass: \
-    info_stream << "[\"" #category "\",";        \
-    break;
-
-#define Lsp_SKIP(klass)
-
-auto recursive_strip(const Tetrodotoxin::Lexical::TokenStream& stream,
+auto recursive_strip(const Tetrodotoxin::Lexical::Tokenizer::Tokens stream,
                      uint32_t& index) -> void {
-  while (index < stream.size() - 1) {
+  while (index < stream.get_size() - 1) {
     switch (stream[index].klass) {
-      case Tetrodotoxin::Lexical::Classifier::ScopeEnd:
+      case Classifier::ScopeEnd:
         return;
-      case Tetrodotoxin::Lexical::Classifier::ScopeStart:
+      case Classifier::ScopeStart:
         index++;
         recursive_strip(stream, index);
         index++;
@@ -42,157 +34,156 @@ auto recursive_strip(const Tetrodotoxin::Lexical::TokenStream& stream,
   }
 }
 
-auto Service::lsp_tokens(Tetrodotoxin::Lexical::Tokenizer& tokenizer,
-                         const Perimortem::Storage::Json::RpcHeader& header)
-    -> std::string {
-  Tetrodotoxin::Lexical::ClassifierFlags library_types =
-      Tetrodotoxin::Lexical::Classifier::Package;
+auto Service::lsp_tokens(Tokenizer& tokenizer, const RpcRequest& header)
+    -> Perimortem::Storage::Json::Node {
+  ClassifierFlags library_types = Classifier::Package;
   std::unordered_set<std::string_view> imports;
   std::unordered_set<std::string_view> parameters;
   uint32_t scopes = 0;
 
-  std::stringstream info_stream;
-  // Assume basic jsonrpc 2.0 simplified header is enough.
-  info_stream << "{\"jsonrpc\":\"" << header.get_version().get_view()
-              << "\",\"id\":" << header.get_id() << ",\"result\":{\"color\":"
-              << !tokenizer.get_options().has(
-                     Tetrodotoxin::Lexical::TtxState::CppTheme)
-              << ",\"tokens\":[";
-
+  NodeArray token_stream(header.get_arena());
   const auto& tokens = tokenizer.get_tokens();
-  for (uint32_t i = 0; i < tokens.size(); i++) {
+  for (uint32_t i = 0; i < tokens.get_size(); i++) {
+    NodeArray token_data(header.get_arena());
     const auto& token = tokens[i];
     switch (token.klass) {
-      Lsp_REDEFINE(A, Attribute);
-      Lsp_REDEFINE(I, Numeric);
-      Lsp_REDEFINE(N, Float);
-      Lsp_REDEFINE(GS, GroupStart);
-      Lsp_REDEFINE(GE, GroupEnd);
-      Lsp_REDEFINE(IS, IndexStart);
-      Lsp_REDEFINE(IE, IndexEnd);
-      Lsp_REDEFINE(_, Seperator);
-      Lsp_REDEFINE(E, EndStatement);
-      Lsp_REDEFINE(C, LessOp);
-      Lsp_REDEFINE(C, GreaterOp);
-      Lsp_REDEFINE(C, LessEqOp);
-      Lsp_REDEFINE(C, GreaterEqOp);
-      Lsp_REDEFINE(C, CmpOp);
-      Lsp_REDEFINE(C, AndOp);
-      Lsp_REDEFINE(C, OrOp);
-      Lsp_REDEFINE(O, Define);
-      Lsp_REDEFINE(O, AccessOp);
-      Lsp_REDEFINE(O, CallOp);
-      Lsp_REDEFINE(O, Assign);
-      Lsp_REDEFINE(O, AddAssign);
-      Lsp_REDEFINE(O, SubAssign);
-      Lsp_REDEFINE(O, AddOp);
-      Lsp_REDEFINE(O, SubOp);
-      Lsp_REDEFINE(O, DivOp);
-      Lsp_REDEFINE(O, MulOp);
-      Lsp_REDEFINE(O, ModOp);
-      Lsp_REDEFINE(O, NotOp);
-      Lsp_REDEFINE(Cm, Comment);
-      Lsp_REDEFINE(Z, Self);
-      Lsp_REDEFINE(K, New);
-      Lsp_REDEFINE(Nm, OnLoad);
-      Lsp_REDEFINE(K, Init);
-      Lsp_REDEFINE(K, If);
-      Lsp_REDEFINE(K, For);
-      Lsp_REDEFINE(K, Else);
-      Lsp_REDEFINE(K, While);
-      Lsp_REDEFINE(K, Return);
-      Lsp_REDEFINE(K, True);
-      Lsp_REDEFINE(K, False);
-      Lsp_REDEFINE(D, Func);
-      Lsp_REDEFINE(D, Alias);
-      Lsp_REDEFINE(D, Object);
-      Lsp_REDEFINE(D, Struct);
-      Lsp_REDEFINE(P, Entity);
-      Lsp_REDEFINE(P, Library);
-      Lsp_REDEFINE(L, Package);
-      Lsp_REDEFINE(L, Using);
-      Lsp_REDEFINE(L, As);
-      Lsp_REDEFINE(L, Via);
-      Lsp_REDEFINE(K, Debug);
-      Lsp_REDEFINE(K, Warning);
-      Lsp_REDEFINE(K, Error);
-      Lsp_REDEFINE(M1, Constant);
-      Lsp_REDEFINE(M2, Dynamic);
-      Lsp_REDEFINE(M3, Hidden);
-      Lsp_REDEFINE(M4, Temporary);
-      case Tetrodotoxin::Lexical::Classifier::Parameter:
-        info_stream << "[\""
-                       "P"
-                       "\",";
-        parameters.insert(token.data.get_view());
+      case Classifier::Attribute:
+        token_data.insert("A"_bv);
+      case Classifier::Numeric:
+        token_data.insert("I"_bv);
+      case Classifier::Float:
+        token_data.insert("N"_bv);
+      case Classifier::GroupStart:
+        token_data.insert("GS"_bv);
+      case Classifier::GroupEnd:
+        token_data.insert("GE"_bv);
+      case Classifier::IndexStart:
+        token_data.insert("IS"_bv);
+      case Classifier::IndexEnd:
+        token_data.insert("IE"_bv);
+      case Classifier::Seperator:
+        token_data.insert("_"_bv);
+      case Classifier::EndStatement:
+        token_data.insert("E"_bv);
+      case Classifier::LessOp:
+      case Classifier::GreaterOp:
+      case Classifier::LessEqOp:
+      case Classifier::GreaterEqOp:
+      case Classifier::CmpOp:
+      case Classifier::AndOp:
+      case Classifier::OrOp:
+        token_data.insert("C"_bv);
+      case Classifier::Define:
+      case Classifier::AccessOp:
+      case Classifier::CallOp:
+      case Classifier::Assign:
+      case Classifier::AddAssign:
+      case Classifier::SubAssign:
+      case Classifier::AddOp:
+      case Classifier::SubOp:
+      case Classifier::DivOp:
+      case Classifier::MulOp:
+      case Classifier::ModOp:
+      case Classifier::NotOp:
+        token_data.insert("O"_bv);
+      case Classifier::Comment:
+        token_data.insert("Cm"_bv);
+      case Classifier::Self:
+        token_data.insert("Z"_bv);
+      case Classifier::OnLoad:
+        token_data.insert("Nm"_bv);
+      case Classifier::New:
+      case Classifier::Init:
+      case Classifier::If:
+      case Classifier::For:
+      case Classifier::Else:
+      case Classifier::While:
+      case Classifier::Return:
+      case Classifier::True:
+      case Classifier::False:
+      case Classifier::Debug:
+      case Classifier::Warning:
+      case Classifier::Error:
+        token_data.insert("K"_bv);
+      case Classifier::Func:
+      case Classifier::Alias:
+      case Classifier::Object:
+      case Classifier::Struct:
+        token_data.insert("D"_bv);
+      case Classifier::Entity:
+      case Classifier::Library:
+        token_data.insert("P"_bv);
+      case Classifier::Package:
+      case Classifier::Using:
+      case Classifier::As:
+      case Classifier::Via:
+        token_data.insert("L"_bv);
+      case Classifier::Constant:
+        token_data.insert("M1"_bv);
+      case Classifier::Dynamic:
+        token_data.insert("M2"_bv);
+      case Classifier::Hidden:
+        token_data.insert("M3"_bv);
+      case Classifier::Temporary:
+        token_data.insert("M4"_bv);
+      case Classifier::Parameter:
+        token_data.insert("P"_bv);
+        parameters.insert(
+            std::string_view(token.data.get_data(), token.data.get_size()));
         break;
-      case Tetrodotoxin::Lexical::Classifier::ScopeStart:
-        info_stream << "[\""
-                       "SS"
-                       "\",";
+      case Classifier::ScopeStart:
+        token_data.insert("SS"_bv);
         scopes += 1;
         break;
-      case Tetrodotoxin::Lexical::Classifier::ScopeEnd:
-        info_stream << "[\""
-                       "SE"
-                       "\",";
-
+      case Classifier::ScopeEnd:
+        token_data.insert("SE"_bv);
         scopes -= 1;
         if (scopes <= 0) {
           parameters.clear();
         }
         break;
-      case Tetrodotoxin::Lexical::Classifier::String:
-        if (i > 0) {
-          switch (tokens[i - 1].klass) {
-            case Tetrodotoxin::Lexical::Classifier::Via:
-              info_stream << "[\"In\",";
-              break;
-            default:
-              info_stream << "[\"S\",";
-              break;
-          }
+      case Classifier::String:
+        if (i > 0 && tokens[i - 1].klass == Classifier::Via) {
+          token_data.insert("In"_bv);
         } else {
-          info_stream << "[\"S\",";
+          token_data.insert("S"_bv);
         };
         break;
-      case Tetrodotoxin::Lexical::Classifier::Type:
-        if (i < tokens.size() - 2 &&
-            tokens[i + 1].klass == Tetrodotoxin::Lexical::Classifier::Define) {
-          info_stream << "[\"DT\",";
+      case Classifier::Type:
+        if (i < tokens.get_size() - 2 &&
+            tokens[i + 1].klass == Classifier::Define) {
+          token_data.insert("DT"_bv);
         } else if (i > 0 && library_types.has(tokens[i - 1].klass)) {
-          info_stream << "[\"Nm\",";
+          token_data.insert("Nm"_bv);
           imports.insert(
-              token.data.get_view());
-        } else if (imports.contains(token.data.get_view())) {
-          info_stream << "[\"Nm\",";
+              std::string_view(token.data.get_data(), token.data.get_size()));
+        } else if (imports.contains(std::string_view(token.data.get_data(),
+                                                     token.data.get_size()))) {
+          token_data.insert("Nm"_bv);
         } else {
-          info_stream << "[\"T\",";
+          token_data.insert("T"_bv);
         }
         break;
-      case Tetrodotoxin::Lexical::Classifier::Identifier:
-        if (i < tokens.size() - 2 &&
-            tokens[i + 1].klass == Tetrodotoxin::Lexical::Classifier::Define) {
-          info_stream << "[\"DI\",";
-        } else if (i > 0 && tokens[i - 1].klass ==
-                                Tetrodotoxin::Lexical::Classifier::CallOp) {
-          info_stream << "[\"Fu\",";
-        } else if (i > 0 &&
-                   tokens[i - 1].klass !=
-                       Tetrodotoxin::Lexical::Classifier::AccessOp &&
-                   parameters.contains(token.data.get_view())) {
-          info_stream << "[\"P\",";
+      case Classifier::Identifier:
+        if (i < tokens.get_size() - 2 &&
+            tokens[i + 1].klass == Classifier::Define) {
+          token_data.insert("DI"_bv);
+        } else if (i > 0 && tokens[i - 1].klass == Classifier::CallOp) {
+          token_data.insert("Fu"_bv);
+        } else if (i > 0 && tokens[i - 1].klass != Classifier::AccessOp &&
+                   parameters.contains(std::string_view(
+                       token.data.get_data(), token.data.get_size()))) {
+          token_data.insert("P"_bv);
         } else {
-          info_stream << "[\"Id\",";
+          token_data.insert("Id"_bv);
         }
         break;
 
         // Disabled blocks require a bit of extra parsing for highlighting, but
         // it does condense the entire range into a single tag.
-      case Tetrodotoxin::Lexical::Classifier::Disabled: {
-        info_stream << "[\"Dis\",";
+      case Classifier::Disabled: {
         i += 1;
-        for (; i < tokens.size() - 1; i++) {
+        for (; i < tokens.get_size() - 1; i++) {
           auto& last_token = tokens[i - 1];
           auto& next_token = tokens[i];
           // Check if we pass through a newline between tokens. If we do then
@@ -208,13 +199,13 @@ auto Service::lsp_tokens(Tetrodotoxin::Lexical::Tokenizer& tokenizer,
             }
           }
 
-          if (found_newline)
+          if (found_newline) {
             break;
+          }
 
-          // We didn't pass through a newline so check if we need to start a new
-          // scope.
-          if (next_token.klass ==
-              Tetrodotoxin::Lexical::Classifier::ScopeStart) {
+          // We didn't pass through a newline so check if we started a scope.
+          // If we did then disable it and all subscopes.
+          if (next_token.klass == Classifier::ScopeStart) {
             recursive_strip(tokens, ++i);
           }
         }
@@ -222,79 +213,45 @@ auto Service::lsp_tokens(Tetrodotoxin::Lexical::Tokenizer& tokenizer,
         i -= 1;
         auto& end_token = tokens[i];
 
-        // Lsp is zero indexed compared to LLVM, clang, and editors which starts
-        // at one so we need to do a quick index conversion.
-        const uint32_t start_line = token.location.line - 1;
-        const uint32_t start_column = token.location.column - 1;
-        // Tokens in TTX can only be one line so we can save compute / space and
-        // just encode the length of the token.
-        const uint32_t end_line = end_token.location.line - 1;
-        const uint32_t end_column = end_token.location.column - 1 +
-                                    end_token.location.parse_index -
-                                    end_token.location.source_index;
-        info_stream << start_line << "," << start_column << "," << end_line
-                    << "," << end_column;
+        // Lsp is zero indexed compared to LLVM, clang, and editors which
+        // starts at one so we need to do a quick index conversion.
+        const int64_t start_line = token.location.line - 1;
+        const int64_t start_column = token.location.column - 1;
+        // Tokens in TTX can only be one line so we can save compute / space
+        // and just encode the length of the token.
+        const int64_t end_line = end_token.location.line - 1;
+        const int64_t end_column = end_token.location.column - 1 +
+                                   end_token.location.parse_index -
+                                   end_token.location.source_index;
 
-        // Close data array.
-        // We don't emit the End of File token so stop at the second to last
-        // token.
-        if (i < tokens.size() - 2)
-          info_stream << "],";
-        else
-          info_stream << "]";
-
-        // Skip emission since we handled it in the block.
+        token_data.insert(start_line);
+        token_data.insert(start_column);
+        token_data.insert(end_line);
+        token_data.insert(end_column);
         continue;
       }
-      case Tetrodotoxin::Lexical::Classifier::EndOfStream:
-      case Tetrodotoxin::Lexical::Classifier::None:
-      case Tetrodotoxin::Lexical::Classifier::TOTAL_FLAGS:
+      case Classifier::EndOfStream:
+      case Classifier::None:
+      case Classifier::TOTAL_FLAGS:
         continue;
     }
 
     // Lsp is zero indexed compared to LLVM, clang, and editors which starts at
     // one so we need to do a quick index conversion.
-    const uint32_t start_line = token.location.line - 1;
-    const uint32_t start_column = token.location.column - 1;
-    const uint32_t end_line = token.location.line - 1;
-    const uint32_t end_column = token.location.column - 1 +
-                                token.location.parse_index -
-                                token.location.source_index;
-    info_stream << start_line << "," << start_column << "," << end_line << ","
-                << end_column;
-
-    // Close data array.
-    // We don't emit the End of File token so stop at the second to last token.
-    if (i < tokens.size() - 2)
-      info_stream << "],";
-    else
-      info_stream << "]";
-  }
-  info_stream << "]}}";
-
-  return info_stream.str();
-}
-
-auto Service::format(Tetrodotoxin::Lexical::Tokenizer& tokenizer,
-                     std::string_view name,
-                     const Perimortem::Storage::Json::RpcHeader& header)
-    -> std::string {
-  Formatter formatter;
-  formatter.tokenized_format(tokenizer, name);
-  std::string document = formatter.get_content();
-
-  // Escape all quotes in comments as they break JsonRPC.
-  auto pos = document.find('"');
-  while (pos != std::string::npos) {
-    document.replace(pos, 1, "\\\"");
-    pos = document.find('"', pos + 2);
+    const int64_t start_line = token.location.line - 1;
+    const int64_t start_column = token.location.column - 1;
+    const int64_t end_line = token.location.line - 1;
+    const int64_t end_column = token.location.column - 1 +
+                               token.location.parse_index -
+                               token.location.source_index;
+    token_data.insert(start_line);
+    token_data.insert(start_column);
+    token_data.insert(end_line);
+    token_data.insert(end_column);
   }
 
-  std::stringstream info_stream;
-  // Assume basic jsonrpc 2.0 simplified header is enough.
-  info_stream << "{\"jsonrpc\":\"" << header.get_method().get_view()
-              << "\",\"id\":" << header.get_id()
-              << ",\"result\":{\"document\":\"" << document << "\"}}";
-
-  return info_stream.str();
+  NodeObject result(header.get_arena());
+  result.insert("color"_bv, !tokenizer.get_options().has(TtxState::CppTheme));
+  result.insert("tokens"_bv, token_stream.get_view());
+  return result.get_view();
 }

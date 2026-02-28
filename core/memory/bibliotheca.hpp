@@ -14,22 +14,15 @@ class Bibliotheca {
   Bibliotheca() = delete;
 
   using size_type = uint32_t;
-  static constexpr uint8_t min_radix = 6;
-  static constexpr uint8_t max_radix = 24;
+  static constexpr uint8_t min_radix = 6; // Only 32 real bytes as this includes the 32 byte header.
+  static constexpr uint8_t max_radix = sizeof(size_type) * 8 - 1;
   static constexpr size_type radix_range = max_radix - min_radix;
   static constexpr size_type min_size = 1 << min_radix;
   static constexpr size_type max_size = 1 << max_radix;
 
-#if PERI_DEBUG
-  static constexpr uint64_t biblio_marker = 0x6269626c696f6d65;
-#endif
-
   // Make sure Preface is always aligned so that the pointer returned is
   // aligned.
   struct alignas(alignof(max_align_t)) Preface {
-#if PERI_DEBUG
-    uint64_t marker;
-#endif
     Preface* previous;
     size_type capacity;
     size_type usage;

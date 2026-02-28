@@ -15,25 +15,18 @@ namespace Perimortem::Memory {
 // go.
 class Arena {
  public:
-  // Attempt to request blocks in 16k pages including the preface.
+  // Attempt to request blocks in 32k pages including the preface.
   static constexpr uint64_t page_size =
-      (1 << 14) - sizeof(Bibliotheca::Preface);
+      (1 << 15) - sizeof(Bibliotheca::Preface);
   static constexpr uint64_t alignment_filter = alignof(max_align_t) - 1;
 
   Arena();
   ~Arena();
 
-  inline auto allocate(uint16_t bytes_requested) -> uint8_t* {
-#ifdef PERI_DEBUG
-    // You can't request more data than the size of a page.
-    if (bytes_requested > page_size) {
-      __builtin_debugtrap();
-    }
-#endif
-
+  inline auto allocate(uint64_t bytes_requested) -> uint8_t* {
     // Fetch a new page if we are full,
     if (rented_block->usage + bytes_requested > rented_block->capacity) {
-      auto rent = Bibliotheca::check_out(page_size);
+      auto rent = Bibliotheca::check_out(std::max(page_size, bytes_requested));
 
       // Add the block to our our stack and make it top most block.
       rent->previous = rented_block;
@@ -50,17 +43,13 @@ class Arena {
     return root;
   }
 
-  auto reset() -> void;
-
+  // Creates a basic value type object.
   template <typename T>
-  inline auto construct(uint32_t count = 1) -> T* {
-    T* root = reinterpret_cast<T*>(allocate(sizeof(T) * count));
-    for (int i = 0; i < count; i++) {
-      new (root + i) T();
-    }
-
-    return root;
+  inline auto allocate() -> T& {
+    return *reinterpret_cast<T*>(allocate(sizeof(T)));
   }
+
+  auto reset() -> void;
 
  private:
   Bibliotheca::Preface* rented_block;

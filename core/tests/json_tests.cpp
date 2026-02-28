@@ -40,21 +40,22 @@ TEST_F(JsonTests, init_rpc) {
   Arena test;
   uint32_t pos = 0;
   std::string json = load_text("core/tests/json/init_rpc.json");
-  auto data = parse(test, ByteView(json), pos);
 
-  ASSERT_NE(data, nullptr);
-  EXPECT_TRUE(data->contains("method"));
-  EXPECT_EQ(data->at("method")->get_string().get_view(), "initialize");
+  Node node;
+  node.from_source(test, View::Byte(json), pos);
 
-  EXPECT_TRUE(data->contains("jsonrpc"));
-  EXPECT_EQ(data->at("jsonrpc")->get_string().get_view(), "2.0");
+  EXPECT_TRUE(node.contains("method"));
+  EXPECT_EQ(node.at("method").get_string().get_view(), "initialize");
 
-  EXPECT_TRUE(data->contains("id"));
-  EXPECT_EQ(data->at("id")->get_int(), 10);
+  EXPECT_TRUE(node.contains("jsonrpc"));
+  EXPECT_EQ(node.at("jsonrpc").get_string().get_view(), "2.0");
 
-  EXPECT_TRUE(data->contains("params"));
-  EXPECT_TRUE(data->at("params")->contains("rootPath"));
-  auto path = data->at("params")->at("rootPath")->get_string();
+  EXPECT_TRUE(node.contains("id"));
+  EXPECT_EQ(node.at("id").get_int(), 10);
+
+  EXPECT_TRUE(node.contains("params"));
+  EXPECT_TRUE(node.at("params").contains("rootPath"));
+  auto path = node.at("params").at("rootPath").get_string();
   EXPECT_EQ(path.get_view(),
             "/home/test/Perimortem/tetrodotoxin/tests/scripts");
 }
@@ -63,32 +64,34 @@ TEST_F(JsonTests, tokenize_rpc) {
   Arena test;
   uint32_t pos = 0;
   std::string json = load_text("core/tests/json/tokenize_rpc.json");
-  auto data = parse(test, ByteView(json), pos);
 
-  ASSERT_NE(data, nullptr);
-  EXPECT_TRUE(data->contains("method"));
-  EXPECT_EQ(data->at("method")->get_string().get_view(), "tokenize");
+  Node node;
+  node.from_source(test, View::Byte(json), pos);
 
-  EXPECT_TRUE(data->contains("jsonrpc"));
-  EXPECT_EQ(data->at("jsonrpc")->get_string().get_view(), "2.0");
+  EXPECT_TRUE(node.contains("method"));
+  EXPECT_EQ(node.at("method").get_string().get_view(), "tokenize");
 
-  EXPECT_TRUE(data->contains("id"));
-  EXPECT_EQ(data->at("id")->get_int(), 1);
+  EXPECT_TRUE(node.contains("jsonrpc"));
+  EXPECT_EQ(node.at("jsonrpc").get_string().get_view(), "2.0");
 
-  ASSERT_TRUE(data->contains("params"));
-  auto params = data->at("params");
-  ASSERT_TRUE(params->contains("source"));
+  EXPECT_TRUE(node.contains("id"));
+  EXPECT_EQ(node.at("id").get_int(), 1);
+
+  ASSERT_TRUE(node.contains("params"));
+  auto params = node.at("params");
+  ASSERT_TRUE(params.contains("source"));
 }
 
 TEST_F(JsonTests, rpc_header) {
   std::string json = load_text("core/tests/json/init_rpc.json");
 
+  Arena arena;
   auto data = Perimortem::Storage::Json::RpcHeader(
-      Perimortem::Memory::ByteView(json.c_str(), json.size()));
+      arena, View::Bytes(json.c_str(), json.size()));
 
-  EXPECT_EQ(data.get_method(), "initialize");
-  EXPECT_EQ(data.get_version(), "2.0");
-  EXPECT_EQ(data.get_id(), 10);
+  EXPECT_EQ(data.get_method(), "initialize"_bv);
+  EXPECT_EQ(data.get_version(), "2.0"_bv);
+  EXPECT_EQ(data.get_id(), "10"_bv);
   EXPECT_EQ(data.get_params_offset(), 56);
 }
 
@@ -96,30 +99,31 @@ TEST_F(JsonTests, jsonrpc) {
   Arena test;
   uint32_t pos = 0;
   std::string json = load_text("core/tests/json/initialized_rpc.json");
-  auto data = parse(test, ByteView(json), pos);
 
-  ASSERT_NE(data, nullptr);
-  EXPECT_TRUE(data->contains("method"));
-  EXPECT_EQ(data->at("method")->get_string().get_view(), "initialized");
+  Node node;
+  node.from_source(test, View::Byte(json), pos);
 
-  EXPECT_TRUE(data->contains("jsonrpc"));
-  EXPECT_EQ(data->at("jsonrpc")->get_string().get_view(), "2.0");
-  ASSERT_TRUE(data->contains("params"));
+  EXPECT_TRUE(node.contains("method"));
+  EXPECT_EQ(node.at("method").get_string().get_view(), "initialized");
 
-  ASSERT_NE(data, nullptr);
+  EXPECT_TRUE(node.contains("jsonrpc"));
+  EXPECT_EQ(node.at("jsonrpc").get_string().get_view(), "2.0");
+  ASSERT_TRUE(node.contains("params"));
 }
 
 TEST_F(JsonTests, jsonrpc_from_header) {
   Arena test;
   std::string json = load_text("core/tests/json/init_rpc.json");
+  Arena arena;
   auto header = Perimortem::Storage::Json::RpcHeader(
-      Perimortem::Memory::ByteView(json.c_str(), json.size()));
+      arena, View::Bytes(json.c_str(), json.size()));
   uint32_t pos = header.get_params_offset();
-  auto data = parse(test, ByteView(json), pos);
 
-  ASSERT_NE(data, nullptr);
-  ASSERT_TRUE(data->contains("processId"));
-  ASSERT_EQ(data->at("processId")->get_int(), 18186);
-  ASSERT_EQ(data->at("clientInfo")->at("name")->get_string(),
-            ByteView("VisualStudioCode"));
+  Node node;
+  node.from_source(test, View::Byte(json), pos);
+
+  ASSERT_TRUE(node.contains("processId"));
+  ASSERT_EQ(node.at("processId").get_int(), 18186);
+  ASSERT_EQ(node.at("clientInfo").at("name").get_string(),
+            View::Byte("VisualStudioCode"));
 }

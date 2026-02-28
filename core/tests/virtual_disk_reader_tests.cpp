@@ -12,13 +12,13 @@ using namespace Perimortem::Storage;
 
 static std::string script;
 static std::string script_path;
-static ByteView script_view;
+static View::Bytes script_view;
 static std::string txt;
 static std::string txt_path;
-static ByteView txt_view;
+static View::Bytes txt_view;
 static Bytes logo_svg;
 static std::string logo_svg_path;
-static ByteView logo_svg_view;
+static View::Bytes logo_svg_view;
 
 auto read_all_bytes(const std::filesystem::path &p) -> Bytes {
   std::ifstream ifs(p, std::ios::binary | std::ios::ate);
@@ -34,7 +34,7 @@ auto read_all_bytes(const std::filesystem::path &p) -> Bytes {
   return data;
 }
 
-void compare_buffers(const ByteView &result, const ByteView &target) {
+void compare_buffers(const View::Byte &result, const View::Byte &target) {
   ASSERT_EQ(result.size(), target.size()) << "Buffers are of unequal length";
 
   for (int i = 0; i < target.size(); ++i) {

@@ -3,7 +3,7 @@ import lldb.formatters.Logger
 
 max_length = 64;
 
-class ManagedLookupPrinter:
+class ManagedTablePrinter:
   def __init__(self, valobj, dict):
     lldb.formatters.Logger._lldb_formatters_debug_level = 2
     self.valobj = valobj
@@ -89,10 +89,10 @@ def rpc_header_summary(valueObject, dictionary):
     return f'{method} (v{version})'
 
 def __lldb_init_module(debugger, dict):
-  debugger.HandleCommand('type synthetic add -w data_types -l data_types.ManagedLookupPrinter -x "Perimortem::Memory::ManagedLookup<.+>$"')
+  debugger.HandleCommand('type synthetic add -w data_types -l data_types.ManagedTablePrinter -x "Perimortem::Memory::Managed::Table<.+>$"')
 
-  debugger.HandleCommand('type summary add -w data_types --python-function data_types.look_view_summary -x "Perimortem::Memory::ManagedLookup<.+>$"')
+  debugger.HandleCommand('type summary add -w data_types --python-function data_types.look_view_summary -x "Perimortem::Memory::Managed::Table<.+>$"')
   debugger.HandleCommand('type summary add -w data_types --python-function data_types.string_view_summary std::string_view')
-  debugger.HandleCommand('type summary add -w data_types --python-function data_types.byte_view_summary Perimortem::Memory::ByteView')
+  debugger.HandleCommand('type summary add -w data_types --python-function data_types.byte_view_summary View::Bytes')
   debugger.HandleCommand('type summary add -w data_types --python-function data_types.rpc_header_summary Perimortem::Storage::Json::RpcHeader')
   debugger.HandleCommand('type category enable data_types')

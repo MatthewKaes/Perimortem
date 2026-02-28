@@ -17,17 +17,15 @@
 #include <thread>
 #include <unordered_map>
 
-using ByteView = Perimortem::Memory::ByteView;
-
 namespace Tetrodotoxin::Lsp {
 
 class UnixJsonRPC {
  public:
   using DispatchFunc = std::function<RpcResponse(const RpcRequest&)>;
-  UnixJsonRPC(const std::string& pipe_name);
+  UnixJsonRPC(const std::string_view& pipe_name);
   ~UnixJsonRPC();
 
-  auto register_method(std::string name, DispatchFunc resolver) -> void;
+  auto register_method(std::string_view name, DispatchFunc resolver) -> void;
   auto process() -> void;
   auto shutdown() -> void;
 

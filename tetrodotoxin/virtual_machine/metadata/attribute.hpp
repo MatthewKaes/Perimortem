@@ -5,7 +5,7 @@
 
 #include "types/abstract.hpp"
 
-#include "memory/byte_view.hpp"
+#include "core/memory/view/byte.hpp"
 
 namespace Tetrodotoxin::Types::Compiler {
 
@@ -22,9 +22,9 @@ class Attribute : public Abstract {
   constexpr virtual auto get_usage() const -> Usage { return Usage::Constant; };
   auto get_size() const -> uint32_t override { return sizeof(uint8_t); };
 
-  Perimortem::Memory::ByteView name;
-  Perimortem::Memory::ByteView value;
-  Perimortem::Memory::ByteView doc;
+  View::Bytes name;
+  View::Bytes value;
+  View::Bytes doc;
 };
 
 }  // namespace Tetrodotoxin::Types::Compiler

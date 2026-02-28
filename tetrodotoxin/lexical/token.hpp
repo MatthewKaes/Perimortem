@@ -6,12 +6,7 @@
 #include "source.hpp"
 
 #include "core/concepts/bitflag.hpp"
-#include "core/memory/byte_view.hpp"
-
-#include <cstdint>
-#include <limits>
-#include <span>
-#include <vector>
+#include "core/memory/view/bytes.hpp"
 
 namespace Tetrodotoxin::Lexical {
 
@@ -111,17 +106,15 @@ using ClassifierFlags = Perimortem::Concepts::BitFlag<Classifier>;
 // Wrapper for tokenizing a stream.
 struct Token {
   Classifier klass;
-  const Perimortem::Memory::ByteView data;
+  const Perimortem::Memory::View::Bytes data;
   Location location;
 
-  inline auto test(const Perimortem::Memory::ByteView view) const -> bool {
+  inline auto test(const Perimortem::Memory::View::Bytes view) const -> bool {
     return data == view;
   }
 
   inline auto valid() const -> bool { return klass != Classifier::EndOfStream; }
 };
-
-using TokenStream = std::vector<Token>;
 
 inline constexpr auto klass_name(Classifier klass) -> const char* {
   switch (klass) {
