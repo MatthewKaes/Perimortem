@@ -3,13 +3,13 @@
 
 #pragma once
 
-#include "stack_types.hpp"
+#include "core/memory/stack_types.hpp"
 
 #include <array>
 #include <cstddef>
 #include <cstdint>
 
-namespace Perimortem::Concepts {
+namespace Perimortem::Memory::Const {
 constexpr uint64_t default_table_seed = 0x506572696d6f7274;
 
 //
@@ -290,4 +290,4 @@ class SeedFinder<0,
   inline static constexpr auto candidate_search() -> uint64_t { return 0; }
 };
 
-}  // namespace Perimortem::Concepts
+}  // namespace Perimortem::Memory::Const

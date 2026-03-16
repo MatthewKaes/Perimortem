@@ -147,6 +147,7 @@ def _impl(ctx):
         ctx = ctx,
         features = features,
         cxx_builtin_include_directories = [
+            "/usr/lib/clang/22/include",
             "/usr/lib/clang/21/include",
             "/usr/lib/clang/20/include",
             "/usr/include",

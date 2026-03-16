@@ -3,13 +3,14 @@
 
 #pragma once
 
-#include "stack_types.hpp"
+#include "core/memory/const/stack_types.hpp"
+#include "core/memory/view/bytes.hpp"
 
 #include <array>
 #include <cstddef>
 #include <cstdint>
 
-namespace Perimortem::Concepts {
+namespace Perimortem::Memory::Const {
 
 //
 // Perimortem NarrowResolver
@@ -23,7 +24,7 @@ namespace Perimortem::Concepts {
 */
 template <typename value_type,
           uint64_t element_count,
-          const TablePair<std::string_view, value_type> (
+          const TablePair<Memory::View::Bytes, value_type> (
               &source)[element_count],
           char start_range = 'a',
           char end_range = 'z'>
@@ -33,7 +34,7 @@ class NarrowResolver {
   // string in an array. Excludes the null terminator.
   inline static constexpr auto required_storage() -> uint64_t {
     uint64_t max = 0;
-    for (uint32_t i = 0; i < element_count; i++) {
+    for (Int i = 0; i < element_count; i++) {
       max = std::max(source[i].key.size(), max);
     }
 
@@ -62,11 +63,11 @@ class NarrowResolver {
                required_storage()>
         table = {};
     for (int32_t i = 0; i < element_count; i++) {
-      uint32_t index = source[i].key.size() & index_mask;
+      Int index = source[i].key.size() & index_mask;
 
       // "neat" trick to compile error by causing the function to fail constexpr
-      // if we have a duplicate entry. The value of the '-' tells us the index of
-      // the element where we encountered the error.
+      // if we have a duplicate entry. The value of the '-' tells us the index
+      // of the element where we encountered the error.
       if (table[index][source[i].key.data()[0] - start_range].key.size() != 0)
         index = source[i].key.data()[-(i + 1)];
 
@@ -93,7 +94,7 @@ class NarrowResolver {
   static constexpr auto find_or_default(std::string_view view,
                                         value_type default_value)
       -> value_type {
-    uint32_t index = view.size() & index_mask;
+    Int index = view.size() & index_mask;
 
     // Seems to optimize more often than the ternary operator, although when
     // properly optimized for x86_64 they end up the same.
@@ -103,4 +104,4 @@ class NarrowResolver {
   }
 };
 
-}  // namespace Perimortem::Concepts
+}  // namespace Perimortem::Memory::Const

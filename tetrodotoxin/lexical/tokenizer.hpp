@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include "core/concepts/bitflag.hpp"
+#include "core/memory/view/bitflag.hpp"
 
 #include "core/memory/arena.hpp"
 #include "core/memory/managed/vector.hpp"

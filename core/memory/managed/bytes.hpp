@@ -3,8 +3,9 @@
 
 #pragma once
 
-#include "memory/arena.hpp"
-#include "memory/view/bytes.hpp"
+#include "core/memory/arena.hpp"
+#include "core/memory/managed/buffer.hpp"
+#include "core/memory/view/bytes.hpp"
 
 #include <bit>
 #include <charconv>
@@ -15,10 +16,10 @@ namespace Perimortem::Memory::Managed {
 // as long as the associated Arena is still alive.
 class Bytes {
  public:
-  static constexpr uint32_t start_capacity = 32;
-  static constexpr uint32_t growth_factor = 2;
+  static constexpr Count start_capacity = 32;
+  static constexpr Count growth_factor = 2;
 
-  Bytes(const Bytes& rhs, uint32_t reserved_capacity = start_capacity)
+  Bytes(const Bytes& rhs, Count reserved_capacity = start_capacity)
       : arena(rhs.arena) {
     reset(reserved_capacity);
     proxy(rhs);
@@ -42,10 +43,38 @@ class Bytes {
     return View::Bytes(rented_block, size);
   }
 
-  auto reset(uint32_t reserved_capacity = start_capacity) -> void {
+  auto reset(Count reserved_capacity = start_capacity) -> void {
     size = 0;
     capacity = reserved_capacity;
     rented_block = reinterpret_cast<char*>(arena.allocate(reserved_capacity));
+  }
+
+  auto ensure_room(Count required_bytes) -> void {
+    if (size + required_bytes <= capacity) {
+      return;
+    }
+
+    grow(capacity - (size + required_bytes));
+  }
+
+  auto resize(Count new_size) -> void {
+    if (new_size > capacity) {
+      grow(new_size - capacity);
+    }
+
+    size = new_size;
+  }
+
+  auto take(Bytes& rhs) -> void {
+    // Take ownership and invalidate the old
+    size = rhs.size;
+    capacity = rhs.capacity;
+    rented_block = rhs.rented_block;
+
+    // Does not change reservation counts on the rented block.
+    rhs.size = 0;
+    rhs.size = 0;
+    rhs.rented_block = nullptr;
   }
 
   auto append(char c) -> void {
@@ -171,13 +200,13 @@ class Bytes {
   //======================================================================
   // Optimized operations
   //======================================================================
-  
+
   // Writes bytes directly into the buffer.
   template <typename storage_type,
             std::endian target_order = std::endian::little>
-  auto write(storage_type data) -> void {
+  auto write_at(storage_type data, Count location) -> void {
     static_assert(
-        sizeof(storage_type) < 8,
+        sizeof(storage_type) <= 8,
         "Writing blocks larger than 8 bytes is typically an anti-pattern, "
         "use buffers instead or smaller blocks if you care about endianness.");
 
@@ -185,16 +214,50 @@ class Bytes {
       data = std::byteswap(data);
     }
 
-    if (size + sizeof(storage_type) > capacity)
+    if (location + sizeof(storage_type) >= size) {
+      grow((location + sizeof(storage_type)) - size);
+      size = location + sizeof(storage_type);
+    }
+
+    // When writing bytes we may not be aligned so we'll need to copy the bytes.
+    std::memcpy(rented_block + location, &data, sizeof(storage_type));
+  }
+
+  // Writes bytes directly into the buffer.
+  template <typename storage_type,
+            std::endian target_order = std::endian::little>
+  auto write(storage_type data) -> void {
+    static_assert(
+        sizeof(storage_type) <= 8,
+        "Writing blocks larger than 8 bytes is typically an anti-pattern, "
+        "use buffers instead or smaller blocks if you care about endianness.");
+
+    if constexpr (std::endian::native != target_order) {
+      data = std::byteswap(data);
+    }
+
+    if (size + sizeof(storage_type) > capacity) {
       grow(sizeof(storage_type));
+    }
 
     // When writing bytes we may not be aligned so we'll need to copy the bytes.
     std::memcpy(rented_block + size, &data, sizeof(storage_type));
     size += sizeof(storage_type);
   }
 
+  // Writes bytes directly into the buffer.
+  auto write(const View::Bytes data) -> void {
+    if (size + data.get_size() > capacity) {
+      grow(capacity - (size + data.get_size()));
+    }
+
+    // When writing bytes we may not be aligned so we'll need to copy the bytes.
+    std::memcpy(rented_block + size, data.get_data(), data.get_size());
+    size += data.get_size();
+  }
+
  private:
-  auto grow(uint32_t requested) -> void {
+  auto grow(Count requested) -> void {
     const auto required = capacity + requested;
     // Attempt to grow by a factor of 2.
     // If that doesn't work than grow to exact size.
@@ -211,8 +274,8 @@ class Bytes {
 
   Arena& arena;
   char* rented_block;
-  uint32_t size;
-  uint32_t capacity;
+  Count size;
+  Count capacity;
 };
 
 }  // namespace Perimortem::Memory::Managed

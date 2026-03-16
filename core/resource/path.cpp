@@ -4,24 +4,29 @@
 #include "resource/path.hpp"
 
 using namespace Perimortem::Resource;
+using namespace Perimortem::Memory;
 
-Path::Path(Path::Sector sector, const std::string_view &path_)
-    : path(logical_maps[(int)sector]), sector(sector) {
-  path += path_;
+Path::Path(Path::Sector sector, const View::Bytes local_path)
+      : path(local_path),
+        sector(sector) {
+  if (path.slice(0, sector_headers[0].size()) == logical_maps[static_cast<Bits_8>(sector)]) {
+    path = path.slice(sector_headers[0].size(), -1);
+  }
+
+  if (path.get_size() == 0) {
+    this->sector = Sector::Invalid;
+  }
 }
 
-Path::Path(const std::string &path_) {
-  path = path_;
+Path::Path(View::Bytes raw_path) {
+  path = raw_path;
   sector = Path::Sector::User;
-  if (path.size() > header_size && path[0] == '[' && path[4] == ']' &&
-      path[5] == ':' && path[6] == '/' && path[7] == '/') {
-    for (int i = 0; i < sector_count; i++) {
-      if (path_.starts_with(logical_disks[i])) {
-        sector = static_cast<Sector>(i);
-        path = logical_maps[i];
-        path += path_.substr(header_size - 1);
-        return;
-      }
+  auto header_check = path.slice(0, sector_headers[0].size());
+  for (int i = 0; i < sector_count; i++) {
+    if (header_check == View::Bytes(sector_headers[i])) {
+      sector = static_cast<Sector>(i);
+      path = path.slice(sector_headers[0].size(), -1);
+      return;
     }
   }
 }

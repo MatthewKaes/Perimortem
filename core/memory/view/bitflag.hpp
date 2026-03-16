@@ -15,7 +15,7 @@
   Example usage with enum Class:
 
   // File optoins
-  enum class StorageOptions : uint8_t {
+  enum class StorageOptions : Bits_8 {
     None = -1,
     Preload,
     Stream,
@@ -28,14 +28,15 @@
 
 #pragma once
 
-#include <cstdint>
+#include "core/memory/standard_types.hpp"
+
 #include <type_traits>
 #include <utility>
 
 // Example usag with enum Class:
 //
 // // File optoins
-// enum class StorageOptions : uint8_t {
+// enum class StorageOptions : Bits_8 {
 //   None = -1,
 //   Preload,
 //   Stream,
@@ -45,9 +46,6 @@
 //
 // use StorageOptions::None for empty flag set.
 
-// Add the clang compiler extension to give us the ability to use larger flags.
-using uint128_t = __uint128_t;
-
 namespace Perimortem::Concepts {
 
 template <typename T, typename... U>
@@ -55,102 +53,102 @@ concept is_any_of = (std::same_as<T, U> || ...);
 
 template <class T>
 concept flag_storage_supported =
-    is_any_of<T, uint8_t, uint16_t, uint32_t, uint64_t, uint128_t>;
+    is_any_of<T, Bits_8, Bits_16, Bits_32, Bits_64, Bits_128>;
 
 template <class T>
 concept marked_byte_flag =
-    std::conditional_t<static_cast<uint8_t>(T::None) == static_cast<uint8_t>(-1),
+    std::conditional_t<static_cast<Bits_8>(T::None) == static_cast<Bits_8>(-1),
                        std::true_type,
                        std::false_type>::type::value &&
-    std::conditional_t<(static_cast<uint8_t>(T::TOTAL_FLAGS) > 0),
+    std::conditional_t<(static_cast<Bits_8>(T::TOTAL_FLAGS) > 0),
                        std::true_type,
                        std::false_type>::type::value;
 
 template <class T>
-concept uses_uint8_t_stroage =
-    std::conditional_t<static_cast<uint8_t>(T::None) ==
-                           static_cast<uint8_t>(-1),
+concept uses_Bits_8_stroage =
+    std::conditional_t<static_cast<Bits_8>(T::None) ==
+                           static_cast<Bits_8>(-1),
                        std::true_type,
                        std::false_type>::type::value &&
-    std::conditional_t<(static_cast<uint16_t>(T::TOTAL_FLAGS) <=
-                        sizeof(uint8_t) * 8),
+    std::conditional_t<(static_cast<Bits_16>(T::TOTAL_FLAGS) <=
+                        size_in_bits<Bits_8>()),
                        std::true_type,
                        std::false_type>::type::value;
 
 template <class T>
-concept uses_uint16_t_stroage =
-    std::conditional_t<static_cast<uint16_t>(T::None) ==
-                           static_cast<uint16_t>(-1),
+concept uses_Bits_16_stroage =
+    std::conditional_t<static_cast<Bits_16>(T::None) ==
+                           static_cast<Bits_16>(-1),
                        std::true_type,
                        std::false_type>::type::value &&
-    std::conditional_t<(static_cast<uint16_t>(T::TOTAL_FLAGS) >
-                        sizeof(uint8_t) * 8),
+    std::conditional_t<(static_cast<Bits_16>(T::TOTAL_FLAGS) >
+                        size_in_bits<Bits_8>()),
                        std::true_type,
                        std::false_type>::type::value &&
-    std::conditional_t<(static_cast<uint16_t>(T::TOTAL_FLAGS) <=
-                        sizeof(uint16_t) * 8),
+    std::conditional_t<(static_cast<Bits_16>(T::TOTAL_FLAGS) <=
+                        size_in_bits<Bits_16>()),
                        std::true_type,
                        std::false_type>::type::value;
 
 template <class T>
-concept uses_uint32_t_stroage =
-    std::conditional_t<static_cast<uint32_t>(T::None) ==
-                           static_cast<uint16_t>(-1),
+concept uses_Bits_32_stroage =
+    std::conditional_t<static_cast<Bits_32>(T::None) ==
+                           static_cast<Bits_16>(-1),
                        std::true_type,
                        std::false_type>::type::value &&
-    std::conditional_t<(static_cast<uint16_t>(T::TOTAL_FLAGS) >
-                        sizeof(uint16_t) * 8),
+    std::conditional_t<(static_cast<Bits_16>(T::TOTAL_FLAGS) >
+                        size_in_bits<Bits_16>()),
                        std::true_type,
                        std::false_type>::type::value &&
-    std::conditional_t<(static_cast<uint32_t>(T::TOTAL_FLAGS) <=
-                        sizeof(uint32_t) * 8),
+    std::conditional_t<(static_cast<Bits_32>(T::TOTAL_FLAGS) <=
+                        size_in_bits<Bits_32>()),
                        std::true_type,
                        std::false_type>::type::value;
 
 template <class T>
-concept uses_uint64_t_stroage =
-    std::conditional_t<static_cast<uint16_t>(T::None) ==
-                           static_cast<uint16_t>(-1),
+concept uses_Bits_64_stroage =
+    std::conditional_t<static_cast<Bits_16>(T::None) ==
+                           static_cast<Bits_16>(-1),
                        std::true_type,
                        std::false_type>::type::value &&
-    std::conditional_t<(static_cast<uint16_t>(T::TOTAL_FLAGS) >
-                        sizeof(uint32_t) * 8),
+    std::conditional_t<(static_cast<Bits_16>(T::TOTAL_FLAGS) >
+                        size_in_bits<Bits_32>()),
                        std::true_type,
                        std::false_type>::type::value &&
-    std::conditional_t<(static_cast<uint64_t>(T::TOTAL_FLAGS) <=
-                        sizeof(uint64_t) * 8),
+    std::conditional_t<(static_cast<Bits_64>(T::TOTAL_FLAGS) <=
+                        size_in_bits<Bits_64>()),
                        std::true_type,
                        std::false_type>::type::value;
 
 template <class T>
-concept uses_uint128_t_stroage =
-    std::conditional_t<static_cast<uint16_t>(T::None) ==
-                           static_cast<uint16_t>(-1),
+concept uses_Bits_128_stroage =
+    std::conditional_t<static_cast<Bits_16>(T::None) ==
+                           static_cast<Bits_16>(-1),
                        std::true_type,
                        std::false_type>::type::value &&
-    std::conditional_t<(static_cast<uint16_t>(T::TOTAL_FLAGS) >
-                        sizeof(uint64_t) * 8),
+    std::conditional_t<(static_cast<Bits_16>(T::TOTAL_FLAGS) >
+                        size_in_bits<Bits_64>()),
                        std::true_type,
                        std::false_type>::type::value &&
-    std::conditional_t<(static_cast<uint16_t>(T::TOTAL_FLAGS) <=
-                        sizeof(uint128_t) * 8),
+    std::conditional_t<(static_cast<Bits_16>(T::TOTAL_FLAGS) <=
+                        size_in_bits<Bits_128>()),
                        std::true_type,
                        std::false_type>::type::value;
 
 template <class T>
 requires marked_byte_flag<T>
 constexpr auto storage_from_flag() {
-  constexpr uint8_t flag_count = static_cast<uint8_t>(T::TOTAL_FLAGS);
-  if constexpr (flag_count <= sizeof(uint8_t) * 8)
-    return std::type_identity<uint8_t>{};
-  else if constexpr (flag_count <= sizeof(uint16_t) * 8)
-    return std::type_identity<uint16_t>{};
-  else if constexpr (flag_count <= sizeof(uint32_t) * 8)
-    return std::type_identity<uint32_t>{};
-  else if constexpr (flag_count <= sizeof(uint64_t) * 8)
-    return std::type_identity<uint64_t>{};
-  else if constexpr (flag_count <= sizeof(uint128_t) * 8)
-    return std::type_identity<uint128_t>{};
+  constexpr Bits_8 flag_count = static_cast<Bits_8>(T::TOTAL_FLAGS);
+  if constexpr (flag_count <= size_in_bits<Bits_8>())
+    return std::type_identity<Bits_8>{};
+  else if constexpr (flag_count <= size_in_bits<Bits_16>())
+    return std::type_identity<Bits_16>{};
+  else if constexpr (flag_count <= size_in_bits<Bits_32>())
+    return std::type_identity<Bits_32>{};
+  else if constexpr (flag_count <= size_in_bits<Bits_64>())
+    return std::type_identity<Bits_64>{};
+  else if constexpr (flag_count <= size_in_bits<Bits_128>())
+    return std::type_identity<Bits_128>{};
   else
     return std::type_identity<void>{};
 }
@@ -161,14 +159,14 @@ class BitFlag {
   using storage_type =
       typename decltype(storage_from_flag<flag_source>())::type;
   static_assert(Perimortem::Concepts::flag_storage_supported<storage_type>,
-                "Not the correct storage type. Valid types=uint8_t, "
-                "uint16_t, uint32_t, uint64_t");
-  static_assert(static_cast<uint64_t>(flag_source::TOTAL_FLAGS) <=
+                "Not the correct storage type. Valid types=Bits_8, "
+                "Bits_16, Bits_32, Bits_64");
+  static_assert(static_cast<Bits_64>(flag_source::TOTAL_FLAGS) <=
                     sizeof(storage_type) * 8,
                 "Bit flag contains more flags than it does bits! Use a larger "
                 "storage size.");
 
-  static constexpr uint8_t storage_size = sizeof(storage_type);
+  static constexpr Bits_8 storage_size = sizeof(storage_type);
 
   constexpr auto convert_flag(flag_source flag) const -> storage_type {
     if (flag == static_cast<flag_source>(-1))

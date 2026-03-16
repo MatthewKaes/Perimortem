@@ -24,11 +24,16 @@ using Bits_32 = std::uint32_t;
 using Bits_64 = std::uint64_t;
 using Bits_128 = __uint128_t;
 
+template <typename storage>
+constexpr Bits_64 size_in_bits() {
+  return sizeof(storage) * 8;
+}
+
 // Numerics
 using Int = std::int32_t;
 using Long = std::int64_t;
-using UInt = std::uint32_t;
-using Count = std::uint64_t;
+using UInt = Bits_32;
+using Count = Bits_64;
 
 // Floating point types, use def hack to get around fixed floats not yet in
 // C++23 for clang.

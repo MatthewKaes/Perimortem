@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include "memory/view/bytes.hpp"
+#include "core/memory/view/bytes.hpp"
 
 #include <functional>
 #include <initializer_list>
@@ -63,6 +63,7 @@ class Table {
     return at(index);
   }
 
+  inline constexpr auto empty() const -> bool { return size == 0; };
   constexpr auto get_size() const -> uint64_t { return size; }
   constexpr auto get_data() const -> const Entry* { return source_block; }
 

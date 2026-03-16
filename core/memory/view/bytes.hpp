@@ -3,10 +3,13 @@
 
 #pragma once
 
-#include "concepts/standard_types.hpp"
-#include "memory/arena.hpp"
+#include "core/memory/arena.hpp"
+#include "core/memory/const/stack_types.hpp"
+#include "core/memory/standard_types.hpp"
 
 #include <x86intrin.h>
+#include <algorithm>
+#include <bit>
 #include <cstring>
 
 namespace Perimortem::Memory::View {
@@ -14,7 +17,7 @@ namespace Perimortem::Memory::View {
 // A raw read-only view of bytes with no endianness.
 //
 // Byte views are typically used as strings but this is only valid when the
-// encoding is ASCII. The main purpose of a byte view is to gurentee the data
+// encoding is ASCII. The main purpose of a byte view is to guarantee the data
 // lie on 1 byte boundries (for instance ASCII is 7 bit aligned at the byte).
 // Any optimized vectorization opperations will break UTF-8 strings unless you
 // know exactly what you are doing (scanning for an exact byte).
@@ -26,10 +29,16 @@ class Bytes {
     source_block = "";
   }
 
+  template <Count element_count>
+  constexpr Bytes(Const::StackString<element_count> str) {
+    size = str.size();
+    source_block = str.data();
+  }
+
   constexpr Bytes(const Bytes&) = default;
 
-  constexpr Bytes(const char* source) {
-    size = std::strlen(source);
+  constexpr Bytes(const char* const source) {
+    size = Const::static_strlen(source);
     source_block = source;
   }
 
@@ -49,20 +58,19 @@ class Bytes {
   }
 
   inline constexpr auto operator==(const char* rhs) const -> bool {
-    return std::strlen(rhs) == size &&
+    return Const::static_strlen(rhs) == size &&
            std::memcmp(source_block, rhs, size) == 0;
   }
 
   inline constexpr auto empty() const -> bool { return size == 0; };
-
   inline constexpr auto get_size() const -> Count { return size; };
-
   inline constexpr auto get_data() const -> const char* {
     return source_block;
   };
 
   inline constexpr auto slice(Count start, Count size) const -> Bytes {
-    return Bytes(source_block + start, size);
+    return Bytes(source_block + start,
+                 std::clamp(size, static_cast<Count>(0), get_size() - start));
   };
 
   inline constexpr auto operator[](Count index) const -> char {
@@ -83,7 +91,7 @@ class Bytes {
             std::endian source_order = std::endian::little>
   auto read(Count location) const -> storage_type {
     static_assert(
-        sizeof(storage_type) < 8,
+        sizeof(storage_type) <= 8,
         "Reading blocks larger than 8 bytes is typically an anti-pattern, "
         "use buffers instead or smaller blocks if you care about endianness.");
 
@@ -119,20 +127,20 @@ class Bytes {
   // is valid.
   auto fast_scan(Byte search, Count position = 0) const -> Count;
 
-  inline auto block_compare(const Bytes& data,
-                            const Count position = 0) const -> bool {
+  inline auto block_compare(const Bytes& data, const Count position = 0) const
+      -> bool {
     return data.size + position < size &&
            memcmp(data.source_block, source_block + position, data.size) == 0;
   }
 
  private:
   const char* source_block;
-  uint64_t size;
+  Count size;
 };
 
 }  // namespace Perimortem::Memory::View
 
 constexpr Perimortem::Memory::View::Bytes operator""_bv(const char* arr,
-                                                        size_t size) {
+                                                        Count size) {
   return Perimortem::Memory::View::Bytes(arr, size);
 }

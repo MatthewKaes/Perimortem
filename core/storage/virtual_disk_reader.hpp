@@ -3,12 +3,12 @@
 
 #pragma once
 
-#include "concepts/bitflag.hpp"
 #include "storage/disk_info.hpp"
 
 #include <filesystem>
 #include <memory>
 
+#include "core/memory/view/bitflag.hpp"
 #include "core/memory/managed/bytes.hpp"
 #include "core/memory/managed/table.hpp"
 #include "core/memory/managed/vector.hpp"
@@ -20,7 +20,7 @@ class VirtualDiskReader {
   struct Block {
     Block(Memory::Arena& disk_arena) : data(disk_arena) {}
     Memory::Managed::Bytes data;
-    uint64_t location;
+    Count location;
   };
 
   // Populating Disk
@@ -62,7 +62,7 @@ class VirtualDiskReader {
 
   Memory::Managed::Vector<Block> blocks;
   Memory::Managed::Vector<FileData> files;
-  Memory::Managed::Table<int64_t> stream_index;
+  Memory::Managed::Table<Long> stream_index;
 };
 
 }  // namespace Perimortem::Storage

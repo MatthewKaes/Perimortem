@@ -11,55 +11,29 @@
 #include <zstd.h>
 
 using namespace Perimortem::Storage;
+using namespace Perimortem::Memory;
 
-template <typename T>
-auto write_block(Memory::Managed::Bytes& source, T block) -> void {
-  using stroage_type = T;
-  source.resize(source.size() + sizeof(stroage_type));
-  stroage_type data = static_cast<stroage_type>(block);
-  if (std::endian::native != file_endian) {
-    data = std::byteswap(data);
-  }
-
-  *(stroage_type*)(&source[source.size() - sizeof(stroage_type)]) = data;
-}
-
-template <typename T>
-auto overwrite_block(Byte* source, T block) -> void {
-  using stroage_type = T;
-  stroage_type data = static_cast<stroage_type>(block);
-  if (std::endian::native != file_endian) {
-    data = std::byteswap(static_cast<stroage_type>(data));
-  }
-
-  Byte* byte_form = (Byte*)&data;
-  for (int i = 0; i < sizeof(stroage_type); i++) {
-    source[i] = byte_form[i];
-  }
-}
-
-auto write_size(Bytes& source, SizeBlock size) -> void {
+auto write_size(Managed::Bytes& source, SizeBlock size) -> void {
   // Run length size encoding
-  if (size < std::numeric_limits<uint8_t>::max()) {
-    write_block<char>(source, sizeof(uint8_t));
-    write_block<uint8_t>(source, size);
-  } else if (size < std::numeric_limits<uint16_t>::max()) {
-    write_block<char>(source, sizeof(uint16_t));
-    write_block<uint16_t>(source, size);
-  } else if (size < std::numeric_limits<uint32_t>::max()) {
-    write_block<char>(source, sizeof(uint32_t));
-    write_block<uint32_t>(source, size);
+  if (size < std::numeric_limits<Bits_8>::max()) {
+    source.write<Bits_8>(sizeof(Bits_8));
+    source.write<Bits_8>(size);
+  } else if (size < std::numeric_limits<Bits_16>::max()) {
+    source.write<Bits_16>(sizeof(Bits_16));
+    source.write<Bits_16>(size);
+  } else if (size < std::numeric_limits<Bits_32>::max()) {
+    source.write<Bits_32>(sizeof(Bits_32));
+    source.write<Bits_32>(size);
   } else {
-    write_block<char>(source, sizeof(uint64_t));
-    write_block<uint64_t>(source, size);
+    source.write<Bits_64>(sizeof(Bits_64));
+    source.write<Bits_64>(size);
   }
 }
 
-auto write_stream(Bytes& source, const Byte* start, SizeBlock size) -> void {
+auto write_stream(Managed::Bytes& source, const View::Bytes data) -> void {
   // Run length size encoding
-  write_size(source, size);
-  source.reserve(source.size() + size);
-  source.insert(source.end(), start, start + size);
+  write_size(source, data.get_size());
+  source.write(data);
 }
 
 auto VirtualDiskWriter::create(DiskType format_, CompressionLevels compression_)
@@ -72,12 +46,13 @@ auto VirtualDiskWriter::create(DiskType format_, CompressionLevels compression_)
     case DiskType::Compressed:
     case DiskType::Streamed:
     case DiskType::StreamedCompressed:
-      data_blocks.resize(2);
+      data_blocks.insert(Perimortem::Memory::Managed::Bytes(disk_arena));
+      data_blocks.insert(Perimortem::Memory::Managed::Bytes(disk_arena));
       break;
 
     // Inline headers which require reading the entire block.
     case DiskType::Memory:
-      data_blocks.resize(1);
+      data_blocks.insert(Perimortem::Memory::Managed::Bytes(disk_arena));
       break;
 
     // Something is wrong and we have a corrupted disk state.
@@ -87,38 +62,19 @@ auto VirtualDiskWriter::create(DiskType format_, CompressionLevels compression_)
       __builtin_debugtrap();
 
       format = DiskType::Standard;
-      data_blocks.resize(2);
+      data_blocks.insert(Perimortem::Memory::Managed::Bytes(disk_arena));
+      data_blocks.insert(Perimortem::Memory::Managed::Bytes(disk_arena));
       break;
   }
-
-  // Create the format block
-  overwrite_block(format_block, autogenetic_header);
-  overwrite_block(format_block + sizeof(HeaderBlock),
-                  static_cast<HeaderBlock>(format));
 };
 
-auto VirtualDiskWriter::write_resource(const std::string_view& p,
-                                       const Byte* data,
-                                       const SizeBlock size,
+auto VirtualDiskWriter::write_resource(const Memory::View::Bytes p,
+                                       const Memory::View::Bytes data,
                                        StorageFlags flags) -> void {
   const auto& entry = p;
 
-  switch (format) {
-    // Split header and data table so create additional data block.
-    case DiskType::Standard:
-    case DiskType::Compressed:
-    case DiskType::Streamed:
-    case DiskType::StreamedCompressed:
-      data_blocks.resize(2);
-      break;
-
-    // Inline headers which require reading the entire block.
-    case DiskType::Memory:
-      data_blocks.resize(1);
-      break;
-  }
-  write_stream(data_blocks[0], (Byte*)entry.data(), entry.size());
-  write_block(data_blocks[0], flags.raw());
+  write_stream(data_blocks[0], entry);
+  data_blocks[0].write(flags);
 
   // If the file has been virtualized then we need to store it in the disk along
   // with the resource path.
@@ -131,7 +87,7 @@ auto VirtualDiskWriter::write_resource(const std::string_view& p,
       case DiskType::Streamed:
       case DiskType::StreamedCompressed:
         // The actual file location needs to be back filled later.
-        write_size(data_blocks[target_block], data_blocks[1].size());
+        write_size(data_blocks[target_block], data_blocks[1].get_size());
 
         // Split header and data table so create additional data block.
         target_block = 1;  // output to target.
@@ -146,13 +102,9 @@ auto VirtualDiskWriter::write_resource(const std::string_view& p,
     // Write out the data blob.
     // For streaming compress data we need to compress the blob.
     if (format == DiskType::StreamedCompressed) {
-      auto view = std::span<const Byte>(data, size);
-      Bytes comp_block;
-      compress(comp_block, view);
-      write_stream(data_blocks[target_block], comp_block.data(),
-                   comp_block.size());
+      compress(data_blocks[target_block], data);
     } else {
-      write_stream(data_blocks[target_block], data, size);
+      write_stream(data_blocks[target_block], data);
     }
   }
 
@@ -161,22 +113,6 @@ auto VirtualDiskWriter::write_resource(const std::string_view& p,
 };
 
 auto VirtualDiskWriter::write_disk(const std::filesystem::path& p) -> bool {
-  // Fully compress the block.
-  // Note that StreamedCompressed is compressed at the file level, not the block
-  // level.
-  if (format == DiskType::Compressed || format == DiskType::Memory) {
-    for (auto& block : data_blocks) {
-      // Attempt to compress block.
-      auto success = compress(block);
-
-      // If compression fails then update the header byte.
-      if (!success) {
-        // TODO: Error handling.
-        __builtin_debugtrap();
-      }
-    }
-  }
-
   std::filesystem::path final_path = p;
   final_path.replace_extension(virutal_disk_extension);
   std::ofstream storage_stream(final_path, std::ios::binary);
@@ -186,36 +122,53 @@ auto VirtualDiskWriter::write_disk(const std::filesystem::path& p) -> bool {
   }
 
   // Write the format information to disk.
-  storage_stream.write((char*)format_block, sizeof(format_block));
+  storage_stream.write((char*)&autogenetic_header, sizeof(autogenetic_header));
+  storage_stream.write((char*)&format, sizeof(format));
 
   // Write all of the blocks to disk.
-  for (auto& block : data_blocks) {
-    // Don't run length encode the size of a block as it allows us to snag it in
-    // one read rather than two (one for run length, one for actual bytes).
-    SizeBlock block_size = block.size();
-    storage_stream.write((char*)&block_size, sizeof(SizeBlock));
+  for (Count i = 0; i < data_blocks.get_size(); i++) {
+    // Fully compress the block.
+    // Note that StreamedCompressed is compressed at the file level, not the
+    // block level.
+    if (format == DiskType::Compressed || format == DiskType::Memory) {
+      // Attempt to compress block.
+      Arena compress_arena;
+      Managed::Bytes compressed_block(compress_arena);
+      auto success = compress(compressed_block, data_blocks[i].get_view());
 
-    if (std::endian::native != file_endian) {
-      block_size = std::byteswap(block_size);
+      // If compression fails then update the header byte.
+      if (!success) {
+        // TODO: Error handling.
+        __builtin_debugtrap();
+      }
+
+      // Don't run length encode the size of a block as it allows us to snag it
+      // in one read rather than two (one for run length, one for actual bytes).
+      SizeBlock block_size = compressed_block.get_size();
+      if (std::endian::native != file_endian) {
+        block_size = std::byteswap(block_size);
+      }
+      storage_stream.write((char*)&block_size, sizeof(SizeBlock));
+      storage_stream.write((char*)compressed_block.get_view().get_data(),
+                           compressed_block.get_size());
+    } else {
+      // Don't run length encode the size of a block as it allows us to snag it
+      // in one read rather than two (one for run length, one for actual bytes).
+      SizeBlock block_size = data_blocks[i].get_size();
+      if (std::endian::native != file_endian) {
+        block_size = std::byteswap(block_size);
+      }
+      storage_stream.write((char*)&block_size, sizeof(SizeBlock));
+      storage_stream.write((char*)data_blocks[i].get_view().get_data(),
+                           data_blocks[i].get_size());
     }
-
-    storage_stream.write((char*)block.data(), block.size());
   }
 
   return true;
 }
 
-auto VirtualDiskWriter::compress(Bytes& source) -> bool {
-  Bytes compressed;
-  if (!compress(compressed, View::Byte(source.data(), source.size())))
-    return false;
-
-  source.swap(compressed);
-
-  return true;
-}
-
-auto VirtualDiskWriter::compress(Bytes& output, View::Byte source) -> bool {
+auto VirtualDiskWriter::compress(Managed::Bytes& output, View::Bytes source)
+    -> bool {
   const int level =
       static_cast<std::underlying_type_t<CompressionLevels>>(compression);
   static auto cctx = ZSTD_createCCtx();
@@ -225,16 +178,40 @@ auto VirtualDiskWriter::compress(Bytes& output, View::Byte source) -> bool {
     return false;
   }
 
-  // TODO: Streaming compression to save on memory.
-  output.resize(ZSTD_compressBound(source.size()));
+  // Estimate size storage
+  Count upper_bound = ZSTD_compressBound(source.get_size());
+  Count size_location = output.get_size();
+  if (upper_bound < std::numeric_limits<Bits_8>::max()) {
+    output.write<Bits_8>(sizeof(Bits_8));
+    output.write<Bits_8>(upper_bound);
+  } else if (upper_bound < std::numeric_limits<Bits_16>::max()) {
+    output.write<Bits_16>(sizeof(Bits_16));
+    output.write<Bits_16>(upper_bound);
+  } else if (upper_bound < std::numeric_limits<Bits_32>::max()) {
+    output.write<Bits_32>(sizeof(Bits_32));
+    output.write<Bits_32>(upper_bound);
+  } else {
+    output.write<Bits_64>(sizeof(Bits_64));
+    output.write<Bits_64>(upper_bound);
+  }
 
-  size_t const comp_size = ZSTD_compressCCtx(
-      cctx, output.data(), output.size(), source.data(), source.size(), level);
-  output.resize(comp_size);
+  Count offset = output.get_size();
+  output.ensure_room(upper_bound);
 
-  // Compression failed for some reason.
-  // if (comp_size > source.size())
-  //   return false;
+  Count comp_size = ZSTD_compressCCtx(
+      cctx, const_cast<char*>(output.get_view().get_data()) + offset,
+      upper_bound, source.get_data(), source.get_size(), level);
+  output.resize(offset + comp_size);
 
+  // Write actual size
+  if (upper_bound < std::numeric_limits<Bits_8>::max()) {
+    output.write_at<Bits_8>(comp_size, size_location);
+  } else if (upper_bound < std::numeric_limits<Bits_16>::max()) {
+    output.write_at<Bits_16>(comp_size, size_location);
+  } else if (upper_bound < std::numeric_limits<Bits_32>::max()) {
+    output.write_at<Bits_32>(comp_size, size_location);
+  } else {
+    output.write_at<Bits_64>(comp_size, size_location);
+  }
   return true;
 }

@@ -3,8 +3,8 @@
 
 #pragma once
 
-#include "memory/arena.hpp"
-#include "memory/view/bytes.hpp"
+#include "core/memory/arena.hpp"
+#include "core/memory/view/bytes.hpp"
 
 namespace Perimortem::Storage::Base64 {
 

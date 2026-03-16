@@ -3,61 +3,56 @@
 
 #pragma once
 
-#include <filesystem>
-#include <string>
+#include "core/memory/standard_types.hpp"
+#include "core/memory/view/bytes.hpp"
 
 namespace Perimortem::Resource {
 
-// Index headers
-constexpr uint8_t header_size = sizeof("[???]://");
-
 class Path {
  public:
-  enum class Sector {
+  enum class Sector : Bits_8 {
     User = 0,
     Scripts = 1,
     Resource = 2,
 
     MAX_SECTORS,
+    Invalid,
   };
 
-  static constexpr int sector_count = (int)Path::Sector::MAX_SECTORS;
-  static constexpr std::array<std::string_view, Path::sector_count>
-      logical_disks = {"[usr]", "[ttx]", "[res]"};
-  static constexpr std::array<std::string_view, Path::sector_count>
-      logical_maps = {"", "[ttx]/", "[res]/"};
+  static constexpr Count header_size = Memory::Const::static_strlen("[???]://");
+  static constexpr Count disk_size = Memory::Const::static_strlen("[???]");
+  static constexpr Count sector_count = (int)Path::Sector::MAX_SECTORS;
+  static constexpr Memory::Const::StackString<header_size>
+      sector_headers[sector_count] = {"[usr]://", "[ttx]://", "[res]://"};
+  static constexpr Memory::Const::StackString<disk_size>
+      logical_disks[sector_count] = {"[usr]", "[ttx]", "[res]"};
+  static constexpr Memory::View::Bytes logical_maps[sector_count] = {
+      "", "[ttx]/", "[res]/"};
 
-  Path(Sector sector, const std::string_view& local_path);
-  Path(const std::string& path);
+  Path(Sector sector, const Memory::View::Bytes local_path);
+  Path(Memory::View::Bytes raw_path);
 
-  inline auto get_path() const -> const std::string& { return path; }
-  inline auto get_sector() const -> Sector { return sector; }
-  inline auto get_origin() const -> const std::string_view {
-    auto header = logical_maps[static_cast<int>(sector)];
-    return {path.c_str() + header.size(), path.size() - header.size()};
+  constexpr inline auto get_path() const -> Memory::View::Bytes { return path; }
+  constexpr inline auto get_sector() const -> Sector { return sector; }
+  constexpr inline auto get_origin() const -> Memory::View::Bytes {
+    return logical_maps[static_cast<int>(sector)];
   };
+  constexpr inline auto valid() const -> bool {
+    return static_cast<Bits_8>(sector) <
+           static_cast<Bits_8>(Sector::MAX_SECTORS);
+  }
 
-  inline Path(const Path& rhs)
+  constexpr inline Path(const Path& rhs)
       : path(std::move(rhs.path)), sector(rhs.sector) {}
-  inline auto operator==(const Path& rhs) const -> bool {
+  constexpr inline auto operator==(const Path& rhs) const -> bool {
     return sector == rhs.sector && path == rhs.path;
   }
 
  private:
   Path() = delete;
 
-  std::string path;
+  Memory::View::Bytes path;
   Sector sector = Sector::User;
 };
 
 }  // namespace Perimortem::Resource
-
-namespace std {
-template <>
-struct hash<Perimortem::Resource::Path> {
-  size_t operator()(const Perimortem::Resource::Path& r) const noexcept {
-    return hash<string>()(r.get_path()) ^
-           hash<uint32_t>()((uint32_t)r.get_sector());
-  }
-};
-}  // namespace std

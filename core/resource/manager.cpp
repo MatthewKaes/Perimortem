@@ -204,7 +204,7 @@ auto Manager::import(const Path& p,
   }
 
   source_stream.seekg(0, std::ios_base::end);
-  size_t length = source_stream.tellg();
+  Countlength = source_stream.tellg();
   source_stream.seekg(0, std::ios_base::beg);
 
   // New data
@@ -292,7 +292,7 @@ auto Manager::load_file(const Path& p, Resource& res) -> void {
   }
 
   source_stream.seekg(0, std::ios_base::end);
-  size_t length = source_stream.tellg();
+  Countlength = source_stream.tellg();
   source_stream.seekg(0, std::ios_base::beg);
 
   // New data

@@ -3,9 +3,7 @@
 
 #pragma once
 
-#include <memory>
-
-namespace Perimortem::Concepts {
+namespace Perimortem::Memory::Managed {
 
 template <typename T>
 class Singleton {
@@ -34,4 +32,4 @@ class Singleton {
   virtual void AbstractInjectionLock() const noexcept = 0;
 };
 
-}  // namespace Perimortem::Concepts
+}  // namespace Perimortem::Memory::Managed

@@ -3,8 +3,8 @@
 
 #include "tokenizer.hpp"
 
-#include "concepts/narrow_resolver.hpp"
-#include "concepts/standard_types.hpp"
+#include "core/memory/const/narrow_resolver.hpp"
+#include "core/memory/standard_types.hpp"
 
 #include <cmath>
 #include <cstring>
@@ -45,7 +45,8 @@ constexpr auto is_num(Byte c) -> bool {
 
 // Used for tracking during parsing
 struct Context {
-  Context(const View::Bytes source, Perimortem::Memory::Managed::Vector<Token>& tokens)
+  Context(const View::Bytes source,
+          Perimortem::Memory::Managed::Vector<Token>& tokens)
       : source(source), tokens(tokens) {};
 
   Location loc;
@@ -138,12 +139,11 @@ auto parse_disabled(Context& context, bool strip_disabled) -> void {
 
   // Strip disabled lines if requested.
   if (!strip_disabled) {
-    context.tokens.insert(
-        {Classifier::Disabled,
-         context.source.slice(
-             context.loc.source_index,
-             context.loc.parse_index - context.loc.source_index),
-         context.loc});
+    context.tokens.insert({Classifier::Disabled,
+                           context.source.slice(context.loc.source_index,
+                                                context.loc.parse_index -
+                                                    context.loc.source_index),
+                           context.loc});
     context.loc.column += 2;
     context.options += TtxState::DisableCommands;
   } else {
@@ -271,11 +271,11 @@ auto parse_identifier(Context& context) -> void {
   context.loc.column += context.loc.parse_index - context.loc.source_index;
 }
 
-#define SIMPLE_TOKEN(klass, len)                                         \
-  context.loc.parse_index += len;                                        \
+#define SIMPLE_TOKEN(klass, len)                                      \
+  context.loc.parse_index += len;                                     \
   tokens.insert({Classifier::klass,                                   \
-                    context.source.slice(context.loc.source_index, len), \
-                    context.loc});                                       \
+                 context.source.slice(context.loc.source_index, len), \
+                 context.loc});                                       \
   context.loc.column += len;
 
 #define PARSE_SIMPLE(token, klass) \
@@ -283,8 +283,7 @@ auto parse_identifier(Context& context) -> void {
     SIMPLE_TOKEN(klass, 1);        \
     break;
 
-auto Tokenizer::parse(const View::Bytes source_,
-                      bool strip_disabled) -> void {
+auto Tokenizer::parse(const View::Bytes source_, bool strip_disabled) -> void {
   // Reset state
   source = source_;
   tokens.reset();
@@ -407,10 +406,10 @@ auto Tokenizer::parse(const View::Bytes source_,
         }
 
         tokens.insert({Classifier::String,
-                          context.source.slice(context.loc.source_index,
-                                               context.loc.parse_index -
-                                                   context.loc.source_index),
-                          context.loc});
+                       context.source.slice(
+                           context.loc.source_index,
+                           context.loc.parse_index - context.loc.source_index),
+                       context.loc});
         context.loc.column +=
             context.loc.parse_index - context.loc.source_index;
         break;
@@ -452,8 +451,8 @@ auto Tokenizer::parse(const View::Bytes source_,
       case ')':
         context.loc.parse_index += 1;
         tokens.insert({Classifier::GroupEnd,
-                          context.source.slice(context.loc.source_index, 1),
-                          context.loc});
+                       context.source.slice(context.loc.source_index, 1),
+                       context.loc});
         context.loc.column += 1;
         context.options -=
             TtxState::ParamTokenizing;  // disable function parsing.
@@ -490,6 +489,5 @@ auto Tokenizer::parse(const View::Bytes source_,
   // End of file
   options = context.options;
   context.loc.source_index = ++context.loc.parse_index;
-  context.tokens.insert(
-      {Classifier::EndOfStream, View::Bytes(), context.loc});
+  context.tokens.insert({Classifier::EndOfStream, View::Bytes(), context.loc});
 }

@@ -3,44 +3,40 @@
 
 #pragma once
 
-#include "core/memory/dynamic/record.hpp"
-#include "core/memory/view/bytes.hpp"
-#include "core/memory/view/table.hpp"
+#include "core/memory/bibliotheca.hpp"
+#include "core/memory/standard_types.hpp"
 
-#include <functional>
-#include <initializer_list>
+#include <cstring>
 
-namespace Perimortem::Memory::Managed {
+namespace Perimortem::Memory::Dynamic {
 
-// A simple linear look up table for associating managed names to a value.
-template <typename T>
-class Table {
+// Unordered hash map where the hashing function uses zero as a reserved value.
+template <typename key_type, typename value_type>
+class Map {
  public:
+  struct Entry {
+    Bits_64 value;
+    key_type key;
+    value_type data;
+  };
 
   static constexpr Count start_capacity = 8;
   static constexpr Count growth_factor = 2;
 
-  using Entry = View::Table<T>::Entry;
-
-  Table(const Table&) = default;
-  Table(Arena& arena) : arena(arena) { reset(); }
-
-  constexpr operator View::Table<T>() const {
-    return View::Table<T>(rented_block, size);
+  Map() {
+    rented_block = Bibliotheca::check_out(start_capacity * sizeof(Entry));
+    entries = re
   }
+  Map(const Map&) {};
+  Map(Map&&) {};
 
   auto reset() -> void {
+    // Capacity must always be less than or equal to the existing capacity in
+    // the block on reset.
+    destruct();
+
     size = 0;
     capacity = start_capacity;
-    rented_block = reinterpret_cast<Entry*>(
-        arena.allocate(sizeof(Entry) * start_capacity));
-  }
-
-  auto apply(const std::function<void(const View::Bytes, const T&)>& fn) const
-      -> void {
-    for (Count i = 0; i < size; i++) {
-      fn(rented_block[i].name, rented_block[i].data);
-    }
   }
 
   constexpr auto insert(const View::Bytes name, const T& data) -> void {
@@ -85,6 +81,16 @@ class Table {
   }
 
  private:
+  auto destruct() -> void {
+    // Look over all entries and destruct the keys and values.
+    for (Count i = 0; i < capacity; i++) {
+      if (entries[i].hash != 0) {
+        entries[i].hash = 0;
+        entries[i].key.~key_type();
+        entries[i].value.~value_type();
+      }
+    }
+  }
   auto grow() -> void {
     capacity *= growth_factor;
     auto new_block =
@@ -95,10 +101,10 @@ class Table {
     rented_block = new_block;
   }
 
-  Arena& arena;
-  Entry* rented_block;
+  Bibliotheca::Preface* rented_block;
+  Entry* entries;
   Count size;
   Count capacity;
 };
 
-}  // namespace Perimortem::Memory::Managed
+}  // namespace Perimortem::Memory::Dynamic

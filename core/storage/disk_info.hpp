@@ -3,9 +3,9 @@
 
 #pragma once
 
-#include "concepts/bitflag.hpp"
-#include "memory/view/bytes.hpp"
-#include "core/concepts/standard_types.hpp"
+#include "core/memory/view/bitflag.hpp"
+#include "core/memory/view/bytes.hpp"
+#include "core/memory/standard_types.hpp"
 
 #include <bit>
 #include <filesystem>

@@ -3,8 +3,8 @@
 
 #include "storage/formats/json.hpp"
 
-#include "memory/managed/table.hpp"
-#include "memory/managed/vector.hpp"
+#include "core/memory/managed/table.hpp"
+#include "core/memory/managed/vector.hpp"
 
 #include <x86intrin.h>
 #include <bit>

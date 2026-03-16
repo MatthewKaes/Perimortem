@@ -1,7 +1,7 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
-#include "memory/view/bytes.hpp"
+#include "core/memory/view/bytes.hpp"
 
 #include <x86intrin.h>
 #include <bit>
@@ -53,7 +53,7 @@ auto View::Bytes::scan(Byte search, Count position) const
         const Bits_32 result_lower = _mm256_movemask_epi8(masks[ymm]);
         const Bits_32 result_upper = _mm256_movemask_epi8(masks[ymm + 1]);
         const Bits_64 result_merged =
-            (Bits_64)result_upper << 32ul | (Bits_64)result_lower;
+            (Bits_64)result_upper << size_in_bits<Bits_32>() | (Bits_64)result_lower;
 
         // Since we have additional channels only return if we have our
         // target.
@@ -68,7 +68,7 @@ auto View::Bytes::scan(Byte search, Count position) const
         const Bits_32 result_lower = _mm256_movemask_epi8(masks[ymm]);
         const Bits_32 result_upper = _mm256_movemask_epi8(masks[ymm + 1]);
         const Bits_64 result_merged =
-            (Bits_64)result_upper << 32ul | (Bits_64)result_lower;
+            (Bits_64)result_upper << size_in_bits<Bits_32>() | (Bits_64)result_lower;
         return offset + std::countr_zero(result_merged) +
                avx2_channel_width * ymm;
       } else {

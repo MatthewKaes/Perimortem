@@ -2,14 +2,9 @@
 // Copyright © Matt Kaes
 
 #include "storage/virtual_disk_reader.hpp"
-#include "core/concepts/standard_types.hpp"
+#include "core/memory/standard_types.hpp"
 
-#include <bit>
-#include <bitset>
-#include <chrono>
-#include <cstring>
 #include <fstream>
-#include <sstream>
 
 #include <zstd.h>
 
@@ -42,13 +37,13 @@ class filesystem_reader {
  public:
   filesystem_reader(const std::filesystem::path& disk)
       : disk_data(disk, std::ios::binary | std::ios::ate) {
-    disk_size = static_cast<uint64_t>(disk_data.tellg());
+    disk_size = static_cast<Count>(disk_data.tellg());
     disk_data.seekg(0, std::ios::beg);
   }
 
   template <typename T>
   auto load_object(T& obj) -> bool {
-    constexpr uint64_t size = sizeof(T);
+    constexpr Count size = sizeof(T);
 
     if (size + bytes_read > disk_size)
       return false;
@@ -58,7 +53,7 @@ class filesystem_reader {
     return true;
   }
 
-  auto load(char* data, uint64_t size) -> bool {
+  auto load(char* data, Count size) -> bool {
     if (size + bytes_read > disk_size)
       return false;
 
@@ -72,12 +67,12 @@ class filesystem_reader {
     bytes_read += size;
   }
 
-  auto size() const -> uint64_t { return disk_size; }
-  auto remaining() const -> uint64_t { return disk_size - bytes_read; }
+  auto size() const -> Count { return disk_size; }
+  auto remaining() const -> Count { return disk_size - bytes_read; }
 
   std::ifstream disk_data;
-  uint64_t disk_size = 0;
-  uint64_t bytes_read = 0;
+  Count disk_size = 0;
+  Count bytes_read = 0;
 };
 
 auto VirtualDiskReader::mount_disk(const std::filesystem::path& disk)
@@ -91,7 +86,6 @@ auto VirtualDiskReader::mount_disk(const std::filesystem::path& disk)
 
   // Read the two header blocks.
   Byte format_block[sizeof(HeaderBlock) + sizeof(HeaderBlock)];
-  View::Bytes format_view(format_block);
   if (!disk_reader.load_object(format_block)) {
     // TODO: Error handling
     __builtin_debugtrap();
@@ -101,17 +95,16 @@ auto VirtualDiskReader::mount_disk(const std::filesystem::path& disk)
       std::unique_ptr<VirtualDiskReader>(new VirtualDiskReader());
   reader->disk_path = disk;
 
-  uint64_t format_pos = 0;
-  HeaderBlock header = read_block<HeaderBlock>(format_block, format_pos);
+  // Validate the header isn't corrupted.
+  View::Bytes format_view((Byte*)format_block, sizeof(format_block));
+  HeaderBlock header = format_view.read<HeaderBlock>(0);
   if (header != autogenetic_header) {
     // TODO: Error handling
     __builtin_debugtrap();
   }
 
-  reader->format =
-      static_cast<DiskType>(read_block<HeaderBlock>(format_block, format_pos));
-
   // Allocate the required number of data blocks.
+  reader->format = format_view.read<DiskType>(sizeof(HeaderBlock));
   switch (reader->format) {
     // Split header and data table so create additional data block.
     case DiskType::Standard:
@@ -131,7 +124,6 @@ auto VirtualDiskReader::mount_disk(const std::filesystem::path& disk)
   }
 
   for (int i = 0; i < reader->blocks.get_size(); i++) {
-    uint64_t block_size_pos = 0;
     Byte block_size_buffer[sizeof(SizeBlock)];
     if (!disk_reader.load_object(block_size_buffer)) {
       // TODO: Error handling
@@ -139,7 +131,7 @@ auto VirtualDiskReader::mount_disk(const std::filesystem::path& disk)
       return nullptr;
     }
     SizeBlock block_size =
-        read_block<SizeBlock>(block_size_buffer, block_size_pos);
+        View::Bytes(block_size_buffer, max_run_length_bytes).read<SizeBlock>(0);
 
     auto& block_data = reader->blocks[i];
     block_data.location = disk_reader.bytes_read;
@@ -207,19 +199,21 @@ auto VirtualDiskReader::stream_from_disk(const View::Bytes path,
   disk_reader.sync(stream_index[path]);
 
   Byte block_size_buffer[max_run_length_bytes];
-  uint64_t run_length = 0;
+  Count run_length = 0;
   if (!disk_reader.load_object(block_size_buffer)) {
     // TODO: Error handling
     __builtin_debugtrap();
     return false;
   }
-  SizeBlock block_size = read_size(block_size_buffer, run_length);
+  SizeBlock block_size = read_size(
+      View::Bytes(block_size_buffer, max_run_length_bytes), run_length);
 
   // Adjust to the correct position so we are at the start of the buffer.
   disk_reader.sync(run_length - max_run_length_bytes);
 
   data.reset(block_size);
-  if (!disk_reader.load(const_cast<char*>(data.get_view().get_data()), block_size)) {
+  if (!disk_reader.load(const_cast<char*>(data.get_view().get_data()),
+                        block_size)) {
     // TODO: Error handling
     __builtin_debugtrap();
     return false;
@@ -240,69 +234,78 @@ auto VirtualDiskReader::decompress_block(Managed::Bytes& data) -> void {
     __builtin_debugtrap();
   }
 
-  uint64_t inflate_size = ZSTD_getFrameContentSize(data.data(), data.size());
-  Bytes decompressed(inflate_size);
 
-  ZSTD_decompressDCtx(dctx, decompressed.data(), decompressed.size(),
-                      data.data(), data.size());
+  Count inflated_size = ZSTD_getFrameContentSize(data.get_view().get_data(), data.get_size());
+  data.get_arena().allocate(inflated_size);
+  Managed::Bytes output(data.get_arena());
+  output.reset(inflated_size);
+
+  ZSTD_decompressDCtx(dctx, const_cast<char*>(output.get_view().get_data()),
+      output.get_size(), data.get_view().get_data(), data.get_size());
 
   // Swap data to the new buffer and then hand off to the next layer.
-  data.swap(decompressed);
+  data.take(output);
 }
 
 auto VirtualDiskReader::process_split_table() -> void {
-  Block& table = blocks[0];
-  Block& data = blocks[1];
-  uint64_t table_pos = 0;
+  Block& header_block = blocks[0];
+  Block& data_block = blocks[1];
+  Count table_pos = 0;
+  View::Bytes header_view = header_block.data.get_view();
+  View::Bytes data_view = data_block.data.get_view();
 
-  while (table_pos < table.data.size()) {
+  while (table_pos < header_view.get_size()) {
     FileData file;
 
-    SizeBlock name_size = read_size(table.data.data(), table_pos);
-    file.path = {(char*)table.data.data() + table_pos, name_size};
+    SizeBlock name_size = read_size(header_view, table_pos);
+    file.path = header_view.slice(table_pos, name_size);
     table_pos += name_size;
-    file.options = read_block<Byte>(table.data.data(), table_pos);
+    file.options = header_view.incremental_read<Byte>(table_pos);
 
     if (file.options == StorageOptions::Virtualized) {
-      SizeBlock location = read_size(table.data.data(), table_pos);
+      SizeBlock location = read_size(header_view, table_pos);
 
       SizeBlock data_size = -1;
       // Stream disks don't preload any data, even when virtualized.
       if (format == DiskType::Streamed ||
           format == DiskType::StreamedCompressed) {
         file.options |= StorageOptions::Streamed;
-        stream_index[file.path] = data.location + location;
+        stream_index[file.path] = data_block.location + location;
       } else {
-        data_size = read_size(data.data.data(), location);
-        file.data = std::span<Byte>(data.data.data() + location, data_size);
+        data_size = read_size(data_block.data.get_view(), location);
+        file.data = data_view.slice(location, data_size);
       }
     }
 
-    files.push_back(file);
+    files.insert(file);
   }
 }
 
 auto VirtualDiskReader::process_inline_table() -> void {
-  Block& table = blocks[0];
-  uint64_t table_pos = 0;
+  Block& full_block = blocks[0];
+  Count table_pos = 0;
+  View::Bytes full_block_view = full_block.data.get_view();
 
-  while (table_pos < table.data.size()) {
+  while (table_pos < full_block_view.get_size()) {
     FileData file;
 
-    SizeBlock name_size = read_size(table.data.data(), table_pos);
-    file.path = {(char*)table.data.data() + table_pos, name_size};
+    SizeBlock name_size = read_size(full_block_view, table_pos);
+    file.path = full_block_view.slice(table_pos, name_size);
     table_pos += name_size;
-    file.options = read_block<Byte>(table.data.data(), table_pos);
+    file.options = full_block_view.incremental_read<Byte>(table_pos);
 
     if (file.options == StorageOptions::Virtualized) {
-      SizeBlock data_size = read_size(table.data.data(), table_pos);
-      file.data = std::span<Byte>(table.data.data() + table_pos, data_size);
+      SizeBlock data_size = read_size(full_block_view, table_pos);
+      file.data = full_block_view.slice(table_pos, data_size);
       table_pos += data_size;
     }
 
-    files.push_back(file);
+    files.insert(file);
   }
 }
+
+// Fomatting
+#include <bitset>
 
 auto VirtualDiskReader::dump_info() const -> std::string {
   std::stringstream info_stream;
@@ -328,18 +331,20 @@ auto VirtualDiskReader::dump_info() const -> std::string {
   info_stream << std::endl << std::endl;
 
   info_stream << "@layout: " << std::endl;
-  for (const auto& block : get_blocks()) {
-    info_stream << " - Block @[" << std::hex << block.location
-                << "] size:" << block.data.size() << std::endl;
+  const auto blocks = get_blocks();
+  for (Count i = 0; i < blocks.get_size(); i++) {
+    info_stream << " - Block @[" << std::hex << blocks[i].location
+                << "] size:" << blocks[i].data.get_size() << std::endl;
   }
 
   if (!get_files().empty()) {
     info_stream << std::endl;
     info_stream << "@files: " << std::endl;
 
-    size_t longest_name = sizeof("[Path]");
-    for (const auto& file : get_files()) {
-      longest_name = std::max(longest_name, file.path.size());
+    Count longest_name = sizeof("[Path]");
+    const auto files = get_files();
+    for (Count i = 0; i < files.get_size(); i++) {
+      longest_name = std::max(longest_name, files[i].path.get_size());
     }
 
     info_stream << ">> " << std::setw(longest_name) << std::left << "[Path]";

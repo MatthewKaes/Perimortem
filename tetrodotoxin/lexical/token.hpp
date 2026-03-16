@@ -5,7 +5,7 @@
 
 #include "source.hpp"
 
-#include "core/concepts/bitflag.hpp"
+#include "core/memory/view/bitflag.hpp"
 #include "core/memory/view/bytes.hpp"
 
 namespace Tetrodotoxin::Lexical {

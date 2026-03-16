@@ -3,10 +3,11 @@
 
 #pragma once
 
-#include "concepts/standard_types.hpp"
+#include "core/memory/standard_types.hpp"
+#include "core/memory/view/bytes.hpp"
 
 namespace Perimortem::Memory::Operations {
 
-void copy(Byte* dest, Byte* src, Count bytes);
+void copy(Memory::View::Bytes dest, Memory::View::Bytes src);
 
 }

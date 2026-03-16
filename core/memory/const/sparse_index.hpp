@@ -3,13 +3,13 @@
 
 #pragma once
 
-#include "stack_types.hpp"
+#include "core/memory/stack_types.hpp"
 
 #include <array>
 #include <cstddef>
 #include <cstdint>
 
-namespace Perimortem::Concepts {
+namespace Perimortem::Memory::Const {
 
 template <typename value_type,
           uint64_t element_count,
@@ -92,4 +92,4 @@ class SparseIndexTable {
   }
 };
 
-}  // namespace Perimortem::Concepts
+}  // namespace Perimortem::Memory::Const

@@ -7,10 +7,9 @@
 
 #include "storage/disk_info.hpp"
 #include "storage/virtual_disk_reader.hpp"
+#include "memory/dynamic/record.hpp"
 
 #include <filesystem>
-#include <unordered_map>
-#include <vector>
 
 namespace Perimortem::Resource {
 
@@ -25,8 +24,8 @@ class Manager {
 
     friend Manager;
 
-    auto read_content() const -> const Storage::View::Byte;
-    auto write_content(const Storage::Bytes&& data) -> void;
+    auto read_content() const -> const Memory::View::Bytes;
+    auto write_content(const Memory::Managed::Bytes&& data) -> void;
 
     inline auto modified_time() const -> Time { return time; };
     inline auto in_memory() const -> bool { return loaded; }
@@ -68,8 +67,8 @@ class Manager {
     inline Resource()
         : content(), source(), dirty(false), loaded(false), time() {}
 
-    Storage::Bytes content;
-    Storage::View::Byte source;
+    Memory::Managed::Bytes content;
+    Memory::View::Bytes source;
     Time time;
     bool dirty = false;
     bool loaded = false;

@@ -3,8 +3,10 @@
 
 #pragma once
 
-#include "memory/arena.hpp"
-#include "memory/view/vector.hpp"
+#include "core/memory/arena.hpp"
+#include "core/memory/dynamic/record.hpp"
+#include "core/memory/standard_types.hpp"
+#include "core/memory/view/vector.hpp"
 
 #include <cstring>
 
@@ -14,8 +16,8 @@ namespace Perimortem::Memory::Managed {
 template <typename T>
 class Vector {
  public:
-  static constexpr uint32_t start_capacity = 8;
-  static constexpr uint32_t growth_factor = 2;
+  static constexpr Count start_capacity = 8;
+  static constexpr Count growth_factor = 2;
 
   Vector(const Vector&) = default;
   Vector(Arena& arena) : arena(arena) { reset(); }
@@ -31,7 +33,7 @@ class Vector {
         reinterpret_cast<T*>(arena.allocate(sizeof(T) * start_capacity));
   }
 
-  auto reset(uint32_t reserve_capacity) -> void {
+  auto reset(Count reserve_capacity) -> void {
     if (reserve_capacity <= start_capacity) {
       reserve_capacity = start_capacity;
     }
@@ -43,7 +45,7 @@ class Vector {
   }
 
   auto apply(const std::function<void(const T&)>& fn) const -> void {
-    for (uint32_t i = 0; i < size; i++) {
+    for (Count i = 0; i < size; i++) {
       fn(rented_block[i]);
     }
   }
@@ -57,7 +59,7 @@ class Vector {
   }
 
   constexpr auto contains(const T& data) const -> bool {
-    for (uint32_t i = 0; i < size; i++) {
+    for (Count i = 0; i < size; i++) {
       if (rented_block[i] == data) {
         return true;
       }
@@ -66,10 +68,10 @@ class Vector {
     return false;
   }
 
-  constexpr auto at(uint32_t index) const -> T& { return rented_block[index]; }
-  constexpr auto operator[](uint32_t index) -> T& { return at(index); }
+  constexpr auto at(Count index) const -> T& { return rented_block[index]; }
+  constexpr auto operator[](Count index) -> T& { return at(index); }
 
-  constexpr auto get_size() const -> uint32_t { return size; }
+  constexpr auto get_size() const -> Count { return size; }
   constexpr auto get_arena() const -> Arena& { return arena; }
   constexpr auto get_view() const -> View::Vector<T> {
     return View::Vector<T>(rented_block, size);
@@ -87,8 +89,8 @@ class Vector {
 
   Arena& arena;
   T* rented_block;
-  uint32_t size;
-  uint32_t capacity;
+  Count size;
+  Count capacity;
 };
 
 }  // namespace Perimortem::Memory::Managed

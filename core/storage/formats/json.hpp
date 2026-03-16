@@ -3,11 +3,11 @@
 
 #pragma once
 
-#include "memory/view/bytes.hpp"
-#include "memory/view/table.hpp"
-#include "memory/view/vector.hpp"
+#include "core/memory/view/bytes.hpp"
+#include "core/memory/view/table.hpp"
+#include "core/memory/view/vector.hpp"
 
-#include "memory/managed/bytes.hpp"
+#include "core/memory/managed/bytes.hpp"
 
 namespace Perimortem::Storage::Json {
 
@@ -108,6 +108,7 @@ class Node {
     SquishedVector& operator=(const Memory::View::Vector<Node>& rhs) {
       source_block = rhs.get_data();
       size = rhs.get_size();
+      return *this;
     }
 
     constexpr operator Memory::View::Vector<Node>() const {
@@ -124,6 +125,7 @@ class Node {
     SquishedTable& operator=(const Memory::View::Table<Node>& rhs) {
       source_block = rhs.get_data();
       size = rhs.get_size();
+      return *this;
     }
 
     constexpr operator Memory::View::Table<Node>() const {
@@ -139,6 +141,7 @@ class Node {
     SquishedBytes& operator=(const Memory::View::Bytes& rhs) {
       source_block = rhs.get_data();
       size = rhs.get_size();
+      return *this;
     }
 
     constexpr operator Memory::View::Bytes() const {

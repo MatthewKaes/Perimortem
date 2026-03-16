@@ -3,8 +3,8 @@
 
 #pragma once
 
-#include "memory/arena.hpp"
-#include "memory/managed/bytes.hpp"
+#include "core/memory/arena.hpp"
+#include "core/memory/managed/bytes.hpp"
 
 namespace Perimortem::Storage::Json {
 

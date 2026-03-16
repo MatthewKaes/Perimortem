@@ -3,7 +3,9 @@
 
 #pragma once
 
-#include "memory/bibliotheca.hpp"
+#include "core/memory/bibliotheca.hpp"
+
+#include <memory>
 
 namespace Perimortem::Memory {
 
@@ -16,14 +18,14 @@ namespace Perimortem::Memory {
 class Arena {
  public:
   // Attempt to request blocks in 32k pages including the preface.
-  static constexpr uint64_t page_size =
+  static constexpr Bits_64 page_size =
       (1 << 15) - sizeof(Bibliotheca::Preface);
-  static constexpr uint64_t alignment_filter = alignof(max_align_t) - 1;
+  static constexpr Bits_64 alignment_filter = alignof(max_align_t) - 1;
 
   Arena();
   ~Arena();
 
-  inline auto allocate(uint64_t bytes_requested) -> uint8_t* {
+  inline auto allocate(Bits_64 bytes_requested) -> Byte* {
     // Fetch a new page if we are full,
     if (rented_block->usage + bytes_requested > rented_block->capacity) {
       auto rent = Bibliotheca::check_out(std::max(page_size, bytes_requested));
