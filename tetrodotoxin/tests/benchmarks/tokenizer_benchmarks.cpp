@@ -9,7 +9,6 @@
 #include <fstream>
 #include <filesystem>
 
-using namespace Perimortem::Concepts;
 using namespace Tetrodotoxin::Lexical;
 
 auto read_all_bytes(const std::filesystem::path &p) -> std::string {

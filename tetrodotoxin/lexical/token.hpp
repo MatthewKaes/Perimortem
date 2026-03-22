@@ -5,8 +5,8 @@
 
 #include "source.hpp"
 
-#include "core/memory/view/bitflag.hpp"
-#include "core/memory/view/bytes.hpp"
+#include "perimortem/memory/view/bitflag.hpp"
+#include "perimortem/memory/view/bytes.hpp"
 
 namespace Tetrodotoxin::Lexical {
 
@@ -20,9 +20,7 @@ namespace Tetrodotoxin::Lexical {
 // a symbol doesn't change that. The names are just handy handles.
 //
 // See `Service::lsp_tokens` in the LSP server an example consumer.
-enum class Classifier : int8_t {
-  None = -1,
-
+enum class Classifier : Byte {
   // Macro objects
   Comment,     // //
   Disabled,    // />
@@ -98,10 +96,12 @@ enum class Classifier : int8_t {
   // Script types
   EndOfStream,
 
-  TOTAL_FLAGS,  // Always the last flag for validating.
+  // Enable bit flags.
+  TOTAL_FLAGS,
+  None = static_cast<Byte>(-1),
 };
 
-using ClassifierFlags = Perimortem::Concepts::BitFlag<Classifier>;
+using ClassifierFlags = Perimortem::Memory::View::BitFlag<Classifier>;
 
 // Wrapper for tokenizing a stream.
 struct Token {

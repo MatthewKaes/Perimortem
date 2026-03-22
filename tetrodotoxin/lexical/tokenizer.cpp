@@ -3,15 +3,14 @@
 
 #include "tokenizer.hpp"
 
-#include "core/memory/const/narrow_resolver.hpp"
-#include "core/memory/standard_types.hpp"
+#include "perimortem/memory/const/narrow_resolver.hpp"
+#include "perimortem/memory/const/standard_types.hpp"
 
 #include <cmath>
 #include <cstring>
 #include <sstream>
 
 using namespace Perimortem::Memory;
-using namespace Perimortem::Concepts;
 using namespace Tetrodotoxin::Lexical;
 
 constexpr auto is_whitespace(Byte c) -> bool {
@@ -52,7 +51,7 @@ struct Context {
   Location loc;
   const View::Bytes source;
   Perimortem::Memory::Managed::Vector<Token>& tokens;
-  Perimortem::Concepts::BitFlag<TtxState> options;
+  Perimortem::Memory::View::BitFlag<TtxState> options;
 };
 
 inline auto can_parse(Context& context) -> bool {
@@ -207,10 +206,10 @@ auto parse_type(Context& context) -> void {
   context.loc.column += context.loc.parse_index - context.loc.source_index;
 }
 
-static inline constexpr auto check_keyword(std::string_view value,
+static inline constexpr auto check_keyword(View::Bytes value,
                                            Classifier default_value)
     -> Classifier {
-  static constexpr TablePair<std::string_view, Classifier> data[] = {
+  static constexpr Const::TablePair<View::Bytes, Classifier> data[] = {
       {"as", Classifier::As},           {"if", Classifier::If},
       {"for", Classifier::For},         {"new", Classifier::New},
       {"else", Classifier::Else},       {"func", Classifier::Func},
@@ -225,7 +224,8 @@ static inline constexpr auto check_keyword(std::string_view value,
       {"warning", Classifier::Warning},
   };
 
-  using keyword_resolver = NarrowResolver<Classifier, array_size(data), data>;
+  using keyword_resolver =
+      Const::NarrowResolver<Classifier, array_size(data), data>;
   static_assert(sizeof(keyword_resolver::sparse_table) <= 4800,
                 "Keyword sparse table should be less than 4800 bytes. "
                 "Use keywords only 8 characters or shorter.");
@@ -260,8 +260,7 @@ auto parse_identifier(Context& context) -> void {
 
   if (!forced_identifier) {
     // Check if we need to reclass as a keyword.
-    klass = check_keyword(std::string_view(view.get_data(), view.get_size()),
-                          klass);
+    klass = check_keyword(view, klass);
 
     if (klass == Classifier::Func)
       context.options += TtxState::ParamTokenizing;

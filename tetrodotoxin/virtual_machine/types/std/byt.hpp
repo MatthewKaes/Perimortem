@@ -9,7 +9,7 @@
 
 namespace Tetrodotoxin::Types {
 
-class Byt : public Abstract, public Perimortem::Concepts::Singleton<Byt> {
+class Byt : public Abstract, public Perimortem::Memory::View::Singleton<Byt> {
  public:
   static constexpr uint32_t uuid = 0x586C9460;
   constexpr auto get_name() const -> Perimortem::Memory::View::Bytes override {

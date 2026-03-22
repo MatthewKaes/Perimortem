@@ -3,12 +3,12 @@
 
 #pragma once
 
-#include "core/memory/view/bitflag.hpp"
+#include "perimortem/memory/view/bitflag.hpp"
 
-#include "core/memory/arena.hpp"
-#include "core/memory/managed/vector.hpp"
-#include "core/memory/view/bytes.hpp"
-#include "core/memory/view/vector.hpp"
+#include "perimortem/memory/allocator/arena.hpp"
+#include "perimortem/memory/managed/vector.hpp"
+#include "perimortem/memory/view/bytes.hpp"
+#include "perimortem/memory/view/vector.hpp"
 
 #include "token.hpp"
 
@@ -17,8 +17,7 @@ namespace Tetrodotoxin::Lexical {
 // Tokenizer aims to be fast and only takes a view of the data.
 // If the View::Byte source is destroyed then the parser itself no longer has a
 // meaningful frame of reference and will cause memory errors.
-enum class TtxState : int8_t {
-  None = -1,  // Always the first flag for validating.
+enum class TtxState : Byte {
 
   ParamTokenizing,
   DisableCommands,
@@ -26,7 +25,9 @@ enum class TtxState : int8_t {
   // Commands
   CppTheme,
 
-  TOTAL_FLAGS,  // Always the last flag for validating.
+  // Enable bit flags.
+  TOTAL_FLAGS,
+  None = static_cast<Byte>(-1),
 };
 
 class Tokenizer {
@@ -47,7 +48,7 @@ class Tokenizer {
   inline constexpr auto empty() const -> bool { return tokens.get_size() <= 1; }
 
   inline constexpr auto get_options() const
-      -> const Perimortem::Concepts::BitFlag<TtxState> {
+      -> const Perimortem::Memory::View::BitFlag<TtxState> {
     return options;
   };
 
@@ -60,7 +61,7 @@ class Tokenizer {
   // Output artifacts
   Perimortem::Memory::View::Bytes source;
   Perimortem::Memory::Managed::Vector<Token> tokens;
-  Perimortem::Concepts::BitFlag<TtxState> options;
+  Perimortem::Memory::View::BitFlag<TtxState> options;
 };
 
 }  // namespace Tetrodotoxin::Lexical

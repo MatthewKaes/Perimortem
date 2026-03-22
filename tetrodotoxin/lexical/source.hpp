@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include "core/memory/standard_types.hpp"
+#include "perimortem/memory/const/standard_types.hpp"
 
 namespace Tetrodotoxin::Lexical {
 struct Location {

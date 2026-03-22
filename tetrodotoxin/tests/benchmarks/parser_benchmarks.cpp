@@ -9,7 +9,6 @@
 #include "concepts/sparse_index.hpp"
 #include "concepts/sparse_lookup.hpp"
 
-using namespace Perimortem::Concepts;
 using namespace Tetrodotoxin::Lexical;
 
 // Number of words to load

@@ -5,7 +5,7 @@
 
 #include "parser/context.hpp"
 
-#include "core/memory/view/byte.hpp"
+#include "perimortem/memory/view/byte.hpp"
 
 namespace Tetrodotoxin::Parser::Visitor {
 

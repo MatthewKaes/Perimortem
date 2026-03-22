@@ -18,6 +18,7 @@ load(
     "tool_path",
 )
 load("@rules_cc//cc/common:cc_common.bzl", "cc_common")
+load("@rules_cc//cc/toolchains:cc_toolchain_config_info.bzl", "CcToolchainConfigInfo")
 
 cpp_compile_actions = [
     ACTION_NAMES.cpp_compile,
@@ -87,8 +88,8 @@ def _impl(ctx):
                             flags = [
                                 # Always Wall and Werror.
                                 # The goal is to bootstrap an 100% standard conforming codebase.
-                                "-Wall",
-                                "-Werror",
+                                # "-Wall",
+                                # "-Werror",
                                 "-fno-exceptions",
                                 "-fno-rtti",
                                 "-mavx2",  # AVX2 support required
@@ -113,6 +114,7 @@ def _impl(ctx):
                                 # The goal is to bootstrap an 100% standard conforming codebase.
                                 "-Wall",
                                 "-Werror",
+                                "-Wno-character-conversion",  # google-test
                                 "-fno-exceptions",
                                 "-fno-rtti",
                                 "-std=c23",

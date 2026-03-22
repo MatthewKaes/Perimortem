@@ -3,8 +3,8 @@
 
 #include <iostream>
 
-#include "core/storage/formats/base64.hpp"
-#include "core/storage/formats/json.hpp"
+#include "perimortem/storage/formats/base64.hpp"
+#include "perimortem/storage/formats/json.hpp"
 #include "lexical/tokenizer.hpp"
 #include "src/language_server.hpp"
 #include "src/service.hpp"

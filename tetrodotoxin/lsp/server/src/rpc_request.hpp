@@ -3,10 +3,10 @@
 
 #pragma once
 
-#include "core/memory/arena.hpp"
-#include "core/memory/managed/table.hpp"
-#include "core/memory/managed/vector.hpp"
-#include "core/memory/view/bytes.hpp"
+#include "perimortem/memory/allocator/arena.hpp"
+#include "perimortem/memory/managed/table.hpp"
+#include "perimortem/memory/managed/vector.hpp"
+#include "perimortem/memory/view/bytes.hpp"
 
 #include "storage/formats/json.hpp"
 #include "storage/formats/rpc_header.hpp"

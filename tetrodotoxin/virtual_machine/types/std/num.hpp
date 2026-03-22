@@ -9,7 +9,7 @@
 
 namespace Tetrodotoxin::Types {
 
-class Num : public Abstract, public Perimortem::Concepts::Singleton<Num> {
+class Num : public Abstract, public Perimortem::Memory::View::Singleton<Num> {
  public:
   static constexpr uint32_t uuid = 0x586C9471;
   constexpr auto get_name() const -> std::string_view override {
