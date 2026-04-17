@@ -33,7 +33,7 @@ struct Context {
     return tokenizer.get_tokens().data()[index];
   }
 
-  inline auto get_allocator() -> Perimortem::Memory::Arena& {
+  inline auto get_allocator() -> Perimortem::Memory::Allocator::Arena& {
     return library.allocator;
   }
 

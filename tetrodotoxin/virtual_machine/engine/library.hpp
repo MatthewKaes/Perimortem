@@ -110,7 +110,7 @@ class Library : public Abstract {
         doc() {}
 
  public:
-  Perimortem::Memory::Arena allocator;
+  Perimortem::Memory::Allocator::Arena allocator;
   Tetrodotoxin::Lexical::Tokenizer tokenizer;
 
  private:

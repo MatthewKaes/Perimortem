@@ -88,8 +88,8 @@ def _impl(ctx):
                             flags = [
                                 # Always Wall and Werror.
                                 # The goal is to bootstrap an 100% standard conforming codebase.
-                                # "-Wall",
-                                # "-Werror",
+                                "-Wall",
+                                "-Werror",
                                 "-fno-exceptions",
                                 "-fno-rtti",
                                 "-mavx2",  # AVX2 support required

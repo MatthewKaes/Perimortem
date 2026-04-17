@@ -5,16 +5,17 @@
 
 namespace Perimortem::Memory::Managed {
 
+// Used to ensure a class only has a single instance per thread.
 template <typename T>
 class Singleton {
  public:
-  static T& instance() noexcept() {
-    // Inject a class that locks down the parent class.
-    struct LockAbstract final : T {
+  static auto instance() -> T& {
+    // Class that can actually create the object.
+    struct LockedAbstract final : T {
       void AbstractInjectionLock() const noexcept override {}
     };
+    thread_local static LockAbstract instance;
 
-    static LockAbstract instance;
     return instance;
   }
 
@@ -27,7 +28,7 @@ class Singleton {
   virtual ~Singleton() = default;
 
  private:
-  // Create a fake distructor that only classes under singleton override.
+  // Force the top instance to be virtual.
   virtual void AbstractInjectionLock() const noexcept = 0;
 };
 

@@ -3,10 +3,8 @@
 
 #pragma once
 
-#include <stddef.h>
-#include <array>
-
-#include "perimortem/memory/const/standard_types.hpp"
+#include "perimortem/core/standard_types.hpp"
+#include "perimortem/memory/static/vector.hpp"
 
 namespace Perimortem::Memory::Allocator {
 
@@ -71,8 +69,8 @@ class Bibliotheca {
   };
 
   // Min radix is +1 power of two from just the header size. This means an
-  // alocation can't be smaller than 64 bytes.
-  static constexpr Bits_8 min_radix = std::bit_width(sizeof(Preface));
+  // alocation can't be smaller than 128 bytes.
+  static constexpr Bits_8 min_radix = 8;
   static constexpr Bits_8 max_radix = sizeof(size_type) * 8 - 1;
   static constexpr size_type radix_range = max_radix - min_radix;
   static constexpr size_type min_size = static_cast<size_type>(1) << min_radix;
@@ -82,16 +80,27 @@ class Bibliotheca {
     return reinterpret_cast<Bits_8*>(entry) + sizeof(Preface);
   }
 
+  // Creates a free entry which can be used.
   static auto check_out(size_type requested_bytes) -> Preface*;
+
+  // Adds a reservation to the block.
   static auto reserve(Preface* entry) -> void;
+
+  // Removes a reservation from the block.
+  // If the number of reservations is zero then the block is checked in to the
+  // Bibliotheca for future use.
   static auto remit(Preface* entry) -> size_type;
+
+  // Remits a block while reserving another block in a single transaction.
+  // If the returning block and reserving block are the same then exchanged is
+  // guaranteed to not load the actual block.
   static auto exchange(Preface* returning, Preface* reserving) -> void;
 
-  static auto reserved_memory() -> std::array<size_type, radix_range>;
-  static auto free_memory() -> std::array<size_type, radix_range>;
+  static auto reserved_memory() -> Static::Vector<size_type, radix_range>;
+  static auto free_memory() -> Static::Vector<size_type, radix_range>;
 
  private:
-  std::array<Archive, radix_range> faceted_archives;
+  Static::Vector<Archive, radix_range> faceted_archives;
 };
 
 }  // namespace Perimortem::Memory::Allocator

@@ -4,9 +4,16 @@
 #include "perimortem/memory/view/bytes.hpp"
 
 #include <x86intrin.h>
-#include <bit>
 
 using namespace Perimortem::Memory;
+
+auto View::Bytes::fast_scan(Byte search, Count position) const -> Count {
+  auto search_mask = _mm256_set1_epi8(search);
+  const auto value = _mm256_loadu_si256((__m256i*)(source_block + position));
+  const auto compare = _mm256_cmpeq_epi8(value, search_mask);
+  const Bits_32 offset_mask = _mm256_movemask_epi8(compare);
+  return position + std::countr_zero(offset_mask);
+}
 
 template <Bits_32 channels, Bits_32 index, Bits_32 range>
 static auto optimized_or_merge(__m256i source[channels]) -> __m256i {
@@ -23,8 +30,7 @@ static auto optimized_or_merge(__m256i source[channels]) -> __m256i {
 }
 
 // Scans a 32 bytes block for the offset of a character.
-auto View::Bytes::scan(Byte search, Count position) const
-    -> Count {
+auto View::Bytes::scan(Byte search, Count position) const -> Count {
   // Use 8 AVX2 channels to get out as much performance as we can for long
   // searches.
   constexpr const auto fused_channels = 8;
@@ -38,7 +44,7 @@ auto View::Bytes::scan(Byte search, Count position) const
     __m256i masks[fused_channels];
     for (auto ymm = 0; ymm < fused_channels; ymm++) {
       const auto value = _mm256_loadu_si256(
-          (__m256i*)(source_block + offset + avx2_channel_width * ymm));
+          (const __m256i*)(source_block + offset + avx2_channel_width * ymm));
       masks[ymm] = _mm256_cmpeq_epi8(value, search_mask);
     }
 
@@ -52,8 +58,9 @@ auto View::Bytes::scan(Byte search, Count position) const
       for (auto ymm = 0; ymm < fused_channels - 2; ymm += 2) {
         const Bits_32 result_lower = _mm256_movemask_epi8(masks[ymm]);
         const Bits_32 result_upper = _mm256_movemask_epi8(masks[ymm + 1]);
-        const Bits_64 result_merged =
-            (Bits_64)result_upper << size_in_bits<Bits_32>() | (Bits_64)result_lower;
+        const Bits_64 result_merged = (Bits_64)result_upper
+                                          << size_in_bits<Bits_32>() |
+                                      (Bits_64)result_lower;
 
         // Since we have additional channels only return if we have our
         // target.
@@ -67,8 +74,9 @@ auto View::Bytes::scan(Byte search, Count position) const
       if (ymm == fused_channels - 2) {
         const Bits_32 result_lower = _mm256_movemask_epi8(masks[ymm]);
         const Bits_32 result_upper = _mm256_movemask_epi8(masks[ymm + 1]);
-        const Bits_64 result_merged =
-            (Bits_64)result_upper << size_in_bits<Bits_32>() | (Bits_64)result_lower;
+        const Bits_64 result_merged = (Bits_64)result_upper
+                                          << size_in_bits<Bits_32>() |
+                                      (Bits_64)result_lower;
         return offset + std::countr_zero(result_merged) +
                avx2_channel_width * ymm;
       } else {
@@ -78,23 +86,13 @@ auto View::Bytes::scan(Byte search, Count position) const
     }
   }
 
-  // Scalar fallback
+  // Scalar fallback to prevent buffer overruns.
   for (; offset < size; offset += 1) {
-    if (source_block[position + offset] == '"') {
+    if (source_block[position + offset] == search) {
       return offset;
     }
   }
 
   // Not found.
   return -1;
-}
-
-// Scans ahead 32 bytes to search for value.
-auto View::Bytes::fast_scan(Byte search, Count position) const
-    -> Count {
-  auto search_mask = _mm256_set1_epi8(search);
-  const auto value = _mm256_loadu_si256((__m256i*)(source_block + position));
-  const auto compare = _mm256_cmpeq_epi8(value, search_mask);
-  const Bits_32 offset_mask = _mm256_movemask_epi8(compare);
-  return position + std::countr_zero(offset_mask);
 }

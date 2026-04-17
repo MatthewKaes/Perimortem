@@ -5,9 +5,6 @@
 
 #include "perimortem/memory/view/bytes.hpp"
 
-#include <functional>
-#include <initializer_list>
-
 namespace Perimortem::Memory::View {
 
 // A simple linear look up table for associating managed names to a value.
@@ -15,7 +12,7 @@ template <typename T>
 class Table {
  public:
   struct Entry {
-    Entry(const View::Bytes name, const T& data) : name(name), data(data) {}
+    constexpr Entry(const View::Bytes name, const T& data) : name(name), data(data) {}
     const View::Bytes name;
     T data;
   };
@@ -24,12 +21,6 @@ class Table {
   Table(const Entry* entries, const Count size)
       : source_block(entries), size(size) {};
 
-  auto apply(const std::function<void(const View::Bytes, const T&)>& fn) const
-      -> void {
-    for (Count i = 0; i < size; i++) {
-      fn(source_block[i].name, source_block[i].data);
-    }
-  }
 
   constexpr auto contains(const View::Bytes name) const -> bool {
     for (Count i = 0; i < size; i++) {

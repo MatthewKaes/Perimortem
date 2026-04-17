@@ -23,7 +23,7 @@ class Table {
   using Entry = View::Table<T>::Entry;
 
   Table(const Table&) = default;
-  Table(Arena& arena) : arena(arena) { reset(); }
+  Table(Allocator::Arena& arena) : arena(arena) { reset(); }
 
   constexpr operator View::Table<T>() const {
     return View::Table<T>(rented_block, size);
@@ -79,7 +79,7 @@ class Table {
   constexpr auto operator[](Count index) -> Entry& { return at(index); }
 
   constexpr auto get_size() const -> Count { return size; }
-  constexpr auto get_arena() const -> Arena& { return arena; }
+  constexpr auto get_arena() const -> Allocator::Arena& { return arena; }
   constexpr auto get_view() const -> View::Table<T> {
     return View::Table<T>(rented_block, size);
   }
@@ -95,7 +95,7 @@ class Table {
     rented_block = new_block;
   }
 
-  Arena& arena;
+  Allocator::Arena& arena;
   Entry* rented_block;
   Count size;
   Count capacity;

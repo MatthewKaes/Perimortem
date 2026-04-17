@@ -34,7 +34,7 @@ class Tokenizer {
  public:
   using Tokens = Perimortem::Memory::View::Vector<Token>;
 
-  Tokenizer(Perimortem::Memory::Arena& arena) : tokens(arena) {}
+  Tokenizer(Perimortem::Memory::Allocator::Arena& arena) : tokens(arena) {}
   
   auto parse(Perimortem::Memory::View::Bytes source,
              bool strip_disabled = true) -> void;

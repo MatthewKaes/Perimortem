@@ -24,7 +24,7 @@ using RpcResponse = Perimortem::Storage::Json::Node;
 
 class RpcRequest {
  public:
-  RpcRequest(Perimortem::Memory::Arena& arena,
+  RpcRequest(Perimortem::Memory::Allocator::Arena& arena,
              const Perimortem::Memory::View::Bytes source)
       : arena(arena), header(arena, source), source(source) {}
 
@@ -69,11 +69,11 @@ class RpcRequest {
     return source;
   }
 
-  auto get_arena() const -> Perimortem::Memory::Arena& { return arena; }
+  auto get_arena() const -> Perimortem::Memory::Allocator::Arena& { return arena; }
 
  private:
-  Perimortem::Memory::Arena& arena;
-  Perimortem::Storage::Json::RpcHeader header;
+  Perimortem::Memory::Allocator::Arena& arena;
+  Perimortem::Storage::Json::JsonRpc header;
   Perimortem::Storage::Json::Node call_params;
   Perimortem::Storage::Json::Node response;
   Perimortem::Memory::View::Bytes source;

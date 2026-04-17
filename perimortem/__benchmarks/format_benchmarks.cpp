@@ -10,11 +10,6 @@
 #include <filesystem>
 #include <fstream>
 
-#ifdef PERI_BENCH_3P
-// nlohmann json
-#include "json.hpp"
-#endif
-
 // Don't constexpr as clang completely chokes and creates a ton of overhead.
 auto test_count_per_round() -> uint32_t;
 
@@ -54,50 +49,14 @@ auto generate_test_data() -> std::array<std::string, 4> {
   return source;
 }
 
-#ifdef PERI_BENCH_3P
-[[maybe_unused]] static void nlohmann_json_rpc(benchmark::State& state) {
-  std::array<std::string, 4> source = generate_test_data();
-
-  for (auto _ : state) {
-    for (int i = 1; i <= test_count_per_round(); i++) {
-      auto data = nlohmann::json::parse(source[rand() % source.size()]);
-      auto rpc_version = data["jsonrpc"];
-      doNotOptimizeAway(rpc_version == "2.0");
-
-      auto path = data["params"]["source"];
-      auto size = path.size();
-      doNotOptimizeAway(size);
-    }
-  }
-}
-
-[[maybe_unused]] static void nlohmann_json_rpc_with_decode(
-    benchmark::State& state) {
-  std::array<std::string, 4> source = generate_test_data();
-
-  for (auto _ : state) {
-    for (int i = 1; i <= test_count_per_round(); i++) {
-      auto data = nlohmann::json::parse(source[rand() % source.size()]);
-      auto rpc_version = data["jsonrpc"];
-      doNotOptimizeAway(rpc_version == "2.0");
-
-      auto path = data["params"]["source"];
-      Perimortem::Storage::Base64::Decoded decode(
-          View::Bytes(path.get<std::string>()));
-      doNotOptimizeAway(decode.get_view().empty());
-    }
-  }
-}
-#endif
-
 [[maybe_unused]] static void rpc_header(benchmark::State& state) {
   std::array<std::string, 4> source = generate_test_data();
-  Perimortem::Memory::Arena arena;
+  Perimortem::Memory::Allocator::Arena arena;
 
   for (auto _ : state) {
     for (int i = 1; i <= test_count_per_round(); i++) {
       const auto& selected = source[rand() % source.size()];
-      auto data = Perimortem::Storage::Json::RpcHeader(
+      auto data = Perimortem::Storage::Json::JsonRpc(
           arena, View::Bytes(selected));
       doNotOptimizeAway(data.get_id().empty());
     }
@@ -105,7 +64,7 @@ auto generate_test_data() -> std::array<std::string, 4> {
 }
 
 [[maybe_unused]] static void json_rpc(benchmark::State& state) {
-  Perimortem::Memory::Arena json_arena;
+  Perimortem::Memory::Allocator::Arena json_arena;
   std::array<std::string, 4> source = generate_test_data();
 
   for (auto _ : state) {
@@ -124,13 +83,13 @@ auto generate_test_data() -> std::array<std::string, 4> {
 }
 
 [[maybe_unused]] static void json_rpc_from_header(benchmark::State& state) {
-  Perimortem::Memory::Arena json_arena;
+  Perimortem::Memory::Allocator::Arena json_arena;
   std::array<std::string, 4> source = generate_test_data();
 
   for (auto _ : state) {
     for (int i = 1; i <= test_count_per_round(); i++) {
       const auto& selected = source[rand() % source.size()];
-      auto header = Perimortem::Storage::Json::RpcHeader(
+      auto header = Perimortem::Storage::Json::JsonRpc(
           json_arena, View::Bytes(selected));
       uint32_t position = header.get_params_offset();
 
@@ -145,7 +104,7 @@ auto generate_test_data() -> std::array<std::string, 4> {
 }
 
 [[maybe_unused]] static void json_rpc_with_decode(benchmark::State& state) {
-  Perimortem::Memory::Arena json_arena;
+  Perimortem::Memory::Allocator::Arena json_arena;
   std::array<std::string, 4> source = generate_test_data();
 
   for (auto _ : state) {
@@ -167,7 +126,7 @@ auto generate_test_data() -> std::array<std::string, 4> {
 }
 
 [[maybe_unused]] static void just_source_decode(benchmark::State& state) {
-  Perimortem::Memory::Arena json_arena;
+  Perimortem::Memory::Allocator::Arena json_arena;
   std::array<std::string, 4> source = generate_test_data();
 
   json_arena.reset();

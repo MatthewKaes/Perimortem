@@ -46,7 +46,7 @@ class Arena {
       usage = sizeof(Bibliotheca::Preface*);
     }
 
-    uint8_t* root = Bibliotheca::preface_to_corpus(rented_block) + usage;
+    Byte* root = Bibliotheca::preface_to_corpus(rented_block) + usage;
     usage += bytes_requested;
 
     // Align the pointer to keep it aligned.

@@ -3,8 +3,9 @@
 
 #include "tokenizer.hpp"
 
-#include "perimortem/memory/const/narrow_resolver.hpp"
-#include "perimortem/memory/const/standard_types.hpp"
+#include "perimortem/memory/static/narrow_resolver.hpp"
+
+#include "perimortem/core/standard_types.hpp"
 
 #include <cmath>
 #include <cstring>
@@ -209,26 +210,36 @@ auto parse_type(Context& context) -> void {
 static inline constexpr auto check_keyword(View::Bytes value,
                                            Classifier default_value)
     -> Classifier {
-  static constexpr Const::TablePair<View::Bytes, Classifier> data[] = {
-      {"as", Classifier::As},           {"if", Classifier::If},
-      {"for", Classifier::For},         {"new", Classifier::New},
-      {"else", Classifier::Else},       {"func", Classifier::Func},
-      {"init", Classifier::Init},       {"self", Classifier::Self},
-      {"true", Classifier::True},       {"alis", Classifier::Alias},
-      {"debug", Classifier::Debug},     {"error", Classifier::Error},
-      {"false", Classifier::False},     {"using", Classifier::Using},
-      {"while", Classifier::While},     {"entity", Classifier::Entity},
-      {"object", Classifier::Object},   {"return", Classifier::Return},
-      {"struct", Classifier::Struct},   {"library", Classifier::Library},
-      {"on_load", Classifier::OnLoad},  {"package", Classifier::Package},
-      {"warning", Classifier::Warning},
+  static constexpr View::Table<Classifier>::Entry data[] = {
+      {"as"_view, Classifier::As},
+      {"if"_view, Classifier::If},
+      {"for"_view, Classifier::For},
+      {"new"_view, Classifier::New},
+      {"else"_view, Classifier::Else},
+      {"func"_view, Classifier::Func},
+      {"init"_view, Classifier::Init},
+      {"self"_view, Classifier::Self},
+      {"true"_view, Classifier::True},
+      {"alias"_view, Classifier::Alias},
+      {"debug"_view, Classifier::Debug},
+      {"error"_view, Classifier::Error},
+      {"false"_view, Classifier::False},
+      {"using"_view, Classifier::Using},
+      {"while"_view, Classifier::While},
+      {"entity"_view, Classifier::Entity},
+      {"object"_view, Classifier::Object},
+      {"return"_view, Classifier::Return},
+      {"struct"_view, Classifier::Struct},
+      {"library"_view, Classifier::Library},
+      {"on_load"_view, Classifier::OnLoad},
+      {"package"_view, Classifier::Package},
+      {"warning"_view, Classifier::Warning},
   };
 
-  using keyword_resolver =
-      Const::NarrowResolver<Classifier, array_size(data), data>;
-  static_assert(sizeof(keyword_resolver::sparse_table) <= 4800,
-                "Keyword sparse table should be less than 4800 bytes. "
-                "Use keywords only 8 characters or shorter.");
+  using keyword_resolver = Static::NarrowResolver<
+      Classifier, sizeof(data) / sizeof(View::Table<Classifier>::Entry), data>;
+
+  static_assert(keyword_resolver::find_or_default("library"_view, Classifier::None) == Classifier::Library);
 
   return keyword_resolver::find_or_default(value, default_value);
 }

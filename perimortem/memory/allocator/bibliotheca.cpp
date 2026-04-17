@@ -3,7 +3,9 @@
 
 #include "perimortem/memory/allocator/bibliotheca.hpp"
 
-#include <cstdlib>
+#include "perimortem/core/math.hpp"
+
+#include <bit>
 
 using namespace Perimortem::Memory::Allocator;
 
@@ -11,11 +13,11 @@ thread_local static Bibliotheca isolated;
 
 // If a short lived thread was created we'll need to release all blocks.
 Bibliotheca::~Bibliotheca() {
-  for (int i = 0; i < faceted_archives.size(); i++) {
+  for (Count i = 0; i < faceted_archives.get_size(); i++) {
     while (faceted_archives[i].initial_entry) {
       auto entry = faceted_archives[i].initial_entry;
       faceted_archives[i].initial_entry = entry->next;
-      std::free(entry);
+      free(entry);
     }
   }
 }
@@ -23,7 +25,7 @@ Bibliotheca::~Bibliotheca() {
 auto Bibliotheca::check_out(size_type requested_bytes) -> Preface* {
   // Ensure a minimum page size and that we have room for the Preface reserved.
   // Round up to the nearest power of 2.
-  const size_type actual_bytes = std::max(
+  const size_type actual_bytes = Core::Math::max(
       std::bit_ceil(requested_bytes + static_cast<size_type>(sizeof(Preface))),
       min_size);
 
@@ -39,7 +41,7 @@ auto Bibliotheca::check_out(size_type requested_bytes) -> Preface* {
     //
     // Then smaller (more common) archive chunks can just be passed out from
     // A set of stack allocator.
-    Preface* entry = static_cast<Preface*>(std::malloc(actual_bytes));
+    Preface* entry = static_cast<Preface*>(malloc(actual_bytes));
 
     // Update accounting of usage.
     isolated.faceted_archives[archive_index].reserved_blocks += 1;
@@ -79,7 +81,7 @@ auto Bibliotheca::remit(Preface* entry) -> size_type {
 
   // If there are no reservations then return to the appropriate archive.
   if (entry->reservations == 0) {
-    uint8_t archive_index = entry->archive_index;
+    Byte archive_index = entry->archive_index;
 
     entry->next = isolated.faceted_archives[archive_index].initial_entry;
     isolated.faceted_archives[archive_index].initial_entry = entry;
@@ -107,7 +109,7 @@ auto Bibliotheca::exchange(Preface* returning, Preface* reserving) -> void {
     }
 #endif
 
-    uint8_t archive_index = returning->archive_index;
+    Byte archive_index = returning->archive_index;
 
     returning->next = isolated.faceted_archives[archive_index].initial_entry;
     isolated.faceted_archives[archive_index].initial_entry = returning;
@@ -115,9 +117,9 @@ auto Bibliotheca::exchange(Preface* returning, Preface* reserving) -> void {
   }
 }
 
-auto Bibliotheca::reserved_memory() -> std::array<size_type, radix_range> {
-  std::array<size_type, radix_range> sizes;
-  for (int i = 0; i < isolated.faceted_archives.size(); i++) {
+auto Bibliotheca::reserved_memory() -> Static::Vector<size_type, radix_range> {
+  Static::Vector<size_type, radix_range> sizes;
+  for (int i = 0; i < isolated.faceted_archives.get_size(); i++) {
     auto archive = isolated.faceted_archives[i];
     if (archive.initial_entry == nullptr) {
       sizes[i] = 0;
@@ -131,9 +133,9 @@ auto Bibliotheca::reserved_memory() -> std::array<size_type, radix_range> {
   return sizes;
 }
 
-auto Bibliotheca::free_memory() -> std::array<size_type, radix_range> {
-  std::array<size_type, radix_range> sizes;
-  for (int i = 0; i < isolated.faceted_archives.size(); i++) {
+auto Bibliotheca::free_memory() -> Static::Vector<size_type, radix_range> {
+  Static::Vector<size_type, radix_range> sizes;
+  for (int i = 0; i < isolated.faceted_archives.get_size(); i++) {
     auto archive = isolated.faceted_archives[i];
     if (archive.initial_entry == nullptr) {
       sizes[i] = 0;

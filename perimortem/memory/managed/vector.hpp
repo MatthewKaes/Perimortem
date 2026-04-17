@@ -4,33 +4,36 @@
 #pragma once
 
 #include "perimortem/memory/allocator/arena.hpp"
-#include "perimortem/memory/dynamic/record.hpp"
-#include "perimortem/memory/const/standard_types.hpp"
+
+#include "perimortem/core/standard_types.hpp"
 #include "perimortem/memory/view/vector.hpp"
 
-#include <cstring>
+#include <string.h>
 
 namespace Perimortem::Memory::Managed {
 
 // A simple linear flat array of trivially constructable values.
-template <typename T>
+// 
+template <typename value_type>
 class Vector {
  public:
   static constexpr Count start_capacity = 8;
   static constexpr Count growth_factor = 2;
 
   Vector(const Vector&) = default;
-  Vector(Arena& arena) : arena(arena) { reset(); }
+  Vector(Allocator::Arena& arena) : arena(arena) { reset(); }
 
-  constexpr operator View::Vector<T>() const {
-    return View::Vector<T>(rented_block, size);
+  constexpr operator View::Vector<value_type>() const {
+    return View::Vector<value_type>(rented_block, size);
   }
+
+  auto clear() -> void { size = 0; }
 
   auto reset() -> void {
     size = 0;
     capacity = start_capacity;
-    rented_block =
-        reinterpret_cast<T*>(arena.allocate(sizeof(T) * start_capacity));
+    rented_block = reinterpret_cast<value_type*>(
+        arena.allocate(sizeof(value_type) * start_capacity));
   }
 
   auto reset(Count reserve_capacity) -> void {
@@ -40,25 +43,25 @@ class Vector {
 
     size = 0;
     capacity = reserve_capacity;
-    rented_block =
-        reinterpret_cast<T*>(arena.allocate(sizeof(T) * reserve_capacity));
+    rented_block = reinterpret_cast<value_type*>(
+        arena.allocate(sizeof(value_type) * reserve_capacity));
   }
 
-  auto apply(const std::function<void(const T&)>& fn) const -> void {
+  auto apply(const std::function<void(const value_type&)>& fn) const -> void {
     for (Count i = 0; i < size; i++) {
       fn(rented_block[i]);
     }
   }
 
-  constexpr auto insert(const T& data) -> void {
+  constexpr auto insert(const value_type& data) -> void {
     if (size == capacity)
       grow();
 
     // Construct using the copy constructor.
-    new (rented_block + (size++)) T(data);
+    new (rented_block + (size++)) value_type(data);
   }
 
-  constexpr auto contains(const T& data) const -> bool {
+  constexpr auto contains(const value_type& data) const -> bool {
     for (Count i = 0; i < size; i++) {
       if (rented_block[i] == data) {
         return true;
@@ -68,27 +71,29 @@ class Vector {
     return false;
   }
 
-  constexpr auto at(Count index) const -> T& { return rented_block[index]; }
-  constexpr auto operator[](Count index) -> T& { return at(index); }
+  constexpr auto at(Count index) const -> value_type& {
+    return rented_block[index];
+  }
+  constexpr auto operator[](Count index) -> value_type& { return at(index); }
 
   constexpr auto get_size() const -> Count { return size; }
-  constexpr auto get_arena() const -> Arena& { return arena; }
-  constexpr auto get_view() const -> View::Vector<T> {
-    return View::Vector<T>(rented_block, size);
+  constexpr auto get_arena() const -> Allocator::Arena& { return arena; }
+  constexpr auto get_view() const -> View::Vector<value_type> {
+    return View::Vector<value_type>(rented_block, size);
   }
 
  private:
   auto grow() -> void {
     capacity *= growth_factor;
-    auto new_block = reinterpret_cast<T*>(arena.allocate(sizeof(T) * capacity));
+    auto new_block = reinterpret_cast<value_type*>(
+        arena.allocate(sizeof(value_type) * capacity));
 
-    std::memcpy(reinterpret_cast<void*>(new_block),
-                reinterpret_cast<void*>(rented_block), sizeof(T) * size);
+    memcpy(new_block, rented_block, sizeof(value_type) * size);
     rented_block = new_block;
   }
 
-  Arena& arena;
-  T* rented_block;
+  Allocator::Arena& arena;
+  value_type* rented_block;
   Count size;
   Count capacity;
 };

@@ -5,8 +5,6 @@
 
 #include "perimortem/memory/view/bytes.hpp"
 
-#include <functional>
-
 namespace Perimortem::Memory::View {
 
 // A simple linear flat array of trivially constructable values.
@@ -16,12 +14,6 @@ class Vector {
   Vector(const Vector&) = default;
   Vector(const T* entries, const Count size)
       : source_block(entries), size(size) {}
-
-  auto apply(const std::function<void(const T&)>& fn) const -> void {
-    for (Count i = 0; i < size; i++) {
-      fn(source_block[i]);
-    }
-  }
 
   constexpr auto contains(const T& data) const -> bool {
     for (Count i = 0; i < size; i++) {

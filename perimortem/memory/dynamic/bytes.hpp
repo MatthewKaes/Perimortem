@@ -3,125 +3,56 @@
 
 #pragma once
 
-#include "perimortem/memory/allocator/resizable.hpp"
-#include "perimortem/memory/const/standard_types.hpp"
+#include "perimortem/core/math.hpp"
 #include "perimortem/memory/view/bytes.hpp"
-
-#include <charconv>
-#include <cstring>
 
 namespace Perimortem::Memory::Dynamic {
 
 // A vector of dynamically managed bytes with value semantics.
-// For a buffer of bytes with reference symantics use Record.
-class Bytes : public Allocator::Resizable<Byte, 32> {
+class Bytes {
  public:
-  Bytes(Count reserved_capacity = min_capacity())
-      : Resizable(reserved_capacity) {}
+  Bytes();
+  Bytes(Count reserved_capacity);
+  Bytes(View::Bytes view);
+  Bytes(const Bytes& rhs);
+  Bytes(Bytes&& rhs);
 
-  Bytes(const Bytes& rhs)
-      : Resizable(std::max(rhs.get_size(), min_capacity())),
-        size(rhs.get_size()) {
-    // Bytes don't require any special handling so just memcpy.
-    std::memcpy(access(), rhs.access(), size);
-  };
+  ~Bytes();
 
-  Bytes(Bytes&& rhs) : Resizable(std::move(rhs)) {};
+  auto append(Byte b) -> void;
+  auto concat(View::Bytes view) -> void;
+  auto proxy(View::Bytes view) -> void;
+  auto resize(Count new_size) -> void;
 
-  auto append(Byte b) -> void {
-    set_capacity(size + 1);
-    access()[size++] = b;
-  }
-
-  auto append(View::Bytes view) -> void {
-    set_capacity(size + view.get_size());
-
-    std::memcpy(access() + size, view.get_data(), view.get_size());
-    size += view.get_size();
-  }
-
-  auto append(Count number) -> void {
-    // Largest size required to represent any 64bit number.
-    constexpr auto number_range = 22;
-    char working_buffer[number_range] = {};
-    std::to_chars_result result =
-        std::to_chars(working_buffer, working_buffer + number_range, number);
-
-    if (result.ec != std::errc()) {
-      append(View::Bytes(working_buffer, result.ptr - working_buffer));
-    } else {
-      append('0'_byte);
-    }
-  }
-
-  auto append(Long number) -> void {
-    // Largest size required to represent any 64bit number.
-    constexpr auto number_range = 22;
-    char working_buffer[number_range] = {};
-    std::to_chars_result result =
-        std::to_chars(working_buffer, working_buffer + number_range, number);
-
-    if (result.ec != std::errc()) {
-      append(View::Bytes(working_buffer, result.ptr - working_buffer));
-    } else {
-      append('0'_byte);
-    }
-  }
-
-  auto append(Real_64 number) -> void {
-    // Largest size required to represent any 64bit number.
-    constexpr auto number_range = 28;
-    char working_buffer[number_range] = {};
-    std::to_chars_result result =
-        std::to_chars(working_buffer, working_buffer + number_range, number);
-
-    if (result.ec != std::errc()) {
-      append(View::Bytes(working_buffer, result.ptr - working_buffer));
-    } else {
-      append('0'_byte);
-    }
-  }
-
-  auto proxy(View::Bytes view) -> void {
-    const auto original_end = size;
-    set_capacity(view.get_size());
-
-    std::memcpy(access(), view.get_data(), view.get_size());
-    size = view.get_size();
-  }
-
-  auto convert(Byte source, Byte target) -> void {
-    for (int i = 0; i < size; i++) {
-      if (access()[i] == source) {
-        access()[i] = target;
-      }
-    }
-  }
-
-  auto operator[](Count index) const -> char {
-    if (index > size)
-      return 0;
-
-    return access()[index];
-  }
-
-  auto at(Count index) const -> char {
-    if (index > size)
-      return 0;
-
-    return access()[index];
-  }
+  auto operator[](Count index) const -> Byte;
+  auto at(Count index) const -> Byte;
+  auto convert(Byte source, Byte target) -> void;
 
   constexpr auto get_size() const -> Count { return size; }
-
   constexpr auto get_view() const -> const View::Bytes {
-    return View::Bytes(access(), size);
+    return View::Bytes(Allocator::Bibliotheca::preface_to_corpus(rented_block),
+                       size);
   }
+
+  inline constexpr auto slice(Count start, Count size) const -> View::Bytes {
+    if (start >= get_size())
+      return View::Bytes();
+
+    return View::Bytes(View::Bytes(
+        Allocator::Bibliotheca::preface_to_corpus(rented_block) + start,
+        Core::Math::min(size, get_size() - start)));
+  };
 
   constexpr operator View::Bytes() const { return get_view(); }
 
+  auto clear() -> void;
+  auto reset() -> void;
+  auto get_capacity() const -> Count;
+  auto ensure_capacity(Count required_size) -> void;
+
  private:
   Count size = 0;
+  Allocator::Bibliotheca::Preface* rented_block = nullptr;
 };
 
 }  // namespace Perimortem::Memory::Dynamic
