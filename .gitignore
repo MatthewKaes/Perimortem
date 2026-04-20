@@ -17,3 +17,6 @@ core/tests/benchmarks/json.hpp
 
 # Profiling
 perf.*
+
+# Testing locally.
+__scratch/*

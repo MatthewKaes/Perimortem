@@ -14,7 +14,7 @@ namespace Tetrodotoxin::Parser {
 
 struct Error {
  public:
-  static bool colorful;
+  static Bool colorful;
 
   static std::string error_color_primary;
   static std::string error_color_secondary;

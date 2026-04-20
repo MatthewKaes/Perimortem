@@ -17,7 +17,7 @@ cc_library(
     ]),
     includes = ["."],
     deps = [
-        "//core",
+        "//perimortem",
     ],
 )
 
@@ -35,7 +35,7 @@ cc_library(
 #     includes = ["."],
 #     deps = [
 #         ":lexical",
-#         "//core",
+#         "//perimortem",
 #     ],
 # )
 
@@ -53,7 +53,7 @@ cc_library(
 #     deps = [
 #         ":lexical",
 #         ":virtual_machine",
-#         "//core",
+#         "//perimortem",
 #     ],
 # )
 

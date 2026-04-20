@@ -22,15 +22,15 @@ auto RpcRequest::rpc_error(View::Bytes error) const -> RpcResponse {
   sanatized_error.proxy(error);
   sanatized_error.convert('"', '`');
 
-  auto response = create_object({{"jsonrpc"_bv, header.get_version()},
-                                 {"id"_bv, Node::raw(header.get_id())},
-                                 {"error"_bv, sanatized_error.get_view()}});
+  auto response = create_object({{"jsonrpc"_view, header.get_version()},
+                                 {"id"_view, Node::raw(header.get_id())},
+                                 {"error"_view, sanatized_error.get_view()}});
 
   return Node(response);
 }
 
 auto RpcRequest::rpc_result(ReponseObject result) const -> RpcResponse {
-  return create_object({{"jsonrpc"_bv, header.get_version()},
-                                 {"id"_bv, Node::raw(header.get_id())},
-                                 {"error"_bv, Node(result)}});
+  return create_object({{"jsonrpc"_view, header.get_version()},
+                        {"id"_view, Node::raw(header.get_id())},
+                        {"error"_view, Node(result)}});
 }

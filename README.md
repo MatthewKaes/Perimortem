@@ -1,14 +1,28 @@
 # Perimortem
 
-A "Game Engine" for projects on the verge of death, you just don't want
-to admit it to yourself.
+A "Game Engine" for developers that care more about building engines rather than using them.
 
 ## About
 
-What started as a playful fork of Godot ended up becoming a complete overhaul as I untangled the guts of Godot's legacy.
-Inspired by Godot, Perimortem acts as a playground for something "different".
+Inspired by Godot, Perimortem serves as a highly opinionated engine + toolchain with a focus
+performance.
 
-I would highly recommend you don't try to build anything with this. 😇
+My background is in Performance Engineering (embedded, Cloud, GPUs, FPGA / ISA design, ect.) which
+has led to a large amount of "Code Detective" work in arbitrary seemingly unrelated systems.
+Perimortem acts as less of a game engine and more of a challenge framework for testing out ideas.
+There are few projects that have the ability to cover as much technical breadth as a game engine.
+
+While originally I was planning to contribute to Godot, I wanted to take a systems approach to
+building an optimized system from the ground up (including the entire memory model).
+
+### Third-party dependencies
+
+Perimortem aims to limit it's dependencies as much as possible and everything has been built black-box.
+
+Third-party dependencies are currently limited to:
+* Zstd (to be replaced)
+* googletest (to be replaced)
+* googlebenchmark (to be replaced)
 
 ### How to build
 
@@ -43,7 +57,7 @@ If you aren't using VSCode you can use `ttx-lang-server` in your engine of choic
 
 If you are looking for the Tetrodotoxin spec check out its dedicated [README](https://github.com/MatthewKaes/Perimortem/blob/main/tetrodotoxin/README.md).
 
-## OS Support
+### OS Support
 
 Arch Linux w/ Wayland
 
@@ -51,6 +65,13 @@ Arch Linux w/ Wayland
 
 No. Why are you even using this? Go use a real engine.
 
+## Shout-outs
+
+If you are interested in performance engineering, go read [Agner Fog's](https://www.agner.org/optimize/) optimization manuals.
+They have 
+
 ## Disclaimer
 
-I take no responsability for any damage reading the source of this codebase may do to you, emotionally, mentally, physically, financially, or romantically.
+As this project and the code herewithin is not meant for production.
+
+I take no responsibility for any damage reading the source of this codebase may do to you, emotionally, mentally, physically, financially, or romantically.

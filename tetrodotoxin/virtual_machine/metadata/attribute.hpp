@@ -5,7 +5,7 @@
 
 #include "types/abstract.hpp"
 
-#include "core/memory/view/byte.hpp"
+#include "perimortem/memory/view/byte.hpp"
 
 namespace Tetrodotoxin::Types::Compiler {
 

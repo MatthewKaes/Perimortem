@@ -5,7 +5,7 @@
 
 #include "types/name.hpp"
 
-#include "core/memory/managed/table.hpp"
+#include "perimortem/memory/managed/table.hpp"
 
 namespace Tetrodotoxin::Types {
 

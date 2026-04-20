@@ -5,11 +5,11 @@
 
 #include "types/abstract.hpp"
 
-#include "concepts/singleton.hpp"
+#include "perimortem/memory/managed/singleton.hpp"
 
 namespace Tetrodotoxin::Types {
 
-class Byt : public Abstract, public Perimortem::Concepts::Singleton<Byt> {
+class Byt : public Abstract, public Perimortem::Memory::Managed::Singleton<Byt> {
  public:
   static constexpr uint32_t uuid = 0x586C9460;
   constexpr auto get_name() const -> Perimortem::Memory::View::Bytes override {

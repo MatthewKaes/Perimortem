@@ -7,9 +7,9 @@
 #include "types/func.hpp"
 #include "types/name.hpp"
 
-#include "memory/arena.hpp"
-#include "memory/view/bytes.hpp"
-#include "memory/managed/table.hpp"
+#include "perimortem/memory/allocator/arena.hpp"
+#include "perimortem/memory/view/bytes.hpp"
+#include "perimortem/memory/managed/table.hpp"
 
 #include "lexical/tokenizer.hpp"
 
@@ -68,7 +68,7 @@ class Library : public Abstract {
 
   // Trys to create a name. Returns the conflict
   auto create_name(const Perimortem::Memory::View::Bytes& name,
-                   const Abstract& abstract) -> bool {
+                   const Abstract& abstract) -> Bool {
     if (name_index.contains(name))
       return false;
 
@@ -84,13 +84,13 @@ class Library : public Abstract {
     doc = doc_string;
   }
 
-  inline auto set_entity(bool is_entity) -> void {
+  inline auto set_entity(Bool is_entity) -> void {
     this->uses_entity = is_entity;
   }
 
-  inline auto is_entity() const -> bool { return uses_entity; }
+  inline auto is_entity() const -> Bool { return uses_entity; }
 
-  inline auto load(const std::string_view& source, bool strip_disabled)
+  inline auto load(const std::string_view& source, Bool strip_disabled)
       -> void {
     allocator.reset();
     name_index.reset();
@@ -110,14 +110,14 @@ class Library : public Abstract {
         doc() {}
 
  public:
-  Perimortem::Memory::Arena allocator;
+  Perimortem::Memory::Allocator::Arena allocator;
   Tetrodotoxin::Lexical::Tokenizer tokenizer;
 
  private:
   Perimortem::Memory::Managed::Table<const Abstract*> name_index;
   Perimortem::Memory::View::Bytes doc;
   Perimortem::Memory::View::Bytes package_name;
-  bool uses_entity;
+  Bool uses_entity;
 };
 
 }  // namespace Tetrodotoxin::Types

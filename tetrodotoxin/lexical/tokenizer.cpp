@@ -3,18 +3,18 @@
 
 #include "tokenizer.hpp"
 
-#include "concepts/narrow_resolver.hpp"
-#include "concepts/standard_types.hpp"
+#include "perimortem/memory/static/narrow_resolver.hpp"
+
+#include "perimortem/core/standard_types.hpp"
 
 #include <cmath>
 #include <cstring>
 #include <sstream>
 
 using namespace Perimortem::Memory;
-using namespace Perimortem::Concepts;
 using namespace Tetrodotoxin::Lexical;
 
-constexpr auto is_whitespace(Byte c) -> bool {
+constexpr auto is_whitespace(Byte c) -> Bool {
   switch (c) {
     // Skip whitespace
     case ' ':
@@ -26,35 +26,36 @@ constexpr auto is_whitespace(Byte c) -> bool {
   return false;
 }
 
-constexpr auto is_attribute(Byte c) -> bool {
+constexpr auto is_attribute(Byte c) -> Bool {
   return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_';
 }
 
-constexpr auto is_class(Byte c) -> bool {
+constexpr auto is_class(Byte c) -> Bool {
   return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
          (c >= '0' && c <= '9');
 }
 
-constexpr auto is_identifier(Byte c) -> bool {
+constexpr auto is_identifier(Byte c) -> Bool {
   return (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '_';
 }
 
-constexpr auto is_num(Byte c) -> bool {
+constexpr auto is_num(Byte c) -> Bool {
   return (c >= '0' && c <= '9') || c == '.';
 }
 
 // Used for tracking during parsing
 struct Context {
-  Context(const View::Bytes source, Perimortem::Memory::Managed::Vector<Token>& tokens)
+  Context(const View::Bytes source,
+          Perimortem::Memory::Managed::Vector<Token>& tokens)
       : source(source), tokens(tokens) {};
 
   Location loc;
   const View::Bytes source;
   Perimortem::Memory::Managed::Vector<Token>& tokens;
-  Perimortem::Concepts::BitFlag<TtxState> options;
+  Perimortem::Memory::View::BitFlag<TtxState> options;
 };
 
-inline auto can_parse(Context& context) -> bool {
+inline auto can_parse(Context& context) -> Bool {
   return context.loc.parse_index < context.source.get_size();
 }
 
@@ -132,18 +133,17 @@ auto recursive_strip(Context& context) {
   }
 }
 
-auto parse_disabled(Context& context, bool strip_disabled) -> void {
+auto parse_disabled(Context& context, Bool strip_disabled) -> void {
   context.loc.source_index = context.loc.parse_index;
   context.loc.parse_index += 2;  // "/>"
 
   // Strip disabled lines if requested.
   if (!strip_disabled) {
-    context.tokens.insert(
-        {Classifier::Disabled,
-         context.source.slice(
-             context.loc.source_index,
-             context.loc.parse_index - context.loc.source_index),
-         context.loc});
+    context.tokens.insert({Classifier::Disabled,
+                           context.source.slice(context.loc.source_index,
+                                                context.loc.parse_index -
+                                                    context.loc.source_index),
+                           context.loc});
     context.loc.column += 2;
     context.options += TtxState::DisableCommands;
   } else {
@@ -165,7 +165,7 @@ auto parse_disabled(Context& context, bool strip_disabled) -> void {
 }
 
 auto parse_number(Context& context) -> void {
-  bool found_dec = false;
+  Bool found_dec = false;
   Classifier klass = Classifier::Numeric;
 
   char val = peak_ahead(context, 1);
@@ -207,33 +207,44 @@ auto parse_type(Context& context) -> void {
   context.loc.column += context.loc.parse_index - context.loc.source_index;
 }
 
-static inline constexpr auto check_keyword(std::string_view value,
+static inline constexpr auto check_keyword(View::Bytes value,
                                            Classifier default_value)
     -> Classifier {
-  static constexpr TablePair<std::string_view, Classifier> data[] = {
-      {"as", Classifier::As},           {"if", Classifier::If},
-      {"for", Classifier::For},         {"new", Classifier::New},
-      {"else", Classifier::Else},       {"func", Classifier::Func},
-      {"init", Classifier::Init},       {"self", Classifier::Self},
-      {"true", Classifier::True},       {"alis", Classifier::Alias},
-      {"debug", Classifier::Debug},     {"error", Classifier::Error},
-      {"false", Classifier::False},     {"using", Classifier::Using},
-      {"while", Classifier::While},     {"entity", Classifier::Entity},
-      {"object", Classifier::Object},   {"return", Classifier::Return},
-      {"struct", Classifier::Struct},   {"library", Classifier::Library},
-      {"on_load", Classifier::OnLoad},  {"package", Classifier::Package},
-      {"warning", Classifier::Warning},
+  static constexpr View::Table<Classifier>::Entry data[] = {
+      {"as"_view, Classifier::As},
+      {"if"_view, Classifier::If},
+      {"for"_view, Classifier::For},
+      {"new"_view, Classifier::New},
+      {"else"_view, Classifier::Else},
+      {"func"_view, Classifier::Func},
+      {"init"_view, Classifier::Init},
+      {"self"_view, Classifier::Self},
+      {"true"_view, Classifier::True},
+      {"alias"_view, Classifier::Alias},
+      {"debug"_view, Classifier::Debug},
+      {"error"_view, Classifier::Error},
+      {"false"_view, Classifier::False},
+      {"using"_view, Classifier::Using},
+      {"while"_view, Classifier::While},
+      {"entity"_view, Classifier::Entity},
+      {"object"_view, Classifier::Object},
+      {"return"_view, Classifier::Return},
+      {"struct"_view, Classifier::Struct},
+      {"library"_view, Classifier::Library},
+      {"on_load"_view, Classifier::OnLoad},
+      {"package"_view, Classifier::Package},
+      {"warning"_view, Classifier::Warning},
   };
 
-  using keyword_resolver = NarrowResolver<Classifier, array_size(data), data>;
-  static_assert(sizeof(keyword_resolver::sparse_table) <= 4800,
-                "Keyword sparse table should be less than 4800 bytes. "
-                "Use keywords only 8 characters or shorter.");
+  using keyword_resolver = Static::NarrowResolver<
+      Classifier, sizeof(data) / sizeof(View::Table<Classifier>::Entry), data>;
+
+  static_assert(keyword_resolver::find_or_default("library"_view, Classifier::None) == Classifier::Library);
 
   return keyword_resolver::find_or_default(value, default_value);
 }
 
-template <bool forced_identifier>
+template <Bool forced_identifier>
 auto parse_identifier(Context& context) -> void {
   // Eat any unknown tokens including whitespace
   if (!forced_identifier) {
@@ -260,8 +271,7 @@ auto parse_identifier(Context& context) -> void {
 
   if (!forced_identifier) {
     // Check if we need to reclass as a keyword.
-    klass = check_keyword(std::string_view(view.get_data(), view.get_size()),
-                          klass);
+    klass = check_keyword(view, klass);
 
     if (klass == Classifier::Func)
       context.options += TtxState::ParamTokenizing;
@@ -271,11 +281,11 @@ auto parse_identifier(Context& context) -> void {
   context.loc.column += context.loc.parse_index - context.loc.source_index;
 }
 
-#define SIMPLE_TOKEN(klass, len)                                         \
-  context.loc.parse_index += len;                                        \
+#define SIMPLE_TOKEN(klass, len)                                      \
+  context.loc.parse_index += len;                                     \
   tokens.insert({Classifier::klass,                                   \
-                    context.source.slice(context.loc.source_index, len), \
-                    context.loc});                                       \
+                 context.source.slice(context.loc.source_index, len), \
+                 context.loc});                                       \
   context.loc.column += len;
 
 #define PARSE_SIMPLE(token, klass) \
@@ -283,8 +293,7 @@ auto parse_identifier(Context& context) -> void {
     SIMPLE_TOKEN(klass, 1);        \
     break;
 
-auto Tokenizer::parse(const View::Bytes source_,
-                      bool strip_disabled) -> void {
+auto Tokenizer::parse(const View::Bytes source_, Bool strip_disabled) -> void {
   // Reset state
   source = source_;
   tokens.reset();
@@ -407,10 +416,10 @@ auto Tokenizer::parse(const View::Bytes source_,
         }
 
         tokens.insert({Classifier::String,
-                          context.source.slice(context.loc.source_index,
-                                               context.loc.parse_index -
-                                                   context.loc.source_index),
-                          context.loc});
+                       context.source.slice(
+                           context.loc.source_index,
+                           context.loc.parse_index - context.loc.source_index),
+                       context.loc});
         context.loc.column +=
             context.loc.parse_index - context.loc.source_index;
         break;
@@ -452,8 +461,8 @@ auto Tokenizer::parse(const View::Bytes source_,
       case ')':
         context.loc.parse_index += 1;
         tokens.insert({Classifier::GroupEnd,
-                          context.source.slice(context.loc.source_index, 1),
-                          context.loc});
+                       context.source.slice(context.loc.source_index, 1),
+                       context.loc});
         context.loc.column += 1;
         context.options -=
             TtxState::ParamTokenizing;  // disable function parsing.
@@ -490,6 +499,5 @@ auto Tokenizer::parse(const View::Bytes source_,
   // End of file
   options = context.options;
   context.loc.source_index = ++context.loc.parse_index;
-  context.tokens.insert(
-      {Classifier::EndOfStream, View::Bytes(), context.loc});
+  context.tokens.insert({Classifier::EndOfStream, View::Bytes(), context.loc});
 }

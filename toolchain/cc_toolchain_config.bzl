@@ -18,6 +18,7 @@ load(
     "tool_path",
 )
 load("@rules_cc//cc/common:cc_common.bzl", "cc_common")
+load("@rules_cc//cc/toolchains:cc_toolchain_config_info.bzl", "CcToolchainConfigInfo")
 
 cpp_compile_actions = [
     ACTION_NAMES.cpp_compile,
@@ -92,7 +93,8 @@ def _impl(ctx):
                                 "-fno-exceptions",
                                 "-fno-rtti",
                                 "-mavx2",  # AVX2 support required
-                                "-std=c++23",
+                                "-mrdrnd", # _rdrand64_step
+                                "-std=c++26",
                                 "-no-canonical-prefixes",
                             ],
                         ),
@@ -113,6 +115,7 @@ def _impl(ctx):
                                 # The goal is to bootstrap an 100% standard conforming codebase.
                                 "-Wall",
                                 "-Werror",
+                                "-Wno-character-conversion",  # google-test
                                 "-fno-exceptions",
                                 "-fno-rtti",
                                 "-std=c23",
@@ -147,6 +150,7 @@ def _impl(ctx):
         ctx = ctx,
         features = features,
         cxx_builtin_include_directories = [
+            "/usr/lib/clang/22/include",
             "/usr/lib/clang/21/include",
             "/usr/lib/clang/20/include",
             "/usr/include",

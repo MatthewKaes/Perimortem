@@ -3,8 +3,8 @@
 
 #include <iostream>
 
-#include "core/storage/formats/base64.hpp"
-#include "core/storage/formats/json.hpp"
+#include "perimortem/storage/formats/base64.hpp"
+#include "perimortem/storage/formats/json.hpp"
 #include "lexical/tokenizer.hpp"
 #include "src/language_server.hpp"
 #include "src/service.hpp"
@@ -44,15 +44,15 @@ auto main(int argc, char* argv[]) -> int {
       "initialize", [](const RpcRequest& request) -> RpcResponse {
         auto response = request.create_object(
             {{"serverInfo", request.create_object({
-                                {"name"_bv, "Tetrodotoxin Language Server"_bv},
-                                {"version"_bv, "1.0"_bv},
+                                {"name"_view, "Tetrodotoxin Language Server"_view},
+                                {"version"_view, "1.0"_view},
                             })},
              {"capabilities",
               request.create_object({
-                  {"positionEncoding"_bv, "utf-16"_bv},
-                  {"textDocumentSync"_bv,
+                  {"positionEncoding"_view, "utf-16"_view},
+                  {"textDocumentSync"_view,
                    request.create_object(
-                       {{"openClose"_bv, true}, {"change"_bv, "1"_bv}})},
+                       {{"openClose"_view, true}, {"change"_view, "1"_view}})},
               })}});
 
         return request.rpc_result(response);
@@ -63,13 +63,13 @@ auto main(int argc, char* argv[]) -> int {
       "tokenize", [](const RpcRequest& request) -> RpcResponse {
         const auto& args = request.get_params();
         if (args.null()) {
-          return request.rpc_error("\"Failed to parse tokenize request.\"");
+          return request.rpc_error("\"Failed to parse tokenize request.\""_view);
         }
 
-        const auto source_code = args["source"].get_string();
+        const auto source_code = args["source"_view].get_string();
         if (source_code.empty()) {
           return request.rpc_error(
-              "Requested Fotokenizemat but no `source` was provided");
+              "Requested Fotokenizemat but no `source` was provided"_view);
         }
 
         // One off tokenizer.
@@ -86,19 +86,19 @@ auto main(int argc, char* argv[]) -> int {
       "format", [](const RpcRequest& request) -> RpcResponse {
         const auto& args = request.get_params();
         if (args.null()) {
-          return request.rpc_error("\"Failed to parse format request.\"");
+          return request.rpc_error("\"Failed to parse format request.\""_view);
         }
 
-        const auto source_code = args["source"].get_string();
+        const auto source_code = args["source"_view].get_string();
         if (source_code.empty()) {
           return request.rpc_error(
-              "Requested Format but no `source` was provided");
+              "Requested Format but no `source` was provided"_view);
         }
 
-        const auto name_string = args["name"].get_string();
+        const auto name_string = args["name"_view].get_string();
         if (name_string.empty()) {
           return request.rpc_error(
-              "Requested Format but no `name` was provided");
+              "Requested Format but no `name` was provided"_view);
         }
 
         // auto path = std::filesystem::path(name_string->get_view());
@@ -111,7 +111,7 @@ auto main(int argc, char* argv[]) -> int {
             false);
 
         return request.rpc_result(
-            request.create_object({{"document"_bv, source_code}}));
+            request.create_object({{"document"_view, source_code}}));
       });
 
   std::cout << " -- Starting JsonRPC..." << std::endl;

@@ -17,14 +17,14 @@ namespace Tetrodotoxin::Parser {
 
 class Script {
  public:
-  Script(bool optimize) : optimize(optimize) {}
+  Script(Bool optimize) : optimize(optimize) {}
   auto parse(Types::Program& host,
              Errors& errors,
              const std::filesystem::path& source_map,
              const std::string_view& source) -> Types::Library&;
 
  private:
-  bool optimize;
+  Bool optimize;
 };
 
 }  // namespace Tetrodotoxin::Parser
