@@ -111,7 +111,7 @@ auto Reader::Load(View::Bytes archive) {
 }
 
 auto Reader::stream_from_disk(const View::Bytes path, Managed::Bytes& data)
-    -> bool {
+    -> Bool {
   if (!stream_index.contains(path))
     return false;
 

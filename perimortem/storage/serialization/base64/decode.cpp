@@ -1,12 +1,12 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
-#include "perimortem/storage/formats/base64.hpp"
+#include "perimortem/storage/serialization/base64/decode.hpp"
 
 #include <x86intrin.h>
 
 using namespace Perimortem::Memory;
-using namespace Perimortem::Storage;
+using namespace Perimortem::Storage::Serialization;
 
 // We truly can't have nice things... Still no proper support for c99
 // initializers.
@@ -30,8 +30,7 @@ static_assert(decode_lookup['+'] == 62);
 static_assert(decode_lookup['/'] == 63);
 static_assert(decode_lookup['='] == 0);
 
-auto Base64::decode(Allocator::Arena& arena,
-                                         const View::Bytes source)
+auto Base64::decode(Memory::Allocator::Arena& arena, const Memory::View::Bytes source)
     -> View::Bytes {
   // On AMD processors that don't support AVX512 they "partially" supports it
   // using two fused AVX2 256bit buffers. To make sure we support just about

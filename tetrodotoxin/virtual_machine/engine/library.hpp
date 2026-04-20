@@ -68,7 +68,7 @@ class Library : public Abstract {
 
   // Trys to create a name. Returns the conflict
   auto create_name(const Perimortem::Memory::View::Bytes& name,
-                   const Abstract& abstract) -> bool {
+                   const Abstract& abstract) -> Bool {
     if (name_index.contains(name))
       return false;
 
@@ -84,13 +84,13 @@ class Library : public Abstract {
     doc = doc_string;
   }
 
-  inline auto set_entity(bool is_entity) -> void {
+  inline auto set_entity(Bool is_entity) -> void {
     this->uses_entity = is_entity;
   }
 
-  inline auto is_entity() const -> bool { return uses_entity; }
+  inline auto is_entity() const -> Bool { return uses_entity; }
 
-  inline auto load(const std::string_view& source, bool strip_disabled)
+  inline auto load(const std::string_view& source, Bool strip_disabled)
       -> void {
     allocator.reset();
     name_index.reset();
@@ -117,7 +117,7 @@ class Library : public Abstract {
   Perimortem::Memory::Managed::Table<const Abstract*> name_index;
   Perimortem::Memory::View::Bytes doc;
   Perimortem::Memory::View::Bytes package_name;
-  bool uses_entity;
+  Bool uses_entity;
 };
 
 }  // namespace Tetrodotoxin::Types

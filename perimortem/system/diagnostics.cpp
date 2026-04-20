@@ -19,7 +19,7 @@ using namespace Perimortem::Memory;
 
 Diagnostics::Diagnostics() {
   std::time_t time = std::time({});
-  std::strftime(log_file, std::size(log_file), "%F",
+  std::strftime(reinterpret_cast<char*>(log_file), std::size(log_file), "%F",
                 std::gmtime(&time));
 }
 
@@ -31,11 +31,11 @@ auto Diagnostics::set_level(Severity minimum) -> void {
   log_level = minimum;
 }
 
-auto Diagnostics::enable_stdout(bool enable)  -> void{
+auto Diagnostics::enable_stdout(Bool enable)  -> void{
   flush_to_stdout = enable;
 }
 
-auto Diagnostics::enable_log(bool enable)  -> void{
+auto Diagnostics::enable_log(Bool enable)  -> void{
   flush_to_log = enable;
 }
 

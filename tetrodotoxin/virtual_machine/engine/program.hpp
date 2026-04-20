@@ -69,7 +69,7 @@ class Program : public Abstract {
   // Note: Program does not take ownership of these objects as they are
   // expected to either have static linkage, or the injected logic will
   // outlive the program.
-  auto declare_external(const Abstract* abstract) -> bool {
+  auto declare_external(const Abstract* abstract) -> Bool {
     if (external_abstracts.contains(abstract->get_name()))
       return false;
 
@@ -90,7 +90,7 @@ class Program : public Abstract {
   // There are a lot of tests and other entry points that can create program.
   // Since it's extremely common to want to include the standard library for
   // compilation the logic for including it is centralized here as a context.
-  Program(bool include_std_lib = true);
+  Program(Bool include_std_lib = true);
 
  private:
   std::unordered_map<std::string_view, const Abstract*> external_abstracts;

@@ -9,7 +9,6 @@
 namespace Perimortem::Storage::Serialization::Base64 {
 
 auto decode(Memory::Allocator::Arena& arena, const Memory::View::Bytes source)
-    -> Memory::Managed::Bytes;
-}
+    -> Memory::View::Bytes;
 
 }  // namespace Perimortem::Storage::Serialization::Base64

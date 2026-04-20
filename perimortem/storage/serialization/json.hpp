@@ -9,7 +9,7 @@
 
 #include "perimortem/memory/managed/bytes.hpp"
 
-namespace Perimortem::Storage::Json {
+namespace Perimortem::Storage::Serialization::Json {
 
 class Node {
  public:
@@ -31,7 +31,7 @@ class Node {
   Node(const Memory::View::Vector<Node> value) : value() { set(value); }
   Node(Long value) : value() { set(value); }
   Node(Real_64 value) : value() { set(value); }
-  Node(bool value) : value() { set(value); }
+  Node(Bool value) : value() { set(value); }
 
   inline static auto raw(const Memory::View::Bytes value) -> Node {
     Node node;
@@ -65,7 +65,7 @@ class Node {
     this->state = NodeState::Real;
   }
 
-  inline constexpr auto set(bool value) -> void {
+  inline constexpr auto set(Bool value) -> void {
     this->value.boolean = value;
     this->state = NodeState::Boolean;
   }
@@ -157,7 +157,7 @@ class Node {
     SquishedBytes string;
     Long number;
     Real_64 real;
-    bool boolean;
+    Bool boolean;
   };
 
   NodeValue value;

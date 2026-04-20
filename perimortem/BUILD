@@ -68,12 +68,18 @@ cc_library(
 cc_library(
     name = "storage",
     srcs = glob([
-        "storage/serialization/archive/*.cpp",
         "storage/serialization/*.cpp",
+        # "storage/serialization/archive/*.cpp",
+        "storage/serialization/base64/*.cpp",
+        "storage/serialization/binary/*.cpp",
+        "storage/serialization/textual/*.cpp",
     ]),
     hdrs = glob([
-        "storage/serialization/archive/*.hpp",
         "storage/serialization/*.hpp",
+        # "storage/serialization/archive/*.hpp",
+        "storage/serialization/base64/*.hpp",
+        "storage/serialization/binary/*.hpp",
+        "storage/serialization/textual/*.hpp",
     ]),
     includes = ["."],
     deps = [

@@ -3,12 +3,8 @@
 
 #pragma once
 
-#include "perimortem/memory/dynamic/record.hpp"
 #include "perimortem/memory/view/bytes.hpp"
 #include "perimortem/memory/view/table.hpp"
-
-#include <functional>
-#include <initializer_list>
 
 namespace Perimortem::Memory::Managed {
 
@@ -36,22 +32,15 @@ class Table {
         arena.allocate(sizeof(Entry) * start_capacity));
   }
 
-  auto apply(const std::function<void(const View::Bytes, const T&)>& fn) const
-      -> void {
-    for (Count i = 0; i < size; i++) {
-      fn(rented_block[i].name, rented_block[i].data);
-    }
-  }
-
   constexpr auto insert(const View::Bytes name, const T& data) -> void {
     if (size >= capacity)
       grow();
 
-    // Construct using the copy constructor.
+    // Avoid placement new shenanigans requiring <new>
     new (rented_block + (size++)) Entry(name, data);
   }
 
-  constexpr auto contains(const View::Bytes name) const -> bool {
+  constexpr auto contains(const View::Bytes name) const -> Bool {
     for (Count i = 0; i < size; i++) {
       if (rented_block[i].name == name) {
         return true;
@@ -90,7 +79,7 @@ class Table {
     auto new_block =
         reinterpret_cast<Entry*>(arena.allocate(sizeof(Entry) * capacity));
 
-    std::memcpy(reinterpret_cast<void*>(new_block),
+    memcpy(reinterpret_cast<void*>(new_block),
                 reinterpret_cast<void*>(rented_block), sizeof(Entry) * size);
     rented_block = new_block;
   }

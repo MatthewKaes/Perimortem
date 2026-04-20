@@ -132,7 +132,7 @@ class Map {
     return entry;
   }
 
-  constexpr auto contains(const key_type& key) const -> bool {
+  constexpr auto contains(const key_type& key) const -> Bool {
     return find(key) != nullptr;
   }
 
@@ -303,7 +303,7 @@ class Map {
   }
 
   // The block is full if every bit in the occupancy mask is set.
-  constexpr auto full_block(Bits_32 occupancy_bits) -> bool {
+  constexpr auto full_block(Bits_32 occupancy_bits) -> Bool {
     return occupancy_bits == 0b11111111'11111111'11111111'11111111U;
   }
 

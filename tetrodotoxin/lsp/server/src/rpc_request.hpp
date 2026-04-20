@@ -32,7 +32,7 @@ class RpcRequest {
   auto rpc_error(Perimortem::Memory::View::Bytes error) const -> RpcResponse;
   auto rpc_result(ReponseObject result) const -> RpcResponse;
 
-  inline constexpr auto is_valid() const -> bool {
+  inline constexpr auto is_valid() const -> Bool {
     return !header.get_version().empty() && !header.get_method().empty() &&
            header.get_params_offset() > 0;
   }

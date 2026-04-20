@@ -16,20 +16,8 @@ class Bytes {
   static constexpr Count growth_factor = 2;
 
   Bytes(const Bytes& rhs, Count reserved_capacity = start_capacity);
-
-  Bytes(Bytes&& rhs) : arena(rhs.arena) {
-    // Take ownership and invalidate the old
-    size = rhs.size;
-    capacity = rhs.capacity;
-    rented_block = rhs.rented_block;
-
-    // Does not change reservation counts on the rented block.
-    rhs.size = 0;
-    rhs.size = 0;
-    rhs.rented_block = nullptr;
-  };
-
-  Bytes(Allocator::Arena& arena) : arena(arena) { reset(); }
+  Bytes(Bytes&& rhs);
+  Bytes(Allocator::Arena& arena);
 
   constexpr operator View::Bytes() const {
     return View::Bytes(rented_block, size);
@@ -63,10 +51,13 @@ class Bytes {
     return rented_block[index];
   }
 
+  constexpr auto get_size() const -> Count { return size; }
   constexpr auto get_view() const -> const View::Bytes {
     return View::Bytes(rented_block, size);
   }
-  constexpr auto get_size() const -> Count { return size; }
+  constexpr auto get_data() const -> Byte* {
+    return rented_block;
+  }
   constexpr auto get_arena() const -> Allocator::Arena& { return arena; }
 
  private:

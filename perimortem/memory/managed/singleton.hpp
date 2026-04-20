@@ -3,9 +3,15 @@
 
 #pragma once
 
+#include "perimortem/memory/allocator/bibliotheca.hpp"
+
 namespace Perimortem::Memory::Managed {
 
-// Used to ensure a class only has a single instance per thread.
+// Used to create a global that uses any memory from the Biblotheca and needs to
+// be guaranteed destruction after the Biblotheca.
+//
+// Access to Singleton's is not speedy and they should be used sparingly for
+// bulky thread level objects that need dynamic memory management.
 template <typename T>
 class Singleton {
  public:
@@ -14,9 +20,23 @@ class Singleton {
     struct LockedAbstract final : T {
       void AbstractInjectionLock() const noexcept override {}
     };
-    thread_local static LockAbstract instance;
 
-    return instance;
+    // Class that manages the lifetime of the thread object.
+    struct LifetimeManager {
+      LifetimeManager(LockedAbstract* singleton) : singleton(singleton) {}
+      ~LifetimeManager() { singleton->~T(); }
+
+      LockedAbstract* singleton;
+    };
+
+    // Create a thread_local container while forcing the Bibliotheca to be
+    // guaranteed instantiated before this object.
+    thread_local static LifetimeManager object(
+        new (Allocator::Bibliotheca::preface_to_corpus(
+            Allocator::Bibliotheca::check_out(sizeof(LockedAbstract))))
+            LockedAbstract());
+
+    return *object.singleton;
   }
 
  protected:

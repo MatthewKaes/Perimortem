@@ -7,86 +7,71 @@
 using namespace Perimortem::Memory;
 using namespace Perimortem::System;
 
-static constexpr Byte hex_lookup[] = {'0', '1', '2', '3', '4', '5', '6', '7',
-                                      '8', '9', 'A', 'B', 'C', 'D', 'E', 'F'};
+#include <x86intrin.h>
 
-// Just keep it simple and fix whenever we need to compile with GCC.
-static const Byte hexTable[256] = {
-    ['0'] = 0,  ['1'] = 1,  ['2'] = 2,  ['3'] = 3,  ['4'] = 4,  ['5'] = 5,
-    ['6'] = 6,  ['7'] = 7,  ['8'] = 8,  ['9'] = 9,  ['A'] = 10, ['B'] = 11,
-    ['C'] = 12, ['D'] = 13, ['E'] = 14, ['F'] = 15, ['a'] = 10, ['b'] = 11,
-    ['c'] = 12, ['d'] = 13, ['e'] = 14, ['f'] = 15};
+auto generate_uuid_v4() -> __m128i {
+  __m128i value =
+    _mm_set_epi64x(Random::generate(), Random::generate());
 
-constexpr auto convert_hex_buffer(const Static::Bytes<16>& hex_bytes)
-    -> Bits_64 {
-  Bits_64 result = 0;
-  for (Count i = 0; i < hex_bytes.get_size(); i++) {
-    result |= hex_bytes[i] << (60UL - i * 4);
-  }
-  return result;
+  const auto v4_mask =
+      _mm_set_epi64x(0xFFFFFFFFFFFFFF3Full, 0xFF0FFFFFFFFFFFFFull);
+  const auto v4_set =
+      _mm_set_epi64x(0x0000000000000080ull, 0x0040000000000000ull);
+
+  return _mm_or_si128(_mm_and_si128(value, v4_mask), v4_set);
 }
 
-Uuid::Uuid() {}
+// Expand 128 bits into nibbles spread across 256 bits.
+// Bytes are packed from:
+// [hhhhllll][hhhhllll][hhhhllll][hhhhllll]...
+// [____hhhh][____llll][____hhhh][____llll]...
+constexpr auto nibbler(__m128i packed_guid) -> __m256i {
+  const auto nibble_mask = _mm256_set1_epi8(0x0F);
+  auto nibble_high = _mm_srli_epi64(packed_guid, 4);
+  auto two_byte_pack = _mm256_and_si256(
+      _mm256_set_m128i(_mm_unpackhi_epi8(nibble_high, packed_guid),
+                       _mm_unpacklo_epi8(nibble_high, packed_guid)),
+      nibble_mask);
 
-Uuid::Uuid(Static::Vector<Bits_64, 2> source) : value(source) {}
-
-Uuid::Uuid(Static::Bytes<36> source) {
-  deserialize(source);
+  return two_byte_pack;
 }
 
-auto Uuid::operator==(const Uuid& rhs) const -> bool {
-  return value[0] == rhs.value[0] && value[1] == rhs.value[1];
+// Takes a set of nibbles and applies an offset to them to shift them into
+// their ascii equivilant value (alphas are shifted to their lower case value).
+constexpr auto convert_to_ascii(__m256i nibbles) {
+  const auto numeric_cutoff = _mm256_set1_epi8(0x09);
+  const auto ascii_shift = _mm256_set1_epi8('0');
+  const auto alpha_values = _mm256_add_epi8(nibbles, ascii_shift);
+
+  const auto ascii_offset = _mm256_set1_epi8('a' - '9' - 1);
+  const auto alpha_slots = _mm256_cmpgt_epi8(nibbles, numeric_cutoff);
+  const auto slot_offsets = _mm256_and_si256(alpha_slots, ascii_offset);
+
+  const auto final_values = _mm256_add_epi8(alpha_values, slot_offsets);
+
+  return final_values;
 }
 
 auto Uuid::deserialize(const Static::Bytes<36>& uuid_string) -> Uuid& {
   // RFC-4122 spec:
   // 8-4-4-4-12
-  value[0] = convert_hex_buffer({{
-      uuid_string[0],
-      uuid_string[1],
-      uuid_string[2],
-      uuid_string[3],
-      uuid_string[4],
-      uuid_string[5],
-      uuid_string[6],
-      uuid_string[7],
-      // -
-      uuid_string[9],
-      uuid_string[10],
-      uuid_string[11],
-      uuid_string[12],
-      // -
-      uuid_string[14],
-      uuid_string[15],
-      uuid_string[16],
-      uuid_string[17],
-  }});
-  value[1] = convert_hex_buffer({{
-      uuid_string[19],
-      uuid_string[20],
-      uuid_string[21],
-      uuid_string[22],
-      // -
-      uuid_string[24],
-      uuid_string[25],
-      uuid_string[26],
-      uuid_string[27],
-      uuid_string[28],
-      uuid_string[29],
-      uuid_string[30],
-      uuid_string[31],
-      uuid_string[32],
-      uuid_string[33],
-      uuid_string[34],
-      uuid_string[35],
-  }});
 
   return *this;
 }
 
-auto Uuid::serialize() const -> Static::Bytes<36> {}
+auto Uuid::serialize() const -> Static::Bytes<36> {
+  Static::Bytes<36> uuid_string;
+  // _mm256_storeu_si256(reinterpret_cast<__m256i*>(uuid_string.get_data()),
+  //                     nibble_value);
+  // Bits_64 upper = (value[0] >> 4) & 0x0F0F0F0F0F0F0F0FULL;
+  // Bits_64 lower = value[0] & 0x0F0F0F0F0F0F0F0FULL;
+
+  return uuid_string;
+}
 
 auto Uuid::generate() -> Uuid {
-  Bits_64 values[] = {System::Random::generate(), System::Random::generate()};
+  Bits_64 values[2];
+  _mm_storeu_si128(reinterpret_cast<__m128i*>(values), generate_uuid_v4());
+
   return Uuid(values);
 }

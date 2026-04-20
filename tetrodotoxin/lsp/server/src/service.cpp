@@ -184,7 +184,7 @@ auto Service::lsp_tokens(Tokenizer& tokenizer, const RpcRequest& header)
           // break.
           auto source_view = tokenizer.get_source();
 
-          bool found_newline = false;
+          Bool found_newline = false;
           for (uint32_t k = last_token.location.parse_index;
                k < next_token.location.source_index; k++) {
             if (source_view[k] == '\n') {

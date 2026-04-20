@@ -108,7 +108,7 @@ static void BRUTE_FORCE_compare_table(benchmark::State& state) {
   for (auto _ : state) {
     for (int i = 1; i <= tests; i++) {
       auto entry = test_data[rand() % test_data.size()];
-      bool found = false;
+      Bool found = false;
       for (auto item : KeywordTable::data) {
         if (entry.compare(item.key) == 0) {
           doNotOptimizeAway(item.value);

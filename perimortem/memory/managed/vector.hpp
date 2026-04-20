@@ -3,17 +3,14 @@
 
 #pragma once
 
+#include "perimortem/core/data_model.hpp"
 #include "perimortem/memory/allocator/arena.hpp"
-
-#include "perimortem/core/standard_types.hpp"
 #include "perimortem/memory/view/vector.hpp"
-
-#include <string.h>
 
 namespace Perimortem::Memory::Managed {
 
 // A simple linear flat array of trivially constructable values.
-// 
+//
 template <typename value_type>
 class Vector {
  public:
@@ -47,12 +44,6 @@ class Vector {
         arena.allocate(sizeof(value_type) * reserve_capacity));
   }
 
-  auto apply(const std::function<void(const value_type&)>& fn) const -> void {
-    for (Count i = 0; i < size; i++) {
-      fn(rented_block[i]);
-    }
-  }
-
   constexpr auto insert(const value_type& data) -> void {
     if (size == capacity)
       grow();
@@ -61,7 +52,7 @@ class Vector {
     new (rented_block + (size++)) value_type(data);
   }
 
-  constexpr auto contains(const value_type& data) const -> bool {
+  constexpr auto contains(const value_type& data) const -> Bool {
     for (Count i = 0; i < size; i++) {
       if (rented_block[i] == data) {
         return true;
@@ -88,7 +79,8 @@ class Vector {
     auto new_block = reinterpret_cast<value_type*>(
         arena.allocate(sizeof(value_type) * capacity));
 
-    memcpy(new_block, rented_block, sizeof(value_type) * size);
+    Core::copy(reinterpret_cast<void*>(new_block), rented_block,
+               sizeof(value_type) * size);
     rented_block = new_block;
   }
 

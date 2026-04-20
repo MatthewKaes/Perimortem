@@ -3,7 +3,6 @@
 
 #pragma once
 
-#include "perimortem/core/math.hpp"
 #include "perimortem/memory/view/bytes.hpp"
 
 namespace Perimortem::Memory::Dynamic {
@@ -27,14 +26,7 @@ class Bytes {
   auto operator[](Count index) const -> Byte;
   auto at(Count index) const -> Byte;
   auto convert(Byte source, Byte target) -> void;
-
-  constexpr auto get_size() const -> Count { return size; }
-  constexpr auto get_view() const -> const View::Bytes {
-    return View::Bytes(Allocator::Bibliotheca::preface_to_corpus(rented_block),
-                       size);
-  }
-
-  inline constexpr auto slice(Count start, Count size) const -> View::Bytes {
+  auto slice(Count start, Count size) const -> View::Bytes {
     if (start >= get_size())
       return View::Bytes();
 
@@ -42,6 +34,15 @@ class Bytes {
         Allocator::Bibliotheca::preface_to_corpus(rented_block) + start,
         Core::Math::min(size, get_size() - start)));
   };
+
+  constexpr auto get_size() const -> Count { return size; }
+  constexpr auto get_view() const -> const View::Bytes {
+    return View::Bytes(Allocator::Bibliotheca::preface_to_corpus(rented_block),
+                       size);
+  }
+  constexpr auto get_data() const -> Byte* {
+    return Allocator::Bibliotheca::preface_to_corpus(rented_block);
+  }
 
   constexpr operator View::Bytes() const { return get_view(); }
 

@@ -3,8 +3,7 @@
 
 #pragma once
 
-#include "perimortem/core/math.hpp"
-#include "perimortem/core/standard_types.hpp"
+#include "perimortem/core/data_model.hpp"
 #include "perimortem/memory/allocator/arena.hpp"
 #include "perimortem/memory/static/bytes.hpp"
 
@@ -34,7 +33,7 @@ class Bytes {
   constexpr Bytes(const Byte* source, Count source_size)
       : source_block(source), size(source_size) {}
 
-  inline constexpr auto operator==(const Bytes& rhs) const -> bool {
+  inline constexpr auto operator==(const Bytes& rhs) const -> Bool {
     if consteval {
       if (rhs.get_size() != size) {
         return false;
@@ -49,11 +48,11 @@ class Bytes {
       return true;
     } else {
       return rhs.size == size &&
-             memcmp(source_block, rhs.source_block, size) == 0;
+             Core::compare(source_block, rhs.source_block, size) == 0;
     }
   }
 
-  inline constexpr auto empty() const -> bool { return size == 0; };
+  inline constexpr auto empty() const -> Bool { return size == 0; };
   inline constexpr auto get_size() const -> Count { return size; };
   inline constexpr auto get_data() const -> const Byte* {
     return source_block;
@@ -70,12 +69,6 @@ class Bytes {
   inline constexpr auto operator[](Count index) const -> Byte {
     return source_block[index];
   };
-
-  inline auto block_compare(const Bytes& data, const Count position = 0) const
-      -> bool {
-    return data.size + position < size &&
-           memcmp(data.source_block, source_block + position, data.size) == 0;
-  }
 
   // Scans a 32 bytes block for the offset of a Byteacter.
   //
@@ -95,7 +88,7 @@ class Bytes {
 
 }  // namespace Perimortem::Memory::View
 
-template <Perimortem::Memory::Static::Bytes view>
+template <Perimortem::Memory::Static::NullTerminated view>
 constexpr Perimortem::Memory::View::Bytes operator""_view() {
   return Perimortem::Memory::View::Bytes(view.content, view.size);
 }

@@ -15,7 +15,7 @@ class Vector {
   Vector(const T* entries, const Count size)
       : source_block(entries), size(size) {}
 
-  constexpr auto contains(const T& data) const -> bool {
+  constexpr auto contains(const T& data) const -> Bool {
     for (Count i = 0; i < size; i++) {
       if (source_block[i] == data) {
         return true;
@@ -33,7 +33,7 @@ class Vector {
     return at(index);
   }
 
-  inline constexpr auto empty() const -> bool { return size == 0; };
+  inline constexpr auto empty() const -> Bool { return size == 0; };
   constexpr auto get_size() const -> Count { return size; }
   constexpr auto get_data() const -> const T* { return source_block; }
 

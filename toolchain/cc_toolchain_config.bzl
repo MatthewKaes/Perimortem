@@ -93,7 +93,8 @@ def _impl(ctx):
                                 "-fno-exceptions",
                                 "-fno-rtti",
                                 "-mavx2",  # AVX2 support required
-                                "-std=c++23",
+                                "-mrdrnd", # _rdrand64_step
+                                "-std=c++26",
                                 "-no-canonical-prefixes",
                             ],
                         ),

@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include "perimortem/core/data_model.hpp"
 #include "perimortem/memory/allocator/bibliotheca.hpp"
 
 namespace Perimortem::Memory::Allocator {
@@ -17,16 +18,16 @@ class Arena {
  public:
   // Attempt to request blocks in 32k pages including the preface and a previous
   // pointer.
-  static constexpr Bibliotheca::size_type page_size =
+  static constexpr Bits_64 page_size =
       (1 << 15) - (sizeof(Bibliotheca::Preface) * 2);
-  static constexpr Bibliotheca::size_type alignment_filter =
+  static constexpr Bits_64 alignment_filter =
       sizeof(Bibliotheca::Preface) - 1;
 
   Arena();
   Arena(Arena&& arena);
   ~Arena();
 
-  inline auto allocate(Bibliotheca::size_type bytes_requested) -> Byte* {
+  inline auto allocate(Bits_64 bytes_requested) -> Byte* {
     // Fetch a new page if we are full due to either running out of our current
     // page, or needing to allocate an object larger than our page size.
     if (usage + bytes_requested > page_size) {
@@ -35,7 +36,7 @@ class Arena {
       // Store the previous pointer in the arena itself.
       // [Preface] [Preface*] [Data ... ]
       Bibliotheca::Preface** previous =
-          reinterpret_cast<Bibliotheca::Preface**>(
+          Core::cast<Bibliotheca::Preface**>(
               Bibliotheca::preface_to_corpus(rent));
 
       // Store and swap the blocks.
@@ -59,7 +60,7 @@ class Arena {
   // Creates a basic value type object but does not construct it.
   template <typename T>
   inline auto allocate() -> T& {
-    return *reinterpret_cast<T*>(allocate(sizeof(T)));
+    return *Core::cast<T*>(allocate(sizeof(T)));
   }
 
   auto reset() -> void;

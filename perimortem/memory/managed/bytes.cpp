@@ -78,7 +78,7 @@ auto Managed::Bytes::ensure_capacity(Count required_bytes) -> void {
   const auto new_capacity = max(capacity * 2, required_bytes);
 
   // Fetch and transfer to new block.
-  auto new_block = reinterpret_cast<Byte*>(arena.allocate(capacity));
+  auto new_block = reinterpret_cast<Byte*>(arena.allocate(new_capacity));
 
   // Update block and get the new capacity.
   memcpy(new_block, rented_block, size);

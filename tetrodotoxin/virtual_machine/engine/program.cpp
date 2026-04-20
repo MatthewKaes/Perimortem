@@ -10,7 +10,7 @@
 
 using namespace Tetrodotoxin::Types;
 
-Program::Program(bool include_std_lib) {
+Program::Program(Bool include_std_lib) {
   if (!include_std_lib)
     return;
 

@@ -22,7 +22,4 @@ constexpr auto clamp(type val, type min_val, type max_val) -> type {
   return max(min(val, max_val), min_val);
 }
 
-constexpr auto byteswap(Bits_16 b) {
-
-}
 }

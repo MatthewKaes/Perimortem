@@ -37,7 +37,7 @@ class Tokenizer {
   Tokenizer(Perimortem::Memory::Allocator::Arena& arena) : tokens(arena) {}
   
   auto parse(Perimortem::Memory::View::Bytes source,
-             bool strip_disabled = true) -> void;
+             Bool strip_disabled = true) -> void;
 
   inline constexpr auto get_tokens() const
       -> const Tokens {
@@ -45,7 +45,7 @@ class Tokenizer {
   };
 
   // The tokenizer is empty if it has 0 or 1 (EndOfStream) tokens.
-  inline constexpr auto empty() const -> bool { return tokens.get_size() <= 1; }
+  inline constexpr auto empty() const -> Bool { return tokens.get_size() <= 1; }
 
   inline constexpr auto get_options() const
       -> const Perimortem::Memory::View::BitFlag<TtxState> {

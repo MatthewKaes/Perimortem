@@ -45,8 +45,8 @@ class Diagnostics : public Memory::Managed::Singleton<Diagnostics> {
   Diagnostics();
   ~Diagnostics();
   auto set_level(Severity minimum = Severity::Info) -> void;
-  auto enable_stdout(bool enable) -> void;
-  auto enable_log(bool enable) -> void;
+  auto enable_stdout(Bool enable) -> void;
+  auto enable_log(Bool enable) -> void;
   auto info(const Memory::View::Bytes msg,
             std::initializer_list<Data> data = {},
             const std::source_location location =
@@ -76,10 +76,10 @@ class Diagnostics : public Memory::Managed::Singleton<Diagnostics> {
   auto write_message(std::initializer_list<Data> data) -> void;
 
   Severity log_level = Severity::Info;
-  bool flush_to_stdout = false;
-  bool flush_to_log = false;
+  Bool flush_to_stdout = false;
+  Bool flush_to_log = false;
   Byte log_file[1 << 9];
-  Byte log_buffer[4 << 10];
+  Byte log_buffer[4 << 12];
   Count write_ptr = 0;
 };
 

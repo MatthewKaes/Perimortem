@@ -109,11 +109,11 @@ struct Token {
   const Perimortem::Memory::View::Bytes data;
   Location location;
 
-  inline auto test(const Perimortem::Memory::View::Bytes view) const -> bool {
+  inline auto test(const Perimortem::Memory::View::Bytes view) const -> Bool {
     return data == view;
   }
 
-  inline auto valid() const -> bool { return klass != Classifier::EndOfStream; }
+  inline auto valid() const -> Bool { return klass != Classifier::EndOfStream; }
 };
 
 inline constexpr auto klass_name(Classifier klass) -> const char* {

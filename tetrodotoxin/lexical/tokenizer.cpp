@@ -14,7 +14,7 @@
 using namespace Perimortem::Memory;
 using namespace Tetrodotoxin::Lexical;
 
-constexpr auto is_whitespace(Byte c) -> bool {
+constexpr auto is_whitespace(Byte c) -> Bool {
   switch (c) {
     // Skip whitespace
     case ' ':
@@ -26,20 +26,20 @@ constexpr auto is_whitespace(Byte c) -> bool {
   return false;
 }
 
-constexpr auto is_attribute(Byte c) -> bool {
+constexpr auto is_attribute(Byte c) -> Bool {
   return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_';
 }
 
-constexpr auto is_class(Byte c) -> bool {
+constexpr auto is_class(Byte c) -> Bool {
   return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
          (c >= '0' && c <= '9');
 }
 
-constexpr auto is_identifier(Byte c) -> bool {
+constexpr auto is_identifier(Byte c) -> Bool {
   return (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '_';
 }
 
-constexpr auto is_num(Byte c) -> bool {
+constexpr auto is_num(Byte c) -> Bool {
   return (c >= '0' && c <= '9') || c == '.';
 }
 
@@ -55,7 +55,7 @@ struct Context {
   Perimortem::Memory::View::BitFlag<TtxState> options;
 };
 
-inline auto can_parse(Context& context) -> bool {
+inline auto can_parse(Context& context) -> Bool {
   return context.loc.parse_index < context.source.get_size();
 }
 
@@ -133,7 +133,7 @@ auto recursive_strip(Context& context) {
   }
 }
 
-auto parse_disabled(Context& context, bool strip_disabled) -> void {
+auto parse_disabled(Context& context, Bool strip_disabled) -> void {
   context.loc.source_index = context.loc.parse_index;
   context.loc.parse_index += 2;  // "/>"
 
@@ -165,7 +165,7 @@ auto parse_disabled(Context& context, bool strip_disabled) -> void {
 }
 
 auto parse_number(Context& context) -> void {
-  bool found_dec = false;
+  Bool found_dec = false;
   Classifier klass = Classifier::Numeric;
 
   char val = peak_ahead(context, 1);
@@ -244,7 +244,7 @@ static inline constexpr auto check_keyword(View::Bytes value,
   return keyword_resolver::find_or_default(value, default_value);
 }
 
-template <bool forced_identifier>
+template <Bool forced_identifier>
 auto parse_identifier(Context& context) -> void {
   // Eat any unknown tokens including whitespace
   if (!forced_identifier) {
@@ -293,7 +293,7 @@ auto parse_identifier(Context& context) -> void {
     SIMPLE_TOKEN(klass, 1);        \
     break;
 
-auto Tokenizer::parse(const View::Bytes source_, bool strip_disabled) -> void {
+auto Tokenizer::parse(const View::Bytes source_, Bool strip_disabled) -> void {
   // Reset state
   source = source_;
   tokens.reset();

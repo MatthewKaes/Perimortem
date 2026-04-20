@@ -10,50 +10,49 @@ namespace Perimortem::Memory::Allocator {
 
 // Thread local allocator for isolating and caching thread allocations.
 //
-// On x86_64 malloc will spit out pointers at 16 byte alignment, where due to
-// the required Preface for the wide pointers objects from the Bibliotheca will
-// be 8 byte aligned.
+// Any memory fetched from the Bibliotheca is guaranteed to be cleaned
+// up on thread exit. To ensure correct cleanup ordering any thread_local
+// objects should be created with `Singleton` (perimortem/memory/managed/singleton.hpp)
 //
-// At minimum a Bibliotheca object will take up 16 bytes with larger objects
-// rounded up to the next power of 2.
-//
-// To fill a block use (2 ^ n - 8) for the allocation size. Allocating exact
-// powers of 2 will actually waste ~50% of space due to the header bumping it to
-// the next size.
-//
-// TODO: Slab allocate smaller partitions.
-class Bibliotheca {
+class Bibliotheca final {
  public:
-  Bibliotheca();
-  ~Bibliotheca();
-
-  using size_type = Bits_64;
-  static constexpr Bits_8 required_alignment = 8;
+  static constexpr Bits_8 required_alignment = 16;
 
   // Make sure Preface is always aligned so that the pointer returned is
   // aligned.
-  class alignas(required_alignment) Preface {
+  class alignas(required_alignment) Preface final {
     friend Bibliotheca;
 
    public:
-    auto get_reservations() const -> Bits_32 { return reservations; }
-    auto get_archive() const -> Bits_8 { return archive_index; }
-    auto usable_bytes() const -> Bits_64 {
-      return (static_cast<size_type>(1) << (min_radix + archive_index)) -
+    auto get_reservations() const -> Bits_32 { return rented.reservations; }
+    auto get_archive() const -> Bits_8 { return rented.archive_index; }
+    auto usable_bytes() const -> Count {
+      return (static_cast<Count>(1) << (rented.archive_index)) -
              sizeof(Preface);
     }
 
    private:
+    // The preface can be in two states, rented or stored.
+    // To keep the size to 8 bytes use a union that is only changed when
+    // switching states.
     union {
-      // Used for chaining blocks when stored in archives.
+      Preface* ancestor;
+      // Status of archived blocks.
       struct {
+        // Used for storing the next free block when stored in archives.
         Preface* next;
-      };
+      } stored;
       // Status of living blocks.
       struct {
+        // The number of objects in this thread that have a reservation on
+        // this block.
         Bits_32 reservations;
+        // The archive index is technically an invariant of the block when
+        // created but blocks forget their size when they are stored.
+        // The archive they are stored in carries that information which
+        // requires the value to be rehydrated whenever a block is rented.
         Bits_8 archive_index;
-      };
+      } rented;
     };
   };
 
@@ -62,26 +61,22 @@ class Bibliotheca {
   static_assert(sizeof(Preface) == required_alignment,
                 "The size of Preface isn't equal to it's alignment");
 
-  struct Archive {
-    Preface* initial_entry = nullptr;
-    size_type reserved_blocks = 0;
-    size_type free_blocks = 0;
-  };
-
-  // Min radix is +1 power of two from just the header size. This means an
-  // alocation can't be smaller than 128 bytes.
-  static constexpr Bits_8 min_radix = 8;
-  static constexpr Bits_8 max_radix = sizeof(size_type) * 8 - 1;
-  static constexpr size_type radix_range = max_radix - min_radix;
-  static constexpr size_type min_size = static_cast<size_type>(1) << min_radix;
-  static constexpr size_type max_size = static_cast<size_type>(1) << max_radix;
+  // If Count is 64 bits then limit us to some level below the 256 TB limits.
+  // 64 GB blocks is the current upper limit.
+  static constexpr Bits_8 max_radix = sizeof(Count) * 8 > 32
+                                          ? 36
+                                          : sizeof(Count) * 8;
+  static constexpr Bits_8 min_radix = __builtin_ctzl(sizeof(Preface) << 1);
+  static constexpr Count min_size = 1 << min_radix;
+  static constexpr Count max_size = static_cast<Count>(1) << max_radix;
+  static constexpr Count radix_range = max_radix - min_radix;
 
   static inline auto preface_to_corpus(Preface* entry) -> Bits_8* {
     return reinterpret_cast<Bits_8*>(entry) + sizeof(Preface);
   }
 
   // Creates a free entry which can be used.
-  static auto check_out(size_type requested_bytes) -> Preface*;
+  static auto check_out(Count requested_bytes) -> Preface*;
 
   // Adds a reservation to the block.
   static auto reserve(Preface* entry) -> void;
@@ -89,18 +84,15 @@ class Bibliotheca {
   // Removes a reservation from the block.
   // If the number of reservations is zero then the block is checked in to the
   // Bibliotheca for future use.
-  static auto remit(Preface* entry) -> size_type;
+  static auto remit(Preface* entry) -> Count;
 
   // Remits a block while reserving another block in a single transaction.
   // If the returning block and reserving block are the same then exchanged is
   // guaranteed to not load the actual block.
   static auto exchange(Preface* returning, Preface* reserving) -> void;
 
-  static auto reserved_memory() -> Static::Vector<size_type, radix_range>;
-  static auto free_memory() -> Static::Vector<size_type, radix_range>;
-
- private:
-  Static::Vector<Archive, radix_range> faceted_archives;
+  static auto reserved_memory() -> Static::Vector<Count, radix_range>;
+  static auto free_memory() -> Static::Vector<Count, radix_range>;
 };
 
 }  // namespace Perimortem::Memory::Allocator

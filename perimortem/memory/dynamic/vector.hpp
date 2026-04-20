@@ -10,7 +10,7 @@
 namespace Perimortem::Memory::Dynamic {
 
 // A simple linear flat array of trivially constructable values.
-template <typename value_type, bool storage_only = false>
+template <typename value_type, Bool storage_only = false>
 class Vector {
  public:
   static constexpr Count start_capacity = 8;
@@ -88,7 +88,7 @@ class Vector {
     return *new (rented_block + (size++)) value_type(data);
   }
 
-  constexpr auto contains(const value_type& data) const -> bool {
+  constexpr auto contains(const value_type& data) const -> Bool {
     for (Count i = 0; i < size; i++) {
       if (rented_block[i] == data) {
         return true;

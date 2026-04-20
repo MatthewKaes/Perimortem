@@ -98,7 +98,7 @@ struct Context {
   }
 
   inline auto check_klass(Lexical::Classifier expected, Lexical::Classifier actual) const
-      -> bool {
+      -> Bool {
     if (expected == actual)
       return true;
 
@@ -107,7 +107,7 @@ struct Context {
     return false;
   }
 
-  inline auto check_klass(Lexical::Classifier expected) const -> bool {
+  inline auto check_klass(Lexical::Classifier expected) const -> Bool {
     if (expected == current().klass)
       return true;
 

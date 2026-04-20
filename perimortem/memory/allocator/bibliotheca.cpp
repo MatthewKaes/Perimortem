@@ -3,48 +3,76 @@
 
 #include "perimortem/memory/allocator/bibliotheca.hpp"
 
+#include "perimortem/core/data_model.hpp"
 #include "perimortem/core/math.hpp"
 
-#include <bit>
-
+using namespace Perimortem;
 using namespace Perimortem::Memory::Allocator;
 
-thread_local static Bibliotheca isolated;
+// Create a thread local static object that is fast to access.
+// Use a POD type so we don't have to pay any of the initialization checks.
+thread_local static struct {
+  struct Collection {
+    Bibliotheca::Preface* initial_entry = nullptr;
+    Bits_32 reserved_blocks = 0;
+    Bits_32 free_blocks = 0;
+  };
 
-// If a short lived thread was created we'll need to release all blocks.
-Bibliotheca::~Bibliotheca() {
-  for (Count i = 0; i < faceted_archives.get_size(); i++) {
-    while (faceted_archives[i].initial_entry) {
-      auto entry = faceted_archives[i].initial_entry;
-      faceted_archives[i].initial_entry = entry->next;
-      free(entry);
-    }
-  }
+  Collection collections[Bibliotheca::radix_range] = {};
+} secret_archive;
+
+static_assert(sizeof(secret_archive) == 496);
+
+constexpr auto caculate_archive_bucket(Count bytes) -> Bits_8 {
+  return Core::size_in_bits<Count>() -
+         __builtin_clzl(bytes + sizeof(Bibliotheca::Preface) - 1u);
 }
 
-auto Bibliotheca::check_out(size_type requested_bytes) -> Preface* {
-  // Ensure a minimum page size and that we have room for the Preface reserved.
-  // Round up to the nearest power of 2.
-  const size_type actual_bytes = Core::Math::max(
-      std::bit_ceil(requested_bytes + static_cast<size_type>(sizeof(Preface))),
-      min_size);
+constexpr auto archive_page_width(Bits_8 index) -> Count {
+  return Count(1) << index;
+}
 
-  // Since we ensure that bytes is a power of two we can extract the index
-  // by quickly taking the width.
-  Bits_8 archive_index = std::bit_width(actual_bytes) - min_radix;
+auto Bibliotheca::check_out(Count requested_bytes) -> Preface* {
+  // Librarian's are responsible for managing the inventory of the thread.
+  // They are separate from the archive to keep them out of the loop for
+  // managing inflight blocks.
+  class Librarian {
+   public:
+    Preface* inventory = nullptr;
+
+    Preface* order_inventory(Count bytes) {
+      Preface* entry = static_cast<Preface*>(malloc(bytes));
+      entry->ancestor = inventory;
+      inventory = entry;
+
+      return entry;
+    }
+
+    // Forcefully reclaim all outstanding rentals since we are closing
+    // out this Bibliotheca.
+    ~Librarian() {
+      while (inventory) {
+        auto entry = inventory;
+        inventory = inventory->ancestor;
+        free(entry);
+      }
+    }
+  };
+
+  // Caculate the archive information for the request.
+  const Bits_8 archive_bucket = caculate_archive_bucket(requested_bytes);
+  const Count actual_bytes = archive_page_width(archive_bucket);
+  const Bits_8 archive_index = archive_bucket - min_radix;
 
   // Slow path on a thread cache miss.
-  if (isolated.faceted_archives[archive_index].initial_entry == nullptr) {
-    // TODO: Keeping malloc is useful so we are some what portable with the
-    // underlying memory system, but we should be slab allocating from malloc
-    // since anything using the Bibliotheca is expected to be reusable.
-    //
-    // Then smaller (more common) archive chunks can just be passed out from
-    // A set of stack allocator.
-    Preface* entry = static_cast<Preface*>(malloc(actual_bytes));
+  if (secret_archive.collections[archive_index].initial_entry == nullptr) {
+    // Since we are allocating memory we'll need to hire a librarian.
+    thread_local static Librarian dave;
 
-    // Update accounting of usage.
-    isolated.faceted_archives[archive_index].reserved_blocks += 1;
+    // Order the requested block and log it's reservation in the archive for
+    // accounting of usage.
+    Preface* entry = dave.order_inventory(actual_bytes);
+    secret_archive.collections[archive_index].reserved_blocks += 1;
 
 #if PERI_DEBUG
     if (entry == nullptr) [[unlikely]] {
@@ -52,43 +80,45 @@ auto Bibliotheca::check_out(size_type requested_bytes) -> Preface* {
     }
 #endif
 
-    entry->archive_index = archive_index;
-    entry->reservations = 1;
+    // Initialize the archive and reservation data.
+    entry->rented.archive_index = archive_index;
+    entry->rented.reservations = 1;
     return entry;
   }
 
-  Preface* entry = isolated.faceted_archives[archive_index].initial_entry;
-  isolated.faceted_archives[archive_index].initial_entry = entry->next;
+  Preface* entry = secret_archive.collections[archive_index].initial_entry;
+  secret_archive.collections[archive_index].initial_entry = entry->stored.next;
 
-  entry->archive_index = archive_index;
-  entry->reservations = 1;
+  // Rehydrate the archive and reservation data.
+  entry->rented.archive_index = archive_index;
+  entry->rented.reservations = 1;
   return entry;
 }
 
 auto Bibliotheca::reserve(Preface* entry) -> void {
-  entry->reservations++;
+  entry->rented.reservations++;
 }
 
-auto Bibliotheca::remit(Preface* entry) -> size_type {
-  entry->reservations--;
+auto Bibliotheca::remit(Preface* entry) -> Count {
+  entry->rented.reservations--;
 
 #if PERI_DEBUG
   // Detect if we underflowed on the reservation.
-  if (entry->reservations > 1u << 30) [[unlikely]] {
+  if (entry->rented.reservations > 1u << 30) [[unlikely]] {
     __builtin_debugtrap();
   }
 #endif
 
   // If there are no reservations then return to the appropriate archive.
-  if (entry->reservations == 0) {
-    Byte archive_index = entry->archive_index;
+  if (entry->rented.reservations == 0) {
+    Byte archive_index = entry->rented.archive_index;
 
-    entry->next = isolated.faceted_archives[archive_index].initial_entry;
-    isolated.faceted_archives[archive_index].initial_entry = entry;
-    isolated.faceted_archives[archive_index].free_blocks += 1;
+    entry->stored.next = secret_archive.collections[archive_index].initial_entry;
+    secret_archive.collections[archive_index].initial_entry = entry;
+    secret_archive.collections[archive_index].free_blocks += 1;
   }
 
-  return entry->reservations;
+  return entry->rented.reservations;
 }
 
 auto Bibliotheca::exchange(Preface* returning, Preface* reserving) -> void {
@@ -97,53 +127,52 @@ auto Bibliotheca::exchange(Preface* returning, Preface* reserving) -> void {
     return;
 
   // Exchange
-  reserving->reservations++;
-  returning->reservations--;
+  reserving->rented.reservations++;
+  returning->rented.reservations--;
 
   // If there are no reservations then return to the appropriate archive.
-  if (returning->reservations <= 0) {
+  if (returning->rented.reservations <= 0) {
 #if PERI_DEBUG
     // We should never remit an checkout more than it's been reserved.
-    if (returning->reservations < 0) [[unlikely]] {
+    if (returning->rented.reservations < 0) [[unlikely]] {
       __builtin_debugtrap();
     }
 #endif
 
-    Byte archive_index = returning->archive_index;
+    Byte archive_index = returning->rented.archive_index;
 
-    returning->next = isolated.faceted_archives[archive_index].initial_entry;
-    isolated.faceted_archives[archive_index].initial_entry = returning;
-    isolated.faceted_archives[archive_index].free_blocks += 1;
+    returning->stored.next = secret_archive.collections[archive_index].initial_entry;
+    secret_archive.collections[archive_index].initial_entry = returning;
+    secret_archive.collections[archive_index].free_blocks += 1;
   }
 }
 
-auto Bibliotheca::reserved_memory() -> Static::Vector<size_type, radix_range> {
-  Static::Vector<size_type, radix_range> sizes;
-  for (int i = 0; i < isolated.faceted_archives.get_size(); i++) {
-    auto archive = isolated.faceted_archives[i];
+auto Bibliotheca::reserved_memory() -> Static::Vector<Count, radix_range> {
+  Static::Vector<Count, radix_range> sizes;
+  for (int i = 0; i < radix_range; i++) {
+    auto archive = secret_archive.collections[i];
     if (archive.initial_entry == nullptr) {
       sizes[i] = 0;
       continue;
     }
 
-    sizes[i] = static_cast<size_type>(1)
+    sizes[i] = static_cast<Count>(1)
                << (min_radix + i) * archive.reserved_blocks;
   }
 
   return sizes;
 }
 
-auto Bibliotheca::free_memory() -> Static::Vector<size_type, radix_range> {
-  Static::Vector<size_type, radix_range> sizes;
-  for (int i = 0; i < isolated.faceted_archives.get_size(); i++) {
-    auto archive = isolated.faceted_archives[i];
+auto Bibliotheca::free_memory() -> Static::Vector<Count, radix_range> {
+  Static::Vector<Count, radix_range> sizes;
+  for (int i = 0; i < radix_range; i++) {
+    auto archive = secret_archive.collections[i];
     if (archive.initial_entry == nullptr) {
       sizes[i] = 0;
       continue;
     }
 
-    sizes[i] = static_cast<size_type>(1)
-               << (min_radix + i) * archive.free_blocks;
+    sizes[i] = static_cast<Count>(1) << (min_radix + i) * archive.free_blocks;
   }
 
   return sizes;

@@ -41,20 +41,20 @@ class BitFlag {
         static_cast<flag_source>(bit_data ^ lhs.bit_data));
   }
 
-  constexpr auto operator==(const BitFlag<flag_source>& flag) const -> bool {
+  constexpr auto operator==(const BitFlag<flag_source>& flag) const -> Bool {
     return bit_data == flag.bit_data;
   };
 
-  constexpr auto operator!=(const BitFlag<flag_source>& flag) const -> bool {
+  constexpr auto operator!=(const BitFlag<flag_source>& flag) const -> Bool {
     return bit_data != flag.bit_data;
   };
 
-  constexpr auto has(flag_source flag) const -> bool {
+  constexpr auto has(flag_source flag) const -> Bool {
     return bit_data & convert_flag(flag);
   };
 
   // Checks if the flag contains any of the flags in the target.
-  constexpr auto any(const BitFlag<flag_source>& flag) const -> bool {
+  constexpr auto any(const BitFlag<flag_source>& flag) const -> Bool {
     return bit_data & flag.bit_data;
   };
 

@@ -150,7 +150,7 @@ auto Writer::write_disk() -> View::Bytes {
   return disk_output;
 }
 
-auto compress(Dynamic::Bytes& output, View::Bytes source, CompressionLevel compression) -> bool {
+auto compress(Dynamic::Bytes& output, View::Bytes source, CompressionLevel compression) -> Bool {
   const Int level =
       static_cast<std::underlying_type_t<CompressionLevel>>(compression);
   thread_local static auto cctx = ZSTD_createCCtx();

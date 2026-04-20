@@ -22,20 +22,22 @@ using Bits_16 = unsigned short int;
 // Legacy support for LP32
 #ifdef __LP32__
 using Bits_32 = unsigned long;
+using Bits_64 = unsigned long long;
 #else
 using Bits_32 = unsigned int;
+using Bits_64 = unsigned long;
 #endif
-using Bits_64 = unsigned long long;
 
 using SignedBits_8 = signed char;
 using SignedBits_16 = signed short int;
 // Legacy support for LP32
 #ifdef __LP32__
 using SignedBits_32 = signed long;
+using SignedBits_64 = signed long long;
 #else
 using SignedBits_32 = signed int;
+using SignedBits_64 = signed long;
 #endif
-using SignedBits_64 = signed long long;
 
 using Real_32 = float;
 using Real_64 = double;
@@ -49,28 +51,12 @@ using UHalf = Bits_16;
 using Int = SignedBits_32;
 using UInt = Bits_32;
 using Long = SignedBits_64;
+using ULong = Bits_64;
+#ifdef __LP32__
+using Count = Bits_32;
+#else
 using Count = Bits_64;
-
-// Type helpers
-template <typename storage>
-constexpr Bits_64 size_in_bits() {
-  return sizeof(storage) * 8;
-}
-
-// Provide the blessed memory operations so LLVM can properly optimize.
-extern "C" {
-typedef __SIZE_TYPE__ size_t;
-extern void* memcpy(void* __restrict dest,
-                    const void* __restrict src,
-                    size_t count) noexcept(true);
-
-extern int memcmp(const void* a, const void* b, size_t count) noexcept(true);
-
-extern void* memset(void* source, int value, size_t count) noexcept(true);
-
-extern void* malloc(size_t count);
-extern void free(void*);
-}
+#endif
 
 // Ensure the data model is correct.
 static_assert(sizeof(Bits_8) == 1);

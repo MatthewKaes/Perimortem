@@ -3,6 +3,8 @@
 
 #include "perimortem/memory/dynamic/bytes.hpp"
 
+#include "perimortem/core/data_model.hpp"
+
 using namespace Perimortem::Memory;
 using namespace Perimortem::Memory::Allocator;
 
@@ -49,14 +51,14 @@ auto Dynamic::Bytes::append(Byte b) -> void {
 auto Dynamic::Bytes::concat(View::Bytes view) -> void {
   ensure_capacity(size + view.get_size());
 
-  memcpy(access(rented_block) + size, view.get_data(), view.get_size());
+  Core::copy(access(rented_block) + size, view.get_data(), view.get_size());
   size += view.get_size();
 }
 
 auto Dynamic::Bytes::proxy(View::Bytes view) -> void {
   ensure_capacity(view.get_size());
 
-  memcpy(access(rented_block), view.get_data(), view.get_size());
+  Core::copy(access(rented_block), view.get_data(), view.get_size());
   size = view.get_size();
 }
 

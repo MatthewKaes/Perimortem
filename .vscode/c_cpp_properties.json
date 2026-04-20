@@ -14,9 +14,12 @@
                 "PERI_LINUX",
                 "PERI_EDITOR"
             ],
+            "compilerArgs": [
+              "-mavx2"
+            ],
             "compilerPath": "/usr/bin/clang",
-            "cStandard": "c17",
-            "cppStandard": "c++23",
+            "cStandard": "c23",
+            "cppStandard": "c++26",
             "intelliSenseMode": "linux-clang-x64"
         }
     ],

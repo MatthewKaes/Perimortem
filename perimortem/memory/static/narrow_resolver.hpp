@@ -95,7 +95,7 @@ class NarrowResolver {
       }
 
       if constexpr (std::is_constant_evaluated()) {
-        bool same = true;
+        Bool same = true;
         for (Count c = 0; c < limited_size; c++) {
           if (byte_pack.buffer[i + c] != view[c]) {
             same = false;

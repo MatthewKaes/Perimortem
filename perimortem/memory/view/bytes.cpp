@@ -2,6 +2,7 @@
 // Copyright © Matt Kaes
 
 #include "perimortem/memory/view/bytes.hpp"
+#include "perimortem/core/data_model.hpp"
 
 #include <x86intrin.h>
 
@@ -12,7 +13,7 @@ auto View::Bytes::fast_scan(Byte search, Count position) const -> Count {
   const auto value = _mm256_loadu_si256((__m256i*)(source_block + position));
   const auto compare = _mm256_cmpeq_epi8(value, search_mask);
   const Bits_32 offset_mask = _mm256_movemask_epi8(compare);
-  return position + std::countr_zero(offset_mask);
+  return position + __builtin_ctzg(offset_mask);
 }
 
 template <Bits_32 channels, Bits_32 index, Bits_32 range>
@@ -59,13 +60,13 @@ auto View::Bytes::scan(Byte search, Count position) const -> Count {
         const Bits_32 result_lower = _mm256_movemask_epi8(masks[ymm]);
         const Bits_32 result_upper = _mm256_movemask_epi8(masks[ymm + 1]);
         const Bits_64 result_merged = (Bits_64)result_upper
-                                          << size_in_bits<Bits_32>() |
+                                          << Core::size_in_bits<Bits_32>() |
                                       (Bits_64)result_lower;
 
         // Since we have additional channels only return if we have our
         // target.
         if (result_merged) {
-          return offset + std::countr_zero(result_merged) +
+          return offset + __builtin_ctzg(result_merged) +
                  avx2_channel_width * ymm;
         }
       }
@@ -75,13 +76,13 @@ auto View::Bytes::scan(Byte search, Count position) const -> Count {
         const Bits_32 result_lower = _mm256_movemask_epi8(masks[ymm]);
         const Bits_32 result_upper = _mm256_movemask_epi8(masks[ymm + 1]);
         const Bits_64 result_merged = (Bits_64)result_upper
-                                          << size_in_bits<Bits_32>() |
+                                          << Core::size_in_bits<Bits_32>() |
                                       (Bits_64)result_lower;
-        return offset + std::countr_zero(result_merged) +
+        return offset + __builtin_ctzg(result_merged) +
                avx2_channel_width * ymm;
       } else {
         const Bits_32 result = _mm256_movemask_epi8(masks[ymm]);
-        return offset + std::countr_zero(result) + avx2_channel_width * ymm;
+        return offset + __builtin_ctzg(result) + avx2_channel_width * ymm;
       }
     }
   }

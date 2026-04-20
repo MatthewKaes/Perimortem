@@ -11,7 +11,7 @@
 using namespace Tetrodotoxin::Parser;
 using namespace Tetrodotoxin::Lexical;
 
-bool Error::colorful = true;
+Bool Error::colorful = true;
 
 constexpr const char* clear_color = "\x1b[0m";
 std::string Error::error_color_primary = "\x1b[38;2;227;62;60m";
@@ -47,7 +47,7 @@ Error::Error(const std::filesystem::path& source_map,
     soruce_stream << (line_range ? *line_range : "");
 
     std::string line;
-    bool had_lines = false;
+    Bool had_lines = false;
     while (std::getline(soruce_stream, line)) {
       details << err_highlight << std::setw(5) << std::right << loc->line++
               << err_tertiary << " | " << line << std::endl;
