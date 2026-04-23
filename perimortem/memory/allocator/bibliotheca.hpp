@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include "perimortem/core/standard_types.hpp"
+#include "perimortem/core/perimortem.hpp"
 #include "perimortem/memory/static/vector.hpp"
 
 namespace Perimortem::Memory::Allocator {
@@ -12,11 +12,24 @@ namespace Perimortem::Memory::Allocator {
 //
 // Any memory fetched from the Bibliotheca is guaranteed to be cleaned
 // up on thread exit. To ensure correct cleanup ordering any thread_local
-// objects should be created with `Singleton` (perimortem/memory/managed/singleton.hpp)
+// objects should be created with `Singleton`
+// (perimortem/memory/managed/singleton.hpp)
 //
 class Bibliotheca final {
- public:
+ private:
   static constexpr Bits_8 required_alignment = 16;
+  // If Count is 64 bits then limit us to some level below the 256 TB limits.
+  // 64 GB blocks is the current upper limit.
+  static constexpr Bits_8 max_radix = sizeof(Count) * 8 > 32
+                                          ? 36
+                                          : sizeof(Count) * 8;
+  static constexpr Bits_8 min_radix = __builtin_ctzl(required_alignment << 1);
+  static constexpr Count min_size = 1 << min_radix;
+  static constexpr Count max_size = static_cast<Count>(1) << max_radix;
+
+ public:
+  // The number of powers of two the allocator spans.
+  static constexpr Count radix_range = max_radix - min_radix;
 
   // Make sure Preface is always aligned so that the pointer returned is
   // aligned.
@@ -26,9 +39,12 @@ class Bibliotheca final {
    public:
     auto get_reservations() const -> Bits_32 { return rented.reservations; }
     auto get_archive() const -> Bits_8 { return rented.archive_index; }
-    auto usable_bytes() const -> Count {
-      return (static_cast<Count>(1) << (rented.archive_index)) -
+    auto get_usable_bytes() const -> Count {
+      return (static_cast<Count>(1) << (rented.archive_index + min_radix)) -
              sizeof(Preface);
+    }
+    auto get_memory_consumption() const -> Count {
+      return (static_cast<Count>(1) << (rented.archive_index + min_radix));
     }
 
    private:
@@ -56,20 +72,8 @@ class Bibliotheca final {
     };
   };
 
-  static constexpr auto size = sizeof(Preface);
-
   static_assert(sizeof(Preface) == required_alignment,
                 "The size of Preface isn't equal to it's alignment");
-
-  // If Count is 64 bits then limit us to some level below the 256 TB limits.
-  // 64 GB blocks is the current upper limit.
-  static constexpr Bits_8 max_radix = sizeof(Count) * 8 > 32
-                                          ? 36
-                                          : sizeof(Count) * 8;
-  static constexpr Bits_8 min_radix = __builtin_ctzl(sizeof(Preface) << 1);
-  static constexpr Count min_size = 1 << min_radix;
-  static constexpr Count max_size = static_cast<Count>(1) << max_radix;
-  static constexpr Count radix_range = max_radix - min_radix;
 
   static inline auto preface_to_corpus(Preface* entry) -> Bits_8* {
     return reinterpret_cast<Bits_8*>(entry) + sizeof(Preface);

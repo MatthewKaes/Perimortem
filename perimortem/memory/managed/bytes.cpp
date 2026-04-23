@@ -4,16 +4,16 @@
 
 #include "perimortem/memory/managed/bytes.hpp"
 
-#include "perimortem/core/math.hpp"
+#include "perimortem/utility/func/math.hpp"
 
 #include <x86intrin.h>
 
-using namespace Perimortem::Core::Math;
+using namespace Perimortem::Utility::Func;
 using namespace Perimortem::Memory;
 
 Managed::Bytes::Bytes(const Bytes& rhs, Count reserved_capacity)
     : arena(rhs.arena) {
-  reset(max(rhs.get_size(), reserved_capacity));
+  reset(Math::max(rhs.get_size(), reserved_capacity));
   proxy(rhs);
 };
 
@@ -44,14 +44,14 @@ auto Managed::Bytes::append(Byte b) -> void {
   rented_block[size++] = b;
 }
 
-auto Managed::Bytes::append(View::Bytes view) -> void {
+auto Managed::Bytes::append(Core::View::Amorphous view) -> void {
   ensure_capacity(size + view.get_size());
 
   memcpy(rented_block + size, view.get_data(), view.get_size());
   size += view.get_size();
 }
 
-auto Managed::Bytes::proxy(View::Bytes view) -> void {
+auto Managed::Bytes::proxy(Core::View::Amorphous view) -> void {
   if (view.get_size() > capacity)
     grow(view.get_size() - capacity);
 
@@ -75,7 +75,7 @@ auto Managed::Bytes::ensure_capacity(Count required_bytes) -> void {
 
   // Attempt to grow by a factor of 2.
   // If that doesn't work than grow to exact size.
-  const auto new_capacity = max(capacity * 2, required_bytes);
+  const auto new_capacity = Math::max(capacity * 2, required_bytes);
 
   // Fetch and transfer to new block.
   auto new_block = reinterpret_cast<Byte*>(arena.allocate(new_capacity));

@@ -3,9 +3,9 @@
 
 #pragma once
 
-#include "perimortem/core/data_model.hpp"
+#include "perimortem/core/view/structured.hpp"
 #include "perimortem/memory/allocator/arena.hpp"
-#include "perimortem/memory/view/vector.hpp"
+#include "perimortem/utility/func/math.hpp"
 
 namespace Perimortem::Memory::Managed {
 
@@ -20,8 +20,8 @@ class Vector {
   Vector(const Vector&) = default;
   Vector(Allocator::Arena& arena) : arena(arena) { reset(); }
 
-  constexpr operator View::Vector<value_type>() const {
-    return View::Vector<value_type>(rented_block, size);
+  constexpr operator Core::View::Structured<value_type>() const {
+    return Core::View::Structured<value_type>(rented_block, size);
   }
 
   auto clear() -> void { size = 0; }
@@ -52,6 +52,13 @@ class Vector {
     new (rented_block + (size++)) value_type(data);
   }
 
+  constexpr auto emplace(const value_type&& data) -> value_type& {
+    ensure_capacity(size + 1);
+
+    // Construct using the move constructor.
+    return *new (rented_block + (size++)) value_type(data);
+  }
+
   constexpr auto contains(const value_type& data) const -> Bool {
     for (Count i = 0; i < size; i++) {
       if (rented_block[i] == data) {
@@ -68,19 +75,49 @@ class Vector {
   constexpr auto operator[](Count index) -> value_type& { return at(index); }
 
   constexpr auto get_size() const -> Count { return size; }
+  constexpr auto get_capacity() const -> Count { return capacity; };
   constexpr auto get_arena() const -> Allocator::Arena& { return arena; }
-  constexpr auto get_view() const -> View::Vector<value_type> {
-    return View::Vector<value_type>(rented_block, size);
+  constexpr auto get_view() const -> Core::View::Structured<value_type> {
+    return Core::View::Structured<value_type>(rented_block, size);
   }
 
  private:
+  // Ensures there is _at least_ enough room for the requested number of
+  // objects.
+  auto ensure_capacity(Count required_size) -> void {
+    // Check if we can already fit required buffer.
+    if (required_size <= get_capacity()) {
+      return;
+    }
+
+    // Attempt to grow by a factor of 2.
+    // If that doesn't work than grow to exact size.
+    const auto new_capacity =
+        Utility::Func::Math::max(get_capacity() * 2, required_size);
+
+    // Fetch and transfer to new block.
+    auto new_block = reinterpret_cast<value_type*>(
+        arena.allocate(sizeof(value_type) * capacity));
+
+    if (rented_block) {
+      memcpy(new_block, rented_block, sizeof(value_type) * size);
+    }
+
+    // Update block and get the new capacity.
+    rented_block = new_block;
+
+    // Get the actual capacity provided which is often more than we actual
+    // requested.
+    capacity = new_block->get_usable_bytes() / sizeof(value_type);
+  }
+
   auto grow() -> void {
     capacity *= growth_factor;
     auto new_block = reinterpret_cast<value_type*>(
         arena.allocate(sizeof(value_type) * capacity));
 
-    Core::copy(reinterpret_cast<void*>(new_block), rented_block,
-               sizeof(value_type) * size);
+    Utility::Func::Data::copy(reinterpret_cast<Byte*>(new_block), rented_block,
+                        sizeof(value_type) * size);
     rented_block = new_block;
   }
 

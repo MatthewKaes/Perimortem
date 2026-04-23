@@ -43,7 +43,7 @@ auto detect_package_type(Context& ctx) -> void {
 // right after parsing the provided abstract.
 auto register_name(Context& ctx,
                    const Token& start_token,
-                   const View::Bytes& name,
+                   const Core::View::Amorphous& name,
                    const Abstract& abstract) {
   if (!ctx.library.create_name(name, abstract)) {
     ctx.range_error(

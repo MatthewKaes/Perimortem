@@ -1,10 +1,8 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
-#pragma once
-
 #include "perimortem/system/random.hpp"
-#include "perimortem/memory/static/hash.hpp"
+#include "perimortem/utility/func/hash.hpp"
 
 #include <immintrin.h>
 
@@ -14,7 +12,8 @@
 #include <thread>
 
 using namespace Perimortem::System;
-using namespace Perimortem::Memory;
+using namespace Perimortem::Core;
+using namespace Perimortem::Utility::Func;
 
 Bits_64 base_seed =
     0b01011011'10110110'11111000'01010111'00010111'01000111'11101000'00111100ULL;
@@ -61,13 +60,14 @@ auto create_prng() -> random_engine {
   std::stringstream id_stream;
   id_stream << std::this_thread::get_id();
   auto thread_value = id_stream.str();
-  auto thread_hash = Static::Hash(
-      View::Bytes(reinterpret_cast<const Byte*>(thread_value.c_str()),
-                  thread_value.size()));
+  auto thread_hash =
+      Hash(View::Amorphous(reinterpret_cast<const Byte*>(thread_value.c_str()),
+                           thread_value.size()));
 
   // Contrived time data to spread out over various runs.
   auto time = std::chrono::system_clock::now();
-  auto time_hash = Static::Hash(time.time_since_epoch().count());
+  auto time_hash =
+      Hash(static_cast<Bits_64>(time.time_since_epoch().count()));
 
   std::seed_seq sd{
       seed_values[0 % seed_count] ^ static_cast<Int>(base_seed),

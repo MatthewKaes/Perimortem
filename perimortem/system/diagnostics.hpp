@@ -3,13 +3,11 @@
 
 #pragma once
 
-#include "perimortem/memory/managed/singleton.hpp"
-#include "perimortem/memory/view/bytes.hpp"
-
-#include <source_location>
+#include "perimortem/core/view/structured.hpp"
+#include "perimortem/system/source.hpp"
 
 namespace Perimortem::System {
-class Diagnostics : public Memory::Managed::Singleton<Diagnostics> {
+class Diagnostics {
  public:
   enum class Severity {
     Debug,
@@ -28,14 +26,14 @@ class Diagnostics : public Memory::Managed::Singleton<Diagnostics> {
       Bool,
     };
 
-    Data(const Memory::View::Bytes msg) : type(Type::View), bytes(msg) {}
+    Data(const Core::View::Amorphous msg) : type(Type::View), bytes(msg) {}
     Data(Int msg) : type(Type::Int), number(msg) {}
     Data(Real_64 msg) : type(Type::View), real(msg) {}
     Data(Bool msg) : type(Type::View), boolean(msg) {}
 
     Type type;
     union {
-      Memory::View::Bytes bytes;
+      Core::View::Amorphous bytes;
       Int number;
       Real_64 real;
       Bool boolean;
@@ -44,43 +42,32 @@ class Diagnostics : public Memory::Managed::Singleton<Diagnostics> {
 
   Diagnostics();
   ~Diagnostics();
-  auto set_level(Severity minimum = Severity::Info) -> void;
-  auto enable_stdout(Bool enable) -> void;
-  auto enable_log(Bool enable) -> void;
-  auto info(const Memory::View::Bytes msg,
-            std::initializer_list<Data> data = {},
-            const std::source_location location =
-                std::source_location::current()) -> void;
-  auto debug(const Memory::View::Bytes msg,
-             std::initializer_list<Data> data = {},
-             const std::source_location location =
-                 std::source_location::current()) -> void;
-  auto warning(const Memory::View::Bytes msg,
-               std::initializer_list<Data> data = {},
-               const std::source_location location =
-                   std::source_location::current()) -> void;
-  auto error(const Memory::View::Bytes msg,
-             std::initializer_list<Data> data = {},
-             const std::source_location location =
-                 std::source_location::current()) -> void;
-  auto fatal(const Memory::View::Bytes msg,
-             std::initializer_list<Data> data = {},
-             const std::source_location location =
-                 std::source_location::current()) -> void;
+  static auto set_level(Severity minimum = Severity::Info) -> void;
+  static auto enable_stdout(Bool enable) -> void;
+  static auto enable_log(Bool enable) -> void;
+  static auto info(Core::View::Amorphous msg,
+                   Core::View::Structured<Data> data = {},
+                   const SourceInfo location = SourceInfo::current()) -> void;
+  static auto debug(const Core::View::Amorphous msg,
+                    Core::View::Structured<Data> data = {},
+                    const SourceInfo location = SourceInfo::current()) -> void;
+  static auto warning(const Core::View::Amorphous msg,
+                      Core::View::Structured<Data> data = {},
+                      const SourceInfo location = SourceInfo::current())
+      -> void;
+  static auto error(const Core::View::Amorphous msg,
+                    Core::View::Structured<Data> data = {},
+                    const SourceInfo location = SourceInfo::current()) -> void;
+  static auto fatal(const Core::View::Amorphous msg,
+                    Core::View::Structured<Data> data = {},
+                    const SourceInfo location = SourceInfo::current()) -> void;
 
-  auto flush() -> void;
+  static auto flush() -> void;
 
  private:
-  auto write_level(Severity level) -> void;
-  auto write_utc_stamp() -> void;
-  auto write_message(std::initializer_list<Data> data) -> void;
-
-  Severity log_level = Severity::Info;
-  Bool flush_to_stdout = false;
-  Bool flush_to_log = false;
-  Byte log_file[1 << 9];
-  Byte log_buffer[4 << 12];
-  Count write_ptr = 0;
+  static auto write_level(Severity level) -> void;
+  static auto write_utc_stamp() -> void;
+  static auto write_message(Core::View::Structured<Data> data) -> void;
 };
 
 }  // namespace Perimortem::System

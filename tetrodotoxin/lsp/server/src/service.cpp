@@ -35,8 +35,8 @@ auto recursive_strip(const Tetrodotoxin::Lexical::Tokenizer::Tokens stream,
 auto Service::lsp_tokens(Tokenizer& tokenizer, const RpcRequest& header)
     -> Perimortem::Storage::Json::Node {
   ClassifierFlags library_types = Classifier::Package;
-  Managed::Vector<View::Bytes> imports(header.get_arena());
-  Managed::Vector<View::Bytes> parameters(header.get_arena());
+  Managed::Vector<Core::View::Amorphous> imports(header.get_arena());
+  Managed::Vector<Core::View::Amorphous> parameters(header.get_arena());
   uint32_t scopes = 0;
 
   NodeArray token_stream(header.get_arena());

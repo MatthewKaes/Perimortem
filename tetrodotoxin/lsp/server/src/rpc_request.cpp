@@ -16,7 +16,7 @@ auto RpcRequest::load_params() -> void {
   call_params.from_source(arena, source, header.get_params_offset());
 }
 
-auto RpcRequest::rpc_error(View::Bytes error) const -> RpcResponse {
+auto RpcRequest::rpc_error(Core::View::Amorphous error) const -> RpcResponse {
   // Escape any error quotes.
   Managed::Bytes sanatized_error(arena);
   sanatized_error.proxy(error);

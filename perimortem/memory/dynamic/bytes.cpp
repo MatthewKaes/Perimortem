@@ -3,10 +3,12 @@
 
 #include "perimortem/memory/dynamic/bytes.hpp"
 
-#include "perimortem/core/data_model.hpp"
+#include "perimortem/utility/func/data.hpp"
 
+using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
 using namespace Perimortem::Memory::Allocator;
+using namespace Perimortem::Utility::Func;
 
 constexpr auto access(Bibliotheca::Preface* block) -> Byte* {
   return Bibliotheca::preface_to_corpus(block);
@@ -18,7 +20,7 @@ Dynamic::Bytes::Bytes(Count reserved_capacity) {
   size = 0;
 }
 
-Dynamic::Bytes::Bytes(View::Bytes view) {
+Dynamic::Bytes::Bytes(const Core::View::Amorphous view) {
   rented_block = Bibliotheca::check_out(view.get_size());
   size = view.get_size();
   memcpy(access(rented_block), view.get_data(), view.get_size());
@@ -48,17 +50,18 @@ auto Dynamic::Bytes::append(Byte b) -> void {
   access(rented_block)[size++] = b;
 }
 
-auto Dynamic::Bytes::concat(View::Bytes view) -> void {
+auto Dynamic::Bytes::concat(Core::View::Amorphous view) -> void {
   ensure_capacity(size + view.get_size());
 
-  Core::copy(access(rented_block) + size, view.get_data(), view.get_size());
+  Data::copy(access(rented_block) + size, view.get_data(),
+                      view.get_size());
   size += view.get_size();
 }
 
-auto Dynamic::Bytes::proxy(View::Bytes view) -> void {
+auto Dynamic::Bytes::proxy(Core::View::Amorphous view) -> void {
   ensure_capacity(view.get_size());
 
-  Core::copy(access(rented_block), view.get_data(), view.get_size());
+  Data::copy(access(rented_block), view.get_data(), view.get_size());
   size = view.get_size();
 }
 
@@ -68,6 +71,16 @@ auto Dynamic::Bytes::convert(Byte source, Byte target) -> void {
       access(rented_block)[i] = target;
     }
   }
+}
+
+auto Dynamic::Bytes::slice(Count start, Count size) const
+    -> Core::View::Amorphous {
+  if (start >= get_size())
+    return Core::View::Amorphous();
+
+  return Core::View::Amorphous(Core::View::Amorphous(
+      Allocator::Bibliotheca::preface_to_corpus(rented_block) + start,
+      Math::min(size, get_size() - start)));
 }
 
 auto Dynamic::Bytes::resize(Count new_size) -> void {
@@ -102,14 +115,6 @@ auto Dynamic::Bytes::reset() -> void {
   }
 }
 
-auto Dynamic::Bytes::get_capacity() const -> Count {
-  if (rented_block) {
-    return rented_block->usable_bytes();
-  } else {
-    return 0;
-  }
-}
-
 auto Dynamic::Bytes::ensure_capacity(Count required_size) -> void {
   // Check if we can already fit required buffer.
   if (required_size <= get_capacity()) {
@@ -118,7 +123,8 @@ auto Dynamic::Bytes::ensure_capacity(Count required_size) -> void {
 
   // Attempt to grow by a factor of 2.
   // If that doesn't work than grow to exact size.
-  const auto new_capacity = Core::Math::max(get_capacity() * 2, required_size);
+  const auto new_capacity =
+      Math::max(get_capacity() * 2, required_size);
 
   // Fetch and transfer to new block.
   auto new_block = Bibliotheca::check_out(new_capacity);

@@ -5,7 +5,7 @@
 
 #include "perimortem/memory/static/narrow_resolver.hpp"
 
-#include "perimortem/core/standard_types.hpp"
+#include "perimortem/core/perimortem.hpp"
 
 #include <cmath>
 #include <cstring>
@@ -45,12 +45,12 @@ constexpr auto is_num(Byte c) -> Bool {
 
 // Used for tracking during parsing
 struct Context {
-  Context(const View::Bytes source,
+  Context(const Core::View::Amorphous source,
           Perimortem::Memory::Managed::Vector<Token>& tokens)
       : source(source), tokens(tokens) {};
 
   Location loc;
-  const View::Bytes source;
+  const Core::View::Amorphous source;
   Perimortem::Memory::Managed::Vector<Token>& tokens;
   Perimortem::Memory::View::BitFlag<TtxState> options;
 };
@@ -207,7 +207,7 @@ auto parse_type(Context& context) -> void {
   context.loc.column += context.loc.parse_index - context.loc.source_index;
 }
 
-static inline constexpr auto check_keyword(View::Bytes value,
+static inline constexpr auto check_keyword(Core::View::Amorphous value,
                                            Classifier default_value)
     -> Classifier {
   static constexpr View::Table<Classifier>::Entry data[] = {
@@ -293,7 +293,7 @@ auto parse_identifier(Context& context) -> void {
     SIMPLE_TOKEN(klass, 1);        \
     break;
 
-auto Tokenizer::parse(const View::Bytes source_, Bool strip_disabled) -> void {
+auto Tokenizer::parse(const Core::View::Amorphous source_, Bool strip_disabled) -> void {
   // Reset state
   source = source_;
   tokens.reset();
@@ -499,5 +499,5 @@ auto Tokenizer::parse(const View::Bytes source_, Bool strip_disabled) -> void {
   // End of file
   options = context.options;
   context.loc.source_index = ++context.loc.parse_index;
-  context.tokens.insert({Classifier::EndOfStream, View::Bytes(), context.loc});
+  context.tokens.insert({Classifier::EndOfStream, Core::View::Amorphous(), context.loc});
 }

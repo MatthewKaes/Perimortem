@@ -3,7 +3,9 @@
 
 #pragma once
 
-#include "perimortem/memory/view/bytes.hpp"
+#include "perimortem/core/access/amorphous.hpp"
+#include "perimortem/core/view/amorphous.hpp"
+#include "perimortem/memory/allocator/bibliotheca.hpp"
 
 namespace Perimortem::Memory::Dynamic {
 
@@ -12,43 +14,44 @@ class Bytes {
  public:
   Bytes();
   Bytes(Count reserved_capacity);
-  Bytes(View::Bytes view);
+  Bytes(Core::View::Amorphous view);
   Bytes(const Bytes& rhs);
   Bytes(Bytes&& rhs);
 
   ~Bytes();
 
+  constexpr operator Core::View::Amorphous() const { return get_view(); }
+  constexpr operator Core::Access::Amorphous() { return get_access(); }
+
   auto append(Byte b) -> void;
-  auto concat(View::Bytes view) -> void;
-  auto proxy(View::Bytes view) -> void;
+  auto concat(Core::View::Amorphous view) -> void;
+  auto proxy(Core::View::Amorphous view) -> void;
   auto resize(Count new_size) -> void;
 
   auto operator[](Count index) const -> Byte;
   auto at(Count index) const -> Byte;
   auto convert(Byte source, Byte target) -> void;
-  auto slice(Count start, Count size) const -> View::Bytes {
-    if (start >= get_size())
-      return View::Bytes();
-
-    return View::Bytes(View::Bytes(
-        Allocator::Bibliotheca::preface_to_corpus(rented_block) + start,
-        Core::Math::min(size, get_size() - start)));
-  };
+  auto slice(Count start, Count size) const -> Core::View::Amorphous;
 
   constexpr auto get_size() const -> Count { return size; }
-  constexpr auto get_view() const -> const View::Bytes {
-    return View::Bytes(Allocator::Bibliotheca::preface_to_corpus(rented_block),
-                       size);
+  constexpr auto get_capacity() const -> Count {
+    if (rented_block) {
+      return rented_block->get_usable_bytes();
+    } else {
+      return 0;
+    }
   }
-  constexpr auto get_data() const -> Byte* {
-    return Allocator::Bibliotheca::preface_to_corpus(rented_block);
+  constexpr auto get_view() const -> const Core::View::Amorphous {
+    return Core::View::Amorphous(
+        Allocator::Bibliotheca::preface_to_corpus(rented_block), size);
   }
-
-  constexpr operator View::Bytes() const { return get_view(); }
+  constexpr auto get_access() -> Core::Access::Amorphous {
+    return Core::Access::Amorphous(
+        Allocator::Bibliotheca::preface_to_corpus(rented_block), size);
+  }
 
   auto clear() -> void;
   auto reset() -> void;
-  auto get_capacity() const -> Count;
   auto ensure_capacity(Count required_size) -> void;
 
  private:

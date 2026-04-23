@@ -12,10 +12,10 @@ namespace Tetrodotoxin::Types {
 class Byt : public Abstract, public Perimortem::Memory::Managed::Singleton<Byt> {
  public:
   static constexpr uint32_t uuid = 0x586C9460;
-  constexpr auto get_name() const -> Perimortem::Memory::View::Bytes override {
+  constexpr auto get_name() const -> Perimortem::Core::View::Amorphous override {
     return "Byt";
   };
-  constexpr auto get_doc() const -> Perimortem::Memory::View::Bytes override {
+  constexpr auto get_doc() const -> Perimortem::Core::View::Amorphous override {
     return "A single byte used for manipulating streams or for storing small "
            "values.\n"
            "All values and operations are treated as signed and overflow has "

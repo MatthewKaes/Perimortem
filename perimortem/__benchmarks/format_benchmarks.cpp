@@ -57,7 +57,7 @@ auto generate_test_data() -> std::array<std::string, 4> {
     for (int i = 1; i <= test_count_per_round(); i++) {
       const auto& selected = source[rand() % source.size()];
       auto data = Perimortem::Storage::Json::JsonRpc(
-          arena, View::Bytes(selected));
+          arena, Core::View::Amorphous(selected));
       doNotOptimizeAway(data.get_id().empty());
     }
   }
@@ -74,7 +74,7 @@ auto generate_test_data() -> std::array<std::string, 4> {
       uint32_t position = 0;
       node.from_source(
           json_arena,
-          View::Bytes(source[rand() % source.size()]),
+          Core::View::Amorphous(source[rand() % source.size()]),
           position);
       auto rpc_version = node["jsonrpc"].get_string();
       doNotOptimizeAway(rpc_version == "2.0"_bv);
@@ -90,12 +90,12 @@ auto generate_test_data() -> std::array<std::string, 4> {
     for (int i = 1; i <= test_count_per_round(); i++) {
       const auto& selected = source[rand() % source.size()];
       auto header = Perimortem::Storage::Json::JsonRpc(
-          json_arena, View::Bytes(selected));
+          json_arena, Core::View::Amorphous(selected));
       uint32_t position = header.get_params_offset();
 
       json_arena.reset();
       Perimortem::Storage::Json::Node node;
-      node.from_source(json_arena, View::Bytes(selected),
+      node.from_source(json_arena, Core::View::Amorphous(selected),
                        position);
       auto source = node["source"].get_string();
       doNotOptimizeAway(source.get_size());
@@ -114,12 +114,12 @@ auto generate_test_data() -> std::array<std::string, 4> {
       Perimortem::Storage::Json::Node node;
       node.from_source(
           json_arena,
-          View::Bytes(source[rand() % source.size()]),
+          Core::View::Amorphous(source[rand() % source.size()]),
           position);
 
       auto path = node["params"]["source"].get_string();
       Perimortem::Storage::Base64::Decoded decode(
-          json_arena, View::Bytes(path));
+          json_arena, Core::View::Amorphous(path));
       doNotOptimizeAway(decode.get_view().empty());
     }
   }
@@ -133,14 +133,14 @@ auto generate_test_data() -> std::array<std::string, 4> {
   uint32_t position = 0;
   Perimortem::Storage::Json::Node node;
   node.from_source(json_arena,
-                   View::Bytes(source[rand() % source.size()]),
+                   Core::View::Amorphous(source[rand() % source.size()]),
                    position);
 
   auto path = node["params"]["source"].get_string();
   for (auto _ : state) {
     for (int i = 1; i <= test_count_per_round(); i++) {
       Perimortem::Storage::Base64::Decoded decode(
-          json_arena, View::Bytes(path));
+          json_arena, Core::View::Amorphous(path));
       doNotOptimizeAway(decode.get_view().empty());
     }
   }

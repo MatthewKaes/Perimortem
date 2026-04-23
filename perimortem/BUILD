@@ -3,7 +3,7 @@ Perimortem::Core - Home to all common utilities and classes
 """
 
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
-load("@rules_cc//cc:cc_test.bzl", "cc_test")
+load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 
 package(default_visibility = ["//visibility:public"])
 
@@ -15,7 +15,7 @@ cc_library(
     deps = [
         ":core",
         ":memory",
-        ":storage",
+        ":serialization",
         ":system",
     ],
 )
@@ -24,9 +24,25 @@ cc_library(
     name = "core",
     srcs = [],
     hdrs = glob([
+        "core/access/*.hpp",
+        "core/view/*.hpp",
         "core/*.hpp",
     ]),
     includes = ["."],
+)
+
+cc_library(
+    name = "utility",
+    srcs = [],
+    hdrs = glob([
+        "utility/extensions/*.hpp",
+        "utility/func/*.hpp",
+        "utility/type/*.hpp",
+    ]),
+    includes = ["."],
+    deps = [
+        ":core",
+    ],
 )
 
 cc_library(
@@ -35,18 +51,17 @@ cc_library(
         "memory/allocator/*.cpp",
         "memory/dynamic/*.cpp",
         "memory/managed/*.cpp",
-        "memory/view/*.cpp",
     ]),
     hdrs = glob([
         "memory/allocator/*.hpp",
         "memory/dynamic/*.hpp",
         "memory/managed/*.hpp",
         "memory/static/*.hpp",
-        "memory/view/*.hpp",
     ]),
     includes = ["."],
     deps = [
         ":core",
+        ":utility",
     ],
 )
 
@@ -62,30 +77,32 @@ cc_library(
     deps = [
         ":core",
         ":memory",
+        ":utility",
     ],
 )
 
 cc_library(
-    name = "storage",
+    name = "serialization",
     srcs = glob([
-        "storage/serialization/*.cpp",
-        # "storage/serialization/archive/*.cpp",
-        "storage/serialization/base64/*.cpp",
-        "storage/serialization/binary/*.cpp",
-        "storage/serialization/textual/*.cpp",
+        # "serialization/archive/*.cpp",
+        "serialization/base64/*.cpp",
+        "serialization/binary/*.cpp",
+        "serialization/textual/*.cpp",
+        "serialization/json/*.cpp",
     ]),
     hdrs = glob([
-        "storage/serialization/*.hpp",
-        # "storage/serialization/archive/*.hpp",
-        "storage/serialization/base64/*.hpp",
-        "storage/serialization/binary/*.hpp",
-        "storage/serialization/textual/*.hpp",
+        # "serialization/archive/*.hpp",
+        "serialization/base64/*.hpp",
+        "serialization/binary/*.hpp",
+        "serialization/textual/*.hpp",
+        "serialization/json/*.hpp",
     ]),
     includes = ["."],
     deps = [
         ":core",
         ":memory",
         ":system",
+        ":utility",
         "@zstd",
     ],
 )
@@ -104,16 +121,14 @@ cc_library(
 #     ],
 # )
 
-cc_test(
+cc_binary(
     name = "__tests",
-    size = "small",
     srcs = glob([
-        "__tests/**/*.cpp",
+        "__tests/memory/*.cpp",
     ]),
     deps = [
         ":perimortem",
-        "@googletest//:gtest",
-        "@googletest//:gtest_main",
+        "//validation:test",
     ],
 )
 
