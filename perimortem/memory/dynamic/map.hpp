@@ -32,6 +32,13 @@ namespace Perimortem::Memory::Dynamic {
 template <typename key_type, typename value_type>
 class Map {
  public:
+  static constexpr Count bucket_size = sizeof(__m256i);
+
+  // Number of elements per bucket to hold back.
+  // Holding back 2 elements results in a load factor of 0.9375 for wide
+  // and a load factor of 0.875 for narrow.
+  static constexpr Count load_factor = bucket_size - 2;
+
   using Entry = Utility::Type::Pair<key_type, value_type>;
 
   struct Slot {
@@ -47,18 +54,12 @@ class Map {
     Bits_32 size = 0;
   };
 
-  static constexpr Count bucket_size = sizeof(__m256i);
-  static constexpr Count growth_factor = 2;
-
-  // Number of elements per bucket to hold back.
-  // Holding back 2 elements results in a load factor of 0.9375
-  static constexpr Count load_factor = 2;
-
   Map() { buffer_data = BufferData(); }
+  Map(Count inital_capacity) { ensure_capacity(inital_capacity); }
 
   template <Count aggregate_size>
   constexpr Map(const Entry (&items)[aggregate_size]) {
-    buffer_data = create_buffer((aggregate_size / bucket_size) + 1);
+    ensure_capacity(aggregate_size);
 
     for (Count i = 0; i < aggregate_size; i++) {
       insert(items[i]);
@@ -90,10 +91,9 @@ class Map {
         }
 
         for (Count bit_index = 0; bit_index < occupancy_count; bit_index++) {
-          auto target_slot =
-              slots + (bucket_index * sizeof(__m256i)) + bit_index;
+          auto target_slot = slots + (bucket_index * bucket_size) + bit_index;
           auto source_entry =
-              source_slots + (bucket_index * sizeof(__m256i)) + bit_index;
+              source_slots + (bucket_index * bucket_size) + bit_index;
           target_slot->entry.key.key_type(source_slots->key);
           target_slot->entry.value.value_type(source_slots->value);
         }
@@ -114,6 +114,20 @@ class Map {
     }
   }
 
+  auto ensure_capacity(Count items) -> void {
+    const auto load_limit = load_factor * buffer_data.bucket_count;
+    if (items <= load_limit) {
+      return;
+    }
+
+    auto new_bucket_count = buffer_data.bucket_count == 0 ? 1 : buffer_data.bucket_count << 1;
+    while (load_factor * new_bucket_count <= items) {
+      new_bucket_count <<= 1;
+    }
+
+    grow(new_bucket_count);
+  }
+
   auto reset() -> void {
     destruct();
 
@@ -126,11 +140,7 @@ class Map {
 
   constexpr auto insert(const key_type& key, const value_type& value)
       -> Entry* {
-    const auto load_limit =
-        (bucket_size - load_factor) * buffer_data.bucket_count;
-    if (buffer_data.size >= load_limit) {
-      grow();
-    }
+    ensure_capacity(buffer_data.size + 1);
 
     // If the entry already exists than overwrite the value.
     auto entry = find(key);
@@ -156,11 +166,7 @@ class Map {
   }
 
   constexpr auto emplace(key_type&& key, value_type&& value) -> Entry* {
-    const auto load_limit =
-        (bucket_size - load_factor) * buffer_data.bucket_count;
-    if (buffer_data.size >= load_limit) {
-      grow();
-    }
+    ensure_capacity(buffer_data.size + 1);
 
     // If the entry already exists than overwrite the value.
     auto entry = find(key);
@@ -188,11 +194,7 @@ class Map {
   constexpr auto at(const key_type& key) -> value_type& {
     auto entry = find(key);
     if (!entry) {
-      const auto load_limit =
-          (bucket_size - load_factor) * buffer_data.bucket_count;
-      if (buffer_data.size >= load_limit) {
-        grow();
-      }
+      ensure_capacity(buffer_data.size + 1);
 
       auto hash = get_hash(key);
       auto empty_slot = get_empty(hash);
@@ -215,6 +217,9 @@ class Map {
   }
 
   constexpr auto get_size() const -> Count { return buffer_data.size; }
+  constexpr auto get_capacity() const -> Count {
+    return buffer_data.bucket_count * bucket_size;
+  }
   constexpr auto get_memory_consumption() const -> Count {
     return Allocator::Bibliotheca::get_memory_consumption(
         buffer_data.rented_block);
@@ -238,7 +243,7 @@ class Map {
       auto possible_matches = extract_possible_matches(buckets[bi], vi);
       while (possible_matches) {
         auto index = __builtin_ctzg(possible_matches);
-        auto target_slot = slots + (bi * sizeof(__m256i)) + index;
+        auto target_slot = slots + (bi * bucket_size) + index;
         if (target_slot->hash == hash && target_slot->entry.key == key) {
           return &target_slot->entry;
         }
@@ -276,7 +281,7 @@ class Map {
     auto target_bucket = buckets + bi;
     reinterpret_cast<Byte*>(target_bucket)[occupancy_count] = vi;
 
-    return slots + (bi * sizeof(__m256i)) + occupancy_count;
+    return slots + (bi * bucket_size) + occupancy_count;
   }
 
   // Optimized placement of keys into the table when it is known the key does
@@ -304,7 +309,7 @@ class Map {
       }
 
       for (Count bit_index = 0; bit_index < occupancy_count; bit_index++) {
-        auto valid_slot = slots + (bucket_index * sizeof(__m256i)) + bit_index;
+        auto valid_slot = slots + (bucket_index * bucket_size) + bit_index;
         valid_slot->entry.key.~key_type();
         valid_slot->entry.value.~value_type();
       }
@@ -314,13 +319,11 @@ class Map {
     }
   }
 
-  auto grow() -> void {
+  auto grow(const Count new_bucket_count) -> void {
     // Store the old values to clone.
     auto current_buffer = buffer_data;
 
     // Get a fresh block
-    const auto new_bucket_count =
-        buffer_data.bucket_count ? buffer_data.bucket_count * growth_factor : 1;
     buffer_data = create_buffer(new_bucket_count);
 
     // Rehash
@@ -339,7 +342,7 @@ class Map {
       for (Count entry_index = 0; entry_index < occupancy_count;
            entry_index++) {
         auto valid_slot = current_buffer.slots_buffer +
-                          (bucket_index * sizeof(__m256i)) + entry_index;
+                          (bucket_index * bucket_size) + entry_index;
 
         emplace_hashed(valid_slot);
       }
@@ -390,25 +393,25 @@ class Map {
   }
 
   constexpr static auto get_header_size(Count bucket_count) -> Count {
-    return bucket_count * sizeof(__m256i);
+    return bucket_count * bucket_size;
   }
 
   constexpr static auto required_buffer_size(Count buckets) -> Count {
     // We need 1 byte per entry so the number of header bytes maps directly to
     // capacity.
-    auto header_size = buckets * sizeof(__m256i);
+    auto header_size = buckets * bucket_size;
 
     // Acutal data including the hash info.
-    auto buffer_size = sizeof(Slot) * buckets * sizeof(__m256i);
+    auto buffer_size = sizeof(Slot) * buckets * bucket_size;
 
-    return header_size + buffer_size + /*alignment padding*/ sizeof(__m256i);
+    return header_size + buffer_size + /*alignment padding*/ bucket_size;
   }
 
   static auto create_buffer(Count buckets) -> BufferData {
     BufferData new_buffer;
     new_buffer.bucket_count = buckets;
-    new_buffer.rented_block =
-        Allocator::Bibliotheca::check_out(required_buffer_size(buckets));
+    new_buffer.rented_block = Allocator::Bibliotheca::check_out(
+        required_buffer_size(new_buffer.bucket_count));
 
     // Caculate a valid bucket location with proper alignment.
     Byte* address =

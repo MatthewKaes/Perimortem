@@ -139,6 +139,22 @@ PERIMORTEM_UNIT_TEST(DynamicMap, insert_stress_test) {
   EXPECT_EQ(large_map.get_memory_consumption(), 1 << 16);
 }
 
+PERIMORTEM_UNIT_TEST(DynamicMap, capacity_stress_test) {
+  Dynamic::Map<Int, Int> large_map;
+
+  large_map.ensure_capacity(1000);
+  for (Int i = 0; i < 1000; i++) {
+    large_map.insert(i, i + 2);
+  }
+
+  EXPECT_EQ(large_map.get_size(), 1000);
+  for (Int i = 0; i < 1000; i++) {
+    ASSERT_EQ(large_map[i], i + 2);
+  }
+
+  EXPECT_EQ(large_map.get_memory_consumption(), 1 << 16);
+}
+
 PERIMORTEM_UNIT_TEST(DynamicMap, key_construction_count) {
   Count construct_count = 0;
   Count destruct_count = 0;
@@ -249,7 +265,11 @@ PERIMORTEM_UNIT_TEST(DynamicMap, dynamic_value) {
 
 PERIMORTEM_UNIT_TEST(DynamicMap, size) {
   Dynamic::Map<Int, Int> empty_map;
-  EXPECT_EQ(empty_map.get_size(), 0);
+  EXPECT_EQ(sizeof(empty_map), 32);
+  EXPECT_EQ(empty_map.get_capacity(), 0);
+  empty_map.ensure_capacity(10);
+  EXPECT_EQ(empty_map.get_capacity(), 32);
+  EXPECT_EQ(empty_map.get_memory_consumption(), 1024);
 }
 
 PERIMORTEM_UNIT_TEST(DynamicMap, reuse) {
