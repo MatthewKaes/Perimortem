@@ -31,7 +31,7 @@ class __m256iPrinter:
         lane += f'{((self.v1 >> (8 * i)) & 0xFF):02x} '
       lane += f'{((self.v1 >> (8 * 7)) & 0xFF):02x}'
 
-      object = self.valobj.CreateValueFromExpression('lane 1', '(std::string_view)"' + lane + '"')
+      object = self.valobj.CreateValueFromExpression('lane 1', '(const char*)"' + lane + '"')
       object.SetFormat(lldb.eFormatUnicode8)
       self.valobj.CreateChildAtOffset
       return object
@@ -44,7 +44,7 @@ class __m256iPrinter:
         lane += f'{((self.v3 >> (8 * i)) & 0xFF):02x} '
       lane += f'{((self.v3 >> (8 * 7)) & 0xFF):02x}'
 
-      object = self.valobj.CreateValueFromExpression('lane 2', '(std::string_view)"' + lane + '"')
+      object = self.valobj.CreateValueFromExpression('lane 2', '(const char*)"' + lane + '"')
       return object
     else:
       return None

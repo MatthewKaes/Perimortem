@@ -7,19 +7,19 @@ load("@rules_cc//cc:cc_test.bzl", "cc_test")
 
 package(default_visibility = ["//visibility:public"])
 
-cc_library(
-    name = "lexical",
-    srcs = glob([
-        "lexical/*.cpp",
-    ]),
-    hdrs = glob([
-        "lexical/*.hpp",
-    ]),
-    includes = ["."],
-    deps = [
-        "//perimortem",
-    ],
-)
+# cc_library(
+#     name = "lexical",
+#     srcs = glob([
+#         "lexical/*.cpp",
+#     ]),
+#     hdrs = glob([
+#         "lexical/*.hpp",
+#     ]),
+#     includes = ["."],
+#     deps = [
+#         "//perimortem",
+#     ],
+# )
 
 # cc_library(
 #     name = "virtual_machine",

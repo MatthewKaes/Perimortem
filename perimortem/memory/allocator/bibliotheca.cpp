@@ -3,11 +3,17 @@
 
 #include "perimortem/memory/allocator/bibliotheca.hpp"
 
-#include "perimortem/core/data_model.hpp"
-#include "perimortem/core/math.hpp"
+#include "perimortem/utility/func/data.hpp"
+#include "perimortem/utility/func/math.hpp"
 
 using namespace Perimortem;
+using namespace Perimortem::Utility::Func;
 using namespace Perimortem::Memory::Allocator;
+
+extern "C" {
+extern void* malloc(size_t count) noexcept(true);
+extern void free(void*) noexcept(true);
+}
 
 // Create a thread local static object that is fast to access.
 // Use a POD type so we don't have to pay any of the initialization checks.
@@ -24,7 +30,7 @@ thread_local static struct {
 static_assert(sizeof(secret_archive) == 496);
 
 constexpr auto caculate_archive_bucket(Count bytes) -> Bits_8 {
-  return Core::size_in_bits<Count>() -
+  return Data::size_in_bits<Count>() -
          __builtin_clzl(bytes + sizeof(Bibliotheca::Preface) - 1u);
 }
 
@@ -74,7 +80,7 @@ auto Bibliotheca::check_out(Count requested_bytes) -> Preface* {
     Preface* entry = dave.order_inventory(actual_bytes);
     secret_archive.collections[archive_index].reserved_blocks += 1;
 
-#if PERI_DEBUG
+#ifdef PERI_DEBUG
     if (entry == nullptr) [[unlikely]] {
       __builtin_debugtrap();
     }
@@ -102,7 +108,7 @@ auto Bibliotheca::reserve(Preface* entry) -> void {
 auto Bibliotheca::remit(Preface* entry) -> Count {
   entry->rented.reservations--;
 
-#if PERI_DEBUG
+#ifdef PERI_DEBUG
   // Detect if we underflowed on the reservation.
   if (entry->rented.reservations > 1u << 30) [[unlikely]] {
     __builtin_debugtrap();
@@ -113,7 +119,8 @@ auto Bibliotheca::remit(Preface* entry) -> Count {
   if (entry->rented.reservations == 0) {
     Byte archive_index = entry->rented.archive_index;
 
-    entry->stored.next = secret_archive.collections[archive_index].initial_entry;
+    entry->stored.next =
+        secret_archive.collections[archive_index].initial_entry;
     secret_archive.collections[archive_index].initial_entry = entry;
     secret_archive.collections[archive_index].free_blocks += 1;
   }
@@ -132,7 +139,7 @@ auto Bibliotheca::exchange(Preface* returning, Preface* reserving) -> void {
 
   // If there are no reservations then return to the appropriate archive.
   if (returning->rented.reservations <= 0) {
-#if PERI_DEBUG
+#ifdef PERI_DEBUG
     // We should never remit an checkout more than it's been reserved.
     if (returning->rented.reservations < 0) [[unlikely]] {
       __builtin_debugtrap();
@@ -141,7 +148,8 @@ auto Bibliotheca::exchange(Preface* returning, Preface* reserving) -> void {
 
     Byte archive_index = returning->rented.archive_index;
 
-    returning->stored.next = secret_archive.collections[archive_index].initial_entry;
+    returning->stored.next =
+        secret_archive.collections[archive_index].initial_entry;
     secret_archive.collections[archive_index].initial_entry = returning;
     secret_archive.collections[archive_index].free_blocks += 1;
   }
@@ -156,8 +164,8 @@ auto Bibliotheca::reserved_memory() -> Static::Vector<Count, radix_range> {
       continue;
     }
 
-    sizes[i] = static_cast<Count>(1)
-               << (min_radix + i) * archive.reserved_blocks;
+    sizes[i] =
+        (static_cast<Count>(1) << (min_radix + i)) * archive.reserved_blocks;
   }
 
   return sizes;
@@ -176,4 +184,16 @@ auto Bibliotheca::free_memory() -> Static::Vector<Count, radix_range> {
   }
 
   return sizes;
+}
+
+auto Bibliotheca::allocated_memory() -> Count {
+  auto reserved = reserved_memory();
+  auto free = free_memory();
+
+  Count allocated = 0;
+  for (Count i = 0; i < reserved.get_size(); i++) {
+    allocated = reserved[i] - free[i];
+  }
+
+  return allocated;
 }

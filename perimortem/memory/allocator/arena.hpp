@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include "perimortem/core/data_model.hpp"
+#include "perimortem/utility/func/data.hpp"
 #include "perimortem/memory/allocator/bibliotheca.hpp"
 
 namespace Perimortem::Memory::Allocator {
@@ -20,8 +20,7 @@ class Arena {
   // pointer.
   static constexpr Bits_64 page_size =
       (1 << 15) - (sizeof(Bibliotheca::Preface) * 2);
-  static constexpr Bits_64 alignment_filter =
-      sizeof(Bibliotheca::Preface) - 1;
+  static constexpr Bits_64 alignment_filter = sizeof(Bibliotheca::Preface) - 1;
 
   Arena();
   Arena(Arena&& arena);
@@ -36,7 +35,7 @@ class Arena {
       // Store the previous pointer in the arena itself.
       // [Preface] [Preface*] [Data ... ]
       Bibliotheca::Preface** previous =
-          Core::cast<Bibliotheca::Preface**>(
+          Utility::Func::Data::cast<Bibliotheca::Preface**>(
               Bibliotheca::preface_to_corpus(rent));
 
       // Store and swap the blocks.
@@ -60,7 +59,7 @@ class Arena {
   // Creates a basic value type object but does not construct it.
   template <typename T>
   inline auto allocate() -> T& {
-    return *Core::cast<T*>(allocate(sizeof(T)));
+    return *Utility::Func::Data::cast<T*>(allocate(sizeof(T)));
   }
 
   auto reset() -> void;

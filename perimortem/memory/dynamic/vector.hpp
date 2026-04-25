@@ -3,9 +3,10 @@
 
 #pragma once
 
-#include "perimortem/core/math.hpp"
-#include "perimortem/core/standard_types.hpp"
-#include "perimortem/memory/view/vector.hpp"
+#include "perimortem/core/perimortem.hpp"
+#include "perimortem/core/view/structured.hpp"
+#include "perimortem/memory/allocator/bibliotheca.hpp"
+#include "perimortem/utility/func/math.hpp"
 
 namespace Perimortem::Memory::Dynamic {
 
@@ -50,8 +51,8 @@ class Vector {
 
   ~Vector() { reset(); }
 
-  constexpr operator View::Vector<value_type>() const {
-    return View::Vector<value_type>(rented_block, size);
+  constexpr operator Core::View::Structured<value_type>() const {
+    return Core::View::Structured<value_type>(rented_block, size);
   }
 
   auto clear() -> void {
@@ -76,7 +77,7 @@ class Vector {
 
   constexpr auto insert(const value_type& data) -> value_type& {
     ensure_capacity(size + 1);
-    
+
     // Construct using the copy constructor.
     return *new (rented_block + (size++)) value_type(data);
   }
@@ -105,8 +106,8 @@ class Vector {
 
   constexpr auto get_size() const -> Count { return size; }
   constexpr auto get_capacity() const -> Count { return capacity; };
-  constexpr auto get_view() const -> View::Vector<value_type> {
-    return View::Vector<value_type>(rented_block, size);
+  constexpr auto get_view() const -> Core::View::Structured<value_type> {
+    return Core::View::Structured<value_type>(rented_block, size);
   }
 
  private:
@@ -135,7 +136,6 @@ class Vector {
   auto ensure_capacity(Count required_size) -> void {
     // Check if we can already fit required buffer.
     if (required_size <= get_capacity()) {
-      size = required_size;
       return;
     }
 
@@ -159,7 +159,7 @@ class Vector {
 
     // Get the actual capacity provided which is often more than we actual
     // requested.
-    capacity = new_block->usable_bytes() / sizeof(value_type);
+    capacity = new_block->get_usable_bytes() / sizeof(value_type);
   }
 
   Allocator::Bibliotheca::Preface* rented_block = nullptr;

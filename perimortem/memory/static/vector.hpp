@@ -3,15 +3,14 @@
 
 #pragma once
 
-
-#include "perimortem/core/standard_types.hpp"
+#include "perimortem/core/view/structured.hpp"
 
 namespace Perimortem::Memory::Static {
 // Typically used for small value type arrays.
 template <typename value_type, Count literal_size>
 class Vector {
  public:
-  struct Aggragate {
+  struct Aggregate {
     value_type content[literal_size]{};
   };
 
@@ -25,6 +24,11 @@ class Vector {
       content[i] = source[i];
     }
   }
+
+  constexpr operator Core::View::Structured<value_type>() const {
+    return Core::View::Structured<value_type>(content, literal_size);
+  }
+
 
   constexpr auto operator[](Count index) -> value_type& {
     return content[index];

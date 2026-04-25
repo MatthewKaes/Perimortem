@@ -93,6 +93,6 @@ def __lldb_init_module(debugger, dict):
 
   debugger.HandleCommand('type summary add -w data_types --python-function data_types.look_view_summary -x "Perimortem::Memory::Managed::Table<.+>$"')
   debugger.HandleCommand('type summary add -w data_types --python-function data_types.string_view_summary std::string_view')
-  debugger.HandleCommand('type summary add -w data_types --python-function data_types.byte_view_summary View::Bytes')
+  debugger.HandleCommand('type summary add -w data_types --python-function data_types.byte_view_summary Perimortem::Core::View::Amorphous')
   debugger.HandleCommand('type summary add -w data_types --python-function data_types.rpc_header_summary Perimortem::Storage::Json::JsonRpc')
   debugger.HandleCommand('type category enable data_types')

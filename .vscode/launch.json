@@ -30,7 +30,7 @@
       "name": "[Tests] Core (Linux)",
       "type": "lldb",
       "request": "launch",
-      "program": "${workspaceFolder}/.bin/bin/core/tests",
+      "program": "${workspaceFolder}/.bin/bin/perimortem/__tests",
       "args": [],
       "cwd": "${workspaceFolder}",
       // Why are you like this VSCode???

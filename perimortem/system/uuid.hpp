@@ -20,6 +20,10 @@ class Uuid {
     return value[0] == rhs.value[0] && value[1] == rhs.value[1];
   }
 
+  constexpr auto operator!=(const Uuid& rhs) const -> Bool {
+    return value[0] != rhs.value[0] && value[1] != rhs.value[1];
+  }
+
   constexpr auto get_value() -> Memory::Static::Vector<Bits_64, 2> {
     return value;
   }

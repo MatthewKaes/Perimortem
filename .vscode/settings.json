@@ -112,5 +112,9 @@
       "typeinfo": "cpp",
       "filesystem": "cpp",
       "test": "cpp"
-    }
+    },
+    "lldb.displayFormat": "auto",
+    "lldb.showDisassembly": "auto",
+    "lldb.dereferencePointers": false,
+    "lldb.consoleMode": "commands"
 }
