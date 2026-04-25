@@ -43,9 +43,6 @@ class Bibliotheca final {
       return (static_cast<Count>(1) << (rented.archive_index + min_radix)) -
              sizeof(Preface);
     }
-    auto get_memory_consumption() const -> Count {
-      return (static_cast<Count>(1) << (rented.archive_index + min_radix));
-    }
 
    private:
     // The preface can be in two states, rented or stored.
@@ -77,6 +74,14 @@ class Bibliotheca final {
 
   static inline auto preface_to_corpus(Preface* entry) -> Bits_8* {
     return reinterpret_cast<Bits_8*>(entry) + sizeof(Preface);
+  }
+
+  static inline auto get_memory_consumption(Preface* entry) -> Count {
+    if (!entry) {
+      return 0;
+    }
+
+    return (static_cast<Count>(1) << (entry->rented.archive_index + min_radix));
   }
 
   // Creates a free entry which can be used.

@@ -69,7 +69,10 @@ PERIMORTEM_UNIT_TEST(DynamicMap, empty) {
   // Two maps fit in a cache line.
   EXPECT_EQ(sizeof(empty_map), 32);
   EXPECT_EQ(empty_map.get_size(), 0);
-  EXPECT_EQ(empty_map.get_memory_consumption(), 1 << 10);
+
+  // Empty maps should consume no memory and should fetch memory lazily unless
+  // initial capacity is requested.
+  EXPECT_EQ(empty_map.get_memory_consumption(), 0);
 }
 
 PERIMORTEM_UNIT_TEST(DynamicMap, simple_construction) {
@@ -244,7 +247,6 @@ PERIMORTEM_UNIT_TEST(DynamicMap, dynamic_value) {
   ASSERT_TEXT(text_map[2].get_view(), "Longer test string"_view);
 }
 
-
 PERIMORTEM_UNIT_TEST(DynamicMap, size) {
   Dynamic::Map<Int, Int> empty_map;
   EXPECT_EQ(empty_map.get_size(), 0);
@@ -267,7 +269,6 @@ PERIMORTEM_UNIT_TEST(DynamicMap, reuse) {
     }
   }
 }
-
 
 PERIMORTEM_UNIT_TEST(DynamicMap, leak_test) {
   auto pre_test_memory = Allocator::Bibliotheca::allocated_memory();

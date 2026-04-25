@@ -43,19 +43,18 @@ class Map {
     Allocator::Bibliotheca::Preface* rented_block = nullptr;
     __m256i* bucket_buffer = nullptr;
     Slot* slots_buffer = nullptr;
-    Bits_32 bucket_count = start_capacity;
+    Bits_32 bucket_count = 0;
     Bits_32 size = 0;
   };
 
   static constexpr Count bucket_size = sizeof(__m256i);
-  static constexpr Count start_capacity = 1;
   static constexpr Count growth_factor = 2;
 
   // Number of elements per bucket to hold back.
   // Holding back 2 elements results in a load factor of 0.9375
   static constexpr Count load_factor = 2;
 
-  Map() { buffer_data = create_buffer(start_capacity); }
+  Map() { buffer_data = BufferData(); }
 
   template <Count aggregate_size>
   constexpr Map(const Entry (&items)[aggregate_size]) {
@@ -217,12 +216,17 @@ class Map {
 
   constexpr auto get_size() const -> Count { return buffer_data.size; }
   constexpr auto get_memory_consumption() const -> Count {
-    return buffer_data.rented_block->get_memory_consumption();
+    return Allocator::Bibliotheca::get_memory_consumption(
+        buffer_data.rented_block);
   }
 
  private:
   // Get an entry if it exists.
   constexpr auto find(const key_type& key) const -> Entry* {
+    if (buffer_data.size == 0) {
+      return nullptr;
+    }
+
     auto hash = get_hash(key);
     auto bi = extract_vector_index(hash);
     auto vi = extract_vector_key(hash);
@@ -315,12 +319,15 @@ class Map {
     auto current_buffer = buffer_data;
 
     // Get a fresh block
-    buffer_data = create_buffer(buffer_data.bucket_count * growth_factor);
+    const auto new_bucket_count =
+        buffer_data.bucket_count ? buffer_data.bucket_count * growth_factor : 1;
+    buffer_data = create_buffer(new_bucket_count);
 
     // Rehash
     for (Count bucket_index = 0; bucket_index < current_buffer.bucket_count;
          bucket_index++) {
-      auto occupancy_bits = occupied_slots(current_buffer.bucket_buffer[bucket_index]);
+      auto occupancy_bits =
+          occupied_slots(current_buffer.bucket_buffer[bucket_index]);
       auto occupancy_count = __builtin_popcountg(occupancy_bits);
 
       // If the mask is empty then move to the next block.
@@ -331,15 +338,17 @@ class Map {
       // Rehash each element into the new bucket.
       for (Count entry_index = 0; entry_index < occupancy_count;
            entry_index++) {
-        auto valid_slot =
-            current_buffer.slots_buffer + (bucket_index * sizeof(__m256i)) + entry_index;
+        auto valid_slot = current_buffer.slots_buffer +
+                          (bucket_index * sizeof(__m256i)) + entry_index;
 
         emplace_hashed(valid_slot);
       }
     }
 
     // Remit the old block.
-    Allocator::Bibliotheca::remit(current_buffer.rented_block);
+    if (current_buffer.rented_block) {
+      Allocator::Bibliotheca::remit(current_buffer.rented_block);
+    }
     buffer_data.size = current_buffer.size;
   }
 

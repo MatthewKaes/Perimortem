@@ -115,6 +115,6 @@
     },
     "lldb.displayFormat": "auto",
     "lldb.showDisassembly": "auto",
-    "lldb.dereferencePointers": true,
+    "lldb.dereferencePointers": false,
     "lldb.consoleMode": "commands"
 }
