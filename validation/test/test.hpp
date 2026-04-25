@@ -11,6 +11,16 @@
 
 namespace Validation::Test {
 
+extern auto expected(bool value, bool actual = false) -> void;
+extern auto expected(const char* value, bool actual = false) -> void;
+extern auto expected(int value, bool actual = false) -> void;
+extern auto expected(long long value, bool actual = false) -> void;
+extern auto expected(unsigned long value, bool actual = false) -> void;
+extern auto expected(unsigned long long value, bool actual = false) -> void;
+extern auto expected_text(const unsigned char* value,
+                          unsigned long long size,
+                          bool actual = false) -> void;
+
 extern auto do_nothing() -> void;
 
 enum class TestResult {
@@ -37,21 +47,53 @@ extern auto create(const Harness& harness,
                    const char* file,
                    long line) -> void;
 
-#define EXPECT(expression)                                     \
-  {                                                            \
-    if (!(expression)) {                                       \
-      Validation::Test::log_message(__FILE__, __LINE__,        \
-                                    #expression " was false"); \
-      result = Validation::Test::TestResult::Failed;           \
-    }                                                          \
+// Macros to inject type data without the test library needing to take
+// a dependency on Perimortem directly.
+#define PRINT_RESULT()                          \
+  {                                             \
+    Validation::Test::expected(__check, false); \
+    Validation::Test::expected(__value, true);  \
+  }
+
+#define PRINT_TEXT()                                                           \
+  {                                                                            \
+    Validation::Test::expected_text(__check.get_data(), __check.get_size(), false); \
+    Validation::Test::expected_text(__value.get_data(), __value.get_size(), true);  \
+  }
+
+#define EXPECT(expression)                                       \
+  {                                                              \
+    auto __value = (expression);                                 \
+    auto __check = true;                                         \
+    if (__value != __check) {                                    \
+      Validation::Test::log_message(__FILE__, __LINE__,          \
+                                    #expression " failed test"); \
+      PRINT_RESULT();                                            \
+      result = Validation::Test::TestResult::Failed;             \
+    }                                                            \
+  }
+
+#define ASSERT(expression)                                       \
+  {                                                              \
+    auto __value = (expression);                                 \
+    auto __check = true;                                         \
+    if (__value != __check) {                                    \
+      Validation::Test::log_message(__FILE__, __LINE__,          \
+                                    #expression " failed test"); \
+      PRINT_RESULT();                                            \
+      result = Validation::Test::TestResult::Failed;             \
+      return;                                                    \
+    }                                                            \
   }
 
 #define EXPECT_EQ(expression, expect)                            \
   {                                                              \
     auto __value = (expression);                                 \
-    if (__value != (expect)) {                                   \
+    auto __check = (expect);                                     \
+    if (__value != __check) {                                    \
       Validation::Test::log_message(__FILE__, __LINE__,          \
                                     #expression " != " #expect); \
+      PRINT_RESULT();                                            \
       result = Validation::Test::TestResult::Failed;             \
     }                                                            \
   }
@@ -59,9 +101,11 @@ extern auto create(const Harness& harness,
 #define EXPECT_NEQ(expression, expect)                           \
   {                                                              \
     auto __value = (expression);                                 \
-    if (__value == (expect)) {                                   \
+    auto __check = (expect);                                     \
+    if (__value == __check) {                                    \
       Validation::Test::log_message(__FILE__, __LINE__,          \
-                                    #expression " != " #expect); \
+                                    #expression " == " #expect); \
+      PRINT_RESULT();                                            \
       result = Validation::Test::TestResult::Failed;             \
     }                                                            \
   }
@@ -69,9 +113,11 @@ extern auto create(const Harness& harness,
 #define ASSERT_EQ(expression, expect)                            \
   {                                                              \
     auto __value = (expression);                                 \
-    if (__value != (expect)) {                                   \
+    auto __check = (expect);                                     \
+    if (__value != __check) {                                    \
       Validation::Test::log_message(__FILE__, __LINE__,          \
                                     #expression " != " #expect); \
+      PRINT_RESULT();                                            \
       result = Validation::Test::TestResult::Failed;             \
       return;                                                    \
     }                                                            \
@@ -80,9 +126,37 @@ extern auto create(const Harness& harness,
 #define ASSERT_NEQ(expression, expect)                           \
   {                                                              \
     auto __value = (expression);                                 \
-    if (__value == (expect)) {                                   \
+    auto __check = (expect);                                     \
+    if (__value == __check) {                                    \
+      Validation::Test::log_message(__FILE__, __LINE__,          \
+                                    #expression " == " #expect); \
+      PRINT_RESULT();                                            \
+      result = Validation::Test::TestResult::Failed;             \
+      return;                                                    \
+    }                                                            \
+  }
+
+#define EXPECT_TEXT(expression, expect)                            \
+  {                                                              \
+    auto __value = (expression);                                 \
+    auto __check = (expect);                                     \
+    if (__value != __check) {                                    \
       Validation::Test::log_message(__FILE__, __LINE__,          \
                                     #expression " != " #expect); \
+      PRINT_TEXT();                                            \
+      result = Validation::Test::TestResult::Failed;             \
+    }                                                            \
+  }
+
+
+#define ASSERT_TEXT(expression, expect)                            \
+  {                                                              \
+    auto __value = (expression);                                 \
+    auto __check = (expect);                                     \
+    if (__value != __check) {                                    \
+      Validation::Test::log_message(__FILE__, __LINE__,          \
+                                    #expression " != " #expect); \
+      PRINT_TEXT();                                            \
       result = Validation::Test::TestResult::Failed;             \
       return;                                                    \
     }                                                            \

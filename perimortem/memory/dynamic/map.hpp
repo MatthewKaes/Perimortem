@@ -153,6 +153,36 @@ class Map {
     return &empty_slot->entry;
   }
 
+  constexpr auto emplace(Entry&& item) -> Entry* {
+    return emplace(item.key, item.value);
+  }
+
+  constexpr auto emplace(key_type&& key, value_type&& value) -> Entry* {
+    const auto load_limit =
+        (bucket_size - load_factor) * buffer_data.bucket_count;
+    if (size >= load_limit) {
+      grow();
+    }
+
+    // If the entry already exists than overwrite the value.
+    auto entry = find(key);
+    if (entry) {
+      entry->value = value;
+      return entry;
+    }
+
+    auto hash = get_hash(key);
+    auto empty_slot = get_empty(hash);
+    size += 1;
+
+    empty_slot->hash = hash;
+
+    // Construct using the copy constructor.
+    new (&empty_slot->entry) Entry(key, value);
+
+    return &empty_slot->entry;
+  }
+
   constexpr auto contains(const key_type& key) const -> Bool {
     return find(key) != nullptr;
   }
@@ -160,7 +190,22 @@ class Map {
   constexpr auto at(const key_type& key) -> value_type& {
     auto entry = find(key);
     if (!entry) {
-      entry = insert(key, value_type());
+      const auto load_limit =
+          (bucket_size - load_factor) * buffer_data.bucket_count;
+      if (size >= load_limit) {
+        grow();
+      }
+
+      auto hash = get_hash(key);
+      auto empty_slot = get_empty(hash);
+      size += 1;
+
+      empty_slot->hash = hash;
+
+      // Construct using the copy constructor.
+      new (&empty_slot->entry) Entry(key, value_type());
+
+      entry = &empty_slot->entry;
     }
 
     // Return end block
@@ -238,7 +283,7 @@ class Map {
     auto empty_slot = get_empty(slot->hash);
 
     // Copy over the element, ignoring and construction or destruction.
-    memcpy(empty_slot, slot, sizeof(Slot));
+    memcpy(reinterpret_cast<void*>(empty_slot), slot, sizeof(Slot));
   }
 
   auto destruct() -> void {

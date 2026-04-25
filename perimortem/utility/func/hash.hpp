@@ -214,8 +214,8 @@ class Hash {
 
   // Escape constructor for custom types.
   template <typename hashable_type>
-  constexpr Hash(const hashable_type& bytes) {
-    value = hashable_type::hash();
+  constexpr Hash(const hashable_type& obj) {
+    value = obj.hash();
   }
 
   constexpr auto get_value() const -> Bits_64 { return value; }

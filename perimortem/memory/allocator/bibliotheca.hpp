@@ -97,6 +97,7 @@ class Bibliotheca final {
 
   static auto reserved_memory() -> Static::Vector<Count, radix_range>;
   static auto free_memory() -> Static::Vector<Count, radix_range>;
+  static auto allocated_memory() -> Count;
 };
 
 }  // namespace Perimortem::Memory::Allocator

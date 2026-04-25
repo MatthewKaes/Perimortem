@@ -21,15 +21,24 @@ Dynamic::Bytes::Bytes(Count reserved_capacity) {
 }
 
 Dynamic::Bytes::Bytes(const Core::View::Amorphous view) {
+  size = view.get_size();
+  if (view.get_size() == 0) {
+    return;
+  }
+
   rented_block = Bibliotheca::check_out(view.get_size());
   size = view.get_size();
   memcpy(access(rented_block), view.get_data(), view.get_size());
 }
 
 Dynamic::Bytes::Bytes(const Bytes& rhs) {
+  size = rhs.size;
+  if (rhs.size == 0) {
+    return;
+  }
+
   // Bytes don't require any special handling so just memcpy.
   rented_block = Bibliotheca::check_out(rhs.size);
-  size = rhs.size;
   memcpy(access(rented_block), access(rhs.rented_block), size);
 };
 
@@ -53,8 +62,7 @@ auto Dynamic::Bytes::append(Byte b) -> void {
 auto Dynamic::Bytes::concat(Core::View::Amorphous view) -> void {
   ensure_capacity(size + view.get_size());
 
-  Data::copy(access(rented_block) + size, view.get_data(),
-                      view.get_size());
+  Data::copy(access(rented_block) + size, view.get_data(), view.get_size());
   size += view.get_size();
 }
 
@@ -123,8 +131,7 @@ auto Dynamic::Bytes::ensure_capacity(Count required_size) -> void {
 
   // Attempt to grow by a factor of 2.
   // If that doesn't work than grow to exact size.
-  const auto new_capacity =
-      Math::max(get_capacity() * 2, required_size);
+  const auto new_capacity = Math::max(get_capacity() * 2, required_size);
 
   // Fetch and transfer to new block.
   auto new_block = Bibliotheca::check_out(new_capacity);

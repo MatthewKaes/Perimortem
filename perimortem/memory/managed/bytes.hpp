@@ -4,8 +4,9 @@
 #pragma once
 
 #include "perimortem/core/access/amorphous.hpp"
-#include "perimortem/memory/allocator/arena.hpp"
 #include "perimortem/core/view/amorphous.hpp"
+#include "perimortem/memory/allocator/arena.hpp"
+#include "perimortem/utility/func/hash.hpp"
 
 namespace Perimortem::Memory::Managed {
 
@@ -28,8 +29,8 @@ class Bytes {
   auto resize(Count new_size) -> void;
   auto ensure_capacity(Count required_bytes) -> void;
 
-  // Copies a Core::View::Amorphous which may be in a different allocator (dynamic or
-  // another arena) into the Arena used by this object.
+  // Copies a Core::View::Amorphous which may be in a different allocator
+  // (dynamic or another arena) into the Arena used by this object.
   auto proxy(Core::View::Amorphous view) -> void;
 
   auto append(Byte b) -> void;
@@ -59,6 +60,10 @@ class Bytes {
     return Core::Access::Amorphous(rented_block, size);
   }
   constexpr auto get_arena() const -> Allocator::Arena& { return arena; }
+   
+  constexpr auto hash() const -> Bits_64 {
+    return Utility::Func::Hash(get_view()).get_value();
+  }
 
  private:
   auto grow(Count requested) -> void;

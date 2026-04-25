@@ -31,7 +31,7 @@ class Amorphous {
 
   constexpr auto operator==(const View::Amorphous& rhs) const -> Bool {
     return rhs.size == size &&
-           Utility::Func::Data::compare(source_block, rhs.source_block, size) == 0;
+           Utility::Func::Data::compare(source_block, rhs.source_block, size);
   }
 
   constexpr auto operator!=(const View::Amorphous& rhs) const -> Bool {

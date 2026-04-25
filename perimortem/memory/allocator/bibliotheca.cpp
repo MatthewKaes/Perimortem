@@ -164,8 +164,8 @@ auto Bibliotheca::reserved_memory() -> Static::Vector<Count, radix_range> {
       continue;
     }
 
-    sizes[i] = static_cast<Count>(1)
-               << (min_radix + i) * archive.reserved_blocks;
+    sizes[i] =
+        (static_cast<Count>(1) << (min_radix + i)) * archive.reserved_blocks;
   }
 
   return sizes;
@@ -184,4 +184,16 @@ auto Bibliotheca::free_memory() -> Static::Vector<Count, radix_range> {
   }
 
   return sizes;
+}
+
+auto Bibliotheca::allocated_memory() -> Count {
+  auto reserved = reserved_memory();
+  auto free = free_memory();
+
+  Count allocated = 0;
+  for (Count i = 0; i < reserved.get_size(); i++) {
+    allocated = reserved[i] - free[i];
+  }
+
+  return allocated;
 }

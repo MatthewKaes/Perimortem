@@ -6,6 +6,7 @@
 #include "perimortem/core/access/amorphous.hpp"
 #include "perimortem/core/view/amorphous.hpp"
 #include "perimortem/memory/allocator/bibliotheca.hpp"
+#include "perimortem/utility/func/hash.hpp"
 
 namespace Perimortem::Memory::Dynamic {
 
@@ -17,6 +18,15 @@ class Bytes {
   Bytes(Core::View::Amorphous view);
   Bytes(const Bytes& rhs);
   Bytes(Bytes&& rhs);
+
+  auto operator=(Core::View::Amorphous view) -> Bytes& {
+    proxy(view);
+    return *this;
+  }
+
+  auto operator==(const Bytes& rhs) const -> bool {
+    return get_view() == rhs.get_view();
+  }
 
   ~Bytes();
 
@@ -48,6 +58,10 @@ class Bytes {
   constexpr auto get_access() -> Core::Access::Amorphous {
     return Core::Access::Amorphous(
         Allocator::Bibliotheca::preface_to_corpus(rented_block), size);
+  }
+
+  constexpr auto hash() const -> Bits_64 {
+    return Utility::Func::Hash(get_view()).get_value();
   }
 
   auto clear() -> void;

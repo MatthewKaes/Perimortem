@@ -6,6 +6,7 @@
 #include "perimortem/core/access/amorphous.hpp"
 #include "perimortem/core/view/amorphous.hpp"
 #include "perimortem/core/view/null_terminated.hpp"
+#include "perimortem/utility/func/hash.hpp"
 
 namespace Perimortem::Memory::Static {
 
@@ -77,6 +78,10 @@ class Bytes {
   }
   constexpr auto get_access() -> Core::Access::Amorphous {
     return Core::Access::Amorphous(data.content, literal_size);
+  }
+
+  constexpr auto hash() const -> Bits_64 {
+    return Utility::Func::Hash(get_view()).get_value();
   }
 
  private:

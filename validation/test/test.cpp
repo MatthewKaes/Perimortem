@@ -57,6 +57,56 @@ auto log_message(const char* file, int line, const char* msg) -> void {
   std::cout << file << ":" << line << ":" << "\n    " << msg << "\n";
 }
 
+auto print_result_header(bool actual) -> void {
+  if (actual) {
+    std::cout << "    ACTUAL =  ";
+  } else {
+    std::cout << "  EXPECTED =  ";
+  }
+}
+
+auto expected(bool value, bool actual) -> void {
+  print_result_header(actual);
+  if (value) {
+    std::cout << "true\n";
+  } else {
+    std::cout << "false\n";
+  }
+}
+
+auto expected(const char* value, bool actual) -> void {
+  print_result_header(actual);
+  std::cout << value << "\n";
+}
+
+auto expected(int value, bool actual) -> void {
+  print_result_header(actual);
+  std::cout << value << "\n";
+}
+
+auto expected(long long value, bool actual) -> void {
+  print_result_header(actual);
+  std::cout << value << "\n";
+}
+
+auto expected(unsigned long value, bool actual) -> void {
+  print_result_header(actual);
+  std::cout << value << "\n";
+}
+
+auto expected(unsigned long long value, bool actual) -> void {
+  print_result_header(actual);
+  std::cout << value << "\n";
+}
+
+auto expected_text(const unsigned char* value,
+                   unsigned long long size,
+                   bool actual) -> void {
+  print_result_header(actual);
+  std::cout << std::string_view(reinterpret_cast<const char*>(value), size)
+            << "\n";
+}
+
 extern auto create(const Harness& harness,
                    const char* name,
                    TestFunc func,
@@ -133,14 +183,20 @@ int main() {
       harness->init();
     }
 
+    // Setup
+    harness->setup();
+
     not_run_tests -= 1;
     // std::cout << dark_color << "  [  TEST  ] " << test.name << "\n"
     //           << clear_color;
-    TestResult result;
+    TestResult result = TestResult::Pass;
     high_resolution_clock::time_point start = high_resolution_clock::now();
     test.func(result);
     high_resolution_clock::time_point end = high_resolution_clock::now();
     duration<double, std::milli> test_time = end - start;
+
+    // Tear down
+    harness->teardown();
 
     if (test_time > longest_test.time) {
       longest_test.time = test_time;
