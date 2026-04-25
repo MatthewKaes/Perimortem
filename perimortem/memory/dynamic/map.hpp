@@ -40,10 +40,11 @@ class Map {
   };
 
   struct BufferData {
-    Count bucket_count = start_capacity;
     Allocator::Bibliotheca::Preface* rented_block = nullptr;
     __m256i* bucket_buffer = nullptr;
     Slot* slots_buffer = nullptr;
+    Bits_32 bucket_count = start_capacity;
+    Bits_32 size = 0;
   };
 
   static constexpr Count bucket_size = sizeof(__m256i);
@@ -66,8 +67,8 @@ class Map {
   }
 
   Map(const Map& rhs) {
-    size = rhs.size;
     buffer_data = create_buffer(rhs.buffer_data.bucket_count);
+    buffer_data.size = rhs.buffer_data.size;
 
     memcpy(
         Allocator::Bibliotheca::preface_to_corpus(buffer_data.rented_block),
@@ -102,10 +103,8 @@ class Map {
   }
 
   Map(Map&& rhs) {
-    size = rhs.size;
     buffer_data = rhs.buffer_data;
 
-    rhs.size = 0;
     rhs.buffer_data = BufferData();
   };
 
@@ -119,7 +118,7 @@ class Map {
   auto reset() -> void {
     destruct();
 
-    size = 0;
+    buffer_data.size = 0;
   }
 
   constexpr auto insert(const Entry& item) -> Entry* {
@@ -130,7 +129,7 @@ class Map {
       -> Entry* {
     const auto load_limit =
         (bucket_size - load_factor) * buffer_data.bucket_count;
-    if (size >= load_limit) {
+    if (buffer_data.size >= load_limit) {
       grow();
     }
 
@@ -143,7 +142,7 @@ class Map {
 
     auto hash = get_hash(key);
     auto empty_slot = get_empty(hash);
-    size += 1;
+    buffer_data.size += 1;
 
     empty_slot->hash = hash;
 
@@ -160,7 +159,7 @@ class Map {
   constexpr auto emplace(key_type&& key, value_type&& value) -> Entry* {
     const auto load_limit =
         (bucket_size - load_factor) * buffer_data.bucket_count;
-    if (size >= load_limit) {
+    if (buffer_data.size >= load_limit) {
       grow();
     }
 
@@ -173,7 +172,7 @@ class Map {
 
     auto hash = get_hash(key);
     auto empty_slot = get_empty(hash);
-    size += 1;
+    buffer_data.size += 1;
 
     empty_slot->hash = hash;
 
@@ -192,13 +191,13 @@ class Map {
     if (!entry) {
       const auto load_limit =
           (bucket_size - load_factor) * buffer_data.bucket_count;
-      if (size >= load_limit) {
+      if (buffer_data.size >= load_limit) {
         grow();
       }
 
       auto hash = get_hash(key);
       auto empty_slot = get_empty(hash);
-      size += 1;
+      buffer_data.size += 1;
 
       empty_slot->hash = hash;
 
@@ -216,7 +215,7 @@ class Map {
     return at(key);
   }
 
-  constexpr auto get_size() const -> Count { return size; }
+  constexpr auto get_size() const -> Count { return buffer_data.size; }
   constexpr auto get_memory_consumption() const -> Count {
     return buffer_data.rented_block->get_memory_consumption();
   }
@@ -313,18 +312,15 @@ class Map {
 
   auto grow() -> void {
     // Store the old values to clone.
-    auto current_bucket_count = buffer_data.bucket_count;
-    auto current_buckets = buffer_data.bucket_buffer;
-    auto current_slots = buffer_data.slots_buffer;
-    auto current_preface = buffer_data.rented_block;
+    auto current_buffer = buffer_data;
 
     // Get a fresh block
     buffer_data = create_buffer(buffer_data.bucket_count * growth_factor);
 
     // Rehash
-    for (Count bucket_index = 0; bucket_index < current_bucket_count;
+    for (Count bucket_index = 0; bucket_index < current_buffer.bucket_count;
          bucket_index++) {
-      auto occupancy_bits = occupied_slots(current_buckets[bucket_index]);
+      auto occupancy_bits = occupied_slots(current_buffer.bucket_buffer[bucket_index]);
       auto occupancy_count = __builtin_popcountg(occupancy_bits);
 
       // If the mask is empty then move to the next block.
@@ -336,14 +332,15 @@ class Map {
       for (Count entry_index = 0; entry_index < occupancy_count;
            entry_index++) {
         auto valid_slot =
-            current_slots + (bucket_index * sizeof(__m256i)) + entry_index;
+            current_buffer.slots_buffer + (bucket_index * sizeof(__m256i)) + entry_index;
 
         emplace_hashed(valid_slot);
       }
     }
 
     // Remit the old block.
-    Allocator::Bibliotheca::remit(current_preface);
+    Allocator::Bibliotheca::remit(current_buffer.rented_block);
+    buffer_data.size = current_buffer.size;
   }
 
   constexpr auto get_hash(const key_type& key) const -> Bits_64 {
@@ -421,7 +418,6 @@ class Map {
     return new_buffer;
   }
 
-  Count size = 0;
   BufferData buffer_data;
 };
 

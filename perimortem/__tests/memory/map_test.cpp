@@ -63,9 +63,13 @@ class Hashable {
   Count& destruct_count;
 };
 
-PERIMORTEM_UNIT_TEST(DynamicMap, empty_map) {
+PERIMORTEM_UNIT_TEST(DynamicMap, empty) {
   Dynamic::Map<Int, Int> empty_map;
+
+  // Two maps fit in a cache line.
+  EXPECT_EQ(sizeof(empty_map), 32);
   EXPECT_EQ(empty_map.get_size(), 0);
+  EXPECT_EQ(empty_map.get_memory_consumption(), 1 << 10);
 }
 
 PERIMORTEM_UNIT_TEST(DynamicMap, simple_construction) {
@@ -75,6 +79,20 @@ PERIMORTEM_UNIT_TEST(DynamicMap, simple_construction) {
   ASSERT_EQ(int_map[1], 2);
   EXPECT_EQ(int_map[2], 3);
   EXPECT_EQ(int_map[4], 5);
+}
+
+PERIMORTEM_UNIT_TEST(DynamicMap, insert_on_index) {
+  Dynamic::Map<Int, Int> empty_map;
+
+  // Populate defaults
+  for (Int i = 0; i < 10; i++) {
+    empty_map[i];
+  }
+
+  EXPECT_EQ(empty_map.get_size(), 10);
+  for (Int i = 0; i < 10; i++) {
+    EXPECT(empty_map.contains(i));
+  }
 }
 
 PERIMORTEM_UNIT_TEST(DynamicMap, duplicate_keys) {
@@ -225,6 +243,31 @@ PERIMORTEM_UNIT_TEST(DynamicMap, dynamic_value) {
   ASSERT_TEXT(text_map[1].get_view(), "World"_view);
   ASSERT_TEXT(text_map[2].get_view(), "Longer test string"_view);
 }
+
+
+PERIMORTEM_UNIT_TEST(DynamicMap, size) {
+  Dynamic::Map<Int, Int> empty_map;
+  EXPECT_EQ(empty_map.get_size(), 0);
+}
+
+PERIMORTEM_UNIT_TEST(DynamicMap, reuse) {
+  Dynamic::Map<Int, Int> reuse_map;
+
+  for (Int loops = 0; loops < 5; loops++) {
+    reuse_map.reset();
+    ASSERT_EQ(reuse_map.get_size(), 0);
+
+    for (Int i = 0; i < 100; i++) {
+      reuse_map[i] = i;
+    }
+
+    ASSERT_EQ(reuse_map.get_size(), 100);
+    for (Int i = 0; i < 100; i++) {
+      ASSERT_EQ(reuse_map[i], i);
+    }
+  }
+}
+
 
 PERIMORTEM_UNIT_TEST(DynamicMap, leak_test) {
   auto pre_test_memory = Allocator::Bibliotheca::allocated_memory();
