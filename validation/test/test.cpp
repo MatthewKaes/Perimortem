@@ -13,6 +13,7 @@
 #include "validation/test/test.hpp"
 
 #include <chrono>
+#include <cstring>
 #include <iomanip>
 #include <iostream>
 #include <vector>
@@ -153,8 +154,13 @@ int main() {
   not_run_tests = binary_tests.size();
 
   Benchmark longest_test;
+  unsigned longest_test_name = 12;
 
   for (const auto& test : binary_tests) {
+    if (std::strlen(test.name) > longest_test_name) {
+      longest_test_name = std::strlen(test.name);
+    }
+
     if (&test.harness != harness) {
       test_suites += 1;
       harness = &test.harness;
@@ -209,11 +215,13 @@ int main() {
     switch (result) {
       case TestResult::Pass:
         passed_tests += 1;
-        std::cout << pass_color << "  [  PASS  ] " << test.name;
+        std::cout << pass_color << "  [  PASS  ] "
+                  << std::setw(longest_test_name + 2) << test.name;
         break;
       case TestResult::Failed:
         failed_tests += 1;
-        std::cout << fail_color << "  [  FAIL  ] " << test.name;
+        std::cout << fail_color << "  [  FAIL  ] "
+                  << std::setw(longest_test_name + 2) << test.name;
         break;
     }
 

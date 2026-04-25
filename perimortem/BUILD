@@ -2,8 +2,8 @@
 Perimortem::Core - Home to all common utilities and classes
 """
 
-load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
 
 package(default_visibility = ["//visibility:public"])
 
@@ -121,12 +121,26 @@ cc_library(
 #     ],
 # )
 
+cc_library(
+    name = "__tests_lib",
+    hdrs = glob([
+        "__tests/memory/*.hpp",
+    ]),
+    includes = ["."],
+    deps = [
+        ":memory",
+        "//validation:test",
+    ],
+)
+
 cc_binary(
     name = "__tests",
+    includes = ["."],
     srcs = glob([
         "__tests/memory/*.cpp",
     ]),
     deps = [
+        ":__tests_lib",
         ":perimortem",
         "//validation:test",
     ],

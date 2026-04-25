@@ -29,10 +29,25 @@ namespace Perimortem::Memory::Dynamic {
 // performance for iteration) and to improve cache performance for small key /
 // value pairs, although any major gains are offset by storing the 8 hash
 // inline.
-template <typename key_type, typename value_type>
+template <typename key_type, typename value_type, bool optimize_size = True>
 class Map {
+  template <bool>
+  struct VectorType {
+    using Type = __m256i;
+    using MaskType = Bits_32;
+  };
+
+  template <>
+  struct VectorType<True> {
+    using Type = __m128i;
+    using MaskType = Bits_16;
+  };
+
+  using vectorize_type = VectorType<optimize_size>::Type;
+  using mask_type = VectorType<optimize_size>::MaskType;
+
  public:
-  static constexpr Count bucket_size = sizeof(__m256i);
+  static constexpr Count bucket_size = sizeof(vectorize_type);
 
   // Number of elements per bucket to hold back.
   // Holding back 2 elements results in a load factor of 0.9375 for wide
@@ -48,7 +63,7 @@ class Map {
 
   struct BufferData {
     Allocator::Bibliotheca::Preface* rented_block = nullptr;
-    __m256i* bucket_buffer = nullptr;
+    vectorize_type* bucket_buffer = nullptr;
     Slot* slots_buffer = nullptr;
     Bits_32 bucket_count = 0;
     Bits_32 size = 0;
@@ -120,7 +135,8 @@ class Map {
       return;
     }
 
-    auto new_bucket_count = buffer_data.bucket_count == 0 ? 1 : buffer_data.bucket_count << 1;
+    auto new_bucket_count =
+        buffer_data.bucket_count == 0 ? 1 : buffer_data.bucket_count << 1;
     while (load_factor * new_bucket_count <= items) {
       new_bucket_count <<= 1;
     }
@@ -371,25 +387,39 @@ class Map {
   }
 
   // Returns a bit mask of all possible slots.
-  static constexpr auto extract_possible_matches(__m256i bucket, Byte vi)
-      -> Bits_32 {
-    const auto test_vector = _mm256_set1_epi8(vi);
-    const auto mask = _mm256_cmpeq_epi8(bucket, test_vector);
-    return _mm256_movemask_epi8(mask);
+  static constexpr auto extract_possible_matches(vectorize_type bucket, Byte vi)
+      -> mask_type {
+    if constexpr (optimize_size) {
+      const auto test_vector = _mm_set1_epi8(vi);
+      const auto mask = _mm_cmpeq_epi8(bucket, test_vector);
+      return mask_type(_mm_movemask_epi8(mask));
+    } else {
+      const auto test_vector = _mm256_set1_epi8(vi);
+      const auto mask = _mm256_cmpeq_epi8(bucket, test_vector);
+      return mask_type(_mm256_movemask_epi8(mask));
+    }
   }
 
   // Use the control bit of every byte as the occupancy mask.
-  static constexpr auto occupied_slots(__m256i bucket) -> Bits_32 {
-    return _mm256_movemask_epi8(bucket);
+  static constexpr auto occupied_slots(vectorize_type bucket) -> mask_type {
+    if constexpr (optimize_size) {
+      return mask_type(_mm_movemask_epi8(bucket));
+    } else {
+      return mask_type(_mm256_movemask_epi8(bucket));
+    }
   }
 
   // The block is full if every bit in the occupancy mask is set.
-  static constexpr auto full_block(Bits_32 occupancy_bits) -> Bool {
-    return occupancy_bits == 0b11111111'11111111'11111111'11111111U;
+  static constexpr auto full_block(mask_type occupancy_bits) -> Bool {
+    return occupancy_bits == mask_type(-1);
   }
 
-  static constexpr auto clear_bucket(__m256i* bucket) -> void {
-    *bucket = _mm256_setzero_pd();
+  static constexpr auto clear_bucket(vectorize_type* bucket) -> void {
+    if constexpr (optimize_size) {
+      *bucket = _mm_setzero_pd();
+    } else {
+      *bucket = _mm256_setzero_pd();
+    }
   }
 
   constexpr static auto get_header_size(Count bucket_count) -> Count {
@@ -410,14 +440,14 @@ class Map {
   static auto create_buffer(Count buckets) -> BufferData {
     BufferData new_buffer;
     new_buffer.bucket_count = buckets;
-    new_buffer.rented_block = Allocator::Bibliotheca::check_out(
-        required_buffer_size(new_buffer.bucket_count));
+    const auto required_size = required_buffer_size(new_buffer.bucket_count);
+    new_buffer.rented_block = Allocator::Bibliotheca::check_out(required_size);
 
     // Caculate a valid bucket location with proper alignment.
     Byte* address =
         Allocator::Bibliotheca::preface_to_corpus(new_buffer.rented_block);
     address += bucket_size - (Count(address) % bucket_size);
-    new_buffer.bucket_buffer = reinterpret_cast<__m256i*>(address);
+    new_buffer.bucket_buffer = reinterpret_cast<vectorize_type*>(address);
     // Slot data is everything directly after the bucket count.
     // This keeps us 32 byte aligned which should be good for any types.
     new_buffer.slots_buffer =

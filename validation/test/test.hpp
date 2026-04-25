@@ -11,15 +11,15 @@
 
 namespace Validation::Test {
 
-extern auto expected(bool value, bool actual = false) -> void;
-extern auto expected(const char* value, bool actual = false) -> void;
-extern auto expected(int value, bool actual = false) -> void;
-extern auto expected(long long value, bool actual = false) -> void;
-extern auto expected(unsigned long value, bool actual = false) -> void;
-extern auto expected(unsigned long long value, bool actual = false) -> void;
+extern auto expected(bool value, bool actual) -> void;
+extern auto expected(const char* value, bool actual) -> void;
+extern auto expected(int value, bool actual) -> void;
+extern auto expected(long long value, bool actual) -> void;
+extern auto expected(unsigned long value, bool actual) -> void;
+extern auto expected(unsigned long long value, bool actual) -> void;
 extern auto expected_text(const unsigned char* value,
                           unsigned long long size,
-                          bool actual = false) -> void;
+                          bool actual) -> void;
 
 extern auto do_nothing() -> void;
 
@@ -55,10 +55,12 @@ extern auto create(const Harness& harness,
     Validation::Test::expected(__value, true);  \
   }
 
-#define PRINT_TEXT()                                                           \
-  {                                                                            \
-    Validation::Test::expected_text(__check.get_data(), __check.get_size(), false); \
-    Validation::Test::expected_text(__value.get_data(), __value.get_size(), true);  \
+#define PRINT_TEXT()                                                        \
+  {                                                                         \
+    Validation::Test::expected_text(__check.get_data(), __check.get_size(), \
+                                    false);                                 \
+    Validation::Test::expected_text(__value.get_data(), __value.get_size(), \
+                                    true);                                  \
   }
 
 #define EXPECT(expression)                                       \
@@ -136,27 +138,26 @@ extern auto create(const Harness& harness,
     }                                                            \
   }
 
-#define EXPECT_TEXT(expression, expect)                            \
+#define EXPECT_TEXT(expression, expect)                          \
   {                                                              \
     auto __value = (expression);                                 \
     auto __check = (expect);                                     \
     if (__value != __check) {                                    \
       Validation::Test::log_message(__FILE__, __LINE__,          \
                                     #expression " != " #expect); \
-      PRINT_TEXT();                                            \
+      PRINT_TEXT();                                              \
       result = Validation::Test::TestResult::Failed;             \
     }                                                            \
   }
 
-
-#define ASSERT_TEXT(expression, expect)                            \
+#define ASSERT_TEXT(expression, expect)                          \
   {                                                              \
     auto __value = (expression);                                 \
     auto __check = (expect);                                     \
     if (__value != __check) {                                    \
       Validation::Test::log_message(__FILE__, __LINE__,          \
                                     #expression " != " #expect); \
-      PRINT_TEXT();                                            \
+      PRINT_TEXT();                                              \
       result = Validation::Test::TestResult::Failed;             \
       return;                                                    \
     }                                                            \
@@ -175,10 +176,10 @@ class UnitTest {
 
 }  // namespace Validation::Test
 
-#define PERIMORTEM_UNIT_TEST(harness, name)                              \
-  auto __##name(Validation::Test::TestResult& result) -> void;           \
-  namespace {                                                            \
-  Validation::Test::UnitTest _reg_##name = {DynamicMap, #name, __##name, \
-                                            __FILE__, __LINE__};         \
-  }                                                                      \
-  auto __##name(Validation::Test::TestResult& result) -> void
+#define PERIMORTEM_UNIT_TEST(harness, name)                               \
+  auto __ ##harness##__##name(Validation::Test::TestResult& result) -> void; \
+  namespace {                                                             \
+  Validation::Test::UnitTest _reg_##name = {                              \
+      harness, #name, __##harness##__##name, __FILE__, __LINE__};        \
+  }                                                                       \
+  auto __ ##harness##__##name(Validation::Test::TestResult& result) -> void
