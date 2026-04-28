@@ -1,90 +1,145 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
+// #include <chrono>
+// #include <random>
+// #include <sstream>
+// #include <thread>
+
 #include "perimortem/system/random.hpp"
 #include "perimortem/utility/func/hash.hpp"
 
 #include <immintrin.h>
 
-#include <chrono>
-#include <random>
-#include <sstream>
-#include <thread>
-
 using namespace Perimortem::System;
 using namespace Perimortem::Core;
 using namespace Perimortem::Utility::Func;
 
-Bits_64 base_seed =
-    0b01011011'10110110'11111000'01010111'00010111'01000111'11101000'00111100ULL;
+static constexpr Count channel_depth = 4;
+static constexpr Count max_index =
+    sizeof(__m256i) / sizeof(Bits_64) * channel_depth;
 
-// TODO: Replace the engine with std::philox4x64 when it becomes available.
-using random_engine = std::mt19937_64;
+struct alignas(32) PhiloxOutputs {
+  Bits_64 counter[max_index];
+};
 
-// A PRNG generator that pulls in a few sources of entropy over random_device
-// to provide better overall seeding.
+struct PhiloxState {
+  static constexpr Count round_count = 10;
+  // Pack all of the constants into the lower bits.
+  static constexpr __m256i philox4x32_constants =
+      _mm256_set_epi64x(SignedBits_64(0x00000000'D2511F53),
+                        SignedBits_64(0x00000000'CD9E8D57),
+                        SignedBits_64(0x00000000'D2511F53),
+                        SignedBits_64(0x00000000'CD9E8D57));
+  static constexpr __m256i philox4x32_xor_mask =
+      _mm256_set_epi64x(SignedBits_64(0xFFFFFFFF'00000000),
+                        SignedBits_64(0xFFFFFFFF'00000000),
+                        SignedBits_64(0xFFFFFFFF'00000000),
+                        SignedBits_64(0xFFFFFFFF'00000000));
+  static constexpr __m256i philox4x32_weyl =
+      _mm256_set_epi64x(SignedBits_64(0x9E2779B9'00000000),
+                        SignedBits_64(0xBB67AE85'00000000),
+                        SignedBits_64(0x9E2779B9'00000000),
+                        SignedBits_64(0xBB67AE85'00000000));
+  static constexpr __m256i philox4x32_increment =
+      _mm256_set_epi64x(0, channel_depth, 0, channel_depth);
+  // Rolls they counter by 1 key.
+  // This swaps the hi portion between 64 bit sets and shifts the low to hi.
+  static constexpr Bits_8 counter_shuffle = 0b10'01'00'11;
+
+  // List of output values.
+  PhiloxOutputs output_state;
+
+  // Setup two parallel channels with different keys and counters.
+  __m256i dual_channel_key;
+  __m256i dual_channel_counter;
+
+  // Index into the output array.
+  Count index;
+};
+
+auto read_rand() -> Bits_64 {
+  Bits_64 value;
+  Count timeout = 100000;
+  while (!_rdrand64_step(&value) and timeout) {
+    timeout -= 1;
+  }
+
+  // Something choked for this seed value so just use some rand value as a
+  // fallback.
+  if (timeout == 0) {
+    return Count(rand()) << 32 bitand Count(rand());
+  }
+
+  return value;
+}
+
+// Create multiple AVX channels with each channel caculating two philox4x32.
 //
-// Should be updated to a proper system per OS but is in general mostly
-// portable for x86_64 systems.
-auto create_prng() -> random_engine {
-  constexpr auto seed_count = 2;
-  Bits_64 seed_values[seed_count];
-
-  // Get the random device, which may be deterministic.
-  Bool rdrand_success = true;
-  for (Count i = 0; i < seed_count; i++) {
-    rdrand_success &=
-        _rdrand64_step(reinterpret_cast<unsigned long long*>(seed_values + i));
+// With a channel depth of 4 that gives us a total of 8 philox4x32 generators
+// caculated with each counter bump resulting in 16 random 64 bit values.
+constexpr auto bump_counter(PhiloxState& state) -> void {
+  __m256i philox_keys = state.dual_channel_key;
+  __m256i philox_channels[channel_depth];
+  philox_channels[0] = state.dual_channel_counter;
+  for (Count i = 1; i < channel_depth; i++) {
+    // Use set1 to bump the lower counter of every state.
+    philox_channels[i] =
+        _mm256_add_epi64(state.dual_channel_key, _mm256_set1_epi64x(i));
   }
 
-  // Catch microcode issues generating "valid" strings of the same value but
-  // reporting successfull generation. e.g. The Zen2 microcode bug.
-  //
-  // On a very rare occassion this could cause us to fail a valid generation
-  // that legitimately created the same key twice.
-  if (rdrand_success && seed_values[0] == seed_values[1]) {
-    rdrand_success = false;
-  }
+  for (Count round = 0; round < PhiloxState::round_count; round++) {
+    for (Count i = 1; i < channel_depth; i++) {
+      const auto hilo_mul = _mm256_mul_epu32(philox_channels[i],
+                                             PhiloxState::philox4x32_constants);
+      const auto xor_mask = _mm256_and_si256(philox_channels[i],
+                                             PhiloxState::philox4x32_xor_mask);
+      const auto eval = _mm256_xor_si256(hilo_mul, xor_mask);
+      philox_channels[i] = _mm256_shuffle_epi32(
+          _mm256_xor_si256(eval, philox_keys), PhiloxState::counter_shuffle);
+    }
 
-  // rdrand could fail for a number of reasons so if it fails we'll fall back to
-  // a std::random_device.
-  if (!rdrand_success) {
-    std::random_device rd;
-
-    for (Count i = 0; i < seed_count; i++) {
-      seed_values[i] = rd();
+    if (round != PhiloxState::round_count - 1) {
+      philox_keys = _mm256_add_epi64(philox_keys, PhiloxState::philox4x32_weyl);
     }
   }
 
-  // Contrived thread data to spread out thread generation.
-  std::stringstream id_stream;
-  id_stream << std::this_thread::get_id();
-  auto thread_value = id_stream.str();
-  auto thread_hash =
-      Hash(View::Amorphous(reinterpret_cast<const Byte*>(thread_value.c_str()),
-                           thread_value.size()));
+  for (Count i = 0; i < channel_depth; i++) {
+    _mm256_store_si256(reinterpret_cast<__m256i*>(&state.output_state) + i,
+                       philox_channels[i]);
+  }
 
-  // Contrived time data to spread out over various runs.
-  auto time = std::chrono::system_clock::now();
-  auto time_hash =
-      Hash(static_cast<Bits_64>(time.time_since_epoch().count()));
+  // Bump counter and reset index
+  state.dual_channel_counter = _mm256_add_epi64(
+      state.dual_channel_counter, PhiloxState::philox4x32_increment);
+  state.index = 0;
+}
 
-  std::seed_seq sd{
-      seed_values[0 % seed_count] ^ static_cast<Int>(base_seed),
-      seed_values[1 % seed_count] ^ static_cast<Int>(base_seed >> 32),
-      seed_values[2 % seed_count] ^
-          static_cast<Int>(thread_hash.get_value() >> 32),
-      seed_values[3 % seed_count] ^ static_cast<Int>(thread_hash.get_value()),
-      seed_values[4 % seed_count] ^
-          static_cast<Int>(time_hash.get_value() >> 32),
-      seed_values[5 % seed_count] ^ static_cast<Int>(time_hash.get_value())};
+// Creates a Philox State for PRNG generation that pulls in 48 bytes of random
+// data vastly reduce the chance that any two invocations
+auto create_prng() -> PhiloxState {
+  PhiloxState state;
+  state.index = 0;
 
-  // Cascade to the base seed so no two threads start with the same base.
-  base_seed = time_hash.Rehash(thread_hash.Rehash(base_seed));
-  return random_engine(sd);
+  // Load the channel seeds (16 bytes of random)
+  Bits_64 keys[] = {read_rand(), read_rand()};
+  state.dual_channel_key =
+      _mm256_set_epi32(Bits_32(keys[0] >> 32), 0, Bits_32(keys[0]), 0,
+                       Bits_32(keys[1] >> 32), 0, Bits_32(keys[1]), 0);
+
+  // Load the counter seeds (32 bytes of random)
+  state.dual_channel_counter =
+      _mm256_set_epi64x(read_rand(), read_rand(), read_rand(), read_rand());
+
+  return state;
 }
 
 auto Random::generate() -> Bits_64 {
-  thread_local static random_engine engine = create_prng();
-  return engine();
+  thread_local static PhiloxState engine = create_prng();
+
+  if (engine.index == max_index) {
+    bump_counter(engine);
+  }
+
+  return engine.output_state.counter[engine.index++];
 }

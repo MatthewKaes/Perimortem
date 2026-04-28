@@ -35,7 +35,6 @@ cc_library(
     name = "utility",
     srcs = [],
     hdrs = glob([
-        "utility/extensions/*.hpp",
         "utility/func/*.hpp",
         "utility/type/*.hpp",
     ]),

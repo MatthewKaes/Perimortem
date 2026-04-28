@@ -12,6 +12,8 @@
 
 namespace Perimortem::Memory::Dynamic {
 
+enum class MapVectorization { Full, Partial, Scalar };
+
 // Unordered flat map with a two stage look up to optimize for insert, delete
 // and find operations. Optimized for value type
 //
@@ -29,24 +31,56 @@ namespace Perimortem::Memory::Dynamic {
 // performance for iteration) and to improve cache performance for small key /
 // value pairs, although any major gains are offset by storing the 8 hash
 // inline.
-template <typename key_type, typename value_type, bool optimize_size = True>
+template <typename key_type,
+          typename value_type,
+          MapVectorization vector_mode = MapVectorization::Full>
 class Map {
-  template <bool>
+ public:
+  using Entry = Utility::Type::Pair<key_type, value_type>;
+
+  // Internal configuration of data type
+ private:
+  struct SlotInlineHash {
+    Entry entry;
+    Bits_64 hash;
+  };
+
+  struct SlotEntryOnly {
+    Entry entry;
+  };
+
+  template <MapVectorization>
   struct VectorType {
     using Type = __m256i;
     using MaskType = Bits_32;
+    using KeyType = Bits_8;
+    using InputHash = Bits_64;
+    using SlotType = SlotInlineHash;
   };
 
   template <>
-  struct VectorType<True> {
+  struct VectorType<MapVectorization::Partial> {
     using Type = __m128i;
     using MaskType = Bits_16;
+    using KeyType = Bits_8;
+    using InputHash = Bits_64;
+    using SlotType = SlotInlineHash;
   };
 
-  using vectorize_type = VectorType<optimize_size>::Type;
-  using mask_type = VectorType<optimize_size>::MaskType;
+  template <>
+  struct VectorType<MapVectorization::Scalar> {
+    using Type = Bits_32;
+    using MaskType = bool;
+    using KeyType = Bits_32;
+    using InputHash = Bits_32;
+    using SlotType = SlotEntryOnly;
+  };
 
- public:
+  using vectorize_type = VectorType<vector_mode>::Type;
+  using mask_type = VectorType<vector_mode>::MaskType;
+  using vector_key_type = VectorType<vector_mode>::KeyType;
+  using slot_type = VectorType<vector_mode>::SlotType;
+  using input_hash_type = VectorType<vector_mode>::InputHash;
   static constexpr Count bucket_size = sizeof(vectorize_type);
 
   // Number of elements per bucket to hold back.
@@ -54,21 +88,15 @@ class Map {
   // and a load factor of 0.875 for narrow.
   static constexpr Count load_factor = bucket_size - 2;
 
-  using Entry = Utility::Type::Pair<key_type, value_type>;
-
-  struct Slot {
-    Bits_64 hash;
-    Entry entry;
-  };
-
   struct BufferData {
     Allocator::Bibliotheca::Preface* rented_block = nullptr;
     vectorize_type* bucket_buffer = nullptr;
-    Slot* slots_buffer = nullptr;
+    slot_type* slots_buffer = nullptr;
     Bits_32 bucket_count = 0;
     Bits_32 size = 0;
   };
 
+ public:
   Map() { buffer_data = BufferData(); }
   Map(Count inital_capacity) { ensure_capacity(inital_capacity); }
 
@@ -100,11 +128,11 @@ class Map {
            bucket_index++) {
         auto occupancy_bits = occupied_slots(buckets[bucket_index]);
 
-        auto occupancy_count = __builtin_popcountg(occupancy_bits);
         if (!occupancy_bits) {
           continue;
         }
 
+        auto occupancy_count = __builtin_popcountg(occupancy_bits);
         for (Count bit_index = 0; bit_index < occupancy_count; bit_index++) {
           auto target_slot = slots + (bucket_index * bucket_size) + bit_index;
           auto source_entry =
@@ -130,18 +158,31 @@ class Map {
   }
 
   auto ensure_capacity(Count items) -> void {
-    const auto load_limit = load_factor * buffer_data.bucket_count;
-    if (items <= load_limit) {
-      return;
-    }
+    if constexpr (vector_mode == MapVectorization::Scalar) {
+      if (items <= buffer_data.bucket_count * 0.9) {
+        return;
+      }
 
-    auto new_bucket_count =
-        buffer_data.bucket_count == 0 ? 1 : buffer_data.bucket_count << 1;
-    while (load_factor * new_bucket_count <= items) {
-      new_bucket_count <<= 1;
-    }
+      auto new_bucket_count =
+          buffer_data.bucket_count == 0 ? 2 : buffer_data.bucket_count << 1;
+      while (new_bucket_count * 0.9 <= items) {
+        new_bucket_count <<= 1;
+      }
 
-    grow(new_bucket_count);
+      grow(new_bucket_count);
+    } else {
+      const auto load_limit = load_factor * buffer_data.bucket_count;
+      if (items <= load_limit) {
+        return;
+      }
+      auto new_bucket_count =
+          buffer_data.bucket_count == 0 ? 1 : buffer_data.bucket_count << 1;
+      while (load_factor * new_bucket_count <= items) {
+        new_bucket_count <<= 1;
+      }
+
+      grow(new_bucket_count);
+    }
   }
 
   auto reset() -> void {
@@ -169,7 +210,10 @@ class Map {
     auto empty_slot = get_empty(hash);
     buffer_data.size += 1;
 
-    empty_slot->hash = hash;
+    // Scalar maps store the full hash in the bucket.
+    if constexpr (vector_mode != MapVectorization::Scalar) {
+      empty_slot->hash = hash;
+    }
 
     // Construct using the copy constructor.
     new (&empty_slot->entry) Entry(key, value);
@@ -195,7 +239,10 @@ class Map {
     auto empty_slot = get_empty(hash);
     buffer_data.size += 1;
 
-    empty_slot->hash = hash;
+    // Scalar maps store the full hash in the bucket.
+    if constexpr (vector_mode != MapVectorization::Scalar) {
+      empty_slot->hash = hash;
+    }
 
     // Construct using the copy constructor.
     new (&empty_slot->entry) Entry(key, value);
@@ -216,7 +263,10 @@ class Map {
       auto empty_slot = get_empty(hash);
       buffer_data.size += 1;
 
-      empty_slot->hash = hash;
+      // Scalar maps store the full hash in the bucket.
+      if constexpr (vector_mode != MapVectorization::Scalar) {
+        empty_slot->hash = hash;
+      }
 
       // Construct using the copy constructor.
       new (&empty_slot->entry) Entry(key, value_type());
@@ -232,9 +282,24 @@ class Map {
     return at(key);
   }
 
+  constexpr auto find_or_default(const key_type& key,
+                                 const key_type& value) const
+      -> const key_type& {
+        auto entry = find(key);
+        if (!entry) {
+          return value;
+        } else {
+          return entry->value;
+        }
+      }
+
   constexpr auto get_size() const -> Count { return buffer_data.size; }
   constexpr auto get_capacity() const -> Count {
-    return buffer_data.bucket_count * bucket_size;
+    if constexpr (vector_mode == MapVectorization::Scalar) {
+      return buffer_data.bucket_count;
+    } else {
+      return buffer_data.bucket_count * bucket_size;
+    }
   }
   constexpr auto get_memory_consumption() const -> Count {
     return Allocator::Bibliotheca::get_memory_consumption(
@@ -255,31 +320,52 @@ class Map {
     auto slots = buffer_data.slots_buffer;
     auto bucket_count = buffer_data.bucket_count;
 
-    while (true) {
-      auto possible_matches = extract_possible_matches(buckets[bi], vi);
-      while (possible_matches) {
-        auto index = __builtin_ctzg(possible_matches);
-        auto target_slot = slots + (bi * bucket_size) + index;
-        if (target_slot->hash == hash && target_slot->entry.key == key) {
-          return &target_slot->entry;
+    if constexpr (vector_mode == MapVectorization::Scalar) {
+      auto possible_buckets = get_size();
+      for (Count i = 0; i < possible_buckets; i++) {
+        auto possible_match = extract_possible_matches(buckets[bi], vi);
+        if (possible_match) {
+          auto target_slot = slots + bi;
+          if (target_slot->entry.key == key) {
+            return &target_slot->entry;
+          }
+        } else if (!occupied_slots(buckets[bi])) {
+          return nullptr;
         }
 
-        // Remove the incorrect match.
-        possible_matches ^= 1 << index;
+        // If jthe bucket is full then move to the next bucket.
+        bi = (bi + 1) & (bucket_count - 1);
       }
 
-      // If the bucket isn't full then the key isn't contained in the map.
-      auto occupancy_bits = occupied_slots(buckets[bi]);
-      if (!full_block(occupancy_bits))
-        return nullptr;
+      return nullptr;
+    } else {
+      while (true) {
+        auto possible_matches = extract_possible_matches(buckets[bi], vi);
 
-      // If jthe bucket is full then move to the next bucket.
-      bi = (bi + 1) & (bucket_count - 1);
+        while (possible_matches) {
+          auto index = __builtin_ctzg(possible_matches);
+          auto target_slot = slots + (bi * bucket_size) + index;
+          if (target_slot->hash == hash && target_slot->entry.key == key) {
+            return &target_slot->entry;
+          }
+
+          // Remove the incorrect match.
+          possible_matches ^= 1 << index;
+        }
+
+        // If the bucket isn't full then the key isn't contained in the map.
+        auto occupancy_bits = occupied_slots(buckets[bi]);
+        if (!full_block(occupancy_bits))
+          return nullptr;
+
+        // If jthe bucket is full then move to the next bucket.
+        bi = (bi + 1) & (bucket_count - 1);
+      }
     }
   }
 
   // Gets an empty bucket for a hash and set it as used.
-  constexpr auto get_empty(const Bits_64 hash) -> Slot* {
+  constexpr auto get_empty(const input_hash_type hash) -> slot_type* {
     auto bi = extract_vector_index(hash);
     auto vi = extract_vector_key(hash);
     auto buckets = buffer_data.bucket_buffer;
@@ -293,21 +379,26 @@ class Map {
       occupancy_bits = occupied_slots(buckets[bi]);
     }
 
-    auto occupancy_count = __builtin_popcountg(occupancy_bits);
-    auto target_bucket = buckets + bi;
-    reinterpret_cast<Byte*>(target_bucket)[occupancy_count] = vi;
+    if constexpr (vector_mode == MapVectorization::Scalar) {
+      buckets[bi] = vi;
+      return slots + bi;
+    } else {
+      auto occupancy_count = __builtin_popcountg(occupancy_bits);
+      auto target_bucket = buckets + bi;
+      reinterpret_cast<Byte*>(target_bucket)[occupancy_count] = vi;
 
-    return slots + (bi * bucket_size) + occupancy_count;
+      return slots + (bi * bucket_size) + occupancy_count;
+    }
   }
 
   // Optimized placement of keys into the table when it is known the key does
   // not already exist in the table and that adding the key won't push past the
   // load factor limit.
-  auto emplace_hashed(Slot* slot) {
-    auto empty_slot = get_empty(slot->hash);
+  auto emplace_hashed(slot_type* slot, const input_hash_type hash) {
+    auto empty_slot = get_empty(hash);
 
     // Copy over the element, ignoring and construction or destruction.
-    memcpy(reinterpret_cast<void*>(empty_slot), slot, sizeof(Slot));
+    memcpy(reinterpret_cast<void*>(empty_slot), slot, sizeof(slot_type));
   }
 
   auto destruct() -> void {
@@ -319,15 +410,21 @@ class Map {
     for (Count bucket_index = 0; bucket_index < bucket_count; bucket_index++) {
       auto occupancy_bits = occupied_slots(buckets[bucket_index]);
 
-      auto occupancy_count = __builtin_popcountg(occupancy_bits);
       if (!occupancy_bits) {
         continue;
       }
 
-      for (Count bit_index = 0; bit_index < occupancy_count; bit_index++) {
-        auto valid_slot = slots + (bucket_index * bucket_size) + bit_index;
+      if constexpr (vector_mode == MapVectorization::Scalar) {
+        auto valid_slot = slots + bucket_index;
         valid_slot->entry.key.~key_type();
         valid_slot->entry.value.~value_type();
+      } else {
+        auto occupancy_count = __builtin_popcountg(occupancy_bits);
+        for (Count bit_index = 0; bit_index < occupancy_count; bit_index++) {
+          auto valid_slot = slots + (bucket_index * bucket_size) + bit_index;
+          valid_slot->entry.key.~key_type();
+          valid_slot->entry.value.~value_type();
+        }
       }
 
       // Clear the bucket.
@@ -347,20 +444,25 @@ class Map {
          bucket_index++) {
       auto occupancy_bits =
           occupied_slots(current_buffer.bucket_buffer[bucket_index]);
-      auto occupancy_count = __builtin_popcountg(occupancy_bits);
 
       // If the mask is empty then move to the next block.
       if (!occupancy_bits) {
         continue;
       }
 
-      // Rehash each element into the new bucket.
-      for (Count entry_index = 0; entry_index < occupancy_count;
-           entry_index++) {
-        auto valid_slot = current_buffer.slots_buffer +
-                          (bucket_index * bucket_size) + entry_index;
+      if constexpr (vector_mode == MapVectorization::Scalar) {
+        auto valid_slot = current_buffer.slots_buffer + bucket_index;
+        emplace_hashed(valid_slot, current_buffer.bucket_buffer[bucket_index]);
+      } else {
+        auto occupancy_count = __builtin_popcountg(occupancy_bits);
+        // Rehash each element into the new bucket.
+        for (Count entry_index = 0; entry_index < occupancy_count;
+             entry_index++) {
+          auto valid_slot = current_buffer.slots_buffer +
+                            (bucket_index * bucket_size) + entry_index;
 
-        emplace_hashed(valid_slot);
+          emplace_hashed(valid_slot, valid_slot->hash);
+        }
       }
     }
 
@@ -371,25 +473,39 @@ class Map {
     buffer_data.size = current_buffer.size;
   }
 
-  constexpr auto get_hash(const key_type& key) const -> Bits_64 {
+  constexpr auto get_hash(const key_type& key) const -> input_hash_type {
     Utility::Func::Hash h(key);
-    return h.get_value();
+    return input_hash_type(h.get_value());
   }
+
   // Shift out the 7 bits used for the key.
-  constexpr auto extract_vector_index(Bits_64 hash_key) const -> Bits_64 {
-    return (hash_key >> 7) & (buffer_data.bucket_count - 1);
+  constexpr auto extract_vector_index(input_hash_type hash_key) const
+      -> input_hash_type {
+    if constexpr (vector_mode == MapVectorization::Scalar) {
+      return hash_key & (buffer_data.bucket_count - 1);
+    } else {
+      return (hash_key >> 7) & (buffer_data.bucket_count - 1);
+    }
   }
 
   // For AVX the highest bit is useful as a control bit so we reserve it and
   // only use 7 bits for the actual key.
-  static constexpr auto extract_vector_key(Bits_64 hash_key) -> Bits_8 {
-    return static_cast<Bits_8>(hash_key) | 0b10000000;
+  static constexpr auto extract_vector_key(input_hash_type hash_key)
+      -> vector_key_type {
+    if constexpr (vector_mode == MapVectorization::Scalar) {
+      return vector_key_type(hash_key) | Bits_32(0x80000000);
+    } else {
+      return vector_key_type(hash_key) | 0b10000000;
+    }
   }
 
   // Returns a bit mask of all possible slots.
-  static constexpr auto extract_possible_matches(vectorize_type bucket, Byte vi)
+  static constexpr auto extract_possible_matches(vectorize_type bucket,
+                                                 vector_key_type vi)
       -> mask_type {
-    if constexpr (optimize_size) {
+    if constexpr (vector_mode == MapVectorization::Scalar) {
+      return bucket == vi;
+    } else if constexpr (vector_mode == MapVectorization::Partial) {
       const auto test_vector = _mm_set1_epi8(vi);
       const auto mask = _mm_cmpeq_epi8(bucket, test_vector);
       return mask_type(_mm_movemask_epi8(mask));
@@ -402,7 +518,9 @@ class Map {
 
   // Use the control bit of every byte as the occupancy mask.
   static constexpr auto occupied_slots(vectorize_type bucket) -> mask_type {
-    if constexpr (optimize_size) {
+    if constexpr (vector_mode == MapVectorization::Scalar) {
+      return bucket != 0;
+    } else if constexpr (vector_mode == MapVectorization::Partial) {
       return mask_type(_mm_movemask_epi8(bucket));
     } else {
       return mask_type(_mm256_movemask_epi8(bucket));
@@ -411,11 +529,17 @@ class Map {
 
   // The block is full if every bit in the occupancy mask is set.
   static constexpr auto full_block(mask_type occupancy_bits) -> Bool {
-    return occupancy_bits == mask_type(-1);
+    if constexpr (vector_mode == MapVectorization::Scalar) {
+      return occupancy_bits != 0;
+    } else {
+      return occupancy_bits == mask_type(-1);
+    }
   }
 
   static constexpr auto clear_bucket(vectorize_type* bucket) -> void {
-    if constexpr (optimize_size) {
+    if constexpr (vector_mode == MapVectorization::Scalar) {
+      *bucket = 0;
+    } else if constexpr (vector_mode == MapVectorization::Partial) {
       *bucket = _mm_setzero_pd();
     } else {
       *bucket = _mm256_setzero_pd();
@@ -432,7 +556,9 @@ class Map {
     auto header_size = buckets * bucket_size;
 
     // Acutal data including the hash info.
-    auto buffer_size = sizeof(Slot) * buckets * bucket_size;
+    auto buffer_size =
+        sizeof(slot_type) * buckets *
+        (vector_mode == MapVectorization::Scalar ? 1 : bucket_size);
 
     return header_size + buffer_size + /*alignment padding*/ bucket_size;
   }
@@ -448,10 +574,10 @@ class Map {
         Allocator::Bibliotheca::preface_to_corpus(new_buffer.rented_block);
     address += bucket_size - (Count(address) % bucket_size);
     new_buffer.bucket_buffer = reinterpret_cast<vectorize_type*>(address);
-    // Slot data is everything directly after the bucket count.
+    // slot_type data is everything directly after the bucket count.
     // This keeps us 32 byte aligned which should be good for any types.
     new_buffer.slots_buffer =
-        reinterpret_cast<Slot*>(address + buckets * bucket_size);
+        reinterpret_cast<slot_type*>(address + buckets * bucket_size);
 
     for (Count i = 0; i < buckets; i++) {
       clear_bucket(new_buffer.bucket_buffer + i);

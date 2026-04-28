@@ -22,22 +22,20 @@ using Bits_16 = unsigned short int;
 // Legacy support for LP32
 #ifdef __LP32__
 using Bits_32 = unsigned long;
-using Bits_64 = unsigned long long;
 #else
 using Bits_32 = unsigned int;
-using Bits_64 = unsigned long;
 #endif
+using Bits_64 = unsigned long long;
 
 using SignedBits_8 = signed char;
 using SignedBits_16 = signed short int;
 // Legacy support for LP32
 #ifdef __LP32__
 using SignedBits_32 = signed long;
-using SignedBits_64 = signed long long;
 #else
 using SignedBits_32 = signed int;
-using SignedBits_64 = signed long;
 #endif
+using SignedBits_64 = signed long long;
 
 using Real_32 = float;
 using Real_64 = double;
@@ -99,3 +97,9 @@ static_assert(sizeof(Real_64) == 8);
 static_assert(sizeof(Real_128) == 16);
 
 static_assert(sizeof(Bool) == 1);
+
+#ifndef _NEW
+constexpr void* operator new(__SIZE_TYPE__ size, void* ptr) noexcept {
+  return ptr;
+}
+#endif

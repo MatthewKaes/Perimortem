@@ -73,10 +73,29 @@ constexpr auto get_data_type<Real_64>() -> Stream::DataType {
   return Stream::DataType::Real_64;
 }
 
-template <typename storage_type>
+template <typename blob_type>
 constexpr auto write_block(Access::Amorphous target,
                            Count& ptr_location,
-                           storage_type bin) -> Bool {
+                           blob_type bin) -> Bool {
+  if (ptr_location + 1 + sizeof(storage_type) > target.get_size()) {
+    return false;
+  }
+
+  Byte* data = target.get_data();
+  data[ptr_location] = static_cast<Byte>(get_data_type<storage_type>());
+
+  bin = possible_swap(bin);
+
+  Data::copy(data + ptr_location + 1, &bin);
+  ptr_location += 1 + sizeof(storage_type);
+
+  return true;
+}
+
+template <typename storage_type>
+constexpr auto write_blob(Access::Amorphous target,
+                          Count& ptr_location,
+                          storage_type bin) -> Bool {
   if (ptr_location + 1 + sizeof(storage_type) > target.get_size()) {
     return false;
   }
@@ -147,12 +166,17 @@ auto Stream::operator<<(const Real_64 bin) -> Stream& {
 }
 
 auto Stream::operator<<(const Core::View::Amorphous bin) -> Stream& {
+  // Write type information
   data.get_data()[ptr_location++] = static_cast<Byte>(DataType::Blob);
+  data.get_data()[ptr_location++] = static_cast<Byte>(DataType::Bits_8);
 
+  // Size data
   Count size = possible_swap(bin.get_size());
   Data::copy(data.get_data() + ptr_location, &size);
   ptr_location += sizeof(Count);
 
+  // As a special case we can bulk copy at stride 1 since endianess doesn't come
+  // into play.
   Data::copy(data.get_data() + ptr_location, bin.get_data(), bin.get_size());
   ptr_location += bin.get_size();
 
