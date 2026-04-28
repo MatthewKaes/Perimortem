@@ -73,10 +73,10 @@ constexpr auto get_data_type<Real_64>() -> Stream::DataType {
   return Stream::DataType::Real_64;
 }
 
-template <typename blob_type>
+template <typename storage_type>
 constexpr auto write_block(Access::Amorphous target,
                            Count& ptr_location,
-                           blob_type bin) -> Bool {
+                           storage_type bin) -> Bool {
   if (ptr_location + 1 + sizeof(storage_type) > target.get_size()) {
     return false;
   }
@@ -92,11 +92,11 @@ constexpr auto write_block(Access::Amorphous target,
   return true;
 }
 
-template <typename storage_type>
+template <typename blob_type>
 constexpr auto write_blob(Access::Amorphous target,
                           Count& ptr_location,
-                          storage_type bin) -> Bool {
-  if (ptr_location + 1 + sizeof(storage_type) > target.get_size()) {
+                          blob_type bin) -> Bool {
+  if (ptr_location + 1 + sizeof(blob_type::data_type) > target.get_size()) {
     return false;
   }
 
