@@ -20,7 +20,7 @@ template <typename value_type,
               Utility::Type::Pair<Core::View::Amorphous, value_type>>& source>
 class Table {
  private:
-  inline static constexpr auto required_storage() -> Count {
+  static constexpr auto required_storage() -> Count {
     Count total = 0;
     for (Count i = 0; i < source.get_size(); i++) {
       total += source[i].key.get_size();
@@ -31,7 +31,7 @@ class Table {
 
   // Get the number of size buckets we will need to store.
   // We give up one bucket for size "0" strings for clamping later.
-  inline static constexpr auto max_length() -> Count {
+  static constexpr auto max_length() -> Count {
     Count max = 0;
     for (Count i = 0; i < source.get_size(); i++) {
       max = max > source[i].key.get_size() + 1 ? max
@@ -109,6 +109,10 @@ class Table {
     }
 
     return default_value;
+  }
+
+  static constexpr auto get_memory_consumption() const -> Count {
+    return sizeof(PackedBuffer);
   }
 };
 

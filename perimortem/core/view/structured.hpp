@@ -29,10 +29,6 @@ class Structured {
   constexpr Structured(const data_type (&source)[N])
       : source_block(source), size(N) {}
 
-  constexpr operator Amorphous() const {
-    return Amorphous(source_block, size * sizeof(data_type));
-  }
-
   constexpr auto contains(const data_type& data) const -> Bool {
     for (Count i = 0; i < size; i++) {
       if (source_block[i] == data) {
@@ -55,19 +51,22 @@ class Structured {
     return at(index);
   }
 
-  inline constexpr auto slice(Count start, Count size) const
+  constexpr auto slice(Count start, Count size) const
       -> View::Structured<data_type> {
     if (start >= get_size())
       return View::Structured<data_type>();
 
     const auto size_cap = get_size() - start;
     return View::Structured<data_type>(source_block + start,
-                                  size > size_cap ? size_cap : size);
+                                       size > size_cap ? size_cap : size);
   };
 
   constexpr auto empty() const -> Bool { return size == 0; };
   constexpr auto get_size() const -> Count { return size; }
   constexpr auto get_data() const -> const data_type* { return source_block; }
+  constexpr auto get_bytes() const -> const Amorphous {
+    return Amorphous(source_block, size * sizeof(data_type));
+  }
 
  private:
   const data_type* source_block = nullptr;

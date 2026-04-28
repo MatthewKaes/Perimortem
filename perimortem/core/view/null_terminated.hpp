@@ -18,8 +18,8 @@ struct NullTerminated {
       source_block[i] = src[i];
   }
 
-  inline constexpr auto get_size() const -> Count { return size; };
-  inline constexpr auto get_data() const -> const Byte* {
+  constexpr auto get_size() const -> Count { return size; };
+  constexpr auto get_data() const -> const Byte* {
     return source_block;
   };
 };

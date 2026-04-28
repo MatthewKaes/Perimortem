@@ -5,6 +5,7 @@
 
 #include "perimortem/core/access/amorphous.hpp"
 #include "perimortem/core/view/amorphous.hpp"
+#include "perimortem/core/view/structured.hpp"
 
 namespace Perimortem::Serialization::Binary {
 
@@ -49,6 +50,14 @@ class Stream {
   auto operator<<(const Real_32 bin) -> Stream&;
   auto operator<<(const Real_64 bin) -> Stream&;
   auto operator<<(const Core::View::Amorphous blob) -> Stream&;
+  auto operator<<(const Core::View::Structured<Bits_8> blob) -> Stream&;
+  auto operator<<(const Core::View::Structured<Bits_16> blob) -> Stream&;
+  auto operator<<(const Core::View::Structured<Bits_32> blob) -> Stream&;
+  auto operator<<(const Core::View::Structured<Bits_64> blob) -> Stream&;
+  auto operator<<(const Core::View::Structured<SignedBits_8> blob) -> Stream&;
+  auto operator<<(const Core::View::Structured<SignedBits_16> blob) -> Stream&;
+  auto operator<<(const Core::View::Structured<SignedBits_32> blob) -> Stream&;
+  auto operator<<(const Core::View::Structured<SignedBits_64> blob) -> Stream&;
 
   constexpr auto get_size() const -> Count { return data.get_size(); }
   constexpr auto get_location() const -> Count { return ptr_location; }

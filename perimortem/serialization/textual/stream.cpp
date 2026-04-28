@@ -45,7 +45,7 @@ constexpr auto to_chars(Access::Amorphous& data,
   }
 }
 
-auto Textual::Stream::operator<<(const Byte character) -> Stream& {
+auto Textual::Stream::operator<<(const Byte character) -> Textual::Stream& {
   valid_state &= ptr_location < data.get_size();
   if (valid_state) {
     data.get_data()[ptr_location++] = character;

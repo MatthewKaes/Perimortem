@@ -3,8 +3,8 @@
 
 #pragma once
 
-#include "perimortem/core/perimortem.hpp"
 #include "perimortem/core/access/amorphous.hpp"
+#include "perimortem/core/perimortem.hpp"
 
 namespace Perimortem::Core::Access {
 
@@ -27,14 +27,6 @@ class Structured {
   constexpr Structured(data_type* source, Count source_size)
       : source_block(source), size(source_size) {}
 
-  constexpr operator Amorphous() const {
-    return Amorphous(source_block, size * sizeof(type));
-  }
-
-  inline constexpr auto empty() const -> Bool { return size == 0; };
-  inline constexpr auto get_size() const -> Count { return size; };
-  inline constexpr auto get_data() -> data_type* { return source_block; };
-
   constexpr auto at(Count index) -> type& {
     if (index > size) [[unlikely]] {
       static type oob;
@@ -46,7 +38,7 @@ class Structured {
 
   constexpr auto operator[](Count index) -> type& { return at(index); }
 
-  inline constexpr auto slice(Count start, Count size) const
+  constexpr auto slice(Count start, Count size) const
       -> Access::Structured<type> {
     if (start >= get_size())
       return Access::Structured<type>();
@@ -55,6 +47,13 @@ class Structured {
     return Access::Structured<type>(source_block + start,
                                     size > size_cap ? size_cap : size);
   };
+
+  constexpr auto empty() const -> Bool { return size == 0; };
+  constexpr auto get_size() const -> Count { return size; };
+  constexpr auto get_data() -> data_type* { return source_block; };
+  constexpr auto get_bytes() const -> Amorphous {
+    return Amorphous(source_block, size * sizeof(data_type));
+  }
 
  private:
   data_type* source_block;

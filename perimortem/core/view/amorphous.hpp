@@ -43,10 +43,6 @@ class Amorphous {
     return !operator==(rhs);
   }
 
-  constexpr auto empty() const -> Bool { return size == 0; };
-  constexpr auto get_size() const -> Count { return size; };
-  constexpr auto get_data() const -> const Byte* { return source_block; };
-
   constexpr auto at(Count index) const -> const Byte {
     if (index > size) [[unlikely]] {
       return Byte();
@@ -75,6 +71,10 @@ class Amorphous {
 
     return source_block[index];
   };
+
+  constexpr auto empty() const -> Bool { return size == 0; };
+  constexpr auto get_size() const -> Count { return size; };
+  constexpr auto get_data() const -> const Byte* { return source_block; };
 
  private:
   const Byte* source_block;

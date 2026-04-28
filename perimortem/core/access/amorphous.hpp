@@ -20,10 +20,6 @@ class Amorphous {
   constexpr Amorphous(data_type* source, Count source_size)
       : source_block(source), size(source_size) {}
 
-  inline constexpr auto empty() const -> Bool { return size == 0; };
-  inline constexpr auto get_size() const -> Count { return size; };
-  inline constexpr auto get_data() -> data_type* { return source_block; };
-
   constexpr auto at(Count index) -> data_type& {
     if (index > size) [[unlikely]] {
       static data_type oob;
@@ -35,7 +31,7 @@ class Amorphous {
 
   constexpr auto operator[](Count index) -> data_type& { return at(index); }
 
-  inline constexpr auto slice(Count start, Count size) const
+   constexpr auto slice(Count start, Count size) const
       -> Access::Amorphous {
     if (start >= get_size())
       return Access::Amorphous();
@@ -44,6 +40,10 @@ class Amorphous {
     return Access::Amorphous(source_block + start,
                              size > size_cap ? size_cap : size);
   };
+
+  constexpr auto empty() const -> Bool { return size == 0; };
+  constexpr auto get_size() const -> Count { return size; };
+  constexpr auto get_data() -> data_type* { return source_block; };
 
  private:
   data_type* source_block;

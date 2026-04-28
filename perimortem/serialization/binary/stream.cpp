@@ -7,7 +7,7 @@
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Utility::Func;
-using namespace Perimortem::Serialization::Binary;
+using namespace Perimortem::Serialization;
 
 constexpr auto byte_swap_required = __BYTE_ORDER__ != __ORDER_LITTLE_ENDIAN__;
 
@@ -30,47 +30,47 @@ constexpr auto possible_swap(storage_type bin) -> storage_type {
 }
 
 template <typename storage_type>
-constexpr auto get_data_type() -> Stream::DataType {
+constexpr auto get_data_type() -> Binary::Stream::DataType {
   if constexpr (byte_swap_required) {
     switch (sizeof(storage_type)) {
       case 1:
         if constexpr (storage_type(-1) < storage_type(0)) {
-          return Stream::DataType::SignedBits_8;
+          return Binary::Stream::DataType::SignedBits_8;
         } else {
-          return Stream::DataType::Bits_8;
+          return Binary::Stream::DataType::Bits_8;
         }
       case 2:
         if constexpr (storage_type(-1) < storage_type(0)) {
-          return Stream::DataType::SignedBits_16;
+          return Binary::Stream::DataType::SignedBits_16;
         } else {
-          return Stream::DataType::Bits_16;
+          return Binary::Stream::DataType::Bits_16;
         }
       case 4:
         if constexpr (storage_type(-1) < storage_type(0)) {
-          return Stream::DataType::SignedBits_32;
+          return Binary::Stream::DataType::SignedBits_32;
         } else {
-          return Stream::DataType::Bits_32;
+          return Binary::Stream::DataType::Bits_32;
         }
       case 8:
         if constexpr (storage_type(-1) < storage_type(0)) {
-          return Stream::DataType::SignedBits_64;
+          return Binary::Stream::DataType::SignedBits_64;
         } else {
-          return Stream::DataType::Bits_64;
+          return Binary::Stream::DataType::Bits_64;
         }
     }
   }
 
-  return Stream::DataType::Unknown;
+  return Binary::Stream::DataType::Unknown;
 }
 
 template <>
-constexpr auto get_data_type<Real_32>() -> Stream::DataType {
-  return Stream::DataType::Real_32;
+constexpr auto get_data_type<Real_32>() -> Binary::Stream::DataType {
+  return Binary::Stream::DataType::Real_32;
 }
 
 template <>
-constexpr auto get_data_type<Real_64>() -> Stream::DataType {
-  return Stream::DataType::Real_64;
+constexpr auto get_data_type<Real_64>() -> Binary::Stream::DataType {
+  return Binary::Stream::DataType::Real_64;
 }
 
 template <typename storage_type>
@@ -96,89 +96,149 @@ template <typename blob_type>
 constexpr auto write_blob(Access::Amorphous target,
                           Count& ptr_location,
                           blob_type bin) -> Bool {
-  if (ptr_location + 1 + sizeof(blob_type::data_type) > target.get_size()) {
+  using storage_type = typename blob_type::data_type;
+  if (ptr_location + 2 + sizeof(storage_type) * bin.get_size() >
+      target.get_size()) {
     return false;
   }
 
   Byte* data = target.get_data();
-  data[ptr_location] = static_cast<Byte>(get_data_type<storage_type>());
+  data[ptr_location++] = static_cast<Byte>(Binary::Stream::DataType::Blob);
+  data[ptr_location++] = static_cast<Byte>(get_data_type<storage_type>());
 
-  bin = possible_swap(bin);
+  // Size data
+  Count size = possible_swap(bin.get_size());
+  Data::copy(data + ptr_location, &size);
+  ptr_location += sizeof(Count);
 
-  Data::copy(data + ptr_location + 1, &bin);
-  ptr_location += 1 + sizeof(storage_type);
+  // Special case for byte data
+  if constexpr (sizeof(storage_type) == 1 || !byte_swap_required) {
+    Data::copy(data + ptr_location, bin.get_data(), bin.get_size());
+    ptr_location += sizeof(storage_type) * bin.get_size();
+  } else {
+    // Serialize each block
+    for (Count i = 0; i < bin.get_size(); i++) {
+      storage_type ordered_bytes = possible_swap(bin.get_data()[i]);
+      Data::copy(data + ptr_location, &ordered_bytes);
+      ptr_location += sizeof(storage_type);
+    }
+  }
 
   return true;
 }
 
-auto Stream::set_pointer(Count location) -> void {
+auto Binary::Stream::set_pointer(Count location) -> void {
   ptr_location = location;
 }
 
-auto Stream::operator<<(const Bits_8 bin) -> Stream& {
-  write_block(data, ptr_location, bin);
+auto Binary::Stream::operator<<(const Bits_8 bin) -> Binary::Stream& {
+  valid_state &= write_block(data, ptr_location, bin);
   return *this;
 }
 
-auto Stream::operator<<(const Bits_16 bin) -> Stream& {
-  write_block(data, ptr_location, bin);
+auto Binary::Stream::operator<<(const Bits_16 bin) -> Binary::Stream& {
+  valid_state &= write_block(data, ptr_location, bin);
   return *this;
 }
 
-auto Stream::operator<<(const Bits_32 bin) -> Stream& {
-  write_block(data, ptr_location, bin);
+auto Binary::Stream::operator<<(const Bits_32 bin) -> Binary::Stream& {
+  valid_state &= write_block(data, ptr_location, bin);
   return *this;
 }
 
-auto Stream::operator<<(const Bits_64 bin) -> Stream& {
-  write_block(data, ptr_location, bin);
+auto Binary::Stream::operator<<(const Bits_64 bin) -> Binary::Stream& {
+  valid_state &= write_block(data, ptr_location, bin);
   return *this;
 }
 
-auto Stream::operator<<(const SignedBits_8 bin) -> Stream& {
-  write_block(data, ptr_location, bin);
+auto Binary::Stream::operator<<(const SignedBits_8 bin) -> Binary::Stream& {
+  valid_state &= write_block(data, ptr_location, bin);
   return *this;
 }
 
-auto Stream::operator<<(const SignedBits_16 bin) -> Stream& {
-  write_block(data, ptr_location, bin);
+auto Binary::Stream::operator<<(const SignedBits_16 bin) -> Binary::Stream& {
+  valid_state &= write_block(data, ptr_location, bin);
   return *this;
 }
 
-auto Stream::operator<<(const SignedBits_32 bin) -> Stream& {
-  write_block(data, ptr_location, bin);
+auto Binary::Stream::operator<<(const SignedBits_32 bin) -> Binary::Stream& {
+  valid_state &= write_block(data, ptr_location, bin);
   return *this;
 }
 
-auto Stream::operator<<(const SignedBits_64 bin) -> Stream& {
-  write_block(data, ptr_location, bin);
+auto Binary::Stream::operator<<(const SignedBits_64 bin) -> Binary::Stream& {
+  valid_state &= write_block(data, ptr_location, bin);
   return *this;
 }
 
-auto Stream::operator<<(const Real_32 bin) -> Stream& {
-  write_block(data, ptr_location, bin);
+auto Binary::Stream::operator<<(const Real_32 bin) -> Binary::Stream& {
+  valid_state &= write_block(data, ptr_location, bin);
   return *this;
 }
 
-auto Stream::operator<<(const Real_64 bin) -> Stream& {
-  write_block(data, ptr_location, bin);
+auto Binary::Stream::operator<<(const Real_64 bin) -> Binary::Stream& {
+  valid_state &= write_block(data, ptr_location, bin);
   return *this;
 }
 
-auto Stream::operator<<(const Core::View::Amorphous bin) -> Stream& {
+auto Binary::Stream::operator<<(const View::Amorphous blob) -> Binary::Stream& {
   // Write type information
-  data.get_data()[ptr_location++] = static_cast<Byte>(DataType::Blob);
-  data.get_data()[ptr_location++] = static_cast<Byte>(DataType::Bits_8);
+  valid_state &= write_blob(data, ptr_location, blob);
+  return *this;
+}
 
-  // Size data
-  Count size = possible_swap(bin.get_size());
-  Data::copy(data.get_data() + ptr_location, &size);
-  ptr_location += sizeof(Count);
+auto Binary::Stream::operator<<(const View::Structured<Bits_8> blob)
+    -> Binary::Stream& {
+  // Write type information
+  valid_state &= write_blob(data, ptr_location, blob);
+  return *this;
+}
 
-  // As a special case we can bulk copy at stride 1 since endianess doesn't come
-  // into play.
-  Data::copy(data.get_data() + ptr_location, bin.get_data(), bin.get_size());
-  ptr_location += bin.get_size();
+auto Binary::Stream::operator<<(const View::Structured<Bits_16> blob)
+    -> Binary::Stream& {
+  // Write type information
+  valid_state &= write_blob(data, ptr_location, blob);
+  return *this;
+}
 
+auto Binary::Stream::operator<<(const View::Structured<Bits_32> blob)
+    -> Binary::Stream& {
+  // Write type information
+  valid_state &= write_blob(data, ptr_location, blob);
+  return *this;
+}
+
+auto Binary::Stream::operator<<(const View::Structured<Bits_64> blob)
+    -> Binary::Stream& {
+  // Write type information
+  valid_state &= write_blob(data, ptr_location, blob);
+  return *this;
+}
+
+auto Binary::Stream::operator<<(const View::Structured<SignedBits_8> blob)
+    -> Binary::Stream& {
+  // Write type information
+  valid_state &= write_blob(data, ptr_location, blob);
+  return *this;
+}
+
+auto Binary::Stream::operator<<(const View::Structured<SignedBits_16> blob)
+    -> Binary::Stream& {
+  // Write type information
+  valid_state &= write_blob(data, ptr_location, blob);
+  return *this;
+}
+
+auto Binary::Stream::operator<<(const View::Structured<SignedBits_32> blob)
+    -> Binary::Stream& {
+  // Write type information
+  valid_state &= write_blob(data, ptr_location, blob);
+  return *this;
+}
+
+auto Binary::Stream::operator<<(const View::Structured<SignedBits_64> blob)
+    -> Binary::Stream& {
+  // Write type information
+  valid_state &= write_blob(data, ptr_location, blob);
   return *this;
 }
