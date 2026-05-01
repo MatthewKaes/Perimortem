@@ -3,9 +3,9 @@
 
 #pragma once
 
+#include "perimortem/core/math/math.hpp"
 #include "perimortem/core/view/structured.hpp"
 #include "perimortem/memory/allocator/arena.hpp"
-#include "perimortem/utility/func/math.hpp"
 
 namespace Perimortem::Memory::Managed {
 
@@ -93,7 +93,7 @@ class Vector {
     // Attempt to grow by a factor of 2.
     // If that doesn't work than grow to exact size.
     const auto new_capacity =
-        Utility::Func::Math::max(get_capacity() * 2, required_size);
+        Core::Math::max(get_capacity() * 2, required_size);
 
     // Fetch and transfer to new block.
     auto new_block = reinterpret_cast<value_type*>(
@@ -116,8 +116,8 @@ class Vector {
     auto new_block = reinterpret_cast<value_type*>(
         arena.allocate(sizeof(value_type) * capacity));
 
-    Utility::Func::Data::copy(reinterpret_cast<Byte*>(new_block), rented_block,
-                        sizeof(value_type) * size);
+    Core::Data::copy(reinterpret_cast<Byte*>(new_block), rented_block,
+                    sizeof(value_type) * size);
     rented_block = new_block;
   }
 

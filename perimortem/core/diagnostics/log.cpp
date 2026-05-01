@@ -1,50 +1,52 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
-#include "perimortem/system/diagnostics.hpp"
+#include "perimortem/core/diagnostics/log.hpp"
 
-#include "perimortem/memory/static/bytes.hpp"
+using namespace Perimortem::Core::Diagnostics;
 
-using namespace Perimortem::System;
-using namespace Perimortem::Memory;
-
-Diagnostics::Severity log_level = Diagnostics::Severity::Info;
+Log::Severity log_level = Log::Severity::Info;
 Bool flush_to_stdout = false;
 Bool flush_to_log = false;
-Static::Bytes<1 << 9> log_file;
-Static::Bytes<1 << 12> log_buffer;
+
+constexpr auto max_log_file_size = 1 << 9;
+Byte log_file[max_log_file_size];
+Count log_file_size = 0;
+
+constexpr auto log_buffer_size = 1 << 12;
+Byte log_buffer[log_buffer_size];
 Count write_ptr = 0;
 
-auto Diagnostics::set_level(Severity minimum) -> void {
+auto Log::set_level(Severity minimum) -> void {
   log_level = minimum;
 }
-auto Diagnostics::enable_stdout(Bool enable) -> void {
+auto Log::enable_stdout(Bool enable) -> void {
   flush_to_stdout = enable;
 }
 
-auto Diagnostics::enable_log(Bool enable) -> void {
+auto Log::enable_log(Bool enable) -> void {
   flush_to_log = enable;
 }
 
-Diagnostics::Diagnostics() {}
+Log::Log() {}
 
-Diagnostics::~Diagnostics() {
+Log::~Log() {
   flush();
 }
 
-// auto Diagnostics::set_level(Severity minimum) -> void {
+// auto Log::set_level(Severity minimum) -> void {
 //   log_level = minimum;
 // }
 
-// auto Diagnostics::enable_stdout(Bool enable)  -> void{
+// auto Log::enable_stdout(Bool enable)  -> void{
 //   flush_to_stdout = enable;
 // }
 
-// auto Diagnostics::enable_log(Bool enable)  -> void{
+// auto Log::enable_log(Bool enable)  -> void{
 //   flush_to_log = enable;
 // }
 
-// auto Diagnostics::set_log_file(Core::View::Amorphous log_path) -> void {
+// auto Log::set_log_file(Core::View::Amorphous log_path) -> void {
 //   Managed::Buffer log_name(log_file);
 //   log_name
 //   std::time_t time = std::time({});
@@ -53,21 +55,21 @@ Diagnostics::~Diagnostics() {
 //   log_file
 // }
 
-// auto Diagnostics::info(const Core::View::Amorphous msg,
+// auto Log::info(const Core::View::Amorphous msg,
 //                        const std::source_location location) {
 //   std::scoped_lock lock(buffer_mutex)
 // }
-// auto Diagnostics::debug(
+// auto Log::debug(
 //     const Core::View::Amorphous error,
 //     const std::source_location location = std::source_location::current());
-// auto Diagnostics::warning(
+// auto Log::warning(
 //     const Core::View::Amorphous error,
 //     const std::source_location location = std::source_location::current());
-// auto Diagnostics::error(
+// auto Log::error(
 //     const Core::View::Amorphous error,
 //     const std::source_location location = std::source_location::current());
 
-// auto Diagnostics::flush() -> void{
+// auto Log::flush() -> void{
 //   if (write_ptr > 0) {
 
 //   }
@@ -82,7 +84,7 @@ Diagnostics::~Diagnostics() {
 
 // }
 
-// auto Diagnostics::write_utc_stamp() -> void {
+// auto Log::write_utc_stamp() -> void {
 //   // Example of the very popular RFC 3339 format UTC time
 //   std::time_t time = std::time({});
 //   char timeString[sizeof("yyyy-mm-dd hh:mm:ss")];

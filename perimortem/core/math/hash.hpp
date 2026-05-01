@@ -5,7 +5,7 @@
 
 #include "perimortem/core/view/amorphous.hpp"
 
-namespace Perimortem::Utility::Func {
+namespace Perimortem::Core::Math {
 
 class Hash {
   // Since memcpy isn't constexpr but is guaranteed to give us the optimum

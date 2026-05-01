@@ -5,7 +5,7 @@
 
 #include "perimortem/core/perimortem.hpp"
 
-namespace Perimortem::Utility::Type {
+namespace Perimortem::Utility {
 
 template <typename flag_source>
 class BitFlag {
@@ -101,26 +101,26 @@ class BitFlag {
   storage_type bit_data;
 };
 
-}  // namespace Perimortem::Utility::Type
+}  // namespace Perimortem::Utility
 
 //
 // Globally overloaded | operator for supporting types.
 //
 template <typename flag_source>
-inline Perimortem::Utility::Type::BitFlag<flag_source> operator|(
+inline Perimortem::Utility::BitFlag<flag_source> operator|(
     flag_source lhs,
     flag_source rhs) {
-  return Perimortem::Utility::Type::BitFlag<flag_source>(lhs) |
-         Perimortem::Utility::Type::BitFlag<flag_source>(rhs);
+  return Perimortem::Utility::BitFlag<flag_source>(lhs) |
+         Perimortem::Utility::BitFlag<flag_source>(rhs);
 }
 
 //
 // Globally overloaded & operator for supporting types.
 //
 template <typename flag_source>
-inline Perimortem::Utility::Type::BitFlag<flag_source> operator&(
+inline Perimortem::Utility::BitFlag<flag_source> operator&(
     flag_source lhs,
     flag_source rhs) {
-  return Perimortem::Utility::Type::BitFlag<flag_source>(lhs) &
-         Perimortem::Utility::Type::BitFlag<flag_source>(rhs);
+  return Perimortem::Utility::BitFlag<flag_source>(lhs) &
+         Perimortem::Utility::BitFlag<flag_source>(rhs);
 }

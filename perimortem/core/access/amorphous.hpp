@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include "perimortem/core/perimortem.hpp"
+#include "perimortem/core/math/math.hpp"
 
 namespace Perimortem::Core::Access {
 
@@ -31,14 +31,12 @@ class Amorphous {
 
   constexpr auto operator[](Count index) -> data_type& { return at(index); }
 
-   constexpr auto slice(Count start, Count size) const
-      -> Access::Amorphous {
+  constexpr auto slice(Count start, Count size) const -> Access::Amorphous {
     if (start >= get_size())
       return Access::Amorphous();
 
-    const auto size_cap = get_size() - start;
     return Access::Amorphous(source_block + start,
-                             size > size_cap ? size_cap : size);
+                             Math::min(size, get_size() - start));
   };
 
   constexpr auto empty() const -> Bool { return size == 0; };

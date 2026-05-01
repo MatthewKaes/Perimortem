@@ -3,11 +3,11 @@
 
 #pragma once
 
+#include "perimortem/core/diagnostics/source.hpp"
 #include "perimortem/core/view/structured.hpp"
-#include "perimortem/system/source.hpp"
 
-namespace Perimortem::System {
-class Diagnostics {
+namespace Perimortem::Core::Diagnostics {
+class Log {
  public:
   enum class Severity {
     Debug,
@@ -40,8 +40,8 @@ class Diagnostics {
     };
   };
 
-  Diagnostics();
-  ~Diagnostics();
+  Log();
+  ~Log();
   static auto set_level(Severity minimum = Severity::Info) -> void;
   static auto enable_stdout(Bool enable) -> void;
   static auto enable_log(Bool enable) -> void;
@@ -70,4 +70,4 @@ class Diagnostics {
   static auto write_message(Core::View::Structured<Data> data) -> void;
 };
 
-}  // namespace Perimortem::System
+}  // namespace Perimortem::Core::Log

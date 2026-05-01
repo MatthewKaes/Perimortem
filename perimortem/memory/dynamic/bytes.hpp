@@ -6,7 +6,7 @@
 #include "perimortem/core/access/amorphous.hpp"
 #include "perimortem/core/view/amorphous.hpp"
 #include "perimortem/memory/allocator/bibliotheca.hpp"
-#include "perimortem/utility/func/hash.hpp"
+#include "perimortem/core/math/hash.hpp"
 
 namespace Perimortem::Memory::Dynamic {
 
@@ -61,7 +61,7 @@ class Bytes {
   }
 
   constexpr auto hash() const -> Bits_64 {
-    return Utility::Func::Hash(get_view()).get_value();
+    return Core::Math::Hash(get_view()).get_value();
   }
 
   auto clear() -> void;

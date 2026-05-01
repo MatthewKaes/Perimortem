@@ -3,7 +3,6 @@
 
 #include "validation/test/test.hpp"
 
-#include "perimortem/core/view/null_terminated.hpp"
 #include "perimortem/memory/dynamic/bytes.hpp"
 #include "perimortem/memory/dynamic/map.hpp"
 #include "perimortem/memory/static/bytes.hpp"

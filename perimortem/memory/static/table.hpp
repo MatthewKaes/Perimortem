@@ -3,11 +3,10 @@
 
 #pragma once
 
+#include "perimortem/core/data.hpp"
 #include "perimortem/core/view/amorphous.hpp"
-#include "perimortem/core/view/null_terminated.hpp"
 #include "perimortem/core/view/structured.hpp"
-#include "perimortem/utility/func/data.hpp"
-#include "perimortem/utility/type/pair.hpp"
+#include "perimortem/utility/pair.hpp"
 
 namespace Perimortem::Memory::Static {
 
@@ -17,7 +16,7 @@ namespace Perimortem::Memory::Static {
 // Tables are only immutable and unlike `Map` always have static linkage.
 template <typename value_type,
           const Core::View::Structured<
-              Utility::Type::Pair<Core::View::Amorphous, value_type>>& source>
+              Utility::Pair<Core::View::Amorphous, value_type>>& source>
 class Table {
  private:
   static constexpr auto required_storage() -> Count {
@@ -100,8 +99,8 @@ class Table {
         break;
       }
 
-      if (Utility::Func::Data::compare(byte_pack.buffer + i, key.get_data(),
-                                 range_step)) {
+      if (Core::Data::compare(byte_pack.buffer + i, key.get_data(),
+                              range_step)) {
         return byte_pack.mappings[item_start + index];
       }
 
@@ -111,7 +110,7 @@ class Table {
     return default_value;
   }
 
-  static constexpr auto get_memory_consumption() const -> Count {
+  static constexpr auto get_memory_consumption() -> Count {
     return sizeof(PackedBuffer);
   }
 };

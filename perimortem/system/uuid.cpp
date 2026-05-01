@@ -2,12 +2,12 @@
 // Copyright © Matt Kaes
 
 #include "perimortem/system/uuid.hpp"
-#include "perimortem/system/random.hpp"
-#include "perimortem/utility/func/data.hpp"
+#include "perimortem/core/data.hpp"
+#include "perimortem/core/math/random.hpp"
 
 using namespace Perimortem::Memory;
 using namespace Perimortem::System;
-using namespace Perimortem::Utility::Func;
+using namespace Perimortem::Core;
 
 #include <x86intrin.h>
 
@@ -69,21 +69,10 @@ constexpr auto convert_to_nibble(__m256i ascii) -> __m256i {
   return final_values;
 }
 
-auto Uuid::deserialize(const Static::Bytes<36>& uuid_string) -> Uuid& {
-  // RFC-4122 spec:
-  // 8-4-4-4-12
-
-  return *this;
-}
-
-auto Uuid::deserialize(const Static::Bytes<32>& uuid_string) -> Uuid& {
-  // RFC-4122 spec:
-  // 8-4-4-4-12
-  const auto ascii = _mm256_loadu_si256(
-      reinterpret_cast<const __m256i*>(uuid_string.get_data()));
-
-  constexpr auto blank = 0x08;
-  const auto nibbles = convert_to_nibble(ascii);
+constexpr auto deserialize_ascii(__m256i ascii_buffer,
+                                 Static::Vector<Bits_64, 2>& low_high) -> void {
+  constexpr SignedBits_8 blank = 0x80;
+  const auto nibbles = convert_to_nibble(ascii_buffer);
   auto nibble_high = _mm256_slli_epi16(nibbles, 12);
   auto spaced_bytes = _mm256_or_si256(nibbles, nibble_high);
   const auto packing_shuffle =
@@ -94,6 +83,43 @@ auto Uuid::deserialize(const Static::Bytes<32>& uuid_string) -> Uuid& {
 
   low_high[0] = _mm256_extract_epi64(packed_bytes, 2);
   low_high[1] = _mm256_extract_epi64(packed_bytes, 0);
+}
+
+auto Uuid::deserialize(const Static::Bytes<36>& uuid_string) -> Uuid& {
+  // RFC-4122 spec:
+  // 8-4-4-4-12
+  const auto buffer = _mm256_loadu_si256(
+      reinterpret_cast<const __m256i*>(uuid_string.get_data()));
+  const auto offset_buffer = _mm256_loadu_si256(
+      reinterpret_cast<const __m256i*>(uuid_string.get_data() + 4));
+
+  const SignedBits_8 blank = 0x80;
+  const auto packing_shuffle = _mm256_set_epi8(
+      // Lowwer
+      blank, blank, blank, blank, 15, 14, 13, 12, 11, 10, 9, 8, 6, 5, 4, 3,
+      // Upper
+      blank, blank, 15, 14, 12, 11, 10, 9, 7, 6, 5, 4, 3, 2, 1, 0);
+
+  auto packed_bytes = _mm256_shuffle_epi8(buffer, packing_shuffle);
+  const auto dash_shuffle = _mm256_set_epi8(
+      // Lane 2
+      15, 14, 13, 12, blank, blank, blank, blank, blank, blank, blank, blank,
+      blank, blank, blank, blank,
+      // Lane 1
+      13, 12, blank, blank, blank, blank, blank, blank, blank, blank, blank,
+      blank, blank, blank, blank, blank);
+  auto dash_fill = _mm256_shuffle_epi8(offset_buffer, dash_shuffle);
+  auto ascii_buffer = _mm256_or_si256(packed_bytes, dash_fill);
+
+  deserialize_ascii(ascii_buffer, this->low_high);
+  return *this;
+}
+
+auto Uuid::deserialize(const Static::Bytes<32>& uuid_string) -> Uuid& {
+  const auto ascii_buffer = _mm256_loadu_si256(
+      reinterpret_cast<const __m256i*>(uuid_string.get_data()));
+
+  deserialize_ascii(ascii_buffer, this->low_high);
   return *this;
 }
 
@@ -107,7 +133,6 @@ auto Uuid::serialize() const -> const Static::Bytes<36> {
   const auto nibbles = nibbler(packed);
   const auto ascii = convert_to_ascii(nibbles);
 
-  // const auto blank = 0x08;
   // const auto dash_spacing = _mm256_set_epi8();
   const auto dashed = convert_to_ascii(nibbles);
 
@@ -133,5 +158,5 @@ auto Uuid::generate() -> const Uuid {
   Bits_64 values[2];
   _mm_storeu_si128(reinterpret_cast<__m128i*>(values), generate_uuid_v4());
 
-  return Uuid(values);
+  return Uuid(values[0], values[1]);
 }

@@ -2,10 +2,8 @@
 // Copyright © Matt Kaes
 
 #include "perimortem/serialization/textual/stream.hpp"
-#include "perimortem/core/view/null_terminated.hpp"
 
 using namespace Perimortem::Core;
-using namespace Perimortem::Utility::Func;
 using namespace Perimortem::Serialization;
 
 // charconv is one of few super optimized std implementations to the point that
@@ -34,11 +32,11 @@ constexpr auto to_chars(Access::Amorphous& data,
                         Count& ptr_location,
                         const storage_type& value) -> Bool {
   auto result = std::to_chars(
-      Data::cast<char*>(data.get_data() + ptr_location),
-      Data::cast<char*>(data.get_data() + data.get_size()), value);
+      Data::cast<char>(data.get_data() + ptr_location),
+      Data::cast<char>(data.get_data() + data.get_size()), value);
 
   if (result) {
-    ptr_location = result.ptr - Data::cast<char*>(data.get_data());
+    ptr_location = result.ptr - Data::cast<char>(data.get_data());
     return true;
   } else {
     return false;

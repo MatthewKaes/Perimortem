@@ -113,7 +113,7 @@
       "filesystem": "cpp",
       "test": "cpp"
     },
-    "lldb.displayFormat": "auto",
+    "lldb.displayFormat": "hex",
     "lldb.showDisassembly": "auto",
     "lldb.dereferencePointers": false,
     "lldb.consoleMode": "commands"

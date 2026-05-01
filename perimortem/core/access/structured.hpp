@@ -4,7 +4,7 @@
 #pragma once
 
 #include "perimortem/core/access/amorphous.hpp"
-#include "perimortem/core/perimortem.hpp"
+#include "perimortem/core/math/math.hpp"
 
 namespace Perimortem::Core::Access {
 
@@ -43,9 +43,8 @@ class Structured {
     if (start >= get_size())
       return Access::Structured<type>();
 
-    const auto size_cap = get_size() - start;
     return Access::Structured<type>(source_block + start,
-                                    size > size_cap ? size_cap : size);
+                                    Math::min(size, get_size() - start));
   };
 
   constexpr auto empty() const -> Bool { return size == 0; };

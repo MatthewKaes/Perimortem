@@ -6,7 +6,7 @@
 #include "perimortem/core/perimortem.hpp"
 #include "perimortem/core/view/structured.hpp"
 #include "perimortem/memory/allocator/bibliotheca.hpp"
-#include "perimortem/utility/func/math.hpp"
+#include "perimortem/core/math/math.hpp"
 
 namespace Perimortem::Memory::Dynamic {
 

@@ -4,7 +4,6 @@
 #pragma once
 
 #include "perimortem/core/view/amorphous.hpp"
-#include "perimortem/utility/func/data.hpp"
 
 namespace Perimortem::Core::View {
 
@@ -56,9 +55,8 @@ class Structured {
     if (start >= get_size())
       return View::Structured<data_type>();
 
-    const auto size_cap = get_size() - start;
     return View::Structured<data_type>(source_block + start,
-                                       size > size_cap ? size_cap : size);
+                                       Math::min(size, get_size() - start));
   };
 
   constexpr auto empty() const -> Bool { return size == 0; };

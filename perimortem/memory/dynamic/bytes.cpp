@@ -3,12 +3,11 @@
 
 #include "perimortem/memory/dynamic/bytes.hpp"
 
-#include "perimortem/utility/func/data.hpp"
+#include "perimortem/core/data.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
 using namespace Perimortem::Memory::Allocator;
-using namespace Perimortem::Utility::Func;
 
 constexpr auto access(Bibliotheca::Preface* block) -> Byte* {
   return Bibliotheca::preface_to_corpus(block);
