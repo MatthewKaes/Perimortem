@@ -4,7 +4,7 @@
 #pragma once
 
 #include "perimortem/core/access/amorphous.hpp"
-#include "perimortem/core/math/hash.hpp"
+#include "perimortem/math/hash.hpp"
 #include "perimortem/core/view/amorphous.hpp"
 
 namespace Perimortem::Memory::Static {
@@ -72,7 +72,7 @@ class Bytes {
   }
 
   constexpr auto hash() const -> Bits_64 {
-    return Core::Math::Hash(get_view()).get_value();
+    return Math::Hash(get_view()).get_value();
   }
 
  private:

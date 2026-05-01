@@ -1,12 +1,7 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
-// #include <chrono>
-// #include <random>
-// #include <sstream>
-// #include <thread>
-
-#include "perimortem/core/math/random.hpp"
+#include "perimortem/system/random.hpp"
 
 #include <immintrin.h>
 

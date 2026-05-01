@@ -20,7 +20,7 @@ class source_location {
 };
 }  // namespace std
 
-namespace Perimortem::Core::Diagnostics {
+namespace Perimortem::Diagnostics {
 
 // A class that wraps the compiler extensions to provide runtime
 // access to source information.

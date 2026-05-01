@@ -7,6 +7,7 @@
 #include "perimortem/memory/dynamic/map.hpp"
 #include "perimortem/memory/static/bytes.hpp"
 
+using namespace Perimortem;
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
 using namespace Perimortem::Utility;

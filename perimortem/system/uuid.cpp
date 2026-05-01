@@ -3,7 +3,7 @@
 
 #include "perimortem/system/uuid.hpp"
 #include "perimortem/core/data.hpp"
-#include "perimortem/core/math/random.hpp"
+#include "perimortem/system/random.hpp"
 
 using namespace Perimortem::Memory;
 using namespace Perimortem::System;

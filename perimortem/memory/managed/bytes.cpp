@@ -4,7 +4,7 @@
 
 #include "perimortem/memory/managed/bytes.hpp"
 
-#include "perimortem/core/math/math.hpp"
+#include "perimortem/math/math.hpp"
 
 #include <x86intrin.h>
 
@@ -12,7 +12,7 @@ using namespace Perimortem::Memory;
 
 Managed::Bytes::Bytes(const Bytes& rhs, Count reserved_capacity)
     : arena(rhs.arena) {
-  reset(Core::Math::max(rhs.get_size(), reserved_capacity));
+  reset(Math::max(rhs.get_size(), reserved_capacity));
   proxy(rhs);
 };
 
@@ -74,7 +74,7 @@ auto Managed::Bytes::ensure_capacity(Count required_bytes) -> void {
 
   // Attempt to grow by a factor of 2.
   // If that doesn't work than grow to exact size.
-  const auto new_capacity = Core::Math::max(capacity * 2, required_bytes);
+  const auto new_capacity = Math::max(capacity * 2, required_bytes);
 
   // Fetch and transfer to new block.
   auto new_block = reinterpret_cast<Byte*>(arena.allocate(new_capacity));

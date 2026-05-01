@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include "perimortem/core/math/math.hpp"
+#include "perimortem/math/math.hpp"
 #include "perimortem/core/view/structured.hpp"
 #include "perimortem/memory/allocator/arena.hpp"
 
@@ -93,7 +93,7 @@ class Vector {
     // Attempt to grow by a factor of 2.
     // If that doesn't work than grow to exact size.
     const auto new_capacity =
-        Core::Math::max(get_capacity() * 2, required_size);
+        Math::max(get_capacity() * 2, required_size);
 
     // Fetch and transfer to new block.
     auto new_block = reinterpret_cast<value_type*>(

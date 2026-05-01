@@ -4,7 +4,7 @@
 #pragma once
 
 #include "perimortem/core/data.hpp"
-#include "perimortem/core/math/math.hpp"
+#include "perimortem/math/math.hpp"
 
 namespace Perimortem::Core::View {
 

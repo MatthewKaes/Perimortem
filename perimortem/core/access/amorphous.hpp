@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include "perimortem/core/math/math.hpp"
+#include "perimortem/math/math.hpp"
 
 namespace Perimortem::Core::Access {
 

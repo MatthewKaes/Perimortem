@@ -1,9 +1,9 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
-#include "perimortem/core/diagnostics/log.hpp"
+#include "perimortem/diagnostics/log.hpp"
 
-using namespace Perimortem::Core::Diagnostics;
+using namespace Perimortem::Diagnostics;
 
 Log::Severity log_level = Log::Severity::Info;
 Bool flush_to_stdout = false;

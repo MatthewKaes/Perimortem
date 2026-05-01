@@ -5,7 +5,7 @@
 
 #pragma once
 
-namespace Perimortem::Core::Math {
+namespace Perimortem::Math {
 
 template <typename type>
 constexpr auto max(type a, type b) -> type {
@@ -26,4 +26,4 @@ constexpr auto log(Real_64 value) -> Real_64 {
   return __builtin_log(value);
 }
 
-}  // namespace Perimortem::Core::Math
+}  // namespace Perimortem::Math

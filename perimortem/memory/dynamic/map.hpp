@@ -4,7 +4,7 @@
 #pragma once
 
 #include "perimortem/core/data.hpp"
-#include "perimortem/core/math/hash.hpp"
+#include "perimortem/math/hash.hpp"
 #include "perimortem/memory/allocator/bibliotheca.hpp"
 #include "perimortem/utility/pair.hpp"
 
@@ -474,7 +474,7 @@ class Map {
   }
 
   constexpr auto get_hash(const key_type& key) const -> input_hash_type {
-    Core::Math::Hash h(key);
+    Math::Hash h(key);
     return input_hash_type(h.get_value());
   }
 

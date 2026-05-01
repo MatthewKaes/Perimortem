@@ -3,10 +3,10 @@
 
 #pragma once
 
-#include "perimortem/core/diagnostics/source.hpp"
+#include "perimortem/diagnostics/source.hpp"
 #include "perimortem/core/view/structured.hpp"
 
-namespace Perimortem::Core::Diagnostics {
+namespace Perimortem::Diagnostics {
 class Log {
  public:
   enum class Severity {

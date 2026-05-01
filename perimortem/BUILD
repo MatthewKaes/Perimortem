@@ -12,6 +12,7 @@ cc_library(
     includes = ["."],
     deps = [
         ":core",
+        ":math",
         ":memory",
         ":serialization",
         ":system",
@@ -19,15 +20,19 @@ cc_library(
 )
 
 cc_library(
-    name = "core",
-    srcs = glob([
-        "core/diagnostics/*.cpp",
-        "core/math/*.cpp",
+    name = "math",
+    srcs = [],
+    hdrs = glob([
+        "math/*.hpp",
     ]),
+    includes = ["."],
+)
+
+cc_library(
+    name = "core",
+    srcs = [],
     hdrs = glob([
         "core/access/*.hpp",
-        "core/diagnostics/*.hpp",
-        "core/math/*.hpp",
         "core/view/*.hpp",
         "core/*.hpp",
     ]),
@@ -47,6 +52,22 @@ cc_library(
 )
 
 cc_library(
+    name = "diagnostics",
+    srcs = glob([
+        "diagnostics/*.cpp",
+    ]),
+    hdrs = glob([
+        "diagnostics/*.hpp",
+    ]),
+    includes = ["."],
+    deps = [
+        ":core",
+        ":memory",
+        ":utility",
+    ],
+)
+
+cc_library(
     name = "memory",
     srcs = glob([
         "memory/allocator/*.cpp",
@@ -62,6 +83,7 @@ cc_library(
     includes = ["."],
     deps = [
         ":core",
+        ":math",
         ":utility",
     ],
 )
@@ -77,6 +99,7 @@ cc_library(
     includes = ["."],
     deps = [
         ":core",
+        ":math",
         ":memory",
         ":utility",
     ],

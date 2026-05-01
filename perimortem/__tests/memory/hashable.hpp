@@ -1,9 +1,9 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
-#include "perimortem/core/math/hash.hpp"
+#include "perimortem/math/hash.hpp"
 
-using namespace Perimortem::Core;
+using namespace Perimortem::Math;
 
 static Count default_construct_count = 0;
 static Count default_destruct_count = 0;
@@ -41,7 +41,7 @@ class Hashable {
   }
 
   ~Hashable() { destruct_count++; }
-  auto hash() const -> Bits_64 { return Math::Hash(id).get_value(); }
+  auto hash() const -> Bits_64 { return Hash(id).get_value(); }
   auto operator==(const Hashable& rhs) const -> bool { return rhs.id == id; }
 
  private:
