@@ -14,14 +14,19 @@ namespace Perimortem::Core::View {
 // lie on 1 byte boundries (for instance ASCII is 7 bit aligned at the byte).
 // Any optimized vectorization opperations will break UTF-8 strings unless you
 // know exactly what you are doing (scanning for an exact byte).
+//
+// Since the structure of the data is undefined, Amorphous data does not
+// directly convert to Structured data, however Structured data can be converted
+// to Amorphous data.
 class Amorphous {
  public:
+  using data_type = Byte;
+
   // Default to empty string.
   constexpr Amorphous() : source_block(nullptr), size(0) {}
 
   constexpr Amorphous(const View::Amorphous&) = default;
 
-  // Non-null terminated block of packed bytes.
   template <Count N>
   constexpr Amorphous(const Byte (&source)[N])
       : source_block(&source), size(N) {}
@@ -37,10 +42,6 @@ class Amorphous {
   constexpr auto operator!=(const View::Amorphous& rhs) const -> Bool {
     return !operator==(rhs);
   }
-
-  constexpr auto empty() const -> Bool { return size == 0; };
-  constexpr auto get_size() const -> Count { return size; };
-  constexpr auto get_data() const -> const Byte* { return source_block; };
 
   constexpr auto at(Count index) const -> const Byte {
     if (index > size) [[unlikely]] {
@@ -70,6 +71,10 @@ class Amorphous {
 
     return source_block[index];
   };
+
+  constexpr auto empty() const -> Bool { return size == 0; };
+  constexpr auto get_size() const -> Count { return size; };
+  constexpr auto get_data() const -> const Byte* { return source_block; };
 
  private:
   const Byte* source_block;

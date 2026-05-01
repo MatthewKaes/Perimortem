@@ -18,12 +18,12 @@ struct NullTerminated {
       source_block[i] = src[i];
   }
 
-  inline constexpr auto get_size() const -> Count { return N; };
-  inline constexpr auto get_data() const -> const Byte* {
+  constexpr auto get_size() const -> Count { return size; };
+  constexpr auto get_data() const -> const Byte* {
     return source_block;
   };
 };
-}  // namespace Perimortem::Utility
+}  // namespace Perimortem::Core::View
 
 template <Perimortem::Core::View::NullTerminated null>
 constexpr Perimortem::Core::View::Amorphous operator""_view() {

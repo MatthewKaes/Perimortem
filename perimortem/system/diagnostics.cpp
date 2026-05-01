@@ -5,14 +5,8 @@
 
 #include "perimortem/memory/static/bytes.hpp"
 
-#include <filesystem>
-#include <iostream>
-#include <mutex>
-
 using namespace Perimortem::System;
 using namespace Perimortem::Memory;
-
-std::mutex buffer_mutex;
 
 Diagnostics::Severity log_level = Diagnostics::Severity::Info;
 Bool flush_to_stdout = false;
@@ -22,24 +16,17 @@ Static::Bytes<1 << 12> log_buffer;
 Count write_ptr = 0;
 
 auto Diagnostics::set_level(Severity minimum) -> void {
-  std::scoped_lock lock(buffer_mutex);
   log_level = minimum;
 }
 auto Diagnostics::enable_stdout(Bool enable) -> void {
-  std::scoped_lock lock(buffer_mutex);
   flush_to_stdout = enable;
 }
 
 auto Diagnostics::enable_log(Bool enable) -> void {
-  std::scoped_lock lock(buffer_mutex);
   flush_to_log = enable;
 }
 
-Diagnostics::Diagnostics() {
-  std::time_t time = std::time({});
-  std::strftime(reinterpret_cast<char*>(log_file.get_access().get_data()),
-                log_file.get_size(), "%F", std::gmtime(&time));
-}
+Diagnostics::Diagnostics() {}
 
 Diagnostics::~Diagnostics() {
   flush();
@@ -95,11 +82,11 @@ Diagnostics::~Diagnostics() {
 
 // }
 
-auto Diagnostics::write_utc_stamp() -> void {
-  // Example of the very popular RFC 3339 format UTC time
-  std::time_t time = std::time({});
-  char timeString[sizeof("yyyy-mm-dd hh:mm:ss")];
-  std::strftime(std::data(timeString), std::size(timeString), "%F %T",
-                std::gmtime(&time));
-  std::cout << timeString << '\n';
-}
+// auto Diagnostics::write_utc_stamp() -> void {
+//   // Example of the very popular RFC 3339 format UTC time
+//   std::time_t time = std::time({});
+//   char timeString[sizeof("yyyy-mm-dd hh:mm:ss")];
+//   std::strftime(std::data(timeString), std::size(timeString), "%F %T",
+//                 std::gmtime(&time));
+//   std::cout << timeString << '\n';
+// }

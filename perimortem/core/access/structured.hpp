@@ -3,25 +3,29 @@
 
 #pragma once
 
+#include "perimortem/core/access/amorphous.hpp"
 #include "perimortem/core/perimortem.hpp"
 
 namespace Perimortem::Core::Access {
 
-// A raw read/write view of bytes with no endianness.
+// A read-write view of continuous data with possible endianness and structure.
+//
+// Structured data can be converted to Amorphous data in order to interperet it
+// at a byte level, however this is only valid in memory. To write and read
+// binary data as structured data it should be serialized using
+// `Perimortem::Serialization::Binary`.
 template <typename form>
 class Structured {
  public:
+  using data_type = form;
+
   // Default to empty string.
   constexpr Structured() : source_block(nullptr), size(0) {}
 
   constexpr Structured(const Structured&) = default;
 
-  constexpr Structured(form* source, Count source_size)
+  constexpr Structured(data_type* source, Count source_size)
       : source_block(source), size(source_size) {}
-
-  inline constexpr auto empty() const -> Bool { return size == 0; };
-  inline constexpr auto get_size() const -> Count { return size; };
-  inline constexpr auto get_data() -> form* { return source_block; };
 
   constexpr auto at(Count index) -> type& {
     if (index > size) [[unlikely]] {
@@ -32,22 +36,27 @@ class Structured {
     return source_block[index];
   }
 
-  constexpr auto operator[](Count index) -> type& {
-    return at(index);
-  }
+  constexpr auto operator[](Count index) -> type& { return at(index); }
 
-  inline constexpr auto slice(Count start, Count size) const
+  constexpr auto slice(Count start, Count size) const
       -> Access::Structured<type> {
     if (start >= get_size())
       return Access::Structured<type>();
 
     const auto size_cap = get_size() - start;
     return Access::Structured<type>(source_block + start,
-                              size > size_cap ? size_cap : size);
+                                    size > size_cap ? size_cap : size);
   };
 
+  constexpr auto empty() const -> Bool { return size == 0; };
+  constexpr auto get_size() const -> Count { return size; };
+  constexpr auto get_data() -> data_type* { return source_block; };
+  constexpr auto get_bytes() const -> Amorphous {
+    return Amorphous(source_block, size * sizeof(data_type));
+  }
+
  private:
-  form* source_block;
+  data_type* source_block;
   Count size;
 };
 
