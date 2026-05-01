@@ -1,19 +1,11 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
-// #include <chrono>
-// #include <random>
-// #include <sstream>
-// #include <thread>
-
 #include "perimortem/system/random.hpp"
-#include "perimortem/utility/func/hash.hpp"
 
 #include <immintrin.h>
 
 using namespace Perimortem::System;
-using namespace Perimortem::Core;
-using namespace Perimortem::Utility::Func;
 
 static constexpr Count channel_depth = 4;
 static constexpr Count max_index =
@@ -41,8 +33,6 @@ struct PhiloxState {
                         SignedBits_64(0xBB67AE85'00000000),
                         SignedBits_64(0x9E2779B9'00000000),
                         SignedBits_64(0xBB67AE85'00000000));
-  static constexpr __m256i philox4x32_increment =
-      _mm256_set_epi64x(0, channel_depth, 0, channel_depth);
   // Rolls they counter by 1 key.
   // This swaps the hi portion between 64 bit sets and shifts the low to hi.
   static constexpr Bits_8 counter_shuffle = 0b10'01'00'11;
@@ -85,7 +75,7 @@ constexpr auto bump_counter(PhiloxState& state) -> void {
   for (Count i = 1; i < channel_depth; i++) {
     // Use set1 to bump the lower counter of every state.
     philox_channels[i] =
-        _mm256_add_epi64(state.dual_channel_key, _mm256_set1_epi64x(i));
+        _mm256_add_epi64(state.dual_channel_counter, _mm256_set1_epi64x(i));
   }
 
   for (Count round = 0; round < PhiloxState::round_count; round++) {
@@ -100,7 +90,7 @@ constexpr auto bump_counter(PhiloxState& state) -> void {
     }
 
     if (round != PhiloxState::round_count - 1) {
-      philox_keys = _mm256_add_epi64(philox_keys, PhiloxState::philox4x32_weyl);
+      philox_keys = _mm256_add_epi32(philox_keys, PhiloxState::philox4x32_weyl);
     }
   }
 
@@ -111,7 +101,7 @@ constexpr auto bump_counter(PhiloxState& state) -> void {
 
   // Bump counter and reset index
   state.dual_channel_counter = _mm256_add_epi64(
-      state.dual_channel_counter, PhiloxState::philox4x32_increment);
+      state.dual_channel_counter, _mm256_set1_epi64x(channel_depth));
   state.index = 0;
 }
 
@@ -119,7 +109,6 @@ constexpr auto bump_counter(PhiloxState& state) -> void {
 // data vastly reduce the chance that any two invocations
 auto create_prng() -> PhiloxState {
   PhiloxState state;
-  state.index = 0;
 
   // Load the channel seeds (16 bytes of random)
   Bits_64 keys[] = {read_rand(), read_rand()};
@@ -130,6 +119,8 @@ auto create_prng() -> PhiloxState {
   // Load the counter seeds (32 bytes of random)
   state.dual_channel_counter =
       _mm256_set_epi64x(read_rand(), read_rand(), read_rand(), read_rand());
+
+  bump_counter(state);
 
   return state;
 }

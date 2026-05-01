@@ -2,7 +2,6 @@
 // Copyright © Matt Kaes
 
 #include "perimortem/serialization/json/node.hpp"
-#include "perimortem/core/view/null_terminated.hpp"
 #include "perimortem/memory/managed/bytes.hpp"
 #include "perimortem/memory/managed/vector.hpp"
 
@@ -11,7 +10,6 @@
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
 using namespace Perimortem::Serialization::Json;
-using namespace Perimortem::Utility::Func;
 
 template <Bits_32 channels, Bits_32 index, Bits_32 range>
 static auto optimized_or_merge(__m256i source[channels]) -> __m256i {

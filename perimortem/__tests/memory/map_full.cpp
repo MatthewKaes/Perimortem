@@ -3,11 +3,12 @@
 
 #include "validation/test/test.hpp"
 
-#include "perimortem/core/view/null_terminated.hpp"
 #include "perimortem/memory/dynamic/bytes.hpp"
 #include "perimortem/memory/dynamic/map.hpp"
 #include "perimortem/memory/static/bytes.hpp"
 
+using namespace Perimortem;
+using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
 using namespace Perimortem::Utility;
 
@@ -17,10 +18,11 @@ constexpr auto vector_mode = Dynamic::MapVectorization::Full;
 static Count default_construct_count = 0;
 static Count default_destruct_count = 0;
 
-Test::Harness DynamicMapFull = {.name = "Dynamic::Map (Full Vectorization)", .setup = []() {
-                              default_construct_count = 0;
-                              default_destruct_count = 0;
-                            }};
+Test::Harness DynamicMapFull = {.name = "Dynamic::Map (Full Vectorization)",
+                                .setup = []() {
+                                  default_construct_count = 0;
+                                  default_destruct_count = 0;
+                                }};
 
 class Hashable {
  public:
@@ -55,7 +57,7 @@ class Hashable {
   }
 
   ~Hashable() { destruct_count++; }
-  auto hash() const -> Bits_64 { return Func::Hash(id).get_value(); }
+  auto hash() const -> Bits_64 { return Math::Hash(id).get_value(); }
   auto operator==(const Hashable& rhs) const -> bool { return rhs.id == id; }
 
  private:

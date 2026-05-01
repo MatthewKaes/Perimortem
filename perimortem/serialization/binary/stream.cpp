@@ -3,10 +3,9 @@
 
 #include "perimortem/serialization/binary/stream.hpp"
 
-#include "perimortem/utility/func/data.hpp"
+#include "perimortem/core/data.hpp"
 
 using namespace Perimortem::Core;
-using namespace Perimortem::Utility::Func;
 using namespace Perimortem::Serialization;
 
 constexpr auto stream_endian = Data::ByteOrder::Little;

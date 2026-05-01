@@ -4,7 +4,6 @@
 #pragma once
 
 #include "perimortem/core/view/amorphous.hpp"
-#include "perimortem/core/view/null_terminated.hpp"
 
 // Compiler extension ABI
 namespace std {
@@ -21,7 +20,7 @@ class source_location {
 };
 }  // namespace std
 
-namespace Perimortem::System {
+namespace Perimortem::Diagnostics {
 
 // A class that wraps the compiler extensions to provide runtime
 // access to source information.
@@ -83,4 +82,4 @@ struct SourceInfo {
   const AbiConverter abi;
 };
 
-}  // namespace Perimortem::System
+}  // namespace Perimortem::Core::Diagnostics

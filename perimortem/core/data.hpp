@@ -1,13 +1,13 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
-#include "perimortem/utility/func/math.hpp"
-
 #pragma once
+
+#include "perimortem/core/perimortem.hpp"
 
 // Provide the blessed memory operations so LLVM can properly optimize.
 extern "C" {
-typedef __SIZE_TYPE__ size_t;
+typedef CppSize size_t;
 extern void* memcpy(void* __restrict dest,
                     const void* __restrict src,
                     size_t count) noexcept(true);
@@ -15,7 +15,7 @@ extern void* memcpy(void* __restrict dest,
 extern int memcmp(const void* a, const void* b, size_t count) noexcept(true);
 }  // extern "C"
 
-namespace Perimortem::Utility::Func::Data {
+namespace Perimortem::Core::Data {
 
 enum class ByteOrder {
   Little = __ORDER_LITTLE_ENDIAN__,
@@ -26,21 +26,25 @@ enum class ByteOrder {
 // Type helpers
 template <typename storage>
 constexpr auto size_in_bits() -> Bits_64 {
-  return Bits_64(sizeof(storage)) * 8_U64;
+  return sizeof(storage) * 8;
 }
 
+// Used for reading const raw data.
 template <typename target_type>
-auto cast(const Byte* source) -> const target_type {
-  return __builtin_launder(reinterpret_cast<target_type>(source));
+auto cast(const Byte* source) -> const target_type* {
+  // TODO: start_lifetime_as
+  return reinterpret_cast<const target_type*>(source);
 }
 
+// Used for reading raw data.
 template <typename target_type>
-auto cast(Byte* source) -> target_type {
-  return __builtin_launder(reinterpret_cast<target_type>(source));
+auto cast(Byte* source) -> target_type* {
+  // TODO: start_lifetime_as
+  return reinterpret_cast<target_type*>(source);
 }
 
 template <typename storage_type>
-auto copy(Byte* dest, const storage_type* src, Count count = 1_U64)
+auto copy(Byte* dest, const storage_type* src, Count count = 1)
     -> storage_type* {
   return reinterpret_cast<storage_type*>(
       memcpy(dest, src, Bits_64(sizeof(storage_type)) * count));
@@ -49,17 +53,17 @@ auto copy(Byte* dest, const storage_type* src, Count count = 1_U64)
 template <typename storage_type>
 constexpr auto compare(const storage_type* dest,
                        const storage_type* src,
-                       Count count = 1_U64) -> Bool {
+                       Count count = 1) -> Bool {
   if consteval {
-    for (Count i = 0_U64; i < count; i++) {
-      if (dest[i.value] != src[i.value]) {
-        return False;
+    for (Count i = 0; i < count; i++) {
+      if (dest[i] != src[i]) {
+        return false;
       }
     }
 
-    return True;
+    return true;
   } else {
-    return Bool(memcmp(dest, src, sizeof(storage_type) * count.value) == 0);
+    return memcmp(dest, src, Bits_64(sizeof(storage_type)) * count) == 0;
   }
 }
 
@@ -81,4 +85,4 @@ constexpr auto ensure_endian(storage_type bin) -> storage_type {
   return bin;
 }
 
-}  // namespace Perimortem::Utility::Func::Data
+}  // namespace Perimortem::Core::Data

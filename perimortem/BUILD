@@ -9,15 +9,23 @@ package(default_visibility = ["//visibility:public"])
 
 cc_library(
     name = "perimortem",
-    # srcs = glob(["*.cpp"]),
-    # hdrs = glob(["*.hpp"]),
     includes = ["."],
     deps = [
         ":core",
+        ":math",
         ":memory",
         ":serialization",
         ":system",
     ],
+)
+
+cc_library(
+    name = "math",
+    srcs = [],
+    hdrs = glob([
+        "math/*.hpp",
+    ]),
+    includes = ["."],
 )
 
 cc_library(
@@ -35,12 +43,27 @@ cc_library(
     name = "utility",
     srcs = [],
     hdrs = glob([
-        "utility/func/*.hpp",
-        "utility/type/*.hpp",
+        "utility/*.hpp",
     ]),
     includes = ["."],
     deps = [
         ":core",
+    ],
+)
+
+cc_library(
+    name = "diagnostics",
+    srcs = glob([
+        "diagnostics/*.cpp",
+    ]),
+    hdrs = glob([
+        "diagnostics/*.hpp",
+    ]),
+    includes = ["."],
+    deps = [
+        ":core",
+        ":memory",
+        ":utility",
     ],
 )
 
@@ -60,6 +83,7 @@ cc_library(
     includes = ["."],
     deps = [
         ":core",
+        ":math",
         ":utility",
     ],
 )
@@ -75,6 +99,7 @@ cc_library(
     includes = ["."],
     deps = [
         ":core",
+        ":math",
         ":memory",
         ":utility",
     ],
@@ -86,15 +111,16 @@ cc_library(
         # "serialization/archive/*.cpp",
         "serialization/base64/*.cpp",
         "serialization/binary/*.cpp",
-        "serialization/textual/*.cpp",
         "serialization/json/*.cpp",
+        "serialization/textual/*.cpp",
     ]),
     hdrs = glob([
         # "serialization/archive/*.hpp",
         "serialization/base64/*.hpp",
         "serialization/binary/*.hpp",
-        "serialization/textual/*.hpp",
+        "serialization/encoding/*.hpp",
         "serialization/json/*.hpp",
+        "serialization/textual/*.hpp",
     ]),
     includes = ["."],
     deps = [
@@ -105,20 +131,6 @@ cc_library(
         "@zstd",
     ],
 )
-
-# cc_library(
-#     name = "system",
-#     srcs = glob([
-#         "system/*.cpp",
-#     ]),
-#     hdrs = glob([
-#         "system/*.hpp",
-#     ]),
-#     includes = ["."],
-#     deps = [
-#         ":memory",
-#     ],
-# )
 
 cc_library(
     name = "__tests_lib",
@@ -134,10 +146,11 @@ cc_library(
 
 cc_binary(
     name = "__tests",
-    includes = ["."],
     srcs = glob([
         "__tests/memory/*.cpp",
+        "__tests/system/*.cpp",
     ]),
+    includes = ["."],
     deps = [
         ":__tests_lib",
         ":perimortem",

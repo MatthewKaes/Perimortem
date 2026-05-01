@@ -11,14 +11,7 @@ using namespace Perimortem::Utility;
 
 using namespace Validation;
 
-template <typename key_type, typename value_type>
-struct Pair {
-  static key_type key;
-  static value_type value;
-};
-
-
-static constexpr Type::Pair<View::Amorphous, Int> data[] = {
+static constexpr Pair<View::Amorphous, Int> data[] = {
     {"as"_view, 1},       {"if"_view, 2},       {"for"_view, 3},
     {"new"_view, 4},      {"else"_view, 5},     {"func"_view, 6},
     {"init"_view, 7},     {"self"_view, 8},     {"true"_view, 9},
@@ -30,7 +23,7 @@ static constexpr Type::Pair<View::Amorphous, Int> data[] = {
 };
 
 static constexpr View::Structured<
-              Type::Pair<View::Amorphous, Int>> value(data);
+              Pair<View::Amorphous, Int>> value(data);
 
 using keyword_table = Static::Table<Int, value>;
 

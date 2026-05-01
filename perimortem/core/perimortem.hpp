@@ -2,16 +2,38 @@
 // Copyright © Matt Kaes
 
 //
-// Perimortem Types
+// Perimortem Standard Library and Compiler Interface
 //
 /*
-  Sized types used for LLVM compatability. This includes the standard definition
-  for all Tetrodotoxin types. All types have a defined exact storage size.
+  ==============================================================================
 
-  For ease of use this is the only that is not wrapped in a namespace.
+                               WHAT IS THIS?
 
-  Technically supports LP32 but really only LLP64 and LP64 are used as systems
-  under test.
+  ==============================================================================
+
+  As C++ has grown as a language it's standard library has gotten quite slow to
+  use and carries over a few annoyances from C compatability.
+
+  To speed up compile times by over an order of magnitude we stub it but we
+  don't want to lose full compatability with the C++ standard library.
+
+  This file attempts to not make Perimortem _incompatable_ with the C++ standard
+  library, but a limited stub that may be mixed with standard C++ header files.
+  However mixing is limited as much as possible in throughout the project; some
+  includes bloat compile times by seconds all on their own in C++26.
+
+  ==============================================================================
+
+                                WHY NOT C?
+
+  ==============================================================================
+
+  While we don't want many features from the standard library we do make use of
+  a large number of C++ _compiler_ features. While all Perimortem features
+  should bottom out to a compatible C ABI there are a lot of things that are
+  just easier to express in C++ rather than build an entire parallel C-codegen
+  pipeline.
+
 */
 
 #pragma once
@@ -27,7 +49,7 @@ using Bits_32 = unsigned int;
 #endif
 using Bits_64 = unsigned long long;
 
-using SignedBits_8 = signed char;
+using SignedBits_8 = char;
 using SignedBits_16 = signed short int;
 // Legacy support for LP32
 #ifdef __LP32__
@@ -49,11 +71,10 @@ using Int = SignedBits_32;
 using UInt = Bits_32;
 using Long = SignedBits_64;
 using ULong = Bits_64;
-#ifdef __LP32__
-using Count = Bits_32;
-#else
 using Count = Bits_64;
-#endif
+
+// Cpp interop
+using CppSize = __SIZE_TYPE__;
 
 // In Perimortem boolean values are always 8 bit and treated as unsigned.
 //
@@ -99,7 +120,42 @@ static_assert(sizeof(Real_128) == 16);
 static_assert(sizeof(Bool) == 1);
 
 #ifndef _NEW
-constexpr void* operator new(__SIZE_TYPE__ size, void* ptr) noexcept {
+constexpr void* operator new(CppSize size, void* ptr) noexcept {
   return ptr;
 }
 #endif
+
+#ifndef _INITIALIZER_LIST
+namespace std {
+// Special class that implments std::initalizer_list for the compiler.
+template <class type>
+class initializer_list {
+ public:
+  using value_type = type;
+  using reference = const type&;
+  using const_reference = const type&;
+  using size_type = CppSize;
+  using iterator = type*;
+  using const_iterator = const type*;
+
+ private:
+  iterator data;
+  size_type count;
+
+  // Compiler magic ***
+  // Check if this works on other compilers at some point.
+  constexpr initializer_list(const_iterator data, size_type count)
+      : data(data), count(count) {}
+
+ public:
+  constexpr initializer_list() noexcept : data(0), count(0) {}
+  constexpr size_type size() const noexcept { return count; }
+  constexpr const_iterator begin() const noexcept { return data; }
+  constexpr const_iterator end() const noexcept { return begin() + size(); }
+};
+
+}  // namespace std
+#endif
+
+template <class type>
+using Init = std::initializer_list<type>;

@@ -3,10 +3,10 @@
 
 #pragma once
 
+#include "perimortem/core/data.hpp"
+#include "perimortem/math/hash.hpp"
 #include "perimortem/memory/allocator/bibliotheca.hpp"
-#include "perimortem/utility/func/data.hpp"
-#include "perimortem/utility/func/hash.hpp"
-#include "perimortem/utility/type/pair.hpp"
+#include "perimortem/utility/pair.hpp"
 
 #include <x86intrin.h>
 
@@ -36,7 +36,7 @@ template <typename key_type,
           MapVectorization vector_mode = MapVectorization::Full>
 class Map {
  public:
-  using Entry = Utility::Type::Pair<key_type, value_type>;
+  using Entry = Utility::Pair<key_type, value_type>;
 
   // Internal configuration of data type
  private:
@@ -285,13 +285,13 @@ class Map {
   constexpr auto find_or_default(const key_type& key,
                                  const key_type& value) const
       -> const key_type& {
-        auto entry = find(key);
-        if (!entry) {
-          return value;
-        } else {
-          return entry->value;
-        }
-      }
+    auto entry = find(key);
+    if (!entry) {
+      return value;
+    } else {
+      return entry->value;
+    }
+  }
 
   constexpr auto get_size() const -> Count { return buffer_data.size; }
   constexpr auto get_capacity() const -> Count {
@@ -474,7 +474,7 @@ class Map {
   }
 
   constexpr auto get_hash(const key_type& key) const -> input_hash_type {
-    Utility::Func::Hash h(key);
+    Math::Hash h(key);
     return input_hash_type(h.get_value());
   }
 

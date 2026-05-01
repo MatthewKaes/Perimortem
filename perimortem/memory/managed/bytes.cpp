@@ -4,11 +4,10 @@
 
 #include "perimortem/memory/managed/bytes.hpp"
 
-#include "perimortem/utility/func/math.hpp"
+#include "perimortem/math/math.hpp"
 
 #include <x86intrin.h>
 
-using namespace Perimortem::Utility::Func;
 using namespace Perimortem::Memory;
 
 Managed::Bytes::Bytes(const Bytes& rhs, Count reserved_capacity)

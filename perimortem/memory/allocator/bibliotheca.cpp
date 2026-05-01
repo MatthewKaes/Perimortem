@@ -3,11 +3,11 @@
 
 #include "perimortem/memory/allocator/bibliotheca.hpp"
 
-#include "perimortem/utility/func/data.hpp"
-#include "perimortem/utility/func/math.hpp"
+#include "perimortem/core/data.hpp"
+#include "perimortem/math/math.hpp"
 
 using namespace Perimortem;
-using namespace Perimortem::Utility::Func;
+using namespace Perimortem::Core;
 using namespace Perimortem::Memory::Allocator;
 
 extern "C" {

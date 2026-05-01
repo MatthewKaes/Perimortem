@@ -3,7 +3,6 @@
 
 #include "validation/test/test.hpp"
 
-#include "perimortem/core/view/null_terminated.hpp"
 #include "perimortem/memory/dynamic/bytes.hpp"
 #include "perimortem/memory/dynamic/map.hpp"
 #include "perimortem/memory/static/bytes.hpp"
@@ -17,11 +16,12 @@ using namespace Validation;
 
 constexpr auto vector_mode = Dynamic::MapVectorization::Partial;
 
-Test::Harness DynamicMapPartial = {.name = "Dynamic::Map (Partial Vectorization)", .setup = []() {
-                              default_construct_count = 0;
-                              default_destruct_count = 0;
-                            }};
-
+Test::Harness DynamicMapPartial = {
+    .name = "Dynamic::Map (Partial Vectorization)",
+    .setup = []() {
+      default_construct_count = 0;
+      default_destruct_count = 0;
+    }};
 
 PERIMORTEM_UNIT_TEST(DynamicMapPartial, empty) {
   Dynamic::Map<Int, Int, vector_mode> empty_map;
