@@ -34,6 +34,6 @@ static constexpr View::Structured<
 
 using keyword_table = Static::Table<Int, value>;
 
-constexpr auto value = keyword_table::get_memory_consumption();
+// constexpr auto mem_comp = keyword_table::get_memory_consumption();
 
 Test::Harness StaticMap = {.name = "Keyword Lookup"};

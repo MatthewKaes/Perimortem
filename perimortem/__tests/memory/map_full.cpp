@@ -69,7 +69,7 @@ PERIMORTEM_UNIT_TEST(DynamicMapFull, empty) {
 
   // Two maps fit in a cache line.
   EXPECT_EQ(sizeof(empty_map), 32);
-  EXPECT_EQ(empty_map.get_size(), 0);
+  EXPECT_EQ(empty_map.get_size(), 0ULL);
 
   // Empty maps should consume no memory and should fetch memory lazily unless
   // initial capacity is requested.

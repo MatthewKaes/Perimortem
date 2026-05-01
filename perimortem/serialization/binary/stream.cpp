@@ -9,55 +9,35 @@ using namespace Perimortem::Core;
 using namespace Perimortem::Utility::Func;
 using namespace Perimortem::Serialization;
 
-constexpr auto byte_swap_required = __BYTE_ORDER__ != __ORDER_LITTLE_ENDIAN__;
-
-template <typename storage_type>
-constexpr auto possible_swap(storage_type bin) -> storage_type {
-  if constexpr (byte_swap_required) {
-    switch (sizeof(storage_type)) {
-      case 1:
-        return bin;
-      case 2:
-        return __builtin_bswap16(bin);
-      case 4:
-        return __builtin_bswap32(bin);
-      case 8:
-        return __builtin_bswap64(bin);
-    }
-  }
-
-  return bin;
-}
+constexpr auto stream_endian = Data::ByteOrder::Little;
 
 template <typename storage_type>
 constexpr auto get_data_type() -> Binary::Stream::DataType {
-  if constexpr (byte_swap_required) {
-    switch (sizeof(storage_type)) {
-      case 1:
-        if constexpr (storage_type(-1) < storage_type(0)) {
-          return Binary::Stream::DataType::SignedBits_8;
-        } else {
-          return Binary::Stream::DataType::Bits_8;
-        }
-      case 2:
-        if constexpr (storage_type(-1) < storage_type(0)) {
-          return Binary::Stream::DataType::SignedBits_16;
-        } else {
-          return Binary::Stream::DataType::Bits_16;
-        }
-      case 4:
-        if constexpr (storage_type(-1) < storage_type(0)) {
-          return Binary::Stream::DataType::SignedBits_32;
-        } else {
-          return Binary::Stream::DataType::Bits_32;
-        }
-      case 8:
-        if constexpr (storage_type(-1) < storage_type(0)) {
-          return Binary::Stream::DataType::SignedBits_64;
-        } else {
-          return Binary::Stream::DataType::Bits_64;
-        }
-    }
+  switch (sizeof(storage_type)) {
+    case 1:
+      if constexpr (storage_type(-1) < storage_type(0)) {
+        return Binary::Stream::DataType::SignedBits_8;
+      } else {
+        return Binary::Stream::DataType::Bits_8;
+      }
+    case 2:
+      if constexpr (storage_type(-1) < storage_type(0)) {
+        return Binary::Stream::DataType::SignedBits_16;
+      } else {
+        return Binary::Stream::DataType::Bits_16;
+      }
+    case 4:
+      if constexpr (storage_type(-1) < storage_type(0)) {
+        return Binary::Stream::DataType::SignedBits_32;
+      } else {
+        return Binary::Stream::DataType::Bits_32;
+      }
+    case 8:
+      if constexpr (storage_type(-1) < storage_type(0)) {
+        return Binary::Stream::DataType::SignedBits_64;
+      } else {
+        return Binary::Stream::DataType::Bits_64;
+      }
   }
 
   return Binary::Stream::DataType::Unknown;
@@ -84,7 +64,7 @@ constexpr auto write_block(Access::Amorphous target,
   Byte* data = target.get_data();
   data[ptr_location] = static_cast<Byte>(get_data_type<storage_type>());
 
-  bin = possible_swap(bin);
+  bin = Data::ensure_endian<Data::ByteOrder::Native, stream_endian>(bin);
 
   Data::copy(data + ptr_location + 1, &bin);
   ptr_location += 1 + sizeof(storage_type);
@@ -107,18 +87,21 @@ constexpr auto write_blob(Access::Amorphous target,
   data[ptr_location++] = static_cast<Byte>(get_data_type<storage_type>());
 
   // Size data
-  Count size = possible_swap(bin.get_size());
+  Count size = Data::ensure_endian<Data::ByteOrder::Native, stream_endian>(bin.get_size());
   Data::copy(data + ptr_location, &size);
   ptr_location += sizeof(Count);
 
   // Special case for byte data
-  if constexpr (sizeof(storage_type) == 1 || !byte_swap_required) {
+  if constexpr (sizeof(storage_type) == 1 ||
+                (Data::ByteOrder::Native == stream_endian)) {
     Data::copy(data + ptr_location, bin.get_data(), bin.get_size());
     ptr_location += sizeof(storage_type) * bin.get_size();
   } else {
     // Serialize each block
     for (Count i = 0; i < bin.get_size(); i++) {
-      storage_type ordered_bytes = possible_swap(bin.get_data()[i]);
+      storage_type ordered_bytes =
+          Data::ensure_endian<Data::ByteOrder::Native, stream_endian>(
+              bin.get_data()[i]);
       Data::copy(data + ptr_location, &ordered_bytes);
       ptr_location += sizeof(storage_type);
     }
