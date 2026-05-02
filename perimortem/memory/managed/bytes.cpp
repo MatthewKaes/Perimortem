@@ -4,7 +4,7 @@
 
 #include "perimortem/memory/managed/bytes.hpp"
 
-#include "perimortem/math/math.hpp"
+#include "perimortem/math/basic.hpp"
 
 #include <x86intrin.h>
 
@@ -43,14 +43,14 @@ auto Managed::Bytes::append(Byte b) -> void {
   rented_block[size++] = b;
 }
 
-auto Managed::Bytes::append(Core::View::Amorphous view) -> void {
+auto Managed::Bytes::append(Core::View::Bytes view) -> void {
   ensure_capacity(size + view.get_size());
 
   memcpy(rented_block + size, view.get_data(), view.get_size());
   size += view.get_size();
 }
 
-auto Managed::Bytes::proxy(Core::View::Amorphous view) -> void {
+auto Managed::Bytes::proxy(Core::View::Bytes view) -> void {
   if (view.get_size() > capacity)
     grow(view.get_size() - capacity);
 

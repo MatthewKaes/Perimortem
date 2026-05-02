@@ -52,7 +52,7 @@ class Program : public Abstract {
   auto resolve_host() const -> const Abstract* override { return nullptr; }
 
   auto expand_context(
-      const std::function<void(const Core::View::Amorphous&,
+      const std::function<void(const Core::View::Bytes&,
                                const Abstract* const&)>& fn) const
       -> void override {
     // Include all types compiled from path.

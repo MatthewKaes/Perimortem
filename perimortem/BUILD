@@ -33,6 +33,7 @@ cc_library(
     srcs = [],
     hdrs = glob([
         "core/access/*.hpp",
+        "core/static/*.hpp",
         "core/view/*.hpp",
         "core/*.hpp",
     ]),
@@ -78,7 +79,6 @@ cc_library(
         "memory/allocator/*.hpp",
         "memory/dynamic/*.hpp",
         "memory/managed/*.hpp",
-        "memory/static/*.hpp",
     ]),
     includes = ["."],
     deps = [
@@ -147,6 +147,7 @@ cc_library(
 cc_binary(
     name = "__tests",
     srcs = glob([
+        "__tests/math/*.cpp",
         "__tests/memory/*.cpp",
         "__tests/system/*.cpp",
     ]),

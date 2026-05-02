@@ -6,7 +6,7 @@
 #include "source.hpp"
 
 #include "perimortem/memory/view/bitflag.hpp"
-#include "perimortem/core/view/amorphous.hpp"
+#include "perimortem/core/view/bytes.hpp"
 
 namespace Tetrodotoxin::Lexical {
 
@@ -106,10 +106,10 @@ using ClassifierFlags = Perimortem::Memory::View::BitFlag<Classifier>;
 // Wrapper for tokenizing a stream.
 struct Token {
   Classifier klass;
-  const Perimortem::Core::View::Amorphous data;
+  const Perimortem::Core::View::Bytes data;
   Location location;
 
-  inline auto test(const Perimortem::Core::View::Amorphous view) const -> Bool {
+  inline auto test(const Perimortem::Core::View::Bytes view) const -> Bool {
     return data == view;
   }
 

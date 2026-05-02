@@ -4,7 +4,7 @@
 #pragma once
 
 #include "perimortem/core/data.hpp"
-#include "perimortem/math/hash.hpp"
+#include "perimortem/core/hash.hpp"
 #include "perimortem/memory/allocator/bibliotheca.hpp"
 #include "perimortem/utility/pair.hpp"
 
@@ -70,7 +70,7 @@ class Map {
   template <>
   struct VectorType<MapVectorization::Scalar> {
     using Type = Bits_32;
-    using MaskType = bool;
+    using MaskType = Bool;
     using KeyType = Bits_32;
     using InputHash = Bits_32;
     using SlotType = SlotEntryOnly;
@@ -474,7 +474,7 @@ class Map {
   }
 
   constexpr auto get_hash(const key_type& key) const -> input_hash_type {
-    Math::Hash h(key);
+    Core::Hash h(key);
     return input_hash_type(h.get_value());
   }
 

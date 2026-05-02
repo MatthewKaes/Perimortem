@@ -11,7 +11,7 @@ class Alias {
  public:
   static constexpr uint32_t uuid = 0x812E1DA1;
   constexpr auto get_name() const
-      -> const Perimortem::Core::View::Amorphous override {
+      -> const Perimortem::Core::View::Bytes override {
     return type->resolve()->get_name();
   };
   
@@ -20,21 +20,21 @@ class Alias {
   auto get_size() const -> uint32_t override { return 0; };
   auto resolve() const -> const Abstract* override { return type->resolve(); }
 
-  auto resolve_context(const Perimortem::Core::View::Amorphous name) const
+  auto resolve_context(const Perimortem::Core::View::Bytes name) const
       -> const Abstract* override {
     return type->resolve()->resolve_context(name);
   }
 
   // An alias could redirect scope, but this can get real spicy really
   // quickly, so for now we don't let you alias scopes.
-  auto resolve_scope(const Perimortem::Core::View::Amorphous name) const
+  auto resolve_scope(const Perimortem::Core::View::Bytes name) const
       -> const Abstract* override {
     // type->resolve()->resolve_scope(name);
     return nullptr;
   }
 
   auto expand_context(
-      const std::function<void(const Perimortem::Core::View::Amorphous,
+      const std::function<void(const Perimortem::Core::View::Bytes,
                                const Abstract* const)>& fn) const
       -> void override {
     return type->resolve()->expand_context(fn);
@@ -43,7 +43,7 @@ class Alias {
   // An alias could redirect scope, but this can get real spicy really quickly,
   // so for now we don't let you alias scopes like functions or blocks.
   auto expand_scope(
-      const std::function<void(const Perimortem::Core::View::Amorphous,
+      const std::function<void(const Perimortem::Core::View::Bytes,
                                const Abstract* const)>& fn) const
       -> void override {
     // type->resolve()->expand_scope();

@@ -3,29 +3,28 @@
 
 #pragma once
 
-#include "perimortem/core/view/amorphous.hpp"
+#include "perimortem/core/view/bytes.hpp"
 
 namespace Perimortem::Core::View {
 
 // A read-only view of continuous data with possible endianness and structure.
 //
-// Structured data can be converted to Amorphous data in order to interperet it
+// Structured data can be converted to Bytes data in order to interperet it
 // at a byte level, however this is only valid in memory. To write and read
-// binary data as structured data it should be serialized using
+// binary data as vector data it should be serialized using
 // `Perimortem::Serialization::Binary`.
-template <typename from>
-class Structured {
+template <typename type>
+class Vector {
  public:
-  using data_type = from;
+  using data_type = type;
 
-  constexpr Structured() = default;
-  constexpr Structured(const Structured&) = default;
-  constexpr Structured(const data_type* entries, const Count size)
+  constexpr Vector() = default;
+  constexpr Vector(const Vector&) = default;
+  constexpr Vector(const data_type* entries, const Count size)
       : source_block(entries), size(size) {}
 
-  // Non-null terminated block of packed bytes.
   template <Count N>
-  constexpr Structured(const data_type (&source)[N])
+  constexpr Vector(const data_type (&source)[N])
       : source_block(source), size(N) {}
 
   constexpr auto contains(const data_type& data) const -> Bool {
@@ -51,23 +50,23 @@ class Structured {
   }
 
   constexpr auto slice(Count start, Count size) const
-      -> View::Structured<data_type> {
+      -> View::Vector<data_type> {
     if (start >= get_size())
-      return View::Structured<data_type>();
+      return View::Vector<data_type>();
 
-    return View::Structured<data_type>(source_block + start,
-                                       Math::min(size, get_size() - start));
+    return View::Vector<data_type>(source_block + start,
+                                   Math::min(size, get_size() - start));
   };
 
   constexpr auto empty() const -> Bool { return size == 0; };
   constexpr auto get_size() const -> Count { return size; }
   constexpr auto get_data() const -> const data_type* { return source_block; }
-  constexpr auto get_bytes() const -> const Amorphous {
-    return Amorphous(source_block, size * sizeof(data_type));
+  constexpr auto get_bytes() const -> const Bytes {
+    return Bytes(source_block, size * sizeof(data_type));
   }
 
  private:
-  const data_type* source_block = nullptr;
+  const type* source_block = nullptr;
   Count size = 0;
 };
 

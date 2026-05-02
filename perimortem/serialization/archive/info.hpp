@@ -5,7 +5,7 @@
 
 
 #include "perimortem/core/perimortem.hpp"
-#include "perimortem/core/view/amorphous.hpp"
+#include "perimortem/core/view/bytes.hpp"
 #include "perimortem/memory/view/bitflag.hpp"
 #include "perimortem/system/uuid.hpp"
 
@@ -63,8 +63,8 @@ constexpr auto file_endian = __ORDER_LITTLE_ENDIAN__;
 
 struct Object {
   System::Uuid uuid;
-  Core::View::Amorphous path;
-  Core::View::Amorphous data;
+  Core::View::Bytes path;
+  Core::View::Bytes data;
   FileFlags options = FileStorage::None;
 };
 

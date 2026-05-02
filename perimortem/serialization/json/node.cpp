@@ -25,7 +25,7 @@ static auto optimized_or_merge(__m256i source[channels]) -> __m256i {
   }
 }
 
-auto scan(View::Amorphous bytes, Byte search, Count position) -> Count {
+auto scan(View::Bytes bytes, Byte search, Count position) -> Count {
   // Use 8 AVX2 channels to get out as much performance as we can for long
   // searches.
   constexpr const auto fused_channels = 8;
@@ -100,7 +100,7 @@ auto Node::null() const -> Bool {
 
 auto Node::at(Bits_32 index) const -> const Node {
   if (state == NodeState::Array) {
-    View::Structured<Node> array = value.array;
+    View::Vector<Node> array = value.array;
     if (array.get_size() >= index) {
       return Node();
     }
@@ -111,9 +111,9 @@ auto Node::at(Bits_32 index) const -> const Node {
   return Node();
 }
 
-auto Node::at(const View::Amorphous name) const -> const Node {
+auto Node::at(const View::Bytes name) const -> const Node {
   if (state == NodeState::Object) {
-    View::Structured<Member> members = value.object;
+    View::Vector<Member> members = value.object;
 
     for (Count i = 0; i < members.get_size(); i++) {
       if (members[i].name == name) {
@@ -129,13 +129,13 @@ auto Node::operator[](Bits_32 index) const -> const Node {
   return at(index);
 }
 
-auto Node::operator[](const View::Amorphous name) const -> const Node {
+auto Node::operator[](const View::Bytes name) const -> const Node {
   return at(name);
 }
 
-auto Node::contains(const View::Amorphous name) const -> Bool {
+auto Node::contains(const View::Bytes name) const -> Bool {
   if (state == NodeState::Object) {
-    View::Structured<Member> members = value.object;
+    View::Vector<Member> members = value.object;
 
     for (Count i = 0; i < members.get_size(); i++) {
       if (members[i].name == name) {
@@ -173,23 +173,23 @@ auto Node::get_double() const -> double {
   return 0.0;
 }
 
-auto Node::get_string() const -> const View::Amorphous {
+auto Node::get_string() const -> const View::Bytes {
   if (state == NodeState::String) {
     return value.string;
   }
 
-  return View::Amorphous();
+  return View::Bytes();
 }
 
 auto Node::get_size() const -> Count {
   switch (state) {
     case NodeState::Array: {
-      View::Structured<Node> array = value.array;
+      View::Vector<Node> array = value.array;
       return array.get_size();
     }
 
     case NodeState::Object: {
-      View::Structured<Member> members = value.object;
+      View::Vector<Member> members = value.object;
       return members.get_size();
     }
 
@@ -198,7 +198,7 @@ auto Node::get_size() const -> Count {
   }
 }
 
-auto parse_string(View::Amorphous source, Count& position) -> View::Amorphous {
+auto parse_string(View::Bytes source, Count& position) -> View::Bytes {
   Count start = ++position;
   position = scan(source, '"', position);
 
@@ -210,7 +210,7 @@ auto ignored_characters(Byte c) {
 }
 
 auto Node::from_source(Allocator::Arena& arena,
-                       View::Amorphous source,
+                       View::Bytes source,
                        Count position) -> Count {
   if (position > source.get_size()) {
     set();
@@ -380,13 +380,13 @@ auto Node::serialized_size() const -> Count {
     }
 
     case NodeState::Raw: {
-      const View::Amorphous string = value.string;
+      const View::Bytes string = value.string;
       return string.get_size();
     }
 
     case NodeState::Array: {
       Count accumulated = 0;
-      View::Structured<Node> array = value.array;
+      View::Vector<Node> array = value.array;
       for (Bits_32 i = 0; i < array.get_size(); i++) {
         accumulated += array[i].serialized_size();
       }
@@ -397,7 +397,7 @@ auto Node::serialized_size() const -> Count {
 
     case NodeState::Object: {
       Count accumulated = 0;
-      View::Structured<Member> members = value.object;
+      View::Vector<Member> members = value.object;
       for (Bits_32 i = 0; i < members.get_size(); i++) {
         const auto& member = members[i];
         accumulated += member.name.get_size() + "\"\":"_view.get_size();
@@ -409,7 +409,7 @@ auto Node::serialized_size() const -> Count {
     }
 
     case NodeState::String: {
-      const View::Amorphous string = value.string;
+      const View::Bytes string = value.string;
       return string.get_size() + "\"\""_view.get_size();
     }
 
@@ -448,7 +448,7 @@ auto Node::serialized_size() const -> Count {
   }
 }
 
-auto Node::format(Allocator::Arena& arena) const -> View::Amorphous {
+auto Node::format(Allocator::Arena& arena) const -> View::Bytes {
   // Get an upper bound which should be fairly accurate but can be pessemsitic
   // in the case of a large number of reals.
   Count upper_bound = serialized_size();
@@ -458,7 +458,7 @@ auto Node::format(Allocator::Arena& arena) const -> View::Amorphous {
   inplace_format(output);
 
   if (!output.is_valid()) {
-    return View::Amorphous();
+    return View::Bytes();
   }
 
   return formatted_output;
@@ -477,7 +477,7 @@ auto Node::inplace_format(Textual::Stream& output) const -> void {
     case NodeState::Array: {
       output << Byte('[');
 
-      View::Structured<Node> array = value.array;
+      View::Vector<Node> array = value.array;
       for (Bits_32 i = 0; i < array.get_size(); i++) {
         array[i].inplace_format(output);
         if (i != array.get_size() - 1) {
@@ -491,7 +491,7 @@ auto Node::inplace_format(Textual::Stream& output) const -> void {
     case NodeState::Object: {
       output << Byte('{');
 
-      View::Structured<Member> members = value.object;
+      View::Vector<Member> members = value.object;
       for (Bits_32 i = 0; i < members.get_size(); i++) {
         const auto& member = members[i];
         output << Byte('\"') << member.name << "\":"_view;

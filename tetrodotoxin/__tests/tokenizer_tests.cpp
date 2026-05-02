@@ -36,7 +36,7 @@ auto read_all_bytes(const std::filesystem::path& p) -> std::string {
 
 void compare_tokens(const Token& result,
                     Classifier klass,
-                    Core::View::Amorphous data,
+                    Core::View::Bytes data,
                     Location loc) {
   EXPECT_EQ(result.klass, klass);
 

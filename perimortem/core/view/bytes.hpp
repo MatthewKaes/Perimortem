@@ -4,7 +4,7 @@
 #pragma once
 
 #include "perimortem/core/data.hpp"
-#include "perimortem/math/math.hpp"
+#include "perimortem/math/basic.hpp"
 
 namespace Perimortem::Core::View {
 
@@ -16,34 +16,33 @@ namespace Perimortem::Core::View {
 // Any optimized vectorization opperations will break UTF-8 strings unless you
 // know exactly what you are doing (scanning for an exact byte).
 //
-// Since the structure of the data is undefined, Amorphous data does not
-// directly convert to Structured data, however Structured data can be converted
-// to Amorphous data.
-class Amorphous {
+// Since the structure of the data is undefined, Bytes data does not
+// directly convert to Vector data, however Vector data can be converted
+// to Bytes data.
+class Bytes {
  public:
   using data_type = Byte;
 
   // Default to empty string.
-  constexpr Amorphous() : source_block(nullptr), size(0) {}
+  constexpr Bytes() : source_block(nullptr), size(0) {}
 
-  constexpr Amorphous(const View::Amorphous&) = default;
+  constexpr Bytes(const View::Bytes&) = default;
 
   template <Count N>
-  consteval Amorphous(const Byte (&source)[N])
-      : source_block(&source), size(N) {}
+  consteval Bytes(const Byte (&source)[N]) : source_block(&source), size(N) {}
 
-  constexpr Amorphous(const Byte* source, Count source_size)
+  constexpr Bytes(const Byte* source, Count source_size)
       : source_block(source), size(source_size) {}
 
-  constexpr Amorphous(const SignedBits_8* source, Count source_size)
+  constexpr Bytes(const SignedBits_8* source, Count source_size)
       : c_string(source), size(source_size) {}
 
-  constexpr auto operator==(const View::Amorphous& rhs) const -> Bool {
+  constexpr auto operator==(const View::Bytes& rhs) const -> Bool {
     return rhs.size == size &&
            Data::compare(source_block, rhs.source_block, size);
   }
 
-  constexpr auto operator!=(const View::Amorphous& rhs) const -> Bool {
+  constexpr auto operator!=(const View::Bytes& rhs) const -> Bool {
     return !operator==(rhs);
   }
 
@@ -59,12 +58,12 @@ class Amorphous {
     return at(index);
   }
 
-  constexpr auto slice(Count start, Count size) const -> View::Amorphous {
+  constexpr auto slice(Count start, Count size) const -> View::Bytes {
     if (start >= get_size())
-      return View::Amorphous();
+      return View::Bytes();
 
-    return View::Amorphous(source_block + start,
-                           Math::min(size, get_size() - start));
+    return View::Bytes(source_block + start,
+                       Math::min(size, get_size() - start));
   };
 
   constexpr auto operator[](Count index) -> Byte {
@@ -89,8 +88,8 @@ class Amorphous {
 }  // namespace Perimortem::Core::View
 
 // Converts C++ string literals into valid Perimortem byte strings.
-consteval const Perimortem::Core::View::Amorphous operator""_view(
+consteval const Perimortem::Core::View::Bytes operator""_view(
     const SignedBits_8* null,
     CppSize size) {
-  return Perimortem::Core::View::Amorphous(null, size);
+  return Perimortem::Core::View::Bytes(null, size - 1);
 }

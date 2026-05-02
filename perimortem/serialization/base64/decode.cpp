@@ -30,8 +30,8 @@ static_assert(decode_lookup['+'] == 62);
 static_assert(decode_lookup['/'] == 63);
 static_assert(decode_lookup['='] == 0);
 
-auto Base64::decode(Allocator::Arena& arena, const Core::View::Amorphous source)
-    -> Core::View::Amorphous {
+auto Base64::decode(Allocator::Arena& arena, const Core::View::Bytes source)
+    -> Core::View::Bytes {
   // On AMD processors that don't support AVX512 they "partially" supports it
   // using two fused AVX2 256bit buffers. To make sure we support just about
   // every modern CPU we can use two parallel AVX2 buffers unrolled. This is esp
@@ -324,5 +324,5 @@ auto Base64::decode(Allocator::Arena& arena, const Core::View::Amorphous source)
                            decode_lookup[source_data[j + 3]];
   }
 
-  return Core::View::Amorphous(text, size);
+  return Core::View::Bytes(text, size);
 }

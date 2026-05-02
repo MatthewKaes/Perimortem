@@ -32,8 +32,6 @@ class __m256iPrinter:
       lane += f'{((self.v1 >> (8 * 7)) & 0xFF):02x}'
 
       object = self.valobj.CreateValueFromExpression('lane 1', '(const char*)"' + lane + '"')
-      object.SetFormat(lldb.eFormatUnicode8)
-      self.valobj.CreateChildAtOffset
       return object
     elif index == 1:
       lane = ""

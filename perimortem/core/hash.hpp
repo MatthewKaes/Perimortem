@@ -3,9 +3,9 @@
 
 #pragma once
 
-#include "perimortem/core/view/amorphous.hpp"
+#include "perimortem/core/view/bytes.hpp"
 
-namespace Perimortem::Math {
+namespace Perimortem::Core {
 
 class Hash {
   // Since memcpy isn't constexpr but is guaranteed to give us the optimum
@@ -45,7 +45,7 @@ class Hash {
   }
 
  public:
-  constexpr Hash(Core::View::Amorphous bytes) {
+  constexpr Hash(Core::View::Bytes bytes) {
     const Byte* data = bytes.get_data();
 
     // Fast path for keys less than 8 bytes, but not the full 16.

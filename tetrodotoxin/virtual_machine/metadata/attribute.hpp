@@ -22,9 +22,9 @@ class Attribute : public Abstract {
   constexpr virtual auto get_usage() const -> Usage { return Usage::Constant; };
   auto get_size() const -> uint32_t override { return sizeof(uint8_t); };
 
-  Core::View::Amorphous name;
-  Core::View::Amorphous value;
-  Core::View::Amorphous doc;
+  Core::View::Bytes name;
+  Core::View::Bytes value;
+  Core::View::Bytes doc;
 };
 
 }  // namespace Tetrodotoxin::Types::Compiler

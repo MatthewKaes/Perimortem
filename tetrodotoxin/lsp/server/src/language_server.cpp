@@ -65,7 +65,7 @@ auto UnixJsonRPC::process() -> void {
 
         // Use a a lazy loader to quickly rule out any invalid requests.
         RpcRequest request{json_arena,
-                           Core::View::Amorphous(local_data.data(), local_data.size())};
+                           Core::View::Bytes(local_data.data(), local_data.size())};
         if (!request.is_valid()) {
           std::cout << "[ex=" << thread_id
                     << "] Job Rejected job due to invalid jsonrpc header..."
@@ -90,7 +90,7 @@ auto UnixJsonRPC::process() -> void {
             method_name.get_data(), method_name.get_size())](request);
 
         auto write_jsonrpc_frame = [this,
-                                    &method_name](const Core::View::Amorphous& view) {
+                                    &method_name](const Core::View::Bytes& view) {
           int32_t bytes_written = 0;
           while (bytes_written < view.get_size()) {
             int32_t bytes =

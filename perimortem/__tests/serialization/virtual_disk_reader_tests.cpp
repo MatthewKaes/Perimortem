@@ -15,13 +15,13 @@ using namespace Perimortem::Memory;
 
 static std::string script;
 static std::string script_path;
-static Core::View::Amorphous script_view;
+static Core::View::Bytes script_view;
 static std::string txt;
 static std::string txt_path;
-static Core::View::Amorphous txt_view;
+static Core::View::Bytes txt_view;
 static Bytes logo_svg;
 static std::string logo_svg_path;
-static Core::View::Amorphous logo_svg_view;
+static Core::View::Bytes logo_svg_view;
 
 auto read_all_bytes(const std::filesystem::path &p) -> Bytes {
   std::ifstream ifs(p, std::ios::binary | std::ios::ate);

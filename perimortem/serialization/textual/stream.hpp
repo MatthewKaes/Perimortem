@@ -3,14 +3,14 @@
 
 #pragma once
 
-#include "perimortem/core/access/amorphous.hpp"
-#include "perimortem/core/view/amorphous.hpp"
+#include "perimortem/core/access/bytes.hpp"
+#include "perimortem/core/view/bytes.hpp"
 
 namespace Perimortem::Serialization::Textual {
 
 class Stream {
  public:
-  Stream(Core::Access::Amorphous source) : data(source) {};
+  Stream(Core::Access::Bytes source) : data(source) {};
   Stream(const Stream& rhs) : data(rhs.data) {};
 
   // Sets the location of the read/write pointer.
@@ -28,14 +28,14 @@ class Stream {
   auto operator<<(const ULong unsigned_full) -> Stream&;
   auto operator<<(const Real_32 real_32) -> Stream&;
   auto operator<<(const Real_64 Real_64) -> Stream&;
-  auto operator<<(const Core::View::Amorphous raw) -> Stream&;
+  auto operator<<(const Core::View::Bytes raw) -> Stream&;
 
   constexpr auto get_size() const -> Count { return data.get_size(); }
   constexpr auto get_location() const -> Count { return ptr_location; }
   constexpr auto is_valid() const -> Count { return valid_state; }
 
  private:
-  Core::Access::Amorphous data;
+  Core::Access::Bytes data;
   Count ptr_location = 0;
   Bool valid_state = true;
 };

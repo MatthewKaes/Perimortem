@@ -46,7 +46,7 @@ Log::~Log() {
 //   flush_to_log = enable;
 // }
 
-// auto Log::set_log_file(Core::View::Amorphous log_path) -> void {
+// auto Log::set_log_file(Core::View::Bytes log_path) -> void {
 //   Managed::Buffer log_name(log_file);
 //   log_name
 //   std::time_t time = std::time({});
@@ -55,18 +55,18 @@ Log::~Log() {
 //   log_file
 // }
 
-// auto Log::info(const Core::View::Amorphous msg,
+// auto Log::info(const Core::View::Bytes msg,
 //                        const std::source_location location) {
 //   std::scoped_lock lock(buffer_mutex)
 // }
 // auto Log::debug(
-//     const Core::View::Amorphous error,
+//     const Core::View::Bytes error,
 //     const std::source_location location = std::source_location::current());
 // auto Log::warning(
-//     const Core::View::Amorphous error,
+//     const Core::View::Bytes error,
 //     const std::source_location location = std::source_location::current());
 // auto Log::error(
-//     const Core::View::Amorphous error,
+//     const Core::View::Bytes error,
 //     const std::source_location location = std::source_location::current());
 
 // auto Log::flush() -> void{

@@ -5,7 +5,6 @@
 #include "perimortem/core/data.hpp"
 #include "perimortem/system/random.hpp"
 
-using namespace Perimortem::Memory;
 using namespace Perimortem::System;
 using namespace Perimortem::Core;
 

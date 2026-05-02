@@ -4,7 +4,7 @@
 #include "perimortem/memory/allocator/bibliotheca.hpp"
 
 #include "perimortem/core/data.hpp"
-#include "perimortem/math/math.hpp"
+#include "perimortem/math/basic.hpp"
 
 using namespace Perimortem;
 using namespace Perimortem::Core;
@@ -25,9 +25,11 @@ thread_local static struct {
   };
 
   Collection collections[Bibliotheca::radix_range] = {};
+  Count check_out_requests = 0;
+  Count allocation_requests = 0;
 } secret_archive;
 
-static_assert(sizeof(secret_archive) == 496);
+static_assert(sizeof(secret_archive) == 512);
 
 constexpr auto caculate_archive_bucket(Count bytes) -> Bits_8 {
   return Data::size_in_bits<Count>() -
@@ -39,6 +41,8 @@ constexpr auto archive_page_width(Bits_8 index) -> Count {
 }
 
 auto Bibliotheca::check_out(Count requested_bytes) -> Preface* {
+  secret_archive.check_out_requests++;
+
   // Librarian's are responsible for managing the inventory of the thread.
   // They are separate from the archive to keep them out of the loop for
   // managing inflight blocks.
@@ -47,6 +51,7 @@ auto Bibliotheca::check_out(Count requested_bytes) -> Preface* {
     Preface* inventory = nullptr;
 
     Preface* order_inventory(Count bytes) {
+      secret_archive.allocation_requests++;
       Preface* entry = static_cast<Preface*>(malloc(bytes));
       entry->ancestor = inventory;
       inventory = entry;
@@ -196,4 +201,12 @@ auto Bibliotheca::allocated_memory() -> Count {
   }
 
   return allocated;
+}
+
+auto Bibliotheca::check_out_requests() -> Count {
+  return secret_archive.check_out_requests;
+}
+
+auto Bibliotheca::allocation_requests() -> Count {
+  return secret_archive.allocation_requests;
 }

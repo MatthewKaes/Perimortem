@@ -3,7 +3,7 @@
 
 #include "validation/test/test.hpp"
 
-#include "perimortem/memory/static/table.hpp"
+#include "perimortem/core/static/table.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -11,7 +11,7 @@ using namespace Perimortem::Utility;
 
 using namespace Validation;
 
-static constexpr Pair<View::Amorphous, Int> data[] = {
+static constexpr Pair<View::Bytes, Int> data[] = {
     {"as"_view, 1},       {"if"_view, 2},       {"for"_view, 3},
     {"new"_view, 4},      {"else"_view, 5},     {"func"_view, 6},
     {"init"_view, 7},     {"self"_view, 8},     {"true"_view, 9},
@@ -22,8 +22,8 @@ static constexpr Pair<View::Amorphous, Int> data[] = {
     {"package"_view, 22}, {"warning"_view, 23},
 };
 
-static constexpr View::Structured<
-              Pair<View::Amorphous, Int>> value(data);
+static constexpr View::Vector<
+              Pair<View::Bytes, Int>> value(data);
 
 using keyword_table = Static::Table<Int, value>;
 

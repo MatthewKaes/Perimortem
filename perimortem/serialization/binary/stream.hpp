@@ -3,9 +3,9 @@
 
 #pragma once
 
-#include "perimortem/core/access/amorphous.hpp"
-#include "perimortem/core/view/amorphous.hpp"
-#include "perimortem/core/view/structured.hpp"
+#include "perimortem/core/access/bytes.hpp"
+#include "perimortem/core/view/bytes.hpp"
+#include "perimortem/core/view/vector.hpp"
 
 namespace Perimortem::Serialization::Binary {
 
@@ -31,7 +31,7 @@ class Stream {
     Blob,
   };
 
-  constexpr Stream(Core::Access::Amorphous data) : data(data) {};
+  constexpr Stream(Core::Access::Bytes data) : data(data) {};
   constexpr Stream(const Stream& rhs) : data(rhs.data) {};
 
   // Sets the location of the read/write pointer.
@@ -49,22 +49,22 @@ class Stream {
   auto operator<<(const SignedBits_64 bin) -> Stream&;
   auto operator<<(const Real_32 bin) -> Stream&;
   auto operator<<(const Real_64 bin) -> Stream&;
-  auto operator<<(const Core::View::Amorphous blob) -> Stream&;
-  auto operator<<(const Core::View::Structured<Bits_8> blob) -> Stream&;
-  auto operator<<(const Core::View::Structured<Bits_16> blob) -> Stream&;
-  auto operator<<(const Core::View::Structured<Bits_32> blob) -> Stream&;
-  auto operator<<(const Core::View::Structured<Bits_64> blob) -> Stream&;
-  auto operator<<(const Core::View::Structured<SignedBits_8> blob) -> Stream&;
-  auto operator<<(const Core::View::Structured<SignedBits_16> blob) -> Stream&;
-  auto operator<<(const Core::View::Structured<SignedBits_32> blob) -> Stream&;
-  auto operator<<(const Core::View::Structured<SignedBits_64> blob) -> Stream&;
+  auto operator<<(const Core::View::Bytes blob) -> Stream&;
+  auto operator<<(const Core::View::Vector<Bits_8> blob) -> Stream&;
+  auto operator<<(const Core::View::Vector<Bits_16> blob) -> Stream&;
+  auto operator<<(const Core::View::Vector<Bits_32> blob) -> Stream&;
+  auto operator<<(const Core::View::Vector<Bits_64> blob) -> Stream&;
+  auto operator<<(const Core::View::Vector<SignedBits_8> blob) -> Stream&;
+  auto operator<<(const Core::View::Vector<SignedBits_16> blob) -> Stream&;
+  auto operator<<(const Core::View::Vector<SignedBits_32> blob) -> Stream&;
+  auto operator<<(const Core::View::Vector<SignedBits_64> blob) -> Stream&;
 
   constexpr auto get_size() const -> Count { return data.get_size(); }
   constexpr auto get_location() const -> Count { return ptr_location; }
   constexpr auto is_valid() const -> Bool { return valid_state; }
 
  private:
-  Core::Access::Amorphous data;
+  Core::Access::Bytes data;
   Count ptr_location = 0;
   Bool valid_state = true;
 };

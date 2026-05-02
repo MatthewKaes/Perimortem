@@ -6,7 +6,7 @@
 #include "perimortem/memory/allocator/arena.hpp"
 #include "perimortem/memory/managed/table.hpp"
 #include "perimortem/memory/managed/vector.hpp"
-#include "perimortem/core/view/amorphous.hpp"
+#include "perimortem/core/view/bytes.hpp"
 
 #include "storage/formats/json.hpp"
 #include "storage/formats/rpc_header.hpp"
@@ -18,18 +18,18 @@ using ReponseObject =
 using ReponseEntry =
     Perimortem::Memory::View::Table<Perimortem::Storage::Json::Node>::Entry;
 using ReponseArray =
-    Perimortem::Core::View::Structured<Perimortem::Storage::Json::Node>;
+    Perimortem::Core::View::Vector<Perimortem::Storage::Json::Node>;
 
 using RpcResponse = Perimortem::Storage::Json::Node;
 
 class RpcRequest {
  public:
   RpcRequest(Perimortem::Memory::Allocator::Arena& arena,
-             const Perimortem::Core::View::Amorphous source)
+             const Perimortem::Core::View::Bytes source)
       : arena(arena), header(arena, source), source(source) {}
 
   auto load_params() -> void;
-  auto rpc_error(Perimortem::Core::View::Amorphous error) const -> RpcResponse;
+  auto rpc_error(Perimortem::Core::View::Bytes error) const -> RpcResponse;
   auto rpc_result(ReponseObject result) const -> RpcResponse;
 
   inline constexpr auto is_valid() const -> Bool {
@@ -58,14 +58,14 @@ class RpcRequest {
     return array;
   }
 
-  auto get_method() const -> const Perimortem::Core::View::Amorphous {
+  auto get_method() const -> const Perimortem::Core::View::Bytes {
     return header.get_method();
   }
   auto get_params() const -> const Perimortem::Storage::Json::Node& {
     return call_params;
   }
 
-  auto get_source() const -> const Perimortem::Core::View::Amorphous {
+  auto get_source() const -> const Perimortem::Core::View::Bytes {
     return source;
   }
 
@@ -76,7 +76,7 @@ class RpcRequest {
   Perimortem::Storage::Json::JsonRpc header;
   Perimortem::Storage::Json::Node call_params;
   Perimortem::Storage::Json::Node response;
-  Perimortem::Core::View::Amorphous source;
+  Perimortem::Core::View::Bytes source;
 };
 
 }  // namespace Tetrodotoxin::Lsp

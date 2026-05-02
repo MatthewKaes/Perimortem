@@ -1,41 +1,50 @@
 import lldb
 import lldb.formatters.Logger
+import re
 
 max_length = 64;
 
-class ManagedTablePrinter:
+class VectorPrinter:
   def __init__(self, valobj, dict):
     lldb.formatters.Logger._lldb_formatters_debug_level = 2
     self.valobj = valobj
     self.block = None
     self.size = None
-    self.capacity = None
     self.elements_cache = []
 
   def update(self):
     logger = lldb.formatters.Logger.Logger()
     self.block = None
     self.size = None
-    self.capacity = None
     try:
-      self.arena = self.valobj.GetChildMemberWithName("arena")
 
-      self.block = self.valobj.GetChildMemberWithName("rented_block")
-      self.size = self.valobj.GetChildMemberWithName("size")
-      self.capacity = self.valobj.GetChildMemberWithName("capacity")
+      self.block = self.valobj.GetChildMemberWithName("source_block")
+      ints = list(map(int, re.findall(r'\d+', self.valobj.GetType().GetName())));
+      if len(ints) > 0:
+        self.size = ints[0]
+        self.data_type = self.block.GetType().GetArrayElementType()
+      else:
+        self.size = self.valobj.GetChildMemberWithName("size").GetValueAsUnsigned();
+        self.data_type = self.block.GetType().GetPointeeType()
 
-      self.data_type = self.valobj.GetChildMemberWithName("rented_block").GetType().GetPointeeType()
+      if self.size > 10000:
+        self.size = -1;
+
       self.data_size = self.data_type.GetByteSize()
+      logger >> "peri_except: test %r" % self.data_type.GetName()
 
     except Exception as e:
-      logger >> "Caught exception: %r" % e
+      logger >> "peri_except: %r" % e
       pass
 
   def num_children(self):
-    return int(self.size.GetValueAsUnsigned())
+    if self.size > 0:
+      return 1 + int(self.size)
+    else:
+      return 1
 
   def has_children(self):
-    return True
+    return self.size > 0
 
   def get_child_index(self, name):
     try:
@@ -45,20 +54,19 @@ class ManagedTablePrinter:
 
   def get_child_at_index(self, index):
     logger = lldb.formatters.Logger.Logger()
-    if index < 0:
-      return None
-    if index >= self.num_children():
+    if index == 0:
+      object = self.valobj.CreateValueFromExpression('size', '(int)%d' % self.size)
+      return object
+    if index >= self.size + 2:
       return None
 
     try:
-      offset = index * self.data_size
+      offset = (index - 2) * self.data_size
       value = self.block.CreateChildAtOffset(
-                "[" + str(index) + "]", offset, self.data_type)
-      name = value.GetChildMemberWithName("name")
-      data = value.GetChildMemberWithName("data")
-      return self.valobj.CreateValueFromData("[%d] %s" % (index, name.GetSummary()), data.GetData(), data.GetType())
+                "[%d]" % (index - 2), offset, self.data_type)
+      return self.valobj.CreateValueFromData("[%d]" % (index - 2), value.GetData(), value.GetType())
     except Exception as e:
-      logger >> "Caught exception: %r" % e
+      logger >> "peri_except: %r" % e
       return None
 
 def look_view_summary(valobj, dictionary):
@@ -74,9 +82,35 @@ def byte_view_summary(valueObject, dictionary):
     if (size == 0):
       return "... empty ..."
 
-    value = valueObject.GetChildMemberWithName('rented_block').GetSummary()
-    extra = f'... ({size - max_length} bytes)' if size > max_length else ""
-    return value.lstrip('"').rstrip('"')[0:min(max_length, size)] + extra
+    value = valueObject.GetChildMemberWithName('source_block').GetValueAsUnsigned()
+    if value == 0:
+      return "... empty ..."
+
+    error = lldb.SBError()
+    process = lldb.debugger.GetSelectedTarget().GetProcess()
+    content = process.ReadMemory(value, size, error)
+
+    if error.Success():
+      data = content.decode('utf-8', errors='replace')
+      return data
+    else:
+      return "[ uninitialized ]"
+
+
+def vector_view_summary(valueObject, dictionary):
+    logger = lldb.formatters.Logger.Logger()
+    try:
+      block = valueObject.GetNonSyntheticValue().GetChildMemberWithName("source_block")
+      name = block.GetType().GetPointeeType().GetName().removeprefix("Perimortem::")
+      
+      size = valueObject.GetChildAtIndex(0).GetValueAsSigned()
+      if (size == -1):
+        return "[ uninitialized ] " + name;
+      
+      return ("[ %d ] " % size) + name;
+    except Exception as e:
+      logger >> "peri_except: %r" % e
+      return None
 
 def rpc_header_summary(valueObject, dictionary):
     size1 = valueObject.GetChildMemberWithName('json_rpc').GetChildMemberWithName('size').GetValueAsUnsigned()
@@ -90,9 +124,15 @@ def rpc_header_summary(valueObject, dictionary):
 
 def __lldb_init_module(debugger, dict):
   debugger.HandleCommand('type synthetic add -w data_types -l data_types.ManagedTablePrinter -x "Perimortem::Memory::Managed::Table<.+>$"')
-
   debugger.HandleCommand('type summary add -w data_types --python-function data_types.look_view_summary -x "Perimortem::Memory::Managed::Table<.+>$"')
+  
+  debugger.HandleCommand('type synthetic add -w data_types -l data_types.VectorPrinter -x "Perimortem::Core::.+::Vector<.+>$"')
+  debugger.HandleCommand('type summary add -w data_types --python-function data_types.vector_view_summary -x "Vector<.+>$"')
+  
   debugger.HandleCommand('type summary add -w data_types --python-function data_types.string_view_summary std::string_view')
-  debugger.HandleCommand('type summary add -w data_types --python-function data_types.byte_view_summary Perimortem::Core::View::Amorphous')
+  debugger.HandleCommand('type summary add -w data_types --python-function data_types.byte_view_summary Perimortem::Core::View::Bytes')
+  debugger.HandleCommand('type summary add -w data_types --python-function data_types.byte_view_summary Perimortem::Core::Access::Bytes')
+  debugger.HandleCommand('type summary add -w data_types --python-function data_types.byte_view_summary Perimortem::Memory::Dynamic::Bytes')
+  debugger.HandleCommand('type summary add -w data_types --python-function data_types.byte_view_summary Perimortem::Memory::Managed::Bytes')
   debugger.HandleCommand('type summary add -w data_types --python-function data_types.rpc_header_summary Perimortem::Storage::Json::JsonRpc')
   debugger.HandleCommand('type category enable data_types')

@@ -13,21 +13,21 @@ constexpr auto access(Bibliotheca::Preface* block) -> Byte* {
   return Bibliotheca::preface_to_corpus(block);
 }
 
-Dynamic::Bytes::Bytes() : size(0), rented_block(nullptr) {}
+Dynamic::Bytes::Bytes() : size(0), source_block(nullptr) {}
 Dynamic::Bytes::Bytes(Count reserved_capacity) {
-  rented_block = Bibliotheca::check_out(reserved_capacity);
+  source_block = access(Bibliotheca::check_out(reserved_capacity));
   size = 0;
 }
 
-Dynamic::Bytes::Bytes(const Core::View::Amorphous view) {
+Dynamic::Bytes::Bytes(const Core::View::Bytes view) {
   size = view.get_size();
   if (view.get_size() == 0) {
     return;
   }
 
-  rented_block = Bibliotheca::check_out(view.get_size());
+  source_block = access(Bibliotheca::check_out(view.get_size()));
   size = view.get_size();
-  memcpy(access(rented_block), view.get_data(), view.get_size());
+  memcpy(source_block, view.get_data(), view.get_size());
 }
 
 Dynamic::Bytes::Bytes(const Bytes& rhs) {
@@ -37,15 +37,15 @@ Dynamic::Bytes::Bytes(const Bytes& rhs) {
   }
 
   // Bytes don't require any special handling so just memcpy.
-  rented_block = Bibliotheca::check_out(rhs.size);
-  memcpy(access(rented_block), access(rhs.rented_block), size);
+  source_block = access(Bibliotheca::check_out(rhs.size));
+  memcpy(source_block, rhs.source_block, size);
 };
 
 Dynamic::Bytes::Bytes(Bytes&& rhs) {
   size = rhs.size;
-  rented_block = rhs.rented_block;
+  source_block = rhs.source_block;
 
-  rhs.rented_block = nullptr;
+  rhs.source_block = nullptr;
   rhs.size = 0;
 };
 
@@ -55,39 +55,37 @@ Dynamic::Bytes::~Bytes() {
 
 auto Dynamic::Bytes::append(Byte b) -> void {
   ensure_capacity(size + 1);
-  access(rented_block)[size++] = b;
+  source_block[size++] = b;
 }
 
-auto Dynamic::Bytes::concat(Core::View::Amorphous view) -> void {
+auto Dynamic::Bytes::concat(Core::View::Bytes view) -> void {
   ensure_capacity(size + view.get_size());
 
-  Data::copy(access(rented_block) + size, view.get_data(), view.get_size());
+  Data::copy(source_block + size, view.get_data(), view.get_size());
   size += view.get_size();
 }
 
-auto Dynamic::Bytes::proxy(Core::View::Amorphous view) -> void {
+auto Dynamic::Bytes::proxy(Core::View::Bytes view) -> void {
   ensure_capacity(view.get_size());
 
-  Data::copy(access(rented_block), view.get_data(), view.get_size());
+  Data::copy(source_block, view.get_data(), view.get_size());
   size = view.get_size();
 }
 
 auto Dynamic::Bytes::convert(Byte source, Byte target) -> void {
   for (int i = 0; i < size; i++) {
-    if (access(rented_block)[i] == source) {
-      access(rented_block)[i] = target;
+    if (source_block[i] == source) {
+      source_block[i] = target;
     }
   }
 }
 
-auto Dynamic::Bytes::slice(Count start, Count size) const
-    -> Core::View::Amorphous {
+auto Dynamic::Bytes::slice(Count start, Count size) const -> Core::View::Bytes {
   if (start >= get_size())
-    return Core::View::Amorphous();
+    return Core::View::Bytes();
 
-  return Core::View::Amorphous(Core::View::Amorphous(
-      Allocator::Bibliotheca::preface_to_corpus(rented_block) + start,
-      Math::min(size, get_size() - start)));
+  return Core::View::Bytes(source_block + start,
+                           Math::min(size, get_size() - start));
 }
 
 auto Dynamic::Bytes::resize(Count new_size) -> void {
@@ -99,14 +97,14 @@ auto Dynamic::Bytes::operator[](Count index) const -> Byte {
   if (index > size)
     return 0;
 
-  return access(rented_block)[index];
+  return source_block[index];
 }
 
 auto Dynamic::Bytes::at(Count index) const -> Byte {
   if (index > size)
     return 0;
 
-  return access(rented_block)[index];
+  return source_block[index];
 }
 
 auto Dynamic::Bytes::clear() -> void {
@@ -117,8 +115,8 @@ auto Dynamic::Bytes::reset() -> void {
   size = 0;
 
   // In the event the data was moved.
-  if (rented_block) {
-    Bibliotheca::remit(rented_block);
+  if (source_block) {
+    Bibliotheca::remit(Bibliotheca::corpus_to_preface(source_block));
   }
 }
 
@@ -133,13 +131,13 @@ auto Dynamic::Bytes::ensure_capacity(Count required_size) -> void {
   const auto new_capacity = Math::max(get_capacity() * 2, required_size);
 
   // Fetch and transfer to new block.
-  auto new_block = Bibliotheca::check_out(new_capacity);
+  auto new_block = access(Bibliotheca::check_out(new_capacity));
 
-  if (rented_block) {
-    memcpy(access(new_block), access(rented_block), size);
-    Bibliotheca::remit(rented_block);
+  if (source_block) {
+    memcpy(new_block, source_block, size);
+    Bibliotheca::remit(Bibliotheca::corpus_to_preface(source_block));
   }
 
   // Update block and get the new capacity.
-  rented_block = new_block;
+  source_block = new_block;
 }

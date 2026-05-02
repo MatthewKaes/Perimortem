@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include "perimortem/core/view/amorphous.hpp"
+#include "perimortem/core/view/bytes.hpp"
 
 // Compiler extension ABI
 namespace std {
@@ -44,10 +44,10 @@ struct SourceInfo {
         return;
       }
 
-      file = Core::View::Amorphous(
+      file = Core::View::Bytes(
           reinterpret_cast<const Byte*>(data->_M_file_name),
           extract_size(data->_M_file_name));
-      function = Core::View::Amorphous(
+      function = Core::View::Bytes(
           reinterpret_cast<const Byte*>(data->_M_function_name),
           extract_size(data->_M_function_name));
 
@@ -55,8 +55,8 @@ struct SourceInfo {
       column = data->_M_column;
     }
 
-    Core::View::Amorphous file = {};
-    Core::View::Amorphous function = {};
+    Core::View::Bytes file = {};
+    Core::View::Bytes function = {};
     Count line = 0;
     Count column = 0;
   };
@@ -73,8 +73,8 @@ struct SourceInfo {
 
   constexpr auto get_line() const -> Count { return abi.line; }
   constexpr auto get_column() const -> Count { return abi.column; }
-  constexpr auto get_file() const -> Core::View::Amorphous { return abi.file; }
-  constexpr auto get_function() const -> Core::View::Amorphous {
+  constexpr auto get_file() const -> Core::View::Bytes { return abi.file; }
+  constexpr auto get_function() const -> Core::View::Bytes {
     return abi.function;
   }
 

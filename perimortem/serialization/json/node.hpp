@@ -3,8 +3,8 @@
 
 #pragma once
 
-#include "perimortem/core/view/amorphous.hpp"
-#include "perimortem/core/view/structured.hpp"
+#include "perimortem/core/view/bytes.hpp"
+#include "perimortem/core/view/vector.hpp"
 #include "perimortem/memory/allocator/arena.hpp"
 #include "perimortem/serialization/textual/stream.hpp"
 
@@ -27,32 +27,32 @@ class Node {
 
   Node() : value() {}
   Node(const Node& rhs) : value(rhs.value) {}
-  Node(const Core::View::Amorphous value) : value() { set(value); }
-  Node(const Core::View::Structured<Node> value) : value() { set(value); }
-  Node(const Core::View::Structured<Member> value) : value() { set(value); }
+  Node(const Core::View::Bytes value) : value() { set(value); }
+  Node(const Core::View::Vector<Node> value) : value() { set(value); }
+  Node(const Core::View::Vector<Member> value) : value() { set(value); }
   Node(Long value) : value() { set(value); }
   Node(Real_64 value) : value() { set(value); }
   Node(Bool value) : value() { set(value); }
 
-  inline static auto raw(const Core::View::Amorphous value) -> Node {
+  inline static auto raw(const Core::View::Bytes value) -> Node {
     Node node;
     node.value.string = value;
     node.state = NodeState::Raw;
     return node;
   }
 
-  inline constexpr auto set(const Core::View::Amorphous value) -> void {
+  inline constexpr auto set(const Core::View::Bytes value) -> void {
     this->value.string = value;
     this->state = NodeState::String;
   }
 
-  inline constexpr auto set(const Core::View::Structured<Node> value)
+  inline constexpr auto set(const Core::View::Vector<Node> value)
       -> void {
     this->value.array = value;
     this->state = NodeState::Array;
   }
 
-  inline constexpr auto set(const Core::View::Structured<Member> value) -> void {
+  inline constexpr auto set(const Core::View::Vector<Member> value) -> void {
     this->value.object = value;
     this->state = NodeState::Object;
   }
@@ -77,24 +77,24 @@ class Node {
   auto null() const -> Bool;
 
   auto at(Bits_32 index) const -> const Node;
-  auto at(const Core::View::Amorphous name) const -> const Node;
+  auto at(const Core::View::Bytes name) const -> const Node;
 
   auto operator[](Bits_32 index) const -> const Node;
-  auto operator[](const Core::View::Amorphous name) const -> const Node;
+  auto operator[](const Core::View::Bytes name) const -> const Node;
 
-  auto contains(const Core::View::Amorphous name) const -> Bool;
+  auto contains(const Core::View::Bytes name) const -> Bool;
 
   auto get_bool() const -> Bool;
   auto get_int() const -> Count;
   auto get_double() const -> double;
-  auto get_string() const -> const Core::View::Amorphous;
+  auto get_string() const -> const Core::View::Bytes;
   auto get_size() const -> Count;
 
   auto from_source(Memory::Allocator::Arena& arena,
-                   Core::View::Amorphous source,
+                   Core::View::Bytes source,
                    Count position = 0) -> Count;
   auto format(Memory::Allocator::Arena& arena) const
-      -> Core::View::Amorphous;
+      -> Core::View::Bytes;
 
  private:
   auto serialized_size() const -> Count;
@@ -109,14 +109,14 @@ class Node {
     Bits_32 size;
 
    public:
-    SquishedVector& operator=(const Core::View::Structured<Node>& rhs) {
+    SquishedVector& operator=(const Core::View::Vector<Node>& rhs) {
       source_block = rhs.get_data();
       size = rhs.get_size();
       return *this;
     }
 
-    constexpr operator Core::View::Structured<Node>() const {
-      return Core::View::Structured<Node>(source_block, size);
+    constexpr operator Core::View::Vector<Node>() const {
+      return Core::View::Vector<Node>(source_block, size);
     }
   };
 
@@ -125,14 +125,14 @@ class Node {
     Bits_32 size;
 
    public:
-    SquishedTable& operator=(const Core::View::Structured<Member>& rhs) {
+    SquishedTable& operator=(const Core::View::Vector<Member>& rhs) {
       source_block = rhs.get_data();
       size = rhs.get_size();
       return *this;
     }
 
-    constexpr operator Core::View::Structured<Member>() const {
-      return Core::View::Structured<Member>(source_block, size);
+    constexpr operator Core::View::Vector<Member>() const {
+      return Core::View::Vector<Member>(source_block, size);
     }
   };
 
@@ -141,14 +141,14 @@ class Node {
     Bits_32 size;
 
    public:
-    SquishedBytes& operator=(const Core::View::Amorphous& rhs) {
+    SquishedBytes& operator=(const Core::View::Bytes& rhs) {
       source_block = rhs.get_data();
       size = rhs.get_size();
       return *this;
     }
 
-    constexpr operator Core::View::Amorphous() const {
-      return Core::View::Amorphous(source_block, size);
+    constexpr operator Core::View::Bytes() const {
+      return Core::View::Bytes(source_block, size);
     }
   };
 
@@ -169,7 +169,7 @@ class Node {
 static_assert(sizeof(Node) == 16, "Size of Node is required to be 16 bytes.");
 
 struct Member {
-  const Core::View::Amorphous name;
+  const Core::View::Bytes name;
   const Node node;
 };
 

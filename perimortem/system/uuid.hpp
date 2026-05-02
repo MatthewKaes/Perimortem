@@ -4,8 +4,8 @@
 #pragma once
 
 #include "perimortem/core/data.hpp"
-#include "perimortem/memory/static/bytes.hpp"
-#include "perimortem/memory/static/vector.hpp"
+#include "perimortem/core/static/bytes.hpp"
+#include "perimortem/core/static/vector.hpp"
 
 namespace Perimortem::System {
 
@@ -29,7 +29,7 @@ class Uuid {
   constexpr Uuid(const Uuid& rhs) : low_high(rhs.low_high) {}
 
   // Big endian formatting (highest byte to lowest byte)
-  explicit constexpr Uuid(const Memory::Static::Bytes<32>& source) {
+  explicit constexpr Uuid(const Core::Static::Bytes<32>& source) {
     if consteval {
       for (Count i = 0; i < 16; i++) {
         low_high[0] |= ascii_to_nibble(source[i + 16]) << (60 - i * 4);
@@ -49,7 +49,7 @@ class Uuid {
     low_high[1] = high;
   }
 
-  explicit constexpr Uuid(const Memory::Static::Bytes<36>& source) {
+  explicit constexpr Uuid(const Core::Static::Bytes<36>& source) {
     if consteval {
       // Low 12 block
       for (Count i = 0; i < 12; i++) {
@@ -92,8 +92,8 @@ class Uuid {
     return low_high[1] < rhs.low_high[1] && low_high[0] < rhs.low_high[0];
   }
 
-  constexpr auto get_value() const -> const Memory::Static::Vector<Bits_64, 2> {
-    Memory::Static::Vector<Bits_64, 2> high_low;
+  constexpr auto get_value() const -> const Core::Static::Vector<Bits_64, 2> {
+    Core::Static::Vector<Bits_64, 2> high_low;
     high_low[0] = low_high[1];
     high_low[1] = low_high[0];
     return high_low;
@@ -103,14 +103,14 @@ class Uuid {
     return low_high[0] != 0 && low_high[1] != 0;
   }
 
-  auto deserialize(const Memory::Static::Bytes<36>& uuid_string) -> Uuid&;
-  auto deserialize(const Memory::Static::Bytes<32>& nibble_string) -> Uuid&;
-  auto serialize() const -> const Memory::Static::Bytes<36>;
+  auto deserialize(const Core::Static::Bytes<36>& uuid_string) -> Uuid&;
+  auto deserialize(const Core::Static::Bytes<32>& nibble_string) -> Uuid&;
+  auto serialize() const -> const Core::Static::Bytes<36>;
 
   static auto generate() -> const Uuid;
 
  private:
-  Memory::Static::Vector<Bits_64, 2> low_high = {};
+  Core::Static::Vector<Bits_64, 2> low_high = {};
 };
 
 }  // namespace Perimortem::System

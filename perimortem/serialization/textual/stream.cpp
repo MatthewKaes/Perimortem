@@ -14,7 +14,7 @@ using namespace Perimortem::Serialization;
 #include <charconv>
 
 template <typename text_buffer>
-constexpr auto write_text(Access::Amorphous& data,
+constexpr auto write_text(Access::Bytes& data,
                           Count& ptr_location,
                           const text_buffer& text) -> Bool {
   if (ptr_location + text.get_size() >= data.get_size()) {
@@ -28,7 +28,7 @@ constexpr auto write_text(Access::Amorphous& data,
 }
 
 template <typename storage_type>
-constexpr auto to_chars(Access::Amorphous& data,
+constexpr auto to_chars(Access::Bytes& data,
                         Count& ptr_location,
                         const storage_type& value) -> Bool {
   auto result = std::to_chars(
@@ -105,7 +105,7 @@ auto Textual::Stream::operator<<(const Real_64 Real_64) -> Textual::Stream& {
   return *this;
 }
 
-auto Textual::Stream::operator<<(const Core::View::Amorphous raw)
+auto Textual::Stream::operator<<(const Core::View::Bytes raw)
     -> Textual::Stream& {
   valid_state &= write_text(data, ptr_location, raw);
   return *this;

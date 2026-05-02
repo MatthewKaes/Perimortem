@@ -4,7 +4,7 @@
 #pragma once
 
 #include "perimortem/diagnostics/source.hpp"
-#include "perimortem/core/view/structured.hpp"
+#include "perimortem/core/view/vector.hpp"
 
 namespace Perimortem::Diagnostics {
 class Log {
@@ -26,14 +26,14 @@ class Log {
       Bool,
     };
 
-    Data(const Core::View::Amorphous msg) : type(Type::View), bytes(msg) {}
+    Data(const Core::View::Bytes msg) : type(Type::View), bytes(msg) {}
     Data(Int msg) : type(Type::Int), number(msg) {}
     Data(Real_64 msg) : type(Type::View), real(msg) {}
     Data(Bool msg) : type(Type::View), boolean(msg) {}
 
     Type type;
     union {
-      Core::View::Amorphous bytes;
+      Core::View::Bytes bytes;
       Int number;
       Real_64 real;
       Bool boolean;
@@ -45,21 +45,21 @@ class Log {
   static auto set_level(Severity minimum = Severity::Info) -> void;
   static auto enable_stdout(Bool enable) -> void;
   static auto enable_log(Bool enable) -> void;
-  static auto info(Core::View::Amorphous msg,
-                   Core::View::Structured<Data> data = {},
+  static auto info(Core::View::Bytes msg,
+                   Core::View::Vector<Data> data = {},
                    const SourceInfo location = SourceInfo::current()) -> void;
-  static auto debug(const Core::View::Amorphous msg,
-                    Core::View::Structured<Data> data = {},
+  static auto debug(const Core::View::Bytes msg,
+                    Core::View::Vector<Data> data = {},
                     const SourceInfo location = SourceInfo::current()) -> void;
-  static auto warning(const Core::View::Amorphous msg,
-                      Core::View::Structured<Data> data = {},
+  static auto warning(const Core::View::Bytes msg,
+                      Core::View::Vector<Data> data = {},
                       const SourceInfo location = SourceInfo::current())
       -> void;
-  static auto error(const Core::View::Amorphous msg,
-                    Core::View::Structured<Data> data = {},
+  static auto error(const Core::View::Bytes msg,
+                    Core::View::Vector<Data> data = {},
                     const SourceInfo location = SourceInfo::current()) -> void;
-  static auto fatal(const Core::View::Amorphous msg,
-                    Core::View::Structured<Data> data = {},
+  static auto fatal(const Core::View::Bytes msg,
+                    Core::View::Vector<Data> data = {},
                     const SourceInfo location = SourceInfo::current()) -> void;
 
   static auto flush() -> void;
@@ -67,7 +67,7 @@ class Log {
  private:
   static auto write_level(Severity level) -> void;
   static auto write_utc_stamp() -> void;
-  static auto write_message(Core::View::Structured<Data> data) -> void;
+  static auto write_message(Core::View::Vector<Data> data) -> void;
 };
 
 }  // namespace Perimortem::Core::Log

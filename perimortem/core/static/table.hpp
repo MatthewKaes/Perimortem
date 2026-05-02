@@ -4,19 +4,19 @@
 #pragma once
 
 #include "perimortem/core/data.hpp"
-#include "perimortem/core/view/amorphous.hpp"
-#include "perimortem/core/view/structured.hpp"
+#include "perimortem/core/view/bytes.hpp"
+#include "perimortem/core/view/vector.hpp"
 #include "perimortem/utility/pair.hpp"
 
 namespace Perimortem::Memory::Static {
 
-// An optimized look up table for `Core::View::Amorphous` that avoids a level of
+// An optimized look up table for `Core::View::Bytes` that avoids a level of
 // indirection by packing string keys inline.
 //
 // Tables are only immutable and unlike `Map` always have static linkage.
 template <typename value_type,
-          const Core::View::Structured<
-              Utility::Pair<Core::View::Amorphous, value_type>>& source>
+          const Core::View::Vector<
+              Utility::Pair<Core::View::Bytes, value_type>>& source>
 class Table {
  private:
   static constexpr auto required_storage() -> Count {
@@ -82,7 +82,7 @@ class Table {
  public:
   // A bit annoying but Clang doesn't seem to realize what we are trying to
   // optimize when we use `find` so we need to duplicate it.
-  static constexpr auto find_or_default(const Core::View::Amorphous key,
+  static constexpr auto find_or_default(const Core::View::Bytes key,
                                         const value_type default_value)
       -> value_type {
     // Get the value in range.

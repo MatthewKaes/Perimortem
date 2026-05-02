@@ -25,7 +25,7 @@ auto write_size(Dynamic::Bytes& source, SizeBlock size) -> void {
   }
 }
 
-auto write_stream(Managed::Bytes& source, const Core::View::Amorphous data) -> void {
+auto write_stream(Managed::Bytes& source, const Core::View::Bytes data) -> void {
   // Run length size encoding
   write_size(source, data.get_size());
   source.write(data);
@@ -62,8 +62,8 @@ auto Writer::create(Type format_, CompressionLevel compression_) -> void {
   }
 };
 
-auto Writer::stage_resource(Core::View::Amorphous p,
-                            Core::View::Amorphous data,
+auto Writer::stage_resource(Core::View::Bytes p,
+                            Core::View::Bytes data,
                             FileFlags flags) -> void {
   const auto& entry = p;
 
@@ -103,7 +103,7 @@ auto Writer::stage_resource(Core::View::Amorphous p,
   }
 };
 
-auto Writer::write_disk() -> Core::View::Amorphous {
+auto Writer::write_disk() -> Core::View::Bytes {
   Count max_size = 0;
   for (Count i = 0; i < data_blocks.get_size(); i++) {
     max_size += data_blocks[i].get_size();
@@ -150,7 +150,7 @@ auto Writer::write_disk() -> Core::View::Amorphous {
   return disk_output;
 }
 
-auto compress(Dynamic::Bytes& output, Core::View::Amorphous source, CompressionLevel compression) -> Bool {
+auto compress(Dynamic::Bytes& output, Core::View::Bytes source, CompressionLevel compression) -> Bool {
   const Int level =
       static_cast<std::underlying_type_t<CompressionLevel>>(compression);
   thread_local static auto cctx = ZSTD_createCCtx();

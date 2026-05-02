@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include "perimortem/memory/static/bytes.hpp"
+#include "perimortem/core/static/bytes.hpp"
 
 namespace Perimortem::Serialization::Encoding {
 
@@ -20,13 +20,13 @@ struct NullTerminated {
   constexpr auto get_size() const -> Count { return size; };
   constexpr auto get_data() const -> const Byte* { return source_block; };
 
-  consteval auto get_view() const -> const Core::View::Amorphous {
-    return Core::View::Amorphous(get_data(), get_size());
+  consteval auto get_view() const -> const Core::View::Bytes {
+    return Core::View::Bytes(get_data(), get_size());
   }
 };
 }  // namespace Perimortem::Serialization::Encoding
 
 template <Perimortem::Serialization::Encoding::NullTerminated null>
-consteval Perimortem::Memory::Static::Bytes<null.size> operator""_bytes() {
-  return Perimortem::Memory::Static::Bytes<null.size>(null.get_view());
+consteval Perimortem::Core::Static::Bytes<null.size> operator""_bytes() {
+  return Perimortem::Core::Static::Bytes<null.size>(null.get_view());
 }

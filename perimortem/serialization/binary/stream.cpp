@@ -53,7 +53,7 @@ constexpr auto get_data_type<Real_64>() -> Binary::Stream::DataType {
 }
 
 template <typename storage_type>
-constexpr auto write_block(Access::Amorphous target,
+constexpr auto write_block(Access::Bytes target,
                            Count& ptr_location,
                            storage_type bin) -> Bool {
   if (ptr_location + 1 + sizeof(storage_type) > target.get_size()) {
@@ -72,7 +72,7 @@ constexpr auto write_block(Access::Amorphous target,
 }
 
 template <typename blob_type>
-constexpr auto write_blob(Access::Amorphous target,
+constexpr auto write_blob(Access::Bytes target,
                           Count& ptr_location,
                           blob_type bin) -> Bool {
   using storage_type = typename blob_type::data_type;
@@ -163,62 +163,62 @@ auto Binary::Stream::operator<<(const Real_64 bin) -> Binary::Stream& {
   return *this;
 }
 
-auto Binary::Stream::operator<<(const View::Amorphous blob) -> Binary::Stream& {
+auto Binary::Stream::operator<<(const View::Bytes blob) -> Binary::Stream& {
   // Write type information
   valid_state &= write_blob(data, ptr_location, blob);
   return *this;
 }
 
-auto Binary::Stream::operator<<(const View::Structured<Bits_8> blob)
+auto Binary::Stream::operator<<(const View::Vector<Bits_8> blob)
     -> Binary::Stream& {
   // Write type information
   valid_state &= write_blob(data, ptr_location, blob);
   return *this;
 }
 
-auto Binary::Stream::operator<<(const View::Structured<Bits_16> blob)
+auto Binary::Stream::operator<<(const View::Vector<Bits_16> blob)
     -> Binary::Stream& {
   // Write type information
   valid_state &= write_blob(data, ptr_location, blob);
   return *this;
 }
 
-auto Binary::Stream::operator<<(const View::Structured<Bits_32> blob)
+auto Binary::Stream::operator<<(const View::Vector<Bits_32> blob)
     -> Binary::Stream& {
   // Write type information
   valid_state &= write_blob(data, ptr_location, blob);
   return *this;
 }
 
-auto Binary::Stream::operator<<(const View::Structured<Bits_64> blob)
+auto Binary::Stream::operator<<(const View::Vector<Bits_64> blob)
     -> Binary::Stream& {
   // Write type information
   valid_state &= write_blob(data, ptr_location, blob);
   return *this;
 }
 
-auto Binary::Stream::operator<<(const View::Structured<SignedBits_8> blob)
+auto Binary::Stream::operator<<(const View::Vector<SignedBits_8> blob)
     -> Binary::Stream& {
   // Write type information
   valid_state &= write_blob(data, ptr_location, blob);
   return *this;
 }
 
-auto Binary::Stream::operator<<(const View::Structured<SignedBits_16> blob)
+auto Binary::Stream::operator<<(const View::Vector<SignedBits_16> blob)
     -> Binary::Stream& {
   // Write type information
   valid_state &= write_blob(data, ptr_location, blob);
   return *this;
 }
 
-auto Binary::Stream::operator<<(const View::Structured<SignedBits_32> blob)
+auto Binary::Stream::operator<<(const View::Vector<SignedBits_32> blob)
     -> Binary::Stream& {
   // Write type information
   valid_state &= write_blob(data, ptr_location, blob);
   return *this;
 }
 
-auto Binary::Stream::operator<<(const View::Structured<SignedBits_64> blob)
+auto Binary::Stream::operator<<(const View::Vector<SignedBits_64> blob)
     -> Binary::Stream& {
   // Write type information
   valid_state &= write_blob(data, ptr_location, blob);

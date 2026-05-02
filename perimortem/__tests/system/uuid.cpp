@@ -7,7 +7,6 @@
 #include "perimortem/serialization/encoding/null_terminated.hpp"
 
 using namespace Perimortem::Core;
-using namespace Perimortem::Memory;
 using namespace Perimortem::System;
 
 using namespace Validation;

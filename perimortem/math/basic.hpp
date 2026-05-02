@@ -26,4 +26,16 @@ constexpr auto log(Real_64 value) -> Real_64 {
   return __builtin_log(value);
 }
 
+constexpr auto sqrt(Real_64 value) -> Real_64 {
+  return __builtin_sqrt(value);
+}
+
+constexpr auto floor(Real_64 value) -> Count {
+  return Count(__builtin_floor(value));
+}
+
+constexpr auto ceil(Real_64 value) -> Count {
+  return Count(__builtin_ceil(value));
+}
+
 }  // namespace Perimortem::Math

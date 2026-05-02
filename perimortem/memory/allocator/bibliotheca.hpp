@@ -4,7 +4,7 @@
 #pragma once
 
 #include "perimortem/core/perimortem.hpp"
-#include "perimortem/memory/static/vector.hpp"
+#include "perimortem/core/static/vector.hpp"
 
 namespace Perimortem::Memory::Allocator {
 
@@ -76,6 +76,10 @@ class Bibliotheca final {
     return reinterpret_cast<Bits_8*>(entry) + sizeof(Preface);
   }
 
+  static inline auto corpus_to_preface(Bits_8* entry) -> Preface* {
+    return reinterpret_cast<Preface*>(entry - sizeof(Preface));
+  }
+
   static inline auto get_memory_consumption(Preface* entry) -> Count {
     if (!entry) {
       return 0;
@@ -100,9 +104,11 @@ class Bibliotheca final {
   // guaranteed to not load the actual block.
   static auto exchange(Preface* returning, Preface* reserving) -> void;
 
-  static auto reserved_memory() -> Static::Vector<Count, radix_range>;
-  static auto free_memory() -> Static::Vector<Count, radix_range>;
+  static auto reserved_memory() -> Core::Static::Vector<Count, radix_range>;
+  static auto free_memory() -> Core::Static::Vector<Count, radix_range>;
   static auto allocated_memory() -> Count;
+  static auto check_out_requests() -> Count;
+  static auto allocation_requests() -> Count;
 };
 
 }  // namespace Perimortem::Memory::Allocator

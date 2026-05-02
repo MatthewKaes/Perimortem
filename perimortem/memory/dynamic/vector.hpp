@@ -4,9 +4,9 @@
 #pragma once
 
 #include "perimortem/core/perimortem.hpp"
-#include "perimortem/core/view/structured.hpp"
+#include "perimortem/core/view/vector.hpp"
 #include "perimortem/memory/allocator/bibliotheca.hpp"
-#include "perimortem/math/math.hpp"
+#include "perimortem/math/basic.hpp"
 
 namespace Perimortem::Memory::Dynamic {
 
@@ -51,8 +51,8 @@ class Vector {
 
   ~Vector() { reset(); }
 
-  constexpr operator Core::View::Structured<value_type>() const {
-    return Core::View::Structured<value_type>(rented_block, size);
+  constexpr operator Core::View::Vector<value_type>() const {
+    return Core::View::Vector<value_type>(rented_block, size);
   }
 
   auto clear() -> void {
@@ -106,8 +106,8 @@ class Vector {
 
   constexpr auto get_size() const -> Count { return size; }
   constexpr auto get_capacity() const -> Count { return capacity; };
-  constexpr auto get_view() const -> Core::View::Structured<value_type> {
-    return Core::View::Structured<value_type>(rented_block, size);
+  constexpr auto get_view() const -> Core::View::Vector<value_type> {
+    return Core::View::Vector<value_type>(rented_block, size);
   }
 
  private:

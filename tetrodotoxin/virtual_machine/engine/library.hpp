@@ -8,7 +8,7 @@
 #include "types/name.hpp"
 
 #include "perimortem/memory/allocator/arena.hpp"
-#include "perimortem/core/view/amorphous.hpp"
+#include "perimortem/core/view/bytes.hpp"
 #include "perimortem/memory/managed/table.hpp"
 
 #include "lexical/tokenizer.hpp"
@@ -21,10 +21,10 @@ namespace Tetrodotoxin::Types {
 class Library : public Abstract {
  public:
   static constexpr uint32_t uuid = 0xD12AA071;
-  constexpr auto get_name() const -> Perimortem::Core::View::Amorphous override {
+  constexpr auto get_name() const -> Perimortem::Core::View::Bytes override {
     return package_name.get_view();
   };
-  constexpr auto get_doc() const -> Perimortem::Core::View::Amorphous override {
+  constexpr auto get_doc() const -> Perimortem::Core::View::Bytes override {
     return doc.get_view();
   };
   constexpr auto get_uuid() const -> uint32_t override { return uuid; };
@@ -34,7 +34,7 @@ class Library : public Abstract {
   auto get_size() const -> uint32_t override { return 0; };
   auto resolve() const -> const Abstract* override { return this; }
 
-  auto resolve_context(Perimortem::Core::View::Amorphous name) const
+  auto resolve_context(Perimortem::Core::View::Bytes name) const
       -> const Abstract* override {
     auto abstract = name_index.at(name);
     if (abstract)
@@ -43,7 +43,7 @@ class Library : public Abstract {
   }
 
   // The scope of the library is just it's top level context.
-  auto resolve_scope(Perimortem::Core::View::Amorphous name) const -> const Abstract* override {
+  auto resolve_scope(Perimortem::Core::View::Bytes name) const -> const Abstract* override {
     auto abstract = name_index.at(name);
     if (abstract)
       return *abstract;
@@ -52,7 +52,7 @@ class Library : public Abstract {
 
   // Return all references in this scope (locals and arguments)
   virtual auto expand_context(
-      const std::function<void(const Perimortem::Core::View::Amorphous&,
+      const std::function<void(const Perimortem::Core::View::Bytes&,
                                const Abstract* const&)>& fn)
       const -> void override {
     name_index.apply(fn);
@@ -60,14 +60,14 @@ class Library : public Abstract {
 
   // Return all references in this scope (locals and arguments)
   virtual auto expand_scope(
-      const std::function<void(const Perimortem::Core::View::Amorphous&,
+      const std::function<void(const Perimortem::Core::View::Bytes&,
                                const Abstract* const&)>& fn) const
       -> void override {
     expand_context(fn);
   }
 
   // Trys to create a name. Returns the conflict
-  auto create_name(const Perimortem::Core::View::Amorphous& name,
+  auto create_name(const Perimortem::Core::View::Bytes& name,
                    const Abstract& abstract) -> Bool {
     if (name_index.contains(name))
       return false;
@@ -76,11 +76,11 @@ class Library : public Abstract {
     return true;
   }
 
-  inline auto set_name(const Perimortem::Core::View::Amorphous name) -> void {
+  inline auto set_name(const Perimortem::Core::View::Bytes name) -> void {
     package_name = name;
   }
 
-  inline auto set_doc(const Perimortem::Core::View::Amorphous doc_string) -> void {
+  inline auto set_doc(const Perimortem::Core::View::Bytes doc_string) -> void {
     doc = doc_string;
   }
 
@@ -115,8 +115,8 @@ class Library : public Abstract {
 
  private:
   Perimortem::Memory::Managed::Table<const Abstract*> name_index;
-  Perimortem::Core::View::Amorphous doc;
-  Perimortem::Core::View::Amorphous package_name;
+  Perimortem::Core::View::Bytes doc;
+  Perimortem::Core::View::Bytes package_name;
   Bool uses_entity;
 };
 

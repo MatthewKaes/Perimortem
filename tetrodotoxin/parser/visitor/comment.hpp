@@ -9,6 +9,6 @@
 
 namespace Tetrodotoxin::Parser::Visitor {
 
-auto parse_comment(Context& ctx) -> Core::View::Amorphous;
+auto parse_comment(Context& ctx) -> Core::View::Bytes;
 
 }  // namespace Tetrodotoxin::Parser::Visitor

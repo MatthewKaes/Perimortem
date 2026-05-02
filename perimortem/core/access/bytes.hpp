@@ -3,22 +3,25 @@
 
 #pragma once
 
-#include "perimortem/math/math.hpp"
+#include "perimortem/math/basic.hpp"
 
 namespace Perimortem::Core::Access {
 
 // A raw read/write view of bytes with no endianness.
-class Amorphous {
+class Bytes {
  public:
   using data_type = Byte;
 
   // Default to empty string.
-  constexpr Amorphous() : source_block(nullptr), size(0) {}
+  constexpr Bytes() : source_block(nullptr), size(0) {}
 
-  constexpr Amorphous(const Amorphous&) = default;
+  constexpr Bytes(const Bytes&) = default;
 
-  constexpr Amorphous(data_type* source, Count source_size)
+  constexpr Bytes(data_type* source, Count source_size)
       : source_block(source), size(source_size) {}
+
+  template <Count N>
+  constexpr Bytes(data_type (&source)[N]) : source_block(source), size(N) {}
 
   constexpr auto at(Count index) -> data_type& {
     if (index > size) [[unlikely]] {
@@ -31,12 +34,12 @@ class Amorphous {
 
   constexpr auto operator[](Count index) -> data_type& { return at(index); }
 
-  constexpr auto slice(Count start, Count size) const -> Access::Amorphous {
+  constexpr auto slice(Count start, Count size) const -> Access::Bytes {
     if (start >= get_size())
-      return Access::Amorphous();
+      return Access::Bytes();
 
-    return Access::Amorphous(source_block + start,
-                             Math::min(size, get_size() - start));
+    return Access::Bytes(source_block + start,
+                         Math::min(size, get_size() - start));
   };
 
   constexpr auto empty() const -> Bool { return size == 0; };

@@ -5,17 +5,17 @@
 
 #include "perimortem/memory/dynamic/bytes.hpp"
 #include "perimortem/memory/dynamic/vector.hpp"
-#include "perimortem/core/view/amorphous.hpp"
+#include "perimortem/core/view/bytes.hpp"
 #include "perimortem/serialization/archive/info.hpp"
 
 namespace Perimortem::Serialization::Archive {
 
 class Reader {
  public:
-  auto Load(Core::View::Amorphous archive);
+  auto Load(Core::View::Bytes archive);
 
   inline auto get_format() const -> Type { return format; }
-  inline auto get_files() const -> const Core::View::Structured<Object> {
+  inline auto get_files() const -> const Core::View::Vector<Object> {
     return files.get_view();
   }
 

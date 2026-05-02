@@ -5,7 +5,7 @@
 
 #include "perimortem/memory/dynamic/bytes.hpp"
 #include "perimortem/memory/dynamic/map.hpp"
-#include "perimortem/memory/static/bytes.hpp"
+#include "perimortem/core/static/bytes.hpp"
 
 using namespace Perimortem;
 using namespace Perimortem::Core;
@@ -57,8 +57,8 @@ class Hashable {
   }
 
   ~Hashable() { destruct_count++; }
-  auto hash() const -> Bits_64 { return Math::Hash(id).get_value(); }
-  auto operator==(const Hashable& rhs) const -> bool { return rhs.id == id; }
+  auto hash() const -> Bits_64 { return Core::Hash(id).get_value(); }
+  auto operator==(const Hashable& rhs) const -> Bool { return rhs.id == id; }
 
  private:
   Int id;

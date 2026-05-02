@@ -18,7 +18,7 @@ auto Visitor::parse_attribute(Context& ctx) -> Compiler::Attribute& {
     ctx.token_error("TTX Script Attribute has an empty name.");
   }
 
-  attribute.name = Core::View::Amorphous(token->data);
+  attribute.name = Core::View::Bytes(token->data);
 
   auto start_token = token;
 

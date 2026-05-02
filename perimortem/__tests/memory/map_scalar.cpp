@@ -5,7 +5,7 @@
 
 #include "perimortem/memory/dynamic/bytes.hpp"
 #include "perimortem/memory/dynamic/map.hpp"
-#include "perimortem/memory/static/bytes.hpp"
+#include "perimortem/core/static/bytes.hpp"
 
 #include "perimortem/__tests/memory/hashable.hpp"
 

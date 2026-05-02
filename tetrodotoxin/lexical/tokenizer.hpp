@@ -7,7 +7,7 @@
 
 #include "perimortem/memory/allocator/arena.hpp"
 #include "perimortem/memory/managed/vector.hpp"
-#include "perimortem/core/view/amorphous.hpp"
+#include "perimortem/core/view/bytes.hpp"
 #include "perimortem/memory/view/vector.hpp"
 
 #include "token.hpp"
@@ -32,11 +32,11 @@ enum class TtxState : Byte {
 
 class Tokenizer {
  public:
-  using Tokens = Perimortem::Core::View::Structured<Token>;
+  using Tokens = Perimortem::Core::View::Vector<Token>;
 
   Tokenizer(Perimortem::Memory::Allocator::Arena& arena) : tokens(arena) {}
   
-  auto parse(Perimortem::Core::View::Amorphous source,
+  auto parse(Perimortem::Core::View::Bytes source,
              Bool strip_disabled = true) -> void;
 
   inline constexpr auto get_tokens() const
@@ -53,13 +53,13 @@ class Tokenizer {
   };
 
   inline constexpr auto get_source() const
-      -> const Perimortem::Core::View::Amorphous {
+      -> const Perimortem::Core::View::Bytes {
     return source;
   };
 
  private:
   // Output artifacts
-  Perimortem::Core::View::Amorphous source;
+  Perimortem::Core::View::Bytes source;
   Perimortem::Memory::Managed::Vector<Token> tokens;
   Perimortem::Memory::View::BitFlag<TtxState> options;
 };

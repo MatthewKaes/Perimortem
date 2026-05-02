@@ -85,4 +85,22 @@ constexpr auto ensure_endian(storage_type bin) -> storage_type {
   return bin;
 }
 
+// Swaps two objects
+// For consteval move constructors are used.
+// For non-consteval a forgetful stack buffer is used to avoid constructing and
+// destructing a temporary or calling any move constructors.
+template <typename type>
+constexpr auto swap(type& a, type& b) -> void {
+  if !consteval {
+    alignas(alignof(type)) Byte forgetful[sizeof(type)];
+    memcpy(&forgetful, &a, sizeof(type));
+    memcpy((void*)&a, &b, sizeof(type));
+    memcpy((void*)&b, &forgetful, sizeof(type));
+  } else {
+    auto temp = a;
+    a = b;
+    b = temp;
+  }
+}
+
 }  // namespace Perimortem::Core::Data

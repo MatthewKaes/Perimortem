@@ -88,7 +88,7 @@ TEST_F(JsonTests, rpc_header) {
 
   Arena arena;
   auto data = Perimortem::Storage::Json::JsonRpc(
-      arena, Core::View::Amorphous(json.c_str(), json.size()));
+      arena, Core::View::Bytes(json.c_str(), json.size()));
 
   EXPECT_EQ(data.get_method(), "initialize"_bv);
   EXPECT_EQ(data.get_version(), "2.0"_bv);
@@ -116,7 +116,7 @@ TEST_F(JsonTests, jsonrpc_from_header) {
   std::string json = load_text("perimortem/tests/json/init_rpc.json");
   Arena arena;
   auto header = Perimortem::Storage::Json::JsonRpc(
-      arena, Core::View::Amorphous(json.c_str(), json.size()));
+      arena, Core::View::Bytes(json.c_str(), json.size()));
   uint32_t pos = header.get_params_offset();
 
   Node node;

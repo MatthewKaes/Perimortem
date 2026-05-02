@@ -5,8 +5,6 @@
             "includePath": [
                 "${workspaceFolder}/**",
                 ".bin/Perimortem/external/bazel_tools/",
-                ".bin/Perimortem/external/google_benchmark+/include/",
-                ".bin/Perimortem/external/googletest+/googletest/include/",
                 ".bin/Perimortem/external/zstd+/lib/"
             ],
             "defines": [

@@ -8,6 +8,6 @@
 namespace Tetrodotoxin::Parser::Visitor {
 
 auto parse_string(Context& ctx)
-    -> Core::View::Amorphous;
+    -> Core::View::Bytes;
 
 }  // namespace Tetrodotoxin::Parser::Visitor

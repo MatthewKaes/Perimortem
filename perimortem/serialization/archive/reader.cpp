@@ -8,7 +8,7 @@
 using namespace Perimortem::Memory;
 using namespace Perimortem::Serialization::Archive;
 
-auto read_size(const Core::View::Amorphous source, SizeBlock& pos) -> SizeBlock {
+auto read_size(const Core::View::Bytes source, SizeBlock& pos) -> SizeBlock {
   // Read the run length size encoding byte
   Byte size_bytes = source.incremental_read<Byte>(pos);
 
@@ -28,7 +28,7 @@ auto read_size(const Core::View::Amorphous source, SizeBlock& pos) -> SizeBlock 
   return -1;
 }
 
-auto Reader::Load(Core::View::Amorphous archive) {
+auto Reader::Load(Core::View::Bytes archive) {
   blocks[0].reset();
   blocks[1].reset();
 
@@ -110,7 +110,7 @@ auto Reader::Load(Core::View::Amorphous archive) {
   return reader;
 }
 
-auto Reader::stream_from_disk(const Core::View::Amorphous path, Managed::Bytes& data)
+auto Reader::stream_from_disk(const Core::View::Bytes path, Managed::Bytes& data)
     -> Bool {
   if (!stream_index.contains(path))
     return false;
@@ -129,7 +129,7 @@ auto Reader::stream_from_disk(const Core::View::Amorphous path, Managed::Bytes& 
     return false;
   }
   SizeBlock block_size = read_size(
-      Core::View::Amorphous(block_size_buffer, max_run_length_bytes), run_length);
+      Core::View::Bytes(block_size_buffer, max_run_length_bytes), run_length);
 
   // Adjust to the correct position so we are at the start of the buffer.
   disk_reader.sync(run_length - max_run_length_bytes);
@@ -175,8 +175,8 @@ auto Reader::process_split_table() -> void {
   Block& header_block = blocks[0];
   Block& data_block = blocks[1];
   Count table_pos = 0;
-  Core::View::Amorphous header_view = header_block.data.get_view();
-  Core::View::Amorphous data_view = data_block.data.get_view();
+  Core::View::Bytes header_view = header_block.data.get_view();
+  Core::View::Bytes data_view = data_block.data.get_view();
 
   while (table_pos < header_view.get_size()) {
     FileData file;
@@ -207,7 +207,7 @@ auto Reader::process_split_table() -> void {
 auto Reader::process_inline_table() -> void {
   Block& full_block = blocks[0];
   Count table_pos = 0;
-  Core::View::Amorphous full_block_view = full_block.data.get_view();
+  Core::View::Bytes full_block_view = full_block.data.get_view();
 
   while (table_pos < full_block_view.get_size()) {
     FileData file;

@@ -13,11 +13,11 @@ class Name : public Abstract {
  public:
   static constexpr uint32_t uuid = 0x61D5666f;
   constexpr auto get_name() const
-      -> const Perimortem::Core::View::Amorphous override {
+      -> const Perimortem::Core::View::Bytes override {
     return name;
   };
   constexpr auto get_doc() const
-      -> const Perimortem::Core::View::Amorphous override {
+      -> const Perimortem::Core::View::Bytes override {
     return "A TTX program including any required libraries.";
   };
   constexpr auto get_uuid() const -> uint32_t override { return uuid; }
@@ -25,13 +25,13 @@ class Name : public Abstract {
   auto get_size() const -> uint32_t override { return resolve().get_size(); }
   auto resolve() const -> const Abstract& override { return type.resolve(); }
 
-  auto resolve_context(const Perimortem::Core::View::Amorphous name) const
+  auto resolve_context(const Perimortem::Core::View::Bytes name) const
       -> const Abstract& override {
     return resolve().resolve_context(name);
   }
 
   // Names are only context and do not own a scope.
-  auto resolve_scope(const Perimortem::Core::View::Amorphous name) const
+  auto resolve_scope(const Perimortem::Core::View::Bytes name) const
       -> const Abstract& override {
     return Empty::instance();
   }
@@ -43,20 +43,20 @@ class Name : public Abstract {
   }
 
   virtual auto expand_scope(
-      const std::function<void(const Perimortem::Core::View::Amorphous,
+      const std::function<void(const Perimortem::Core::View::Bytes,
                                const Abstract* const&)>& fn) const
       -> void override {
     resolve().expand_context(fn);
   }
 
-  Name(const Perimortem::Core::View::Amorphous doc,
-       const Perimortem::Core::View::Amorphous name,
+  Name(const Perimortem::Core::View::Bytes doc,
+       const Perimortem::Core::View::Bytes name,
        Abstract& type,
        Usage usage)
       : doc(doc), name(name), type(type), usage(usage) {};
 
-  const Perimortem::Core::View::Amorphous doc;
-  const Perimortem::Core::View::Amorphous name;
+  const Perimortem::Core::View::Bytes doc;
+  const Perimortem::Core::View::Bytes name;
   const Abstract& type;
   const Usage usage;
 };

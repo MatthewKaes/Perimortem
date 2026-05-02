@@ -12,7 +12,7 @@ namespace Tetrodotoxin::Types {
 class Func : public Abstract {
  public:
   static constexpr uint32_t uuid = 0xFB689410;
-  constexpr auto get_name() const -> const Perimortem::Core::View::Amorphous override { return name; };
+  constexpr auto get_name() const -> const Perimortem::Core::View::Bytes override { return name; };
   constexpr auto get_uuid() const -> uint32_t override { return uuid; };
   constexpr auto get_usage() const -> Usage override { return usage; };
   auto get_size() const -> uint32_t override {
@@ -25,12 +25,12 @@ class Func : public Abstract {
   };
   auto resolve() const -> const Abstract* override { return_type.resolve(); }
 
-  auto resolve_context(const Perimortem::Core::View::Amorphous name) const
+  auto resolve_context(const Perimortem::Core::View::Bytes name) const
       -> const Abstract* override {
     return_type.resolve_context(name);
   }
 
-  auto resolve_scope(const Perimortem::Core::View::Amorphous name) const -> const Abstract* override {
+  auto resolve_scope(const Perimortem::Core::View::Bytes name) const -> const Abstract* override {
     if (name_index.contains(name))
       return name_index.at(name);
 
@@ -39,7 +39,7 @@ class Func : public Abstract {
   }
 
   auto expand_context(
-      const std::function<void(const Perimortem::Core::View::Amorphous,
+      const std::function<void(const Perimortem::Core::View::Bytes,
                                const Abstract* const&)>& fn) const
       -> void override {
     return_type.resolve()->expand_context(fn);
@@ -47,7 +47,7 @@ class Func : public Abstract {
 
   // Return all references in this scope (locals and arguments)
   virtual auto expand_scope(
-      const std::function<void(const Perimortem::Core::View::Amorphous,
+      const std::function<void(const Perimortem::Core::View::Bytes,
                                const Abstract* const&)>& fn) const
       -> void override {
     for (const auto& named_pair : name_index) {
@@ -57,7 +57,7 @@ class Func : public Abstract {
 
   Func(std::string&& doc,
        const Abstract& host,
-       const Perimortem::Core::View::Amorphous name,
+       const Perimortem::Core::View::Bytes name,
        const Abstract& return_type,
        Usage usage,
        std::vector<std::unique_ptr<Name>>&& args)
@@ -72,15 +72,15 @@ class Func : public Abstract {
   };
 
   const Abstract& host;
-  const Perimortem::Core::View::Amorphous doc;
-  const Perimortem::Core::View::Amorphous name;
+  const Perimortem::Core::View::Bytes doc;
+  const Perimortem::Core::View::Bytes name;
   const Abstract& return_type;
   const Usage usage;
   const Perimortem::Memory::Managed::Table<Name> args;
 
  private:
   std::vector<std::unique_ptr<Abstract>> scope_variables;
-  std::unordered_map<const Perimortem::Core::View::Amorphous, const Abstract*> name_index;
+  std::unordered_map<const Perimortem::Core::View::Bytes, const Abstract*> name_index;
 };
 
 }  // namespace Tetrodotoxin::Types
