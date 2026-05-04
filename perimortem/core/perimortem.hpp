@@ -124,38 +124,3 @@ constexpr void* operator new(CppSize size, void* ptr) noexcept {
   return ptr;
 }
 #endif
-
-#ifndef _INITIALIZER_LIST
-namespace std {
-// Special class that implments std::initalizer_list for the compiler.
-template <class type>
-class initializer_list {
- public:
-  using value_type = type;
-  using reference = const type&;
-  using const_reference = const type&;
-  using size_type = CppSize;
-  using iterator = type*;
-  using const_iterator = const type*;
-
- private:
-  iterator data;
-  size_type count;
-
-  // Compiler magic ***
-  // Check if this works on other compilers at some point.
-  constexpr initializer_list(const_iterator data, size_type count)
-      : data(data), count(count) {}
-
- public:
-  constexpr initializer_list() noexcept : data(0), count(0) {}
-  constexpr size_type size() const noexcept { return count; }
-  constexpr const_iterator begin() const noexcept { return data; }
-  constexpr const_iterator end() const noexcept { return begin() + size(); }
-};
-
-}  // namespace std
-#endif
-
-template <class type>
-using Init = std::initializer_list<type>;

@@ -1,10 +1,11 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
-#include "validation/test/test.hpp"
+#include "validation/unit_test.hpp"
 
 #include "perimortem/math/sort.hpp"
 #include "perimortem/memory/dynamic/bytes.hpp"
+#include "perimortem/utility/null_terminated.hpp"
 
 #include <stdlib.h>
 
@@ -56,6 +57,14 @@ PERIMORTEM_UNIT_TEST(MathSort, simple_sort) {
   EXPECT_EQ(sorted[5], sorted_const[5]);
 }
 
+PERIMORTEM_UNIT_TEST(MathSort, empty_sort) {
+  constexpr auto sorted_const = sort(Access::Vector<Int>());
+  auto sorted = sort(Access::Vector<Int>());
+
+  EXPECT_EQ(sorted.get_size() , 0);
+  EXPECT_EQ(sorted_const.get_size() , 0);
+}
+
 PERIMORTEM_UNIT_TEST(MathSort, large_sort) {
   constexpr auto item_count = 10017;
   Int test[item_count] = {};
@@ -69,7 +78,7 @@ PERIMORTEM_UNIT_TEST(MathSort, large_sort) {
     Data::swap(test[rand() % item_count], test[rand() % item_count]);
   }
 
-  auto sorted = sort(Access::Vector(test));
+  auto sorted = sort(test);
   for (Count i = 0; i < item_count; i++) {
     EXPECT_EQ(sorted[i], i);
   }

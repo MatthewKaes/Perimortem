@@ -2,6 +2,7 @@
 // Copyright © Matt Kaes
 
 #include "perimortem/serialization/textual/stream.hpp"
+#include "perimortem/utility/null_terminated.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Serialization;

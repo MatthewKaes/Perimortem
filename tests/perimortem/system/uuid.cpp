@@ -1,10 +1,10 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
-#include "validation/test/test.hpp"
+#include "validation/unit_test.hpp"
 
 #include "perimortem/system/uuid.hpp"
-#include "perimortem/serialization/encoding/null_terminated.hpp"
+#include "perimortem/utility/null_terminated.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::System;

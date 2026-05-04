@@ -33,7 +33,7 @@ enum class MapVectorization { Full, Partial, Scalar };
 // inline.
 template <typename key_type,
           typename value_type,
-          MapVectorization vector_mode = MapVectorization::Full>
+          MapVectorization vector_mode = MapVectorization::Partial>
 class Map {
  public:
   using Entry = Utility::Pair<key_type, value_type>;

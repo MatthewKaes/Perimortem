@@ -34,9 +34,6 @@ class Bytes {
   constexpr Bytes(const Byte* source, Count source_size)
       : source_block(source), size(source_size) {}
 
-  constexpr Bytes(const SignedBits_8* source, Count source_size)
-      : c_string(source), size(source_size) {}
-
   constexpr auto operator==(const View::Bytes& rhs) const -> Bool {
     return rhs.size == size &&
            Data::compare(source_block, rhs.source_block, size);
@@ -79,17 +76,7 @@ class Bytes {
   constexpr auto get_data() const -> const Byte* { return source_block; };
 
  private:
-  union {
-    const Byte* source_block;
-    const SignedBits_8* c_string;
-  };
+  const Byte* source_block;
   Count size;
 };
 }  // namespace Perimortem::Core::View
-
-// Converts C++ string literals into valid Perimortem byte strings.
-consteval const Perimortem::Core::View::Bytes operator""_view(
-    const SignedBits_8* null,
-    CppSize size) {
-  return Perimortem::Core::View::Bytes(null, size - 1);
-}

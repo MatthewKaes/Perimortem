@@ -25,8 +25,13 @@ enum class ByteOrder {
 
 // Type helpers
 template <typename storage>
-constexpr auto size_in_bits() -> Bits_64 {
+consteval auto size_in_bits() -> Bits_64 {
   return sizeof(storage) * 8;
+}
+
+template <typename type, Count size>
+consteval auto array_size(const type (&)[size]) -> Count {
+  return size;
 }
 
 // Used for reading const raw data.

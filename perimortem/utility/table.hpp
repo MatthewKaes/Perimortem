@@ -8,18 +8,22 @@
 #include "perimortem/core/view/vector.hpp"
 #include "perimortem/utility/pair.hpp"
 
-namespace Perimortem::Memory::Static {
+namespace Perimortem::Utility {
 
 // An optimized look up table for `Core::View::Bytes` that avoids a level of
 // indirection by packing string keys inline.
 //
 // Tables are only immutable and unlike `Map` always have static linkage.
+//
+// The source template parameter is a bit funky since the type itself is
+// parameterized over it's source data to create a type that expresses the
+// compressed form of the lookups.
 template <typename value_type,
           const Core::View::Vector<
               Utility::Pair<Core::View::Bytes, value_type>>& source>
 class Table {
  private:
-  static constexpr auto required_storage() -> Count {
+  static consteval auto required_storage() -> Count {
     Count total = 0;
     for (Count i = 0; i < source.get_size(); i++) {
       total += source[i].key.get_size();
@@ -30,7 +34,7 @@ class Table {
 
   // Get the number of size buckets we will need to store.
   // We give up one bucket for size "0" strings for clamping later.
-  static constexpr auto max_length() -> Count {
+  static consteval auto max_length() -> Count {
     Count max = 0;
     for (Count i = 0; i < source.get_size(); i++) {
       max = max > source[i].key.get_size() + 1 ? max
@@ -44,7 +48,7 @@ class Table {
   static constexpr Count max_range = max_length();
 
   struct PackedBuffer {
-    constexpr PackedBuffer() {
+    consteval PackedBuffer() {
       Count index = 0;
       for (Count i = 0; i < source.get_size(); i++) {
         buffer_coordinates[source[i].key.get_size() + 1].item_index++;
@@ -68,8 +72,8 @@ class Table {
     }
 
     struct Coord {
-      UInt item_index = 0;
-      UInt byte_index = 0;
+      Bits_16 item_index = 0;
+      Bits_16 byte_index = 0;
     };
 
     Coord buffer_coordinates[(max_range + 1)];
@@ -80,8 +84,6 @@ class Table {
   static constexpr PackedBuffer byte_pack;
 
  public:
-  // A bit annoying but Clang doesn't seem to realize what we are trying to
-  // optimize when we use `find` so we need to duplicate it.
   static constexpr auto find_or_default(const Core::View::Bytes key,
                                         const value_type default_value)
       -> value_type {
@@ -110,9 +112,9 @@ class Table {
     return default_value;
   }
 
-  static constexpr auto get_memory_consumption() -> Count {
+  static consteval auto get_memory_consumption() -> Count {
     return sizeof(PackedBuffer);
   }
 };
 
-}  // namespace Perimortem::Memory::Static
+}  // namespace Perimortem::Utility

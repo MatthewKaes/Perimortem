@@ -10,7 +10,7 @@
 /* Explicity don't protect the include to catch multiple includes */
 // #pragma once
 
-#include "validation/test/test.hpp"
+#include "validation/unit_test.hpp"
 
 #include <chrono>
 #include <cstring>

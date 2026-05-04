@@ -2,8 +2,10 @@
 // Copyright © Matt Kaes
 
 #include "perimortem/serialization/json/node.hpp"
+
 #include "perimortem/memory/managed/bytes.hpp"
 #include "perimortem/memory/managed/vector.hpp"
+#include "perimortem/utility/null_terminated.hpp"
 
 #include <x86intrin.h>
 

@@ -27,7 +27,7 @@ class VectorPrinter:
         self.size = self.valobj.GetChildMemberWithName("size").GetValueAsUnsigned();
         self.data_type = self.block.GetType().GetPointeeType()
 
-      if self.size > 10000:
+      if self.size > 10000000:
         self.size = -1;
 
       self.data_size = self.data_type.GetByteSize()
@@ -57,14 +57,14 @@ class VectorPrinter:
     if index == 0:
       object = self.valobj.CreateValueFromExpression('size', '(int)%d' % self.size)
       return object
-    if index >= self.size + 2:
+    if index >= self.size + 1:
       return None
 
     try:
-      offset = (index - 2) * self.data_size
+      offset = (index - 1) * self.data_size
       value = self.block.CreateChildAtOffset(
-                "[%d]" % (index - 2), offset, self.data_type)
-      return self.valobj.CreateValueFromData("[%d]" % (index - 2), value.GetData(), value.GetType())
+                "[%d]" % (index - 1), offset, self.data_type)
+      return self.valobj.CreateValueFromData("[%d]" % (index - 1), value.GetData(), value.GetType())
     except Exception as e:
       logger >> "peri_except: %r" % e
       return None

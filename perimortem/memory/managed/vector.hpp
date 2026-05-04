@@ -45,8 +45,7 @@ class Vector {
   }
 
   constexpr auto insert(const value_type& data) -> void {
-    if (size == capacity)
-      grow();
+    ensure_capacity(size + 1);
 
     // Construct using the copy constructor.
     new (rented_block + (size++)) value_type(data);
@@ -97,18 +96,17 @@ class Vector {
 
     // Fetch and transfer to new block.
     auto new_block = reinterpret_cast<value_type*>(
-        arena.allocate(sizeof(value_type) * capacity));
+        arena.allocate(sizeof(value_type) * new_capacity));
 
+
+    // Copy the raw bytes of the block
     if (rented_block) {
-      memcpy(new_block, rented_block, sizeof(value_type) * size);
+      memcpy((void*)new_block, rented_block, sizeof(value_type) * size);
     }
 
     // Update block and get the new capacity.
     rented_block = new_block;
-
-    // Get the actual capacity provided which is often more than we actual
-    // requested.
-    capacity = new_block->get_usable_bytes() / sizeof(value_type);
+    capacity = new_capacity;
   }
 
   auto grow() -> void {

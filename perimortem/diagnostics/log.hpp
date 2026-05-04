@@ -1,7 +1,8 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
-#pragma once
+// Should only be included in cpp files
+// #pragma once
 
 #include "perimortem/diagnostics/source.hpp"
 #include "perimortem/core/view/vector.hpp"
@@ -47,20 +48,20 @@ class Log {
   static auto enable_log(Bool enable) -> void;
   static auto info(Core::View::Bytes msg,
                    Core::View::Vector<Data> data = {},
-                   const SourceInfo location = SourceInfo::current()) -> void;
+                   const Source location = Source::current()) -> void;
   static auto debug(const Core::View::Bytes msg,
                     Core::View::Vector<Data> data = {},
-                    const SourceInfo location = SourceInfo::current()) -> void;
+                    const Source location = Source::current()) -> void;
   static auto warning(const Core::View::Bytes msg,
                       Core::View::Vector<Data> data = {},
-                      const SourceInfo location = SourceInfo::current())
+                      const Source location = Source::current())
       -> void;
   static auto error(const Core::View::Bytes msg,
                     Core::View::Vector<Data> data = {},
-                    const SourceInfo location = SourceInfo::current()) -> void;
+                    const Source location = Source::current()) -> void;
   static auto fatal(const Core::View::Bytes msg,
                     Core::View::Vector<Data> data = {},
-                    const SourceInfo location = SourceInfo::current()) -> void;
+                    const Source location = Source::current()) -> void;
 
   static auto flush() -> void;
 

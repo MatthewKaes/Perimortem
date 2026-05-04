@@ -15,6 +15,9 @@ constexpr auto sort(Core::Access::Vector<type> access)
     -> Core::Access::Vector<type> {
   // TODO: Implement grail sort if it ever comes up, but for now just use a
   // heapsort or eventually a simple introsort.
+  if (access.get_size() == 0) {
+    return access;
+  }
 
   constexpr auto max_heapify = [](this auto&& self,
                                   Core::Access::Vector<type> access,
@@ -60,15 +63,19 @@ constexpr auto sort(Core::Access::Vector<type> access)
 template <typename type, Count item_count>
 consteval auto sort(const type (&data)[item_count])
     -> Core::Static::Vector<type, item_count> {
-  // Heapify
   Core::Static::Vector<type, item_count> output;
   for (Count i = 0; i < item_count; i++) {
     output[i] = data[i];
   }
 
-  sort<type>(output);
+  sort(output.get_access());
 
   return output;
+}
+
+template <typename type, Count item_count>
+constexpr auto sort(type (&data)[item_count]) {
+  return sort(Core::Access::Vector<type>(data));
 }
 
 }  // namespace Perimortem::Math

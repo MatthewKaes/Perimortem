@@ -1,84 +1,41 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
-#include "validation/test/test.hpp"
+#include "validation/unit_test.hpp"
 
+#include "perimortem/core/static/bytes.hpp"
 #include "perimortem/memory/dynamic/bytes.hpp"
 #include "perimortem/memory/dynamic/map.hpp"
-#include "perimortem/core/static/bytes.hpp"
+#include "perimortem/utility/null_terminated.hpp"
 
-using namespace Perimortem;
-using namespace Perimortem::Core;
+#include "tests/perimortem/memory/hashable.hpp"
+
 using namespace Perimortem::Memory;
 using namespace Perimortem::Utility;
 
 using namespace Validation;
 
-constexpr auto vector_mode = Dynamic::MapVectorization::Full;
-static Count default_construct_count = 0;
-static Count default_destruct_count = 0;
+constexpr auto vector_mode = Dynamic::MapVectorization::Scalar;
 
-Test::Harness DynamicMapFull = {.name = "Dynamic::Map (Full Vectorization)",
-                                .setup = []() {
-                                  default_construct_count = 0;
-                                  default_destruct_count = 0;
-                                }};
+Test::Harness DynamicMapScalar = {.name = "Dynamic::Map (Scalar Mode)",
+                                  .setup = []() {
+                                    default_construct_count = 0;
+                                    default_destruct_count = 0;
+                                  }};
 
-class Hashable {
- public:
-  Hashable()
-      : id(0),
-        construct_count(default_construct_count),
-        destruct_count(default_destruct_count) {}
-  Hashable(Int id, Count& construct_count, Count& destruct_count)
-      : id(id),
-        construct_count(construct_count),
-        destruct_count(destruct_count) {
-    this->construct_count++;
-  }
-  Hashable(const Hashable& rhs)
-      : id(rhs.id),
-        construct_count(rhs.construct_count),
-        destruct_count(rhs.destruct_count) {
-    this->construct_count++;
-  }
-  Hashable(const Hashable&& rhs)
-      : id(rhs.id),
-        construct_count(rhs.construct_count),
-        destruct_count(rhs.destruct_count) {
-    this->construct_count++;
-  }
-
-  auto operator=(const Hashable& rhs) -> Hashable& {
-    this->construct_count++;
-    id = rhs.id;
-
-    return *this;
-  }
-
-  ~Hashable() { destruct_count++; }
-  auto hash() const -> Bits_64 { return Core::Hash(id).get_value(); }
-  auto operator==(const Hashable& rhs) const -> Bool { return rhs.id == id; }
-
- private:
-  Int id;
-  Count& construct_count;
-  Count& destruct_count;
-};
-
-PERIMORTEM_UNIT_TEST(DynamicMapFull, empty) {
+PERIMORTEM_UNIT_TEST(DynamicMapScalar, empty) {
   Dynamic::Map<Int, Int, vector_mode> empty_map;
 
   // Two maps fit in a cache line.
   EXPECT_EQ(sizeof(empty_map), 32);
-  EXPECT_EQ(empty_map.get_size(), 0ULL);
+  EXPECT_EQ(empty_map.get_size(), 0);
 
   // Empty maps should consume no memory and should fetch memory lazily unless
   // initial capacity is requested.
   EXPECT_EQ(empty_map.get_memory_consumption(), 0);
 }
 
-PERIMORTEM_UNIT_TEST(DynamicMapFull, simple_construction) {
+PERIMORTEM_UNIT_TEST(DynamicMapScalar, simple_construction) {
   Dynamic::Map<Int, Int, vector_mode> int_map = {{{1, 2}, {2, 3}, {4, 5}}};
 
   EXPECT_EQ(int_map.get_size(), 3);
@@ -87,7 +44,7 @@ PERIMORTEM_UNIT_TEST(DynamicMapFull, simple_construction) {
   EXPECT_EQ(int_map[4], 5);
 }
 
-PERIMORTEM_UNIT_TEST(DynamicMapFull, insert_on_index) {
+PERIMORTEM_UNIT_TEST(DynamicMapScalar, insert_on_index) {
   Dynamic::Map<Int, Int, vector_mode> empty_map;
 
   // Populate defaults
@@ -101,7 +58,7 @@ PERIMORTEM_UNIT_TEST(DynamicMapFull, insert_on_index) {
   }
 }
 
-PERIMORTEM_UNIT_TEST(DynamicMapFull, duplicate_keys) {
+PERIMORTEM_UNIT_TEST(DynamicMapScalar, duplicate_keys) {
   Dynamic::Map<Int, Int, vector_mode> int_map = {{{1, 2}, {1, 4}}};
 
   EXPECT_EQ(int_map.get_size(), 1);
@@ -113,7 +70,7 @@ PERIMORTEM_UNIT_TEST(DynamicMapFull, duplicate_keys) {
   EXPECT_EQ(int_map[2], 8);
 }
 
-PERIMORTEM_UNIT_TEST(DynamicMapFull, empty_keys) {
+PERIMORTEM_UNIT_TEST(DynamicMapScalar, empty_keys) {
   Dynamic::Map<Dynamic::Bytes, Int, vector_mode> empty_map;
 
   Int i = 0;
@@ -127,7 +84,7 @@ PERIMORTEM_UNIT_TEST(DynamicMapFull, empty_keys) {
   EXPECT_EQ(empty_map[Dynamic::Bytes()], i);
 }
 
-PERIMORTEM_UNIT_TEST(DynamicMapFull, insert_stress_test) {
+PERIMORTEM_UNIT_TEST(DynamicMapScalar, insert_stress_test) {
   Dynamic::Map<Int, Int, vector_mode> large_map;
 
   for (Int i = 0; i < 1000; i++) {
@@ -139,10 +96,10 @@ PERIMORTEM_UNIT_TEST(DynamicMapFull, insert_stress_test) {
     ASSERT_EQ(large_map[i], i + 2);
   }
 
-  EXPECT_EQ(large_map.get_memory_consumption(), 1 << 16);
+  EXPECT_EQ(large_map.get_memory_consumption(), 1 << 15);
 }
 
-PERIMORTEM_UNIT_TEST(DynamicMapFull, capacity_stress_test) {
+PERIMORTEM_UNIT_TEST(DynamicMapScalar, capacity_stress_test) {
   Dynamic::Map<Int, Int, vector_mode> large_map;
 
   large_map.ensure_capacity(1000);
@@ -155,10 +112,10 @@ PERIMORTEM_UNIT_TEST(DynamicMapFull, capacity_stress_test) {
     ASSERT_EQ(large_map[i], i + 2);
   }
 
-  EXPECT_EQ(large_map.get_memory_consumption(), 1 << 16);
+  EXPECT_EQ(large_map.get_memory_consumption(), 1 << 15);
 }
 
-PERIMORTEM_UNIT_TEST(DynamicMapFull, key_construction_count) {
+PERIMORTEM_UNIT_TEST(DynamicMapScalar, key_construction_count) {
   Count construct_count = 0;
   Count destruct_count = 0;
 
@@ -181,7 +138,7 @@ PERIMORTEM_UNIT_TEST(DynamicMapFull, key_construction_count) {
   EXPECT_EQ(default_destruct_count, 0);
 }
 
-PERIMORTEM_UNIT_TEST(DynamicMapFull, value_construction_count) {
+PERIMORTEM_UNIT_TEST(DynamicMapScalar, value_construction_count) {
   Count construct_count = 0;
   Count destruct_count = 0;
 
@@ -204,7 +161,7 @@ PERIMORTEM_UNIT_TEST(DynamicMapFull, value_construction_count) {
   EXPECT_EQ(default_destruct_count, 0);
 }
 
-PERIMORTEM_UNIT_TEST(DynamicMapFull, emplace_construction_count) {
+PERIMORTEM_UNIT_TEST(DynamicMapScalar, emplace_construction_count) {
   Count construct_count = 0;
   Count destruct_count = 0;
 
@@ -228,7 +185,7 @@ PERIMORTEM_UNIT_TEST(DynamicMapFull, emplace_construction_count) {
   EXPECT_EQ(default_destruct_count, 0);
 }
 
-PERIMORTEM_UNIT_TEST(DynamicMapFull, dynamic_keys) {
+PERIMORTEM_UNIT_TEST(DynamicMapScalar, dynamic_keys) {
   Dynamic::Map<Dynamic::Bytes, Int, vector_mode> text_map;
 
   text_map["Hello"_view] = 0;
@@ -254,7 +211,7 @@ PERIMORTEM_UNIT_TEST(DynamicMapFull, dynamic_keys) {
   ASSERT_EQ(text_map["Longer test string"_view], 2);
 }
 
-PERIMORTEM_UNIT_TEST(DynamicMapFull, dynamic_value) {
+PERIMORTEM_UNIT_TEST(DynamicMapScalar, dynamic_value) {
   Dynamic::Map<Int, Dynamic::Bytes, vector_mode> text_map;
 
   text_map[0] = "Hello"_view;
@@ -266,19 +223,19 @@ PERIMORTEM_UNIT_TEST(DynamicMapFull, dynamic_value) {
   ASSERT_TEXT(text_map[2].get_view(), "Longer test string"_view);
 }
 
-PERIMORTEM_UNIT_TEST(DynamicMapFull, size) {
+PERIMORTEM_UNIT_TEST(DynamicMapScalar, size) {
   Dynamic::Map<Int, Int, vector_mode> empty_map;
   EXPECT_EQ(sizeof(empty_map), 32);
   EXPECT_EQ(empty_map.get_capacity(), 0);
   empty_map.ensure_capacity(10);
-  EXPECT_EQ(empty_map.get_capacity(), 32);
-  EXPECT_EQ(empty_map.get_memory_consumption(), 1024);
+  EXPECT_EQ(empty_map.get_capacity(), 16);
+  EXPECT_EQ(empty_map.get_memory_consumption(), 256);
   empty_map.ensure_capacity(100);
   EXPECT_EQ(empty_map.get_capacity(), 128);
-  EXPECT_EQ(empty_map.get_memory_consumption(), 4096);
+  EXPECT_EQ(empty_map.get_memory_consumption(), 2048);
 }
 
-PERIMORTEM_UNIT_TEST(DynamicMapFull, reuse) {
+PERIMORTEM_UNIT_TEST(DynamicMapScalar, reuse) {
   Dynamic::Map<Int, Int, vector_mode> reuse_map;
 
   for (Int loops = 0; loops < 5; loops++) {
@@ -296,7 +253,7 @@ PERIMORTEM_UNIT_TEST(DynamicMapFull, reuse) {
   }
 }
 
-PERIMORTEM_UNIT_TEST(DynamicMapFull, leak_test) {
+PERIMORTEM_UNIT_TEST(DynamicMapScalar, leak_test) {
   auto pre_test_memory = Allocator::Bibliotheca::allocated_memory();
 
   {

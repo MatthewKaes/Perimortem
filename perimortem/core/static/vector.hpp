@@ -35,8 +35,8 @@ class Vector {
   consteval auto get_view() const -> const Core::View::Vector<type> {
     return Core::View::Vector<type>(source_block, literal_size);
   }
-  constexpr auto get_data() const -> const Byte* { return source_block; }
-  constexpr auto get_data() -> Byte* { return source_block; }
+  constexpr auto get_data() const -> const type* { return source_block; }
+  constexpr auto get_data() -> type* { return source_block; }
   constexpr auto get_access() -> Core::Access::Vector<type> {
     return Core::Access::Vector<type>(source_block, literal_size);
   }

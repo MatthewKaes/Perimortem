@@ -1,0 +1,29 @@
+"""
+Tests - Includes all unit tests
+"""
+
+load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+
+package(default_visibility = ["//visibility:public"])
+
+cc_library(
+    name = "test_headers",
+    hdrs = glob([
+        "**/*.hpp",
+    ]),
+    includes = ["."],
+)
+
+cc_binary(
+    name = "unit_tests",
+    srcs = glob([
+        "**/*.cpp",
+    ]),
+    includes = ["."],
+    deps = [
+        ":test_headers",
+        "//perimortem",
+        "//validation:unit_test",
+    ],
+)

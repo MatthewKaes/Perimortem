@@ -1,41 +1,43 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
-#include "validation/test/test.hpp"
+#include "validation/unit_test.hpp"
 
+#include "perimortem/core/static/bytes.hpp"
 #include "perimortem/memory/dynamic/bytes.hpp"
 #include "perimortem/memory/dynamic/map.hpp"
-#include "perimortem/core/static/bytes.hpp"
+#include "perimortem/utility/null_terminated.hpp"
 
-#include "perimortem/__tests/memory/hashable.hpp"
+#include "tests/perimortem/memory/hashable.hpp"
 
+using namespace Perimortem;
+using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
 using namespace Perimortem::Utility;
 
 using namespace Validation;
 
-constexpr auto vector_mode = Dynamic::MapVectorization::Partial;
+constexpr auto vector_mode = Dynamic::MapVectorization::Full;
 
-Test::Harness DynamicMapPartial = {
-    .name = "Dynamic::Map (Partial Vectorization)",
-    .setup = []() {
-      default_construct_count = 0;
-      default_destruct_count = 0;
-    }};
+Test::Harness DynamicMapFull = {.name = "Dynamic::Map (Full Vectorization)",
+                                .setup = []() {
+                                  default_construct_count = 0;
+                                  default_destruct_count = 0;
+                                }};
 
-PERIMORTEM_UNIT_TEST(DynamicMapPartial, empty) {
+PERIMORTEM_UNIT_TEST(DynamicMapFull, empty) {
   Dynamic::Map<Int, Int, vector_mode> empty_map;
 
   // Two maps fit in a cache line.
   EXPECT_EQ(sizeof(empty_map), 32);
-  EXPECT_EQ(empty_map.get_size(), 0);
+  EXPECT_EQ(empty_map.get_size(), 0ULL);
 
   // Empty maps should consume no memory and should fetch memory lazily unless
   // initial capacity is requested.
   EXPECT_EQ(empty_map.get_memory_consumption(), 0);
 }
 
-PERIMORTEM_UNIT_TEST(DynamicMapPartial, simple_construction) {
+PERIMORTEM_UNIT_TEST(DynamicMapFull, simple_construction) {
   Dynamic::Map<Int, Int, vector_mode> int_map = {{{1, 2}, {2, 3}, {4, 5}}};
 
   EXPECT_EQ(int_map.get_size(), 3);
@@ -44,7 +46,7 @@ PERIMORTEM_UNIT_TEST(DynamicMapPartial, simple_construction) {
   EXPECT_EQ(int_map[4], 5);
 }
 
-PERIMORTEM_UNIT_TEST(DynamicMapPartial, insert_on_index) {
+PERIMORTEM_UNIT_TEST(DynamicMapFull, insert_on_index) {
   Dynamic::Map<Int, Int, vector_mode> empty_map;
 
   // Populate defaults
@@ -58,7 +60,7 @@ PERIMORTEM_UNIT_TEST(DynamicMapPartial, insert_on_index) {
   }
 }
 
-PERIMORTEM_UNIT_TEST(DynamicMapPartial, duplicate_keys) {
+PERIMORTEM_UNIT_TEST(DynamicMapFull, duplicate_keys) {
   Dynamic::Map<Int, Int, vector_mode> int_map = {{{1, 2}, {1, 4}}};
 
   EXPECT_EQ(int_map.get_size(), 1);
@@ -70,7 +72,7 @@ PERIMORTEM_UNIT_TEST(DynamicMapPartial, duplicate_keys) {
   EXPECT_EQ(int_map[2], 8);
 }
 
-PERIMORTEM_UNIT_TEST(DynamicMapPartial, empty_keys) {
+PERIMORTEM_UNIT_TEST(DynamicMapFull, empty_keys) {
   Dynamic::Map<Dynamic::Bytes, Int, vector_mode> empty_map;
 
   Int i = 0;
@@ -84,7 +86,7 @@ PERIMORTEM_UNIT_TEST(DynamicMapPartial, empty_keys) {
   EXPECT_EQ(empty_map[Dynamic::Bytes()], i);
 }
 
-PERIMORTEM_UNIT_TEST(DynamicMapPartial, insert_stress_test) {
+PERIMORTEM_UNIT_TEST(DynamicMapFull, insert_stress_test) {
   Dynamic::Map<Int, Int, vector_mode> large_map;
 
   for (Int i = 0; i < 1000; i++) {
@@ -99,7 +101,7 @@ PERIMORTEM_UNIT_TEST(DynamicMapPartial, insert_stress_test) {
   EXPECT_EQ(large_map.get_memory_consumption(), 1 << 16);
 }
 
-PERIMORTEM_UNIT_TEST(DynamicMapPartial, capacity_stress_test) {
+PERIMORTEM_UNIT_TEST(DynamicMapFull, capacity_stress_test) {
   Dynamic::Map<Int, Int, vector_mode> large_map;
 
   large_map.ensure_capacity(1000);
@@ -115,7 +117,7 @@ PERIMORTEM_UNIT_TEST(DynamicMapPartial, capacity_stress_test) {
   EXPECT_EQ(large_map.get_memory_consumption(), 1 << 16);
 }
 
-PERIMORTEM_UNIT_TEST(DynamicMapPartial, key_construction_count) {
+PERIMORTEM_UNIT_TEST(DynamicMapFull, key_construction_count) {
   Count construct_count = 0;
   Count destruct_count = 0;
 
@@ -138,7 +140,7 @@ PERIMORTEM_UNIT_TEST(DynamicMapPartial, key_construction_count) {
   EXPECT_EQ(default_destruct_count, 0);
 }
 
-PERIMORTEM_UNIT_TEST(DynamicMapPartial, value_construction_count) {
+PERIMORTEM_UNIT_TEST(DynamicMapFull, value_construction_count) {
   Count construct_count = 0;
   Count destruct_count = 0;
 
@@ -161,7 +163,7 @@ PERIMORTEM_UNIT_TEST(DynamicMapPartial, value_construction_count) {
   EXPECT_EQ(default_destruct_count, 0);
 }
 
-PERIMORTEM_UNIT_TEST(DynamicMapPartial, emplace_construction_count) {
+PERIMORTEM_UNIT_TEST(DynamicMapFull, emplace_construction_count) {
   Count construct_count = 0;
   Count destruct_count = 0;
 
@@ -185,7 +187,7 @@ PERIMORTEM_UNIT_TEST(DynamicMapPartial, emplace_construction_count) {
   EXPECT_EQ(default_destruct_count, 0);
 }
 
-PERIMORTEM_UNIT_TEST(DynamicMapPartial, dynamic_keys) {
+PERIMORTEM_UNIT_TEST(DynamicMapFull, dynamic_keys) {
   Dynamic::Map<Dynamic::Bytes, Int, vector_mode> text_map;
 
   text_map["Hello"_view] = 0;
@@ -211,7 +213,7 @@ PERIMORTEM_UNIT_TEST(DynamicMapPartial, dynamic_keys) {
   ASSERT_EQ(text_map["Longer test string"_view], 2);
 }
 
-PERIMORTEM_UNIT_TEST(DynamicMapPartial, dynamic_value) {
+PERIMORTEM_UNIT_TEST(DynamicMapFull, dynamic_value) {
   Dynamic::Map<Int, Dynamic::Bytes, vector_mode> text_map;
 
   text_map[0] = "Hello"_view;
@@ -223,19 +225,19 @@ PERIMORTEM_UNIT_TEST(DynamicMapPartial, dynamic_value) {
   ASSERT_TEXT(text_map[2].get_view(), "Longer test string"_view);
 }
 
-PERIMORTEM_UNIT_TEST(DynamicMapPartial, size) {
+PERIMORTEM_UNIT_TEST(DynamicMapFull, size) {
   Dynamic::Map<Int, Int, vector_mode> empty_map;
   EXPECT_EQ(sizeof(empty_map), 32);
   EXPECT_EQ(empty_map.get_capacity(), 0);
   empty_map.ensure_capacity(10);
-  EXPECT_EQ(empty_map.get_capacity(), 16);
-  EXPECT_EQ(empty_map.get_memory_consumption(), 512);
+  EXPECT_EQ(empty_map.get_capacity(), 32);
+  EXPECT_EQ(empty_map.get_memory_consumption(), 1024);
   empty_map.ensure_capacity(100);
   EXPECT_EQ(empty_map.get_capacity(), 128);
   EXPECT_EQ(empty_map.get_memory_consumption(), 4096);
 }
 
-PERIMORTEM_UNIT_TEST(DynamicMapPartial, reuse) {
+PERIMORTEM_UNIT_TEST(DynamicMapFull, reuse) {
   Dynamic::Map<Int, Int, vector_mode> reuse_map;
 
   for (Int loops = 0; loops < 5; loops++) {
@@ -253,7 +255,7 @@ PERIMORTEM_UNIT_TEST(DynamicMapPartial, reuse) {
   }
 }
 
-PERIMORTEM_UNIT_TEST(DynamicMapPartial, leak_test) {
+PERIMORTEM_UNIT_TEST(DynamicMapFull, leak_test) {
   auto pre_test_memory = Allocator::Bibliotheca::allocated_memory();
 
   {
