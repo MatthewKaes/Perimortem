@@ -48,7 +48,7 @@ struct PhiloxState {
   Count index;
 };
 
-auto read_rand() -> Bits_64 {
+auto Random::read_entropy() -> Bits_64 {
   Bits_64 value;
   Count timeout = 100000;
   while (!_rdrand64_step(&value) and timeout) {
@@ -111,14 +111,15 @@ auto create_prng() -> PhiloxState {
   PhiloxState state;
 
   // Load the channel seeds (16 bytes of random)
-  Bits_64 keys[] = {read_rand(), read_rand()};
+  Bits_64 keys[] = {Random::read_entropy(), Random::read_entropy()};
   state.dual_channel_key =
       _mm256_set_epi32(Bits_32(keys[0] >> 32), 0, Bits_32(keys[0]), 0,
                        Bits_32(keys[1] >> 32), 0, Bits_32(keys[1]), 0);
 
   // Load the counter seeds (32 bytes of random)
   state.dual_channel_counter =
-      _mm256_set_epi64x(read_rand(), read_rand(), read_rand(), read_rand());
+      _mm256_set_epi64x(Random::read_entropy(), Random::read_entropy(),
+                        Random::read_entropy(), Random::read_entropy());
 
   bump_counter(state);
 
