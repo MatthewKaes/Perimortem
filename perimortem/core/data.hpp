@@ -23,6 +23,11 @@ enum class ByteOrder {
   Native = __BYTE_ORDER__,
 };
 
+enum class CacheAware {
+  Disabled = 1,
+  Enabled = 64,  // TODO: Support other cache sizes
+};
+
 // Type helpers
 template <typename storage>
 consteval auto size_in_bits() -> Bits_64 {

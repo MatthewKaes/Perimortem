@@ -20,15 +20,28 @@ namespace Perimortem::Utility {
 // compressed form of the lookups.
 template <typename value_type,
           const Core::View::Vector<
-              Utility::Pair<Core::View::Bytes, value_type>>& source>
+              Utility::Pair<Core::View::Bytes, value_type>>& source,
+          Core::Data::CacheAware cache_aware = Core::Data::CacheAware::Enabled>
 class Table {
- private:
+ public:
+  static constexpr auto cache_line_size = static_cast<Bits_64>(cache_aware);
   static consteval auto required_storage() -> Count {
-    Count total = 0;
+    Count buckets[max_length()] = {0};
+
     for (Count i = 0; i < source.get_size(); i++) {
-      total += source[i].key.get_size();
+      buckets[source[i].key.get_size()] += source[i].key.get_size();
     }
 
+    Count total = 0;
+    for (Count i = 0; i < max_length(); i++) {
+      const auto cache_alignment = (total % cache_line_size);
+      if (cache_alignment != 0 &&
+          cache_alignment + buckets[i] > cache_line_size) {
+        total += cache_line_size - cache_alignment;
+      }
+
+      total += buckets[i];
+    }
     return total;
   }
 
@@ -49,36 +62,56 @@ class Table {
 
   struct PackedBuffer {
     consteval PackedBuffer() {
-      Count index = 0;
+      // Caculate the bytes required for each bucket
+      Count buckets[max_length()] = {0};
       for (Count i = 0; i < source.get_size(); i++) {
-        buffer_coordinates[source[i].key.get_size() + 1].item_index++;
-        mappings[i] = source[i].value;
+        buckets[source[i].key.get_size()] += source[i].key.get_size();
+      }
 
-        for (Count c = 0; c < source[i].key.get_size(); c++) {
-          buffer[index++] = source[i].key[c];
+      // Align and set all bucket indexes
+      Count total = 0;
+      for (Count i = 0; i < max_length(); i++) {
+        // If the bucket crosses a cache line then move it over.
+        const auto cache_alignment = (total % cache_line_size);
+        if (cache_alignment != 0 &&
+            cache_alignment + buckets[i] > cache_line_size) {
+          total += cache_line_size - cache_alignment;
         }
+
+        buffer_coordinates[i].byte_index = total;
+        total += buckets[i];
+        buckets[i] = buffer_coordinates[i].byte_index;
       }
 
-      for (Count i = 0; i < max_range; i++) {
-        buffer_coordinates[i + 1].byte_index =
-            buffer_coordinates[i].byte_index +
-            i * buffer_coordinates[i + 1].item_index;
-      }
+      total = 0;
+      for (Count size = 0; size < max_length(); size++) {
+        buffer_coordinates[size].item_index = total;
 
-      for (Count i = 0; i < max_range; i++) {
-        buffer_coordinates[i + 1].item_index +=
-            buffer_coordinates[i].item_index;
+        for (Count i = 0; i < source.get_size(); i++) {
+          if (source[i].key.get_size() != size) {
+            continue;
+          }
+
+          mappings[total] = source[i].value;
+          buffer_coordinates[size].item_count++;
+          total++;
+
+          for (Count c = 0; c < source[i].key.get_size(); c++) {
+            buffer[buckets[size]++] = source[i].key[c];
+          }
+        }
       }
     }
 
     struct Coord {
-      Bits_16 item_index = 0;
+      Bits_8 item_index = 0;
+      Bits_8 item_count = 0;
       Bits_16 byte_index = 0;
     };
 
     Coord buffer_coordinates[(max_range + 1)];
     value_type mappings[source.get_size()] = {};
-    Byte buffer[storage_size] = {0};
+    alignas(64) Byte buffer[storage_size] = {0};
   };
 
   static constexpr PackedBuffer byte_pack;
@@ -88,25 +121,25 @@ class Table {
                                         const value_type default_value)
       -> value_type {
     // Get the value in range.
-    const auto range_step = key.get_size() >= max_range ? 0 : key.get_size();
+    const auto range_step = key.get_size();
+    if (range_step > max_range) {
+      return default_value;
+    }
 
     auto item_start = byte_pack.buffer_coordinates[range_step].item_index;
+    auto item_count = byte_pack.buffer_coordinates[range_step].item_count;
     auto byte_start = byte_pack.buffer_coordinates[range_step].byte_index;
-    auto byte_end = byte_pack.buffer_coordinates[range_step + 1].byte_index;
 
-    Count index = 0;
-    for (Count i = byte_start; i < byte_end; i += range_step) {
-      // Sorted buckets.
-      if (byte_pack.buffer[i] > key[0]) {
-        break;
+    for (Bits_8 i = 0; i < item_count; i++) {
+      const auto byte_index = byte_start + i * range_step;
+      if (byte_pack.buffer[byte_index] != key[0]) {
+        continue;
       }
 
-      if (Core::Data::compare(byte_pack.buffer + i, key.get_data(),
+      if (Core::Data::compare(byte_pack.buffer + byte_index, key.get_data(),
                               range_step)) {
-        return byte_pack.mappings[item_start + index];
+        return byte_pack.mappings[item_start + i];
       }
-
-      index++;
     }
 
     return default_value;

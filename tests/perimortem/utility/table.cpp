@@ -22,23 +22,89 @@ constexpr Pair<View::Bytes, Int> keyword_source[] = {
     {"package"_view, 22}, {"warning"_view, 23},
 };
 
-static constexpr View::Vector table_data(keyword_source);
-using keyword_table = Table<Int, table_data>;
+constexpr Pair<View::Bytes, View::Bytes> word_source[] = {
+    {"a"_view, "b"_view},
+    {"b"_view, "test"_view},
+    {"longer?"_view, "shorter"_view},
+    {"possible?"_view, "maybe!"_view},
+    {"happy"_view, "feeling glad"_view},
+    {"sunshine"_view, "in a bag"_view},
+    {"useless"_view, "not for long"_view},
+    {"future"_view, "comming on"_view}};
 
-Test::Harness StaticTable = {.name = "Static::Table"};
+static constexpr View::Vector keyword_data(keyword_source);
+using keyword_table = Table<Int, keyword_data, Data::CacheAware::Disabled>;
+using keyword_table_aligned =
+    Table<Int, keyword_data, Data::CacheAware::Enabled>;
 
-PERIMORTEM_UNIT_TEST(StaticTable, keyword_lookup) {
-  EXPECT(keyword_table::get_memory_consumption() < 256);
+static constexpr View::Vector word_data(word_source);
+using word_table = Table<View::Bytes, word_data, Data::CacheAware::Disabled>;
+using word_table_aligned =
+    Table<View::Bytes, word_data, Data::CacheAware::Enabled>;
+
+Test::Harness StaticTable = {.name = "Utility::Table"};
+
+PERIMORTEM_UNIT_TEST(StaticTable, keyword_table) {
+  constexpr auto invalid = -1;
 
   for (Count i = 0; i < Data::array_size(keyword_source); i++) {
-    EXPECT_EQ(keyword_table::find_or_default(keyword_source[i].key, -1),
+    EXPECT_EQ(keyword_table::find_or_default(keyword_source[i].key, invalid),
               keyword_source[i].value);
   }
 
-  EXPECT_EQ(keyword_table::find_or_default("unknown"_view, -1), -1);
-  EXPECT_EQ(keyword_table::find_or_default("a"_view, -1), -1);
-  EXPECT_EQ(keyword_table::find_or_default("As"_view, -1), -1);
-  EXPECT_EQ(keyword_table::find_or_default(""_view, -1), -1);
-  EXPECT_EQ(keyword_table::find_or_default("rutern"_view, -1), -1);
-  EXPECT_EQ(keyword_table::find_or_default("errrr"_view, -1), -1);
+  EXPECT_EQ(keyword_table::find_or_default("unknown"_view, invalid), invalid);
+  EXPECT_EQ(keyword_table::find_or_default("a"_view, invalid), invalid);
+  EXPECT_EQ(keyword_table::find_or_default("As"_view, invalid), invalid);
+  EXPECT_EQ(keyword_table::find_or_default(""_view, invalid), invalid);
+  EXPECT_EQ(keyword_table::find_or_default("rutern"_view, invalid), invalid);
+  EXPECT_EQ(keyword_table::find_or_default("errrr"_view, invalid), invalid);
+}
+
+PERIMORTEM_UNIT_TEST(StaticTable, keyword_table_aligned) {
+  constexpr auto invalid = -1;
+
+  for (Count i = 0; i < Data::array_size(keyword_source); i++) {
+    EXPECT_EQ(keyword_table_aligned::find_or_default(keyword_source[i].key, invalid),
+              keyword_source[i].value);
+  }
+
+  EXPECT_EQ(keyword_table_aligned::find_or_default("unknown"_view, invalid), invalid);
+  EXPECT_EQ(keyword_table_aligned::find_or_default("a"_view, invalid), invalid);
+  EXPECT_EQ(keyword_table_aligned::find_or_default("As"_view, invalid), invalid);
+  EXPECT_EQ(keyword_table_aligned::find_or_default(""_view, invalid), invalid);
+  EXPECT_EQ(keyword_table_aligned::find_or_default("rutern"_view, invalid), invalid);
+  EXPECT_EQ(keyword_table_aligned::find_or_default("errrr"_view, invalid), invalid);
+}
+
+PERIMORTEM_UNIT_TEST(StaticTable, word_table) {
+  constexpr auto invalid = "nope"_view;
+
+  for (Count i = 0; i < Data::array_size(word_source); i++) {
+    EXPECT_TEXT(word_table::find_or_default(word_source[i].key, invalid),
+                word_source[i].value);
+  }
+
+  EXPECT_TEXT(word_table::find_or_default("unknown"_view, invalid), invalid);
+  EXPECT_TEXT(word_table::find_or_default("c"_view, invalid), invalid);
+  EXPECT_TEXT(word_table::find_or_default("As"_view, invalid), invalid);
+  EXPECT_TEXT(word_table::find_or_default(""_view, invalid), invalid);
+  EXPECT_TEXT(word_table::find_or_default("rutern"_view, invalid), invalid);
+  EXPECT_TEXT(word_table::find_or_default("errrr"_view, invalid), invalid);
+}
+
+
+PERIMORTEM_UNIT_TEST(StaticTable, word_table_aligned) {
+  constexpr auto invalid = "nope"_view;
+
+  for (Count i = 0; i < Data::array_size(word_source); i++) {
+    EXPECT_TEXT(word_table_aligned::find_or_default(word_source[i].key, invalid),
+                word_source[i].value);
+  }
+
+  EXPECT_TEXT(word_table_aligned::find_or_default("unknown"_view, invalid), invalid);
+  EXPECT_TEXT(word_table_aligned::find_or_default("c"_view, invalid), invalid);
+  EXPECT_TEXT(word_table_aligned::find_or_default("As"_view, invalid), invalid);
+  EXPECT_TEXT(word_table_aligned::find_or_default(""_view, invalid), invalid);
+  EXPECT_TEXT(word_table_aligned::find_or_default("rutern"_view, invalid), invalid);
+  EXPECT_TEXT(word_table_aligned::find_or_default("errrr"_view, invalid), invalid);
 }
