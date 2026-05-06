@@ -15,7 +15,7 @@ namespace Perimortem::Memory::Dynamic {
 enum class MapVectorization { Full, Partial, Scalar };
 
 // Unordered flat map with a two stage look up to optimize for insert, delete
-// and find operations. Optimized for value type
+// and find operations. Optimized for value types.
 //
 // The table is optimized for the AMD Zen architecture and will most likely
 // perform slightly worse than absl::flat_hash_map and boost::unordered_flap_map
@@ -24,7 +24,8 @@ enum class MapVectorization { Full, Partial, Scalar };
 //
 // The table is also able to optimize it's throughput on text keys by supporting
 // Perimortem's hash function which is optimized for text keys to shave off
-// cycles, losing performance mostly on sparse bit hashes.
+// cycles compared to City or Murmur3, losing performance mostly on sparse bit
+// hashes.
 //
 // Since Perimortem uses 32 byte wide AVX2 registers the buckets are filled up
 // linearly both for improved instruction throughput (and very minor branch

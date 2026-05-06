@@ -88,6 +88,44 @@ class Vector {
     return *new (source_block + (size++)) type(data);
   }
 
+  // Resizes the container but attempts to preserve as much of the original
+  // buffer as will fit in the new size.
+  //
+  // Shrinking the size of the buffer is non-destructive and can be recovered by
+  // resetting the size back to it's old value.
+  auto resize(Count new_size) -> void {
+    ensure_capacity(new_size);
+    size = new_size;
+  }
+
+  // Ensures there is enough room to store a required size, but declares we
+  // don't care about the buffer's existing contents.
+  //
+  // Both growing and shrinking the buffer can be destructive operations so the
+  // contents after a forgetful operation should always be assumed to be in an
+  // invalid state.
+  auto forgetful_resize(Count required_size) -> void {
+    // Always set the size.
+    size = required_size;
+
+    // Get the capacity bounds and check if we need a realloc.
+    // If the block fits in the current Bibliotheca archive then reuse it.
+    // If the block size requires at least one step up or step down then request
+    // a new block.
+    if (required_size <= capacity && required_size > (capacity >> 1)) {
+      return;
+    }
+
+    if (source_block) {
+      Allocator::Bibliotheca::remit(
+          Allocator::Bibliotheca::corpus_to_preface(source_block));
+    }
+
+    auto preface = Allocator::Bibliotheca::check_out(required_size * sizeof(type));
+    source_block = access(preface);
+    capacity = preface->get_usable_bytes() / sizeof(type);
+  }
+
   constexpr auto contains(const type& data) const -> Bool {
     for (Count i = 0; i < size; i++) {
       if (source_block[i] == data) {

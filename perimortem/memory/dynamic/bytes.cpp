@@ -13,24 +13,26 @@ constexpr auto access(Bibliotheca::Preface* block) -> Byte* {
   return Bibliotheca::preface_to_corpus(block);
 }
 
-Dynamic::Bytes::Bytes() : size(0), source_block(nullptr) {}
+Dynamic::Bytes::Bytes() {}
 Dynamic::Bytes::Bytes(Count reserved_capacity) {
   source_block = access(Bibliotheca::check_out(reserved_capacity));
-  size = 0;
 }
 
-Dynamic::Bytes::Bytes(const Core::View::Bytes view) {
-  size = view.get_size();
+Dynamic::Bytes::Bytes(const Core::View::Bytes view) : size(view.get_size()) {
   if (view.get_size() == 0) {
+    capacity = 0;
+    source_block = nullptr;
     return;
   }
 
-  source_block = access(Bibliotheca::check_out(view.get_size()));
-  size = view.get_size();
+  auto preface = Bibliotheca::check_out(view.get_size());
+  source_block = access(preface);
+  capacity = preface->get_usable_bytes();
   memcpy(source_block, view.get_data(), view.get_size());
 }
 
 Dynamic::Bytes::Bytes(const Bytes& rhs) {
+  capacity = rhs.capacity;
   size = rhs.size;
   if (rhs.size == 0) {
     return;
@@ -39,15 +41,36 @@ Dynamic::Bytes::Bytes(const Bytes& rhs) {
   // Bytes don't require any special handling so just memcpy.
   source_block = access(Bibliotheca::check_out(rhs.size));
   memcpy(source_block, rhs.source_block, size);
-};
+}
 
 Dynamic::Bytes::Bytes(Bytes&& rhs) {
+  size = rhs.size;
+  capacity = rhs.capacity;
+  source_block = rhs.source_block;
+
+  rhs.source_block = nullptr;
+  rhs.size = 0;
+  rhs.capacity = 0;
+}
+
+auto Dynamic::Bytes::operator=(Core::View::Bytes view) -> Bytes& {
+  proxy(view);
+  return *this;
+}
+
+auto Dynamic::Bytes::operator=(const Bytes& rhs) -> Bytes& {
+  proxy(rhs);
+  return *this;
+}
+
+auto Dynamic::Bytes::operator=(Bytes&& rhs) -> Bytes& {
   size = rhs.size;
   source_block = rhs.source_block;
 
   rhs.source_block = nullptr;
   rhs.size = 0;
-};
+  return *this;
+}
 
 Dynamic::Bytes::~Bytes() {
   reset();
@@ -66,10 +89,13 @@ auto Dynamic::Bytes::concat(Core::View::Bytes view) -> void {
 }
 
 auto Dynamic::Bytes::proxy(Core::View::Bytes view) -> void {
-  ensure_capacity(view.get_size());
+  forgetful_resize(view.get_size());
 
   Data::copy(source_block, view.get_data(), view.get_size());
-  size = view.get_size();
+}
+
+auto Dynamic::Bytes::set(Byte target) -> void {
+  Data::set(source_block, target, get_size());
 }
 
 auto Dynamic::Bytes::convert(Byte source, Byte target) -> void {
@@ -91,6 +117,27 @@ auto Dynamic::Bytes::slice(Count start, Count size) const -> Core::View::Bytes {
 auto Dynamic::Bytes::resize(Count new_size) -> void {
   ensure_capacity(new_size);
   size = new_size;
+}
+
+auto Dynamic::Bytes::forgetful_resize(Count required_size) -> void {
+  // Always set the size.
+  size = required_size;
+
+  // Get the capacity bounds and check if we need a realloc.
+  // If the block fits in the current Bibliotheca archive then reuse it.
+  // If the block size requires at least one step up or step down then request a
+  // new block.
+  if (required_size <= capacity && required_size > (capacity >> 1)) {
+    return;
+  }
+
+  if (source_block) {
+    Bibliotheca::remit(Bibliotheca::corpus_to_preface(source_block));
+  }
+
+  auto preface = Bibliotheca::check_out(required_size);
+  source_block = access(preface);
+  capacity = preface->get_usable_bytes();
 }
 
 auto Dynamic::Bytes::operator[](Count index) const -> Byte {
@@ -126,12 +173,10 @@ auto Dynamic::Bytes::ensure_capacity(Count required_size) -> void {
     return;
   }
 
-  // Attempt to grow by a factor of 2.
-  // If that doesn't work than grow to exact size.
-  const auto new_capacity = Math::max(get_capacity() * 2, required_size);
-
-  // Fetch and transfer to new block.
-  auto new_block = access(Bibliotheca::check_out(new_capacity));
+  // Since the current block doesn't fit in the current archive fetch and
+  // transfer to a new block.
+  auto preface = Bibliotheca::check_out(required_size);
+  auto new_block = access(preface);
 
   if (source_block) {
     memcpy(new_block, source_block, size);
@@ -140,4 +185,5 @@ auto Dynamic::Bytes::ensure_capacity(Count required_size) -> void {
 
   // Update block and get the new capacity.
   source_block = new_block;
+  capacity = preface->get_usable_bytes();
 }
