@@ -111,6 +111,6 @@ PERIMORTEM_UNIT_TEST(MathSort, dynamic_types) {
     validate.append(Byte('0' + (i % 10)));
     Dynamic::Bytes validate2;
     validate2 = validate;
-    EXPECT_TEXT(sorted[i], validate);
+    EXPECT_TEXT(sorted[i].get_view(), validate.get_view());
   }
 }

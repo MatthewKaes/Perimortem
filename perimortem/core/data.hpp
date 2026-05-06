@@ -13,6 +13,8 @@ extern void* memcpy(void* __restrict dest,
                     size_t count) noexcept(true);
 
 extern int memcmp(const void* a, const void* b, size_t count) noexcept(true);
+
+extern void* memset(void* a, Int value, size_t count) noexcept(true);
 }  // extern "C"
 
 namespace Perimortem::Core::Data {
