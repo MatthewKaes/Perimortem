@@ -62,6 +62,15 @@ auto copy(Byte* dest, const storage_type* src, Count count = 1)
       memcpy(dest, src, Bits_64(sizeof(storage_type)) * count));
 }
 
+inline auto set(Byte* dest, Byte value, Count count = 1) -> void {
+  memset(dest, value, count);
+}
+
+template <typename storage_type>
+auto take(storage_type& source) -> storage_type&& {
+  return static_cast<storage_type&&>(source);
+}
+
 template <typename storage_type>
 constexpr auto compare(const storage_type* dest,
                        const storage_type* src,

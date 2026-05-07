@@ -242,4 +242,6 @@ int main() {
   output_break();
 
   std::cout << std::endl;
+
+  return failed_tests;
 }

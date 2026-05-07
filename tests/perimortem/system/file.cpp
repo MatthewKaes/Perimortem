@@ -8,13 +8,42 @@
 #include "perimortem/system/random.hpp"
 #include "perimortem/utility/null_terminated.hpp"
 
+#include <stdio.h>
+
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
 using namespace Perimortem::System;
 
 using namespace Validation;
 
-Test::Harness SystemFile = {.name = "System::File"};
+constexpr auto test_directory = "tests/perimortem/data"_view;
+constexpr auto test_file = ".bin/bin/tests/system_file_test.json"_view;
+constexpr auto test_output = ".bin/bin/tests/system_file_test_out.json"_view;
+constexpr auto test_file_c_str = ".bin/bin/tests/system_file_test.json";
+constexpr auto test_output_c_str = ".bin/bin/tests/system_file_test_out.json";
+constexpr auto json_contents =
+    "{\"object\":{\"a\":2,\"b\":\"3\"},\"array\":[1,2,true,\"test\"],"
+    "\"member\":\"value\"}"_view;
+
+Test::Harness SystemFile = {
+    // Harness to try and make file management at least some what "hermetic"
+    .name = "System::File",
+    .setup =
+        []() {
+          auto file_src = fopen(test_file_c_str, "wb");
+          if (!file_src) {
+            return;
+          }
+
+          fwrite(json_contents.get_data(), json_contents.get_size(), 1,
+                 file_src);
+          fclose(file_src);
+        },
+    .teardown =
+        []() {
+          remove(test_file_c_str);
+          remove(test_output_c_str);
+        }};
 
 PERIMORTEM_UNIT_TEST(SystemFile, empty_file) {
   auto start_requests = Allocator::Bibliotheca::check_out_requests();
@@ -30,18 +59,27 @@ PERIMORTEM_UNIT_TEST(SystemFile, empty_file) {
 
 PERIMORTEM_UNIT_TEST(SystemFile, memory_file) {
   auto start_requests = Allocator::Bibliotheca::check_out_requests();
-  constexpr Count file_size = 1 << 12;
-  File file(file_size);
+  File file;
+  EXPECT_EQ(file.get_size(), 0);
 
-  Count non_zero_bytes = 0;
-  EXPECT_EQ(file.get_size(), file_size);
+  constexpr Count buffer_size = 1 << 12;
+  constexpr Byte buffer_value = 4;
+  Dynamic::Bytes buffer;
+  buffer.resize(buffer_size);
+  buffer.set(buffer_value);
+
+  // Move the contents into the file.
+  file.update_contents(Data::take(buffer));
+
+  Count incorrect_bytes = 0;
+  EXPECT_EQ(file.get_size(), buffer_size);
   for (Count i = 0; i < file.get_size(); i++) {
-    non_zero_bytes += file.get_view()[i] != 0;
+    incorrect_bytes += file.get_view()[i] != buffer_value;
   }
-  EXPECT_EQ(non_zero_bytes, 0);
+  EXPECT_EQ(incorrect_bytes, 0);
   EXPECT_EQ(file.is_valid(), true);
 
-  // Creating an empty file should perform zero allocations.
+  // Only creating the Dynamic::Bytes should allocate memory.
   EXPECT_EQ(Allocator::Bibliotheca::check_out_requests(), start_requests + 1);
 }
 
@@ -61,19 +99,177 @@ PERIMORTEM_UNIT_TEST(SystemFile, check_existence) {
 }
 
 PERIMORTEM_UNIT_TEST(SystemFile, file_contents) {
-  File test_file = File::read("tests/perimortem/data/json/test.json"_view);
-  auto json =
-      "{\"object\":{\"a\":2,\"b\":\"3\"},\"array\":[1,2,true,\"test\"],"
-      "\"member\":\"value\"}"_view;
+  auto start_requests = Allocator::Bibliotheca::check_out_requests();
+  File file;
 
-  EXPECT_EQ(test_file.get_size(), 69);
-  EXPECT_TEXT(test_file.get_view(), json);
+  ASSERT(file.read(test_file));
+
+  // Reading the file should require an allocation.
+  EXPECT_EQ(Allocator::Bibliotheca::check_out_requests(), start_requests + 1);
+
+  EXPECT_EQ(file.get_size(), json_contents.get_size());
+  EXPECT_TEXT(file.get_view(), json_contents);
 
   // File should round trip without issue.
-  ASSERT(test_file.write(".bin/bin/tests/file_contents.json"_view));
+  auto test_output_location = ".bin/bin/tests/file_contents.json"_view;
+  ASSERT(file.write(test_output_location));
 
-  File temp_file = File::read(".bin/bin/tests/file_contents.json"_view);
+  ASSERT(file.read(test_output_location));
 
-  EXPECT_EQ(test_file.get_size(), 69);
-  EXPECT_TEXT(test_file.get_view(), json);
+  EXPECT_TEXT(file.get_view(), json_contents);
+
+  EXPECT(File::remove(test_output_location));
+}
+
+PERIMORTEM_UNIT_TEST(SystemFile, sync_empty_file) {
+  File empty_file;
+  File file;
+
+  // Syncing an empty file should start as stale and move to original
+  ASSERT_EQ((Bits_8)file.sync_status(test_file), (Bits_8)File::State::Stale);
+  ASSERT_EQ((Bits_8)file.sync(test_file), (Bits_8)File::State::Original);
+  ASSERT_EQ((Bits_8)file.sync_status(test_file), (Bits_8)File::State::Original);
+
+  // Data should be valid after
+  EXPECT_TEXT(file.get_view(), json_contents);
+}
+
+PERIMORTEM_UNIT_TEST(SystemFile, sync_empty_empty) {
+  File empty_file;
+  File file;
+
+  // Syncing invalid files to an empty location is a no-op.
+  ASSERT_EQ((Bits_8)file.sync_status(test_output),
+            (Bits_8)File::State::Original);
+  EXPECT_EQ((Bits_8)file.sync(test_output), (Bits_8)File::State::Original);
+  ASSERT_EQ((Bits_8)file.sync_status(test_output),
+            (Bits_8)File::State::Original);
+
+  // Shouldn't be a file to remove
+  EXPECT_EQ(File::remove(test_output), false);
+
+  // Data should be invalid after.
+  EXPECT_EQ(file.is_valid(), false);
+  EXPECT_TEXT(file.get_view(), ""_view);
+}
+
+PERIMORTEM_UNIT_TEST(SystemFile, sync_memory_empty) {
+  File empty_file;
+  File file;
+  constexpr auto test_content = "test"_view;
+  file.update_contents(test_content);
+
+  // Syncing new content to an empty location is always a fresh write.
+  ASSERT_EQ((Bits_8)file.sync_status(test_output), (Bits_8)File::State::Create);
+  EXPECT_EQ((Bits_8)file.sync(test_output), (Bits_8)File::State::Original);
+  ASSERT_EQ((Bits_8)file.sync_status(test_output),
+            (Bits_8)File::State::Original);
+
+  // Should create a file which can be removed.
+  EXPECT_EQ(File::remove(test_file), true);
+  ASSERT_EQ((Bits_8)file.sync_status(test_file), (Bits_8)File::State::Create);
+
+  // Data should be valid after
+  EXPECT_TEXT(file.get_view(), test_content);
+}
+
+PERIMORTEM_UNIT_TEST(SystemFile, sync_directory) {
+  File empty_file;
+  File file;
+
+  // Syncing to a non file is always invalid.
+  ASSERT_EQ((Bits_8)file.sync_status(test_directory),
+            (Bits_8)File::State::Invalid);
+  EXPECT_EQ((Bits_8)file.sync(test_directory), (Bits_8)File::State::Invalid);
+  ASSERT_EQ((Bits_8)file.sync_status(test_directory),
+            (Bits_8)File::State::Invalid);
+
+  // Data should be invalid after.
+  EXPECT_EQ(file.is_valid(), false);
+  EXPECT_TEXT(file.get_view(), ""_view);
+}
+
+PERIMORTEM_UNIT_TEST(SystemFile, sync_memory_vs_existing) {
+  constexpr auto test_file = "tests/perimortem/data/json/test.json"_view;
+  File empty_file;
+  File file;
+  auto test_content = "test"_view;
+
+  // Syncing a file from memory with a file on disk should force a conflict.
+  ASSERT_EQ((Bits_8)file.sync_status(test_file), (Bits_8)File::State::Stale);
+  file.update_contents(test_content);
+  ASSERT_EQ((Bits_8)file.sync_status(test_file), (Bits_8)File::State::Conflict);
+  ASSERT_EQ((Bits_8)file.sync(test_file), (Bits_8)File::State::Conflict);
+
+  // Data should be original content
+  EXPECT_EQ(file.is_valid(), true);
+  EXPECT_TEXT(file.get_view(), test_content);
+}
+
+PERIMORTEM_UNIT_TEST(SystemFile, sync_read_and_write) {
+  File empty_file;
+  File file;
+
+  // Sync to current.
+  ASSERT_EQ((Bits_8)file.sync_status(test_file), (Bits_8)File::State::Stale);
+  ASSERT_EQ((Bits_8)file.sync(test_file), (Bits_8)File::State::Original);
+  ASSERT_EQ((Bits_8)file.sync_status(test_file), (Bits_8)File::State::Original);
+
+  // Now have data to sync to new location
+  ASSERT_EQ((Bits_8)file.sync_status(test_output), (Bits_8)File::State::Create);
+  ASSERT_EQ((Bits_8)file.sync(test_output), (Bits_8)File::State::Original);
+  ASSERT_EQ((Bits_8)file.sync_status(test_output),
+            (Bits_8)File::State::Original);
+
+  // File points to a new location so it's in conflict compared to original
+  // source, even though the contents are the same.
+  ASSERT_EQ((Bits_8)file.sync_status(test_file), (Bits_8)File::State::Conflict);
+
+  // Should create a file which can be removed.
+  EXPECT_EQ(File::remove(test_file), true);
+  ASSERT_EQ((Bits_8)file.sync_status(test_file), (Bits_8)File::State::Create);
+
+  // Data should still be the contents of the original file.
+  EXPECT_TEXT(file.get_view(), json_contents);
+}
+
+PERIMORTEM_UNIT_TEST(SystemFile, sync_read_update_write) {
+  auto start_requests = Allocator::Bibliotheca::check_out_requests();
+  constexpr auto new_content = "empty"_view;
+  File empty_file;
+  File file;
+
+  // Sync to current.
+  ASSERT_EQ((Bits_8)file.sync_status(test_file), (Bits_8)File::State::Stale);
+  ASSERT_EQ((Bits_8)file.sync(test_file), (Bits_8)File::State::Original);
+  ASSERT_EQ((Bits_8)file.sync_status(test_file), (Bits_8)File::State::Original);
+
+  // First file loaded.
+  EXPECT_EQ(Allocator::Bibliotheca::check_out_requests(), start_requests + 1);
+
+  // Make sure we loaded the right content.
+  EXPECT_TEXT(file.get_view(), json_contents);
+  file.update_contents(new_content);
+  // Forgetful resize should shrink to a better block size.
+  EXPECT_EQ(Allocator::Bibliotheca::check_out_requests(), start_requests + 2);
+
+  // Flush the new data to disk.
+  ASSERT_EQ((Bits_8)file.sync_status(test_file), (Bits_8)File::State::Fresh);
+  ASSERT_EQ((Bits_8)file.sync(test_file), (Bits_8)File::State::Original);
+  ASSERT_EQ((Bits_8)file.sync_status(test_file), (Bits_8)File::State::Original);
+
+  // Sync data via another file.
+  File file_copy;
+  ASSERT_EQ((Bits_8)file_copy.sync(test_file), (Bits_8)File::State::Original);
+
+  // Should create a file which can be removed.
+  EXPECT_EQ(File::remove(test_file), true);
+  ASSERT_EQ((Bits_8)file.sync_status(test_file), (Bits_8)File::State::Create);
+
+  // The two files should have the same data.
+  EXPECT_TEXT(file.get_view(), new_content);
+  EXPECT_TEXT(file_copy.get_view(), new_content);
+
+  // Only additional allocation for the second copy.
+  EXPECT_EQ(Allocator::Bibliotheca::check_out_requests(), start_requests + 3);
 }

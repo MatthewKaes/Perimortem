@@ -29,7 +29,7 @@ class Bytes {
   constexpr Bytes(const View::Bytes&) = default;
 
   template <Count N>
-  consteval Bytes(const Byte (&source)[N]) : source_block(&source), size(N) {}
+  constexpr Bytes(const Byte (&source)[N]) : source_block(&source[0]), size(N) {}
 
   constexpr Bytes(const Byte* source, Count source_size)
       : source_block(source), size(source_size) {}
