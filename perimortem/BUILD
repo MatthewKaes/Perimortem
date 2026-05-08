@@ -126,7 +126,6 @@ cc_library(
         ":memory",
         ":system",
         ":utility",
-        "@zstd",
     ],
 )
 
