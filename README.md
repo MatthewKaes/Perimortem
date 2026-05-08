@@ -20,31 +20,40 @@ building an optimized system from the ground up (including the entire memory mod
 Perimortem aims to limit it's dependencies as much as possible and everything has been built black-box.
 
 Third-party dependencies are currently limited to:
-* Zstd (to be replaced)
-* googletest (to be replaced)
-* googlebenchmark (to be replaced)
+* `Bazel` (build system)
+
+The toolchain is configured for `clang` as the main compiler.
 
 ### How to build
 
-Install the numerous unlisted dependencies then run bazel and hope for the best!
+To perform a full debug build simply run:
 
-> bazel run //main:editor
+> bazel clean
+> bazel build ...
+
+### How to Test
+
+You can run the standard unit tests with:
+
+> bazel run tests:unit_tests
 
 ### List of dependencies
 
-This is mostly here in case I forget:
+To bootstrap for Arch linux simply run the following:
+
 `pacman -S bazel clang llvm`
+
+For Windows and other distros you'll need to install `bazel` and `clang` via your dedicated package manager.
 
 ## Supported Editors
 
-Perimortem has built in support for VSCode on linux. To run OOTB you'll need the following extensions:
+Perimortem has built in support for VSCode. To run OOTB you'll need the following extensions:
 
-* Bazel - The Bazel Team
-* C/C++ - Microsoft
-* CodeLLDB - Vadim Chugunov
+* `Bazel - The Bazel Team`
+* `C/C++ - Microsoft`
+* `CodeLLDB - Vadim Chugunov`
 
 If you are running on Arch you will need the closed source version of VSCode in order to run the C++ extensions.
-If you are fine without it then go ham.
 
 ### Tetrodotoxin Toolchain Support
 
@@ -57,18 +66,15 @@ If you aren't using VSCode you can use `ttx-lang-server` in your engine of choic
 
 If you are looking for the Tetrodotoxin spec check out its dedicated [README](https://github.com/MatthewKaes/Perimortem/blob/main/tetrodotoxin/README.md).
 
-### OS Support
+### OS Supported
 
-Arch Linux w/ Wayland
+* Arch Linux (X and Wayland)
 
-### Windows Support?
-
-No. Why are you even using this? Go use a real engine.
+Windows support is in the works but not a core priority yet.
 
 ## Shout-outs
 
 If you are interested in performance engineering, go read [Agner Fog's](https://www.agner.org/optimize/) optimization manuals.
-They have 
 
 ## Disclaimer
 

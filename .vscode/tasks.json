@@ -12,15 +12,7 @@
       ],
       "args": [
         "build",
-        "...",
-        "-c",
-        "dbg", // Need to split to as VSCode will wrap it.
-        "--copt=\"-fdiagnostics-color=always\"",
-        "--copt=\"-g\"",
-        "--copt=\"-O0\"",
-        "--copt=\"-DPERI_DEBUG\"",
-        "--copt=\"-DPERI_LINUX\"",
-        "--copt=\"-DPERI_EDITOR\""
+        "..."
       ],
       "group": {
         "kind": "build",
@@ -53,6 +45,26 @@
         "isDefault": true
       },
       "detail": "Performs a full Bazel build of the Platform.",
+      "presentation": {
+        "clear": true
+      }
+    },
+    {
+      "label": "Run Unit Tests (Linux) [Debug]",
+      "type": "shell",
+      "command": "bazel",
+      "problemMatcher": [
+        "$gcc"
+      ],
+      "args": [
+        "test",
+        "..."
+      ],
+      "group": {
+        "kind": "test",
+        "isDefault": true
+      },
+      "detail": "Builds and runs the Perimortem unit test suite.",
       "presentation": {
         "clear": true
       }

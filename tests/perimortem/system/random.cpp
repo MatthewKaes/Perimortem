@@ -39,7 +39,11 @@ PERIMORTEM_UNIT_TEST(SystemRandom, entropy_check) {
 }
 
 PERIMORTEM_UNIT_TEST(SystemRandom, stress_test) {
+#ifdef PERI_DEBUG
+  Static::Vector<Bits_64, 10'000> values;
+#else
   Static::Vector<Bits_64, 1'000'000> values;
+#endif
 
   for (Count i = 0; i < values.get_size(); i++) {
     values[i] = Random::generate();

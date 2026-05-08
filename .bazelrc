@@ -1,5 +1,16 @@
 #option-defaults
 common --symlink_prefix=./.bin/
 common --spawn_strategy=standalone
-test --test_output=errors
+run --run_in_cwd
+test --run_in_cwd
+test --test_output=streamed
 test --spawn_strategy=standalone
+
+#build-defaults (Linux Debug)
+build --compilation_mode=dbg
+build --copt=-fdiagnostics-color=always
+build --copt=-g
+build --copt=-O0
+build --copt=-DPERI_DEBUG
+build --copt=-DPERI_LINUX
+build --copt=-DPERI_EDITOR

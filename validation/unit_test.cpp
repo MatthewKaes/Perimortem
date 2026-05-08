@@ -12,11 +12,9 @@
 
 #include "validation/unit_test.hpp"
 
-#include <chrono>
-#include <cstring>
-#include <iomanip>
-#include <iostream>
-#include <vector>
+#include <stdio.h>
+#include <string.h>
+#include <time.h>
 
 constexpr const char* clear_color = "\x1b[0m";
 constexpr const char* perimortem_color = "\x1b[38;5;124m";
@@ -27,10 +25,8 @@ constexpr const char* pass_color = "\x1b[38;5;34m";
 
 using namespace Validation::Test;
 
-using namespace std::chrono;
-
 struct TestInstance {
-  const Harness& harness;
+  const Harness* harness;
   const char* name;
   TestFunc func;
   const char* file;
@@ -40,12 +36,13 @@ struct TestInstance {
 struct Benchmark {
   const char* harness = "";
   const char* name = "";
-  duration<double, std::milli> time = {};
+  double time_ms = 0.0;
   const char* file = "";
   long line = 0;
 };
 
-std::vector<TestInstance> binary_tests;
+TestInstance binary_tests[4096];
+unsigned binary_tests_count = 0;
 unsigned test_suites = 0;
 unsigned passed_tests = 0;
 unsigned failed_tests = 0;
@@ -55,57 +52,53 @@ unsigned not_run_tests = 0;
 namespace Validation::Test {
 auto do_nothing() -> void {}
 auto log_message(const char* file, int line, const char* msg) -> void {
-  std::cout << file << ":" << line << ":" << "\n    " << msg << "\n";
+  printf("%s:%d:\n    %s\n", file, line, msg);
 }
 
 auto print_result_header(bool actual) -> void {
   if (actual) {
-    std::cout << "    ACTUAL =  ";
+    printf("    ACTUAL =  ");
   } else {
-    std::cout << "  EXPECTED =  ";
+    printf("  EXPECTED =  ");
   }
 }
 
 auto expected(bool value, bool actual) -> void {
   print_result_header(actual);
-  if (value) {
-    std::cout << "true\n";
-  } else {
-    std::cout << "false\n";
-  }
+  printf("%s\n", value ? "true" : "false");
 }
 
 auto expected(const char* value, bool actual) -> void {
   print_result_header(actual);
-  std::cout << value << "\n";
+  printf("%s\n", value);
 }
 
 auto expected(int value, bool actual) -> void {
   print_result_header(actual);
-  std::cout << value << "\n";
+  printf("%d\n", value);
 }
 
 auto expected(long long value, bool actual) -> void {
   print_result_header(actual);
-  std::cout << value << "\n";
+  printf("%lld\n", value);
 }
 
 auto expected(unsigned long value, bool actual) -> void {
   print_result_header(actual);
-  std::cout << value << "\n";
+  printf("%lu\n", value);
 }
 
 auto expected(unsigned long long value, bool actual) -> void {
   print_result_header(actual);
-  std::cout << value << "\n";
+  printf("%llu\n", value);
 }
 
 auto expected_text(const unsigned char* value,
                    unsigned long long size,
                    bool actual) -> void {
   print_result_header(actual);
-  std::cout << std::string_view(reinterpret_cast<const char*>(value), size)
-            << "\n";
+  fwrite(value, 1, size, stdout);
+  printf("\n");
 }
 
 extern auto create(const Harness& harness,
@@ -113,37 +106,39 @@ extern auto create(const Harness& harness,
                    TestFunc func,
                    const char* file,
                    long line) -> void {
-  binary_tests.push_back({harness, name, func, file, line});
+  binary_tests[binary_tests_count++] = {&harness, name, func, file, line};
 }
 }  // namespace Validation::Test
 
+static double elapsed_ms(struct timespec start, struct timespec end) {
+  return (end.tv_sec - start.tv_sec) * 1000.0 +
+         (end.tv_nsec - start.tv_nsec) / 1e6;
+}
+
 void output_break() {
-  std::cout << dark_color << "[==============================================================]\n" << clear_color;
+  printf("%s[==============================================================]\n%s",
+         dark_color, clear_color);
 }
 
 void output_results() {
-  std::cout << perimortem_color << "\n  Testing Completed:" << "\n";
+  printf("%s\n  Testing Completed:\n", perimortem_color);
   if (passed_tests) {
-    std::cout << pass_color << "      Passed:  " << passed_tests << clear_color
-              << "\n";
+    printf("%s      Passed:  %u%s\n", pass_color, passed_tests, clear_color);
   }
 
   if (failed_tests) {
-    std::cout << fail_color << "      Failed:  " << failed_tests << clear_color
-              << "\n";
+    printf("%s      Failed:  %u%s\n", fail_color, failed_tests, clear_color);
   }
 
   if (not_run_tests) {
-    std::cout << system_color << "     Not Run:  " << not_run_tests
-              << clear_color << "\n";
+    printf("%s     Not Run:  %u%s\n", system_color, not_run_tests, clear_color);
   }
 
   float pass_rate =
-      long(float(passed_tests) / float(binary_tests.size()) * 10000) / 100.0;
-  std::cout << perimortem_color << "  Pass Rate: ";
-  std::cout << clear_color << passed_tests << " / " << binary_tests.size()
-            << system_color << " ( " << pass_rate << " %)\n"
-            << clear_color;
+      (long)(float(passed_tests) / float(binary_tests_count) * 10000) / 100.0f;
+  printf("%s  Pass Rate: %s%u / %u%s ( %g %%)\n%s",
+         perimortem_color, clear_color, passed_tests, binary_tests_count,
+         system_color, pass_rate, clear_color);
 }
 
 int main() {
@@ -151,19 +146,20 @@ int main() {
   test_suites = 0;
   passed_tests = 0;
   failed_tests = 0;
-  not_run_tests = binary_tests.size();
+  not_run_tests = binary_tests_count;
 
   Benchmark longest_test;
   unsigned longest_test_name = 12;
 
-  for (const auto& test : binary_tests) {
-    if (std::strlen(test.name) > longest_test_name) {
-      longest_test_name = std::strlen(test.name);
+  for (unsigned i = 0; i < binary_tests_count; ++i) {
+    const TestInstance& test = binary_tests[i];
+    if (strlen(test.name) > longest_test_name) {
+      longest_test_name = strlen(test.name);
     }
 
-    if (&test.harness != harness) {
+    if (test.harness != harness) {
       test_suites += 1;
-      harness = &test.harness;
+      harness = test.harness;
     }
   }
 
@@ -171,21 +167,20 @@ int main() {
   harness = nullptr;
 
   output_break();
-  std::cout << perimortem_color
-            << "  Executing Perimortem test engine from Validation::Test"
-            << "\n";
-  std::cout << "  Tests found:  " << clear_color << binary_tests.size()
-            << system_color << " (" << test_suites << " Harness)" << clear_color
-            << "\n";
+  printf("%s  Executing Perimortem test engine from Validation::Test\n",
+         perimortem_color);
+  printf("  Tests found:  %s%u%s (%u Harness)%s\n",
+         clear_color, binary_tests_count, system_color, test_suites, clear_color);
   output_break();
 
-  high_resolution_clock::time_point start_full = high_resolution_clock::now();
+  struct timespec start_full, end_full, start, end;
+  clock_gettime(CLOCK_MONOTONIC, &start_full);
 
-  for (const auto& test : binary_tests) {
-    if (&test.harness != harness) {
-      harness = &test.harness;
-      std::cout << dark_color << "[ START ] " << harness->name << "\n"
-                << clear_color;
+  for (unsigned i = 0; i < binary_tests_count; ++i) {
+    const TestInstance& test = binary_tests[i];
+    if (test.harness != harness) {
+      harness = test.harness;
+      printf("%s[ START ] %s\n%s", dark_color, harness->name, clear_color);
       harness->init();
     }
 
@@ -193,19 +188,18 @@ int main() {
     harness->setup();
 
     not_run_tests -= 1;
-    // std::cout << dark_color << "  [  TEST  ] " << test.name << "\n"
-    //           << clear_color;
+    // printf("%s  [  TEST  ] %s\n%s", dark_color, test.name, clear_color);
     TestResult result = TestResult::Pass;
-    high_resolution_clock::time_point start = high_resolution_clock::now();
+    clock_gettime(CLOCK_MONOTONIC, &start);
     test.func(result);
-    high_resolution_clock::time_point end = high_resolution_clock::now();
-    duration<double, std::milli> test_time = end - start;
+    clock_gettime(CLOCK_MONOTONIC, &end);
+    double test_time_ms = elapsed_ms(start, end);
 
     // Tear down
     harness->teardown();
 
-    if (test_time > longest_test.time) {
-      longest_test.time = test_time;
+    if (test_time_ms > longest_test.time_ms) {
+      longest_test.time_ms = test_time_ms;
       longest_test.name = test.name;
       longest_test.harness = harness->name;
       longest_test.file = test.file;
@@ -215,33 +209,33 @@ int main() {
     switch (result) {
       case TestResult::Pass:
         passed_tests += 1;
-        std::cout << pass_color << "  [  PASS  ] "
-                  << std::setw(longest_test_name + 2) << test.name;
+        printf("%s  [  PASS  ] %*s", pass_color,
+               (int)(longest_test_name + 2), test.name);
         break;
       case TestResult::Failed:
         failed_tests += 1;
-        std::cout << fail_color << "  [  FAIL  ] "
-                  << std::setw(longest_test_name + 2) << test.name;
+        printf("%s  [  FAIL  ] %*s", fail_color,
+               (int)(longest_test_name + 2), test.name);
         break;
     }
 
-    std::cout << system_color << "  (" << test_time.count() << " ms)\n"
-              << clear_color;
+    printf("%s  (%g ms)\n%s", system_color, test_time_ms, clear_color);
   }
 
-  high_resolution_clock::time_point end_full = high_resolution_clock::now();
-  duration<double, std::milli> full_time = end_full - start_full;
+  clock_gettime(CLOCK_MONOTONIC, &end_full);
+  double full_time_ms = elapsed_ms(start_full, end_full);
 
   output_break();
 
   output_results();
 
-  std::cout << perimortem_color << "\n  Total Time:  ";
-  std::cout << clear_color << full_time.count() << " ms\n\n" << clear_color;
+  printf("%s\n  Total Time:  %s%g ms\n\n%s",
+         perimortem_color, clear_color, full_time_ms, clear_color);
 
   output_break();
 
-  std::cout << std::endl;
+  printf("\n");
+  fflush(stdout);
 
   return failed_tests;
 }

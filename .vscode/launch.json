@@ -5,29 +5,7 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Editor (Linux)",
-      "type": "lldb",
-      "request": "launch",
-      "program": "${workspaceFolder}/.bin/bin/main/editor",
-      "args": [
-        "--test"
-      ],
-      "cwd": "${workspaceFolder}",
-      // Why are you like this VSCode???
-      "sourceMap": {
-        "/proc/self/cwd/external/": "${workspaceFolder}/.bin/external/",
-        "/proc/self/cwd/": "${workspaceFolder}"
-      },
-      "initCommands": [
-        "command source '${workspaceFolder}/.vscode/perimortem.lldb'"
-      ],
-      "preLaunchTask": "Full Build (Linux) [Debug]",
-      "presentation": {
-        "clear": true
-      }
-    },
-    {
-      "name": "[Tests] Core (Linux)",
+      "name": "[Tests] Perimortem (Linux)",
       "type": "lldb",
       "request": "launch",
       "program": "${workspaceFolder}/.bin/bin/tests/unit_tests",
@@ -87,7 +65,7 @@
       }
     },
     {
-      "name": "[Benchmarks] Core (Linux)",
+      "name": "[Benchmarks] Perimortem (Linux)",
       "type": "lldb",
       "request": "launch",
       "program": "${workspaceFolder}/.bin/bin/core/benchmarks",
