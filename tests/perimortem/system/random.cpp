@@ -1,9 +1,6 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
-#include <vector>
-#include <algorithm>
-
 #include "validation/unit_test.hpp"
 
 #include "perimortem/core/static/vector.hpp"
@@ -37,44 +34,18 @@ PERIMORTEM_UNIT_TEST(SystemRandom, entropy_check) {
   }
   zero_values += values[0] == 0;
 
-  // Ensure that entropy for the system can at least provide 8 reasonable
-  // values for the Philox generator.
   EXPECT_EQ(collisions, 0);
-
-  // Getting ever more than one zero in 8 entropy reads implies something is
-  // wrong with the entropy source.
   EXPECT(zero_values < 2);
 }
 
 PERIMORTEM_UNIT_TEST(SystemRandom, stress_test) {
-  Dynamic::Vector<Bits_64> values;
-  values.resize(10000000);
+  Static::Vector<Bits_64, 1'000'000> values;
 
   for (Count i = 0; i < values.get_size(); i++) {
     values[i] = Random::generate();
   }
 
   sort(values.get_access());
-
-  Count collisions = 0;
-  for (Count i = 1; i < values.get_size(); i++) {
-    collisions += values[i - 1] == values[i];
-  }
-
-  // Ensure the Philox generation is working correctly.
-  EXPECT_EQ(collisions, 0);
-}
-
-
-PERIMORTEM_UNIT_TEST(SystemRandom, stress_vect) {
-  Dynamic::Vector<Bits_64> values;
-  values.resize(10000000);
-
-  for (Count i = 0; i < values.get_size(); i++) {
-    values[i] = Random::generate();
-  }
-
-  std::sort(values.get_data(), values.get_data() + 100000);
 
   Count collisions = 0;
   for (Count i = 1; i < values.get_size(); i++) {

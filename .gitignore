@@ -19,4 +19,4 @@ core/tests/benchmarks/json.hpp
 perf.*
 
 # Testing locally.
-__scratch/*
+.scratch/*
