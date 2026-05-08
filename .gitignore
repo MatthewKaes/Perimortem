@@ -20,3 +20,4 @@ perf.*
 
 # Testing locally.
 .scratch/*
+build_trace.data
