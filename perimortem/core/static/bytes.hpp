@@ -45,27 +45,17 @@ class Bytes {
     return source_block[index];
   }
 
-  template <Count slice_size>
-  constexpr auto slice(Count start) const -> Bytes<slice_size> {
-    Bytes<slice_size> chunk;
-    if (start + slice_size >= literal_size) [[unlikely]] {
-      return chunk;
-    }
+  constexpr auto slice(Count start, Count size) const -> Core::View::Bytes {
+    if (start >= get_size())
+      return View::Bytes();
 
-    if consteval {
-      for (Count i = 0; i < slice_size; i++) {
-        chunk[i] = source_block[start + i];
-      }
-    } else {
-      memcpy(chunk.source_block, source_block + start, slice_size);
-    }
-
-    return chunk;
+    return View::Bytes(source_block + start,
+                       Math::min(size, get_size() - start));
   }
 
-  consteval auto get_size() const -> Count { return literal_size; }
-  consteval auto get_capacity() const -> Count { return literal_size; }
-  consteval auto get_view() const -> const Core::View::Bytes {
+  constexpr auto get_size() const -> Count { return literal_size; }
+  constexpr auto get_capacity() const -> Count { return literal_size; }
+  constexpr auto get_view() const -> const Core::View::Bytes {
     return Core::View::Bytes(source_block, literal_size);
   }
   constexpr auto get_data() const -> const Byte* { return source_block; }

@@ -27,7 +27,7 @@ class Stream {
   auto operator<<(const Long full) -> Stream&;
   auto operator<<(const ULong unsigned_full) -> Stream&;
   auto operator<<(const Real_32 real_32) -> Stream&;
-  auto operator<<(const Real_64 Real_64) -> Stream&;
+  auto operator<<(const Real_64 real_64) -> Stream&;
   auto operator<<(const Core::View::Bytes raw) -> Stream&;
 
   constexpr auto get_size() const -> Count { return data.get_size(); }
@@ -35,6 +35,7 @@ class Stream {
   constexpr auto is_valid() const -> Count { return valid_state; }
 
  private:
+  auto write_real(Real_64 real, Real_64 precision) -> void;
   Core::Access::Bytes data;
   Count ptr_location = 0;
   Bool valid_state = true;
