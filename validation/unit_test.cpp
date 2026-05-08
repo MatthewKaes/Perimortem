@@ -19,9 +19,9 @@
 #include <vector>
 
 constexpr const char* clear_color = "\x1b[0m";
-constexpr const char* perimortem_color = "\x1b[38;5;52m";
-constexpr const char* dark_color = "\x1b[38;5;232m";
-constexpr const char* system_color = "\x1b[38;5;248m";
+constexpr const char* perimortem_color = "\x1b[38;5;124m";
+constexpr const char* dark_color = "\x1b[38;5;238m";
+constexpr const char* system_color = "\x1b[38;5;246m";
 constexpr const char* fail_color = "\x1b[38;5;160m";
 constexpr const char* pass_color = "\x1b[38;5;34m";
 
@@ -118,7 +118,7 @@ extern auto create(const Harness& harness,
 }  // namespace Validation::Test
 
 void output_break() {
-  std::cout << dark_color << "[==================]\n" << clear_color;
+  std::cout << dark_color << "[==============================================================]\n" << clear_color;
 }
 
 void output_results() {
