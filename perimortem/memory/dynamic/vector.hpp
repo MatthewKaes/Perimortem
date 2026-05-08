@@ -3,10 +3,10 @@
 
 #pragma once
 
+#include "perimortem/core/bibliotheca.hpp"
 #include "perimortem/core/perimortem.hpp"
 #include "perimortem/core/view/vector.hpp"
 #include "perimortem/math/basic.hpp"
-#include "perimortem/memory/allocator/bibliotheca.hpp"
 
 namespace Perimortem::Memory::Dynamic {
 
@@ -65,8 +65,7 @@ class Vector {
   auto reset() -> void {
     if (source_block) {
       destruct();
-      Allocator::Bibliotheca::remit(
-          Allocator::Bibliotheca::corpus_to_preface((Bits_8*)source_block));
+      Core::Bibliotheca::remit((Byte*)source_block);
     }
 
     size = 0;
@@ -117,13 +116,12 @@ class Vector {
     }
 
     if (source_block) {
-      Allocator::Bibliotheca::remit(
-          Allocator::Bibliotheca::corpus_to_preface(source_block));
+      Core::Bibliotheca::remit((Byte*)source_block);
     }
 
-    auto preface = Allocator::Bibliotheca::check_out(required_size * sizeof(type));
-    source_block = access(preface);
-    capacity = preface->get_usable_bytes() / sizeof(type);
+    auto alloc = Core::Bibliotheca::check_out(required_size * sizeof(type));
+    source_block = reinterpret_cast<type*>(alloc.ptr);
+    capacity = alloc.capacity / sizeof(type);
   }
 
   constexpr auto contains(const type& data) const -> Bool {
@@ -151,12 +149,6 @@ class Vector {
   }
 
  private:
-  static constexpr auto access(Allocator::Bibliotheca::Preface* preface)
-      -> type* {
-    return reinterpret_cast<type*>(
-        Allocator::Bibliotheca::preface_to_corpus(preface));
-  }
-
   auto destruct() -> void {
     // Optimizer will do this anyway, but making it explicit helps catch issues
     // in debug builds.
@@ -183,14 +175,12 @@ class Vector {
     const auto new_capacity = Math::max(get_capacity() * 2, required_size);
 
     // Fetch and transfer to new block.
-    auto preface =
-        Allocator::Bibliotheca::check_out(new_capacity * sizeof(type));
-    auto new_block = access(preface);
+    auto alloc = Core::Bibliotheca::check_out(new_capacity * sizeof(type));
+    auto new_block = reinterpret_cast<type*>(alloc.ptr);
 
     if (source_block) {
       memcpy(new_block, source_block, sizeof(type) * size);
-      Allocator::Bibliotheca::remit(
-          Allocator::Bibliotheca::corpus_to_preface((Bits_8*)source_block));
+      Core::Bibliotheca::remit((Byte*)source_block);
     }
 
     // Update block and get the new capacity.
@@ -198,7 +188,7 @@ class Vector {
 
     // Get the actual capacity provided which is often more than we actual
     // requested.
-    capacity = preface->get_usable_bytes() / sizeof(type);
+    capacity = alloc.capacity / sizeof(type);
   }
 
   type* source_block = nullptr;

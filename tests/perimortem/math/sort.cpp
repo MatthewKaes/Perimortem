@@ -3,6 +3,7 @@
 
 #include "validation/unit_test.hpp"
 
+#include "perimortem/core/bibliotheca.hpp"
 #include "perimortem/math/sort.hpp"
 #include "perimortem/memory/dynamic/bytes.hpp"
 #include "perimortem/utility/null_terminated.hpp"
@@ -61,8 +62,8 @@ PERIMORTEM_UNIT_TEST(MathSort, empty_sort) {
   constexpr auto sorted_const = sort(Access::Vector<Int>());
   auto sorted = sort(Access::Vector<Int>());
 
-  EXPECT_EQ(sorted.get_size() , 0);
-  EXPECT_EQ(sorted_const.get_size() , 0);
+  EXPECT_EQ(sorted.get_size(), 0);
+  EXPECT_EQ(sorted_const.get_size(), 0);
 }
 
 PERIMORTEM_UNIT_TEST(MathSort, large_sort) {
@@ -100,9 +101,9 @@ PERIMORTEM_UNIT_TEST(MathSort, dynamic_types) {
   }
 
   // Sorting even on dynamic data should result in zero memory requests
-  auto check_outs = Allocator::Bibliotheca::check_out_requests();
+  auto check_outs = Bibliotheca::check_out_requests();
   auto sorted = sort(Access::Vector(test));
-  EXPECT_EQ(check_outs, Allocator::Bibliotheca::check_out_requests());
+  EXPECT_EQ(check_outs, Bibliotheca::check_out_requests());
 
   Dynamic::Bytes validate = {};
   for (Count i = 0; i < item_count; i++) {

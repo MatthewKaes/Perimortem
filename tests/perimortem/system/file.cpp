@@ -3,6 +3,7 @@
 
 #include "validation/unit_test.hpp"
 
+#include "perimortem/core/bibliotheca.hpp"
 #include "perimortem/core/static/vector.hpp"
 #include "perimortem/system/file.hpp"
 #include "perimortem/system/random.hpp"
@@ -46,7 +47,7 @@ Test::Harness SystemFile = {
         }};
 
 PERIMORTEM_UNIT_TEST(SystemFile, empty_file) {
-  auto start_requests = Allocator::Bibliotheca::check_out_requests();
+  auto start_requests = Bibliotheca::check_out_requests();
   File file;
 
   EXPECT_EQ(file.get_size(), 0);
@@ -54,11 +55,11 @@ PERIMORTEM_UNIT_TEST(SystemFile, empty_file) {
   EXPECT_EQ(file.is_valid(), false);
 
   // Creating an empty file should perform zero allocations.
-  EXPECT_EQ(Allocator::Bibliotheca::check_out_requests(), start_requests);
+  EXPECT_EQ(Bibliotheca::check_out_requests(), start_requests);
 }
 
 PERIMORTEM_UNIT_TEST(SystemFile, memory_file) {
-  auto start_requests = Allocator::Bibliotheca::check_out_requests();
+  auto start_requests = Bibliotheca::check_out_requests();
   File file;
   EXPECT_EQ(file.get_size(), 0);
 
@@ -80,11 +81,11 @@ PERIMORTEM_UNIT_TEST(SystemFile, memory_file) {
   EXPECT_EQ(file.is_valid(), true);
 
   // Only creating the Dynamic::Bytes should allocate memory.
-  EXPECT_EQ(Allocator::Bibliotheca::check_out_requests(), start_requests + 1);
+  EXPECT_EQ(Bibliotheca::check_out_requests(), start_requests + 1);
 }
 
 PERIMORTEM_UNIT_TEST(SystemFile, check_existence) {
-  auto start_requests = Allocator::Bibliotheca::check_out_requests();
+  auto start_requests = Bibliotheca::check_out_requests();
 
   EXPECT_EQ(File::exists("tests/perimortem/data/ttx/source.ttx"_view), true);
   EXPECT_EQ(File::exists("tests/perimortem/data/ttx/source2.ttx"_view), false);
@@ -95,17 +96,17 @@ PERIMORTEM_UNIT_TEST(SystemFile, check_existence) {
   EXPECT_EQ(File::exists("perimortem"_view), false);
 
   // Checking files should perform zero allocations.
-  EXPECT_EQ(Allocator::Bibliotheca::check_out_requests(), start_requests);
+  EXPECT_EQ(Bibliotheca::check_out_requests(), start_requests);
 }
 
 PERIMORTEM_UNIT_TEST(SystemFile, file_contents) {
-  auto start_requests = Allocator::Bibliotheca::check_out_requests();
+  auto start_requests = Bibliotheca::check_out_requests();
   File file;
 
   ASSERT(file.read(test_file));
 
   // Reading the file should require an allocation.
-  EXPECT_EQ(Allocator::Bibliotheca::check_out_requests(), start_requests + 1);
+  EXPECT_EQ(Bibliotheca::check_out_requests(), start_requests + 1);
 
   EXPECT_EQ(file.get_size(), json_contents.get_size());
   EXPECT_TEXT(file.get_view(), json_contents);
@@ -234,7 +235,7 @@ PERIMORTEM_UNIT_TEST(SystemFile, sync_read_and_write) {
 }
 
 PERIMORTEM_UNIT_TEST(SystemFile, sync_read_update_write) {
-  auto start_requests = Allocator::Bibliotheca::check_out_requests();
+  auto start_requests = Bibliotheca::check_out_requests();
   constexpr auto new_content = "empty"_view;
   File empty_file;
   File file;
@@ -245,13 +246,13 @@ PERIMORTEM_UNIT_TEST(SystemFile, sync_read_update_write) {
   ASSERT_EQ((Bits_8)file.sync_status(test_file), (Bits_8)File::State::Original);
 
   // First file loaded.
-  EXPECT_EQ(Allocator::Bibliotheca::check_out_requests(), start_requests + 1);
+  EXPECT_EQ(Bibliotheca::check_out_requests(), start_requests + 1);
 
   // Make sure we loaded the right content.
   EXPECT_TEXT(file.get_view(), json_contents);
   file.update_contents(new_content);
   // Forgetful resize should shrink to a better block size.
-  EXPECT_EQ(Allocator::Bibliotheca::check_out_requests(), start_requests + 2);
+  EXPECT_EQ(Bibliotheca::check_out_requests(), start_requests + 2);
 
   // Flush the new data to disk.
   ASSERT_EQ((Bits_8)file.sync_status(test_file), (Bits_8)File::State::Fresh);
@@ -271,5 +272,5 @@ PERIMORTEM_UNIT_TEST(SystemFile, sync_read_update_write) {
   EXPECT_TEXT(file_copy.get_view(), new_content);
 
   // Only additional allocation for the second copy.
-  EXPECT_EQ(Allocator::Bibliotheca::check_out_requests(), start_requests + 3);
+  EXPECT_EQ(Bibliotheca::check_out_requests(), start_requests + 3);
 }

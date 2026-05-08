@@ -2,21 +2,21 @@
 // Copyright © Matt Kaes
 
 #include "perimortem/memory/allocator/arena.hpp"
+#include "perimortem/core/bibliotheca.hpp"
 
+using namespace Perimortem::Core;
 using namespace Perimortem::Memory::Allocator;
 
 Arena::Arena() {
-  rented_block = Bibliotheca::check_out(page_size);
-  usage = 0;
-}
+  rented_block = nullptr;
 
-Arena::Arena(Arena&& arena) {}
+  fetch_page(page_size);
+}
 
 Arena::~Arena() {
   while (rented_block != nullptr) {
     auto rented = rented_block;
-    rented_block = *reinterpret_cast<Bibliotheca::Preface**>(
-        Bibliotheca::preface_to_corpus(rented_block));
+    rented_block = *Core::Data::cast<Byte*>(rented_block);
     Bibliotheca::remit(rented);
   }
 }
@@ -24,18 +24,30 @@ Arena::~Arena() {
 auto Arena::reset() -> void {
   // Return all blocks we've rented from the Bibliotheca until we only have a
   // single block left.
-  Bibliotheca::Preface** previous = reinterpret_cast<Bibliotheca::Preface**>(
-      Bibliotheca::preface_to_corpus(rented_block));
+  Byte* previous = *Core::Data::cast<Byte*>(rented_block);
 
   while (previous != nullptr) {
     auto rented = rented_block;
-    rented_block = *previous;
+    rented_block = previous;
     Bibliotheca::remit(rented);
 
-    previous = reinterpret_cast<Bibliotheca::Preface**>(
-        Bibliotheca::preface_to_corpus(rented_block));
+    previous = *Core::Data::cast<Byte*>(rented_block);
   }
 
   // Reset our usage since we are reusing the last block.
-  usage = sizeof(Bibliotheca::Preface);
+  usage = sizeof(Byte*);
+}
+
+auto Arena::fetch_page(Count bytes_requested) -> void {
+  auto alloc = Core::Bibliotheca::check_out(page_size);
+
+  // Store the previous pointer in the arena itself.
+  Byte** previous = Core::Data::cast<Byte*>(alloc.ptr);
+
+  // Store and swap the blocks.
+  *previous = rented_block;
+  rented_block = alloc.ptr;
+
+  // Bump the usage so we don't overwrite the old block.
+  usage = sizeof(Byte*);
 }

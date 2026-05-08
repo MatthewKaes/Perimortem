@@ -254,7 +254,7 @@ PERIMORTEM_UNIT_TEST(DynamicMapScalar, reuse) {
 }
 
 PERIMORTEM_UNIT_TEST(DynamicMapScalar, leak_test) {
-  auto pre_test_memory = Allocator::Bibliotheca::allocated_memory();
+  auto pre_test_memory = Bibliotheca::allocated_memory();
 
   {
     Dynamic::Map<Dynamic::Bytes, Dynamic::Bytes, vector_mode> memory_intensive;
@@ -276,6 +276,6 @@ PERIMORTEM_UNIT_TEST(DynamicMapScalar, leak_test) {
     }
   }
 
-  auto post_test_memory = Allocator::Bibliotheca::allocated_memory();
+  auto post_test_memory = Bibliotheca::allocated_memory();
   EXPECT_EQ(pre_test_memory, post_test_memory);
 }

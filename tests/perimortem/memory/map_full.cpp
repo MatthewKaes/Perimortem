@@ -95,7 +95,8 @@ PERIMORTEM_UNIT_TEST(DynamicMapFull, insert_stress_test) {
 
   EXPECT_EQ(large_map.get_size(), 1000);
   for (Int i = 0; i < 1000; i++) {
-    ASSERT_EQ(large_map[i], i + 2);
+    auto value = large_map[i];
+    ASSERT_EQ(value, i + 2);
   }
 
   EXPECT_EQ(large_map.get_memory_consumption(), 1 << 16);
@@ -256,7 +257,7 @@ PERIMORTEM_UNIT_TEST(DynamicMapFull, reuse) {
 }
 
 PERIMORTEM_UNIT_TEST(DynamicMapFull, leak_test) {
-  auto pre_test_memory = Allocator::Bibliotheca::allocated_memory();
+  auto pre_test_memory = Bibliotheca::allocated_memory();
 
   {
     Dynamic::Map<Dynamic::Bytes, Dynamic::Bytes, vector_mode> memory_intensive;
@@ -278,6 +279,6 @@ PERIMORTEM_UNIT_TEST(DynamicMapFull, leak_test) {
     }
   }
 
-  auto post_test_memory = Allocator::Bibliotheca::allocated_memory();
+  auto post_test_memory = Bibliotheca::allocated_memory();
   EXPECT_EQ(pre_test_memory, post_test_memory);
 }

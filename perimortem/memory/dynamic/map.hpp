@@ -3,9 +3,9 @@
 
 #pragma once
 
+#include "perimortem/core/bibliotheca.hpp"
 #include "perimortem/core/data.hpp"
 #include "perimortem/core/hash.hpp"
-#include "perimortem/memory/allocator/bibliotheca.hpp"
 #include "perimortem/utility/pair.hpp"
 
 #include <x86intrin.h>
@@ -90,11 +90,11 @@ class Map {
   static constexpr Count load_factor = bucket_size - 2;
 
   struct BufferData {
-    Allocator::Bibliotheca::Preface* rented_block = nullptr;
     vectorize_type* bucket_buffer = nullptr;
     slot_type* slots_buffer = nullptr;
     Bits_32 bucket_count = 0;
     Bits_32 size = 0;
+    Count total_byte_capacity = 0;
   };
 
  public:
@@ -113,12 +113,15 @@ class Map {
   Map(const Map& rhs) {
     buffer_data = create_buffer(rhs.buffer_data.bucket_count);
     buffer_data.size = rhs.buffer_data.size;
+    buffer_data.total_byte_capacity = rhs.buffer_data.total_byte_capacity;
 
-    memcpy(
-        Allocator::Bibliotheca::preface_to_corpus(buffer_data.rented_block),
-        Allocator::Bibliotheca::preface_to_corpus(rhs.buffer_data.rented_block),
-        buffer_data.rented_block->get_usable_bytes());
+    // As long as the two buckets are trivially copyable we can just copy the
+    // buffers 1 for 1.
+    const auto bytes = buffer_data.total_byte_capacity;
+    memcpy(buffer_data.bucket_buffer, rhs.buffer_data.bucket_buffer, bytes);
 
+    // If they aren't triviably copyable then we'll need to propagate a bunch of
+    // copy constructor calls.
     if (!__is_trivially_copyable(key_type) ||
         !__is_trivially_copyable(value_type)) {
       auto bucket_count = buffer_data.bucket_count;
@@ -152,9 +155,9 @@ class Map {
   };
 
   ~Map() {
-    if (buffer_data.rented_block) {
+    if (buffer_data.bucket_buffer) {
       destruct();
-      Allocator::Bibliotheca::remit(buffer_data.rented_block);
+      Core::Bibliotheca::remit((Byte*)buffer_data.bucket_buffer);
     }
   }
 
@@ -303,8 +306,7 @@ class Map {
     }
   }
   constexpr auto get_memory_consumption() const -> Count {
-    return Allocator::Bibliotheca::get_memory_consumption(
-        buffer_data.rented_block);
+    return buffer_data.total_byte_capacity;
   }
 
  private:
@@ -387,7 +389,6 @@ class Map {
       auto occupancy_count = __builtin_popcountg(occupancy_bits);
       auto target_bucket = buckets + bi;
       reinterpret_cast<Byte*>(target_bucket)[occupancy_count] = vi;
-
       return slots + (bi * bucket_size) + occupancy_count;
     }
   }
@@ -468,8 +469,8 @@ class Map {
     }
 
     // Remit the old block.
-    if (current_buffer.rented_block) {
-      Allocator::Bibliotheca::remit(current_buffer.rented_block);
+    if (current_buffer.bucket_buffer) {
+      Core::Bibliotheca::remit((Byte*)current_buffer.bucket_buffer);
     }
     buffer_data.size = current_buffer.size;
   }
@@ -561,24 +562,24 @@ class Map {
         sizeof(slot_type) * buckets *
         (vector_mode == MapVectorization::Scalar ? 1 : bucket_size);
 
-    return header_size + buffer_size + /*alignment padding*/ bucket_size;
+    return header_size + buffer_size;
   }
 
   static auto create_buffer(Count buckets) -> BufferData {
     BufferData new_buffer;
     new_buffer.bucket_count = buckets;
     const auto required_size = required_buffer_size(new_buffer.bucket_count);
-    new_buffer.rented_block = Allocator::Bibliotheca::check_out(required_size);
+    const auto alloc = Core::Bibliotheca::check_out(required_size);
 
-    // Caculate a valid bucket location with proper alignment.
-    Byte* address =
-        Allocator::Bibliotheca::preface_to_corpus(new_buffer.rented_block);
-    address += bucket_size - (Count(address) % bucket_size);
-    new_buffer.bucket_buffer = reinterpret_cast<vectorize_type*>(address);
+    // Store the total capacity in bytes for buffer copies later.
+    new_buffer.total_byte_capacity = alloc.capacity;
+
+    // Blocks from the Bibliotheca are always 64 byte aligned.
+    new_buffer.bucket_buffer = reinterpret_cast<vectorize_type*>(alloc.ptr);
     // slot_type data is everything directly after the bucket count.
     // This keeps us 32 byte aligned which should be good for any types.
     new_buffer.slots_buffer =
-        reinterpret_cast<slot_type*>(address + buckets * bucket_size);
+        reinterpret_cast<slot_type*>(new_buffer.bucket_buffer + buckets);
 
     for (Count i = 0; i < buckets; i++) {
       clear_bucket(new_buffer.bucket_buffer + i);

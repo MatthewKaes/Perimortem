@@ -94,6 +94,7 @@ def _impl(ctx):
                                 "-fno-rtti",
                                 "-mavx2",  # AVX2 support required
                                 "-mrdrnd", # _rdrand64_step
+                                "-march=znver4",
                                 "-std=c++26",
                                 "-no-canonical-prefixes",
                             ],
@@ -118,6 +119,7 @@ def _impl(ctx):
                                 "-Wno-character-conversion",  # google-test
                                 "-fno-exceptions",
                                 "-fno-rtti",
+                                "-march=znver4",
                                 "-std=c23",
                                 "-no-canonical-prefixes",
                                 # Force C builds from external libraries to build in C.

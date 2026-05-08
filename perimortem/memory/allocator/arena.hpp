@@ -4,7 +4,6 @@
 #pragma once
 
 #include "perimortem/core/data.hpp"
-#include "perimortem/memory/allocator/bibliotheca.hpp"
 
 namespace Perimortem::Memory::Allocator {
 
@@ -18,35 +17,26 @@ class Arena {
  public:
   // Attempt to request blocks in 32k pages including the preface and a previous
   // pointer.
-  static constexpr Bits_64 page_size =
-      (1 << 15) - (sizeof(Bibliotheca::Preface) * 2);
-  static constexpr Bits_64 alignment_filter = sizeof(Bibliotheca::Preface) - 1;
+  static constexpr Bits_64 page_size = (1 << 15);
+  static constexpr Bits_64 alignment_filter = sizeof(Count) - 1;
 
   Arena();
-  Arena(Arena&& arena);
   ~Arena();
+  Arena(Arena& arena) = delete;
+  Arena(Arena&& arena) = delete;
 
-  inline auto allocate(Bits_64 bytes_requested) -> Byte* {
+  inline auto allocate(Count bytes_requested) -> Byte* {
     // Fetch a new page if we are full due to either running out of our current
     // page, or needing to allocate an object larger than our page size.
+    //
+    // Arena's are meant to be quick and scrapy do they don't do any of the page
+    // demotion that the Bibliotheca performs. Long lived Arena's most likely
+    // will cause fragmentation issues so use them only for short lifetimes.
     if (usage + bytes_requested > page_size) {
-      auto rent = Bibliotheca::check_out(page_size);
-
-      // Store the previous pointer in the arena itself.
-      // [Preface] [Preface*] [Data ... ]
-      Bibliotheca::Preface** previous =
-          Core::Data::cast<Bibliotheca::Preface*>(
-              Bibliotheca::preface_to_corpus(rent));
-
-      // Store and swap the blocks.
-      *previous = rented_block;
-      rented_block = rent;
-
-      // Bump the usage so we don't overwrite the old block.
-      usage = sizeof(Bibliotheca::Preface*);
+      fetch_page(bytes_requested);
     }
 
-    Byte* root = Bibliotheca::preface_to_corpus(rented_block) + usage;
+    Byte* root = rented_block + usage;
     usage += bytes_requested;
 
     // Align the pointer to keep it aligned.
@@ -58,14 +48,16 @@ class Arena {
 
   // Creates a basic value type object but does not construct it.
   template <typename T>
-  inline auto allocate() -> T& {
+  auto allocate() -> T& {
     return *Core::Data::cast<T>(allocate(sizeof(T)));
   }
 
   auto reset() -> void;
 
  private:
-  Bibliotheca::Preface* rented_block;
+  auto fetch_page(Count bytes_requested) -> void;
+
+  Byte* rented_block;
   Count usage;
 };
 

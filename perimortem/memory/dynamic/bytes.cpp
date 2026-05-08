@@ -3,19 +3,17 @@
 
 #include "perimortem/memory/dynamic/bytes.hpp"
 
+#include "perimortem/core/bibliotheca.hpp"
 #include "perimortem/core/data.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
-using namespace Perimortem::Memory::Allocator;
-
-constexpr auto access(Bibliotheca::Preface* block) -> Byte* {
-  return Bibliotheca::preface_to_corpus(block);
-}
 
 Dynamic::Bytes::Bytes() {}
 Dynamic::Bytes::Bytes(Count reserved_capacity) {
-  source_block = access(Bibliotheca::check_out(reserved_capacity));
+  auto alloc = Bibliotheca::check_out(reserved_capacity);
+  source_block = alloc.ptr;
+  capacity = alloc.capacity;
 }
 
 Dynamic::Bytes::Bytes(const Core::View::Bytes view) : size(view.get_size()) {
@@ -25,9 +23,9 @@ Dynamic::Bytes::Bytes(const Core::View::Bytes view) : size(view.get_size()) {
     return;
   }
 
-  auto preface = Bibliotheca::check_out(view.get_size());
-  source_block = access(preface);
-  capacity = preface->get_usable_bytes();
+  auto alloc = Bibliotheca::check_out(view.get_size());
+  source_block = alloc.ptr;
+  capacity = alloc.capacity;
   memcpy(source_block, view.get_data(), view.get_size());
 }
 
@@ -39,7 +37,9 @@ Dynamic::Bytes::Bytes(const Bytes& rhs) {
   }
 
   // Bytes don't require any special handling so just memcpy.
-  source_block = access(Bibliotheca::check_out(rhs.size));
+  auto alloc = Bibliotheca::check_out(rhs.size);
+  source_block = alloc.ptr;
+  capacity = alloc.capacity;
   memcpy(source_block, rhs.source_block, size);
 }
 
@@ -132,12 +132,12 @@ auto Dynamic::Bytes::forgetful_resize(Count required_size) -> void {
   }
 
   if (source_block) {
-    Bibliotheca::remit(Bibliotheca::corpus_to_preface(source_block));
+    Core::Bibliotheca::remit(source_block);
   }
 
-  auto preface = Bibliotheca::check_out(required_size);
-  source_block = access(preface);
-  capacity = preface->get_usable_bytes();
+  auto alloc = Bibliotheca::check_out(required_size);
+  source_block = alloc.ptr;
+  capacity = alloc.capacity;
 }
 
 auto Dynamic::Bytes::operator[](Count index) const -> Byte {
@@ -163,7 +163,7 @@ auto Dynamic::Bytes::reset() -> void {
 
   // In the event the data was moved.
   if (source_block) {
-    Bibliotheca::remit(Bibliotheca::corpus_to_preface(source_block));
+    Bibliotheca::remit(source_block);
   }
 }
 
@@ -175,15 +175,14 @@ auto Dynamic::Bytes::ensure_capacity(Count required_size) -> void {
 
   // Since the current block doesn't fit in the current archive fetch and
   // transfer to a new block.
-  auto preface = Bibliotheca::check_out(required_size);
-  auto new_block = access(preface);
+  auto alloc = Bibliotheca::check_out(required_size);
 
   if (source_block) {
-    memcpy(new_block, source_block, size);
-    Bibliotheca::remit(Bibliotheca::corpus_to_preface(source_block));
+    memcpy(alloc.ptr, source_block, size);
+    Bibliotheca::remit(source_block);
   }
 
   // Update block and get the new capacity.
-  source_block = new_block;
-  capacity = preface->get_usable_bytes();
+  source_block = alloc.ptr;
+  capacity = alloc.capacity;
 }

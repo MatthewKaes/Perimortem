@@ -22,8 +22,8 @@ constexpr auto clamp(type val, type min_val, type max_val) -> type {
   return max(min(val, max_val), min_val);
 }
 
-constexpr auto log(Real_64 value) -> Real_64 {
-  return __builtin_log(value);
+constexpr auto log2(Bits_64 value) -> Bits_64 {
+  return 64 - __builtin_clzg(value, Int(sizeof(Bits_64) * 8));
 }
 
 constexpr auto sqrt(Real_64 value) -> Real_64 {

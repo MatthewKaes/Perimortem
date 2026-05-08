@@ -44,7 +44,7 @@
         "-c",
         "opt", // Need to split to as VSCode will wrap it.
         "--copt=\"-fdiagnostics-color=always\"",
-        "--copt=\"-O2\"",
+        "--copt=\"-O3\"",
         "--copt=\"-DNDEBUG\"",
         "--copt=\"-DPERI_LINUX\""
       ],

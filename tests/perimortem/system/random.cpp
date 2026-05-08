@@ -1,15 +1,20 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
+#include <vector>
+#include <algorithm>
+
 #include "validation/unit_test.hpp"
 
 #include "perimortem/core/static/vector.hpp"
+#include "perimortem/memory/dynamic/vector.hpp"
 #include "perimortem/math/sort.hpp"
 #include "perimortem/system/random.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Math;
 using namespace Perimortem::System;
+using namespace Perimortem::Memory;
 
 using namespace Validation;
 
@@ -42,13 +47,34 @@ PERIMORTEM_UNIT_TEST(SystemRandom, entropy_check) {
 }
 
 PERIMORTEM_UNIT_TEST(SystemRandom, stress_test) {
-  Static::Vector<Bits_64, 100'000> values;
+  Dynamic::Vector<Bits_64> values;
+  values.resize(10000000);
 
   for (Count i = 0; i < values.get_size(); i++) {
     values[i] = Random::generate();
   }
 
   sort(values.get_access());
+
+  Count collisions = 0;
+  for (Count i = 1; i < values.get_size(); i++) {
+    collisions += values[i - 1] == values[i];
+  }
+
+  // Ensure the Philox generation is working correctly.
+  EXPECT_EQ(collisions, 0);
+}
+
+
+PERIMORTEM_UNIT_TEST(SystemRandom, stress_vect) {
+  Dynamic::Vector<Bits_64> values;
+  values.resize(10000000);
+
+  for (Count i = 0; i < values.get_size(); i++) {
+    values[i] = Random::generate();
+  }
+
+  std::sort(values.get_data(), values.get_data() + 100000);
 
   Count collisions = 0;
   for (Count i = 1; i < values.get_size(); i++) {
