@@ -20,7 +20,15 @@ static constexpr Count min_size = (1 << min_radix);
 static constexpr Count radix_range = max_radix - min_radix;
 
 struct alignas(64) Slab {
-  static constexpr Count allocator_size = min_size << 10;
+  static constexpr auto kilobytes_4 = 1 << 12;
+  static constexpr auto megabytes_2 = kilobytes_4 << 9;
+  static constexpr auto megabytes_2_mask = megabytes_2 - 1;
+
+  // 32 MB chunks + 1 extra 2 MB chunk
+  // The extra 2 MB chunk gives us wiggle room for all of the slab and preface
+  // overhead which helps break up some particularly poor performing allocation
+  // chunking based on Bibliotheca access patterns.
+  static constexpr Count allocator_size = (megabytes_2 << 4) + megabytes_2;
   Count mapped_size;
   Count bump_ptr;
   Slab* ancestor;
@@ -29,6 +37,15 @@ struct alignas(64) Slab {
     return mapped_size - bump_ptr;
   }
 
+  // Allocates a chunk using a bump ptr. It's up to the Librarian to actually
+  // dish out prefaced chunks and the Bibliotheca to manage chunk flows.
+  //
+  // We could do additional fancy alignment to detect TLB boundries, but this
+  // is a micro optimization that slows down the common small chunk case.
+  //
+  // Note that all slabs from the Bibliotheca are `2 ^ N + 64` size where N is
+  // at minimum 6 so allocs are always 64 byte aligned which is sufficient for
+  // all resonable types so we never have to pay for caculating alignment.
   auto alloc(Count bytes) -> Byte* {
     auto location = reinterpret_cast<Byte*>(this) + bump_ptr;
     bump_ptr += bytes;
@@ -43,29 +60,46 @@ static_assert(sizeof(Slab) == 64);
 #include <sys/mman.h>
 
 auto get_slab(Count block_size) -> Slab* {
-  constexpr auto kilobytes_4 = 1 << 12; 
-  constexpr auto kilobytes_4_mask = kilobytes_4 - 1;
   // Limit blocks to
-  const auto size = block_size < Slab::allocator_size ? Slab::allocator_size : block_size;
-  const auto aligned = (~size + 1) & (kilobytes_4_mask);
-  const auto aligned_extra = size + aligned + kilobytes_4;
+  auto size = Slab::allocator_size;
 
-  auto ptr = mmap(nullptr, aligned_extra, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_HUGE_2MB,
-                    -1, 0);
+  // If we need a specificly large slab then grab one but make sure it falls on
+  // a 2MB boundary. Don't worry about fragmentation, as part of demotion the
+  // left over bytes in the 2MB will be chunked eventually by smaller allocs.
+  if (size < block_size) {
+    const auto aligned = (~size + 1) & (Slab::megabytes_2_mask);
+    size = block_size + aligned;
+  }
+
+  // Attempt to grab a block using huge TLB to speed up the slab allocator.
+  auto constexpr page_access = PROT_READ | PROT_WRITE;
+  auto constexpr page_flags = MAP_PRIVATE | MAP_ANONYMOUS;
+  // Huge pages should be 2MB if available.
+  // 1GB pages don't make sense for our usage.
+  auto constexpr huge_page = MAP_HUGETLB | MAP_HUGE_2MB;
+  Bool is_huge_page_optimized = true;
+  auto ptr = mmap(nullptr, size, page_access, page_flags | huge_page, -1, 0);
   if (ptr == MAP_FAILED) {
-    // TODO: Diagnostics
-    return nullptr;
+    // Fall back to 4kb pages if the huge tlb failed.
+    is_huge_page_optimized = false;
+    ptr = mmap(nullptr, size, page_access, page_flags, -1, 0);
+
+    // Check if a regular mmap also failed with regular 4kb pages.
+    if (ptr == MAP_FAILED) {
+      // TODO: Diagnostics
+      return nullptr;
+    }
   }
 
   Slab* slab = reinterpret_cast<Slab*>(ptr);
-  slab->mapped_size = aligned_extra;
+  slab->mapped_size = size;
   slab->ancestor = nullptr;
   slab->bump_ptr = sizeof(Slab);
 
   return slab;
 }
 
-auto release_slab(Slab* slab) -> Bool{
+auto release_slab(Slab* slab) -> Bool {
   auto success = munmap(slab, slab->allocator_size);
   if (success != 0) {
     // TODO: Diagnostics
@@ -78,7 +112,7 @@ auto release_slab(Slab* slab) -> Bool{
 
 // Make sure Preface is always aligned so that the pointer returned is
 // aligned.
-class alignas(64) Preface final {
+class Preface final {
   friend Bibliotheca;
 
  public:
@@ -93,12 +127,19 @@ class alignas(64) Preface final {
   // Used for storing the next free block when stored in archives.
   Preface* next;
   // The archive index is an invariant of the block so store it in the header.
-  Bits_32 archive_index;
+  Bits_64 archive_index;
 #if PERI_DEBUG
-  // The number of objects in this thread that have a reservation on
-  // this block.
   Bits_64 block_stamp;
+  [[maybe_unused]] Bits_64 __reserved[1];
+#elif
+  [[maybe_unused]] Bits_64 __reserved[2];
 #endif
+
+  // Bibliotheca allocations reserve 16 bytes of "under_write" buffer.
+  // This underwrite buffer is useful for optimizing certain system algorithms
+  // that require a bit of underwriting (typically AVX).
+  [[maybe_unused]] Bits_8
+      __under_write_buffer[Bibliotheca::legal_underwrite_size];
 };
 
 // Blocks are always cached aligned by having the preface small allows us to be
@@ -129,6 +170,18 @@ static_assert(sizeof(secret_archive) <= 512);
 class Librarian {
  public:
   Slab* inventory = nullptr;
+
+  // Avoids typical arena / slab allocation fragmentation by keeping slabs
+  // arranged based on the amount of free memory allowing us to use left over
+  // chunks greedily.
+  //
+  // The list is always sorted so a demotion is only O(n) time where N is the
+  // approximate amount of memory used / ~32 MB, improving with larger
+  // allocations.
+  //
+  // Still to maximize small chunk creation throughput (which is important
+  // during thread start up when the Bibliotheca is empty), demote is only
+  // called when we overrun the existing inventory page.
   void manage_inventory(Count bytes) {
     // Demote the active inventory to possibly inactive and see if we have
     // space in another block.

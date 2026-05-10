@@ -21,6 +21,18 @@ namespace Perimortem::Core {
 // patterns but this isn't a hard requirement.
 class Bibliotheca final {
  public:
+  // The legal amount that algorithms are able to underwrite the allocated
+  // buffer.
+  //
+  // For x86_64 the underwrite buffer is guaranteed to be on a separate cache
+  // line from the data pointer address making it can be useful for storing
+  // infrequently used data related to the allocation or for algorithms that
+  // avoid a copy by using a bit of the underwrite buffer.
+  //
+  // Algorithms and types that use the underwrite buffer are incompatable with
+  // the C++ standard library so it should be used sparingly.
+  static constexpr auto legal_underwrite_size = 16;
+
   struct Allocation {
     Byte* ptr;
     Count capacity;

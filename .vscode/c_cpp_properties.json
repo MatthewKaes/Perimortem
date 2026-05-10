@@ -5,7 +5,6 @@
             "includePath": [
                 "${workspaceFolder}/**",
                 ".bin/Perimortem/external/bazel_tools/",
-                ".bin/Perimortem/external/zstd+/lib/"
             ],
             "defines": [
                 "PERI_DEBUG",
