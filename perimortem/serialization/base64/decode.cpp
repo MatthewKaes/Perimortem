@@ -2,9 +2,11 @@
 // Copyright © Matt Kaes
 
 #include "perimortem/serialization/base64/decode.hpp"
+#include "perimortem/core/bibliotheca.hpp"
 
 #include <x86intrin.h>
 
+using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
 using namespace Perimortem::Serialization;
 
@@ -30,8 +32,13 @@ static_assert(decode_lookup['+'] == 62);
 static_assert(decode_lookup['/'] == 63);
 static_assert(decode_lookup['='] == 0);
 
-auto Base64::decode(Allocator::Arena& arena, const Core::View::Bytes source)
-    -> Core::View::Bytes {
+auto Base64::decode(const View::Bytes source) -> Dynamic::Bytes {
+  // If empty than avoid any allocations or vectorization and just return an
+  // empty optimized Dynamic::Bytes if the size isn't large enough.
+  if (source.get_size() < 3) {
+    return Dynamic::Bytes();
+  }
+
   // On AMD processors that don't support AVX512 they "partially" supports it
   // using two fused AVX2 256bit buffers. To make sure we support just about
   // every modern CPU we can use two parallel AVX2 buffers unrolled. This is esp
@@ -60,11 +67,18 @@ auto Base64::decode(Allocator::Arena& arena, const Core::View::Bytes source)
   // which lets us emulate a single AVX512 write with seemingly minimum cache
   // contention (at least on a 9950x3D).
   Count size = (source.get_size() / source_stride) * output_stride;
-  Byte* text = arena.allocate(size + avx2_channel_width / source_stride +
-                              upper_lane_underwrite_buffer);
 
-  // Save 8 bytes for bit hacking underwriting :)
-  text += upper_lane_underwrite_buffer;
+  // Allocate the bytes with the full size + working buffer.
+  Memory::Dynamic::Bytes bytes;
+  bytes.forgetful_resize(size + avx2_channel_width / source_stride +
+                         upper_lane_underwrite_buffer);
+
+  // The algorithm uses 8 bytes of the 16 byte underwrite buffer.
+  Byte* text = bytes.get_access().get_data();
+  static_assert(
+      upper_lane_underwrite_buffer <= Bibliotheca::legal_underwrite_size,
+      "Base64 decode requires more underwrite bytes than are guaranteed by the "
+      "Bibliotheca, ensure Perimortem is configured correctly");
 
   // Construct source buffers.
   auto source_data = source.get_data();
@@ -324,5 +338,7 @@ auto Base64::decode(Allocator::Arena& arena, const Core::View::Bytes source)
                            decode_lookup[source_data[j + 3]];
   }
 
-  return Core::View::Bytes(text, size);
+  // Shrink the bytes to the correct size, dropping the extra working buffer.
+  bytes.resize(size);
+  return bytes;
 }
