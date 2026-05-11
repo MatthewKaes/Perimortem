@@ -204,7 +204,7 @@ class Librarian {
       }
     }
 
-    // If we still can't allocate then we will need a fresh slab.
+    // If we now have room than we can avoid a slab allocation.
     if (bytes <= inventory->get_free_space()) [[likely]] {
       return;
     }

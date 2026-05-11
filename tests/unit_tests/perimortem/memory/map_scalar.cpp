@@ -8,7 +8,7 @@
 #include "perimortem/memory/dynamic/map.hpp"
 #include "perimortem/utility/null_terminated.hpp"
 
-#include "tests/perimortem/memory/hashable.hpp"
+#include "tests/unit_tests/perimortem/memory/hashable.hpp"
 
 using namespace Perimortem::Memory;
 using namespace Perimortem::Utility;

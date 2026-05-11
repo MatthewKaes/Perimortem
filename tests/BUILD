@@ -18,7 +18,7 @@ cc_library(
 cc_binary(
     name = "unit_tests",
     srcs = glob([
-        "**/*.cpp",
+        "unit_tests/**/*.cpp",
     ]),
     includes = ["."],
     deps = [

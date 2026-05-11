@@ -45,9 +45,9 @@ PERIMORTEM_UNIT_TEST(SerializationBase64, decode_simple) {
 PERIMORTEM_UNIT_TEST(SerializationBase64, decode_vectorized) {
   auto start_requests = Bibliotheca::check_out_requests();
   File source;
-  ASSERT(source.read("tests/perimortem/data/ttx/source.ttx"_view));
+  ASSERT(source.read("tests/data/ttx/source.ttx"_view));
   File base64;
-  ASSERT(base64.read("tests/perimortem/data/base64/source.base64"_view));
+  ASSERT(base64.read("tests/data/base64/source.base64"_view));
 
   const auto decoded_bytes = Base64::decode(base64.get_view());
   EXPECT_TEXT(decoded_bytes.get_view(), source.get_view());

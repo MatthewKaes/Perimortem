@@ -17,7 +17,7 @@ using namespace Perimortem::System;
 
 using namespace Validation;
 
-constexpr auto test_directory = "tests/perimortem/data"_view;
+constexpr auto test_directory = "tests/data"_view;
 constexpr auto test_file = ".bin/bin/tests/system_file_test.json"_view;
 constexpr auto test_output = ".bin/bin/tests/system_file_test_out.json"_view;
 constexpr auto test_file_c_str = ".bin/bin/tests/system_file_test.json";
@@ -87,8 +87,8 @@ PERIMORTEM_UNIT_TEST(SystemFile, memory_file) {
 PERIMORTEM_UNIT_TEST(SystemFile, check_existence) {
   auto start_requests = Bibliotheca::check_out_requests();
 
-  EXPECT_EQ(File::exists("tests/perimortem/data/ttx/source.ttx"_view), true);
-  EXPECT_EQ(File::exists("tests/perimortem/data/ttx/source2.ttx"_view), false);
+  EXPECT_EQ(File::exists("tests/data/ttx/source.ttx"_view), true);
+  EXPECT_EQ(File::exists("tests/data/ttx/source2.ttx"_view), false);
   EXPECT_EQ(File::exists("perimortem/system/file.cpp"_view), true);
 
   // Directories don't count as files.
@@ -191,7 +191,6 @@ PERIMORTEM_UNIT_TEST(SystemFile, sync_directory) {
 }
 
 PERIMORTEM_UNIT_TEST(SystemFile, sync_memory_vs_existing) {
-  constexpr auto test_file = "tests/perimortem/data/json/test.json"_view;
   File empty_file;
   File file;
   auto test_content = "test"_view;
