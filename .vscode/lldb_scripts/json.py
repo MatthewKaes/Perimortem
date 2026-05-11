@@ -79,7 +79,7 @@ class JsonPrinter:
         case 6: # Array
           data = self.value.GetChildMemberWithName("array")
           return self.valobj.CreateValueFromData("items", data.GetData(), data.GetType())
-        case 7: # Boolean
+        case 7: # Flag
           data = self.value.GetChildMemberWithName("boolean")
           return self.valobj.CreateValueFromData("value", data.GetData(), data.GetType())
     except Exception as e:
@@ -105,7 +105,7 @@ def json_view_summary(valobj, dictionary):
       case 6: # Array
         return "Array"
       case 7: # Boolean
-        return "Boolean"
+        return "Flag"
 
 def __lldb_init_module(debugger, dict):
   debugger.HandleCommand('type synthetic add -w json -l json.JsonPrinter -x "Perimortem::Storage::Json::Node$"')

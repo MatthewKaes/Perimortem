@@ -91,8 +91,9 @@ def byte_view_summary(valueObject, dictionary):
     content = process.ReadMemory(value, size, error)
 
     if error.Success():
-      data = content.decode('utf-8', errors='replace')
-      return data
+      # data = content.decode('ascii', errors='replace')
+      # return data
+      return content;
     else:
       return "[ uninitialized ]"
 
