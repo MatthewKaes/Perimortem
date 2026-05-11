@@ -129,8 +129,8 @@ auto Textual::Stream::operator<<(const Byte character) -> Textual::Stream& {
   return *this;
 }
 
-auto Textual::Stream::operator<<(const Bool boolean) -> Textual::Stream& {
-  if (boolean) {
+auto Textual::Stream::operator<<(const Bool flag) -> Textual::Stream& {
+  if (flag) {
     valid_state &= write_text(data, ptr_location, "true"_view);
   } else {
     valid_state &= write_text(data, ptr_location, "false"_view);

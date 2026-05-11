@@ -1,129 +1,301 @@
-// // Perimortem Engine
-// // Copyright © Matt Kaes
+// Perimortem Engine
+// Copyright © Matt Kaes
 
-// #pragma clang diagnostic push
-// #pragma clang diagnostic ignored "-Wcharacter-conversion"
-// #include <gtest/gtest.h>
-// #pragma clang diagnostic pop
+#include "perimortem/core/bibliotheca.hpp"
+#include "perimortem/core/static/vector.hpp"
+#include "perimortem/serialization/json/node.hpp"
+#include "perimortem/system/file.hpp"
+#include "perimortem/utility/null_terminated.hpp"
 
-// #include "storage/formats/json.hpp"
-// #include "storage/formats/rpc_header.hpp"
+#include "validation/unit_test.hpp"
 
-// #include <filesystem>
-// #include <fstream>
+using namespace Perimortem::Core;
+using namespace Perimortem::Math;
+using namespace Perimortem::Memory;
+using namespace Perimortem::Serialization;
+using namespace Perimortem::System;
 
-// struct JsonTests : public ::testing::Test {
-//  protected:
-//   static void SetUpTestSuite() {}
+using namespace Validation;
 
-//   virtual void SetUp() {}
+Test::Harness SerializationJson = {.name = "Serialization::Json"};
 
-//   virtual void TearDown() {}
-// };
+PERIMORTEM_UNIT_TEST(SerializationJson, empty_node) {
+  auto start_requests = Bibliotheca::check_out_requests();
+  Json::Node empty;
 
-// using namespace Perimortem::Memory;
-// using namespace Perimortem::Storage::Json;
+  EXPECT_EQ(empty.is_null(), true);
 
-// auto load_text(const std::filesystem::path& p) -> std::string {
-//   std::ifstream ifs(p, std::ios::binary | std::ios::ate);
-//   std::ifstream::pos_type pos = ifs.tellg();
+  EXPECT_EQ(empty.get_flag(), false);
+  EXPECT_EQ(empty.get_number(), 0);
+  EXPECT_EQ(empty.get_real(), 0.0);
+  EXPECT_EQ(empty.get_size(), 0);
+  EXPECT_TEXT(empty.get_string(), View::Bytes());
 
-//   if (pos == 0) {
-//     return "";
-//   }
+  // Node should never affect the check out state for these tests.
+  EXPECT_EQ(Bibliotheca::check_out_requests(), start_requests);
+}
 
-//   std::string data;
-//   data.resize(pos);
-//   ifs.seekg(0, std::ios::beg);
-//   ifs.read((char*)data.data(), pos);
-//   return data;
-// }
+PERIMORTEM_UNIT_TEST(SerializationJson, value_node) {
+  auto start_requests = Bibliotheca::check_out_requests();
+  Json::Node value;
+  EXPECT_EQ(value.is_null(), true);
 
-// TEST_F(JsonTests, init_rpc) {
-//   Arena test;
-//   std::string json = load_text("perimortem/tests/json/init_rpc.json");
+  value = True;
+  EXPECT_EQ(value.get_flag(), true);
+  EXPECT_EQ(value.get_number(), 0);
+  EXPECT_EQ(value.get_real(), 0.0);
+  EXPECT_TEXT(value.get_string(), View::Bytes());
+  EXPECT_EQ(value.get_size(), 0);
 
-//   Node node;
-//   node.from_source(test, View::Byte(json));
+  value = 142ll;
+  EXPECT_EQ(value.get_flag(), 0);
+  EXPECT_EQ(value.get_number(), 142ll);
+  EXPECT_EQ(value.get_real(), 0.0);
+  EXPECT_TEXT(value.get_string(), View::Bytes());
+  EXPECT_EQ(value.get_size(), 0);
 
-//   EXPECT_TRUE(node.contains("method"));
-//   EXPECT_EQ(node.at("method").get_string().get_view(), "initialize");
+  value = 12.12;
+  EXPECT_EQ(value.get_flag(), 0);
+  EXPECT_EQ(value.get_number(), 0);
+  EXPECT_EQ(value.get_real(), 12.12);
+  EXPECT_TEXT(value.get_string(), View::Bytes());
+  EXPECT_EQ(value.get_size(), 0);
 
-//   EXPECT_TRUE(node.contains("jsonrpc"));
-//   EXPECT_EQ(node.at("jsonrpc").get_string().get_view(), "2.0");
+  value = "Test View"_view;
+  EXPECT_EQ(value.get_flag(), 0);
+  EXPECT_EQ(value.get_number(), 0);
+  EXPECT_EQ(value.get_real(), 0);
+  EXPECT_TEXT(value.get_string(), "Test View"_view);
+  EXPECT_EQ(value.get_size(), 9);
 
-//   EXPECT_TRUE(node.contains("id"));
-//   EXPECT_EQ(node.at("id").get_int(), 10);
+  // Node should never affect the check out state for these tests.
+  EXPECT_EQ(Bibliotheca::check_out_requests(), start_requests);
+}
 
-//   EXPECT_TRUE(node.contains("params"));
-//   EXPECT_TRUE(node.at("params").contains("rootPath"));
-//   auto path = node.at("params").at("rootPath").get_string();
-//   EXPECT_EQ(path.get_view(),
-//             "/home/test/Perimortem/tetrodotoxin/tests/scripts");
-// }
+PERIMORTEM_UNIT_TEST(SerializationJson, access_never_faults) {
+  auto start_requests = Bibliotheca::check_out_requests();
+  Json::Node value;
+  EXPECT_EQ(value.is_null(), true);
 
-// TEST_F(JsonTests, tokenize_rpc) {
-//   Arena test;
-//   std::string json = load_text("perimortem/tests/json/tokenize_rpc.json");
+  value = True;
+  EXPECT_EQ(value["invalid"_view].is_null(), true);
+  EXPECT_EQ(value["invalid"_view]["access"_view].is_null(), true);
 
-//   Node node;
-//   node.from_source(test, View::Byte(json));
+  value = value["invalid"_view]["access"_view];
 
-//   EXPECT_TRUE(node.contains("method"));
-//   EXPECT_EQ(node.at("method").get_string().get_view(), "tokenize");
+  EXPECT_EQ(value.get_flag(), false);
+  EXPECT_EQ(value.get_number(), 0);
+  EXPECT_EQ(value.get_real(), 0.0);
+  EXPECT_EQ(value.get_size(), 0);
+  EXPECT_TEXT(value.get_string(), View::Bytes());
 
-//   EXPECT_TRUE(node.contains("jsonrpc"));
-//   EXPECT_EQ(node.at("jsonrpc").get_string().get_view(), "2.0");
+  // Node should never affect the check out state for these tests.
+  EXPECT_EQ(Bibliotheca::check_out_requests(), start_requests);
+}
 
-//   EXPECT_TRUE(node.contains("id"));
-//   EXPECT_EQ(node.at("id").get_int(), 1);
+PERIMORTEM_UNIT_TEST(SerializationJson, access_is_value_type) {
+  auto start_requests = Bibliotheca::check_out_requests();
+  Json::Node value;
+  EXPECT_EQ(value.is_null(), true);
 
-//   ASSERT_TRUE(node.contains("params"));
-//   auto params = node.at("params");
-//   ASSERT_TRUE(params.contains("source"));
-// }
+  auto new_node = value["invalid"_view];
+  EXPECT_EQ(new_node.is_null(), true);
 
-// TEST_F(JsonTests, rpc_header) {
-//   std::string json = load_text("perimortem/tests/json/init_rpc.json");
+  new_node = "valid"_view;
+  EXPECT_EQ(new_node.is_null(), false);
+  EXPECT_TEXT(new_node.get_string(), "valid"_view);
 
-//   Arena arena;
-//   auto data = Perimortem::Storage::Json::JsonRpc(
-//       arena, Core::View::Bytes(json.c_str(), json.size()));
+  // Original value node should remain unchanged.
+  EXPECT_EQ(value.is_null(), true);
+  EXPECT_EQ(value["invalid"_view].is_null(), true);
 
-//   EXPECT_EQ(data.get_method(), "initialize"_bv);
-//   EXPECT_EQ(data.get_version(), "2.0"_bv);
-//   EXPECT_EQ(data.get_id(), "10"_bv);
-//   EXPECT_EQ(data.get_params_offset(), 56);
-// }
+  // Value type nodes should never allocate.
+  EXPECT_EQ(Bibliotheca::check_out_requests(), start_requests);
+}
 
-// TEST_F(JsonTests, jsonrpc) {
-//   Arena test;
-//   std::string json = load_text("perimortem/tests/json/initialized_rpc.json");
+PERIMORTEM_UNIT_TEST(SerializationJson, parse_values) {
+  Allocator::Arena arena;
+  Json::Node value;
+  value.parse(arena, ""_view);
+  EXPECT_EQ(value.is_null(), true);
 
-//   Node node;
-//   node.from_source(test, View::Byte(json));
+  value.parse(arena, "true"_view);
+  EXPECT_EQ(value.get_flag(), true);
 
-//   EXPECT_TRUE(node.contains("method"));
-//   EXPECT_EQ(node.at("method").get_string().get_view(), "initialized");
+  value.parse(arena, "false"_view);
+  EXPECT_EQ(value.get_flag(), false);
 
-//   EXPECT_TRUE(node.contains("jsonrpc"));
-//   EXPECT_EQ(node.at("jsonrpc").get_string().get_view(), "2.0");
-//   ASSERT_TRUE(node.contains("params"));
-// }
+  value.parse(arena, "12"_view);
+  EXPECT_EQ(value.get_number(), 12);
 
-// TEST_F(JsonTests, jsonrpc_from_header) {
-//   Arena test;
-//   std::string json = load_text("perimortem/tests/json/init_rpc.json");
-//   Arena arena;
-//   auto header = Perimortem::Storage::Json::JsonRpc(
-//       arena, Core::View::Bytes(json.c_str(), json.size()));
-//   uint32_t pos = header.get_params_offset();
+  value.parse(arena, "-9000"_view);
+  EXPECT_EQ(value.get_number(), -9000);
 
-//   Node node;
-//   node.from_source(test, View::Byte(json), pos);
+  value.parse(arena, "12.06"_view);
+  EXPECT_EQ(value.get_real(), 12.06);
 
-//   ASSERT_TRUE(node.contains("processId"));
-//   ASSERT_EQ(node.at("processId").get_int(), 18186);
-//   ASSERT_EQ(node.at("clientInfo").at("name").get_string(),
-//             View::Byte("VisualStudioCode"));
-// }
+  value.parse(arena, "-130.4"_view);
+  EXPECT_EQ(value.get_real(), -130.4);
+
+  value.parse(arena, "\"Sub View\""_view);
+  EXPECT_TEXT(value.get_string(), "Sub View"_view);
+
+  value.parse(arena, "\"\""_view);
+  EXPECT_TEXT(value.get_string(), ""_view);
+}
+
+PERIMORTEM_UNIT_TEST(SerializationJson, greedy_parse) {
+  Allocator::Arena arena;
+  Json::Node value;
+
+  value.parse(arena, "true?"_view);
+  EXPECT_EQ(value.get_flag(), true);
+
+  value.parse(arena, "false2"_view);
+  EXPECT_EQ(value.get_flag(), false);
+
+  value.parse(arena, "12a"_view);
+  EXPECT_EQ(value.get_number(), 12);
+
+  value.parse(arena, " -9000qwerty"_view);
+  EXPECT_EQ(value.get_number(), -9000);
+
+  value.parse(arena, " 12.06 "_view);
+  EXPECT_EQ(value.get_real(), 12.06);
+
+  value.parse(arena, " -130.a4"_view);
+  EXPECT_EQ(value.get_real(), -130.0);
+
+  value.parse(arena, "\"Sub View"_view);
+  EXPECT_TEXT(value.get_string(), "Sub View"_view);
+
+  constexpr auto long_view =
+      "\"Very long string value used for testing vectorized scans"_view;
+  value.parse(arena, long_view);
+  EXPECT_TEXT(value.get_string(), long_view.slice(1));
+}
+
+PERIMORTEM_UNIT_TEST(SerializationJson, parse_arrays) {
+  Allocator::Arena arena;
+  Json::Node value;
+
+  value.parse(arena, "[]"_view);
+  ASSERT(value.is_array());
+  EXPECT_EQ(value.get_size(), 0);
+
+  value.parse(arena, "[1,2,3,4]"_view);
+  ASSERT(value.is_array());
+  EXPECT_EQ(value.get_size(), 4);
+  EXPECT_EQ(value[0].get_number(), 1);
+  EXPECT_EQ(value[1].get_number(), 2);
+  EXPECT_EQ(value[2].get_number(), 3);
+  EXPECT_EQ(value[3].get_number(), 4);
+
+  value.parse(arena, "[1,true,\"test\",4]"_view);
+  ASSERT(value.is_array());
+  EXPECT_EQ(value.get_size(), 4);
+  EXPECT_EQ(value[0].get_number(), 1);
+  EXPECT_EQ(value[1].get_flag(), true);
+  EXPECT_TEXT(value[2].get_string(), "test"_view);
+  EXPECT_EQ(value[3].get_number(), 4);
+}
+
+PERIMORTEM_UNIT_TEST(SerializationJson, parse_nested_arrays) {
+  Allocator::Arena arena;
+  Json::Node value;
+
+  value.parse(arena, "[]"_view);
+  ASSERT(value.is_array());
+  EXPECT_EQ(value.get_size(), 0);
+
+  value.parse(arena, "[1,[2],[[true], 3, [ \"value\" ]],[[][[4][]]]]"_view);
+  ASSERT(value.is_array());
+  EXPECT_EQ(value.get_size(), 4);
+  EXPECT_EQ(value[0].get_number(), 1);
+
+  EXPECT_EQ(value[1].get_size(), 1);
+  EXPECT_EQ(value[1][0].get_number(), 2);
+
+  EXPECT_EQ(value[2].get_size(), 3);
+  EXPECT_EQ(value[2][0].get_size(), 1);
+  EXPECT_EQ(value[2][1].get_size(), 0);
+  EXPECT_EQ(value[2][2].get_size(), 1);
+  EXPECT_EQ(value[2][0][0].get_flag(), true);
+  EXPECT_EQ(value[2][1].get_number(), 3);
+  EXPECT_TEXT(value[2][2][0].get_string(), "value"_view);
+
+  EXPECT_EQ(value[3][1][0][0].get_number(), 4);
+}
+
+PERIMORTEM_UNIT_TEST(SerializationJson, parse_object) {
+  Allocator::Arena arena;
+  Json::Node value;
+
+  value.parse(arena, "{}"_view);
+  ASSERT(value.is_object());
+  EXPECT_EQ(value.get_size(), 0);
+
+  value.parse(
+      arena,
+      "{\"value\":1, \"test\":2, \"another member\":3, \"final\":4, }"_view);
+  ASSERT(value.is_object());
+  EXPECT_EQ(value.get_size(), 4);
+  EXPECT_EQ(value["value"_view].get_number(), 1);
+  EXPECT_EQ(value["test"_view].get_number(), 2);
+  EXPECT_EQ(value["another member"_view].get_number(), 3);
+  EXPECT_EQ(value["final"_view].get_number(), 4);
+
+  // Mixed and duplicate, Node should use the first valid member.
+  value.parse(
+      arena,
+      "{\"number\":1,\"flag\":true,\"test\":\"test\",\"number\":-1}"_view);
+  ASSERT(value.is_object());
+  // We parsed 4 elements but only 3 are accessable via the view.
+  // If the raw object is fetched the hidden duplicate can be read.
+  EXPECT_EQ(value.get_size(), 4);
+  EXPECT_EQ(value["number"_view].get_number(), 1);
+  EXPECT_EQ(value["flag"_view].get_flag(), true);
+  EXPECT_TEXT(value["test"_view].get_string(), "test"_view);
+
+  auto members = value.get_object();
+  EXPECT_EQ(members.get_size(), 4);
+  EXPECT_TEXT(members[0].name, "number"_view);
+  EXPECT_TEXT(members[1].name, "flag"_view);
+  EXPECT_TEXT(members[2].name, "test"_view);
+  EXPECT_TEXT(members[3].name, "number"_view);
+
+  EXPECT_EQ(members[0].node.get_number(), 1);
+  EXPECT_EQ(members[1].node.get_flag(), true);
+  EXPECT_TEXT(members[2].node.get_string(), "test"_view);
+  EXPECT_EQ(members[3].node.get_number(), -1);
+}
+
+PERIMORTEM_UNIT_TEST(SerializationJson, format) {
+  constexpr auto expected =
+      "{\"root\":1,\"flag\":true,\"config\":{\"version\":\"1.0.2\",\"sub_flag\":true}}"_view;
+  Json::Node value = Json::Object{{
+      {"root"_view, Long(1)},
+      {"flag"_view, True},
+      {"config"_view, Json::Object{{
+                          {"version"_view, "1.0.2"_view},
+                          {"sub_flag"_view, True},
+                      }}},
+  }};
+
+  Allocator::Arena arena;
+  auto formated = value.format(arena);
+  ASSERT_TEXT(formated, expected);
+}
+
+PERIMORTEM_UNIT_TEST(SerializationJson, round_trip_init_rpc) {
+  File source;
+  ASSERT(source.read("tests/data/json/init_rpc.json"_view));
+
+  Allocator::Arena arena;
+  Json::Node value;
+  value.parse(arena, source.get_view());
+  auto formated = value.format(arena);
+
+  ASSERT_EQ(formated.get_size(), source.get_size());
+  ASSERT_TEXT(formated, source.get_view());
+}

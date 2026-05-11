@@ -93,6 +93,11 @@ auto expected(unsigned long long value, bool actual) -> void {
   printf("%llu\n", value);
 }
 
+auto expected(double value, bool actual) -> void {
+  print_result_header(actual);
+  printf("%.6f\n", value);
+}
+
 auto expected_text(const unsigned char* value,
                    unsigned long long size,
                    bool actual) -> void {

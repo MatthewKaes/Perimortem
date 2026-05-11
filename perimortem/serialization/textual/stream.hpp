@@ -19,7 +19,7 @@ class Stream {
   auto set_pointer(Count location) -> void;
 
   auto operator<<(const Byte character) -> Stream&;
-  auto operator<<(const Bool boolean) -> Stream&;
+  auto operator<<(const Bool flag) -> Stream&;
   auto operator<<(const Half half) -> Stream&;
   auto operator<<(const UHalf unsigned_half) -> Stream&;
   auto operator<<(const Int integer) -> Stream&;

@@ -62,7 +62,7 @@ auto main(int argc, char* argv[]) -> int {
   jsonrpc.register_method(
       "tokenize", [](const RpcRequest& request) -> RpcResponse {
         const auto& args = request.get_params();
-        if (args.null()) {
+        if (args.is_null()) {
           return request.rpc_error("\"Failed to parse tokenize request.\""_view);
         }
 
@@ -85,7 +85,7 @@ auto main(int argc, char* argv[]) -> int {
   jsonrpc.register_method(
       "format", [](const RpcRequest& request) -> RpcResponse {
         const auto& args = request.get_params();
-        if (args.null()) {
+        if (args.is_null()) {
           return request.rpc_error("\"Failed to parse format request.\""_view);
         }
 

@@ -17,6 +17,7 @@ extern auto expected(int value, bool actual) -> void;
 extern auto expected(long long value, bool actual) -> void;
 extern auto expected(unsigned long value, bool actual) -> void;
 extern auto expected(unsigned long long value, bool actual) -> void;
+extern auto expected(double value, bool actual) -> void;
 extern auto expected_text(const unsigned char* value,
                           unsigned long long size,
                           bool actual) -> void;
