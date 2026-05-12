@@ -22,7 +22,7 @@ struct PhiloxState {
       SignedBits_64(0x00000000'D2511F53),
       SignedBits_64(0x00000000'CD9E8D57),
       SignedBits_64(0x00000000'D2511F53),
-      SignedBits_64(0x00000000'CD9E8D57), );
+      SignedBits_64(0x00000000'CD9E8D57));
   static constexpr __m256i philox4x32_xor_mask = _mm256_set_epi64x(
       SignedBits_64(0xFFFFFFFF'00000000),
       SignedBits_64(0xFFFFFFFF'00000000),
