@@ -3,23 +3,23 @@
 
 #pragma once
 
-#include "perimortem/core/data.hpp"
 #include "perimortem/core/static/bytes.hpp"
 #include "perimortem/core/static/vector.hpp"
+#include "perimortem/core/data.hpp"
 
 namespace Perimortem::System {
 
 class Uuid {
   static constexpr auto ascii_to_nibble(Byte byte) -> Bits_64 {
     switch (byte) {
-      case '0' ... '9':
-        return byte - '0';
-      case 'a' ... 'f':
-        return byte - 'a' + 10;
-      case 'A' ... 'F':
-        return byte - 'A' + 10;
-      default:
-        return 0;
+    case '0' ... '9':
+      return byte - '0';
+    case 'a' ... 'f':
+      return byte - 'a' + 10;
+    case 'A' ... 'F':
+      return byte - 'A' + 10;
+    default:
+      return 0;
     }
   }
 

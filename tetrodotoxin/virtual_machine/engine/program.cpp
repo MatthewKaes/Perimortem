@@ -11,8 +11,9 @@
 using namespace Tetrodotoxin::Types;
 
 Program::Program(Bool include_std_lib) {
-  if (!include_std_lib)
+  if (!include_std_lib) {
     return;
+  }
 
   external_abstracts[Byt::instance().get_name()] = &Byt::instance();
   external_abstracts[Dec::instance().get_name()] = &Dec::instance();

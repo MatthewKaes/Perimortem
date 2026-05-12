@@ -3,7 +3,6 @@
 
 #pragma once
 
-
 #include "perimortem/core/perimortem.hpp"
 
 namespace Tetrodotoxin::Lexical {

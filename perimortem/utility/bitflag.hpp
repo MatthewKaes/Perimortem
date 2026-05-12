@@ -13,9 +13,9 @@ class BitFlag {
   using storage_type = Bits_64;
 
   constexpr auto convert_flag(flag_source flag) const -> storage_type {
-    if (flag == static_cast<flag_source>(-1))
+    if (flag == static_cast<flag_source>(-1)) {
       return 0;
-    else {
+    } else {
       return static_cast<storage_type>(1) << static_cast<storage_type>(flag);
     }
   }

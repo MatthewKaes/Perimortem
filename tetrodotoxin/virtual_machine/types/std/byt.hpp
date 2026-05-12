@@ -3,13 +3,14 @@
 
 #pragma once
 
-#include "types/abstract.hpp"
-
 #include "perimortem/memory/managed/singleton.hpp"
+
+#include "types/abstract.hpp"
 
 namespace Tetrodotoxin::Types {
 
-class Byt : public Abstract, public Perimortem::Memory::Managed::Singleton<Byt> {
+class Byt : public Abstract,
+            public Perimortem::Memory::Managed::Singleton<Byt> {
  public:
   static constexpr uint32_t uuid = 0x586C9460;
   constexpr auto get_name() const -> Perimortem::Core::View::Bytes override {
@@ -22,7 +23,9 @@ class Byt : public Abstract, public Perimortem::Memory::Managed::Singleton<Byt> 
            "defined behavior.";
   };
   constexpr auto get_uuid() const -> uint32_t override { return uuid; };
-  constexpr virtual auto get_usage() const -> Usage override { return Usage::Constant; };
+  constexpr virtual auto get_usage() const -> Usage override {
+    return Usage::Constant;
+  };
   auto get_size() const -> uint32_t override { return sizeof(uint8_t); };
 };
 

@@ -3,9 +3,9 @@
 
 #pragma once
 
-#include "parser/context.hpp"
-
 #include "perimortem/memory/view/byte.hpp"
+
+#include "parser/context.hpp"
 
 namespace Tetrodotoxin::Parser::Visitor {
 

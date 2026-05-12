@@ -3,13 +3,13 @@
 
 #pragma once
 
+#include <filesystem>
+#include <unordered_map>
+
 #include "types/abstract.hpp"
 #include "types/func.hpp"
 #include "types/library.hpp"
 #include "types/name.hpp"
-
-#include <filesystem>
-#include <unordered_map>
 
 namespace Tetrodotoxin::Types {
 
@@ -32,8 +32,9 @@ class Program : public Abstract {
 
   auto resolve_context(std::string_view name) const
       -> const Abstract* override {
-    if (!path_registry.contains(name))
+    if (!path_registry.contains(name)) {
       return nullptr;
+    }
 
     return path_registry.at(name).get();
   }
@@ -41,8 +42,9 @@ class Program : public Abstract {
   // Program links any external to TTX symbols. This can in practice be viewed
   // as more or less the global namespace.
   auto resolve_scope(std::string_view name) const -> const Abstract* override {
-    if (external_abstracts.contains(name))
+    if (external_abstracts.contains(name)) {
       return external_abstracts.at(name);
+    }
 
     return nullptr;
   }
@@ -52,8 +54,8 @@ class Program : public Abstract {
   auto resolve_host() const -> const Abstract* override { return nullptr; }
 
   auto expand_context(
-      const std::function<void(const Core::View::Bytes&,
-                               const Abstract* const&)>& fn) const
+      const std::function<
+          void(const Core::View::Bytes&, const Abstract* const&)>& fn) const
       -> void override {
     // Include all types compiled from path.
     for (const auto& named_pair : path_registry) {
@@ -70,8 +72,9 @@ class Program : public Abstract {
   // expected to either have static linkage, or the injected logic will
   // outlive the program.
   auto declare_external(const Abstract* abstract) -> Bool {
-    if (external_abstracts.contains(abstract->get_name()))
+    if (external_abstracts.contains(abstract->get_name())) {
       return false;
+    }
 
     external_abstracts[abstract->get_name()] = abstract;
   }
@@ -80,8 +83,9 @@ class Program : public Abstract {
   // then it will be unloaded and the new one will be used.
   auto create_compile_unit(std::filesystem::path name) -> Library& {
     name = std::filesystem::absolute(name);
-    if (path_registry.contains(name))
+    if (path_registry.contains(name)) {
       return *path_registry.at(name);
+    }
 
     path_registry[name] = std::make_unique<Library>();
     return *path_registry[name];

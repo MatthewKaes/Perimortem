@@ -56,39 +56,38 @@ class Hash {
     // code to manage makes it the preferred method.
     Bits_64 small_hash_value = 0;
     switch (bytes.get_size()) {
-      case 7:
-        small_hash_value |= static_cast<Bits_64>(data[6]) << 48;
-      case 6:
-        small_hash_value |= static_cast<Bits_64>(data[5]) << 40;
-      case 5:
-        small_hash_value |= static_cast<Bits_64>(data[4]) << 32;
-      case 4:
-        small_hash_value |= static_cast<Bits_64>(data[3]) << 24;
-      case 3:
-        small_hash_value |= static_cast<Bits_64>(data[2]) << 16;
-      case 2:
-        small_hash_value |= static_cast<Bits_64>(data[1]) << 8;
-      case 1: {
-        small_hash_value |= static_cast<Bits_64>(data[0]);
+    case 7:
+      small_hash_value |= static_cast<Bits_64>(data[6]) << 48;
+    case 6:
+      small_hash_value |= static_cast<Bits_64>(data[5]) << 40;
+    case 5:
+      small_hash_value |= static_cast<Bits_64>(data[4]) << 32;
+    case 4:
+      small_hash_value |= static_cast<Bits_64>(data[3]) << 24;
+    case 3:
+      small_hash_value |= static_cast<Bits_64>(data[2]) << 16;
+    case 2:
+      small_hash_value |= static_cast<Bits_64>(data[1]) << 8;
+    case 1: {
+      small_hash_value |= static_cast<Bits_64>(data[0]);
 
-        small_hash_value =
-            const_values[0] ^ (small_hash_value + const_values[3]);
-        small_hash_value *= const_values[2];
+      small_hash_value = const_values[0] ^ (small_hash_value + const_values[3]);
+      small_hash_value *= const_values[2];
 
-        // Avalanche the small hash.
-        value = small_hash_value ^ (bytes.get_size() * const_values[0]);
-        value ^= value >> 27;
-        value *= const_values[2];
-        value ^= value >> 33;
-        value *= const_values[4];
-        value ^= value >> 33;
-        return;
-      }
+      // Avalanche the small hash.
+      value = small_hash_value ^ (bytes.get_size() * const_values[0]);
+      value ^= value >> 27;
+      value *= const_values[2];
+      value ^= value >> 33;
+      value *= const_values[4];
+      value ^= value >> 33;
+      return;
+    }
 
-      // For empty set value to a const value;
-      case 0:
-        value = const_values[4];
-        return;
+    // For empty set value to a const value;
+    case 0:
+      value = const_values[4];
+      return;
     }
 
     // Prep blocks to prime cascade.
@@ -126,62 +125,62 @@ class Hash {
     // bytes with three possible cases:
     Count left_over = bytes.get_size() & (sizeof(Bits_64) * block_stride - 1);
     switch (left_over) {
-      // Case 1: We need to under read the higher 64bits and shift, then we can
-      //         fallthrough to case 2.
-      case 15:
-      case 14:
-      case 13:
-      case 12:
-      case 11:
-      case 10:
-      case 9: {
-        // Under read the buffer so we ensure we don't read outside of bounds.
-        Bits_64 remainder_tail[1];
-        memcpy_64(remainder_tail, data + left_over - sizeof(Bits_64));
+    // Case 1: We need to under read the higher 64bits and shift, then we can
+    //         fallthrough to case 2.
+    case 15:
+    case 14:
+    case 13:
+    case 12:
+    case 11:
+    case 10:
+    case 9: {
+      // Under read the buffer so we ensure we don't read outside of bounds.
+      Bits_64 remainder_tail[1];
+      memcpy_64(remainder_tail, data + left_over - sizeof(Bits_64));
 
-        // Shift out the extra bites
-        remainder_tail[0] >>= (sizeof(Bits_64) * 2 - left_over) * 8;
+      // Shift out the extra bites
+      remainder_tail[0] >>= (sizeof(Bits_64) * 2 - left_over) * 8;
 
-        result[1] ^= remainder_tail[0] + const_values[1];
-        result[1] *= const_values[2];
+      result[1] ^= remainder_tail[0] + const_values[1];
+      result[1] *= const_values[2];
 
-        [[fallthrough]];
-      }
+      [[fallthrough]];
+    }
 
-      // Case 2: We have exactly 8 bytes left so read them in a single read.
-      case 8: {
-        // Read the exact 8 bytes left over.
-        Bits_64 remainder[1];
-        memcpy_64(remainder, data);
+    // Case 2: We have exactly 8 bytes left so read them in a single read.
+    case 8: {
+      // Read the exact 8 bytes left over.
+      Bits_64 remainder[1];
+      memcpy_64(remainder, data);
 
-        result[0] ^= remainder[0] + const_values[3];
-        result[0] *= const_values[2];
-        break;
-      }
+      result[0] ^= remainder[0] + const_values[3];
+      result[0] *= const_values[2];
+      break;
+    }
 
-      // Case 4: The buffer was an exact multiple of 16 bytes.
-      case 7:
-      case 6:
-      case 5:
-      case 4:
-      case 3:
-      case 2:
-      case 1: {
-        // Read the exact 8 bytes left over.
-        Bits_64 remainder[1];
-        memcpy_64(remainder, data + left_over - sizeof(Bits_64));
+    // Case 4: The buffer was an exact multiple of 16 bytes.
+    case 7:
+    case 6:
+    case 5:
+    case 4:
+    case 3:
+    case 2:
+    case 1: {
+      // Read the exact 8 bytes left over.
+      Bits_64 remainder[1];
+      memcpy_64(remainder, data + left_over - sizeof(Bits_64));
 
-        // Shift out the extra bites
-        remainder[0] >>= (sizeof(Bits_64) - left_over) * 8;
+      // Shift out the extra bites
+      remainder[0] >>= (sizeof(Bits_64) - left_over) * 8;
 
-        result[0] ^= remainder[0] + const_values[3];
-        result[0] *= const_values[2];
-        break;
-      }
+      result[0] ^= remainder[0] + const_values[3];
+      result[0] *= const_values[2];
+      break;
+    }
 
-      // Case 4: The buffer was an exact multiple of 16 bytes.
-      case 0:
-        break;
+    // Case 4: The buffer was an exact multiple of 16 bytes.
+    case 0:
+      break;
     }
 
     // Perform final avalanche
@@ -246,14 +245,14 @@ class Hash {
   // Values may suffer from some overfitting to test data, but in practice
   // this setup seems to produce low collision rates per CPU cycle.
   static constexpr Bits_64 const_values[5] = {
-      0b00010101'01000101'10011011'00011001'10100101'11101101'01011101'10111011,
-      0b10101010'10100011'01100000'11001011'00110001'10100110'00001101'01011101,
-      0b00000000'00111011'11011100'01111101'11110101'11100110'00100001'01100101,
-      0b01111111'11001100'01110011'01001100'10101010'01001010'10010001'11011101,
-      0b00011111'11000010'00100001'01111001'00101110'01000000'11000001'10001001,
+    0b00010101'01000101'10011011'00011001'10100101'11101101'01011101'10111011,
+    0b10101010'10100011'01100000'11001011'00110001'10100110'00001101'01011101,
+    0b00000000'00111011'11011100'01111101'11110101'11100110'00100001'01100101,
+    0b01111111'11001100'01110011'01001100'10101010'01001010'10010001'11011101,
+    0b00011111'11000010'00100001'01111001'00101110'01000000'11000001'10001001,
   };
 
   Bits_64 value;
 };
 
-}  // namespace Perimortem::Utility::Func
+}  // namespace Perimortem::Core

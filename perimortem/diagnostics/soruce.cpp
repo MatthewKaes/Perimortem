@@ -14,12 +14,11 @@ auto Source::get_column() const -> Count {
 }
 
 auto Source::get_file() const -> Core::View::Bytes {
-  return Core::View::Bytes(reinterpret_cast<const Byte*>(abi.file),
-                           abi.file_size);
+  return Core::View::Bytes(
+      reinterpret_cast<const Byte*>(abi.file), abi.file_size);
 }
 
-
 auto Source::get_function() const -> Core::View::Bytes {
-  return Core::View::Bytes(reinterpret_cast<const Byte*>(abi.func),
-                           abi.func_size);
+  return Core::View::Bytes(
+      reinterpret_cast<const Byte*>(abi.func), abi.func_size);
 }

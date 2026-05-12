@@ -107,11 +107,12 @@ auto Dynamic::Bytes::convert(Byte source, Byte target) -> void {
 }
 
 auto Dynamic::Bytes::slice(Count start, Count size) const -> Core::View::Bytes {
-  if (start >= get_size())
+  if (start >= get_size()) {
     return Core::View::Bytes();
+  }
 
-  return Core::View::Bytes(source_block + start,
-                           Math::min(size, get_size() - start));
+  return Core::View::Bytes(
+      source_block + start, Math::min(size, get_size() - start));
 }
 
 auto Dynamic::Bytes::resize(Count new_size) -> void {
@@ -141,15 +142,17 @@ auto Dynamic::Bytes::forgetful_resize(Count required_size) -> void {
 }
 
 auto Dynamic::Bytes::operator[](Count index) const -> Byte {
-  if (index > size)
+  if (index > size) {
     return 0;
+  }
 
   return source_block[index];
 }
 
 auto Dynamic::Bytes::at(Count index) const -> Byte {
-  if (index > size)
+  if (index > size) {
     return 0;
+  }
 
   return source_block[index];
 }

@@ -14,7 +14,7 @@ class Alias {
       -> const Perimortem::Core::View::Bytes override {
     return type->resolve()->get_name();
   };
-  
+
   constexpr auto get_uuid() const -> uint32_t override { return uuid; };
   constexpr virtual auto get_usage() const -> Usage override { return usage; };
   auto get_size() const -> uint32_t override { return 0; };
@@ -34,18 +34,18 @@ class Alias {
   }
 
   auto expand_context(
-      const std::function<void(const Perimortem::Core::View::Bytes,
-                               const Abstract* const)>& fn) const
-      -> void override {
+      const std::function<
+          void(const Perimortem::Core::View::Bytes, const Abstract* const)>& fn)
+      const -> void override {
     return type->resolve()->expand_context(fn);
   }
 
   // An alias could redirect scope, but this can get real spicy really quickly,
   // so for now we don't let you alias scopes like functions or blocks.
   auto expand_scope(
-      const std::function<void(const Perimortem::Core::View::Bytes,
-                               const Abstract* const)>& fn) const
-      -> void override {
+      const std::function<
+          void(const Perimortem::Core::View::Bytes, const Abstract* const)>& fn)
+      const -> void override {
     // type->resolve()->expand_scope();
     return;
   }
@@ -56,4 +56,4 @@ class Alias {
   const Usage usage;
 };
 
-}  // namespace Tetrodotoxin::Types
+}  // namespace Tetrodotoxin::VirtualMachine::Types

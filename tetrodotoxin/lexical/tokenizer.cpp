@@ -3,24 +3,23 @@
 
 #include "tokenizer.hpp"
 
-#include "perimortem/core/static/narrow_resolver.hpp"
-
-#include "perimortem/core/perimortem.hpp"
-
 #include <cmath>
 #include <cstring>
 #include <sstream>
+
+#include "perimortem/core/static/narrow_resolver.hpp"
+#include "perimortem/core/perimortem.hpp"
 
 using namespace Perimortem::Memory;
 using namespace Tetrodotoxin::Lexical;
 
 constexpr auto is_whitespace(Byte c) -> Bool {
   switch (c) {
-    // Skip whitespace
-    case ' ':
-    case '\t':
-    case '\n':
-      return true;
+  // Skip whitespace
+  case ' ':
+  case '\t':
+  case '\n':
+    return true;
   }
 
   return false;
@@ -45,8 +44,9 @@ constexpr auto is_num(Byte c) -> Bool {
 
 // Used for tracking during parsing
 struct Context {
-  Context(const Core::View::Bytes source,
-          Perimortem::Memory::Managed::Vector<Token>& tokens)
+  Context(
+      const Core::View::Bytes source,
+      Perimortem::Memory::Managed::Vector<Token>& tokens)
       : source(source), tokens(tokens) {};
 
   Location loc;
@@ -60,21 +60,23 @@ inline auto can_parse(Context& context) -> Bool {
 }
 
 auto peak_ahead(Context& context, uint32_t amount) -> Byte {
-  if (context.loc.parse_index + amount >= context.source.get_size())
+  if (context.loc.parse_index + amount >= context.source.get_size()) {
     return 0;
+  }
 
   return context.source[context.loc.parse_index + amount];
 }
 
 auto parse_attribute(Context& context) -> void {
   // Consume all the valid tokens greedily
-  while (is_attribute(peak_ahead(context, 1)))
+  while (is_attribute(peak_ahead(context, 1))) {
     context.loc.parse_index++;
+  }
 
   context.loc.parse_index++;
-  const auto token =
-      context.source.slice(context.loc.source_index,
-                           context.loc.parse_index - context.loc.source_index);
+  const auto token = context.source.slice(
+      context.loc.source_index,
+      context.loc.parse_index - context.loc.source_index);
 
   // Compiler configuration
   if (!context.options.has(TtxState::DisableCommands)) {
@@ -86,8 +88,9 @@ auto parse_attribute(Context& context) -> void {
     }
   }
 
-  if (!token.empty())
+  if (!token.empty()) {
     context.tokens.insert({Classifier::Attribute, token, context.loc});
+  }
 
   context.loc.column += token.get_size();
 }
@@ -97,19 +100,22 @@ auto parse_comment(Context& context) -> void {
 
   // trim comment "//" and leading space.
   context.loc.parse_index += 2;
-  if (context.source[context.loc.parse_index] == ' ')
+  if (context.source[context.loc.parse_index] == ' ') {
     context.loc.parse_index++;
+  }
 
   uint32_t start_comment = context.loc.parse_index;
 
-  while (can_parse(context) && context.source[context.loc.parse_index] != '\n')
+  while (can_parse(context) &&
+         context.source[context.loc.parse_index] != '\n') {
     context.loc.parse_index++;
+  }
 
   context.tokens.insert(
       {Classifier::Comment,
-       context.source.slice(start_comment, context.loc.parse_index -
-                                               start_comment +
-                                               (can_parse(context) ? 1 : 0)),
+       context.source.slice(
+           start_comment, context.loc.parse_index - start_comment +
+                              (can_parse(context) ? 1 : 0)),
        context.loc});
 
   // No need for column validation as we are about to end the file or start a
@@ -119,16 +125,16 @@ auto parse_comment(Context& context) -> void {
 auto recursive_strip(Context& context) {
   while (can_parse(context)) {
     switch (context.source[context.loc.parse_index++]) {
-      case '\n':
-        context.loc.line += 1;
-        break;
-      case '}':
-        return;
-      case '{':
-        recursive_strip(context);
-        break;
-      default:
-        break;
+    case '\n':
+      context.loc.line += 1;
+      break;
+    case '}':
+      return;
+    case '{':
+      recursive_strip(context);
+      break;
+    default:
+      break;
     }
   }
 }
@@ -139,11 +145,12 @@ auto parse_disabled(Context& context, Bool strip_disabled) -> void {
 
   // Strip disabled lines if requested.
   if (!strip_disabled) {
-    context.tokens.insert({Classifier::Disabled,
-                           context.source.slice(context.loc.source_index,
-                                                context.loc.parse_index -
-                                                    context.loc.source_index),
-                           context.loc});
+    context.tokens.insert(
+        {Classifier::Disabled,
+         context.source.slice(
+             context.loc.source_index,
+             context.loc.parse_index - context.loc.source_index),
+         context.loc});
     context.loc.column += 2;
     context.options += TtxState::DisableCommands;
   } else {
@@ -172,8 +179,9 @@ auto parse_number(Context& context) -> void {
   while (is_num(val)) {
     context.loc.parse_index++;
     if (val == '.') {
-      if (found_dec)
+      if (found_dec) {
         break;
+      }
 
       found_dec = true;
       klass = Classifier::Float;
@@ -186,60 +194,65 @@ auto parse_number(Context& context) -> void {
   context.loc.parse_index++;
   context.tokens.insert(
       {klass,
-       context.source.slice(context.loc.source_index,
-                            context.loc.parse_index - context.loc.source_index),
+       context.source.slice(
+           context.loc.source_index,
+           context.loc.parse_index - context.loc.source_index),
        context.loc});
   context.loc.column += context.loc.parse_index - context.loc.source_index;
 }
 
 auto parse_type(Context& context) -> void {
   // Can't be a number since that's handle in the main switch.
-  while (is_class(peak_ahead(context, 1)))
+  while (is_class(peak_ahead(context, 1))) {
     context.loc.parse_index++;
+  }
 
   // Consume the peak_ahead
   context.loc.parse_index++;
   context.tokens.insert(
       {Classifier::Type,
-       context.source.slice(context.loc.source_index,
-                            context.loc.parse_index - context.loc.source_index),
+       context.source.slice(
+           context.loc.source_index,
+           context.loc.parse_index - context.loc.source_index),
        context.loc});
   context.loc.column += context.loc.parse_index - context.loc.source_index;
 }
 
-static inline constexpr auto check_keyword(Core::View::Bytes value,
-                                           Classifier default_value)
-    -> Classifier {
+static inline constexpr auto check_keyword(
+    Core::View::Bytes value,
+    Classifier default_value) -> Classifier {
   static constexpr View::Table<Classifier>::Entry data[] = {
-      {"as"_view, Classifier::As},
-      {"if"_view, Classifier::If},
-      {"for"_view, Classifier::For},
-      {"new"_view, Classifier::New},
-      {"else"_view, Classifier::Else},
-      {"func"_view, Classifier::Func},
-      {"init"_view, Classifier::Init},
-      {"self"_view, Classifier::Self},
-      {"true"_view, Classifier::True},
-      {"alias"_view, Classifier::Alias},
-      {"debug"_view, Classifier::Debug},
-      {"error"_view, Classifier::Error},
-      {"false"_view, Classifier::False},
-      {"using"_view, Classifier::Using},
-      {"while"_view, Classifier::While},
-      {"entity"_view, Classifier::Entity},
-      {"object"_view, Classifier::Object},
-      {"return"_view, Classifier::Return},
-      {"struct"_view, Classifier::Struct},
-      {"library"_view, Classifier::Library},
-      {"on_load"_view, Classifier::OnLoad},
-      {"package"_view, Classifier::Package},
-      {"warning"_view, Classifier::Warning},
+    {"as"_view, Classifier::As},
+    {"if"_view, Classifier::If},
+    {"for"_view, Classifier::For},
+    {"new"_view, Classifier::New},
+    {"else"_view, Classifier::Else},
+    {"func"_view, Classifier::Func},
+    {"init"_view, Classifier::Init},
+    {"self"_view, Classifier::Self},
+    {"true"_view, Classifier::True},
+    {"alias"_view, Classifier::Alias},
+    {"debug"_view, Classifier::Debug},
+    {"error"_view, Classifier::Error},
+    {"false"_view, Classifier::False},
+    {"using"_view, Classifier::Using},
+    {"while"_view, Classifier::While},
+    {"entity"_view, Classifier::Entity},
+    {"object"_view, Classifier::Object},
+    {"return"_view, Classifier::Return},
+    {"struct"_view, Classifier::Struct},
+    {"library"_view, Classifier::Library},
+    {"on_load"_view, Classifier::OnLoad},
+    {"package"_view, Classifier::Package},
+    {"warning"_view, Classifier::Warning},
   };
 
   using keyword_resolver = Static::NarrowResolver<
       Classifier, sizeof(data) / sizeof(View::Table<Classifier>::Entry), data>;
 
-  static_assert(keyword_resolver::find_or_default("library"_view, Classifier::None) == Classifier::Library);
+  static_assert(
+      keyword_resolver::find_or_default("library"_view, Classifier::None) ==
+      Classifier::Library);
 
   return keyword_resolver::find_or_default(value, default_value);
 }
@@ -255,14 +268,15 @@ auto parse_identifier(Context& context) -> void {
     }
   }
 
-  while (is_identifier(peak_ahead(context, 1)))
+  while (is_identifier(peak_ahead(context, 1))) {
     context.loc.parse_index++;
+  }
 
   // Consume the peak_ahead
   context.loc.parse_index++;
-  const auto view =
-      context.source.slice(context.loc.source_index,
-                           context.loc.parse_index - context.loc.source_index);
+  const auto view = context.source.slice(
+      context.loc.source_index,
+      context.loc.parse_index - context.loc.source_index);
 
   // Can't be a number since that's handle in the main switch.
   Classifier klass = context.options.has(TtxState::ParamTokenizing)
@@ -273,19 +287,20 @@ auto parse_identifier(Context& context) -> void {
     // Check if we need to reclass as a keyword.
     klass = check_keyword(view, klass);
 
-    if (klass == Classifier::Func)
+    if (klass == Classifier::Func) {
       context.options += TtxState::ParamTokenizing;
+    }
   }
 
   context.tokens.insert({klass, view, context.loc});
   context.loc.column += context.loc.parse_index - context.loc.source_index;
 }
 
-#define SIMPLE_TOKEN(klass, len)                                      \
-  context.loc.parse_index += len;                                     \
-  tokens.insert({Classifier::klass,                                   \
-                 context.source.slice(context.loc.source_index, len), \
-                 context.loc});                                       \
+#define SIMPLE_TOKEN(klass, len)                                               \
+  context.loc.parse_index += len;                                              \
+  tokens.insert(                                                               \
+      {Classifier::klass, context.source.slice(context.loc.source_index, len), \
+       context.loc});                                                          \
   context.loc.column += len;
 
 #define PARSE_SIMPLE(token, klass) \
@@ -293,7 +308,8 @@ auto parse_identifier(Context& context) -> void {
     SIMPLE_TOKEN(klass, 1);        \
     break;
 
-auto Tokenizer::parse(const Core::View::Bytes source_, Bool strip_disabled) -> void {
+auto Tokenizer::parse(const Core::View::Bytes source_, Bool strip_disabled)
+    -> void {
   // Reset state
   source = source_;
   tokens.reset();
@@ -310,194 +326,196 @@ auto Tokenizer::parse(const Core::View::Bytes source_, Bool strip_disabled) -> v
   while (context.loc.parse_index < source.get_size()) {
     context.loc.source_index = context.loc.parse_index;
     switch (source[context.loc.parse_index]) {
-      // Newline handling
-      case '\n':
-        context.loc.line++;
-        context.loc.column = 1;
+    // Newline handling
+    case '\n':
+      context.loc.line++;
+      context.loc.column = 1;
+      context.loc.parse_index++;
+      context.options -= TtxState::DisableCommands;
+      break;
+
+      // Comment or divide
+    case '/':
+      if (peak_ahead(context, 1) == '/') {
+        parse_comment(context);
+        break;
+      } else if (peak_ahead(context, 1) == '>') {
+        parse_disabled(context, strip_disabled);
+        break;
+      } else {
+        SIMPLE_TOKEN(DivOp, 1);
+        break;
+      }
+
+      // Call, sub assign, or sub
+    case '-':
+      if (peak_ahead(context, 1) == '>') {
+        SIMPLE_TOKEN(CallOp, 2);
+        break;
+      } else if (peak_ahead(context, 1) == '=') {
+        SIMPLE_TOKEN(SubAssign, 2);
+        break;
+      } else {
+        SIMPLE_TOKEN(SubOp, 1);
+        break;
+      }
+
+      // Add assign or add
+    case '+':
+      if (peak_ahead(context, 1) == '=') {
+        SIMPLE_TOKEN(AddAssign, 2);
+        break;
+      } else {
+        SIMPLE_TOKEN(AddOp, 1);
+        break;
+      }
+
+      // Assign or equal
+    case '=':
+      if (peak_ahead(context, 1) == '=') {
+        SIMPLE_TOKEN(CmpOp, 2);
+        break;
+      } else {
+        SIMPLE_TOKEN(Assign, 1);
+        break;
+      }
+
+      // Less
+    case '<':
+      if (peak_ahead(context, 1) == '=') {
+        SIMPLE_TOKEN(LessEqOp, 2);
+        break;
+      } else {
+        SIMPLE_TOKEN(LessOp, 1);
+        break;
+      }
+
+      // Greater
+    case '>':
+      if (peak_ahead(context, 1) == '=') {
+        SIMPLE_TOKEN(GreaterEqOp, 2);
+        break;
+      } else {
+        SIMPLE_TOKEN(GreaterOp, 1);
+        break;
+      }
+
+      // Attribute
+    case '@':
+      parse_attribute(context);
+      break;
+
+      // Tested faster to unroll number parsing here in the switch rather than
+      // try and push it to the default.
+    case '0' ... '9':
+      parse_number(context);
+      break;
+
+      // Originally types had @ but it was clunky, so @ was moved to
+      // Attributes and all Types are simply capitalized.
+    case 'A' ... 'Z':
+      parse_type(context);
+      break;
+
+      // String
+    case '"':
+      context.loc.source_index = context.loc.parse_index;
+      context.loc.parse_index++;
+      while (can_parse(context) && source[context.loc.parse_index] != '\n' &&
+             (source[context.loc.parse_index] != '"' ||
+              source[context.loc.parse_index - 1] == '\\')) {
         context.loc.parse_index++;
-        context.options -= TtxState::DisableCommands;
-        break;
+      }
 
-        // Comment or divide
-      case '/':
-        if (peak_ahead(context, 1) == '/') {
-          parse_comment(context);
-          break;
-        } else if (peak_ahead(context, 1) == '>') {
-          parse_disabled(context, strip_disabled);
-          break;
-        } else {
-          SIMPLE_TOKEN(DivOp, 1);
-          break;
-        }
+      // Consume the closing quote if we found it.
+      if (can_parse(context) && source[context.loc.parse_index] == '"') {
+        context.loc.parse_index++;  // closing quote
+      }
 
-        // Call, sub assign, or sub
-      case '-':
-        if (peak_ahead(context, 1) == '>') {
-          SIMPLE_TOKEN(CallOp, 2);
-          break;
-        } else if (peak_ahead(context, 1) == '=') {
-          SIMPLE_TOKEN(SubAssign, 2);
-          break;
-        } else {
-          SIMPLE_TOKEN(SubOp, 1);
-          break;
-        }
+      tokens.insert(
+          {Classifier::String,
+           context.source.slice(
+               context.loc.source_index,
+               context.loc.parse_index - context.loc.source_index),
+           context.loc});
+      context.loc.column += context.loc.parse_index - context.loc.source_index;
+      break;
 
-        // Add assign or add
-      case '+':
-        if (peak_ahead(context, 1) == '=') {
-          SIMPLE_TOKEN(AddAssign, 2);
-          break;
-        } else {
-          SIMPLE_TOKEN(AddOp, 1);
-          break;
-        }
-
-        // Assign or equal
-      case '=':
-        if (peak_ahead(context, 1) == '=') {
-          SIMPLE_TOKEN(CmpOp, 2);
-          break;
-        } else {
-          SIMPLE_TOKEN(Assign, 1);
-          break;
-        }
-
-        // Less
-      case '<':
-        if (peak_ahead(context, 1) == '=') {
-          SIMPLE_TOKEN(LessEqOp, 2);
-          break;
-        } else {
-          SIMPLE_TOKEN(LessOp, 1);
-          break;
-        }
-
-        // Greater
-      case '>':
-        if (peak_ahead(context, 1) == '=') {
-          SIMPLE_TOKEN(GreaterEqOp, 2);
-          break;
-        } else {
-          SIMPLE_TOKEN(GreaterOp, 1);
-          break;
-        }
-
-        // Attribute
-      case '@':
-        parse_attribute(context);
-        break;
-
-        // Tested faster to unroll number parsing here in the switch rather than
-        // try and push it to the default.
-      case '0' ... '9':
-        parse_number(context);
-        break;
-
-        // Originally types had @ but it was clunky, so @ was moved to
-        // Attributes and all Types are simply capitalized.
-      case 'A' ... 'Z':
-        parse_type(context);
-        break;
-
-        // String
-      case '"':
-        context.loc.source_index = context.loc.parse_index;
-        context.loc.parse_index++;
-        while (can_parse(context) && source[context.loc.parse_index] != '\n' &&
-               (source[context.loc.parse_index] != '"' ||
-                source[context.loc.parse_index - 1] == '\\'))
-          context.loc.parse_index++;
-
-        // Consume the closing quote if we found it.
-        if (can_parse(context) && source[context.loc.parse_index] == '"') {
-          context.loc.parse_index++;  // closing quote
-        }
-
-        tokens.insert({Classifier::String,
-                       context.source.slice(
-                           context.loc.source_index,
-                           context.loc.parse_index - context.loc.source_index),
-                       context.loc});
-        context.loc.column +=
-            context.loc.parse_index - context.loc.source_index;
-        break;
-
-        // Index start or tags
-      case '[':
-        if (context.loc.parse_index + tag_size >= source.get_size()) {
-          SIMPLE_TOKEN(IndexStart, 1);
-          break;
-        } else if (std::memcmp(
-                       "[***]",
-                       context.source.get_data() + context.loc.parse_index,
-                       tag_size) == 0) {
-          SIMPLE_TOKEN(Temporary, tag_size);
-          break;
-        } else if (std::memcmp(
-                       "[=>>]",
-                       context.source.get_data() + context.loc.parse_index,
-                       tag_size) == 0) {
-          SIMPLE_TOKEN(Dynamic, tag_size);
-          break;
-        } else if (std::memcmp(
-                       "[=!=]",
-                       context.source.get_data() + context.loc.parse_index,
-                       tag_size) == 0) {
-          SIMPLE_TOKEN(Hidden, tag_size);
-          break;
-        } else if (std::memcmp(
-                       "[=/=]",
-                       context.source.get_data() + context.loc.parse_index,
-                       tag_size) == 0) {
-          SIMPLE_TOKEN(Constant, tag_size);
-          break;
-        }
-
+      // Index start or tags
+    case '[':
+      if (context.loc.parse_index + tag_size >= source.get_size()) {
         SIMPLE_TOKEN(IndexStart, 1);
         break;
-
-      case ')':
-        context.loc.parse_index += 1;
-        tokens.insert({Classifier::GroupEnd,
-                       context.source.slice(context.loc.source_index, 1),
-                       context.loc});
-        context.loc.column += 1;
-        context.options -=
-            TtxState::ParamTokenizing;  // disable function parsing.
+      } else if (
+          std::memcmp(
+              "[***]", context.source.get_data() + context.loc.parse_index,
+              tag_size) == 0) {
+        SIMPLE_TOKEN(Temporary, tag_size);
         break;
-
-      // leading underscores force an indentifier so we can optimize for that
-      // case.
-      case '_':
-        parse_identifier<true>(context);
+      } else if (
+          std::memcmp(
+              "[=>>]", context.source.get_data() + context.loc.parse_index,
+              tag_size) == 0) {
+        SIMPLE_TOKEN(Dynamic, tag_size);
         break;
-
-        // Simple spot tokens
-        PARSE_SIMPLE('{', ScopeStart);
-        PARSE_SIMPLE('}', ScopeEnd);
-        PARSE_SIMPLE('(', GroupStart);
-        PARSE_SIMPLE(']', IndexEnd);
-        PARSE_SIMPLE('*', MulOp);
-        PARSE_SIMPLE('%', ModOp);
-        PARSE_SIMPLE('&', AndOp);
-        PARSE_SIMPLE('|', OrOp);
-        PARSE_SIMPLE('.', AccessOp);
-        PARSE_SIMPLE('!', NotOp);
-        PARSE_SIMPLE(',', Seperator);
-        PARSE_SIMPLE(':', Define);
-        PARSE_SIMPLE(';', EndStatement);
-
-      default:
-        // Parse an identifier that could be a keyword.
-        parse_identifier<false>(context);
+      } else if (
+          std::memcmp(
+              "[=!=]", context.source.get_data() + context.loc.parse_index,
+              tag_size) == 0) {
+        SIMPLE_TOKEN(Hidden, tag_size);
         break;
+      } else if (
+          std::memcmp(
+              "[=/=]", context.source.get_data() + context.loc.parse_index,
+              tag_size) == 0) {
+        SIMPLE_TOKEN(Constant, tag_size);
+        break;
+      }
+
+      SIMPLE_TOKEN(IndexStart, 1);
+      break;
+
+    case ')':
+      context.loc.parse_index += 1;
+      tokens.insert(
+          {Classifier::GroupEnd,
+           context.source.slice(context.loc.source_index, 1), context.loc});
+      context.loc.column += 1;
+      context.options -=
+          TtxState::ParamTokenizing;  // disable function parsing.
+      break;
+
+    // leading underscores force an indentifier so we can optimize for that
+    // case.
+    case '_':
+      parse_identifier<true>(context);
+      break;
+
+      // Simple spot tokens
+      PARSE_SIMPLE('{', ScopeStart);
+      PARSE_SIMPLE('}', ScopeEnd);
+      PARSE_SIMPLE('(', GroupStart);
+      PARSE_SIMPLE(']', IndexEnd);
+      PARSE_SIMPLE('*', MulOp);
+      PARSE_SIMPLE('%', ModOp);
+      PARSE_SIMPLE('&', AndOp);
+      PARSE_SIMPLE('|', OrOp);
+      PARSE_SIMPLE('.', AccessOp);
+      PARSE_SIMPLE('!', NotOp);
+      PARSE_SIMPLE(',', Seperator);
+      PARSE_SIMPLE(':', Define);
+      PARSE_SIMPLE(';', EndStatement);
+
+    default:
+      // Parse an identifier that could be a keyword.
+      parse_identifier<false>(context);
+      break;
     }
   }
 
   // End of file
   options = context.options;
   context.loc.source_index = ++context.loc.parse_index;
-  context.tokens.insert({Classifier::EndOfStream, Core::View::Bytes(), context.loc});
+  context.tokens.insert(
+      {Classifier::EndOfStream, Core::View::Bytes(), context.loc});
 }

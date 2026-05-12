@@ -3,8 +3,8 @@
 
 #pragma once
 
-#include "perimortem/core/access/vector.hpp"
 #include "perimortem/core/view/vector.hpp"
+#include "perimortem/core/access/vector.hpp"
 
 namespace Perimortem::Core::Static {
 // Typically used for small value type arrays.
@@ -24,7 +24,9 @@ class Vector {
   constexpr operator Core::View::Vector<type>() const { return get_view(); }
   constexpr operator Core::Access::Vector<type>() { return get_access(); }
 
-  constexpr auto operator[](Count index) -> type& { return source_block[index]; }
+  constexpr auto operator[](Count index) -> type& {
+    return source_block[index];
+  }
 
   constexpr auto operator[](Count index) const -> const type& {
     return source_block[index];

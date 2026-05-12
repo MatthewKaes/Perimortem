@@ -3,8 +3,8 @@
 
 #pragma once
 
-#include "perimortem/core/access/bytes.hpp"
 #include "perimortem/core/view/bytes.hpp"
+#include "perimortem/core/access/bytes.hpp"
 
 namespace Perimortem::Serialization::Textual {
 

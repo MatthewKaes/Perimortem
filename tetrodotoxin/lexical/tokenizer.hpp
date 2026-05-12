@@ -3,11 +3,11 @@
 
 #pragma once
 
-#include "perimortem/memory/view/bitflag.hpp"
+#include "perimortem/core/view/bytes.hpp"
 
 #include "perimortem/memory/allocator/arena.hpp"
 #include "perimortem/memory/managed/vector.hpp"
-#include "perimortem/core/view/bytes.hpp"
+#include "perimortem/memory/view/bitflag.hpp"
 #include "perimortem/memory/view/vector.hpp"
 
 #include "token.hpp"
@@ -35,14 +35,11 @@ class Tokenizer {
   using Tokens = Perimortem::Core::View::Vector<Token>;
 
   Tokenizer(Perimortem::Memory::Allocator::Arena& arena) : tokens(arena) {}
-  
-  auto parse(Perimortem::Core::View::Bytes source,
-             Bool strip_disabled = true) -> void;
 
-  inline constexpr auto get_tokens() const
-      -> const Tokens {
-    return tokens;
-  };
+  auto parse(Perimortem::Core::View::Bytes source, Bool strip_disabled = true)
+      -> void;
+
+  inline constexpr auto get_tokens() const -> const Tokens { return tokens; };
 
   // The tokenizer is empty if it has 0 or 1 (EndOfStream) tokens.
   inline constexpr auto empty() const -> Bool { return tokens.get_size() <= 1; }

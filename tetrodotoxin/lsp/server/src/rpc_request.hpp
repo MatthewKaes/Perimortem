@@ -3,10 +3,11 @@
 
 #pragma once
 
+#include "perimortem/core/view/bytes.hpp"
+
 #include "perimortem/memory/allocator/arena.hpp"
 #include "perimortem/memory/managed/table.hpp"
 #include "perimortem/memory/managed/vector.hpp"
-#include "perimortem/core/view/bytes.hpp"
 
 #include "storage/formats/json.hpp"
 #include "storage/formats/rpc_header.hpp"
@@ -24,8 +25,9 @@ using RpcResponse = Perimortem::Storage::Json::Node;
 
 class RpcRequest {
  public:
-  RpcRequest(Perimortem::Memory::Allocator::Arena& arena,
-             const Perimortem::Core::View::Bytes source)
+  RpcRequest(
+      Perimortem::Memory::Allocator::Arena& arena,
+      const Perimortem::Core::View::Bytes source)
       : arena(arena), header(arena, source), source(source) {}
 
   auto load_params() -> void;
@@ -51,7 +53,8 @@ class RpcRequest {
   inline constexpr auto create_array(
       std::initializer_list<const Perimortem::Storage::Json::Node> items = {})
       const -> ReponseArray {
-    Perimortem::Memory::Managed::Vector<Perimortem::Storage::Json::Node>  array(arena);
+    Perimortem::Memory::Managed::Vector<Perimortem::Storage::Json::Node> array(
+        arena);
     for (const auto& item : items) {
       array.insert(item);
     }
@@ -69,7 +72,9 @@ class RpcRequest {
     return source;
   }
 
-  auto get_arena() const -> Perimortem::Memory::Allocator::Arena& { return arena; }
+  auto get_arena() const -> Perimortem::Memory::Allocator::Arena& {
+    return arena;
+  }
 
  private:
   Perimortem::Memory::Allocator::Arena& arena;

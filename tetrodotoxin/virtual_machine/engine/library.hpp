@@ -3,17 +3,17 @@
 
 #pragma once
 
-#include "types/abstract.hpp"
-#include "types/func.hpp"
-#include "types/name.hpp"
+#include <filesystem>
+
+#include "perimortem/core/view/bytes.hpp"
 
 #include "perimortem/memory/allocator/arena.hpp"
-#include "perimortem/core/view/bytes.hpp"
 #include "perimortem/memory/managed/table.hpp"
 
 #include "lexical/tokenizer.hpp"
-
-#include <filesystem>
+#include "types/abstract.hpp"
+#include "types/func.hpp"
+#include "types/name.hpp"
 
 namespace Tetrodotoxin::Types {
 
@@ -37,40 +37,45 @@ class Library : public Abstract {
   auto resolve_context(Perimortem::Core::View::Bytes name) const
       -> const Abstract* override {
     auto abstract = name_index.at(name);
-    if (abstract)
+    if (abstract) {
       return *abstract;
+    }
     return nullptr;
   }
 
   // The scope of the library is just it's top level context.
-  auto resolve_scope(Perimortem::Core::View::Bytes name) const -> const Abstract* override {
+  auto resolve_scope(Perimortem::Core::View::Bytes name) const
+      -> const Abstract* override {
     auto abstract = name_index.at(name);
-    if (abstract)
+    if (abstract) {
       return *abstract;
+    }
     return nullptr;
   }
 
   // Return all references in this scope (locals and arguments)
   virtual auto expand_context(
-      const std::function<void(const Perimortem::Core::View::Bytes&,
-                               const Abstract* const&)>& fn)
-      const -> void override {
+      const std::function<
+          void(const Perimortem::Core::View::Bytes&, const Abstract* const&)>&
+          fn) const -> void override {
     name_index.apply(fn);
   }
 
   // Return all references in this scope (locals and arguments)
   virtual auto expand_scope(
-      const std::function<void(const Perimortem::Core::View::Bytes&,
-                               const Abstract* const&)>& fn) const
-      -> void override {
+      const std::function<
+          void(const Perimortem::Core::View::Bytes&, const Abstract* const&)>&
+          fn) const -> void override {
     expand_context(fn);
   }
 
   // Trys to create a name. Returns the conflict
-  auto create_name(const Perimortem::Core::View::Bytes& name,
-                   const Abstract& abstract) -> Bool {
-    if (name_index.contains(name))
+  auto create_name(
+      const Perimortem::Core::View::Bytes& name,
+      const Abstract& abstract) -> Bool {
+    if (name_index.contains(name)) {
       return false;
+    }
 
     name_index.insert(name, &abstract);
     return true;

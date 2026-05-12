@@ -1,0 +1,66 @@
+# http://clang.llvm.org/docs/ClangFormatStyleOptions.html
+BasedOnStyle: Chromium
+Standard: Latest
+
+InsertBraces: true
+InsertNewlineAtEOF: true
+KeepEmptyLines:
+  AtEndOfFile: false
+  AtStartOfBlock: false
+  AtStartOfFile: false
+# InsertTrailingCommas: Wrapped
+
+IncludeBlocks: Regroup
+IncludeCategories:
+  # Put validation at the top to make it clear it's a test file.
+  - Regex:      '"validation/.*\.hpp"'
+    Priority:   1
+  # When including the C++ standard library the headers need to be included
+  # first so Perimortem can configure itself to not stub out the standard library.
+  - Regex:      '^<.*>'
+    Priority:   2
+  # Perimortem headers
+  - Regex:      'perimortem/core/view/.*'
+    Priority:      4
+    SortPriority:  4
+  - Regex:      'perimortem/core/access/.*'
+    Priority:      4
+    SortPriority:  5
+  - Regex:      'perimortem/core/static/.*'
+    Priority:      4
+    SortPriority:  6
+  - Regex:      'perimortem/core/.*' 
+    Priority:      4
+    SortPriority:  7
+  - Regex:      'perimortem/memory/.*' 
+    Priority:      8
+  - Regex:      'perimortem/system/.*' 
+    Priority:      9
+    SortPriority:  9
+  - Regex:      'perimortem/serialization/.*' 
+    Priority:      9
+    SortPriority:  10
+  - Regex:      'perimortem/utility/.*' 
+    Priority:      19
+  # Other C system headers.
+  - Regex:      '^<.*\.h>'
+    Priority:   20
+  # Other libraries.
+  - Regex:      '.*'
+    Priority:   25
+
+Cpp11BracedListStyle: FunctionCall
+
+IndentCaseBlocks: false
+IndentCaseLabels: false
+IndentExternBlock: false
+IndentWrappedFunctionNames: true
+NamespaceIndentation: None
+
+MaxEmptyLinesToKeep: 1
+
+BinPackArguments: true
+BinPackParameters: OnePerLine
+PackConstructorInitializers: NextLine
+AlignAfterOpenBracket: AlwaysBreak
+BracedInitializerIndentWidth: 2

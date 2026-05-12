@@ -1,15 +1,18 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
+#include "perimortem/system/file.hpp"
+
 #include "validation/unit_test.hpp"
 
-#include "perimortem/core/bibliotheca.hpp"
-#include "perimortem/core/static/vector.hpp"
-#include "perimortem/system/file.hpp"
-#include "perimortem/system/random.hpp"
-#include "perimortem/utility/null_terminated.hpp"
-
 #include <stdio.h>
+
+#include "perimortem/core/static/vector.hpp"
+#include "perimortem/core/bibliotheca.hpp"
+
+#include "perimortem/system/random.hpp"
+
+#include "perimortem/utility/null_terminated.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -27,24 +30,23 @@ constexpr auto json_contents =
     "\"member\":\"value\"}"_view;
 
 Test::Harness SystemFile = {
-    // Harness to try and make file management at least some what "hermetic"
-    .name = "System::File",
-    .setup =
-        []() {
-          auto file_src = fopen(test_file_c_str, "wb");
-          if (!file_src) {
-            return;
-          }
+  // Harness to try and make file management at least some what "hermetic"
+  .name = "System::File",
+  .setup =
+      []() {
+        auto file_src = fopen(test_file_c_str, "wb");
+        if (!file_src) {
+          return;
+        }
 
-          fwrite(json_contents.get_data(), json_contents.get_size(), 1,
-                 file_src);
-          fclose(file_src);
-        },
-    .teardown =
-        []() {
-          remove(test_file_c_str);
-          remove(test_output_c_str);
-        }};
+        fwrite(json_contents.get_data(), json_contents.get_size(), 1, file_src);
+        fclose(file_src);
+      },
+  .teardown =
+      []() {
+        remove(test_file_c_str);
+        remove(test_output_c_str);
+      }};
 
 PERIMORTEM_UNIT_TEST(SystemFile, empty_file) {
   auto start_requests = Bibliotheca::check_out_requests();
@@ -140,11 +142,11 @@ PERIMORTEM_UNIT_TEST(SystemFile, sync_empty_empty) {
   File file;
 
   // Syncing invalid files to an empty location is a no-op.
-  ASSERT_EQ((Bits_8)file.sync_status(test_output),
-            (Bits_8)File::State::Original);
+  ASSERT_EQ(
+      (Bits_8)file.sync_status(test_output), (Bits_8)File::State::Original);
   EXPECT_EQ((Bits_8)file.sync(test_output), (Bits_8)File::State::Original);
-  ASSERT_EQ((Bits_8)file.sync_status(test_output),
-            (Bits_8)File::State::Original);
+  ASSERT_EQ(
+      (Bits_8)file.sync_status(test_output), (Bits_8)File::State::Original);
 
   // Shouldn't be a file to remove
   EXPECT_EQ(File::remove(test_output), false);
@@ -163,8 +165,8 @@ PERIMORTEM_UNIT_TEST(SystemFile, sync_memory_empty) {
   // Syncing new content to an empty location is always a fresh write.
   ASSERT_EQ((Bits_8)file.sync_status(test_output), (Bits_8)File::State::Create);
   EXPECT_EQ((Bits_8)file.sync(test_output), (Bits_8)File::State::Original);
-  ASSERT_EQ((Bits_8)file.sync_status(test_output),
-            (Bits_8)File::State::Original);
+  ASSERT_EQ(
+      (Bits_8)file.sync_status(test_output), (Bits_8)File::State::Original);
 
   // Should create a file which can be removed.
   EXPECT_EQ(File::remove(test_file), true);
@@ -179,11 +181,11 @@ PERIMORTEM_UNIT_TEST(SystemFile, sync_directory) {
   File file;
 
   // Syncing to a non file is always invalid.
-  ASSERT_EQ((Bits_8)file.sync_status(test_directory),
-            (Bits_8)File::State::Invalid);
+  ASSERT_EQ(
+      (Bits_8)file.sync_status(test_directory), (Bits_8)File::State::Invalid);
   EXPECT_EQ((Bits_8)file.sync(test_directory), (Bits_8)File::State::Invalid);
-  ASSERT_EQ((Bits_8)file.sync_status(test_directory),
-            (Bits_8)File::State::Invalid);
+  ASSERT_EQ(
+      (Bits_8)file.sync_status(test_directory), (Bits_8)File::State::Invalid);
 
   // Data should be invalid after.
   EXPECT_EQ(file.is_valid(), false);
@@ -218,8 +220,8 @@ PERIMORTEM_UNIT_TEST(SystemFile, sync_read_and_write) {
   // Now have data to sync to new location
   ASSERT_EQ((Bits_8)file.sync_status(test_output), (Bits_8)File::State::Create);
   ASSERT_EQ((Bits_8)file.sync(test_output), (Bits_8)File::State::Original);
-  ASSERT_EQ((Bits_8)file.sync_status(test_output),
-            (Bits_8)File::State::Original);
+  ASSERT_EQ(
+      (Bits_8)file.sync_status(test_output), (Bits_8)File::State::Original);
 
   // File points to a new location so it's in conflict compared to original
   // source, even though the contents are the same.

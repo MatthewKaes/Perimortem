@@ -2,13 +2,13 @@
 // Copyright © Matt Kaes
 
 #include "parser/script.hpp"
+
+#include <filesystem>
+
 #include "parser/context.hpp"
 #include "parser/visitor/attribute.hpp"
 #include "parser/visitor/comment.hpp"
-
 #include "types/library.hpp"
-
-#include <filesystem>
 
 using namespace Perimortem::Memory;
 using namespace Tetrodotoxin::Lexical;
@@ -17,8 +17,9 @@ using namespace Tetrodotoxin::Types;
 
 auto detect_package_type(Context& ctx) -> void {
   auto token = &ctx.current();
-  if (!ctx.check_klass(Classifier::Package))
+  if (!ctx.check_klass(Classifier::Package)) {
     return;
+  }
 
   token = &ctx.advance();
 
@@ -26,8 +27,9 @@ auto detect_package_type(Context& ctx) -> void {
     ctx.library.set_entity(true);
   } else if (token->klass != Classifier::Library) {
     ctx.token_error(
-        std::format("Unknown package type `{}`, defaulting to `library`.",
-                    token->data.get_view()));
+        std::format(
+            "Unknown package type `{}`, defaulting to `library`.",
+            token->data.get_view()));
   };
   ctx.advance();
 
@@ -41,10 +43,11 @@ auto detect_package_type(Context& ctx) -> void {
 
 // Registers a name, note for error reporting the ctx state is assumed to be
 // right after parsing the provided abstract.
-auto register_name(Context& ctx,
-                   const Token& start_token,
-                   const Core::View::Bytes& name,
-                   const Abstract& abstract) {
+auto register_name(
+    Context& ctx,
+    const Token& start_token,
+    const Core::View::Bytes& name,
+    const Abstract& abstract) {
   if (!ctx.library.create_name(name, abstract)) {
     ctx.range_error(
         std::format("Name '{}' has already been declared.", name.get_view()),
@@ -52,10 +55,11 @@ auto register_name(Context& ctx,
   }
 }
 
-auto Script::parse(Types::Program& host,
-                   Errors& errors,
-                   const std::filesystem::path& source_map,
-                   const std::string_view& source) -> Types::Library& {
+auto Script::parse(
+    Types::Program& host,
+    Errors& errors,
+    const std::filesystem::path& source_map,
+    const std::string_view& source) -> Types::Library& {
   auto& library = host.create_compile_unit(source_map);
   library.load(source, optimize);
   Context ctx(library, source_map, errors);
@@ -85,33 +89,33 @@ auto Script::parse(Types::Program& host,
 
   while (token->valid()) {
     switch (token->klass) {
-      // Comment in Tetrodotoxin are not allowed to be free and must be attached
-      // to a context. Free comments are an error and will be dropped from the
-      // context.
-      case Classifier::Comment:
-        comment_start = &ctx.current();
-        documentation = Visitor::parse_comment(ctx);
-        token = &ctx.advance();
-        continue;
+    // Comment in Tetrodotoxin are not allowed to be free and must be attached
+    // to a context. Free comments are an error and will be dropped from the
+    // context.
+    case Classifier::Comment:
+      comment_start = &ctx.current();
+      documentation = Visitor::parse_comment(ctx);
+      token = &ctx.advance();
+      continue;
 
-      case Classifier::Attribute: {
-        auto attribute = Visitor::parse_attribute(ctx);
-        attribute.doc = documentation;
-        documentation.clear();
+    case Classifier::Attribute: {
+      auto attribute = Visitor::parse_attribute(ctx);
+      attribute.doc = documentation;
+      documentation.clear();
 
-        register_name(ctx, *token, attribute.name, attribute);
+      register_name(ctx, *token, attribute.name, attribute);
 
-        // Attribute for setting the package name.
-        if (attribute.name == "@Name"_bv) {
-          library.set_name(attribute.value);
-        }
-        break;
+      // Attribute for setting the package name.
+      if (attribute.name == "@Name"_bv) {
+        library.set_name(attribute.value);
       }
+      break;
+    }
 
-      default:
-        // Ignore for now...
-        documentation.clear();
-        break;
+    default:
+      // Ignore for now...
+      documentation.clear();
+      break;
     }
     token = &ctx.advance();
 

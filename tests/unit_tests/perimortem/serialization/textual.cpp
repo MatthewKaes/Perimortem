@@ -4,7 +4,9 @@
 #include "validation/unit_test.hpp"
 
 #include "perimortem/core/static/vector.hpp"
+
 #include "perimortem/serialization/textual/stream.hpp"
+
 #include "perimortem/utility/null_terminated.hpp"
 
 using namespace Perimortem::Core;
@@ -78,7 +80,8 @@ PERIMORTEM_UNIT_TEST(SerializationTextual, floats) {
   writer << Real_32(-2012.78102) << Real_64(-2012.78102);
 
   EXPECT_EQ(writer.is_valid(), true);
-  EXPECT_TEXT(buffer.get_view(), "12.080.0000812-2012.7810058-2012.78102\0\0"_view);
+  EXPECT_TEXT(
+      buffer.get_view(), "12.080.0000812-2012.7810058-2012.78102\0\0"_view);
 }
 
 PERIMORTEM_UNIT_TEST(SerializationTextual, multiple_writers) {

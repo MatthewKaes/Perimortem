@@ -3,25 +3,25 @@
 
 #pragma once
 
-#include "parser/error.hpp"
-#include "lexical/tokenizer.hpp"
-
-#include "types/library.hpp"
-#include "types/program.hpp"
-
 #include <memory>
 #include <string>
 #include <unordered_map>
+
+#include "lexical/tokenizer.hpp"
+#include "parser/error.hpp"
+#include "types/library.hpp"
+#include "types/program.hpp"
 
 namespace Tetrodotoxin::Parser {
 
 class Script {
  public:
   Script(Bool optimize) : optimize(optimize) {}
-  auto parse(Types::Program& host,
-             Errors& errors,
-             const std::filesystem::path& source_map,
-             const std::string_view& source) -> Types::Library&;
+  auto parse(
+      Types::Program& host,
+      Errors& errors,
+      const std::filesystem::path& source_map,
+      const std::string_view& source) -> Types::Library&;
 
  private:
   Bool optimize;

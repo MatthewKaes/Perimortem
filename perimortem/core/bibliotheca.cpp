@@ -300,8 +300,8 @@ auto Bibliotheca::check_out(Count requested_bytes) -> Allocation {
     entry->reservations = 1;
     entry->block_size = actual_bytes - sizeof(Preface);
     entry->next = nullptr;
-    return Allocation{.ptr = preface_to_corpus(entry),
-                      .capacity = entry->get_usable_bytes()};
+    return Allocation{
+      .ptr = preface_to_corpus(entry), .capacity = entry->get_usable_bytes()};
   }
 
   Preface* entry = secret_archive.collections[archive_index].initial_entry;
@@ -311,8 +311,8 @@ auto Bibliotheca::check_out(Count requested_bytes) -> Allocation {
   // Rehydrate the reservation data.
   entry->reservations = 1;
   entry->next = nullptr;
-  return Allocation{.ptr = preface_to_corpus(entry),
-                    .capacity = entry->get_usable_bytes()};
+  return Allocation{
+    .ptr = preface_to_corpus(entry), .capacity = entry->get_usable_bytes()};
 }
 
 auto Bibliotheca::reserve(Byte* data) -> Count {

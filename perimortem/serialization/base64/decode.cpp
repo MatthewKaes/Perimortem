@@ -2,9 +2,10 @@
 // Copyright © Matt Kaes
 
 #include "perimortem/serialization/base64/decode.hpp"
-#include "perimortem/core/bibliotheca.hpp"
 
 #include <x86intrin.h>
+
+#include "perimortem/core/bibliotheca.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -13,13 +14,13 @@ using namespace Perimortem::Serialization;
 // We truly can't have nice things... Still no proper support for c99
 // initializers.
 static constexpr Count decode_lookup[256] = {
-    0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
-    0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
-    0,  0,  0,  0,  0,  0,  0,  62, 0,  0,  0,  63, 52, 53, 54, 55, 56, 57,
-    58, 59, 60, 61, 0,  0,  0,  0,  0,  0,  0,  0,  1,  2,  3,  4,  5,  6,
-    7,  8,  9,  10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24,
-    25, 0,  0,  0,  0,  0,  0,  26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36,
-    37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51};
+  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
+  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
+  0,  0,  0,  0,  0,  0,  0,  62, 0,  0,  0,  63, 52, 53, 54, 55, 56, 57,
+  58, 59, 60, 61, 0,  0,  0,  0,  0,  0,  0,  0,  1,  2,  3,  4,  5,  6,
+  7,  8,  9,  10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24,
+  25, 0,  0,  0,  0,  0,  0,  26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36,
+  37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51};
 
 static_assert(decode_lookup['A'] == 0);
 static_assert(decode_lookup['B'] == 1);
@@ -70,8 +71,8 @@ auto Base64::decode(const View::Bytes source) -> Dynamic::Bytes {
 
   // Allocate the bytes with the full size + working buffer.
   Memory::Dynamic::Bytes bytes;
-  bytes.forgetful_resize(size + avx2_channel_width / source_stride +
-                         upper_lane_underwrite_buffer);
+  bytes.forgetful_resize(
+      size + avx2_channel_width / source_stride + upper_lane_underwrite_buffer);
 
   // The algorithm uses 8 bytes of the 16 byte underwrite buffer.
   Byte* text = bytes.get_access().get_data();
@@ -225,14 +226,28 @@ auto Base64::decode(const View::Bytes source) -> Dynamic::Bytes {
   // day. If you want data guarantees then use the slower version.
   const __m256i adjustment_values = _mm256_setr_epi8(
       // Lane 1
-      0, /* 'o' */ -71, 0, /* 'O' */ -65, 0, /* '/' */ +16, 0, 0,
-      /* 'p' - 'z' */ -71, /* 'a' - 'n' */ -71, /* 'P' - 'Z' */ -65,
-      /* 'A' - 'N' */ -65, /* 0 - 9 */ +4, /* + */ +19, 0, 0,
+      0,
+      /* 'o' */ -71, 0,
+      /* 'O' */ -65, 0,
+      /* '/' */ +16, 0, 0,
+      /* 'p' - 'z' */ -71,
+      /* 'a' - 'n' */ -71,
+      /* 'P' - 'Z' */ -65,
+      /* 'A' - 'N' */ -65,
+      /* 0 - 9 */ +4,
+      /* + */ +19, 0, 0,
 
       // Lane 2 (same as Lane 1)
-      0, /* 'o' */ -71, 0, /* 'O' */ -65, 0, /* '/' */ +16, 0, 0,
-      /* 'p' - 'z' */ -71, /* 'a' - 'n' */ -71, /* 'P' - 'Z' */ -65,
-      /* 'A' - 'N' */ -65, /* 0 - 9 */ +4, /* + */ +19, 0, 0);
+      0,
+      /* 'o' */ -71, 0,
+      /* 'O' */ -65, 0,
+      /* '/' */ +16, 0, 0,
+      /* 'p' - 'z' */ -71,
+      /* 'a' - 'n' */ -71,
+      /* 'P' - 'Z' */ -65,
+      /* 'A' - 'N' */ -65,
+      /* 0 - 9 */ +4,
+      /* + */ +19, 0, 0);
 
   const __m256i invert_mask = _mm256_setr_epi8(
       // Lane 1 - Note the 0xF case removes an extra bit.
@@ -263,8 +278,8 @@ auto Base64::decode(const View::Bytes source) -> Dynamic::Bytes {
 
     for (auto ymm = fused_channels - 1; ymm >= 0; ymm--) {
       // Load
-      const auto channel_value =
-          _mm256_loadu_si256(reinterpret_cast<const __m256i*>(
+      const auto channel_value = _mm256_loadu_si256(
+          reinterpret_cast<const __m256i*>(
               source_data + sizeof(__m256i) * ymm));
 
       // Bit hacking the lookup index
@@ -288,12 +303,12 @@ auto Base64::decode(const View::Bytes source) -> Dynamic::Bytes {
       // bbbbbb__ * 64 = ______bb bbbb____
       // Add multiplications:
       // AAAAAAbb bbbb____ CCCCCCdd dddd____
-      const __m256i multiply_by_64 =
-          _mm256_set_epi64x(0x0140014001400140, 0x0140014001400140,
-                            0x0140014001400140, 0x0140014001400140);
-      const __m256i multiply_by_4096 =
-          _mm256_set_epi64x(0x0001100000011000, 0x0001100000011000,
-                            0x0001100000011000, 0x0001100000011000);
+      const __m256i multiply_by_64 = _mm256_set_epi64x(
+          0x0140014001400140, 0x0140014001400140, 0x0140014001400140,
+          0x0140014001400140);
+      const __m256i multiply_by_4096 = _mm256_set_epi64x(
+          0x0001100000011000, 0x0001100000011000, 0x0001100000011000,
+          0x0001100000011000);
       const auto half_merged = _mm256_maddubs_epi16(bit_value, multiply_by_64);
 
       // Now do the same thing horizontally across 32 bit boundries which
@@ -317,9 +332,10 @@ auto Base64::decode(const View::Bytes source) -> Dynamic::Bytes {
 
       // Store lower lane directly at the correct position.
       const auto lower_lane = _mm256_castsi256_si128(lane_repack);
-      _mm_storeu_si128((__m128i*)(output_stream + 24 * ymm -
-                                  upper_lane_underwrite_buffer / 2),
-                       lower_lane);
+      _mm_storeu_si128(
+          (__m128i*)(output_stream + 24 * ymm -
+                     upper_lane_underwrite_buffer / 2),
+          lower_lane);
     };
   }
 

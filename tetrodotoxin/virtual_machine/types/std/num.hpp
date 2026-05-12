@@ -3,13 +3,14 @@
 
 #pragma once
 
-#include "types/abstract.hpp"
-
 #include "perimortem/memory/managed/singleton.hpp"
+
+#include "types/abstract.hpp"
 
 namespace Tetrodotoxin::Types {
 
-class Num : public Abstract, public Perimortem::Memory::Managed::Singleton<Num> {
+class Num : public Abstract,
+            public Perimortem::Memory::Managed::Singleton<Num> {
  public:
   static constexpr uint32_t uuid = 0x586C9471;
   constexpr auto get_name() const -> std::string_view override {
@@ -21,7 +22,9 @@ class Num : public Abstract, public Perimortem::Memory::Managed::Singleton<Num> 
            "For increased percision you can yoused `Dec`.";
   };
   constexpr auto get_uuid() const -> uint32_t override { return uuid; };
-  constexpr virtual auto get_usage() const -> Usage override { return Usage::Constant; };
+  constexpr virtual auto get_usage() const -> Usage override {
+    return Usage::Constant;
+  };
   auto get_size() const -> uint32_t override { return sizeof(float); };
 };
 

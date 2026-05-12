@@ -2,12 +2,13 @@
 // Copyright © Matt Kaes
 
 #include "perimortem/system/file.hpp"
-#include "perimortem/core/data.hpp"
-#include "perimortem/math/basic.hpp"
 
 #include <stdio.h>
 #include <time.h>
 #include <x86intrin.h>
+
+#include "perimortem/core/data.hpp"
+#include "perimortem/core/math.hpp"
 
 constexpr Count nano_to_seconds = Count(1'000'000'000);
 constexpr Count max_path_size = 512;
@@ -49,7 +50,6 @@ FileStatus get_file_status(const char* path) {
 
 using namespace Perimortem::System;
 using namespace Perimortem::Core;
-using namespace Perimortem::Math;
 using namespace Perimortem::Memory;
 
 template <Count size>
@@ -120,8 +120,8 @@ auto File::read(View::Bytes location) -> Bool {
 
   // May need to perform a resize but we don't care about the contents.
   data.forgetful_resize(file_status.size_in_bytes);
-  Count read_objects = fread(data.get_access().get_data(),
-                             file_status.size_in_bytes, 1, file_handle);
+  Count read_objects = fread(
+      data.get_access().get_data(), file_status.size_in_bytes, 1, file_handle);
   fclose(file_handle);
 
   if (read_objects != 1) {
@@ -220,36 +220,36 @@ auto File::sync(Core::View::Bytes location, Bool force) -> File::State {
   }
 
   switch (state) {
-    // No operation to perform.
-    case File::State::Original:
-    case File::State::Conflict:
-    case File::State::Invalid:
+  // No operation to perform.
+  case File::State::Original:
+  case File::State::Conflict:
+  case File::State::Invalid:
+    return state;
+
+  // Syncing a file to disk.
+  case File::State::Create:
+  case File::State::Fresh: {
+    // If we failed to write the data then we are still fresh.
+    if (!write(location)) {
       return state;
-
-    // Syncing a file to disk.
-    case File::State::Create:
-    case File::State::Fresh: {
-      // If we failed to write the data then we are still fresh.
-      if (!write(location)) {
-        return state;
-      }
-
-      // Sync file info without a full read.
-      auto file_status = get_file_status(path);
-      read_time = file_status.modified_time;
-      modified_time = 0;
-      return File::State::Original;
     }
 
-    // Syncing a file to memory.
-    case File::State::Stale: {
-      // If we failed to read the data then we are still stale.
-      if (!read(location)) {
-        return state;
-      }
+    // Sync file info without a full read.
+    auto file_status = get_file_status(path);
+    read_time = file_status.modified_time;
+    modified_time = 0;
+    return File::State::Original;
+  }
 
-      return File::State::Original;
+  // Syncing a file to memory.
+  case File::State::Stale: {
+    // If we failed to read the data then we are still stale.
+    if (!read(location)) {
+      return state;
     }
+
+    return File::State::Original;
+  }
   }
 }
 

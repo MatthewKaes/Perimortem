@@ -1,13 +1,12 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
-#include <gtest/gtest.h>
-
-#include "lexical/tokenizer.hpp"
-
 #include <filesystem>
 #include <fstream>
+#include <gtest/gtest.h>
 #include <iostream>
+
+#include "lexical/tokenizer.hpp"
 
 using namespace Tetrodotoxin::Lexical;
 
@@ -18,14 +17,16 @@ struct TokenizerTests : public ::testing::Test {
 };
 
 auto read_all_bytes(const std::filesystem::path& p) -> std::string {
-  if (!std::filesystem::is_regular_file(p))
+  if (!std::filesystem::is_regular_file(p)) {
     return std::string();
+  }
 
   std::ifstream ifs(p, std::ios::binary | std::ios::ate);
   std::ifstream::pos_type pos = ifs.tellg();
 
-  if (pos == 0)
+  if (pos == 0) {
     return std::string();
+  }
 
   std::string data;
   data.resize(pos);
@@ -34,10 +35,11 @@ auto read_all_bytes(const std::filesystem::path& p) -> std::string {
   return data;
 }
 
-void compare_tokens(const Token& result,
-                    Classifier klass,
-                    Core::View::Bytes data,
-                    Location loc) {
+void compare_tokens(
+    const Token& result,
+    Classifier klass,
+    Core::View::Bytes data,
+    Location loc) {
   EXPECT_EQ(result.klass, klass);
 
   EXPECT_EQ(result.location.line, loc.line);
@@ -51,9 +53,10 @@ void compare_tokens(const Token& result,
 }
 
 #define START_CHECK() int check_index = 0;
-#define TOKEN_CHECK(klass, data, row, col)                             \
-  compare_tokens(t.get_tokens()[check_index], Classifier::klass, data, \
-                 Location(0, 0, row, col));                            \
+#define TOKEN_CHECK(klass, data, row, col)                  \
+  compare_tokens(                                           \
+      t.get_tokens()[check_index], Classifier::klass, data, \
+      Location(0, 0, row, col));                            \
   check_index++;
 
 // Demonstrate some basic assertions.

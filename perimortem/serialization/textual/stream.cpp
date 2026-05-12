@@ -2,15 +2,17 @@
 // Copyright © Matt Kaes
 
 #include "perimortem/serialization/textual/stream.hpp"
+
 #include "perimortem/utility/null_terminated.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Serialization;
 
 template <typename text_buffer>
-constexpr auto write_text(Access::Bytes& data,
-                          Count& ptr_location,
-                          const text_buffer& text) -> Bool {
+constexpr auto write_text(
+    Access::Bytes& data,
+    Count& ptr_location,
+    const text_buffer& text) -> Bool {
   if (ptr_location + text.get_size() > data.get_size()) {
     return false;
   }
@@ -68,10 +70,11 @@ constexpr auto create_digit_table() -> Static::Bytes<200> {
 constexpr auto digit_buffer = create_digit_table();
 
 template <typename storage_type>
-constexpr auto write_decimal(Access::Bytes& data,
-                             Count& ptr_location,
-                             storage_type value,
-                             Count length) -> Bool {
+constexpr auto write_decimal(
+    Access::Bytes& data,
+    Count& ptr_location,
+    storage_type value,
+    Count length) -> Bool {
   if (ptr_location + length > data.get_size()) {
     return false;
   }
@@ -98,8 +101,9 @@ constexpr auto write_decimal(Access::Bytes& data,
   for (i = 0; i < length - 1; i += 2) {
     auto two_digits = (value % 100) << 1;
     value /= 100;
-    memcpy(data.get_data() + ptr_location + length - i - 2,
-           digit_buffer.get_data() + two_digits, 2);
+    memcpy(
+        data.get_data() + ptr_location + length - i - 2,
+        digit_buffer.get_data() + two_digits, 2);
   }
 
   // Left over digit
@@ -113,9 +117,9 @@ constexpr auto write_decimal(Access::Bytes& data,
 }
 
 template <typename storage_type>
-constexpr auto write_decimal(Access::Bytes& data,
-                             Count& ptr_location,
-                             storage_type value) -> Bool {
+constexpr auto
+    write_decimal(Access::Bytes& data, Count& ptr_location, storage_type value)
+        -> Bool {
   auto length = decimal_length(value);
   return write_decimal(data, ptr_location, value, length);
 }

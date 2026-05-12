@@ -4,7 +4,7 @@
 #pragma once
 
 #include "perimortem/core/data.hpp"
-#include "perimortem/math/basic.hpp"
+#include "perimortem/core/math.hpp"
 
 namespace Perimortem::Core::View {
 
@@ -29,7 +29,8 @@ class Bytes {
   constexpr Bytes(const View::Bytes&) = default;
 
   template <Count N>
-  constexpr Bytes(const Byte (&source)[N]) : source_block(&source[0]), size(N) {}
+  constexpr Bytes(const Byte (&source)[N])
+      : source_block(&source[0]), size(N) {}
 
   constexpr Bytes(const Byte* source, Count source_size)
       : source_block(source), size(source_size) {}
@@ -55,12 +56,14 @@ class Bytes {
     return at(index);
   }
 
-  constexpr auto slice(Count start, Count size) const -> View::Bytes {
-    if (start >= get_size())
+  constexpr auto slice(Count start, Count size = Count(-1)) const
+      -> View::Bytes {
+    if (start >= get_size()) {
       return View::Bytes();
+    }
 
-    return View::Bytes(source_block + start,
-                       Math::min(size, get_size() - start));
+    return View::Bytes(
+        source_block + start, Math::min(size, get_size() - start));
   };
 
   constexpr auto operator[](Count index) -> Byte {

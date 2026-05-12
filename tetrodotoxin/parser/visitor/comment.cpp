@@ -16,8 +16,9 @@ using namespace Tetrodotoxin::Lexical;
 auto Visitor::parse_comment(Context& ctx) -> Core::View::Bytes {
   constexpr const int max_comment_size = 128;
   auto token = &ctx.current();
-  if (token->klass != Classifier::Comment)
+  if (token->klass != Classifier::Comment) {
     return Core::View::Bytes();
+  }
 
   // Precaculate the insertion points.
   std::array<uint32_t, max_comment_size> line_locations;
@@ -35,7 +36,9 @@ auto Visitor::parse_comment(Context& ctx) -> Core::View::Bytes {
   auto buffer =
       reinterpret_cast<char*>(ctx.get_allocator().allocate(total_bytes));
   for (uint32_t i = start_index; i < end_index; i++) {
-    std::memcpy(buffer + line_locations[i - start_index], ctx[i].data.get_data(), ctx[i].data.get_size());
+    std::memcpy(
+        buffer + line_locations[i - start_index], ctx[i].data.get_data(),
+        ctx[i].data.get_size());
   }
   return Core::View::Bytes(std::string_view(buffer, total_bytes));
 }

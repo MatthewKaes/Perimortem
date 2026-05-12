@@ -64,8 +64,8 @@ auto UnixJsonRPC::process() -> void {
         }
 
         // Use a a lazy loader to quickly rule out any invalid requests.
-        RpcRequest request{json_arena,
-                           Core::View::Bytes(local_data.data(), local_data.size())};
+        RpcRequest request{
+          json_arena, Core::View::Bytes(local_data.data(), local_data.size())};
         if (!request.is_valid()) {
           std::cout << "[ex=" << thread_id
                     << "] Job Rejected job due to invalid jsonrpc header..."
@@ -74,32 +74,35 @@ auto UnixJsonRPC::process() -> void {
         }
 
         auto method_name = request.get_method();
-        if (!method_resolver.contains(std::string_view(
-            method_name.get_data(), method_name.get_size()))) {
+        if (!method_resolver.contains(
+                std::string_view(
+                    method_name.get_data(), method_name.get_size()))) {
           std::cout << "[ex=" << thread_id << "] Job Rejected unknown rpc `"
                     << std::string_view(
-            method_name.get_data(), method_name.get_size()) << "`" << std::endl;
+                           method_name.get_data(), method_name.get_size())
+                    << "`" << std::endl;
           continue;
         }
 
-        std::cout << "[ex=" << thread_id << "] Job accepted: " << std::string_view(
-            method_name.get_data(), method_name.get_size())
+        std::cout << "[ex=" << thread_id << "] Job accepted: "
+                  << std::string_view(
+                         method_name.get_data(), method_name.get_size())
                   << std::endl;
         request.load_params();
         auto response = method_resolver[std::string_view(
             method_name.get_data(), method_name.get_size())](request);
 
-        auto write_jsonrpc_frame = [this,
-                                    &method_name](const Core::View::Bytes& view) {
+        auto write_jsonrpc_frame = [this, &method_name](
+                                       const Core::View::Bytes& view) {
           int32_t bytes_written = 0;
           while (bytes_written < view.get_size()) {
-            int32_t bytes =
-                write(sock_descriptor, view.get_data() + bytes_written,
-                      view.get_size() - bytes_written);
+            int32_t bytes = write(
+                sock_descriptor, view.get_data() + bytes_written,
+                view.get_size() - bytes_written);
             if (bytes < 0) {
               std::cout << "Writting to socket failed while processing job: "
-                        << std::string_view(method_name.get_data(),
-                                            method_name.get_size())
+                        << std::string_view(
+                               method_name.get_data(), method_name.get_size())
                         << std::endl;
               valid = false;
               return;
@@ -182,8 +185,9 @@ auto UnixJsonRPC::process() -> void {
   });
 
   std::cout << " -- TTX Service Running!" << std::endl;
-  for (int i = 0; i < executor_count; i++)
+  for (int i = 0; i < executor_count; i++) {
     executors[i].join();
+  }
   reader.join();
 }
 

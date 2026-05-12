@@ -3,9 +3,10 @@
 
 #pragma once
 
+#include "perimortem/core/view/bytes.hpp"
 #include "perimortem/core/access/bytes.hpp"
 #include "perimortem/core/hash.hpp"
-#include "perimortem/core/view/bytes.hpp"
+
 #include "perimortem/memory/allocator/arena.hpp"
 
 namespace Perimortem::Memory::Managed {
@@ -20,6 +21,7 @@ class Bytes {
   Bytes(const Bytes& rhs, Count reserved_capacity = start_capacity);
   Bytes(Bytes&& rhs);
   Bytes(Allocator::Arena& arena);
+  Bytes(Allocator::Arena& arena, Core::View::Bytes view);
 
   constexpr operator Core::View::Bytes() const { return get_view(); }
   constexpr operator Core::Access::Bytes() { return get_access(); }
@@ -38,29 +40,29 @@ class Bytes {
   auto convert(Byte source, Byte target) -> void;
 
   constexpr auto operator[](Count index) const -> Byte {
-    if (index > size)
+    if (index > size) {
       return 0;
+    }
 
-    return rented_block[index];
+    return source_block[index];
   }
 
   constexpr auto at(Count index) const -> Byte {
-    if (index > size)
+    if (index > size) {
       return 0;
+    }
 
-    return rented_block[index];
+    return source_block[index];
   }
 
   constexpr auto get_size() const -> Count { return size; }
   constexpr auto get_capacity() const -> Count { return capacity; }
   constexpr auto get_view() const -> const Core::View::Bytes {
-    return Core::View::Bytes(rented_block, size);
+    return Core::View::Bytes(source_block, size);
   }
-  constexpr auto get_data() const -> const Byte* {
-    return rented_block;
-  }
+  constexpr auto get_data() const -> const Byte* { return source_block; }
   constexpr auto get_access() -> Core::Access::Bytes {
-    return Core::Access::Bytes(rented_block, size);
+    return Core::Access::Bytes(source_block, size);
   }
   constexpr auto get_arena() const -> Allocator::Arena& { return arena; }
 
@@ -72,7 +74,7 @@ class Bytes {
   auto grow(Count requested) -> void;
 
   Allocator::Arena& arena;
-  Byte* rented_block;
+  Byte* source_block;
   Count size;
   Count capacity;
 };

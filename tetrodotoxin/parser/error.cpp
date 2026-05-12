@@ -19,12 +19,13 @@ std::string Error::error_color_secondary = "\x1b[38;2;222;122;101m";
 std::string Error::error_color_tertiary = "\x1b[38;2;245;147;85m";
 std::string Error::error_color_highlight = "\x1b[38;2;255;201;107m";
 
-Error::Error(const std::filesystem::path& source_map,
-             std::string_view details_,
-             std::string_view source,
-             std::optional<Location> loc,
-             std::optional<std::string_view> line_range,
-             std::optional<uint32_t> error_range) {
+Error::Error(
+    const std::filesystem::path& source_map,
+    std::string_view details_,
+    std::string_view source,
+    std::optional<Location> loc,
+    std::optional<std::string_view> line_range,
+    std::optional<uint32_t> error_range) {
   std::stringstream details;
   const char* err_primary = Error::colorful ? error_color_primary.c_str() : "";
   const char* err_secondary =

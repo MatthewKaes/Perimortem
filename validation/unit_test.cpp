@@ -98,19 +98,21 @@ auto expected(double value, bool actual) -> void {
   printf("%.6f\n", value);
 }
 
-auto expected_text(const unsigned char* value,
-                   unsigned long long size,
-                   bool actual) -> void {
+auto expected_text(
+    const unsigned char* value,
+    unsigned long long size,
+    bool actual) -> void {
   print_result_header(actual);
   fwrite(value, 1, size, stdout);
   printf("\n");
 }
 
-extern auto create(const Harness& harness,
-                   const char* name,
-                   TestFunc func,
-                   const char* file,
-                   long line) -> void {
+extern auto create(
+    const Harness& harness,
+    const char* name,
+    TestFunc func,
+    const char* file,
+    long line) -> void {
   binary_tests[binary_tests_count++] = {&harness, name, func, file, line};
 }
 }  // namespace Validation::Test
@@ -121,8 +123,9 @@ static double elapsed_ms(struct timespec start, struct timespec end) {
 }
 
 void output_break() {
-  printf("%s[==============================================================]\n%s",
-         dark_color, clear_color);
+  printf(
+      "%s[==============================================================]\n%s",
+      dark_color, clear_color);
 }
 
 void output_results() {
@@ -141,9 +144,9 @@ void output_results() {
 
   float pass_rate =
       (long)(float(passed_tests) / float(binary_tests_count) * 10000) / 100.0f;
-  printf("%s  Pass Rate: %s%u / %u%s ( %g %%)\n%s",
-         perimortem_color, clear_color, passed_tests, binary_tests_count,
-         system_color, pass_rate, clear_color);
+  printf(
+      "%s  Pass Rate: %s%u / %u%s ( %g %%)\n%s", perimortem_color, clear_color,
+      passed_tests, binary_tests_count, system_color, pass_rate, clear_color);
 }
 
 int main() {
@@ -172,10 +175,12 @@ int main() {
   harness = nullptr;
 
   output_break();
-  printf("%s  Executing Perimortem test engine from Validation::Test\n",
-         perimortem_color);
-  printf("  Tests found:  %s%u%s (%u Harness)%s\n",
-         clear_color, binary_tests_count, system_color, test_suites, clear_color);
+  printf(
+      "%s  Executing Perimortem test engine from Validation::Test\n",
+      perimortem_color);
+  printf(
+      "  Tests found:  %s%u%s (%u Harness)%s\n", clear_color,
+      binary_tests_count, system_color, test_suites, clear_color);
   output_break();
 
   struct timespec start_full, end_full, start, end;
@@ -212,16 +217,18 @@ int main() {
     }
 
     switch (result) {
-      case TestResult::Pass:
-        passed_tests += 1;
-        printf("%s  [  PASS  ] %*s", pass_color,
-               (int)(longest_test_name + 2), test.name);
-        break;
-      case TestResult::Failed:
-        failed_tests += 1;
-        printf("%s  [  FAIL  ] %*s", fail_color,
-               (int)(longest_test_name + 2), test.name);
-        break;
+    case TestResult::Pass:
+      passed_tests += 1;
+      printf(
+          "%s  [  PASS  ] %*s", pass_color, (int)(longest_test_name + 2),
+          test.name);
+      break;
+    case TestResult::Failed:
+      failed_tests += 1;
+      printf(
+          "%s  [  FAIL  ] %*s", fail_color, (int)(longest_test_name + 2),
+          test.name);
+      break;
     }
 
     printf("%s  (%g ms)\n%s", system_color, test_time_ms, clear_color);
@@ -234,8 +241,9 @@ int main() {
 
   output_results();
 
-  printf("%s\n  Total Time:  %s%g ms\n\n%s",
-         perimortem_color, clear_color, full_time_ms, clear_color);
+  printf(
+      "%s\n  Total Time:  %s%g ms\n\n%s", perimortem_color, clear_color,
+      full_time_ms, clear_color);
 
   output_break();
 

@@ -2,7 +2,9 @@
 // Copyright © Matt Kaes
 
 #include "perimortem/system/uuid.hpp"
+
 #include "perimortem/core/data.hpp"
+
 #include "perimortem/system/random.hpp"
 
 using namespace Perimortem::System;
@@ -29,8 +31,9 @@ constexpr auto nibbler(__m128i packed_guid) -> __m256i {
   const auto nibble_mask = _mm256_set1_epi8(0x0F);
   auto nibble_high = _mm_srli_epi64(packed_guid, 4);
   auto two_byte_pack = _mm256_and_si256(
-      _mm256_set_m128i(_mm_unpackhi_epi8(nibble_high, packed_guid),
-                       _mm_unpacklo_epi8(nibble_high, packed_guid)),
+      _mm256_set_m128i(
+          _mm_unpackhi_epi8(nibble_high, packed_guid),
+          _mm_unpacklo_epi8(nibble_high, packed_guid)),
       nibble_mask);
 
   return two_byte_pack;
@@ -68,16 +71,19 @@ constexpr auto convert_to_nibble(__m256i ascii) -> __m256i {
   return final_values;
 }
 
-constexpr auto deserialize_ascii(__m256i ascii_buffer,
-                                 Static::Vector<Bits_64, 2>& low_high) -> void {
-  constexpr SignedBits_8 blank = 0x80;
+constexpr auto deserialize_ascii(
+    __m256i ascii_buffer,
+    Static::Vector<Bits_64, 2>& low_high) -> void {
+  constexpr SignedBits_8 null = 0x80;
   const auto nibbles = convert_to_nibble(ascii_buffer);
   auto nibble_high = _mm256_slli_epi16(nibbles, 12);
   auto spaced_bytes = _mm256_or_si256(nibbles, nibble_high);
-  const auto packing_shuffle =
-      _mm256_set_epi8(blank, blank, blank, blank, blank, blank, blank, blank, 1,
-                      3, 5, 7, 9, 11, 13, 15, blank, blank, blank, blank, blank,
-                      blank, blank, blank, 1, 3, 5, 7, 9, 11, 13, 15);
+  const auto packing_shuffle = _mm256_set_epi8(
+      // Lower
+      null, null, null, null, null, null, null, null, 1, 3, 5, 7, 9, 11, 13, 15,
+      // Upper
+      null, null, null, null, null, null, null, null, 1, 3, 5, 7, 9, 11, 13,
+      15);
   auto packed_bytes = _mm256_shuffle_epi8(spaced_bytes, packing_shuffle);
 
   low_high[0] = _mm256_extract_epi64(packed_bytes, 2);
@@ -92,21 +98,19 @@ auto Uuid::deserialize(const Static::Bytes<36>& uuid_string) -> Uuid& {
   const auto offset_buffer = _mm256_loadu_si256(
       reinterpret_cast<const __m256i*>(uuid_string.get_data() + 4));
 
-  const SignedBits_8 blank = 0x80;
+  const SignedBits_8 null = 0x80;
   const auto packing_shuffle = _mm256_set_epi8(
-      // Lowwer
-      blank, blank, blank, blank, 15, 14, 13, 12, 11, 10, 9, 8, 6, 5, 4, 3,
-      // Upper
-      blank, blank, 15, 14, 12, 11, 10, 9, 7, 6, 5, 4, 3, 2, 1, 0);
+      null, null, null, null, 15, 14, 13, 12, 11, 10, 9, 8, 6, 5, 4, 3, null,
+      null, 15, 14, 12, 11, 10, 9, 7, 6, 5, 4, 3, 2, 1, 0);
 
   auto packed_bytes = _mm256_shuffle_epi8(buffer, packing_shuffle);
   const auto dash_shuffle = _mm256_set_epi8(
       // Lane 2
-      15, 14, 13, 12, blank, blank, blank, blank, blank, blank, blank, blank,
-      blank, blank, blank, blank,
+      15, 14, 13, 12, null, null, null, null, null, null, null, null, null,
+      null, null, null,
       // Lane 1
-      13, 12, blank, blank, blank, blank, blank, blank, blank, blank, blank,
-      blank, blank, blank, blank, blank);
+      13, 12, null, null, null, null, null, null, null, null, null, null, null,
+      null, null, null);
   auto dash_fill = _mm256_shuffle_epi8(offset_buffer, dash_shuffle);
   auto ascii_buffer = _mm256_or_si256(packed_bytes, dash_fill);
 
@@ -141,12 +145,12 @@ auto Uuid::serialize() const -> const Static::Bytes<36> {
   // Stamp the dropped ascii into the output.
   // Since shuffle only works on 128 bit lanes for AVX we need to do a stamp for
   // each lane to capture the data that was pushed out.
-  auto dropped_2 =
-      Data::ensure_endian<Data::ByteOrder::Native, Data::ByteOrder::Big,
-                          Bits_16>(_mm256_extract_epi16(ascii, 7));
-  auto last_4 =
-      Data::ensure_endian<Data::ByteOrder::Native, Data::ByteOrder::Big,
-                          Bits_16>(_mm256_extract_epi32(ascii, 7));
+  auto dropped_2 = Data::ensure_endian<
+      Data::ByteOrder::Native, Data::ByteOrder::Big, Bits_16>(
+      _mm256_extract_epi16(ascii, 7));
+  auto last_4 = Data::ensure_endian<
+      Data::ByteOrder::Native, Data::ByteOrder::Big, Bits_16>(
+      _mm256_extract_epi32(ascii, 7));
   Data::copy(byte_buffer + 16, &dropped_2);
   Data::copy(byte_buffer + 32, &last_4);
 

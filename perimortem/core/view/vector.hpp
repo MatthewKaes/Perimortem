@@ -51,11 +51,12 @@ class Vector {
 
   constexpr auto slice(Count start, Count size) const
       -> View::Vector<data_type> {
-    if (start >= get_size())
+    if (start >= get_size()) {
       return View::Vector<data_type>();
+    }
 
-    return View::Vector<data_type>(source_block + start,
-                                   Math::min(size, get_size() - start));
+    return View::Vector<data_type>(
+        source_block + start, Math::min(size, get_size() - start));
   };
 
   constexpr auto empty() const -> Bool { return size == 0; };

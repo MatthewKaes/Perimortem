@@ -4,6 +4,7 @@
 #pragma once
 
 #include "perimortem/core/view/bytes.hpp"
+
 #include "perimortem/memory/dynamic/bytes.hpp"
 
 namespace Perimortem::System {

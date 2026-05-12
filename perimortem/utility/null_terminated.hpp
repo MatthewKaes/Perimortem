@@ -3,8 +3,8 @@
 
 #pragma once
 
-#include "perimortem/core/static/bytes.hpp"
 #include "perimortem/core/view/bytes.hpp"
+#include "perimortem/core/static/bytes.hpp"
 
 namespace Perimortem::Utility {
 template <CppSize size_including_null>
@@ -29,13 +29,13 @@ struct NullTerminated {
 
 // Converts C++ string literals into valid Perimortem byte strings.
 template <Perimortem::Utility::NullTerminated c_string>
-consteval const Perimortem::Core::View::Bytes operator""_view( ) {
+consteval const Perimortem::Core::View::Bytes operator""_view() {
   return c_string.get_view();
 }
 
 template <Perimortem::Utility::NullTerminated c_string>
 consteval Perimortem::Core::Static::Bytes<c_string.get_size()>
-operator""_bytes() {
+    operator""_bytes() {
   return Perimortem::Core::Static::Bytes<c_string.get_size()>(
       c_string.get_view());
 }

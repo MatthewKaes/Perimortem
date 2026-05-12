@@ -3,12 +3,13 @@
 
 #pragma once
 
+#include <x86intrin.h>
+
 #include "perimortem/core/bibliotheca.hpp"
 #include "perimortem/core/data.hpp"
 #include "perimortem/core/hash.hpp"
-#include "perimortem/utility/pair.hpp"
 
-#include <x86intrin.h>
+#include "perimortem/utility/pair.hpp"
 
 namespace Perimortem::Memory::Dynamic {
 
@@ -32,9 +33,10 @@ enum class MapVectorization { Full, Partial, Scalar };
 // performance for iteration) and to improve cache performance for small key /
 // value pairs, although any major gains are offset by storing the 8 hash
 // inline.
-template <typename key_type,
-          typename value_type,
-          MapVectorization vector_mode = MapVectorization::Partial>
+template <
+    typename key_type,
+    typename value_type,
+    MapVectorization vector_mode = MapVectorization::Partial>
 class Map {
  public:
   using Entry = Utility::Pair<key_type, value_type>;
@@ -286,9 +288,8 @@ class Map {
     return at(key);
   }
 
-  constexpr auto find_or_default(const key_type& key,
-                                 const key_type& value) const
-      -> const key_type& {
+  constexpr auto find_or_default(const key_type& key, const key_type& value)
+      const -> const key_type& {
     auto entry = find(key);
     if (!entry) {
       return value;
@@ -358,8 +359,9 @@ class Map {
 
         // If the bucket isn't full then the key isn't contained in the map.
         auto occupancy_bits = occupied_slots(buckets[bi]);
-        if (!full_block(occupancy_bits))
+        if (!full_block(occupancy_bits)) {
           return nullptr;
+        }
 
         // If jthe bucket is full then move to the next bucket.
         bi = (bi + 1) & (bucket_count - 1);
@@ -502,9 +504,9 @@ class Map {
   }
 
   // Returns a bit mask of all possible slots.
-  static constexpr auto extract_possible_matches(vectorize_type bucket,
-                                                 vector_key_type vi)
-      -> mask_type {
+  static constexpr auto extract_possible_matches(
+      vectorize_type bucket,
+      vector_key_type vi) -> mask_type {
     if constexpr (vector_mode == MapVectorization::Scalar) {
       return bucket == vi;
     } else if constexpr (vector_mode == MapVectorization::Partial) {

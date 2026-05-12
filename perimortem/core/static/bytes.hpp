@@ -3,9 +3,9 @@
 
 #pragma once
 
+#include "perimortem/core/view/bytes.hpp"
 #include "perimortem/core/access/bytes.hpp"
 #include "perimortem/core/hash.hpp"
-#include "perimortem/core/view/bytes.hpp"
 
 namespace Perimortem::Core::Static {
 
@@ -39,18 +39,21 @@ class Bytes {
   constexpr operator Core::View::Bytes() const { return get_view(); }
   constexpr operator Core::Access::Bytes() { return get_access(); }
 
-  constexpr auto operator[](Count index) -> Byte& { return source_block[index]; }
+  constexpr auto operator[](Count index) -> Byte& {
+    return source_block[index];
+  }
 
   constexpr auto operator[](Count index) const -> const Byte& {
     return source_block[index];
   }
 
   constexpr auto slice(Count start, Count size) const -> Core::View::Bytes {
-    if (start >= get_size())
+    if (start >= get_size()) {
       return View::Bytes();
+    }
 
-    return View::Bytes(source_block + start,
-                       Math::min(size, get_size() - start));
+    return View::Bytes(
+        source_block + start, Math::min(size, get_size() - start));
   }
 
   constexpr auto get_size() const -> Count { return literal_size; }

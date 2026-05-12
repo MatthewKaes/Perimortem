@@ -3,9 +3,9 @@
 
 #pragma once
 
+#include "perimortem/core/view/bytes.hpp"
 #include "perimortem/core/access/bytes.hpp"
 #include "perimortem/core/hash.hpp"
-#include "perimortem/core/view/bytes.hpp"
 
 namespace Perimortem::Memory::Dynamic {
 

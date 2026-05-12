@@ -4,7 +4,7 @@
 #pragma once
 
 #include "perimortem/core/access/bytes.hpp"
-#include "perimortem/math/basic.hpp"
+#include "perimortem/core/math.hpp"
 
 namespace Perimortem::Core::Access {
 
@@ -42,11 +42,12 @@ class Vector {
 
   constexpr auto slice(Count start, Count size) const
       -> Access::Vector<data_type> {
-    if (start >= get_size())
+    if (start >= get_size()) {
       return Access::Vector<data_type>();
+    }
 
-    return Access::Vector<data_type>(source_block + start,
-                                     Math::min(size, get_size() - start));
+    return Access::Vector<data_type>(
+        source_block + start, Math::min(size, get_size() - start));
   };
 
   constexpr auto empty() const -> Bool { return size == 0; };

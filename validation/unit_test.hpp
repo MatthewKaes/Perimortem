@@ -18,9 +18,10 @@ extern auto expected(long long value, bool actual) -> void;
 extern auto expected(unsigned long value, bool actual) -> void;
 extern auto expected(unsigned long long value, bool actual) -> void;
 extern auto expected(double value, bool actual) -> void;
-extern auto expected_text(const unsigned char* value,
-                          unsigned long long size,
-                          bool actual) -> void;
+extern auto expected_text(
+    const unsigned char* value,
+    unsigned long long size,
+    bool actual) -> void;
 
 extern auto do_nothing() -> void;
 
@@ -42,11 +43,12 @@ struct Harness {
 };
 
 extern auto log_message(const char* file, int line, const char* msg) -> void;
-extern auto create(const Harness& harness,
-                   const char* name,
-                   TestFunc func,
-                   const char* file,
-                   long line) -> void;
+extern auto create(
+    const Harness& harness,
+    const char* name,
+    TestFunc func,
+    const char* file,
+    long line) -> void;
 
 // Macros to inject type data without the test library needing to take
 // a dependency on Perimortem directly.
@@ -56,131 +58,132 @@ extern auto create(const Harness& harness,
     Validation::Test::expected(__value, true);  \
   }
 
-#define PRINT_TEXT()                                                        \
-  {                                                                         \
-    Validation::Test::expected_text(__check.get_data(), __check.get_size(), \
-                                    false);                                 \
-    Validation::Test::expected_text(__value.get_data(), __value.get_size(), \
-                                    true);                                  \
+#define PRINT_TEXT()                                    \
+  {                                                     \
+    Validation::Test::expected_text(                    \
+        __check.get_data(), __check.get_size(), false); \
+    Validation::Test::expected_text(                    \
+        __value.get_data(), __value.get_size(), true);  \
   }
 
-#define EXPECT(expression)                                       \
-  {                                                              \
-    auto __value = (expression);                                 \
-    auto __check = true;                                         \
-    if (__value != __check) {                                    \
-      Validation::Test::log_message(__FILE__, __LINE__,          \
-                                    #expression " failed test"); \
-      PRINT_RESULT();                                            \
-      result = Validation::Test::TestResult::Failed;             \
-    }                                                            \
+#define EXPECT(expression)                                 \
+  {                                                        \
+    auto __value = (expression);                           \
+    auto __check = true;                                   \
+    if (__value != __check) {                              \
+      Validation::Test::log_message(                       \
+          __FILE__, __LINE__, #expression " failed test"); \
+      PRINT_RESULT();                                      \
+      result = Validation::Test::TestResult::Failed;       \
+    }                                                      \
   }
 
-#define ASSERT(expression)                                       \
-  {                                                              \
-    auto __value = (expression);                                 \
-    auto __check = true;                                         \
-    if (__value != __check) {                                    \
-      Validation::Test::log_message(__FILE__, __LINE__,          \
-                                    #expression " failed test"); \
-      PRINT_RESULT();                                            \
-      result = Validation::Test::TestResult::Failed;             \
-      return;                                                    \
-    }                                                            \
+#define ASSERT(expression)                                 \
+  {                                                        \
+    auto __value = (expression);                           \
+    auto __check = true;                                   \
+    if (__value != __check) {                              \
+      Validation::Test::log_message(                       \
+          __FILE__, __LINE__, #expression " failed test"); \
+      PRINT_RESULT();                                      \
+      result = Validation::Test::TestResult::Failed;       \
+      return;                                              \
+    }                                                      \
   }
 
-#define EXPECT_EQ(expression, expect)                            \
-  {                                                              \
-    auto __value = (expression);                                 \
-    auto __check = (expect);                                     \
-    if (__value != __check) {                                    \
-      Validation::Test::log_message(__FILE__, __LINE__,          \
-                                    #expression " != " #expect); \
-      PRINT_RESULT();                                            \
-      result = Validation::Test::TestResult::Failed;             \
-    }                                                            \
+#define EXPECT_EQ(expression, expect)                      \
+  {                                                        \
+    auto __value = (expression);                           \
+    auto __check = (expect);                               \
+    if (__value != __check) {                              \
+      Validation::Test::log_message(                       \
+          __FILE__, __LINE__, #expression " != " #expect); \
+      PRINT_RESULT();                                      \
+      result = Validation::Test::TestResult::Failed;       \
+    }                                                      \
   }
 
-#define EXPECT_NEQ(expression, expect)                           \
-  {                                                              \
-    auto __value = (expression);                                 \
-    auto __check = (expect);                                     \
-    if (__value == __check) {                                    \
-      Validation::Test::log_message(__FILE__, __LINE__,          \
-                                    #expression " == " #expect); \
-      PRINT_RESULT();                                            \
-      result = Validation::Test::TestResult::Failed;             \
-    }                                                            \
+#define EXPECT_NEQ(expression, expect)                     \
+  {                                                        \
+    auto __value = (expression);                           \
+    auto __check = (expect);                               \
+    if (__value == __check) {                              \
+      Validation::Test::log_message(                       \
+          __FILE__, __LINE__, #expression " == " #expect); \
+      PRINT_RESULT();                                      \
+      result = Validation::Test::TestResult::Failed;       \
+    }                                                      \
   }
 
-#define ASSERT_EQ(expression, expect)                            \
-  {                                                              \
-    auto __value = (expression);                                 \
-    auto __check = (expect);                                     \
-    if (__value != __check) {                                    \
-      Validation::Test::log_message(__FILE__, __LINE__,          \
-                                    #expression " != " #expect); \
-      PRINT_RESULT();                                            \
-      result = Validation::Test::TestResult::Failed;             \
-      return;                                                    \
-    }                                                            \
+#define ASSERT_EQ(expression, expect)                      \
+  {                                                        \
+    auto __value = (expression);                           \
+    auto __check = (expect);                               \
+    if (__value != __check) {                              \
+      Validation::Test::log_message(                       \
+          __FILE__, __LINE__, #expression " != " #expect); \
+      PRINT_RESULT();                                      \
+      result = Validation::Test::TestResult::Failed;       \
+      return;                                              \
+    }                                                      \
   }
 
-#define ASSERT_NEQ(expression, expect)                           \
-  {                                                              \
-    auto __value = (expression);                                 \
-    auto __check = (expect);                                     \
-    if (__value == __check) {                                    \
-      Validation::Test::log_message(__FILE__, __LINE__,          \
-                                    #expression " == " #expect); \
-      PRINT_RESULT();                                            \
-      result = Validation::Test::TestResult::Failed;             \
-      return;                                                    \
-    }                                                            \
+#define ASSERT_NEQ(expression, expect)                     \
+  {                                                        \
+    auto __value = (expression);                           \
+    auto __check = (expect);                               \
+    if (__value == __check) {                              \
+      Validation::Test::log_message(                       \
+          __FILE__, __LINE__, #expression " == " #expect); \
+      PRINT_RESULT();                                      \
+      result = Validation::Test::TestResult::Failed;       \
+      return;                                              \
+    }                                                      \
   }
 
-#define EXPECT_TEXT(expression, expect)                          \
-  {                                                              \
-    auto __value = (expression);                                 \
-    auto __check = (expect);                                     \
-    if (__value != __check) {                                    \
-      Validation::Test::log_message(__FILE__, __LINE__,          \
-                                    #expression " != " #expect); \
-      PRINT_TEXT();                                              \
-      result = Validation::Test::TestResult::Failed;             \
-    }                                                            \
+#define EXPECT_TEXT(expression, expect)                    \
+  {                                                        \
+    auto __value = (expression);                           \
+    auto __check = (expect);                               \
+    if (__value != __check) {                              \
+      Validation::Test::log_message(                       \
+          __FILE__, __LINE__, #expression " != " #expect); \
+      PRINT_TEXT();                                        \
+      result = Validation::Test::TestResult::Failed;       \
+    }                                                      \
   }
 
-#define ASSERT_TEXT(expression, expect)                          \
-  {                                                              \
-    auto __value = (expression);                                 \
-    auto __check = (expect);                                     \
-    if (__value != __check) {                                    \
-      Validation::Test::log_message(__FILE__, __LINE__,          \
-                                    #expression " != " #expect); \
-      PRINT_TEXT();                                              \
-      result = Validation::Test::TestResult::Failed;             \
-      return;                                                    \
-    }                                                            \
+#define ASSERT_TEXT(expression, expect)                    \
+  {                                                        \
+    auto __value = (expression);                           \
+    auto __check = (expect);                               \
+    if (__value != __check) {                              \
+      Validation::Test::log_message(                       \
+          __FILE__, __LINE__, #expression " != " #expect); \
+      PRINT_TEXT();                                        \
+      result = Validation::Test::TestResult::Failed;       \
+      return;                                              \
+    }                                                      \
   }
 
 class UnitTest {
  public:
-  UnitTest(const Harness& harness,
-           const char* name,
-           TestFunc func,
-           const char* file,
-           long line) {
+  UnitTest(
+      const Harness& harness,
+      const char* name,
+      TestFunc func,
+      const char* file,
+      long line) {
     create(harness, name, func, file, line);
   }
 };
 
 }  // namespace Validation::Test
 
-#define PERIMORTEM_UNIT_TEST(harness, name)                               \
-  auto __ ##harness##__##name(Validation::Test::TestResult& result) -> void; \
-  namespace {                                                             \
-  Validation::Test::UnitTest _reg_##name = {                              \
-      harness, #name, __##harness##__##name, __FILE__, __LINE__};        \
-  }                                                                       \
-  auto __ ##harness##__##name(Validation::Test::TestResult& result) -> void
+#define PERIMORTEM_UNIT_TEST(harness, name)                                 \
+  auto __##harness##__##name(Validation::Test::TestResult& result) -> void; \
+  namespace {                                                               \
+  Validation::Test::UnitTest _reg_##name = {                                \
+    harness, #name, __##harness##__##name, __FILE__, __LINE__};             \
+  }                                                                         \
+  auto __##harness##__##name(Validation::Test::TestResult& result) -> void

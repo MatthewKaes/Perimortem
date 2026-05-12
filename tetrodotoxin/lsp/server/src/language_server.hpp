@@ -3,19 +3,19 @@
 
 #pragma once
 
-#include "rpc_request.hpp"
-
-#include <sys/socket.h>
-#include <sys/un.h>
-#include <unistd.h>
 #include <atomic>
 #include <condition_variable>
 #include <cstdint>
 #include <functional>
 #include <list>
 #include <string>
+#include <sys/socket.h>
+#include <sys/un.h>
 #include <thread>
+#include <unistd.h>
 #include <unordered_map>
+
+#include "rpc_request.hpp"
 
 namespace Tetrodotoxin::Lsp {
 

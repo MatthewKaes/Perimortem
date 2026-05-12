@@ -1,15 +1,16 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
+#include "perimortem/system/random.hpp"
+
 #include "validation/unit_test.hpp"
 
 #include "perimortem/core/static/vector.hpp"
+#include "perimortem/core/algorithm/sort.hpp"
+
 #include "perimortem/memory/dynamic/vector.hpp"
-#include "perimortem/math/sort.hpp"
-#include "perimortem/system/random.hpp"
 
 using namespace Perimortem::Core;
-using namespace Perimortem::Math;
 using namespace Perimortem::System;
 using namespace Perimortem::Memory;
 
@@ -24,7 +25,7 @@ PERIMORTEM_UNIT_TEST(SystemRandom, entropy_check) {
     values[i] = Random::read_entropy();
   }
 
-  sort(values.get_access());
+  Algorithm::sort(values.get_access());
 
   Count collisions = 0;
   Count zero_values = 0;
@@ -49,7 +50,7 @@ PERIMORTEM_UNIT_TEST(SystemRandom, stress_test) {
     values[i] = Random::generate();
   }
 
-  sort(values.get_access());
+  Algorithm::sort(values.get_access());
 
   Count collisions = 0;
   for (Count i = 1; i < values.get_size(); i++) {

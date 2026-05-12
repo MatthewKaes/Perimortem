@@ -3,10 +3,10 @@
 
 #pragma once
 
-#include "perimortem/core/bibliotheca.hpp"
-#include "perimortem/core/perimortem.hpp"
 #include "perimortem/core/view/vector.hpp"
-#include "perimortem/math/basic.hpp"
+#include "perimortem/core/bibliotheca.hpp"
+#include "perimortem/core/math.hpp"
+#include "perimortem/core/perimortem.hpp"
 
 namespace Perimortem::Memory::Dynamic {
 
@@ -172,7 +172,8 @@ class Vector {
 
     // Attempt to grow by a factor of 2.
     // If that doesn't work than grow to exact size.
-    const auto new_capacity = Math::max(get_capacity() * 2, required_size);
+    const auto new_capacity =
+        Core::Math::max(get_capacity() * 2, required_size);
 
     // Fetch and transfer to new block.
     auto alloc = Core::Bibliotheca::check_out(new_capacity * sizeof(type));

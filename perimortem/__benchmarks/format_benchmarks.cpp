@@ -2,13 +2,12 @@
 // Copyright © Matt Kaes
 
 #include <benchmark/benchmark.h>
+#include <filesystem>
+#include <fstream>
 
 #include "storage/formats/base64.hpp"
 #include "storage/formats/json.hpp"
 #include "storage/formats/rpc_header.hpp"
-
-#include <filesystem>
-#include <fstream>
 
 // Don't constexpr as clang completely chokes and creates a ton of overhead.
 auto test_count_per_round() -> uint32_t;
@@ -43,8 +42,9 @@ auto generate_test_data() -> std::array<std::string, 4> {
   //
   // Generating 4 similar inits wasn't enough to fully emulate real world
   // results so no point in bloating the repo.
-  for (int i = 0; i < 4; i++)
+  for (int i = 0; i < 4; i++) {
     source[i] = load_json("perimortem/tests/json/tokenize_rpc.json");
+  }
 
   return source;
 }
@@ -73,8 +73,7 @@ auto generate_test_data() -> std::array<std::string, 4> {
       Perimortem::Storage::Json::Node node;
       uint32_t position = 0;
       node.from_source(
-          json_arena,
-          Core::View::Bytes(source[rand() % source.size()]),
+          json_arena, Core::View::Bytes(source[rand() % source.size()]),
           position);
       auto rpc_version = node["jsonrpc"].get_string();
       doNotOptimizeAway(rpc_version == "2.0"_bv);
@@ -95,8 +94,7 @@ auto generate_test_data() -> std::array<std::string, 4> {
 
       json_arena.reset();
       Perimortem::Storage::Json::Node node;
-      node.from_source(json_arena, Core::View::Bytes(selected),
-                       position);
+      node.from_source(json_arena, Core::View::Bytes(selected), position);
       auto source = node["source"].get_string();
       doNotOptimizeAway(source.get_size());
     }
@@ -113,8 +111,7 @@ auto generate_test_data() -> std::array<std::string, 4> {
       uint32_t position = 0;
       Perimortem::Storage::Json::Node node;
       node.from_source(
-          json_arena,
-          Core::View::Bytes(source[rand() % source.size()]),
+          json_arena, Core::View::Bytes(source[rand() % source.size()]),
           position);
 
       auto path = node["params"]["source"].get_string();
@@ -132,9 +129,8 @@ auto generate_test_data() -> std::array<std::string, 4> {
   json_arena.reset();
   uint32_t position = 0;
   Perimortem::Storage::Json::Node node;
-  node.from_source(json_arena,
-                   Core::View::Bytes(source[rand() % source.size()]),
-                   position);
+  node.from_source(
+      json_arena, Core::View::Bytes(source[rand() % source.size()]), position);
 
   auto path = node["params"]["source"].get_string();
   for (auto _ : state) {

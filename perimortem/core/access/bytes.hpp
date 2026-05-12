@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include "perimortem/math/basic.hpp"
+#include "perimortem/core/math.hpp"
 
 namespace Perimortem::Core::Access {
 
@@ -35,11 +35,12 @@ class Bytes {
   constexpr auto operator[](Count index) -> data_type& { return at(index); }
 
   constexpr auto slice(Count start, Count size) const -> Access::Bytes {
-    if (start >= get_size())
+    if (start >= get_size()) {
       return Access::Bytes();
+    }
 
-    return Access::Bytes(source_block + start,
-                         Math::min(size, get_size() - start));
+    return Access::Bytes(
+        source_block + start, Math::min(size, get_size() - start));
   };
 
   constexpr auto empty() const -> Bool { return size == 0; };

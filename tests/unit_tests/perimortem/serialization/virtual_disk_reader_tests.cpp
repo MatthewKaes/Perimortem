@@ -53,15 +53,14 @@
 //     script_path = "test/test_script.ttx";
 //     script_view = {(Byte*)script.data(), script.size()};
 
-//     txt = "A bunch of test information which you might want to have streamed!";
-//     txt_path = "test_data/nested/example.txt";
-//     txt_view = {(Byte*)txt.data(), txt.size()};
+//     txt = "A bunch of test information which you might want to have
+//     streamed!"; txt_path = "test_data/nested/example.txt"; txt_view =
+//     {(Byte*)txt.data(), txt.size()};
 
 //     logo_svg = read_all_bytes(".data/icon.svg");
 //     logo_svg_path = ".data/icon.svg";
 //     logo_svg_view = {logo_svg.data(), logo_svg.size()};
 //   }
-
 
 //   virtual void SetUp() {
 //     std::filesystem::path p = "perimortem/__tests/__data/disks/";
@@ -188,15 +187,18 @@
 
 //   EXPECT_EQ(reader->get_files()[0].path, script_path);
 //   EXPECT_EQ(reader->get_files()[0].data.size(), 0);
-//   EXPECT_EQ(reader->get_files()[0].options, FileStorage::Virtualized | FileStorage::Streamed);
+//   EXPECT_EQ(reader->get_files()[0].options, FileStorage::Virtualized |
+//   FileStorage::Streamed);
 
 //   EXPECT_EQ(reader->get_files()[1].path, txt_path);
 //   EXPECT_EQ(reader->get_files()[1].data.size(), 0);
-//   EXPECT_EQ(reader->get_files()[1].options, FileStorage::Virtualized | FileStorage::Streamed);
-  
+//   EXPECT_EQ(reader->get_files()[1].options, FileStorage::Virtualized |
+//   FileStorage::Streamed);
+
 //   EXPECT_EQ(reader->get_files()[2].path, logo_svg_path);
 //   EXPECT_EQ(reader->get_files()[2].data.size(), 0);
-//   EXPECT_EQ(reader->get_files()[2].options, FileStorage::Virtualized | FileStorage::Streamed);
+//   EXPECT_EQ(reader->get_files()[2].options, FileStorage::Virtualized |
+//   FileStorage::Streamed);
 
 //   Bytes data;
 //   ASSERT_TRUE(reader->stream_from_disk(script_path, data));
@@ -219,15 +221,18 @@
 
 //   EXPECT_EQ(reader->get_files()[0].path, script_path);
 //   EXPECT_EQ(reader->get_files()[0].data.size(), 0);
-//   EXPECT_EQ(reader->get_files()[0].options, FileStorage::Virtualized | FileStorage::Streamed);
+//   EXPECT_EQ(reader->get_files()[0].options, FileStorage::Virtualized |
+//   FileStorage::Streamed);
 
 //   EXPECT_EQ(reader->get_files()[1].path, txt_path);
 //   EXPECT_EQ(reader->get_files()[1].data.size(), 0);
-//   EXPECT_EQ(reader->get_files()[1].options, FileStorage::Virtualized | FileStorage::Streamed);
-  
+//   EXPECT_EQ(reader->get_files()[1].options, FileStorage::Virtualized |
+//   FileStorage::Streamed);
+
 //   EXPECT_EQ(reader->get_files()[2].path, logo_svg_path);
 //   EXPECT_EQ(reader->get_files()[2].data.size(), 0);
-//   EXPECT_EQ(reader->get_files()[2].options, FileStorage::Virtualized | FileStorage::Streamed);
+//   EXPECT_EQ(reader->get_files()[2].options, FileStorage::Virtualized |
+//   FileStorage::Streamed);
 
 //   Bytes data;
 //   ASSERT_TRUE(reader->stream_from_disk(script_path, data));

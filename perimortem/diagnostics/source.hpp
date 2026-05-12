@@ -31,8 +31,9 @@ struct Source {
    private:
     static consteval auto extract_size(const char* src) -> Count {
       Count len = 0;
-      while (src[len] != '\0')
+      while (src[len] != '\0') {
         len++;
+      }
       return len;
     }
 
@@ -61,8 +62,9 @@ struct Source {
 
  public:
   // The magic that invokes the source location extension.
-  static consteval auto current(const AbiConverter loc = AbiConverter(
-                                    __builtin_source_location())) -> Source {
+  static consteval auto current(
+      const AbiConverter loc = AbiConverter(__builtin_source_location()))
+      -> Source {
     return Source(loc);
   }
 

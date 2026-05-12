@@ -3,9 +3,9 @@
 
 #pragma once
 
-#include "types/abstract.hpp"
-
 #include "perimortem/memory/view/byte.hpp"
+
+#include "types/abstract.hpp"
 
 namespace Tetrodotoxin::Types::Compiler {
 

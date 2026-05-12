@@ -1,17 +1,15 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
-#include <gtest/gtest.h>
-
-#include "parser/script.hpp"
-
-#include "lexical/token.hpp"
-#include "types/compiler/attribute.hpp"
-#include "types/program.hpp"
-
 #include <filesystem>
 #include <fstream>
+#include <gtest/gtest.h>
 #include <iostream>
+
+#include "lexical/token.hpp"
+#include "parser/script.hpp"
+#include "types/compiler/attribute.hpp"
+#include "types/program.hpp"
 
 // #define VERBOSE_ERRORS
 

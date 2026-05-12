@@ -3,10 +3,11 @@
 
 #pragma once
 
-#include "source.hpp"
+#include "perimortem/core/view/bytes.hpp"
 
 #include "perimortem/memory/view/bitflag.hpp"
-#include "perimortem/core/view/bytes.hpp"
+
+#include "source.hpp"
 
 namespace Tetrodotoxin::Lexical {
 
@@ -118,139 +119,139 @@ struct Token {
 
 inline constexpr auto klass_name(Classifier klass) -> const char* {
   switch (klass) {
-    case Classifier::Comment:
-      return "comment";
-    case Classifier::Disabled:
-      return "disabled";
-    case Classifier::Parameter:
-      return "function parameter";
-    case Classifier::String:
-      return "string";
-    case Classifier::Numeric:
-      return "64bit integer constant";
-    case Classifier::Float:
-      return "64bit IEEE float constant";
-    case Classifier::Attribute:
-      return "compiler directive";
-    case Classifier::Identifier:
-      return "identifier";
-    case Classifier::Type:
-      return "type";
-    case Classifier::ScopeStart:
-      return "{";
-    case Classifier::ScopeEnd:
-      return "}";
-    case Classifier::GroupStart:
-      return "(";
-    case Classifier::GroupEnd:
-      return ")";
-    case Classifier::IndexStart:
-      return "[";
-    case Classifier::IndexEnd:
-      return "]";
-    case Classifier::Seperator:
-      return ",";
-    case Classifier::Assign:
-      return "assignment";
-    case Classifier::AddAssign:
-      return "AddAssign";
-    case Classifier::SubAssign:
-      return "SubAssign";
-    case Classifier::Define:
-      return "definition";
-    case Classifier::EndStatement:
-      return "end statement";
-    case Classifier::AddOp:
-      return "AddOp";
-    case Classifier::SubOp:
-      return "SubOp";
-    case Classifier::DivOp:
-      return "DivOp";
-    case Classifier::MulOp:
-      return "MulOp";
-    case Classifier::ModOp:
-      return "ModOp";
-    case Classifier::LessOp:
-      return "LessOp";
-    case Classifier::GreaterOp:
-      return "GreaterOp";
-    case Classifier::LessEqOp:
-      return "LessEqOp";
-    case Classifier::GreaterEqOp:
-      return "GreaterEqOp";
-    case Classifier::CmpOp:
-      return "CmpOp";
-    case Classifier::CallOp:
-      return "CallOp";
-    case Classifier::AccessOp:
-      return "AccessOp";
-    case Classifier::AndOp:
-      return "AndOp";
-    case Classifier::OrOp:
-      return "OrOp";
-    case Classifier::NotOp:
-      return "NotOp";
-    case Classifier::If:
-      return "if";
-    case Classifier::For:
-      return "for";
-    case Classifier::Else:
-      return "else";
-    case Classifier::While:
-      return "while";
-    case Classifier::Return:
-      return "return";
-    case Classifier::Func:
-      return "function definition";
-    case Classifier::Object:
-      return "managed class definition";
-    case Classifier::Struct:
-      return "storage class definition";
-    case Classifier::Library:
-      return "ttx library decleration";
-    case Classifier::Entity:
-      return "ttx entity decleration";
-    case Classifier::Using:
-      return "import package statement";
-    case Classifier::Via:
-      return "import path specifier";
-    case Classifier::True:
-      return "boolean value `true`";
-    case Classifier::False:
-      return "boolean value `false`";
-    case Classifier::Package:
-      return "package decleration";
-    case Classifier::Debug:
-      return "Keyword `debug`";
-    case Classifier::Warning:
-      return "Keyword `warning`";
-    case Classifier::Error:
-      return "Keyword `error`";
-    case Classifier::OnLoad:
-      return "module load function";
-    case Classifier::Init:
-      return "stack creator";
-    case Classifier::New:
-      return "heap creator";
-    case Classifier::Self:
-      return "`self` accessor";
-    case Classifier::As:
-      return "external alias decleration";
-    case Classifier::Alias:
-      return "internal alias decleration";
-    case Classifier::EndOfStream:
-      return "end of file";
-    case Classifier::Constant:
-      return "constant qualifier ([=/=])";
-    case Classifier::Dynamic:
-      return "dynamic qualifier ([=>>])";
-    case Classifier::Hidden:
-      return "hidden qualifier ([=!=])";
-    case Classifier::Temporary:
-      return "temporary qualifier ([***])";
-    case Classifier::TOTAL_FLAGS:
-    case Classifier::None:
-      return "unknown";
+  case Classifier::Comment:
+    return "comment";
+  case Classifier::Disabled:
+    return "disabled";
+  case Classifier::Parameter:
+    return "function parameter";
+  case Classifier::String:
+    return "string";
+  case Classifier::Numeric:
+    return "64bit integer constant";
+  case Classifier::Float:
+    return "64bit IEEE float constant";
+  case Classifier::Attribute:
+    return "compiler directive";
+  case Classifier::Identifier:
+    return "identifier";
+  case Classifier::Type:
+    return "type";
+  case Classifier::ScopeStart:
+    return "{";
+  case Classifier::ScopeEnd:
+    return "}";
+  case Classifier::GroupStart:
+    return "(";
+  case Classifier::GroupEnd:
+    return ")";
+  case Classifier::IndexStart:
+    return "[";
+  case Classifier::IndexEnd:
+    return "]";
+  case Classifier::Seperator:
+    return ",";
+  case Classifier::Assign:
+    return "assignment";
+  case Classifier::AddAssign:
+    return "AddAssign";
+  case Classifier::SubAssign:
+    return "SubAssign";
+  case Classifier::Define:
+    return "definition";
+  case Classifier::EndStatement:
+    return "end statement";
+  case Classifier::AddOp:
+    return "AddOp";
+  case Classifier::SubOp:
+    return "SubOp";
+  case Classifier::DivOp:
+    return "DivOp";
+  case Classifier::MulOp:
+    return "MulOp";
+  case Classifier::ModOp:
+    return "ModOp";
+  case Classifier::LessOp:
+    return "LessOp";
+  case Classifier::GreaterOp:
+    return "GreaterOp";
+  case Classifier::LessEqOp:
+    return "LessEqOp";
+  case Classifier::GreaterEqOp:
+    return "GreaterEqOp";
+  case Classifier::CmpOp:
+    return "CmpOp";
+  case Classifier::CallOp:
+    return "CallOp";
+  case Classifier::AccessOp:
+    return "AccessOp";
+  case Classifier::AndOp:
+    return "AndOp";
+  case Classifier::OrOp:
+    return "OrOp";
+  case Classifier::NotOp:
+    return "NotOp";
+  case Classifier::If:
+    return "if";
+  case Classifier::For:
+    return "for";
+  case Classifier::Else:
+    return "else";
+  case Classifier::While:
+    return "while";
+  case Classifier::Return:
+    return "return";
+  case Classifier::Func:
+    return "function definition";
+  case Classifier::Object:
+    return "managed class definition";
+  case Classifier::Struct:
+    return "storage class definition";
+  case Classifier::Library:
+    return "ttx library decleration";
+  case Classifier::Entity:
+    return "ttx entity decleration";
+  case Classifier::Using:
+    return "import package statement";
+  case Classifier::Via:
+    return "import path specifier";
+  case Classifier::True:
+    return "boolean value `true`";
+  case Classifier::False:
+    return "boolean value `false`";
+  case Classifier::Package:
+    return "package decleration";
+  case Classifier::Debug:
+    return "Keyword `debug`";
+  case Classifier::Warning:
+    return "Keyword `warning`";
+  case Classifier::Error:
+    return "Keyword `error`";
+  case Classifier::OnLoad:
+    return "module load function";
+  case Classifier::Init:
+    return "stack creator";
+  case Classifier::New:
+    return "heap creator";
+  case Classifier::Self:
+    return "`self` accessor";
+  case Classifier::As:
+    return "external alias decleration";
+  case Classifier::Alias:
+    return "internal alias decleration";
+  case Classifier::EndOfStream:
+    return "end of file";
+  case Classifier::Constant:
+    return "constant qualifier ([=/=])";
+  case Classifier::Dynamic:
+    return "dynamic qualifier ([=>>])";
+  case Classifier::Hidden:
+    return "hidden qualifier ([=!=])";
+  case Classifier::Temporary:
+    return "temporary qualifier ([***])";
+  case Classifier::TOTAL_FLAGS:
+  case Classifier::None:
+    return "unknown";
   }
 };
 }  // namespace Tetrodotoxin::Lexical

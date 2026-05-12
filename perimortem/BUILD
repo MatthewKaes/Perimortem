@@ -11,20 +11,10 @@ cc_library(
     includes = ["."],
     deps = [
         ":core",
-        ":math",
         ":memory",
         ":serialization",
         ":system",
     ],
-)
-
-cc_library(
-    name = "math",
-    srcs = [],
-    hdrs = glob([
-        "math/*.hpp",
-    ]),
-    includes = ["."],
 )
 
 cc_library(
@@ -34,6 +24,7 @@ cc_library(
         "core/access/*.hpp",
         "core/static/*.hpp",
         "core/view/*.hpp",
+        "core/algorithm/*.hpp",
         "core/*.hpp",
     ]),
     includes = ["."],
@@ -82,7 +73,6 @@ cc_library(
     includes = ["."],
     deps = [
         ":core",
-        ":math",
         ":utility",
     ],
 )
@@ -98,7 +88,6 @@ cc_library(
     includes = ["."],
     deps = [
         ":core",
-        ":math",
         ":memory",
         ":utility",
     ],

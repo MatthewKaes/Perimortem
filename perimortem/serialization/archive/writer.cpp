@@ -25,7 +25,8 @@ auto write_size(Dynamic::Bytes& source, SizeBlock size) -> void {
   }
 }
 
-auto write_stream(Managed::Bytes& source, const Core::View::Bytes data) -> void {
+auto write_stream(Managed::Bytes& source, const Core::View::Bytes data)
+    -> void {
   // Run length size encoding
   write_size(source, data.get_size());
   source.write(data);
@@ -35,36 +36,37 @@ auto Writer::create(Type format_, CompressionLevel compression_) -> void {
   format = format_;
   compression = compression_;
   switch (format) {
-    // Split header and data table so create additional data block.
-    case Type::Standard:
-    case Type::Compressed:
-    case Type::Streamed:
-    case Type::StreamedCompressed:
-      data_blocks.insert(Perimortem::Memory::Managed::Bytes(disk_arena));
-      data_blocks.insert(Perimortem::Memory::Managed::Bytes(disk_arena));
-      break;
+  // Split header and data table so create additional data block.
+  case Type::Standard:
+  case Type::Compressed:
+  case Type::Streamed:
+  case Type::StreamedCompressed:
+    data_blocks.insert(Perimortem::Memory::Managed::Bytes(disk_arena));
+    data_blocks.insert(Perimortem::Memory::Managed::Bytes(disk_arena));
+    break;
 
-    // Inline headers which require reading the entire block.
-    case Type::Memory:
-      data_blocks.insert(Perimortem::Memory::Managed::Bytes(disk_arena));
-      break;
+  // Inline headers which require reading the entire block.
+  case Type::Memory:
+    data_blocks.insert(Perimortem::Memory::Managed::Bytes(disk_arena));
+    break;
 
-    // Something is wrong and we have a corrupted disk state.
-    // Default to a standard disk to attempt a graceful recover.
-    default:
-      // TODO: Error handling.
-      __builtin_debugtrap();
+  // Something is wrong and we have a corrupted disk state.
+  // Default to a standard disk to attempt a graceful recover.
+  default:
+    // TODO: Error handling.
+    __builtin_debugtrap();
 
-      format = Type::Standard;
-      data_blocks.insert(Perimortem::Memory::Managed::Bytes(disk_arena));
-      data_blocks.insert(Perimortem::Memory::Managed::Bytes(disk_arena));
-      break;
+    format = Type::Standard;
+    data_blocks.insert(Perimortem::Memory::Managed::Bytes(disk_arena));
+    data_blocks.insert(Perimortem::Memory::Managed::Bytes(disk_arena));
+    break;
   }
 };
 
-auto Writer::stage_resource(Core::View::Bytes p,
-                            Core::View::Bytes data,
-                            FileFlags flags) -> void {
+auto Writer::stage_resource(
+    Core::View::Bytes p,
+    Core::View::Bytes data,
+    FileFlags flags) -> void {
   const auto& entry = p;
 
   write_stream(data_blocks[0], entry);
@@ -76,21 +78,21 @@ auto Writer::stage_resource(Core::View::Bytes p,
   if (flags.has(FileStorage::Virtualized)) {
     int target_block = 0;  // inline
     switch (format) {
-      case Type::Standard:
-      case Type::Compressed:
-      case Type::Streamed:
-      case Type::StreamedCompressed:
-        // The actual file location needs to be back filled later.
-        write_size(data_blocks[target_block], data_blocks[1].get_size());
+    case Type::Standard:
+    case Type::Compressed:
+    case Type::Streamed:
+    case Type::StreamedCompressed:
+      // The actual file location needs to be back filled later.
+      write_size(data_blocks[target_block], data_blocks[1].get_size());
 
-        // Split header and data table so create additional data block.
-        target_block = 1;  // output to target.
-        break;
+      // Split header and data table so create additional data block.
+      target_block = 1;  // output to target.
+      break;
 
-      // Inline headers just need to write the size
-      case Type::Memory:
-        // Don't do anything special for inline blocks.
-        break;
+    // Inline headers just need to write the size
+    case Type::Memory:
+      // Don't do anything special for inline blocks.
+      break;
     }
 
     // Write out the data blob.
@@ -150,7 +152,10 @@ auto Writer::write_disk() -> Core::View::Bytes {
   return disk_output;
 }
 
-auto compress(Dynamic::Bytes& output, Core::View::Bytes source, CompressionLevel compression) -> Bool {
+auto compress(
+    Dynamic::Bytes& output,
+    Core::View::Bytes source,
+    CompressionLevel compression) -> Bool {
   const Int level =
       static_cast<std::underlying_type_t<CompressionLevel>>(compression);
   thread_local static auto cctx = ZSTD_createCCtx();

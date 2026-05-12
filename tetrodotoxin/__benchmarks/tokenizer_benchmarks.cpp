@@ -2,29 +2,29 @@
 // Copyright © Matt Kaes
 
 #include <benchmark/benchmark.h>
+#include <filesystem>
+#include <fstream>
 
 #include "lexical/tokenizer.hpp"
 
-
-#include <fstream>
-#include <filesystem>
-
 using namespace Tetrodotoxin::Lexical;
 
-auto read_all_bytes(const std::filesystem::path &p) -> std::string {
-  if(!std::filesystem::is_regular_file(p))
+auto read_all_bytes(const std::filesystem::path& p) -> std::string {
+  if (!std::filesystem::is_regular_file(p)) {
     return std::string();
+  }
 
   std::ifstream ifs(p, std::ios::binary | std::ios::ate);
   std::ifstream::pos_type pos = ifs.tellg();
 
-  if (pos == 0)
+  if (pos == 0) {
     return std::string();
+  }
 
   std::string data;
   data.resize(pos);
   ifs.seekg(0, std::ios::beg);
-  ifs.read((char *)data.data(), pos);
+  ifs.read((char*)data.data(), pos);
   return data;
 }
 

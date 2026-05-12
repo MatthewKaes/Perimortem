@@ -8,9 +8,9 @@ namespace Tetrodotoxin::Lsp {
 
 class Service {
  public:
-  static auto lsp_tokens(Tetrodotoxin::Lexical::Tokenizer& tokenizer,
-                         const RpcRequest& header)
-      -> Perimortem::Storage::Json::Node;
+  static auto lsp_tokens(
+      Tetrodotoxin::Lexical::Tokenizer& tokenizer,
+      const RpcRequest& header) -> Perimortem::Storage::Json::Node;
 };
 
 }  // namespace Tetrodotoxin::Lsp

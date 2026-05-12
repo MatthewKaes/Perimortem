@@ -10,9 +10,15 @@ namespace Perimortem::Memory::Allocator {
 // Used for only allocating memory which all shares the same lifetime enabling
 // fast allocation / deallocation.
 //
-// While constructors are called deconstructors are never called for objects
-// allocated out of a arena as it's assume they all get wiped together.
-// go.
+// Arenas avoid the book marking overhead of preface blocks so they are vastly
+// more efficent if a large number of small objects need to be allocated rapidly
+// which all share an assosiated lifetime (such as json deserialization).
+//
+// While constructors are called, deconstructors are never called for objects
+// allocated out of an arena as it's assume they all get removed together when
+// the arena's life time ends. Storing any Bibliotheca data in an arena will
+// result in a leak until thread exit unless `Bibliotheca::remit` is explictly
+// called on any rented data.
 class Arena {
  public:
   // Attempt to request blocks in 32k pages including the preface and a previous

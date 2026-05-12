@@ -2,6 +2,7 @@
 // Copyright © Matt Kaes
 
 #include "perimortem/memory/allocator/arena.hpp"
+
 #include "perimortem/core/bibliotheca.hpp"
 
 using namespace Perimortem::Core;

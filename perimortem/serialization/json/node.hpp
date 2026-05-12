@@ -5,6 +5,7 @@
 
 #include "perimortem/core/view/bytes.hpp"
 #include "perimortem/core/view/vector.hpp"
+
 #include "perimortem/memory/allocator/arena.hpp"
 
 namespace Perimortem::Serialization::Json {
@@ -62,9 +63,10 @@ class Node {
   auto is_array() const -> Bool;
   auto is_object() const -> Bool;
 
-  auto parse(Memory::Allocator::Arena& arena,
-             Core::View::Bytes source,
-             Count position = 0) -> Count;
+  auto parse(
+      Memory::Allocator::Arena& arena,
+      Core::View::Bytes source,
+      Count position = 0) -> Count;
   auto format(Memory::Allocator::Arena& arena) const -> Core::View::Bytes;
 
  private:

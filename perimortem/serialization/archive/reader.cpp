@@ -13,14 +13,14 @@ auto read_size(const Core::View::Bytes source, SizeBlock& pos) -> SizeBlock {
   Byte size_bytes = source.incremental_read<Byte>(pos);
 
   switch (size_bytes) {
-    case sizeof(Bits_8):
-      return source.incremental_read<Bits_8>(pos);
-    case sizeof(Bits_16):
-      return source.incremental_read<Bits_16>(pos);
-    case sizeof(Bits_32):
-      return source.incremental_read<Bits_32>(pos);
-    case sizeof(Bits_64):
-      return source.incremental_read<Bits_64>(pos);
+  case sizeof(Bits_8):
+    return source.incremental_read<Bits_8>(pos);
+  case sizeof(Bits_16):
+    return source.incremental_read<Bits_16>(pos);
+  case sizeof(Bits_32):
+    return source.incremental_read<Bits_32>(pos);
+  case sizeof(Bits_64):
+    return source.incremental_read<Bits_64>(pos);
   }
 
   // TODO: Error handling.
@@ -31,7 +31,6 @@ auto read_size(const Core::View::Bytes source, SizeBlock& pos) -> SizeBlock {
 auto Reader::Load(Core::View::Bytes archive) {
   blocks[0].reset();
   blocks[1].reset();
-
 
   Count read_cursor = 0;
   auto header = archive.incremental_read<HeaderBlock>(read_cursor);
@@ -45,13 +44,13 @@ auto Reader::Load(Core::View::Bytes archive) {
   format = archive.incremental_read<Type>(read_cursor);
   Count block_count;
   switch (format) {
-    // Memroy speed reads the data from a single continous buffer.
-    case Type::Memory:
-      block_count = 1;
-      break;
+  // Memroy speed reads the data from a single continous buffer.
+  case Type::Memory:
+    block_count = 1;
+    break;
 
-    default:
-      block_count = 2;
+  default:
+    block_count = 2;
   }
 
   for (int i = 0; i < block_count; i++) {
@@ -80,43 +79,46 @@ auto Reader::Load(Core::View::Bytes archive) {
 
       // Decompress blocks.
       switch (reader->format) {
-        case Type::Compressed:
-        case Type::Memory:
-          decompress_block(block_data.data);
-          break;
+      case Type::Compressed:
+      case Type::Memory:
+        decompress_block(block_data.data);
+        break;
 
-        // No other disks use compression.
-        default:
-          break;
+      // No other disks use compression.
+      default:
+        break;
       }
     }
   }
 
   switch (reader->format) {
-      // Streamed Disks
-    case Type::Streamed:
-    case Type::StreamedCompressed:
-    case Type::Standard:
-    case Type::Compressed:
-      reader->process_split_table();
-      break;
+    // Streamed Disks
+  case Type::Streamed:
+  case Type::StreamedCompressed:
+  case Type::Standard:
+  case Type::Compressed:
+    reader->process_split_table();
+    break;
 
-    // Inline headers just need to write the size
-    case Type::Memory:
-      reader->process_inline_table();
-      break;
+  // Inline headers just need to write the size
+  case Type::Memory:
+    reader->process_inline_table();
+    break;
   }
 
   return reader;
 }
 
-auto Reader::stream_from_disk(const Core::View::Bytes path, Managed::Bytes& data)
-    -> Bool {
-  if (!stream_index.contains(path))
+auto Reader::stream_from_disk(
+    const Core::View::Bytes path,
+    Managed::Bytes& data) -> Bool {
+  if (!stream_index.contains(path)) {
     return false;
+  }
 
-  if (!std::filesystem::exists(disk_path))
+  if (!std::filesystem::exists(disk_path)) {
     return false;
+  }
 
   filesystem_reader disk_reader(disk_path);
   disk_reader.sync(stream_index[path]);
@@ -135,8 +137,8 @@ auto Reader::stream_from_disk(const Core::View::Bytes path, Managed::Bytes& data
   disk_reader.sync(run_length - max_run_length_bytes);
 
   data.reset(block_size);
-  if (!disk_reader.load(const_cast<char*>(data.get_view().get_data()),
-                        block_size)) {
+  if (!disk_reader.load(
+          const_cast<char*>(data.get_view().get_data()), block_size)) {
     // TODO: Error handling
     __builtin_debugtrap();
     return false;
@@ -163,9 +165,9 @@ auto Reader::decompress_block(Managed::Bytes& data) -> void {
   Managed::Bytes output(data.get_arena());
   output.reset(inflated_size);
 
-  ZSTD_decompressDCtx(dctx, const_cast<char*>(output.get_view().get_data()),
-                      output.get_size(), data.get_view().get_data(),
-                      data.get_size());
+  ZSTD_decompressDCtx(
+      dctx, const_cast<char*>(output.get_view().get_data()), output.get_size(),
+      data.get_view().get_data(), data.get_size());
 
   // Swap data to the new buffer and then hand off to the next layer.
   data.take(output);
@@ -233,21 +235,21 @@ auto Reader::dump_info() const -> Memory::Dynamic::Bytes {
   info_stream << "Disk Info" << std::endl;
   info_stream << "@type: ";
   switch (get_format()) {
-    case Type::Standard:
-      info_stream << "Standard";
-      break;
-    case Type::Compressed:
-      info_stream << "Standard (Compressed)";
-      break;
-    case Type::Streamed:
-      info_stream << "Streamed";
-      break;
-    case Type::StreamedCompressed:
-      info_stream << "Streamed (Compressed)";
-      break;
-    case Type::Memory:
-      info_stream << "Memory (Compressed)";
-      break;
+  case Type::Standard:
+    info_stream << "Standard";
+    break;
+  case Type::Compressed:
+    info_stream << "Standard (Compressed)";
+    break;
+  case Type::Streamed:
+    info_stream << "Streamed";
+    break;
+  case Type::StreamedCompressed:
+    info_stream << "Streamed (Compressed)";
+    break;
+  case Type::Memory:
+    info_stream << "Memory (Compressed)";
+    break;
   }
   info_stream << std::endl << std::endl;
 

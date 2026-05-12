@@ -7,7 +7,6 @@
 
 namespace Tetrodotoxin::Parser::Visitor {
 
-auto parse_string(Context& ctx)
-    -> Core::View::Bytes;
+auto parse_string(Context& ctx) -> Core::View::Bytes;
 
 }  // namespace Tetrodotoxin::Parser::Visitor

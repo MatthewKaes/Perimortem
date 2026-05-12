@@ -13,30 +13,30 @@ constexpr auto stream_endian = Data::ByteOrder::Little;
 template <typename storage_type>
 constexpr auto get_data_type() -> Binary::Stream::DataType {
   switch (sizeof(storage_type)) {
-    case 1:
-      if constexpr (storage_type(-1) < storage_type(0)) {
-        return Binary::Stream::DataType::SignedBits_8;
-      } else {
-        return Binary::Stream::DataType::Bits_8;
-      }
-    case 2:
-      if constexpr (storage_type(-1) < storage_type(0)) {
-        return Binary::Stream::DataType::SignedBits_16;
-      } else {
-        return Binary::Stream::DataType::Bits_16;
-      }
-    case 4:
-      if constexpr (storage_type(-1) < storage_type(0)) {
-        return Binary::Stream::DataType::SignedBits_32;
-      } else {
-        return Binary::Stream::DataType::Bits_32;
-      }
-    case 8:
-      if constexpr (storage_type(-1) < storage_type(0)) {
-        return Binary::Stream::DataType::SignedBits_64;
-      } else {
-        return Binary::Stream::DataType::Bits_64;
-      }
+  case 1:
+    if constexpr (storage_type(-1) < storage_type(0)) {
+      return Binary::Stream::DataType::SignedBits_8;
+    } else {
+      return Binary::Stream::DataType::Bits_8;
+    }
+  case 2:
+    if constexpr (storage_type(-1) < storage_type(0)) {
+      return Binary::Stream::DataType::SignedBits_16;
+    } else {
+      return Binary::Stream::DataType::Bits_16;
+    }
+  case 4:
+    if constexpr (storage_type(-1) < storage_type(0)) {
+      return Binary::Stream::DataType::SignedBits_32;
+    } else {
+      return Binary::Stream::DataType::Bits_32;
+    }
+  case 8:
+    if constexpr (storage_type(-1) < storage_type(0)) {
+      return Binary::Stream::DataType::SignedBits_64;
+    } else {
+      return Binary::Stream::DataType::Bits_64;
+    }
   }
 
   return Binary::Stream::DataType::Unknown;
@@ -53,9 +53,9 @@ constexpr auto get_data_type<Real_64>() -> Binary::Stream::DataType {
 }
 
 template <typename storage_type>
-constexpr auto write_block(Access::Bytes target,
-                           Count& ptr_location,
-                           storage_type bin) -> Bool {
+constexpr auto
+    write_block(Access::Bytes target, Count& ptr_location, storage_type bin)
+        -> Bool {
   if (ptr_location + 1 + sizeof(storage_type) > target.get_size()) {
     return false;
   }
@@ -72,9 +72,9 @@ constexpr auto write_block(Access::Bytes target,
 }
 
 template <typename blob_type>
-constexpr auto write_blob(Access::Bytes target,
-                          Count& ptr_location,
-                          blob_type bin) -> Bool {
+constexpr auto
+    write_blob(Access::Bytes target, Count& ptr_location, blob_type bin)
+        -> Bool {
   using storage_type = typename blob_type::data_type;
   if (ptr_location + 2 + sizeof(storage_type) * bin.get_size() >
       target.get_size()) {
@@ -86,13 +86,14 @@ constexpr auto write_blob(Access::Bytes target,
   data[ptr_location++] = static_cast<Byte>(get_data_type<storage_type>());
 
   // Size data
-  Count size = Data::ensure_endian<Data::ByteOrder::Native, stream_endian>(bin.get_size());
+  Count size = Data::ensure_endian<Data::ByteOrder::Native, stream_endian>(
+      bin.get_size());
   Data::copy(data + ptr_location, &size);
   ptr_location += sizeof(Count);
 
   // Special case for byte data
-  if constexpr (sizeof(storage_type) == 1 ||
-                (Data::ByteOrder::Native == stream_endian)) {
+  if constexpr (
+      sizeof(storage_type) == 1 || (Data::ByteOrder::Native == stream_endian)) {
     Data::copy(data + ptr_location, bin.get_data(), bin.get_size());
     ptr_location += sizeof(storage_type) * bin.get_size();
   } else {

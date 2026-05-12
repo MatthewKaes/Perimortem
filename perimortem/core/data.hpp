@@ -8,9 +8,10 @@
 // Provide the blessed memory operations so LLVM can properly optimize.
 extern "C" {
 typedef CppSize size_t;
-extern void* memcpy(void* __restrict dest,
-                    const void* __restrict src,
-                    size_t count) noexcept(true);
+extern void* memcpy(
+    void* __restrict dest,
+    const void* __restrict src,
+    size_t count) noexcept(true);
 
 extern int memcmp(const void* a, const void* b, size_t count) noexcept(true);
 
@@ -72,9 +73,9 @@ auto take(storage_type& source) -> storage_type&& {
 }
 
 template <typename storage_type>
-constexpr auto compare(const storage_type* dest,
-                       const storage_type* src,
-                       Count count = 1) -> Bool {
+constexpr auto
+    compare(const storage_type* dest, const storage_type* src, Count count = 1)
+        -> Bool {
   if consteval {
     for (Count i = 0; i < count; i++) {
       if (dest[i] != src[i]) {
@@ -92,14 +93,14 @@ template <ByteOrder source, ByteOrder target, typename storage_type>
 constexpr auto ensure_endian(storage_type bin) -> storage_type {
   if constexpr (source != target) {
     switch (sizeof(storage_type)) {
-      case 1:
-        return bin;
-      case 2:
-        return __builtin_bswap16(bin);
-      case 4:
-        return __builtin_bswap32(bin);
-      case 8:
-        return __builtin_bswap64(bin);
+    case 1:
+      return bin;
+    case 2:
+      return __builtin_bswap16(bin);
+    case 4:
+      return __builtin_bswap32(bin);
+    case 8:
+      return __builtin_bswap64(bin);
     }
   }
 

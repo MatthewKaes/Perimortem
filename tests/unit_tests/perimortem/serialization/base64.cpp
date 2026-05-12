@@ -3,13 +3,16 @@
 
 #include "validation/unit_test.hpp"
 
+#include "perimortem/core/view/vector.hpp"
+#include "perimortem/core/access/vector.hpp"
 #include "perimortem/core/bibliotheca.hpp"
-#include "perimortem/serialization/base64/decode.hpp"
+
 #include "perimortem/system/file.hpp"
+#include "perimortem/serialization/base64/decode.hpp"
+
 #include "perimortem/utility/null_terminated.hpp"
 
 using namespace Perimortem::Core;
-using namespace Perimortem::Math;
 using namespace Perimortem::Memory;
 using namespace Perimortem::Serialization;
 using namespace Perimortem::System;
@@ -34,8 +37,8 @@ PERIMORTEM_UNIT_TEST(SerializationBase64, decode_simple) {
   const auto source = "QmFzZTY0IHRlc3Qgc3RyaW5nIGZvciBQZXJpbW9ydGVtLg=="_view;
   const auto decoded_bytes = Base64::decode(source);
 
-  EXPECT_TEXT(decoded_bytes.get_view(),
-              "Base64 test string for Perimortem."_view);
+  EXPECT_TEXT(
+      decoded_bytes.get_view(), "Base64 test string for Perimortem."_view);
 
   // Should only perform 1 allocations:
   // 1 decode
@@ -56,37 +59,3 @@ PERIMORTEM_UNIT_TEST(SerializationBase64, decode_vectorized) {
   // 2 file reads + 1 decode
   EXPECT_EQ(Bibliotheca::check_out_requests(), start_requests + 3);
 }
-
-// #include "perimortem/serialization/base64/decode.hpp"
-
-// extern auto load_text(const std::filesystem::path& p) -> std::string;
-
-// struct Base64Tests : public ::testing::Test {
-//  protected:
-//   static void SetUpTestSuite() {}
-
-//   virtual void SetUp() {}
-
-//   virtual void TearDown() {}
-// };
-
-// using namespace Perimortem::Memory;
-// using namespace Perimortem::Storage::Base64;
-
-// TEST_F(Base64Tests, decode) {
-//   Arena arena;
-//   Decoded decode(arena,
-//                  View::Byte("QmFzZTY0IHRlc3Qgc3RyaW5nIGZvciBQZXJpbW9ydGVtLg=="));
-
-//   EXPECT_EQ(decode.get_view(), View::Byte("Base64 test string for
-//   Perimortem."));
-// }
-
-// TEST_F(Base64Tests, vectorize_decode) {
-//   auto source = load_text("perimortem/tests/base64/source.ttx");
-//   auto base64 = load_text("perimortem/tests/base64/source.base64");
-//   Arena arena;
-//   Decoded decode(arena, View::Byte(base64));
-
-//   EXPECT_EQ(decode.get_view(), View::Byte(source));
-// }

@@ -1,17 +1,19 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
-#include "validation/unit_test.hpp"
+#include "perimortem/core/algorithm/sort.hpp"
 
-#include "perimortem/core/bibliotheca.hpp"
-#include "perimortem/math/sort.hpp"
-#include "perimortem/memory/dynamic/bytes.hpp"
-#include "perimortem/utility/null_terminated.hpp"
+#include "validation/unit_test.hpp"
 
 #include <stdlib.h>
 
+#include "perimortem/core/bibliotheca.hpp"
+
+#include "perimortem/memory/dynamic/bytes.hpp"
+
+#include "perimortem/utility/null_terminated.hpp"
+
 using namespace Perimortem::Core;
-using namespace Perimortem::Math;
 using namespace Perimortem::Memory;
 
 using namespace Validation;
@@ -34,14 +36,14 @@ auto operator>(const Bytes& lhs, const Bytes& rhs) -> Bool {
 }
 }  // namespace Perimortem::Memory::Dynamic
 
-Test::Harness MathSort = {.name = "Math::Sort"};
+Test::Harness MathSort = {.name = "Core::Algorithm::Sort"};
 
 PERIMORTEM_UNIT_TEST(MathSort, simple_sort) {
   constexpr Int test_const[] = {9, 8, 1, 4, 3, 7};
   Int test[] = {9, 8, 1, 4, 3, 7};
 
-  constexpr auto sorted_const = sort(test_const);
-  auto sorted = sort(Access::Vector(test));
+  constexpr auto sorted_const = Algorithm::sort(test_const);
+  auto sorted = Algorithm::sort(Access::Vector(test));
 
   EXPECT_EQ(sorted[0], 1);
   EXPECT_EQ(sorted[1], 3);
@@ -59,8 +61,8 @@ PERIMORTEM_UNIT_TEST(MathSort, simple_sort) {
 }
 
 PERIMORTEM_UNIT_TEST(MathSort, empty_sort) {
-  constexpr auto sorted_const = sort(Access::Vector<Int>());
-  auto sorted = sort(Access::Vector<Int>());
+  constexpr auto sorted_const = Algorithm::sort(Access::Vector<Int>());
+  auto sorted = Algorithm::sort(Access::Vector<Int>());
 
   EXPECT_EQ(sorted.get_size(), 0);
   EXPECT_EQ(sorted_const.get_size(), 0);
@@ -79,7 +81,7 @@ PERIMORTEM_UNIT_TEST(MathSort, large_sort) {
     Data::swap(test[rand() % item_count], test[rand() % item_count]);
   }
 
-  auto sorted = sort(test);
+  auto sorted = Algorithm::sort(test);
   for (Count i = 0; i < item_count; i++) {
     EXPECT_EQ(sorted[i], i);
   }
@@ -102,7 +104,7 @@ PERIMORTEM_UNIT_TEST(MathSort, dynamic_types) {
 
   // Sorting even on dynamic data should result in zero memory requests
   auto check_outs = Bibliotheca::check_out_requests();
-  auto sorted = sort(Access::Vector(test));
+  auto sorted = Algorithm::sort(Access::Vector(test));
   EXPECT_EQ(check_outs, Bibliotheca::check_out_requests());
 
   Dynamic::Bytes validate = {};

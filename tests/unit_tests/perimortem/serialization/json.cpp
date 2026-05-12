@@ -1,16 +1,17 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
-#include "perimortem/core/bibliotheca.hpp"
-#include "perimortem/core/static/vector.hpp"
-#include "perimortem/serialization/json/node.hpp"
-#include "perimortem/system/file.hpp"
-#include "perimortem/utility/null_terminated.hpp"
-
 #include "validation/unit_test.hpp"
 
+#include "perimortem/core/static/vector.hpp"
+#include "perimortem/core/bibliotheca.hpp"
+
+#include "perimortem/system/file.hpp"
+#include "perimortem/serialization/json/node.hpp"
+
+#include "perimortem/utility/null_terminated.hpp"
+
 using namespace Perimortem::Core;
-using namespace Perimortem::Math;
 using namespace Perimortem::Memory;
 using namespace Perimortem::Serialization;
 using namespace Perimortem::System;
@@ -273,14 +274,14 @@ PERIMORTEM_UNIT_TEST(SerializationJson, parse_object) {
 PERIMORTEM_UNIT_TEST(SerializationJson, format) {
   constexpr auto expected =
       "{\"root\":1,\"flag\":true,\"config\":{\"version\":\"1.0.2\",\"sub_flag\":true}}"_view;
-  Json::Node value = Json::Object{{
-      {"root"_view, Long(1)},
-      {"flag"_view, True},
-      {"config"_view, Json::Object{{
-                          {"version"_view, "1.0.2"_view},
-                          {"sub_flag"_view, True},
-                      }}},
-  }};
+  Json::Node value = Json::Object({
+    {"root"_view, Long(1)},
+    {"flag"_view, True},
+    {"config"_view, Json::Object({
+                      {"version"_view, "1.0.2"_view},
+                      {"sub_flag"_view, True},
+                    })},
+  });
 
   Allocator::Arena arena;
   auto formated = value.format(arena);

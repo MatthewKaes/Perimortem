@@ -5,7 +5,7 @@
 
 #pragma once
 
-namespace Perimortem::Math {
+namespace Perimortem::Core::Math {
 
 template <typename type>
 constexpr auto max(type a, type b) -> type {
@@ -38,4 +38,4 @@ constexpr auto ceil(Real_64 value) -> Count {
   return Count(__builtin_ceil(value));
 }
 
-}  // namespace Perimortem::Math
+}  // namespace Perimortem::Core::Math

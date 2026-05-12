@@ -3,9 +3,10 @@
 
 #pragma once
 
-#include "perimortem/core/data.hpp"
 #include "perimortem/core/view/bytes.hpp"
 #include "perimortem/core/view/vector.hpp"
+#include "perimortem/core/data.hpp"
+
 #include "perimortem/utility/pair.hpp"
 
 namespace Perimortem::Utility {
@@ -18,10 +19,11 @@ namespace Perimortem::Utility {
 // The source template parameter is a bit funky since the type itself is
 // parameterized over it's source data to create a type that expresses the
 // compressed form of the lookups.
-template <typename value_type,
-          const Core::View::Vector<
-              Utility::Pair<Core::View::Bytes, value_type>>& source,
-          Core::Data::CacheAware cache_aware = Core::Data::CacheAware::Enabled>
+template <
+    typename value_type,
+    const Core::View::Vector<Utility::Pair<Core::View::Bytes, value_type>>&
+        source,
+    Core::Data::CacheAware cache_aware = Core::Data::CacheAware::Enabled>
 class Table {
  public:
   static constexpr auto cache_line_size = static_cast<Bits_64>(cache_aware);
@@ -117,9 +119,9 @@ class Table {
   static constexpr PackedBuffer byte_pack;
 
  public:
-  static constexpr auto find_or_default(const Core::View::Bytes key,
-                                        const value_type default_value)
-      -> value_type {
+  static constexpr auto find_or_default(
+      const Core::View::Bytes key,
+      const value_type default_value) -> value_type {
     // Get the value in range.
     const auto range_step = key.get_size();
     if (range_step > max_range) {
@@ -136,8 +138,8 @@ class Table {
         continue;
       }
 
-      if (Core::Data::compare(byte_pack.buffer + byte_index, key.get_data(),
-                              range_step)) {
+      if (Core::Data::compare(
+              byte_pack.buffer + byte_index, key.get_data(), range_step)) {
         return byte_pack.mappings[item_start + i];
       }
     }

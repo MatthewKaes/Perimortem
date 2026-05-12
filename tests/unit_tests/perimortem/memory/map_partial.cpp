@@ -4,11 +4,12 @@
 #include "validation/unit_test.hpp"
 
 #include "perimortem/core/static/bytes.hpp"
+
 #include "perimortem/memory/dynamic/bytes.hpp"
 #include "perimortem/memory/dynamic/map.hpp"
-#include "perimortem/utility/null_terminated.hpp"
-
 #include "tests/unit_tests/perimortem/memory/hashable.hpp"
+
+#include "perimortem/utility/null_terminated.hpp"
 
 using namespace Perimortem::Memory;
 using namespace Perimortem::Utility;
@@ -18,11 +19,11 @@ using namespace Validation;
 constexpr auto vector_mode = Dynamic::MapVectorization::Partial;
 
 Test::Harness DynamicMapPartial = {
-    .name = "Dynamic::Map (Partial Vectorization)",
-    .setup = []() {
-      default_construct_count = 0;
-      default_destruct_count = 0;
-    }};
+  .name = "Dynamic::Map (Partial Vectorization)",
+  .setup = []() {
+    default_construct_count = 0;
+    default_destruct_count = 0;
+  }};
 
 PERIMORTEM_UNIT_TEST(DynamicMapPartial, empty) {
   Dynamic::Map<Int, Int, vector_mode> empty_map;
@@ -170,8 +171,8 @@ PERIMORTEM_UNIT_TEST(DynamicMapPartial, emplace_construction_count) {
     Dynamic::Map<Int, Hashable, vector_mode> custom_map;
 
     for (Int i = 0; i < 100; i++) {
-      custom_map.emplace(static_cast<Int&&>(i),
-                         Hashable(i, construct_count, destruct_count));
+      custom_map.emplace(
+          static_cast<Int&&>(i), Hashable(i, construct_count, destruct_count));
     }
 
     EXPECT_EQ(custom_map.get_size(), 100);

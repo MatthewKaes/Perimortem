@@ -4,11 +4,11 @@
 #pragma once
 
 #include "perimortem/core/access/vector.hpp"
-#include "perimortem/core/data.hpp"
 #include "perimortem/core/static/vector.hpp"
-#include "perimortem/math/basic.hpp"
+#include "perimortem/core/data.hpp"
+#include "perimortem/core/math.hpp"
 
-namespace Perimortem::Math {
+namespace Perimortem::Core::Algorithm {
 
 // Perimortem's standard sort function.
 // Very similar to std::sort but optimized to perform ~20% better for extremely
@@ -22,8 +22,9 @@ template <typename type>
 constexpr auto sort(Core::Access::Vector<type> access)
     -> Core::Access::Vector<type> {
   // Special case trivially sorted arrays.
-  if (access.get_size() <= 1)
+  if (access.get_size() <= 1) {
     return access;
+  }
 
   // Not a fan of polluting namespaces, so inline with the Perimortem coding
   // standards all of the helper functions are internal lambdas.
@@ -152,8 +153,8 @@ constexpr auto sort(Core::Access::Vector<type> access)
       Count pivot_index =
           (partition_size > ninther_median_cutoff)
               ? ninther_median(data, partition_size)
-              : branchless_median_three(data, Count(0), partition_size / 2,
-                                        partition_size - 1);
+              : branchless_median_three(
+                    data, Count(0), partition_size / 2, partition_size - 1);
 
       Count split = quick_partition(partition, partition_size, pivot_index);
 
@@ -196,4 +197,4 @@ constexpr auto sort(type (&data)[item_count]) {
   return sort(Core::Access::Vector<type>(data));
 }
 
-}  // namespace Perimortem::Math
+}  // namespace Perimortem::Core::Algorithm

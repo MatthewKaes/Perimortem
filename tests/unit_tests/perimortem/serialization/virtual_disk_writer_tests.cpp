@@ -22,7 +22,8 @@
 //   ASSERT_EQ(result.size(), target.size()) << "Disks are of unequal length";
 
 //   for (int i = 0; i < target.size(); ++i) {
-//     EXPECT_EQ(result[i], target[i]) << "Disks differ at byte " << std::hex << i;
+//     EXPECT_EQ(result[i], target[i]) << "Disks differ at byte " << std::hex <<
+//     i;
 //   }
 // }
 
@@ -33,9 +34,9 @@
 //     script_path = "test/test_script.ttx";
 //     script_view = {(Byte *)script.data(), script.size()};
 
-//     txt = "A bunch of test information which you might want to have streamed!";
-//     txt_path = "test_data/nested/example.txt";
-//     txt_view = {(Byte *)txt.data(), txt.size()};
+//     txt = "A bunch of test information which you might want to have
+//     streamed!"; txt_path = "test_data/nested/example.txt"; txt_view = {(Byte
+//     *)txt.data(), txt.size()};
 
 //     logo_svg = read_all_bytes(".data/icon.svg");
 //     logo_svg_path = ".data/icon.svg";
@@ -164,8 +165,9 @@
 //   writer.stage_resource("test/test_script.ttx", (Byte *)script.data(),
 //                         script.size(), FileStorage::Virtualized);
 
-//   script = "A bunch of test information which you might want to have streamed!";
-//   writer.stage_resource("test_data/nested/example.txt", (Byte *)script.data(),
+//   script = "A bunch of test information which you might want to have
+//   streamed!"; writer.stage_resource("test_data/nested/example.txt", (Byte
+//   *)script.data(),
 //                         script.size(), FileStorage::Virtualized);
 
 //   auto logo_svg = read_all_bytes(".data/icon.svg");
@@ -185,8 +187,9 @@
 //   writer.stage_resource("test/test_script.ttx", (Byte *)script.data(),
 //                         script.size(), FileStorage::Virtualized);
 
-//   script = "A bunch of test information which you might want to have streamed!";
-//   writer.stage_resource("test_data/nested/example.txt", (Byte *)script.data(),
+//   script = "A bunch of test information which you might want to have
+//   streamed!"; writer.stage_resource("test_data/nested/example.txt", (Byte
+//   *)script.data(),
 //                         script.size(), FileStorage::Virtualized);
 
 //   auto logo_svg = read_all_bytes(".data/icon.svg");
@@ -206,8 +209,9 @@
 //   writer.stage_resource("test/test_script.ttx", (Byte *)script.data(),
 //                         script.size(), FileStorage::Virtualized);
 
-//   script = "A bunch of test information which you might want to have streamed!";
-//   writer.stage_resource("test_data/nested/example.txt", (Byte *)script.data(),
+//   script = "A bunch of test information which you might want to have
+//   streamed!"; writer.stage_resource("test_data/nested/example.txt", (Byte
+//   *)script.data(),
 //                         script.size(), FileStorage::Virtualized);
 
 //   auto logo_svg = read_all_bytes(".data/icon.svg");

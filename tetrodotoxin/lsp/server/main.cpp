@@ -3,9 +3,9 @@
 
 #include <iostream>
 
+#include "lexical/tokenizer.hpp"
 #include "perimortem/storage/formats/base64.hpp"
 #include "perimortem/storage/formats/json.hpp"
-#include "lexical/tokenizer.hpp"
 #include "src/language_server.hpp"
 #include "src/service.hpp"
 
@@ -43,16 +43,17 @@ auto main(int argc, char* argv[]) -> int {
   jsonrpc.register_method(
       "initialize", [](const RpcRequest& request) -> RpcResponse {
         auto response = request.create_object(
-            {{"serverInfo", request.create_object({
-                                {"name"_view, "Tetrodotoxin Language Server"_view},
-                                {"version"_view, "1.0"_view},
-                            })},
+            {{"serverInfo",
+              request.create_object({
+                {"name"_view, "Tetrodotoxin Language Server"_view},
+                {"version"_view, "1.0"_view},
+              })},
              {"capabilities",
               request.create_object({
-                  {"positionEncoding"_view, "utf-16"_view},
-                  {"textDocumentSync"_view,
-                   request.create_object(
-                       {{"openClose"_view, true}, {"change"_view, "1"_view}})},
+                {"positionEncoding"_view, "utf-16"_view},
+                {"textDocumentSync"_view,
+                 request.create_object(
+                     {{"openClose"_view, true}, {"change"_view, "1"_view}})},
               })}});
 
         return request.rpc_result(response);
@@ -63,7 +64,8 @@ auto main(int argc, char* argv[]) -> int {
       "tokenize", [](const RpcRequest& request) -> RpcResponse {
         const auto& args = request.get_params();
         if (args.is_null()) {
-          return request.rpc_error("\"Failed to parse tokenize request.\""_view);
+          return request.rpc_error(
+              "\"Failed to parse tokenize request.\""_view);
         }
 
         const auto source_code = args["source"_view].get_string();

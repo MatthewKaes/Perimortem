@@ -3,12 +3,14 @@
 
 #include "perimortem/serialization/json/node.hpp"
 
+#include <x86intrin.h>
+
 #include "perimortem/memory/managed/bytes.hpp"
 #include "perimortem/memory/managed/vector.hpp"
-#include "perimortem/serialization/textual/stream.hpp"
-#include "perimortem/utility/null_terminated.hpp"
 
-#include <x86intrin.h>
+#include "perimortem/serialization/textual/stream.hpp"
+
+#include "perimortem/utility/null_terminated.hpp"
 
 enum class NodeState : Bits_32 {
   Null,
@@ -244,13 +246,13 @@ auto Json::Node::get_object() const -> const View::Vector<Member> {
 
 auto Json::Node::get_size() const -> Count {
   switch ((NodeState)data.state) {
-    case NodeState::String:
-    case NodeState::Array:
-    case NodeState::Object:
-      return data.size;
+  case NodeState::String:
+  case NodeState::Array:
+  case NodeState::Object:
+    return data.size;
 
-    default:
-      return 0;
+  default:
+    return 0;
   }
 }
 
@@ -293,9 +295,10 @@ auto ignored_characters(Byte c) {
   return c == ',' || c == '\n' || c == ' ';
 }
 
-auto Json::Node::parse(Allocator::Arena& arena,
-                       View::Bytes source,
-                       Count position) -> Count {
+auto Json::Node::parse(
+    Allocator::Arena& arena,
+    View::Bytes source,
+    Count position) -> Count {
   if (position > source.get_size()) {
     set();
     return position;
@@ -304,151 +307,151 @@ auto Json::Node::parse(Allocator::Arena& arena,
   while (position < source.get_size()) {
     const auto start_char = source[position];
     switch (start_char) {
-      // Object
-      case '{': {
-        Managed::Vector<Member> members(arena);
-        position++;
+    // Object
+    case '{': {
+      Managed::Vector<Member> members(arena);
+      position++;
 
-        while (position < source.get_size()) {
-          if (source[position] != '"') {
-            if (source[position++] == '}') {
-              break;
-            }
-
-            continue;
-          }
-
-          // Parse the name string.
-          auto name = parse_string(source, position);
-
-          // :
-          position++;
-
-          Json::Node& child = arena.allocate<Json::Node>();
-          position = child.parse(arena, source, position);
-          if (child.is_null()) {
-            set();
-            return position;
-          }
-
-          members.insert(Member(name, child));
-        }
-
-        set(members);
-        return position;
-      }
-
-      // Array
-      case '[': {
-        Managed::Vector<Json::Node> array(arena);
-        position++;
-
-        while (position < source.get_size()) {
-          if (ignored_characters(source[position])) {
-            position++;
-          }
-
-          if (source[position] == ']') {
+      while (position < source.get_size()) {
+        if (source[position] != '"') {
+          if (source[position++] == '}') {
             break;
           }
 
-          Json::Node child;
-          position = child.parse(arena, source, position);
-          if (child.is_null()) {
-            set();
-            return position;
-          }
-
-          array.insert(child);
+          continue;
         }
 
-        // If we are past the end then this is safe as we null out anyway.
-        // If we are at a valid closing ']' then this consumes it.
-        set(array.get_view());
-        position++;
-        return position;
-      }
-
-      // String
-      case '"': {
+        // Parse the name string.
         auto name = parse_string(source, position);
-        set(name);
-        return position;
-      }
 
-      // true
-      case 't': {
-        constexpr auto true_view = "true"_view;
-        if (source.slice(position, true_view.get_size()) != "true"_view) {
-          set();
-          return position;
-        }
-
-        // Move past "true"
-        position += true_view.get_size();
-
-        set(True);
-        return position;
-      }
-
-      // false
-      case 'f': {
-        constexpr auto false_view = "false"_view;
-        if (source.slice(position, false_view.get_size()) != "false"_view) {
-          set();
-          return position;
-        }
-
-        // Move past "false"
-        position += false_view.get_size();
-
-        set(False);
-        return position;
-      }
-
-      // Numbers
-      case '-':
-      case '0' ... '9': {
-        Bool positive = True;
-        if (source[position] == '-') {
-          positive = False;
-          position++;
-        }
-
-        Long value = 0;
-        while (position < source.get_size() && source[position] >= '0' &&
-               source[position] <= '9') {
-          value *= 10;
-          value += source[position] - '0';
-          position++;
-        }
-
-        if (position >= source.get_size() || source[position] != '.') {
-          set(value * positive.sign());
-          return position;
-        }
-
-        position++;  // consume '.'
-        Real_64 float_value = value;
-        Bits_64 divisor = 1;
-
-        // Try to perserve precision by using fixed point and only convert into
-        // floating point once.
-        while (position < source.get_size() && source[position] >= '0' &&
-               source[position] <= '9') {
-          float_value *= 10;
-          divisor *= 10;
-          float_value += source[position] - '0';
-          position++;
-        }
-
-        set((float_value / Real_64(divisor)) * positive.sign());
-        return position;
-      }
-
-      default:
+        // :
         position++;
-        break;
+
+        Json::Node& child = arena.allocate<Json::Node>();
+        position = child.parse(arena, source, position);
+        if (child.is_null()) {
+          set();
+          return position;
+        }
+
+        members.insert(Member(name, child));
+      }
+
+      set(members);
+      return position;
+    }
+
+    // Array
+    case '[': {
+      Managed::Vector<Json::Node> array(arena);
+      position++;
+
+      while (position < source.get_size()) {
+        if (ignored_characters(source[position])) {
+          position++;
+        }
+
+        if (source[position] == ']') {
+          break;
+        }
+
+        Json::Node child;
+        position = child.parse(arena, source, position);
+        if (child.is_null()) {
+          set();
+          return position;
+        }
+
+        array.insert(child);
+      }
+
+      // If we are past the end then this is safe as we null out anyway.
+      // If we are at a valid closing ']' then this consumes it.
+      set(array.get_view());
+      position++;
+      return position;
+    }
+
+    // String
+    case '"': {
+      auto name = parse_string(source, position);
+      set(name);
+      return position;
+    }
+
+    // true
+    case 't': {
+      constexpr auto true_view = "true"_view;
+      if (source.slice(position, true_view.get_size()) != "true"_view) {
+        set();
+        return position;
+      }
+
+      // Move past "true"
+      position += true_view.get_size();
+
+      set(True);
+      return position;
+    }
+
+    // false
+    case 'f': {
+      constexpr auto false_view = "false"_view;
+      if (source.slice(position, false_view.get_size()) != "false"_view) {
+        set();
+        return position;
+      }
+
+      // Move past "false"
+      position += false_view.get_size();
+
+      set(False);
+      return position;
+    }
+
+    // Numbers
+    case '-':
+    case '0' ... '9': {
+      Bool positive = True;
+      if (source[position] == '-') {
+        positive = False;
+        position++;
+      }
+
+      Long value = 0;
+      while (position < source.get_size() && source[position] >= '0' &&
+             source[position] <= '9') {
+        value *= 10;
+        value += source[position] - '0';
+        position++;
+      }
+
+      if (position >= source.get_size() || source[position] != '.') {
+        set(value * positive.sign());
+        return position;
+      }
+
+      position++;  // consume '.'
+      Real_64 float_value = value;
+      Bits_64 divisor = 1;
+
+      // Try to perserve precision by using fixed point and only convert into
+      // floating point once.
+      while (position < source.get_size() && source[position] >= '0' &&
+             source[position] <= '9') {
+        float_value *= 10;
+        divisor *= 10;
+        float_value += source[position] - '0';
+        position++;
+      }
+
+      set((float_value / Real_64(divisor)) * positive.sign());
+      return position;
+    }
+
+    default:
+      position++;
+      break;
     }
   }
 
@@ -458,71 +461,71 @@ auto Json::Node::parse(Allocator::Arena& arena,
 
 auto Json::Node::serialized_size() const -> Count {
   switch ((NodeState)data.state) {
-    case NodeState::Null: {
-      return "null"_view.get_size();
+  case NodeState::Null: {
+    return "null"_view.get_size();
+  }
+
+  case NodeState::Array: {
+    Count accumulated = 0;
+    View::Vector<Json::Node> array = get_array();
+    for (Bits_32 i = 0; i < array.get_size(); i++) {
+      accumulated += array[i].serialized_size();
     }
 
-    case NodeState::Array: {
-      Count accumulated = 0;
-      View::Vector<Json::Node> array = get_array();
-      for (Bits_32 i = 0; i < array.get_size(); i++) {
-        accumulated += array[i].serialized_size();
-      }
+    const auto number_of_commas = array.get_size() - 1;
+    return accumulated + "[]"_view.get_size() + number_of_commas;
+  }
 
-      const auto number_of_commas = array.get_size() - 1;
-      return accumulated + "[]"_view.get_size() + number_of_commas;
+  case NodeState::Object: {
+    Count accumulated = 0;
+    View::Vector<Member> members = get_object();
+    for (Bits_32 i = 0; i < members.get_size(); i++) {
+      const auto& member = members[i];
+      accumulated += member.name.get_size() + "\"\":"_view.get_size();
+      accumulated += member.node.serialized_size();
     }
 
-    case NodeState::Object: {
-      Count accumulated = 0;
-      View::Vector<Member> members = get_object();
-      for (Bits_32 i = 0; i < members.get_size(); i++) {
-        const auto& member = members[i];
-        accumulated += member.name.get_size() + "\"\":"_view.get_size();
-        accumulated += member.node.serialized_size();
-      }
+    const auto number_of_commas = members.get_size() - 1;
+    return accumulated + "{}"_view.get_size() + number_of_commas;
+  }
 
-      const auto number_of_commas = members.get_size() - 1;
-      return accumulated + "{}"_view.get_size() + number_of_commas;
+  case NodeState::String: {
+    auto length = get_size();
+    return length + "\"\""_view.get_size();
+  }
+
+  case NodeState::Flag: {
+    if (data.flag) {
+      return "true"_view.get_size();
+    } else {
+      return "false"_view.get_size();
+    }
+  }
+
+  case NodeState::Number: {
+    Count accumulated = 0;
+    auto number = data.number;
+    if (number < 0) {
+      accumulated += 1;
+      number = number * -1;
     }
 
-    case NodeState::String: {
-      auto length = get_size();
-      return length + "\"\""_view.get_size();
+    // Slightly overestimates number of digits by computing log8(number) of
+    // the number and rounding up.
+    // Only overestimates by 1 byte for any value upto 10^9 an only 2 bytes
+    // for the entire 64 bit range, compared to the div 10 version.
+    while (number > 0) {
+      number >>= 3;
+      accumulated += 1;
     }
 
-    case NodeState::Flag: {
-      if (data.flag) {
-        return "true"_view.get_size();
-      } else {
-        return "false"_view.get_size();
-      }
-    }
+    return accumulated;
+  }
 
-    case NodeState::Number: {
-      Count accumulated = 0;
-      auto number = data.number;
-      if (number < 0) {
-        accumulated += 1;
-        number = number * -1;
-      }
-
-      // Slightly overestimates number of digits by computing log8(number) of
-      // the number and rounding up.
-      // Only overestimates by 1 byte for any value upto 10^9 an only 2 bytes
-      // for the entire 64 bit range, compared to the div 10 version.
-      while (number > 0) {
-        number >>= 3;
-        accumulated += 1;
-      }
-
-      return accumulated;
-    }
-
-    // Assume 32 bytes is sufficient
-    case NodeState::Real: {
-      return 32;
-    }
+  // Assume 32 bytes is sufficient
+  case NodeState::Real: {
+    return 32;
+  }
   }
 }
 
@@ -537,63 +540,63 @@ auto Json::Node::format(Allocator::Arena& arena) const -> View::Bytes {
   auto inplace_format = [](this auto&& self, Textual::Stream& output,
                            const Json::Node& node) -> void {
     switch ((NodeState)node.data.state) {
-      case NodeState::Null: {
-        output << "null"_view;
-        return;
-      }
+    case NodeState::Null: {
+      output << "null"_view;
+      return;
+    }
 
-      case NodeState::Array: {
-        output << Byte('[');
+    case NodeState::Array: {
+      output << Byte('[');
 
-        View::Vector<Json::Node> array = node.get_array();
-        for (Bits_32 i = 0; i < array.get_size(); i++) {
-          self(output, array[i]);
-          if (i != array.get_size() - 1) {
-            output << Byte(',');
-          }
+      View::Vector<Json::Node> array = node.get_array();
+      for (Bits_32 i = 0; i < array.get_size(); i++) {
+        self(output, array[i]);
+        if (i != array.get_size() - 1) {
+          output << Byte(',');
         }
-
-        output << Byte(']');
-        return;
       }
 
-      case NodeState::Object: {
-        output << Byte('{');
+      output << Byte(']');
+      return;
+    }
 
-        View::Vector<Member> members = node.get_object();
-        for (Bits_32 i = 0; i < members.get_size(); i++) {
-          const auto& member = members[i];
-          output << Byte('\"') << member.name << "\":"_view;
+    case NodeState::Object: {
+      output << Byte('{');
 
-          self(output, member.node);
-          if (i != members.get_size() - 1) {
-            output << Byte(',');
-          }
+      View::Vector<Member> members = node.get_object();
+      for (Bits_32 i = 0; i < members.get_size(); i++) {
+        const auto& member = members[i];
+        output << Byte('\"') << member.name << "\":"_view;
+
+        self(output, member.node);
+        if (i != members.get_size() - 1) {
+          output << Byte(',');
         }
-
-        output << Byte('}');
-        return;
       }
 
-      case NodeState::String: {
-        output << Byte('\"') << node.get_string() << Byte('\"');
-        return;
-      }
+      output << Byte('}');
+      return;
+    }
 
-      case NodeState::Flag: {
-        output << node.data.flag;
-        return;
-      }
+    case NodeState::String: {
+      output << Byte('\"') << node.get_string() << Byte('\"');
+      return;
+    }
 
-      case NodeState::Number: {
-        output << node.data.number;
-        return;
-      }
+    case NodeState::Flag: {
+      output << node.data.flag;
+      return;
+    }
 
-      case NodeState::Real: {
-        output << node.data.real;
-        return;
-      }
+    case NodeState::Number: {
+      output << node.data.number;
+      return;
+    }
+
+    case NodeState::Real: {
+      output << node.data.real;
+      return;
+    }
     }
   };
 

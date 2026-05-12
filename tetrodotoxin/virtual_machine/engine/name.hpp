@@ -4,7 +4,6 @@
 #pragma once
 
 #include "types/abstract.hpp"
-
 #include "types/empty.hpp"
 
 namespace Tetrodotoxin::Types {
@@ -43,16 +42,17 @@ class Name : public Abstract {
   }
 
   virtual auto expand_scope(
-      const std::function<void(const Perimortem::Core::View::Bytes,
-                               const Abstract* const&)>& fn) const
-      -> void override {
+      const std::function<
+          void(const Perimortem::Core::View::Bytes, const Abstract* const&)>&
+          fn) const -> void override {
     resolve().expand_context(fn);
   }
 
-  Name(const Perimortem::Core::View::Bytes doc,
-       const Perimortem::Core::View::Bytes name,
-       Abstract& type,
-       Usage usage)
+  Name(
+      const Perimortem::Core::View::Bytes doc,
+      const Perimortem::Core::View::Bytes name,
+      Abstract& type,
+      Usage usage)
       : doc(doc), name(name), type(type), usage(usage) {};
 
   const Perimortem::Core::View::Bytes doc;

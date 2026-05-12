@@ -4,7 +4,6 @@
 #include "perimortem/core/hash.hpp"
 
 using namespace Perimortem::Core;
-using namespace Perimortem::Math;
 
 static Count default_construct_count = 0;
 static Count default_destruct_count = 0;
