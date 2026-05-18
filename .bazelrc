@@ -14,3 +14,8 @@ build --copt=-O0
 build --copt=-DPERI_DEBUG
 build --copt=-DPERI_LINUX
 build --copt=-DPERI_EDITOR
+
+# Mirror the platform defines for exec-config tools (e.g. the TTX compiler)
+# so perimortem compiles correctly when built as a host tool dependency.
+build --host_copt=-DPERI_LINUX
+build --host_copt=-DPERI_DEBUG

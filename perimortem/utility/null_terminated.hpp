@@ -25,6 +25,27 @@ struct NullTerminated {
     return Core::View::Bytes(content, get_size());
   }
 };
+// Returns the length of a null-terminated C string, excluding the null byte.
+constexpr auto null_length(const char* s) -> Count {
+  Count n = 0;
+  while (s[n]) {
+    n++;
+  }
+  return n;
+}
+
+// Returns true if two null-terminated C strings are equal.
+constexpr auto null_equal(const char* a, const char* b) -> Bool {
+  while (*a && *b) {
+    if (*a != *b) {
+      return false;
+    }
+    a++;
+    b++;
+  }
+  return *a == *b;
+}
+
 }  // namespace Perimortem::Utility
 
 // Converts C++ string literals into valid Perimortem byte strings.
