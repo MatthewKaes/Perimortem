@@ -1,6 +1,0 @@
-List;
-List[];
-List[Void];
-List[Int];
-List[Int, Int];
-List[List[List[Int]]];

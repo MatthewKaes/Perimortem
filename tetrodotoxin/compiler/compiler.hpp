@@ -3,7 +3,8 @@
 
 #pragma once
 
-#include "perimortem/memory/dynamic/map.hpp"
+#include "perimortem/memory/allocator/arena.hpp"
+#include "perimortem/memory/dynamic/bytes.hpp"
 #include "perimortem/memory/dynamic/vector.hpp"
 
 #include "tetrodotoxin/compiler/assembler/x86_64.hpp"
@@ -17,15 +18,15 @@
 
 namespace Tetrodotoxin::Compiler {
 
-// Takes in a TTX file and breaks it down to it's binary representation.
-// Machine code generated is for x86-64.
-//
-// TODO: Fix all of the hacky codegen.
+// Compiles TTX functions to x86-64 machine code and tracks the resulting
+// symbol and relocation tables. The TTX linker is responsible for packaging the
+// output into an object file or archive.
 class Compiler {
  public:
   Compiler() : arena(), names(arena) {}
 
-  // Stub for compiling functions
+  // Compile a TTX function and record it in the internal symbol table.
+  // Returns the compiler-assigned symbol index.
   auto compile_function(
       Perimortem::Core::View::Bytes module,
       Perimortem::Core::View::Bytes name,
@@ -33,24 +34,33 @@ class Compiler {
       Perimortem::Core::View::Vector<Intermediate::Argument> arguments)
       -> Count;
 
-  // Emit the C ABI header declaring the exported symbols into header_out.
-  auto generate_c_header() -> Perimortem::Memory::Dynamic::Bytes;
+  // Emit a C header declaring all compiled functions.
+  auto generate_cpp_header(Perimortem::Memory::Dynamic::Bytes& header_out)
+      -> void;
+
+  auto get_machine_code() const -> Perimortem::Core::View::Bytes;
+  auto get_string_data() const -> Perimortem::Core::View::Bytes;
+  auto get_symbol_count() const -> Count;
+  auto get_symbol(Count index) const -> const Context::Symbol&;
+  auto get_relocation_count() const -> Count;
+  auto get_relocation(Count index) const -> const Context::Relocation&;
+  auto get_arena() -> Perimortem::Memory::Allocator::Arena&;
 
  private:
   auto load_string(
-      Assembler::x86_64 assembler,
+      Assembler::x86_64& assembler,
       Assembler::x86_64::Reg dst,
       Perimortem::Core::View::Bytes string) -> void;
 
   auto call_extern(
-      Assembler::x86_64 assembler,
+      Assembler::x86_64& assembler,
       Perimortem::Core::View::Bytes function) -> void;
 
-  auto ref_local(Perimortem::Core::View::Bytes string_value) -> Count;
-  auto ref_string(Perimortem::Core::View::Bytes string_value) -> Count;
   auto ref_extern(
-      Perimortem::Core::View::Bytes string_value,
+      Perimortem::Core::View::Bytes name,
       Context::Symbol::Type type) -> Count;
+
+  auto ref_string(Perimortem::Core::View::Bytes string_value) -> Count;
 
   Perimortem::Memory::Allocator::Arena arena;
   Perimortem::Memory::Dynamic::Bytes machine_code;
@@ -58,8 +68,6 @@ class Compiler {
   Context::Strings strings;
   Perimortem::Memory::Dynamic::Vector<Context::Function> functions;
   Perimortem::Memory::Dynamic::Vector<Context::Relocation> relocs;
-  Perimortem::Memory::Dynamic::Map<Perimortem::Core::View::Bytes, Count>
-      sym_table;
   Perimortem::Memory::Dynamic::Vector<Context::Symbol> symbols;
 };
 

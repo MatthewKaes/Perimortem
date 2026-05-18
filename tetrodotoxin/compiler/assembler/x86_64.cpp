@@ -87,13 +87,13 @@ constexpr auto gen_modrm_byte(Reg reg, Reg rm) -> Byte {
 
 auto x86_64::mov(Reg src, Reg dst) -> void {
   // Encoding for mov (0x89): dst = reg, src = r/m
-  gen_rex_byte(code, dst, src);
+  gen_rex_byte(code, src, dst);
 
   // mov to dest is standard for reg to reg, 0x8B for mem to reg.
   code.append(0x89);
 
   // gen_modrm_byte
-  code.append(gen_modrm_byte(dst, src));
+  code.append(gen_modrm_byte(src, dst));
 }
 
 // TODO: support the signed variant with 7+ byte encoding.
@@ -114,10 +114,6 @@ auto x86_64::mov(Bits_64 r64, Reg dst) -> void {
     zero(dst);
     return;
   }
-
-  const auto upper_32 = r64 & 0xFFFFFFFF;
-  const auto sign_extendable =
-      upper_32 == 0 ? true : upper_32 == 0xFFFFFFFF00000000;
 
   // Optimize for 32 bit literal moves.
   if (r64 < 0xFFFFFFFF) {
@@ -201,6 +197,8 @@ auto x86_64::read_only(Reg dst) -> void {
   // LEA has a special case when mod=00 (Memory) and RM=101 (RBP / R13)
   // This uses RIP with a 32bit offset.
   code.append(gen_modrm_byte(AddressMode::Memory, dst, Reg::RBP));
+  // Emit placeholder disp32 for the PC32 relocation to patch.
+  write_const(code, Bits_32(0));
 }
 
 auto x86_64::prologue(
@@ -218,5 +216,7 @@ auto x86_64::epilogue(Intermediate::Type type) -> void {
 
 auto x86_64::call() -> void {
   // Generate the hex for a PC32 call.
-  code.concat("\xE8\x00\x00\x00\x00"_view);
+  code.append(0xE8);
+  // Emit placeholder disp32 for the PC32 relocation to patch.
+  write_const(code, Bits_32(0));
 }

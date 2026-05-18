@@ -14,7 +14,7 @@ using namespace Tetrodotoxin::Compiler;
 auto Context::Names::canonicalize(
     Perimortem::Core::View::Bytes module,
     Perimortem::Core::View::Bytes name) -> Perimortem::Core::View::Bytes {
-  constexpr auto host_type = "ttx"_view;
+  constexpr auto host_type = "TTX"_view;
   constexpr auto seperator = "_"_view;
   const auto size = host_type.get_size() + module.get_size() + name.get_size() +
                     (seperator.get_size() * 2);
@@ -24,6 +24,7 @@ auto Context::Names::canonicalize(
 
   Textual::Stream writer(Access::Bytes(canon_name, size));
   writer << host_type << seperator << module << seperator << name;
+  return View::Bytes(canon_name, size);
 }
 
 auto Context::Names::make_local_unique() -> View::Bytes {

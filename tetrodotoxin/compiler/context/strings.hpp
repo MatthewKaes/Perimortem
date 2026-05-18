@@ -17,10 +17,10 @@ class Strings {
   auto add_string(
       Perimortem::Core::View::Bytes string_value,
       Count symbol_index) -> Perimortem::Utility::Range {
-    Count start = data.get_size();
+    const Count start = data.get_size();
     data.concat(string_value);
-
-    return {start, data.get_size()};
+    data.append('\0');
+    return {start, string_value.get_size()};
   }
 
   auto get_data() const -> Perimortem::Core::View::Bytes { return data; }
