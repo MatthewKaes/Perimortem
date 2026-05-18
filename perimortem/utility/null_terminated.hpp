@@ -6,12 +6,32 @@
 #include "perimortem/core/view/bytes.hpp"
 #include "perimortem/core/static/bytes.hpp"
 
-namespace Perimortem::Utility {
+namespace Perimortem::Utility::NullTerminated {
+
+auto to_view(const char* str) -> Perimortem::Core::View::Bytes {
+  if (!str) {
+    return Perimortem::Core::View::Bytes();
+  }
+
+  constexpr auto length_cutoff = 1 << 10;
+  Count size = 0;
+  while (str[size] != 0 && size < length_cutoff) {
+    size++;
+  }
+
+  if (size > length_cutoff) {
+    return Perimortem::Core::View::Bytes();
+  }
+
+  return Perimortem::Core::View::Bytes(
+      reinterpret_cast<const Byte*>(str), size);
+}
+
 template <CppSize size_including_null>
-struct NullTerminated {
+struct CString {
   Byte content[size_including_null - 1]{};
 
-  consteval NullTerminated(SignedBits_8 const (&source)[size_including_null]) {
+  consteval CString(SignedBits_8 const (&source)[size_including_null]) {
     for (Count i = 0; i < get_size(); i++) {
       content[i] = source[i];
     }
@@ -25,36 +45,16 @@ struct NullTerminated {
     return Core::View::Bytes(content, get_size());
   }
 };
-// Returns the length of a null-terminated C string, excluding the null byte.
-constexpr auto null_length(const char* s) -> Count {
-  Count n = 0;
-  while (s[n]) {
-    n++;
-  }
-  return n;
-}
 
-// Returns true if two null-terminated C strings are equal.
-constexpr auto null_equal(const char* a, const char* b) -> Bool {
-  while (*a && *b) {
-    if (*a != *b) {
-      return false;
-    }
-    a++;
-    b++;
-  }
-  return *a == *b;
-}
-
-}  // namespace Perimortem::Utility
+}  // namespace Perimortem::Utility::NullTerminated
 
 // Converts C++ string literals into valid Perimortem byte strings.
-template <Perimortem::Utility::NullTerminated c_string>
+template <Perimortem::Utility::NullTerminated::CString c_string>
 consteval const Perimortem::Core::View::Bytes operator""_view() {
   return c_string.get_view();
 }
 
-template <Perimortem::Utility::NullTerminated c_string>
+template <Perimortem::Utility::NullTerminated::CString c_string>
 consteval Perimortem::Core::Static::Bytes<c_string.get_size()>
     operator""_bytes() {
   return Perimortem::Core::Static::Bytes<c_string.get_size()>(

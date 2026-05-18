@@ -38,13 +38,22 @@ class Compiler {
   auto generate_cpp_header(Perimortem::Memory::Dynamic::Bytes& header_out)
       -> void;
 
-  auto get_machine_code() const -> Perimortem::Core::View::Bytes;
-  auto get_string_data() const -> Perimortem::Core::View::Bytes;
-  auto get_symbol_count() const -> Count;
-  auto get_symbol(Count index) const -> const Context::Symbol&;
-  auto get_relocation_count() const -> Count;
-  auto get_relocation(Count index) const -> const Context::Relocation&;
-  auto get_arena() -> Perimortem::Memory::Allocator::Arena&;
+  auto get_code() const -> Perimortem::Core::View::Bytes {
+    return machine_code;
+  }
+
+  auto get_strings() const -> Perimortem::Core::View::Bytes {
+    return strings.get_view();
+  }
+
+  auto get_symbols() const -> Perimortem::Core::View::Vector<Context::Symbol> {
+    return symbols;
+  }
+
+  auto get_relocs() const
+      -> Perimortem::Core::View::Vector<Context::Relocation> {
+    return relocs;
+  }
 
  private:
   auto load_string(

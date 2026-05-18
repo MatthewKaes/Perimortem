@@ -99,34 +99,6 @@ auto Compiler::generate_cpp_header(Dynamic::Bytes& out) -> void {
   out.concat("\n#ifdef __cplusplus\n}\n#endif\n"_view);
 }
 
-auto Compiler::get_machine_code() const -> View::Bytes {
-  return machine_code;
-}
-
-auto Compiler::get_string_data() const -> View::Bytes {
-  return strings.get_data();
-}
-
-auto Compiler::get_symbol_count() const -> Count {
-  return symbols.get_size();
-}
-
-auto Compiler::get_symbol(Count index) const -> const Context::Symbol& {
-  return symbols.at(index);
-}
-
-auto Compiler::get_relocation_count() const -> Count {
-  return relocs.get_size();
-}
-
-auto Compiler::get_relocation(Count index) const -> const Context::Relocation& {
-  return relocs.at(index);
-}
-
-auto Compiler::get_arena() -> Perimortem::Memory::Allocator::Arena& {
-  return arena;
-}
-
 auto Compiler::load_string(
     Assembler::x86_64& assembler,
     Assembler::x86_64::Reg dst,
@@ -150,8 +122,7 @@ auto Compiler::call_extern(Assembler::x86_64& assembler, View::Bytes function)
 auto Compiler::ref_extern(View::Bytes name, Context::Symbol::Type type)
     -> Count {
   for (Count i = 0; i < symbols.get_size(); i++) {
-    if (symbols.at(i).get_context() ==
-            Context::Symbol::TargetContext::External &&
+    if (symbols.at(i).get_context() == Context::Symbol::Location::External &&
         symbols.at(i).get_name() == name) {
       return i;
     }
@@ -164,11 +135,11 @@ auto Compiler::ref_extern(View::Bytes name, Context::Symbol::Type type)
 auto Compiler::ref_string(View::Bytes string_value) -> Count {
   for (Count i = 0; i < symbols.get_size(); i++) {
     const auto& sym = symbols.at(i);
-    if (sym.get_context() != Context::Symbol::TargetContext::Strings) {
+    if (sym.get_context() != Context::Symbol::Location::Strings) {
       continue;
     }
     const auto range = sym.get_range();
-    if (strings.get_data().slice(range.start, range.size) == string_value) {
+    if (strings.get_view().slice(range.start, range.size) == string_value) {
       return i;
     }
   }

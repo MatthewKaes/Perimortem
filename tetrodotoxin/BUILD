@@ -49,7 +49,6 @@ cc_library(
         "linker/target/elf.cpp",
     ],
     hdrs = glob([
-        "linker/sections/*.hpp",
         "linker/target/*.hpp",
         "linker/*.hpp",
     ]),

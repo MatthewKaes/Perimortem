@@ -130,6 +130,12 @@ constexpr auto ensure_endian(storage_type bin) -> storage_type {
   return bin;
 }
 
+template <ByteOrder target, typename storage_type>
+constexpr auto write(storage_type* dest, storage_type value) -> void {
+  value = Data::ensure_endian<Data::ByteOrder::Native, target>(value);
+  Data::copy(reinterpret_cast<Byte*>(dest), &value, 1);
+}
+
 // Swaps two objects
 // For consteval move constructors are used.
 // For non-consteval a forgetful stack buffer is used to avoid constructing and

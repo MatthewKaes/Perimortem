@@ -33,6 +33,7 @@ cc_binary(
         ":test_headers",
         ":ttx_tests",
         "//perimortem",
+        "//tetrodotoxin:compiler",
         "//validation:unit_test",
     ],
 )

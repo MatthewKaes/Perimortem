@@ -23,7 +23,7 @@ class Strings {
     return {start, string_value.get_size()};
   }
 
-  auto get_data() const -> Perimortem::Core::View::Bytes { return data; }
+  auto get_view() const -> Perimortem::Core::View::Bytes { return data; }
 
  private:
   Perimortem::Memory::Dynamic::Bytes data;

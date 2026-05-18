@@ -28,9 +28,10 @@ class Symbol {
     Func = 2,
   };
 
-  enum class TargetContext {
+  enum class Location {
     Program,
     Strings,
+    ReadOnly,
     External,
   };
 
@@ -39,7 +40,7 @@ class Symbol {
     Symbol symbol;
     symbol.name = name;
     symbol.type = Type::Object;
-    symbol.context = TargetContext::Strings;
+    symbol.context = Location::Strings;
 
     // Visability for all TTX strings is local.
     symbol.visability = Visability::Local;
@@ -53,7 +54,7 @@ class Symbol {
     Symbol symbol;
     symbol.name = name;
     symbol.type = Type::Func;
-    symbol.context = TargetContext::Program;
+    symbol.context = Location::Program;
     symbol.visability = visability;
     symbol.range = {0, 0};
 
@@ -65,7 +66,7 @@ class Symbol {
     Symbol symbol;
     symbol.name = name;
     symbol.type = type;
-    symbol.context = TargetContext::External;
+    symbol.context = Location::External;
 
     // Visability must be global since we are able to access it.
     // External symbols also have no range.
@@ -76,7 +77,7 @@ class Symbol {
   }
 
   auto get_name() const -> View { return name; }
-  auto get_context() const -> TargetContext { return context; }
+  auto get_context() const -> Location { return context; }
   auto get_range() const -> Range { return range; }
   auto get_visability() const -> Visability { return visability; }
   auto get_type() const -> Type { return type; }
@@ -85,7 +86,7 @@ class Symbol {
 
  private:
   View name;
-  TargetContext context;
+  Location context;
   Range range;
   Visability visability;
   Type type;

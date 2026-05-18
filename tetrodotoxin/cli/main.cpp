@@ -22,37 +22,34 @@ using namespace Perimortem::Utility;
 using namespace Tetrodotoxin::Compiler;
 using namespace Tetrodotoxin::Linker;
 
-static auto write_file(const char* path, View::Bytes data) -> Bool {
+static auto write_file(View::Bytes path, View::Bytes data) -> Bool {
   System::File file;
   file.update_contents(data);
-  return file.write(
-      View::Bytes(
-          reinterpret_cast<const Byte*>(path), Utility::null_length(path)));
+  return file.write(path);
 }
 
-int main(int argc, char** argv) {
-  const char* output_path = nullptr;
-  const char* header_path = nullptr;
+Int main(Int argc, SignedBits_8** argv) {
+  View::Bytes output_path;
+  View::Bytes header_path;
 
   // TODO: Write yet another args parser.
-  for (int i = 1; i < argc; i++) {
-    if (Utility::null_equal(argv[i], "--output") && i + 1 < argc) {
-      output_path = argv[++i];
-    } else if (Utility::null_equal(argv[i], "--header") && i + 1 < argc) {
-      header_path = argv[++i];
+  for (Count i = 1; i < argc; i++) {
+    const auto arg_view = Utility::NullTerminated::to_view(argv[i]);
+    if (arg_view == "--output"_view && i + 1 < argc) {
+      output_path = Utility::NullTerminated::to_view(argv[i + 1]);
+    } else if (arg_view == "--header"_view && i + 1 < argc) {
+      header_path = Utility::NullTerminated::to_view(argv[i + 1]);
     }
-    // TTX source files (remaining args) are recorded for future use.
   }
 
-  if (!output_path) {
+  if (output_path.empty()) {
     return 1;
   }
-
-  Compiler compiler;
 
   // TODO: Parse TTX source files from argv and compile their functions.
   // For now, emit a single hardcoded test function that forwards to extern
   // print().
+  Compiler compiler;
   const Intermediate::Argument view_arg = {
     "data"_view,
     Intermediate::Type::type_view(),
@@ -67,7 +64,7 @@ int main(int argc, char** argv) {
     return 1;
   }
 
-  if (header_path) {
+  if (!header_path.empty()) {
     Dynamic::Bytes header;
     compiler.generate_cpp_header(header);
     if (!write_file(header_path, header.get_view())) {
