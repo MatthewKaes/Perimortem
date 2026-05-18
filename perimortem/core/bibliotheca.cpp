@@ -3,6 +3,8 @@
 
 #include "perimortem/core/bibliotheca.hpp"
 
+#include "perimortem/core/data.hpp"
+
 using namespace Perimortem;
 using namespace Perimortem::Core;
 
@@ -22,7 +24,6 @@ static constexpr Count radix_range = max_radix - min_radix;
 struct alignas(64) Slab {
   static constexpr auto kilobytes_4 = 1 << 12;
   static constexpr auto megabytes_2 = kilobytes_4 << 9;
-  static constexpr auto megabytes_2_mask = megabytes_2 - 1;
 
   // 32 MB chunks + 1 extra 2 MB chunk
   // The extra 2 MB chunk gives us wiggle room for all of the slab and preface
@@ -67,8 +68,7 @@ auto get_slab(Count block_size) -> Slab* {
   // a 2MB boundary. Don't worry about fragmentation, as part of demotion the
   // left over bytes in the 2MB will be chunked eventually by smaller allocs.
   if (size < block_size) {
-    const auto aligned = (~size + 1) & (Slab::megabytes_2_mask);
-    size = block_size + aligned;
+    size = Data::align<Slab::megabytes_2>(block_size);
   }
 
   // Attempt to grab a block using huge TLB to speed up the slab allocator.

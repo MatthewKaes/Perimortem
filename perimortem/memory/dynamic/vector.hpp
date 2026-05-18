@@ -4,6 +4,7 @@
 #pragma once
 
 #include "perimortem/core/view/vector.hpp"
+#include "perimortem/core/access/vector.hpp"
 #include "perimortem/core/bibliotheca.hpp"
 #include "perimortem/core/math.hpp"
 #include "perimortem/core/perimortem.hpp"
@@ -11,7 +12,7 @@
 namespace Perimortem::Memory::Dynamic {
 
 // A simple linear flat array of trivially constructable values.
-template <typename type, Bool storage_only = false>
+template <typename type>
 class Vector {
  public:
   static constexpr Count start_capacity = 8;
@@ -22,14 +23,10 @@ class Vector {
     ensure_capacity(rhs.get_size() * sizeof(type));
     size = rhs.get_size();
 
-    if constexpr (storage_only) {
-      memcpy(source_block, rhs.source_block, sizeof(type) * size);
-    } else {
-      auto target_items = source_block;
-      auto source_items = rhs.source_block;
-      for (Count i = 0; i < size; i++) {
-        new (target_items + i) type(source_items[i]);
-      }
+    auto target_items = source_block;
+    auto source_items = rhs.source_block;
+    for (Count i = 0; i < size; i++) {
+      new (target_items + i) type(source_items[i]);
     }
   }
 
@@ -150,12 +147,6 @@ class Vector {
 
  private:
   auto destruct() -> void {
-    // Optimizer will do this anyway, but making it explicit helps catch issues
-    // in debug builds.
-    if constexpr (storage_only) {
-      return;
-    }
-
     // Look over all entries and destruct the keys and values.
     for (Count bucket_index = 0; bucket_index < size; bucket_index++) {
       source_block[bucket_index].~type();

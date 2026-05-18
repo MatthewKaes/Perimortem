@@ -24,7 +24,7 @@ class Arena {
   // Attempt to request blocks in 32k pages including the preface and a previous
   // pointer.
   static constexpr Bits_64 page_size = (1 << 15);
-  static constexpr Bits_64 alignment_filter = sizeof(Count) - 1;
+  static constexpr Bits_64 arena_alignment = sizeof(Count);
 
   Arena();
   ~Arena();
@@ -42,13 +42,9 @@ class Arena {
       fetch_page(bytes_requested);
     }
 
+    // Align the bump pointer to keep data produced aligned.
     Byte* root = rented_block + usage;
-    usage += bytes_requested;
-
-    // Align the pointer to keep it aligned.
-    auto required_alignment = (~usage + 1) & (alignment_filter);
-    usage += required_alignment;
-
+    usage = Core::Data::align<arena_alignment>(usage + bytes_requested);
     return root;
   }
 

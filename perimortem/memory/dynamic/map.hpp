@@ -288,8 +288,8 @@ class Map {
     return at(key);
   }
 
-  constexpr auto find_or_default(const key_type& key, const key_type& value)
-      const -> const key_type& {
+  constexpr auto find_or_default(const key_type& key, const value_type& value)
+      const -> const value_type& {
     auto entry = find(key);
     if (!entry) {
       return value;

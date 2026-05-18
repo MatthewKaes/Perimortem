@@ -42,6 +42,29 @@ consteval auto array_size(const type (&)[size]) -> Count {
   return size;
 }
 
+// Aligns data by moving to the next valid offset of alignment_size.
+template <Count alignment_size>
+constexpr auto align(Count offset) -> Count {
+  if constexpr (alignment_size <= 1) {
+    return offset;
+  }
+
+  constexpr Count alignment_filter = alignment_size - 1;
+  // Check if alignment_size is a power of two, if it is we can avoid a modulo.
+  // Any easy test for only a single set bit is to subtract one from the value
+  // and and it with itself. It will return non-zero for any non-power of two.
+  //
+  // This technically let's zero through but we special case zero and one.
+  if constexpr ((alignment_size & alignment_filter) == 0) {
+    const auto required_alignment = (~offset + 1) & (alignment_filter);
+    return offset + required_alignment;
+  } else {
+    const auto required_alignment = alignment_size - (offset % alignment_size);
+    return required_alignment == alignment_size ? offset
+                                                : offset + required_alignment;
+  }
+}
+
 // Used for reading const raw data.
 template <typename target_type>
 auto cast(const Byte* source) -> const target_type* {
