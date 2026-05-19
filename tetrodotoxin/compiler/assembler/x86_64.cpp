@@ -204,6 +204,13 @@ auto x86_64::mov(Byte r8, Reg dst) -> void {
 }
 
 auto x86_64::mov(Bits_16 r16, Reg dst) -> void {
+  // Only one 16 bit alternate encoding seems to be smaller.
+  // XOR r32, r32 clears the 16 bit register with no 0x66 prefix (2 vs 4 bytes).
+  if (r16 == 0) {
+    zero(dst);
+    return;
+  }
+
   // 0x66 operand size prefix + B8 + rd encoding.
   code.append(Byte(0x66));
   if ((Byte(dst) & Byte(0x0F)) > 0x7) {
@@ -214,6 +221,16 @@ auto x86_64::mov(Bits_16 r16, Reg dst) -> void {
 }
 
 auto x86_64::mov(Bits_32 r32, Reg dst) -> void {
+  // Special cases with more compact alternatives to mov.
+  switch (r32) {
+  case 0:
+    zero(dst);
+    return;
+  case 1:
+    one(dst);
+    return;
+  }
+
   // B8 + rd encoding: zero-extends to 64 bits implicitly.
   if ((Byte(dst) & Byte(0x0F)) > 0x7) {
     code.append(Byte(RexExt::B));
@@ -223,6 +240,7 @@ auto x86_64::mov(Bits_32 r32, Reg dst) -> void {
 }
 
 auto x86_64::mov(Bits_64 r64, Reg dst) -> void {
+  // Special cases with more compact alternatives to mov.
   switch (r64) {
   case 0:
     zero(dst);
@@ -235,7 +253,7 @@ auto x86_64::mov(Bits_64 r64, Reg dst) -> void {
     return;
   }
 
-  // Zero-extending 32-bit move: MOV r32, imm32 (5-6 bytes, zero-extends to 64 bits).
+  // Zero-extending 32-bit move: MOV r32, imm32 (5-6 bytes, zero-extends to 64).
   if (r64 <= Bits_64(0xFFFFFFFF)) {
     if ((Byte(dst) & Byte(0x0F)) > 0x7) {
       code.append(Byte(RexExt::B));
