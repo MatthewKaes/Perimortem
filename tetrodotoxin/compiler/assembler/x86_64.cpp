@@ -28,6 +28,8 @@ enum class RexExt : Byte {
   X = 0x42,  // Expands index in SIB
   R = 0x44,  // Expands reg to 4 bits.
   W = 0x48,  // Operand size expanded to 64 bits.
+  // Special case for when we need to emit a REX byte with no flags.
+  Bare = 0x40,
 };
 
 // gen_modrm_byte
@@ -60,22 +62,63 @@ constexpr auto rex_short(Bytes& code, Reg reg) -> void {
 constexpr auto gen_rex_byte(Bytes& code, Reg reg, Reg rm) -> void {
   Byte rex_code = 0;
 
-  // TODO: Only 64 bits so this is pointless for W
-  // Also it would be a size mismatch so we should only have to check one.
-  if (reg >= Reg::RAX || rm >= Reg::RAX) {
+  // REX.W only for 64-bit operand size (upper nibble == 0x1)
+  if ((reg != Reg::None && (Byte(reg) & Byte(0xF0)) == Byte(0x10)) ||
+      (rm != Reg::None && (Byte(rm) & Byte(0xF0)) == Byte(0x10))) {
     rex_code = Byte(RexExt::W);
   }
 
   // Register extension to 4 bit address
-  if (reg != Reg::None && (Byte(reg) & Byte(0xf)) > 0x7) {
+  if (reg != Reg::None && (Byte(reg) & Byte(0x0F)) > 0x07) {
     rex_code |= Byte(RexExt::R);
   }
 
   // Reg / Mem extension to 4 bit address
-  if (rm != Reg::None && (Byte(rm) & Byte(0xf)) > 0x7) {
+  if (rm != Reg::None && (Byte(rm) & Byte(0x0F)) > 0x07) {
     rex_code |= Byte(RexExt::B);
   }
 
+  if (rex_code) {
+    code.append(rex_code);
+  }
+}
+
+// REX for 16-bit register operands (0x66 prefix handles operand size, no
+// REX.W).
+constexpr auto gen_rex_byte_16(Bytes& code, Reg reg, Reg rm) -> void {
+  Byte rex_code = 0;
+  if (reg != Reg::None && (Byte(reg) & Byte(0x0F)) > 0x07) {
+    rex_code |= Byte(RexExt::R);
+  }
+  if (rm != Reg::None && (Byte(rm) & Byte(0x0F)) > 0x07) {
+    rex_code |= Byte(RexExt::B);
+  }
+  if (rex_code) {
+    code.append(rex_code);
+  }
+}
+
+// REX for 8-bit register operands.
+// SPL/BPL/SIL/DIL (codes 4-7) require a bare REX prefix to distinguish them
+// from the legacy AH/CH/DH/BH registers which share those encoding codes.
+constexpr auto gen_rex_byte_8(Bytes& code, Reg reg, Reg rm) -> void {
+  Byte rex_code = 0;
+  if (reg != Reg::None && (Byte(reg) & Byte(0x0F)) > 0x07) {
+    rex_code |= Byte(RexExt::R);
+  }
+  if (rm != Reg::None && (Byte(rm) & Byte(0x0F)) > 0x07) {
+    rex_code |= Byte(RexExt::B);
+  }
+
+  // SPL/BPL/SIL/DIL special case due to encoding aliasing.
+  auto anti_alias_rex = [](Reg r) -> bool {
+    auto c = Byte(r) & Byte(0x0F);
+    return c >= 0x04 && c <= 0x07;
+  };
+
+  if (anti_alias_rex(reg) || anti_alias_rex(rm)) {
+    rex_code |= Byte(RexExt::Bare);
+  }
   if (rex_code) {
     code.append(rex_code);
   }
@@ -89,55 +132,147 @@ constexpr auto gen_modrm_byte(Reg reg, Reg rm) -> Byte {
   return Byte(AddressMode::RegToReg) | (reg_code(reg) << 3) | reg_code(rm);
 }
 
+// Writes ModRM and optional SIB/displacement bytes for a [base+disp] memory
+// operand.
+static auto
+    gen_memory_operand(Bytes& code, Reg reg, Reg base, SignedBits_32 disp)
+        -> void {
+  const bool rip_override =
+      (Byte(base) & Byte(0x7)) == 5;  // RBP/R13: mod=00 means RIP-relative
+  const bool sib_override =
+      (Byte(base) & Byte(0x7)) == 4;  // RSP/R12: rm=4 means SIB byte
+
+  AddressMode mod;
+  if (disp == 0 && !rip_override) {
+    mod = AddressMode::Memory;
+  } else if (disp >= -128 && disp <= 127) {
+    mod = AddressMode::Memory_8;
+  } else {
+    mod = AddressMode::Memory_32;
+  }
+
+  if (sib_override) {
+    // rm=4 signals SIB present
+    code.append(gen_modrm_byte(mod, reg, Reg(0x4)));
+    code.append(Byte(0x24));  // SIB: scale=0, no index, RSP/R12 base
+  } else {
+    code.append(gen_modrm_byte(mod, reg, base));
+  }
+
+  if (mod == AddressMode::Memory_8) {
+    code.append(Byte(disp));
+  } else if (mod == AddressMode::Memory_32) {
+    write_const(code, Bits_32(disp));
+  }
+}
+
 auto x86_64::mov(Reg src, Reg dst) -> void {
-  // Encoding for mov (0x89): dst = reg, src = r/m
+  // 8-bit: opcode 0x88 (MR encoding: r/m8 = r8)
+  if ((Byte(src) & Byte(0xF0)) == Byte(0x20)) {
+    gen_rex_byte_8(code, src, dst);
+    code.append(0x88);
+    code.append(gen_modrm_byte(src, dst));
+    return;
+  }
+
+  // 16-bit: 0x66 operand size prefix + opcode 0x89
+  if ((Byte(src) & Byte(0xF0)) == Byte(0x30)) {
+    code.append(Byte(0x66));
+    gen_rex_byte_16(code, src, dst);
+    code.append(0x89);
+    code.append(gen_modrm_byte(src, dst));
+    return;
+  }
+
+  // 32-bit and 64-bit: opcode 0x89 (MR encoding: r/m = r)
   gen_rex_byte(code, src, dst);
-
-  // mov to dest is standard for reg to reg, 0x8B for mem to reg.
   code.append(0x89);
-
-  // gen_modrm_byte
   code.append(gen_modrm_byte(src, dst));
 }
 
-// TODO: support the signed variant with 7+ byte encoding.
+auto x86_64::mov(Byte r8, Reg dst) -> void {
+  // B0+rd encoding for 8-bit immediate.
+  // SPL/BPL/SIL/DIL (codes 4-7) need a bare REX to avoid selecting AH/CH/DH/BH.
+  auto code_low = Byte(dst) & Byte(0x0F);
+  if (code_low > 0x7) {
+    code.append(Byte(RexExt::B));  // REX.B for R8B-R15B
+  } else if (code_low >= 4) {
+    code.append(Byte(0x40));  // Bare REX for SPL/BPL/SIL/DIL
+  }
+  code.append(0xB0 + reg_code(dst));
+  code.append(r8);
+}
+
+auto x86_64::mov(Bits_16 r16, Reg dst) -> void {
+  // 0x66 operand size prefix + B8 + rd encoding.
+  code.append(Byte(0x66));
+  if ((Byte(dst) & Byte(0x0F)) > 0x7) {
+    code.append(Byte(RexExt::B));
+  }
+  code.append(0xB8 + reg_code(dst));
+  write_const(code, r16);
+}
+
+auto x86_64::mov(Bits_32 r32, Reg dst) -> void {
+  // B8 + rd encoding: zero-extends to 64 bits implicitly.
+  if ((Byte(dst) & Byte(0x0F)) > 0x7) {
+    code.append(Byte(RexExt::B));
+  }
+  code.append(0xB8 + reg_code(dst));
+  write_const(code, r32);
+}
+
 auto x86_64::mov(Bits_64 r64, Reg dst) -> void {
-  // Easy to optimize mov conversions.
   switch (r64) {
-  case 1:
-    one(dst);
-    return;
   case 0:
     zero(dst);
+    return;
+  case 1:
+    one(dst);
     return;
   case 0xFFFFFFFFFFFFFFFF:
     neg_one(dst);
     return;
   }
-  if (r64 == 0) {
-    zero(dst);
+
+  // Zero-extending 32-bit move: MOV r32, imm32 (5-6 bytes, zero-extends to 64 bits).
+  if (r64 <= Bits_64(0xFFFFFFFF)) {
+    if ((Byte(dst) & Byte(0x0F)) > 0x7) {
+      code.append(Byte(RexExt::B));
+    }
+    code.append(0xB8 + reg_code(dst));
+    write_const(code, Bits_32(r64));
     return;
   }
 
-  // Optimize for 32 bit literal moves.
-  if (r64 < 0xFFFFFFFF) {
-    if (dst <= Reg::RDI) {
-      // 5 byte zero extended move
-      code.append(0xB8 + reg_code(dst));
-      write_const(code, Bits_32(r64));
-      return;
-    } else {
-      // 7 byte imm32 move into R8+
-      code.append(Byte(RexExt::B) | Byte(RexExt::W));
-      code.append(0xB8 + reg_code(dst));
-      code.append(gen_modrm_byte(Reg(0x00), dst));
-    }
+  // Sign-extending 32-bit move: MOV r/m64, imm32 (7-8 bytes).
+  // Handles [INT32_MIN, -2] more compactly than a 10-byte MOVABS.
+  if (r64 >= Bits_64(0xFFFFFFFF80000000ULL)) {
+    gen_rex_byte(code, Reg::None, dst);
+    code.append(0xC7);
+    code.append(gen_modrm_byte(Reg(0x00), dst));
+    write_const(code, Bits_32(r64));
+    return;
   }
 
-  // 10 byte encoding to moveabs the value into the register.
+  // 10-byte absolute move: MOVABS r64, imm64.
   gen_rex_byte(code, Reg::None, dst);
   code.append(0xB8 + reg_code(dst));
-  write_const(code, Bits_64(r64));
+  write_const(code, r64);
+}
+
+auto x86_64::mov(Reg src, Reg base, SignedBits_32 disp) -> void {
+  // Store: mov src, [base+disp]
+  gen_rex_byte(code, src, base);
+  code.append(0x89);
+  gen_memory_operand(code, src, base, disp);
+}
+
+auto x86_64::mov(Reg base, SignedBits_32 disp, Reg dst) -> void {
+  // Load: mov [base+disp], dst
+  gen_rex_byte(code, dst, base);
+  code.append(0x8B);
+  gen_memory_operand(code, dst, base, disp);
 }
 
 auto x86_64::push(Reg reg) -> void {

@@ -20,7 +20,8 @@ class x86_64 {
  public:
   enum class Reg {
     None = -1,
-    EAX = 0x0,
+    // 32-bit registers
+    EAX = 0x00,
     ECX,
     EDX,
     EBX,
@@ -36,6 +37,7 @@ class x86_64 {
     R13D,
     R14D,
     R15D,
+    // 64-bit registers
     RAX = 0x10,
     RCX,
     RDX,
@@ -51,7 +53,41 @@ class x86_64 {
     R12,
     R13,
     R14,
-    R15
+    R15,
+    // 8-bit registers (REX required for SPL/BPL/SIL/DIL)
+    AL = 0x20,
+    CL,
+    DL,
+    BL,
+    SPL,
+    BPL,
+    SIL,
+    DIL,
+    R8B,
+    R9B,
+    R10B,
+    R11B,
+    R12B,
+    R13B,
+    R14B,
+    R15B,
+    // 16-bit registers
+    AX = 0x30,
+    CX,
+    DX,
+    BX,
+    SP,
+    BP,
+    SI,
+    DI,
+    R8W,
+    R9W,
+    R10W,
+    R11W,
+    R12W,
+    R13W,
+    R14W,
+    R15W,
   };
 
   x86_64(Perimortem::Memory::Dynamic::Bytes& machine_code)
@@ -68,7 +104,15 @@ class x86_64 {
   auto close() -> void {};
 
   auto mov(Reg src, Reg dst) -> void;
+  auto mov(Byte r8, Reg dst) -> void;
+  auto mov(Bits_16 r16, Reg dst) -> void;
+  auto mov(Bits_32 r32, Reg dst) -> void;
+  // Encoding optimized 64 bit mov.
   auto mov(Bits_64 r64, Reg dst) -> void;
+  // Store to memory: mov src, [base+disp]
+  auto mov(Reg src, Reg base, SignedBits_32 disp) -> void;
+  // Load from memory: mov [base+disp], dst
+  auto mov(Reg base, SignedBits_32 disp, Reg dst) -> void;
   auto push(Reg reg) -> void;
   auto pop(Reg reg) -> void;
   auto zero(Reg reg) -> void;
