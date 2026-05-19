@@ -4,76 +4,67 @@
 #include "tetrodotoxin/linker/target/elf.hpp"
 
 #include "perimortem/core/static/bytes.hpp"
+#include "perimortem/core/data.hpp"
 
-#include "perimortem/memory/dynamic/vector.hpp"
+#include "perimortem/serialization/textual/stream.hpp"
 
 #include "perimortem/utility/null_terminated.hpp"
 
+#include "tetrodotoxin/compiler/context/relocation.hpp"
 #include "tetrodotoxin/compiler/context/symbol.hpp"
 
+using namespace Perimortem;
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
 using namespace Tetrodotoxin::Linker::Target;
 using namespace Tetrodotoxin::Compiler;
 
-static constexpr View::Bytes text_section = ".text"_view;
-static constexpr View::Bytes rodata_str_section = ".rodata.str"_view;
-static constexpr View::Bytes rodata_section = ".rodata"_view;
-
+// Elf is a little endian format, however the ar format has
 constexpr auto elf_endian = Data::ByteOrder::Little;
-constexpr auto sym_endian = Data::ByteOrder::Big;
+constexpr auto ar_endian = Data::ByteOrder::Big;
 
-// Sentinel values for InputSymbol::section_index — values >= 0xFF00 are
-// reserved. UndefinedSection maps to ELF SHN_UNDEF (0) during output; the
-// others pass through directly since they match the ELF SHN_ABS / SHN_COMMON
-// values.
-static constexpr Bits_16 UndefinedSection = 0xFFFF;
-static constexpr Bits_16 AbsoluteSection = 0xFFF1;
-static constexpr Bits_16 CommonSection = 0xFFF2;
+enum class ObjectType : Bits_16 { Relocatable = 1 };
+enum class Machine : Bits_16 { X86_64 = 62 };
 
-// ELF object file type (e_type).
-enum class ObjectType : Bits_16 {
-  Relocatable = 1,
-};
-
-// ELF target machine (e_machine).
-enum class Machine : Bits_16 {
-  X86_64 = 62,
-};
-
-// x86-64 relocation types (r_info type field).
-enum class RelocationType : Bits_32 {
-  None = 0,
-  Absolute64 = 1,    // S + A
-  PcRelative32 = 2,  // S + A - P
-  Got32 = 3,
-  Plt32 = 4,          // S + A - P (via PLT)
-  Absolute32 = 10,    // S + A (zero-extend to 64)
-  Absolute32S = 11,   // S + A (sign-extend to 64)
-  PcRelative64 = 24,  // S + A - P
-};
-
-// ELF section header type (sh_type).
 enum class SectionType : Bits_32 {
   Null = 0,
   ProgramData = 1,
   SymbolTable = 2,
   StringTable = 3,
   RelocationAddend = 4,
-  NoBits = 8,
 };
 
-struct SectionProperties {
-  Perimortem::Core::View::Bytes name;
-  SectionType type;
-  Bits_64 flags;
-  Bits_64 alignment;
-  Perimortem::Core::View::Bytes data = ""_view;
-  Count name_index = 0;
-  Count offset = 0;
+enum class SectionFlags : Bits_64 {
+  Writable = 0x01,
+  Allocated = 0x02,
+  Executable = 0x04,
+  Mergeable = 0x10,
+  Strings = 0x20,
 };
 
-// ELF64 section header — 64 bytes.
+// The ELF header block which contains core info of the binary.
+// Should always be exactly 64 bits so a lot of the offsets need
+// to have specific bit widths in order to be wire compatable.
+struct Header {
+  Static::Bytes<16> identity;
+  Bits_16 type;
+  Bits_16 machine;
+  Bits_32 version;
+  Bits_64 entry_point;
+  Bits_64 program_header_offset;
+  Bits_64 section_header_offset;
+  Bits_32 flags;
+  Bits_16 header_size;
+  Bits_16 program_header_entry_size;
+  Bits_16 program_header_count;
+  Bits_16 section_entry_size;
+  Bits_16 section_count;
+  Bits_16 string_section_index;
+};
+static_assert(sizeof(Header) == 64);
+
+// Contains the binary layout for the section headers.
+// The ELF file can contain any number of sections.
 struct SectionHeader {
   Bits_32 name_offset;
   Bits_32 type;
@@ -88,214 +79,498 @@ struct SectionHeader {
 };
 static_assert(sizeof(SectionHeader) == 64);
 
+// The binary layout for Symbol entries.
+// The Compiler format is mostly based on ELF so the two instances are close but
+// we use this instance to streamline serialization.
+struct SymbolEntry {
+  Bits_32 name_offset;
+  Byte info;        // (binding << 4) | type
+  Byte visibility;  // STV_DEFAULT = 0
+  Bits_16 section_index;
+  Bits_64 value;
+  Bits_64 size;
+};
+static_assert(sizeof(SymbolEntry) == 24);
+
+// Rela represents relative relocations
+struct RelaEntry {
+  Bits_64 offset;
+  Bits_64 info;  // (symbol_index << 32) | reloc_type
+  SignedBits_64 addend;
+};
+static_assert(sizeof(RelaEntry) == 24);
+
+enum class RelocationType : Bits_32 {
+  PcRelative32 = 2,
+  Plt32 = 4,
+};
+
+// Carries every field needed to write a section header. name_offset and
+// file_offset are filled in during the build pipeline.
+struct SectionDesc {
+  View::Bytes name;
+  SectionType type = SectionType::Null;
+  Bits_64 flags = 0;
+  Bits_64 alignment = 0;
+  View::Bytes data;
+  Bits_32 link = 0;
+  Bits_32 info = 0;
+  Bits_64 entry_size = 0;
+  Count name_offset = 0;
+  Count file_offset = 0;
+};
+
 struct SymbolRef {
   const Context::Symbol* symbol;
-  Count string_index;
+  Count original_index;
+  Count string_table_offset;
 };
 
-enum class SectionFlags : Bits_64 {
-  Writable = 0x1,
-  Allocated = 0x2,
-  Executable = 0x4,
-  Mergeable = 0x10,
-  Strings = 0x20,
+// The AR header is fairly janky and uses left aligned, space padded, human
+// readable values for describing the archive.
+struct ArHeader {
+  // Filled in with the actual name.
+  Static::Bytes<16> name = "                "_bytes;
+  // Unused for now.
+  Static::Bytes<12> timestamp = "0           "_bytes;
+  Static::Bytes<6> owner_id = "0     "_bytes;
+  Static::Bytes<6> group_id = "0     "_bytes;
+  Static::Bytes<8> file_mode = "644     "_bytes;
+  // Stores the number of bytes of data in a textual format.
+  Static::Bytes<10> data_size = "          "_bytes;
+  // must be "`\n"
+  Static::Bytes<2> terminator = "`\n"_bytes;
 };
+static_assert(sizeof(ArHeader) == 60);
 
-auto user_sections(Format::Section user_section) -> SectionProperties {
-  switch (user_section.type) {
+auto fill_ar_header(ArHeader& h, View::Bytes name, Bits_64 size) -> void {
+  const Count name_len = name.get_size() < 15 ? name.get_size() : 15;
+  Data::copy(h.name.get_data(), name.get_data(), name_len);
+  h.name[name_len] = '/';
+
+  // Write only the data size, the rest of the fields are default initalized.
+  Serialization::Textual::Stream(h.data_size.get_access()) << size;
+}
+
+auto to_section_desc(Format::Section sec) -> SectionDesc {
+  switch (sec.type) {
   case Context::Symbol::Location::Program:
     return {
-      ".text\0"_view,
+      ".text"_view,
       SectionType::ProgramData,
       Bits_64(SectionFlags::Allocated) | Bits_64(SectionFlags::Executable),
       16,
-      user_section.data,
+      sec.data,
     };
   case Context::Symbol::Location::Strings:
     return {
-      ".rodata.str\0"_view,
+      ".rodata.str"_view,
       SectionType::ProgramData,
       Bits_64(SectionFlags::Allocated) | Bits_64(SectionFlags::Mergeable) |
           Bits_64(SectionFlags::Strings),
       1,
-      user_section.data,
+      sec.data,
     };
   case Context::Symbol::Location::ReadOnly:
     return {
-      ".rodata\0"_view,
+      ".rodata"_view,
       SectionType::ProgramData,
       Bits_64(SectionFlags::Allocated),
       8,
-      user_section.data,
+      sec.data,
     };
-
-    // Unsupported section mapping.
   default:
     return {};
   }
+}
+
+auto sort_symbols(View::Vector<Context::Symbol> symbols)
+    -> Dynamic::Vector<SymbolRef> {
+  Dynamic::Vector<SymbolRef> sorted;
+  using Vis = Context::Symbol::Visability;
+  for (Count pass = 0; pass <= Count(Vis::Global); pass++) {
+    for (Count i = 0; i < symbols.get_size(); i++) {
+      if (Count(symbols[i].get_visability()) != pass) {
+        continue;
+      }
+      sorted.insert({symbols.get_data() + i, i, 0});
+    }
+  }
+  return sorted;
+}
+
+auto find_sorted_position(View::Vector<SymbolRef> sorted, Count original_index)
+    -> Count {
+  for (Count i = 0; i < sorted.get_size(); i++) {
+    if (sorted[i].original_index == original_index) {
+      return i;
+    }
+  }
+  return 0;
+}
+
+auto build_string_table(Access::Vector<SymbolRef> symbols) -> Dynamic::Bytes {
+  Dynamic::Bytes strtab;
+  strtab.append('\0');
+  for (Count i = 0; i < symbols.get_size(); i++) {
+    symbols[i].string_table_offset = strtab.get_size();
+    strtab.concat(symbols[i].symbol->get_name());
+    strtab.append('\0');
+  }
+  return strtab;
+}
+
+// Returns the 1-based ELF section index for a symbol's location, or 0
+// (SHN_UNDEF) if not found.
+auto section_index_for(
+    View::Vector<Format::Section> sections,
+    Context::Symbol::Location loc) -> Bits_16 {
+  for (Count i = 0; i < sections.get_size(); i++) {
+    if (sections[i].type == loc) {
+      return Bits_16(1 + i);
+    }
+  }
+  return 0;
+}
+
+auto build_symbol_table(
+    View::Vector<SymbolRef> sorted,
+    View::Vector<Format::Section> sections,
+    Count& out_first_global) -> Dynamic::Bytes {
+  out_first_global = 1;
+  for (Count i = 0; i < sorted.get_size(); i++) {
+    if (sorted[i].symbol->get_visability() ==
+        Context::Symbol::Visability::Global) {
+      break;
+    }
+    out_first_global++;
+  }
+
+  const Count entry_count = 1 + sorted.get_size();
+  Dynamic::Bytes data;
+  data.forgetful_resize(sizeof(SymbolEntry) * entry_count);
+  memset(data.get_access().get_data(), 0, sizeof(SymbolEntry) * entry_count);
+  auto* entries = Data::cast<SymbolEntry>(data.get_access().get_data());
+
+  for (Count i = 0; i < sorted.get_size(); i++) {
+    const auto& ref = sorted[i];
+    const auto& symbol = *ref.symbol;
+    auto& entry = entries[1 + i];
+    const Byte binding =
+        symbol.get_visability() == Context::Symbol::Visability::Global ? 1 : 0;
+    Data::write<elf_endian>(
+        &entry.name_offset, Bits_32(ref.string_table_offset));
+    entry.info = Byte((binding << 4) | Byte(symbol.get_type()));
+    const Bits_16 sec_idx =
+        symbol.get_context() == Context::Symbol::Location::External
+            ? Bits_16(0)
+            : section_index_for(sections, symbol.get_context());
+    Data::write<elf_endian>(&entry.section_index, sec_idx);
+    Data::write<elf_endian>(&entry.value, Bits_64(symbol.get_range().start));
+    Data::write<elf_endian>(&entry.size, Bits_64(symbol.get_range().size));
+  }
+  return data;
+}
+
+auto build_relocations(
+    View::Vector<Context::Relocation> relocations,
+    View::Vector<SymbolRef> sorted) -> Dynamic::Bytes {
+  Dynamic::Bytes data;
+  if (relocations.get_size() == 0) {
+    return data;
+  }
+  data.forgetful_resize(sizeof(RelaEntry) * relocations.get_size());
+  auto* entries = Data::cast<RelaEntry>(data.get_access().get_data());
+
+  for (Count i = 0; i < relocations.get_size(); i++) {
+    const auto& reloc = relocations[i];
+    const Bits_64 symbol_slot =
+        Bits_64(1 + find_sorted_position(sorted, reloc.symbol));
+    const Bits_32 rtype = reloc.type == Context::Relocation::Type::Plt32
+                              ? Bits_32(RelocationType::Plt32)
+                              : Bits_32(RelocationType::PcRelative32);
+    Data::write<elf_endian>(&entries[i].offset, Bits_64(reloc.offset));
+    Data::write<elf_endian>(
+        &entries[i].info, (symbol_slot << 32) | Bits_64(rtype));
+    Data::write<elf_endian>(&entries[i].addend, SignedBits_64(reloc.addend));
+  }
+  return data;
+}
+
+auto build_section_string_table(Access::Vector<SectionDesc> sections)
+    -> Dynamic::Bytes {
+  Dynamic::Bytes shstrtab;
+  shstrtab.append('\0');
+  for (Count i = 0; i < sections.get_size(); i++) {
+    if (sections[i].name.get_size() == 0) {
+      sections[i].name_offset = 0;
+      continue;
+    }
+    sections[i].name_offset = shstrtab.get_size();
+    shstrtab.concat(sections[i].name);
+    shstrtab.append('\0');
+  }
+  return shstrtab;
+}
+
+auto assign_offsets(Access::Vector<SectionDesc> sections) -> Count {
+  Count offset = sizeof(Header);
+  for (Count i = 0; i < sections.get_size(); i++) {
+    if (sections[i].data.get_size() == 0) {
+      sections[i].file_offset = 0;
+      continue;
+    }
+    const Count align =
+        sections[i].alignment > 0 ? Count(sections[i].alignment) : 1;
+    offset = (offset + align - 1) & ~(align - 1);
+    sections[i].file_offset = offset;
+    offset += sections[i].data.get_size();
+  }
+
+  // Align the final offset to an 8 byte boundary.
+  return Data::align<8>(offset);
+}
+
+auto Elf::add_section(Format::Section section) -> void {
+  sections.insert(section);
+}
+
+auto Elf::add_symbol(Context::Symbol symbol) -> void {
+  symbols.insert(symbol);
+}
+
+auto Elf::add_relocation(Context::Relocation relocation) -> void {
+  relocations.insert(relocation);
+}
+
+auto Elf::reset() -> void {
+  sections.clear();
+  symbols.clear();
+  relocations.clear();
 }
 
 auto Elf::write_header(
     Access::Bytes buffer,
     Bits_64 section_offset,
     Bits_16 section_count,
-    Bits_16 shstrtab_index) -> void {
-  // ELF64 file header, should be exactly 64 bytes.
-  struct Header {
-    Perimortem::Core::Static::Bytes<16> identity;
-    ObjectType type;
-    Machine machine;
-    Bits_32 version;
-    Bits_64 entry_point;
-    Bits_64 program_header_offset;
-    Bits_64 section_header_offset;
-    Bits_32 flags;
-    Bits_16 header_size;
-    Bits_16 program_header_entry_size;
-    Bits_16 program_header_count;
-    Bits_16 section_entry_size;
-    Bits_16 section_count;
-    Bits_16 string_section_index;
-  };
-  static_assert(sizeof(Header) == 64);
-
+    Bits_16 section_string_table_index) -> void {
   static constexpr Byte identity[16] = {
-    // Magic elf header
     0x7F, 'E', 'L', 'F',
-    2,  // 64 bit target (2)
-    1,  // Set ELF data to use little endien.
-    1,  // Always 1 for ELF version.
-    0,  // OS ABI set to zero, possibly set to 3 (linux) in the future
-    0,  // ABI version is unused
-    // 7 Padding bytes of zero
-    0, 0, 0, 0, 0, 0, 0};
-
-  Header* header = reinterpret_cast<Header*>(buffer.get_data());
+    2,  // ELFCLASS64
+    1,  // ELFDATA2LSB
+    1,  // EV_CURRENT
+    0,  // ELFOSABI_NONE
+    0,    0,   0,   0,   0, 0, 0, 0,
+  };
+  auto* header = Data::cast<Header>(buffer.get_data());
   header->identity = identity;
-  Data::write<elf_endian>(&header->type, ObjectType::Relocatable);
-  Data::write<elf_endian>(&header->machine, Machine::X86_64);
+  Data::write<elf_endian>(&header->type, Bits_16(ObjectType::Relocatable));
+  Data::write<elf_endian>(&header->machine, Bits_16(Machine::X86_64));
   Data::write<elf_endian>(&header->version, Bits_32(1));
   Data::write<elf_endian>(&header->section_header_offset, section_offset);
   Data::write<elf_endian>(&header->header_size, Bits_16(sizeof(Header)));
   Data::write<elf_endian>(
       &header->section_entry_size, Bits_16(sizeof(SectionHeader)));
   Data::write<elf_endian>(&header->section_count, section_count);
-  Data::write<elf_endian>(&header->string_section_index, shstrtab_index);
+  Data::write<elf_endian>(
+      &header->string_section_index, section_string_table_index);
 }
 
-auto Elf::create_elf_sections(View::Vector<Format::Section> sections) -> void {
-  // Create all user sections.
+static auto write_section_headers(
+    Access::Bytes buffer,
+    View::Vector<SectionDesc> section_descriptors) -> void {
+  auto* entries = Data::cast<SectionHeader>(buffer.get_data());
+  for (Count i = 0; i < section_descriptors.get_size(); i++) {
+    const auto& d = section_descriptors[i];
+    Data::write<elf_endian>(&entries[i].name_offset, Bits_32(d.name_offset));
+    Data::write<elf_endian>(&entries[i].type, Bits_32(d.type));
+    Data::write<elf_endian>(&entries[i].flags, d.flags);
+    Data::write<elf_endian>(&entries[i].file_offset, Bits_64(d.file_offset));
+    Data::write<elf_endian>(&entries[i].size, Bits_64(d.data.get_size()));
+    Data::write<elf_endian>(&entries[i].link, d.link);
+    Data::write<elf_endian>(&entries[i].info, d.info);
+    Data::write<elf_endian>(
+        &entries[i].alignment, d.alignment > 0 ? d.alignment : Bits_64(1));
+    Data::write<elf_endian>(&entries[i].entry_size, d.entry_size);
+  }
+}
+
+static auto build_section_descriptors(
+    View::Vector<Format::Section> sections,
+    View::Bytes relocation_data,
+    View::Bytes symbol_table,
+    View::Bytes string_table,
+    Count symbol_table_index,
+    Count string_table_index,
+    Count first_global,
+    Bool has_relocations) -> Dynamic::Vector<SectionDesc> {
+  Dynamic::Vector<SectionDesc> descriptors;
+  descriptors.insert({});  // [0] null
+
   for (Count i = 0; i < sections.get_size(); i++) {
-    elf_sections.insert(user_sections(sections[i]));
+    descriptors.insert(to_section_desc(sections[i]));
   }
 
-  // Create ELF support sections
-  str_section_index = elf_sections.get_size();
-  elf_sections.insert({
-    ".strtab\0"_view,
-    SectionType::StringTable,
-    Bits_64(SectionFlags::Allocated) | Bits_64(SectionFlags::Mergeable) |
-        Bits_64(SectionFlags::Strings),
+  if (has_relocations) {
+    descriptors.insert({
+      ".rela.text"_view,
+      SectionType::RelocationAddend,
+      0,
+      8,
+      relocation_data,
+      Bits_32(symbol_table_index),
+      Bits_32(1),
+      sizeof(RelaEntry),
+    });
+  }
+
+  descriptors.insert({
+    ".symtab"_view,
+    SectionType::SymbolTable,
+    0,
     8,
+    symbol_table,
+    Bits_32(string_table_index),
+    Bits_32(first_global),
+    sizeof(SymbolEntry),
   });
 
-  // TODO: Add .symtab .strtab .shstrtab
-  // t.symtab_name_offset = append_to_strtab(t.shstrtab, ".symtab\0"_view);
-  // t.strtab_name_offset = append_to_strtab(t.shstrtab, ".strtab\0"_view);
-  // t.shstrtab_name_offset = append_to_strtab(t.shstrtab, ".shstrtab\0"_view);
+  descriptors.insert(
+      {".strtab"_view, SectionType::StringTable, 0, 1, string_table});
+  descriptors.insert({".shstrtab"_view, SectionType::StringTable, 0, 1});
+  return descriptors;
 }
 
-auto build_name_table(
-    Allocator::Arena& arena,
-    SectionProperties& sym_table,
-    Access::Vector<SymbolRef> symbols) -> void {
-  Count size = 1;  // Reserve a single null
-  for (Count i = 0; i < symbols.get_size(); i++) {
-    // The string index is equal to the current size.
-    // Then we reserve enough space for the string + a null character.
-    symbols[i].string_index = size;
-    size += symbols[i].symbol->get_name().get_size() + 1;
-  }
+auto Elf::build_object() -> Dynamic::Bytes {
+  auto sorted = sort_symbols(symbols.get_view());
+  auto string_table = build_string_table(sorted.get_access());
 
-  // Allocate the actual table and copy over the data.
-  Byte* name_table = arena.allocate(size);
-  Count write_ptr = 0;
-  name_table[write_ptr++] = '\0';
-  for (Count i = 0; i < symbols.get_size(); i++) {
-    Data::copy(
-        name_table + write_ptr, symbols[i].symbol->get_name().get_data(),
-        symbols[i].symbol->get_name().get_size());
-    name_table[write_ptr++] = '\0';
-  }
+  Count first_global = 0;
+  auto symbol_table =
+      build_symbol_table(sorted.get_view(), sections.get_view(), first_global);
+  auto relocation_data =
+      build_relocations(relocations.get_view(), sorted.get_view());
+  const Bool has_relocations = relocations.get_size() > 0 ? 1 : 0;
 
-  sym_table.data = View::Bytes(name_table, size);
-}
+  // Get the indexs of the additional sections we need to add.
+  const Count symbol_table_index = 1 + sections.get_size() + has_relocations;
+  const Count string_table_index = symbol_table_index + 1;
+  const Count section_string_table_index = string_table_index + 1;
+  const Count total = section_string_table_index + 1;
 
-auto create_elf_symbols(View::Vector<Context::Symbol> symbols)
-    -> Dynamic::Vector<SymbolRef> {
-  // Sort symbols, putting local symbols first as required by ELF.
-  using Visability = Context::Symbol::Visability;
-  Dynamic::Vector<SymbolRef> elf_symbols;
-  for (Count vis = 0; vis <= Count(Visability::Global); vis++) {
-    for (Count i = 0; i < symbols.get_size(); i++) {
-      if (symbols[i].get_visability() != Visability(vis)) {
-        continue;
-      }
+  // Build the final section descriptor set.
+  auto section_descriptors = build_section_descriptors(
+      sections.get_view(), relocation_data.get_view(), symbol_table.get_view(),
+      string_table.get_view(), symbol_table_index, string_table_index,
+      first_global, has_relocations);
 
-      elf_symbols.insert({symbols.get_data() + i, 0});
+  // The string table can now be populated as it requires all of the section
+  // descriptor names.
+  auto section_string_table =
+      build_section_string_table(section_descriptors.get_access());
+  section_descriptors.get_access()[section_string_table_index].data =
+      section_string_table.get_view();
+
+  // Allocates offsets for each header so it has a valid location to write it's
+  // data that also meets it's alignment requirements.
+  const Count section_headers_offset =
+      assign_offsets(section_descriptors.get_access());
+  const Count file_size =
+      section_headers_offset + sizeof(SectionHeader) * total;
+
+  // Allocate a valid buffer and make sure it's clear of any junk data.
+  Dynamic::Bytes output(file_size);
+  output.forgetful_resize(file_size);
+  output.set(0);
+  Byte* buf = output.get_access().get_data();
+  memset(buf, 0, file_size);
+
+  // Write the ELF header
+  write_header(
+      output.get_access(), section_headers_offset, Bits_16(total),
+      Bits_16(section_string_table_index));
+
+  // Write the section headers
+  write_section_headers(
+      output.get_access().slice(
+          section_headers_offset, sizeof(SectionHeader) * total),
+      section_descriptors.get_view());
+
+  // Write the actual section data
+  for (Count i = 0; i < total; i++) {
+    const auto& d = section_descriptors.get_view()[i];
+    if (d.data.get_size() > 0) {
+      Data::copy(
+          output.get_access().get_data() + d.file_offset, d.data.get_data(),
+          d.data.get_size());
     }
   }
 
-  return elf_symbols;
+  return output;
 }
 
-static auto build_header_string_table(
-  // t.strtab.append('\0');
-  // for (Count i = 0; i < scratch.symbol_count; i++) {
-  // scratch.symbol_name_offsets[i] =
-  //     append_to_strtab(t.strtab, symbols.at(i).name);
-  // }
+auto Elf::build_library(View::Bytes object_name) -> Dynamic::Bytes {
+  Dynamic::Bytes object = build_object();
+  const View::Bytes obj_view = object.get_view();
 
-  // t.shstrtab.append('\0');
-  // for (Count i = 0; i < scratch.section_count; i++) {
-  // const auto props = Elf::section_properties(sections.at(i).type);
-  // scratch.section_name_offsets[i] = append_to_strtab(t.shstrtab, props.name);
-  // }
-  // for (Count i = 0; i < scratch.section_count; i++) {
-  // if (!scratch.has_relocations[i]) {
-  //   continue;
-  // }
-  // const auto props = Elf::section_properties(sections.at(i).type);
-  // scratch.relocation_name_offsets[i] = Bits_32(t.shstrtab.get_size());
-  // t.shstrtab.concat(".rela"_view);
-  // t.shstrtab.concat(props.name);
-  // t.shstrtab.append('\0');
-  // }
+  // Add symbol entries into the AR for all globally exported symbols.
+  Count exported_count = 0;
+  Count exported_names_bytes = 0;
+  for (Count i = 0; i < symbols.get_size(); i++) {
+    if (symbols.get_view()[i].get_visability() ==
+        Context::Symbol::Visability::Global) {
+      exported_count++;
+      exported_names_bytes += symbols.get_view()[i].get_name().get_size() + 1;
+    }
+  }
 
-  // t.symtab_name_offset = append_to_strtab(t.shstrtab, ".symtab\0"_view);
-  // t.strtab_name_offset = append_to_strtab(t.shstrtab, ".strtab\0"_view);
-  // t.shstrtab_name_offset = append_to_strtab(t.shstrtab, ".shstrtab\0"_view);
+  // ar(1) SYSV symtab: 4-byte BE count, 4-byte BE offsets, null-terminated
+  // names.
+  const Count symbol_table_size = 4 + 4 * exported_count + exported_names_bytes;
+  const Count symbol_table_padded = symbol_table_size + (symbol_table_size & 1);
+  const Count obj_offset = 8 + sizeof(ArHeader) + symbol_table_padded;
+  const Count obj_padded = obj_view.get_size() + (obj_view.get_size() & 1);
+  const Count total = obj_offset + sizeof(ArHeader) + obj_padded;
 
-  return t;
-}
+  Dynamic::Bytes output;
+  output.forgetful_resize(total);
+  Byte* buf = output.get_access().get_data();
+  memset(buf, 0, total);
 
-auto Elf::build_object(
-    Allocator::Arena& arena,
-    View::Vector<Format::Section> sections,
-    View::Vector<Context::Symbol> symbols,
-    View::Vector<Context::Relocation> relocations) -> Dynamic::Bytes {
-  auto elf_sections = create_elf_sections(arena, sections);
-  auto elf_symbols = create_elf_symbols(symbols);
+  constexpr auto ar_magic = "!<arch>\n"_view;
+  Data::copy(buf, ar_magic.get_data(), ar_magic.get_size());
+  Count cursor = 8;
 
-  auto strings = build_string_tables(sections, symbols, scratch);
-  auto symtab = build_symbol_table(symbols, scratch);
-  auto layout = compute_layout(sections, scratch, strings);
+  ArHeader symbol_header;
+  fill_ar_header(symbol_header, ""_view, symbol_table_size);
+  Data::copy(buf + cursor, &symbol_header, 1);
+  cursor += sizeof(ArHeader);
 
-  Dynamic::Bytes object(layout.total_file_size);
-  Byte* out = object.get_access();
-  memset(out, 0, layout.total_file_size);
+  Byte* pos = buf + cursor;
+  Data::write<ar_endian>(Data::cast<Bits_32>(pos), Bits_32(exported_count));
+  pos += 4;
+  for (Count i = 0; i < exported_count; i++) {
+    Data::write<ar_endian>(Data::cast<Bits_32>(pos), Bits_32(obj_offset));
+    pos += 4;
+  }
+  for (Count i = 0; i < symbols.get_size(); i++) {
+    const auto& symbol = symbols.get_view()[i];
+    if (symbol.get_visability() != Context::Symbol::Visability::Global) {
+      continue;
+    }
+    const auto name = symbol.get_name();
+    Data::copy(pos, name.get_data(), name.get_size());
+    pos += name.get_size();
+    *pos++ = '\0';
+  }
+  cursor += symbol_table_padded;
 
-  write_elf_header(out, layout);
-  write_section_data(out, sections);
-  write_rela_sections(out, relocations);
+  // Write the actual object file into the archive.
+  ArHeader object_header;
+  fill_ar_header(object_header, object_name, Bits_64(obj_view.get_size()));
+  Data::copy(buf + cursor, &object_header, 1);
+  cursor += sizeof(ArHeader);
+  Data::copy(buf + cursor, obj_view.get_data(), obj_view.get_size());
+
+  return output;
 }

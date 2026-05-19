@@ -8,7 +8,7 @@
 
 namespace Perimortem::Utility::NullTerminated {
 
-auto to_view(const char* str) -> Perimortem::Core::View::Bytes {
+inline auto to_view(const char* str) -> Perimortem::Core::View::Bytes {
   if (!str) {
     return Perimortem::Core::View::Bytes();
   }
@@ -55,7 +55,7 @@ consteval const Perimortem::Core::View::Bytes operator""_view() {
 }
 
 template <Perimortem::Utility::NullTerminated::CString c_string>
-consteval Perimortem::Core::Static::Bytes<c_string.get_size()>
+consteval const Perimortem::Core::Static::Bytes<c_string.get_size()>
     operator""_bytes() {
   return Perimortem::Core::Static::Bytes<c_string.get_size()>(
       c_string.get_view());
