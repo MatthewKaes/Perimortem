@@ -11,6 +11,7 @@ cc_library(
     includes = ["."],
     deps = [
         ":core",
+        ":diagnostics",
         ":memory",
         ":serialization",
         ":system",

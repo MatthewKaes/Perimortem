@@ -80,7 +80,7 @@ extern auto create(
 
 #define EXPECT(expression)                                 \
   {                                                        \
-    auto __value = (expression);                           \
+    auto __value = bool(expression);                       \
     auto __check = true;                                   \
     if (__value != __check) {                              \
       Validation::Test::log_message(                       \
@@ -92,7 +92,7 @@ extern auto create(
 
 #define ASSERT(expression)                                 \
   {                                                        \
-    auto __value = (expression);                           \
+    auto __value = bool(expression);                       \
     auto __check = true;                                   \
     if (__value != __check) {                              \
       Validation::Test::log_message(                       \
@@ -101,6 +101,31 @@ extern auto create(
       result = Validation::Test::TestResult::Failed;       \
       return;                                              \
     }                                                      \
+  }
+
+#define EXPECT_NOT(expression)                                 \
+  {                                                            \
+    auto __value = bool(expression);                           \
+    auto __check = false;                                      \
+    if (__value != __check) {                                  \
+      Validation::Test::log_message(                           \
+          __FILE__, __LINE__, #expression " should be false"); \
+      PRINT_RESULT();                                          \
+      result = Validation::Test::TestResult::Failed;           \
+    }                                                          \
+  }
+
+#define ASSERT_NOT(expression)                                 \
+  {                                                            \
+    auto __value = bool(expression);                           \
+    auto __check = false;                                      \
+    if (__value != __check) {                                  \
+      Validation::Test::log_message(                           \
+          __FILE__, __LINE__, #expression " should be false"); \
+      PRINT_RESULT();                                          \
+      result = Validation::Test::TestResult::Failed;           \
+      return;                                                  \
+    }                                                          \
   }
 
 #define EXPECT_EQ(expression, expect)                      \

@@ -54,7 +54,7 @@ PERIMORTEM_UNIT_TEST(SystemFile, empty_file) {
 
   EXPECT_EQ(file.get_size(), 0);
   EXPECT_TEXT(file.get_view(), ""_view);
-  EXPECT_EQ(file.is_valid(), false);
+  EXPECT_NOT(file.is_valid());
 
   // Creating an empty file should perform zero allocations.
   EXPECT_EQ(Bibliotheca::check_out_requests(), start_requests);
@@ -80,7 +80,7 @@ PERIMORTEM_UNIT_TEST(SystemFile, memory_file) {
     incorrect_bytes += file.get_view()[i] != buffer_value;
   }
   EXPECT_EQ(incorrect_bytes, 0);
-  EXPECT_EQ(file.is_valid(), true);
+  EXPECT(file.is_valid());
 
   // Only creating the Dynamic::Bytes should allocate memory.
   EXPECT_EQ(Bibliotheca::check_out_requests(), start_requests + 1);
@@ -89,13 +89,13 @@ PERIMORTEM_UNIT_TEST(SystemFile, memory_file) {
 PERIMORTEM_UNIT_TEST(SystemFile, check_existence) {
   auto start_requests = Bibliotheca::check_out_requests();
 
-  EXPECT_EQ(File::exists("tests/data/ttx/source.ttx"_view), true);
-  EXPECT_EQ(File::exists("tests/data/ttx/source2.ttx"_view), false);
-  EXPECT_EQ(File::exists("perimortem/system/file.cpp"_view), true);
+  EXPECT(File::exists("tests/data/ttx/source.ttx"_view));
+  EXPECT_NOT(File::exists("tests/data/ttx/source2.ttx"_view));
+  EXPECT(File::exists("perimortem/system/file.cpp"_view));
 
   // Directories don't count as files.
-  EXPECT_EQ(File::exists("perimortem/"_view), false);
-  EXPECT_EQ(File::exists("perimortem"_view), false);
+  EXPECT_NOT(File::exists("perimortem/"_view));
+  EXPECT_NOT(File::exists("perimortem"_view));
 
   // Checking files should perform zero allocations.
   EXPECT_EQ(Bibliotheca::check_out_requests(), start_requests);
@@ -149,10 +149,10 @@ PERIMORTEM_UNIT_TEST(SystemFile, sync_empty_empty) {
       (Bits_8)file.sync_status(test_output), (Bits_8)File::State::Original);
 
   // Shouldn't be a file to remove
-  EXPECT_EQ(File::remove(test_output), false);
+  EXPECT_NOT(File::remove(test_output));
 
   // Data should be invalid after.
-  EXPECT_EQ(file.is_valid(), false);
+  EXPECT_NOT(file.is_valid());
   EXPECT_TEXT(file.get_view(), ""_view);
 }
 
@@ -169,7 +169,7 @@ PERIMORTEM_UNIT_TEST(SystemFile, sync_memory_empty) {
       (Bits_8)file.sync_status(test_output), (Bits_8)File::State::Original);
 
   // Should create a file which can be removed.
-  EXPECT_EQ(File::remove(test_file), true);
+  EXPECT(File::remove(test_file));
   ASSERT_EQ((Bits_8)file.sync_status(test_file), (Bits_8)File::State::Create);
 
   // Data should be valid after
@@ -188,7 +188,7 @@ PERIMORTEM_UNIT_TEST(SystemFile, sync_directory) {
       (Bits_8)file.sync_status(test_directory), (Bits_8)File::State::Invalid);
 
   // Data should be invalid after.
-  EXPECT_EQ(file.is_valid(), false);
+  EXPECT_NOT(file.is_valid());
   EXPECT_TEXT(file.get_view(), ""_view);
 }
 
@@ -204,7 +204,7 @@ PERIMORTEM_UNIT_TEST(SystemFile, sync_memory_vs_existing) {
   ASSERT_EQ((Bits_8)file.sync(test_file), (Bits_8)File::State::Conflict);
 
   // Data should be original content
-  EXPECT_EQ(file.is_valid(), true);
+  EXPECT(file.is_valid());
   EXPECT_TEXT(file.get_view(), test_content);
 }
 
@@ -228,7 +228,7 @@ PERIMORTEM_UNIT_TEST(SystemFile, sync_read_and_write) {
   ASSERT_EQ((Bits_8)file.sync_status(test_file), (Bits_8)File::State::Conflict);
 
   // Should create a file which can be removed.
-  EXPECT_EQ(File::remove(test_file), true);
+  EXPECT(File::remove(test_file));
   ASSERT_EQ((Bits_8)file.sync_status(test_file), (Bits_8)File::State::Create);
 
   // Data should still be the contents of the original file.
@@ -265,7 +265,7 @@ PERIMORTEM_UNIT_TEST(SystemFile, sync_read_update_write) {
   ASSERT_EQ((Bits_8)file_copy.sync(test_file), (Bits_8)File::State::Original);
 
   // Should create a file which can be removed.
-  EXPECT_EQ(File::remove(test_file), true);
+  EXPECT(File::remove(test_file));
   ASSERT_EQ((Bits_8)file.sync_status(test_file), (Bits_8)File::State::Create);
 
   // The two files should have the same data.

@@ -450,7 +450,7 @@ auto Elf::build_object() -> Dynamic::Bytes {
       build_symbol_table(sorted.get_view(), sections.get_view(), first_global);
   auto relocation_data =
       build_relocations(relocations.get_view(), sorted.get_view());
-  const Bool has_relocations = relocations.get_size() > 0 ? 1 : 0;
+  const Count has_relocations = relocations.get_size() > 0 ? 1 : 0;
 
   // Get the indexs of the additional sections we need to add.
   const Count symbol_table_index = 1 + sections.get_size() + has_relocations;

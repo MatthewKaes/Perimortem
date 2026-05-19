@@ -5,7 +5,9 @@
 
 #include "perimortem/core/view/bytes.hpp"
 #include "perimortem/core/access/bytes.hpp"
+#include "perimortem/core/data.hpp"
 #include "perimortem/core/hash.hpp"
+#include "perimortem/core/math.hpp"
 
 namespace Perimortem::Core::Static {
 
@@ -22,17 +24,25 @@ class Bytes {
         source_block[i] = source[i];
       }
     } else {
-      memcpy(source_block, source, literal_size);
+      Data::copy(source_block, source, literal_size);
     }
   }
 
   constexpr Bytes(const Core::View::Bytes& source) {
+    const Count size = Math::min(literal_size, source.get_size());
     if consteval {
-      for (Count i = 0; i < literal_size; i++) {
+      Count i = 0;
+      for (; i < size; i++) {
         source_block[i] = source.get_data()[i];
       }
+
+      // Zero out the rest of the array so we don't expose junk data.
+      for (; i < literal_size; i++) {
+        source_block[i] = 0;
+      }
     } else {
-      memcpy(source_block, source.get_data(), literal_size);
+      Data::copy(source_block, source.get_data(), size);
+      Data::set(source_block + size, 0, literal_size - size);
     }
   }
 

@@ -84,9 +84,17 @@ using CppSize = __SIZE_TYPE__;
 // This also specializes boolean operations so they don't alias Bits_8.
 struct Bool {
   constexpr Bool(bool value) : value(value) {}
-  constexpr operator bool() const { return value; }
-  constexpr auto operator|(Bool rhs) -> Bool { return value | rhs.value; }
-  constexpr auto operator&(Bool rhs) -> Bool { return value & rhs.value; }
+  constexpr explicit operator bool() const { return value; }
+  constexpr auto operator==(Bool rhs) const -> Bool {
+    return value == rhs.value;
+  }
+  constexpr auto operator!=(Bool rhs) const -> Bool {
+    return value != rhs.value;
+  }
+  constexpr auto operator|(Bool rhs) const -> Bool { return value | rhs.value; }
+  constexpr auto operator&(Bool rhs) const -> Bool { return value & rhs.value; }
+  constexpr auto operator^(Bool rhs) const -> Bool { return value ^ rhs.value; }
+  constexpr auto operator!() const -> Bool { return !value; }
   constexpr auto operator&=(Bool rhs) -> Bool& {
     value &= rhs.value;
     return *this;

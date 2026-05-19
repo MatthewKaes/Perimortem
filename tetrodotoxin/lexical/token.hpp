@@ -5,7 +5,7 @@
 
 #include "perimortem/core/view/bytes.hpp"
 
-#include "perimortem/memory/view/bitflag.hpp"
+#include "perimortem/utility/bitflag.hpp"
 
 #include "source.hpp"
 

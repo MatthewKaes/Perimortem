@@ -44,9 +44,19 @@ struct Source {
         return;
       }
 
+      // Store the raw char* from the compiler ABI since we can't convert to
+      // Byte* in a reasonable fashion that is actually constexpr.
+      //
+      // reinterpret_cast to Byte* is banned and we can't create a static vector
+      // as the size isn't known until construction which is an annoying choice
+      // for the C++ compiler API.
+      //
+      // The getters can convert to the proper type since we know it's valid and
+      // for TTX we can just emit the correct data directly since we control the
+      // compiler ABI.
       file = data->_M_file_name;
       file_size = extract_size(data->_M_file_name);
-      func = data->_M_file_name;
+      func = data->_M_function_name;
       func_size = extract_size(data->_M_function_name);
       line = data->_M_line;
       column = data->_M_column;
@@ -62,6 +72,8 @@ struct Source {
 
  public:
   // The magic that invokes the source location extension.
+  // For TTX we can make it so requests are embedded in the binary as read-only
+  // data so the ABI only requires a pointer to the object in the binary.
   static consteval auto current(
       const AbiConverter loc = AbiConverter(__builtin_source_location()))
       -> Source {

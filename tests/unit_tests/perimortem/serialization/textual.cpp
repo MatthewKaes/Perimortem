@@ -32,7 +32,7 @@ PERIMORTEM_UNIT_TEST(SerializationTextual, prevent_overflow) {
 
   writer << "Hello"_view << "World!!!!"_view;
 
-  EXPECT_EQ(writer.is_valid(), false);
+  EXPECT_NOT(writer.is_valid());
   EXPECT_TEXT(buffer.slice(0, 5), "Hello"_view);
 }
 
@@ -42,7 +42,7 @@ PERIMORTEM_UNIT_TEST(SerializationTextual, integers) {
 
   writer << 120000 << -31 << 208;
 
-  EXPECT_EQ(writer.is_valid(), true);
+  EXPECT(writer.is_valid());
   EXPECT_TEXT(buffer.get_view(), "120000-31208"_view);
 }
 
@@ -52,7 +52,7 @@ PERIMORTEM_UNIT_TEST(SerializationTextual, integers_and_text) {
 
   writer << "Test Value: "_view << 412010 << " units"_view;
 
-  EXPECT_EQ(writer.is_valid(), true);
+  EXPECT(writer.is_valid());
   EXPECT_TEXT(buffer.get_view(), "Test Value: 412010 units"_view);
 }
 
@@ -66,7 +66,7 @@ PERIMORTEM_UNIT_TEST(SerializationTextual, boolean) {
   // Perimortem types print out the full value
   writer << True << False;
 
-  EXPECT_EQ(writer.is_valid(), true);
+  EXPECT(writer.is_valid());
   EXPECT_TEXT(buffer.get_view(), "10truefalse"_view);
 }
 
@@ -79,7 +79,7 @@ PERIMORTEM_UNIT_TEST(SerializationTextual, floats) {
   // Percision test
   writer << Real_32(-2012.78102) << Real_64(-2012.78102);
 
-  EXPECT_EQ(writer.is_valid(), true);
+  EXPECT(writer.is_valid());
   EXPECT_TEXT(
       buffer.get_view(), "12.080.0000812-2012.7810058-2012.78102\0\0"_view);
 }
@@ -104,6 +104,6 @@ PERIMORTEM_UNIT_TEST(SerializationTextual, multiple_writers) {
   writer_1 << "Too much text!!"_view;
   ASSERT_TEXT(buffer.get_view(), "test: true79.8106esting! 13891????"_view);
 
-  EXPECT_EQ(writer_1.is_valid(), false);
-  EXPECT_EQ(writer_2.is_valid(), true);
+  EXPECT_NOT(writer_1.is_valid());
+  EXPECT(writer_2.is_valid());
 }

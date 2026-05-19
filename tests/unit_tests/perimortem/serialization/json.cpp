@@ -24,9 +24,9 @@ PERIMORTEM_UNIT_TEST(SerializationJson, empty_node) {
   auto start_requests = Bibliotheca::check_out_requests();
   Json::Node empty;
 
-  EXPECT_EQ(empty.is_null(), true);
+  EXPECT(empty.is_null());
 
-  EXPECT_EQ(empty.get_flag(), false);
+  EXPECT_NOT(empty.get_flag());
   EXPECT_EQ(empty.get_number(), 0);
   EXPECT_EQ(empty.get_real(), 0.0);
   EXPECT_EQ(empty.get_size(), 0);
@@ -39,31 +39,31 @@ PERIMORTEM_UNIT_TEST(SerializationJson, empty_node) {
 PERIMORTEM_UNIT_TEST(SerializationJson, value_node) {
   auto start_requests = Bibliotheca::check_out_requests();
   Json::Node value;
-  EXPECT_EQ(value.is_null(), true);
+  EXPECT(value.is_null());
 
   value = True;
-  EXPECT_EQ(value.get_flag(), true);
+  EXPECT(value.get_flag());
   EXPECT_EQ(value.get_number(), 0);
   EXPECT_EQ(value.get_real(), 0.0);
   EXPECT_TEXT(value.get_string(), View::Bytes());
   EXPECT_EQ(value.get_size(), 0);
 
   value = 142ll;
-  EXPECT_EQ(value.get_flag(), 0);
+  EXPECT_NOT(value.get_flag());
   EXPECT_EQ(value.get_number(), 142ll);
   EXPECT_EQ(value.get_real(), 0.0);
   EXPECT_TEXT(value.get_string(), View::Bytes());
   EXPECT_EQ(value.get_size(), 0);
 
   value = 12.12;
-  EXPECT_EQ(value.get_flag(), 0);
+  EXPECT_NOT(value.get_flag());
   EXPECT_EQ(value.get_number(), 0);
   EXPECT_EQ(value.get_real(), 12.12);
   EXPECT_TEXT(value.get_string(), View::Bytes());
   EXPECT_EQ(value.get_size(), 0);
 
   value = "Test View"_view;
-  EXPECT_EQ(value.get_flag(), 0);
+  EXPECT_NOT(value.get_flag());
   EXPECT_EQ(value.get_number(), 0);
   EXPECT_EQ(value.get_real(), 0);
   EXPECT_TEXT(value.get_string(), "Test View"_view);
@@ -76,15 +76,15 @@ PERIMORTEM_UNIT_TEST(SerializationJson, value_node) {
 PERIMORTEM_UNIT_TEST(SerializationJson, access_never_faults) {
   auto start_requests = Bibliotheca::check_out_requests();
   Json::Node value;
-  EXPECT_EQ(value.is_null(), true);
+  EXPECT(value.is_null());
 
   value = True;
-  EXPECT_EQ(value["invalid"_view].is_null(), true);
-  EXPECT_EQ(value["invalid"_view]["access"_view].is_null(), true);
+  EXPECT(value["invalid"_view].is_null());
+  EXPECT(value["invalid"_view]["access"_view].is_null());
 
   value = value["invalid"_view]["access"_view];
 
-  EXPECT_EQ(value.get_flag(), false);
+  EXPECT_NOT(value.get_flag());
   EXPECT_EQ(value.get_number(), 0);
   EXPECT_EQ(value.get_real(), 0.0);
   EXPECT_EQ(value.get_size(), 0);
@@ -97,18 +97,18 @@ PERIMORTEM_UNIT_TEST(SerializationJson, access_never_faults) {
 PERIMORTEM_UNIT_TEST(SerializationJson, access_is_value_type) {
   auto start_requests = Bibliotheca::check_out_requests();
   Json::Node value;
-  EXPECT_EQ(value.is_null(), true);
+  EXPECT(value.is_null());
 
   auto new_node = value["invalid"_view];
-  EXPECT_EQ(new_node.is_null(), true);
+  EXPECT(new_node.is_null());
 
   new_node = "valid"_view;
-  EXPECT_EQ(new_node.is_null(), false);
+  EXPECT_NOT(new_node.is_null());
   EXPECT_TEXT(new_node.get_string(), "valid"_view);
 
   // Original value node should remain unchanged.
-  EXPECT_EQ(value.is_null(), true);
-  EXPECT_EQ(value["invalid"_view].is_null(), true);
+  EXPECT(value.is_null());
+  EXPECT(value["invalid"_view].is_null());
 
   // Value type nodes should never allocate.
   EXPECT_EQ(Bibliotheca::check_out_requests(), start_requests);
@@ -118,13 +118,13 @@ PERIMORTEM_UNIT_TEST(SerializationJson, parse_values) {
   Allocator::Arena arena;
   Json::Node value;
   value.parse(arena, ""_view);
-  EXPECT_EQ(value.is_null(), true);
+  EXPECT(value.is_null());
 
   value.parse(arena, "true"_view);
-  EXPECT_EQ(value.get_flag(), true);
+  EXPECT(value.get_flag());
 
   value.parse(arena, "false"_view);
-  EXPECT_EQ(value.get_flag(), false);
+  EXPECT_NOT(value.get_flag());
 
   value.parse(arena, "12"_view);
   EXPECT_EQ(value.get_number(), 12);
@@ -150,10 +150,10 @@ PERIMORTEM_UNIT_TEST(SerializationJson, greedy_parse) {
   Json::Node value;
 
   value.parse(arena, "true?"_view);
-  EXPECT_EQ(value.get_flag(), true);
+  EXPECT(value.get_flag());
 
   value.parse(arena, "false2"_view);
-  EXPECT_EQ(value.get_flag(), false);
+  EXPECT_NOT(value.get_flag());
 
   value.parse(arena, "12a"_view);
   EXPECT_EQ(value.get_number(), 12);
@@ -196,7 +196,7 @@ PERIMORTEM_UNIT_TEST(SerializationJson, parse_arrays) {
   ASSERT(value.is_array());
   EXPECT_EQ(value.get_size(), 4);
   EXPECT_EQ(value[0].get_number(), 1);
-  EXPECT_EQ(value[1].get_flag(), true);
+  EXPECT(value[1].get_flag());
   EXPECT_TEXT(value[2].get_string(), "test"_view);
   EXPECT_EQ(value[3].get_number(), 4);
 }
@@ -221,7 +221,7 @@ PERIMORTEM_UNIT_TEST(SerializationJson, parse_nested_arrays) {
   EXPECT_EQ(value[2][0].get_size(), 1);
   EXPECT_EQ(value[2][1].get_size(), 0);
   EXPECT_EQ(value[2][2].get_size(), 1);
-  EXPECT_EQ(value[2][0][0].get_flag(), true);
+  EXPECT(value[2][0][0].get_flag());
   EXPECT_EQ(value[2][1].get_number(), 3);
   EXPECT_TEXT(value[2][2][0].get_string(), "value"_view);
 
@@ -255,7 +255,7 @@ PERIMORTEM_UNIT_TEST(SerializationJson, parse_object) {
   // If the raw object is fetched the hidden duplicate can be read.
   EXPECT_EQ(value.get_size(), 4);
   EXPECT_EQ(value["number"_view].get_number(), 1);
-  EXPECT_EQ(value["flag"_view].get_flag(), true);
+  EXPECT(value["flag"_view].get_flag());
   EXPECT_TEXT(value["test"_view].get_string(), "test"_view);
 
   auto members = value.get_object();
@@ -266,7 +266,7 @@ PERIMORTEM_UNIT_TEST(SerializationJson, parse_object) {
   EXPECT_TEXT(members[3].name, "number"_view);
 
   EXPECT_EQ(members[0].node.get_number(), 1);
-  EXPECT_EQ(members[1].node.get_flag(), true);
+  EXPECT(members[1].node.get_flag());
   EXPECT_TEXT(members[2].node.get_string(), "test"_view);
   EXPECT_EQ(members[3].node.get_number(), -1);
 }

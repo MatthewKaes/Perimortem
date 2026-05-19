@@ -32,7 +32,7 @@ class Stream {
 
   constexpr auto get_size() const -> Count { return data.get_size(); }
   constexpr auto get_location() const -> Count { return ptr_location; }
-  constexpr auto is_valid() const -> Count { return valid_state; }
+  constexpr auto is_valid() const -> Bool { return valid_state; }
 
  private:
   auto write_real(Real_64 real, Real_64 precision) -> void;

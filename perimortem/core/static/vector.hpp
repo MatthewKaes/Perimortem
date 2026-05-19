@@ -21,6 +21,12 @@ class Vector {
     }
   }
 
+  constexpr Vector(const type (&source)[size]) {
+    for (Count i = 0; i < size; i++) {
+      source_block[i] = source[i];
+    }
+  }
+
   constexpr operator Core::View::Vector<type>() const { return get_view(); }
   constexpr operator Core::Access::Vector<type>() { return get_access(); }
 
@@ -32,9 +38,9 @@ class Vector {
     return source_block[index];
   }
 
-  consteval auto get_size() const -> Count { return literal_size; }
-  consteval auto get_capacity() const -> Count { return literal_size; }
-  consteval auto get_view() const -> const Core::View::Vector<type> {
+  constexpr auto get_size() const -> Count { return literal_size; }
+  constexpr auto get_capacity() const -> Count { return literal_size; }
+  constexpr auto get_view() const -> const Core::View::Vector<type> {
     return Core::View::Vector<type>(source_block, literal_size);
   }
   constexpr auto get_data() const -> const type* { return source_block; }
