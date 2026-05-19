@@ -58,21 +58,25 @@ constexpr auto rex_short(Bytes& code, Reg reg) -> void {
 }
 
 constexpr auto gen_rex_byte(Bytes& code, Reg reg, Reg rm) -> void {
+  Byte rex_code = 0;
+
   // TODO: Only 64 bits so this is pointless for W
   // Also it would be a size mismatch so we should only have to check one.
   if (reg >= Reg::RAX || rm >= Reg::RAX) {
-    Byte rex_code = Byte(RexExt::W);
+    rex_code = Byte(RexExt::W);
+  }
 
-    // Register extension
-    if (reg > Reg::RDI) {
-      rex_code |= Byte(RexExt::R);
-    }
+  // Register extension to 4 bit address
+  if (reg != Reg::None && (Byte(reg) & Byte(0xf)) > 0x7) {
+    rex_code |= Byte(RexExt::R);
+  }
 
-    // Reg / Mem extension
-    if (rm > Reg::RDI) {
-      rex_code |= Byte(RexExt::B);
-    }
+  // Reg / Mem extension to 4 bit address
+  if (rm != Reg::None && (Byte(rm) & Byte(0xf)) > 0x7) {
+    rex_code |= Byte(RexExt::B);
+  }
 
+  if (rex_code) {
     code.append(rex_code);
   }
 }
@@ -150,8 +154,8 @@ auto x86_64::pop(Reg reg) -> void {
 
 auto x86_64::zero(Reg reg) -> void {
   // Save the REX byte if we can alias through the 32 bit reg.
-  if (reg > Reg::RDI) {
-    code.append(Byte(RexExt::B) | Byte(RexExt::R));
+  if (reg > Reg::RDI || reg < Reg::RAX) {
+    gen_rex_byte(code, reg, reg);
   }
 
   // XOR
@@ -160,7 +164,7 @@ auto x86_64::zero(Reg reg) -> void {
 }
 
 auto x86_64::inc(Reg reg) -> void {
-  rex_short(code, reg);
+  gen_rex_byte(code, Reg::None, reg);
 
   // Inc calls 0xFF with reg=0 in gen_modrm_byte.
   code.append(0xFF);
@@ -168,7 +172,7 @@ auto x86_64::inc(Reg reg) -> void {
 }
 
 auto x86_64::dec(Reg reg) -> void {
-  rex_short(code, reg);
+  gen_rex_byte(code, Reg::None, reg);
 
   // Inc calls 0xFF with reg=1 in gen_modrm_byte.
   code.append(0xFF);
@@ -179,10 +183,12 @@ auto x86_64::one(Reg reg) -> void {
   zero(reg);
 
   // See if we can save an extra REX byte by using only the 32bit reg.
-  if (reg >= Reg::RAX && reg <= Reg::RDI) {
-    reg = Reg(Byte(reg) & 0x7);
+  if (reg > Reg::RDI || reg < Reg::RAX) {
+    gen_rex_byte(code, Reg::None, reg);
   }
-  inc(reg);
+  // Inc calls 0xFF with reg=0 in gen_modrm_byte.
+  code.append(0xFF);
+  code.append(gen_modrm_byte(Reg(0x00), reg));
 }
 
 auto x86_64::neg_one(Reg reg) -> void {

@@ -22,6 +22,10 @@ extern auto expected_text(
     const unsigned char* value,
     unsigned long long size,
     bool actual) -> void;
+extern auto expected_hex(
+    const unsigned char* value,
+    unsigned long long size,
+    bool actual) -> void;
 
 extern auto do_nothing() -> void;
 
@@ -63,6 +67,14 @@ extern auto create(
     Validation::Test::expected_text(                    \
         __check.get_data(), __check.get_size(), false); \
     Validation::Test::expected_text(                    \
+        __value.get_data(), __value.get_size(), true);  \
+  }
+
+#define PRINT_HEX()                                     \
+  {                                                     \
+    Validation::Test::expected_hex(                     \
+        __check.get_data(), __check.get_size(), false); \
+    Validation::Test::expected_hex(                     \
         __value.get_data(), __value.get_size(), true);  \
   }
 
@@ -161,6 +173,31 @@ extern auto create(
       Validation::Test::log_message(                       \
           __FILE__, __LINE__, #expression " != " #expect); \
       PRINT_TEXT();                                        \
+      result = Validation::Test::TestResult::Failed;       \
+      return;                                              \
+    }                                                      \
+  }
+
+#define EXPECT_HEX(expression, expect)                     \
+  {                                                        \
+    auto __value = (expression);                           \
+    auto __check = (expect);                               \
+    if (__value != __check) {                              \
+      Validation::Test::log_message(                       \
+          __FILE__, __LINE__, #expression " != " #expect); \
+      PRINT_HEX();                                         \
+      result = Validation::Test::TestResult::Failed;       \
+    }                                                      \
+  }
+
+#define ASSERT_HEX(expression, expect)                     \
+  {                                                        \
+    auto __value = (expression);                           \
+    auto __check = (expect);                               \
+    if (__value != __check) {                              \
+      Validation::Test::log_message(                       \
+          __FILE__, __LINE__, #expression " != " #expect); \
+      PRINT_HEX();                                         \
       result = Validation::Test::TestResult::Failed;       \
       return;                                              \
     }                                                      \

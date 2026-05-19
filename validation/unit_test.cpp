@@ -107,6 +107,18 @@ auto expected_text(
   printf("\n");
 }
 
+auto expected_hex(
+    const unsigned char* value,
+    unsigned long long size,
+    bool actual) -> void {
+  print_result_header(actual);
+  // Print out all the hex bytes with spaces
+  for (int i = 0; i < size; i++) {
+    printf("%02X ", (unsigned char)value[i]);
+  }
+  printf("\n");
+}
+
 extern auto create(
     const Harness& harness,
     const char* name,
@@ -192,6 +204,11 @@ int main() {
       harness = test.harness;
       printf("%s[ START ] %s\n%s", dark_color, harness->name, clear_color);
       harness->init();
+    }
+
+    // Somehow the harness was set to nullptr.
+    if (harness == nullptr) {
+      continue;
     }
 
     // Setup
