@@ -42,6 +42,7 @@ struct Benchmark {
 };
 
 TestInstance binary_tests[4096];
+unsigned failed_test_indexes[4096] = {};
 unsigned binary_tests_count = 0;
 unsigned test_suites = 0;
 unsigned passed_tests = 0;
@@ -163,6 +164,12 @@ void output_results() {
 
   if (failed_tests) {
     printf("%s      Failed:  %u%s\n", fail_color, failed_tests, clear_color);
+    for (unsigned i = 0; i < failed_tests; i++) {
+      auto& test = binary_tests[failed_test_indexes[i]];
+      printf(
+          "%s          %s:%d (%s)%s\n", dark_color, test.file, (int)test.line,
+          test.name, clear_color);
+    }
   }
 
   if (not_run_tests) {
@@ -256,6 +263,7 @@ int main() {
           test.name);
       break;
     case TestResult::Failed:
+      failed_test_indexes[failed_tests] = i;
       failed_tests += 1;
       printf(
           "%s  [  FAIL  ] %*s", fail_color, (int)(longest_test_name + 2),
