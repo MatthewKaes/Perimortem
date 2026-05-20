@@ -6,10 +6,9 @@
 
 #include "perimortem/core/view/bytes.hpp"
 #include "perimortem/core/view/vector.hpp"
+#include "perimortem/core/diagnostics/source.hpp"
 
-#include "perimortem/diagnostics/source.hpp"
-
-namespace Perimortem::Diagnostics {
+namespace Perimortem::Core::Diagnostics {
 
 class Log {
  public:
@@ -89,4 +88,4 @@ class Log {
   static auto flush() -> void;
 };
 
-}  // namespace Perimortem::Diagnostics
+}  // namespace Perimortem::Core::Diagnostics

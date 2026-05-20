@@ -1,7 +1,7 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
-#include "perimortem/diagnostics/log.hpp"
+#include "perimortem/core/diagnostics/log.hpp"
 
 #include "perimortem/core/access/bytes.hpp"
 #include "perimortem/core/static/bytes.hpp"
@@ -10,7 +10,7 @@
 #include "perimortem/core/writer/textual.hpp"
 
 using namespace Perimortem::Core;
-using namespace Perimortem::Diagnostics;
+using namespace Perimortem::Core::Diagnostics;
 
 #include <stdio.h>
 #include <stdlib.h>

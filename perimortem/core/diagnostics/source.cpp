@@ -1,9 +1,9 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
-#include "perimortem/diagnostics/source.hpp"
+#include "perimortem/core/diagnostics/source.hpp"
 
-using namespace Perimortem::Diagnostics;
+using namespace Perimortem::Core::Diagnostics;
 
 auto Source::get_line() const -> Count {
   return abi.line;

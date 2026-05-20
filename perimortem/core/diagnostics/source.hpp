@@ -21,7 +21,7 @@ class source_location {
 };
 }  // namespace std
 
-namespace Perimortem::Diagnostics {
+namespace Perimortem::Core::Diagnostics {
 
 // A class that wraps the compiler extensions to provide runtime
 // access to source information.
@@ -91,4 +91,4 @@ struct Source {
   const AbiConverter abi;
 };
 
-}  // namespace Perimortem::Diagnostics
+}  // namespace Perimortem::Core::Diagnostics

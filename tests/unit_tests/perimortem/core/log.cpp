@@ -1,7 +1,7 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
-#include "perimortem/diagnostics/log.hpp"
+#include "perimortem/core/diagnostics/log.hpp"
 
 #include "validation/unit_test.hpp"
 
@@ -12,7 +12,7 @@
 #include "perimortem/core/null_terminated.hpp"
 
 using namespace Perimortem::Core;
-using namespace Perimortem::Diagnostics;
+using namespace Perimortem::Core::Diagnostics;
 using namespace Validation;
 
 constexpr Count max_message_length = 256;

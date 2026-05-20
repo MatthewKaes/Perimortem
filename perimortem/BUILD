@@ -11,7 +11,6 @@ cc_library(
     includes = ["."],
     deps = [
         ":core",
-        ":diagnostics",
         ":memory",
         ":serialization",
         ":system",
@@ -23,6 +22,8 @@ cc_library(
     srcs = [
         "core/algorithm/search.cpp",
         "core/bibliotheca.cpp",
+        "core/diagnostics/log.cpp",
+        "core/diagnostics/source.cpp",
         "core/writer/binary.cpp",
         "core/writer/textual.cpp",
     ],
@@ -32,6 +33,7 @@ cc_library(
         "core/view/*.hpp",
         "core/algorithm/*.hpp",
         "core/writer/*.hpp",
+        "core/diagnostics/*.hpp",
         "core/*.hpp",
     ]),
     includes = ["."],
@@ -46,22 +48,6 @@ cc_library(
     includes = ["."],
     deps = [
         ":core",
-    ],
-)
-
-cc_library(
-    name = "diagnostics",
-    srcs = glob([
-        "diagnostics/*.cpp",
-    ]),
-    hdrs = glob([
-        "diagnostics/*.hpp",
-    ]),
-    includes = ["."],
-    deps = [
-        ":core",
-        ":memory",
-        ":utility",
     ],
 )
 
