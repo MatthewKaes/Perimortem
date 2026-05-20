@@ -1,18 +1,17 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
-#include "perimortem/core/writer/textual.hpp"
-
 #include "validation/unit_test.hpp"
 
 #include "perimortem/core/static/vector.hpp"
 #include "perimortem/core/null_terminated.hpp"
+#include "perimortem/core/writer/textual.hpp"
 
 using namespace Perimortem::Core;
 
 using namespace Validation;
 
-Test::Harness CoreTextual = {.name = "Core::Textual"};
+Test::Harness CoreTextual = {.name = "Core::Writer::Textual"};
 
 PERIMORTEM_UNIT_TEST(CoreTextual, simple_text) {
   Static::Bytes<10> buffer;
@@ -84,24 +83,26 @@ PERIMORTEM_UNIT_TEST(CoreTextual, floats) {
 
 PERIMORTEM_UNIT_TEST(CoreTextual, multiple_writers) {
   Static::Bytes<34> buffer;
-  for (Count i = 0; i < buffer.get_size(); i++) {
-    buffer[i] = '?';
+  for (Count index = 0; index < buffer.get_size(); index++) {
+    buffer[index] = '?';
   }
 
-  Writer::Textual writer_1(buffer.get_access());
-  Writer::Textual writer_2(buffer.get_access());
+  Writer::Textual writers[] = {
+      Writer::Textual(buffer.get_access()),
+      Writer::Textual(buffer.get_access()),
+  };
 
-  writer_1 << "Sample text for testing!"_view;
+  writers[0] << "Sample text for testing!"_view;
   ASSERT_TEXT(buffer.get_view(), "Sample text for testing!??????????"_view);
-  writer_2 << "test: "_view << True;
+  writers[1] << "test: "_view << True;
   ASSERT_TEXT(buffer.get_view(), "test: truet for testing!??????????"_view);
-  writer_1 << " "_view << 13891;
+  writers[0] << " "_view << 13891;
   ASSERT_TEXT(buffer.get_view(), "test: truet for testing! 13891????"_view);
-  writer_2 << 79.8106;
+  writers[1] << 79.8106;
   ASSERT_TEXT(buffer.get_view(), "test: true79.8106esting! 13891????"_view);
-  writer_1 << "Too much text!!"_view;
+  writers[0] << "Too much text!!"_view;
   ASSERT_TEXT(buffer.get_view(), "test: true79.8106esting! 13891????"_view);
 
-  EXPECT_NOT(writer_1.is_valid());
-  EXPECT(writer_2.is_valid());
+  EXPECT_NOT(writers[0].is_valid());
+  EXPECT(writers[1].is_valid());
 }

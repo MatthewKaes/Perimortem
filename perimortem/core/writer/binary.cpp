@@ -7,220 +7,190 @@
 
 using namespace Perimortem::Core;
 
-constexpr auto stream_endian = Data::ByteOrder::Little;
+// write_value and write_vector are local template helpers so the member
+// implementations can stay in this .cpp file without leaking into the header.
 
-template <typename storage_type>
-constexpr auto get_data_type() -> Writer::Binary::DataType {
-  switch (sizeof(storage_type)) {
-  case 1:
-    if constexpr (storage_type(-1) < storage_type(0)) {
-      return Writer::Binary::DataType::SignedBits_8;
-    } else {
-      return Writer::Binary::DataType::Bits_8;
-    }
-  case 2:
-    if constexpr (storage_type(-1) < storage_type(0)) {
-      return Writer::Binary::DataType::SignedBits_16;
-    } else {
-      return Writer::Binary::DataType::Bits_16;
-    }
-  case 4:
-    if constexpr (storage_type(-1) < storage_type(0)) {
-      return Writer::Binary::DataType::SignedBits_32;
-    } else {
-      return Writer::Binary::DataType::Bits_32;
-    }
-  case 8:
-    if constexpr (storage_type(-1) < storage_type(0)) {
-      return Writer::Binary::DataType::SignedBits_64;
-    } else {
-      return Writer::Binary::DataType::Bits_64;
-    }
+template <Data::ByteOrder endian, typename storage_type>
+static constexpr auto
+    write_value(Access::Bytes target, Count& ptr, storage_type val) -> Bool {
+  Count base = Count(target.get_data());
+  ptr = Data::align<sizeof(storage_type)>(base + ptr) - base;
+
+  if (ptr + sizeof(storage_type) > target.get_size()) [[unlikely]] {
+    return False;
   }
 
-  return Writer::Binary::DataType::Unknown;
+  val = Data::ensure_endian<Data::ByteOrder::Native, endian>(val);
+  Data::copy(target.get_data() + ptr, &val);
+  ptr += sizeof(storage_type);
+  return True;
 }
 
-template <>
-constexpr auto get_data_type<Real_32>() -> Writer::Binary::DataType {
-  return Writer::Binary::DataType::Real_32;
-}
+template <Data::ByteOrder endian, typename blob_type>
+static constexpr auto
+    write_vector(Access::Bytes target, Count& ptr, blob_type blob) -> Bool {
+  using element_type = typename blob_type::data_type;
+  Count base = Count(target.get_data());
+  ptr = Data::align<sizeof(element_type)>(base + ptr) - base;
 
-template <>
-constexpr auto get_data_type<Real_64>() -> Writer::Binary::DataType {
-  return Writer::Binary::DataType::Real_64;
-}
-
-template <typename storage_type>
-constexpr auto
-    write_block(Access::Bytes target, Count& ptr_location, storage_type bin)
-        -> Bool {
-  if (ptr_location + 1 + sizeof(storage_type) > target.get_size()) {
-    return false;
+  Count total = sizeof(element_type) * blob.get_size();
+  if (ptr + total > target.get_size()) [[unlikely]] {
+    return False;
   }
 
-  Byte* data = target.get_data();
-  data[ptr_location] = static_cast<Byte>(get_data_type<storage_type>());
-
-  bin = Data::ensure_endian<Data::ByteOrder::Native, stream_endian>(bin);
-
-  Data::copy(data + ptr_location + 1, &bin);
-  ptr_location += 1 + sizeof(storage_type);
-
-  return true;
-}
-
-template <typename blob_type>
-constexpr auto
-    write_blob(Access::Bytes target, Count& ptr_location, blob_type bin)
-        -> Bool {
-  using storage_type = typename blob_type::data_type;
-  if (ptr_location + 2 + sizeof(storage_type) * bin.get_size() >
-      target.get_size()) {
-    return false;
-  }
-
-  Byte* data = target.get_data();
-  data[ptr_location++] = static_cast<Byte>(Writer::Binary::DataType::Blob);
-  data[ptr_location++] = static_cast<Byte>(get_data_type<storage_type>());
-
-  // Size data
-  Count size = Data::ensure_endian<Data::ByteOrder::Native, stream_endian>(
-      bin.get_size());
-  Data::copy(data + ptr_location, &size);
-  ptr_location += sizeof(Count);
-
-  // Special case for byte data
+  // Optimize for View::Bytes and when writing in the native endianness.
   if constexpr (
-      sizeof(storage_type) == 1 || (Data::ByteOrder::Native == stream_endian)) {
-    Data::copy(data + ptr_location, bin.get_data(), bin.get_size());
-    ptr_location += sizeof(storage_type) * bin.get_size();
+      sizeof(element_type) == 1 || Data::ByteOrder::Native == endian) {
+    Data::copy(target.get_data() + ptr, blob.get_data(), blob.get_size());
+    ptr += total;
   } else {
-    // Serialize each block
-    for (Count i = 0; i < bin.get_size(); i++) {
-      storage_type ordered_bytes =
-          Data::ensure_endian<Data::ByteOrder::Native, stream_endian>(
-              bin.get_data()[i]);
-      Data::copy(data + ptr_location, &ordered_bytes);
-      ptr_location += sizeof(storage_type);
+    for (Count index = 0; index < blob.get_size(); index++) {
+      element_type element =
+          Data::ensure_endian<Data::ByteOrder::Native, endian>(
+              blob.get_data()[index]);
+      Data::copy(target.get_data() + ptr, &element);
+      ptr += sizeof(element_type);
     }
   }
-
-  return true;
+  return True;
 }
 
-auto Writer::Binary::set_pointer(Count location) -> void {
-  ptr_location = location;
+template <Data::ByteOrder stream_endian>
+auto Writer::Binary<stream_endian>::set_pointer(Count location) -> void {
+  ptr_location = location < data.get_size() ? location : data.get_size();
 }
 
-auto Writer::Binary::operator<<(const Bits_8 bin) -> Writer::Binary& {
-  valid_state &= write_block(data, ptr_location, bin);
+template <Data::ByteOrder stream_endian>
+auto Writer::Binary<stream_endian>::operator<<(const Bits_8 bin) -> Binary& {
+  valid_state &= write_value<stream_endian>(data, ptr_location, bin);
   return *this;
 }
 
-auto Writer::Binary::operator<<(const Bits_16 bin) -> Writer::Binary& {
-  valid_state &= write_block(data, ptr_location, bin);
+template <Data::ByteOrder stream_endian>
+auto Writer::Binary<stream_endian>::operator<<(const Bits_16 bin) -> Binary& {
+  valid_state &= write_value<stream_endian>(data, ptr_location, bin);
   return *this;
 }
 
-auto Writer::Binary::operator<<(const Bits_32 bin) -> Writer::Binary& {
-  valid_state &= write_block(data, ptr_location, bin);
+template <Data::ByteOrder stream_endian>
+auto Writer::Binary<stream_endian>::operator<<(const Bits_32 bin) -> Binary& {
+  valid_state &= write_value<stream_endian>(data, ptr_location, bin);
   return *this;
 }
 
-auto Writer::Binary::operator<<(const Bits_64 bin) -> Writer::Binary& {
-  valid_state &= write_block(data, ptr_location, bin);
+template <Data::ByteOrder stream_endian>
+auto Writer::Binary<stream_endian>::operator<<(const Bits_64 bin) -> Binary& {
+  valid_state &= write_value<stream_endian>(data, ptr_location, bin);
   return *this;
 }
 
-auto Writer::Binary::operator<<(const SignedBits_8 bin) -> Writer::Binary& {
-  valid_state &= write_block(data, ptr_location, bin);
+template <Data::ByteOrder stream_endian>
+auto Writer::Binary<stream_endian>::operator<<(const SignedBits_8 bin)
+    -> Binary& {
+  valid_state &= write_value<stream_endian>(data, ptr_location, bin);
   return *this;
 }
 
-auto Writer::Binary::operator<<(const SignedBits_16 bin) -> Writer::Binary& {
-  valid_state &= write_block(data, ptr_location, bin);
+template <Data::ByteOrder stream_endian>
+auto Writer::Binary<stream_endian>::operator<<(const SignedBits_16 bin)
+    -> Binary& {
+  valid_state &= write_value<stream_endian>(data, ptr_location, bin);
   return *this;
 }
 
-auto Writer::Binary::operator<<(const SignedBits_32 bin) -> Writer::Binary& {
-  valid_state &= write_block(data, ptr_location, bin);
+template <Data::ByteOrder stream_endian>
+auto Writer::Binary<stream_endian>::operator<<(const SignedBits_32 bin)
+    -> Binary& {
+  valid_state &= write_value<stream_endian>(data, ptr_location, bin);
   return *this;
 }
 
-auto Writer::Binary::operator<<(const SignedBits_64 bin) -> Writer::Binary& {
-  valid_state &= write_block(data, ptr_location, bin);
+template <Data::ByteOrder stream_endian>
+auto Writer::Binary<stream_endian>::operator<<(const SignedBits_64 bin)
+    -> Binary& {
+  valid_state &= write_value<stream_endian>(data, ptr_location, bin);
   return *this;
 }
 
-auto Writer::Binary::operator<<(const Real_32 bin) -> Writer::Binary& {
-  valid_state &= write_block(data, ptr_location, bin);
+template <Data::ByteOrder stream_endian>
+auto Writer::Binary<stream_endian>::operator<<(const Real_32 bin) -> Binary& {
+  valid_state &= write_value<stream_endian>(data, ptr_location, bin);
   return *this;
 }
 
-auto Writer::Binary::operator<<(const Real_64 bin) -> Writer::Binary& {
-  valid_state &= write_block(data, ptr_location, bin);
+template <Data::ByteOrder stream_endian>
+auto Writer::Binary<stream_endian>::operator<<(const Real_64 bin) -> Binary& {
+  valid_state &= write_value<stream_endian>(data, ptr_location, bin);
   return *this;
 }
 
-auto Writer::Binary::operator<<(const View::Bytes blob) -> Writer::Binary& {
-  // Write type information
-  valid_state &= write_blob(data, ptr_location, blob);
+template <Data::ByteOrder stream_endian>
+auto Writer::Binary<stream_endian>::operator<<(const View::Bytes raw)
+    -> Binary& {
+  if (ptr_location + raw.get_size() > data.get_size()) [[unlikely]] {
+    valid_state = False;
+    return *this;
+  }
+  Data::copy(data.get_data() + ptr_location, raw.get_data(), raw.get_size());
+  ptr_location += raw.get_size();
   return *this;
 }
 
-auto Writer::Binary::operator<<(const View::Vector<Bits_8> blob)
-    -> Writer::Binary& {
-  // Write type information
-  valid_state &= write_blob(data, ptr_location, blob);
+template <Data::ByteOrder stream_endian>
+auto Writer::Binary<stream_endian>::operator<<(const View::Vector<Bits_8> blob)
+    -> Binary& {
+  valid_state &= write_vector<stream_endian>(data, ptr_location, blob);
   return *this;
 }
 
-auto Writer::Binary::operator<<(const View::Vector<Bits_16> blob)
-    -> Writer::Binary& {
-  // Write type information
-  valid_state &= write_blob(data, ptr_location, blob);
+template <Data::ByteOrder stream_endian>
+auto Writer::Binary<stream_endian>::operator<<(const View::Vector<Bits_16> blob)
+    -> Binary& {
+  valid_state &= write_vector<stream_endian>(data, ptr_location, blob);
   return *this;
 }
 
-auto Writer::Binary::operator<<(const View::Vector<Bits_32> blob)
-    -> Writer::Binary& {
-  // Write type information
-  valid_state &= write_blob(data, ptr_location, blob);
+template <Data::ByteOrder stream_endian>
+auto Writer::Binary<stream_endian>::operator<<(const View::Vector<Bits_32> blob)
+    -> Binary& {
+  valid_state &= write_vector<stream_endian>(data, ptr_location, blob);
   return *this;
 }
 
-auto Writer::Binary::operator<<(const View::Vector<Bits_64> blob)
-    -> Writer::Binary& {
-  // Write type information
-  valid_state &= write_blob(data, ptr_location, blob);
+template <Data::ByteOrder stream_endian>
+auto Writer::Binary<stream_endian>::operator<<(const View::Vector<Bits_64> blob)
+    -> Binary& {
+  valid_state &= write_vector<stream_endian>(data, ptr_location, blob);
   return *this;
 }
 
-auto Writer::Binary::operator<<(const View::Vector<SignedBits_8> blob)
-    -> Writer::Binary& {
-  // Write type information
-  valid_state &= write_blob(data, ptr_location, blob);
+template <Data::ByteOrder stream_endian>
+auto Writer::Binary<stream_endian>::operator<<(
+    const View::Vector<SignedBits_8> blob) -> Binary& {
+  valid_state &= write_vector<stream_endian>(data, ptr_location, blob);
   return *this;
 }
 
-auto Writer::Binary::operator<<(const View::Vector<SignedBits_16> blob)
-    -> Writer::Binary& {
-  // Write type information
-  valid_state &= write_blob(data, ptr_location, blob);
+template <Data::ByteOrder stream_endian>
+auto Writer::Binary<stream_endian>::operator<<(
+    const View::Vector<SignedBits_16> blob) -> Binary& {
+  valid_state &= write_vector<stream_endian>(data, ptr_location, blob);
   return *this;
 }
 
-auto Writer::Binary::operator<<(const View::Vector<SignedBits_32> blob)
-    -> Writer::Binary& {
-  // Write type information
-  valid_state &= write_blob(data, ptr_location, blob);
+template <Data::ByteOrder stream_endian>
+auto Writer::Binary<stream_endian>::operator<<(
+    const View::Vector<SignedBits_32> blob) -> Binary& {
+  valid_state &= write_vector<stream_endian>(data, ptr_location, blob);
   return *this;
 }
 
-auto Writer::Binary::operator<<(const View::Vector<SignedBits_64> blob)
-    -> Writer::Binary& {
-  // Write type information
-  valid_state &= write_blob(data, ptr_location, blob);
+template <Data::ByteOrder stream_endian>
+auto Writer::Binary<stream_endian>::operator<<(
+    const View::Vector<SignedBits_64> blob) -> Binary& {
+  valid_state &= write_vector<stream_endian>(data, ptr_location, blob);
   return *this;
 }
+
+template class Writer::Binary<Data::ByteOrder::Little>;
+template class Writer::Binary<Data::ByteOrder::Big>;

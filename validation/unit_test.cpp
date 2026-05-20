@@ -73,9 +73,24 @@ auto expected(const char* value, bool actual) -> void {
   printf("%s\n", value);
 }
 
+auto expected(short value, bool actual) -> void {
+  print_result_header(actual);
+  printf("%hi\n", value);
+}
+
+auto expected(unsigned short value, bool actual) -> void {
+  print_result_header(actual);
+  printf("%hu\n", value);
+}
+
 auto expected(int value, bool actual) -> void {
   print_result_header(actual);
   printf("%d\n", value);
+}
+
+auto expected(unsigned int value, bool actual) -> void {
+  print_result_header(actual);
+  printf("%du\n", value);
 }
 
 auto expected(long long value, bool actual) -> void {

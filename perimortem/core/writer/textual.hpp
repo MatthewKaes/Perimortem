@@ -28,11 +28,14 @@ class Textual {
   auto operator<<(const ULong unsigned_full) -> Textual&;
   auto operator<<(const Real_32 real_32) -> Textual&;
   auto operator<<(const Real_64 real_64) -> Textual&;
-  auto operator<<(const Core::View::Bytes raw) -> Textual&;
+  auto operator<<(const View::Bytes raw) -> Textual&;
 
   constexpr auto get_size() const -> Count { return data.get_size(); }
   constexpr auto get_location() const -> Count { return ptr_location; }
   constexpr auto is_valid() const -> Bool { return valid_state; }
+  constexpr operator View::Bytes() const {
+    return View::Bytes(data.get_data(), ptr_location);
+  }
 
  private:
   auto write_real(Real_64 real, Real_64 precision) -> void;

@@ -13,7 +13,10 @@ namespace Validation::Test {
 
 extern auto expected(bool value, bool actual) -> void;
 extern auto expected(const char* value, bool actual) -> void;
+extern auto expected(short value, bool actual) -> void;
+extern auto expected(unsigned short value, bool actual) -> void;
 extern auto expected(int value, bool actual) -> void;
+extern auto expected(unsigned int value, bool actual) -> void;
 extern auto expected(long long value, bool actual) -> void;
 extern auto expected(unsigned long value, bool actual) -> void;
 extern auto expected(unsigned long long value, bool actual) -> void;

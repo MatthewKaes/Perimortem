@@ -6,31 +6,22 @@
 #include "perimortem/core/view/bytes.hpp"
 #include "perimortem/core/view/vector.hpp"
 #include "perimortem/core/access/bytes.hpp"
+#include "perimortem/core/data.hpp"
 
 namespace Perimortem::Core::Writer {
 
+// Writes typed values into a flat byte buffer with natural alignment padding
+// inserted between fields of different sizes.
+//
+// Each write advances the pointer to the next alignment boundary for that type
+// before storing bytes, so a mixed sequence of Bits_8 and Bits_64 values will
+// have gap bytes between them. Use View::Bytes writes for unaligned byte blobs.
+//
+// On overflow the writer enters an invalid state and subsequent writes are
+// silently discarded without advancing the pointer.
+template <Data::ByteOrder stream_endian>
 class Binary {
  public:
-  // For binary data we start with a continuation byte in UTF-8 along with the
-  // version in the lower 6 bits.
-  // This allows us to differentiate between ASCII and Unicode
-  static constexpr Bits_8 identity_byte = 0xF5;
-
-  enum class DataType : Byte {
-    Unknown = 0,
-    Bits_8 = identity_byte,
-    Bits_16,
-    Bits_32,
-    Bits_64,
-    SignedBits_8,
-    SignedBits_16,
-    SignedBits_32,
-    SignedBits_64,
-    Real_32,  // IEEE-754
-    Real_64,  // IEEE-754
-    Blob,
-  };
-
   constexpr Binary(Core::Access::Bytes data) : data(data) {};
   constexpr Binary(const Binary& rhs) : data(rhs.data) {};
 
@@ -62,11 +53,14 @@ class Binary {
   constexpr auto get_size() const -> Count { return data.get_size(); }
   constexpr auto get_location() const -> Count { return ptr_location; }
   constexpr auto is_valid() const -> Bool { return valid_state; }
+  constexpr operator View::Bytes() const {
+    return View::Bytes(data.get_data(), ptr_location);
+  }
 
  private:
   Core::Access::Bytes data;
   Count ptr_location = 0;
-  Bool valid_state = true;
+  Bool valid_state = True;
 };
 
 }  // namespace Perimortem::Core::Writer
