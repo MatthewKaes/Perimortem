@@ -20,7 +20,10 @@ cc_library(
 
 cc_library(
     name = "core",
-    srcs = ["core/bibliotheca.cpp"],
+    srcs = [
+        "core/algorithm/search.cpp",
+        "core/bibliotheca.cpp",
+    ],
     hdrs = glob([
         "core/access/*.hpp",
         "core/static/*.hpp",

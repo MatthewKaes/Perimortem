@@ -36,9 +36,9 @@ auto operator>(const Bytes& lhs, const Bytes& rhs) -> Bool {
 }
 }  // namespace Perimortem::Memory::Dynamic
 
-Test::Harness MathSort = {.name = "Core::Algorithm::Sort"};
+Test::Harness AlgoSort = {.name = "Core::Algorithm::Sort"};
 
-PERIMORTEM_UNIT_TEST(MathSort, simple_sort) {
+PERIMORTEM_UNIT_TEST(AlgoSort, simple_sort) {
   constexpr Int test_const[] = {9, 8, 1, 4, 3, 7};
   Int test[] = {9, 8, 1, 4, 3, 7};
 
@@ -60,7 +60,7 @@ PERIMORTEM_UNIT_TEST(MathSort, simple_sort) {
   EXPECT_EQ(sorted[5], sorted_const[5]);
 }
 
-PERIMORTEM_UNIT_TEST(MathSort, empty_sort) {
+PERIMORTEM_UNIT_TEST(AlgoSort, empty_sort) {
   constexpr auto sorted_const = Algorithm::sort(Access::Vector<Int>());
   auto sorted = Algorithm::sort(Access::Vector<Int>());
 
@@ -68,7 +68,7 @@ PERIMORTEM_UNIT_TEST(MathSort, empty_sort) {
   EXPECT_EQ(sorted_const.get_size(), 0);
 }
 
-PERIMORTEM_UNIT_TEST(MathSort, large_sort) {
+PERIMORTEM_UNIT_TEST(AlgoSort, large_sort) {
   constexpr auto item_count = 10017;
   Int test[item_count] = {};
   for (Count i = 0; i < item_count; i++) {
@@ -87,7 +87,7 @@ PERIMORTEM_UNIT_TEST(MathSort, large_sort) {
   }
 }
 
-PERIMORTEM_UNIT_TEST(MathSort, dynamic_types) {
+PERIMORTEM_UNIT_TEST(AlgoSort, dynamic_types) {
   constexpr auto item_count = 37;
   Dynamic::Bytes test[item_count] = {};
   for (Count i = 0; i < item_count; i++) {
