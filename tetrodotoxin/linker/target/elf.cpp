@@ -5,10 +5,8 @@
 
 #include "perimortem/core/static/bytes.hpp"
 #include "perimortem/core/data.hpp"
-
-#include "perimortem/serialization/textual/stream.hpp"
-
-#include "perimortem/utility/null_terminated.hpp"
+#include "perimortem/core/null_terminated.hpp"
+#include "perimortem/core/writer/textual.hpp"
 
 #include "tetrodotoxin/compiler/context/relocation.hpp"
 #include "tetrodotoxin/compiler/context/symbol.hpp"
@@ -149,7 +147,7 @@ auto fill_ar_header(ArHeader& h, View::Bytes name, Bits_64 size) -> void {
   h.name[name_len] = '/';
 
   // Write only the data size, the rest of the fields are default initalized.
-  Serialization::Textual::Stream(h.data_size.get_access()) << size;
+  Writer::Textual(h.data_size.get_access()) << size;
 }
 
 auto to_section_desc(Format::Section sec) -> SectionDesc {

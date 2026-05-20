@@ -4,8 +4,7 @@
 #include "tetrodotoxin/compiler/assembler/x86_64.hpp"
 
 #include "perimortem/core/data.hpp"
-
-#include "perimortem/utility/null_terminated.hpp"
+#include "perimortem/core/null_terminated.hpp"
 
 using namespace Perimortem::Core;
 using namespace Tetrodotoxin::Compiler;

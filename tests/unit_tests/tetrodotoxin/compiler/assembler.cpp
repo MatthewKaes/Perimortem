@@ -6,9 +6,9 @@
 
 #include "validation/unit_test.hpp"
 
-#include "perimortem/memory/dynamic/bytes.hpp"
+#include "perimortem/core/null_terminated.hpp"
 
-#include "perimortem/utility/null_terminated.hpp"
+#include "perimortem/memory/dynamic/bytes.hpp"
 
 #include "tetrodotoxin/compiler/assembler/x86_64.hpp"
 #include "ttx/ttx_tests.hpp"

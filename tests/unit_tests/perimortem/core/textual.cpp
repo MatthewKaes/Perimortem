@@ -1,24 +1,22 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
+#include "perimortem/core/writer/textual.hpp"
+
 #include "validation/unit_test.hpp"
 
 #include "perimortem/core/static/vector.hpp"
-
-#include "perimortem/serialization/textual/stream.hpp"
-
-#include "perimortem/utility/null_terminated.hpp"
+#include "perimortem/core/null_terminated.hpp"
 
 using namespace Perimortem::Core;
-using namespace Perimortem::Serialization;
 
 using namespace Validation;
 
-Test::Harness SerializationTextual = {.name = "Serialization::Textual"};
+Test::Harness CoreTextual = {.name = "Core::Textual"};
 
-PERIMORTEM_UNIT_TEST(SerializationTextual, simple_text) {
+PERIMORTEM_UNIT_TEST(CoreTextual, simple_text) {
   Static::Bytes<10> buffer;
-  Textual::Stream writer(buffer.get_access());
+  Writer::Textual writer(buffer.get_access());
 
   writer << "Hello"_view << "World"_view;
 
@@ -26,9 +24,9 @@ PERIMORTEM_UNIT_TEST(SerializationTextual, simple_text) {
   EXPECT_TEXT(buffer.get_view(), "HelloWorld"_view);
 }
 
-PERIMORTEM_UNIT_TEST(SerializationTextual, prevent_overflow) {
+PERIMORTEM_UNIT_TEST(CoreTextual, prevent_overflow) {
   Static::Bytes<10> buffer;
-  Textual::Stream writer(buffer.get_access());
+  Writer::Textual writer(buffer.get_access());
 
   writer << "Hello"_view << "World!!!!"_view;
 
@@ -36,9 +34,9 @@ PERIMORTEM_UNIT_TEST(SerializationTextual, prevent_overflow) {
   EXPECT_TEXT(buffer.slice(0, 5), "Hello"_view);
 }
 
-PERIMORTEM_UNIT_TEST(SerializationTextual, integers) {
+PERIMORTEM_UNIT_TEST(CoreTextual, integers) {
   Static::Bytes<12> buffer;
-  Textual::Stream writer(buffer.get_access());
+  Writer::Textual writer(buffer.get_access());
 
   writer << 120000 << -31 << 208;
 
@@ -46,9 +44,9 @@ PERIMORTEM_UNIT_TEST(SerializationTextual, integers) {
   EXPECT_TEXT(buffer.get_view(), "120000-31208"_view);
 }
 
-PERIMORTEM_UNIT_TEST(SerializationTextual, integers_and_text) {
+PERIMORTEM_UNIT_TEST(CoreTextual, integers_and_text) {
   Static::Bytes<24> buffer;
-  Textual::Stream writer(buffer.get_access());
+  Writer::Textual writer(buffer.get_access());
 
   writer << "Test Value: "_view << 412010 << " units"_view;
 
@@ -56,9 +54,9 @@ PERIMORTEM_UNIT_TEST(SerializationTextual, integers_and_text) {
   EXPECT_TEXT(buffer.get_view(), "Test Value: 412010 units"_view);
 }
 
-PERIMORTEM_UNIT_TEST(SerializationTextual, boolean) {
+PERIMORTEM_UNIT_TEST(CoreTextual, boolean) {
   Static::Bytes<11> buffer;
-  Textual::Stream writer(buffer.get_access());
+  Writer::Textual writer(buffer.get_access());
 
   // C++ will narrow to int and should print 1 and 0
   writer << true << false;
@@ -70,9 +68,9 @@ PERIMORTEM_UNIT_TEST(SerializationTextual, boolean) {
   EXPECT_TEXT(buffer.get_view(), "10truefalse"_view);
 }
 
-PERIMORTEM_UNIT_TEST(SerializationTextual, floats) {
+PERIMORTEM_UNIT_TEST(CoreTextual, floats) {
   Static::Bytes<40> buffer;
-  Textual::Stream writer(buffer.get_access());
+  Writer::Textual writer(buffer.get_access());
 
   writer << 12.08 << 0.0000812;
 
@@ -84,14 +82,14 @@ PERIMORTEM_UNIT_TEST(SerializationTextual, floats) {
       buffer.get_view(), "12.080.0000812-2012.7810058-2012.78102\0\0"_view);
 }
 
-PERIMORTEM_UNIT_TEST(SerializationTextual, multiple_writers) {
+PERIMORTEM_UNIT_TEST(CoreTextual, multiple_writers) {
   Static::Bytes<34> buffer;
   for (Count i = 0; i < buffer.get_size(); i++) {
     buffer[i] = '?';
   }
 
-  Textual::Stream writer_1(buffer.get_access());
-  Textual::Stream writer_2(buffer.get_access());
+  Writer::Textual writer_1(buffer.get_access());
+  Writer::Textual writer_2(buffer.get_access());
 
   writer_1 << "Sample text for testing!"_view;
   ASSERT_TEXT(buffer.get_view(), "Sample text for testing!??????????"_view);

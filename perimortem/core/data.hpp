@@ -5,7 +5,7 @@
 
 #include "perimortem/core/perimortem.hpp"
 
-// Provide the blessed memory operations so LLVM can properly optimize.
+// Provide the blessed memory operations so C++ compilers can properly optimize.
 extern "C" {
 typedef CppSize size_t;
 extern void* memcpy(

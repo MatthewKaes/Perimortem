@@ -1,12 +1,11 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
-#include "perimortem/serialization/textual/stream.hpp"
+#include "perimortem/core/writer/textual.hpp"
 
-#include "perimortem/utility/null_terminated.hpp"
+#include "perimortem/core/null_terminated.hpp"
 
 using namespace Perimortem::Core;
-using namespace Perimortem::Serialization;
 
 template <typename text_buffer>
 constexpr auto write_text(
@@ -124,7 +123,7 @@ constexpr auto
   return write_decimal(data, ptr_location, value, length);
 }
 
-auto Textual::Stream::operator<<(const Byte character) -> Textual::Stream& {
+auto Writer::Textual::operator<<(const Byte character) -> Writer::Textual& {
   valid_state &= ptr_location < data.get_size();
   if (valid_state) {
     data.get_data()[ptr_location++] = character;
@@ -133,7 +132,7 @@ auto Textual::Stream::operator<<(const Byte character) -> Textual::Stream& {
   return *this;
 }
 
-auto Textual::Stream::operator<<(const Bool flag) -> Textual::Stream& {
+auto Writer::Textual::operator<<(const Bool flag) -> Writer::Textual& {
   if (flag) {
     valid_state &= write_text(data, ptr_location, "true"_view);
   } else {
@@ -143,52 +142,52 @@ auto Textual::Stream::operator<<(const Bool flag) -> Textual::Stream& {
   return *this;
 }
 
-auto Textual::Stream::operator<<(const Half half) -> Textual::Stream& {
+auto Writer::Textual::operator<<(const Half half) -> Writer::Textual& {
   valid_state &= write_decimal(data, ptr_location, half);
   return *this;
 }
 
-auto Textual::Stream::operator<<(const UHalf unsigned_half)
-    -> Textual::Stream& {
+auto Writer::Textual::operator<<(const UHalf unsigned_half)
+    -> Writer::Textual& {
   valid_state &= write_decimal(data, ptr_location, unsigned_half);
   return *this;
 }
 
-auto Textual::Stream::operator<<(const Int integer) -> Textual::Stream& {
+auto Writer::Textual::operator<<(const Int integer) -> Writer::Textual& {
   valid_state &= write_decimal(data, ptr_location, integer);
   return *this;
 }
 
-auto Textual::Stream::operator<<(const UInt unsigned_integer)
-    -> Textual::Stream& {
+auto Writer::Textual::operator<<(const UInt unsigned_integer)
+    -> Writer::Textual& {
   valid_state &= write_decimal(data, ptr_location, unsigned_integer);
   return *this;
 }
 
-auto Textual::Stream::operator<<(const Long full) -> Textual::Stream& {
+auto Writer::Textual::operator<<(const Long full) -> Writer::Textual& {
   valid_state &= write_decimal(data, ptr_location, full);
   return *this;
 }
 
-auto Textual::Stream::operator<<(const ULong unsigned_full)
-    -> Textual::Stream& {
+auto Writer::Textual::operator<<(const ULong unsigned_full)
+    -> Writer::Textual& {
   valid_state &= write_decimal(data, ptr_location, unsigned_full);
   return *this;
 }
 
-auto Textual::Stream::operator<<(const Real_32 real_32) -> Textual::Stream& {
+auto Writer::Textual::operator<<(const Real_32 real_32) -> Writer::Textual& {
   write_real(Real_64(real_32), __FLT_EPSILON__);
   return *this;
 }
 
-auto Textual::Stream::operator<<(const Real_64 real_64) -> Textual::Stream& {
+auto Writer::Textual::operator<<(const Real_64 real_64) -> Writer::Textual& {
   write_real(real_64, __DBL_EPSILON__);
   return *this;
 }
 
 // TODO: This code is awful and should be optimized but it does a decent enough
 // job without having to pull in bulky headers.
-auto Textual::Stream::write_real(Real_64 real, Real_64 precision) -> void {
+auto Writer::Textual::write_real(Real_64 real, Real_64 precision) -> void {
   if (!valid_state) {
     return;
   }
@@ -251,8 +250,8 @@ auto Textual::Stream::write_real(Real_64 real, Real_64 precision) -> void {
   }
 }
 
-auto Textual::Stream::operator<<(const Core::View::Bytes raw)
-    -> Textual::Stream& {
+auto Writer::Textual::operator<<(const Core::View::Bytes raw)
+    -> Writer::Textual& {
   valid_state &= write_text(data, ptr_location, raw);
   return *this;
 }

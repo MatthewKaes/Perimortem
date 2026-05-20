@@ -1,55 +1,54 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
-#include "perimortem/serialization/binary/stream.hpp"
+#include "perimortem/core/writer/binary.hpp"
 
 #include "perimortem/core/data.hpp"
 
 using namespace Perimortem::Core;
-using namespace Perimortem::Serialization;
 
 constexpr auto stream_endian = Data::ByteOrder::Little;
 
 template <typename storage_type>
-constexpr auto get_data_type() -> Binary::Stream::DataType {
+constexpr auto get_data_type() -> Writer::Binary::DataType {
   switch (sizeof(storage_type)) {
   case 1:
     if constexpr (storage_type(-1) < storage_type(0)) {
-      return Binary::Stream::DataType::SignedBits_8;
+      return Writer::Binary::DataType::SignedBits_8;
     } else {
-      return Binary::Stream::DataType::Bits_8;
+      return Writer::Binary::DataType::Bits_8;
     }
   case 2:
     if constexpr (storage_type(-1) < storage_type(0)) {
-      return Binary::Stream::DataType::SignedBits_16;
+      return Writer::Binary::DataType::SignedBits_16;
     } else {
-      return Binary::Stream::DataType::Bits_16;
+      return Writer::Binary::DataType::Bits_16;
     }
   case 4:
     if constexpr (storage_type(-1) < storage_type(0)) {
-      return Binary::Stream::DataType::SignedBits_32;
+      return Writer::Binary::DataType::SignedBits_32;
     } else {
-      return Binary::Stream::DataType::Bits_32;
+      return Writer::Binary::DataType::Bits_32;
     }
   case 8:
     if constexpr (storage_type(-1) < storage_type(0)) {
-      return Binary::Stream::DataType::SignedBits_64;
+      return Writer::Binary::DataType::SignedBits_64;
     } else {
-      return Binary::Stream::DataType::Bits_64;
+      return Writer::Binary::DataType::Bits_64;
     }
   }
 
-  return Binary::Stream::DataType::Unknown;
+  return Writer::Binary::DataType::Unknown;
 }
 
 template <>
-constexpr auto get_data_type<Real_32>() -> Binary::Stream::DataType {
-  return Binary::Stream::DataType::Real_32;
+constexpr auto get_data_type<Real_32>() -> Writer::Binary::DataType {
+  return Writer::Binary::DataType::Real_32;
 }
 
 template <>
-constexpr auto get_data_type<Real_64>() -> Binary::Stream::DataType {
-  return Binary::Stream::DataType::Real_64;
+constexpr auto get_data_type<Real_64>() -> Writer::Binary::DataType {
+  return Writer::Binary::DataType::Real_64;
 }
 
 template <typename storage_type>
@@ -82,7 +81,7 @@ constexpr auto
   }
 
   Byte* data = target.get_data();
-  data[ptr_location++] = static_cast<Byte>(Binary::Stream::DataType::Blob);
+  data[ptr_location++] = static_cast<Byte>(Writer::Binary::DataType::Blob);
   data[ptr_location++] = static_cast<Byte>(get_data_type<storage_type>());
 
   // Size data
@@ -110,117 +109,117 @@ constexpr auto
   return true;
 }
 
-auto Binary::Stream::set_pointer(Count location) -> void {
+auto Writer::Binary::set_pointer(Count location) -> void {
   ptr_location = location;
 }
 
-auto Binary::Stream::operator<<(const Bits_8 bin) -> Binary::Stream& {
+auto Writer::Binary::operator<<(const Bits_8 bin) -> Writer::Binary& {
   valid_state &= write_block(data, ptr_location, bin);
   return *this;
 }
 
-auto Binary::Stream::operator<<(const Bits_16 bin) -> Binary::Stream& {
+auto Writer::Binary::operator<<(const Bits_16 bin) -> Writer::Binary& {
   valid_state &= write_block(data, ptr_location, bin);
   return *this;
 }
 
-auto Binary::Stream::operator<<(const Bits_32 bin) -> Binary::Stream& {
+auto Writer::Binary::operator<<(const Bits_32 bin) -> Writer::Binary& {
   valid_state &= write_block(data, ptr_location, bin);
   return *this;
 }
 
-auto Binary::Stream::operator<<(const Bits_64 bin) -> Binary::Stream& {
+auto Writer::Binary::operator<<(const Bits_64 bin) -> Writer::Binary& {
   valid_state &= write_block(data, ptr_location, bin);
   return *this;
 }
 
-auto Binary::Stream::operator<<(const SignedBits_8 bin) -> Binary::Stream& {
+auto Writer::Binary::operator<<(const SignedBits_8 bin) -> Writer::Binary& {
   valid_state &= write_block(data, ptr_location, bin);
   return *this;
 }
 
-auto Binary::Stream::operator<<(const SignedBits_16 bin) -> Binary::Stream& {
+auto Writer::Binary::operator<<(const SignedBits_16 bin) -> Writer::Binary& {
   valid_state &= write_block(data, ptr_location, bin);
   return *this;
 }
 
-auto Binary::Stream::operator<<(const SignedBits_32 bin) -> Binary::Stream& {
+auto Writer::Binary::operator<<(const SignedBits_32 bin) -> Writer::Binary& {
   valid_state &= write_block(data, ptr_location, bin);
   return *this;
 }
 
-auto Binary::Stream::operator<<(const SignedBits_64 bin) -> Binary::Stream& {
+auto Writer::Binary::operator<<(const SignedBits_64 bin) -> Writer::Binary& {
   valid_state &= write_block(data, ptr_location, bin);
   return *this;
 }
 
-auto Binary::Stream::operator<<(const Real_32 bin) -> Binary::Stream& {
+auto Writer::Binary::operator<<(const Real_32 bin) -> Writer::Binary& {
   valid_state &= write_block(data, ptr_location, bin);
   return *this;
 }
 
-auto Binary::Stream::operator<<(const Real_64 bin) -> Binary::Stream& {
+auto Writer::Binary::operator<<(const Real_64 bin) -> Writer::Binary& {
   valid_state &= write_block(data, ptr_location, bin);
   return *this;
 }
 
-auto Binary::Stream::operator<<(const View::Bytes blob) -> Binary::Stream& {
+auto Writer::Binary::operator<<(const View::Bytes blob) -> Writer::Binary& {
   // Write type information
   valid_state &= write_blob(data, ptr_location, blob);
   return *this;
 }
 
-auto Binary::Stream::operator<<(const View::Vector<Bits_8> blob)
-    -> Binary::Stream& {
+auto Writer::Binary::operator<<(const View::Vector<Bits_8> blob)
+    -> Writer::Binary& {
   // Write type information
   valid_state &= write_blob(data, ptr_location, blob);
   return *this;
 }
 
-auto Binary::Stream::operator<<(const View::Vector<Bits_16> blob)
-    -> Binary::Stream& {
+auto Writer::Binary::operator<<(const View::Vector<Bits_16> blob)
+    -> Writer::Binary& {
   // Write type information
   valid_state &= write_blob(data, ptr_location, blob);
   return *this;
 }
 
-auto Binary::Stream::operator<<(const View::Vector<Bits_32> blob)
-    -> Binary::Stream& {
+auto Writer::Binary::operator<<(const View::Vector<Bits_32> blob)
+    -> Writer::Binary& {
   // Write type information
   valid_state &= write_blob(data, ptr_location, blob);
   return *this;
 }
 
-auto Binary::Stream::operator<<(const View::Vector<Bits_64> blob)
-    -> Binary::Stream& {
+auto Writer::Binary::operator<<(const View::Vector<Bits_64> blob)
+    -> Writer::Binary& {
   // Write type information
   valid_state &= write_blob(data, ptr_location, blob);
   return *this;
 }
 
-auto Binary::Stream::operator<<(const View::Vector<SignedBits_8> blob)
-    -> Binary::Stream& {
+auto Writer::Binary::operator<<(const View::Vector<SignedBits_8> blob)
+    -> Writer::Binary& {
   // Write type information
   valid_state &= write_blob(data, ptr_location, blob);
   return *this;
 }
 
-auto Binary::Stream::operator<<(const View::Vector<SignedBits_16> blob)
-    -> Binary::Stream& {
+auto Writer::Binary::operator<<(const View::Vector<SignedBits_16> blob)
+    -> Writer::Binary& {
   // Write type information
   valid_state &= write_blob(data, ptr_location, blob);
   return *this;
 }
 
-auto Binary::Stream::operator<<(const View::Vector<SignedBits_32> blob)
-    -> Binary::Stream& {
+auto Writer::Binary::operator<<(const View::Vector<SignedBits_32> blob)
+    -> Writer::Binary& {
   // Write type information
   valid_state &= write_blob(data, ptr_location, blob);
   return *this;
 }
 
-auto Binary::Stream::operator<<(const View::Vector<SignedBits_64> blob)
-    -> Binary::Stream& {
+auto Writer::Binary::operator<<(const View::Vector<SignedBits_64> blob)
+    -> Writer::Binary& {
   // Write type information
   valid_state &= write_blob(data, ptr_location, blob);
   return *this;

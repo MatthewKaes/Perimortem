@@ -4,12 +4,11 @@
 #include "validation/unit_test.hpp"
 
 #include "perimortem/core/static/bytes.hpp"
+#include "perimortem/core/null_terminated.hpp"
 
 #include "perimortem/memory/dynamic/bytes.hpp"
 #include "perimortem/memory/dynamic/map.hpp"
 #include "tests/unit_tests/perimortem/memory/hashable.hpp"
-
-#include "perimortem/utility/null_terminated.hpp"
 
 using namespace Perimortem;
 using namespace Perimortem::Core;

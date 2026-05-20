@@ -3,9 +3,8 @@
 
 #pragma once
 
+#include "perimortem/core/null_terminated.hpp"
 #include "perimortem/core/perimortem.hpp"
-
-#include "perimortem/utility/null_terminated.hpp"
 
 namespace Tetrodotoxin::Compiler::Intermediate {
 

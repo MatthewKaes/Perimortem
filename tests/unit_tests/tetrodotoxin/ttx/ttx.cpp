@@ -6,8 +6,7 @@
 #include <stdio.h>
 
 #include "perimortem/core/view/bytes.hpp"
-
-#include "perimortem/utility/null_terminated.hpp"
+#include "perimortem/core/null_terminated.hpp"
 
 #include "ttx/ttx_tests.hpp"
 

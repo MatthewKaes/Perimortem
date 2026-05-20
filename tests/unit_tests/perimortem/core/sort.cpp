@@ -8,10 +8,9 @@
 #include <stdlib.h>
 
 #include "perimortem/core/bibliotheca.hpp"
+#include "perimortem/core/null_terminated.hpp"
 
 #include "perimortem/memory/dynamic/bytes.hpp"
-
-#include "perimortem/utility/null_terminated.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;

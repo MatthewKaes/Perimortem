@@ -4,9 +4,8 @@
 #include <stdio.h>
 
 #include "perimortem/core/view/bytes.hpp"
+#include "perimortem/core/null_terminated.hpp"
 #include "perimortem/core/perimortem.hpp"
-
-#include "perimortem/utility/null_terminated.hpp"
 
 using namespace Perimortem::Core;
 

@@ -7,10 +7,9 @@
 //   compiler --output <path.a> [--header <path.h>] [<source.ttx> ...]
 
 #include "perimortem/core/view/bytes.hpp"
+#include "perimortem/core/null_terminated.hpp"
 
 #include "perimortem/system/file.hpp"
-
-#include "perimortem/utility/null_terminated.hpp"
 
 #include "tetrodotoxin/compiler/compiler.hpp"
 #include "tetrodotoxin/linker/linker.hpp"
@@ -34,11 +33,11 @@ Int main(Int argc, SignedBits_8** argv) {
 
   // TODO: Write yet another args parser.
   for (Count i = 1; i < argc; i++) {
-    const auto arg_view = Utility::NullTerminated::to_view(argv[i]);
+    const auto arg_view = Core::NullTerminated::to_view(argv[i]);
     if (arg_view == "--output"_view && i + 1 < argc) {
-      output_path = Utility::NullTerminated::to_view(argv[i + 1]);
+      output_path = Core::NullTerminated::to_view(argv[i + 1]);
     } else if (arg_view == "--header"_view && i + 1 < argc) {
-      header_path = Utility::NullTerminated::to_view(argv[i + 1]);
+      header_path = Core::NullTerminated::to_view(argv[i + 1]);
     }
   }
 

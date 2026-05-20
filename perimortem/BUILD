@@ -23,12 +23,15 @@ cc_library(
     srcs = [
         "core/algorithm/search.cpp",
         "core/bibliotheca.cpp",
+        "core/writer/binary.cpp",
+        "core/writer/textual.cpp",
     ],
     hdrs = glob([
         "core/access/*.hpp",
         "core/static/*.hpp",
         "core/view/*.hpp",
         "core/algorithm/*.hpp",
+        "core/writer/*.hpp",
         "core/*.hpp",
     ]),
     includes = ["."],
@@ -102,16 +105,12 @@ cc_library(
     srcs = glob([
         # "serialization/archive/*.cpp",
         "serialization/base64/*.cpp",
-        "serialization/binary/*.cpp",
         "serialization/json/*.cpp",
-        "serialization/textual/*.cpp",
     ]),
     hdrs = glob([
         # "serialization/archive/*.hpp",
         "serialization/base64/*.hpp",
-        "serialization/binary/*.hpp",
         "serialization/json/*.hpp",
-        "serialization/textual/*.hpp",
     ]),
     includes = ["."],
     deps = [

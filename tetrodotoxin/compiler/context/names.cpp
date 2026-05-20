@@ -3,12 +3,10 @@
 
 #include "tetrodotoxin/compiler/context/names.hpp"
 
-#include "perimortem/serialization/textual/stream.hpp"
-
-#include "perimortem/utility/null_terminated.hpp"
+#include "perimortem/core/null_terminated.hpp"
+#include "perimortem/core/writer/textual.hpp"
 
 using namespace Perimortem::Core;
-using namespace Perimortem::Serialization;
 using namespace Tetrodotoxin::Compiler;
 
 auto Context::Names::canonicalize(
@@ -22,7 +20,7 @@ auto Context::Names::canonicalize(
       host_type.get_size() + module.get_size() + name.get_size() +
       (seperator.get_size() * 2));
 
-  Textual::Stream writer(Access::Bytes(canon_name, size));
+  Writer::Textual writer(Access::Bytes(canon_name, size));
   writer << host_type << seperator << module << seperator << name;
   return View::Bytes(canon_name, size);
 }

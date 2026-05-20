@@ -6,7 +6,7 @@
 #include "perimortem/core/view/bytes.hpp"
 #include "perimortem/core/static/bytes.hpp"
 
-namespace Perimortem::Utility::NullTerminated {
+namespace Perimortem::Core::NullTerminated {
 
 inline auto to_view(const char* str) -> Perimortem::Core::View::Bytes {
   if (!str) {
@@ -46,15 +46,15 @@ struct CString {
   }
 };
 
-}  // namespace Perimortem::Utility::NullTerminated
+}  // namespace Perimortem::Core::NullTerminated
 
 // Converts C++ string literals into valid Perimortem byte strings.
-template <Perimortem::Utility::NullTerminated::CString c_string>
+template <Perimortem::Core::NullTerminated::CString c_string>
 consteval const Perimortem::Core::View::Bytes operator""_view() {
   return c_string.get_view();
 }
 
-template <Perimortem::Utility::NullTerminated::CString c_string>
+template <Perimortem::Core::NullTerminated::CString c_string>
 consteval const Perimortem::Core::Static::Bytes<c_string.get_size()>
     operator""_bytes() {
   return Perimortem::Core::Static::Bytes<c_string.get_size()>(

@@ -9,10 +9,9 @@
 
 #include "perimortem/core/static/vector.hpp"
 #include "perimortem/core/bibliotheca.hpp"
+#include "perimortem/core/null_terminated.hpp"
 
 #include "perimortem/system/random.hpp"
-
-#include "perimortem/utility/null_terminated.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;

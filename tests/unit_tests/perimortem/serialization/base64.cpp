@@ -6,11 +6,10 @@
 #include "perimortem/core/view/vector.hpp"
 #include "perimortem/core/access/vector.hpp"
 #include "perimortem/core/bibliotheca.hpp"
+#include "perimortem/core/null_terminated.hpp"
 
 #include "perimortem/system/file.hpp"
 #include "perimortem/serialization/base64/decode.hpp"
-
-#include "perimortem/utility/null_terminated.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;

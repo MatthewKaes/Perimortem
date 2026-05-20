@@ -5,7 +5,7 @@
 
 #include "validation/unit_test.hpp"
 
-#include "perimortem/utility/null_terminated.hpp"
+#include "perimortem/core/null_terminated.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Utility;

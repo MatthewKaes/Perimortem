@@ -5,12 +5,11 @@
 
 #include <x86intrin.h>
 
+#include "perimortem/core/null_terminated.hpp"
+#include "perimortem/core/writer/textual.hpp"
+
 #include "perimortem/memory/managed/bytes.hpp"
 #include "perimortem/memory/managed/vector.hpp"
-
-#include "perimortem/serialization/textual/stream.hpp"
-
-#include "perimortem/utility/null_terminated.hpp"
 
 enum class NodeState : Bits_32 {
   Null,
@@ -535,9 +534,9 @@ auto Json::Node::format(Allocator::Arena& arena) const -> View::Bytes {
   Count upper_bound = serialized_size();
   Managed::Bytes formatted_output(arena);
   formatted_output.resize(upper_bound);
-  Textual::Stream output(formatted_output.get_access());
+  Writer::Textual output(formatted_output.get_access());
 
-  auto inplace_format = [](this auto&& self, Textual::Stream& output,
+  auto inplace_format = [](this auto&& self, Writer::Textual& output,
                            const Json::Node& node) -> void {
     switch ((NodeState)node.data.state) {
     case NodeState::Null: {
