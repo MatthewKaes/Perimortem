@@ -20,6 +20,23 @@ class Log {
     Fatal,
   };
 
+  // Debug logs often come from deep in the framework while the actual context
+  // that the message is useful in is some higher caller on the stack.
+  // Attribution points allow for overriding source attribution for all callee
+  // logs.
+  class Attribution {
+    friend Log;
+
+   public:
+    ~Attribution();
+    Attribution(Attribution&&);
+
+   private:
+    Attribution() = default;
+
+    Bool primary_guard = False;
+  };
+
   // Receives the fully formatted log message as a byte view.
   // The sink function is local to each thread.
   using Sink = void (*)(Level level, Core::View::Bytes message);
@@ -53,6 +70,13 @@ class Log {
   // Sets the minimum level that will be forwarded to the sink on this thread.
   // Messages below this level are dropped before formatting.
   static auto set_level(Level level) -> void;
+
+  // Sets logs in the current scope
+  static auto set_attribution(const Source& location = Source::current())
+      -> Attribution;
+
+  // Default sink to use.
+  static constexpr Sink default_sink = file_sink;
 
   // Logging calls are thread-safe
   // Each thread writes to its own buffer and file.

@@ -75,22 +75,20 @@ static auto has_valid_header(View::Bytes entry) -> Bool {
   return true;
 }
 
-static auto setup_log() -> void {
-  Log::set_sink(capture_sink);
-  Log::set_level(Log::Level::Debug);
-  total_events = 0;
-}
-
-static auto teardown_log() -> void {
-  Log::set_sink(nullptr);
-  Log::set_level(Log::Level::Info);
-  total_events = 0;
-}
-
 Test::Harness DiagnosticsLog = {
   .name = "Diagnostics::Log",
-  .setup = setup_log,
-  .teardown = teardown_log,
+  .setup =
+      []() {
+        Log::set_sink(capture_sink);
+        Log::set_level(Log::Level::Debug);
+        total_events = 0;
+      },
+  .teardown =
+      []() {
+        Log::set_sink(Log::default_sink);
+        Log::set_level(Log::Level::Info);
+        total_events = 0;
+      },
 };
 
 PERIMORTEM_UNIT_TEST(DiagnosticsLog, timestamp_format) {
@@ -161,4 +159,23 @@ PERIMORTEM_UNIT_TEST(DiagnosticsLog, suppress_messages) {
   Log::error("should pass through"_view);
   EXPECT(total_events > events_before);
   EXPECT(contains(last_entry(), "should pass through"_view));
+}
+
+auto logging_function() -> void {
+  Log::error("Test Attribution"_view);
+}
+
+auto attributing_function() -> void {
+  auto scope_attribution = Diagnostics::Log::set_attribution();
+  logging_function();
+}
+
+PERIMORTEM_UNIT_TEST(DiagnosticsLog, attribution) {
+  attributing_function();
+
+  auto attributed_message =
+      "[main] tests/unit_tests/perimortem/core/log.cpp:169:28: Test Attribution"_view;
+  auto logged = last_entry();
+  EXPECT_TEXT(
+      logged.slice(15, attributed_message.get_size()), attributed_message);
 }

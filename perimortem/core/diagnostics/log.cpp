@@ -23,8 +23,9 @@ using namespace Perimortem::Core::Diagnostics;
 static Bits_64 next_thread_id = 0;
 static thread_local Bits_64 this_thread_id =
     __atomic_fetch_add(&next_thread_id, 1, __ATOMIC_RELAXED);
-static thread_local Log::Sink message_sink = Log::file_sink;
+static thread_local Log::Sink message_sink = Log::default_sink;
 static thread_local Log::Level thread_log_level = Log::Level::Info;
+static thread_local const Source* attribution_override = nullptr;
 
 struct TimeData {
   Byte hour;
@@ -118,9 +119,15 @@ auto format_entry(
   }
   writer << Byte(']') << Byte(' ');
 
-  writer << loc.get_file();
-  writer << Byte(':') << Long(loc.get_line());
-  writer << Byte(':') << Long(loc.get_column());
+  // Override source if requested.
+  auto target_source = attribution_override;
+  if (target_source == nullptr) {
+    target_source = &loc;
+  }
+
+  writer << target_source->get_file();
+  writer << Byte(':') << Long(target_source->get_line());
+  writer << Byte(':') << Long(target_source->get_column());
   writer << ": "_view << msg << Byte('\n');
 
   return writer.get_location();
@@ -177,7 +184,7 @@ struct ThreadWriter {
   }
 };
 
-thread_local ThreadWriter thread_writer;
+static thread_local ThreadWriter thread_writer;
 
 auto Log::file_sink(Level level, View::Bytes message) -> void {
   thread_writer.accumulate(message);
@@ -217,6 +224,30 @@ auto Log::set_sink(Sink sink) -> void {
 
 auto Log::set_level(Level level) -> void {
   thread_log_level = level;
+}
+
+Log::Attribution::~Attribution() {
+  if (primary_guard) {
+    attribution_override = nullptr;
+  }
+}
+
+Log::Attribution::Attribution(Attribution&& rhs) {
+  primary_guard = True;
+  rhs.primary_guard = False;
+}
+
+auto Log::set_attribution(const Source& location) -> Attribution {
+  // If we have someone already claiming attribution higher on the stack then
+  // ignore the request.
+  // If there is no attribution then create an attribution point.
+  Attribution scope_guard;
+  scope_guard.primary_guard = attribution_override == nullptr;
+  if (scope_guard.primary_guard) {
+    attribution_override = &location;
+  }
+
+  return scope_guard;
 }
 
 auto Log::log(Level level, View::Bytes msg, const Source& loc) -> void {
