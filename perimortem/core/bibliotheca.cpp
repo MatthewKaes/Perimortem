@@ -4,6 +4,8 @@
 #include "perimortem/core/bibliotheca.hpp"
 
 #include "perimortem/core/data.hpp"
+#include "perimortem/core/diagnostics/log.hpp"
+#include "perimortem/core/null_terminated.hpp"
 
 using namespace Perimortem;
 using namespace Perimortem::Core;
@@ -288,7 +290,8 @@ auto Bibliotheca::check_out(Count requested_bytes) -> Allocation {
 
 #ifdef PERI_DEBUG
     if (entry == nullptr) [[unlikely]] {
-      __builtin_debugtrap();
+      Diagnostics::Log::fatal(
+          "Bibliotheca was unable to allocate memory from the OS"_view);
     }
 
     // Mark the block to detect bad remittances.
@@ -325,15 +328,18 @@ auto Bibliotheca::remit(Byte* data) -> Count {
   entry->reservations--;
 
 #ifdef PERI_DEBUG
-  // Detect if we underflowed on the reservation.
-  if (entry->reservations > 1u << 30) [[unlikely]] {
-    __builtin_debugtrap();
-  }
-
   // Verify the entry signiture
   if (entry->block_stamp != 'PERI') [[unlikely]] {
-    __builtin_debugtrap();
+    Diagnostics::Log::fatal(
+        "Data returned to Bibliotheca had corrupted block_stamp, either from being invalid or from underflow."_view);
   }
+
+  // Detect if we underflowed on the reservation.
+  if (entry->reservations > 1u << 30) [[unlikely]] {
+    Diagnostics::Log::fatal(
+        "Reservations for the data remitted block overflowed."_view);
+  }
+
 #endif
 
   // If there are no reservations then return to the appropriate archive.
