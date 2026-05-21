@@ -5,7 +5,6 @@
 
 #include "perimortem/core/static/bytes.hpp"
 #include "perimortem/core/static/vector.hpp"
-#include "perimortem/core/algorithm/search.hpp"
 #include "perimortem/core/diagnostics/log.hpp"
 #include "perimortem/core/null_terminated.hpp"
 #include "perimortem/core/reader/serial.hpp"
