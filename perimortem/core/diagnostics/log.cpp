@@ -65,15 +65,14 @@ auto level_char(Log::Level level) -> Byte {
 auto level_color(Log::Level level) -> View::Bytes {
   switch (level) {
   case Log::Level::Debug:
-    return "\x1B[2m"_view;
+    return "\x1b[38;5;246m"_view;
   case Log::Level::Info:
-    return "\x1B[32m"_view;
+    return ""_view;
   case Log::Level::Warning:
-    return "\x1B[33m"_view;
+    return "\x1b[38;5;220m"_view;
   case Log::Level::Error:
-    return "\x1B[31m"_view;
   case Log::Level::Fatal:
-    return "\x1B[1;31m"_view;
+    return "\x1b[38;5;160m"_view;
   }
   return ""_view;
 }
@@ -200,17 +199,16 @@ auto Log::color_sink(Level level, View::Bytes message) -> void {
     return;
   }
 
-  // Format: [color][level char][reset][rest of message]
-  // The +16 gives headroom for the two ANSI escape sequences.
+  // 16 extra bytes is enough for any color code + the clear code.
   Static::Bytes<max_message_capacity + 16> buf;
   Access::Bytes access(buf.get_data(), buf.get_size());
   Writer::Textual writer(access);
 
-  writer << level_color(level) << message[0] << "\x1B[0m"_view;
-  writer << message.slice(1);
+  writer << level_color(level);
+  writer << message;
+  writer << "\x1b[0m"_view;
 
-  FILE* stream = (level >= Level::Error) ? stderr : stdout;
-  fwrite(buf.get_data(), 1, writer.get_location(), stream);
+  console_sink(level, writer);
 }
 
 auto Log::debug_sink(Level level, View::Bytes message) -> void {

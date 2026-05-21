@@ -167,8 +167,8 @@ void output_results() {
     for (unsigned i = 0; i < failed_tests; i++) {
       auto& test = binary_tests[failed_test_indexes[i]];
       printf(
-          "%s          %s:%d (%s)%s\n", dark_color, test.file, (int)test.line,
-          test.name, clear_color);
+          "%s          %s:%d%s\n", dark_color, test.file, (int)test.line,
+          clear_color);
     }
   }
 

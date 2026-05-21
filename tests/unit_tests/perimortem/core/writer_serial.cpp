@@ -180,7 +180,5 @@ PERIMORTEM_UNIT_TEST(CoreSerialWriter, multiple_writers) {
 
   EXPECT(writers[0].is_valid());
   EXPECT(writers[1].is_valid());
-  EXPECT_HEX(
-      buffer.slice(0, 4),
-      "\xF5\x14\xF5\x1E"_view);  // Bits_8(20) first, then Bits_8(30)
+  EXPECT_HEX(buffer.slice(0, 4), "\xF5\x14\xF5\x1E"_view);
 }

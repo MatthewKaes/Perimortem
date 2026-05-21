@@ -56,15 +56,47 @@ constexpr auto get_data_type<Real_64>() -> DataType {
   return DataType::Real_64;
 }
 
-template <typename storage_type>
-static constexpr auto
-    read_block(View::Bytes source, Count& ptr, storage_type& out) -> Bool {
-  if (ptr + 1 + sizeof(storage_type) > source.get_size()) [[unlikely]] {
+static auto check_buffer_overruns(Count ptr, Count source_size, Count read_size)
+    -> Bool {
+  if (ptr + read_size > source_size) [[unlikely]] {
+    Static::Bytes<128> error_buffer;
+    Writer::Textual error_message(error_buffer);
+    error_message << "Serial read over ran buffer at read location "_view << ptr
+                  << ". source_size="_view << source_size << ", read_size="_view
+                  << read_size;
+    Diagnostics::Log::error(error_message);
     return False;
   }
 
-  if (static_cast<DataType>(source[ptr++]) != get_data_type<storage_type>())
-      [[unlikely]] {
+  return True;
+}
+
+static auto check_type(View::Bytes source, Count& ptr, DataType required_type)
+    -> Bool {
+  if (static_cast<DataType>(source[ptr++]) != required_type) [[unlikely]] {
+    Static::Bytes<128> error_buffer;
+    Writer::Textual error_message(error_buffer);
+    error_message
+        << "Mismatched Data Type in serilization stream at position "_view
+        << ptr << ". Expected="_view << Int(required_type) << ", Got="_view
+        << Int(source[ptr - 1]);
+    Diagnostics::Log::error(error_message);
+
+    return False;
+  }
+
+  return True;
+}
+
+template <typename storage_type>
+static constexpr auto
+    read_block(View::Bytes source, Count& ptr, storage_type& out) -> Bool {
+  constexpr auto read_size = 1 + sizeof(storage_type);
+  if (!check_buffer_overruns(ptr, source.get_size(), read_size)) {
+    return False;
+  }
+
+  if (!check_type(source, ptr, get_data_type<storage_type>())) {
     return False;
   }
 
@@ -75,21 +107,33 @@ static constexpr auto
   return True;
 }
 
+template <typename size_type>
+static auto read_run_lenght_size(View::Bytes source, Count& ptr) -> Count {
+  if (!check_buffer_overruns(ptr, source.get_size(), sizeof(size_type))) {
+    return Count(-1);
+  }
+
+  size_type blob_size = 0;
+  memcpy(&blob_size, source.get_data() + ptr, sizeof(size_type));
+  ptr += sizeof(size_type);
+  return Count(
+      Data::ensure_endian<stream_endian, Data::ByteOrder::Native>(blob_size));
+}
+
 static auto read_blob_bytes(View::Bytes source, Count& ptr, View::Bytes& out)
     -> Bool {
-  if (ptr + 3 > source.get_size()) [[unlikely]] {
+  // Need to be able to read at least the header.
+  if (!check_buffer_overruns(ptr, source.get_size(), 3)) {
     return False;
   }
 
-  if (static_cast<DataType>(source[ptr]) != DataType::Blob) [[unlikely]] {
+  if (!check_type(source, ptr, DataType::Blob)) {
     return False;
   }
-  ptr++;
 
-  if (static_cast<DataType>(source[ptr]) != DataType::Bits_8) [[unlikely]] {
+  if (!check_type(source, ptr, DataType::Bits_8)) {
     return False;
   }
-  ptr++;
 
   DataType size_type = static_cast<DataType>(source[ptr]);
   ptr++;
@@ -97,51 +141,32 @@ static auto read_blob_bytes(View::Bytes source, Count& ptr, View::Bytes& out)
   Count blob_size = 0;
   switch (size_type) {
   case DataType::Bits_8: {
-    if (ptr + sizeof(Bits_8) > source.get_size()) [[unlikely]] {
-      return False;
-    }
-    blob_size = Count(source[ptr]);
-    ptr += sizeof(Bits_8);
+    blob_size = read_run_lenght_size<Bits_8>(source, ptr);
     break;
   }
   case DataType::Bits_16: {
-    if (ptr + sizeof(Bits_16) > source.get_size()) [[unlikely]] {
-      return False;
-    }
-    Bits_16 raw = 0;
-    memcpy(&raw, source.get_data() + ptr, sizeof(Bits_16));
-    blob_size =
-        Count(Data::ensure_endian<stream_endian, Data::ByteOrder::Native>(raw));
-    ptr += sizeof(Bits_16);
+    blob_size = read_run_lenght_size<Bits_16>(source, ptr);
     break;
   }
   case DataType::Bits_32: {
-    if (ptr + sizeof(Bits_32) > source.get_size()) [[unlikely]] {
-      return False;
-    }
-    Bits_32 raw = 0;
-    memcpy(&raw, source.get_data() + ptr, sizeof(Bits_32));
-    blob_size =
-        Count(Data::ensure_endian<stream_endian, Data::ByteOrder::Native>(raw));
-    ptr += sizeof(Bits_32);
+    blob_size = read_run_lenght_size<Bits_32>(source, ptr);
     break;
   }
   case DataType::Bits_64: {
-    if (ptr + sizeof(Bits_64) > source.get_size()) [[unlikely]] {
-      return False;
-    }
-    Bits_64 raw = 0;
-    memcpy(&raw, source.get_data() + ptr, sizeof(Bits_64));
-    blob_size =
-        Data::ensure_endian<stream_endian, Data::ByteOrder::Native>(raw);
-    ptr += sizeof(Bits_64);
-    break;
+    blob_size = read_run_lenght_size<Bits_64>(source, ptr);
   }
-  default:
+  default: {
+    Static::Bytes<128> error_buffer;
+    Writer::Textual error_message(error_buffer);
+    error_message << "Serial blob read encountered invalid size encoding type. "
+                     "Expected=245|246|247|248, Got="_view
+                  << Int(size_type);
+    Diagnostics::Log::error(error_message);
     return False;
   }
+  }
 
-  if (ptr + blob_size > source.get_size()) [[unlikely]] {
+  if (!check_buffer_overruns(ptr, source.get_size(), blob_size)) {
     return False;
   }
 

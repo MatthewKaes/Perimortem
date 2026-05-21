@@ -5,6 +5,8 @@
 
 #include "perimortem/core/static/bytes.hpp"
 #include "perimortem/core/static/vector.hpp"
+#include "perimortem/core/algorithm/search.hpp"
+#include "perimortem/core/diagnostics/log.hpp"
 #include "perimortem/core/null_terminated.hpp"
 #include "perimortem/core/reader/serial.hpp"
 #include "perimortem/core/writer/serial.hpp"
@@ -12,7 +14,24 @@
 using namespace Perimortem::Core;
 using namespace Validation;
 
-Test::Harness CoreSerialReader = {.name = "Core::Reader::Serial"};
+static Diagnostics::Log::Level log_level;
+static Static::Bytes<256> log_message;
+
+static auto capture_sink(Diagnostics::Log::Level level, View::Bytes message)
+    -> void {
+  log_level = level;
+  log_message = message;
+}
+
+Test::Harness CoreSerialReader = {
+  .name = "Core::Reader::Serial",
+  .setup =
+      []() {
+        Diagnostics::Log::set_sink(capture_sink);
+        log_message = ""_view;
+      },
+  .teardown =
+      []() { Diagnostics::Log::set_sink(Diagnostics::Log::default_sink); }};
 
 PERIMORTEM_UNIT_TEST(CoreSerialReader, unsigned_ints) {
   Reader::Serial reader(
@@ -62,16 +81,12 @@ PERIMORTEM_UNIT_TEST(CoreSerialReader, reals) {
 }
 
 PERIMORTEM_UNIT_TEST(CoreSerialReader, blob_small) {
-  // Blob format: Blob_tag + Bits_8_element + Bits_8_size_tag + size(1) + data.
-  // 13 elements fit in Bits_8, so header is 4 bytes.
   Reader::Serial reader(
       "\xFF\xF5\xF5\x0D"
       "Hello, World!"_view);
 
-  auto blob_data = reader.read_blob();
-
   EXPECT(reader.is_valid());
-  EXPECT_TEXT(blob_data, "Hello, World!"_view);
+  EXPECT_TEXT(reader.read_blob(), "Hello, World!"_view);
 }
 
 PERIMORTEM_UNIT_TEST(CoreSerialReader, blob_medium) {
@@ -118,23 +133,97 @@ PERIMORTEM_UNIT_TEST(CoreSerialReader, blob_large) {
   EXPECT_EQ(blob_data[blob_count - 1], Byte((blob_count - 1) % 256));
 }
 
+constexpr auto file_location_size =
+    "[main] tests/unit_tests/perimortem/core/reader_serial.cpp:xxx:xx: "_view
+        .get_size() +
+    15;
+
 PERIMORTEM_UNIT_TEST(CoreSerialReader, type_mismatch) {
-  // A Bits_32 value in the stream, but we try to read it as Bits_16.
   Reader::Serial reader("\xF7\xAD\xDE\x00\x00"_view);
+  auto scope_attribution = Diagnostics::Log::set_attribution();
 
   EXPECT_EQ(reader.read_bits_16(), 0);
   EXPECT_NOT(reader.is_valid());
+
+  // Make sure message was logged.
+  constexpr auto error_message =
+      "Mismatched Data Type in serilization stream at position 1. Expected=246, Got=247"_view;
+  EXPECT_EQ(UInt(log_level), UInt(Diagnostics::Log::Level::Error));
+  EXPECT_TEXT(
+      log_message.slice(file_location_size, error_message.get_size()),
+      error_message);
 }
 
 PERIMORTEM_UNIT_TEST(CoreSerialReader, overflow_read) {
-  // Only one Bits_8 value; the second read must fail.
   Reader::Serial reader("\xF5\xFF"_view);
+  auto scope_attribution = Diagnostics::Log::set_attribution();
 
-  auto first_value = reader.read_bits_8();
-  reader.read_bits_8();
-
-  EXPECT_EQ(first_value, Bits_8(0xFF));
+  EXPECT_EQ(reader.read_bits_8(), Bits_8(0xFF));
+  EXPECT(reader.is_valid());
+  EXPECT_EQ(reader.read_bits_8(), Bits_8(0));
   EXPECT_NOT(reader.is_valid());
+
+  // Make sure message was logged.
+  constexpr auto error_message =
+      "Serial read over ran buffer at read location 2. source_size=2, read_size=2"_view;
+  EXPECT_EQ(UInt(log_level), UInt(Diagnostics::Log::Level::Error));
+  EXPECT_TEXT(
+      log_message.slice(file_location_size, error_message.get_size()),
+      error_message);
+}
+
+PERIMORTEM_UNIT_TEST(CoreSerialReader, blob_overrun) {
+  Reader::Serial reader(
+      "\xFF\xF5\xF5\x12"
+      "Hello, World!"_view);
+  auto scope_attribution = Diagnostics::Log::set_attribution();
+
+  reader.read_blob();
+  EXPECT_NOT(reader.is_valid());
+
+  // Make sure message was logged.
+  constexpr auto error_message =
+      "Serial read over ran buffer at read location 4. source_size=17, read_size=18"_view;
+  EXPECT_EQ(UInt(log_level), UInt(Diagnostics::Log::Level::Error));
+  EXPECT_TEXT(
+      log_message.slice(file_location_size, error_message.get_size()),
+      error_message);
+}
+
+PERIMORTEM_UNIT_TEST(CoreSerialReader, blob_bad_size_type) {
+  Reader::Serial reader(
+      "\xFF\xF5\xAC\x0D"
+      "Hello, World!"_view);
+  auto scope_attribution = Diagnostics::Log::set_attribution();
+
+  reader.read_blob();
+  EXPECT_NOT(reader.is_valid());
+
+  // Make sure message was logged.
+  constexpr auto error_message =
+      "Serial blob read encountered invalid size encoding type. Expected=245|246|247|248, Got=172"_view;
+  EXPECT_EQ(UInt(log_level), UInt(Diagnostics::Log::Level::Error));
+  EXPECT_TEXT(
+      log_message.slice(file_location_size, error_message.get_size()),
+      error_message);
+}
+
+PERIMORTEM_UNIT_TEST(CoreSerialReader, blob_bad_data_type) {
+  Reader::Serial reader(
+      "\xFF\xAC\xF5\x0D"
+      "Hello, World!"_view);
+  auto scope_attribution = Diagnostics::Log::set_attribution();
+
+  reader.read_blob();
+  EXPECT_NOT(reader.is_valid());
+
+  // Make sure message was logged.
+  constexpr auto error_message =
+      "Mismatched Data Type in serilization stream at position 2. Expected=245, Got=172"_view;
+  EXPECT_EQ(UInt(log_level), UInt(Diagnostics::Log::Level::Error));
+  EXPECT_TEXT(
+      log_message.slice(file_location_size, error_message.get_size()),
+      error_message);
 }
 
 PERIMORTEM_UNIT_TEST(CoreSerialReader, sequential_mixed) {

@@ -3,9 +3,28 @@
 
 #include "perimortem/core/reader/binary.hpp"
 
+#include "perimortem/core/static/bytes.hpp"
 #include "perimortem/core/data.hpp"
+#include "perimortem/core/diagnostics/log.hpp"
+#include "perimortem/core/null_terminated.hpp"
+#include "perimortem/core/writer/textual.hpp"
 
 using namespace Perimortem::Core;
+
+static auto check_buffer_overruns(Count ptr, Count source_size, Count read_size)
+    -> Bool {
+  if (ptr + read_size > source_size) [[unlikely]] {
+    Static::Bytes<128> error_buffer;
+    Writer::Textual error_message(error_buffer);
+    error_message << "Binary read over ran buffer at read location "_view << ptr
+                  << ". source_size="_view << source_size << ", read_size="_view
+                  << read_size;
+    Diagnostics::Log::error(error_message);
+    return False;
+  }
+
+  return True;
+}
 
 // read_value is a local template helper so the member implementations can
 // stay in this .cpp file without leaking into the header.
@@ -15,7 +34,7 @@ static constexpr auto
   Count base = Count(source.get_data());
   ptr = Data::align<sizeof(storage_type)>(base + ptr) - base;
 
-  if (ptr + sizeof(storage_type) > source.get_size()) [[unlikely]] {
+  if (!check_buffer_overruns(ptr, source.get_size(), sizeof(storage_type))) {
     return False;
   }
 
@@ -103,10 +122,10 @@ auto Reader::Binary<stream_endian>::read_real_64() -> Real_64 {
 
 template <Data::ByteOrder stream_endian>
 auto Reader::Binary<stream_endian>::read_bytes(Count count) -> View::Bytes {
-  if (ptr_location + count > data.get_size()) [[unlikely]] {
+  if (!check_buffer_overruns(ptr_location, data.get_size(), count)) {
     valid_state = False;
-    return data.slice(data.get_size(), 0);
   }
+
   View::Bytes result = data.slice(ptr_location, count);
   ptr_location += count;
   return result;
