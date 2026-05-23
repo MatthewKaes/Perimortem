@@ -1,0 +1,5 @@
+// Tetrodotoxin source — prototype placeholder
+// The compiler ignores the contents of this file for now.
+func hello() -> void {
+    return;
+}

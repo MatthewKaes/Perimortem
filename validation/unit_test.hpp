@@ -1,36 +1,34 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
-// Google Test has been flaky with Bazel and Clang so using a simplified stack.
+// Simplified test framework for Perimortem. Now that validation links directly
+// against Perimortem, the framework uses Perimortem types throughout rather
+// than raw C equivalents.
 //
-// This test framework isolates any of the C++ standard lib into a single
-// compilation unit keeping test compilation as light weight as possible.
+// The framework still targets a single compilation unit (unit_test.cpp) to keep
+// each test TU as lean as possible.
 
-/* Explicity don't protect the include to catch multiple includes */
+/* Explicitly don't protect the include to catch multiple includes */
 // #pragma once
+
+#include "validation/harness.hpp"
 
 namespace Validation::Test {
 
-extern auto expected(bool value, bool actual) -> void;
-extern auto expected(const char* value, bool actual) -> void;
-extern auto expected(short value, bool actual) -> void;
-extern auto expected(unsigned short value, bool actual) -> void;
-extern auto expected(int value, bool actual) -> void;
-extern auto expected(unsigned int value, bool actual) -> void;
-extern auto expected(long long value, bool actual) -> void;
-extern auto expected(unsigned long value, bool actual) -> void;
-extern auto expected(unsigned long long value, bool actual) -> void;
-extern auto expected(double value, bool actual) -> void;
-extern auto expected_text(
-    const unsigned char* value,
-    unsigned long long size,
-    bool actual) -> void;
-extern auto expected_hex(
-    const unsigned char* value,
-    unsigned long long size,
-    bool actual) -> void;
+auto expected(Bool value, Bool actual) -> void;
+auto expected(Perimortem::Core::View::Bytes value, Bool actual) -> void;
+auto expected(Half value, Bool actual) -> void;
+auto expected(UHalf value, Bool actual) -> void;
+auto expected(Int value, Bool actual) -> void;
+auto expected(UInt value, Bool actual) -> void;
+auto expected(Long value, Bool actual) -> void;
+auto expected(ULong value, Bool actual) -> void;
+auto expected(CppSize value, Bool actual) -> void;
+auto expected(Real_64 value, Bool actual) -> void;
+auto expected_text(Perimortem::Core::View::Bytes value, Bool actual) -> void;
+auto expected_hex(Perimortem::Core::View::Bytes value, Bool actual) -> void;
 
-extern auto do_nothing() -> void;
+auto do_nothing() -> void;
 
 enum class TestResult {
   Pass,
@@ -38,207 +36,219 @@ enum class TestResult {
 };
 
 using TestFunc = void (*)(TestResult& result);
-using InitFunc = void (*)();
-using SetupFunc = void (*)();
-using TeardownFunc = void (*)();
 
-struct Harness {
-  const char* name = "";
-  InitFunc init = do_nothing;
-  SetupFunc setup = do_nothing;
-  TeardownFunc teardown = do_nothing;
-};
+auto log_message(
+    Perimortem::Core::View::Bytes file,
+    Count line,
+    Perimortem::Core::View::Bytes msg) -> void;
 
-extern auto log_message(const char* file, int line, const char* msg) -> void;
-extern auto create(
+auto create(
     const Harness& harness,
-    const char* name,
+    Perimortem::Core::View::Bytes name,
     TestFunc func,
-    const char* file,
-    long line) -> void;
+    Perimortem::Core::View::Bytes file,
+    Count line) -> void;
 
-// Macros to inject type data without the test library needing to take
-// a dependency on Perimortem directly.
 #define PRINT_RESULT()                          \
   {                                             \
     Validation::Test::expected(__check, false); \
     Validation::Test::expected(__value, true);  \
   }
 
-#define PRINT_TEXT()                                    \
-  {                                                     \
-    Validation::Test::expected_text(                    \
-        __check.get_data(), __check.get_size(), false); \
-    Validation::Test::expected_text(                    \
-        __value.get_data(), __value.get_size(), true);  \
+#define PRINT_TEXT()                                 \
+  {                                                  \
+    Validation::Test::expected_text(__check, false); \
+    Validation::Test::expected_text(__value, true);  \
   }
 
-#define PRINT_HEX()                                     \
-  {                                                     \
-    Validation::Test::expected_hex(                     \
-        __check.get_data(), __check.get_size(), false); \
-    Validation::Test::expected_hex(                     \
-        __value.get_data(), __value.get_size(), true);  \
+#define PRINT_HEX()                                 \
+  {                                                 \
+    Validation::Test::expected_hex(__check, false); \
+    Validation::Test::expected_hex(__value, true);  \
   }
 
-#define EXPECT(expression)                                 \
-  {                                                        \
-    auto __value = bool(expression);                       \
-    auto __check = true;                                   \
-    if (__value != __check) {                              \
-      Validation::Test::log_message(                       \
-          __FILE__, __LINE__, #expression " failed test"); \
-      PRINT_RESULT();                                      \
-      result = Validation::Test::TestResult::Failed;       \
-    }                                                      \
+#define EXPECT(expression)                                               \
+  {                                                                      \
+    auto __value = bool(expression);                                     \
+    auto __check = true;                                                 \
+    if (__value != __check) {                                            \
+      Validation::Test::log_message(                                     \
+          Perimortem::Core::NullTerminated::to_view(__FILE__), __LINE__, \
+          Perimortem::Core::NullTerminated::to_view(                     \
+              #expression " failed test"));                              \
+      PRINT_RESULT();                                                    \
+      result = Validation::Test::TestResult::Failed;                     \
+    }                                                                    \
   }
 
-#define ASSERT(expression)                                 \
-  {                                                        \
-    auto __value = bool(expression);                       \
-    auto __check = true;                                   \
-    if (__value != __check) {                              \
-      Validation::Test::log_message(                       \
-          __FILE__, __LINE__, #expression " failed test"); \
-      PRINT_RESULT();                                      \
-      result = Validation::Test::TestResult::Failed;       \
-      return;                                              \
-    }                                                      \
+#define ASSERT(expression)                                               \
+  {                                                                      \
+    auto __value = bool(expression);                                     \
+    auto __check = true;                                                 \
+    if (__value != __check) {                                            \
+      Validation::Test::log_message(                                     \
+          Perimortem::Core::NullTerminated::to_view(__FILE__), __LINE__, \
+          Perimortem::Core::NullTerminated::to_view(                     \
+              #expression " failed test"));                              \
+      PRINT_RESULT();                                                    \
+      result = Validation::Test::TestResult::Failed;                     \
+      return;                                                            \
+    }                                                                    \
   }
 
-#define EXPECT_NOT(expression)                                 \
-  {                                                            \
-    auto __value = bool(expression);                           \
-    auto __check = false;                                      \
-    if (__value != __check) {                                  \
-      Validation::Test::log_message(                           \
-          __FILE__, __LINE__, #expression " should be false"); \
-      PRINT_RESULT();                                          \
-      result = Validation::Test::TestResult::Failed;           \
-    }                                                          \
+#define EXPECT_NOT(expression)                                           \
+  {                                                                      \
+    auto __value = bool(expression);                                     \
+    auto __check = false;                                                \
+    if (__value != __check) {                                            \
+      Validation::Test::log_message(                                     \
+          Perimortem::Core::NullTerminated::to_view(__FILE__), __LINE__, \
+          Perimortem::Core::NullTerminated::to_view(                     \
+              #expression " should be false"));                          \
+      PRINT_RESULT();                                                    \
+      result = Validation::Test::TestResult::Failed;                     \
+    }                                                                    \
   }
 
-#define ASSERT_NOT(expression)                                 \
-  {                                                            \
-    auto __value = bool(expression);                           \
-    auto __check = false;                                      \
-    if (__value != __check) {                                  \
-      Validation::Test::log_message(                           \
-          __FILE__, __LINE__, #expression " should be false"); \
-      PRINT_RESULT();                                          \
-      result = Validation::Test::TestResult::Failed;           \
-      return;                                                  \
-    }                                                          \
+#define ASSERT_NOT(expression)                                           \
+  {                                                                      \
+    auto __value = bool(expression);                                     \
+    auto __check = false;                                                \
+    if (__value != __check) {                                            \
+      Validation::Test::log_message(                                     \
+          Perimortem::Core::NullTerminated::to_view(__FILE__), __LINE__, \
+          Perimortem::Core::NullTerminated::to_view(                     \
+              #expression " should be false"));                          \
+      PRINT_RESULT();                                                    \
+      result = Validation::Test::TestResult::Failed;                     \
+      return;                                                            \
+    }                                                                    \
   }
 
-#define EXPECT_EQ(expression, expect)                      \
-  {                                                        \
-    auto __value = (expression);                           \
-    auto __check = (expect);                               \
-    if (__value != __check) {                              \
-      Validation::Test::log_message(                       \
-          __FILE__, __LINE__, #expression " != " #expect); \
-      PRINT_RESULT();                                      \
-      result = Validation::Test::TestResult::Failed;       \
-    }                                                      \
+#define EXPECT_EQ(expression, expect)                                    \
+  {                                                                      \
+    auto __value = (expression);                                         \
+    auto __check = (expect);                                             \
+    if (__value != __check) {                                            \
+      Validation::Test::log_message(                                     \
+          Perimortem::Core::NullTerminated::to_view(__FILE__), __LINE__, \
+          Perimortem::Core::NullTerminated::to_view(                     \
+              #expression " != " #expect));                              \
+      PRINT_RESULT();                                                    \
+      result = Validation::Test::TestResult::Failed;                     \
+    }                                                                    \
   }
 
-#define EXPECT_NEQ(expression, expect)                     \
-  {                                                        \
-    auto __value = (expression);                           \
-    auto __check = (expect);                               \
-    if (__value == __check) {                              \
-      Validation::Test::log_message(                       \
-          __FILE__, __LINE__, #expression " == " #expect); \
-      PRINT_RESULT();                                      \
-      result = Validation::Test::TestResult::Failed;       \
-    }                                                      \
+#define EXPECT_NEQ(expression, expect)                                   \
+  {                                                                      \
+    auto __value = (expression);                                         \
+    auto __check = (expect);                                             \
+    if (__value == __check) {                                            \
+      Validation::Test::log_message(                                     \
+          Perimortem::Core::NullTerminated::to_view(__FILE__), __LINE__, \
+          Perimortem::Core::NullTerminated::to_view(                     \
+              #expression " == " #expect));                              \
+      PRINT_RESULT();                                                    \
+      result = Validation::Test::TestResult::Failed;                     \
+    }                                                                    \
   }
 
-#define ASSERT_EQ(expression, expect)                      \
-  {                                                        \
-    auto __value = (expression);                           \
-    auto __check = (expect);                               \
-    if (__value != __check) {                              \
-      Validation::Test::log_message(                       \
-          __FILE__, __LINE__, #expression " != " #expect); \
-      PRINT_RESULT();                                      \
-      result = Validation::Test::TestResult::Failed;       \
-      return;                                              \
-    }                                                      \
+#define ASSERT_EQ(expression, expect)                                    \
+  {                                                                      \
+    auto __value = (expression);                                         \
+    auto __check = (expect);                                             \
+    if (__value != __check) {                                            \
+      Validation::Test::log_message(                                     \
+          Perimortem::Core::NullTerminated::to_view(__FILE__), __LINE__, \
+          Perimortem::Core::NullTerminated::to_view(                     \
+              #expression " != " #expect));                              \
+      PRINT_RESULT();                                                    \
+      result = Validation::Test::TestResult::Failed;                     \
+      return;                                                            \
+    }                                                                    \
   }
 
-#define ASSERT_NEQ(expression, expect)                     \
-  {                                                        \
-    auto __value = (expression);                           \
-    auto __check = (expect);                               \
-    if (__value == __check) {                              \
-      Validation::Test::log_message(                       \
-          __FILE__, __LINE__, #expression " == " #expect); \
-      PRINT_RESULT();                                      \
-      result = Validation::Test::TestResult::Failed;       \
-      return;                                              \
-    }                                                      \
+#define ASSERT_NEQ(expression, expect)                                   \
+  {                                                                      \
+    auto __value = (expression);                                         \
+    auto __check = (expect);                                             \
+    if (__value == __check) {                                            \
+      Validation::Test::log_message(                                     \
+          Perimortem::Core::NullTerminated::to_view(__FILE__), __LINE__, \
+          Perimortem::Core::NullTerminated::to_view(                     \
+              #expression " == " #expect));                              \
+      PRINT_RESULT();                                                    \
+      result = Validation::Test::TestResult::Failed;                     \
+      return;                                                            \
+    }                                                                    \
   }
 
-#define EXPECT_TEXT(expression, expect)                    \
-  {                                                        \
-    auto __value = (expression);                           \
-    auto __check = (expect);                               \
-    if (__value != __check) {                              \
-      Validation::Test::log_message(                       \
-          __FILE__, __LINE__, #expression " != " #expect); \
-      PRINT_TEXT();                                        \
-      result = Validation::Test::TestResult::Failed;       \
-    }                                                      \
+#define EXPECT_TEXT(expression, expect)                                  \
+  {                                                                      \
+    auto __value = (expression);                                         \
+    auto __check = (expect);                                             \
+    if (__value != __check) {                                            \
+      Validation::Test::log_message(                                     \
+          Perimortem::Core::NullTerminated::to_view(__FILE__), __LINE__, \
+          Perimortem::Core::NullTerminated::to_view(                     \
+              #expression " != " #expect));                              \
+      PRINT_TEXT();                                                      \
+      result = Validation::Test::TestResult::Failed;                     \
+    }                                                                    \
   }
 
-#define ASSERT_TEXT(expression, expect)                    \
-  {                                                        \
-    auto __value = (expression);                           \
-    auto __check = (expect);                               \
-    if (__value != __check) {                              \
-      Validation::Test::log_message(                       \
-          __FILE__, __LINE__, #expression " != " #expect); \
-      PRINT_TEXT();                                        \
-      result = Validation::Test::TestResult::Failed;       \
-      return;                                              \
-    }                                                      \
+#define ASSERT_TEXT(expression, expect)                                  \
+  {                                                                      \
+    auto __value = (expression);                                         \
+    auto __check = (expect);                                             \
+    if (__value != __check) {                                            \
+      Validation::Test::log_message(                                     \
+          Perimortem::Core::NullTerminated::to_view(__FILE__), __LINE__, \
+          Perimortem::Core::NullTerminated::to_view(                     \
+              #expression " != " #expect));                              \
+      PRINT_TEXT();                                                      \
+      result = Validation::Test::TestResult::Failed;                     \
+      return;                                                            \
+    }                                                                    \
   }
 
-#define EXPECT_HEX(expression, expect)                     \
-  {                                                        \
-    auto __value = (expression);                           \
-    auto __check = (expect);                               \
-    if (__value != __check) {                              \
-      Validation::Test::log_message(                       \
-          __FILE__, __LINE__, #expression " != " #expect); \
-      PRINT_HEX();                                         \
-      result = Validation::Test::TestResult::Failed;       \
-    }                                                      \
+#define EXPECT_HEX(expression, expect)                                   \
+  {                                                                      \
+    auto __value = (expression);                                         \
+    auto __check = (expect);                                             \
+    if (__value != __check) {                                            \
+      Validation::Test::log_message(                                     \
+          Perimortem::Core::NullTerminated::to_view(__FILE__), __LINE__, \
+          Perimortem::Core::NullTerminated::to_view(                     \
+              #expression " != " #expect));                              \
+      PRINT_HEX();                                                       \
+      result = Validation::Test::TestResult::Failed;                     \
+    }                                                                    \
   }
 
-#define ASSERT_HEX(expression, expect)                     \
-  {                                                        \
-    auto __value = (expression);                           \
-    auto __check = (expect);                               \
-    if (__value != __check) {                              \
-      Validation::Test::log_message(                       \
-          __FILE__, __LINE__, #expression " != " #expect); \
-      PRINT_HEX();                                         \
-      result = Validation::Test::TestResult::Failed;       \
-      return;                                              \
-    }                                                      \
+#define ASSERT_HEX(expression, expect)                                   \
+  {                                                                      \
+    auto __value = (expression);                                         \
+    auto __check = (expect);                                             \
+    if (__value != __check) {                                            \
+      Validation::Test::log_message(                                     \
+          Perimortem::Core::NullTerminated::to_view(__FILE__), __LINE__, \
+          Perimortem::Core::NullTerminated::to_view(                     \
+              #expression " != " #expect));                              \
+      PRINT_HEX();                                                       \
+      result = Validation::Test::TestResult::Failed;                     \
+      return;                                                            \
+    }                                                                    \
   }
 
-class UnitTest {
+class TestEntry {
  public:
-  UnitTest(
+  TestEntry(
       const Harness& harness,
-      const char* name,
+      Perimortem::Core::View::Bytes name,
       TestFunc func,
-      const char* file,
-      long line) {
+      Perimortem::Core::View::Bytes file,
+      Count line) {
     create(harness, name, func, file, line);
   }
 };
@@ -248,7 +258,8 @@ class UnitTest {
 #define PERIMORTEM_UNIT_TEST(harness, name)                                 \
   auto __##harness##__##name(Validation::Test::TestResult& result) -> void; \
   namespace {                                                               \
-  Validation::Test::UnitTest _reg_##name = {                                \
-    harness, #name, __##harness##__##name, __FILE__, __LINE__};             \
+  Validation::Test::TestEntry _reg_##harness##_##name = {                   \
+    harness, #name##_view, __##harness##__##name,                           \
+    Perimortem::Core::NullTerminated::to_view(__FILE__), __LINE__};         \
   }                                                                         \
   auto __##harness##__##name(Validation::Test::TestResult& result) -> void

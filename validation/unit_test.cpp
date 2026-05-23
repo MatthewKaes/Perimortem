@@ -1,20 +1,20 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
-// This header implements the standard library glue that requires compiler
-// extensions or very specific implementations.
-//
-// There are cases where it makes sense to ally parts of the engine to use the
-// standard library, prototyping being one of the bigger ones.
-
-/* Explicity don't protect the include to catch multiple includes */
+/* Explicitly don't protect the include to catch multiple includes */
 // #pragma once
 
 #include "validation/unit_test.hpp"
 
 #include <stdio.h>
-#include <string.h>
 #include <time.h>
+
+#include "perimortem/core/static/bytes.hpp"
+#include "perimortem/core/static/vector.hpp"
+#include "perimortem/core/writer/textual.hpp"
+
+using namespace Perimortem::Core;
+using namespace Validation;
 
 constexpr const char* clear_color = "\x1b[0m";
 constexpr const char* perimortem_color = "\x1b[38;5;124m";
@@ -23,189 +23,205 @@ constexpr const char* system_color = "\x1b[38;5;246m";
 constexpr const char* fail_color = "\x1b[38;5;160m";
 constexpr const char* pass_color = "\x1b[38;5;34m";
 
-using namespace Validation::Test;
-
-struct TestInstance {
+struct Instance {
   const Harness* harness;
-  const char* name;
-  TestFunc func;
-  const char* file;
-  long line;
+  Perimortem::Core::View::Bytes name;
+  Test::TestFunc func;
+  Perimortem::Core::View::Bytes file;
+  Count line;
 };
 
-struct Benchmark {
-  const char* harness = "";
-  const char* name = "";
-  double time_ms = 0.0;
-  const char* file = "";
-  long line = 0;
+struct TestTiming {
+  Perimortem::Core::View::Bytes harness_name = ""_view;
+  Perimortem::Core::View::Bytes test_name = ""_view;
+  Real_64 time_ms = 0.0;
+  Perimortem::Core::View::Bytes file = ""_view;
+  Count line = 0;
 };
 
-TestInstance binary_tests[4096];
-unsigned failed_test_indexes[4096] = {};
-unsigned binary_tests_count = 0;
-unsigned test_suites = 0;
-unsigned passed_tests = 0;
-unsigned failed_tests = 0;
-unsigned not_run_tests = 0;
+static Static::Vector<Instance, 4096> binary_tests;
+static Static::Vector<Count, 4096> failed_test_indexes;
+static Count binary_tests_count = 0;
+static Count test_suites = 0;
+static Count passed_tests = 0;
+static Count failed_tests = 0;
+static Count not_run_tests = 0;
 
-// Implementations to link
+static constexpr View::Bytes actual_label = "    ACTUAL = "_view;
+static constexpr View::Bytes expected_label = "  EXPECTED = "_view;
+
 namespace Validation::Test {
-auto do_nothing() -> void {}
-auto log_message(const char* file, int line, const char* msg) -> void {
-  printf("%s:%d:\n    %s\n", file, line, msg);
+auto log_message(View::Bytes file, Count line, View::Bytes msg) -> void {
+  printf(
+      "%.*s:%llu:\n    %.*s\n", (int)file.get_size(), file.get_data(),
+      (unsigned long long)line, (int)msg.get_size(), msg.get_data());
 }
 
-auto print_result_header(bool actual) -> void {
-  if (actual) {
-    printf("    ACTUAL =  ");
-  } else {
-    printf("  EXPECTED =  ");
-  }
-}
-
-auto expected(bool value, bool actual) -> void {
-  print_result_header(actual);
-  printf("%s\n", value ? "true" : "false");
-}
-
-auto expected(const char* value, bool actual) -> void {
-  print_result_header(actual);
-  printf("%s\n", value);
-}
-
-auto expected(short value, bool actual) -> void {
-  print_result_header(actual);
-  printf("%hi\n", value);
-}
-
-auto expected(unsigned short value, bool actual) -> void {
-  print_result_header(actual);
-  printf("%hu\n", value);
-}
-
-auto expected(int value, bool actual) -> void {
-  print_result_header(actual);
-  printf("%d\n", value);
-}
-
-auto expected(unsigned int value, bool actual) -> void {
-  print_result_header(actual);
-  printf("%du\n", value);
-}
-
-auto expected(long long value, bool actual) -> void {
-  print_result_header(actual);
-  printf("%lld\n", value);
-}
-
-auto expected(unsigned long value, bool actual) -> void {
-  print_result_header(actual);
-  printf("%lu\n", value);
-}
-
-auto expected(unsigned long long value, bool actual) -> void {
-  print_result_header(actual);
-  printf("%llu\n", value);
-}
-
-auto expected(double value, bool actual) -> void {
-  print_result_header(actual);
-  printf("%.6f\n", value);
-}
-
-auto expected_text(
-    const unsigned char* value,
-    unsigned long long size,
-    bool actual) -> void {
-  print_result_header(actual);
-  fwrite(value, 1, size, stdout);
-  printf("\n");
-}
-
-auto expected_hex(
-    const unsigned char* value,
-    unsigned long long size,
-    bool actual) -> void {
-  print_result_header(actual);
-  // Print out all the hex bytes with spaces
-  for (int i = 0; i < size; i++) {
-    printf("%02X ", (unsigned char)value[i]);
-  }
-  printf("\n");
-}
-
-extern auto create(
+auto create(
     const Harness& harness,
-    const char* name,
+    Perimortem::Core::View::Bytes name,
     TestFunc func,
-    const char* file,
-    long line) -> void {
+    Perimortem::Core::View::Bytes file,
+    Count line) -> void {
   binary_tests[binary_tests_count++] = {&harness, name, func, file, line};
 }
-}  // namespace Validation::Test
 
-static double elapsed_ms(struct timespec start, struct timespec end) {
-  return (end.tv_sec - start.tv_sec) * 1000.0 +
-         (end.tv_nsec - start.tv_nsec) / 1e6;
+static auto write_label(Bool actual) -> void {
+  auto label = actual ? actual_label : expected_label;
+  fwrite(label.get_data(), 1, label.get_size(), stdout);
 }
 
-void output_break() {
+auto expected(Bool value, Bool actual) -> void {
+  Static::Bytes<32> buf;
+  Writer::Textual text(buf.get_access());
+  text << (actual ? actual_label : expected_label) << value << "\n"_view;
+  fwrite(buf.get_data(), 1, text.get_location(), stdout);
+}
+
+auto expected(View::Bytes value, Bool actual) -> void {
+  write_label(actual);
+  fwrite(value.get_data(), 1, value.get_size(), stdout);
+  putchar('\n');
+}
+
+auto expected(Half value, Bool actual) -> void {
+  Static::Bytes<32> buf;
+  Writer::Textual text(buf.get_access());
+  text << (actual ? actual_label : expected_label) << value << "\n"_view;
+  fwrite(buf.get_data(), 1, text.get_location(), stdout);
+}
+
+auto expected(UHalf value, Bool actual) -> void {
+  Static::Bytes<32> buf;
+  Writer::Textual text(buf.get_access());
+  text << (actual ? actual_label : expected_label) << value << "\n"_view;
+  fwrite(buf.get_data(), 1, text.get_location(), stdout);
+}
+
+auto expected(Int value, Bool actual) -> void {
+  Static::Bytes<32> buf;
+  Writer::Textual text(buf.get_access());
+  text << (actual ? actual_label : expected_label) << value << "\n"_view;
+  fwrite(buf.get_data(), 1, text.get_location(), stdout);
+}
+
+auto expected(UInt value, Bool actual) -> void {
+  Static::Bytes<32> buf;
+  Writer::Textual text(buf.get_access());
+  text << (actual ? actual_label : expected_label) << value << "\n"_view;
+  fwrite(buf.get_data(), 1, text.get_location(), stdout);
+}
+
+auto expected(Long value, Bool actual) -> void {
+  Static::Bytes<32> buf;
+  Writer::Textual text(buf.get_access());
+  text << (actual ? actual_label : expected_label) << value << "\n"_view;
+  fwrite(buf.get_data(), 1, text.get_location(), stdout);
+}
+
+auto expected(ULong value, Bool actual) -> void {
+  Static::Bytes<32> buf;
+  Writer::Textual text(buf.get_access());
+  text << (actual ? actual_label : expected_label) << value << "\n"_view;
+  fwrite(buf.get_data(), 1, text.get_location(), stdout);
+}
+
+auto expected(CppSize value, Bool actual) -> void {
+  expected(ULong(value), actual);
+}
+
+auto expected(Real_64 value, Bool actual) -> void {
+  Static::Bytes<48> buf;
+  Writer::Textual text(buf.get_access());
+  text << (actual ? actual_label : expected_label) << value << "\n"_view;
+  fwrite(buf.get_data(), 1, text.get_location(), stdout);
+}
+
+auto expected_text(View::Bytes value, Bool actual) -> void {
+  write_label(actual);
+  fwrite(value.get_data(), 1, value.get_size(), stdout);
+  putchar('\n');
+}
+
+auto expected_hex(View::Bytes value, Bool actual) -> void {
+  write_label(actual);
+  for (Count index = 0; index < value.get_size(); index++) {
+    printf("%02X ", value[index]);
+  }
+  putchar('\n');
+}
+
+}  // namespace Validation::Test
+
+static auto elapsed_ms(struct timespec start, struct timespec end) -> Real_64 {
+  return Real_64(end.tv_sec - start.tv_sec) * 1000.0 +
+         Real_64(end.tv_nsec - start.tv_nsec) / 1e6;
+}
+
+static auto output_break() -> void {
   printf(
       "%s[==============================================================]\n%s",
       dark_color, clear_color);
 }
 
-void output_results() {
+static auto output_results() -> void {
   printf("%s\n  Testing Completed:\n", perimortem_color);
+
   if (passed_tests) {
-    printf("%s      Passed:  %u%s\n", pass_color, passed_tests, clear_color);
+    printf(
+        "%s      Passed:  %llu%s\n", pass_color,
+        (unsigned long long)passed_tests, clear_color);
   }
 
   if (failed_tests) {
-    printf("%s      Failed:  %u%s\n", fail_color, failed_tests, clear_color);
-    for (unsigned i = 0; i < failed_tests; i++) {
-      auto& test = binary_tests[failed_test_indexes[i]];
+    printf(
+        "%s      Failed:  %llu%s\n", fail_color,
+        (unsigned long long)failed_tests, clear_color);
+    for (Count index = 0; index < failed_tests; index++) {
+      const auto& test = binary_tests[failed_test_indexes[index]];
       printf(
-          "%s          %s:%d%s\n", dark_color, test.file, (int)test.line,
-          clear_color);
+          "%s          %.*s:%llu%s\n", dark_color, (int)test.file.get_size(),
+          test.file.get_data(), (unsigned long long)test.line, clear_color);
     }
   }
 
   if (not_run_tests) {
-    printf("%s     Not Run:  %u%s\n", system_color, not_run_tests, clear_color);
+    printf(
+        "%s     Not Run:  %llu%s\n", system_color,
+        (unsigned long long)not_run_tests, clear_color);
   }
 
-  float pass_rate =
-      (long)(float(passed_tests) / float(binary_tests_count) * 10000) / 100.0f;
+  Real_64 pass_rate =
+      Real_64(passed_tests) / Real_64(binary_tests_count) * 100.0;
   printf(
-      "%s  Pass Rate: %s%u / %u%s ( %g %%)\n%s", perimortem_color, clear_color,
-      passed_tests, binary_tests_count, system_color, pass_rate, clear_color);
+      "%s  Pass Rate: %s%llu / %llu%s ( %g %%)\n%s", perimortem_color,
+      clear_color, (unsigned long long)passed_tests,
+      (unsigned long long)binary_tests_count, system_color, pass_rate,
+      clear_color);
 }
 
 int main() {
-  const Harness* harness = nullptr;
   test_suites = 0;
   passed_tests = 0;
   failed_tests = 0;
   not_run_tests = binary_tests_count;
 
-  Benchmark longest_test;
-  unsigned longest_test_name = 12;
+  TestTiming slowest_test;
+  Count longest_test_name = 12;
 
-  for (unsigned i = 0; i < binary_tests_count; ++i) {
-    const TestInstance& test = binary_tests[i];
-    if (strlen(test.name) > longest_test_name) {
-      longest_test_name = strlen(test.name);
+  const Harness* harness = nullptr;
+  for (Count index = 0; index < binary_tests_count; index++) {
+    const Instance& test = binary_tests[index];
+    Count name_len = test.name.get_size();
+    if (name_len > longest_test_name) {
+      longest_test_name = name_len;
     }
-
     if (test.harness != harness) {
-      test_suites += 1;
+      test_suites++;
       harness = test.harness;
     }
   }
 
-  // Reset
   harness = nullptr;
 
   output_break();
@@ -213,61 +229,62 @@ int main() {
       "%s  Executing Perimortem test engine from Validation::Test\n",
       perimortem_color);
   printf(
-      "  Tests found:  %s%u%s (%u Harness)%s\n", clear_color,
-      binary_tests_count, system_color, test_suites, clear_color);
+      "  Tests found:  %s%llu%s (%llu Harness)%s\n", clear_color,
+      (unsigned long long)binary_tests_count, system_color,
+      (unsigned long long)test_suites, clear_color);
   output_break();
 
   struct timespec start_full, end_full, start, end;
   clock_gettime(CLOCK_MONOTONIC, &start_full);
 
-  for (unsigned i = 0; i < binary_tests_count; ++i) {
-    const TestInstance& test = binary_tests[i];
+  for (Count index = 0; index < binary_tests_count; index++) {
+    const Instance& test = binary_tests[index];
+
     if (test.harness != harness) {
       harness = test.harness;
-      printf("%s[ START ] %s\n%s", dark_color, harness->name, clear_color);
+      printf(
+          "%s[ START ] %.*s\n%s", dark_color, (int)harness->name.get_size(),
+          harness->name.get_data(), clear_color);
       harness->init();
     }
 
-    // Somehow the harness was set to nullptr.
-    if (harness == nullptr) {
+    // The test harness was null for some reason.
+    if (test.harness == nullptr) {
       continue;
     }
 
-    // Setup
     harness->setup();
-
     not_run_tests -= 1;
-    // printf("%s  [  TEST  ] %s\n%s", dark_color, test.name, clear_color);
-    TestResult result = TestResult::Pass;
+
+    Test::TestResult result = Test::TestResult::Pass;
     clock_gettime(CLOCK_MONOTONIC, &start);
     test.func(result);
     clock_gettime(CLOCK_MONOTONIC, &end);
-    double test_time_ms = elapsed_ms(start, end);
+    Real_64 test_time_ms = elapsed_ms(start, end);
 
-    // Tear down
     harness->teardown();
 
-    if (test_time_ms > longest_test.time_ms) {
-      longest_test.time_ms = test_time_ms;
-      longest_test.name = test.name;
-      longest_test.harness = harness->name;
-      longest_test.file = test.file;
-      longest_test.line = test.line;
+    if (test_time_ms > slowest_test.time_ms) {
+      slowest_test.time_ms = test_time_ms;
+      slowest_test.test_name = test.name;
+      slowest_test.harness_name = harness->name;
+      slowest_test.file = test.file;
+      slowest_test.line = test.line;
     }
 
     switch (result) {
-    case TestResult::Pass:
+    case Test::TestResult::Pass:
       passed_tests += 1;
       printf(
-          "%s  [  PASS  ] %*s", pass_color, (int)(longest_test_name + 2),
-          test.name);
+          "%s  [  PASS  ] %-*.*s", pass_color, (int)(longest_test_name + 2),
+          (int)test.name.get_size(), Data::cast<char>(test.name.get_data()));
       break;
-    case TestResult::Failed:
-      failed_test_indexes[failed_tests] = i;
+    case Test::TestResult::Failed:
+      failed_test_indexes[failed_tests] = index;
       failed_tests += 1;
       printf(
-          "%s  [  FAIL  ] %*s", fail_color, (int)(longest_test_name + 2),
-          test.name);
+          "%s  [  FAIL  ] %-*.*s", fail_color, (int)(longest_test_name + 2),
+          (int)test.name.get_size(), Data::cast<char>(test.name.get_data()));
       break;
     }
 
@@ -275,20 +292,16 @@ int main() {
   }
 
   clock_gettime(CLOCK_MONOTONIC, &end_full);
-  double full_time_ms = elapsed_ms(start_full, end_full);
+  Real_64 full_time_ms = elapsed_ms(start_full, end_full);
 
   output_break();
-
   output_results();
-
   printf(
       "%s\n  Total Time:  %s%g ms\n\n%s", perimortem_color, clear_color,
       full_time_ms, clear_color);
-
   output_break();
-
   printf("\n");
   fflush(stdout);
 
-  return failed_tests;
+  return (int)failed_tests;
 }

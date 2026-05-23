@@ -1,0 +1,6 @@
+Func;
+Func[];
+Func[Void];
+Func[Void, Int];
+Func[Void, Int, Str];
+Func[Void, List[Int], Str];
