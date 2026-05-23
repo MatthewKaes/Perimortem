@@ -27,13 +27,13 @@ class Textual {
   auto set_pointer(Count location) -> void;
 
   auto read_byte() -> Byte;
-  auto read_boolean() -> Bool;
-  auto read_int16() -> Half;
-  auto read_uint16() -> UHalf;
-  auto read_int32() -> Int;
-  auto read_uint32() -> UInt;
-  auto read_int64() -> Long;
-  auto read_uint64() -> ULong;
+  auto read_flag() -> Bool;
+  auto read_half() -> Half;
+  auto read_unsigned_half() -> UHalf;
+  auto read_int() -> Int;
+  auto read_unsigned_int() -> UInt;
+  auto read_long() -> Long;
+  auto read_unsigned_long() -> ULong;
   auto read_real_32() -> Real_32;
   auto read_real_64() -> Real_64;
 

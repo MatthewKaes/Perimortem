@@ -33,10 +33,21 @@ enum class MapVectorization { Full, Partial, Scalar };
 // performance for iteration) and to improve cache performance for small key /
 // value pairs, although any major gains are offset by storing the 8 hash
 // inline.
+//
+// Map types:
+// * Scalar is optimized for speed and size and should be used for any table
+//   that uses View::Bytes for keys.
+//
+// * Partial is optimized for speed on medium sized tables with integer key
+//   mappings.
+//
+// * Full should only be used on tables with 1000+ integer keys.
+//
+// Full and Partial typically outperform Scalar when your lookup hit rate ~<25%.
 template <
     typename key_type,
     typename value_type,
-    MapVectorization vector_mode = MapVectorization::Partial>
+    MapVectorization vector_mode = MapVectorization::Scalar>
 class Map {
  public:
   using Entry = Utility::Pair<key_type, value_type>;

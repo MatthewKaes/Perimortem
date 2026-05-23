@@ -123,6 +123,10 @@ constexpr auto
   return write_decimal(data, ptr_location, value, length);
 }
 
+auto Writer::Textual::set_pointer(Count location) -> void {
+  ptr_location = location;
+}
+
 auto Writer::Textual::operator<<(const Byte character) -> Writer::Textual& {
   valid_state &= ptr_location < data.get_size();
   if (valid_state) {

@@ -22,12 +22,11 @@ auto search(View::Bytes src, View::Bytes value) -> Count {
     return -1;
   }
 
+  // If the value and src are the same size then we just have to test if they
+  // are the same object.
   if (value.get_size() == src.get_size()) {
     return value == src ? 0 : -1;
   }
-
-  // Set two values that
-  const Count tail_offset = value.get_size() - 1;
 
   // Setup two additional registers with the exact value test as well as the
   // test mask. Since the source can be any length this is easier to setup by
@@ -36,6 +35,7 @@ auto search(View::Bytes src, View::Bytes value) -> Count {
   // Since we can find matches close to the end of the array we need twice the
   // vector size in order to ensure we have valid padding.
   Count i = 0;
+  const Count tail_offset = value.get_size() - 1;
   constexpr auto vectorize_limit = sizeof(__m256i);
   if (src.get_size() >= vectorize_limit * 2 &&
       value.get_size() <= vectorize_limit) [[likely]] {
@@ -80,12 +80,14 @@ auto search(View::Bytes src, View::Bytes value) -> Count {
 
   // Scalar fallback using head/tail checking.
   for (; i < src.get_size() - tail_offset; i++) {
-    if (src[i] != value[0] && src[i + tail_offset] != value[tail_offset]) {
+    // Skip unless BOTH head and tail bytes match — any mismatch rules out this
+    // position without touching the middle bytes.
+    if (src[i] != value[0] || src[i + tail_offset] != value[tail_offset]) {
       continue;
     }
 
     Bool found = True;
-    for (Count j = 1; j < tail_offset - 1; j++) {
+    for (Count j = 1; j < tail_offset; j++) {
       if (src[i + j] != value[j]) {
         found = False;
         break;

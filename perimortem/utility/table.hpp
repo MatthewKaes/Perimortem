@@ -12,25 +12,39 @@
 namespace Perimortem::Utility {
 
 // An optimized look up table for `Core::View::Bytes` that avoids a level of
-// indirection by packing string keys inline.
+// indirection by packing string keys inline and provides major speed gains
+// when testings a large number of keys with a low hit rate making it ideal for
+// keyword lookups.
 //
 // Tables are only immutable and unlike `Map` always have static linkage.
+// For instances where keys are all known at compile time and the list of keys
+// is relatively small the speed of Table tends to be >2x faster than any Map
+// for key kits.
 //
 // The source template parameter is a bit funky since the type itself is
 // parameterized over it's source data to create a type that expresses the
 // compressed form of the lookups.
 template <
     typename value_type,
-    const Core::View::Vector<Utility::Pair<Core::View::Bytes, value_type>>&
-        source,
+    const auto& source,
     Core::Data::CacheAware cache_aware = Core::Data::CacheAware::Enabled>
 class Table {
+ private:
+  // Accepts both a raw C array and a View::Vector as source.
+  static consteval auto get_source_count() -> Count {
+    if constexpr (requires { source.get_size(); }) {
+      return source.get_size();
+    } else {
+      return Core::Data::array_size(source);
+    }
+  }
+
  public:
   static constexpr auto cache_line_size = static_cast<Bits_64>(cache_aware);
   static consteval auto required_storage() -> Count {
     Count buckets[max_length()] = {0};
 
-    for (Count i = 0; i < source.get_size(); i++) {
+    for (Count i = 0; i < get_source_count(); i++) {
       buckets[source[i].key.get_size()] += source[i].key.get_size();
     }
 
@@ -51,7 +65,7 @@ class Table {
   // We give up one bucket for size "0" strings for clamping later.
   static consteval auto max_length() -> Count {
     Count max = 0;
-    for (Count i = 0; i < source.get_size(); i++) {
+    for (Count i = 0; i < get_source_count(); i++) {
       max = max > source[i].key.get_size() + 1 ? max
                                                : source[i].key.get_size() + 1;
     }
@@ -66,7 +80,7 @@ class Table {
     consteval PackedBuffer() {
       // Caculate the bytes required for each bucket
       Count buckets[max_length()] = {0};
-      for (Count i = 0; i < source.get_size(); i++) {
+      for (Count i = 0; i < get_source_count(); i++) {
         buckets[source[i].key.get_size()] += source[i].key.get_size();
       }
 
@@ -89,7 +103,7 @@ class Table {
       for (Count size = 0; size < max_length(); size++) {
         buffer_coordinates[size].item_index = total;
 
-        for (Count i = 0; i < source.get_size(); i++) {
+        for (Count i = 0; i < get_source_count(); i++) {
           if (source[i].key.get_size() != size) {
             continue;
           }
@@ -112,7 +126,7 @@ class Table {
     };
 
     Coord buffer_coordinates[(max_range + 1)];
-    value_type mappings[source.get_size()] = {};
+    value_type mappings[get_source_count()] = {};
     alignas(64) Byte buffer[storage_size] = {0};
   };
 

@@ -7,9 +7,19 @@
 
 using namespace Perimortem::Core;
 
-static auto parse_unsigned(View::Bytes source, Count& ptr, ULong& out) -> Bool {
+template <typename storage_type>
+static auto parse_decimal(View::Bytes source, Count& ptr, storage_type& out)
+    -> Bool {
   if (ptr >= source.get_size()) [[unlikely]] {
     return False;
+  }
+
+  Bool negative = False;
+  if constexpr (storage_type(0) > storage_type(-1)) {
+    if (source[ptr] == '-') {
+      negative = True;
+      ptr++;
+    }
   }
 
   Byte first = source[ptr];
@@ -17,37 +27,17 @@ static auto parse_unsigned(View::Bytes source, Count& ptr, ULong& out) -> Bool {
     return False;
   }
 
-  ULong result = 0;
+  Bits_64 result = 0;
   while (ptr < source.get_size()) {
     Byte ch = source[ptr];
     if (ch < '0' || ch > '9') {
       break;
     }
-    result = result * 10 + ULong(ch - '0');
+    result = result * 10 + Bits_64(ch - '0');
     ptr++;
   }
 
-  out = result;
-  return True;
-}
-
-static auto parse_signed(View::Bytes source, Count& ptr, Long& out) -> Bool {
-  if (ptr >= source.get_size()) [[unlikely]] {
-    return False;
-  }
-
-  Bool negative = False;
-  if (source[ptr] == '-') {
-    negative = True;
-    ptr++;
-  }
-
-  ULong magnitude = 0;
-  if (!parse_unsigned(source, ptr, magnitude)) [[unlikely]] {
-    return False;
-  }
-
-  out = negative ? -Long(magnitude) : Long(magnitude);
+  out = negative ? -storage_type(result) : storage_type(result);
   return True;
 }
 
@@ -76,72 +66,72 @@ auto Reader::Textual::read_byte() -> Byte {
   return data[ptr_location++];
 }
 
-auto Reader::Textual::read_boolean() -> Bool {
-  if (!valid_state) [[unlikely]] {
+auto Reader::Textual::read_flag() -> Bool {
+  skip_whitespace();
+  if (ptr_location >= data.get_size()) [[unlikely]] {
     return False;
   }
-  skip_whitespace();
 
-  constexpr Count true_len = 4;
-  constexpr Count false_len = 5;
+  switch (data[ptr_location]) {
+  case 'T':
+  case 't':
+    valid_state =
+        data.slice(ptr_location + 1, "rue"_view.get_size()) == "rue"_view;
+    ptr_location += 4;
+    return True;
 
-  if (ptr_location + true_len <= data.get_size()) {
-    if (data.slice(ptr_location, true_len) == "true"_view) {
-      ptr_location += true_len;
-      return True;
-    }
+  case 'F':
+  case 'f':
+    valid_state =
+        data.slice(ptr_location + 1, "alse"_view.get_size()) == "alse"_view;
+    ptr_location += 5;
+    return False;
+
+  default:
+    valid_state = False;
+    return False;
   }
-
-  if (ptr_location + false_len <= data.get_size()) {
-    if (data.slice(ptr_location, false_len) == "false"_view) {
-      ptr_location += false_len;
-      return False;
-    }
-  }
-
-  valid_state = False;
-  return False;
 }
 
-auto Reader::Textual::read_int16() -> Half {
+auto Reader::Textual::read_half() -> Half {
   skip_whitespace();
-  Long value = 0;
-  valid_state &= parse_signed(data, ptr_location, value);
+  Half value = 0;
+  valid_state &= parse_decimal(data, ptr_location, value);
   return Half(value);
 }
 
-auto Reader::Textual::read_uint16() -> UHalf {
+auto Reader::Textual::read_unsigned_half() -> UHalf {
   skip_whitespace();
-  ULong value = 0;
-  valid_state &= parse_unsigned(data, ptr_location, value);
+  UHalf value = 0;
+  valid_state &= parse_decimal(data, ptr_location, value);
   return UHalf(value);
 }
 
-auto Reader::Textual::read_int32() -> Int {
+auto Reader::Textual::read_int() -> Int {
   skip_whitespace();
-  Long value = 0;
-  valid_state &= parse_signed(data, ptr_location, value);
+  Int value = 0;
+  valid_state &= parse_decimal(data, ptr_location, value);
   return Int(value);
 }
 
-auto Reader::Textual::read_uint32() -> UInt {
+auto Reader::Textual::read_unsigned_int() -> UInt {
   skip_whitespace();
-  ULong value = 0;
-  valid_state &= parse_unsigned(data, ptr_location, value);
+  UInt value = 0;
+  valid_state &= parse_decimal(data, ptr_location, value);
   return UInt(value);
 }
 
-auto Reader::Textual::read_int64() -> Long {
+auto Reader::Textual::read_long() -> Long {
   skip_whitespace();
   Long value = 0;
-  valid_state &= parse_signed(data, ptr_location, value);
+  valid_state &= parse_decimal(data, ptr_location, value);
   return value;
 }
 
-auto Reader::Textual::read_uint64() -> ULong {
+auto Reader::Textual::read_unsigned_long() -> ULong {
   skip_whitespace();
   ULong value = 0;
-  valid_state &= parse_unsigned(data, ptr_location, value);
+  valid_state &= parse_decimal(data, ptr_location, value);
   return value;
 }
 
@@ -171,7 +161,7 @@ auto Reader::Textual::read_real() -> Real_64 {
   }
 
   ULong int_part = 0;
-  if (!parse_unsigned(data, ptr_location, int_part)) [[unlikely]] {
+  if (!parse_decimal(data, ptr_location, int_part)) [[unlikely]] {
     valid_state = False;
     return Real_64(0);
   }

@@ -120,8 +120,8 @@ constexpr auto sort(Core::Access::Vector<type> access)
 
   // Quick sort partitioning.
   auto quick_partition = [](type* partition, Count partition_size,
-                            Count pivot_idx) -> Count {
-    Core::Data::swap(partition[pivot_idx], partition[partition_size - 1]);
+                            Count pivot_index) -> Count {
+    Core::Data::swap(partition[pivot_index], partition[partition_size - 1]);
     Count new_pivot = 0;
     for (Count i = 0; i < partition_size - 1; i++) {
       if (!(partition[i] > partition[partition_size - 1])) {

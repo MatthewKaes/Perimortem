@@ -133,7 +133,7 @@ class Preface final {
 #if PERI_DEBUG
   Bits_64 block_stamp;
   [[maybe_unused]] Bits_64 __reserved[1];
-#elif
+#else
   [[maybe_unused]] Bits_64 __reserved[2];
 #endif
 
