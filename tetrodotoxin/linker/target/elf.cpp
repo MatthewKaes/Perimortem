@@ -259,11 +259,11 @@ auto build_symbol_table(
     Data::write<elf_endian>(
         &entry.name_offset, Bits_32(ref.string_table_offset));
     entry.info = Byte((binding << 4) | Byte(symbol.get_type()));
-    const Bits_16 sec_idx =
+    const Bits_16 section_index =
         symbol.get_context() == Context::Symbol::Location::External
             ? Bits_16(0)
             : section_index_for(sections, symbol.get_context());
-    Data::write<elf_endian>(&entry.section_index, sec_idx);
+    Data::write<elf_endian>(&entry.section_index, section_index);
     Data::write<elf_endian>(&entry.value, Bits_64(symbol.get_range().start));
     Data::write<elf_endian>(&entry.size, Bits_64(symbol.get_range().size));
   }

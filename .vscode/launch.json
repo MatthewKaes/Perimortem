@@ -8,27 +8,7 @@
       "name": "[Tests] Perimortem (Linux)",
       "type": "lldb",
       "request": "launch",
-      "program": "${workspaceFolder}/.bin/bin/tests/unit_tests",
-      "args": [],
-      "cwd": "${workspaceFolder}",
-      // Why are you like this VSCode???
-      "sourceMap": {
-        "/proc/self/cwd/external/": "${workspaceFolder}/.bin/Perimortem/external/",
-        "/proc/self/cwd/": "${workspaceFolder}"
-      },
-      "initCommands": [
-        "command source '${workspaceFolder}/.vscode/perimortem.lldb'"
-      ],
-      "preLaunchTask": "Full Build (Linux) [Debug]",
-      "presentation": {
-        "clear": true
-      }
-    },
-    {
-      "name": "[Tests] Ttx (Linux)",
-      "type": "lldb",
-      "request": "launch",
-      "program": "${workspaceFolder}/.bin/bin/tetrodotoxin/tests",
+      "program": "${workspaceFolder}/.bin/bin/validation/unit_tests",
       "args": [],
       "cwd": "${workspaceFolder}",
       // Why are you like this VSCode???
@@ -65,10 +45,10 @@
       }
     },
     {
-      "name": "[Benchmarks] Perimortem (Linux)",
+      "name": "[Benchmarks] Run All (Linux)",
       "type": "lldb",
       "request": "launch",
-      "program": "${workspaceFolder}/.bin/bin/core/benchmarks",
+      "program": "${workspaceFolder}/.bin/bin/validation/benchmarks",
       "args": [],
       "cwd": "${workspaceFolder}",
       // Why are you like this VSCode???
@@ -85,10 +65,10 @@
       }
     },
     {
-      "name": "[Benchmarks] TTX (Linux)",
+      "name": "[Benchmarks] Run All w/ C++ (Linux)",
       "type": "lldb",
       "request": "launch",
-      "program": "${workspaceFolder}/.bin/bin/tetrodotoxin/benchmarks",
+      "program": "${workspaceFolder}/.bin/bin/validation/all_benchmarks",
       "args": [],
       "cwd": "${workspaceFolder}",
       // Why are you like this VSCode???
@@ -99,7 +79,7 @@
       "initCommands": [
         "command source '${workspaceFolder}/.vscode/perimortem.lldb'"
       ],
-      "preLaunchTask": "Full Build (Linux) [Release]",
+      "preLaunchTask": "Full Build w/ C++ (Linux) [Release]",
       "presentation": {
         "clear": true
       }

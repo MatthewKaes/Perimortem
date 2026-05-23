@@ -12,7 +12,8 @@
       ],
       "args": [
         "build",
-        "..."
+        "...",
+        "--config=debug"
       ],
       "group": {
         "kind": "build",
@@ -33,38 +34,30 @@
       "args": [
         "build",
         "...",
-        "-c",
-        "opt", // Need to split to as VSCode will wrap it.
-        "--copt=\"-fdiagnostics-color=always\"",
-        "--copt=\"-O3\"",
-        "--copt=\"-DNDEBUG\"",
-        "--copt=\"-DPERI_LINUX\""
+        "--config=release"
       ],
-      "group": {
-        "kind": "build",
-        "isDefault": true
-      },
+      "group": "build",
       "detail": "Performs a full Bazel build of the Platform.",
       "presentation": {
         "clear": true
       }
     },
     {
-      "label": "Run Unit Tests (Linux) [Debug]",
+      "label": "Full Build w/ C++ (Linux) [Release]",
       "type": "shell",
       "command": "bazel",
       "problemMatcher": [
         "$gcc"
       ],
       "args": [
-        "test",
-        "..."
+        "build",
+        "...",
+        "--config=release",
+        "--define",
+        "PERI_BENCH_CPP=1"
       ],
-      "group": {
-        "kind": "test",
-        "isDefault": true
-      },
-      "detail": "Builds and runs the Perimortem unit test suite.",
+      "group": "build",
+      "detail": "Performs a full Bazel build of the Platform.",
       "presentation": {
         "clear": true
       }
@@ -91,8 +84,8 @@
       "detail": "Performs a build of the TTX Lsp extension.",
       "presentation": {
         "clear": true,
-				"panel": "dedicated",
-				"reveal": "never"
+        "panel": "dedicated",
+        "reveal": "never"
       },
       "problemMatcher": [
         "$tsc"
