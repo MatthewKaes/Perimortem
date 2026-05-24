@@ -82,6 +82,8 @@ static auto cpp_string_concat() -> void {
   for (Count i = 0; i < batch_count; i++) {
     std::string buffer;
     buffer.append(byte_length, '\0');
+
+    const char* data = buffer.data();
     Benchmark::prevent_optimization(data);
     size += Count(buffer.data());
   }
