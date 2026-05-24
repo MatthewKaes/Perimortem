@@ -1,11 +1,15 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
-#include "perimortem/core/hash.hpp"
+#ifdef PERI_BENCH_CPP
+#include <functional>
+#include <string_view>
+#endif
 
 #include "validation/benchmark.hpp"
 
 #include "perimortem/core/static/bytes.hpp"
+#include "perimortem/core/hash.hpp"
 #include "perimortem/core/null_terminated.hpp"
 #include "perimortem/core/perimortem.hpp"
 
@@ -43,7 +47,7 @@ static Harness HashBench = {
 PERIMORTEM_BENCHMARK(HashBench, bits_32) {
   Bits_32 input = Data::cast<Bits_32>(hash_buffer.get_data())[0];
   Bits_64 accumulator = 0;
-  for (Count i = 0; i < batch_count; i++) {
+  for (Count i = 0; i < batch_count * 8; i++) {
     Bits_64 result = Hash(input).get_value();
     accumulator ^= result;
     input = Bits_32(result);
@@ -54,7 +58,7 @@ PERIMORTEM_BENCHMARK(HashBench, bits_32) {
 PERIMORTEM_BENCHMARK(HashBench, bits_64) {
   Bits_64 input = Data::cast<Bits_64>(hash_buffer.get_data())[0];
   Bits_64 accumulator = 0;
-  for (Count i = 0; i < batch_count; i++) {
+  for (Count i = 0; i < batch_count * 8; i++) {
     Bits_64 result = Hash(input).get_value();
     accumulator ^= result;
     input = result;
@@ -68,7 +72,7 @@ auto compute_hash() -> void {
   // all calls return the same value and fold the XOR chain to zero.
   constexpr Count max_offset = 8;
   Bits_64 accumulator = 0;
-  for (Count i = 0; i < batch_count; i++) {
+  for (Count i = 0; i < batch_count * 8; i++) {
     Count offset = (max_offset > 0) ? (i % (max_offset + 1)) : 0;
     accumulator ^= Hash(hash_buffer.slice(offset, hash_length)).get_value();
   }
@@ -89,3 +93,41 @@ HASH_BENCH(600);
 HASH_BENCH(2048);
 HASH_BENCH(4096);
 HASH_BENCH(8192);
+
+#ifdef PERI_BENCH_CPP
+
+template <Count hash_length>
+static auto cpp_hash_bytes() -> void {
+  constexpr Count max_offset = 8;
+  Bits_64 accumulator = 0;
+  for (Count i = 0; i < batch_count * 8; i++) {
+    Count offset = (max_offset > 0) ? (i % (max_offset + 1)) : 0;
+    auto slice = hash_buffer.slice(offset, hash_length);
+    accumulator ^= Bits_64(
+        std::hash<std::string_view>{}(std::string_view(
+            Data::cast<char>(slice.get_data()), slice.get_size())));
+  }
+  Benchmark::prevent_optimization(accumulator);
+}
+
+#define HASH_COMPARISON(key_length)                                       \
+  static Benchmark::Comparison hash_bytes_##key_length##_comp = {         \
+    .harness = &HashBench,                                                \
+    .label = #key_length " bytes"_view,                                   \
+    .variants = {{"perimortem"_view, "key_length_" #key_length ""_view}}, \
+  };                                                                      \
+  PERIMORTEM_COMPARISON(hash_bytes_##key_length##_comp) {                 \
+    cpp_hash_bytes<key_length>();                                         \
+  }
+
+HASH_COMPARISON(64)
+HASH_COMPARISON(128)
+HASH_COMPARISON(256)
+HASH_COMPARISON(512)
+HASH_COMPARISON(550)
+HASH_COMPARISON(600)
+HASH_COMPARISON(2048)
+HASH_COMPARISON(4096)
+HASH_COMPARISON(8192)
+
+#endif  // PERI_BENCH_CPP
