@@ -69,6 +69,7 @@ auto Reader::Textual::read_byte() -> Byte {
 auto Reader::Textual::read_flag() -> Bool {
   skip_whitespace();
   if (ptr_location >= data.get_size()) [[unlikely]] {
+    valid_state = False;
     return False;
   }
 

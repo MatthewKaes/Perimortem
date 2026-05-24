@@ -40,6 +40,10 @@ class Textual {
   constexpr auto get_size() const -> Count { return data.get_size(); }
   constexpr auto get_location() const -> Count { return ptr_location; }
   constexpr auto is_valid() const -> Bool { return valid_state; }
+  constexpr auto reset() -> void {
+    valid_state = true;
+    ptr_location = 0;
+  }
 
  private:
   auto skip_whitespace() -> void;
