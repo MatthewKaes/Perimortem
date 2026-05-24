@@ -52,8 +52,9 @@ static auto cpp_mt19937_generate() -> void {
 }
 
 static auto cpp_random_device_read() -> void {
-  // std::random_device::operator() returns 32 bits; call twice per iteration
-  // to match the 64-bit yield of Random::read_entropy() / _rdrand64_step.
+  // std::random_device only returns 32 bits at a time so we call it twice per
+  // iteration to match the entropy we generate from Philox. Over the 1024 calls
+  // we still get the same relative throughput measurement.
   static std::random_device rd;
   Bits_64 accumulator = 0;
   for (Count batch_idx = 0; batch_idx < random_batch; batch_idx++) {
