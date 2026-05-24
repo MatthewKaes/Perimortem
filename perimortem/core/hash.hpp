@@ -36,11 +36,7 @@ class Hash {
 
   static constexpr auto hash_numeric(Bits_64 numeric) {
     Bits_64 result = numeric * const_values[0];
-    result ^= result >> 27;
-    result *= const_values[2];
-    result ^= result >> 33;
-    result *= const_values[4];
-    result ^= result >> 33;
+    result ^= (result >> 33) * const_values[4];
     return result;
   }
 

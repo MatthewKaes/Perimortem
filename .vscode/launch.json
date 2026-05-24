@@ -68,7 +68,7 @@
       "name": "[Benchmarks] Run All w/ C++ (Linux)",
       "type": "lldb",
       "request": "launch",
-      "program": "${workspaceFolder}/.bin/bin/validation/all_benchmarks",
+      "program": "${workspaceFolder}/.bin/bin/validation/benchmarks",
       "args": [],
       "cwd": "${workspaceFolder}",
       // Why are you like this VSCode???

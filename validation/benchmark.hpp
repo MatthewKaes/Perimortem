@@ -56,3 +56,46 @@ class BenchmarkEntry {
     Perimortem::Core::NullTerminated::to_view(__FILE__), __LINE__};       \
   }                                                                       \
   auto __##harness##__##name() -> void
+
+#ifdef PERI_BENCH_CPP
+
+namespace Validation::Benchmark {
+
+static constexpr Count max_comparison_variants = 8;
+
+// One column in a multi-way comparison table.
+struct ComparisonVariant {
+  Perimortem::Core::View::Bytes header;
+  Perimortem::Core::View::Bytes benchmark_name;
+};
+
+// A comparison group: several Perimortem variants measured against one C++
+// baseline. Variants with an empty header act as a sentinel (end of list).
+struct Comparison {
+  const Harness* harness = nullptr;
+  Perimortem::Core::View::Bytes label;
+  ComparisonVariant variants[max_comparison_variants] = {};
+};
+
+auto create_comparison(const Comparison& comp, BenchmarkFunc func) -> void;
+
+class ComparisonEntry {
+ public:
+  ComparisonEntry(const Comparison& comp, BenchmarkFunc func) {
+    create_comparison(comp, func);
+  }
+};
+
+}  // namespace Validation::Benchmark
+
+// Define a multi-way comparison. comp_var must be a static Comparison struct
+// visible at the call site. The function body that follows is the C++ baseline.
+#define PERIMORTEM_COMPARISON(comp_var)                                        \
+  auto __comp_##comp_var() -> void;                                            \
+  namespace {                                                                  \
+  Validation::Benchmark::ComparisonEntry _reg_comp_##comp_var{                 \
+    comp_var, __comp_##comp_var};                                              \
+  }                                                                            \
+  auto __comp_##comp_var() -> void
+
+#endif  // PERI_BENCH_CPP

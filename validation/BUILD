@@ -64,6 +64,10 @@ cc_binary(
         "benchmark.cpp",
     ],
     includes = ["."],
+    local_defines = select({
+        ":bench_cpp_enabled": ["PERI_BENCH_CPP=1"],
+        "//conditions:default": [],
+    }),
     deps = [
         ":test_headers",
         "//perimortem",

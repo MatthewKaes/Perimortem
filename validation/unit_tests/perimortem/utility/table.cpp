@@ -23,9 +23,9 @@ constexpr Pair<View::Bytes, Int> keyword_source[] = {
   {"package"_view, 22}, {"warning"_view, 23},
 };
 
-using keyword_table = Table<Int, keyword_source, Data::CacheAware::Disabled>;
+using keyword_table = Table<Int, keyword_source>;
 using keyword_table_aligned =
-    Table<Int, keyword_source, Data::CacheAware::Enabled>;
+    Table<Int, keyword_source, (Count)Data::CacheAware::Enabled>;
 
 constexpr Pair<View::Bytes, View::Bytes> word_source[] = {
   {"a"_view, "b"_view},
@@ -37,9 +37,9 @@ constexpr Pair<View::Bytes, View::Bytes> word_source[] = {
   {"useless"_view, "not for long"_view},
   {"future"_view, "comming on"_view}};
 
-using word_table = Table<View::Bytes, word_source, Data::CacheAware::Disabled>;
+using word_table = Table<View::Bytes, word_source>;
 using word_table_aligned =
-    Table<View::Bytes, word_source, Data::CacheAware::Enabled>;
+    Table<View::Bytes, word_source, (Count)Data::CacheAware::Enabled>;
 
 static Harness StaticTable = {
   .name = "Utility::Table"_view,

@@ -12,6 +12,7 @@
 
 using namespace Perimortem::Core;
 using namespace Validation;
+static constexpr Count batch_count = 1024;
 
 static constexpr Static::Bytes source =
     "package engine.renderer\n"
@@ -45,52 +46,73 @@ static constexpr Static::Bytes source =
 
 static Harness AlgorithmSearch = {
   .name = "Searching"_view,
+  .batch_count = batch_count,
 };
 
 PERIMORTEM_BENCHMARK(AlgorithmSearch, 2_byte) {
-  auto result = Algorithm::search(source.get_view(), "if"_view);
+  Count result = 0;
+  for (Count i = 0; i < batch_count; i++) {
+    result += Algorithm::search(source.get_view(), "if"_view);
+  }
   Benchmark::prevent_optimization(result);
 }
 
 PERIMORTEM_BENCHMARK(AlgorithmSearch, 4_byte) {
-  // "new" — 3 bytes, heap allocation keyword.
-  auto result = Algorithm::search(source.get_view(), "func"_view);
+  Count result = 0;
+  for (Count i = 0; i < batch_count; i++) {
+    result += Algorithm::search(source.get_view(), "func"_view);
+  }
   Benchmark::prevent_optimization(result);
 }
 
 PERIMORTEM_BENCHMARK(AlgorithmSearch, 6_byte) {
-  // "func" — 4 bytes, common definition keyword.
-  auto result = Algorithm::search(source.get_view(), "struct"_view);
+  Count result = 0;
+  for (Count i = 0; i < batch_count; i++) {
+    result += Algorithm::search(source.get_view(), "struct"_view);
+  }
   Benchmark::prevent_optimization(result);
 }
 
 PERIMORTEM_BENCHMARK(AlgorithmSearch, 12_byte) {
-  // "while" — 5 bytes, found about halfway through the haystack.
-  auto result = Algorithm::search(source.get_view(), "alias Pipeli"_view);
+  Count result = 0;
+  for (Count i = 0; i < batch_count; i++) {
+    result += Algorithm::search(source.get_view(), "alias Pipeli"_view);
+  }
   Benchmark::prevent_optimization(result);
 }
 
 PERIMORTEM_BENCHMARK(AlgorithmSearch, 62_byte) {
-  // "struct" — 6 bytes, activates the head/tail filter path.
-  auto result = Algorithm::search(
-      source.get_view(),
-      "init pass = RenderPass { width: 1920, height: 1080, depth: 4 }"_view);
+  Count result = 0;
+  for (Count i = 0; i < batch_count; i++) {
+    result += Algorithm::search(
+        source.get_view(),
+        "init pass = RenderPass { width: 1920, height: 1080, depth: 4 }"_view);
+  }
   Benchmark::prevent_optimization(result);
 }
 
 PERIMORTEM_BENCHMARK(AlgorithmSearch, total_miss) {
-  auto result = Algorithm::search(source.get_view(), "zarningz"_view);
+  Count result = 0;
+  for (Count i = 0; i < batch_count; i++) {
+    result += Algorithm::search(source.get_view(), "zarningz"_view);
+  }
   Benchmark::prevent_optimization(result);
 }
 
 PERIMORTEM_BENCHMARK(AlgorithmSearch, near_miss) {
-  auto result = Algorithm::search(source.get_view(), "stract"_view);
+  Count result = 0;
+  for (Count i = 0; i < batch_count; i++) {
+    result += Algorithm::search(source.get_view(), "stract"_view);
+  }
   Benchmark::prevent_optimization(result);
 }
 
 PERIMORTEM_BENCHMARK(AlgorithmSearch, near_miss_large) {
-  auto result = Algorithm::search(
-      source.get_view(),
-      "init pass = RendeaPass { width: 1920, height: 1080, depth: 5 }"_view);
+  Count result = 0;
+  for (Count i = 0; i < batch_count; i++) {
+    result += Algorithm::search(
+        source.get_view(),
+        "init pass = RendeaPass { width: 1920, height: 1080, depth: 5 }"_view);
+  }
   Benchmark::prevent_optimization(result);
 }

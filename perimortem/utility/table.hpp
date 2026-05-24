@@ -24,10 +24,7 @@ namespace Perimortem::Utility {
 // The source template parameter is a bit funky since the type itself is
 // parameterized over it's source data to create a type that expresses the
 // compressed form of the lookups.
-template <
-    typename value_type,
-    const auto& source,
-    Core::Data::CacheAware cache_aware = Core::Data::CacheAware::Enabled>
+template <typename value_type, const auto& source, Bits_64 cache_line_size = 1>
 class Table {
  private:
   // Accepts both a raw C array and a View::Vector as source.
@@ -40,7 +37,6 @@ class Table {
   }
 
  public:
-  static constexpr auto cache_line_size = static_cast<Bits_64>(cache_aware);
   static consteval auto required_storage() -> Count {
     Count buckets[max_length()] = {0};
 

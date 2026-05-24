@@ -18,6 +18,7 @@ struct Harness {
   InitFunc init = do_nothing;
   SetupFunc setup = do_nothing;
   TeardownFunc teardown = do_nothing;
+  Count batch_count = 1;
 };
 
 }  // namespace Validation

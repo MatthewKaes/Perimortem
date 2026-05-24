@@ -73,11 +73,12 @@ PERIMORTEM_BENCHMARK(AllocatorBench, arena_cycle_64kb) {
   }
 }
 
-PERIMORTEM_BENCHMARK(AllocatorBench, frame_stability_bulk_1k) {
-  constexpr Count frame_alloc_count = 1 << 10;
+template <Count frame_alloc_count, Count size_minimum, Count size_range>
+auto frame_stability() {
   Byte* ptrs[frame_alloc_count];
   for (Count i = 0; i < frame_alloc_count; i++) {
-    auto alloc = Bibliotheca::check_out(Random::generate() % (1 << 10));
+    auto alloc = Bibliotheca::check_out(
+        (Random::generate() & size_range) + size_minimum);
     ptrs[i] = alloc.ptr;
   }
   for (Count i = 0; i < frame_alloc_count; i++) {
@@ -86,59 +87,40 @@ PERIMORTEM_BENCHMARK(AllocatorBench, frame_stability_bulk_1k) {
   Benchmark::prevent_optimization(ptrs[0]);
 }
 
-PERIMORTEM_BENCHMARK(AllocatorBench, frame_stability_bulk_64k) {
-  constexpr Count frame_alloc_count = 1 << 16;
-  Byte* ptrs[frame_alloc_count];
-  for (Count i = 0; i < frame_alloc_count; i++) {
-    auto alloc = Bibliotheca::check_out(Random::generate() % (1 << 10));
-    ptrs[i] = alloc.ptr;
+#define STABILITY_BENCH(prefix, count, min_bytes, max_mask)     \
+  PERIMORTEM_BENCHMARK(                                         \
+      AllocatorBench, frame_##prefix##_##count##_allocations) { \
+    frame_stability<count, min_bytes, max_mask>();              \
   }
-  for (Count i = 0; i < frame_alloc_count; i++) {
-    Bibliotheca::remit(ptrs[i]);
-  }
-  Benchmark::prevent_optimization(ptrs[0]);
-}
 
-PERIMORTEM_BENCHMARK(AllocatorBench, frame_stability_wide_1k) {
-  constexpr Count frame_alloc_count = 1 << 10;
-  Byte* ptrs[frame_alloc_count];
-  for (Count i = 0; i < frame_alloc_count; i++) {
-    auto alloc = Bibliotheca::check_out(Random::generate() % (1 << 16));
-    ptrs[i] = alloc.ptr;
-  }
-  for (Count i = 0; i < frame_alloc_count; i++) {
-    Bibliotheca::remit(ptrs[i]);
-  }
-  Benchmark::prevent_optimization(ptrs[0]);
-}
+STABILITY_BENCH(small, 1024, 64, 0xFF);
+STABILITY_BENCH(small, 16384, 64, 0xFF);
+STABILITY_BENCH(small, 65536, 64, 0xFFFF);
+STABILITY_BENCH(varied, 1024, 64, 0xFFFF);
+STABILITY_BENCH(varied, 16384, 64, 0xFFFF);
+STABILITY_BENCH(varied, 65536, 64, 0xFFFF);
 
-PERIMORTEM_BENCHMARK(AllocatorBench, frame_stability_wide_64k) {
-  constexpr Count frame_alloc_count = 1 << 16;
-  Byte* ptrs[frame_alloc_count];
-  for (Count i = 0; i < frame_alloc_count; i++) {
-    auto alloc = Bibliotheca::check_out(Random::generate() % (1 << 16));
-    ptrs[i] = alloc.ptr;
-  }
-  for (Count i = 0; i < frame_alloc_count; i++) {
-    Bibliotheca::remit(ptrs[i]);
-  }
-  Benchmark::prevent_optimization(ptrs[0]);
-}
-
-PERIMORTEM_BENCHMARK(AllocatorBench, frame_stability_interleaved) {
-  // Interleaves allocations and remits
-  constexpr Count frame_alloc_count = 1 << 10;
-  constexpr Count window = frame_alloc_count / 8;
+template <
+    Count frame_alloc_count,
+    Count window_count,
+    Count size_minimum,
+    Count size_range>
+auto frame_stability_interleaved() {
+  constexpr Count window = frame_alloc_count / window_count;
   Byte* ptrs[frame_alloc_count];
 
   // Initial allocation.
   for (Count i = 0; i < window; i++) {
-    ptrs[i] = Bibliotheca::check_out(Random::generate() % (1 << 10)).ptr;
+    ptrs[i] =
+        Bibliotheca::check_out((Random::generate() & size_range) + size_minimum)
+            .ptr;
   }
 
   // Rolling exhchange.
   for (Count i = window; i < frame_alloc_count; i++) {
-    ptrs[i] = Bibliotheca::check_out(Random::generate() % (1 << 10)).ptr;
+    ptrs[i] =
+        Bibliotheca::check_out((Random::generate() & size_range) + size_minimum)
+            .ptr;
     Bibliotheca::remit(ptrs[i - window]);
   }
 
@@ -149,3 +131,16 @@ PERIMORTEM_BENCHMARK(AllocatorBench, frame_stability_interleaved) {
 
   Benchmark::prevent_optimization(ptrs[0]);
 }
+
+#define INTERLEAVED_BENCH(count, windows)                                      \
+  PERIMORTEM_BENCHMARK(                                                        \
+      AllocatorBench, frame_##windows##_interleaved##_##count##_allocations) { \
+    frame_stability_interleaved<count, windows, 64, 0xFF>();                   \
+  }
+
+INTERLEAVED_BENCH(16384, 8);
+INTERLEAVED_BENCH(16384, 16);
+INTERLEAVED_BENCH(16384, 32);
+INTERLEAVED_BENCH(65536, 8);
+INTERLEAVED_BENCH(65536, 16);
+INTERLEAVED_BENCH(65536, 32);

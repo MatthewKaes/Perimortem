@@ -16,7 +16,7 @@ using namespace Perimortem::System;
 using namespace Validation;
 
 // The number of hashes to perform per benchmark run.
-static constexpr Count hash_batch_count = 1024;
+static constexpr Count batch_count = 1024;
 
 // Pre-built byte buffers for each size class.
 static Static::Bytes<8192> hash_buffer;
@@ -30,53 +30,56 @@ auto fill_hash(byte_array& target) -> void {
   }
 }
 
-static Harness HashFixedSize = {
-  .name = "Hashing"_view,
-};
-
-PERIMORTEM_BENCHMARK(HashFixedSize, bits_32) {
-  Bits_64 accumulator = 0;
-  for (Count i = 0; i < hash_batch_count; i++) {
-    accumulator ^= Hash(Bits_32(i)).get_value();
-  }
-  Benchmark::prevent_optimization(accumulator);
-}
-
-PERIMORTEM_BENCHMARK(HashFixedSize, bits_64) {
-  Bits_64 accumulator = 0;
-  for (Count i = 0; i < hash_batch_count; i++) {
-    accumulator ^= Hash(Bits_64(i)).get_value();
-  }
-  Benchmark::prevent_optimization(accumulator);
-}
-
-static Harness HashBytes = {
+static Harness HashBench = {
   .name = "Hashing"_view,
   .setup = []() { fill_hash(hash_buffer); },
+  .batch_count = batch_count,
 };
 
+// Create a data dependency which disables Clang SIMD optimization so we can get
+// a feel for scalar performance since in real use hashes tend to be performed
+// as part of a hot path and it's not typical to vectorize over a range of a
+// thousand keys in one go.
+PERIMORTEM_BENCHMARK(HashBench, bits_32) {
+  Bits_32 input = Data::cast<Bits_32>(hash_buffer.get_data())[0];
+  Bits_64 accumulator = 0;
+  for (Count i = 0; i < batch_count; i++) {
+    Bits_64 result = Hash(input).get_value();
+    accumulator ^= result;
+    input = Bits_32(result);
+  }
+  Benchmark::prevent_optimization(accumulator);
+}
+
+PERIMORTEM_BENCHMARK(HashBench, bits_64) {
+  Bits_64 input = Data::cast<Bits_64>(hash_buffer.get_data())[0];
+  Bits_64 accumulator = 0;
+  for (Count i = 0; i < batch_count; i++) {
+    Bits_64 result = Hash(input).get_value();
+    accumulator ^= result;
+    input = result;
+  }
+  Benchmark::prevent_optimization(accumulator);
+}
+
 template <Count hash_length>
-auto compute_hash() -> Count {
+auto compute_hash() -> void {
   // Slide the window by one byte per iteration so the optimizer cannot prove
   // all calls return the same value and fold the XOR chain to zero.
-  constexpr Count max_offset = hash_buffer.get_size() - hash_length;
+  constexpr Count max_offset = 8;
   Bits_64 accumulator = 0;
-  for (Count i = 0; i < hash_batch_count; i++) {
+  for (Count i = 0; i < batch_count; i++) {
     Count offset = (max_offset > 0) ? (i % (max_offset + 1)) : 0;
     accumulator ^= Hash(hash_buffer.slice(offset, hash_length)).get_value();
   }
-  return accumulator;
+  Benchmark::prevent_optimization(accumulator);
 }
 
-#define HASH_BENCH(key_length)                          \
-  PERIMORTEM_BENCHMARK(HashBytes, bytes_##key_length) { \
-    Bits_64 accumulator = compute_hash<key_length>();   \
-    Benchmark::prevent_optimization(accumulator);       \
+#define HASH_BENCH(key_length)                               \
+  PERIMORTEM_BENCHMARK(HashBench, key_length_##key_length) { \
+    compute_hash<key_length>();                              \
   }
 
-HASH_BENCH(8);
-HASH_BENCH(16);
-HASH_BENCH(32);
 HASH_BENCH(64);
 HASH_BENCH(128);
 HASH_BENCH(256);
