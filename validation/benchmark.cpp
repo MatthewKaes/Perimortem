@@ -55,6 +55,7 @@ static constexpr Bits_64 time_cap_ns = 2'000'000'000ULL;
 static Static::Vector<Instance, max_benchmark_count> binary_benchmarks;
 static Static::Vector<Bits_64, max_sample_count> time_samples;
 static Count benchmark_count = 0;
+static View::Bytes bench_filter = {};
 
 #ifdef PERI_BENCH_CPP
 struct ComparisonInstance {
@@ -276,6 +277,21 @@ static auto find_stored_ns(View::Bytes harness_name, View::Bytes bench_name)
 }
 #endif
 
+static auto harness_matches(View::Bytes name) -> Bool {
+  if (bench_filter.get_size() == 0) {
+    return True;
+  }
+  if (bench_filter.get_size() > name.get_size()) {
+    return False;
+  }
+  for (Count i = 0; i < bench_filter.get_size(); i++) {
+    if ((bench_filter.get_data()[i] | 0x20) != (name.get_data()[i] | 0x20)) {
+      return False;
+    }
+  }
+  return True;
+}
+
 struct Layout {
   Count col_width;
   Count harness_count;
@@ -287,6 +303,9 @@ static auto compute_layout() -> Layout {
   const Harness* prev_harness = nullptr;
 
   for (Count index = 0; index < benchmark_count; index++) {
+    if (!harness_matches(binary_benchmarks[index].harness->name)) {
+      continue;
+    }
     Count name_len = binary_benchmarks[index].name.get_size();
     if (name_len > col_width) {
       col_width = name_len;
@@ -326,6 +345,10 @@ static auto run_benchmark_pass(const Layout& layout) -> void {
     const Instance& benchmark = binary_benchmarks[benchmark_index];
 
     if (benchmark.harness == nullptr) {
+      continue;
+    }
+
+    if (!harness_matches(benchmark.harness->name)) {
       continue;
     }
 
@@ -490,11 +513,13 @@ static auto run_comparison_pass() -> void {
       section_end++;
     }
 
-    SectionLayout sl = compute_section_layout(comp_index, section_end);
-    print_section_header(*section_harness, comp_index, section_end, sl);
+    if (harness_matches(section_harness->name)) {
+      SectionLayout sl = compute_section_layout(comp_index, section_end);
+      print_section_header(*section_harness, comp_index, section_end, sl);
 
-    for (Count ci = comp_index; ci < section_end; ci++) {
-      run_comparison_row(ci, sl);
+      for (Count ci = comp_index; ci < section_end; ci++) {
+        run_comparison_row(ci, sl);
+      }
     }
 
     comp_index = section_end;
@@ -503,7 +528,10 @@ static auto run_comparison_pass() -> void {
 
 #endif  // PERI_BENCH_CPP
 
-int main() {
+int main(int argc, const char* argv[]) {
+  if (argc > 1) {
+    bench_filter = NullTerminated::to_view(argv[1]);
+  }
   Layout layout = compute_layout();
   print_run_header(layout);
   run_benchmark_pass(layout);
