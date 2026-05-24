@@ -83,6 +83,40 @@ PERIMORTEM_UNIT_TEST(CoreTextualReader, invalid_bool) {
   EXPECT_NOT(reader.is_valid());
 }
 
+PERIMORTEM_UNIT_TEST(CoreTextualReader, just_whitespace) {
+  Reader::Textual reader("      "_view);
+
+  reader.read_byte();
+  EXPECT(reader.is_valid());
+  reader.reset();
+  reader.read_flag();
+  EXPECT_NOT(reader.is_valid());
+  reader.reset();
+  reader.read_half();
+  EXPECT_NOT(reader.is_valid());
+  reader.reset();
+  reader.read_unsigned_half();
+  EXPECT_NOT(reader.is_valid());
+  reader.reset();
+  reader.read_int();
+  EXPECT_NOT(reader.is_valid());
+  reader.reset();
+  reader.read_unsigned_int();
+  EXPECT_NOT(reader.is_valid());
+  reader.reset();
+  reader.read_long();
+  EXPECT_NOT(reader.is_valid());
+  reader.reset();
+  reader.read_unsigned_long();
+  EXPECT_NOT(reader.is_valid());
+  reader.reset();
+  reader.read_real_32();
+  EXPECT_NOT(reader.is_valid());
+  reader.reset();
+  reader.read_real_64();
+  EXPECT_NOT(reader.is_valid());
+}
+
 PERIMORTEM_UNIT_TEST(CoreTextualReader, set_pointer) {
   Reader::Textual reader("42 99"_view);
 
