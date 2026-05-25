@@ -5,13 +5,12 @@
 #include <algorithm>
 #endif
 
-#include "perimortem/core/algorithm/sort.hpp"
-
 #include "validation/benchmark.hpp"
 
 #include "perimortem/core/view/bytes.hpp"
 #include "perimortem/core/access/vector.hpp"
 #include "perimortem/core/static/vector.hpp"
+#include "perimortem/core/algorithm/sort.hpp"
 #include "perimortem/core/null_terminated.hpp"
 #include "perimortem/core/perimortem.hpp"
 
@@ -203,22 +202,24 @@ PERIMORTEM_BENCHMARK(SortStrings16k, views_16k) {
 // lets find_stored_ns locate their benchmark stats during comparison lookup.
 static Harness SortIntComp = {
   .name = "Sorting"_view,
-  .setup = []() {
-    fill_random(count_64);
-    fill_random(count_512);
-    fill_random(count_4k);
-    fill_random(count_16k);
-  },
+  .setup =
+      []() {
+        fill_random(count_64);
+        fill_random(count_512);
+        fill_random(count_4k);
+        fill_random(count_16k);
+      },
 };
 
 static Harness SortStringComp = {
   .name = "Sorting"_view,
   .init = populate_words,
-  .setup = []() {
-    fill_words(words_256);
-    fill_words(words_4k);
-    fill_words(words_16k);
-  },
+  .setup =
+      []() {
+        fill_words(words_256);
+        fill_words(words_4k);
+        fill_words(words_16k);
+      },
 };
 
 template <typename array_type>
@@ -230,21 +231,20 @@ static auto cpp_std_sort_ints(array_type& arr) -> void {
 template <typename array_type>
 static auto cpp_std_sort_views(array_type& arr) -> void {
   std::sort(
-      arr.get_data(),
-      arr.get_data() + arr.get_size(),
+      arr.get_data(), arr.get_data() + arr.get_size(),
       [](const View::Bytes& a, const View::Bytes& b) { return b > a; });
   Count sorted_size = arr[0].get_size();
   Benchmark::prevent_optimization(sorted_size);
 }
 
-#define INT_SORT_COMPARISON(size, buffer)                                   \
-  static Benchmark::Comparison sort_##size##_ints_comp = {                  \
-    .harness = &SortIntComp,                                                \
-    .label = "ints " #size ""_view,                                         \
-    .variants = {{"perimortem"_view, "int_" #size "_items"_view}},           \
-  };                                                                        \
-  PERIMORTEM_COMPARISON(sort_##size##_ints_comp) {                          \
-    cpp_std_sort_ints(buffer);                                              \
+#define INT_SORT_COMPARISON(size, buffer)                          \
+  static Benchmark::Comparison sort_##size##_ints_comp = {         \
+    .harness = &SortIntComp,                                       \
+    .label = "ints " #size ""_view,                                \
+    .variants = {{"perimortem"_view, "int_" #size "_items"_view}}, \
+  };                                                               \
+  PERIMORTEM_COMPARISON(sort_##size##_ints_comp) {                 \
+    cpp_std_sort_ints(buffer);                                     \
   }
 
 INT_SORT_COMPARISON(64, count_64)
@@ -252,14 +252,14 @@ INT_SORT_COMPARISON(512, count_512)
 INT_SORT_COMPARISON(4k, count_4k)
 INT_SORT_COMPARISON(16k, count_16k)
 
-#define STRING_SORT_COMPARISON(size, buffer)                                \
-  static Benchmark::Comparison sort_##size##_strings_comp = {               \
-    .harness = &SortStringComp,                                             \
-    .label = "strings " #size ""_view,                                      \
-    .variants = {{"perimortem"_view, "views_" #size ""_view}},               \
-  };                                                                        \
-  PERIMORTEM_COMPARISON(sort_##size##_strings_comp) {                       \
-    cpp_std_sort_views(buffer);                                             \
+#define STRING_SORT_COMPARISON(size, buffer)                   \
+  static Benchmark::Comparison sort_##size##_strings_comp = {  \
+    .harness = &SortStringComp,                                \
+    .label = "strings " #size ""_view,                         \
+    .variants = {{"perimortem"_view, "views_" #size ""_view}}, \
+  };                                                           \
+  PERIMORTEM_COMPARISON(sort_##size##_strings_comp) {          \
+    cpp_std_sort_views(buffer);                                \
   }
 
 STRING_SORT_COMPARISON(256, words_256)

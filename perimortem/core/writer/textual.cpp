@@ -22,37 +22,6 @@ constexpr auto write_text(
   return true;
 }
 
-template <typename storage_type>
-constexpr auto decimal_length(storage_type value) -> Count {
-  Count digits = 0;
-
-  // Sign detection for signed values.
-  if constexpr (storage_type(0) > storage_type(-1)) {
-    if (value < storage_type(0)) {
-      digits += 1;
-      value = -value;
-    }
-  }
-
-  while (true) {
-    // Comparision ladder which seems faster than the divide.
-    if (value < 10) {
-      return digits + 1;
-    } else if (value < 100) {
-      return digits + 2;
-    } else if (value < 1'000) {
-      return digits + 3;
-    } else if (value < 10'000) {
-      return digits + 4;
-    } else if (value < 100'000) {
-      return digits + 5;
-    }
-
-    digits += 5;
-    value /= 100'000;
-  }
-}
-
 constexpr auto create_digit_table() -> Static::Bytes<200> {
   Static::Bytes<200> values;
   for (Count d1 = 0; d1 < 10; d1++) {
@@ -68,59 +37,115 @@ constexpr auto create_digit_table() -> Static::Bytes<200> {
 
 constexpr auto digit_buffer = create_digit_table();
 
+template <typename storage_type, typename unsigned_type>
+static constexpr auto decimal_length(storage_type value) -> Count {
+  Count sign = 0;
+  unsigned_type abs_value;
+
+  // Capture the sign value for types that support it.
+  if constexpr (storage_type(0) > storage_type(-1)) {
+    if (value < storage_type(0)) {
+      sign = 1;
+      abs_value = unsigned_type(-value);
+    } else {
+      abs_value = unsigned_type(value);
+    }
+  } else {
+    abs_value = unsigned_type(value);
+  }
+
+  // A comparision ladder seems to perform quite a bit better (~20%) than the
+  // general path with dividing down the value to caculate log10.
+  if (abs_value < 10ULL) {
+    return sign + 1;
+  } else if (abs_value < 100ULL) {
+    return sign + 2;
+  } else if (abs_value < 1'000ULL) {
+    return sign + 3;
+  } else if (abs_value < 10'000ULL) {
+    return sign + 4;
+  } else if (abs_value < 100'000ULL) {
+    return sign + 5;
+  } else if (abs_value < 1'000'000ULL) {
+    return sign + 6;
+  } else if (abs_value < 10'000'000ULL) {
+    return sign + 7;
+  } else if (abs_value < 100'000'000ULL) {
+    return sign + 8;
+  } else if (abs_value < 1'000'000'000ULL) {
+    return sign + 9;
+  } else if (abs_value < 10'000'000'000ULL) {
+    return sign + 10;
+  } else if (abs_value < 100'000'000'000ULL) {
+    return sign + 11;
+  } else if (abs_value < 1'000'000'000'000ULL) {
+    return sign + 12;
+  } else if (abs_value < 10'000'000'000'000ULL) {
+    return sign + 13;
+  } else if (abs_value < 100'000'000'000'000ULL) {
+    return sign + 14;
+  } else if (abs_value < 1'000'000'000'000'000ULL) {
+    return sign + 15;
+  } else if (abs_value < 10'000'000'000'000'000ULL) {
+    return sign + 16;
+  } else if (abs_value < 100'000'000'000'000'000ULL) {
+    return sign + 17;
+  } else if (abs_value < 1'000'000'000'000'000'000ULL) {
+    return sign + 18;
+  } else if (abs_value < 10'000'000'000'000'000'000ULL) {
+    return sign + 19;
+  }
+  return sign + 20;
+}
+
+// Backwards-fill variant: caller supplies length so digits are placed directly
+// into the output buffer at the correct offset without a scratch copy.
 template <typename storage_type>
 constexpr auto write_decimal(
     Access::Bytes& data,
     Count& ptr_location,
     storage_type value,
     Count length) -> Bool {
-  if (ptr_location + length > data.get_size()) {
+  if (ptr_location + length > data.get_size()) [[unlikely]] {
     return false;
   }
 
   if (value == 0) {
-    if (ptr_location < data.get_size()) {
-      data.get_data()[ptr_location++] = '0';
-      return true;
-    }
-
-    return false;
+    data.get_data()[ptr_location++] = '0';
+    return true;
   }
 
-  // Sign detection for signed values.
+  Byte* out = data.get_data() + ptr_location;
+  storage_type abs_value;
+  Count digits = length;
+
   if constexpr (storage_type(0) > storage_type(-1)) {
     if (value < storage_type(0)) {
-      data.get_data()[ptr_location++] = '-';
-      value = -value;
-      length -= 1;
+      *out++ = '-';
+      digits--;
+      abs_value = storage_type(-value);
+    } else {
+      abs_value = storage_type(value);
     }
+  } else {
+    abs_value = storage_type(value);
   }
 
-  Count i;
-  for (i = 0; i < length - 1; i += 2) {
-    auto two_digits = (value % 100) << 1;
-    value /= 100;
-    memcpy(
-        data.get_data() + ptr_location + length - i - 2,
-        digit_buffer.get_data() + two_digits, 2);
+  Count pos = digits - 1;
+  while (abs_value > 10) {
+    auto two_digits = Count(abs_value % 100) << 1;
+    abs_value /= 100;
+    out[pos] = digit_buffer.get_data()[two_digits + 1];
+    out[pos - 1] = digit_buffer.get_data()[two_digits];
+    pos -= 2;
   }
 
-  // Left over digit
-  if (value != 0) {
-    data.get_data()[ptr_location] = '0' + value;
+  if (abs_value > 0) {
+    out[0] = '0' + Byte(abs_value);
   }
 
   ptr_location += length;
-
   return true;
-}
-
-template <typename storage_type>
-constexpr auto
-    write_decimal(Access::Bytes& data, Count& ptr_location, storage_type value)
-        -> Bool {
-  auto length = decimal_length(value);
-  return write_decimal(data, ptr_location, value, length);
 }
 
 auto Writer::Textual::set_pointer(Count location) -> void {
@@ -147,35 +172,44 @@ auto Writer::Textual::operator<<(const Bool flag) -> Writer::Textual& {
 }
 
 auto Writer::Textual::operator<<(const Half half) -> Writer::Textual& {
-  valid_state &= write_decimal(data, ptr_location, half);
+  valid_state &= write_decimal(
+      data, ptr_location, half, decimal_length<Half, UHalf>(half));
   return *this;
 }
 
 auto Writer::Textual::operator<<(const UHalf unsigned_half)
     -> Writer::Textual& {
-  valid_state &= write_decimal(data, ptr_location, unsigned_half);
+  valid_state &= write_decimal(
+      data, ptr_location, unsigned_half,
+      decimal_length<UHalf, UHalf>(unsigned_half));
   return *this;
 }
 
 auto Writer::Textual::operator<<(const Int integer) -> Writer::Textual& {
-  valid_state &= write_decimal(data, ptr_location, integer);
+  valid_state &= write_decimal(
+      data, ptr_location, integer, decimal_length<Int, UInt>(integer));
   return *this;
 }
 
 auto Writer::Textual::operator<<(const UInt unsigned_integer)
     -> Writer::Textual& {
-  valid_state &= write_decimal(data, ptr_location, unsigned_integer);
+  valid_state &= write_decimal(
+      data, ptr_location, unsigned_integer,
+      decimal_length<UInt, UInt>(unsigned_integer));
   return *this;
 }
 
 auto Writer::Textual::operator<<(const Long full) -> Writer::Textual& {
-  valid_state &= write_decimal(data, ptr_location, full);
+  valid_state &= write_decimal(
+      data, ptr_location, full, decimal_length<Long, ULong>(full));
   return *this;
 }
 
 auto Writer::Textual::operator<<(const ULong unsigned_full)
     -> Writer::Textual& {
-  valid_state &= write_decimal(data, ptr_location, unsigned_full);
+  valid_state &= write_decimal(
+      data, ptr_location, unsigned_full,
+      decimal_length<ULong, ULong>(unsigned_full));
   return *this;
 }
 
@@ -198,7 +232,7 @@ auto Writer::Textual::write_real(Real_64 real, Real_64 precision) -> void {
 
   constexpr auto max_length = 32;
   SignedBits_64 decimal_portion = SignedBits_64(real);
-  auto length = decimal_length(decimal_portion);
+  auto length = decimal_length<Long, ULong>(decimal_portion);
   valid_state &= write_decimal(data, ptr_location, decimal_portion, length);
 
   valid_state &= ptr_location < data.get_size();
