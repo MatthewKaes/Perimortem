@@ -95,12 +95,12 @@ cc_library(
     name = "serialization",
     srcs = glob([
         # "serialization/archive/*.cpp",
-        "serialization/base64/*.cpp",
+        "serialization/*.cpp",
         "serialization/json/*.cpp",
     ]),
     hdrs = glob([
         # "serialization/archive/*.hpp",
-        "serialization/base64/*.hpp",
+        "serialization/*.hpp",
         "serialization/json/*.hpp",
     ]),
     includes = ["."],

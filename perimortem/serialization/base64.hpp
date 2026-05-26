@@ -8,5 +8,6 @@
 namespace Perimortem::Serialization::Base64 {
 
 auto decode(const Core::View::Bytes source) -> Memory::Dynamic::Bytes;
+auto encode(const Core::View::Bytes source) -> Memory::Dynamic::Bytes;
 
 }  // namespace Perimortem::Serialization::Base64

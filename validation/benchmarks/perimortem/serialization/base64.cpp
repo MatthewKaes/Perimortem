@@ -1,12 +1,12 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
+#include "perimortem/serialization/base64.hpp"
+
 #include "validation/benchmark.hpp"
 
 #include "perimortem/core/null_terminated.hpp"
 #include "perimortem/core/perimortem.hpp"
-
-#include "perimortem/serialization/base64/decode.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Serialization;

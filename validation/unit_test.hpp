@@ -25,7 +25,10 @@ auto expected(Long value, Bool actual) -> void;
 auto expected(ULong value, Bool actual) -> void;
 auto expected(CppSize value, Bool actual) -> void;
 auto expected(Real_64 value, Bool actual) -> void;
-auto expected_text(Perimortem::Core::View::Bytes value, Bool actual) -> void;
+auto expected_text(
+    Perimortem::Core::View::Bytes value,
+    Perimortem::Core::View::Bytes other,
+    Bool actual) -> void;
 auto expected_hex(Perimortem::Core::View::Bytes value, Bool actual) -> void;
 
 auto do_nothing() -> void;
@@ -55,10 +58,10 @@ auto create(
     Validation::Test::expected(__value, true);  \
   }
 
-#define PRINT_TEXT()                                 \
-  {                                                  \
-    Validation::Test::expected_text(__check, false); \
-    Validation::Test::expected_text(__value, true);  \
+#define PRINT_TEXT()                                          \
+  {                                                           \
+    Validation::Test::expected_text(__check, __value, false); \
+    Validation::Test::expected_text(__value, __check, true);  \
   }
 
 #define PRINT_HEX()                                 \

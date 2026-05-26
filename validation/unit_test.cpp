@@ -137,9 +137,15 @@ auto expected(Real_64 value, Bool actual) -> void {
   fwrite(buf.get_data(), 1, text.get_location(), stdout);
 }
 
-auto expected_text(View::Bytes value, Bool actual) -> void {
+auto expected_text(View::Bytes value, View::Bytes other, Bool actual) -> void {
   write_label(actual);
-  fwrite(value.get_data(), 1, value.get_size(), stdout);
+  for (Count i = 0; i < value.get_size(); i++) {
+    if (i > other.get_size() || value[i] != other[i]) {
+      printf("%s%c", fail_color, value[i]);
+    } else {
+      printf("%s%c", clear_color, value[i]);
+    }
+  }
   putchar('\n');
 }
 

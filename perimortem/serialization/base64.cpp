@@ -1,7 +1,7 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
-#include "perimortem/serialization/base64/decode.hpp"
+#include "perimortem/serialization/base64.hpp"
 
 #include <x86intrin.h>
 
@@ -11,16 +11,26 @@ using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
 using namespace Perimortem::Serialization;
 
+// Make it a bit easier to read which locations are invalid.
+#define _ 0
+
 // We truly can't have nice things... Still no proper support for c99
 // initializers.
-static constexpr Count decode_lookup[256] = {
-  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
-  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
-  0,  0,  0,  0,  0,  0,  0,  62, 0,  0,  0,  63, 52, 53, 54, 55, 56, 57,
-  58, 59, 60, 61, 0,  0,  0,  0,  0,  0,  0,  0,  1,  2,  3,  4,  5,  6,
+static constexpr Byte decode_lookup[256] = {
+  _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _,
+  _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _,
+  _,  _,  _,  _,  _,  _,  _,  62, _,  _,  _,  63, 52, 53, 54, 55, 56, 57,
+  58, 59, 60, 61, _,  _,  _,  _,  _,  _,  _,  0,  1,  2,  3,  4,  5,  6,
   7,  8,  9,  10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24,
-  25, 0,  0,  0,  0,  0,  0,  26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36,
+  25, _,  _,  _,  _,  _,  _,  26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36,
   37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51};
+
+static constexpr Byte encode_lookup[64] = {
+  'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M',
+  'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z',
+  'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm',
+  'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
+  '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '+', '/'};
 
 static_assert(decode_lookup['A'] == 0);
 static_assert(decode_lookup['B'] == 1);
@@ -31,7 +41,8 @@ static_assert(decode_lookup['0'] == 52);
 static_assert(decode_lookup['9'] == 61);
 static_assert(decode_lookup['+'] == 62);
 static_assert(decode_lookup['/'] == 63);
-static_assert(decode_lookup['='] == 0);
+// Equals are dropped
+static_assert(decode_lookup['='] == _);
 
 auto Base64::decode(const View::Bytes source) -> Dynamic::Bytes {
   // If empty than avoid any allocations or vectorization and just return an
@@ -226,28 +237,28 @@ auto Base64::decode(const View::Bytes source) -> Dynamic::Bytes {
   // day. If you want data guarantees then use the slower version.
   const __m256i adjustment_values = _mm256_setr_epi8(
       // Lane 1
-      0,
-      /* 'o' */ -71, 0,
-      /* 'O' */ -65, 0,
-      /* '/' */ +16, 0, 0,
+      /* 0 */ _,
+      /* 'o' */ -71, _,
+      /* 'O' */ -65, _,
+      /* '/' */ +16, _, _,
       /* 'p' - 'z' */ -71,
       /* 'a' - 'n' */ -71,
       /* 'P' - 'Z' */ -65,
       /* 'A' - 'N' */ -65,
       /* 0 - 9 */ +4,
-      /* + */ +19, 0, 0,
+      /* + */ +19, _, 0,
 
       // Lane 2 (same as Lane 1)
       0,
       /* 'o' */ -71, 0,
       /* 'O' */ -65, 0,
-      /* '/' */ +16, 0, 0,
+      /* '/' */ +16, _, 0,
       /* 'p' - 'z' */ -71,
       /* 'a' - 'n' */ -71,
       /* 'P' - 'Z' */ -65,
       /* 'A' - 'N' */ -65,
       /* 0 - 9 */ +4,
-      /* + */ +19, 0, 0);
+      /* + */ +19, _, 0);
 
   const __m256i invert_mask = _mm256_setr_epi8(
       // Lane 1 - Note the 0xF case removes an extra bit.
@@ -356,5 +367,75 @@ auto Base64::decode(const View::Bytes source) -> Dynamic::Bytes {
 
   // Shrink the bytes to the correct size, dropping the extra working buffer.
   bytes.resize(size);
+  return bytes;
+}
+
+auto Base64::encode(const View::Bytes source) -> Dynamic::Bytes {
+  // If empty than avoid any allocations or vectorization and just return an
+  // empty optimized Dynamic::Bytes if the size isn't large enough.
+  if (source.empty()) {
+    return Dynamic::Bytes();
+  }
+
+  // On AMD processors that don't support AVX512 they "partially" supports it
+  // using two fused AVX2 256bit buffers. To make sure we support just about
+  // every modern CPU we can use two parallel AVX2 buffers unrolled. This is esp
+  // useful as AMD Zen 5 seems to pick up on what we are trying to do and we
+  // seem to get full "double pump aliased AVX512" performance without needing
+  // to support a secondary code path.
+  //
+  // This provides AVX2 support for backcompat but allows most modern CPUs to
+  // pipeline both commands at the same time. In testing the only downside is
+  // the gathering phase and bitmask phases perform worse than native AVX512.
+  // constexpr auto fused_channels = 2;
+  // constexpr auto avx2_channel_width = sizeof(__m256i);
+  // constexpr auto full_channel_width = avx2_channel_width * fused_channels;
+  constexpr Count output_stride = 4;
+  constexpr Count source_stride = 3;
+
+  // Construct source buffers.
+  auto source_data = source.get_data();
+  auto source_bytes = source.get_size();
+
+  // Construct output buffers.
+  const Count left_over = source_bytes % 3;
+  const Count ouput_size = (source_bytes / 3) * 4 + (left_over ? 4 : 0);
+  Memory::Dynamic::Bytes bytes;
+  bytes.forgetful_resize(ouput_size);
+  auto output_stream = bytes.get_access().get_data();
+
+  constexpr auto encode_filter = 64 - 1;
+  while (source_bytes > source_stride) {
+    output_stream[0] = encode_lookup[(source_data[0] >> 2)];
+    output_stream[1] = encode_lookup
+        [((source_data[0] & 0b00000011) << 4) | (source_data[1] >> 4)];
+    output_stream[2] = encode_lookup
+        [((source_data[1] & 0b00001111) << 2) | (source_data[2] >> 6)];
+    output_stream[3] = encode_lookup[source_data[2] & encode_filter];
+
+    source_bytes -= 3;
+    output_stream += output_stride;
+    source_data += source_stride;
+  }
+
+  // Left over padding.
+  switch (left_over) {
+  case 1:
+    output_stream[0] = encode_lookup[(source_data[0] >> 2)];
+    output_stream[1] = encode_lookup[((source_data[0] & 0b00000011) << 4)];
+    output_stream[2] = '=';
+    output_stream[3] = '=';
+    break;
+  case 2:
+    output_stream[0] = encode_lookup[(source_data[0] >> 2)];
+    output_stream[1] = encode_lookup
+        [((source_data[0] & 0b00000011) << 4) | (source_data[1] >> 4)];
+    output_stream[2] = encode_lookup[((source_data[1] & 0b00001111) << 2)];
+    output_stream[3] = '=';
+    break;
+  default:
+    break;
+  }
+
   return bytes;
 }

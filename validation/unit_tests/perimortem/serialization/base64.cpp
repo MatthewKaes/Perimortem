@@ -1,6 +1,8 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
+#include "perimortem/serialization/base64.hpp"
+
 #include "validation/unit_test.hpp"
 
 #include "perimortem/core/view/vector.hpp"
@@ -9,7 +11,6 @@
 #include "perimortem/core/null_terminated.hpp"
 
 #include "perimortem/system/file.hpp"
-#include "perimortem/serialization/base64/decode.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -35,11 +36,11 @@ PERIMORTEM_UNIT_TEST(SerializationBase64, decode_empty) {
 
 PERIMORTEM_UNIT_TEST(SerializationBase64, decode_simple) {
   auto start_requests = Bibliotheca::check_out_requests();
-  const auto source = "QmFzZTY0IHRlc3Qgc3RyaW5nIGZvciBQZXJpbW9ydGVtLg=="_view;
-  const auto decoded_bytes = Base64::decode(source);
+  const auto source = "Base64 test string for Perimortem."_view;
+  const auto encoded = "QmFzZTY0IHRlc3Qgc3RyaW5nIGZvciBQZXJpbW9ydGVtLg=="_view;
+  const auto decoded_bytes = Base64::decode(encoded);
 
-  EXPECT_TEXT(
-      decoded_bytes.get_view(), "Base64 test string for Perimortem."_view);
+  EXPECT_TEXT(decoded_bytes.get_view(), source);
 
   // Should only perform 1 allocations:
   // 1 decode
@@ -55,6 +56,45 @@ PERIMORTEM_UNIT_TEST(SerializationBase64, decode_vectorized) {
 
   const auto decoded_bytes = Base64::decode(base64.get_view());
   EXPECT_TEXT(decoded_bytes.get_view(), source.get_view());
+
+  // Should only perform 3 allocations:
+  // 2 file reads + 1 decode
+  EXPECT_EQ(Bibliotheca::check_out_requests(), start_requests + 3);
+}
+
+PERIMORTEM_UNIT_TEST(SerializationBase64, encode_empty) {
+  auto start_requests = Bibliotheca::check_out_requests();
+  const auto source = ""_view;
+  const auto decoded_bytes = Base64::encode(source);
+
+  EXPECT_TEXT(decoded_bytes.get_view(), ""_view);
+
+  // Checking empty should perform zero allocations.
+  EXPECT_EQ(Bibliotheca::check_out_requests(), start_requests);
+}
+
+PERIMORTEM_UNIT_TEST(SerializationBase64, encode_simple) {
+  auto start_requests = Bibliotheca::check_out_requests();
+  const auto source = "Base64 test string for Perimortem."_view;
+  const auto encoded = "QmFzZTY0IHRlc3Qgc3RyaW5nIGZvciBQZXJpbW9ydGVtLg=="_view;
+  const auto encoded_bytes = Base64::encode(source);
+
+  EXPECT_TEXT(encoded_bytes.get_view(), encoded);
+
+  // Should only perform 1 allocations:
+  // 1 decode
+  EXPECT_EQ(Bibliotheca::check_out_requests(), start_requests + 1);
+}
+
+PERIMORTEM_UNIT_TEST(SerializationBase64, encode_vectorized) {
+  auto start_requests = Bibliotheca::check_out_requests();
+  File source;
+  ASSERT(source.read("validation/data/ttx/source.ttx"_view));
+  File base64;
+  ASSERT(base64.read("validation/data/base64/source.base64"_view));
+
+  const auto encoded_bytes = Base64::encode(source.get_view());
+  EXPECT_TEXT(encoded_bytes.get_view(), base64.get_view());
 
   // Should only perform 3 allocations:
   // 2 file reads + 1 decode
