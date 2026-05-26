@@ -132,7 +132,7 @@ constexpr auto write_decimal(
   }
 
   Count pos = digits - 1;
-  while (abs_value > 10) {
+  while (abs_value >= 10) {
     auto two_digits = Count(abs_value % 100) << 1;
     abs_value /= 100;
     out[pos] = digit_buffer.get_data()[two_digits + 1];
