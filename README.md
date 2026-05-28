@@ -1,19 +1,29 @@
 # Perimortem
 
-A "Game Engine" for developers that care more about building engines rather than using them.
+A high performance library and engine to serve as a collection of over optimized solutions to common
+game engine problems.
 
 ## About
 
-Inspired by Godot, Perimortem serves as a highly opinionated engine + toolchain with a focus
-performance.
+Perimortem serves as a highly opinionated engine + toolchain with a focus performance from the ground
+up. This includes both runtime _AND_ build performance.
 
-My background is in Performance Engineering (embedded, Cloud, GPUs, FPGA / ISA design, ect.) which
-has led to a large amount of "Code Detective" work in arbitrary seemingly unrelated systems.
-Perimortem acts as less of a game engine and more of a challenge framework for testing out ideas.
-There are few projects that have the ability to cover as much technical breadth as a game engine.
+My background is in Performance Engineering (embedded, Cloud, GPUs, FPGA / ISA design, ect.), and over
+my career I've grown a love for creating optimized solutions for target problems.
+Perimortem is my attempt at a from scratch collections of highly optimized E2E solutions to a number of
+problems in the game engine / app development space.
 
-While originally I was planning to contribute to Godot, I wanted to take a systems approach to
-building an optimized system from the ground up (including the entire memory model).
+The core engine includes it's own memory model and standard library, built from the ground up in C++26
+without leveraging STL headers to keep the build snappy.
+Perimortem can be integrated with projects that use the STL but cross support is ill advised for both
+build and runtime performance reasons.
+
+Currently the project targets x64_86 and Linux as it's primary optimization targets. Windows support will
+be brought on eventually, while ARM is less lower on the priority list.
+
+Tetrodotoxin contains the prototype of a self hosted compiler from the ground up that emits object files
+directly which are compatable with the clang and lld. ELF is the only supported target with support for
+DWARF for debugging planned. Codegen only emits x64_86 machine code.
 
 ### Third-party dependencies
 
@@ -70,7 +80,7 @@ If you are looking for the Tetrodotoxin spec check out its dedicated [README](ht
 
 * Arch Linux (X and Wayland)
 
-Windows support is in the works but not a core priority yet.
+Windows support is in the works.
 
 ## Shout-outs
 
@@ -78,6 +88,6 @@ If you are interested in performance engineering, go read [Agner Fog's](https://
 
 ## Disclaimer
 
-As this project and the code herewithin is not meant for production.
+As this project and the code herewithin is currently not meant for production.
 
 I take no responsibility for any damage reading the source of this codebase may do to you, emotionally, mentally, physically, financially, or romantically.
