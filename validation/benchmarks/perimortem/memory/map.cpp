@@ -4,6 +4,7 @@
 #ifdef PERI_BENCH_CPP
 #include <string_view>
 #include <unordered_map>
+#define PERI_SLOW_BENCH
 #endif
 
 #include "validation/benchmark.hpp"
@@ -87,15 +88,19 @@ constexpr auto insert = False;
 
 MAP_INT_TEST_RANGE(256, lookup);
 MAP_INT_TEST_RANGE(1024, lookup);
+#ifdef PERI_SLOW_BENCH
 MAP_INT_TEST_RANGE(4096, lookup);
 MAP_INT_TEST_RANGE(16384, lookup);
 MAP_INT_TEST_RANGE(65536, lookup);
+#endif
 
 MAP_INT_TEST_RANGE(256, insert);
 MAP_INT_TEST_RANGE(1024, insert);
+#ifdef PERI_SLOW_BENCH
 MAP_INT_TEST_RANGE(4096, insert);
 MAP_INT_TEST_RANGE(16384, insert);
 MAP_INT_TEST_RANGE(65536, insert);
+#endif
 
 static constexpr Pair<View::Bytes, Count> keyword_source[] = {
   {"as"_view, 0},         {"if"_view, 1},          {"for"_view, 2},
@@ -186,16 +191,22 @@ static Harness MapKeywords = {
     keyword_test<type, count, mask>();                         \
   }
 
-#define MAP_UNALINGED_TEST(count, mask)                         \
+#define MAP_TABLE_TEST(count, mask)                             \
   PERIMORTEM_BENCHMARK(MapKeywords, count##_##mask##_##table) { \
     keyword_table<count, mask>();                               \
   }
 
+#if PERI_SLOW_BENCH
 #define MAP_KEYWORD_TEST_RANGE(count, mask) \
   MAP_KEYWORD_TEST(scalar, count, mask);    \
   MAP_KEYWORD_TEST(partial, count, mask);   \
   MAP_KEYWORD_TEST(full, count, mask);      \
-  MAP_UNALINGED_TEST(count, mask);
+  MAP_TABLE_TEST(count, mask);
+#else
+#define MAP_KEYWORD_TEST_RANGE(count, mask) \
+  MAP_KEYWORD_TEST(partial, count, mask);   \
+  MAP_TABLE_TEST(count, mask);
+#endif
 
 // Hit ranges in 1 / 1000 chance of keys appearing in the table since table
 // behavior changes based on hit rate.

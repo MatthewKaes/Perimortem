@@ -145,7 +145,9 @@ auto Base64::decode(const View::Bytes source) -> Dynamic::Bytes {
   //
   // Given we expect valid ASCII, which is only a 7 bit format, we only
   // need to shave off 3-4 bits. Looking at the bits something interesting
-  // stands out: If we shift off the 4 lower bits we get a perfect 4 bit set!
+  // stands out: If we shift off the 4 lower bits we get almost perfect bit
+  // sets:
+  //
   // '0' -> 0b_011____; -> 3
   // '9' -> 0b_011____; -> 3
   // 'A' -> 0b_100____; -> 4
@@ -155,50 +157,12 @@ auto Base64::decode(const View::Bytes source) -> Dynamic::Bytes {
   // '+' -> 0b_010____; -> 2
   // '/' -> 0b_010____; -> 2
   //
-  // Wait... Exactly 1 value conflicts. It seems 3 bits just aren't enough
-  // to differentiate all of the value ranges. It turns out Base64URL also
-  // doesn't help despite using '_' and '-'. It a good thing ASCII leaves that
-  // MSB completely untouched and unware of our intentions.
+  // Exactly 1 value conflicts so 3 bits just aren't enough to differentiate all
+  // of the value ranges. It turns out Base64URL also doesn't help despite using
+  // '_' and '-'. Instead we can take advantage of base64 only using ASCII chars
+  // which leaves the MSB always 0.
   //
-  // ⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿
-  // ⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⠋⣤⠉⠿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿
-  // ⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡿⢀⣾⣿⣿⣦⣀⠛⣿⣿⣿⣿⣿⣿⣿  Me ⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿
-  // ⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⢀⣿⣿⣿⣿⣿⣿⣷⣄⠛⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿
-  // ⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⠀⣿⣿⣿⣿⣿⣿⣿⣿⣿⠷⠈⠻⠿⠿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡿⠿⠛⠉⢉⠀⠙⣿⣿⣿⣿
-  // ⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⠁⣾⢿⡿⢝⣿⣿⣿⣿⣧⣤⣶⣾⣾⣿⣿⣶⣤⣄⠀⠙⠛⠿⠛⠋⣉⣤⣤⣶⣾⣿⣿⣿⣿⣿⠈⣿⣿⣿
-  // ⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⠟⢸⠛⢁⣾⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣾⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡇⣿⣿⣿
-  // ⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡿⠀⣀⣾⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⠀⣿⣿⣿
-  // ⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡟⢠⣾⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⠀⣿⣿⣿
-  // ⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⠏⣴⣿⣿⡿⠁⣼⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⠀⣿⣿⣿
-  // ⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⠁⣾⣿⣿⡟⠀⣾⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⠁⣰⣿⣿⣿
-  // ⣿⣿⣿⣿⣿⣿⣿⣿⣿⠁⣾⣿⣿⡿⢀⣾⣿⣿⣿⣿⣿⠟⠹⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⠀⣿⣿⣿⣿⣿⣿⡿⠁⣠⠙⣿⣿⣿
-  // ⣿⣿⣿⣿⣿⣿⣿⣿⠃⣾⣿⣿⣿⠀⣾⠟⠀⠘⠛⠿⠏⣰⡄⢻⣿⣿⣿⣿⣿⠿⢿⣿⣿⡟⢉⢻⣿⣿⣿⣿⡆⣹⣿⣿⣿⣿⣿⣤⣿⢸⡆⠹⣿⣿
-  // ⣿⣿⣿⣿⣿⣿⣿⠃⢠⣿⣿⣿⠇⠘⢠⣾⣿⣿⣿⣿⣶⣤⠙⠀⢻⣿⣿⠟⣀⣾⠀⡿⠃⣴⣿⡀⠻⣿⣿⣿⡇⢸⣿⣿⣿⣿⣿⣿⣿⡞⣿⠀⣿⣿
-  // ⣿⣿⣿⣿⣿⣿⣿⠀⣼⣿⣿⣿⣦⡄⢿⣿⣿⡇⠈⣿⣿⣿⣿⡇⠀⠿⢀⡾⢉⣤⣤⣤⣶⣶⣤⣉⠀⢹⣿⣿⠁⣿⣿⣿⣿⠀⣿⣿⣿⣷⣿⣇⢸⣿
-  // ⣿⣿⣿⣿⣿⣿⣿⠠⠛⢛⡋⢹⣿⣿⣄⠙⣿⡗⠀⠸⣿⣿⣿⠏⣿⣶⡿⢰⣿⣿⣿⠿⣿⣿⣿⣿⣿⣀⠙⣿⠀⣿⣿⣿⣿⡄⢸⣿⣿⣿⢿⣿⠘⣿
-  // ⣿⣿⣿⣿⣿⣿⣿⣶⣿⣿⡇⢸⣿⣿⡇⣿⣶⣄⠀⠀⠛⠉⣀⣶⣿⣿⣇⢸⣿⣿⣿⠀⠘⣿⣿⣿⣿⣿⡄⠁⣼⣿⣿⣿⣿⣿⠀⡿⣿⡧⠀⣿⠀⣿
-  // ⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⠈⣿⡿⠣⠈⠻⣿⣿⣿⣿⣿⡉⣿⠿⣿⣿⣦⣀⠻⢿⡆⠀⢻⣿⣿⣿⣿⡿⣰⣿⣿⣿⣿⣿⣿⠄⢿⡹⡇⠀⠈⢀⣿
-  // ⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⠀⡿⠀⠀⢿⣦⣀⠉⠛⠿⣿⣿⣀⣴⡀⢀⣿⣿⣿⣶⣤⣤⣈⠉⠉⠉⣠⡴⢻⣿⣿⣿⣿⣿⣿⡇⢸⣷⡏⠀⣿⣿⣿
-  // ⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣷⣀⣿⣷⠀⠀⣄⢹⣿⡶⠀⣀⠉⠙⠛⠿⢿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡇⢸⣿⣿⣿⣿⣿⣿⣧⠠⣾⣿⠀⣿⣿⣿
-  // ⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⠃⠀⣤⡤⠁⣠⣶⣿⣿⣿⣿⣶⣴⣤⣀⣀⠉⠉⠉⠉⠉⢉⠀⠀⣺⣿⣿⣿⣿⣿⣿⣷⠀⠘⢿⠀⣿⣿⣿
-  // ⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⠃⣼⣿⣿⠀⣼⣿⣿⠋⣹⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⠀⣿⣿⠟⠉⠛⣿⣿⣿⢠⣷⣀⣀⣿⣿⣿
-  // ⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⠀⣿⣿⣿⣄⠉⠋⡀⢠⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⠀⠻⣿⣿⣿⠀⠋⢀⣾⣿⣿⣆⠈⠏⢨⣿⣿⣿⣿⣿⣿
-  // ⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣦⠙⢿⣿⣿⣿⠛⠀⠙⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⠄⠙⣿⣿⣿⣿⠀⣄⠉⣿⣿⣿⣦⣾⣿⣿⣿⣿⣿⣿
-  // ⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣦⣄⣀⣠⠂⡨⢑⢀⠈⠻⠿⣿⣿⣿⣿⣿⠿⠛⠁⠘⠀⠛⠿⠟⢀⣿⣿⠈⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿
-  // ⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡟⠀⡅⠠⠨⠨⠐⠠⢄⡀⠠⠄⠠⢰⠀⠡⠘⠀⣿⣶⣾⣿⣿⣿⠀⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿
-  // ⣿⣿⣿    Code   ⣿⣿⣿⣿⣿⣿⣿⣿⣧⠀⠪⢈⢈⠠⢈⠨⢈⢀⢈⢈⢐⠀⠌⠀⡆⢿⣿⣿⣿⣿⠟⢀⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿
-  // ⣿⣿⣿   Crimes  ⣿⣿⣿⣿⣿⣿⣿⣿⣷⠀⠀⠀⠁⠂⠢⠢⠰⠔⠐⠐⠈⠁⠀⡉⢿⣦⣀⡈⠉⣀⣴⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿
-  // ⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡟⠀⠀⠀⠀⠀⣷⣶⣤⣤⡀⠀⠀⠀⠀⢠⣷⣀⣀⣤⠈⣻⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿
-  // ⣿⣿⣿⣿⣿⣿⣿⣿⣿⡿⠋⡀⢻⣿⣿⣿⣿⣿⣿⡁⠀⠀⠀⢀⣾⣿⣿⣿⣿⠁⠀⠀⠀⠀⣎⠛⠻⠾⠋⢠⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿
-  // ⣿⣿⣿⣿⣿⣿⣿⠟⢁⣴⣿⣿⣦⠙⣿⣿⣿⣿⣿⣿⣶⣶⣿⣿⣿⣿⣿⣿⡇⠀⠀⠀⢠⣿⣿⣿⣶⣶⣾⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿
-  // ⣿⣿⣿⣿⠿⠁⣠⣾⣿⣿⣿⣿⠋⢠⠈⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣶⣤⣶⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿
-  // ⣿⣿⠋⣀⣴⣿⣿⣿⣿⠿⠛⢠⣶⣻⢧⠈⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿
-  // ⣿⣆⠻⣿⣿⣿⠟⠉⣤⣶⣷⡀⠻⣾⠟⠁⣼⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿
-  // ⣿⣿⣄⠙⠉⣠⣾⣿⣿⣿⣿⣿⣶⡀⣴⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿
-  // ⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿
-  //
-  // Let's just go ahead and set the MSB _IF_ the lower 4 bits are exactly
-  // 0xF:
+  // We can use the MSB by setting it _IF_ the lower 4 bits are exactly 0xF:
   //
   // '0' -> 0b_011____ -> 3
   // '9' -> 0b_011____ -> 3
@@ -226,16 +190,16 @@ auto Base64::decode(const View::Bytes source) -> Dynamic::Bytes {
   // '/' -> 0b0101____ -> 5 (top bit masked from 0xF invert mask)
   //
   // The benefit of this is that 0xF is also clamped to a 16 byte range still
-  // but we also ensure the control bit is also always disabled by the and
-  // mask with the same and manipulation saving an entire "Or" instruction and
-  // frees up one ymm register that was previous used for a nibble mask.
+  // but we also ensure the control bit is also always disabled by the AND
+  // mask with the same and manipulation, saving an entire "Or" instruction
+  // which frees just enough resources to sneak in an additional round of
+  // unrolling while we are blocked on latency for the data dependency.
   //
-  // Now the reason this is a code crime is because unlike other vectorization
-  // methods I haven't figured out a good way to to validate bad inputs. To
-  // fix that problem we will take a number out of C++'s book and just define
-  // bad input as undefined behavior in the name of performance and call it a
-  // day. If you want data guarantees then use the slower version.
-  const __m256i adjustment_values = _mm256_setr_epi8(
+  // Now this is a bit of a code crime because unlike other vectorization
+  // methods I haven't figured out a good way to to validate bad inputs.
+  // For now it's undefined behavior, so it's on the caller to validate inputs
+  // from untrusted sources if they aren't going to validate the output.
+  const auto adjustment_values = _mm256_setr_epi8(
       // Lane 1
       /* 0 */ _,
       /* 'o' */ -71, _,
@@ -246,10 +210,10 @@ auto Base64::decode(const View::Bytes source) -> Dynamic::Bytes {
       /* 'P' - 'Z' */ -65,
       /* 'A' - 'N' */ -65,
       /* 0 - 9 */ +4,
-      /* + */ +19, _, 0,
+      /* + */ +19, _, _,
 
       // Lane 2 (same as Lane 1)
-      0,
+      /* 0 */ _,
       /* 'o' */ -71, 0,
       /* 'O' */ -65, 0,
       /* '/' */ +16, _, 0,
@@ -258,9 +222,9 @@ auto Base64::decode(const View::Bytes source) -> Dynamic::Bytes {
       /* 'P' - 'Z' */ -65,
       /* 'A' - 'N' */ -65,
       /* 0 - 9 */ +4,
-      /* + */ +19, _, 0);
+      /* + */ +19, _, _);
 
-  const __m256i invert_mask = _mm256_setr_epi8(
+  const auto invert_mask = _mm256_setr_epi8(
       // Lane 1 - Note the 0xF case removes an extra bit.
       0b1111, 0b1111, 0b1111, 0b1111, 0b1111, 0b1111, 0b1111, 0b1111, 0b1111,
       0b1111, 0b1111, 0b1111, 0b1111, 0b1111, 0b1111, 0b0111,
@@ -268,7 +232,7 @@ auto Base64::decode(const View::Bytes source) -> Dynamic::Bytes {
       // Lane 2 (same as Lane 1)
       0b1111, 0b1111, 0b1111, 0b1111, 0b1111, 0b1111, 0b1111, 0b1111, 0b1111,
       0b1111, 0b1111, 0b1111, 0b1111, 0b1111, 0b1111, 0b0111);
-  const __m256i repack_shuffle = _mm256_setr_epi8(
+  const auto repack_shuffle = _mm256_setr_epi8(
       // Lane 1 is properly packed with left alignment.
       0xFF, 0xFF, 0xFF, 0xFF, 0x02, 0x01, 0x00, 0x06, 0x05, 0x04, 0x0A, 0x09,
       0x08, 0x0E, 0x0D, 0x0C,
@@ -290,8 +254,7 @@ auto Base64::decode(const View::Bytes source) -> Dynamic::Bytes {
     for (auto ymm = fused_channels - 1; ymm >= 0; ymm--) {
       // Load
       const auto channel_value = _mm256_loadu_si256(
-          reinterpret_cast<const __m256i*>(
-              source_data + sizeof(__m256i) * ymm));
+          Data::cast<const __m256i>(source_data + sizeof(__m256i) * ymm));
 
       // Bit hacking the lookup index
       const auto shift = _mm256_srli_epi64(channel_value, 4);
@@ -387,11 +350,12 @@ auto Base64::encode(const View::Bytes source) -> Dynamic::Bytes {
   // This provides AVX2 support for backcompat but allows most modern CPUs to
   // pipeline both commands at the same time. In testing the only downside is
   // the gathering phase and bitmask phases perform worse than native AVX512.
-  // constexpr auto fused_channels = 2;
-  // constexpr auto avx2_channel_width = sizeof(__m256i);
-  // constexpr auto full_channel_width = avx2_channel_width * fused_channels;
+  constexpr auto fused_channels = 2;
+  constexpr auto avx2_channel_width = sizeof(__m256i);
+  constexpr auto full_channel_width = avx2_channel_width * fused_channels;
   constexpr Count output_stride = 4;
   constexpr Count source_stride = 3;
+  constexpr auto encode_filter = 64 - 1;
 
   // Construct source buffers.
   auto source_data = source.get_data();
@@ -404,7 +368,196 @@ auto Base64::encode(const View::Bytes source) -> Dynamic::Bytes {
   bytes.forgetful_resize(ouput_size);
   auto output_stream = bytes.get_access().get_data();
 
-  constexpr auto encode_filter = 64 - 1;
+  // If the vector is long enough start by doing a scalar pass so we have room
+  // to underread the buffer, regardless of its source.
+  if (source_bytes > full_channel_width * 2) {
+    // Since AVX2 can't shuffle around 128 bit lanes we need to do two scaler
+    // chunks to allow us to do an offset read safely.
+    //
+    // We could technically avoid this step if we knew the view always came from
+    // the Bibliotheca but since it can come form any source we process 2 chunks
+    // to give us room.
+    for (Count i = 0; i < 2; i++) {
+      output_stream[0] = encode_lookup[(source_data[0] >> 2)];
+      output_stream[1] = encode_lookup
+          [((source_data[0] & 0b00000011) << 4) | (source_data[1] >> 4)];
+      output_stream[2] = encode_lookup
+          [((source_data[1] & 0b00001111) << 2) | (source_data[2] >> 6)];
+      output_stream[3] = encode_lookup[source_data[2] & encode_filter];
+
+      source_bytes -= 3;
+      output_stream += output_stride;
+      source_data += source_stride;
+    }
+  }
+
+  // Alrignt now that we have our 6 bit values we need to pigeon hole them since
+  // we only have 4 bits worth of lookup.
+  //
+  // For base 64 we really only have 5 ranges we care about and all the offsets
+  // are just the inverse of the decode version:
+  // A-Z: 65 -> +65
+  // a-z: 97 -> +71
+  // 0-9: 48 -> -4
+  // +:   43 -> -19
+  // /:   47 -> -16
+  //
+  // The bit ranges we have to deal with however are a bit more annoying:
+  // 000000 -> +65
+  // 011001 -> +65
+  // 011010 -> +71
+  // 110011 -> +71
+  // 110100 -> -4
+  // 111101 -> -4
+  // 111110 -> -19
+  // 111111 -> -16
+  //
+  // Since we have the benefit of continous ranges this time we can look at
+  // compressing the alpha range into two checks to save a majority of values.
+  //
+  // If we subtract 51 then we can compress the alphas into a single value as
+  // long as we saturate the result to 0:
+  // __0000 -> "Alpha" -> +71
+  // __0001 -> '0' -> -4
+  // __0010 -> '1' -> -4
+  // __0011 -> '2' -> -4
+  // __0100 -> '3' -> -4
+  // __0101 -> '4' -> -4
+  // __0110 -> '5' -> -4
+  // __0111 -> '6' -> -4
+  // __1000 -> '7' -> -4
+  // __1001 -> '8' -> -4
+  // __1010 -> '9' -> -4
+  // __1011 -> '+' -> -19
+  // __1100 -> '/' -> -16
+  // __1101 -> ???
+  // __1110 -> ???
+  // __1111 -> ???
+  //
+  // A CMPGT can let us compute an additional offset for the lower alpha values.
+  // With that we can conditionally sub 6;
+  const auto adjustment_values = _mm256_setr_epi8(
+      // Lane 1
+      /* Alphas */ 71,
+      /* '0' */ -4,
+      /* '1' */ -4,
+      /* '2' */ -4,
+      /* '3' */ -4,
+      /* '4' */ -4,
+      /* '5' */ -4,
+      /* '6' */ -4,
+      /* '7' */ -4,
+      /* '8' */ -4,
+      /* '9' */ -4,
+      /* '+' */ -19,
+      /* '/' */ -16, _, _, _,
+
+      // Lane 2 (same as Lane 1)
+      /* Alphas */ 71,
+      /* '0' */ -4,
+      /* '1' */ -4,
+      /* '2' */ -4,
+      /* '3' */ -4,
+      /* '4' */ -4,
+      /* '5' */ -4,
+      /* '6' */ -4,
+      /* '7' */ -4,
+      /* '8' */ -4,
+      /* '9' */ -4,
+      /* '+' */ -19,
+      /* '/' */ -16, _, _, _);
+
+  // Split each 3 byte chunk into it's four 6 bit components.
+  // Using a shuffle lets us both swap bytes into the correct little endian
+  // format as well as duplicate the 4th 6bit block all in one go.
+  constexpr auto a_index = 0;
+  constexpr auto b_index = 1;
+  constexpr auto c_index = 1;
+  constexpr auto d_index = 2;
+  const auto byte_shuffle = _mm256_set_epi8(
+      // 8th block
+      25 + c_index, 25 + d_index, 25 + a_index, 25 + b_index,
+      // 7th block
+      22 + c_index, 22 + d_index, 22 + a_index, 22 + b_index,
+      // 6th block
+      19 + c_index, 19 + d_index, 19 + a_index, 19 + b_index,
+      // 5th block
+      16 + c_index, 16 + d_index, 16 + a_index, 16 + b_index,
+      // 4th block
+      13 + c_index, 13 + d_index, 13 + a_index, 13 + b_index,
+      // 3rd block
+      10 + c_index, 10 + d_index, 10 + a_index, 10 + b_index,
+      // 2nd block
+      7 + c_index, 7 + d_index, 7 + a_index, 7 + b_index,
+      // 1st block
+      4 + c_index, 4 + d_index, 4 + a_index, 4 + b_index);
+
+  constexpr auto input_bytes_per_channel = sizeof(Bits_32) * 6;
+  constexpr auto input_bytes_per_iteration =
+      input_bytes_per_channel * fused_channels;
+
+  constexpr auto output_bytes_per_channel = sizeof(Bits_32) * 8;
+  constexpr auto output_bytes_per_iteration =
+      output_bytes_per_channel * fused_channels;
+
+  // Need to be careful about reading past the end.
+  while (source_bytes > input_bytes_per_iteration + 4) {
+    for (auto ymm = fused_channels - 1; ymm >= 0; ymm--) {
+      // I assume this trick is used else where, but if we under read by 4
+      // bytes we can load 6 chunks of data split on the lane boundary.
+      //
+      //  32   32   32   32  |  32   32   32   32
+      // ____ AAAB BBCC CDDD | EEEF FFGG GHHH ____
+      const auto channel_value = _mm256_loadu_si256(
+          Data::cast<const __m256i>(
+              source_data - 4 + ymm * input_bytes_per_channel));
+
+      const auto chunk_data = _mm256_shuffle_epi8(channel_value, byte_shuffle);
+
+      // Extract the c and a components out of each shuffled 4 byte chunk.
+      const auto c_and_a = _mm256_and_si256(
+          chunk_data, _mm256_set1_epi32(0b00001111'11000000'11111100'00000000));
+      const auto d_and_b = _mm256_and_si256(
+          chunk_data, _mm256_set1_epi32(0b00000000'00111111'00000011'11110000));
+
+      // We don't have a good way to do variable length "shift right", so we can
+      // "shift left" using mul and then just take the high 16 bytes.
+      // Shift C right 6  -> (C << 10) >> 16
+      // Shift A right 10 -> (A <<  6) >> 16
+      const auto low_bytes = _mm256_mulhi_epu16(
+          c_and_a, _mm256_set1_epi32(0b0000010000000000'0000000001000000));
+      // For D and B we can just do a variable length "shift left" in place.
+      // Shift B left 4 -> (B << 4) >> 0
+      // Shift A left 8 -> (D << 8) >> 0
+      const auto high_bytes = _mm256_mullo_epi16(
+          d_and_b, _mm256_set1_epi32(0b0000000100000000'0000000000010000));
+
+      const auto final_bit_values = _mm256_or_si256(low_bytes, high_bytes);
+
+      // Caculate the offset and filter lower alpha values.
+      const auto shuffle_indexes =
+          _mm256_subs_epu8(final_bit_values, _mm256_set1_epi8(51));
+      const auto lower_alpha_mask =
+          _mm256_cmpgt_epi8(_mm256_set1_epi8(26), final_bit_values);
+      const auto lower_alpha_offset =
+          _mm256_and_si256(_mm256_set1_epi8(-6), lower_alpha_mask);
+
+      const auto offset_values =
+          _mm256_shuffle_epi8(adjustment_values, shuffle_indexes);
+      const auto final_values = _mm256_add_epi8(
+          _mm256_add_epi8(final_bit_values, offset_values), lower_alpha_offset);
+
+      _mm256_storeu_si256(
+          Data::cast<__m256i>(output_stream + ymm * output_bytes_per_channel),
+          final_values);
+    }
+
+    source_bytes -= input_bytes_per_iteration;
+    source_data += input_bytes_per_iteration;
+    output_stream += output_bytes_per_iteration;
+  }
+
+  // Scalar fallback
   while (source_bytes > source_stride) {
     output_stream[0] = encode_lookup[(source_data[0] >> 2)];
     output_stream[1] = encode_lookup

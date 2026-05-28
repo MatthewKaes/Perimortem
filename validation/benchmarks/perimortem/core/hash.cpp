@@ -4,6 +4,7 @@
 #ifdef PERI_BENCH_CPP
 #include <functional>
 #include <string_view>
+#define PERI_SLOW_BENCH
 #endif
 
 #include "validation/benchmark.hpp"
@@ -87,12 +88,14 @@ auto compute_hash() -> void {
 HASH_BENCH(64);
 HASH_BENCH(128);
 HASH_BENCH(256);
+#ifdef PERI_SLOW_BENCH
 HASH_BENCH(512);
 HASH_BENCH(550);
 HASH_BENCH(600);
 HASH_BENCH(2048);
 HASH_BENCH(4096);
 HASH_BENCH(8192);
+#endif
 
 #ifdef PERI_BENCH_CPP
 
