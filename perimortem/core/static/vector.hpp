@@ -15,6 +15,11 @@ class Vector {
 
   constexpr Vector() {}
 
+  // Allows direct value initialization: Static::Vector<Bits_8, 3>{1, 2, 3}.
+  template <typename... value_pack>
+    requires(sizeof...(value_pack) == size)
+  constexpr Vector(value_pack... values) : source_block{type(values)...} {}
+
   constexpr Vector(type (&source)[size]) {
     for (Count i = 0; i < size; i++) {
       source_block[i] = source[i];

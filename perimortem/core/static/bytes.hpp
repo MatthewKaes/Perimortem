@@ -17,6 +17,11 @@ class Bytes {
  public:
   constexpr Bytes() {}
 
+  // Allows direct value initialization: Static::Bytes<3>{0x01, 0x02, 0x03}.
+  template <typename... raw_bytes>
+    requires(sizeof...(raw_bytes) == literal_size)
+  constexpr Bytes(raw_bytes... values) : source_block{Byte(values)...} {}
+
   // Used for passing bytes directly that are already packed.
   constexpr Bytes(const Byte (&source)[literal_size]) {
     if consteval {
