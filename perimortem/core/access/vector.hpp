@@ -53,8 +53,8 @@ class Vector {
   constexpr auto empty() const -> Bool { return size == 0; };
   constexpr auto get_size() const -> Count { return size; };
   constexpr auto get_data() -> data_type* { return source_block; };
-  constexpr auto get_bytes() const -> Bytes {
-    return Bytes(source_block, size * sizeof(data_type));
+  constexpr auto get_bytes() const -> Access::Bytes {
+    return Access::Bytes((Byte*)source_block, size * sizeof(data_type));
   }
 
  private:
