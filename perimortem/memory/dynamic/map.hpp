@@ -176,7 +176,8 @@ class Map {
 
   auto ensure_capacity(Count items) -> void {
     if constexpr (vector_mode == MapVectorization::Scalar) {
-      if (items <= buffer_data.bucket_count * 0.9) {
+      if (buffer_data.bucket_buffer &&
+          items <= buffer_data.bucket_count * 0.9) {
         return;
       }
 
