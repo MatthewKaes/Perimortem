@@ -51,7 +51,7 @@ class Vector {
     return at(index);
   }
 
-  constexpr auto slice(Count start, Count size) const
+  constexpr auto slice(Count start, Count size = Count(-1)) const
       -> View::Vector<data_type> {
     if (start >= get_size()) {
       return View::Vector<data_type>();

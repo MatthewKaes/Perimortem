@@ -11,6 +11,7 @@ cc_library(
     includes = ["."],
     deps = [
         ":core",
+        ":graphics",
         ":memory",
         ":serialization",
         ":system",
@@ -92,35 +93,38 @@ cc_library(
 )
 
 cc_library(
-    name = "serialization",
-    srcs = glob([
-        # "serialization/archive/*.cpp",
-        "serialization/*.cpp",
-        "serialization/json/*.cpp",
-    ]),
+    name = "graphics",
+    srcs = [],
     hdrs = glob([
-        # "serialization/archive/*.hpp",
-        "serialization/*.hpp",
-        "serialization/json/*.hpp",
+        "graphics/*.hpp",
     ]),
     includes = ["."],
     deps = [
         ":core",
         ":memory",
+    ],
+)
+
+cc_library(
+    name = "serialization",
+    srcs = glob([
+        # "serialization/archive/*.cpp",
+        "serialization/*.cpp",
+        "serialization/format/*.cpp",
+        "serialization/json/*.cpp",
+    ]),
+    hdrs = glob([
+        # "serialization/archive/*.hpp",
+        "serialization/*.hpp",
+        "serialization/format/*.hpp",
+        "serialization/json/*.hpp",
+    ]),
+    includes = ["."],
+    deps = [
+        ":core",
+        ":graphics",
+        ":memory",
         ":system",
         ":utility",
     ],
 )
-
-# cc_test(
-#     name = "__benchmarks",
-#     size = "small",
-#     srcs = glob(["__benchmarks/*.cpp"]),
-#     deps = [
-#         ":perimortem",
-#         "@google_benchmark//:benchmark",
-#         "@google_benchmark//:benchmark_main",
-#         "@googletest//:gtest",
-#         "@googletest//:gtest_main",
-#     ],
-# )

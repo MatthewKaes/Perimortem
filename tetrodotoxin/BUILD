@@ -8,21 +8,6 @@ load(":ttx.bzl", "ttx_library")
 
 package(default_visibility = ["//visibility:public"])
 
-# # Scratch ttx binary linked to a scratch cc binary.
-# ttx_library(
-#     name = "hello",
-#     srcs = ["__tests/hello.ttx"],
-# )
-
-# cc_binary(
-#     name = "hello_bin",
-#     srcs = ["__tests/hello.cpp"],
-#     deps = [
-#         ":hello",
-#         "//perimortem",
-#     ],
-# )
-
 cc_library(
     name = "compiler",
     srcs = [

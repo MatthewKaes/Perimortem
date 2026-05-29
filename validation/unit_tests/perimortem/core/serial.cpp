@@ -14,13 +14,13 @@
 using namespace Perimortem::Core;
 using namespace Validation;
 
-static Diagnostics::Log::Level log_level;
-static Static::Bytes<256> log_message;
+static Diagnostics::Log::Level captured_log_level;
+static Static::Bytes<256> captured_log_message;
 
 static auto capture_sink(Diagnostics::Log::Level level, View::Bytes message)
     -> void {
-  log_level = level;
-  log_message = message;
+  captured_log_level = level;
+  captured_log_message = message;
 }
 
 static Harness CoreSerialReader = {
@@ -28,7 +28,7 @@ static Harness CoreSerialReader = {
   .setup =
       []() {
         Diagnostics::Log::set_sink(capture_sink);
-        log_message = ""_view;
+        captured_log_message = ""_view;
       },
   .teardown =
       []() { Diagnostics::Log::set_sink(Diagnostics::Log::default_sink); },
@@ -149,9 +149,9 @@ PERIMORTEM_UNIT_TEST(CoreSerialReader, type_mismatch) {
   // Make sure message was logged.
   constexpr auto error_message =
       "Mismatched Data Type in serilization stream at position 1. Expected=246, Got=247"_view;
-  EXPECT_EQ(UInt(log_level), UInt(Diagnostics::Log::Level::Error));
+  EXPECT_EQ(UInt(captured_log_level), UInt(Diagnostics::Log::Level::Error));
   EXPECT_TEXT(
-      log_message.slice(file_location_size, error_message.get_size()),
+      captured_log_message.slice(file_location_size, error_message.get_size()),
       error_message);
 }
 
@@ -167,9 +167,9 @@ PERIMORTEM_UNIT_TEST(CoreSerialReader, overflow_read) {
   // Make sure message was logged.
   constexpr auto error_message =
       "Serial read over ran buffer at read location 2. source_size=2, read_size=2"_view;
-  EXPECT_EQ(UInt(log_level), UInt(Diagnostics::Log::Level::Error));
+  EXPECT_EQ(UInt(captured_log_level), UInt(Diagnostics::Log::Level::Error));
   EXPECT_TEXT(
-      log_message.slice(file_location_size, error_message.get_size()),
+      captured_log_message.slice(file_location_size, error_message.get_size()),
       error_message);
 }
 
@@ -185,9 +185,9 @@ PERIMORTEM_UNIT_TEST(CoreSerialReader, blob_overrun) {
   // Make sure message was logged.
   constexpr auto error_message =
       "Serial read over ran buffer at read location 4. source_size=17, read_size=18"_view;
-  EXPECT_EQ(UInt(log_level), UInt(Diagnostics::Log::Level::Error));
+  EXPECT_EQ(UInt(captured_log_level), UInt(Diagnostics::Log::Level::Error));
   EXPECT_TEXT(
-      log_message.slice(file_location_size, error_message.get_size()),
+      captured_log_message.slice(file_location_size, error_message.get_size()),
       error_message);
 }
 
@@ -203,9 +203,9 @@ PERIMORTEM_UNIT_TEST(CoreSerialReader, blob_bad_size_type) {
   // Make sure message was logged.
   constexpr auto error_message =
       "Serial blob read encountered invalid size encoding type. Expected=245|246|247|248, Got=172"_view;
-  EXPECT_EQ(UInt(log_level), UInt(Diagnostics::Log::Level::Error));
+  EXPECT_EQ(UInt(captured_log_level), UInt(Diagnostics::Log::Level::Error));
   EXPECT_TEXT(
-      log_message.slice(file_location_size, error_message.get_size()),
+      captured_log_message.slice(file_location_size, error_message.get_size()),
       error_message);
 }
 
@@ -221,9 +221,9 @@ PERIMORTEM_UNIT_TEST(CoreSerialReader, blob_bad_data_type) {
   // Make sure message was logged.
   constexpr auto error_message =
       "Mismatched Data Type in serilization stream at position 2. Expected=245, Got=172"_view;
-  EXPECT_EQ(UInt(log_level), UInt(Diagnostics::Log::Level::Error));
+  EXPECT_EQ(UInt(captured_log_level), UInt(Diagnostics::Log::Level::Error));
   EXPECT_TEXT(
-      log_message.slice(file_location_size, error_message.get_size()),
+      captured_log_message.slice(file_location_size, error_message.get_size()),
       error_message);
 }
 
