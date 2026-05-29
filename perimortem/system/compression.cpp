@@ -6,7 +6,9 @@
 #include "perimortem/core/static/bytes.hpp"
 #include "perimortem/core/static/vector.hpp"
 #include "perimortem/core/data.hpp"
+#include "perimortem/core/diagnostics/log.hpp"
 #include "perimortem/core/math.hpp"
+#include "perimortem/core/null_terminated.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -446,7 +448,9 @@ static auto inflate_dynamic(BitReader& reader, Dynamic::Bytes& output) -> Bool {
     }
 
     // Check if more elements were requested than the number of expected codes.
-    if (decode_index + element_count >= total_codes) {
+    if (decode_index + element_count > total_codes) {
+      Diagnostics::Log::error(
+          "Compression: dynamic block code-length sequence overruns total code count"_view);
       return False;
     }
 
@@ -496,20 +500,24 @@ auto Compression::inflate(const View::Bytes source) -> Dynamic::Bytes {
     switch (block_type) {
     case BlockType::Stored:
       if (!inflate_stored(reader, output)) {
+        Diagnostics::Log::error("Compression: stored block decompression failed"_view);
         return Dynamic::Bytes();
       }
       break;
     case BlockType::FixedHuffman:
       if (!inflate_fixed(reader, output)) {
+        Diagnostics::Log::error("Compression: fixed Huffman block decompression failed"_view);
         return Dynamic::Bytes();
       }
       break;
     case BlockType::DynamicHuffman:
       if (!inflate_dynamic(reader, output)) {
+        Diagnostics::Log::error("Compression: dynamic Huffman block decompression failed"_view);
         return Dynamic::Bytes();
       }
       break;
     default:
+      Diagnostics::Log::error("Compression: unknown block type in DEFLATE stream"_view);
       return Dynamic::Bytes();
     }
   }
@@ -524,6 +532,7 @@ auto Compression::inflate(const View::Bytes source) -> Dynamic::Bytes {
           *Data::cast<Bits_32>(
               source.get_data() + source.get_size() - checksum_size));
   if (caculate_checksum(output.get_view()) != stored_checksum) [[unlikely]] {
+    Diagnostics::Log::error("Compression: Adler-32 checksum mismatch"_view);
     return Dynamic::Bytes();
   }
 
