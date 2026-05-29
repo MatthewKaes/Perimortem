@@ -26,6 +26,31 @@ static constexpr auto
   return True;
 }
 
+// memcpy is actually too smart for it's own good and will try to interpret
+// bytes for floats and reals rather than just loading it as is.
+template <Data::ByteOrder endian, typename storage_type, typename real_type>
+static constexpr auto
+    write_real(Access::Bytes target, Count& ptr, real_type val)
+        -> Bool {  // Make unit tests fail at least on mismatch.
+  if constexpr (sizeof(storage_type) != sizeof(real_type)) {
+    return False;
+  }
+
+  Count base = Count(target.get_data());
+  ptr = Data::align<sizeof(storage_type)>(base + ptr) - base;
+
+  if (ptr + sizeof(storage_type) > target.get_size()) [[unlikely]] {
+    return False;
+  }
+
+  storage_type actual_bytes = *Data::cast<storage_type>(&val);
+  actual_bytes =
+      Data::ensure_endian<Data::ByteOrder::Native, endian>(actual_bytes);
+  Data::copy(target.get_data() + ptr, &actual_bytes);
+  ptr += sizeof(storage_type);
+  return True;
+}
+
 template <Data::ByteOrder endian, typename blob_type>
 static constexpr auto
     write_vector(Access::Bytes target, Count& ptr, blob_type blob) -> Bool {
@@ -114,13 +139,13 @@ auto Writer::Binary<stream_endian>::operator<<(const SignedBits_64 bin)
 
 template <Data::ByteOrder stream_endian>
 auto Writer::Binary<stream_endian>::operator<<(const Real_32 bin) -> Binary& {
-  valid_state &= write_value<stream_endian>(data, ptr_location, bin);
+  valid_state &= write_real<stream_endian, Bits_32>(data, ptr_location, bin);
   return *this;
 }
 
 template <Data::ByteOrder stream_endian>
 auto Writer::Binary<stream_endian>::operator<<(const Real_64 bin) -> Binary& {
-  valid_state &= write_value<stream_endian>(data, ptr_location, bin);
+  valid_state &= write_real<stream_endian, Bits_64>(data, ptr_location, bin);
   return *this;
 }
 

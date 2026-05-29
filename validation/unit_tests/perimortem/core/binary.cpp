@@ -33,70 +33,106 @@ static Harness CoreBinaryReader = {
       []() { Diagnostics::Log::set_sink(Diagnostics::Log::default_sink); },
 };
 
-PERIMORTEM_UNIT_TEST(CoreBinaryReader, little_endian_unsigned_integers) {
-  using LittleBinary = Reader::Binary<Data::ByteOrder::Little>;
+PERIMORTEM_UNIT_TEST(CoreBinaryReader, little_endian_unsigned) {
+  using Reader = Reader::Binary<Data::ByteOrder::Little>;
   // Make sure block is aligned on the stack.
-  alignas(alignof(Bits_64)) Static::Bytes<24> aligned_source(
+  alignas(8) Static::Bytes<24> aligned_source(
       "\xAB\x00\x00\x00"                  // Read 1 byte + 3 byte padding.
-      "\x49\x52\x45\x50"                  // Read 4 bytes
+      "IREP"                              // Read 4 bytes
       "\x34\x12\x00\x00\x00\x00\x00\x00"  // Read 2 bytes + 6 bytes padding.
       "\xEF\xCD\xAB\x89\x67\x45\x23\x01"_view  // Read the final 8 bytes.
   );
-  LittleBinary reader(aligned_source.get_view());
+  Reader reader(aligned_source);
 
-  EXPECT(reader.is_valid());
   EXPECT_EQ(reader.read_bits_8(), Bits_8(0xAB));
   EXPECT_EQ(reader.read_bits_32(), Bits_32('PERI'));
   EXPECT_EQ(reader.read_bits_16(), Bits_16(0x1234));
   EXPECT_EQ(reader.read_bits_64(), Bits_64(0x0123456789ABCDEF));
+  EXPECT(reader.is_valid());
 }
 
-PERIMORTEM_UNIT_TEST(CoreBinaryReader, little_endian_signed_integers) {
-  using LittleBinary = Reader::Binary<Data::ByteOrder::Little>;
+PERIMORTEM_UNIT_TEST(CoreBinaryReader, little_endian_signed) {
+  using Reader = Reader::Binary<Data::ByteOrder::Little>;
   // Make sure block is aligned on the stack.
-  alignas(alignof(Bits_64)) Static::Bytes<16> aligned_source(
-      "\xD6\x00"                               // SignedBits_8(-42) + pad
-      "\x18\xFC"                               // SignedBits_16(-1000) LE
-      "\x60\x79\xFE\xFF"                       // SignedBits_32(-100000) LE
-      "\x00\x36\x65\xC4\xFF\xFF\xFF\xFF"_view  // SignedBits_64(-1000000000) LE
-  );
-  LittleBinary reader(aligned_source.get_view());
+  alignas(8) Static::Bytes<16> aligned_source(
+      "\xD6\x00"
+      "\x18\xFC"
+      "\x60\x79\xFE\xFF"
+      "\x00\x36\x65\xC4\xFF\xFF\xFF\xFF"_view);
+  Reader reader(aligned_source);
 
-  EXPECT(reader.is_valid());
   EXPECT_EQ(reader.read_signed_bits_8(), SignedBits_8(-42));
   EXPECT_EQ(reader.read_signed_bits_16(), SignedBits_16(-1000));
   EXPECT_EQ(reader.read_signed_bits_32(), SignedBits_32(-100000));
   EXPECT_EQ(reader.read_signed_bits_64(), SignedBits_64(-1000000000LL));
-}
-
-PERIMORTEM_UNIT_TEST(CoreBinaryReader, big_endian_layout) {
-  using BigBinary = Reader::Binary<Data::ByteOrder::Big>;
-  alignas(alignof(Bits_32)) Static::Bytes<4> aligned_source(
-      "\x12\x34\x56\x78"_view);
-  BigBinary reader(aligned_source.get_view());
-
-  auto value = reader.read_bits_32();
-
   EXPECT(reader.is_valid());
-  EXPECT_EQ(Long(value), Long(0x12345678));
 }
 
 PERIMORTEM_UNIT_TEST(CoreBinaryReader, little_endian_reals) {
-  using LittleBinary = Reader::Binary<Data::ByteOrder::Little>;
-  alignas(alignof(Bits_64)) Static::Bytes<16> aligned_source(
-      "\x00\x00\x40\x40\x00\x00\x00\x00"       // Real_32 + 4 byte padding
+  using Reader = Reader::Binary<Data::ByteOrder::Little>;
+  alignas(8) Static::Bytes<16> aligned_source(
+      "\x00\x00\x40\x40"                       // Real_32
+      "\x00\x00\x00\x00"                       // 4 byte padding
       "\x00\x00\x00\x00\x00\x00\xF8\x3F"_view  // Real_64
   );
-  LittleBinary reader(aligned_source.get_view());
+  Reader reader(aligned_source);
 
-  EXPECT(reader.is_valid());
   EXPECT_EQ(reader.read_real_32(), Real_32(3.0f));
   EXPECT_EQ(reader.read_real_64(), Real_64(1.5));
+  EXPECT(reader.is_valid());
+}
+
+PERIMORTEM_UNIT_TEST(CoreBinaryReader, big_endian_unsigned) {
+  using Reader = Reader::Binary<Data::ByteOrder::Big>;
+  // Make sure block is aligned on the stack.
+  alignas(8) Static::Bytes<24> aligned_source(
+      "\xAB\x00\x00\x00"                  // Read 1 byte + 3 byte padding.
+      "PERI"                              // Read 4 bytes
+      "\x12\x34\x00\x00\x00\x00\x00\x00"  // Read 2 bytes + 6 bytes padding.
+      "\x01\x23\x45\x67\x89\xAB\xCD\xEF"_view  // Read the final 8 bytes.
+  );
+  Reader reader(aligned_source);
+
+  EXPECT_EQ(reader.read_bits_8(), Bits_8(0xAB));
+  EXPECT_EQ(reader.read_bits_32(), Bits_32('PERI'));
+  EXPECT_EQ(reader.read_bits_16(), Bits_16(0x1234));
+  EXPECT_EQ(reader.read_bits_64(), Bits_64(0x0123456789ABCDEF));
+  EXPECT(reader.is_valid());
+}
+
+PERIMORTEM_UNIT_TEST(CoreBinaryReader, big_endian_signed) {
+  using Reader = Reader::Binary<Data::ByteOrder::Big>;
+  // Make sure block is aligned on the stack.
+  alignas(8) Static::Bytes<16> aligned_source(
+      "\xD6\x00"
+      "\xFC\x18"
+      "\xFF\xFE\x79\x60"
+      "\xFF\xFF\xFF\xFF\xC4\x65\x36\x00"_view);
+  Reader reader(aligned_source);
+
+  EXPECT_EQ(reader.read_signed_bits_8(), SignedBits_8(-42));
+  EXPECT_EQ(reader.read_signed_bits_16(), SignedBits_16(-1000));
+  EXPECT_EQ(reader.read_signed_bits_32(), SignedBits_32(-100000));
+  EXPECT_EQ(reader.read_signed_bits_64(), SignedBits_64(-1000000000LL));
+  EXPECT(reader.is_valid());
+}
+
+PERIMORTEM_UNIT_TEST(CoreBinaryReader, big_endian_reals) {
+  using Reader = Reader::Binary<Data::ByteOrder::Big>;
+  alignas(8) Static::Bytes<16> aligned_source(
+      "\x40\x40\x00\x00\x00\x00\x00\x00"       // Real_32 + 4 byte padding
+      "\x3F\xF8\x00\x00\x00\x00\x00\x00"_view  // Real_64
+  );
+  Reader reader(aligned_source);
+
+  EXPECT_EQ(reader.read_real_32(), Real_32(3.0f));
+  EXPECT_EQ(reader.read_real_64(), Real_64(1.5));
+  EXPECT(reader.is_valid());
 }
 
 PERIMORTEM_UNIT_TEST(CoreBinaryReader, raw_bytes) {
-  using LittleBinary = Reader::Binary<Data::ByteOrder::Little>;
-  LittleBinary reader("Hello, World!"_view);
+  using Reader = Reader::Binary<Data::ByteOrder::Big>;
+  Reader reader("Hello, World!"_view);
 
   EXPECT_TEXT(reader.read_bytes(5), "Hello"_view);
   EXPECT_EQ(reader.get_location(), Count(5));
@@ -112,8 +148,8 @@ constexpr auto file_location_size =
     15;
 
 PERIMORTEM_UNIT_TEST(CoreBinaryReader, overflow_read) {
-  using LittleBinary = Reader::Binary<Data::ByteOrder::Little>;
-  LittleBinary reader("\xAB\xCD"_view);
+  using Reader = Reader::Binary<Data::ByteOrder::Little>;
+  Reader reader("\xAB\xCD"_view);
   auto scope_attribution = Diagnostics::Log::set_attribution();
 
   // Out of bounds read should return null and set the reader to invalid.
@@ -130,10 +166,10 @@ PERIMORTEM_UNIT_TEST(CoreBinaryReader, overflow_read) {
 }
 
 PERIMORTEM_UNIT_TEST(CoreBinaryReader, set_pointer) {
-  using LittleBinary = Reader::Binary<Data::ByteOrder::Little>;
+  using Reader = Reader::Binary<Data::ByteOrder::Little>;
   alignas(alignof(Bits_16)) Static::Bytes<6> aligned_source(
       "\x0A\x00\x14\x00\x1E\x00"_view);
-  LittleBinary reader(aligned_source.get_view());
+  Reader reader(aligned_source);
 
   EXPECT_EQ(reader.read_bits_16(), Bits_16(0x0A));
 
@@ -143,11 +179,10 @@ PERIMORTEM_UNIT_TEST(CoreBinaryReader, set_pointer) {
 }
 
 PERIMORTEM_UNIT_TEST(CoreBinaryReader, multiple_readers) {
-  using LittleBinary = Reader::Binary<Data::ByteOrder::Little>;
+  using Reader = Reader::Binary<Data::ByteOrder::Little>;
   alignas(alignof(Bits_16)) Static::Bytes<6> aligned_source(
       "\x01\x00\x02\x00\x03\x00"_view);
-  View::Bytes source = aligned_source.get_view();
-  LittleBinary readers[] = {LittleBinary(source), LittleBinary(source)};
+  Reader readers[] = {Reader(aligned_source), Reader(aligned_source)};
 
   EXPECT_EQ(readers[0].read_bits_16(), readers[1].read_bits_16());
   EXPECT_EQ(Long(readers[0].get_location()), Long(2));
@@ -162,75 +197,112 @@ static Harness CoreBinaryWriter = {
   .name = "Core::Writer::Binary"_view,
 };
 
-PERIMORTEM_UNIT_TEST(CoreBinaryWriter, little_endian_unsigned_integers) {
-  using LittleBinary = Writer::Binary<Data::ByteOrder::Little>;
-  alignas(alignof(Bits_64)) Static::Bytes<16> buffer;
-  LittleBinary writer(buffer.get_access());
+PERIMORTEM_UNIT_TEST(CoreBinaryWriter, little_endian_unsigned) {
+  using Writer = Writer::Binary<Data::ByteOrder::Little>;
+  alignas(8) Static::Bytes<16> buffer;
+  Writer writer(buffer);
 
-  writer << Bits_8(0xAB) << Bits_16(0x1234) << Bits_32(0xDEADBEEF)
+  writer << Bits_8(0xAB) << Bits_16(0x1234) << Bits_32('PERI')
          << Bits_64(0x0123456789ABCDEF);
 
   EXPECT(writer.is_valid());
   EXPECT_EQ(Long(writer.get_location()), Long(16));
   EXPECT_HEX(
-      buffer.slice(0, 16),
-      "\xAB\x00"                               // Bits_8(0xAB) + pad
-      "\x34\x12"                               // Bits_16(0x1234) LE
-      "\xEF\xBE\xAD\xDE"                       // Bits_32(0xDEADBEEF) LE
-      "\xEF\xCD\xAB\x89\x67\x45\x23\x01"_view  // Bits_64(0x0123456789ABCDEF) LE
-  );
+      buffer,
+      "\xAB\x00"
+      "\x34\x12"
+      "IREP"
+      "\xEF\xCD\xAB\x89\x67\x45\x23\x01"_view);
 }
 
-PERIMORTEM_UNIT_TEST(CoreBinaryWriter, little_endian_signed_integers) {
-  using LittleBinary = Writer::Binary<Data::ByteOrder::Little>;
-  alignas(alignof(Bits_64)) Static::Bytes<16> buffer;
-  LittleBinary writer(buffer.get_access());
+PERIMORTEM_UNIT_TEST(CoreBinaryWriter, little_endian_signed) {
+  using Writer = Writer::Binary<Data::ByteOrder::Little>;
+  alignas(8) Static::Bytes<16> buffer;
+  Writer writer(buffer);
 
   writer << SignedBits_8(-42) << SignedBits_16(-1000) << SignedBits_32(-100000)
          << SignedBits_64(-1000000000LL);
 
   EXPECT(writer.is_valid());
   EXPECT_HEX(
-      buffer.slice(0, 16),
-      "\xD6\x00"                               // SignedBits_8(-42) + pad
-      "\x18\xFC"                               // SignedBits_16(-1000) LE
-      "\x60\x79\xFE\xFF"                       // SignedBits_32(-100000) LE
-      "\x00\x36\x65\xC4\xFF\xFF\xFF\xFF"_view  // SignedBits_64(-1000000000) LE
-  );
-}
-
-PERIMORTEM_UNIT_TEST(CoreBinaryWriter, big_endian_layout) {
-  using BigBinary = Writer::Binary<Data::ByteOrder::Big>;
-  alignas(alignof(Bits_32)) Static::Bytes<4> buffer;
-  BigBinary writer(buffer.get_access());
-
-  writer << Bits_32(0x12345678);
-
-  EXPECT(writer.is_valid());
-  EXPECT_HEX(buffer.slice(0, 4), "\x12\x34\x56\x78"_view);
+      buffer,
+      "\xD6\x00"
+      "\x18\xFC"
+      "\x60\x79\xFE\xFF"
+      "\x00\x36\x65\xC4\xFF\xFF\xFF\xFF"_view);
 }
 
 PERIMORTEM_UNIT_TEST(CoreBinaryWriter, little_endian_reals) {
   // Real_32(3.0f) = 0x40400000; Real_64(1.5) = 0x3FF8000000000000.
-  using LittleBinary = Writer::Binary<Data::ByteOrder::Little>;
-  alignas(alignof(Bits_64)) Static::Bytes<16> buffer;
-  LittleBinary writer(buffer.get_access());
+  using Writer = Writer::Binary<Data::ByteOrder::Little>;
+  alignas(8) Static::Bytes<16> buffer;
+  Writer writer(buffer);
 
   writer << Real_32(3.0f) << Real_64(1.5);
 
   EXPECT(writer.is_valid());
   EXPECT_HEX(
-      buffer.slice(0, 16),
-      "\x00\x00\x40\x40"                       // Real_32(3.0f) LE
-      "\x00\x00\x00\x00"                       // pad to 8-byte align
-      "\x00\x00\x00\x00\x00\x00\xF8\x3F"_view  // Real_64(1.5) LE
-  );
+      buffer,
+      "\x00\x00\x40\x40"
+      "\x00\x00\x00\x00"
+      "\x00\x00\x00\x00\x00\x00\xF8\x3F"_view);
+}
+
+PERIMORTEM_UNIT_TEST(CoreBinaryWriter, big_endian_unsigned) {
+  using Writer = Writer::Binary<Data::ByteOrder::Big>;
+  alignas(8) Static::Bytes<16> buffer;
+  Writer writer(buffer);
+
+  writer << Bits_8(0xAB) << Bits_16(0x1234) << Bits_32('PERI')
+         << Bits_64(0x0123456789ABCDEF);
+
+  EXPECT(writer.is_valid());
+  EXPECT_EQ(Long(writer.get_location()), Long(16));
+  EXPECT_HEX(
+      buffer,
+      "\xAB\x00"
+      "\x12\x34"
+      "PERI"
+      "\x01\x23\x45\x67\x89\xAB\xCD\xEF"_view);
+}
+
+PERIMORTEM_UNIT_TEST(CoreBinaryWriter, big_endian_signed) {
+  using Writer = Writer::Binary<Data::ByteOrder::Big>;
+  alignas(8) Static::Bytes<16> buffer;
+  Writer writer(buffer);
+
+  writer << SignedBits_8(-42) << SignedBits_16(-1000) << SignedBits_32(-100000)
+         << SignedBits_64(-1000000000LL);
+
+  EXPECT(writer.is_valid());
+  EXPECT_HEX(
+      buffer,
+      "\xD6\x00"
+      "\xFC\x18"
+      "\xFF\xFE\x79\x60"
+      "\xFF\xFF\xFF\xFF\xC4\x65\x36\x00"_view);
+}
+
+PERIMORTEM_UNIT_TEST(CoreBinaryWriter, big_endian_reals) {
+  // Real_32(3.0f) = 0x40400000; Real_64(1.5) = 0x3FF8000000000000.
+  using Writer = Writer::Binary<Data::ByteOrder::Big>;
+  alignas(8) Static::Bytes<16> buffer;
+  Writer writer(buffer);
+
+  writer << Real_32(3.0f) << Real_64(1.5);
+
+  EXPECT(writer.is_valid());
+  EXPECT_HEX(
+      buffer,
+      "\x40\x40\x00\x00"
+      "\x00\x00\x00\x00"
+      "\x3F\xF8\x00\x00\x00\x00\x00\x00"_view);
 }
 
 PERIMORTEM_UNIT_TEST(CoreBinaryWriter, raw_bytes) {
-  using LittleBinary = Writer::Binary<Data::ByteOrder::Little>;
+  using Writer = Writer::Binary<Data::ByteOrder::Native>;
   Static::Bytes<9> buffer;
-  LittleBinary writer(buffer.get_access());
+  Writer writer(buffer);
 
   writer << "blob data"_view;
 
@@ -239,19 +311,19 @@ PERIMORTEM_UNIT_TEST(CoreBinaryWriter, raw_bytes) {
 }
 
 PERIMORTEM_UNIT_TEST(CoreBinaryWriter, overflow) {
-  using LittleBinary = Writer::Binary<Data::ByteOrder::Little>;
+  using Writer = Writer::Binary<Data::ByteOrder::Native>;
   Static::Bytes<3> buffer;
-  LittleBinary writer(buffer.get_access());
+  Writer writer(buffer);
 
-  writer << Bits_32(0xDEAD);
+  writer << Bits_32('PERI');
 
   EXPECT_NOT(writer.is_valid());
 }
 
 PERIMORTEM_UNIT_TEST(CoreBinaryWriter, set_pointer) {
-  using LittleBinary = Writer::Binary<Data::ByteOrder::Little>;
+  using Writer = Writer::Binary<Data::ByteOrder::Little>;
   alignas(alignof(Bits_16)) Static::Bytes<6> buffer;
-  LittleBinary writer(buffer.get_access());
+  Writer writer(buffer);
 
   writer << Bits_16(0x0A0B) << Bits_16(0x0C0D);
   EXPECT_EQ(Long(writer.get_location()), Long(4));
@@ -261,18 +333,17 @@ PERIMORTEM_UNIT_TEST(CoreBinaryWriter, set_pointer) {
 
   EXPECT(writer.is_valid());
   EXPECT_HEX(
-      buffer.slice(0, 4),
-      "\x34\x12"       // overwritten Bits_16(0x1234)
-      "\x0D\x0C"_view  // original second value
-  );
+      buffer,
+      "\x34\x12"
+      "\x0D\x0C\0\0"_view);
 }
 
 PERIMORTEM_UNIT_TEST(CoreBinaryWriter, multiple_writers) {
-  using LittleBinary = Writer::Binary<Data::ByteOrder::Little>;
+  using Writer = Writer::Binary<Data::ByteOrder::Little>;
   alignas(alignof(Bits_16)) Static::Bytes<4> buffer;
-  LittleBinary writers[] = {
-    LittleBinary(buffer.get_access()),
-    LittleBinary(buffer.get_access()),
+  Writer writers[] = {
+    Writer(buffer),
+    Writer(buffer),
   };
 
   writers[0] << Bits_16(0xAAAA);
@@ -281,5 +352,5 @@ PERIMORTEM_UNIT_TEST(CoreBinaryWriter, multiple_writers) {
 
   EXPECT(writers[0].is_valid());
   EXPECT(writers[1].is_valid());
-  EXPECT_HEX(buffer.slice(0, 4), "\xBB\xBB\xCC\xCC"_view);
+  EXPECT_HEX(buffer, "\xBB\xBB\xCC\xCC"_view);
 }

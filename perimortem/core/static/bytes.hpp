@@ -33,7 +33,7 @@ class Bytes {
     }
   }
 
-  constexpr Bytes(const Core::View::Bytes& source) {
+  constexpr Bytes(const View::Bytes& source) {
     const Count size = Math::min(literal_size, source.get_size());
     if consteval {
       Count i = 0;
@@ -51,8 +51,34 @@ class Bytes {
     }
   }
 
-  constexpr operator Core::View::Bytes() const { return get_view(); }
-  constexpr operator Core::Access::Bytes() { return get_access(); }
+  constexpr operator View::Bytes() const { return get_view(); }
+  constexpr operator Access::Bytes() { return get_access(); }
+
+  template <Count array_size>
+  constexpr auto operator==(const Static::Bytes<array_size>& rhs) -> Bool {
+    if constexpr (array_size != literal_size) {
+      return False;
+    } else {
+      return Data::compare(source_block, rhs.storage_block, literal_size);
+    }
+  }
+
+  constexpr auto operator==(const View::Bytes& rhs) -> Bool {
+    if (rhs.get_size() != literal_size) {
+      return False;
+    }
+
+    return Data::compare(source_block, rhs.get_data(), literal_size);
+  }
+
+  template <Count array_size>
+  constexpr auto operator!=(const Static::Bytes<array_size>& rhs) -> Bool {
+    return !(*this == rhs);
+  }
+
+  constexpr auto operator!=(const View::Bytes& rhs) -> Bool {
+    return !(*this == rhs);
+  }
 
   constexpr auto operator[](Count index) -> Byte& {
     return source_block[index];
@@ -62,7 +88,7 @@ class Bytes {
     return source_block[index];
   }
 
-  constexpr auto slice(Count start, Count size) const -> Core::View::Bytes {
+  constexpr auto slice(Count start, Count size) const -> View::Bytes {
     if (start >= get_size()) {
       return View::Bytes();
     }
@@ -73,13 +99,13 @@ class Bytes {
 
   constexpr auto get_size() const -> Count { return literal_size; }
   constexpr auto get_capacity() const -> Count { return literal_size; }
-  constexpr auto get_view() const -> const Core::View::Bytes {
-    return Core::View::Bytes(source_block, literal_size);
+  constexpr auto get_view() const -> const View::Bytes {
+    return View::Bytes(source_block, literal_size);
   }
   constexpr auto get_data() const -> const Byte* { return source_block; }
   constexpr auto get_data() -> Byte* { return source_block; }
-  constexpr auto get_access() -> Core::Access::Bytes {
-    return Core::Access::Bytes(source_block, literal_size);
+  constexpr auto get_access() -> Access::Bytes {
+    return Access::Bytes(source_block, literal_size);
   }
 
   constexpr auto hash() const -> Bits_64 {

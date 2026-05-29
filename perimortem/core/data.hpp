@@ -67,14 +67,14 @@ constexpr auto align(Count offset) -> Count {
 
 // Used for reading const raw data.
 template <typename target_type>
-auto cast(const Byte* source) -> const target_type* {
+auto cast(const void* source) -> const target_type* {
   // TODO: start_lifetime_as
   return reinterpret_cast<const target_type*>(source);
 }
 
 // Used for reading raw data.
 template <typename target_type>
-auto cast(Byte* source) -> target_type* {
+auto cast(void* source) -> target_type* {
   // TODO: start_lifetime_as
   return reinterpret_cast<target_type*>(source);
 }

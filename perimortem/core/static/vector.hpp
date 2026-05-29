@@ -35,6 +35,34 @@ class Vector {
   constexpr operator Core::View::Vector<type>() const { return get_view(); }
   constexpr operator Core::Access::Vector<type>() { return get_access(); }
 
+  template <Count array_size>
+  constexpr auto operator==(const Static::Vector<type, array_size>& rhs)
+      -> Bool {
+    if constexpr (array_size != literal_size) {
+      return False;
+    } else {
+      return Data::compare(source_block, rhs.storage_block, literal_size);
+    }
+  }
+
+  constexpr auto operator==(const View::Vector<type>& rhs) -> Bool {
+    if (rhs.get_size() != literal_size) {
+      return False;
+    }
+
+    return Data::compare(source_block, rhs.get_data(), literal_size);
+  }
+
+  template <Count array_size>
+  constexpr auto operator!=(const Static::Vector<type, array_size>& rhs)
+      -> Bool {
+    return !(*this == rhs);
+  }
+
+  constexpr auto operator!=(const View::Vector<type>& rhs) -> Bool {
+    return !(*this == rhs);
+  }
+
   constexpr auto operator[](Count index) -> type& {
     return source_block[index];
   }

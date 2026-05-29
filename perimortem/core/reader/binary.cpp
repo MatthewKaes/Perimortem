@@ -26,23 +26,51 @@ static auto check_buffer_overruns(Count ptr, Count source_size, Count read_size)
   return True;
 }
 
-// read_value is a local template helper so the member implementations can
-// stay in this .cpp file without leaking into the header.
 template <Data::ByteOrder endian, typename storage_type>
-static constexpr auto
-    read_value(View::Bytes source, Count& ptr, storage_type& out) -> Bool {
+static constexpr auto read_value(View::Bytes source, Bool& valid, Count& ptr)
+    -> storage_type {
   Count base = Count(source.get_data());
   ptr = Data::align<sizeof(storage_type)>(base + ptr) - base;
 
   if (!check_buffer_overruns(ptr, source.get_size(), sizeof(storage_type))) {
-    return False;
+    valid = false;
+    return storage_type();
   }
 
-  storage_type raw = {};
-  memcpy(&raw, source.get_data() + ptr, sizeof(storage_type));
-  out = Data::ensure_endian<endian, Data::ByteOrder::Native>(raw);
+  storage_type actual_bytes;
+  memcpy(&actual_bytes, source.get_data() + ptr, sizeof(storage_type));
   ptr += sizeof(storage_type);
-  return True;
+  return Data::ensure_endian<endian, Data::ByteOrder::Native>(actual_bytes);
+  ;
+}
+
+// memcpy is actually too smart for it's own good and will try to interpret
+// bytes for floats and reals rather than just loading it as is.
+template <Data::ByteOrder endian, typename storage_type, typename real_type>
+static constexpr auto read_real(View::Bytes source, Bool& valid, Count& ptr)
+    -> real_type {
+  // Make unit tests fail at least on mismatch.
+  if constexpr (sizeof(storage_type) != sizeof(real_type)) {
+    valid = False;
+    return real_type();
+  }
+
+  Count base = Count(source.get_data());
+  ptr = Data::align<sizeof(storage_type)>(base + ptr) - base;
+
+  if (!check_buffer_overruns(ptr, source.get_size(), sizeof(storage_type))) {
+    valid = False;
+    return real_type();
+  }
+
+  storage_type actual_bytes;
+  memcpy(&actual_bytes, source.get_data() + ptr, sizeof(storage_type));
+  actual_bytes =
+      Data::ensure_endian<endian, Data::ByteOrder::Native>(actual_bytes);
+
+  // Read the bytes in correct memory order into the floating point unit.
+  ptr += sizeof(storage_type);
+  return *Data::cast<real_type>(&actual_bytes);
 }
 
 template <Data::ByteOrder stream_endian>
@@ -52,72 +80,58 @@ auto Reader::Binary<stream_endian>::set_pointer(Count location) -> void {
 
 template <Data::ByteOrder stream_endian>
 auto Reader::Binary<stream_endian>::read_bits_8() -> Bits_8 {
-  Bits_8 out = 0;
-  valid_state &= read_value<stream_endian>(data, ptr_location, out);
-  return out;
+  return read_value<stream_endian, Bits_8>(data, valid_state, ptr_location);
 }
 
 template <Data::ByteOrder stream_endian>
 auto Reader::Binary<stream_endian>::read_bits_16() -> Bits_16 {
-  Bits_16 out = 0;
-  valid_state &= read_value<stream_endian>(data, ptr_location, out);
-  return out;
+  return read_value<stream_endian, Bits_16>(data, valid_state, ptr_location);
 }
 
 template <Data::ByteOrder stream_endian>
 auto Reader::Binary<stream_endian>::read_bits_32() -> Bits_32 {
-  Bits_32 out = 0;
-  valid_state &= read_value<stream_endian>(data, ptr_location, out);
-  return out;
+  return read_value<stream_endian, Bits_32>(data, valid_state, ptr_location);
 }
 
 template <Data::ByteOrder stream_endian>
 auto Reader::Binary<stream_endian>::read_bits_64() -> Bits_64 {
-  Bits_64 out = 0;
-  valid_state &= read_value<stream_endian>(data, ptr_location, out);
-  return out;
+  return read_value<stream_endian, Bits_64>(data, valid_state, ptr_location);
 }
 
 template <Data::ByteOrder stream_endian>
 auto Reader::Binary<stream_endian>::read_signed_bits_8() -> SignedBits_8 {
-  SignedBits_8 out = 0;
-  valid_state &= read_value<stream_endian>(data, ptr_location, out);
-  return out;
+  return read_value<stream_endian, SignedBits_8>(
+      data, valid_state, ptr_location);
 }
 
 template <Data::ByteOrder stream_endian>
 auto Reader::Binary<stream_endian>::read_signed_bits_16() -> SignedBits_16 {
-  SignedBits_16 out = 0;
-  valid_state &= read_value<stream_endian>(data, ptr_location, out);
-  return out;
+  return read_value<stream_endian, SignedBits_16>(
+      data, valid_state, ptr_location);
 }
 
 template <Data::ByteOrder stream_endian>
 auto Reader::Binary<stream_endian>::read_signed_bits_32() -> SignedBits_32 {
-  SignedBits_32 out = 0;
-  valid_state &= read_value<stream_endian>(data, ptr_location, out);
-  return out;
+  return read_value<stream_endian, SignedBits_32>(
+      data, valid_state, ptr_location);
 }
 
 template <Data::ByteOrder stream_endian>
 auto Reader::Binary<stream_endian>::read_signed_bits_64() -> SignedBits_64 {
-  SignedBits_64 out = 0;
-  valid_state &= read_value<stream_endian>(data, ptr_location, out);
-  return out;
+  return read_value<stream_endian, SignedBits_64>(
+      data, valid_state, ptr_location);
 }
 
 template <Data::ByteOrder stream_endian>
 auto Reader::Binary<stream_endian>::read_real_32() -> Real_32 {
-  Real_32 out = Real_32(0);
-  valid_state &= read_value<stream_endian>(data, ptr_location, out);
-  return out;
+  return read_real<stream_endian, Bits_32, Real_32>(
+      data, valid_state, ptr_location);
 }
 
 template <Data::ByteOrder stream_endian>
 auto Reader::Binary<stream_endian>::read_real_64() -> Real_64 {
-  Real_64 out = Real_64(0);
-  valid_state &= read_value<stream_endian>(data, ptr_location, out);
-  return out;
+  return read_real<stream_endian, Bits_64, Real_64>(
+      data, valid_state, ptr_location);
 }
 
 template <Data::ByteOrder stream_endian>
