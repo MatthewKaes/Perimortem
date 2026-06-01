@@ -7,19 +7,19 @@
 
 namespace Perimortem::Core::Reader {
 
-// Reads human-readable values from a text byte buffer, mirroring the output
-// of Writer::Textual.
+// Reads human-readable values from a text byte buffer. Reads are greedy so
+// numeric values must be whitespace seperated to be read appropriately.
 //
-// Numeric and boolean reads automatically skip leading whitespace (space, tab,
-// newline, carriage return). Raw byte reads via read_byte() never skip
-// whitespace and always consume exactly one byte from the current position.
+// Numeric and boolean reads automatically skip leading whitespace except for
+// read_byte() which never skips whitespace and always consume exactly one byte
+// from the current position.
 //
 // On overflow or a parse failure the reader enters an invalid state and
-// subsequent reads return zero-initialised values without advancing the
+// subsequent reads return zero-initialized values without advancing the
 // pointer.
 class Textual {
  public:
-  constexpr Textual(Core::View::Bytes source) : data(source) {}
+  constexpr Textual(View::Bytes source) : data(source) {}
   constexpr Textual(const Textual& rhs) : data(rhs.data) {}
 
   // Sets the location of the read pointer.
@@ -40,6 +40,9 @@ class Textual {
   constexpr auto get_size() const -> Count { return data.get_size(); }
   constexpr auto get_location() const -> Count { return ptr_location; }
   constexpr auto is_valid() const -> Bool { return valid_state; }
+  constexpr auto is_empty() const -> Bool {
+    return get_location() == get_size();
+  }
   constexpr auto reset() -> void {
     valid_state = true;
     ptr_location = 0;
@@ -48,7 +51,7 @@ class Textual {
  private:
   auto skip_whitespace() -> void;
   auto read_real() -> Real_64;
-  Core::View::Bytes data;
+  View::Bytes data;
   Count ptr_location = 0;
   Bool valid_state = True;
 };

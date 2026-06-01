@@ -41,7 +41,6 @@ static constexpr auto read_value(View::Bytes source, Bool& valid, Count& ptr)
   memcpy(&actual_bytes, source.get_data() + ptr, sizeof(storage_type));
   ptr += sizeof(storage_type);
   return Data::ensure_endian<endian, Data::ByteOrder::Native>(actual_bytes);
-  ;
 }
 
 // memcpy is actually too smart for it's own good and will try to interpret

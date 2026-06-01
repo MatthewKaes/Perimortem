@@ -21,7 +21,7 @@ static constexpr auto
   }
 
   val = Data::ensure_endian<Data::ByteOrder::Native, endian>(val);
-  Data::copy(target.get_data() + ptr, &val);
+  Data::copy(target.get_data() + ptr, val);
   ptr += sizeof(storage_type);
   return True;
 }
@@ -46,7 +46,7 @@ static constexpr auto
   storage_type actual_bytes = *Data::cast<storage_type>(&val);
   actual_bytes =
       Data::ensure_endian<Data::ByteOrder::Native, endian>(actual_bytes);
-  Data::copy(target.get_data() + ptr, &actual_bytes);
+  Data::copy(target.get_data() + ptr, actual_bytes);
   ptr += sizeof(storage_type);
   return True;
 }

@@ -86,6 +86,12 @@ auto copy(Byte* dest, const storage_type* src, Count count = 1)
       memcpy(dest, src, Bits_64(sizeof(storage_type)) * count));
 }
 
+template <typename storage_type>
+auto copy(Byte* dest, storage_type src) -> storage_type* {
+  return reinterpret_cast<storage_type*>(
+      memcpy(dest, &src, Bits_64(sizeof(storage_type))));
+}
+
 inline auto set(Byte* dest, Byte value, Count count = 1) -> void {
   memset(dest, value, count);
 }

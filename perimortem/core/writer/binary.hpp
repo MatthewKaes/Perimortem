@@ -10,15 +10,17 @@
 
 namespace Perimortem::Core::Writer {
 
-// Writes typed values into a flat byte buffer with natural alignment padding
-// inserted between fields of different sizes.
+// Reads typed values from a flat byte buffer with alignment padding between
+// fields.
 //
-// Each write advances the pointer to the next alignment boundary for that type
-// before storing bytes, so a mixed sequence of Bits_8 and Bits_64 values will
-// have gap bytes between them. Use View::Bytes writes for unaligned byte blobs.
+// Each read advances the pointer to the next natural alignment boundary for
+// that type before consuming bytes. Raw-byte reads via read_bytes() bypass
+// alignment and always read from the current position allowing reads from any
+// arbitrary location, however it does not convert the bytes into Native endian
+// and simply returns a View.
 //
-// On overflow the writer enters an invalid state and subsequent writes are
-// silently discarded without advancing the pointer.
+// On overflow the writer enters an invalid state and subsequent writes are safe
+// but treated as undefined behavior.
 template <Data::ByteOrder stream_endian>
 class Binary {
  public:
@@ -40,15 +42,15 @@ class Binary {
   auto operator<<(const SignedBits_64 bin) -> Binary&;
   auto operator<<(const Real_32 bin) -> Binary&;
   auto operator<<(const Real_64 bin) -> Binary&;
-  auto operator<<(const Core::View::Bytes blob) -> Binary&;
-  auto operator<<(const Core::View::Vector<Bits_8> blob) -> Binary&;
-  auto operator<<(const Core::View::Vector<Bits_16> blob) -> Binary&;
-  auto operator<<(const Core::View::Vector<Bits_32> blob) -> Binary&;
-  auto operator<<(const Core::View::Vector<Bits_64> blob) -> Binary&;
-  auto operator<<(const Core::View::Vector<SignedBits_8> blob) -> Binary&;
-  auto operator<<(const Core::View::Vector<SignedBits_16> blob) -> Binary&;
-  auto operator<<(const Core::View::Vector<SignedBits_32> blob) -> Binary&;
-  auto operator<<(const Core::View::Vector<SignedBits_64> blob) -> Binary&;
+  auto operator<<(const View::Bytes blob) -> Binary&;
+  auto operator<<(const View::Vector<Bits_8> blob) -> Binary&;
+  auto operator<<(const View::Vector<Bits_16> blob) -> Binary&;
+  auto operator<<(const View::Vector<Bits_32> blob) -> Binary&;
+  auto operator<<(const View::Vector<Bits_64> blob) -> Binary&;
+  auto operator<<(const View::Vector<SignedBits_8> blob) -> Binary&;
+  auto operator<<(const View::Vector<SignedBits_16> blob) -> Binary&;
+  auto operator<<(const View::Vector<SignedBits_32> blob) -> Binary&;
+  auto operator<<(const View::Vector<SignedBits_64> blob) -> Binary&;
 
   constexpr auto get_size() const -> Count { return data.get_size(); }
   constexpr auto get_location() const -> Count { return ptr_location; }
@@ -58,7 +60,7 @@ class Binary {
   }
 
  private:
-  Core::Access::Bytes data;
+  Access::Bytes data;
   Count ptr_location = 0;
   Bool valid_state = True;
 };

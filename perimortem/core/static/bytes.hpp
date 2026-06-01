@@ -51,17 +51,14 @@ class Bytes {
     }
   }
 
-  constexpr operator View::Bytes() const { return get_view(); }
-  constexpr operator Access::Bytes() { return get_access(); }
-
-  template <Count array_size>
-  constexpr auto operator==(const Static::Bytes<array_size>& rhs) -> Bool {
-    if constexpr (array_size != literal_size) {
-      return False;
-    } else {
-      return Data::compare(source_block, rhs.storage_block, literal_size);
+  constexpr Bytes(Byte (*generator)(Count)) {
+    for (Count i = 0; i < literal_size; i++) {
+      source_block[i] = generator(i);
     }
   }
+
+  constexpr operator View::Bytes() const { return get_view(); }
+  constexpr operator Access::Bytes() { return get_access(); }
 
   constexpr auto operator==(const View::Bytes& rhs) -> Bool {
     if (rhs.get_size() != literal_size) {
@@ -69,11 +66,6 @@ class Bytes {
     }
 
     return Data::compare(source_block, rhs.get_data(), literal_size);
-  }
-
-  template <Count array_size>
-  constexpr auto operator!=(const Static::Bytes<array_size>& rhs) -> Bool {
-    return !(*this == rhs);
   }
 
   constexpr auto operator!=(const View::Bytes& rhs) -> Bool {
