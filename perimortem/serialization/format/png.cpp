@@ -11,7 +11,7 @@
 #include "perimortem/core/null_terminated.hpp"
 #include "perimortem/core/writer/textual.hpp"
 
-#include "perimortem/system/compression.hpp"
+#include "perimortem/system/compression/deflate.hpp"
 
 #include "perimortem/graphics/image.hpp"
 
@@ -19,7 +19,6 @@ namespace Graphics = Perimortem::Graphics;
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
-using namespace Perimortem::Serialization;
 using namespace Perimortem::Serialization;
 using namespace Perimortem::System;
 
@@ -73,10 +72,22 @@ static constexpr Static::Bytes<8> png_signature = {0x89, 0x50, 0x4E, 0x47,
 // A parsed PNG chunk. PNG files are made of sequential chunks, each with a
 // type tag, a payload, and a CRC-32 checksum for integrity verification.
 struct Chunk {
-  Bits_32 length = 0;
-  // 4-byte ASCII type tag, "IHDR", "IDAT", "IEND", "PLTE".
-  Static::Bytes<4> type;
+ public:
+  Chunk() = default;
+  Chunk(View::Bytes data, Static::Bytes<4> type, Bits_32 length)
+      : data(data), type(type), length(length), valid(True) {}
+
+  auto get_data() const -> View::Bytes { return data; }
+  // 4-byte ASCII type tag, e.g. "IHDR", "IDAT", "IEND", "PLTE".
+  auto get_type() const -> View::Bytes { return type.get_view(); }
+  auto get_length() const -> Bits_32 { return length; }
+  auto get_valid() const -> Bool { return valid; }
+
+ private:
   View::Bytes data;
+  Static::Bytes<4> type;
+  Bits_32 length = 0;
+  Bool valid = False;
 };
 
 static auto read_chunk(View::Bytes source, Count offset) -> Chunk {
@@ -91,39 +102,37 @@ static auto read_chunk(View::Bytes source, Count offset) -> Chunk {
     return Chunk();
   }
 
-  Chunk chunk;
-  chunk.length =
+  Bits_32 length =
       Data::ensure_endian<Data::ByteOrder::Big, Data::ByteOrder::Native>(
           *Data::cast<Bits_32>(source.get_data() + offset));
 
-  if (offset + chunk_overhead + chunk.length > source.get_size()) [[unlikely]] {
+  if (offset + chunk_overhead + length > source.get_size()) [[unlikely]] {
     Static::Bytes<128> log_buffer;
     Writer::Textual log_writer(log_buffer.get_access());
     log_writer << "Png: chunk at offset "_view << ULong(offset)
-               << " with length "_view << ULong(chunk.length)
+               << " with length "_view << ULong(length)
                << " extends past end of stream"_view;
     Diagnostics::Log::error(log_writer);
     return Chunk();
   }
 
-  chunk.type = Static::Bytes<4>(source.slice(offset + 4, 4));
-  chunk.data = source.slice(offset + 8, chunk.length);
+  Static::Bytes<4> type(source.slice(offset + 4, 4));
+  View::Bytes data = source.slice(offset + 8, length);
 
   Bits_32 stored_crc =
       Data::ensure_endian<Data::ByteOrder::Big, Data::ByteOrder::Native>(
-          *Data::cast<Bits_32>(source.get_data() + offset + 8 + chunk.length));
-  Bits_32 actual_crc =
-      calculate_crc32(source.slice(offset + 4, 4 + chunk.length));
+          *Data::cast<Bits_32>(source.get_data() + offset + 8 + length));
+  Bits_32 actual_crc = calculate_crc32(source.slice(offset + 4, 4 + length));
   if (stored_crc != actual_crc) [[unlikely]] {
     Static::Bytes<96> log_buffer;
     Writer::Textual log_writer(log_buffer.get_access());
-    log_writer << "Png: CRC-32 mismatch for chunk '"_view
-               << chunk.type.get_view() << "' at offset "_view << ULong(offset);
+    log_writer << "Png: CRC-32 mismatch for chunk '"_view << type.get_view()
+               << "' at offset "_view << ULong(offset);
     Diagnostics::Log::error(log_writer);
     return Chunk();
   }
 
-  return chunk;
+  return Chunk(data, type, length);
 }
 
 static auto number_of_color_channels(ColorType color_type) -> Count {
@@ -142,11 +151,9 @@ static auto number_of_color_channels(ColorType color_type) -> Count {
   }
 }
 
-// The Paeth predictor (PNG spec §6.6) estimates the next sample by computing a
-// linear extrapolation p = left + up − upper_left, then returning whichever of
-// the three neighbors lies closest to p. Because p sits at the intersection of
-// the horizontal and vertical trends, picking the nearest neighbor tends to
-// cancel out the dominant gradient and drives the filter residual toward zero.
+// The Paeth predictor estimates the next sample by computing a  linear
+// extrapolation p = left + up − upper_left, then returning whichever of the
+// three values are closest to the current pixel.
 static auto paeth_predictor(
     Bits_32 left_pixel,
     Bits_32 up_pixel,
@@ -317,10 +324,30 @@ static auto write_chunk(
 
 // Metadata from a PNG file's IHDR chunk, readable without decoding pixels.
 struct ImageInfo {
+ public:
+  ImageInfo() = default;
+  ImageInfo(
+      Bits_32 width,
+      Bits_32 height,
+      Bits_8 bit_depth,
+      ColorType color_type)
+      : width(width),
+        height(height),
+        color_type(color_type),
+        bit_depth(bit_depth),
+        valid(True) {}
+
+  auto get_width() const -> Bits_32 { return width; }
+  auto get_height() const -> Bits_32 { return height; }
+  auto get_bit_depth() const -> Bits_8 { return bit_depth; }
+  auto get_color_type() const -> ColorType { return color_type; }
+  auto get_valid() const -> Bool { return valid; }
+
+ private:
   Bits_32 width = 0;
   Bits_32 height = 0;
-  Bits_8 bit_depth = 0;
   ColorType color_type = ColorType::Rgba;
+  Bits_8 bit_depth = 0;
   Bool valid = False;
 };
 
@@ -344,42 +371,41 @@ static auto read_info(const View::Bytes source) -> ImageInfo {
 
   // IHDR: the mandatory first chunk that defines image dimensions and format.
   Chunk ihdr = read_chunk(source, png_signature_size);
-  if (ihdr.type.get_view() != "IHDR"_view || ihdr.length != ihdr_data_size)
-      [[unlikely]] {
+  if (!ihdr.get_valid() || ihdr.get_type() != "IHDR"_view ||
+      ihdr.get_length() != ihdr_data_size) [[unlikely]] {
     return ImageInfo();
   }
 
-  ImageInfo info;
-  info.width =
+  View::Bytes ihdr_data = ihdr.get_data();
+  Bits_32 width =
       Data::ensure_endian<Data::ByteOrder::Big, Data::ByteOrder::Native>(
-          *Data::cast<Bits_32>(ihdr.data.get_data() + 0));
-  info.height =
+          *Data::cast<Bits_32>(ihdr_data.get_data() + 0));
+  Bits_32 height =
       Data::ensure_endian<Data::ByteOrder::Big, Data::ByteOrder::Native>(
-          *Data::cast<Bits_32>(ihdr.data.get_data() + 4));
-  info.bit_depth = ihdr.data[8];
-  info.color_type = ColorType(ihdr.data[9]);
+          *Data::cast<Bits_32>(ihdr_data.get_data() + 4));
+  Bits_8 bit_depth = ihdr_data[8];
+  ColorType color_type = ColorType(ihdr_data[9]);
 
   // Fields 10/11/12: compression method (must be 0 = deflate), filter method
   // (must be 0 = adaptive), and interlace method (must be 0 = no interlace).
-  if (info.bit_depth != supported_bit_depth) [[unlikely]] {
+  if (bit_depth != supported_bit_depth) [[unlikely]] {
     return ImageInfo();
   }
-  if (number_of_color_channels(info.color_type) == 0) [[unlikely]] {
+  if (number_of_color_channels(color_type) == 0) [[unlikely]] {
     return ImageInfo();
   }
-  if (ihdr.data[10] != required_zero_field ||
-      ihdr.data[11] != required_zero_field ||
-      ihdr.data[12] != required_zero_field) [[unlikely]] {
+  if (ihdr_data[10] != required_zero_field ||
+      ihdr_data[11] != required_zero_field ||
+      ihdr_data[12] != required_zero_field) [[unlikely]] {
     return ImageInfo();
   }
 
-  info.valid = True;
-  return info;
+  return ImageInfo(width, height, bit_depth, color_type);
 }
 
 auto Format::Png::decode(const View::Bytes source) -> Graphics::Image {
   ImageInfo info = read_info(source);
-  if (!info.valid) [[unlikely]] {
+  if (!info.get_valid()) [[unlikely]] {
     return Graphics::Image();
   }
 
@@ -393,23 +419,23 @@ auto Format::Png::decode(const View::Bytes source) -> Graphics::Image {
   // PLTE (palette) chunk needed for indexed-color images.
   Count chunk_offset = png_signature_size;
   while (chunk_offset < source.get_size()) {
-    // If we were unable to read any chunk data then exit.
     Chunk chunk = read_chunk(source, chunk_offset);
-    if (chunk.type.get_view() == "IEND"_view || chunk.data.empty())
-        [[unlikely]] {
+    if (!chunk.get_valid()) [[unlikely]] {
+      return Graphics::Image();
+    }
+    if (chunk.get_type() == "IEND"_view) {
       break;
     }
 
-    // Process IDAT (compressed data) and PLTE (palette) functions.
-    if (chunk.type.get_view() == "IDAT"_view) {
+    if (chunk.get_type() == "IDAT"_view) {
       // IDAT: image data compressed with DEFLATE (zlib wrapper, RFC 1951).
-      compressed_data.concat(chunk.data);
-    } else if (chunk.type.get_view() == "PLTE"_view) {
+      compressed_data.concat(chunk.get_data());
+    } else if (chunk.get_type() == "PLTE"_view) {
       // PLTE: palette for indexed-color images, 3 bytes (RGB) per entry.
-      palette = chunk.data;
+      palette = chunk.get_data();
     }
 
-    chunk_offset += chunk_overhead + chunk.length;
+    chunk_offset += chunk_overhead + chunk.get_length();
   }
 
   if (compressed_data.get_size() == 0) [[unlikely]] {
@@ -423,22 +449,23 @@ auto Format::Png::decode(const View::Bytes source) -> Graphics::Image {
     return Graphics::Image();
   }
 
-  Count bytes_per_pixel = number_of_color_channels(info.color_type);
+  Count bytes_per_pixel = number_of_color_channels(info.get_color_type());
   Dynamic::Bytes raw_pixels;
   if (!reconstruct_filter(
-          filtered_rows.get_view(), info.width, info.height, bytes_per_pixel,
-          raw_pixels)) [[unlikely]] {
+          filtered_rows.get_view(), info.get_width(), info.get_height(),
+          bytes_per_pixel, raw_pixels)) [[unlikely]] {
     return Graphics::Image();
   }
 
   Dynamic::Vector<Graphics::Pixel> pixels;
   if (!convert_to_pixels(
-          raw_pixels.get_view(), info.width, info.height, info.color_type,
-          palette, pixels)) [[unlikely]] {
+          raw_pixels.get_view(), info.get_width(), info.get_height(),
+          info.get_color_type(), palette, pixels)) [[unlikely]] {
     return Graphics::Image();
   }
+
   return Graphics::Image(
-      info.width, info.height, Data::take(pixels), info.bit_depth);
+      Data::take(pixels), info.get_width(), info.get_height());
 }
 
 auto Format::Png::encode(const Graphics::Image& image) -> Dynamic::Bytes {
@@ -465,7 +492,7 @@ auto Format::Png::encode(const Graphics::Image& image) -> Dynamic::Bytes {
 
   // Encode each row with filter type 0 (None): pixels written verbatim.
   // Pixel layout in memory is {red, green, blue, alpha} matching PNG RGBA.
-  auto raw_bytes = reinterpret_cast<const Byte*>(pixels.get_data());
+  auto raw_bytes = Data::cast<Bits_8>(pixels.get_data());
   for (Count row = 0; row < height; row++) {
     Count row_start = row * (filter_byte_size + stride);
     filtered_acc[row_start] = 0;

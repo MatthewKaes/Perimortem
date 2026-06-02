@@ -98,7 +98,7 @@ PERIMORTEM_UNIT_TEST(SerializationPng, decode_checkerboard_2x2) {
   EXPECT_EQ(pixels[3].alpha, Byte(0xFF));
 }
 
-PERIMORTEM_UNIT_TEST(SerializationPng, decode_rgb_expands_to_rgba) {
+PERIMORTEM_UNIT_TEST(SerializationPng, decode_rgb_to_rgba) {
   File source;
   ASSERT(source.read("validation/data/pngs/rgb_3x1.png"_view));
 
@@ -177,17 +177,19 @@ PERIMORTEM_UNIT_TEST(SerializationPng, decode_pattern_8x1) {
   EXPECT_EQ(pixels[4].green, Byte(200));
 }
 
-PERIMORTEM_UNIT_TEST(SerializationPng, decode_invalid_returns_empty) {
-  const Byte garbage[] = {0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07};
-  auto image = Format::Png::decode(View::Bytes(garbage, 8));
+PERIMORTEM_UNIT_TEST(SerializationPng, decode_invalid) {
+  constexpr Static::Bytes<8> garbage = {
+    0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
+  };
+  auto image = Format::Png::decode(garbage);
   EXPECT_EQ(image.get_width(), Bits_32(0));
   EXPECT_EQ(image.get_height(), Bits_32(0));
 }
 
-PERIMORTEM_UNIT_TEST(SerializationPng, encode_decode_roundtrip_1x1) {
+PERIMORTEM_UNIT_TEST(SerializationPng, roundtrip_1x1) {
   Dynamic::Vector<Pixel> source_pixels;
   source_pixels.insert({0x12, 0x34, 0x56, 0x78});
-  Image source_image(1, 1, Data::take(source_pixels));
+  Image source_image(Data::take(source_pixels), 1, 1);
 
   auto encoded = Format::Png::encode(source_image);
   ASSERT(encoded.get_size() > 0);
@@ -204,13 +206,13 @@ PERIMORTEM_UNIT_TEST(SerializationPng, encode_decode_roundtrip_1x1) {
   EXPECT_EQ(decoded_pixels[0].alpha, Byte(0x78));
 }
 
-PERIMORTEM_UNIT_TEST(SerializationPng, encode_decode_roundtrip_checkerboard) {
+PERIMORTEM_UNIT_TEST(SerializationPng, roundtrip_checkerboard) {
   Dynamic::Vector<Pixel> source_pixels;
   source_pixels.insert({0xFF, 0x00, 0x00, 0xFF});
   source_pixels.insert({0x00, 0xFF, 0x00, 0xFF});
   source_pixels.insert({0x00, 0x00, 0xFF, 0xFF});
   source_pixels.insert({0xFF, 0xFF, 0xFF, 0xFF});
-  Image source_image(2, 2, Data::take(source_pixels));
+  Image source_image(Data::take(source_pixels), 2, 2);
 
   auto encoded = Format::Png::encode(source_image);
   ASSERT(encoded.get_size() > 0);
@@ -227,7 +229,7 @@ PERIMORTEM_UNIT_TEST(SerializationPng, encode_decode_roundtrip_checkerboard) {
   EXPECT_EQ(decoded_pixels[3].red, Byte(0xFF));
 }
 
-PERIMORTEM_UNIT_TEST(SerializationPng, encode_decode_roundtrip_large) {
+PERIMORTEM_UNIT_TEST(SerializationPng, roundtrip_large) {
   constexpr Count width = 32, height = 32;
   Dynamic::Vector<Pixel> source_pixels;
   source_pixels.resize(width * height);
@@ -238,7 +240,7 @@ PERIMORTEM_UNIT_TEST(SerializationPng, encode_decode_roundtrip_large) {
     }
   }
   Image source_image(
-      Bits_32(width), Bits_32(height), Data::take(source_pixels));
+      Data::take(source_pixels), Bits_32(width), Bits_32(height));
 
   auto encoded = Format::Png::encode(source_image);
   ASSERT(encoded.get_size() > 0);
@@ -257,19 +259,19 @@ PERIMORTEM_UNIT_TEST(SerializationPng, encode_decode_roundtrip_large) {
   }
 }
 
-PERIMORTEM_UNIT_TEST(SerializationPng, encode_wrong_pixel_count_returns_empty) {
+PERIMORTEM_UNIT_TEST(SerializationPng, incorrect_pixel_count) {
   Dynamic::Vector<Pixel> one_pixel;
   one_pixel.insert({0xFF, 0x00, 0x00, 0xFF});
-  Image bad_image(2, 2, Data::take(one_pixel));
+  Image bad_image(Data::take(one_pixel), 2, 2);
   auto encoded = Format::Png::encode(bad_image);
   EXPECT_EQ(encoded.get_size(), Count(0));
 }
 
-PERIMORTEM_UNIT_TEST(SerializationPng, encode_zero_dimensions_returns_empty) {
+PERIMORTEM_UNIT_TEST(SerializationPng, zero_dimensions) {
   Dynamic::Vector<Pixel> empty;
-  Image zero_width(0, 1, Data::take(empty));
+  Image zero_width(Data::take(empty), 0, 1);
   Dynamic::Vector<Pixel> empty2;
-  Image zero_height(1, 0, Data::take(empty2));
+  Image zero_height(Data::take(empty2), 1, 0);
   auto encoded_w = Format::Png::encode(zero_width);
   auto encoded_h = Format::Png::encode(zero_height);
   EXPECT_EQ(encoded_w.get_size(), Count(0));
@@ -277,8 +279,7 @@ PERIMORTEM_UNIT_TEST(SerializationPng, encode_zero_dimensions_returns_empty) {
 }
 
 PERIMORTEM_UNIT_TEST(SerializationPng, truncated_chunk_header) {
-  // PNG with a valid IHDR but only 4 bytes of a second chunk — not enough
-  // for the 12-byte chunk header overhead, so read_chunk fires an error.
+  // PNG with a valid IHDR that's shorter than the valid size.
   File source;
   ASSERT(source.read("validation/data/pngs/error_truncated_header.png"_view));
 
@@ -291,8 +292,7 @@ PERIMORTEM_UNIT_TEST(SerializationPng, truncated_chunk_header) {
 }
 
 PERIMORTEM_UNIT_TEST(SerializationPng, chunk_length_overrun) {
-  // PNG whose second chunk claims a length of 4294967295 bytes — far more
-  // data than the file contains, so read_chunk fires an error.
+  // PNG whose second chunk claims a length of 4294967295 bytes.
   File source;
   ASSERT(source.read("validation/data/pngs/error_overrun.png"_view));
 
@@ -305,9 +305,39 @@ PERIMORTEM_UNIT_TEST(SerializationPng, chunk_length_overrun) {
   EXPECT(error_contains("extends past end of stream"_view));
 }
 
-PERIMORTEM_UNIT_TEST(SerializationPng, crc_mismatch_names_chunk) {
-  // PNG whose IHDR CRC has been corrupted — read_chunk should log the chunk
-  // type and offset so the caller can identify which chunk was damaged.
+PERIMORTEM_UNIT_TEST(SerializationPng, roundtrip_icon_128x128) {
+  // Exercises the full encode/decode pipeline with real RGBA image data at a
+  // size large enough to produce multiple deflate back-references.
+  File source;
+  ASSERT(source.read("validation/data/pngs/icon_128x128.png"_view));
+
+  auto original = Format::Png::decode(source.get_view());
+  ASSERT_EQ(original.get_width(), Bits_32(128));
+  ASSERT_EQ(original.get_height(), Bits_32(128));
+
+  auto original_pixels = original.get_pixels();
+  ASSERT_EQ(original_pixels.get_size(), Count(128 * 128));
+
+  auto encoded = Format::Png::encode(original);
+  ASSERT(encoded.get_size() > 0);
+
+  auto decoded = Format::Png::decode(encoded.get_view());
+  ASSERT_EQ(decoded.get_width(), Bits_32(128));
+  ASSERT_EQ(decoded.get_height(), Bits_32(128));
+
+  auto decoded_pixels = decoded.get_pixels();
+  ASSERT_EQ(decoded_pixels.get_size(), Count(128 * 128));
+  for (Count i = 0; i < Count(128 * 128); i++) {
+    EXPECT_EQ(decoded_pixels[i].red, original_pixels[i].red);
+    EXPECT_EQ(decoded_pixels[i].green, original_pixels[i].green);
+    EXPECT_EQ(decoded_pixels[i].blue, original_pixels[i].blue);
+    EXPECT_EQ(decoded_pixels[i].alpha, original_pixels[i].alpha);
+  }
+}
+
+PERIMORTEM_UNIT_TEST(SerializationPng, crc_mismatch) {
+  // PNG with corrupted chunk CRC should log the chunk type and offset so the
+  // caller can identify which chunk was damaged.
   File source;
   ASSERT(source.read("validation/data/pngs/error_crc_mismatch.png"_view));
 

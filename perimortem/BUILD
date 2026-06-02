@@ -80,9 +80,13 @@ cc_library(
     name = "system",
     srcs = glob([
         "system/*.cpp",
+        "system/compression/*.cpp",
+        "system/compression/bit_stream/*.cpp",
     ]),
     hdrs = glob([
         "system/*.hpp",
+        "system/compression/*.hpp",
+        "system/compression/bit_stream/*.hpp",
     ]),
     includes = ["."],
     deps = [
