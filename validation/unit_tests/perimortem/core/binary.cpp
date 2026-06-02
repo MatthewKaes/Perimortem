@@ -307,7 +307,7 @@ PERIMORTEM_UNIT_TEST(CoreBinaryWriter, raw_bytes) {
   writer << "blob data"_view;
 
   EXPECT(writer.is_valid());
-  EXPECT_TEXT(buffer.slice(0, 9), "blob data"_view);
+  EXPECT_TEXT(buffer, "blob data"_view);
 }
 
 PERIMORTEM_UNIT_TEST(CoreBinaryWriter, overflow) {

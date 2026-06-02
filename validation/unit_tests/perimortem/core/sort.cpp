@@ -23,8 +23,8 @@ auto operator>(const Bytes& lhs, const Bytes& rhs) -> Bool {
     return lhs.get_size() > rhs.get_size();
   }
 
-  auto data = lhs.get_view();
-  auto comp = rhs.get_view();
+  View::Bytes data = lhs;
+  View::Bytes comp = rhs;
   for (Count i = 0; i < data.get_size(); i++) {
     if (data[i] != comp.get_data()[i]) {
       return data[i] > comp.get_data()[i];
@@ -115,6 +115,6 @@ PERIMORTEM_UNIT_TEST(AlgoSort, dynamic_types) {
     validate.append(Byte('0' + (i % 10)));
     Dynamic::Bytes validate2;
     validate2 = validate;
-    EXPECT_TEXT(sorted[i].get_view(), validate.get_view());
+    EXPECT_TEXT(sorted[i], validate);
   }
 }

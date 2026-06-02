@@ -288,8 +288,7 @@ auto Writer::Textual::write_real(Real_64 real, Real_64 precision) -> void {
   }
 }
 
-auto Writer::Textual::operator<<(const View::Bytes raw)
-    -> Writer::Textual& {
+auto Writer::Textual::operator<<(const View::Bytes raw) -> Writer::Textual& {
   valid_state &= write_text(data, ptr_location, raw);
   return *this;
 }

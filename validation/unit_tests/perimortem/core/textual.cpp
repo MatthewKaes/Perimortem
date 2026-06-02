@@ -164,7 +164,7 @@ PERIMORTEM_UNIT_TEST(CoreTextual, simple_text) {
   writer << "Hello"_view << "World"_view;
 
   EXPECT(writer.is_valid());
-  EXPECT_TEXT(buffer.get_view(), "HelloWorld"_view);
+  EXPECT_TEXT(buffer, "HelloWorld"_view);
 }
 
 PERIMORTEM_UNIT_TEST(CoreTextual, prevent_overflow) {
@@ -184,7 +184,7 @@ PERIMORTEM_UNIT_TEST(CoreTextual, integers) {
   writer << 120000 << -31 << 208;
 
   EXPECT(writer.is_valid());
-  EXPECT_TEXT(buffer.get_view(), "120000-31208"_view);
+  EXPECT_TEXT(buffer, "120000-31208"_view);
 }
 
 PERIMORTEM_UNIT_TEST(CoreTextual, integers_and_text) {
@@ -194,7 +194,7 @@ PERIMORTEM_UNIT_TEST(CoreTextual, integers_and_text) {
   writer << "Test Value: "_view << 412010 << " units"_view;
 
   EXPECT(writer.is_valid());
-  EXPECT_TEXT(buffer.get_view(), "Test Value: 412010 units"_view);
+  EXPECT_TEXT(buffer, "Test Value: 412010 units"_view);
 }
 
 PERIMORTEM_UNIT_TEST(CoreTextual, boolean) {
@@ -208,7 +208,7 @@ PERIMORTEM_UNIT_TEST(CoreTextual, boolean) {
   writer << True << False;
 
   EXPECT(writer.is_valid());
-  EXPECT_TEXT(buffer.get_view(), "10truefalse"_view);
+  EXPECT_TEXT(buffer, "10truefalse"_view);
 }
 
 PERIMORTEM_UNIT_TEST(CoreTextual, floats) {
@@ -237,15 +237,15 @@ PERIMORTEM_UNIT_TEST(CoreTextual, multiple_writers) {
   };
 
   writers[0] << "Sample text for testing!"_view;
-  ASSERT_TEXT(buffer.get_view(), "Sample text for testing!??????????"_view);
+  ASSERT_TEXT(buffer, "Sample text for testing!??????????"_view);
   writers[1] << "test: "_view << True;
-  ASSERT_TEXT(buffer.get_view(), "test: truet for testing!??????????"_view);
+  ASSERT_TEXT(buffer, "test: truet for testing!??????????"_view);
   writers[0] << " "_view << 13891;
-  ASSERT_TEXT(buffer.get_view(), "test: truet for testing! 13891????"_view);
+  ASSERT_TEXT(buffer, "test: truet for testing! 13891????"_view);
   writers[1] << 79.8106;
-  ASSERT_TEXT(buffer.get_view(), "test: true79.8106esting! 13891????"_view);
+  ASSERT_TEXT(buffer, "test: true79.8106esting! 13891????"_view);
   writers[0] << "Too much text!!"_view;
-  ASSERT_TEXT(buffer.get_view(), "test: true79.8106esting! 13891????"_view);
+  ASSERT_TEXT(buffer, "test: true79.8106esting! 13891????"_view);
 
   EXPECT_NOT(writers[0].is_valid());
   EXPECT(writers[1].is_valid());

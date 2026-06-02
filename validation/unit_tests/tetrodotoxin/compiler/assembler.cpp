@@ -31,7 +31,7 @@ PERIMORTEM_UNIT_TEST(Ttxx86_64, inc) {
   }
 
   EXPECT_HEX(
-      machine_code.get_view(),
+      machine_code,
       "\xFF\xC0\xFF\xC1\xFF\xC2\xFF\xC3\xFF\xC4\xFF\xC5\xFF\xC6\xFF\xC7\x41\xFF"
       "\xC0\x41\xFF\xC1\x41\xFF\xC2\x41\xFF\xC3\x41\xFF\xC4\x41\xFF\xC5\x41\xFF"
       "\xC6\x41\xFF\xC7"_view);
@@ -43,7 +43,7 @@ PERIMORTEM_UNIT_TEST(Ttxx86_64, inc) {
     assembler.inc(reg);
   }
   EXPECT_HEX(
-      machine_code.get_view(),
+      machine_code,
       "\x48\xFF\xC0\x48\xFF\xC1\x48\xFF\xC2\x48\xFF\xC3\x48\xFF\xC4\x48\xFF\xC5"
       "\x48\xFF\xC6\x48\xFF\xC7\x49\xFF\xC0\x49\xFF\xC1\x49\xFF\xC2\x49\xFF\xC3"
       "\x49\xFF\xC4\x49\xFF\xC5\x49\xFF\xC6\x49\xFF\xC7"_view);
@@ -59,7 +59,7 @@ PERIMORTEM_UNIT_TEST(Ttxx86_64, dec) {
   }
 
   EXPECT_HEX(
-      machine_code.get_view(),
+      machine_code,
       "\xFF\xC8\xFF\xC9\xFF\xCA\xFF\xCB\xFF\xCC\xFF\xCD\xFF\xCE\xFF\xCF\x41\xFF"
       "\xC8\x41\xFF\xC9\x41\xFF\xCA\x41\xFF\xCB\x41\xFF\xCC\x41\xFF\xCD\x41\xFF"
       "\xCE\x41\xFF\xCF"_view);
@@ -71,7 +71,7 @@ PERIMORTEM_UNIT_TEST(Ttxx86_64, dec) {
     assembler.dec(reg);
   }
   EXPECT_HEX(
-      machine_code.get_view(),
+      machine_code,
       "\x48\xFF\xC8\x48\xFF\xC9\x48\xFF\xCA\x48\xFF\xCB\x48\xFF\xCC\x48\xFF\xCD"
       "\x48\xFF\xCE\x48\xFF\xCF\x49\xFF\xC8\x49\xFF\xC9\x49\xFF\xCA\x49\xFF\xCB"
       "\x49\xFF\xCC\x49\xFF\xCD\x49\xFF\xCE\x49\xFF\xCF"_view);
@@ -87,7 +87,7 @@ PERIMORTEM_UNIT_TEST(Ttxx86_64, zero) {
   }
 
   EXPECT_HEX(
-      machine_code.get_view(),
+      machine_code,
       "\x31\xC0\x31\xC9\x31\xD2\x31\xDB\x31\xE4\x31\xED\x31\xF6\x31\xFF\x45\x31"
       "\xC0\x45\x31\xC9\x45\x31\xD2\x45\x31\xDB\x45\x31\xE4\x45\x31\xED\x45\x31"
       "\xF6\x45\x31\xFF"_view);
@@ -100,7 +100,7 @@ PERIMORTEM_UNIT_TEST(Ttxx86_64, zero) {
   }
   // Should be the same as the 64 bit operations.
   EXPECT_HEX(
-      machine_code.get_view(),
+      machine_code,
       "\x31\xC0\x31\xC9\x31\xD2\x31\xDB\x31\xE4\x31\xED\x31\xF6\x31\xFF\x4D\x31"
       "\xC0\x4D\x31\xC9\x4D\x31\xD2\x4D\x31\xDB\x4D\x31\xE4\x4D\x31\xED\x4D\x31"
       "\xF6\x4D\x31\xFF"_view);
@@ -116,7 +116,7 @@ PERIMORTEM_UNIT_TEST(Ttxx86_64, one) {
   }
 
   EXPECT_HEX(
-      machine_code.get_view(),
+      machine_code,
       "\x31\xC0\xFF\xC0\x31\xC9\xFF\xC1\x31\xD2\xFF\xC2\x31\xDB\xFF\xC3\x31\xE4"
       "\xFF\xC4\x31\xED\xFF\xC5\x31\xF6\xFF\xC6\x31\xFF\xFF\xC7\x45\x31\xC0\x41"
       "\xFF\xC0\x45\x31\xC9\x41\xFF\xC1\x45\x31\xD2\x41\xFF\xC2\x45\x31\xDB\x41"
@@ -130,7 +130,7 @@ PERIMORTEM_UNIT_TEST(Ttxx86_64, one) {
     assembler.one(reg);
   }
   EXPECT_HEX(
-      machine_code.get_view(),
+      machine_code,
       "\x31\xC0\xFF\xC0\x31\xC9\xFF\xC1\x31\xD2\xFF\xC2\x31\xDB\xFF\xC3\x31\xE4"
       "\xFF\xC4\x31\xED\xFF\xC5\x31\xF6\xFF\xC6\x31\xFF\xFF\xC7\x4D\x31\xC0\x49"
       "\xFF\xC0\x4D\x31\xC9\x49\xFF\xC1\x4D\x31\xD2\x49\xFF\xC2\x4D\x31\xDB\x49"
@@ -148,7 +148,7 @@ PERIMORTEM_UNIT_TEST(Ttxx86_64, neg_one) {
   }
 
   EXPECT_HEX(
-      machine_code.get_view(),
+      machine_code,
       "\x31\xC0\xFF\xC8\x31\xC9\xFF\xC9\x31\xD2\xFF\xCA\x31\xDB\xFF\xCB\x31\xE4"
       "\xFF\xCC\x31\xED\xFF\xCD\x31\xF6\xFF\xCE\x31\xFF\xFF\xCF\x45\x31\xC0\x41"
       "\xFF\xC8\x45\x31\xC9\x41\xFF\xC9\x45\x31\xD2\x41\xFF\xCA\x45\x31\xDB\x41"
@@ -164,7 +164,7 @@ PERIMORTEM_UNIT_TEST(Ttxx86_64, neg_one) {
   // Neg one can't optimize for the lower 3 bit registers since dec needs to
   // wrap around.
   EXPECT_HEX(
-      machine_code.get_view(),
+      machine_code,
       "\x31\xC0\x48\xFF\xC8\x31\xC9\x48\xFF\xC9\x31\xD2\x48\xFF\xCA\x31\xDB\x48"
       "\xFF\xCB\x31\xE4\x48\xFF\xCC\x31\xED\x48\xFF\xCD\x31\xF6\x48\xFF\xCE\x31"
       "\xFF\x48\xFF\xCF\x4D\x31\xC0\x49\xFF\xC8\x4D\x31\xC9\x49\xFF\xC9\x4D\x31"
@@ -181,7 +181,7 @@ PERIMORTEM_UNIT_TEST(Ttxx86_64, mov_reg_to_reg_8bit) {
   }
   // AL-BL: no REX. SPL-DIL: bare REX 0x40. R8B-R15B: REX.R|REX.B = 0x45.
   EXPECT_HEX(
-      machine_code.get_view(),
+      machine_code,
       "\x88\xC0\x88\xC9\x88\xD2\x88\xDB"                  // AL CL DL BL
       "\x40\x88\xE4\x40\x88\xED\x40\x88\xF6\x40\x88\xFF"  // SPL BPL SIL DIL
       "\x45\x88\xC0\x45\x88\xC9\x45\x88\xD2\x45\x88\xDB"  // R8B-R11B
@@ -207,7 +207,7 @@ PERIMORTEM_UNIT_TEST(Ttxx86_64, mov_reg_to_reg_8bit) {
   assembler.mov(
       x86_64::Reg::R8B, x86_64::Reg::R9B);  // REX.R|B, reg=R8B(0), rm=R9B(1)
   EXPECT_HEX(
-      machine_code.get_view(),
+      machine_code,
       "\x88\xC1"             // AL  → CL   (ModRM reg=0, rm=1)
       "\x88\xC8"             // CL  → AL   (ModRM reg=1, rm=0)
       "\x40\x88\xC4"         // AL  → SPL  (bare REX; ModRM reg=0=AL, rm=4=SPL)
@@ -227,7 +227,7 @@ PERIMORTEM_UNIT_TEST(Ttxx86_64, mov_reg_to_reg_16bit) {
   }
   // AX-DI: 0x66 prefix, no REX. R8W-R15W: 0x66 + REX.R|REX.B = 0x45.
   EXPECT_HEX(
-      machine_code.get_view(),
+      machine_code,
       "\x66\x89\xC0\x66\x89\xC9\x66\x89\xD2\x66\x89\xDB"  // AX CX DX BX
       "\x66\x89\xE4\x66\x89\xED\x66\x89\xF6\x66\x89\xFF"  // SP BP SI DI
       "\x66\x45\x89\xC0\x66\x45\x89\xC9\x66\x45\x89\xD2\x66\x45\x89\xDB"  // R8W-R11W
@@ -242,7 +242,7 @@ PERIMORTEM_UNIT_TEST(Ttxx86_64, mov_reg_to_reg_16bit) {
   assembler.mov(x86_64::Reg::R9W, x86_64::Reg::R8W);  // 66 REX.R|B(45) 89 C8
   assembler.mov(x86_64::Reg::R8W, x86_64::Reg::R9W);  // 66 REX.R|B(45) 89 C1
   EXPECT_HEX(
-      machine_code.get_view(),
+      machine_code,
       "\x66\x89\xC1"             // AX  → CX
       "\x66\x89\xC8"             // CX  → AX
       "\x66\x44\x89\xC0"         // R8W → AX   (REX.R extends reg to R8W)
@@ -260,7 +260,7 @@ PERIMORTEM_UNIT_TEST(Ttxx86_64, mov_reg_to_reg_32bit) {
   }
   // EAX-EDI: no REX prefix. R8D-R15D: REX.R|REX.B = 0x45.
   EXPECT_HEX(
-      machine_code.get_view(),
+      machine_code,
       "\x89\xC0\x89\xC9\x89\xD2\x89\xDB\x89\xE4\x89\xED\x89\xF6\x89\xFF"  // EAX-EDI
       "\x45\x89\xC0\x45\x89\xC9\x45\x89\xD2\x45\x89\xDB"         // R8D-R11D
       "\x45\x89\xE4\x45\x89\xED\x45\x89\xF6\x45\x89\xFF"_view);  // R12D-R15D
@@ -274,7 +274,7 @@ PERIMORTEM_UNIT_TEST(Ttxx86_64, mov_reg_to_reg_32bit) {
   assembler.mov(x86_64::Reg::R9D, x86_64::Reg::R8D);  // REX.R|B(45) 89 C8
   assembler.mov(x86_64::Reg::R8D, x86_64::Reg::R9D);  // REX.R|B(45) 89 C1
   EXPECT_HEX(
-      machine_code.get_view(),
+      machine_code,
       "\x89\xC3"             // EAX → EBX
       "\x89\xD8"             // EBX → EAX
       "\x44\x89\xC0"         // R8D → EAX  (REX.R extends reg to R8D)
@@ -292,7 +292,7 @@ PERIMORTEM_UNIT_TEST(Ttxx86_64, mov_reg_to_reg_64bit) {
   }
   // RAX-RDI: REX.W = 0x48. R8-R15: REX.W|REX.R|REX.B = 0x4D.
   EXPECT_HEX(
-      machine_code.get_view(),
+      machine_code,
       "\x48\x89\xC0\x48\x89\xC9\x48\x89\xD2\x48\x89\xDB"         // RAX-RBX
       "\x48\x89\xE4\x48\x89\xED\x48\x89\xF6\x48\x89\xFF"         // RSP-RDI
       "\x4D\x89\xC0\x4D\x89\xC9\x4D\x89\xD2\x4D\x89\xDB"         // R8-R11
@@ -307,7 +307,7 @@ PERIMORTEM_UNIT_TEST(Ttxx86_64, mov_reg_to_reg_64bit) {
   assembler.mov(x86_64::Reg::R9, x86_64::Reg::R8);    // REX.W|R|B(4D) 89 C8
   assembler.mov(x86_64::Reg::R8, x86_64::Reg::R9);    // REX.W|R|B(4D) 89 C1
   EXPECT_HEX(
-      machine_code.get_view(),
+      machine_code,
       "\x48\x89\xC3"         // RAX → RBX
       "\x48\x89\xD8"         // RBX → RAX
       "\x4C\x89\xC0"         // R8  → RAX  (REX.W|R extends reg to R8)
@@ -326,7 +326,7 @@ PERIMORTEM_UNIT_TEST(Ttxx86_64, mov_r8_imm8) {
   // AL-BL: B0+rd + imm8 (2 bytes). SPL-DIL: bare REX(0x40) + B4+rd + imm8 (3
   // bytes). R8B-R15B: REX.B(0x41) + B0+rd + imm8 (3 bytes).
   EXPECT_HEX(
-      machine_code.get_view(),
+      machine_code,
       "\xB0\x42\xB1\x42\xB2\x42\xB3\x42"                  // AL CL DL BL
       "\x40\xB4\x42\x40\xB5\x42\x40\xB6\x42\x40\xB7\x42"  // SPL BPL SIL DIL
       "\x41\xB0\x42\x41\xB1\x42\x41\xB2\x42\x41\xB3\x42"  // R8B-R11B
@@ -343,7 +343,7 @@ PERIMORTEM_UNIT_TEST(Ttxx86_64, mov_r16_imm16) {
   // AX-DI: 0x66 + B8+rd + imm16 (4 bytes). R8W-R15W: 0x66 + REX.B(0x41) + B8+rd
   // + imm16 (5 bytes).
   EXPECT_HEX(
-      machine_code.get_view(),
+      machine_code,
       "\x66\xB8\x34\x12\x66\xB9\x34\x12\x66\xBA\x34\x12\x66\xBB\x34\x12"
       "\x66\xBC\x34\x12\x66\xBD\x34\x12\x66\xBE\x34\x12\x66\xBF\x34\x12"
       "\x66\x41\xB8\x34\x12\x66\x41\xB9\x34\x12\x66\x41\xBA\x34\x12\x66\x41\xBB"
@@ -356,7 +356,7 @@ PERIMORTEM_UNIT_TEST(Ttxx86_64, mov_r16_imm16) {
   assembler.mov(Bits_16(0), x86_64::Reg::AX);   // zero(AX)  → 31 C0
   assembler.mov(Bits_16(0), x86_64::Reg::R8W);  // zero(R8W) → 45 31 C0
   EXPECT_HEX(
-      machine_code.get_view(),
+      machine_code,
       "\x31\xC0"             // zero(AX)
       "\x45\x31\xC0"_view);  // zero(R8W)
 }
@@ -371,7 +371,7 @@ PERIMORTEM_UNIT_TEST(Ttxx86_64, mov_r32_imm32) {
   // EAX-EDI: B8+rd, imm32 (5 bytes). R8D-R15D: REX.B(0x41) + B8+rd, imm32 (6
   // bytes).
   EXPECT_HEX(
-      machine_code.get_view(),
+      machine_code,
       "\xB8\x78\x56\x34\x12\xB9\x78\x56\x34\x12\xBA\x78\x56\x34\x12\xBB\x78\x56"
       "\x34\x12"
       "\xBC\x78\x56\x34\x12\xBD\x78\x56\x34\x12\xBE\x78\x56\x34\x12\xBF\x78\x56"
@@ -385,7 +385,7 @@ PERIMORTEM_UNIT_TEST(Ttxx86_64, mov_r32_imm32) {
   assembler.mov(Bits_32(0), x86_64::Reg::EAX);  // zero(EAX) → 31 C0
   assembler.mov(Bits_32(0), x86_64::Reg::R8D);  // zero(R8D) → 45 31 C0
   EXPECT_HEX(
-      machine_code.get_view(),
+      machine_code,
       "\x31\xC0"             // zero(EAX)
       "\x45\x31\xC0"_view);  // zero(R8D)
 
@@ -394,7 +394,7 @@ PERIMORTEM_UNIT_TEST(Ttxx86_64, mov_r32_imm32) {
   assembler.mov(Bits_32(1), x86_64::Reg::EAX);  // one(EAX) → 31 C0 FF C0
   assembler.mov(Bits_32(1), x86_64::Reg::R8D);  // one(R8D) → 45 31 C0 41 FF C0
   EXPECT_HEX(
-      machine_code.get_view(),
+      machine_code,
       "\x31\xC0\xFF\xC0"                 // one(EAX): zero + INC EAX
       "\x45\x31\xC0\x41\xFF\xC0"_view);  // one(R8D): zero + REX.B INC R8D
 }
@@ -441,7 +441,7 @@ PERIMORTEM_UNIT_TEST(Ttxx86_64, mov_r64_imm64) {
   assembler.mov(Bits_64(0x100000000), x86_64::Reg::R8);
 
   EXPECT_HEX(
-      machine_code.get_view(),
+      machine_code,
       // 0 → zero(RAX): XOR EAX,EAX (31 C0) — 32-bit write zero-extends to RAX
       //     zero(R8):  REX.W|R|B(4D) XOR(31) C0 — R8 needs full REX
       "\x31\xC0"
@@ -490,7 +490,7 @@ PERIMORTEM_UNIT_TEST(Ttxx86_64, mov_store_to_memory) {
   // Store R8 to [RBX+8] — extended source register
   assembler.mov(x86_64::Reg::R8, x86_64::Reg::RBX, SignedBits_32(8));
   EXPECT_HEX(
-      machine_code.get_view(),
+      machine_code,
       "\x48\x89\x03"             // RAX → [RBX]
       "\x48\x89\x43\x08"         // RAX → [RBX+8]
       "\x48\x89\x45\x00"         // RAX → [RBP+0]
@@ -510,7 +510,7 @@ PERIMORTEM_UNIT_TEST(Ttxx86_64, mov_load_from_memory) {
   // Load [R8+8] to RAX — extended base register
   assembler.mov(x86_64::Reg::R8, SignedBits_32(8), x86_64::Reg::RAX);
   EXPECT_HEX(
-      machine_code.get_view(),
+      machine_code,
       "\x48\x8B\x03"             // [RBX] → RAX
       "\x48\x8B\x43\x08"         // [RBX+8] → RAX
       "\x48\x8B\x44\x24\x08"     // [RSP+8] → RAX (SIB)
@@ -525,5 +525,5 @@ PERIMORTEM_UNIT_TEST(Ttxx86_64, call) {
   assembler.call();
 
   // Should create a single byte call with 4 bytes left disp32.
-  EXPECT_HEX(machine_code.get_view(), "\xE8\0\0\0\0"_view);
+  EXPECT_HEX(machine_code, "\xE8\0\0\0\0"_view);
 }

@@ -221,9 +221,9 @@ PERIMORTEM_UNIT_TEST(DynamicMapPartial, dynamic_value) {
   text_map[1] = "World"_view;
   text_map[2] = "Longer test string"_view;
 
-  ASSERT_TEXT(text_map[0].get_view(), "Hello"_view);
-  ASSERT_TEXT(text_map[1].get_view(), "World"_view);
-  ASSERT_TEXT(text_map[2].get_view(), "Longer test string"_view);
+  ASSERT_TEXT(text_map[0], "Hello"_view);
+  ASSERT_TEXT(text_map[1], "World"_view);
+  ASSERT_TEXT(text_map[2], "Longer test string"_view);
 }
 
 PERIMORTEM_UNIT_TEST(DynamicMapPartial, size) {
