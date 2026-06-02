@@ -1,0 +1,133 @@
+// Perimortem Engine
+// Copyright © Matt Kaes
+
+#pragma once
+
+#include "perimortem/core/static/bytes.hpp"
+#include "perimortem/core/static/vector.hpp"
+
+#include "perimortem/system/compression/bit_stream/reader.hpp"
+
+namespace Perimortem::System::Compression {
+
+class HuffmanCode {
+ public:
+  constexpr HuffmanCode() {}
+  constexpr HuffmanCode(Bits_32 code, Count length)
+      : length(length), code(code) {}
+
+  constexpr auto get_code() const -> Bits_32 { return code; }
+  constexpr auto get_length() const -> Count { return length; }
+
+ private:
+  Count length = 0;
+  Bits_32 code = 0;
+};
+
+// A Huffman table for encoding and decoding DEFLATE symbol streams. The encode
+// path is a reverse lookup built from the same code lengths as the decode path.
+// All storage is stack-allocated.
+class HuffmanTable {
+ public:
+  static constexpr Bits_16 invalid_symbol = 0xFFFF;
+  static constexpr Count max_code_bits = 15;
+  static constexpr Count max_symbol_count = 320;
+
+  constexpr HuffmanTable(Core::View::Vector<Bits_8> code_lengths) {
+    Core::Static::Vector<Count, max_code_bits + 2> bit_length_count;
+    for (Count symbol = 0; symbol < code_lengths.get_size(); symbol++) {
+      if (code_lengths[symbol] > 0) {
+        bit_length_count[code_lengths[symbol]]++;
+        if (code_lengths[symbol] > max_bits) {
+          max_bits = code_lengths[symbol];
+        }
+      }
+    }
+
+    Bits_32 canonical_code = 0;
+    for (Count i = 1; i <= max_bits; i++) {
+      base_code[i] = canonical_code;
+      canonical_code = (canonical_code + bit_length_count[i]) << 1;
+    }
+
+    Count symbol_index = 0;
+    for (Count i = 1; i <= max_bits + 1; i++) {
+      base_index[i] = symbol_index;
+      symbol_index += bit_length_count[i];
+    }
+
+    Core::Static::Vector<Count, max_code_bits + 2> fill_offset;
+    for (Count i = 1; i <= max_bits; i++) {
+      fill_offset[i] = base_index[i];
+    }
+
+    for (Count symbol = 0; symbol < code_lengths.get_size(); symbol++) {
+      Count len = code_lengths[symbol];
+      if (len > 0) {
+        Count pos = fill_offset[len]++;
+        symbol_map[pos] = Bits_16(symbol);
+        encode_codes[symbol] = base_code[len] + Bits_32(pos - base_index[len]);
+        encode_lengths[symbol] = Bits_8(len);
+      }
+    }
+  }
+
+  static constexpr auto make_fixed_literal() -> HuffmanTable {
+    Core::Static::Vector<Bits_8, 288> code_lengths([](Count i) -> Bits_8 {
+      switch (i) {
+      case 144 ... 255:
+        return 9;
+      case 256 ... 279:
+        return 7;
+      default:
+        return 8;
+      }
+    });
+    return HuffmanTable(code_lengths.get_view());
+  }
+
+  static constexpr auto make_fixed_distance() -> HuffmanTable {
+    Core::Static::Vector<Bits_8, 30> code_lengths;
+    for (Count symbol = 0; symbol < 30; symbol++) {
+      code_lengths[symbol] = 5;
+    }
+    return HuffmanTable(code_lengths.get_view());
+  }
+
+  static auto compute_lengths(
+      Core::View::Vector<Bits_32> frequencies,
+      Core::Access::Vector<Bits_8> lengths) -> void;
+
+  constexpr auto decode_symbol(BitStream::Reader& reader) const -> Bits_16 {
+    Bits_32 accumulated_code = 0;
+    for (Count i = 1; i <= max_bits; i++) {
+      accumulated_code = (accumulated_code << 1) | reader.read_bit().value;
+      const auto code_index = base_index[i];
+      const auto base = base_code[i];
+      Count symbol_count = base_index[i + 1] - code_index;
+      if (symbol_count > 0 && accumulated_code >= base &&
+          (accumulated_code - base) < symbol_count) {
+        return symbol_map[code_index + (accumulated_code - base)];
+      }
+    }
+    reader.invalidate();
+    return invalid_symbol;
+  }
+
+  constexpr auto encode_symbol(Count symbol) const -> HuffmanCode {
+    if (symbol >= max_symbol_count || encode_lengths[symbol] == 0) {
+      return HuffmanCode();
+    }
+    return HuffmanCode(encode_codes[symbol], encode_lengths[symbol]);
+  }
+
+ private:
+  Core::Static::Vector<Bits_32, max_code_bits + 2> base_code;
+  Core::Static::Vector<Count, max_code_bits + 2> base_index;
+  Core::Static::Vector<Bits_16, max_symbol_count> symbol_map;
+  Core::Static::Vector<Bits_32, max_symbol_count> encode_codes;
+  Core::Static::Vector<Bits_8, max_symbol_count> encode_lengths;
+  Count max_bits = 0;
+};
+
+}  // namespace Perimortem::System::Compression
