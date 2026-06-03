@@ -38,6 +38,9 @@ class Pixel {
   Pixel(Bits_8 red, Bits_8 green, Bits_8 blue, Bits_8 alpha)
       : red(red), green(green), blue(blue), alpha(alpha) {}
 
+  static constexpr auto get_bit_depth() -> Count { return 8; };
+  static constexpr auto get_byte_count() -> Count { return 4; };
+
   Bits_8 red = 0;
   Bits_8 green = 0;
   Bits_8 blue = 0;

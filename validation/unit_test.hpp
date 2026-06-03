@@ -74,7 +74,7 @@ auto create(
   {                                                                      \
     auto __value = bool(expression);                                     \
     auto __check = true;                                                 \
-    if (__value != __check) {                                            \
+    if (!(__value == __check)) {                                         \
       Validation::Test::log_message(                                     \
           Perimortem::Core::NullTerminated::to_view(__FILE__), __LINE__, \
           Perimortem::Core::NullTerminated::to_view(                     \
@@ -88,7 +88,7 @@ auto create(
   {                                                                      \
     auto __value = bool(expression);                                     \
     auto __check = true;                                                 \
-    if (__value != __check) {                                            \
+    if (!(__value == __check)) {                                         \
       Validation::Test::log_message(                                     \
           Perimortem::Core::NullTerminated::to_view(__FILE__), __LINE__, \
           Perimortem::Core::NullTerminated::to_view(                     \
@@ -103,7 +103,7 @@ auto create(
   {                                                                      \
     auto __value = bool(expression);                                     \
     auto __check = false;                                                \
-    if (__value != __check) {                                            \
+    if (!(__value == __check)) {                                         \
       Validation::Test::log_message(                                     \
           Perimortem::Core::NullTerminated::to_view(__FILE__), __LINE__, \
           Perimortem::Core::NullTerminated::to_view(                     \
@@ -117,7 +117,7 @@ auto create(
   {                                                                      \
     auto __value = bool(expression);                                     \
     auto __check = false;                                                \
-    if (__value != __check) {                                            \
+    if (!(__value == __check)) {                                         \
       Validation::Test::log_message(                                     \
           Perimortem::Core::NullTerminated::to_view(__FILE__), __LINE__, \
           Perimortem::Core::NullTerminated::to_view(                     \
@@ -132,7 +132,7 @@ auto create(
   {                                                                      \
     auto __value = (expression);                                         \
     auto __check = (expect);                                             \
-    if (__value != __check) {                                            \
+    if (!(__value == __check)) {                                         \
       Validation::Test::log_message(                                     \
           Perimortem::Core::NullTerminated::to_view(__FILE__), __LINE__, \
           Perimortem::Core::NullTerminated::to_view(                     \
@@ -160,7 +160,7 @@ auto create(
   {                                                                      \
     auto __value = (expression);                                         \
     auto __check = (expect);                                             \
-    if (__value != __check) {                                            \
+    if (!(__value == __check)) {                                         \
       Validation::Test::log_message(                                     \
           Perimortem::Core::NullTerminated::to_view(__FILE__), __LINE__, \
           Perimortem::Core::NullTerminated::to_view(                     \
@@ -190,7 +190,7 @@ auto create(
   {                                                                      \
     auto __value = (expression);                                         \
     auto __check = (expect);                                             \
-    if (__value != __check) {                                            \
+    if (!(__value == __check)) {                                         \
       Validation::Test::log_message(                                     \
           Perimortem::Core::NullTerminated::to_view(__FILE__), __LINE__, \
           Perimortem::Core::NullTerminated::to_view(                     \
@@ -204,7 +204,7 @@ auto create(
   {                                                                      \
     auto __value = (expression);                                         \
     auto __check = (expect);                                             \
-    if (__value != __check) {                                            \
+    if (!(__value == __check)) {                                         \
       Validation::Test::log_message(                                     \
           Perimortem::Core::NullTerminated::to_view(__FILE__), __LINE__, \
           Perimortem::Core::NullTerminated::to_view(                     \
@@ -219,7 +219,7 @@ auto create(
   {                                                                      \
     auto __value = (expression);                                         \
     auto __check = (expect);                                             \
-    if (__value != __check) {                                            \
+    if (!(__value == __check)) {                                         \
       Validation::Test::log_message(                                     \
           Perimortem::Core::NullTerminated::to_view(__FILE__), __LINE__, \
           Perimortem::Core::NullTerminated::to_view(                     \
@@ -233,7 +233,7 @@ auto create(
   {                                                                      \
     auto __value = (expression);                                         \
     auto __check = (expect);                                             \
-    if (__value != __check) {                                            \
+    if (!(__value == __check)) {                                         \
       Validation::Test::log_message(                                     \
           Perimortem::Core::NullTerminated::to_view(__FILE__), __LINE__, \
           Perimortem::Core::NullTerminated::to_view(                     \

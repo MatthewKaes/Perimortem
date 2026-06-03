@@ -366,8 +366,8 @@ static auto write_lz77_block(
 
     if (match.get_length() >= Lz77::min_match) {
       const auto len_enc = encode_back_reference(
-          match.get_length(), length_base.get_view(), length_extra_bits.get_view(),
-          257);
+          match.get_length(), length_base.get_view(),
+          length_extra_bits.get_view(), 257);
       auto literal_code = lit_table.encode_symbol(len_enc.get_symbol());
       writer.write_code(literal_code.get_code(), literal_code.get_length());
       writer.write_bits(len_enc.get_extra_value(), len_enc.get_extra_bits());

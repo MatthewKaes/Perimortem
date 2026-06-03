@@ -113,8 +113,6 @@ PERIMORTEM_UNIT_TEST(AlgoSort, dynamic_types) {
     validate = "test_string #"_view;
     validate.append(Byte('0' + (i / 10)));
     validate.append(Byte('0' + (i % 10)));
-    Dynamic::Bytes validate2;
-    validate2 = validate;
-    EXPECT_TEXT(sorted[i], validate);
+    EXPECT_TEXT(sorted[i].get_view(), validate.get_view());
   }
 }

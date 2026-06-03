@@ -21,10 +21,16 @@ template <typename type>
 constexpr auto clamp(type val, type min_val, type max_val) -> type {
   return max(min(val, max_val), min_val);
 }
+
 template <typename type>
 constexpr auto wrap(type val, type modulo) -> type {
   val %= modulo;
   return val < 0 ? val + modulo : val;
+}
+
+template <typename type>
+constexpr auto absolute(type a) -> type {
+  return a >= 0 ? a : -a;
 }
 
 constexpr auto log2(Bits_64 value) -> Bits_64 {

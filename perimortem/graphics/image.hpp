@@ -41,16 +41,26 @@ class Image {
   }
 
   Image(
-      Memory::Dynamic::Vector<Pixel>&& pixels,
+      Memory::Dynamic::Vector<Pixel>&& source,
       Bits_32 width,
       Bits_32 height,
       Addressing addressing = Addressing::Zero)
-      : pixels(Core::Data::take(pixels)),
+      : pixels(Core::Data::take(source)),
         width(width),
         height(height),
         addressing(addressing) {
     if (pixels.get_size() != width * height) {
+      const auto target_size = width * height;
+      const auto original_size = pixels.get_size();
       pixels.resize(width * height);
+
+      // Clear out the new size if any.
+      if (original_size < target_size) {
+        auto bytes = pixels.get_access().get_bytes();
+        Core::Data::set(
+            bytes.get_data() + original_size * sizeof(Pixel), 0,
+            (bytes.get_size() - original_size) * sizeof(Pixel));
+      }
     }
   }
 

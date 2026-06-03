@@ -101,7 +101,7 @@ PERIMORTEM_UNIT_TEST(SystemCompression, inflate_dynamic_huffman) {
   auto out = Compression::inflate(hello_compressed);
 
   ASSERT_EQ(out.get_size(), hello_raw.get_size());
-  EXPECT_HEX(out.get_view(), hello_raw);
+  EXPECT_HEX(out.get_view(), hello_raw.get_view());
 
   // One allocation for the output buffer.
   EXPECT_EQ(Bibliotheca::check_out_requests(), start + 1);
@@ -111,7 +111,7 @@ PERIMORTEM_UNIT_TEST(SystemCompression, inflate_stored_blocks) {
   auto out = Compression::inflate(stored_compressed);
 
   ASSERT_EQ(out.get_size(), stored_raw.get_size());
-  EXPECT_HEX(out.get_view(), stored_raw);
+  EXPECT_HEX(out.get_view(), stored_raw.get_view());
 }
 
 PERIMORTEM_UNIT_TEST(SystemCompression, inflate_back_references) {
@@ -226,7 +226,7 @@ PERIMORTEM_UNIT_TEST(SystemCompression, deflate_roundtrip_short) {
 
   auto recovered = Compression::inflate(compressed);
   ASSERT_EQ(recovered.get_size(), hello_raw.get_size());
-  EXPECT_HEX(recovered.get_view(), hello_raw);
+  EXPECT_HEX(recovered.get_view(), hello_raw.get_view());
 }
 
 PERIMORTEM_UNIT_TEST(SystemCompression, deflate_roundtrip_binary) {
@@ -240,7 +240,7 @@ PERIMORTEM_UNIT_TEST(SystemCompression, deflate_roundtrip_binary) {
 
   auto recovered = Compression::inflate(compressed);
   ASSERT_EQ(recovered.get_size(), Count(256));
-  EXPECT_HEX(recovered.get_view(), all_bytes);
+  EXPECT_HEX(recovered.get_view(), all_bytes.get_view());
 }
 
 PERIMORTEM_UNIT_TEST(SystemCompression, deflate_output_is_valid_zlib) {
@@ -270,7 +270,7 @@ PERIMORTEM_UNIT_TEST(SystemCompression, deflate_repeating_value) {
 
   auto recovered = Compression::inflate(compressed);
   ASSERT_EQ(recovered.get_size(), source_size);
-  EXPECT_HEX(recovered.get_view(), source);
+  EXPECT_HEX(recovered.get_view(), source.get_view());
 }
 
 PERIMORTEM_UNIT_TEST(SystemCompression, roundtrip_large) {
@@ -286,7 +286,7 @@ PERIMORTEM_UNIT_TEST(SystemCompression, roundtrip_large) {
 
   auto recovered = Compression::inflate(compressed);
   ASSERT_EQ(recovered.get_size(), size);
-  EXPECT_HEX(recovered.get_view(), large);
+  EXPECT_HEX(recovered.get_view(), large.get_view());
 }
 
 PERIMORTEM_UNIT_TEST(SystemCompression, size_source_file) {
@@ -305,15 +305,16 @@ PERIMORTEM_UNIT_TEST(SystemCompression, size_source_file) {
 
   ASSERT(best_compression.get_size() > 0);
 
-  // Best compression only saves ~30 bytes over 10 KB output!
-  EXPECT(best_compression.get_size() <= default_compression.get_size());
+  // Best compression now saves ~12% compared to the old method.
+  auto size_threshold = Count(default_compression.get_size() * 0.88);
+  EXPECT(best_compression.get_size() <= size_threshold);
 
   // Default compression is a huge step up from no compression though.
   EXPECT(default_compression.get_size() <= no_compression.get_size() / 2);
 
   auto recovered = Compression::inflate(best_compression);
   ASSERT_EQ(recovered.get_size(), source.get_size());
-  EXPECT_HEX(recovered.get_view(), source);
+  EXPECT_HEX(recovered, source);
 }
 
 PERIMORTEM_UNIT_TEST(SystemCompression, size_repetitive_data) {
@@ -338,5 +339,5 @@ PERIMORTEM_UNIT_TEST(SystemCompression, size_repetitive_data) {
 
   auto recovered = Compression::inflate(best_compression);
   ASSERT_EQ(recovered.get_size(), source.get_size());
-  EXPECT_HEX(recovered.get_view(), source);
+  EXPECT_HEX(recovered.get_view(), source.get_view());
 }

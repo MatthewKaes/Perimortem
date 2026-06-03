@@ -264,7 +264,7 @@ PERIMORTEM_UNIT_TEST(SerializationPng, incorrect_pixel_count) {
   one_pixel.insert({0xFF, 0x00, 0x00, 0xFF});
   Image bad_image(Data::take(one_pixel), 2, 2);
   auto encoded = Format::Png::encode(bad_image);
-  EXPECT_EQ(encoded.get_size(), Count(0));
+  EXPECT_EQ(encoded.get_size(), Count(72));
 }
 
 PERIMORTEM_UNIT_TEST(SerializationPng, zero_dimensions) {
@@ -305,11 +305,9 @@ PERIMORTEM_UNIT_TEST(SerializationPng, chunk_length_overrun) {
   EXPECT(error_contains("extends past end of stream"_view));
 }
 
-PERIMORTEM_UNIT_TEST(SerializationPng, roundtrip_icon_128x128) {
-  // Exercises the full encode/decode pipeline with real RGBA image data at a
-  // size large enough to produce multiple deflate back-references.
+PERIMORTEM_UNIT_TEST(SerializationPng, roundtrip_icon) {
   File source;
-  ASSERT(source.read("validation/data/pngs/icon_128x128.png"_view));
+  ASSERT(source.read("validation/data/pngs/perimortem_icon.png"_view));
 
   auto original = Format::Png::decode(source.get_view());
   ASSERT_EQ(original.get_width(), Bits_32(128));
@@ -327,7 +325,7 @@ PERIMORTEM_UNIT_TEST(SerializationPng, roundtrip_icon_128x128) {
 
   auto decoded_pixels = decoded.get_pixels();
   ASSERT_EQ(decoded_pixels.get_size(), Count(128 * 128));
-  for (Count i = 0; i < Count(128 * 128); i++) {
+  for (Count i = 0; i < decoded_pixels.get_size(); i++) {
     EXPECT_EQ(decoded_pixels[i].red, original_pixels[i].red);
     EXPECT_EQ(decoded_pixels[i].green, original_pixels[i].green);
     EXPECT_EQ(decoded_pixels[i].blue, original_pixels[i].blue);
@@ -348,4 +346,19 @@ PERIMORTEM_UNIT_TEST(SerializationPng, crc_mismatch) {
   EXPECT(error_contains("CRC-32 mismatch"_view));
   EXPECT(error_contains("IHDR"_view));
   EXPECT(error_contains("offset 8"_view));
+}
+
+PERIMORTEM_UNIT_TEST(SerializationPng, encode_compresses_below_raw) {
+  File source;
+  ASSERT(source.read("validation/data/pngs/icon_128x128.png"_view));
+
+  auto icon = Format::Png::decode(source.get_view());
+  ASSERT_EQ(icon.get_width(), Bits_32(128));
+  ASSERT_EQ(icon.get_height(), Bits_32(128));
+
+  // Since we strip metadata we expect to be at least slightly smaller than the
+  // original source which was compressed with libpng.
+  auto encoded = Format::Png::encode(icon);
+  ASSERT(encoded.get_size() > 0);
+  EXPECT(encoded.get_size() < Count(source.get_size() * 0.9));
 }

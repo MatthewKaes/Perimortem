@@ -25,8 +25,9 @@ class Bytes {
   auto operator==(const Dynamic::Bytes& rhs) const -> Bool {
     return get_view() == rhs.get_view();
   }
-  auto operator!=(const Dynamic::Bytes& rhs) const -> Bool {
-    return get_view() != rhs.get_view();
+
+  auto operator==(const Core::View::Bytes& rhs) const -> Bool {
+    return get_view() == rhs;
   }
 
   ~Bytes();
