@@ -25,7 +25,7 @@ static thread_local Bits_64 this_thread_id =
     __atomic_fetch_add(&next_thread_id, 1, __ATOMIC_RELAXED);
 static thread_local Log::Sink message_sink = Log::default_sink;
 static thread_local Log::Level thread_log_level = Log::Level::Info;
-static thread_local const Source* attribution_override = nullptr;
+static thread_local Source attribution_override;
 
 struct TimeData {
   Byte hour;
@@ -118,15 +118,11 @@ auto format_entry(
   }
   writer << Byte(']') << Byte(' ');
 
-  // Override source if requested.
-  auto target_source = attribution_override;
-  if (target_source == nullptr) {
-    target_source = &loc;
-  }
-
-  writer << target_source->get_file();
-  writer << Byte(':') << Long(target_source->get_line());
-  writer << Byte(':') << Long(target_source->get_column());
+  const Source& target_source =
+      attribution_override.is_set() ? attribution_override : loc;
+  writer << target_source.get_file();
+  writer << Byte(':') << Long(target_source.get_line());
+  writer << Byte(':') << Long(target_source.get_column());
   writer << ": "_view << msg << Byte('\n');
 
   return writer.get_location();
@@ -226,12 +222,12 @@ auto Log::set_level(Level level) -> void {
 
 Log::Attribution::~Attribution() {
   if (primary_guard) {
-    attribution_override = nullptr;
+    attribution_override = Source();
   }
 }
 
 Log::Attribution::Attribution(Attribution&& rhs) {
-  primary_guard = True;
+  primary_guard = rhs.primary_guard;
   rhs.primary_guard = False;
 }
 
@@ -240,9 +236,9 @@ auto Log::set_attribution(const Source& location) -> Attribution {
   // ignore the request.
   // If there is no attribution then create an attribution point.
   Attribution scope_guard;
-  scope_guard.primary_guard = attribution_override == nullptr;
+  scope_guard.primary_guard = !attribution_override.is_set();
   if (scope_guard.primary_guard) {
-    attribution_override = &location;
+    attribution_override = location;
   }
 
   return scope_guard;
