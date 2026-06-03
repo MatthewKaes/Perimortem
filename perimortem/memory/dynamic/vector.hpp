@@ -45,6 +45,20 @@ class Vector {
     size = 0;
   }
 
+  auto operator=(Vector&& rhs) -> Vector& {
+    size = rhs.size;
+    capacity = rhs.capacity;
+
+    rhs.size = 0;
+    rhs.capacity = 0;
+
+    // Swap source blocks and since move isn't "destructive" we can rely on the
+    // destructor form the donor bytes.
+    Core::Data::swap(source_block, rhs.source_block);
+
+    return *this;
+  }
+
   ~Vector() { reset(); }
 
   constexpr operator Core::View::Vector<type>() const { return get_view(); }

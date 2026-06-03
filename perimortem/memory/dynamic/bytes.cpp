@@ -65,10 +65,15 @@ auto Dynamic::Bytes::operator=(const Bytes& rhs) -> Bytes& {
 
 auto Dynamic::Bytes::operator=(Bytes&& rhs) -> Bytes& {
   size = rhs.size;
-  source_block = rhs.source_block;
+  capacity = rhs.capacity;
 
-  rhs.source_block = nullptr;
   rhs.size = 0;
+  rhs.capacity = 0;
+
+  // Swap source blocks and since move isn't "destructive" we can rely on the
+  // destructor form the donor bytes.
+  Data::swap(source_block, rhs.source_block);
+
   return *this;
 }
 
