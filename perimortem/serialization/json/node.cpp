@@ -25,6 +25,68 @@ using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
 using namespace Perimortem::Serialization;
 
+auto construct_from_blueprint(
+    Allocator::Arena& arena,
+    const Json::Blueprint& bp) -> Json::Node;
+
+auto construct_object(
+    Allocator::Arena& arena,
+    const Json::Blueprint* entries,
+    Count count) -> Json::Node {
+  Managed::Vector<Json::Member> members(arena);
+
+  for (Count i = 0; i < count; i++) {
+    members.insert(
+        Json::Member{
+          entries[i].name, construct_from_blueprint(arena, entries[i])});
+  }
+
+  Json::Node result;
+  result.set(members);
+  return result;
+}
+
+auto construct_array(
+    Allocator::Arena& arena,
+    const Json::Blueprint* items,
+    Count count) -> Json::Node {
+  Managed::Vector<Json::Node> nodes(arena);
+
+  for (Count i = 0; i < count; i++) {
+    nodes.insert(construct_from_blueprint(arena, items[i]));
+  }
+
+  Json::Node result;
+  result.set(nodes.get_view());
+  return result;
+}
+
+auto construct_from_blueprint(
+    Allocator::Arena& arena,
+    const Json::Blueprint& bp) -> Json::Node {
+  switch (bp.tag) {
+  case Json::Blueprint::Tag::Null:
+    return Json::Node();
+  case Json::Blueprint::Tag::String:
+    return Json::Node(bp.string_val);
+  case Json::Blueprint::Tag::Number:
+    return Json::Node(bp.number_val);
+  case Json::Blueprint::Tag::Real:
+    return Json::Node(bp.real_val);
+  case Json::Blueprint::Tag::Flag:
+    return Json::Node(bp.flag_val);
+  case Json::Blueprint::Tag::Compound: {
+    // Named children → object; unnamed children → array.
+    const Bool is_object =
+        bp.compound.size > 0 && bp.compound.ptr[0].name.get_size() > 0;
+    if (is_object) {
+      return construct_object(arena, bp.compound.ptr, bp.compound.size);
+    }
+    return construct_array(arena, bp.compound.ptr, bp.compound.size);
+  }
+  }
+}
+
 template <Bits_32 channels, Bits_32 index, Bits_32 range>
 static auto optimized_or_merge(__m256i source[channels]) -> __m256i {
   if constexpr (range == 1) {
@@ -47,7 +109,7 @@ auto scan(View::Bytes bytes, Byte search, Count position) -> Count {
   constexpr const auto full_channel_width = avx2_channel_width * fused_channels;
 
   auto search_mask = _mm256_set1_epi8(search);
-  for (; position + avx2_channel_width <= bytes.get_size();
+  for (; position + full_channel_width <= bytes.get_size();
        position += full_channel_width) {
     // Load all channels and check for our target byte.
     __m256i masks[fused_channels];
@@ -64,8 +126,8 @@ auto scan(View::Bytes bytes, Byte search, Count position) -> Count {
 
     // Check if we found the byte at all.
     if (!_mm256_testz_si256(group_mask, group_mask)) {
-      auto ymm = 0;
-      for (auto ymm = 0; ymm < fused_channels - 2; ymm += 2) {
+      Count ymm;
+      for (ymm = 0; ymm < fused_channels - 2; ymm += 2) {
         const Bits_32 result_lower = _mm256_movemask_epi8(masks[ymm]);
         const Bits_32 result_upper = _mm256_movemask_epi8(masks[ymm + 1]);
         const Bits_64 result_merged = (Bits_64)result_upper
@@ -80,19 +142,15 @@ auto scan(View::Bytes bytes, Byte search, Count position) -> Count {
         }
       }
 
-      // We must have a left over register so we can just check it.
-      if (ymm == fused_channels - 2) {
-        const Bits_32 result_lower = _mm256_movemask_epi8(masks[ymm]);
-        const Bits_32 result_upper = _mm256_movemask_epi8(masks[ymm + 1]);
-        const Bits_64 result_merged = (Bits_64)result_upper
-                                          << Data::size_in_bits<Bits_32>() |
-                                      (Bits_64)result_lower;
-        return position + __builtin_ctzg(result_merged) +
-               avx2_channel_width * ymm;
-      } else {
-        const Bits_32 result = _mm256_movemask_epi8(masks[ymm]);
-        return position + __builtin_ctzg(result) + avx2_channel_width * ymm;
-      }
+      // Not found in channels 0..fused_channels-2, so it must be in the
+      // final pair.
+      const Bits_32 result_lower = _mm256_movemask_epi8(masks[ymm]);
+      const Bits_32 result_upper = _mm256_movemask_epi8(masks[ymm + 1]);
+      const Bits_64 result_merged = (Bits_64)result_upper
+                                        << Data::size_in_bits<Bits_32>() |
+                                    (Bits_64)result_lower;
+      return position + __builtin_ctzg(result_merged) +
+             avx2_channel_width * ymm;
     }
   }
 
@@ -105,6 +163,17 @@ auto scan(View::Bytes bytes, Byte search, Count position) -> Count {
 
   // String was never closed so just treat the entire range as a string.
   return Count(-1);
+}
+
+auto parse_string(View::Bytes source, Count& position) -> View::Bytes {
+  Count start = ++position;
+  position = scan(source, '"', position);
+
+  return source.slice(start, position++ - start);
+}
+
+auto ignored_characters(Byte c) {
+  return c == ',' || c == '\n' || c == ' ';
 }
 
 auto Json::Node::set(const Core::View::Bytes value) -> void {
@@ -283,15 +352,16 @@ auto Json::Node::is_object() const -> Bool {
   return (NodeState)data.state == NodeState::Object;
 }
 
-auto parse_string(View::Bytes source, Count& position) -> View::Bytes {
-  Count start = ++position;
-  position = scan(source, '"', position);
-
-  return source.slice(start, position++ - start);
+auto Json::Node::construct(
+    Allocator::Arena& arena,
+    const Json::Blueprint* entries,
+    Count count) -> Node {
+  return construct_object(arena, entries, count);
 }
 
-auto ignored_characters(Byte c) {
-  return c == ',' || c == '\n' || c == ' ';
+auto Json::Node::construct(Allocator::Arena& arena, const Json::Blueprint& root)
+    -> Node {
+  return construct_from_blueprint(arena, root);
 }
 
 auto Json::Node::parse(

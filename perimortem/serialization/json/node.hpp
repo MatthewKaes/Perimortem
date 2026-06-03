@@ -8,25 +8,36 @@
 
 #include "perimortem/memory/allocator/arena.hpp"
 
+#include "perimortem/serialization/json/blueprint.hpp"
+
 namespace Perimortem::Serialization::Json {
 
 struct Member;
 
 class Node {
  public:
-#define DEFAULT_DATA data{.ptr = nullptr, .size = 0, .state = 0}
-
-  Node() : DEFAULT_DATA { set(); }
+  Node() : data{.ptr = nullptr, .size = 0, .state = 0} { set(); }
   Node(const Node& rhs) : data(rhs.data) {};
-  Node(const Core::View::Bytes value) : DEFAULT_DATA { set(value); }
-  Node(const Core::View::Vector<Node> value) : DEFAULT_DATA { set(value); }
-  Node(const Core::View::Vector<Member> value) : DEFAULT_DATA { set(value); }
-  Node(Long value) : DEFAULT_DATA { set(value); }
-  Node(Real_32 value) : DEFAULT_DATA { set(Real_64(value)); }
-  Node(Real_64 value) : DEFAULT_DATA { set(value); }
-  Node(Bool value) : DEFAULT_DATA { set(value); }
-
-#undef DEFAULT_DATA
+  Node(const Core::View::Bytes value)
+      : data{.ptr = nullptr, .size = 0, .state = 0} {
+    set(value);
+  }
+  Node(const Core::View::Vector<Node> value)
+      : data{.ptr = nullptr, .size = 0, .state = 0} {
+    set(value);
+  }
+  Node(const Core::View::Vector<Member> value)
+      : data{.ptr = nullptr, .size = 0, .state = 0} {
+    set(value);
+  }
+  Node(Long value) : data{.ptr = nullptr, .size = 0, .state = 0} { set(value); }
+  Node(Real_32 value) : data{.ptr = nullptr, .size = 0, .state = 0} {
+    set(Real_64(value));
+  }
+  Node(Real_64 value) : data{.ptr = nullptr, .size = 0, .state = 0} {
+    set(value);
+  }
+  Node(Bool value) : data{.ptr = nullptr, .size = 0, .state = 0} { set(value); }
 
   auto set(const Core::View::Bytes value) -> void;
   auto set(const Core::View::Vector<Node> value) -> void;
@@ -62,6 +73,25 @@ class Node {
   auto is_string() const -> Bool;
   auto is_array() const -> Bool;
   auto is_object() const -> Bool;
+
+  // Recursively materialises a Blueprint array into an arena-backed object
+  // node. Children with names become an object; children without names become
+  // an array. All stack C-arrays live for the full construct() expression.
+  template <Count N>
+  static auto construct(
+      Memory::Allocator::Arena& arena,
+      const Blueprint (&entries)[N]) -> Node {
+    return construct(arena, entries, N);
+  }
+
+  static auto construct(
+      Memory::Allocator::Arena& arena,
+      const Json::Blueprint* entries,
+      Count count) -> Node;
+
+  static auto construct(
+      Memory::Allocator::Arena& arena,
+      const Json::Blueprint& root) -> Node;
 
   auto parse(
       Memory::Allocator::Arena& arena,

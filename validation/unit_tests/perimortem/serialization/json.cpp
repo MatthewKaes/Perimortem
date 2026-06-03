@@ -272,19 +272,56 @@ PERIMORTEM_UNIT_TEST(SerializationJson, parse_object) {
   EXPECT_EQ(members[3].node.get_number(), -1);
 }
 
-PERIMORTEM_UNIT_TEST(SerializationJson, format) {
-  constexpr auto expected =
-      "{\"root\":1,\"flag\":true,\"config\":{\"version\":\"1.0.2\",\"sub_flag\":true}}"_view;
-  Json::Node value = Json::Object({
-    {"root"_view, Long(1)},
-    {"flag"_view, True},
-    {"config"_view, Json::Object({
-                      {"version"_view, "1.0.2"_view},
-                      {"sub_flag"_view, True},
-                    })},
-  });
+PERIMORTEM_UNIT_TEST(SerializationJson, construct_string) {
+  constexpr auto expected = "\"Test String\""_view;
 
   Allocator::Arena arena;
+  Json::Node value = Json::Node::construct(
+      arena, {
+               "Test String"_view,
+             });
+
+  auto formated = value.format(arena);
+  ASSERT_TEXT(formated, expected);
+}
+
+PERIMORTEM_UNIT_TEST(SerializationJson, construct_array) {
+  constexpr auto expected = "[1,2,3,4]"_view;
+
+  Allocator::Arena arena;
+  Json::Node value = Json::Node::construct(
+      arena, {
+               {Long(1), Long(2), Long(3), Long(4)},
+             });
+
+  auto formated = value.format(arena);
+  ASSERT_TEXT(formated, expected);
+}
+
+PERIMORTEM_UNIT_TEST(SerializationJson, construct_nested) {
+  constexpr auto expected =
+      "{\"root\":[1,2,true,false,\"Test\"],\"flag\":true,\"config\":{"
+      "\"version\":\"1.0.2\",\"sub_flag\":true}}"_view;
+
+  Allocator::Arena arena;
+  Json::Node value = Json::Node::construct(
+      arena, {
+               {"root"_view,
+                {
+                  Long(1),
+                  Long(2),
+                  True,
+                  False,
+                  "Test"_view,
+                }},
+               {"flag"_view, True},
+               {"config"_view,
+                {
+                  {"version"_view, "1.0.2"_view},
+                  {"sub_flag"_view, True},
+                }},
+             });
+
   auto formated = value.format(arena);
   ASSERT_TEXT(formated, expected);
 }
