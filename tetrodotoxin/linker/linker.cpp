@@ -13,10 +13,15 @@ using namespace Perimortem::Memory;
 using namespace Tetrodotoxin::Linker;
 using namespace Tetrodotoxin::Compiler;
 
-Linker::Linker() : format(new Target::Elf()) {}
-Linker::~Linker() { delete format; }
+Linker::Linker() {
+  format = new (Bibliotheca::check_out(sizeof(Target::Elf)).ptr) Target::Elf();
+}
+Linker::~Linker() {
+  Bibliotheca::remit(Data::cast<Byte>(format));
+}
 
-auto Linker::add_section(Context::Symbol::Location type, View::Bytes data) -> void {
+auto Linker::add_section(Context::Symbol::Location type, View::Bytes data)
+    -> void {
   format->add_section({type, data});
 }
 
@@ -44,10 +49,12 @@ auto Tetrodotoxin::Linker::emit_archive(
   // .text is always added so symbols with Program context resolve correctly.
   linker.add_section(Context::Symbol::Location::Program, compiler.get_code());
   if (compiler.get_strings().get_size() > 0) {
-    linker.add_section(Context::Symbol::Location::Strings, compiler.get_strings());
+    linker.add_section(
+        Context::Symbol::Location::Strings, compiler.get_strings());
   }
 
-  // Symbols must be added in compiler order to keep relocation symbol indices valid.
+  // Symbols must be added in compiler order to keep relocation symbol indices
+  // valid.
   const auto symbols = compiler.get_symbols();
   for (Count i = 0; i < symbols.get_size(); i++) {
     linker.add_symbol(symbols[i]);
