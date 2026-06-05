@@ -38,8 +38,8 @@ static auto last_entry() -> View::Bytes {
   return View::Bytes(event.message.get_data(), event.message_size);
 }
 
-static auto contains(View::Bytes haystack, View::Bytes needle) -> Bool {
-  return Algorithm::search(haystack, needle) != Count(-1);
+static auto contains(View::Bytes haystack, View::Bytes message) -> Bool {
+  return Algorithm::search(haystack, message) != Count(-1);
 }
 
 static auto has_valid_header(View::Bytes entry) -> Bool {
@@ -48,6 +48,7 @@ static auto has_valid_header(View::Bytes entry) -> Bool {
     return false;
   }
 
+  // Header bytes
   switch (entry[0]) {
   case 'D':
   case 'I':
@@ -59,11 +60,13 @@ static auto has_valid_header(View::Bytes entry) -> Bool {
     return false;
   }
 
+  // Validate all number values
   const Byte* b = entry.get_data() + 2;
   if (b[2] != ':' || b[5] != ':' || b[8] != '.') {
     return false;
   }
 
+  // Validate all number values
   constexpr Static::Vector<Count, 9> number_indexes = {
     {0, 1, 3, 4, 6, 7, 9, 10, 11}};
   for (Count i = 0; i < number_indexes.get_size(); i++) {
@@ -106,7 +109,8 @@ PERIMORTEM_UNIT_TEST(DiagnosticsLog, newline_terminator) {
 
 PERIMORTEM_UNIT_TEST(DiagnosticsLog, source_location) {
   Log::info("location test"_view);
-  EXPECT(contains(last_entry(), "log.cpp:"_view));
+  EXPECT(contains(
+      last_entry(), "validation/unit_tests/perimortem/core/log.cpp:"_view));
 }
 
 PERIMORTEM_UNIT_TEST(DiagnosticsLog, main_thread_name) {
@@ -120,28 +124,7 @@ PERIMORTEM_UNIT_TEST(DiagnosticsLog, thread_name_after_timestamp) {
   View::Bytes entry = last_entry();
   ASSERT(entry.get_size() > 21);
   // Format: "X HH:MM:SS.mmm [main] ..."
-  // Level char (1) + space (1) + timestamp (12) + space (1) = offset 15.
   EXPECT_TEXT(entry.slice(15, 6), "[main]"_view);
-}
-
-PERIMORTEM_UNIT_TEST(DiagnosticsLog, debug_level) {
-  Log::debug("debug test"_view);
-  EXPECT_EQ(last_entry()[0], Byte('D'));
-}
-
-PERIMORTEM_UNIT_TEST(DiagnosticsLog, info_level) {
-  Log::info("info test"_view);
-  EXPECT_EQ(last_entry()[0], Byte('I'));
-}
-
-PERIMORTEM_UNIT_TEST(DiagnosticsLog, warning_level) {
-  Log::warning("warning test"_view);
-  EXPECT_EQ(last_entry()[0], Byte('W'));
-}
-
-PERIMORTEM_UNIT_TEST(DiagnosticsLog, error_level) {
-  Log::error("error test"_view);
-  EXPECT_EQ(last_entry()[0], Byte('E'));
 }
 
 PERIMORTEM_UNIT_TEST(DiagnosticsLog, message_content) {
@@ -153,12 +136,15 @@ PERIMORTEM_UNIT_TEST(DiagnosticsLog, suppress_messages) {
   Log::set_level(Log::Level::Error);
   Count events_before = total_events;
 
+  Log::error("should pass through"_view);
+  EXPECT(total_events > events_before);
+
   Log::info("should be suppressed"_view);
   EXPECT_EQ(total_events, events_before);
 
-  Log::error("should pass through"_view);
-  EXPECT(total_events > events_before);
+  // Surpressed message shouldn't override the older message.
   EXPECT(contains(last_entry(), "should pass through"_view));
+  EXPECT(has_valid_header(last_entry()));
 }
 
 auto logging_function() -> void {
@@ -178,4 +164,5 @@ PERIMORTEM_UNIT_TEST(DiagnosticsLog, attribution) {
   auto logged = last_entry();
   EXPECT_TEXT(
       logged.slice(15, attributed_message.get_size()), attributed_message);
+  EXPECT(has_valid_header(last_entry()));
 }

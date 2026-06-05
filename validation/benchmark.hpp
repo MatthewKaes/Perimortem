@@ -90,12 +90,12 @@ class ComparisonEntry {
 
 // Define a multi-way comparison. comp_var must be a static Comparison struct
 // visible at the call site. The function body that follows is the C++ baseline.
-#define PERIMORTEM_COMPARISON(comp_var)                                        \
-  auto __comp_##comp_var() -> void;                                            \
-  namespace {                                                                  \
-  Validation::Benchmark::ComparisonEntry _reg_comp_##comp_var{                 \
-    comp_var, __comp_##comp_var};                                              \
-  }                                                                            \
+#define PERIMORTEM_COMPARISON(comp_var)                        \
+  auto __comp_##comp_var() -> void;                            \
+  namespace {                                                  \
+  Validation::Benchmark::ComparisonEntry _reg_comp_##comp_var{ \
+    comp_var, __comp_##comp_var};                              \
+  }                                                            \
   auto __comp_##comp_var() -> void
 
 #endif  // PERI_BENCH_CPP

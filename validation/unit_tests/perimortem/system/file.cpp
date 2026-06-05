@@ -255,8 +255,8 @@ PERIMORTEM_UNIT_TEST(SystemFile, sync_read_update_write) {
   // Make sure we loaded the right content.
   EXPECT_TEXT(file.get_view(), json_contents);
   file.update_contents(new_content);
-  // "empty" (5 bytes) is smaller than the JSON content buffer, so forgetful_resize
-  // remits the old block and checks out a smaller one.
+  // "empty" (5 bytes) is smaller than the JSON content buffer, so
+  // forgetful_resize remits the old block and checks out a smaller one.
   EXPECT_EQ(Bibliotheca::check_out_requests(), start_requests + 2);
 
   // Flush the new data to disk.
