@@ -101,14 +101,22 @@ def byte_view_summary(valueObject, dictionary):
 def vector_view_summary(valueObject, dictionary):
     logger = lldb.formatters.Logger.Logger()
     try:
-      block = valueObject.GetNonSyntheticValue().GetChildMemberWithName("source_block")
+      raw = valueObject.GetNonSyntheticValue()
+      block = raw.GetChildMemberWithName("source_block")
       name = block.GetType().GetPointeeType().GetName().removeprefix("Perimortem::")
-      
-      size = valueObject.GetChildAtIndex(0).GetValueAsSigned()
-      if (size == -1):
-        return "[ uninitialized ] " + name;
-      
-      return ("[ %d ] " % size) + name;
+
+      # Static::Vector encodes size in the type name; Dynamic/View/Access have a size member.
+      size_member = raw.GetChildMemberWithName("size")
+      if size_member.IsValid():
+        size = size_member.GetValueAsSigned()
+      else:
+        ints = list(map(int, re.findall(r'\d+', valueObject.GetType().GetName())))
+        size = ints[0] if ints else -1
+
+      if size == -1:
+        return "[ uninitialized ] " + name
+
+      return "%d %s" % (size, name)
     except Exception as e:
       logger >> "peri_except: %r" % e
       return None
@@ -127,7 +135,7 @@ def __lldb_init_module(debugger, dict):
   debugger.HandleCommand('type synthetic add -w data_types -l data_types.ManagedTablePrinter -x "Perimortem::Memory::Managed::Table<.+>$"')
   debugger.HandleCommand('type summary add -w data_types --python-function data_types.look_view_summary -x "Perimortem::Memory::Managed::Table<.+>$"')
   
-  debugger.HandleCommand('type synthetic add -w data_types -l data_types.VectorPrinter -x "Perimortem::Core::.+::Vector<.+>$"')
+  debugger.HandleCommand('type synthetic add -w data_types -l data_types.VectorPrinter -x "Perimortem::.+::Vector<.+>$"')
   debugger.HandleCommand('type summary add -w data_types --python-function data_types.vector_view_summary -x "Vector<.+>$"')
   
   debugger.HandleCommand('type summary add -w data_types --python-function data_types.string_view_summary std::string_view')
