@@ -42,16 +42,94 @@ enum class FilterType : Bits_8 {
   Paeth = 4,
 };
 
-// CRC-32 (Cyclic Redundancy Check): a 32-bit error-detection hash used by the
-// PNG specification to verify each chunk has not been corrupted in transit.
-// The IEEE 802.3 polynomial (0xEDB88320) is the standard choice for CRC-32.
-constexpr Bits_32 ieee_crc32_polynomial = 0xEDB88320;
+// ImageInfo follows the Binary layout of an IHDR chunk.
+struct ImageInfo {
+ public:
+  constexpr ImageInfo() = default;
+  constexpr ImageInfo(const Graphics::Image& image) {
+    Data::write<Data::ByteOrder::Big>(&width, image.get_width());
+    Data::write<Data::ByteOrder::Big>(&height, image.get_height());
+    bit_depth = 8;
+    color_type = ColorType::Rgba;
+  }
 
-// CRC computation starts with all bits set; the result is XORed with this
-// value again at the end to produce the final checksum.
-constexpr Bits_32 crc32_initial_value = 0xFFFFFFFF;
+  // C++ will add padding to the end of the struct so store the actual size.
+  static constexpr Count size = 13;
 
-static constexpr auto populate_crc_table() -> Static::Vector<Bits_32, 256> {
+  constexpr auto get_width() const -> Bits_32 {
+    return Data::ensure_endian<Data::ByteOrder::Big, Data::ByteOrder::Native>(
+        width);
+  }
+  constexpr auto get_height() const -> Bits_32 {
+    return Data::ensure_endian<Data::ByteOrder::Big, Data::ByteOrder::Native>(
+        height);
+  }
+  constexpr auto get_bit_depth() const -> Bits_8 { return bit_depth; }
+  constexpr auto get_color_type() const -> ColorType { return color_type; }
+  constexpr auto is_valid() const -> Bool {
+    return compression_method == 0 && filter_method == FilterType::None &&
+           interlace_method == 0;
+  }
+
+ private:
+  Bits_32 width = 0;
+  Bits_32 height = 0;
+  Bits_8 bit_depth = 0;
+  ColorType color_type = ColorType::Rgba;
+  Bits_8 compression_method = 0;
+  FilterType filter_method = FilterType::None;
+  Bits_8 interlace_method = 0;
+};
+
+// A parsed PNG chunk. PNG files are made of sequential chunks, each with a
+// type tag, a payload, and a CRC-32 checksum for integrity verification.
+class Chunk {
+ public:
+  constexpr Chunk() = default;
+  constexpr Chunk(View::Bytes data, Static::Bytes<4> type, Bits_32 length)
+      : data(data), type(type), length(length), valid(True) {}
+
+  constexpr auto get_data() const -> View::Bytes { return data; }
+  constexpr auto get_type() const -> View::Bytes { return type.get_view(); }
+  constexpr auto get_length() const -> Bits_32 { return length; }
+  constexpr auto get_valid() const -> Bool { return valid; }
+
+ private:
+  View::Bytes data;
+  Static::Bytes<4> type;
+  Bits_32 length = 0;
+  Bool valid = False;
+};
+
+// The 8-byte magic signature that begins every valid PNG file.
+constexpr Static::Bytes<8> png_signature = {0x89, 0x50, 0x4E, 0x47,
+                                            0x0D, 0x0A, 0x1A, 0x0A};
+
+// Each chunk: 4 bytes length + 4 bytes type + data + 4 bytes CRC-32.
+constexpr Count chunk_metadata_size = 12;
+
+constexpr auto number_of_color_channels(ColorType color_type) -> Count {
+  switch (color_type) {
+  case ColorType::Indexed:
+  case ColorType::Greyscale:
+    return 1;
+  case ColorType::GreyscaleAlpha:
+    return 2;
+  case ColorType::Rgb:
+    return 3;
+  case ColorType::Rgba:
+    return 4;
+  default:
+    return 0;
+  }
+}
+
+constexpr auto populate_crc_table() -> Static::Vector<Bits_32, 256> {
+  // CRC-32 (Cyclic Redundancy Check): a 32-bit error-detection hash used by the
+  // PNG specification to verify each chunk has not been corrupted in transit.
+  // The IEEE 802.3 polynomial (0xEDB88320) is the standard choice for CRC-32.
+  constexpr Bits_32 ieee_crc32_polynomial = 0xEDB88320;
+
   Static::Vector<Bits_32, 256> table;
   for (Bits_32 table_index = 0; table_index < 256; table_index++) {
     Bits_32 crc_value = table_index;
@@ -64,50 +142,26 @@ static constexpr auto populate_crc_table() -> Static::Vector<Bits_32, 256> {
   return table;
 }
 
-// The 256 CRC-32 look up table is prepopulated at compile time.
-static constexpr Static::Vector<Bits_32, 256> crc_table = populate_crc_table();
+constexpr auto calculate_crc32(View::Bytes data) -> Bits_32 {
+  // The 256 CRC-32 look up table is prepopulated at compile time.
+  constexpr Static::Vector<Bits_32, 256> crc_table = populate_crc_table();
 
-static constexpr auto calculate_crc32(View::Bytes data) -> Bits_32 {
-  Bits_32 running_crc = crc32_initial_value;
+  // CRC computation starts with all bit set.
+  Bits_32 running_crc = 0xFFFFFFFF;
   for (Count byte_index = 0; byte_index < data.get_size(); byte_index++) {
     running_crc =
         crc_table[(running_crc ^ data[byte_index]) & 0xFF] ^ (running_crc >> 8);
   }
-  return running_crc ^ crc32_initial_value;
+
+  // XOR the bits to produce the final CRC value.
+  return running_crc ^ 0xFFFFFFFF;
 }
 
-// The 8-byte magic signature that begins every valid PNG file.
-static constexpr Static::Bytes<8> png_signature = {0x89, 0x50, 0x4E, 0x47,
-                                                   0x0D, 0x0A, 0x1A, 0x0A};
-
-// A parsed PNG chunk. PNG files are made of sequential chunks, each with a
-// type tag, a payload, and a CRC-32 checksum for integrity verification.
-class Chunk {
- public:
-  Chunk() = default;
-  Chunk(View::Bytes data, Static::Bytes<4> type, Bits_32 length)
-      : data(data), type(type), length(length), valid(True) {}
-
-  auto get_data() const -> View::Bytes { return data; }
-  // 4-byte ASCII type tag, e.g. "IHDR", "IDAT", "IEND", "PLTE".
-  auto get_type() const -> View::Bytes { return type.get_view(); }
-  auto get_length() const -> Bits_32 { return length; }
-  auto get_valid() const -> Bool { return valid; }
-
- private:
-  View::Bytes data;
-  Static::Bytes<4> type;
-  Bits_32 length = 0;
-  Bool valid = False;
-};
-
-static auto read_chunk(View::Bytes source, Count offset) -> Chunk {
-  // Each chunk: 4 bytes length + 4 bytes type + data + 4 bytes CRC-32.
-  constexpr Count chunk_overhead = 12;
-  if (offset + chunk_overhead > source.get_size()) [[unlikely]] {
-    Static::Bytes<96> log_buffer;
-    Writer::Textual log_writer(log_buffer.get_access());
-    log_writer << "Png: chunk at offset "_view << ULong(offset)
+constexpr auto read_chunk(View::Bytes source, Count offset) -> Chunk {
+  if (offset + chunk_metadata_size > source.get_size()) [[unlikely]] {
+    Static::Bytes<96> error_buffer;
+    Writer::Textual log_writer(error_buffer.get_access());
+    log_writer << "Png: Chunk at offset "_view << ULong(offset)
                << " truncated before header end"_view;
     Diagnostics::Log::error(log_writer);
     return Chunk();
@@ -117,10 +171,10 @@ static auto read_chunk(View::Bytes source, Count offset) -> Chunk {
       Data::ensure_endian<Data::ByteOrder::Big, Data::ByteOrder::Native>(
           *Data::cast<Bits_32>(source.get_data() + offset));
 
-  if (offset + chunk_overhead + length > source.get_size()) [[unlikely]] {
-    Static::Bytes<128> log_buffer;
-    Writer::Textual log_writer(log_buffer.get_access());
-    log_writer << "Png: chunk at offset "_view << ULong(offset)
+  if (offset + chunk_metadata_size + length > source.get_size()) [[unlikely]] {
+    Static::Bytes<128> error_buffer;
+    Writer::Textual log_writer(error_buffer.get_access());
+    log_writer << "Png: Chunk at offset "_view << ULong(offset)
                << " with length "_view << ULong(length)
                << " extends past end of stream"_view;
     Diagnostics::Log::error(log_writer);
@@ -140,8 +194,8 @@ static auto read_chunk(View::Bytes source, Count offset) -> Chunk {
           *Data::cast<Bits_32>(source.get_data() + offset + 8 + length));
   Bits_32 actual_crc = calculate_crc32(source.slice(offset + 4, 4 + length));
   if (stored_crc != actual_crc) [[unlikely]] {
-    Static::Bytes<96> log_buffer;
-    Writer::Textual log_writer(log_buffer.get_access());
+    Static::Bytes<96> error_buffer;
+    Writer::Textual log_writer(error_buffer.get_access());
     log_writer << "Png: CRC-32 mismatch for chunk '"_view << type.get_view()
                << "' at offset "_view << ULong(offset);
     Diagnostics::Log::error(log_writer);
@@ -152,116 +206,106 @@ static auto read_chunk(View::Bytes source, Count offset) -> Chunk {
   return Chunk(data, type, length);
 }
 
-static auto write_chunk(
+constexpr auto write_chunk(
     Access::Bytes buffer,
     Count& write_position,
     View::Bytes type_tag,
     View::Bytes data) -> void {
+  auto output = buffer.get_data();
+
   // Write the size in Big endian format
   Data::write<Data::ByteOrder::Big>(
-      Data::cast<Bits_32>(buffer.get_data() + write_position),
-      Bits_32(data.get_size()));
+      Data::cast<Bits_32>(output + write_position), Bits_32(data.get_size()));
   write_position += sizeof(Bits_32);
 
   // Copy the tag into the buffer.
-  Data::copy(
-      buffer.get_data() + write_position, type_tag.get_data(),
-      type_tag.get_size());
+  Data::copy(output + write_position, type_tag.get_data(), type_tag.get_size());
   write_position += type_tag.get_size();
 
   // If data isn't empty for the chunk then write that next.
-  if (data.get_size() > 0) {
-    Data::copy(
-        buffer.get_data() + write_position, data.get_data(), data.get_size());
-    write_position += data.get_size();
-  }
+  Data::copy(output + write_position, data.get_data(), data.get_size());
+  write_position += data.get_size();
 
   // Finally write out the crc32 value (also in big endian) which includes the
   // tag and any other chunk data.
   Count chunk_length = type_tag.get_size() + data.get_size();
   Bits_32 chunk_crc = calculate_crc32(
-      View::Bytes(
-          buffer.get_data() + write_position - chunk_length, chunk_length));
+      View::Bytes(output + write_position - chunk_length, chunk_length));
   Data::write<Data::ByteOrder::Big>(
-      Data::cast<Bits_32>(buffer.get_data() + write_position), chunk_crc);
+      Data::cast<Bits_32>(output + write_position), chunk_crc);
   write_position += 4;
 }
 
-static auto number_of_color_channels(ColorType color_type) -> Count {
-  switch (color_type) {
-  case ColorType::Indexed:
-  case ColorType::Greyscale:
-    return 1;
-  case ColorType::GreyscaleAlpha:
-    return 2;
-  case ColorType::Rgb:
-    return 3;
-  case ColorType::Rgba:
-    return 4;
-  default:
-    return 0;
-  }
-}
+// The Paeth predictor estimates the next sample by computing a linear
+// extrapolation using the left, upper, and upper left pixels and returning the
+// value closest to the current pixel.
+constexpr auto paeth_predictor(Static::Vector<Bits_8, 3> pixels) -> Bits_8 {
+  SignedBits_16 left = SignedBits_16(pixels[0]);
+  SignedBits_16 up = SignedBits_16(pixels[1]);
+  SignedBits_16 upper_left = SignedBits_16(pixels[2]);
+  SignedBits_16 predictor = left + up - upper_left;
 
-// The Paeth predictor estimates the next sample by computing a  linear
-// extrapolation p = left + up − upper_left, then returning whichever of the
-// three values are closest to the current pixel.
-static auto paeth_predictor(
-    Bits_32 left_pixel,
-    Bits_32 up_pixel,
-    Bits_32 upper_left_pixel) -> Bits_8 {
-  SignedBits_32 left = SignedBits_32(left_pixel);
-  SignedBits_32 up = SignedBits_32(up_pixel);
-  SignedBits_32 upper_left = SignedBits_32(upper_left_pixel);
-  SignedBits_32 predictor = left + up - upper_left;
-  SignedBits_32 left_dist =
-      (predictor - left < 0) ? -(predictor - left) : (predictor - left);
-  SignedBits_32 up_dist =
-      (predictor - up < 0) ? -(predictor - up) : (predictor - up);
-  SignedBits_32 corner_dist = (predictor - upper_left < 0)
-                                  ? -(predictor - upper_left)
-                                  : (predictor - upper_left);
-  if (left_dist <= up_dist && left_dist <= corner_dist) {
-    return Bits_8(left_pixel);
+  SignedBits_16 score_left = Math::absolute(predictor - left);
+  SignedBits_16 score_up = Math::absolute(predictor - up);
+  SignedBits_16 score_upper_left = Math::absolute(predictor - upper_left);
+
+  if (score_left <= score_up && score_left <= score_upper_left) {
+    return pixels[0];
   }
-  if (up_dist <= corner_dist) {
-    return Bits_8(up_pixel);
+
+  if (score_up <= score_upper_left) {
+    return pixels[1];
   }
-  return Bits_8(upper_left_pixel);
+
+  return pixels[2];
 }
 
 // Smaller residuals _generally_ compress better under DEFLATE.
 // We treat each byte as a signed value and sum the magnitudes as a cheap proxy
 // estimate for compressibility.
 template <Bool first_row>
-static auto score_row(View::Bytes current, View::Bytes prev) -> FilterType {
-  constexpr auto bytes_per_pixel = Graphics::Pixel::get_byte_count();
+auto score_row(View::Bytes current, View::Bytes prev) -> FilterType {
+  constexpr auto signed_abs = Math::absolute<SignedBits_8>;
   constexpr auto filter_count = first_row ? 2 : 5;
   Static::Vector<Bits_64, filter_count> scores;
 
   auto current_data = current.get_data();
   auto prev_data = prev.get_data();
-  for (Count i = 0; i < current.get_size(); i++) {
-    Bits_8 left =
-        (i >= bytes_per_pixel) ? current_data[i - bytes_per_pixel] : Bits_8(0);
 
-    scores[Bits_8(FilterType::None)] += SignedBits_8(current_data[i]);
-    scores[Bits_8(FilterType::Sub)] += SignedBits_8(current_data[i] - left);
+  // Process the first column of data.
+  for (Count i = 0; i < Graphics::Image::get_channel_count(); i++) {
+    scores[Bits_8(FilterType::None)] +=
+        signed_abs(SignedBits_8(current_data[i]));
+    scores[Bits_8(FilterType::Sub)] +=
+        signed_abs(SignedBits_8(current_data[i]));
 
-    // If we have a valid previous row then caculate the other 3 filters.
     if constexpr (!first_row) {
       Bits_8 up = prev_data[i];
-      Bits_8 upper_left =
-          (i >= bytes_per_pixel) ? prev_data[i - bytes_per_pixel] : Bits_8(0);
-      scores[Bits_8(FilterType::Up)] += SignedBits_8(current_data[i] - up);
-      scores[Bits_8(FilterType::Average)] += SignedBits_8(
-          current_data[i] - Bits_8((Bits_32(left) + Bits_32(up)) / 2));
-      scores[Bits_8(FilterType::Paeth)] +=
-          SignedBits_8(current_data[i] - paeth_predictor(left, up, upper_left));
+      scores[Bits_8(FilterType::Up)] += signed_abs(current_data[i] - up);
+      scores[Bits_8(FilterType::Average)] +=
+          signed_abs(current_data[i] - up / 2);
+      scores[Bits_8(FilterType::Paeth)] += signed_abs(current_data[i] - up);
     }
   }
 
-  // Return which filter produced the lowest result.
+  for (Count i = Graphics::Image::get_channel_count(); i < current.get_size();
+       i++) {
+    Bits_8 left = current_data[i - Graphics::Image::get_channel_count()];
+    scores[Bits_8(FilterType::None)] +=
+        signed_abs(SignedBits_8(current_data[i]));
+    scores[Bits_8(FilterType::Sub)] +=
+        Math::absolute<SignedBits_8>(current_data[i] - left);
+    if constexpr (!first_row) {
+      Bits_8 up = prev_data[i];
+      Bits_8 upper_left = prev_data[i - Graphics::Image::get_channel_count()];
+      scores[Bits_8(FilterType::Up)] += signed_abs(current_data[i] - up);
+      scores[Bits_8(FilterType::Average)] +=
+          signed_abs(current_data[i] - (Bits_16(left) + Bits_16(up)) / 2);
+      scores[Bits_8(FilterType::Paeth)] +=
+          signed_abs(current_data[i] - paeth_predictor({left, up, upper_left}));
+    }
+  }
+
   return FilterType(Algorithm::min_element<Bits_64>(scores));
 }
 
@@ -270,12 +314,11 @@ static auto score_row(View::Bytes current, View::Bytes prev) -> FilterType {
 //
 // If prev isn't a valid row then the function will corrupt memory so it's an
 // important precondition to not mess up.
-static auto apply_row_filter(
+constexpr auto apply_row_filter(
     FilterType filter_type,
     Access::Bytes out,
     View::Bytes current,
-    View::Bytes prev,
-    Count bytes_per_pixel) -> void {
+    View::Bytes prev) -> void {
   Count size = current.get_size();
 
   auto out_data = out.get_data();
@@ -292,38 +335,62 @@ static auto apply_row_filter(
   }
 #endif
 
+  // Special case the first pixel in the row
   switch (filter_type) {
   case FilterType::Sub:
-    for (Count i = 0; i < size; i++) {
-      Bits_8 left = (i >= bytes_per_pixel) ? current_data[i - bytes_per_pixel]
-                                           : Bits_8(0);
+    Data::copy(out_data, current_data, Graphics::Image::get_channel_count());
+    break;
+  case FilterType::Up:
+    for (Count i = 0; i < Graphics::Image::get_channel_count(); i++) {
+      out_data[i] = Bits_8(current_data[i] - prev_data[i]);
+    }
+    break;
+  case FilterType::Average:
+    for (Count i = 0; i < Graphics::Image::get_channel_count(); i++) {
+      out_data[i] = current_data[i] - Bits_8(prev_data[i]) / 2;
+    }
+    break;
+  case FilterType::Paeth:
+    for (Count i = 0; i < Graphics::Image::get_channel_count(); i++) {
+      out_data[i] =
+          Bits_8(current_data[i] - paeth_predictor({0, prev_data[i], 0}));
+    }
+    break;
+
+    // Treat default as None for now, but we should most likely log an error.
+  case FilterType::None:
+  default:
+    Data::copy(out_data, current_data, size);
+    return;
+  }
+
+  switch (filter_type) {
+  case FilterType::Sub:
+    for (Count i = Graphics::Image::get_channel_count(); i < size; i++) {
+      Bits_8 left = current_data[i - Graphics::Image::get_channel_count()];
       out_data[i] = Bits_8(current_data[i] - left);
     }
     break;
   case FilterType::Up:
-    for (Count i = 0; i < size; i++) {
-      Bits_8 up = prev_data[i];
-      out_data[i] = Bits_8(current_data[i] - up);
+    for (Count i = Graphics::Image::get_channel_count(); i < size; i++) {
+      out_data[i] = Bits_8(current_data[i] - prev_data[i]);
     }
     break;
   case FilterType::Average:
-    for (Count i = 0; i < size; i++) {
-      Bits_8 left = (i >= bytes_per_pixel) ? current_data[i - bytes_per_pixel]
-                                           : Bits_8(0);
+    for (Count i = Graphics::Image::get_channel_count(); i < size; i++) {
+      Bits_8 left = current_data[i - Graphics::Image::get_channel_count()];
       Bits_8 up = prev_data[i];
       out_data[i] =
           Bits_8(current_data[i] - Bits_8((Bits_32(left) + Bits_32(up)) / 2));
     }
     break;
   case FilterType::Paeth:
-    for (Count i = 0; i < size; i++) {
-      Bits_8 left = (i >= bytes_per_pixel) ? current_data[i - bytes_per_pixel]
-                                           : Bits_8(0);
+    for (Count i = Graphics::Image::get_channel_count(); i < size; i++) {
+      Bits_8 left = current_data[i - Graphics::Image::get_channel_count()];
       Bits_8 up = prev_data[i];
-      Bits_8 upper_left =
-          (i >= bytes_per_pixel) ? prev_data[i - bytes_per_pixel] : Bits_8(0);
+      Bits_8 upper_left = prev_data[i - Graphics::Image::get_channel_count()];
       out_data[i] =
-          Bits_8(current_data[i] - paeth_predictor(left, up, upper_left));
+          Bits_8(current_data[i] - paeth_predictor({left, up, upper_left}));
     }
     break;
 
@@ -334,14 +401,18 @@ static auto apply_row_filter(
   }
 }
 
-static auto apply_adaptive_filtering(
-    View::Vector<Graphics::Pixel> source,
-    Count width,
-    Count height,
-    Count bytes_per_pixel,
-    Dynamic::Bytes& output) -> void {
-  const auto row_stride = Count(width) * bytes_per_pixel;
-  auto raw_bytes = Data::cast<Bits_8>(source.get_data());
+// Applies adaptive PNG filtering to the source pixels, scoring all five filter
+// types per row and selecting the lowest-residual option.
+constexpr auto apply_adaptive_filtering(const Graphics::Image& image)
+    -> Dynamic::Bytes {
+  const auto row_stride =
+      Count(image.get_width()) * Graphics::Pixel::get_byte_count();
+  const auto output_size = Count(image.get_height()) * (1 + row_stride);
+  const auto raw_bytes = Data::cast<Bits_8>(image.get_pixels().get_data());
+
+  // Create the full output buffer and resize it to the full size.
+  Dynamic::Bytes output(output_size);
+  output.forgetful_resize(output_size);
 
   // For the first row can only use one of two filters so simply score those.
   // We use the current row as the "prev" row since it's not used.
@@ -351,12 +422,11 @@ static auto apply_adaptive_filtering(
   // Apply the filtering to the first row and set the filter used.
   apply_row_filter(
       best_filter, output.get_access().slice(1, row_stride),
-      View::Bytes(raw_bytes, row_stride), View::Bytes(raw_bytes, row_stride),
-      bytes_per_pixel);
+      View::Bytes(raw_bytes, row_stride), View::Bytes(raw_bytes, row_stride));
   output.get_access()[0] = Bits_8(best_filter);
 
   // The rest of the rows after the first are scored against all filters.
-  for (Count row = 1; row < height; row++) {
+  for (Count row = 1; row < image.get_height(); row++) {
     // Update the previous and current rows.
     View::Bytes prev_row = current_row;
     current_row = View::Bytes(raw_bytes + row * row_stride, row_stride);
@@ -367,20 +437,21 @@ static auto apply_adaptive_filtering(
     const auto best_filter = score_row<False>(current_row, prev_row);
     Access::Bytes out_row =
         output.get_access().slice(row * (1 + row_stride) + 1, row_stride);
-    apply_row_filter(
-        best_filter, out_row, current_row, prev_row, bytes_per_pixel);
+    apply_row_filter(best_filter, out_row, current_row, prev_row);
     output.get_access()[row * (1 + row_stride)] = Bits_8(best_filter);
   }
+
+  return output;
 }
 
-// Reconstructs a single filtered row into dst with a minior optimization that
+// Reconstructs a single filtered row into dst with a minor optimization that
 // statically compiles away usage of the `up` pointer when processing the first
 // row, while guaranteeing that `up` is always valid for the following rows.
 //
-// The code takes raw Bits_8* pointer and is hand optimized since it's the main
+// The code takes raw Bits_8* pointers and is hand optimized since it's the main
 // hot loop for the load path which is the main use case for production builds.
 template <Bool first_row>
-static auto reconstruct_row(
+auto reconstruct_row(
     FilterType filter_type,
     const Bits_8* src,
     Bits_8* dst,
@@ -393,9 +464,8 @@ static auto reconstruct_row(
     break;
 
   case FilterType::Sub:
-    for (Count i = 0; i < bytes_per_pixel; i++) {
-      dst[i] = src[i];
-    }
+    Data::copy(dst, src, bytes_per_pixel);
+
     for (Count i = bytes_per_pixel; i < stride; i++) {
       dst[i] = src[i] + dst[i - bytes_per_pixel];
     }
@@ -415,16 +485,18 @@ static auto reconstruct_row(
 
   case FilterType::Average:
     if constexpr (first_row) {
-      for (Count i = 0; i < bytes_per_pixel; i++) {
-        dst[i] = src[i];
-      }
+      Data::copy(dst, src, bytes_per_pixel);
+
       for (Count i = bytes_per_pixel; i < stride; i++) {
         dst[i] = src[i] + Bits_8(Bits_32(dst[i - bytes_per_pixel]) / 2);
       }
     } else {
+      // First column
       for (Count i = 0; i < bytes_per_pixel; i++) {
         dst[i] = src[i] + Bits_8(Bits_32(up[i]) / 2);
       }
+
+      // Rest of the row
       for (Count i = bytes_per_pixel; i < stride; i++) {
         dst[i] =
             src[i] +
@@ -434,32 +506,32 @@ static auto reconstruct_row(
     break;
 
   case FilterType::Paeth:
-    // paeth_predictor(0, up[i], 0) == up[i] and paeth_predictor(left, 0, 0) ==
-    // left, so for the first_row  this reduces to Sub.
+    // For the first row this reduces to Sub.
     if constexpr (first_row) {
-      for (Count i = 0; i < bytes_per_pixel; i++) {
-        dst[i] = src[i];
-      }
+      Data::copy(dst, src, bytes_per_pixel);
       for (Count i = bytes_per_pixel; i < stride; i++) {
         dst[i] = src[i] + dst[i - bytes_per_pixel];
       }
     } else {
+      // First column
       for (Count i = 0; i < bytes_per_pixel; i++) {
         dst[i] = src[i] + up[i];
       }
+
+      // Rest of the row
       for (Count i = bytes_per_pixel; i < stride; i++) {
-        dst[i] = src[i] +
-                 paeth_predictor(
-                     dst[i - bytes_per_pixel], up[i], up[i - bytes_per_pixel]);
+        dst[i] = src[i] + paeth_predictor(
+                              {dst[i - bytes_per_pixel], up[i],
+                               up[i - bytes_per_pixel]});
       }
     }
     break;
 
     // For all unknown values error out.
   default: {
-    Static::Bytes<64> log_buffer;
-    Writer::Textual log_writer(log_buffer.get_access());
-    log_writer << "Png: unknown filter type "_view << UInt(Bits_8(filter_type));
+    Static::Bytes<64> error_buffer;
+    Writer::Textual log_writer(error_buffer.get_access());
+    log_writer << "Png: Unknown filter type "_view << UInt(Bits_8(filter_type));
     Diagnostics::Log::error(log_writer);
     return False;
   }
@@ -468,38 +540,33 @@ static auto reconstruct_row(
   return True;
 }
 
-static auto reconstruct_filter(
+constexpr auto reconstruct_filter(
     View::Bytes filtered_rows,
     Count width,
     Count height,
     Count bytes_per_pixel,
-    Dynamic::Bytes& output) -> Bool {
-  Count stride = width * bytes_per_pixel;
-  Count row_bytes = 1 + stride;
+    Access::Bytes output) -> Bool {
+  const Count stride = width * bytes_per_pixel;
+  const Count row_bytes = 1 + stride;
+  const auto filter_data = filtered_rows.get_data();
+  auto data = output.get_data();
 
   if (filtered_rows.get_size() < row_bytes * height) [[unlikely]] {
-    Static::Bytes<128> log_buffer;
-    Writer::Textual log_writer(log_buffer.get_access());
-    log_writer << "Png: decompressed size "_view
-               << ULong(filtered_rows.get_size())
-               << " is smaller than required "_view << ULong(row_bytes * height)
+    Static::Bytes<128> error_buffer;
+    Writer::Textual log_writer(error_buffer.get_access());
+    log_writer << "Png: Decompressed size "_view << filtered_rows.get_size()
+               << " is smaller than required "_view << (row_bytes * height)
                << " bytes for this image"_view;
     Diagnostics::Log::error(log_writer);
     return False;
   }
 
-  auto filter_data = filtered_rows.get_data();
-  output.forgetful_resize(stride * height);
-  auto data = output.get_access().get_data();
-
   // First row compiles away all null checks.
-  if (height > 0) {
-    FilterType filter_type = FilterType(filter_data[0]);
-    if (!reconstruct_row<True>(
-            filter_type, filter_data + 1, data, nullptr, stride,
-            bytes_per_pixel)) [[unlikely]] {
-      return False;
-    }
+  FilterType filter_type = FilterType(filter_data[0]);
+  if (!reconstruct_row<True>(
+          filter_type, filter_data + 1, data, nullptr, stride, bytes_per_pixel))
+      [[unlikely]] {
+    return False;
   }
 
   // Now that `up` is always valid no runtime null checks needed.
@@ -517,7 +584,7 @@ static auto reconstruct_filter(
   return True;
 }
 
-static auto convert_to_pixels(
+constexpr auto convert_to_pixels(
     View::Bytes raw_pixels,
     Count width,
     Count height,
@@ -532,6 +599,7 @@ static auto convert_to_pixels(
   Count pixel_count = width * height;
   output.forgetful_resize(pixel_count);
   auto data = raw_pixels.get_data();
+
   for (Count pixel_index = 0; pixel_index < pixel_count; pixel_index++) {
     Count source_offset = pixel_index * source_channels;
     switch (color_type) {
@@ -547,19 +615,15 @@ static auto convert_to_pixels(
           data[source_offset + 0], data[source_offset + 1],
           data[source_offset + 2]);
       break;
-    case ColorType::Rgba:
-      output[pixel_index] = Graphics::Pixel(
-          data[source_offset + 0], data[source_offset + 1],
-          data[source_offset + 2], data[source_offset + 3]);
-      break;
     case ColorType::Indexed: {
       Bits_8 palette_index = data[source_offset];
       Count palette_offset = Count(palette_index) * 3;
 
+      // If the color is outside the palette size then error out.
       if (palette_offset + 3 > palette.get_size()) [[unlikely]] {
-        Static::Bytes<128> log_buffer;
-        Writer::Textual log_writer(log_buffer.get_access());
-        log_writer << "Png: palette index "_view << UInt(palette_index)
+        Static::Bytes<128> error_buffer;
+        Writer::Textual log_writer(error_buffer.get_access());
+        log_writer << "Png: Palette index "_view << UInt(palette_index)
                    << " at pixel "_view << ULong(pixel_index)
                    << " exceeds palette size "_view
                    << ULong(palette.get_size() / 3);
@@ -572,6 +636,9 @@ static auto convert_to_pixels(
           palette[palette_offset + 2]);
       break;
     }
+
+      // RGBA should be fast pathed by the decoder to avoid a copy.
+    case ColorType::Rgba:
     default:
       return False;
     }
@@ -579,173 +646,129 @@ static auto convert_to_pixels(
   return True;
 }
 
-// Metadata from a PNG file's IHDR chunk, readable without decoding pixels.
-class ImageInfo {
- public:
-  ImageInfo() = default;
-  ImageInfo(
-      Bits_32 width,
-      Bits_32 height,
-      Bits_8 bit_depth,
-      ColorType color_type)
-      : width(width),
-        height(height),
-        color_type(color_type),
-        bit_depth(bit_depth),
-        valid(True) {}
-
-  auto get_width() const -> Bits_32 { return width; }
-  auto get_height() const -> Bits_32 { return height; }
-  auto get_bit_depth() const -> Bits_8 { return bit_depth; }
-  auto get_color_type() const -> ColorType { return color_type; }
-  auto get_valid() const -> Bool { return valid; }
-
- private:
-  Bits_32 width = 0;
-  Bits_32 height = 0;
-  ColorType color_type = ColorType::Rgba;
-  Bits_8 bit_depth = 0;
-  Bool valid = False;
-};
-
-static auto read_header_chunk(const View::Bytes source) -> ImageInfo {
-  constexpr Count png_signature_size = 8;
-  // IHDR chunk: 4 length + 4 type + 13 data + 4 CRC-32 = 25 bytes.
-  constexpr Count ihdr_chunk_size = 25;
-  constexpr Count min_readable_size = png_signature_size + ihdr_chunk_size;
-  constexpr Count ihdr_data_size = 13;
-  constexpr Bits_8 required_zero_field = 0;
-  constexpr Bits_8 supported_bit_depth = 8;
-
-  if (source.get_size() < min_readable_size) [[unlikely]] {
+constexpr auto read_header(const View::Bytes source) -> ImageInfo {
+  // Check if the header is smaller than the png signiture + header chunk.
+  constexpr Count required_size =
+      png_signature.get_size() + chunk_metadata_size + ImageInfo::size;
+  if (source.get_size() < required_size) [[unlikely]] {
     return ImageInfo();
   }
 
-  if (source.slice(0, png_signature_size) != png_signature.get_view())
+  // Validate the PNG signiture
+  if (source.slice(0, png_signature.get_size()) != png_signature.get_view())
       [[unlikely]] {
-    Diagnostics::Log::error("Png: invalid file signature"_view);
+    Diagnostics::Log::error("Png: Invalid file signature"_view);
     return ImageInfo();
   }
 
-  // IHDR: the mandatory first chunk that defines image dimensions and format.
-  Chunk ihdr = read_chunk(source, png_signature_size);
-  if (!ihdr.get_valid()) [[unlikely]] {
-    return ImageInfo();  // read_chunk already logged
-  }
-  if (ihdr.get_type() != "IHDR"_view) [[unlikely]] {
-    Diagnostics::Log::error("Png: first chunk must be IHDR"_view);
-    return ImageInfo();
-  }
-  if (ihdr.get_length() != ihdr_data_size) [[unlikely]] {
-    Static::Bytes<96> log_buffer;
-    Writer::Textual log_writer(log_buffer.get_access());
-    log_writer << "Png: IHDR length is "_view << ULong(ihdr.get_length())
-               << ", expected "_view << ULong(ihdr_data_size);
+  // Check that the first tag is IHDR
+  constexpr auto header_tag = "IHDR"_view;
+  auto chunk_tag = source.slice(
+      png_signature.get_size() + sizeof(Bits_32), header_tag.get_size());
+  if (chunk_tag != "IHDR"_view) [[unlikely]] {
+    Static::Bytes<96> error_buffer;
+    Writer::Textual log_writer(error_buffer.get_access());
+    log_writer << "Png: First chunk must be \"IHDR\". header="_view
+               << chunk_tag;
     Diagnostics::Log::error(log_writer);
+
     return ImageInfo();
   }
 
-  View::Bytes ihdr_data = ihdr.get_data();
-  Bits_32 width =
-      Data::ensure_endian<Data::ByteOrder::Big, Data::ByteOrder::Native>(
-          *Data::cast<Bits_32>(ihdr_data.get_data() + 0));
-  Bits_32 height =
-      Data::ensure_endian<Data::ByteOrder::Big, Data::ByteOrder::Native>(
-          *Data::cast<Bits_32>(ihdr_data.get_data() + 4));
-  Bits_8 bit_depth = ihdr_data[8];
-  ColorType color_type = ColorType(ihdr_data[9]);
+  // Read the image info.
+  auto image_info = *Data::cast<const ImageInfo>(
+      source
+          .slice(
+              png_signature.get_size() + sizeof(Bits_32) +
+                  header_tag.get_size(),
+              ImageInfo::size)
+          .get_data());
 
-  // Fields 10/11/12: compression method (must be 0 = deflate), filter method
-  // (must be 0 = adaptive), and interlace method (must be 0 = no interlace).
-  if (bit_depth != supported_bit_depth) [[unlikely]] {
-    Static::Bytes<96> log_buffer;
-    Writer::Textual log_writer(log_buffer.get_access());
-    log_writer << "Png: unsupported bit depth "_view << UInt(bit_depth)
-               << " (only 8bpc is supported)"_view;
+  // Currently only support 8 bit color depth
+  if (image_info.get_bit_depth() != Graphics::Image::get_color_depth())
+      [[unlikely]] {
+    Static::Bytes<96> error_buffer;
+    Writer::Textual log_writer(error_buffer.get_access());
+    log_writer << "Png: Unsupported bit depth "_view
+               << UInt(image_info.get_bit_depth())
+               << " (only 8 bit is supported)"_view;
     Diagnostics::Log::error(log_writer);
+
     return ImageInfo();
   }
+
+  const ColorType color_type = image_info.get_color_type();
   if (number_of_color_channels(color_type) == 0) [[unlikely]] {
-    Static::Bytes<96> log_buffer;
-    Writer::Textual log_writer(log_buffer.get_access());
-    log_writer << "Png: unsupported color type "_view
+    Static::Bytes<96> error_buffer;
+    Writer::Textual log_writer(error_buffer.get_access());
+    log_writer << "Png: Unsupported color type "_view
                << UInt(Bits_8(color_type));
     Diagnostics::Log::error(log_writer);
     return ImageInfo();
   }
-  if (ihdr_data[10] != required_zero_field ||
-      ihdr_data[11] != required_zero_field ||
-      ihdr_data[12] != required_zero_field) [[unlikely]] {
+
+  // Check the rest of the data is set correctly.
+  if (!image_info.is_valid()) [[unlikely]] {
     Diagnostics::Log::error(
-        "Png: non-standard compression, filter, or interlace method in IHDR"_view);
+        "Png: Non-standard compression, filter, or interlace method in IHDR"_view);
     return ImageInfo();
   }
 
-  return ImageInfo(width, height, bit_depth, color_type);
+  return image_info;
 }
 
-auto Format::Png::decode(const View::Bytes source) -> Graphics::Image {
-  ImageInfo info = read_header_chunk(source);
-  if (!info.get_valid()) [[unlikely]] {
+constexpr auto process_data(
+    const ImageInfo info,
+    View::Bytes source,
+    View::Bytes palette) -> Graphics::Image {
+  // The exact decompressed size can be derived from the image info so we can
+  // use that to preallocate the buffer.
+  Count bytes_per_pixel = number_of_color_channels(info.get_color_type());
+  const Count decompressed_capacity =
+      info.get_width() * info.get_height() * bytes_per_pixel +
+      /* Extra filter byte per row */ info.get_height();
+  Dynamic::Bytes filtered_rows =
+      Compression::Deflate::inflate(source, decompressed_capacity);
+  if (filtered_rows.get_size() == 0) [[unlikely]] {
     return Graphics::Image();
   }
 
-  constexpr Count png_signature_size = 8;
-  constexpr Count chunk_overhead = 12;
-
-  Dynamic::Bytes compressed_data;
-  View::Bytes palette;
-
-  // Walk the chunk sequence collecting all IDAT payloads plus the optional
-  // PLTE (palette) chunk needed for indexed-color images.
-  Count chunk_offset = png_signature_size;
-  while (chunk_offset < source.get_size()) {
-    Chunk chunk = read_chunk(source, chunk_offset);
-    if (!chunk.get_valid()) [[unlikely]] {
+  // If the target format is our desired format then we can reconstruct the data
+  // in place which saves a copy.
+  if (info.get_color_type() == ColorType::Rgba) {
+    Dynamic::Vector<Graphics::Pixel> pixels;
+    pixels.forgetful_resize(info.get_width() * info.get_height());
+    if (!reconstruct_filter(
+            filtered_rows.get_view(), info.get_width(), info.get_height(),
+            bytes_per_pixel, pixels.get_access().get_bytes())) [[unlikely]] {
+      Diagnostics::Log::error(
+          "Png: Filter reconstruction failed — decompressed data may be truncated"_view);
       return Graphics::Image();
     }
-    if (chunk.get_type() == "IEND"_view) {
-      break;
-    }
 
-    if (chunk.get_type() == "IDAT"_view) {
-      // IDAT: image data compressed with DEFLATE (zlib wrapper, RFC 1951).
-      compressed_data.concat(chunk.get_data());
-    } else if (chunk.get_type() == "PLTE"_view) {
-      // PLTE: palette for indexed-color images, 3 bytes (RGB) per entry.
-      palette = chunk.get_data();
-    }
-
-    chunk_offset += chunk_overhead + chunk.get_length();
+    return Graphics::Image(
+        Data::take(pixels), info.get_width(), info.get_height());
   }
 
-  if (compressed_data.get_size() == 0) [[unlikely]] {
-    Diagnostics::Log::error("Png: no IDAT chunk found"_view);
-    return Graphics::Image();
-  }
-
-  // Inflate: decompress the zlib-wrapped DEFLATE stream from the IDAT chunks.
-  Dynamic::Bytes filtered_rows =
-      Compression::inflate(compressed_data.get_view());
-  if (filtered_rows.get_size() == 0) [[unlikely]] {
-    return Graphics::Image();  // inflate already logged
-  }
-
-  Count bytes_per_pixel = number_of_color_channels(info.get_color_type());
+  // If we can't construct in place then we have to use a temp buffer to store
+  // the intermediate data.
   Dynamic::Bytes raw_pixels;
+  raw_pixels.forgetful_resize(
+      info.get_width() * info.get_height() * bytes_per_pixel);
   if (!reconstruct_filter(
           filtered_rows.get_view(), info.get_width(), info.get_height(),
           bytes_per_pixel, raw_pixels)) [[unlikely]] {
     Diagnostics::Log::error(
-        "Png: filter reconstruction failed — decompressed data may be truncated"_view);
+        "Png: Filter reconstruction failed — decompressed data may be truncated"_view);
     return Graphics::Image();
   }
 
+  // Convert the arbitrary color format into Pixel's RGBA format.
   Dynamic::Vector<Graphics::Pixel> pixels;
   if (!convert_to_pixels(
           raw_pixels.get_view(), info.get_width(), info.get_height(),
           info.get_color_type(), palette, pixels)) [[unlikely]] {
-    Diagnostics::Log::error("Png: pixel conversion failed"_view);
+    Diagnostics::Log::error("Png: Pixel conversion failed"_view);
     return Graphics::Image();
   }
 
@@ -753,9 +776,64 @@ auto Format::Png::decode(const View::Bytes source) -> Graphics::Image {
       Data::take(pixels), info.get_width(), info.get_height());
 }
 
-auto Format::Png::encode(const Graphics::Image& image) -> Dynamic::Bytes {
-  constexpr Count filter_byte_size = 1;
+auto Format::Png::decode(const View::Bytes source) -> Graphics::Image {
+  // If we can't load the image or if the image is empty then return empty.
+  ImageInfo info = read_header(source);
+  if (info.get_width() == 0 || info.get_height() == 0) [[unlikely]] {
+    return Graphics::Image();
+  }
 
+  // For PNGs with a single IDAT chunk (the common case) we hold a view to avoid
+  // copying the entire compressed stream, but if any additional IDAT chunks are
+  // found we switch to merging them into a dynamic buffer.
+  View::Bytes binary_data;
+  Dynamic::Bytes merged_data;
+  View::Bytes palette;
+
+  // Walk the chunk sequence collecting all IDAT payloads plus the optional
+  // PLTE (palette) chunk needed for indexed-color images.
+  Count chunk_offset = png_signature.get_size();
+  while (chunk_offset < source.get_size()) {
+    Chunk chunk = read_chunk(source, chunk_offset);
+    if (!chunk.get_valid()) [[unlikely]] {
+      return Graphics::Image();
+    }
+
+    if (chunk.get_type() == "IEND"_view) {
+      break;
+    }
+
+    if (chunk.get_type() == "IDAT"_view) {
+      // If we don't have any binary data we can just use a view.
+      // Otherwise start building up the merged view.
+      if (binary_data.empty()) {
+        binary_data = chunk.get_data();
+      } else {
+        // Need to to merge in the current binary data from the last read.
+        if (merged_data.is_empty()) {
+          merged_data.proxy(binary_data);
+        }
+
+        // Add the chunk to the merged binary and update the binary view.
+        merged_data.concat(chunk.get_data());
+        binary_data = merged_data.get_view();
+      }
+    } else if (chunk.get_type() == "PLTE"_view) {
+      palette = chunk.get_data();
+    }
+
+    chunk_offset += chunk_metadata_size + chunk.get_length();
+  }
+
+  if (binary_data.empty()) [[unlikely]] {
+    Diagnostics::Log::error("Png: No IDAT chunk found or chunk was empty"_view);
+    return Graphics::Image();
+  }
+
+  return process_data(info, binary_data, palette);
+}
+
+auto Format::Png::encode(const Graphics::Image& image) -> Dynamic::Bytes {
   View::Vector<Graphics::Pixel> pixels = image.get_pixels();
 
   // Ignore empty images
@@ -763,58 +841,33 @@ auto Format::Png::encode(const Graphics::Image& image) -> Dynamic::Bytes {
     return Dynamic::Bytes();
   }
 
-  constexpr Count bytes_per_pixel = Graphics::Pixel::get_byte_count();
-
-  // Image details.
-  const auto width = image.get_width();
-  const auto height = image.get_height();
-  const auto row_bytes = Count(width) * bytes_per_pixel;
-  const auto filtered_size = Count(height) * (filter_byte_size + row_bytes);
-
   // Filter the rows using adaptive PNG filtering then deflate the output.
-  Dynamic::Bytes filtered_rows(filtered_size);
-  filtered_rows.forgetful_resize(filtered_size);
-  apply_adaptive_filtering(
-      pixels, width, height, bytes_per_pixel, filtered_rows);
+  Dynamic::Bytes filtered_rows = apply_adaptive_filtering(image);
 
-  Dynamic::Bytes compressed = Compression::deflate(filtered_rows.get_view());
+  // Compress using the default compression level for balanced speed vs size.
+  Dynamic::Bytes compressed =
+      Compression::Deflate::deflate(filtered_rows.get_view());
   if (compressed.get_size() == 0) [[unlikely]] {
     return Dynamic::Bytes();
   }
 
-  // signature(8) + IHDR chunk(25) + IDAT chunk(12 + N) + IEND chunk(12).
-  constexpr Count png_signature_size = 8;
-  constexpr Count ihdr_chunk_size = 25;
-  constexpr Count iend_chunk_size = 12;
-  constexpr Count chunk_overhead = 12;
-  Count output_size = png_signature_size + ihdr_chunk_size + chunk_overhead +
-                      compressed.get_size() + iend_chunk_size;
+  // Output is just 3 chunks (header, end, data) and the PNG signiture.
+  const auto output_size = png_signature.get_size() + ImageInfo::size +
+                           (chunk_metadata_size * 3) + compressed.get_size();
   Dynamic::Bytes output(output_size);
   output.forgetful_resize(output_size);
-  auto acc = output.get_access();
+  auto data = output.get_access();
 
-  Data::copy(acc.get_data(), png_signature.get_data(), png_signature_size);
-  Count write_position = png_signature_size;
-
-  // Build the 13-byte IHDR payload.
-  constexpr Count ihdr_data_size = 13;
-  constexpr Bits_8 bit_depth_8bpc = 8;
-  constexpr Bits_8 no_compression = 0;
-  constexpr Bits_8 no_filter = 0;
-  constexpr Bits_8 no_interlace = 0;
-  Static::Bytes<ihdr_data_size> ihdr_buffer;
-  auto ihdr_data = ihdr_buffer.get_access().get_data();
-  Data::write<Data::ByteOrder::Big>(Data::cast<Bits_32>(ihdr_data + 0), width);
-  Data::write<Data::ByteOrder::Big>(Data::cast<Bits_32>(ihdr_data + 4), height);
-  ihdr_data[8] = bit_depth_8bpc;
-  ihdr_data[9] = Bits_8(ColorType::Rgba);
-  ihdr_data[10] = no_compression;
-  ihdr_data[11] = no_filter;
-  ihdr_data[12] = no_interlace;
-
-  write_chunk(acc, write_position, "IHDR"_view, ihdr_buffer.get_view());
-  write_chunk(acc, write_position, "IDAT"_view, compressed.get_view());
-  write_chunk(acc, write_position, "IEND"_view, View::Bytes());
+  // Write the header & data chunk along with the IEND chunk.
+  ImageInfo header(image);
+  Data::copy(
+      data.get_data(), png_signature.get_data(), png_signature.get_size());
+  Count write_position = png_signature.get_size();
+  write_chunk(
+      data, write_position, "IHDR"_view,
+      View::Bytes(Data::cast<Byte>(&header), ImageInfo::size));
+  write_chunk(data, write_position, "IDAT"_view, compressed.get_view());
+  write_chunk(data, write_position, "IEND"_view, View::Bytes());
 
   output.resize(write_position);
   return output;

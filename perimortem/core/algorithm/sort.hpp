@@ -49,8 +49,7 @@ constexpr auto sort(Core::Access::Vector<type> access)
     Count index[] = {a, b, c};
 
     return index
-        [(a_bigger_b.value == a_bigger_c.value) +
-         (a_bigger_c.value ^ b_bigger_c.value)];
+        [(a_bigger_b == a_bigger_c).value + (a_bigger_c ^ b_bigger_c).value];
   };
 
   // Spread out sampling for larger array spans.

@@ -17,7 +17,8 @@ class Lz77 {
   static constexpr Count min_match = 3;
   static constexpr Count max_match = 258;
 
-  struct Match {
+  class Match {
+   public:
     Match() : length(0), distance(0) {}
     Match(Count length, Count distance) : length(length), distance(distance) {}
 
@@ -35,6 +36,10 @@ class Lz77 {
   auto find_match(Core::View::Bytes source, Count pos, Count depth) const
       -> Match;
   auto insert(Core::View::Bytes source, Count pos) -> void;
+  // Specialized merged find + insert which inserts pos into the hash chain then
+  // searches for the best match which avoids reading the hash table twice.
+  auto find_match_and_insert(Core::View::Bytes source, Count pos, Count depth)
+      -> Match;
 
  private:
   Memory::Dynamic::Vector<Bits_32> hash_table;

@@ -71,6 +71,8 @@ class Bytes {
     return Core::Hash(get_view()).get_value();
   }
 
+  auto is_empty() { return size == 0; }
+
   auto clear() -> void;
   auto reset() -> void;
   auto ensure_capacity(Count required_size) -> void;

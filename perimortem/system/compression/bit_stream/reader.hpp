@@ -11,8 +11,11 @@ namespace Perimortem::System::Compression::BitStream {
 //
 // Each byte is consumed starting from its least significant bit, and Huffman
 // codes accumulate from the most significant bit to match canonical decode
-// order. Both orderings are defined by RFC 1951 and apply regardless of host
-// byte order.
+// order.
+//
+// Internally a 64-bit fill buffer is kept loaded from the stream so peek_code /
+// advance_bits require no memory access in the common case. `fill()` is called
+// lazily when the buffer drops below the requested bit count.
 class Reader {
  public:
   constexpr Reader(Core::View::Bytes source) : data(source) {}
@@ -20,15 +23,24 @@ class Reader {
   auto read_bit() -> Bool;
   auto read_code(Count count) -> Bits_32;
   auto read_raw_bytes(Count count) -> Core::View::Bytes;
+  auto peek_code(Count count) -> Bits_32;
 
-  constexpr auto is_valid() const -> Bool {
-    return bit_position <= data.get_size() * 8;
+  constexpr auto advance_bits(Count count) -> void {
+    buffer >>= count;
+    buffered_bits -= count;
   }
-  auto invalidate() -> void;
+
+  constexpr auto is_valid() const -> Bool { return !invalid_stream; }
+  constexpr auto invalidate() -> void { invalid_stream = True; }
 
  private:
+  auto fill() -> void;
+
   Core::View::Bytes data;
-  Count bit_position = 0;
+  Bits_64 buffer = 0;
+  Count buffered_bits = 0;
+  Count byte_position = 0;
+  Bool invalid_stream = False;
 };
 
 }  // namespace Perimortem::System::Compression::BitStream

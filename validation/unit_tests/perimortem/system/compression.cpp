@@ -25,17 +25,16 @@ static Count captured_log_message_size = 0;
 static auto capture_sink(Diagnostics::Log::Level level, View::Bytes message)
     -> void {
   captured_log_level = level;
-  captured_log_message_size = Math::min(Count(256), message.get_size());
+  captured_log_message_size = message.get_size();
   captured_log_message = message;
 }
 
 static auto captured_message() -> View::Bytes {
-  return View::Bytes(
-      captured_log_message.get_data(), captured_log_message_size);
+  return captured_log_message.slice(0, captured_log_message_size);
 }
 
-static auto error_contains(View::Bytes needle) -> Bool {
-  return Algorithm::search(captured_message(), needle) != Count(-1);
+static auto error_contains(View::Bytes message) -> Bool {
+  return Algorithm::search(captured_message(), message) != Count(-1);
 }
 
 static Harness SystemCompression = {
@@ -98,7 +97,7 @@ static constexpr Static::Bytes<26> bad_adler_compressed = {
 
 PERIMORTEM_UNIT_TEST(SystemCompression, inflate_dynamic_huffman) {
   auto start = Bibliotheca::check_out_requests();
-  auto out = Compression::inflate(hello_compressed);
+  auto out = Compression::Deflate::inflate(hello_compressed);
 
   ASSERT_EQ(out.get_size(), hello_raw.get_size());
   EXPECT_HEX(out.get_view(), hello_raw.get_view());
@@ -108,17 +107,17 @@ PERIMORTEM_UNIT_TEST(SystemCompression, inflate_dynamic_huffman) {
 }
 
 PERIMORTEM_UNIT_TEST(SystemCompression, inflate_stored_blocks) {
-  auto out = Compression::inflate(stored_compressed);
+  auto out = Compression::Deflate::inflate(stored_compressed);
 
   ASSERT_EQ(out.get_size(), stored_raw.get_size());
   EXPECT_HEX(out.get_view(), stored_raw.get_view());
 }
 
 PERIMORTEM_UNIT_TEST(SystemCompression, inflate_back_references) {
-  auto out = Compression::inflate(repeat_compressed);
+  auto out = Compression::Deflate::inflate(repeat_compressed);
 
   // Check that ABCD bytes are repeated 50 times.
-  ASSERT_EQ(out.get_size(), Count(100));
+  ASSERT_EQ(out.get_size(), 100);
   for (Count i = 0; i < 100; i += 2) {
     EXPECT_EQ(out[i + 0], Byte(0xAB));
     EXPECT_EQ(out[i + 1], Byte(0xCD));
@@ -126,33 +125,33 @@ PERIMORTEM_UNIT_TEST(SystemCompression, inflate_back_references) {
 }
 
 PERIMORTEM_UNIT_TEST(SystemCompression, inflate_empty_content) {
-  auto out = Compression::inflate(empty_compressed);
-  EXPECT_EQ(out.get_size(), Count(0));
+  auto out = Compression::Deflate::inflate(empty_compressed);
+  EXPECT_EQ(out.get_size(), 0);
 }
 
 PERIMORTEM_UNIT_TEST(SystemCompression, inflate_single_byte) {
-  auto out = Compression::inflate(single_compressed);
+  auto out = Compression::Deflate::inflate(single_compressed);
 
-  ASSERT_EQ(out.get_size(), Count(1));
+  ASSERT_EQ(out.get_size(), 1);
   EXPECT_EQ(out[0], Byte(0x42));
 }
 
 PERIMORTEM_UNIT_TEST(SystemCompression, inflate_empty_view) {
-  auto out = Compression::inflate(""_view);
-  EXPECT_EQ(out.get_size(), Count(0));
+  auto out = Compression::Deflate::inflate(""_view);
+  EXPECT_EQ(out.get_size(), 0);
   EXPECT_EQ(UInt(captured_log_level), UInt(Diagnostics::Log::Level::Error));
-  EXPECT(error_contains("Compression:"_view));
-  EXPECT(error_contains("too short"_view));
+  EXPECT(error_contains(
+      "Compression: Input too short to be a valid deflate stream"_view));
 }
 
 PERIMORTEM_UNIT_TEST(SystemCompression, inflate_truncated_input) {
   // Hand the decompressor only the zlib header — the deflate payload is
   // missing.
-  auto out = Compression::inflate(hello_compressed.slice(0, 2));
-  EXPECT_EQ(out.get_size(), Count(0));
+  auto out = Compression::Deflate::inflate(hello_compressed.slice(0, 2));
+  EXPECT_EQ(out.get_size(), 0);
   EXPECT_EQ(UInt(captured_log_level), UInt(Diagnostics::Log::Level::Error));
-  EXPECT(error_contains("Compression:"_view));
-  EXPECT(error_contains("too short"_view));
+  EXPECT(error_contains(
+      "Compression: Input too short to be a valid deflate stream"_view));
 }
 
 PERIMORTEM_UNIT_TEST(SystemCompression, inflate_bad_compression_method) {
@@ -161,46 +160,52 @@ PERIMORTEM_UNIT_TEST(SystemCompression, inflate_bad_compression_method) {
   // Corrupt the CM nibble to 9 (DEFLATE requires exactly 8).
   bad_cm[0] = (bad_cm[0] & 0xF0) | 0x09;
 
-  auto out = Compression::inflate(bad_cm);
-  EXPECT_EQ(out.get_size(), Count(0));
+  auto out = Compression::Deflate::inflate(bad_cm);
+  EXPECT_EQ(out.get_size(), 0);
   EXPECT_EQ(UInt(captured_log_level), UInt(Diagnostics::Log::Level::Error));
-  EXPECT(error_contains("Compression:"_view));
-  EXPECT(error_contains("compression method"_view));
+  EXPECT(error_contains(
+      "Compression: Unsupported compression method in deflate header"_view));
 }
 
 PERIMORTEM_UNIT_TEST(SystemCompression, inflate_bad_checksum) {
-  auto out = Compression::inflate(bad_adler_compressed);
-  EXPECT_EQ(out.get_size(), Count(0));
+  auto out = Compression::Deflate::inflate(bad_adler_compressed);
+#if PERI_DEBUG
+  EXPECT_EQ(out.get_size(), 0);
   EXPECT_EQ(UInt(captured_log_level), UInt(Diagnostics::Log::Level::Error));
-  EXPECT(error_contains("Compression:"_view));
-  EXPECT(error_contains("Adler-32"_view));
+  EXPECT(error_contains("Compression: Adler-32 checksum mismatch."_view));
+#else
+  EXPECT_EQ(out.get_size(), hello_raw.get_size());
+  EXPECT_HEX(out.get_view(), hello_raw.get_view());
+#endif
 }
 
 PERIMORTEM_UNIT_TEST(SystemCompression, inflate_corrupted_payload) {
   // Flip all bits of a byte in the middle of the DEFLATE bitstream.
   Static::Bytes<26> corrupt = hello_compressed;
   corrupt[5] ^= 0xFF;
-  auto out = Compression::inflate(corrupt);
-  EXPECT_EQ(out.get_size(), Count(0));
+  auto out = Compression::Deflate::inflate(corrupt);
+#if PERI_DEBUG
+  EXPECT_EQ(out.get_size(), 0);
   EXPECT_EQ(UInt(captured_log_level), UInt(Diagnostics::Log::Level::Error));
-  EXPECT(error_contains("Compression:"_view));
-  // Payload corruption hits either Huffman decode or checksum depending on
-  // whether the mangled bits happen to produce a structurally valid stream.
-  EXPECT(
-      error_contains("decompression failed"_view) ||
-      error_contains("checksum"_view));
+  EXPECT(error_contains(
+      "Compression: Adler-32 checksum mismatch. checksum=1026426502 "
+      "stream_checksum=970327629"_view));
+#else
+  // In release the checksum is skipped so bad data can slip through.
+  EXPECT_EQ(out.get_size(), 18);
+#endif
 }
 
 PERIMORTEM_UNIT_TEST(SystemCompression, deflate_empty_input) {
   auto start = Bibliotheca::check_out_requests();
-  auto compressed = Compression::deflate(""_view);
+  auto compressed = Compression::Deflate::deflate(""_view);
 
   // A valid zlib stream must still have a header and a footer.
   EXPECT(compressed.get_size() >= 6);
 
   // Round tripping inflate should properly produce an emtpy buffer.
-  auto recovered = Compression::inflate(compressed);
-  EXPECT_EQ(recovered.get_size(), Count(0));
+  auto recovered = Compression::Deflate::inflate(compressed);
+  EXPECT_EQ(recovered.get_size(), 0);
 
   // 3 allocations in total expected
   // deflate constructor + forgetful_resize (deflate always pre-sizes its output
@@ -212,19 +217,19 @@ PERIMORTEM_UNIT_TEST(SystemCompression, deflate_single_byte) {
   constexpr Static::Bytes<1> src = {
     0x42,
   };
-  auto compressed = Compression::deflate(src);
+  auto compressed = Compression::Deflate::deflate(src);
   EXPECT(compressed.get_size() > 0);
 
-  auto recovered = Compression::inflate(compressed);
+  auto recovered = Compression::Deflate::inflate(compressed);
   ASSERT_EQ(recovered.get_size(), Count(1));
   EXPECT_EQ(recovered[0], Byte(0x42));
 }
 
 PERIMORTEM_UNIT_TEST(SystemCompression, deflate_roundtrip_short) {
-  auto compressed = Compression::deflate(hello_raw);
+  auto compressed = Compression::Deflate::deflate(hello_raw);
   ASSERT(compressed.get_size() > 0);
 
-  auto recovered = Compression::inflate(compressed);
+  auto recovered = Compression::Deflate::inflate(compressed);
   ASSERT_EQ(recovered.get_size(), hello_raw.get_size());
   EXPECT_HEX(recovered.get_view(), hello_raw.get_view());
 }
@@ -235,40 +240,34 @@ PERIMORTEM_UNIT_TEST(SystemCompression, deflate_roundtrip_binary) {
   for (Count i = 0; i < 256; i++) {
     all_bytes[i] = Byte(i);
   }
-  auto compressed = Compression::deflate(all_bytes);
+  auto compressed = Compression::Deflate::deflate(all_bytes);
   ASSERT(compressed.get_size() > 0);
 
-  auto recovered = Compression::inflate(compressed);
-  ASSERT_EQ(recovered.get_size(), Count(256));
+  auto recovered = Compression::Deflate::inflate(compressed);
+  ASSERT_EQ(recovered.get_size(), 256);
   EXPECT_HEX(recovered.get_view(), all_bytes.get_view());
 }
 
-PERIMORTEM_UNIT_TEST(SystemCompression, deflate_output_is_valid_zlib) {
-  auto compressed = Compression::deflate(stored_raw);
+PERIMORTEM_UNIT_TEST(SystemCompression, valid_header) {
+  auto compressed = Compression::Deflate::deflate(stored_raw);
 
-  // Valid zlib: CMF byte must have CM==8.
   ASSERT(compressed.get_size() >= 6);
   EXPECT_EQ(Bits_8(compressed[0] & 0x0F), Bits_8(8));
-  // (CMF*256 + FLG) % 31 == 0 is the zlib fcheck constraint.
   EXPECT_EQ((Bits_32(compressed[0]) * 256 + compressed[1]) % 31, Bits_32(0));
 }
 
 PERIMORTEM_UNIT_TEST(SystemCompression, deflate_repeating_value) {
-  // 512 bytes of a single repeated value.  The greedy LZ77 pass will emit a
-  // 258-byte back-reference (the DEFLATE maximum) immediately after the first
-  // literal, exercising the max-length boundary in encode_match_length.
   constexpr Count source_size = 512;
   Static::Bytes<source_size> source;
   for (Count i = 0; i < source_size; i++) {
     source[i] = Byte(0xAA);
   }
 
-  auto compressed = Compression::deflate(source);
+  auto compressed = Compression::Deflate::deflate(source);
   ASSERT(compressed.get_size() > 0);
-  // 512 identical bytes must compress to well under half the raw size.
   EXPECT(compressed.get_size() < source_size / 2);
 
-  auto recovered = Compression::inflate(compressed);
+  auto recovered = Compression::Deflate::inflate(compressed);
   ASSERT_EQ(recovered.get_size(), source_size);
   EXPECT_HEX(recovered.get_view(), source.get_view());
 }
@@ -281,40 +280,59 @@ PERIMORTEM_UNIT_TEST(SystemCompression, roundtrip_large) {
     large[i] = Byte((i * 31 + i / 128) & 0xFF);
   }
 
-  auto compressed = Compression::deflate(large);
+  auto compressed = Compression::Deflate::deflate(large);
   ASSERT(compressed.get_size() > 0);
 
-  auto recovered = Compression::inflate(compressed);
+  auto recovered = Compression::Deflate::inflate(compressed);
   ASSERT_EQ(recovered.get_size(), size);
   EXPECT_HEX(recovered.get_view(), large.get_view());
 }
 
 PERIMORTEM_UNIT_TEST(SystemCompression, size_source_file) {
   // Every level that does real compression must beat the level below it on
-  // data that is known to be compressible.  Ordering must hold: None > Default
-  // >= Best.
+  // data that is known to be compressible.
+  // Ordering must hold: None > Default >= Best.
   File source_file;
   ASSERT(source_file.read("perimortem/system/compression/deflate.cpp"_view));
   View::Bytes source = source_file.get_view();
 
-  auto no_compression = Compression::deflate(source, Compression::Level::None);
-  auto default_compression =
-      Compression::deflate(source, Compression::Level::Default);
+  auto no_compression =
+      Compression::Deflate::deflate(source, Compression::Deflate::Level::None);
+  auto default_compression = Compression::Deflate::deflate(
+      source, Compression::Deflate::Level::Default);
   auto best_compression =
-      Compression::deflate(source, Compression::Level::Best);
+      Compression::Deflate::deflate(source, Compression::Deflate::Level::Best);
 
   ASSERT(best_compression.get_size() > 0);
 
-  // Best compression now saves ~12% compared to the old method.
-  auto size_threshold = Count(default_compression.get_size() * 0.88);
-  EXPECT(best_compression.get_size() <= size_threshold);
+  // Both Default and Best now use dynamic Huffman so the remaining gap comes
+  // from search depth (8 vs 128).
+  // Best should still produce smaller output but only marginally in most cases.
+  EXPECT(best_compression.get_size() <= default_compression.get_size());
 
   // Default compression is a huge step up from no compression though.
   EXPECT(default_compression.get_size() <= no_compression.get_size() / 2);
 
-  auto recovered = Compression::inflate(best_compression);
+  auto recovered = Compression::Deflate::inflate(best_compression);
   ASSERT_EQ(recovered.get_size(), source.get_size());
   EXPECT_HEX(recovered, source);
+}
+
+PERIMORTEM_UNIT_TEST(SystemCompression, skewed_frequencies) {
+  constexpr Count size = 50000;
+  Dynamic::Bytes source;
+  source.forgetful_resize(size);
+  Data::set(source.get_access().get_data(), Byte(0), size);
+  for (Count i = 1; i <= 200; i++) {
+    source.get_access()[i * 249] = Byte(i);
+  }
+
+  auto compressed = Compression::Deflate::deflate(source.get_view());
+  ASSERT(compressed.get_size() > 0);
+
+  auto recovered = Compression::Deflate::inflate(compressed);
+  ASSERT_EQ(recovered.get_size(), size);
+  EXPECT_HEX(recovered.get_view(), source.get_view());
 }
 
 PERIMORTEM_UNIT_TEST(SystemCompression, size_repetitive_data) {
@@ -327,17 +345,18 @@ PERIMORTEM_UNIT_TEST(SystemCompression, size_repetitive_data) {
     source[i] = Byte((i % pattern_size) * 4 + i / pattern_size);
   }
 
-  auto no_compression = Compression::deflate(source, Compression::Level::None);
-  auto default_compression =
-      Compression::deflate(source, Compression::Level::Default);
+  auto no_compression =
+      Compression::Deflate::deflate(source, Compression::Deflate::Level::None);
+  auto default_compression = Compression::Deflate::deflate(
+      source, Compression::Deflate::Level::Default);
   auto best_compression =
-      Compression::deflate(source, Compression::Level::Best);
+      Compression::Deflate::deflate(source, Compression::Deflate::Level::Best);
 
   ASSERT(best_compression.get_size() > 0);
   EXPECT(best_compression.get_size() <= default_compression.get_size());
   EXPECT(default_compression.get_size() <= no_compression.get_size());
 
-  auto recovered = Compression::inflate(best_compression);
+  auto recovered = Compression::Deflate::inflate(best_compression);
   ASSERT_EQ(recovered.get_size(), source.get_size());
   EXPECT_HEX(recovered.get_view(), source.get_view());
 }

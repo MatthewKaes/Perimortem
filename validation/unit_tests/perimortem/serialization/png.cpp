@@ -27,13 +27,12 @@ static Count captured_log_message_size = 0;
 static auto capture_sink(Diagnostics::Log::Level level, View::Bytes message)
     -> void {
   captured_log_level = level;
-  captured_log_message_size = Math::min(Count(256), message.get_size());
+  captured_log_message_size = message.get_size();
   captured_log_message = message;
 }
 
 static auto captured_message() -> View::Bytes {
-  return View::Bytes(
-      captured_log_message.get_data(), captured_log_message_size);
+  return captured_log_message.slice(0, captured_log_message_size);
 }
 
 static auto error_contains(View::Bytes message) -> Bool {
@@ -229,8 +228,9 @@ PERIMORTEM_UNIT_TEST(SerializationPng, roundtrip_checkerboard) {
   EXPECT_EQ(decoded_pixels[3].red, Byte(0xFF));
 }
 
-PERIMORTEM_UNIT_TEST(SerializationPng, roundtrip_large) {
-  constexpr Count width = 32, height = 32;
+PERIMORTEM_UNIT_TEST(SerializationPng, roundtrip_64x64) {
+  constexpr Count width = 1 << 6;
+  constexpr Count height = 1 << 6;
   Dynamic::Vector<Pixel> source_pixels;
   source_pixels.resize(width * height);
   for (Count row = 0; row < height; row++) {
@@ -239,8 +239,7 @@ PERIMORTEM_UNIT_TEST(SerializationPng, roundtrip_large) {
         Byte(col * 8), Byte(row * 8), Byte(128), Byte(255)};
     }
   }
-  Image source_image(
-      Data::take(source_pixels), Bits_32(width), Bits_32(height));
+  Image source_image(Data::take(source_pixels), width, height);
 
   auto encoded = Format::Png::encode(source_image);
   ASSERT(encoded.get_size() > 0);
@@ -274,8 +273,8 @@ PERIMORTEM_UNIT_TEST(SerializationPng, zero_dimensions) {
   Image zero_height(Data::take(empty2), 1, 0);
   auto encoded_w = Format::Png::encode(zero_width);
   auto encoded_h = Format::Png::encode(zero_height);
-  EXPECT_EQ(encoded_w.get_size(), Count(0));
-  EXPECT_EQ(encoded_h.get_size(), Count(0));
+  EXPECT_EQ(encoded_w.get_size(), 0);
+  EXPECT_EQ(encoded_h.get_size(), 0);
 }
 
 PERIMORTEM_UNIT_TEST(SerializationPng, truncated_chunk_header) {
@@ -285,24 +284,23 @@ PERIMORTEM_UNIT_TEST(SerializationPng, truncated_chunk_header) {
 
   auto image = Format::Png::decode(source.get_view());
 
-  EXPECT_EQ(image.get_width(), Bits_32(0));
+  EXPECT_EQ(image.get_width(), 0);
   EXPECT_EQ(UInt(captured_log_level), UInt(Diagnostics::Log::Level::Error));
-  EXPECT(error_contains("Png: chunk at offset 33"_view));
-  EXPECT(error_contains("truncated before header end"_view));
+  EXPECT(error_contains(
+      "Png: Chunk at offset 33 truncated before header end"_view));
 }
 
 PERIMORTEM_UNIT_TEST(SerializationPng, chunk_length_overrun) {
-  // PNG whose second chunk claims a length of 4294967295 bytes.
+  // PNG with a chunk that claims a length of 4294967295 bytes.
   File source;
   ASSERT(source.read("validation/data/pngs/error_overrun.png"_view));
 
   auto image = Format::Png::decode(source.get_view());
 
-  EXPECT_EQ(image.get_width(), Bits_32(0));
+  EXPECT_EQ(image.get_width(), 0);
   EXPECT_EQ(UInt(captured_log_level), UInt(Diagnostics::Log::Level::Error));
-  EXPECT(error_contains("Png: chunk at offset 33"_view));
-  EXPECT(error_contains("100"_view));
-  EXPECT(error_contains("extends past end of stream"_view));
+  EXPECT(error_contains(
+      "Png: Chunk at offset 33 with length 100 extends past end of stream"_view));
 }
 
 PERIMORTEM_UNIT_TEST(SerializationPng, roundtrip_icon) {
@@ -310,8 +308,8 @@ PERIMORTEM_UNIT_TEST(SerializationPng, roundtrip_icon) {
   ASSERT(source.read("validation/data/pngs/perimortem_icon.png"_view));
 
   auto original = Format::Png::decode(source.get_view());
-  ASSERT_EQ(original.get_width(), Bits_32(128));
-  ASSERT_EQ(original.get_height(), Bits_32(128));
+  ASSERT_EQ(original.get_width(), 128);
+  ASSERT_EQ(original.get_height(), 128);
 
   auto original_pixels = original.get_pixels();
   ASSERT_EQ(original_pixels.get_size(), Count(128 * 128));
@@ -320,8 +318,8 @@ PERIMORTEM_UNIT_TEST(SerializationPng, roundtrip_icon) {
   ASSERT(encoded.get_size() > 0);
 
   auto decoded = Format::Png::decode(encoded.get_view());
-  ASSERT_EQ(decoded.get_width(), Bits_32(128));
-  ASSERT_EQ(decoded.get_height(), Bits_32(128));
+  ASSERT_EQ(decoded.get_width(), 128);
+  ASSERT_EQ(decoded.get_height(), 128);
 
   auto decoded_pixels = decoded.get_pixels();
   ASSERT_EQ(decoded_pixels.get_size(), Count(128 * 128));
@@ -342,11 +340,10 @@ PERIMORTEM_UNIT_TEST(SerializationPng, crc_mismatch) {
 
   auto image = Format::Png::decode(source.get_view());
 
-  EXPECT_EQ(image.get_width(), Bits_32(0));
+  EXPECT_EQ(image.get_width(), 0);
   EXPECT_EQ(UInt(captured_log_level), UInt(Diagnostics::Log::Level::Error));
-  EXPECT(error_contains("CRC-32 mismatch"_view));
-  EXPECT(error_contains("IHDR"_view));
-  EXPECT(error_contains("offset 8"_view));
+  EXPECT(
+      error_contains("Png: CRC-32 mismatch for chunk 'IHDR' at offset 8"_view));
 }
 #endif
 
@@ -355,8 +352,8 @@ PERIMORTEM_UNIT_TEST(SerializationPng, avoid_roundtrip_bloat) {
   ASSERT(source.read("validation/data/pngs/perimortem_icon.png"_view));
 
   auto icon = Format::Png::decode(source.get_view());
-  ASSERT_EQ(icon.get_width(), Bits_32(128));
-  ASSERT_EQ(icon.get_height(), Bits_32(128));
+  ASSERT_EQ(icon.get_width(), 128);
+  ASSERT_EQ(icon.get_height(), 128);
 
   // Dynamic Huffman at depth=8 brings us close to the original, but flat-color
   // images compressed the other way by libpng can still expand slightly on

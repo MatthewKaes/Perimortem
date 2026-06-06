@@ -3,44 +3,49 @@
 
 #include "perimortem/system/compression/bit_stream/writer.hpp"
 
-#include "perimortem/core/static/bytes.hpp"
 #include "perimortem/core/data.hpp"
 
 using namespace Perimortem::Core;
+using namespace Perimortem::System;
 
-namespace Perimortem::System::Compression::BitStream {
-
-auto Writer::write_bit(Bool value) -> void {
-  constexpr Static::Bytes<8> bit_masks = {
-    0b00000001, 0b00000010, 0b00000100, 0b00001000,
-    0b00010000, 0b00100000, 0b01000000, 0b10000000,
-  };
-
-  auto logical_bit = bit_position++;
-  if ((logical_bit & 0x7) == 0) {
-    output.append(0x00);
-  }
-
-  if (value) {
-    output.get_access().get_data()[output.get_size() - 1] |=
-        bit_masks[logical_bit & 0x7];
+// Append complete bytes from the accumulator to the output buffer.
+// Leaves at most 7 bits (the partial final byte) in the accumulator.
+//
+// The accumulator is little-endian so byte 0 is the LSB which maps to
+// the bit ordering required by RFC 1951.
+//
+// TODO: If we ever support ARM we'll need to fix the LSB ordering.
+auto Compression::BitStream::Writer::drain() -> void {
+  while (bits >= 8) {
+    output.append(Byte(accumulator & 0xFF));
+    accumulator >>= 8;
+    bits -= 8;
   }
 }
 
-auto Writer::write_bits(Bits_32 code, Count length) -> void {
-  for (Count i = 0; i < length; i++) {
-    write_bit(Bool((code >> i) & 1));
+auto Compression::BitStream::Writer::write_bits(Bits_32 value, Count length)
+    -> void {
+  if (length == 0) {
+    return;
+  }
+  accumulator |= Bits_64(value) << bits;
+  bits += length;
+  if (bits >= 8) {
+    drain();
   }
 }
 
-auto Writer::write_code(Bits_32 code, Count length) -> void {
-  for (Count i = length; i > 0; i--) {
-    write_bit(Bool((code >> (i - 1)) & 1));
+// Huffman codes stored in HuffmanTable are already bit-reversed into stream
+// order, so they slot directly into the accumulator without further reversal.
+auto Compression::BitStream::Writer::write_code(Bits_32 code, Count length)
+    -> void {
+  write_bits(code, length);
+}
+
+auto Compression::BitStream::Writer::flush() -> void {
+  if (bits > 0) {
+    output.append(Byte(accumulator & 0xFF));
+    accumulator = 0;
+    bits = 0;
   }
 }
-
-auto Writer::flush() -> void {
-  Data::align<8>(bit_position);
-}
-
-}  // namespace Perimortem::System::Compression::BitStream

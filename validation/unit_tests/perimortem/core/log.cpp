@@ -138,6 +138,7 @@ PERIMORTEM_UNIT_TEST(DiagnosticsLog, suppress_messages) {
 
   Log::error("should pass through"_view);
   EXPECT(total_events > events_before);
+  events_before = total_events;
 
   Log::info("should be suppressed"_view);
   EXPECT_EQ(total_events, events_before);
@@ -160,7 +161,7 @@ PERIMORTEM_UNIT_TEST(DiagnosticsLog, attribution) {
   attributing_function();
 
   auto attributed_message =
-      "[main] validation/unit_tests/perimortem/core/log.cpp:169:28: Test Attribution"_view;
+      "[main] validation/unit_tests/perimortem/core/log.cpp:156:28: Test Attribution"_view;
   auto logged = last_entry();
   EXPECT_TEXT(
       logged.slice(15, attributed_message.get_size()), attributed_message);

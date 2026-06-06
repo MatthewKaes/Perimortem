@@ -67,16 +67,6 @@ class Image {
   auto get_width() const -> Bits_32 { return width; }
   auto get_height() const -> Bits_32 { return height; }
 
-  // Returns the number of bits that are used to represent a single value of any
-  // given channel.
-  auto get_color_depth() const -> Bits_8 { return color_depth; }
-
-  // The number of channels used per logical pixel.
-  //
-  // The size of a logical pixel in bits is equal to the image's color depth
-  // multiplied by the number of channels.
-  auto get_channel_count() const -> Bits_8 { return channel_count; }
-
   // Used for getting raw Pixel data for optimized operations.
   auto get_pixels() const -> Core::View::Vector<Pixel> {
     return pixels.get_view();
@@ -115,6 +105,16 @@ class Image {
     }
     return pixels.get_view()[Count(y) * Count(width) + Count(x)];
   }
+
+  // Returns the number of bits that are used to represent a single value of any
+  // given channel.
+  static constexpr auto get_color_depth() -> Bits_8 { return color_depth; }
+
+  // The number of channels used per logical pixel.
+  //
+  // The size of a logical pixel in bits is equal to the image's color depth
+  // multiplied by the number of channels.
+  static constexpr auto get_channel_count() -> Bits_8 { return channel_count; }
 
  private:
   // Currently only 8 bit is supported.

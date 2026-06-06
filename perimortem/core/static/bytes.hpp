@@ -57,6 +57,26 @@ class Bytes {
     }
   }
 
+  // Fast read function that assumes the read range is valid.
+  static constexpr auto read_range(const Byte* source) {
+    Bytes data;
+    if consteval {
+      for (Count i = 0; i < literal_size; i++) {
+        data.source_block[i] = source[i];
+      }
+    } else {
+      if constexpr (literal_size < 16) {
+        for (Count i = 0; i < literal_size; i++) {
+          data.source_block[i] = source[i];
+        }
+      } else {
+        Data::copy(data.source_block, source, literal_size);
+      }
+    }
+
+    return data;
+  }
+
   constexpr operator View::Bytes() const { return get_view(); }
   constexpr operator Access::Bytes() { return get_access(); }
 

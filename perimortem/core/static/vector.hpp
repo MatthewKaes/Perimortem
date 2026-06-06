@@ -38,6 +38,26 @@ class Vector {
     }
   }
 
+  // Fast read function that assumes the read range is valid.
+  static constexpr auto read_range(const type* source) {
+    Vector data;
+    if consteval {
+      for (Count i = 0; i < literal_size; i++) {
+        data.source_block[i] = source[i];
+      }
+    } else {
+      if constexpr (literal_size < 16) {
+        for (Count i = 0; i < literal_size; i++) {
+          data.source_block[i] = source[i];
+        }
+      } else {
+        Data::copy(data.source_block, source, literal_size);
+      }
+    }
+
+    return data;
+  }
+
   constexpr operator Core::View::Vector<type>() const { return get_view(); }
   constexpr operator Core::Access::Vector<type>() { return get_access(); }
 
