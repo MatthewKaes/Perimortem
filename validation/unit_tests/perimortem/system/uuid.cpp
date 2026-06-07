@@ -74,10 +74,34 @@ PERIMORTEM_UNIT_TEST(SystemUuid, deserialize_uuid_v4) {
   EXPECT(uuid == uuid_const);
 }
 
-PERIMORTEM_UNIT_TEST(SystemUuid, generate) {
-  Uuid uuid1 = Uuid::generate();
-  Uuid uuid2 = Uuid::generate();
+PERIMORTEM_UNIT_TEST(SystemUuid, serialize_uuid_v4) {
+  Uuid uuid(0xcb8c03d82b014a39ULL, 0xb31d2c6805e6503cULL);
 
+  EXPECT_TEXT(uuid.serialize(), "cb8c03d8-2b01-4a39-b31d-2c6805e6503c"_bytes);
+}
+
+PERIMORTEM_UNIT_TEST(SystemUuid, roundtrip_uuid) {
+  auto source = "cb8c03d8-2b01-4a39-b31d-2c6805e6503c"_bytes;
+  Uuid uuid(source);
+
+  EXPECT_TEXT(uuid.serialize(), source);
+}
+
+PERIMORTEM_UNIT_TEST(SystemUuid, generate_v4) {
+  Uuid uuid1 = Uuid::generate_v4();
+  Uuid uuid2 = Uuid::generate_v4();
+
+  EXPECT(uuid1.is_set());
+  EXPECT(uuid2.is_set());
+  EXPECT(uuid1 != uuid2);
+}
+
+PERIMORTEM_UNIT_TEST(SystemUuid, generate_v7) {
+  Uuid uuid1 = Uuid::generate_v7();
+  Uuid uuid2 = Uuid::generate_v7();
+
+  auto output = uuid1.serialize();
+  EXPECT(output.hash());
   EXPECT(uuid1.is_set());
   EXPECT(uuid2.is_set());
   EXPECT(uuid1 != uuid2);

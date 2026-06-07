@@ -4,6 +4,7 @@
 #include "perimortem/system/uuid.hpp"
 
 #include "perimortem/core/data.hpp"
+#include "perimortem/core/time.hpp"
 
 #include "perimortem/system/random.hpp"
 
@@ -12,15 +13,29 @@ using namespace Perimortem::Core;
 
 #include <x86intrin.h>
 
+constexpr SignedBits_8 null = 0x80;
+
 auto generate_uuid_v4() -> __m128i {
-  __m128i value = _mm_set_epi64x(Random::generate(), Random::generate());
+  const auto value = _mm_set_epi64x(Random::generate(), Random::generate());
 
   const auto v4_mask =
-      _mm_set_epi64x(0xFFFFFFFFFFFFFF3Full, 0xFF0FFFFFFFFFFFFFull);
+      _mm_set_epi64x(0xFFFFFFFFFFFF0FFFull, 0x3FFFFFFFFFFFFFFull);
   const auto v4_set =
-      _mm_set_epi64x(0x0000000000000080ull, 0x0040000000000000ull);
+      _mm_set_epi64x(0x0000000000004000ull, 0x800000000000000ull);
 
   return _mm_or_si128(_mm_and_si128(value, v4_mask), v4_set);
+}
+
+auto generate_uuid_v7() -> __m128i {
+  Bits_64 time_48_bits = Bits_64((Time::now().get_stamp() / 1'000'000) << 16);
+  const auto value = _mm_set_epi64x(time_48_bits, Random::generate());
+
+  const auto v7_mask =
+      _mm_set_epi64x(0xFFFFFFFFFFFF0000ull, 0x3FFFFFFFFFFFFFFFull);
+  const auto v7_set =
+      _mm_set_epi64x(0x0000000000007777ull, 0x8000000000000000ull);
+
+  return _mm_or_si128(_mm_and_si128(value, v7_mask), v7_set);
 }
 
 // Expand 128 bits into nibbles spread across 256 bits.
@@ -29,14 +44,21 @@ auto generate_uuid_v4() -> __m128i {
 // [____hhhh][____llll][____hhhh][____llll]...
 constexpr auto nibbler(__m128i packed_guid) -> __m256i {
   const auto nibble_mask = _mm256_set1_epi8(0x0F);
-  auto nibble_high = _mm_srli_epi64(packed_guid, 4);
-  auto two_byte_pack = _mm256_and_si256(
+  const auto nibble_high = _mm_srli_epi64(packed_guid, 4);
+  const auto two_byte_pack = _mm256_and_si256(
       _mm256_set_m128i(
-          _mm_unpackhi_epi8(nibble_high, packed_guid),
-          _mm_unpacklo_epi8(nibble_high, packed_guid)),
+          _mm_unpackhi_epi8(packed_guid, nibble_high),
+          _mm_unpacklo_epi8(packed_guid, nibble_high)),
       nibble_mask);
 
-  return two_byte_pack;
+  // Convert to big endian with a shuffle by mirroring the nibbles.
+  const auto mirror = _mm256_set_epi8(
+      // Lower
+      0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
+      // Upper
+      0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15);
+
+  return _mm256_shuffle_epi8(two_byte_pack, mirror);
 }
 
 // Takes a set of nibbles and applies an offset to them to shift them into
@@ -73,8 +95,7 @@ constexpr auto convert_to_nibble(__m256i ascii) -> __m256i {
 
 constexpr auto deserialize_ascii(
     __m256i ascii_buffer,
-    Static::Vector<Bits_64, 2>& low_high) -> void {
-  constexpr SignedBits_8 null = 0x80;
+    Static::Vector<Bits_64, 2>& high_low) -> void {
   const auto nibbles = convert_to_nibble(ascii_buffer);
   auto nibble_high = _mm256_slli_epi16(nibbles, 12);
   auto spaced_bytes = _mm256_or_si256(nibbles, nibble_high);
@@ -86,8 +107,8 @@ constexpr auto deserialize_ascii(
       15);
   auto packed_bytes = _mm256_shuffle_epi8(spaced_bytes, packing_shuffle);
 
-  low_high[0] = _mm256_extract_epi64(packed_bytes, 2);
-  low_high[1] = _mm256_extract_epi64(packed_bytes, 0);
+  high_low[1] = _mm256_extract_epi64(packed_bytes, 2);
+  high_low[0] = _mm256_extract_epi64(packed_bytes, 0);
 }
 
 auto Uuid::deserialize(const Static::Bytes<36>& uuid_string) -> Uuid& {
@@ -98,23 +119,22 @@ auto Uuid::deserialize(const Static::Bytes<36>& uuid_string) -> Uuid& {
   const auto offset_buffer = _mm256_loadu_si256(
       reinterpret_cast<const __m256i*>(uuid_string.get_data() + 4));
 
-  const SignedBits_8 null = 0x80;
   const auto packing_shuffle = _mm256_set_epi8(
       null, null, null, null, 15, 14, 13, 12, 11, 10, 9, 8, 6, 5, 4, 3, null,
       null, 15, 14, 12, 11, 10, 9, 7, 6, 5, 4, 3, 2, 1, 0);
 
   auto packed_bytes = _mm256_shuffle_epi8(buffer, packing_shuffle);
   const auto dash_shuffle = _mm256_set_epi8(
-      // Lane 2
+      // Lane 1
       15, 14, 13, 12, null, null, null, null, null, null, null, null, null,
       null, null, null,
-      // Lane 1
+      // Lane 2
       13, 12, null, null, null, null, null, null, null, null, null, null, null,
       null, null, null);
   auto dash_fill = _mm256_shuffle_epi8(offset_buffer, dash_shuffle);
   auto ascii_buffer = _mm256_or_si256(packed_bytes, dash_fill);
 
-  deserialize_ascii(ascii_buffer, this->low_high);
+  deserialize_ascii(ascii_buffer, this->high_low);
   return *this;
 }
 
@@ -122,7 +142,7 @@ auto Uuid::deserialize(const Static::Bytes<32>& uuid_string) -> Uuid& {
   const auto ascii_buffer = _mm256_loadu_si256(
       reinterpret_cast<const __m256i*>(uuid_string.get_data()));
 
-  deserialize_ascii(ascii_buffer, this->low_high);
+  deserialize_ascii(ascii_buffer, this->high_low);
   return *this;
 }
 
@@ -131,35 +151,51 @@ auto Uuid::serialize() const -> const Static::Bytes<36> {
   auto byte_buffer = uuid_string.get_access().get_data();
 
   const __m128i packed =
-      _mm_loadu_si128(reinterpret_cast<const __m128i*>(&low_high));
+      _mm_loadu_si128(reinterpret_cast<const __m128i*>(&high_low));
 
   const auto nibbles = nibbler(packed);
   const auto ascii = convert_to_ascii(nibbles);
 
-  // const auto dash_spacing = _mm256_set_epi8();
-  const auto dashed = convert_to_ascii(nibbles);
+  // Space out the ascii and add in the dashes.
+  // This drop a total of 6 bytes that need to be filled in later (4 for the
+  // dashes and 2 since we can't shuffle across lanes),
+  const auto dash_spacing = _mm256_set_epi8(
+      // Lane 1
+      11, 10, 9, 8, 7, 6, 5, 4, null, 3, 2, 1, 0, null, null, null,
+      // Lane 2
+      13, 12, null, 11, 10, 9, 8, null, 7, 6, 5, 4, 3, 2, 1, 0);
+  const auto dashes = _mm256_set_epi8(
+      // Lane 1
+      0, 0, 0, 0, 0, 0, 0, 0, '-', 0, 0, 0, 0, '-', 0, 0,
+      // Lane 2
+      0, 0, '-', 0, 0, 0, 0, '-', 0, 0, 0, 0, 0, 0, 0, 0);
+  auto spaced_ascii = _mm256_shuffle_epi8(ascii, dash_spacing);
+  auto dashed_ascii = _mm256_or_si256(spaced_ascii, dashes);
 
   // Stamp as much data as we can.
-  _mm256_storeu_si256(reinterpret_cast<__m256i*>(byte_buffer), dashed);
+  _mm256_storeu_si256(reinterpret_cast<__m256i*>(byte_buffer), dashed_ascii);
 
   // Stamp the dropped ascii into the output.
   // Since shuffle only works on 128 bit lanes for AVX we need to do a stamp for
   // each lane to capture the data that was pushed out.
-  auto dropped_2 = Data::ensure_endian<
-      Data::ByteOrder::Native, Data::ByteOrder::Big, Bits_16>(
-      _mm256_extract_epi16(ascii, 7));
-  auto last_4 = Data::ensure_endian<
-      Data::ByteOrder::Native, Data::ByteOrder::Big, Bits_16>(
-      _mm256_extract_epi32(ascii, 7));
-  Data::copy(byte_buffer + 16, &dropped_2);
-  Data::copy(byte_buffer + 32, &last_4);
+  Bits_16 dropped_2 = _mm256_extract_epi16(ascii, 7);
+  Bits_32 last_4 = _mm256_extract_epi32(ascii, 7);
+  Data::copy(byte_buffer + 16, dropped_2);
+  Data::copy(byte_buffer + 32, last_4);
 
   return uuid_string;
 }
 
-auto Uuid::generate() -> const Uuid {
+auto Uuid::generate_v4() -> Uuid {
   Bits_64 values[2];
   _mm_storeu_si128(reinterpret_cast<__m128i*>(values), generate_uuid_v4());
 
-  return Uuid(values[0], values[1]);
+  return Uuid(values[1], values[0]);
+}
+
+auto Uuid::generate_v7() -> Uuid {
+  Bits_64 values[2];
+  _mm_storeu_si128(reinterpret_cast<__m128i*>(values), generate_uuid_v7());
+
+  return Uuid(values[1], values[0]);
 }

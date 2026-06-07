@@ -28,6 +28,7 @@ cc_library(
         "core/reader/binary.cpp",
         "core/reader/serial.cpp",
         "core/reader/textual.cpp",
+        "core/time.cpp",
         "core/writer/binary.cpp",
         "core/writer/serial.cpp",
         "core/writer/textual.cpp",

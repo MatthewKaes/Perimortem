@@ -20,7 +20,7 @@ PERIMORTEM_BENCHMARK(SystemUuid, generate) {
   // Full UUID generation: entropy read + Philox seeding + 128-bit construction.
   Count value = 0;
   for (Count i = 0; i < 1024; i++) {
-    auto uuid = Uuid::generate();
+    auto uuid = Uuid::generate_v4();
     value ^= uuid.get_value()[0];
   }
   Benchmark::prevent_optimization(value);
@@ -30,7 +30,7 @@ PERIMORTEM_BENCHMARK(SystemUuid, serialize) {
   // Format a UUID to its 36-character canonical string representation.
   Count value = 0;
   for (Count i = 0; i < 1024; i++) {
-    auto uuid = Uuid::generate();
+    auto uuid = Uuid::generate_v4();
     auto serialized = uuid.serialize();
     value += serialized[0];
   }
