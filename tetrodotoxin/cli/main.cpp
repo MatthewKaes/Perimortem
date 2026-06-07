@@ -21,7 +21,7 @@ using namespace Perimortem::Utility;
 using namespace Tetrodotoxin::Compiler;
 using namespace Tetrodotoxin::Linker;
 
-static auto write_file(View::Bytes path, View::Bytes data) -> Bool {
+auto write_file(View::Bytes path, View::Bytes data) -> Bool {
   System::File file;
   file.update_contents(data);
   return file.write(path);

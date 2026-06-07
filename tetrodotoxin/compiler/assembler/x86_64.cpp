@@ -133,9 +133,8 @@ constexpr auto gen_modrm_byte(Reg reg, Reg rm) -> Byte {
 
 // Writes ModRM and optional SIB/displacement bytes for a [base+disp] memory
 // operand.
-static auto
-    gen_memory_operand(Bytes& code, Reg reg, Reg base, SignedBits_32 disp)
-        -> void {
+auto gen_memory_operand(Bytes& code, Reg reg, Reg base, SignedBits_32 disp)
+    -> void {
   const bool rip_override =
       (Byte(base) & Byte(0x7)) == 5;  // RBP/R13: mod=00 means RIP-relative
   const bool sib_override =

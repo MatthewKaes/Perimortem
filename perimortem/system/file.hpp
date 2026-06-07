@@ -67,8 +67,8 @@ class File {
   auto update_modified_time() -> void;
 
   Memory::Dynamic::Bytes data;
-  Count read_time = 0;
-  Count modified_time = 0;
+  Bits_64 read_time = 0;
+  Bits_64 modified_time = 0;
 };
 
 }  // namespace Perimortem::System

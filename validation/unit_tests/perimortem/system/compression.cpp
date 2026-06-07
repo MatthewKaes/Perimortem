@@ -6,7 +6,6 @@
 #include "perimortem/core/static/bytes.hpp"
 #include "perimortem/core/algorithm/search.hpp"
 #include "perimortem/core/bibliotheca.hpp"
-#include "perimortem/core/diagnostics/log.hpp"
 #include "perimortem/core/null_terminated.hpp"
 
 #include "perimortem/system/compression/deflate.hpp"
@@ -18,35 +17,8 @@ using namespace Perimortem::System;
 
 using namespace Validation;
 
-static Diagnostics::Log::Level captured_log_level;
-static Static::Bytes<256> captured_log_message;
-static Count captured_log_message_size = 0;
-
-static auto capture_sink(Diagnostics::Log::Level level, View::Bytes message)
-    -> void {
-  captured_log_level = level;
-  captured_log_message_size = message.get_size();
-  captured_log_message = message;
-}
-
-static auto captured_message() -> View::Bytes {
-  return captured_log_message.slice(0, captured_log_message_size);
-}
-
-static auto error_contains(View::Bytes message) -> Bool {
-  return Algorithm::search(captured_message(), message) != Count(-1);
-}
-
 static Harness SystemCompression = {
   .name = "System::Compression"_view,
-  .setup =
-      []() {
-        Diagnostics::Log::set_sink(capture_sink);
-        captured_log_message = ""_view;
-        captured_log_message_size = 0;
-      },
-  .teardown =
-      []() { Diagnostics::Log::set_sink(Diagnostics::Log::default_sink); },
 };
 
 // Known test blobs produced by zlib
@@ -139,9 +111,9 @@ PERIMORTEM_UNIT_TEST(SystemCompression, inflate_single_byte) {
 PERIMORTEM_UNIT_TEST(SystemCompression, inflate_empty_view) {
   auto out = Compression::Deflate::inflate(""_view);
   EXPECT_EQ(out.get_size(), 0);
-  EXPECT_EQ(UInt(captured_log_level), UInt(Diagnostics::Log::Level::Error));
-  EXPECT(error_contains(
-      "Compression: Input too short to be a valid deflate stream"_view));
+  EXPECT(
+      Test::error_contains(
+          "Compression: Input too short to be a valid deflate stream"_view));
 }
 
 PERIMORTEM_UNIT_TEST(SystemCompression, inflate_truncated_input) {
@@ -149,9 +121,9 @@ PERIMORTEM_UNIT_TEST(SystemCompression, inflate_truncated_input) {
   // missing.
   auto out = Compression::Deflate::inflate(hello_compressed.slice(0, 2));
   EXPECT_EQ(out.get_size(), 0);
-  EXPECT_EQ(UInt(captured_log_level), UInt(Diagnostics::Log::Level::Error));
-  EXPECT(error_contains(
-      "Compression: Input too short to be a valid deflate stream"_view));
+  EXPECT(
+      Test::error_contains(
+          "Compression: Input too short to be a valid deflate stream"_view));
 }
 
 PERIMORTEM_UNIT_TEST(SystemCompression, inflate_bad_compression_method) {
@@ -162,17 +134,16 @@ PERIMORTEM_UNIT_TEST(SystemCompression, inflate_bad_compression_method) {
 
   auto out = Compression::Deflate::inflate(bad_cm);
   EXPECT_EQ(out.get_size(), 0);
-  EXPECT_EQ(UInt(captured_log_level), UInt(Diagnostics::Log::Level::Error));
-  EXPECT(error_contains(
-      "Compression: Unsupported compression method in deflate header"_view));
+  EXPECT(
+      Test::error_contains(
+          "Compression: Unsupported compression method in deflate header"_view));
 }
 
 PERIMORTEM_UNIT_TEST(SystemCompression, inflate_bad_checksum) {
   auto out = Compression::Deflate::inflate(bad_adler_compressed);
 #if PERI_DEBUG
   EXPECT_EQ(out.get_size(), 0);
-  EXPECT_EQ(UInt(captured_log_level), UInt(Diagnostics::Log::Level::Error));
-  EXPECT(error_contains("Compression: Adler-32 checksum mismatch."_view));
+  EXPECT(Test::error_contains("Compression: Adler-32 checksum mismatch."_view));
 #else
   EXPECT_EQ(out.get_size(), hello_raw.get_size());
   EXPECT_HEX(out.get_view(), hello_raw.get_view());
@@ -186,10 +157,10 @@ PERIMORTEM_UNIT_TEST(SystemCompression, inflate_corrupted_payload) {
   auto out = Compression::Deflate::inflate(corrupt);
 #if PERI_DEBUG
   EXPECT_EQ(out.get_size(), 0);
-  EXPECT_EQ(UInt(captured_log_level), UInt(Diagnostics::Log::Level::Error));
-  EXPECT(error_contains(
-      "Compression: Adler-32 checksum mismatch. checksum=1026426502 "
-      "stream_checksum=970327629"_view));
+  EXPECT(
+      Test::error_contains(
+          "Compression: Adler-32 checksum mismatch. checksum=1026426502 "
+          "stream_checksum=970327629"_view));
 #else
   // In release the checksum is skipped so bad data can slip through.
   EXPECT_EQ(out.get_size(), 18);

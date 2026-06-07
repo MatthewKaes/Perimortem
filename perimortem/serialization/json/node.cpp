@@ -88,7 +88,7 @@ auto construct_from_blueprint(
 }
 
 template <Bits_32 channels, Bits_32 index, Bits_32 range>
-static auto optimized_or_merge(__m256i source[channels]) -> __m256i {
+auto optimized_or_merge(__m256i source[channels]) -> __m256i {
   if constexpr (range == 1) {
     return source[index];
   } else if constexpr (range == 2) {

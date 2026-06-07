@@ -100,7 +100,7 @@ HASH_BENCH(8192);
 #ifdef PERI_BENCH_CPP
 
 template <Count hash_length>
-static auto cpp_hash_bytes() -> void {
+auto cpp_hash_bytes() -> void {
   constexpr Count max_offset = 8;
   Bits_64 accumulator = 0;
   for (Count i = 0; i < batch_count * 8; i++) {

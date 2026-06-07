@@ -29,6 +29,13 @@ auto write_fixed(Writer::Textual& writer, Bits_64 value) -> void {
 
 auto Time::now() -> Time {
   timespec time;
+  clock_gettime(CLOCK_MONOTONIC, &time);
+
+  return Time(time.tv_sec, time.tv_nsec);
+}
+
+auto Time::clock() -> Time {
+  timespec time;
   clock_gettime(CLOCK_REALTIME, &time);
 
   return Time(time.tv_sec, time.tv_nsec);

@@ -4,13 +4,16 @@
 #include "perimortem/system/file.hpp"
 
 #include <stdio.h>
-#include <time.h>
 #include <x86intrin.h>
 
 #include "perimortem/core/data.hpp"
 #include "perimortem/core/math.hpp"
+#include "perimortem/core/time.hpp"
 
-constexpr Count nano_to_seconds = Count(1'000'000'000);
+using namespace Perimortem::System;
+using namespace Perimortem::Core;
+using namespace Perimortem::Memory;
+
 constexpr Count max_path_size = 512;
 constexpr Count max_root_size = max_path_size / 2;
 alignas(__m256i) Byte root[max_root_size] = {0};
@@ -20,7 +23,7 @@ struct FileStatus {
   Count size_in_bytes = 0;
   // Modified time in nanoseconds.
   // The granularity actually provided by the clock is system dependant.
-  Bits_64 modified_time = 0;
+  Time modified_time = 0;
   Bool is_file = false;
   Bool is_directory = false;
   Bool is_valid_path = false;
@@ -39,18 +42,13 @@ FileStatus get_file_status(const char* path) {
 
   FileStatus status;
   status.size_in_bytes = Count(stats.st_size);
-  status.modified_time = Count(stats.st_mtim.tv_sec) * nano_to_seconds +
-                         Count(stats.st_mtim.tv_nsec);
+  status.modified_time = Time(stats.st_mtim.tv_sec, stats.st_mtim.tv_nsec);
   status.is_file = Bool(stats.st_mode & S_IFREG);
   status.is_directory = Bool(stats.st_mode & S_IFDIR);
   status.is_valid_path = true;
   return status;
 }
 #endif
-
-using namespace Perimortem::System;
-using namespace Perimortem::Core;
-using namespace Perimortem::Memory;
 
 template <Count size>
 constexpr auto sanatize_path(Byte (&array)[size]) -> void {
@@ -130,7 +128,7 @@ auto File::read(View::Bytes location) -> Bool {
   }
 
   // Update timestamps on successful read.
-  read_time = file_status.modified_time;
+  read_time = file_status.modified_time.get_stamp();
   modified_time = 0;
 
   return true;
@@ -178,11 +176,11 @@ auto File::sync_status(Core::View::Bytes location) const -> File::State {
   // If the file was last modified at our read time and we haven't modified the
   // file in memory then assume it's the same as the original
   if (modified_time == 0) {
-    if (file_status.modified_time > read_time) {
+    if (file_status.modified_time.get_stamp() > read_time) {
       return File::State::Stale;
     }
 
-    if (file_status.modified_time == read_time) {
+    if (file_status.modified_time.get_stamp() == read_time) {
       return File::State::Original;
     }
 
@@ -236,7 +234,7 @@ auto File::sync(Core::View::Bytes location, Bool force) -> File::State {
 
     // Sync file info without a full read.
     auto file_status = get_file_status(path);
-    read_time = file_status.modified_time;
+    read_time = file_status.modified_time.get_stamp();
     modified_time = 0;
     return File::State::Original;
   }
@@ -280,7 +278,5 @@ auto File::exists(Core::View::Bytes location) -> Bool {
 }
 
 auto File::update_modified_time() -> void {
-  timespec time;
-  clock_gettime(CLOCK_REALTIME, &time);
-  modified_time = Count(time.tv_sec) * nano_to_seconds + Count(time.tv_nsec);
+  modified_time = Time::clock().get_stamp();
 }

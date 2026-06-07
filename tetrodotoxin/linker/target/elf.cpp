@@ -352,7 +352,7 @@ auto Elf::write_header(
     Bits_64 section_offset,
     Bits_16 section_count,
     Bits_16 section_string_table_index) -> void {
-  static constexpr Byte identity[16] = {
+  constexpr Byte identity[16] = {
     0x7F, 'E', 'L', 'F',
     2,  // ELFCLASS64
     1,  // ELFDATA2LSB
@@ -374,7 +374,7 @@ auto Elf::write_header(
       &header->string_section_index, section_string_table_index);
 }
 
-static auto write_section_headers(
+auto write_section_headers(
     Access::Bytes buffer,
     View::Vector<SectionDesc> section_descriptors) -> void {
   auto* entries = Data::cast<SectionHeader>(buffer.get_data());
@@ -393,7 +393,7 @@ static auto write_section_headers(
   }
 }
 
-static auto build_section_descriptors(
+auto build_section_descriptors(
     View::Vector<Format::Section> sections,
     View::Bytes relocation_data,
     View::Bytes symbol_table,

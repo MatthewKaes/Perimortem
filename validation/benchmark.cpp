@@ -10,7 +10,6 @@
 #include "validation/benchmark.hpp"
 
 #include <stdio.h>
-#include <time.h>
 
 #include "perimortem/core/access/vector.hpp"
 #include "perimortem/core/static/bytes.hpp"
@@ -19,6 +18,7 @@
 #include "perimortem/core/bibliotheca.hpp"
 #include "perimortem/core/data.hpp"
 #include "perimortem/core/null_terminated.hpp"
+#include "perimortem/core/time.hpp"
 
 using namespace Validation;
 using namespace Perimortem::Core;
@@ -50,7 +50,7 @@ struct SampleStats {
 
 static constexpr Count max_benchmark_count = 1024;
 static constexpr Count max_sample_count = 4096;
-static constexpr Bits_64 time_cap_ns = 2'000'000'000ULL;
+static constexpr Real_64 time_cap_seconds = 1.5;
 
 static Static::Vector<Instance, max_benchmark_count> binary_benchmarks;
 static Static::Vector<Bits_64, max_sample_count> time_samples;
@@ -62,11 +62,12 @@ struct ComparisonInstance {
   const Benchmark::Comparison* comp;
   Benchmark::BenchmarkFunc func;
 };
+
 static Static::Vector<ComparisonInstance, max_benchmark_count> comparisons;
 static Static::Vector<SampleStats, max_benchmark_count> stored_stats;
 static Count comparison_count = 0;
 
-static auto count_variants(const Benchmark::Comparison& comp) -> Count {
+auto count_variants(const Benchmark::Comparison& comp) -> Count {
   Count count = 0;
   while (count < Benchmark::max_comparison_variants &&
          comp.variants[count].header.get_size() > 0) {
@@ -101,13 +102,8 @@ auto create_comparison(const Comparison& comp, BenchmarkFunc func) -> void {
 }  // namespace Validation::Benchmark
 #endif
 
-static auto elapsed_ns(struct timespec start, struct timespec end) -> Bits_64 {
-  return Bits_64(end.tv_sec - start.tv_sec) * 1'000'000'000ULL +
-         Bits_64(end.tv_nsec - start.tv_nsec);
-}
-
 // Returns a View::Bytes into buf with the formatted time string.
-static auto format_time(Static::Bytes<16>& buf, Bits_64 ns) -> View::Bytes {
+auto format_time(Static::Bytes<16>& buf, Bits_64 ns) -> View::Bytes {
   auto* cbuf = Data::cast<char>(buf.get_data());
   int written = 0;
   if (ns < 1'000ULL) {
@@ -121,7 +117,7 @@ static auto format_time(Static::Bytes<16>& buf, Bits_64 ns) -> View::Bytes {
   return View::Bytes(buf.get_data(), Count(written > 0 ? written : 0));
 }
 
-static auto bucket_avg(Count start, Count end_index) -> Bits_64 {
+auto bucket_avg(Count start, Count end_index) -> Bits_64 {
   if (start >= end_index) {
     return time_samples[end_index > 0 ? end_index - 1 : 0];
   }
@@ -132,8 +128,7 @@ static auto bucket_avg(Count start, Count end_index) -> Bits_64 {
   return total / (end_index - start);
 }
 
-static auto compute_stats(Count sample_count, Long alloc_requests)
-    -> SampleStats {
+auto compute_stats(Count sample_count, Long alloc_requests) -> SampleStats {
   SampleStats stats = {};
   stats.sample_count = sample_count;
   stats.min_ns = time_samples[0];
@@ -152,10 +147,8 @@ static auto compute_stats(Count sample_count, Long alloc_requests)
   return stats;
 }
 
-static auto print_stats(
-    View::Bytes name,
-    Count col_width,
-    const SampleStats& stats) -> void {
+auto print_stats(View::Bytes name, Count col_width, const SampleStats& stats)
+    -> void {
   Static::Bytes<16> bottom_buf, middle_buf, top_buf;
   View::Bytes bottom = format_time(bottom_buf, stats.bottom_avg_ns);
   View::Bytes middle = format_time(middle_buf, stats.middle_avg_ns);
@@ -177,29 +170,27 @@ static auto print_stats(
   printf("\n");
 }
 
-static auto output_break() -> void {
+auto output_break() -> void {
   printf(
       "%s[==============================================================]\n%s",
       dark_color, clear_color);
 }
 
 // Timing blocks
-struct timespec total_start;
-struct timespec total_now;
-struct timespec sample_start;
-struct timespec sample_end;
+Time total_start;
+Time sample_start;
+Time sample_end;
 
 auto Benchmark::start_time() -> void {
-  sample_end.tv_sec = 0;
-  sample_end.tv_nsec = 0;
-  clock_gettime(CLOCK_MONOTONIC, &sample_start);
+  sample_end = Time::never();
+  sample_start = Time::now();
 }
 
 auto Benchmark::end_time() -> void {
-  clock_gettime(CLOCK_MONOTONIC, &sample_end);
+  sample_end = Time::now();
 }
 
-static auto run_samples(const Harness& harness, Benchmark::BenchmarkFunc func)
+auto run_samples(const Harness& harness, Benchmark::BenchmarkFunc func)
     -> SampleStats {
   // Perform one run as a warm up.
   harness.setup();
@@ -208,7 +199,7 @@ static auto run_samples(const Harness& harness, Benchmark::BenchmarkFunc func)
 
   Count sample_count = 0;
   Long total_alloc_delta = 0;
-  clock_gettime(CLOCK_MONOTONIC, &total_start);
+  total_start = Time::now();
 
   while (sample_count < max_sample_count) {
     harness.setup();
@@ -219,7 +210,7 @@ static auto run_samples(const Harness& harness, Benchmark::BenchmarkFunc func)
     func();
 
     // If the function recorded it's own end time then don't override it.
-    if (sample_end.tv_nsec == 0 && sample_end.tv_sec == 0) {
+    if (sample_end == Time::never()) {
       Benchmark::end_time();
     }
 
@@ -231,14 +222,14 @@ static auto run_samples(const Harness& harness, Benchmark::BenchmarkFunc func)
     // By default batch_count is set to 1, but this allows for tests to do their
     // own batching to provide a more accurate hotloop measurement.
     time_samples[sample_count++] =
-        elapsed_ns(sample_start, sample_end) / harness.batch_count;
+        sample_start.measure(sample_end).convert_to_nanoseconds() /
+        harness.batch_count;
     total_alloc_delta += Long(allocs_after - allocs_before);
 
     // Check every 16 samples if we are over our time budget, if we are then
     // early terminate.
     if ((sample_count & 0xF) == 0) {
-      clock_gettime(CLOCK_MONOTONIC, &total_now);
-      if (elapsed_ns(total_start, total_now) >= time_cap_ns) {
+      if (total_start.measure().convert_to_seconds() >= time_cap_seconds) {
         break;
       }
     }
@@ -251,7 +242,7 @@ static auto run_samples(const Harness& harness, Benchmark::BenchmarkFunc func)
 
 #ifdef PERI_BENCH_CPP
 
-static auto print_time(const char* color, int width, Bits_64 ns) -> void {
+auto print_time(const char* color, int width, Bits_64 ns) -> void {
   Static::Bytes<16> buf;
   View::Bytes str = format_time(buf, ns);
   printf(
@@ -259,13 +250,13 @@ static auto print_time(const char* color, int width, Bits_64 ns) -> void {
       Data::cast<char>(str.get_data()), clear_color);
 }
 
-static auto print_view(const char* color, int width, View::Bytes text) -> void {
+auto print_view(const char* color, int width, View::Bytes text) -> void {
   printf(
       "  %s%*.*s%s", color, width, (int)text.get_size(),
       Data::cast<char>(text.get_data()), clear_color);
 }
 
-static auto find_stored_ns(View::Bytes harness_name, View::Bytes bench_name)
+auto find_stored_ns(View::Bytes harness_name, View::Bytes bench_name)
     -> Bits_64 {
   for (Count bi = 0; bi < benchmark_count; bi++) {
     if (binary_benchmarks[bi].harness->name == harness_name &&
@@ -277,7 +268,7 @@ static auto find_stored_ns(View::Bytes harness_name, View::Bytes bench_name)
 }
 #endif
 
-static auto harness_matches(View::Bytes name) -> Bool {
+auto harness_matches(View::Bytes name) -> Bool {
   if (bench_filter.get_size() == 0) {
     return True;
   }
@@ -297,7 +288,7 @@ struct Layout {
   Count harness_count;
 };
 
-static auto compute_layout() -> Layout {
+auto compute_layout() -> Layout {
   Count col_width = 16;
   Count harness_count = 0;
   const Harness* prev_harness = nullptr;
@@ -319,7 +310,7 @@ static auto compute_layout() -> Layout {
   return {col_width + 2, harness_count};
 }
 
-static auto print_run_header(const Layout& layout) -> void {
+auto print_run_header(const Layout& layout) -> void {
   output_break();
   printf(
       "%s  Perimortem benchmark Engine\n"
@@ -338,7 +329,7 @@ static auto print_run_header(const Layout& layout) -> void {
       clear_color);
 }
 
-static auto run_benchmark_pass(const Layout& layout) -> void {
+auto run_benchmark_pass(const Layout& layout) -> void {
   const Harness* harness = nullptr;
   for (Count benchmark_index = 0; benchmark_index < benchmark_count;
        benchmark_index++) {
@@ -380,7 +371,7 @@ struct SectionLayout {
   Count vcols[Benchmark::max_comparison_variants];
 };
 
-static auto compute_section_layout(Count comp_index, Count section_end)
+auto compute_section_layout(Count comp_index, Count section_end)
     -> SectionLayout {
   SectionLayout sl = {};
   sl.label_col = 8;
@@ -408,7 +399,7 @@ static auto compute_section_layout(Count comp_index, Count section_end)
   return sl;
 }
 
-static auto print_section_header(
+auto print_section_header(
     const Harness& section_harness,
     Count comp_index,
     Count section_end,
@@ -436,7 +427,7 @@ static auto print_section_header(
   printf("  %10s  %10s  %7s%s\n", "C++", "Best", "Delta", clear_color);
 }
 
-static auto run_comparison_row(Count ci, const SectionLayout& sl) -> void {
+auto run_comparison_row(Count ci, const SectionLayout& sl) -> void {
   const ComparisonInstance& cinst = comparisons[ci];
   const Benchmark::Comparison& comp = *cinst.comp;
   Count vcount = count_variants(comp);
@@ -498,7 +489,7 @@ static auto run_comparison_row(Count ci, const SectionLayout& sl) -> void {
   printf("\n");
 }
 
-static auto run_comparison_pass() -> void {
+auto run_comparison_pass() -> void {
   if (comparison_count == 0) {
     return;
   }

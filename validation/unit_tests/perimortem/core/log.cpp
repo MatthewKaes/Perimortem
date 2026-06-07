@@ -1,8 +1,6 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
-#include "perimortem/core/diagnostics/log.hpp"
-
 #include "validation/unit_test.hpp"
 
 #include "perimortem/core/static/bytes.hpp"
@@ -33,16 +31,16 @@ static auto capture_sink(Log::Level level, View::Bytes message) -> void {
   log_events[index].message = message;
 }
 
-static auto last_entry() -> View::Bytes {
+auto last_entry() -> View::Bytes {
   auto& event = log_events[(total_events - 1) % event_log_size];
   return View::Bytes(event.message.get_data(), event.message_size);
 }
 
-static auto contains(View::Bytes haystack, View::Bytes message) -> Bool {
+auto contains(View::Bytes haystack, View::Bytes message) -> Bool {
   return Algorithm::search(haystack, message) != Count(-1);
 }
 
-static auto has_valid_header(View::Bytes entry) -> Bool {
+auto has_valid_header(View::Bytes entry) -> Bool {
   constexpr auto header_length = 14;
   if (entry.get_size() < header_length) {
     return false;

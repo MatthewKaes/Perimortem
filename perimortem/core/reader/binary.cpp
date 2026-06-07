@@ -11,7 +11,7 @@
 
 using namespace Perimortem::Core;
 
-static auto check_buffer_overruns(Count ptr, Count source_size, Count read_size)
+auto check_buffer_overruns(Count ptr, Count source_size, Count read_size)
     -> Bool {
   if (ptr + read_size > source_size) [[unlikely]] {
     Static::Bytes<128> error_buffer;

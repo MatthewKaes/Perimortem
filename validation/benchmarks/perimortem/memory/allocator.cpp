@@ -128,7 +128,7 @@ INTERLEAVED_BENCH(65536, 32);
 #ifdef PERI_BENCH_CPP
 
 template <Count alloc_size>
-static auto cpp_malloc_cycle() -> void {
+auto cpp_malloc_cycle() -> void {
   for (Count i = 0; i < 100; i++) {
     void* ptr = malloc(alloc_size);
     Benchmark::prevent_optimization(ptr);
@@ -137,7 +137,7 @@ static auto cpp_malloc_cycle() -> void {
 }
 
 template <Count frame_alloc_count, Count size_minimum, Count size_range>
-static auto cpp_malloc_frame_stability() -> void {
+auto cpp_malloc_frame_stability() -> void {
   void* ptrs[frame_alloc_count];
   for (Count i = 0; i < frame_alloc_count; i++) {
     ptrs[i] = malloc((Random::generate() & size_range) + size_minimum);
@@ -153,7 +153,7 @@ template <
     Count window_count,
     Count size_minimum,
     Count size_range>
-static auto cpp_malloc_frame_interleaved() -> void {
+auto cpp_malloc_frame_interleaved() -> void {
   constexpr Count window = frame_alloc_count / window_count;
   void* ptrs[frame_alloc_count];
 

@@ -196,7 +196,7 @@ static Harness MapKeywords = {
     keyword_table<count, mask>();                               \
   }
 
-#if PERI_SLOW_BENCH
+#ifdef PERI_SLOW_BENCH
 #define MAP_KEYWORD_TEST_RANGE(count, mask) \
   MAP_KEYWORD_TEST(scalar, count, mask);    \
   MAP_KEYWORD_TEST(partial, count, mask);   \
@@ -213,7 +213,7 @@ static Harness MapKeywords = {
 // hit_1000 equal 100.0% source keys
 // hit_0016 equal   1.6% source keys
 constexpr auto hit_1000 = Count(0b00000000'00000000);
-#if PERI_SLOW_BENCH
+#ifdef PERI_SLOW_BENCH
 constexpr auto hit_0500 = Count(0b00000000'00000001);
 constexpr auto hit_0062 = Count(0b00000000'00001111);
 constexpr auto hit_0016 = Count(0b00000000'00111111);
@@ -222,7 +222,7 @@ constexpr auto hit_0004 = Count(0b00000000'11111111);
 constexpr auto hit_0001 = Count(0b00000011'11111111);
 
 MAP_KEYWORD_TEST_RANGE(4096, hit_1000);
-#if PERI_SLOW_BENCH
+#ifdef PERI_SLOW_BENCH
 MAP_KEYWORD_TEST_RANGE(4096, hit_0500);
 MAP_KEYWORD_TEST_RANGE(4096, hit_0062);
 MAP_KEYWORD_TEST_RANGE(4096, hit_0016);
@@ -230,14 +230,14 @@ MAP_KEYWORD_TEST_RANGE(4096, hit_0004);
 #endif
 MAP_KEYWORD_TEST_RANGE(4096, hit_0001);
 MAP_KEYWORD_TEST_RANGE(16384, hit_1000);
-#if PERI_SLOW_BENCH
+#ifdef PERI_SLOW_BENCH
 MAP_KEYWORD_TEST_RANGE(16384, hit_0500);
 MAP_KEYWORD_TEST_RANGE(16384, hit_0062);
 MAP_KEYWORD_TEST_RANGE(16384, hit_0016);
 MAP_KEYWORD_TEST_RANGE(16384, hit_0004);
 #endif
 MAP_KEYWORD_TEST_RANGE(16384, hit_0001);
-#if PERI_SLOW_BENCH
+#ifdef PERI_SLOW_BENCH
 MAP_KEYWORD_TEST_RANGE(65536, hit_1000);
 MAP_KEYWORD_TEST_RANGE(65536, hit_0500);
 MAP_KEYWORD_TEST_RANGE(65536, hit_0062);

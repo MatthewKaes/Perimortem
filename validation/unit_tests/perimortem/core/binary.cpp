@@ -6,31 +6,14 @@
 #include "validation/unit_test.hpp"
 
 #include "perimortem/core/static/bytes.hpp"
-#include "perimortem/core/diagnostics/log.hpp"
 #include "perimortem/core/null_terminated.hpp"
 #include "perimortem/core/writer/binary.hpp"
 
 using namespace Perimortem::Core;
 using namespace Validation;
 
-static Diagnostics::Log::Level log_level;
-static Static::Bytes<256> log_message;
-
-static auto capture_sink(Diagnostics::Log::Level level, View::Bytes message)
-    -> void {
-  log_level = level;
-  log_message = message;
-}
-
 static Harness CoreBinaryReader = {
   .name = "Core::Reader::Binary"_view,
-  .setup =
-      []() {
-        Diagnostics::Log::set_sink(capture_sink);
-        log_message = ""_view;
-      },
-  .teardown =
-      []() { Diagnostics::Log::set_sink(Diagnostics::Log::default_sink); },
 };
 
 PERIMORTEM_UNIT_TEST(CoreBinaryReader, little_endian_unsigned) {
@@ -142,11 +125,6 @@ PERIMORTEM_UNIT_TEST(CoreBinaryReader, raw_bytes) {
   EXPECT_NOT(reader.is_valid());
 }
 
-constexpr auto file_location_size =
-    "[main] validation/unit_tests/perimortem/core/binary.cpp:xxx:xx: "_view
-        .get_size() +
-    15;
-
 PERIMORTEM_UNIT_TEST(CoreBinaryReader, overflow_read) {
   using Reader = Reader::Binary<Data::ByteOrder::Little>;
   Reader reader("\xAB\xCD"_view);
@@ -159,10 +137,7 @@ PERIMORTEM_UNIT_TEST(CoreBinaryReader, overflow_read) {
   // Make sure message was logged.
   constexpr auto error_message =
       "Binary read over ran buffer at read location 0. source_size=2, read_size=4"_view;
-  EXPECT_EQ(UInt(log_level), UInt(Diagnostics::Log::Level::Error));
-  EXPECT_TEXT(
-      log_message.slice(file_location_size, error_message.get_size()),
-      error_message);
+  EXPECT(Test::error_contains(error_message));
 }
 
 PERIMORTEM_UNIT_TEST(CoreBinaryReader, set_pointer) {

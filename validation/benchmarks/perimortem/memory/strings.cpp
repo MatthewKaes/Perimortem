@@ -77,7 +77,7 @@ PERIMORTEM_BENCHMARK(StringBench, small_concat) {
 #ifdef PERI_BENCH_CPP
 
 template <Count byte_length>
-static auto cpp_string_concat() -> void {
+auto cpp_string_concat() -> void {
   Count size = 0;
   for (Count i = 0; i < batch_count; i++) {
     std::string buffer;
@@ -90,7 +90,7 @@ static auto cpp_string_concat() -> void {
   Benchmark::prevent_optimization(size);
 }
 
-static auto cpp_string_append_bytes() -> void {
+auto cpp_string_append_bytes() -> void {
   std::string buffer;
   constexpr auto append_count = 1 << 10;
   for (Count i = 0; i < append_count; i++) {
@@ -100,7 +100,7 @@ static auto cpp_string_append_bytes() -> void {
   Benchmark::prevent_optimization(size);
 }
 
-static auto cpp_string_small_string() -> void {
+auto cpp_string_small_string() -> void {
   Count size = 0;
   for (Count i = 0; i < batch_count; i++) {
     std::string buffer = "small string";
@@ -111,7 +111,7 @@ static auto cpp_string_small_string() -> void {
   Benchmark::prevent_optimization(size);
 }
 
-static auto cpp_string_small_concat() -> void {
+auto cpp_string_small_concat() -> void {
   Count size = 0;
   for (Count i = 0; i < batch_count; i++) {
     std::string buffer = "small";

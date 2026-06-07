@@ -7,6 +7,7 @@
 #include "perimortem/core/static/bytes.hpp"
 #include "perimortem/core/data.hpp"
 #include "perimortem/core/null_terminated.hpp"
+#include "perimortem/core/time.hpp"
 #include "perimortem/core/writer/textual.hpp"
 
 using namespace Perimortem::Core;
@@ -14,12 +15,12 @@ using namespace Perimortem::Core::Diagnostics;
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <time.h>
 
 #ifdef PERI_LINUX
 #include <execinfo.h>
 #endif
 
+// TODO: Thread library
 static Bits_64 next_thread_id = 0;
 static thread_local Bits_64 this_thread_id =
     __atomic_fetch_add(&next_thread_id, 1, __ATOMIC_RELAXED);
@@ -27,26 +28,7 @@ static thread_local Log::Sink message_sink = Log::default_sink;
 static thread_local Log::Level thread_log_level = Log::Level::Info;
 static thread_local Source attribution_override;
 
-struct TimeData {
-  Byte hour;
-  Byte min;
-  Byte sec;
-  Long millis;
-};
-
-auto get_utc() -> TimeData {
-  timespec os_time;
-  clock_gettime(CLOCK_REALTIME, &os_time);
-  Long seconds_today = os_time.tv_sec % 86400;
-  TimeData result{};
-  result.hour = Byte(seconds_today / 3600);
-  result.min = Byte((seconds_today % 3600) / 60);
-  result.sec = Byte(seconds_today % 60);
-  result.millis = os_time.tv_nsec / 1000000;
-  return result;
-}
-
-auto level_char(Log::Level level) -> Byte {
+constexpr auto level_char(Log::Level level) -> Byte {
   switch (level) {
   case Log::Level::Debug:
     return 'D';
@@ -62,7 +44,7 @@ auto level_char(Log::Level level) -> Byte {
   return '?';
 }
 
-auto level_color(Log::Level level) -> View::Bytes {
+constexpr auto level_color(Log::Level level) -> View::Bytes {
   switch (level) {
   case Log::Level::Debug:
     return "\x1b[38;5;246m"_view;
@@ -77,19 +59,6 @@ auto level_color(Log::Level level) -> View::Bytes {
   return ""_view;
 }
 
-auto write_padded(Writer::Textual& writer, ULong value, Count width) -> void {
-  Count digit_count = 1;
-  ULong temp = value;
-  while (temp >= 10) {
-    temp /= 10;
-    digit_count++;
-  }
-  for (Count pad = digit_count; pad < width; pad++) {
-    writer << Byte('0');
-  }
-  writer << value;
-}
-
 constexpr Count max_message_capacity = 1 << 11;
 
 auto format_entry(
@@ -100,23 +69,14 @@ auto format_entry(
   Writer::Textual writer(buf);
 
   writer << level_char(level) << Byte(' ');
+  writer << Time::now().calculate_clock() << Byte(' ');
 
-  auto t = get_utc();
-  write_padded(writer, ULong(t.hour), 2);
-  writer << Byte(':');
-  write_padded(writer, ULong(t.min), 2);
-  writer << Byte(':');
-  write_padded(writer, ULong(t.sec), 2);
-  writer << Byte('.');
-  write_padded(writer, ULong(t.millis), 3);
-
-  writer << Byte(' ') << Byte('[');
+  // TODO: Actually log named threads.
   if (this_thread_id == 0) {
-    writer << "main"_view;
+    writer << "[main] "_view;
   } else {
-    writer << "unknown #"_view << ULong(this_thread_id);
+    writer << "[unknown # "_view << this_thread_id << "] "_view;
   }
-  writer << Byte(']') << Byte(' ');
 
   const Source& target_source =
       attribution_override.is_set() ? attribution_override : loc;
@@ -149,13 +109,13 @@ struct ThreadWriter {
     Writer::Textual name_writer(name_access);
 
     name_writer << "perimortem_"_view;
-    auto t = get_utc();
-    write_padded(name_writer, ULong(t.hour), 2);
-    name_writer << Byte('-');
-    write_padded(name_writer, ULong(t.min), 2);
-    name_writer << Byte('-');
-    write_padded(name_writer, ULong(t.sec), 2);
-    name_writer << Byte('_') << ULong(this_thread_id);
+    if (this_thread_id == 0) {
+      name_writer << "[main]_"_view;
+    } else {
+      name_writer << "[unknown #"_view << this_thread_id << "]_"_view;
+    }
+
+    name_writer << Time::now().get_stamp();
     name_writer << ".log"_view;
     name_buf[name_writer.get_location()] = Byte('\0');
 

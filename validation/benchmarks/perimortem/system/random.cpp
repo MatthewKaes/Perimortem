@@ -42,7 +42,7 @@ PERIMORTEM_BENCHMARK(SystemRandom, read_entropy) {
 
 #ifdef PERI_BENCH_CPP
 
-static auto cpp_mt19937_generate() -> void {
+auto cpp_mt19937_generate() -> void {
   thread_local static std::mt19937_64 rng(std::random_device{}());
   Bits_64 accumulator = 0;
   for (Count batch_idx = 0; batch_idx < random_batch; batch_idx++) {
@@ -51,7 +51,7 @@ static auto cpp_mt19937_generate() -> void {
   Benchmark::prevent_optimization(accumulator);
 }
 
-static auto cpp_random_device_read() -> void {
+auto cpp_random_device_read() -> void {
   // std::random_device only returns 32 bits at a time so we call it twice per
   // iteration to match the entropy we generate from Philox. Over the 1024 calls
   // we still get the same relative throughput measurement.

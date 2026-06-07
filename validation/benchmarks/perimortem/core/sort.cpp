@@ -223,13 +223,13 @@ static Harness SortStringComp = {
 };
 
 template <typename array_type>
-static auto cpp_std_sort_ints(array_type& arr) -> void {
+auto cpp_std_sort_ints(array_type& arr) -> void {
   std::sort(arr.get_data(), arr.get_data() + arr.get_size());
   Benchmark::prevent_optimization(arr[0]);
 }
 
 template <typename array_type>
-static auto cpp_std_sort_views(array_type& arr) -> void {
+auto cpp_std_sort_views(array_type& arr) -> void {
   std::sort(
       arr.get_data(), arr.get_data() + arr.get_size(),
       [](const View::Bytes& a, const View::Bytes& b) { return b > a; });

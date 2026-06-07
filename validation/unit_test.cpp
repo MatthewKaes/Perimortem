@@ -7,10 +7,11 @@
 #include "validation/unit_test.hpp"
 
 #include <stdio.h>
-#include <time.h>
 
 #include "perimortem/core/static/bytes.hpp"
 #include "perimortem/core/static/vector.hpp"
+#include "perimortem/core/algorithm/search.hpp"
+#include "perimortem/core/time.hpp"
 #include "perimortem/core/writer/textual.hpp"
 
 using namespace Perimortem::Core;
@@ -39,6 +40,10 @@ struct TestTiming {
   Count line = 0;
 };
 
+static Diagnostics::Log::Level captured_log_level;
+static Static::Bytes<256> captured_log_message;
+static Count captured_log_message_size = 0;
+
 static Static::Vector<Instance, 4096> binary_tests;
 static Static::Vector<Count, 4096> failed_test_indexes;
 static Count binary_tests_count = 0;
@@ -51,6 +56,24 @@ static constexpr View::Bytes actual_label = "    ACTUAL = "_view;
 static constexpr View::Bytes expected_label = "  EXPECTED = "_view;
 
 namespace Validation::Test {
+auto capture_sink(Diagnostics::Log::Level level, View::Bytes message) -> void {
+  captured_log_level = level;
+  captured_log_message_size = message.get_size();
+  captured_log_message = message;
+}
+
+auto captured_message() -> View::Bytes {
+  return captured_log_message.slice(0, captured_log_message_size);
+}
+
+auto error_contains(View::Bytes message) -> Bool {
+  if (captured_log_level != Diagnostics::Log::Level::Error) {
+    return false;
+  }
+
+  return Algorithm::search(captured_message(), message) != Count(-1);
+}
+
 auto log_message(View::Bytes file, Count line, View::Bytes msg) -> void {
   printf(
       "%.*s:%llu:\n    %.*s\n", (int)file.get_size(), file.get_data(),
@@ -66,7 +89,7 @@ auto create(
   binary_tests[binary_tests_count++] = {&harness, name, func, file, line};
 }
 
-static auto write_label(Bool actual) -> void {
+auto write_label(Bool actual) -> void {
   auto label = actual ? actual_label : expected_label;
   fwrite(label.get_data(), 1, label.get_size(), stdout);
 }
@@ -159,18 +182,13 @@ auto expected_hex(View::Bytes value, Bool actual) -> void {
 
 }  // namespace Validation::Test
 
-static auto elapsed_ms(struct timespec start, struct timespec end) -> Real_64 {
-  return Real_64(end.tv_sec - start.tv_sec) * 1000.0 +
-         Real_64(end.tv_nsec - start.tv_nsec) / 1e6;
-}
-
-static auto output_break() -> void {
+auto output_break() -> void {
   printf(
       "%s[==============================================================]\n%s",
       dark_color, clear_color);
 }
 
-static auto output_results() -> void {
+auto output_results() -> void {
   printf("%s\n  Testing Completed:\n", perimortem_color);
 
   if (passed_tests) {
@@ -240,8 +258,7 @@ int main() {
       (unsigned long long)test_suites, clear_color);
   output_break();
 
-  struct timespec start_full, end_full, start, end;
-  clock_gettime(CLOCK_MONOTONIC, &start_full);
+  Time start_full = Time::now();
 
   for (Count index = 0; index < binary_tests_count; index++) {
     const Instance& test = binary_tests[index];
@@ -259,16 +276,21 @@ int main() {
       continue;
     }
 
+    // Setup sink before setup() so tests can still override.
+    Diagnostics::Log::set_sink(Test::capture_sink);
+    captured_log_message = ""_view;
+
     harness->setup();
     not_run_tests -= 1;
 
     Test::TestResult result = Test::TestResult::Pass;
-    clock_gettime(CLOCK_MONOTONIC, &start);
+
+    Time start = Time::now();
     test.func(result);
-    clock_gettime(CLOCK_MONOTONIC, &end);
-    Real_64 test_time_ms = elapsed_ms(start, end);
+    Real_64 test_time_ms = start.measure().convert_to_microseconds();
 
     harness->teardown();
+    Diagnostics::Log::set_sink(Diagnostics::Log::default_sink);
 
     if (test_time_ms > slowest_test.time_ms) {
       slowest_test.time_ms = test_time_ms;
@@ -297,8 +319,7 @@ int main() {
     printf("%s  (%g ms)\n%s", system_color, test_time_ms, clear_color);
   }
 
-  clock_gettime(CLOCK_MONOTONIC, &end_full);
-  Real_64 full_time_ms = elapsed_ms(start_full, end_full);
+  Real_64 full_time_ms = start_full.measure().convert_to_milliseconds();
 
   output_break();
   output_results();

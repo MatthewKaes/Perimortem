@@ -8,7 +8,7 @@
 using namespace Perimortem::Core;
 
 template <typename storage_type>
-static auto parse_decimal(View::Bytes source, Count& ptr, storage_type& out)
+auto parse_decimal(View::Bytes source, Count& ptr, storage_type& out)
     -> Bool {
   if (ptr >= source.get_size()) [[unlikely]] {
     return False;

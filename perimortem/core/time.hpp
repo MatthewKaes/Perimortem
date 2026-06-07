@@ -51,12 +51,18 @@ class Time {
   // Returns a time object capturing the delta time from UNIX epoch.
   static auto now() -> Time;
 
+  // Returns the best guess at wall clock time.
+  static auto clock() -> Time;
+
   // Returns the time the application booted.
   static auto boot() -> Time;
 
+  // Returns an arbitrary time point that should never exist.
+  static auto never() -> Time { return -1; };
+
   // Checks if two deltas are equal to each other, but doesn't guarantee they
   // are in the same reference frame.
-  constexpr auto operator==(const Time& rhs) -> Bool {
+  constexpr auto operator==(const Time& rhs) const -> Bool {
     return get_stamp() == rhs.get_stamp();
   };
 

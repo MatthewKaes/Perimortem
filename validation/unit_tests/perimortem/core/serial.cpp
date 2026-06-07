@@ -7,31 +7,14 @@
 
 #include "perimortem/core/static/bytes.hpp"
 #include "perimortem/core/static/vector.hpp"
-#include "perimortem/core/diagnostics/log.hpp"
 #include "perimortem/core/null_terminated.hpp"
 #include "perimortem/core/writer/serial.hpp"
 
 using namespace Perimortem::Core;
 using namespace Validation;
 
-static Diagnostics::Log::Level captured_log_level;
-static Static::Bytes<256> captured_log_message;
-
-static auto capture_sink(Diagnostics::Log::Level level, View::Bytes message)
-    -> void {
-  captured_log_level = level;
-  captured_log_message = message;
-}
-
 static Harness CoreSerialReader = {
   .name = "Core::Reader::Serial"_view,
-  .setup =
-      []() {
-        Diagnostics::Log::set_sink(capture_sink);
-        captured_log_message = ""_view;
-      },
-  .teardown =
-      []() { Diagnostics::Log::set_sink(Diagnostics::Log::default_sink); },
 };
 
 PERIMORTEM_UNIT_TEST(CoreSerialReader, regular_values) {
@@ -97,7 +80,7 @@ PERIMORTEM_UNIT_TEST(CoreSerialReader, large_blob) {
   });
   Reader::Serial reader(source);
 
-  EXPECT_HEX(reader.read_blob(), expected);
+  EXPECT_HEX(reader.read_blob(), expected.get_view());
   EXPECT(reader.is_valid());
   EXPECT(reader.is_empty());
 }
@@ -134,11 +117,6 @@ PERIMORTEM_UNIT_TEST(CoreSerialReader, only_blobs) {
   EXPECT(reader.is_empty());
 }
 
-constexpr auto file_location_size =
-    "[main] validation/unit_tests/perimortem/core/serial.cpp:xxx:xx: "_view
-        .get_size() +
-    15;
-
 PERIMORTEM_UNIT_TEST(CoreSerialReader, type_mismatch) {
   Reader::Serial reader("\x18\xAD\xDE\x00\x00"_view);
   auto scope_attribution = Diagnostics::Log::set_attribution();
@@ -149,10 +127,7 @@ PERIMORTEM_UNIT_TEST(CoreSerialReader, type_mismatch) {
   // Make sure message was logged.
   constexpr auto error_message =
       "Serial read overran data buffer while reading value at byte location 1. source_size=5 encoded_size=8"_view;
-  EXPECT_EQ(UInt(captured_log_level), UInt(Diagnostics::Log::Level::Error));
-  EXPECT_TEXT(
-      captured_log_message.slice(file_location_size, error_message.get_size()),
-      error_message);
+  EXPECT(Test::error_contains(error_message));
 }
 
 PERIMORTEM_UNIT_TEST(CoreSerialReader, bad_encoding) {
@@ -165,10 +140,7 @@ PERIMORTEM_UNIT_TEST(CoreSerialReader, bad_encoding) {
   // Make sure message was logged.
   constexpr auto error_message =
       "Serial read found invalid encoding size 3 at byte location 1."_view;
-  EXPECT_EQ(UInt(captured_log_level), UInt(Diagnostics::Log::Level::Error));
-  EXPECT_TEXT(
-      captured_log_message.slice(file_location_size, error_message.get_size()),
-      error_message);
+  EXPECT(Test::error_contains(error_message));
 }
 
 PERIMORTEM_UNIT_TEST(CoreSerialReader, bad_blob) {
@@ -182,10 +154,7 @@ PERIMORTEM_UNIT_TEST(CoreSerialReader, bad_blob) {
   constexpr auto error_message =
       "Serial read of blob sized 57005 bytes overran source buffer at location "
       "5. source_size=5 blob_size=57005"_view;
-  EXPECT_EQ(UInt(captured_log_level), UInt(Diagnostics::Log::Level::Error));
-  EXPECT_TEXT(
-      captured_log_message.slice(file_location_size, error_message.get_size()),
-      error_message);
+  EXPECT(Test::error_contains(error_message));
 }
 
 PERIMORTEM_UNIT_TEST(CoreSerialReader, read_from_empty) {
@@ -198,10 +167,7 @@ PERIMORTEM_UNIT_TEST(CoreSerialReader, read_from_empty) {
   // Make sure message was logged.
   constexpr auto error_message =
       "Serial read overran data buffer while reading type at byte location 0."_view;
-  EXPECT_EQ(UInt(captured_log_level), UInt(Diagnostics::Log::Level::Error));
-  EXPECT_TEXT(
-      captured_log_message.slice(file_location_size, error_message.get_size()),
-      error_message);
+  EXPECT(Test::error_contains(error_message));
 }
 
 static Harness CoreSerialWriter = {

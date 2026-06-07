@@ -13,7 +13,14 @@
 
 #include "validation/harness.hpp"
 
+#include "perimortem/core/diagnostics/log.hpp"
+
 namespace Validation::Test {
+auto capture_sink(
+    Perimortem::Core::Diagnostics::Log::Level level,
+    Perimortem::Core::View::Bytes message) -> void;
+auto captured_message() -> Perimortem::Core::View::Bytes;
+auto error_contains(Perimortem::Core::View::Bytes message) -> Bool;
 
 auto expected(Bool value, Bool actual) -> void;
 auto expected(Perimortem::Core::View::Bytes value, Bool actual) -> void;

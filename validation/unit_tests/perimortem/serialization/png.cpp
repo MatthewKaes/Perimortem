@@ -8,7 +8,6 @@
 #include "perimortem/core/static/bytes.hpp"
 #include "perimortem/core/algorithm/search.hpp"
 #include "perimortem/core/bibliotheca.hpp"
-#include "perimortem/core/diagnostics/log.hpp"
 #include "perimortem/core/null_terminated.hpp"
 
 #include "perimortem/system/file.hpp"
@@ -20,35 +19,8 @@ using namespace Perimortem::Serialization;
 using namespace Perimortem::System;
 using namespace Validation;
 
-static Diagnostics::Log::Level captured_log_level;
-static Static::Bytes<256> captured_log_message;
-static Count captured_log_message_size = 0;
-
-static auto capture_sink(Diagnostics::Log::Level level, View::Bytes message)
-    -> void {
-  captured_log_level = level;
-  captured_log_message_size = message.get_size();
-  captured_log_message = message;
-}
-
-static auto captured_message() -> View::Bytes {
-  return captured_log_message.slice(0, captured_log_message_size);
-}
-
-static auto error_contains(View::Bytes message) -> Bool {
-  return Algorithm::search(captured_message(), message) != Count(-1);
-}
-
 static Harness SerializationPng = {
   .name = "Serialization::Png"_view,
-  .setup =
-      []() {
-        Diagnostics::Log::set_sink(capture_sink);
-        captured_log_message = ""_view;
-        captured_log_message_size = 0;
-      },
-  .teardown =
-      []() { Diagnostics::Log::set_sink(Diagnostics::Log::default_sink); },
 };
 
 PERIMORTEM_UNIT_TEST(SerializationPng, decode_red_1x1_dimensions) {
@@ -285,9 +257,9 @@ PERIMORTEM_UNIT_TEST(SerializationPng, truncated_chunk_header) {
   auto image = Format::Png::decode(source.get_view());
 
   EXPECT_EQ(image.get_width(), 0);
-  EXPECT_EQ(UInt(captured_log_level), UInt(Diagnostics::Log::Level::Error));
-  EXPECT(error_contains(
-      "Png: Chunk at offset 33 truncated before header end"_view));
+  EXPECT(
+      Test::error_contains(
+          "Png: Chunk at offset 33 truncated before header end"_view));
 }
 
 PERIMORTEM_UNIT_TEST(SerializationPng, chunk_length_overrun) {
@@ -298,9 +270,9 @@ PERIMORTEM_UNIT_TEST(SerializationPng, chunk_length_overrun) {
   auto image = Format::Png::decode(source.get_view());
 
   EXPECT_EQ(image.get_width(), 0);
-  EXPECT_EQ(UInt(captured_log_level), UInt(Diagnostics::Log::Level::Error));
-  EXPECT(error_contains(
-      "Png: Chunk at offset 33 with length 100 extends past end of stream"_view));
+  EXPECT(
+      Test::error_contains(
+          "Png: Chunk at offset 33 with length 100 extends past end of stream"_view));
 }
 
 PERIMORTEM_UNIT_TEST(SerializationPng, roundtrip_icon) {
@@ -341,9 +313,9 @@ PERIMORTEM_UNIT_TEST(SerializationPng, crc_mismatch) {
   auto image = Format::Png::decode(source.get_view());
 
   EXPECT_EQ(image.get_width(), 0);
-  EXPECT_EQ(UInt(captured_log_level), UInt(Diagnostics::Log::Level::Error));
   EXPECT(
-      error_contains("Png: CRC-32 mismatch for chunk 'IHDR' at offset 8"_view));
+      Test::error_contains(
+          "Png: CRC-32 mismatch for chunk 'IHDR' at offset 8"_view));
 }
 #endif
 
