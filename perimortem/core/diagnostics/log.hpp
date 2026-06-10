@@ -58,6 +58,10 @@ class Log {
   // fatal.
   static auto color_sink(Level level, Core::View::Bytes message) -> void;
 
+  // Writes all log levels to stderr. Flushes after every message.
+  // Use when stdout is a protocol pipe (e.g. LSP server).
+  static auto stderr_sink(Level level, Core::View::Bytes message) -> void;
+
   // Logs to both the console_sink and the file_sink for real time and
   // persistant logs.
   static auto debug_sink(Level level, Core::View::Bytes message) -> void;
@@ -66,6 +70,7 @@ class Log {
   // By default the sink is set to a file on disk named after the thread.
   // If the sink is set to null then messages for the thread are dropped.
   static auto set_sink(Sink sink) -> void;
+  static auto get_sink() -> Sink;
 
   // Sets the minimum level that will be forwarded to the sink on this thread.
   // Messages below this level are dropped before formatting.
@@ -74,6 +79,9 @@ class Log {
   // Sets logs in the current scope
   static auto set_attribution(const Source& location = Source::current())
       -> Attribution;
+
+  // Sets logs in the current scope
+  static auto set_thread_name(View::Bytes name) -> void;
 
   // Default sink to use.
   static constexpr Sink default_sink = file_sink;

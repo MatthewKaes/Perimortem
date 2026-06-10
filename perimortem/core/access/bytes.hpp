@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include "perimortem/core/view/bytes.hpp"
 #include "perimortem/core/math.hpp"
 
 namespace Perimortem::Core::Access {
@@ -23,6 +24,8 @@ class Bytes {
   template <Count N>
   constexpr Bytes(data_type (&source)[N]) : source_block(source), size(N) {}
 
+  constexpr operator View::Bytes() const { return get_view(); }
+
   constexpr auto at(Count index) -> data_type& {
     if (index > size) [[unlikely]] {
       static data_type oob;
@@ -34,7 +37,8 @@ class Bytes {
 
   constexpr auto operator[](Count index) -> data_type& { return at(index); }
 
-  constexpr auto slice(Count start, Count size) const -> Access::Bytes {
+  constexpr auto slice(Count start, Count size = Count(-1)) const
+      -> Access::Bytes {
     if (start >= get_size()) {
       return Access::Bytes();
     }
@@ -47,6 +51,9 @@ class Bytes {
   constexpr auto get_size() const -> Count { return size; };
   constexpr auto get_data() -> data_type* { return source_block; };
   constexpr auto get_data() const -> const data_type* { return source_block; };
+  constexpr auto get_view() const -> const View::Bytes {
+    return View::Bytes(source_block, get_size());
+  }
 
  private:
   data_type* source_block;

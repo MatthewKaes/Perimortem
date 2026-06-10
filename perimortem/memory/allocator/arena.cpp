@@ -4,6 +4,7 @@
 #include "perimortem/memory/allocator/arena.hpp"
 
 #include "perimortem/core/bibliotheca.hpp"
+#include "perimortem/core/math.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory::Allocator;
@@ -40,7 +41,9 @@ auto Arena::reset() -> void {
 }
 
 auto Arena::fetch_page(Count bytes_requested) -> void {
-  auto alloc = Core::Bibliotheca::check_out(page_size);
+  const Count alloc_size =
+      Math::max(page_size, bytes_requested + sizeof(Byte*));
+  auto alloc = Core::Bibliotheca::check_out(alloc_size);
 
   // Store the previous pointer in the arena itself.
   Byte** previous = Core::Data::cast<Byte*>(alloc.ptr);

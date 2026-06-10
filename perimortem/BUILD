@@ -13,6 +13,7 @@ cc_library(
         ":core",
         ":graphics",
         ":memory",
+        ":platform",
         ":serialization",
         ":system",
     ],
@@ -28,6 +29,7 @@ cc_library(
         "core/reader/binary.cpp",
         "core/reader/serial.cpp",
         "core/reader/textual.cpp",
+        "core/thread/worker.cpp",
         "core/time.cpp",
         "core/writer/binary.cpp",
         "core/writer/serial.cpp",
@@ -41,6 +43,7 @@ cc_library(
         "core/reader/*.hpp",
         "core/writer/*.hpp",
         "core/diagnostics/*.hpp",
+        "core/thread/*.hpp",
         "core/*.hpp",
     ]),
     includes = ["."],
@@ -90,6 +93,7 @@ cc_library(
         "system/compression/bit_stream/*.hpp",
     ]),
     includes = ["."],
+    linkopts = ["-lpthread"],
     deps = [
         ":core",
         ":memory",
@@ -99,14 +103,48 @@ cc_library(
 
 cc_library(
     name = "graphics",
-    srcs = [],
+    srcs = glob([
+        "graphics/vulkan/*.cpp",
+    ]),
     hdrs = glob([
+        "graphics/vulkan/*.hpp",
         "graphics/*.hpp",
     ]),
     includes = ["."],
+    linkopts = ["-lvulkan"],
     deps = [
         ":core",
         ":memory",
+    ],
+)
+
+cc_library(
+    name = "xdg_shell_protocol",
+    srcs = ["system/platform/wayland/xdg-shell-protocol.c"],
+    hdrs = ["system/platform/wayland/xdg-shell-client-protocol.h"],
+    # Generated C protocol code; suppress strict-warning enforcement.
+    copts = ["-Wno-error"],
+    includes = ["."],
+    linkopts = ["-lwayland-client"],
+)
+
+cc_library(
+    name = "platform",
+    srcs = glob([
+        "system/platform/wayland/*.cpp",
+        "system/platform/wayland/*.c",
+    ]),
+    hdrs = glob([
+        "system/platform/wayland/*.hpp",
+        "system/platform/wayland/*.h",
+    ]) + [
+        "system/platform/window.hpp",
+    ],
+    includes = ["."],
+    linkopts = ["-lwayland-client"],
+    deps = [
+        ":core",
+        ":xdg_shell_protocol",
     ],
 )
 

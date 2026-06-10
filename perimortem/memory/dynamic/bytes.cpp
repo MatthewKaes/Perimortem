@@ -146,6 +146,16 @@ auto Dynamic::Bytes::forgetful_resize(Count required_size) -> void {
   capacity = alloc.capacity;
 }
 
+auto Dynamic::Bytes::shrink(Count bytes_to_remove) -> void {
+  if (bytes_to_remove > size) {
+    clear();
+    return;
+  }
+
+  size -= bytes_to_remove;
+  memmove(source_block, source_block + bytes_to_remove, size);
+}
+
 auto Dynamic::Bytes::operator[](Count index) const -> Byte {
   if (index > size) {
     return 0;

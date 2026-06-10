@@ -51,6 +51,11 @@ class Bytes {
   // contents after a forgetful operation should always be assumed to be in an
   // invalid state.
   auto forgetful_resize(Count required_size) -> void;
+  // Shrinks the container from the front by a number of bytes.
+  //
+  // If the container is shrunk more than it's current size the call is
+  // equivilant to a clear.
+  auto shrink(Count bytes_to_remove) -> void;
 
   auto operator[](Count index) const -> Byte;
   auto at(Count index) const -> Byte;

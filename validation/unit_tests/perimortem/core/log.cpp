@@ -159,7 +159,7 @@ PERIMORTEM_UNIT_TEST(DiagnosticsLog, attribution) {
   attributing_function();
 
   auto attributed_message =
-      "[main] validation/unit_tests/perimortem/core/log.cpp:156:28: Test Attribution"_view;
+      "[main] validation/unit_tests/perimortem/core/log.cpp:154:28: Test Attribution"_view;
   auto logged = last_entry();
   EXPECT_TEXT(
       logged.slice(15, attributed_message.get_size()), attributed_message);

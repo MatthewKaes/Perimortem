@@ -7,6 +7,7 @@
 #include "perimortem/core/static/bytes.hpp"
 #include "perimortem/core/data.hpp"
 #include "perimortem/core/null_terminated.hpp"
+#include "perimortem/core/thread/worker.hpp"
 #include "perimortem/core/time.hpp"
 #include "perimortem/core/writer/textual.hpp"
 
@@ -20,10 +21,6 @@ using namespace Perimortem::Core::Diagnostics;
 #include <execinfo.h>
 #endif
 
-// TODO: Thread library
-static Bits_64 next_thread_id = 0;
-static thread_local Bits_64 this_thread_id =
-    __atomic_fetch_add(&next_thread_id, 1, __ATOMIC_RELAXED);
 static thread_local Log::Sink message_sink = Log::default_sink;
 static thread_local Log::Level thread_log_level = Log::Level::Info;
 static thread_local Source attribution_override;
@@ -64,22 +61,16 @@ constexpr Count max_message_capacity = 1 << 11;
 auto format_entry(
     Log::Level level,
     View::Bytes msg,
-    const Source& loc,
+    const Source& location,
     Access::Bytes buf) -> Count {
   Writer::Textual writer(buf);
 
   writer << level_char(level) << Byte(' ');
   writer << Time::now().calculate_clock() << Byte(' ');
-
-  // TODO: Actually log named threads.
-  if (this_thread_id == 0) {
-    writer << "[main] "_view;
-  } else {
-    writer << "[unknown # "_view << this_thread_id << "] "_view;
-  }
+  writer << "["_view << Thread::Worker::thread_name() << "] "_view;
 
   const Source& target_source =
-      attribution_override.is_set() ? attribution_override : loc;
+      attribution_override.is_set() ? attribution_override : location;
   writer << target_source.get_file();
   writer << Byte(':') << Long(target_source.get_line());
   writer << Byte(':') << Long(target_source.get_column());
@@ -101,34 +92,31 @@ struct ThreadWriter {
   }
 
   auto prepare_file() -> void {
-    file_ready = True;
-
     Static::Bytes<512> name_buf;
     // Reserve the last byte for the null terminator.
     Access::Bytes name_access(name_buf.get_data(), name_buf.get_size() - 1);
-    Writer::Textual name_writer(name_access);
+    Writer::Textual writer(name_access);
 
-    name_writer << "perimortem_"_view;
-    if (this_thread_id == 0) {
-      name_writer << "[main]_"_view;
-    } else {
-      name_writer << "[unknown #"_view << this_thread_id << "]_"_view;
-    }
+    writer << "perimortem_"_view;
+    writer << "["_view << Thread::Worker::thread_name() << "]_"_view;
 
-    name_writer << Time::now().get_stamp();
-    name_writer << ".log"_view;
-    name_buf[name_writer.get_location()] = Byte('\0');
+    writer << Time::now().get_stamp();
+    writer << ".log"_view;
+    name_buf[writer.get_location()] = Byte('\0');
 
     file = fopen(Data::cast<char>(name_buf.get_data()), "ab");
+    file_ready = True;
   }
 
   auto accumulate(View::Bytes entry) -> void {
     if (!file_ready) {
       prepare_file();
     }
+
     if (!file) {
       return;
     }
+
     fwrite(entry.get_data(), 1, entry.get_size(), file);
   }
 
@@ -148,6 +136,11 @@ auto Log::file_sink(Level level, View::Bytes message) -> void {
 auto Log::console_sink(Level level, View::Bytes message) -> void {
   FILE* stream = (level >= Level::Error) ? stderr : stdout;
   fwrite(message.get_data(), 1, message.get_size(), stream);
+}
+
+auto Log::stderr_sink(Level /*level*/, View::Bytes message) -> void {
+  fwrite(message.get_data(), 1, message.get_size(), stderr);
+  fflush(stderr);
 }
 
 auto Log::color_sink(Level level, View::Bytes message) -> void {
@@ -174,6 +167,10 @@ auto Log::debug_sink(Level level, View::Bytes message) -> void {
 
 auto Log::set_sink(Sink sink) -> void {
   message_sink = sink;
+}
+
+auto Log::get_sink() -> Sink {
+  return message_sink;
 }
 
 auto Log::set_level(Level level) -> void {
@@ -204,14 +201,14 @@ auto Log::set_attribution(const Source& location) -> Attribution {
   return scope_guard;
 }
 
-auto Log::log(Level level, View::Bytes msg, const Source& loc) -> void {
+auto Log::log(Level level, View::Bytes msg, const Source& location) -> void {
   if (level < thread_log_level || !message_sink) {
     return;
   }
 
   Static::Bytes<max_message_capacity> buf;
   Access::Bytes access(buf.get_data(), buf.get_size());
-  Count len = format_entry(level, msg, loc, access);
+  Count len = format_entry(level, msg, location, access);
   message_sink(level, View::Bytes(buf.get_data(), len));
 }
 
@@ -246,4 +243,8 @@ auto Log::fatal(View::Bytes msg, const Source& location) -> void {
 
 auto Log::flush() -> void {
   thread_writer.flush();
+}
+
+auto Log::set_thread_name(View::Bytes /*name*/) -> void {
+  // Thread names are managed by Thread::Worker via thread_info; nothing to do.
 }

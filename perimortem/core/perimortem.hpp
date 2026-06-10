@@ -12,15 +12,20 @@
   ==============================================================================
 
   As C++ has grown as a language it's standard library has gotten quite slow to
-  use and carries over a few annoyances from C compatability.
+  build and carries over a few annoyances from C compatability. The goal is to
+  slowly self host all of TTX (maybe even drop the clang toolchain?), mostly for
+  sport.
 
-  To speed up compile times by over an order of magnitude we stub it but we
-  don't want to lose full compatability with the C++ standard library.
+  In the mean time to speed up compile times by over an order of magnitude and
+  to give us finer grain control of the stdlib surface area we stub most of the
+  C++ standard lib out but we don't want to lose full compatability with the C++
+  standard library (at a minimum it's useful for benchmarking and bootstrapping)
 
   This file attempts to not make Perimortem _incompatable_ with the C++ standard
-  library, but a limited stub that may be mixed with standard C++ header files.
-  However mixing is limited as much as possible in throughout the project; some
-  includes bloat compile times by seconds all on their own in C++26.
+  library, but provide a limited stub that may be mixed with standard C++ header
+  files as necessary. That said, use of C++'s STL is limited as much as possible
+  in throughout the project; some includes bloat compile times by seconds all on
+  their own in C++26.
 
   ==============================================================================
 
@@ -28,11 +33,14 @@
 
   ==============================================================================
 
+  TTX is built to target `libc` so the question is why not use C as the base?
+
   While we don't want many features from the standard library we do make use of
-  a large number of C++ _compiler_ features. While all Perimortem features
-  should bottom out to a compatible C ABI there are a lot of things that are
-  just easier to express in C++ rather than build an entire parallel C-codegen
-  pipeline.
+  a large number of C++ _compiler_ features. All Perimortem features must bottom
+  out to a compatible C ABI for TTX, but there is a lot we can express in C++
+  without full TTX support. Despite it's flaws it's easier for me personally to
+  express in C++ that isn't worth the C or LLVM wranging directly, especially
+  when we are building an entire parallel with TTX anyway.
 
 */
 

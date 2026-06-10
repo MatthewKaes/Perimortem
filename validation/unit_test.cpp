@@ -162,8 +162,13 @@ auto expected(Real_64 value, Bool actual) -> void {
 
 auto expected_text(View::Bytes value, View::Bytes other, Bool actual) -> void {
   write_label(actual);
+
+  // Loop over all the bytes and flag any diffs.
+  // For an extra or missing byte a string of red is generated.
+  // For mismatched bytes you get the exact byte.
+  // Not perfect or anything, but hey it gets the job done for most cases!
   for (Count i = 0; i < value.get_size(); i++) {
-    if (i > other.get_size() || value[i] != other[i]) {
+    if (i >= other.get_size() || value[i] != other[i]) {
       printf("%s%c", fail_color, value[i]);
     } else {
       printf("%s%c", clear_color, value[i]);

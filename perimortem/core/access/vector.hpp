@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include "perimortem/core/view/vector.hpp"
 #include "perimortem/core/access/bytes.hpp"
 #include "perimortem/core/math.hpp"
 
@@ -40,7 +41,7 @@ class Vector {
 
   constexpr auto operator[](Count index) -> data_type& { return at(index); }
 
-  constexpr auto slice(Count start, Count size) const
+  constexpr auto slice(Count start, Count size = Count(-1)) const
       -> Access::Vector<data_type> {
     if (start >= get_size()) {
       return Access::Vector<data_type>();
@@ -55,6 +56,9 @@ class Vector {
   constexpr auto get_data() -> data_type* { return source_block; };
   constexpr auto get_bytes() const -> Access::Bytes {
     return Access::Bytes((Byte*)source_block, size * sizeof(data_type));
+  }
+  constexpr auto get_view() const -> const View::Vector<data_type> {
+    return View::Vector(source_block, get_size());
   }
 
  private:

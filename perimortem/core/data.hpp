@@ -13,6 +13,8 @@ extern void* memcpy(
     const void* __restrict src,
     size_t count) noexcept(true);
 
+extern void* memmove(void* dest, const void* src, size_t count) noexcept(true);
+
 extern int memcmp(const void* a, const void* b, size_t count) noexcept(true);
 
 extern void* memset(void* a, Int value, size_t count) noexcept(true);
