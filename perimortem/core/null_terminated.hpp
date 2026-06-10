@@ -46,6 +46,9 @@ struct CString {
   }
 };
 
+template <CppSize N>
+CString(SignedBits_8 const (&)[N]) -> CString<N>;
+
 }  // namespace Perimortem::Core::NullTerminated
 
 // Converts C++ string literals into valid Perimortem byte strings.
