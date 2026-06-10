@@ -84,6 +84,10 @@ auto construct_from_blueprint(
     }
     return construct_array(arena, bp.compound.ptr, bp.compound.size);
   }
+  case Json::Blueprint::Tag::Node:
+    // TODO: We should check if the data exists in some areana but for now we
+    // just forward it and assume it was constructed correctly.
+    return *bp.node_ptr;
   }
 }
 
@@ -396,11 +400,13 @@ auto Json::Node::parse(
         // :
         position++;
 
+        // Try to parse the child and if it fails propagate errors up the stack
+        // and terminate parsing since we got garbage.
         Json::Node& child = arena.allocate<Json::Node>();
         position = child.parse(arena, source, position);
-        if (child.is_null()) {
+        if (position == Count(-1)) {
           set();
-          return position;
+          return Count(-1);
         }
 
         members.insert(Member(name, child));
@@ -424,11 +430,13 @@ auto Json::Node::parse(
           break;
         }
 
-        Json::Node child;
+        // Try to parse the child and if it fails propagate errors up the stack
+        // and terminate parsing since we got garbage.
+        Json::Node& child = arena.allocate<Json::Node>();
         position = child.parse(arena, source, position);
-        if (child.is_null()) {
+        if (position == Count(-1)) {
           set();
-          return position;
+          return Count(-1);
         }
 
         array.insert(child);
@@ -453,7 +461,7 @@ auto Json::Node::parse(
       constexpr auto true_view = "true"_view;
       if (source.slice(position, true_view.get_size()) != "true"_view) {
         set();
-        return position;
+        return Count(-1);
       }
 
       // Move past "true"
@@ -468,7 +476,7 @@ auto Json::Node::parse(
       constexpr auto false_view = "false"_view;
       if (source.slice(position, false_view.get_size()) != "false"_view) {
         set();
-        return position;
+        return Count(-1);
       }
 
       // Move past "false"
@@ -515,6 +523,21 @@ auto Json::Node::parse(
       }
 
       set((float_value / Real_64(divisor)) * positive.sign());
+      return position;
+    }
+
+    // null
+    case 'n': {
+      // If not null error out, otherwise it's actually a null value that we
+      // need to store so continue parsing.
+      set();
+
+      constexpr auto null_view = "null"_view;
+      if (source.slice(position, null_view.get_size()) != null_view) {
+        return Count(-1);
+      }
+
+      position += null_view.get_size();
       return position;
     }
 
@@ -574,6 +597,11 @@ auto Json::Node::serialized_size() const -> Count {
   case NodeState::Number: {
     Count accumulated = 0;
     auto number = data.number;
+    if (number == 0) {
+      return accumulated + 1;
+    }
+
+    // Include space for the negative sign.
     if (number < 0) {
       accumulated += 1;
       number = number * -1;

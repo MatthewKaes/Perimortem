@@ -7,6 +7,10 @@
 
 namespace Perimortem::Serialization::Json {
 
+// Forward declaration — Blueprint stores a pointer to an existing Node for
+// the ExistingNode tag; the full definition lives in node.hpp.
+class Node;
+
 // Temporary aggregate describing a JSON value tree for Node::construct which
 // creates managed Nodes inside of an Arena with appropriate lifetime management
 // out of temporary objects.
@@ -25,6 +29,7 @@ struct Blueprint {
     Number,
     Real,
     Flag,
+    Node,
     Compound,
   };
 
@@ -34,6 +39,7 @@ struct Blueprint {
       const Blueprint* ptr;
       Count size;
     } compound;
+    const Node* node_ptr;
     Long number_val;
     Real_64 real_val;
     Bool flag_val;
@@ -41,7 +47,7 @@ struct Blueprint {
   Core::View::Bytes name;
   Tag tag = Tag::Null;
 
-  // Constructors for all of the Scalar base cases.
+  // Unnamed scalar constructors.
   Blueprint() : string_val(), name(), tag(Tag::Null) {}
   Blueprint(Core::View::Bytes str)
       : string_val(str), name(), tag(Tag::String) {}
@@ -49,17 +55,26 @@ struct Blueprint {
   Blueprint(Real_64 real) : real_val(real), name(), tag(Tag::Real) {}
   Blueprint(Real_32 real) : Blueprint(Real_64(real)) {}
   Blueprint(Bool b) : flag_val(b), name(), tag(Tag::Flag) {}
+  Blueprint(const Node& node) : node_ptr(&node), name(), tag(Tag::Node) {}
+
+  // Named scalar constructors (member -> scalar)
+  Blueprint(Core::View::Bytes n, Core::View::Bytes str)
+      : string_val(str), name(n), tag(Tag::String) {}
+  Blueprint(Core::View::Bytes n, Long num)
+      : number_val(num), name(n), tag(Tag::Number) {}
+  Blueprint(Core::View::Bytes n, Real_64 real)
+      : real_val(real), name(n), tag(Tag::Real) {}
+  Blueprint(Core::View::Bytes n, Real_32 real) : Blueprint(n, Real_64(real)) {}
+  Blueprint(Core::View::Bytes n, Bool b)
+      : flag_val(b), name(n), tag(Tag::Flag) {}
+  Blueprint(Core::View::Bytes n, const Node& node)
+      : node_ptr(&node), name(n), tag(Tag::Node) {}
 
   // Named Blueprint arrays are treated as a member entry in a hosting Object
   // that hosts a nested structure which could be an Array or Object.
   template <Count N>
   Blueprint(Core::View::Bytes n, const Blueprint (&children)[N])
       : compound{children, N}, name(n), tag(Tag::Compound) {}
-
-  // Named Blueprints are treated as a member with a single Scalar value.
-  Blueprint(Core::View::Bytes n, Blueprint value) : Blueprint(value) {
-    name = n;
-  }
 
   // An Object without a named nesting is just a flat Array.
   template <Count N>

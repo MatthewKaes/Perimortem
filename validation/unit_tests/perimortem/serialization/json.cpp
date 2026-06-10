@@ -7,6 +7,8 @@
 #include "perimortem/core/bibliotheca.hpp"
 #include "perimortem/core/null_terminated.hpp"
 
+#include "perimortem/memory/managed/vector.hpp"
+
 #include "perimortem/system/file.hpp"
 #include "perimortem/serialization/json/node.hpp"
 
@@ -272,6 +274,53 @@ PERIMORTEM_UNIT_TEST(SerializationJson, parse_object) {
   EXPECT_EQ(members[3].node.get_number(), -1);
 }
 
+PERIMORTEM_UNIT_TEST(SerializationJson, parse_null) {
+  Allocator::Arena arena;
+  Json::Node value;
+
+  // Top-level null literal parses to a null node.
+  value.parse(arena, "null"_view);
+  EXPECT(value.is_null());
+
+  // null inside an object — the member is visible and is_null().
+  value.parse(arena, "{\"key\":null}"_view);
+  ASSERT(value.is_object());
+  EXPECT_EQ(value.get_size(), 1);
+  EXPECT(value["key"_view].is_null());
+
+  // null alongside other members — both sides survive.
+  value.parse(arena, "{\"a\":1,\"b\":null,\"c\":3}"_view);
+  ASSERT(value.is_object());
+  EXPECT_EQ(value.get_size(), 3);
+  EXPECT_EQ(value["a"_view].get_number(), 1);
+  EXPECT(value["b"_view].is_null());
+  EXPECT_EQ(value["c"_view].get_number(), 3);
+
+  // null inside an array — element is reachable and is_null().
+  value.parse(arena, "[1,null,3]"_view);
+  ASSERT(value.is_array());
+  EXPECT_EQ(value.get_size(), 3);
+  EXPECT_EQ(value[0].get_number(), 1);
+  EXPECT(value[1].is_null());
+  EXPECT_EQ(value[2].get_number(), 3);
+}
+
+PERIMORTEM_UNIT_TEST(SerializationJson, parse_null_lsp) {
+  // LSP sends "params": null for requests like shutdown.
+  // The whole object must still parse as a valid object, not become null.
+  Allocator::Arena arena;
+  Json::Node value;
+
+  value.parse(
+      arena,
+      "{\"jsonrpc\":\"2.0\",\"id\":99,\"method\":\"shutdown\",\"params\":null}"_view);
+  ASSERT(value.is_object());
+  EXPECT_TEXT(value["jsonrpc"_view].get_string(), "2.0"_view);
+  EXPECT_EQ(value["id"_view].get_number(), 99);
+  EXPECT_TEXT(value["method"_view].get_string(), "shutdown"_view);
+  EXPECT(value["params"_view].is_null());
+}
+
 PERIMORTEM_UNIT_TEST(SerializationJson, construct_string) {
   constexpr auto expected = "\"Test String\""_view;
 
@@ -337,4 +386,82 @@ PERIMORTEM_UNIT_TEST(SerializationJson, round_trip_init_rpc) {
 
   ASSERT_EQ(formated.get_size(), source.get_size());
   ASSERT_TEXT(formated, source.get_view());
+}
+
+PERIMORTEM_UNIT_TEST(SerializationJson, format_number_zero) {
+  Allocator::Arena arena;
+  const Json::Blueprint entries[] = {
+    Json::Blueprint("a"_view, Long(0)),
+    Json::Blueprint("b"_view, Long(1)),
+    Json::Blueprint("c"_view, Long(10)),
+  };
+  auto value = Json::Node::construct(arena, entries);
+
+  constexpr auto expected = "{\"a\":0,\"b\":1,\"c\":10}"_view;
+  auto formated = value.format(arena);
+  ASSERT_TEXT(formated, expected);
+}
+
+PERIMORTEM_UNIT_TEST(SerializationJson, construct_existing_node) {
+  Allocator::Arena arena;
+
+  Managed::Vector<Json::Member> inner(arena);
+  inner.insert({"name"_view, Json::Node("ttx-server"_view)});
+  inner.insert({"version"_view, Json::Node("1.0"_view)});
+  const Json::Node inner_node(inner.get_view());
+
+  const Json::Blueprint entries[] = {
+    Json::Blueprint("jsonrpc"_view, "2.0"_view),
+    Json::Blueprint("id"_view, Long(1)),
+    Json::Blueprint("result"_view, inner_node),
+  };
+  auto value = Json::Node::construct(arena, entries);
+
+  constexpr auto expected =
+      "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{\"name\":\"ttx-server\","
+      "\"version\":\"1.0\"}}"_view;
+  auto formated = value.format(arena);
+  ASSERT_TEXT(formated, expected);
+}
+
+PERIMORTEM_UNIT_TEST(SerializationJson, format_null) {
+  Allocator::Arena arena;
+  Json::Node value;
+
+  // Top-level null serializes to "null".
+  value.parse(arena, "null"_view);
+  ASSERT_TEXT(value.format(arena), "null"_view);
+
+  // Object with a null member round-trips exactly.
+  value.parse(arena, "{\"a\":1,\"b\":null,\"c\":3}"_view);
+  ASSERT_TEXT(value.format(arena), "{\"a\":1,\"b\":null,\"c\":3}"_view);
+}
+
+PERIMORTEM_UNIT_TEST(SerializationJson, construct_rpc_from_parsed) {
+  File source;
+  ASSERT(source.read("validation/data/json/init_rpc.json"_view));
+
+  Allocator::Arena arena;
+  Json::Node parsed;
+  parsed.parse(arena, source.get_view());
+
+  ASSERT(parsed["jsonrpc"_view].is_string());
+  ASSERT(parsed["id"_view].is_number());
+
+  Managed::Vector<Json::Member> result_obj(arena);
+  result_obj.insert({"serverInfo"_view, Json::Node("ttx"_view)});
+  const Json::Node result_node(result_obj.get_view());
+
+  const Json::Blueprint entries[] = {
+    Json::Blueprint("jsonrpc"_view, parsed["jsonrpc"_view].get_string()),
+    Json::Blueprint("id"_view, Long(parsed["id"_view].get_number())),
+    Json::Blueprint("result"_view, result_node),
+  };
+  auto response = Json::Node::construct(arena, entries);
+  auto formated = response.format(arena);
+
+  ASSERT(formated.get_size() > 0);
+  ASSERT(response.is_object());
+  EXPECT_TEXT(response["jsonrpc"_view].get_string(), "2.0"_view);
+  EXPECT_EQ(response["id"_view].get_number(), 10);
 }
