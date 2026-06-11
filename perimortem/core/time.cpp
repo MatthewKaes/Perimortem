@@ -16,12 +16,12 @@ template <Bool extend_digits = False>
 auto write_fixed(Writer::Textual& writer, Bits_64 value) -> void {
   if constexpr (extend_digits) {
     if (value < 100) {
-      writer << Byte('0');
+      writer << '0';
     }
   }
 
   if (value < 10) {
-    writer << Byte('0');
+    writer << '0';
   }
 
   writer << value;
@@ -56,11 +56,11 @@ auto Time::calculate_clock() const -> Static::Bytes<12> {
   Static::Bytes<12> time_string;
   Writer::Textual time_writer(time_string);
   write_fixed(time_writer, hours);
-  time_writer << Byte(':');
+  time_writer << ':';
   write_fixed(time_writer, minutes);
-  time_writer << Byte(':');
+  time_writer << ':';
   write_fixed(time_writer, seconds);
-  time_writer << Byte('.');
+  time_writer << '.';
   write_fixed<True>(time_writer, milliseconds);
 
   return time_string;

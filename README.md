@@ -45,7 +45,7 @@ To perform a full debug build simply run:
 
 You can run the standard unit tests with:
 
-> bazel run tests:unit_tests
+> bazel run //validation:unit_tests
 
 ### List of dependencies
 
@@ -67,12 +67,25 @@ If you are running on Arch you will need the closed source version of VSCode in 
 
 ### Tetrodotoxin Toolchain Support
 
-Perimortem support Tetrodotoxin in VSCode via an Lsp (language server protocol) service.
-You can build and launch a version of VSCode with the TTX extension using:
+Perimortem supports Tetrodotoxin in VSCode via an LSP (Language Server Protocol) service.
+
+To build the language server and install the VSCode extension in one step:
+
+> ./tetrodotoxin/lsp/package.sh --install
+
+Or to package without installing (e.g. for distribution):
+
+> ./tetrodotoxin/lsp/package.sh
+
+The script requires `npm` and `npx` in addition to Bazel and clang. On Arch:
+
+> pacman -S nodejs npm
+
+During development you can also attach the VSCode debugger directly using the launch config:
 
 > debug Launch TTX Client
 
-If you aren't using VSCode you can use `ttx-lang-server` in your engine of choice. The code for the server lives in `tetrodotoxin/lsp/server`, however if you want to build this project it just assumes you are using VSCode on Arch.
+If you aren't using VSCode you can use `ttx-lang-server` with any editor that supports LSP. The server source lives in `tetrodotoxin/lsp/server`.
 
 If you are looking for the Tetrodotoxin spec check out its dedicated [README](https://github.com/MatthewKaes/Perimortem/blob/main/tetrodotoxin/README.md).
 

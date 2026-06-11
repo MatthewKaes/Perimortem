@@ -40,7 +40,7 @@ auto Context::Names::make_local_unique() -> View::Bytes {
     name[size - 1] = '0' + counter[0];
   }
 
-  for (Int i = 0; i < 4; i++) {
+  for (Count i = 0; i < 4; i++) {
     counter[i] += 1;
     if (counter[i] <= '9') {
       break;

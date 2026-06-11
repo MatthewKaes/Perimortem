@@ -8,8 +8,7 @@
 using namespace Perimortem::Core;
 
 template <typename storage_type>
-auto parse_decimal(View::Bytes source, Count& ptr, storage_type& out)
-    -> Bool {
+auto parse_decimal(View::Bytes source, Count& ptr, storage_type& out) -> Bool {
   if (ptr >= source.get_size()) [[unlikely]] {
     return False;
   }
@@ -22,14 +21,14 @@ auto parse_decimal(View::Bytes source, Count& ptr, storage_type& out)
     }
   }
 
-  Byte first = source[ptr];
+  Bits_8 first = source[ptr];
   if (first < '0' || first > '9') [[unlikely]] {
     return False;
   }
 
   Bits_64 result = 0;
   while (ptr < source.get_size()) {
-    Byte ch = source[ptr];
+    Bits_8 ch = source[ptr];
     if (ch < '0' || ch > '9') {
       break;
     }
@@ -47,7 +46,7 @@ auto Reader::Textual::set_pointer(Count location) -> void {
 
 auto Reader::Textual::skip_whitespace() -> void {
   while (ptr_location < data.get_size()) {
-    Byte ch = data[ptr_location];
+    Bits_8 ch = data[ptr_location];
     if (ch != ' ' && ch != '\n' && ch != '\r' && ch != '\t') {
       break;
     }
@@ -55,13 +54,13 @@ auto Reader::Textual::skip_whitespace() -> void {
   }
 }
 
-auto Reader::Textual::read_byte() -> Byte {
+auto Reader::Textual::read_byte() -> Bits_8 {
   if (!valid_state) [[unlikely]] {
-    return Byte(0);
+    return Bits_8(0);
   }
   if (ptr_location >= data.get_size()) [[unlikely]] {
     valid_state = False;
-    return Byte(0);
+    return Bits_8(0);
   }
   return data[ptr_location++];
 }
@@ -94,44 +93,16 @@ auto Reader::Textual::read_flag() -> Bool {
   }
 }
 
-auto Reader::Textual::read_half() -> Half {
+auto Reader::Textual::read_unsigned() -> Bits_64 {
   skip_whitespace();
-  Half value = 0;
-  valid_state &= parse_decimal(data, ptr_location, value);
-  return Half(value);
-}
-
-auto Reader::Textual::read_unsigned_half() -> UHalf {
-  skip_whitespace();
-  UHalf value = 0;
-  valid_state &= parse_decimal(data, ptr_location, value);
-  return UHalf(value);
-}
-
-auto Reader::Textual::read_int() -> Int {
-  skip_whitespace();
-  Int value = 0;
-  valid_state &= parse_decimal(data, ptr_location, value);
-  return Int(value);
-}
-
-auto Reader::Textual::read_unsigned_int() -> UInt {
-  skip_whitespace();
-  UInt value = 0;
-  valid_state &= parse_decimal(data, ptr_location, value);
-  return UInt(value);
-}
-
-auto Reader::Textual::read_long() -> Long {
-  skip_whitespace();
-  Long value = 0;
+  Bits_64 value = 0;
   valid_state &= parse_decimal(data, ptr_location, value);
   return value;
 }
 
-auto Reader::Textual::read_unsigned_long() -> ULong {
+auto Reader::Textual::read_signed() -> Signed_64 {
   skip_whitespace();
-  ULong value = 0;
+  Signed_64 value = 0;
   valid_state &= parse_decimal(data, ptr_location, value);
   return value;
 }
@@ -161,7 +132,7 @@ auto Reader::Textual::read_real() -> Real_64 {
     ptr_location++;
   }
 
-  ULong int_part = 0;
+  Signed_64 int_part = 0;
   if (!parse_decimal(data, ptr_location, int_part)) [[unlikely]] {
     valid_state = False;
     return Real_64(0);
@@ -174,7 +145,7 @@ auto Reader::Textual::read_real() -> Real_64 {
 
     Real_64 frac_mult = 0.1;
     while (ptr_location < data.get_size()) {
-      Byte ch = data[ptr_location];
+      Bits_8 ch = data[ptr_location];
       if (ch < '0' || ch > '9') {
         break;
       }

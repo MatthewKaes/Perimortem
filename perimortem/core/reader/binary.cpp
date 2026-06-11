@@ -98,27 +98,23 @@ auto Reader::Binary<stream_endian>::read_bits_64() -> Bits_64 {
 }
 
 template <Data::ByteOrder stream_endian>
-auto Reader::Binary<stream_endian>::read_signed_bits_8() -> SignedBits_8 {
-  return read_value<stream_endian, SignedBits_8>(
-      data, valid_state, ptr_location);
+auto Reader::Binary<stream_endian>::read_signed_bits_8() -> Signed_8 {
+  return read_value<stream_endian, Signed_8>(data, valid_state, ptr_location);
 }
 
 template <Data::ByteOrder stream_endian>
-auto Reader::Binary<stream_endian>::read_signed_bits_16() -> SignedBits_16 {
-  return read_value<stream_endian, SignedBits_16>(
-      data, valid_state, ptr_location);
+auto Reader::Binary<stream_endian>::read_signed_bits_16() -> Signed_16 {
+  return read_value<stream_endian, Signed_16>(data, valid_state, ptr_location);
 }
 
 template <Data::ByteOrder stream_endian>
-auto Reader::Binary<stream_endian>::read_signed_bits_32() -> SignedBits_32 {
-  return read_value<stream_endian, SignedBits_32>(
-      data, valid_state, ptr_location);
+auto Reader::Binary<stream_endian>::read_signed_bits_32() -> Signed_32 {
+  return read_value<stream_endian, Signed_32>(data, valid_state, ptr_location);
 }
 
 template <Data::ByteOrder stream_endian>
-auto Reader::Binary<stream_endian>::read_signed_bits_64() -> SignedBits_64 {
-  return read_value<stream_endian, SignedBits_64>(
-      data, valid_state, ptr_location);
+auto Reader::Binary<stream_endian>::read_signed_bits_64() -> Signed_64 {
+  return read_value<stream_endian, Signed_64>(data, valid_state, ptr_location);
 }
 
 template <Data::ByteOrder stream_endian>

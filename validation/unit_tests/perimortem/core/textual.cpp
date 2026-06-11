@@ -20,24 +20,24 @@ PERIMORTEM_UNIT_TEST(CoreTextualReader, integers) {
       "-1234 5678 -99999 100000 -1234567890123 9876543210"_view);
 
   EXPECT(reader.is_valid());
-  EXPECT_EQ(reader.read_half(), Half(-1234));
-  EXPECT_EQ(reader.read_unsigned_half(), UHalf(5678));
-  EXPECT_EQ(reader.read_int(), Int(-99999));
-  EXPECT_EQ(reader.read_unsigned_int(), UInt(100000));
-  EXPECT_EQ(reader.read_long(), Long(-1234567890123LL));
-  EXPECT_EQ(reader.read_unsigned_long(), ULong(9876543210ULL));
+  EXPECT_EQ(reader.read_signed(), Signed_64(-1234));
+  EXPECT_EQ(reader.read_signed(), Signed_64(5678));
+  EXPECT_EQ(reader.read_signed(), Signed_64(-99999));
+  EXPECT_EQ(reader.read_signed(), Signed_64(100000));
+  EXPECT_EQ(reader.read_signed(), Signed_64(-1234567890123LL));
+  EXPECT_EQ(reader.read_signed(), Signed_64(9876543210ULL));
 }
 
 PERIMORTEM_UNIT_TEST(CoreTextualReader, integers_and_text) {
   Reader::Textual reader("count: 412010 items"_view);
 
-  EXPECT_EQ(reader.read_byte(), Byte('c'));
+  EXPECT_EQ(reader.read_byte(), Bits_8('c'));
   reader.read_byte();  // 'o'
   reader.read_byte();  // 'u'
   reader.read_byte();  // 'n'
-  EXPECT_EQ(reader.read_byte(), Byte('t'));
+  EXPECT_EQ(reader.read_byte(), Bits_8('t'));
   reader.read_byte();  // ':'
-  EXPECT_EQ(reader.read_unsigned_int(), Int(412010));
+  EXPECT_EQ(reader.read_unsigned(), Bits_64(412010));
   EXPECT(reader.is_valid());
 }
 
@@ -46,8 +46,8 @@ PERIMORTEM_UNIT_TEST(CoreTextualReader, boolean) {
   // that for ABI reasons, and use Bool (proper ABI) for "true"/"false".
   Reader::Textual reader("10truefalseTrueFalse"_view);
 
-  EXPECT_EQ(reader.read_byte(), Byte('1'));
-  EXPECT_EQ(reader.read_byte(), Byte('0'));
+  EXPECT_EQ(reader.read_byte(), Bits_8('1'));
+  EXPECT_EQ(reader.read_byte(), Bits_8('0'));
   EXPECT(reader.read_flag());
   EXPECT_NOT(reader.read_flag());
   EXPECT(reader.read_flag());
@@ -89,25 +89,10 @@ PERIMORTEM_UNIT_TEST(CoreTextualReader, just_whitespace) {
   reader.read_byte();
   EXPECT(reader.is_valid());
   reader.reset();
-  reader.read_flag();
+  reader.read_signed();
   EXPECT_NOT(reader.is_valid());
   reader.reset();
-  reader.read_half();
-  EXPECT_NOT(reader.is_valid());
-  reader.reset();
-  reader.read_unsigned_half();
-  EXPECT_NOT(reader.is_valid());
-  reader.reset();
-  reader.read_int();
-  EXPECT_NOT(reader.is_valid());
-  reader.reset();
-  reader.read_unsigned_int();
-  EXPECT_NOT(reader.is_valid());
-  reader.reset();
-  reader.read_long();
-  EXPECT_NOT(reader.is_valid());
-  reader.reset();
-  reader.read_unsigned_long();
+  reader.read_unsigned();
   EXPECT_NOT(reader.is_valid());
   reader.reset();
   reader.read_real_32();
@@ -120,13 +105,13 @@ PERIMORTEM_UNIT_TEST(CoreTextualReader, just_whitespace) {
 PERIMORTEM_UNIT_TEST(CoreTextualReader, set_pointer) {
   Reader::Textual reader("42 99"_view);
 
-  EXPECT_EQ(reader.read_int(), Int(42));
-  EXPECT_EQ(reader.read_int(), Int(99));
+  EXPECT_EQ(reader.read_signed(), 42);
+  EXPECT_EQ(reader.read_unsigned(), 99);
   EXPECT(reader.is_valid());
 
   reader.set_pointer(0);
-  EXPECT_EQ(reader.read_int(), Int(42));
-  EXPECT_EQ(reader.read_int(), Int(99));
+  EXPECT_EQ(reader.read_unsigned(), 42);
+  EXPECT_EQ(reader.read_signed(), 99);
   EXPECT(reader.is_valid());
 }
 
@@ -140,13 +125,13 @@ PERIMORTEM_UNIT_TEST(CoreTextualReader, multiple_readers) {
   EXPECT_EQ(readers[0].get_location(), Count(1));
   EXPECT_EQ(readers[1].get_location(), Count(1));
 
-  EXPECT_EQ(readers[0].read_int(), 12);
+  EXPECT_EQ(readers[0].read_signed(), 12);
   EXPECT_EQ(readers[0].read_flag(), true);
 
   EXPECT(readers[0].is_valid());
   EXPECT(readers[1].is_valid());
 
-  EXPECT_EQ(readers[1].read_unsigned_int(), 12);
+  EXPECT_EQ(readers[1].read_unsigned(), 12);
   EXPECT_EQ(readers[1].read_flag(), true);
 
   EXPECT(readers[0].is_valid());

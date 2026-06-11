@@ -35,7 +35,7 @@ class Bytes {
   constexpr operator Core::View::Bytes() const { return get_view(); }
   constexpr operator Core::Access::Bytes() { return get_access(); }
 
-  auto append(Byte b) -> void;
+  auto append(Bits_8 b) -> void;
   auto concat(Core::View::Bytes view) -> void;
   auto proxy(Core::View::Bytes view) -> void;
   // Resizes the container but attempts to preserve as much of the original
@@ -57,10 +57,10 @@ class Bytes {
   // equivilant to a clear.
   auto shrink(Count bytes_to_remove) -> void;
 
-  auto operator[](Count index) const -> Byte;
-  auto at(Count index) const -> Byte;
-  auto set(Byte target) -> void;
-  auto convert(Byte source, Byte target) -> void;
+  auto operator[](Count index) const -> Bits_8;
+  auto at(Count index) const -> Bits_8;
+  auto set(Bits_8 target) -> void;
+  auto convert(Bits_8 source, Bits_8 target) -> void;
   auto slice(Count start, Count size) const -> Core::View::Bytes;
 
   constexpr auto get_size() const -> Count { return size; }
@@ -83,7 +83,7 @@ class Bytes {
   auto ensure_capacity(Count required_size) -> void;
 
  private:
-  Byte* source_block = nullptr;
+  Bits_8* source_block = nullptr;
   Count size = 0;
   Count capacity = 0;
 };

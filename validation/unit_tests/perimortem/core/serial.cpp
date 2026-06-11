@@ -29,7 +29,7 @@ PERIMORTEM_UNIT_TEST(CoreSerialReader, regular_values) {
   EXPECT_EQ(reader.read_value(), 0xAB);
   EXPECT_EQ(reader.read_value(), 0x1234);
   EXPECT_EQ(reader.read_value(), 'PERI');
-  EXPECT_EQ(reader.read_value(), Long(0x0123456789ABCDEF));
+  EXPECT_EQ(reader.read_value(), Signed_64(0x0123456789ABCDEF));
   EXPECT(reader.is_valid());
   EXPECT(reader.is_empty());
 }
@@ -47,7 +47,7 @@ PERIMORTEM_UNIT_TEST(CoreSerialReader, negative_values) {
   EXPECT_EQ(reader.read_value(), -0xAB);
   EXPECT_EQ(reader.read_value(), -0x1234);
   EXPECT_EQ(reader.read_value(), -'PERI');
-  EXPECT_EQ(reader.read_value(), Long(-0x0123456789ABCDEF));
+  EXPECT_EQ(reader.read_value(), Signed_64(-0x0123456789ABCDEF));
   EXPECT_EQ(reader.read_value(), 0xFFFFFFFFFFFFFF9C);
   EXPECT(reader.is_valid());
   EXPECT(reader.is_empty());

@@ -107,42 +107,42 @@ auto expected(View::Bytes value, Bool actual) -> void {
   putchar('\n');
 }
 
-auto expected(Half value, Bool actual) -> void {
+auto expected(Bits_16 value, Bool actual) -> void {
   Static::Bytes<32> buf;
   Writer::Textual text(buf.get_access());
   text << (actual ? actual_label : expected_label) << value << "\n"_view;
   fwrite(buf.get_data(), 1, text.get_location(), stdout);
 }
 
-auto expected(UHalf value, Bool actual) -> void {
+auto expected(Bits_32 value, Bool actual) -> void {
   Static::Bytes<32> buf;
   Writer::Textual text(buf.get_access());
   text << (actual ? actual_label : expected_label) << value << "\n"_view;
   fwrite(buf.get_data(), 1, text.get_location(), stdout);
 }
 
-auto expected(Int value, Bool actual) -> void {
+auto expected(Bits_64 value, Bool actual) -> void {
   Static::Bytes<32> buf;
   Writer::Textual text(buf.get_access());
   text << (actual ? actual_label : expected_label) << value << "\n"_view;
   fwrite(buf.get_data(), 1, text.get_location(), stdout);
 }
 
-auto expected(UInt value, Bool actual) -> void {
+auto expected(Signed_16 value, Bool actual) -> void {
   Static::Bytes<32> buf;
   Writer::Textual text(buf.get_access());
   text << (actual ? actual_label : expected_label) << value << "\n"_view;
   fwrite(buf.get_data(), 1, text.get_location(), stdout);
 }
 
-auto expected(Long value, Bool actual) -> void {
+auto expected(Signed_32 value, Bool actual) -> void {
   Static::Bytes<32> buf;
   Writer::Textual text(buf.get_access());
   text << (actual ? actual_label : expected_label) << value << "\n"_view;
   fwrite(buf.get_data(), 1, text.get_location(), stdout);
 }
 
-auto expected(ULong value, Bool actual) -> void {
+auto expected(Signed_64 value, Bool actual) -> void {
   Static::Bytes<32> buf;
   Writer::Textual text(buf.get_access());
   text << (actual ? actual_label : expected_label) << value << "\n"_view;
@@ -150,7 +150,7 @@ auto expected(ULong value, Bool actual) -> void {
 }
 
 auto expected(CppSize value, Bool actual) -> void {
-  expected(ULong(value), actual);
+  expected(Signed_64(value), actual);
 }
 
 auto expected(Real_64 value, Bool actual) -> void {

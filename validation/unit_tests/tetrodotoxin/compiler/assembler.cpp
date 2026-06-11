@@ -26,7 +26,7 @@ PERIMORTEM_UNIT_TEST(Ttxx86_64, inc) {
   x86_64 assembler(machine_code);
   // Perform all the 32 bit operations.
   for (x86_64::Reg reg = x86_64::Reg::EAX; reg <= x86_64::Reg::R15D;
-       reg = x86_64::Reg(Byte(reg) + 1)) {
+       reg = x86_64::Reg(Bits_8(reg) + 1)) {
     assembler.inc(reg);
   }
 
@@ -39,7 +39,7 @@ PERIMORTEM_UNIT_TEST(Ttxx86_64, inc) {
   // Perform all 64 bit operations.
   machine_code.clear();
   for (x86_64::Reg reg = x86_64::Reg::RAX; reg <= x86_64::Reg::R15;
-       reg = x86_64::Reg(Byte(reg) + 1)) {
+       reg = x86_64::Reg(Bits_8(reg) + 1)) {
     assembler.inc(reg);
   }
   EXPECT_HEX(
@@ -54,7 +54,7 @@ PERIMORTEM_UNIT_TEST(Ttxx86_64, dec) {
   x86_64 assembler(machine_code);
   // Perform all the 32 bit operations.
   for (x86_64::Reg reg = x86_64::Reg::EAX; reg <= x86_64::Reg::R15D;
-       reg = x86_64::Reg(Byte(reg) + 1)) {
+       reg = x86_64::Reg(Bits_8(reg) + 1)) {
     assembler.dec(reg);
   }
 
@@ -67,7 +67,7 @@ PERIMORTEM_UNIT_TEST(Ttxx86_64, dec) {
   // Perform all 64 bit operations.
   machine_code.clear();
   for (x86_64::Reg reg = x86_64::Reg::RAX; reg <= x86_64::Reg::R15;
-       reg = x86_64::Reg(Byte(reg) + 1)) {
+       reg = x86_64::Reg(Bits_8(reg) + 1)) {
     assembler.dec(reg);
   }
   EXPECT_HEX(
@@ -82,7 +82,7 @@ PERIMORTEM_UNIT_TEST(Ttxx86_64, zero) {
   x86_64 assembler(machine_code);
   // Perform all the 32 bit operations.
   for (x86_64::Reg reg = x86_64::Reg::EAX; reg <= x86_64::Reg::R15D;
-       reg = x86_64::Reg(Byte(reg) + 1)) {
+       reg = x86_64::Reg(Bits_8(reg) + 1)) {
     assembler.zero(reg);
   }
 
@@ -95,7 +95,7 @@ PERIMORTEM_UNIT_TEST(Ttxx86_64, zero) {
   // Perform all 64 bit operations.
   machine_code.clear();
   for (x86_64::Reg reg = x86_64::Reg::RAX; reg <= x86_64::Reg::R15;
-       reg = x86_64::Reg(Byte(reg) + 1)) {
+       reg = x86_64::Reg(Bits_8(reg) + 1)) {
     assembler.zero(reg);
   }
   // Should be the same as the 64 bit operations.
@@ -111,7 +111,7 @@ PERIMORTEM_UNIT_TEST(Ttxx86_64, one) {
   x86_64 assembler(machine_code);
   // Perform all the 32 bit operations.
   for (x86_64::Reg reg = x86_64::Reg::EAX; reg <= x86_64::Reg::R15D;
-       reg = x86_64::Reg(Byte(reg) + 1)) {
+       reg = x86_64::Reg(Bits_8(reg) + 1)) {
     assembler.one(reg);
   }
 
@@ -126,7 +126,7 @@ PERIMORTEM_UNIT_TEST(Ttxx86_64, one) {
   // Perform all 64 bit operations.
   machine_code.clear();
   for (x86_64::Reg reg = x86_64::Reg::RAX; reg <= x86_64::Reg::R15;
-       reg = x86_64::Reg(Byte(reg) + 1)) {
+       reg = x86_64::Reg(Bits_8(reg) + 1)) {
     assembler.one(reg);
   }
   EXPECT_HEX(
@@ -143,7 +143,7 @@ PERIMORTEM_UNIT_TEST(Ttxx86_64, neg_one) {
   x86_64 assembler(machine_code);
   // Perform all the 32 bit operations.
   for (x86_64::Reg reg = x86_64::Reg::EAX; reg <= x86_64::Reg::R15D;
-       reg = x86_64::Reg(Byte(reg) + 1)) {
+       reg = x86_64::Reg(Bits_8(reg) + 1)) {
     assembler.neg_one(reg);
   }
 
@@ -158,7 +158,7 @@ PERIMORTEM_UNIT_TEST(Ttxx86_64, neg_one) {
   // Perform all 64 bit operations.
   machine_code.clear();
   for (x86_64::Reg reg = x86_64::Reg::RAX; reg <= x86_64::Reg::R15;
-       reg = x86_64::Reg(Byte(reg) + 1)) {
+       reg = x86_64::Reg(Bits_8(reg) + 1)) {
     assembler.neg_one(reg);
   }
   // Neg one can't optimize for the lower 3 bit registers since dec needs to
@@ -176,7 +176,7 @@ PERIMORTEM_UNIT_TEST(Ttxx86_64, mov_reg_to_reg_8bit) {
   Perimortem::Memory::Dynamic::Bytes machine_code;
   x86_64 assembler(machine_code);
   for (x86_64::Reg reg = x86_64::Reg::AL; reg <= x86_64::Reg::R15B;
-       reg = x86_64::Reg(Byte(reg) + 1)) {
+       reg = x86_64::Reg(Bits_8(reg) + 1)) {
     assembler.mov(reg, reg);
   }
   // AL-BL: no REX. SPL-DIL: bare REX 0x40. R8B-R15B: REX.R|REX.B = 0x45.
@@ -222,7 +222,7 @@ PERIMORTEM_UNIT_TEST(Ttxx86_64, mov_reg_to_reg_16bit) {
   Perimortem::Memory::Dynamic::Bytes machine_code;
   x86_64 assembler(machine_code);
   for (x86_64::Reg reg = x86_64::Reg::AX; reg <= x86_64::Reg::R15W;
-       reg = x86_64::Reg(Byte(reg) + 1)) {
+       reg = x86_64::Reg(Bits_8(reg) + 1)) {
     assembler.mov(reg, reg);
   }
   // AX-DI: 0x66 prefix, no REX. R8W-R15W: 0x66 + REX.R|REX.B = 0x45.
@@ -255,7 +255,7 @@ PERIMORTEM_UNIT_TEST(Ttxx86_64, mov_reg_to_reg_32bit) {
   Perimortem::Memory::Dynamic::Bytes machine_code;
   x86_64 assembler(machine_code);
   for (x86_64::Reg reg = x86_64::Reg::EAX; reg <= x86_64::Reg::R15D;
-       reg = x86_64::Reg(Byte(reg) + 1)) {
+       reg = x86_64::Reg(Bits_8(reg) + 1)) {
     assembler.mov(reg, reg);
   }
   // EAX-EDI: no REX prefix. R8D-R15D: REX.R|REX.B = 0x45.
@@ -287,7 +287,7 @@ PERIMORTEM_UNIT_TEST(Ttxx86_64, mov_reg_to_reg_64bit) {
   Perimortem::Memory::Dynamic::Bytes machine_code;
   x86_64 assembler(machine_code);
   for (x86_64::Reg reg = x86_64::Reg::RAX; reg <= x86_64::Reg::R15;
-       reg = x86_64::Reg(Byte(reg) + 1)) {
+       reg = x86_64::Reg(Bits_8(reg) + 1)) {
     assembler.mov(reg, reg);
   }
   // RAX-RDI: REX.W = 0x48. R8-R15: REX.W|REX.R|REX.B = 0x4D.
@@ -320,8 +320,8 @@ PERIMORTEM_UNIT_TEST(Ttxx86_64, mov_r8_imm8) {
   Perimortem::Memory::Dynamic::Bytes machine_code;
   x86_64 assembler(machine_code);
   for (x86_64::Reg reg = x86_64::Reg::AL; reg <= x86_64::Reg::R15B;
-       reg = x86_64::Reg(Byte(reg) + 1)) {
-    assembler.mov(Byte(0x42), reg);
+       reg = x86_64::Reg(Bits_8(reg) + 1)) {
+    assembler.mov(Bits_8(0x42), reg);
   }
   // AL-BL: B0+rd + imm8 (2 bytes). SPL-DIL: bare REX(0x40) + B4+rd + imm8 (3
   // bytes). R8B-R15B: REX.B(0x41) + B0+rd + imm8 (3 bytes).
@@ -337,7 +337,7 @@ PERIMORTEM_UNIT_TEST(Ttxx86_64, mov_r16_imm16) {
   Perimortem::Memory::Dynamic::Bytes machine_code;
   x86_64 assembler(machine_code);
   for (x86_64::Reg reg = x86_64::Reg::AX; reg <= x86_64::Reg::R15W;
-       reg = x86_64::Reg(Byte(reg) + 1)) {
+       reg = x86_64::Reg(Bits_8(reg) + 1)) {
     assembler.mov(Bits_16(0x1234), reg);
   }
   // AX-DI: 0x66 + B8+rd + imm16 (4 bytes). R8W-R15W: 0x66 + REX.B(0x41) + B8+rd
@@ -365,7 +365,7 @@ PERIMORTEM_UNIT_TEST(Ttxx86_64, mov_r32_imm32) {
   Perimortem::Memory::Dynamic::Bytes machine_code;
   x86_64 assembler(machine_code);
   for (x86_64::Reg reg = x86_64::Reg::EAX; reg <= x86_64::Reg::R15D;
-       reg = x86_64::Reg(Byte(reg) + 1)) {
+       reg = x86_64::Reg(Bits_8(reg) + 1)) {
     assembler.mov(Bits_32(0x12345678), reg);
   }
   // EAX-EDI: B8+rd, imm32 (5 bytes). R8D-R15D: REX.B(0x41) + B8+rd, imm32 (6
@@ -480,15 +480,15 @@ PERIMORTEM_UNIT_TEST(Ttxx86_64, mov_store_to_memory) {
   Perimortem::Memory::Dynamic::Bytes machine_code;
   x86_64 assembler(machine_code);
   // Store RAX to [RBX] — no displacement
-  assembler.mov(x86_64::Reg::RAX, x86_64::Reg::RBX, SignedBits_32(0));
+  assembler.mov(x86_64::Reg::RAX, x86_64::Reg::RBX, Signed_32(0));
   // Store RAX to [RBX+8] — 8-bit displacement
-  assembler.mov(x86_64::Reg::RAX, x86_64::Reg::RBX, SignedBits_32(8));
+  assembler.mov(x86_64::Reg::RAX, x86_64::Reg::RBX, Signed_32(8));
   // Store RAX to [RBP+0] — RBP forces 8-bit disp even when disp=0
-  assembler.mov(x86_64::Reg::RAX, x86_64::Reg::RBP, SignedBits_32(0));
+  assembler.mov(x86_64::Reg::RAX, x86_64::Reg::RBP, Signed_32(0));
   // Store RAX to [RSP+8] — RSP requires SIB byte
-  assembler.mov(x86_64::Reg::RAX, x86_64::Reg::RSP, SignedBits_32(8));
+  assembler.mov(x86_64::Reg::RAX, x86_64::Reg::RSP, Signed_32(8));
   // Store R8 to [RBX+8] — extended source register
-  assembler.mov(x86_64::Reg::R8, x86_64::Reg::RBX, SignedBits_32(8));
+  assembler.mov(x86_64::Reg::R8, x86_64::Reg::RBX, Signed_32(8));
   EXPECT_HEX(
       machine_code,
       "\x48\x89\x03"             // RAX → [RBX]
@@ -502,13 +502,13 @@ PERIMORTEM_UNIT_TEST(Ttxx86_64, mov_load_from_memory) {
   Perimortem::Memory::Dynamic::Bytes machine_code;
   x86_64 assembler(machine_code);
   // Load [RBX] to RAX — no displacement
-  assembler.mov(x86_64::Reg::RBX, SignedBits_32(0), x86_64::Reg::RAX);
+  assembler.mov(x86_64::Reg::RBX, Signed_32(0), x86_64::Reg::RAX);
   // Load [RBX+8] to RAX — 8-bit displacement
-  assembler.mov(x86_64::Reg::RBX, SignedBits_32(8), x86_64::Reg::RAX);
+  assembler.mov(x86_64::Reg::RBX, Signed_32(8), x86_64::Reg::RAX);
   // Load [RSP+8] to RAX — RSP base requires SIB byte
-  assembler.mov(x86_64::Reg::RSP, SignedBits_32(8), x86_64::Reg::RAX);
+  assembler.mov(x86_64::Reg::RSP, Signed_32(8), x86_64::Reg::RAX);
   // Load [R8+8] to RAX — extended base register
-  assembler.mov(x86_64::Reg::R8, SignedBits_32(8), x86_64::Reg::RAX);
+  assembler.mov(x86_64::Reg::R8, Signed_32(8), x86_64::Reg::RAX);
   EXPECT_HEX(
       machine_code,
       "\x48\x8B\x03"             // [RBX] → RAX

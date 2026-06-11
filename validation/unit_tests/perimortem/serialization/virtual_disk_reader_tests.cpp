@@ -51,11 +51,11 @@
 //   static void SetUpTestSuite() {
 //     script = "# Test Script Data";
 //     script_path = "test/test_script.ttx";
-//     script_view = {(Byte*)script.data(), script.size()};
+//     script_view = {(Bits_8*)script.data(), script.size()};
 
 //     txt = "A bunch of test information which you might want to have
 //     streamed!"; txt_path = "test_data/nested/example.txt"; txt_view =
-//     {(Byte*)txt.data(), txt.size()};
+//     {(Bits_8*)txt.data(), txt.size()};
 
 //     logo_svg = read_all_bytes(".data/icon.svg");
 //     logo_svg_path = ".data/icon.svg";

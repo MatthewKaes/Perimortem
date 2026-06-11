@@ -115,7 +115,7 @@ constexpr auto write_decimal(
     return true;
   }
 
-  Byte* out = data.get_data() + ptr_location;
+  Bits_8* out = data.get_data() + ptr_location;
   storage_type abs_value;
   Count digits = length;
 
@@ -141,7 +141,7 @@ constexpr auto write_decimal(
   }
 
   if (abs_value > 0) {
-    out[0] = '0' + Byte(abs_value);
+    out[0] = '0' + Bits_8(abs_value);
   }
 
   ptr_location += length;
@@ -150,15 +150,6 @@ constexpr auto write_decimal(
 
 auto Writer::Textual::set_pointer(Count location) -> void {
   ptr_location = location;
-}
-
-auto Writer::Textual::operator<<(const Byte character) -> Writer::Textual& {
-  valid_state &= ptr_location < data.get_size();
-  if (valid_state) {
-    data.get_data()[ptr_location++] = character;
-  }
-
-  return *this;
 }
 
 auto Writer::Textual::operator<<(const Bool flag) -> Writer::Textual& {
@@ -171,45 +162,55 @@ auto Writer::Textual::operator<<(const Bool flag) -> Writer::Textual& {
   return *this;
 }
 
-auto Writer::Textual::operator<<(const Half half) -> Writer::Textual& {
+auto Writer::Textual::operator<<(const Bits_8 value) -> Writer::Textual& {
   valid_state &= write_decimal(
-      data, ptr_location, half, decimal_length<Half, UHalf>(half));
+      data, ptr_location, value, decimal_length<Bits_8, Bits_8>(value));
+
   return *this;
 }
 
-auto Writer::Textual::operator<<(const UHalf unsigned_half)
-    -> Writer::Textual& {
+auto Writer::Textual::operator<<(const Bits_16 value) -> Writer::Textual& {
   valid_state &= write_decimal(
-      data, ptr_location, unsigned_half,
-      decimal_length<UHalf, UHalf>(unsigned_half));
+      data, ptr_location, value, decimal_length<Bits_16, Bits_16>(value));
   return *this;
 }
 
-auto Writer::Textual::operator<<(const Int integer) -> Writer::Textual& {
+auto Writer::Textual::operator<<(const Bits_32 value) -> Writer::Textual& {
   valid_state &= write_decimal(
-      data, ptr_location, integer, decimal_length<Int, UInt>(integer));
+      data, ptr_location, value, decimal_length<Bits_32, Bits_32>(value));
   return *this;
 }
 
-auto Writer::Textual::operator<<(const UInt unsigned_integer)
-    -> Writer::Textual& {
+auto Writer::Textual::operator<<(const Bits_64 value) -> Writer::Textual& {
   valid_state &= write_decimal(
-      data, ptr_location, unsigned_integer,
-      decimal_length<UInt, UInt>(unsigned_integer));
+      data, ptr_location, value, decimal_length<Bits_64, Bits_64>(value));
   return *this;
 }
 
-auto Writer::Textual::operator<<(const Long full) -> Writer::Textual& {
-  valid_state &= write_decimal(
-      data, ptr_location, full, decimal_length<Long, ULong>(full));
+auto Writer::Textual::operator<<(const Signed_8 character) -> Writer::Textual& {
+  valid_state &= ptr_location < data.get_size();
+  if (valid_state) {
+    data.get_data()[ptr_location++] = character;
+  }
+
   return *this;
 }
 
-auto Writer::Textual::operator<<(const ULong unsigned_full)
-    -> Writer::Textual& {
+auto Writer::Textual::operator<<(const Signed_16 value) -> Writer::Textual& {
   valid_state &= write_decimal(
-      data, ptr_location, unsigned_full,
-      decimal_length<ULong, ULong>(unsigned_full));
+      data, ptr_location, value, decimal_length<Signed_16, Bits_16>(value));
+  return *this;
+}
+
+auto Writer::Textual::operator<<(const Signed_32 value) -> Writer::Textual& {
+  valid_state &= write_decimal(
+      data, ptr_location, value, decimal_length<Signed_32, Bits_32>(value));
+  return *this;
+}
+
+auto Writer::Textual::operator<<(const Signed_64 value) -> Writer::Textual& {
+  valid_state &= write_decimal(
+      data, ptr_location, value, decimal_length<Signed_64, Bits_64>(value));
   return *this;
 }
 
@@ -231,8 +232,8 @@ auto Writer::Textual::write_real(Real_64 real, Real_64 precision) -> void {
   }
 
   constexpr auto max_length = 32;
-  SignedBits_64 decimal_portion = SignedBits_64(real);
-  auto length = decimal_length<Long, ULong>(decimal_portion);
+  Signed_64 decimal_portion = Signed_64(real);
+  auto length = decimal_length<Signed_64, Signed_64>(decimal_portion);
   valid_state &= write_decimal(data, ptr_location, decimal_portion, length);
 
   valid_state &= ptr_location < data.get_size();
@@ -270,7 +271,7 @@ auto Writer::Textual::write_real(Real_64 real, Real_64 precision) -> void {
     fract *= 10;
     precision *= 10;
     length += 1;
-    Byte value = Byte(fract);
+    Bits_8 value = Bits_8(fract);
     fract -= value;
 
     // Deal with percision rolloff.

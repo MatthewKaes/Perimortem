@@ -17,12 +17,12 @@ class Symbol {
   using Range = Perimortem::Utility::Range;
 
  public:
-  enum class Visability : Byte {
+  enum class Visability : Bits_8 {
     Local = 0,
     Global = 1,
   };
 
-  enum class Type : Byte {
+  enum class Type : Bits_8 {
     None = 0,
     Object = 1,
     Func = 2,

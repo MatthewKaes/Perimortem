@@ -26,14 +26,10 @@ class Textual {
   // If the index is out of range the pointer is put to the end of the buffer.
   auto set_pointer(Count location) -> void;
 
-  auto read_byte() -> Byte;
+  auto read_byte() -> Bits_8;
   auto read_flag() -> Bool;
-  auto read_half() -> Half;
-  auto read_unsigned_half() -> UHalf;
-  auto read_int() -> Int;
-  auto read_unsigned_int() -> UInt;
-  auto read_long() -> Long;
-  auto read_unsigned_long() -> ULong;
+  auto read_unsigned() -> Bits_64;
+  auto read_signed() -> Signed_64;
   auto read_real_32() -> Real_32;
   auto read_real_64() -> Real_64;
 

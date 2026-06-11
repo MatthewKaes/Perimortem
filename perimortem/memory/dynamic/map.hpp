@@ -170,7 +170,7 @@ class Map {
   ~Map() {
     if (buffer_data.bucket_buffer) {
       destruct();
-      Core::Bibliotheca::remit((Byte*)buffer_data.bucket_buffer);
+      Core::Bibliotheca::remit((Bits_8*)buffer_data.bucket_buffer);
     }
   }
 
@@ -402,7 +402,7 @@ class Map {
     } else {
       auto occupancy_count = __builtin_popcountg(occupancy_bits);
       auto target_bucket = buckets + bi;
-      reinterpret_cast<Byte*>(target_bucket)[occupancy_count] = vi;
+      Core::Data::cast<Bits_8>(target_bucket)[occupancy_count] = vi;
       return slots + (bi * bucket_size) + occupancy_count;
     }
   }
@@ -414,7 +414,7 @@ class Map {
     auto empty_slot = get_empty(hash);
 
     // Copy over the element, ignoring and construction or destruction.
-    memcpy(reinterpret_cast<void*>(empty_slot), slot, sizeof(slot_type));
+    memcpy(Core::Data::cast<void>(empty_slot), slot, sizeof(slot_type));
   }
 
   auto destruct() -> void {
@@ -484,7 +484,7 @@ class Map {
 
     // Remit the old block.
     if (current_buffer.bucket_buffer) {
-      Core::Bibliotheca::remit((Byte*)current_buffer.bucket_buffer);
+      Core::Bibliotheca::remit((Bits_8*)current_buffer.bucket_buffer);
     }
     buffer_data.size = current_buffer.size;
   }
@@ -589,11 +589,11 @@ class Map {
     new_buffer.total_byte_capacity = alloc.capacity;
 
     // Blocks from the Bibliotheca are always 64 byte aligned.
-    new_buffer.bucket_buffer = reinterpret_cast<vectorize_type*>(alloc.ptr);
+    new_buffer.bucket_buffer = Core::Data::cast<vectorize_type>(alloc.ptr);
     // slot_type data is everything directly after the bucket count.
     // This keeps us 32 byte aligned which should be good for any types.
     new_buffer.slots_buffer =
-        reinterpret_cast<slot_type*>(new_buffer.bucket_buffer + buckets);
+        Core::Data::cast<slot_type>(new_buffer.bucket_buffer + buckets);
 
     for (Count i = 0; i < buckets; i++) {
       clear_bucket(new_buffer.bucket_buffer + i);

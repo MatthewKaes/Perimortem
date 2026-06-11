@@ -76,7 +76,7 @@ class Vector {
   auto reset() -> void {
     if (source_block) {
       destruct();
-      Core::Bibliotheca::remit((Byte*)source_block);
+      Core::Bibliotheca::remit((Bits_8*)source_block);
     }
 
     size = 0;
@@ -127,11 +127,11 @@ class Vector {
     }
 
     if (source_block) {
-      Core::Bibliotheca::remit((Byte*)source_block);
+      Core::Bibliotheca::remit((Bits_8*)source_block);
     }
 
     auto alloc = Core::Bibliotheca::check_out(required_size * sizeof(type));
-    source_block = reinterpret_cast<type*>(alloc.ptr);
+    source_block = Core::Data::cast<type>(alloc.ptr);
     capacity = alloc.capacity / sizeof(type);
   }
 
@@ -182,11 +182,11 @@ class Vector {
 
     // Fetch and transfer to new block.
     auto alloc = Core::Bibliotheca::check_out(new_capacity * sizeof(type));
-    auto new_block = reinterpret_cast<type*>(alloc.ptr);
+    auto new_block = Core::Data::cast<type>(alloc.ptr);
 
     if (source_block) {
       memcpy(new_block, source_block, sizeof(type) * size);
-      Core::Bibliotheca::remit((Byte*)source_block);
+      Core::Bibliotheca::remit((Bits_8*)source_block);
     }
 
     // Update block and get the new capacity.

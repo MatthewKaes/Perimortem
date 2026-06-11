@@ -12,7 +12,7 @@ using namespace Perimortem::Core;
 
 // Gives the number of bits to shift to get the minimum containing size.
 constexpr auto log2_pre_shift(Bits_64 value) -> Bits_64 {
-  return 64 - __builtin_clzg(value - 1, Int(sizeof(Bits_64) * 8));
+  return 64 - __builtin_clzg(value - 1, Signed_32(sizeof(Bits_64) * 8));
 }
 
 // If Count is 64 bits then limit us to some level below the 256 TB limits.
@@ -49,8 +49,8 @@ struct alignas(64) Slab {
   // Note that all slabs from the Bibliotheca are `2 ^ N + 64` size where N is
   // at minimum 6 so allocs are always 64 byte aligned which is sufficient for
   // all resonable types so we never have to pay for caculating alignment.
-  auto alloc(Count bytes) -> Byte* {
-    auto location = reinterpret_cast<Byte*>(this) + bump_ptr;
+  auto alloc(Count bytes) -> Bits_8* {
+    auto location = Data::cast<Bits_8>(this) + bump_ptr;
     bump_ptr += bytes;
     return location;
   }
@@ -93,7 +93,7 @@ auto get_slab(Count block_size) -> Slab* {
     }
   }
 
-  Slab* slab = reinterpret_cast<Slab*>(ptr);
+  Slab* slab = Data::cast<Slab>(ptr);
   slab->mapped_size = size;
   slab->ancestor = nullptr;
   slab->bump_ptr = sizeof(Slab);
@@ -229,7 +229,7 @@ class Librarian {
       manage_inventory(bytes);
     }
 
-    Preface* entry = reinterpret_cast<Preface*>(inventory->alloc(bytes));
+    Preface* entry = Data::cast<Preface>(inventory->alloc(bytes));
     return entry;
   }
 
@@ -260,13 +260,13 @@ constexpr auto archive_page_width(Bits_8 index) -> Count {
 }
 
 // The preface is stored 16 bytes before the corpus block.
-auto corpus_to_preface(Byte* entry) -> Preface* {
-  return reinterpret_cast<Preface*>(entry) - 1;
+auto corpus_to_preface(Bits_8* entry) -> Preface* {
+  return Data::cast<Preface>(entry) - 1;
 }
 
 // The preface is stored 16 bytes before the corpus block.
-auto preface_to_corpus(Preface* entry) -> Byte* {
-  return reinterpret_cast<Byte*>(entry + 1);
+auto preface_to_corpus(Preface* entry) -> Bits_8* {
+  return Data::cast<Bits_8>(entry + 1);
 }
 
 auto Bibliotheca::check_out(Count requested_bytes) -> Allocation {
@@ -318,12 +318,12 @@ auto Bibliotheca::check_out(Count requested_bytes) -> Allocation {
     .ptr = preface_to_corpus(entry), .capacity = entry->get_usable_bytes()};
 }
 
-auto Bibliotheca::reserve(Byte* data) -> Count {
+auto Bibliotheca::reserve(Bits_8* data) -> Count {
   auto entry = corpus_to_preface(data);
   return entry->reservations++;
 }
 
-auto Bibliotheca::remit(Byte* data) -> Count {
+auto Bibliotheca::remit(Bits_8* data) -> Count {
   auto entry = corpus_to_preface(data);
   entry->reservations--;
 

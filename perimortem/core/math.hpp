@@ -34,7 +34,7 @@ constexpr auto absolute(type a) -> type {
 }
 
 constexpr auto log2(Bits_64 value) -> Bits_64 {
-  return 64 - __builtin_clzg(value, Int(sizeof(Bits_64) * 8));
+  return 64 - __builtin_clzg(value, Signed_32(sizeof(Bits_64) * 8));
 }
 
 constexpr auto sqrt(Real_64 value) -> Real_64 {

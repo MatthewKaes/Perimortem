@@ -10,7 +10,7 @@
 namespace Perimortem::System {
 
 class Uuid {
-  static constexpr auto ascii_to_nibble(Byte byte) -> Bits_64 {
+  static constexpr auto ascii_to_nibble(Bits_8 byte) -> Bits_64 {
     switch (byte) {
     case '0' ... '9':
       return byte - '0';

@@ -27,16 +27,17 @@ class Textual {
   // buffer.
   auto set_pointer(Count location) -> void;
 
-  auto operator<<(const Byte character) -> Textual&;
   auto operator<<(const Bool flag) -> Textual&;
-  auto operator<<(const Half half) -> Textual&;
-  auto operator<<(const UHalf unsigned_half) -> Textual&;
-  auto operator<<(const Int integer) -> Textual&;
-  auto operator<<(const UInt unsigned_integer) -> Textual&;
-  auto operator<<(const Long full) -> Textual&;
-  auto operator<<(const ULong unsigned_full) -> Textual&;
-  auto operator<<(const Real_32 real_32) -> Textual&;
-  auto operator<<(const Real_64 real_64) -> Textual&;
+  auto operator<<(const Bits_8 byte) -> Textual&;
+  auto operator<<(const Bits_16 value) -> Textual&;
+  auto operator<<(const Bits_32 value) -> Textual&;
+  auto operator<<(const Bits_64 value) -> Textual&;
+  auto operator<<(const Signed_8 value) -> Textual&;
+  auto operator<<(const Signed_16 value) -> Textual&;
+  auto operator<<(const Signed_32 value) -> Textual&;
+  auto operator<<(const Signed_64 value) -> Textual&;
+  auto operator<<(const Real_32 value) -> Textual&;
+  auto operator<<(const Real_64 value) -> Textual&;
   auto operator<<(const View::Bytes raw) -> Textual&;
 
   constexpr auto get_size() const -> Count { return data.get_size(); }

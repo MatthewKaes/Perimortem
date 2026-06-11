@@ -110,29 +110,25 @@ auto Writer::Binary<stream_endian>::operator<<(const Bits_64 bin) -> Binary& {
 }
 
 template <Data::ByteOrder stream_endian>
-auto Writer::Binary<stream_endian>::operator<<(const SignedBits_8 bin)
-    -> Binary& {
+auto Writer::Binary<stream_endian>::operator<<(const Signed_8 bin) -> Binary& {
   valid_state &= write_value<stream_endian>(data, ptr_location, bin);
   return *this;
 }
 
 template <Data::ByteOrder stream_endian>
-auto Writer::Binary<stream_endian>::operator<<(const SignedBits_16 bin)
-    -> Binary& {
+auto Writer::Binary<stream_endian>::operator<<(const Signed_16 bin) -> Binary& {
   valid_state &= write_value<stream_endian>(data, ptr_location, bin);
   return *this;
 }
 
 template <Data::ByteOrder stream_endian>
-auto Writer::Binary<stream_endian>::operator<<(const SignedBits_32 bin)
-    -> Binary& {
+auto Writer::Binary<stream_endian>::operator<<(const Signed_32 bin) -> Binary& {
   valid_state &= write_value<stream_endian>(data, ptr_location, bin);
   return *this;
 }
 
 template <Data::ByteOrder stream_endian>
-auto Writer::Binary<stream_endian>::operator<<(const SignedBits_64 bin)
-    -> Binary& {
+auto Writer::Binary<stream_endian>::operator<<(const Signed_64 bin) -> Binary& {
   valid_state &= write_value<stream_endian>(data, ptr_location, bin);
   return *this;
 }
@@ -191,28 +187,28 @@ auto Writer::Binary<stream_endian>::operator<<(const View::Vector<Bits_64> blob)
 
 template <Data::ByteOrder stream_endian>
 auto Writer::Binary<stream_endian>::operator<<(
-    const View::Vector<SignedBits_8> blob) -> Binary& {
+    const View::Vector<Signed_8> blob) -> Binary& {
   valid_state &= write_vector<stream_endian>(data, ptr_location, blob);
   return *this;
 }
 
 template <Data::ByteOrder stream_endian>
 auto Writer::Binary<stream_endian>::operator<<(
-    const View::Vector<SignedBits_16> blob) -> Binary& {
+    const View::Vector<Signed_16> blob) -> Binary& {
   valid_state &= write_vector<stream_endian>(data, ptr_location, blob);
   return *this;
 }
 
 template <Data::ByteOrder stream_endian>
 auto Writer::Binary<stream_endian>::operator<<(
-    const View::Vector<SignedBits_32> blob) -> Binary& {
+    const View::Vector<Signed_32> blob) -> Binary& {
   valid_state &= write_vector<stream_endian>(data, ptr_location, blob);
   return *this;
 }
 
 template <Data::ByteOrder stream_endian>
 auto Writer::Binary<stream_endian>::operator<<(
-    const View::Vector<SignedBits_64> blob) -> Binary& {
+    const View::Vector<Signed_64> blob) -> Binary& {
   valid_state &= write_vector<stream_endian>(data, ptr_location, blob);
   return *this;
 }

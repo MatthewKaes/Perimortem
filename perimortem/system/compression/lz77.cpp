@@ -32,9 +32,11 @@ constexpr auto compute_hash(Static::Bytes<3> data) -> Count {
 
 // Compare source[pos..] against source[candidate..] up to scan_limit bytes,
 // looking for instances of duplication in earlier parts of the source input.
-constexpr auto
-    extend_match(const Byte* data, Count pos, Count candidate, Count scan_limit)
-        -> Count {
+constexpr auto extend_match(
+    const Bits_8* data,
+    Count pos,
+    Count candidate,
+    Count scan_limit) -> Count {
   // Do a vectorized scan until we find at least one byte that doesn't match.
   // Unrolling the loop fully causes short lengths to suffer. Two checks fit
   // nicely in a single 64 bit mask emulating AVX512 so we go with that.
@@ -106,10 +108,10 @@ Compression::Lz77::Lz77() {
 
 auto Compression::Lz77::reset() -> void {
   Data::set(
-      Data::cast<Byte>(hash_table.get_data()), Byte(0xFF),
+      Data::cast<Bits_8>(hash_table.get_data()), Bits_8(0xFF),
       hash_size * sizeof(Bits_32));
   Data::set(
-      Data::cast<Byte>(chain_table.get_data()), Byte(0xFF),
+      Data::cast<Bits_8>(chain_table.get_data()), Bits_8(0xFF),
       window_size * sizeof(Bits_32));
 }
 
@@ -127,7 +129,7 @@ auto Compression::Lz77::find_match_and_insert(
     View::Bytes source,
     Count pos,
     Count depth) -> Match {
-  const Byte* data = source.get_data();
+  const Bits_8* data = source.get_data();
   const Count remaining = source.get_size() - pos;
 
   // Only perform a match if we have enough bytes for it to be worthwhile.
@@ -173,7 +175,7 @@ auto Compression::Lz77::find_match_and_insert(
 
 auto Compression::Lz77::find_match(View::Bytes source, Count pos, Count depth)
     const -> Match {
-  const Byte* data = source.get_data();
+  const Bits_8* data = source.get_data();
   const Count remaining = source.get_size() - pos;
 
   // Only perform a match if we have enough bytes for it to be worthwhile.

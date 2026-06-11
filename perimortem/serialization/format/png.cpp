@@ -161,7 +161,7 @@ constexpr auto read_chunk(View::Bytes source, Count offset) -> Chunk {
   if (offset + chunk_metadata_size > source.get_size()) [[unlikely]] {
     Static::Bytes<96> error_buffer;
     Writer::Textual log_writer(error_buffer.get_access());
-    log_writer << "Png: Chunk at offset "_view << ULong(offset)
+    log_writer << "Png: Chunk at offset "_view << Signed_64(offset)
                << " truncated before header end"_view;
     Diagnostics::Log::error(log_writer);
     return Chunk();
@@ -174,8 +174,8 @@ constexpr auto read_chunk(View::Bytes source, Count offset) -> Chunk {
   if (offset + chunk_metadata_size + length > source.get_size()) [[unlikely]] {
     Static::Bytes<128> error_buffer;
     Writer::Textual log_writer(error_buffer.get_access());
-    log_writer << "Png: Chunk at offset "_view << ULong(offset)
-               << " with length "_view << ULong(length)
+    log_writer << "Png: Chunk at offset "_view << Signed_64(offset)
+               << " with length "_view << Signed_64(length)
                << " extends past end of stream"_view;
     Diagnostics::Log::error(log_writer);
     return Chunk();
@@ -197,7 +197,7 @@ constexpr auto read_chunk(View::Bytes source, Count offset) -> Chunk {
     Static::Bytes<96> error_buffer;
     Writer::Textual log_writer(error_buffer.get_access());
     log_writer << "Png: CRC-32 mismatch for chunk '"_view << type.get_view()
-               << "' at offset "_view << ULong(offset);
+               << "' at offset "_view << Signed_64(offset);
     Diagnostics::Log::error(log_writer);
     return Chunk();
   }
@@ -240,14 +240,14 @@ constexpr auto write_chunk(
 // extrapolation using the left, upper, and upper left pixels and returning the
 // value closest to the current pixel.
 constexpr auto paeth_predictor(Static::Vector<Bits_8, 3> pixels) -> Bits_8 {
-  SignedBits_16 left = SignedBits_16(pixels[0]);
-  SignedBits_16 up = SignedBits_16(pixels[1]);
-  SignedBits_16 upper_left = SignedBits_16(pixels[2]);
-  SignedBits_16 predictor = left + up - upper_left;
+  Signed_16 left = Signed_16(pixels[0]);
+  Signed_16 up = Signed_16(pixels[1]);
+  Signed_16 upper_left = Signed_16(pixels[2]);
+  Signed_16 predictor = left + up - upper_left;
 
-  SignedBits_16 score_left = Math::absolute(predictor - left);
-  SignedBits_16 score_up = Math::absolute(predictor - up);
-  SignedBits_16 score_upper_left = Math::absolute(predictor - upper_left);
+  Signed_16 score_left = Math::absolute(predictor - left);
+  Signed_16 score_up = Math::absolute(predictor - up);
+  Signed_16 score_upper_left = Math::absolute(predictor - upper_left);
 
   if (score_left <= score_up && score_left <= score_upper_left) {
     return pixels[0];
@@ -265,7 +265,7 @@ constexpr auto paeth_predictor(Static::Vector<Bits_8, 3> pixels) -> Bits_8 {
 // estimate for compressibility.
 template <Bool first_row>
 auto score_row(View::Bytes current, View::Bytes prev) -> FilterType {
-  constexpr auto signed_abs = Math::absolute<SignedBits_8>;
+  constexpr auto signed_abs = Math::absolute<Signed_8>;
   constexpr auto filter_count = first_row ? 2 : 5;
   Static::Vector<Bits_64, filter_count> scores;
 
@@ -274,10 +274,8 @@ auto score_row(View::Bytes current, View::Bytes prev) -> FilterType {
 
   // Process the first column of data.
   for (Count i = 0; i < Graphics::Image::get_channel_count(); i++) {
-    scores[Bits_8(FilterType::None)] +=
-        signed_abs(SignedBits_8(current_data[i]));
-    scores[Bits_8(FilterType::Sub)] +=
-        signed_abs(SignedBits_8(current_data[i]));
+    scores[Bits_8(FilterType::None)] += signed_abs(Signed_8(current_data[i]));
+    scores[Bits_8(FilterType::Sub)] += signed_abs(Signed_8(current_data[i]));
 
     if constexpr (!first_row) {
       Bits_8 up = prev_data[i];
@@ -291,10 +289,9 @@ auto score_row(View::Bytes current, View::Bytes prev) -> FilterType {
   for (Count i = Graphics::Image::get_channel_count(); i < current.get_size();
        i++) {
     Bits_8 left = current_data[i - Graphics::Image::get_channel_count()];
-    scores[Bits_8(FilterType::None)] +=
-        signed_abs(SignedBits_8(current_data[i]));
+    scores[Bits_8(FilterType::None)] += signed_abs(Signed_8(current_data[i]));
     scores[Bits_8(FilterType::Sub)] +=
-        Math::absolute<SignedBits_8>(current_data[i] - left);
+        Math::absolute<Signed_8>(current_data[i] - left);
     if constexpr (!first_row) {
       Bits_8 up = prev_data[i];
       Bits_8 upper_left = prev_data[i - Graphics::Image::get_channel_count()];
@@ -531,7 +528,7 @@ auto reconstruct_row(
   default: {
     Static::Bytes<64> error_buffer;
     Writer::Textual log_writer(error_buffer.get_access());
-    log_writer << "Png: Unknown filter type "_view << UInt(Bits_8(filter_type));
+    log_writer << "Png: Unknown filter type "_view << Bits_32(filter_type);
     Diagnostics::Log::error(log_writer);
     return False;
   }
@@ -623,10 +620,10 @@ constexpr auto convert_to_pixels(
       if (palette_offset + 3 > palette.get_size()) [[unlikely]] {
         Static::Bytes<128> error_buffer;
         Writer::Textual log_writer(error_buffer.get_access());
-        log_writer << "Png: Palette index "_view << UInt(palette_index)
-                   << " at pixel "_view << ULong(pixel_index)
+        log_writer << "Png: Palette index "_view << Bits_32(palette_index)
+                   << " at pixel "_view << Signed_64(pixel_index)
                    << " exceeds palette size "_view
-                   << ULong(palette.get_size() / 3);
+                   << Signed_64(palette.get_size() / 3);
         Diagnostics::Log::error(log_writer);
         return False;
       }
@@ -690,7 +687,7 @@ constexpr auto read_header(const View::Bytes source) -> ImageInfo {
     Static::Bytes<96> error_buffer;
     Writer::Textual log_writer(error_buffer.get_access());
     log_writer << "Png: Unsupported bit depth "_view
-               << UInt(image_info.get_bit_depth())
+               << Bits_32(image_info.get_bit_depth())
                << " (only 8 bit is supported)"_view;
     Diagnostics::Log::error(log_writer);
 
@@ -701,8 +698,7 @@ constexpr auto read_header(const View::Bytes source) -> ImageInfo {
   if (number_of_color_channels(color_type) == 0) [[unlikely]] {
     Static::Bytes<96> error_buffer;
     Writer::Textual log_writer(error_buffer.get_access());
-    log_writer << "Png: Unsupported color type "_view
-               << UInt(Bits_8(color_type));
+    log_writer << "Png: Unsupported color type "_view << Bits_32(color_type);
     Diagnostics::Log::error(log_writer);
     return ImageInfo();
   }
@@ -865,7 +861,7 @@ auto Format::Png::encode(const Graphics::Image& image) -> Dynamic::Bytes {
   Count write_position = png_signature.get_size();
   write_chunk(
       data, write_position, "IHDR"_view,
-      View::Bytes(Data::cast<Byte>(&header), ImageInfo::size));
+      View::Bytes(Data::cast<Bits_8>(&header), ImageInfo::size));
   write_chunk(data, write_position, "IDAT"_view, compressed.get_view());
   write_chunk(data, write_position, "IEND"_view, View::Bytes());
 

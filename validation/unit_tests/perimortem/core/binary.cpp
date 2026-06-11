@@ -44,10 +44,10 @@ PERIMORTEM_UNIT_TEST(CoreBinaryReader, little_endian_signed) {
       "\x00\x36\x65\xC4\xFF\xFF\xFF\xFF"_view);
   Reader reader(aligned_source);
 
-  EXPECT_EQ(reader.read_signed_bits_8(), SignedBits_8(-42));
-  EXPECT_EQ(reader.read_signed_bits_16(), SignedBits_16(-1000));
-  EXPECT_EQ(reader.read_signed_bits_32(), SignedBits_32(-100000));
-  EXPECT_EQ(reader.read_signed_bits_64(), SignedBits_64(-1000000000LL));
+  EXPECT_EQ(reader.read_signed_bits_8(), Signed_8(-42));
+  EXPECT_EQ(reader.read_signed_bits_16(), Signed_16(-1000));
+  EXPECT_EQ(reader.read_signed_bits_32(), Signed_32(-100000));
+  EXPECT_EQ(reader.read_signed_bits_64(), Signed_64(-1000000000LL));
   EXPECT(reader.is_valid());
 }
 
@@ -93,10 +93,10 @@ PERIMORTEM_UNIT_TEST(CoreBinaryReader, big_endian_signed) {
       "\xFF\xFF\xFF\xFF\xC4\x65\x36\x00"_view);
   Reader reader(aligned_source);
 
-  EXPECT_EQ(reader.read_signed_bits_8(), SignedBits_8(-42));
-  EXPECT_EQ(reader.read_signed_bits_16(), SignedBits_16(-1000));
-  EXPECT_EQ(reader.read_signed_bits_32(), SignedBits_32(-100000));
-  EXPECT_EQ(reader.read_signed_bits_64(), SignedBits_64(-1000000000LL));
+  EXPECT_EQ(reader.read_signed_bits_8(), Signed_8(-42));
+  EXPECT_EQ(reader.read_signed_bits_16(), Signed_16(-1000));
+  EXPECT_EQ(reader.read_signed_bits_32(), Signed_32(-100000));
+  EXPECT_EQ(reader.read_signed_bits_64(), Signed_64(-1000000000LL));
   EXPECT(reader.is_valid());
 }
 
@@ -160,12 +160,12 @@ PERIMORTEM_UNIT_TEST(CoreBinaryReader, multiple_readers) {
   Reader readers[] = {Reader(aligned_source), Reader(aligned_source)};
 
   EXPECT_EQ(readers[0].read_bits_16(), readers[1].read_bits_16());
-  EXPECT_EQ(Long(readers[0].get_location()), Long(2));
-  EXPECT_EQ(Long(readers[1].get_location()), Long(2));
+  EXPECT_EQ(readers[0].get_location(), Count(2));
+  EXPECT_EQ(readers[1].get_location(), Count(2));
 
   EXPECT_EQ(readers[0].read_bits_16(), Bits_16(0x02));
-  EXPECT_EQ(Long(readers[0].get_location()), Long(4));
-  EXPECT_EQ(Long(readers[1].get_location()), Long(2));
+  EXPECT_EQ(readers[0].get_location(), Count(4));
+  EXPECT_EQ(readers[1].get_location(), Count(2));
 }
 
 static Harness CoreBinaryWriter = {
@@ -181,7 +181,7 @@ PERIMORTEM_UNIT_TEST(CoreBinaryWriter, little_endian_unsigned) {
          << Bits_64(0x0123456789ABCDEF);
 
   EXPECT(writer.is_valid());
-  EXPECT_EQ(Long(writer.get_location()), Long(16));
+  EXPECT_EQ(writer.get_location(), Count(16));
   EXPECT_HEX(
       buffer,
       "\xAB\x00"
@@ -195,8 +195,8 @@ PERIMORTEM_UNIT_TEST(CoreBinaryWriter, little_endian_signed) {
   alignas(8) Static::Bytes<16> buffer;
   Writer writer(buffer);
 
-  writer << SignedBits_8(-42) << SignedBits_16(-1000) << SignedBits_32(-100000)
-         << SignedBits_64(-1000000000LL);
+  writer << Signed_8(-42) << Signed_16(-1000) << Signed_32(-100000)
+         << Signed_64(-1000000000LL);
 
   EXPECT(writer.is_valid());
   EXPECT_HEX(
@@ -232,7 +232,7 @@ PERIMORTEM_UNIT_TEST(CoreBinaryWriter, big_endian_unsigned) {
          << Bits_64(0x0123456789ABCDEF);
 
   EXPECT(writer.is_valid());
-  EXPECT_EQ(Long(writer.get_location()), Long(16));
+  EXPECT_EQ(writer.get_location(), Count(16));
   EXPECT_HEX(
       buffer,
       "\xAB\x00"
@@ -246,8 +246,8 @@ PERIMORTEM_UNIT_TEST(CoreBinaryWriter, big_endian_signed) {
   alignas(8) Static::Bytes<16> buffer;
   Writer writer(buffer);
 
-  writer << SignedBits_8(-42) << SignedBits_16(-1000) << SignedBits_32(-100000)
-         << SignedBits_64(-1000000000LL);
+  writer << Signed_8(-42) << Signed_16(-1000) << Signed_32(-100000)
+         << Signed_64(-1000000000LL);
 
   EXPECT(writer.is_valid());
   EXPECT_HEX(
@@ -301,7 +301,7 @@ PERIMORTEM_UNIT_TEST(CoreBinaryWriter, set_pointer) {
   Writer writer(buffer);
 
   writer << Bits_16(0x0A0B) << Bits_16(0x0C0D);
-  EXPECT_EQ(Long(writer.get_location()), Long(4));
+  EXPECT_EQ(writer.get_location(), Count(4));
 
   writer.set_pointer(0);
   writer << Bits_16(0x1234);

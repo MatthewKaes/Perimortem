@@ -86,8 +86,8 @@ auto Texture::create(const Context& context, const Graphics::Image& source)
   const auto pixels = source.get_pixels();
   // Pixel is 4 bytes RGBA — layout matches VK_FORMAT_R8G8B8A8_SRGB.
   const Count byte_count = pixels.get_size() * 4;
-  const Byte* src = reinterpret_cast<const Byte*>(pixels.get_data());
-  Byte* dst = static_cast<Byte*>(mapped);
+  auto src = Core::Data::cast<const Bits_8>(pixels.get_data());
+  Bits_8* dst = static_cast<Bits_8*>(mapped);
   for (Count i = 0; i < byte_count; i++) {
     dst[i] = src[i];
   }

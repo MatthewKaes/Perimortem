@@ -156,7 +156,7 @@ auto compress(
     Dynamic::Bytes& output,
     Core::View::Bytes source,
     CompressionLevel compression) -> Bool {
-  const Int level =
+  const Signed_32level =
       static_cast<std::underlying_type_t<CompressionLevel>>(compression);
   thread_local static auto cctx = ZSTD_createCCtx();
   if (cctx == nullptr) {
@@ -186,7 +186,7 @@ auto compress(
   output.ensure_capacity(upper_bound);
 
   Count comp_size = ZSTD_compressCCtx(
-      cctx, const_cast<Byte*>(output.get_view().get_data()) + offset,
+      cctx, const_cast<Bits_8*>(output.get_view().get_data()) + offset,
       upper_bound, source.get_data(), source.get_size(), level);
   output.resize(offset + comp_size);
 

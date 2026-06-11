@@ -28,13 +28,13 @@ class Serial {
   class Value {
    public:
     constexpr Value() : type_info(0), value(0) {}
-    constexpr Value(SignedBits_64 value)
+    constexpr Value(Signed_64 value)
         : type_info(0x8000000000000000), value(value) {}
     constexpr Value(View::Bytes view)
         : type_info(view.get_size()), blob(view.get_data()) {}
 
     constexpr operator View::Bytes() { return get_view(); }
-    constexpr operator SignedBits_64() { return get_value(); }
+    constexpr operator Signed_64() { return get_value(); }
 
     constexpr auto get_view() -> View::Bytes {
       if (type_info & 0x8000000000000000) {
@@ -44,12 +44,12 @@ class Serial {
       return View::Bytes(blob, type_info);
     }
 
-    constexpr auto get_value() -> SignedBits_64 {
+    constexpr auto get_value() -> Signed_64 {
       if (type_info & 0x8000000000000000) {
         return value;
       }
 
-      return SignedBits_64();
+      return Signed_64();
     }
 
     constexpr auto is_blob() -> Bool {
@@ -59,8 +59,8 @@ class Serial {
    private:
     Bits_64 type_info;
     union {
-      const Byte* blob;
-      SignedBits_64 value;
+      const Bits_8* blob;
+      Signed_64 value;
     };
   };
 
@@ -76,7 +76,7 @@ class Serial {
 
   // Reads the next value in the stream and explicitly parses it as a signed
   // value. If the value is actually a blob then 0 is returned.
-  auto read_value() -> SignedBits_64;
+  auto read_value() -> Signed_64;
   // Reads the next value in the stream and explicitly parses it as a signed
   // value. If the value is actually a regular value than an empty view is
   // returned.

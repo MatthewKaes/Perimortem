@@ -16,7 +16,7 @@ using namespace Perimortem::Serialization;
 
 // We truly can't have nice things... Still no proper support for c99
 // initializers.
-static constexpr Byte decode_lookup[256] = {
+constexpr Bits_8 decode_lookup[256] = {
   _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _,
   _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _,
   _,  _,  _,  _,  _,  _,  _,  62, _,  _,  _,  63, 52, 53, 54, 55, 56, 57,
@@ -25,7 +25,7 @@ static constexpr Byte decode_lookup[256] = {
   25, _,  _,  _,  _,  _,  _,  26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36,
   37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51};
 
-static constexpr Byte encode_lookup[64] = {
+constexpr Bits_8 encode_lookup[64] = {
   'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M',
   'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z',
   'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm',
@@ -44,13 +44,12 @@ static_assert(decode_lookup['/'] == 63);
 // Equals are dropped
 static_assert(decode_lookup['='] == _);
 
-auto Base64::decode(const View::Bytes source) -> Dynamic::Bytes {
-  // If empty than avoid any allocations or vectorization and just return an
-  // empty optimized Dynamic::Bytes if the size isn't large enough.
-  if (source.get_size() < 3) {
-    return Dynamic::Bytes();
-  }
+// Extra bytes needed after the true output size for vectorized working space.
+constexpr Count decode_underwrite_bytes = sizeof(__m128i) / 2;
+constexpr Count decode_extra_bytes =
+    sizeof(__m256i) / 4 + decode_underwrite_bytes;
 
+auto vectorized_decode(Bits_8* text, View::Bytes source) -> Count {
   // On AMD processors that don't support AVX512 they "partially" supports it
   // using two fused AVX2 256bit buffers. To make sure we support just about
   // every modern CPU we can use two parallel AVX2 buffers unrolled. This is esp
@@ -68,7 +67,7 @@ auto Base64::decode(const View::Bytes source) -> Dynamic::Bytes {
   constexpr auto fused_channels = 3;
   constexpr auto avx2_channel_width = sizeof(__m256i);
   constexpr auto full_channel_width = avx2_channel_width * fused_channels;
-  constexpr auto upper_lane_underwrite_buffer = sizeof(__m128i) / 2;
+  constexpr auto upper_lane_underwrite_buffer = decode_underwrite_bytes;
   constexpr Count output_stride = 3;
   constexpr Count source_stride = 4;
 
@@ -80,30 +79,15 @@ auto Base64::decode(const View::Bytes source) -> Dynamic::Bytes {
   // contention (at least on a 9950x3D).
   Count size = (source.get_size() / source_stride) * output_stride;
 
-  // Allocate the bytes with the full size + working buffer.
-  Memory::Dynamic::Bytes bytes;
-  bytes.forgetful_resize(
-      size + avx2_channel_width / source_stride + upper_lane_underwrite_buffer);
-
-  // The algorithm uses 8 bytes of the 16 byte underwrite buffer.
-  Byte* text = bytes.get_access().get_data();
-  static_assert(
-      upper_lane_underwrite_buffer <= Bibliotheca::legal_underwrite_size,
-      "Base64 decode requires more underwrite bytes than are guaranteed by the "
-      "Bibliotheca, ensure Perimortem is configured correctly");
-
   // Construct source buffers.
   auto source_data = source.get_data();
   auto source_bytes = source.get_size();
 
-  // Shrink to the correct size.
-  // We don't have to worry about writting extra zeros as we always request
-  // extra padding from the Bibliotheca.
+  // Shrink to the correct size accounting for '=' padding.
   for (Count i = 0; i < 2; i++) {
     if (source[source.get_size() - 1 - i] != '=') {
       break;
     }
-
     size--;
     source_bytes--;
   }
@@ -328,18 +312,10 @@ auto Base64::decode(const View::Bytes source) -> Dynamic::Bytes {
                            decode_lookup[source_data[j + 3]];
   }
 
-  // Shrink the bytes to the correct size, dropping the extra working buffer.
-  bytes.resize(size);
-  return bytes;
+  return size;
 }
 
-auto Base64::encode(const View::Bytes source) -> Dynamic::Bytes {
-  // If empty than avoid any allocations or vectorization and just return an
-  // empty optimized Dynamic::Bytes if the size isn't large enough.
-  if (source.empty()) {
-    return Dynamic::Bytes();
-  }
-
+auto vectorize_encode(Access::Bytes output, View::Bytes source) -> void {
   // On AMD processors that don't support AVX512 they "partially" supports it
   // using two fused AVX2 256bit buffers. To make sure we support just about
   // every modern CPU we can use two parallel AVX2 buffers unrolled. This is esp
@@ -357,16 +333,10 @@ auto Base64::encode(const View::Bytes source) -> Dynamic::Bytes {
   constexpr Count source_stride = 3;
   constexpr auto encode_filter = 64 - 1;
 
-  // Construct source buffers.
   auto source_data = source.get_data();
   auto source_bytes = source.get_size();
-
-  // Construct output buffers.
   const Count left_over = source_bytes % 3;
-  const Count ouput_size = (source_bytes / 3) * 4 + (left_over ? 4 : 0);
-  Memory::Dynamic::Bytes bytes;
-  bytes.forgetful_resize(ouput_size);
-  auto output_stream = bytes.get_access().get_data();
+  auto output_stream = output.get_data();
 
   // If the vector is long enough start by doing a scalar pass so we have room
   // to underread the buffer, regardless of its source.
@@ -557,8 +527,9 @@ auto Base64::encode(const View::Bytes source) -> Dynamic::Bytes {
     output_stream += output_bytes_per_iteration;
   }
 
-  // Scalar fallback
-  while (source_bytes > source_stride) {
+  // Scalar fallback: >= rather than > so the final complete 3-byte group is
+  // not skipped when source size is an exact multiple of 3.
+  while (source_bytes >= source_stride) {
     output_stream[0] = encode_lookup[(source_data[0] >> 2)];
     output_stream[1] = encode_lookup
         [((source_data[0] & 0b00000011) << 4) | (source_data[1] >> 4)];
@@ -589,6 +560,72 @@ auto Base64::encode(const View::Bytes source) -> Dynamic::Bytes {
   default:
     break;
   }
+}
 
+auto Base64::decode(View::Bytes source) -> Dynamic::Bytes {
+  // If empty than avoid any allocations or vectorization and just return an
+  // empty optimized Dynamic::Bytes if the size isn't large enough.
+  if (source.get_size() < 3) {
+    return Dynamic::Bytes();
+  }
+
+  Count size = (source.get_size() / 4) * 3;
+
+  // Allocate the bytes with the full size + working buffer.
+  Memory::Dynamic::Bytes bytes;
+  bytes.forgetful_resize(size + decode_extra_bytes);
+
+  // The algorithm uses decode_underwrite_bytes of the Bibliotheca's guaranteed
+  // underwrite region before the allocation pointer.
+  static_assert(
+      decode_underwrite_bytes <= Bibliotheca::legal_underwrite_size,
+      "Base64 decode requires more underwrite bytes than are guaranteed by the "
+      "Bibliotheca, ensure Perimortem is configured correctly");
+
+  Bits_8* text = bytes.get_access().get_data();
+  Count actual_size = vectorized_decode(text, source);
+  bytes.resize(actual_size);
   return bytes;
+}
+
+auto Base64::decode(Allocator::Arena& arena, View::Bytes source)
+    -> View::Bytes {
+  if (source.get_size() < 3) {
+    return View::Bytes();
+  }
+
+  Count size = (source.get_size() / 4) * 3;
+
+  // Pre-pad by decode_underwrite_bytes so the vectorized loop can underwrite.
+  Bits_8* text =
+      arena.allocate(decode_underwrite_bytes + size + decode_extra_bytes) +
+      decode_underwrite_bytes;
+  Count actual_size = vectorized_decode(text, source);
+  return View::Bytes(text, actual_size);
+}
+
+auto Base64::encode(View::Bytes source) -> Dynamic::Bytes {
+  if (source.empty()) {
+    return Dynamic::Bytes();
+  }
+
+  const Count left_over = source.get_size() % 3;
+  const Count output_size = (source.get_size() / 3) * 4 + (left_over ? 4 : 0);
+  Dynamic::Bytes bytes;
+  bytes.forgetful_resize(output_size);
+  vectorize_encode(bytes.get_access(), source);
+  return bytes;
+}
+
+auto Base64::encode(Allocator::Arena& arena, View::Bytes source)
+    -> View::Bytes {
+  if (source.empty()) {
+    return View::Bytes();
+  }
+
+  const Count left_over = source.get_size() % 3;
+  const Count output_size = (source.get_size() / 3) * 4 + (left_over ? 4 : 0);
+  Bits_8* output = arena.allocate(output_size);
+  vectorize_encode(Access::Bytes(output, output_size), source);
+  return View::Bytes(output, output_size);
 }

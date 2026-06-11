@@ -27,7 +27,7 @@ auto write_file(View::Bytes path, View::Bytes data) -> Bool {
   return file.write(path);
 }
 
-Int main(Int argc, SignedBits_8** argv) {
+Signed_32 main(Signed_32 argc, Signed_8** argv) {
   View::Bytes output_path;
   View::Bytes header_path;
 

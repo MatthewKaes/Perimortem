@@ -27,7 +27,7 @@ static Harness DynamicMapPartial = {
 };
 
 PERIMORTEM_UNIT_TEST(DynamicMapPartial, empty) {
-  Dynamic::Map<Int, Int, vector_mode> empty_map;
+  Dynamic::Map<Signed_32, Signed_32, vector_mode> empty_map;
 
   // Two maps fit in a cache line.
   EXPECT_EQ(sizeof(empty_map), 32);
@@ -39,7 +39,8 @@ PERIMORTEM_UNIT_TEST(DynamicMapPartial, empty) {
 }
 
 PERIMORTEM_UNIT_TEST(DynamicMapPartial, simple_construction) {
-  Dynamic::Map<Int, Int, vector_mode> int_map = {{{1, 2}, {2, 3}, {4, 5}}};
+  Dynamic::Map<Signed_32, Signed_32, vector_mode> int_map = {
+    {{1, 2}, {2, 3}, {4, 5}}};
 
   EXPECT_EQ(int_map.get_size(), 3);
   ASSERT_EQ(int_map[1], 2);
@@ -48,21 +49,21 @@ PERIMORTEM_UNIT_TEST(DynamicMapPartial, simple_construction) {
 }
 
 PERIMORTEM_UNIT_TEST(DynamicMapPartial, insert_on_index) {
-  Dynamic::Map<Int, Int, vector_mode> empty_map;
+  Dynamic::Map<Signed_32, Signed_32, vector_mode> empty_map;
 
   // Populate defaults
-  for (Int i = 0; i < 10; i++) {
+  for (Count i = 0; i < 10; i++) {
     empty_map[i];
   }
 
   EXPECT_EQ(empty_map.get_size(), 10);
-  for (Int i = 0; i < 10; i++) {
+  for (Count i = 0; i < 10; i++) {
     EXPECT(empty_map.contains(i));
   }
 }
 
 PERIMORTEM_UNIT_TEST(DynamicMapPartial, duplicate_keys) {
-  Dynamic::Map<Int, Int, vector_mode> int_map = {{{1, 2}, {1, 4}}};
+  Dynamic::Map<Signed_32, Signed_32, vector_mode> int_map = {{{1, 2}, {1, 4}}};
 
   EXPECT_EQ(int_map.get_size(), 1);
   ASSERT_EQ(int_map[1], 4);
@@ -74,9 +75,9 @@ PERIMORTEM_UNIT_TEST(DynamicMapPartial, duplicate_keys) {
 }
 
 PERIMORTEM_UNIT_TEST(DynamicMapPartial, empty_keys) {
-  Dynamic::Map<Dynamic::Bytes, Int, vector_mode> empty_map;
+  Dynamic::Map<Dynamic::Bytes, Signed_32, vector_mode> empty_map;
 
-  Int i = 0;
+  Count i = 0;
   while (i < 1000) {
     i++;
     empty_map.insert(Dynamic::Bytes(), i);
@@ -88,14 +89,14 @@ PERIMORTEM_UNIT_TEST(DynamicMapPartial, empty_keys) {
 }
 
 PERIMORTEM_UNIT_TEST(DynamicMapPartial, insert_stress_test) {
-  Dynamic::Map<Int, Int, vector_mode> large_map;
+  Dynamic::Map<Signed_32, Signed_32, vector_mode> large_map;
 
-  for (Int i = 0; i < 1000; i++) {
+  for (Count i = 0; i < 1000; i++) {
     large_map.insert(i, i + 2);
   }
 
   EXPECT_EQ(large_map.get_size(), 1000);
-  for (Int i = 0; i < 1000; i++) {
+  for (Count i = 0; i < 1000; i++) {
     ASSERT_EQ(large_map[i], i + 2);
   }
 
@@ -103,15 +104,15 @@ PERIMORTEM_UNIT_TEST(DynamicMapPartial, insert_stress_test) {
 }
 
 PERIMORTEM_UNIT_TEST(DynamicMapPartial, capacity_stress_test) {
-  Dynamic::Map<Int, Int, vector_mode> large_map;
+  Dynamic::Map<Signed_32, Signed_32, vector_mode> large_map;
 
   large_map.ensure_capacity(1000);
-  for (Int i = 0; i < 1000; i++) {
+  for (Count i = 0; i < 1000; i++) {
     large_map.insert(i, i + 2);
   }
 
   EXPECT_EQ(large_map.get_size(), 1000);
-  for (Int i = 0; i < 1000; i++) {
+  for (Count i = 0; i < 1000; i++) {
     ASSERT_EQ(large_map[i], i + 2);
   }
 
@@ -123,14 +124,14 @@ PERIMORTEM_UNIT_TEST(DynamicMapPartial, key_construction_count) {
   Count destruct_count = 0;
 
   {
-    Dynamic::Map<Hashable, Int, vector_mode> custom_map;
+    Dynamic::Map<Hashable, Signed_32, vector_mode> custom_map;
 
-    for (Int i = 0; i < 100; i++) {
+    for (Count i = 0; i < 100; i++) {
       custom_map.insert(Hashable(i, construct_count, destruct_count), i);
     }
 
     EXPECT_EQ(custom_map.get_size(), 100);
-    for (Int i = 0; i < 100; i++) {
+    for (Count i = 0; i < 100; i++) {
       ASSERT_EQ(custom_map[Hashable(i, construct_count, destruct_count)], i);
     }
   }
@@ -146,14 +147,14 @@ PERIMORTEM_UNIT_TEST(DynamicMapPartial, value_construction_count) {
   Count destruct_count = 0;
 
   {
-    Dynamic::Map<Int, Hashable, vector_mode> custom_map;
+    Dynamic::Map<Signed_32, Hashable, vector_mode> custom_map;
 
-    for (Int i = 0; i < 100; i++) {
+    for (Count i = 0; i < 100; i++) {
       custom_map.insert(i, Hashable(i, construct_count, destruct_count));
     }
 
     EXPECT_EQ(custom_map.get_size(), 100);
-    for (Int i = 0; i < 100; i++) {
+    for (Count i = 0; i < 100; i++) {
       ASSERT(custom_map[i] == Hashable(i, construct_count, destruct_count));
     }
   }
@@ -169,15 +170,16 @@ PERIMORTEM_UNIT_TEST(DynamicMapPartial, emplace_construction_count) {
   Count destruct_count = 0;
 
   {
-    Dynamic::Map<Int, Hashable, vector_mode> custom_map;
+    Dynamic::Map<Signed_32, Hashable, vector_mode> custom_map;
 
-    for (Int i = 0; i < 100; i++) {
+    for (Count i = 0; i < 100; i++) {
       custom_map.emplace(
-          static_cast<Int&&>(i), Hashable(i, construct_count, destruct_count));
+          static_cast<Signed_32&&>(i),
+          Hashable(i, construct_count, destruct_count));
     }
 
     EXPECT_EQ(custom_map.get_size(), 100);
-    for (Int i = 0; i < 100; i++) {
+    for (Count i = 0; i < 100; i++) {
       ASSERT(custom_map[i] == Hashable(i, construct_count, destruct_count));
     }
   }
@@ -189,7 +191,7 @@ PERIMORTEM_UNIT_TEST(DynamicMapPartial, emplace_construction_count) {
 }
 
 PERIMORTEM_UNIT_TEST(DynamicMapPartial, dynamic_keys) {
-  Dynamic::Map<Dynamic::Bytes, Int, vector_mode> text_map;
+  Dynamic::Map<Dynamic::Bytes, Signed_32, vector_mode> text_map;
 
   text_map["Hello"_view] = 0;
   text_map["World"_view] = 1;
@@ -197,7 +199,7 @@ PERIMORTEM_UNIT_TEST(DynamicMapPartial, dynamic_keys) {
   // Byte keys
   Dynamic::Bytes text;
   text.append('a');
-  for (Byte ch = 'A'; ch < 'z'; ch++) {
+  for (Bits_8 ch = 'A'; ch < 'z'; ch++) {
     text.get_access()[0] = ch;
     text_map[text] = 2 + ch;
   }
@@ -207,7 +209,7 @@ PERIMORTEM_UNIT_TEST(DynamicMapPartial, dynamic_keys) {
   ASSERT_EQ(text_map["Hello"_view], 0);
   ASSERT_EQ(text_map["World"_view], 1);
   ASSERT_EQ(text_map["Longer test string"_view], 2);
-  for (Byte ch = 'A'; ch < 'z'; ch++) {
+  for (Bits_8 ch = 'A'; ch < 'z'; ch++) {
     text.get_access()[0] = ch;
     ASSERT_EQ(text_map[text], 2 + ch);
   }
@@ -215,7 +217,7 @@ PERIMORTEM_UNIT_TEST(DynamicMapPartial, dynamic_keys) {
 }
 
 PERIMORTEM_UNIT_TEST(DynamicMapPartial, dynamic_value) {
-  Dynamic::Map<Int, Dynamic::Bytes, vector_mode> text_map;
+  Dynamic::Map<Signed_32, Dynamic::Bytes, vector_mode> text_map;
 
   text_map[0] = "Hello"_view;
   text_map[1] = "World"_view;
@@ -227,7 +229,7 @@ PERIMORTEM_UNIT_TEST(DynamicMapPartial, dynamic_value) {
 }
 
 PERIMORTEM_UNIT_TEST(DynamicMapPartial, size) {
-  Dynamic::Map<Int, Int, vector_mode> empty_map;
+  Dynamic::Map<Signed_32, Signed_32, vector_mode> empty_map;
   EXPECT_EQ(sizeof(empty_map), 32);
   EXPECT_EQ(empty_map.get_capacity(), 0);
   empty_map.ensure_capacity(10);
@@ -239,18 +241,18 @@ PERIMORTEM_UNIT_TEST(DynamicMapPartial, size) {
 }
 
 PERIMORTEM_UNIT_TEST(DynamicMapPartial, reuse) {
-  Dynamic::Map<Int, Int, vector_mode> reuse_map;
+  Dynamic::Map<Signed_32, Signed_32, vector_mode> reuse_map;
 
-  for (Int loops = 0; loops < 5; loops++) {
+  for (Signed_32 loops = 0; loops < 5; loops++) {
     reuse_map.reset();
     ASSERT_EQ(reuse_map.get_size(), 0);
 
-    for (Int i = 0; i < 100; i++) {
+    for (Count i = 0; i < 100; i++) {
       reuse_map[i] = i;
     }
 
     ASSERT_EQ(reuse_map.get_size(), 100);
-    for (Int i = 0; i < 100; i++) {
+    for (Count i = 0; i < 100; i++) {
       ASSERT_EQ(reuse_map[i], i);
     }
   }
@@ -263,7 +265,7 @@ PERIMORTEM_UNIT_TEST(DynamicMapPartial, leak_test) {
     Dynamic::Map<Dynamic::Bytes, Dynamic::Bytes, vector_mode> memory_intensive;
     Dynamic::Bytes source;
 
-    for (Int i = 0; i < 100; i++) {
+    for (Count i = 0; i < 100; i++) {
       source.append('A');
       memory_intensive[source] = "Test text to copy"_view;
     }
@@ -272,9 +274,9 @@ PERIMORTEM_UNIT_TEST(DynamicMapPartial, leak_test) {
   }
 
   {
-    Dynamic::Map<Int, Int, vector_mode> large_map;
+    Dynamic::Map<Signed_32, Signed_32, vector_mode> large_map;
 
-    for (Int i = 0; i < 1000; i++) {
+    for (Count i = 0; i < 1000; i++) {
       large_map.insert(i, i + 2);
     }
   }

@@ -40,7 +40,7 @@ PERIMORTEM_BENCHMARK(TextualBench, write_flags) {
 }
 
 PERIMORTEM_BENCHMARK(TextualBench, write_ints) {
-  Static::Vector<Int, 16> values = {
+  Static::Vector<Signed_32, 16> values = {
     {10, 1401, -120, 987109, 3, -10, 242, 5131, -2147483648, 2147483647,
      -987654321, 123456789, 0, -1, 9999999, -100}};
   Count accumulator = 0;
@@ -88,7 +88,7 @@ PERIMORTEM_BENCHMARK(TextualReadBench, read_flags) {
      "true"_view, "False"_view, "True"_view, "true"_view, "false"_view,
      "true"_view, "False"_view, "tree"_view, "folly"_view, "neither"_view,
      "unknown"_view}};
-  Int accumulator = 0;
+  Count accumulator = 0;
   for (Count i = 0; i < batch_count; i++) {
     Reader::Textual reader(values[i & 0xF]);
     Bool flag = reader.read_flag();
@@ -106,7 +106,7 @@ PERIMORTEM_BENCHMARK(TextualReadBench, read_ints) {
   Count accumulator = 0;
   for (Count i = 0; i < batch_count; i++) {
     Reader::Textual reader(values[i & 0xF]);
-    Int long_value = reader.read_int();
+    Count long_value = reader.read_signed();
     if (reader.is_valid()) {
       accumulator += long_value;
     } else {

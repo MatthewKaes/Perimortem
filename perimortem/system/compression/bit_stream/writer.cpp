@@ -17,7 +17,7 @@ using namespace Perimortem::System;
 // TODO: If we ever support ARM we'll need to fix the LSB ordering.
 auto Compression::BitStream::Writer::drain() -> void {
   while (bits >= 8) {
-    output.append(Byte(accumulator & 0xFF));
+    output.append(Bits_8(accumulator & 0xFF));
     accumulator >>= 8;
     bits -= 8;
   }
@@ -44,7 +44,7 @@ auto Compression::BitStream::Writer::write_code(Bits_32 code, Count length)
 
 auto Compression::BitStream::Writer::flush() -> void {
   if (bits > 0) {
-    output.append(Byte(accumulator & 0xFF));
+    output.append(Bits_8(accumulator & 0xFF));
     accumulator = 0;
     bits = 0;
   }

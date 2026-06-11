@@ -81,7 +81,7 @@ Dynamic::Bytes::~Bytes() {
   reset();
 }
 
-auto Dynamic::Bytes::append(Byte b) -> void {
+auto Dynamic::Bytes::append(Bits_8 b) -> void {
   ensure_capacity(size + 1);
   source_block[size++] = b;
 }
@@ -99,11 +99,11 @@ auto Dynamic::Bytes::proxy(Core::View::Bytes view) -> void {
   Data::copy(source_block, view.get_data(), view.get_size());
 }
 
-auto Dynamic::Bytes::set(Byte target) -> void {
+auto Dynamic::Bytes::set(Bits_8 target) -> void {
   Data::set(source_block, target, get_size());
 }
 
-auto Dynamic::Bytes::convert(Byte source, Byte target) -> void {
+auto Dynamic::Bytes::convert(Bits_8 source, Bits_8 target) -> void {
   for (int i = 0; i < size; i++) {
     if (source_block[i] == source) {
       source_block[i] = target;
@@ -156,7 +156,7 @@ auto Dynamic::Bytes::shrink(Count bytes_to_remove) -> void {
   memmove(source_block, source_block + bytes_to_remove, size);
 }
 
-auto Dynamic::Bytes::operator[](Count index) const -> Byte {
+auto Dynamic::Bytes::operator[](Count index) const -> Bits_8 {
   if (index > size) {
     return 0;
   }
@@ -164,7 +164,7 @@ auto Dynamic::Bytes::operator[](Count index) const -> Byte {
   return source_block[index];
 }
 
-auto Dynamic::Bytes::at(Count index) const -> Byte {
+auto Dynamic::Bytes::at(Count index) const -> Bits_8 {
   if (index > size) {
     return 0;
   }

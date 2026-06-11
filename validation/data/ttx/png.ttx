@@ -1,0 +1,695 @@
+// Perimortem Engine
+// Copyright © Matt Kaes
+//
+// PNG codec — decode from and encode to the PNG wire format.
+package : Library;
+
+import Graphics : Library = ( .source = "graphics/image.ttx" );
+import Log      : Library = TTX.Log;
+import Math     : Library = TTX.Math;
+
+// PNG file signature — the first 8 bytes of every valid PNG file.
+detail png_signature : Vec[Bits_8, 8] = 0x[89 50 4E 47 0D 0A 1A 0A];
+
+// Named 4-byte chunk type identifiers.
+detail ihdr_tag : Vec[Bits_8, 4] = "IHDR";
+detail idat_tag : Vec[Bits_8, 4] = "IDAT";
+detail iend_tag : Vec[Bits_8, 4] = "IEND";
+detail plte_tag : Vec[Bits_8, 4] = "PLTE";
+
+// [?] @extern(.abi = "c") marks methods as C-ABI external symbols resolved at
+// link time. Provisional — C FFI design is not yet finalized.
+@extern(.abi = "c")
+detail  Deflate : Foreign = {
+  frozen inflate : Func = (.source : View[Bytes], .capacity : Count) -> Bytes;
+  frozen deflate : Func = (.source : View[Bytes]) -> Bytes;
+}
+
+// Color encoding written in the PNG IHDR chunk. Values match the PNG
+// specification so the field can be read directly from the binary stream.
+hidden ColorType : Enum[Bits_8] = {
+  Greyscale      = 0;
+  Rgb            = 2;
+  Indexed        = 3;
+  GreyscaleAlpha = 4;
+  Rgba           = 6;
+
+  public get_channel_count : Func = () -> Count {
+    match self {
+      case ColorType.Indexed:        { return 1; }
+      case ColorType.Greyscale:      { return 1; }
+      case ColorType.GreyscaleAlpha: { return 2; }
+      case ColorType.Rgb:            { return 3; }
+      case ColorType.Rgba:           { return 4; }
+      case _:                        { return 0; }
+    }
+  }
+}
+
+// Per-row prediction filter applied before DEFLATE. Each value matches the
+// filter byte prepended to the filtered row in the PNG wire format.
+hidden FilterType : Enum[Bits_8] = {
+  None    = 0;
+  Sub     = 1;
+  Up      = 2;
+  Average = 3;
+  Paeth   = 4;
+
+  // Paeth predictor: estimates the next sample by linear extrapolation from
+  // the left, upper, and upper-left neighbours, returning the closest.
+  detail paeth_predictor : Func = (.left : Bits_8, .up : Bits_8, .upper_left : Bits_8) -> Bits_8 {
+    stack p_left       : Signed_16 = Signed_16(left);
+    stack p_up         : Signed_16 = Signed_16(up);
+    stack p_upper_left : Signed_16 = Signed_16(upper_left);
+    stack predictor        : Signed_16 = p_left + p_up - p_upper_left;
+    stack score_left       : Signed_16 = Math -> absolute(predictor - p_left);
+    stack score_up         : Signed_16 = Math -> absolute(predictor - p_up);
+    stack score_upper_left : Signed_16 = Math -> absolute(predictor - p_upper_left);
+    if (score_left <= score_up && score_left <= score_upper_left) { return left; }
+    if (score_up <= score_upper_left) { return up; }
+    return upper_left;
+  }
+
+  // Scores all five filters for current_row and returns the one with the
+  // lowest absolute-residual sum. Pass a zero-length View for previous_row on
+  // the first row — Up, Average, and Paeth are excluded from scoring.
+  detail best_for_row : Func = (
+    .current_row  : View[Bytes],
+    .previous_row : View[Bytes],
+  ) -> FilterType {
+    stack is_first_row : Bool            = previous_row -> get_size() == 0;
+    stack bpp          : Count           = Graphics.Image -> get_channel_count();
+    stack scores       : Vec[Bits_64, 5] = (0, 0, 0, 0, 0);
+
+    for (i : Count) in 0...bpp {
+      stack cur : Bits_8 = current_row[i];
+      scores[FilterType.None] += Bits_64(Math -> signed_abs(Signed_8(cur)));
+      scores[FilterType.Sub]  += Bits_64(Math -> signed_abs(Signed_8(cur)));
+      if (!is_first_row) {
+        stack up : Bits_8 = previous_row[i];
+        scores[FilterType.Up]      += Bits_64(Math -> signed_abs(Signed_8(cur - up)));
+        scores[FilterType.Average] += Bits_64(Math -> signed_abs(Signed_8(cur - up / 2)));
+        scores[FilterType.Paeth]   += Bits_64(Math -> signed_abs(Signed_8(cur - up)));
+      }
+    }
+
+    for (i : Count) in bpp...current_row -> get_size() {
+      stack cur  : Bits_8 = current_row[i];
+      stack left : Bits_8 = current_row[i - bpp];
+      scores[FilterType.None] += Bits_64(Math -> signed_abs(Signed_8(cur)));
+      scores[FilterType.Sub]  += Bits_64(Math -> signed_abs(Signed_8(cur - left)));
+      if (!is_first_row) {
+        stack up         : Bits_8 = previous_row[i];
+        stack upper_left : Bits_8 = previous_row[i - bpp];
+        scores[FilterType.Up] += Bits_64(Math -> signed_abs(Signed_8(cur - up)));
+        scores[FilterType.Average] += Bits_64(
+          Math -> signed_abs(Signed_8(cur - Bits_8((Bits_32(left) + Bits_32(up)) / 2)))
+        );
+        scores[FilterType.Paeth] += Bits_64(
+          Math -> signed_abs(Signed_8(cur - FilterType -> paeth_predictor(left, up, upper_left)))
+        );
+      }
+    }
+
+    if (is_first_row) {
+      return FilterType(scores.[0 +: 2] -> min_index());
+    }
+    return FilterType(scores -> min_index());
+  }
+
+  // Applies this filter forward to current_row, writing residuals into out.
+  // Pass a zero-length View for previous_row only when self is None or Sub.
+  hidden apply : Func = (
+    .out          : Access[Bytes],
+    .current_row  : View[Bytes],
+    .previous_row : View[Bytes],
+  ) -> Void {
+    stack bpp : Count = Graphics.Image -> get_channel_count();
+
+    if (self == FilterType.None) {
+      current_row -> copy_to(out);
+      return;
+    }
+
+    for (i : Count) in 0...bpp {
+      stack cur : Bits_8 = current_row[i];
+      match self {
+        case FilterType.Sub:     { out[i] = cur; }
+        case FilterType.Up:      { out[i] = Bits_8(cur - previous_row[i]); }
+        case FilterType.Average: { out[i] = Bits_8(cur - Bits_8(previous_row[i] / 2)); }
+        case FilterType.Paeth: {
+          out[i] = Bits_8(cur - FilterType -> paeth_predictor(0, previous_row[i], 0));
+        }
+        case _: { return; }
+      }
+    }
+
+    for (i : Count) in bpp...current_row -> get_size() {
+      stack cur  : Bits_8 = current_row[i];
+      stack left : Bits_8 = current_row[i - bpp];
+      match self {
+        case FilterType.Sub: { out[i] = Bits_8(cur - left); }
+        case FilterType.Up:  { out[i] = Bits_8(cur - previous_row[i]); }
+        case FilterType.Average: {
+          stack up : Bits_8 = previous_row[i];
+          out[i] = Bits_8(cur - Bits_8((Bits_32(left) + Bits_32(up)) / 2));
+        }
+        case FilterType.Paeth: {
+          stack up         : Bits_8 = previous_row[i];
+          stack upper_left : Bits_8 = previous_row[i - bpp];
+          out[i] = Bits_8(cur - FilterType -> paeth_predictor(left, up, upper_left));
+        }
+        case _: { return; }
+      }
+    }
+  }
+
+  // Reconstructs one forward-filtered row. Pass a zero-length View for up on
+  // the first row — each case degrades correctly to its zero-up equivalent.
+  hidden reconstruct : Func = (
+    .src             : View[Bytes],
+    .dst             : Access[Bytes],
+    .previous_row    : View[Bytes],
+    .stride          : Count,
+    .bytes_per_pixel : Count,
+  ) -> Bool {
+    stack is_first_row : Bool = previous_row -> get_size() == 0;
+    match self {
+      case FilterType.None: {
+        src -> copy_to(dst);
+      }
+      case FilterType.Sub: {
+        src[0 +: bytes_per_pixel] -> copy_to(dst[0 +: bytes_per_pixel]);
+        for (i : Count) in bytes_per_pixel...stride {
+          dst[i] = src[i] + dst[i - bytes_per_pixel];
+        }
+      }
+      case FilterType.Up: {
+        if (is_first_row) {
+          src -> copy_to(dst);
+        } else {
+          for (i : Count) in 0...stride {
+            dst[i] = src[i] + previous_row[i];
+          }
+        }
+      }
+      case FilterType.Average: {
+        if (is_first_row) {
+          src[0 +: bytes_per_pixel] -> copy_to(dst[0 +: bytes_per_pixel]);
+          for (i : Count) in bytes_per_pixel...stride {
+            dst[i] = src[i] + Bits_8(Bits_32(dst[i - bytes_per_pixel]) / 2);
+          }
+        } else {
+          for (i : Count) in 0...bytes_per_pixel {
+            dst[i] = src[i] + Bits_8(Bits_32(previous_row[i]) / 2);
+          }
+          for (i : Count) in bytes_per_pixel...stride {
+            dst[i] = src[i] + Bits_8(
+              (Bits_32(dst[i - bytes_per_pixel]) + Bits_32(previous_row[i])) / 2
+            );
+          }
+        }
+      }
+      case FilterType.Paeth: {
+        // Paeth with no previous row reduces to Sub.
+        if (is_first_row) {
+          src[0 +: bytes_per_pixel] -> copy_to(dst[0 +: bytes_per_pixel]);
+          for (i : Count) in bytes_per_pixel...stride {
+            dst[i] = src[i] + dst[i - bytes_per_pixel];
+          }
+        } else {
+          for (i : Count) in 0...bytes_per_pixel {
+            dst[i] = src[i] + previous_row[i];
+          }
+          for (i : Count) in bytes_per_pixel...stride {
+            dst[i] = src[i] + FilterType -> paeth_predictor(
+              dst[i - bytes_per_pixel],
+              previous_row[i],
+              previous_row[i - bytes_per_pixel],
+            );
+          }
+        }
+      }
+      case _: {
+        Log -> error("Png: Unknown filter type {}", self);
+        return False;
+      }
+    }
+    return True;
+  }
+}
+
+// Mirrors the 13-byte PNG IHDR payload. Width and height are stored in native
+// byte order; read and write handle endian conversion explicitly.
+detail ImageInfo : Struct = {
+  detail size               : Count      = 13;
+
+  expose width              : Bits_32    = 0;
+  expose height             : Bits_32    = 0;
+  expose bit_depth          : Bits_8     = 0;
+  expose color_type         : ColorType  = ColorType.Rgba;
+  expose compression_method : Bits_8     = 0;
+  expose filter_method      : FilterType = FilterType.None;
+  expose interlace_method   : Bits_8     = 0;
+
+  // Parses a 13-byte big-endian IHDR payload.
+  detail from_bytes : Func = (.bytes : View[Bytes]) -> ImageInfo {
+    stack info : ImageInfo;
+    info.width              = Bits_32 -> from_big_endian(bytes.[0 +: 4]);
+    info.height             = Bits_32 -> from_big_endian(bytes.[4 +: 4]);
+    info.bit_depth          = bytes[8];
+    info.color_type         = ColorType(bytes[9]);
+    info.compression_method = bytes[10];
+    info.filter_method      = FilterType(bytes[11]);
+    info.interlace_method   = bytes[12];
+    return info;
+  }
+
+  // Constructs an ImageInfo from an Image for the encode path.
+  detail from_image : Func = (.image : View[Graphics.Image]) -> ImageInfo {
+    return ImageInfo(
+      .width              = image -> get_width(),
+      .height             = image -> get_height(),
+      .bit_depth          = 8,
+      .color_type         = ColorType.Rgba,
+      .compression_method = 0,
+      .filter_method      = FilterType.None,
+      .interlace_method   = 0,
+    );
+  }
+
+  // Serializes into a 13-byte big-endian buffer.
+  public write : Func = (.buffer : Access[Bytes]) -> Void {
+    self.width  -> write_big_endian(buffer[0 +: 4]);
+    self.height -> write_big_endian(buffer[4 +: 4]);
+    buffer[8]  = self.bit_depth;
+    buffer[9]  = Bits_8(self.color_type);
+    buffer[10] = self.compression_method;
+    buffer[11] = Bits_8(self.filter_method);
+    buffer[12] = self.interlace_method;
+  }
+
+  public is_valid : Func = () -> Bool {
+    return self.compression_method == 0
+        && self.filter_method == FilterType.None
+        && self.interlace_method == 0;
+  }
+}
+
+// A parsed PNG chunk. Data holds a view into the source buffer.
+hidden Chunk : Struct = {
+  // 4-byte length field + 4-byte type tag + 4-byte CRC.
+  detail overhead  : Count = 12;
+  // CRC-32 (IEEE 802.3) — 256-entry lookup table generated at compile time.
+  detail crc_table : Vec[Bits_32, 256] = [table_index : Count => {
+    detail ieee_crc32_poly : Bits_32 = 0xEDB88320;
+
+    stack crc : Bits_32 = Bits_32(table_index);
+    for (_ : Count) in 0...8 {
+      if (crc & 1) { crc = Chunk.ieee_crc32_poly ^ (crc >> 1); }
+      else         { crc = crc >> 1; }
+    }
+    return crc;
+  }];
+
+  expose type_tag : Vec[Bits_8, 4];
+  expose data     : View[Bytes];
+  expose length   : Bits_32 = 0;
+  expose valid    : Bool     = False;
+
+  detail calculate_crc32 : Func = (.data : View[Bytes]) -> Bits_32 {
+    stack running_crc : Bits_32 = 0xFFFFFFFF;
+    for (byte : Bits_8) in data {
+      running_crc = Chunk.crc_table[(running_crc ^ Bits_32(byte)) & 0xFF] ^ (running_crc >> 8);
+    }
+    return running_crc ^ 0xFFFFFFFF;
+  }
+
+  // Reads a chunk from source at offset; sets valid = False on any error.
+  expose read : Func = (.source : View[Bytes], .offset : Count) -> Void {
+    self.valid = False;
+    if (offset + Chunk.overhead > source -> get_size()) {
+      Log -> error("Png: Chunk at offset {} truncated before header end", offset);
+      return;
+    }
+
+    stack length : Bits_32 = Bits_32 -> from_big_endian(source.[offset +: 4]);
+    if (offset + Chunk.overhead + Count(length) > source -> get_size()) {
+      Log -> error(
+        "Png: Chunk at offset {} with length {} extends past end of stream",
+        offset,
+        length,
+      );
+      return;
+    }
+
+    self.type_tag = source.[offset + 4 +: 4];
+    self.data     = source[offset + 8 +: Count(length)];
+    self.length   = length;
+
+    // CRC is too expensive to verify in production (~20% decode throughput on
+    // large images). Restrict to debug builds.
+    @if(.mode = "debug") {
+      stack stored_crc : Bits_32 = Bits_32 -> from_big_endian(
+        source.[offset + 8 + Count(length) +: 4]
+      );
+      stack actual_crc : Bits_32 = Chunk -> calculate_crc32(
+        source[offset + 4 +: 4 + Count(length)]
+      );
+      if (stored_crc != actual_crc) {
+        Log -> error("Png: CRC-32 mismatch for chunk '{}' at offset {}", self.type_tag, offset);
+        return;
+      }
+    }
+
+    self.valid = True;
+  }
+
+  // Writes this chunk (length + tag + payload + CRC-32) into buffer at
+  // write_pos. Returns the new write position.
+  expose write : Func = (.buffer : Access[Bytes], .write_pos : Count) -> Count {
+    Bits_32(self.data -> get_size()) -> write_big_endian(buffer[write_pos +: 4]);
+
+    stack after_length : Count  = write_pos + 4;
+    self.type_tag -> copy_to(buffer[after_length +: 4]);
+
+    stack after_tag  : Count   = after_length + 4;
+    self.data -> copy_to(buffer[after_tag +: self.data -> get_size()]);
+
+    stack after_data : Count   = after_tag + self.data -> get_size();
+    stack crc_span   : Count   = 4 + self.data -> get_size();
+    stack chunk_crc  : Bits_32 = Chunk -> calculate_crc32(buffer[after_length +: crc_span]);
+    chunk_crc -> write_big_endian(buffer[after_data +: 4]);
+    return after_data + 4;
+  }
+}
+
+public Png : Object = {
+  // Decodes a PNG byte stream into an RGBA Image. Returns an empty Image on
+  // any parse, validation, or decompression failure.
+  public decode : Func = (.source : View[Bytes]) -> Graphics.Image {
+    stack info : ImageInfo = self -> read_header(source);
+    if (info.width == 0 || info.height == 0) {
+      return Graphics.Image();
+    }
+
+    // For the single-IDAT common case hold a view directly into the source.
+    // On multiple IDAT chunks, merge into an owned buffer.
+    stack binary_data  : View[Bytes] = View[Bytes]();
+    stack merged_data  : Bytes       = Bytes();
+    stack palette      : View[Bytes] = View[Bytes]();
+    stack chunk_offset : Count       = 8;
+
+    while (chunk_offset < source -> get_size()) {
+      stack chunk : Chunk;
+      chunk -> read(source, chunk_offset);
+      if (!chunk.valid) {
+        return Graphics.Image();
+      }
+      if (chunk.type_tag == package.iend_tag) {
+        break;
+      }
+      if (chunk.type_tag == package.idat_tag) {
+        if (binary_data -> is_empty()) {
+          binary_data = chunk.data;
+        } else {
+          if (merged_data -> is_empty()) {
+            merged_data = Bytes -> from_view(binary_data);
+          }
+          merged_data -> concat(chunk.data);
+          binary_data = merged_data -> get_view();
+        }
+      }
+      if (chunk.type_tag == package.plte_tag) {
+        palette = chunk.data;
+      }
+      chunk_offset = chunk_offset + Chunk.overhead + Count(chunk.length);
+    }
+
+    if (binary_data -> is_empty()) {
+      Log -> error("Png: No IDAT chunk found or chunk was empty");
+      return Graphics.Image();
+    }
+
+    return self -> process_data(info, binary_data, palette);
+  }
+
+  // Encodes an RGBA Image into a PNG byte stream using adaptive per-row
+  // filtering and deflate compression. Returns empty Bytes on failure.
+  public encode : Func = (.image : View[Graphics.Image]) -> Bytes {
+    if (image -> get_pixels() -> is_empty()) {
+      return Bytes();
+    }
+
+    stack filtered_rows : Bytes = self -> apply_adaptive_filtering(image);
+    stack compressed    : Bytes = Deflate -> deflate(filtered_rows -> get_view());
+    if (compressed -> get_size() == 0) {
+      return Bytes();
+    }
+
+    stack header : ImageInfo = ImageInfo -> from_image(image);
+    stack header_bytes : Bytes = Bytes -> new(ImageInfo.size);
+    header_bytes -> resize(ImageInfo.size);
+    header -> write(header_bytes -> get_access());
+
+    stack output_size : Count =
+      8 + (Chunk.overhead * 3) + ImageInfo.size + compressed -> get_size();
+    stack output : Bytes = Bytes -> new(output_size);
+    output -> resize(output_size);
+
+    stack buffer : Access[Bytes] = output -> get_access();
+    stack pos : Count = 8;
+    package.png_signature -> copy_to(buffer[0 +: 8]);
+    pos = Chunk(.type_tag = package.ihdr_tag, .data = header_bytes -> get_view()) -> write(buffer, pos);
+    pos = Chunk(.type_tag = package.idat_tag, .data = compressed -> get_view()) -> write(buffer, pos);
+    pos = Chunk(.type_tag = package.iend_tag, .data = View[Bytes]()) -> write(buffer, pos);
+    output -> resize(pos);
+    return output;
+  }
+
+  // Scores all five filter types per row, writes the best-filtered rows and a
+  // leading filter byte per row into a freshly allocated buffer.
+  hidden apply_adaptive_filtering : Func = (.image : View[Graphics.Image]) -> Bytes {
+    stack bpp         : Count       = Graphics.Image -> get_channel_count();
+    stack row_stride  : Count       = Count(image -> get_width()) * bpp;
+    stack output_size : Count       = Count(image -> get_height()) * (1 + row_stride);
+    stack pixel_bytes : View[Bytes] = image -> get_pixel_bytes();
+    stack output : Bytes = Bytes -> new(output_size);
+    output -> resize(output_size);
+
+    // First row — pass empty View; best_for_row restricts scoring to None/Sub.
+    stack first_row   : View[Bytes] = pixel_bytes[0 +: row_stride];
+    stack best_filter : FilterType  = FilterType -> best_for_row(first_row, View[Bytes]());
+    output -> get_access()[0] = best_filter;
+    best_filter -> apply(output -> get_access()[1 +: row_stride], first_row, View[Bytes]());
+
+    stack previous_row : View[Bytes] = first_row;
+    for (row : Count) in 1...Count(image -> get_height()) {
+      stack current_row : View[Bytes] = pixel_bytes[row * row_stride +: row_stride];
+      stack row_filter  : FilterType  = FilterType -> best_for_row(current_row, previous_row);
+      stack row_offset  : Count       = row * (1 + row_stride);
+      output -> get_access()[row_offset] = row_filter;
+      row_filter -> apply(
+        output -> get_access()[row_offset + 1 +: row_stride],
+        current_row,
+        previous_row,
+      );
+      previous_row = current_row;
+    }
+
+    return output;
+  }
+
+  // Reconstructs all filtered rows into output. Pass a zero-length View for
+  // up on the first row so reconstruct handles the no-previous-row cases.
+  hidden reconstruct_filter : Func = (
+    .filtered_rows   : View[Bytes],
+    .width           : Count,
+    .height          : Count,
+    .bytes_per_pixel : Count,
+    .output          : Access[Bytes],
+  ) -> Bool {
+    stack stride    : Count = width * bytes_per_pixel;
+    stack row_bytes : Count = 1 + stride;
+
+    if (filtered_rows -> get_size() < row_bytes * height) {
+      Log -> error(
+        "Png: Decompressed size {} is smaller than required {} bytes for this image",
+        filtered_rows -> get_size(),
+        row_bytes * height,
+      );
+      return False;
+    }
+
+    stack first_filter : FilterType = FilterType(filtered_rows[0]);
+    if (!first_filter -> reconstruct(
+      filtered_rows[1 +: stride],
+      output[0 +: stride],
+      View[Bytes](),
+      stride,
+      bytes_per_pixel,
+    )) {
+      return False;
+    }
+
+    for (row : Count) in 1...height {
+      stack filter_type : FilterType = FilterType(filtered_rows[row * row_bytes]);
+      stack src : View[Bytes]   = filtered_rows[row * row_bytes + 1 +: stride];
+      stack dst : Access[Bytes] = output[row * stride +: stride];
+      stack up  : View[Bytes]   = output[(row - 1) * stride +: stride];
+      if (!filter_type -> reconstruct(src, dst, up, stride, bytes_per_pixel)) {
+        return False;
+      }
+    }
+
+    return True;
+  }
+
+  // Converts a flat byte buffer from an arbitrary PNG color format to RGBA.
+  hidden convert_to_pixels : Func = (
+    .raw_pixels : View[Bytes],
+    .width      : Count,
+    .height     : Count,
+    .color_type : ColorType,
+    .palette    : View[Bytes],
+  ) -> (.success : Bool, .pixels : List[Graphics.Pixel]) {
+    stack source_channels : Count = color_type -> get_channel_count();
+    if (source_channels == 0) {
+      return (.success = False, .pixels = List[Graphics.Pixel]());
+    }
+
+    stack pixel_count : Count = width * height;
+    stack pixels : List[Graphics.Pixel] = List[Graphics.Pixel] -> new(pixel_count);
+    pixels -> resize(pixel_count);
+
+    for (pixel_index : Count) in 0...pixel_count {
+      stack source_offset : Count = pixel_index * source_channels;
+      match color_type {
+        case ColorType.Greyscale: {
+          pixels[pixel_index] = Graphics.Pixel(raw_pixels[source_offset]);
+        }
+        case ColorType.GreyscaleAlpha: {
+          pixels[pixel_index] = Graphics.Pixel(raw_pixels.[source_offset +: 2]);
+        }
+        case ColorType.Rgb: {
+          pixels[pixel_index] = Graphics.Pixel(raw_pixels.[source_offset +: 3]);
+        }
+        case ColorType.Indexed: {
+          stack palette_index  : Bits_8 = raw_pixels[source_offset];
+          stack palette_offset : Count  = Count(palette_index) * 3;
+          if (palette_offset + 3 > palette -> get_size()) {
+            Log -> error(
+              "Png: Palette index {} at pixel {} exceeds palette size {}",
+              palette_index,
+              pixel_index,
+              palette -> get_size() / 3,
+            );
+            return (.success = False, .pixels = List[Graphics.Pixel]());
+          }
+          pixels[pixel_index] = Graphics.Pixel(palette.[palette_offset +: 3]);
+        }
+        case _: {
+          return (.success = False, .pixels = List[Graphics.Pixel]());
+        }
+      }
+    }
+
+    return (.success = True, .pixels = pixels);
+  }
+
+  // Validates the leading IHDR chunk and returns a populated ImageInfo.
+  // Returns a zero-sized ImageInfo on any parse or validation failure.
+  hidden read_header : Func = (.source : View[Bytes]) -> ImageInfo {
+    stack required_size : Count = 8 + Chunk.overhead + ImageInfo.size;
+    if (source -> get_size() < required_size) {
+      return ImageInfo();
+    }
+
+    if (source.[0 +: 8] != package.png_signature) {
+      Log -> error("Png: Invalid file signature");
+      return ImageInfo();
+    }
+
+    stack first_chunk_tag : Vec[Bits_8, 4] = source.[8 + 4 +: 4];
+    if (first_chunk_tag != package.ihdr_tag) {
+      Log -> error("Png: First chunk must be IHDR, got '{}'", first_chunk_tag);
+      return ImageInfo();
+    }
+
+    stack info : ImageInfo = ImageInfo -> from_bytes(source[8 + 8 +: ImageInfo.size]);
+    if (info.bit_depth != 8) {
+      Log -> error("Png: Unsupported bit depth {} (only 8-bit is supported)", info.bit_depth);
+      return ImageInfo();
+    }
+
+    if (info.color_type -> get_channel_count() == 0) {
+      Log -> error("Png: Unsupported color type {}", Bits_8(info.color_type));
+      return ImageInfo();
+    }
+
+    if (!info -> is_valid()) {
+      Log -> error("Png: Non-standard compression, filter, or interlace method in IHDR");
+      return ImageInfo();
+    }
+
+    return info;
+  }
+
+  // Decompresses, un-filters, and converts the IDAT payload into an Image.
+  hidden process_data : Func = (
+    .info    : ImageInfo,
+    .source  : View[Bytes],
+    .palette : View[Bytes],
+  ) -> Graphics.Image {
+    stack bpp                   : Count = info.color_type -> get_channel_count();
+    stack decompressed_capacity : Count =
+      Count(info.width) * Count(info.height) * bpp + Count(info.height);
+
+    stack filtered_rows : Bytes = Deflate -> inflate(source, decompressed_capacity);
+    if (filtered_rows -> get_size() == 0) {
+      return Graphics.Image();
+    }
+
+    // Rgba fast path: reconstruct directly into the pixel list to avoid a copy.
+    if (info.color_type == ColorType.Rgba) {
+      stack pixel_count : Count = Count(info.width) * Count(info.height);
+      stack pixels : List[Graphics.Pixel] = List[Graphics.Pixel] -> new(pixel_count);
+      pixels -> resize(pixel_count);
+      if (!self -> reconstruct_filter(
+        filtered_rows -> get_view(),
+        Count(info.width),
+        Count(info.height),
+        bpp,
+        pixels -> get_bytes(),
+      )) {
+        Log -> error("Png: Filter reconstruction failed — decompressed data may be truncated");
+        return Graphics.Image();
+      }
+      return Graphics.Image(pixels, info.width, info.height);
+    }
+
+    // Non-Rgba: reconstruct into a raw buffer then convert to Pixel format.
+    stack raw_pixel_count : Count = Count(info.width) * Count(info.height) * bpp;
+    stack raw_pixels : Bytes = Bytes -> new(raw_pixel_count);
+    raw_pixels -> resize(raw_pixel_count);
+    if (!self -> reconstruct_filter(
+      filtered_rows -> get_view(),
+      Count(info.width),
+      Count(info.height),
+      bpp,
+      raw_pixels -> get_access(),
+    )) {
+      Log -> error("Png: Filter reconstruction failed — decompressed data may be truncated");
+      return Graphics.Image();
+    }
+
+    stack (_, pixels) = self -> convert_to_pixels(
+      raw_pixels -> get_view(),
+      Count(info.width),
+      Count(info.height),
+      info.color_type,
+      palette,
+    )!;
+    return Graphics.Image(pixels, info.width, info.height);
+  }
+}

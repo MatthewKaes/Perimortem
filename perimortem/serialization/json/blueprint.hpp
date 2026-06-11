@@ -40,7 +40,7 @@ struct Blueprint {
       Count size;
     } compound;
     const Node* node_ptr;
-    Long number_val;
+    Signed_64 number_val;
     Real_64 real_val;
     Bool flag_val;
   };
@@ -51,7 +51,14 @@ struct Blueprint {
   Blueprint() : string_val(), name(), tag(Tag::Null) {}
   Blueprint(Core::View::Bytes str)
       : string_val(str), name(), tag(Tag::String) {}
-  Blueprint(Long num) : number_val(num), name(), tag(Tag::Number) {}
+  Blueprint(Bits_8 num) : number_val(num), name(), tag(Tag::Number) {}
+  Blueprint(Bits_16 num) : number_val(num), name(), tag(Tag::Number) {}
+  Blueprint(Bits_32 num) : number_val(num), name(), tag(Tag::Number) {}
+  Blueprint(Bits_64 num) : number_val(num), name(), tag(Tag::Number) {}
+  Blueprint(Signed_8 num) : number_val(num), name(), tag(Tag::Number) {}
+  Blueprint(Signed_16 num) : number_val(num), name(), tag(Tag::Number) {}
+  Blueprint(Signed_32 num) : number_val(num), name(), tag(Tag::Number) {}
+  Blueprint(Signed_64 num) : number_val(num), name(), tag(Tag::Number) {}
   Blueprint(Real_64 real) : real_val(real), name(), tag(Tag::Real) {}
   Blueprint(Real_32 real) : Blueprint(Real_64(real)) {}
   Blueprint(Bool b) : flag_val(b), name(), tag(Tag::Flag) {}
@@ -60,7 +67,21 @@ struct Blueprint {
   // Named scalar constructors (member -> scalar)
   Blueprint(Core::View::Bytes n, Core::View::Bytes str)
       : string_val(str), name(n), tag(Tag::String) {}
-  Blueprint(Core::View::Bytes n, Long num)
+  Blueprint(Core::View::Bytes n, Bits_8 num)
+      : number_val(num), name(n), tag(Tag::Number) {}
+  Blueprint(Core::View::Bytes n, Bits_16 num)
+      : number_val(num), name(n), tag(Tag::Number) {}
+  Blueprint(Core::View::Bytes n, Bits_32 num)
+      : number_val(num), name(n), tag(Tag::Number) {}
+  Blueprint(Core::View::Bytes n, Bits_64 num)
+      : number_val(num), name(n), tag(Tag::Number) {}
+  Blueprint(Core::View::Bytes n, Signed_8 num)
+      : number_val(num), name(n), tag(Tag::Number) {}
+  Blueprint(Core::View::Bytes n, Signed_16 num)
+      : number_val(num), name(n), tag(Tag::Number) {}
+  Blueprint(Core::View::Bytes n, Signed_32 num)
+      : number_val(num), name(n), tag(Tag::Number) {}
+  Blueprint(Core::View::Bytes n, Signed_64 num)
       : number_val(num), name(n), tag(Tag::Number) {}
   Blueprint(Core::View::Bytes n, Real_64 real)
       : real_val(real), name(n), tag(Tag::Real) {}

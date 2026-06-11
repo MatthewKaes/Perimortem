@@ -23,15 +23,14 @@ inline auto to_view(const char* str) -> Perimortem::Core::View::Bytes {
     return Perimortem::Core::View::Bytes();
   }
 
-  return Perimortem::Core::View::Bytes(
-      reinterpret_cast<const Byte*>(str), size);
+  return Perimortem::Core::View::Bytes(Data::cast<const Bits_8>(str), size);
 }
 
 template <CppSize size_including_null>
 struct CString {
-  Byte content[size_including_null - 1]{};
+  Bits_8 content[size_including_null - 1]{};
 
-  consteval CString(SignedBits_8 const (&source)[size_including_null]) {
+  consteval CString(Signed_8 const (&source)[size_including_null]) {
     for (Count i = 0; i < get_size(); i++) {
       content[i] = source[i];
     }
@@ -40,14 +39,14 @@ struct CString {
   consteval operator Core::View::Bytes() const { return get_view(); }
 
   consteval auto get_size() const -> Count { return size_including_null - 1; }
-  consteval auto get_data() const -> const Byte* { return content; }
+  consteval auto get_data() const -> const Bits_8* { return content; }
   consteval auto get_view() const -> const Core::View::Bytes {
     return Core::View::Bytes(content, get_size());
   }
 };
 
 template <CppSize N>
-CString(SignedBits_8 const (&)[N]) -> CString<N>;
+CString(Signed_8 const (&)[N]) -> CString<N>;
 
 }  // namespace Perimortem::Core::NullTerminated
 

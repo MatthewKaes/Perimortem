@@ -52,7 +52,7 @@ auto Compiler::compile_function(
 
   // Copy arguments into arena so the function entry remains valid after
   // the caller's stack frame is gone.
-  auto* args_copy = reinterpret_cast<Intermediate::Argument*>(
+  auto* args_copy = Data::cast<Intermediate::Argument>(
       arena.allocate(sizeof(Intermediate::Argument) * arguments.get_size()));
   for (Count j = 0; j < arguments.get_size(); j++) {
     args_copy[j] = arguments.at(j);

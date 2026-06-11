@@ -13,7 +13,7 @@ using namespace Perimortem::Core;
 
 #include <x86intrin.h>
 
-constexpr SignedBits_8 null = 0x80;
+constexpr Signed_8 null = 0x80;
 
 auto generate_uuid_v4() -> __m128i {
   const auto value = _mm_set_epi64x(Random::generate(), Random::generate());
@@ -114,10 +114,10 @@ constexpr auto deserialize_ascii(
 auto Uuid::deserialize(const Static::Bytes<36>& uuid_string) -> Uuid& {
   // RFC-4122 spec:
   // 8-4-4-4-12
-  const auto buffer = _mm256_loadu_si256(
-      reinterpret_cast<const __m256i*>(uuid_string.get_data()));
-  const auto offset_buffer = _mm256_loadu_si256(
-      reinterpret_cast<const __m256i*>(uuid_string.get_data() + 4));
+  const auto buffer =
+      _mm256_loadu_si256(Data::cast<const __m256i>(uuid_string.get_data()));
+  const auto offset_buffer =
+      _mm256_loadu_si256(Data::cast<const __m256i>(uuid_string.get_data() + 4));
 
   const auto packing_shuffle = _mm256_set_epi8(
       null, null, null, null, 15, 14, 13, 12, 11, 10, 9, 8, 6, 5, 4, 3, null,
@@ -139,8 +139,8 @@ auto Uuid::deserialize(const Static::Bytes<36>& uuid_string) -> Uuid& {
 }
 
 auto Uuid::deserialize(const Static::Bytes<32>& uuid_string) -> Uuid& {
-  const auto ascii_buffer = _mm256_loadu_si256(
-      reinterpret_cast<const __m256i*>(uuid_string.get_data()));
+  const auto ascii_buffer =
+      _mm256_loadu_si256(Data::cast<const __m256i>(uuid_string.get_data()));
 
   deserialize_ascii(ascii_buffer, this->high_low);
   return *this;
@@ -150,8 +150,7 @@ auto Uuid::serialize() const -> const Static::Bytes<36> {
   Static::Bytes<36> uuid_string;
   auto byte_buffer = uuid_string.get_access().get_data();
 
-  const __m128i packed =
-      _mm_loadu_si128(reinterpret_cast<const __m128i*>(&high_low));
+  const __m128i packed = _mm_loadu_si128(Data::cast<const __m128i>(&high_low));
 
   const auto nibbles = nibbler(packed);
   const auto ascii = convert_to_ascii(nibbles);
@@ -173,7 +172,7 @@ auto Uuid::serialize() const -> const Static::Bytes<36> {
   auto dashed_ascii = _mm256_or_si256(spaced_ascii, dashes);
 
   // Stamp as much data as we can.
-  _mm256_storeu_si256(reinterpret_cast<__m256i*>(byte_buffer), dashed_ascii);
+  _mm256_storeu_si256(Data::cast<__m256i>(byte_buffer), dashed_ascii);
 
   // Stamp the dropped ascii into the output.
   // Since shuffle only works on 128 bit lanes for AVX we need to do a stamp for
@@ -188,14 +187,14 @@ auto Uuid::serialize() const -> const Static::Bytes<36> {
 
 auto Uuid::generate_v4() -> Uuid {
   Bits_64 values[2];
-  _mm_storeu_si128(reinterpret_cast<__m128i*>(values), generate_uuid_v4());
+  _mm_storeu_si128(Data::cast<__m128i>(values), generate_uuid_v4());
 
   return Uuid(values[1], values[0]);
 }
 
 auto Uuid::generate_v7() -> Uuid {
   Bits_64 values[2];
-  _mm_storeu_si128(reinterpret_cast<__m128i*>(values), generate_uuid_v7());
+  _mm_storeu_si128(Data::cast<__m128i>(values), generate_uuid_v7());
 
   return Uuid(values[1], values[0]);
 }

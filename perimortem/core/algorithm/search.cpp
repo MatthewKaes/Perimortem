@@ -12,7 +12,7 @@ using namespace Perimortem::Core;
 
 namespace Perimortem::Core::Algorithm {
 
-auto load_vector(const Byte* data) -> const __m256i {
+auto load_vector(const Bits_8* data) -> const __m256i {
   return _mm256_loadu_si256(Data::cast<const __m256i_u>(data));
 }
 

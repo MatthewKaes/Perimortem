@@ -20,7 +20,7 @@ auto populate_test(View::Bytes text, Count location) -> Static::Bytes<size> {
   Static::Bytes<size> test_data;
   // Create junk data to make sure filtering works.
   for (Count i = 0; i < test_data.get_size(); i++) {
-    test_data[i] = Byte(i);
+    test_data[i] = Bits_8(i);
   }
   Data::copy(test_data.get_data() + location, text.get_data(), text.get_size());
   return test_data;

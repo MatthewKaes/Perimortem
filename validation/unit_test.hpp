@@ -24,12 +24,13 @@ auto error_contains(Perimortem::Core::View::Bytes message) -> Bool;
 
 auto expected(Bool value, Bool actual) -> void;
 auto expected(Perimortem::Core::View::Bytes value, Bool actual) -> void;
-auto expected(Half value, Bool actual) -> void;
-auto expected(UHalf value, Bool actual) -> void;
-auto expected(Int value, Bool actual) -> void;
-auto expected(UInt value, Bool actual) -> void;
-auto expected(Long value, Bool actual) -> void;
-auto expected(ULong value, Bool actual) -> void;
+auto expected(Signed_16 value, Bool actual) -> void;
+auto expected(Bits_16 value, Bool actual) -> void;
+auto expected(Bits_32 value, Bool actual) -> void;
+auto expected(Bits_64 value, Bool actual) -> void;
+auto expected(Signed_32 value, Bool actual) -> void;
+auto expected(Signed_32 value, Bool actual) -> void;
+auto expected(Signed_64 value, Bool actual) -> void;
 auto expected(CppSize value, Bool actual) -> void;
 auto expected(Real_64 value, Bool actual) -> void;
 auto expected_text(

@@ -37,7 +37,7 @@ auto Reader::Serial::read() -> Value {
 
   auto source = data.get_data();
   auto byte_flag = source[ptr_location++];
-  const auto encoded_size = byte_flag & 0xF;
+  Bits_8 encoded_size = byte_flag & 0xF;
 
   if (ptr_location + encoded_size > data.get_size()) {
     Static::Bytes<128> error_buffer;
@@ -53,7 +53,7 @@ auto Reader::Serial::read() -> Value {
     return Value();
   }
 
-  SignedBits_64 value;
+  Signed_64 value;
   switch (encoded_size) {
   case 1:
     value = source[ptr_location];
@@ -121,7 +121,7 @@ auto Reader::Serial::read() -> Value {
   return View::Bytes(blob_ptr, value);
 }
 
-auto Reader::Serial::read_value() -> SignedBits_64 {
+auto Reader::Serial::read_value() -> Signed_64 {
   // If attribution isn't set then make it explicit any failures were from the
   // read_value call rather than just read.
   auto attribution = Diagnostics::Log::set_attribution();

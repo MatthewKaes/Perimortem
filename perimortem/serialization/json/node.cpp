@@ -105,7 +105,7 @@ auto optimized_or_merge(__m256i source[channels]) -> __m256i {
   }
 }
 
-auto scan(View::Bytes bytes, Byte search, Count position) -> Count {
+auto scan(View::Bytes bytes, Bits_8 search, Count position) -> Count {
   // Use 8 AVX2 channels to get out as much performance as we can for long
   // searches.
   constexpr const auto fused_channels = 8;
@@ -176,7 +176,7 @@ auto parse_string(View::Bytes source, Count& position) -> View::Bytes {
   return source.slice(start, position++ - start);
 }
 
-auto ignored_characters(Byte c) {
+auto ignored_characters(Bits_8 c) {
   return c == ',' || c == '\n' || c == ' ';
 }
 
@@ -198,7 +198,7 @@ auto Json::Node::set(const Core::View::Vector<Member> value) -> void {
   data.state = (Bits_32)NodeState::Object;
 }
 
-auto Json::Node::set(Long value) -> void {
+auto Json::Node::set(Signed_64 value) -> void {
   data.number = value;
   data.state = (Bits_32)NodeState::Number;
 }
@@ -276,7 +276,7 @@ auto Json::Node::get_flag() const -> Bool {
   return false;
 }
 
-auto Json::Node::get_number() const -> Count {
+auto Json::Node::get_number() const -> Signed_64 {
   if (data.state == (Bits_32)NodeState::Number) {
     return data.number;
   }
@@ -294,7 +294,7 @@ auto Json::Node::get_real() const -> double {
 
 auto Json::Node::get_string() const -> const View::Bytes {
   if (data.state == (Bits_32)NodeState::String) {
-    return View::Bytes((const Byte*)data.ptr, data.size);
+    return View::Bytes((const Bits_8*)data.ptr, data.size);
   }
 
   return View::Bytes();
@@ -495,7 +495,7 @@ auto Json::Node::parse(
         position++;
       }
 
-      Long value = 0;
+      Signed_64 value = 0;
       while (position < source.get_size() && source[position] >= '0' &&
              source[position] <= '9') {
         value *= 10;
@@ -643,40 +643,40 @@ auto Json::Node::format(Allocator::Arena& arena) const -> View::Bytes {
     }
 
     case NodeState::Array: {
-      output << Byte('[');
+      output << '[';
 
       View::Vector<Json::Node> array = node.get_array();
       for (Bits_32 i = 0; i < array.get_size(); i++) {
         self(output, array[i]);
         if (i != array.get_size() - 1) {
-          output << Byte(',');
+          output << ',';
         }
       }
 
-      output << Byte(']');
+      output << ']';
       return;
     }
 
     case NodeState::Object: {
-      output << Byte('{');
+      output << '{';
 
       View::Vector<Member> members = node.get_object();
       for (Bits_32 i = 0; i < members.get_size(); i++) {
         const auto& member = members[i];
-        output << Byte('\"') << member.name << "\":"_view;
+        output << '\"' << member.name << "\":"_view;
 
         self(output, member.node);
         if (i != members.get_size() - 1) {
-          output << Byte(',');
+          output << ',';
         }
       }
 
-      output << Byte('}');
+      output << '}';
       return;
     }
 
     case NodeState::String: {
-      output << Byte('\"') << node.get_string() << Byte('\"');
+      output << '\"' << node.get_string() << '\"';
       return;
     }
 

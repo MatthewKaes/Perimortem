@@ -36,10 +36,10 @@ class Binary {
   auto operator<<(const Bits_16 bin) -> Binary&;
   auto operator<<(const Bits_32 bin) -> Binary&;
   auto operator<<(const Bits_64 bin) -> Binary&;
-  auto operator<<(const SignedBits_8 bin) -> Binary&;
-  auto operator<<(const SignedBits_16 bin) -> Binary&;
-  auto operator<<(const SignedBits_32 bin) -> Binary&;
-  auto operator<<(const SignedBits_64 bin) -> Binary&;
+  auto operator<<(const Signed_8 bin) -> Binary&;
+  auto operator<<(const Signed_16 bin) -> Binary&;
+  auto operator<<(const Signed_32 bin) -> Binary&;
+  auto operator<<(const Signed_64 bin) -> Binary&;
   auto operator<<(const Real_32 bin) -> Binary&;
   auto operator<<(const Real_64 bin) -> Binary&;
   auto operator<<(const View::Bytes blob) -> Binary&;
@@ -47,10 +47,10 @@ class Binary {
   auto operator<<(const View::Vector<Bits_16> blob) -> Binary&;
   auto operator<<(const View::Vector<Bits_32> blob) -> Binary&;
   auto operator<<(const View::Vector<Bits_64> blob) -> Binary&;
-  auto operator<<(const View::Vector<SignedBits_8> blob) -> Binary&;
-  auto operator<<(const View::Vector<SignedBits_16> blob) -> Binary&;
-  auto operator<<(const View::Vector<SignedBits_32> blob) -> Binary&;
-  auto operator<<(const View::Vector<SignedBits_64> blob) -> Binary&;
+  auto operator<<(const View::Vector<Signed_8> blob) -> Binary&;
+  auto operator<<(const View::Vector<Signed_16> blob) -> Binary&;
+  auto operator<<(const View::Vector<Signed_32> blob) -> Binary&;
+  auto operator<<(const View::Vector<Signed_64> blob) -> Binary&;
 
   constexpr auto get_size() const -> Count { return data.get_size(); }
   constexpr auto get_location() const -> Count { return ptr_location; }

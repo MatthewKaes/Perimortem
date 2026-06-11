@@ -104,15 +104,15 @@ class x86_64 {
   auto close() -> void {};
 
   auto mov(Reg src, Reg dst) -> void;
-  auto mov(Byte r8, Reg dst) -> void;
+  auto mov(Bits_8 r8, Reg dst) -> void;
   auto mov(Bits_16 r16, Reg dst) -> void;
   auto mov(Bits_32 r32, Reg dst) -> void;
   // Encoding optimized 64 bit mov.
   auto mov(Bits_64 r64, Reg dst) -> void;
   // Store to memory: mov src, [base+disp]
-  auto mov(Reg src, Reg base, SignedBits_32 disp) -> void;
+  auto mov(Reg src, Reg base, Signed_32 disp) -> void;
   // Load from memory: mov [base+disp], dst
-  auto mov(Reg base, SignedBits_32 disp, Reg dst) -> void;
+  auto mov(Reg base, Signed_32 disp, Reg dst) -> void;
   auto push(Reg reg) -> void;
   auto pop(Reg reg) -> void;
   auto zero(Reg reg) -> void;

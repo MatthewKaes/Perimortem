@@ -31,7 +31,7 @@ class Arena {
   Arena(Arena& arena) = delete;
   Arena(Arena&& arena) = delete;
 
-  inline auto allocate(Count bytes_requested) -> Byte* {
+  inline auto allocate(Count bytes_requested) -> Bits_8* {
     // Fetch a new page if we are full due to either running out of our current
     // page, or needing to allocate an object larger than our page size.
     //
@@ -43,7 +43,7 @@ class Arena {
     }
 
     // Align the bump pointer to keep data produced aligned.
-    Byte* root = rented_block + usage;
+    Bits_8* root = rented_block + usage;
     usage = Core::Data::align<arena_alignment>(usage + bytes_requested);
     return root;
   }
@@ -59,7 +59,7 @@ class Arena {
  private:
   auto fetch_page(Count bytes_requested) -> void;
 
-  Byte* rented_block;
+  Bits_8* rented_block;
   Count usage;
 };
 

@@ -82,8 +82,8 @@ static_assert(sizeof(SectionHeader) == 64);
 // we use this instance to streamline serialization.
 struct SymbolEntry {
   Bits_32 name_offset;
-  Byte info;        // (binding << 4) | type
-  Byte visibility;  // STV_DEFAULT = 0
+  Bits_8 info;        // (binding << 4) | type
+  Bits_8 visibility;  // STV_DEFAULT = 0
   Bits_16 section_index;
   Bits_64 value;
   Bits_64 size;
@@ -94,7 +94,7 @@ static_assert(sizeof(SymbolEntry) == 24);
 struct RelaEntry {
   Bits_64 offset;
   Bits_64 info;  // (symbol_index << 32) | reloc_type
-  SignedBits_64 addend;
+  Signed_64 addend;
 };
 static_assert(sizeof(RelaEntry) == 24);
 
@@ -254,11 +254,11 @@ auto build_symbol_table(
     const auto& ref = sorted[i];
     const auto& symbol = *ref.symbol;
     auto& entry = entries[1 + i];
-    const Byte binding =
+    const Bits_8 binding =
         symbol.get_visability() == Context::Symbol::Visability::Global ? 1 : 0;
     Data::write<elf_endian>(
         &entry.name_offset, Bits_32(ref.string_table_offset));
-    entry.info = Byte((binding << 4) | Byte(symbol.get_type()));
+    entry.info = Bits_8((binding << 4) | Bits_8(symbol.get_type()));
     const Bits_16 section_index =
         symbol.get_context() == Context::Symbol::Location::External
             ? Bits_16(0)
@@ -290,7 +290,7 @@ auto build_relocations(
     Data::write<elf_endian>(&entries[i].offset, Bits_64(reloc.offset));
     Data::write<elf_endian>(
         &entries[i].info, (symbol_slot << 32) | Bits_64(rtype));
-    Data::write<elf_endian>(&entries[i].addend, SignedBits_64(reloc.addend));
+    Data::write<elf_endian>(&entries[i].addend, Signed_64(reloc.addend));
   }
   return data;
 }
@@ -352,13 +352,8 @@ auto Elf::write_header(
     Bits_64 section_offset,
     Bits_16 section_count,
     Bits_16 section_string_table_index) -> void {
-  constexpr Byte identity[16] = {
-    0x7F, 'E', 'L', 'F',
-    2,  // ELFCLASS64
-    1,  // ELFDATA2LSB
-    1,  // EV_CURRENT
-    0,  // ELFOSABI_NONE
-    0,    0,   0,   0,   0, 0, 0, 0,
+  Static::Bytes<16> identity = {
+    0x7F, 'E', 'L', 'F', 2, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0,
   };
   auto* header = Data::cast<Header>(buffer.get_data());
   header->identity = identity;
@@ -480,7 +475,7 @@ auto Elf::build_object() -> Dynamic::Bytes {
   Dynamic::Bytes output(file_size);
   output.forgetful_resize(file_size);
   output.set(0);
-  Byte* buf = output.get_access().get_data();
+  auto buf = output.get_access().get_data();
   memset(buf, 0, file_size);
 
   // Write the ELF header
@@ -532,7 +527,7 @@ auto Elf::build_library(View::Bytes object_name) -> Dynamic::Bytes {
 
   Dynamic::Bytes output;
   output.forgetful_resize(total);
-  Byte* buf = output.get_access().get_data();
+  Bits_8* buf = output.get_access().get_data();
   memset(buf, 0, total);
 
   constexpr auto ar_magic = "!<arch>\n"_view;
@@ -544,7 +539,7 @@ auto Elf::build_library(View::Bytes object_name) -> Dynamic::Bytes {
   Data::copy(buf + cursor, &symbol_header, 1);
   cursor += sizeof(ArHeader);
 
-  Byte* pos = buf + cursor;
+  Bits_8* pos = buf + cursor;
   Data::write<ar_endian>(Data::cast<Bits_32>(pos), Bits_32(exported_count));
   pos += 4;
   for (Count i = 0; i < exported_count; i++) {

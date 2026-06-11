@@ -16,7 +16,7 @@ using namespace Perimortem::Memory;
 
 constexpr Count max_path_size = 512;
 constexpr Count max_root_size = max_path_size / 2;
-alignas(__m256i) Byte root[max_root_size] = {0};
+alignas(__m256i) Bits_8 root[max_root_size] = {0};
 Count root_size = 0;
 
 struct FileStatus {
@@ -51,20 +51,19 @@ FileStatus get_file_status(const char* path) {
 #endif
 
 template <Count size>
-constexpr auto sanatize_path(Byte (&array)[size]) -> void {
+constexpr auto sanatize_path(Bits_8 (&array)[size]) -> void {
   const auto back_dash = _mm256_set1_epi8('\\');
   const auto forward_dash = _mm256_set1_epi8('/');
   for (Count i = 0; i < size; i += sizeof(__m256i)) {
-    const auto vec =
-        _mm256_loadu_si256(reinterpret_cast<const __m256i*>(array + i));
+    const auto vec = _mm256_loadu_si256(Data::cast<const __m256i>(array + i));
     const auto check = _mm256_cmpeq_epi8(vec, back_dash);
     const auto blend = _mm256_blendv_epi8(vec, forward_dash, check);
-    _mm256_storeu_si256(reinterpret_cast<__m256i*>(array + i), blend);
+    _mm256_storeu_si256(Data::cast<__m256i>(array + i), blend);
   }
 }
 
-constexpr auto create_path(Byte (&array)[max_path_size], View::Bytes path)
-    -> const SignedBits_8* {
+constexpr auto create_path(Bits_8 (&array)[max_path_size], View::Bytes path)
+    -> const Signed_8* {
   if (root_size + path.get_size() >= max_path_size - 1) {
     return "";
   }
@@ -76,7 +75,7 @@ constexpr auto create_path(Byte (&array)[max_path_size], View::Bytes path)
   // Null terminator for APIs.
   array[root_size + path.get_size()] = '\0';
 
-  return reinterpret_cast<const SignedBits_8*>(array);
+  return Data::cast<const Signed_8>(array);
 }
 
 auto File::get_root_path() -> View::Bytes {
@@ -103,7 +102,7 @@ auto File::set_root_path(View::Bytes path) -> Bool {
 }
 
 auto File::read(View::Bytes location) -> Bool {
-  Byte path_buffer[max_path_size];
+  Bits_8 path_buffer[max_path_size];
   const auto path = create_path(path_buffer, location);
 
   auto file_status = get_file_status(path);
@@ -140,7 +139,7 @@ auto File::write(Core::View::Bytes location) const -> Bool {
     return false;
   }
 
-  Byte path_buffer[max_path_size];
+  Bits_8 path_buffer[max_path_size];
   const auto path = create_path(path_buffer, location);
 
   FILE* file_handle = fopen(path, "wb");
@@ -158,7 +157,7 @@ auto File::write(Core::View::Bytes location) const -> Bool {
 
 // Checks the state of the file against a location.
 auto File::sync_status(Core::View::Bytes location) const -> File::State {
-  Byte path_buffer[max_path_size];
+  Bits_8 path_buffer[max_path_size];
   const auto path = create_path(path_buffer, location);
 
   auto file_status = get_file_status(path);
@@ -207,7 +206,7 @@ auto File::sync_status(Core::View::Bytes location) const -> File::State {
 //
 // Return the updated state of the File in memory.
 auto File::sync(Core::View::Bytes location, Bool force) -> File::State {
-  Byte path_buffer[max_path_size];
+  Bits_8 path_buffer[max_path_size];
   const auto path = create_path(path_buffer, location);
 
   auto state = sync_status(location);
@@ -264,14 +263,14 @@ auto File::update_contents(Memory::Dynamic::Bytes&& content) -> void {
 }
 
 auto File::remove(Core::View::Bytes location) -> Bool {
-  Byte path_buffer[max_path_size];
+  Bits_8 path_buffer[max_path_size];
   const auto path = create_path(path_buffer, location);
 
   return ::remove(path) == 0;
 }
 
 auto File::exists(Core::View::Bytes location) -> Bool {
-  Byte path_buffer[max_path_size];
+  Bits_8 path_buffer[max_path_size];
   const auto path = create_path(path_buffer, location);
 
   return get_file_status(path).is_file;

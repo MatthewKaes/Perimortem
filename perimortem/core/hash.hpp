@@ -13,7 +13,7 @@ class Hash {
   // constexpr version bit shift verion to a std::memcpy, we can wrap the logic
   // to ensure the slower logic is never executed at runtime.
   template <Count chunks>
-  static constexpr auto memcpy_64(Bits_64 (&result)[chunks], const Byte* data)
+  static constexpr auto memcpy_64(Bits_64 (&result)[chunks], const Bits_8* data)
       -> void {
     if consteval {
       for (Count chunk = 0; chunk < chunks; chunk++) {
@@ -42,7 +42,7 @@ class Hash {
 
  public:
   constexpr Hash(Core::View::Bytes bytes) {
-    const Byte* data = bytes.get_data();
+    const Bits_8* data = bytes.get_data();
 
     // Fast path for keys less than 8 bytes, but not the full 16.
     // This enables the underflow case when dealing with the remainder to drop a
@@ -194,14 +194,10 @@ class Hash {
     value = final_result;
   }
 
-  constexpr Hash(SignedBits_8 numeric)
-      : value(hash_numeric(Bits_64(numeric))) {}
-  constexpr Hash(SignedBits_16 numeric)
-      : value(hash_numeric(Bits_64(numeric))) {}
-  constexpr Hash(SignedBits_32 numeric)
-      : value(hash_numeric(Bits_64(numeric))) {}
-  constexpr Hash(SignedBits_64 numeric)
-      : value(hash_numeric(Bits_64(numeric))) {}
+  constexpr Hash(Signed_8 numeric) : value(hash_numeric(Bits_64(numeric))) {}
+  constexpr Hash(Signed_16 numeric) : value(hash_numeric(Bits_64(numeric))) {}
+  constexpr Hash(Signed_32 numeric) : value(hash_numeric(Bits_64(numeric))) {}
+  constexpr Hash(Signed_64 numeric) : value(hash_numeric(Bits_64(numeric))) {}
   constexpr Hash(Bits_8 numeric) : value(hash_numeric(Bits_64(numeric))) {}
   constexpr Hash(Bits_16 numeric) : value(hash_numeric(Bits_64(numeric))) {}
   constexpr Hash(Bits_32 numeric) : value(hash_numeric(Bits_64(numeric))) {}

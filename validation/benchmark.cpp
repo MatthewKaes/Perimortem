@@ -45,7 +45,7 @@ struct SampleStats {
   Bits_64 min_ns;
   Bits_64 max_ns;
   Count sample_count;
-  Long alloc_requests_per_iter;
+  Bits_64 alloc_requests_per_iter;
 };
 
 static constexpr Count max_benchmark_count = 1024;
@@ -128,7 +128,7 @@ auto bucket_avg(Count start, Count end_index) -> Bits_64 {
   return total / (end_index - start);
 }
 
-auto compute_stats(Count sample_count, Long alloc_requests) -> SampleStats {
+auto compute_stats(Count sample_count, Bits_64 alloc_requests) -> SampleStats {
   SampleStats stats = {};
   stats.sample_count = sample_count;
   stats.min_ns = time_samples[0];
@@ -198,7 +198,7 @@ auto run_samples(const Harness& harness, Benchmark::BenchmarkFunc func)
   harness.teardown();
 
   Count sample_count = 0;
-  Long total_alloc_delta = 0;
+  Bits_64 total_alloc_delta = 0;
   total_start = Time::now();
 
   while (sample_count < max_sample_count) {
@@ -224,7 +224,7 @@ auto run_samples(const Harness& harness, Benchmark::BenchmarkFunc func)
     time_samples[sample_count++] =
         sample_start.measure(sample_end).convert_to_nanoseconds() /
         harness.batch_count;
-    total_alloc_delta += Long(allocs_after - allocs_before);
+    total_alloc_delta += Bits_64(allocs_after - allocs_before);
 
     // Check every 16 samples if we are over our time budget, if we are then
     // early terminate.
@@ -237,7 +237,7 @@ auto run_samples(const Harness& harness, Benchmark::BenchmarkFunc func)
 
   Algorithm::sort(
       Access::Vector<Bits_64>(time_samples.get_data(), sample_count));
-  return compute_stats(sample_count, total_alloc_delta / Long(sample_count));
+  return compute_stats(sample_count, total_alloc_delta / Bits_64(sample_count));
 }
 
 #ifdef PERI_BENCH_CPP
@@ -477,9 +477,9 @@ auto run_comparison_row(Count ci, const SectionLayout& sl) -> void {
   print_time(system_color, 10, cpp_ns);
 
   if (best_ns != Bits_64(-1)) {
-    Real_64 delta = (best_ns > 0) ? Real_64(Long(cpp_ns) - Long(best_ns)) /
-                                        Real_64(best_ns) * 100.0
-                                  : 0.0;
+    Real_64 delta = (best_ns > 0)
+                        ? Real_64(cpp_ns - best_ns) / Real_64(best_ns) * 100.0
+                        : 0.0;
     const char* delta_color = (delta >= 0.0) ? fast_color : slow_color;
     View::Bytes best_name =
         (cpp_ns < best_ns) ? "C++"_view : comp.variants[best_v].header;

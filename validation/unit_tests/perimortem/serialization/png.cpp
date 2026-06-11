@@ -36,10 +36,10 @@ PERIMORTEM_UNIT_TEST(SerializationPng, decode_red_1x1_dimensions) {
 
   auto pixels = image.get_pixels();
   ASSERT_EQ(pixels.get_size(), Count(1));
-  EXPECT_EQ(pixels[0].red, Byte(0xFF));
-  EXPECT_EQ(pixels[0].green, Byte(0x00));
-  EXPECT_EQ(pixels[0].blue, Byte(0x00));
-  EXPECT_EQ(pixels[0].alpha, Byte(0xFF));
+  EXPECT_EQ(pixels[0].red, Bits_8(0xFF));
+  EXPECT_EQ(pixels[0].green, Bits_8(0x00));
+  EXPECT_EQ(pixels[0].blue, Bits_8(0x00));
+  EXPECT_EQ(pixels[0].alpha, Bits_8(0xFF));
   EXPECT(Bibliotheca::check_out_requests() - start_requests <= 6);
 }
 
@@ -51,22 +51,22 @@ PERIMORTEM_UNIT_TEST(SerializationPng, decode_checkerboard_2x2) {
   auto pixels = image.get_pixels();
 
   ASSERT_EQ(pixels.get_size(), Count(4));
-  EXPECT_EQ(pixels[0].red, Byte(0xFF));
-  EXPECT_EQ(pixels[0].green, Byte(0x00));
-  EXPECT_EQ(pixels[0].blue, Byte(0x00));
-  EXPECT_EQ(pixels[0].alpha, Byte(0xFF));
-  EXPECT_EQ(pixels[1].red, Byte(0x00));
-  EXPECT_EQ(pixels[1].green, Byte(0xFF));
-  EXPECT_EQ(pixels[1].blue, Byte(0x00));
-  EXPECT_EQ(pixels[1].alpha, Byte(0xFF));
-  EXPECT_EQ(pixels[2].red, Byte(0x00));
-  EXPECT_EQ(pixels[2].green, Byte(0x00));
-  EXPECT_EQ(pixels[2].blue, Byte(0xFF));
-  EXPECT_EQ(pixels[2].alpha, Byte(0xFF));
-  EXPECT_EQ(pixels[3].red, Byte(0xFF));
-  EXPECT_EQ(pixels[3].green, Byte(0xFF));
-  EXPECT_EQ(pixels[3].blue, Byte(0xFF));
-  EXPECT_EQ(pixels[3].alpha, Byte(0xFF));
+  EXPECT_EQ(pixels[0].red, Bits_8(0xFF));
+  EXPECT_EQ(pixels[0].green, Bits_8(0x00));
+  EXPECT_EQ(pixels[0].blue, Bits_8(0x00));
+  EXPECT_EQ(pixels[0].alpha, Bits_8(0xFF));
+  EXPECT_EQ(pixels[1].red, Bits_8(0x00));
+  EXPECT_EQ(pixels[1].green, Bits_8(0xFF));
+  EXPECT_EQ(pixels[1].blue, Bits_8(0x00));
+  EXPECT_EQ(pixels[1].alpha, Bits_8(0xFF));
+  EXPECT_EQ(pixels[2].red, Bits_8(0x00));
+  EXPECT_EQ(pixels[2].green, Bits_8(0x00));
+  EXPECT_EQ(pixels[2].blue, Bits_8(0xFF));
+  EXPECT_EQ(pixels[2].alpha, Bits_8(0xFF));
+  EXPECT_EQ(pixels[3].red, Bits_8(0xFF));
+  EXPECT_EQ(pixels[3].green, Bits_8(0xFF));
+  EXPECT_EQ(pixels[3].blue, Bits_8(0xFF));
+  EXPECT_EQ(pixels[3].alpha, Bits_8(0xFF));
 }
 
 PERIMORTEM_UNIT_TEST(SerializationPng, decode_rgb_to_rgba) {
@@ -78,12 +78,12 @@ PERIMORTEM_UNIT_TEST(SerializationPng, decode_rgb_to_rgba) {
 
   // RGB source: alpha must be synthesized as fully opaque.
   ASSERT_EQ(pixels.get_size(), Count(3));
-  EXPECT_EQ(pixels[0].red, Byte(0xFF));
-  EXPECT_EQ(pixels[0].alpha, Byte(0xFF));
-  EXPECT_EQ(pixels[1].green, Byte(0xFF));
-  EXPECT_EQ(pixels[1].alpha, Byte(0xFF));
-  EXPECT_EQ(pixels[2].blue, Byte(0xFF));
-  EXPECT_EQ(pixels[2].alpha, Byte(0xFF));
+  EXPECT_EQ(pixels[0].red, Bits_8(0xFF));
+  EXPECT_EQ(pixels[0].alpha, Bits_8(0xFF));
+  EXPECT_EQ(pixels[1].green, Bits_8(0xFF));
+  EXPECT_EQ(pixels[1].alpha, Bits_8(0xFF));
+  EXPECT_EQ(pixels[2].blue, Bits_8(0xFF));
+  EXPECT_EQ(pixels[2].alpha, Bits_8(0xFF));
 }
 
 PERIMORTEM_UNIT_TEST(SerializationPng, decode_gray_expands_to_rgba) {
@@ -95,25 +95,25 @@ PERIMORTEM_UNIT_TEST(SerializationPng, decode_gray_expands_to_rgba) {
 
   // Greyscale source: gray value replicates to all three color channels.
   ASSERT_EQ(pixels.get_size(), Count(4));
-  EXPECT_EQ(pixels[0].red, Byte(0x00));
-  EXPECT_EQ(pixels[0].green, Byte(0x00));
-  EXPECT_EQ(pixels[0].blue, Byte(0x00));
-  EXPECT_EQ(pixels[0].alpha, Byte(0xFF));
+  EXPECT_EQ(pixels[0].red, Bits_8(0x00));
+  EXPECT_EQ(pixels[0].green, Bits_8(0x00));
+  EXPECT_EQ(pixels[0].blue, Bits_8(0x00));
+  EXPECT_EQ(pixels[0].alpha, Bits_8(0xFF));
 
-  EXPECT_EQ(pixels[1].red, Byte(0x40));
-  EXPECT_EQ(pixels[1].green, Byte(0x40));
-  EXPECT_EQ(pixels[1].blue, Byte(0x40));
-  EXPECT_EQ(pixels[1].alpha, Byte(0xFF));
+  EXPECT_EQ(pixels[1].red, Bits_8(0x40));
+  EXPECT_EQ(pixels[1].green, Bits_8(0x40));
+  EXPECT_EQ(pixels[1].blue, Bits_8(0x40));
+  EXPECT_EQ(pixels[1].alpha, Bits_8(0xFF));
 
-  EXPECT_EQ(pixels[2].red, Byte(0x80));
-  EXPECT_EQ(pixels[2].green, Byte(0x80));
-  EXPECT_EQ(pixels[2].blue, Byte(0x80));
-  EXPECT_EQ(pixels[2].alpha, Byte(0xFF));
+  EXPECT_EQ(pixels[2].red, Bits_8(0x80));
+  EXPECT_EQ(pixels[2].green, Bits_8(0x80));
+  EXPECT_EQ(pixels[2].blue, Bits_8(0x80));
+  EXPECT_EQ(pixels[2].alpha, Bits_8(0xFF));
 
-  EXPECT_EQ(pixels[3].red, Byte(0xFF));
-  EXPECT_EQ(pixels[3].green, Byte(0xFF));
-  EXPECT_EQ(pixels[3].blue, Byte(0xFF));
-  EXPECT_EQ(pixels[3].alpha, Byte(0xFF));
+  EXPECT_EQ(pixels[3].red, Bits_8(0xFF));
+  EXPECT_EQ(pixels[3].green, Bits_8(0xFF));
+  EXPECT_EQ(pixels[3].blue, Bits_8(0xFF));
+  EXPECT_EQ(pixels[3].alpha, Bits_8(0xFF));
 }
 
 PERIMORTEM_UNIT_TEST(SerializationPng, decode_gradient_4x4) {
@@ -124,12 +124,12 @@ PERIMORTEM_UNIT_TEST(SerializationPng, decode_gradient_4x4) {
   auto pixels = image.get_pixels();
 
   ASSERT_EQ(pixels.get_size(), Count(16));
-  EXPECT_EQ(pixels[0].red, Byte(0));
-  EXPECT_EQ(pixels[0].green, Byte(0));
-  EXPECT_EQ(pixels[0].blue, Byte(128));
-  EXPECT_EQ(pixels[15].red, Byte(255));
-  EXPECT_EQ(pixels[15].green, Byte(255));
-  EXPECT_EQ(pixels[15].blue, Byte(128));
+  EXPECT_EQ(pixels[0].red, Bits_8(0));
+  EXPECT_EQ(pixels[0].green, Bits_8(0));
+  EXPECT_EQ(pixels[0].blue, Bits_8(128));
+  EXPECT_EQ(pixels[15].red, Bits_8(255));
+  EXPECT_EQ(pixels[15].green, Bits_8(255));
+  EXPECT_EQ(pixels[15].blue, Bits_8(128));
 }
 
 PERIMORTEM_UNIT_TEST(SerializationPng, decode_pattern_8x1) {
@@ -140,12 +140,12 @@ PERIMORTEM_UNIT_TEST(SerializationPng, decode_pattern_8x1) {
   auto pixels = image.get_pixels();
 
   ASSERT_EQ(pixels.get_size(), Count(8));
-  EXPECT_EQ(pixels[0].red, Byte(100));
-  EXPECT_EQ(pixels[0].green, Byte(200));
-  EXPECT_EQ(pixels[0].blue, Byte(50));
-  EXPECT_EQ(pixels[0].alpha, Byte(255));
-  EXPECT_EQ(pixels[4].red, Byte(100));
-  EXPECT_EQ(pixels[4].green, Byte(200));
+  EXPECT_EQ(pixels[0].red, Bits_8(100));
+  EXPECT_EQ(pixels[0].green, Bits_8(200));
+  EXPECT_EQ(pixels[0].blue, Bits_8(50));
+  EXPECT_EQ(pixels[0].alpha, Bits_8(255));
+  EXPECT_EQ(pixels[4].red, Bits_8(100));
+  EXPECT_EQ(pixels[4].green, Bits_8(200));
 }
 
 PERIMORTEM_UNIT_TEST(SerializationPng, decode_invalid) {
@@ -171,10 +171,10 @@ PERIMORTEM_UNIT_TEST(SerializationPng, roundtrip_1x1) {
 
   auto decoded_pixels = decoded.get_pixels();
   ASSERT_EQ(decoded_pixels.get_size(), Count(1));
-  EXPECT_EQ(decoded_pixels[0].red, Byte(0x12));
-  EXPECT_EQ(decoded_pixels[0].green, Byte(0x34));
-  EXPECT_EQ(decoded_pixels[0].blue, Byte(0x56));
-  EXPECT_EQ(decoded_pixels[0].alpha, Byte(0x78));
+  EXPECT_EQ(decoded_pixels[0].red, Bits_8(0x12));
+  EXPECT_EQ(decoded_pixels[0].green, Bits_8(0x34));
+  EXPECT_EQ(decoded_pixels[0].blue, Bits_8(0x56));
+  EXPECT_EQ(decoded_pixels[0].alpha, Bits_8(0x78));
 }
 
 PERIMORTEM_UNIT_TEST(SerializationPng, roundtrip_checkerboard) {
@@ -194,10 +194,10 @@ PERIMORTEM_UNIT_TEST(SerializationPng, roundtrip_checkerboard) {
 
   auto decoded_pixels = decoded.get_pixels();
   ASSERT_EQ(decoded_pixels.get_size(), Count(4));
-  EXPECT_EQ(decoded_pixels[0].red, Byte(0xFF));
-  EXPECT_EQ(decoded_pixels[1].green, Byte(0xFF));
-  EXPECT_EQ(decoded_pixels[2].blue, Byte(0xFF));
-  EXPECT_EQ(decoded_pixels[3].red, Byte(0xFF));
+  EXPECT_EQ(decoded_pixels[0].red, Bits_8(0xFF));
+  EXPECT_EQ(decoded_pixels[1].green, Bits_8(0xFF));
+  EXPECT_EQ(decoded_pixels[2].blue, Bits_8(0xFF));
+  EXPECT_EQ(decoded_pixels[3].red, Bits_8(0xFF));
 }
 
 PERIMORTEM_UNIT_TEST(SerializationPng, roundtrip_64x64) {
@@ -208,7 +208,7 @@ PERIMORTEM_UNIT_TEST(SerializationPng, roundtrip_64x64) {
   for (Count row = 0; row < height; row++) {
     for (Count col = 0; col < width; col++) {
       source_pixels[row * width + col] = {
-        Byte(col * 8), Byte(row * 8), Byte(128), Byte(255)};
+        Bits_8(col * 8), Bits_8(row * 8), Bits_8(128), Bits_8(255)};
     }
   }
   Image source_image(Data::take(source_pixels), width, height);

@@ -34,7 +34,7 @@ constexpr auto partial = Dynamic::MapVectorization::Partial;
 constexpr auto full = Dynamic::MapVectorization::Full;
 
 constexpr Count max_key_count = 1 << 16;
-static Static::Vector<Int, max_key_count> lookup_keys;
+static Static::Vector<Signed_32, max_key_count> lookup_keys;
 
 auto populate_lookup_keys() -> void {
   static Bool populated = False;
@@ -42,23 +42,23 @@ auto populate_lookup_keys() -> void {
     return;
   }
   for (Count i = 0; i < max_key_count; i++) {
-    lookup_keys[i] = Int(i);
+    lookup_keys[i] = Signed_32(i);
   }
   populated = True;
 }
 
-static Harness MapInts = {
+static Harness MapSigned_32s = {
   .name = "Map Performance"_view,
   .init = populate_lookup_keys,
 };
 
 template <Dynamic::MapVectorization vector, Count values, Bool lookup>
 auto map_test() -> void {
-  Dynamic::Map<Int, Int, vector> local_map(values);
+  Dynamic::Map<Signed_32, Signed_32, vector> local_map(values);
   for (Count i = 0; i < values; i++) {
-    local_map.insert(lookup_keys[i], Int(i));
+    local_map.insert(lookup_keys[i], Signed_32(i));
   }
-  Int accumulator = local_map.get_size();
+  Signed_32 accumulator = local_map.get_size();
 
   if constexpr (lookup) {
     Benchmark::start_time();
@@ -73,9 +73,9 @@ auto map_test() -> void {
 
 // Usually Perimortem is anti macros but this just saves sooooooo much boiler
 // plate code that it's not even funny.
-#define MAP_INT_TEST(type, count, var)                         \
-  PERIMORTEM_BENCHMARK(MapInts, var##_##count##_ints_##type) { \
-    map_test<type, count, var>();                              \
+#define MAP_INT_TEST(type, count, var)                               \
+  PERIMORTEM_BENCHMARK(MapSigned_32s, var##_##count##_ints_##type) { \
+    map_test<type, count, var>();                                    \
   }
 
 #define MAP_INT_TEST_RANGE(count, lookup) \
@@ -151,13 +151,13 @@ auto create_scramble(Count mask) -> void {
 
 template <Dynamic::MapVectorization vector, Count values, Count mask>
 auto keyword_test() -> void {
-  Dynamic::Map<View::Bytes, Int, vector> local_map(keyword_count);
+  Dynamic::Map<View::Bytes, Signed_32, vector> local_map(keyword_count);
   for (Count i = 0; i < keyword_count; i++) {
     local_map.insert(keyword_source[i].key, keyword_source[i].value);
   }
 
   create_scramble(mask);
-  Int accumulator = local_map.get_size();
+  Signed_32 accumulator = local_map.get_size();
 
   Benchmark::start_time();
   for (Count i = 0; i < values; i++) {
@@ -172,7 +172,7 @@ auto keyword_table() -> void {
   // Try to create a chaotic lookup order with a percentage of bad values
   // Added to the mix.
   create_scramble(mask);
-  Int accumulator = 0;
+  Signed_32 accumulator = 0;
 
   Benchmark::start_time();
   for (Count i = 0; i < values; i++) {
@@ -297,7 +297,7 @@ auto cpp_keyword_test() -> void {
 
 #define INT_MAP_COMPARISON(count, var)                            \
   static Benchmark::Comparison int_map_##var##_##count = {        \
-    .harness = &MapInts,                                          \
+    .harness = &MapSigned_32s,                                    \
     .label = #var " " #count " ints"_view,                        \
     .variants =                                                   \
         {                                                         \

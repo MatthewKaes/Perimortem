@@ -4,61 +4,43 @@
 #pragma once
 
 #include "perimortem/core/view/bytes.hpp"
+#include "perimortem/core/view/vector.hpp"
 
 #include "perimortem/memory/allocator/arena.hpp"
 #include "perimortem/memory/managed/vector.hpp"
-#include "perimortem/memory/view/bitflag.hpp"
-#include "perimortem/memory/view/vector.hpp"
 
-#include "token.hpp"
+#include "tetrodotoxin/lexical/token.hpp"
 
 namespace Tetrodotoxin::Lexical {
 
-// Tokenizer aims to be fast and only takes a view of the data.
-// If the View::Byte source is destroyed then the parser itself no longer has a
-// meaningful frame of reference and will cause memory errors.
-enum class TtxState : Byte {
-
-  ParamTokenizing,
-  DisableCommands,
-
-  // Commands
-  CppTheme,
-
-  // Enable bit flags.
-  TOTAL_FLAGS,
-  None = static_cast<Byte>(-1),
-};
-
 class Tokenizer {
  public:
-  using Tokens = Perimortem::Core::View::Vector<Token>;
-
-  Tokenizer(Perimortem::Memory::Allocator::Arena& arena) : tokens(arena) {}
+  Tokenizer(Perimortem::Memory::Allocator::Arena& arena)
+      : tokens(arena), arena(arena) {}
 
   auto parse(Perimortem::Core::View::Bytes source, Bool strip_disabled = true)
       -> void;
 
-  inline constexpr auto get_tokens() const -> const Tokens { return tokens; };
-
-  // The tokenizer is empty if it has 0 or 1 (EndOfStream) tokens.
-  inline constexpr auto empty() const -> Bool { return tokens.get_size() <= 1; }
-
-  inline constexpr auto get_options() const
-      -> const Perimortem::Memory::View::BitFlag<TtxState> {
-    return options;
+  constexpr auto get_tokens() const -> Perimortem::Core::View::Vector<Token> {
+    return tokens;
   };
 
-  inline constexpr auto get_source() const
-      -> const Perimortem::Core::View::Bytes {
+  // The tokenizer is empty if it has 0 or 1 (EndOfStream) tokens.
+  constexpr auto empty() const -> Bool { return tokens.get_size() <= 1; }
+
+  constexpr auto get_source() const -> const Perimortem::Core::View::Bytes {
     return source;
+  };
+
+  constexpr auto get_arena() const -> Perimortem::Memory::Allocator::Arena& {
+    return arena;
   };
 
  private:
   // Output artifacts
   Perimortem::Core::View::Bytes source;
   Perimortem::Memory::Managed::Vector<Token> tokens;
-  Perimortem::Memory::View::BitFlag<TtxState> options;
+  Perimortem::Memory::Allocator::Arena& arena;
 };
 
 }  // namespace Tetrodotoxin::Lexical

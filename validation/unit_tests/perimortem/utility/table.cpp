@@ -12,7 +12,7 @@ using namespace Perimortem::Utility;
 
 using namespace Validation;
 
-constexpr Pair<View::Bytes, Int> keyword_source[] = {
+constexpr Pair<View::Bytes, Bits_8> keyword_source[] = {
   {"as"_view, 1},       {"if"_view, 2},       {"for"_view, 3},
   {"new"_view, 4},      {"else"_view, 5},     {"func"_view, 6},
   {"init"_view, 7},     {"self"_view, 8},     {"true"_view, 9},
@@ -23,9 +23,9 @@ constexpr Pair<View::Bytes, Int> keyword_source[] = {
   {"package"_view, 22}, {"warning"_view, 23},
 };
 
-using keyword_table = Table<Int, keyword_source>;
+using keyword_table = Table<Bits_32, keyword_source>;
 using keyword_table_aligned =
-    Table<Int, keyword_source, (Count)Data::CacheAware::Enabled>;
+    Table<Bits_32, keyword_source, (Count)Data::CacheAware::Enabled>;
 
 constexpr Pair<View::Bytes, View::Bytes> word_source[] = {
   {"a"_view, "b"_view},

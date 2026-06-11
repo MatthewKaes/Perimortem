@@ -30,7 +30,9 @@ class Node {
       : data{.ptr = nullptr, .size = 0, .state = 0} {
     set(value);
   }
-  Node(Long value) : data{.ptr = nullptr, .size = 0, .state = 0} { set(value); }
+  Node(Signed_64 value) : data{.ptr = nullptr, .size = 0, .state = 0} {
+    set(value);
+  }
   Node(Real_32 value) : data{.ptr = nullptr, .size = 0, .state = 0} {
     set(Real_64(value));
   }
@@ -42,7 +44,7 @@ class Node {
   auto set(const Core::View::Bytes value) -> void;
   auto set(const Core::View::Vector<Node> value) -> void;
   auto set(const Core::View::Vector<Member> value) -> void;
-  auto set(Long value) -> void;
+  auto set(Signed_64 value) -> void;
   auto set(Real_64 value) -> void;
   auto set(Bool value) -> void;
   auto set() -> void;
@@ -56,7 +58,7 @@ class Node {
   auto contains(const Core::View::Bytes name) const -> Bool;
 
   auto get_flag() const -> Bool;
-  auto get_number() const -> Count;
+  auto get_number() const -> Signed_64;
   auto get_real() const -> double;
   auto get_string() const -> const Core::View::Bytes;
   auto get_array() const -> const Core::View::Vector<Node>;
@@ -105,7 +107,7 @@ class Node {
   struct {
     union {
       const void* ptr;
-      Long number;
+      Signed_64 number;
       Real_64 real;
       Bool flag;
     };

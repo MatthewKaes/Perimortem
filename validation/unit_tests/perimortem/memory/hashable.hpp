@@ -14,7 +14,7 @@ class Hashable {
       : id(0),
         construct_count(default_construct_count),
         destruct_count(default_destruct_count) {}
-  Hashable(Int id, Count& construct_count, Count& destruct_count)
+  Hashable(Count id, Count& construct_count, Count& destruct_count)
       : id(id),
         construct_count(construct_count),
         destruct_count(destruct_count) {
@@ -45,7 +45,7 @@ class Hashable {
   auto operator==(const Hashable& rhs) const -> Bool { return rhs.id == id; }
 
  private:
-  Int id;
+  Count id;
   Count& construct_count;
   Count& destruct_count;
 };

@@ -20,10 +20,10 @@ class Bytes {
   // Allows direct value initialization: Static::Bytes<3>{0x01, 0x02, 0x03}.
   template <typename... raw_bytes>
     requires(sizeof...(raw_bytes) == literal_size)
-  constexpr Bytes(raw_bytes... values) : source_block{Byte(values)...} {}
+  constexpr Bytes(raw_bytes... values) : source_block{Bits_8(values)...} {}
 
   // Used for passing bytes directly that are already packed.
-  constexpr Bytes(const Byte (&source)[literal_size]) {
+  constexpr Bytes(const Bits_8 (&source)[literal_size]) {
     if consteval {
       for (Count i = 0; i < literal_size; i++) {
         source_block[i] = source[i];
@@ -51,14 +51,14 @@ class Bytes {
     }
   }
 
-  constexpr Bytes(Byte (*generator)(Count)) {
+  constexpr Bytes(Bits_8 (*generator)(Count)) {
     for (Count i = 0; i < literal_size; i++) {
       source_block[i] = generator(i);
     }
   }
 
   // Fast read function that assumes the read range is valid.
-  static constexpr auto read_range(const Byte* source) {
+  static constexpr auto read_range(const Bits_8* source) {
     Bytes data;
     if consteval {
       for (Count i = 0; i < literal_size; i++) {
@@ -92,11 +92,11 @@ class Bytes {
     return !(*this == rhs);
   }
 
-  constexpr auto operator[](Count index) -> Byte& {
+  constexpr auto operator[](Count index) -> Bits_8& {
     return source_block[index];
   }
 
-  constexpr auto operator[](Count index) const -> const Byte& {
+  constexpr auto operator[](Count index) const -> const Bits_8& {
     return source_block[index];
   }
 
@@ -114,8 +114,8 @@ class Bytes {
   constexpr auto get_view() const -> const View::Bytes {
     return View::Bytes(source_block, literal_size);
   }
-  constexpr auto get_data() const -> const Byte* { return source_block; }
-  constexpr auto get_data() -> Byte* { return source_block; }
+  constexpr auto get_data() const -> const Bits_8* { return source_block; }
+  constexpr auto get_data() -> Bits_8* { return source_block; }
   constexpr auto get_access() -> Access::Bytes {
     return Access::Bytes(source_block, literal_size);
   }
@@ -125,7 +125,7 @@ class Bytes {
   }
 
  private:
-  Byte source_block[literal_size]{};
+  Bits_8 source_block[literal_size]{};
 };
 
 }  // namespace Perimortem::Core::Static

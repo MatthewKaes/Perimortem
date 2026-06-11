@@ -34,10 +34,10 @@ class Binary {
   auto read_bits_16() -> Bits_16;
   auto read_bits_32() -> Bits_32;
   auto read_bits_64() -> Bits_64;
-  auto read_signed_bits_8() -> SignedBits_8;
-  auto read_signed_bits_16() -> SignedBits_16;
-  auto read_signed_bits_32() -> SignedBits_32;
-  auto read_signed_bits_64() -> SignedBits_64;
+  auto read_signed_bits_8() -> Signed_8;
+  auto read_signed_bits_16() -> Signed_16;
+  auto read_signed_bits_32() -> Signed_32;
+  auto read_signed_bits_64() -> Signed_64;
   auto read_real_32() -> Real_32;
   auto read_real_64() -> Real_64;
   auto read_bytes(Count count) -> View::Bytes;

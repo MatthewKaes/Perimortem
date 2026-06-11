@@ -21,7 +21,7 @@ class Relocation {
   Count symbol;
   Count offset;
   Type type;
-  SignedBits_32 addend;
+  Signed_32 addend;
 };
 
 }  // namespace Tetrodotoxin::Compiler::Context

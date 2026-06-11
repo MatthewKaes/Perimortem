@@ -23,7 +23,7 @@ class Names {
   auto make_local_unique() -> Perimortem::Core::View::Bytes;
 
  private:
-  Byte counter[4] = {0, 0, 0, 0};
+  Bits_8 counter[4] = {0, 0, 0, 0};
   Perimortem::Memory::Allocator::Arena& arena;
 };
 

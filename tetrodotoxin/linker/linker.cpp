@@ -17,7 +17,7 @@ Linker::Linker() {
   format = new (Bibliotheca::check_out(sizeof(Target::Elf)).ptr) Target::Elf();
 }
 Linker::~Linker() {
-  Bibliotheca::remit(Data::cast<Byte>(format));
+  Bibliotheca::remit(Data::cast<Bits_8>(format));
 }
 
 auto Linker::add_section(Context::Symbol::Location type, View::Bytes data)

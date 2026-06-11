@@ -68,7 +68,7 @@ PERIMORTEM_UNIT_TEST(SystemFile, memory_file) {
   EXPECT_EQ(file.get_size(), 0);
 
   constexpr Count buffer_size = 1 << 12;
-  constexpr Byte buffer_value = 4;
+  constexpr Bits_8 buffer_value = 4;
   Dynamic::Bytes buffer;
   buffer.resize(buffer_size);
   buffer.set(buffer_value);

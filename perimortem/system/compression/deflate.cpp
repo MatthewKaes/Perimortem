@@ -266,7 +266,7 @@ constexpr auto inflate_symbols(
 
     // Append regular symbols to the output
     if (symbol < end_of_block_symbol) {
-      output.append(Byte(symbol));
+      output.append(Bits_8(symbol));
       continue;
     }
 
@@ -669,11 +669,11 @@ constexpr auto deflate_stored(View::Bytes source) -> Dynamic::Bytes {
     const Bits_8 is_final_block =
         (i + block_size >= source.get_size()) ? 0x01 : 0x00;
 
-    output.append(Byte(is_final_block));
-    output.append(Byte(block_size & 0xFF));
-    output.append(Byte((block_size >> 8) & 0xFF));
-    output.append(Byte((~block_size) & 0xFF));
-    output.append(Byte(((~block_size) >> 8) & 0xFF));
+    output.append(Bits_8(is_final_block));
+    output.append(Bits_8(block_size & 0xFF));
+    output.append(Bits_8((block_size >> 8) & 0xFF));
+    output.append(Bits_8((~block_size) & 0xFF));
+    output.append(Bits_8(((~block_size) >> 8) & 0xFF));
 
     if (block_size > 0) {
       output.concat(source.slice(i, block_size));

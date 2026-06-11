@@ -124,12 +124,12 @@ auto populate_words() -> void {
   for (Count i = 0; i < keyword_seeds.get_size(); i++) {
     View::Bytes seed_word = keyword_seeds[i];
     for (Count j = 0; j < permute_count; j++) {
-      Byte* slot = generated_strings.get_data() + generated_index;
+      auto slot = generated_strings.get_data() + generated_index;
       Data::copy(slot, seed_word.get_data(), seed_word.get_size());
 
-      slot[seed_word.get_size()] = Byte('_');
-      slot[seed_word.get_size() + 1] = Byte('0' + (i / 100) % 10);
-      slot[seed_word.get_size() + 2] = Byte('0' + (i / 10) % 10);
+      slot[seed_word.get_size()] = '_';
+      slot[seed_word.get_size() + 1] = Bits_8('0' + (i / 100) % 10);
+      slot[seed_word.get_size() + 2] = Bits_8('0' + (i / 10) % 10);
 
       Count generated_size = seed_word.get_size() + 3;
       word_pool[i] = View::Bytes(slot, generated_size);

@@ -30,7 +30,7 @@ class Vector {
   auto reset() -> void {
     size = 0;
     capacity = start_capacity;
-    rented_block = reinterpret_cast<value_type*>(
+    rented_block = Core::Data::cast<value_type>(
         arena.allocate(sizeof(value_type) * start_capacity));
   }
 
@@ -41,7 +41,7 @@ class Vector {
 
     size = 0;
     capacity = reserve_capacity;
-    rented_block = reinterpret_cast<value_type*>(
+    rented_block = Core::Data::cast<value_type>(
         arena.allocate(sizeof(value_type) * reserve_capacity));
   }
 
@@ -96,7 +96,7 @@ class Vector {
         Core::Math::max(get_capacity() * 2, required_size);
 
     // Fetch and transfer to new block.
-    auto new_block = reinterpret_cast<value_type*>(
+    auto new_block = Core::Data::cast<value_type>(
         arena.allocate(sizeof(value_type) * new_capacity));
 
     // Copy the raw bytes of the block
@@ -111,11 +111,11 @@ class Vector {
 
   auto grow() -> void {
     capacity *= growth_factor;
-    auto new_block = reinterpret_cast<value_type*>(
+    auto new_block = Core::Data::cast<value_type>(
         arena.allocate(sizeof(value_type) * capacity));
 
     Core::Data::copy(
-        reinterpret_cast<Byte*>(new_block), rented_block,
+        Core::Data::cast<Bits_8>(new_block), rented_block,
         sizeof(value_type) * size);
     rented_block = new_block;
   }

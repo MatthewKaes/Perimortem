@@ -57,28 +57,21 @@ using Bits_32 = unsigned int;
 #endif
 using Bits_64 = unsigned long long;
 
-using SignedBits_8 = char;
-using SignedBits_16 = signed short int;
+using Signed_8 = char;
+using Signed_16 = signed short int;
 // Legacy support for LP32
 #ifdef __LP32__
-using SignedBits_32 = signed long;
+using Signed_32 = signed long;
 #else
-using SignedBits_32 = signed int;
+using Signed_32 = signed int;
 #endif
-using SignedBits_64 = signed long long;
+using Signed_64 = signed long long;
 
 using Real_32 = float;
 using Real_64 = double;
 using Real_128 = long double;
 
 // Definition for all used based types.
-using Byte = Bits_8;
-using Half = SignedBits_16;
-using UHalf = Bits_16;
-using Int = SignedBits_32;
-using UInt = Bits_32;
-using Long = SignedBits_64;
-using ULong = Bits_64;
 using Count = Bits_64;
 
 // Cpp interop
@@ -112,7 +105,7 @@ struct Bool {
     value |= rhs.value;
     return *this;
   }
-  constexpr auto sign() const -> SignedBits_64 { return value ? 1 : -1; }
+  constexpr auto sign() const -> Signed_64 { return value ? 1 : -1; }
   Bits_8 value;
 };
 
@@ -126,10 +119,10 @@ static_assert(sizeof(Bits_8) == 1);
 static_assert(sizeof(Bits_16) == 2);
 static_assert(sizeof(Bits_32) == 4);
 static_assert(sizeof(Bits_64) == 8);
-static_assert(sizeof(Bits_8) == sizeof(SignedBits_8));
-static_assert(sizeof(Bits_16) == sizeof(SignedBits_16));
-static_assert(sizeof(Bits_32) == sizeof(SignedBits_32));
-static_assert(sizeof(Bits_64) == sizeof(SignedBits_64));
+static_assert(sizeof(Bits_8) == sizeof(Signed_8));
+static_assert(sizeof(Bits_16) == sizeof(Signed_16));
+static_assert(sizeof(Bits_32) == sizeof(Signed_32));
+static_assert(sizeof(Bits_64) == sizeof(Signed_64));
 static_assert(sizeof(Real_32) == 4);
 static_assert(sizeof(Real_64) == 8);
 static_assert(sizeof(Real_128) == 16);

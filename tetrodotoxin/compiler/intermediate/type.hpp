@@ -16,7 +16,7 @@ class Type {
   enum class Lowering {
     // Unreachable
     Void,
-    // 8 BYTE*, 8 BITS_64
+    // 8 Bits_8*, 8 BITS_64
     ViewBytes,
   };
 

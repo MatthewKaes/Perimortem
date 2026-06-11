@@ -123,7 +123,7 @@ class Table {
 
     Coord buffer_coordinates[(max_range + 1)];
     value_type mappings[get_source_count()] = {};
-    alignas(64) Byte buffer[storage_size] = {0};
+    alignas(64) Bits_8 buffer[storage_size] = {0};
   };
 
   static constexpr PackedBuffer byte_pack;

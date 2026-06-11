@@ -17,7 +17,7 @@ extern void* memmove(void* dest, const void* src, size_t count) noexcept(true);
 
 extern int memcmp(const void* a, const void* b, size_t count) noexcept(true);
 
-extern void* memset(void* a, Int value, size_t count) noexcept(true);
+extern void* memset(void* a, Signed_32 value, size_t count) noexcept(true);
 }  // extern "C"
 
 namespace Perimortem::Core::Data {
@@ -82,19 +82,19 @@ auto cast(void* source) -> target_type* {
 }
 
 template <typename storage_type>
-auto copy(Byte* dest, const storage_type* src, Count count = 1)
+auto copy(Bits_8* dest, const storage_type* src, Count count = 1)
     -> storage_type* {
   return reinterpret_cast<storage_type*>(
       memcpy(dest, src, Bits_64(sizeof(storage_type)) * count));
 }
 
 template <typename storage_type>
-auto copy(Byte* dest, storage_type src) -> storage_type* {
+auto copy(Bits_8* dest, storage_type src) -> storage_type* {
   return reinterpret_cast<storage_type*>(
       memcpy(dest, &src, Bits_64(sizeof(storage_type))));
 }
 
-inline auto set(Byte* dest, Byte value, Count count = 1) -> void {
+inline auto set(Bits_8* dest, Bits_8 value, Count count = 1) -> void {
   memset(dest, value, count);
 }
 
@@ -141,7 +141,7 @@ constexpr auto ensure_endian(storage_type bin) -> storage_type {
 template <ByteOrder target, typename storage_type>
 constexpr auto write(storage_type* dest, storage_type value) -> void {
   value = Data::ensure_endian<Data::ByteOrder::Native, target>(value);
-  Data::copy(reinterpret_cast<Byte*>(dest), &value, 1);
+  Data::copy(reinterpret_cast<Bits_8*>(dest), &value, 1);
 }
 
 // Swaps two objects
@@ -151,7 +151,7 @@ constexpr auto write(storage_type* dest, storage_type value) -> void {
 template <typename type>
 constexpr auto swap(type& a, type& b) -> void {
   if !consteval {
-    alignas(alignof(type)) Byte forgetful[sizeof(type)];
+    alignas(alignof(type)) Bits_8 forgetful[sizeof(type)];
     memcpy(&forgetful, &a, sizeof(type));
     memcpy((void*)&a, &b, sizeof(type));
     memcpy((void*)&b, &forgetful, sizeof(type));

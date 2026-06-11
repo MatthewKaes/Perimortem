@@ -82,7 +82,7 @@ class Image {
   // Used when safety is prefered, but for speed most graphics operations should
   // be vectorized on the CPU or GPU and should go through `get_pixels()` to
   // directly manipulate the data.
-  auto get_pixel(Int x, Int y) const -> Pixel {
+  auto get_pixel(Signed_32 x, Signed_32 y) const -> Pixel {
     switch (addressing) {
       // Any out of bounds values are saturated to Bits_8(0)
     case Addressing::Zero:
@@ -93,14 +93,14 @@ class Image {
 
       // Any out of bounds values are clamped to the edges of the image.
     case Addressing::Clamp:
-      x = Core::Math::clamp(x, Int(0), Int(width - 1));
-      y = Core::Math::clamp(y, Int(0), Int(height - 1));
+      x = Core::Math::clamp(x, Signed_32(0), Signed_32(width - 1));
+      y = Core::Math::clamp(y, Signed_32(0), Signed_32(height - 1));
       break;
 
       // Performs domain wrapping for both X and Y.
     case Addressing::Wrap:
-      x = Core::Math::wrap(x, Int(width));
-      y = Core::Math::wrap(y, Int(height));
+      x = Core::Math::wrap(x, Signed_32(width));
+      y = Core::Math::wrap(y, Signed_32(height));
       break;
     }
     return pixels.get_view()[Count(y) * Count(width) + Count(x)];

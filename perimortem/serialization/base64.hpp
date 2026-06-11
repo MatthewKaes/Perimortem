@@ -3,11 +3,22 @@
 
 #pragma once
 
+#include "perimortem/core/view/bytes.hpp"
+
+#include "perimortem/memory/allocator/arena.hpp"
 #include "perimortem/memory/dynamic/bytes.hpp"
 
-namespace Perimortem::Serialization::Base64 {
+namespace Perimortem::Serialization {
 
-auto decode(const Core::View::Bytes source) -> Memory::Dynamic::Bytes;
-auto encode(const Core::View::Bytes source) -> Memory::Dynamic::Bytes;
+class Base64 {
+ public:
+  static auto decode(Core::View::Bytes source) -> Memory::Dynamic::Bytes;
+  static auto decode(Memory::Allocator::Arena& arena, Core::View::Bytes source)
+      -> Core::View::Bytes;
 
-}  // namespace Perimortem::Serialization::Base64
+  static auto encode(Core::View::Bytes source) -> Memory::Dynamic::Bytes;
+  static auto encode(Memory::Allocator::Arena& arena, Core::View::Bytes source)
+      -> Core::View::Bytes;
+};
+
+}  // namespace Perimortem::Serialization

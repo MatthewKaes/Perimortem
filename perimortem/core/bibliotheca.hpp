@@ -34,7 +34,7 @@ class Bibliotheca final {
   static constexpr auto legal_underwrite_size = 16;
 
   struct Allocation {
-    Byte* ptr;
+    Bits_8* ptr;
     Count capacity;
   };
 
@@ -42,12 +42,12 @@ class Bibliotheca final {
   static auto check_out(Count requested_bytes) -> Allocation;
 
   // Adds a reservation to the block.
-  static auto reserve(Byte* entry) -> Count;
+  static auto reserve(Bits_8* entry) -> Count;
 
   // Removes a reservation from the block.
   // If the number of reservations is zero then the block is checked in to the
   // Bibliotheca for future use.
-  static auto remit(Byte* entry) -> Count;
+  static auto remit(Bits_8* entry) -> Count;
 
   // Methods for analyzing the state of the Bibliotheca.
   static auto reserved_memory() -> Count;

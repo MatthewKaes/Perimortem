@@ -5,6 +5,9 @@
 
 #include <immintrin.h>
 
+#include "perimortem/core/data.hpp"
+
+using namespace Perimortem::Core;
 using namespace Perimortem::System;
 
 static constexpr Count channel_depth = 4;
@@ -19,20 +22,20 @@ struct PhiloxState {
   static constexpr Count round_count = 10;
   // Pack all of the constants into the lower bits.
   static constexpr __m256i philox4x32_constants = _mm256_set_epi64x(
-      SignedBits_64(0x00000000'D2511F53),
-      SignedBits_64(0x00000000'CD9E8D57),
-      SignedBits_64(0x00000000'D2511F53),
-      SignedBits_64(0x00000000'CD9E8D57));
+      Signed_64(0x00000000'D2511F53),
+      Signed_64(0x00000000'CD9E8D57),
+      Signed_64(0x00000000'D2511F53),
+      Signed_64(0x00000000'CD9E8D57));
   static constexpr __m256i philox4x32_xor_mask = _mm256_set_epi64x(
-      SignedBits_64(0xFFFFFFFF'00000000),
-      SignedBits_64(0xFFFFFFFF'00000000),
-      SignedBits_64(0xFFFFFFFF'00000000),
-      SignedBits_64(0xFFFFFFFF'00000000));
+      Signed_64(0xFFFFFFFF'00000000),
+      Signed_64(0xFFFFFFFF'00000000),
+      Signed_64(0xFFFFFFFF'00000000),
+      Signed_64(0xFFFFFFFF'00000000));
   static constexpr __m256i philox4x32_weyl = _mm256_set_epi64x(
-      SignedBits_64(0x9E2779B9'00000000),
-      SignedBits_64(0xBB67AE85'00000000),
-      SignedBits_64(0x9E2779B9'00000000),
-      SignedBits_64(0xBB67AE85'00000000));
+      Signed_64(0x9E2779B9'00000000),
+      Signed_64(0xBB67AE85'00000000),
+      Signed_64(0x9E2779B9'00000000),
+      Signed_64(0xBB67AE85'00000000));
   // Rolls they counter by 1 key.
   // This swaps the hi portion between 64 bit sets and shifts the low to hi.
   static constexpr Bits_8 counter_shuffle = 0b10'01'00'11;
@@ -96,8 +99,7 @@ constexpr auto bump_counter(PhiloxState& state) -> void {
 
   for (Count i = 0; i < channel_depth; i++) {
     _mm256_store_si256(
-        reinterpret_cast<__m256i*>(&state.output_state) + i,
-        philox_channels[i]);
+        Data::cast<__m256i>(&state.output_state) + i, philox_channels[i]);
   }
 
   // Bump counter and reset index

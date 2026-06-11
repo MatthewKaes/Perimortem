@@ -10,6 +10,7 @@ using namespace Perimortem::Core;
 using namespace Tetrodotoxin::Compiler;
 using namespace Tetrodotoxin::Compiler::Assembler;
 
+using Byte = Bits_8;
 using Bytes = Perimortem::Memory::Dynamic::Bytes;
 
 using Reg = x86_64::Reg;
@@ -133,7 +134,7 @@ constexpr auto gen_modrm_byte(Reg reg, Reg rm) -> Byte {
 
 // Writes ModRM and optional SIB/displacement bytes for a [base+disp] memory
 // operand.
-auto gen_memory_operand(Bytes& code, Reg reg, Reg base, SignedBits_32 disp)
+auto gen_memory_operand(Bytes& code, Reg reg, Reg base, Signed_32 disp)
     -> void {
   const bool rip_override =
       (Byte(base) & Byte(0x7)) == 5;  // RBP/R13: mod=00 means RIP-relative
@@ -277,14 +278,14 @@ auto x86_64::mov(Bits_64 r64, Reg dst) -> void {
   write_const(code, r64);
 }
 
-auto x86_64::mov(Reg src, Reg base, SignedBits_32 disp) -> void {
+auto x86_64::mov(Reg src, Reg base, Signed_32 disp) -> void {
   // Store: mov src, [base+disp]
   gen_rex_byte(code, src, base);
   code.append(0x89);
   gen_memory_operand(code, src, base, disp);
 }
 
-auto x86_64::mov(Reg base, SignedBits_32 disp, Reg dst) -> void {
+auto x86_64::mov(Reg base, Signed_32 disp, Reg dst) -> void {
   // Load: mov [base+disp], dst
   gen_rex_byte(code, dst, base);
   code.append(0x8B);

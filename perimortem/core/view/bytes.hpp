@@ -21,7 +21,7 @@ namespace Perimortem::Core::View {
 // to Bytes data.
 class Bytes {
  public:
-  using data_type = Byte;
+  using data_type = Bits_8;
 
   // Default to empty string.
   constexpr Bytes() : source_block(nullptr), size(0) {}
@@ -29,10 +29,10 @@ class Bytes {
   constexpr Bytes(const View::Bytes&) = default;
 
   template <Count N>
-  constexpr Bytes(const Byte (&source)[N])
+  constexpr Bytes(const Bits_8 (&source)[N])
       : source_block(&source[0]), size(N) {}
 
-  constexpr Bytes(const Byte* source, Count source_size)
+  constexpr Bytes(const Bits_8* source, Count source_size)
       : source_block(source), size(source_size) {}
 
   constexpr auto operator==(const View::Bytes& rhs) const -> Bool {
@@ -44,15 +44,15 @@ class Bytes {
     return !operator==(rhs);
   }
 
-  constexpr auto at(Count index) const -> const Byte {
+  constexpr auto at(Count index) const -> const Bits_8 {
     if (index > size) [[unlikely]] {
-      return Byte();
+      return Bits_8();
     }
 
     return source_block[index];
   }
 
-  constexpr auto operator[](Count index) const -> const Byte {
+  constexpr auto operator[](Count index) const -> const Bits_8 {
     return at(index);
   }
 
@@ -66,9 +66,9 @@ class Bytes {
         source_block + start, Math::min(size, get_size() - start));
   };
 
-  constexpr auto operator[](Count index) -> Byte {
+  constexpr auto operator[](Count index) -> Bits_8 {
     if (index > size) {
-      return Byte();
+      return Bits_8();
     }
 
     return source_block[index];
@@ -76,10 +76,10 @@ class Bytes {
 
   constexpr auto empty() const -> Bool { return size == 0; };
   constexpr auto get_size() const -> Count { return size; };
-  constexpr auto get_data() const -> const Byte* { return source_block; };
+  constexpr auto get_data() const -> const Bits_8* { return source_block; };
 
  private:
-  const Byte* source_block;
+  const Bits_8* source_block;
   Count size;
 };
 }  // namespace Perimortem::Core::View

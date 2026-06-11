@@ -16,7 +16,7 @@ constexpr auto blob_flag = 0x20;
 constexpr auto write_value(
     Access::Bytes target,
     Count& ptr_location,
-    SignedBits_64 value,
+    Signed_64 value,
     Bits_8 flags) -> Bool {
   // Negate any negative values and store the operation as a flag.
   if (value < -1) {
@@ -40,7 +40,7 @@ constexpr auto write_value(
   }
 
   auto data = target.get_data();
-  data[ptr_location++] = static_cast<Byte>(encoding_size | flags);
+  data[ptr_location++] = static_cast<Bits_8>(encoding_size | flags);
   switch (encoding_size) {
   case 1:
     data[ptr_location] = Bits_8(value);

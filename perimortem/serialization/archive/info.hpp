@@ -38,7 +38,7 @@ enum class Type : Byte {
   Memory,
 };
 
-enum class CompressionLevel : Int {
+enum class CompressionLevel : Signed_32 {
   Fastest = -7,  // Recommended for editing.
   Fast = 1,
   Default = 3,

@@ -35,11 +35,11 @@ class Bytes {
   // (dynamic or another arena) into the Arena used by this object.
   auto proxy(Core::View::Bytes view) -> void;
 
-  auto append(Byte b) -> void;
+  auto append(Bits_8 b) -> void;
   auto append(Core::View::Bytes view) -> void;
-  auto convert(Byte source, Byte target) -> void;
+  auto convert(Bits_8 source, Bits_8 target) -> void;
 
-  constexpr auto operator[](Count index) const -> Byte {
+  constexpr auto operator[](Count index) const -> Bits_8 {
     if (index > size) {
       return 0;
     }
@@ -47,7 +47,7 @@ class Bytes {
     return source_block[index];
   }
 
-  constexpr auto at(Count index) const -> Byte {
+  constexpr auto at(Count index) const -> Bits_8 {
     if (index > size) {
       return 0;
     }
@@ -60,7 +60,7 @@ class Bytes {
   constexpr auto get_view() const -> const Core::View::Bytes {
     return Core::View::Bytes(source_block, size);
   }
-  constexpr auto get_data() const -> const Byte* { return source_block; }
+  constexpr auto get_data() const -> const Bits_8* { return source_block; }
   constexpr auto get_access() -> Core::Access::Bytes {
     return Core::Access::Bytes(source_block, size);
   }
@@ -74,7 +74,7 @@ class Bytes {
   auto grow(Count requested) -> void;
 
   Allocator::Arena& arena;
-  Byte* source_block;
+  Bits_8* source_block;
   Count size;
   Count capacity;
 };

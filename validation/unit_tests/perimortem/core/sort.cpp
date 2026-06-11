@@ -40,8 +40,8 @@ static Harness AlgoSort = {
 };
 
 PERIMORTEM_UNIT_TEST(AlgoSort, simple_sort) {
-  constexpr Int test_const[] = {9, 8, 1, 4, 3, 7};
-  Int test[] = {9, 8, 1, 4, 3, 7};
+  constexpr Signed_32 test_const[] = {9, 8, 1, 4, 3, 7};
+  Signed_32 test[] = {9, 8, 1, 4, 3, 7};
 
   constexpr auto sorted_const = Algorithm::sort(test_const);
   auto sorted = Algorithm::sort(Access::Vector(test));
@@ -62,8 +62,8 @@ PERIMORTEM_UNIT_TEST(AlgoSort, simple_sort) {
 }
 
 PERIMORTEM_UNIT_TEST(AlgoSort, empty_sort) {
-  constexpr auto sorted_const = Algorithm::sort(Access::Vector<Int>());
-  auto sorted = Algorithm::sort(Access::Vector<Int>());
+  constexpr auto sorted_const = Algorithm::sort(Access::Vector<Signed_32>());
+  auto sorted = Algorithm::sort(Access::Vector<Signed_32>());
 
   EXPECT_EQ(sorted.get_size(), 0);
   EXPECT_EQ(sorted_const.get_size(), 0);
@@ -71,7 +71,7 @@ PERIMORTEM_UNIT_TEST(AlgoSort, empty_sort) {
 
 PERIMORTEM_UNIT_TEST(AlgoSort, large_sort) {
   constexpr auto item_count = 10017;
-  Int test[item_count] = {};
+  Signed_32 test[item_count] = {};
   for (Count i = 0; i < item_count; i++) {
     test[i] = i;
   }
@@ -93,8 +93,8 @@ PERIMORTEM_UNIT_TEST(AlgoSort, dynamic_types) {
   Dynamic::Bytes test[item_count] = {};
   for (Count i = 0; i < item_count; i++) {
     test[i] = "test_string #"_view;
-    test[i].append(Byte('0' + (i / 10)));
-    test[i].append(Byte('0' + (i % 10)));
+    test[i].append(Bits_8('0' + (i / 10)));
+    test[i].append(Bits_8('0' + (i % 10)));
   }
 
   // Shuffle array
@@ -111,8 +111,8 @@ PERIMORTEM_UNIT_TEST(AlgoSort, dynamic_types) {
   Dynamic::Bytes validate = {};
   for (Count i = 0; i < item_count; i++) {
     validate = "test_string #"_view;
-    validate.append(Byte('0' + (i / 10)));
-    validate.append(Byte('0' + (i % 10)));
+    validate.append(Bits_8('0' + (i / 10)));
+    validate.append(Bits_8('0' + (i % 10)));
     EXPECT_TEXT(sorted[i].get_view(), validate.get_view());
   }
 }

@@ -25,7 +25,7 @@ static thread_local Log::Sink message_sink = Log::default_sink;
 static thread_local Log::Level thread_log_level = Log::Level::Info;
 static thread_local Source attribution_override;
 
-constexpr auto level_char(Log::Level level) -> Byte {
+constexpr auto level_char(Log::Level level) -> Signed_8 {
   switch (level) {
   case Log::Level::Debug:
     return 'D';
@@ -65,16 +65,16 @@ auto format_entry(
     Access::Bytes buf) -> Count {
   Writer::Textual writer(buf);
 
-  writer << level_char(level) << Byte(' ');
-  writer << Time::now().calculate_clock() << Byte(' ');
+  writer << level_char(level) << ' ';
+  writer << Time::now().calculate_clock() << ' ';
   writer << "["_view << Thread::Worker::thread_name() << "] "_view;
 
   const Source& target_source =
       attribution_override.is_set() ? attribution_override : location;
   writer << target_source.get_file();
-  writer << Byte(':') << Long(target_source.get_line());
-  writer << Byte(':') << Long(target_source.get_column());
-  writer << ": "_view << msg << Byte('\n');
+  writer << ':' << target_source.get_line();
+  writer << ':' << target_source.get_column();
+  writer << ": "_view << msg << '\n';
 
   return writer.get_location();
 }
@@ -102,7 +102,7 @@ struct ThreadWriter {
 
     writer << Time::now().get_stamp();
     writer << ".log"_view;
-    name_buf[writer.get_location()] = Byte('\0');
+    name_buf[writer.get_location()] = '\0';
 
     file = fopen(Data::cast<char>(name_buf.get_data()), "ab");
     file_ready = True;

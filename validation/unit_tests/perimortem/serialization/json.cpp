@@ -340,7 +340,7 @@ PERIMORTEM_UNIT_TEST(SerializationJson, construct_array) {
   Allocator::Arena arena;
   Json::Node value = Json::Node::construct(
       arena, {
-               {Long(1), Long(2), Long(3), Long(4)},
+               {1, 2, 3, 4},
              });
 
   auto formated = value.format(arena);
@@ -357,8 +357,8 @@ PERIMORTEM_UNIT_TEST(SerializationJson, construct_nested) {
       arena, {
                {"root"_view,
                 {
-                  Long(1),
-                  Long(2),
+                  1,
+                  2,
                   True,
                   False,
                   "Test"_view,
@@ -391,9 +391,9 @@ PERIMORTEM_UNIT_TEST(SerializationJson, round_trip_init_rpc) {
 PERIMORTEM_UNIT_TEST(SerializationJson, format_number_zero) {
   Allocator::Arena arena;
   const Json::Blueprint entries[] = {
-    Json::Blueprint("a"_view, Long(0)),
-    Json::Blueprint("b"_view, Long(1)),
-    Json::Blueprint("c"_view, Long(10)),
+    Json::Blueprint("a"_view, 0),
+    Json::Blueprint("b"_view, 1),
+    Json::Blueprint("c"_view, 10),
   };
   auto value = Json::Node::construct(arena, entries);
 
@@ -412,7 +412,7 @@ PERIMORTEM_UNIT_TEST(SerializationJson, construct_existing_node) {
 
   const Json::Blueprint entries[] = {
     Json::Blueprint("jsonrpc"_view, "2.0"_view),
-    Json::Blueprint("id"_view, Long(1)),
+    Json::Blueprint("id"_view, 1),
     Json::Blueprint("result"_view, inner_node),
   };
   auto value = Json::Node::construct(arena, entries);
@@ -454,7 +454,7 @@ PERIMORTEM_UNIT_TEST(SerializationJson, construct_rpc_from_parsed) {
 
   const Json::Blueprint entries[] = {
     Json::Blueprint("jsonrpc"_view, parsed["jsonrpc"_view].get_string()),
-    Json::Blueprint("id"_view, Long(parsed["id"_view].get_number())),
+    Json::Blueprint("id"_view, parsed["id"_view].get_number()),
     Json::Blueprint("result"_view, result_node),
   };
   auto response = Json::Node::construct(arena, entries);

@@ -91,8 +91,8 @@ PERIMORTEM_UNIT_TEST(SystemCompression, inflate_back_references) {
   // Check that ABCD bytes are repeated 50 times.
   ASSERT_EQ(out.get_size(), 100);
   for (Count i = 0; i < 100; i += 2) {
-    EXPECT_EQ(out[i + 0], Byte(0xAB));
-    EXPECT_EQ(out[i + 1], Byte(0xCD));
+    EXPECT_EQ(out[i + 0], Bits_8(0xAB));
+    EXPECT_EQ(out[i + 1], Bits_8(0xCD));
   }
 }
 
@@ -105,7 +105,7 @@ PERIMORTEM_UNIT_TEST(SystemCompression, inflate_single_byte) {
   auto out = Compression::Deflate::inflate(single_compressed);
 
   ASSERT_EQ(out.get_size(), 1);
-  EXPECT_EQ(out[0], Byte(0x42));
+  EXPECT_EQ(out[0], Bits_8(0x42));
 }
 
 PERIMORTEM_UNIT_TEST(SystemCompression, inflate_empty_view) {
@@ -193,7 +193,7 @@ PERIMORTEM_UNIT_TEST(SystemCompression, deflate_single_byte) {
 
   auto recovered = Compression::Deflate::inflate(compressed);
   ASSERT_EQ(recovered.get_size(), Count(1));
-  EXPECT_EQ(recovered[0], Byte(0x42));
+  EXPECT_EQ(recovered[0], Bits_8(0x42));
 }
 
 PERIMORTEM_UNIT_TEST(SystemCompression, deflate_roundtrip_short) {
@@ -209,7 +209,7 @@ PERIMORTEM_UNIT_TEST(SystemCompression, deflate_roundtrip_binary) {
   // Binary data with all 256 byte values present.
   Static::Bytes<256> all_bytes;
   for (Count i = 0; i < 256; i++) {
-    all_bytes[i] = Byte(i);
+    all_bytes[i] = Bits_8(i);
   }
   auto compressed = Compression::Deflate::deflate(all_bytes);
   ASSERT(compressed.get_size() > 0);
@@ -231,7 +231,7 @@ PERIMORTEM_UNIT_TEST(SystemCompression, deflate_repeating_value) {
   constexpr Count source_size = 512;
   Static::Bytes<source_size> source;
   for (Count i = 0; i < source_size; i++) {
-    source[i] = Byte(0xAA);
+    source[i] = Bits_8(0xAA);
   }
 
   auto compressed = Compression::Deflate::deflate(source);
@@ -248,7 +248,7 @@ PERIMORTEM_UNIT_TEST(SystemCompression, roundtrip_large) {
   constexpr Count size = 8192;
   Static::Bytes<size> large;
   for (Count i = 0; i < size; i++) {
-    large[i] = Byte((i * 31 + i / 128) & 0xFF);
+    large[i] = Bits_8((i * 31 + i / 128) & 0xFF);
   }
 
   auto compressed = Compression::Deflate::deflate(large);
@@ -293,9 +293,9 @@ PERIMORTEM_UNIT_TEST(SystemCompression, skewed_frequencies) {
   constexpr Count size = 50000;
   Dynamic::Bytes source;
   source.forgetful_resize(size);
-  Data::set(source.get_access().get_data(), Byte(0), size);
+  Data::set(source.get_access().get_data(), Bits_8(0), size);
   for (Count i = 1; i <= 200; i++) {
-    source.get_access()[i * 249] = Byte(i);
+    source.get_access()[i * 249] = Bits_8(i);
   }
 
   auto compressed = Compression::Deflate::deflate(source.get_view());
@@ -313,7 +313,7 @@ PERIMORTEM_UNIT_TEST(SystemCompression, size_repetitive_data) {
   constexpr Count pattern_size = 64;
   Static::Bytes<4096> source;
   for (Count i = 0; i < source.get_size(); i++) {
-    source[i] = Byte((i % pattern_size) * 4 + i / pattern_size);
+    source[i] = Bits_8((i % pattern_size) * 4 + i / pattern_size);
   }
 
   auto no_compression =

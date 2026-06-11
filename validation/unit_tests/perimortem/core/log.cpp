@@ -59,7 +59,7 @@ auto has_valid_header(View::Bytes entry) -> Bool {
   }
 
   // Validate all number values
-  const Byte* b = entry.get_data() + 2;
+  const Bits_8* b = entry.get_data() + 2;
   if (b[2] != ':' || b[5] != ':' || b[8] != '.') {
     return false;
   }
@@ -102,7 +102,7 @@ PERIMORTEM_UNIT_TEST(DiagnosticsLog, newline_terminator) {
   Log::info("newline test"_view);
   View::Bytes entry = last_entry();
   ASSERT(entry.get_size() > 0);
-  EXPECT_EQ(entry[entry.get_size() - 1], Byte('\n'));
+  EXPECT_EQ(entry[entry.get_size() - 1], Bits_8('\n'));
 }
 
 PERIMORTEM_UNIT_TEST(DiagnosticsLog, source_location) {
