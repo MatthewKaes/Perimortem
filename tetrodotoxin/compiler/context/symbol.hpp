@@ -13,9 +13,6 @@
 namespace Tetrodotoxin::Compiler::Context {
 
 class Symbol {
-  using View = Perimortem::Core::View::Bytes;
-  using Range = Perimortem::Utility::Range;
-
  public:
   enum class Visability : Bits_8 {
     Local = 0,
@@ -36,7 +33,9 @@ class Symbol {
   };
 
   // Creates an object
-  static auto create_string(View name, Range range) -> Symbol {
+  static auto create_string(
+      Perimortem::Core::View::Bytes name,
+      Perimortem::Utility::Range range) -> Symbol {
     Symbol symbol;
     symbol.name = name;
     symbol.type = Type::Object;
@@ -50,7 +49,9 @@ class Symbol {
   }
 
   // Creates a function out of a range in the program block.
-  static auto create_func(View name, Visability visability) -> Symbol {
+  static auto create_func(
+      Perimortem::Core::View::Bytes name,
+      Visability visability) -> Symbol {
     Symbol symbol;
     symbol.name = name;
     symbol.type = Type::Func;
@@ -62,7 +63,8 @@ class Symbol {
   }
 
   // Creates an extrenal reference to some type.
-  static auto create_extrenal(View name, Type type) -> Symbol {
+  static auto create_extrenal(Perimortem::Core::View::Bytes name, Type type)
+      -> Symbol {
     Symbol symbol;
     symbol.name = name;
     symbol.type = type;
@@ -76,18 +78,20 @@ class Symbol {
     return symbol;
   }
 
-  auto get_name() const -> View { return name; }
+  auto get_name() const -> Perimortem::Core::View::Bytes { return name; }
   auto get_context() const -> Location { return context; }
-  auto get_range() const -> Range { return range; }
+  auto get_range() const -> Perimortem::Utility::Range { return range; }
   auto get_visability() const -> Visability { return visability; }
   auto get_type() const -> Type { return type; }
 
-  auto set_range(Range range) -> void { this->range = range; }
+  auto set_range(Perimortem::Utility::Range range) -> void {
+    this->range = range;
+  }
 
  private:
-  View name;
+  Perimortem::Core::View::Bytes name;
   Location context;
-  Range range;
+  Perimortem::Utility::Range range;
   Visability visability;
   Type type;
 };

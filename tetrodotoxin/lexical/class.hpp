@@ -30,11 +30,10 @@ class Class {
     Attribute,    // @
     Addressable,  // Any symbol that starts with [a-z]
     Type,         // Any symbol that starts with [A-Z]
-    PackedName,   // Any identifier for a pack
     Discard,      // Discard (_)
 
     // Data objects
-    Numeric,   // 0-1 no decemial
+    Numeric,   // 0-1 no decimal
     Float,     // 9. 0.9 as floats, 9.. Float + Access Op, 9...
     String,    // " " (does not embed null terminator)
     Bytes,     // 0x[FF FF FF]
@@ -51,6 +50,7 @@ class Class {
     AddAssign,     // +=
     SubAssign,     // -=
     Define,        // :
+    TypedAssign,   // :=  inferred-type assignment (like auto)
     EndStatement,  // ;
 
     // Operators
@@ -64,18 +64,28 @@ class Class {
     LessEqOp,     // <=
     GreaterEqOp,  // >=
     CmpOp,        // ==
+    NotEqOp,      // !=
     CallOp,       // ->
     AddressOp,    // .
     SwizzleOp,    // .[
+    SliceOp,      // +:
     PackingOp,    // ,
     NotOp,        // !
-    AndOp,        // &
-    OrOp,         // |
     RangeOp,      // ...
     GeneratorOp,  // =>
+    // The typical bit operators are reserved for future use.
+    //
+    // Bit ops are currently supported as method calls and always shrinks or
+    // grows to the output type:
+    // - `Bits_32(value) -> bit_and(Bits_8(0xFF))`
+    // - `Bits_8(value) -> bit_or(Bits_32(0xFF000000))`
+    AndOp,  // & reserved
+    OrOp,   // | reserved
 
     // Keywords
     As,
+    And,  // `and` logical and (language level short-circuit)
+    Or,   // `or` logical or (language level short-circuit)
     If,
     In,
     For,
@@ -101,6 +111,7 @@ class Class {
     Package,
 
     // Script types
+    Unknown,
     EndOfStream,
   };
 
@@ -146,10 +157,32 @@ class Class {
     return False;
   }
 
+  static constexpr auto is_sigil(Type value) -> Bool {
+    switch (value) {
+    case Type::Constant:
+    case Type::Detail:
+    case Type::Public:
+    case Type::Dynamic:
+    case Type::Hidden:
+    case Type::Temporary:
+      return True;
+    default:
+      return False;
+    }
+  }
+
+  constexpr auto is_sigil() const -> Bool { return is_sigil(type); }
+
   constexpr auto get_type() const -> Type { return type; }
 
-  // Gets a human redable name for the class
+  // Gets a human readable name for the class.
   auto get_name() const -> Perimortem::Core::View::Bytes;
+
+  // Gets the source-level text for tokens whose type encodes the operator or
+  // keyword (e.g. AddOp → "+", Constant → "frozen", Library → "Library").
+  // Returns an empty view for token types that carry their text in the token
+  // itself (identifiers, literals, comments).
+  auto get_source_text() const -> Perimortem::Core::View::Bytes;
 
  private:
   Type type = Type::EndOfStream;

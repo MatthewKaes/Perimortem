@@ -20,16 +20,6 @@ struct Location {
   Bits_32 column = 1;
 };
 
-constexpr auto is_whitespace(Bits_8 c) -> Bool {
-  switch (c) {
-  case ' ':
-  case '\t':
-  case '\n':
-    return true;
-  }
-  return false;
-}
-
 constexpr auto is_attribute(Bits_8 c) -> Bool {
   return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_';
 }
@@ -45,6 +35,11 @@ constexpr auto is_identifier(Bits_8 c) -> Bool {
 
 constexpr auto is_num(Bits_8 c) -> Bool {
   return (c >= '0' && c <= '9') || c == '.';
+}
+
+constexpr auto is_hex(Bits_8 c) -> Bool {
+  return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') ||
+         (c >= 'A' && c <= 'F');
 }
 
 struct Context {
@@ -188,24 +183,53 @@ auto parse_embedded(Context& context) -> void {
 }
 
 auto parse_number(Context& context) -> void {
-  // 0x[FF FF ...] hex byte array literal.
+  // If we start with zero then check if we have a valid hex sequence.
   if (context.source[context.loc.source_index] == '0' &&
-      peak_ahead(context, 1) == 'x' && peak_ahead(context, 2) == '[') {
-    context.loc.parse_index += 3;
-    while (can_parse(context) &&
-           context.source[context.loc.parse_index] != ']') {
-      context.loc.parse_index++;
+      peak_ahead(context, 1) == 'x') {
+    switch (peak_ahead(context, 2)) {
+    // 0x[FF FF ...] hex byte array literal (any whitespace is fine)
+    case '[': {
+      context.loc.parse_index += 3;
+      while (can_parse(context) &&
+             context.source[context.loc.parse_index] != ']') {
+        context.loc.parse_index++;
+      }
+      if (can_parse(context)) {
+        context.loc.parse_index++;
+      }
+      context.tokens.insert(Token(
+          context.source.slice(
+              context.loc.source_index,
+              context.loc.parse_index - context.loc.source_index),
+          Class::Type::Bytes, context.loc.line, context.loc.column));
+      context.loc.column += context.loc.parse_index - context.loc.source_index;
+      return;
     }
-    if (can_parse(context)) {
+
+      // 0xFF... hex integer literal.
+    case '0' ... '1':
+    case 'a' ... 'f':
+    case 'A' ... 'F': {
+      context.loc.parse_index += 2;  // consume '0x'
+      Bits_8 h = peak_ahead(context, 1);
+      while (is_hex(h)) {
+        context.loc.parse_index++;
+        h = peak_ahead(context, 1);
+      }
       context.loc.parse_index++;
+      context.tokens.insert(Token(
+          context.source.slice(
+              context.loc.source_index,
+              context.loc.parse_index - context.loc.source_index),
+          Class::Type::Numeric, context.loc.line, context.loc.column));
+      context.loc.column += context.loc.parse_index - context.loc.source_index;
+      return;
     }
-    context.tokens.insert(Token(
-        context.source.slice(
-            context.loc.source_index,
-            context.loc.parse_index - context.loc.source_index),
-        Class::Type::Bytes, context.loc.line, context.loc.column));
-    context.loc.column += context.loc.parse_index - context.loc.source_index;
-    return;
+
+      // Not a valid hex sequence
+    default:
+      break;
+    }
   }
 
   Bool found_decimal = false;
@@ -215,7 +239,13 @@ auto parse_number(Context& context) -> void {
   while (is_num(val)) {
     context.loc.parse_index++;
     if (val == '.') {
+      // Don't consume a '.' that starts a RangeOp '...'.
+      if (peak_ahead(context, 1) == '.') {
+        context.loc.parse_index--;
+        break;
+      }
       if (found_decimal) {
+        context.loc.parse_index--;
         break;
       }
       found_decimal = true;
@@ -254,6 +284,8 @@ static inline constexpr auto check_keyword(
     {"as"_view, Class::Type::As},
     {"if"_view, Class::Type::If},
     {"in"_view, Class::Type::In},
+    {"or"_view, Class::Type::Or},
+    {"and"_view, Class::Type::And},
     {"for"_view, Class::Type::For},
     {"new"_view, Class::Type::New},
     {"case"_view, Class::Type::Case},
@@ -293,10 +325,17 @@ static inline constexpr auto check_keyword(
   return keyword_resolver::find_or_default(value, default_value);
 }
 
+auto parse_unknown(Context& context) -> void {
+  context.tokens.insert(Token(
+      context.source.slice(context.loc.source_index, 1), Class::Type::Unknown,
+      context.loc.line, context.loc.column));
+  context.loc.column++;
+  context.loc.parse_index++;
+}
+
 auto parse_identifier(Context& context) -> void {
   if (!is_identifier(peak_ahead(context, 0))) {
-    context.loc.column++;
-    context.loc.parse_index++;
+    parse_unknown(context);
     return;
   }
 
@@ -309,6 +348,7 @@ auto parse_identifier(Context& context) -> void {
       context.loc.source_index,
       context.loc.parse_index - context.loc.source_index);
 
+  // Start by assuming the addressable isn't a compiler provided symbol.
   Class::Type klass = Class::Type::Addressable;
   klass = check_keyword(view, klass);
 
@@ -346,6 +386,13 @@ auto Tokenizer::parse(const View::Bytes source_, Bool strip_disabled) -> void {
       context.loc.parse_index++;
       break;
 
+    case ' ':
+    case '\t':
+    case '\r':
+      context.loc.column++;
+      context.loc.parse_index++;
+      break;
+
     case '/':
       if (peak_ahead(context, 1) == '/') {
         parse_comment(context);
@@ -373,6 +420,9 @@ auto Tokenizer::parse(const View::Bytes source_, Bool strip_disabled) -> void {
     case '+':
       if (peak_ahead(context, 1) == '=') {
         SIMPLE_TOKEN(AddAssign, 2);
+        break;
+      } else if (peak_ahead(context, 1) == ':') {
+        SIMPLE_TOKEN(SliceOp, 2);
         break;
       } else {
         SIMPLE_TOKEN(AddOp, 1);
@@ -419,6 +469,11 @@ auto Tokenizer::parse(const View::Bytes source_, Bool strip_disabled) -> void {
       parse_number(context);
       break;
 
+    // All Addressable names are snake_case.
+    case 'a' ... 'z':
+      parse_identifier(context);
+      break;
+
     // Originally types had @ but it was clunky, so @ was moved to
     // Attributes and all Types are simply capitalized.
     case 'A' ... 'Z':
@@ -432,6 +487,8 @@ auto Tokenizer::parse(const View::Bytes source_, Bool strip_disabled) -> void {
     case '$':
       if (peak_ahead(context, 1) == '[') {
         parse_embedded(context);
+      } else {
+        parse_unknown(context);
       }
       break;
 
@@ -468,6 +525,22 @@ auto Tokenizer::parse(const View::Bytes source_, Bool strip_disabled) -> void {
         break;
       }
 
+    case '!':
+      if (peak_ahead(context, 1) == '=') {
+        SIMPLE_TOKEN(NotEqOp, 2);
+      } else {
+        SIMPLE_TOKEN(NotOp, 1);
+      }
+      break;
+
+    case ':':
+      if (peak_ahead(context, 1) == '=') {
+        SIMPLE_TOKEN(TypedAssign, 2);
+      } else {
+        SIMPLE_TOKEN(Define, 1);
+      }
+      break;
+
       // Simple spot tokens
       PARSE_SIMPLE('{', ScopeStart);
       PARSE_SIMPLE('}', ScopeEnd);
@@ -476,14 +549,16 @@ auto Tokenizer::parse(const View::Bytes source_, Bool strip_disabled) -> void {
       PARSE_SIMPLE('%', ModOp);
       PARSE_SIMPLE('&', AndOp);
       PARSE_SIMPLE('|', OrOp);
-      PARSE_SIMPLE('!', NotOp);
-      PARSE_SIMPLE(',', PackingOp);
-      PARSE_SIMPLE(':', Define);
       PARSE_SIMPLE(';', EndStatement);
       PARSE_SIMPLE('_', Discard);
+      PARSE_SIMPLE(',', PackingOp);
 
+      // We failed to parse so log the unknown token as we don't want to drop it
+      // from the stream. Sometimes a format or another command is issued
+      // speculatively and it's super annoying if the formatter drops partial
+      // tokens that were a work in progress.
     default:
-      parse_identifier(context);
+      parse_unknown(context);
       break;
     }
   }

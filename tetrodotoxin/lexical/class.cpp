@@ -7,14 +7,88 @@
 
 using namespace Tetrodotoxin::Lexical;
 
+auto Class::get_source_text() const -> Perimortem::Core::View::Bytes {
+  switch (type) {
+  // Sigil keywords
+  case Type::Constant:
+    return "frozen"_view;
+  case Type::Detail:
+    return "detail"_view;
+  case Type::Public:
+    return "public"_view;
+  case Type::Dynamic:
+    return "expose"_view;
+  case Type::Hidden:
+    return "hidden"_view;
+  case Type::Temporary:
+    return "stack"_view;
+
+  // Package kind keywords
+  case Type::Library:
+    return "Library"_view;
+  case Type::Shader:
+    return "Shader"_view;
+  case Type::Entity:
+    return "Entity"_view;
+  case Type::Object:
+    return "Object"_view;
+  case Type::Struct:
+    return "Struct"_view;
+
+  // Binary operators
+  case Type::AddOp:
+    return "+"_view;
+  case Type::SubOp:
+    return "-"_view;
+  case Type::MulOp:
+    return "*"_view;
+  case Type::DivOp:
+    return "/"_view;
+  case Type::ModOp:
+    return "%"_view;
+  case Type::CmpOp:
+    return "=="_view;
+  case Type::NotEqOp:
+    return "!="_view;
+  case Type::LessOp:
+    return "<"_view;
+  case Type::GreaterOp:
+    return ">"_view;
+  case Type::LessEqOp:
+    return "<="_view;
+  case Type::GreaterEqOp:
+    return ">="_view;
+  case Type::And:
+    return "and"_view;
+  case Type::Or:
+    return "or"_view;
+  case Type::AndOp:
+    return "&"_view;
+  case Type::OrOp:
+    return "|"_view;
+
+  // Assignment operators
+  case Type::Assign:
+    return "="_view;
+  case Type::AddAssign:
+    return "+="_view;
+  case Type::SubAssign:
+    return "-="_view;
+
+  // Return empty for anything that should be sourced from the token itself.
+  default:
+    return ""_view;
+  }
+}
+
 auto Class::get_name() const -> Perimortem::Core::View::Bytes {
   switch (type) {
   case Type::Comment:
     return "comment"_view;
   case Type::Disabled:
     return "disabled"_view;
-  case Type::PackedName:
-    return "packed name"_view;
+  case Type::Unknown:
+    return "unknown token"_view;
   case Type::String:
     return "string"_view;
   case Type::Bytes:
@@ -50,7 +124,9 @@ auto Class::get_name() const -> Perimortem::Core::View::Bytes {
   case Type::SubAssign:
     return "mutate addressable (-=)"_view;
   case Type::Define:
-    return "definition"_view;
+    return "definition (:)"_view;
+  case Type::TypedAssign:
+    return "type-inferred assignment (:=)"_view;
   case Type::EndStatement:
     return "end statement"_view;
   case Type::AddOp:
@@ -64,15 +140,17 @@ auto Class::get_name() const -> Perimortem::Core::View::Bytes {
   case Type::ModOp:
     return "modulo operator (%)"_view;
   case Type::LessOp:
-    return "comparision operator (<)"_view;
+    return "comparison operator (<)"_view;
   case Type::GreaterOp:
-    return "comparision operator (>)"_view;
+    return "comparison operator (>)"_view;
   case Type::LessEqOp:
-    return "comparision operator (<=)"_view;
+    return "comparison operator (<=)"_view;
   case Type::GreaterEqOp:
-    return "comparision operator (>=)"_view;
+    return "comparison operator (>=)"_view;
   case Type::CmpOp:
-    return "comparision operator (==)"_view;
+    return "comparison operator (==)"_view;
+  case Type::NotEqOp:
+    return "comparison operator (!=)"_view;
   case Type::CallOp:
     return "Call operator (->)"_view;
   case Type::RangeOp:
@@ -85,12 +163,18 @@ auto Class::get_name() const -> Perimortem::Core::View::Bytes {
     return "addressable operator (.)"_view;
   case Type::SwizzleOp:
     return "swizzle operator (.[)"_view;
+  case Type::SliceOp:
+    return "slice operator (+:)"_view;
   case Type::AndOp:
-    return "and operator (&&)"_view;
+    return "bitwise-and (&) — reserved, use -> bit_and()"_view;
   case Type::OrOp:
-    return "or operator (||)"_view;
+    return "bitwise-or (|) — reserved, use -> bit_or()"_view;
   case Type::NotOp:
     return "negation"_view;
+  case Type::And:
+    return "logical and"_view;
+  case Type::Or:
+    return "logical or"_view;
   case Type::If:
     return "if"_view;
   case Type::In:
@@ -116,11 +200,11 @@ auto Class::get_name() const -> Perimortem::Core::View::Bytes {
   case Type::Enum:
     return "enum definition"_view;
   case Type::Library:
-    return "ttx library decleration"_view;
+    return "ttx library declaration"_view;
   case Type::Shader:
     return "ttx shader definition"_view;
   case Type::Entity:
-    return "ttx entity decleration"_view;
+    return "ttx entity declaration"_view;
   case Type::Using:
     return "import package statement"_view;
   case Type::True:
@@ -136,9 +220,9 @@ auto Class::get_name() const -> Perimortem::Core::View::Bytes {
   case Type::Self:
     return "`self` accessor"_view;
   case Type::As:
-    return "external alias decleration"_view;
+    return "external alias declaration"_view;
   case Type::Alias:
-    return "internal alias decleration"_view;
+    return "internal alias declaration"_view;
   case Type::EndOfStream:
     return "end of file"_view;
   case Type::Constant:
