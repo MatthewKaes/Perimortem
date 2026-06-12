@@ -1,13 +1,15 @@
 {
   "name": "tetrodotoxin-lsp",
   "description": "Language Server for Tetrodotoxin.",
-  "categories": ["Programming Languages"],
+  "categories": [
+    "Programming Languages"
+  ],
   "displayName": "Tetrodotoxin",
   "publisher": "Perimortem",
   "author": "Matt Kaes",
   "license": "MIT",
   "icon": "icon.png",
-  "version": "0.1.3",
+  "version": "0.1.13",
   "pricing": "Free",
   "repository": {
     "type": "git",
@@ -18,7 +20,6 @@
     "onLanguage:tetrodotoxin"
   ],
   "main": "./out/extension",
-  "editor.semanticHighlighting.enabled": true,
   "contributes": {
     "languages": [
       {
@@ -42,220 +43,162 @@
         "path": "./syntaxes/tetrodotoxin.tmGrammar.json"
       }
     ],
-    "semanticTokenTypes": [
-      {
-        "id": "cppCm",
-        "superType": "comment",
-        "description": "TTX Type"
-      },
-      {
-        "id": "cppDis",
-        "superType": "comment",
-        "description": "TTX Type"
-      },
-      {
-        "id": "cppT",
-        "superType": "type",
-        "description": "TTX Type"
-      },
-      {
-        "id": "cppNm",
-        "superType": "decorator",
-        "description": "TTX Type"
-      },
-      {
-        "id": "cppDT",
-        "superType": "class",
-        "description": "TTX Type"
-      },
-      {
-        "id": "cppDI",
-        "superType": "method",
-        "description": "TTX Type"
-      },
-      {
-        "id": "cppS",
-        "superType": "string",
-        "description": "TTX Type"
-      },
-      {
-        "id": "cppI",
-        "superType": "number",
-        "description": "TTX Type"
-      },
-      {
-        "id": "cppN",
-        "superType": "number",
-        "description": "TTX Type"
-      },
-      {
-        "id": "cppK",
-        "superType": "keyword",
-        "description": "TTX Type"
-      },
-      {
-        "id": "cppM",
-        "superType": "keyword",
-        "description": "TTX Type"
-      },
-      {
-        "id": "cppA",
-        "superType": "keyword",
-        "description": "TTX Type"
-      },
-      {
-        "id": "cppD",
-        "superType": "keyword",
-        "description": "TTX Type"
-      },
-      {
-        "id": "cppL",
-        "superType": "keyword",
-        "description": "TTX Type"
-      },
-      {
-        "id": "cppP",
-        "superType": "parameter",
-        "description": "TTX Type"
-      },
-      {
-        "id": "cppM1",
-        "superType": "keyword",
-        "description": "TTX Type"
-      },
-      {
-        "id": "cppM2",
-        "superType": "keyword",
-        "description": "TTX Type"
-      },
-      {
-        "id": "cppM3",
-        "superType": "keyword",
-        "description": "TTX Type"
-      },
-      {
-        "id": "cppM4",
-        "superType": "keyword",
-        "description": "TTX Type"
-      },
-      {
-        "id": "cppFu",
-        "superType": "function",
-        "description": "TTX Type"
-      },
-      {
-        "id": "cppP",
-        "superType": "parameter",
-        "description": "TTX Type"
-      },
-      {
-        "id": "cppZ",
-        "superType": "parameter",
-        "description": "TTX Type"
-      },
-      {
-        "id": "cppId",
-        "superType": "variable",
-        "description": "TTX Type"
-      },
-      {
-        "id": "cppC",
-        "superType": "operator",
-        "description": "TTX Type"
-      },
-      {
-        "id": "cppO",
-        "superType": "operator",
-        "description": "TTX Type"
-      },
-      {
-        "id": "cpp_",
-        "superType": "operator",
-        "description": "TTX Type"
-      },
-      {
-        "id": "cppE",
-        "superType": "operator",
-        "description": "TTX Type"
-      },
-      {
-        "id": "cppSS",
-        "superType": "operator",
-        "description": "TTX Type"
-      },
-      {
-        "id": "cppSE",
-        "superType": "operator",
-        "description": "TTX Type"
-      },
-      {
-        "id": "cppGS",
-        "superType": "operator",
-        "description": "TTX Type"
-      },
-      {
-        "id": "cppGE",
-        "superType": "operator",
-        "description": "TTX Type"
-      },
-      {
-        "id": "cppIS",
-        "superType": "operator",
-        "description": "TTX Type"
-      },
-      {
-        "id": "cppIE",
-        "superType": "operator",
-        "description": "TTX Type"
-      }
-    ],
     "configurationDefaults": {
-      "editor.semanticTokenColorCustomizations": {
-        "rules": {
-          "ttxId": { "foreground": "#dedede"}, 
-          "ttxDI": { "foreground": "#dedede"},
-          "ttxIn": { "foreground": "#8f8f8f", "fontStyle": "italic" },
-          "ttxC": { "foreground": "#8f8f8f" },
-          "ttxO": { "foreground": "#8f8f8f" },
-          "ttxM1": { "foreground": "#ad4a52"},
-          "ttxM2": { "foreground": "#ad4a52"},
-          "ttxM3": { "foreground": "#ad4a52"},
-          "ttxM4": { "foreground": "#ad4a52"},
-          "ttx_": { "foreground": "#8f8f8f"},
-          "ttxE": { "foreground": "#8f8f8f"},
-          "ttxSS": { "foreground": "#8f8f8f"},
-          "ttxSE": { "foreground": "#8f8f8f"},
-          "ttxGS": { "foreground": "#8f8f8f"},
-          "ttxGE": { "foreground": "#8f8f8f"},
-          "ttxIS": { "foreground": "#8f8f8f"},
-          "ttxIE": { "foreground": "#8f8f8f"},
-          "ttxP": { "foreground": "#f3c590" }, 
-          "ttxZ": { "foreground": "#f3c590" },
-          "ttxS": { "foreground": "#ede09b"},
-          "ttxI": { "foreground": "#ede09b"},
-          "ttxN": { "foreground": "#ede09b"},
-          "ttxFu": { "foreground": "#ede09b", "fontStyle": "italic"},
-          "ttxNm": { "foreground": "#ede09b" },
-          "ttxT": { "foreground": "#f08b92"},
-          "ttxDT": { "foreground": "#f08b92"},
-          "ttxK": { "foreground": "#dd757a"},
-          "ttxM": { "foreground": "#dd757a"},
-          "ttxD": { "foreground": "#dd757a", "fontStyle": "italic"},
-          "ttxL": { "foreground": "#dd757a"},
-          "ttxA": { "foreground": "#63ae5a" , "fontStyle": "bold italic" },
-          "ttxCm": { "foreground": "#8f8f8f", "fontStyle": "italic" },
-          "ttxDis": { "foreground": "#5e5e5e", "fontStyle": "italic" }
-        }
-      },
       "editor.tokenColorCustomizations": {
         "textMateRules": [
           {
             "scope": "source.tetrodotoxin",
             "settings": {
-              "foreground": "#ececec"
+              "foreground": "#d8d8d8"
+            }
+          },
+          {
+            "scope": "comment.line.double-slash.tetrodotoxin",
+            "settings": {
+              "foreground": "#787065",
+              "fontStyle": "italic"
+            }
+          },
+          {
+            "scope": "comment.line.disabled.tetrodotoxin",
+            "settings": {
+              "foreground": "#5c5850",
+              "fontStyle": "italic"
+            }
+          },
+          {
+            "scope": "storage_sigils.tetrodotoxin",
+            "settings": {
+              "foreground": "#ad4a52"
+            }
+          },
+          {
+            "scope": "entity.other.attribute-name.tetrodotoxin",
+            "settings": {
+              "foreground": "#ad4a52",
+              "fontStyle": "italic"
+            }
+          },
+          {
+            "scope": [
+              "punctuation.section.braces.tetrodotoxin",
+              "punctuation.section.parens.tetrodotoxin",
+              "punctuation.section.brackets.tetrodotoxin",
+              "punctuation.terminator.statement.tetrodotoxin",
+              "punctuation.separator.comma.tetrodotoxin"
+            ],
+            "settings": {
+              "foreground": "#4e4840"
+            }
+          },
+          {
+            "scope": "punctuation.accessor.tetrodotoxin",
+            "settings": {
+              "foreground": "#605950"
+            }
+          },
+          {
+            "scope": [
+              "constant.numeric.hex-array.tetrodotoxin",
+              "constant.numeric.hex.tetrodotoxin",
+              "constant.numeric.float.tetrodotoxin",
+              "constant.numeric.integer.tetrodotoxin"
+            ],
+            "settings": {
+              "foreground": "#e8c058"
+            }
+          },
+          {
+            "scope": "string.quoted.double.tetrodotoxin",
+            "settings": {
+              "foreground": "#ebd07b"
+            }
+          },
+          {
+            "scope": "entity.name.class.tetrodotoxin",
+            "settings": {
+              "foreground": "#f7a3a7",
+              "fontStyle": ""
+            }
+          },
+          {
+            "scope": "entity.name.type.caller.tetrodotoxin",
+            "settings": {
+              "foreground": "#ed868a",
+              "fontStyle": ""
+            }
+          },
+          {
+            "scope": "constant.language.tetrodotoxin",
+            "settings": {
+              "foreground": "#dd6d72",
+              "fontStyle": "italic"
+            }
+          },
+          {
+            "scope": "entity.name.type.member.tetrodotoxin",
+            "settings": {
+              "foreground": "#f7a3a7",
+              "fontStyle": "italic"
+            }
+          },
+          {
+            "scope": "keyword.other.discard.tetrodotoxin",
+            "settings": {
+              "foreground": "#dd6d72",
+              "fontStyle": "italic"
+            }
+          },
+          {
+            "scope": "keyword.control.tetrodotoxin",
+            "settings": {
+              "foreground": "#dd6d72"
+            }
+          },
+          {
+            "scope": "keyword.other.tetrodotoxin",
+            "settings": {
+              "foreground": "#c7595f"
+            }
+          },
+          {
+            "scope": "entity.name.function.tetrodotoxin",
+            "settings": {
+              "foreground": "#e2d693",
+              "fontStyle": ""
+            }
+          },
+          {
+            "scope": "variable.other.member.tetrodotoxin",
+            "settings": {
+              "foreground": "#c1b6a6"
+            }
+          },
+          {
+            "scope": "support.type.tetrodotoxin",
+            "settings": {
+              "foreground": "#dd6d72"
+            }
+          },
+          {
+            "scope": "entity.name.type.tetrodotoxin",
+            "settings": {
+              "foreground": "#f7a3a7"
+            }
+          },
+          {
+            "scope": [
+              "keyword.operator.tetrodotoxin",
+              "keyword.operator.range.tetrodotoxin"
+            ],
+            "settings": {
+              "foreground": "#988f82"
             }
           }
         ]
+      },
+      "[tetrodotoxin]": {
+        "editor.semanticHighlighting.enabled": false
       }
     }
   },

@@ -1,123 +1,165 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
-#include <iostream>
+#include "perimortem/core/static/bytes.hpp"
+#include "perimortem/core/diagnostics/log.hpp"
+#include "perimortem/core/null_terminated.hpp"
+#include "perimortem/core/writer/textual.hpp"
 
-#include "lexical/tokenizer.hpp"
-#include "perimortem/storage/formats/base64.hpp"
-#include "perimortem/storage/formats/json.hpp"
-#include "src/language_server.hpp"
-#include "src/service.hpp"
+#include "perimortem/memory/allocator/arena.hpp"
+#include "perimortem/memory/dynamic/bytes.hpp"
+#include "perimortem/memory/managed/vector.hpp"
+
+#include "perimortem/serialization/base64.hpp"
+#include "perimortem/serialization/json/node.hpp"
+
+#include "tetrodotoxin/lexical/tokenizer.hpp"
+#include "tetrodotoxin/lsp/server/rpc/executor.hpp"
+#include "tetrodotoxin/syntax/formatter.hpp"
+#include "tetrodotoxin/syntax/package.hpp"
 
 using namespace Perimortem::Memory;
-using namespace Perimortem::Storage;
+using namespace Perimortem::Serialization;
+using namespace Perimortem::Core;
 using namespace Tetrodotoxin::Lsp;
-using namespace Tetrodotoxin::Lexical;
-
-constexpr const char* Lsp_SUPPORT = "3.17";
 
 auto main(int argc, char* argv[]) -> int {
-  const char* pipe_flag = "--pipe=";
-  std::cout << "~~ TTX Lang Server ~~" << std::endl;
-  std::cout << "[Lsp_VERSION: " << Lsp_SUPPORT << "]" << std::endl << std::endl;
+  Diagnostics::Log::set_sink(Diagnostics::Log::stderr_sink);
+  Diagnostics::Log::info("~~ TTX Lang Server ~~"_view);
+  Diagnostics::Log::info("[Lsp API Version: 3.17]"_view);
 
-  const std::vector<std::string> args(argv, argv + argc);
-  std::string pipe_name;
-
-  for (const auto& arg : args) {
-    if (arg.starts_with(pipe_flag)) {
-      pipe_name = arg.substr(sizeof(pipe_flag) - 1);
+  constexpr auto pipe_prefix = "--pipe="_view;
+  View::Bytes pipe_name;
+  for (Signed_32 i = 1; i < argc; i++) {
+    auto arg = NullTerminated::to_view(argv[i]);
+    if (arg.slice(0, pipe_prefix.get_size()) == pipe_prefix) {
+      pipe_name = arg.slice(pipe_prefix.get_size());
     }
   }
 
-  if (pipe_name.empty()) {
-    std::cout << "No `--pipe=` provided, closing language server." << std::endl;
+  if (pipe_name.get_size() == 0) {
+    Diagnostics::Log::error(
+        "No `--pipe=` provided, closing language server."_view);
     return -1;
   }
 
-  std::cout << "Creating JsonRPC Server using pipe " << pipe_name << std::endl;
-  UnixJsonRPC jsonrpc(pipe_name);
+  Diagnostics::Log::info("Creating RPC Server using pipe..."_view);
+  Diagnostics::Log::info("   -- initialize"_view);
+  Server::Rpc::Executor::register_method(
+      "initialize"_view,
+      [](const Server::Rpc::Request& request) -> Server::Rpc::Response {
+        auto& arena = request.get_arena();
 
-  std::cout << " -- Method Registration:" << std::endl;
-  std::cout << "   -- initialize" << std::endl;
-  jsonrpc.register_method(
-      "initialize", [](const RpcRequest& request) -> RpcResponse {
-        auto response = request.create_object(
-            {{"serverInfo",
-              request.create_object({
-                {"name"_view, "Tetrodotoxin Language Server"_view},
-                {"version"_view, "1.0"_view},
-              })},
-             {"capabilities",
-              request.create_object({
-                {"positionEncoding"_view, "utf-16"_view},
-                {"textDocumentSync"_view,
-                 request.create_object(
-                     {{"openClose"_view, true}, {"change"_view, "1"_view}})},
-              })}});
+        Managed::Vector<Json::Member> text_doc_sync(arena);
+        text_doc_sync.insert({"openClose"_view, Json::Node(True)});
+        text_doc_sync.insert({"change"_view, Json::Node(Signed_64(1))});
 
-        return request.rpc_result(response);
+        Managed::Vector<Json::Member> capabilities(arena);
+        capabilities.insert(
+            {"positionEncoding"_view, Json::Node("utf-16"_view)});
+        capabilities.insert(
+            {"textDocumentSync"_view, Json::Node(text_doc_sync.get_view())});
+
+        Managed::Vector<Json::Member> server_info(arena);
+        server_info.insert(
+            {"name"_view, Json::Node("Tetrodotoxin Language Server"_view)});
+        server_info.insert({"version"_view, Json::Node("1.0"_view)});
+
+        Managed::Vector<Json::Member> result_obj(arena);
+        result_obj.insert(
+            {"serverInfo"_view, Json::Node(server_info.get_view())});
+        result_obj.insert(
+            {"capabilities"_view, Json::Node(capabilities.get_view())});
+
+        return request.report_result(Json::Node(result_obj.get_view()));
       });
 
-  std::cout << "   -- tokenize" << std::endl;
-  jsonrpc.register_method(
-      "tokenize", [](const RpcRequest& request) -> RpcResponse {
+  Diagnostics::Log::info("   -- format"_view);
+  Server::Rpc::Executor::register_method(
+      "format"_view,
+      [](const Server::Rpc::Request& request) -> Server::Rpc::Response {
+        auto& arena = request.get_arena();
         const auto& args = request.get_params();
+
         if (args.is_null()) {
-          return request.rpc_error(
-              "\"Failed to parse tokenize request.\""_view);
+          return request.report_error("Failed to parse format request."_view);
         }
 
-        const auto source_code = args["source"_view].get_string();
-        if (source_code.empty()) {
-          return request.rpc_error(
-              "Requested Fotokenizemat but no `source` was provided"_view);
-        }
-
-        // One off tokenizer.
-        Tokenizer tokenizer(request.get_arena());
-        tokenizer.parse(
-            Base64::Decoded(request.get_arena(), source_code).get_view(),
-            false);
-
-        return Service::lsp_tokens(tokenizer, request);
-      });
-
-  std::cout << "   -- format" << std::endl;
-  jsonrpc.register_method(
-      "format", [](const RpcRequest& request) -> RpcResponse {
-        const auto& args = request.get_params();
-        if (args.is_null()) {
-          return request.rpc_error("\"Failed to parse format request.\""_view);
-        }
-
-        const auto source_code = args["source"_view].get_string();
-        if (source_code.empty()) {
-          return request.rpc_error(
-              "Requested Format but no `source` was provided"_view);
+        const auto source_b64 = args["source"_view].get_string();
+        if (source_b64.empty()) {
+          return request.report_error(
+              "Requested format but no `source` was provided"_view);
         }
 
         const auto name_string = args["name"_view].get_string();
         if (name_string.empty()) {
-          return request.rpc_error(
-              "Requested Format but no `name` was provided"_view);
+          return request.report_error(
+              "Requested format but no `name` was provided"_view);
         }
 
-        // auto path = std::filesystem::path(name_string->get_view());
-        // std::string name = path.filename();
+        // Decode source, tokenize, parse, format, encode result.
+        // decoded_source and encoded_result use Bibliotheca; keep them alive
+        // until after report_result writes the response.
+        Dynamic::Bytes decoded_source = Base64::decode(source_b64);
 
-        // One off tokenizer.
-        static Tokenizer tokenizer(request.get_arena());
-        tokenizer.parse(
-            Base64::Decoded(request.get_arena(), source_code).get_view(),
-            false);
+        Tetrodotoxin::Lexical::Tokenizer tokenizer(arena);
+        tokenizer.parse(decoded_source.get_view());
 
-        return request.rpc_result(
-            request.create_object({{"document"_view, source_code}}));
+        if (tokenizer.empty()) {
+          View::Bytes encoded =
+              Base64::encode(arena, decoded_source.get_view());
+          Managed::Vector<Json::Member> result_obj(arena);
+          result_obj.insert({"document"_view, Json::Node(encoded)});
+          return request.report_result(Json::Node(result_obj.get_view()));
+        }
+
+        Tetrodotoxin::Syntax::Package pkg =
+            Tetrodotoxin::Syntax::Package::parse(tokenizer, name_string);
+
+        if (pkg.get_error_count() > 0 || !pkg.is_valid()) {
+          View::Bytes encoded =
+              Base64::encode(arena, decoded_source.get_view());
+          Managed::Vector<Json::Member> result_obj(arena);
+          result_obj.insert({"document"_view, Json::Node(encoded)});
+          return request.report_result(Json::Node(result_obj.get_view()));
+        }
+
+        Dynamic::Bytes formatted = Tetrodotoxin::Syntax::Formatter::format(pkg);
+        View::Bytes encoded = Base64::encode(arena, formatted.get_view());
+
+        Managed::Vector<Json::Member> result_obj(arena);
+        result_obj.insert({"document"_view, Json::Node(encoded)});
+        return request.report_result(Json::Node(result_obj.get_view()));
       });
 
-  std::cout << " -- Starting JsonRPC..." << std::endl;
-  jsonrpc.process();
+  Diagnostics::Log::info("   -- textDocument/didOpen"_view);
+  Server::Rpc::Executor::register_method(
+      "textDocument/didOpen"_view,
+      [](const Server::Rpc::Request& request) -> Server::Rpc::Response {
+        const auto uri =
+            request.get_params()["textDocument"_view]["uri"_view].get_string();
+        Static::Bytes<512> buffer;
+        Writer::Textual msg(buffer);
+        msg << "File opened: "_view << uri;
+        Diagnostics::Log::info(msg);
+        return Json::Node();
+      });
+
+  Diagnostics::Log::info("   -- textDocument/didClose"_view);
+  Server::Rpc::Executor::register_method(
+      "textDocument/didClose"_view,
+      [](const Server::Rpc::Request& request) -> Server::Rpc::Response {
+        const auto uri =
+            request.get_params()["textDocument"_view]["uri"_view].get_string();
+        Static::Bytes<512> buffer;
+        Writer::Textual msg(buffer);
+        msg << "File closed: "_view << uri;
+        Diagnostics::Log::info(msg);
+        return Json::Node();
+      });
+
+  Diagnostics::Log::info("Starting RPC..."_view);
+  Server::Rpc::Executor::execute(pipe_name);
 
   return 0;
 }
