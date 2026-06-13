@@ -1,40 +1,31 @@
-// // Perimortem Engine
-// // Copyright © Matt Kaes
+// Perimortem Engine
+// Copyright © Matt Kaes
 
-// #pragma once
+#pragma once
 
-// #include <filesystem>
-// #include <optional>
-// #include <string>
-// #include <string_view>
+#include "perimortem/core/view/bytes.hpp"
 
-// #include "lexical/source.hpp"
+#include "tetrodotoxin/lexical/token.hpp"
 
-// namespace Tetrodotoxin::Parser {
+namespace Tetrodotoxin::Syntax {
 
-// struct Error {
-//  public:
-//   static Bool colorful;
+// Clang-style colored error printer used by the parser and compiler.
+// Currently writes immediately to stderr so that it doesn't need to hold on to
+// memory past the report call.
+//
+// The message passed will be provided wrapped in all of the helper code that
+// points to the offending token.
+//
+// A hint can be provided to propose possible resolutions to the user.
+class Error {
+ public:
+  static auto report(
+      Perimortem::Core::View::Bytes path,
+      const Lexical::Token& token,
+      Perimortem::Core::View::Bytes source,
+      Perimortem::Core::View::Bytes message,
+      Perimortem::Core::View::Bytes hint = Perimortem::Core::View::Bytes())
+      -> void;
+};
 
-//   static std::string error_color_primary;
-//   static std::string error_color_secondary;
-//   static std::string error_color_tertiary;
-//   static std::string error_color_highlight;
-
-//   Error(
-//       const std::filesystem::path& source_map,
-//       std::string_view details,
-//       std::string_view source,
-//       std::optional<Lexical::Location> loc = std::nullopt,
-//       std::optional<std::string_view> line_range = std::nullopt,
-//       std::optional<uint32_t> error_range = std::nullopt);
-
-//   inline auto get_message() const -> const std::string& { return msg; };
-
-//  private:
-//   std::string msg;
-// };
-
-// using Errors = std::vector<Error>;
-
-// }  // namespace Tetrodotoxin::Parser
+}  // namespace Tetrodotoxin::Syntax

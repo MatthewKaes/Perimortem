@@ -144,7 +144,7 @@ auto Log::stderr_sink(Level /*level*/, View::Bytes message) -> void {
 }
 
 auto Log::color_sink(Level level, View::Bytes message) -> void {
-  if (message.empty()) {
+  if (message.is_empty()) {
     return;
   }
 

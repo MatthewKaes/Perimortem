@@ -86,13 +86,13 @@ auto main(int argc, char* argv[]) -> int {
         }
 
         const auto source_b64 = args["source"_view].get_string();
-        if (source_b64.empty()) {
+        if (source_b64.is_empty()) {
           return request.report_error(
               "Requested format but no `source` was provided"_view);
         }
 
         const auto name_string = args["name"_view].get_string();
-        if (name_string.empty()) {
+        if (name_string.is_empty()) {
           return request.report_error(
               "Requested format but no `name` was provided"_view);
         }
@@ -105,7 +105,7 @@ auto main(int argc, char* argv[]) -> int {
         Tetrodotoxin::Lexical::Tokenizer tokenizer(arena);
         tokenizer.parse(decoded_source.get_view());
 
-        if (tokenizer.empty()) {
+        if (tokenizer.is_empty()) {
           View::Bytes encoded =
               Base64::encode(arena, decoded_source.get_view());
           Managed::Vector<Json::Member> result_obj(arena);
@@ -124,8 +124,10 @@ auto main(int argc, char* argv[]) -> int {
           return request.report_result(Json::Node(result_obj.get_view()));
         }
 
-        Dynamic::Bytes formatted = Tetrodotoxin::Syntax::Formatter::format(pkg);
-        View::Bytes encoded = Base64::encode(arena, formatted.get_view());
+        Tetrodotoxin::Syntax::Formatter formatter;
+        pkg.format(formatter);
+        View::Bytes encoded =
+            Base64::encode(arena, formatter.get_output().get_view());
 
         Managed::Vector<Json::Member> result_obj(arena);
         result_obj.insert({"document"_view, Json::Node(encoded)});

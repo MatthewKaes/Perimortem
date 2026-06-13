@@ -26,7 +26,7 @@ class Tokenizer {
   };
 
   // The tokenizer is empty if it has 0 or 1 (EndOfStream) tokens.
-  constexpr auto empty() const -> Bool { return tokens.get_size() <= 1; }
+  constexpr auto is_empty() const -> Bool { return tokens.get_size() <= 1; }
 
   constexpr auto get_source() const -> const Perimortem::Core::View::Bytes {
     return source;

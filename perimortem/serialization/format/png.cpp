@@ -802,7 +802,7 @@ auto Format::Png::decode(const View::Bytes source) -> Graphics::Image {
     if (chunk.get_type() == "IDAT"_view) {
       // If we don't have any binary data we can just use a view.
       // Otherwise start building up the merged view.
-      if (binary_data.empty()) {
+      if (binary_data.is_empty()) {
         binary_data = chunk.get_data();
       } else {
         // Need to to merge in the current binary data from the last read.
@@ -821,7 +821,7 @@ auto Format::Png::decode(const View::Bytes source) -> Graphics::Image {
     chunk_offset += chunk_metadata_size + chunk.get_length();
   }
 
-  if (binary_data.empty()) [[unlikely]] {
+  if (binary_data.is_empty()) [[unlikely]] {
     Diagnostics::Log::error("Png: No IDAT chunk found or chunk was empty"_view);
     return Graphics::Image();
   }
@@ -833,7 +833,7 @@ auto Format::Png::encode(const Graphics::Image& image) -> Dynamic::Bytes {
   View::Vector<Graphics::Pixel> pixels = image.get_pixels();
 
   // Ignore empty images
-  if (pixels.empty()) [[unlikely]] {
+  if (pixels.is_empty()) [[unlikely]] {
     return Dynamic::Bytes();
   }
 

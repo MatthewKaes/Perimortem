@@ -47,7 +47,7 @@ class Bytes {
         source_block + start, Math::min(size, get_size() - start));
   };
 
-  constexpr auto empty() const -> Bool { return size == 0; };
+  constexpr auto is_empty() const -> Bool { return size == 0; };
   constexpr auto get_size() const -> Count { return size; };
   constexpr auto get_data() -> data_type* { return source_block; };
   constexpr auto get_data() const -> const data_type* { return source_block; };

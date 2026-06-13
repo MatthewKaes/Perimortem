@@ -605,7 +605,7 @@ auto Base64::decode(Allocator::Arena& arena, View::Bytes source)
 }
 
 auto Base64::encode(View::Bytes source) -> Dynamic::Bytes {
-  if (source.empty()) {
+  if (source.is_empty()) {
     return Dynamic::Bytes();
   }
 
@@ -619,7 +619,7 @@ auto Base64::encode(View::Bytes source) -> Dynamic::Bytes {
 
 auto Base64::encode(Allocator::Arena& arena, View::Bytes source)
     -> View::Bytes {
-  if (source.empty()) {
+  if (source.is_empty()) {
     return View::Bytes();
   }
 

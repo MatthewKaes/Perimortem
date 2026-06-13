@@ -74,7 +74,7 @@ auto parse_attribute(Context& context) -> void {
       context.loc.source_index,
       context.loc.parse_index - context.loc.source_index);
 
-  if (!token.empty()) {
+  if (!token.is_empty()) {
     context.tokens.insert(Token(
         token, Class::Type::Attribute, context.loc.line, context.loc.column));
   }

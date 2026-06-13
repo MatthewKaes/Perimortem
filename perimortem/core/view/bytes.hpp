@@ -74,7 +74,7 @@ class Bytes {
     return source_block[index];
   };
 
-  constexpr auto empty() const -> Bool { return size == 0; };
+  constexpr auto is_empty() const -> Bool { return size == 0; };
   constexpr auto get_size() const -> Count { return size; };
   constexpr auto get_data() const -> const Bits_8* { return source_block; };
 

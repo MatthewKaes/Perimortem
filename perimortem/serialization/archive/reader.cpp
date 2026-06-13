@@ -260,7 +260,7 @@ auto Reader::dump_info() const -> Memory::Dynamic::Bytes {
                 << "] size:" << blocks[i].data.get_size() << std::endl;
   }
 
-  if (!get_files().empty()) {
+  if (!get_files().is_empty()) {
     info_stream << std::endl;
     info_stream << "@files: " << std::endl;
 

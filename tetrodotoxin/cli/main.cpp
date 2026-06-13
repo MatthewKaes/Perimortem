@@ -41,7 +41,7 @@ Signed_32 main(Signed_32 argc, Signed_8** argv) {
     }
   }
 
-  if (output_path.empty()) {
+  if (output_path.is_empty()) {
     return 1;
   }
 
@@ -63,7 +63,7 @@ Signed_32 main(Signed_32 argc, Signed_8** argv) {
     return 1;
   }
 
-  if (!header_path.empty()) {
+  if (!header_path.is_empty()) {
     Dynamic::Bytes header;
     compiler.generate_cpp_header(header);
     if (!write_file(header_path, header.get_view())) {

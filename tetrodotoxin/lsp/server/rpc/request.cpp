@@ -21,8 +21,8 @@ Server::Rpc::Request::Request(
 }
 
 auto Server::Rpc::Request::is_valid() const -> Bool {
-  return !parsed.is_null() && !parsed["method"_view].get_string().empty() &&
-         !parsed["jsonrpc"_view].get_string().empty();
+  return !parsed.is_null() && !parsed["method"_view].get_string().is_empty() &&
+         !parsed["jsonrpc"_view].get_string().is_empty();
 }
 
 auto Server::Rpc::Request::is_request() const -> Bool {
