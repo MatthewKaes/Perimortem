@@ -1,52 +1,10 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 //
-// TTX grammar written in ANTLR4 notation.
+// ANTLR reference grammar for TTX.
 //
-// This is NOT the parser we ship with Tetrodotoxin, but it is a formal version of
-// the language so we have something boring and external to compare against when
-// changing the builtin Tetrodotoxin parser.
-//
-// To regenerate the ANTLR reference parser use:
-//    antlr4 -o /tmp/ttx-antlr tetrodotoxin/syntax/ttx.g4
-//    javac -cp /usr/share/java/antlr-4.13.2-complete.jar /tmp/ttx-antlr/tetrodotoxin/syntax/ttx*.java
-
-// To run against sample TTX in the code base use:
-//    java -cp /usr/share/java/antlr-4.13.2-complete.jar:/tmp/ttx-antlr/tetrodotoxin/syntax \
-//      org.antlr.v4.gui.TestRig ttx program validation/data/ttx/png.ttx
-//
-// The ANTLR version is useful because it's used as a stable reference. 
-// If this file can't parse any checked in TTX then either the grammar is
-// stale or the source syntax has drifted. That doesn't mean we should use
-// the generated parser in production though. TTX was intentionally designed
-// to be fast to parse and tokenize by hand literally:
-//
-// - PascalCase and snake_case split type and value names in the lexer.
-// - `.[`, `+:`, `0x[`, and `...` are real tokens instead of parser tricks.
-// - Packs, attributes, and layouts map directly to the AST.
-// - The lexer NEVER errors and any stream produces exactly 1 correct tokenization
-//   in a single pass, leaving the parser more room for reporting user errors.
-//
-// With those rules a custom parser can skip ANTLR's parse tree, report errors
-// in TTX terms, and avoid a pile of generated code we don't really want to
-// maintain around.
-//
-// Places where this file is intentionally a little ahead of the C++ parser:
-// - Positional function parameters (`Type`) are documented here, but the
-//   current parser accepts only named parameters (`.name : Type`).
-// - `@comptime if` is documented here. The parser already handles the lower
-//   level `@if(...) { ... }` compile conditional.
-//
-// A few lexer details are load bearing:
-// - Package kinds like `Library` and `Shader` are Type tokens. Validation
-//   happens after lexing.
-// - `9.` is avoided in this grammar even if the tokenizer can read it. It is
-//   too easy to confuse with ranges and member access.
-// - `_` is the discard token. `_name` is not a valid identifier.
-// - `&` and `|` are reserved. Use `and` / `or` for logical operators and method
-//   calls for bitwise operations.
-// - Keywords are mapped to unique token types during the lexer meaning the parser
-//   will never see an identifier or type that aliases a keyword.
+// The shipped parser is hand-written. This file is intentionally a compact
+// external spec for syntax drift checks, not the production parser.
 
 grammar ttx;
 
@@ -63,7 +21,9 @@ packageDecl
     ;
 
 packageKind
-    : Type
+    : Library
+    | Shader
+    | Entity
     ;
 
 importDecl
@@ -72,123 +32,73 @@ importDecl
 
 importSource
     : importFileSource
-    | qualifiedTypePath
+    | typeRefPath
     ;
 
 importFileSource
     : GroupStart AddressOp Addressable Assign String GroupEnd
     ;
 
-qualifiedTypePath
-    : Type (AddressOp Type)*
-    ;
-
 member
-    : commentBlock? Disabled? attribute* definition
+    : commentBlock? Disabled? attribute* memberDecl
     ;
 
-definition
-    : enumVariant
-    | sigil? definitionName Define typeRef definitionRhs
+memberDecl
+    : External sigil? Func Addressable function
+    | sigil? Func Addressable function
+    | sigil? definitionName TypedAssign expr EndStatement
+    | sigil? definitionName Define Enum pack EndStatement
+    | sigil? definitionName Define scopeBuiltin scopeBody
+    | sigil? definitionName Define typeRef (Assign expr)? EndStatement
     ;
 
 definitionName
-    : Addressable
-    | Type
+    : Type
+    | Addressable
     ;
 
-enumVariant
-    : Type Assign expr EndStatement
-    ;
-
-sigil
-    : Constant
-    | Detail
-    | Public
-    | Dynamic
-    | Hidden
-    | Temporary
-    ;
-
-definitionRhs
-    : EndStatement
-    | Assign scopeBody
-    | Assign funcInit
-    | Assign generatorExpr EndStatement
-    | Assign expr EndStatement
+scopeBuiltin
+    : Shader
+    | Object
+    | Struct
+    | Foreign
     ;
 
 scopeBody
-    : ScopeStart scopeItem* ScopeEnd
+    : ScopeStart member* ScopeEnd
     ;
 
-scopeItem
-    : member
+sigil
+    : Public
+    | ConstPublic
+    | Dynamic
+    | ConstDynamic
+    | Hidden
+    | ConstHidden
+    | Temporary
+    | ConstTemporary
     ;
 
 attribute
-    : Attribute attributeArgs?
+    : Attribute pack?
     ;
 
-attributeArgs
-    : GroupStart packFields? PackingOp? GroupEnd
+function
+    : layout CallOp layout (block | EndStatement)
     ;
 
-typeRef
-    : Type (AddressOp Type)* typeArgs?
-    ;
-
-typeArgs
-    : IndexStart typeArgList? PackingOp? IndexEnd
-    ;
-
-typeArgList
-    : typeArg (PackingOp typeArg)*
-    ;
-
-typeArg
-    : genericTypeParam
-    | expr
-    ;
-
-genericTypeParam
-    : Addressable Define typeRef
-    ;
-
-funcInit
-    : paramPack CallOp layoutDef (block | EndStatement)
-    ;
-
-paramPack
-    : GroupStart paramList? PackingOp? GroupEnd
-    ;
-
-paramList
-    : param (PackingOp param)*
-    ;
-
-param
-    : attribute* AddressOp Addressable Define typeRef
-    | typeRef
-    ;
-
-layoutDef
+layout
     : typeRef
-    | GroupStart GroupEnd
-    | GroupStart namedLayoutList PackingOp? GroupEnd
-    | GroupStart unnamedLayoutList PackingOp? GroupEnd
+    | GroupStart layoutFields? PackingOp? GroupEnd
     ;
 
-namedLayoutList
+layoutFields
     : namedLayoutField (PackingOp namedLayoutField)*
+    | typeRef (PackingOp typeRef)*
     ;
 
 namedLayoutField
     : attribute* AddressOp Addressable Define typeRef
-    ;
-
-unnamedLayoutList
-    : typeRef (PackingOp typeRef)*
     ;
 
 block
@@ -197,31 +107,26 @@ block
 
 statement
     : commentBlock
-    | ifStmt
+    | conditionalStmt
     | forStmt
     | whileStmt
     | matchStmt
-    | compileConditional
     | returnStmt
-    | varDecl
-    | assignStmt
-    | exprStmt
+    | declarationStmt
+    | assignmentStmt
+    | expressionStmt
     ;
 
-ifStmt
-    : If GroupStart expr GroupEnd block (Else (ifStmt | block))?
+conditionalStmt
+    : (If | CompileIf) pack block (Else (conditionalStmt | block))?
     ;
 
 forStmt
-    : For GroupStart loopBinding GroupEnd In expr block
-    ;
-
-loopBinding
-    : (Addressable | Discard) Define typeRef
+    : For layout In expr block
     ;
 
 whileStmt
-    : While GroupStart expr GroupEnd block
+    : While pack block
     ;
 
 matchStmt
@@ -237,32 +142,17 @@ matchPattern
     | expr
     ;
 
-compileConditional
-    : Attribute attributeArgs block
-    | Attribute If expr block (Else block)?
-    ;
-
 returnStmt
     : Return expr? EndStatement
     ;
 
-varDecl
+declarationStmt
     : sigil definitionName Define typeRef (Assign expr)? EndStatement
     | sigil definitionName TypedAssign expr EndStatement
-    | sigil splatPattern Assign expr EndStatement
     ;
 
-splatPattern
-    : GroupStart splatField (PackingOp splatField)* PackingOp? GroupEnd
-    ;
-
-splatField
-    : Addressable
-    | Discard
-    ;
-
-assignStmt
-    : expr assignOp expr EndStatement
+assignmentStmt
+    : assignChain assignOp expr EndStatement
     ;
 
 assignOp
@@ -271,21 +161,28 @@ assignOp
     | SubAssign
     ;
 
-exprStmt
+assignChain
+    : Addressable assignSuffix*
+    | Self assignSuffix+
+    | Package assignSuffix+
+    ;
+
+assignSuffix
+    : AddressOp (Addressable | Type)
+    | IndexStart indexContent IndexEnd
+    | SwizzleOp swizzleContent? IndexEnd
+    ;
+
+expressionStmt
     : expr EndStatement
     ;
 
 expr
-    : lambdaExpr
-    | rangeExpr
-    ;
-
-lambdaExpr
-    : paramPack GeneratorOp (expr | block)
+    : rangeExpr
     ;
 
 rangeExpr
-    : orExpr (RangeOp Assign? orExpr)?
+    : orExpr (RangeOp orExpr)?
     ;
 
 orExpr
@@ -318,8 +215,7 @@ mulExpr
     ;
 
 unaryExpr
-    : NotOp unaryExpr
-    | SubOp unaryExpr
+    : (NotOp | SubOp) unaryExpr
     | postfixExpr
     ;
 
@@ -329,11 +225,9 @@ postfixExpr
 
 postfixSuffix
     : AddressOp (Addressable | Type)
-    | CallOp methodName callArgs
-    | IndexStart indexContent? IndexEnd
+    | CallOp methodName pack
+    | IndexStart indexContent IndexEnd
     | SwizzleOp swizzleContent? IndexEnd
-    | callArgs
-    | NotOp
     ;
 
 methodName
@@ -348,12 +242,7 @@ indexContent
 
 swizzleContent
     : expr SliceOp expr
-    | swizzleComponent (PackingOp swizzleComponent)* PackingOp?
-    ;
-
-swizzleComponent
-    : Addressable
-    | Numeric
+    | expr (PackingOp expr)* PackingOp?
     ;
 
 primaryExpr
@@ -362,30 +251,29 @@ primaryExpr
     | Self
     | Package
     | Discard
+    | constructExpr
     | typeRef
-    | packExpr
-    | arrayExpr
-    | generatorExpr
+    | pack
+    | dataExpr
     ;
 
-packExpr
-    : GroupStart packFields? PackingOp? GroupEnd
+constructExpr
+    : typeRefPath typeArgs? pack
     ;
 
-callArgs
-    : GroupStart packFields? PackingOp? GroupEnd
+pack
+    : GroupStart (namedPackFields | exprList)? PackingOp? GroupEnd
     ;
 
-packFields
-    : packField (PackingOp packField)*
+namedPackFields
+    : namedPackField (PackingOp namedPackField)*
     ;
 
-packField
+namedPackField
     : AddressOp Addressable Assign expr
-    | expr
     ;
 
-arrayExpr
+dataExpr
     : ScopeStart exprList? PackingOp? ScopeEnd
     ;
 
@@ -393,8 +281,33 @@ exprList
     : expr (PackingOp expr)*
     ;
 
-generatorExpr
-    : IndexStart Addressable Define typeRef GeneratorOp block IndexEnd
+typeRef
+    : Numeric
+    | typeRefPath typeArgs?
+    ;
+
+typeRefPath
+    : typeRefSegment (AddressOp typeRefSegment)*
+    ;
+
+typeRefSegment
+    : Type
+    | Alias
+    | Enum
+    | Shader
+    | Entity
+    | Object
+    | Struct
+    | Foreign
+    | Library
+    ;
+
+typeArgs
+    : IndexStart typeRefList? PackingOp? IndexEnd
+    ;
+
+typeRefList
+    : typeRef (PackingOp typeRef)*
     ;
 
 literal
@@ -407,130 +320,95 @@ literal
     | False
     ;
 
-Constant     : 'frozen' ;
-Detail       : 'detail' ;
-Public       : 'public' ;
-Dynamic      : 'expose' ;
-Hidden       : 'hidden' ;
-Temporary    : 'stack' ;
-Import       : 'import' ;
+Public          : 'public' ;
+ConstPublic     : '@public' ;
+Dynamic         : 'expose' ;
+ConstDynamic    : '@expose' ;
+Hidden          : 'hidden' ;
+ConstHidden     : '@hidden' ;
+Temporary       : 'stack' ;
+ConstTemporary  : '@stack' ;
+CompileIf       : '@if' ;
+Import          : 'import' ;
 
-As           : 'as' ;
-And          : 'and' ;
-Or           : 'or' ;
-If           : 'if' ;
-In           : 'in' ;
-For          : 'for' ;
-New          : 'new' ;
-Case         : 'case' ;
-Else         : 'else' ;
-Enum         : 'enum' ;
-Func         : 'func' ;
-Init         : 'init' ;
-Self         : 'self' ;
-True         : 'true' ;
-Alias        : 'alias' ;
-False        : 'false' ;
-Match        : 'match' ;
-Using        : 'using' ;
-While        : 'while' ;
-Shader       : 'shader' ;
-Entity       : 'entity' ;
-Object       : 'object' ;
-Return       : 'return' ;
-Struct       : 'struct' ;
-Library      : 'library' ;
-Package      : 'package' ;
+And             : 'and' ;
+Or              : 'or' ;
+If              : 'if' ;
+In              : 'in' ;
+For             : 'for' ;
+New             : 'new' ;
+Case            : 'case' ;
+Else            : 'else' ;
+Enum            : 'Enum' ;
+External        : 'external' ;
+Func            : 'func' ;
+Init            : 'init' ;
+Self            : 'self' ;
+True            : 'true' ;
+Alias           : 'Alias' ;
+False           : 'false' ;
+Match           : 'match' ;
+While           : 'while' ;
+Shader          : 'Shader' ;
+Entity          : 'Entity' ;
+Object          : 'Object' ;
+Return          : 'return' ;
+Struct          : 'Struct' ;
+Foreign         : 'Foreign' ;
+Library         : 'Library' ;
+Package         : 'package' ;
 
-Comment      : '//' ~[\r\n]* ;
-Disabled     : '/>' ;
-Attribute    : '@' [a-zA-Z_] [a-zA-Z0-9_]* ;
+Comment         : '//' ~[\r\n]* ;
+Disabled        : '/>' ;
+Attribute       : '@' [a-zA-Z_] [a-zA-Z0-9_]* ;
 
-SwizzleOp    : '.[' ;
-SliceOp      : '+:' ;
-RangeOp      : '...' ;
-AddAssign    : '+=' ;
-SubAssign    : '-=' ;
-TypedAssign  : ':=' ;
-LessEqOp     : '<=' ;
-GreaterEqOp  : '>=' ;
-CmpOp        : '==' ;
-NotEqOp      : '!=' ;
-CallOp       : '->' ;
-GeneratorOp  : '=>' ;
+SwizzleOp       : '.[' ;
+SliceOp         : '+:' ;
+RangeOp         : '...' ;
+AddAssign       : '+=' ;
+SubAssign       : '-=' ;
+TypedAssign     : ':=' ;
+LessEqOp        : '<=' ;
+GreaterEqOp     : '>=' ;
+CmpOp           : '==' ;
+NotEqOp         : '!=' ;
+CallOp          : '->' ;
 
-ScopeStart   : '{' ;
-ScopeEnd     : '}' ;
-GroupStart   : '(' ;
-GroupEnd     : ')' ;
-IndexStart   : '[' ;
-IndexEnd     : ']' ;
-Assign       : '=' ;
-Define       : ':' ;
-EndStatement : ';' ;
+ScopeStart      : '{' ;
+ScopeEnd        : '}' ;
+GroupStart      : '(' ;
+GroupEnd        : ')' ;
+IndexStart      : '[' ;
+IndexEnd        : ']' ;
+Assign          : '=' ;
+Define          : ':' ;
+EndStatement    : ';' ;
 
-AddOp        : '+' ;
-SubOp        : '-' ;
-DivOp        : '/' ;
-MulOp        : '*' ;
-ModOp        : '%' ;
-LessOp       : '<' ;
-GreaterOp    : '>' ;
-AddressOp    : '.' ;
-PackingOp    : ',' ;
-NotOp        : '!' ;
-AndOp        : '&' ;
-OrOp         : '|' ;
+AddOp           : '+' ;
+SubOp           : '-' ;
+DivOp           : '/' ;
+MulOp           : '*' ;
+ModOp           : '%' ;
+LessOp          : '<' ;
+GreaterOp       : '>' ;
+AddressOp       : '.' ;
+PackingOp       : ',' ;
+NotOp           : '!' ;
+AndOp           : '&' ;
+OrOp            : '|' ;
 
-Bytes
-    : '0x[' (HEX_DIGIT | [ \t\r\n])* ']'
-    ;
+Bytes           : '0x[' (HEX_DIGIT | [ \t\r\n])* ']' ;
+Embedded        : '$[' ~[\]\r\n]* ']' ;
+Float           : DEC_DIGIT+ '.' DEC_DIGIT+ ;
+Numeric         : '0x' HEX_DIGIT+ | DEC_DIGIT+ ;
+String          : '"' (ESCAPE | ~["\\\r\n])* '"' ;
+Discard         : '_' ;
+Addressable     : [a-z] [a-zA-Z0-9_]* ;
+Type            : [A-Z] [a-zA-Z0-9_]* ;
 
-Embedded
-    : '$[' ~[\]\r\n]* ']'
-    ;
+fragment ESCAPE     : '\\' . ;
+fragment HEX_DIGIT  : [0-9a-fA-F] ;
+fragment DEC_DIGIT  : [0-9] ;
 
-Float
-    : DEC_DIGIT+ '.' DEC_DIGIT+
-    ;
-
-Numeric
-    : '0x' HEX_DIGIT+
-    | DEC_DIGIT+
-    ;
-
-String
-    : '"' (ESCAPE | ~["\\\r\n])* '"'
-    ;
-
-Discard
-    : '_'
-    ;
-
-Addressable
-    : [a-z] [a-zA-Z0-9_]*
-    ;
-
-Type
-    : [A-Z] [a-zA-Z0-9_]*
-    ;
-
-fragment ESCAPE
-    : '\\' .
-    ;
-
-fragment HEX_DIGIT
-    : [0-9a-fA-F]
-    ;
-
-fragment DEC_DIGIT
-    : [0-9]
-    ;
-
-WS
-    : [ \t\r\n]+ -> skip
-    ;
-
-Unknown
-    : .
-    ;
+WS              : [ \t\r\n]+ -> skip ;
+Unknown         : . ;
