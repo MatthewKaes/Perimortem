@@ -9,7 +9,7 @@
 grammar ttx;
 
 program
-    : commentBlock? packageDecl importDecl* member* EOF
+    : commentBlock? packageDecl importDecl* foreignDecl* member* EOF
     ;
 
 commentBlock
@@ -36,18 +36,21 @@ importSource
     ;
 
 importFileSource
-    : GroupStart AddressOp Addressable Assign String GroupEnd
+    : PackingStart AddressOp Addressable Assign String PackingEnd
     ;
 
 member
     : commentBlock? Disabled? attribute* memberDecl
     ;
 
+foreignDecl
+    : commentBlock? Disabled? attribute* sigil? definitionName Define Foreign scopeBody
+    ;
+
 memberDecl
     : External sigil? Func Addressable function
     | sigil? Func Addressable function
-    | sigil? definitionName TypedAssign expr EndStatement
-    | sigil? definitionName Define Enum pack EndStatement
+    | sigil? definitionName Define enumType pack EndStatement
     | sigil? definitionName Define scopeBuiltin scopeBody
     | sigil? definitionName Define typeRef (Assign expr)? EndStatement
     ;
@@ -61,7 +64,6 @@ scopeBuiltin
     : Shader
     | Object
     | Struct
-    | Foreign
     ;
 
 scopeBody
@@ -89,7 +91,11 @@ function
 
 layout
     : typeRef
-    | GroupStart layoutFields? PackingOp? GroupEnd
+    | IndexStart layoutFields? PackingOp? IndexEnd
+    ;
+
+enumType
+    : Enum IndexStart typeRef IndexEnd
     ;
 
 layoutFields
@@ -112,6 +118,8 @@ statement
     | whileStmt
     | matchStmt
     | returnStmt
+    | continueStmt
+    | breakStmt
     | declarationStmt
     | assignmentStmt
     | expressionStmt
@@ -146,9 +154,16 @@ returnStmt
     : Return expr? EndStatement
     ;
 
+continueStmt
+    : Continue EndStatement
+    ;
+
+breakStmt
+    : Break EndStatement
+    ;
+
 declarationStmt
     : sigil definitionName Define typeRef (Assign expr)? EndStatement
-    | sigil definitionName TypedAssign expr EndStatement
     ;
 
 assignmentStmt
@@ -262,7 +277,7 @@ constructExpr
     ;
 
 pack
-    : GroupStart (namedPackFields | exprList)? PackingOp? GroupEnd
+    : PackingStart (namedPackFields | exprList)? PackingOp? PackingEnd
     ;
 
 namedPackFields
@@ -336,6 +351,8 @@ Or              : 'or' ;
 If              : 'if' ;
 In              : 'in' ;
 For             : 'for' ;
+Continue        : 'continue' ;
+Break           : 'break' ;
 New             : 'new' ;
 Case            : 'case' ;
 Else            : 'else' ;
@@ -367,7 +384,6 @@ SliceOp         : '+:' ;
 RangeOp         : '...' ;
 AddAssign       : '+=' ;
 SubAssign       : '-=' ;
-TypedAssign     : ':=' ;
 LessEqOp        : '<=' ;
 GreaterEqOp     : '>=' ;
 CmpOp           : '==' ;
@@ -376,8 +392,8 @@ CallOp          : '->' ;
 
 ScopeStart      : '{' ;
 ScopeEnd        : '}' ;
-GroupStart      : '(' ;
-GroupEnd        : ')' ;
+PackingStart      : '(' ;
+PackingEnd        : ')' ;
 IndexStart      : '[' ;
 IndexEnd        : ']' ;
 Assign          : '=' ;

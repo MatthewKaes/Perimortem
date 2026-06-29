@@ -3,6 +3,10 @@
 
 #include "perimortem/core/bibliotheca.hpp"
 
+#ifdef PERI_LINUX
+#include <sys/mman.h>
+#endif
+
 #include "perimortem/core/data.hpp"
 #include "perimortem/core/diagnostics/log.hpp"
 #include "perimortem/core/null_terminated.hpp"
@@ -23,7 +27,8 @@ static constexpr Bits_8 min_radix = log2_pre_shift(64);
 static constexpr Count min_size = (1 << min_radix);
 static constexpr Count radix_range = max_radix - min_radix;
 
-struct alignas(64) Slab {
+class alignas(64) Slab {
+ public:
   static constexpr auto kilobytes_4 = 1 << 12;
   static constexpr auto megabytes_2 = kilobytes_4 << 9;
 
@@ -32,13 +37,68 @@ struct alignas(64) Slab {
   // overhead which helps break up some particularly poor performing allocation
   // chunking based on Bibliotheca access patterns.
   static constexpr Count allocator_size = (megabytes_2 << 4) + megabytes_2;
-  Count mapped_size;
-  Count bump_ptr;
-  Slab* ancestor;
+  static auto get(Count block_size) -> Slab* {
+#ifdef PERI_LINUX
+    auto size = allocator_size;
+
+    // If we need a specificly large slab then grab one but make sure it falls
+    // on a 2MB boundary. Don't worry about fragmentation, as part of demotion
+    // the left over bytes in the 2MB will be chunked eventually by smaller
+    // allocs.
+    if (size < block_size) {
+      size = Data::align<megabytes_2>(block_size);
+    }
+
+    // Attempt to grab a block using huge TLB to speed up the slab allocator.
+    auto constexpr page_access = PROT_READ | PROT_WRITE;
+    auto constexpr page_flags = MAP_PRIVATE | MAP_ANONYMOUS;
+    // Huge pages should be 2MB if available.
+    // 1GB pages don't make sense for our usage.
+    auto constexpr huge_page = MAP_HUGETLB | MAP_HUGE_2MB;
+    auto ptr = mmap(nullptr, size, page_access, page_flags | huge_page, -1, 0);
+    if (ptr == MAP_FAILED) {
+      // Fall back to 4kb pages if the huge tlb failed.
+      ptr = mmap(nullptr, size, page_access, page_flags, -1, 0);
+
+      // Check if a regular mmap also failed with regular 4kb pages.
+      if (ptr == MAP_FAILED) {
+        // TODO: Diagnostics
+        return nullptr;
+      }
+    }
+
+    Slab* slab = Data::cast<Slab>(ptr);
+    slab->mapped_size = size;
+    slab->ancestor = nullptr;
+    slab->bump_ptr = sizeof(Slab);
+
+    return slab;
+#else
+    return nullptr;
+#endif
+  }
+
+  static auto release(Slab* slab) -> Bool {
+#ifdef PERI_LINUX
+    auto success = munmap(slab, slab->mapped_size);
+    if (success != 0) {
+      // TODO: Diagnostics
+      return False;
+    }
+
+    return True;
+#else
+    return False;
+#endif
+  }
 
   constexpr auto get_free_space() const -> Count {
     return mapped_size - bump_ptr;
   }
+
+  constexpr auto get_ancestor() const -> Slab* { return ancestor; }
+  constexpr auto set_ancestor(Slab* value) -> void { ancestor = value; }
+  constexpr auto get_ancestor_slot() -> Slab*& { return ancestor; }
 
   // Allocates a chunk using a bump ptr. It's up to the Librarian to actually
   // dish out prefaced chunks and the Bibliotheca to manage chunk flows.
@@ -54,67 +114,19 @@ struct alignas(64) Slab {
     bump_ptr += bytes;
     return location;
   }
+
+ private:
+  Count mapped_size = 0;
+  Count bump_ptr = 0;
+  Slab* ancestor = nullptr;
 };
 
 // Slab header should fill a single cache line.
 static_assert(sizeof(Slab) == 64);
 
-#ifdef PERI_LINUX
-#include <sys/mman.h>
-
-auto get_slab(Count block_size) -> Slab* {
-  // Limit blocks to
-  auto size = Slab::allocator_size;
-
-  // If we need a specificly large slab then grab one but make sure it falls on
-  // a 2MB boundary. Don't worry about fragmentation, as part of demotion the
-  // left over bytes in the 2MB will be chunked eventually by smaller allocs.
-  if (size < block_size) {
-    size = Data::align<Slab::megabytes_2>(block_size);
-  }
-
-  // Attempt to grab a block using huge TLB to speed up the slab allocator.
-  auto constexpr page_access = PROT_READ | PROT_WRITE;
-  auto constexpr page_flags = MAP_PRIVATE | MAP_ANONYMOUS;
-  // Huge pages should be 2MB if available.
-  // 1GB pages don't make sense for our usage.
-  auto constexpr huge_page = MAP_HUGETLB | MAP_HUGE_2MB;
-  Bool is_huge_page_optimized = true;
-  auto ptr = mmap(nullptr, size, page_access, page_flags | huge_page, -1, 0);
-  if (ptr == MAP_FAILED) {
-    // Fall back to 4kb pages if the huge tlb failed.
-    is_huge_page_optimized = false;
-    ptr = mmap(nullptr, size, page_access, page_flags, -1, 0);
-
-    // Check if a regular mmap also failed with regular 4kb pages.
-    if (ptr == MAP_FAILED) {
-      // TODO: Diagnostics
-      return nullptr;
-    }
-  }
-
-  Slab* slab = Data::cast<Slab>(ptr);
-  slab->mapped_size = size;
-  slab->ancestor = nullptr;
-  slab->bump_ptr = sizeof(Slab);
-
-  return slab;
-}
-
-auto release_slab(Slab* slab) -> Bool {
-  auto success = munmap(slab, slab->allocator_size);
-  if (success != 0) {
-    // TODO: Diagnostics
-    return false;
-  }
-
-  return true;
-}
-#endif
-
 // Make sure Preface is always aligned so that the pointer returned is
 // aligned.
-class Preface final {
+class Preface {
   friend Bibliotheca;
 
  public:
@@ -147,22 +159,26 @@ class Preface final {
 // Blocks are always cached aligned by having the preface small allows us to be
 static_assert(sizeof(Preface) == 64);
 
-// Create a thread local static object that is fast to access.
-// Use a POD type so we don't have to pay any of the initialization checks.
-thread_local static struct {
-  struct Collection {
-    Preface* initial_entry;
-    Bits_32 reserved_blocks;
-    Bits_32 free_blocks;
+class Archive {
+ public:
+  class Collection {
+   public:
+    Preface* initial_entry = nullptr;
+    Bits_32 reserved_blocks = 0;
+    Bits_32 free_blocks = 0;
   };
 
   Collection collections[radix_range];
   // The hirearchy of badness metrics from best to worst performance.
-  Count check_out_requests;   // A checkout was requested
-  Count allocation_requests;  // A new Preface was requested.
-  Count demote_requests;
-  Count slab_requests;
-} secret_archive = {};
+  Count check_out_requests = 0;   // A checkout was requested
+  Count allocation_requests = 0;  // A new Preface was requested.
+  Count demote_requests = 0;
+  Count slab_requests = 0;
+};
+
+// Create a thread local static object that is fast to access.
+// Use a POD type so we don't have to pay any of the initialization checks.
+thread_local static Archive secret_archive;
 
 static_assert(sizeof(secret_archive) <= 512);
 
@@ -188,21 +204,21 @@ class Librarian {
     // Demote the active inventory to possibly inactive and see if we have
     // space in another block.
     Slab* current = inventory;
-    if (current->ancestor) {
+    if (current->get_ancestor()) {
       secret_archive.demote_requests++;
       const auto free_space = current->get_free_space();
 
       // Bubble the page to it's new rank location to keep emptier pages at
       // the top of the inventory list.
       auto parent = &inventory;
-      while (current->ancestor &&
-             free_space < current->ancestor->get_free_space()) {
-        auto next = current->ancestor;
-        current->ancestor = next->ancestor;
-        next->ancestor = current;
+      while (current->get_ancestor() &&
+             free_space < current->get_ancestor()->get_free_space()) {
+        auto next = current->get_ancestor();
+        current->set_ancestor(next->get_ancestor());
+        next->set_ancestor(current);
 
         *parent = next;
-        parent = &(*parent)->ancestor;
+        parent = &(*parent)->get_ancestor_slot();
       }
     }
 
@@ -214,8 +230,8 @@ class Librarian {
     // We were unable to find space so fetch a brand new slab and make it our
     // active inventory for allocations.
     secret_archive.slab_requests++;
-    auto new_slab = get_slab(bytes);
-    new_slab->ancestor = inventory;
+    auto new_slab = Slab::get(bytes);
+    new_slab->set_ancestor(inventory);
     inventory = new_slab;
   }
 
@@ -237,7 +253,7 @@ class Librarian {
     // Since we require at least some memory we can preallocate a block.
     // Having at least one block as an invariant speeds up the fast path.
     secret_archive.slab_requests++;
-    inventory = get_slab(Slab::allocator_size);
+    inventory = Slab::get(Slab::allocator_size);
   }
 
   // Forcefully reclaim all outstanding rentals since we are closing
@@ -245,13 +261,13 @@ class Librarian {
   ~Librarian() {
     while (inventory) {
       auto entry = inventory;
-      inventory = inventory->ancestor;
-      release_slab(entry);
+      inventory = inventory->get_ancestor();
+      Slab::release(entry);
     }
   }
 };
 
-constexpr auto caculate_archive_bucket(Count bytes) -> Bits_8 {
+constexpr auto calculate_archive_bucket(Count bytes) -> Bits_8 {
   return log2_pre_shift(bytes > min_size ? bytes : min_size);
 }
 
@@ -273,7 +289,7 @@ auto Bibliotheca::check_out(Count requested_bytes) -> Allocation {
   secret_archive.check_out_requests++;
 
   // Caculate the archive information for the request.
-  const Count archive_bucket = caculate_archive_bucket(requested_bytes);
+  const Count archive_bucket = calculate_archive_bucket(requested_bytes);
   const Count actual_bytes =
       archive_page_width(archive_bucket) + sizeof(Preface);
   const Count archive_index = archive_bucket - min_radix;

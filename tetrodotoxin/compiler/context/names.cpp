@@ -3,6 +3,7 @@
 
 #include "tetrodotoxin/compiler/context/names.hpp"
 
+#include "perimortem/core/data.hpp"
 #include "perimortem/core/null_terminated.hpp"
 #include "perimortem/core/writer/textual.hpp"
 
@@ -25,6 +26,16 @@ auto Context::Names::canonicalize(
   return View::Bytes(canon_name, size);
 }
 
+auto Context::Names::retain(View::Bytes name) -> View::Bytes {
+  if (name.is_empty()) {
+    return name;
+  }
+
+  auto retained = arena.allocate(name.get_size());
+  Data::copy(retained, name.get_data(), name.get_size());
+  return View::Bytes(retained, name.get_size());
+}
+
 auto Context::Names::make_local_unique() -> View::Bytes {
   Count size = counter[3] ? 4 : counter[2] ? 3 : counter[1] ? 2 : 1;
   auto name = arena.allocate(size);
@@ -42,7 +53,7 @@ auto Context::Names::make_local_unique() -> View::Bytes {
 
   for (Count i = 0; i < 4; i++) {
     counter[i] += 1;
-    if (counter[i] <= '9') {
+    if (counter[i] <= 9) {
       break;
     }
 

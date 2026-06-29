@@ -7,16 +7,18 @@
 
 #include "perimortem/core/perimortem.hpp"
 
+#include "perimortem/system/window.hpp"
+
 namespace Perimortem::Graphics::Vulkan {
+
+class Swapchain;
 
 // Owns the Vulkan instance, surface, physical device, logical device, graphics
 // queue, and command pool for the lifetime of the application.
 //
-// The Wayland display and surface are passed as void* to avoid pulling
-// wayland-client headers into anything that includes this file.
 class Context {
  public:
-  static auto create(void* wl_display, void* wl_surface) -> Context;
+  static auto create(const System::Window& window) -> Context;
 
   Context() = default;
   ~Context();
@@ -28,7 +30,6 @@ class Context {
   auto get_instance() const -> VkInstance;
   auto get_physical_device() const -> VkPhysicalDevice;
   auto get_device() const -> VkDevice;
-  auto get_surface() const -> VkSurfaceKHR;
   auto get_graphics_queue() const -> VkQueue;
   auto get_graphics_queue_family() const -> Bits_32;
   auto get_command_pool() const -> VkCommandPool;
@@ -70,6 +71,10 @@ class Context {
   }
 
  private:
+  friend class Swapchain;
+
+  auto get_surface() const -> VkSurfaceKHR;
+
   VkInstance instance = VK_NULL_HANDLE;
   VkSurfaceKHR surface = VK_NULL_HANDLE;
   VkPhysicalDevice physical_device = VK_NULL_HANDLE;

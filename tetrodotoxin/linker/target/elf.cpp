@@ -77,10 +77,10 @@ struct SectionHeader {
 };
 static_assert(sizeof(SectionHeader) == 64);
 
-// The binary layout for Symbol entries.
+// The binary layout for symbol records.
 // The Compiler format is mostly based on ELF so the two instances are close but
 // we use this instance to streamline serialization.
-struct SymbolEntry {
+struct SymbolRecord {
   Bits_32 name_offset;
   Bits_8 info;        // (binding << 4) | type
   Bits_8 visibility;  // STV_DEFAULT = 0
@@ -88,15 +88,15 @@ struct SymbolEntry {
   Bits_64 value;
   Bits_64 size;
 };
-static_assert(sizeof(SymbolEntry) == 24);
+static_assert(sizeof(SymbolRecord) == 24);
 
 // Rela represents relative relocations
-struct RelaEntry {
+struct RelaRecord {
   Bits_64 offset;
   Bits_64 info;  // (symbol_index << 32) | reloc_type
   Signed_64 addend;
 };
-static_assert(sizeof(RelaEntry) == 24);
+static_assert(sizeof(RelaRecord) == 24);
 
 enum class RelocationType : Bits_32 {
   PcRelative32 = 2,
@@ -246,9 +246,9 @@ auto build_symbol_table(
 
   const Count entry_count = 1 + sorted.get_size();
   Dynamic::Bytes data;
-  data.forgetful_resize(sizeof(SymbolEntry) * entry_count);
-  memset(data.get_access().get_data(), 0, sizeof(SymbolEntry) * entry_count);
-  auto* entries = Data::cast<SymbolEntry>(data.get_access().get_data());
+  data.forgetful_resize(sizeof(SymbolRecord) * entry_count);
+  memset(data.get_access().get_data(), 0, sizeof(SymbolRecord) * entry_count);
+  auto* entries = Data::cast<SymbolRecord>(data.get_access().get_data());
 
   for (Count i = 0; i < sorted.get_size(); i++) {
     const auto& ref = sorted[i];
@@ -277,8 +277,8 @@ auto build_relocations(
   if (relocations.get_size() == 0) {
     return data;
   }
-  data.forgetful_resize(sizeof(RelaEntry) * relocations.get_size());
-  auto* entries = Data::cast<RelaEntry>(data.get_access().get_data());
+  data.forgetful_resize(sizeof(RelaRecord) * relocations.get_size());
+  auto* entries = Data::cast<RelaRecord>(data.get_access().get_data());
 
   for (Count i = 0; i < relocations.get_size(); i++) {
     const auto& reloc = relocations[i];
@@ -413,7 +413,7 @@ auto build_section_descriptors(
       relocation_data,
       Bits_32(symbol_table_index),
       Bits_32(1),
-      sizeof(RelaEntry),
+      sizeof(RelaRecord),
     });
   }
 
@@ -425,7 +425,7 @@ auto build_section_descriptors(
     symbol_table,
     Bits_32(string_table_index),
     Bits_32(first_global),
-    sizeof(SymbolEntry),
+    sizeof(SymbolRecord),
   });
 
   descriptors.insert(

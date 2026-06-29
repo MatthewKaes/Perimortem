@@ -1,0 +1,4 @@
+// Resolution fixture with no imports.
+package : Library;
+
+@hidden value : Count = 1;

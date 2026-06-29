@@ -28,5 +28,5 @@ extern "C" void print(View::Bytes data) {
 }
 
 PERIMORTEM_UNIT_TEST(TtxAbi, round_trip) {
-  TTX_Hello_tetrodotoxin_test("Round trip text!"_view);
+  Ttx::TTX_Hello_tetrodotoxin_test("Round trip text!"_view);
 }

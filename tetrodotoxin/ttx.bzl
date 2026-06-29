@@ -24,10 +24,11 @@ Usage in a BUILD file:
 
 A generated header is automatically available to dependents:
 
-    #include "my_lib.h"   // declares tetrodotoxin_test()
+    #include "ttx/my_lib.hpp"
 
-TODO: All source files are currently forwarded to the compiler but all the data
-is droped and only the same test library is produced with hard coded machine code.
+For Shader packages, the generated archive exports SPIR-V blobs and ABI metadata
+derived from the TTX source. The generated header declares those symbols and
+the host-side push-constant struct.
 """
 
 load("@rules_cc//cc:find_cc_toolchain.bzl", "CC_TOOLCHAIN_ATTRS", "find_cc_toolchain")
@@ -37,6 +38,9 @@ load("@rules_cc//cc/common:cc_info.bzl", "CcInfo")
 def _ttx_library_impl(ctx):
     archive = ctx.actions.declare_file(ctx.attr.name + ".a")
     header = ctx.actions.declare_file("ttx/" + ctx.attr.name + ".hpp")
+    include_root = ctx.bin_dir.path
+    if ctx.label.package:
+        include_root = include_root + "/" + ctx.label.package
 
     args = ["--output", archive.path, "--header", header.path]
     for src in ctx.files.srcs:
@@ -77,11 +81,11 @@ def _ttx_library_impl(ctx):
         ]),
     )
 
-    # Make the generated header available as a system include so consumers
-    # can write: #include "<name>.h"
+    # Make the generated header available so consumers can write:
+    #include "ttx/<name>.hpp"
     compilation_context = cc_common.create_compilation_context(
         headers = depset([header]),
-        system_includes = depset([header.dirname]),
+        system_includes = depset([include_root]),
     )
 
     return [

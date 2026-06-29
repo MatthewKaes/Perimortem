@@ -129,13 +129,12 @@ class Table {
   static constexpr PackedBuffer byte_pack;
 
  public:
-  static constexpr auto find_or_default(
-      const Core::View::Bytes key,
-      const value_type default_value) -> value_type {
+  static constexpr auto find_or_null(const Core::View::Bytes key)
+      -> const value_type* {
     // Get the value in range.
     const auto range_step = key.get_size();
     if (range_step > max_range) {
-      return default_value;
+      return nullptr;
     }
 
     auto item_start = byte_pack.buffer_coordinates[range_step].item_index;
@@ -150,11 +149,18 @@ class Table {
 
       if (Core::Data::compare(
               byte_pack.buffer + byte_index, key.get_data(), range_step)) {
-        return byte_pack.mappings[item_start + i];
+        return &byte_pack.mappings[item_start + i];
       }
     }
 
-    return default_value;
+    return nullptr;
+  }
+
+  static constexpr auto find_or_default(
+      const Core::View::Bytes key,
+      const value_type default_value) -> value_type {
+    auto value = find_or_null(key);
+    return value == nullptr ? default_value : *value;
   }
 
   static consteval auto get_memory_consumption() -> Count {

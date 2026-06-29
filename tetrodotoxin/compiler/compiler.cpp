@@ -68,6 +68,29 @@ auto Compiler::compile_function(
   return sym_index;
 }
 
+auto Compiler::add_read_only_data(
+    View::Bytes name,
+    View::Bytes data,
+    Count alignment,
+    Context::Symbol::Visability visability) -> Count {
+  if (alignment == 0) {
+    alignment = 1;
+  }
+
+  while (read_only.get_size() % alignment != 0) {
+    read_only.append('\0');
+  }
+
+  const Count start = read_only.get_size();
+  read_only.concat(data);
+
+  const Count sym_index = symbols.get_size();
+  symbols.insert(
+      Context::Symbol::create_read_only(
+          names.retain(name), {start, data.get_size()}, visability));
+  return sym_index;
+}
+
 auto Compiler::generate_cpp_header(Dynamic::Bytes& out) -> void {
   // Generated header
   out.concat(
@@ -78,8 +101,8 @@ auto Compiler::generate_cpp_header(Dynamic::Bytes& out) -> void {
   // TODO: Sort out which headers are actually required.
   out.concat("#include \"perimortem/core/view/bytes.hpp\"\n\n"_view);
 
-  // Extern C block to prevent name mangling.
-  out.concat("#ifdef __cplusplus\nextern \"C\" {\n#endif\n\n"_view);
+  out.concat("namespace Ttx {\n\n"_view);
+  out.concat("extern \"C\" {\n\n"_view);
 
   // Write out all of the exported functions.
   for (Count i = 0; i < functions.get_size(); i++) {
@@ -99,10 +122,8 @@ auto Compiler::generate_cpp_header(Dynamic::Bytes& out) -> void {
     out.concat(");\n"_view);
   }
 
-  // Close out the extern "C".
-  // We could maybe ditch the __cplusplus in the future since we don't really
-  // target C.
-  out.concat("\n#ifdef __cplusplus\n}\n#endif\n"_view);
+  out.concat("\n}  // extern \"C\"\n\n"_view);
+  out.concat("}  // namespace Ttx\n"_view);
 }
 
 auto Compiler::load_string(

@@ -56,7 +56,10 @@ static constexpr View::Bytes actual_label = "    ACTUAL = "_view;
 static constexpr View::Bytes expected_label = "  EXPECTED = "_view;
 
 namespace Validation::Test {
-auto capture_sink(Diagnostics::Log::Level level, View::Bytes message) -> void {
+auto capture_sink(
+    Diagnostics::Log::Level level,
+    View::Bytes message,
+    const Diagnostics::Source&) -> void {
   captured_log_level = level;
   captured_log_message_size = message.get_size();
   captured_log_message = message;

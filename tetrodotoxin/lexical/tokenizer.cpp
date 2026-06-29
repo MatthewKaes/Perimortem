@@ -3,6 +3,7 @@
 
 #include "tetrodotoxin/lexical/tokenizer.hpp"
 
+#include "perimortem/core/static/vector.hpp"
 #include "perimortem/core/perimortem.hpp"
 
 #include "perimortem/utility/pair.hpp"
@@ -42,6 +43,118 @@ constexpr auto is_hex(Bits_8 c) -> Bool {
          (c >= 'A' && c <= 'F');
 }
 
+using ClassMapping = Pair<View::Bytes, Class::Type>;
+
+static constexpr auto check_keyword(
+    View::Bytes value,
+    Class::Type default_value) -> Class::Type {
+  static constexpr Static::Vector<ClassMapping, 25> data = {{
+    {Class::get_source_text(Class::Type::If), Class::Type::If},
+    {Class::get_source_text(Class::Type::In), Class::Type::In},
+    {Class::get_source_text(Class::Type::Or), Class::Type::Or},
+    {Class::get_source_text(Class::Type::And), Class::Type::And},
+    {Class::get_source_text(Class::Type::For), Class::Type::For},
+    {Class::get_source_text(Class::Type::Break), Class::Type::Break},
+    {Class::get_source_text(Class::Type::Continue), Class::Type::Continue},
+    {Class::get_source_text(Class::Type::New), Class::Type::New},
+    {Class::get_source_text(Class::Type::Case), Class::Type::Case},
+    {Class::get_source_text(Class::Type::Else), Class::Type::Else},
+    {
+      Class::get_source_text(Class::Type::External),
+      Class::Type::External,
+    },
+    {Class::get_source_text(Class::Type::Init), Class::Type::Init},
+    {Class::get_source_text(Class::Type::Self), Class::Type::Self},
+    {Class::get_source_text(Class::Type::True), Class::Type::True},
+    {Class::get_source_text(Class::Type::Func), Class::Type::Func},
+    {Class::get_source_text(Class::Type::False), Class::Type::False},
+    {Class::get_source_text(Class::Type::Match), Class::Type::Match},
+    {Class::get_source_text(Class::Type::While), Class::Type::While},
+    {
+      Class::get_source_text(Class::Type::Return),
+      Class::Type::Return,
+    },
+    {
+      Class::get_source_text(Class::Type::Temporary),
+      Class::Type::Temporary,
+    },
+    {
+      Class::get_source_text(Class::Type::Public),
+      Class::Type::Public,
+    },
+    {
+      Class::get_source_text(Class::Type::Dynamic),
+      Class::Type::Dynamic,
+    },
+    {
+      Class::get_source_text(Class::Type::Hidden),
+      Class::Type::Hidden,
+    },
+    {Class::get_source_text(Class::Type::Import), Class::Type::Import},
+    {
+      Class::get_source_text(Class::Type::Package),
+      Class::Type::Package,
+    },
+  }};
+
+  using keyword_resolver = Table<Class::Type, data>;
+  return keyword_resolver::find_or_default(value, default_value);
+}
+
+static constexpr auto check_builtins(
+    View::Bytes value,
+    Class::Type default_value) -> Class::Type {
+  static constexpr Static::Vector<ClassMapping, 8> data = {{
+    {Class::get_source_text(Class::Type::Enum), Class::Type::Enum},
+    {Class::get_source_text(Class::Type::Alias), Class::Type::Alias},
+    {Class::get_source_text(Class::Type::Shader), Class::Type::Shader},
+    {Class::get_source_text(Class::Type::Entity), Class::Type::Entity},
+    {Class::get_source_text(Class::Type::Object), Class::Type::Object},
+    {Class::get_source_text(Class::Type::Struct), Class::Type::Struct},
+    {
+      Class::get_source_text(Class::Type::Foreign),
+      Class::Type::Foreign,
+    },
+    {
+      Class::get_source_text(Class::Type::Library),
+      Class::Type::Library,
+    },
+  }};
+
+  using builtin_resolver = Table<Class::Type, data>;
+  return builtin_resolver::find_or_default(value, default_value);
+}
+
+static constexpr auto check_directive(
+    View::Bytes value,
+    Class::Type default_value) -> Class::Type {
+  static constexpr Static::Vector<ClassMapping, 5> data = {{
+    {
+      Class::get_source_text(Class::Type::CompileIf),
+      Class::Type::CompileIf,
+    },
+    {
+      Class::get_source_text(Class::Type::ConstPublic),
+      Class::Type::ConstPublic,
+    },
+    {
+      Class::get_source_text(Class::Type::ConstDynamic),
+      Class::Type::ConstDynamic,
+    },
+    {
+      Class::get_source_text(Class::Type::ConstHidden),
+      Class::Type::ConstHidden,
+    },
+    {
+      Class::get_source_text(Class::Type::ConstTemporary),
+      Class::Type::ConstTemporary,
+    },
+  }};
+
+  using directive_resolver = Table<Class::Type, data>;
+  return directive_resolver::find_or_default(value, default_value);
+}
+
 struct Context {
   Context(
       const View::Bytes source,
@@ -57,7 +170,7 @@ inline auto can_parse(Context& context) -> Bool {
   return context.loc.parse_index < context.source.get_size();
 }
 
-auto peak_ahead(Context& context, Bits_32 amount) -> Bits_8 {
+auto peek_ahead(Context& context, Bits_32 amount) -> Bits_8 {
   if (context.loc.parse_index + amount >= context.source.get_size()) {
     return 0;
   }
@@ -65,7 +178,7 @@ auto peak_ahead(Context& context, Bits_32 amount) -> Bits_8 {
 }
 
 auto parse_attribute(Context& context) -> void {
-  while (is_attribute(peak_ahead(context, 1))) {
+  while (is_attribute(peek_ahead(context, 1))) {
     context.loc.parse_index++;
   }
 
@@ -75,8 +188,9 @@ auto parse_attribute(Context& context) -> void {
       context.loc.parse_index - context.loc.source_index);
 
   if (!token.is_empty()) {
-    context.tokens.insert(Token(
-        token, Class::Type::Attribute, context.loc.line, context.loc.column));
+    Class::Type klass = check_directive(token, Class::Type::Attribute);
+    context.tokens.insert(
+        Token(token, klass, context.loc.line, context.loc.column));
   }
   context.loc.column += token.get_size();
 }
@@ -84,8 +198,9 @@ auto parse_attribute(Context& context) -> void {
 auto parse_comment(Context& context) -> void {
   context.loc.source_index = context.loc.parse_index;
 
-  // trim comment "//" and leading space.
-  context.loc.parse_index += 2;
+  // trim comment marker and leading space.
+  context.loc.parse_index +=
+      Class::get_source_text(Class::Type::Comment).get_size();
 
   // Skip one leading space if present.
   if (can_parse(context) && context.source[context.loc.parse_index] == ' ') {
@@ -104,7 +219,7 @@ auto parse_comment(Context& context) -> void {
       Class::Type::Comment, context.loc.line, context.loc.column));
 }
 
-auto recursive_strip(Context& context) {
+auto recursive_strip(Context& context) -> void {
   while (can_parse(context)) {
     switch (context.source[context.loc.parse_index++]) {
     case '\n':
@@ -123,7 +238,8 @@ auto recursive_strip(Context& context) {
 
 auto parse_disabled(Context& context, Bool strip_disabled) -> void {
   context.loc.source_index = context.loc.parse_index;
-  context.loc.parse_index += 2;  // "/>"
+  Count marker_size = Class::get_source_text(Class::Type::Disabled).get_size();
+  context.loc.parse_index += marker_size;
 
   if (!strip_disabled) {
     context.tokens.insert(Token(
@@ -131,7 +247,7 @@ auto parse_disabled(Context& context, Bool strip_disabled) -> void {
             context.loc.source_index,
             context.loc.parse_index - context.loc.source_index),
         Class::Type::Disabled, context.loc.line, context.loc.column));
-    context.loc.column += 2;
+    context.loc.column += marker_size;
   } else {
     // The parser pass is more expensive than tokenization so if we can strip
     // out disabled code then optimize by removing the tokens.
@@ -146,12 +262,27 @@ auto parse_disabled(Context& context, Bool strip_disabled) -> void {
   }
 }
 
+auto string_quote_is_escaped(View::Bytes source, Count position) -> Bool {
+  Count slash_count = 0;
+
+  while (position > 0) {
+    position--;
+    if (source[position] != '\\') {
+      break;
+    }
+
+    slash_count++;
+  }
+
+  return (slash_count & 1) != 0;
+}
+
 auto parse_string(Context& context) -> void {
   context.loc.parse_index++;
   while (can_parse(context) &&
          context.source[context.loc.parse_index] != '\n' &&
          (context.source[context.loc.parse_index] != '"' ||
-          context.source[context.loc.parse_index - 1] == '\\')) {
+          string_quote_is_escaped(context.source, context.loc.parse_index))) {
     context.loc.parse_index++;
   }
   if (can_parse(context) && context.source[context.loc.parse_index] == '"') {
@@ -166,7 +297,8 @@ auto parse_string(Context& context) -> void {
 }
 
 auto parse_embedded(Context& context) -> void {
-  context.loc.parse_index += 2;  // "$["
+  context.loc.parse_index +=
+      Class::get_source_text(Class::Type::Embedded).get_size();
   while (can_parse(context) && context.source[context.loc.parse_index] != ']' &&
          context.source[context.loc.parse_index] != '\n') {
     context.loc.parse_index++;
@@ -185,11 +317,12 @@ auto parse_embedded(Context& context) -> void {
 auto parse_number(Context& context) -> void {
   // If we start with zero then check if we have a valid hex sequence.
   if (context.source[context.loc.source_index] == '0' &&
-      peak_ahead(context, 1) == 'x') {
-    switch (peak_ahead(context, 2)) {
+      peek_ahead(context, 1) == 'x') {
+    switch (peek_ahead(context, 2)) {
     // 0x[FF FF ...] hex byte array literal (any whitespace is fine)
     case '[': {
-      context.loc.parse_index += 3;
+      context.loc.parse_index +=
+          Class::get_source_text(Class::Type::Bytes).get_size();
       while (can_parse(context) &&
              context.source[context.loc.parse_index] != ']') {
         context.loc.parse_index++;
@@ -207,14 +340,14 @@ auto parse_number(Context& context) -> void {
     }
 
       // 0xFF... hex integer literal.
-    case '0' ... '1':
+    case '0' ... '9':
     case 'a' ... 'f':
     case 'A' ... 'F': {
       context.loc.parse_index += 2;  // consume '0x'
-      Bits_8 h = peak_ahead(context, 1);
+      Bits_8 h = peek_ahead(context, 1);
       while (is_hex(h)) {
         context.loc.parse_index++;
-        h = peak_ahead(context, 1);
+        h = peek_ahead(context, 1);
       }
       context.loc.parse_index++;
       context.tokens.insert(Token(
@@ -235,12 +368,12 @@ auto parse_number(Context& context) -> void {
   Bool found_decimal = false;
   Class::Type klass = Class::Type::Numeric;
 
-  char val = peak_ahead(context, 1);
+  char val = peek_ahead(context, 1);
   while (is_num(val)) {
     context.loc.parse_index++;
     if (val == '.') {
       // Don't consume a '.' that starts a RangeOp '...'.
-      if (peak_ahead(context, 1) == '.') {
+      if (peek_ahead(context, 1) == '.') {
         context.loc.parse_index--;
         break;
       }
@@ -251,7 +384,7 @@ auto parse_number(Context& context) -> void {
       found_decimal = true;
       klass = Class::Type::Float;
     }
-    val = peak_ahead(context, 1);
+    val = peek_ahead(context, 1);
   }
 
   context.loc.parse_index++;
@@ -264,65 +397,22 @@ auto parse_number(Context& context) -> void {
 }
 
 auto parse_type(Context& context) -> void {
-  while (is_class(peak_ahead(context, 1))) {
+  while (is_class(peek_ahead(context, 1))) {
     context.loc.parse_index++;
   }
 
   context.loc.parse_index++;
-  context.tokens.insert(Token(
-      context.source.slice(
-          context.loc.source_index,
-          context.loc.parse_index - context.loc.source_index),
-      Class::Type::Type, context.loc.line, context.loc.column));
+  const auto view = context.source.slice(
+      context.loc.source_index,
+      context.loc.parse_index - context.loc.source_index);
+
+  // Start by assuming it's a Type and isn't a compiler provided symbol.
+  Class::Type klass = Class::Type::Type;
+  klass = check_builtins(view, klass);
+
+  context.tokens.insert(
+      Token(view, klass, context.loc.line, context.loc.column));
   context.loc.column += context.loc.parse_index - context.loc.source_index;
-}
-
-static inline constexpr auto check_keyword(
-    View::Bytes value,
-    Class::Type default_value) -> Class::Type {
-  static constexpr Pair<View::Bytes, Class::Type> data[] = {
-    {"as"_view, Class::Type::As},
-    {"if"_view, Class::Type::If},
-    {"in"_view, Class::Type::In},
-    {"or"_view, Class::Type::Or},
-    {"and"_view, Class::Type::And},
-    {"for"_view, Class::Type::For},
-    {"new"_view, Class::Type::New},
-    {"case"_view, Class::Type::Case},
-    {"else"_view, Class::Type::Else},
-    {"enum"_view, Class::Type::Enum},
-    {"func"_view, Class::Type::Func},
-    {"init"_view, Class::Type::Init},
-    {"self"_view, Class::Type::Self},
-    {"true"_view, Class::Type::True},
-    {"alias"_view, Class::Type::Alias},
-    {"false"_view, Class::Type::False},
-    {"match"_view, Class::Type::Match},
-    {"using"_view, Class::Type::Using},
-    {"while"_view, Class::Type::While},
-    {"shader"_view, Class::Type::Shader},
-    {"entity"_view, Class::Type::Entity},
-    {"object"_view, Class::Type::Object},
-    {"return"_view, Class::Type::Return},
-    {"struct"_view, Class::Type::Struct},
-    {"stack"_view, Class::Type::Temporary},
-    {"frozen"_view, Class::Type::Constant},
-    {"detail"_view, Class::Type::Detail},
-    {"public"_view, Class::Type::Public},
-    {"expose"_view, Class::Type::Dynamic},
-    {"hidden"_view, Class::Type::Hidden},
-    {"import"_view, Class::Type::Import},
-    {"library"_view, Class::Type::Library},
-    {"package"_view, Class::Type::Package},
-  };
-
-  using keyword_resolver = Table<Class::Type, data>;
-
-  static_assert(
-      keyword_resolver::find_or_default(
-          "library"_view, Class::Type::EndOfStream) == Class::Type::Library);
-
-  return keyword_resolver::find_or_default(value, default_value);
 }
 
 auto parse_unknown(Context& context) -> void {
@@ -334,12 +424,12 @@ auto parse_unknown(Context& context) -> void {
 }
 
 auto parse_identifier(Context& context) -> void {
-  if (!is_identifier(peak_ahead(context, 0))) {
+  if (!is_identifier(peek_ahead(context, 0))) {
     parse_unknown(context);
     return;
   }
 
-  while (is_identifier(peak_ahead(context, 1))) {
+  while (is_identifier(peek_ahead(context, 1))) {
     context.loc.parse_index++;
   }
 
@@ -357,17 +447,15 @@ auto parse_identifier(Context& context) -> void {
   context.loc.column += context.loc.parse_index - context.loc.source_index;
 }
 
-#define SIMPLE_TOKEN(klass, len)                                               \
-  context.loc.parse_index += len;                                              \
-  tokens.insert(Token(                                                         \
-      context.source.slice(context.loc.source_index, len), Class::Type::klass, \
-      context.loc.line, context.loc.column));                                  \
+template <Class::Type klass>
+auto parse_simple(Context& context) -> void {
+  constexpr Count len = Class::get_source_text(klass).get_size();
+  context.loc.parse_index += len;
+  context.tokens.insert(Token(
+      context.source.slice(context.loc.source_index, len), klass,
+      context.loc.line, context.loc.column));
   context.loc.column += len;
-
-#define PARSE_SIMPLE(token, klass) \
-  case token:                      \
-    SIMPLE_TOKEN(klass, 1);        \
-    break;
+}
 
 auto Tokenizer::parse(const View::Bytes source_, Bool strip_disabled) -> void {
   source = source_;
@@ -394,68 +482,65 @@ auto Tokenizer::parse(const View::Bytes source_, Bool strip_disabled) -> void {
       break;
 
     case '/':
-      if (peak_ahead(context, 1) == '/') {
+      if (peek_ahead(context, 1) == '/') {
         parse_comment(context);
         break;
-      } else if (peak_ahead(context, 1) == '>') {
+      } else if (peek_ahead(context, 1) == '>') {
         parse_disabled(context, strip_disabled);
         break;
       } else {
-        SIMPLE_TOKEN(DivOp, 1);
+        parse_simple<Class::Type::DivOp>(context);
         break;
       }
 
     case '-':
-      if (peak_ahead(context, 1) == '>') {
-        SIMPLE_TOKEN(CallOp, 2);
+      if (peek_ahead(context, 1) == '>') {
+        parse_simple<Class::Type::CallOp>(context);
         break;
-      } else if (peak_ahead(context, 1) == '=') {
-        SIMPLE_TOKEN(SubAssign, 2);
+      } else if (peek_ahead(context, 1) == '=') {
+        parse_simple<Class::Type::SubAssign>(context);
         break;
       } else {
-        SIMPLE_TOKEN(SubOp, 1);
+        parse_simple<Class::Type::SubOp>(context);
         break;
       }
 
     case '+':
-      if (peak_ahead(context, 1) == '=') {
-        SIMPLE_TOKEN(AddAssign, 2);
+      if (peek_ahead(context, 1) == '=') {
+        parse_simple<Class::Type::AddAssign>(context);
         break;
-      } else if (peak_ahead(context, 1) == ':') {
-        SIMPLE_TOKEN(SliceOp, 2);
+      } else if (peek_ahead(context, 1) == ':') {
+        parse_simple<Class::Type::SliceOp>(context);
         break;
       } else {
-        SIMPLE_TOKEN(AddOp, 1);
+        parse_simple<Class::Type::AddOp>(context);
         break;
       }
 
     case '=':
-      if (peak_ahead(context, 1) == '=') {
-        SIMPLE_TOKEN(CmpOp, 2);
-        break;
-      } else if (peak_ahead(context, 1) == '>') {
-        SIMPLE_TOKEN(GeneratorOp, 2);
+      if (peek_ahead(context, 1) == '=') {
+        parse_simple<Class::Type::CmpOp>(context);
         break;
       } else {
-        SIMPLE_TOKEN(Assign, 1);
+        parse_simple<Class::Type::Assign>(context);
         break;
       }
 
     case '<':
-      if (peak_ahead(context, 1) == '=') {
-        SIMPLE_TOKEN(LessEqOp, 2);
+      if (peek_ahead(context, 1) == '=') {
+        parse_simple<Class::Type::LessEqOp>(context);
         break;
       } else {
-        SIMPLE_TOKEN(LessOp, 1);
+        parse_simple<Class::Type::LessOp>(context);
         break;
       }
 
     case '>':
-      if (peak_ahead(context, 1) == '=') {
-        SIMPLE_TOKEN(GreaterEqOp, 2);
+      if (peek_ahead(context, 1) == '=') {
+        parse_simple<Class::Type::GreaterEqOp>(context);
         break;
       } else {
-        SIMPLE_TOKEN(GreaterOp, 1);
+        parse_simple<Class::Type::GreaterOp>(context);
         break;
       }
 
@@ -485,7 +570,7 @@ auto Tokenizer::parse(const View::Bytes source_, Bool strip_disabled) -> void {
       break;
 
     case '$':
-      if (peak_ahead(context, 1) == '[') {
+      if (peek_ahead(context, 1) == '[') {
         parse_embedded(context);
       } else {
         parse_unknown(context);
@@ -493,70 +578,78 @@ auto Tokenizer::parse(const View::Bytes source_, Bool strip_disabled) -> void {
       break;
 
     case '[':
-      SIMPLE_TOKEN(IndexStart, 1);
+      parse_simple<Class::Type::IndexStart>(context);
       break;
 
     case ']':
-      context.loc.parse_index += 1;
-      tokens.insert(Token(
-          context.source.slice(context.loc.source_index, 1),
-          Class::Type::IndexEnd, context.loc.line, context.loc.column));
-      context.loc.column += 1;
+      parse_simple<Class::Type::IndexEnd>(context);
       break;
 
     case ')':
-      context.loc.parse_index += 1;
-      tokens.insert(Token(
-          context.source.slice(context.loc.source_index, 1),
-          Class::Type::GroupEnd, context.loc.line, context.loc.column));
-      context.loc.column += 1;
+      parse_simple<Class::Type::PackingEnd>(context);
       break;
 
     case '.':
-      if (peak_ahead(context, 1) == '[') {
-        SIMPLE_TOKEN(SwizzleOp, 2);
+      if (peek_ahead(context, 1) == '[') {
+        parse_simple<Class::Type::SwizzleOp>(context);
         break;
       } else if (
-          peak_ahead(context, 1) == '.' && peak_ahead(context, 2) == '.') {
-        SIMPLE_TOKEN(RangeOp, 3);
+          peek_ahead(context, 1) == '.' && peek_ahead(context, 2) == '.') {
+        parse_simple<Class::Type::RangeOp>(context);
         break;
       } else {
-        SIMPLE_TOKEN(AddressOp, 1);
+        parse_simple<Class::Type::AddressOp>(context);
         break;
       }
 
     case '!':
-      if (peak_ahead(context, 1) == '=') {
-        SIMPLE_TOKEN(NotEqOp, 2);
+      if (peek_ahead(context, 1) == '=') {
+        parse_simple<Class::Type::NotEqOp>(context);
       } else {
-        SIMPLE_TOKEN(NotOp, 1);
+        parse_simple<Class::Type::NotOp>(context);
       }
       break;
 
     case ':':
-      if (peak_ahead(context, 1) == '=') {
-        SIMPLE_TOKEN(TypedAssign, 2);
-      } else {
-        SIMPLE_TOKEN(Define, 1);
-      }
+      parse_simple<Class::Type::Define>(context);
       break;
 
       // Simple spot tokens
-      PARSE_SIMPLE('{', ScopeStart);
-      PARSE_SIMPLE('}', ScopeEnd);
-      PARSE_SIMPLE('(', GroupStart);
-      PARSE_SIMPLE('*', MulOp);
-      PARSE_SIMPLE('%', ModOp);
-      PARSE_SIMPLE('&', AndOp);
-      PARSE_SIMPLE('|', OrOp);
-      PARSE_SIMPLE(';', EndStatement);
-      PARSE_SIMPLE('_', Discard);
-      PARSE_SIMPLE(',', PackingOp);
+    case '{':
+      parse_simple<Class::Type::ScopeStart>(context);
+      break;
+    case '}':
+      parse_simple<Class::Type::ScopeEnd>(context);
+      break;
+    case '(':
+      parse_simple<Class::Type::PackingStart>(context);
+      break;
+    case '*':
+      parse_simple<Class::Type::MulOp>(context);
+      break;
+    case '%':
+      parse_simple<Class::Type::ModOp>(context);
+      break;
+    case '&':
+      parse_simple<Class::Type::AndOp>(context);
+      break;
+    case '|':
+      parse_simple<Class::Type::OrOp>(context);
+      break;
+    case ';':
+      parse_simple<Class::Type::EndStatement>(context);
+      break;
+    case '_':
+      parse_simple<Class::Type::Discard>(context);
+      break;
+    case ',':
+      parse_simple<Class::Type::PackingOp>(context);
+      break;
 
       // We failed to parse so log the unknown token as we don't want to drop it
-      // from the stream. Sometimes a format or another command is issued
-      // speculatively and it's super annoying if the formatter drops partial
-      // tokens that were a work in progress.
+      // from the stream. Sometimes a format or another command is issued to the
+      // LSP speculatively and it's super annoying if the formatter drops
+      // partial tokens that were a work in progress.
     default:
       parse_unknown(context);
       break;

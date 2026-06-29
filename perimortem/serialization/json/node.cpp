@@ -5,11 +5,14 @@
 
 #include <x86intrin.h>
 
+#include "perimortem/core/static/vector.hpp"
 #include "perimortem/core/null_terminated.hpp"
 #include "perimortem/core/writer/textual.hpp"
 
 #include "perimortem/memory/managed/bytes.hpp"
 #include "perimortem/memory/managed/vector.hpp"
+
+#include "perimortem/serialization/escaped_text.hpp"
 
 enum class NodeState : Bits_32 {
   Null,
@@ -92,7 +95,7 @@ auto construct_from_blueprint(
 }
 
 template <Bits_32 channels, Bits_32 index, Bits_32 range>
-auto optimized_or_merge(__m256i source[channels]) -> __m256i {
+auto optimized_or_merge(Static::Vector<__m256i, channels>& source) -> __m256i {
   if constexpr (range == 1) {
     return source[index];
   } else if constexpr (range == 2) {
@@ -116,7 +119,7 @@ auto scan(View::Bytes bytes, Bits_8 search, Count position) -> Count {
   for (; position + full_channel_width <= bytes.get_size();
        position += full_channel_width) {
     // Load all channels and check for our target byte.
-    __m256i masks[fused_channels];
+    Static::Vector<__m256i, fused_channels> masks;
     for (auto ymm = 0; ymm < fused_channels; ymm++) {
       const auto value =
           _mm256_loadu_si256((const __m256i*)(bytes.get_data() + position +
@@ -169,11 +172,47 @@ auto scan(View::Bytes bytes, Bits_8 search, Count position) -> Count {
   return Count(-1);
 }
 
+// Scans for the end of the string while supporting escaped quotes (\").
+// Uses a vectorized scan for finding possible candidates followed by a
+// backwards walk to resolve escape sequences.
+// If the quote is indeed escaped then the scan continues until it either finds
+// a closing candidate or hits the end of the source view.
+auto scan_string_end(View::Bytes source, Count position) -> Count {
+  while (position < source.get_size()) {
+    Count quote = scan(source, '"', position);
+    if (quote == Count(-1)) {
+      return Count(-1);
+    }
+
+    if (quote == 0 || source[quote - 1] != '\\') {
+      return quote;
+    }
+
+    Count first_slash = quote - 1;
+    while (first_slash > 0 && source[first_slash - 1] == '\\') {
+      first_slash--;
+    }
+
+    if (((quote - first_slash) & 1) == 0) {
+      return quote;
+    }
+
+    position = quote + 1;
+  }
+
+  return Count(-1);
+}
+
 auto parse_string(View::Bytes source, Count& position) -> View::Bytes {
   Count start = ++position;
-  position = scan(source, '"', position);
+  Count end = scan_string_end(source, position);
+  if (end == Count(-1)) {
+    position = source.get_size();
+    return source.slice(start);
+  }
 
-  return source.slice(start, position++ - start);
+  position = end + 1;
+  return source.slice(start, end - start);
 }
 
 auto ignored_characters(Bits_8 c) {
@@ -564,7 +603,8 @@ auto Json::Node::serialized_size() const -> Count {
       accumulated += array[i].serialized_size();
     }
 
-    const auto number_of_commas = array.get_size() - 1;
+    const auto number_of_commas =
+        array.get_size() == 0 ? Count(0) : array.get_size() - 1;
     return accumulated + "[]"_view.get_size() + number_of_commas;
   }
 
@@ -573,16 +613,18 @@ auto Json::Node::serialized_size() const -> Count {
     View::Vector<Member> members = get_object();
     for (Bits_32 i = 0; i < members.get_size(); i++) {
       const auto& member = members[i];
-      accumulated += member.name.get_size() + "\"\":"_view.get_size();
+      accumulated += member.name.get_size();
+      accumulated += "\"\":"_view.get_size();
       accumulated += member.node.serialized_size();
     }
 
-    const auto number_of_commas = members.get_size() - 1;
+    const auto number_of_commas =
+        members.get_size() == 0 ? Count(0) : members.get_size() - 1;
     return accumulated + "{}"_view.get_size() + number_of_commas;
   }
 
   case NodeState::String: {
-    auto length = get_size();
+    auto length = EscapedText::encoded_size(get_string());
     return length + "\"\""_view.get_size();
   }
 
@@ -676,7 +718,9 @@ auto Json::Node::format(Allocator::Arena& arena) const -> View::Bytes {
     }
 
     case NodeState::String: {
-      output << '\"' << node.get_string() << '\"';
+      output << '\"';
+      EscapedText::encode(output, node.get_string());
+      output << '\"';
       return;
     }
 

@@ -5,9 +5,7 @@
 
 using namespace Perimortem::Graphics::Vulkan;
 
-namespace {
-
-auto allocate_memory(
+static auto allocate_memory(
     const Context& context,
     VkMemoryRequirements reqs,
     VkMemoryPropertyFlags props) -> VkDeviceMemory {
@@ -19,7 +17,7 @@ auto allocate_memory(
   return memory;
 }
 
-auto transition_image_layout(
+static auto transition_image_layout(
     VkCommandBuffer cmd,
     VkImage image,
     VkImageLayout old_layout,
@@ -49,8 +47,6 @@ auto transition_image_layout(
   dep.pImageMemoryBarriers = &barrier;
   vkCmdPipelineBarrier2(cmd, &dep);
 }
-
-}  // namespace
 
 auto Texture::create(const Context& context, const Graphics::Image& source)
     -> Texture {

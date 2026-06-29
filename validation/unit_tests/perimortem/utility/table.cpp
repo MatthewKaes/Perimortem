@@ -5,6 +5,7 @@
 
 #include "validation/unit_test.hpp"
 
+#include "perimortem/core/static/vector.hpp"
 #include "perimortem/core/null_terminated.hpp"
 
 using namespace Perimortem::Core;
@@ -12,7 +13,8 @@ using namespace Perimortem::Utility;
 
 using namespace Validation;
 
-constexpr Pair<View::Bytes, Bits_8> keyword_source[] = {
+using KeywordEntry = Pair<View::Bytes, Bits_8>;
+constexpr Static::Vector<KeywordEntry, 23> keyword_source = {{
   {"as"_view, 1},       {"if"_view, 2},       {"for"_view, 3},
   {"new"_view, 4},      {"else"_view, 5},     {"func"_view, 6},
   {"init"_view, 7},     {"self"_view, 8},     {"true"_view, 9},
@@ -21,13 +23,14 @@ constexpr Pair<View::Bytes, Bits_8> keyword_source[] = {
   {"entity"_view, 16},  {"object"_view, 17},  {"return"_view, 18},
   {"struct"_view, 19},  {"library"_view, 20}, {"on_load"_view, 21},
   {"package"_view, 22}, {"warning"_view, 23},
-};
+}};
 
 using keyword_table = Table<Bits_32, keyword_source>;
 using keyword_table_aligned =
     Table<Bits_32, keyword_source, (Count)Data::CacheAware::Enabled>;
 
-constexpr Pair<View::Bytes, View::Bytes> word_source[] = {
+using WordEntry = Pair<View::Bytes, View::Bytes>;
+constexpr Static::Vector<WordEntry, 8> word_source = {{
   {"a"_view, "b"_view},
   {"b"_view, "test"_view},
   {"longer?"_view, "shorter"_view},
@@ -35,11 +38,29 @@ constexpr Pair<View::Bytes, View::Bytes> word_source[] = {
   {"happy"_view, "feeling glad"_view},
   {"sunshine"_view, "in a bag"_view},
   {"useless"_view, "not for long"_view},
-  {"future"_view, "comming on"_view}};
+  {"future"_view, "comming on"_view},
+}};
 
 using word_table = Table<View::Bytes, word_source>;
 using word_table_aligned =
     Table<View::Bytes, word_source, (Count)Data::CacheAware::Enabled>;
+
+struct Fact {
+  View::Bytes name;
+  Count byte_size = 0;
+  Bool exposed = False;
+};
+
+using FactEntry = Pair<View::Bytes, Fact>;
+constexpr Static::Vector<FactEntry, 3> fact_source = {{
+  {"Vec2D"_view, {"Vec2D"_view, 8, True}},
+  {"Vec3D"_view, {"Vec3D"_view, 12, True}},
+  {"Sampler_2D"_view, {"Sampler_2D"_view, 0, False}},
+}};
+
+using fact_table = Table<Fact, fact_source>;
+using fact_table_aligned =
+    Table<Fact, fact_source, (Count)Data::CacheAware::Enabled>;
 
 static Harness StaticTable = {
   .name = "Utility::Table"_view,
@@ -48,7 +69,7 @@ static Harness StaticTable = {
 PERIMORTEM_UNIT_TEST(StaticTable, keyword_table) {
   constexpr auto invalid = -1;
 
-  for (Count i = 0; i < Data::array_size(keyword_source); i++) {
+  for (Count i = 0; i < keyword_source.get_size(); i++) {
     EXPECT_EQ(
         keyword_table::find_or_default(keyword_source[i].key, invalid),
         keyword_source[i].value);
@@ -65,7 +86,7 @@ PERIMORTEM_UNIT_TEST(StaticTable, keyword_table) {
 PERIMORTEM_UNIT_TEST(StaticTable, keyword_table_aligned) {
   constexpr auto invalid = -1;
 
-  for (Count i = 0; i < Data::array_size(keyword_source); i++) {
+  for (Count i = 0; i < keyword_source.get_size(); i++) {
     EXPECT_EQ(
         keyword_table_aligned::find_or_default(keyword_source[i].key, invalid),
         keyword_source[i].value);
@@ -86,7 +107,7 @@ PERIMORTEM_UNIT_TEST(StaticTable, keyword_table_aligned) {
 PERIMORTEM_UNIT_TEST(StaticTable, word_table) {
   constexpr auto invalid = "nope"_view;
 
-  for (Count i = 0; i < Data::array_size(word_source); i++) {
+  for (Count i = 0; i < word_source.get_size(); i++) {
     EXPECT_TEXT(
         word_table::find_or_default(word_source[i].key, invalid),
         word_source[i].value);
@@ -103,7 +124,7 @@ PERIMORTEM_UNIT_TEST(StaticTable, word_table) {
 PERIMORTEM_UNIT_TEST(StaticTable, word_table_aligned) {
   constexpr auto invalid = "nope"_view;
 
-  for (Count i = 0; i < Data::array_size(word_source); i++) {
+  for (Count i = 0; i < word_source.get_size(); i++) {
     EXPECT_TEXT(
         word_table_aligned::find_or_default(word_source[i].key, invalid),
         word_source[i].value);
@@ -118,4 +139,26 @@ PERIMORTEM_UNIT_TEST(StaticTable, word_table_aligned) {
       word_table_aligned::find_or_default("rutern"_view, invalid), invalid);
   EXPECT_TEXT(
       word_table_aligned::find_or_default("errrr"_view, invalid), invalid);
+}
+
+PERIMORTEM_UNIT_TEST(StaticTable, find_or_null) {
+  const Fact* vec = fact_table::find_or_null("Vec3D"_view);
+  EXPECT(vec != nullptr);
+  EXPECT_TEXT(vec->name, "Vec3D"_view);
+  EXPECT_EQ(vec->byte_size, 12);
+  EXPECT(vec->exposed);
+
+  EXPECT(fact_table::find_or_null("Missing"_view) == nullptr);
+  EXPECT(fact_table::find_or_null(""_view) == nullptr);
+}
+
+PERIMORTEM_UNIT_TEST(StaticTable, find_or_null_aligned) {
+  const Fact* sampler = fact_table_aligned::find_or_null("Sampler_2D"_view);
+  EXPECT(sampler != nullptr);
+  EXPECT_TEXT(sampler->name, "Sampler_2D"_view);
+  EXPECT_EQ(sampler->byte_size, 0);
+  EXPECT_NOT(sampler->exposed);
+
+  EXPECT(fact_table_aligned::find_or_null("Vec4D"_view) == nullptr);
+  EXPECT(fact_table_aligned::find_or_null(""_view) == nullptr);
 }

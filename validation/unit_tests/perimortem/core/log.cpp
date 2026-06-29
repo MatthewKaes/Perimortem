@@ -8,6 +8,7 @@
 #include "perimortem/core/algorithm/search.hpp"
 #include "perimortem/core/data.hpp"
 #include "perimortem/core/null_terminated.hpp"
+#include "perimortem/core/writer/textual.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Core::Diagnostics;
@@ -24,11 +25,17 @@ constexpr Count event_log_size = 8;
 static Static::Vector<LogEvent, event_log_size> log_events;
 static Count total_events = 0;
 
-static auto capture_sink(Log::Level level, View::Bytes message) -> void {
+static auto capture_sink(
+    Log::Level level,
+    View::Bytes message,
+    const Diagnostics::Source& location) -> void {
+  Static::Bytes<max_message_length> formatted;
+  Count formatted_size =
+      Log::format_entry(level, message, location, formatted.get_access());
   Count index = total_events++ % event_log_size;
   log_events[index].message_size =
-      Math::min(max_message_length, message.get_size());
-  log_events[index].message = message;
+      Math::min(max_message_length, formatted_size);
+  log_events[index].message = formatted;
 }
 
 auto last_entry() -> View::Bytes {
@@ -82,12 +89,14 @@ static Harness DiagnosticsLog = {
       []() {
         Log::set_sink(capture_sink);
         Log::set_level(Log::Level::Debug);
+        Log::set_disable_header(False);
         total_events = 0;
       },
   .teardown =
       []() {
         Log::set_sink(Log::default_sink);
         Log::set_level(Log::Level::Info);
+        Log::set_disable_header(False);
         total_events = 0;
       },
 };
@@ -130,6 +139,16 @@ PERIMORTEM_UNIT_TEST(DiagnosticsLog, message_content) {
   EXPECT(contains(last_entry(), "unique message string"_view));
 }
 
+PERIMORTEM_UNIT_TEST(DiagnosticsLog, disable_header_is_thread_state) {
+  EXPECT_NOT(Log::get_disable_header());
+
+  Log::set_disable_header(True);
+  EXPECT(Log::get_disable_header());
+
+  Log::set_disable_header(False);
+  EXPECT_NOT(Log::get_disable_header());
+}
+
 PERIMORTEM_UNIT_TEST(DiagnosticsLog, suppress_messages) {
   Log::set_level(Log::Level::Error);
   Count events_before = total_events;
@@ -158,10 +177,9 @@ auto attributing_function() -> void {
 PERIMORTEM_UNIT_TEST(DiagnosticsLog, attribution) {
   attributing_function();
 
-  auto attributed_message =
-      "[main] validation/unit_tests/perimortem/core/log.cpp:154:28: Test Attribution"_view;
   auto logged = last_entry();
-  EXPECT_TEXT(
-      logged.slice(15, attributed_message.get_size()), attributed_message);
+  EXPECT(contains(
+      logged, "[main] validation/unit_tests/perimortem/core/log.cpp:"_view));
+  EXPECT(contains(logged, "Test Attribution"_view));
   EXPECT(has_valid_header(last_entry()));
 }

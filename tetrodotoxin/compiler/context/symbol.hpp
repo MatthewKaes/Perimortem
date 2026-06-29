@@ -62,6 +62,21 @@ class Symbol {
     return symbol;
   }
 
+  // Creates an object out of a range in the read-only data block.
+  static auto create_read_only(
+      Perimortem::Core::View::Bytes name,
+      Perimortem::Utility::Range range,
+      Visability visability = Visability::Global) -> Symbol {
+    Symbol symbol;
+    symbol.name = name;
+    symbol.type = Type::Object;
+    symbol.context = Location::ReadOnly;
+    symbol.visability = visability;
+    symbol.range = range;
+
+    return symbol;
+  }
+
   // Creates an extrenal reference to some type.
   static auto create_extrenal(Perimortem::Core::View::Bytes name, Type type)
       -> Symbol {

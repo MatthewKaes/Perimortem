@@ -1,208 +1,158 @@
-// // Perimortem Engine
-// // Copyright © Matt Kaes
+// Perimortem Engine
+// Copyright © Matt Kaes
 
-// #pragma once
+#pragma once
 
-// #include <filesystem>
-// #include <format>
-// #include <memory>
+#include "perimortem/core/view/bytes.hpp"
+#include "perimortem/core/view/vector.hpp"
 
-// #include "lexical/tokenizer.hpp"
-// #include "parser/error.hpp"
-// #include "types/program.hpp"
+#include "perimortem/memory/allocator/arena.hpp"
+#include "perimortem/memory/dynamic/bytes.hpp"
 
-// namespace Tetrodotoxin::Parser {
+#include "tetrodotoxin/lexical/class.hpp"
+#include "tetrodotoxin/lexical/token.hpp"
+#include "tetrodotoxin/lexical/tokenizer.hpp"
 
-// struct Context {
-//   Context(
-//       Types::Library& library,
-//       std::filesystem::path source_map,
-//       Errors& errors)
-//       : library(library),
-//         tokenizer(library.tokenizer),
-//         errors(errors),
-//         source_map(std::filesystem::relative(source_map)),
-//         disk_path(std::filesystem::absolute(source_map)),
-//         source(tokenizer.get_source().get_view()) {
-//     start_token = tokenizer.get_tokens().data();
-//     current_token = start_token;
-//     terminal_token = start_token + tokenizer.get_tokens().size() - 1;
-//   };
+namespace Tetrodotoxin::Syntax {
 
-//   inline auto operator[](uint32_t index) const -> const Lexical::Token& {
-//     return tokenizer.get_tokens().data()[index];
-//   }
+namespace Dialect {
+class Dialect;
+}
 
-//   inline auto get_allocator() -> Perimortem::Memory::Allocator::Arena& {
-//     return library.allocator;
-//   }
+// Non-owning cursor over a Tokenizer's output that also carries the unified
+// parsing state for all AST nodes.
+//
+// Arena allocations performed during parsing draw from the same arena that
+// produced the token stream, keeping all AST data in one lifetime region.
+//
+// Multiple parses on the same token stream can cause fragmentation and should
+// be avoided.
+class Context {
+ public:
+  Context(
+      const Lexical::Tokenizer& tokenizer,
+      Perimortem::Core::View::Bytes source_path)
+      : tokens(tokenizer.get_tokens()),
+        source(tokenizer.get_source()),
+        path(source_path),
+        arena(tokenizer.get_arena()) {}
 
-//   inline auto get_line_range(
-//       Lexical::Token& begin_token,
-//       Lexical::Token& end_token) const -> std::optional<std::string_view> {
-//     uint32_t start = begin_token.location.source_index;
-//     while (start > 0 && source[start] != '\n') {
-//       start--;
-//     }
+  auto get_current() const -> const Lexical::Token& { return tokens[cursor]; }
 
-//     // If we found a new line then go forward.
-//     if (start != 0) {
-//       start++;
-//     }
+  auto get_peek(Count ahead = 1) const -> const Lexical::Token& {
+    Count target = cursor + ahead;
+    if (target >= tokens.get_size()) {
+      return tokens[tokens.get_size() - 1];
+    }
 
-//     uint32_t end = end_token.location.parse_index;
-//     while (end < source.size() && source[end] != '\n') {
-//       end++;
-//     }
+    return tokens[target];
+  }
 
-//     return std::string_view((char*)source.data() + start, end - start);
-//   }
+  auto advance() -> const Lexical::Token& {
+    if (cursor + 1 < tokens.get_size()) {
+      cursor++;
+    }
 
-//   inline auto get_error_range(
-//       Lexical::Token& begin_token,
-//       Lexical::Token& end_token) const -> uint32_t {
-//     return (end_token.location.column + end_token.data.get_size()) -
-//            begin_token.location.column;
-//   }
+    return get_current();
+  }
 
-//   inline auto advance() -> const Lexical::Token& {
-//     current_token = std::min(current_token + 1, terminal_token);
-//     return *current_token;
-//   }
+  auto matches(Lexical::Class::Type type) const -> Bool {
+    return get_current().get_class() == type;
+  }
 
-//   inline auto advance_past(Lexical::Classifier target)
-//       -> const Lexical::Token& {
-//     while (current().klass != target &&
-//            current().klass != Lexical::Classifier::EndOfStream) {
-//       advance();
-//     }
+  // Advances past the current token and returns it. Does not check the class.
+  auto consume() -> const Lexical::Token& {
+    const Lexical::Token& token = get_current();
+    advance();
+    return token;
+  }
 
-//     // Advance one past the target
-//     return advance();
-//   }
+  // Reports an error if the current token is not of the expected class, then
+  // leaves the stream cursor at the current token.
+  auto expect(Lexical::Class::Type type) -> Bool;
 
-//   // Advances until the current classifier is balanced.
-//   // Useful for quickly balancing parse errors on scopes.
-//   inline auto advance_balanced(
-//       Lexical::Classifier open,
-//       Lexical::Classifier close,
-//       Lexical::ClassifierFlags terminals,
-//       int start_count = 1) -> const Lexical::Token& {
-//     while (start_count > 0 &&
-//            current().klass != Lexical::Classifier::EndOfStream &&
-//            !terminals.has(current().klass)) {
-//       advance();
-//       if (current().klass == open) {
-//         start_count++;
-//       } else if (current().klass == close) {
-//         start_count--;
-//       }
-//     }
+  // Requires a delimiter or marker token as parser precondition. Reports an
+  // error if the current token is not of the expected class, then advances
+  // regardless so the caller can continue recovering.
+  auto require(Lexical::Class::Type type) -> Bool;
 
-//     // Return the possibly balanced token.
-//     return current();
-//   }
+  // Skips one balanced delimited group beginning at the current token.
+  auto recover_to_matching(
+      Lexical::Class::Type open,
+      Lexical::Class::Type close) -> void;
 
-//   inline auto index() const -> uint64_t {
-//     return ((uint64_t)current_token - (uint64_t)start_token) /
-//            sizeof(Lexical::Token);
-//   }
+  // Skips the current malformed statement without consuming an enclosing
+  // scope end.
+  auto recover_to_statement() -> void;
 
-//   inline auto check_klass(
-//       Lexical::Classifier expected,
-//       Lexical::Classifier actual) const -> Bool {
-//     if (expected == actual) {
-//       return true;
-//     }
+  // Emits an error at the current token position.
+  auto create_error(
+      Perimortem::Core::View::Bytes message,
+      Perimortem::Core::View::Bytes hint = Perimortem::Core::View::Bytes())
+      -> void;
 
-//     token_error(
-//         std::format(
-//             "Expected {} but got {}", Lexical::klass_name(expected),
-//             Lexical::klass_name(actual)));
-//     return false;
-//   }
+  auto create_error(
+      const Lexical::Token& start,
+      const Lexical::Token& end,
+      Perimortem::Core::View::Bytes message,
+      Perimortem::Core::View::Bytes hint = Perimortem::Core::View::Bytes())
+      -> void;
 
-//   inline auto check_klass(Lexical::Classifier expected) const -> Bool {
-//     if (expected == current().klass) {
-//       return true;
-//     }
+  auto error(
+      Perimortem::Core::View::Bytes message,
+      Perimortem::Core::View::Bytes hint = Perimortem::Core::View::Bytes())
+      -> void {
+    create_error(message, hint);
+  }
 
-//     token_error(
-//         std::format(
-//             "Expected {} but got {}", Lexical::klass_name(expected),
-//             Lexical::klass_name(current().klass)));
-//     return false;
-//   }
+  auto error(
+      const Lexical::Token& start,
+      const Lexical::Token& end,
+      Perimortem::Core::View::Bytes message,
+      Perimortem::Core::View::Bytes hint = Perimortem::Core::View::Bytes())
+      -> void {
+    create_error(start, end, message, hint);
+  }
 
-//   inline auto generic_error(const std::string& details) const -> void {
-//     errors.push_back(Error(source_map, details, source));
-//   }
+  auto set_color_enabled(Bool value) -> void { color_enabled = value; }
 
-//   inline auto token_error(const std::string& details) const -> void {
-//     // Try to look back one token if we are at EoF.
-//     int32_t offset =
-//         current().klass == Lexical::Classifier::EndOfStream ? 1 : 0;
-//     range_error(
-//         details, *(current_token - offset), *(current_token - offset),
-//         *(current_token - offset));
-//   }
+  auto get_errors() const -> Perimortem::Core::View::Bytes {
+    return diagnostics.get_view();
+  }
 
-//   inline auto range_error(
-//       const std::string_view& details,
-//       const Lexical::Token& begin_token,
-//       const Lexical::Token& end_token) const -> void {
-//     range_error(details, begin_token, begin_token, end_token);
-//   }
+  auto is_done() const -> Bool {
+    return get_current().get_class() == Lexical::Class::Type::EndOfStream;
+  }
 
-//   inline auto range_error(
-//       std::string_view details,
-//       const Lexical::Token& token,
-//       const Lexical::Token& begin_token,
-//       const Lexical::Token& end_token) const -> void {
-//     std::optional<Lexical::Location> loc = std::nullopt;
-//     std::optional<std::string_view> line_range = std::nullopt;
-//     std::optional<uint32_t> error_range = std::nullopt;
-//     if (begin_token.valid() && end_token.valid()) {
-//       loc = token.location;
-//       uint32_t start = begin_token.location.source_index;
-//       while (start > 0 && source[start] != '\n') {
-//         start--;
-//       }
+  auto get_arena() const -> Perimortem::Memory::Allocator::Arena& {
+    return arena;
+  }
 
-//       // If we found a new line then go forward.
-//       if (start != 0) {
-//         start++;
-//       }
+  auto get_source() const -> Perimortem::Core::View::Bytes { return source; }
 
-//       uint32_t end = end_token.location.parse_index;
-//       while (end < source.size() && source[end] != '\n') {
-//         end++;
-//       }
+  auto get_path() const -> Perimortem::Core::View::Bytes { return path; }
 
-//       line_range = std::string_view((char*)source.data() + start, end -
-//       start); error_range =
-//           end_token.location.parse_index - begin_token.location.source_index;
-//     }
+  auto set_dialect(const Dialect::Dialect& value) -> void {
+    current_dialect = &value;
+  }
 
-//     errors.push_back(
-//         Error(source_map, details, source, loc, line_range, error_range));
-//   }
+  auto get_dialect() const -> const Dialect::Dialect* {
+    return current_dialect;
+  }
 
-//   inline auto current() const -> const Lexical::Token& {
-//     return *current_token;
-//   }
+  auto get_error_count() const -> Count { return error_count; }
+  auto get_cursor() const -> Count { return cursor; }
 
-//   Types::Library& library;
-//   const Lexical::Tokenizer& tokenizer;
-//   Errors& errors;
-//   const std::filesystem::path source_map;
-//   const std::filesystem::path disk_path;
-//   const std::string_view source;
+ private:
+  Perimortem::Core::View::Vector<Lexical::Token> tokens;
+  Perimortem::Core::View::Bytes source;
+  Perimortem::Core::View::Bytes path;
+  Perimortem::Memory::Allocator::Arena& arena;
+  const Dialect::Dialect* current_dialect = nullptr;
+  Count cursor = 0;
+  Count error_count = 0;
+  Bool color_enabled = True;
+  Perimortem::Memory::Dynamic::Bytes diagnostics;
+};
 
-//  private:
-//   const Lexical::Token* current_token;
-//   const Lexical::Token* terminal_token;
-//   const Lexical::Token* start_token;
-// };
-
-// }  // namespace Tetrodotoxin::Parser
+}  // namespace Tetrodotoxin::Syntax

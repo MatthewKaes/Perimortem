@@ -1,0 +1,6 @@
+// Unknown compiler-provided package import fixture.
+package : Library;
+
+import Unknown : Library = TTX.Unknown;
+
+@hidden value : Count = 1;

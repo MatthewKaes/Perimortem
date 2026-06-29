@@ -1,0 +1,6 @@
+// Resolution fixture with mismatched import kind.
+package : Library;
+
+import Image : Library = (.source = "image.ttx");
+
+@hidden value : Count = 1;

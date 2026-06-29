@@ -27,9 +27,9 @@ static Harness TextualBench = {
 };
 
 PERIMORTEM_BENCHMARK(TextualBench, write_flags) {
-  Static::Vector<Bool, 16> values = {
-    {True, False, True, False, False, True, False, True, True, True, True,
-     False, True, False, False, False}};
+  Static::Vector<Bool, 16> values = {True,  False, True,  False, False, True,
+                                     False, True,  True,  True,  True,  False,
+                                     True,  False, False, False};
   Static::Bytes<20> buffer;
   for (Count i = 0; i < batch_count; i++) {
     const auto index = i & 0xF;
@@ -41,8 +41,8 @@ PERIMORTEM_BENCHMARK(TextualBench, write_flags) {
 
 PERIMORTEM_BENCHMARK(TextualBench, write_ints) {
   Static::Vector<Signed_32, 16> values = {
-    {10, 1401, -120, 987109, 3, -10, 242, 5131, -2147483648, 2147483647,
-     -987654321, 123456789, 0, -1, 9999999, -100}};
+    10,          1401,       -120,       987109,    3, -10, 242,     5131,
+    -2147483648, 2147483647, -987654321, 123456789, 0, -1,  9999999, -100};
   Count accumulator = 0;
   for (Count i = 0; i < batch_count; i++) {
     Static::Bytes<8> buffer;
@@ -60,9 +60,9 @@ PERIMORTEM_BENCHMARK(TextualBench, write_ints) {
 
 PERIMORTEM_BENCHMARK(TextualBench, write_floats) {
   Static::Vector<Real_64, 16> values = {
-    {1.0, -21.05, 781.012, 1200041.01, 2390.0037, 0.01234567, 890.098, 0.0,
-     -0.000123, 9999.9999, 3.14159265, -2718.28, 812.99149, 29184.124,
-     123456789.0, 0.123456789}};
+    1.0,       -21.05,    781.012,     1200041.01, 2390.0037,  0.01234567,
+    890.098,   0.0,       -0.000123,   9999.9999,  3.14159265, -2718.28,
+    812.99149, 29184.124, 123456789.0, 0.123456789};
   Count accumulator = 0;
   for (Count i = 0; i < batch_count; i++) {
     Static::Bytes<12> buffer;
@@ -84,10 +84,10 @@ static Harness TextualReadBench = {
 
 PERIMORTEM_BENCHMARK(TextualReadBench, read_flags) {
   Static::Vector<View::Bytes, 16> values = {
-    {"True"_view, "false"_view, "true"_view, "False"_view, "false"_view,
-     "true"_view, "False"_view, "True"_view, "true"_view, "false"_view,
-     "true"_view, "False"_view, "tree"_view, "folly"_view, "neither"_view,
-     "unknown"_view}};
+    "True"_view,  "false"_view, "true"_view,    "False"_view,
+    "false"_view, "true"_view,  "False"_view,   "True"_view,
+    "true"_view,  "false"_view, "true"_view,    "False"_view,
+    "tree"_view,  "folly"_view, "neither"_view, "unknown"_view};
   Count accumulator = 0;
   for (Count i = 0; i < batch_count; i++) {
     Reader::Textual reader(values[i & 0xF]);
@@ -99,10 +99,12 @@ PERIMORTEM_BENCHMARK(TextualReadBench, read_flags) {
 
 PERIMORTEM_BENCHMARK(TextualReadBench, read_ints) {
   Static::Vector<View::Bytes, 16> values = {
-    {"10"_view, "1401"_view, "-120"_view, "987109"_view, "3"_view, "-10"_view,
-     "242"_view, "5131"_view, "-2147483648"_view, "2147483647"_view,
-     "-9876543210"_view, "1234567890123"_view, "number"_view, "abc"_view,
-     "--42"_view, "12.5"_view}};
+    "10"_view,         "1401"_view,        "-120"_view,
+    "987109"_view,     "3"_view,           "-10"_view,
+    "242"_view,        "5131"_view,        "-2147483648"_view,
+    "2147483647"_view, "-9876543210"_view, "1234567890123"_view,
+    "number"_view,     "abc"_view,         "--42"_view,
+    "12.5"_view};
   Count accumulator = 0;
   for (Count i = 0; i < batch_count; i++) {
     Reader::Textual reader(values[i & 0xF]);
@@ -118,10 +120,10 @@ PERIMORTEM_BENCHMARK(TextualReadBench, read_ints) {
 
 PERIMORTEM_BENCHMARK(TextualReadBench, read_floats) {
   Static::Vector<View::Bytes, 16> values = {
-    {"1.0"_view, "-21.05"_view, "781.012"_view, "1200041.01"_view,
-     "2390.0037"_view, "0.01234567"_view, "890.098"_view, "0"_view,
-     "-0.000123"_view, "9999.9999"_view, "3.14159265"_view, "-2718.28"_view,
-     "abc"_view, "1.2.3"_view, "xyz"_view, "number"_view}};
+    "1.0"_view,       "-21.05"_view,     "781.012"_view,    "1200041.01"_view,
+    "2390.0037"_view, "0.01234567"_view, "890.098"_view,    "0"_view,
+    "-0.000123"_view, "9999.9999"_view,  "3.14159265"_view, "-2718.28"_view,
+    "abc"_view,       "1.2.3"_view,      "xyz"_view,        "number"_view};
   Real_64 accumulator = 0.0;
   for (Count i = 0; i < batch_count; i++) {
     Reader::Textual reader(values[i & 0xF]);

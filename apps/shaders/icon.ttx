@@ -1,0 +1,71 @@
+// Perimortem Engine
+// Copyright © Matt Kaes
+//
+// Icon shader: renders a textured quad with alpha modulation.
+package : Shader;
+
+import Graphics : Library = TTX.Graphics;
+
+// @push_constant exposes the Foreign host-visible push constant block.
+// The host (C++ currently) writes these fields and shader stages read
+// them as uniform data.
+@push_constant
+@expose Push : Foreign {
+  expose position  : Vec2D;
+  expose half_size : Vec2D;
+  expose alpha     : Real_32;
+}
+
+// Vertex stage: constructs a clip-space quad from a hardcoded 6-vertex
+// triangle list. Returns the inter-stage pack directly. .frag_uv is
+// forwarded to the pixel stage (location assigned by declaration order);
+// @builtin(.name = "position") is consumed by the rasterizer and not forwarded.
+@stage(.kind = "vertex")
+@public IconVert : Shader {
+  @builtin(.name = "vertex_index")
+  @hidden vertex_index : Bits_32;
+
+  // Compile-time quad geometry: 6 vertices as 2 CCW triangles.
+  @hidden quad_positions : Vec[Vec2D, 6] = (
+    (.x = -1.0, .y = -1.0),
+    (.x = 1.0, .y = -1.0),
+    (.x = 1.0, .y = 1.0),
+    (.x = -1.0, .y = -1.0),
+    (.x = 1.0, .y = 1.0),
+    (.x = -1.0, .y = 1.0),
+  );
+  @hidden quad_uvs       : Vec[Vec2D, 6] = (
+    (.x = 0.0, .y = 0.0),
+    (.x = 1.0, .y = 0.0),
+    (.x = 1.0, .y = 1.0),
+    (.x = 0.0, .y = 0.0),
+    (.x = 1.0, .y = 1.0),
+    (.x = 0.0, .y = 1.0),
+  );
+
+  @public func main[] -> [
+    .frag_uv : Vec2D,
+    @builtin(.name = "position") .clip_position : Vec4D,
+  ] {
+    @stack quad_pos   : Vec2D = self.quad_positions[self.vertex_index];
+    @stack screen_pos : Vec2D = Push.position + quad_pos * Push.half_size;
+    return (
+      .frag_uv = self.quad_uvs[self.vertex_index],
+      .clip_position = (screen_pos.[x, y], 0.0, 1.0),
+    );
+  }
+}
+
+// Pixel stage: samples the icon texture and applies push-constant alpha.
+// Receives .frag_uv (location 0 by order) from the vertex stage;
+// @builtin(.name = "position") is consumed by the rasterizer and not visible here.
+@stage(.kind = "pixel")
+@public IconPixel : Shader {
+  @binding(.set = 0, .slot = 0)
+  @hidden icon_texture : Graphics.Sampler_2D;
+
+  @public func main[.frag_uv : Vec2D] -> Graphics.Color {
+    @stack sample : Graphics.Color = self.icon_texture -> sample(frag_uv);
+    return (sample.[r, g, b], sample.a * Push.alpha);
+  }
+}

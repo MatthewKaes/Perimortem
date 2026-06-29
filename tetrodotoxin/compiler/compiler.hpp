@@ -34,6 +34,16 @@ class Compiler {
       Perimortem::Core::View::Vector<Intermediate::Argument> arguments)
       -> Count;
 
+  // Record an immutable data blob as an externally visible object symbol.
+  // Shader terminals use this for SPIR-V words and metadata, and other
+  // terminal backends can use the same path for generated read-only payloads.
+  auto add_read_only_data(
+      Perimortem::Core::View::Bytes name,
+      Perimortem::Core::View::Bytes data,
+      Count alignment = 8,
+      Context::Symbol::Visability visability =
+          Context::Symbol::Visability::Global) -> Count;
+
   // Emit a C header declaring all compiled functions.
   auto generate_cpp_header(Perimortem::Memory::Dynamic::Bytes& header_out)
       -> void;
@@ -44,6 +54,10 @@ class Compiler {
 
   auto get_strings() const -> Perimortem::Core::View::Bytes {
     return strings.get_view();
+  }
+
+  auto get_read_only() const -> Perimortem::Core::View::Bytes {
+    return read_only;
   }
 
   auto get_symbols() const -> Perimortem::Core::View::Vector<Context::Symbol> {
@@ -73,6 +87,7 @@ class Compiler {
 
   Perimortem::Memory::Allocator::Arena arena;
   Perimortem::Memory::Dynamic::Bytes machine_code;
+  Perimortem::Memory::Dynamic::Bytes read_only;
   Context::Names names;
   Context::Strings strings;
   Perimortem::Memory::Dynamic::Vector<Context::Function> functions;

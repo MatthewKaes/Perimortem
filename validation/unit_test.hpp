@@ -18,7 +18,8 @@
 namespace Validation::Test {
 auto capture_sink(
     Perimortem::Core::Diagnostics::Log::Level level,
-    Perimortem::Core::View::Bytes message) -> void;
+    Perimortem::Core::View::Bytes message,
+    const Perimortem::Core::Diagnostics::Source& location) -> void;
 auto captured_message() -> Perimortem::Core::View::Bytes;
 auto error_contains(Perimortem::Core::View::Bytes message) -> Bool;
 

@@ -17,6 +17,7 @@ Linker::Linker() {
   format = new (Bibliotheca::check_out(sizeof(Target::Elf)).ptr) Target::Elf();
 }
 Linker::~Linker() {
+  format->~Format();
   Bibliotheca::remit(Data::cast<Bits_8>(format));
 }
 
@@ -51,6 +52,10 @@ auto Tetrodotoxin::Linker::emit_archive(
   if (compiler.get_strings().get_size() > 0) {
     linker.add_section(
         Context::Symbol::Location::Strings, compiler.get_strings());
+  }
+  if (compiler.get_read_only().get_size() > 0) {
+    linker.add_section(
+        Context::Symbol::Location::ReadOnly, compiler.get_read_only());
   }
 
   // Symbols must be added in compiler order to keep relocation symbol indices

@@ -81,6 +81,12 @@ class Vector {
     return source_block[index];
   }
 
+  constexpr auto slice(Count start, Count size = Count(-1)) const
+      -> Core::View::Vector<type> {
+    return get_view().slice(start, size);
+  }
+
+  constexpr auto is_empty() const -> Bool { return literal_size == 0; };
   constexpr auto get_size() const -> Count { return literal_size; }
   constexpr auto get_capacity() const -> Count { return literal_size; }
   constexpr auto get_view() const -> const Core::View::Vector<type> {

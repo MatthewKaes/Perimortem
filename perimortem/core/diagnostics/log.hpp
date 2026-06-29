@@ -6,6 +6,7 @@
 
 #include "perimortem/core/view/bytes.hpp"
 #include "perimortem/core/view/vector.hpp"
+#include "perimortem/core/access/bytes.hpp"
 #include "perimortem/core/diagnostics/source.hpp"
 
 namespace Perimortem::Core::Diagnostics {
@@ -37,40 +38,62 @@ class Log {
     Bool primary_guard = False;
   };
 
-  // Receives the fully formatted log message as a byte view.
+  // Receives the raw log message and resolved source attribution.
   // The sink function is local to each thread.
-  using Sink = void (*)(Level level, Core::View::Bytes message);
+  using Sink =
+      void (*)(Level level, Core::View::Bytes message, const Source& location);
 
   // The default sink function the logger uses for each thread.
   // Creates a canonical file for the thread the first time sink is called
   // for the thread.
-  static auto file_sink(Level level, Core::View::Bytes message) -> void;
+  static auto file_sink(
+      Level level,
+      Core::View::Bytes message,
+      const Source& location) -> void;
 
   // Causes the thread to only log messages to the console (stdout / stderr).
   // Writes to the console are thread safe to prevent multiple threads from
   // creating garbage output.
   // Debug, Info and Warning are written to stdout.
   // Error and Fatal log to stderr.
-  static auto console_sink(Level level, Core::View::Bytes message) -> void;
+  static auto console_sink(
+      Level level,
+      Core::View::Bytes message,
+      const Source& location) -> void;
 
   // Uses the console sink but writes colored text.
   // Grey for debug, white for info, yellow for warning, red for error and
   // fatal.
-  static auto color_sink(Level level, Core::View::Bytes message) -> void;
+  static auto color_sink(
+      Level level,
+      Core::View::Bytes message,
+      const Source& location) -> void;
 
   // Writes all log levels to stderr. Flushes after every message.
   // Use when stdout is a protocol pipe (e.g. LSP server).
-  static auto stderr_sink(Level level, Core::View::Bytes message) -> void;
+  static auto stderr_sink(
+      Level level,
+      Core::View::Bytes message,
+      const Source& location) -> void;
 
   // Logs to both the console_sink and the file_sink for real time and
   // persistant logs.
-  static auto debug_sink(Level level, Core::View::Bytes message) -> void;
+  static auto debug_sink(
+      Level level,
+      Core::View::Bytes message,
+      const Source& location) -> void;
 
   // Sets the function to forward log messages to on this thread.
   // By default the sink is set to a file on disk named after the thread.
   // If the sink is set to null then messages for the thread are dropped.
   static auto set_sink(Sink sink) -> void;
   static auto get_sink() -> Sink;
+
+  // Disables the standard log header on the current thread. Diagnostics that
+  // already own their display format should use this instead of a parallel raw
+  // sink.
+  static auto set_disable_header(Bool disable_header) -> void;
+  static auto get_disable_header() -> Bool;
 
   // Sets the minimum level that will be forwarded to the sink on this thread.
   // Messages below this level are dropped before formatting.
@@ -93,6 +116,12 @@ class Log {
   // Source is passed by reference to make it easier for the TTX ABI.
   static auto log(Level level, Core::View::Bytes msg, const Source& location)
       -> void;
+
+  static auto format_entry(
+      Level level,
+      Core::View::Bytes msg,
+      const Source& location,
+      Core::Access::Bytes buf) -> Count;
 
   static auto debug(
       Core::View::Bytes msg,

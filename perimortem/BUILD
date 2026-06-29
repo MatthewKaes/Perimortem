@@ -91,6 +91,8 @@ cc_library(
         "system/*.hpp",
         "system/compression/*.hpp",
         "system/compression/bit_stream/*.hpp",
+    ], exclude = [
+        "system/window.hpp",
     ]),
     includes = ["."],
     linkopts = ["-lpthread"],
@@ -104,6 +106,7 @@ cc_library(
 cc_library(
     name = "graphics",
     srcs = glob([
+        "graphics/*.cpp",
         "graphics/vulkan/*.cpp",
     ]),
     hdrs = glob([
@@ -115,14 +118,15 @@ cc_library(
     deps = [
         ":core",
         ":memory",
+        ":platform",
     ],
 )
 
 cc_library(
     name = "xdg_shell_protocol",
-    srcs = ["system/platform/wayland/xdg-shell-protocol.c"],
-    hdrs = ["system/platform/wayland/xdg-shell-client-protocol.h"],
-    # Generated C protocol code; suppress strict-warning enforcement.
+    srcs = ["system/platform/wayland/xdg_shell.cpp"],
+    hdrs = ["system/platform/wayland/xdg_shell.hpp"],
+    # Generated protocol code; suppress strict-warning enforcement.
     copts = ["-Wno-error"],
     includes = ["."],
     linkopts = ["-lwayland-client"],
@@ -132,16 +136,19 @@ cc_library(
     name = "platform",
     srcs = glob([
         "system/platform/wayland/*.cpp",
-        "system/platform/wayland/*.c",
+    ], exclude = [
+        "system/platform/wayland/xdg_shell.cpp",
     ]),
-    hdrs = glob([
+    hdrs = [
+        "system/window.hpp",
+    ] + glob([
         "system/platform/wayland/*.hpp",
-        "system/platform/wayland/*.h",
-    ]) + [
-        "system/platform/window.hpp",
-    ],
+    ]),
     includes = ["."],
-    linkopts = ["-lwayland-client"],
+    linkopts = [
+        "-lwayland-client",
+        "-lvulkan",
+    ],
     deps = [
         ":core",
         ":xdg_shell_protocol",

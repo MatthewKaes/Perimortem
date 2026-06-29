@@ -5,37 +5,64 @@
 
 #include <vulkan/vulkan_wayland.h>
 
+#include "perimortem/core/static/vector.hpp"
+#include "perimortem/core/diagnostics/log.hpp"
+#include "perimortem/core/null_terminated.hpp"
+
+using namespace Perimortem::Core;
 using namespace Perimortem::Graphics::Vulkan;
 
-namespace {
-
-constexpr const char* instance_extensions[] = {
+constexpr Static::Vector<const char*, 2> instance_extensions = {
   VK_KHR_SURFACE_EXTENSION_NAME,
   VK_KHR_WAYLAND_SURFACE_EXTENSION_NAME,
 };
 
-constexpr const char* device_extensions[] = {
-  VK_KHR_SWAPCHAIN_EXTENSION_NAME,
-};
+constexpr Static::Vector<const char*, 1> device_extensions = {
+  VK_KHR_SWAPCHAIN_EXTENSION_NAME};
 
 #ifdef PERI_DEBUG
-constexpr const char* validation_layers[] = {
-  "VK_LAYER_KHRONOS_validation",
-};
-constexpr Bits_32 validation_layer_count = 1;
-#else
-constexpr const char** validation_layers = nullptr;
-constexpr Bits_32 validation_layer_count = 0;
+constexpr Static::Vector<const char*, 1> validation_layers = {
+  "VK_LAYER_KHRONOS_validation"};
 #endif
 
-auto select_physical_device(VkInstance instance, VkSurfaceKHR surface)
+static auto require_success(VkResult result, View::Bytes message) -> void {
+  if (result != VK_SUCCESS) {
+    Diagnostics::Log::fatal(message);
+  }
+}
+
+#ifdef PERI_DEBUG
+static auto instance_layer_available(View::Bytes layer_name) -> Bool {
+  Bits_32 count = 0;
+  if (vkEnumerateInstanceLayerProperties(&count, nullptr) != VK_SUCCESS) {
+    return False;
+  }
+
+  Static::Vector<VkLayerProperties, 64> layers;
+  Bits_32 clamped = count < layers.get_size() ? count : layers.get_size();
+  if (vkEnumerateInstanceLayerProperties(&clamped, layers.get_data()) !=
+      VK_SUCCESS) {
+    return False;
+  }
+
+  for (Bits_32 i = 0; i < clamped; i++) {
+    if (NullTerminated::to_view(layers[i].layerName) == layer_name) {
+      return True;
+    }
+  }
+
+  return False;
+}
+#endif
+
+static auto select_physical_device(VkInstance instance, VkSurfaceKHR surface)
     -> VkPhysicalDevice {
   Bits_32 count = 0;
   vkEnumeratePhysicalDevices(instance, &count, nullptr);
 
-  VkPhysicalDevice devices[16] = {};
-  Bits_32 clamped = count < 16 ? count : 16;
-  vkEnumeratePhysicalDevices(instance, &clamped, devices);
+  Static::Vector<VkPhysicalDevice, 16> devices;
+  Bits_32 clamped = count < devices.get_size() ? count : devices.get_size();
+  vkEnumeratePhysicalDevices(instance, &clamped, devices.get_data());
 
   // Prefer discrete GPUs; fall back to any device that can present.
   VkPhysicalDevice fallback = VK_NULL_HANDLE;
@@ -48,9 +75,11 @@ auto select_physical_device(VkInstance instance, VkSurfaceKHR surface)
     vkGetPhysicalDeviceQueueFamilyProperties(
         devices[i], &family_count, nullptr);
 
-    VkQueueFamilyProperties families[32] = {};
-    Bits_32 fc = family_count < 32 ? family_count : 32;
-    vkGetPhysicalDeviceQueueFamilyProperties(devices[i], &fc, families);
+    Static::Vector<VkQueueFamilyProperties, 32> families;
+    Bits_32 fc =
+        family_count < families.get_size() ? family_count : families.get_size();
+    vkGetPhysicalDeviceQueueFamilyProperties(
+        devices[i], &fc, families.get_data());
 
     Bool usable = False;
     for (Bits_32 f = 0; f < fc; f++) {
@@ -77,15 +106,16 @@ auto select_physical_device(VkInstance instance, VkSurfaceKHR surface)
   return fallback;
 }
 
-auto find_graphics_queue_family(
+static auto find_graphics_queue_family(
     VkPhysicalDevice physical_device,
     VkSurfaceKHR surface) -> Bits_32 {
   Bits_32 count = 0;
   vkGetPhysicalDeviceQueueFamilyProperties(physical_device, &count, nullptr);
 
-  VkQueueFamilyProperties families[32] = {};
-  Bits_32 clamped = count < 32 ? count : 32;
-  vkGetPhysicalDeviceQueueFamilyProperties(physical_device, &clamped, families);
+  Static::Vector<VkQueueFamilyProperties, 32> families;
+  Bits_32 clamped = count < families.get_size() ? count : families.get_size();
+  vkGetPhysicalDeviceQueueFamilyProperties(
+      physical_device, &clamped, families.get_data());
 
   for (Bits_32 i = 0; i < clamped; i++) {
     if (!(families[i].queueFlags & VK_QUEUE_GRAPHICS_BIT)) {
@@ -100,9 +130,7 @@ auto find_graphics_queue_family(
   return UINT32_MAX;
 }
 
-}  // namespace
-
-auto Context::create(void* wl_display, void* wl_surface) -> Context {
+auto Context::create(const Perimortem::System::Window& window) -> Context {
   Context ctx;
 
   VkApplicationInfo app_info = {VK_STRUCTURE_TYPE_APPLICATION_INFO};
@@ -112,22 +140,36 @@ auto Context::create(void* wl_display, void* wl_surface) -> Context {
 
   VkInstanceCreateInfo instance_info = {VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO};
   instance_info.pApplicationInfo = &app_info;
-  instance_info.enabledExtensionCount = 2;
-  instance_info.ppEnabledExtensionNames = instance_extensions;
-  instance_info.enabledLayerCount = validation_layer_count;
-  instance_info.ppEnabledLayerNames = validation_layers;
+  instance_info.enabledExtensionCount = Bits_32(instance_extensions.get_size());
+  instance_info.ppEnabledExtensionNames = instance_extensions.get_data();
 
-  vkCreateInstance(&instance_info, nullptr, &ctx.instance);
+#ifdef PERI_DEBUG
+  if (instance_layer_available("VK_LAYER_KHRONOS_validation"_view)) {
+    instance_info.enabledLayerCount = Bits_32(validation_layers.get_size());
+    instance_info.ppEnabledLayerNames = validation_layers.get_data();
+  }
+#endif
 
-  VkWaylandSurfaceCreateInfoKHR surface_info = {
-    VK_STRUCTURE_TYPE_WAYLAND_SURFACE_CREATE_INFO_KHR};
-  surface_info.display = static_cast<struct wl_display*>(wl_display);
-  surface_info.surface = static_cast<struct wl_surface*>(wl_surface);
-  vkCreateWaylandSurfaceKHR(ctx.instance, &surface_info, nullptr, &ctx.surface);
+  require_success(
+      vkCreateInstance(&instance_info, nullptr, &ctx.instance),
+      "Vulkan: Failed to create instance."_view);
+
+  ctx.surface = window.create_vulkan_surface(ctx.instance);
+  if (!ctx.surface) {
+    Diagnostics::Log::fatal("Vulkan: Failed to create window surface."_view);
+  }
 
   ctx.physical_device = select_physical_device(ctx.instance, ctx.surface);
+  if (!ctx.physical_device) {
+    Diagnostics::Log::fatal("Vulkan: No usable physical device found."_view);
+  }
+
   ctx.graphics_queue_family =
       find_graphics_queue_family(ctx.physical_device, ctx.surface);
+  if (ctx.graphics_queue_family == UINT32_MAX) {
+    Diagnostics::Log::fatal(
+        "Vulkan: No graphics queue family can present to the surface."_view);
+  }
 
   constexpr Real_32 queue_priority = 1.0f;
   VkDeviceQueueCreateInfo queue_info = {
@@ -149,10 +191,12 @@ auto Context::create(void* wl_display, void* wl_surface) -> Context {
   device_info.pNext = &sync2;
   device_info.queueCreateInfoCount = 1;
   device_info.pQueueCreateInfos = &queue_info;
-  device_info.enabledExtensionCount = 1;
-  device_info.ppEnabledExtensionNames = device_extensions;
+  device_info.enabledExtensionCount = Bits_32(device_extensions.get_size());
+  device_info.ppEnabledExtensionNames = device_extensions.get_data();
 
-  vkCreateDevice(ctx.physical_device, &device_info, nullptr, &ctx.device);
+  require_success(
+      vkCreateDevice(ctx.physical_device, &device_info, nullptr, &ctx.device),
+      "Vulkan: Failed to create logical device."_view);
   vkGetDeviceQueue(
       ctx.device, ctx.graphics_queue_family, 0, &ctx.graphics_queue);
 
@@ -160,7 +204,9 @@ auto Context::create(void* wl_display, void* wl_surface) -> Context {
     VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO};
   pool_info.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
   pool_info.queueFamilyIndex = ctx.graphics_queue_family;
-  vkCreateCommandPool(ctx.device, &pool_info, nullptr, &ctx.command_pool);
+  require_success(
+      vkCreateCommandPool(ctx.device, &pool_info, nullptr, &ctx.command_pool),
+      "Vulkan: Failed to create command pool."_view);
 
   return ctx;
 }

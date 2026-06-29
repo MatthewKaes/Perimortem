@@ -4,6 +4,7 @@
 #pragma once
 
 #include "perimortem/core/view/bytes.hpp"
+#include "perimortem/core/static/vector.hpp"
 #include "perimortem/core/perimortem.hpp"
 
 #include "perimortem/memory/allocator/arena.hpp"
@@ -19,11 +20,14 @@ class Names {
       Perimortem::Core::View::Bytes module,
       Perimortem::Core::View::Bytes name) -> Perimortem::Core::View::Bytes;
 
+  auto retain(Perimortem::Core::View::Bytes name)
+      -> Perimortem::Core::View::Bytes;
+
   // Allocates a temporary name for use in symbols and internal linkage.
   auto make_local_unique() -> Perimortem::Core::View::Bytes;
 
  private:
-  Bits_8 counter[4] = {0, 0, 0, 0};
+  Perimortem::Core::Static::Vector<Bits_8, 4> counter;
   Perimortem::Memory::Allocator::Arena& arena;
 };
 

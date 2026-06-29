@@ -53,6 +53,12 @@ cc_binary(
         ":ttx_tests",
         "//perimortem",
         "//tetrodotoxin:compiler",
+        "//tetrodotoxin:dialect",
+        "//tetrodotoxin:format",
+        "//tetrodotoxin:linker",
+        "//tetrodotoxin:resolution",
+        "//tetrodotoxin:syntax",
+        "//tetrodotoxin:ttx_standard",
     ],
 )
 

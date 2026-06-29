@@ -1,0 +1,6 @@
+// Resolution fixture shader dependency.
+package : Shader;
+
+@stage(.kind = "vertex")
+@hidden Main : Shader {
+}

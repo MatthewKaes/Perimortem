@@ -3,8 +3,16 @@
 
 #include "perimortem/core/diagnostics/log.hpp"
 
+#include <stdio.h>
+#include <stdlib.h>
+
+#ifdef PERI_LINUX
+#include <execinfo.h>
+#endif
+
 #include "perimortem/core/access/bytes.hpp"
 #include "perimortem/core/static/bytes.hpp"
+#include "perimortem/core/static/vector.hpp"
 #include "perimortem/core/data.hpp"
 #include "perimortem/core/null_terminated.hpp"
 #include "perimortem/core/thread/worker.hpp"
@@ -14,16 +22,61 @@
 using namespace Perimortem::Core;
 using namespace Perimortem::Core::Diagnostics;
 
-#include <stdio.h>
-#include <stdlib.h>
+constexpr Count max_message_capacity = 1 << 11;
 
-#ifdef PERI_LINUX
-#include <execinfo.h>
-#endif
+class ThreadWriter {
+ public:
+  ~ThreadWriter() {
+    if (file) {
+      fflush(file);
+      fclose(file);
+      file = nullptr;
+    }
+  }
+
+  auto prepare_file() -> void {
+    Static::Bytes<512> name_buffer;
+    Writer::Textual writer(name_buffer.get_access().slice(0, 511));
+
+    writer << "perimortem_"_view;
+    writer << "["_view << Thread::Worker::thread_name() << "]_"_view;
+
+    writer << Time::now().get_stamp();
+    writer << ".log"_view;
+    name_buffer[writer.get_location()] = '\0';
+
+    file = fopen(Data::cast<char>(name_buffer.get_data()), "ab");
+    file_ready = True;
+  }
+
+  auto accumulate(View::Bytes entry) -> void {
+    if (!file_ready) {
+      prepare_file();
+    }
+
+    if (!file) {
+      return;
+    }
+
+    fwrite(entry.get_data(), 1, entry.get_size(), file);
+  }
+
+  auto flush() -> void {
+    if (file) {
+      fflush(file);
+    }
+  }
+
+ private:
+  FILE* file = nullptr;
+  Bool file_ready = False;
+};
 
 static thread_local Log::Sink message_sink = Log::default_sink;
 static thread_local Log::Level thread_log_level = Log::Level::Info;
+static thread_local Bool disable_log_header = False;
 static thread_local Source attribution_override;
+static thread_local ThreadWriter thread_writer;
 
 constexpr auto level_char(Log::Level level) -> Signed_8 {
   switch (level) {
@@ -56,125 +109,22 @@ constexpr auto level_color(Log::Level level) -> View::Bytes {
   return ""_view;
 }
 
-constexpr Count max_message_capacity = 1 << 11;
-
-auto format_entry(
+static auto format_message(
     Log::Level level,
-    View::Bytes msg,
+    View::Bytes message,
     const Source& location,
-    Access::Bytes buf) -> Count {
-  Writer::Textual writer(buf);
-
-  writer << level_char(level) << ' ';
-  writer << Time::now().calculate_clock() << ' ';
-  writer << "["_view << Thread::Worker::thread_name() << "] "_view;
-
-  const Source& target_source =
-      attribution_override.is_set() ? attribution_override : location;
-  writer << target_source.get_file();
-  writer << ':' << target_source.get_line();
-  writer << ':' << target_source.get_column();
-  writer << ": "_view << msg << '\n';
-
-  return writer.get_location();
-}
-
-struct ThreadWriter {
-  FILE* file = nullptr;
-  Bool file_ready = False;
-
-  ~ThreadWriter() {
-    if (file) {
-      fflush(file);
-      fclose(file);
-      file = nullptr;
-    }
+    Access::Bytes output) -> Count {
+  if (!disable_log_header) {
+    return Log::format_entry(level, message, location, output);
   }
 
-  auto prepare_file() -> void {
-    Static::Bytes<512> name_buf;
-    // Reserve the last byte for the null terminator.
-    Access::Bytes name_access(name_buf.get_data(), name_buf.get_size() - 1);
-    Writer::Textual writer(name_access);
-
-    writer << "perimortem_"_view;
-    writer << "["_view << Thread::Worker::thread_name() << "]_"_view;
-
-    writer << Time::now().get_stamp();
-    writer << ".log"_view;
-    name_buf[writer.get_location()] = '\0';
-
-    file = fopen(Data::cast<char>(name_buf.get_data()), "ab");
-    file_ready = True;
+  Writer::Textual writer(output);
+  if (location.is_set()) {
+    writer << location.get_file() << ':' << location.get_line() << ':'
+           << location.get_column() << ": "_view;
   }
-
-  auto accumulate(View::Bytes entry) -> void {
-    if (!file_ready) {
-      prepare_file();
-    }
-
-    if (!file) {
-      return;
-    }
-
-    fwrite(entry.get_data(), 1, entry.get_size(), file);
-  }
-
-  auto flush() -> void {
-    if (file) {
-      fflush(file);
-    }
-  }
-};
-
-static thread_local ThreadWriter thread_writer;
-
-auto Log::file_sink(Level level, View::Bytes message) -> void {
-  thread_writer.accumulate(message);
-}
-
-auto Log::console_sink(Level level, View::Bytes message) -> void {
-  FILE* stream = (level >= Level::Error) ? stderr : stdout;
-  fwrite(message.get_data(), 1, message.get_size(), stream);
-}
-
-auto Log::stderr_sink(Level /*level*/, View::Bytes message) -> void {
-  fwrite(message.get_data(), 1, message.get_size(), stderr);
-  fflush(stderr);
-}
-
-auto Log::color_sink(Level level, View::Bytes message) -> void {
-  if (message.is_empty()) {
-    return;
-  }
-
-  // 16 extra bytes is enough for any color code + the clear code.
-  Static::Bytes<max_message_capacity + 16> buf;
-  Access::Bytes access(buf.get_data(), buf.get_size());
-  Writer::Textual writer(access);
-
-  writer << level_color(level);
   writer << message;
-  writer << "\x1b[0m"_view;
-
-  console_sink(level, writer);
-}
-
-auto Log::debug_sink(Level level, View::Bytes message) -> void {
-  console_sink(level, message);
-  file_sink(level, message);
-}
-
-auto Log::set_sink(Sink sink) -> void {
-  message_sink = sink;
-}
-
-auto Log::get_sink() -> Sink {
-  return message_sink;
-}
-
-auto Log::set_level(Level level) -> void {
-  thread_log_level = level;
+  return writer.get_location();
 }
 
 Log::Attribution::~Attribution() {
@@ -186,6 +136,83 @@ Log::Attribution::~Attribution() {
 Log::Attribution::Attribution(Attribution&& rhs) {
   primary_guard = rhs.primary_guard;
   rhs.primary_guard = False;
+}
+
+auto Log::file_sink(Level level, View::Bytes message, const Source& location)
+    -> void {
+  Static::Bytes<max_message_capacity> message_buffer;
+  Count message_length =
+      format_message(level, message, location, message_buffer.get_access());
+  thread_writer.accumulate(message_buffer.slice(0, message_length));
+}
+
+auto Log::console_sink(Level level, View::Bytes message, const Source& location)
+    -> void {
+  Static::Bytes<max_message_capacity> message_buffer;
+  Count message_length =
+      format_message(level, message, location, message_buffer.get_access());
+  View::Bytes formatted = message_buffer.slice(0, message_length);
+  FILE* stream = (level >= Level::Error) ? stderr : stdout;
+  fwrite(formatted.get_data(), 1, formatted.get_size(), stream);
+}
+
+auto Log::color_sink(Level level, View::Bytes message, const Source& location)
+    -> void {
+  Static::Bytes<max_message_capacity> entry_buffer;
+  Count entry_length =
+      format_message(level, message, location, entry_buffer.get_access());
+  View::Bytes entry = entry_buffer.slice(0, entry_length);
+
+  if (message.is_empty()) {
+    return;
+  }
+
+  // 16 extra bytes is enough for any color code + the clear code.
+  Static::Bytes<max_message_capacity + 16> color_buffer;
+  Writer::Textual writer(color_buffer.get_access());
+
+  writer << level_color(level);
+  writer << entry;
+  writer << "\x1b[0m"_view;
+
+  FILE* stream = (level >= Level::Error) ? stderr : stdout;
+  fwrite(color_buffer.get_data(), 1, writer.get_location(), stream);
+}
+
+auto Log::stderr_sink(Level level, View::Bytes message, const Source& location)
+    -> void {
+  Static::Bytes<max_message_capacity> message_buffer;
+  Count message_length =
+      format_message(level, message, location, message_buffer.get_access());
+  View::Bytes formatted = message_buffer.slice(0, message_length);
+  fwrite(formatted.get_data(), 1, formatted.get_size(), stderr);
+  fflush(stderr);
+}
+
+auto Log::debug_sink(Level level, View::Bytes message, const Source& location)
+    -> void {
+  console_sink(level, message, location);
+  file_sink(level, message, location);
+}
+
+auto Log::set_sink(Sink sink) -> void {
+  message_sink = sink;
+}
+
+auto Log::get_sink() -> Sink {
+  return message_sink;
+}
+
+auto Log::set_disable_header(Bool disable_header) -> void {
+  disable_log_header = disable_header;
+}
+
+auto Log::get_disable_header() -> Bool {
+  return disable_log_header;
+}
+
+auto Log::set_level(Level level) -> void {
+  thread_log_level = level;
 }
 
 auto Log::set_attribution(const Source& location) -> Attribution {
@@ -201,15 +228,37 @@ auto Log::set_attribution(const Source& location) -> Attribution {
   return scope_guard;
 }
 
+auto Log::set_thread_name(View::Bytes /*name*/) -> void {
+  // Thread names are managed by Thread::Worker via thread_info; nothing to do.
+}
+
 auto Log::log(Level level, View::Bytes msg, const Source& location) -> void {
   if (level < thread_log_level || !message_sink) {
     return;
   }
 
-  Static::Bytes<max_message_capacity> buf;
-  Access::Bytes access(buf.get_data(), buf.get_size());
-  Count len = format_entry(level, msg, location, access);
-  message_sink(level, View::Bytes(buf.get_data(), len));
+  const Source& target_source =
+      attribution_override.is_set() ? attribution_override : location;
+  message_sink(level, msg, target_source);
+}
+
+auto Log::format_entry(
+    Log::Level level,
+    View::Bytes message,
+    const Source& location,
+    Access::Bytes output) -> Count {
+  Writer::Textual writer(output);
+
+  writer << level_char(level) << ' ';
+  writer << Time::now().calculate_clock() << ' ';
+  writer << "["_view << Thread::Worker::thread_name() << "] "_view;
+
+  writer << location.get_file();
+  writer << ':' << location.get_line();
+  writer << ':' << location.get_column();
+  writer << ": "_view << message << '\n';
+
+  return writer.get_location();
 }
 
 auto Log::debug(View::Bytes msg, const Source& location) -> void {
@@ -233,9 +282,9 @@ auto Log::fatal(View::Bytes msg, const Source& location) -> void {
   flush();
 
 #ifdef PERI_LINUX
-  void* frames[64];
-  int frame_count = backtrace(frames, 64);
-  backtrace_symbols_fd(frames, frame_count, 2);
+  Static::Vector<void*, 64> frames;
+  int frame_count = backtrace(frames.get_data(), frames.get_size());
+  backtrace_symbols_fd(frames.get_data(), frame_count, 2);
 #endif
 
   abort();
@@ -243,8 +292,4 @@ auto Log::fatal(View::Bytes msg, const Source& location) -> void {
 
 auto Log::flush() -> void {
   thread_writer.flush();
-}
-
-auto Log::set_thread_name(View::Bytes /*name*/) -> void {
-  // Thread names are managed by Thread::Worker via thread_info; nothing to do.
 }

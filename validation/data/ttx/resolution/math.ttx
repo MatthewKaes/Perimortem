@@ -1,0 +1,4 @@
+// Resolution fixture library dependency.
+package : Library;
+
+@hidden pi : Real_32 = 3.14;

@@ -6,20 +6,114 @@
 
 #include "validation/unit_test.hpp"
 
+#include "perimortem/core/static/bytes.hpp"
 #include "perimortem/core/null_terminated.hpp"
 
 #include "perimortem/memory/dynamic/bytes.hpp"
 
+#include "tetrodotoxin/compiler/assembler/spirv.hpp"
 #include "tetrodotoxin/compiler/assembler/x86_64.hpp"
 #include "ttx/ttx_tests.hpp"
 
+using namespace Perimortem::Core;
 using namespace Validation;
 
 using namespace Tetrodotoxin::Compiler::Assembler;
 
+static Harness TtxSpirV = {
+  .name = "TTX::SPIR-V"_view,
+};
+
 static Harness Ttxx86_64 = {
   .name = "TTX::x86_64"_view,
 };
+
+PERIMORTEM_UNIT_TEST(TtxSpirV, emits_module_header) {
+  Perimortem::Memory::Dynamic::Bytes words;
+  spirv assembler(words);
+
+  assembler.begin_module(7);
+
+  constexpr Static::Bytes<20> expected = {
+    0x03, 0x02, 0x23, 0x07, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x07, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+  };
+  EXPECT_HEX(words, expected);
+  EXPECT(spirv::is_valid_module(words));
+}
+
+PERIMORTEM_UNIT_TEST(TtxSpirV, emits_module_level_instructions) {
+  Perimortem::Memory::Dynamic::Bytes words;
+  spirv assembler(words);
+
+  assembler.begin_module(2);
+  assembler.capability(spirv::Capability::Shader);
+  assembler.memory_model(
+      spirv::AddressingModel::Logical, spirv::MemoryModel::GLSL450);
+  assembler.entry_point(spirv::ExecutionModel::Vertex, 1, "main"_view);
+
+  constexpr Static::Bytes<60> expected = {
+    0x03, 0x02, 0x23, 0x07, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x11, 0x00, 0x02, 0x00,
+    0x01, 0x00, 0x00, 0x00, 0x0e, 0x00, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x01, 0x00, 0x00, 0x00, 0x0f, 0x00, 0x05, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x01, 0x00, 0x00, 0x00, 0x6d, 0x61, 0x69, 0x6e, 0x00, 0x00, 0x00, 0x00,
+  };
+  EXPECT_HEX(words, expected);
+  EXPECT(spirv::literal_string_word_count("main"_view) == 2);
+  EXPECT(spirv::is_valid_module(words));
+}
+
+PERIMORTEM_UNIT_TEST(TtxSpirV, emits_void_function_skeleton) {
+  Perimortem::Memory::Dynamic::Bytes words;
+  spirv assembler(words);
+
+  assembler.type_void(2);
+  assembler.type_function(3, 2);
+  assembler.function(2, 1, spirv::FunctionControl::None, 3);
+  assembler.label(4);
+  assembler.return_void();
+  assembler.function_end();
+
+  constexpr Static::Bytes<56> expected = {
+    0x13, 0x00, 0x02, 0x00, 0x02, 0x00, 0x00, 0x00, 0x21, 0x00, 0x03, 0x00,
+    0x03, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x36, 0x00, 0x05, 0x00,
+    0x02, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x03, 0x00, 0x00, 0x00, 0xf8, 0x00, 0x02, 0x00, 0x04, 0x00, 0x00, 0x00,
+    0xfd, 0x00, 0x01, 0x00, 0x38, 0x00, 0x01, 0x00,
+  };
+  EXPECT_HEX(words, expected);
+}
+
+PERIMORTEM_UNIT_TEST(TtxSpirV, validates_instruction_word_bounds) {
+  Perimortem::Memory::Dynamic::Bytes words;
+  spirv assembler(words);
+  assembler.begin_module(2);
+  assembler.instruction(spirv::Op::Nop, 1);
+
+  EXPECT(spirv::is_valid_module(words));
+
+  words.clear();
+  assembler.begin_module(2);
+  assembler.instruction(spirv::Op::Nop, 2);
+
+  EXPECT_NOT(spirv::is_valid_module(words));
+}
+
+PERIMORTEM_UNIT_TEST(TtxSpirV, rejects_bad_headers) {
+  EXPECT_NOT(spirv::is_valid_module(View::Bytes()));
+
+  constexpr Static::Bytes<20> bad_magic = {
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+  };
+  EXPECT_NOT(spirv::is_valid_module(bad_magic));
+
+  Perimortem::Memory::Dynamic::Bytes bad_bound;
+  spirv assembler(bad_bound);
+  assembler.begin_module(0);
+  EXPECT_NOT(spirv::is_valid_module(bad_bound));
+}
 
 PERIMORTEM_UNIT_TEST(Ttxx86_64, inc) {
   Perimortem::Memory::Dynamic::Bytes machine_code;

@@ -80,7 +80,7 @@ PERIMORTEM_UNIT_TEST(AlgoSearch, find) {
 
 PERIMORTEM_UNIT_TEST(AlgoSearch, multiple_matches) {
   constexpr auto test_word = "perimortem testing"_view;
-  constexpr Static::Vector<Count, 12> word_locations = {{
+  constexpr Static::Vector<Count, 12> word_locations = {
     12,
     120,
     245,
@@ -93,7 +93,7 @@ PERIMORTEM_UNIT_TEST(AlgoSearch, multiple_matches) {
     690 + test_word.get_size() * 3,
     810,
     830,
-  }};
+  };
 
   Static::Bytes<
       word_locations[word_locations.get_size() - 1] + test_word.get_size() + 1>

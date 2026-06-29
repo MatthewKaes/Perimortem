@@ -3,21 +3,23 @@
 
 #include "perimortem/graphics/vulkan/swapchain.hpp"
 
+#include "perimortem/core/static/vector.hpp"
+
 using namespace Perimortem::Graphics::Vulkan;
 
-namespace {
+using namespace Perimortem::Core;
 
-auto choose_surface_format(
+static auto choose_surface_format(
     VkPhysicalDevice physical_device,
     VkSurfaceKHR surface) -> VkSurfaceFormatKHR {
   Bits_32 count = 0;
   vkGetPhysicalDeviceSurfaceFormatsKHR(
       physical_device, surface, &count, nullptr);
 
-  VkSurfaceFormatKHR formats[32] = {};
-  Bits_32 clamped = count < 32 ? count : 32;
+  Static::Vector<VkSurfaceFormatKHR, 32> formats;
+  Bits_32 clamped = count < formats.get_size() ? count : formats.get_size();
   vkGetPhysicalDeviceSurfaceFormatsKHR(
-      physical_device, surface, &clamped, formats);
+      physical_device, surface, &clamped, formats.get_data());
 
   for (Bits_32 i = 0; i < clamped; i++) {
     if (formats[i].format == VK_FORMAT_B8G8R8A8_SRGB &&
@@ -28,16 +30,17 @@ auto choose_surface_format(
   return formats[0];
 }
 
-auto choose_present_mode(VkPhysicalDevice physical_device, VkSurfaceKHR surface)
-    -> VkPresentModeKHR {
+static auto choose_present_mode(
+    VkPhysicalDevice physical_device,
+    VkSurfaceKHR surface) -> VkPresentModeKHR {
   Bits_32 count = 0;
   vkGetPhysicalDeviceSurfacePresentModesKHR(
       physical_device, surface, &count, nullptr);
 
-  VkPresentModeKHR modes[8] = {};
-  Bits_32 clamped = count < 8 ? count : 8;
+  Static::Vector<VkPresentModeKHR, 8> modes;
+  Bits_32 clamped = count < modes.get_size() ? count : modes.get_size();
   vkGetPhysicalDeviceSurfacePresentModesKHR(
-      physical_device, surface, &clamped, modes);
+      physical_device, surface, &clamped, modes.get_data());
 
   for (Bits_32 i = 0; i < clamped; i++) {
     if (modes[i] == VK_PRESENT_MODE_MAILBOX_KHR) {
@@ -47,8 +50,6 @@ auto choose_present_mode(VkPhysicalDevice physical_device, VkSurfaceKHR surface)
   return VK_PRESENT_MODE_FIFO_KHR;
 }
 
-}  // namespace
-
 auto Swapchain::build(
     const Context& context,
     Bits_32 width,
@@ -56,18 +57,19 @@ auto Swapchain::build(
     VkSwapchainKHR old_swapchain) -> Swapchain {
   Swapchain sc;
   sc.device = context.get_device();
+  const VkSurfaceKHR surface = context.get_surface();
 
-  const VkSurfaceFormatKHR surface_format = choose_surface_format(
-      context.get_physical_device(), context.get_surface());
+  const VkSurfaceFormatKHR surface_format =
+      choose_surface_format(context.get_physical_device(), surface);
   const VkPresentModeKHR present_mode =
-      choose_present_mode(context.get_physical_device(), context.get_surface());
+      choose_present_mode(context.get_physical_device(), surface);
 
   sc.format = surface_format.format;
   sc.extent = {width, height};
 
   VkSurfaceCapabilitiesKHR caps = {};
   vkGetPhysicalDeviceSurfaceCapabilitiesKHR(
-      context.get_physical_device(), context.get_surface(), &caps);
+      context.get_physical_device(), surface, &caps);
 
   // Request one more than the minimum to avoid stalling on the driver.
   Bits_32 image_count = caps.minImageCount + 1;
@@ -78,7 +80,7 @@ auto Swapchain::build(
   const Bits_32 queue_family = context.get_graphics_queue_family();
 
   VkSwapchainCreateInfoKHR info = {VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR};
-  info.surface = context.get_surface();
+  info.surface = surface;
   info.minImageCount = image_count;
   info.imageFormat = sc.format;
   info.imageColorSpace = surface_format.colorSpace;

@@ -29,8 +29,16 @@ auto Server::Rpc::Request::is_request() const -> Bool {
   return parsed.contains("id"_view);
 }
 
+auto Server::Rpc::Request::has_numeric_id() const -> Bool {
+  return parsed["id"_view].is_number();
+}
+
 auto Server::Rpc::Request::get_method() const -> Perimortem::Core::View::Bytes {
   return parsed["method"_view].get_string();
+}
+
+auto Server::Rpc::Request::get_id() const -> Signed_64 {
+  return parsed["id"_view].get_number();
 }
 
 auto Server::Rpc::Request::get_params() const
