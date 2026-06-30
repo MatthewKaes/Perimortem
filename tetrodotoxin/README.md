@@ -25,11 +25,17 @@ The core pipeline used by Perimortem's Bazel extension has an authoring surface
 followed by compiler stages:
 
 ```text
-authoring surface -> lexical -> syntax -> resolution -> compilation -> generation
+authoring surface -> lexical -> syntax/scope -> resolution/import graph -> validation context -> compilation -> generation
 ```
 
 Each layer adds data, validation, and queryable facts while preserving the
 source-shaped program for the next layer.
+
+The validation context is an enrichment surface, not a separate lowered IR. It
+combines type/layout queries with dialect, ABI, and compiler-provider facts so
+later stages can ask for proven answers instead of rebuilding source meaning.
+Dialect participates early as package-kind syntax, during resolution as import
+compatibility, and later as legality and metadata queries.
 
 ### The long road of compilation has many side streets
 
@@ -99,11 +105,12 @@ following breakdown:
 - Syntax nodes own source shape.
 - Resolution owns package identity, imports, cross-file queries, and canonical
   type identity.
-- Type/layout validation queries validate expression type, pack-fit, call, return,
-  and assignment compatibility using resolution, syntax, and compiler-provided
-  TTX package facts.
+- Validation context exposes type/layout facts such as expression type,
+  pack-fit, selected calls, returns, and assignment compatibility using
+  resolution, syntax, dialect, ABI, and compiler-provided TTX package facts.
 - Dialects own package-specific legality and metadata, such as shader stages or
-  descriptor bindings.
+  descriptor bindings, but they are provider/query surfaces rather than cloned
+  program representations.
 - Compilation performs terminal lowering when an output artifact is requested.
 
 If a layer starts building a private clone of the program, it is probably

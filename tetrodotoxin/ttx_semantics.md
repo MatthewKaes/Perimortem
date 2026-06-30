@@ -84,7 +84,7 @@ authoring surface
 -> lexical context
 -> syntax and scope context
 -> cross-file resolution context
--> type/layout validation context
+-> validation context
 -> compilation context
 -> terminal output
 ```
@@ -105,10 +105,10 @@ The practical rule for moving information left is:
 The lexer classifies stable source spellings such as type-shaped names,
 addressable names, sigils, builtin type forms, and fixed operators. The parser
 builds local scope and source shape without needing imports. Resolution adds
-package graph and cross-file identity. Type/layout validation queries check how
-resolved nodes fit local type and layout expectations. Dialects own
-package-specific legality and metadata. Compilation asks those contexts
-questions rather than rediscovering source intent.
+package graph and cross-file identity. Validation context checks how resolved
+nodes fit local type, layout, dialect, ABI, and provider expectations.
+Compilation asks those contexts questions rather than rediscovering source
+intent.
 
 This model is close to typed AST and attribute-grammar systems, and it also
 resembles query-based incremental compilers. The important distinction is
@@ -120,12 +120,16 @@ ownership:
   packs, statements, and expressions.
 - Resolution owns package records, import graph state, cross-file identity, and
   invalidation when files change.
-- Type/layout validation queries expose derived answers such as expression type,
-  pack-fit result, selected callable, assignment compatibility, and return
-  compatibility. These queries use resolution, syntax, TTX package facts, and
-  dialect context rather than a standalone semantic IR.
+- Validation queries expose derived answers such as expression type, pack-fit
+  result, selected callable, assignment compatibility, return compatibility,
+  access-chain result, and literal fit. These queries use resolution, syntax,
+  TTX package facts, dialect context, and ABI/provider facts rather than a
+  standalone semantic IR.
 - Dialects own dialect-specific interpretations such as shader stages,
-  descriptor bindings, push constants, builtins, and target legality.
+  descriptor bindings, push constants, builtins, and target legality. Dialect
+  is a query/provider surface used by syntax, resolution, validation, and
+  compilation, not a cloned program representation or standalone lowering
+  stage.
 - Compilation owns backend lowering state and terminal-oriented intermediate
   artifacts.
 
@@ -185,7 +189,7 @@ A complete TTX implementation has an authoring surface followed by six compiler
 layers:
 
 ```text
-authoring surface -> lexical -> syntax -> resolution -> compilation -> generation
+authoring surface -> lexical -> syntax/scope -> resolution/import graph -> validation context -> compilation -> generation
 ```
 
 These pass names are deliberate. TTX does not have a broad semantic pass whose
@@ -193,14 +197,14 @@ job is to reinterpret ambiguous syntax after parsing. The source already carries
 the semantic category of each construct. The later passes connect,
 type-check, and lower already-shaped nodes by enriching the available context.
 
-Type/layout validation is not a separate replacement IR layer. It is a set of
-query surfaces, owned by resolution, syntax, standard TTX providers, dialects,
-and eventually ABI providers, that validates resolved names, expressions,
-packs, layouts, and expected types. These queries may reject a program and may
-cache concrete facts on or beside syntax nodes. They do not guess which
-namespace a name belongs to, choose between ambiguous parse trees, reinterpret
-syntax after the fact, or collect backend-specific metadata into a second source
-of truth.
+Validation context is not a separate replacement IR layer. It is a set of query
+surfaces, owned by resolution, syntax, standard TTX providers, dialects, and
+eventually ABI providers, that validates resolved names, expressions, packs,
+layouts, expected types, dialect legality, and boundary facts. These queries may
+reject a program and may cache concrete facts on or beside syntax nodes. They do
+not guess which namespace a name belongs to, choose between ambiguous parse
+trees, reinterpret syntax after the fact, or collect backend-specific metadata
+into a second source of truth.
 
 The stages are:
 
@@ -216,11 +220,16 @@ The stages are:
    dialects match the declared import kind, whether exported names exist in the
    namespace selected by syntax, and whether type aliases canonicalize to
    concrete type references.
-4. **Compilation**: lower resolved syntax using type/layout validation and
-   dialect contexts into the backend's intermediate and machine-level
-   representation. This pass consumes resolved, type/layout, and dialect facts through context queries
-   rather than rediscovering them from source text.
-5. **Generation**: emit the requested output format. Shader binaries, embedded
+4. **Validation context**: expose type/layout, dialect, ABI, and provider
+   queries over resolved syntax. This layer proves expression type, pack fit,
+   selected call target, assignment and return compatibility, access-chain
+   result, literal fit, dialect legality, and boundary metadata without lowering
+   the source graph.
+5. **Compilation**: lower resolved syntax using validation context into the
+   backend's intermediate and machine-level representation. This pass consumes
+   resolved, type/layout, dialect, ABI, and provider facts through context
+   queries rather than rediscovering them from source text.
+6. **Generation**: emit the requested output format. Shader binaries, embedded
    read-only data, foreign ABI tables, generated host constants, relocation
    records, objects, archives, and other final artifacts belong here.
 
@@ -247,20 +256,20 @@ their resolution state is invalidated because the graph facts they previously
 bound against may have changed. This keeps syntax ownership local while giving
 resolution a stable place to manage cross-package lifetime.
 
-Type/layout validation caches are invalidated by resolution changes because they depend on
+Validation caches are invalidated by resolution changes because they depend on
 the concrete targets selected by the resolver. A package can keep its syntax AST
-while re-running resolution and validation queries against updated imports. That keeps
-the arena model simple: syntax remains owned by the package record, resolution
-owns the package graph, and proof caches own only the derived typed facts for
-the current graph snapshot.
+while re-running resolution and validation queries against updated imports. That
+keeps the arena model simple: syntax remains owned by the package record,
+resolution owns the package graph, and proof caches own only the derived typed
+facts for the current graph snapshot.
 
 Validation is successful when every expression has a concrete value type, every
 pack has either fitted an expected shape or remains in a context that explicitly
 allows a pack, every access chain has a typed result, every call has a selected
 callable target, and every statement has the type facts needed for lowering.
-After type/layout validation, compilation no longer needs source-level name lookup, pack
-interpretation, or expression inference. It asks the enriched context for the
-already-proven answers.
+After validation, compilation no longer needs source-level name lookup, pack
+interpretation, expression inference, or dialect legality rediscovery. It asks
+the enriched context for the already-proven answers.
 
 ## Parser Contract
 

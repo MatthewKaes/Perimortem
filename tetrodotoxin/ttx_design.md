@@ -15,7 +15,8 @@ Perimortem's authoring, tooling, and build pipeline.
 
 The organizing idea is **monotonic context layering**. A TTX file begins as an
 authoring surface, then is enriched with token classes, syntax shape, package
-scopes, cross-file resolution, type/layout validation facts, and finally backend output. Each
+scopes, cross-file resolution, validation context, and finally backend output.
+Validation context includes type/layout, dialect, ABI, and provider facts. Each
 compiler layer enriches the same source structure with additional context. It
 does not erase what came before until the toolchain intentionally emits a
 terminal artifact such as formatted text, SPIR-V, LLVM IR, an object file, or
@@ -161,11 +162,15 @@ package : Shader;
 package : Entity;
 ```
 
-The package decleration is known as a `dialect` and current affects late stage layers
-such as compilation and generation. Later in the Perimortem pipeline dialects often
-translate to some form of "type", but this is not an invariant of the Tetrodotoxin toolcahin.
+The package declaration selects the package dialect. That choice is visible
+early enough for syntax-time package and attribute validation, participates in
+resolution when imports declare an expected package kind, and later provides
+dialect legality and metadata queries for validation and compilation. A dialect
+is not a separate lowered IR stage. Later in the Perimortem pipeline dialects
+often translate to some form of "type", but this is not an invariant of the
+Tetrodotoxin toolchain.
 
-In TTX Types are treated as sub dialects that discribe how sub IR should be treated.
+In TTX, definition types describe how a scoped sub-IR should be treated.
 `Object` and `Struct` are used as definition builtins used inside a package:
 
 ```ttx
@@ -206,10 +211,11 @@ import Alias : PackageKind = source;
 ```
 
 The left side creates the local name. The package dialect describes the expected
-dialect interpreter. The right side is either a source pack, such as `(.source = "...")`,
-or a type path to a foreign dialect, such as `TTX.Math`.
+package kind that resolution must find. The right side is either a source pack,
+such as `(.source = "...")`, or a type path to a compiler-provided package such
+as `TTX.Math`.
 
-Imports do not import dialect semantics. A `Shader` package does not inherited
+Imports do not import dialect semantics. A `Shader` package does not inherit
 `TTX.Bibliotheca` semantics like `Object` or `List` by importing a `Library`.
 Instead the dialect semantics are cross interpreted as imported definitions that
 are valid in the shader dialect after canonicalization.

@@ -63,7 +63,7 @@ find "$VSIX_DIR" -maxdepth 1 -name "${PACKAGE_NAME}-*.vsix" ! -name "$VSIX_NAME"
 rm -f "$VSIX"
 
 echo "==> Packaging extension..."
-npm run package -- --out "$VSIX"
+npm run package -- --out "$VSIX" --no-rewrite-relative-links
 
 if [ ! -f "$VSIX" ]; then
   echo "Expected VSIX was not created: $VSIX" >&2

@@ -1,0 +1,71 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="540" viewBox="0 0 960 540" role="img" aria-labelledby="title desc">
+  <title id="title">Synthetic Tetrodotoxin TTX highlighting preview</title>
+  <desc id="desc">A static editor-style preview of highlighted TTX source using the extension red color palette.</desc>
+  <style>
+    .window { fill: #161312; }
+    .titlebar { fill: #211817; }
+    .tab { fill: #2a1d1c; }
+    .editor { fill: #151211; }
+    .gutter { fill: #181514; }
+    .line { fill: #5e5650; font: 15px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    .code { font: 16px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    .plain { fill: #d8d8d8; }
+    .comment { fill: #787065; font-style: italic; }
+    .sigil { fill: #ad4a52; }
+    .attr { fill: #ad4a52; font-style: italic; }
+    .keyword { fill: #dd6d72; }
+    .soft-keyword { fill: #c7595f; }
+    .type { fill: #f7a3a7; }
+    .type2 { fill: #ed868a; }
+    .func { fill: #e2d693; }
+    .member { fill: #c1b6a6; }
+    .string { fill: #ebd07b; }
+    .number { fill: #e8c058; }
+    .op { fill: #988f82; }
+    .punct { fill: #4e4840; }
+    .caption { fill: #8f8178; font: 12px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  </style>
+  <rect class="window" x="0" y="0" width="960" height="540" rx="10"/>
+  <rect class="titlebar" x="0" y="0" width="960" height="44" rx="10"/>
+  <circle cx="24" cy="22" r="6" fill="#ad4a52"/>
+  <circle cx="44" cy="22" r="6" fill="#e8c058"/>
+  <circle cx="64" cy="22" r="6" fill="#5c8f62"/>
+  <rect class="tab" x="98" y="9" width="190" height="35" rx="6"/>
+  <text x="116" y="31" class="caption">icon.ttx</text>
+  <text x="812" y="29" class="caption">Synthetic preview</text>
+  <rect class="editor" x="0" y="44" width="960" height="496"/>
+  <rect class="gutter" x="0" y="44" width="64" height="496"/>
+
+  <g class="code" transform="translate(0 0)" xml:space="preserve">
+    <text class="line" x="28" y="78">1</text>
+    <text class="code comment" x="84" y="78">// Icon shader: textured quad with alpha modulation.</text>
+
+    <text class="line" x="28" y="110">2</text>
+    <text class="code" x="84" y="110"><tspan class="soft-keyword">package</tspan><tspan class="plain"> </tspan><tspan class="op">:</tspan><tspan class="plain"> </tspan><tspan class="type2">Shader</tspan><tspan class="punct">;</tspan></text>
+
+    <text class="line" x="28" y="142">3</text>
+    <text class="code" x="84" y="142"><tspan class="soft-keyword">import</tspan><tspan class="plain"> </tspan><tspan class="type">Graphics</tspan><tspan class="plain"> </tspan><tspan class="op">:</tspan><tspan class="plain"> </tspan><tspan class="type2">Library</tspan><tspan class="plain"> </tspan><tspan class="op">=</tspan><tspan class="plain"> </tspan><tspan class="type">TTX</tspan><tspan class="punct">.</tspan><tspan class="type">Graphics</tspan><tspan class="punct">;</tspan></text>
+
+    <text class="line" x="28" y="190">5</text>
+    <text class="code" x="84" y="190"><tspan class="attr">@push_constant</tspan></text>
+    <text class="line" x="28" y="222">6</text>
+    <text class="code" x="84" y="222"><tspan class="sigil">@expose</tspan><tspan class="plain"> </tspan><tspan class="type">Push</tspan><tspan class="plain"> </tspan><tspan class="op">:</tspan><tspan class="plain"> </tspan><tspan class="type2">Foreign</tspan><tspan class="plain"> </tspan><tspan class="punct">{</tspan></text>
+    <text class="line" x="28" y="254">7</text>
+    <text class="code" x="112" y="254"><tspan class="sigil">expose</tspan><tspan class="plain"> </tspan><tspan class="member">position</tspan><tspan class="plain">  </tspan><tspan class="op">:</tspan><tspan class="plain"> </tspan><tspan class="type">Vec2D</tspan><tspan class="punct">;</tspan></text>
+    <text class="line" x="28" y="286">8</text>
+    <text class="code" x="112" y="286"><tspan class="sigil">expose</tspan><tspan class="plain"> </tspan><tspan class="member">alpha</tspan><tspan class="plain">     </tspan><tspan class="op">:</tspan><tspan class="plain"> </tspan><tspan class="type">Real_32</tspan><tspan class="punct">;</tspan></text>
+    <text class="line" x="28" y="318">9</text>
+    <text class="code" x="84" y="318"><tspan class="punct">}</tspan></text>
+
+    <text class="line" x="20" y="366">11</text>
+    <text class="code" x="84" y="366"><tspan class="attr">@stage</tspan><tspan class="punct">(</tspan><tspan class="member">.kind</tspan><tspan class="plain"> </tspan><tspan class="op">=</tspan><tspan class="plain"> </tspan><tspan class="string">&quot;pixel&quot;</tspan><tspan class="punct">)</tspan></text>
+    <text class="line" x="20" y="398">12</text>
+    <text class="code" x="84" y="398"><tspan class="sigil">@public</tspan><tspan class="plain"> </tspan><tspan class="type">IconPixel</tspan><tspan class="plain"> </tspan><tspan class="op">:</tspan><tspan class="plain"> </tspan><tspan class="type2">Shader</tspan><tspan class="plain"> </tspan><tspan class="punct">{</tspan></text>
+    <text class="line" x="20" y="430">13</text>
+    <text class="code" x="112" y="430"><tspan class="sigil">@public</tspan><tspan class="plain"> </tspan><tspan class="soft-keyword">func</tspan><tspan class="plain"> </tspan><tspan class="func">main</tspan><tspan class="punct">[</tspan><tspan class="member">.frag_uv</tspan><tspan class="plain"> </tspan><tspan class="op">:</tspan><tspan class="plain"> </tspan><tspan class="type">Vec2D</tspan><tspan class="punct">]</tspan><tspan class="plain"> </tspan><tspan class="op">-&gt;</tspan><tspan class="plain"> </tspan><tspan class="type">Graphics</tspan><tspan class="punct">.</tspan><tspan class="type">Color</tspan><tspan class="plain"> </tspan><tspan class="punct">{</tspan></text>
+    <text class="line" x="20" y="462">14</text>
+    <text class="code" x="140" y="462"><tspan class="sigil">@stack</tspan><tspan class="plain"> </tspan><tspan class="member">sample</tspan><tspan class="plain"> </tspan><tspan class="op">:</tspan><tspan class="plain"> </tspan><tspan class="type">Graphics</tspan><tspan class="punct">.</tspan><tspan class="type">Color</tspan><tspan class="plain"> </tspan><tspan class="op">=</tspan><tspan class="plain"> </tspan><tspan class="keyword">self</tspan><tspan class="punct">.</tspan><tspan class="member">icon_texture</tspan><tspan class="plain"> </tspan><tspan class="op">-&gt;</tspan><tspan class="plain"> </tspan><tspan class="func">sample</tspan><tspan class="punct">(</tspan><tspan class="member">frag_uv</tspan><tspan class="punct">);</tspan></text>
+    <text class="line" x="20" y="494">15</text>
+    <text class="code" x="140" y="494"><tspan class="soft-keyword">return</tspan><tspan class="plain"> </tspan><tspan class="punct">(</tspan><tspan class="member">sample</tspan><tspan class="punct">.[</tspan><tspan class="member">r</tspan><tspan class="punct">, </tspan><tspan class="member">g</tspan><tspan class="punct">, </tspan><tspan class="member">b</tspan><tspan class="punct">], </tspan><tspan class="member">sample</tspan><tspan class="punct">.</tspan><tspan class="member">a</tspan><tspan class="plain"> </tspan><tspan class="op">*</tspan><tspan class="plain"> </tspan><tspan class="type">Push</tspan><tspan class="punct">.</tspan><tspan class="member">alpha</tspan><tspan class="punct">);</tspan></text>
+  </g>
+</svg>

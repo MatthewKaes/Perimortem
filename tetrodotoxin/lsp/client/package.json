@@ -1,16 +1,28 @@
 {
   "name": "tetrodotoxin-lsp",
-  "description": "Language Server for Tetrodotoxin.",
+  "description": "TTX language support for Perimortem's Tetrodotoxin Source IR",
   "categories": [
     "Programming Languages"
   ],
-  "displayName": "Tetrodotoxin",
+  "displayName": "Tetrodotoxin TTX",
   "publisher": "Perimortem",
   "author": "Matt Kaes",
   "license": "MIT",
   "icon": "icon.png",
   "version": "0.1.14",
+  "keywords": [
+    "TTX",
+    "Tetrodotoxin",
+    "Perimortem",
+    "source IR",
+    "language server",
+    "shader"
+  ],
   "pricing": "Free",
+  "galleryBanner": {
+    "color": "#211817",
+    "theme": "dark"
+  },
   "repository": {
     "type": "git",
     "url": "https://github.com/MatthewKaes/Perimortem"
@@ -43,6 +55,17 @@
         "path": "./syntaxes/tetrodotoxin.tmGrammar.json"
       }
     ],
+    "configuration": {
+      "title": "Tetrodotoxin",
+      "properties": {
+        "tetrodotoxin.semanticHighlighting.enabled": {
+          "type": "boolean",
+          "scope": "resource",
+          "default": false,
+          "description": "Enable Tetrodotoxin LSP semantic tokens. Leave disabled to use the bundled TextMate color rules."
+        }
+      }
+    },
     "configurationDefaults": {
       "editor.tokenColorCustomizations": {
         "textMateRules": [
@@ -196,9 +219,6 @@
             }
           }
         ]
-      },
-      "[tetrodotoxin]": {
-        "editor.semanticHighlighting.enabled": true
       }
     }
   },
