@@ -15,7 +15,7 @@ constexpr auto blob_flag = 0x20;
 
 constexpr auto write_value(
     Access::Bytes target,
-    Count& ptr_location,
+    Count& cursor,
     Signed_64 value,
     Bits_8 flags) -> Bool {
   // Negate any negative values and store the operation as a flag.
@@ -35,66 +35,66 @@ constexpr auto write_value(
     encoding_size = 4;
   }
 
-  if (ptr_location + 1 + encoding_size > target.get_size()) [[unlikely]] {
+  if (cursor + 1 + encoding_size > target.get_size()) [[unlikely]] {
     return False;
   }
 
   auto data = target.get_data();
-  data[ptr_location++] = static_cast<Bits_8>(encoding_size | flags);
+  data[cursor++] = static_cast<Bits_8>(encoding_size | flags);
   switch (encoding_size) {
   case 1:
-    data[ptr_location] = Bits_8(value);
+    data[cursor] = Bits_8(value);
     break;
   case 2:
     Data::copy(
-        data + ptr_location,
+        data + cursor,
         Data::ensure_endian<native_endian, stream_endian, Bits_16>(value));
     break;
   case 4:
     Data::copy(
-        data + ptr_location,
+        data + cursor,
         Data::ensure_endian<native_endian, stream_endian, Bits_32>(value));
     break;
   case 8:
     Data::copy(
-        data + ptr_location,
+        data + cursor,
         Data::ensure_endian<native_endian, stream_endian, Bits_64>(value));
     break;
   }
-  ptr_location += encoding_size;
+  cursor += encoding_size;
 
   return True;
 }
 
 constexpr auto write_blob(
     Access::Bytes target,
-    Count& ptr_location,
+    Count& cursor,
     View::Bytes source) -> Bool {
-  if (!write_value(target, ptr_location, source.get_size(), blob_flag)) {
+  if (!write_value(target, cursor, source.get_size(), blob_flag)) {
     return False;
   }
 
-  if (ptr_location + source.get_size() > target.get_size()) {
+  if (cursor + source.get_size() > target.get_size()) {
     return False;
   }
 
-  Data::copy(
-      target.get_data() + ptr_location, source.get_data(), source.get_size());
-  ptr_location += source.get_size();
+  auto data = target.get_data();
+  Data::copy(data + cursor, source.get_data(), source.get_size());
+  cursor += source.get_size();
   return True;
 }
 
 auto Writer::Serial::set_pointer(Count location) -> void {
-  ptr_location = location;
+  cursor = location;
 }
 
-auto Writer::Serial::operator<<(const Bits_64 bin) -> Writer::Serial& {
-  valid_state &= write_value(data, ptr_location, bin, 0x00);
+auto Writer::Serial::operator<<(const Bits_64 value) -> Writer::Serial& {
+  valid_state &= write_value(source, cursor, value, 0x00);
   return *this;
 }
 
 auto Writer::Serial::operator<<(const View::Bytes blob) -> Writer::Serial& {
   // Write type information
-  valid_state &= write_blob(data, ptr_location, blob);
+  valid_state &= write_blob(source, cursor, blob);
   return *this;
 }

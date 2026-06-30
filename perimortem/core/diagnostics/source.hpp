@@ -24,7 +24,7 @@ class source_location {
 namespace Perimortem::Core::Diagnostics {
 
 // Thin Perimortem shim over the compiler's source location ABI.
-// Sorce stores only a pointer to the static __impl struct baked into the binary
+// Source stores only a pointer to the static __impl struct baked into the binary
 // and uses value semantics so a Source copy is always a single pointer copy.
 //
 // TTX can provide source information by embedding the same information as the

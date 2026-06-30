@@ -55,19 +55,20 @@ class alignas(64) Slab {
     // Huge pages should be 2MB if available.
     // 1GB pages don't make sense for our usage.
     auto constexpr huge_page = MAP_HUGETLB | MAP_HUGE_2MB;
-    auto ptr = mmap(nullptr, size, page_access, page_flags | huge_page, -1, 0);
-    if (ptr == MAP_FAILED) {
+    auto mapped_memory =
+        mmap(nullptr, size, page_access, page_flags | huge_page, -1, 0);
+    if (mapped_memory == MAP_FAILED) {
       // Fall back to 4kb pages if the huge tlb failed.
-      ptr = mmap(nullptr, size, page_access, page_flags, -1, 0);
+      mapped_memory = mmap(nullptr, size, page_access, page_flags, -1, 0);
 
       // Check if a regular mmap also failed with regular 4kb pages.
-      if (ptr == MAP_FAILED) {
+      if (mapped_memory == MAP_FAILED) {
         // TODO: Diagnostics
         return nullptr;
       }
     }
 
-    Slab* slab = Data::cast<Slab>(ptr);
+    Slab* slab = Data::cast<Slab>(mapped_memory);
     slab->mapped_size = size;
     slab->ancestor = nullptr;
     slab->bump_ptr = sizeof(Slab);
@@ -100,8 +101,9 @@ class alignas(64) Slab {
   constexpr auto set_ancestor(Slab* value) -> void { ancestor = value; }
   constexpr auto get_ancestor_slot() -> Slab*& { return ancestor; }
 
-  // Allocates a chunk using a bump ptr. It's up to the Librarian to actually
-  // dish out prefaced chunks and the Bibliotheca to manage chunk flows.
+  // Allocates a chunk using a bump pointer. It's up to the Librarian to
+  // actually dish out prefaced chunks and the Bibliotheca to manage chunk
+  // flows.
   //
   // We could do additional fancy alignment to detect TLB boundries, but this
   // is a micro optimization that slows down the common small chunk case.

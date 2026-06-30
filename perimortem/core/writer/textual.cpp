@@ -8,16 +8,16 @@
 using namespace Perimortem::Core;
 
 template <typename text_buffer>
-constexpr auto write_text(
-    Access::Bytes& data,
-    Count& ptr_location,
-    const text_buffer& text) -> Bool {
-  if (ptr_location + text.get_size() > data.get_size()) {
+constexpr auto
+    write_text(Access::Bytes& target, Count& cursor, const text_buffer& text)
+        -> Bool {
+  if (cursor + text.get_size() > target.get_size()) {
     return false;
   }
 
-  Data::copy(data.get_data() + ptr_location, text.get_data(), text.get_size());
-  ptr_location += text.get_size();
+  auto data = target.get_data();
+  Data::copy(data + cursor, text.get_data(), text.get_size());
+  cursor += text.get_size();
 
   return true;
 }
@@ -102,26 +102,27 @@ static constexpr auto decimal_length(storage_type value) -> Count {
 // into the output buffer at the correct offset without a scratch copy.
 template <typename storage_type>
 constexpr auto write_decimal(
-    Access::Bytes& data,
-    Count& ptr_location,
+    Access::Bytes& target,
+    Count& cursor,
     storage_type value,
     Count length) -> Bool {
-  if (ptr_location + length > data.get_size()) [[unlikely]] {
+  if (cursor + length > target.get_size()) [[unlikely]] {
     return false;
   }
 
+  auto data = target.get_data();
   if (value == 0) {
-    data.get_data()[ptr_location++] = '0';
+    data[cursor++] = '0';
     return true;
   }
 
-  Bits_8* out = data.get_data() + ptr_location;
+  Bits_8* output_digits = data + cursor;
   storage_type abs_value;
   Count digits = length;
 
   if constexpr (storage_type(0) > storage_type(-1)) {
     if (value < storage_type(0)) {
-      *out++ = '-';
+      *output_digits++ = '-';
       digits--;
       abs_value = storage_type(-value);
     } else {
@@ -131,32 +132,32 @@ constexpr auto write_decimal(
     abs_value = storage_type(value);
   }
 
-  Count pos = digits - 1;
+  Count digit_position = digits - 1;
   while (abs_value >= 10) {
     auto two_digits = Count(abs_value % 100) << 1;
     abs_value /= 100;
-    out[pos] = digit_buffer.get_data()[two_digits + 1];
-    out[pos - 1] = digit_buffer.get_data()[two_digits];
-    pos -= 2;
+    output_digits[digit_position] = digit_buffer.get_data()[two_digits + 1];
+    output_digits[digit_position - 1] = digit_buffer.get_data()[two_digits];
+    digit_position -= 2;
   }
 
   if (abs_value > 0) {
-    out[0] = '0' + Bits_8(abs_value);
+    output_digits[0] = '0' + Bits_8(abs_value);
   }
 
-  ptr_location += length;
+  cursor += length;
   return true;
 }
 
 auto Writer::Textual::set_pointer(Count location) -> void {
-  ptr_location = location;
+  cursor = location;
 }
 
 auto Writer::Textual::operator<<(const Bool flag) -> Writer::Textual& {
   if (flag) {
-    valid_state &= write_text(data, ptr_location, "true"_view);
+    valid_state &= write_text(source, cursor, "true"_view);
   } else {
-    valid_state &= write_text(data, ptr_location, "false"_view);
+    valid_state &= write_text(source, cursor, "false"_view);
   }
 
   return *this;
@@ -164,33 +165,34 @@ auto Writer::Textual::operator<<(const Bool flag) -> Writer::Textual& {
 
 auto Writer::Textual::operator<<(const Bits_8 value) -> Writer::Textual& {
   valid_state &= write_decimal(
-      data, ptr_location, value, decimal_length<Bits_8, Bits_8>(value));
+      source, cursor, value, decimal_length<Bits_8, Bits_8>(value));
 
   return *this;
 }
 
 auto Writer::Textual::operator<<(const Bits_16 value) -> Writer::Textual& {
   valid_state &= write_decimal(
-      data, ptr_location, value, decimal_length<Bits_16, Bits_16>(value));
+      source, cursor, value, decimal_length<Bits_16, Bits_16>(value));
   return *this;
 }
 
 auto Writer::Textual::operator<<(const Bits_32 value) -> Writer::Textual& {
   valid_state &= write_decimal(
-      data, ptr_location, value, decimal_length<Bits_32, Bits_32>(value));
+      source, cursor, value, decimal_length<Bits_32, Bits_32>(value));
   return *this;
 }
 
 auto Writer::Textual::operator<<(const Bits_64 value) -> Writer::Textual& {
   valid_state &= write_decimal(
-      data, ptr_location, value, decimal_length<Bits_64, Bits_64>(value));
+      source, cursor, value, decimal_length<Bits_64, Bits_64>(value));
   return *this;
 }
 
 auto Writer::Textual::operator<<(const Signed_8 character) -> Writer::Textual& {
-  valid_state &= ptr_location < data.get_size();
+  valid_state &= cursor < source.get_size();
   if (valid_state) {
-    data.get_data()[ptr_location++] = character;
+    auto data = source.get_data();
+    data[cursor++] = character;
   }
 
   return *this;
@@ -198,19 +200,19 @@ auto Writer::Textual::operator<<(const Signed_8 character) -> Writer::Textual& {
 
 auto Writer::Textual::operator<<(const Signed_16 value) -> Writer::Textual& {
   valid_state &= write_decimal(
-      data, ptr_location, value, decimal_length<Signed_16, Bits_16>(value));
+      source, cursor, value, decimal_length<Signed_16, Bits_16>(value));
   return *this;
 }
 
 auto Writer::Textual::operator<<(const Signed_32 value) -> Writer::Textual& {
   valid_state &= write_decimal(
-      data, ptr_location, value, decimal_length<Signed_32, Bits_32>(value));
+      source, cursor, value, decimal_length<Signed_32, Bits_32>(value));
   return *this;
 }
 
 auto Writer::Textual::operator<<(const Signed_64 value) -> Writer::Textual& {
   valid_state &= write_decimal(
-      data, ptr_location, value, decimal_length<Signed_64, Bits_64>(value));
+      source, cursor, value, decimal_length<Signed_64, Bits_64>(value));
   return *this;
 }
 
@@ -234,15 +236,16 @@ auto Writer::Textual::write_real(Real_64 real, Real_64 precision) -> void {
   constexpr auto max_length = 32;
   Signed_64 decimal_portion = Signed_64(real);
   auto length = decimal_length<Signed_64, Signed_64>(decimal_portion);
-  valid_state &= write_decimal(data, ptr_location, decimal_portion, length);
+  valid_state &= write_decimal(source, cursor, decimal_portion, length);
 
-  valid_state &= ptr_location < data.get_size();
+  valid_state &= cursor < source.get_size();
   if (!valid_state) {
     return;
   }
 
   // Always write a decimal point.
-  data.get_data()[ptr_location++] = '.';
+  auto data = source.get_data();
+  data[cursor++] = '.';
   length += 1;
 
   auto fract = real - decimal_portion;
@@ -251,20 +254,20 @@ auto Writer::Textual::write_real(Real_64 real, Real_64 precision) -> void {
   if (fract <= 0) {
     fract *= -1;
     if (fract < precision) {
-      valid_state &= ptr_location < data.get_size();
+      valid_state &= cursor < source.get_size();
       if (!valid_state) {
         return;
       }
 
-      data.get_data()[ptr_location++] = '0';
+      data[cursor++] = '0';
       length += 1;
     }
   }
 
   // Slowly write the rest of fractional part until we hit a limit.
   while (length < max_length && fract > precision) {
-    if (ptr_location >= data.get_size()) {
-      valid_state &= ptr_location < data.get_size();
+    if (cursor >= source.get_size()) {
+      valid_state &= cursor < source.get_size();
       return;
     }
 
@@ -285,11 +288,11 @@ auto Writer::Textual::write_real(Real_64 real, Real_64 precision) -> void {
       }
     }
 
-    data.get_data()[ptr_location++] = '0' + value;
+    data[cursor++] = '0' + value;
   }
 }
 
 auto Writer::Textual::operator<<(const View::Bytes raw) -> Writer::Textual& {
-  valid_state &= write_text(data, ptr_location, raw);
+  valid_state &= write_text(source, cursor, raw);
   return *this;
 }

@@ -4,14 +4,15 @@
 #include "perimortem/core/thread/worker.hpp"
 
 #include <pthread.h>
+#include <sched.h>
 
 #include "perimortem/core/static/bytes.hpp"
 #include "perimortem/core/static/vector.hpp"
 #include "perimortem/core/algorithm/search.hpp"
+#include "perimortem/core/bibliotheca.hpp"
 #include "perimortem/core/data.hpp"
 #include "perimortem/core/diagnostics/log.hpp"
 #include "perimortem/core/null_terminated.hpp"
-#include "perimortem/core/writer/textual.hpp"
 
 static_assert(
     sizeof(pthread_t) == sizeof(Bits_64) &&
@@ -23,68 +24,193 @@ using namespace Perimortem::Core;
 // Stores the logical thread id.
 // Any thread not spawned by Perimortem uses id -1 and is marked as "main".
 static thread_local Bits_64 this_thread_id = Count(-1);
+static thread_local View::Bytes this_thread_name = ""_view;
 
-using WorkerJobFunc = void (*)(Bits_64);
+using WorkerJobFunction = Thread::Worker::JobFunction;
 
-class alignas(64) ThreadInfo {
+// ThreadInitializer owns the full worker startup transaction.
+// Constructing it blocks the host thread long enough for the spawned thread to
+// copy every caller-owned view into its own thread-local storage. That keeps
+// the safe handoff automatic instead of making every caller remember the
+// lifetime rules.
+class ThreadInitializer {
+  friend Thread::Worker;
+
  public:
-  WorkerJobFunc func;
-  Bits_64 context;
-  Diagnostics::Log::Sink sink;
-  Count name_size;
-  Static::Bytes<24> name;
-  Bool disable_log_header;
-};
+  ThreadInitializer(
+      View::Bytes requested_name,
+      WorkerJobFunction job_function,
+      View::Bytes job_data,
+      Bits_64& handle)
+      : requested_name(requested_name),
+        job_function(job_function),
+        job_data(job_data),
+        sink(Diagnostics::Log::get_sink()),
+        disable_log_header(Diagnostics::Log::get_disable_header()) {
+    if (!job_function) {
+      Diagnostics::Log::fatal(
+          "Thread::Worker requested to start without a job function."_view);
+    }
 
-static_assert(sizeof(ThreadInfo) == 64);
+    // Try to create a thread with the appropriate job data.
+    // If for some reason the system fails to create the thread then emit fatal
+    // log and exit since we are most likely in a broken state.
+    thread_id = reserve_thread();
+    const auto pthread_result =
+        pthread_create(Data::cast<pthread_t>(&handle), nullptr, dispatch, this);
+    if (pthread_result != 0) {
+      release_thread(thread_id);
+      Diagnostics::Log::fatal("Thread::Worker failed to create pthread."_view);
+    }
 
-class WorkerRegistry {
- public:
-  auto start(
-      View::Bytes name,
-      WorkerJobFunc func,
-      Bits_64 context,
-      Bits_64& handle) -> void;
-  auto complete(Count thread_id) -> void;
-  auto get_thread_info(Count thread_id) const -> const ThreadInfo& {
-    return thread_info[thread_id];
-  }
+    // Block until the spawned thread marks itself as initialized.
+    // This blocks the host thread until all required data is safely copied.
+    while (Bool(__atomic_load_n(&initialized.value, __ATOMIC_ACQUIRE)) !=
+           True) {
+      sched_yield();
+    }
+  };
+
+  // Prevent dumb bugs from accidentally copying a thread initializer.
+  ThreadInitializer(const ThreadInitializer&) = delete;
+  auto operator=(const ThreadInitializer&) -> ThreadInitializer& = delete;
 
  private:
-  pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
-  Static::Vector<Bits_8, Thread::Worker::max_workers()> thread_occupancy;
-  Static::Vector<ThreadInfo, Thread::Worker::max_workers()> thread_info;
+  // Releases the host thread and lets it clean up any data that was loaned to
+  // the worker thread.
+  auto mark_initialized() -> void {
+    __atomic_store_n(&initialized.value, True.value, __ATOMIC_RELEASE);
+  }
+
+  // Reserves a thread slot for a worker thread.
+  static auto reserve_thread() -> Count {
+    pthread_mutex_lock(&mutex);
+
+    auto worker_index = Algorithm::min_element<Bits_8>(thread_occupancy);
+    if (thread_occupancy[worker_index] != 0) {
+      pthread_mutex_unlock(&mutex);
+      Diagnostics::Log::fatal(
+          "Program requested to create a Thread::Worker but all 64 Workers "
+          "were already occupied."_view);
+    }
+
+    thread_occupancy[worker_index] = 1;
+    pthread_mutex_unlock(&mutex);
+    return worker_index;
+  }
+
+  static auto release_thread(Count worker_index) -> void {
+    pthread_mutex_lock(&mutex);
+    thread_occupancy[worker_index] = 0;
+    pthread_mutex_unlock(&mutex);
+  }
+
+  static auto get_worker_count() -> Count {
+    pthread_mutex_lock(&mutex);
+
+    Count worker_count = 0;
+    for (Count i = 0; i < thread_occupancy.get_size(); i++) {
+      worker_count += thread_occupancy[i] != 0 ? 1 : 0;
+    }
+
+    pthread_mutex_unlock(&mutex);
+    return worker_count;
+  }
+
+  static auto copy_thread_bytes(View::Bytes source_bytes) -> View::Bytes {
+    // Avoid allocations if no thread data was provided.
+    if (source_bytes.is_empty()) {
+      return View::Bytes();
+    }
+
+    const auto allocation = Bibliotheca::check_out(source_bytes.get_size());
+    Data::copy(
+        allocation.ptr, source_bytes.get_data(), source_bytes.get_size());
+    return View::Bytes(allocation.ptr, source_bytes.get_size());
+  }
+
+  static auto set_system_thread_name(View::Bytes thread_name) -> void {
+    // Don't bother with setting the thread name if it's empty
+    if (thread_name.is_empty()) {
+      return;
+    }
+
+    // Max name length for pthreads is 16 (including the null terminator)
+    // Static::Bytes zero extends for names shorter than 16.
+    Static::Bytes<16> system_thread_name(thread_name);
+
+    // If the name is longer than 15 characters make sure we still have a null.
+    system_thread_name[15] = 0;
+
+    pthread_setname_np(
+        pthread_self(), Data::cast<char>(system_thread_name.get_data()));
+  }
+
+  static auto dispatch(void* initializer_address) -> void* {
+    // To avoid race condidtions the spawning thread has already reserved a
+    // valid thread id ahead of time.
+    auto& initializer = *Data::cast<ThreadInitializer>(initializer_address);
+    this_thread_id = initializer.thread_id;
+
+    // Set the thread name both in engine and at the OS level to aid in
+    // debugging and tracing.
+    this_thread_name = copy_thread_bytes(initializer.requested_name);
+    set_system_thread_name(this_thread_name);
+
+    // Configure the thread logger based on the spawned state.
+    // The thread can override this later but it's useful to at least inherit
+    // the spawning threads log state by default.
+    Diagnostics::Log::set_sink(initializer.sink);
+    Diagnostics::Log::set_disable_header(initializer.disable_log_header);
+
+    // Copy out the job data from the initializer before it's invalid.
+    WorkerJobFunction job_function = initializer.job_function;
+    View::Bytes job_data = copy_thread_bytes(initializer.job_data);
+
+    // Log the thread start.
+    {
+      Diagnostics::Log::Message<128> start_message(
+          Diagnostics::Log::Level::Debug);
+      start_message << "Thread::Worker spawned worker_index="_view
+                    << this_thread_id << " job_bytes="_view
+                    << job_data.get_size();
+    }
+
+    // Run the thread job with the now thread localized job data.
+    initializer.mark_initialized();
+    job_function(job_data);
+
+    // Log the thread exit before we go to release the thread.
+    // If for some reason we hit a hang this can be helpful in debugging.
+    {
+      Diagnostics::Log::Message<128> exit_message(
+          Diagnostics::Log::Level::Debug);
+      exit_message << "Thread::Worker completed worker_index="_view
+                   << this_thread_id;
+    }
+
+    // The job data lives in this thread's Bibliotheca. Thread exit owns
+    // cleanup.
+    release_thread(this_thread_id);
+
+    return nullptr;
+  }
+
+  Count thread_id = 0;
+  View::Bytes requested_name;
+  WorkerJobFunction job_function;
+  View::Bytes job_data;
+  Diagnostics::Log::Sink sink;
+  Bool disable_log_header;
+  Bool initialized = False;
+
+  static inline pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+  static inline Static::Vector<Bits_8, Thread::Worker::max_workers()>
+      thread_occupancy;
 };
 
-static WorkerRegistry worker_registry;
-
-static auto thread_entry(void* logical_thread_address) -> void* {
-  // Set the active thread id to whatever slot was setup for this worker.
-  // Bit janky but passing the "logical" address as a number avoids having to
-  // memory manage any data across boundaries.
-  this_thread_id = Count(logical_thread_address);
-  const auto& this_thread_info =
-      worker_registry.get_thread_info(this_thread_id);
-
-  // Name includes null terminal
-  const auto& thread_name = this_thread_info.name;
-  pthread_setname_np(pthread_self(), Data::cast<char>(thread_name.get_data()));
-  Diagnostics::Log::set_thread_name(
-      thread_name.slice(0, this_thread_info.name_size));
-
-  // By default inherit the thread's sink.
-  Diagnostics::Log::set_sink(this_thread_info.sink);
-  Diagnostics::Log::set_disable_header(this_thread_info.disable_log_header);
-
-  // Actually perform the work.
-  this_thread_info.func(this_thread_info.context);
-
-  // On exit mark the worker as free.
-  // We don't use any of the worker data after exit so if we get intercepted
-  // during clean up that's okay after this stage.
-  worker_registry.complete(this_thread_id);
-
-  return nullptr;
+Thread::Worker::Worker(Worker&& other_worker) : handle(other_worker.handle) {
+  other_worker.handle = 0;
 }
 
 Thread::Worker::~Worker() {
@@ -92,13 +218,14 @@ Thread::Worker::~Worker() {
   join();
 }
 
-Thread::Worker::Worker(Worker&& rhs) : handle(rhs.handle) {
-  rhs.handle = 0;
-}
+auto Thread::Worker::operator=(Worker&& other_worker) -> Worker& {
+  if (this == &other_worker) {
+    return *this;
+  }
 
-auto Thread::Worker::operator=(Worker&& rhs) -> Worker& {
-  handle = rhs.handle;
-  rhs.handle = 0;
+  join();
+  handle = other_worker.handle;
+  other_worker.handle = 0;
 
   return *this;
 }
@@ -110,80 +237,31 @@ auto Thread::Worker::join() -> void {
   }
 }
 
-auto WorkerRegistry::start(
-    View::Bytes name,
-    WorkerJobFunc func,
-    Bits_64 context,
-    Bits_64& handle) -> void {
-  // Starting workers requires a thread lock.
-  pthread_mutex_lock(&mutex);
-
-  auto candidate = Algorithm::min_element<Bits_8>(thread_occupancy);
-  if (thread_occupancy[candidate] != 0) {
-    Diagnostics::Log::fatal(
-        "Program requested to create a Thread::Worker but all 32 Workers "
-        "were already occupied."_view);
-  }
-
-  thread_occupancy[candidate] = 1;
-  auto& target_info = thread_info[candidate];
-  target_info.func = func;
-  target_info.context = context;
-  target_info.sink = Diagnostics::Log::get_sink();
-  target_info.disable_log_header = Diagnostics::Log::get_disable_header();
-
-  target_info.name_size = name.get_size();
-  if (target_info.name_size > target_info.name.get_capacity() - 1) {
-    Static::Bytes<256> warning_buffer;
-    Writer::Textual warning_message(warning_buffer.get_access());
-    warning_message << "Requested thread name `"_view << name
-                    << "` is too long and will be shortened to `"_view
-                    << name.slice(0, target_info.name.get_capacity() - 1)
-                    << "`"_view;
-    Diagnostics::Log::warning(warning_message);
-    target_info.name_size = target_info.name.get_capacity() - 1;
-  }
-
-  target_info.name = name.slice(0, target_info.name_size);
-  target_info.name[target_info.name_size] = '\0';
-
-  pthread_create(
-      Data::cast<pthread_t>(&handle), nullptr, thread_entry, (void*)candidate);
-
-  pthread_mutex_unlock(&mutex);
-}
-
-auto WorkerRegistry::complete(Count thread_id) -> void {
-  pthread_mutex_lock(&mutex);
-  thread_occupancy[thread_id] = 0;
-  pthread_mutex_unlock(&mutex);
-}
-
 auto Thread::Worker::start(
     Core::View::Bytes name,
-    JobFunc func,
-    Bits_64 context) -> Thread::Worker {
+    JobFunction job_function,
+    Core::View::Bytes job_data) -> Thread::Worker {
   Thread::Worker worker;
-  worker_registry.start(name, func, context, worker.handle);
+  ThreadInitializer initializer(name, job_function, job_data, worker.handle);
   return worker;
 }
 
 auto Thread::Worker::on_main_thread() -> Bool {
-  return thread_id() >= Thread::Worker::max_workers();
+  return this_thread_name.is_empty();
 }
 
-auto Thread::Worker::thread_id() -> Count {
+auto Thread::Worker::get_thread_id() -> Count {
   return Count(this_thread_id);
 }
 
-auto Thread::Worker::thread_name() -> View::Bytes {
-  // If we are on the main thread then we use the
+auto Thread::Worker::get_thread_name() -> View::Bytes {
   if (on_main_thread()) {
     return "main"_view;
   }
 
-  // If we are on a spawned thread then get the worker's registered name.
-  const auto& this_thread_info =
-      worker_registry.get_thread_info(this_thread_id);
-  return this_thread_info.name.slice(0, this_thread_info.name_size);
+  return this_thread_name;
+}
+
+auto Thread::Worker::get_worker_count() -> Count {
+  return ThreadInitializer::get_worker_count();
 }

@@ -15,23 +15,22 @@ class Vector {
 
   constexpr Vector() {}
 
-  // Allows direct value initialization: Static::Vector<Bits_8, 3>{1, 2, 3}.
+  // This awful syntax allows cpp to enable direct value initialization:
+  // Static::Vector<Bits_8, 3>{1, 2, 3}.
   template <typename... value_pack>
-    requires(sizeof...(value_pack) == size)
+    requires(sizeof...(value_pack) <= size && (requires(value_pack value) {
+               type(value);
+             } && ...))
   constexpr Vector(value_pack... values) : source_block{type(values)...} {}
 
-  constexpr Vector(type (&source)[size]) {
-    for (Count i = 0; i < size; i++) {
+  // Used for passing values directly that are already packed.
+  constexpr Vector(const type (&source)[literal_size]) {
+    for (Count i = 0; i < literal_size; i++) {
       source_block[i] = source[i];
     }
   }
 
-  constexpr Vector(const type (&source)[size]) {
-    for (Count i = 0; i < size; i++) {
-      source_block[i] = source[i];
-    }
-  }
-
+  // Allows for generating data that would be a pain to manually write out.
   constexpr Vector(type (*generator)(Count)) {
     for (Count i = 0; i < literal_size; i++) {
       source_block[i] = generator(i);

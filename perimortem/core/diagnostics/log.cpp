@@ -39,7 +39,7 @@ class ThreadWriter {
     Writer::Textual writer(name_buffer.get_access().slice(0, 511));
 
     writer << "perimortem_"_view;
-    writer << "["_view << Thread::Worker::thread_name() << "]_"_view;
+    writer << "["_view << Thread::Worker::get_thread_name() << "]_"_view;
 
     writer << Time::now().get_stamp();
     writer << ".log"_view;
@@ -127,15 +127,15 @@ static auto format_message(
   return writer.get_location();
 }
 
+Log::Attribution::Attribution(Attribution&& rhs) {
+  primary_guard = rhs.primary_guard;
+  rhs.primary_guard = False;
+}
+
 Log::Attribution::~Attribution() {
   if (primary_guard) {
     attribution_override = Source();
   }
-}
-
-Log::Attribution::Attribution(Attribution&& rhs) {
-  primary_guard = rhs.primary_guard;
-  rhs.primary_guard = False;
 }
 
 auto Log::file_sink(Level level, View::Bytes message, const Source& location)
@@ -228,18 +228,15 @@ auto Log::set_attribution(const Source& location) -> Attribution {
   return scope_guard;
 }
 
-auto Log::set_thread_name(View::Bytes /*name*/) -> void {
-  // Thread names are managed by Thread::Worker via thread_info; nothing to do.
-}
-
-auto Log::log(Level level, View::Bytes msg, const Source& location) -> void {
+auto Log::log(Level level, View::Bytes message, const Source& location)
+    -> void {
   if (level < thread_log_level || !message_sink) {
     return;
   }
 
   const Source& target_source =
       attribution_override.is_set() ? attribution_override : location;
-  message_sink(level, msg, target_source);
+  message_sink(level, message, target_source);
 }
 
 auto Log::format_entry(
@@ -251,7 +248,7 @@ auto Log::format_entry(
 
   writer << level_char(level) << ' ';
   writer << Time::now().calculate_clock() << ' ';
-  writer << "["_view << Thread::Worker::thread_name() << "] "_view;
+  writer << "["_view << Thread::Worker::get_thread_name() << "] "_view;
 
   writer << location.get_file();
   writer << ':' << location.get_line();
@@ -261,24 +258,24 @@ auto Log::format_entry(
   return writer.get_location();
 }
 
-auto Log::debug(View::Bytes msg, const Source& location) -> void {
-  log(Level::Debug, msg, location);
+auto Log::debug(View::Bytes message, const Source& location) -> void {
+  log(Level::Debug, message, location);
 }
 
-auto Log::info(View::Bytes msg, const Source& location) -> void {
-  log(Level::Info, msg, location);
+auto Log::info(View::Bytes message, const Source& location) -> void {
+  log(Level::Info, message, location);
 }
 
-auto Log::warning(View::Bytes msg, const Source& location) -> void {
-  log(Level::Warning, msg, location);
+auto Log::warning(View::Bytes message, const Source& location) -> void {
+  log(Level::Warning, message, location);
 }
 
-auto Log::error(View::Bytes msg, const Source& location) -> void {
-  log(Level::Error, msg, location);
+auto Log::error(View::Bytes message, const Source& location) -> void {
+  log(Level::Error, message, location);
 }
 
-auto Log::fatal(View::Bytes msg, const Source& location) -> void {
-  log(Level::Fatal, msg, location);
+auto Log::fatal(View::Bytes message, const Source& location) -> void {
+  log(Level::Fatal, message, location);
   flush();
 
 #ifdef PERI_LINUX

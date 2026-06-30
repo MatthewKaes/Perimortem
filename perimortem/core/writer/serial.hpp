@@ -26,24 +26,24 @@ namespace Perimortem::Core::Writer {
 // but treated as undefined behavior.
 class Serial {
  public:
-  constexpr Serial(Access::Bytes data) : data(data) {};
-  constexpr Serial(const Serial& rhs) : data(rhs.data) {};
+  constexpr Serial(Access::Bytes source) : source(source) {};
+  constexpr Serial(const Serial& rhs) : source(rhs.source) {};
 
   auto set_pointer(Count location) -> void;
 
   auto operator<<(const Bits_64 value) -> Serial&;
   auto operator<<(const View::Bytes blob) -> Serial&;
 
-  constexpr auto get_size() const -> Count { return data.get_size(); }
-  constexpr auto get_location() const -> Count { return ptr_location; }
+  constexpr auto get_size() const -> Count { return source.get_size(); }
+  constexpr auto get_location() const -> Count { return cursor; }
   constexpr auto is_valid() const -> Bool { return valid_state; }
   constexpr operator View::Bytes() const {
-    return View::Bytes(data.get_data(), ptr_location);
+    return View::Bytes(source.get_data(), cursor);
   }
 
  private:
-  Access::Bytes data;
-  Count ptr_location = 0;
+  Access::Bytes source;
+  Count cursor = 0;
   Bool valid_state = True;
 };
 

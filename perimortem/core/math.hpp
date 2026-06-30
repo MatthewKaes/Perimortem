@@ -8,29 +8,29 @@
 namespace Perimortem::Core::Math {
 
 template <typename type>
-constexpr auto max(type a, type b) -> type {
-  return a > b ? a : b;
+constexpr auto max(type left, type right) -> type {
+  return left > right ? left : right;
 }
 
 template <typename type>
-constexpr auto min(type a, type b) -> type {
-  return a < b ? a : b;
+constexpr auto min(type left, type right) -> type {
+  return left < right ? left : right;
 }
 
 template <typename type>
-constexpr auto clamp(type val, type min_val, type max_val) -> type {
-  return max(min(val, max_val), min_val);
+constexpr auto clamp(type value, type min_value, type max_value) -> type {
+  return max(min(value, max_value), min_value);
 }
 
 template <typename type>
-constexpr auto wrap(type val, type modulo) -> type {
-  val %= modulo;
-  return val < 0 ? val + modulo : val;
+constexpr auto wrap(type value, type modulo) -> type {
+  value %= modulo;
+  return value < 0 ? value + modulo : value;
 }
 
 template <typename type>
-constexpr auto absolute(type a) -> type {
-  return a >= 0 ? a : -a;
+constexpr auto absolute(type value) -> type {
+  return value >= 0 ? value : -value;
 }
 
 constexpr auto log2(Bits_64 value) -> Bits_64 {

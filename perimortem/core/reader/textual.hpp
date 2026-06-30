@@ -16,14 +16,14 @@ namespace Perimortem::Core::Reader {
 //
 // On overflow or a parse failure the reader enters an invalid state and
 // subsequent reads return zero-initialized values without advancing the
-// pointer.
+// cursor.
 class Textual {
  public:
-  constexpr Textual(View::Bytes source) : data(source) {}
-  constexpr Textual(const Textual& rhs) : data(rhs.data) {}
+  constexpr Textual(View::Bytes source) : source(source) {}
+  constexpr Textual(const Textual& rhs) : source(rhs.source) {}
 
-  // Sets the location of the read pointer.
-  // If the index is out of range the pointer is put to the end of the buffer.
+  // Sets the location of the read cursor.
+  // If the index is out of range the cursor is put to the end of the buffer.
   auto set_pointer(Count location) -> void;
 
   auto read_byte() -> Bits_8;
@@ -33,22 +33,21 @@ class Textual {
   auto read_real_32() -> Real_32;
   auto read_real_64() -> Real_64;
 
-  constexpr auto get_size() const -> Count { return data.get_size(); }
-  constexpr auto get_location() const -> Count { return ptr_location; }
+  constexpr auto get_size() const -> Count { return source.get_size(); }
+  constexpr auto get_location() const -> Count { return cursor; }
   constexpr auto is_valid() const -> Bool { return valid_state; }
   constexpr auto is_empty() const -> Bool {
     return get_location() == get_size();
   }
   constexpr auto reset() -> void {
     valid_state = true;
-    ptr_location = 0;
+    cursor = 0;
   }
 
  private:
   auto skip_whitespace() -> void;
-  auto read_real() -> Real_64;
-  View::Bytes data;
-  Count ptr_location = 0;
+  View::Bytes source;
+  Count cursor = 0;
   Bool valid_state = True;
 };
 
