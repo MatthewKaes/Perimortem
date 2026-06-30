@@ -36,19 +36,6 @@ static auto validate_function_attrs(
   validate_layout_attrs(ctx, dialect, func.get_returns());
 }
 
-static auto get_scope_type(const Type::Declaration* type) -> Class::Type {
-  if (!type) {
-    return Class::Type::EndOfStream;
-  }
-
-  const Ast::Definition& def = type->get_definition();
-  if (def.get_type_ref().get_segments().is_empty()) {
-    return Class::Type::EndOfStream;
-  }
-
-  return def.get_type_ref().get_segments()[0].klass.get_type();
-}
-
 static auto validate_member_attrs(
     Context& ctx,
     const Dialect::Dialect& dialect,
@@ -92,7 +79,7 @@ static auto validate_type_attrs(
     dialect.validate_member_attribute(ctx, target, attrs[i]);
   }
 
-  Class::Type child_scope = get_scope_type(type);
+  Class::Type child_scope = type->get_scope_type();
 
   View::Vector<Ast::Member*> members = type->get_body().get_members();
   for (Count i = 0; i < members.get_size(); i++) {

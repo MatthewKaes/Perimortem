@@ -499,7 +499,8 @@ PERIMORTEM_UNIT_TEST(TtxSyntax, parses_definition_subtrees_from_context) {
 
     EXPECT_EQ(context.get_error_count(), 0);
     ASSERT(type);
-    EXPECT(type->is_scope());
+    EXPECT(type->is_scoped_body());
+    EXPECT(type->get_kind() == Syntax::DeclarationKind::Struct);
     EXPECT(
         type->get_definition().get_type_ref().get_segments()[0].klass ==
         Lexical::Class::Type::Struct);
@@ -525,7 +526,7 @@ PERIMORTEM_UNIT_TEST(TtxSyntax, parses_definition_subtrees_from_context) {
 
     EXPECT_EQ(context.get_error_count(), 0);
     ASSERT(type);
-    EXPECT(type->is_enum());
+    EXPECT(type->get_kind() == Syntax::DeclarationKind::Enum);
     ASSERT_EQ(type->get_scope().get_size(), 2);
     EXPECT_TEXT(type->get_scope()[0]->get_definition().get_name(), "red"_view);
     EXPECT(
@@ -701,7 +702,8 @@ PERIMORTEM_UNIT_TEST(TtxSyntax, package_scope_member) {
   ASSERT(type);
   const Syntax::Ast::Definition& definition = type->get_definition();
   EXPECT_TEXT(definition.get_name(), "Size"_view);
-  EXPECT(type->is_scope());
+  EXPECT(type->is_scoped_body());
+  EXPECT(type->get_kind() == Syntax::DeclarationKind::Struct);
   ASSERT_EQ(type->get_scope().get_size(), 1);
   EXPECT_TEXT(type->get_scope()[0]->get_definition().get_name(), "width"_view);
 }
@@ -1012,7 +1014,8 @@ PERIMORTEM_UNIT_TEST(TtxSyntax, comprehensive_ast) {
   ASSERT_EQ(foreign_api->get_attributes().get_size(), 1);
   EXPECT_TEXT(foreign_api->get_attributes()[0].get_name(), "extern"_view);
   ASSERT_EQ(foreign_api->get_attributes()[0].get_fields().get_size(), 2);
-  EXPECT(foreign_api->is_scope());
+  EXPECT(foreign_api->is_scoped_body());
+  EXPECT(foreign_api->get_kind() == Syntax::DeclarationKind::Foreign);
   EXPECT(
       foreign_api->get_definition().get_type_ref().get_segments()[0].klass ==
       Lexical::Class::Type::Foreign);
@@ -1031,7 +1034,7 @@ PERIMORTEM_UNIT_TEST(TtxSyntax, comprehensive_ast) {
   const Syntax::Type::Declaration* color =
       find_type(package.get_types(), "Color"_view);
   ASSERT(color);
-  EXPECT(color->is_enum());
+  EXPECT(color->get_kind() == Syntax::DeclarationKind::Enum);
   ASSERT_EQ(color->get_scope().get_size(), 2);
   EXPECT_TEXT(color->get_scope()[0]->get_definition().get_name(), "red"_view);
   EXPECT_TEXT(color->get_scope()[1]->get_definition().get_name(), "green"_view);
@@ -1167,7 +1170,8 @@ PERIMORTEM_UNIT_TEST(TtxSyntax, comprehensive_ast) {
   const Syntax::Type::Declaration* container =
       find_type(package.get_types(), "Container"_view);
   ASSERT(container);
-  EXPECT(container->is_scope());
+  EXPECT(container->is_scoped_body());
+  EXPECT(container->get_kind() == Syntax::DeclarationKind::Struct);
   ASSERT_EQ(container->get_scope().get_size(), 2);
   const Syntax::Ast::Member* width = container->get_scope()[0];
   ASSERT(width);
@@ -1272,6 +1276,40 @@ PERIMORTEM_UNIT_TEST(TtxSyntax, formatter_sorts_package_body_groups) {
       "}\n"
       "\n"
       "@public IconPixel : Shader {\n"
+      "}\n"_view);
+}
+
+PERIMORTEM_UNIT_TEST(TtxSyntax, formatter_preserves_scoped_enum_functions) {
+  Allocator::Arena arena;
+  Syntax::Package package = parse_package(
+      arena,
+      "package : Library;\n"
+      "@hidden ColorType : Enum[Bits_8] {\n"
+      "  rgb = 2;\n"
+      "  rgba = 6;\n"
+      "  @public func get_channel_count[] -> Count {\n"
+      "    return 4;\n"
+      "  }\n"
+      "}\n"_view);
+
+  ASSERT(package.is_valid());
+
+  Perimortem::Memory::Dynamic::Bytes formatted = format_package(package);
+
+  EXPECT_TEXT(
+      formatted.get_view(),
+      "//\n"
+      "// Place holder TTX documentation\n"
+      "//\n"
+      "package : Library;\n"
+      "\n"
+      "@hidden ColorType : Enum[Bits_8] {\n"
+      "  rgb  = 2;\n"
+      "  rgba = 6;\n"
+      "\n"
+      "  @public func get_channel_count[] -> Count {\n"
+      "    return 4;\n"
+      "  }\n"
       "}\n"_view);
 }
 

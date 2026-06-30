@@ -29,6 +29,11 @@ A generated header is automatically available to dependents:
 For Shader packages, the generated archive exports SPIR-V blobs and ABI metadata
 derived from the TTX source. The generated header declares those symbols and
 the host-side push-constant struct.
+
+For Library packages, the generated archive exports top-level TTX functions
+through the current C-compatible host ABI. The supported lowering surface is
+intentionally narrow today: `View[Bytes]` parameters, `[]`/`Void` returns, and
+Foreign-style calls that pass `View[Bytes]` literals or parameters.
 """
 
 load("@rules_cc//cc:find_cc_toolchain.bzl", "CC_TOOLCHAIN_ATTRS", "find_cc_toolchain")

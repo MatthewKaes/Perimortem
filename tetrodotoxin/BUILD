@@ -18,9 +18,9 @@ cc_library(
         "compiler/shader/*.cpp",
     ]),
     hdrs = glob([
+        "compiler/abi/*.hpp",
         "compiler/assembler/*.hpp",
         "compiler/context/*.hpp",
-        "compiler/intermediate/*.hpp",
         "compiler/shader/*.hpp",
         "compiler/*.hpp",
     ]),

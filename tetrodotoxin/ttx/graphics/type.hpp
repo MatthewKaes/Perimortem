@@ -9,7 +9,6 @@
 #include "perimortem/utility/pair.hpp"
 #include "perimortem/utility/table.hpp"
 
-#include "tetrodotoxin/syntax/type/ref.hpp"
 #include "tetrodotoxin/ttx/core/type.hpp"
 #include "tetrodotoxin/ttx/facts.hpp"
 
@@ -115,7 +114,7 @@ class Graphics {
     return type ? type->find_method(name) : nullptr;
   }
 
-  static auto type_layout(const Syntax::Type::Ref& type) -> Layout;
+  static auto type_layout(const TypeQuery& type) -> Layout;
 };
 
 }  // namespace Tetrodotoxin::Ttx

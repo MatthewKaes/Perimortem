@@ -12,7 +12,6 @@
 #include "tetrodotoxin/syntax/ast/comment.hpp"
 #include "tetrodotoxin/syntax/ast/import.hpp"
 #include "tetrodotoxin/syntax/ast/member.hpp"
-#include "tetrodotoxin/syntax/attribute/common.hpp"
 #include "tetrodotoxin/syntax/attribute/validation.hpp"
 #include "tetrodotoxin/syntax/context.hpp"
 #include "tetrodotoxin/syntax/dialect/dialect.hpp"
@@ -22,32 +21,6 @@ using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
 using namespace Tetrodotoxin::Syntax;
 using namespace Tetrodotoxin::Lexical;
-
-static auto validate_top_level_member_order(
-    Context& ctx,
-    View::Vector<Ast::Member*> members) -> void {
-  Bool seen_ordinary_member = False;
-
-  for (Count i = 0; i < members.get_size(); i++) {
-    const Ast::Member* member = members[i];
-
-    if (!member) {
-      continue;
-    }
-
-    if (Attribute::is_foreign_member(member)) {
-      if (seen_ordinary_member) {
-        ctx.error(
-            "Expected Foreign declarations before ordinary members"_view,
-            "Package members are ordered as imports, then Foreign "
-            "declarations, then ordinary members"_view);
-      }
-      continue;
-    }
-
-    seen_ordinary_member = True;
-  }
-}
 
 static auto parse_type(Context& ctx, Class& type) -> Bool {
   Class klass = ctx.get_current().get_class();
@@ -126,7 +99,6 @@ auto Package::parse(Context& context) -> Package {
 
   result.body = Type::Body::parse(
       ctx, Class::Type::EndOfStream, Class::Type::EndOfStream);
-  validate_top_level_member_order(ctx, result.get_members());
   Attribute::validate_package(
       ctx, result.get_dialect(), result.imports, result.get_members(),
       result.get_functions(), result.get_types());

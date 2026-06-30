@@ -65,9 +65,19 @@ static auto align_to(Count offset, Count alignment) -> Count {
   return offset + alignment - remainder;
 }
 
-static auto semantic_type_name(const Syntax::Type::Ref& type) -> View::Bytes {
+static auto source_type_name(const Syntax::Type::Ref& type) -> View::Bytes {
   View::Vector<View::Bytes> path = type.get_name_path();
   return path.is_empty() ? View::Bytes() : path[path.get_size() - 1];
+}
+
+static auto type_metadata_name(
+    const Resolution::Record& record,
+    const Syntax::Type::Ref& type) -> View::Bytes {
+  Ttx::StandardPackage package =
+      Resolution::ImportScope::standard_package_for_type(record, type);
+  return package.exists()
+             ? Resolution::ImportScope::standard_type_name(record, type)
+             : source_type_name(type);
 }
 
 static auto parse_builtin(View::Vector<Syntax::Ast::Attribute> attributes)
@@ -216,7 +226,9 @@ auto Facts::push_constants(const Resolution::Record& record) const
       Ttx::StandardPackage package =
           Resolution::ImportScope::standard_package_for_type(
               record, field_type);
-      Ttx::Layout field_layout = package.type_layout(field_type);
+      Ttx::TypeQuery field_query =
+          Resolution::ImportScope::standard_type_query(record, field_type);
+      Ttx::Layout field_layout = package.type_layout(field_query);
       Count field_size =
           field_layout.is_valid() ? field_layout.get_byte_size() : 0;
       Count field_alignment =
@@ -226,7 +238,7 @@ auto Facts::push_constants(const Resolution::Record& record) const
       result.fields.insert({
         definition.get_name(),
         &field_type,
-        semantic_type_name(field_type),
+        type_metadata_name(record, field_type),
         offset,
         field_size,
         field_alignment,
@@ -273,7 +285,7 @@ auto Facts::descriptors(const Resolution::Record& record) const
       result.insert({
         definition.get_name(),
         &type,
-        semantic_type_name(type),
+        type_metadata_name(record, type),
         descriptor.set,
         descriptor.slot,
         types[i],

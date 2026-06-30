@@ -3,14 +3,9 @@
 
 #include "validation/unit_test.hpp"
 
-#include "perimortem/memory/allocator/arena.hpp"
-
-#include "tetrodotoxin/lexical/tokenizer.hpp"
-#include "tetrodotoxin/syntax/type/ref.hpp"
 #include "tetrodotoxin/ttx/core/type.hpp"
 
 using namespace Perimortem::Core;
-using namespace Perimortem::Memory;
 using namespace Tetrodotoxin;
 using namespace Validation;
 
@@ -18,16 +13,7 @@ static Harness TtxCore = {
   .name = "Tetrodotoxin::Ttx::Core"_view,
 };
 
-static auto parse_type_ref(Allocator::Arena& arena, View::Bytes source)
-    -> Syntax::Type::Ref {
-  Lexical::Tokenizer tokenizer(arena);
-  tokenizer.parse(source, false);
-  Syntax::Context context(tokenizer, "<inline type>"_view);
-  context.set_color_enabled(False);
-  return Syntax::Type::Ref::parse(context);
-}
-
-PERIMORTEM_UNIT_TEST(TtxCore, classifies_scalar_types) {
+PERIMORTEM_UNIT_TEST(TtxCore, classifies_primitive_types) {
   EXPECT(Tetrodotoxin::Ttx::Core::is_type("Real_32"_view));
   EXPECT(Tetrodotoxin::Ttx::Core::is_real("Real_32"_view));
   EXPECT_NOT(Tetrodotoxin::Ttx::Core::is_numeric("Real_32"_view));
@@ -41,8 +27,8 @@ PERIMORTEM_UNIT_TEST(TtxCore, classifies_scalar_types) {
       Tetrodotoxin::Ttx::Core::type_class("Bits_64"_view) ==
       Tetrodotoxin::Ttx::Type::Class::Integer);
 
-  const Tetrodotoxin::Ttx::Scalar* boolean =
-      Tetrodotoxin::Ttx::Core::find_scalar("Bool"_view);
+  const Tetrodotoxin::Ttx::Type* boolean =
+      Tetrodotoxin::Ttx::Core::find_type("Bool"_view);
   EXPECT(boolean != nullptr);
   EXPECT(boolean->get_class() == Tetrodotoxin::Ttx::Type::Class::Bool);
   EXPECT(boolean->get_layout() != nullptr);
@@ -53,7 +39,7 @@ PERIMORTEM_UNIT_TEST(TtxCore, classifies_scalar_types) {
   EXPECT_EQ(boolean->get_layout()->get_alignment(), 1);
 }
 
-PERIMORTEM_UNIT_TEST(TtxCore, describes_builtin_aggregates) {
+PERIMORTEM_UNIT_TEST(TtxCore, describes_standard_aggregates) {
   const Tetrodotoxin::Ttx::Type* vec =
       Tetrodotoxin::Ttx::Core::find_type("Vec3D"_view);
   EXPECT(vec != nullptr);
@@ -87,31 +73,31 @@ PERIMORTEM_UNIT_TEST(TtxCore, keeps_graphics_types_out_of_core) {
 }
 
 PERIMORTEM_UNIT_TEST(TtxCore, returns_layout_facts_for_core_types) {
-  Allocator::Arena arena;
-
-  Ttx::Layout scalar =
-      Ttx::Core::type_layout(parse_type_ref(arena, "Real_32"_view));
+  Ttx::Layout scalar = Ttx::Core::type_layout(Ttx::TypeQuery("Real_32"_view));
   EXPECT(scalar.is_valid());
   EXPECT(scalar.is_concrete());
   EXPECT(scalar.is_terminal());
   EXPECT_EQ(scalar.get_byte_size(), 4);
   EXPECT_EQ(scalar.get_alignment(), 4);
 
-  Ttx::Layout aggregate =
-      Ttx::Core::type_layout(parse_type_ref(arena, "Vec4D"_view));
+  Ttx::Layout aggregate = Ttx::Core::type_layout(Ttx::TypeQuery("Vec4D"_view));
   EXPECT(aggregate.is_valid());
   EXPECT(aggregate.is_concrete());
   EXPECT_EQ(aggregate.get_entries().get_size(), 4);
   EXPECT_EQ(aggregate.get_byte_size(), 16);
   EXPECT_EQ(aggregate.get_alignment(), 16);
 
-  Ttx::Layout generic =
-      Ttx::Core::type_layout(parse_type_ref(arena, "Vec[Bits_8, 16]"_view));
+  const Ttx::Layout* bits_8 = Ttx::Core::find_layout("Bits_8"_view);
+  ASSERT(bits_8);
+  Ttx::TypeQuery vec("Vec"_view);
+  vec.add_param(Ttx::TypeArgument::type("Bits_8"_view, *bits_8));
+  vec.add_param(Ttx::TypeArgument::size_literal("16"_view, 16));
+
+  Ttx::Layout generic = Ttx::Core::type_layout(vec);
   EXPECT(generic.is_valid());
   EXPECT_EQ(generic.get_byte_size(), 16);
   EXPECT_EQ(generic.get_alignment(), 1);
 
-  Ttx::Layout missing =
-      Ttx::Core::type_layout(parse_type_ref(arena, "Missing"_view));
+  Ttx::Layout missing = Ttx::Core::type_layout(Ttx::TypeQuery("Missing"_view));
   EXPECT_NOT(missing.is_valid());
 }

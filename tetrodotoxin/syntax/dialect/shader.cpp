@@ -33,7 +33,7 @@ class ShaderStageAttribute {
         ctx, attr, Attribute::FieldKind::Kind,
         "@stage requires .kind, e.g. @stage(.kind = \"pixel\")"_view);
 
-    if (!target.type || !target.type->is_shader()) {
+    if (!target.type || target.type->get_kind() != DeclarationKind::Shader) {
       ctx.error(
           "Invalid @stage target"_view,
           "@stage is valid only on Shader definitions in Shader packages"_view);
@@ -55,7 +55,7 @@ class ShaderPushConstantAttribute {
           "@push_constant is a marker attribute and does not take fields"_view);
     }
 
-    if (!target.type || !target.type->is_foreign()) {
+    if (!target.type || target.type->get_kind() != DeclarationKind::Foreign) {
       ctx.error(
           "Invalid @push_constant target"_view,
           "@push_constant is valid only on Foreign ABI blocks in Shader "

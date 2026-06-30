@@ -6,6 +6,8 @@
 #include "perimortem/core/view/bytes.hpp"
 #include "perimortem/core/view/vector.hpp"
 
+#include "perimortem/memory/dynamic/vector.hpp"
+
 namespace Tetrodotoxin::Ttx {
 
 class Layout {
@@ -77,9 +79,6 @@ class Layout {
 
   constexpr auto is_fluid() const -> Bool { return kind == Kind::Fluid; }
   constexpr auto is_terminal() const -> Bool { return entries.is_empty(); }
-  constexpr auto is_scalar() const -> Bool {
-    return is_valid() && is_concrete() && is_terminal();
-  }
   constexpr auto is_aggregate() const -> Bool {
     return is_valid() && !entries.is_empty();
   }
@@ -126,6 +125,65 @@ class Layout {
   Count byte_size = 0;
   Count alignment = 0;
   Perimortem::Core::View::Vector<Entry> entries;
+};
+
+class TypeArgument {
+ public:
+  enum class Kind : Bits_8 {
+    Invalid,
+    Type,
+    SizeLiteral,
+  };
+
+  TypeArgument() = default;
+
+  static auto type(Perimortem::Core::View::Bytes name, Layout layout)
+      -> TypeArgument {
+    TypeArgument result;
+    result.kind = Kind::Type;
+    result.name = name;
+    result.layout = layout;
+    return result;
+  }
+
+  static auto size_literal(Perimortem::Core::View::Bytes text, Count value)
+      -> TypeArgument {
+    TypeArgument result;
+    result.kind = Kind::SizeLiteral;
+    result.name = text;
+    result.size_value = value;
+    return result;
+  }
+
+  auto get_kind() const -> Kind { return kind; }
+  auto get_name() const -> Perimortem::Core::View::Bytes { return name; }
+  auto get_layout() const -> const Layout& { return layout; }
+  auto get_size_value() const -> Count { return size_value; }
+  auto is_type() const -> Bool { return kind == Kind::Type; }
+  auto is_size_literal() const -> Bool { return kind == Kind::SizeLiteral; }
+
+ private:
+  Kind kind = Kind::Invalid;
+  Perimortem::Core::View::Bytes name;
+  Layout layout;
+  Count size_value = 0;
+};
+
+class TypeQuery {
+ public:
+  TypeQuery() = default;
+  TypeQuery(Perimortem::Core::View::Bytes name) : name(name) {}
+
+  auto get_name() const -> Perimortem::Core::View::Bytes { return name; }
+  auto get_params() const -> Perimortem::Core::View::Vector<TypeArgument> {
+    return params.get_view();
+  }
+
+  auto add_param(TypeArgument param) -> void { params.insert(param); }
+
+ private:
+  Perimortem::Core::View::Bytes name;
+  Perimortem::Memory::Dynamic::Vector<TypeArgument> params;
 };
 
 class Type {
@@ -209,9 +267,6 @@ class Type {
   constexpr auto is_numeric() const -> Bool { return klass == Class::Integer; }
 
   constexpr auto is_real() const -> Bool { return klass == Class::Real; }
-  constexpr auto is_scalar() const -> Bool {
-    return layout && layout->is_scalar();
-  }
   constexpr auto is_aggregate() const -> Bool {
     return layout && layout->is_aggregate();
   }
@@ -243,7 +298,6 @@ class Type {
   Perimortem::Core::View::Vector<Method> methods;
 };
 
-using Scalar = Type;
 using Field = Layout::Entry;
 using Method = Type::Method;
 

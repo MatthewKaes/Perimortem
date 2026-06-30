@@ -40,19 +40,13 @@ class Declaration {
     return attributes;
   }
   auto get_definition() const -> const Ast::Definition& { return definition; }
+  auto get_kind() const -> DeclarationKind { return kind; }
+  auto get_scope_type() const -> Lexical::Class::Type {
+    return to_scope_type(kind);
+  }
   auto get_body() const -> const Body& { return body; }
   auto is_disabled() const -> Bool { return disabled; }
-  auto get_form() const -> Lexical::Class { return form; }
-  auto is_scope() const -> Bool {
-    return form == Lexical::Class::Type::ScopeStart;
-  }
-  auto is_enum() const -> Bool { return form == Lexical::Class::Type::Enum; }
-  auto is_shader() const -> Bool {
-    return has_declared_type(Lexical::Class::Type::Shader);
-  }
-  auto is_foreign() const -> Bool {
-    return has_declared_type(Lexical::Class::Type::Foreign);
-  }
+  auto is_scoped_body() const -> Bool;
 
   auto get_scope() const -> Perimortem::Core::View::Vector<Ast::Member*> {
     return body.get_members();
@@ -79,19 +73,12 @@ class Declaration {
       Perimortem::Core::View::Bytes name,
       const Ref& storage_type,
       Expression::Expression* value) -> Ast::Definition;
-  auto has_declared_type(Lexical::Class::Type type) const -> Bool {
-    if (definition.get_type_ref().get_segments().is_empty()) {
-      return False;
-    }
-
-    return definition.get_type_ref().get_segments()[0].klass == type;
-  }
 
   Ast::Comment documentation;
   Perimortem::Core::View::Vector<Ast::Attribute> attributes;
   Ast::Definition definition;
   Body body;
-  Lexical::Class form = Lexical::Class::Type::EndStatement;
+  DeclarationKind kind = DeclarationKind::Invalid;
   Bool disabled = False;
 };
 

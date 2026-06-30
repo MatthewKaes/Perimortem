@@ -1,5 +1,10 @@
-// Tetrodotoxin source — prototype placeholder
-// The compiler ignores the contents of this file for now.
-func hello() -> void {
-  return;
+package : Library;
+
+@hidden Console : Foreign {
+  external @hidden func print[.data : View[Bytes]] -> [];
+}
+
+@public func tetrodotoxin_test[.data : View[Bytes]] -> [] {
+  Console -> print("Compiler Test");
+  Console -> print(data);
 }

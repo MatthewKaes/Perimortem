@@ -3,56 +3,87 @@
 
 #include "tetrodotoxin/ttx/core/type.hpp"
 
-#include "perimortem/core/reader/textual.hpp"
+#include "perimortem/memory/dynamic/vector.hpp"
 
 using namespace Perimortem::Core;
+using namespace Perimortem::Memory;
 using namespace Tetrodotoxin;
 using namespace Tetrodotoxin::Ttx;
 
-static auto parse_count(View::Bytes text, Count* out) -> Bool {
-  if (!out || text.is_empty()) {
-    return False;
+namespace {
+
+class GenericLayout {
+ public:
+  Count element_size = 0;
+  Count element_alignment = 0;
+  Count element_count = 0;
+  Layout layout;
+};
+
+auto find_cached_layout(
+    View::Vector<GenericLayout> layouts,
+    const Layout& element,
+    Count element_count) -> const Layout* {
+  for (Count i = 0; i < layouts.get_size(); i++) {
+    if (layouts[i].element_size == element.get_byte_size() &&
+        layouts[i].element_alignment == element.get_alignment() &&
+        layouts[i].element_count == element_count) {
+      return &layouts[i].layout;
+    }
   }
 
-  Reader::Textual reader(text);
-  Bits_64 result = reader.read_unsigned();
-  if (!reader.is_valid() || !reader.is_empty()) {
-    return False;
-  }
-
-  *out = Count(result);
-  return True;
+  return nullptr;
 }
 
-static auto semantic_type_name(const Syntax::Type::Ref& type) -> View::Bytes {
-  View::Vector<View::Bytes> path = type.get_name_path();
-  return path.is_empty() ? View::Bytes() : path[path.get_size() - 1];
+auto generated_layout_cache() -> Dynamic::Vector<GenericLayout>& {
+  // Process-lifetime provider cache. Avoid exit-time destruction because these
+  // facts can be referenced by generated/static toolchain state during
+  // teardown.
+  static auto* layouts = new Dynamic::Vector<GenericLayout>();
+  return *layouts;
 }
 
-auto Core::type_layout(const Syntax::Type::Ref& type) -> Layout {
-  View::Bytes name = semantic_type_name(type);
+}  // namespace
+
+auto Core::type_layout(const TypeQuery& type) -> Layout {
+  View::Bytes name = type.get_name();
   if (const Layout* layout = find_layout(name)) {
     return *layout;
   }
 
   if (name == "Vec"_view) {
-    View::Vector<Syntax::Type::Ref> params = type.get_params();
-    if (params.get_size() < 2 || !params[1].is_size_literal()) {
+    View::Vector<TypeArgument> params = type.get_params();
+    if (params.get_size() < 2 || !params[0].is_type() ||
+        !params[1].is_size_literal()) {
       return {};
     }
 
-    Count count = 0;
-    Layout element_layout = type_layout(params[0]);
-    if (!element_layout.is_valid() ||
-        !parse_count(params[1].get_name(), &count)) {
+    Layout element_layout = params[0].get_layout();
+    if (!element_layout.is_valid()) {
       return {};
     }
 
-    return {
+    Dynamic::Vector<GenericLayout>& cache = generated_layout_cache();
+    if (const Layout* cached = find_cached_layout(
+            cache.get_view(), element_layout, params[1].get_size_value())) {
+      return *cached;
+    }
+
+    // Generic layouts are provider facts. Cache them after resolution has
+    // reduced syntax to a TypeQuery so generated Core facts do not keep raw
+    // syntax references alive.
+    Layout layout = {
       Layout::Kind::Concrete,
-      element_layout.get_byte_size() * count,
+      element_layout.get_byte_size() * params[1].get_size_value(),
       element_layout.get_alignment(),
     };
+    cache.insert({
+      element_layout.get_byte_size(),
+      element_layout.get_alignment(),
+      params[1].get_size_value(),
+      layout,
+    });
+    return layout;
   }
 
   return {};

@@ -16,14 +16,6 @@ using namespace Perimortem::Memory;
 using namespace Tetrodotoxin::Syntax;
 using namespace Tetrodotoxin::Lexical;
 
-static auto get_decl_type(const Ast::Definition& definition) -> Class::Type {
-  if (definition.get_type_ref().get_segments().is_empty()) {
-    return Class::Type::EndOfStream;
-  }
-
-  return definition.get_type_ref().get_segments()[0].klass.get_type();
-}
-
 auto Type::Body::parse(
     Context& ctx,
     Class::Type scope_type,
@@ -52,8 +44,8 @@ auto Type::Body::parse(
       Ast::Definition definition = Ast::Definition::parse_header(ctx);
 
       if (Type::Declaration::is_type_definition(definition)) {
-        Class::Type type_class = get_decl_type(definition);
-        if (is_package_body && type_class == Class::Type::Foreign &&
+        DeclarationKind kind = definition.get_declaration_kind();
+        if (is_package_body && kind == DeclarationKind::Foreign &&
             seen_package_body) {
           ctx.error(
               "Expected Foreign declarations before package body"_view,
@@ -66,7 +58,7 @@ auto Type::Body::parse(
         if (type && type->get_definition().is_valid()) {
           types.insert(type);
         }
-        if (is_package_body && type_class != Class::Type::Foreign) {
+        if (is_package_body && kind != DeclarationKind::Foreign) {
           seen_package_body = True;
         }
       } else {

@@ -5,11 +5,11 @@
 
 #include "perimortem/core/view/bytes.hpp"
 #include "perimortem/core/static/vector.hpp"
+#include "perimortem/core/null_terminated.hpp"
 
 #include "perimortem/utility/pair.hpp"
 #include "perimortem/utility/table.hpp"
 
-#include "tetrodotoxin/syntax/type/ref.hpp"
 #include "tetrodotoxin/ttx/facts.hpp"
 
 namespace Tetrodotoxin::Ttx {
@@ -20,7 +20,7 @@ class Core {
       Perimortem::Utility::Pair<Perimortem::Core::View::Bytes, Layout>;
 
   inline static constexpr Perimortem::Core::Static::Vector<LayoutMapping, 13>
-      scalar_layouts = {{
+      primitive_layouts = {{
         {"Void"_view, {Layout::Kind::Concrete, 0, 1}},
         {"Bool"_view, {Layout::Kind::Concrete, 1, 1}},
         {"Count"_view, {Layout::Kind::Concrete, 8, 8}},
@@ -36,70 +36,71 @@ class Core {
         {"Real_64"_view, {Layout::Kind::Concrete, 8, 8}},
       }};
 
-  using ScalarLayoutTable = Perimortem::Utility::Table<Layout, scalar_layouts>;
+  using PrimitiveLayoutTable =
+      Perimortem::Utility::Table<Layout, primitive_layouts>;
 
   using TypeMapping =
       Perimortem::Utility::Pair<Perimortem::Core::View::Bytes, Type>;
 
   inline static constexpr Perimortem::Core::Static::Vector<TypeMapping, 13>
-      scalars = {{
+      primitive_types = {{
         {"Void"_view,
          {"Void"_view, Type::Class::Void,
-          ScalarLayoutTable::find_or_null("Void"_view)}},
+          PrimitiveLayoutTable::find_or_null("Void"_view)}},
         {"Bool"_view,
          {"Bool"_view, Type::Class::Bool,
-          ScalarLayoutTable::find_or_null("Bool"_view)}},
+          PrimitiveLayoutTable::find_or_null("Bool"_view)}},
         {"Count"_view,
          {"Count"_view, Type::Class::Integer,
-          ScalarLayoutTable::find_or_null("Count"_view)}},
+          PrimitiveLayoutTable::find_or_null("Count"_view)}},
         {"Bits_8"_view,
          {"Bits_8"_view, Type::Class::Integer,
-          ScalarLayoutTable::find_or_null("Bits_8"_view)}},
+          PrimitiveLayoutTable::find_or_null("Bits_8"_view)}},
         {"Bits_16"_view,
          {"Bits_16"_view, Type::Class::Integer,
-          ScalarLayoutTable::find_or_null("Bits_16"_view)}},
+          PrimitiveLayoutTable::find_or_null("Bits_16"_view)}},
         {"Bits_32"_view,
          {"Bits_32"_view, Type::Class::Integer,
-          ScalarLayoutTable::find_or_null("Bits_32"_view)}},
+          PrimitiveLayoutTable::find_or_null("Bits_32"_view)}},
         {"Bits_64"_view,
          {"Bits_64"_view, Type::Class::Integer,
-          ScalarLayoutTable::find_or_null("Bits_64"_view)}},
+          PrimitiveLayoutTable::find_or_null("Bits_64"_view)}},
         {"Signed_8"_view,
          {"Signed_8"_view, Type::Class::Integer,
-          ScalarLayoutTable::find_or_null("Signed_8"_view)}},
+          PrimitiveLayoutTable::find_or_null("Signed_8"_view)}},
         {"Signed_16"_view,
          {"Signed_16"_view, Type::Class::Integer,
-          ScalarLayoutTable::find_or_null("Signed_16"_view)}},
+          PrimitiveLayoutTable::find_or_null("Signed_16"_view)}},
         {"Signed_32"_view,
          {"Signed_32"_view, Type::Class::Integer,
-          ScalarLayoutTable::find_or_null("Signed_32"_view)}},
+          PrimitiveLayoutTable::find_or_null("Signed_32"_view)}},
         {"Signed_64"_view,
          {"Signed_64"_view, Type::Class::Integer,
-          ScalarLayoutTable::find_or_null("Signed_64"_view)}},
+          PrimitiveLayoutTable::find_or_null("Signed_64"_view)}},
         {"Real_32"_view,
          {"Real_32"_view, Type::Class::Real,
-          ScalarLayoutTable::find_or_null("Real_32"_view)}},
+          PrimitiveLayoutTable::find_or_null("Real_32"_view)}},
         {"Real_64"_view,
          {"Real_64"_view, Type::Class::Real,
-          ScalarLayoutTable::find_or_null("Real_64"_view)}},
+          PrimitiveLayoutTable::find_or_null("Real_64"_view)}},
       }};
 
-  using ScalarTable = Perimortem::Utility::Table<Type, scalars>;
+  using PrimitiveTypeTable = Perimortem::Utility::Table<Type, primitive_types>;
 
   inline static constexpr Perimortem::Core::Static::Vector<Field, 4>
       vectorized_fields = {
         Field{
           "x"_view, "Real_32"_view,
-          ScalarLayoutTable::find_or_null("Real_32"_view), 0},
+          PrimitiveLayoutTable::find_or_null("Real_32"_view), 0},
         Field{
           "y"_view, "Real_32"_view,
-          ScalarLayoutTable::find_or_null("Real_32"_view), 4},
+          PrimitiveLayoutTable::find_or_null("Real_32"_view), 4},
         Field{
           "z"_view, "Real_32"_view,
-          ScalarLayoutTable::find_or_null("Real_32"_view), 8},
+          PrimitiveLayoutTable::find_or_null("Real_32"_view), 8},
         Field{
           "w"_view, "Real_32"_view,
-          ScalarLayoutTable::find_or_null("Real_32"_view), 12},
+          PrimitiveLayoutTable::find_or_null("Real_32"_view), 12},
   };
 
   inline static constexpr Perimortem::Core::Static::Vector<LayoutMapping, 3>
@@ -138,29 +139,19 @@ class Core {
   using TypeTable = Perimortem::Utility::Table<Type, types>;
 
  public:
-  static constexpr auto find_scalar_layout(Perimortem::Core::View::Bytes name)
-      -> const Layout* {
-    return ScalarLayoutTable::find_or_null(name);
-  }
-
   static constexpr auto find_layout(Perimortem::Core::View::Bytes name)
       -> const Layout* {
-    if (const Layout* layout = find_scalar_layout(name)) {
+    if (const Layout* layout = PrimitiveLayoutTable::find_or_null(name)) {
       return layout;
     }
 
     return VectorLayoutTable::find_or_null(name);
   }
 
-  static constexpr auto find_scalar(Perimortem::Core::View::Bytes name)
-      -> const Scalar* {
-    return ScalarTable::find_or_null(name);
-  }
-
   static constexpr auto find_type(Perimortem::Core::View::Bytes name)
       -> const Type* {
-    if (const Type* scalar = find_scalar(name)) {
-      return scalar;
+    if (const Type* primitive = PrimitiveTypeTable::find_or_null(name)) {
+      return primitive;
     }
 
     return TypeTable::find_or_null(name);
@@ -199,7 +190,7 @@ class Core {
     return type ? type->get_field_count() : 0;
   }
 
-  static auto type_layout(const Syntax::Type::Ref& type) -> Layout;
+  static auto type_layout(const TypeQuery& type) -> Layout;
 };
 
 }  // namespace Tetrodotoxin::Ttx

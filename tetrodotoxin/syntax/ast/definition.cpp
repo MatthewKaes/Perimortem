@@ -9,12 +9,71 @@ using namespace Perimortem::Core;
 using namespace Tetrodotoxin::Syntax;
 using namespace Tetrodotoxin::Lexical;
 
+auto Tetrodotoxin::Syntax::is_type_declaration(DeclarationKind kind) -> Bool {
+  switch (kind) {
+  case DeclarationKind::Enum:
+  case DeclarationKind::Foreign:
+  case DeclarationKind::Object:
+  case DeclarationKind::Shader:
+  case DeclarationKind::Struct:
+    return True;
+
+  case DeclarationKind::Invalid:
+  case DeclarationKind::Value:
+    return False;
+  }
+}
+
+auto Tetrodotoxin::Syntax::to_scope_type(DeclarationKind kind) -> Class::Type {
+  switch (kind) {
+  case DeclarationKind::Enum:
+    return Class::Type::Enum;
+  case DeclarationKind::Foreign:
+    return Class::Type::Foreign;
+  case DeclarationKind::Object:
+    return Class::Type::Object;
+  case DeclarationKind::Shader:
+    return Class::Type::Shader;
+  case DeclarationKind::Struct:
+    return Class::Type::Struct;
+  case DeclarationKind::Invalid:
+  case DeclarationKind::Value:
+    return Class::Type::EndOfStream;
+  }
+}
+
+static auto declaration_kind_from_type(const Type::Ref& type_ref)
+    -> DeclarationKind {
+  if (type_ref.get_segments().is_empty()) {
+    return DeclarationKind::Invalid;
+  }
+
+  switch (type_ref.get_segments()[0].klass.get_type()) {
+  case Class::Type::Enum:
+    return DeclarationKind::Enum;
+  case Class::Type::Foreign:
+    return DeclarationKind::Foreign;
+  case Class::Type::Object:
+    return DeclarationKind::Object;
+  case Class::Type::Shader:
+    return DeclarationKind::Shader;
+  case Class::Type::Struct:
+    return DeclarationKind::Struct;
+  default:
+    return DeclarationKind::Value;
+  }
+}
+
 auto Ast::Definition::is_alias() const -> Bool {
   if (type_ref.get_segments().is_empty()) {
     return False;
   }
 
   return type_ref.get_segments()[0].klass == Class::Type::Alias;
+}
+
+auto Ast::Definition::get_declaration_kind() const -> DeclarationKind {
+  return declaration_kind_from_type(type_ref);
 }
 
 auto Ast::Definition::parse_header(Context& ctx) -> Definition {

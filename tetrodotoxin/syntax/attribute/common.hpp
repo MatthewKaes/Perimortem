@@ -44,8 +44,6 @@ auto require_field(
     FieldKind kind,
     Perimortem::Core::View::Bytes hint) -> void;
 
-auto is_shader_member(const Ast::Member* member) -> Bool;
-auto is_foreign_member(const Ast::Member* member) -> Bool;
 auto is_value_member(const Ast::Member* member) -> Bool;
 
 auto reject_layout_attribute(Context& ctx, const Ast::Attribute& attr) -> void;

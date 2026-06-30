@@ -359,14 +359,14 @@ auto x86_64::read_only(Reg dst) -> void {
   write_const(code, Bits_32(0));
 }
 
-auto x86_64::prologue(
-    Perimortem::Core::View::Vector<Intermediate::Argument> arguments) -> void {
+auto x86_64::prologue(Perimortem::Core::View::Vector<Abi::Argument> arguments)
+    -> void {
   // TODO: generate SSA so we can do mem_to_reg analysis
   push(Reg::RBP);
 }
 
 // returns and clears the stack.
-auto x86_64::epilogue(Intermediate::Type type) -> void {
+auto x86_64::epilogue(Abi::Type type) -> void {
   // Pop stored registers in reverse order.
   pop(Reg::RBP);
   code.append(0xC3);

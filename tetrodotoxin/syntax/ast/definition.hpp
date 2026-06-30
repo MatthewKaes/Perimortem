@@ -13,6 +13,23 @@ namespace Tetrodotoxin::Syntax::Type {
 class Declaration;
 }
 
+namespace Tetrodotoxin::Syntax {
+
+enum class DeclarationKind {
+  Invalid,
+  Value,
+  Enum,
+  Foreign,
+  Object,
+  Shader,
+  Struct,
+};
+
+auto is_type_declaration(DeclarationKind kind) -> Bool;
+auto to_scope_type(DeclarationKind kind) -> Lexical::Class::Type;
+
+}  // namespace Tetrodotoxin::Syntax
+
 namespace Tetrodotoxin::Syntax::Ast {
 
 // A single named declaration: sigil? name : Type::Ref (= Value)?
@@ -38,6 +55,10 @@ class Definition {
   }
   auto is_value() const -> Bool { return form == Lexical::Class::Type::Assign; }
   auto is_alias() const -> Bool;
+  auto get_declaration_kind() const -> DeclarationKind;
+  auto is_type_declaration() const -> Bool {
+    return Syntax::is_type_declaration(get_declaration_kind());
+  }
 
   // Valid when is_value().
   auto get_value() const -> const Value& { return value; }

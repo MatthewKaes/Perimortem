@@ -22,6 +22,12 @@ class ImportScope {
   static auto standard_package_for_type(
       const Record& owner,
       const Syntax::Type::Ref& ref) -> Ttx::StandardPackage;
+  static auto standard_type_name(
+      const Record& owner,
+      const Syntax::Type::Ref& ref) -> Perimortem::Core::View::Bytes;
+  static auto standard_type_query(
+      const Record& owner,
+      const Syntax::Type::Ref& ref) -> Ttx::TypeQuery;
 };
 
 }  // namespace Tetrodotoxin::Resolution

@@ -6,7 +6,6 @@
 #include "perimortem/core/view/bytes.hpp"
 #include "perimortem/core/view/vector.hpp"
 
-#include "tetrodotoxin/syntax/type/ref.hpp"
 #include "tetrodotoxin/ttx/facts.hpp"
 
 namespace Tetrodotoxin::Ttx {
@@ -15,7 +14,7 @@ class StandardPackage {
  public:
   using IsType = auto (*)(Perimortem::Core::View::Bytes) -> Bool;
   using FindType = auto (*)(Perimortem::Core::View::Bytes) -> const Type*;
-  using TypeLayout = auto (*)(const Syntax::Type::Ref&) -> Layout;
+  using TypeLayout = auto (*)(const TypeQuery&) -> Layout;
 
   constexpr StandardPackage() = default;
   constexpr StandardPackage(
@@ -51,7 +50,7 @@ class StandardPackage {
   auto find_method(
       Perimortem::Core::View::Bytes receiver_type,
       Perimortem::Core::View::Bytes method_name) const -> const Method*;
-  auto type_layout(const Syntax::Type::Ref& type) const -> Layout;
+  auto type_layout(const TypeQuery& type) const -> Layout;
 
  private:
   Perimortem::Core::View::Bytes name;

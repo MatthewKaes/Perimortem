@@ -3,29 +3,15 @@
 
 #include "validation/unit_test.hpp"
 
-#include "perimortem/memory/allocator/arena.hpp"
-
-#include "tetrodotoxin/lexical/tokenizer.hpp"
-#include "tetrodotoxin/syntax/type/ref.hpp"
 #include "tetrodotoxin/ttx/graphics/type.hpp"
 
 using namespace Perimortem::Core;
-using namespace Perimortem::Memory;
 using namespace Tetrodotoxin;
 using namespace Validation;
 
 static Harness TtxGraphics = {
   .name = "Tetrodotoxin::Ttx::Graphics"_view,
 };
-
-static auto parse_type_ref(Allocator::Arena& arena, View::Bytes source)
-    -> Syntax::Type::Ref {
-  Lexical::Tokenizer tokenizer(arena);
-  tokenizer.parse(source, false);
-  Syntax::Context context(tokenizer, "<inline type>"_view);
-  context.set_color_enabled(False);
-  return Syntax::Type::Ref::parse(context);
-}
 
 PERIMORTEM_UNIT_TEST(TtxGraphics, describes_graphics_types) {
   EXPECT(Ttx::Graphics::is_type("Sampler_2D"_view));
@@ -74,10 +60,7 @@ PERIMORTEM_UNIT_TEST(TtxGraphics, describes_sampling_methods) {
 }
 
 PERIMORTEM_UNIT_TEST(TtxGraphics, returns_layout_facts_for_graphics_types) {
-  Allocator::Arena arena;
-
-  Ttx::Layout color =
-      Ttx::Graphics::type_layout(parse_type_ref(arena, "Color"_view));
+  Ttx::Layout color = Ttx::Graphics::type_layout(Ttx::TypeQuery("Color"_view));
   EXPECT(color.is_valid());
   EXPECT(color.is_concrete());
   EXPECT_EQ(color.get_entries().get_size(), 4);
@@ -85,6 +68,6 @@ PERIMORTEM_UNIT_TEST(TtxGraphics, returns_layout_facts_for_graphics_types) {
   EXPECT_EQ(color.get_alignment(), 16);
 
   Ttx::Layout missing =
-      Ttx::Graphics::type_layout(parse_type_ref(arena, "Missing"_view));
+      Ttx::Graphics::type_layout(Ttx::TypeQuery("Missing"_view));
   EXPECT_NOT(missing.is_valid());
 }

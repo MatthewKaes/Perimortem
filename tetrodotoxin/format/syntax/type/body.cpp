@@ -16,11 +16,7 @@ using namespace Tetrodotoxin::Syntax;
 using namespace Tetrodotoxin::Format;
 using namespace Tetrodotoxin::Lexical;
 
-enum class TypeGroup {
-  All,
-  Foreign,
-  NonForeign,
-};
+using TypeFilter = Bool (*)(const Type::Declaration&);
 
 static auto begin_group(Formatter& ctx, Bool& emitted) -> void {
   if (emitted) {
@@ -53,10 +49,22 @@ static auto format_function_group(
   Tetrodotoxin::Format::format_block(ctx, functions);
 }
 
+static auto accepts_any_type(const Type::Declaration&) -> Bool {
+  return True;
+}
+
+static auto accepts_foreign_type(const Type::Declaration& type) -> Bool {
+  return type.get_kind() == DeclarationKind::Foreign;
+}
+
+static auto accepts_package_body_type(const Type::Declaration& type) -> Bool {
+  return type.get_kind() != DeclarationKind::Foreign;
+}
+
 static auto format_type_group(
     Formatter& ctx,
     View::Vector<Type::Declaration*> types,
-    TypeGroup group,
+    TypeFilter accepts,
     Bool& emitted) -> void {
   Bool first_type = True;
 
@@ -65,11 +73,7 @@ static auto format_type_group(
       continue;
     }
 
-    if (group == TypeGroup::Foreign && !types[i]->is_foreign()) {
-      continue;
-    }
-
-    if (group == TypeGroup::NonForeign && types[i]->is_foreign()) {
+    if (!accepts(*types[i])) {
       continue;
     }
 
@@ -89,10 +93,12 @@ static auto format_package_order(Formatter& ctx, const Type::Body& body)
     -> void {
   Bool emitted = False;
 
-  format_type_group(ctx, body.get_types(), TypeGroup::Foreign, emitted);
+  // Foreign declarations are ABI promises, so package formatting keeps them
+  // before ordinary declarations where source reviewers can see the boundary.
+  format_type_group(ctx, body.get_types(), accepts_foreign_type, emitted);
   format_member_group(ctx, body.get_members(), emitted);
   format_function_group(ctx, body.get_functions(), emitted);
-  format_type_group(ctx, body.get_types(), TypeGroup::NonForeign, emitted);
+  format_type_group(ctx, body.get_types(), accepts_package_body_type, emitted);
 }
 
 static auto format_type_order(Formatter& ctx, const Type::Body& body) -> void {
@@ -100,7 +106,7 @@ static auto format_type_order(Formatter& ctx, const Type::Body& body) -> void {
 
   format_member_group(ctx, body.get_members(), emitted);
   format_function_group(ctx, body.get_functions(), emitted);
-  format_type_group(ctx, body.get_types(), TypeGroup::All, emitted);
+  format_type_group(ctx, body.get_types(), accepts_any_type, emitted);
 }
 
 auto Tetrodotoxin::Format::format(

@@ -9,7 +9,7 @@
 
 #include "perimortem/memory/dynamic/bytes.hpp"
 
-#include "tetrodotoxin/compiler/intermediate/argument.hpp"
+#include "tetrodotoxin/compiler/abi/argument.hpp"
 
 namespace Tetrodotoxin::Compiler::Assembler {
 
@@ -94,11 +94,11 @@ class x86_64 {
       : code(machine_code) {}
 
   // Sets up a function for use.
-  auto prologue(
-      Perimortem::Core::View::Vector<Intermediate::Argument> arguments) -> void;
+  auto prologue(Perimortem::Core::View::Vector<Abi::Argument> arguments)
+      -> void;
 
   // returns and clears the stack.
-  auto epilogue(Intermediate::Type type) -> void;
+  auto epilogue(Abi::Type type) -> void;
 
   // Exits the current scope.
   auto close() -> void {};

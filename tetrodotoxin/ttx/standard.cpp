@@ -95,8 +95,7 @@ auto StandardPackage::find_method(
   return type ? type->find_method(method_name) : nullptr;
 }
 
-auto StandardPackage::type_layout(const Syntax::Type::Ref& type) const
-    -> Layout {
+auto StandardPackage::type_layout(const TypeQuery& type) const -> Layout {
   return exists() && type_layout_fn ? type_layout_fn(type) : Layout();
 }
 

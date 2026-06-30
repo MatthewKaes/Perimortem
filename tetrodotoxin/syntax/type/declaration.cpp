@@ -15,27 +15,9 @@ using namespace Perimortem::Memory;
 using namespace Tetrodotoxin::Syntax;
 using namespace Tetrodotoxin::Lexical;
 
-static auto get_decl_type(const Ast::Definition& definition) -> Class::Type {
-  if (definition.get_type_ref().get_segments().is_empty()) {
-    return Class::Type::EndOfStream;
-  }
-
-  return definition.get_type_ref().get_segments()[0].klass.get_type();
-}
-
 auto Type::Declaration::is_type_definition(const Ast::Definition& definition)
     -> Bool {
-  switch (get_decl_type(definition)) {
-  case Class::Type::Enum:
-  case Class::Type::Shader:
-  case Class::Type::Object:
-  case Class::Type::Struct:
-  case Class::Type::Foreign:
-    return True;
-
-  default:
-    return False;
-  }
+  return definition.is_type_declaration();
 }
 
 auto Type::Declaration::make_enum_definition(
@@ -158,8 +140,8 @@ auto Type::Declaration::parse_declaration(
     Ast::Definition definition) -> Type::Declaration* {
   Type::Declaration& node = ctx.get_arena().allocate<Type::Declaration>();
   node.disabled = prefix.disabled;
-  node.form = Class::Type::EndStatement;
   node.definition = definition;
+  node.kind = definition.get_declaration_kind();
   node.body = Type::Body();
   node.attributes = prefix.attributes;
   node.documentation = prefix.documentation;
@@ -172,9 +154,7 @@ auto Type::Declaration::parse_declaration(
     return &node;
   }
 
-  Class::Type type = get_decl_type(node.definition);
-
-  if (type == Class::Type::Enum) {
+  if (node.kind == DeclarationKind::Enum) {
     validate_enum_storage_type(ctx, node.definition.get_type_ref());
     if (ctx.matches(Class::Type::ScopeStart)) {
       node.body = parse_enum_scope(ctx, node.definition.get_type_ref());
@@ -183,16 +163,48 @@ auto Type::Declaration::parse_declaration(
           parse_enum_members(ctx, node.definition.get_type_ref()));
       ctx.require(Class::Type::EndStatement);
     }
-    node.form = Class::Type::Enum;
     return &node;
   }
 
   ctx.require(Class::Type::ScopeStart);
-  node.body = Type::Body::parse(ctx, type, Class::Type::ScopeEnd);
+  node.body =
+      Type::Body::parse(ctx, node.get_scope_type(), Class::Type::ScopeEnd);
   ctx.require(Class::Type::ScopeEnd);
-  node.form = Class::Type::ScopeStart;
   return &node;
 }
+
+static auto enum_member_needs_scope(const Ast::Member* member) -> Bool {
+  if (!member) {
+    return False;
+  }
+
+  return member->is_disabled() || !member->get_documentation().is_empty() ||
+         !member->get_attributes().is_empty();
+}
+
+auto Type::Declaration::is_scoped_body() const -> Bool {
+  if (!Syntax::is_type_declaration(kind)) {
+    return False;
+  }
+
+  if (kind != DeclarationKind::Enum) {
+    return True;
+  }
+
+  if (!body.get_functions().is_empty() || !body.get_types().is_empty()) {
+    return True;
+  }
+
+  View::Vector<Ast::Member*> members = body.get_members();
+  for (Count i = 0; i < members.get_size(); i++) {
+    if (enum_member_needs_scope(members[i])) {
+      return True;
+    }
+  }
+
+  return False;
+}
+
 auto Type::Declaration::find_member(View::Bytes name) const
     -> const Ast::Member* {
   View::Vector<Ast::Member*> members = get_scope();

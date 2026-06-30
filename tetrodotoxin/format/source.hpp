@@ -6,7 +6,7 @@
 #include "perimortem/memory/dynamic/bytes.hpp"
 
 #include "tetrodotoxin/format/formatter.hpp"
-#include "tetrodotoxin/format/syntax.hpp"
+#include "tetrodotoxin/format/package.hpp"
 #include "tetrodotoxin/syntax/package.hpp"
 
 namespace Tetrodotoxin::Format {

@@ -204,14 +204,7 @@ auto Resolution::Resolver::standard_package_for_type(
 auto Resolution::Resolver::canonical_standard_type_name(
     const Record& owner,
     const Syntax::Type::Ref& ref) const -> View::Bytes {
-  Ttx::StandardPackage package = standard_package_for_type(owner, ref);
-  if (!package.exists()) {
-    return ref.get_name();
-  }
-
-  View::Vector<View::Bytes> path = ref.get_name_path();
-  return package.is_implicit() || path.get_size() < 2 ? ref.get_name()
-                                                      : path[1];
+  return ImportScope::standard_type_name(owner, ref);
 }
 
 auto Resolution::Resolver::find_standard_type(

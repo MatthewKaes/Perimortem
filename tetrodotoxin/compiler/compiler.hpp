@@ -7,14 +7,18 @@
 #include "perimortem/memory/dynamic/bytes.hpp"
 #include "perimortem/memory/dynamic/vector.hpp"
 
+#include "tetrodotoxin/compiler/abi/argument.hpp"
+#include "tetrodotoxin/compiler/abi/type.hpp"
 #include "tetrodotoxin/compiler/assembler/x86_64.hpp"
 #include "tetrodotoxin/compiler/context/function.hpp"
 #include "tetrodotoxin/compiler/context/names.hpp"
 #include "tetrodotoxin/compiler/context/relocation.hpp"
 #include "tetrodotoxin/compiler/context/strings.hpp"
 #include "tetrodotoxin/compiler/context/symbol.hpp"
-#include "tetrodotoxin/compiler/intermediate/argument.hpp"
-#include "tetrodotoxin/compiler/intermediate/type.hpp"
+
+namespace Tetrodotoxin::Syntax::Ast {
+class Statement;
+}
 
 namespace Tetrodotoxin::Compiler {
 
@@ -26,13 +30,15 @@ class Compiler {
   Compiler() : arena(), names(arena) {}
 
   // Compile a TTX function and record it in the internal symbol table.
-  // Returns the compiler-assigned symbol index.
+  // Returns false when the function body uses a shape this backend does not
+  // honestly lower yet.
   auto compile_function(
-      Perimortem::Core::View::Bytes module,
-      Perimortem::Core::View::Bytes name,
-      Intermediate::Type return_type,
-      Perimortem::Core::View::Vector<Intermediate::Argument> arguments)
-      -> Count;
+      Perimortem::Core::View::Bytes module_name,
+      Perimortem::Core::View::Bytes function_name,
+      Abi::Type return_type,
+      Perimortem::Core::View::Vector<Abi::Argument> arguments,
+      Perimortem::Core::View::Vector<Syntax::Ast::Statement*> function_body)
+      -> Bool;
 
   // Record an immutable data blob as an externally visible object symbol.
   // Shader terminals use this for SPIR-V words and metadata, and other
@@ -72,12 +78,12 @@ class Compiler {
  private:
   auto load_string(
       Assembler::x86_64& assembler,
-      Assembler::x86_64::Reg dst,
+      Assembler::x86_64::Reg destination,
       Perimortem::Core::View::Bytes string) -> void;
 
   auto call_extern(
       Assembler::x86_64& assembler,
-      Perimortem::Core::View::Bytes function) -> void;
+      Perimortem::Core::View::Bytes function_name) -> void;
 
   auto ref_extern(
       Perimortem::Core::View::Bytes name,

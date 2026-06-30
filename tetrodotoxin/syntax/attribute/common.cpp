@@ -8,11 +8,8 @@
 #include "perimortem/utility/pair.hpp"
 #include "perimortem/utility/table.hpp"
 
-#include "tetrodotoxin/syntax/type/declaration.hpp"
-
 using namespace Perimortem::Core;
 using namespace Perimortem::Utility;
-using namespace Tetrodotoxin::Lexical;
 using namespace Tetrodotoxin::Syntax;
 
 using FieldMapping = Pair<View::Bytes, Attribute::FieldKind>;
@@ -67,27 +64,6 @@ auto Attribute::require_field(
   if (!has_field(attr.get_fields(), kind)) {
     ctx.error("Expected attribute field"_view, hint);
   }
-}
-
-static auto is_type(const Ast::Member* member, Class::Type type) -> Bool {
-  if (!member) {
-    return False;
-  }
-
-  const Ast::Definition& def = member->get_definition();
-  if (def.get_type_ref().get_segments().is_empty()) {
-    return False;
-  }
-
-  return def.get_type_ref().get_segments()[0].klass == type;
-}
-
-auto Attribute::is_shader_member(const Ast::Member* member) -> Bool {
-  return is_type(member, Class::Type::Shader);
-}
-
-auto Attribute::is_foreign_member(const Ast::Member* member) -> Bool {
-  return is_type(member, Class::Type::Foreign);
 }
 
 auto Attribute::is_value_member(const Ast::Member* member) -> Bool {
