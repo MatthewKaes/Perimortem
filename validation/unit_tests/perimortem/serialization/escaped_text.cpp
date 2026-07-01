@@ -19,7 +19,7 @@ static Harness SerializationEscapedText = {
   .name = "Serialization::EscapedText"_view,
 };
 
-PERIMORTEM_UNIT_TEST(SerializationEscapedText, preserves_unescaped_views) {
+PERIMORTEM_UNIT_TEST(SerializationEscapedText, unescaped_views) {
   Allocator::Arena arena;
   View::Bytes source = "plain source text"_view;
   View::Bytes decoded = EscapedText::decode(arena, source);
@@ -28,7 +28,7 @@ PERIMORTEM_UNIT_TEST(SerializationEscapedText, preserves_unescaped_views) {
   EXPECT(decoded.get_data() == source.get_data());
 }
 
-PERIMORTEM_UNIT_TEST(SerializationEscapedText, decodes_common_sequences) {
+PERIMORTEM_UNIT_TEST(SerializationEscapedText, common_sequences) {
   Allocator::Arena arena;
   View::Bytes decoded =
       EscapedText::decode(arena, "line\\n\\\"title\\\"\\\\end"_view);
@@ -36,7 +36,7 @@ PERIMORTEM_UNIT_TEST(SerializationEscapedText, decodes_common_sequences) {
   EXPECT_TEXT(decoded, "line\n\"title\"\\end"_view);
 }
 
-PERIMORTEM_UNIT_TEST(SerializationEscapedText, decodes_unicode_sequences) {
+PERIMORTEM_UNIT_TEST(SerializationEscapedText, unicode_sequences) {
   Allocator::Arena arena;
   View::Bytes decoded =
       EscapedText::decode(arena, "\\u0041\\u0020\\u0042"_view);
@@ -44,7 +44,7 @@ PERIMORTEM_UNIT_TEST(SerializationEscapedText, decodes_unicode_sequences) {
   EXPECT_TEXT(decoded, "A B"_view);
 }
 
-PERIMORTEM_UNIT_TEST(SerializationEscapedText, encodes_json_payloads) {
+PERIMORTEM_UNIT_TEST(SerializationEscapedText, json_payloads) {
   Static::Bytes<20> encoded;
   Writer::Textual output(encoded.get_access());
   EscapedText::encode(output, "line\n\"title\"\\end"_view);

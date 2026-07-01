@@ -122,7 +122,7 @@ PERIMORTEM_UNIT_TEST(DynamicMapFull, capacity_stress_test) {
   EXPECT_EQ(large_map.get_memory_consumption(), 1 << 16);
 }
 
-PERIMORTEM_UNIT_TEST(DynamicMapFull, key_construction_count) {
+PERIMORTEM_UNIT_TEST(DynamicMapFull, key_construction) {
   Count construct_count = 0;
   Count destruct_count = 0;
 
@@ -145,7 +145,7 @@ PERIMORTEM_UNIT_TEST(DynamicMapFull, key_construction_count) {
   EXPECT_EQ(default_destruct_count, 0);
 }
 
-PERIMORTEM_UNIT_TEST(DynamicMapFull, value_construction_count) {
+PERIMORTEM_UNIT_TEST(DynamicMapFull, value_construction) {
   Count construct_count = 0;
   Count destruct_count = 0;
 
@@ -168,7 +168,7 @@ PERIMORTEM_UNIT_TEST(DynamicMapFull, value_construction_count) {
   EXPECT_EQ(default_destruct_count, 0);
 }
 
-PERIMORTEM_UNIT_TEST(DynamicMapFull, emplace_construction_count) {
+PERIMORTEM_UNIT_TEST(DynamicMapFull, emplace_count) {
   Count construct_count = 0;
   Count destruct_count = 0;
 

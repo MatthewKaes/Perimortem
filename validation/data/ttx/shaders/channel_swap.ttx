@@ -1,0 +1,49 @@
+dialect : Shader;
+
+import Graphics : Library = TTX.Graphics;
+
+shader ChannelSwap : Graphics.Renderer2D {
+  quad_positions : Vec[Vec2D, 6] = (
+    (.x = 0.0, .y = 0.0),
+    (.x = 1.0, .y = 0.0),
+    (.x = 1.0, .y = 1.0),
+    (.x = 0.0, .y = 0.0),
+    (.x = 1.0, .y = 1.0),
+    (.x = 0.0, .y = 1.0),
+  );
+  quad_uvs : Vec[Vec2D, 6] = (
+    (.x = 0.0, .y = 0.0),
+    (.x = 1.0, .y = 0.0),
+    (.x = 1.0, .y = 1.0),
+    (.x = 0.0, .y = 0.0),
+    (.x = 1.0, .y = 1.0),
+    (.x = 0.0, .y = 1.0),
+  );
+
+  func vertex[.vertex_index : Bits_32] -> [
+    .texture_uv : Vec2D,
+    @output .position : Vec4D,
+  ] {
+    @stack quad_pos : Vec2D = self.quad_positions[vertex_index];
+    @stack centered_quad_pos : Vec2D = quad_pos - (.x = 0.5, .y = 0.5);
+    @stack normalized_size : Vec2D = (
+      .x = uniform.size_pixels.width,
+      .y = uniform.size_pixels.height,
+    );
+    @stack screen_pos : Vec2D =
+        uniform.position + centered_quad_pos * normalized_size;
+    return (
+      .texture_uv = self.quad_uvs[vertex_index],
+      .position = (screen_pos.[x, y], 0.0, 1.0),
+    );
+  }
+
+  func pixel[.texture_uv : Vec2D] -> [
+    @output .color : Graphics.Color,
+  ] {
+    @stack sample : Graphics.Color = uniform.image -> sample(texture_uv);
+    return (
+      .color = (sample.[g, r, b], sample.a * uniform.alpha),
+    );
+  }
+}

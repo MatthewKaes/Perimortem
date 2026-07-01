@@ -26,7 +26,7 @@ constexpr Static::Vector<KeywordEntry, 23> keyword_source = {{
 }};
 
 using keyword_table = Table<Bits_32, keyword_source>;
-using keyword_table_aligned =
+using aligned_keywords =
     Table<Bits_32, keyword_source, (Count)Data::CacheAware::Enabled>;
 
 using WordEntry = Pair<View::Bytes, View::Bytes>;
@@ -55,7 +55,7 @@ using FactEntry = Pair<View::Bytes, Fact>;
 constexpr Static::Vector<FactEntry, 3> fact_source = {{
   {"Vec2D"_view, {"Vec2D"_view, 8, True}},
   {"Vec3D"_view, {"Vec3D"_view, 12, True}},
-  {"Sampler_2D"_view, {"Sampler_2D"_view, 0, False}},
+  {"Sampler2D"_view, {"Sampler2D"_view, 0, False}},
 }};
 
 using fact_table = Table<Fact, fact_source>;
@@ -83,25 +83,25 @@ PERIMORTEM_UNIT_TEST(StaticTable, keyword_table) {
   EXPECT_EQ(keyword_table::find_or_default("errrr"_view, invalid), invalid);
 }
 
-PERIMORTEM_UNIT_TEST(StaticTable, keyword_table_aligned) {
+PERIMORTEM_UNIT_TEST(StaticTable, aligned_keywords) {
   constexpr auto invalid = -1;
 
   for (Count i = 0; i < keyword_source.get_size(); i++) {
     EXPECT_EQ(
-        keyword_table_aligned::find_or_default(keyword_source[i].key, invalid),
+        aligned_keywords::find_or_default(keyword_source[i].key, invalid),
         keyword_source[i].value);
   }
 
   EXPECT_EQ(
-      keyword_table_aligned::find_or_default("unknown"_view, invalid), invalid);
-  EXPECT_EQ(keyword_table_aligned::find_or_default("a"_view, invalid), invalid);
+      aligned_keywords::find_or_default("unknown"_view, invalid), invalid);
+  EXPECT_EQ(aligned_keywords::find_or_default("a"_view, invalid), invalid);
   EXPECT_EQ(
-      keyword_table_aligned::find_or_default("As"_view, invalid), invalid);
-  EXPECT_EQ(keyword_table_aligned::find_or_default(""_view, invalid), invalid);
+      aligned_keywords::find_or_default("As"_view, invalid), invalid);
+  EXPECT_EQ(aligned_keywords::find_or_default(""_view, invalid), invalid);
   EXPECT_EQ(
-      keyword_table_aligned::find_or_default("rutern"_view, invalid), invalid);
+      aligned_keywords::find_or_default("rutern"_view, invalid), invalid);
   EXPECT_EQ(
-      keyword_table_aligned::find_or_default("errrr"_view, invalid), invalid);
+      aligned_keywords::find_or_default("errrr"_view, invalid), invalid);
 }
 
 PERIMORTEM_UNIT_TEST(StaticTable, word_table) {
@@ -153,9 +153,9 @@ PERIMORTEM_UNIT_TEST(StaticTable, find_or_null) {
 }
 
 PERIMORTEM_UNIT_TEST(StaticTable, find_or_null_aligned) {
-  const Fact* sampler = fact_table_aligned::find_or_null("Sampler_2D"_view);
+  const Fact* sampler = fact_table_aligned::find_or_null("Sampler2D"_view);
   EXPECT(sampler != nullptr);
-  EXPECT_TEXT(sampler->name, "Sampler_2D"_view);
+  EXPECT_TEXT(sampler->name, "Sampler2D"_view);
   EXPECT_EQ(sampler->byte_size, 0);
   EXPECT_NOT(sampler->exposed);
 

@@ -126,7 +126,7 @@ PERIMORTEM_UNIT_TEST(DiagnosticsLog, main_thread_name) {
   EXPECT(contains(last_entry(), "[main]"_view));
 }
 
-PERIMORTEM_UNIT_TEST(DiagnosticsLog, thread_name_after_timestamp) {
+PERIMORTEM_UNIT_TEST(DiagnosticsLog, thread_name_order) {
   Log::info("ordering test"_view);
   View::Bytes entry = last_entry();
   ASSERT(entry.get_size() > 21);
@@ -139,7 +139,21 @@ PERIMORTEM_UNIT_TEST(DiagnosticsLog, message_content) {
   EXPECT(contains(last_entry(), "unique message string"_view));
 }
 
-PERIMORTEM_UNIT_TEST(DiagnosticsLog, disable_header_is_thread_state) {
+PERIMORTEM_UNIT_TEST(DiagnosticsLog, message_raii_guard) {
+  Count events_before = total_events;
+
+  {
+    Log::Message<64> message(Log::Level::Info);
+    message << "builder emitted value="_view << Bits_32(42);
+    EXPECT_EQ(total_events, events_before);
+  }
+
+  EXPECT(total_events > events_before);
+  EXPECT(contains(last_entry(), "builder emitted value=42"_view));
+  EXPECT(has_valid_header(last_entry()));
+}
+
+PERIMORTEM_UNIT_TEST(DiagnosticsLog, header_thread_state) {
   EXPECT_NOT(Log::get_disable_header());
 
   Log::set_disable_header(True);

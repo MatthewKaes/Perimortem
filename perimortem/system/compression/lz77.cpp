@@ -30,11 +30,11 @@ constexpr auto compute_hash(Static::Bytes<3> data) -> Count {
   return Count((v * knuth_multiplier) >> 17);
 }
 
-// Compare source[pos..] against source[candidate..] up to scan_limit bytes,
+// Compare source[position..] against source[candidate..] up to scan_limit bytes,
 // looking for instances of duplication in earlier parts of the source input.
 constexpr auto extend_match(
     const Bits_8* data,
-    Count pos,
+    Count position,
     Count candidate,
     Count scan_limit) -> Count {
   // Do a vectorized scan until we find at least one byte that doesn't match.
@@ -47,14 +47,14 @@ constexpr auto extend_match(
   while (match_length + full_channel_width <= scan_limit) {
     // Load the lower bytes
     const auto lower_source_chunk = _mm256_loadu_si256(
-        Data::cast<const __m256i>(data + pos + match_length));
+        Data::cast<const __m256i>(data + position + match_length));
     const auto lower_candidate_chunk = _mm256_loadu_si256(
         Data::cast<const __m256i>(data + candidate + match_length));
 
     // Load the upper bytes
     const auto upper_source_chunk = _mm256_loadu_si256(
         Data::cast<const __m256i>(
-            data + pos + match_length + avx2_channel_width));
+            data + position + match_length + avx2_channel_width));
     const auto upper_candidate_chunk = _mm256_loadu_si256(
         Data::cast<const __m256i>(
             data + candidate + match_length + avx2_channel_width));
@@ -79,7 +79,7 @@ constexpr auto extend_match(
   // First deal with the residual in 8 byte chunks.
   constexpr Count word_size = Count(sizeof(Bits_64));
   while (match_length + word_size <= scan_limit) {
-    Bits_64 source_chunk = *Data::cast<Bits_64>(data + pos + match_length);
+    Bits_64 source_chunk = *Data::cast<Bits_64>(data + position + match_length);
     Bits_64 candidate_chunk =
         *Data::cast<Bits_64>(data + candidate + match_length);
 
@@ -94,7 +94,7 @@ constexpr auto extend_match(
 
   // Final scalar loop for up to 7 residual bytes.
   while (match_length < scan_limit &&
-         data[pos + match_length] == data[candidate + match_length]) {
+         data[position + match_length] == data[candidate + match_length]) {
     match_length++;
   }
   return match_length;
@@ -115,46 +115,46 @@ auto Compression::Lz77::reset() -> void {
       window_size * sizeof(Bits_32));
 }
 
-auto Compression::Lz77::insert(View::Bytes source, Count pos) -> void {
-  if (source.get_size() - pos < min_match) {
+auto Compression::Lz77::insert(View::Bytes source, Count position) -> void {
+  if (source.get_size() - position < min_match) {
     return;
   }
   const Count hash =
-      compute_hash(Static::Bytes<3>::read_range(source.get_data() + pos));
-  chain_table.get_data()[pos & window_mask] = hash_table.get_data()[hash];
-  hash_table.get_data()[hash] = Bits_32(pos);
+      compute_hash(Static::Bytes<3>::read_range(source.get_data() + position));
+  chain_table.get_data()[position & window_mask] = hash_table.get_data()[hash];
+  hash_table.get_data()[hash] = Bits_32(position);
 }
 
 auto Compression::Lz77::find_match_and_insert(
     View::Bytes source,
-    Count pos,
+    Count position,
     Count depth) -> Match {
   const Bits_8* data = source.get_data();
-  const Count remaining = source.get_size() - pos;
+  const Count remaining = source.get_size() - position;
 
   // Only perform a match if we have enough bytes for it to be worthwhile.
   if (remaining < min_match) {
     return Match();
   }
 
-  // Insert pos before searching so future calls can find it but start the
-  // search at the old chain head so we never match pos against itself.
-  const Count hash = compute_hash(Static::Bytes<3>::read_range(data + pos));
+  // Insert position before searching so future calls can find it but start the
+  // search at the old chain head so we never match position against itself.
+  const Count hash = compute_hash(Static::Bytes<3>::read_range(data + position));
   Bits_32 candidate = hash_table.get_data()[hash];
-  chain_table.get_data()[pos & window_mask] = candidate;
-  hash_table.get_data()[hash] = Bits_32(pos);
+  chain_table.get_data()[position & window_mask] = candidate;
+  hash_table.get_data()[hash] = Bits_32(position);
 
   Count best_length = min_match - 1;
   Count best_distance = 0;
   const Count scan_limit = Math::min(max_match, remaining);
 
   for (Count i = 0; i < depth && candidate != null_entry; i++) {
-    const Count distance = pos - candidate;
+    const Count distance = position - candidate;
     if (distance > window_size) {
       break;
     }
 
-    Count match_length = extend_match(data, pos, Count(candidate), scan_limit);
+    Count match_length = extend_match(data, position, Count(candidate), scan_limit);
     if (match_length > best_length) {
       best_length = match_length;
       best_distance = distance;
@@ -173,30 +173,30 @@ auto Compression::Lz77::find_match_and_insert(
   return Match(best_length, best_distance);
 }
 
-auto Compression::Lz77::find_match(View::Bytes source, Count pos, Count depth)
+auto Compression::Lz77::find_match(View::Bytes source, Count position, Count depth)
     const -> Match {
   const Bits_8* data = source.get_data();
-  const Count remaining = source.get_size() - pos;
+  const Count remaining = source.get_size() - position;
 
   // Only perform a match if we have enough bytes for it to be worthwhile.
   if (remaining < min_match) {
     return Match();
   }
 
-  const Count hash = compute_hash(Static::Bytes<3>::read_range(data + pos));
+  const Count hash = compute_hash(Static::Bytes<3>::read_range(data + position));
   Count best_length = min_match - 1;
   Count best_distance = 0;
   Bits_32 candidate = hash_table.get_data()[hash];
   const Count scan_limit = Math::min(max_match, remaining);
 
   for (Count i = 0; i < depth && candidate != null_entry; i++) {
-    const Count distance = pos - candidate;
+    const Count distance = position - candidate;
     if (distance > window_size) {
       break;
     }
 
     const Count match_length =
-        extend_match(data, pos, Count(candidate), scan_limit);
+        extend_match(data, position, Count(candidate), scan_limit);
     if (match_length > best_length) {
       best_length = match_length;
       best_distance = distance;

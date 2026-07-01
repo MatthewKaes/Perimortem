@@ -1,0 +1,7 @@
+dialect : Library;
+
+import Graphics : Library = TTX.Graphics;
+import Broken : Shader = (.source = "shaders/renamed_values.ttx");
+
+@public func main[] -> [] {
+}

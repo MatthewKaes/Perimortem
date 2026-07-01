@@ -19,25 +19,23 @@ class Vector {
   static constexpr Count growth_factor = 2;
 
   Vector() {};
-  Vector(const Vector& rhs) {
-    ensure_capacity(rhs.get_size() * sizeof(type));
-    size = rhs.get_size();
+  Vector(const Vector& source_vector) {
+    ensure_capacity(source_vector.get_size());
+    size = source_vector.get_size();
 
-    auto target_items = source_block;
-    auto source_items = rhs.source_block;
     for (Count i = 0; i < size; i++) {
-      new (target_items + i) type(source_items[i]);
+      new (source_block + i) type(source_vector.source_block[i]);
     }
   }
 
-  Vector(Vector&& rhs) {
-    size = rhs.size;
-    capacity = rhs.capacity;
-    source_block = rhs.source_block;
+  Vector(Vector&& source_vector) {
+    size = source_vector.size;
+    capacity = source_vector.capacity;
+    source_block = source_vector.source_block;
 
-    rhs.size = 0;
-    rhs.capacity = 0;
-    rhs.source_block = nullptr;
+    source_vector.size = 0;
+    source_vector.capacity = 0;
+    source_vector.source_block = nullptr;
   }
 
   Vector(Count capacity) {
@@ -45,16 +43,32 @@ class Vector {
     size = 0;
   }
 
-  auto operator=(Vector&& rhs) -> Vector& {
-    size = rhs.size;
-    capacity = rhs.capacity;
+  auto operator=(Vector&& source_vector) -> Vector& {
+    size = source_vector.size;
+    capacity = source_vector.capacity;
 
-    rhs.size = 0;
-    rhs.capacity = 0;
+    source_vector.size = 0;
+    source_vector.capacity = 0;
 
-    // Swap source blocks and since move isn't "destructive" we can rely on the
-    // destructor form the donor bytes.
-    Core::Data::swap(source_block, rhs.source_block);
+    // Swap source blocks. Since move is not destructive, the donor destructor
+    // releases the old block this vector used to own.
+    Core::Data::swap(source_block, source_vector.source_block);
+
+    return *this;
+  }
+
+  auto operator=(const Vector& source_vector) -> Vector& {
+    if (this == &source_vector) {
+      return *this;
+    }
+
+    clear();
+    ensure_capacity(source_vector.get_size());
+    size = source_vector.get_size();
+
+    for (Count i = 0; i < size; i++) {
+      new (source_block + i) type(source_vector.source_block[i]);
+    }
 
     return *this;
   }
@@ -145,7 +159,13 @@ class Vector {
     return false;
   }
 
-  constexpr auto at(Count index) const -> type& { return source_block[index]; }
+  constexpr auto at(Count index) const -> const type& {
+    return source_block[index];
+  }
+  constexpr auto at(Count index) -> type& { return source_block[index]; }
+  constexpr auto operator[](Count index) const -> const type& {
+    return at(index);
+  }
   constexpr auto operator[](Count index) -> type& { return at(index); }
 
   constexpr auto get_size() const -> Count { return size; }
@@ -185,7 +205,14 @@ class Vector {
     auto new_block = Core::Data::cast<type>(alloc.ptr);
 
     if (source_block) {
-      memcpy(new_block, source_block, sizeof(type) * size);
+      if constexpr (__is_trivially_copyable(type)) {
+        memcpy(new_block, source_block, sizeof(type) * size);
+      } else {
+        for (Count i = 0; i < size; i++) {
+          new (new_block + i) type(source_block[i]);
+        }
+        destruct();
+      }
       Core::Bibliotheca::remit((Bits_8*)source_block);
     }
 

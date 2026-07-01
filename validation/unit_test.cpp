@@ -77,10 +77,10 @@ auto error_contains(View::Bytes message) -> Bool {
   return Algorithm::search(captured_message(), message) != Count(-1);
 }
 
-auto log_message(View::Bytes file, Count line, View::Bytes msg) -> void {
+auto log_message(View::Bytes file, Count line, View::Bytes message) -> void {
   printf(
       "%.*s:%llu:\n    %.*s\n", (int)file.get_size(), file.get_data(),
-      (unsigned long long)line, (int)msg.get_size(), msg.get_data());
+      (unsigned long long)line, (int)message.get_size(), message.get_data());
 }
 
 auto create(
@@ -98,10 +98,10 @@ auto write_label(Bool actual) -> void {
 }
 
 auto expected(Bool value, Bool actual) -> void {
-  Static::Bytes<32> buf;
-  Writer::Textual text(buf.get_access());
+  Static::Bytes<32> buffer;
+  Writer::Textual text(buffer.get_access());
   text << (actual ? actual_label : expected_label) << value << "\n"_view;
-  fwrite(buf.get_data(), 1, text.get_location(), stdout);
+  fwrite(buffer.get_data(), 1, text.get_location(), stdout);
 }
 
 auto expected(View::Bytes value, Bool actual) -> void {
@@ -111,45 +111,45 @@ auto expected(View::Bytes value, Bool actual) -> void {
 }
 
 auto expected(Bits_16 value, Bool actual) -> void {
-  Static::Bytes<32> buf;
-  Writer::Textual text(buf.get_access());
+  Static::Bytes<32> buffer;
+  Writer::Textual text(buffer.get_access());
   text << (actual ? actual_label : expected_label) << value << "\n"_view;
-  fwrite(buf.get_data(), 1, text.get_location(), stdout);
+  fwrite(buffer.get_data(), 1, text.get_location(), stdout);
 }
 
 auto expected(Bits_32 value, Bool actual) -> void {
-  Static::Bytes<32> buf;
-  Writer::Textual text(buf.get_access());
+  Static::Bytes<32> buffer;
+  Writer::Textual text(buffer.get_access());
   text << (actual ? actual_label : expected_label) << value << "\n"_view;
-  fwrite(buf.get_data(), 1, text.get_location(), stdout);
+  fwrite(buffer.get_data(), 1, text.get_location(), stdout);
 }
 
 auto expected(Bits_64 value, Bool actual) -> void {
-  Static::Bytes<32> buf;
-  Writer::Textual text(buf.get_access());
+  Static::Bytes<32> buffer;
+  Writer::Textual text(buffer.get_access());
   text << (actual ? actual_label : expected_label) << value << "\n"_view;
-  fwrite(buf.get_data(), 1, text.get_location(), stdout);
+  fwrite(buffer.get_data(), 1, text.get_location(), stdout);
 }
 
 auto expected(Signed_16 value, Bool actual) -> void {
-  Static::Bytes<32> buf;
-  Writer::Textual text(buf.get_access());
+  Static::Bytes<32> buffer;
+  Writer::Textual text(buffer.get_access());
   text << (actual ? actual_label : expected_label) << value << "\n"_view;
-  fwrite(buf.get_data(), 1, text.get_location(), stdout);
+  fwrite(buffer.get_data(), 1, text.get_location(), stdout);
 }
 
 auto expected(Signed_32 value, Bool actual) -> void {
-  Static::Bytes<32> buf;
-  Writer::Textual text(buf.get_access());
+  Static::Bytes<32> buffer;
+  Writer::Textual text(buffer.get_access());
   text << (actual ? actual_label : expected_label) << value << "\n"_view;
-  fwrite(buf.get_data(), 1, text.get_location(), stdout);
+  fwrite(buffer.get_data(), 1, text.get_location(), stdout);
 }
 
 auto expected(Signed_64 value, Bool actual) -> void {
-  Static::Bytes<32> buf;
-  Writer::Textual text(buf.get_access());
+  Static::Bytes<32> buffer;
+  Writer::Textual text(buffer.get_access());
   text << (actual ? actual_label : expected_label) << value << "\n"_view;
-  fwrite(buf.get_data(), 1, text.get_location(), stdout);
+  fwrite(buffer.get_data(), 1, text.get_location(), stdout);
 }
 
 auto expected(CppSize value, Bool actual) -> void {
@@ -157,10 +157,10 @@ auto expected(CppSize value, Bool actual) -> void {
 }
 
 auto expected(Real_64 value, Bool actual) -> void {
-  Static::Bytes<48> buf;
-  Writer::Textual text(buf.get_access());
+  Static::Bytes<48> buffer;
+  Writer::Textual text(buffer.get_access());
   text << (actual ? actual_label : expected_label) << value << "\n"_view;
-  fwrite(buf.get_data(), 1, text.get_location(), stdout);
+  fwrite(buffer.get_data(), 1, text.get_location(), stdout);
 }
 
 auto expected_text(View::Bytes value, View::Bytes other, Bool actual) -> void {
@@ -244,9 +244,9 @@ int main() {
   const Harness* harness = nullptr;
   for (Count index = 0; index < binary_tests_count; index++) {
     const Instance& test = binary_tests[index];
-    Count name_len = test.name.get_size();
-    if (name_len > longest_test_name) {
-      longest_test_name = name_len;
+    Count name_length = test.name.get_size();
+    if (name_length > longest_test_name) {
+      longest_test_name = name_length;
     }
     if (test.harness != harness) {
       test_suites++;
@@ -295,7 +295,7 @@ int main() {
 
     Time start = Time::now();
     test.func(result);
-    Real_64 test_time_ms = start.measure().convert_to_microseconds();
+    Real_64 test_time_ms = start.measure().convert_to_milliseconds();
 
     harness->teardown();
     Diagnostics::Log::set_sink(Diagnostics::Log::default_sink);

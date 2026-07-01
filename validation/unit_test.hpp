@@ -30,7 +30,6 @@ auto expected(Bits_16 value, Bool actual) -> void;
 auto expected(Bits_32 value, Bool actual) -> void;
 auto expected(Bits_64 value, Bool actual) -> void;
 auto expected(Signed_32 value, Bool actual) -> void;
-auto expected(Signed_32 value, Bool actual) -> void;
 auto expected(Signed_64 value, Bool actual) -> void;
 auto expected(CppSize value, Bool actual) -> void;
 auto expected(Real_64 value, Bool actual) -> void;
@@ -52,7 +51,7 @@ using TestFunc = void (*)(TestResult& result);
 auto log_message(
     Perimortem::Core::View::Bytes file,
     Count line,
-    Perimortem::Core::View::Bytes msg) -> void;
+    Perimortem::Core::View::Bytes message) -> void;
 
 auto create(
     const Harness& harness,

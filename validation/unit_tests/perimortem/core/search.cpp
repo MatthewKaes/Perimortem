@@ -36,7 +36,7 @@ PERIMORTEM_UNIT_TEST(AlgoSearch, both_empty) {
   EXPECT_EQ(Algorithm::search(""_view, ""_view), Count(0));
 }
 
-PERIMORTEM_UNIT_TEST(AlgoSearch, empty_src) {
+PERIMORTEM_UNIT_TEST(AlgoSearch, empty_source) {
   EXPECT_EQ(Algorithm::search(""_view, "abc"_view), Count(-1));
 }
 
@@ -44,7 +44,7 @@ PERIMORTEM_UNIT_TEST(AlgoSearch, single_byte) {
   EXPECT_EQ(Algorithm::search("a"_view, "a"_view), Count(0));
 }
 
-PERIMORTEM_UNIT_TEST(AlgoSearch, single_byte_not_found) {
+PERIMORTEM_UNIT_TEST(AlgoSearch, missing_single_byte) {
   EXPECT_EQ(Algorithm::search("a"_view, "b"_view), Count(-1));
 }
 

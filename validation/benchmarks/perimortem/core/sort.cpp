@@ -199,7 +199,7 @@ PERIMORTEM_BENCHMARK(SortStrings16k, views_16k) {
 #ifdef PERI_BENCH_CPP
 
 // All integer sort harnesses share the name "Sorting" so using that name here
-// lets find_stored_ns locate their benchmark stats during comparison lookup.
+// lets find_stored_time locate their benchmark stats during comparison lookup.
 static Harness SortIntComp = {
   .name = "Sorting"_view,
   .setup =

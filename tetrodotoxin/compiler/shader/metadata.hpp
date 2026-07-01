@@ -7,16 +7,18 @@
 
 #include "perimortem/memory/dynamic/bytes.hpp"
 
-#include "tetrodotoxin/dialect/shader/facts.hpp"
+#include "tetrodotoxin/dialect/shader/metadata.hpp"
 
 namespace Tetrodotoxin::Compiler::Shader {
 
-auto write_push_constant_metadata(
-    const Dialect::Shader::PushConstantMetadata& metadata,
-    Perimortem::Memory::Dynamic::Bytes& out) -> void;
+auto write_host_input_metadata(
+    const Dialect::Shader::Metadata::HostInputs& metadata,
+    Perimortem::Memory::Dynamic::Bytes& output) -> void;
 
 auto write_descriptor_metadata(
-    Perimortem::Core::View::Vector<Dialect::Shader::DescriptorBinding> metadata,
-    Perimortem::Memory::Dynamic::Bytes& out) -> void;
+    Perimortem::Core::View::Vector<
+        Dialect::Shader::Metadata::Binding>
+        metadata,
+    Perimortem::Memory::Dynamic::Bytes& output) -> void;
 
 }  // namespace Tetrodotoxin::Compiler::Shader

@@ -23,7 +23,7 @@ static Harness SerializationPng = {
   .name = "Serialization::Png"_view,
 };
 
-PERIMORTEM_UNIT_TEST(SerializationPng, decode_red_1x1_dimensions) {
+PERIMORTEM_UNIT_TEST(SerializationPng, red_1x1_dimensions) {
   auto start_requests = Bibliotheca::check_out_requests();
   File source;
   ASSERT(source.read("validation/data/pngs/red_1x1.png"_view));
@@ -43,7 +43,7 @@ PERIMORTEM_UNIT_TEST(SerializationPng, decode_red_1x1_dimensions) {
   EXPECT(Bibliotheca::check_out_requests() - start_requests <= 6);
 }
 
-PERIMORTEM_UNIT_TEST(SerializationPng, decode_checkerboard_2x2) {
+PERIMORTEM_UNIT_TEST(SerializationPng, checkerboard_2x2) {
   File source;
   ASSERT(source.read("validation/data/pngs/checkerboard_2x2.png"_view));
 
@@ -86,7 +86,7 @@ PERIMORTEM_UNIT_TEST(SerializationPng, decode_rgb_to_rgba) {
   EXPECT_EQ(pixels[2].alpha, Bits_8(0xFF));
 }
 
-PERIMORTEM_UNIT_TEST(SerializationPng, decode_gray_expands_to_rgba) {
+PERIMORTEM_UNIT_TEST(SerializationPng, gray_to_rgba) {
   File source;
   ASSERT(source.read("validation/data/pngs/gray_2x2.png"_view));
 
@@ -177,7 +177,7 @@ PERIMORTEM_UNIT_TEST(SerializationPng, roundtrip_1x1) {
   EXPECT_EQ(decoded_pixels[0].alpha, Bits_8(0x78));
 }
 
-PERIMORTEM_UNIT_TEST(SerializationPng, roundtrip_checkerboard) {
+PERIMORTEM_UNIT_TEST(SerializationPng, roundtrip_checker) {
   Dynamic::Vector<Pixel> source_pixels;
   source_pixels.insert({0xFF, 0x00, 0x00, 0xFF});
   source_pixels.insert({0x00, 0xFF, 0x00, 0xFF});
@@ -230,7 +230,7 @@ PERIMORTEM_UNIT_TEST(SerializationPng, roundtrip_64x64) {
   }
 }
 
-PERIMORTEM_UNIT_TEST(SerializationPng, incorrect_pixel_count) {
+PERIMORTEM_UNIT_TEST(SerializationPng, pixel_count_mismatch) {
   Dynamic::Vector<Pixel> one_pixel;
   one_pixel.insert({0xFF, 0x00, 0x00, 0xFF});
   Image bad_image(Data::take(one_pixel), 2, 2);
@@ -249,7 +249,7 @@ PERIMORTEM_UNIT_TEST(SerializationPng, zero_dimensions) {
   EXPECT_EQ(encoded_h.get_size(), 0);
 }
 
-PERIMORTEM_UNIT_TEST(SerializationPng, truncated_chunk_header) {
+PERIMORTEM_UNIT_TEST(SerializationPng, chunk_header_trunc) {
   // PNG with a valid IHDR that's shorter than the valid size.
   File source;
   ASSERT(source.read("validation/data/pngs/error_truncated_header.png"_view));
@@ -319,7 +319,7 @@ PERIMORTEM_UNIT_TEST(SerializationPng, crc_mismatch) {
 }
 #endif
 
-PERIMORTEM_UNIT_TEST(SerializationPng, avoid_roundtrip_bloat) {
+PERIMORTEM_UNIT_TEST(SerializationPng, roundtrip_bloat) {
   File source;
   ASSERT(source.read("validation/data/pngs/perimortem_icon.png"_view));
 

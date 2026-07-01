@@ -23,8 +23,8 @@ constexpr auto test_directory = "validation/data"_view;
 constexpr auto test_file = ".bin/bin/validation/system_file_test.json"_view;
 constexpr auto test_output =
     ".bin/bin/validation/system_file_test_out.json"_view;
-constexpr auto test_file_c_str = ".bin/bin/validation/system_file_test.json";
-constexpr auto test_output_c_str =
+constexpr auto test_file_c_string = ".bin/bin/validation/system_file_test.json";
+constexpr auto test_output_c_string =
     ".bin/bin/validation/system_file_test_out.json";
 constexpr auto json_contents =
     "{\"object\":{\"a\":2,\"b\":\"3\"},\"array\":[1,2,true,\"test\"],"
@@ -35,18 +35,18 @@ static Harness SystemFile = {
   .name = "System::File"_view,
   .setup =
       []() {
-        auto file_src = fopen(test_file_c_str, "wb");
-        if (!file_src) {
+        auto file_source = fopen(test_file_c_string, "wb");
+        if (!file_source) {
           return;
         }
 
-        fwrite(json_contents.get_data(), json_contents.get_size(), 1, file_src);
-        fclose(file_src);
+        fwrite(json_contents.get_data(), json_contents.get_size(), 1, file_source);
+        fclose(file_source);
       },
   .teardown =
       []() {
-        remove(test_file_c_str);
-        remove(test_output_c_str);
+        remove(test_file_c_string);
+        remove(test_output_c_string);
       },
 };
 
@@ -91,8 +91,8 @@ PERIMORTEM_UNIT_TEST(SystemFile, memory_file) {
 PERIMORTEM_UNIT_TEST(SystemFile, check_existence) {
   auto start_requests = Bibliotheca::check_out_requests();
 
-  EXPECT(File::exists("validation/data/ttx/source.ttx"_view));
-  EXPECT_NOT(File::exists("validation/data/ttx/source2.ttx"_view));
+  EXPECT(File::exists("validation/data/ttx/png.ttx"_view));
+  EXPECT_NOT(File::exists("validation/data/ttx/png2.ttx"_view));
   EXPECT(File::exists("perimortem/system/file.cpp"_view));
 
   // Directories don't count as files.
@@ -195,7 +195,7 @@ PERIMORTEM_UNIT_TEST(SystemFile, sync_directory) {
   EXPECT_TEXT(file.get_view(), ""_view);
 }
 
-PERIMORTEM_UNIT_TEST(SystemFile, sync_memory_vs_existing) {
+PERIMORTEM_UNIT_TEST(SystemFile, sync_memory_existing) {
   File empty_file;
   File file;
   auto test_content = "test"_view;
@@ -238,7 +238,7 @@ PERIMORTEM_UNIT_TEST(SystemFile, sync_read_and_write) {
   EXPECT_TEXT(file.get_view(), json_contents);
 }
 
-PERIMORTEM_UNIT_TEST(SystemFile, sync_read_update_write) {
+PERIMORTEM_UNIT_TEST(SystemFile, sync_update_write) {
   auto start_requests = Bibliotheca::check_out_requests();
   constexpr auto new_content = "empty"_view;
   File empty_file;

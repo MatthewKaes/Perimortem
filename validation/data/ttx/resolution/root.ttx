@@ -1,7 +1,7 @@
 // Resolution fixture root.
-package : Library;
+dialect : Library;
 
 import Math : Library = (.source = "math.ttx");
-import Image : Shader = (.source = "image.ttx");
+import Image : Render = (.source = "image.ttx");
 
 @hidden value : Count = 1;

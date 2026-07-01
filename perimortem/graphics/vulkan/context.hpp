@@ -37,38 +37,14 @@ class Context {
   // Returns the index of the first memory type that satisfies both the type
   // filter bitmask and the required property flags. Returns UINT32_MAX if
   // no matching type is found.
-  auto find_memory_type(Bits_32 type_filter, VkMemoryPropertyFlags props) const
-      -> Bits_32;
+  auto find_memory_type(
+      Bits_32 type_filter,
+      VkMemoryPropertyFlags properties) const -> Bits_32;
 
-  // Allocates a transient command buffer, records via callback, then submits
-  // and blocks until the GPU finishes. Used for one-shot transfers.
-  template <typename callback_type>
-  auto submit_immediate(callback_type callback) const -> void {
-    VkCommandBufferAllocateInfo alloc = {
-      VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO};
-    alloc.commandPool = get_command_pool();
-    alloc.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-    alloc.commandBufferCount = 1;
-
-    VkCommandBuffer cmd = VK_NULL_HANDLE;
-    vkAllocateCommandBuffers(get_device(), &alloc, &cmd);
-
-    VkCommandBufferBeginInfo begin = {
-      VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
-    begin.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-    vkBeginCommandBuffer(cmd, &begin);
-
-    callback(cmd);
-
-    vkEndCommandBuffer(cmd);
-
-    VkSubmitInfo submit = {VK_STRUCTURE_TYPE_SUBMIT_INFO};
-    submit.commandBufferCount = 1;
-    submit.pCommandBuffers = &cmd;
-    vkQueueSubmit(get_graphics_queue(), 1, &submit, VK_NULL_HANDLE);
-    vkQueueWaitIdle(get_graphics_queue());
-    vkFreeCommandBuffers(get_device(), get_command_pool(), 1, &cmd);
-  }
+  // One-shot transfer commands are scoped by the caller: begin records a
+  // transient command buffer, submit ends it and blocks until the GPU is done.
+  auto begin_immediate_commands() const -> VkCommandBuffer;
+  auto submit_immediate_commands(VkCommandBuffer command_buffer) const -> void;
 
  private:
   friend class Swapchain;

@@ -40,6 +40,10 @@ class Textual {
   auto operator<<(const Real_64 value) -> Textual&;
   auto operator<<(const View::Bytes raw) -> Textual&;
 
+  // Don't let C++ promote or do anything funky with C Strings.
+  // They aren't part of the ABI so we explicitly delete them.
+  auto operator<<(const char* raw) -> Textual& = delete;
+
   constexpr auto get_size() const -> Count { return source.get_size(); }
   constexpr auto get_location() const -> Count { return cursor; }
   constexpr auto is_valid() const -> Bool { return valid_state; }

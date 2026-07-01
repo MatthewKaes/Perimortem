@@ -9,7 +9,7 @@
 #include "perimortem/core/thread/worker.hpp"
 
 #include "perimortem/graphics/image.hpp"
-#include "perimortem/graphics/ttx_shader.hpp"
+#include "perimortem/graphics/render.hpp"
 
 namespace Perimortem::Graphics {
 
@@ -24,7 +24,7 @@ class Sprite2D {
   Sprite2D(const Sprite2D&) = delete;
   auto operator=(const Sprite2D&) -> Sprite2D& = delete;
 
-  auto set_shader(const Ttx::Shader& shader) -> void;
+  auto set_renderer(const Render& renderer) -> void;
   auto set_position(Real_32 x, Real_32 y) -> void;
   auto set_size_pixels(Real_32 width, Real_32 height) -> void;
   auto set_alpha(Real_32 value) -> void;
@@ -62,7 +62,7 @@ class Window {
   enum class CommandKind : Bits_8 {
     Stop,
     CreateSprite2D,
-    SetSprite2DShader,
+    SetSprite2DRenderer,
     SetSprite2DPosition,
     SetSprite2DSize,
     SetSprite2DAlpha,
@@ -78,7 +78,7 @@ class Window {
     CommandKind kind = CommandKind::WaitIdle;
     Count sprite_index = 0;
     const Image* image = nullptr;
-    const Ttx::Shader* shader = nullptr;
+    const Render* renderer = nullptr;
     Real_32 x = 0.0f;
     Real_32 y = 0.0f;
     Bool bool_result = False;
@@ -92,7 +92,8 @@ class Window {
     Runtime(const Runtime&) = delete;
     auto operator=(const Runtime&) -> Runtime& = delete;
 
-    auto operator()() -> void;
+    static auto run_job(Core::View::Bytes job_data) -> void;
+    auto run() -> void;
     auto wait_until_ready() -> void;
     auto execute(Command& command) -> void;
 
@@ -114,7 +115,7 @@ class Window {
   };
 
   auto create_sprite_2d(const Image& image) -> Sprite2D&;
-  auto set_sprite_2d_shader(Count sprite_index, const Ttx::Shader& shader)
+  auto set_sprite_2d_renderer(Count sprite_index, const Render& renderer)
       -> void;
   auto set_sprite_2d_position(Count sprite_index, Real_32 x, Real_32 y) -> void;
   auto set_sprite_2d_size(Count sprite_index, Real_32 width, Real_32 height)

@@ -1,4 +1,4 @@
 // Resolution fixture with no imports.
-package : Library;
+dialect : Library;
 
 @hidden value : Count = 1;

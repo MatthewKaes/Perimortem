@@ -20,16 +20,155 @@ static Harness TtxShaderCompiler = {
   .name = "Tetrodotoxin::Compiler::Shader"_view,
 };
 
-PERIMORTEM_UNIT_TEST(TtxShaderCompiler, emits_icon_v1_spirv_modules) {
-  Resolution::Resolver resolver;
-  ASSERT(resolver.resolve("apps/shaders/icon.ttx"_view));
+static auto read_spirv_word(View::Bytes source, Count word_index) -> Bits_32 {
+  const Count byte_index = word_index * 4;
+  return Bits_32(source[byte_index]) |
+         (Bits_32(source[byte_index + 1]) << 8) |
+         (Bits_32(source[byte_index + 2]) << 16) |
+         (Bits_32(source[byte_index + 3]) << 24);
+}
 
-  Resolution::Record* record = resolver.find("apps/shaders/icon.ttx"_view);
+static auto has_vector_shuffle_components(
+    View::Bytes module,
+    Bits_32 first_component,
+    Bits_32 second_component,
+    Bits_32 third_component) -> Bool {
+  const Count word_count = module.get_size() / 4;
+  Count word_index = 5;
+
+  while (word_index < word_count) {
+    const Bits_32 instruction = read_spirv_word(module, word_index);
+    const Bits_32 opcode = instruction & 0xFFFF;
+    const Count instruction_word_count = Count(instruction >> 16);
+    if (instruction_word_count == 0 ||
+        word_index + instruction_word_count > word_count) {
+      return False;
+    }
+
+    if (opcode == Bits_32(Compiler::Assembler::spirv::Op::VectorShuffle) &&
+        instruction_word_count == 8 &&
+        read_spirv_word(module, word_index + 5) == first_component &&
+        read_spirv_word(module, word_index + 6) == second_component &&
+        read_spirv_word(module, word_index + 7) == third_component) {
+      return True;
+    }
+
+    word_index += instruction_word_count;
+  }
+
+  return False;
+}
+
+static auto has_decoration(
+    View::Bytes module,
+    Bits_32 target_id,
+    Compiler::Assembler::spirv::Decoration decoration,
+    Bits_32 value) -> Bool {
+  const Count word_count = module.get_size() / 4;
+  Count word_index = 5;
+
+  while (word_index < word_count) {
+    const Bits_32 instruction = read_spirv_word(module, word_index);
+    const Bits_32 opcode = instruction & 0xFFFF;
+    const Count instruction_word_count = Count(instruction >> 16);
+    if (instruction_word_count == 0 ||
+        word_index + instruction_word_count > word_count) {
+      return False;
+    }
+
+    if (opcode == Bits_32(Compiler::Assembler::spirv::Op::Decorate) &&
+        instruction_word_count == 4 &&
+        read_spirv_word(module, word_index + 1) == target_id &&
+        read_spirv_word(module, word_index + 2) == Bits_32(decoration) &&
+        read_spirv_word(module, word_index + 3) == value) {
+      return True;
+    }
+
+    word_index += instruction_word_count;
+  }
+
+  return False;
+}
+
+static auto has_variable_storage(
+    View::Bytes module,
+    Bits_32 target_id,
+    Compiler::Assembler::spirv::StorageClass storage) -> Bool {
+  const Count word_count = module.get_size() / 4;
+  Count word_index = 5;
+
+  while (word_index < word_count) {
+    const Bits_32 instruction = read_spirv_word(module, word_index);
+    const Bits_32 opcode = instruction & 0xFFFF;
+    const Count instruction_word_count = Count(instruction >> 16);
+    if (instruction_word_count == 0 ||
+        word_index + instruction_word_count > word_count) {
+      return False;
+    }
+
+    if (opcode == Bits_32(Compiler::Assembler::spirv::Op::Variable) &&
+        instruction_word_count == 4 &&
+        read_spirv_word(module, word_index + 2) == target_id &&
+        read_spirv_word(module, word_index + 3) == Bits_32(storage)) {
+      return True;
+    }
+
+    word_index += instruction_word_count;
+  }
+
+  return False;
+}
+
+static auto has_descriptor_binding(
+    View::Bytes module,
+    Bits_32 descriptor_set,
+    Bits_32 binding_slot) -> Bool {
+  const Count word_count = module.get_size() / 4;
+  Count word_index = 5;
+
+  while (word_index < word_count) {
+    const Bits_32 instruction = read_spirv_word(module, word_index);
+    const Bits_32 opcode = instruction & 0xFFFF;
+    const Count instruction_word_count = Count(instruction >> 16);
+    if (instruction_word_count == 0 ||
+        word_index + instruction_word_count > word_count) {
+      return False;
+    }
+
+    if (opcode == Bits_32(Compiler::Assembler::spirv::Op::Decorate) &&
+        instruction_word_count == 4 &&
+        read_spirv_word(module, word_index + 2) ==
+            Bits_32(Compiler::Assembler::spirv::Decoration::DescriptorSet) &&
+        read_spirv_word(module, word_index + 3) == descriptor_set) {
+      const Bits_32 target_id = read_spirv_word(module, word_index + 1);
+      if (has_decoration(
+              module, target_id,
+              Compiler::Assembler::spirv::Decoration::Binding,
+              binding_slot) &&
+          has_variable_storage(
+              module, target_id,
+              Compiler::Assembler::spirv::StorageClass::UniformConstant)) {
+        return True;
+      }
+    }
+
+    word_index += instruction_word_count;
+  }
+
+  return False;
+}
+
+PERIMORTEM_UNIT_TEST(TtxShaderCompiler, default_2d_spirv_modules) {
+  Resolution::Resolver resolver;
+  ASSERT(resolver.resolve("apps/shaders/default_2d.ttx"_view));
+
+  Resolution::Record* record =
+      resolver.find("apps/shaders/default_2d.ttx"_view);
   ASSERT(record);
 
   Perimortem::Memory::Dynamic::Bytes vertex;
   Perimortem::Memory::Dynamic::Bytes pixel;
-  ASSERT(Compiler::Shader::emit_v1_modules(*record, vertex, pixel));
+  ASSERT(Compiler::Shader::emit_program_modules(*record, vertex, pixel));
 
   EXPECT(Compiler::Assembler::spirv::is_valid_module(vertex));
   EXPECT(Compiler::Assembler::spirv::is_valid_module(pixel));
@@ -196,24 +335,50 @@ PERIMORTEM_UNIT_TEST(TtxShaderCompiler, emits_icon_v1_spirv_modules) {
   EXPECT_NOT(
       Algorithm::search(pixel, op_image_sample_implicit_lod) == Count(-1));
   EXPECT_NOT(Algorithm::search(pixel, op_fmul) == Count(-1));
-  EXPECT_NOT(Algorithm::search(pixel, "icon_texture"_view) == Count(-1));
+  EXPECT_NOT(Algorithm::search(pixel, "image"_view) == Count(-1));
 
-  constexpr Static::Bytes<16> descriptor_set_zero = {
-    0x47, 0x00, 0x04, 0x00, 0x12, 0x00, 0x00, 0x00,
-    0x22, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-  };
-  constexpr Static::Bytes<16> descriptor_binding_zero = {
-    0x47, 0x00, 0x04, 0x00, 0x12, 0x00, 0x00, 0x00,
-    0x21, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-  };
-  constexpr Static::Bytes<16> sampled_image_variable = {
-    0x3b, 0x00, 0x04, 0x00, 0x0c, 0x00, 0x00, 0x00,
-    0x12, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-  };
-  EXPECT(Algorithm::search(vertex, descriptor_set_zero) == Count(-1));
-  EXPECT(Algorithm::search(vertex, descriptor_binding_zero) == Count(-1));
-  EXPECT(Algorithm::search(vertex, sampled_image_variable) == Count(-1));
-  EXPECT_NOT(Algorithm::search(pixel, descriptor_set_zero) == Count(-1));
-  EXPECT_NOT(Algorithm::search(pixel, descriptor_binding_zero) == Count(-1));
-  EXPECT_NOT(Algorithm::search(pixel, sampled_image_variable) == Count(-1));
+  EXPECT_NOT(has_descriptor_binding(vertex, 0, 0));
+  EXPECT(has_descriptor_binding(pixel, 0, 0));
+}
+
+PERIMORTEM_UNIT_TEST(TtxShaderCompiler, pixel_swizzle_output) {
+  Resolution::Resolver resolver;
+  ASSERT(resolver.resolve("validation/data/ttx/shaders/channel_swap.ttx"_view));
+
+  Resolution::Record* record =
+      resolver.find("validation/data/ttx/shaders/channel_swap.ttx"_view);
+  ASSERT(record);
+
+  Perimortem::Memory::Dynamic::Bytes vertex;
+  Perimortem::Memory::Dynamic::Bytes pixel;
+  ASSERT(Compiler::Shader::emit_program_modules(*record, vertex, pixel));
+
+  EXPECT(has_vector_shuffle_components(pixel, 1, 0, 2));
+  EXPECT_NOT(has_vector_shuffle_components(pixel, 0, 1, 2));
+}
+
+PERIMORTEM_UNIT_TEST(TtxShaderCompiler, renamed_host_input) {
+  Resolution::Resolver resolver;
+  ASSERT(resolver.resolve("validation/data/ttx/shaders/renamed_values.ttx"_view));
+
+  Resolution::Record* record =
+      resolver.find("validation/data/ttx/shaders/renamed_values.ttx"_view);
+  ASSERT(record);
+
+  Perimortem::Memory::Dynamic::Bytes vertex;
+  Perimortem::Memory::Dynamic::Bytes pixel;
+  ASSERT(Compiler::Shader::emit_program_modules(*record, vertex, pixel));
+
+  EXPECT_NOT(Algorithm::search(vertex, "center"_view) == Count(-1));
+  EXPECT_NOT(Algorithm::search(vertex, "extent"_view) == Count(-1));
+  EXPECT_NOT(Algorithm::search(vertex, "visibility"_view) == Count(-1));
+  EXPECT_NOT(Algorithm::search(vertex, "width"_view) == Count(-1));
+  EXPECT_NOT(Algorithm::search(vertex, "height"_view) == Count(-1));
+  EXPECT_NOT(Algorithm::search(pixel, "center"_view) == Count(-1));
+  EXPECT_NOT(Algorithm::search(pixel, "extent"_view) == Count(-1));
+  EXPECT_NOT(Algorithm::search(pixel, "visibility"_view) == Count(-1));
+  EXPECT(has_vector_shuffle_components(pixel, 1, 0, 2));
+  EXPECT(Algorithm::search(pixel, "position"_view) == Count(-1));
+  EXPECT(Algorithm::search(pixel, "size_pixels"_view) == Count(-1));
+  EXPECT(Algorithm::search(pixel, "alpha"_view) == Count(-1));
 }

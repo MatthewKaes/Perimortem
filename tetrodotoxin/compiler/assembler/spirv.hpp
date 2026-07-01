@@ -60,6 +60,7 @@ class spirv {
     CompositeExtract = 81,
     ImageSampleImplicitLod = 87,
     FAdd = 129,
+    FSub = 131,
     FMul = 133,
     Label = 248,
     Return = 253,
@@ -130,7 +131,7 @@ class spirv {
       Version version = Version::V1_0,
       Bits_32 generator = 0) -> void;
   auto word(Bits_32 value) -> void;
-  auto instruction(Op op, Count word_count) -> void;
+  auto instruction(Op opcode, Count word_count) -> void;
   auto literal_string(Perimortem::Core::View::Bytes text) -> Count;
 
   auto capability(Capability value) -> void;
@@ -226,6 +227,11 @@ class spirv {
       Bits_32 sampled_image_id,
       Bits_32 coordinate_id) -> void;
   auto fadd(
+      Bits_32 result_type_id,
+      Bits_32 result_id,
+      Bits_32 left_id,
+      Bits_32 right_id) -> void;
+  auto fsub(
       Bits_32 result_type_id,
       Bits_32 result_id,
       Bits_32 left_id,

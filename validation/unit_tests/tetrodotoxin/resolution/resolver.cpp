@@ -15,7 +15,7 @@ static Harness TtxResolution = {
   .name = "Tetrodotoxin::Resolution"_view,
 };
 
-PERIMORTEM_UNIT_TEST(TtxResolution, resolves_package_with_no_imports) {
+PERIMORTEM_UNIT_TEST(TtxResolution, package_no_imports) {
   Resolution::Resolver resolver;
 
   EXPECT(
@@ -31,7 +31,7 @@ PERIMORTEM_UNIT_TEST(TtxResolution, resolves_package_with_no_imports) {
   EXPECT_EQ(record->get_package().get_imports().get_size(), 0);
 }
 
-PERIMORTEM_UNIT_TEST(TtxResolution, resolves_multiple_file_imports) {
+PERIMORTEM_UNIT_TEST(TtxResolution, multiple_imports) {
   Resolution::Resolver resolver;
 
   EXPECT(resolver.resolve("validation/data/ttx/resolution/root.ttx"_view));
@@ -54,7 +54,7 @@ PERIMORTEM_UNIT_TEST(TtxResolution, resolves_multiple_file_imports) {
   ASSERT_EQ(root->get_package().get_imports().get_size(), 2);
 }
 
-PERIMORTEM_UNIT_TEST(TtxResolution, reuses_cached_package_asts) {
+PERIMORTEM_UNIT_TEST(TtxResolution, cached_package_asts) {
   Resolution::Resolver resolver;
 
   EXPECT(resolver.resolve("validation/data/ttx/resolution/root.ttx"_view));
@@ -79,7 +79,7 @@ PERIMORTEM_UNIT_TEST(TtxResolution, reuses_cached_package_asts) {
   EXPECT_EQ(image->get_parse_count(), 1);
 }
 
-PERIMORTEM_UNIT_TEST(TtxResolution, rejects_import_cycles) {
+PERIMORTEM_UNIT_TEST(TtxResolution, import_cycles) {
   Resolution::Resolver resolver;
 
   EXPECT_NOT(
@@ -99,7 +99,7 @@ PERIMORTEM_UNIT_TEST(TtxResolution, rejects_import_cycles) {
       cycle_b->get_state() == Resolution::Resolver::State::Failed);
 }
 
-PERIMORTEM_UNIT_TEST(TtxResolution, rejects_import_kind_mismatches) {
+PERIMORTEM_UNIT_TEST(TtxResolution, import_kind_mismatch) {
   Resolution::Resolver resolver;
 
   EXPECT_NOT(
@@ -115,10 +115,10 @@ PERIMORTEM_UNIT_TEST(TtxResolution, rejects_import_kind_mismatches) {
   ASSERT(root);
   ASSERT(image);
   EXPECT(root->get_state() == Resolution::Resolver::State::Failed);
-  EXPECT(image->get_package().get_kind() == Lexical::Class::Type::Shader);
+  EXPECT(image->get_package().get_kind() == Syntax::PackageKind::Render);
 }
 
-PERIMORTEM_UNIT_TEST(TtxResolution, resolves_compiler_injected_ttx_imports) {
+PERIMORTEM_UNIT_TEST(TtxResolution, compiler_ttx_imports) {
   Resolution::Resolver resolver;
 
   EXPECT(resolver.resolve("validation/data/ttx/syntax_sample.ttx"_view));
@@ -136,7 +136,7 @@ PERIMORTEM_UNIT_TEST(TtxResolution, resolves_compiler_injected_ttx_imports) {
   EXPECT(resolver.find_standard_package(*root, "Core"_view).exists());
 }
 
-PERIMORTEM_UNIT_TEST(TtxResolution, rejects_unhandled_registry_imports) {
+PERIMORTEM_UNIT_TEST(TtxResolution, unhandled_registry) {
   Resolution::Resolver resolver;
 
   EXPECT_NOT(resolver.resolve(
@@ -149,7 +149,7 @@ PERIMORTEM_UNIT_TEST(TtxResolution, rejects_unhandled_registry_imports) {
   EXPECT(root->get_state() == Resolution::Resolver::State::Failed);
 }
 
-PERIMORTEM_UNIT_TEST(TtxResolution, rejects_unknown_ttx_standard_imports) {
+PERIMORTEM_UNIT_TEST(TtxResolution, unknown_ttx_imports) {
   Resolution::Resolver resolver;
 
   EXPECT_NOT(resolver.resolve(
@@ -178,13 +178,14 @@ PERIMORTEM_UNIT_TEST(TtxResolution, resolves_png_fixture) {
   EXPECT(graphics->is_resolved());
 }
 
-PERIMORTEM_UNIT_TEST(TtxResolution, resolves_icon_shader_fixture) {
+PERIMORTEM_UNIT_TEST(TtxResolution, default_2d_shader_fixture) {
   Resolution::Resolver resolver;
 
-  EXPECT(resolver.resolve("apps/shaders/icon.ttx"_view));
+  EXPECT(resolver.resolve("apps/shaders/default_2d.ttx"_view));
   EXPECT_EQ(resolver.get_error_count(), 0);
 
-  Resolution::Record* icon = resolver.find("apps/shaders/icon.ttx"_view);
-  ASSERT(icon);
-  EXPECT(icon->is_resolved());
+  Resolution::Record* default_2d =
+      resolver.find("apps/shaders/default_2d.ttx"_view);
+  ASSERT(default_2d);
+  EXPECT(default_2d->is_resolved());
 }

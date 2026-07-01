@@ -47,7 +47,7 @@ auto Tetrodotoxin::Linker::emit_archive(
     View::Bytes object_name) -> Dynamic::Bytes {
   Linker linker;
 
-  // .text is always added so symbols with Program context resolve correctly.
+  // .text is always added so symbols with Program ctx resolve correctly.
   linker.add_section(Context::Symbol::Location::Program, compiler.get_code());
   if (compiler.get_strings().get_size() > 0) {
     linker.add_section(

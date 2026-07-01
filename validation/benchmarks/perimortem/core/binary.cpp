@@ -74,8 +74,8 @@ PERIMORTEM_BENCHMARK(BinaryBench, binary_write_32) {
     writer << Bits_32(writer.get_location());
   }
 
-  Count loc = writer.get_location();
-  Benchmark::prevent_optimization(loc);
+  Count writer_location = writer.get_location();
+  Benchmark::prevent_optimization(writer_location);
 }
 
 PERIMORTEM_BENCHMARK(BinaryBench, binary_write_64) {
@@ -85,8 +85,8 @@ PERIMORTEM_BENCHMARK(BinaryBench, binary_write_64) {
     writer << Bits_64(writer.get_location());
   }
 
-  Count loc = writer.get_location();
-  Benchmark::prevent_optimization(loc);
+  Count writer_location = writer.get_location();
+  Benchmark::prevent_optimization(writer_location);
 }
 
 PERIMORTEM_BENCHMARK(BinaryBench, binary_write_view) {
@@ -96,6 +96,6 @@ PERIMORTEM_BENCHMARK(BinaryBench, binary_write_view) {
     writer << "16 characters!!!"_view;
   }
 
-  Count loc = writer.get_location();
-  Benchmark::prevent_optimization(loc);
+  Count writer_location = writer.get_location();
+  Benchmark::prevent_optimization(writer_location);
 }

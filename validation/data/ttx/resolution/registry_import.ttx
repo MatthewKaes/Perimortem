@@ -1,5 +1,5 @@
 // Unsupported registry import fixture.
-package : Library;
+dialect : Library;
 
 import Graphics : Library = Vendor.Graphics;
 

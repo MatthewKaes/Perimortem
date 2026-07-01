@@ -50,9 +50,9 @@ PERIMORTEM_UNIT_TEST(SerializationBase64, decode_simple) {
 PERIMORTEM_UNIT_TEST(SerializationBase64, decode_vectorized) {
   auto start_requests = Bibliotheca::check_out_requests();
   File source;
-  ASSERT(source.read("validation/data/ttx/source.ttx"_view));
+  ASSERT(source.read("validation/data/ttx/png.ttx"_view));
   File base64;
-  ASSERT(base64.read("validation/data/base64/source.base64"_view));
+  ASSERT(base64.read("validation/data/base64/png.base64"_view));
 
   const auto decoded_bytes = Base64::decode(base64.get_view());
   EXPECT_TEXT(decoded_bytes.get_view(), source.get_view());
@@ -89,9 +89,9 @@ PERIMORTEM_UNIT_TEST(SerializationBase64, encode_simple) {
 PERIMORTEM_UNIT_TEST(SerializationBase64, encode_vectorized) {
   auto start_requests = Bibliotheca::check_out_requests();
   File source;
-  ASSERT(source.read("validation/data/ttx/source.ttx"_view));
+  ASSERT(source.read("validation/data/ttx/png.ttx"_view));
   File base64;
-  ASSERT(base64.read("validation/data/base64/source.base64"_view));
+  ASSERT(base64.read("validation/data/base64/png.base64"_view));
 
   const auto encoded_bytes = Base64::encode(source.get_view());
   EXPECT_TEXT(encoded_bytes.get_view(), base64.get_view());

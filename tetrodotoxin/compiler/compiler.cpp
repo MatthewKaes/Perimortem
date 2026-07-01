@@ -5,12 +5,11 @@
 
 #include "perimortem/core/data.hpp"
 #include "perimortem/core/null_terminated.hpp"
+#include "perimortem/core/static/bytes.hpp"
+#include "perimortem/core/static/vector.hpp"
+#include "perimortem/core/writer/textual.hpp"
 
 #include "perimortem/serialization/escaped_text.hpp"
-
-#include "tetrodotoxin/syntax/ast/statement.hpp"
-#include "tetrodotoxin/syntax/expression/literal.hpp"
-#include "tetrodotoxin/syntax/pack.hpp"
 
 using namespace Perimortem;
 using namespace Perimortem::Core;
@@ -18,109 +17,265 @@ using namespace Perimortem::Memory;
 using namespace Perimortem::Serialization;
 
 namespace Tetrodotoxin::Compiler {
-namespace {
+namespace Helpers {
 
 auto is_view_bytes(Abi::Type type) -> Bool {
   return type.carrier == Abi::Type::Carrier::ViewBytes;
 }
 
-auto first_view_bytes_argument(
-    View::Vector<Abi::Argument> arguments,
-    View::Bytes argument_name) -> Count {
-  for (Count i = 0; i < arguments.get_size(); i++) {
-    if (arguments[i].name == argument_name && is_view_bytes(arguments[i].type)) {
-      return i;
-    }
-  }
-
-  return Count(-1);
-}
-
-auto is_view_literal(const Syntax::Expression::Expression* expression_value)
+auto can_lower_library_signature(View::Vector<Abi::Argument> arguments)
     -> Bool {
-  return expression_value &&
-         expression_value->get_kind() == Syntax::Expression::Kind::Literal &&
-         (expression_value->get_class() == Lexical::Class::Type::String ||
-          expression_value->get_class() == Lexical::Class::Type::Bytes);
-}
-
-auto can_load_view_value(
-    View::Vector<Abi::Argument> arguments,
-    const Syntax::Expression::Expression* argument_expression) -> Bool {
-  if (is_view_literal(argument_expression)) {
-    return True;
-  }
-
-  return argument_expression &&
-         argument_expression->get_kind() ==
-             Syntax::Expression::Kind::Addressable &&
-         first_view_bytes_argument(arguments, argument_expression->get_text()) ==
-             0;
-}
-
-auto can_lower_library_body(
-    View::Vector<Abi::Argument> arguments,
-    View::Vector<Syntax::Ast::Statement*> function_body) -> Bool {
   if (arguments.get_size() > 1) {
     return False;
   }
 
-  if (arguments.get_size() == 1 && !is_view_bytes(arguments[0].type)) {
-    return False;
+  return arguments.is_empty() || is_view_bytes(arguments[0].type);
+}
+
+auto align_runtime(Count offset, Count alignment) -> Count {
+  if (alignment <= 1) {
+    return offset;
   }
 
-  for (Count i = 0; i < function_body.get_size(); i++) {
-    const Syntax::Ast::Statement* body_statement = function_body[i];
-    if (!body_statement) {
+  const Count remainder = offset % alignment;
+  return remainder == 0 ? offset : offset + (alignment - remainder);
+}
+
+auto foreign_call_object_stack_size(const Abi::ForeignCall& foreign_call)
+    -> Count {
+  Count result = 0;
+  View::Vector<Abi::Value> arguments = foreign_call.get_arguments();
+  for (Count argument_index = 0; argument_index < arguments.get_size();
+       argument_index++) {
+    if (!arguments[argument_index].is_object()) {
       continue;
     }
 
-    if (body_statement->get_class() == Lexical::Class::Type::Return) {
-      return !body_statement->get_value();
-    }
+    const Abi::ObjectDefinition& definition =
+        arguments[argument_index].get_object().get_definition();
+    result = align_runtime(result, definition.get_alignment());
+    result += definition.get_byte_size();
+  }
 
-    if (body_statement->get_class() != Lexical::Class::Type::EndStatement ||
-        !body_statement->get_value()) {
-      return False;
-    }
+  return align_runtime(result, 16);
+}
 
-    const Syntax::Expression::Expression* call_expression =
-        body_statement->get_value();
-    if (call_expression->get_kind() != Syntax::Expression::Kind::Call ||
-        !call_expression->get_left() ||
-        call_expression->get_left()->get_kind() !=
-            Syntax::Expression::Kind::TypeAccess) {
-      return False;
-    }
-
-    const Syntax::Expression::Expression* pack_expression =
-        call_expression->get_right();
-    if (!pack_expression ||
-        pack_expression->get_kind() != Syntax::Expression::Kind::Pack) {
-      return False;
-    }
-
-    const auto* call_pack = static_cast<const Syntax::Pack*>(pack_expression);
-    View::Vector<Syntax::Pack::Field> call_fields = call_pack->get_fields();
-    if (call_fields.get_size() != 1 || !call_fields[0].name.is_empty() ||
-        !call_fields[0].index.is_empty() || !call_fields[0].value ||
-        !can_load_view_value(arguments, call_fields[0].value)) {
-      return False;
+auto object_stack_size(View::Vector<Abi::ForeignCall> foreign_calls) -> Count {
+  Count result = 0;
+  for (Count i = 0; i < foreign_calls.get_size(); i++) {
+    Count call_stack_size = foreign_call_object_stack_size(foreign_calls[i]);
+    if (call_stack_size > result) {
+      result = call_stack_size;
     }
   }
 
-  return True;
+  return result;
 }
 
-}  // namespace
+auto real_32_bits(Real_32 value) -> Bits_32 {
+  Bits_32 bits = 0;
+  Data::copy(Data::cast<Bits_8>(&bits), &value, 1);
+  return bits;
+}
 
-auto Compiler::compile_function(
+auto real_64_bits(Real_64 value) -> Bits_64 {
+  Bits_64 bits = 0;
+  Data::copy(Data::cast<Bits_8>(&bits), &value, 1);
+  return bits;
+}
+
+auto append_count(Dynamic::Bytes& output, Count value) -> void {
+  Static::Bytes<32> text;
+  Writer::Textual writer(text.get_access());
+  writer << value;
+  output.concat(writer);
+}
+
+}  // namespace Helpers
+
+auto Compiler::add_object_definition(const Abi::ObjectDefinition& definition)
+    -> void {
+  if (!definition.is_valid()) {
+    return;
+  }
+
+  for (Count i = 0; i < object_definitions.get_size(); i++) {
+    if (object_definitions[i].get_cpp_name() == definition.get_cpp_name()) {
+      return;
+    }
+  }
+
+  Abi::ObjectDefinition retained_definition(
+      names.retain(definition.get_type_name()),
+      names.retain(definition.get_cpp_name()));
+  retained_definition.set_storage(
+      definition.get_byte_size(), definition.get_alignment());
+
+  View::Vector<Abi::ObjectField> fields = definition.get_fields();
+  for (Count i = 0; i < fields.get_size(); i++) {
+    retained_definition.add_field({
+      names.retain(fields[i].get_name()),
+      names.retain(fields[i].get_type_name()),
+      names.retain(fields[i].get_cpp_type_name()),
+      fields[i].get_offset(),
+      fields[i].get_byte_size(),
+      fields[i].get_alignment(),
+    });
+  }
+
+  object_definitions.insert(retained_definition);
+}
+
+auto Compiler::store_object_value(
+    Assembler::x86_64& assembler,
+    const Abi::ObjectField& field,
+    const Abi::ObjectValue& value,
+    Signed_32 displacement) -> void {
+  using Reg = Assembler::x86_64::Reg;
+
+  switch (value.get_source()) {
+  case Abi::ObjectValue::Source::Zeroed:
+    store_zeroed_bytes(assembler, field.get_byte_size(), displacement);
+    return;
+
+  case Abi::ObjectValue::Source::Object: {
+    const Abi::Object& nested_object = value.get_object();
+    if (nested_object.get_definition().get_byte_size() != field.get_byte_size()) {
+      return;
+    }
+
+    store_object(assembler, nested_object, displacement);
+    return;
+  }
+
+  case Abi::ObjectValue::Source::UnsignedInteger:
+    switch (field.get_byte_size()) {
+    case 1:
+      assembler.mov(Bits_8(value.get_unsigned_integer()), Reg::AL);
+      assembler.mov(Reg::AL, Reg::RBP, displacement);
+      return;
+    case 2:
+      assembler.mov(Bits_16(value.get_unsigned_integer()), Reg::AX);
+      assembler.mov(Reg::AX, Reg::RBP, displacement);
+      return;
+    case 4:
+      assembler.mov(Bits_32(value.get_unsigned_integer()), Reg::EAX);
+      assembler.mov(Reg::EAX, Reg::RBP, displacement);
+      return;
+    case 8:
+      assembler.mov(Bits_64(value.get_unsigned_integer()), Reg::RAX);
+      assembler.mov(Reg::RAX, Reg::RBP, displacement);
+      return;
+    }
+    break;
+
+  case Abi::ObjectValue::Source::SignedInteger:
+    switch (field.get_byte_size()) {
+    case 1:
+      assembler.mov(Bits_8(value.get_signed_integer()), Reg::AL);
+      assembler.mov(Reg::AL, Reg::RBP, displacement);
+      return;
+    case 2:
+      assembler.mov(Bits_16(value.get_signed_integer()), Reg::AX);
+      assembler.mov(Reg::AX, Reg::RBP, displacement);
+      return;
+    case 4:
+      assembler.mov(Bits_32(value.get_signed_integer()), Reg::EAX);
+      assembler.mov(Reg::EAX, Reg::RBP, displacement);
+      return;
+    case 8:
+      assembler.mov(Bits_64(value.get_signed_integer()), Reg::RAX);
+      assembler.mov(Reg::RAX, Reg::RBP, displacement);
+      return;
+    }
+    break;
+
+  case Abi::ObjectValue::Source::Real32:
+    assembler.mov(Helpers::real_32_bits(value.get_real_32()), Reg::EAX);
+    assembler.mov(Reg::EAX, Reg::RBP, displacement);
+    return;
+
+  case Abi::ObjectValue::Source::Real64:
+    assembler.mov(Helpers::real_64_bits(value.get_real_64()), Reg::RAX);
+    assembler.mov(Reg::RAX, Reg::RBP, displacement);
+    return;
+
+  case Abi::ObjectValue::Source::ViewBytesLiteral: {
+    View::Bytes literal_text = value.get_literal_payload();
+    literal_text = EscapedText::decode(arena, literal_text);
+    load_string(assembler, Reg::RAX, literal_text);
+    assembler.mov(Reg::RAX, Reg::RBP, displacement);
+    assembler.mov(Bits_64(literal_text.get_size()), Reg::RAX);
+    assembler.mov(Reg::RAX, Reg::RBP, displacement + Signed_32(sizeof(Count)));
+    return;
+  }
+
+  case Abi::ObjectValue::Source::RenderImport: {
+    View::Bytes import_name = value.get_render_import_name();
+    load_string(assembler, Reg::RAX, import_name);
+    assembler.mov(Reg::RAX, Reg::RBP, displacement);
+    assembler.mov(Bits_64(import_name.get_size()), Reg::RAX);
+    assembler.mov(Reg::RAX, Reg::RBP, displacement + Signed_32(sizeof(Count)));
+    return;
+  }
+
+  case Abi::ObjectValue::Source::Invalid:
+    break;
+  }
+}
+
+auto Compiler::store_zeroed_bytes(
+    Assembler::x86_64& assembler,
+    Count byte_size,
+    Signed_32 displacement) -> void {
+  using Reg = Assembler::x86_64::Reg;
+
+  assembler.zero(Reg::RAX);
+  Count byte_offset = 0;
+  while (byte_size >= 8) {
+    assembler.mov(Reg::RAX, Reg::RBP, displacement + Signed_32(byte_offset));
+    byte_offset += 8;
+    byte_size -= 8;
+  }
+
+  if (byte_size >= 4) {
+    assembler.mov(Reg::EAX, Reg::RBP, displacement + Signed_32(byte_offset));
+    byte_offset += 4;
+    byte_size -= 4;
+  }
+
+  if (byte_size >= 2) {
+    assembler.mov(Reg::AX, Reg::RBP, displacement + Signed_32(byte_offset));
+    byte_offset += 2;
+    byte_size -= 2;
+  }
+
+  if (byte_size == 1) {
+    assembler.mov(Reg::AL, Reg::RBP, displacement + Signed_32(byte_offset));
+  }
+}
+
+auto Compiler::store_object(
+    Assembler::x86_64& assembler,
+    const Abi::Object& object,
+    Signed_32 displacement) -> void {
+  View::Vector<Abi::ObjectField> fields =
+      object.get_definition().get_fields();
+  View::Vector<Abi::ObjectValue> values = object.get_values();
+  for (Count i = 0; i < fields.get_size(); i++) {
+    store_object_value(
+        assembler, fields[i], values[i],
+        displacement + Signed_32(fields[i].get_offset()));
+  }
+}
+
+auto Compiler::compile_func(
     View::Bytes module_name,
     View::Bytes function_name,
     Abi::Type return_type,
     View::Vector<Abi::Argument> arguments,
-    View::Vector<Syntax::Ast::Statement*> function_body) -> Bool {
-  if (!can_lower_library_body(arguments, function_body)) {
+    View::Vector<Abi::ForeignCall> foreign_calls) -> Bool {
+  if (!Helpers::can_lower_library_signature(arguments)) {
     return False;
   }
 
@@ -131,6 +286,10 @@ auto Compiler::compile_function(
   const Count function_code_start = machine_code.get_size();
 
   assembler.prologue(arguments);
+  const Count object_stack_byte_size = Helpers::object_stack_size(foreign_calls);
+  if (object_stack_byte_size > 0) {
+    assembler.sub(Bits_32(object_stack_byte_size), Assembler::x86_64::Reg::RSP);
+  }
 
   // Current Library lowering supports one host-visible View[Bytes] argument.
   // It is copied into callee-saved registers before calls can clobber the
@@ -144,36 +303,76 @@ auto Compiler::compile_function(
     saved_view_argument = True;
   }
 
-  for (Count i = 0; i < function_body.get_size(); i++) {
-    const Syntax::Ast::Statement* body_statement = function_body[i];
-    if (!body_statement) {
-      continue;
+  using Reg = Assembler::x86_64::Reg;
+  static constexpr Static::Vector<Reg, 6> integer_argument_registers = {
+    Reg::RDI,
+    Reg::RSI,
+    Reg::RDX,
+    Reg::RCX,
+    Reg::R8,
+    Reg::R9,
+  };
+
+  for (Count i = 0; i < foreign_calls.get_size(); i++) {
+    const Abi::ForeignCall& foreign_call = foreign_calls[i];
+    View::Vector<Abi::Value> call_arguments = foreign_call.get_arguments();
+    Count register_index = 0;
+    Count object_stack_offset = 0;
+    for (Count argument_index = 0; argument_index < call_arguments.get_size();
+         argument_index++) {
+      const Abi::Value& argument = call_arguments[argument_index];
+      if (argument.is_object()) {
+        if (register_index >= integer_argument_registers.get_size()) {
+          return False;
+        }
+
+        const Abi::Object& object_argument = argument.get_object();
+        const Abi::ObjectDefinition& definition =
+            object_argument.get_definition();
+        object_stack_offset =
+            Helpers::align_runtime(
+                object_stack_offset, definition.get_alignment());
+        const Signed_32 object_displacement =
+            -Signed_32(object_stack_byte_size) +
+            Signed_32(object_stack_offset);
+        store_object(assembler, object_argument, object_displacement);
+        assembler.lea(
+            Reg::RBP, object_displacement,
+            integer_argument_registers[register_index]);
+        object_stack_offset += definition.get_byte_size();
+        register_index++;
+        continue;
+      }
+
+      if (!argument.is_view_bytes() ||
+          register_index + 1 >= integer_argument_registers.get_size()) {
+        return False;
+      }
+
+      if (argument.is_view_bytes_literal()) {
+        View::Bytes literal_text = argument.get_literal_payload();
+        literal_text = EscapedText::decode(arena, literal_text);
+        load_string(
+            assembler, integer_argument_registers[register_index],
+            literal_text);
+        assembler.mov(
+            Bits_64(literal_text.get_size()),
+            integer_argument_registers[register_index + 1]);
+      } else if (
+          argument.is_view_bytes_runtime() &&
+          argument.get_runtime_value_index() == 0) {
+        assembler.mov(
+            Reg::RBX, integer_argument_registers[register_index]);
+        assembler.mov(
+            Reg::R12, integer_argument_registers[register_index + 1]);
+      } else {
+        return False;
+      }
+
+      register_index += 2;
     }
 
-    if (body_statement->get_class() == Lexical::Class::Type::Return) {
-      break;
-    }
-
-    const Syntax::Expression::Expression* call_expression =
-        body_statement->get_value();
-    const auto* call_pack =
-        static_cast<const Syntax::Pack*>(call_expression->get_right());
-    View::Vector<Syntax::Pack::Field> call_fields = call_pack->get_fields();
-    const Syntax::Expression::Expression* field_value = call_fields[0].value;
-    if (is_view_literal(field_value)) {
-      View::Bytes literal_text =
-          Syntax::Expression::Literal::inner_text(field_value->get_text());
-      literal_text = EscapedText::decode(arena, literal_text);
-      load_string(assembler, Assembler::x86_64::Reg::RDI, literal_text);
-      assembler.mov(literal_text.get_size(), Assembler::x86_64::Reg::RSI);
-    } else if (
-        field_value->get_kind() == Syntax::Expression::Kind::Addressable &&
-        first_view_bytes_argument(arguments, field_value->get_text()) == 0) {
-      assembler.mov(Assembler::x86_64::Reg::RBX, Assembler::x86_64::Reg::RDI);
-      assembler.mov(Assembler::x86_64::Reg::R12, Assembler::x86_64::Reg::RSI);
-    }
-
-    call_extern(assembler, call_expression->get_text());
+    call_extern(assembler, foreign_call.get_callee_name());
   }
 
   if (saved_view_argument) {
@@ -185,12 +384,12 @@ auto Compiler::compile_function(
   const Count function_code_size =
       machine_code.get_size() - function_code_start;
 
-  auto function_symbol = Context::Symbol::create_func(
+  auto func_symbol = Context::Symbol::create_func(
       canonical_function_name, Context::Symbol::Visability::Global);
-  function_symbol.set_range({function_code_start, function_code_size});
+  func_symbol.set_range({function_code_start, function_code_size});
 
   const Count symbol_index = symbols.get_size();
-  symbols.insert(function_symbol);
+  symbols.insert(func_symbol);
 
   // Copy arguments into arena so the function entry remains valid after
   // the caller's stack frame is gone.
@@ -240,10 +439,55 @@ auto Compiler::generate_cpp_header(Dynamic::Bytes& header_out) -> void {
   header_out.concat("//         Manual edits can break the C++/TTX ABI\n\n"_view);
   header_out.concat("#pragma once\n\n"_view);
 
-  // TODO: Sort out which headers are actually required.
+  header_out.concat("#include <stddef.h>\n\n"_view);
   header_out.concat("#include \"perimortem/core/view/bytes.hpp\"\n\n"_view);
 
   header_out.concat("namespace Ttx {\n\n"_view);
+
+  for (Count i = 0; i < object_definitions.get_size(); i++) {
+    const Abi::ObjectDefinition& definition = object_definitions[i];
+    header_out.concat("struct alignas("_view);
+    Helpers::append_count(header_out, definition.get_alignment());
+    header_out.concat(") "_view);
+    header_out.concat(definition.get_cpp_name());
+    header_out.concat(" {\n"_view);
+
+    View::Vector<Abi::ObjectField> fields = definition.get_fields();
+    for (Count field_index = 0; field_index < fields.get_size();
+         field_index++) {
+      header_out.concat("  "_view);
+      header_out.concat(fields[field_index].get_cpp_type_name());
+      header_out.append(' ');
+      header_out.concat(fields[field_index].get_name());
+      header_out.concat(";\n"_view);
+    }
+
+    header_out.concat("};\n"_view);
+    header_out.concat("static_assert(sizeof("_view);
+    header_out.concat(definition.get_cpp_name());
+    header_out.concat(") == "_view);
+    Helpers::append_count(header_out, definition.get_byte_size());
+    header_out.concat(");\n"_view);
+    header_out.concat("static_assert(alignof("_view);
+    header_out.concat(definition.get_cpp_name());
+    header_out.concat(") == "_view);
+    Helpers::append_count(header_out, definition.get_alignment());
+    header_out.concat(");\n"_view);
+
+    for (Count field_index = 0; field_index < fields.get_size();
+         field_index++) {
+      header_out.concat("static_assert(offsetof("_view);
+      header_out.concat(definition.get_cpp_name());
+      header_out.concat(", "_view);
+      header_out.concat(fields[field_index].get_name());
+      header_out.concat(") == "_view);
+      Helpers::append_count(header_out, fields[field_index].get_offset());
+      header_out.concat(");\n"_view);
+    }
+
+    header_out.append('\n');
+  }
+
   header_out.concat("extern \"C\" {\n\n"_view);
 
   // Write out all of the exported functions.
@@ -293,20 +537,20 @@ auto Compiler::call_extern(
 auto Compiler::ref_extern(View::Bytes name, Context::Symbol::Type type)
     -> Count {
   for (Count i = 0; i < symbols.get_size(); i++) {
-    if (symbols.at(i).get_context() == Context::Symbol::Location::External &&
+    if (symbols.at(i).get_ctx() == Context::Symbol::Location::External &&
         symbols.at(i).get_name() == name) {
       return i;
     }
   }
-  const Count index = symbols.get_size();
+  const Count symbol_index = symbols.get_size();
   symbols.insert(Context::Symbol::create_extrenal(name, type));
-  return index;
+  return symbol_index;
 }
 
 auto Compiler::ref_string(View::Bytes string_value) -> Count {
   for (Count i = 0; i < symbols.get_size(); i++) {
     const auto& symbol = symbols.at(i);
-    if (symbol.get_context() != Context::Symbol::Location::Strings) {
+    if (symbol.get_ctx() != Context::Symbol::Location::Strings) {
       continue;
     }
     const auto string_range = symbol.get_range();

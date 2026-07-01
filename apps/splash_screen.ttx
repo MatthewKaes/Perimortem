@@ -1,0 +1,49 @@
+// Perimortem Engine
+// Copyright © Matt Kaes
+dialect : Library;
+
+import Graphics : Package = TTX::Graphics;
+import Default2D : Shader = Graphics::Shaders::Default2D;
+
+@extern(.abi = "c")
+@hidden Perimortem : foreign {
+  external @hidden func run_sprite_fade_scene[
+    .scene : SceneConfig,
+    .top_icon : Graphics::Sprite,
+    .bottom_icon : Graphics::Sprite,
+  ] -> [];
+}
+
+@hidden SceneConfig : struct {
+  @hidden title : View[Bytes];
+  @hidden window_size : Bits_32;
+  @hidden fade_in_seconds : Real_64;
+  @hidden hold_seconds : Real_64;
+  @hidden fade_out_seconds : Real_64;
+}
+
+@public func main[] -> [] {
+  stack scene : SceneConfig = (
+    .title = "Perimortem",
+    .window_size = 700,
+    .fade_in_seconds = 1.0,
+    .hold_seconds = 1.5,
+    .fade_out_seconds = 1.0,
+  );
+
+  stack top_icon : Graphics::Sprite;
+  top_icon.image = ".data/icon.png";
+  top_icon.size_pixels = (.width = 250, .height = 250);
+  top_icon.position_x = 0.0;
+  top_icon.position_y = 0.45;
+  top_icon.renderer = Default2D;
+
+  stack bottom_icon : Graphics::Sprite;
+  bottom_icon.image = ".data/icon.png";
+  bottom_icon.size_pixels = (.width = 250, .height = 250);
+  bottom_icon.position_x = 0.0;
+  bottom_icon.position_y = -0.45;
+  bottom_icon.renderer = Default2D;
+
+  Perimortem -> run_sprite_fade_scene(scene, top_icon, bottom_icon);
+}

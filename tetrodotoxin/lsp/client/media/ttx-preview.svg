@@ -41,15 +41,15 @@
     <text class="code comment" x="84" y="78">// Icon shader: textured quad with alpha modulation.</text>
 
     <text class="line" x="28" y="110">2</text>
-    <text class="code" x="84" y="110"><tspan class="soft-keyword">package</tspan><tspan class="plain"> </tspan><tspan class="op">:</tspan><tspan class="plain"> </tspan><tspan class="type2">Shader</tspan><tspan class="punct">;</tspan></text>
+    <text class="code" x="84" y="110"><tspan class="soft-keyword">dialect</tspan><tspan class="plain"> </tspan><tspan class="op">:</tspan><tspan class="plain"> </tspan><tspan class="type2">Shader</tspan><tspan class="punct">;</tspan></text>
 
     <text class="line" x="28" y="142">3</text>
-    <text class="code" x="84" y="142"><tspan class="soft-keyword">import</tspan><tspan class="plain"> </tspan><tspan class="type">Graphics</tspan><tspan class="plain"> </tspan><tspan class="op">:</tspan><tspan class="plain"> </tspan><tspan class="type2">Library</tspan><tspan class="plain"> </tspan><tspan class="op">=</tspan><tspan class="plain"> </tspan><tspan class="type">TTX</tspan><tspan class="punct">.</tspan><tspan class="type">Graphics</tspan><tspan class="punct">;</tspan></text>
+    <text class="code" x="84" y="142"><tspan class="soft-keyword">import</tspan><tspan class="plain"> </tspan><tspan class="type">Graphics</tspan><tspan class="plain"> </tspan><tspan class="op">:</tspan><tspan class="plain"> </tspan><tspan class="type2">Library</tspan><tspan class="plain"> </tspan><tspan class="op">=</tspan><tspan class="plain"> </tspan><tspan class="type">TTX</tspan><tspan class="punct">::</tspan><tspan class="type">Graphics</tspan><tspan class="punct">;</tspan></text>
 
     <text class="line" x="28" y="190">5</text>
     <text class="code" x="84" y="190"><tspan class="attr">@push_constant</tspan></text>
     <text class="line" x="28" y="222">6</text>
-    <text class="code" x="84" y="222"><tspan class="sigil">@expose</tspan><tspan class="plain"> </tspan><tspan class="type">Push</tspan><tspan class="plain"> </tspan><tspan class="op">:</tspan><tspan class="plain"> </tspan><tspan class="type2">Foreign</tspan><tspan class="plain"> </tspan><tspan class="punct">{</tspan></text>
+    <text class="code" x="84" y="222"><tspan class="sigil">@expose</tspan><tspan class="plain"> </tspan><tspan class="type">Push</tspan><tspan class="plain"> </tspan><tspan class="op">:</tspan><tspan class="plain"> </tspan><tspan class="keyword">foreign</tspan><tspan class="plain"> </tspan><tspan class="punct">{</tspan></text>
     <text class="line" x="28" y="254">7</text>
     <text class="code" x="112" y="254"><tspan class="sigil">expose</tspan><tspan class="plain"> </tspan><tspan class="member">position</tspan><tspan class="plain">  </tspan><tspan class="op">:</tspan><tspan class="plain"> </tspan><tspan class="type">Vec2D</tspan><tspan class="punct">;</tspan></text>
     <text class="line" x="28" y="286">8</text>

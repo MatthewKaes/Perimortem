@@ -3,75 +3,10 @@
   "scopeName": "source.tetrodotoxin",
   "patterns": [
     {
-      "include": "#comments"
-    },
-    {
-      "include": "#disabled"
-    },
-    {
-      "include": "#shader_document"
-    },
-    {
-      "include": "#library_document"
+      "include": "#common"
     }
   ],
   "repository": {
-    "shader_document": {
-      "begin": "^(\\s*)(package)(\\s*)(:)?(\\s*)(Shader)(\\s*)(;)",
-      "beginCaptures": {
-        "2": {
-          "name": "keyword.other.tetrodotoxin"
-        },
-        "4": {
-          "name": "punctuation.accessor.tetrodotoxin"
-        },
-        "6": {
-          "name": "support.type.tetrodotoxin"
-        },
-        "8": {
-          "name": "punctuation.terminator.statement.tetrodotoxin"
-        }
-      },
-      "end": "\\z",
-      "patterns": [
-        {
-          "include": "#shader_body"
-        }
-      ]
-    },
-    "library_document": {
-      "patterns": [
-        {
-          "include": "#library_body"
-        }
-      ]
-    },
-    "library_body": {
-      "patterns": [
-        {
-          "include": "#common"
-        },
-        {
-          "include": "#library_control_keywords"
-        },
-        {
-          "include": "#shared_keywords"
-        }
-      ]
-    },
-    "shader_body": {
-      "patterns": [
-        {
-          "include": "#common"
-        },
-        {
-          "include": "#shader_control_keywords"
-        },
-        {
-          "include": "#shared_keywords"
-        }
-      ]
-    },
     "common": {
       "patterns": [
         {
@@ -100,6 +35,12 @@
         },
         {
           "include": "#language_constants"
+        },
+        {
+          "include": "#control_keywords"
+        },
+        {
+          "include": "#shared_keywords"
         },
         {
           "include": "#discard"
@@ -142,8 +83,15 @@
       "match": "/>.*$"
     },
     "compile_if": {
-      "name": "keyword.control.directive.tetrodotoxin",
-      "match": "@if\\b"
+      "match": "(@)(if)\\b",
+      "captures": {
+        "1": {
+          "name": "storage.sigils.tetrodotoxin"
+        },
+        "2": {
+          "name": "keyword.control.tetrodotoxin"
+        }
+      }
     },
     "storage_sigils": {
       "name": "storage.sigils.tetrodotoxin",
@@ -193,29 +141,25 @@
       "name": "keyword.other.discard.tetrodotoxin",
       "match": "(?<![A-Za-z0-9_])_(?![A-Za-z0-9_])"
     },
-    "library_control_keywords": {
+    "control_keywords": {
       "name": "keyword.control.tetrodotoxin",
       "match": "\\b(for|in|match|case|if|else|return|while|break|continue)\\b"
-    },
-    "shader_control_keywords": {
-      "name": "keyword.control.tetrodotoxin",
-      "match": "\\b(return)\\b"
     },
     "shared_keywords": {
       "patterns": [
         {
-          "name": "keyword.operator.logical.tetrodotoxin",
+          "name": "keyword.control.tetrodotoxin",
           "match": "\\b(and|or)\\b"
         },
         {
           "name": "keyword.other.tetrodotoxin",
-          "match": "\\b(package|import|external|func|self|new|init)\\b"
+          "match": "\\b(dialect|import|external|func|self|new|init|object|struct|enum|foreign|alias)\\b"
         }
       ]
     },
     "builtin_types": {
       "name": "support.type.tetrodotoxin",
-      "match": "(?<![A-Za-z0-9_])(Bits_(?:8|16|32|64)|Signed_(?:8|16|32|64)|Real_(?:32|64|128)|Bool|Bytes|Count|Void|Text|Blob|List|Vec(?:2|3|4)D|Vec|Layout|View|Access|Fragment|Const|Sampler_2D|Range|Foreign|Object|Struct|Func|Enum|Alias|Shader|Entity|Library|TTX)(?![A-Za-z0-9_])"
+      "match": "(?<![A-Za-z0-9_])(Bits_(?:8|16|32|64)|Signed_(?:8|16|32|64)|Real_(?:32|64|128)|Bool|Bytes|Count|Void|Text|Blob|List|Vec(?:2|3|4)D|Vec|Layout|View|Access|Fragment|Const|Sampler2D|Range|TTX)(?![A-Za-z0-9_])"
     },
     "function_declarations": {
       "match": "\\b(func)\\s+([a-z_][a-zA-Z0-9_]*)",
@@ -244,7 +188,7 @@
       "match": "\\b[A-Z][a-zA-Z0-9_]*(?=\\s*:)"
     },
     "type_member_access": {
-      "match": "\\b([A-Z][a-zA-Z0-9_]*)(\\.)([A-Z][a-zA-Z0-9_]*)\\b",
+      "match": "\\b([A-Z][a-zA-Z0-9_]*)(::)([A-Z][a-zA-Z0-9_]*)\\b",
       "captures": {
         "1": {
           "name": "entity.name.type.caller.tetrodotoxin"
@@ -281,7 +225,7 @@
         },
         {
           "name": "keyword.operator.tetrodotoxin",
-          "match": "\\.\\[|\\+:|==|!=|<=|>=|\\+=|-=|[+\\-*/%^&|!<>=]"
+          "match": "\\.\\[|:\\[|::|==|!=|<=|>=|\\+=|-=|[+\\-*/%^&|!<>=]"
         }
       ]
     },

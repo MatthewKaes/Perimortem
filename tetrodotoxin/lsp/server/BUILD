@@ -26,7 +26,7 @@ cc_library(
         ":documents",
         "//perimortem:serialization",
         "//perimortem:system",
-        "//tetrodotoxin:lexical",
+        "//ttx/lexical:lexical",
     ],
 )
 
@@ -46,7 +46,7 @@ cc_binary(
         "//perimortem:serialization",
         "//perimortem:system",
         "//tetrodotoxin:format",
-        "//tetrodotoxin:lexical",
+        "//ttx/lexical:lexical",
         "//tetrodotoxin:syntax",
     ],
 )

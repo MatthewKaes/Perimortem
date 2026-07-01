@@ -3,47 +3,94 @@
 
 #include "perimortem/graphics/vulkan/swapchain.hpp"
 
-#include "perimortem/core/static/vector.hpp"
+#include "perimortem/core/diagnostics/log.hpp"
+#include "perimortem/core/null_terminated.hpp"
+#include "perimortem/memory/dynamic/vector.hpp"
 
 using namespace Perimortem::Graphics::Vulkan;
 
 using namespace Perimortem::Core;
 
+static auto require_success(VkResult result, View::Bytes message) -> void {
+  if (result != VK_SUCCESS) {
+    Diagnostics::Log::fatal(message);
+  }
+}
+
+static auto require_enumeration_read(VkResult result, View::Bytes message)
+    -> void {
+  if (result != VK_SUCCESS && result != VK_INCOMPLETE) {
+    Diagnostics::Log::fatal(message);
+  }
+}
+
 static auto choose_surface_format(
     VkPhysicalDevice physical_device,
     VkSurfaceKHR surface) -> VkSurfaceFormatKHR {
-  Bits_32 count = 0;
-  vkGetPhysicalDeviceSurfaceFormatsKHR(
-      physical_device, surface, &count, nullptr);
+  Bits_32 surface_format_count = 0;
+  require_success(
+      vkGetPhysicalDeviceSurfaceFormatsKHR(
+          physical_device, surface, &surface_format_count, nullptr),
+      "Vulkan: Failed to query swapchain surface formats."_view);
+  if (surface_format_count == 0) {
+    Diagnostics::Log::fatal("Vulkan: No swapchain surface formats found."_view);
+  }
 
-  Static::Vector<VkSurfaceFormatKHR, 32> formats;
-  Bits_32 clamped = count < formats.get_size() ? count : formats.get_size();
-  vkGetPhysicalDeviceSurfaceFormatsKHR(
-      physical_device, surface, &clamped, formats.get_data());
+  Perimortem::Memory::Dynamic::Vector<VkSurfaceFormatKHR> surface_formats;
+  surface_formats.forgetful_resize(surface_format_count);
+  Bits_32 read_surface_format_count = surface_format_count;
+  require_enumeration_read(
+      vkGetPhysicalDeviceSurfaceFormatsKHR(
+          physical_device, surface, &read_surface_format_count,
+          surface_formats.get_data()),
+      "Vulkan: Failed to read swapchain surface formats."_view);
+  if (read_surface_format_count == 0) {
+    Diagnostics::Log::fatal("Vulkan: No swapchain surface formats found."_view);
+  }
 
-  for (Bits_32 i = 0; i < clamped; i++) {
-    if (formats[i].format == VK_FORMAT_B8G8R8A8_SRGB &&
-        formats[i].colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR) {
-      return formats[i];
+  const VkSurfaceFormatKHR preferred_surface_format = {
+    VK_FORMAT_B8G8R8A8_SRGB, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR};
+  if (read_surface_format_count == 1 &&
+      surface_formats[0].format == VK_FORMAT_UNDEFINED) {
+    return preferred_surface_format;
+  }
+
+  for (Bits_32 i = 0; i < read_surface_format_count; i++) {
+    if (surface_formats[i].format == preferred_surface_format.format &&
+        surface_formats[i].colorSpace ==
+            preferred_surface_format.colorSpace) {
+      return surface_formats[i];
     }
   }
-  return formats[0];
+  return surface_formats[0];
 }
 
 static auto choose_present_mode(
     VkPhysicalDevice physical_device,
     VkSurfaceKHR surface) -> VkPresentModeKHR {
-  Bits_32 count = 0;
-  vkGetPhysicalDeviceSurfacePresentModesKHR(
-      physical_device, surface, &count, nullptr);
+  Bits_32 present_mode_count = 0;
+  require_success(
+      vkGetPhysicalDeviceSurfacePresentModesKHR(
+          physical_device, surface, &present_mode_count, nullptr),
+      "Vulkan: Failed to query swapchain present modes."_view);
+  if (present_mode_count == 0) {
+    Diagnostics::Log::fatal("Vulkan: No swapchain present modes found."_view);
+  }
 
-  Static::Vector<VkPresentModeKHR, 8> modes;
-  Bits_32 clamped = count < modes.get_size() ? count : modes.get_size();
-  vkGetPhysicalDeviceSurfacePresentModesKHR(
-      physical_device, surface, &clamped, modes.get_data());
+  Perimortem::Memory::Dynamic::Vector<VkPresentModeKHR> present_modes;
+  present_modes.forgetful_resize(present_mode_count);
+  Bits_32 read_present_mode_count = present_mode_count;
+  require_enumeration_read(
+      vkGetPhysicalDeviceSurfacePresentModesKHR(
+          physical_device, surface, &read_present_mode_count,
+          present_modes.get_data()),
+      "Vulkan: Failed to read swapchain present modes."_view);
+  if (read_present_mode_count == 0) {
+    Diagnostics::Log::fatal("Vulkan: No swapchain present modes found."_view);
+  }
 
-  for (Bits_32 i = 0; i < clamped; i++) {
-    if (modes[i] == VK_PRESENT_MODE_MAILBOX_KHR) {
+  for (Bits_32 i = 0; i < read_present_mode_count; i++) {
+    if (present_modes[i] == VK_PRESENT_MODE_MAILBOX_KHR) {
       return VK_PRESENT_MODE_MAILBOX_KHR;
     }
   }
@@ -51,85 +98,108 @@ static auto choose_present_mode(
 }
 
 auto Swapchain::build(
-    const Context& context,
+    const Context& ctx,
     Bits_32 width,
     Bits_32 height,
     VkSwapchainKHR old_swapchain) -> Swapchain {
-  Swapchain sc;
-  sc.device = context.get_device();
-  const VkSurfaceKHR surface = context.get_surface();
+  Swapchain swapchain_state;
+  swapchain_state.device = ctx.get_device();
+  const VkSurfaceKHR surface = ctx.get_surface();
 
   const VkSurfaceFormatKHR surface_format =
-      choose_surface_format(context.get_physical_device(), surface);
+      choose_surface_format(ctx.get_physical_device(), surface);
   const VkPresentModeKHR present_mode =
-      choose_present_mode(context.get_physical_device(), surface);
+      choose_present_mode(ctx.get_physical_device(), surface);
 
-  sc.format = surface_format.format;
-  sc.extent = {width, height};
+  swapchain_state.format = surface_format.format;
+  swapchain_state.extent = {width, height};
 
-  VkSurfaceCapabilitiesKHR caps = {};
-  vkGetPhysicalDeviceSurfaceCapabilitiesKHR(
-      context.get_physical_device(), surface, &caps);
+  VkSurfaceCapabilitiesKHR surface_capabilities = {};
+  require_success(
+      vkGetPhysicalDeviceSurfaceCapabilitiesKHR(
+          ctx.get_physical_device(), surface, &surface_capabilities),
+      "Vulkan: Failed to query swapchain surface capabilities."_view);
 
   // Request one more than the minimum to avoid stalling on the driver.
-  Bits_32 image_count = caps.minImageCount + 1;
-  if (caps.maxImageCount > 0 && image_count > caps.maxImageCount) {
-    image_count = caps.maxImageCount;
+  Bits_32 image_count = surface_capabilities.minImageCount + 1;
+  if (surface_capabilities.maxImageCount > 0 &&
+      image_count > surface_capabilities.maxImageCount) {
+    image_count = surface_capabilities.maxImageCount;
   }
 
-  const Bits_32 queue_family = context.get_graphics_queue_family();
+  const Bits_32 queue_family = ctx.get_graphics_queue_family();
 
-  VkSwapchainCreateInfoKHR info = {VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR};
-  info.surface = surface;
-  info.minImageCount = image_count;
-  info.imageFormat = sc.format;
-  info.imageColorSpace = surface_format.colorSpace;
-  info.imageExtent = sc.extent;
-  info.imageArrayLayers = 1;
-  info.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
-  info.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
-  info.queueFamilyIndexCount = 1;
-  info.pQueueFamilyIndices = &queue_family;
-  info.preTransform = caps.currentTransform;
-  info.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
-  info.presentMode = present_mode;
-  info.clipped = VK_TRUE;
-  info.oldSwapchain = old_swapchain;
+  VkSwapchainCreateInfoKHR swapchain_info = {
+    VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR};
+  swapchain_info.surface = surface;
+  swapchain_info.minImageCount = image_count;
+  swapchain_info.imageFormat = swapchain_state.format;
+  swapchain_info.imageColorSpace = surface_format.colorSpace;
+  swapchain_info.imageExtent = swapchain_state.extent;
+  swapchain_info.imageArrayLayers = 1;
+  swapchain_info.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+  swapchain_info.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
+  swapchain_info.queueFamilyIndexCount = 1;
+  swapchain_info.pQueueFamilyIndices = &queue_family;
+  swapchain_info.preTransform = surface_capabilities.currentTransform;
+  swapchain_info.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+  swapchain_info.presentMode = present_mode;
+  swapchain_info.clipped = VK_TRUE;
+  swapchain_info.oldSwapchain = old_swapchain;
 
-  vkCreateSwapchainKHR(sc.device, &info, nullptr, &sc.swapchain);
+  require_success(
+      vkCreateSwapchainKHR(
+          swapchain_state.device, &swapchain_info, nullptr,
+          &swapchain_state.swapchain),
+      "Vulkan: Failed to create swapchain."_view);
 
-  sc.image_count = 0;
-  vkGetSwapchainImagesKHR(sc.device, sc.swapchain, &sc.image_count, nullptr);
-  if (sc.image_count > max_images) {
-    sc.image_count = max_images;
+  swapchain_state.image_count = 0;
+  require_success(
+      vkGetSwapchainImagesKHR(
+          swapchain_state.device, swapchain_state.swapchain,
+          &swapchain_state.image_count, nullptr),
+      "Vulkan: Failed to query swapchain images."_view);
+  if (swapchain_state.image_count > max_images) {
+    Diagnostics::Log::fatal("Vulkan: Too many swapchain images."_view);
   }
-  vkGetSwapchainImagesKHR(sc.device, sc.swapchain, &sc.image_count, sc.images);
+  require_enumeration_read(
+      vkGetSwapchainImagesKHR(
+          swapchain_state.device, swapchain_state.swapchain,
+          &swapchain_state.image_count, swapchain_state.images.get_data()),
+      "Vulkan: Failed to read swapchain images."_view);
+  if (swapchain_state.image_count == 0) {
+    Diagnostics::Log::fatal("Vulkan: No swapchain images found."_view);
+  }
 
-  for (Bits_32 i = 0; i < sc.image_count; i++) {
-    VkImageViewCreateInfo view_info = {
+  for (Bits_32 i = 0; i < swapchain_state.image_count; i++) {
+    VkImageViewCreateInfo image_view_info = {
       VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO};
-    view_info.image = sc.images[i];
-    view_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
-    view_info.format = sc.format;
-    view_info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-    view_info.subresourceRange.baseMipLevel = 0;
-    view_info.subresourceRange.levelCount = 1;
-    view_info.subresourceRange.baseArrayLayer = 0;
-    view_info.subresourceRange.layerCount = 1;
-    vkCreateImageView(sc.device, &view_info, nullptr, &sc.image_views[i]);
+    image_view_info.image = swapchain_state.images[i];
+    image_view_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
+    image_view_info.format = swapchain_state.format;
+    image_view_info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    image_view_info.subresourceRange.baseMipLevel = 0;
+    image_view_info.subresourceRange.levelCount = 1;
+    image_view_info.subresourceRange.baseArrayLayer = 0;
+    image_view_info.subresourceRange.layerCount = 1;
+    require_success(
+        vkCreateImageView(
+            swapchain_state.device, &image_view_info, nullptr,
+            &swapchain_state.image_views[i]),
+        "Vulkan: Failed to create swapchain image view."_view);
   }
 
-  return sc;
+  return swapchain_state;
 }
 
-auto Swapchain::create(const Context& context, Bits_32 width, Bits_32 height)
+auto Swapchain::create(const Context& ctx, Bits_32 width, Bits_32 height)
     -> Swapchain {
-  return build(context, width, height, VK_NULL_HANDLE);
+  return build(ctx, width, height, VK_NULL_HANDLE);
 }
 
-auto Swapchain::recreate(const Context& context, Bits_32 width, Bits_32 height)
+auto Swapchain::recreate(const Context& ctx, Bits_32 width, Bits_32 height)
     -> void {
-  const VkSwapchainKHR old = swapchain;
+  const VkSwapchainKHR old_swapchain = swapchain;
 
   // Destroy image views but leave the old swapchain alive for oldSwapchain.
   for (Bits_32 i = 0; i < image_count; i++) {
@@ -139,16 +209,16 @@ auto Swapchain::recreate(const Context& context, Bits_32 width, Bits_32 height)
   image_count = 0;
   swapchain = VK_NULL_HANDLE;
 
-  *this = build(context, width, height, old);
+  *this = build(ctx, width, height, old_swapchain);
 
-  vkDestroySwapchainKHR(device, old, nullptr);
+  vkDestroySwapchainKHR(device, old_swapchain, nullptr);
 }
 
-auto Swapchain::destroy(VkDevice dev) -> void {
+auto Swapchain::destroy(VkDevice target_device) -> void {
   for (Bits_32 i = 0; i < image_count; i++) {
-    vkDestroyImageView(dev, image_views[i], nullptr);
+    vkDestroyImageView(target_device, image_views[i], nullptr);
   }
-  vkDestroySwapchainKHR(dev, swapchain, nullptr);
+  vkDestroySwapchainKHR(target_device, swapchain, nullptr);
 }
 
 Swapchain::~Swapchain() {
@@ -162,12 +232,11 @@ Swapchain::Swapchain(Swapchain&& other) noexcept
       swapchain(other.swapchain),
       format(other.format),
       extent(other.extent),
+      images(other.images),
+      image_views(other.image_views),
       image_count(other.image_count) {
-  for (Bits_32 i = 0; i < image_count; i++) {
-    images[i] = other.images[i];
-    image_views[i] = other.image_views[i];
-  }
   other.swapchain = VK_NULL_HANDLE;
+  other.image_count = 0;
 }
 
 auto Swapchain::operator=(Swapchain&& other) noexcept -> Swapchain& {
@@ -179,12 +248,11 @@ auto Swapchain::operator=(Swapchain&& other) noexcept -> Swapchain& {
     swapchain = other.swapchain;
     format = other.format;
     extent = other.extent;
+    images = other.images;
+    image_views = other.image_views;
     image_count = other.image_count;
-    for (Bits_32 i = 0; i < image_count; i++) {
-      images[i] = other.images[i];
-      image_views[i] = other.image_views[i];
-    }
     other.swapchain = VK_NULL_HANDLE;
+    other.image_count = 0;
   }
   return *this;
 }
@@ -208,6 +276,9 @@ auto Swapchain::get_extent() const -> VkExtent2D {
 }
 auto Swapchain::get_format() const -> VkFormat {
   return format;
+}
+auto Swapchain::get_image(Bits_32 index) const -> VkImage {
+  return images[index];
 }
 auto Swapchain::get_image_view(Bits_32 index) const -> VkImageView {
   return image_views[index];

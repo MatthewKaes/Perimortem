@@ -13,14 +13,14 @@ using namespace Perimortem::System;
 // to a 48-bit code + extra-bits pair without a second fill.
 auto Compression::BitStream::Reader::fill() -> void {
   const Count size = data.get_size();
-  const Bits_8* ptr = data.get_data();
+  const Bits_8* source_pointer = data.get_data();
 
   // Fast path: enough bytes remain for a single unaligned 64-bit load.
   // On little-endian hosts (x86) stream byte order matches load order directly.
   //
   // TODO: Support Big endian at some point.
   if (byte_position + Count(sizeof(Bits_64)) <= size) {
-    Bits_64 word = *Data::cast<const Bits_64>(ptr + byte_position);
+    Bits_64 word = *Data::cast<const Bits_64>(source_pointer + byte_position);
     Count consumed = (64 - buffered_bits) >> 3;
     buffer |= word << buffered_bits;
     byte_position += consumed;
@@ -30,7 +30,7 @@ auto Compression::BitStream::Reader::fill() -> void {
 
   // Slow path: near stream end we need to load byte by byte.
   while (buffered_bits <= 56 && byte_position < size) {
-    buffer |= Bits_64(ptr[byte_position++]) << buffered_bits;
+    buffer |= Bits_64(source_pointer[byte_position++]) << buffered_bits;
     buffered_bits += 8;
   }
 }

@@ -223,7 +223,7 @@ def run_test():
 
     print("\n--- Semantic tokens: Library/default dialects ---")
     library_source = (
-        "package : Library;\n"
+        "dialect : Library;\n"
         "@public func run[] -> Count {\n"
         "  while (true) {\n"
         "    continue;\n"
@@ -241,7 +241,7 @@ def run_test():
     check("while" in library_texts and "continue" in library_texts,
           "Library document highlights loop-control keywords")
 
-    no_package_source = (
+    no_dialect_source = (
         "@public func draft[] -> Count {\n"
         "  @stack label : Text = \"Icon \\\"Preview\\\"\";\n"
         "  if (true) {\n"
@@ -250,21 +250,21 @@ def run_test():
         "  return 0;\n"
         "}\n"
     )
-    no_package_uri = "file:///semantic-draft.ttx"
-    send_did_open(conn, no_package_uri, no_package_source)
-    no_package_resp = send_semantic_tokens(conn, no_package_uri, 21)
-    no_package_data = no_package_resp.get("result", {}).get("data", []) if no_package_resp else []
-    no_package_texts = [text for text, _ in semantic_token_texts(
-        no_package_source, no_package_data)]
-    check(len(no_package_data) > 0, "no-package document returns semantic tokens")
-    check("if" in no_package_texts and "continue" in no_package_texts,
-          "missing package defaults to Library highlighting")
-    check("\"Icon \\\"Preview\\\"\"" in no_package_texts,
+    no_dialect_uri = "file:///semantic-draft.ttx"
+    send_did_open(conn, no_dialect_uri, no_dialect_source)
+    no_dialect_resp = send_semantic_tokens(conn, no_dialect_uri, 21)
+    no_dialect_data = no_dialect_resp.get("result", {}).get("data", []) if no_dialect_resp else []
+    no_dialect_texts = [text for text, _ in semantic_token_texts(
+        no_dialect_source, no_dialect_data)]
+    check(len(no_dialect_data) > 0, "no-dialect document returns semantic tokens")
+    check("if" in no_dialect_texts and "continue" in no_dialect_texts,
+          "missing dialect defaults to Library highlighting")
+    check("\"Icon \\\"Preview\\\"\"" in no_dialect_texts,
           "document sync decodes escaped string text")
 
     print("\n--- Semantic tokens: Shader dialect filtering ---")
     shader_source = (
-        "package : Shader;\n"
+        "dialect : Shader;\n"
         "@public func main[] -> Count {\n"
         "  if (true) {\n"
         "    continue;\n"
@@ -336,7 +336,7 @@ def run_test():
                 print(f"  line count: {len(src_lines)} → {len(fmt_lines)}")
 
     print("\n--- Round-trip: invalid source ---")
-    invalid_source = "package : Library;\n\n$\n"
+    invalid_source = "dialect : Library;\n\n$\n"
     invalid_formatted = send_format(conn, invalid_source, "invalid.ttx")
     if invalid_formatted is not None:
         if invalid_formatted == invalid_source:

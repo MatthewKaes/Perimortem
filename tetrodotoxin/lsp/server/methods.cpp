@@ -3,10 +3,8 @@
 
 #include "tetrodotoxin/lsp/server/methods.hpp"
 
-#include "perimortem/core/static/bytes.hpp"
 #include "perimortem/core/algorithm/search.hpp"
 #include "perimortem/core/diagnostics/log.hpp"
-#include "perimortem/core/writer/textual.hpp"
 
 #include "perimortem/memory/allocator/arena.hpp"
 #include "perimortem/memory/dynamic/bytes.hpp"
@@ -17,12 +15,12 @@
 #include "perimortem/serialization/json/node.hpp"
 
 #include "tetrodotoxin/format/source.hpp"
-#include "tetrodotoxin/lexical/tokenizer.hpp"
+#include "ttx/lexical/tokenizer.hpp"
 #include "tetrodotoxin/lsp/server/documents.hpp"
 #include "tetrodotoxin/lsp/server/rpc/executor.hpp"
 #include "tetrodotoxin/lsp/server/semantic_tokens.hpp"
 #include "tetrodotoxin/syntax/context.hpp"
-#include "tetrodotoxin/syntax/package.hpp"
+#include "tetrodotoxin/syntax/ttx.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -30,14 +28,15 @@ using namespace Perimortem::Serialization;
 using namespace Tetrodotoxin::Lsp;
 
 static auto has_only_formatter_recoverable_errors(
-    const Tetrodotoxin::Syntax::Context& context) -> Bool {
-  if (context.get_error_count() == 0) {
+    const Tetrodotoxin::Syntax::Context& ctx) -> Bool {
+  if (ctx.get_error_count() == 0) {
     return True;
   }
 
-  View::Bytes errors = context.get_errors();
+  View::Bytes errors = ctx.get_errors();
   return Algorithm::search(
-             errors, "Expected Foreign declarations before package body"_view) !=
+             errors,
+             "Expected Foreign declarations before dialect body"_view) !=
              Count(-1) ||
          Algorithm::search(
              errors,
@@ -49,18 +48,17 @@ static auto format_source(
     Allocator::Arena& arena,
     View::Bytes source,
     View::Bytes name) -> Dynamic::Bytes {
-  Tetrodotoxin::Lexical::Tokenizer tokenizer(arena);
+  ::Ttx::Lexical::Tokenizer tokenizer(arena);
   tokenizer.parse(source);
 
   if (tokenizer.is_empty()) {
     return Dynamic::Bytes(source);
   }
 
-  Tetrodotoxin::Syntax::Context context(tokenizer, name);
-  Tetrodotoxin::Syntax::Package pkg =
-      Tetrodotoxin::Syntax::Package::parse(context);
+  Tetrodotoxin::Syntax::Context ctx(tokenizer, name);
+  Tetrodotoxin::Syntax::Ttx pkg = Tetrodotoxin::Syntax::Ttx::parse(ctx);
 
-  if (!pkg.is_valid() || !has_only_formatter_recoverable_errors(context)) {
+  if (!pkg.is_valid() || !has_only_formatter_recoverable_errors(ctx)) {
     return Dynamic::Bytes(source);
   }
 
@@ -151,6 +149,11 @@ static auto register_format(Server::Rpc::Executor& executor) -> void {
 }
 
 static auto register_document_state(Server::Rpc::Executor& executor) -> void {
+  // File URI logs intentionally keep more room than normal status messages.
+  // The URI is the useful part of the log, so truncating it usually removes the
+  // context we were trying to keep.
+  constexpr Count file_uri_log_capacity = 512;
+
   Diagnostics::Log::info("   -- textDocument/didOpen"_view);
   executor.register_method(
       "textDocument/didOpen"_view,
@@ -163,10 +166,9 @@ static auto register_document_state(Server::Rpc::Executor& executor) -> void {
             request.get_params()["textDocument"_view]["text"_view].get_string();
         executor.get_documents().upsert(uri, EscapedText::decode(arena, text));
 
-        Static::Bytes<512> message_buffer;
-        Writer::Textual message_writer(message_buffer.get_access());
-        message_writer << "File opened: "_view << uri;
-        Diagnostics::Log::info(message_writer);
+        Diagnostics::Log::Message<file_uri_log_capacity> log_message(
+            Diagnostics::Log::Level::Info);
+        log_message << "File opened: "_view << uri;
         return Json::Node();
       });
 
@@ -200,10 +202,9 @@ static auto register_document_state(Server::Rpc::Executor& executor) -> void {
             request.get_params()["textDocument"_view]["uri"_view].get_string();
         executor.get_documents().erase(uri);
 
-        Static::Bytes<512> message_buffer;
-        Writer::Textual message_writer(message_buffer.get_access());
-        message_writer << "File closed: "_view << uri;
-        Diagnostics::Log::info(message_writer);
+        Diagnostics::Log::Message<file_uri_log_capacity> log_message(
+            Diagnostics::Log::Level::Info);
+        log_message << "File closed: "_view << uri;
         return Json::Node();
       });
 }

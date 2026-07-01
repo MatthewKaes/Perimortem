@@ -8,6 +8,7 @@
 #include "perimortem/core/static/vector.hpp"
 #include "perimortem/core/diagnostics/log.hpp"
 #include "perimortem/core/null_terminated.hpp"
+#include "perimortem/memory/dynamic/vector.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Graphics::Vulkan;
@@ -31,21 +32,35 @@ static auto require_success(VkResult result, View::Bytes message) -> void {
   }
 }
 
+static auto require_enumeration_read(VkResult result, View::Bytes message)
+    -> void {
+  if (result != VK_SUCCESS && result != VK_INCOMPLETE) {
+    Diagnostics::Log::fatal(message);
+  }
+}
+
 #ifdef PERI_DEBUG
 static auto instance_layer_available(View::Bytes layer_name) -> Bool {
-  Bits_32 count = 0;
-  if (vkEnumerateInstanceLayerProperties(&count, nullptr) != VK_SUCCESS) {
-    return False;
-  }
-
-  Static::Vector<VkLayerProperties, 64> layers;
-  Bits_32 clamped = count < layers.get_size() ? count : layers.get_size();
-  if (vkEnumerateInstanceLayerProperties(&clamped, layers.get_data()) !=
+  Bits_32 layer_count = 0;
+  if (vkEnumerateInstanceLayerProperties(&layer_count, nullptr) !=
       VK_SUCCESS) {
     return False;
   }
+  if (layer_count == 0) {
+    return False;
+  }
 
-  for (Bits_32 i = 0; i < clamped; i++) {
+  Perimortem::Memory::Dynamic::Vector<VkLayerProperties> layers;
+  layers.forgetful_resize(layer_count);
+  Bits_32 read_layer_count = layer_count;
+  const VkResult layer_read_result =
+      vkEnumerateInstanceLayerProperties(&read_layer_count, layers.get_data());
+  if (layer_read_result != VK_SUCCESS &&
+      layer_read_result != VK_INCOMPLETE) {
+    return False;
+  }
+
+  for (Bits_32 i = 0; i < read_layer_count; i++) {
     if (NullTerminated::to_view(layers[i].layerName) == layer_name) {
       return True;
     }
@@ -57,38 +72,54 @@ static auto instance_layer_available(View::Bytes layer_name) -> Bool {
 
 static auto select_physical_device(VkInstance instance, VkSurfaceKHR surface)
     -> VkPhysicalDevice {
-  Bits_32 count = 0;
-  vkEnumeratePhysicalDevices(instance, &count, nullptr);
+  Bits_32 physical_device_count = 0;
+  require_success(
+      vkEnumeratePhysicalDevices(instance, &physical_device_count, nullptr),
+      "Vulkan: Failed to query physical devices."_view);
+  if (physical_device_count == 0) {
+    return VK_NULL_HANDLE;
+  }
 
-  Static::Vector<VkPhysicalDevice, 16> devices;
-  Bits_32 clamped = count < devices.get_size() ? count : devices.get_size();
-  vkEnumeratePhysicalDevices(instance, &clamped, devices.get_data());
+  Perimortem::Memory::Dynamic::Vector<VkPhysicalDevice> physical_devices;
+  physical_devices.forgetful_resize(physical_device_count);
+  Bits_32 read_physical_device_count = physical_device_count;
+  require_enumeration_read(
+      vkEnumeratePhysicalDevices(
+          instance, &read_physical_device_count, physical_devices.get_data()),
+      "Vulkan: Failed to read physical devices."_view);
+  if (read_physical_device_count == 0) {
+    return VK_NULL_HANDLE;
+  }
 
   // Prefer discrete GPUs; fall back to any device that can present.
   VkPhysicalDevice fallback = VK_NULL_HANDLE;
-  for (Bits_32 i = 0; i < clamped; i++) {
-    VkPhysicalDeviceProperties props = {};
-    vkGetPhysicalDeviceProperties(devices[i], &props);
+  for (Bits_32 i = 0; i < read_physical_device_count; i++) {
+    VkPhysicalDeviceProperties properties = {};
+    vkGetPhysicalDeviceProperties(physical_devices[i], &properties);
 
     // Check that a queue family supports both graphics and present.
-    Bits_32 family_count = 0;
+    Bits_32 queue_family_count = 0;
     vkGetPhysicalDeviceQueueFamilyProperties(
-        devices[i], &family_count, nullptr);
+        physical_devices[i], &queue_family_count, nullptr);
+    if (queue_family_count == 0) {
+      continue;
+    }
 
-    Static::Vector<VkQueueFamilyProperties, 32> families;
-    Bits_32 fc =
-        family_count < families.get_size() ? family_count : families.get_size();
+    Perimortem::Memory::Dynamic::Vector<VkQueueFamilyProperties>
+        queue_families;
+    queue_families.forgetful_resize(queue_family_count);
     vkGetPhysicalDeviceQueueFamilyProperties(
-        devices[i], &fc, families.get_data());
+        physical_devices[i], &queue_family_count, queue_families.get_data());
 
     Bool usable = False;
-    for (Bits_32 f = 0; f < fc; f++) {
-      if (!(families[f].queueFlags & VK_QUEUE_GRAPHICS_BIT)) {
+    for (Bits_32 queue_family = 0; queue_family < queue_family_count;
+         queue_family++) {
+      if (!(queue_families[queue_family].queueFlags & VK_QUEUE_GRAPHICS_BIT)) {
         continue;
       }
       VkBool32 present_supported = VK_FALSE;
       vkGetPhysicalDeviceSurfaceSupportKHR(
-          devices[i], f, surface, &present_supported);
+          physical_devices[i], queue_family, surface, &present_supported);
       if (present_supported) {
         usable = True;
         break;
@@ -98,10 +129,10 @@ static auto select_physical_device(VkInstance instance, VkSurfaceKHR surface)
     if (!usable) {
       continue;
     }
-    if (props.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU) {
-      return devices[i];
+    if (properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU) {
+      return physical_devices[i];
     }
-    fallback = devices[i];
+    fallback = physical_devices[i];
   }
   return fallback;
 }
@@ -109,16 +140,20 @@ static auto select_physical_device(VkInstance instance, VkSurfaceKHR surface)
 static auto find_graphics_queue_family(
     VkPhysicalDevice physical_device,
     VkSurfaceKHR surface) -> Bits_32 {
-  Bits_32 count = 0;
-  vkGetPhysicalDeviceQueueFamilyProperties(physical_device, &count, nullptr);
-
-  Static::Vector<VkQueueFamilyProperties, 32> families;
-  Bits_32 clamped = count < families.get_size() ? count : families.get_size();
+  Bits_32 queue_family_count = 0;
   vkGetPhysicalDeviceQueueFamilyProperties(
-      physical_device, &clamped, families.get_data());
+      physical_device, &queue_family_count, nullptr);
+  if (queue_family_count == 0) {
+    return UINT32_MAX;
+  }
 
-  for (Bits_32 i = 0; i < clamped; i++) {
-    if (!(families[i].queueFlags & VK_QUEUE_GRAPHICS_BIT)) {
+  Perimortem::Memory::Dynamic::Vector<VkQueueFamilyProperties> queue_families;
+  queue_families.forgetful_resize(queue_family_count);
+  vkGetPhysicalDeviceQueueFamilyProperties(
+      physical_device, &queue_family_count, queue_families.get_data());
+
+  for (Bits_32 i = 0; i < queue_family_count; i++) {
+    if (!(queue_families[i].queueFlags & VK_QUEUE_GRAPHICS_BIT)) {
       continue;
     }
     VkBool32 present = VK_FALSE;
@@ -229,7 +264,13 @@ Context::Context(Context&& other) noexcept
       graphics_queue(other.graphics_queue),
       graphics_queue_family(other.graphics_queue_family),
       command_pool(other.command_pool) {
+  other.instance = VK_NULL_HANDLE;
+  other.surface = VK_NULL_HANDLE;
+  other.physical_device = VK_NULL_HANDLE;
   other.device = VK_NULL_HANDLE;
+  other.graphics_queue = VK_NULL_HANDLE;
+  other.graphics_queue_family = 0;
+  other.command_pool = VK_NULL_HANDLE;
 }
 
 auto Context::operator=(Context&& other) noexcept -> Context& {
@@ -242,7 +283,13 @@ auto Context::operator=(Context&& other) noexcept -> Context& {
     graphics_queue = other.graphics_queue;
     graphics_queue_family = other.graphics_queue_family;
     command_pool = other.command_pool;
+    other.instance = VK_NULL_HANDLE;
+    other.surface = VK_NULL_HANDLE;
+    other.physical_device = VK_NULL_HANDLE;
     other.device = VK_NULL_HANDLE;
+    other.graphics_queue = VK_NULL_HANDLE;
+    other.graphics_queue_family = 0;
+    other.command_pool = VK_NULL_HANDLE;
   }
   return *this;
 }
@@ -250,34 +297,82 @@ auto Context::operator=(Context&& other) noexcept -> Context& {
 auto Context::get_instance() const -> VkInstance {
   return instance;
 }
+
 auto Context::get_physical_device() const -> VkPhysicalDevice {
   return physical_device;
 }
+
 auto Context::get_device() const -> VkDevice {
   return device;
 }
+
 auto Context::get_surface() const -> VkSurfaceKHR {
   return surface;
 }
+
 auto Context::get_graphics_queue() const -> VkQueue {
   return graphics_queue;
 }
+
 auto Context::get_graphics_queue_family() const -> Bits_32 {
   return graphics_queue_family;
 }
+
 auto Context::get_command_pool() const -> VkCommandPool {
   return command_pool;
 }
 
-auto Context::find_memory_type(Bits_32 type_filter, VkMemoryPropertyFlags props)
-    const -> Bits_32 {
-  VkPhysicalDeviceMemoryProperties mem_props = {};
-  vkGetPhysicalDeviceMemoryProperties(physical_device, &mem_props);
-  for (Bits_32 i = 0; i < mem_props.memoryTypeCount; i++) {
+auto Context::begin_immediate_commands() const -> VkCommandBuffer {
+  VkCommandBufferAllocateInfo allocation = {
+    VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO};
+  allocation.commandPool = command_pool;
+  allocation.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+  allocation.commandBufferCount = 1;
+
+  VkCommandBuffer command_buffer = VK_NULL_HANDLE;
+  require_success(
+      vkAllocateCommandBuffers(device, &allocation, &command_buffer),
+      "Vulkan: Failed to allocate immediate command buffer."_view);
+
+  VkCommandBufferBeginInfo begin_info = {
+    VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
+  begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+  require_success(
+      vkBeginCommandBuffer(command_buffer, &begin_info),
+      "Vulkan: Failed to begin immediate command buffer."_view);
+
+  return command_buffer;
+}
+
+auto Context::submit_immediate_commands(VkCommandBuffer command_buffer) const
+    -> void {
+  require_success(
+      vkEndCommandBuffer(command_buffer),
+      "Vulkan: Failed to end immediate command buffer."_view);
+
+  VkSubmitInfo submit = {VK_STRUCTURE_TYPE_SUBMIT_INFO};
+  submit.commandBufferCount = 1;
+  submit.pCommandBuffers = &command_buffer;
+  require_success(
+      vkQueueSubmit(graphics_queue, 1, &submit, VK_NULL_HANDLE),
+      "Vulkan: Failed to submit immediate command buffer."_view);
+  require_success(
+      vkQueueWaitIdle(graphics_queue),
+      "Vulkan: Failed to wait for immediate command buffer."_view);
+  vkFreeCommandBuffers(device, command_pool, 1, &command_buffer);
+}
+
+auto Context::find_memory_type(
+    Bits_32 type_filter,
+    VkMemoryPropertyFlags properties) const -> Bits_32 {
+  VkPhysicalDeviceMemoryProperties memory_properties = {};
+  vkGetPhysicalDeviceMemoryProperties(physical_device, &memory_properties);
+  for (Bits_32 i = 0; i < memory_properties.memoryTypeCount; i++) {
     const Bool type_matches = Bool((type_filter & (1u << i)) != 0);
-    const Bool props_match =
-        Bool((mem_props.memoryTypes[i].propertyFlags & props) == props);
-    if (type_matches & props_match) {
+    const Bool properties_match = Bool(
+        (memory_properties.memoryTypes[i].propertyFlags & properties) ==
+        properties);
+    if (type_matches && properties_match) {
       return i;
     }
   }

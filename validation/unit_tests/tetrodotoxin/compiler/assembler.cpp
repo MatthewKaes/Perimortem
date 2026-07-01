@@ -13,7 +13,7 @@
 
 #include "tetrodotoxin/compiler/assembler/spirv.hpp"
 #include "tetrodotoxin/compiler/assembler/x86_64.hpp"
-#include "ttx/ttx_tests.hpp"
+#include "ttx_generated/ttx_tests.hpp"
 
 using namespace Perimortem::Core;
 using namespace Validation;
@@ -42,7 +42,7 @@ PERIMORTEM_UNIT_TEST(TtxSpirV, emits_module_header) {
   EXPECT(spirv::is_valid_module(words));
 }
 
-PERIMORTEM_UNIT_TEST(TtxSpirV, emits_module_level_instructions) {
+PERIMORTEM_UNIT_TEST(TtxSpirV, module_instructions) {
   Perimortem::Memory::Dynamic::Bytes words;
   spirv assembler(words);
 
@@ -64,7 +64,7 @@ PERIMORTEM_UNIT_TEST(TtxSpirV, emits_module_level_instructions) {
   EXPECT(spirv::is_valid_module(words));
 }
 
-PERIMORTEM_UNIT_TEST(TtxSpirV, emits_void_function_skeleton) {
+PERIMORTEM_UNIT_TEST(TtxSpirV, void_func_skeleton) {
   Perimortem::Memory::Dynamic::Bytes words;
   spirv assembler(words);
 
@@ -85,7 +85,7 @@ PERIMORTEM_UNIT_TEST(TtxSpirV, emits_void_function_skeleton) {
   EXPECT_HEX(words, expected);
 }
 
-PERIMORTEM_UNIT_TEST(TtxSpirV, validates_instruction_word_bounds) {
+PERIMORTEM_UNIT_TEST(TtxSpirV, instruction_bounds) {
   Perimortem::Memory::Dynamic::Bytes words;
   spirv assembler(words);
   assembler.begin_module(2);
@@ -583,13 +583,20 @@ PERIMORTEM_UNIT_TEST(Ttxx86_64, mov_store_to_memory) {
   assembler.mov(x86_64::Reg::RAX, x86_64::Reg::RSP, Signed_32(8));
   // Store R8 to [RBX+8] — extended source register
   assembler.mov(x86_64::Reg::R8, x86_64::Reg::RBX, Signed_32(8));
+  // Store smaller operands to [RBP+0] without letting the base force REX.W.
+  assembler.mov(x86_64::Reg::EAX, x86_64::Reg::RBP, Signed_32(0));
+  assembler.mov(x86_64::Reg::AX, x86_64::Reg::RBP, Signed_32(0));
+  assembler.mov(x86_64::Reg::AL, x86_64::Reg::RBP, Signed_32(0));
   EXPECT_HEX(
       machine_code,
       "\x48\x89\x03"             // RAX → [RBX]
       "\x48\x89\x43\x08"         // RAX → [RBX+8]
       "\x48\x89\x45\x00"         // RAX → [RBP+0]
       "\x48\x89\x44\x24\x08"     // RAX → [RSP+8] (SIB)
-      "\x4C\x89\x43\x08"_view);  // R8 → [RBX+8] (REX.W+REX.R)
+      "\x4C\x89\x43\x08"         // R8 → [RBX+8] (REX.W+REX.R)
+      "\x89\x45\x00"             // EAX → [RBP+0]
+      "\x66\x89\x45\x00"         // AX → [RBP+0]
+      "\x40\x88\x45\x00"_view);  // AL → [RBP+0] (bare REX)
 }
 
 PERIMORTEM_UNIT_TEST(Ttxx86_64, mov_load_from_memory) {
@@ -603,12 +610,19 @@ PERIMORTEM_UNIT_TEST(Ttxx86_64, mov_load_from_memory) {
   assembler.mov(x86_64::Reg::RSP, Signed_32(8), x86_64::Reg::RAX);
   // Load [R8+8] to RAX — extended base register
   assembler.mov(x86_64::Reg::R8, Signed_32(8), x86_64::Reg::RAX);
+  // Load smaller operands from [RBP+0] without letting the base force REX.W.
+  assembler.mov(x86_64::Reg::RBP, Signed_32(0), x86_64::Reg::EAX);
+  assembler.mov(x86_64::Reg::RBP, Signed_32(0), x86_64::Reg::AX);
+  assembler.mov(x86_64::Reg::RBP, Signed_32(0), x86_64::Reg::AL);
   EXPECT_HEX(
       machine_code,
       "\x48\x8B\x03"             // [RBX] → RAX
       "\x48\x8B\x43\x08"         // [RBX+8] → RAX
       "\x48\x8B\x44\x24\x08"     // [RSP+8] → RAX (SIB)
-      "\x49\x8B\x40\x08"_view);  // [R8+8] → RAX (REX.W+REX.B)
+      "\x49\x8B\x40\x08"         // [R8+8] → RAX (REX.W+REX.B)
+      "\x8B\x45\x00"             // [RBP+0] → EAX
+      "\x66\x8B\x45\x00"         // [RBP+0] → AX
+      "\x40\x8A\x45\x00"_view);  // [RBP+0] → AL (bare REX)
 }
 
 PERIMORTEM_UNIT_TEST(Ttxx86_64, call) {

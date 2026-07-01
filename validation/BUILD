@@ -58,7 +58,7 @@ cc_binary(
         "//tetrodotoxin:linker",
         "//tetrodotoxin:resolution",
         "//tetrodotoxin:syntax",
-        "//tetrodotoxin:ttx_standard",
+        "//tetrodotoxin:validation",
     ],
 )
 
@@ -77,5 +77,16 @@ cc_binary(
     deps = [
         ":test_headers",
         "//perimortem",
+    ],
+)
+
+cc_binary(
+    name = "format_ttx_fixture",
+    srcs = ["format_ttx_fixture.cpp"],
+    deps = [
+        "//perimortem",
+        "//tetrodotoxin:format",
+        "//ttx/lexical:lexical",
+        "//tetrodotoxin:syntax",
     ],
 )

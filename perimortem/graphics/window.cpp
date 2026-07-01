@@ -10,6 +10,8 @@
 #include "perimortem/core/data.hpp"
 #include "perimortem/core/diagnostics/log.hpp"
 #include "perimortem/core/null_terminated.hpp"
+#include "perimortem/core/reader/binary.hpp"
+#include "perimortem/core/writer/binary.hpp"
 
 #include "perimortem/system/window.hpp"
 
@@ -20,9 +22,8 @@
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Graphics;
-namespace System = Perimortem::System;
 
-constexpr Count max_constant_bytes = 256;
+constexpr Count max_host_input_bytes = 256;
 constexpr Count frames_in_flight = 2;
 
 namespace Perimortem::Graphics {
@@ -33,7 +34,7 @@ static thread_local Scene* active_scene = nullptr;
 
 class Frame {
  public:
-  VkCommandBuffer cmd = VK_NULL_HANDLE;
+  VkCommandBuffer command_buffer = VK_NULL_HANDLE;
   VkSemaphore image_available = VK_NULL_HANDLE;
   VkSemaphore render_finished = VK_NULL_HANDLE;
   VkFence fence = VK_NULL_HANDLE;
@@ -41,23 +42,24 @@ class Frame {
 
 class Sprite2DResource {
  public:
-  auto initialize(const Vulkan::Context& context, const Image& source_image)
+  auto initialize(const Vulkan::Context& ctx, const Image& source_image)
       -> void {
-    texture = Vulkan::Texture::create(context, source_image);
+    texture = Vulkan::Texture::create(ctx, source_image);
     set_size_pixels(
         Real_32(source_image.get_width()), Real_32(source_image.get_height()));
   }
 
-  auto set_shader(
-      const Vulkan::Context& context,
+  auto set_renderer(
+      const Vulkan::Context& ctx,
       const Vulkan::Swapchain& swapchain,
-      const Ttx::Shader& source_shader) -> void {
-    if (!source_shader.program) {
-      Diagnostics::Log::fatal("Graphics::Window: Invalid 2D shader."_view);
+      const Render& source_renderer) -> void {
+    if (!source_renderer.is_valid()) {
+      Diagnostics::Log::fatal(
+          "Perimortem::Graphics::Window: Invalid 2D renderer."_view);
     }
 
-    shader = &source_shader;
-    rebuild_shader(context, swapchain);
+    renderer = &source_renderer;
+    rebuild_renderer(ctx, swapchain);
   }
 
   auto set_position(Real_32 x, Real_32 y) -> void {
@@ -72,44 +74,48 @@ class Sprite2DResource {
 
   auto set_alpha(Real_32 value) -> void { alpha = value; }
 
-  auto rebuild_shader(
-      const Vulkan::Context& context,
+  auto rebuild_renderer(
+      const Vulkan::Context& ctx,
       const Vulkan::Swapchain& swapchain) -> void {
-    if (!shader || !shader->program) {
-      Diagnostics::Log::fatal("Graphics::Window: Cannot build 2D shader."_view);
+    if (!renderer || !renderer->is_valid()) {
+      Diagnostics::Log::fatal(
+          "Perimortem::Graphics::Window: Cannot build 2D renderer."_view);
     }
 
     Static::Vector<VkDescriptorSetLayout, 1> descriptor_set_layouts(
         texture.get_descriptor_set_layout());
-    shader_program = Vulkan::ShaderProgram::create(
-        context.get_device(), swapchain.get_format(), *shader->program,
+    const Render::Program* program = renderer->get_program();
+    render_program = Vulkan::ShaderProgram::create(
+        ctx.get_device(), swapchain.get_format(), *program,
         descriptor_set_layouts);
   }
 
-  auto has_shader() const -> Bool { return shader != nullptr; }
+  auto has_renderer() const -> Bool { return renderer != nullptr; }
 
-  auto render(VkCommandBuffer cmd, Bits_32 width, Bits_32 height) -> void {
-    if (!shader) {
+  auto render(VkCommandBuffer command_buffer, Bits_32 width, Bits_32 height)
+      -> void {
+    if (!renderer) {
       return;
     }
 
-    write_shader_constants(width, height);
-    shader_program.bind(cmd);
-    shader_program.bind_descriptor_set(cmd, texture.get_descriptor_set());
-    if (constant_size > 0) {
-      shader_program.push_constants(
-          cmd, constant_bytes.get_data(), constant_size);
+    write_host_inputs(width, height);
+    render_program.bind(command_buffer);
+    render_program.bind_descriptor_set(
+        command_buffer, texture.get_descriptor_set());
+    if (host_input_size > 0) {
+      render_program.push_constants(
+          command_buffer, host_input_bytes.get_data(), host_input_size);
     }
-    shader_program.draw(cmd);
+    render_program.draw(command_buffer);
   }
 
  private:
-  static auto push_constant_size(const Ttx::ShaderProgramInfo& shader)
-      -> Count {
+  static auto host_input_size_for(const Render::Program& program) -> Count {
     Count result = 0;
-    for (Count i = 0; i < shader.push_constant_count; i++) {
-      const Count range_end =
-          shader.push_constants[i].offset + shader.push_constants[i].size;
+    const auto host_input_ranges = program.get_host_input_ranges();
+    for (Count i = 0; i < host_input_ranges.get_size(); i++) {
+      const Count range_end = host_input_ranges[i].get_offset() +
+                              host_input_ranges[i].get_size();
       if (range_end > result) {
         result = range_end;
       }
@@ -119,100 +125,100 @@ class Sprite2DResource {
   }
 
   template <typename ValueType>
-  static auto write_object_property(
-      Bits_8* constants,
-      Count constant_size,
-      const Ttx::ShaderObjectPropertyBinding& binding,
+  static auto write_host_field(
+      Bits_8* host_input_data,
+      Count host_input_size,
+      const Render::HostField& field,
       const ValueType* value,
       Count count = 1) -> void {
     const Count byte_count = sizeof(ValueType) * count;
-    if (binding.size != byte_count ||
-        binding.offset + binding.size > constant_size) {
+    if (field.get_size() != byte_count ||
+        field.get_offset() + field.get_size() > host_input_size) {
       Diagnostics::Log::fatal(
-          "Graphics::Window: Invalid 2D shader object property."_view);
+          "Perimortem::Graphics::Window: Invalid 2D renderer host field."_view);
     }
 
-    Data::copy(constants + binding.offset, value, count);
+    Data::copy(host_input_data + field.get_offset(), value, count);
   }
 
-  auto set_constant_size(Count size) -> void {
-    if (size > max_constant_bytes) {
+  auto set_host_input_size(Count size) -> void {
+    if (size > max_host_input_bytes) {
       Diagnostics::Log::fatal(
-          "Graphics::Window: 2D shader constants are too large."_view);
+          "Perimortem::Graphics::Window: 2D renderer inputs are too large."_view);
     }
 
-    constant_size = size;
+    host_input_size = size;
   }
 
-  auto write_shader_constants(Bits_32 width, Bits_32 height) -> void {
-    if (!shader) {
+  auto write_host_inputs(Bits_32 width, Bits_32 height) -> void {
+    if (!renderer) {
       return;
     }
 
-    const Ttx::ShaderProgramInfo& program = *shader->program;
-    if (program.push_constant_count == 0) {
-      set_constant_size(0);
+    const Render::Program* program = renderer->get_program();
+    if (!program) {
+      Diagnostics::Log::fatal(
+          "Perimortem::Graphics::Window: Missing 2D renderer program."_view);
+    }
+
+    if (program->get_host_input_ranges().is_empty()) {
+      set_host_input_size(0);
       return;
-    }
-    if (!program.push_constants) {
-      Diagnostics::Log::fatal(
-          "Graphics::Window: Invalid 2D shader constants."_view);
-    }
-    if (program.object_property_count > 0 && !program.object_properties) {
-      Diagnostics::Log::fatal(
-          "Graphics::Window: Invalid 2D shader object properties."_view);
     }
     if (width == 0 || height == 0) {
       Diagnostics::Log::fatal(
-          "Graphics::Window: Cannot render to zero-sized extent."_view);
+          "Perimortem::Graphics::Window: Cannot render to zero-sized extent."_view);
     }
 
-    set_constant_size(push_constant_size(program));
-    Data::set(constant_bytes.get_data(), 0, constant_size);
+    set_host_input_size(host_input_size_for(*program));
+    Data::set(host_input_bytes.get_data(), 0, host_input_size);
 
-    Static::Vector<Real_32, 2> half_size(
+    Static::Vector<Real_32, 2> normalized_size_pixels(
         size_pixels[0] / Real_32(width), size_pixels[1] / Real_32(height));
 
-    for (Count i = 0; i < program.object_property_count; i++) {
-      const Ttx::ShaderObjectPropertyBinding& binding =
-          program.object_properties[i];
-      switch (binding.property) {
-      case Ttx::ShaderObjectProperty::Position:
-        write_object_property(
-            constant_bytes.get_data(), constant_size, binding,
+    // The render program describes host-visible fields. Sprite2D owns the
+    // engine meaning of those names, so TTX does not need sprite concepts.
+    const auto host_fields = program->get_host_fields();
+    for (Count i = 0; i < host_fields.get_size(); i++) {
+      const Render::HostField& field = host_fields[i];
+      const View::Bytes name = NullTerminated::to_view(field.get_name());
+      if (name == "position"_view) {
+        write_host_field(
+            host_input_bytes.get_data(), host_input_size, field,
             position.get_data(), 2);
-        break;
-      case Ttx::ShaderObjectProperty::HalfSize:
-        write_object_property(
-            constant_bytes.get_data(), constant_size, binding,
-            half_size.get_data(), 2);
-        break;
-      case Ttx::ShaderObjectProperty::Alpha:
-        write_object_property(
-            constant_bytes.get_data(), constant_size, binding, &alpha);
-        break;
+        continue;
+      }
+      if (name == "size_pixels"_view) {
+        write_host_field(
+            host_input_bytes.get_data(), host_input_size, field,
+            normalized_size_pixels.get_data(), 2);
+        continue;
+      }
+      if (name == "alpha"_view) {
+        write_host_field(
+            host_input_bytes.get_data(), host_input_size, field, &alpha);
       }
     }
   }
 
   Vulkan::Texture texture;
-  Vulkan::ShaderProgram shader_program;
-  const Ttx::Shader* shader = nullptr;
+  Vulkan::ShaderProgram render_program;
+  const Render* renderer = nullptr;
   Static::Vector<Real_32, 2> position;
   Static::Vector<Real_32, 2> size_pixels;
   Real_32 alpha = 1.0f;
-  alignas(16) Static::Bytes<max_constant_bytes> constant_bytes;
-  Count constant_size = 0;
+  alignas(16) Static::Bytes<max_host_input_bytes> host_input_bytes;
+  Count host_input_size = 0;
 };
 
 class WindowState {
  public:
   WindowState(Bits_32 width, Bits_32 height, const char* title)
       : window(width, height, title),
-        context(Vulkan::Context::create(window)),
+        ctx(Vulkan::Context::create(window)),
         swapchain(
             Vulkan::Swapchain::create(
-                context,
+                ctx,
                 window.get_logical_width() * window.get_scale(),
                 window.get_logical_height() * window.get_scale())) {
     allocate_frames();
@@ -226,17 +232,17 @@ class WindowState {
 
   auto create_sprite_2d(const Image& image) -> Count {
     if (sprite_2d_count >= Window::max_sprites_2d) {
-      Diagnostics::Log::fatal("Graphics::Window: Too many 2D sprites."_view);
+      Diagnostics::Log::fatal("Perimortem::Graphics::Window: Too many 2D sprites."_view);
     }
 
     const Count result = sprite_2d_count++;
-    sprites_2d[result].initialize(context, image);
+    sprites_2d[result].initialize(ctx, image);
     return result;
   }
 
-  auto set_sprite_2d_shader(Count sprite_index, const Ttx::Shader& shader)
+  auto set_sprite_2d_renderer(Count sprite_index, const Render& renderer)
       -> void {
-    sprites_2d[sprite_index].set_shader(context, swapchain, shader);
+    sprites_2d[sprite_index].set_renderer(ctx, swapchain, renderer);
   }
 
   auto set_sprite_2d_position(Count sprite_index, Real_32 x, Real_32 y)
@@ -270,7 +276,7 @@ class WindowState {
 
   auto render() -> void {
     Frame& frame = frames[current_frame];
-    vkWaitForFences(context.get_device(), 1, &frame.fence, VK_TRUE, UINT64_MAX);
+    vkWaitForFences(ctx.get_device(), 1, &frame.fence, VK_TRUE, UINT64_MAX);
 
     const Bits_32 image_index =
         swapchain.acquire_next_image(frame.image_available);
@@ -278,11 +284,11 @@ class WindowState {
       return;
     }
 
-    vkResetFences(context.get_device(), 1, &frame.fence);
-    vkResetCommandBuffer(frame.cmd, 0);
+    vkResetFences(ctx.get_device(), 1, &frame.fence);
+    vkResetCommandBuffer(frame.command_buffer, 0);
 
     record_frame(
-        frame.cmd, swapchain_images[image_index],
+        frame.command_buffer, swapchain_images[image_index],
         swapchain.get_image_view(image_index));
 
     constexpr VkPipelineStageFlags wait_stage =
@@ -293,35 +299,35 @@ class WindowState {
     submit.pWaitSemaphores = &frame.image_available;
     submit.pWaitDstStageMask = &wait_stage;
     submit.commandBufferCount = 1;
-    submit.pCommandBuffers = &frame.cmd;
+    submit.pCommandBuffers = &frame.command_buffer;
     submit.signalSemaphoreCount = 1;
     submit.pSignalSemaphores = &frame.render_finished;
     require_success(
-        vkQueueSubmit(context.get_graphics_queue(), 1, &submit, frame.fence),
-        "Graphics::Window: Failed to submit frame."_view);
+        vkQueueSubmit(ctx.get_graphics_queue(), 1, &submit, frame.fence),
+        "Perimortem::Graphics::Window: Failed to submit frame."_view);
 
-    const VkSwapchainKHR sc = swapchain.get_swapchain();
+    const VkSwapchainKHR swapchain_handle = swapchain.get_swapchain();
     VkPresentInfoKHR present = {VK_STRUCTURE_TYPE_PRESENT_INFO_KHR};
     present.waitSemaphoreCount = 1;
     present.pWaitSemaphores = &frame.render_finished;
     present.swapchainCount = 1;
-    present.pSwapchains = &sc;
+    present.pSwapchains = &swapchain_handle;
     present.pImageIndices = &image_index;
 
     const VkResult present_result =
-        vkQueuePresentKHR(context.get_graphics_queue(), &present);
+        vkQueuePresentKHR(ctx.get_graphics_queue(), &present);
     if (present_result != VK_SUCCESS && present_result != VK_SUBOPTIMAL_KHR &&
         present_result != VK_ERROR_OUT_OF_DATE_KHR) {
       Diagnostics::Log::fatal(
-          "Graphics::Window: Failed to present frame."_view);
+          "Perimortem::Graphics::Window: Failed to present frame."_view);
     }
 
     current_frame = (current_frame + 1) % frames_in_flight;
   }
 
   auto wait_idle() -> void {
-    if (context.get_device()) {
-      vkDeviceWaitIdle(context.get_device());
+    if (ctx.get_device()) {
+      vkDeviceWaitIdle(ctx.get_device());
     }
   }
 
@@ -339,61 +345,61 @@ class WindowState {
   auto resize(Bits_32 width, Bits_32 height) -> void {
     wait_idle();
     const VkFormat old_format = swapchain.get_format();
-    swapchain.recreate(context, width, height);
+    swapchain.recreate(ctx, width, height);
     refresh_swapchain_images();
 
     if (swapchain.get_format() != old_format) {
-      recreate_sprite_2d_shaders();
+      recreate_sprite_2d_renderers();
     }
   }
 
   auto allocate_frames() -> void {
-    VkCommandBufferAllocateInfo cmd_alloc = {
+    VkCommandBufferAllocateInfo command_buffer_allocation = {
       VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO};
-    cmd_alloc.commandPool = context.get_command_pool();
-    cmd_alloc.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-    cmd_alloc.commandBufferCount = 1;
+    command_buffer_allocation.commandPool = ctx.get_command_pool();
+    command_buffer_allocation.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    command_buffer_allocation.commandBufferCount = 1;
 
     for (Count i = 0; i < frames_in_flight; i++) {
       require_success(
           vkAllocateCommandBuffers(
-              context.get_device(), &cmd_alloc, &frames[i].cmd),
-          "Graphics::Window: Failed to allocate command buffer."_view);
+              ctx.get_device(), &command_buffer_allocation, &frames[i].command_buffer),
+          "Perimortem::Graphics::Window: Failed to allocate command buffer."_view);
 
-      VkSemaphoreCreateInfo sem_info = {
+      VkSemaphoreCreateInfo semaphore_info = {
         VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO};
       require_success(
           vkCreateSemaphore(
-              context.get_device(), &sem_info, nullptr,
+              ctx.get_device(), &semaphore_info, nullptr,
               &frames[i].image_available),
-          "Graphics::Window: Failed to create image-available semaphore."_view);
+          "Perimortem::Graphics::Window: Failed to create image-available semaphore."_view);
       require_success(
           vkCreateSemaphore(
-              context.get_device(), &sem_info, nullptr,
+              ctx.get_device(), &semaphore_info, nullptr,
               &frames[i].render_finished),
-          "Graphics::Window: Failed to create render-finished semaphore."_view);
+          "Perimortem::Graphics::Window: Failed to create render-finished semaphore."_view);
 
       VkFenceCreateInfo fence_info = {VK_STRUCTURE_TYPE_FENCE_CREATE_INFO};
       fence_info.flags = VK_FENCE_CREATE_SIGNALED_BIT;
       require_success(
           vkCreateFence(
-              context.get_device(), &fence_info, nullptr, &frames[i].fence),
-          "Graphics::Window: Failed to create frame fence."_view);
+              ctx.get_device(), &fence_info, nullptr, &frames[i].fence),
+          "Perimortem::Graphics::Window: Failed to create frame fence."_view);
     }
   }
 
   auto destroy_frames() -> void {
     for (Count i = 0; i < frames_in_flight; i++) {
       if (frames[i].fence) {
-        vkDestroyFence(context.get_device(), frames[i].fence, nullptr);
+        vkDestroyFence(ctx.get_device(), frames[i].fence, nullptr);
       }
       if (frames[i].render_finished) {
         vkDestroySemaphore(
-            context.get_device(), frames[i].render_finished, nullptr);
+            ctx.get_device(), frames[i].render_finished, nullptr);
       }
       if (frames[i].image_available) {
         vkDestroySemaphore(
-            context.get_device(), frames[i].image_available, nullptr);
+            ctx.get_device(), frames[i].image_available, nullptr);
       }
 
       frames[i] = {};
@@ -401,32 +407,29 @@ class WindowState {
   }
 
   auto refresh_swapchain_images() -> void {
-    Bits_32 image_total = swapchain.get_image_count();
-    require_success(
-        vkGetSwapchainImagesKHR(
-            context.get_device(), swapchain.get_swapchain(), &image_total,
-            swapchain_images.get_data()),
-        "Graphics::Window: Failed to get swapchain images."_view);
+    for (Bits_32 i = 0; i < swapchain.get_image_count(); i++) {
+      swapchain_images[i] = swapchain.get_image(i);
+    }
   }
 
-  auto recreate_sprite_2d_shaders() -> void {
+  auto recreate_sprite_2d_renderers() -> void {
     for (Count i = 0; i < sprite_2d_count; i++) {
-      if (sprites_2d[i].has_shader()) {
-        sprites_2d[i].rebuild_shader(context, swapchain);
+      if (sprites_2d[i].has_renderer()) {
+        sprites_2d[i].rebuild_renderer(ctx, swapchain);
       }
     }
   }
 
   auto record_frame(
-      VkCommandBuffer cmd,
+      VkCommandBuffer command_buffer,
       VkImage swapchain_image,
       VkImageView swapchain_image_view) -> void {
-    VkCommandBufferBeginInfo begin = {
+    VkCommandBufferBeginInfo begin_info = {
       VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
-    begin.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+    begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
     require_success(
-        vkBeginCommandBuffer(cmd, &begin),
-        "Graphics::Window: Failed to begin command buffer."_view);
+        vkBeginCommandBuffer(command_buffer, &begin_info),
+        "Perimortem::Graphics::Window: Failed to begin command buffer."_view);
 
     VkImageMemoryBarrier2 to_attachment = {
       VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2};
@@ -443,10 +446,11 @@ class WindowState {
     to_attachment.image = swapchain_image;
     to_attachment.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
 
-    VkDependencyInfo dep_attach = {VK_STRUCTURE_TYPE_DEPENDENCY_INFO};
-    dep_attach.imageMemoryBarrierCount = 1;
-    dep_attach.pImageMemoryBarriers = &to_attachment;
-    vkCmdPipelineBarrier2(cmd, &dep_attach);
+    VkDependencyInfo attachment_dependency = {
+      VK_STRUCTURE_TYPE_DEPENDENCY_INFO};
+    attachment_dependency.imageMemoryBarrierCount = 1;
+    attachment_dependency.pImageMemoryBarriers = &to_attachment;
+    vkCmdPipelineBarrier2(command_buffer, &attachment_dependency);
 
     const VkExtent2D extent = swapchain.get_extent();
 
@@ -464,20 +468,20 @@ class WindowState {
     rendering.colorAttachmentCount = 1;
     rendering.pColorAttachments = &color_attachment;
 
-    vkCmdBeginRendering(cmd, &rendering);
+    vkCmdBeginRendering(command_buffer, &rendering);
 
     const VkViewport viewport = {
       0.0f, 0.0f, Real_32(extent.width), Real_32(extent.height), 0.0f, 1.0f};
-    vkCmdSetViewport(cmd, 0, 1, &viewport);
+    vkCmdSetViewport(command_buffer, 0, 1, &viewport);
 
     const VkRect2D scissor = {{0, 0}, extent};
-    vkCmdSetScissor(cmd, 0, 1, &scissor);
+    vkCmdSetScissor(command_buffer, 0, 1, &scissor);
 
     for (Count i = 0; i < sprite_2d_count; i++) {
-      sprites_2d[i].render(cmd, extent.width, extent.height);
+      sprites_2d[i].render(command_buffer, extent.width, extent.height);
     }
 
-    vkCmdEndRendering(cmd);
+    vkCmdEndRendering(command_buffer);
 
     VkImageMemoryBarrier2 to_present = {
       VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2};
@@ -492,18 +496,18 @@ class WindowState {
     to_present.image = swapchain_image;
     to_present.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
 
-    VkDependencyInfo dep_present = {VK_STRUCTURE_TYPE_DEPENDENCY_INFO};
-    dep_present.imageMemoryBarrierCount = 1;
-    dep_present.pImageMemoryBarriers = &to_present;
-    vkCmdPipelineBarrier2(cmd, &dep_present);
+    VkDependencyInfo present_dependency = {VK_STRUCTURE_TYPE_DEPENDENCY_INFO};
+    present_dependency.imageMemoryBarrierCount = 1;
+    present_dependency.pImageMemoryBarriers = &to_present;
+    vkCmdPipelineBarrier2(command_buffer, &present_dependency);
 
     require_success(
-        vkEndCommandBuffer(cmd),
-        "Graphics::Window: Failed to end command buffer."_view);
+        vkEndCommandBuffer(command_buffer),
+        "Perimortem::Graphics::Window: Failed to end command buffer."_view);
   }
 
-  System::Window window;
-  Vulkan::Context context;
+  Perimortem::System::Window window;
+  Vulkan::Context ctx;
   Vulkan::Swapchain swapchain;
   Static::Vector<Sprite2DResource, Window::max_sprites_2d> sprites_2d;
   Count sprite_2d_count = 0;
@@ -529,7 +533,17 @@ Window::Runtime::~Runtime() {
   pthread_mutex_destroy(&mutex);
 }
 
-auto Window::Runtime::operator()() -> void {
+auto Window::Runtime::run_job(View::Bytes job_data) -> void {
+  Reader::Binary<Data::ByteOrder::Native> reader(job_data);
+  const Bits_64 runtime_address = reader.read_bits_64();
+  if (!reader.is_valid() || !reader.is_empty() || runtime_address == 0) {
+    Diagnostics::Log::fatal("Invalid graphics window worker job payload."_view);
+  }
+
+  reinterpret_cast<Runtime*>(runtime_address)->run();
+}
+
+auto Window::Runtime::run() -> void {
   WindowState state(width, height, title);
 
   pthread_mutex_lock(&mutex);
@@ -547,8 +561,8 @@ auto Window::Runtime::operator()() -> void {
     case CommandKind::CreateSprite2D:
       command.sprite_index = state.create_sprite_2d(*command.image);
       break;
-    case CommandKind::SetSprite2DShader:
-      state.set_sprite_2d_shader(command.sprite_index, *command.shader);
+    case CommandKind::SetSprite2DRenderer:
+      state.set_sprite_2d_renderer(command.sprite_index, *command.renderer);
       break;
     case CommandKind::SetSprite2DPosition:
       state.set_sprite_2d_position(command.sprite_index, command.x, command.y);
@@ -629,8 +643,8 @@ auto Sprite2D::create(const Image& image) -> Sprite2D& {
   return Scene::current().create_sprite_2d(image);
 }
 
-auto Sprite2D::set_shader(const Ttx::Shader& shader) -> void {
-  window->set_sprite_2d_shader(index, shader);
+auto Sprite2D::set_renderer(const Render& renderer) -> void {
+  window->set_sprite_2d_renderer(index, renderer);
 }
 
 auto Sprite2D::set_position(Real_32 x, Real_32 y) -> void {
@@ -652,7 +666,11 @@ auto Sprite2D::initialize(Window* owner, Count sprite_index) -> void {
 
 Window::Window(Bits_32 width, Bits_32 height, const char* title)
     : runtime(width, height, title) {
-  worker = Core::Thread::Worker::start("graphics.window"_view, runtime);
+  alignas(Bits_64) Static::Bytes<sizeof(Bits_64)> job_data;
+  Writer::Binary<Data::ByteOrder::Native> job_writer(job_data.get_access());
+  job_writer << reinterpret_cast<Bits_64>(&runtime);
+  worker = Core::Thread::Worker::start(
+      "graphics.window"_view, Runtime::run_job, job_writer);
   runtime.wait_until_ready();
 }
 
@@ -698,7 +716,7 @@ auto Window::get_height() -> Bits_32 {
 
 auto Window::create_sprite_2d(const Image& image) -> Sprite2D& {
   if (sprite_2d_count >= max_sprites_2d) {
-    Diagnostics::Log::fatal("Graphics::Window: Too many 2D sprites."_view);
+    Diagnostics::Log::fatal("Perimortem::Graphics::Window: Too many 2D sprites."_view);
   }
 
   Command command;
@@ -711,12 +729,12 @@ auto Window::create_sprite_2d(const Image& image) -> Sprite2D& {
   return result;
 }
 
-auto Window::set_sprite_2d_shader(Count sprite_index, const Ttx::Shader& shader)
+auto Window::set_sprite_2d_renderer(Count sprite_index, const Render& renderer)
     -> void {
   Command command;
-  command.kind = CommandKind::SetSprite2DShader;
+  command.kind = CommandKind::SetSprite2DRenderer;
   command.sprite_index = sprite_index;
-  command.shader = &shader;
+  command.renderer = &renderer;
   runtime.execute(command);
 }
 
@@ -784,7 +802,7 @@ auto Scene::get_height() -> Bits_32 {
 auto Scene::current() -> Scene& {
   if (!active_scene) {
     Diagnostics::Log::fatal(
-        "Graphics::Scene: No active scene for render object creation."_view);
+        "Perimortem::Graphics::Scene: No active scene for render object creation."_view);
   }
   return *active_scene;
 }

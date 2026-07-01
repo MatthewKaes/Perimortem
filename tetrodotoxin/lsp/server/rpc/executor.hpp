@@ -20,11 +20,11 @@ namespace Tetrodotoxin::Lsp::Server::Rpc {
 
 class Executor {
  public:
-  using DispatchFunction = Rpc::Response (*)(Executor&, const Rpc::Request&);
+  using DispatchFunc = Rpc::Response (*)(Executor&, const Rpc::Request&);
 
   auto register_method(
       Perimortem::Core::View::Bytes name,
-      DispatchFunction resolver) -> void;
+      DispatchFunc resolver) -> void;
   auto execute(Perimortem::Core::View::Bytes pipe_name) -> void;
   auto get_documents() -> Documents& { return documents; }
   auto is_cancelled(Signed_64 id) -> Bool;
@@ -33,7 +33,7 @@ class Executor {
   class Dispatch {
    public:
     Perimortem::Core::View::Bytes name;
-    DispatchFunction func;
+    DispatchFunc func;
   };
 
   class CancelRecord {
@@ -59,14 +59,9 @@ class Executor {
     Bool cancelled = False;
   };
 
-  class WorkerLoop {
-   public:
-    Executor* executor = nullptr;
-    auto operator()() -> void;
-  };
-
   auto create_connection(Perimortem::Core::View::Bytes pipe_name) -> Bool;
-  auto lookup_dispatch(Perimortem::Core::View::Bytes name) -> DispatchFunction;
+  static auto run_worker_job(Perimortem::Core::View::Bytes job_data) -> void;
+  auto lookup_dispatch(Perimortem::Core::View::Bytes name) -> DispatchFunc;
   auto write_jsonrpc_frame(Perimortem::Core::View::Bytes view) -> void;
   auto write_response(Perimortem::Core::View::Bytes json_response) -> void;
   auto create_job(Perimortem::Core::View::Bytes data) -> void;

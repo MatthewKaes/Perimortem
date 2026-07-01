@@ -7,7 +7,7 @@
 #include "perimortem/core/view/vector.hpp"
 #include "perimortem/core/perimortem.hpp"
 
-#include "tetrodotoxin/compiler/abi/argument.hpp"
+#include "tetrodotoxin/abi/argument.hpp"
 
 namespace Tetrodotoxin::Compiler::Context {
 

@@ -49,53 +49,54 @@ struct Blueprint {
 
   // Unnamed scalar constructors.
   Blueprint() : string_val(), name(), tag(Tag::Null) {}
-  Blueprint(Core::View::Bytes str)
-      : string_val(str), name(), tag(Tag::String) {}
-  Blueprint(Bits_8 num) : number_val(num), name(), tag(Tag::Number) {}
-  Blueprint(Bits_16 num) : number_val(num), name(), tag(Tag::Number) {}
-  Blueprint(Bits_32 num) : number_val(num), name(), tag(Tag::Number) {}
-  Blueprint(Bits_64 num) : number_val(num), name(), tag(Tag::Number) {}
-  Blueprint(Signed_8 num) : number_val(num), name(), tag(Tag::Number) {}
-  Blueprint(Signed_16 num) : number_val(num), name(), tag(Tag::Number) {}
-  Blueprint(Signed_32 num) : number_val(num), name(), tag(Tag::Number) {}
-  Blueprint(Signed_64 num) : number_val(num), name(), tag(Tag::Number) {}
+  Blueprint(Core::View::Bytes text)
+      : string_val(text), name(), tag(Tag::String) {}
+  Blueprint(Bits_8 number) : number_val(number), name(), tag(Tag::Number) {}
+  Blueprint(Bits_16 number) : number_val(number), name(), tag(Tag::Number) {}
+  Blueprint(Bits_32 number) : number_val(number), name(), tag(Tag::Number) {}
+  Blueprint(Bits_64 number) : number_val(number), name(), tag(Tag::Number) {}
+  Blueprint(Signed_8 number) : number_val(number), name(), tag(Tag::Number) {}
+  Blueprint(Signed_16 number) : number_val(number), name(), tag(Tag::Number) {}
+  Blueprint(Signed_32 number) : number_val(number), name(), tag(Tag::Number) {}
+  Blueprint(Signed_64 number) : number_val(number), name(), tag(Tag::Number) {}
   Blueprint(Real_64 real) : real_val(real), name(), tag(Tag::Real) {}
   Blueprint(Real_32 real) : Blueprint(Real_64(real)) {}
-  Blueprint(Bool b) : flag_val(b), name(), tag(Tag::Flag) {}
+  Blueprint(Bool flag) : flag_val(flag), name(), tag(Tag::Flag) {}
   Blueprint(const Node& node) : node_ptr(&node), name(), tag(Tag::Node) {}
 
   // Named scalar constructors (member -> scalar)
-  Blueprint(Core::View::Bytes n, Core::View::Bytes str)
-      : string_val(str), name(n), tag(Tag::String) {}
-  Blueprint(Core::View::Bytes n, Bits_8 num)
-      : number_val(num), name(n), tag(Tag::Number) {}
-  Blueprint(Core::View::Bytes n, Bits_16 num)
-      : number_val(num), name(n), tag(Tag::Number) {}
-  Blueprint(Core::View::Bytes n, Bits_32 num)
-      : number_val(num), name(n), tag(Tag::Number) {}
-  Blueprint(Core::View::Bytes n, Bits_64 num)
-      : number_val(num), name(n), tag(Tag::Number) {}
-  Blueprint(Core::View::Bytes n, Signed_8 num)
-      : number_val(num), name(n), tag(Tag::Number) {}
-  Blueprint(Core::View::Bytes n, Signed_16 num)
-      : number_val(num), name(n), tag(Tag::Number) {}
-  Blueprint(Core::View::Bytes n, Signed_32 num)
-      : number_val(num), name(n), tag(Tag::Number) {}
-  Blueprint(Core::View::Bytes n, Signed_64 num)
-      : number_val(num), name(n), tag(Tag::Number) {}
-  Blueprint(Core::View::Bytes n, Real_64 real)
-      : real_val(real), name(n), tag(Tag::Real) {}
-  Blueprint(Core::View::Bytes n, Real_32 real) : Blueprint(n, Real_64(real)) {}
-  Blueprint(Core::View::Bytes n, Bool b)
-      : flag_val(b), name(n), tag(Tag::Flag) {}
-  Blueprint(Core::View::Bytes n, const Node& node)
-      : node_ptr(&node), name(n), tag(Tag::Node) {}
+  Blueprint(Core::View::Bytes member_name, Core::View::Bytes text)
+      : string_val(text), name(member_name), tag(Tag::String) {}
+  Blueprint(Core::View::Bytes member_name, Bits_8 number)
+      : number_val(number), name(member_name), tag(Tag::Number) {}
+  Blueprint(Core::View::Bytes member_name, Bits_16 number)
+      : number_val(number), name(member_name), tag(Tag::Number) {}
+  Blueprint(Core::View::Bytes member_name, Bits_32 number)
+      : number_val(number), name(member_name), tag(Tag::Number) {}
+  Blueprint(Core::View::Bytes member_name, Bits_64 number)
+      : number_val(number), name(member_name), tag(Tag::Number) {}
+  Blueprint(Core::View::Bytes member_name, Signed_8 number)
+      : number_val(number), name(member_name), tag(Tag::Number) {}
+  Blueprint(Core::View::Bytes member_name, Signed_16 number)
+      : number_val(number), name(member_name), tag(Tag::Number) {}
+  Blueprint(Core::View::Bytes member_name, Signed_32 number)
+      : number_val(number), name(member_name), tag(Tag::Number) {}
+  Blueprint(Core::View::Bytes member_name, Signed_64 number)
+      : number_val(number), name(member_name), tag(Tag::Number) {}
+  Blueprint(Core::View::Bytes member_name, Real_64 real)
+      : real_val(real), name(member_name), tag(Tag::Real) {}
+  Blueprint(Core::View::Bytes member_name, Real_32 real)
+      : Blueprint(member_name, Real_64(real)) {}
+  Blueprint(Core::View::Bytes member_name, Bool flag)
+      : flag_val(flag), name(member_name), tag(Tag::Flag) {}
+  Blueprint(Core::View::Bytes member_name, const Node& node)
+      : node_ptr(&node), name(member_name), tag(Tag::Node) {}
 
   // Named Blueprint arrays are treated as a member entry in a hosting Object
   // that hosts a nested structure which could be an Array or Object.
   template <Count N>
-  Blueprint(Core::View::Bytes n, const Blueprint (&children)[N])
-      : compound{children, N}, name(n), tag(Tag::Compound) {}
+  Blueprint(Core::View::Bytes member_name, const Blueprint (&children)[N])
+      : compound{children, N}, name(member_name), tag(Tag::Compound) {}
 
   // An Object without a named nesting is just a flat Array.
   template <Count N>

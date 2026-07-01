@@ -7,8 +7,8 @@
 
 #include "perimortem/memory/managed/vector.hpp"
 
-#include "tetrodotoxin/lexical/tokenizer.hpp"
-#include "tetrodotoxin/syntax/package.hpp"
+#include "ttx/lexical/tokenizer.hpp"
+#include "tetrodotoxin/syntax/ttx.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -31,9 +31,9 @@ enum SemanticToken : Signed_64 {
   SemanticDecorator,
 };
 
-static auto is_shader_only_filtered(Tetrodotoxin::Lexical::Class klass)
+static auto should_filter_shader_keyword(::Ttx::Lexical::Class klass)
     -> Bool {
-  using Type = Tetrodotoxin::Lexical::Class::Type;
+  using Type = ::Ttx::Lexical::Class::Type;
 
   switch (klass.get_type()) {
   case Type::If:
@@ -56,9 +56,9 @@ static auto has_newline(View::Bytes text) -> Bool {
   return Algorithm::search(text, "\n"_view) != Count(-1);
 }
 
-static auto classify_semantic_token(Tetrodotoxin::Lexical::Class klass)
+static auto classify_semantic_token(::Ttx::Lexical::Class klass)
     -> Signed_64 {
-  using Type = Tetrodotoxin::Lexical::Class::Type;
+  using Type = ::Ttx::Lexical::Class::Type;
 
   switch (klass.get_type()) {
   case Type::Comment:
@@ -170,21 +170,21 @@ auto Server::semantic_tokens_for(Allocator::Arena& arena, View::Bytes source)
     return Json::Node(empty_result.get_view());
   }
 
-  Tetrodotoxin::Lexical::Tokenizer tokenizer(arena);
+  ::Ttx::Lexical::Tokenizer tokenizer(arena);
   tokenizer.parse(source, false);
 
-  View::Vector<Tetrodotoxin::Lexical::Token> tokens = tokenizer.get_tokens();
-  Tetrodotoxin::Lexical::Class package_kind =
-      Tetrodotoxin::Syntax::Package::detect_kind(tokens);
+  View::Vector<::Ttx::Lexical::Token> tokens = tokenizer.get_tokens();
+  View::Bytes dialect_name =
+      Tetrodotoxin::Syntax::Ttx::detect_dialect_name(tokens);
   Bits_32 previous_line = 0;
   Bits_32 previous_column = 0;
   Bool emitted = False;
 
   for (Count i = 0; i < tokens.get_size(); i++) {
-    Tetrodotoxin::Lexical::Token token = tokens[i];
+    ::Ttx::Lexical::Token token = tokens[i];
 
-    if (package_kind == Tetrodotoxin::Lexical::Class::Type::Shader &&
-        is_shader_only_filtered(token.get_class())) {
+    if (dialect_name == "Shader"_view &&
+        should_filter_shader_keyword(token.get_class())) {
       continue;
     }
 

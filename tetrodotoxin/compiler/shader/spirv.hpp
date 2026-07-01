@@ -5,17 +5,20 @@
 
 #include "perimortem/memory/dynamic/bytes.hpp"
 
-#include "tetrodotoxin/dialect/shader/facts.hpp"
+#include "tetrodotoxin/dialect/shader/metadata.hpp"
 #include "tetrodotoxin/resolution/record.hpp"
+#include "tetrodotoxin/resolution/resolver.hpp"
 
 namespace Tetrodotoxin::Compiler::Shader {
 
-auto emit_v1_stage_module(
+auto emit_stage_module(
+    Resolution::Resolver& resolver,
     const Resolution::Record& record,
-    const Dialect::Shader::EntryPoint& entry,
-    Perimortem::Memory::Dynamic::Bytes& out) -> Bool;
+    const Dialect::Shader::Metadata::EntryPoint& entry,
+    Perimortem::Memory::Dynamic::Bytes& output) -> Bool;
 
-auto emit_v1_modules(
+auto emit_program_modules(
+    Resolution::Resolver& resolver,
     const Resolution::Record& record,
     Perimortem::Memory::Dynamic::Bytes& vertex,
     Perimortem::Memory::Dynamic::Bytes& pixel) -> Bool;

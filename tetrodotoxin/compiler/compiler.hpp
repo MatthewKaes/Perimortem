@@ -7,18 +7,15 @@
 #include "perimortem/memory/dynamic/bytes.hpp"
 #include "perimortem/memory/dynamic/vector.hpp"
 
-#include "tetrodotoxin/compiler/abi/argument.hpp"
-#include "tetrodotoxin/compiler/abi/type.hpp"
+#include "tetrodotoxin/abi/argument.hpp"
+#include "tetrodotoxin/abi/call.hpp"
+#include "tetrodotoxin/abi/type.hpp"
 #include "tetrodotoxin/compiler/assembler/x86_64.hpp"
 #include "tetrodotoxin/compiler/context/function.hpp"
 #include "tetrodotoxin/compiler/context/names.hpp"
 #include "tetrodotoxin/compiler/context/relocation.hpp"
 #include "tetrodotoxin/compiler/context/strings.hpp"
 #include "tetrodotoxin/compiler/context/symbol.hpp"
-
-namespace Tetrodotoxin::Syntax::Ast {
-class Statement;
-}
 
 namespace Tetrodotoxin::Compiler {
 
@@ -32,23 +29,25 @@ class Compiler {
   // Compile a TTX function and record it in the internal symbol table.
   // Returns false when the function body uses a shape this backend does not
   // honestly lower yet.
-  auto compile_function(
+  auto compile_func(
       Perimortem::Core::View::Bytes module_name,
       Perimortem::Core::View::Bytes function_name,
       Abi::Type return_type,
       Perimortem::Core::View::Vector<Abi::Argument> arguments,
-      Perimortem::Core::View::Vector<Syntax::Ast::Statement*> function_body)
+      Perimortem::Core::View::Vector<Abi::ForeignCall> foreign_calls)
       -> Bool;
 
   // Record an immutable data blob as an externally visible object symbol.
-  // Shader terminals use this for SPIR-V words and metadata, and other
-  // terminal backends can use the same path for generated read-only payloads.
+  // Shader programs use this for SPIR-V words and metadata, and other generated
+  // backends can use the same path for read-only payloads.
   auto add_read_only_data(
       Perimortem::Core::View::Bytes name,
       Perimortem::Core::View::Bytes data,
       Count alignment = 8,
       Context::Symbol::Visability visability =
           Context::Symbol::Visability::Global) -> Count;
+
+  auto add_object_definition(const Abi::ObjectDefinition& definition) -> void;
 
   // Emit a C header declaring all compiled functions.
   auto generate_cpp_header(Perimortem::Memory::Dynamic::Bytes& header_out)
@@ -81,6 +80,22 @@ class Compiler {
       Assembler::x86_64::Reg destination,
       Perimortem::Core::View::Bytes string) -> void;
 
+  auto store_object_value(
+      Assembler::x86_64& assembler,
+      const Abi::ObjectField& field,
+      const Abi::ObjectValue& value,
+      Signed_32 displacement) -> void;
+
+  auto store_zeroed_bytes(
+      Assembler::x86_64& assembler,
+      Count byte_size,
+      Signed_32 displacement) -> void;
+
+  auto store_object(
+      Assembler::x86_64& assembler,
+      const Abi::Object& object,
+      Signed_32 displacement) -> void;
+
   auto call_extern(
       Assembler::x86_64& assembler,
       Perimortem::Core::View::Bytes function_name) -> void;
@@ -96,6 +111,8 @@ class Compiler {
   Perimortem::Memory::Dynamic::Bytes read_only;
   Context::Names names;
   Context::Strings strings;
+  Perimortem::Memory::Dynamic::Vector<Abi::ObjectDefinition>
+      object_definitions;
   Perimortem::Memory::Dynamic::Vector<Context::Function> functions;
   Perimortem::Memory::Dynamic::Vector<Context::Relocation> relocs;
   Perimortem::Memory::Dynamic::Vector<Context::Symbol> symbols;

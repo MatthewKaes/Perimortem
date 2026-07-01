@@ -141,24 +141,24 @@ struct ArHeader {
 };
 static_assert(sizeof(ArHeader) == 60);
 
-auto fill_ar_header(ArHeader& h, View::Bytes name, Bits_64 size) -> void {
-  const Count name_len = name.get_size() < 15 ? name.get_size() : 15;
-  Data::copy(h.name.get_data(), name.get_data(), name_len);
-  h.name[name_len] = '/';
+auto fill_ar_header(ArHeader& header, View::Bytes name, Bits_64 size) -> void {
+  const Count name_length = name.get_size() < 15 ? name.get_size() : 15;
+  Data::copy(header.name.get_data(), name.get_data(), name_length);
+  header.name[name_length] = '/';
 
-  // Write only the data size, the rest of the fields are default initalized.
-  Writer::Textual(h.data_size.get_access()) << size;
+  // Write only the data size, the rest of the fields are default initialized.
+  Writer::Textual(header.data_size.get_access()) << size;
 }
 
-auto to_section_desc(Format::Section sec) -> SectionDesc {
-  switch (sec.type) {
+auto to_section_desc(Format::Section section) -> SectionDesc {
+  switch (section.type) {
   case Context::Symbol::Location::Program:
     return {
       ".text"_view,
       SectionType::ProgramData,
       Bits_64(SectionFlags::Allocated) | Bits_64(SectionFlags::Executable),
       16,
-      sec.data,
+      section.data,
     };
   case Context::Symbol::Location::Strings:
     return {
@@ -167,7 +167,7 @@ auto to_section_desc(Format::Section sec) -> SectionDesc {
       Bits_64(SectionFlags::Allocated) | Bits_64(SectionFlags::Mergeable) |
           Bits_64(SectionFlags::Strings),
       1,
-      sec.data,
+      section.data,
     };
   case Context::Symbol::Location::ReadOnly:
     return {
@@ -175,7 +175,7 @@ auto to_section_desc(Format::Section sec) -> SectionDesc {
       SectionType::ProgramData,
       Bits_64(SectionFlags::Allocated),
       8,
-      sec.data,
+      section.data,
     };
   default:
     return {};
@@ -208,23 +208,23 @@ auto find_sorted_position(View::Vector<SymbolRef> sorted, Count original_index)
 }
 
 auto build_string_table(Access::Vector<SymbolRef> symbols) -> Dynamic::Bytes {
-  Dynamic::Bytes strtab;
-  strtab.append('\0');
+  Dynamic::Bytes string_table;
+  string_table.append('\0');
   for (Count i = 0; i < symbols.get_size(); i++) {
-    symbols[i].string_table_offset = strtab.get_size();
-    strtab.concat(symbols[i].symbol->get_name());
-    strtab.append('\0');
+    symbols[i].string_table_offset = string_table.get_size();
+    string_table.concat(symbols[i].symbol->get_name());
+    string_table.append('\0');
   }
-  return strtab;
+  return string_table;
 }
 
 // Returns the 1-based ELF section index for a symbol's location, or 0
 // (SHN_UNDEF) if not found.
 auto section_index_for(
     View::Vector<Format::Section> sections,
-    Context::Symbol::Location loc) -> Bits_16 {
+    Context::Symbol::Location location) -> Bits_16 {
   for (Count i = 0; i < sections.get_size(); i++) {
-    if (sections[i].type == loc) {
+    if (sections[i].type == location) {
       return Bits_16(1 + i);
     }
   }
@@ -260,9 +260,9 @@ auto build_symbol_table(
         &entry.name_offset, Bits_32(ref.string_table_offset));
     entry.info = Bits_8((binding << 4) | Bits_8(symbol.get_type()));
     const Bits_16 section_index =
-        symbol.get_context() == Context::Symbol::Location::External
+        symbol.get_ctx() == Context::Symbol::Location::External
             ? Bits_16(0)
-            : section_index_for(sections, symbol.get_context());
+            : section_index_for(sections, symbol.get_ctx());
     Data::write<elf_endian>(&entry.section_index, section_index);
     Data::write<elf_endian>(&entry.value, Bits_64(symbol.get_range().start));
     Data::write<elf_endian>(&entry.size, Bits_64(symbol.get_range().size));
@@ -475,8 +475,8 @@ auto Elf::build_object() -> Dynamic::Bytes {
   Dynamic::Bytes output(file_size);
   output.forgetful_resize(file_size);
   output.set(0);
-  auto buf = output.get_access().get_data();
-  memset(buf, 0, file_size);
+  auto output_bytes = output.get_access().get_data();
+  memset(output_bytes, 0, file_size);
 
   // Write the ELF header
   write_header(
@@ -491,11 +491,11 @@ auto Elf::build_object() -> Dynamic::Bytes {
 
   // Write the actual section data
   for (Count i = 0; i < total; i++) {
-    const auto& d = section_descriptors.get_view()[i];
-    if (d.data.get_size() > 0) {
+    const auto& descriptor = section_descriptors.get_view()[i];
+    if (descriptor.data.get_size() > 0) {
       Data::copy(
-          output.get_access().get_data() + d.file_offset, d.data.get_data(),
-          d.data.get_size());
+          output.get_access().get_data() + descriptor.file_offset,
+          descriptor.data.get_data(), descriptor.data.get_size());
     }
   }
 
@@ -504,7 +504,7 @@ auto Elf::build_object() -> Dynamic::Bytes {
 
 auto Elf::build_library(View::Bytes object_name) -> Dynamic::Bytes {
   Dynamic::Bytes object = build_object();
-  const View::Bytes obj_view = object.get_view();
+  const View::Bytes object_view = object.get_view();
 
   // Add symbol entries into the AR for all globally exported symbols.
   Count exported_count = 0;
@@ -521,30 +521,33 @@ auto Elf::build_library(View::Bytes object_name) -> Dynamic::Bytes {
   // names.
   const Count symbol_table_size = 4 + 4 * exported_count + exported_names_bytes;
   const Count symbol_table_padded = symbol_table_size + (symbol_table_size & 1);
-  const Count obj_offset = 8 + sizeof(ArHeader) + symbol_table_padded;
-  const Count obj_padded = obj_view.get_size() + (obj_view.get_size() & 1);
-  const Count total = obj_offset + sizeof(ArHeader) + obj_padded;
+  const Count object_offset = 8 + sizeof(ArHeader) + symbol_table_padded;
+  const Count object_padded =
+      object_view.get_size() + (object_view.get_size() & 1);
+  const Count total = object_offset + sizeof(ArHeader) + object_padded;
 
   Dynamic::Bytes output;
   output.forgetful_resize(total);
-  Bits_8* buf = output.get_access().get_data();
-  memset(buf, 0, total);
+  Bits_8* output_bytes = output.get_access().get_data();
+  memset(output_bytes, 0, total);
 
   constexpr auto ar_magic = "!<arch>\n"_view;
-  Data::copy(buf, ar_magic.get_data(), ar_magic.get_size());
+  Data::copy(output_bytes, ar_magic.get_data(), ar_magic.get_size());
   Count cursor = 8;
 
   ArHeader symbol_header;
   fill_ar_header(symbol_header, ""_view, symbol_table_size);
-  Data::copy(buf + cursor, &symbol_header, 1);
+  Data::copy(output_bytes + cursor, &symbol_header, 1);
   cursor += sizeof(ArHeader);
 
-  Bits_8* pos = buf + cursor;
-  Data::write<ar_endian>(Data::cast<Bits_32>(pos), Bits_32(exported_count));
-  pos += 4;
+  Bits_8* write_pointer = output_bytes + cursor;
+  Data::write<ar_endian>(
+      Data::cast<Bits_32>(write_pointer), Bits_32(exported_count));
+  write_pointer += 4;
   for (Count i = 0; i < exported_count; i++) {
-    Data::write<ar_endian>(Data::cast<Bits_32>(pos), Bits_32(obj_offset));
-    pos += 4;
+    Data::write<ar_endian>(
+        Data::cast<Bits_32>(write_pointer), Bits_32(object_offset));
+    write_pointer += 4;
   }
   for (Count i = 0; i < symbols.get_size(); i++) {
     const auto& symbol = symbols.get_view()[i];
@@ -552,18 +555,18 @@ auto Elf::build_library(View::Bytes object_name) -> Dynamic::Bytes {
       continue;
     }
     const auto name = symbol.get_name();
-    Data::copy(pos, name.get_data(), name.get_size());
-    pos += name.get_size();
-    *pos++ = '\0';
+    Data::copy(write_pointer, name.get_data(), name.get_size());
+    write_pointer += name.get_size();
+    *write_pointer++ = '\0';
   }
   cursor += symbol_table_padded;
 
   // Write the actual object file into the archive.
   ArHeader object_header;
-  fill_ar_header(object_header, object_name, Bits_64(obj_view.get_size()));
-  Data::copy(buf + cursor, &object_header, 1);
+  fill_ar_header(object_header, object_name, Bits_64(object_view.get_size()));
+  Data::copy(output_bytes + cursor, &object_header, 1);
   cursor += sizeof(ArHeader);
-  Data::copy(buf + cursor, obj_view.get_data(), obj_view.get_size());
+  Data::copy(output_bytes + cursor, object_view.get_data(), object_view.get_size());
 
   return output;
 }

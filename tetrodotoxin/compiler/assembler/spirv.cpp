@@ -33,8 +33,8 @@ auto spirv::word(Bits_32 value) -> void {
   words.append(Bits_8((value >> 24) & 0xFF));
 }
 
-auto spirv::instruction(Op op, Count word_count) -> void {
-  word((Bits_32(word_count) << 16) | Bits_32(op));
+auto spirv::instruction(Op opcode, Count word_count) -> void {
+  word((Bits_32(word_count) << 16) | Bits_32(opcode));
 }
 
 auto spirv::literal_string(View::Bytes text) -> Count {
@@ -363,6 +363,18 @@ auto spirv::fadd(
     Bits_32 left_id,
     Bits_32 right_id) -> void {
   instruction(Op::FAdd, 5);
+  word(result_type_id);
+  word(result_id);
+  word(left_id);
+  word(right_id);
+}
+
+auto spirv::fsub(
+    Bits_32 result_type_id,
+    Bits_32 result_id,
+    Bits_32 left_id,
+    Bits_32 right_id) -> void {
+  instruction(Op::FSub, 5);
   word(result_type_id);
   word(result_id);
   word(left_id);

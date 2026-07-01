@@ -20,10 +20,10 @@ auto main(int argc, char* argv[]) -> int {
   View::Bytes pipe_name;
 
   for (Signed_32 i = 1; i < argc; i++) {
-    View::Bytes arg = NullTerminated::to_view(argv[i]);
+    View::Bytes argument = NullTerminated::to_view(argv[i]);
 
-    if (arg.slice(0, pipe_prefix.get_size()) == pipe_prefix) {
-      pipe_name = arg.slice(pipe_prefix.get_size());
+    if (argument.slice(0, pipe_prefix.get_size()) == pipe_prefix) {
+      pipe_name = argument.slice(pipe_prefix.get_size());
     }
   }
 

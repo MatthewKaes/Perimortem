@@ -1,16 +1,16 @@
 // Syntax parser fixture
 // Covers package, imports, definitions, expressions, and statements.
-package : Library;
+dialect : Library;
 
 import Graphics : Library = ( .source = "graphics/image.ttx" );
 import Core : Library = TTX.Core;
 
 @extern(.abi = "c", .enabled = true)
-@hidden ForeignApi : Foreign {
+@hidden ForeignApi : foreign {
   external @hidden func inflate[.source : View[Bytes], .capacity : Count] -> Bytes;
 }
 
-@hidden Color : Enum[Bits_8](.red = 1, .green = 2);
+@hidden Color : enum[Bits_8](.red = 1, .green = 2);
 
 @public func choose[] -> Count {
   match self {
@@ -27,11 +27,11 @@ import Core : Library = TTX.Core;
 @hidden signature : Vec[Bits_8, 8] = 0x[89 50 4E 47];
 @hidden greeting : Text = "hello";
 @hidden ratio : Real_64 = 0.5;
-@hidden embedded : Blob = $[validation/data/ttx/source.ttx];
+@hidden embedded : Blob = $[validation/data/ttx/png.ttx];
 @hidden config : Config = (.width = 4, .name = "main");
 @hidden values : Vec[Bits_32, 4] = { 1, 2, 3, 4 };
 @hidden span : Range = 0...4;
-@hidden explicit_expr : Count = 3;
+@hidden explicit_expression : Count = 3;
 @hidden generated : Rows = { 0, 1 };
 
 @public func transform[
@@ -84,7 +84,7 @@ import Core : Library = TTX.Core;
   return (.ok = true, .value = total);
 }
 
-@public Container : Struct {
+@public Container : struct {
   // Field comment
   /> @packed
   @public width : Count = 1;

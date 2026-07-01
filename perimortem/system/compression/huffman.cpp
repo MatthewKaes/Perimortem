@@ -134,10 +134,10 @@ auto Compression::HuffmanTable::compute_lengths(
     // Reassign lengths from the adjusted codes_per_length. Nodes are sorted in
     // frequency ascending order, so walking backwards assigns the shortest
     // codes to the most frequent symbols.
-    Count assign_idx = leaf_count;
+    Count assign_index = leaf_count;
     for (Count bits = 1; bits <= max_code_bits; bits++) {
-      for (Count n = 0; n < codes_per_length[bits]; n++) {
-        lengths[nodes[--assign_idx].symbol] = Bits_8(bits);
+      for (Count i = 0; i < codes_per_length[bits]; i++) {
+        lengths[nodes[--assign_index].symbol] = Bits_8(bits);
       }
     }
   }

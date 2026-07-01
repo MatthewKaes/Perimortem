@@ -1,0 +1,13 @@
+// Perimortem Engine
+// Copyright © Matt Kaes
+dialect : Library;
+
+import Render2D : Render = (.source = "../renderers/renderer_2d.ttx");
+
+@public Sprite : struct {
+  @public image : View[Bytes];
+  @public size_pixels : Size2D;
+  @public position_x : Real_32;
+  @public position_y : Real_32;
+  @public renderer : Render2D::Renderer2D;
+}

@@ -1,6 +1,5 @@
-// Resolution fixture shader dependency.
-package : Shader;
+// Resolution fixture render dependency.
+dialect : Render;
 
-@stage(.kind = "vertex")
-@hidden Main : Shader {
+Vertex : Shader {
 }

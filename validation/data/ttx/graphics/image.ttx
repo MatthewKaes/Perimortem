@@ -1,14 +1,14 @@
 // Minimal Graphics package used by resolver fixtures.
-package : Library;
+dialect : Library;
 
-@expose Pixel : Struct {
+@expose Pixel : struct {
   expose r : Bits_8;
   expose g : Bits_8;
   expose b : Bits_8;
   expose a : Bits_8;
 }
 
-@expose Image : Struct {
+@expose Image : struct {
   expose pixels : List[Pixel];
   expose width  : Bits_32;
   expose height : Bits_32;

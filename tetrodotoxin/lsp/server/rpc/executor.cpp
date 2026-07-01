@@ -13,6 +13,8 @@
 #include "perimortem/core/data.hpp"
 #include "perimortem/core/diagnostics/log.hpp"
 #include "perimortem/core/null_terminated.hpp"
+#include "perimortem/core/reader/binary.hpp"
+#include "perimortem/core/writer/binary.hpp"
 #include "perimortem/core/writer/textual.hpp"
 
 #include "perimortem/memory/allocator/arena.hpp"
@@ -23,7 +25,7 @@ using namespace Tetrodotoxin::Lsp;
 
 auto Server::Rpc::Executor::register_method(
     View::Bytes name,
-    DispatchFunction resolver) -> void {
+    DispatchFunc resolver) -> void {
   if (dispatch_count >= dispatch_resolver.get_size()) {
     Diagnostics::Log::fatal("Too many LSP methods registered."_view);
   }
@@ -38,14 +40,17 @@ auto Server::Rpc::Executor::execute(View::Bytes pipe_name) -> void {
   }
 
   {
-    Static::Vector<WorkerLoop, executor_count> worker_loops;
     Static::Vector<Thread::Worker, executor_count> workers;
+    alignas(Bits_64) Static::Bytes<sizeof(Bits_64)> job_data;
+    Writer::Binary<Data::ByteOrder::Native> job_writer(job_data.get_access());
+    job_writer << reinterpret_cast<Bits_64>(this);
+
     for (Count i = 0; i < executor_count; i++) {
       Static::Bytes<16> name_buffer;
       Writer::Textual name_writer(name_buffer);
       name_writer << "ttx exec #"_view << i;
-      worker_loops[i].executor = this;
-      workers[i] = Thread::Worker::start(name_writer, worker_loops[i]);
+      workers[i] = Thread::Worker::start(
+          name_writer, run_worker_job, job_writer);
     }
 
     Diagnostics::Log::info("TTX RPC Service now Running..."_view);
@@ -77,10 +82,6 @@ auto Server::Rpc::Executor::is_cancelled(Signed_64 id) -> Bool {
   return False;
 }
 
-auto Server::Rpc::Executor::WorkerLoop::operator()() -> void {
-  executor->run_worker();
-}
-
 auto Server::Rpc::Executor::create_connection(View::Bytes pipe_name) -> Bool {
   socket_descriptor = socket(AF_FILE, SOCK_STREAM, 0);
 
@@ -96,10 +97,9 @@ auto Server::Rpc::Executor::create_connection(View::Bytes pipe_name) -> Bool {
   auto connect_result =
       connect(socket_descriptor, (sockaddr*)&address, sizeof(address));
   if (connect_result == -1) {
-    Static::Bytes<128> error_buffer;
-    Writer::Textual error_message(error_buffer.get_access());
+    Diagnostics::Log::Message<128> error_message(
+        Diagnostics::Log::Level::Error);
     error_message << "Failed to connect to pipe at "_view << pipe_name;
-    Diagnostics::Log::error(error_message);
     return False;
   }
 
@@ -109,8 +109,18 @@ auto Server::Rpc::Executor::create_connection(View::Bytes pipe_name) -> Bool {
   return True;
 }
 
+auto Server::Rpc::Executor::run_worker_job(View::Bytes job_data) -> void {
+  Reader::Binary<Data::ByteOrder::Native> reader(job_data);
+  const Bits_64 executor_address = reader.read_bits_64();
+  if (!reader.is_valid() || !reader.is_empty() || executor_address == 0) {
+    Diagnostics::Log::fatal("Invalid TTX RPC worker job payload."_view);
+  }
+
+  reinterpret_cast<Executor*>(executor_address)->run_worker();
+}
+
 auto Server::Rpc::Executor::lookup_dispatch(View::Bytes name)
-    -> DispatchFunction {
+    -> DispatchFunc {
   for (Count i = 0; i < dispatch_count; i++) {
     if (dispatch_resolver[i].name == name) {
       return dispatch_resolver[i].func;
@@ -313,14 +323,13 @@ auto Server::Rpc::Executor::process_job(Allocator::Arena& arena, JobBlock* job)
   auto method_name = request.get_method();
   auto job_function = lookup_dispatch(method_name);
   if (job_function == nullptr) {
-    Static::Bytes<128> warning_buffer;
-    Writer::Textual warning_message(warning_buffer.get_access());
+    Diagnostics::Log::Message<128> warning_message(
+        Diagnostics::Log::Level::Warning);
     warning_message << "Unregistered RPC method `"_view << method_name
                     << "`"_view;
-    Diagnostics::Log::warning(warning_message);
 
     if (request.is_request()) {
-      auto error_response = request.report_error(warning_message);
+      auto error_response = request.report_error(warning_message.get_message());
       auto json_response = error_response.format(arena);
       write_response(json_response);
     }
@@ -328,11 +337,10 @@ auto Server::Rpc::Executor::process_job(Allocator::Arena& arena, JobBlock* job)
   }
 
   {
-    Static::Bytes<128> info_buffer;
-    Writer::Textual info_message(info_buffer.get_access());
-    info_message << "Job Accepted: RPC method `"_view << method_name
-                 << "`"_view;
-    Diagnostics::Log::info(info_message);
+    Diagnostics::Log::Message<128> accepted_message(
+        Diagnostics::Log::Level::Info);
+    accepted_message << "Job Accepted: RPC method `"_view << method_name
+                     << "`"_view;
   }
 
   auto response = job_function(*this, request);

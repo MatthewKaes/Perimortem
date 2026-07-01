@@ -24,10 +24,10 @@ auto operator>(const Bytes& lhs, const Bytes& rhs) -> Bool {
   }
 
   View::Bytes data = lhs;
-  View::Bytes comp = rhs;
+  View::Bytes comparison_bytes = rhs;
   for (Count i = 0; i < data.get_size(); i++) {
-    if (data[i] != comp.get_data()[i]) {
-      return data[i] > comp.get_data()[i];
+    if (data[i] != comparison_bytes.get_data()[i]) {
+      return data[i] > comparison_bytes.get_data()[i];
     }
   }
 

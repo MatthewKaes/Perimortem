@@ -34,8 +34,9 @@ source-shaped program for the next layer.
 The validation context is an enrichment surface, not a separate lowered IR. It
 combines type/layout queries with dialect, ABI, and compiler-provider facts so
 later stages can ask for proven answers instead of rebuilding source meaning.
-Dialect participates early as package-kind syntax, during resolution as import
-compatibility, and later as legality and metadata queries.
+Dialect participates early as dialect-header syntax and dialect-body parsing,
+during resolution as import compatibility, and later as legality and metadata
+queries.
 
 ### The long road of compilation has many side streets
 
@@ -108,13 +109,19 @@ following breakdown:
 - Validation context exposes type/layout facts such as expression type,
   pack-fit, selected calls, returns, and assignment compatibility using
   resolution, syntax, dialect, ABI, and compiler-provided TTX package facts.
-- Dialects own package-specific legality and metadata, such as shader stages or
-  descriptor bindings, but they are provider/query surfaces rather than cloned
-  program representations.
+- Dialects own package-specific body parsing, legality, and metadata, such as
+  Render stage declarations or descriptor bindings, but they are still
+  provider/query surfaces over shared source shape rather than cloned program
+  representations.
 - Compilation performs terminal lowering when an output artifact is requested.
 
 If a layer starts building a private clone of the program, it is probably
 fighting the architecture.
+
+Dialect is also not a synonym for backend target. `Library`, `Render`,
+`Shader`, and `Entity` are authoring spaces. `SPIR-V`, `x86_64`, generated
+headers, archives, and engine bridge code are terminal outputs or backend
+targets selected later by compilation.
 
 A result of this is that Tetrodotoxin optimizes for highly opinionated and
 localized stages that do their work without considering every possible thing to

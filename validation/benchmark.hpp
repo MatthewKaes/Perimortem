@@ -8,13 +8,15 @@
 
 #include "validation/harness.hpp"
 
+#include "perimortem/core/static/vector.hpp"
+
 namespace Validation::Benchmark {
 
 using BenchmarkFunc = void (*)();
 
 // Sets a new start point for a test.
 // Useful if the test needs specific setup that it needs in the acutal test
-// block that can't be moved to the `.setup` function.
+// block that can't be moved to the `.setup` func.
 auto start_time() -> void;
 
 // Lets the test override the end timestamp.
@@ -74,22 +76,23 @@ struct ComparisonVariant {
 struct Comparison {
   const Harness* harness = nullptr;
   Perimortem::Core::View::Bytes label;
-  ComparisonVariant variants[max_comparison_variants] = {};
+  Perimortem::Core::Static::Vector<ComparisonVariant, max_comparison_variants>
+      variants;
 };
 
-auto create_comparison(const Comparison& comp, BenchmarkFunc func) -> void;
+auto create_comparison(const Comparison& comparison, BenchmarkFunc func) -> void;
 
 class ComparisonEntry {
  public:
-  ComparisonEntry(const Comparison& comp, BenchmarkFunc func) {
-    create_comparison(comp, func);
+  ComparisonEntry(const Comparison& comparison, BenchmarkFunc func) {
+    create_comparison(comparison, func);
   }
 };
 
 }  // namespace Validation::Benchmark
 
 // Define a multi-way comparison. comp_var must be a static Comparison struct
-// visible at the call site. The function body that follows is the C++ baseline.
+// visible at the call site. The func body that follows is the C++ baseline.
 #define PERIMORTEM_COMPARISON(comp_var)                        \
   auto __comp_##comp_var() -> void;                            \
   namespace {                                                  \

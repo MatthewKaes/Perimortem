@@ -1,0 +1,38 @@
+// Perimortem Engine
+// Copyright © Matt Kaes
+//
+// Default 2D shader program: samples a texture and modulates it by alpha.
+dialect : Shader;
+
+import Types : Library = (.source = "../library/types.ttx");
+import Render2D : Render = (.source = "../renderers/renderer_2d.ttx");
+
+shader Default2D : Render2D::Renderer2D {
+  func vertex[.vertex_index : Bits_32] -> [
+    .texture_uv : Vec2D,
+    .screen_position : Vec4D,
+  ] {
+    @stack quad_position : Vec2D = uniform.quad_positions:[vertex_index];
+    @stack centered_quad_position : Vec2D =
+        quad_position - (.x = 0.5, .y = 0.5);
+    @stack normalized_size : Vec2D = (
+      .x = uniform.size.width,
+      .y = uniform.size.height,
+    );
+    @stack screen_position : Vec2D =
+        uniform.position + centered_quad_position * normalized_size;
+    return (
+      .texture_uv = uniform.quad_uvs:[vertex_index],
+      .screen_position = (screen_position.[x, y], 0.0, 1.0),
+    );
+  }
+
+  func pixel[.texture_uv : Vec2D] -> [
+    .color : Types::Color,
+  ] {
+    @stack sample : Types::Color = uniform.image -> sample(texture_uv);
+    return (
+      .color = (sample.[r, g, b], sample.a * uniform.alpha),
+    );
+  }
+}

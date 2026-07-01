@@ -1,5 +1,5 @@
 // Resolution cycle fixture B.
-package : Library;
+dialect : Library;
 
 import CycleA : Library = (.source = "cycle_a.ttx");
 

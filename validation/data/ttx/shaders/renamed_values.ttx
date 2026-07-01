@@ -1,0 +1,49 @@
+dialect : Shader;
+
+import Graphics : Library = TTX.Graphics;
+
+shader RenamedValues : Graphics.Renderer2D {
+  positions : Vec[Vec2D, 6] = (
+    (.x = 0.0, .y = 0.0),
+    (.x = 1.0, .y = 0.0),
+    (.x = 1.0, .y = 1.0),
+    (.x = 0.0, .y = 0.0),
+    (.x = 1.0, .y = 1.0),
+    (.x = 0.0, .y = 1.0),
+  );
+  uvs : Vec[Vec2D, 6] = (
+    (.x = 0.0, .y = 0.0),
+    (.x = 1.0, .y = 0.0),
+    (.x = 1.0, .y = 1.0),
+    (.x = 0.0, .y = 0.0),
+    (.x = 1.0, .y = 1.0),
+    (.x = 0.0, .y = 1.0),
+  );
+
+  func vertex[.vertex_index : Bits_32] -> [
+    .frag_uv : Vec2D,
+    @output .screen_position : Vec4D,
+  ] {
+    @stack local_position : Vec2D =
+        self.positions[vertex_index] - (.x = 0.5, .y = 0.5);
+    @stack normalized_size : Vec2D = (
+      .x = uniform.extent.width,
+      .y = uniform.extent.height,
+    );
+    @stack screen_position : Vec2D =
+        uniform.center + local_position * normalized_size;
+    return (
+      .frag_uv = self.uvs[vertex_index],
+      .screen_position = (screen_position.[x, y], 0.0, 1.0),
+    );
+  }
+
+  func pixel[.frag_uv : Vec2D] -> [
+    @output .tint : Graphics.Color,
+  ] {
+    @stack texel : Graphics.Color = uniform.image -> sample(frag_uv);
+    return (
+      .tint = (texel.[g, r, b], texel.a * uniform.visibility),
+    );
+  }
+}

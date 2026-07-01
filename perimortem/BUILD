@@ -107,10 +107,10 @@ cc_library(
     name = "graphics",
     srcs = glob([
         "graphics/*.cpp",
+        "graphics/vulkan/*.hpp",
         "graphics/vulkan/*.cpp",
     ]),
     hdrs = glob([
-        "graphics/vulkan/*.hpp",
         "graphics/*.hpp",
     ]),
     includes = ["."],

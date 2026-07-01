@@ -42,7 +42,7 @@ class Arena {
       fetch_page(bytes_requested);
     }
 
-    // Align the bump pointer to keep data produced aligned.
+    // Align the bump pointer to keep produced data aligned.
     Bits_8* root = rented_block + usage;
     usage = Core::Data::align<arena_alignment>(usage + bytes_requested);
     return root;

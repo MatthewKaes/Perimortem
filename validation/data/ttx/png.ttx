@@ -2,7 +2,7 @@
 // Copyright © Matt Kaes
 //
 // PNG codec — decode from and encode to the PNG wire format.
-package : Library;
+dialect : Library;
 
 import Graphics : Library = ( .source = "graphics/image.ttx" );
 import Log      : Library = TTX.Log;
@@ -11,7 +11,7 @@ import Math     : Library = TTX.Math;
 // [?] @extern(.abi = "c") marks methods as C-ABI external symbols resolved at
 // link time. Provisional — C FFI design is not yet finalized.
 @extern(.abi = "c")
-@hidden Deflate : Foreign {
+@hidden Deflate : foreign {
   external @hidden func inflate[.source : View[Bytes], .capacity : Count] -> Bytes;
 
   external @hidden func deflate[.source : View[Bytes]] -> Bytes;
@@ -28,7 +28,7 @@ import Math     : Library = TTX.Math;
 
 // Color encoding written in the PNG IHDR chunk. Values match the PNG
 // specification so the field can be read directly from the binary stream.
-@hidden ColorType : Enum[Bits_8] {
+@hidden ColorType : enum[Bits_8] {
   greyscale       = 0;
   rgb             = 2;
   indexed         = 3;
@@ -37,22 +37,22 @@ import Math     : Library = TTX.Math;
 
   @public func get_channel_count[] -> Count {
     match self {
-      case ColorType.indexed: {
+      case ColorType.indexed : {
         return 1;
       }
-      case ColorType.greyscale: {
+      case ColorType.greyscale : {
         return 1;
       }
-      case ColorType.greyscale_alpha: {
+      case ColorType.greyscale_alpha : {
         return 2;
       }
-      case ColorType.rgb: {
+      case ColorType.rgb : {
         return 3;
       }
-      case ColorType.rgba: {
+      case ColorType.rgba : {
         return 4;
       }
-      case _: {
+      case _ : {
         return 0;
       }
     }
@@ -61,33 +61,34 @@ import Math     : Library = TTX.Math;
 
 // Per-row prediction filter applied before DEFLATE. Each value matches the
 // filter byte prepended to the filtered row in the PNG wire format.
-@hidden FilterType : Enum[Bits_8] {
-  none    = 0;
-  sub     = 1;
-  up      = 2;
-  average = 3;
-  paeth   = 4;
+@hidden FilterType : enum[Bits_8] {
+  none         = 0;
+  sub          = 1;
+  previous_row = 2;
+  average      = 3;
+  paeth        = 4;
 
   // Paeth predictor: estimates the next sample by linear extrapolation from
   // the left, upper, and upper-left neighbours, returning the closest.
   @hidden func paeth_predictor[
     .left : Bits_8,
-    .up : Bits_8,
+    .previous_row : Bits_8,
     .upper_left : Bits_8,
   ] -> Bits_8 {
     @stack p_left           : Signed_16 = Signed_16 -> from(left);
-    @stack p_up             : Signed_16 = Signed_16 -> from(up);
+    @stack p_up             : Signed_16 = Signed_16 -> from(previous_row);
     @stack p_upper_left     : Signed_16 = Signed_16 -> from(upper_left);
     @stack predictor        : Signed_16 = p_left + p_up - p_upper_left;
     @stack score_left       : Signed_16 = Math -> absolute(predictor - p_left);
     @stack score_up         : Signed_16 = Math -> absolute(predictor - p_up);
     @stack score_upper_left : Signed_16 = Math -> absolute(predictor - p_upper_left);
+
     if (score_left <= score_up and score_left <= score_upper_left) {
       return left;
     }
 
     if (score_up <= score_upper_left) {
-      return up;
+      return previous_row;
     }
 
     return upper_left;
@@ -96,22 +97,27 @@ import Math     : Library = TTX.Math;
   // Scores all five filters for current_row and returns the one with the
   // lowest absolute-residual sum. Pass a zero-length View for previous_row on
   // the first row — Up, Average, and Paeth are excluded from scoring.
-  @hidden func best_for_row[
-    .current_row : View[Bytes],
-    .previous_row : View[Bytes],
-  ] -> FilterType {
+  @hidden func best_for_row[.current_row : View[Bytes], .previous_row : View[Bytes]] -> FilterType {
     @stack is_first_row : Bool            = previous_row -> get_size() == 0;
     @stack bpp          : Count           = Graphics.Image -> get_channel_count();
     @stack scores       : Vec[Bits_64, 5] = (0, 0, 0, 0, 0);
+
     for [.i : Count] in 0...bpp {
       @stack cur : Bits_8 = current_row[i];
       scores[FilterType.none] += Bits_64 -> from(Math -> signed_abs(Signed_8 -> from(cur)));
       scores[FilterType.sub] += Bits_64 -> from(Math -> signed_abs(Signed_8 -> from(cur)));
+
       if (!is_first_row) {
-        @stack up : Bits_8 = previous_row[i];
-        scores[FilterType.up] += Bits_64 -> from(Math -> signed_abs(Signed_8 -> from(cur - up)));
-        scores[FilterType.average] += Bits_64 -> from(Math -> signed_abs(Signed_8 -> from(cur - up / 2)));
-        scores[FilterType.paeth] += Bits_64 -> from(Math -> signed_abs(Signed_8 -> from(cur - up)));
+        @stack previous_row : Bits_8 = previous_row[i];
+        scores[FilterType.previous_row] += Bits_64 -> from(
+          Math -> signed_abs(Signed_8 -> from(cur - previous_row)),
+        );
+        scores[FilterType.average] += Bits_64 -> from(
+          Math -> signed_abs(Signed_8 -> from(cur - previous_row / 2)),
+        );
+        scores[FilterType.paeth] += Bits_64 -> from(
+          Math -> signed_abs(Signed_8 -> from(cur - previous_row)),
+        );
       }
     }
 
@@ -120,15 +126,24 @@ import Math     : Library = TTX.Math;
       @stack left : Bits_8 = current_row[i - bpp];
       scores[FilterType.none] += Bits_64 -> from(Math -> signed_abs(Signed_8 -> from(cur)));
       scores[FilterType.sub] += Bits_64 -> from(Math -> signed_abs(Signed_8 -> from(cur - left)));
+
       if (!is_first_row) {
-        @stack up         : Bits_8 = previous_row[i];
-        @stack upper_left : Bits_8 = previous_row[i - bpp];
-        scores[FilterType.up] += Bits_64 -> from(Math -> signed_abs(Signed_8 -> from(cur - up)));
+        @stack previous_row : Bits_8 = previous_row[i];
+        @stack upper_left   : Bits_8 = previous_row[i - bpp];
+        scores[FilterType.previous_row] += Bits_64 -> from(
+          Math -> signed_abs(Signed_8 -> from(cur - previous_row)),
+        );
         scores[FilterType.average] += Bits_64 -> from(
-          Math -> signed_abs(Signed_8 -> from(cur - Bits_8 -> from((Bits_32 -> from(left) + Bits_32 -> from(up)) / 2))),
+          Math -> signed_abs(
+            Signed_8 -> from(
+              cur - Bits_8 -> from((Bits_32 -> from(left) + Bits_32 -> from(previous_row)) / 2),
+            ),
+          ),
         );
         scores[FilterType.paeth] += Bits_64 -> from(
-          Math -> signed_abs(Signed_8 -> from(cur - FilterType -> paeth_predictor(left, up, upper_left))),
+          Math -> signed_abs(
+            Signed_8 -> from(cur - FilterType -> paeth_predictor(left, previous_row, upper_left)),
+          ),
         );
       }
     }
@@ -148,6 +163,7 @@ import Math     : Library = TTX.Math;
     .previous_row : View[Bytes],
   ] -> Void {
     @stack bpp : Count = Graphics.Image -> get_channel_count();
+
     if (self == FilterType.none) {
       current_row -> copy_to(out);
       return;
@@ -155,20 +171,21 @@ import Math     : Library = TTX.Math;
 
     for [.i : Count] in 0...bpp {
       @stack cur : Bits_8 = current_row[i];
+
       match self {
-        case FilterType.sub: {
+        case FilterType.sub : {
           out[i] = cur;
         }
-        case FilterType.up: {
+        case FilterType.previous_row : {
           out[i] = Bits_8 -> from(cur - previous_row[i]);
         }
-        case FilterType.average: {
+        case FilterType.average : {
           out[i] = Bits_8 -> from(cur - Bits_8 -> from(previous_row[i] / 2));
         }
-        case FilterType.paeth: {
+        case FilterType.paeth : {
           out[i] = Bits_8 -> from(cur - FilterType -> paeth_predictor(0, previous_row[i], 0));
         }
-        case _: {
+        case _ : {
           return;
         }
       }
@@ -177,108 +194,120 @@ import Math     : Library = TTX.Math;
     for [.i : Count] in bpp...current_row -> get_size() {
       @stack cur  : Bits_8 = current_row[i];
       @stack left : Bits_8 = current_row[i - bpp];
+
       match self {
-        case FilterType.sub: {
+        case FilterType.sub : {
           out[i] = Bits_8 -> from(cur - left);
         }
-        case FilterType.up: {
+        case FilterType.previous_row : {
           out[i] = Bits_8 -> from(cur - previous_row[i]);
         }
-        case FilterType.average: {
-          @stack up : Bits_8 = previous_row[i];
-          out[i] = Bits_8 -> from(cur - Bits_8 -> from((Bits_32 -> from(left) + Bits_32 -> from(up)) / 2));
+        case FilterType.average : {
+          @stack previous_row : Bits_8 = previous_row[i];
+          out[i] = Bits_8 -> from(
+            cur - Bits_8 -> from((Bits_32 -> from(left) + Bits_32 -> from(previous_row)) / 2),
+          );
         }
-        case FilterType.paeth: {
-          @stack up         : Bits_8 = previous_row[i];
-          @stack upper_left : Bits_8 = previous_row[i - bpp];
-          out[i] = Bits_8 -> from(cur - FilterType -> paeth_predictor(left, up, upper_left));
+        case FilterType.paeth : {
+          @stack previous_row : Bits_8 = previous_row[i];
+          @stack upper_left   : Bits_8 = previous_row[i - bpp];
+          out[i] = Bits_8 -> from(
+            cur - FilterType -> paeth_predictor(left, previous_row, upper_left),
+          );
         }
-        case _: {
+        case _ : {
           return;
         }
       }
     }
   }
 
-  // Reconstructs one forward-filtered row. Pass a zero-length View for up on
-  // the first row — each case degrades correctly to its zero-up equivalent.
+  // Reconstructs one forward-filtered row. Pass a zero-length View for previous_row on
+  // the first row — each case degrades correctly to its zero-previous_row equivalent.
   @hidden func reconstruct[
-    .src : View[Bytes],
-    .dst : Access[Bytes],
+    .filtered_row : View[Bytes],
+    .output_row : Access[Bytes],
     .previous_row : View[Bytes],
     .stride : Count,
     .bytes_per_pixel : Count,
   ] -> Bool {
     @stack is_first_row : Bool = previous_row -> get_size() == 0;
+
     match self {
-      case FilterType.none: {
-        src -> copy_to(dst);
+      case FilterType.none : {
+        filtered_row -> copy_to(output_row);
       }
-      case FilterType.sub: {
-        src.[0 +: bytes_per_pixel] -> copy_to(dst.[0 +: bytes_per_pixel]);
+      case FilterType.sub : {
+        filtered_row.[0 +: bytes_per_pixel] -> copy_to(output_row.[0 +: bytes_per_pixel]);
+
         for [.i : Count] in bytes_per_pixel...stride {
-          dst[i] = src[i] + dst[i - bytes_per_pixel];
+          output_row[i] = filtered_row[i] + output_row[i - bytes_per_pixel];
         }
       }
-      case FilterType.up: {
+      case FilterType.previous_row : {
         if (is_first_row) {
-          src -> copy_to(dst);
+          filtered_row -> copy_to(output_row);
         } else {
           for [.i : Count] in 0...stride {
-            dst[i] = src[i] + previous_row[i];
+            output_row[i] = filtered_row[i] + previous_row[i];
           }
         }
       }
-      case FilterType.average: {
+      case FilterType.average : {
         if (is_first_row) {
-          src.[0 +: bytes_per_pixel] -> copy_to(dst.[0 +: bytes_per_pixel]);
+          filtered_row.[0 +: bytes_per_pixel] -> copy_to(output_row.[0 +: bytes_per_pixel]);
+
           for [.i : Count] in bytes_per_pixel...stride {
-            dst[i] = src[i] + Bits_8 -> from(Bits_32 -> from(dst[i - bytes_per_pixel]) / 2);
+            output_row[i] = filtered_row[i] + Bits_8 -> from(
+              Bits_32 -> from(output_row[i - bytes_per_pixel]) / 2,
+            );
           }
         } else {
           for [.i : Count] in 0...bytes_per_pixel {
-            dst[i] = src[i] + Bits_8 -> from(Bits_32 -> from(previous_row[i]) / 2);
+            output_row[i] = filtered_row[i] + Bits_8 -> from(Bits_32 -> from(previous_row[i]) / 2);
           }
 
           for [.i : Count] in bytes_per_pixel...stride {
-            dst[i] = src[i] + Bits_8 -> from(
-              (Bits_32 -> from(dst[i - bytes_per_pixel]) + Bits_32 -> from(previous_row[i])) / 2,
+            output_row[i] = filtered_row[i] + Bits_8 -> from(
+              (Bits_32 -> from(output_row[i - bytes_per_pixel]) + Bits_32 -> from(previous_row[i])) / 2,
             );
           }
         }
       }
-      case FilterType.paeth: {
+      case FilterType.paeth : {
         if (is_first_row) {
-          src.[0 +: bytes_per_pixel] -> copy_to(dst.[0 +: bytes_per_pixel]);
+          filtered_row.[0 +: bytes_per_pixel] -> copy_to(output_row.[0 +: bytes_per_pixel]);
+
           for [.i : Count] in bytes_per_pixel...stride {
-            dst[i] = src[i] + dst[i - bytes_per_pixel];
+            output_row[i] = filtered_row[i] + output_row[i - bytes_per_pixel];
           }
         } else {
           for [.i : Count] in 0...bytes_per_pixel {
-            dst[i] = src[i] + previous_row[i];
+            output_row[i] = filtered_row[i] + previous_row[i];
           }
 
           for [.i : Count] in bytes_per_pixel...stride {
-            dst[i] = src[i] + FilterType -> paeth_predictor(
-              dst[i - bytes_per_pixel],
+            output_row[i] = filtered_row[i] + FilterType -> paeth_predictor(
+              output_row[i - bytes_per_pixel],
               previous_row[i],
               previous_row[i - bytes_per_pixel],
             );
           }
         }
       }
-      case _: {
+      case _ : {
         Log -> error("Png: Unknown filter type {}", self);
         return False;
       }
     }
+
     return True;
   }
 }
 
 // Mirrors the 13-byte PNG IHDR payload. Width and height are stored in native
 // byte order; read and write handle endian conversion explicitly.
-@hidden ImageInfo : Struct {
+@hidden ImageInfo : struct {
   @hidden size               : Count      = 13;
   @expose width              : Bits_32    = 0;
   @expose height             : Bits_32    = 0;
@@ -331,25 +360,26 @@ import Math     : Library = TTX.Math;
   }
 }
 
-@hidden PixelConversion : Struct {
+@hidden PixelConversion : struct {
   @expose success : Bool;
   @expose pixels  : List[Graphics.Pixel];
 }
 
 // A parsed PNG chunk. Data holds a view into the source buffer.
-@hidden Chunk : Struct {
+@hidden Chunk : struct {
   // 4-byte length field + 4-byte type tag + 4-byte CRC.
   @hidden overhead : Count = 12;
 
   // CRC-32 (IEEE 802.3) lookup table placeholder.
   @hidden crc_table : Vec[Bits_32, 256] = ();
-  @expose type_tag : Vec[Bits_8, 4];
-  @expose data     : View[Bytes];
-  @expose length   : Bits_32 = 0;
-  @expose valid    : Bool    = False;
+  @expose type_tag  : Vec[Bits_8, 4];
+  @expose data      : View[Bytes];
+  @expose length    : Bits_32           = 0;
+  @expose valid     : Bool              = False;
 
   @hidden func calculate_crc32[.data : View[Bytes]] -> Bits_32 {
     @stack running_crc : Bits_32 = 0xFFFFFFFF;
+
     for [.byte : Bits_8] in data {
       running_crc = Chunk.crc_table[running_crc -> bit_xor(byte)] -> bit_xor(
         running_crc -> bit_shr(8),
@@ -362,12 +392,14 @@ import Math     : Library = TTX.Math;
   // Reads a chunk from source at offset; sets valid = False on any error.
   @expose func read[.source : View[Bytes], .offset : Count] -> Void {
     self.valid = False;
+
     if (offset + Chunk.overhead > source -> get_size()) {
       Log -> error("Png: Chunk at offset {} truncated before header end", offset);
       return;
     }
 
     @stack length : Bits_32 = Bits_32 -> from_big_endian(source.[offset +: 4]);
+
     if (offset + Chunk.overhead + Count -> from(length) > source -> get_size()) {
       Log -> error(
         "Png: Chunk at offset {} with length {} extends past end of stream",
@@ -380,13 +412,15 @@ import Math     : Library = TTX.Math;
     self.type_tag = source.[offset + 4 +: 4];
     self.data = source.[offset + 8 +: Count -> from(length)];
     self.length = length;
-    @if(.mode = "debug") {
+
+    @if (.mode = "debug") {
       @stack stored_crc : Bits_32 = Bits_32 -> from_big_endian(
         source.[offset + 8 + Count -> from(length) +: 4],
       );
       @stack actual_crc : Bits_32 = Chunk -> calculate_crc32(
         source.[offset + 4 +: 4 + Count -> from(length)],
       );
+
       if (stored_crc != actual_crc) {
         Log -> error("Png: CRC-32 mismatch for chunk '{}' at offset {}", self.type_tag, offset);
         return;
@@ -415,11 +449,12 @@ import Math     : Library = TTX.Math;
   }
 }
 
-@public Png : Object {
+@public Png : object {
   // Decodes a PNG byte stream into an RGBA Image. Returns an empty Image on
   // any parse, validation, or decompression failure.
   @public func decode[.source : View[Bytes]] -> Graphics.Image {
     @stack info : ImageInfo = self -> read_header(source);
+
     if (info.width == 0 or info.height == 0) {
       return Graphics.Image -> from();
     }
@@ -428,9 +463,11 @@ import Math     : Library = TTX.Math;
     @stack merged_data  : Bytes       = Bytes -> from();
     @stack palette      : View[Bytes] = View[Bytes] -> from();
     @stack chunk_offset : Count       = 8;
+
     while (chunk_offset < source -> get_size()) {
       @stack chunk : Chunk;
       chunk -> read(source, chunk_offset);
+
       if (!chunk.valid) {
         return Graphics.Image -> from();
       }
@@ -476,6 +513,7 @@ import Math     : Library = TTX.Math;
 
     @stack filtered_rows : Bytes = self -> apply_adaptive_filtering(image);
     @stack compressed    : Bytes = Deflate -> deflate(filtered_rows -> get_view());
+
     if (compressed -> get_size() == 0) {
       return Bytes -> from();
     }
@@ -492,6 +530,7 @@ import Math     : Library = TTX.Math;
     @stack buffer : Access[Bytes] = output -> get_access();
     @stack pos    : Count         = 8;
     package.png_signature -> copy_to(buffer.[0 +: 8]);
+
     @stack ihdr_chunk : Chunk = (
       .type_tag = package.ihdr_tag,
       .data = header_bytes -> get_view(),
@@ -523,23 +562,23 @@ import Math     : Library = TTX.Math;
     @stack output      : Bytes       = Bytes -> new(output_size);
     output -> resize(output_size);
 
-    @stack first_row   : View[Bytes] = pixel_bytes.[0 +: row_stride];
-    @stack best_filter : FilterType  = FilterType -> best_for_row(first_row, View[Bytes] -> from());
+    @stack first_row     : View[Bytes]   = pixel_bytes.[0 +: row_stride];
+    @stack best_filter   : FilterType    = FilterType -> best_for_row(
+      first_row,
+      View[Bytes] -> from(),
+    );
     @stack output_access : Access[Bytes] = output -> get_access();
     output_access[0] = best_filter;
     best_filter -> apply(output_access.[1 +: row_stride], first_row, View[Bytes] -> from());
 
     @stack previous_row : View[Bytes] = first_row;
+
     for [.row : Count] in 1...Count -> from(image -> get_height()) {
       @stack current_row : View[Bytes] = pixel_bytes.[row * row_stride +: row_stride];
       @stack row_filter  : FilterType  = FilterType -> best_for_row(current_row, previous_row);
       @stack row_offset  : Count       = row * (1 + row_stride);
       output_access[row_offset] = row_filter;
-      row_filter -> apply(
-        output_access.[row_offset + 1 +: row_stride],
-        current_row,
-        previous_row,
-      );
+      row_filter -> apply(output_access.[row_offset + 1 +: row_stride], current_row, previous_row);
       previous_row = current_row;
     }
 
@@ -547,7 +586,7 @@ import Math     : Library = TTX.Math;
   }
 
   // Reconstructs all filtered rows into output. Pass a zero-length View for
-  // up on the first row so reconstruct handles the no-previous-row cases.
+  // previous_row on the first row so reconstruct handles the no-previous-row cases.
   @hidden func reconstruct_filter[
     .filtered_rows : View[Bytes],
     .width : Count,
@@ -557,6 +596,7 @@ import Math     : Library = TTX.Math;
   ] -> Bool {
     @stack stride    : Count = width * bytes_per_pixel;
     @stack row_bytes : Count = 1 + stride;
+
     if (filtered_rows -> get_size() < row_bytes * height) {
       Log -> error(
         "Png: Decompressed size {} is smaller than required {} bytes for this image",
@@ -567,22 +607,28 @@ import Math     : Library = TTX.Math;
     }
 
     @stack first_filter : FilterType = FilterType -> from(filtered_rows[0]);
-    if (!first_filter -> reconstruct(
-      filtered_rows.[1 +: stride],
-      output.[0 +: stride],
-      View[Bytes] -> from(),
-      stride,
-      bytes_per_pixel,
-    )) {
+
+    if (
+      !first_filter -> reconstruct(
+        filtered_rows.[1 +: stride],
+        output.[0 +: stride],
+        View[Bytes] -> from(),
+        stride,
+        bytes_per_pixel,
+      ),
+    ) {
       return False;
     }
 
     for [.row : Count] in 1...height {
-      @stack filter_type : FilterType    = FilterType -> from(filtered_rows[row * row_bytes]);
-      @stack src         : View[Bytes]   = filtered_rows.[row * row_bytes + 1 +: stride];
-      @stack dst         : Access[Bytes] = output.[row * stride +: stride];
-      @stack up          : View[Bytes]   = output.[(row - 1) * stride +: stride];
-      if (!filter_type -> reconstruct(src, dst, up, stride, bytes_per_pixel)) {
+      @stack filter_type  : FilterType    = FilterType -> from(filtered_rows[row * row_bytes]);
+      @stack filtered_row : View[Bytes]   = filtered_rows.[row * row_bytes + 1 +: stride];
+      @stack output_row   : Access[Bytes] = output.[row * stride +: stride];
+      @stack previous_row : View[Bytes]   = output.[(row - 1) * stride +: stride];
+
+      if (
+        !filter_type -> reconstruct(filtered_row, output_row, previous_row, stride, bytes_per_pixel),
+      ) {
         return False;
       }
     }
@@ -597,11 +643,12 @@ import Math     : Library = TTX.Math;
     .height : Count,
     .color_type : ColorType,
     .palette : View[Bytes],
-  ] -> (
+  ] -> [
     .success : Bool,
     .pixels : List[Graphics.Pixel],
-  ) {
+  ] {
     @stack source_channels : Count = color_type -> get_channel_count();
+
     if (source_channels == 0) {
       return (
         .success = False,
@@ -612,21 +659,24 @@ import Math     : Library = TTX.Math;
     @stack pixel_count : Count                = width * height;
     @stack pixels      : List[Graphics.Pixel] = List[Graphics.Pixel] -> new(pixel_count);
     pixels -> resize(pixel_count);
+
     for [.pixel_index : Count] in 0...pixel_count {
       @stack source_offset : Count = pixel_index * source_channels;
+
       match color_type {
-        case ColorType.greyscale: {
+        case ColorType.greyscale : {
           pixels[pixel_index] = Graphics.Pixel -> from(raw_pixels[source_offset]);
         }
-        case ColorType.greyscale_alpha: {
+        case ColorType.greyscale_alpha : {
           pixels[pixel_index] = Graphics.Pixel -> from(raw_pixels.[source_offset +: 2]);
         }
-        case ColorType.rgb: {
+        case ColorType.rgb : {
           pixels[pixel_index] = Graphics.Pixel -> from(raw_pixels.[source_offset +: 3]);
         }
-        case ColorType.indexed: {
+        case ColorType.indexed : {
           @stack palette_index  : Bits_8 = raw_pixels[source_offset];
           @stack palette_offset : Count  = Count -> from(palette_index) * 3;
+
           if (palette_offset + 3 > palette -> get_size()) {
             Log -> error(
               "Png: Palette index {} at pixel {} exceeds palette size {}",
@@ -642,7 +692,7 @@ import Math     : Library = TTX.Math;
 
           pixels[pixel_index] = Graphics.Pixel -> from(palette.[palette_offset +: 3]);
         }
-        case _: {
+        case _ : {
           return (
             .success = False,
             .pixels = List[Graphics.Pixel] -> new(),
@@ -661,6 +711,7 @@ import Math     : Library = TTX.Math;
   // Returns a zero-sized ImageInfo on any parse or validation failure.
   @hidden func read_header[.source : View[Bytes]] -> ImageInfo {
     @stack required_size : Count = 8 + Chunk.overhead + ImageInfo.size;
+
     if (source -> get_size() < required_size) {
       return ImageInfo -> from();
     }
@@ -671,12 +722,14 @@ import Math     : Library = TTX.Math;
     }
 
     @stack first_chunk_tag : Vec[Bits_8, 4] = source.[8 + 4 +: 4];
+
     if (first_chunk_tag != package.ihdr_tag) {
       Log -> error("Png: First chunk must be IHDR, got '{}'", first_chunk_tag);
       return ImageInfo -> from();
     }
 
     @stack info : ImageInfo = ImageInfo -> from_bytes(source.[8 + 8 +: ImageInfo.size]);
+
     if (info.bit_depth != 8) {
       Log -> error("Png: Unsupported bit depth {} (only 8-bit is supported)", info.bit_depth);
       return ImageInfo -> from();
@@ -706,21 +759,27 @@ import Math     : Library = TTX.Math;
       info.height,
     );
     @stack filtered_rows         : Bytes = Deflate -> inflate(source, decompressed_capacity);
+
     if (filtered_rows -> get_size() == 0) {
       return Graphics.Image -> from();
     }
 
     if (info.color_type == ColorType.rgba) {
-      @stack pixel_count : Count                = Count -> from(info.width) * Count -> from(info.height);
+      @stack pixel_count : Count                = Count -> from(info.width) * Count -> from(
+        info.height,
+      );
       @stack pixels      : List[Graphics.Pixel] = List[Graphics.Pixel] -> new(pixel_count);
       pixels -> resize(pixel_count);
-      if (!self -> reconstruct_filter(
-        filtered_rows -> get_view(),
-        Count -> from(info.width),
-        Count -> from(info.height),
-        bpp,
-        pixels -> get_bytes(),
-      )) {
+
+      if (
+        !self -> reconstruct_filter(
+          filtered_rows -> get_view(),
+          Count -> from(info.width),
+          Count -> from(info.height),
+          bpp,
+          pixels -> get_bytes(),
+        ),
+      ) {
         Log -> error("Png: Filter reconstruction failed — decompressed data may be truncated");
         return Graphics.Image -> from();
       }
@@ -731,13 +790,16 @@ import Math     : Library = TTX.Math;
     @stack raw_pixel_count : Count = Count -> from(info.width) * Count -> from(info.height) * bpp;
     @stack raw_pixels      : Bytes = Bytes -> new(raw_pixel_count);
     raw_pixels -> resize(raw_pixel_count);
-    if (!self -> reconstruct_filter(
-      filtered_rows -> get_view(),
-      Count -> from(info.width),
-      Count -> from(info.height),
-      bpp,
-      raw_pixels -> get_access(),
-    )) {
+
+    if (
+      !self -> reconstruct_filter(
+        filtered_rows -> get_view(),
+        Count -> from(info.width),
+        Count -> from(info.height),
+        bpp,
+        raw_pixels -> get_access(),
+      ),
+    ) {
       Log -> error("Png: Filter reconstruction failed — decompressed data may be truncated");
       return Graphics.Image -> from();
     }
@@ -749,6 +811,7 @@ import Math     : Library = TTX.Math;
       info.color_type,
       palette,
     );
+
     if (!converted.success) {
       return Graphics.Image -> from();
     }

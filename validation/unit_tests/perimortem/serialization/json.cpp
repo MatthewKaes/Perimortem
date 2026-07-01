@@ -148,7 +148,7 @@ PERIMORTEM_UNIT_TEST(SerializationJson, parse_values) {
   EXPECT_TEXT(value.get_string(), ""_view);
 }
 
-PERIMORTEM_UNIT_TEST(SerializationJson, frames_escaped_strings) {
+PERIMORTEM_UNIT_TEST(SerializationJson, escaped_frames) {
   Allocator::Arena arena;
   Json::Node value;
 
@@ -175,7 +175,7 @@ PERIMORTEM_UNIT_TEST(SerializationJson, frames_escaped_strings) {
   EXPECT_TEXT(value.get_string(), escaped_quote_payload);
 }
 
-PERIMORTEM_UNIT_TEST(SerializationJson, format_escapes_string_payloads) {
+PERIMORTEM_UNIT_TEST(SerializationJson, escapes_payloads) {
   Allocator::Arena arena;
   Json::Node value("line\n\"title\"\\end"_view);
 
@@ -436,7 +436,7 @@ PERIMORTEM_UNIT_TEST(SerializationJson, format_number_zero) {
   ASSERT_TEXT(formated, expected);
 }
 
-PERIMORTEM_UNIT_TEST(SerializationJson, construct_existing_node) {
+PERIMORTEM_UNIT_TEST(SerializationJson, existing_node) {
   Allocator::Arena arena;
 
   Managed::Vector<Json::Member> inner(arena);
@@ -471,7 +471,7 @@ PERIMORTEM_UNIT_TEST(SerializationJson, format_null) {
   ASSERT_TEXT(value.format(arena), "{\"a\":1,\"b\":null,\"c\":3}"_view);
 }
 
-PERIMORTEM_UNIT_TEST(SerializationJson, construct_rpc_from_parsed) {
+PERIMORTEM_UNIT_TEST(SerializationJson, rpc_from_parsed) {
   File source;
   ASSERT(source.read("validation/data/json/init_rpc.json"_view));
 

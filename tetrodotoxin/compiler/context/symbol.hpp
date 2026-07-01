@@ -39,7 +39,7 @@ class Symbol {
     Symbol symbol;
     symbol.name = name;
     symbol.type = Type::Object;
-    symbol.context = Location::Strings;
+    symbol.ctx = Location::Strings;
 
     // Visability for all TTX strings is local.
     symbol.visability = Visability::Local;
@@ -55,7 +55,7 @@ class Symbol {
     Symbol symbol;
     symbol.name = name;
     symbol.type = Type::Func;
-    symbol.context = Location::Program;
+    symbol.ctx = Location::Program;
     symbol.visability = visability;
     symbol.range = {0, 0};
 
@@ -70,7 +70,7 @@ class Symbol {
     Symbol symbol;
     symbol.name = name;
     symbol.type = Type::Object;
-    symbol.context = Location::ReadOnly;
+    symbol.ctx = Location::ReadOnly;
     symbol.visability = visability;
     symbol.range = range;
 
@@ -83,7 +83,7 @@ class Symbol {
     Symbol symbol;
     symbol.name = name;
     symbol.type = type;
-    symbol.context = Location::External;
+    symbol.ctx = Location::External;
 
     // Visability must be global since we are able to access it.
     // External symbols also have no range.
@@ -94,7 +94,7 @@ class Symbol {
   }
 
   auto get_name() const -> Perimortem::Core::View::Bytes { return name; }
-  auto get_context() const -> Location { return context; }
+  auto get_ctx() const -> Location { return ctx; }
   auto get_range() const -> Perimortem::Utility::Range { return range; }
   auto get_visability() const -> Visability { return visability; }
   auto get_type() const -> Type { return type; }
@@ -105,7 +105,7 @@ class Symbol {
 
  private:
   Perimortem::Core::View::Bytes name;
-  Location context;
+  Location ctx;
   Perimortem::Utility::Range range;
   Visability visability;
   Type type;

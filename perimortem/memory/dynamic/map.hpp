@@ -112,7 +112,7 @@ class Map {
 
  public:
   Map() { buffer_data = BufferData(); }
-  Map(Count inital_capacity) { ensure_capacity(inital_capacity); }
+  Map(Count initial_capacity) { ensure_capacity(initial_capacity); }
 
   template <Count aggregate_size>
   constexpr Map(const Entry (&items)[aggregate_size]) {
