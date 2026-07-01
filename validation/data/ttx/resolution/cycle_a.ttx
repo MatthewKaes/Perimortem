@@ -1,6 +1,0 @@
-// Resolution cycle fixture A.
-dialect : Library;
-
-import CycleB : Library = (.source = "cycle_b.ttx");
-
-@hidden a : Count = 1;

@@ -1,9 +1,6 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
-// End-to-end smoke test: call a function from a ttx_library.
-// Build with:  bazel run //tetrodotoxin:hello
-
 #include "validation/unit_test.hpp"
 
 #include "perimortem/core/static/bytes.hpp"
@@ -13,7 +10,6 @@
 
 #include "tetrodotoxin/compiler/assembler/spirv.hpp"
 #include "tetrodotoxin/compiler/assembler/x86_64.hpp"
-#include "ttx_generated/ttx_tests.hpp"
 
 using namespace Perimortem::Core;
 using namespace Validation;
@@ -28,7 +24,7 @@ static Harness Ttxx86_64 = {
   .name = "TTX::x86_64"_view,
 };
 
-PERIMORTEM_UNIT_TEST(TtxSpirV, emits_module_header) {
+PERIMORTEM_UNIT_TEST(TtxSpirV, module_header) {
   Perimortem::Memory::Dynamic::Bytes words;
   spirv assembler(words);
 
@@ -64,7 +60,7 @@ PERIMORTEM_UNIT_TEST(TtxSpirV, module_instructions) {
   EXPECT(spirv::is_valid_module(words));
 }
 
-PERIMORTEM_UNIT_TEST(TtxSpirV, void_func_skeleton) {
+PERIMORTEM_UNIT_TEST(TtxSpirV, void_function) {
   Perimortem::Memory::Dynamic::Bytes words;
   spirv assembler(words);
 
@@ -100,7 +96,7 @@ PERIMORTEM_UNIT_TEST(TtxSpirV, instruction_bounds) {
   EXPECT_NOT(spirv::is_valid_module(words));
 }
 
-PERIMORTEM_UNIT_TEST(TtxSpirV, rejects_bad_headers) {
+PERIMORTEM_UNIT_TEST(TtxSpirV, bad_headers) {
   EXPECT_NOT(spirv::is_valid_module(View::Bytes()));
 
   constexpr Static::Bytes<20> bad_magic = {
@@ -266,7 +262,7 @@ PERIMORTEM_UNIT_TEST(Ttxx86_64, neg_one) {
       "\xED\x49\xFF\xCD\x4D\x31\xF6\x49\xFF\xCE\x4D\x31\xFF\x49\xFF\xCF"_view);
 }
 
-PERIMORTEM_UNIT_TEST(Ttxx86_64, mov_reg_to_reg_8bit) {
+PERIMORTEM_UNIT_TEST(Ttxx86_64, mov_reg8) {
   Perimortem::Memory::Dynamic::Bytes machine_code;
   x86_64 assembler(machine_code);
   for (x86_64::Reg reg = x86_64::Reg::AL; reg <= x86_64::Reg::R15B;
@@ -312,7 +308,7 @@ PERIMORTEM_UNIT_TEST(Ttxx86_64, mov_reg_to_reg_8bit) {
       "\x45\x88\xC1"_view);  // R8B → R9B  (ModRM reg=0=R8B, rm=1=R9B)
 }
 
-PERIMORTEM_UNIT_TEST(Ttxx86_64, mov_reg_to_reg_16bit) {
+PERIMORTEM_UNIT_TEST(Ttxx86_64, mov_reg16) {
   Perimortem::Memory::Dynamic::Bytes machine_code;
   x86_64 assembler(machine_code);
   for (x86_64::Reg reg = x86_64::Reg::AX; reg <= x86_64::Reg::R15W;
@@ -345,7 +341,7 @@ PERIMORTEM_UNIT_TEST(Ttxx86_64, mov_reg_to_reg_16bit) {
       "\x66\x45\x89\xC1"_view);  // R8W → R9W  (ModRM reg=0=R8W, rm=1=R9W)
 }
 
-PERIMORTEM_UNIT_TEST(Ttxx86_64, mov_reg_to_reg_32bit) {
+PERIMORTEM_UNIT_TEST(Ttxx86_64, mov_reg32) {
   Perimortem::Memory::Dynamic::Bytes machine_code;
   x86_64 assembler(machine_code);
   for (x86_64::Reg reg = x86_64::Reg::EAX; reg <= x86_64::Reg::R15D;
@@ -377,7 +373,7 @@ PERIMORTEM_UNIT_TEST(Ttxx86_64, mov_reg_to_reg_32bit) {
       "\x45\x89\xC1"_view);  // R8D → R9D  (ModRM reg=0=R8D, rm=1=R9D)
 }
 
-PERIMORTEM_UNIT_TEST(Ttxx86_64, mov_reg_to_reg_64bit) {
+PERIMORTEM_UNIT_TEST(Ttxx86_64, mov_reg64) {
   Perimortem::Memory::Dynamic::Bytes machine_code;
   x86_64 assembler(machine_code);
   for (x86_64::Reg reg = x86_64::Reg::RAX; reg <= x86_64::Reg::R15;
@@ -570,7 +566,7 @@ PERIMORTEM_UNIT_TEST(Ttxx86_64, mov_r64_imm64) {
       "\x49\xB8\x00\x00\x00\x00\x01\x00\x00\x00"_view);
 }
 
-PERIMORTEM_UNIT_TEST(Ttxx86_64, mov_store_to_memory) {
+PERIMORTEM_UNIT_TEST(Ttxx86_64, mov_store) {
   Perimortem::Memory::Dynamic::Bytes machine_code;
   x86_64 assembler(machine_code);
   // Store RAX to [RBX] — no displacement
@@ -599,7 +595,7 @@ PERIMORTEM_UNIT_TEST(Ttxx86_64, mov_store_to_memory) {
       "\x40\x88\x45\x00"_view);  // AL → [RBP+0] (bare REX)
 }
 
-PERIMORTEM_UNIT_TEST(Ttxx86_64, mov_load_from_memory) {
+PERIMORTEM_UNIT_TEST(Ttxx86_64, mov_load) {
   Perimortem::Memory::Dynamic::Bytes machine_code;
   x86_64 assembler(machine_code);
   // Load [RBX] to RAX — no displacement

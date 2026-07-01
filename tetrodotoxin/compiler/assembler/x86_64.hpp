@@ -3,13 +3,10 @@
 
 #pragma once
 
-#include "perimortem/core/view/vector.hpp"
 #include "perimortem/core/data.hpp"
 #include "perimortem/core/perimortem.hpp"
 
 #include "perimortem/memory/dynamic/bytes.hpp"
-
-#include "tetrodotoxin/abi/argument.hpp"
 
 namespace Tetrodotoxin::Compiler::Assembler {
 
@@ -93,13 +90,6 @@ class x86_64 {
   x86_64(Perimortem::Memory::Dynamic::Bytes& machine_code)
       : code(machine_code) {}
 
-  // Sets up a function for use.
-  auto prologue(Perimortem::Core::View::Vector<Abi::Argument> arguments)
-      -> void;
-
-  // returns and clears the stack.
-  auto epilogue(Abi::Type type) -> void;
-
   // Exits the current scope.
   auto close() -> void {};
 
@@ -133,6 +123,7 @@ class x86_64 {
   //
   // It's up to the compiler to create the correct symbol for the linker.
   auto call() -> void;
+  auto ret() -> void;
 
  private:
   Perimortem::Memory::Dynamic::Bytes& code;

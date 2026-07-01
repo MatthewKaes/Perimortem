@@ -5,9 +5,7 @@
 
 #include "perimortem/core/null_terminated.hpp"
 
-using namespace Ttx::Lexical;
-
-auto Class::get_name() const -> Perimortem::Core::View::Bytes {
+auto Ttx::Lexical::Class::get_name() const -> Perimortem::Core::View::Bytes {
   switch (type) {
   // Sigils
   case Type::Public:

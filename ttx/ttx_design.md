@@ -16,11 +16,11 @@ Perimortem's authoring, tooling, and build pipeline.
 The organizing idea is **monotonic context layering**. A TTX file begins as an
 authoring surface, then is enriched with token classes, syntax shape, package
 scopes, cross-file resolution, owned query contexts, and finally backend
-output. Type/layout, dialect, ABI, and provider owners add the facts they know.
-Each compiler layer enriches the same source structure with additional context.
-It does not erase what came before until the toolchain intentionally emits a
-terminal artifact such as formatted text, SPIR-V, LLVM IR, an object file, or
-editor JSON.
+output. Type/layout, dialect, provider, and eventual backend boundary owners add
+the facts they know. Each compiler layer enriches the same source structure with
+additional context. It does not erase what came before until the toolchain
+intentionally emits a terminal artifact such as formatted text, SPIR-V, LLVM IR,
+an object file, or editor JSON.
 
 This file describes the language as an author sees it. The stricter rules that
 matter to the compiler live in [ttx_semantics.md](ttx_semantics.md).
@@ -475,10 +475,10 @@ Graphics::Color : struct { r : Real_32; g : Real_32; b : Real_32; a : Real_32; }
 So `screen_pos.[x, y]` is not special pack syntax over an alias; it is a
 swizzle over real fields on a real typed aggregate.
 
-Pack order matters when a pack is passed, returned, or materialized. Names add
-semantic mapping information; they do not erase the carrier order. A named pack
-can initialize a struct out of declaration order because type/layout fitting maps by name,
-then lowering writes the struct in declaration order:
+Pack order matters when a pack is passed, returned, or materialized. Names are
+authored or boundary-provided facts; they do not erase the carrier order. A
+named pack can initialize a struct out of declaration order because type/layout
+fitting maps by name, then lowering writes the struct in declaration order:
 
 ```ttx
 @stack thing : Thing = (
@@ -488,7 +488,8 @@ then lowering writes the struct in declaration order:
 ```
 
 To repack values, build the new pack explicitly with grouping, swizzle, slice,
-or named fields:
+or named fields. Grouping, swizzle, and slice produce positional packs unless a
+field explicitly authors a name:
 
 ```ttx
 @stack position : Vec3D = (screen_pos.[x, y], z);

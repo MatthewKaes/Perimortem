@@ -26,10 +26,6 @@ class Token {
     return data == view;
   }
 
-  constexpr auto is_valid() const -> Bool {
-    return klass != Class::Type::EndOfStream;
-  }
-
   constexpr auto get_class() const -> Class { return klass; }
   constexpr auto get_text() const -> Perimortem::Core::View::Bytes {
     return data;

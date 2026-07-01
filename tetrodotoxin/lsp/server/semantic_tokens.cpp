@@ -8,7 +8,8 @@
 #include "perimortem/memory/managed/vector.hpp"
 
 #include "ttx/lexical/tokenizer.hpp"
-#include "tetrodotoxin/syntax/ttx.hpp"
+#include "ttx/parse/cursor.hpp"
+#include "ttx/parse/source.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -81,12 +82,9 @@ static auto classify_semantic_token(::Ttx::Lexical::Class klass)
   case Type::Type:
   case Type::Alias:
   case Type::Enum:
-  case Type::Shader:
-  case Type::Entity:
   case Type::Object:
   case Type::Struct:
   case Type::Foreign:
-  case Type::Library:
     return SemanticType;
 
   case Type::Addressable:
@@ -122,6 +120,7 @@ static auto classify_semantic_token(::Ttx::Lexical::Class klass)
   case Type::IndexStart:
   case Type::IndexEnd:
   case Type::Define:
+  case Type::TypeAccessOp:
   case Type::EndStatement:
   case Type::Discard:
     return SemanticOperator;
@@ -174,8 +173,9 @@ auto Server::semantic_tokens_for(Allocator::Arena& arena, View::Bytes source)
   tokenizer.parse(source, false);
 
   View::Vector<::Ttx::Lexical::Token> tokens = tokenizer.get_tokens();
+  ::Ttx::Parse::Cursor cursor(tokenizer);
   View::Bytes dialect_name =
-      Tetrodotoxin::Syntax::Ttx::detect_dialect_name(tokens);
+      ::Ttx::Parse::Source::parse(cursor).get_dialect_name().get_name();
   Bits_32 previous_line = 0;
   Bits_32 previous_column = 0;
   Bool emitted = False;

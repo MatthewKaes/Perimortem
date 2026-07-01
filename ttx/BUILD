@@ -21,22 +21,7 @@ cc_library(
     ]),
     include_prefix = "ttx",
     deps = [
-        ":lexical",
-        "//perimortem",
-    ],
-)
-
-cc_library(
-    name = "format",
-    srcs = glob([
-        "format/*.cpp",
-    ]),
-    hdrs = glob([
-        "format/*.hpp",
-    ]),
-    include_prefix = "ttx",
-    deps = [
-        ":lexical",
+        ":parse",
         "//perimortem",
     ],
 )

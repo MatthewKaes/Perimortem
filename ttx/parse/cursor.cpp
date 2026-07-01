@@ -8,13 +8,9 @@ Ttx::Parse::Cursor::Cursor(const Lexical::Tokenizer& tokenizer)
       tokens(tokenizer.get_tokens()),
       errors(tokenizer.get_arena()) {}
 
-auto Ttx::Parse::Cursor::current() const -> const Lexical::Token& {
-  return tokens[token_index];
-}
-
 auto Ttx::Parse::Cursor::consume() -> const Lexical::Token& {
   const Lexical::Token& token = current();
-  if (token_index < tokens.get_size()) {
+  if (token_index + 1 < tokens.get_size()) {
     token_index++;
   }
 
@@ -43,6 +39,9 @@ auto Ttx::Parse::Cursor::error(
 }
 
 auto Ttx::Parse::Cursor::recover_to_statement() -> void {
+  // The source envelope only recovers at statement boundaries. That is enough
+  // to keep independent import errors visible without pretending to understand
+  // the dialect body after a malformed envelope item.
   while (!matches(Lexical::Class::Type::EndOfStream) &&
          !matches(Lexical::Class::Type::EndStatement) &&
          !matches(Lexical::Class::Type::ScopeEnd)) {
@@ -52,35 +51,4 @@ auto Ttx::Parse::Cursor::recover_to_statement() -> void {
   if (matches(Lexical::Class::Type::EndStatement)) {
     consume();
   }
-}
-
-auto Ttx::Parse::Cursor::matches(Lexical::Class::Type type) const -> Bool {
-  return current().get_class() == type;
-}
-
-auto Ttx::Parse::Cursor::has_error() const -> Bool {
-  return !errors.is_empty();
-}
-
-auto Ttx::Parse::Cursor::get_errors() const
-    -> Perimortem::Core::View::Vector<Error> {
-  return errors.get_view();
-}
-
-auto Ttx::Parse::Cursor::remaining_tokens() const
-    -> Perimortem::Core::View::Vector<Lexical::Token> {
-  return tokens.slice(token_index);
-}
-
-auto Ttx::Parse::Cursor::get_arena() const
-    -> Perimortem::Memory::Allocator::Arena& {
-  return tokenizer.get_arena();
-}
-
-auto Ttx::Parse::Cursor::get_token_index() const -> Count {
-  return token_index;
-}
-
-auto Ttx::Parse::Cursor::get_error_count() const -> Count {
-  return errors.get_size();
 }

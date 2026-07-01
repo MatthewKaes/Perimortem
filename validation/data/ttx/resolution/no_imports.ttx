@@ -1,4 +1,0 @@
-// Resolution fixture with no imports.
-dialect : Library;
-
-@hidden value : Count = 1;

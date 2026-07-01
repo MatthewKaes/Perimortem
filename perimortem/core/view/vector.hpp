@@ -37,7 +37,7 @@ class Vector {
     return false;
   }
 
-  constexpr auto at(Count index) const -> const data_type& {
+  constexpr auto operator[](Count index) const -> const data_type& {
     if (index >= size) [[unlikely]] {
       // Aligned storage with no constructor — safe to alias as data_type.
       // We zero-init so callers reading an OOB entry get a defined value.
@@ -45,10 +45,6 @@ class Vector {
       return *Data::cast<const data_type>(oob);
     }
     return source_block[index];
-  }
-
-  constexpr auto operator[](Count index) const -> const data_type& {
-    return at(index);
   }
 
   constexpr auto slice(Count start, Count size = Count(-1)) const

@@ -11,35 +11,41 @@ auto Ttx::Parse::Import::parse(Cursor& cursor) -> Import {
     return result;
   }
 
-  Count starting_error_count = cursor.get_error_count();
+  // Track the error count for this one import. If any required token fails, the
+  // import is not returned to resolution and the cursor skips to the next
+  // statement so later imports can still be checked.
+  Count starting_error_count = cursor.get_errors().get_size();
   cursor.consume();
   const Lexical::Token& local_name =
       cursor.require(Lexical::Class::Type::Type, "Expected import local name."_view);
-  if (cursor.get_error_count() != starting_error_count) {
+  if (cursor.get_errors().get_size() != starting_error_count) {
     cursor.recover_to_statement();
     return result;
   }
 
   result.local_name = local_name.get_text();
   cursor.require(Lexical::Class::Type::Define, "Expected `:` after import name."_view);
-  if (cursor.get_error_count() != starting_error_count) {
+  if (cursor.get_errors().get_size() != starting_error_count) {
     cursor.recover_to_statement();
     return result;
   }
 
   result.dialect_name = TypePath::parse(cursor);
-  if (cursor.get_error_count() != starting_error_count) {
+  if (cursor.get_errors().get_size() != starting_error_count) {
     cursor.recover_to_statement();
     return result;
   }
 
   cursor.require(
       Lexical::Class::Type::Assign, "Expected `=` after import dialect."_view);
-  if (cursor.get_error_count() != starting_error_count) {
+  if (cursor.get_errors().get_size() != starting_error_count) {
     cursor.recover_to_statement();
     return result;
   }
 
+  // A parenthesized source selector is the compact layout form for direct file
+  // imports. The source envelope recognizes only `.source` here because
+  // package graph policy belongs to Tetrodotoxin resolution, not the parser.
   if (cursor.matches(Lexical::Class::Type::PackingStart)) {
     cursor.consume();
     cursor.require(
@@ -56,14 +62,14 @@ auto Ttx::Parse::Import::parse(Cursor& cursor) -> Import {
 
     cursor.require(
         Lexical::Class::Type::Assign, "Expected `=` after import source field."_view);
-    if (cursor.get_error_count() != starting_error_count) {
+    if (cursor.get_errors().get_size() != starting_error_count) {
       cursor.recover_to_statement();
       return result;
     }
 
     const Lexical::Token& source = cursor.require(
         Lexical::Class::Type::String, "Expected string import source path."_view);
-    if (cursor.get_error_count() != starting_error_count) {
+    if (cursor.get_errors().get_size() != starting_error_count) {
       cursor.recover_to_statement();
       return result;
     }
@@ -71,13 +77,16 @@ auto Ttx::Parse::Import::parse(Cursor& cursor) -> Import {
     result.file_path = inner_text(source.get_text());
     cursor.require(
         Lexical::Class::Type::PackingEnd, "Expected `)` after import source."_view);
-    if (cursor.get_error_count() != starting_error_count) {
+    if (cursor.get_errors().get_size() != starting_error_count) {
       cursor.recover_to_statement();
       return result;
     }
   } else {
+    // Otherwise the import source is a package path such as `TTX::Graphics`.
+    // Mapping that path to an actual package file happens after the source
+    // envelope has been parsed.
     result.package_path = TypePath::parse(cursor);
-    if (cursor.get_error_count() != starting_error_count) {
+    if (cursor.get_errors().get_size() != starting_error_count) {
       cursor.recover_to_statement();
       return result;
     }
@@ -85,44 +94,18 @@ auto Ttx::Parse::Import::parse(Cursor& cursor) -> Import {
 
   cursor.require(
       Lexical::Class::Type::EndStatement, "Expected `;` after import."_view);
-  if (cursor.get_error_count() != starting_error_count) {
+  if (cursor.get_errors().get_size() != starting_error_count) {
     cursor.recover_to_statement();
   }
 
   return result;
 }
 
-auto Ttx::Parse::Import::get_local_name() const
+constexpr auto Ttx::Parse::Import::inner_text(
+    Perimortem::Core::View::Bytes text)
     -> Perimortem::Core::View::Bytes {
-  return local_name;
-}
-
-auto Ttx::Parse::Import::get_dialect_name() const -> const TypePath& {
-  return dialect_name;
-}
-
-auto Ttx::Parse::Import::get_package_path() const -> const TypePath& {
-  return package_path;
-}
-
-auto Ttx::Parse::Import::get_file_path() const -> Perimortem::Core::View::Bytes {
-  return file_path;
-}
-
-auto Ttx::Parse::Import::is_package_source() const -> Bool {
-  return !package_path.is_empty();
-}
-
-auto Ttx::Parse::Import::is_file_source() const -> Bool {
-  return !file_path.is_empty();
-}
-
-auto Ttx::Parse::Import::is_empty() const -> Bool {
-  return local_name.is_empty();
-}
-
-auto Ttx::Parse::Import::inner_text(Perimortem::Core::View::Bytes text)
-    -> Perimortem::Core::View::Bytes {
+  // String tokens still include their quotes at this layer. Strip only the
+  // outer pair so resolution receives the authored path bytes.
   if (text.get_size() >= 2 && text[0] == '"' &&
       text[text.get_size() - 1] == '"') {
     return text.slice(1, text.get_size() - 2);

@@ -18,17 +18,6 @@ ttx_package(
     ],
 )
 
-cc_library(
-    name = "abi",
-    hdrs = glob([
-        "abi/*.hpp",
-    ], allow_empty = True),
-    includes = ["."],
-    deps = [
-        "//perimortem",
-    ],
-)
-
 alias(
     name = "dialects",
     actual = "//ttx:dialect",
@@ -40,26 +29,16 @@ alias(
 )
 
 cc_library(
-    name = "compiler",
+    name = "compiler_assembler",
     srcs = [
         "compiler/assembler/spirv.cpp",
         "compiler/assembler/x86_64.cpp",
-        "compiler/compiler.cpp",
-        "compiler/context/names.cpp",
-    ] + glob([
-        "compiler/shader/*.cpp",
-    ]),
+    ],
     hdrs = glob([
         "compiler/assembler/*.hpp",
-        "compiler/context/*.hpp",
-        "compiler/shader/*.hpp",
-        "compiler/*.hpp",
     ]),
     includes = ["."],
     deps = [
-        ":abi",
-        ":dialect",
-        ":validation",
         "//perimortem",
     ],
 )
@@ -70,13 +49,16 @@ cc_library(
         "linker/linker.cpp",
         "linker/target/elf.cpp",
     ],
-    hdrs = glob([
-        "linker/target/*.hpp",
-        "linker/*.hpp",
-    ]),
+    hdrs = [
+        "linker/linker.hpp",
+        "linker/object/relocation.hpp",
+        "linker/object/section.hpp",
+        "linker/object/symbol.hpp",
+        "linker/target/elf.hpp",
+        "linker/target/format.hpp",
+    ],
     includes = ["."],
     deps = [
-        ":compiler",
         "//perimortem",
     ],
 )
@@ -88,25 +70,6 @@ alias(
 )
 
 alias(
-    name = "format",
-    actual = "//ttx:format",
-)
-
-alias(
     name = "ttx_core",
     actual = "//ttx:core",
-)
-
-cc_library(
-    name = "resolution",
-    srcs = glob([
-        "resolution/*.cpp",
-    ]),
-    hdrs = glob([
-        "resolution/*.hpp",
-    ]),
-    includes = ["."],
-    deps = [
-        "//perimortem",
-    ],
 )

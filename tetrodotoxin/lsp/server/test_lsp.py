@@ -314,19 +314,19 @@ def run_test():
             if len(src_lines) != len(fmt_lines):
                 print(f"  line count: {len(src_lines)} → {len(fmt_lines)}")
 
-    print("\n--- Round-trip: apps/shaders/icon.ttx ---")
-    icon_path = os.path.join(REPO_ROOT, "apps", "shaders", "icon.ttx")
-    with open(icon_path, "r", encoding="utf-8") as f:
-        icon_source = f.read()
+    print("\n--- Round-trip: apps/splash_screen.ttx ---")
+    splash_path = os.path.join(REPO_ROOT, "apps", "splash_screen.ttx")
+    with open(splash_path, "r", encoding="utf-8") as f:
+        splash_source = f.read()
 
-    icon_formatted = send_format(conn, icon_source, "icon.ttx")
-    if icon_formatted is not None:
-        if icon_formatted == icon_source:
-            print("  [OK] icon.ttx is unchanged after formatting")
+    splash_formatted = send_format(conn, splash_source, "splash_screen.ttx")
+    if splash_formatted is not None:
+        if splash_formatted == splash_source:
+            print("  [OK] splash_screen.ttx is unchanged after formatting")
         else:
-            print("  [DIFF] icon.ttx changed after formatting:")
-            src_lines = icon_source.splitlines()
-            fmt_lines = icon_formatted.splitlines()
+            print("  [DIFF] splash_screen.ttx changed after formatting:")
+            src_lines = splash_source.splitlines()
+            fmt_lines = splash_formatted.splitlines()
             for i, (a, b) in enumerate(zip(src_lines, fmt_lines), 1):
                 if a != b:
                     print(f"    line {i}:")

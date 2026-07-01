@@ -7,15 +7,13 @@
 #include "perimortem/core/null_terminated.hpp"
 
 using namespace Perimortem::Core;
-using namespace Tetrodotoxin::Compiler;
+using namespace Perimortem::Memory;
 using namespace Tetrodotoxin::Compiler::Assembler;
 
 using Byte = Bits_8;
-using Bytes = Perimortem::Memory::Dynamic::Bytes;
-
 using Reg = x86_64::Reg;
 
-constexpr auto reg_code(Reg reg) -> Byte {
+static constexpr auto reg_code(Reg reg) -> Byte {
   return Byte(reg) & Byte(0x7);
 }
 
@@ -42,7 +40,7 @@ enum class AddressMode : Byte {
 };
 
 template <typename bit_type>
-constexpr auto write_const(Bytes& code, bit_type data) -> void {
+static constexpr auto write_const(Dynamic::Bytes& code, bit_type data) -> void {
   // Ensure data is written in little endian.
   data = Data::ensure_endian<Data::ByteOrder::Native, Data::ByteOrder::Little>(
       data);
@@ -53,13 +51,14 @@ constexpr auto write_const(Bytes& code, bit_type data) -> void {
       1);
 }
 
-constexpr auto rex_short(Bytes& code, Reg reg) -> void {
+static constexpr auto rex_short(Dynamic::Bytes& code, Reg reg) -> void {
   if (reg > Reg::RDI) {
     code.append(Byte(RexExt::B));
   }
 }
 
-constexpr auto gen_rex_byte(Bytes& code, Reg reg, Reg rm) -> void {
+static constexpr auto gen_rex_byte(Dynamic::Bytes& code, Reg reg, Reg rm)
+    -> void {
   Byte rex_code = 0;
 
   // REX.W only for 64-bit operand size (upper nibble == 0x1)
@@ -85,7 +84,8 @@ constexpr auto gen_rex_byte(Bytes& code, Reg reg, Reg rm) -> void {
 
 // REX for 16-bit register operands (0x66 prefix handles operand size, no
 // REX.W).
-constexpr auto gen_rex_byte_16(Bytes& code, Reg reg, Reg rm) -> void {
+static constexpr auto gen_rex_byte_16(Dynamic::Bytes& code, Reg reg, Reg rm)
+    -> void {
   Byte rex_code = 0;
   if (reg != Reg::None && (Byte(reg) & Byte(0x0F)) > 0x07) {
     rex_code |= Byte(RexExt::R);
@@ -100,7 +100,8 @@ constexpr auto gen_rex_byte_16(Bytes& code, Reg reg, Reg rm) -> void {
 
 // REX for 32-bit memory operands. The base register may be 64-bit for
 // addressing, but it must not force REX.W; only extended reg/base bits matter.
-constexpr auto gen_rex_byte_32(Bytes& code, Reg reg, Reg rm) -> void {
+static constexpr auto gen_rex_byte_32(Dynamic::Bytes& code, Reg reg, Reg rm)
+    -> void {
   Byte rex_code = 0;
   if (reg != Reg::None && (Byte(reg) & Byte(0x0F)) > 0x07) {
     rex_code |= Byte(RexExt::R);
@@ -116,7 +117,8 @@ constexpr auto gen_rex_byte_32(Bytes& code, Reg reg, Reg rm) -> void {
 // REX for 8-bit register operands.
 // SPL/BPL/SIL/DIL (codes 4-7) require a bare REX prefix to distinguish them
 // from the legacy AH/CH/DH/BH registers which share those encoding codes.
-constexpr auto gen_rex_byte_8(Bytes& code, Reg reg, Reg rm) -> void {
+static constexpr auto gen_rex_byte_8(Dynamic::Bytes& code, Reg reg, Reg rm)
+    -> void {
   Byte rex_code = 0;
   if (reg != Reg::None && (Byte(reg) & Byte(0x0F)) > 0x07) {
     rex_code |= Byte(RexExt::R);
@@ -139,18 +141,19 @@ constexpr auto gen_rex_byte_8(Bytes& code, Reg reg, Reg rm) -> void {
   }
 }
 
-constexpr auto gen_modrm_byte(AddressMode mode, Reg reg, Reg rm) -> Byte {
+static constexpr auto gen_modrm_byte(AddressMode mode, Reg reg, Reg rm)
+    -> Byte {
   return Byte(mode) | (reg_code(reg) << 3) | reg_code(rm);
 }
 
-constexpr auto gen_modrm_byte(Reg reg, Reg rm) -> Byte {
+static constexpr auto gen_modrm_byte(Reg reg, Reg rm) -> Byte {
   return Byte(AddressMode::RegToReg) | (reg_code(reg) << 3) | reg_code(rm);
 }
 
 // Writes ModRM and optional SIB/displacement bytes for a
 // [base + displacement] memory operand.
-auto gen_memory_operand(
-    Bytes& code,
+static auto gen_memory_operand(
+    Dynamic::Bytes& code,
     Reg reg,
     Reg base,
     Signed_32 displacement)
@@ -444,24 +447,13 @@ auto x86_64::read_only(Reg destination) -> void {
   write_const(code, Bits_32(0));
 }
 
-auto x86_64::prologue(Perimortem::Core::View::Vector<Abi::Argument> arguments)
-    -> void {
-  // TODO: generate SSA so we can do mem_to_reg analysis
-  push(Reg::RBP);
-  mov(Reg::RSP, Reg::RBP);
-}
-
-// returns and clears the stack.
-auto x86_64::epilogue(Abi::Type type) -> void {
-  mov(Reg::RBP, Reg::RSP);
-  // Pop stored registers in reverse order.
-  pop(Reg::RBP);
-  code.append(0xC3);
-}
-
 auto x86_64::call() -> void {
   // Generate the hex for a PC32 call.
   code.append(0xE8);
   // Emit placeholder disp32 for the PC32 relocation to patch.
   write_const(code, Bits_32(0));
+}
+
+auto x86_64::ret() -> void {
+  code.append(0xC3);
 }

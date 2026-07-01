@@ -23,22 +23,41 @@ using namespace Perimortem::Memory;
 using namespace Perimortem::System;
 using namespace Validation;
 
-namespace Perimortem::Core::View {
-auto operator>(const Bytes& lhs, const Bytes& rhs) -> Bool {
+static auto bytes_greater(View::Bytes lhs, View::Bytes rhs) -> Bool {
   if (lhs.get_size() != rhs.get_size()) {
     return lhs.get_size() > rhs.get_size();
   }
 
-  auto data = lhs.get_data();
   for (Count i = 0; i < lhs.get_size(); i++) {
-    if (data[i] != rhs.get_data()[i]) {
-      return data[i] > rhs.get_data()[i];
+    if (lhs[i] != rhs[i]) {
+      return lhs[i] > rhs[i];
     }
   }
 
   return false;
 }
-}  // namespace Perimortem::Core::View
+
+class SortWord {
+ public:
+  constexpr SortWord() = default;
+  constexpr SortWord(View::Bytes source) : view(source) {}
+
+  constexpr auto operator=(View::Bytes source) -> SortWord& {
+    view = source;
+    return *this;
+  }
+
+  constexpr auto get_size() const -> Count { return view.get_size(); }
+
+  constexpr auto get_view() const -> View::Bytes { return view; }
+
+  auto operator>(const SortWord& rhs) const -> Bool {
+    return bytes_greater(get_view(), rhs.get_view());
+  }
+
+ private:
+  View::Bytes view;
+};
 
 static Static::Vector<Count, 1 << 6> count_64;
 static Static::Vector<Count, 1 << 9> count_512;
@@ -106,7 +125,7 @@ static constexpr Count word_width = 12;
 
 static Static::Bytes<keyword_seeds.get_size() * word_width * permute_count>
     generated_strings;
-static Static::Vector<View::Bytes, keyword_seeds.get_size() * permute_count>
+static Static::Vector<SortWord, keyword_seeds.get_size() * permute_count>
     word_pool;
 
 // Generates a larger batch of test words off of a set of source seed
@@ -156,9 +175,9 @@ auto fill_words(word_array& target) -> void {
   }
 }
 
-static Static::Vector<View::Bytes, 1 << 8> words_256;
-static Static::Vector<View::Bytes, 1 << 12> words_4k;
-static Static::Vector<View::Bytes, 1 << 14> words_16k;
+static Static::Vector<SortWord, 1 << 8> words_256;
+static Static::Vector<SortWord, 1 << 12> words_4k;
+static Static::Vector<SortWord, 1 << 14> words_16k;
 
 static Harness SortStrings256 = {
   .name = "Sorting"_view,
@@ -232,7 +251,7 @@ template <typename array_type>
 auto cpp_std_sort_views(array_type& arr) -> void {
   std::sort(
       arr.get_data(), arr.get_data() + arr.get_size(),
-      [](const View::Bytes& a, const View::Bytes& b) { return b > a; });
+      [](const SortWord& a, const SortWord& b) { return b > a; });
   Count sorted_size = arr[0].get_size();
   Benchmark::prevent_optimization(sorted_size);
 }
@@ -241,7 +260,8 @@ auto cpp_std_sort_views(array_type& arr) -> void {
   static Benchmark::Comparison sort_##size##_ints_comp = {         \
     .harness = &SortIntComp,                                       \
     .label = "ints " #size ""_view,                                \
-    .variants = {{"perimortem"_view, "int_" #size "_items"_view}}, \
+    .variants = {Benchmark::ComparisonVariant{                     \
+        "perimortem"_view, "int_" #size "_items"_view}},           \
   };                                                               \
   PERIMORTEM_COMPARISON(sort_##size##_ints_comp) {                 \
     cpp_std_sort_ints(buffer);                                     \
@@ -256,7 +276,8 @@ INT_SORT_COMPARISON(16k, count_16k)
   static Benchmark::Comparison sort_##size##_strings_comp = {  \
     .harness = &SortStringComp,                                \
     .label = "strings " #size ""_view,                         \
-    .variants = {{"perimortem"_view, "views_" #size ""_view}}, \
+    .variants = {Benchmark::ComparisonVariant{                 \
+        "perimortem"_view, "views_" #size ""_view}},           \
   };                                                           \
   PERIMORTEM_COMPARISON(sort_##size##_strings_comp) {          \
     cpp_std_sort_views(buffer);                                \

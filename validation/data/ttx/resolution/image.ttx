@@ -1,5 +1,0 @@
-// Resolution fixture render dependency.
-dialect : Render;
-
-Vertex : Shader {
-}

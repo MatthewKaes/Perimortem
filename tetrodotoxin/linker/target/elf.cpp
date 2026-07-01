@@ -8,18 +8,15 @@
 #include "perimortem/core/null_terminated.hpp"
 #include "perimortem/core/writer/textual.hpp"
 
-#include "tetrodotoxin/compiler/context/relocation.hpp"
-#include "tetrodotoxin/compiler/context/symbol.hpp"
-
 using namespace Perimortem;
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
+using namespace Tetrodotoxin::Linker::Object;
 using namespace Tetrodotoxin::Linker::Target;
-using namespace Tetrodotoxin::Compiler;
 
 // Elf is a little endian format, however the ar format has
-constexpr auto elf_endian = Data::ByteOrder::Little;
-constexpr auto ar_endian = Data::ByteOrder::Big;
+static constexpr auto elf_endian = Data::ByteOrder::Little;
+static constexpr auto ar_endian = Data::ByteOrder::Big;
 
 enum class ObjectType : Bits_16 { Relocatable = 1 };
 enum class Machine : Bits_16 { X86_64 = 62 };
@@ -78,8 +75,8 @@ struct SectionHeader {
 static_assert(sizeof(SectionHeader) == 64);
 
 // The binary layout for symbol records.
-// The Compiler format is mostly based on ELF so the two instances are close but
-// we use this instance to streamline serialization.
+// The object model uses ELF-compatible values so this wire record can serialize
+// symbols directly without understanding the generator that produced them.
 struct SymbolRecord {
   Bits_32 name_offset;
   Bits_8 info;        // (binding << 4) | type
@@ -119,7 +116,7 @@ struct SectionDesc {
 };
 
 struct SymbolRef {
-  const Context::Symbol* symbol;
+  const Symbol* symbol;
   Count original_index;
   Count string_table_offset;
 };
@@ -141,7 +138,8 @@ struct ArHeader {
 };
 static_assert(sizeof(ArHeader) == 60);
 
-auto fill_ar_header(ArHeader& header, View::Bytes name, Bits_64 size) -> void {
+static auto fill_ar_header(ArHeader& header, View::Bytes name, Bits_64 size)
+    -> void {
   const Count name_length = name.get_size() < 15 ? name.get_size() : 15;
   Data::copy(header.name.get_data(), name.get_data(), name_length);
   header.name[name_length] = '/';
@@ -150,45 +148,45 @@ auto fill_ar_header(ArHeader& header, View::Bytes name, Bits_64 size) -> void {
   Writer::Textual(header.data_size.get_access()) << size;
 }
 
-auto to_section_desc(Format::Section section) -> SectionDesc {
-  switch (section.type) {
-  case Context::Symbol::Location::Program:
+static auto to_section_desc(Section section) -> SectionDesc {
+  switch (section.get_type()) {
+  case Section::Type::Program:
     return {
       ".text"_view,
       SectionType::ProgramData,
       Bits_64(SectionFlags::Allocated) | Bits_64(SectionFlags::Executable),
       16,
-      section.data,
+      section.get_data(),
     };
-  case Context::Symbol::Location::Strings:
+  case Section::Type::Strings:
     return {
       ".rodata.str"_view,
       SectionType::ProgramData,
       Bits_64(SectionFlags::Allocated) | Bits_64(SectionFlags::Mergeable) |
           Bits_64(SectionFlags::Strings),
       1,
-      section.data,
+      section.get_data(),
     };
-  case Context::Symbol::Location::ReadOnly:
+  case Section::Type::ReadOnly:
     return {
       ".rodata"_view,
       SectionType::ProgramData,
       Bits_64(SectionFlags::Allocated),
       8,
-      section.data,
+      section.get_data(),
     };
   default:
     return {};
   }
 }
 
-auto sort_symbols(View::Vector<Context::Symbol> symbols)
+static auto sort_symbols(View::Vector<Symbol> symbols)
     -> Dynamic::Vector<SymbolRef> {
   Dynamic::Vector<SymbolRef> sorted;
-  using Vis = Context::Symbol::Visability;
-  for (Count pass = 0; pass <= Count(Vis::Global); pass++) {
+  using Visibility = Symbol::Visibility;
+  for (Count pass = 0; pass <= Count(Visibility::Global); pass++) {
     for (Count i = 0; i < symbols.get_size(); i++) {
-      if (Count(symbols[i].get_visability()) != pass) {
+      if (Count(symbols[i].get_visibility()) != pass) {
         continue;
       }
       sorted.insert({symbols.get_data() + i, i, 0});
@@ -197,8 +195,9 @@ auto sort_symbols(View::Vector<Context::Symbol> symbols)
   return sorted;
 }
 
-auto find_sorted_position(View::Vector<SymbolRef> sorted, Count original_index)
-    -> Count {
+static auto find_sorted_position(
+    View::Vector<SymbolRef> sorted,
+    Count original_index) -> Count {
   for (Count i = 0; i < sorted.get_size(); i++) {
     if (sorted[i].original_index == original_index) {
       return i;
@@ -207,7 +206,8 @@ auto find_sorted_position(View::Vector<SymbolRef> sorted, Count original_index)
   return 0;
 }
 
-auto build_string_table(Access::Vector<SymbolRef> symbols) -> Dynamic::Bytes {
+static auto build_string_table(Access::Vector<SymbolRef> symbols)
+    -> Dynamic::Bytes {
   Dynamic::Bytes string_table;
   string_table.append('\0');
   for (Count i = 0; i < symbols.get_size(); i++) {
@@ -220,25 +220,42 @@ auto build_string_table(Access::Vector<SymbolRef> symbols) -> Dynamic::Bytes {
 
 // Returns the 1-based ELF section index for a symbol's location, or 0
 // (SHN_UNDEF) if not found.
-auto section_index_for(
-    View::Vector<Format::Section> sections,
-    Context::Symbol::Location location) -> Bits_16 {
+static auto section_type_for(Symbol::Location location) -> Section::Type {
+  switch (location) {
+  case Symbol::Location::Program:
+    return Section::Type::Program;
+  case Symbol::Location::Strings:
+    return Section::Type::Strings;
+  case Symbol::Location::ReadOnly:
+    return Section::Type::ReadOnly;
+  default:
+    return Section::Type::Invalid;
+  }
+}
+
+static auto section_index_for(
+    View::Vector<Section> sections,
+    Symbol::Location location) -> Bits_16 {
+  const Section::Type type = section_type_for(location);
+  if (type == Section::Type::Invalid) {
+    return 0;
+  }
+
   for (Count i = 0; i < sections.get_size(); i++) {
-    if (sections[i].type == location) {
+    if (sections[i].get_type() == type) {
       return Bits_16(1 + i);
     }
   }
   return 0;
 }
 
-auto build_symbol_table(
+static auto build_symbol_table(
     View::Vector<SymbolRef> sorted,
-    View::Vector<Format::Section> sections,
+    View::Vector<Section> sections,
     Count& out_first_global) -> Dynamic::Bytes {
   out_first_global = 1;
   for (Count i = 0; i < sorted.get_size(); i++) {
-    if (sorted[i].symbol->get_visability() ==
-        Context::Symbol::Visability::Global) {
+    if (sorted[i].symbol->get_visibility() == Symbol::Visibility::Global) {
       break;
     }
     out_first_global++;
@@ -255,14 +272,14 @@ auto build_symbol_table(
     const auto& symbol = *ref.symbol;
     auto& entry = entries[1 + i];
     const Bits_8 binding =
-        symbol.get_visability() == Context::Symbol::Visability::Global ? 1 : 0;
+        symbol.get_visibility() == Symbol::Visibility::Global ? 1 : 0;
     Data::write<elf_endian>(
         &entry.name_offset, Bits_32(ref.string_table_offset));
     entry.info = Bits_8((binding << 4) | Bits_8(symbol.get_type()));
     const Bits_16 section_index =
-        symbol.get_ctx() == Context::Symbol::Location::External
+        symbol.get_location() == Symbol::Location::External
             ? Bits_16(0)
-            : section_index_for(sections, symbol.get_ctx());
+            : section_index_for(sections, symbol.get_location());
     Data::write<elf_endian>(&entry.section_index, section_index);
     Data::write<elf_endian>(&entry.value, Bits_64(symbol.get_range().start));
     Data::write<elf_endian>(&entry.size, Bits_64(symbol.get_range().size));
@@ -270,8 +287,8 @@ auto build_symbol_table(
   return data;
 }
 
-auto build_relocations(
-    View::Vector<Context::Relocation> relocations,
+static auto build_relocations(
+    View::Vector<Relocation> relocations,
     View::Vector<SymbolRef> sorted) -> Dynamic::Bytes {
   Dynamic::Bytes data;
   if (relocations.get_size() == 0) {
@@ -283,19 +300,20 @@ auto build_relocations(
   for (Count i = 0; i < relocations.get_size(); i++) {
     const auto& reloc = relocations[i];
     const Bits_64 symbol_slot =
-        Bits_64(1 + find_sorted_position(sorted, reloc.symbol));
-    const Bits_32 rtype = reloc.type == Context::Relocation::Type::Plt32
+        Bits_64(1 + find_sorted_position(sorted, reloc.get_symbol()));
+    const Bits_32 rtype = reloc.get_type() == Relocation::Type::Plt32
                               ? Bits_32(RelocationType::Plt32)
                               : Bits_32(RelocationType::PcRelative32);
-    Data::write<elf_endian>(&entries[i].offset, Bits_64(reloc.offset));
+    Data::write<elf_endian>(&entries[i].offset, Bits_64(reloc.get_offset()));
     Data::write<elf_endian>(
         &entries[i].info, (symbol_slot << 32) | Bits_64(rtype));
-    Data::write<elf_endian>(&entries[i].addend, Signed_64(reloc.addend));
+    Data::write<elf_endian>(
+        &entries[i].addend, Signed_64(reloc.get_addend()));
   }
   return data;
 }
 
-auto build_section_string_table(Access::Vector<SectionDesc> sections)
+static auto build_section_string_table(Access::Vector<SectionDesc> sections)
     -> Dynamic::Bytes {
   Dynamic::Bytes shstrtab;
   shstrtab.append('\0');
@@ -311,7 +329,7 @@ auto build_section_string_table(Access::Vector<SectionDesc> sections)
   return shstrtab;
 }
 
-auto assign_offsets(Access::Vector<SectionDesc> sections) -> Count {
+static auto assign_offsets(Access::Vector<SectionDesc> sections) -> Count {
   Count offset = sizeof(Header);
   for (Count i = 0; i < sections.get_size(); i++) {
     if (sections[i].data.get_size() == 0) {
@@ -329,15 +347,15 @@ auto assign_offsets(Access::Vector<SectionDesc> sections) -> Count {
   return Data::align<8>(offset);
 }
 
-auto Elf::add_section(Format::Section section) -> void {
+auto Elf::add_section(Section section) -> void {
   sections.insert(section);
 }
 
-auto Elf::add_symbol(Context::Symbol symbol) -> void {
+auto Elf::add_symbol(Symbol symbol) -> void {
   symbols.insert(symbol);
 }
 
-auto Elf::add_relocation(Context::Relocation relocation) -> void {
+auto Elf::add_relocation(Relocation relocation) -> void {
   relocations.insert(relocation);
 }
 
@@ -369,7 +387,7 @@ auto Elf::write_header(
       &header->string_section_index, section_string_table_index);
 }
 
-auto write_section_headers(
+static auto write_section_headers(
     Access::Bytes buffer,
     View::Vector<SectionDesc> section_descriptors) -> void {
   auto* entries = Data::cast<SectionHeader>(buffer.get_data());
@@ -388,8 +406,8 @@ auto write_section_headers(
   }
 }
 
-auto build_section_descriptors(
-    View::Vector<Format::Section> sections,
+static auto build_section_descriptors(
+    View::Vector<Section> sections,
     View::Bytes relocation_data,
     View::Bytes symbol_table,
     View::Bytes string_table,
@@ -510,8 +528,7 @@ auto Elf::build_library(View::Bytes object_name) -> Dynamic::Bytes {
   Count exported_count = 0;
   Count exported_names_bytes = 0;
   for (Count i = 0; i < symbols.get_size(); i++) {
-    if (symbols.get_view()[i].get_visability() ==
-        Context::Symbol::Visability::Global) {
+    if (symbols.get_view()[i].get_visibility() == Symbol::Visibility::Global) {
       exported_count++;
       exported_names_bytes += symbols.get_view()[i].get_name().get_size() + 1;
     }
@@ -551,7 +568,7 @@ auto Elf::build_library(View::Bytes object_name) -> Dynamic::Bytes {
   }
   for (Count i = 0; i < symbols.get_size(); i++) {
     const auto& symbol = symbols.get_view()[i];
-    if (symbol.get_visability() != Context::Symbol::Visability::Global) {
+    if (symbol.get_visibility() != Symbol::Visibility::Global) {
       continue;
     }
     const auto name = symbol.get_name();
@@ -566,7 +583,8 @@ auto Elf::build_library(View::Bytes object_name) -> Dynamic::Bytes {
   fill_ar_header(object_header, object_name, Bits_64(object_view.get_size()));
   Data::copy(output_bytes + cursor, &object_header, 1);
   cursor += sizeof(ArHeader);
-  Data::copy(output_bytes + cursor, object_view.get_data(), object_view.get_size());
+  Data::copy(
+      output_bytes + cursor, object_view.get_data(), object_view.get_size());
 
   return output;
 }

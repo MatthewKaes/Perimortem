@@ -6,6 +6,7 @@
 #include "perimortem/core/static/vector.hpp"
 
 #include "ttx/core/prelude.hpp"
+#include "ttx/layout.hpp"
 
 using namespace Perimortem::Core;
 using namespace Validation;
@@ -14,7 +15,7 @@ static Harness TtxCore = {
   .name = "Ttx::Core"_view,
 };
 
-PERIMORTEM_UNIT_TEST(TtxCore, package_registers_types_by_object) {
+PERIMORTEM_UNIT_TEST(TtxCore, package_types) {
   const Ttx::Type* boolean = Ttx::Core::Prelude::find_type("Bool"_view);
   ASSERT(boolean);
   EXPECT_TEXT(boolean->get_name(), "Bool"_view);
@@ -32,12 +33,12 @@ PERIMORTEM_UNIT_TEST(TtxCore, package_registers_types_by_object) {
   EXPECT_EQ(layout.get_member_count(), 2);
 }
 
-PERIMORTEM_UNIT_TEST(TtxCore, prelude_types_are_top_level) {
+PERIMORTEM_UNIT_TEST(TtxCore, prelude_types) {
   EXPECT(Ttx::Core::Prelude::is_type("Void"_view));
   EXPECT(Ttx::Core::Prelude::find_type("Void"_view));
 }
 
-PERIMORTEM_UNIT_TEST(TtxCore, type_finds_members_types_and_functions) {
+PERIMORTEM_UNIT_TEST(TtxCore, type_lookup) {
   const Ttx::Type* real_32 = Ttx::Core::Prelude::find_type("Real_32"_view);
   ASSERT(real_32);
 
@@ -71,7 +72,46 @@ PERIMORTEM_UNIT_TEST(TtxCore, type_finds_members_types_and_functions) {
   EXPECT_NOT(drawable.find_function("missing"_view));
 }
 
-PERIMORTEM_UNIT_TEST(TtxCore, layout_equivalence_maps_named_members) {
+PERIMORTEM_UNIT_TEST(TtxCore, type_duplicates) {
+  const Ttx::Type* real_32 = Ttx::Core::Prelude::find_type("Real_32"_view);
+  const Ttx::Type* bool_type = Ttx::Core::Prelude::find_type("Bool"_view);
+  ASSERT(real_32);
+  ASSERT(bool_type);
+
+  Ttx::Type sprite_a("Sprite"_view);
+  Ttx::Type sprite_b("Sprite"_view);
+  Static::Vector<Ttx::Type::Member, 2> members = {
+    Ttx::Type::Member{"size"_view, *real_32},
+    Ttx::Type::Member{"size"_view, *bool_type},
+  };
+  Static::Vector<const Ttx::Type*, 2> types = {
+    &sprite_a,
+    &sprite_b,
+  };
+  Static::Vector<Ttx::Type::Function, 2> functions = {
+    Ttx::Type::Function{
+        "format"_view,
+        View::Vector<Ttx::Type::Member>(),
+        View::Vector<Ttx::Type::Member>()},
+    Ttx::Type::Function{
+        "format"_view,
+        View::Vector<Ttx::Type::Member>(),
+        View::Vector<Ttx::Type::Member>()},
+  };
+  Ttx::Type duplicates(
+      "Duplicates"_view,
+      members.get_view(),
+      types.get_view(),
+      functions.get_view());
+
+  const Ttx::Type::Member* size = duplicates.find_member("size"_view);
+  ASSERT(size);
+  EXPECT(size->get_type() == real_32);
+  EXPECT(duplicates.find_type("Sprite"_view) == &sprite_a);
+  EXPECT(duplicates.find_function("format"_view) == &functions[0]);
+}
+
+PERIMORTEM_UNIT_TEST(TtxCore, layout_order) {
   const Ttx::Type* real_32 = Ttx::Core::Prelude::find_type("Real_32"_view);
   ASSERT(real_32);
 
@@ -86,10 +126,42 @@ PERIMORTEM_UNIT_TEST(TtxCore, layout_equivalence_maps_named_members) {
 
   Ttx::Layout xy(xy_members.get_view());
   Ttx::Layout yx(yx_members.get_view());
-  EXPECT(xy.equivalent_to(yx));
+  EXPECT(xy.equivalent_to(xy));
+  EXPECT_NOT(xy.equivalent_to(yx));
 }
 
-PERIMORTEM_UNIT_TEST(TtxCore, layout_fits_named_and_positional_targets) {
+PERIMORTEM_UNIT_TEST(TtxCore, layout_duplicates) {
+  const Ttx::Type* real_32 = Ttx::Core::Prelude::find_type("Real_32"_view);
+  const Ttx::Type* bool_type = Ttx::Core::Prelude::find_type("Bool"_view);
+  ASSERT(real_32);
+  ASSERT(bool_type);
+
+  Static::Vector<Ttx::Type::Member, 2> duplicate_members = {
+    Ttx::Type::Member{"x"_view, *real_32},
+    Ttx::Type::Member{"x"_view, *bool_type},
+  };
+  Static::Vector<Ttx::Type::Member, 2> duplicate_copy_members = {
+    Ttx::Type::Member{"x"_view, *real_32},
+    Ttx::Type::Member{"x"_view, *bool_type},
+  };
+  Static::Vector<Ttx::Type::Member, 2> xy_members = {
+    Ttx::Type::Member{"x"_view, *real_32},
+    Ttx::Type::Member{"y"_view, *bool_type},
+  };
+
+  Ttx::Layout duplicate(duplicate_members.get_view());
+  Ttx::Layout duplicate_copy(duplicate_copy_members.get_view());
+  Ttx::Layout xy(xy_members.get_view());
+  const Ttx::Type::Member* first = duplicate.find_member("x"_view);
+  ASSERT(first);
+  EXPECT(first->get_type() == real_32);
+  EXPECT(duplicate.equivalent_to(duplicate_copy));
+  EXPECT_NOT(duplicate.equivalent_to(xy));
+  EXPECT_NOT(xy.equivalent_to(duplicate));
+  EXPECT(duplicate.fits(duplicate_copy));
+}
+
+PERIMORTEM_UNIT_TEST(TtxCore, layout_fit) {
   const Ttx::Type* size_2d = Ttx::Core::Prelude::find_type("Size2D"_view);
   const Ttx::Type* real_32 = Ttx::Core::Prelude::find_type("Real_32"_view);
   ASSERT(size_2d);
@@ -110,7 +182,7 @@ PERIMORTEM_UNIT_TEST(TtxCore, layout_fits_named_and_positional_targets) {
   EXPECT(positional.fits(Ttx::Layout(*size_2d)));
 }
 
-PERIMORTEM_UNIT_TEST(TtxCore, layout_rejects_wrong_member_type) {
+PERIMORTEM_UNIT_TEST(TtxCore, layout_wrong_type) {
   const Ttx::Type* size_2d = Ttx::Core::Prelude::find_type("Size2D"_view);
   const Ttx::Type* boolean = Ttx::Core::Prelude::find_type("Bool"_view);
   ASSERT(size_2d);
@@ -124,7 +196,7 @@ PERIMORTEM_UNIT_TEST(TtxCore, layout_rejects_wrong_member_type) {
   EXPECT_NOT(named.fits(Ttx::Layout(*size_2d)));
 }
 
-PERIMORTEM_UNIT_TEST(TtxCore, layout_fits_omitted_defaulted_members) {
+PERIMORTEM_UNIT_TEST(TtxCore, layout_default_suffix) {
   const Ttx::Type* real_32 = Ttx::Core::Prelude::find_type("Real_32"_view);
   ASSERT(real_32);
 
@@ -142,7 +214,7 @@ PERIMORTEM_UNIT_TEST(TtxCore, layout_fits_omitted_defaulted_members) {
   EXPECT(source.fits(Ttx::Layout(size_with_default)));
 }
 
-PERIMORTEM_UNIT_TEST(TtxCore, layout_rejects_defaulted_member_gap) {
+PERIMORTEM_UNIT_TEST(TtxCore, layout_default_gap) {
   const Ttx::Type* real_32 = Ttx::Core::Prelude::find_type("Real_32"_view);
   ASSERT(real_32);
 
@@ -163,7 +235,7 @@ PERIMORTEM_UNIT_TEST(TtxCore, layout_rejects_defaulted_member_gap) {
   EXPECT_NOT(source.fits(Ttx::Layout(size_with_default_gap)));
 }
 
-PERIMORTEM_UNIT_TEST(TtxCore, aliases_compare_by_canonical_type) {
+PERIMORTEM_UNIT_TEST(TtxCore, alias_canonical) {
   const Ttx::Type* real_32 = Ttx::Core::Prelude::find_type("Real_32"_view);
   ASSERT(real_32);
 

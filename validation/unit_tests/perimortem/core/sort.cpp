@@ -17,23 +17,40 @@ using namespace Perimortem::Memory;
 
 using namespace Validation;
 
-namespace Perimortem::Memory::Dynamic {
-auto operator>(const Bytes& lhs, const Bytes& rhs) -> Bool {
+static auto bytes_greater(View::Bytes lhs, View::Bytes rhs) -> Bool {
   if (lhs.get_size() != rhs.get_size()) {
     return lhs.get_size() > rhs.get_size();
   }
 
-  View::Bytes data = lhs;
-  View::Bytes comparison_bytes = rhs;
-  for (Count i = 0; i < data.get_size(); i++) {
-    if (data[i] != comparison_bytes.get_data()[i]) {
-      return data[i] > comparison_bytes.get_data()[i];
+  for (Count i = 0; i < lhs.get_size(); i++) {
+    if (lhs[i] != rhs[i]) {
+      return lhs[i] > rhs[i];
     }
   }
 
   return false;
 }
-}  // namespace Perimortem::Memory::Dynamic
+
+class SortBytes {
+ public:
+  auto operator=(View::Bytes view) -> SortBytes& {
+    bytes = view;
+    return *this;
+  }
+
+  auto append(Bits_8 byte) -> void { bytes.append(byte); }
+
+  constexpr auto get_view() const -> View::Bytes {
+    return bytes.get_view();
+  }
+
+  auto operator>(const SortBytes& rhs) const -> Bool {
+    return bytes_greater(get_view(), rhs.get_view());
+  }
+
+ private:
+  Dynamic::Bytes bytes;
+};
 
 static Harness AlgoSort = {
   .name = "Core::Algorithm::Sort"_view,
@@ -90,7 +107,7 @@ PERIMORTEM_UNIT_TEST(AlgoSort, large_sort) {
 
 PERIMORTEM_UNIT_TEST(AlgoSort, dynamic_types) {
   constexpr auto item_count = 37;
-  Dynamic::Bytes test[item_count] = {};
+  SortBytes test[item_count] = {};
   for (Count i = 0; i < item_count; i++) {
     test[i] = "test_string #"_view;
     test[i].append(Bits_8('0' + (i / 10)));

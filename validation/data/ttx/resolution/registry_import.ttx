@@ -1,6 +1,0 @@
-// Unsupported registry import fixture.
-dialect : Library;
-
-import Graphics : Library = Vendor.Graphics;
-
-@hidden value : Count = 1;

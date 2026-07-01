@@ -13,7 +13,7 @@
 #include "perimortem/memory/dynamic/bytes.hpp"
 
 #include "tetrodotoxin/lsp/server/documents.hpp"
-#include "tetrodotoxin/lsp/server/rpc/framing.hpp"
+#include "tetrodotoxin/lsp/server/rpc/frame_reader.hpp"
 #include "tetrodotoxin/lsp/server/rpc/request.hpp"
 
 namespace Tetrodotoxin::Lsp::Server::Rpc {

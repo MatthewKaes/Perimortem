@@ -1,46 +1,64 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
-#include "tetrodotoxin/dialects/dialect.hpp"
+#include "ttx/dialect/dialect.hpp"
 
-#include "perimortem/memory/dynamic/vector.hpp"
+auto Ttx::Dialect::Dialect::Registry::dialects()
+    -> Perimortem::Core::Static::Vector<const Dialect*, 64>& {
+  // Dialects are process-lifetime objects registered during startup and read
+  // during source dispatch. The registry table is fixed storage because it owns
+  // only non-owning dialect pointers and should not depend on heap lifetime.
+  static Perimortem::Core::Static::Vector<const Dialect*, 64> registered;
+  return registered;
+}
 
-using namespace Perimortem::Core;
-using namespace Perimortem::Memory;
-using namespace Tetrodotoxin::Dialect;
+auto Ttx::Dialect::Dialect::Registry::dialect_count() -> Count& {
+  static Count count = 0;
+  return count;
+}
 
-static Static::Vector<Ttx::Dialect*, 64> binary_tests;
-static Count registered_dialects = 0;
-
-Registry::Registration::Registration(const Dialect& dialect) {
+Ttx::Dialect::Dialect::Registry::Registration::Registration(
+    const Dialect& dialect) {
   Registry::add(dialect);
 }
 
-auto Registry::add(const Dialect& dialect) -> void {
-  Dynamic::Vector<const Dialect*>& dialects = registered_dialects();
-  for (Count dialect_index = 0; dialect_index < dialects.get_size();
-       dialect_index++) {
-    if (dialects[dialect_index] == &dialect ||
-        dialects[dialect_index]->get_name() == dialect.get_name()) {
+auto Ttx::Dialect::Dialect::Registry::add(const Dialect& dialect) -> void {
+  Perimortem::Core::Static::Vector<const Dialect*, 64>& registered =
+      dialects();
+  Count& count = dialect_count();
+
+  for (Count dialect_index = 0; dialect_index < count; dialect_index++) {
+    if (registered[dialect_index] == &dialect ||
+        registered[dialect_index]->get_name() == dialect.get_name()) {
       return;
     }
   }
 
-  dialects.insert(&dialect);
+  if (count >= registered.get_size()) {
+    return;
+  }
+
+  registered[count] = &dialect;
+  count++;
 }
 
-auto Registry::find(View::Bytes name) -> const Dialect* {
-  Dynamic::Vector<const Dialect*>& dialects = registered_dialects();
-  for (Count dialect_index = 0; dialect_index < dialects.get_size();
-       dialect_index++) {
-    if (dialects[dialect_index]->get_name() == name) {
-      return dialects[dialect_index];
+auto Ttx::Dialect::Dialect::Registry::find(Perimortem::Core::View::Bytes name)
+    -> const Dialect* {
+  Perimortem::Core::Static::Vector<const Dialect*, 64>& registered =
+      dialects();
+  Count count = dialect_count();
+
+  for (Count dialect_index = 0; dialect_index < count; dialect_index++) {
+    if (registered[dialect_index]->get_name() == name) {
+      return registered[dialect_index];
     }
   }
 
   return nullptr;
 }
 
-auto Registry::get_dialects() -> View::Vector<const Dialect*> {
-  return registered_dialects().get_view();
+auto Ttx::Dialect::Dialect::Registry::get_dialects()
+    -> Perimortem::Core::View::Vector<const Dialect*> {
+  return Perimortem::Core::View::Vector<const Dialect*>(
+      dialects().get_data(), dialect_count());
 }

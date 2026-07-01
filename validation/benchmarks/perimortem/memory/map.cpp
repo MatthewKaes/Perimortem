@@ -301,9 +301,12 @@ auto cpp_keyword_test() -> void {
     .label = #var " " #count " ints"_view,                        \
     .variants =                                                   \
         {                                                         \
-          {"scalar"_view, #var "_" #count "_ints_scalar"_view},   \
-          {"partial"_view, #var "_" #count "_ints_partial"_view}, \
-          {"full"_view, #var "_" #count "_ints_full"_view},       \
+          Benchmark::ComparisonVariant{                           \
+              "scalar"_view, #var "_" #count "_ints_scalar"_view}, \
+          Benchmark::ComparisonVariant{                           \
+              "partial"_view, #var "_" #count "_ints_partial"_view}, \
+          Benchmark::ComparisonVariant{                           \
+              "full"_view, #var "_" #count "_ints_full"_view},   \
         },                                                        \
   };                                                              \
   PERIMORTEM_COMPARISON(int_map_##var##_##count) {                \
@@ -328,10 +331,14 @@ INT_MAP_COMPARISON(65536, insert)
     .label = #count " " #mask ""_view,                        \
     .variants =                                               \
         {                                                     \
-          {"scalar"_view, #count "_" #mask "_scalar"_view},   \
-          {"partial"_view, #count "_" #mask "_partial"_view}, \
-          {"full"_view, #count "_" #mask "_full"_view},       \
-          {"table"_view, #count "_" #mask "_table"_view},     \
+          Benchmark::ComparisonVariant{                       \
+              "scalar"_view, #count "_" #mask "_scalar"_view}, \
+          Benchmark::ComparisonVariant{                       \
+              "partial"_view, #count "_" #mask "_partial"_view}, \
+          Benchmark::ComparisonVariant{                       \
+              "full"_view, #count "_" #mask "_full"_view},   \
+          Benchmark::ComparisonVariant{                       \
+              "table"_view, #count "_" #mask "_table"_view}, \
         },                                                    \
   };                                                          \
   PERIMORTEM_COMPARISON(kw_##count##_##mask##_comp) {         \

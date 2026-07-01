@@ -39,8 +39,6 @@ auto expected_text(
     Bool actual) -> void;
 auto expected_hex(Perimortem::Core::View::Bytes value, Bool actual) -> void;
 
-auto do_nothing() -> void;
-
 enum class TestResult {
   Pass,
   Failed,

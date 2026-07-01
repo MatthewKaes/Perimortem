@@ -117,7 +117,8 @@ auto cpp_hash_bytes() -> void {
   static Benchmark::Comparison hash_bytes_##key_length##_comp = {         \
     .harness = &HashBench,                                                \
     .label = #key_length " bytes"_view,                                   \
-    .variants = {{"perimortem"_view, "key_length_" #key_length ""_view}}, \
+    .variants = {Benchmark::ComparisonVariant{                          \
+        "perimortem"_view, "key_length_" #key_length ""_view}},          \
   };                                                                      \
   PERIMORTEM_COMPARISON(hash_bytes_##key_length##_comp) {                 \
     cpp_hash_bytes<key_length>();                                         \

@@ -44,16 +44,12 @@ class Bytes {
     return !operator==(rhs);
   }
 
-  constexpr auto at(Count index) const -> const Bits_8 {
-    if (index > size) [[unlikely]] {
+  constexpr auto operator[](Count index) const -> Bits_8 {
+    if (index >= size) [[unlikely]] {
       return Bits_8();
     }
 
     return source_block[index];
-  }
-
-  constexpr auto operator[](Count index) const -> const Bits_8 {
-    return at(index);
   }
 
   constexpr auto slice(Count start, Count size = Count(-1)) const
@@ -64,14 +60,6 @@ class Bytes {
 
     return View::Bytes(
         source_block + start, Math::min(size, get_size() - start));
-  };
-
-  constexpr auto operator[](Count index) -> Bits_8 {
-    if (index > size) {
-      return Bits_8();
-    }
-
-    return source_block[index];
   };
 
   constexpr auto is_empty() const -> Bool { return size == 0; };

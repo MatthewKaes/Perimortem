@@ -14,31 +14,24 @@ using namespace Perimortem::Utility;
 using namespace Perimortem::Core;
 using namespace Ttx::Lexical;
 
-struct Location {
-  Bits_32 source_index = 0;
-  Bits_32 parse_index = 0;
-  Bits_32 line = 1;
-  Bits_32 column = 1;
-};
-
-constexpr auto is_attribute(Bits_8 c) -> Bool {
+static constexpr auto is_attribute(Bits_8 c) -> Bool {
   return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_';
 }
 
-constexpr auto is_class(Bits_8 c) -> Bool {
+static constexpr auto is_class(Bits_8 c) -> Bool {
   return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
          (c >= '0' && c <= '9') || c == '_';
 }
 
-constexpr auto is_identifier(Bits_8 c) -> Bool {
+static constexpr auto is_identifier(Bits_8 c) -> Bool {
   return (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '_';
 }
 
-constexpr auto is_numeric(Bits_8 c) -> Bool {
+static constexpr auto is_numeric(Bits_8 c) -> Bool {
   return (c >= '0' && c <= '9') || c == '.';
 }
 
-constexpr auto is_hex(Bits_8 c) -> Bool {
+static constexpr auto is_hex(Bits_8 c) -> Bool {
   return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') ||
          (c >= 'A' && c <= 'F');
 }
@@ -139,75 +132,140 @@ static constexpr auto check_directive(
   return directive_resolver::find_or_default(value, default_value);
 }
 
-struct Context {
-  Context(
-      const View::Bytes source,
-      Perimortem::Memory::Managed::Vector<Token>& tokens)
+// Context is the tokenizer cursor for one source view and one token stream.
+// It owns the mutable scan coordinates because token helpers walk different
+// shapes before they know the final token class, but all of them emit tokens
+// with the same line, column, and source-slice rules.
+//
+// Keep grammar and token classification in the parse helpers. Context should
+// stay limited to cursor movement, source slicing, line and column
+// accounting, and token emission. If a helper needs the current token text,
+// it should emit through add_current_token so token-start arithmetic stays
+// here.
+class Context {
+ public:
+  Context(const View::Bytes source, Managed::Vector<Token>& tokens)
       : source(source), tokens(tokens) {};
 
-  Location location;
+  constexpr auto can_parse() const -> Bool {
+    return parse_index < source.get_size();
+  }
+
+  // The main parse loop guards current-token dispatch with can_parse.
+  // Reading through the raw pointer keeps that hot path from repeating the
+  // same bounds check for every switch and helper.
+  constexpr auto current() const -> Bits_8 {
+    return source.get_data()[parse_index];
+  }
+
+  constexpr auto get_parse_index() const -> Bits_32 { return parse_index; }
+
+  constexpr auto get_source() const -> View::Bytes { return source; }
+
+  constexpr auto slice(Count start, Count size) const -> View::Bytes {
+    return source.slice(start, size);
+  }
+
+  // Keyword and directive tables need the token bytes before the final class
+  // is known. Keep that as one current-token view instead of exposing token
+  // start and token size as separate pieces of state.
+  constexpr auto current_token_text() const -> View::Bytes {
+    return source.slice(token_start, parse_index - token_start);
+  }
+
+  // Lookahead often asks about a byte that might be past the end of the
+  // source. View::Bytes owns that protected access, so Context does not need
+  // to duplicate the same end-of-source logic.
+  constexpr auto peek_ahead(Bits_32 amount) const -> Bits_8 {
+    return source[parse_index + amount];
+  }
+
+  // Token helpers advance parse_index before they know the final class.
+  // Capturing the start here lets add_current_token build the final source
+  // slice without leaking token-start state to every helper.
+  auto begin_token() -> void { token_start = parse_index; }
+
+  auto advance_parse(Count amount = 1) -> void { parse_index += amount; }
+
+  auto backup_parse() -> void { parse_index--; }
+
+  auto advance_column(Count amount = 1) -> void { column += amount; }
+
+  auto advance_column_to_parse() -> void {
+    column += parse_index - token_start;
+  }
+
+  auto consume_line_break() -> void {
+    line++;
+    column = 1;
+    parse_index++;
+  }
+
+  auto count_line_break() -> void { line++; }
+
+  auto add_current_token(Class::Type klass) -> void {
+    add_token(source.slice(token_start, parse_index - token_start), klass);
+  }
+
+  auto add_token(View::Bytes text, Class::Type klass) -> void {
+    tokens.insert(Token(text, klass, line, column));
+  }
+
+  auto add_end_of_stream() -> void {
+    token_start = ++parse_index;
+    add_token(View::Bytes(), Class::Type::EndOfStream);
+  }
+
+ private:
+  Bits_32 token_start = 0;
+  Bits_32 parse_index = 0;
+  Bits_32 line = 1;
+  Bits_32 column = 1;
   const View::Bytes source;
-  Perimortem::Memory::Managed::Vector<Token>& tokens;
+  Managed::Vector<Token>& tokens;
 };
 
-inline auto can_parse(Context& ctx) -> Bool {
-  return ctx.location.parse_index < ctx.source.get_size();
-}
-
-auto peek_ahead(Context& ctx, Bits_32 amount) -> Bits_8 {
-  if (ctx.location.parse_index + amount >= ctx.source.get_size()) {
-    return 0;
-  }
-  return ctx.source[ctx.location.parse_index + amount];
-}
-
-auto parse_attribute(Context& ctx) -> void {
-  while (is_attribute(peek_ahead(ctx, 1))) {
-    ctx.location.parse_index++;
+static auto parse_attribute(Context& ctx) -> void {
+  while (is_attribute(ctx.peek_ahead(1))) {
+    ctx.advance_parse();
   }
 
-  ctx.location.parse_index++;
-  const auto token = ctx.source.slice(
-      ctx.location.source_index,
-      ctx.location.parse_index - ctx.location.source_index);
+  ctx.advance_parse();
+  const auto token = ctx.current_token_text();
 
   if (!token.is_empty()) {
     Class::Type klass = check_directive(token, Class::Type::Attribute);
-    ctx.tokens.insert(
-        Token(token, klass, ctx.location.line, ctx.location.column));
+    ctx.add_token(token, klass);
   }
-  ctx.location.column += token.get_size();
+  ctx.advance_column_to_parse();
 }
 
-auto parse_comment(Context& ctx) -> void {
-  ctx.location.source_index = ctx.location.parse_index;
-
+static auto parse_comment(Context& ctx) -> void {
   // trim comment marker and leading space.
-  ctx.location.parse_index +=
-      Class::get_source_text(Class::Type::Comment).get_size();
+  ctx.advance_parse(Class::get_source_text(Class::Type::Comment).get_size());
 
   // Skip one leading space if present.
-  if (can_parse(ctx) && ctx.source[ctx.location.parse_index] == ' ') {
-    ctx.location.parse_index++;
+  if (ctx.can_parse() && ctx.current() == ' ') {
+    ctx.advance_parse();
   }
 
-  Bits_32 start_comment = ctx.location.parse_index;
-  while (can_parse(ctx) &&
-         ctx.source[ctx.location.parse_index] != '\n') {
-    ctx.location.parse_index++;
+  Bits_32 start_comment = ctx.get_parse_index();
+  while (ctx.can_parse() && ctx.current() != '\n') {
+    ctx.advance_parse();
   }
 
-  ctx.tokens.insert(Token(
-      ctx.source.slice(
-          start_comment, ctx.location.parse_index - start_comment),
-      Class::Type::Comment, ctx.location.line, ctx.location.column));
+  ctx.add_token(
+      ctx.slice(start_comment, ctx.get_parse_index() - start_comment),
+      Class::Type::Comment);
 }
 
-auto recursive_strip(Context& ctx) -> void {
-  while (can_parse(ctx)) {
-    switch (ctx.source[ctx.location.parse_index++]) {
+static auto recursive_strip(Context& ctx) -> void {
+  while (ctx.can_parse()) {
+    Bits_8 current = ctx.current();
+    ctx.advance_parse();
+    switch (current) {
     case '\n':
-      ctx.location.line += 1;
+      ctx.count_line_break();
       break;
     case '}':
       return;
@@ -220,33 +278,28 @@ auto recursive_strip(Context& ctx) -> void {
   }
 }
 
-auto parse_disabled(Context& ctx, Bool strip_disabled) -> void {
-  ctx.location.source_index = ctx.location.parse_index;
+static auto parse_disabled(Context& ctx, Bool strip_disabled) -> void {
   Count marker_size = Class::get_source_text(Class::Type::Disabled).get_size();
-  ctx.location.parse_index += marker_size;
+  ctx.advance_parse(marker_size);
 
   if (!strip_disabled) {
-    ctx.tokens.insert(Token(
-        ctx.source.slice(
-            ctx.location.source_index,
-            ctx.location.parse_index - ctx.location.source_index),
-        Class::Type::Disabled, ctx.location.line, ctx.location.column));
-    ctx.location.column += marker_size;
+    ctx.add_current_token(Class::Type::Disabled);
+    ctx.advance_column(marker_size);
   } else {
     // The parser pass is more expensive than tokenization so if we can strip
     // out disabled code then optimize by removing the tokens.
-    while (can_parse(ctx) &&
-           ctx.source[ctx.location.parse_index] != '\n') {
-      if (ctx.source[ctx.location.parse_index] == '{') {
+    while (ctx.can_parse() && ctx.current() != '\n') {
+      if (ctx.current() == '{') {
         recursive_strip(ctx);
         continue;
       }
-      ctx.location.parse_index++;
+      ctx.advance_parse();
     }
   }
 }
 
-auto string_quote_is_escaped(View::Bytes source, Count position) -> Bool {
+static auto string_quote_is_escaped(View::Bytes source, Count position)
+    -> Bool {
   Count slash_count = 0;
 
   while (position > 0) {
@@ -261,65 +314,47 @@ auto string_quote_is_escaped(View::Bytes source, Count position) -> Bool {
   return (slash_count & 1) != 0;
 }
 
-auto parse_string(Context& ctx) -> void {
-  ctx.location.parse_index++;
-  while (can_parse(ctx) &&
-         ctx.source[ctx.location.parse_index] != '\n' &&
-         (ctx.source[ctx.location.parse_index] != '"' ||
-          string_quote_is_escaped(ctx.source, ctx.location.parse_index))) {
-    ctx.location.parse_index++;
+static auto parse_string(Context& ctx) -> void {
+  ctx.advance_parse();
+  while (ctx.can_parse() && ctx.current() != '\n' &&
+         (ctx.current() != '"' ||
+          string_quote_is_escaped(ctx.get_source(), ctx.get_parse_index()))) {
+    ctx.advance_parse();
   }
-  if (can_parse(ctx) && ctx.source[ctx.location.parse_index] == '"') {
-    ctx.location.parse_index++;
+  if (ctx.can_parse() && ctx.current() == '"') {
+    ctx.advance_parse();
   }
-  ctx.tokens.insert(Token(
-      ctx.source.slice(
-          ctx.location.source_index,
-          ctx.location.parse_index - ctx.location.source_index),
-      Class::Type::String, ctx.location.line, ctx.location.column));
-  ctx.location.column += ctx.location.parse_index - ctx.location.source_index;
+  ctx.add_current_token(Class::Type::String);
+  ctx.advance_column_to_parse();
 }
 
-auto parse_embedded(Context& ctx) -> void {
-  ctx.location.parse_index +=
-      Class::get_source_text(Class::Type::Embedded).get_size();
-  while (can_parse(ctx) && ctx.source[ctx.location.parse_index] != ']' &&
-         ctx.source[ctx.location.parse_index] != '\n') {
-    ctx.location.parse_index++;
+static auto parse_embedded(Context& ctx) -> void {
+  ctx.advance_parse(Class::get_source_text(Class::Type::Embedded).get_size());
+  while (ctx.can_parse() && ctx.current() != ']' && ctx.current() != '\n') {
+    ctx.advance_parse();
   }
-  if (can_parse(ctx) && ctx.source[ctx.location.parse_index] == ']') {
-    ctx.location.parse_index++;
+  if (ctx.can_parse() && ctx.current() == ']') {
+    ctx.advance_parse();
   }
-  ctx.tokens.insert(Token(
-      ctx.source.slice(
-          ctx.location.source_index,
-          ctx.location.parse_index - ctx.location.source_index),
-      Class::Type::Embedded, ctx.location.line, ctx.location.column));
-  ctx.location.column += ctx.location.parse_index - ctx.location.source_index;
+  ctx.add_current_token(Class::Type::Embedded);
+  ctx.advance_column_to_parse();
 }
 
-auto parse_number(Context& ctx) -> void {
+static auto parse_number(Context& ctx) -> void {
   // If we start with zero then check if we have a valid hex sequence.
-  if (ctx.source[ctx.location.source_index] == '0' &&
-      peek_ahead(ctx, 1) == 'x') {
-    switch (peek_ahead(ctx, 2)) {
+  if (ctx.current() == '0' && ctx.peek_ahead(1) == 'x') {
+    switch (ctx.peek_ahead(2)) {
     // 0x[FF FF ...] hex byte array literal (any whitespace is fine)
     case '[': {
-      ctx.location.parse_index +=
-          Class::get_source_text(Class::Type::Bytes).get_size();
-      while (can_parse(ctx) &&
-             ctx.source[ctx.location.parse_index] != ']') {
-        ctx.location.parse_index++;
+      ctx.advance_parse(Class::get_source_text(Class::Type::Bytes).get_size());
+      while (ctx.can_parse() && ctx.current() != ']') {
+        ctx.advance_parse();
       }
-      if (can_parse(ctx)) {
-        ctx.location.parse_index++;
+      if (ctx.can_parse()) {
+        ctx.advance_parse();
       }
-      ctx.tokens.insert(Token(
-          ctx.source.slice(
-              ctx.location.source_index,
-              ctx.location.parse_index - ctx.location.source_index),
-          Class::Type::Bytes, ctx.location.line, ctx.location.column));
-      ctx.location.column += ctx.location.parse_index - ctx.location.source_index;
+      ctx.add_current_token(Class::Type::Bytes);
+      ctx.advance_column_to_parse();
       return;
     }
 
@@ -327,19 +362,15 @@ auto parse_number(Context& ctx) -> void {
     case '0' ... '9':
     case 'a' ... 'f':
     case 'A' ... 'F': {
-      ctx.location.parse_index += 2;  // consume '0x'
-      Bits_8 hex_char = peek_ahead(ctx, 1);
+      ctx.advance_parse(2);  // consume '0x'
+      Bits_8 hex_char = ctx.peek_ahead(1);
       while (is_hex(hex_char)) {
-        ctx.location.parse_index++;
-        hex_char = peek_ahead(ctx, 1);
+        ctx.advance_parse();
+        hex_char = ctx.peek_ahead(1);
       }
-      ctx.location.parse_index++;
-      ctx.tokens.insert(Token(
-          ctx.source.slice(
-              ctx.location.source_index,
-              ctx.location.parse_index - ctx.location.source_index),
-          Class::Type::Numeric, ctx.location.line, ctx.location.column));
-      ctx.location.column += ctx.location.parse_index - ctx.location.source_index;
+      ctx.advance_parse();
+      ctx.add_current_token(Class::Type::Numeric);
+      ctx.advance_column_to_parse();
       return;
     }
 
@@ -352,89 +383,73 @@ auto parse_number(Context& ctx) -> void {
   Bool found_decimal = false;
   Class::Type klass = Class::Type::Numeric;
 
-  char numeric_char = peek_ahead(ctx, 1);
+  char numeric_char = ctx.peek_ahead(1);
   while (is_numeric(numeric_char)) {
-    ctx.location.parse_index++;
+    ctx.advance_parse();
     if (numeric_char == '.') {
       // Don't consume a '.' that starts a RangeOp '...'.
-      if (peek_ahead(ctx, 1) == '.') {
-        ctx.location.parse_index--;
+      if (ctx.peek_ahead(1) == '.') {
+        ctx.backup_parse();
         break;
       }
       if (found_decimal) {
-        ctx.location.parse_index--;
+        ctx.backup_parse();
         break;
       }
       found_decimal = true;
       klass = Class::Type::Float;
     }
-    numeric_char = peek_ahead(ctx, 1);
+    numeric_char = ctx.peek_ahead(1);
   }
 
-  ctx.location.parse_index++;
-  ctx.tokens.insert(Token(
-      ctx.source.slice(
-          ctx.location.source_index,
-          ctx.location.parse_index - ctx.location.source_index),
-      klass, ctx.location.line, ctx.location.column));
-  ctx.location.column += ctx.location.parse_index - ctx.location.source_index;
+  ctx.advance_parse();
+  ctx.add_current_token(klass);
+  ctx.advance_column_to_parse();
 }
 
-auto parse_type(Context& ctx) -> void {
-  while (is_class(peek_ahead(ctx, 1))) {
-    ctx.location.parse_index++;
+static auto parse_type(Context& ctx) -> void {
+  while (is_class(ctx.peek_ahead(1))) {
+    ctx.advance_parse();
   }
 
-  ctx.location.parse_index++;
-  const auto view = ctx.source.slice(
-      ctx.location.source_index,
-      ctx.location.parse_index - ctx.location.source_index);
-
-  ctx.tokens.insert(
-      Token(view, Class::Type::Type, ctx.location.line, ctx.location.column));
-  ctx.location.column += ctx.location.parse_index - ctx.location.source_index;
+  ctx.advance_parse();
+  ctx.add_current_token(Class::Type::Type);
+  ctx.advance_column_to_parse();
 }
 
-auto parse_unknown(Context& ctx) -> void {
-  ctx.tokens.insert(Token(
-      ctx.source.slice(ctx.location.source_index, 1), Class::Type::Unknown,
-      ctx.location.line, ctx.location.column));
-  ctx.location.column++;
-  ctx.location.parse_index++;
+static auto parse_unknown(Context& ctx) -> void {
+  ctx.advance_parse();
+  ctx.add_current_token(Class::Type::Unknown);
+  ctx.advance_column();
 }
 
-auto parse_identifier(Context& ctx) -> void {
-  if (!is_identifier(peek_ahead(ctx, 0))) {
+static auto parse_identifier(Context& ctx) -> void {
+  if (!is_identifier(ctx.peek_ahead(0))) {
     parse_unknown(ctx);
     return;
   }
 
-  while (is_identifier(peek_ahead(ctx, 1))) {
-    ctx.location.parse_index++;
+  while (is_identifier(ctx.peek_ahead(1))) {
+    ctx.advance_parse();
   }
 
-  ctx.location.parse_index++;
-  const auto view = ctx.source.slice(
-      ctx.location.source_index,
-      ctx.location.parse_index - ctx.location.source_index);
+  ctx.advance_parse();
+  const auto view = ctx.current_token_text();
 
   // Start by assuming the addressable isn't a compiler provided symbol.
   Class::Type klass = Class::Type::Addressable;
   klass = check_keyword(view, klass);
 
-  ctx.tokens.insert(
-      Token(view, klass, ctx.location.line, ctx.location.column));
-  ctx.location.column += ctx.location.parse_index - ctx.location.source_index;
+  ctx.add_token(view, klass);
+  ctx.advance_column_to_parse();
 }
 
 template <Class::Type klass>
-auto parse_simple(Context& ctx) -> void {
+static auto parse_simple(Context& ctx) -> void {
   constexpr Count token_length = Class::get_source_text(klass).get_size();
-  ctx.location.parse_index += token_length;
-  ctx.tokens.insert(Token(
-      ctx.source.slice(ctx.location.source_index, token_length), klass,
-      ctx.location.line, ctx.location.column));
-  ctx.location.column += token_length;
+  ctx.advance_parse(token_length);
+  ctx.add_current_token(klass);
+  ctx.advance_column(token_length);
 }
 
 auto Tokenizer::parse(const View::Bytes source_, Bool strip_disabled) -> void {
@@ -445,27 +460,25 @@ auto Tokenizer::parse(const View::Bytes source_, Bool strip_disabled) -> void {
   // resizes even if we end up oversized.
   tokens.reset(source.get_size() >> 2);
   Context ctx(source, tokens);
-  while (ctx.location.parse_index < source.get_size()) {
-    ctx.location.source_index = ctx.location.parse_index;
-    switch (source[ctx.location.parse_index]) {
+  while (ctx.can_parse()) {
+    ctx.begin_token();
+    switch (ctx.current()) {
     case '\n':
-      ctx.location.line++;
-      ctx.location.column = 1;
-      ctx.location.parse_index++;
+      ctx.consume_line_break();
       break;
 
     case ' ':
     case '\t':
     case '\r':
-      ctx.location.column++;
-      ctx.location.parse_index++;
+      ctx.advance_column();
+      ctx.advance_parse();
       break;
 
     case '/':
-      if (peek_ahead(ctx, 1) == '/') {
+      if (ctx.peek_ahead(1) == '/') {
         parse_comment(ctx);
         break;
-      } else if (peek_ahead(ctx, 1) == '>') {
+      } else if (ctx.peek_ahead(1) == '>') {
         parse_disabled(ctx, strip_disabled);
         break;
       } else {
@@ -474,10 +487,10 @@ auto Tokenizer::parse(const View::Bytes source_, Bool strip_disabled) -> void {
       }
 
     case '-':
-      if (peek_ahead(ctx, 1) == '>') {
+      if (ctx.peek_ahead(1) == '>') {
         parse_simple<Class::Type::CallOp>(ctx);
         break;
-      } else if (peek_ahead(ctx, 1) == '=') {
+      } else if (ctx.peek_ahead(1) == '=') {
         parse_simple<Class::Type::SubAssign>(ctx);
         break;
       } else {
@@ -486,7 +499,7 @@ auto Tokenizer::parse(const View::Bytes source_, Bool strip_disabled) -> void {
       }
 
     case '+':
-      if (peek_ahead(ctx, 1) == '=') {
+      if (ctx.peek_ahead(1) == '=') {
         parse_simple<Class::Type::AddAssign>(ctx);
         break;
       } else {
@@ -495,7 +508,7 @@ auto Tokenizer::parse(const View::Bytes source_, Bool strip_disabled) -> void {
       }
 
     case '=':
-      if (peek_ahead(ctx, 1) == '=') {
+      if (ctx.peek_ahead(1) == '=') {
         parse_simple<Class::Type::CmpOp>(ctx);
         break;
       } else {
@@ -504,7 +517,7 @@ auto Tokenizer::parse(const View::Bytes source_, Bool strip_disabled) -> void {
       }
 
     case '<':
-      if (peek_ahead(ctx, 1) == '=') {
+      if (ctx.peek_ahead(1) == '=') {
         parse_simple<Class::Type::LessEqOp>(ctx);
         break;
       } else {
@@ -513,7 +526,7 @@ auto Tokenizer::parse(const View::Bytes source_, Bool strip_disabled) -> void {
       }
 
     case '>':
-      if (peek_ahead(ctx, 1) == '=') {
+      if (ctx.peek_ahead(1) == '=') {
         parse_simple<Class::Type::GreaterEqOp>(ctx);
         break;
       } else {
@@ -547,7 +560,7 @@ auto Tokenizer::parse(const View::Bytes source_, Bool strip_disabled) -> void {
       break;
 
     case '$':
-      if (peek_ahead(ctx, 1) == '[') {
+      if (ctx.peek_ahead(1) == '[') {
         parse_embedded(ctx);
       } else {
         parse_unknown(ctx);
@@ -567,11 +580,10 @@ auto Tokenizer::parse(const View::Bytes source_, Bool strip_disabled) -> void {
       break;
 
     case '.':
-      if (peek_ahead(ctx, 1) == '[') {
+      if (ctx.peek_ahead(1) == '[') {
         parse_simple<Class::Type::SwizzleOp>(ctx);
         break;
-      } else if (
-          peek_ahead(ctx, 1) == '.' && peek_ahead(ctx, 2) == '.') {
+      } else if (ctx.peek_ahead(1) == '.' && ctx.peek_ahead(2) == '.') {
         parse_simple<Class::Type::RangeOp>(ctx);
         break;
       } else {
@@ -580,7 +592,7 @@ auto Tokenizer::parse(const View::Bytes source_, Bool strip_disabled) -> void {
       }
 
     case '!':
-      if (peek_ahead(ctx, 1) == '=') {
+      if (ctx.peek_ahead(1) == '=') {
         parse_simple<Class::Type::NotEqOp>(ctx);
       } else {
         parse_simple<Class::Type::NotOp>(ctx);
@@ -588,9 +600,9 @@ auto Tokenizer::parse(const View::Bytes source_, Bool strip_disabled) -> void {
       break;
 
     case ':':
-      if (peek_ahead(ctx, 1) == '[') {
+      if (ctx.peek_ahead(1) == '[') {
         parse_simple<Class::Type::SliceOp>(ctx);
-      } else if (peek_ahead(ctx, 1) == ':') {
+      } else if (ctx.peek_ahead(1) == ':') {
         parse_simple<Class::Type::TypeAccessOp>(ctx);
       } else {
         parse_simple<Class::Type::Define>(ctx);
@@ -639,8 +651,5 @@ auto Tokenizer::parse(const View::Bytes source_, Bool strip_disabled) -> void {
     }
   }
 
-  ctx.location.source_index = ++ctx.location.parse_index;
-  ctx.tokens.insert(Token(
-      View::Bytes(), Class::Type::EndOfStream, ctx.location.line,
-      ctx.location.column));
+  ctx.add_end_of_stream();
 }

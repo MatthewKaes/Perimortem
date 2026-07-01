@@ -77,11 +77,7 @@ auto count_variants(const Benchmark::Comparison& comparison) -> Count {
 }
 #endif
 
-namespace Validation::Benchmark {
-
-auto do_nothing() -> void {}
-
-auto create(
+auto Benchmark::create(
     const Harness& harness,
     Perimortem::Core::View::Bytes name,
     Benchmark::BenchmarkFunc func,
@@ -90,17 +86,11 @@ auto create(
   binary_benchmarks[benchmark_count++] = {&harness, name, func, file, line};
 }
 
-}  // namespace Validation::Benchmark
-
 #ifdef PERI_BENCH_CPP
-namespace Validation::Benchmark {
-
-auto create_comparison(const Comparison& comparison, BenchmarkFunc func)
+auto Benchmark::create_comparison(const Comparison& comparison, BenchmarkFunc func)
     -> void {
   comparisons[comparison_count++] = {&comparison, func};
 }
-
-}  // namespace Validation::Benchmark
 #endif
 
 // Returns a View::Bytes into buffer with the formatted time string.

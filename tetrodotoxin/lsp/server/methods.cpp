@@ -3,8 +3,8 @@
 
 #include "tetrodotoxin/lsp/server/methods.hpp"
 
-#include "perimortem/core/algorithm/search.hpp"
 #include "perimortem/core/diagnostics/log.hpp"
+#include "perimortem/core/null_terminated.hpp"
 
 #include "perimortem/memory/allocator/arena.hpp"
 #include "perimortem/memory/dynamic/bytes.hpp"
@@ -14,55 +14,23 @@
 #include "perimortem/serialization/escaped_text.hpp"
 #include "perimortem/serialization/json/node.hpp"
 
-#include "tetrodotoxin/format/source.hpp"
-#include "ttx/lexical/tokenizer.hpp"
 #include "tetrodotoxin/lsp/server/documents.hpp"
 #include "tetrodotoxin/lsp/server/rpc/executor.hpp"
 #include "tetrodotoxin/lsp/server/semantic_tokens.hpp"
-#include "tetrodotoxin/syntax/context.hpp"
-#include "tetrodotoxin/syntax/ttx.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
 using namespace Perimortem::Serialization;
 using namespace Tetrodotoxin::Lsp;
 
-static auto has_only_formatter_recoverable_errors(
-    const Tetrodotoxin::Syntax::Context& ctx) -> Bool {
-  if (ctx.get_error_count() == 0) {
-    return True;
-  }
-
-  View::Bytes errors = ctx.get_errors();
-  return Algorithm::search(
-             errors,
-             "Expected Foreign declarations before dialect body"_view) !=
-             Count(-1) ||
-         Algorithm::search(
-             errors,
-             "Expected Foreign declarations before ordinary members"_view) !=
-             Count(-1);
-}
-
 static auto format_source(
-    Allocator::Arena& arena,
+    Allocator::Arena&,
     View::Bytes source,
-    View::Bytes name) -> Dynamic::Bytes {
-  ::Ttx::Lexical::Tokenizer tokenizer(arena);
-  tokenizer.parse(source);
-
-  if (tokenizer.is_empty()) {
-    return Dynamic::Bytes(source);
-  }
-
-  Tetrodotoxin::Syntax::Context ctx(tokenizer, name);
-  Tetrodotoxin::Syntax::Ttx pkg = Tetrodotoxin::Syntax::Ttx::parse(ctx);
-
-  if (!pkg.is_valid() || !has_only_formatter_recoverable_errors(ctx)) {
-    return Dynamic::Bytes(source);
-  }
-
-  return Tetrodotoxin::Format::format(pkg);
+    View::Bytes) -> Dynamic::Bytes {
+  // The old formatter depended on the deleted Syntax tree. Until formatting
+  // can consume a real dialect-owned tree again, the LSP format request keeps
+  // editor behavior stable by returning the exact authored source.
+  return Dynamic::Bytes(source);
 }
 
 static auto report_document(

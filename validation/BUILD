@@ -52,13 +52,14 @@ cc_binary(
         ":test_headers",
         ":ttx_tests",
         "//perimortem",
-        "//tetrodotoxin:compiler",
+        "//tetrodotoxin:compiler_assembler",
         "//tetrodotoxin:dialect",
-        "//tetrodotoxin:format",
         "//tetrodotoxin:linker",
-        "//tetrodotoxin:resolution",
-        "//tetrodotoxin:syntax",
-        "//tetrodotoxin:validation",
+        "//ttx:core",
+        "//ttx:dialect",
+        "//ttx:layout",
+        "//ttx:lexical",
+        "//ttx:parse",
     ],
 )
 
@@ -77,16 +78,5 @@ cc_binary(
     deps = [
         ":test_headers",
         "//perimortem",
-    ],
-)
-
-cc_binary(
-    name = "format_ttx_fixture",
-    srcs = ["format_ttx_fixture.cpp"],
-    deps = [
-        "//perimortem",
-        "//tetrodotoxin:format",
-        "//ttx/lexical:lexical",
-        "//tetrodotoxin:syntax",
     ],
 )

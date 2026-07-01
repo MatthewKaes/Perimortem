@@ -142,9 +142,9 @@ There are two important layout kinds:
 
 - **Fluid layouts** describe value flow. Packs, grouped values, function
   argument packs, and intermediate return packs are fluid. They can flatten
-  nested positional groups, acquire or discard names when fitting rules allow
-  it, and be repacked before they materialize. A fluid layout has no stable
-  address of its own.
+  nested positional groups, acquire names from authored syntax or receiving
+  boundaries, discard names during repacks, and be repacked before they
+  materialize. A fluid layout has no stable address of its own.
 - **Concrete layouts** describe materialized storage. Scalars, structs,
   `Vec2D`, `Vec3D`, `Vec4D`, `Color`, ABI blocks, and other typed values have
   concrete layouts. They have stable size, alignment, entry order, offsets, and
@@ -164,6 +164,13 @@ The core invariant is:
 
 > Fluid layouts describe value flow. Concrete layouts describe storage. TTX may
 > reshape value flow, but it does not silently reshape storage.
+
+Names are authored or boundary-provided facts. A named pack authors names. A
+function parameter layout, function return layout, type layout, or other
+receiving boundary can provide names for fitting and later access. A repack
+operation produces a positional fluid layout unless the operator explicitly
+authors or preserves names. This keeps temporary expression shape from carrying
+incidental field labels through grouping, swizzle, slice, calls, or returns.
 
 This is why a pack can initialize a struct by name while an existing struct
 does not implicitly decompose back into a pack. Source must use swizzle or
@@ -218,15 +225,15 @@ The stages are:
    dialects match the declared import kind, whether exported names exist in the
    namespace selected by syntax, and whether type aliases canonicalize to
    concrete type references.
-4. **Owned queries**: expose type/layout, dialect, ABI, and provider queries
-   over resolved syntax. These owners prove expression type, pack fit, selected
-   call target, assignment and return compatibility, access-chain result,
-   literal fit, dialect legality, and boundary metadata without lowering the
-   source graph.
+4. **Owned queries**: expose type/layout, dialect, provider, and eventual
+   backend-boundary queries over resolved syntax. These owners prove expression
+   type, pack fit, selected call target, assignment and return compatibility,
+   access-chain result, literal fit, dialect legality, and boundary metadata
+   without lowering the source graph.
 5. **Compilation**: lower resolved syntax using owned query contexts into the
    backend's intermediate and machine-level representation. This pass consumes
-   resolved, type/layout, dialect, ABI, and provider facts through context
-   queries rather than rediscovering them from source text.
+   resolved, type/layout, dialect, provider, and backend-boundary facts through
+   context queries rather than rediscovering them from source text.
 6. **Generation**: emit the requested output format. Shader binaries, embedded
    read-only data, foreign ABI tables, generated host constants, relocation
    records, objects, archives, and other final artifacts belong here.
@@ -312,7 +319,7 @@ A conforming parser follows these rules:
 4. Use bounded lookahead only for local shape decisions, such as distinguishing
    a named layout from an unnamed layout.
 5. Parse expressions once. If a surrounding construct needs an assignable
-   expression, validate the parsed expression's AST shape.
+   expression, ask the expression owner whether the parsed shape is assignable.
 6. Emit diagnostics at the point where a required delimiter, marker, or shape is
    missing, then advance predictably so parsing can continue.
 
@@ -507,8 +514,8 @@ Graphics::Color : struct {
 The prelude declarations are conceptual definitions rather than source that
 appears in every file. Package declarations come from resolved package manifests.
 All later stages must behave as if the fields are present. Member lookup,
-swizzle checks, pack fitting, host ABI metadata, and shader lowering all use
-these same field definitions.
+swizzle checks, pack fitting, future host-boundary metadata, and shader lowering
+all use these same field definitions.
 
 `Vec[T, N]` is different. It is a fixed-size homogeneous aggregate indexed by
 position, so indexed packs may initialize sparse entries. `Vec2D`, `Vec3D`,
@@ -605,8 +612,8 @@ the leading `@`. If the next token is `PackingStart`, parse a pack as the
 attribute argument list. Otherwise the attribute has no arguments.
 
 Attribute arguments are packs. Named and positional fields must not be mixed,
-and the syntax attribute registry validates the expected keys and legal targets
-for each known attribute.
+and the attribute owner checks the expected keys and legal targets for each
+known attribute.
 
 Attributes are not runtime values. They are consumed by the compiler or
 forwarded into target metadata.
@@ -624,7 +631,7 @@ shape parsing and later name binding:
   input members or layout fields.
 
 Other attributes may remain target-specific metadata until a dialect defines
-their validation rules.
+their legality rules.
 
 `@if` is a compile-time control-flow keyword, not a normal attribute named
 `if`:
@@ -862,14 +869,15 @@ character literals, names, imports, enum values, arithmetic, or constants:
 
 Decimal and hexadecimal integer literals are still integer literals, so both
 `.65 = 0` and `.0x41 = 0` are explicit indexes if the lexer supports both
-literal spellings. Type/layout fitting validates that the target is index-addressable,
+literal spellings. Type/layout fitting checks that the target is index-addressable,
 that each index is in range, that no index is repeated, and that every value
 fits the target element type. Omitted positions use the target element default.
 
 Packs have a carrier order. When a pack is passed, returned, or otherwise
 materialized, the pack's field order is the order consumed by the ABI or by the
 next compiler stage. Names do not erase that order. Names add semantic mapping
-information on top of the ordered fields.
+information on top of ordered fields only when they are authored by the pack or
+provided by the receiving layout.
 
 Structs and other typed aggregates have concrete layouts. Their declaration
 order is the storage and wire layout of the aggregate value. Type/layout fitting may map a
@@ -897,9 +905,9 @@ This initializer is valid because the names identify the target fields:
 
 The source pack carrier order is `c, a`. The constructed `Thing` stores fields
 as `a, b, c`, filling `b` from its default. This is an automatic materialization
-shuffle from a named fluid layout into a concrete layout. If a function returns
-a named pack whose declared return layout is `c, a`, the return carrier order is
-also `c, a`; assigning that result to `Thing` requires lowering to shuffle the
+shuffle from a named fluid layout into a concrete layout. If a function declares
+a named return layout ordered as `c, a`, the return carrier order is also
+`c, a`; assigning that result to `Thing` requires lowering to shuffle the
 returned values into the target aggregate order.
 
 TTX has three explicit ways to produce packs:
@@ -910,7 +918,8 @@ TTX has three explicit ways to produce packs:
 
 Those forms are the only source-level decomposition operations. A concrete
 typed object inside a pack remains one value until source explicitly swizzles or
-slices it back into a fluid pack.
+slices it back into a fluid pack. Grouping, swizzle, and slice produce
+positional packs unless a field in the grouping explicitly authors a name.
 
 Nested positional packs flatten during pack fitting:
 
@@ -935,10 +944,17 @@ must access, swizzle, or slice the fields explicitly:
 
 ### Repacking
 
-Repacking means producing a new pack in the carrier order or named shape
-required by the receiving context. TTX does not need a separate repack operator
-because pack construction, swizzle, slice, and named fields already express the
-operation directly.
+Repacking means producing a new pack in the carrier order required by the
+receiving context. TTX does not need a separate repack operator because pack
+construction, swizzle, slice, and named fields already express the operation
+directly.
+
+Names are transient during repacking. Swizzle uses names to select fields, but
+the selected result is positional. Slice selects by evaluated positions, so its
+result is also positional. Grouping positional values keeps positional order.
+The only ordinary way to create a named repack result is to author named fields
+with `.field = value`, or to fit a produced pack into a declared boundary whose
+layout provides names.
 
 Use positional composition when the target wants values in a specific order:
 
@@ -974,6 +990,12 @@ Use swizzle or slice when the source is a typed value:
 
 Typed values never splat implicitly. The source must say which fields or range
 are being repacked.
+
+Returns follow the same rule. A return statement evaluates an expression pack
+and fits it to the function's declared return layout. If the return expression
+is a swizzle or slice, the expression result is positional. If the declared
+return layout is named, that declaration is the boundary that supplies the
+returned names visible to callers.
 
 ## Layouts
 
@@ -1062,9 +1084,14 @@ Rules:
     literals, in range, and unique.
 11. Concrete typed values do not flatten into packs implicitly. Source must use
    swizzle or slice syntax to decompose a typed value into a fluid pack.
-12. A named pack fitted into a typed aggregate maps by name, then lowers into
-    the aggregate's declaration order. A named pack returned from a function
-    keeps the function return layout's carrier order at the call boundary.
+12. Repack operations produce positional packs unless the syntax explicitly
+    authors names or the receiving boundary supplies them.
+13. A named pack fitted into a typed aggregate maps by name, then lowers into
+    the aggregate's declaration order. A function with a named return layout
+    exposes that declared return layout's carrier order at the call boundary.
+14. Duplicate field names are representable but should be diagnosed by the
+    source, package, or dialect owner that has the useful source location. Name
+    lookup reaches the leftmost duplicate, so later duplicates are shadowed.
 
 `Vec[T, N]`, `Vec2D`, `Vec3D`, `Vec4D`, `Color`, user structs, and other
 aggregate types are concrete typed values. They may consume compatible packs,
@@ -1164,7 +1191,7 @@ ordinary dispatch on the function-pointer value, such as
 The dispatch receiver must be concrete: a typed value, a type name, or a
 package scope. A fluid pack is not a receiver because it has no concrete type or
 addressable identity. To call through a value carried inside a pack, source or
-the validation query must first select the concrete entry that is the receiver.
+the owning query must first select the concrete entry that is the receiver.
 
 TTX does not use braced initializers. Braces are scopes and statement blocks.
 Aggregate initialization uses packs:
@@ -1266,7 +1293,7 @@ match value {
 }
 ```
 
-`if` and `while` take condition packs. Condition validation checks that the
+`if` and `while` take condition packs. The condition owner checks that the
 condition fits a truthable layout. Numeric truthiness is not implicit. Use
 `Bool` or an explicit comparison.
 
@@ -1276,8 +1303,8 @@ data. It resolves before runtime lowering.
 `match` patterns are expressions or `_`. Each case owns an explicit block.
 There is no fallthrough.
 
-`break;` and `continue;` are reserved loop-control statements. Dialect
-validation decides where they are legal; the syntax layer only preserves the
+`break;` and `continue;` are reserved loop-control statements. The active
+dialect decides where they are legal. The syntax layer only preserves the
 statement shape for later lowering.
 
 ## Literals
@@ -1297,13 +1324,14 @@ Literal classes:
 Integer literals are exact integer values. When no narrower expected type is
 present, decimal and hexadecimal integer literals live in the language's
 64-bit integer domain, with `Count` serving as the ordinary size/count alias.
-Type validation may fit an integer literal into a narrower fixed-width numeric target
-only when the value is provably in range. It does not infer among user-defined
-types or choose between overloads from a bare numeric literal.
+The type or layout owner may fit an integer literal into a narrower fixed-width
+numeric target only when the value is provably in range. It does not infer among
+user-defined types or choose between overloads from a bare numeric literal.
 
 Floating literals follow the same principle: the literal text represents an
-exact source value, and type validation either fits it to the expected floating target
-or uses the documented default real type when no narrower target exists.
+exact source value, and the type or layout owner either fits it to the expected
+floating target or uses the documented default real type when no narrower target
+exists.
 
 `Bytes` literals and embedded-file literals are tokenized as whole literals, but
 their fixed prefixes are still source text entries on `Class`:
@@ -1344,7 +1372,7 @@ stacked documentation view that accumulates each alias layer.
 ## Canonicalization
 
 Canonicalization is a resolution query. It happens after parsing and before
-validation that depends on resolved types.
+queries that depend on resolved types.
 
 It resolves:
 
