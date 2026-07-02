@@ -169,6 +169,31 @@ class Set {
     return find(key) != nullptr;
   }
 
+  template <typename visit_type>
+  auto visit(visit_type visit_function) -> void {
+    for (Count bucket_index = 0; bucket_index < buffer_data.bucket_count;
+         bucket_index++) {
+      if (buffer_data.bucket_buffer[bucket_index] == 0) {
+        continue;
+      }
+
+      visit_function(buffer_data.slots_buffer[bucket_index]);
+    }
+  }
+
+  template <typename visit_type>
+  auto visit(visit_type visit_function) const -> void {
+    for (Count bucket_index = 0; bucket_index < buffer_data.bucket_count;
+         bucket_index++) {
+      if (buffer_data.bucket_buffer[bucket_index] == 0) {
+        continue;
+      }
+
+      const key_type& key = buffer_data.slots_buffer[bucket_index];
+      visit_function(key);
+    }
+  }
+
   constexpr auto get_size() const -> Count { return buffer_data.size; }
   constexpr auto get_capacity() const -> Count {
     return buffer_data.bucket_count;
@@ -302,7 +327,7 @@ class Set {
     return hash | Bits_32(0x80000000);
   }
 
-  static constexpr auto get_hash(const key_type& key) -> Bits_32 {
+  static auto get_hash(const key_type& key) -> Bits_32 {
     return Bits_32(Core::Hash(key).get_value());
   }
 
