@@ -55,11 +55,14 @@ cc_binary(
         "//tetrodotoxin:compiler_assembler",
         "//tetrodotoxin:dialect",
         "//tetrodotoxin:linker",
+        "//tetrodotoxin:resolution",
         "//ttx:core",
         "//ttx:dialect",
+        "//ttx:error",
         "//ttx:layout",
         "//ttx:lexical",
         "//ttx:parse",
+        "//ttx:source",
     ],
 )
 

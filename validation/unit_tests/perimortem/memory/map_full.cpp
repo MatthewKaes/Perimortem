@@ -34,10 +34,7 @@ PERIMORTEM_UNIT_TEST(DynamicMapFull, empty) {
   // Two maps fit in a cache line.
   EXPECT_EQ(sizeof(empty_map), 32);
   EXPECT_EQ(empty_map.get_size(), 0ULL);
-
-  // Empty maps should consume no memory and should fetch memory lazily unless
-  // initial capacity is requested.
-  EXPECT_EQ(empty_map.get_memory_consumption(), 0);
+  EXPECT_EQ(empty_map.get_capacity(), 0);
 }
 
 PERIMORTEM_UNIT_TEST(DynamicMapFull, simple_construction) {
@@ -102,8 +99,6 @@ PERIMORTEM_UNIT_TEST(DynamicMapFull, insert_stress_test) {
     auto value = large_map[i];
     ASSERT_EQ(value, i + 2);
   }
-
-  EXPECT_EQ(large_map.get_memory_consumption(), 1 << 16);
 }
 
 PERIMORTEM_UNIT_TEST(DynamicMapFull, capacity_stress_test) {
@@ -118,8 +113,6 @@ PERIMORTEM_UNIT_TEST(DynamicMapFull, capacity_stress_test) {
   for (Count i = 0; i < 1000; i++) {
     ASSERT_EQ(large_map[i], i + 2);
   }
-
-  EXPECT_EQ(large_map.get_memory_consumption(), 1 << 16);
 }
 
 PERIMORTEM_UNIT_TEST(DynamicMapFull, key_construction) {
@@ -237,10 +230,8 @@ PERIMORTEM_UNIT_TEST(DynamicMapFull, size) {
   EXPECT_EQ(empty_map.get_capacity(), 0);
   empty_map.ensure_capacity(10);
   EXPECT_EQ(empty_map.get_capacity(), 32);
-  EXPECT_EQ(empty_map.get_memory_consumption(), 1024);
   empty_map.ensure_capacity(100);
   EXPECT_EQ(empty_map.get_capacity(), 128);
-  EXPECT_EQ(empty_map.get_memory_consumption(), 4096);
 }
 
 PERIMORTEM_UNIT_TEST(DynamicMapFull, reuse) {

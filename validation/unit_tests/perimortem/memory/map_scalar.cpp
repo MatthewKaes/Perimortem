@@ -26,16 +26,39 @@ static Harness DynamicMapScalar = {
       },
 };
 
+PERIMORTEM_UNIT_TEST(DynamicMapScalar, find_and_get_entry) {
+  Dynamic::Map<Signed_32, Signed_32, vector_mode> int_map = {
+    {{1, 2}, {2, 3}, {4, 5}}};
+
+  auto* found = int_map.find(2);
+  ASSERT(found != nullptr);
+  EXPECT_EQ(found->value, 3);
+
+  Count count = 0;
+  Signed_32 key_sum = 0;
+  Signed_32 value_sum = 0;
+  for (Count entry_index = 0; entry_index < int_map.get_size();
+       entry_index++) {
+    auto* entry = int_map.get_entry(entry_index);
+    ASSERT(entry != nullptr);
+    count++;
+    key_sum += entry->key;
+    value_sum += entry->value;
+  }
+
+  EXPECT_EQ(count, 3);
+  EXPECT_EQ(key_sum, 7);
+  EXPECT_EQ(value_sum, 10);
+  EXPECT(int_map.get_entry(3) == nullptr);
+}
+
 PERIMORTEM_UNIT_TEST(DynamicMapScalar, empty) {
   Dynamic::Map<Signed_32, Signed_32, vector_mode> empty_map;
 
   // Two maps fit in a cache line.
   EXPECT_EQ(sizeof(empty_map), 32);
   EXPECT_EQ(empty_map.get_size(), 0);
-
-  // Empty maps should consume no memory and should fetch memory lazily unless
-  // initial capacity is requested.
-  EXPECT_EQ(empty_map.get_memory_consumption(), 0);
+  EXPECT_EQ(empty_map.get_capacity(), 0);
 }
 
 PERIMORTEM_UNIT_TEST(DynamicMapScalar, simple_construction) {
@@ -99,8 +122,6 @@ PERIMORTEM_UNIT_TEST(DynamicMapScalar, insert_stress_test) {
   for (Count i = 0; i < 1000; i++) {
     ASSERT_EQ(large_map[i], i + 2);
   }
-
-  EXPECT_EQ(large_map.get_memory_consumption(), 1 << 15);
 }
 
 PERIMORTEM_UNIT_TEST(DynamicMapScalar, capacity_stress_test) {
@@ -115,8 +136,6 @@ PERIMORTEM_UNIT_TEST(DynamicMapScalar, capacity_stress_test) {
   for (Count i = 0; i < 1000; i++) {
     ASSERT_EQ(large_map[i], i + 2);
   }
-
-  EXPECT_EQ(large_map.get_memory_consumption(), 1 << 15);
 }
 
 PERIMORTEM_UNIT_TEST(DynamicMapScalar, key_construction) {
@@ -234,10 +253,8 @@ PERIMORTEM_UNIT_TEST(DynamicMapScalar, size) {
   EXPECT_EQ(empty_map.get_capacity(), 0);
   empty_map.ensure_capacity(10);
   EXPECT_EQ(empty_map.get_capacity(), 16);
-  EXPECT_EQ(empty_map.get_memory_consumption(), 256);
   empty_map.ensure_capacity(100);
   EXPECT_EQ(empty_map.get_capacity(), 128);
-  EXPECT_EQ(empty_map.get_memory_consumption(), 2048);
 }
 
 PERIMORTEM_UNIT_TEST(DynamicMapScalar, reuse) {

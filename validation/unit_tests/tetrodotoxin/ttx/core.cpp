@@ -196,7 +196,7 @@ PERIMORTEM_UNIT_TEST(TtxCore, layout_wrong_type) {
   EXPECT_NOT(named.fits(Ttx::Layout(*size_2d)));
 }
 
-PERIMORTEM_UNIT_TEST(TtxCore, layout_default_suffix) {
+PERIMORTEM_UNIT_TEST(TtxCore, layout_suffix) {
   const Ttx::Type* real_32 = Ttx::Core::Prelude::find_type("Real_32"_view);
   ASSERT(real_32);
 
