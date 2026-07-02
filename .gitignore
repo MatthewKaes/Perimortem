@@ -23,3 +23,5 @@ perf.*
 # Testing locally.
 .scratch/*
 build_trace.data
+post_pass.md
+refactor.md

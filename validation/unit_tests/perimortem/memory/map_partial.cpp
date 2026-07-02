@@ -18,7 +18,7 @@ using namespace Validation;
 constexpr auto vector_mode = Dynamic::MapVectorization::Partial;
 
 static Harness DynamicMapPartial = {
-  .name = "Dynamic::Map (Partial Vectorization)"_view,
+  .name = "Dynamic::Map Partial"_view,
   .setup =
       []() {
         default_construct_count = 0;
@@ -69,6 +69,28 @@ PERIMORTEM_UNIT_TEST(DynamicMapPartial, duplicate_keys) {
   int_map.insert(1, 8);
   ASSERT_EQ(int_map[1], 8);
   EXPECT_EQ(int_map[2], 8);
+}
+
+PERIMORTEM_UNIT_TEST(DynamicMapPartial, remove) {
+  Dynamic::Map<Signed_32, Signed_32, vector_mode> int_map;
+
+  int_map.ensure_capacity(1000);
+  for (Count i = 0; i < 100; i++) {
+    int_map.insert(i, i + 2);
+  }
+
+  Count capacity = int_map.get_capacity();
+  EXPECT(int_map.remove(50));
+  EXPECT(!int_map.remove(50));
+  EXPECT(!int_map.contains(50));
+  EXPECT_EQ(int_map.get_size(), Count(99));
+  EXPECT_EQ(int_map.get_capacity(), capacity);
+
+  for (Count i = 0; i < 100; i++) {
+    if (i != 50) {
+      ASSERT_EQ(int_map[i], i + 2);
+    }
+  }
 }
 
 PERIMORTEM_UNIT_TEST(DynamicMapPartial, empty_keys) {
@@ -207,6 +229,10 @@ PERIMORTEM_UNIT_TEST(DynamicMapPartial, dynamic_keys) {
     ASSERT_EQ(text_map[text], 2 + ch);
   }
   ASSERT_EQ(text_map["Longer test string"_view], 2);
+
+  auto copied = text_map;
+  ASSERT_EQ(copied["Hello"_view], 0);
+  ASSERT_EQ(copied["Longer test string"_view], 2);
 }
 
 PERIMORTEM_UNIT_TEST(DynamicMapPartial, dynamic_value) {
@@ -219,6 +245,10 @@ PERIMORTEM_UNIT_TEST(DynamicMapPartial, dynamic_value) {
   ASSERT_TEXT(text_map[0], "Hello"_view);
   ASSERT_TEXT(text_map[1], "World"_view);
   ASSERT_TEXT(text_map[2], "Longer test string"_view);
+
+  auto copied = text_map;
+  ASSERT_TEXT(copied[0], "Hello"_view);
+  ASSERT_TEXT(copied[2], "Longer test string"_view);
 }
 
 PERIMORTEM_UNIT_TEST(DynamicMapPartial, size) {
@@ -235,7 +265,7 @@ PERIMORTEM_UNIT_TEST(DynamicMapPartial, reuse) {
   Dynamic::Map<Signed_32, Signed_32, vector_mode> reuse_map;
 
   for (Signed_32 loops = 0; loops < 5; loops++) {
-    reuse_map.reset();
+    reuse_map.clear();
     ASSERT_EQ(reuse_map.get_size(), 0);
 
     for (Count i = 0; i < 100; i++) {
@@ -262,6 +292,8 @@ PERIMORTEM_UNIT_TEST(DynamicMapPartial, leak_test) {
     }
 
     ASSERT_EQ(memory_intensive.get_size(), 100);
+    EXPECT(memory_intensive.remove(source));
+    ASSERT_EQ(memory_intensive.get_size(), 99);
   }
 
   {
