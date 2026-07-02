@@ -30,7 +30,7 @@ auto Ttx::Parse::Import::parse(Cursor& cursor) -> Import {
     return result;
   }
 
-  result.dialect_name = TypePath::parse(cursor);
+  result.dialect_name = SymbolPath::parse(cursor);
   if (cursor.get_errors().get_size() != starting_error_count) {
     cursor.recover_to_statement();
     return result;
@@ -85,7 +85,7 @@ auto Ttx::Parse::Import::parse(Cursor& cursor) -> Import {
     // Otherwise the import source is a package path such as `TTX::Graphics`.
     // Mapping that path to an actual package file happens after the source
     // envelope has been parsed.
-    result.package_path = TypePath::parse(cursor);
+    result.package_path = SymbolPath::parse(cursor);
     if (cursor.get_errors().get_size() != starting_error_count) {
       cursor.recover_to_statement();
       return result;

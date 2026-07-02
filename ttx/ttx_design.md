@@ -220,7 +220,7 @@ import Alias : Dialect = source;
 
 The left side creates the local name. The dialect describes the expected
 dialect name that resolution must find. The right side is either a source pack,
-such as `(.source = "...")`, or a type path to a compiler-provided package such
+such as `(.source = "...")`, or a symbol path to a compiler-provided package such
 as `TTX::Math`.
 
 Imports do not import dialect semantics. A `Shader` package does not inherit

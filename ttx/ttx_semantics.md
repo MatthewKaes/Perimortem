@@ -431,9 +431,9 @@ import LocalName : Dialect = source;
 The source is either:
 
 - a file-source pack, currently `(.source = "path.ttx")`
-- a package/type path such as `TTX::Math`.
+- a package symbol path such as `TTX::Math`.
 
-The local name participates in type paths and value access after import
+The local name participates in symbol paths and value access after import
 resolution. Imports do not erase dialect boundaries. A `Shader` package cannot
 make `object` legal by importing a `Library` that contains objects. Imported
 definitions must still be valid in the importing dialect.
@@ -617,6 +617,17 @@ known attribute.
 
 Attributes are not runtime values. They are consumed by the compiler or
 forwarded into target metadata.
+
+Some dialects also consume directive-style attributes as standalone statements.
+For example, a Package manifest declares its package identity with:
+
+```ttx
+@package_name = TTX::Graphics;
+```
+
+The parser shape is `Attribute(package_name) Assign SymbolPath EndStatement`.
+That keeps package identity in the Package dialect body while using the same
+authored symbol path surface as package imports.
 
 Known shader ABI attributes have fixed local targets. The compiler keeps these
 rules in `syntax/attribute` so attribute legality stays separate from package

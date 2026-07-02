@@ -5,7 +5,7 @@
 
 #include "perimortem/core/view/bytes.hpp"
 
-#include "ttx/parse/type_path.hpp"
+#include "ttx/parse/symbol_path.hpp"
 
 namespace Ttx::Parse {
 
@@ -33,10 +33,10 @@ class Import {
   constexpr auto get_local_name() const -> Perimortem::Core::View::Bytes {
     return local_name;
   }
-  constexpr auto get_dialect_name() const -> const TypePath& {
+  constexpr auto get_dialect_name() const -> const SymbolPath& {
     return dialect_name;
   }
-  constexpr auto get_package_path() const -> const TypePath& {
+  constexpr auto get_package_path() const -> const SymbolPath& {
     return package_path;
   }
   constexpr auto get_file_path() const -> Perimortem::Core::View::Bytes {
@@ -60,8 +60,8 @@ class Import {
       -> Perimortem::Core::View::Bytes;
 
   Perimortem::Core::View::Bytes local_name;
-  TypePath dialect_name;
-  TypePath package_path;
+  SymbolPath dialect_name;
+  SymbolPath package_path;
   Perimortem::Core::View::Bytes file_path;
 };
 

@@ -9,7 +9,7 @@
 #include "perimortem/memory/managed/vector.hpp"
 
 #include "ttx/lexical/tokenizer.hpp"
-#include "ttx/parse/error.hpp"
+#include "ttx/error.hpp"
 
 namespace Ttx::Parse {
 
@@ -24,16 +24,19 @@ namespace Ttx::Parse {
 // tokenizer arena.
 //
 // The cursor sees the token position at the moment a parse expectation fails,
-// so it is the right place to record diagnostic facts. The stored Error objects
+// so it is the right place to record error facts. The stored Error objects
 // are still presentation neutral and reusable by dialect parsers that use the
 // same cursor.
 //
-// Diagnostic rendering, package resolution, and source record management belong
+// Error rendering, package resolution, and source record management belong
 // to the layers that have that context. Cursor stays token position plus parse
 // errors over one token stream.
 class Cursor {
  public:
-  explicit Cursor(const Lexical::Tokenizer& tokenizer);
+  explicit Cursor(
+      const Lexical::Tokenizer& tokenizer,
+      Perimortem::Core::View::Bytes source_path =
+          Perimortem::Core::View::Bytes());
 
   constexpr auto current() const -> const Lexical::Token& {
     return tokens[token_index];
@@ -65,10 +68,10 @@ class Cursor {
   //
   // Source envelopes, dialect ASTs, and lowered IR should not copy this into
   // their own validity state. Tetrodotoxin can inspect the cursor and decide
-  // whether to stop, continue through recoverable errors, or render diagnostics
+  // whether to stop, continue through recoverable errors, or render error output
   // without caring which parser phase produced the error.
   constexpr auto get_errors() const
-      -> Perimortem::Core::View::Vector<Error> {
+      -> Perimortem::Core::View::Vector<Ttx::Error> {
     return errors.get_view();
   }
 
@@ -81,8 +84,9 @@ class Cursor {
 
  private:
   const Lexical::Tokenizer& tokenizer;
+  Perimortem::Core::View::Bytes source_path;
   Perimortem::Core::View::Vector<Lexical::Token> tokens;
-  Perimortem::Memory::Managed::Vector<Error> errors;
+  Perimortem::Memory::Managed::Vector<Ttx::Error> errors;
   Count token_index = 0;
 };
 

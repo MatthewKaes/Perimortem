@@ -38,6 +38,18 @@ cc_library(
 )
 
 cc_library(
+    name = "error",
+    hdrs = [
+        "error.hpp",
+    ],
+    include_prefix = "ttx",
+    deps = [
+        ":lexical",
+        "//perimortem",
+    ],
+)
+
+cc_library(
     name = "parse",
     srcs = glob([
         "parse/*.cpp",
@@ -48,7 +60,24 @@ cc_library(
     include_prefix = "ttx",
     deps = [
         ":documentation",
+        ":error",
         ":lexical",
+        "//perimortem",
+    ],
+)
+
+cc_library(
+    name = "source",
+    srcs = [
+        "source.cpp",
+    ],
+    hdrs = [
+        "source.hpp",
+    ],
+    include_prefix = "ttx",
+    deps = [
+        ":documentation",
+        ":parse",
         "//perimortem",
     ],
 )

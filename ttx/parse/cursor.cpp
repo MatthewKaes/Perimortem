@@ -3,8 +3,11 @@
 
 #include "ttx/parse/cursor.hpp"
 
-Ttx::Parse::Cursor::Cursor(const Lexical::Tokenizer& tokenizer)
+Ttx::Parse::Cursor::Cursor(
+    const Lexical::Tokenizer& tokenizer,
+    Perimortem::Core::View::Bytes source_path)
     : tokenizer(tokenizer),
+      source_path(source_path),
       tokens(tokenizer.get_tokens()),
       errors(tokenizer.get_arena()) {}
 
@@ -35,7 +38,9 @@ auto Ttx::Parse::Cursor::error(Perimortem::Core::View::Bytes message) -> void {
 auto Ttx::Parse::Cursor::error(
     Perimortem::Core::View::Bytes message,
     Perimortem::Core::View::Bytes hint) -> void {
-  errors.insert(Error(current(), token_index, message, hint));
+  errors.insert(Ttx::Error(
+      source_path, tokenizer.get_source(), current(), token_index, message,
+      hint));
 }
 
 auto Ttx::Parse::Cursor::recover_to_statement() -> void {

@@ -271,6 +271,8 @@ types, functions, resources, or nested packages:
 ```ttx
 dialect : Package;
 
+@package_name = TTX::Graphics;
+
 import Color : Library = (.source = "color.ttx");
 import Renderer2D : Render = (.source = "renderer2d.ttx");
 import Default2D : Shader = (.source = "shaders/default2d.ttx");
@@ -280,7 +282,8 @@ import Default2D : Shader = (.source = "shaders/default2d.ttx");
 ```
 
 The package file is not a second language. It is a dialect body whose job is to
-describe package exports through the same type and layout model.
+declare its package identity and describe package exports through the same type
+and layout model.
 
 The Tetrodotoxin package/source graph owns the source-tree walk needed to get
 there. TTX owns what the resolved package, type, and layout facts mean once
@@ -310,8 +313,8 @@ types, layouts, eventual ABI providers, or backends already know.
 The TTX directory is the language core:
 
 - [`lexical`](lexical/) classifies source text into stable token classes
-- [`parse`](parse/) reads the root source envelope, imports, and shared parse
-  facts
+- [`source.hpp`](source.hpp) reads the root source envelope and imports
+- [`parse`](parse/) owns cursor mechanics and shared parse facts
 - [`dialect`](dialect/) registers dialect objects and dispatches body parsing
 - [`documentation.hpp`](documentation.hpp) models source-authored
   documentation attached to language objects
