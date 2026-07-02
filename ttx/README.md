@@ -1,9 +1,9 @@
 # TTX
 
 TTX is the small source-shaped language at the center of the Tetrodotoxin
-toolchain. Tetrodotoxin owns the CLI, LSP, Bazel integration, future
-source/package graph management, packaging, and backend entry points. TTX owns
-the language model those tools share.
+toolchain. Tetrodotoxin provides the CLI, LSP, Bazel integration,
+source/package graph, packaging, and backend entry points. TTX provides the
+language model those tools share.
 
 The design goal is simplicity: parse the source once, keep the authored shape,
 and answer richer questions from the same tree as more context becomes
@@ -11,32 +11,32 @@ available. Most of those questions reduce to types and layouts.
 
 ## Pipeline
 
-TTX source moves through a short set of owners:
+TTX source moves through a short chain of layers:
 
 ```text
 source text -> lexical -> package envelope -> Tetrodotoxin package graph -> dialect body -> lowering
 ```
 
-Each step adds facts. It should not clone the program into a second semantic
-tree just to ask the same questions again.
+Each layer adds context to the same source-shaped program. The early layers are
+cheap enough for editor features. Later layers add package, dialect, and backend
+facts when those facts are available.
 
-`lexical` turns source bytes into token classes. Fixed spellings such as `.`,
-`.[`, `:[`, `::`, `->`, `[`, and `;` live here.
+[`lexical`](lexical/) turns source bytes into token classes. Fixed spellings
+such as `.`, `.[`, `:[`, `::`, `->`, `[`, and `;` live here.
 
-`parse` owns the common TTX envelope and the small lingua franca pieces shared
-by every dialect: documentation, identifiers, constants, type paths, imports,
-and layouts. The first parse stage stops after the dialect header and imports.
+[`parse`](parse/) reads the common TTX envelope and the small lingua franca
+pieces shared by every dialect: documentation, identifiers, constants, type
+paths, imports, and layouts. The first parse stage stops after the dialect
+header and imports.
 
-Tetrodotoxin will own source-tree identity once the package graph layer is
-rebuilt. That future layer loads the import closure, resolves package paths such
-as `TTX::Graphics` to manifests, checks that imported files declare the
-requested dialect, and binds each import to the local name written in the source
-file. The old resolution code was removed so this layer can be rebuilt from the
-current TTX source envelope and dialect model.
+The Tetrodotoxin package graph supplies source-tree identity. It loads the
+import closure, resolves package paths such as `TTX::Graphics` to manifests,
+checks that imported files declare the requested dialect, and binds each import
+to the local name written in the source file.
 
-`dialect` owns the extension table. A source file declares a dialect in its
-header, and that registered dialect parses the rest of the file after
-Tetrodotoxin has supplied the resolved imports under their local aliases.
+[`dialect`](dialect/) stores the extension table. A source file declares a
+dialect in its header, and that registered dialect parses the rest of the file
+after Tetrodotoxin has supplied the resolved imports under their local aliases.
 
 Lowering belongs to the dialect or backend that owns the requested output.
 There is no extra source-of-truth layer between resolved TTX and the thing being
@@ -87,15 +87,15 @@ A dialect is a registered object with a name and behavior. Its address is its
 identity inside the active toolchain configuration.
 
 That matters because dialects are open. Adding `Shader`, `Render`, `Entity`, or
-a future project-specific dialect should mean registering a dialect object, not
-editing a package-kind enum in multiple places.
+a project-specific dialect means registering a dialect object, not editing a
+package-kind enum in multiple places.
 
 The root TTX parser only needs to know:
 
 ```text
 What dialect name did the source declare?
 Which object registered that name?
-Which imports were requested and what local names should they use?
+Which imports were requested and what local names do they introduce?
 Can that object parse the remaining body with those imports?
 ```
 
@@ -123,8 +123,8 @@ A type is identity plus behavior:
 - structural members and defaults
 
 This is the center of TTX. Values, packs, function arguments, function returns,
-struct fields, shader resources, ABI carriers, and package exports should all
-be answerable through type and layout queries. Documentation is carried by the
+struct fields, shader resources, ABI carriers, and package exports are modeled
+through type and layout queries. Documentation is carried by the
 type/member/function that owns it, but it does not participate in type identity
 or layout fitting.
 
@@ -154,8 +154,8 @@ access. Repack operations such as grouping, swizzle, and slice produce
 positional layouts unless the operator explicitly authors or preserves names.
 This keeps temporary expression shape from accidentally inheriting names through
 composition. Duplicate names are still representable because layouts can be
-merged or generated by dialects, but a source or package owner should diagnose
-that only the leftmost duplicate can be reached by name.
+merged or generated by dialects. Source and package diagnostics can report that
+only the leftmost duplicate is reachable by name.
 
 Layouts do not own storage facts in the root model. Size, alignment, and offsets
 are produced later by the lowering owner that knows the target ABI or backend.
@@ -212,7 +212,7 @@ Bare `[...]` is reserved only for layouts. Function parameters and return values
 are layouts. They may be named, but those names belong to the declared boundary,
 not to arbitrary expressions that later fit that boundary. Type arguments are
 types with layout parameterization, so they still use the same layout syntax
-rather than a second bracket meaning. Value indexing should use `:[...]`.
+rather than a second bracket meaning. Value indexing uses `:[...]`.
 
 `(...)` allows for a "regrouping" of a layout:
 
@@ -259,7 +259,7 @@ Package imports resolve to package files and exported objects.
 import Graphics : Package = TTX::Graphics;
 ```
 
-The package path `TTX::Graphics` should resolve to a package manifest such as:
+The package path `TTX::Graphics` resolves to a package manifest such as:
 
 ```text
 tetrodotoxin/packages/graphics/package.ttx
@@ -282,60 +282,58 @@ import Default2D : Shader = (.source = "shaders/default2d.ttx");
 The package file is not a second language. It is a dialect body whose job is to
 describe package exports through the same type and layout model.
 
-Resolution owns the source-tree walk needed to get there. TTX owns what the
-resolved package, type, and layout facts mean once Tetrodotoxin hands them back
-under names like `Graphics`, `Types`, or `Render2D`.
+The Tetrodotoxin package/source graph owns the source-tree walk needed to get
+there. TTX owns what the resolved package, type, and layout facts mean once
+Tetrodotoxin hands them back under names like `Graphics`, `Types`, or
+`Render2D`.
 
 ## Errors
 
-Failures should happen where the owning query has enough information to answer.
+Failures are reported where the owning query has enough information to answer.
 
-If a lookup is empty, report the missing object.
+An empty lookup becomes a missing-object diagnostic.
 
-If a pack cannot fit a target layout, report the layout mismatch.
+A pack that cannot fit a target layout becomes a layout-mismatch diagnostic.
 
-If a call receiver has no type or dispatchable identity, report that the call
-cannot dispatch.
+A call receiver with no type or dispatchable identity becomes a call-dispatch
+diagnostic.
 
-If an imported file declares a different dialect than the import requested,
-report the dialect mismatch at the import.
+An imported file with a different dialect than the import requested becomes a
+dialect-mismatch diagnostic at the import.
 
 The model stays small because each concept reports its own failures. There is no
 need for a separate layer whose job is to rediscover what packages, dialects,
 types, layouts, eventual ABI providers, or backends already know.
 
-## File Ownership
+## Repository Map
 
-The TTX folder should read as the language core:
+The TTX directory is the language core:
 
-```text
-ttx/lexical
-ttx/parse
-ttx/dialect
-ttx/core
-```
+- [`lexical`](lexical/) classifies source text into stable token classes
+- [`parse`](parse/) reads the root source envelope, imports, and shared parse
+  facts
+- [`dialect`](dialect/) registers dialect objects and dispatches body parsing
+- [`documentation.hpp`](documentation.hpp) models source-authored
+  documentation attached to language objects
+- [`type.hpp`](type.hpp) and [`type.cpp`](type.cpp) model type identity,
+  aliases, members, nested types, functions, and type-owned documentation
+- [`layout.hpp`](layout.hpp) and [`layout.cpp`](layout.cpp) model shape,
+  fitting, exact equivalence, named member access, and type-to-layout views
+- [`core/prelude.hpp`](core/prelude.hpp) provides the top-level prelude types
+  available to ordinary source contexts
 
-Tetrodotoxin should read as the toolchain wrapper around TTX:
+Tetrodotoxin is the surrounding toolchain:
 
-```text
-tetrodotoxin/cli
-tetrodotoxin/lsp
-tetrodotoxin/packages
-tetrodotoxin/linker
-tetrodotoxin/compiler/assembler
-tetrodotoxin/ttx.bzl
-```
+- [`../tetrodotoxin/cli`](../tetrodotoxin/cli/) is the command-line surface
+- [`../tetrodotoxin/lsp`](../tetrodotoxin/lsp/) serves editor features
+- [`../tetrodotoxin/packages`](../tetrodotoxin/packages/) contains toolchain
+  packages such as `TTX::Graphics`
+- [`../tetrodotoxin/ttx.bzl`](../tetrodotoxin/ttx.bzl) integrates TTX with
+  Bazel
+- [`../tetrodotoxin/compiler/assembler`](../tetrodotoxin/compiler/assembler/)
+  emits terminal instruction streams such as SPIR-V and x86-64
+- [`../tetrodotoxin/linker`](../tetrodotoxin/linker/) packages terminal object
+  records and link targets
 
-Formatting is a user-facing product of a parsed dialect tree. It should come
-back when there is a real tree to format, not as a token-level guess in the TTX
-root.
-
-The full compiler facade and ABI lowering should come back under Tetrodotoxin
-after dialects can lower into enriched IR. The assembler, object, and linker
-layers can stay because they are terminal generation pieces. Keeping the old
-ABI-era compiler facade around before that point would make broken generated
-symbols look like part of the current model.
-
-The rule should stay the same: path, namespace, and concept ownership should
-agree. TTX should not manage the source tree, and Tetrodotoxin should not
-duplicate type/layout meaning that belongs to TTX.
+The split keeps TTX focused on language meaning while Tetrodotoxin supplies
+files, packages, editor integration, build integration, and terminal artifacts.
