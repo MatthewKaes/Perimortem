@@ -144,7 +144,7 @@ constexpr auto write(storage_type* dest, storage_type value) -> void {
   Data::copy(reinterpret_cast<Bits_8*>(dest), &value, 1);
 }
 
-// Swaps two objects
+// Swaps two objects using laundering mechanics to avoid intermediary objects.
 // For consteval move constructors are used.
 // For non-consteval a forgetful stack buffer is used to avoid constructing and
 // destructing a temporary or calling any move constructors.

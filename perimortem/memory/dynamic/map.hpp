@@ -268,63 +268,11 @@ class Map {
     return &empty_slot->entry;
   }
 
-  constexpr auto contains(const key_type& key) const -> Bool {
-    return find(key) != nullptr;
+  constexpr auto find(const key_type& key) -> Entry* {
+    return const_cast<Entry*>(static_cast<const Map*>(this)->find(key));
   }
 
-  constexpr auto at(const key_type& key) -> value_type& {
-    auto entry = find(key);
-    if (!entry) {
-      ensure_capacity(buffer_data.size + 1);
-
-      auto hash = get_hash(key);
-      auto empty_slot = get_empty(hash);
-      buffer_data.size += 1;
-
-      // Scalar maps store the full hash in the bucket.
-      if constexpr (vector_mode != MapVectorization::Scalar) {
-        empty_slot->hash = hash;
-      }
-
-      // Construct using the copy constructor.
-      new (&empty_slot->entry) Entry(key, value_type());
-
-      entry = &empty_slot->entry;
-    }
-
-    // Return end block
-    return entry->value;
-  }
-
-  constexpr auto operator[](const key_type& key) -> value_type& {
-    return at(key);
-  }
-
-  constexpr auto find_or_default(const key_type& key, const value_type& value)
-      const -> const value_type& {
-    auto entry = find(key);
-    if (!entry) {
-      return value;
-    } else {
-      return entry->value;
-    }
-  }
-
-  constexpr auto get_size() const -> Count { return buffer_data.size; }
-  constexpr auto get_capacity() const -> Count {
-    if constexpr (vector_mode == MapVectorization::Scalar) {
-      return buffer_data.bucket_count;
-    } else {
-      return buffer_data.bucket_count * bucket_size;
-    }
-  }
-  constexpr auto get_memory_consumption() const -> Count {
-    return buffer_data.total_byte_capacity;
-  }
-
- private:
-  // Get an entry if it exists.
-  constexpr auto find(const key_type& key) const -> Entry* {
+  constexpr auto find(const key_type& key) const -> const Entry* {
     if (buffer_data.size == 0) {
       return nullptr;
     }
@@ -381,6 +329,96 @@ class Map {
     }
   }
 
+  constexpr auto contains(const key_type& key) const -> Bool {
+    return find(key) != nullptr;
+  }
+
+  auto get_entry(Count index) -> Entry* {
+    return const_cast<Entry*>(
+        static_cast<const Map*>(this)->get_entry(index));
+  }
+
+  auto get_entry(Count index) const -> const Entry* {
+    if (index >= buffer_data.size) {
+      return nullptr;
+    }
+
+    Count entry_offset = index;
+    for (Count bucket_index = 0; bucket_index < buffer_data.bucket_count;
+         bucket_index++) {
+      auto occupancy_bits =
+          occupied_slots(buffer_data.bucket_buffer[bucket_index]);
+      if (!occupancy_bits) {
+        continue;
+      }
+
+      if constexpr (vector_mode == MapVectorization::Scalar) {
+        if (entry_offset == 0) {
+          return &buffer_data.slots_buffer[bucket_index].entry;
+        }
+        entry_offset--;
+      } else {
+        Count occupancy_count = __builtin_popcountg(occupancy_bits);
+        if (entry_offset < occupancy_count) {
+          return &buffer_data
+                      .slots_buffer[bucket_index * bucket_size + entry_offset]
+                      .entry;
+        }
+        entry_offset -= occupancy_count;
+      }
+    }
+
+    return nullptr;
+  }
+
+  constexpr auto at(const key_type& key) -> value_type& {
+    auto entry = find(key);
+    if (!entry) {
+      ensure_capacity(buffer_data.size + 1);
+
+      auto hash = get_hash(key);
+      auto empty_slot = get_empty(hash);
+      buffer_data.size += 1;
+
+      // Scalar maps store the full hash in the bucket.
+      if constexpr (vector_mode != MapVectorization::Scalar) {
+        empty_slot->hash = hash;
+      }
+
+      // Construct using the copy constructor.
+      new (&empty_slot->entry) Entry(key, value_type());
+
+      entry = &empty_slot->entry;
+    }
+
+    // Return end block
+    return entry->value;
+  }
+
+  constexpr auto operator[](const key_type& key) -> value_type& {
+    return at(key);
+  }
+
+  constexpr auto find_or_default(const key_type& key, const value_type& value)
+      const -> const value_type& {
+    auto entry = find(key);
+    if (!entry) {
+      return value;
+    } else {
+      return entry->value;
+    }
+  }
+
+  constexpr auto get_size() const -> Count { return buffer_data.size; }
+  constexpr auto get_capacity() const -> Count {
+    if constexpr (vector_mode == MapVectorization::Scalar) {
+      return buffer_data.bucket_count;
+    } else {
+      return buffer_data.bucket_count * bucket_size;
+    }
+  }
+
+ private:
   // Gets an empty bucket for a hash and set it as used.
   constexpr auto get_empty(const input_hash_type hash) -> slot_type* {
     auto bi = extract_vector_index(hash);

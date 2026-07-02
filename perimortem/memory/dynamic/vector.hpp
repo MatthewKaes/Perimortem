@@ -6,6 +6,7 @@
 #include "perimortem/core/view/vector.hpp"
 #include "perimortem/core/access/vector.hpp"
 #include "perimortem/core/bibliotheca.hpp"
+#include "perimortem/core/data.hpp"
 #include "perimortem/core/math.hpp"
 #include "perimortem/core/perimortem.hpp"
 
@@ -110,6 +111,36 @@ class Vector {
 
     // Construct using the move constructor.
     return *new (source_block + (size++)) type(data);
+  }
+
+  auto remove(Count index) -> Bool {
+    if (index >= size) {
+      return False;
+    }
+
+    Count last_index = size - 1;
+    if (index != last_index) {
+      Core::Data::swap(source_block[index], source_block[last_index]);
+    }
+
+    source_block[last_index].~type();
+    size--;
+    return True;
+  }
+
+  auto remove_stable(Count index) -> Bool {
+    if (index >= size) {
+      return False;
+    }
+
+    Count last_index = size - 1;
+    for (Count shift_index = index; shift_index < last_index; shift_index++) {
+      Core::Data::swap(source_block[shift_index], source_block[shift_index + 1]);
+    }
+
+    source_block[last_index].~type();
+    size--;
+    return True;
   }
 
   // Resizes the container but attempts to preserve as much of the original
