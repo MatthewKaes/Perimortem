@@ -17,7 +17,7 @@ namespace Perimortem::Graphics::Vulkan {
 // Intended for a single combined-image-sampler binding at set 0, binding 0.
 class Texture {
  public:
-  static auto create(const Context& context, const Graphics::Image& image)
+  static auto create(const Context& ctx, const Graphics::Image& image)
       -> Texture;
 
   Texture() = default;

@@ -10,18 +10,18 @@
 #include "perimortem/memory/dynamic/bytes.hpp"
 #include "perimortem/memory/dynamic/vector.hpp"
 
-#include "tetrodotoxin/compiler/context/relocation.hpp"
-#include "tetrodotoxin/compiler/context/symbol.hpp"
 #include "tetrodotoxin/linker/target/format.hpp"
+#include "tetrodotoxin/linker/object/relocation.hpp"
+#include "tetrodotoxin/linker/object/section.hpp"
+#include "tetrodotoxin/linker/object/symbol.hpp"
 
 namespace Tetrodotoxin::Linker::Target {
 
 class Elf : public Format {
  public:
-  auto add_section(Format::Section section) -> void override;
-  auto add_symbol(Compiler::Context::Symbol symbol) -> void override;
-  auto add_relocation(Compiler::Context::Relocation relocation)
-      -> void override;
+  auto add_section(Object::Section section) -> void override;
+  auto add_symbol(Object::Symbol symbol) -> void override;
+  auto add_relocation(Object::Relocation relocation) -> void override;
   auto build_library(Perimortem::Core::View::Bytes object_name)
       -> Perimortem::Memory::Dynamic::Bytes override;
   auto reset() -> void override;
@@ -34,10 +34,9 @@ class Elf : public Format {
       Bits_16 section_count,
       Bits_16 section_string_table_index) -> void;
 
-  Perimortem::Memory::Dynamic::Vector<Format::Section> sections;
-  Perimortem::Memory::Dynamic::Vector<Compiler::Context::Symbol> symbols;
-  Perimortem::Memory::Dynamic::Vector<Compiler::Context::Relocation>
-      relocations;
+  Perimortem::Memory::Dynamic::Vector<Object::Section> sections;
+  Perimortem::Memory::Dynamic::Vector<Object::Symbol> symbols;
+  Perimortem::Memory::Dynamic::Vector<Object::Relocation> relocations;
 };
 
 }  // namespace Tetrodotoxin::Linker::Target

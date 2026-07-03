@@ -22,9 +22,9 @@ static Static::Bytes<1 << 15> json_data;
 static Writer::Textual json_text(json_data);
 static constexpr Count batch_count = 1024;
 
-auto load_json(View::Bytes src) -> void {
+auto load_json(View::Bytes source_path) -> void {
   File source_file;
-  source_file.read(src);
+  source_file.read(source_path);
 
   json_text.set_pointer(0);
   json_text << source_file.get_view();

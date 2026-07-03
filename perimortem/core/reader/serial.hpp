@@ -20,7 +20,7 @@ namespace Perimortem::Core::Reader {
 // with their type byte marked with the negate flag.
 //
 // On any error the reader enters an invalid state and all subsequent reads
-// return zero-initialized values without advancing the pointer.
+// return zero-initialized values without advancing the cursor.
 class Serial {
  public:
   // Stores a single read from a Serial stream.
@@ -64,11 +64,11 @@ class Serial {
     };
   };
 
-  constexpr Serial(View::Bytes source) : data(source) {}
-  constexpr Serial(const Serial& rhs) : data(rhs.data) {}
+  constexpr Serial(View::Bytes source) : source(source) {}
+  constexpr Serial(const Serial& rhs) : source(rhs.source) {}
 
-  // Sets the location of the read pointer.
-  // If the index is out of range the pointer is put to the end of the buffer.
+  // Sets the location of the read cursor.
+  // If the index is out of range the cursor is put to the end of the buffer.
   auto set_pointer(Count location) -> void;
 
   // Reads the next value in the stream if available.
@@ -77,25 +77,26 @@ class Serial {
   // Reads the next value in the stream and explicitly parses it as a signed
   // value. If the value is actually a blob then 0 is returned.
   auto read_value() -> Signed_64;
+
   // Reads the next value in the stream and explicitly parses it as a signed
   // value. If the value is actually a regular value than an empty view is
   // returned.
   auto read_blob() -> View::Bytes;
 
-  constexpr auto get_size() const -> Count { return data.get_size(); }
-  constexpr auto get_location() const -> Count { return ptr_location; }
+  constexpr auto get_size() const -> Count { return source.get_size(); }
+  constexpr auto get_location() const -> Count { return cursor; }
   constexpr auto is_valid() const -> Bool { return valid_state; }
   constexpr auto is_empty() const -> Bool {
     return get_location() == get_size();
   }
   constexpr auto reset() -> void {
     valid_state = true;
-    ptr_location = 0;
+    cursor = 0;
   }
 
  private:
-  View::Bytes data;
-  Count ptr_location = 0;
+  View::Bytes source;
+  Count cursor = 0;
   Bool valid_state = True;
 };
 

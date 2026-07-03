@@ -18,7 +18,7 @@ using namespace Validation;
 constexpr auto vector_mode = Dynamic::MapVectorization::Scalar;
 
 static Harness DynamicMapScalar = {
-  .name = "Dynamic::Map (Scalar Mode)"_view,
+  .name = "Dynamic::Map Scalar"_view,
   .setup =
       []() {
         default_construct_count = 0;
@@ -26,16 +26,39 @@ static Harness DynamicMapScalar = {
       },
 };
 
+PERIMORTEM_UNIT_TEST(DynamicMapScalar, find_and_get_entry) {
+  Dynamic::Map<Signed_32, Signed_32, vector_mode> int_map = {
+    {{1, 2}, {2, 3}, {4, 5}}};
+
+  auto* found = int_map.find(2);
+  ASSERT(found != nullptr);
+  EXPECT_EQ(found->value, 3);
+
+  Count count = 0;
+  Signed_32 key_sum = 0;
+  Signed_32 value_sum = 0;
+  for (Count entry_index = 0; entry_index < int_map.get_size();
+       entry_index++) {
+    auto* entry = int_map.get_entry(entry_index);
+    ASSERT(entry != nullptr);
+    count++;
+    key_sum += entry->key;
+    value_sum += entry->value;
+  }
+
+  EXPECT_EQ(count, 3);
+  EXPECT_EQ(key_sum, 7);
+  EXPECT_EQ(value_sum, 10);
+  EXPECT(int_map.get_entry(3) == nullptr);
+}
+
 PERIMORTEM_UNIT_TEST(DynamicMapScalar, empty) {
   Dynamic::Map<Signed_32, Signed_32, vector_mode> empty_map;
 
   // Two maps fit in a cache line.
   EXPECT_EQ(sizeof(empty_map), 32);
   EXPECT_EQ(empty_map.get_size(), 0);
-
-  // Empty maps should consume no memory and should fetch memory lazily unless
-  // initial capacity is requested.
-  EXPECT_EQ(empty_map.get_memory_consumption(), 0);
+  EXPECT_EQ(empty_map.get_capacity(), 0);
 }
 
 PERIMORTEM_UNIT_TEST(DynamicMapScalar, simple_construction) {
@@ -74,6 +97,28 @@ PERIMORTEM_UNIT_TEST(DynamicMapScalar, duplicate_keys) {
   EXPECT_EQ(int_map[2], 8);
 }
 
+PERIMORTEM_UNIT_TEST(DynamicMapScalar, remove) {
+  Dynamic::Map<Signed_32, Signed_32, vector_mode> int_map;
+
+  int_map.ensure_capacity(1000);
+  for (Count i = 0; i < 100; i++) {
+    int_map.insert(i, i + 2);
+  }
+
+  Count capacity = int_map.get_capacity();
+  EXPECT(int_map.remove(50));
+  EXPECT(!int_map.remove(50));
+  EXPECT(!int_map.contains(50));
+  EXPECT_EQ(int_map.get_size(), Count(99));
+  EXPECT_EQ(int_map.get_capacity(), capacity);
+
+  for (Count i = 0; i < 100; i++) {
+    if (i != 50) {
+      ASSERT_EQ(int_map[i], i + 2);
+    }
+  }
+}
+
 PERIMORTEM_UNIT_TEST(DynamicMapScalar, empty_keys) {
   Dynamic::Map<Dynamic::Bytes, Signed_32, vector_mode> empty_map;
 
@@ -99,8 +144,6 @@ PERIMORTEM_UNIT_TEST(DynamicMapScalar, insert_stress_test) {
   for (Count i = 0; i < 1000; i++) {
     ASSERT_EQ(large_map[i], i + 2);
   }
-
-  EXPECT_EQ(large_map.get_memory_consumption(), 1 << 15);
 }
 
 PERIMORTEM_UNIT_TEST(DynamicMapScalar, capacity_stress_test) {
@@ -115,11 +158,9 @@ PERIMORTEM_UNIT_TEST(DynamicMapScalar, capacity_stress_test) {
   for (Count i = 0; i < 1000; i++) {
     ASSERT_EQ(large_map[i], i + 2);
   }
-
-  EXPECT_EQ(large_map.get_memory_consumption(), 1 << 15);
 }
 
-PERIMORTEM_UNIT_TEST(DynamicMapScalar, key_construction_count) {
+PERIMORTEM_UNIT_TEST(DynamicMapScalar, key_construction) {
   Count construct_count = 0;
   Count destruct_count = 0;
 
@@ -142,7 +183,7 @@ PERIMORTEM_UNIT_TEST(DynamicMapScalar, key_construction_count) {
   EXPECT_EQ(default_destruct_count, 0);
 }
 
-PERIMORTEM_UNIT_TEST(DynamicMapScalar, value_construction_count) {
+PERIMORTEM_UNIT_TEST(DynamicMapScalar, value_construction) {
   Count construct_count = 0;
   Count destruct_count = 0;
 
@@ -165,7 +206,7 @@ PERIMORTEM_UNIT_TEST(DynamicMapScalar, value_construction_count) {
   EXPECT_EQ(default_destruct_count, 0);
 }
 
-PERIMORTEM_UNIT_TEST(DynamicMapScalar, emplace_construction_count) {
+PERIMORTEM_UNIT_TEST(DynamicMapScalar, emplace_count) {
   Count construct_count = 0;
   Count destruct_count = 0;
 
@@ -214,6 +255,10 @@ PERIMORTEM_UNIT_TEST(DynamicMapScalar, dynamic_keys) {
     ASSERT_EQ(text_map[text], 2 + ch);
   }
   ASSERT_EQ(text_map["Longer test string"_view], 2);
+
+  auto copied = text_map;
+  ASSERT_EQ(copied["Hello"_view], 0);
+  ASSERT_EQ(copied["Longer test string"_view], 2);
 }
 
 PERIMORTEM_UNIT_TEST(DynamicMapScalar, dynamic_value) {
@@ -226,6 +271,10 @@ PERIMORTEM_UNIT_TEST(DynamicMapScalar, dynamic_value) {
   ASSERT_TEXT(text_map[0].get_view(), "Hello"_view);
   ASSERT_TEXT(text_map[1].get_view(), "World"_view);
   ASSERT_TEXT(text_map[2].get_view(), "Longer test string"_view);
+
+  auto copied = text_map;
+  ASSERT_TEXT(copied[0].get_view(), "Hello"_view);
+  ASSERT_TEXT(copied[2].get_view(), "Longer test string"_view);
 }
 
 PERIMORTEM_UNIT_TEST(DynamicMapScalar, size) {
@@ -234,17 +283,15 @@ PERIMORTEM_UNIT_TEST(DynamicMapScalar, size) {
   EXPECT_EQ(empty_map.get_capacity(), 0);
   empty_map.ensure_capacity(10);
   EXPECT_EQ(empty_map.get_capacity(), 16);
-  EXPECT_EQ(empty_map.get_memory_consumption(), 256);
   empty_map.ensure_capacity(100);
   EXPECT_EQ(empty_map.get_capacity(), 128);
-  EXPECT_EQ(empty_map.get_memory_consumption(), 2048);
 }
 
 PERIMORTEM_UNIT_TEST(DynamicMapScalar, reuse) {
   Dynamic::Map<Signed_32, Signed_32, vector_mode> reuse_map;
 
   for (Signed_32 loops = 0; loops < 5; loops++) {
-    reuse_map.reset();
+    reuse_map.clear();
     ASSERT_EQ(reuse_map.get_size(), 0);
 
     for (Count i = 0; i < 100; i++) {
@@ -271,6 +318,8 @@ PERIMORTEM_UNIT_TEST(DynamicMapScalar, leak_test) {
     }
 
     ASSERT_EQ(memory_intensive.get_size(), 100);
+    EXPECT(memory_intensive.remove(source));
+    ASSERT_EQ(memory_intensive.get_size(), 99);
   }
 
   {

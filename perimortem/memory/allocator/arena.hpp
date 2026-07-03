@@ -42,16 +42,23 @@ class Arena {
       fetch_page(bytes_requested);
     }
 
-    // Align the bump pointer to keep data produced aligned.
+    // Align the bump pointer to keep produced data aligned.
     Bits_8* root = rented_block + usage;
     usage = Core::Data::align<arena_alignment>(usage + bytes_requested);
     return root;
   }
 
   // Creates a basic value type object but does not construct it.
-  template <typename T>
-  auto allocate() -> T& {
-    return *Core::Data::cast<T>(allocate(sizeof(T)));
+  template <typename type>
+  auto allocate() -> type& {
+    return *Core::Data::cast<type>(allocate(sizeof(type)));
+  }
+
+  // Creates a basic value type object but does not construct it.
+  template <typename type, typename... arg_types>
+  auto construct(arg_types&&... args) -> type& {
+    Bits_8* ptr = allocate(sizeof(type));
+    return *new (ptr) type(static_cast<arg_types&&>(args)...);
   }
 
   auto reset() -> void;

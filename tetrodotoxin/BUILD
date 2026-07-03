@@ -1,24 +1,83 @@
 """
-Tetordotoxin - A saltless engine language (.ttx)
+Tetrodotoxin - A saltless engine language (.ttx)
 """
 
-load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 
 package(default_visibility = ["//visibility:public"])
 
+# TODO: Move the standard library packages to the right layer.
+# Maybe ttx? Maybe standard or standard_library?
+# ttx_package(
+#     name = "graphics_package",
+#     srcs = [
+#         "packages/graphics/library/sprite.ttx",
+#         "packages/graphics/library/types.ttx",
+#         "packages/graphics/package.ttx",
+#         "packages/graphics/renderers/renderer_2d.ttx",
+#         "packages/graphics/shaders/default_2d.ttx",
+#     ],
+# )
+
+cc_library(
+    name = "isa",
+    srcs = glob([
+        "isa/**/*.cpp",
+    ]),
+    hdrs = glob([
+        "isa/**/*.hpp",
+    ]),
+    includes = ["."],
+    deps = [
+        "//perimortem",
+        "//ttx",
+    ],
+)
+
+cc_library(
+    name = "toolchain",
+    srcs = [
+        "toolchain.cpp",
+    ],
+    hdrs = [
+        "toolchain.hpp",
+    ],
+    includes = ["."],
+    deps = [
+        ":isa",
+        "//perimortem",
+        "//ttx",
+    ],
+)
+
+cc_library(
+    name = "resolution",
+    srcs = [
+        "resolution/resolver.cpp",
+        "resolution/source/cache.cpp",
+    ],
+    hdrs = [
+        "resolution/resolver.hpp",
+        "resolution/source/cache.hpp",
+        "resolution/source/record.hpp",
+    ],
+    includes = ["."],
+    deps = [
+        ":isa",
+        ":toolchain",
+        "//perimortem",
+        "//ttx",
+    ],
+)
+
 cc_library(
     name = "compiler",
     srcs = [
+        "compiler/assembler/spir_v.cpp",
         "compiler/assembler/x86_64.cpp",
-        "compiler/compiler.cpp",
-        "compiler/context/names.cpp",
     ],
     hdrs = glob([
         "compiler/assembler/*.hpp",
-        "compiler/context/*.hpp",
-        "compiler/intermediate/*.hpp",
-        "compiler/*.hpp",
     ]),
     includes = ["."],
     deps = [
@@ -32,55 +91,16 @@ cc_library(
         "linker/linker.cpp",
         "linker/target/elf.cpp",
     ],
-    hdrs = glob([
-        "linker/target/*.hpp",
-        "linker/*.hpp",
-    ]),
+    hdrs = [
+        "linker/linker.hpp",
+        "linker/object/relocation.hpp",
+        "linker/object/section.hpp",
+        "linker/object/symbol.hpp",
+        "linker/target/elf.hpp",
+        "linker/target/format.hpp",
+    ],
     includes = ["."],
     deps = [
-        ":compiler",
-        "//perimortem",
-    ],
-)
-
-# The TTX compiler binary — invoked by Bazel via the ttx_library rule.
-cc_binary(
-    name = "ttx",
-    srcs = ["cli/main.cpp"],
-    deps = [
-        ":compiler",
-        ":linker",
-        "//perimortem",
-    ],
-)
-
-cc_library(
-    name = "lexical",
-    srcs = glob([
-        "lexical/*.cpp",
-    ]),
-    hdrs = glob([
-        "lexical/*.hpp",
-    ]),
-    includes = ["."],
-    deps = [
-        "//perimortem",
-    ],
-)
-
-cc_library(
-    name = "syntax",
-    srcs = glob([
-        "syntax/*.cpp",
-        "syntax/ast/*.cpp",
-    ]),
-    hdrs = glob([
-        "syntax/*.hpp",
-        "syntax/ast/*.hpp",
-    ]),
-    includes = ["."],
-    deps = [
-        ":lexical",
         "//perimortem",
     ],
 )

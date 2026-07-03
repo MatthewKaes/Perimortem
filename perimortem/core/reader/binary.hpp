@@ -8,26 +8,22 @@
 
 namespace Perimortem::Core::Reader {
 
-// Reads typed values from a flat byte buffer with alignment padding between
-// fields.
+// Reads typed values from a dense byte buffer.
 //
-// Each read advances the pointer to the next natural alignment boundary for
-// that type before consuming bytes. Raw-byte reads via read_bytes() bypass
-// alignment and always read from the current position allowing reads from any
-// arbitrary location, however it does not convert the bytes into Native endian
-// and simply returns a View.
+// Each read consumes exactly the bytes for the requested type from the current
+// cursor. The reader never inserts alignment padding, so it can decode packed
+// protocol data and subviews that start at arbitrary byte offsets.
 //
 // On overflow or any failed read the reader enters an invalid state and all
-// subsequent reads return zero-initialized values without advancing the
-// pointer.
+// subsequent reads return zero-initialized values without advancing the cursor.
 template <Data::ByteOrder stream_endian>
 class Binary {
  public:
-  constexpr Binary(View::Bytes source) : data(source) {}
-  constexpr Binary(const Binary& rhs) : data(rhs.data) {}
+  constexpr Binary(View::Bytes source) : source(source) {}
+  constexpr Binary(const Binary& rhs) : source(rhs.source) {}
 
-  // Sets the location of the read pointer.
-  // If the index is out of range the pointer is put to the end of the buffer.
+  // Sets the location of the read cursor.
+  // If the index is out of range the cursor is put to the end of the buffer.
   auto set_pointer(Count location) -> void;
 
   auto read_bits_8() -> Bits_8;
@@ -42,20 +38,20 @@ class Binary {
   auto read_real_64() -> Real_64;
   auto read_bytes(Count count) -> View::Bytes;
 
-  constexpr auto get_size() const -> Count { return data.get_size(); }
-  constexpr auto get_location() const -> Count { return ptr_location; }
+  constexpr auto get_size() const -> Count { return source.get_size(); }
+  constexpr auto get_location() const -> Count { return cursor; }
   constexpr auto is_valid() const -> Bool { return valid_state; }
   constexpr auto is_empty() const -> Bool {
     return get_location() == get_size();
   }
   constexpr auto reset() -> void {
     valid_state = true;
-    ptr_location = 0;
+    cursor = 0;
   }
 
  private:
-  View::Bytes data;
-  Count ptr_location = 0;
+  View::Bytes source;
+  Count cursor = 0;
   Bool valid_state = True;
 };
 

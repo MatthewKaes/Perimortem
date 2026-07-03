@@ -21,7 +21,7 @@ Count root_size = 0;
 
 struct FileStatus {
   Count size_in_bytes = 0;
-  // Modified time in nanoseconds.
+  // Modified time in ns.
   // The granularity actually provided by the clock is system dependant.
   Time modified_time = 0;
   Bool is_file = false;

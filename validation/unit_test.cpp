@@ -55,18 +55,20 @@ static Count not_run_tests = 0;
 static constexpr View::Bytes actual_label = "    ACTUAL = "_view;
 static constexpr View::Bytes expected_label = "  EXPECTED = "_view;
 
-namespace Validation::Test {
-auto capture_sink(Diagnostics::Log::Level level, View::Bytes message) -> void {
+auto Test::capture_sink(
+    Diagnostics::Log::Level level,
+    View::Bytes message,
+    const Diagnostics::Source&) -> void {
   captured_log_level = level;
   captured_log_message_size = message.get_size();
   captured_log_message = message;
 }
 
-auto captured_message() -> View::Bytes {
+auto Test::captured_message() -> View::Bytes {
   return captured_log_message.slice(0, captured_log_message_size);
 }
 
-auto error_contains(View::Bytes message) -> Bool {
+auto Test::error_contains(View::Bytes message) -> Bool {
   if (captured_log_level != Diagnostics::Log::Level::Error) {
     return false;
   }
@@ -74,13 +76,14 @@ auto error_contains(View::Bytes message) -> Bool {
   return Algorithm::search(captured_message(), message) != Count(-1);
 }
 
-auto log_message(View::Bytes file, Count line, View::Bytes msg) -> void {
+auto Test::log_message(View::Bytes file, Count line, View::Bytes message)
+    -> void {
   printf(
       "%.*s:%llu:\n    %.*s\n", (int)file.get_size(), file.get_data(),
-      (unsigned long long)line, (int)msg.get_size(), msg.get_data());
+      (unsigned long long)line, (int)message.get_size(), message.get_data());
 }
 
-auto create(
+auto Test::create(
     const Harness& harness,
     Perimortem::Core::View::Bytes name,
     TestFunc func,
@@ -89,78 +92,79 @@ auto create(
   binary_tests[binary_tests_count++] = {&harness, name, func, file, line};
 }
 
-auto write_label(Bool actual) -> void {
+static auto write_label(Bool actual) -> void {
   auto label = actual ? actual_label : expected_label;
   fwrite(label.get_data(), 1, label.get_size(), stdout);
 }
 
-auto expected(Bool value, Bool actual) -> void {
-  Static::Bytes<32> buf;
-  Writer::Textual text(buf.get_access());
+auto Test::expected(Bool value, Bool actual) -> void {
+  Static::Bytes<32> buffer;
+  Writer::Textual text(buffer.get_access());
   text << (actual ? actual_label : expected_label) << value << "\n"_view;
-  fwrite(buf.get_data(), 1, text.get_location(), stdout);
+  fwrite(buffer.get_data(), 1, text.get_location(), stdout);
 }
 
-auto expected(View::Bytes value, Bool actual) -> void {
+auto Test::expected(View::Bytes value, Bool actual) -> void {
   write_label(actual);
   fwrite(value.get_data(), 1, value.get_size(), stdout);
   putchar('\n');
 }
 
-auto expected(Bits_16 value, Bool actual) -> void {
-  Static::Bytes<32> buf;
-  Writer::Textual text(buf.get_access());
+auto Test::expected(Bits_16 value, Bool actual) -> void {
+  Static::Bytes<32> buffer;
+  Writer::Textual text(buffer.get_access());
   text << (actual ? actual_label : expected_label) << value << "\n"_view;
-  fwrite(buf.get_data(), 1, text.get_location(), stdout);
+  fwrite(buffer.get_data(), 1, text.get_location(), stdout);
 }
 
-auto expected(Bits_32 value, Bool actual) -> void {
-  Static::Bytes<32> buf;
-  Writer::Textual text(buf.get_access());
+auto Test::expected(Bits_32 value, Bool actual) -> void {
+  Static::Bytes<32> buffer;
+  Writer::Textual text(buffer.get_access());
   text << (actual ? actual_label : expected_label) << value << "\n"_view;
-  fwrite(buf.get_data(), 1, text.get_location(), stdout);
+  fwrite(buffer.get_data(), 1, text.get_location(), stdout);
 }
 
-auto expected(Bits_64 value, Bool actual) -> void {
-  Static::Bytes<32> buf;
-  Writer::Textual text(buf.get_access());
+auto Test::expected(Bits_64 value, Bool actual) -> void {
+  Static::Bytes<32> buffer;
+  Writer::Textual text(buffer.get_access());
   text << (actual ? actual_label : expected_label) << value << "\n"_view;
-  fwrite(buf.get_data(), 1, text.get_location(), stdout);
+  fwrite(buffer.get_data(), 1, text.get_location(), stdout);
 }
 
-auto expected(Signed_16 value, Bool actual) -> void {
-  Static::Bytes<32> buf;
-  Writer::Textual text(buf.get_access());
+auto Test::expected(Signed_16 value, Bool actual) -> void {
+  Static::Bytes<32> buffer;
+  Writer::Textual text(buffer.get_access());
   text << (actual ? actual_label : expected_label) << value << "\n"_view;
-  fwrite(buf.get_data(), 1, text.get_location(), stdout);
+  fwrite(buffer.get_data(), 1, text.get_location(), stdout);
 }
 
-auto expected(Signed_32 value, Bool actual) -> void {
-  Static::Bytes<32> buf;
-  Writer::Textual text(buf.get_access());
+auto Test::expected(Signed_32 value, Bool actual) -> void {
+  Static::Bytes<32> buffer;
+  Writer::Textual text(buffer.get_access());
   text << (actual ? actual_label : expected_label) << value << "\n"_view;
-  fwrite(buf.get_data(), 1, text.get_location(), stdout);
+  fwrite(buffer.get_data(), 1, text.get_location(), stdout);
 }
 
-auto expected(Signed_64 value, Bool actual) -> void {
-  Static::Bytes<32> buf;
-  Writer::Textual text(buf.get_access());
+auto Test::expected(Signed_64 value, Bool actual) -> void {
+  Static::Bytes<32> buffer;
+  Writer::Textual text(buffer.get_access());
   text << (actual ? actual_label : expected_label) << value << "\n"_view;
-  fwrite(buf.get_data(), 1, text.get_location(), stdout);
+  fwrite(buffer.get_data(), 1, text.get_location(), stdout);
 }
 
-auto expected(CppSize value, Bool actual) -> void {
+auto Test::expected(CppSize value, Bool actual) -> void {
   expected(Signed_64(value), actual);
 }
 
-auto expected(Real_64 value, Bool actual) -> void {
-  Static::Bytes<48> buf;
-  Writer::Textual text(buf.get_access());
+auto Test::expected(Real_64 value, Bool actual) -> void {
+  Static::Bytes<48> buffer;
+  Writer::Textual text(buffer.get_access());
   text << (actual ? actual_label : expected_label) << value << "\n"_view;
-  fwrite(buf.get_data(), 1, text.get_location(), stdout);
+  fwrite(buffer.get_data(), 1, text.get_location(), stdout);
 }
 
-auto expected_text(View::Bytes value, View::Bytes other, Bool actual) -> void {
+auto Test::expected_text(View::Bytes value, View::Bytes other, Bool actual)
+    -> void {
   write_label(actual);
 
   // Loop over all the bytes and flag any diffs.
@@ -177,15 +181,13 @@ auto expected_text(View::Bytes value, View::Bytes other, Bool actual) -> void {
   putchar('\n');
 }
 
-auto expected_hex(View::Bytes value, Bool actual) -> void {
+auto Test::expected_hex(View::Bytes value, Bool actual) -> void {
   write_label(actual);
   for (Count index = 0; index < value.get_size(); index++) {
     printf("%02X ", value[index]);
   }
   putchar('\n');
 }
-
-}  // namespace Validation::Test
 
 auto output_break() -> void {
   printf(
@@ -241,9 +243,9 @@ int main() {
   const Harness* harness = nullptr;
   for (Count index = 0; index < binary_tests_count; index++) {
     const Instance& test = binary_tests[index];
-    Count name_len = test.name.get_size();
-    if (name_len > longest_test_name) {
-      longest_test_name = name_len;
+    Count name_length = test.name.get_size();
+    if (name_length > longest_test_name) {
+      longest_test_name = name_length;
     }
     if (test.harness != harness) {
       test_suites++;
@@ -292,7 +294,7 @@ int main() {
 
     Time start = Time::now();
     test.func(result);
-    Real_64 test_time_ms = start.measure().convert_to_microseconds();
+    Real_64 test_time_ms = start.measure().convert_to_milliseconds();
 
     harness->teardown();
     Diagnostics::Log::set_sink(Diagnostics::Log::default_sink);

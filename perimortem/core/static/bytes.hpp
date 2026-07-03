@@ -17,7 +17,8 @@ class Bytes {
  public:
   constexpr Bytes() {}
 
-  // Allows direct value initialization: Static::Bytes<3>{0x01, 0x02, 0x03}.
+  // This awful syntax allows cpp to enable direct value initialization:
+  // Static::Bytes<3>{0x01, 0x02, 0x03}.
   template <typename... raw_bytes>
     requires(sizeof...(raw_bytes) == literal_size)
   constexpr Bytes(raw_bytes... values) : source_block{Bits_8(values)...} {}
@@ -33,6 +34,8 @@ class Bytes {
     }
   }
 
+  // Initializes a buffer from a source view, either taking a slice of the data
+  // or zero extending the ouput if the buffer is larger than the input.
   constexpr Bytes(const View::Bytes& source) {
     const Count size = Math::min(literal_size, source.get_size());
     if consteval {
@@ -51,6 +54,7 @@ class Bytes {
     }
   }
 
+  // Allows for generating data that would be a pain to manually write out.
   constexpr Bytes(Bits_8 (*generator)(Count)) {
     for (Count i = 0; i < literal_size; i++) {
       source_block[i] = generator(i);

@@ -1,0 +1,16 @@
+// Perimortem Engine
+// Copyright © Matt Kaes
+dialect : Library;
+
+@public Sampler2D : foreign {
+  external @public func sample[
+    .texture_uv : Vec2D,
+  ] -> [Color];
+}
+
+@public Color : struct {
+  @public r : Real_32;
+  @public g : Real_32;
+  @public b : Real_32;
+  @public a : Real_32;
+}

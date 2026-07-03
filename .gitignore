@@ -7,6 +7,8 @@ MODULE.bazel.lock
 
 # LSP Client
 tetrodotoxin/lsp/client/package-lock.json
+tetrodotoxin/lsp/client/ttx-lang-server
+tetrodotoxin/lsp/client/tsconfig.tsbuildinfo
 tetrodotoxin/lsp/client/*.vsix
 tetrodotoxin/lsp/client/out/*
 tetrodotoxin/lsp/client/node_modules/*
@@ -21,3 +23,5 @@ perf.*
 # Testing locally.
 .scratch/*
 build_trace.data
+post_pass.md
+refactor.md

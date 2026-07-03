@@ -38,27 +38,27 @@ PERIMORTEM_BENCHMARK(SystemUuid, serialize) {
 }
 
 PERIMORTEM_BENCHMARK(SystemUuid, deserialize_uuid) {
-  auto uuid_str = "550e8400-e29b-41d4-a716-446655440000"_bytes;
+  auto uuid_text = "550e8400-e29b-41d4-a716-446655440000"_bytes;
   Count value = 0;
-  Benchmark::prevent_optimization(uuid_str);
+  Benchmark::prevent_optimization(uuid_text);
   for (Count i = 0; i < 1024; i++) {
     Uuid uuid;
-    uuid.deserialize(uuid_str);
+    uuid.deserialize(uuid_text);
     value ^= uuid.get_value()[0];
-    uuid_str[i & 0b11111] += 1;
+    uuid_text[i & 0b11111] += 1;
   }
   Benchmark::prevent_optimization(value);
 }
 
 PERIMORTEM_BENCHMARK(SystemUuid, deserialize_packed) {
-  auto uuid_str = "550e8400e29b41d4a716446655440000"_bytes;
+  auto uuid_text = "550e8400e29b41d4a716446655440000"_bytes;
   Count value = 0;
-  Benchmark::prevent_optimization(uuid_str);
+  Benchmark::prevent_optimization(uuid_text);
   for (Count i = 0; i < 1024; i++) {
     Uuid uuid;
-    uuid.deserialize(uuid_str);
+    uuid.deserialize(uuid_text);
     value ^= uuid.get_value()[0];
-    uuid_str[i & 0b11111] += 1;
+    uuid_text[i & 0b11111] += 1;
   }
   Benchmark::prevent_optimization(value);
 }

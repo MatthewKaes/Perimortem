@@ -10,13 +10,10 @@
 #include "perimortem/core/diagnostics/log.hpp"
 #include "perimortem/core/math.hpp"
 #include "perimortem/core/null_terminated.hpp"
-#include "perimortem/core/writer/textual.hpp"
 
 #include "perimortem/system/compression/deflate.hpp"
 
 #include "perimortem/graphics/image.hpp"
-
-namespace Graphics = Perimortem::Graphics;
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -46,7 +43,7 @@ enum class FilterType : Bits_8 {
 struct ImageInfo {
  public:
   constexpr ImageInfo() = default;
-  constexpr ImageInfo(const Graphics::Image& image) {
+  constexpr ImageInfo(const Perimortem::Graphics::Image& image) {
     Data::write<Data::ByteOrder::Big>(&width, image.get_width());
     Data::write<Data::ByteOrder::Big>(&height, image.get_height());
     bit_depth = 8;
@@ -159,11 +156,9 @@ constexpr auto calculate_crc32(View::Bytes data) -> Bits_32 {
 
 constexpr auto read_chunk(View::Bytes source, Count offset) -> Chunk {
   if (offset + chunk_metadata_size > source.get_size()) [[unlikely]] {
-    Static::Bytes<96> error_buffer;
-    Writer::Textual log_writer(error_buffer.get_access());
-    log_writer << "Png: Chunk at offset "_view << Signed_64(offset)
-               << " truncated before header end"_view;
-    Diagnostics::Log::error(log_writer);
+    Diagnostics::Log::Message<96> error_message(Diagnostics::Log::Level::Error);
+    error_message << "Png: Chunk at offset "_view << Signed_64(offset)
+                  << " truncated before header end"_view;
     return Chunk();
   }
 
@@ -172,12 +167,11 @@ constexpr auto read_chunk(View::Bytes source, Count offset) -> Chunk {
           *Data::cast<Bits_32>(source.get_data() + offset));
 
   if (offset + chunk_metadata_size + length > source.get_size()) [[unlikely]] {
-    Static::Bytes<128> error_buffer;
-    Writer::Textual log_writer(error_buffer.get_access());
-    log_writer << "Png: Chunk at offset "_view << Signed_64(offset)
-               << " with length "_view << Signed_64(length)
-               << " extends past end of stream"_view;
-    Diagnostics::Log::error(log_writer);
+    Diagnostics::Log::Message<128> error_message(
+        Diagnostics::Log::Level::Error);
+    error_message << "Png: Chunk at offset "_view << Signed_64(offset)
+                  << " with length "_view << Signed_64(length)
+                  << " extends past end of stream"_view;
     return Chunk();
   }
 
@@ -194,11 +188,9 @@ constexpr auto read_chunk(View::Bytes source, Count offset) -> Chunk {
           *Data::cast<Bits_32>(source.get_data() + offset + 8 + length));
   Bits_32 actual_crc = calculate_crc32(source.slice(offset + 4, 4 + length));
   if (stored_crc != actual_crc) [[unlikely]] {
-    Static::Bytes<96> error_buffer;
-    Writer::Textual log_writer(error_buffer.get_access());
-    log_writer << "Png: CRC-32 mismatch for chunk '"_view << type.get_view()
-               << "' at offset "_view << Signed_64(offset);
-    Diagnostics::Log::error(log_writer);
+    Diagnostics::Log::Message<96> error_message(Diagnostics::Log::Level::Error);
+    error_message << "Png: CRC-32 mismatch for chunk '"_view << type.get_view()
+                  << "' at offset "_view << Signed_64(offset);
     return Chunk();
   }
 #endif
@@ -264,68 +256,76 @@ constexpr auto paeth_predictor(Static::Vector<Bits_8, 3> pixels) -> Bits_8 {
 // We treat each byte as a signed value and sum the magnitudes as a cheap proxy
 // estimate for compressibility.
 template <Bool first_row>
-auto score_row(View::Bytes current, View::Bytes prev) -> FilterType {
+auto score_row(View::Bytes current_row, View::Bytes previous_row)
+    -> FilterType {
   constexpr auto signed_abs = Math::absolute<Signed_8>;
   constexpr auto filter_count = first_row ? 2 : 5;
+  constexpr auto channel_count =
+      Perimortem::Graphics::Image::get_channel_count();
   Static::Vector<Bits_64, filter_count> scores;
 
-  auto current_data = current.get_data();
-  auto prev_data = prev.get_data();
+  auto current_row_data = current_row.get_data();
+  auto previous_row_data = previous_row.get_data();
 
   // Process the first column of data.
-  for (Count i = 0; i < Graphics::Image::get_channel_count(); i++) {
-    scores[Bits_8(FilterType::None)] += signed_abs(Signed_8(current_data[i]));
-    scores[Bits_8(FilterType::Sub)] += signed_abs(Signed_8(current_data[i]));
+  for (Count i = 0; i < channel_count; i++) {
+    scores[Bits_8(FilterType::None)] +=
+        signed_abs(Signed_8(current_row_data[i]));
+    scores[Bits_8(FilterType::Sub)] +=
+        signed_abs(Signed_8(current_row_data[i]));
 
     if constexpr (!first_row) {
-      Bits_8 up = prev_data[i];
-      scores[Bits_8(FilterType::Up)] += signed_abs(current_data[i] - up);
+      Bits_8 up = previous_row_data[i];
+      scores[Bits_8(FilterType::Up)] += signed_abs(current_row_data[i] - up);
       scores[Bits_8(FilterType::Average)] +=
-          signed_abs(current_data[i] - up / 2);
-      scores[Bits_8(FilterType::Paeth)] += signed_abs(current_data[i] - up);
+          signed_abs(current_row_data[i] - up / 2);
+      scores[Bits_8(FilterType::Paeth)] += signed_abs(current_row_data[i] - up);
     }
   }
 
-  for (Count i = Graphics::Image::get_channel_count(); i < current.get_size();
-       i++) {
-    Bits_8 left = current_data[i - Graphics::Image::get_channel_count()];
-    scores[Bits_8(FilterType::None)] += signed_abs(Signed_8(current_data[i]));
+  for (Count i = channel_count; i < current_row.get_size(); i++) {
+    Bits_8 left = current_row_data[i - channel_count];
+    scores[Bits_8(FilterType::None)] +=
+        signed_abs(Signed_8(current_row_data[i]));
     scores[Bits_8(FilterType::Sub)] +=
-        Math::absolute<Signed_8>(current_data[i] - left);
+        Math::absolute<Signed_8>(current_row_data[i] - left);
     if constexpr (!first_row) {
-      Bits_8 up = prev_data[i];
-      Bits_8 upper_left = prev_data[i - Graphics::Image::get_channel_count()];
-      scores[Bits_8(FilterType::Up)] += signed_abs(current_data[i] - up);
+      Bits_8 up = previous_row_data[i];
+      Bits_8 upper_left = previous_row_data[i - channel_count];
+      scores[Bits_8(FilterType::Up)] += signed_abs(current_row_data[i] - up);
       scores[Bits_8(FilterType::Average)] +=
-          signed_abs(current_data[i] - (Bits_16(left) + Bits_16(up)) / 2);
-      scores[Bits_8(FilterType::Paeth)] +=
-          signed_abs(current_data[i] - paeth_predictor({left, up, upper_left}));
+          signed_abs(current_row_data[i] - (Bits_16(left) + Bits_16(up)) / 2);
+      scores[Bits_8(FilterType::Paeth)] += signed_abs(
+          current_row_data[i] - paeth_predictor({left, up, upper_left}));
     }
   }
 
   return FilterType(Algorithm::min_element<Bits_64>(scores));
 }
 
-// Applies a PNG forward filter to one row of pixels, writing residuals into
-// out. prev is the previous unfiltered row and is empty for the first row.
+// Applies a PNG forward filter to one row of pixels, writing residuals into the
+// output row. previous_row is the previous unfiltered row and is empty for the
+// first row.
 //
-// If prev isn't a valid row then the function will corrupt memory so it's an
-// important precondition to not mess up.
+// If previous_row isn't valid then the function will corrupt memory, so keep
+// the row-size precondition explicit at the call site.
 constexpr auto apply_row_filter(
     FilterType filter_type,
-    Access::Bytes out,
-    View::Bytes current,
-    View::Bytes prev) -> void {
-  Count size = current.get_size();
+    Access::Bytes output_row,
+    View::Bytes current_row,
+    View::Bytes previous_row) -> void {
+  constexpr auto channel_count =
+      Perimortem::Graphics::Image::get_channel_count();
+  Count size = current_row.get_size();
 
-  auto out_data = out.get_data();
-  auto current_data = current.get_data();
-  auto prev_data = prev.get_data();
+  auto output_row_data = output_row.get_data();
+  auto current_row_data = current_row.get_data();
+  auto previous_row_data = previous_row.get_data();
 
 #if PERI_DEBUG
   // All of the buffers should be appropriately sized so just work on the raw
   // data directly since this is hot path code.
-  if (out.get_size() != size || prev.get_size() != size) {
+  if (output_row.get_size() != size || previous_row.get_size() != size) {
     Diagnostics::Log::fatal(
         "PNG: apply_filter_row was called with one or more invalid rows."_view);
     return;
@@ -335,75 +335,76 @@ constexpr auto apply_row_filter(
   // Special case the first pixel in the row
   switch (filter_type) {
   case FilterType::Sub:
-    Data::copy(out_data, current_data, Graphics::Image::get_channel_count());
+    Data::copy(output_row_data, current_row_data, channel_count);
     break;
   case FilterType::Up:
-    for (Count i = 0; i < Graphics::Image::get_channel_count(); i++) {
-      out_data[i] = Bits_8(current_data[i] - prev_data[i]);
+    for (Count i = 0; i < channel_count; i++) {
+      output_row_data[i] = Bits_8(current_row_data[i] - previous_row_data[i]);
     }
     break;
   case FilterType::Average:
-    for (Count i = 0; i < Graphics::Image::get_channel_count(); i++) {
-      out_data[i] = current_data[i] - Bits_8(prev_data[i]) / 2;
+    for (Count i = 0; i < channel_count; i++) {
+      output_row_data[i] =
+          current_row_data[i] - Bits_8(previous_row_data[i]) / 2;
     }
     break;
   case FilterType::Paeth:
-    for (Count i = 0; i < Graphics::Image::get_channel_count(); i++) {
-      out_data[i] =
-          Bits_8(current_data[i] - paeth_predictor({0, prev_data[i], 0}));
+    for (Count i = 0; i < channel_count; i++) {
+      output_row_data[i] = Bits_8(
+          current_row_data[i] - paeth_predictor({0, previous_row_data[i], 0}));
     }
     break;
 
     // Treat default as None for now, but we should most likely log an error.
   case FilterType::None:
   default:
-    Data::copy(out_data, current_data, size);
+    Data::copy(output_row_data, current_row_data, size);
     return;
   }
 
   switch (filter_type) {
   case FilterType::Sub:
-    for (Count i = Graphics::Image::get_channel_count(); i < size; i++) {
-      Bits_8 left = current_data[i - Graphics::Image::get_channel_count()];
-      out_data[i] = Bits_8(current_data[i] - left);
+    for (Count i = channel_count; i < size; i++) {
+      Bits_8 left = current_row_data[i - channel_count];
+      output_row_data[i] = Bits_8(current_row_data[i] - left);
     }
     break;
   case FilterType::Up:
-    for (Count i = Graphics::Image::get_channel_count(); i < size; i++) {
-      out_data[i] = Bits_8(current_data[i] - prev_data[i]);
+    for (Count i = channel_count; i < size; i++) {
+      output_row_data[i] = Bits_8(current_row_data[i] - previous_row_data[i]);
     }
     break;
   case FilterType::Average:
-    for (Count i = Graphics::Image::get_channel_count(); i < size; i++) {
-      Bits_8 left = current_data[i - Graphics::Image::get_channel_count()];
-      Bits_8 up = prev_data[i];
-      out_data[i] =
-          Bits_8(current_data[i] - Bits_8((Bits_32(left) + Bits_32(up)) / 2));
+    for (Count i = channel_count; i < size; i++) {
+      Bits_8 left = current_row_data[i - channel_count];
+      Bits_8 up = previous_row_data[i];
+      output_row_data[i] = Bits_8(
+          current_row_data[i] - Bits_8((Bits_32(left) + Bits_32(up)) / 2));
     }
     break;
   case FilterType::Paeth:
-    for (Count i = Graphics::Image::get_channel_count(); i < size; i++) {
-      Bits_8 left = current_data[i - Graphics::Image::get_channel_count()];
-      Bits_8 up = prev_data[i];
-      Bits_8 upper_left = prev_data[i - Graphics::Image::get_channel_count()];
-      out_data[i] =
-          Bits_8(current_data[i] - paeth_predictor({left, up, upper_left}));
+    for (Count i = channel_count; i < size; i++) {
+      Bits_8 left = current_row_data[i - channel_count];
+      Bits_8 up = previous_row_data[i];
+      Bits_8 upper_left = previous_row_data[i - channel_count];
+      output_row_data[i] =
+          Bits_8(current_row_data[i] - paeth_predictor({left, up, upper_left}));
     }
     break;
 
     // Treat default as None for now, but we should most likely log an error.
   case FilterType::None:
   default:
-    Data::copy(out_data, current_data, size);
+    Data::copy(output_row_data, current_row_data, size);
   }
 }
 
 // Applies adaptive PNG filtering to the source pixels, scoring all five filter
 // types per row and selecting the lowest-residual option.
-constexpr auto apply_adaptive_filtering(const Graphics::Image& image)
-    -> Dynamic::Bytes {
+constexpr auto apply_adaptive_filtering(
+    const Perimortem::Graphics::Image& image) -> Dynamic::Bytes {
   const auto row_stride =
-      Count(image.get_width()) * Graphics::Pixel::get_byte_count();
+      Count(image.get_width()) * Perimortem::Graphics::Pixel::get_byte_count();
   const auto output_size = Count(image.get_height()) * (1 + row_stride);
   const auto raw_bytes = Data::cast<Bits_8>(image.get_pixels().get_data());
 
@@ -412,7 +413,7 @@ constexpr auto apply_adaptive_filtering(const Graphics::Image& image)
   output.forgetful_resize(output_size);
 
   // For the first row can only use one of two filters so simply score those.
-  // We use the current row as the "prev" row since it's not used.
+  // We use the current row as the previous row since it's not used.
   View::Bytes current_row(raw_bytes, row_stride);
   FilterType best_filter = score_row<True>(current_row, current_row);
 
@@ -425,79 +426,83 @@ constexpr auto apply_adaptive_filtering(const Graphics::Image& image)
   // The rest of the rows after the first are scored against all filters.
   for (Count row = 1; row < image.get_height(); row++) {
     // Update the previous and current rows.
-    View::Bytes prev_row = current_row;
+    View::Bytes previous_row = current_row;
     current_row = View::Bytes(raw_bytes + row * row_stride, row_stride);
 
     // Apply the lowest scoring filter to the row so we only write to the output
     // buffer once. This saves a ton of memory traffic as we minimize the number
     // of actual writes.
-    const auto best_filter = score_row<False>(current_row, prev_row);
-    Access::Bytes out_row =
+    const auto best_filter = score_row<False>(current_row, previous_row);
+    Access::Bytes output_row =
         output.get_access().slice(row * (1 + row_stride) + 1, row_stride);
-    apply_row_filter(best_filter, out_row, current_row, prev_row);
+    apply_row_filter(best_filter, output_row, current_row, previous_row);
     output.get_access()[row * (1 + row_stride)] = Bits_8(best_filter);
   }
 
   return output;
 }
 
-// Reconstructs a single filtered row into dst with a minor optimization that
-// statically compiles away usage of the `up` pointer when processing the first
-// row, while guaranteeing that `up` is always valid for the following rows.
+// Reconstructs a single filtered row into output_row with a minor optimization
+// that statically compiles away usage of the previous_row pointer when
+// processing the first row, while guaranteeing that previous_row is always
+// valid for the following rows.
 //
 // The code takes raw Bits_8* pointers and is hand optimized since it's the main
 // hot loop for the load path which is the main use case for production builds.
 template <Bool first_row>
 auto reconstruct_row(
     FilterType filter_type,
-    const Bits_8* src,
-    Bits_8* dst,
-    const Bits_8* up,
+    const Bits_8* filtered_row,
+    Bits_8* output_row,
+    const Bits_8* previous_row,
     Count stride,
     Count bytes_per_pixel) -> Bool {
   switch (filter_type) {
   case FilterType::None:
-    Data::copy(dst, src, stride);
+    Data::copy(output_row, filtered_row, stride);
     break;
 
   case FilterType::Sub:
-    Data::copy(dst, src, bytes_per_pixel);
+    Data::copy(output_row, filtered_row, bytes_per_pixel);
 
     for (Count i = bytes_per_pixel; i < stride; i++) {
-      dst[i] = src[i] + dst[i - bytes_per_pixel];
+      output_row[i] = filtered_row[i] + output_row[i - bytes_per_pixel];
     }
     break;
 
   case FilterType::Up:
     // If we are processing the first row then we can simply copy the data as
-    // the `up` values are saturated to 0.
+    // the previous row values are saturated to 0.
     if constexpr (first_row) {
-      Data::copy(dst, src, stride);
+      Data::copy(output_row, filtered_row, stride);
     } else {
       for (Count i = 0; i < stride; i++) {
-        dst[i] = src[i] + up[i];
+        output_row[i] = filtered_row[i] + previous_row[i];
       }
     }
     break;
 
   case FilterType::Average:
     if constexpr (first_row) {
-      Data::copy(dst, src, bytes_per_pixel);
+      Data::copy(output_row, filtered_row, bytes_per_pixel);
 
       for (Count i = bytes_per_pixel; i < stride; i++) {
-        dst[i] = src[i] + Bits_8(Bits_32(dst[i - bytes_per_pixel]) / 2);
+        output_row[i] = filtered_row[i] +
+                        Bits_8(Bits_32(output_row[i - bytes_per_pixel]) / 2);
       }
     } else {
       // First column
       for (Count i = 0; i < bytes_per_pixel; i++) {
-        dst[i] = src[i] + Bits_8(Bits_32(up[i]) / 2);
+        output_row[i] = filtered_row[i] + Bits_8(Bits_32(previous_row[i]) / 2);
       }
 
       // Rest of the row
       for (Count i = bytes_per_pixel; i < stride; i++) {
-        dst[i] =
-            src[i] +
-            Bits_8((Bits_32(dst[i - bytes_per_pixel]) + Bits_32(up[i])) / 2);
+        output_row[i] =
+            filtered_row[i] + Bits_8(
+                                  (Bits_32(output_row[i - bytes_per_pixel]) +
+                                   Bits_32(previous_row[i])) /
+                                  2);
       }
     }
     break;
@@ -505,31 +510,30 @@ auto reconstruct_row(
   case FilterType::Paeth:
     // For the first row this reduces to Sub.
     if constexpr (first_row) {
-      Data::copy(dst, src, bytes_per_pixel);
+      Data::copy(output_row, filtered_row, bytes_per_pixel);
       for (Count i = bytes_per_pixel; i < stride; i++) {
-        dst[i] = src[i] + dst[i - bytes_per_pixel];
+        output_row[i] = filtered_row[i] + output_row[i - bytes_per_pixel];
       }
     } else {
       // First column
       for (Count i = 0; i < bytes_per_pixel; i++) {
-        dst[i] = src[i] + up[i];
+        output_row[i] = filtered_row[i] + previous_row[i];
       }
 
       // Rest of the row
       for (Count i = bytes_per_pixel; i < stride; i++) {
-        dst[i] = src[i] + paeth_predictor(
-                              {dst[i - bytes_per_pixel], up[i],
-                               up[i - bytes_per_pixel]});
+        output_row[i] = filtered_row[i] +
+                        paeth_predictor(
+                            {output_row[i - bytes_per_pixel], previous_row[i],
+                             previous_row[i - bytes_per_pixel]});
       }
     }
     break;
 
-    // For all unknown values error out.
+  // For all unknown values error out.
   default: {
-    Static::Bytes<64> error_buffer;
-    Writer::Textual log_writer(error_buffer.get_access());
-    log_writer << "Png: Unknown filter type "_view << Bits_32(filter_type);
-    Diagnostics::Log::error(log_writer);
+    Diagnostics::Log::Message<64> error_message(Diagnostics::Log::Level::Error);
+    error_message << "Png: Unknown filter type "_view << Bits_32(filter_type);
     return False;
   }
   }
@@ -545,35 +549,35 @@ constexpr auto reconstruct_filter(
     Access::Bytes output) -> Bool {
   const Count stride = width * bytes_per_pixel;
   const Count row_bytes = 1 + stride;
-  const auto filter_data = filtered_rows.get_data();
-  auto data = output.get_data();
+  const auto filtered_row_data = filtered_rows.get_data();
+  auto output_pixels = output.get_data();
 
   if (filtered_rows.get_size() < row_bytes * height) [[unlikely]] {
-    Static::Bytes<128> error_buffer;
-    Writer::Textual log_writer(error_buffer.get_access());
-    log_writer << "Png: Decompressed size "_view << filtered_rows.get_size()
-               << " is smaller than required "_view << (row_bytes * height)
-               << " bytes for this image"_view;
-    Diagnostics::Log::error(log_writer);
+    Diagnostics::Log::Message<128> error_message(
+        Diagnostics::Log::Level::Error);
+    error_message << "Png: Decompressed size "_view << filtered_rows.get_size()
+                  << " is smaller than required "_view << (row_bytes * height)
+                  << " bytes for this image"_view;
     return False;
   }
 
   // First row compiles away all null checks.
-  FilterType filter_type = FilterType(filter_data[0]);
+  FilterType filter_type = FilterType(filtered_row_data[0]);
   if (!reconstruct_row<True>(
-          filter_type, filter_data + 1, data, nullptr, stride, bytes_per_pixel))
-      [[unlikely]] {
+          filter_type, filtered_row_data + 1, output_pixels, nullptr, stride,
+          bytes_per_pixel)) [[unlikely]] {
     return False;
   }
 
-  // Now that `up` is always valid no runtime null checks needed.
+  // Now that previous_row is always valid no runtime null checks needed.
   for (Count row = 1; row < height; row++) {
-    FilterType filter_type = FilterType(filter_data[row * row_bytes]);
-    const Bits_8* src = filter_data + row * row_bytes + 1;
-    Bits_8* dst = data + row * stride;
-    const Bits_8* up = dst - stride;
+    FilterType filter_type = FilterType(filtered_row_data[row * row_bytes]);
+    const Bits_8* filtered_row = filtered_row_data + row * row_bytes + 1;
+    Bits_8* output_row = output_pixels + row * stride;
+    const Bits_8* previous_row = output_row - stride;
     if (!reconstruct_row<False>(
-            filter_type, src, dst, up, stride, bytes_per_pixel)) [[unlikely]] {
+            filter_type, filtered_row, output_row, previous_row, stride,
+            bytes_per_pixel)) [[unlikely]] {
       return False;
     }
   }
@@ -587,7 +591,7 @@ constexpr auto convert_to_pixels(
     Count height,
     ColorType color_type,
     View::Bytes palette,
-    Dynamic::Vector<Graphics::Pixel>& output) -> Bool {
+    Dynamic::Vector<Perimortem::Graphics::Pixel>& output) -> Bool {
   Count source_channels = number_of_color_channels(color_type);
   if (source_channels == 0) [[unlikely]] {
     return False;
@@ -601,14 +605,14 @@ constexpr auto convert_to_pixels(
     Count source_offset = pixel_index * source_channels;
     switch (color_type) {
     case ColorType::Greyscale:
-      output[pixel_index] = Graphics::Pixel(data[source_offset]);
+      output[pixel_index] = Perimortem::Graphics::Pixel(data[source_offset]);
       break;
     case ColorType::GreyscaleAlpha:
-      output[pixel_index] =
-          Graphics::Pixel(data[source_offset], data[source_offset + 1]);
+      output[pixel_index] = Perimortem::Graphics::Pixel(
+          data[source_offset], data[source_offset + 1]);
       break;
     case ColorType::Rgb:
-      output[pixel_index] = Graphics::Pixel(
+      output[pixel_index] = Perimortem::Graphics::Pixel(
           data[source_offset + 0], data[source_offset + 1],
           data[source_offset + 2]);
       break;
@@ -618,17 +622,16 @@ constexpr auto convert_to_pixels(
 
       // If the color is outside the palette size then error out.
       if (palette_offset + 3 > palette.get_size()) [[unlikely]] {
-        Static::Bytes<128> error_buffer;
-        Writer::Textual log_writer(error_buffer.get_access());
-        log_writer << "Png: Palette index "_view << Bits_32(palette_index)
-                   << " at pixel "_view << Signed_64(pixel_index)
-                   << " exceeds palette size "_view
-                   << Signed_64(palette.get_size() / 3);
-        Diagnostics::Log::error(log_writer);
+        Diagnostics::Log::Message<128> error_message(
+            Diagnostics::Log::Level::Error);
+        error_message << "Png: Palette index "_view << Bits_32(palette_index)
+                      << " at pixel "_view << Signed_64(pixel_index)
+                      << " exceeds palette size "_view
+                      << Signed_64(palette.get_size() / 3);
         return False;
       }
 
-      output[pixel_index] = Graphics::Pixel(
+      output[pixel_index] = Perimortem::Graphics::Pixel(
           palette[palette_offset + 0], palette[palette_offset + 1],
           palette[palette_offset + 2]);
       break;
@@ -663,11 +666,9 @@ constexpr auto read_header(const View::Bytes source) -> ImageInfo {
   auto chunk_tag = source.slice(
       png_signature.get_size() + sizeof(Bits_32), header_tag.get_size());
   if (chunk_tag != "IHDR"_view) [[unlikely]] {
-    Static::Bytes<96> error_buffer;
-    Writer::Textual log_writer(error_buffer.get_access());
-    log_writer << "Png: First chunk must be \"IHDR\". header="_view
-               << chunk_tag;
-    Diagnostics::Log::error(log_writer);
+    Diagnostics::Log::Message<96> error_message(Diagnostics::Log::Level::Error);
+    error_message << "Png: First chunk must be \"IHDR\". header="_view
+                  << chunk_tag;
 
     return ImageInfo();
   }
@@ -682,24 +683,20 @@ constexpr auto read_header(const View::Bytes source) -> ImageInfo {
           .get_data());
 
   // Currently only support 8 bit color depth
-  if (image_info.get_bit_depth() != Graphics::Image::get_color_depth())
-      [[unlikely]] {
-    Static::Bytes<96> error_buffer;
-    Writer::Textual log_writer(error_buffer.get_access());
-    log_writer << "Png: Unsupported bit depth "_view
-               << Bits_32(image_info.get_bit_depth())
-               << " (only 8 bit is supported)"_view;
-    Diagnostics::Log::error(log_writer);
+  if (image_info.get_bit_depth() !=
+      Perimortem::Graphics::Image::get_color_depth()) [[unlikely]] {
+    Diagnostics::Log::Message<96> error_message(Diagnostics::Log::Level::Error);
+    error_message << "Png: Unsupported bit depth "_view
+                  << Bits_32(image_info.get_bit_depth())
+                  << " (only 8 bit is supported)"_view;
 
     return ImageInfo();
   }
 
   const ColorType color_type = image_info.get_color_type();
   if (number_of_color_channels(color_type) == 0) [[unlikely]] {
-    Static::Bytes<96> error_buffer;
-    Writer::Textual log_writer(error_buffer.get_access());
-    log_writer << "Png: Unsupported color type "_view << Bits_32(color_type);
-    Diagnostics::Log::error(log_writer);
+    Diagnostics::Log::Message<96> error_message(Diagnostics::Log::Level::Error);
+    error_message << "Png: Unsupported color type "_view << Bits_32(color_type);
     return ImageInfo();
   }
 
@@ -716,7 +713,7 @@ constexpr auto read_header(const View::Bytes source) -> ImageInfo {
 constexpr auto process_data(
     const ImageInfo info,
     View::Bytes source,
-    View::Bytes palette) -> Graphics::Image {
+    View::Bytes palette) -> Perimortem::Graphics::Image {
   // The exact decompressed size can be derived from the image info so we can
   // use that to preallocate the buffer.
   Count bytes_per_pixel = number_of_color_channels(info.get_color_type());
@@ -725,24 +722,24 @@ constexpr auto process_data(
       /* Extra filter byte per row */ info.get_height();
   Dynamic::Bytes filtered_rows =
       Compression::Deflate::inflate(source, decompressed_capacity);
-  if (filtered_rows.get_size() == 0) [[unlikely]] {
-    return Graphics::Image();
+  if (filtered_rows.is_empty()) [[unlikely]] {
+    return Perimortem::Graphics::Image();
   }
 
   // If the target format is our desired format then we can reconstruct the data
   // in place which saves a copy.
   if (info.get_color_type() == ColorType::Rgba) {
-    Dynamic::Vector<Graphics::Pixel> pixels;
+    Dynamic::Vector<Perimortem::Graphics::Pixel> pixels;
     pixels.forgetful_resize(info.get_width() * info.get_height());
     if (!reconstruct_filter(
             filtered_rows.get_view(), info.get_width(), info.get_height(),
             bytes_per_pixel, pixels.get_access().get_bytes())) [[unlikely]] {
       Diagnostics::Log::error(
           "Png: Filter reconstruction failed — decompressed data may be truncated"_view);
-      return Graphics::Image();
+      return Perimortem::Graphics::Image();
     }
 
-    return Graphics::Image(
+    return Perimortem::Graphics::Image(
         Data::take(pixels), info.get_width(), info.get_height());
   }
 
@@ -756,27 +753,28 @@ constexpr auto process_data(
           bytes_per_pixel, raw_pixels)) [[unlikely]] {
     Diagnostics::Log::error(
         "Png: Filter reconstruction failed — decompressed data may be truncated"_view);
-    return Graphics::Image();
+    return Perimortem::Graphics::Image();
   }
 
   // Convert the arbitrary color format into Pixel's RGBA format.
-  Dynamic::Vector<Graphics::Pixel> pixels;
+  Dynamic::Vector<Perimortem::Graphics::Pixel> pixels;
   if (!convert_to_pixels(
           raw_pixels.get_view(), info.get_width(), info.get_height(),
           info.get_color_type(), palette, pixels)) [[unlikely]] {
     Diagnostics::Log::error("Png: Pixel conversion failed"_view);
-    return Graphics::Image();
+    return Perimortem::Graphics::Image();
   }
 
-  return Graphics::Image(
+  return Perimortem::Graphics::Image(
       Data::take(pixels), info.get_width(), info.get_height());
 }
 
-auto Format::Png::decode(const View::Bytes source) -> Graphics::Image {
+auto Format::Png::decode(const View::Bytes source)
+    -> Perimortem::Graphics::Image {
   // If we can't load the image or if the image is empty then return empty.
   ImageInfo info = read_header(source);
   if (info.get_width() == 0 || info.get_height() == 0) [[unlikely]] {
-    return Graphics::Image();
+    return Perimortem::Graphics::Image();
   }
 
   // For PNGs with a single IDAT chunk (the common case) we hold a view to avoid
@@ -792,7 +790,7 @@ auto Format::Png::decode(const View::Bytes source) -> Graphics::Image {
   while (chunk_offset < source.get_size()) {
     Chunk chunk = read_chunk(source, chunk_offset);
     if (!chunk.get_valid()) [[unlikely]] {
-      return Graphics::Image();
+      return Perimortem::Graphics::Image();
     }
 
     if (chunk.get_type() == "IEND"_view) {
@@ -823,14 +821,15 @@ auto Format::Png::decode(const View::Bytes source) -> Graphics::Image {
 
   if (binary_data.is_empty()) [[unlikely]] {
     Diagnostics::Log::error("Png: No IDAT chunk found or chunk was empty"_view);
-    return Graphics::Image();
+    return Perimortem::Graphics::Image();
   }
 
   return process_data(info, binary_data, palette);
 }
 
-auto Format::Png::encode(const Graphics::Image& image) -> Dynamic::Bytes {
-  View::Vector<Graphics::Pixel> pixels = image.get_pixels();
+auto Format::Png::encode(const Perimortem::Graphics::Image& image)
+    -> Dynamic::Bytes {
+  View::Vector<Perimortem::Graphics::Pixel> pixels = image.get_pixels();
 
   // Ignore empty images
   if (pixels.is_empty()) [[unlikely]] {
@@ -843,7 +842,7 @@ auto Format::Png::encode(const Graphics::Image& image) -> Dynamic::Bytes {
   // Compress using the default compression level for balanced speed vs size.
   Dynamic::Bytes compressed =
       Compression::Deflate::deflate(filtered_rows.get_view());
-  if (compressed.get_size() == 0) [[unlikely]] {
+  if (compressed.is_empty()) [[unlikely]] {
     return Dynamic::Bytes();
   }
 

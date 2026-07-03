@@ -1,0 +1,22 @@
+// Perimortem Engine
+// Copyright © Matt Kaes
+dialect : Package;
+
+import Types : Library = "library/types.ttx";
+import Sprite : Library = "library/sprite.ttx";
+import Render2D : Render = "renderers/renderer_2d.ttx";
+import Default2D : Shader = "shaders/default_2d.ttx";
+
+@package_name = Perimortem::Graphics;
+
+@public Color : alias = Types::Color;
+@public Sampler2D : alias = Types::Sampler2D;
+@public Sprite : alias = Sprite::Sprite;
+
+@public Renderer : Namespace {
+  @public Renderer2D : alias = Render2D::Renderer2D;
+}
+
+@public Shaders : Namespace {
+  @public Default2D : alias = Default2D;
+}

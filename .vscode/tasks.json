@@ -4,6 +4,24 @@
   "version": "2.0.0",
   "tasks": [
     {
+      "label": "Splash Screen Build (Linux)",
+      "type": "shell",
+      "command": "bazel",
+      "problemMatcher": [
+        "$gcc"
+      ],
+      "args": [
+        "build",
+        "//apps:splash_screen",
+        "--config=debug"
+      ],
+      "group": "build",
+      "detail": "Builds the TTX-backed splash screen app.",
+      "presentation": {
+        "clear": true
+      }
+    },
+    {
       "label": "Full Build (Linux) [Debug]",
       "type": "shell",
       "command": "bazel",

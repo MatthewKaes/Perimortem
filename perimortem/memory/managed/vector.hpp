@@ -75,6 +75,7 @@ class Vector {
   constexpr auto operator[](Count index) -> value_type& { return at(index); }
 
   constexpr auto get_size() const -> Count { return size; }
+  constexpr auto is_empty() const -> Bool { return size == 0; }
   constexpr auto get_capacity() const -> Count { return capacity; };
   constexpr auto get_arena() const -> Allocator::Arena& { return arena; }
   constexpr auto get_view() const -> Core::View::Vector<value_type> {

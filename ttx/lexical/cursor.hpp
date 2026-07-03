@@ -1,0 +1,113 @@
+// Perimortem Engine
+// Copyright © Matt Kaes
+
+#pragma once
+
+#include "perimortem/core/view/bytes.hpp"
+#include "perimortem/core/view/vector.hpp"
+
+#include "perimortem/memory/allocator/arena.hpp"
+#include "perimortem/memory/managed/vector.hpp"
+
+#include "ttx/lexical/error.hpp"
+#include "ttx/lexical/tokenizer.hpp"
+
+namespace Ttx::Lexical {
+
+// Cursor is the transient evaluation state over one token stream.
+//
+// It exists to keep ISA evaluation small and regular. Boot evaluates
+// documentation, the required `dialect : Name;` ISA selection instruction, and
+// zero or more imports. After Boot stops, callers can preserve the remaining
+// token view as a cheap continuation for body ISA evaluation. Cursor owns only
+// the current token position and the errors allocated in the provided arena.
+//
+// The cursor sees the token position at the moment a parse expectation fails,
+// so it is the right place to record error facts. The stored Error objects
+// are still presentation neutral and reusable by ISA evaluators that use the
+// same cursor.
+//
+// Error rendering, package resolution, and source record management belong
+// to the layers that have that context. Cursor stays token position plus
+// errors over one token stream.
+class Cursor {
+ public:
+  Cursor(const Lexical::Tokenizer& tokenizer)
+      : tokenizer(tokenizer), errors(error_arena) {};
+
+  constexpr auto current() const -> const Lexical::Token& {
+    return tokenizer.get_tokens().get_data()[index];
+  }
+
+  // Advances at most to the tokenizer's end-of-stream token and returns the
+  // token that was current before advancing.
+  auto consume() -> const Lexical::Token&;
+
+  // Requires the current token to have the expected class. Success consumes and
+  // returns the token. Failure records the provided message and returns null.
+  auto require(Lexical::Class::Type type, Perimortem::Core::View::Bytes message)
+      -> const Lexical::Token*;
+
+  // Emits an error that is about the stream rather than one specific token.
+  auto error(
+      Perimortem::Core::View::Bytes message,
+      Perimortem::Core::View::Bytes hint = ""_view) -> void;
+
+  // Emits an error on the current token.
+  auto token_error(
+      Perimortem::Core::View::Bytes message,
+      Perimortem::Core::View::Bytes hint = ""_view) -> void;
+
+  // Emits an error over an already-known token range.
+  auto range_error(
+      const Lexical::Token& start,
+      const Lexical::Token& end,
+      Perimortem::Core::View::Bytes message,
+      Perimortem::Core::View::Bytes hint = ""_view) -> void;
+
+  // Envelope recovery is intentionally small.
+  //
+  // A malformed import can skip to the next statement so later imports still
+  // report errors in the same pass. A malformed dialect instruction is not
+  // recoverable because it selects the ISA that owns the remaining grammar.
+  auto recover_to_statement() -> void;
+
+  constexpr auto matches(Lexical::Class::Type type) const -> Bool {
+    return current().get_class() == type;
+  }
+
+  // Evaluation errors belong to the cursor because the cursor is the local
+  // token context.
+  //
+  // Boot results, ISA facts, and lowered IR should not copy this into
+  // their own validity state. Tetrodotoxin can inspect the cursor and decide
+  // whether to stop, continue through recoverable errors, or render error
+  // output without caring which ISA phase produced the error.
+  constexpr auto get_errors() const
+      -> Perimortem::Core::View::Vector<Lexical::Error> {
+    return errors.get_view();
+  }
+
+  constexpr auto get_arena() const -> Perimortem::Memory::Allocator::Arena& {
+    return tokenizer.get_arena();
+  }
+  constexpr auto get_source_text() const -> Perimortem::Core::View::Bytes {
+    return tokenizer.get_source_text();
+  }
+  constexpr auto get_source_name() const -> Perimortem::Core::View::Bytes {
+    return tokenizer.get_source_name();
+  }
+
+ private:
+  // Tokenizers only hold structured views over their arena state after
+  // construction, so the cursor keeps a copy and avoids one pointer hop.
+  const Lexical::Tokenizer tokenizer;
+
+  // Cursor errors have their own arena because the token arena may belong to a
+  // record that is destroyed after a failed evaluation.
+  Perimortem::Memory::Allocator::Arena error_arena;
+  Perimortem::Memory::Managed::Vector<Lexical::Error> errors;
+  Count index = 0;
+};
+
+}  // namespace Ttx::Lexical

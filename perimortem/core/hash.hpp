@@ -202,9 +202,13 @@ class Hash {
   constexpr Hash(Bits_16 numeric) : value(hash_numeric(Bits_64(numeric))) {}
   constexpr Hash(Bits_32 numeric) : value(hash_numeric(Bits_64(numeric))) {}
   constexpr Hash(Bits_64 numeric) : value(hash_numeric(Bits_64(numeric))) {}
+  template <typename pointer_type>
+  Hash(pointer_type* pointer)
+      : value(hash_numeric(Bits_64(reinterpret_cast<CppSize>(pointer)))) {}
 
   // Escape constructor for custom types.
   template <typename hashable_type>
+    requires(!__is_pointer(hashable_type))
   constexpr Hash(const hashable_type& obj) {
     value = obj.hash();
   }

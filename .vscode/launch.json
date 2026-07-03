@@ -2,6 +2,27 @@
   "version": "0.2.0",
   "configurations": [
     {
+      "name": "[Apps] Splash Screen (Linux)",
+      "type": "lldb",
+      "request": "launch",
+      "terminal": "integrated",
+      "program": "${workspaceFolder}/.bin/bin/apps/splash_screen",
+      "args": [],
+      "cwd": "${workspaceFolder}",
+      // Why are you like this VSCode???
+      "sourceMap": {
+        "/proc/self/cwd/external/": "${workspaceFolder}/.bin/Perimortem/external/",
+        "/proc/self/cwd/": "${workspaceFolder}"
+      },
+      "initCommands": [
+        "command source '${workspaceFolder}/.vscode/perimortem.lldb'"
+      ],
+      "preLaunchTask": "Splash Screen Build (Linux)",
+      "presentation": {
+        "clear": true
+      }
+    },
+    {
       "name": "[Tests] Perimortem (Linux)",
       "type": "lldb",
       "request": "launch",

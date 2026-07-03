@@ -36,7 +36,7 @@ PERIMORTEM_UNIT_TEST(AlgoSearch, both_empty) {
   EXPECT_EQ(Algorithm::search(""_view, ""_view), Count(0));
 }
 
-PERIMORTEM_UNIT_TEST(AlgoSearch, empty_src) {
+PERIMORTEM_UNIT_TEST(AlgoSearch, empty_source) {
   EXPECT_EQ(Algorithm::search(""_view, "abc"_view), Count(-1));
 }
 
@@ -44,7 +44,7 @@ PERIMORTEM_UNIT_TEST(AlgoSearch, single_byte) {
   EXPECT_EQ(Algorithm::search("a"_view, "a"_view), Count(0));
 }
 
-PERIMORTEM_UNIT_TEST(AlgoSearch, single_byte_not_found) {
+PERIMORTEM_UNIT_TEST(AlgoSearch, missing_single_byte) {
   EXPECT_EQ(Algorithm::search("a"_view, "b"_view), Count(-1));
 }
 
@@ -80,7 +80,7 @@ PERIMORTEM_UNIT_TEST(AlgoSearch, find) {
 
 PERIMORTEM_UNIT_TEST(AlgoSearch, multiple_matches) {
   constexpr auto test_word = "perimortem testing"_view;
-  constexpr Static::Vector<Count, 12> word_locations = {{
+  constexpr Static::Vector<Count, 12> word_locations = {
     12,
     120,
     245,
@@ -93,7 +93,7 @@ PERIMORTEM_UNIT_TEST(AlgoSearch, multiple_matches) {
     690 + test_word.get_size() * 3,
     810,
     830,
-  }};
+  };
 
   Static::Bytes<
       word_locations[word_locations.get_size() - 1] + test_word.get_size() + 1>

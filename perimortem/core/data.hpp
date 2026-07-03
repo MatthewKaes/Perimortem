@@ -121,21 +121,21 @@ constexpr auto
 }
 
 template <ByteOrder source, ByteOrder target, typename storage_type>
-constexpr auto ensure_endian(storage_type bin) -> storage_type {
+constexpr auto ensure_endian(storage_type value) -> storage_type {
   if constexpr (source != target) {
     switch (sizeof(storage_type)) {
     case 1:
-      return bin;
+      return value;
     case 2:
-      return __builtin_bswap16(bin);
+      return __builtin_bswap16(value);
     case 4:
-      return __builtin_bswap32(bin);
+      return __builtin_bswap32(value);
     case 8:
-      return __builtin_bswap64(bin);
+      return __builtin_bswap64(value);
     }
   }
 
-  return bin;
+  return value;
 }
 
 template <ByteOrder target, typename storage_type>
@@ -144,7 +144,7 @@ constexpr auto write(storage_type* dest, storage_type value) -> void {
   Data::copy(reinterpret_cast<Bits_8*>(dest), &value, 1);
 }
 
-// Swaps two objects
+// Swaps two objects using laundering mechanics to avoid intermediary objects.
 // For consteval move constructors are used.
 // For non-consteval a forgetful stack buffer is used to avoid constructing and
 // destructing a temporary or calling any move constructors.

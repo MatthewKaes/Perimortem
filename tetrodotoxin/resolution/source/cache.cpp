@@ -1,0 +1,159 @@
+// Perimortem Engine
+// Copyright © Matt Kaes
+
+#include "tetrodotoxin/resolution/source/cache.hpp"
+
+using namespace Perimortem::Core;
+using namespace Perimortem::Memory;
+using namespace Tetrodotoxin::Resolution;
+
+static auto insert_once(
+    Dynamic::Vector<Source::Record*>& records,
+    Source::Record& record) -> void {
+  if (!records.contains(&record)) {
+    records.insert(&record);
+  }
+}
+
+static auto remove_record(
+    Dynamic::Vector<Source::Record*>& records,
+    const Source::Record& record) -> void {
+  for (Count record_index = 0; record_index < records.get_size();
+       record_index++) {
+    if (records[record_index] == &record) {
+      records.remove(record_index);
+      return;
+    }
+  }
+}
+
+auto Source::Cache::reset() -> void {
+  while (records.get_size() != 0) {
+    remove(*records.get_entry(0)->value);
+  }
+
+  consumers_by_producer.clear();
+  producers_by_consumer.clear();
+}
+
+auto Source::Cache::find(View::Bytes key) -> Source::Record* {
+  return const_cast<Record*>(static_cast<const Cache*>(this)->find(key));
+}
+
+auto Source::Cache::find(View::Bytes key) const -> const Source::Record* {
+  const auto* entry = records.find(key);
+  return entry == nullptr ? nullptr : entry->value;
+}
+
+auto Source::Cache::publish(Record& record) -> Record& {
+  Record* current = find(record.get_source_path());
+  if (current != nullptr && current != &record) {
+    remove(*current);
+  }
+
+  current = find(record.get_import_name());
+  if (current != nullptr && current != &record) {
+    remove(*current);
+  }
+
+  records.insert(record.get_source_path(), &record);
+  if (record.get_import_name() != record.get_source_path()) {
+    records.insert(record.get_import_name(), &record);
+  }
+
+  return record;
+}
+
+auto Source::Cache::remove(View::Bytes key) -> void {
+  auto* entry = records.find(key);
+  if (entry == nullptr) {
+    return;
+  }
+
+  remove(*entry->value);
+}
+
+auto Source::Cache::connect(Record& consumer, Record& producer) -> void {
+  insert_once(consumers_by_producer.at(&producer), consumer);
+  insert_once(producers_by_consumer.at(&consumer), producer);
+}
+
+auto Source::Cache::collect_transitive_consumers(
+    const Record& record,
+    Dynamic::Vector<Record*>& consumers) const -> void {
+  const auto* entry = consumers_by_producer.find(&record);
+  if (entry == nullptr) {
+    return;
+  }
+
+  for (Count consumer_index = 0; consumer_index < entry->value.get_size();
+       consumer_index++) {
+    Record* consumer = entry->value[consumer_index];
+    if (consumers.contains(consumer)) {
+      continue;
+    }
+
+    consumers.insert(consumer);
+    collect_transitive_consumers(*consumer, consumers);
+  }
+}
+
+auto Source::Cache::remove(Record& record) -> void {
+  while (true) {
+    auto* entry = consumers_by_producer.find(&record);
+    if (entry == nullptr || entry->value.get_size() == 0) {
+      break;
+    }
+
+    remove(*entry->value[0]);
+  }
+
+  detach(record);
+  records.remove(record.get_source_path());
+  if (record.get_import_name() != record.get_source_path()) {
+    records.remove(record.get_import_name());
+  }
+  Record::destroy(record);
+}
+
+auto Source::Cache::detach(Record& record) -> void {
+  auto* producers_entry = producers_by_consumer.find(&record);
+  if (producers_entry != nullptr) {
+    Records producers = producers_entry->value;
+    producers_by_consumer.remove(&record);
+
+    for (Count producer_index = 0; producer_index < producers.get_size();
+         producer_index++) {
+      auto* consumers_entry =
+          consumers_by_producer.find(producers[producer_index]);
+      if (consumers_entry == nullptr) {
+        continue;
+      }
+
+      remove_record(consumers_entry->value, record);
+      if (consumers_entry->value.get_size() == 0) {
+        consumers_by_producer.remove(producers[producer_index]);
+      }
+    }
+  }
+
+  auto* consumers_entry = consumers_by_producer.find(&record);
+  if (consumers_entry != nullptr) {
+    Records consumers = consumers_entry->value;
+    consumers_by_producer.remove(&record);
+
+    for (Count consumer_index = 0; consumer_index < consumers.get_size();
+         consumer_index++) {
+      auto* consumer_producers =
+          producers_by_consumer.find(consumers[consumer_index]);
+      if (consumer_producers == nullptr) {
+        continue;
+      }
+
+      remove_record(consumer_producers->value, record);
+      if (consumer_producers->value.get_size() == 0) {
+        producers_by_consumer.remove(consumers[consumer_index]);
+      }
+    }
+  }
+}

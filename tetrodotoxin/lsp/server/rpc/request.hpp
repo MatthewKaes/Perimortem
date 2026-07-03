@@ -25,8 +25,10 @@ class Request {
 
   auto is_valid() const -> Bool;
   auto is_request() const -> Bool;
+  auto has_numeric_id() const -> Bool;
 
   auto get_method() const -> Perimortem::Core::View::Bytes;
+  auto get_id() const -> Signed_64;
   auto get_params() const -> const Perimortem::Serialization::Json::Node&;
   auto get_source() const -> Perimortem::Core::View::Bytes;
   auto get_arena() const -> Perimortem::Memory::Allocator::Arena&;

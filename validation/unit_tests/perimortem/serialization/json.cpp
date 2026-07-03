@@ -148,6 +148,40 @@ PERIMORTEM_UNIT_TEST(SerializationJson, parse_values) {
   EXPECT_TEXT(value.get_string(), ""_view);
 }
 
+PERIMORTEM_UNIT_TEST(SerializationJson, escaped_frames) {
+  Allocator::Arena arena;
+  Json::Node value;
+
+  value.parse(arena, "\"TTX \\\"source\\\" string\""_view);
+  EXPECT_TEXT(value.get_string(), "TTX \\\"source\\\" string"_view);
+
+  value.parse(
+      arena,
+      "{\"text\":\"@stack label : Text = \\\"Icon\\\";\",\"next\":1}"_view);
+  ASSERT(value.is_object());
+  EXPECT_TEXT(
+      value["text"_view].get_string(),
+      "@stack label : Text = \\\"Icon\\\";"_view);
+  EXPECT_EQ(value["next"_view].get_number(), 1);
+
+  value.parse(arena, "{\"text\":\"C:\\\\\",\"next\":1}"_view);
+  ASSERT(value.is_object());
+  EXPECT_TEXT(value["text"_view].get_string(), "C:\\\\"_view);
+  EXPECT_EQ(value["next"_view].get_number(), 1);
+
+  Static::Bytes<6> escaped_quote_path('"', 'C', ':', '\\', '"', '"');
+  Static::Bytes<4> escaped_quote_payload('C', ':', '\\', '"');
+  value.parse(arena, escaped_quote_path);
+  EXPECT_TEXT(value.get_string(), escaped_quote_payload);
+}
+
+PERIMORTEM_UNIT_TEST(SerializationJson, escapes_payloads) {
+  Allocator::Arena arena;
+  Json::Node value("line\n\"title\"\\end"_view);
+
+  EXPECT_TEXT(value.format(arena), "\"line\\n\\\"title\\\"\\\\end\""_view);
+}
+
 PERIMORTEM_UNIT_TEST(SerializationJson, greedy_parse) {
   Allocator::Arena arena;
   Json::Node value;
@@ -402,7 +436,7 @@ PERIMORTEM_UNIT_TEST(SerializationJson, format_number_zero) {
   ASSERT_TEXT(formated, expected);
 }
 
-PERIMORTEM_UNIT_TEST(SerializationJson, construct_existing_node) {
+PERIMORTEM_UNIT_TEST(SerializationJson, existing_node) {
   Allocator::Arena arena;
 
   Managed::Vector<Json::Member> inner(arena);
@@ -437,7 +471,7 @@ PERIMORTEM_UNIT_TEST(SerializationJson, format_null) {
   ASSERT_TEXT(value.format(arena), "{\"a\":1,\"b\":null,\"c\":3}"_view);
 }
 
-PERIMORTEM_UNIT_TEST(SerializationJson, construct_rpc_from_parsed) {
+PERIMORTEM_UNIT_TEST(SerializationJson, rpc_from_parsed) {
   File source;
   ASSERT(source.read("validation/data/json/init_rpc.json"_view));
 

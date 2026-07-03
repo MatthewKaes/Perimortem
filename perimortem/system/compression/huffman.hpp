@@ -62,37 +62,37 @@ class HuffmanTable {
     }
 
     for (Count i = 0; i < code_lengths.get_size(); i++) {
-      Count len = code_lengths[i];
-      if (len > 0) {
-        Count pos = fill_offset[len]++;
-        symbol_map[pos] = Bits_16(i);
+      Count length = code_lengths[i];
+      if (length > 0) {
+        Count position = fill_offset[length]++;
+        symbol_map[position] = Bits_16(i);
         // Store codes in bit-reversed form so the writer can place them
         // directly into the accumulator without a per-symbol reversal.
-        Bits_32 canonical = base_code[len] + Bits_32(pos - base_index[len]);
+        Bits_32 canonical = base_code[length] + Bits_32(position - base_index[length]);
         Bits_32 reversed = 0;
-        for (Count bit = 0; bit < len; bit++) {
+        for (Count bit = 0; bit < length; bit++) {
           reversed = (reversed << 1) | (canonical & 1);
           canonical >>= 1;
         }
 
         encode_codes[i] = reversed;
-        encode_lengths[i] = Bits_8(len);
+        encode_lengths[i] = Bits_8(length);
       }
     }
 
     // Populate 9-bit fast decode table. encode_codes already holds bit-reversed
     // codes, so each entry's stream_bits is just the stored value directly.
     for (Count symbol = 0; symbol < code_lengths.get_size(); symbol++) {
-      Count len = code_lengths[symbol];
-      if (len == 0 || len > fast_bits) {
+      Count length = code_lengths[symbol];
+      if (length == 0 || length > fast_bits) {
         continue;
       }
 
       Bits_32 stream_bits = encode_codes[symbol];
-      Count extensions = fast_table_size >> len;
+      Count extensions = fast_table_size >> length;
       for (Count k = 0; k < extensions; k++) {
-        fast_table[stream_bits | (k << len)] =
-            FastEntry{Bits_16(symbol), Bits_8(len)};
+        fast_table[stream_bits | (k << length)] =
+            FastEntry{Bits_16(symbol), Bits_8(length)};
       }
     }
   }

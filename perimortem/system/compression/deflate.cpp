@@ -9,7 +9,6 @@
 #include "perimortem/core/diagnostics/log.hpp"
 #include "perimortem/core/math.hpp"
 #include "perimortem/core/null_terminated.hpp"
-#include "perimortem/core/writer/textual.hpp"
 
 #include "perimortem/system/compression/bit_stream/reader.hpp"
 #include "perimortem/system/compression/bit_stream/writer.hpp"
@@ -213,22 +212,22 @@ constexpr auto calculate_checksum(View::Bytes data) -> Bits_32 {
   constexpr Count batch_size = 5552;
   Bits_64 s1 = 1;
   Bits_64 s2 = 0;
-  const Bits_8* ptr = data.get_data();
+  const Bits_8* source_pointer = data.get_data();
   Count remaining = data.get_size();
 
   while (remaining >= batch_size) {
     for (Count i = 0; i < batch_size; i++) {
-      s1 += ptr[i];
+      s1 += source_pointer[i];
       s2 += s1;
     }
     s1 %= adler_modulus;
     s2 %= adler_modulus;
-    ptr += batch_size;
+    source_pointer += batch_size;
     remaining -= batch_size;
   }
 
   for (Count i = 0; i < remaining; i++) {
-    s1 += ptr[i];
+    s1 += source_pointer[i];
     s2 += s1;
   }
   s1 %= adler_modulus;
@@ -437,28 +436,28 @@ constexpr auto inflate_dynamic(
   const auto distance_symbols =
       actual_literal_len_lengths.get_view().slice(literal_code_count);
 
-  // Reject over-committed prefix codes: kraft_sum > 2^max_len means at least
+  // Reject over-committed prefix codes: kraft_sum > 2^max_length means at least
   // two codes share a prefix, making decoding ambiguous and the stream invalid
   // per RFC 1951. This strict check ensures Perimortem inflate agrees with
   // every conformant DEFLATE decoder rather than silently tolerating bad
   // tables.
   auto is_valid_kraft = [](View::Vector<Bits_8> lengths) -> Bool {
-    Count max_len = 0;
+    Count max_length = 0;
     for (Count i = 0; i < lengths.get_size(); i++) {
-      if (Count(lengths[i]) > max_len) {
-        max_len = Count(lengths[i]);
+      if (Count(lengths[i]) > max_length) {
+        max_length = Count(lengths[i]);
       }
     }
-    if (max_len == 0) {
+    if (max_length == 0) {
       return True;
     }
     Count kraft = 0;
     for (Count i = 0; i < lengths.get_size(); i++) {
       if (lengths[i] > 0) {
-        kraft += Count(1) << (max_len - Count(lengths[i]));
+        kraft += Count(1) << (max_length - Count(lengths[i]));
       }
     }
-    return kraft <= (Count(1) << max_len);
+    return kraft <= (Count(1) << max_length);
   };
 
   if (!is_valid_kraft(literal_symbols)) [[unlikely]] {
@@ -497,11 +496,10 @@ constexpr auto test_checksum(View::Bytes stream, View::Bytes source) -> Bool {
               source.get_data() + source.get_size() - sizeof(Bits_32)));
 
   if (stream_checksum != checksum) [[unlikely]] {
-    Static::Bytes<128> error_buffer;
-    Writer::Textual error_message(error_buffer);
+    Diagnostics::Log::Message<128> error_message(
+        Diagnostics::Log::Level::Error);
     error_message << "Compression: Adler-32 checksum mismatch. checksum="_view
                   << checksum << " stream_checksum="_view << stream_checksum;
-    Diagnostics::Log::error(error_message);
     return False;
   }
 
@@ -515,18 +513,18 @@ constexpr auto write_lz77_block(
     Compression::BitStream::Writer& writer,
     const Compression::HuffmanTable& literal_table,
     const Compression::HuffmanTable& distance_table) -> void {
-  Count pos = 0;
-  while (pos < source.get_size()) {
-    auto match = lz77.find_match_and_insert(source, pos, search_depth);
+  Count position = 0;
+  while (position < source.get_size()) {
+    auto match = lz77.find_match_and_insert(source, position, search_depth);
 
     if (match.get_length() >= Compression::Lz77::min_match) {
-      const auto& len_encoding = length_encoding_table
+      const auto& length_encoding = length_encoding_table
           [match.get_length() - Compression::Lz77::min_match];
       auto literal_code =
-          literal_table.encode_symbol(len_encoding.get_symbol());
+          literal_table.encode_symbol(length_encoding.get_symbol());
       writer.write_code(literal_code.get_code(), literal_code.get_length());
       writer.write_bits(
-          len_encoding.get_extra_value(), len_encoding.get_extra_bits());
+          length_encoding.get_extra_value(), length_encoding.get_extra_bits());
 
       const auto distance_encoding = encode_distance(match.get_distance());
       auto distance_code =
@@ -535,11 +533,11 @@ constexpr auto write_lz77_block(
       writer.write_bits(
           distance_encoding.get_extra_value(),
           distance_encoding.get_extra_bits());
-      pos += match.get_length();
+      position += match.get_length();
     } else {
-      auto literal_code = literal_table.encode_symbol(Count(source[pos]));
+      auto literal_code = literal_table.encode_symbol(Count(source[position]));
       writer.write_code(literal_code.get_code(), literal_code.get_length());
-      pos++;
+      position++;
     }
   }
 }
@@ -560,43 +558,44 @@ constexpr auto write_deflate_footer(
 constexpr auto rle_encode_code_lengths(
     View::Vector<Bits_8> literal_len_lengths,
     View::Vector<Bits_8> distance_lengths,
-    Static::Vector<RleEntry, 320>& out) -> Count {
-  const Count ll_count = literal_len_lengths.get_size();
-  auto lengths_at = [&](Count idx) -> Bits_8 {
-    return idx < ll_count ? literal_len_lengths[idx]
-                          : distance_lengths[idx - ll_count];
+    Static::Vector<RleEntry, 320>& output) -> Count {
+  const Count literal_length_count = literal_len_lengths.get_size();
+  auto lengths_at = [&](Count index) -> Bits_8 {
+    return index < literal_length_count
+               ? literal_len_lengths[index]
+               : distance_lengths[index - literal_length_count];
   };
 
-  const Count total = ll_count + distance_lengths.get_size();
+  const Count total = literal_length_count + distance_lengths.get_size();
   Count count = 0;
-  Count pos = 0;
-  while (pos < total) {
-    Bits_8 len = lengths_at(pos);
-    if (len == 0) {
+  Count position = 0;
+  while (position < total) {
+    Bits_8 length = lengths_at(position);
+    if (length == 0) {
       Count run = 1;
-      while (pos + run < total && lengths_at(pos + run) == 0 && run < 138) {
+      while (position + run < total && lengths_at(position + run) == 0 && run < 138) {
         run++;
       }
       if (run >= 11) {
-        out[count++] = RleEntry(Bits_8(18), Bits_8(7), Bits_32(run - 11));
+        output[count++] = RleEntry(Bits_8(18), Bits_8(7), Bits_32(run - 11));
       } else if (run >= 3) {
-        out[count++] = RleEntry(Bits_8(17), Bits_8(3), Bits_32(run - 3));
+        output[count++] = RleEntry(Bits_8(17), Bits_8(3), Bits_32(run - 3));
       } else {
         for (Count r = 0; r < run; r++) {
-          out[count++] = RleEntry();
+          output[count++] = RleEntry();
         }
       }
-      pos += run;
+      position += run;
     } else {
-      out[count++] = RleEntry(len, Bits_8(0), Bits_32(0));
-      pos++;
+      output[count++] = RleEntry(length, Bits_8(0), Bits_32(0));
+      position++;
       Count run = 0;
-      while (pos + run < total && lengths_at(pos + run) == len && run < 6) {
+      while (position + run < total && lengths_at(position + run) == length && run < 6) {
         run++;
       }
       if (run >= 3) {
-        out[count++] = RleEntry(Bits_8(16), Bits_8(2), Bits_32(run - 3));
-        pos += run;
+        output[count++] = RleEntry(Bits_8(16), Bits_8(2), Bits_32(run - 3));
+        position += run;
       }
     }
   }
@@ -728,21 +727,21 @@ constexpr auto collect_lz77_tokens(
   // good. Same heuristic as zlib level 6.
   constexpr Count lazy_match_threshold = 32;
 
-  Count pos = 0;
-  while (pos < source.get_size()) {
-    auto match = lz77.find_match_and_insert(source, pos, search_depth);
+  Count position = 0;
+  while (position < source.get_size()) {
+    auto match = lz77.find_match_and_insert(source, position, search_depth);
 
-    // Lazy matching: for short matches, check whether pos+1 yields a longer
-    // one. If so, emit a literal at pos and take the better match from pos+1.
+    // Lazy matching: for short matches, check whether position+1 yields a longer
+    // one. If so, emit a literal at position and take the better match from position+1.
     if (match.get_length() >= Compression::Lz77::min_match &&
         match.get_length() < lazy_match_threshold &&
-        pos + 1 < source.get_size()) {
+        position + 1 < source.get_size()) {
       auto next_match =
-          lz77.find_match_and_insert(source, pos + 1, search_depth);
+          lz77.find_match_and_insert(source, position + 1, search_depth);
       if (next_match.get_length() > match.get_length()) {
-        tokens.insert(Token(Bits_8(source[pos])));
-        literal_len_frequencies[Count(source[pos])]++;
-        pos++;
+        tokens.insert(Token(Bits_8(source[position])));
+        literal_len_frequencies[Count(source[position])]++;
+        position++;
         match = next_match;
       }
     }
@@ -761,16 +760,16 @@ constexpr auto collect_lz77_tokens(
       // positions and the next block's nearest chain entry is match_length
       // bytes back — costing extra bits on the distance code for every
       // subsequent match in a run (e.g., gradient rows after Up filtering).
-      const Count last_pos = pos + match.get_length() - 1;
-      if (last_pos + Compression::Lz77::min_match < source.get_size()) {
-        lz77.insert(source, last_pos);
+      const Count last_position = position + match.get_length() - 1;
+      if (last_position + Compression::Lz77::min_match < source.get_size()) {
+        lz77.insert(source, last_position);
       }
 
-      pos += match.get_length();
+      position += match.get_length();
     } else {
-      tokens.insert(Token(Bits_8(source[pos])));
-      literal_len_frequencies[Count(source[pos])]++;
-      pos++;
+      tokens.insert(Token(Bits_8(source[position])));
+      literal_len_frequencies[Count(source[position])]++;
+      position++;
     }
   }
 }
@@ -783,13 +782,13 @@ constexpr auto emit_lz77_tokens(
   for (Count i = 0; i < tokens.get_size(); i++) {
     const Token& token = tokens[i];
     if (token.is_match()) {
-      const auto& len_encoding = length_encoding_table
+      const auto& length_encoding = length_encoding_table
           [token.get_length() - Compression::Lz77::min_match];
       auto literal_code =
-          literal_table.encode_symbol(len_encoding.get_symbol());
+          literal_table.encode_symbol(length_encoding.get_symbol());
       writer.write_code(literal_code.get_code(), literal_code.get_length());
       writer.write_bits(
-          len_encoding.get_extra_value(), len_encoding.get_extra_bits());
+          length_encoding.get_extra_value(), length_encoding.get_extra_bits());
 
       auto distance_code =
           distance_table.encode_symbol(token.get_distance_symbol());
@@ -805,7 +804,7 @@ constexpr auto emit_lz77_tokens(
 
 constexpr auto deflate_dynamic(View::Bytes source, Count search_depth)
     -> Dynamic::Bytes {
-  if (source.get_size() == 0) {
+  if (source.is_empty()) {
     return deflate_fixed(source, search_depth);
   }
 
@@ -959,12 +958,11 @@ auto Compression::Deflate::deflate(View::Bytes source, Level level)
   case Level::Best:
     return deflate_dynamic(source, best_search_depth);
   default: {
-    Static::Bytes<128> log_buffer;
-    Writer::Textual log_writer(log_buffer.get_access());
-    log_writer << "Compression: unknown compression level "_view
-               << Bits_8(level)
-               << " requested, defaulting to Level::Default (2)";
-    Diagnostics::Log::warning(log_writer);
+    Diagnostics::Log::Message<128> warning_message(
+        Diagnostics::Log::Level::Warning);
+    warning_message << "Compression: unknown compression level "_view
+                    << Bits_8(level)
+                    << " requested, defaulting to Level::Default (2)"_view;
     return deflate_dynamic(source, default_search_depth);
   }
   }

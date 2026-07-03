@@ -33,12 +33,12 @@ class Lz77 {
   Lz77();
 
   auto reset() -> void;
-  auto find_match(Core::View::Bytes source, Count pos, Count depth) const
+  auto find_match(Core::View::Bytes source, Count position, Count depth) const
       -> Match;
-  auto insert(Core::View::Bytes source, Count pos) -> void;
-  // Specialized merged find + insert which inserts pos into the hash chain then
+  auto insert(Core::View::Bytes source, Count position) -> void;
+  // Specialized merged find + insert which inserts position into the hash chain then
   // searches for the best match which avoids reading the hash table twice.
-  auto find_match_and_insert(Core::View::Bytes source, Count pos, Count depth)
+  auto find_match_and_insert(Core::View::Bytes source, Count position, Count depth)
       -> Match;
 
  private:

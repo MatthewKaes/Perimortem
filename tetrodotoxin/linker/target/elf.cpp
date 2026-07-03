@@ -8,18 +8,14 @@
 #include "perimortem/core/null_terminated.hpp"
 #include "perimortem/core/writer/textual.hpp"
 
-#include "tetrodotoxin/compiler/context/relocation.hpp"
-#include "tetrodotoxin/compiler/context/symbol.hpp"
-
 using namespace Perimortem;
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
-using namespace Tetrodotoxin::Linker::Target;
-using namespace Tetrodotoxin::Compiler;
+using namespace Tetrodotoxin::Linker;
 
 // Elf is a little endian format, however the ar format has
-constexpr auto elf_endian = Data::ByteOrder::Little;
-constexpr auto ar_endian = Data::ByteOrder::Big;
+static constexpr auto elf_endian = Data::ByteOrder::Little;
+static constexpr auto ar_endian = Data::ByteOrder::Big;
 
 enum class ObjectType : Bits_16 { Relocatable = 1 };
 enum class Machine : Bits_16 { X86_64 = 62 };
@@ -77,10 +73,10 @@ struct SectionHeader {
 };
 static_assert(sizeof(SectionHeader) == 64);
 
-// The binary layout for Symbol entries.
-// The Compiler format is mostly based on ELF so the two instances are close but
-// we use this instance to streamline serialization.
-struct SymbolEntry {
+// The binary layout for symbol records.
+// The object model uses ELF-compatible values so this wire record can serialize
+// symbols directly without understanding the generator that produced them.
+struct SymbolRecord {
   Bits_32 name_offset;
   Bits_8 info;        // (binding << 4) | type
   Bits_8 visibility;  // STV_DEFAULT = 0
@@ -88,15 +84,15 @@ struct SymbolEntry {
   Bits_64 value;
   Bits_64 size;
 };
-static_assert(sizeof(SymbolEntry) == 24);
+static_assert(sizeof(SymbolRecord) == 24);
 
 // Rela represents relative relocations
-struct RelaEntry {
+struct RelaRecord {
   Bits_64 offset;
   Bits_64 info;  // (symbol_index << 32) | reloc_type
   Signed_64 addend;
 };
-static_assert(sizeof(RelaEntry) == 24);
+static_assert(sizeof(RelaRecord) == 24);
 
 enum class RelocationType : Bits_32 {
   PcRelative32 = 2,
@@ -119,7 +115,7 @@ struct SectionDesc {
 };
 
 struct SymbolRef {
-  const Context::Symbol* symbol;
+  const Object::Symbol* symbol;
   Count original_index;
   Count string_table_offset;
 };
@@ -141,54 +137,55 @@ struct ArHeader {
 };
 static_assert(sizeof(ArHeader) == 60);
 
-auto fill_ar_header(ArHeader& h, View::Bytes name, Bits_64 size) -> void {
-  const Count name_len = name.get_size() < 15 ? name.get_size() : 15;
-  Data::copy(h.name.get_data(), name.get_data(), name_len);
-  h.name[name_len] = '/';
+static auto fill_ar_header(ArHeader& header, View::Bytes name, Bits_64 size)
+    -> void {
+  const Count name_length = name.get_size() < 15 ? name.get_size() : 15;
+  Data::copy(header.name.get_data(), name.get_data(), name_length);
+  header.name[name_length] = '/';
 
-  // Write only the data size, the rest of the fields are default initalized.
-  Writer::Textual(h.data_size.get_access()) << size;
+  // Write only the data size, the rest of the fields are default initialized.
+  Writer::Textual(header.data_size.get_access()) << size;
 }
 
-auto to_section_desc(Format::Section sec) -> SectionDesc {
-  switch (sec.type) {
-  case Context::Symbol::Location::Program:
+static auto to_section_desc(Object::Section section) -> SectionDesc {
+  switch (section.get_type()) {
+  case Object::Section::Type::Program:
     return {
       ".text"_view,
       SectionType::ProgramData,
       Bits_64(SectionFlags::Allocated) | Bits_64(SectionFlags::Executable),
       16,
-      sec.data,
+      section.get_data(),
     };
-  case Context::Symbol::Location::Strings:
+  case Object::Section::Type::Strings:
     return {
       ".rodata.str"_view,
       SectionType::ProgramData,
       Bits_64(SectionFlags::Allocated) | Bits_64(SectionFlags::Mergeable) |
           Bits_64(SectionFlags::Strings),
       1,
-      sec.data,
+      section.get_data(),
     };
-  case Context::Symbol::Location::ReadOnly:
+  case Object::Section::Type::ReadOnly:
     return {
       ".rodata"_view,
       SectionType::ProgramData,
       Bits_64(SectionFlags::Allocated),
       8,
-      sec.data,
+      section.get_data(),
     };
   default:
     return {};
   }
 }
 
-auto sort_symbols(View::Vector<Context::Symbol> symbols)
+static auto sort_symbols(View::Vector<Object::Symbol> symbols)
     -> Dynamic::Vector<SymbolRef> {
   Dynamic::Vector<SymbolRef> sorted;
-  using Vis = Context::Symbol::Visability;
-  for (Count pass = 0; pass <= Count(Vis::Global); pass++) {
+  for (Count pass = 0; pass <= Count(Object::Symbol::Visibility::Global);
+       pass++) {
     for (Count i = 0; i < symbols.get_size(); i++) {
-      if (Count(symbols[i].get_visability()) != pass) {
+      if (Count(symbols[i].get_visibility()) != pass) {
         continue;
       }
       sorted.insert({symbols.get_data() + i, i, 0});
@@ -197,8 +194,9 @@ auto sort_symbols(View::Vector<Context::Symbol> symbols)
   return sorted;
 }
 
-auto find_sorted_position(View::Vector<SymbolRef> sorted, Count original_index)
-    -> Count {
+static auto find_sorted_position(
+    View::Vector<SymbolRef> sorted,
+    Count original_index) -> Count {
   for (Count i = 0; i < sorted.get_size(); i++) {
     if (sorted[i].original_index == original_index) {
       return i;
@@ -207,38 +205,58 @@ auto find_sorted_position(View::Vector<SymbolRef> sorted, Count original_index)
   return 0;
 }
 
-auto build_string_table(Access::Vector<SymbolRef> symbols) -> Dynamic::Bytes {
-  Dynamic::Bytes strtab;
-  strtab.append('\0');
+static auto build_string_table(Access::Vector<SymbolRef> symbols)
+    -> Dynamic::Bytes {
+  Dynamic::Bytes string_table;
+  string_table.append('\0');
   for (Count i = 0; i < symbols.get_size(); i++) {
-    symbols[i].string_table_offset = strtab.get_size();
-    strtab.concat(symbols[i].symbol->get_name());
-    strtab.append('\0');
+    symbols[i].string_table_offset = string_table.get_size();
+    string_table.concat(symbols[i].symbol->get_name());
+    string_table.append('\0');
   }
-  return strtab;
+  return string_table;
 }
 
 // Returns the 1-based ELF section index for a symbol's location, or 0
 // (SHN_UNDEF) if not found.
-auto section_index_for(
-    View::Vector<Format::Section> sections,
-    Context::Symbol::Location loc) -> Bits_16 {
+static auto section_type_for(Object::Symbol::Location location)
+    -> Object::Section::Type {
+  switch (location) {
+  case Object::Symbol::Location::Program:
+    return Object::Section::Type::Program;
+  case Object::Symbol::Location::Strings:
+    return Object::Section::Type::Strings;
+  case Object::Symbol::Location::ReadOnly:
+    return Object::Section::Type::ReadOnly;
+  default:
+    return Object::Section::Type::Invalid;
+  }
+}
+
+static auto section_index_for(
+    View::Vector<Object::Section> sections,
+    Object::Symbol::Location location) -> Bits_16 {
+  const Object::Section::Type type = section_type_for(location);
+  if (type == Object::Section::Type::Invalid) {
+    return 0;
+  }
+
   for (Count i = 0; i < sections.get_size(); i++) {
-    if (sections[i].type == loc) {
+    if (sections[i].get_type() == type) {
       return Bits_16(1 + i);
     }
   }
   return 0;
 }
 
-auto build_symbol_table(
+static auto build_symbol_table(
     View::Vector<SymbolRef> sorted,
-    View::Vector<Format::Section> sections,
+    View::Vector<Object::Section> sections,
     Count& out_first_global) -> Dynamic::Bytes {
   out_first_global = 1;
   for (Count i = 0; i < sorted.get_size(); i++) {
-    if (sorted[i].symbol->get_visability() ==
-        Context::Symbol::Visability::Global) {
+    if (sorted[i].symbol->get_visibility() ==
+        Object::Symbol::Visibility::Global) {
       break;
     }
     out_first_global++;
@@ -246,23 +264,23 @@ auto build_symbol_table(
 
   const Count entry_count = 1 + sorted.get_size();
   Dynamic::Bytes data;
-  data.forgetful_resize(sizeof(SymbolEntry) * entry_count);
-  memset(data.get_access().get_data(), 0, sizeof(SymbolEntry) * entry_count);
-  auto* entries = Data::cast<SymbolEntry>(data.get_access().get_data());
+  data.forgetful_resize(sizeof(SymbolRecord) * entry_count);
+  memset(data.get_access().get_data(), 0, sizeof(SymbolRecord) * entry_count);
+  auto* entries = Data::cast<SymbolRecord>(data.get_access().get_data());
 
   for (Count i = 0; i < sorted.get_size(); i++) {
     const auto& ref = sorted[i];
     const auto& symbol = *ref.symbol;
     auto& entry = entries[1 + i];
     const Bits_8 binding =
-        symbol.get_visability() == Context::Symbol::Visability::Global ? 1 : 0;
+        symbol.get_visibility() == Object::Symbol::Visibility::Global ? 1 : 0;
     Data::write<elf_endian>(
         &entry.name_offset, Bits_32(ref.string_table_offset));
     entry.info = Bits_8((binding << 4) | Bits_8(symbol.get_type()));
     const Bits_16 section_index =
-        symbol.get_context() == Context::Symbol::Location::External
+        symbol.get_location() == Object::Symbol::Location::External
             ? Bits_16(0)
-            : section_index_for(sections, symbol.get_context());
+            : section_index_for(sections, symbol.get_location());
     Data::write<elf_endian>(&entry.section_index, section_index);
     Data::write<elf_endian>(&entry.value, Bits_64(symbol.get_range().start));
     Data::write<elf_endian>(&entry.size, Bits_64(symbol.get_range().size));
@@ -270,32 +288,32 @@ auto build_symbol_table(
   return data;
 }
 
-auto build_relocations(
-    View::Vector<Context::Relocation> relocations,
+static auto build_relocations(
+    View::Vector<Object::Relocation> relocations,
     View::Vector<SymbolRef> sorted) -> Dynamic::Bytes {
   Dynamic::Bytes data;
   if (relocations.get_size() == 0) {
     return data;
   }
-  data.forgetful_resize(sizeof(RelaEntry) * relocations.get_size());
-  auto* entries = Data::cast<RelaEntry>(data.get_access().get_data());
+  data.forgetful_resize(sizeof(RelaRecord) * relocations.get_size());
+  auto* entries = Data::cast<RelaRecord>(data.get_access().get_data());
 
   for (Count i = 0; i < relocations.get_size(); i++) {
     const auto& reloc = relocations[i];
     const Bits_64 symbol_slot =
-        Bits_64(1 + find_sorted_position(sorted, reloc.symbol));
-    const Bits_32 rtype = reloc.type == Context::Relocation::Type::Plt32
+        Bits_64(1 + find_sorted_position(sorted, reloc.get_symbol()));
+    const Bits_32 rtype = reloc.get_type() == Object::Relocation::Type::Plt32
                               ? Bits_32(RelocationType::Plt32)
                               : Bits_32(RelocationType::PcRelative32);
-    Data::write<elf_endian>(&entries[i].offset, Bits_64(reloc.offset));
+    Data::write<elf_endian>(&entries[i].offset, Bits_64(reloc.get_offset()));
     Data::write<elf_endian>(
         &entries[i].info, (symbol_slot << 32) | Bits_64(rtype));
-    Data::write<elf_endian>(&entries[i].addend, Signed_64(reloc.addend));
+    Data::write<elf_endian>(&entries[i].addend, Signed_64(reloc.get_addend()));
   }
   return data;
 }
 
-auto build_section_string_table(Access::Vector<SectionDesc> sections)
+static auto build_section_string_table(Access::Vector<SectionDesc> sections)
     -> Dynamic::Bytes {
   Dynamic::Bytes shstrtab;
   shstrtab.append('\0');
@@ -311,7 +329,7 @@ auto build_section_string_table(Access::Vector<SectionDesc> sections)
   return shstrtab;
 }
 
-auto assign_offsets(Access::Vector<SectionDesc> sections) -> Count {
+static auto assign_offsets(Access::Vector<SectionDesc> sections) -> Count {
   Count offset = sizeof(Header);
   for (Count i = 0; i < sections.get_size(); i++) {
     if (sections[i].data.get_size() == 0) {
@@ -329,25 +347,25 @@ auto assign_offsets(Access::Vector<SectionDesc> sections) -> Count {
   return Data::align<8>(offset);
 }
 
-auto Elf::add_section(Format::Section section) -> void {
+auto Target::Elf::add_section(Object::Section section) -> void {
   sections.insert(section);
 }
 
-auto Elf::add_symbol(Context::Symbol symbol) -> void {
+auto Target::Elf::add_symbol(Object::Symbol symbol) -> void {
   symbols.insert(symbol);
 }
 
-auto Elf::add_relocation(Context::Relocation relocation) -> void {
+auto Target::Elf::add_relocation(Object::Relocation relocation) -> void {
   relocations.insert(relocation);
 }
 
-auto Elf::reset() -> void {
+auto Target::Elf::reset() -> void {
   sections.clear();
   symbols.clear();
   relocations.clear();
 }
 
-auto Elf::write_header(
+auto Target::Elf::write_header(
     Access::Bytes buffer,
     Bits_64 section_offset,
     Bits_16 section_count,
@@ -369,7 +387,7 @@ auto Elf::write_header(
       &header->string_section_index, section_string_table_index);
 }
 
-auto write_section_headers(
+static auto write_section_headers(
     Access::Bytes buffer,
     View::Vector<SectionDesc> section_descriptors) -> void {
   auto* entries = Data::cast<SectionHeader>(buffer.get_data());
@@ -388,8 +406,8 @@ auto write_section_headers(
   }
 }
 
-auto build_section_descriptors(
-    View::Vector<Format::Section> sections,
+static auto build_section_descriptors(
+    View::Vector<Object::Section> sections,
     View::Bytes relocation_data,
     View::Bytes symbol_table,
     View::Bytes string_table,
@@ -413,7 +431,7 @@ auto build_section_descriptors(
       relocation_data,
       Bits_32(symbol_table_index),
       Bits_32(1),
-      sizeof(RelaEntry),
+      sizeof(RelaRecord),
     });
   }
 
@@ -425,7 +443,7 @@ auto build_section_descriptors(
     symbol_table,
     Bits_32(string_table_index),
     Bits_32(first_global),
-    sizeof(SymbolEntry),
+    sizeof(SymbolRecord),
   });
 
   descriptors.insert(
@@ -434,7 +452,7 @@ auto build_section_descriptors(
   return descriptors;
 }
 
-auto Elf::build_object() -> Dynamic::Bytes {
+auto Target::Elf::build_object() -> Dynamic::Bytes {
   auto sorted = sort_symbols(symbols.get_view());
   auto string_table = build_string_table(sorted.get_access());
 
@@ -475,8 +493,8 @@ auto Elf::build_object() -> Dynamic::Bytes {
   Dynamic::Bytes output(file_size);
   output.forgetful_resize(file_size);
   output.set(0);
-  auto buf = output.get_access().get_data();
-  memset(buf, 0, file_size);
+  auto output_bytes = output.get_access().get_data();
+  memset(output_bytes, 0, file_size);
 
   // Write the ELF header
   write_header(
@@ -491,27 +509,26 @@ auto Elf::build_object() -> Dynamic::Bytes {
 
   // Write the actual section data
   for (Count i = 0; i < total; i++) {
-    const auto& d = section_descriptors.get_view()[i];
-    if (d.data.get_size() > 0) {
+    const auto& descriptor = section_descriptors.get_view()[i];
+    if (descriptor.data.get_size() > 0) {
       Data::copy(
-          output.get_access().get_data() + d.file_offset, d.data.get_data(),
-          d.data.get_size());
+          output.get_access().get_data() + descriptor.file_offset,
+          descriptor.data.get_data(), descriptor.data.get_size());
     }
   }
 
   return output;
 }
 
-auto Elf::build_library(View::Bytes object_name) -> Dynamic::Bytes {
+auto Target::Elf::build_library(View::Bytes object_name) -> Dynamic::Bytes {
   Dynamic::Bytes object = build_object();
-  const View::Bytes obj_view = object.get_view();
+  const View::Bytes object_view = object.get_view();
 
   // Add symbol entries into the AR for all globally exported symbols.
   Count exported_count = 0;
   Count exported_names_bytes = 0;
   for (Count i = 0; i < symbols.get_size(); i++) {
-    if (symbols.get_view()[i].get_visability() ==
-        Context::Symbol::Visability::Global) {
+    if (symbols.get_view()[i].get_visibility() == Object::Symbol::Visibility::Global) {
       exported_count++;
       exported_names_bytes += symbols.get_view()[i].get_name().get_size() + 1;
     }
@@ -521,49 +538,53 @@ auto Elf::build_library(View::Bytes object_name) -> Dynamic::Bytes {
   // names.
   const Count symbol_table_size = 4 + 4 * exported_count + exported_names_bytes;
   const Count symbol_table_padded = symbol_table_size + (symbol_table_size & 1);
-  const Count obj_offset = 8 + sizeof(ArHeader) + symbol_table_padded;
-  const Count obj_padded = obj_view.get_size() + (obj_view.get_size() & 1);
-  const Count total = obj_offset + sizeof(ArHeader) + obj_padded;
+  const Count object_offset = 8 + sizeof(ArHeader) + symbol_table_padded;
+  const Count object_padded =
+      object_view.get_size() + (object_view.get_size() & 1);
+  const Count total = object_offset + sizeof(ArHeader) + object_padded;
 
   Dynamic::Bytes output;
   output.forgetful_resize(total);
-  Bits_8* buf = output.get_access().get_data();
-  memset(buf, 0, total);
+  Bits_8* output_bytes = output.get_access().get_data();
+  memset(output_bytes, 0, total);
 
   constexpr auto ar_magic = "!<arch>\n"_view;
-  Data::copy(buf, ar_magic.get_data(), ar_magic.get_size());
+  Data::copy(output_bytes, ar_magic.get_data(), ar_magic.get_size());
   Count cursor = 8;
 
   ArHeader symbol_header;
   fill_ar_header(symbol_header, ""_view, symbol_table_size);
-  Data::copy(buf + cursor, &symbol_header, 1);
+  Data::copy(output_bytes + cursor, &symbol_header, 1);
   cursor += sizeof(ArHeader);
 
-  Bits_8* pos = buf + cursor;
-  Data::write<ar_endian>(Data::cast<Bits_32>(pos), Bits_32(exported_count));
-  pos += 4;
+  Bits_8* write_pointer = output_bytes + cursor;
+  Data::write<ar_endian>(
+      Data::cast<Bits_32>(write_pointer), Bits_32(exported_count));
+  write_pointer += 4;
   for (Count i = 0; i < exported_count; i++) {
-    Data::write<ar_endian>(Data::cast<Bits_32>(pos), Bits_32(obj_offset));
-    pos += 4;
+    Data::write<ar_endian>(
+        Data::cast<Bits_32>(write_pointer), Bits_32(object_offset));
+    write_pointer += 4;
   }
   for (Count i = 0; i < symbols.get_size(); i++) {
     const auto& symbol = symbols.get_view()[i];
-    if (symbol.get_visability() != Context::Symbol::Visability::Global) {
+    if (symbol.get_visibility() != Object::Symbol::Visibility::Global) {
       continue;
     }
     const auto name = symbol.get_name();
-    Data::copy(pos, name.get_data(), name.get_size());
-    pos += name.get_size();
-    *pos++ = '\0';
+    Data::copy(write_pointer, name.get_data(), name.get_size());
+    write_pointer += name.get_size();
+    *write_pointer++ = '\0';
   }
   cursor += symbol_table_padded;
 
   // Write the actual object file into the archive.
   ArHeader object_header;
-  fill_ar_header(object_header, object_name, Bits_64(obj_view.get_size()));
-  Data::copy(buf + cursor, &object_header, 1);
+  fill_ar_header(object_header, object_name, Bits_64(object_view.get_size()));
+  Data::copy(output_bytes + cursor, &object_header, 1);
   cursor += sizeof(ArHeader);
-  Data::copy(buf + cursor, obj_view.get_data(), obj_view.get_size());
+  Data::copy(
+      output_bytes + cursor, object_view.get_data(), object_view.get_size());
 
   return output;
 }

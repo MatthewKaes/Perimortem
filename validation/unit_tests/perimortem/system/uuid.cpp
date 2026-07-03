@@ -44,7 +44,7 @@ PERIMORTEM_UNIT_TEST(SystemUuid, deserialize_bits_64) {
   EXPECT(uuid == uuid_const);
 }
 
-PERIMORTEM_UNIT_TEST(SystemUuid, deserialize_32_nibble) {
+PERIMORTEM_UNIT_TEST(SystemUuid, decode_32_nibble) {
   Uuid uuid("0123456789abcdeffedcba9876543210"_bytes);
   constexpr Uuid uuid_const("0123456789abcdeffedcba9876543210"_bytes);
 

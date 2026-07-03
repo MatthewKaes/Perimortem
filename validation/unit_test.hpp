@@ -18,7 +18,8 @@
 namespace Validation::Test {
 auto capture_sink(
     Perimortem::Core::Diagnostics::Log::Level level,
-    Perimortem::Core::View::Bytes message) -> void;
+    Perimortem::Core::View::Bytes message,
+    const Perimortem::Core::Diagnostics::Source& location) -> void;
 auto captured_message() -> Perimortem::Core::View::Bytes;
 auto error_contains(Perimortem::Core::View::Bytes message) -> Bool;
 
@@ -29,7 +30,6 @@ auto expected(Bits_16 value, Bool actual) -> void;
 auto expected(Bits_32 value, Bool actual) -> void;
 auto expected(Bits_64 value, Bool actual) -> void;
 auto expected(Signed_32 value, Bool actual) -> void;
-auto expected(Signed_32 value, Bool actual) -> void;
 auto expected(Signed_64 value, Bool actual) -> void;
 auto expected(CppSize value, Bool actual) -> void;
 auto expected(Real_64 value, Bool actual) -> void;
@@ -38,8 +38,6 @@ auto expected_text(
     Perimortem::Core::View::Bytes other,
     Bool actual) -> void;
 auto expected_hex(Perimortem::Core::View::Bytes value, Bool actual) -> void;
-
-auto do_nothing() -> void;
 
 enum class TestResult {
   Pass,
@@ -51,7 +49,7 @@ using TestFunc = void (*)(TestResult& result);
 auto log_message(
     Perimortem::Core::View::Bytes file,
     Count line,
-    Perimortem::Core::View::Bytes msg) -> void;
+    Perimortem::Core::View::Bytes message) -> void;
 
 auto create(
     const Harness& harness,
