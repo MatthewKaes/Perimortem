@@ -3,11 +3,13 @@
 
 #include "validation/unit_test.hpp"
 
+#include "perimortem/core/data.hpp"
 #include "perimortem/core/null_terminated.hpp"
 
 #include "perimortem/system/file.hpp"
 
 #include "tetrodotoxin/resolution/resolver.hpp"
+#include "ttx/dialect/package/package.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::System;
@@ -106,6 +108,29 @@ static auto import_count(const Source::Record* record) -> Count {
 static auto import_name(const Source::Record* record, Count index)
     -> View::Bytes {
   return record->get_source().get_imports()[index].get_source_name();
+}
+
+static auto package_body(const Source::Record* record)
+    -> const Ttx::Dialect::Package::Package* {
+  if (record == nullptr) {
+    return nullptr;
+  }
+
+  return Data::cast<Ttx::Dialect::Package::Package>(
+      record->get_dialect_body());
+}
+
+static auto find_export(
+    View::Vector<Ttx::Dialect::Package::Export> exports,
+    View::Bytes name) -> const Ttx::Dialect::Package::Export* {
+  for (Count export_index = 0; export_index < exports.get_size();
+       export_index++) {
+    if (exports[export_index].get_definition().get_name() == name) {
+      return &exports[export_index];
+    }
+  }
+
+  return nullptr;
 }
 
 PERIMORTEM_UNIT_TEST(TtxResolution, package_imports) {
@@ -503,7 +528,7 @@ PERIMORTEM_UNIT_TEST(TtxResolution, package_loading) {
       context, "unit/root.ttx"_view,
       "dialect : Library;\n"
       "import Graphics : Package = Perimortem::Graphics;\n"
-      "@private Default2D : Alias = Graphics::Shaders::Default2D;\n"_view);
+      "@private Default2D : alias = Graphics::Shaders::Default2D;\n"_view);
   ASSERT(root != nullptr);
   EXPECT_NOT(context.has_errors());
   context.reset();
@@ -516,6 +541,38 @@ PERIMORTEM_UNIT_TEST(TtxResolution, package_loading) {
   EXPECT(resolver.resolve(import_name(root, 0)) == graphics);
   EXPECT_NOT(resolver.resolve(
       "perimortem/graphics/shaders/default_2d.ttx"_view));
+
+  const Ttx::Dialect::Package::Package* package = package_body(graphics);
+  ASSERT(package != nullptr);
+  EXPECT_TEXT(package->get_package_name(), "Perimortem::Graphics"_view);
+  ASSERT_EQ(package->get_exports().get_size(), Count(5));
+  const auto* color = find_export(package->get_exports(), "Color"_view);
+  ASSERT(color != nullptr);
+  EXPECT(color->get_definition().is_alias());
+  EXPECT_TEXT(color->get_target().get_text(), "Types::Color"_view);
+
+  const auto* renderer = find_export(package->get_exports(), "Renderer"_view);
+  ASSERT(renderer != nullptr);
+  EXPECT(renderer->get_definition().is_namespace());
+  ASSERT_EQ(renderer->get_exports().get_size(), Count(1));
+  const auto* renderer_2d =
+      find_export(renderer->get_exports(), "Renderer2D"_view);
+  ASSERT(renderer_2d != nullptr);
+  EXPECT(renderer_2d->get_definition().is_alias());
+  EXPECT_TEXT(renderer_2d->get_target().get_text(), "Render2D::Renderer2D"_view);
+
+  const auto* shaders = find_export(package->get_exports(), "Shaders"_view);
+  ASSERT(shaders != nullptr);
+  EXPECT(shaders->get_definition().is_namespace());
+  ASSERT_EQ(shaders->get_exports().get_size(), Count(1));
+  const auto* default_2d =
+      find_export(shaders->get_exports(), "Default2D"_view);
+  ASSERT(default_2d != nullptr);
+  EXPECT(default_2d->get_definition().is_alias());
+  EXPECT_TEXT(default_2d->get_target().get_text(), "Default2D"_view);
+
+  EXPECT_EQ(package->get_types().get_size(), Count(0));
+  EXPECT_NOT(package->find_type("Color"_view));
 
   const Source::Record* record = resolver.resolve("unit/root.ttx"_view);
   ASSERT(record != nullptr);
@@ -556,7 +613,7 @@ PERIMORTEM_UNIT_TEST(TtxResolution, package_chain) {
       context, "packages/user/core/package.ttx"_view,
       "dialect : Package;\n"
       "@package_name = User::Core;\n"
-      "@public Value : Alias = Internal::Value;\n"_view);
+      "@public Value : alias = Internal::Value;\n"_view);
   ASSERT(core != nullptr);
   EXPECT_NOT(context.has_errors());
   context.reset();
@@ -570,12 +627,20 @@ PERIMORTEM_UNIT_TEST(TtxResolution, package_chain) {
   ASSERT(ui != nullptr);
   EXPECT_NOT(context.has_errors());
   context.reset();
+  const auto* ui_package = package_body(ui);
+  ASSERT(ui_package != nullptr);
+  ASSERT_EQ(ui_package->get_exports().get_size(), Count(1));
+  const auto* core_export =
+      find_export(ui_package->get_exports(), "Core"_view);
+  ASSERT(core_export != nullptr);
+  EXPECT(core_export->get_definition().is_package());
+  EXPECT_TEXT(core_export->get_target().get_text(), "Core"_view);
 
   const Source::Record* root = resolver.load_source(
       context, "unit/root.ttx"_view,
       "dialect : Library;\n"
       "import Ui : Package = User::Ui;\n"
-      "@private Value : Alias = Ui::Core::Value;\n"_view);
+      "@private Value : alias = Ui::Core::Value;\n"_view);
   ASSERT(root != nullptr);
   EXPECT_NOT(context.has_errors());
   context.reset();

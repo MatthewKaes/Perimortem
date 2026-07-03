@@ -62,7 +62,7 @@ dialect : Library;
 
 import Graphics : Package = Perimortem::Graphics;
 
-@private Default2D : Alias = Graphics::Shaders::Default2D;
+@private Default2D : alias = Graphics::Shaders::Default2D;
 
 // The rest belongs to the Library dialect.
 ```
@@ -259,7 +259,7 @@ Package imports resolve to package identities and exported objects.
 
 ```ttx
 import Graphics : Package = Perimortem::Graphics;
-@private Default2D : Alias = Graphics::Shaders::Default2D;
+@private Default2D : alias = Graphics::Shaders::Default2D;
 ```
 
 The package path `Perimortem::Graphics` resolves to a package manifest such as:

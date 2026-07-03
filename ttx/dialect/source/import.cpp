@@ -5,6 +5,8 @@
 
 #include "perimortem/core/null_terminated.hpp"
 
+#include "ttx/dialect/symbol_path.hpp"
+
 using namespace Perimortem::Core;
 using namespace Ttx::Lexical;
 using namespace Ttx::Dialect;
@@ -53,31 +55,13 @@ auto Source::Import::parse(Cursor& cursor) -> Source::Import {
 
   case Class::Type::Type: {
     package = True;
-    auto name_start = cursor.require(
-        Class::Type::Type,
-        "Package name should start with a Type name."_view);
-    if (!name_start) {
+    auto path = SymbolPath::parse(cursor);
+    if (!path.is_valid()) {
       cursor.recover_to_statement();
       return Source::Import();
     }
 
-    const Token* name_end = name_start;
-    while (cursor.matches(Class::Type::TypeAccessOp)) {
-      cursor.consume();
-      name_end = cursor.require(
-          Class::Type::Type,
-          "Package name segments should all be Type names."_view);
-      if (!name_end) {
-        cursor.recover_to_statement();
-        return Source::Import();
-      }
-    }
-
-    // Get the text range between tokens.
-    auto start = name_start->get_text();
-    auto end = name_end->get_text();
-    import_name = View::Bytes(
-        start.get_data(), end.get_data() - start.get_data() + end.get_size());
+    import_name = path.get_text();
     break;
   }
 

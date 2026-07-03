@@ -9,6 +9,7 @@
 #include "perimortem/system/path.hpp"
 
 #include "ttx/dialect/lingua_franca.hpp"
+#include "ttx/dialect/package/package.hpp"
 #include "ttx/lexical/cursor.hpp"
 #include "ttx/lexical/tokenizer.hpp"
 
@@ -158,7 +159,8 @@ static auto stack_remove(
 
 static auto is_package_source(const Ttx::Dialect::Source::Source& source)
     -> Bool {
-  return source.get_dialect().get_name() == "Package"_view;
+  return source.get_dialect().get_name() ==
+         Ttx::Dialect::Package::Package::get_name();
 }
 
 static auto is_package_private_path(View::Bytes source_path) -> Bool {
@@ -166,74 +168,6 @@ static auto is_package_private_path(View::Bytes source_path) -> Bool {
   // imports packages by name, then resolves exported symbols through them.
   return starts_with(source_path, "perimortem/"_view);
 }
-
-// Temporary resolver stopgap. Everything in this namespace belongs in the
-// Package dialect once that dialect owns package metadata parsing.
-namespace Package {
-
-static auto parse_symbol_path(Ttx::Lexical::Cursor& cursor) -> View::Bytes {
-  const Ttx::Lexical::Token* first_segment = cursor.require(
-      Ttx::Lexical::Class::Type::Type,
-      "Expected package name to start with a Type name."_view);
-  if (first_segment == nullptr) {
-    return View::Bytes();
-  }
-
-  const Ttx::Lexical::Token* last_segment = first_segment;
-  // The cursor has already tokenized the package file, so a package name can be
-  // returned as one contiguous source view from the first segment through the
-  // final segment instead of copying it into resolver-owned storage.
-  while (cursor.matches(Ttx::Lexical::Class::Type::TypeAccessOp)) {
-    cursor.consume();
-    last_segment = cursor.require(
-        Ttx::Lexical::Class::Type::Type,
-        "Package name segments should all be Type names."_view);
-    if (last_segment == nullptr) {
-      return View::Bytes();
-    }
-  }
-
-  auto start = first_segment->get_text();
-  auto end = last_segment->get_text();
-  return View::Bytes(
-      start.get_data(), end.get_data() - start.get_data() + end.get_size());
-}
-
-static auto parse_package_name(Ttx::Lexical::Cursor& cursor) -> View::Bytes {
-  // Package identity is metadata owned by the Package dialect. The source
-  // envelope parser leaves the cursor at the dialect body, so this scan only
-  // looks for the package-name attribute and ignores other package members.
-  while (!cursor.matches(Ttx::Lexical::Class::Type::EndOfStream)) {
-    const Ttx::Lexical::Token& token = cursor.current();
-    if (token.get_class() != Ttx::Lexical::Class::Type::Attribute ||
-        token.get_text() != "@package_name"_view) {
-      cursor.consume();
-      continue;
-    }
-
-    cursor.consume();
-    if (!cursor.require(
-            Ttx::Lexical::Class::Type::Assign,
-            "Expected `=` after @package_name."_view)) {
-      return View::Bytes();
-    }
-
-    View::Bytes package_name = parse_symbol_path(cursor);
-    if (package_name.is_empty()) {
-      return View::Bytes();
-    }
-
-    cursor.require(
-        Ttx::Lexical::Class::Type::EndStatement,
-        "Expected `;` after package name."_view);
-    return package_name;
-  }
-
-  cursor.error("Package source must declare `@package_name`."_view);
-  return View::Bytes();
-}
-
-}  // namespace Package
 
 auto Resolver::Context::reset() -> void {
   errors.clear();
@@ -373,7 +307,28 @@ auto Resolver::load_source(
 
   Source::Record& record =
       Source::Record::create(source_path, ttx_content, private_source);
-  if (!parse_source(context, record)) {
+  if (!parse_envelope(context, record)) {
+    Source::Record::destroy(record);
+    return nullptr;
+  }
+
+  View::Bytes resolving_key = record.get_source_path();
+  if (stack_contains(resolving, resolving_key)) {
+    add_error(
+        context, record.get_source_path(), record.get_content(),
+        "Import cycle detected while resolving source graph."_view);
+    Source::Record::destroy(record);
+    return nullptr;
+  }
+
+  // `resolving` is the active depth-first path, not cached state. Cycles are
+  // detected before a record is published, which keeps the cache graph acyclic.
+  resolving.insert(Dynamic::Bytes(resolving_key));
+  Dynamic::Vector<Source::Record*> producers;
+  Bool resolved =
+      resolve_imports(context, record, producers, resolving, blocked_sources);
+  stack_remove(resolving, resolving_key);
+  if (!resolved || !parse_body(context, record)) {
     Source::Record::destroy(record);
     return nullptr;
   }
@@ -387,23 +342,12 @@ auto Resolver::load_source(
     sources.remove(record.get_import_name());
   }
 
-  View::Bytes resolving_key = record.get_import_name();
-  if (stack_contains(resolving, resolving_key)) {
-    add_error(
-        context, record.get_source_path(), record.get_content(),
-        "Import cycle detected while resolving source graph."_view);
-    Source::Record::destroy(record);
-    return nullptr;
-  }
-
-  // `resolving` is the active depth-first path, not cached state. Cycles are
-  // detected before a record is published, which keeps the cache graph acyclic.
-  resolving.insert(Dynamic::Bytes(resolving_key));
-  Bool resolved = resolve_imports(context, record, resolving, blocked_sources);
-  stack_remove(resolving, resolving_key);
-  if (!resolved) {
-    Source::Record::destroy(record);
-    return nullptr;
+  // Publishing is the commit point: from here the cache may answer `resolve`
+  // for this path/package name, and the dependency indexes can point at it.
+  sources.publish(record);
+  for (Count producer_index = 0; producer_index < producers.get_size();
+       producer_index++) {
+    sources.connect(record, *producers[producer_index]);
   }
 
   if (!private_source) {
@@ -438,7 +382,7 @@ auto Resolver::load_import(
       return nullptr;
     }
 
-    if (stack_contains(resolving, package_name)) {
+    if (stack_contains(resolving, package_path.get_view())) {
       add_error(
           context, owner.get_source_path(), owner.get_content(),
           "Import cycle detected while resolving source graph."_view);
@@ -521,7 +465,8 @@ auto Resolver::load_import(
   return sources.find(target_path.get_view());
 }
 
-auto Resolver::parse_source(Context& context, Source::Record& record) -> Bool {
+auto Resolver::parse_envelope(Context& context, Source::Record& record)
+    -> Bool {
   // Resolution deliberately parses the Source dialect through the dialect
   // registry. That keeps the resolver consuming the same lingua franca path as
   // other tools instead of constructing source envelopes by hand.
@@ -540,12 +485,6 @@ auto Resolver::parse_source(Context& context, Source::Record& record) -> Bool {
 
   void* parsed_source = source_dialect.get_parser()(cursor);
   auto* source = Data::cast<Ttx::Dialect::Source::Source>(parsed_source);
-  View::Bytes import_name = record.get_source_path();
-  if (source != nullptr && is_package_source(*source)) {
-    // Package sources publish under their declared package name. Regular source
-    // files publish under their normalized path.
-    import_name = Package::parse_package_name(cursor);
-  }
 
   auto parse_errors = cursor.get_errors();
   // Parse diagnostics are copied out before the record can be destroyed on
@@ -555,21 +494,77 @@ auto Resolver::parse_source(Context& context, Source::Record& record) -> Bool {
     context.add_error(parse_errors[error_index]);
   }
 
-  if (source == nullptr || !parse_errors.is_empty() || import_name.is_empty()) {
+  if (source == nullptr || !parse_errors.is_empty()) {
     return False;
   }
 
-  record.publish(*source, import_name);
+  record.set_source(*source);
+  return True;
+}
+
+auto Resolver::parse_body(Context& context, Source::Record& record) -> Bool {
+  // Body dialects are parsed after imports are satisfied. That gives dialects
+  // like Package the correct staging point to bind authored references to real
+  // Ttx::Type addresses instead of inventing a temporary semantic tree.
+  Ttx::Lexical::Tokenizer tokenizer(
+      record.get_arena(), record.get_content(), record.get_source_path());
+  Ttx::Lexical::Cursor cursor(tokenizer);
+  const Ttx::Dialect::LinguaFranca source_dialect =
+      Ttx::Dialect::LinguaFranca::find(
+          Ttx::Dialect::Source::Source::get_name());
+  source_dialect.get_parser()(cursor);
+
+  void* parsed_dialect = nullptr;
+  Bool parsed_dialect_valid = True;
+  View::Bytes import_name = record.get_source_path();
+  const Ttx::Dialect::LinguaFranca body_dialect =
+      Ttx::Dialect::LinguaFranca::find(
+          record.get_source().get_dialect().get_name());
+  if (body_dialect.get_parser() != nullptr) {
+    parsed_dialect = body_dialect.get_parser()(cursor);
+    if (parsed_dialect == nullptr) {
+      parsed_dialect_valid = False;
+    }
+  } else if (is_package_source(record.get_source())) {
+    add_error(
+        context, record.get_source_path(), record.get_content(),
+        "Package dialect is not registered."_view);
+    parsed_dialect_valid = False;
+  }
+
+  if (is_package_source(record.get_source()) && parsed_dialect_valid) {
+    auto* package = Data::cast<Ttx::Dialect::Package::Package>(parsed_dialect);
+    if (package == nullptr || !package->is_valid()) {
+      parsed_dialect_valid = False;
+    } else {
+      // Package sources publish under their declared package name. Regular
+      // source files publish under their normalized path.
+      import_name = package->get_package_name();
+    }
+  }
+
+  auto parse_errors = cursor.get_errors();
+  for (Count error_index = 0; error_index < parse_errors.get_size();
+       error_index++) {
+    context.add_error(parse_errors[error_index]);
+  }
+
+  if (!parsed_dialect_valid || !parse_errors.is_empty() ||
+      import_name.is_empty()) {
+    return False;
+  }
+
+  record.publish(parsed_dialect, import_name);
   return True;
 }
 
 auto Resolver::resolve_imports(
     Context& context,
     Source::Record& record,
+    Dynamic::Vector<Source::Record*>& producers,
     Dynamic::Vector<Dynamic::Bytes>& resolving,
     const Dynamic::Vector<Dynamic::Bytes>* blocked_sources) -> Bool {
   Bool resolved = True;
-  Dynamic::Vector<Source::Record*> producers;
 
   auto requested_imports = record.get_source().get_imports();
   // Evaluate every requested import so a single load reports as much of the
@@ -600,15 +595,6 @@ auto Resolver::resolve_imports(
 
   if (!resolved) {
     return False;
-  }
-
-  // Publishing is the commit point: from here the cache may answer `resolve`
-  // for this path/package name, and the dependency indexes can point at it.
-  sources.publish(record);
-
-  for (Count producer_index = 0; producer_index < producers.get_size();
-       producer_index++) {
-    sources.connect(record, *producers[producer_index]);
   }
 
   return True;

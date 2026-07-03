@@ -40,10 +40,14 @@ class Record {
   Record(const Record&) = delete;
   auto operator=(const Record&) -> Record& = delete;
 
-  auto publish(
-      Ttx::Dialect::Source::Source& source,
-      Perimortem::Core::View::Bytes import_name) -> void {
+  auto set_source(Ttx::Dialect::Source::Source& source) -> void {
     source_info = &source;
+  }
+
+  auto publish(
+      void* dialect_body,
+      Perimortem::Core::View::Bytes import_name) -> void {
+    this->dialect_body = dialect_body;
     if (!(this->import_name == import_name)) {
       this->import_name = import_name;
     }
@@ -67,6 +71,9 @@ class Record {
   constexpr auto get_source() const -> const Ttx::Dialect::Source::Source& {
     return *source_info;
   }
+  constexpr auto get_dialect_body() const -> const void* {
+    return dialect_body;
+  }
   constexpr auto is_private() const -> Bool { return private_source; }
 
  private:
@@ -84,6 +91,7 @@ class Record {
   Perimortem::Memory::Dynamic::Bytes import_name;
   Perimortem::Memory::Dynamic::Bytes source_text;
   Ttx::Dialect::Source::Source* source_info = nullptr;
+  void* dialect_body = nullptr;
   Bool private_source = False;
 };
 

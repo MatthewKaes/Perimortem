@@ -86,10 +86,12 @@ class Resolver {
       const Perimortem::Memory::Dynamic::Vector<
           Perimortem::Memory::Dynamic::Bytes>* blocked_sources)
       -> Source::Record*;
-  auto parse_source(Context& context, Source::Record& record) -> Bool;
+  auto parse_envelope(Context& context, Source::Record& record) -> Bool;
+  auto parse_body(Context& context, Source::Record& record) -> Bool;
   auto resolve_imports(
       Context& context,
       Source::Record& record,
+      Perimortem::Memory::Dynamic::Vector<Source::Record*>& producers,
       Perimortem::Memory::Dynamic::Vector<Perimortem::Memory::Dynamic::Bytes>&
           resolving,
       const Perimortem::Memory::Dynamic::Vector<
