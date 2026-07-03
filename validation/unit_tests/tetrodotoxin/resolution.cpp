@@ -51,13 +51,13 @@ static Harness TtxResolution = {
 static constexpr View::Bytes library_source = "dialect : Library;\n"_view;
 static constexpr View::Bytes memory_a_source =
     "dialect : Library;\n"
-    "import B : Library = (.source = \"b.ttx\");\n"_view;
+    "import B : Library = \"b.ttx\";\n"_view;
 static constexpr View::Bytes memory_b_cycle_source =
     "dialect : Library;\n"
-    "import A : Library = (.source = \"a.ttx\");\n"_view;
+    "import A : Library = \"a.ttx\";\n"_view;
 static constexpr View::Bytes memory_c_source =
     "dialect : Library;\n"
-    "import A : Library = (.source = \"a.ttx\");\n"_view;
+    "import A : Library = \"a.ttx\";\n"_view;
 
 static auto write_source(View::Bytes source_path, View::Bytes source) -> Bool {
   File file;
@@ -99,26 +99,34 @@ static auto has_error(
   return False;
 }
 
+static auto import_count(const Source::Record* record) -> Count {
+  return record->get_source().get_imports().get_size();
+}
+
+static auto import_name(const Source::Record* record, Count index)
+    -> View::Bytes {
+  return record->get_source().get_imports()[index].get_source_name();
+}
+
 PERIMORTEM_UNIT_TEST(TtxResolution, package_imports) {
   Resolver resolver;
   Resolver::Context context;
 
-  const Ttx::Source* root_source = resolver.load_source(
+  const Source::Record* root_record = resolver.load_source(
       context, "unit/root.ttx"_view,
       "dialect : Library;\n"
       "import Graphics : Package = TTX::Graphics;\n"_view);
-  ASSERT(root_source != nullptr);
+  ASSERT(root_record != nullptr);
   EXPECT_NOT(context.has_errors());
-  EXPECT_EQ(root_source->get_imports().get_size(), Count(1));
+  EXPECT_EQ(import_count(root_record), Count(1));
   context.reset();
 
-  const Ttx::Source* package_source = resolver.resolve("TTX::Graphics"_view);
-  ASSERT(package_source != nullptr);
-  EXPECT_EQ(package_source->get_imports().get_size(), Count(4));
+  const Source::Record* package_record = resolver.resolve("TTX::Graphics"_view);
+  ASSERT(package_record != nullptr);
+  EXPECT_EQ(import_count(package_record), Count(4));
 
-  EXPECT(
-      resolver.resolve(root_source->get_imports()[0].get_source_name()) ==
-      package_source);
+  EXPECT_TEXT(import_name(root_record, 0), "TTX::Graphics"_view);
+  EXPECT(resolver.resolve(import_name(root_record, 0)) == package_record);
   EXPECT_NOT(resolver.resolve("TTX.Graphics"_view));
   EXPECT_NOT(resolver.resolve(
       "tetrodotoxin/packages/graphics/shaders/default_2d.ttx"_view));
@@ -131,8 +139,8 @@ PERIMORTEM_UNIT_TEST(TtxResolution, missing_imports) {
   EXPECT_NOT(resolver.load_source(
       context, "unit/root.ttx"_view,
       "dialect : Library;\n"
-      "import MissingA : Library = (.source = \"missing_a.ttx\");\n"
-      "import MissingB : Library = (.source = \"missing_b.ttx\");\n"_view));
+      "import MissingA : Library = \"missing_a.ttx\";\n"
+      "import MissingB : Library = \"missing_b.ttx\";\n"_view));
 
   ASSERT_EQ(context.get_errors().get_size(), Count(2));
   EXPECT(has_error(
@@ -145,6 +153,26 @@ PERIMORTEM_UNIT_TEST(TtxResolution, missing_imports) {
 
   EXPECT_NOT(resolver.resolve("unit/root.ttx"_view));
   EXPECT_NOT(context.has_errors());
+}
+
+PERIMORTEM_UNIT_TEST(TtxResolution, path_slashes) {
+  Resolver resolver;
+  Resolver::Context context;
+  EXPECT_NOT(
+      resolver.load_source(context, "unit\\root.ttx"_view, library_source));
+  EXPECT(first_error_is(
+      context, "unit\\root.ttx"_view,
+      "File paths must use `/` separators."_view));
+  context.reset();
+
+  EXPECT_NOT(resolver.load_source(
+      context, "unit/root.ttx"_view,
+      "dialect : Library;\n"
+      "import Bad : Library = \"bad\\dep.ttx\";\n"_view));
+  EXPECT(first_error_is(
+      context, "unit/root.ttx"_view,
+      "File paths must use `/` separators."_view));
+  EXPECT_NOT(resolver.resolve("unit/root.ttx"_view));
 }
 
 PERIMORTEM_UNIT_TEST(TtxResolution, parse_error_retry) {
@@ -163,10 +191,11 @@ PERIMORTEM_UNIT_TEST(TtxResolution, parse_error_retry) {
   EXPECT(resolver.resolve("unit/root.ttx"_view));
   EXPECT_NOT(context.has_errors());
 
-  const Ttx::Source* source =
+  const Source::Record* record =
       resolver.load_source(context, "unit/memory.ttx"_view, library_source);
-  ASSERT(source != nullptr);
-  EXPECT_TEXT(source->get_source(), library_source);
+  ASSERT(record != nullptr);
+  EXPECT_TEXT(record->get_source().get_dialect().get_name(), "Library"_view);
+  EXPECT_EQ(import_count(record), Count(0));
 }
 
 PERIMORTEM_UNIT_TEST(TtxResolution, dialect_mismatch) {
@@ -179,7 +208,7 @@ PERIMORTEM_UNIT_TEST(TtxResolution, dialect_mismatch) {
   EXPECT_NOT(resolver.load_source(
       context, "unit/root.ttx"_view,
       "dialect : Library;\n"
-      "import Target : Shader = (.source = \"target.ttx\");\n"_view));
+      "import Target : Shader = \"target.ttx\";\n"_view));
 
   EXPECT(first_error_is(
       context, "unit/root.ttx"_view,
@@ -224,7 +253,7 @@ PERIMORTEM_UNIT_TEST(TtxResolution, memory_only_cache) {
   EXPECT(resolver.resolve("unit/b.ttx"_view));
 
   // A can now load into memory since we have a valid B.
-  const Ttx::Source* a =
+  const Source::Record* a =
       resolver.load_source(context, "unit/a.ttx"_view, memory_a_source);
   ASSERT(a != nullptr);
   EXPECT_NOT(context.has_errors());
@@ -232,12 +261,10 @@ PERIMORTEM_UNIT_TEST(TtxResolution, memory_only_cache) {
 
   EXPECT(resolver.resolve("unit/a.ttx"_view) == a);
   EXPECT(resolver.resolve("unit/b.ttx"_view));
-  EXPECT(
-      resolver.resolve(a->get_imports()[0].get_source_name()) ==
-      resolver.resolve("unit/b.ttx"_view));
+  EXPECT_TEXT(import_name(a, 0), "b.ttx"_view);
 
   // Load a third library that depends on B transitively through A.
-  const Ttx::Source* c =
+  const Source::Record* c =
       resolver.load_source(context, "unit/c.ttx"_view, memory_c_source);
   ASSERT(c != nullptr);
   EXPECT_NOT(context.has_errors());
@@ -246,13 +273,11 @@ PERIMORTEM_UNIT_TEST(TtxResolution, memory_only_cache) {
   EXPECT(resolver.resolve("unit/a.ttx"_view));
   EXPECT(resolver.resolve("unit/b.ttx"_view));
   EXPECT(resolver.resolve("unit/c.ttx"_view) == c);
-  EXPECT(
-      resolver.resolve(c->get_imports()[0].get_source_name()) ==
-      resolver.resolve("unit/a.ttx"_view));
+  EXPECT_TEXT(import_name(c, 0), "a.ttx"_view);
 
   // Update B to be a shader. Since A depends on B it will need to reevaluate
   // if it's still valid. B is still a valid source, but A and C are removed.
-  const Ttx::Source* shader_b = resolver.load_source(
+  const Source::Record* shader_b = resolver.load_source(
       context, "unit/b.ttx"_view, "dialect : Shader;\n"_view);
   ASSERT(shader_b != nullptr);
   EXPECT(has_error(
@@ -302,7 +327,7 @@ PERIMORTEM_UNIT_TEST(TtxResolution, break_cached) {
   EXPECT(resolver.resolve("unit/b.ttx"_view));
 
   // A can now load into memory since we have a valid B.
-  const Ttx::Source* a =
+  const Source::Record* a =
       resolver.load_source(context, "unit/a.ttx"_view, memory_a_source);
   ASSERT(a != nullptr);
   EXPECT_NOT(context.has_errors());
@@ -312,7 +337,7 @@ PERIMORTEM_UNIT_TEST(TtxResolution, break_cached) {
   EXPECT(resolver.resolve("unit/b.ttx"_view));
 
   // Load a third library that depends on B transitively through A.
-  const Ttx::Source* c =
+  const Source::Record* c =
       resolver.load_source(context, "unit/c.ttx"_view, memory_c_source);
   ASSERT(c != nullptr);
   EXPECT_NOT(context.has_errors());
@@ -321,9 +346,7 @@ PERIMORTEM_UNIT_TEST(TtxResolution, break_cached) {
   EXPECT(resolver.resolve("unit/a.ttx"_view));
   EXPECT(resolver.resolve("unit/b.ttx"_view));
   EXPECT(resolver.resolve("unit/c.ttx"_view) == c);
-  EXPECT(
-      resolver.resolve(c->get_imports()[0].get_source_name()) ==
-      resolver.resolve("unit/a.ttx"_view));
+  EXPECT_TEXT(import_name(c, 0), "a.ttx"_view);
 
   // A broken producer is removed, and every cached consumer that depends on it
   // is removed with it.
@@ -343,29 +366,29 @@ PERIMORTEM_UNIT_TEST(TtxResolution, disk_chain) {
   ASSERT(write_source(
       disk_root,
       "dialect : Library;\n"
-      "import Dep1 : Library = (.source = \"ttx_res_disk_dep1.ttx\");\n"
-      "import Dep2 : Library = (.source = \"ttx_res_disk_dep2.ttx\");\n"_view));
+      "import Dep1 : Library = \"ttx_res_disk_dep1.ttx\";\n"
+      "import Dep2 : Library = \"ttx_res_disk_dep2.ttx\";\n"_view));
   ASSERT(write_source(disk_dep1, library_source));
   ASSERT(write_source(
       disk_dep2,
       "dialect : Library;\n"
-      "import Dep1 : Library = (.source = \"ttx_res_disk_dep1.ttx\");\n"_view));
+      "import Dep1 : Library = \"ttx_res_disk_dep1.ttx\";\n"_view));
 
-  const Ttx::Source* root = resolver.load_source(context, disk_root);
+  const Source::Record* root = resolver.load_source(context, disk_root);
   ASSERT(root != nullptr);
   EXPECT_NOT(context.has_errors());
   context.reset();
 
   EXPECT(resolver.resolve(disk_root) == root);
-  const Ttx::Source* dep1 = resolver.resolve(disk_dep1);
-  const Ttx::Source* dep2 = resolver.resolve(disk_dep2);
+  const Source::Record* dep1 = resolver.resolve(disk_dep1);
+  const Source::Record* dep2 = resolver.resolve(disk_dep2);
   ASSERT(dep1 != nullptr);
   ASSERT(dep2 != nullptr);
-  EXPECT_EQ(root->get_imports().get_size(), Count(2));
-  EXPECT(resolver.resolve(root->get_imports()[0].get_source_name()) == dep1);
-  EXPECT(resolver.resolve(root->get_imports()[1].get_source_name()) == dep2);
-  EXPECT_EQ(dep2->get_imports().get_size(), Count(1));
-  EXPECT(resolver.resolve(dep2->get_imports()[0].get_source_name()) == dep1);
+  EXPECT_EQ(import_count(root), Count(2));
+  EXPECT_TEXT(import_name(root, 0), "ttx_res_disk_dep1.ttx"_view);
+  EXPECT_TEXT(import_name(root, 1), "ttx_res_disk_dep2.ttx"_view);
+  EXPECT_EQ(import_count(dep2), Count(1));
+  EXPECT_TEXT(import_name(dep2, 0), "ttx_res_disk_dep1.ttx"_view);
   EXPECT_NOT(context.has_errors());
 }
 
@@ -376,17 +399,17 @@ PERIMORTEM_UNIT_TEST(TtxResolution, disk_cycle) {
   ASSERT(write_source(
       cycle_root,
       "dialect : Library;\n"
-      "import Dep1 : Library = (.source = \"ttx_res_cycle_dep1.ttx\");\n"
-      "import Dep2 : Library = (.source = \"ttx_res_cycle_dep2.ttx\");\n"
-      "import Dep3 : Library = (.source = \"ttx_res_cycle_dep3.ttx\");\n"_view));
+      "import Dep1 : Library = \"ttx_res_cycle_dep1.ttx\";\n"
+      "import Dep2 : Library = \"ttx_res_cycle_dep2.ttx\";\n"
+      "import Dep3 : Library = \"ttx_res_cycle_dep3.ttx\";\n"_view));
   ASSERT(write_source(
       cycle_dep1,
       "dialect : Library;\n"
-      "import Dep2 : Library = (.source = \"ttx_res_cycle_dep2.ttx\");\n"_view));
+      "import Dep2 : Library = \"ttx_res_cycle_dep2.ttx\";\n"_view));
   ASSERT(write_source(
       cycle_dep2,
       "dialect : Library;\n"
-      "import Dep1 : Library = (.source = \"ttx_res_cycle_dep1.ttx\");\n"_view));
+      "import Dep1 : Library = \"ttx_res_cycle_dep1.ttx\";\n"_view));
   ASSERT(write_source(cycle_dep3, library_source));
 
   EXPECT_NOT(resolver.load_source(context, cycle_root));
@@ -407,17 +430,17 @@ PERIMORTEM_UNIT_TEST(TtxResolution, bad_update) {
   ASSERT(write_source(
       disk_root,
       "dialect : Library;\n"
-      "import Dep1 : Library = (.source = \"ttx_res_disk_dep1.ttx\");\n"
-      "import Dep2 : Library = (.source = \"ttx_res_disk_dep2.ttx\");\n"
-      "import Dep3 : Library = (.source = \"ttx_res_disk_dep3.ttx\");\n"_view));
+      "import Dep1 : Library = \"ttx_res_disk_dep1.ttx\";\n"
+      "import Dep2 : Library = \"ttx_res_disk_dep2.ttx\";\n"
+      "import Dep3 : Library = \"ttx_res_disk_dep3.ttx\";\n"_view));
   ASSERT(write_source(disk_dep1, library_source));
   ASSERT(write_source(
       disk_dep2,
       "dialect : Library;\n"
-      "import Dep1 : Library = (.source = \"ttx_res_disk_dep1.ttx\");\n"_view));
+      "import Dep1 : Library = \"ttx_res_disk_dep1.ttx\";\n"_view));
   ASSERT(write_source(disk_dep3, library_source));
 
-  Ttx::Source* root = resolver.load_source(context, disk_root);
+  const Source::Record* root = resolver.load_source(context, disk_root);
   ASSERT(root != nullptr);
   EXPECT_NOT(context.has_errors());
   context.reset();
@@ -426,17 +449,17 @@ PERIMORTEM_UNIT_TEST(TtxResolution, bad_update) {
   EXPECT(resolver.resolve(disk_dep1));
   EXPECT(resolver.resolve(disk_dep2));
   EXPECT(resolver.resolve(disk_dep3));
-  Ttx::Source* dep1 = resolver.resolve(disk_dep1);
-  Ttx::Source* dep2 = resolver.resolve(disk_dep2);
+  const Source::Record* dep1 = resolver.resolve(disk_dep1);
+  const Source::Record* dep2 = resolver.resolve(disk_dep2);
   ASSERT(dep1 != nullptr);
   ASSERT(dep2 != nullptr);
+  const auto* dep1_source = &dep1->get_source();
+  const auto* dep2_source = &dep2->get_source();
 
-  EXPECT_EQ(root->get_imports().get_size(), Count(3));
-  EXPECT(resolver.resolve(root->get_imports()[0].get_source_name()) == dep1);
-  EXPECT(resolver.resolve(root->get_imports()[1].get_source_name()) == dep2);
-  EXPECT(
-      resolver.resolve(root->get_imports()[2].get_source_name()) ==
-      resolver.resolve(disk_dep3));
+  EXPECT_EQ(import_count(root), Count(3));
+  EXPECT_TEXT(import_name(root, 0), "ttx_res_disk_dep1.ttx"_view);
+  EXPECT_TEXT(import_name(root, 1), "ttx_res_disk_dep2.ttx"_view);
+  EXPECT_TEXT(import_name(root, 2), "ttx_res_disk_dep3.ttx"_view);
 
   EXPECT_NOT(resolver.load_source(context, disk_dep1, "bad ttx contents"_view));
   EXPECT(context.has_errors());
@@ -465,19 +488,17 @@ PERIMORTEM_UNIT_TEST(TtxResolution, bad_update) {
   // Since dep1 and dep2 were reloaded, their old pointers should not point to
   // the new Source objects.
 
-  // Import matches graph address.
-  EXPECT(
-      resolver.resolve(root->get_imports()[1].get_source_name()) ==
-      resolver.resolve(disk_dep2));
+  // Imports stay authored; cache lookups use canonical source paths.
+  EXPECT_TEXT(import_name(root, 1), "ttx_res_disk_dep2.ttx"_view);
   // Old source address doesn't point to the new source address.
-  EXPECT_NOT(dep1 == resolver.resolve(disk_dep1));
-  EXPECT_NOT(dep2 == resolver.resolve(disk_dep2));
+  EXPECT_NOT(dep1_source == &resolver.resolve(disk_dep1)->get_source());
+  EXPECT_NOT(dep2_source == &resolver.resolve(disk_dep2)->get_source());
 }
 
 PERIMORTEM_UNIT_TEST(TtxResolution, package_loading) {
   Resolver resolver;
   Resolver::Context context;
-  const Ttx::Source* root = resolver.load_source(
+  const Source::Record* root = resolver.load_source(
       context, "unit/root.ttx"_view,
       "dialect : Library;\n"
       "import Graphics : Package = TTX::Graphics;\n"
@@ -487,28 +508,24 @@ PERIMORTEM_UNIT_TEST(TtxResolution, package_loading) {
   context.reset();
 
   // TTX::Graphics import loads tetrodotoxin/packages/graphics/package.ttx.
-  const Ttx::Source* graphics = resolver.resolve("TTX::Graphics"_view);
+  const Source::Record* graphics = resolver.resolve("TTX::Graphics"_view);
   ASSERT(graphics != nullptr);
-  EXPECT(
-      resolver.resolve(root->get_imports()[0].get_source_name()) == graphics);
+  EXPECT_TEXT(import_name(root, 0), "TTX::Graphics"_view);
+  EXPECT(resolver.resolve(import_name(root, 0)) == graphics);
   EXPECT_NOT(resolver.resolve(
       "tetrodotoxin/packages/graphics/shaders/default_2d.ttx"_view));
 
-  const Ttx::Source* source = resolver.resolve("unit/root.ttx"_view);
-  ASSERT(source != nullptr);
+  const Source::Record* record = resolver.resolve("unit/root.ttx"_view);
+  ASSERT(record != nullptr);
   EXPECT_NOT(context.has_errors());
-  EXPECT_EQ(source->get_imports().get_size(), Count(1));
-  EXPECT_TEXT(
-      source->get_body_text(),
-      "@private Default2D : Alias = Graphics::Shaders::Default2D;\n"_view);
+  EXPECT_EQ(import_count(record), Count(1));
+  EXPECT_TEXT(import_name(record, 0), "TTX::Graphics"_view);
 
   EXPECT_NOT(resolver.load_source(
       context, "unit/direct.ttx"_view,
       "dialect : Library;\n"
       "import Default2D : Shader = "
-      "(.source = "
-      "\"../tetrodotoxin/packages/graphics/shaders/default_2d.ttx\");"
-      "\n"_view));
+      "\"../tetrodotoxin/packages/graphics/shaders/default_2d.ttx\";\n"_view));
   EXPECT(has_error(
       context, "unit/direct.ttx"_view,
       "Package private source cannot be imported directly."_view));
@@ -533,16 +550,16 @@ PERIMORTEM_UNIT_TEST(TtxResolution, package_chain) {
       "loaded."_view));
   context.reset();
 
-  const Ttx::Source* core = resolver.load_source(
+  const Source::Record* core = resolver.load_source(
       context, "packages/user/core/package.ttx"_view,
       "dialect : Package;\n"
       "@package_name = User::Core;\n"
-      "@public Value : alias = Internal::Value;\n"_view);
+      "@public Value : Alias = Internal::Value;\n"_view);
   ASSERT(core != nullptr);
   EXPECT_NOT(context.has_errors());
   context.reset();
 
-  const Ttx::Source* ui = resolver.load_source(
+  const Source::Record* ui = resolver.load_source(
       context, "packages/user/ui/package.ttx"_view,
       "dialect : Package;\n"
       "import Core : Package = User::Core;\n"
@@ -552,7 +569,7 @@ PERIMORTEM_UNIT_TEST(TtxResolution, package_chain) {
   EXPECT_NOT(context.has_errors());
   context.reset();
 
-  const Ttx::Source* root = resolver.load_source(
+  const Source::Record* root = resolver.load_source(
       context, "unit/root.ttx"_view,
       "dialect : Library;\n"
       "import Ui : Package = User::Ui;\n"
@@ -564,8 +581,8 @@ PERIMORTEM_UNIT_TEST(TtxResolution, package_chain) {
   EXPECT(resolver.resolve("unit/root.ttx"_view) == root);
   EXPECT(resolver.resolve("User::Ui"_view) == ui);
   EXPECT(resolver.resolve("User::Core"_view) == core);
-  EXPECT(resolver.resolve(root->get_imports()[0].get_source_name()) == ui);
-  EXPECT(resolver.resolve(ui->get_imports()[0].get_source_name()) == core);
+  EXPECT(resolver.resolve(import_name(root, 0)) == ui);
+  EXPECT(resolver.resolve(import_name(ui, 0)) == core);
 
   EXPECT_NOT(resolver.load_source(
       context, "packages/user/core/package.ttx"_view, "bad ttx contents"_view));
@@ -596,7 +613,7 @@ PERIMORTEM_UNIT_TEST(TtxResolution, bad_package) {
   EXPECT_NOT(resolver.resolve("User::Package::Test"_view));
 
   // The Package dialect publishes @package_name as the resolver cache key.
-  const Ttx::Source* user_package = resolver.load_source(
+  const Source::Record* user_package = resolver.load_source(
       context, "arbitrary/path/package.ttx"_view,
       "dialect : Package;\n"
       "@package_name = User::Package::Test;\n"_view);
@@ -608,11 +625,11 @@ PERIMORTEM_UNIT_TEST(TtxResolution, bad_package) {
   EXPECT(resolver.resolve("User::Package::Test"_view));
 
   // Now that we have the package in memory.
-  const Ttx::Source* source = resolver.load_source(
+  const Source::Record* record = resolver.load_source(
       context, "unit/root.ttx"_view,
       "dialect : Library;\n"
       "import Graphics : Package = User::Package::Test;\n"_view);
-  ASSERT(source != nullptr);
+  ASSERT(record != nullptr);
   EXPECT_NOT(context.has_errors());
 
   EXPECT(resolver.resolve("unit/root.ttx"_view));
@@ -621,7 +638,5 @@ PERIMORTEM_UNIT_TEST(TtxResolution, bad_package) {
   // Root should have the correct import which we can now resolve.
   // Loading root with the cached package should also not invalidate
   // user_package so it's address should still be valid.
-  EXPECT(
-      user_package ==
-      resolver.resolve(source->get_imports()[0].get_source_name()));
+  EXPECT(user_package == resolver.resolve(import_name(record, 0)));
 }
