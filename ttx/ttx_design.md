@@ -1,26 +1,25 @@
 # TTX Language Design
 
-TTX is Tetrodotoxin's default frontend IR language. It makes data movement,
-layout, and lowering intent visible without giving up the basic comfort of a
-hand-authored format. A TTX file reads like a program, but it carries enough
-structure that the compiler does not have to guess what kind of thing it is
-looking at.
+TTX is a frontend source IR language. It makes data movement, layout, and
+lowering intent visible without giving up the basic comfort of a hand-authored
+format. A TTX file reads like a program, but it carries enough structure that a
+host does not have to guess what kind of thing it is looking at.
 
-The language is used where Perimortem wants the shape of the program to be
-explicit: binary formats, shader stages, data transforms, package boundaries,
-and other code where layout is not an implementation detail. TTX is not trying
-to hide the machine. It is trying to make the machine legible. Tetrodotoxin can
-support other frontend languages, but TTX is the one designed around
-Perimortem's authoring, tooling, and build pipeline.
+The language is useful wherever the shape of a program should be explicit:
+binary formats, shader stages, data transforms, package boundaries, FFI-like
+source interchange, and other code where layout is not an implementation detail.
+TTX is not trying to hide the machine. It is trying to make the machine legible.
+Tetrodotoxin is the reference host in this repository, but the TTX source IR,
+token bytecode, and Type and Layout model are intentionally reusable outside
+that toolchain.
 
 The organizing idea is **monotonic context layering**. A TTX file begins as an
-authoring surface, then is enriched with token classes, syntax shape, package
-scopes, cross-file resolution, owned query contexts, and finally backend
-output. Type/layout, dialect, provider, and eventual backend boundary owners add
-the facts they know. Each compiler layer enriches the same source structure with
-additional context. It does not erase what came before until the toolchain
-intentionally emits a terminal artifact such as formatted text, SPIR-V, LLVM IR,
-an object file, or editor JSON.
+authoring surface, then is lowered into token bytecode. A host can then evaluate
+an envelope, attach imports or modules, execute an ISA, and query type, layout,
+provider, backend boundary, and output owners. Each layer enriches the same
+source structure with additional context. It does not erase what came before
+until the host intentionally emits a terminal artifact such as formatted text,
+SPIR-V, LLVM IR, an object file, or editor JSON.
 
 This file describes the language as an author sees it. The stricter rules that
 matter to the compiler live in [ttx_semantics.md](ttx_semantics.md).
@@ -32,8 +31,9 @@ clone of any of them.
 
 - Like LLVM IR, TTX is typed, explicit, and designed around values, calls,
   branches, and memory access.
-- Like MLIR, TTX treats dialects as real semantic boundaries, but keeps a fixed
-  source syntax instead of an extensible operation syntax.
+- Like MLIR, TTX treats semantic domains as real extension boundaries, but uses
+  installed ISAs over a fixed token bytecode instead of extensible operation
+  syntax.
 - Like Zig, it prefers simple grammar, compile-time-visible structure, and
   explicit conversions over implicit magic.
 - Like Rust, it treats visibility and addressability as part of the program's
@@ -47,9 +47,9 @@ see the same shape.
 
 That rigidity keeps common tools cheap. Syntax highlighting needs only lexical
 classification. Formatting needs syntax and comments, but not imports. Project
-navigation needs resolution, but not backend code generation. Compilation uses
-all layers, but it still asks the same source-shaped program richer questions
-rather than reconstructing intent from a lower-level copy.
+navigation may need a module or package graph, but not backend code generation.
+Compilation uses more layers, but it still asks the same source-shaped program
+richer questions rather than reconstructing intent from a lower-level copy.
 
 One of the central rules is the difference between fluid value flow and
 concrete storage. A pack such as `(a, b, c)` is fluid: it can be flattened,
@@ -65,71 +65,73 @@ boundary explicitly.
 The short version is that LLVM IR, MLIR, and TTX all live in the IR family, but
 they optimize for different moments in the toolchain:
 
-| Area                   | LLVM IR                                             | MLIR                                                          | TTX                                                         |
-| ---------------------- | --------------------------------------------------- | ------------------------------------------------------------- | ----------------------------------------------------------- |
-| Primary representation | Lowered SSA module/function/block/instruction IR    | Extensible operation/SSA IR with regions                      | Source-shaped AST plus context layers                       |
-| Main extension point   | Intrinsics, metadata, passes, and targets           | Dialects define operations, types, attributes, and interfaces | Fixed syntax; dialects define legality and metadata |
-| Typical motion         | Optimize and transform already-lowered IR           | Rewrite and convert operations between dialects               | Enrich the same source graph with queryable facts           |
-| Text form              | Debug, test, and serialization form for compiler IR | Debug, test, and serialization form for multi-level IR        | Human-authored canonical source surface                     |
-| Dialect granularity    | Target and metadata oriented, not dialect-first     | Operations from many dialects can coexist freely              | Package dialect controls the legal semantic world           |
-| Source preservation    | Mostly lowered away before LLVM IR                  | Supported through locations and higher-level dialects         | Central design constraint                                   |
-| Tooling goal           | Optimizer and code-generation substrate             | Reusable compiler infrastructure                              | Shared frontend IR for compiler, editor, and build tooling  |
-| Lowering               | Already lowered enough for optimization             | Core workflow through dialect conversion                      | Delayed until terminal artifacts                            |
+| Area                   | LLVM IR                                             | MLIR                                                          | TTX                                                          |
+| ---------------------- | --------------------------------------------------- | ------------------------------------------------------------- | ------------------------------------------------------------ |
+| Primary representation | Lowered SSA module/function/block/instruction IR    | Extensible operation/SSA IR with regions                      | Source IR plus token bytecode and context layers             |
+| Main extension point   | Intrinsics, metadata, passes, and targets           | Dialects define operations, types, attributes, and interfaces | Fixed syntax; ISAs define evaluation, legality, and metadata |
+| Typical motion         | Optimize and transform already-lowered IR           | Rewrite and convert operations between dialects               | Evaluate token bytecode and enrich queryable facts           |
+| Text form              | Debug, test, and serialization form for compiler IR | Debug, test, and serialization form for multi-level IR        | Human-authored canonical source surface                      |
+| Extension granularity  | Target and metadata oriented                        | Operations from many dialects can coexist freely              | One declared ISA controls the legal semantic world           |
+| Source preservation    | Mostly lowered away before LLVM IR                  | Supported through locations and higher-level dialects         | Central design constraint                                    |
+| Tooling goal           | Optimizer and code-generation substrate             | Reusable compiler infrastructure                              | Shared frontend IR for compiler, editor, and build tooling   |
+| Lowering               | Already lowered enough for optimization             | Core workflow through dialect conversion                      | Delayed until terminal artifacts                             |
 
 TTX is closer to a human-editable source IR than to C++ with different
 punctuation. It shares LLVM's bias toward explicit values, typed calls, and
 visible memory shape, but it keeps source-level concepts alive much longer than
 LLVM IR would.
 
-As an example most TTX constructs map cleanly to lower-level IR concepts:
+The source format is inspired by LLVM concepts, but TTX does not globally define
+every construct that might lower to LLVM-like IR. Lexical lowers authored source
+into token bytecode. A host selects an evaluator for the relevant bytecode span.
+That evaluator decides which token spans are executable instructions, what facts
+they publish, and whether those facts can later lower to LLVM IR, SPIR-V, object
+code, editor data, or something else.
 
-| TTX concept                    | LLVM-like concept                                              |
-| ------------------------------ | -------------------------------------------------------------- |
-| `func main[...] -> T { ... }`  | typed function definition                                      |
-| `@stack value : T = expr;`     | local SSA/storage value selected by the compiler               |
-| `name.field` and `name:[index]` | address calculation, usually `getelementptr`-like             |
-| `value -> method(args)`        | typed call with an explicit receiver                           |
-| `if`, `while`, `for`, `match`  | structured control flow that lowers to blocks and branches     |
-| `break`, `continue`            | loop control flow reserved for Library/host-code lowering      |
-| `Vec[T, N]`                    | fixed-width vector or aggregate value                          |
-| `(...)`                        | pack of values moving across a boundary                        |
-| `@hidden`, `@public`, `@stack` | visibility, lifetime, and compile-time addressability metadata |
+That makes the reusable TTX model smaller than a full language tree:
 
-TTX drifts from LLVM IR where direct authoring would otherwise be painful:
+| TTX data or token shape                | Usually becomes                                               |
+| -------------------------------------- | ------------------------------------------------------------- |
+| `Ttx::Type`                            | type identity, alias identity, namespace-like type lookup     |
+| `Ttx::Layout`                          | value shape, field order, pack fitting, member projection     |
+| `Documentation`                        | source-authored prose for tools and exported facts            |
+| `TypeAccessOp` such as `::`            | nested type query against the current type or import context  |
+| `AddressOp` such as `.`                | layout member query or ISA-owned address projection           |
+| `CallOp` such as `->`                  | callable dispatch query against the current type or ISA facts |
+| sigil and attribute token classes      | visibility, addressability, package, or ISA-owned metadata    |
+| string, bytes, layout, and pack tokens | source-shaped operands for the active ISA                     |
 
-- TTX has packages, imports, comments, attributes, and formatting.
-- TTX keeps named fields and named packs at the source level, even though names
-  usually disappear before lowering.
-- TTX has explicit syntax for layouts, packs, shader entry points, foreign ABI
-  declarations, and compile-time directives.
-- TTX rejects some ambiguous parses that a general-purpose language might
-  accept to keep the grammar small while making the formatter authoritative.
+Library, Package, Shader, Render, and future ISAs then decide what larger source
+forms mean. A Library ISA may define functions, control flow, and local storage.
+A Shader ISA may define stage metadata and GPU legality. A Package ISA may turn
+exports into type facts. The syntax gives those ISAs a shared instruction stream
+and a shared Type and Layout model, but the ISA owns the meaning of its body.
 
-The compiler lowers TTX without guessing what the author meant. The balance is keeping
-the syntax strict enough to avoid ambiguity but flexable enough to capture a level of
-expressiveness that makes managing the frontend possible.
-
-LLVM IR is already a lowered compiler IR, so while it strictly manages intent it's lacking
-in readability and maintainability as a human authored layer. TTX preserves an authored
-structure to bridge the maintainability gap while staying as close as possible to it's IR roots.
+That split is the important difference from a lowered IR. LLVM IR is already
+past most authoring concerns. TTX keeps package names, imports, comments,
+attributes, named fields, named packs, layouts, shader entry points, foreign ABI
+declarations, and compile-time directives alive until the ISA or lowerer that
+understands them can use them. The compiler lowers TTX without guessing what the
+author meant: the syntax stays strict enough to avoid ambiguity, while the ISA
+model keeps the source expressive enough to manage the frontend.
 
 TTX also differs from MLIR. MLIR makes compiler IR extensible through dialect
 operations, regions, rewrite passes, and legality conversion. TTX makes authored
-source semantically dense enough that many tools can share it before lowering.
-There is no reason Tetrodotoxin could not target MLIR, but moving in that
-direction now would result in Tetrodotoxin cloning much of MLIR infrastructure for
-seemingly little benefit to either project at this stage.
+source semantically dense enough that many tools can share it before lowering. A
+TTX host can still target MLIR when MLIR is the right artifact for that host.
 
 ## Lexical Shape
 
-TTX smuggles a large amount of language semantics into it's lexical structure.
-This means several textual inputs that might be consider style choices in other
-languages are actually
+TTX is meant to reach useful token bytecode in a single left-to-right pass
+through source text. The lexer therefore does more than split characters into
+words. It smuggles as much semantic category information as it can into direct
+syntax so ISAs can execute bytecode with minimal rediscovery. As a result,
+casing and punctuation are part of the instruction stream, not decoration.
 
 | Form          | Meaning                                                     |
 | ------------- | ----------------------------------------------------------- |
 | `snake_case`  | addressable runtime names                                   |
-| `PascalCase`  | types, aliases, dialect names, and package/type paths       |
+| `PascalCase`  | types, aliases, ISA names, and package names                |
 | `.snake_case` | named pack or layout field                                  |
 | `.10`         | indexed pack field for sparse table initialization          |
 | `@name`       | compiler directive or compile-time sigil                    |
@@ -143,17 +145,17 @@ Keywords are tokenized before the parser sees them. For example, `struct`,
 `object`, `enum`, `foreign`, `alias`, `func`, and `@if` are distinct token
 classes, not ordinary identifiers that the parser has to reinterpret later.
 They are lowercase because they are grammar forms. PascalCase names remain open
-type/path atoms, so user types named `Struct`, `Object`, or `Package` are still
+type or package atoms, so user types named `Struct`, `Object`, or `Package` are still
 ordinary type names.
 
 It should be noted that so far TTX has ***not*** found a use case for significant
-whitespace, but it reserves the right to use it in the future. This means formated
-outputs by the LSP should be considered the stable source format.
+whitespace, but it reserves the right to use it in the future. This means
+formatted outputs by the LSP should be considered the stable source format.
 
-## Packages and Dialects
+## Source Envelopes and ISAs
 
-To help with later layers, each TTX file starts with exactly one dialect declaration
-that allows the author to declare their intent for layer selection by the toolchain:
+Many TTX hosts use a source envelope so a file can declare which ISA should
+evaluate its body:
 
 ```ttx
 dialect : Library;
@@ -162,16 +164,15 @@ dialect : Shader;
 dialect : Entity;
 ```
 
-The dialect declaration selects the dialect. That choice is visible early
-enough for syntax-time package and attribute checks, participates in resolution
-when imports declare an expected dialect name, and hands body parsing to the
-selected dialect owner before later legality, type/layout, and metadata
-queries. A dialect is not a separate lowered IR stage. Later in the Perimortem
-pipeline dialects often translate to some form of "type", but this is not an
-invariant of the Tetrodotoxin toolchain.
+The source keyword remains `dialect`, but semantically this instruction names an
+evaluator installed in the active host. Tetrodotoxin implements this convention
+with a direct Boot ISA call and an `Isa::Registry`, but that registry is a
+Tetrodotoxin toolchain detail. An ISA is not a separate lowered IR stage. It is
+the instruction set that owns the next bytecode span and may publish or consume
+`Ttx::Type`, `Ttx::Layout`, or other host facts.
 
-The lowercase `dialect` marker is a reserved keyword. The dialect name after
-the colon is still a PascalCase type/path name, so names such as `Package`,
+The lowercase `dialect` marker is a reserved keyword. The ISA name after
+the colon is still a PascalCase type atom, so names such as `Package`,
 `Library`, and `Shader` remain valid in type-access expressions like
 `YourType::Package`.
 
@@ -185,48 +186,49 @@ In TTX, definition keywords describe how a scoped sub-IR should be treated.
 }
 ```
 
-The dialect line has no sigil. That keeps the top of the file visually distinct
-and gives the parser a stable entry point. Parsing can start below top level,
-but a full source file is anchored by `dialect : Dialect;`.
+The ISA selection line has no sigil. That keeps the top of the file visually
+distinct and gives envelope evaluators a stable entry point. Evaluation can
+start below top level when a host already knows which evaluator should execute
+the bytecode.
 
-`Library`, `Render`, `Shader`, and `Entity` are dialects. A dialect is
+`Library`, `Render`, `Shader`, and `Entity` are ISAs. An ISA is
 more than a backend name: it decides which builtins, types, attributes, and
-dialect-body forms are legal in that source. For example, `dialect : Render;`
+body forms are legal in that source. For example, `dialect : Render;`
 and `dialect : Shader;` do not support managed runtime forms such as `object`
 or `List`, because those concepts do not exist in the stage-oriented execution
 model.
 
-A dialect may produce more than one output. `Render` and `Shader` packages may
+An ISA may produce more than one output. `Render` and `Shader` packages may
 produce shader code such as SPIR-V embedded as binary constants and host code
 that loads those constants, builds the required `Layout` values, and bridges
 them into the engine runtime. The shared TTX syntax substrate still owns
 declarations, layouts, packs, and sigil parsing so authors do not have to learn
-an unrelated grammar for each dialect name.
+an unrelated grammar for each ISA name.
 
 ## Imports
 
-Imports define a named package dependency to translate into the local dialect:
+For hosts that use the common envelope, imports define named package
+dependencies to translate into the local ISA:
 
 ```ttx
-import Graphics : Library = "graphics/image.ttx";
-import Math     : Library = TTX::Math;
+import Graphics : Package = Perimortem::Graphics;
+import Math     : Library = "math.ttx";
 ```
 
 An import reads like a special definition:
 
 ```ttx
-import Alias : Dialect = source;
+import Alias : IsaName = source;
 ```
 
-The left side creates the local name. The dialect describes the expected
-dialect name that resolution must find. The right side is either a source path,
-such as `"graphics/image.ttx"`, or a symbol path to a compiler-provided package such
-as `TTX::Math`.
+The left side creates the local name. The ISA name describes what the host
+expects the target source to declare. The right side is either a source path,
+such as `"math.ttx"`, or a package name such as `Perimortem::Graphics`.
 
-Imports do not import dialect semantics. A `Shader` package does not inherit
-`TTX::Bibliotheca` semantics like `object` or `List` by importing a `Library`.
-Instead the dialect semantics are cross interpreted as imported definitions that
-are valid in the shader dialect after canonicalization.
+Imports do not import ISA semantics. A `Shader` package does not inherit
+managed-library semantics like `object` or `List` by importing a `Library`.
+Instead the imported definitions are queried through the importing ISA's rules
+after canonicalization.
 
 As an example: importing a `Shader` into a `Library` allows the `Library` to set
 push constants to the Shader or talk to the GPU via exposed definitions.
@@ -313,14 +315,20 @@ comments, not as a semantic feature.
 
 ## Type References
 
-Type references are PascalCase paths with optional type arguments:
+Type references are progressive PascalCase queries with optional type
+arguments:
 
 ```ttx
 Bits_32
 Vec[Bits_8, 4]
 Graphics::Image
-TTX::Math::Matrix[Real_32, 4, 4]
+Math::Matrix[Real_32, 4, 4]
 ```
+
+The first type token resolves from the current context. `::` then asks that
+resolved type or package for one nested type at a time. It is not string
+concatenation, and a compiler should not allocate a general path object just to
+answer `Graphics::Color`.
 
 Type arguments use `[]`, not `<>`, because `<` and `>` are comparison
 operators. Numeric size arguments, such as the `4` in `Vec[Bits_8, 4]`, are part
@@ -334,9 +342,9 @@ concrete type identity for that layout. `View[Bits_8]`, `Vec[Real_32, 4]`, and
 resolved layout. The returned concrete type is what later member, nested type,
 function, and layout queries use.
 
-Aliases are compile-time type paths. Resolution canonicalizes aliases inside a
-package so later compiler stages can reason about resolved types instead of
-source spelling.
+Aliases are compile-time type references. Resolution canonicalizes aliases
+inside a package so later compiler stages can reason about resolved types
+instead of source spelling.
 
 ## Builtin Definition Kinds
 
@@ -360,7 +368,7 @@ This is one of the places where TTX is deliberately closer to IR than to a
 general source language. The definition keyword tells the parser what kind of
 node is being created.
 
-The active dialect may reject otherwise valid builtin forms. `object`
+The active ISA may reject otherwise valid builtin forms. `object`
 can be a legal builtin in a `Library` package while remaining invalid in a
 `Shader` package.
 
@@ -477,7 +485,7 @@ swizzle over real fields on a real typed aggregate.
 
 Pack order matters when a pack is passed, returned, or materialized. Names are
 authored or boundary-provided facts; they do not erase the carrier order. A
-named pack can initialize a struct out of declaration order because type/layout
+named pack can initialize a struct out of declaration order because type and layout
 fitting maps by name, then lowering writes the struct in declaration order:
 
 ```ttx
@@ -619,13 +627,13 @@ callback -> invoke(args)
 
 The access forms are:
 
-| Syntax              | Meaning                                   |
-| ------------------- | ----------------------------------------- |
-| `.field`            | field or package/type member access       |
-| `:[index]`          | index access                              |
-| `:[start, count]`   | index slice                               |
-| `.[a, b, c]`        | swizzle into a positional pack            |
-| `-> name(pack)`     | callable dispatch from the left-side base |
+| Syntax            | Meaning                                   |
+| ----------------- | ----------------------------------------- |
+| `.field`          | field or package/type member access       |
+| `:[index]`        | index access                              |
+| `:[start, count]` | index slice                               |
+| `.[a, b, c]`      | swizzle into a positional pack            |
+| `-> name(pack)`   | callable dispatch from the left-side base |
 
 Calls take a pack because call arguments are written with `(...)`, and `(...)`
 is always a pack. `.` is lookup only. `->` marks every call, including receiver
@@ -792,7 +800,7 @@ include an implicit null terminator.
 
 Integer literals are exact integer values. When no narrower expected type is
 present they default to the language's 64-bit integer domain, with `Count`
-serving as the ordinary size/count alias. Type/layout fitting may fit an integer literal
+serving as the ordinary size/count alias. Type and layout fitting may fit an integer literal
 into a narrower numeric target only when the value is provably in range.
 
 ## Documentation

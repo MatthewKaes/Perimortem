@@ -1,15 +1,15 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
-#include "ttx/dialect/package/definition.hpp"
+#include "tetrodotoxin/isa/package/definition.hpp"
 
 using namespace Perimortem::Core;
-using namespace Ttx::Dialect;
+using namespace Tetrodotoxin::Isa;
 using namespace Ttx::Lexical;
 
 static auto is_allowed(
-    Package::Definition::Kind kind,
-    View::Vector<Package::Definition::Kind> allowed_kinds) -> Bool {
+    Definition::Kind kind,
+    View::Vector<Definition::Kind> allowed_kinds) -> Bool {
   for (Count kind_index = 0; kind_index < allowed_kinds.get_size();
        kind_index++) {
     if (allowed_kinds[kind_index] == kind) {
@@ -20,12 +20,12 @@ static auto is_allowed(
   return False;
 }
 
-static auto parse_kind(
+static auto evaluate_kind(
     Cursor& cursor,
-    Package::Definition::Kind& output) -> Bool {
+    Definition::Kind& output) -> Bool {
   if (cursor.matches(Class::Type::Alias)) {
     cursor.consume();
-    output = Package::Definition::Kind::Alias;
+    output = Definition::Kind::Alias;
     return True;
   }
 
@@ -37,12 +37,12 @@ static auto parse_kind(
   }
 
   if (kind->get_text() == "Namespace"_view) {
-    output = Package::Definition::Kind::Namespace;
+    output = Definition::Kind::Namespace;
     return True;
   }
 
   if (kind->get_text() == "Package"_view) {
-    output = Package::Definition::Kind::Package;
+    output = Definition::Kind::Package;
     return True;
   }
 
@@ -51,37 +51,37 @@ static auto parse_kind(
   return False;
 }
 
-auto Package::Definition::parse(
+auto Definition::evaluate(
     Cursor& cursor,
     Ttx::Documentation documentation,
-    View::Vector<Kind> allowed_kinds) -> Package::Definition {
+    View::Vector<Kind> allowed_kinds) -> Definition {
   if (!cursor.require(
           Class::Type::ConstPublic,
           "Expected `@public` package definition."_view)) {
-    return Package::Definition();
+    return Definition();
   }
 
   const Token* name = cursor.require(
       Class::Type::Type, "Expected package definition name."_view);
   if (name == nullptr) {
-    return Package::Definition();
+    return Definition();
   }
 
   if (!cursor.require(
           Class::Type::Define,
           "Expected `:` after package definition name."_view)) {
-    return Package::Definition();
+    return Definition();
   }
 
   Kind kind = Kind::Alias;
-  if (!parse_kind(cursor, kind)) {
-    return Package::Definition();
+  if (!evaluate_kind(cursor, kind)) {
+    return Definition();
   }
 
   if (!is_allowed(kind, allowed_kinds)) {
     cursor.token_error("Package definition kind is not allowed here."_view);
-    return Package::Definition();
+    return Definition();
   }
 
-  return Package::Definition(documentation, name->get_text(), kind);
+  return Definition(documentation, name->get_text(), kind);
 }

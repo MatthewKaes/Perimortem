@@ -7,7 +7,8 @@
 
 #include "perimortem/memory/managed/vector.hpp"
 
-#include "ttx/dialect/source/source.hpp"
+#include "tetrodotoxin/isa/boot/boot.hpp"
+#include "tetrodotoxin/toolchain.hpp"
 #include "ttx/lexical/cursor.hpp"
 #include "ttx/lexical/tokenizer.hpp"
 
@@ -165,11 +166,11 @@ auto Server::semantic_tokens_for(Allocator::Arena& arena, View::Bytes source)
       arena, source, "lsp-buffer.ttx"_view, False);
   View::Vector<::Ttx::Lexical::Token> tokens = tokenizer.get_tokens();
   ::Ttx::Lexical::Cursor cursor(tokenizer);
-  void* parsed_source = ::Ttx::Dialect::Source::Source::parse(cursor);
-  auto* source_info =
-      static_cast<::Ttx::Dialect::Source::Source*>(parsed_source);
-  View::Bytes dialect =
-      source_info == nullptr ? View::Bytes() : source_info->get_dialect().get_name();
+  const auto toolchain = ::Tetrodotoxin::Toolchain::standard();
+  auto* boot = ::Tetrodotoxin::Isa::Boot::evaluate(
+      cursor, toolchain.get_isa_registry());
+  View::Bytes isa =
+      boot == nullptr ? View::Bytes() : boot->get_isa().get_name();
   Bits_32 previous_line = 0;
   Bits_32 previous_column = 0;
   Bool emitted = False;
@@ -177,7 +178,7 @@ auto Server::semantic_tokens_for(Allocator::Arena& arena, View::Bytes source)
   for (Count i = 0; i < tokens.get_size(); i++) {
     ::Ttx::Lexical::Token token = tokens[i];
 
-    if (dialect == "Shader"_view &&
+    if (isa == "Shader"_view &&
         should_filter_shader_keyword(token.get_class())) {
       continue;
     }

@@ -5,17 +5,20 @@
 
 #include "perimortem/core/data.hpp"
 
+#include "perimortem/memory/managed/vector.hpp"
+
 #include "perimortem/system/file.hpp"
 #include "perimortem/system/path.hpp"
 
-#include "ttx/dialect/lingua_franca.hpp"
-#include "ttx/dialect/package/package.hpp"
+#include "tetrodotoxin/isa/boot/boot.hpp"
+#include "tetrodotoxin/isa/package/package.hpp"
 #include "ttx/lexical/cursor.hpp"
 #include "ttx/lexical/tokenizer.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
 using namespace Perimortem::System;
+using namespace Tetrodotoxin::Isa;
 using namespace Tetrodotoxin::Resolution;
 
 static auto starts_with(View::Bytes value, View::Bytes prefix) -> Bool {
@@ -45,10 +48,14 @@ static auto package_name_to_source_path(
   Count segment_start = 0;
   Count segment_count = 0;
 
-  // Package names use symbol spelling at the source surface but package roots
-  // are regular source-tree paths. Walk the Type segment by segment so
+  // Package names use symbol spelling at the source surface, but package roots
+  // are regular source paths. Walk the package name one segment at a time so
   // `Perimortem::Graphics` naturally becomes `perimortem/graphics/package.ttx`
   // without a root lookup table.
+  //
+  // TODO: We'll need to resolve pathing for external User defined packages down
+  // the road but for now we are only focused on converting Perimortem into self
+  // host packages to complete an FFI for TTX.
   for (Count name_index = 0; name_index <= package_name.get_size();
        name_index++) {
     Bool at_end = name_index == package_name.get_size();
@@ -157,10 +164,8 @@ static auto stack_remove(
   }
 }
 
-static auto is_package_source(const Ttx::Dialect::Source::Source& source)
-    -> Bool {
-  return source.get_dialect().get_name() ==
-         Ttx::Dialect::Package::Package::get_name();
+static auto is_package_source(const Boot& source) -> Bool {
+  return source.get_isa().get_name() == Package::get_name();
 }
 
 static auto is_package_private_path(View::Bytes source_path) -> Bool {
@@ -176,8 +181,9 @@ auto Resolver::Context::reset() -> void {
 
 auto Resolver::Context::add_error(const Ttx::Lexical::Error& error) -> void {
   // The resolver context is the diagnostic lifetime boundary for one request.
-  // Parser errors point into tokenizers and records that may be destroyed when
-  // a failed source is rejected, so copy every view a surfaced error needs.
+  // Evaluation errors point into tokenizers and records that may be destroyed
+  // when a failed source is rejected, so copy every view a surfaced error
+  // needs.
   View::Bytes source_path = keep(error.get_source_path());
   View::Bytes source = keep(error.get_source());
   View::Bytes message = keep(error.get_message());
@@ -307,7 +313,7 @@ auto Resolver::load_source(
 
   Source::Record& record =
       Source::Record::create(source_path, ttx_content, private_source);
-  if (!parse_envelope(context, record)) {
+  if (!evaluate_boot(context, record)) {
     Source::Record::destroy(record);
     return nullptr;
   }
@@ -328,7 +334,7 @@ auto Resolver::load_source(
   Bool resolved =
       resolve_imports(context, record, producers, resolving, blocked_sources);
   stack_remove(resolving, resolving_key);
-  if (!resolved || !parse_body(context, record)) {
+  if (!resolved || !execute_body(context, record, producers.get_view())) {
     Source::Record::destroy(record);
     return nullptr;
   }
@@ -342,8 +348,12 @@ auto Resolver::load_source(
     sources.remove(record.get_import_name());
   }
 
-  // Publishing is the commit point: from here the cache may answer `resolve`
-  // for this path/package name, and the dependency indexes can point at it.
+  // Publishing is the commit point. From here the cache may answer `resolve`
+  // for this path or package name, and dependency indexes can point at it.
+  // Resolving a package, even if it's valid, before it's published results in a
+  // page fault for the evaluating machine which means cycle detection has to
+  // happen during cascading Boot since it would just infinitely Boot loop on
+  // imports otherwise.
   sources.publish(record);
   for (Count producer_index = 0; producer_index < producers.get_size();
        producer_index++) {
@@ -360,7 +370,7 @@ auto Resolver::load_source(
 auto Resolver::load_import(
     Context& context,
     Source::Record& owner,
-    const Ttx::Dialect::Source::Import& import,
+    const Import& import,
     Bool private_source,
     Dynamic::Vector<Dynamic::Bytes>& resolving,
     const Dynamic::Vector<Dynamic::Bytes>* blocked_sources) -> Source::Record* {
@@ -405,7 +415,7 @@ auto Resolver::load_import(
     return sources.find(package_name);
   }
 
-  // File imports are local to the importing source. Package-private files are
+  // File imports are local to the importing source. Package private files are
   // only reachable while resolving a package or one of its private imports.
   Path target_path;
   if (has_backslash(import.get_source_name())) {
@@ -425,7 +435,7 @@ auto Resolver::load_import(
   }
 
   Bool target_private = private_source || owner.is_private() ||
-                        is_package_source(owner.get_source());
+                        is_package_source(owner.get_boot());
   if (is_package_private_path(target_path.get_view()) && !target_private) {
     add_error(
         context, owner.get_source_path(), owner.get_content(),
@@ -465,96 +475,91 @@ auto Resolver::load_import(
   return sources.find(target_path.get_view());
 }
 
-auto Resolver::parse_envelope(Context& context, Source::Record& record)
-    -> Bool {
-  // Resolution deliberately parses the Source dialect through the dialect
-  // registry. That keeps the resolver consuming the same lingua franca path as
-  // other tools instead of constructing source envelopes by hand.
+auto Resolver::evaluate_boot(Context& context, Source::Record& record) -> Bool {
+  // Resolver calls Boot directly for complete source files and passes the
+  // toolchain's body ISA registry so the envelope can validate the selected ISA
+  // and import ISA operands.
   Ttx::Lexical::Tokenizer tokenizer(
       record.get_arena(), record.get_content(), record.get_source_path());
   Ttx::Lexical::Cursor cursor(tokenizer);
-  const Ttx::Dialect::LinguaFranca source_dialect =
-      Ttx::Dialect::LinguaFranca::find(
-          Ttx::Dialect::Source::Source::get_name());
-  if (source_dialect.get_parser() == nullptr) {
-    add_error(
-        context, record.get_source_path(), record.get_content(),
-        "Source dialect is not registered."_view);
-    return False;
-  }
+  Boot* boot = Boot::evaluate(cursor, toolchain.get_isa_registry());
 
-  void* parsed_source = source_dialect.get_parser()(cursor);
-  auto* source = Data::cast<Ttx::Dialect::Source::Source>(parsed_source);
-
-  auto parse_errors = cursor.get_errors();
-  // Parse diagnostics are copied out before the record can be destroyed on
+  auto evaluation_errors = cursor.get_errors();
+  // Evaluation diagnostics are copied out before the record can be destroyed on
   // failure. The resolver is only a pass-through for these errors.
-  for (Count error_index = 0; error_index < parse_errors.get_size();
+  for (Count error_index = 0; error_index < evaluation_errors.get_size();
        error_index++) {
-    context.add_error(parse_errors[error_index]);
+    context.add_error(evaluation_errors[error_index]);
   }
 
-  if (source == nullptr || !parse_errors.is_empty()) {
+  if (boot == nullptr || !evaluation_errors.is_empty()) {
     return False;
   }
 
-  record.set_source(*source);
+  record.set_boot(*boot);
   return True;
 }
 
-auto Resolver::parse_body(Context& context, Source::Record& record) -> Bool {
-  // Body dialects are parsed after imports are satisfied. That gives dialects
-  // like Package the correct staging point to bind authored references to real
-  // Ttx::Type addresses instead of inventing a temporary semantic tree.
+auto Resolver::execute_body(
+    Context& context,
+    Source::Record& record,
+    View::Vector<Source::Record*> producers) -> Bool {
+  // Body ISAs execute after Boot has selected the instruction set and imports
+  // are satisfied. That gives ISAs like Package the correct staging point to
+  // bind authored references to real Ttx::Type addresses instead of inventing a
+  // temporary semantic tree.
   Ttx::Lexical::Tokenizer tokenizer(
       record.get_arena(), record.get_content(), record.get_source_path());
   Ttx::Lexical::Cursor cursor(tokenizer);
-  const Ttx::Dialect::LinguaFranca source_dialect =
-      Ttx::Dialect::LinguaFranca::find(
-          Ttx::Dialect::Source::Source::get_name());
-  source_dialect.get_parser()(cursor);
+  Boot::evaluate(cursor, toolchain.get_isa_registry());
 
-  void* parsed_dialect = nullptr;
-  Bool parsed_dialect_valid = True;
-  View::Bytes import_name = record.get_source_path();
-  const Ttx::Dialect::LinguaFranca body_dialect =
-      Ttx::Dialect::LinguaFranca::find(
-          record.get_source().get_dialect().get_name());
-  if (body_dialect.get_parser() != nullptr) {
-    parsed_dialect = body_dialect.get_parser()(cursor);
-    if (parsed_dialect == nullptr) {
-      parsed_dialect_valid = False;
+  Managed::Vector<Tetrodotoxin::Isa::Context::Import> type_imports(
+      record.get_arena());
+  auto imports = record.get_boot().get_imports();
+  for (Count producer_index = 0; producer_index < producers.get_size();
+       producer_index++) {
+    Ttx::Type* type = producers[producer_index]->get_type();
+    if (type != nullptr) {
+      type_imports.insert({imports[producer_index].get_local_name(), *type});
     }
-  } else if (is_package_source(record.get_source())) {
+  }
+
+  Tetrodotoxin::Isa::Context isa_context(
+      record.get_arena(), record.get_source_path(), type_imports.get_view());
+  Bool executed_body_valid = True;
+  const auto* body_isa =
+      toolchain.get_isa_registry().find(record.get_boot().get_isa().get_name());
+  if (body_isa != nullptr) {
+    if (!body_isa->get_evaluator()(isa_context, cursor)) {
+      executed_body_valid = False;
+    }
+  } else {
     add_error(
         context, record.get_source_path(), record.get_content(),
-        "Package dialect is not registered."_view);
-    parsed_dialect_valid = False;
+        "Selected ISA is not installed in this toolchain."_view);
+    executed_body_valid = False;
   }
 
-  if (is_package_source(record.get_source()) && parsed_dialect_valid) {
-    auto* package = Data::cast<Ttx::Dialect::Package::Package>(parsed_dialect);
-    if (package == nullptr || !package->is_valid()) {
-      parsed_dialect_valid = False;
-    } else {
-      // Package sources publish under their declared package name. Regular
-      // source files publish under their normalized path.
-      import_name = package->get_package_name();
-    }
-  }
-
-  auto parse_errors = cursor.get_errors();
-  for (Count error_index = 0; error_index < parse_errors.get_size();
+  auto evaluation_errors = cursor.get_errors();
+  for (Count error_index = 0; error_index < evaluation_errors.get_size();
        error_index++) {
-    context.add_error(parse_errors[error_index]);
+    context.add_error(evaluation_errors[error_index]);
   }
 
-  if (!parsed_dialect_valid || !parse_errors.is_empty() ||
-      import_name.is_empty()) {
+  View::Bytes import_name = isa_context.get_import_name().is_empty()
+                                ? record.get_source_path()
+                                : isa_context.get_import_name();
+  if (is_package_source(record.get_boot()) &&
+      isa_context.get_import_name().is_empty()) {
+    executed_body_valid = False;
+  }
+
+  if (!executed_body_valid || !evaluation_errors.is_empty() ||
+      import_name.is_empty() || isa_context.get_type() == nullptr) {
     return False;
   }
 
-  record.publish(parsed_dialect, import_name);
+  record.publish(*isa_context.get_type(), import_name);
   return True;
 }
 
@@ -566,14 +571,13 @@ auto Resolver::resolve_imports(
     const Dynamic::Vector<Dynamic::Bytes>* blocked_sources) -> Bool {
   Bool resolved = True;
 
-  auto requested_imports = record.get_source().get_imports();
+  auto requested_imports = record.get_boot().get_imports();
   // Evaluate every requested import so a single load reports as much of the
-  // source-tree error surface as possible. Producers are connected only after
-  // the whole import list succeeds.
+  // source error surface as possible. Producers are connected only after the
+  // whole import list succeeds.
   for (Count import_index = 0; import_index < requested_imports.get_size();
        import_index++) {
-    const Ttx::Dialect::Source::Import& import =
-        requested_imports[import_index];
+    const Import& import = requested_imports[import_index];
     Source::Record* producer = load_import(
         context, record, import, record.is_private(), resolving,
         blocked_sources);
@@ -582,10 +586,10 @@ auto Resolver::resolve_imports(
       continue;
     }
 
-    if (!(import.get_dialect() == producer->get_source().get_dialect())) {
+    if (!(import.get_isa() == producer->get_boot().get_isa())) {
       add_error(
           context, record.get_source_path(), record.get_content(),
-          "Imported source dialect does not match the requested dialect."_view);
+          "Imported source ISA does not match the requested ISA."_view);
       resolved = False;
       continue;
     }
@@ -625,8 +629,8 @@ auto Resolver::snapshot_consumers(
     Dynamic::Vector<Snapshot>& snapshots) -> void {
   Dynamic::Vector<Source::Record*> consumers;
   sources.collect_transitive_consumers(record, consumers);
-  // Cache removal destroys records, so consumer update work is captured as
-  // source-path/source-text snapshots before the dependency tree is removed.
+  // Cache removal destroys records, so consumer update work is captured as path
+  // and source text snapshots before the dependency tree is removed.
   for (Count consumer_index = 0; consumer_index < consumers.get_size();
        consumer_index++) {
     Snapshot snapshot;

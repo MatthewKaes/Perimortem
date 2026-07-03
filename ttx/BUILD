@@ -44,27 +44,11 @@ cc_library(
 )
 
 cc_library(
-    name = "dialect",
-    alwayslink = True,
-    srcs = glob([
-        "dialect/**/*.cpp",
-    ]),
-    hdrs = glob([
-        "dialect/**/*.hpp",
-    ]),
-    deps = [
-        ":model",
-        "//perimortem",
-    ],
-)
-
-cc_library(
     name = "ttx",
     hdrs = [
         "core/types.hpp",
     ],
     deps = [
-        ":dialect",
         ":lexical",
         ":model",
         "//perimortem",

@@ -5,10 +5,10 @@
 
 #include "perimortem/core/view/vector.hpp"
 
-#include "ttx/dialect/package/definition.hpp"
-#include "ttx/dialect/symbol_path.hpp"
+#include "tetrodotoxin/isa/package/definition.hpp"
+#include "tetrodotoxin/isa/qualified_name.hpp"
 
-namespace Ttx::Dialect::Package {
+namespace Tetrodotoxin::Isa {
 
 // Export is one package-owned public declaration.
 //
@@ -20,14 +20,14 @@ class Export {
  public:
   Export() = default;
 
-  static auto parse(
-      Lexical::Cursor& cursor,
+  static auto evaluate(
+      Ttx::Lexical::Cursor& cursor,
       Ttx::Documentation documentation) -> Export;
 
   constexpr auto get_definition() const -> const Definition& {
     return definition;
   }
-  constexpr auto get_target() const -> SymbolPath { return target; }
+  constexpr auto get_target() const -> QualifiedName { return target; }
   constexpr auto get_exports() const
       -> Perimortem::Core::View::Vector<Export> {
     return exports;
@@ -35,7 +35,7 @@ class Export {
   constexpr auto is_valid() const -> Bool { return definition.is_valid(); }
 
  private:
-  Export(Definition definition, SymbolPath target)
+  Export(Definition definition, QualifiedName target)
       : definition(definition), target(target) {}
   Export(
       Definition definition,
@@ -43,8 +43,8 @@ class Export {
       : definition(definition), exports(exports) {}
 
   Definition definition;
-  SymbolPath target;
+  QualifiedName target;
   Perimortem::Core::View::Vector<Export> exports;
 };
 
-}  // namespace Ttx::Dialect::Package
+}  // namespace Tetrodotoxin::Isa

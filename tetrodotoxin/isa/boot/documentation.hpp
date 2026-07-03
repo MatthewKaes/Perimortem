@@ -8,14 +8,13 @@
 #include "ttx/documentation.hpp"
 #include "ttx/lexical/cursor.hpp"
 
-namespace Ttx::Dialect::Source {
+namespace Tetrodotoxin::Isa {
 
 // The source representation of TTX documentation.
-//
-// Parsed as a continous block of comment lines.
+// Documentation is a continuous block of comment lines at the current cursor.
 class Documentation {
  public:
-  static auto parse(Lexical::Cursor& cursor) -> Ttx::Documentation;
+  static auto evaluate(Ttx::Lexical::Cursor& cursor) -> Ttx::Documentation;
 };
 
-}  // namespace Ttx::Dialect::Source
+}  // namespace Tetrodotoxin::Isa

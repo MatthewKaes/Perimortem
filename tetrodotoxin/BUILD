@@ -20,6 +20,37 @@ package(default_visibility = ["//visibility:public"])
 # )
 
 cc_library(
+    name = "isa",
+    srcs = glob([
+        "isa/**/*.cpp",
+    ]),
+    hdrs = glob([
+        "isa/**/*.hpp",
+    ]),
+    includes = ["."],
+    deps = [
+        "//perimortem",
+        "//ttx",
+    ],
+)
+
+cc_library(
+    name = "toolchain",
+    srcs = [
+        "toolchain.cpp",
+    ],
+    hdrs = [
+        "toolchain.hpp",
+    ],
+    includes = ["."],
+    deps = [
+        ":isa",
+        "//perimortem",
+        "//ttx",
+    ],
+)
+
+cc_library(
     name = "resolution",
     srcs = [
         "resolution/resolver.cpp",
@@ -32,6 +63,8 @@ cc_library(
     ],
     includes = ["."],
     deps = [
+        ":isa",
+        ":toolchain",
         "//perimortem",
         "//ttx",
     ],

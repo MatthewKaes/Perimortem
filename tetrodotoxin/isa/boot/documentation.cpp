@@ -1,19 +1,18 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
-#include "ttx/dialect/source/documentation.hpp"
+#include "tetrodotoxin/isa/boot/documentation.hpp"
 
 #include "perimortem/core/null_terminated.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
+using namespace Tetrodotoxin::Isa;
 using namespace Ttx::Lexical;
-using namespace Ttx::Dialect;
 
-auto Source::Documentation::parse(Cursor& cursor) -> Ttx::Documentation {
-  // A bit annoying that we have to double comments up in the lexical arena but
-  // the TTX model is technically free of lexical analysis so we need to strip
-  // away the token data into a proper buffer.
+auto Documentation::evaluate(Cursor& cursor) -> Ttx::Documentation {
+  // Documentation is a TTX fact, not a token fact, so strip the comment tokens
+  // down to the source lines that should travel with the evaluated object.
   Managed::Vector<View::Bytes> lines(cursor.get_arena());
   while (cursor.matches(Ttx::Lexical::Class::Type::Comment)) {
     lines.insert(cursor.consume().get_text());

@@ -1,18 +1,18 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
-#include "ttx/dialect/symbol_path.hpp"
+#include "tetrodotoxin/isa/qualified_name.hpp"
 
 using namespace Perimortem::Core;
-using namespace Ttx::Dialect;
+using namespace Tetrodotoxin::Isa;
 using namespace Ttx::Lexical;
 
-auto SymbolPath::parse(Cursor& cursor) -> SymbolPath {
+auto QualifiedName::evaluate(Cursor& cursor) -> QualifiedName {
   const Token* first_segment = cursor.require(
       Class::Type::Type,
-      "Expected symbol path to start with a Type name."_view);
+      "Expected qualified name to start with a Type name."_view);
   if (first_segment == nullptr) {
-    return SymbolPath();
+    return QualifiedName();
   }
 
   const Token* last_segment = first_segment;
@@ -20,14 +20,14 @@ auto SymbolPath::parse(Cursor& cursor) -> SymbolPath {
     cursor.consume();
     last_segment = cursor.require(
         Class::Type::Type,
-        "Symbol path segments should all be Type names."_view);
+        "Qualified name segments should all be Type names."_view);
     if (last_segment == nullptr) {
-      return SymbolPath();
+      return QualifiedName();
     }
   }
 
   auto start = first_segment->get_text();
   auto end = last_segment->get_text();
-  return SymbolPath(View::Bytes(
+  return QualifiedName(View::Bytes(
       start.get_data(), end.get_data() - start.get_data() + end.get_size()));
 }

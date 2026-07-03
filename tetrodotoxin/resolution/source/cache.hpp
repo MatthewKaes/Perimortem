@@ -12,15 +12,17 @@
 
 namespace Tetrodotoxin::Resolution::Source {
 
-// Resolver's source cache with its dependency graph.
+// Resolver source cache with the dependency indexes needed for invalidation.
 //
-// Only valid records are published to the cache and come in two major flavors:
-// concrete source path for reloads, and package name for package imports. The
-// cache keeps a graph keyed on View::Bytes to work with both types. The graph
-// is used to track which consumers need to be detatched on source change for
-// quick graph invalidation. Since TTX's Type and Data model is address based
-// consumers also keep track of their producers so they can clean up the list
-// when they are invalidated.
+// Only valid records are published here. Sources are looked up by their
+// normalized file path or their publish package name. The two dependency maps
+// are just indexes over the producer / consumer relationships between clusters:
+// producers let a changed record find its consumers, and consumers let a
+// removed record detach from its producers without scanning unrelated sources.
+//
+// That matters because TTX facts are address identities rather than the prior
+// GUID model. If a producer record is destroyed or republished, every consumer
+// that may point into its arena has to leave the cache or be evaluated again.
 class Cache {
  public:
   Cache() = default;
@@ -35,8 +37,8 @@ class Cache {
   auto remove(Perimortem::Core::View::Bytes key) -> void;
   auto connect(Record& consumer, Record& producer) -> void;
 
-  // Collects every published source that directly or indirectly imports the
-  // selected record.
+  // Collects every published source that directly or indirectly imports this
+  // record.
   auto collect_transitive_consumers(
       const Record& record,
       Perimortem::Memory::Dynamic::Vector<Record*>& consumers) const -> void;
@@ -49,10 +51,10 @@ class Cache {
 
   Perimortem::Memory::Dynamic::Map<Perimortem::Core::View::Bytes, Record*>
       records;
-  // producer -> consumers map for invalidation and recursive removal.
+  // Producer to consumers. Used when a changed record needs to clear its users.
   Perimortem::Memory::Dynamic::Map<const Record*, Records>
       consumers_by_producer;
-  // consumer -> producers map to detach without scanning unrelated records.
+  // Consumer to producers. Used when a removed record detaches its imports.
   Perimortem::Memory::Dynamic::Map<const Record*, Records>
       producers_by_consumer;
 };

@@ -1,48 +1,46 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
-#include "ttx/dialect/source/import.hpp"
+#include "tetrodotoxin/isa/boot/import.hpp"
 
 #include "perimortem/core/null_terminated.hpp"
 
-#include "ttx/dialect/symbol_path.hpp"
+#include "tetrodotoxin/isa/qualified_name.hpp"
 
 using namespace Perimortem::Core;
+using namespace Tetrodotoxin::Isa;
 using namespace Ttx::Lexical;
-using namespace Ttx::Dialect;
 
-auto Source::Import::should_parse(Cursor& cursor) -> Bool {
-  return cursor.matches(Lexical::Class::Type::Import);
+auto Import::should_evaluate(Cursor& cursor) -> Bool {
+  return cursor.matches(Class::Type::Import);
 }
 
-auto Source::Import::parse(Cursor& cursor) -> Source::Import {
-  if (!should_parse(cursor)) {
-    return Source::Import();
+auto Import::evaluate(Cursor& cursor, const Registry& registry) -> Import {
+  if (!should_evaluate(cursor)) {
+    return Import();
   }
   cursor.consume();
 
-  // Get the name for the alias
   auto local_name = cursor.require(
       Class::Type::Type, "Type name for local import alias."_view);
   if (!local_name) {
     cursor.recover_to_statement();
-    return Source::Import();
+    return Import();
   }
 
-  auto dialect = Source::Dialect::parse(cursor);
-  if (!dialect.is_valid()) {
+  auto isa = Selection::evaluate(cursor, registry);
+  if (!isa.is_valid()) {
     cursor.recover_to_statement();
-    return Source::Import();
+    return Import();
   }
 
   if (!cursor.require(
-          Class::Type::Assign, "Expected `=` after import dialect."_view)) {
+          Class::Type::Assign, "Expected `=` after import ISA."_view)) {
     cursor.recover_to_statement();
-    return Source::Import();
+    return Import();
   }
 
-  // Parses either a string which indicates a source file, or a Type which
-  // implies a package name.
+  // Strings are file imports. Qualified type-shaped names are package imports.
   View::Bytes import_name;
   Bool package = False;
   switch (cursor.current().get_class().get_type()) {
@@ -55,13 +53,13 @@ auto Source::Import::parse(Cursor& cursor) -> Source::Import {
 
   case Class::Type::Type: {
     package = True;
-    auto path = SymbolPath::parse(cursor);
-    if (!path.is_valid()) {
+    auto name = QualifiedName::evaluate(cursor);
+    if (!name.is_valid()) {
       cursor.recover_to_statement();
-      return Source::Import();
+      return Import();
     }
 
-    import_name = path.get_text();
+    import_name = name.get_text();
     break;
   }
 
@@ -69,7 +67,7 @@ auto Source::Import::parse(Cursor& cursor) -> Source::Import {
     cursor.error(
         "Unknown import semantics. Expected either a string path or a package "
         "name."_view);
-    return Source::Import();
+    return Import();
   }
 
   if (!cursor.require(
@@ -77,5 +75,5 @@ auto Source::Import::parse(Cursor& cursor) -> Source::Import {
     cursor.recover_to_statement();
   }
 
-  return {local_name->get_text(), import_name, dialect, package};
+  return {local_name->get_text(), import_name, isa, package};
 }

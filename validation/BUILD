@@ -53,8 +53,10 @@ cc_binary(
         # ":ttx_tests",
         "//perimortem",
         "//tetrodotoxin:compiler",
+        "//tetrodotoxin:isa",
         "//tetrodotoxin:linker",
         "//tetrodotoxin:resolution",
+        "//tetrodotoxin:toolchain",
         "//ttx",
     ],
 )

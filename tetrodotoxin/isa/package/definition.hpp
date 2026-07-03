@@ -9,17 +9,17 @@
 #include "ttx/documentation.hpp"
 #include "ttx/lexical/cursor.hpp"
 
-namespace Ttx::Dialect::Package {
+namespace Tetrodotoxin::Isa {
 
-// Definition parses the reusable package declaration spine:
+// Definition evaluates the reusable package declaration spine:
 //
 //   @public Name : alias
 //   @public Name : Package
 //   @public Name : Namespace
 //
-// The prefix is common enough that it should be one composable dialect piece
+// The prefix is common enough that it should be one composable ISA piece
 // instead of each package construct re-reading sigil, name, define, and kind.
-// It is still syntax, not a semantic type. Binding the definition to real
+// It is still syntax, not a semantic type. Resolving the definition to real
 // Ttx::Type objects happens after resolution has the imported sources in hand.
 class Definition {
  public:
@@ -36,8 +36,8 @@ class Definition {
       Kind kind)
       : documentation(documentation), name(name), kind(kind), valid(True) {}
 
-  static auto parse(
-      Lexical::Cursor& cursor,
+  static auto evaluate(
+      Ttx::Lexical::Cursor& cursor,
       Ttx::Documentation documentation,
       Perimortem::Core::View::Vector<Kind> allowed_kinds) -> Definition;
 
@@ -62,4 +62,4 @@ class Definition {
   Bool valid = False;
 };
 
-}  // namespace Ttx::Dialect::Package
+}  // namespace Tetrodotoxin::Isa

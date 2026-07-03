@@ -45,6 +45,8 @@ cc_binary(
         ":rpc",
         "//perimortem:serialization",
         "//perimortem:system",
+        "//tetrodotoxin:isa",
+        "//tetrodotoxin:toolchain",
         "//ttx",
     ],
 )

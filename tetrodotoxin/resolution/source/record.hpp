@@ -3,23 +3,26 @@
 
 #pragma once
 
+#include "perimortem/core/view/bytes.hpp"
 #include "perimortem/core/bibliotheca.hpp"
 #include "perimortem/core/data.hpp"
-#include "perimortem/core/view/bytes.hpp"
 
 #include "perimortem/memory/allocator/arena.hpp"
 #include "perimortem/memory/dynamic/bytes.hpp"
 
-#include "ttx/dialect/source/source.hpp"
+#include "tetrodotoxin/isa/boot/boot.hpp"
+#include "ttx/type.hpp"
 
 namespace Tetrodotoxin::Resolution::Source {
 
 // Stable source entry owned by the resolution cache.
 //
 // A record owns the storage whose lifetime is exactly one resolved source file:
-// normalized source path, source bytes, parse arena, and the published TTX
-// source envelope. Cache owns lookup keys and dependency edges. Resolver owns
-// traversal, parsing, and error forwarding.
+// normalized source path, source bytes, evaluation arena, Boot envelope, and
+// the root TTX type published by the selected ISAs are all stored by the
+// Record. The Resolver's `Cache` owns lookup keys and dependency edges which
+// keeps the Record focused on the local virtualized state of executing a single
+// TTX token bytecode stream.
 class Record {
  public:
   static auto create(
@@ -40,14 +43,11 @@ class Record {
   Record(const Record&) = delete;
   auto operator=(const Record&) -> Record& = delete;
 
-  auto set_source(Ttx::Dialect::Source::Source& source) -> void {
-    source_info = &source;
-  }
+  auto set_boot(Tetrodotoxin::Isa::Boot& boot) -> void { boot_info = &boot; }
 
-  auto publish(
-      void* dialect_body,
-      Perimortem::Core::View::Bytes import_name) -> void {
-    this->dialect_body = dialect_body;
+  auto publish(Ttx::Type& type, Perimortem::Core::View::Bytes import_name)
+      -> void {
+    this->type = &type;
     if (!(this->import_name == import_name)) {
       this->import_name = import_name;
     }
@@ -65,15 +65,12 @@ class Record {
   constexpr auto get_content() const -> Perimortem::Core::View::Bytes {
     return source_text;
   }
-  constexpr auto get_source() -> Ttx::Dialect::Source::Source& {
-    return *source_info;
+  constexpr auto get_boot() -> Tetrodotoxin::Isa::Boot& { return *boot_info; }
+  constexpr auto get_boot() const -> const Tetrodotoxin::Isa::Boot& {
+    return *boot_info;
   }
-  constexpr auto get_source() const -> const Ttx::Dialect::Source::Source& {
-    return *source_info;
-  }
-  constexpr auto get_dialect_body() const -> const void* {
-    return dialect_body;
-  }
+  constexpr auto get_type() -> Ttx::Type* { return type; }
+  constexpr auto get_type() const -> const Ttx::Type* { return type; }
   constexpr auto is_private() const -> Bool { return private_source; }
 
  private:
@@ -90,8 +87,8 @@ class Record {
   Perimortem::Memory::Dynamic::Bytes source_path;
   Perimortem::Memory::Dynamic::Bytes import_name;
   Perimortem::Memory::Dynamic::Bytes source_text;
-  Ttx::Dialect::Source::Source* source_info = nullptr;
-  void* dialect_body = nullptr;
+  Tetrodotoxin::Isa::Boot* boot_info = nullptr;
+  Ttx::Type* type = nullptr;
   Bool private_source = False;
 };
 

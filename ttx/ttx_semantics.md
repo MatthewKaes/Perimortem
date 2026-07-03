@@ -1,16 +1,16 @@
 # TTX Language Semantics
 
-TTX is Tetrodotoxin's default frontend IR language. It is authored by humans, but
-it stays close to the compiler's semantic model. A TTX file makes package
-boundaries, storage shape, addressability, layout, and lowering intent visible
-in the source. Tetrodotoxin can support other frontend languages, but TTX is the
-frontend designed around Perimortem's authoring, tooling, shader, ABI, and build
-needs.
+TTX is a frontend source IR language. It is authored by humans, but it stays
+close to the compiler's semantic model. A TTX file makes package boundaries,
+storage shape, addressability, layout, and lowering intent visible in the
+source. Tetrodotoxin uses TTX as its default frontend, but the TTX source IR and
+token bytecode can also serve as an interchange boundary for another host that
+agrees to the token and data model.
 
 For high-level language design and usage, see
-[ttx_design.md](ttx_design.md). This document is the single source of truth for
-TTX semantics and is sufficient to build a conforming TTX parser from scratch.
-It explains how each language concept is tokenized, parsed, represented, and
+[ttx_design.md](ttx_design.md). This document is the canonical contract for TTX
+semantics and is sufficient to build a conforming TTX evaluator from scratch.
+It explains how each language concept is tokenized, evaluated, represented, and
 checked by the owner that knows the rule before lowering.
 
 TTX's central design philosophy is to provide as much of a human-editable
@@ -20,15 +20,15 @@ parse. A practical way to state the design goal is: TTX is an IR-like language
 where humans edit semantic structure directly without drowning in compiler
 machinery.
 
-The compiler architecture follows **monotonic context layering**. Each stage
-enriches the same conceptual program representation with queryable context
-instead of throwing that representation away and replacing it with a new private
-IR. A tool can stop as soon as it has the context it needs: syntax highlighting
-can stop after lexical classification, formatting can stop after syntax,
-project navigation can stop after resolution, and code generation continues
-through type/layout, dialect, ABI, provider, and compilation queries. Fast
-compilation is part of that goal, not an afterthought. Every syntax feature
-must justify its parse cost, recovery cost, and downstream context cost.
+TTX is designed for **monotonic context layering**. A host can enrich the same
+source IR and token bytecode with queryable context instead of throwing it away
+and replacing it with a private IR. A tool can stop as soon as it has the
+context it needs: syntax highlighting can stop after lexical classification,
+formatting can stop after source shape, project navigation can stop after a host
+builds a module graph, and code generation can continue through type, layout,
+ISA, ABI, provider, and compilation queries. Fast compilation is part of that
+goal, not an afterthought. Every syntax feature must justify its parse cost,
+recovery cost, and downstream context cost.
 
 To make that work, the syntax carries a large amount of semantic information
 directly. Casing separates addressable names from type names. Sigils encode
@@ -38,59 +38,113 @@ ordinary identifiers or PascalCase types. Packs, layouts, access chains, and
 assignment statements all have distinct local shapes.
 
 Each major section below describes the source form, the token or local shape
-that starts the parse, the AST meaning, and the checks owned by that shape. The
-exact C++ implementation can change, but these contracts remain stable.
+that starts evaluation, the TTX facts produced, and the checks owned by that
+shape. The exact C++ implementation can change, but these contracts remain
+stable.
 
 ## Formal Language Model
 
 TTX has two useful formal layers:
 
-- The token stream and syntactic grammar are deterministic context-free after
-  lexical analysis. The grammar is designed for predictive recursive descent
-  with bounded fixed lookahead, plus an operator-precedence parser for
-  expressions.
-- The set of semantically valid TTX programs is context-sensitive. Name
-  resolution, import resolution, type canonicalization, dialect rules,
-  pack fitting, and addressability checks all depend on program context.
+- The token bytecode and syntactic grammar are deterministic context-free after
+  lexical analysis. The grammar is designed for predictive decoding with
+  bounded fixed lookahead, plus operator-precedence decoding for expressions.
+- The set of semantically valid TTX programs is context-sensitive. Name binding,
+  import binding, type canonicalization, ISA rules, pack fitting, and
+  addressability checks all depend on program context.
 
 TTX is not trying to be a maximally expressive context-free grammar. It is a
 context-sensitive source IR whose concrete grammar is engineered to be
 deterministic and bounded-lookahead. Its main formal trick is moving semantic
-category information into lexical and syntactic form so the parser can build a
-source-shaped AST without speculative parsing or later reinterpretation.
+category information into lexical and syntactic form so an evaluator can build
+source-shaped TTX facts without speculative parsing or later reinterpretation.
 
-In practical parser terms, TTX is LL-like rather than a pure LL(1) grammar.
+In practical decoder terms, TTX is LL-like rather than a pure LL(1) grammar.
 Several local decisions use fixed lookahead, such as distinguishing named and
 unnamed layouts after `[`. Expressions are not written as left-recursive grammar
-productions. They are parsed by precedence so recursive descent never needs to
+productions. They are decoded by precedence so recursive descent never needs to
 expand an expression before consuming input.
 
 The grammar is intentionally left-factored around visible source markers. A
-parser consumes the shared prefix of a construct once, then branches on the next
-token that actually distinguishes the alternatives. The syntax does not require
-backtracking, speculative parsing, speculative diagnostics suppression, or
-reinterpretation of an already-parsed subtree.
+decoder consumes the shared prefix of a construct once, then branches on the
+next token that actually distinguishes the alternatives. The syntax does not
+require backtracking, speculative parsing, speculative diagnostics suppression,
+or reinterpretation of an already-decoded subtree.
+
+## Token Bytecode And VM Execution
+
+TTX source text is the human-authored source IR. Lexical analysis lowers that
+source IR into TTX token bytecode: a compact instruction stream whose token
+classes already carry stable semantic categories such as `Type`, `Addressable`,
+`Import`, `Assign`, `TypeAccessOp`, `AddressOp`, `CallOp`, sigils, attributes,
+and fixed operators.
+
+The current token class vocabulary has 74 values: 72 source-facing bytecode
+classes plus `Unknown` and `EndOfStream` sentinels. The class value is stored in
+8 bits, and payload-bearing tokens keep source text views beside that class.
+Those values are arbitrary as byte values, but not arbitrary as language facts:
+each token class exists because it gives an envelope evaluator, body evaluator,
+or other host-owned decoder a useful intended category before any larger
+instruction is decoded.
+
+The bytecode is not a fixed-width instruction stream. A token is the smallest
+decoded unit, but an ISA instruction is whatever span the active ISA fetches and
+decodes from the cursor. Some instructions consume one token. A package export,
+layout, function declaration, or control statement may consume many tokens. A
+string or byte literal is a single token whose payload can be large. The useful
+hardware analogy is closer to a variable-width instruction stream than a
+one-token-per-instruction machine, but the important rule is simpler: Lexical
+classifies source into stable tokens, and the active ISA owns the decode length
+and execution rule for the bytecode it accepts.
+
+TTX does not define a canonical ISA or canonical ISA set. It defines source IR,
+token bytecode, and the shared facts that an interpreter can use. Which ISAs
+execute that bytecode is left to the toolchain that hosts TTX.
+
+The Tetrodotoxin reference host uses a small `Boot` ISA to evaluate its source
+envelope before dispatching to another ISA. For that concrete host model, see
+[`tetrodotoxin_design.md`](../tetrodotoxin/tetrodotoxin_design.md).
+
+The useful mental model is:
+
+```text
+TTX source IR
+-> lexical token bytecode
+-> optional envelope evaluation
+-> optional import or module loading
+-> optional ISA or evaluator execution
+-> lowering, tooling, or interchange output
+```
+
+An ISA is a semantic instruction set, not a backend target and not a parse-tree
+visitor. It decodes the token bytecode it owns, validates the rules for that
+authoring domain, and publishes TTX facts: types, layouts, package exports,
+callable facts, ABI facts, shader facts, or other queryable context.
+
+Import loading, package loading, cache validity, and body-ISA dispatch are host
+concerns. TTX describes the bytecode and shared data model those systems execute
+against.
 
 ## Monotonic Context Layering
 
-Tetrodotoxin is a multi-phase IR-to-IR toolchain, but its phases are not
-intended to be a chain of unrelated replacement IRs. When the frontend language
-is TTX, the durable object is the source program with progressively enriched
-context.
+A host that consumes TTX can be small or large. It might only tokenize source
+for highlighting, execute a private ISA for embedded scripting, or run a full
+compiler pipeline. The durable object is still the same source program and token
+bytecode with progressively enriched context.
 
 ```text
-authoring surface
--> lexical context
--> syntax and scope context
--> cross-file resolution context
+TTX source IR
+-> lexical token bytecode
+-> optional host envelope context
+-> optional import or module context
+-> optional ISA or evaluator context
 -> owned query context
--> compilation context
 -> terminal output
 ```
 
 The rule is monotonic: a stage can add facts, check invariants, cache derived
 answers, or expose a richer query surface. It does not reinterpret earlier
-facts, silently discard source shape, or copy dialect-specific facts into a
+facts, silently discard source shape, or copy host-specific facts into a
 parallel primary representation. A new standalone representation is appropriate
 only when the pipeline intentionally crosses a terminal boundary, such as
 emitting SPIR-V words, LLVM IR, a C header, an object file, an archive, JSON for
@@ -102,34 +156,29 @@ The practical rule for moving information left is:
 > explicit queryable context layers.
 
 The lexer classifies stable source spellings such as type-shaped names,
-addressable names, sigils, builtin type forms, and fixed operators. The parser
-builds local scope and source shape without needing imports. Resolution adds
-package graph and cross-file identity. Type/layout, dialect, ABI, and provider
-owners check how resolved nodes fit the facts they own. Compilation asks those
-contexts questions rather than rediscovering source intent.
+addressable names, sigils, builtin type forms, and fixed operators. A host can
+then choose how much more context it wants: an envelope evaluator, an import
+graph, one or more ISAs, type and layout queries, ABI facts, or backend
+lowering. Compilation asks those contexts questions rather than rediscovering
+source intent from raw text.
 
 This model is close to typed AST and attribute-grammar systems, and it also
 resembles query-based incremental compilers. The important distinction is
 ownership:
 
-- Source and package records own source text and arena lifetime.
-- Lexical owns token classification.
-- Syntax nodes own source shape, documentation, local declarations, scopes,
-  layouts, packs, statements, and expressions.
-- Resolution owns package records, import graph state, cross-file identity, and
-  invalidation when files change.
-- Type/layout, dialect, ABI, and provider queries expose derived answers such
-  as expression type, pack-fit result, selected callable, assignment
-  compatibility, return compatibility, access-chain result, and literal fit.
-  These queries use resolution, syntax, TTX package facts, dialect context, and
-  ABI/provider facts rather than a standalone semantic IR.
-- Dialects own dialect-specific interpretations such as shader stages,
-  descriptor bindings, push constants, builtins, and target legality. Dialect
-  is a query/provider surface used by syntax, resolution, owned queries, and
-  compilation, not a cloned program representation or standalone lowering
-  stage.
-- Compilation owns backend lowering state and terminal-oriented intermediate
-  artifacts.
+- TTX source owns authored bytes and source spans.
+- Lexical owns token classification and token payload views.
+- Documentation, Type, and Layout own the shared TTX data model.
+- Host envelope evaluators own whatever source preamble they choose to execute.
+- Import, module, package, cache, and invalidation layers belong to the host
+  that needs them.
+- ISAs or evaluators own the bytecode spans they understand and the facts they
+  publish from those spans.
+- ABI, provider, and backend queries expose derived answers without cloning the
+  program into a second semantic tree.
+- Terminal emitters own output-specific representations such as SPIR-V words,
+  LLVM IR, object files, archives, generated headers, editor JSON, or formatted
+  source text.
 
 ## Layout Facts
 
@@ -180,136 +229,126 @@ Callable dispatch also requires a concrete receiver. The `->` operator is
 valid on concrete typed values, concrete type names, or concrete package scopes.
 It is not valid on a raw fluid pack because a fluid pack has no stable receiver
 identity. Its entries can still be mapped, fitted, reordered, or materialized by
-type/layout fitting, but they are not addressable storage until a concrete target is known.
+type and layout fitting, but they are not addressable storage until a concrete
+target is known.
 
 Implementations prefer queryable views over copied summaries. For example, a
-shader backend asks a shader dialect context for `stage_of(type)`,
-`descriptor_of(member)`, and `is_push_constant(type)`, and asks the type/layout
-query surface for `type_of(expression)` or `fit_of(pack)`. It does not need a separate
-shader-specific clone of the package AST before it starts lowering.
+shader backend asks a shader ISA context for `stage_of(type)`,
+`descriptor_of(member)`, and `is_push_constant(type)`, and asks the type and
+layout query surface for `type_of(expression)` or `fit_of(pack)`. It does not
+need a separate shader-specific clone of the package AST before it starts
+lowering.
 
-## Compiler Architecture
+## Host Architecture
 
-A complete TTX implementation has an authoring surface followed by six compiler
-layers:
+A complete TTX host can be as small as a tokenizer consumer or as large as a
+compiler toolchain. TTX itself defines the first durable boundary:
 
 ```text
-authoring surface -> lexical -> syntax/scope -> resolution/import graph -> owned queries -> compilation -> generation
+source IR
+-> token bytecode
 ```
 
-These pass names are deliberate. TTX does not have a broad semantic pass whose
-job is to reinterpret ambiguous syntax after parsing. The source already carries
-the semantic category of each construct. The later passes connect,
-type-check, and lower already-shaped nodes by enriching the available context.
+After that, the host decides which additional layers exist:
 
-There is no separate replacement IR layer for checks. Resolution, syntax,
-standard TTX providers, dialects, type/layout, and eventually ABI providers own
-the query surfaces that check resolved names, expressions, packs, layouts,
-expected types, dialect legality, and boundary facts. These queries may reject
-a program and may cache concrete facts on or beside syntax nodes. They do not
-guess which namespace a name belongs to, choose between ambiguous parse trees,
-reinterpret syntax after the fact, or collect backend-specific metadata into a
-second source of truth.
+```text
+token bytecode
+-> optional envelope or entry evaluator
+-> optional import or module graph
+-> optional ISA or body evaluator
+-> optional owned queries
+-> optional terminal output
+```
 
-The stages are:
+These names are examples, not required TTX stages. TTX does not have a broad
+semantic pass whose job is to reinterpret ambiguous syntax after parsing. The
+source already carries the semantic category of each construct, and lexical
+analysis lowers those categories into token bytecode. Later layers, when a host
+has them, connect, type-check, cache, and lower already-shaped facts by
+enriching the available context.
 
-1. **Lexical**: tokenize source into meaningful lexical classes. The tokenizer
+There is no required replacement IR layer for checks. Type, layout, ISA,
+provider, ABI, module, package, and backend owners expose the query surfaces
+they understand. These queries may reject a program and may cache concrete
+facts beside the source or token bytecode. They do not guess which namespace a
+name belongs to, choose between ambiguous parse trees, reinterpret syntax after
+the fact, or collect backend-specific metadata into a second authority.
+
+Common host roles are:
+
+1. **Lexical**: lower source text into meaningful token bytecode. The tokenizer
    distinguishes addressables, type names, grammar keywords, sigils,
    attributes, byte literals, embedded file literals, and operators.
-2. **Syntax**: parse each package into a source-shaped AST. The syntax pass owns
-   package structure, imports, type bodies, members, functions, attributes,
-   statements, expressions, local shape checks, formatting shape, and
-   deterministic recovery.
-3. **Resolution**: build the package graph and bind references between parsed
-   ASTs. The resolver checks whether imported packages exist, whether imported
-   dialects match the declared import kind, whether exported names exist in the
-   namespace selected by syntax, and whether type aliases canonicalize to
-   concrete type references.
-4. **Owned queries**: expose type/layout, dialect, provider, and eventual
-   backend-boundary queries over resolved syntax. These owners prove expression
-   type, pack fit, selected call target, assignment and return compatibility,
-   access-chain result, literal fit, dialect legality, and boundary metadata
-   without lowering the source graph.
-5. **Compilation**: lower resolved syntax using owned query contexts into the
-   backend's intermediate and machine-level representation. This pass consumes
-   resolved, type/layout, dialect, provider, and backend-boundary facts through
-   context queries rather than rediscovering them from source text.
-6. **Generation**: emit the requested output format. Shader binaries, embedded
-   read-only data, foreign ABI tables, generated host constants, relocation
-   records, objects, archives, and other final artifacts belong here.
+2. **Envelope or entry evaluation**: execute any host-defined preamble. A host
+   may use no envelope at all, or it may use a small base ISA to collect
+   documentation, selected ISA name, and import requests.
+3. **Import or module context**: attach cross-file, package, module, or FFI
+   state when the host needs more than one source unit.
+4. **ISA or body evaluation**: execute the token spans owned by the selected
+   instruction set and publish TTX facts from that execution.
+5. **Owned queries**: expose type, layout, ISA, provider, ABI, and
+   backend-boundary answers over the evaluated facts.
+6. **Terminal output**: emit a requested output format such as shader binaries,
+   embedded read-only data, generated host constants, relocation records,
+   objects, archives, editor JSON, formatted source text, or another host-owned
+   artifact.
 
-Resolution and type/layout checks are intentionally narrower than a traditional semantic
-pass. For example, `Graphics::Image` is syntactically a type path,
-`Graphics.image` is a member access, and `Graphics -> image()` is a function
-dispatch. The resolver checks existence, visibility, import graph reachability,
-and dialect compatibility. It does not decide which namespace the source meant;
-the syntax already selected that namespace. Type/layout fitting then checks whether the
-resolved symbol can be used in the local type context.
+Type checks and layout checks are intentionally narrower than a traditional
+semantic pass. For example, `Graphics::Image` is a type query,
+`Graphics.image` is member access, and `Graphics -> image()` is function
+dispatch. The token and operator shape already chose the namespace of the
+query. A host only has to prove whether the selected name exists and whether
+the result can be used in the local context.
 
-Imports are graph edges between complete package ASTs. A compiler can parse an
-imported source into its own AST, continue resolving that package's imports, and
-stop when the graph bottoms out or reports a cycle that violates the relevant
-resolution rule. This is different from C or C++ header inclusion: TTX does not
-splice imported source text into the importing package, and a package can be
-parsed into a meaningful local AST before any imported package is resolved.
+When a host supports imports, imports are graph edges between independently
+owned source units. TTX does not require C or C++ style text inclusion, and it
+does not require one global package graph. A host can bind token bytecode to
+foreign source units, native ABI facts, editor data, generated packages, or
+another language runtime as long as the boundary publishes the TTX facts its
+queries need.
 
-The resolver owns this graph. Each loaded source file has a package record with
-its own arena, source file snapshot, tokenizer output, parsed AST, and resolution
-state. If the file changes, the resolver clears only that package record's arena
-and reparses that one AST. Packages that import it can keep their syntax ASTs;
-their resolution state is invalidated because the graph facts they previously
-bound against may have changed. This keeps syntax ownership local while giving
-resolution a stable place to manage cross-package lifetime.
+A program is ready for lowering when the host has proven the facts its output
+requires. For a compiler this may mean every expression has a concrete value
+type, every pack has fitted an expected shape or remains in a context that
+allows a pack, every access chain has a typed result, every call has a selected
+callable target, and every statement has the type facts needed for lowering.
+Other hosts can stop earlier. The key rule is that the host asks enriched
+context for already-proven answers instead of rediscovering source intent from
+raw text.
 
-Proof caches are invalidated by resolution changes because they depend on the
-concrete targets selected by the resolver. A package can keep its syntax AST
-while re-running resolution and owned queries against updated imports. That
-keeps the arena model simple: syntax remains owned by the package record,
-resolution owns the package graph, and proof caches own only the derived typed
-facts for the current graph snapshot.
+## Evaluation Contract
 
-The program is ready for lowering when every expression has a concrete value
-type, every pack has either fitted an expected shape or remains in a context
-that explicitly allows a pack, every access chain has a typed result, every
-call has a selected callable target, and every statement has the type facts
-needed for lowering. After those checks, compilation no longer needs
-source-level name lookup, pack interpretation, expression inference, or dialect
-legality rediscovery. It asks the enriched context for the already-proven
-answers.
+The evaluator turns token bytecode into the TTX facts that host contexts and
+owned queries expect. It preserves source shape, attaches local type and name
+facts as soon as they are available, and never asks later stages to reconstruct
+source intent from raw text.
 
-## Parser Contract
-
-The parser turns the token stream into the source syntax tree that resolution
-and owned queries expect. It preserves source shape, attaches local type and
-name facts as soon as they are available, and never asks later stages to
-reconstruct source intent from raw text.
-
-The parser does not use rollback, checkpointing, or suppressed diagnostics to
-choose between valid grammar paths. It parses each construct once and then
+The evaluator does not use rollback, checkpointing, or suppressed diagnostics to
+choose between valid grammar paths. It decodes each construct once and then
 checks the resulting shape.
 
 There are deterministic lookahead decisions, and those are intentional:
 
-- `Layout::parse()` looks one token after `[` to distinguish a named layout
+- `Layout::evaluate()` looks one token after `[` to distinguish a named layout
   field, an unnamed layout, an empty layout, or a direct value type.
-- `Pack::parse_fields()` selects named-pack mode only from a leading `.` field.
-  Any other expression-starting token selects positional-pack mode.
-- `Member::parse()` looks for `sigil func` so function declarations do not look
-  like ordinary value declarations.
-- `Expression::parse_access_chain()` looks after `.` to decide whether there is
-  a field access. If the next token is not a valid field name, postfix parsing
-  stops.
-- The expression parser reads `:[` as the value index or slice operator, keeping
-  value indexing distinct from layout/type argument brackets.
-- Statement parsing parses an expression once. If the next token is an
-  assignment operator, the parsed expression is checked to see whether it is an
+- `Pack::evaluate_fields()` selects named-pack mode only from a leading `.`
+  field. Any other expression-starting token selects positional-pack mode.
+- `Member::evaluate()` looks for `sigil func` so function declarations do not
+  look like ordinary value declarations.
+- `Expression::evaluate_access_chain()` looks after `.` to decide whether there
+  is a field access. If the next token is not a valid field name, postfix
+  evaluation stops.
+- The expression evaluator reads `:[` as the value index or slice operator,
+  keeping value indexing distinct from layout/type argument brackets.
+- Statement evaluation decodes an expression once. If the next token is an
+  assignment operator, the decoded expression is checked to see whether it is an
   assignable address chain.
 
 Those decisions are local and do not backtrack. This is important because TTX
 is intended to have an authoritative formatter, useful diagnostics, and a
 compiler pipeline that does not depend on hidden parser guesses.
 
-A conforming parser follows these rules:
+A conforming evaluator follows these rules:
 
 1. Let token classes carry the first layer of meaning.
 2. Pick the next production from the current token whenever possible.
@@ -318,40 +357,42 @@ A conforming parser follows these rules:
    by `.field`.
 4. Use bounded lookahead only for local shape decisions, such as distinguishing
    a named layout from an unnamed layout.
-5. Parse expressions once. If a surrounding construct needs an assignable
-   expression, ask the expression owner whether the parsed shape is assignable.
+5. Decode expressions once. If a surrounding construct needs an assignable
+   expression, ask the expression owner whether the decoded shape is
+   assignable.
 6. Emit diagnostics at the point where a required delimiter, marker, or shape is
-   missing, then advance predictably so parsing can continue.
+   missing, then advance predictably so evaluation can continue.
 
 ## Lexical Classes
 
 The tokenizer does more semantic work than a minimal lexer would. This is
-intentional. The parser sees classes such as `Addressable`, `Type`, `Func`,
+intentional. The evaluator sees classes such as `Addressable`, `Type`, `Func`,
 `Struct`, `@if`, `@public`, and `SwizzleOp` directly.
 
 Important lexical distinctions:
 
-| Source shape                | Token class             | Semantic meaning                                    |
-| --------------------------- | ----------------------- | --------------------------------------------------- |
-| `snake_case`                | `Addressable`           | runtime names, fields, functions, local values      |
-| `PascalCase`                | `Type`                  | type names, aliases, dialect names, package paths   |
-| `enum`, `struct`, `foreign` | definition keywords     | definition forms, not type references               |
-| `public`, `@public`, etc.   | sigil tokens            | visibility plus runtime/compile-time addressability |
-| `@name`                     | `Attribute`             | metadata attached to members, params, fields        |
-| `@if`                       | `CompileIf`             | compile-time control-flow keyword                   |
-| `break`, `continue`         | control keyword tokens  | loop-control statements                             |
-| `0x[...]`                   | `Bytes`                 | byte data literal                                   |
-| `$[...]`                    | `Embedded`              | embedded file literal                               |
-| `_`                         | `Discard`               | wildcard or ignored value                           |
+| Source shape                | Token class            | Semantic meaning                                    |
+| --------------------------- | ---------------------- | --------------------------------------------------- |
+| `snake_case`                | `Addressable`          | runtime names, fields, functions, local values      |
+| `PascalCase`                | `Type`                 | type names, aliases, ISA names, package names       |
+| `enum`, `struct`, `foreign` | definition keywords    | definition forms, not type references               |
+| `public`, `@public`, etc.   | sigil tokens           | visibility plus runtime/compile-time addressability |
+| `@name`                     | `Attribute`            | metadata attached to members, params, fields        |
+| `@if`                       | `CompileIf`            | compile-time control-flow keyword                   |
+| `break`, `continue`         | control keyword tokens | loop-control statements                             |
+| `0x[...]`                   | `Bytes`                | byte data literal                                   |
+| `$[...]`                    | `Embedded`             | embedded file literal                               |
+| `_`                         | `Discard`              | wildcard or ignored value                           |
 
 Fixed source spellings live in `Lexical::Class::get_source_text()`. The lexer
 and formatter call into `Class` rather than duplicate strings for
 keywords, operators, delimiters, byte literal prefixes, embedded literal
 prefixes, and marker tokens.
 
-## Packages And Dialects
+## Source Envelopes And ISAs
 
-A complete file starts with exactly one dialect declaration:
+Many TTX hosts use a source envelope so a complete file can declare which
+instruction set should evaluate the remaining bytecode:
 
 ```ttx
 dialect : Library;
@@ -360,29 +401,33 @@ dialect : Shader;
 dialect : Entity;
 ```
 
-Parser shape: a full-file parser starts at the reserved lowercase `dialect`
-keyword, requires `Define`, then requires a PascalCase dialect name and
-`EndStatement`. Anything else on the first line is a dialect-header syntax
-error. Subtree parsers used by tests or tools may start below dialect level,
-but a source file is anchored by this declaration.
+Envelope shape: full-file evaluation starts at the reserved lowercase `dialect`
+keyword, requires `Define`, then requires a PascalCase ISA name and
+`EndStatement`. Subtree evaluators, embedded tools, or foreign hosts may start
+below this envelope level when they already know which evaluator should execute
+the token bytecode.
 
-The dialect name is not a globally reserved keyword. `Package`, `Library`,
-`Shader`, and other dialect names remain type/path atoms outside the header, so
-type access such as `YourType::Package` is still valid syntax.
+The source spelling stays `dialect` for now because that is the author-facing
+keyword, but semantically it names an evaluator installed in the active host. A
+host with different installed ISAs may reject a source another host accepts.
 
-The dialect name selects the top-level dialect. A dialect controls which
-builtins, attributes, types, address spaces, runtime features, and dialect-body
-forms are legal in the source.
+The ISA name is not a globally reserved keyword. `Package`, `Library`,
+`Shader`, and other ISA names remain type atoms outside the header, so type
+access such as `YourType::Package` is still valid syntax.
 
-| Dialect   | Purpose                                                            |
+The ISA name selects the top-level instruction set for hosts that use this
+envelope. An ISA controls which builtins, attributes, types, address spaces,
+runtime features, and body instructions are legal in the source.
+
+| ISA       | Purpose                                                            |
 | --------- | ------------------------------------------------------------------ |
 | `Library` | general reusable code, binary formats, data transforms, host logic |
-| `Render`  | stage-oriented render package authoring and host render contracts   |
+| `Render`  | stage-oriented render package authoring and host render contracts  |
 | `Shader`  | shader definitions and shader-specific host glue                   |
 | `Entity`  | entity-oriented package data and behavior                          |
 
 `object`, `struct`, `enum`, `foreign`, and `alias` are core definition
-keywords, but they are not dialect names. For example:
+keywords, but they are not ISA names. For example:
 
 ```ttx
 dialect : Library;
@@ -393,73 +438,88 @@ dialect : Library;
 }
 ```
 
-The active dialect may reject a construct that is syntactically valid.
-The shared TTX parser still owns declarations, layouts, packs, imports, and
-sigil syntax, but once the dialect header is known the selected dialect owns
-the dialect body parse and may reject constructs that do not belong to that
-authoring space. `Render` and `Shader` packages do not accept managed runtime
-concepts such as `object` or `List` unless those dialects explicitly define how
-they lower.
+The active ISA may reject a construct that is syntactically valid. Once the host
+has prepared whatever envelope, imports, or module context it requires, the
+selected ISA owns body evaluation and may reject constructs that do not belong
+to that authoring space. `Render` and `Shader` packages do not accept managed
+runtime concepts such as `object` or `List` unless those ISAs explicitly define
+how they lower.
 
-A dialect is not necessarily a single backend. `Render` and `Shader` packages
+An ISA is not necessarily a single backend. `Render` and `Shader` packages
 may produce GPU code, such as SPIR-V, and host-side code that loads those
 constants, builds pipeline layouts, and bridges them into the Perimortem
 runtime. Backend outputs such as SPIR-V, x86_64, generated headers, or Vulkan
-bridge code are compilation targets, not separate dialects.
+bridge code are compilation targets, not separate ISAs.
 
 ## Imports
 
-Imports introduce explicit local aliases for package dependencies:
+For hosts that use the common envelope, imports introduce explicit local aliases
+for package dependencies:
 
 ```ttx
-import Graphics : Library = "graphics/image.ttx";
-import Math     : Library = TTX::Math;
+import ImageLibrary : Library = "graphics/image.ttx";
+import Graphics     : Package = Perimortem::Graphics;
 ```
 
-Parser shape: imports appear immediately after the dialect declaration and
-before members. An import starts with `Import`, then a PascalCase local name,
-`Define`, a dialect, `Assign`, an import source, and `EndStatement`.
-The import source is chosen from the current token: `String` means a file
-source, while `Type` means a package path.
+Envelope shape: imports appear immediately after the ISA selection instruction
+and before members. An import starts with `Import`, then a PascalCase local
+name, `Define`, an expected ISA name, `Assign`, an import source, and
+`EndStatement`. The import source is chosen from the current token: `String`
+means a file source, while `Type` means a package name.
 
 The import shape is:
 
 ```ttx
-import LocalName : Dialect = source;
+import LocalName : IsaName = source;
 ```
 
 The source is either:
 
 - a file-source string, such as `"path.ttx"`
-- a package symbol path such as `TTX::Math`.
+- a package name such as `Perimortem::Graphics`.
 
-The local name participates in symbol paths and value access after import
-resolution. Imports do not erase dialect boundaries. A `Shader` package cannot
-make `object` legal by importing a `Library` that contains objects. Imported
-definitions must still be valid in the importing dialect.
+The local name participates in type queries and value access after the host has
+bound the import. Imports do not erase ISA boundaries. A `Shader` package
+cannot make `object` legal by importing a `Library` that contains objects.
+Imported definitions must still be valid in the importing ISA.
 
 There is no `using` or wildcard import syntax. Imports are named aliases so
 source reviews and diagnostics can see package boundaries.
 
-## Names And Type Paths
+## Names And Type Queries
 
 TTX uses casing as a semantic boundary:
 
 - `snake_case` names are addressable runtime values or fields.
-- `PascalCase` names are types, aliases, package names, or dialect names.
+- `PascalCase` names are types, aliases, package names, or ISA names.
 
-Type references are PascalCase paths with optional type arguments:
+Type references are progressive queries, not stored string paths:
 
 ```ttx
 Bits_32
 Vec[Bits_8, 4]
 Graphics::Image
-TTX::Math::Matrix[Real_32, 4, 4]
+Math::Matrix[Real_32, 4, 4]
 ```
+
+The first `Type` token is resolved immediately from the active context. Each
+operator then dispatches on the current value:
+
+- `:: Name` queries a nested type on the current `Ttx::Type`.
+- `.name` queries a layout/member on the current value or `Layout(type)`.
+- `-> name(...)` queries callable dispatch.
+- `.[...]` dispatches to swizzle/repack semantics.
+- `:[...]` dispatches to index or slice semantics.
+
+`::` is therefore not string concatenation. `Graphics::Color` means resolve the
+local type/package name `Graphics`, then ask that object for nested type
+`Color`. A type query only advances one level per operator, which keeps the
+model allocation-free and lets each owner report the error at the exact failed
+step.
 
 Type arguments use `[]`, not `<>`, because `<` and `>` are comparison
 operators. Numeric type arguments, such as the `4` in `Vec[Bits_8, 4]`, are
-part of the type reference and are checked while proving the type reference.
+part of the type query and are checked while proving that query.
 
 Parameterization is type dispatch over a resolved layout. A type reference such
 as `View[Bits_8]` resolves `View`, resolves `[Bits_8]` into the parameter
@@ -474,13 +534,14 @@ equivalence, member lookup, nested type lookup, function lookup, and
 `Layout(type)`. The parameter layout is an input to type construction; it is not
 stored as an independent representation.
 
-`alias` creates a compile-time type path. After canonicalization, later passes do
-not need to know whether a type was written directly or reached through an alias.
+`alias` creates a compile-time type reference. After canonicalization, later
+passes do not need to know whether a type was written directly or reached
+through an alias.
 
-Parser shape: a type reference starts with `Type`, or a numeric token when
-parsing a numeric type argument. Path segments are separated by `TypeAccessOp`.
-Type arguments start with `IndexStart`, contain type references separated by
-`PackingOp`, and end with `IndexEnd`.
+Decode shape: a type reference starts with `Type`, or a numeric token when
+decoding a numeric type argument. `TypeAccessOp` performs one nested-type query
+on the current `Ttx::Type`. Type arguments start with `IndexStart`, contain
+type references separated by `PackingOp`, and end with `IndexEnd`.
 
 ## Prelude And Package Aggregate Types
 
@@ -565,8 +626,8 @@ Other type references define values and must end with `;` or use `=`:
 @hidden bytes : Bytes;
 ```
 
-The parser reads these shapes. Dialect and type owners then check which builtin
-kinds are legal for the active dialect, along with the compatibility of the
+The evaluator reads these shapes. ISA and type owners then check which builtin
+kinds are legal for the active ISA, along with the compatibility of the
 definition name, type, initializer, visibility, and attributes.
 
 ## Sigils
@@ -618,16 +679,16 @@ known attribute.
 Attributes are not runtime values. They are consumed by the compiler or
 forwarded into target metadata.
 
-Some dialects also consume directive-style attributes as standalone statements.
+Some ISAs also consume directive-style attributes as standalone statements.
 For example, a Package manifest declares its package identity with:
 
 ```ttx
 @package_name = Perimortem::Graphics;
 ```
 
-The parser shape is `Attribute(package_name) Assign SymbolPath EndStatement`.
-That keeps package identity in the Package dialect body while using the same
-authored symbol path surface as package imports.
+The decode shape is `Attribute(package_name) Assign PackageName EndStatement`.
+That keeps package identity in the Package ISA body while using the same
+authored package-name surface as package imports.
 
 Known shader ABI attributes have fixed local targets. The compiler keeps these
 rules in `syntax/attribute` so attribute legality stays separate from package
@@ -641,7 +702,7 @@ shape parsing and later name binding:
 - `@builtin(.name = "...")` and `@builtin(.slot = N)` apply to shader builtin
   input members or layout fields.
 
-Other attributes may remain target-specific metadata until a dialect defines
+Other attributes may remain target-specific metadata until an ISA defines
 their legality rules.
 
 `@if` is a compile-time control-flow keyword, not a normal attribute named
@@ -752,9 +813,9 @@ Scoped builtins own member lists:
 }
 ```
 
-The parser identifies scoped builtins by the first segment of the definition's
-type reference. Dialect and type owners check that the builtin is legal in the
-current scope and dialect.
+The evaluator identifies scoped builtins by the first resolved type query in the
+definition. ISA and type owners check that the builtin is legal in the current
+scope and ISA.
 
 ## Enums
 
@@ -880,7 +941,7 @@ character literals, names, imports, enum values, arithmetic, or constants:
 
 Decimal and hexadecimal integer literals are still integer literals, so both
 `.65 = 0` and `.0x41 = 0` are explicit indexes if the lexer supports both
-literal spellings. Type/layout fitting checks that the target is index-addressable,
+literal spellings. Type and layout fitting checks that the target is index-addressable,
 that each index is in range, that no index is repeated, and that every value
 fits the target element type. Omitted positions use the target element default.
 
@@ -891,7 +952,7 @@ information on top of ordered fields only when they are authored by the pack or
 provided by the receiving layout.
 
 Structs and other typed aggregates have concrete layouts. Their declaration
-order is the storage and wire layout of the aggregate value. Type/layout fitting may map a
+order is the storage and wire layout of the aggregate value. Type and layout fitting may map a
 named fluid pack into a typed aggregate by name, but lowering must still emit
 the aggregate in the aggregate's declaration order.
 
@@ -987,7 +1048,7 @@ Use a named pack when names are the contract:
 ```
 
 The named pack states that the values are semantically `c` and `a`, regardless
-of source order. Type/layout fitting maps those names to the target fields and fills any
+of source order. Type and layout fitting maps those names to the target fields and fills any
 valid defaults. This is the clean way to add, drop, or reorder values at a
 layout boundary when names matter.
 
@@ -1101,7 +1162,7 @@ Rules:
     the aggregate's declaration order. A function with a named return layout
     exposes that declared return layout's carrier order at the call boundary.
 14. Duplicate field names are representable but should be diagnosed by the
-    source, package, or dialect owner that has the useful source location. Name
+    source, package, or ISA owner that has the useful source location. Name
     lookup reaches the leftmost duplicate, so later duplicates are shadowed.
 
 `Vec[T, N]`, `Vec2D`, `Vec3D`, `Vec4D`, `Color`, user structs, and other
@@ -1176,8 +1237,8 @@ Parser shape: access-chain parsing loops over postfix suffixes. `AddressOp`
 continues only when followed by an addressable or type name. `AddressOp` is
 lookup only: package lookup, type lookup, enum member lookup, or value field
 lookup. `CallOp` is the only call marker. It requires a callable name and a
-pack. The call base may be a value, `self`, `package`, a package/type path, or a
-future function-pointer value. `IndexStart` parses index or index-slice content.
+pack. The call base may be a value, `self`, `package`, a package or type query,
+or a future function-pointer value. `IndexStart` parses index or index-slice content.
 `SwizzleOp` parses swizzle fields or a swizzle slice. A swizzle or swizzle slice
 produces a positional pack. `PackingStart` after a type expression is invalid;
 aggregate construction is pack fitting against an expected type, while explicit
@@ -1185,13 +1246,13 @@ conversion is ordinary `-> from(...)` dispatch.
 
 Access forms:
 
-| Syntax              | Meaning                                      |
-| ------------------- | -------------------------------------------- |
-| `.field`            | field, package member, or type member access |
-| `:[index]`          | index access                                 |
-| `:[start, count]`   | index slice                                  |
-| `.[a, b, c]`        | swizzle that produces a positional pack      |
-| `-> name(pack)`     | callable dispatch from the left-side base    |
+| Syntax            | Meaning                                      |
+| ----------------- | -------------------------------------------- |
+| `.field`          | field, package member, or type member access |
+| `:[index]`        | index access                                 |
+| `:[start, count]` | index slice                                  |
+| `.[a, b, c]`      | swizzle that produces a positional pack      |
+| `-> name(pack)`   | callable dispatch from the left-side base    |
 
 Calls always take a pack. If no arguments are present, the call still formats
 as `receiver -> method()`. Static functions use the same syntax:
@@ -1314,9 +1375,9 @@ data. It resolves before runtime lowering.
 `match` patterns are expressions or `_`. Each case owns an explicit block.
 There is no fallthrough.
 
-`break;` and `continue;` are reserved loop-control statements. The active
-dialect decides where they are legal. The syntax layer only preserves the
-statement shape for later lowering.
+`break;` and `continue;` are reserved loop-control statements. The active ISA
+decides where they are legal. The syntax layer only preserves the statement
+shape for later lowering.
 
 ## Literals
 
@@ -1382,15 +1443,15 @@ stacked documentation view that accumulates each alias layer.
 
 ## Canonicalization
 
-Canonicalization is a resolution query. It happens after parsing and before
-queries that depend on resolved types.
+Canonicalization is an owned context query. It happens after the relevant source
+shape has been evaluated and before queries that depend on resolved types.
 
 It resolves:
 
 - local aliases
 - imported package aliases
 - builtin type names
-- type path segments
+- nested type-query steps
 - type parameterization
 - numeric parameter values.
 
@@ -1420,38 +1481,38 @@ invalid type argument list highlights the argument range when possible.
 
 The semantic type space is intentionally small:
 
-| Kind                    | Runtime model                   | Notes                                            |
-| ----------------------- | ------------------------------- | ------------------------------------------------ |
-| primitive numeric types | value                           | fixed width, no implicit widening                |
-| `Bool`                  | value                           | only `true` and `false` are truthable by default |
-| `Vec[T, N]`             | typed aggregate value           | homogeneous fixed-size aggregate                 |
-| `Vec2D`, `Vec4D`, `Color` | typed aggregate value         | named component types with concrete storage      |
-| layout                  | structural value stream         | anonymous heterogeneous aggregate                |
-| `struct`                | nominal value                   | does not flatten implicitly                      |
-| `object`                | nominal managed value           | heap/reference semantics, dialect-limited        |
-| `foreign`               | external ABI scope              | declarations lower to linked symbols             |
-| `Shader`                | shader scope or dialect concept | may lower to GPU module plus host glue           |
-| `enum`                  | compile-time namespace          | members lower to constants                       |
-| `alias`                 | compile-time type path          | erased after canonicalization                    |
+| Kind                      | Runtime model               | Notes                                            |
+| ------------------------- | --------------------------- | ------------------------------------------------ |
+| primitive numeric types   | value                       | fixed width, no implicit widening                |
+| `Bool`                    | value                       | only `true` and `false` are truthable by default |
+| `Vec[T, N]`               | typed aggregate value       | homogeneous fixed-size aggregate                 |
+| `Vec2D`, `Vec4D`, `Color` | typed aggregate value       | named component types with concrete storage      |
+| layout                    | structural value stream     | anonymous heterogeneous aggregate                |
+| `struct`                  | nominal value               | does not flatten implicitly                      |
+| `object`                  | nominal managed value       | heap/reference semantics, ISA-limited            |
+| `foreign`                 | external ABI scope          | declarations lower to linked symbols             |
+| `Shader`                  | shader scope or ISA concept | may lower to GPU module plus host glue           |
+| `enum`                    | compile-time namespace      | members lower to constants                       |
+| `alias`                   | compile-time type reference | erased after canonicalization                    |
 
-`Library`, `Shader`, and `Entity` are dialects. They remain PascalCase type/path
-atoms in source; dialect registration, not the lexer, decides what they mean.
+`Library`, `Shader`, and `Entity` are ISAs. They remain PascalCase type atoms in
+source; ISA registration, not the lexer, decides what they mean.
 
 ## Relationship To LLVM IR And MLIR
 
 TTX is IR-like, but it is not a textual spelling of LLVM IR and it is not MLIR.
 The difference is mostly one of layer and audience.
 
-| Area | LLVM IR | MLIR | TTX |
-| --- | --- | --- | --- |
-| Primary representation | Lowered SSA module/function/block/instruction IR | Extensible operation/SSA IR with regions | Source-shaped AST plus context layers |
-| Main extension point | Intrinsics, metadata, passes, and targets | Dialects define operations, types, attributes, and interfaces | Fixed syntax; dialects define legality and metadata |
-| Typical motion | Optimize and transform already-lowered IR | Rewrite and convert operations between dialects | Enrich the same source graph with queryable facts |
-| Text form | Debug, test, and serialization form for compiler IR | Debug, test, and serialization form for multi-level IR | Human-authored canonical source surface |
-| Dialect granularity | Target and metadata oriented, not dialect-first | Operations from many dialects can coexist freely | Package dialect controls the legal semantic world |
-| Source preservation | Mostly lowered away before LLVM IR | Supported through locations and higher-level dialects | Central design constraint |
-| Tooling goal | Optimizer and code-generation substrate | Reusable compiler infrastructure | Shared frontend IR for compiler, editor, and build tooling |
-| Lowering | Already lowered enough for optimization | Core workflow through dialect conversion | Delayed until terminal artifacts |
+| Area                   | LLVM IR                                             | MLIR                                                          | TTX                                                          |
+| ---------------------- | --------------------------------------------------- | ------------------------------------------------------------- | ------------------------------------------------------------ |
+| Primary representation | Lowered SSA module/function/block/instruction IR    | Extensible operation/SSA IR with regions                      | Source IR plus token bytecode and context layers             |
+| Main extension point   | Intrinsics, metadata, passes, and targets           | Dialects define operations, types, attributes, and interfaces | Fixed syntax; ISAs define evaluation, legality, and metadata |
+| Typical motion         | Optimize and transform already-lowered IR           | Rewrite and convert operations between dialects               | Evaluate token bytecode and enrich queryable facts           |
+| Text form              | Debug, test, and serialization form for compiler IR | Debug, test, and serialization form for multi-level IR        | Human-authored canonical source surface                      |
+| Extension granularity  | Target and metadata oriented                        | Operations from many dialects can coexist freely              | One declared ISA controls the legal semantic world           |
+| Source preservation    | Mostly lowered away before LLVM IR                  | Supported through locations and higher-level dialects         | Central design constraint                                    |
+| Tooling goal           | Optimizer and code-generation substrate             | Reusable compiler infrastructure                              | Shared frontend IR for compiler, editor, and build tooling   |
+| Lowering               | Already lowered enough for optimization             | Core workflow through dialect conversion                      | Delayed until terminal artifacts                             |
 
 LLVM IR is a low-level, strongly typed compiler IR. Its textual form is useful
 for debugging and testing, but most source-level structure has already been
@@ -1464,25 +1525,25 @@ packs, or domain-specific declarations.
 MLIR is a multi-level IR framework. Its power comes from extensible dialects,
 operations, attributes, regions, and rewrite infrastructure. MLIR can represent
 many layers of abstraction at once, and dialects can define their own operation
-semantics. TTX borrows the idea that dialects matter, but makes a different
-tradeoff: the dialect is selected at dialect level and the syntax remains a
-small fixed language rather than an extensible operation syntax.
+semantics. TTX borrows the idea that semantic domains matter, but makes a
+different tradeoff: a host selects an evaluator for a token span, and the syntax
+remains a small fixed language rather than an extensible operation syntax.
 
 TTX sits above LLVM IR and beside the lower levels of an MLIR-style pipeline.
 It keeps enough human-facing structure to be authored and reviewed directly:
 packages, imports, comments, sigils, attributes, named layouts, packs, scoped
 builtins, and shader/foreign declarations. At the same time, it avoids the
 open-ended grammar surface of a general programming language. The source is
-structured so a parser can build semantic shape directly and cheaply.
+structured so an evaluator can build semantic shape directly and cheaply.
 
 The architecture also differs in how intermediate state is treated. LLVM IR is
 already a lowered representation optimized for analysis and code generation.
 MLIR explicitly models many dialect operations and rewrite levels. TTX instead
 keeps the authored source tree as the stable carrier for as long as possible and
-enriches it with context. Lexical, syntax, resolution, owned query, dialect,
-and compilation contexts are layers over the same program, not permission to
-create independent copies of the program's meaning. The backend may eventually emit
-LLVM IR, SPIR-V, x86_64 code, or another terminal artifact, but those are output
+enriches it with context. Lexical, envelope, module, owned query, ISA, and
+compilation contexts are layers over the same program, not permission to create
+independent copies of the program's meaning. A host may eventually emit LLVM IR,
+SPIR-V, x86_64 code, or another terminal artifact, but those are output
 boundaries, not the organizing principle of the source language.
 
 In short:
@@ -1490,10 +1551,8 @@ In short:
 - Compared with LLVM IR, TTX is higher level, more source-preserving, and more
   domain aware.
 - Compared with MLIR, TTX is less extensible at the syntax level but simpler to
-  parse and easier to hand-author. There is no reason Tetrodotoxin could not
-  target MLIR, but moving in that direction now would make much of the
-  toolchain clone MLIR infrastructure for little benefit to either project at
-  this stage.
+  parse and easier to hand-author. A TTX host can still target MLIR if MLIR is
+  the right terminal or intermediate artifact for that host.
 - Compared with a conventional programming language, TTX exposes more storage,
   layout, type, and lowering information in the syntax itself.
 - Compared with a traditional compiler pipeline, TTX emphasizes monotonic
@@ -1521,7 +1580,7 @@ TTX maps naturally to LLVM-like IR concepts:
 
 The source-level constructs are frontend contracts. Many disappear during
 lowering, but they remain explicit long enough to produce good diagnostics,
-check dialect rules, and encode target metadata.
+check ISA rules, and encode target metadata.
 
 ## Design Invariants
 
@@ -1540,7 +1599,7 @@ When changing TTX, preserve these invariants:
 9. Named and positional aggregate fields do not mix.
 10. Runtime-vs-compile-time addressability remains visible in sigil token
    classes.
-11. Dialect legality belongs to the dialect/provider that owns the rule, not
+11. ISA legality belongs to the ISA/provider that owns the rule, not
     raw parse-shape construction.
 12. Formatter output derives from the same token source text as the lexer
     whenever the token has fixed source text.
