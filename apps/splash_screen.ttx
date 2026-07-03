@@ -3,7 +3,8 @@
 dialect : Library;
 
 import Graphics : Package = TTX::Graphics;
-import Default2D : Shader = Graphics::Shaders::Default2D;
+
+@private Default2D : Alias = Graphics::Shaders::Default2D;
 
 @extern(.abi = "c")
 @hidden Perimortem : foreign {

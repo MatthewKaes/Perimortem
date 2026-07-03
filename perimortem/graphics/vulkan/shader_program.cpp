@@ -3,12 +3,12 @@
 
 #include "perimortem/graphics/vulkan/shader_program.hpp"
 
+#include "perimortem/core/static/vector.hpp"
 #include "perimortem/core/diagnostics/log.hpp"
 #include "perimortem/core/null_terminated.hpp"
-#include "perimortem/core/static/vector.hpp"
 
 using namespace Perimortem::Core;
-using namespace Perimortem::Graphics::Vulkan;
+using namespace Perimortem::Graphics;
 
 static constexpr Count max_shader_modules = 8;
 
@@ -18,12 +18,11 @@ static auto require_success(VkResult result, View::Bytes message) -> void {
   }
 }
 
-static auto to_vk_stage(Perimortem::Graphics::Render::Stage stage)
-    -> VkShaderStageFlagBits {
+static auto to_vk_stage(Render::Stage stage) -> VkShaderStageFlagBits {
   switch (stage) {
-  case Perimortem::Graphics::Render::Stage::Vertex:
+  case Render::Stage::Vertex:
     return VK_SHADER_STAGE_VERTEX_BIT;
-  case Perimortem::Graphics::Render::Stage::Pixel:
+  case Render::Stage::Pixel:
     return VK_SHADER_STAGE_FRAGMENT_BIT;
   }
 
@@ -31,8 +30,7 @@ static auto to_vk_stage(Perimortem::Graphics::Render::Stage stage)
   return VK_SHADER_STAGE_VERTEX_BIT;
 }
 
-static auto to_vk_stage_flags(
-    View::Vector<Perimortem::Graphics::Render::Stage> stages)
+static auto to_vk_stage_flags(View::Vector<Render::Stage> stages)
     -> VkShaderStageFlags {
   VkShaderStageFlags flags = 0;
   for (Count i = 0; i < stages.get_size(); i++) {
@@ -48,14 +46,14 @@ static auto to_vk_stage_flags(
 
 static auto make_shader_module(
     VkDevice device,
-    const Perimortem::Graphics::Render::Module& source) -> VkShaderModule {
-  if (!source.get_spirv() || !source.get_spirv_size()) {
+    const Render::Module& source) -> VkShaderModule {
+  if (!source.get_SpirV() || !source.get_SpirV_size()) {
     Diagnostics::Log::fatal("Vulkan: Invalid render module."_view);
   }
 
   VkShaderModuleCreateInfo info = {VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO};
-  info.codeSize = *source.get_spirv_size();
-  info.pCode = source.get_spirv();
+  info.codeSize = *source.get_SpirV_size();
+  info.pCode = source.get_SpirV();
 
   VkShaderModule module = VK_NULL_HANDLE;
   require_success(
@@ -64,12 +62,12 @@ static auto make_shader_module(
   return module;
 }
 
-auto ShaderProgram::create(
+auto Vulkan::ShaderProgram::create(
     VkDevice device,
     VkFormat color_format,
-    const Perimortem::Graphics::Render::Program& render,
+    const Render::Program& render,
     View::Vector<VkDescriptorSetLayout> descriptor_set_layouts)
-    -> ShaderProgram {
+    -> Vulkan::ShaderProgram {
   const auto source_modules = render.get_modules();
   const auto source_host_input_ranges = render.get_host_input_ranges();
   const auto source_descriptors = render.get_descriptors();
@@ -79,15 +77,14 @@ auto ShaderProgram::create(
     Diagnostics::Log::fatal("Vulkan: Invalid render module list."_view);
   }
   if (source_host_input_ranges.get_size() > max_push_constant_ranges) {
-    Diagnostics::Log::fatal(
-        "Vulkan: Too many render host input ranges."_view);
+    Diagnostics::Log::fatal("Vulkan: Too many render host input ranges."_view);
   }
   if (source_descriptors.get_size() > max_descriptor_bindings) {
     Diagnostics::Log::fatal(
         "Vulkan: Too many render descriptor bindings."_view);
   }
 
-  ShaderProgram program;
+  Vulkan::ShaderProgram program;
   program.device = device;
   program.vertex_count = render.get_vertex_count();
   program.push_constant_count = source_host_input_ranges.get_size();
@@ -95,14 +92,14 @@ auto ShaderProgram::create(
 
   for (Count i = 0; i < program.push_constant_count; i++) {
     const auto& source_range = source_host_input_ranges[i];
-    program.push_constant_ranges[i] = ShaderProgram::PushConstantRange(
-        to_vk_stage_flags(source_range.get_stages()),
-        source_range.get_offset(), source_range.get_size());
+    program.push_constant_ranges[i] = Vulkan::ShaderProgram::PushConstantRange(
+        to_vk_stage_flags(source_range.get_stages()), source_range.get_offset(),
+        source_range.get_size());
   }
 
   for (Count i = 0; i < program.descriptor_count; i++) {
     const auto& source_descriptor = source_descriptors[i];
-    program.descriptors[i] = ShaderProgram::DescriptorBinding(
+    program.descriptors[i] = Vulkan::ShaderProgram::DescriptorBinding(
         source_descriptor.get_set(), source_descriptor.get_slot());
   }
 
@@ -216,7 +213,7 @@ auto ShaderProgram::create(
   return program;
 }
 
-ShaderProgram::~ShaderProgram() {
+Vulkan::ShaderProgram::~ShaderProgram() {
   if (!device) {
     return;
   }
@@ -224,7 +221,7 @@ ShaderProgram::~ShaderProgram() {
   vkDestroyPipelineLayout(device, layout, nullptr);
 }
 
-ShaderProgram::ShaderProgram(ShaderProgram&& other) noexcept
+Vulkan::ShaderProgram::ShaderProgram(Vulkan::ShaderProgram&& other) noexcept
     : device(other.device),
       layout(other.layout),
       pipeline(other.pipeline),
@@ -241,8 +238,8 @@ ShaderProgram::ShaderProgram(ShaderProgram&& other) noexcept
   other.vertex_count = 0;
 }
 
-auto ShaderProgram::operator=(ShaderProgram&& other) noexcept
-    -> ShaderProgram& {
+auto Vulkan::ShaderProgram::operator=(Vulkan::ShaderProgram&& other) noexcept
+    -> Vulkan::ShaderProgram& {
   if (this != &other) {
     this->~ShaderProgram();
     device = other.device;
@@ -263,11 +260,11 @@ auto ShaderProgram::operator=(ShaderProgram&& other) noexcept
   return *this;
 }
 
-auto ShaderProgram::bind(VkCommandBuffer command_buffer) const -> void {
+auto Vulkan::ShaderProgram::bind(VkCommandBuffer command_buffer) const -> void {
   vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
 }
 
-auto ShaderProgram::bind_descriptor_set(
+auto Vulkan::ShaderProgram::bind_descriptor_set(
     VkCommandBuffer command_buffer,
     VkDescriptorSet descriptor_set,
     Count descriptor_index) const -> void {
@@ -281,7 +278,7 @@ auto ShaderProgram::bind_descriptor_set(
       Bits_32(descriptor.get_set()), 1, &descriptor_set, 0, nullptr);
 }
 
-auto ShaderProgram::push_constants(
+auto Vulkan::ShaderProgram::push_constants(
     VkCommandBuffer command_buffer,
     const void* constant_data,
     Count size,
@@ -292,8 +289,7 @@ auto ShaderProgram::push_constants(
 
   const auto& range = push_constant_ranges[range_index];
   if (size > range.get_size()) {
-    Diagnostics::Log::fatal(
-        "Vulkan: Render host inputs are too large."_view);
+    Diagnostics::Log::fatal("Vulkan: Render host inputs are too large."_view);
   }
 
   vkCmdPushConstants(
@@ -301,7 +297,7 @@ auto ShaderProgram::push_constants(
       Bits_32(range.get_offset()), Bits_32(size), constant_data);
 }
 
-auto ShaderProgram::draw(VkCommandBuffer command_buffer) const -> void {
+auto Vulkan::ShaderProgram::draw(VkCommandBuffer command_buffer) const -> void {
   if (vertex_count == 0) {
     Diagnostics::Log::fatal("Vulkan: Missing render draw metadata."_view);
   }
@@ -309,10 +305,10 @@ auto ShaderProgram::draw(VkCommandBuffer command_buffer) const -> void {
   vkCmdDraw(command_buffer, Bits_32(vertex_count), 1, 0, 0);
 }
 
-auto ShaderProgram::get_layout() const -> VkPipelineLayout {
+auto Vulkan::ShaderProgram::get_layout() const -> VkPipelineLayout {
   return layout;
 }
 
-auto ShaderProgram::get_pipeline() const -> VkPipeline {
+auto Vulkan::ShaderProgram::get_pipeline() const -> VkPipeline {
   return pipeline;
 }

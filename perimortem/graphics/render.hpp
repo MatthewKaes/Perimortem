@@ -3,8 +3,8 @@
 
 #pragma once
 
-#include "perimortem/core/perimortem.hpp"
 #include "perimortem/core/view/vector.hpp"
+#include "perimortem/core/perimortem.hpp"
 
 namespace Perimortem::Graphics {
 
@@ -22,25 +22,20 @@ class Render {
     constexpr Module() = default;
     constexpr Module(
         Stage stage,
-        const Bits_32* spirv,
-        const Count* spirv_size,
+        const Bits_32* SpirV,
+        const Count* SpirV_size,
         const char* entry)
-        : stage(stage),
-          spirv(spirv),
-          spirv_size(spirv_size),
-          entry(entry) {}
+        : stage(stage), SpirV(SpirV), SpirV_size(SpirV_size), entry(entry) {}
 
     constexpr auto get_stage() const -> Stage { return stage; }
-    constexpr auto get_spirv() const -> const Bits_32* { return spirv; }
-    constexpr auto get_spirv_size() const -> const Count* {
-      return spirv_size;
-    }
+    constexpr auto get_SpirV() const -> const Bits_32* { return SpirV; }
+    constexpr auto get_SpirV_size() const -> const Count* { return SpirV_size; }
     constexpr auto get_entry() const -> const char* { return entry; }
 
    private:
     Stage stage = Stage::Vertex;
-    const Bits_32* spirv = nullptr;
-    const Count* spirv_size = nullptr;
+    const Bits_32* SpirV = nullptr;
+    const Count* SpirV_size = nullptr;
     const char* entry = nullptr;
   };
 
@@ -129,7 +124,7 @@ class Render {
     constexpr auto get_vertex_count() const -> Count { return vertex_count; }
     constexpr auto is_valid() const -> Bool { return !modules.is_empty(); }
 
-  private:
+   private:
     Core::View::Vector<Module> modules;
     Core::View::Vector<HostInputRange> host_input_ranges;
     Core::View::Vector<DescriptorBinding> descriptors;
