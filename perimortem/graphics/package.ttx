@@ -7,7 +7,7 @@ import Sprite : Library = (.source = "library/sprite.ttx");
 import Render2D : Render = (.source = "renderers/renderer_2d.ttx");
 import Default2D : Shader = (.source = "shaders/default_2d.ttx");
 
-@package_name = TTX::Graphics;
+@package_name = Perimortem::Graphics;
 
 @public Color : alias = Types::Color;
 @public Sampler2D : alias = Types::Sampler2D;

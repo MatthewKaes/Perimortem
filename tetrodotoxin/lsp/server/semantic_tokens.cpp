@@ -7,9 +7,9 @@
 
 #include "perimortem/memory/managed/vector.hpp"
 
+#include "ttx/dialect/source/source.hpp"
+#include "ttx/lexical/cursor.hpp"
 #include "ttx/lexical/tokenizer.hpp"
-#include "ttx/parse/cursor.hpp"
-#include "ttx/source.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -77,10 +77,6 @@ static auto classify_semantic_token(::Ttx::Lexical::Class klass)
 
   case ::Ttx::Lexical::Class::Type::Type:
   case ::Ttx::Lexical::Class::Type::Alias:
-  case ::Ttx::Lexical::Class::Type::Enum:
-  case ::Ttx::Lexical::Class::Type::Object:
-  case ::Ttx::Lexical::Class::Type::Struct:
-  case ::Ttx::Lexical::Class::Type::Foreign:
     return SemanticType;
 
   case ::Ttx::Lexical::Class::Type::Addressable:
@@ -165,13 +161,15 @@ auto Server::semantic_tokens_for(Allocator::Arena& arena, View::Bytes source)
     return Json::Node(empty_result.get_view());
   }
 
-  ::Ttx::Lexical::Tokenizer tokenizer(arena);
-  tokenizer.parse(source, false);
-
+  ::Ttx::Lexical::Tokenizer tokenizer(
+      arena, source, "lsp-buffer.ttx"_view, False);
   View::Vector<::Ttx::Lexical::Token> tokens = tokenizer.get_tokens();
-  ::Ttx::Parse::Cursor cursor(arena, source, tokens);
+  ::Ttx::Lexical::Cursor cursor(tokenizer);
+  void* parsed_source = ::Ttx::Dialect::Source::Source::parse(cursor);
+  auto* source_info =
+      static_cast<::Ttx::Dialect::Source::Source*>(parsed_source);
   View::Bytes dialect =
-      ::Ttx::Source::parse(cursor).get_dialect().get_name();
+      source_info == nullptr ? View::Bytes() : source_info->get_dialect().get_name();
   Bits_32 previous_line = 0;
   Bits_32 previous_column = 0;
   Bool emitted = False;
