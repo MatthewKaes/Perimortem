@@ -26,8 +26,6 @@ auto Ttx::Lexical::Class::get_name() const -> Perimortem::Core::View::Bytes {
     return "stack addressable constant qualifier"_view;
 
   // Definition keywords
-  case Type::Enum:
-    return "`enum` definition keyword"_view;
   case Type::Alias:
     return "`alias` definition keyword"_view;
 
