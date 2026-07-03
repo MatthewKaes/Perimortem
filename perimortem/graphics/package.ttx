@@ -2,10 +2,10 @@
 // Copyright © Matt Kaes
 dialect : Package;
 
-import Types : Library = (.source = "library/types.ttx");
-import Sprite : Library = (.source = "library/sprite.ttx");
-import Render2D : Render = (.source = "renderers/renderer_2d.ttx");
-import Default2D : Shader = (.source = "shaders/default_2d.ttx");
+import Types : Library = "library/types.ttx";
+import Sprite : Library = "library/sprite.ttx";
+import Render2D : Render = "renderers/renderer_2d.ttx";
+import Default2D : Shader = "shaders/default_2d.ttx";
 
 @package_name = Perimortem::Graphics;
 

@@ -2,7 +2,7 @@
 // Copyright © Matt Kaes
 dialect : Render;
 
-import Types : Library = (.source = "../library/types.ttx");
+import Types : Library = "../library/types.ttx";
 
 @public Renderer2D : Render {
   @public position : Vec2D;

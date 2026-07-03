@@ -53,21 +53,31 @@ auto Source::Import::parse(Cursor& cursor) -> Source::Import {
 
   case Class::Type::Type: {
     package = True;
-    auto name_start = cursor.current().get_text();
-    while (cursor.current().get_class() != Class::Type::EndStatement) {
-      cursor.require(
-          Class::Type::TypeAccessOp,
-          "Package name segments can only be seperated by `::`"_view);
-      cursor.require(
+    auto name_start = cursor.require(
+        Class::Type::Type,
+        "Package name should start with a Type name."_view);
+    if (!name_start) {
+      cursor.recover_to_statement();
+      return Source::Import();
+    }
+
+    const Token* name_end = name_start;
+    while (cursor.matches(Class::Type::TypeAccessOp)) {
+      cursor.consume();
+      name_end = cursor.require(
           Class::Type::Type,
           "Package name segments should all be Type names."_view);
+      if (!name_end) {
+        cursor.recover_to_statement();
+        return Source::Import();
+      }
     }
 
     // Get the text range between tokens.
-    auto name_end = cursor.current().get_text();
-    auto length =
-        name_end.get_data() - name_start.get_data() + name_end.get_size();
-    import_name = View::Bytes(name_start.get_data(), length);
+    auto start = name_start->get_text();
+    auto end = name_end->get_text();
+    import_name = View::Bytes(
+        start.get_data(), end.get_data() - start.get_data() + end.get_size());
     break;
   }
 

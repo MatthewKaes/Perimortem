@@ -30,7 +30,8 @@ paths, imports, and layouts. The first parse stage stops after the dialect
 header and imports.
 
 The Tetrodotoxin package graph supplies source-tree identity. It loads the
-import closure, resolves package paths such as `TTX::Graphics` to manifests,
+import closure, resolves package paths such as `Perimortem::Graphics` to
+manifests,
 checks that imported files declare the requested dialect, and binds each import
 to the local name written in the source file.
 
@@ -59,7 +60,7 @@ In source form:
 // Optional package docs.
 dialect : Library;
 
-import Graphics : Package = TTX::Graphics;
+import Graphics : Package = Perimortem::Graphics;
 
 @private Default2D : Alias = Graphics::Shaders::Default2D;
 
@@ -225,7 +226,7 @@ rather than a second bracket meaning. Value indexing uses `:[...]`.
 It does not degrade to layout.
 
 ```ttx
-TTX::Graphics
+Perimortem::Graphics
 Graphics::Sprite
 Graphics::Shaders::Default2D
 Render2D::Renderer2D
@@ -257,14 +258,14 @@ dispatch.
 Package imports resolve to package identities and exported objects.
 
 ```ttx
-import Graphics : Package = TTX::Graphics;
+import Graphics : Package = Perimortem::Graphics;
 @private Default2D : Alias = Graphics::Shaders::Default2D;
 ```
 
-The package path `TTX::Graphics` resolves to a package manifest such as:
+The package path `Perimortem::Graphics` resolves to a package manifest such as:
 
 ```text
-tetrodotoxin/packages/graphics/package.ttx
+perimortem/graphics/package.ttx
 ```
 
 That manifest can import concrete source files and re-export their public
@@ -273,11 +274,11 @@ types, functions, resources, or nested packages:
 ```ttx
 dialect : Package;
 
-@package_name = TTX::Graphics;
+@package_name = Perimortem::Graphics;
 
-import Color : Library = (.source = "color.ttx");
-import Renderer2D : Render = (.source = "renderer2d.ttx");
-import Default2D : Shader = (.source = "shaders/default2d.ttx");
+import Color : Library = "color.ttx";
+import Renderer2D : Render = "renderer2d.ttx";
+import Default2D : Shader = "shaders/default2d.ttx";
 
 @public Sprite : alias = Sprite::Sprite;
 @public Shaders : Package = Shaders;
@@ -291,7 +292,7 @@ The Tetrodotoxin package/source graph owns the source-tree walk needed to get
 there. A normal CLI or LSP resolver is the root package resolver. Each package
 can own a local resolver for its private files, so package internals such as
 `shaders/default2d.ttx` are not part of the root source graph API. External
-sources import `TTX::Graphics`, then resolve `Graphics::Shaders::Default2D`
+sources import `Perimortem::Graphics`, then resolve `Graphics::Shaders::Default2D`
 through the package's exports.
 
 TTX owns what the resolved package, type, and layout facts mean once
@@ -337,8 +338,8 @@ Tetrodotoxin is the surrounding toolchain:
 
 - [`../tetrodotoxin/cli`](../tetrodotoxin/cli/) is the command-line surface
 - [`../tetrodotoxin/lsp`](../tetrodotoxin/lsp/) serves editor features
-- [`../tetrodotoxin/packages`](../tetrodotoxin/packages/) contains toolchain
-  packages such as `TTX::Graphics`
+- [`../perimortem/graphics/package.ttx`](../perimortem/graphics/package.ttx)
+  describes the Perimortem graphics ABI as a TTX package
 - [`../tetrodotoxin/ttx.bzl`](../tetrodotoxin/ttx.bzl) integrates TTX with
   Bazel
 - [`../tetrodotoxin/compiler/assembler`](../tetrodotoxin/compiler/assembler/)

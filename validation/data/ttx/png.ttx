@@ -4,7 +4,7 @@
 // PNG codec — decode from and encode to the PNG wire format.
 dialect : Library;
 
-import Graphics : Library = ( .source = "graphics/image.ttx" );
+import Graphics : Library = "graphics/image.ttx";
 import Log      : Library = TTX::Log;
 import Math     : Library = TTX::Math;
 

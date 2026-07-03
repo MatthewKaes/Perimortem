@@ -38,9 +38,18 @@ header, and imports. It leaves the same parse cursor positioned at the first
 dialect-owned token so Tetrodotoxin can resolve imports and then let the
 registered dialect continue from that state.
 The package/source graph layer loads package files, resolves package paths such
-as `TTX::Graphics`, checks that imported files declare the requested dialect,
+as `Perimortem::Graphics`, checks that imported files declare the requested dialect,
 binds local import aliases, and calls the dialect object registered under the
-parsed dialect name.
+parsed dialect name. A bare resolver is the root package resolver used by tools.
+Package manifests can create package-local resolver graphs: file imports stay
+under that package's source subtree, while package imports can name packages
+from elsewhere and become explicit dependency edges.
+
+Packages are Tetrodotoxin's module boundary. A source imports a package and then
+uses package exports such as `Graphics::Shaders::Default2D`; it does not import
+the package's private shader file directly. If the package resolver cannot
+resolve its private graph, the package source is dropped from the outer cache
+with its consumers.
 
 That split keeps filesystem identity, package records, cache invalidation, and
 cross-file lookup in Tetrodotoxin while keeping the TTX language package small.
@@ -52,7 +61,9 @@ resolved imports, but it does not manage the source tree itself.
 The language core lives in [`../ttx`](../ttx/README.md):
 
 - [`../ttx/lexical`](../ttx/lexical/) classifies source text into token classes
-- [`../ttx/parse`](../ttx/parse/) reads the common source envelope and imports
+- [`../ttx/source.hpp`](../ttx/source.hpp) reads the common source envelope and
+  imports
+- [`../ttx/parse`](../ttx/parse/) owns cursor mechanics and shared parse facts
 - [`../ttx/dialect`](../ttx/dialect/) registers dialects and dispatches body
   parsing
 - [`../ttx/type.hpp`](../ttx/type.hpp) models type identity, aliases, members,
@@ -66,7 +77,8 @@ Tetrodotoxin layers toolchain context around that language core:
 
 - [`cli`](cli/) is the command-line entry point
 - [`lsp`](lsp/) contains the language server and VSCode client
-- [`packages`](packages/) contains toolchain packages such as `TTX::Graphics`
+- [`../perimortem/graphics/package.ttx`](../perimortem/graphics/package.ttx)
+  describes the Perimortem graphics ABI as a TTX package
 - [`ttx.bzl`](ttx.bzl) integrates TTX source with Bazel targets
 - [`compiler/assembler`](compiler/assembler/) emits terminal instruction
   streams such as SPIR-V and x86-64

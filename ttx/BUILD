@@ -45,6 +45,7 @@ cc_library(
 
 cc_library(
     name = "dialect",
+    alwayslink = True,
     srcs = glob([
         "dialect/**/*.cpp",
     ]),

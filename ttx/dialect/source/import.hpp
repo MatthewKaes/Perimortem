@@ -17,16 +17,16 @@ namespace Ttx::Dialect::Source {
 // just the authored request. That request contains the local alias, the
 // expected dialect name, and a source selector.
 //
-// A package selector such as `TTX::Graphics` names a package that resolution
-// can map to a package file. A file selector such as
-// `(.source = "library/types.ttx")` names a concrete source relative to the
+// A package selector such as `Perimortem::Graphics` names a package that
+// resolution can map to a package file. A file selector string such as
+// `"library/types.ttx"` names a concrete source relative to the
 // package currently being read. After resolution succeeds, TTX receives the
 // imported types under the requested local names and the same cursor continues
 // into the selected dialect body.
 //
-// File opening, package path normalization, and symbol binding stay in
-// resolution so there is one owner for the source tree and package graph.
-// Import stays the source-authored request that feeds that layer.
+// Imports only support forward `/` as a separator regardless of backend. The
+// actual file opening, package path normalization, and symbol binding stay in
+// the `Resolution` layer which centralizes the OS related operations.
 class Import {
  public:
   Import() = default;

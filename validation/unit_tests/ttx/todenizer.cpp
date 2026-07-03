@@ -19,7 +19,8 @@ PERIMORTEM_UNIT_TEST(TtxParse, access_operators) {
   Allocator::Arena arena;
   Ttx::Lexical::Tokenizer tokenizer(
       arena,
-      "TTX::Graphics color.[r, g] color:[start, 2] layout[Type] value.member"_view,
+      "Perimortem::Graphics color.[r, g] color:[start, 2] "
+      "layout[Type] value.member"_view,
       "Test::Package"_view);
 
   View::Vector<Ttx::Lexical::Token> tokens = tokenizer.get_tokens();

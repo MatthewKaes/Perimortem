@@ -412,15 +412,15 @@ bridge code are compilation targets, not separate dialects.
 Imports introduce explicit local aliases for package dependencies:
 
 ```ttx
-import Graphics : Library = (.source = "graphics/image.ttx");
+import Graphics : Library = "graphics/image.ttx";
 import Math     : Library = TTX::Math;
 ```
 
 Parser shape: imports appear immediately after the dialect declaration and
 before members. An import starts with `Import`, then a PascalCase local name,
 `Define`, a dialect, `Assign`, an import source, and `EndStatement`.
-The import source is chosen from the current token: `PackingStart` means a
-file-source pack, while `Type` means a package path.
+The import source is chosen from the current token: `String` means a file
+source, while `Type` means a package path.
 
 The import shape is:
 
@@ -430,7 +430,7 @@ import LocalName : Dialect = source;
 
 The source is either:
 
-- a file-source pack, currently `(.source = "path.ttx")`
+- a file-source string, such as `"path.ttx"`
 - a package symbol path such as `TTX::Math`.
 
 The local name participates in symbol paths and value access after import
@@ -497,11 +497,11 @@ Vec3D : struct { x : Real_32; y : Real_32; z : Real_32; }
 Vec4D : struct { x : Real_32; y : Real_32; z : Real_32; w : Real_32; }
 ```
 
-`TTX::Graphics` is explicit. A package that needs graphics-domain types imports
-it and refers to those types through the import name:
+`Perimortem::Graphics` is explicit. A package that needs graphics-domain types
+imports it and refers to those types through the import name:
 
 ```ttx
-import Graphics : Package = TTX::Graphics;
+import Graphics : Package = Perimortem::Graphics;
 
 Graphics::Color : struct {
   r : Real_32;
@@ -622,7 +622,7 @@ Some dialects also consume directive-style attributes as standalone statements.
 For example, a Package manifest declares its package identity with:
 
 ```ttx
-@package_name = TTX::Graphics;
+@package_name = Perimortem::Graphics;
 ```
 
 The parser shape is `Attribute(package_name) Assign SymbolPath EndStatement`.

@@ -115,21 +115,22 @@ PERIMORTEM_UNIT_TEST(TtxResolution, package_imports) {
   const Source::Record* root_record = resolver.load_source(
       context, "unit/root.ttx"_view,
       "dialect : Library;\n"
-      "import Graphics : Package = TTX::Graphics;\n"_view);
+      "import Graphics : Package = Perimortem::Graphics;\n"_view);
   ASSERT(root_record != nullptr);
   EXPECT_NOT(context.has_errors());
   EXPECT_EQ(import_count(root_record), Count(1));
   context.reset();
 
-  const Source::Record* package_record = resolver.resolve("TTX::Graphics"_view);
+  const Source::Record* package_record =
+      resolver.resolve("Perimortem::Graphics"_view);
   ASSERT(package_record != nullptr);
   EXPECT_EQ(import_count(package_record), Count(4));
 
-  EXPECT_TEXT(import_name(root_record, 0), "TTX::Graphics"_view);
+  EXPECT_TEXT(import_name(root_record, 0), "Perimortem::Graphics"_view);
   EXPECT(resolver.resolve(import_name(root_record, 0)) == package_record);
   EXPECT_NOT(resolver.resolve("TTX.Graphics"_view));
   EXPECT_NOT(resolver.resolve(
-      "tetrodotoxin/packages/graphics/shaders/default_2d.ttx"_view));
+      "perimortem/graphics/shaders/default_2d.ttx"_view));
   EXPECT_NOT(context.has_errors());
 }
 
@@ -501,31 +502,32 @@ PERIMORTEM_UNIT_TEST(TtxResolution, package_loading) {
   const Source::Record* root = resolver.load_source(
       context, "unit/root.ttx"_view,
       "dialect : Library;\n"
-      "import Graphics : Package = TTX::Graphics;\n"
+      "import Graphics : Package = Perimortem::Graphics;\n"
       "@private Default2D : Alias = Graphics::Shaders::Default2D;\n"_view);
   ASSERT(root != nullptr);
   EXPECT_NOT(context.has_errors());
   context.reset();
 
-  // TTX::Graphics import loads tetrodotoxin/packages/graphics/package.ttx.
-  const Source::Record* graphics = resolver.resolve("TTX::Graphics"_view);
+  // Perimortem::Graphics import loads perimortem/graphics/package.ttx.
+  const Source::Record* graphics =
+      resolver.resolve("Perimortem::Graphics"_view);
   ASSERT(graphics != nullptr);
-  EXPECT_TEXT(import_name(root, 0), "TTX::Graphics"_view);
+  EXPECT_TEXT(import_name(root, 0), "Perimortem::Graphics"_view);
   EXPECT(resolver.resolve(import_name(root, 0)) == graphics);
   EXPECT_NOT(resolver.resolve(
-      "tetrodotoxin/packages/graphics/shaders/default_2d.ttx"_view));
+      "perimortem/graphics/shaders/default_2d.ttx"_view));
 
   const Source::Record* record = resolver.resolve("unit/root.ttx"_view);
   ASSERT(record != nullptr);
   EXPECT_NOT(context.has_errors());
   EXPECT_EQ(import_count(record), Count(1));
-  EXPECT_TEXT(import_name(record, 0), "TTX::Graphics"_view);
+  EXPECT_TEXT(import_name(record, 0), "Perimortem::Graphics"_view);
 
   EXPECT_NOT(resolver.load_source(
       context, "unit/direct.ttx"_view,
       "dialect : Library;\n"
       "import Default2D : Shader = "
-      "\"../tetrodotoxin/packages/graphics/shaders/default_2d.ttx\";\n"_view));
+      "\"../perimortem/graphics/shaders/default_2d.ttx\";\n"_view));
   EXPECT(has_error(
       context, "unit/direct.ttx"_view,
       "Package private source cannot be imported directly."_view));

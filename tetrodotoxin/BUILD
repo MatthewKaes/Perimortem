@@ -24,7 +24,6 @@ cc_library(
     srcs = [
         "resolution/resolver.cpp",
         "resolution/source/cache.cpp",
-        "resolution/source/record.cpp",
     ],
     hdrs = [
         "resolution/resolver.hpp",

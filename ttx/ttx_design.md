@@ -208,7 +208,7 @@ an unrelated grammar for each dialect name.
 Imports define a named package dependency to translate into the local dialect:
 
 ```ttx
-import Graphics : Library = (.source = "graphics/image.ttx");
+import Graphics : Library = "graphics/image.ttx";
 import Math     : Library = TTX::Math;
 ```
 
@@ -219,8 +219,8 @@ import Alias : Dialect = source;
 ```
 
 The left side creates the local name. The dialect describes the expected
-dialect name that resolution must find. The right side is either a source pack,
-such as `(.source = "...")`, or a symbol path to a compiler-provided package such
+dialect name that resolution must find. The right side is either a source path,
+such as `"graphics/image.ttx"`, or a symbol path to a compiler-provided package such
 as `TTX::Math`.
 
 Imports do not import dialect semantics. A `Shader` package does not inherit
@@ -464,10 +464,10 @@ Vec3D : struct { x : Real_32; y : Real_32; z : Real_32; }
 Vec4D : struct { x : Real_32; y : Real_32; z : Real_32; w : Real_32; }
 ```
 
-Graphics color lives in `TTX::Graphics`, which is explicit:
+Graphics color lives in `Perimortem::Graphics`, which is explicit:
 
 ```ttx
-import Graphics : Package = TTX::Graphics;
+import Graphics : Package = Perimortem::Graphics;
 
 Graphics::Color : struct { r : Real_32; g : Real_32; b : Real_32; a : Real_32; }
 ```
