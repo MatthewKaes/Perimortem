@@ -36,7 +36,7 @@ namespace Ttx {
 // If a layout view contains duplicate names, the leftmost duplicate is used for
 // name access while every entry remains positionally valid. The owner that has
 // source context should diagnose the shadowing when it is likely surprising.
-// Layout keeps the shape representable because dialects and generated packages
+// Layout keeps the shape representable because dialect and generated packages
 // may still need to carry it far enough to report a useful error.
 //
 // A layout is not part of the formal type system and contains no nested types,

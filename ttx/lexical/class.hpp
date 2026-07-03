@@ -13,70 +13,71 @@ namespace Ttx::Lexical {
 // Class labels the valid value of a token in the smallest possible ctx.
 // Tokens of different classes can't have any overlap and any arbitrary string
 // of bytes is guaranteed to have a single valid tokenization in a single pass.
+//
+// All symbols are context free. A Dialect is required to parse them.
 class Class {
  public:
   enum class Type : Bits_8 {
-    // Sigils
-    Public,          // public
-    ConstPublic,     // @public
-    Dynamic,         // expose
-    ConstDynamic,    // @expose
-    Hidden,          // hidden
-    ConstHidden,     // @hidden
-    Temporary,       // stack
-    ConstTemporary,  // @stack
-    Import,          // import
-    Dialect,         // dialect
+    // ========================================================================
+    //                              TTX Data Model
+    // ========================================================================
+    Comment,       // //
+    Disabled,      // />
+    Attribute,     // @
+    Addressable,   // Any symbol that starts with [a-z]
+    Type,          // Any symbol that starts with [A-Z]
+    EndStatement,  // ;
 
-    // Compiler objects
-    Comment,      // //
-    Disabled,     // />
-    Attribute,    // @
-    CompileIf,    // @if
-    Addressable,  // Any symbol that starts with [a-z]
-    Type,         // Any symbol that starts with [A-Z]
-    Discard,      // Discard (_)
+    // Special case currently
+    CompileIf,  // @if (TODO, we might want to improve compiler directives)
 
-    // Data objects
+    // ========================================================================
+    //                              Data objects
+    // ========================================================================
     Numeric,   // 0-1 no decimal
     Float,     // 9. 0.9 as floats, 9.. Float + Access Op, 9...
     String,    // " " (does not embed null terminator)
     Bytes,     // 0x[FF FF FF]
     Embedded,  // $[path/to/file]
+    Discard,   // Discard (_)
+    PackedData,
 
-    // Parser objects
+    // ========================================================================
+    //                              TTX Pairs
+    // ========================================================================
     ScopeStart,    // {
     ScopeEnd,      // }
     PackingStart,  // (
     PackingEnd,    // )
     IndexStart,    // [ type args or layout
     IndexEnd,      // ]
+
+    // ========================================================================
+    //                               Operators
+    // ========================================================================
+    AddOp,         // +
+    SubOp,         // -
+    DivOp,         // /
+    MulOp,         // *
+    ModOp,         // %
+    LessOp,        // <
+    GreaterOp,     // >
+    LessEqOp,      // <=
+    GreaterEqOp,   // >=
+    CmpOp,         // ==
+    NotEqOp,       // !=
     Assign,        // =
     AddAssign,     // +=
     SubAssign,     // -=
+    CallOp,        // ->
+    AddressOp,     // .
+    SwizzleOp,     // .[
+    SliceOp,       // :[
+    PackingOp,     // ,
+    NotOp,         // !
+    RangeOp,       // ...
     Define,        // :
     TypeAccessOp,  // ::
-    EndStatement,  // ;
-
-    // Operators
-    AddOp,        // +
-    SubOp,        // -
-    DivOp,        // /
-    MulOp,        // *
-    ModOp,        // %
-    LessOp,       // <
-    GreaterOp,    // >
-    LessEqOp,     // <=
-    GreaterEqOp,  // >=
-    CmpOp,        // ==
-    NotEqOp,      // !=
-    CallOp,       // ->
-    AddressOp,    // .
-    SwizzleOp,    // .[
-    SliceOp,      // :[
-    PackingOp,    // ,
-    NotOp,        // !
-    RangeOp,      // ...
     // The typical bit operators are reserved for future use.
     //
     // Bit ops are currently supported as method calls and always shrinks or
@@ -86,34 +87,45 @@ class Class {
     AndOp,  // & reserved
     OrOp,   // | reserved
 
-    // Fixed keywords
-    And,  // `and` logical and (language level short-circuit)
-    Or,   // `or` logical or (language level short-circuit)
+    // ========================================================================
+    //              Fixed keywords that are all lower case.
+    // ========================================================================
+    // The list should aim to be as limited as possible.
+    And,
+    Or,
     If,
     In,
     For,
+    While,
+    Case,
+    Match,
     Break,
     Continue,
-    New,
-    Case,
     Else,
     Enum,
-    External,
     Func,
-    Init,
     Self,
     True,
-    Alias,
     False,
-    Match,
-    While,
-    Object,
     Return,
-    Struct,
-    Foreign,
+    Import,
+    Dialect,
+    Alias,
 
-    // Script types
-    PackedData,
+    // Sigils
+    // Special carve out, these should be moved up to the dialect layer.
+    Public,          // public
+    ConstPublic,     // @public
+    Dynamic,         // expose
+    ConstDynamic,    // @expose
+    Hidden,          // hidden
+    ConstHidden,     // @hidden
+    Temporary,       // stack
+    ConstTemporary,  // @stack
+
+    // ========================================================================
+    //                             Control Types
+    // ========================================================================
     Unknown,
     EndOfStream,
   };
@@ -148,6 +160,7 @@ class Class {
     return False;
   }
 
+  // TODO: Enriching sigil context should be moved to dialects.
   static constexpr auto is_sigil(Type value) -> Bool {
     switch (value) {
     case Type::Public:
@@ -200,14 +213,8 @@ class Class {
       return "@stack"_view;
 
     // Definition keywords.
-    case Type::Object:
-      return "object"_view;
-    case Type::Struct:
-      return "struct"_view;
     case Type::Enum:
       return "enum"_view;
-    case Type::Foreign:
-      return "foreign"_view;
     case Type::Alias:
       return "alias"_view;
 
@@ -240,8 +247,6 @@ class Class {
       return "dialect"_view;
     case Type::Func:
       return "func"_view;
-    case Type::External:
-      return "external"_view;
 
     // Binary operators
     case Type::AddOp:
@@ -320,10 +325,6 @@ class Class {
       return "_"_view;
 
     // Other fixed keywords and markers
-    case Type::New:
-      return "new"_view;
-    case Type::Init:
-      return "init"_view;
     case Type::Self:
       return "self"_view;
     case Type::True:

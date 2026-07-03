@@ -6,6 +6,8 @@
 #include "perimortem/core/static/vector.hpp"
 #include "perimortem/core/perimortem.hpp"
 
+#include "perimortem/memory/managed/vector.hpp"
+
 #include "perimortem/utility/pair.hpp"
 #include "perimortem/utility/table.hpp"
 
@@ -36,12 +38,10 @@ static constexpr auto is_hex(Bits_8 c) -> Bool {
          (c >= 'A' && c <= 'F');
 }
 
-using ClassMapping = Pair<View::Bytes, Class::Type>;
-
 static constexpr auto check_keyword(
     View::Bytes value,
     Class::Type default_value) -> Class::Type {
-  static constexpr Static::Vector<ClassMapping, 30> data = {{
+  static constexpr Static::Vector<Pair<View::Bytes, Class::Type>, 30> data = {{
     {Class::get_source_text(Class::Type::If), Class::Type::If},
     {Class::get_source_text(Class::Type::In), Class::Type::In},
     {Class::get_source_text(Class::Type::Or), Class::Type::Or},
@@ -49,14 +49,8 @@ static constexpr auto check_keyword(
     {Class::get_source_text(Class::Type::For), Class::Type::For},
     {Class::get_source_text(Class::Type::Break), Class::Type::Break},
     {Class::get_source_text(Class::Type::Continue), Class::Type::Continue},
-    {Class::get_source_text(Class::Type::New), Class::Type::New},
     {Class::get_source_text(Class::Type::Case), Class::Type::Case},
     {Class::get_source_text(Class::Type::Else), Class::Type::Else},
-    {
-      Class::get_source_text(Class::Type::External),
-      Class::Type::External,
-    },
-    {Class::get_source_text(Class::Type::Init), Class::Type::Init},
     {Class::get_source_text(Class::Type::Self), Class::Type::Self},
     {Class::get_source_text(Class::Type::True), Class::Type::True},
     {Class::get_source_text(Class::Type::Func), Class::Type::Func},
@@ -90,22 +84,15 @@ static constexpr auto check_keyword(
     },
     {Class::get_source_text(Class::Type::Enum), Class::Type::Enum},
     {Class::get_source_text(Class::Type::Alias), Class::Type::Alias},
-    {Class::get_source_text(Class::Type::Object), Class::Type::Object},
-    {Class::get_source_text(Class::Type::Struct), Class::Type::Struct},
-    {
-      Class::get_source_text(Class::Type::Foreign),
-      Class::Type::Foreign,
-    },
   }};
 
-  using keyword_resolver = Table<Class::Type, data>;
-  return keyword_resolver::find_or_default(value, default_value);
+  return Table<Class::Type, data>::find_or_default(value, default_value);
 }
 
 static constexpr auto check_directive(
     View::Bytes value,
     Class::Type default_value) -> Class::Type {
-  static constexpr Static::Vector<ClassMapping, 5> data = {{
+  static constexpr Static::Vector<Pair<View::Bytes, Class::Type>, 5> data = {{
     {
       Class::get_source_text(Class::Type::CompileIf),
       Class::Type::CompileIf,
@@ -128,8 +115,7 @@ static constexpr auto check_directive(
     },
   }};
 
-  using directive_resolver = Table<Class::Type, data>;
-  return directive_resolver::find_or_default(value, default_value);
+  return Table<Class::Type, data>::find_or_default(value, default_value);
 }
 
 // Context is the tokenizer cursor for one source view and one token stream.
@@ -144,8 +130,12 @@ static constexpr auto check_directive(
 // here.
 class Context {
  public:
-  Context(const View::Bytes source, Managed::Vector<Token>& tokens)
-      : source(source), tokens(tokens) {};
+  Context(const View::Bytes source, Allocator::Arena& arena)
+      : source(source), tokens(arena) {
+    // Take an estimated best guess on the token count. This helps save on
+    // resizes even if we end up oversized.
+    tokens.reset(source.get_size() / 4);
+  };
 
   constexpr auto can_parse() const -> Bool {
     return parse_index < source.get_size();
@@ -222,7 +212,7 @@ class Context {
   Bits_32 line = 1;
   Bits_32 column = 1;
   const View::Bytes source;
-  Managed::Vector<Token>& tokens;
+  Managed::Vector<Token> tokens;
 };
 
 static auto parse_attribute(Context& ctx) -> void {
@@ -452,14 +442,8 @@ static auto parse_simple(Context& ctx) -> void {
   ctx.advance_column(token_length);
 }
 
-auto Tokenizer::parse(const View::Bytes source_, Bool strip_disabled) -> void {
-  source = source_;
-  tokens.reset();
-
-  // Take an estimated best guess on the token count. This helps save on
-  // resizes even if we end up oversized.
-  tokens.reset(source.get_size() >> 2);
-  Context ctx(source, tokens);
+auto Tokenizer::parse(Bool strip_disabled) -> void {
+  Context ctx(source_text, arena);
   while (ctx.can_parse()) {
     ctx.begin_token();
     switch (ctx.current()) {

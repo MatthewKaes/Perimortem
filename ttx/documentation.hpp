@@ -8,34 +8,31 @@
 
 namespace Ttx {
 
-// Documentation is source-authored prose collected from consecutive lexical
-// comment tokens. A documentation object is the language-owned home for that
-// prose.
+// Documentation is a core part of the TTX spec and is part of the type system.
 //
-// TTX packages need to preserve the explanations authors wrote beside the thing
-// being declared. An editor can surface documentation in hover text. A
-// formatter can keep it attached to the next declaration. A package exporter
-// can carry it forward without inventing a second documentation model outside
-// the language.
+// In a typical language multiple tools need to decide how to handle comments
+// and documentation across tools. Having documentation be a first class citizen
+// in TTX instead of just a source code concept unlocks a lot of nice to have
+// features for tooling:
 //
-// Documentation is intentionally not canonicalized because prose describes the
-// name and context being used, not only the root object beneath it. A canonical
-// Sprite type can document the actual graphics object. An alias such as
-// HudSprite can document the UI specific promises that matter when the same
-// Sprite type is used in a heads up display. A member can document why `.tint`
-// exists on that containing type, and a function can document the behavior
-// promised by one callable entry.
+// * TTX packages can require a document comment natively.
+// * Dialects can easily attach a common documentation format if desired.
+// * Type resoltuion can propagate documentation, such as through aliases.
+// * Formatting doesn't need to special case documentation.
 //
-// That layering gives tools useful choices. They can show alias documentation
-// directly, ignore it and show the canonical type documentation, or stack both
-// so the alias amends the canonical prose with details from the aliased
-// context. The model keeps those choices open by storing documentation on the
-// thing that authored it.
+// Documentation is intentionally not canonicalized since the context it's
+// defined in is as much part of the documentation as the text itself. Graphic's
+// canonical Sprite type can document the actual graphics object. An alias such
+// as HudSprite can document the UI specific promises that matter when the same
+// Sprite type is used. A member can document the color format for `.tint` on a
+// containing type, and a function can document the behavior promised by one
+// callable entry.
 //
-// Rendering, markup interpretation, and canonical documentation merging are
-// consumer choices. Editors, exporters, and package tools can choose the
-// presentation that fits their surface because this class only preserves
-// authored lines and keeps them attached to the TTX concept that owns them.
+// While this layering is required to be representable in the TTX data model
+// tools can perform whatever projections they wish with it. They can show alias
+// documentation directly, ignore it and show the canonical type documentation,
+// or stack both so the alias amends the canonical prose with details from the
+// aliased context.
 class Documentation {
  public:
   constexpr Documentation() = default;

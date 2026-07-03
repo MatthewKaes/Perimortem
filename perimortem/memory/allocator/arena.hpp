@@ -49,9 +49,16 @@ class Arena {
   }
 
   // Creates a basic value type object but does not construct it.
-  template <typename T>
-  auto allocate() -> T& {
-    return *Core::Data::cast<T>(allocate(sizeof(T)));
+  template <typename type>
+  auto allocate() -> type& {
+    return *Core::Data::cast<type>(allocate(sizeof(type)));
+  }
+
+  // Creates a basic value type object but does not construct it.
+  template <typename type, typename... arg_types>
+  auto construct(arg_types&&... args) -> type& {
+    Bits_8* ptr = allocate(sizeof(type));
+    return *new (ptr) type(static_cast<arg_types&&>(args)...);
   }
 
   auto reset() -> void;

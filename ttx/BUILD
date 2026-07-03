@@ -6,9 +6,41 @@ load("@rules_cc//cc:cc_library.bzl", "cc_library")
 
 package(default_visibility = ["//visibility:public"])
 
-alias(
+cc_library(
     name = "lexical",
-    actual = "//ttx/lexical:lexical",
+    srcs = [
+        "lexical/class.cpp",
+        "lexical/cursor.cpp",
+        "lexical/tokenizer.cpp",
+    ],
+    hdrs = [
+        "lexical/class.hpp",
+        "lexical/cursor.hpp",
+        "lexical/error.hpp",
+        "lexical/token.hpp",
+        "lexical/tokenizer.hpp",
+    ],
+    include_prefix = "ttx/lexical",
+    deps = [
+        "//perimortem",
+    ],
+)
+
+cc_library(
+    name = "model",
+    srcs = [
+        "layout.cpp",
+        "type.cpp",
+    ],
+    hdrs = [
+        "documentation.hpp",
+        "layout.hpp",
+        "type.hpp",
+    ],
+    deps = [
+        ":lexical",
+        "//perimortem",
+    ],
 )
 
 cc_library(
@@ -19,107 +51,21 @@ cc_library(
     hdrs = glob([
         "dialect/*.hpp",
     ]),
-    include_prefix = "ttx",
     deps = [
-        ":parse",
+        ":model",
         "//perimortem",
     ],
 )
 
 cc_library(
-    name = "documentation",
+    name = "ttx",
     hdrs = [
-        "documentation.hpp",
+        "core/types.hpp",
     ],
-    include_prefix = "ttx",
     deps = [
-        "//perimortem",
-    ],
-)
-
-cc_library(
-    name = "error",
-    hdrs = [
-        "error.hpp",
-    ],
-    include_prefix = "ttx",
-    deps = [
+        ":dialect",
         ":lexical",
-        "//perimortem",
-    ],
-)
-
-cc_library(
-    name = "parse",
-    srcs = glob([
-        "parse/*.cpp",
-    ]),
-    hdrs = glob([
-        "parse/*.hpp",
-    ]),
-    include_prefix = "ttx",
-    deps = [
-        ":documentation",
-        ":error",
-        ":lexical",
-        "//perimortem",
-    ],
-)
-
-cc_library(
-    name = "source",
-    srcs = [
-        "source.cpp",
-    ],
-    hdrs = [
-        "source.hpp",
-    ],
-    include_prefix = "ttx",
-    deps = [
-        ":documentation",
-        ":parse",
-        "//perimortem",
-    ],
-)
-
-cc_library(
-    name = "type",
-    srcs = [
-        "type.cpp",
-    ],
-    hdrs = [
-        "type.hpp",
-    ],
-    include_prefix = "ttx",
-    deps = [
-        ":documentation",
-        "//perimortem",
-    ],
-)
-
-cc_library(
-    name = "layout",
-    srcs = [
-        "layout.cpp",
-    ],
-    hdrs = [
-        "layout.hpp",
-    ],
-    include_prefix = "ttx",
-    deps = [
-        ":type",
-        "//perimortem",
-    ],
-)
-
-cc_library(
-    name = "core",
-    hdrs = [
-        "core/prelude.hpp",
-    ],
-    include_prefix = "ttx",
-    deps = [
-        ":type",
+        ":model",
         "//perimortem",
     ],
 )

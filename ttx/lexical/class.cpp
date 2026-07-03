@@ -26,14 +26,8 @@ auto Ttx::Lexical::Class::get_name() const -> Perimortem::Core::View::Bytes {
     return "stack addressable constant qualifier"_view;
 
   // Definition keywords
-  case Type::Object:
-    return "`object` definition keyword"_view;
-  case Type::Struct:
-    return "`struct` definition keyword"_view;
   case Type::Enum:
     return "`enum` definition keyword"_view;
-  case Type::Foreign:
-    return "`foreign` ABI definition keyword"_view;
   case Type::Alias:
     return "`alias` definition keyword"_view;
 
@@ -66,8 +60,6 @@ auto Ttx::Lexical::Class::get_name() const -> Perimortem::Core::View::Bytes {
     return "dialect declaration"_view;
   case Type::Func:
     return "function definition"_view;
-  case Type::External:
-    return "external function declaration"_view;
 
   // Binary operators
   case Type::AddOp:
@@ -146,10 +138,6 @@ auto Ttx::Lexical::Class::get_name() const -> Perimortem::Core::View::Bytes {
     return "discard"_view;
 
   // Other fixed keywords and markers
-  case Type::New:
-    return "heap creator"_view;
-  case Type::Init:
-    return "stack creator"_view;
   case Type::Self:
     return "`self` accessor"_view;
   case Type::True:

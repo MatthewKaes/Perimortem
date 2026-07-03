@@ -60,7 +60,8 @@ In source form:
 dialect : Library;
 
 import Graphics : Package = TTX::Graphics;
-import Default2D : Shader = Graphics::Shaders::Default2D;
+
+@private Default2D : Alias = Graphics::Shaders::Default2D;
 
 // The rest belongs to the Library dialect.
 ```
@@ -253,10 +254,11 @@ dispatch.
 
 ## Packages
 
-Package imports resolve to package files and exported objects.
+Package imports resolve to package identities and exported objects.
 
 ```ttx
 import Graphics : Package = TTX::Graphics;
+@private Default2D : Alias = Graphics::Shaders::Default2D;
 ```
 
 The package path `TTX::Graphics` resolves to a package manifest such as:
@@ -286,7 +288,13 @@ declare its package identity and describe package exports through the same type
 and layout model.
 
 The Tetrodotoxin package/source graph owns the source-tree walk needed to get
-there. TTX owns what the resolved package, type, and layout facts mean once
+there. A normal CLI or LSP resolver is the root package resolver. Each package
+can own a local resolver for its private files, so package internals such as
+`shaders/default2d.ttx` are not part of the root source graph API. External
+sources import `TTX::Graphics`, then resolve `Graphics::Shaders::Default2D`
+through the package's exports.
+
+TTX owns what the resolved package, type, and layout facts mean once
 Tetrodotoxin hands them back under names like `Graphics`, `Types`, or
 `Render2D`.
 
