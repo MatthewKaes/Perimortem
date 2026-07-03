@@ -1,5 +1,5 @@
 """
-Tetordotoxin Language Server - An Lsp implementation for TTX to allow easy tooling integration.
+Tetrodotoxin Language Server - An Lsp implementation for TTX to allow easy tooling integration.
 """
 
 load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
@@ -26,7 +26,7 @@ cc_library(
         ":documents",
         "//perimortem:serialization",
         "//perimortem:system",
-        "//ttx/lexical:lexical",
+        "//ttx:lexical",
     ],
 )
 
@@ -45,8 +45,7 @@ cc_binary(
         ":rpc",
         "//perimortem:serialization",
         "//perimortem:system",
-        "//ttx:parse",
-        "//ttx/lexical:lexical",
+        "//ttx",
     ],
 )
 

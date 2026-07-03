@@ -221,7 +221,7 @@ def run_test():
     }))
     time.sleep(0.1)
 
-    print("\n--- Semantic tokens: Library/default dialects ---")
+    print("\n--- Semantic tokens: Library/default dialect ---")
     library_source = (
         "dialect : Library;\n"
         "@public func run[] -> Count {\n"

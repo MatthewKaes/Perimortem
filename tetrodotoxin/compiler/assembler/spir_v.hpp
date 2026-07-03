@@ -10,7 +10,7 @@
 
 namespace Tetrodotoxin::Compiler::Assembler {
 
-class spirv {
+class SpirV {
  public:
   enum class Version : Bits_32 {
     V1_0 = 0x00010000,
@@ -124,7 +124,7 @@ class spirv {
 
   static constexpr Bits_32 magic = 0x07230203;
 
-  explicit spirv(Perimortem::Memory::Dynamic::Bytes& words) : words(words) {}
+  explicit SpirV(Perimortem::Memory::Dynamic::Bytes& words) : words(words) {}
 
   auto begin_module(
       Bits_32 bound,

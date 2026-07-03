@@ -1,10 +1,10 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
-#include "tetrodotoxin/compiler/assembler/spirv.hpp"
+#include "tetrodotoxin/compiler/assembler/spir_v.hpp"
 
 using namespace Perimortem::Core;
-using namespace Tetrodotoxin::Compiler::Assembler;
+using namespace Tetrodotoxin::Compiler;
 
 static auto read_word(View::Bytes words, Count word_index) -> Bits_32 {
   Count byte_index = word_index * 4;
@@ -17,8 +17,10 @@ static auto read_word(View::Bytes words, Count word_index) -> Bits_32 {
          (Bits_32(words[byte_index + 3]) << 24);
 }
 
-auto spirv::begin_module(Bits_32 bound, Version version, Bits_32 generator)
-    -> void {
+auto Assembler::SpirV::begin_module(
+    Bits_32 bound,
+    Version version,
+    Bits_32 generator) -> void {
   word(magic);
   word(Bits_32(version));
   word(generator);
@@ -26,18 +28,18 @@ auto spirv::begin_module(Bits_32 bound, Version version, Bits_32 generator)
   word(0);
 }
 
-auto spirv::word(Bits_32 value) -> void {
+auto Assembler::SpirV::word(Bits_32 value) -> void {
   words.append(Bits_8(value & 0xFF));
   words.append(Bits_8((value >> 8) & 0xFF));
   words.append(Bits_8((value >> 16) & 0xFF));
   words.append(Bits_8((value >> 24) & 0xFF));
 }
 
-auto spirv::instruction(Op opcode, Count word_count) -> void {
+auto Assembler::SpirV::instruction(Op opcode, Count word_count) -> void {
   word((Bits_32(word_count) << 16) | Bits_32(opcode));
 }
 
-auto spirv::literal_string(View::Bytes text) -> Count {
+auto Assembler::SpirV::literal_string(View::Bytes text) -> Count {
   Count byte_index = 0;
   Count written = 0;
   Count words = literal_string_word_count(text);
@@ -60,26 +62,27 @@ auto spirv::literal_string(View::Bytes text) -> Count {
   return written;
 }
 
-auto spirv::capability(Capability value) -> void {
+auto Assembler::SpirV::capability(Capability value) -> void {
   instruction(Op::Capability, 2);
   word(Bits_32(value));
 }
 
-auto spirv::memory_model(AddressingModel addressing, MemoryModel memory)
-    -> void {
+auto Assembler::SpirV::memory_model(
+    AddressingModel addressing,
+    MemoryModel memory) -> void {
   instruction(Op::MemoryModel, 3);
   word(Bits_32(addressing));
   word(Bits_32(memory));
 }
 
-auto spirv::entry_point(
+auto Assembler::SpirV::entry_point(
     ExecutionModel model,
     Bits_32 function_id,
     View::Bytes name) -> void {
   entry_point(model, function_id, name, View::Vector<Bits_32>());
 }
 
-auto spirv::entry_point(
+auto Assembler::SpirV::entry_point(
     ExecutionModel model,
     Bits_32 function_id,
     View::Bytes name,
@@ -95,19 +98,21 @@ auto spirv::entry_point(
   }
 }
 
-auto spirv::execution_mode(Bits_32 entry_point_id, ExecutionMode mode) -> void {
+auto Assembler::SpirV::execution_mode(
+    Bits_32 entry_point_id,
+    ExecutionMode mode) -> void {
   instruction(Op::ExecutionMode, 3);
   word(entry_point_id);
   word(Bits_32(mode));
 }
 
-auto spirv::name(Bits_32 target_id, View::Bytes name) -> void {
+auto Assembler::SpirV::name(Bits_32 target_id, View::Bytes name) -> void {
   instruction(Op::Name, 2 + literal_string_word_count(name));
   word(target_id);
   literal_string(name);
 }
 
-auto spirv::member_name(
+auto Assembler::SpirV::member_name(
     Bits_32 target_id,
     Bits_32 member_index,
     View::Bytes name) -> void {
@@ -117,21 +122,24 @@ auto spirv::member_name(
   literal_string(name);
 }
 
-auto spirv::decorate(Bits_32 target_id, Decoration decoration, Bits_32 value)
-    -> void {
+auto Assembler::SpirV::decorate(
+    Bits_32 target_id,
+    Decoration decoration,
+    Bits_32 value) -> void {
   instruction(Op::Decorate, 4);
   word(target_id);
   word(Bits_32(decoration));
   word(value);
 }
 
-auto spirv::decorate(Bits_32 target_id, Decoration decoration) -> void {
+auto Assembler::SpirV::decorate(Bits_32 target_id, Decoration decoration)
+    -> void {
   instruction(Op::Decorate, 3);
   word(target_id);
   word(Bits_32(decoration));
 }
 
-auto spirv::member_decorate(
+auto Assembler::SpirV::member_decorate(
     Bits_32 target_id,
     Bits_32 member_index,
     Decoration decoration,
@@ -143,31 +151,33 @@ auto spirv::member_decorate(
   word(value);
 }
 
-auto spirv::type_void(Bits_32 result_id) -> void {
+auto Assembler::SpirV::type_void(Bits_32 result_id) -> void {
   instruction(Op::TypeVoid, 2);
   word(result_id);
 }
 
-auto spirv::type_bool(Bits_32 result_id) -> void {
+auto Assembler::SpirV::type_bool(Bits_32 result_id) -> void {
   instruction(Op::TypeBool, 2);
   word(result_id);
 }
 
-auto spirv::type_int(Bits_32 result_id, Bits_32 width, Bool signedness)
-    -> void {
+auto Assembler::SpirV::type_int(
+    Bits_32 result_id,
+    Bits_32 width,
+    Bool signedness) -> void {
   instruction(Op::TypeInt, 4);
   word(result_id);
   word(width);
   word(signedness ? 1 : 0);
 }
 
-auto spirv::type_float(Bits_32 result_id, Bits_32 width) -> void {
+auto Assembler::SpirV::type_float(Bits_32 result_id, Bits_32 width) -> void {
   instruction(Op::TypeFloat, 3);
   word(result_id);
   word(width);
 }
 
-auto spirv::type_vector(
+auto Assembler::SpirV::type_vector(
     Bits_32 result_id,
     Bits_32 component_type_id,
     Bits_32 component_count) -> void {
@@ -177,7 +187,7 @@ auto spirv::type_vector(
   word(component_count);
 }
 
-auto spirv::type_image(
+auto Assembler::SpirV::type_image(
     Bits_32 result_id,
     Bits_32 sampled_type_id,
     Dim dim,
@@ -197,19 +207,20 @@ auto spirv::type_image(
   word(Bits_32(format));
 }
 
-auto spirv::type_sampler(Bits_32 result_id) -> void {
+auto Assembler::SpirV::type_sampler(Bits_32 result_id) -> void {
   instruction(Op::TypeSampler, 2);
   word(result_id);
 }
 
-auto spirv::type_sampled_image(Bits_32 result_id, Bits_32 image_type_id)
-    -> void {
+auto Assembler::SpirV::type_sampled_image(
+    Bits_32 result_id,
+    Bits_32 image_type_id) -> void {
   instruction(Op::TypeSampledImage, 3);
   word(result_id);
   word(image_type_id);
 }
 
-auto spirv::type_array(
+auto Assembler::SpirV::type_array(
     Bits_32 result_id,
     Bits_32 element_type_id,
     Bits_32 length_id) -> void {
@@ -219,7 +230,7 @@ auto spirv::type_array(
   word(length_id);
 }
 
-auto spirv::type_struct(
+auto Assembler::SpirV::type_struct(
     Bits_32 result_id,
     View::Vector<Bits_32> member_type_ids) -> void {
   instruction(Op::TypeStruct, 2 + member_type_ids.get_size());
@@ -229,7 +240,7 @@ auto spirv::type_struct(
   }
 }
 
-auto spirv::type_pointer(
+auto Assembler::SpirV::type_pointer(
     Bits_32 result_id,
     StorageClass storage_class,
     Bits_32 type_id) -> void {
@@ -239,21 +250,24 @@ auto spirv::type_pointer(
   word(type_id);
 }
 
-auto spirv::type_function(Bits_32 result_id, Bits_32 return_type_id) -> void {
+auto Assembler::SpirV::type_function(Bits_32 result_id, Bits_32 return_type_id)
+    -> void {
   instruction(Op::TypeFunction, 3);
   word(result_id);
   word(return_type_id);
 }
 
-auto spirv::constant(Bits_32 result_type_id, Bits_32 result_id, Bits_32 value)
-    -> void {
+auto Assembler::SpirV::constant(
+    Bits_32 result_type_id,
+    Bits_32 result_id,
+    Bits_32 value) -> void {
   instruction(Op::Constant, 4);
   word(result_type_id);
   word(result_id);
   word(value);
 }
 
-auto spirv::constant_composite(
+auto Assembler::SpirV::constant_composite(
     Bits_32 result_type_id,
     Bits_32 result_id,
     View::Vector<Bits_32> constituents) -> void {
@@ -265,7 +279,7 @@ auto spirv::constant_composite(
   }
 }
 
-auto spirv::variable(
+auto Assembler::SpirV::variable(
     Bits_32 result_type_id,
     Bits_32 result_id,
     StorageClass storage_class) -> void {
@@ -275,21 +289,23 @@ auto spirv::variable(
   word(Bits_32(storage_class));
 }
 
-auto spirv::load(Bits_32 result_type_id, Bits_32 result_id, Bits_32 pointer_id)
-    -> void {
+auto Assembler::SpirV::load(
+    Bits_32 result_type_id,
+    Bits_32 result_id,
+    Bits_32 pointer_id) -> void {
   instruction(Op::Load, 4);
   word(result_type_id);
   word(result_id);
   word(pointer_id);
 }
 
-auto spirv::store(Bits_32 pointer_id, Bits_32 object_id) -> void {
+auto Assembler::SpirV::store(Bits_32 pointer_id, Bits_32 object_id) -> void {
   instruction(Op::Store, 3);
   word(pointer_id);
   word(object_id);
 }
 
-auto spirv::access_chain(
+auto Assembler::SpirV::access_chain(
     Bits_32 result_type_id,
     Bits_32 result_id,
     Bits_32 base_id,
@@ -303,7 +319,7 @@ auto spirv::access_chain(
   }
 }
 
-auto spirv::vector_shuffle(
+auto Assembler::SpirV::vector_shuffle(
     Bits_32 result_type_id,
     Bits_32 result_id,
     Bits_32 vector_1_id,
@@ -319,7 +335,7 @@ auto spirv::vector_shuffle(
   }
 }
 
-auto spirv::composite_construct(
+auto Assembler::SpirV::composite_construct(
     Bits_32 result_type_id,
     Bits_32 result_id,
     View::Vector<Bits_32> constituents) -> void {
@@ -331,7 +347,7 @@ auto spirv::composite_construct(
   }
 }
 
-auto spirv::composite_extract(
+auto Assembler::SpirV::composite_extract(
     Bits_32 result_type_id,
     Bits_32 result_id,
     Bits_32 composite_id,
@@ -345,7 +361,7 @@ auto spirv::composite_extract(
   }
 }
 
-auto spirv::image_sample_implicit_lod(
+auto Assembler::SpirV::image_sample_implicit_lod(
     Bits_32 result_type_id,
     Bits_32 result_id,
     Bits_32 sampled_image_id,
@@ -357,7 +373,7 @@ auto spirv::image_sample_implicit_lod(
   word(coordinate_id);
 }
 
-auto spirv::fadd(
+auto Assembler::SpirV::fadd(
     Bits_32 result_type_id,
     Bits_32 result_id,
     Bits_32 left_id,
@@ -369,7 +385,7 @@ auto spirv::fadd(
   word(right_id);
 }
 
-auto spirv::fsub(
+auto Assembler::SpirV::fsub(
     Bits_32 result_type_id,
     Bits_32 result_id,
     Bits_32 left_id,
@@ -381,7 +397,7 @@ auto spirv::fsub(
   word(right_id);
 }
 
-auto spirv::fmul(
+auto Assembler::SpirV::fmul(
     Bits_32 result_type_id,
     Bits_32 result_id,
     Bits_32 left_id,
@@ -393,7 +409,7 @@ auto spirv::fmul(
   word(right_id);
 }
 
-auto spirv::function(
+auto Assembler::SpirV::function(
     Bits_32 result_type_id,
     Bits_32 result_id,
     FunctionControl control,
@@ -405,24 +421,24 @@ auto spirv::function(
   word(function_type_id);
 }
 
-auto spirv::label(Bits_32 result_id) -> void {
+auto Assembler::SpirV::label(Bits_32 result_id) -> void {
   instruction(Op::Label, 2);
   word(result_id);
 }
 
-auto spirv::return_void() -> void {
+auto Assembler::SpirV::return_void() -> void {
   instruction(Op::Return, 1);
 }
 
-auto spirv::function_end() -> void {
+auto Assembler::SpirV::function_end() -> void {
   instruction(Op::FunctionEnd, 1);
 }
 
-auto spirv::literal_string_word_count(View::Bytes text) -> Count {
+auto Assembler::SpirV::literal_string_word_count(View::Bytes text) -> Count {
   return (text.get_size() + 4) / 4;
 }
 
-auto spirv::is_valid_module(View::Bytes words) -> Bool {
+auto Assembler::SpirV::is_valid_module(View::Bytes words) -> Bool {
   if (words.get_size() < 20 || words.get_size() % 4 != 0) {
     return False;
   }
