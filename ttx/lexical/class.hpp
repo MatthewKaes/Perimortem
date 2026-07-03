@@ -102,7 +102,6 @@ class Class {
     Break,
     Continue,
     Else,
-    Enum,
     Func,
     Self,
     True,
@@ -213,8 +212,6 @@ class Class {
       return "@stack"_view;
 
     // Definition keywords.
-    case Type::Enum:
-      return "enum"_view;
     case Type::Alias:
       return "alias"_view;
 

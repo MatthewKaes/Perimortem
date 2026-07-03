@@ -41,30 +41,32 @@ static constexpr auto is_hex(Bits_8 c) -> Bool {
 static constexpr auto check_keyword(
     View::Bytes value,
     Class::Type default_value) -> Class::Type {
-  static constexpr Static::Vector<Pair<View::Bytes, Class::Type>, 30> data = {{
+  static constexpr Static::Vector<Pair<View::Bytes, Class::Type>, 23> data = {{
+    {Class::get_source_text(Class::Type::And), Class::Type::And},
+    {Class::get_source_text(Class::Type::Or), Class::Type::Or},
     {Class::get_source_text(Class::Type::If), Class::Type::If},
     {Class::get_source_text(Class::Type::In), Class::Type::In},
-    {Class::get_source_text(Class::Type::Or), Class::Type::Or},
-    {Class::get_source_text(Class::Type::And), Class::Type::And},
     {Class::get_source_text(Class::Type::For), Class::Type::For},
+    {Class::get_source_text(Class::Type::While), Class::Type::While},
+    {Class::get_source_text(Class::Type::Case), Class::Type::Case},
+    {Class::get_source_text(Class::Type::Match), Class::Type::Match},
     {Class::get_source_text(Class::Type::Break), Class::Type::Break},
     {Class::get_source_text(Class::Type::Continue), Class::Type::Continue},
-    {Class::get_source_text(Class::Type::Case), Class::Type::Case},
     {Class::get_source_text(Class::Type::Else), Class::Type::Else},
+    {Class::get_source_text(Class::Type::Func), Class::Type::Func},
     {Class::get_source_text(Class::Type::Self), Class::Type::Self},
     {Class::get_source_text(Class::Type::True), Class::Type::True},
-    {Class::get_source_text(Class::Type::Func), Class::Type::Func},
     {Class::get_source_text(Class::Type::False), Class::Type::False},
-    {Class::get_source_text(Class::Type::Match), Class::Type::Match},
-    {Class::get_source_text(Class::Type::While), Class::Type::While},
     {
       Class::get_source_text(Class::Type::Return),
       Class::Type::Return,
     },
+    {Class::get_source_text(Class::Type::Import), Class::Type::Import},
     {
-      Class::get_source_text(Class::Type::Temporary),
-      Class::Type::Temporary,
+      Class::get_source_text(Class::Type::Dialect),
+      Class::Type::Dialect,
     },
+    {Class::get_source_text(Class::Type::Alias), Class::Type::Alias},
     {
       Class::get_source_text(Class::Type::Public),
       Class::Type::Public,
@@ -77,13 +79,10 @@ static constexpr auto check_keyword(
       Class::get_source_text(Class::Type::Hidden),
       Class::Type::Hidden,
     },
-    {Class::get_source_text(Class::Type::Import), Class::Type::Import},
     {
-      Class::get_source_text(Class::Type::Dialect),
-      Class::Type::Dialect,
+      Class::get_source_text(Class::Type::Temporary),
+      Class::Type::Temporary,
     },
-    {Class::get_source_text(Class::Type::Enum), Class::Type::Enum},
-    {Class::get_source_text(Class::Type::Alias), Class::Type::Alias},
   }};
 
   return Table<Class::Type, data>::find_or_default(value, default_value);
@@ -151,6 +150,9 @@ class Context {
   constexpr auto get_parse_index() const -> Bits_32 { return parse_index; }
 
   constexpr auto get_source() const -> View::Bytes { return source; }
+  constexpr auto get_tokens() const -> View::Vector<Token> {
+    return tokens.get_view();
+  }
 
   constexpr auto slice(Count start, Count size) const -> View::Bytes {
     return source.slice(start, size);
@@ -636,4 +638,5 @@ auto Tokenizer::parse(Bool strip_disabled) -> void {
   }
 
   ctx.add_end_of_stream();
+  tokens = ctx.get_tokens();
 }

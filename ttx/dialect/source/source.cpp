@@ -1,8 +1,6 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
-#pragma once
-
 #include "ttx/dialect/source/source.hpp"
 
 #include "perimortem/memory/managed/vector.hpp"
@@ -33,6 +31,12 @@ auto Source::Source::parse(Lexical::Cursor& cursor) -> void* {
 
   const auto dialect = Ttx::Dialect::Source::Dialect::parse(cursor);
   if (!dialect.is_valid()) {
+    return nullptr;
+  }
+
+  if (!cursor.require(
+          Lexical::Class::Type::EndStatement,
+          "Expected `;` after dialect declaration."_view)) {
     return nullptr;
   }
 

@@ -30,15 +30,7 @@ namespace Ttx::Dialect::Source {
 class Import {
  public:
   Import() = default;
-  Import(
-      Perimortem::Core::View::Bytes local_name,
-      Perimortem::Core::View::Bytes source_name,
-      Dialect dialect,
-      Bool package)
-      : local_name(local_name),
-        source_name(source_name),
-        dialect(dialect),
-        package(package) {}
+
   static auto should_parse(Lexical::Cursor& cursor) -> Bool;
   static auto parse(Lexical::Cursor& cursor) -> Import;
 
@@ -60,6 +52,16 @@ class Import {
   }
 
  private:
+  Import(
+      Perimortem::Core::View::Bytes local_name,
+      Perimortem::Core::View::Bytes source_name,
+      Dialect dialect,
+      Bool package)
+      : local_name(local_name),
+        source_name(source_name),
+        dialect(dialect),
+        package(package) {}
+
   Perimortem::Core::View::Bytes local_name;
   Perimortem::Core::View::Bytes source_name;
   Dialect dialect;

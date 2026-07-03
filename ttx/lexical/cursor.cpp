@@ -28,14 +28,14 @@ auto Cursor::require(Lexical::Class::Type type, View::Bytes message)
 auto Cursor::error(View::Bytes message, View::Bytes hint) -> void {
   errors.insert(
       Lexical::Error(
-          tokenizer.get_source_text(), tokenizer.get_source_name(), message,
+          tokenizer.get_source_name(), tokenizer.get_source_text(), message,
           hint));
 }
 
 auto Cursor::token_error(View::Bytes message, View::Bytes hint) -> void {
   errors.insert(
       Lexical::Error(
-          current(), tokenizer.get_source_text(), tokenizer.get_source_name(),
+          current(), tokenizer.get_source_name(), tokenizer.get_source_text(),
           message, hint));
 }
 
@@ -46,7 +46,7 @@ auto Cursor::range_error(
     View::Bytes hint) -> void {
   errors.insert(
       Lexical::Error(
-          start, end, tokenizer.get_source_text(), tokenizer.get_source_name(),
+          start, end, tokenizer.get_source_name(), tokenizer.get_source_text(),
           message, hint));
 }
 

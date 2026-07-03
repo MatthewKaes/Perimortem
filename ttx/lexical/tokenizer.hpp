@@ -28,7 +28,7 @@ class Tokenizer {
       Perimortem::Core::View::Bytes source_text,
       Perimortem::Core::View::Bytes source_name,
       Bool strip_disabled = True)
-      : arena(arena) {
+      : arena(arena), source_text(source_text), source_name(source_name) {
     parse(strip_disabled);
   }
 

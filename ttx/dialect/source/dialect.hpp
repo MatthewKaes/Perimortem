@@ -37,7 +37,7 @@ class Dialect {
     return name;
   }
 
-  constexpr auto is_valid() const -> Bool { return name.is_empty(); }
+  constexpr auto is_valid() const -> Bool { return !name.is_empty(); }
 
   constexpr auto operator==(const Dialect& rhs) const -> Bool {
     return name == rhs.name;

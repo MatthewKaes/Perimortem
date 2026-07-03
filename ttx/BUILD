@@ -46,10 +46,10 @@ cc_library(
 cc_library(
     name = "dialect",
     srcs = glob([
-        "dialect/*.cpp",
+        "dialect/**/*.cpp",
     ]),
     hdrs = glob([
-        "dialect/*.hpp",
+        "dialect/**/*.hpp",
     ]),
     deps = [
         ":model",
