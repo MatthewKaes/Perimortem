@@ -5,8 +5,8 @@
 dialect : Library;
 
 import Graphics : Library = ( .source = "graphics/image.ttx" );
-import Log      : Library = TTX.Log;
-import Math     : Library = TTX.Math;
+import Log      : Library = TTX::Log;
+import Math     : Library = TTX::Math;
 
 // [?] @extern(.abi = "c") marks methods as C-ABI external symbols resolved at
 // link time. Provisional — C FFI design is not yet finalized.

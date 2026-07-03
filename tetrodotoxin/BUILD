@@ -1,37 +1,47 @@
 """
-Tetordotoxin - A saltless engine language (.ttx)
+Tetrodotoxin - A saltless engine language (.ttx)
 """
 
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
-load(":ttx.bzl", "ttx_package")
 
 package(default_visibility = ["//visibility:public"])
 
-ttx_package(
-    name = "graphics_package",
+# TODO: Move the standard library packages to the right layer.
+# Maybe ttx? Maybe standard or standard_library?
+# ttx_package(
+#     name = "graphics_package",
+#     srcs = [
+#         "packages/graphics/library/sprite.ttx",
+#         "packages/graphics/library/types.ttx",
+#         "packages/graphics/package.ttx",
+#         "packages/graphics/renderers/renderer_2d.ttx",
+#         "packages/graphics/shaders/default_2d.ttx",
+#     ],
+# )
+
+cc_library(
+    name = "resolution",
     srcs = [
-        "packages/graphics/package.ttx",
-        "packages/graphics/library/types.ttx",
-        "packages/graphics/library/sprite.ttx",
-        "packages/graphics/renderers/renderer_2d.ttx",
-        "packages/graphics/shaders/default_2d.ttx",
+        "resolution/resolver.cpp",
+        "resolution/source/cache.cpp",
+        "resolution/source/record.cpp",
+    ],
+    hdrs = [
+        "resolution/resolver.hpp",
+        "resolution/source/cache.hpp",
+        "resolution/source/record.hpp",
+    ],
+    includes = ["."],
+    deps = [
+        "//perimortem",
+        "//ttx",
     ],
 )
 
-alias(
-    name = "dialects",
-    actual = "//ttx:dialect",
-)
-
-alias(
-    name = "dialect",
-    actual = ":dialects",
-)
-
 cc_library(
-    name = "compiler_assembler",
+    name = "compiler",
     srcs = [
-        "compiler/assembler/spirv.cpp",
+        "compiler/assembler/spir_v.cpp",
         "compiler/assembler/x86_64.cpp",
     ],
     hdrs = glob([
@@ -61,15 +71,4 @@ cc_library(
     deps = [
         "//perimortem",
     ],
-)
-
-# The TTX compiler binary - invoked by Bazel via the ttx_library rule.
-alias(
-    name = "ttx",
-    actual = "//tetrodotoxin/cli:tetrodotoxin",
-)
-
-alias(
-    name = "ttx_core",
-    actual = "//ttx:core",
 )

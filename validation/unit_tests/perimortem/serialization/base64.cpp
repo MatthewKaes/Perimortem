@@ -54,6 +54,8 @@ PERIMORTEM_UNIT_TEST(SerializationBase64, decode_vectorized) {
   File base64;
   ASSERT(base64.read("validation/data/base64/png.base64"_view));
 
+  // If you touch the source input, regenerate its base64 output or this test
+  // will fail.
   const auto decoded_bytes = Base64::decode(base64.get_view());
   EXPECT_TEXT(decoded_bytes.get_view(), source.get_view());
 
@@ -93,6 +95,8 @@ PERIMORTEM_UNIT_TEST(SerializationBase64, encode_vectorized) {
   File base64;
   ASSERT(base64.read("validation/data/base64/png.base64"_view));
 
+  // If you touch the source input, regenerate its base64 output or this test
+  // will fail.
   const auto encoded_bytes = Base64::encode(source.get_view());
   EXPECT_TEXT(encoded_bytes.get_view(), base64.get_view());
 

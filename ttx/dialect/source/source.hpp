@@ -37,6 +37,7 @@ class Source {
   static constexpr auto get_name() -> Perimortem::Core::View::Bytes {
     return "Source"_view;
   }
+
   constexpr auto get_documentation() const -> Documentation {
     return documentation;
   }

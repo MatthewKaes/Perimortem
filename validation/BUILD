@@ -13,7 +13,7 @@ Enable C++ STL comparison benchmarks:
 
 load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
-load("//tetrodotoxin:ttx.bzl", "ttx_library")
+load("//toolchain:tetrodotoxin.bzl", "ttx_library")
 
 package(default_visibility = ["//visibility:public"])
 
@@ -32,12 +32,12 @@ cc_library(
     includes = ["."],
 )
 
-ttx_library(
-    name = "ttx_tests",
-    srcs = glob([
-        "unit_tests/tetrodotoxin/**/*.ttx",
-    ]),
-)
+# ttx_library(
+#     name = "ttx_tests",
+#     srcs = glob([
+#         "unit_tests/tetrodotoxin/**/*.ttx",
+#     ]),
+# )
 
 cc_binary(
     name = "unit_tests",
@@ -50,19 +50,12 @@ cc_binary(
     includes = ["."],
     deps = [
         ":test_headers",
-        ":ttx_tests",
+        # ":ttx_tests",
         "//perimortem",
-        "//tetrodotoxin:compiler_assembler",
-        "//tetrodotoxin:dialect",
+        "//tetrodotoxin:compiler",
         "//tetrodotoxin:linker",
         "//tetrodotoxin:resolution",
-        "//ttx:core",
-        "//ttx:dialect",
-        "//ttx:error",
-        "//ttx:layout",
-        "//ttx:lexical",
-        "//ttx:parse",
-        "//ttx:source",
+        "//ttx",
     ],
 )
 

@@ -5,9 +5,7 @@
 
 #include "perimortem/memory/allocator/arena.hpp"
 
-#include "ttx/dialect/dialect.hpp"
 #include "ttx/lexical/tokenizer.hpp"
-#include "ttx/parse/cursor.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -19,9 +17,10 @@ static Harness TtxParse = {
 
 PERIMORTEM_UNIT_TEST(TtxParse, access_operators) {
   Allocator::Arena arena;
-  Ttx::Lexical::Tokenizer tokenizer(arena);
-  tokenizer.parse(
-      "TTX::Graphics color.[r, g] color:[start, 2] layout[Type] value.member"_view);
+  Ttx::Lexical::Tokenizer tokenizer(
+      arena,
+      "TTX::Graphics color.[r, g] color:[start, 2] layout[Type] value.member"_view,
+      "Test::Package"_view);
 
   View::Vector<Ttx::Lexical::Token> tokens = tokenizer.get_tokens();
   ASSERT_EQ(tokens.get_size(), Count(23));
@@ -39,25 +38,4 @@ PERIMORTEM_UNIT_TEST(TtxParse, access_operators) {
   EXPECT(tokens[16].get_class() == Ttx::Lexical::Class::Type::IndexStart);
   EXPECT_TEXT(tokens[20].get_text(), "."_view);
   EXPECT(tokens[20].get_class() == Ttx::Lexical::Class::Type::AddressOp);
-}
-
-PERIMORTEM_UNIT_TEST(TtxParse, dialect_registry) {
-  class TestDialect : public Ttx::Dialect::Dialect {
-   public:
-    auto get_name() const -> View::Bytes override { return "UnitDialect"_view; }
-    auto parse(Ttx::Parse::Cursor&) const -> void override {}
-  };
-
-  static TestDialect dialect;
-  Count starting_count =
-      Ttx::Dialect::Dialect::Registry::get_dialects().get_size();
-
-  Ttx::Dialect::Dialect::Registry::add(dialect);
-  Ttx::Dialect::Dialect::Registry::add(dialect);
-
-  EXPECT(Ttx::Dialect::Dialect::Registry::find("UnitDialect"_view) ==
-         &dialect);
-  EXPECT_EQ(
-      Ttx::Dialect::Dialect::Registry::get_dialects().get_size(),
-      starting_count + 1);
 }

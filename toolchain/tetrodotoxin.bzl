@@ -6,7 +6,7 @@ artifacts that can be consumed by the regular `cc_toolchain`.
 
 Usage in a BUILD file:
 
-    load("//tetrodotoxin:ttx.bzl", "ttx_library")
+    load("//toolchain:tetrodotoxin.bzl", "ttx_library")
 
     ttx_library(
         name = "my_lib",
@@ -20,6 +20,9 @@ A generated header is automatically available to dependents:
 Executable application targets should come back after dialect parsing and
 lowering can produce real declarations. This file intentionally does not
 generate host bridge code that guesses at TTX runtime types.
+
+TODO: Create a proper TTX CLI toolchain using Tetrodotoxin.
+
 """
 
 load("@rules_cc//cc:find_cc_toolchain.bzl", "CC_TOOLCHAIN_ATTRS", "find_cc_toolchain")

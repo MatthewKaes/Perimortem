@@ -15,9 +15,10 @@
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
-using namespace Tetrodotoxin::Compiler::Assembler;
+using namespace Tetrodotoxin::Compiler;
 using namespace Tetrodotoxin::Linker;
 using namespace Validation;
+
 
 static Harness TetrodotoxinTerminal = {
   .name = "Tetrodotoxin::Terminal"_view,
@@ -25,7 +26,7 @@ static Harness TetrodotoxinTerminal = {
 
 PERIMORTEM_UNIT_TEST(TetrodotoxinTerminal, archive_symbol) {
   Dynamic::Bytes code;
-  x86_64 assembler(code);
+  Assembler::x86_64 assembler(code);
   assembler.ret();
 
   auto symbol = Object::Symbol::create_function(

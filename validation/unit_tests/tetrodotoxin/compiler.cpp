@@ -8,13 +8,13 @@
 
 #include "perimortem/memory/dynamic/bytes.hpp"
 
-#include "tetrodotoxin/compiler/assembler/spirv.hpp"
+#include "tetrodotoxin/compiler/assembler/spir_v.hpp"
 #include "tetrodotoxin/compiler/assembler/x86_64.hpp"
 
 using namespace Perimortem::Core;
 using namespace Validation;
 
-using namespace Tetrodotoxin::Compiler::Assembler;
+using namespace Tetrodotoxin::Compiler;
 
 static Harness TtxSpirV = {
   .name = "TTX::SPIR-V"_view,
@@ -26,7 +26,7 @@ static Harness Ttxx86_64 = {
 
 PERIMORTEM_UNIT_TEST(TtxSpirV, module_header) {
   Perimortem::Memory::Dynamic::Bytes words;
-  spirv assembler(words);
+  Assembler::SpirV assembler(words);
 
   assembler.begin_module(7);
 
@@ -35,18 +35,20 @@ PERIMORTEM_UNIT_TEST(TtxSpirV, module_header) {
     0x00, 0x00, 0x07, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
   };
   EXPECT_HEX(words, expected);
-  EXPECT(spirv::is_valid_module(words));
+  EXPECT(Assembler::SpirV::is_valid_module(words));
 }
 
 PERIMORTEM_UNIT_TEST(TtxSpirV, module_instructions) {
   Perimortem::Memory::Dynamic::Bytes words;
-  spirv assembler(words);
+  Assembler::SpirV assembler(words);
 
   assembler.begin_module(2);
-  assembler.capability(spirv::Capability::Shader);
+  assembler.capability(Assembler::SpirV::Capability::Shader);
   assembler.memory_model(
-      spirv::AddressingModel::Logical, spirv::MemoryModel::GLSL450);
-  assembler.entry_point(spirv::ExecutionModel::Vertex, 1, "main"_view);
+      Assembler::SpirV::AddressingModel::Logical,
+      Assembler::SpirV::MemoryModel::GLSL450);
+  assembler.entry_point(
+      Assembler::SpirV::ExecutionModel::Vertex, 1, "main"_view);
 
   constexpr Static::Bytes<60> expected = {
     0x03, 0x02, 0x23, 0x07, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -56,17 +58,17 @@ PERIMORTEM_UNIT_TEST(TtxSpirV, module_instructions) {
     0x01, 0x00, 0x00, 0x00, 0x6d, 0x61, 0x69, 0x6e, 0x00, 0x00, 0x00, 0x00,
   };
   EXPECT_HEX(words, expected);
-  EXPECT(spirv::literal_string_word_count("main"_view) == 2);
-  EXPECT(spirv::is_valid_module(words));
+  EXPECT(Assembler::SpirV::literal_string_word_count("main"_view) == 2);
+  EXPECT(Assembler::SpirV::is_valid_module(words));
 }
 
 PERIMORTEM_UNIT_TEST(TtxSpirV, void_function) {
   Perimortem::Memory::Dynamic::Bytes words;
-  spirv assembler(words);
+  Assembler::SpirV assembler(words);
 
   assembler.type_void(2);
   assembler.type_function(3, 2);
-  assembler.function(2, 1, spirv::FunctionControl::None, 3);
+  assembler.function(2, 1, Assembler::SpirV::FunctionControl::None, 3);
   assembler.label(4);
   assembler.return_void();
   assembler.function_end();
@@ -83,40 +85,41 @@ PERIMORTEM_UNIT_TEST(TtxSpirV, void_function) {
 
 PERIMORTEM_UNIT_TEST(TtxSpirV, instruction_bounds) {
   Perimortem::Memory::Dynamic::Bytes words;
-  spirv assembler(words);
+  Assembler::SpirV assembler(words);
   assembler.begin_module(2);
-  assembler.instruction(spirv::Op::Nop, 1);
+  assembler.instruction(Assembler::SpirV::Op::Nop, 1);
 
-  EXPECT(spirv::is_valid_module(words));
+  EXPECT(Assembler::SpirV::is_valid_module(words));
 
   words.clear();
   assembler.begin_module(2);
-  assembler.instruction(spirv::Op::Nop, 2);
+  assembler.instruction(Assembler::SpirV::Op::Nop, 2);
 
-  EXPECT_NOT(spirv::is_valid_module(words));
+  EXPECT_NOT(Assembler::SpirV::is_valid_module(words));
 }
 
 PERIMORTEM_UNIT_TEST(TtxSpirV, bad_headers) {
-  EXPECT_NOT(spirv::is_valid_module(View::Bytes()));
+  EXPECT_NOT(Assembler::SpirV::is_valid_module(View::Bytes()));
 
   constexpr Static::Bytes<20> bad_magic = {
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
   };
-  EXPECT_NOT(spirv::is_valid_module(bad_magic));
+  EXPECT_NOT(Assembler::SpirV::is_valid_module(bad_magic));
 
   Perimortem::Memory::Dynamic::Bytes bad_bound;
-  spirv assembler(bad_bound);
+  Assembler::SpirV assembler(bad_bound);
   assembler.begin_module(0);
-  EXPECT_NOT(spirv::is_valid_module(bad_bound));
+  EXPECT_NOT(Assembler::SpirV::is_valid_module(bad_bound));
 }
 
 PERIMORTEM_UNIT_TEST(Ttxx86_64, inc) {
   Perimortem::Memory::Dynamic::Bytes machine_code;
-  x86_64 assembler(machine_code);
+  Assembler::x86_64 assembler(machine_code);
   // Perform all the 32 bit operations.
-  for (x86_64::Reg reg = x86_64::Reg::EAX; reg <= x86_64::Reg::R15D;
-       reg = x86_64::Reg(Bits_8(reg) + 1)) {
+  for (Assembler::x86_64::Reg reg = Assembler::x86_64::Reg::EAX;
+       reg <= Assembler::x86_64::Reg::R15D;
+       reg = Assembler::x86_64::Reg(Bits_8(reg) + 1)) {
     assembler.inc(reg);
   }
 
@@ -128,8 +131,9 @@ PERIMORTEM_UNIT_TEST(Ttxx86_64, inc) {
 
   // Perform all 64 bit operations.
   machine_code.clear();
-  for (x86_64::Reg reg = x86_64::Reg::RAX; reg <= x86_64::Reg::R15;
-       reg = x86_64::Reg(Bits_8(reg) + 1)) {
+  for (Assembler::x86_64::Reg reg = Assembler::x86_64::Reg::RAX;
+       reg <= Assembler::x86_64::Reg::R15;
+       reg = Assembler::x86_64::Reg(Bits_8(reg) + 1)) {
     assembler.inc(reg);
   }
   EXPECT_HEX(
@@ -141,10 +145,11 @@ PERIMORTEM_UNIT_TEST(Ttxx86_64, inc) {
 
 PERIMORTEM_UNIT_TEST(Ttxx86_64, dec) {
   Perimortem::Memory::Dynamic::Bytes machine_code;
-  x86_64 assembler(machine_code);
+  Assembler::x86_64 assembler(machine_code);
   // Perform all the 32 bit operations.
-  for (x86_64::Reg reg = x86_64::Reg::EAX; reg <= x86_64::Reg::R15D;
-       reg = x86_64::Reg(Bits_8(reg) + 1)) {
+  for (Assembler::x86_64::Reg reg = Assembler::x86_64::Reg::EAX;
+       reg <= Assembler::x86_64::Reg::R15D;
+       reg = Assembler::x86_64::Reg(Bits_8(reg) + 1)) {
     assembler.dec(reg);
   }
 
@@ -156,8 +161,9 @@ PERIMORTEM_UNIT_TEST(Ttxx86_64, dec) {
 
   // Perform all 64 bit operations.
   machine_code.clear();
-  for (x86_64::Reg reg = x86_64::Reg::RAX; reg <= x86_64::Reg::R15;
-       reg = x86_64::Reg(Bits_8(reg) + 1)) {
+  for (Assembler::x86_64::Reg reg = Assembler::x86_64::Reg::RAX;
+       reg <= Assembler::x86_64::Reg::R15;
+       reg = Assembler::x86_64::Reg(Bits_8(reg) + 1)) {
     assembler.dec(reg);
   }
   EXPECT_HEX(
@@ -169,10 +175,11 @@ PERIMORTEM_UNIT_TEST(Ttxx86_64, dec) {
 
 PERIMORTEM_UNIT_TEST(Ttxx86_64, zero) {
   Perimortem::Memory::Dynamic::Bytes machine_code;
-  x86_64 assembler(machine_code);
+  Assembler::x86_64 assembler(machine_code);
   // Perform all the 32 bit operations.
-  for (x86_64::Reg reg = x86_64::Reg::EAX; reg <= x86_64::Reg::R15D;
-       reg = x86_64::Reg(Bits_8(reg) + 1)) {
+  for (Assembler::x86_64::Reg reg = Assembler::x86_64::Reg::EAX;
+       reg <= Assembler::x86_64::Reg::R15D;
+       reg = Assembler::x86_64::Reg(Bits_8(reg) + 1)) {
     assembler.zero(reg);
   }
 
@@ -184,8 +191,9 @@ PERIMORTEM_UNIT_TEST(Ttxx86_64, zero) {
 
   // Perform all 64 bit operations.
   machine_code.clear();
-  for (x86_64::Reg reg = x86_64::Reg::RAX; reg <= x86_64::Reg::R15;
-       reg = x86_64::Reg(Bits_8(reg) + 1)) {
+  for (Assembler::x86_64::Reg reg = Assembler::x86_64::Reg::RAX;
+       reg <= Assembler::x86_64::Reg::R15;
+       reg = Assembler::x86_64::Reg(Bits_8(reg) + 1)) {
     assembler.zero(reg);
   }
   // Should be the same as the 64 bit operations.
@@ -198,10 +206,11 @@ PERIMORTEM_UNIT_TEST(Ttxx86_64, zero) {
 
 PERIMORTEM_UNIT_TEST(Ttxx86_64, one) {
   Perimortem::Memory::Dynamic::Bytes machine_code;
-  x86_64 assembler(machine_code);
+  Assembler::x86_64 assembler(machine_code);
   // Perform all the 32 bit operations.
-  for (x86_64::Reg reg = x86_64::Reg::EAX; reg <= x86_64::Reg::R15D;
-       reg = x86_64::Reg(Bits_8(reg) + 1)) {
+  for (Assembler::x86_64::Reg reg = Assembler::x86_64::Reg::EAX;
+       reg <= Assembler::x86_64::Reg::R15D;
+       reg = Assembler::x86_64::Reg(Bits_8(reg) + 1)) {
     assembler.one(reg);
   }
 
@@ -215,8 +224,9 @@ PERIMORTEM_UNIT_TEST(Ttxx86_64, one) {
 
   // Perform all 64 bit operations.
   machine_code.clear();
-  for (x86_64::Reg reg = x86_64::Reg::RAX; reg <= x86_64::Reg::R15;
-       reg = x86_64::Reg(Bits_8(reg) + 1)) {
+  for (Assembler::x86_64::Reg reg = Assembler::x86_64::Reg::RAX;
+       reg <= Assembler::x86_64::Reg::R15;
+       reg = Assembler::x86_64::Reg(Bits_8(reg) + 1)) {
     assembler.one(reg);
   }
   EXPECT_HEX(
@@ -230,10 +240,11 @@ PERIMORTEM_UNIT_TEST(Ttxx86_64, one) {
 
 PERIMORTEM_UNIT_TEST(Ttxx86_64, neg_one) {
   Perimortem::Memory::Dynamic::Bytes machine_code;
-  x86_64 assembler(machine_code);
+  Assembler::x86_64 assembler(machine_code);
   // Perform all the 32 bit operations.
-  for (x86_64::Reg reg = x86_64::Reg::EAX; reg <= x86_64::Reg::R15D;
-       reg = x86_64::Reg(Bits_8(reg) + 1)) {
+  for (Assembler::x86_64::Reg reg = Assembler::x86_64::Reg::EAX;
+       reg <= Assembler::x86_64::Reg::R15D;
+       reg = Assembler::x86_64::Reg(Bits_8(reg) + 1)) {
     assembler.neg_one(reg);
   }
 
@@ -247,8 +258,9 @@ PERIMORTEM_UNIT_TEST(Ttxx86_64, neg_one) {
 
   // Perform all 64 bit operations.
   machine_code.clear();
-  for (x86_64::Reg reg = x86_64::Reg::RAX; reg <= x86_64::Reg::R15;
-       reg = x86_64::Reg(Bits_8(reg) + 1)) {
+  for (Assembler::x86_64::Reg reg = Assembler::x86_64::Reg::RAX;
+       reg <= Assembler::x86_64::Reg::R15;
+       reg = Assembler::x86_64::Reg(Bits_8(reg) + 1)) {
     assembler.neg_one(reg);
   }
   // Neg one can't optimize for the lower 3 bit registers since dec needs to
@@ -264,9 +276,10 @@ PERIMORTEM_UNIT_TEST(Ttxx86_64, neg_one) {
 
 PERIMORTEM_UNIT_TEST(Ttxx86_64, mov_reg8) {
   Perimortem::Memory::Dynamic::Bytes machine_code;
-  x86_64 assembler(machine_code);
-  for (x86_64::Reg reg = x86_64::Reg::AL; reg <= x86_64::Reg::R15B;
-       reg = x86_64::Reg(Bits_8(reg) + 1)) {
+  Assembler::x86_64 assembler(machine_code);
+  for (Assembler::x86_64::Reg reg = Assembler::x86_64::Reg::AL;
+       reg <= Assembler::x86_64::Reg::R15B;
+       reg = Assembler::x86_64::Reg(Bits_8(reg) + 1)) {
     assembler.mov(reg, reg);
   }
   // AL-BL: no REX. SPL-DIL: bare REX 0x40. R8B-R15B: REX.R|REX.B = 0x45.
@@ -281,21 +294,29 @@ PERIMORTEM_UNIT_TEST(Ttxx86_64, mov_reg8) {
   // REX combos that can show up.
   machine_code.clear();
   assembler.mov(
-      x86_64::Reg::AL, x86_64::Reg::CL);  // no REX, reg=AL(0),  rm=CL(1)
+      Assembler::x86_64::Reg::AL,
+      Assembler::x86_64::Reg::CL);  // no REX, reg=AL(0),  rm=CL(1)
   assembler.mov(
-      x86_64::Reg::CL, x86_64::Reg::AL);  // no REX, reg=CL(1),  rm=AL(0)
+      Assembler::x86_64::Reg::CL,
+      Assembler::x86_64::Reg::AL);  // no REX, reg=CL(1),  rm=AL(0)
   assembler.mov(
-      x86_64::Reg::AL, x86_64::Reg::SPL);  // bare REX, reg=AL(0), rm=SPL(4)
+      Assembler::x86_64::Reg::AL,
+      Assembler::x86_64::Reg::SPL);  // bare REX, reg=AL(0), rm=SPL(4)
   assembler.mov(
-      x86_64::Reg::SPL, x86_64::Reg::AL);  // bare REX, reg=SPL(4), rm=AL(0)
+      Assembler::x86_64::Reg::SPL,
+      Assembler::x86_64::Reg::AL);  // bare REX, reg=SPL(4), rm=AL(0)
   assembler.mov(
-      x86_64::Reg::R8B, x86_64::Reg::AL);  // REX.R, reg=R8B(0), rm=AL(0)
+      Assembler::x86_64::Reg::R8B,
+      Assembler::x86_64::Reg::AL);  // REX.R, reg=R8B(0), rm=AL(0)
   assembler.mov(
-      x86_64::Reg::AL, x86_64::Reg::R8B);  // REX.B, reg=AL(0),  rm=R8B(0)
+      Assembler::x86_64::Reg::AL,
+      Assembler::x86_64::Reg::R8B);  // REX.B, reg=AL(0),  rm=R8B(0)
   assembler.mov(
-      x86_64::Reg::R9B, x86_64::Reg::R8B);  // REX.R|B, reg=R9B(1), rm=R8B(0)
+      Assembler::x86_64::Reg::R9B,
+      Assembler::x86_64::Reg::R8B);  // REX.R|B, reg=R9B(1), rm=R8B(0)
   assembler.mov(
-      x86_64::Reg::R8B, x86_64::Reg::R9B);  // REX.R|B, reg=R8B(0), rm=R9B(1)
+      Assembler::x86_64::Reg::R8B,
+      Assembler::x86_64::Reg::R9B);  // REX.R|B, reg=R8B(0), rm=R9B(1)
   EXPECT_HEX(
       machine_code,
       "\x88\xC1"             // AL  → CL   (ModRM reg=0, rm=1)
@@ -310,9 +331,10 @@ PERIMORTEM_UNIT_TEST(Ttxx86_64, mov_reg8) {
 
 PERIMORTEM_UNIT_TEST(Ttxx86_64, mov_reg16) {
   Perimortem::Memory::Dynamic::Bytes machine_code;
-  x86_64 assembler(machine_code);
-  for (x86_64::Reg reg = x86_64::Reg::AX; reg <= x86_64::Reg::R15W;
-       reg = x86_64::Reg(Bits_8(reg) + 1)) {
+  Assembler::x86_64 assembler(machine_code);
+  for (Assembler::x86_64::Reg reg = Assembler::x86_64::Reg::AX;
+       reg <= Assembler::x86_64::Reg::R15W;
+       reg = Assembler::x86_64::Reg(Bits_8(reg) + 1)) {
     assembler.mov(reg, reg);
   }
   // AX-DI: 0x66 prefix, no REX. R8W-R15W: 0x66 + REX.R|REX.B = 0x45.
@@ -325,12 +347,22 @@ PERIMORTEM_UNIT_TEST(Ttxx86_64, mov_reg16) {
 
   // Cross-register to catch ModRM bugs with reg & r/m.
   machine_code.clear();
-  assembler.mov(x86_64::Reg::AX, x86_64::Reg::CX);    // 66 89 C1
-  assembler.mov(x86_64::Reg::CX, x86_64::Reg::AX);    // 66 89 C8
-  assembler.mov(x86_64::Reg::R8W, x86_64::Reg::AX);   // 66 REX.R(44) 89 C0
-  assembler.mov(x86_64::Reg::AX, x86_64::Reg::R8W);   // 66 REX.B(41) 89 C0
-  assembler.mov(x86_64::Reg::R9W, x86_64::Reg::R8W);  // 66 REX.R|B(45) 89 C8
-  assembler.mov(x86_64::Reg::R8W, x86_64::Reg::R9W);  // 66 REX.R|B(45) 89 C1
+  assembler.mov(
+      Assembler::x86_64::Reg::AX, Assembler::x86_64::Reg::CX);  // 66 89 C1
+  assembler.mov(
+      Assembler::x86_64::Reg::CX, Assembler::x86_64::Reg::AX);  // 66 89 C8
+  assembler.mov(
+      Assembler::x86_64::Reg::R8W,
+      Assembler::x86_64::Reg::AX);  // 66 REX.R(44) 89 C0
+  assembler.mov(
+      Assembler::x86_64::Reg::AX,
+      Assembler::x86_64::Reg::R8W);  // 66 REX.B(41) 89 C0
+  assembler.mov(
+      Assembler::x86_64::Reg::R9W,
+      Assembler::x86_64::Reg::R8W);  // 66 REX.R|B(45) 89 C8
+  assembler.mov(
+      Assembler::x86_64::Reg::R8W,
+      Assembler::x86_64::Reg::R9W);  // 66 REX.R|B(45) 89 C1
   EXPECT_HEX(
       machine_code,
       "\x66\x89\xC1"             // AX  → CX
@@ -343,9 +375,10 @@ PERIMORTEM_UNIT_TEST(Ttxx86_64, mov_reg16) {
 
 PERIMORTEM_UNIT_TEST(Ttxx86_64, mov_reg32) {
   Perimortem::Memory::Dynamic::Bytes machine_code;
-  x86_64 assembler(machine_code);
-  for (x86_64::Reg reg = x86_64::Reg::EAX; reg <= x86_64::Reg::R15D;
-       reg = x86_64::Reg(Bits_8(reg) + 1)) {
+  Assembler::x86_64 assembler(machine_code);
+  for (Assembler::x86_64::Reg reg = Assembler::x86_64::Reg::EAX;
+       reg <= Assembler::x86_64::Reg::R15D;
+       reg = Assembler::x86_64::Reg(Bits_8(reg) + 1)) {
     assembler.mov(reg, reg);
   }
   // EAX-EDI: no REX prefix. R8D-R15D: REX.R|REX.B = 0x45.
@@ -357,12 +390,22 @@ PERIMORTEM_UNIT_TEST(Ttxx86_64, mov_reg32) {
 
   // Cross-register to catch ModRM bugs with reg & r/m.
   machine_code.clear();
-  assembler.mov(x86_64::Reg::EAX, x86_64::Reg::EBX);  // 89 C3
-  assembler.mov(x86_64::Reg::EBX, x86_64::Reg::EAX);  // 89 D8
-  assembler.mov(x86_64::Reg::R8D, x86_64::Reg::EAX);  // REX.R(44) 89 C0
-  assembler.mov(x86_64::Reg::EAX, x86_64::Reg::R8D);  // REX.B(41) 89 C0
-  assembler.mov(x86_64::Reg::R9D, x86_64::Reg::R8D);  // REX.R|B(45) 89 C8
-  assembler.mov(x86_64::Reg::R8D, x86_64::Reg::R9D);  // REX.R|B(45) 89 C1
+  assembler.mov(
+      Assembler::x86_64::Reg::EAX, Assembler::x86_64::Reg::EBX);  // 89 C3
+  assembler.mov(
+      Assembler::x86_64::Reg::EBX, Assembler::x86_64::Reg::EAX);  // 89 D8
+  assembler.mov(
+      Assembler::x86_64::Reg::R8D,
+      Assembler::x86_64::Reg::EAX);  // REX.R(44) 89 C0
+  assembler.mov(
+      Assembler::x86_64::Reg::EAX,
+      Assembler::x86_64::Reg::R8D);  // REX.B(41) 89 C0
+  assembler.mov(
+      Assembler::x86_64::Reg::R9D,
+      Assembler::x86_64::Reg::R8D);  // REX.R|B(45) 89 C8
+  assembler.mov(
+      Assembler::x86_64::Reg::R8D,
+      Assembler::x86_64::Reg::R9D);  // REX.R|B(45) 89 C1
   EXPECT_HEX(
       machine_code,
       "\x89\xC3"             // EAX → EBX
@@ -375,9 +418,10 @@ PERIMORTEM_UNIT_TEST(Ttxx86_64, mov_reg32) {
 
 PERIMORTEM_UNIT_TEST(Ttxx86_64, mov_reg64) {
   Perimortem::Memory::Dynamic::Bytes machine_code;
-  x86_64 assembler(machine_code);
-  for (x86_64::Reg reg = x86_64::Reg::RAX; reg <= x86_64::Reg::R15;
-       reg = x86_64::Reg(Bits_8(reg) + 1)) {
+  Assembler::x86_64 assembler(machine_code);
+  for (Assembler::x86_64::Reg reg = Assembler::x86_64::Reg::RAX;
+       reg <= Assembler::x86_64::Reg::R15;
+       reg = Assembler::x86_64::Reg(Bits_8(reg) + 1)) {
     assembler.mov(reg, reg);
   }
   // RAX-RDI: REX.W = 0x48. R8-R15: REX.W|REX.R|REX.B = 0x4D.
@@ -390,12 +434,24 @@ PERIMORTEM_UNIT_TEST(Ttxx86_64, mov_reg64) {
 
   // Cross-register to catch ModRM bugs with reg & r/m.
   machine_code.clear();
-  assembler.mov(x86_64::Reg::RAX, x86_64::Reg::RBX);  // REX.W(48) 89 C3
-  assembler.mov(x86_64::Reg::RBX, x86_64::Reg::RAX);  // REX.W(48) 89 D8
-  assembler.mov(x86_64::Reg::R8, x86_64::Reg::RAX);   // REX.W|R(4C) 89 C0
-  assembler.mov(x86_64::Reg::RAX, x86_64::Reg::R8);   // REX.W|B(49) 89 C0
-  assembler.mov(x86_64::Reg::R9, x86_64::Reg::R8);    // REX.W|R|B(4D) 89 C8
-  assembler.mov(x86_64::Reg::R8, x86_64::Reg::R9);    // REX.W|R|B(4D) 89 C1
+  assembler.mov(
+      Assembler::x86_64::Reg::RAX,
+      Assembler::x86_64::Reg::RBX);  // REX.W(48) 89 C3
+  assembler.mov(
+      Assembler::x86_64::Reg::RBX,
+      Assembler::x86_64::Reg::RAX);  // REX.W(48) 89 D8
+  assembler.mov(
+      Assembler::x86_64::Reg::R8,
+      Assembler::x86_64::Reg::RAX);  // REX.W|R(4C) 89 C0
+  assembler.mov(
+      Assembler::x86_64::Reg::RAX,
+      Assembler::x86_64::Reg::R8);  // REX.W|B(49) 89 C0
+  assembler.mov(
+      Assembler::x86_64::Reg::R9,
+      Assembler::x86_64::Reg::R8);  // REX.W|R|B(4D) 89 C8
+  assembler.mov(
+      Assembler::x86_64::Reg::R8,
+      Assembler::x86_64::Reg::R9);  // REX.W|R|B(4D) 89 C1
   EXPECT_HEX(
       machine_code,
       "\x48\x89\xC3"         // RAX → RBX
@@ -408,9 +464,10 @@ PERIMORTEM_UNIT_TEST(Ttxx86_64, mov_reg64) {
 
 PERIMORTEM_UNIT_TEST(Ttxx86_64, mov_r8_imm8) {
   Perimortem::Memory::Dynamic::Bytes machine_code;
-  x86_64 assembler(machine_code);
-  for (x86_64::Reg reg = x86_64::Reg::AL; reg <= x86_64::Reg::R15B;
-       reg = x86_64::Reg(Bits_8(reg) + 1)) {
+  Assembler::x86_64 assembler(machine_code);
+  for (Assembler::x86_64::Reg reg = Assembler::x86_64::Reg::AL;
+       reg <= Assembler::x86_64::Reg::R15B;
+       reg = Assembler::x86_64::Reg(Bits_8(reg) + 1)) {
     assembler.mov(Bits_8(0x42), reg);
   }
   // AL-BL: B0+rd + imm8 (2 bytes). SPL-DIL: bare REX(0x40) + B4+rd + imm8 (3
@@ -425,9 +482,10 @@ PERIMORTEM_UNIT_TEST(Ttxx86_64, mov_r8_imm8) {
 
 PERIMORTEM_UNIT_TEST(Ttxx86_64, mov_r16_imm16) {
   Perimortem::Memory::Dynamic::Bytes machine_code;
-  x86_64 assembler(machine_code);
-  for (x86_64::Reg reg = x86_64::Reg::AX; reg <= x86_64::Reg::R15W;
-       reg = x86_64::Reg(Bits_8(reg) + 1)) {
+  Assembler::x86_64 assembler(machine_code);
+  for (Assembler::x86_64::Reg reg = Assembler::x86_64::Reg::AX;
+       reg <= Assembler::x86_64::Reg::R15W;
+       reg = Assembler::x86_64::Reg(Bits_8(reg) + 1)) {
     assembler.mov(Bits_16(0x1234), reg);
   }
   // AX-DI: 0x66 + B8+rd + imm16 (4 bytes). R8W-R15W: 0x66 + REX.B(0x41) + B8+rd
@@ -443,8 +501,9 @@ PERIMORTEM_UNIT_TEST(Ttxx86_64, mov_r16_imm16) {
   // Zero: XOR r/m32, r/m32 (zero-extends to full width; smaller than 0x66 +
   // B8+rd + 0x00 0x00)
   machine_code.clear();
-  assembler.mov(Bits_16(0), x86_64::Reg::AX);   // zero(AX)  → 31 C0
-  assembler.mov(Bits_16(0), x86_64::Reg::R8W);  // zero(R8W) → 45 31 C0
+  assembler.mov(Bits_16(0), Assembler::x86_64::Reg::AX);  // zero(AX)  → 31 C0
+  assembler.mov(
+      Bits_16(0), Assembler::x86_64::Reg::R8W);  // zero(R8W) → 45 31 C0
   EXPECT_HEX(
       machine_code,
       "\x31\xC0"             // zero(AX)
@@ -453,9 +512,10 @@ PERIMORTEM_UNIT_TEST(Ttxx86_64, mov_r16_imm16) {
 
 PERIMORTEM_UNIT_TEST(Ttxx86_64, mov_r32_imm32) {
   Perimortem::Memory::Dynamic::Bytes machine_code;
-  x86_64 assembler(machine_code);
-  for (x86_64::Reg reg = x86_64::Reg::EAX; reg <= x86_64::Reg::R15D;
-       reg = x86_64::Reg(Bits_8(reg) + 1)) {
+  Assembler::x86_64 assembler(machine_code);
+  for (Assembler::x86_64::Reg reg = Assembler::x86_64::Reg::EAX;
+       reg <= Assembler::x86_64::Reg::R15D;
+       reg = Assembler::x86_64::Reg(Bits_8(reg) + 1)) {
     assembler.mov(Bits_32(0x12345678), reg);
   }
   // EAX-EDI: B8+rd, imm32 (5 bytes). R8D-R15D: REX.B(0x41) + B8+rd, imm32 (6
@@ -472,8 +532,9 @@ PERIMORTEM_UNIT_TEST(Ttxx86_64, mov_r32_imm32) {
 
   // Zero: XOR r/m32, r/m32 (3 bytes vs 5 byte B8+rd + 0x00 0x00 0x00 0x00)
   machine_code.clear();
-  assembler.mov(Bits_32(0), x86_64::Reg::EAX);  // zero(EAX) → 31 C0
-  assembler.mov(Bits_32(0), x86_64::Reg::R8D);  // zero(R8D) → 45 31 C0
+  assembler.mov(Bits_32(0), Assembler::x86_64::Reg::EAX);  // zero(EAX) → 31 C0
+  assembler.mov(
+      Bits_32(0), Assembler::x86_64::Reg::R8D);  // zero(R8D) → 45 31 C0
   EXPECT_HEX(
       machine_code,
       "\x31\xC0"             // zero(EAX)
@@ -481,8 +542,10 @@ PERIMORTEM_UNIT_TEST(Ttxx86_64, mov_r32_imm32) {
 
   // One: XOR + INC (4 bytes vs 5 byte B8+rd + 0x01 0x00 0x00 0x00)
   machine_code.clear();
-  assembler.mov(Bits_32(1), x86_64::Reg::EAX);  // one(EAX) → 31 C0 FF C0
-  assembler.mov(Bits_32(1), x86_64::Reg::R8D);  // one(R8D) → 45 31 C0 41 FF C0
+  assembler.mov(
+      Bits_32(1), Assembler::x86_64::Reg::EAX);  // one(EAX) → 31 C0 FF C0
+  assembler.mov(
+      Bits_32(1), Assembler::x86_64::Reg::R8D);  // one(R8D) → 45 31 C0 41 FF C0
   EXPECT_HEX(
       machine_code,
       "\x31\xC0\xFF\xC0"                 // one(EAX): zero + INC EAX
@@ -495,40 +558,40 @@ PERIMORTEM_UNIT_TEST(Ttxx86_64, mov_r64_imm64) {
   // This is a basically free optimization at the codegen layer, but it does
   // require a lot of extra tests to make sure all the special cases work out.
   Perimortem::Memory::Dynamic::Bytes machine_code;
-  x86_64 assembler(machine_code);
+  Assembler::x86_64 assembler(machine_code);
 
   // Value 0: XOR (via zero)
-  assembler.mov(Bits_64(0), x86_64::Reg::RAX);
-  assembler.mov(Bits_64(0), x86_64::Reg::R8);
+  assembler.mov(Bits_64(0), Assembler::x86_64::Reg::RAX);
+  assembler.mov(Bits_64(0), Assembler::x86_64::Reg::R8);
 
   // Value 1: XOR + INC (via one)
-  assembler.mov(Bits_64(1), x86_64::Reg::RAX);
-  assembler.mov(Bits_64(1), x86_64::Reg::R8);
+  assembler.mov(Bits_64(1), Assembler::x86_64::Reg::RAX);
+  assembler.mov(Bits_64(1), Assembler::x86_64::Reg::R8);
 
   // Value -1: XOR + DEC (via neg_one)
-  assembler.mov(Bits_64(0xFFFFFFFFFFFFFFFF), x86_64::Reg::RAX);
-  assembler.mov(Bits_64(0xFFFFFFFFFFFFFFFF), x86_64::Reg::R8);
+  assembler.mov(Bits_64(0xFFFFFFFFFFFFFFFF), Assembler::x86_64::Reg::RAX);
+  assembler.mov(Bits_64(0xFFFFFFFFFFFFFFFF), Assembler::x86_64::Reg::R8);
 
   // Small uint32: zero-extending MOV r32, imm32 (no REX for RAX, REX.B for R8)
-  assembler.mov(Bits_64(2), x86_64::Reg::RAX);
-  assembler.mov(Bits_64(2), x86_64::Reg::R8);
+  assembler.mov(Bits_64(2), Assembler::x86_64::Reg::RAX);
+  assembler.mov(Bits_64(2), Assembler::x86_64::Reg::R8);
 
   // Max uint32 (0xFFFFFFFF): still zero-extending, not MOVABS
-  assembler.mov(Bits_64(0xFFFFFFFF), x86_64::Reg::RAX);
-  assembler.mov(Bits_64(0xFFFFFFFF), x86_64::Reg::R8);
+  assembler.mov(Bits_64(0xFFFFFFFF), Assembler::x86_64::Reg::RAX);
+  assembler.mov(Bits_64(0xFFFFFFFF), Assembler::x86_64::Reg::R8);
 
   // INT32_MIN (-2147483648): sign-extending MOV r/m64, imm32 (REX.W, opcode C7
   // /0)
-  assembler.mov(Bits_64(0xFFFFFFFF80000000ULL), x86_64::Reg::RAX);
-  assembler.mov(Bits_64(0xFFFFFFFF80000000ULL), x86_64::Reg::R8);
+  assembler.mov(Bits_64(0xFFFFFFFF80000000ULL), Assembler::x86_64::Reg::RAX);
+  assembler.mov(Bits_64(0xFFFFFFFF80000000ULL), Assembler::x86_64::Reg::R8);
 
   // -2: sign-extending, just above the -1 special case
-  assembler.mov(Bits_64(0xFFFFFFFFFFFFFFFE), x86_64::Reg::RAX);
-  assembler.mov(Bits_64(0xFFFFFFFFFFFFFFFE), x86_64::Reg::R8);
+  assembler.mov(Bits_64(0xFFFFFFFFFFFFFFFE), Assembler::x86_64::Reg::RAX);
+  assembler.mov(Bits_64(0xFFFFFFFFFFFFFFFE), Assembler::x86_64::Reg::R8);
 
   // Large positive (> uint32): MOVABS r64, imm64
-  assembler.mov(Bits_64(0x100000000), x86_64::Reg::RAX);
-  assembler.mov(Bits_64(0x100000000), x86_64::Reg::R8);
+  assembler.mov(Bits_64(0x100000000), Assembler::x86_64::Reg::RAX);
+  assembler.mov(Bits_64(0x100000000), Assembler::x86_64::Reg::R8);
 
   EXPECT_HEX(
       machine_code,
@@ -568,21 +631,29 @@ PERIMORTEM_UNIT_TEST(Ttxx86_64, mov_r64_imm64) {
 
 PERIMORTEM_UNIT_TEST(Ttxx86_64, mov_store) {
   Perimortem::Memory::Dynamic::Bytes machine_code;
-  x86_64 assembler(machine_code);
+  Assembler::x86_64 assembler(machine_code);
   // Store RAX to [RBX] — no displacement
-  assembler.mov(x86_64::Reg::RAX, x86_64::Reg::RBX, Signed_32(0));
+  assembler.mov(
+      Assembler::x86_64::Reg::RAX, Assembler::x86_64::Reg::RBX, Signed_32(0));
   // Store RAX to [RBX+8] — 8-bit displacement
-  assembler.mov(x86_64::Reg::RAX, x86_64::Reg::RBX, Signed_32(8));
+  assembler.mov(
+      Assembler::x86_64::Reg::RAX, Assembler::x86_64::Reg::RBX, Signed_32(8));
   // Store RAX to [RBP+0] — RBP forces 8-bit disp even when disp=0
-  assembler.mov(x86_64::Reg::RAX, x86_64::Reg::RBP, Signed_32(0));
+  assembler.mov(
+      Assembler::x86_64::Reg::RAX, Assembler::x86_64::Reg::RBP, Signed_32(0));
   // Store RAX to [RSP+8] — RSP requires SIB byte
-  assembler.mov(x86_64::Reg::RAX, x86_64::Reg::RSP, Signed_32(8));
+  assembler.mov(
+      Assembler::x86_64::Reg::RAX, Assembler::x86_64::Reg::RSP, Signed_32(8));
   // Store R8 to [RBX+8] — extended source register
-  assembler.mov(x86_64::Reg::R8, x86_64::Reg::RBX, Signed_32(8));
+  assembler.mov(
+      Assembler::x86_64::Reg::R8, Assembler::x86_64::Reg::RBX, Signed_32(8));
   // Store smaller operands to [RBP+0] without letting the base force REX.W.
-  assembler.mov(x86_64::Reg::EAX, x86_64::Reg::RBP, Signed_32(0));
-  assembler.mov(x86_64::Reg::AX, x86_64::Reg::RBP, Signed_32(0));
-  assembler.mov(x86_64::Reg::AL, x86_64::Reg::RBP, Signed_32(0));
+  assembler.mov(
+      Assembler::x86_64::Reg::EAX, Assembler::x86_64::Reg::RBP, Signed_32(0));
+  assembler.mov(
+      Assembler::x86_64::Reg::AX, Assembler::x86_64::Reg::RBP, Signed_32(0));
+  assembler.mov(
+      Assembler::x86_64::Reg::AL, Assembler::x86_64::Reg::RBP, Signed_32(0));
   EXPECT_HEX(
       machine_code,
       "\x48\x89\x03"             // RAX → [RBX]
@@ -597,19 +668,26 @@ PERIMORTEM_UNIT_TEST(Ttxx86_64, mov_store) {
 
 PERIMORTEM_UNIT_TEST(Ttxx86_64, mov_load) {
   Perimortem::Memory::Dynamic::Bytes machine_code;
-  x86_64 assembler(machine_code);
+  Assembler::x86_64 assembler(machine_code);
   // Load [RBX] to RAX — no displacement
-  assembler.mov(x86_64::Reg::RBX, Signed_32(0), x86_64::Reg::RAX);
+  assembler.mov(
+      Assembler::x86_64::Reg::RBX, Signed_32(0), Assembler::x86_64::Reg::RAX);
   // Load [RBX+8] to RAX — 8-bit displacement
-  assembler.mov(x86_64::Reg::RBX, Signed_32(8), x86_64::Reg::RAX);
+  assembler.mov(
+      Assembler::x86_64::Reg::RBX, Signed_32(8), Assembler::x86_64::Reg::RAX);
   // Load [RSP+8] to RAX — RSP base requires SIB byte
-  assembler.mov(x86_64::Reg::RSP, Signed_32(8), x86_64::Reg::RAX);
+  assembler.mov(
+      Assembler::x86_64::Reg::RSP, Signed_32(8), Assembler::x86_64::Reg::RAX);
   // Load [R8+8] to RAX — extended base register
-  assembler.mov(x86_64::Reg::R8, Signed_32(8), x86_64::Reg::RAX);
+  assembler.mov(
+      Assembler::x86_64::Reg::R8, Signed_32(8), Assembler::x86_64::Reg::RAX);
   // Load smaller operands from [RBP+0] without letting the base force REX.W.
-  assembler.mov(x86_64::Reg::RBP, Signed_32(0), x86_64::Reg::EAX);
-  assembler.mov(x86_64::Reg::RBP, Signed_32(0), x86_64::Reg::AX);
-  assembler.mov(x86_64::Reg::RBP, Signed_32(0), x86_64::Reg::AL);
+  assembler.mov(
+      Assembler::x86_64::Reg::RBP, Signed_32(0), Assembler::x86_64::Reg::EAX);
+  assembler.mov(
+      Assembler::x86_64::Reg::RBP, Signed_32(0), Assembler::x86_64::Reg::AX);
+  assembler.mov(
+      Assembler::x86_64::Reg::RBP, Signed_32(0), Assembler::x86_64::Reg::AL);
   EXPECT_HEX(
       machine_code,
       "\x48\x8B\x03"             // [RBX] → RAX
@@ -623,7 +701,7 @@ PERIMORTEM_UNIT_TEST(Ttxx86_64, mov_load) {
 
 PERIMORTEM_UNIT_TEST(Ttxx86_64, call) {
   Perimortem::Memory::Dynamic::Bytes machine_code;
-  x86_64 assembler(machine_code);
+  Assembler::x86_64 assembler(machine_code);
 
   // Perform a basic call to generate a place holder instruction.
   assembler.call();
