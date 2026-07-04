@@ -238,13 +238,20 @@ push constants to the Shader or talk to the GPU via exposed definitions.
 Most declarations follow one of these shapes:
 
 ```ttx
-modifier name : Type;
-modifier name : Type = value;
+modifier name : qualifier;
+modifier name : qualifier = value;
+modifier name : qualifier { ... }
 ```
 
-The type is always written at the declaration site. This keeps the AST typed as
-it is parsed and avoids making local declarations depend on expression
-inference:
+The qualifier is always written at the declaration site. It is the source word
+that tells the active ISA how to evaluate the definition. Sometimes that word is
+a normal type query, such as `Count` or `Header`. Sometimes it is an ISA-owned
+builtin such as `struct`, `alias`, `foreign`, `Package`, or `Namespace`.
+
+The shared definition parser only extracts the shape: modifier, name,
+`Define`, and qualifier. The active ISA then decides whether the modifier and
+qualifier are legal, whether the body opens a scope, and what TTX facts are
+published.
 
 ```ttx
 private count : Count = 4;
@@ -260,8 +267,8 @@ private header : Header = (.width = 4, .height = 2); // addressable value
 ```
 
 This casing rule removes a common vexing parse: after `PascalCase :`, the parser
-knows it is reading a definition. After `snake_case :`, it is reading an
-addressable declaration.
+knows it is reading a type-like definition. After `snake_case :`, it is reading
+an addressable definition.
 
 ## Modifiers
 

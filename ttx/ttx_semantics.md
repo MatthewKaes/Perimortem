@@ -588,21 +588,23 @@ packs and named swizzles through those fields.
 The core definition forms are:
 
 ```ttx
-modifier name : Type::Ref;
-modifier name : Type::Ref = value;
+modifier name : qualifier;
+modifier name : qualifier = value;
+modifier name : qualifier { ... }
 ```
 
-Parser shape: a definition starts after an optional modifier. The next token must
-be `Addressable` or `Type`. `Define` selects explicit type parsing. After the
-type reference, `Assign` introduces an initializer. Otherwise the definition
-must end with `EndStatement` or open a scoped builtin body.
+Parser shape: a definition starts with a modifier accepted by the active ISA.
+The next token must be `Addressable` or `Type`, then `Define`, then a
+qualifier token accepted by that ISA. After the qualifier, `Assign` introduces
+an initializer. Otherwise the definition must end with `EndStatement` or open a
+scoped body.
 
-TTX does not have an inferred declaration operator. Every declaration writes
-its type at the declaration site so the parser can attach type information to
-the AST before expression analysis.
+TTX does not have an inferred declaration operator. Every definition writes its
+qualifier at the declaration site so the evaluator knows which ISA-owned rule
+to run before expression analysis.
 
 Definitions introduce either addressable values or type-like names depending
-on the name and the right-hand type reference:
+on the name and qualifier:
 
 ```ttx
 private Header : struct { ... }                     // type definition
@@ -619,7 +621,7 @@ private C       : foreign { ... }
 private Stage   : Shader  { ... }
 ```
 
-Other type references define values and must end with `;` or use `=`:
+Other type-like qualifiers define values and must end with `;` or use `=`:
 
 ```ttx
 private size  : Count = 4;
@@ -628,7 +630,7 @@ private bytes : Bytes;
 
 The evaluator reads these shapes. ISA and type owners then check which builtin
 kinds are legal for the active ISA, along with the compatibility of the
-definition name, type, initializer, modifier, and attributes.
+definition name, qualifier, initializer, modifier, and attributes.
 
 ## Modifiers
 
