@@ -75,6 +75,26 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "puffer_lsp",
+    srcs = glob([
+        "puffer/lsp/**/*.cpp",
+    ]),
+    hdrs = glob([
+        "puffer/lsp/**/*.hpp",
+    ]),
+    includes = ["."],
+    deps = [
+        ":isa",
+        ":puffer_boot",
+        ":toolchain",
+        "//perimortem",
+        "//perimortem:serialization",
+        "//perimortem:system",
+        "//ttx",
+    ],
+)
+
 cc_binary(
     name = "puffer",
     srcs = [
@@ -84,6 +104,7 @@ cc_binary(
         ":compiler",
         ":linker",
         ":puffer_boot",
+        ":puffer_lsp",
         ":puffer_resolution",
         ":toolchain",
         "//perimortem",

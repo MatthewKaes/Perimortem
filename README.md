@@ -85,7 +85,7 @@ During development you can also attach the VSCode debugger directly using the la
 
 > debug Launch TTX Client
 
-If you aren't using VSCode you can use `ttx-lang-server` with any editor that supports LSP. The server source lives in `tetrodotoxin/lsp/server`.
+If you aren't using VSCode you can run `puffer --pipe=<socket>` with any editor that supports LSP over a Unix-domain socket. The server source lives in `tetrodotoxin/puffer/lsp`; `tetrodotoxin/lsp` is the VSCode extension.
 
 If you are looking for the Tetrodotoxin spec check out its dedicated [README](https://github.com/MatthewKaes/Perimortem/blob/main/tetrodotoxin/README.md).
 

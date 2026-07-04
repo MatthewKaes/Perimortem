@@ -73,20 +73,17 @@ def _ttx_compile_impl(ctx, package):
 
     args = [
         "-package" if package else "-library",
-        "-output",
-        archive.path,
-        "-header",
-        header.path,
-        "-puffer",
-        puffer_buffer.path,
+        "-output=%s" % archive.path,
+        "-header=%s" % header.path,
+        "-puffer=%s" % puffer_buffer.path,
     ]
     dependency_source_files = _collect_ttx_source_files(ctx.attr.deps)
     dependency_puffer_buffers = _collect_puffer_buffers(ctx.attr.deps)
     for dep_source in dependency_source_files.to_list():
-        args.extend(["-dep", dep_source.path])
+        args.append("-dep=%s" % dep_source.path)
 
     for src in ctx.files.srcs:
-        args.extend(["-source", src.path])
+        args.append("-source=%s" % src.path)
 
     mode = "package" if package else "library"
     ctx.actions.run(

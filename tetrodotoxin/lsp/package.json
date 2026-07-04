@@ -8,7 +8,7 @@
   "publisher": "Perimortem",
   "author": "Matt Kaes",
   "license": "MIT",
-  "icon": "icon.png",
+  "icon": "media/icon.png",
   "version": "0.1.14",
   "keywords": [
     "TTX",
@@ -43,8 +43,8 @@
           ".ttx"
         ],
         "icon": {
-          "light": "./icon.svg",
-          "dark": "./icon.svg"
+          "light": "./media/icon.svg",
+          "dark": "./media/icon.svg"
         }
       }
     ],
@@ -223,16 +223,17 @@
     }
   },
   "scripts": {
-    "compile": "tsc -b",
+    "bundle": "esbuild src/extension.ts --bundle --platform=node --format=cjs --external:vscode --outfile=out/extension.js",
+    "compile": "tsc --noEmit && npm run bundle",
     "package": "vsce package"
   },
-  "dependencies": {
-    "vscode-languageclient": "^9.0.1"
-  },
+  "dependencies": {},
   "devDependencies": {
     "@types/node": "^22",
     "@types/vscode": "^1.100.0",
-    "typescript": "^5.9.2"
+    "esbuild": "^0.25.6",
+    "typescript": "^5.9.2",
+    "vscode-languageclient": "^9.0.1"
   },
   "engines": {
     "vscode": "^1.100.0"

@@ -1,7 +1,7 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
-#include "tetrodotoxin/lsp/server/semantic_tokens.hpp"
+#include "tetrodotoxin/puffer/lsp/semantic_tokens.hpp"
 
 #include "perimortem/core/algorithm/search.hpp"
 
@@ -15,7 +15,7 @@
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
 using namespace Perimortem::Serialization;
-using namespace Tetrodotoxin::Lsp;
+using namespace Tetrodotoxin::Puffer;
 
 enum SemanticToken : Signed_64 {
   SemanticNamespace,
@@ -127,7 +127,7 @@ static auto classify_semantic_token(::Ttx::Lexical::Class klass)
   }
 }
 
-auto Server::semantic_legend(Allocator::Arena& arena) -> Json::Node {
+auto Lsp::semantic_legend(Allocator::Arena& arena) -> Json::Node {
   Managed::Vector<Json::Node> token_types(arena);
   token_types.insert(Json::Node("namespace"_view));
   token_types.insert(Json::Node("type"_view));
@@ -152,7 +152,7 @@ auto Server::semantic_legend(Allocator::Arena& arena) -> Json::Node {
   return Json::Node(legend.get_view());
 }
 
-auto Server::semantic_tokens_for(Allocator::Arena& arena, View::Bytes source)
+auto Lsp::semantic_tokens_for(Allocator::Arena& arena, View::Bytes source)
     -> Json::Node {
   Managed::Vector<Json::Node> data(arena);
 

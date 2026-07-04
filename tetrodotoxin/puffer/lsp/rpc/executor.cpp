@@ -1,7 +1,7 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
-#include "tetrodotoxin/lsp/server/rpc/executor.hpp"
+#include "tetrodotoxin/puffer/lsp/rpc/executor.hpp"
 
 #include <stdio.h>
 #include <sys/socket.h>
@@ -21,9 +21,9 @@
 
 using namespace Perimortem::Memory;
 using namespace Perimortem::Core;
-using namespace Tetrodotoxin::Lsp;
+using namespace Tetrodotoxin::Puffer;
 
-auto Server::Rpc::Executor::register_method(
+auto Lsp::Rpc::Executor::register_method(
     View::Bytes name,
     DispatchFunc resolver) -> void {
   if (dispatch_count >= dispatch_resolver.get_size()) {
@@ -33,7 +33,7 @@ auto Server::Rpc::Executor::register_method(
   dispatch_resolver[dispatch_count++] = {name, resolver};
 }
 
-auto Server::Rpc::Executor::execute(View::Bytes pipe_name) -> void {
+auto Lsp::Rpc::Executor::execute(View::Bytes pipe_name) -> void {
   if (!create_connection(pipe_name)) {
     Diagnostics::Log::error("RPC server is in a bad state. Exiting..."_view);
     return;
@@ -70,7 +70,7 @@ auto Server::Rpc::Executor::execute(View::Bytes pipe_name) -> void {
   clean_retired_jobs();
 }
 
-auto Server::Rpc::Executor::is_cancelled(Signed_64 id) -> Bool {
+auto Lsp::Rpc::Executor::is_cancelled(Signed_64 id) -> Bool {
   pthread_mutex_lock(&cancel_mutex);
   for (Count i = 0; i < cancellations.get_size(); i++) {
     if (cancellations[i].active && cancellations[i].id == id) {
@@ -82,7 +82,7 @@ auto Server::Rpc::Executor::is_cancelled(Signed_64 id) -> Bool {
   return False;
 }
 
-auto Server::Rpc::Executor::create_connection(View::Bytes pipe_name) -> Bool {
+auto Lsp::Rpc::Executor::create_connection(View::Bytes pipe_name) -> Bool {
   socket_descriptor = socket(AF_FILE, SOCK_STREAM, 0);
 
   sockaddr_un address;
@@ -109,7 +109,7 @@ auto Server::Rpc::Executor::create_connection(View::Bytes pipe_name) -> Bool {
   return True;
 }
 
-auto Server::Rpc::Executor::run_worker_job(View::Bytes job_data) -> void {
+auto Lsp::Rpc::Executor::run_worker_job(View::Bytes job_data) -> void {
   Reader::Binary<Data::ByteOrder::Native> reader(job_data);
   const Bits_64 executor_address = reader.read_bits_64();
   if (!reader.is_valid() || !reader.is_empty() || executor_address == 0) {
@@ -119,7 +119,7 @@ auto Server::Rpc::Executor::run_worker_job(View::Bytes job_data) -> void {
   reinterpret_cast<Executor*>(executor_address)->run_worker();
 }
 
-auto Server::Rpc::Executor::lookup_dispatch(View::Bytes name)
+auto Lsp::Rpc::Executor::lookup_dispatch(View::Bytes name)
     -> DispatchFunc {
   for (Count i = 0; i < dispatch_count; i++) {
     if (dispatch_resolver[i].name == name) {
@@ -130,7 +130,7 @@ auto Server::Rpc::Executor::lookup_dispatch(View::Bytes name)
   return nullptr;
 }
 
-auto Server::Rpc::Executor::write_jsonrpc_frame(View::Bytes view) -> void {
+auto Lsp::Rpc::Executor::write_jsonrpc_frame(View::Bytes view) -> void {
   if (!connection_is_open()) {
     return;
   }
@@ -152,7 +152,7 @@ auto Server::Rpc::Executor::write_jsonrpc_frame(View::Bytes view) -> void {
   }
 }
 
-auto Server::Rpc::Executor::write_response(View::Bytes json_response) -> void {
+auto Lsp::Rpc::Executor::write_response(View::Bytes json_response) -> void {
   Static::Bytes<256> header_buffer;
   Writer::Textual content_length(header_buffer);
   content_length << "Content-Length: "_view << json_response.get_size()
@@ -164,7 +164,7 @@ auto Server::Rpc::Executor::write_response(View::Bytes json_response) -> void {
   pthread_mutex_unlock(&write_mutex);
 }
 
-auto Server::Rpc::Executor::create_job(View::Bytes data) -> void {
+auto Lsp::Rpc::Executor::create_job(View::Bytes data) -> void {
   clean_retired_jobs();
   if (handle_control_message(data)) {
     return;
@@ -197,7 +197,7 @@ auto Server::Rpc::Executor::create_job(View::Bytes data) -> void {
   pthread_mutex_unlock(&job_mutex);
 }
 
-auto Server::Rpc::Executor::take_job() -> JobBlock* {
+auto Lsp::Rpc::Executor::take_job() -> JobBlock* {
   pthread_mutex_lock(&job_mutex);
   while (connection_open && pending_jobs_head == nullptr) {
     pthread_cond_wait(&job_signal, &job_mutex);
@@ -220,7 +220,7 @@ auto Server::Rpc::Executor::take_job() -> JobBlock* {
   return job;
 }
 
-auto Server::Rpc::Executor::retire_job(JobBlock* job) -> void {
+auto Lsp::Rpc::Executor::retire_job(JobBlock* job) -> void {
   if (job == nullptr) {
     return;
   }
@@ -231,7 +231,7 @@ auto Server::Rpc::Executor::retire_job(JobBlock* job) -> void {
   pthread_mutex_unlock(&retire_mutex);
 }
 
-auto Server::Rpc::Executor::clean_up(JobBlock*& job_queue) -> void {
+auto Lsp::Rpc::Executor::clean_up(JobBlock*& job_queue) -> void {
   while (job_queue) {
     JobBlock* job = job_queue;
     job_queue = job->next;
@@ -239,7 +239,7 @@ auto Server::Rpc::Executor::clean_up(JobBlock*& job_queue) -> void {
   }
 }
 
-auto Server::Rpc::Executor::clean_retired_jobs() -> void {
+auto Lsp::Rpc::Executor::clean_retired_jobs() -> void {
   JobBlock* jobs = nullptr;
   pthread_mutex_lock(&retire_mutex);
   jobs = retired_jobs;
@@ -248,7 +248,7 @@ auto Server::Rpc::Executor::clean_retired_jobs() -> void {
   clean_up(jobs);
 }
 
-auto Server::Rpc::Executor::read_job_id(View::Bytes data, Signed_64& id)
+auto Lsp::Rpc::Executor::read_job_id(View::Bytes data, Signed_64& id)
     -> Bool {
   Allocator::Arena arena;
   Request request(arena, data);
@@ -260,7 +260,7 @@ auto Server::Rpc::Executor::read_job_id(View::Bytes data, Signed_64& id)
   return True;
 }
 
-auto Server::Rpc::Executor::handle_control_message(View::Bytes data) -> Bool {
+auto Lsp::Rpc::Executor::handle_control_message(View::Bytes data) -> Bool {
   Allocator::Arena arena;
   Request request(arena, data);
   if (!request.is_valid() || request.get_method() != "$/cancelRequest"_view) {
@@ -275,7 +275,7 @@ auto Server::Rpc::Executor::handle_control_message(View::Bytes data) -> Bool {
   return True;
 }
 
-auto Server::Rpc::Executor::cancel_request(Signed_64 id) -> void {
+auto Lsp::Rpc::Executor::cancel_request(Signed_64 id) -> void {
   pthread_mutex_lock(&cancel_mutex);
   Count target = Count(-1);
   for (Count i = 0; i < cancellations.get_size(); i++) {
@@ -302,7 +302,7 @@ auto Server::Rpc::Executor::cancel_request(Signed_64 id) -> void {
   pthread_mutex_unlock(&job_mutex);
 }
 
-auto Server::Rpc::Executor::process_job(Allocator::Arena& arena, JobBlock* job)
+auto Lsp::Rpc::Executor::process_job(Allocator::Arena& arena, JobBlock* job)
     -> void {
   if (job->cancelled || (job->has_id && is_cancelled(job->id))) {
     return;
@@ -352,7 +352,7 @@ auto Server::Rpc::Executor::process_job(Allocator::Arena& arena, JobBlock* job)
   write_response(response.format(arena));
 }
 
-auto Server::Rpc::Executor::run_worker() -> void {
+auto Lsp::Rpc::Executor::run_worker() -> void {
   Allocator::Arena arena;
   while (connection_is_open()) {
     JobBlock* job = take_job();
@@ -366,7 +366,7 @@ auto Server::Rpc::Executor::run_worker() -> void {
   }
 }
 
-auto Server::Rpc::Executor::process_events() -> void {
+auto Lsp::Rpc::Executor::process_events() -> void {
   constexpr Count chunk_size = 1 << 16;
   Static::Bytes<chunk_size> chunk;
   FrameReader reader;
@@ -398,14 +398,14 @@ auto Server::Rpc::Executor::process_events() -> void {
   }
 }
 
-auto Server::Rpc::Executor::close_connection() -> void {
+auto Lsp::Rpc::Executor::close_connection() -> void {
   pthread_mutex_lock(&job_mutex);
   connection_open = False;
   pthread_cond_broadcast(&job_signal);
   pthread_mutex_unlock(&job_mutex);
 }
 
-auto Server::Rpc::Executor::connection_is_open() -> Bool {
+auto Lsp::Rpc::Executor::connection_is_open() -> Bool {
   pthread_mutex_lock(&job_mutex);
   const Bool result = connection_open;
   pthread_mutex_unlock(&job_mutex);

@@ -1,20 +1,20 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
-#include "tetrodotoxin/lsp/server/rpc/frame_reader.hpp"
+#include "tetrodotoxin/puffer/lsp/rpc/frame_reader.hpp"
 
 #include "perimortem/core/algorithm/search.hpp"
 #include "perimortem/core/null_terminated.hpp"
 #include "perimortem/core/reader/textual.hpp"
 
 using namespace Perimortem::Core;
-using namespace Tetrodotoxin::Lsp;
+using namespace Tetrodotoxin::Puffer;
 
-auto Server::Rpc::FrameReader::receive(View::Bytes bytes) -> void {
+auto Lsp::Rpc::FrameReader::receive(View::Bytes bytes) -> void {
   data_stream.concat(bytes);
 }
 
-auto Server::Rpc::FrameReader::read_header() -> Bool {
+auto Lsp::Rpc::FrameReader::read_header() -> Bool {
   if (header_found) {
     return True;
   }
@@ -40,7 +40,7 @@ auto Server::Rpc::FrameReader::read_header() -> Bool {
   return header_found;
 }
 
-auto Server::Rpc::FrameReader::next_message() -> View::Bytes {
+auto Lsp::Rpc::FrameReader::next_message() -> View::Bytes {
   if (!read_header()) {
     return View::Bytes();
   }
@@ -52,7 +52,7 @@ auto Server::Rpc::FrameReader::next_message() -> View::Bytes {
   return data_stream.slice(0, data_bytes_to_read);
 }
 
-auto Server::Rpc::FrameReader::consume_message() -> void {
+auto Lsp::Rpc::FrameReader::consume_message() -> void {
   if (!header_found || data_stream.get_size() < data_bytes_to_read) {
     return;
   }

@@ -12,11 +12,11 @@
 
 #include "perimortem/memory/dynamic/bytes.hpp"
 
-#include "tetrodotoxin/lsp/server/documents.hpp"
-#include "tetrodotoxin/lsp/server/rpc/frame_reader.hpp"
-#include "tetrodotoxin/lsp/server/rpc/request.hpp"
+#include "tetrodotoxin/puffer/lsp/documents.hpp"
+#include "tetrodotoxin/puffer/lsp/rpc/frame_reader.hpp"
+#include "tetrodotoxin/puffer/lsp/rpc/request.hpp"
 
-namespace Tetrodotoxin::Lsp::Server::Rpc {
+namespace Tetrodotoxin::Puffer::Lsp::Rpc {
 
 class Executor {
  public:
@@ -99,4 +99,4 @@ class Executor {
   Bool connection_open = False;
 };
 
-}  // namespace Tetrodotoxin::Lsp::Server::Rpc
+}  // namespace Tetrodotoxin::Puffer::Lsp::Rpc

@@ -27,12 +27,11 @@ export function activate(context: ExtensionContext) {
   const lang_selector = { language: language_id, scheme: 'file' };
   ttxChannel = window.createOutputChannel("TTX Language Server");
 
-  // Copy binary for publishing.
   const serverPath = context.asAbsolutePath(
-    path.join(".", "ttx-lang-server")
+    path.join(".", "puffer")
   );
 
-  ttxChannel.appendLine(`Launching Lsp Server using path: ${serverPath}`);
+  ttxChannel.appendLine(`Launching Puffer LSP using path: ${serverPath}`);
 
   const serverOptions: ServerOptions = {
     run: {

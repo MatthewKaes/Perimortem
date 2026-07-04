@@ -18,6 +18,7 @@
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
 using namespace Perimortem::System;
+using namespace Perimortem::Utility;
 
 using Configs = Managed::Map<View::Bytes, Args::Config>;
 
@@ -42,54 +43,35 @@ static auto process_name() -> View::Bytes {
   return "process"_view;
 }
 
-static auto command_name(View::Vector<View::Bytes> arguments) -> View::Bytes {
-  if (!arguments.is_empty() && !arguments[0].is_empty()) {
-    return basename(arguments[0]);
+// Parses the argument and returns a name / value pair.
+static auto parse_argument(View::Bytes argument)
+    -> Pair<View::Bytes, View::Bytes> {
+  // Extract positions
+  if (argument.is_empty() || argument[0] != '-') {
+    return {View::Bytes(), argument};
   }
 
-  return process_name();
-}
+  while (!argument.is_empty() && argument[0] == '-') {
+    argument = argument.slice(1);
+  }
 
-static auto log_argument_error(View::Bytes message, View::Bytes detail)
-    -> void {
-  Diagnostics::Log::Message<256> error_message(
-      Diagnostics::Log::Level::Error, Diagnostics::Source());
-  error_message << message << ' ' << detail << '\n';
-}
-
-static auto split_argument(
-    View::Bytes argument,
-    View::Bytes& name,
-    View::Bytes& value) -> Bool {
   Count equals = Algorithm::search(argument, "="_view);
   if (equals == Count(-1)) {
-    name = argument;
-    value = View::Bytes();
-    return False;
+    return {argument, "true"_view};
+  } else {
+    return {argument.slice(0, equals), argument.slice(equals + 1)};
   }
-
-  name = argument.slice(0, equals);
-  value = argument.slice(equals + 1);
-  return True;
-}
-
-static auto starts_argument(View::Bytes argument) -> Bool {
-  return !argument.is_empty() && argument[0] == '-';
-}
-
-static auto requested_help(View::Bytes argument) -> Bool {
-  return argument == "-help"_view;
 }
 
 static auto format_help(
     Allocator::Arena& arena,
     View::Bytes summary,
     const Configs& variables,
-    View::Bytes command) -> Managed::Bytes {
+    View::Bytes command) -> View::Bytes {
   Count label_width = "-help"_view.get_size();
   for (Count i = 0; i < variables.get_size(); i++) {
     const auto* variable = variables.get_entry(i);
-    label_width = Math::max(label_width, variable->key.get_size());
+    label_width = Math::max(label_width, variable->key.get_size() + 1);
   }
   label_width += 2;
 
@@ -107,9 +89,9 @@ static auto format_help(
   for (Count i = 0; i < variables.get_size(); i++) {
     const auto* variable = variables.get_entry(i);
 
-    output.concat("  "_view);
+    output.concat("  -"_view);
     output.concat(variable->key);
-    output.append(Bits_8(' '), label_width - variable->key.get_size());
+    output.append(Bits_8(' '), label_width - variable->key.get_size() - 1);
     output.concat(variable->value.help);
     output.append('\n');
   }
@@ -120,71 +102,56 @@ static auto format_help(
   return output;
 }
 
-static auto insert_proxy(
-    Allocator::Arena& arena,
-    Args::Values& values,
-    View::Bytes name,
-    View::Bytes value) -> void {
-  auto* entry = values.find(name);
-  if (entry == nullptr) {
-    auto& list = arena.construct<Managed::Vector<View::Bytes>>(arena);
-    auto& key = arena.construct<Managed::Bytes>(arena);
-    key.proxy(name);
-    entry = values.insert(key.get_view(), &list);
-  }
-
-  auto& stored = arena.construct<Managed::Bytes>(arena);
-  stored.proxy(value);
-  entry->value->insert(stored.get_view());
-}
-
 auto Args::parse(
     Allocator::Arena& arena,
-    View::Bytes summary,
+    View::Bytes tool_summary,
     Managed::Map<View::Bytes, Config> variables,
     View::Vector<View::Bytes> arguments) -> Values {
+  // Pull all of the arguments from the config and add them.
+  // Positional arguments use the name of "" (empty view) in the config.
   Values values(arena);
-  View::Bytes command = command_name(arguments);
-
   for (Count i = 1; i < arguments.get_size(); i++) {
-    View::Bytes argument = arguments[i];
-    if (requested_help(argument)) {
-      Diagnostics::Log::info(
-          format_help(arena, summary, variables, command).get_view(),
-          Diagnostics::Source());
-      return Values(arena);
+    auto argument = parse_argument(arguments[i]);
+
+    if (argument.key == "help"_view) {
+      values["help"_view] =
+          &arena.construct<Managed::Vector<View::Bytes>>(arena);
+      break;
     }
 
-    View::Bytes name;
-    View::Bytes value;
-    Bool inline_value = split_argument(argument, name, value);
-
-    const auto* variable = variables.find(name);
-    if (variable == nullptr) {
-      log_argument_error("unrecognized arg"_view, name);
-      Diagnostics::Log::info(
-          format_help(arena, summary, variables, command).get_view(),
-          Diagnostics::Source());
-      return Values(arena);
+    // If we hit an unrecongnized arg name then log an error and exit the loop.
+    // Additional act as if "help" was passed so we print help.
+    if (!variables.contains(argument.key)) {
+      Diagnostics::Log::Message<256> error_message(
+          Diagnostics::Log::Level::Error, Diagnostics::Source());
+      error_message << "unrecognized arg"_view << ' ' << arguments[i] << '\n';
+      values["help"_view] =
+          &arena.construct<Managed::Vector<View::Bytes>>(arena);
+      break;
     }
 
-    if (!inline_value && i + 1 < arguments.get_size() &&
-        !starts_argument(arguments[i + 1])) {
-      value = arguments[++i];
+    // Initalize value vectors if this is the first time we are seeing the name.
+    if (!values.contains(argument.key)) {
+      values[argument.key] =
+          &arena.construct<Managed::Vector<View::Bytes>>(arena);
     }
-
-    insert_proxy(arena, values, variable->key, value);
+    values[argument.key]->insert(argument.value);
   }
 
-  for (Count i = 0; i < variables.get_size(); i++) {
-    const auto* variable = variables.get_entry(i);
-    if (variable->value.required && !values.contains(variable->key)) {
-      log_argument_error("missing required arg"_view, variable->key);
-      Diagnostics::Log::info(
-          format_help(arena, summary, variables, command).get_view(),
-          Diagnostics::Source());
-      return Values(arena);
+  // If help was passed or if we hit an error then log the help info.
+  if (values.contains("help"_view)) {
+    // Get the command name for help.
+    View::Bytes command;
+    if (!arguments.is_empty() && !arguments[0].is_empty()) {
+      command = basename(arguments[0]);
+    } else {
+      command = process_name();
     }
+
+    Diagnostics::Log::info(
+        format_help(arena, tool_summary, variables, command),
+        Diagnostics::Source());
+    return Values(arena);
   }
 
   return values;

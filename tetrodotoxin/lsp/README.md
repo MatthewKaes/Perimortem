@@ -31,7 +31,7 @@ bundled TTX TextMate color scheme.
 
 ## Bundled TTX Language Server
 
-The extension packages the current `ttx-lang-server` binary for Linux machines.
+The extension packages the current `puffer` binary for Linux machines and starts it in LSP mode.
 
 ## Not Yet Included
 

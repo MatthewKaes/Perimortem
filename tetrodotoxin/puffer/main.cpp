@@ -3,6 +3,7 @@
 
 #include <stdio.h>
 
+#include "perimortem/core/algorithm/search.hpp"
 #include "perimortem/core/data.hpp"
 #include "perimortem/core/diagnostics/log.hpp"
 #include "perimortem/core/null_terminated.hpp"
@@ -18,6 +19,8 @@
 
 #include "tetrodotoxin/compiler/library.hpp"
 #include "tetrodotoxin/linker/linker.hpp"
+#include "tetrodotoxin/puffer/lsp/methods.hpp"
+#include "tetrodotoxin/puffer/lsp/rpc/executor.hpp"
 #include "tetrodotoxin/puffer/resolution/resolver.hpp"
 #include "tetrodotoxin/puffer/resolution/source/record.hpp"
 #include "tetrodotoxin/toolchain.hpp"
@@ -42,6 +45,10 @@ class Main {
       return help_requested ? 0 : 2;
     }
 
+    if (options.contains("pipe"_view)) {
+      return run_lsp(arg_value(options, "pipe"_view));
+    }
+
     if (!configure(options)) {
       return 2;
     }
@@ -64,7 +71,7 @@ class Main {
     Tetrodotoxin::Linker::Linker linker;
     library_compiler.add_to(linker);
 
-    View::Bytes output_path = arg_value(options, "-output"_view);
+    View::Bytes output_path = arg_value(options, "output"_view);
     Dynamic::Bytes archive = linker.build_library("ttx_terminal.o"_view);
     if (!write_file(output_path, archive.get_view())) {
       fprintf(stderr, "puffer: failed to write archive ");
@@ -73,7 +80,7 @@ class Main {
       return 1;
     }
 
-    View::Bytes header_path = arg_value(options, "-header"_view);
+    View::Bytes header_path = arg_value(options, "header"_view);
     Dynamic::Bytes header = build_header();
     if (!write_file(header_path, header.get_view())) {
       fprintf(stderr, "puffer: failed to write header ");
@@ -82,7 +89,7 @@ class Main {
       return 1;
     }
 
-    View::Bytes puffer_buffer_path = arg_value(options, "-puffer"_view);
+    View::Bytes puffer_buffer_path = arg_value(options, "puffer"_view);
     if (!write_file(puffer_buffer_path, puffer_buffer.get_view())) {
       fprintf(stderr, "puffer: failed to write Puffer Buffer ");
       print_bytes(stderr, puffer_buffer_path);
@@ -107,7 +114,22 @@ class Main {
 
   static auto requested_help(View::Vector<View::Bytes> command_line) -> Bool {
     for (Count i = 1; i < command_line.get_size(); i++) {
-      if (command_line[i] == "-help"_view) {
+      View::Bytes argument = command_line[i];
+      Count dashes = 0;
+      while (dashes < argument.get_size() && argument[dashes] == '-') {
+        dashes++;
+      }
+      if (dashes == 0 || dashes == argument.get_size()) {
+        continue;
+      }
+
+      View::Bytes name = argument.slice(dashes);
+      Count equals = Algorithm::search(name, "="_view);
+      if (equals != Count(-1)) {
+        name = name.slice(0, equals);
+      }
+
+      if (name == "help"_view) {
         return True;
       }
     }
@@ -117,38 +139,41 @@ class Main {
   static auto create_args(Allocator::Arena& arena) -> Configs {
     Configs variables(arena);
     variables.insert(
-        "-library"_view,
+        "library"_view,
         {.help = "Compile source roots as TTX library terminals."_view});
     variables.insert(
-        "-package"_view,
+        "package"_view,
         {.help = "Compile package manifests as TTX package terminals."_view});
     variables.insert(
-        "-output"_view,
+        "output"_view,
         {
             .help = "Write the output static archive."_view,
             .required = True,
         });
     variables.insert(
-        "-header"_view,
+        "header"_view,
         {
             .help = "Write the generated C++ header."_view,
             .required = True,
         });
     variables.insert(
-        "-puffer"_view,
+        "puffer"_view,
         {
             .help = "Write the Puffer Buffer output."_view,
             .required = True,
         });
     variables.insert(
-        "-dep"_view,
+        "dep"_view,
         {.help = "Make a dependency source visible while loading."_view});
     variables.insert(
-        "-source"_view,
+        "source"_view,
         {
             .help = "TTX source roots to compile."_view,
             .required = True,
         });
+    variables.insert(
+        "pipe"_view,
+        {.help = "Run as an LSP server over the provided socket."_view});
     return variables;
   }
 
@@ -169,8 +194,8 @@ class Main {
   }
 
   auto configure(const Args::Values& args) -> Bool {
-    Bool library = args.contains("-library"_view);
-    package = args.contains("-package"_view);
+    Bool library = args.contains("library"_view);
+    package = args.contains("package"_view);
     if (library == package) {
       Diagnostics::Log::error(
           "puffer: select exactly one of -library or -package\n"_view,
@@ -179,6 +204,21 @@ class Main {
     }
 
     return True;
+  }
+
+  static auto run_lsp(View::Bytes pipe_name) -> Signed_32 {
+    if (pipe_name.is_empty() || pipe_name == "true"_view) {
+      Diagnostics::Log::error(
+          "puffer: -pipe needs a socket path\n"_view,
+          Diagnostics::Source());
+      return 2;
+    }
+
+    Diagnostics::Log::info("puffer: starting LSP server"_view);
+    Puffer::Lsp::Rpc::Executor executor;
+    Puffer::Lsp::register_methods(executor);
+    executor.execute(pipe_name);
+    return 0;
   }
 
   static auto is_package_root(View::Bytes source_path) -> Bool {
@@ -199,7 +239,7 @@ class Main {
       const Args::Values& args,
       Resolver& resolver,
       Resolver::Context& context) -> Bool {
-    View::Vector<View::Bytes> dependencies = arg_values(args, "-dep"_view);
+    View::Vector<View::Bytes> dependencies = arg_values(args, "dep"_view);
     for (Count i = 0; i < dependencies.get_size(); i++) {
       View::Bytes dependency = dependencies[i];
       if (package && !is_package_root(dependency)) {
@@ -219,7 +259,7 @@ class Main {
       Resolver& resolver,
       Resolver::Context& context) -> Bool {
     Count selected_sources = 0;
-    View::Vector<View::Bytes> sources = arg_values(args, "-source"_view);
+    View::Vector<View::Bytes> sources = arg_values(args, "source"_view);
     for (Count i = 0; i < sources.get_size(); i++) {
       View::Bytes source = sources[i];
       if (package && !is_package_root(source)) {

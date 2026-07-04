@@ -79,9 +79,10 @@ Tetrodotoxin layers toolchain context around that language core:
 
 - [`puffer/main.cpp`](puffer/main.cpp) is the `puffer` command-line entry point
 - [`puffer/isa/boot`](puffer/isa/boot/) owns Puffer's source preamble ISA
+- [`puffer/lsp`](puffer/lsp/) owns Puffer's native language server mode
 - [`puffer/resolution`](puffer/resolution/) owns source loading, package
   loading, import binding, the source cache, and cache validity
-- [`lsp`](lsp/) contains the language server and VSCode client
+- [`lsp`](lsp/) contains the VSCode extension client and package assets
 - [`toolchain.hpp`](toolchain.hpp) owns the VM capability table for one caller
 - [`isa`](isa/) owns `Isa::Registry` and the VM instruction sets
   such as Package, Library, Shader, and Render
@@ -182,8 +183,8 @@ ISAs to evaluate the rest of the source.
 
 Library, Package, and other ISAs populate to create the full Virtual Machine runtime
 that executes TTX Token Bytecode to produce a full TTX Abstract Machine (types, layouts,
-members, functions, etc). In this sense as a layer `Puffer` just acts as a front end
-orchestrator for one-shot compiles.
+members, functions, etc). In this sense as a layer `Puffer` acts as the front end
+orchestrator for one-shot compiles and long-running tooling sessions.
 
 In `-library` mode, Puffer pulls in the `Library` compiler layer to lower TTX facts
 emitted by the Library ISA family into linker records, which are then written to static
@@ -192,6 +193,10 @@ archives and an additional generated C++ header as an FFI (Foreign Function Inte
 In `-package` mode, it resolves package manifests and emits the package terminal data
 that contains a frozen VM checkpoint which acts as Tetrodotoxin's "precompiled library"
 equivalent.
+
+In `--pipe=<socket>` mode, Puffer starts the native LSP server over the socket
+provided by an editor client. The VSCode extension packages and launches the
+same `puffer` binary rather than a separate language-server executable.
 
 Puffer writes snapshots as `.puffer` output called a Puffer Buffer. The Puffer
 Buffer is intended to store the TTX Abstract Machine in a Tetrodotoxin-owned

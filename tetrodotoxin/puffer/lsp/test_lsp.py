@@ -9,7 +9,7 @@ Creates a Unix socket server to test the TTX language server with a few basic
 commands without having to do a full .visx build + restart of VS Code.
 
 Usage:
-    python3 tetrodotoxin/lsp/server/test_lsp.py
+    python3 tetrodotoxin/puffer/lsp/test_lsp.py
 """
 
 import base64
@@ -24,7 +24,7 @@ import time
 SOCKET_PATH = "/tmp/ttx_lsp_test.sock"
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, "..", "..", ".."))
-BINARY = os.path.join(REPO_ROOT, ".bin/bin/tetrodotoxin/lsp/server/ttx-lang-server")
+BINARY = os.path.join(REPO_ROOT, ".bin/bin/tetrodotoxin/puffer")
 
 
 def lsp_frame(obj):

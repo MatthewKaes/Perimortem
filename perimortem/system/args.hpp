@@ -24,7 +24,7 @@ class Args {
 
   static auto parse(
       Memory::Allocator::Arena& arena,
-      Core::View::Bytes summary,
+      Core::View::Bytes tool_summary,
       Memory::Managed::Map<Core::View::Bytes, Config> variables,
       Core::View::Vector<Core::View::Bytes> arguments) -> Values;
 };

@@ -31,16 +31,16 @@ using Configs = Managed::Map<View::Bytes, Args::Config>;
 
 static auto test_config(Allocator::Arena& arena) -> Configs {
   Configs variables(arena);
-  variables.insert("-fast"_view, {.help = "Enable fast path."_view});
+  variables.insert("fast"_view, {.help = "Enable fast path."_view});
   variables.insert(
-      "-output"_view,
+      "output"_view,
       {
           .help = "Output file."_view,
           .required = True,
       });
-  variables.insert("-dep"_view, {.help = "Dependency file."_view});
-  variables.insert("-threads"_view, {.help = "Worker count."_view});
-  variables.insert("-ratio"_view, {.help = "Ratio value."_view});
+  variables.insert("dep"_view, {.help = "Dependency file."_view});
+  variables.insert("threads"_view, {.help = "Worker count."_view});
+  variables.insert("ratio"_view, {.help = "Ratio value."_view});
   return variables;
 }
 
@@ -76,41 +76,42 @@ static auto value_at(
   return values[index];
 }
 
+static constexpr View::Bytes expected_help =
+    "usage: demo [arguments]\n\n"
+    "Test parser.\n\n"
+    "arguments:\n"
+    "  -dep      Dependency file.\n"
+    "  -threads  Worker count.\n"
+    "  -output   Output file.\n"
+    "  -ratio    Ratio value.\n"
+    "  -fast     Enable fast path.\n"
+    "  -help     Show this help.\n"_view;
+
 PERIMORTEM_UNIT_TEST(SystemArgs, basic_parse) {
-  constexpr Static::Vector<View::Bytes, 9> raw = {
-    "demo"_view, "-fast"_view, "-output"_view, "out.a"_view, "-dep"_view,
-    "dep.ttx"_view, "-threads=-8"_view, "-ratio"_view, "0.25"_view};
+  constexpr Static::Vector<View::Bytes, 6> raw = {
+    "demo"_view, "-fast"_view, "-output=out.a"_view, "-dep=dep.ttx"_view,
+    "-threads=-8"_view, "-ratio=0.25"_view};
   Allocator::Arena arena;
 
   Args::Values parsed = parse(arena, raw);
   ASSERT_NOT(parsed.is_empty());
-  EXPECT(parsed.contains("-fast"_view));
-  EXPECT_EQ(value_count(parsed, "-fast"_view), Count(1));
-  EXPECT_TEXT(value_at(parsed, "-fast"_view), ""_view);
-  EXPECT_TEXT(value_at(parsed, "-threads"_view), "-8"_view);
-  EXPECT_TEXT(value_at(parsed, "-ratio"_view), "0.25"_view);
-  EXPECT_TEXT(value_at(parsed, "-output"_view), "out.a"_view);
-  EXPECT_TEXT(value_at(parsed, "-dep"_view), "dep.ttx"_view);
+  EXPECT(parsed.contains("fast"_view));
+  EXPECT_EQ(value_count(parsed, "fast"_view), Count(1));
+  EXPECT_TEXT(value_at(parsed, "fast"_view), "true"_view);
+  EXPECT_TEXT(value_at(parsed, "threads"_view), "-8"_view);
+  EXPECT_TEXT(value_at(parsed, "ratio"_view), "0.25"_view);
+  EXPECT_TEXT(value_at(parsed, "output"_view), "out.a"_view);
+  EXPECT_TEXT(value_at(parsed, "dep"_view), "dep.ttx"_view);
 }
 
 PERIMORTEM_UNIT_TEST(SystemArgs, help_text) {
   constexpr Static::Vector<View::Bytes, 2> raw = {
     "/tmp/demo"_view, "-help"_view};
-  constexpr View::Bytes expected =
-      "usage: demo [arguments]\n\n"
-      "Test parser.\n\n"
-      "arguments:\n"
-      "  -fast     Enable fast path.\n"
-      "  -ratio    Ratio value.\n"
-      "  -output   Output file.\n"
-      "  -dep      Dependency file.\n"
-      "  -threads  Worker count.\n"
-      "  -help     Show this help.\n"_view;
   Allocator::Arena arena;
 
   Args::Values parsed = parse(arena, raw);
   ASSERT(parsed.is_empty());
-  EXPECT_TEXT(Test::captured_message(), expected);
+  EXPECT_TEXT(Test::captured_message(), expected_help);
 }
 
 PERIMORTEM_UNIT_TEST(SystemArgs, double_dash_help) {
@@ -118,20 +119,34 @@ PERIMORTEM_UNIT_TEST(SystemArgs, double_dash_help) {
     "demo"_view, "--help"_view};
   Allocator::Arena arena;
 
-  Diagnostics::Log::set_level(Diagnostics::Log::Level::Error);
   Args::Values parsed = parse(arena, raw);
   ASSERT(parsed.is_empty());
-  EXPECT(Test::error_contains("unrecognized arg --help"_view));
+  EXPECT_TEXT(Test::captured_message(), expected_help);
 }
 
-PERIMORTEM_UNIT_TEST(SystemArgs, empty_value) {
-  constexpr Static::Vector<View::Bytes, 2> raw = {
-    "demo"_view, "-output"_view};
+PERIMORTEM_UNIT_TEST(SystemArgs, double_dash_parse) {
+  constexpr Static::Vector<View::Bytes, 5> raw = {
+    "demo"_view, "--fast"_view, "--output=out.a"_view, "---dep=dep.ttx"_view,
+    "----ratio=1.5"_view};
   Allocator::Arena arena;
 
   Args::Values parsed = parse(arena, raw);
   ASSERT_NOT(parsed.is_empty());
-  EXPECT_TEXT(value_at(parsed, "-output"_view), ""_view);
+  EXPECT(parsed.contains("fast"_view));
+  EXPECT_TEXT(value_at(parsed, "fast"_view), "true"_view);
+  EXPECT_TEXT(value_at(parsed, "output"_view), "out.a"_view);
+  EXPECT_TEXT(value_at(parsed, "dep"_view), "dep.ttx"_view);
+  EXPECT_TEXT(value_at(parsed, "ratio"_view), "1.5"_view);
+}
+
+PERIMORTEM_UNIT_TEST(SystemArgs, empty_value) {
+  constexpr Static::Vector<View::Bytes, 2> raw = {
+    "demo"_view, "-output="_view};
+  Allocator::Arena arena;
+
+  Args::Values parsed = parse(arena, raw);
+  ASSERT_NOT(parsed.is_empty());
+  EXPECT_TEXT(value_at(parsed, "output"_view), ""_view);
 }
 
 PERIMORTEM_UNIT_TEST(SystemArgs, unknown_arg) {
@@ -157,25 +172,24 @@ PERIMORTEM_UNIT_TEST(SystemArgs, bare_value) {
 }
 
 PERIMORTEM_UNIT_TEST(SystemArgs, repeated_values) {
-  constexpr Static::Vector<View::Bytes, 7> raw = {
-    "demo"_view, "-output"_view, "out"_view, "-dep"_view, "a.ttx"_view,
-    "-dep"_view, "b.ttx"_view};
+  constexpr Static::Vector<View::Bytes, 4> raw = {
+    "demo"_view, "-output=out"_view, "-dep=a.ttx"_view, "-dep=b.ttx"_view};
   Allocator::Arena arena;
 
   Args::Values parsed = parse(arena, raw);
   ASSERT_NOT(parsed.is_empty());
-  ASSERT_EQ(value_count(parsed, "-dep"_view), Count(2));
-  EXPECT_TEXT(value_at(parsed, "-dep"_view, 0), "a.ttx"_view);
-  EXPECT_TEXT(value_at(parsed, "-dep"_view, 1), "b.ttx"_view);
+  ASSERT_EQ(value_count(parsed, "dep"_view), Count(2));
+  EXPECT_TEXT(value_at(parsed, "dep"_view, 0), "a.ttx"_view);
+  EXPECT_TEXT(value_at(parsed, "dep"_view, 1), "b.ttx"_view);
 }
 
-PERIMORTEM_UNIT_TEST(SystemArgs, missing_required) {
+PERIMORTEM_UNIT_TEST(SystemArgs, dash_only) {
   constexpr Static::Vector<View::Bytes, 2> raw = {
-    "demo"_view, "-fast"_view};
+    "demo"_view, "--"_view};
   Allocator::Arena arena;
 
   Diagnostics::Log::set_level(Diagnostics::Log::Level::Error);
   Args::Values parsed = parse(arena, raw);
   ASSERT(parsed.is_empty());
-  EXPECT(Test::error_contains("missing required arg -output"_view));
+  EXPECT(Test::error_contains("unrecognized arg --"_view));
 }

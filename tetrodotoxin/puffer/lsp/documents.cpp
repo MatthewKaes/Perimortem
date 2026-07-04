@@ -1,13 +1,13 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
-#include "tetrodotoxin/lsp/server/documents.hpp"
+#include "tetrodotoxin/puffer/lsp/documents.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
-using namespace Tetrodotoxin::Lsp;
+using namespace Tetrodotoxin::Puffer;
 
-auto Server::Documents::find(View::Bytes uri) const -> Count {
+auto Lsp::Documents::find(View::Bytes uri) const -> Count {
   for (Count i = 0; i < records.get_size(); i++) {
     if (records[i].active && records[i].uri == uri) {
       return i;
@@ -17,7 +17,7 @@ auto Server::Documents::find(View::Bytes uri) const -> Count {
   return Count(-1);
 }
 
-auto Server::Documents::upsert(View::Bytes uri, View::Bytes source) -> void {
+auto Lsp::Documents::upsert(View::Bytes uri, View::Bytes source) -> void {
   if (uri.is_empty()) {
     return;
   }
@@ -42,7 +42,7 @@ auto Server::Documents::upsert(View::Bytes uri, View::Bytes source) -> void {
   pthread_mutex_unlock(&mutex);
 }
 
-auto Server::Documents::erase(View::Bytes uri) -> void {
+auto Lsp::Documents::erase(View::Bytes uri) -> void {
   pthread_mutex_lock(&mutex);
   Count slot = find(uri);
 
@@ -54,7 +54,7 @@ auto Server::Documents::erase(View::Bytes uri) -> void {
   pthread_mutex_unlock(&mutex);
 }
 
-auto Server::Documents::get_text(View::Bytes uri) const -> Dynamic::Bytes {
+auto Lsp::Documents::get_text(View::Bytes uri) const -> Dynamic::Bytes {
   pthread_mutex_lock(&mutex);
   Count slot = find(uri);
 

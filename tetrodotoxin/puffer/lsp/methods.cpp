@@ -1,7 +1,7 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
-#include "tetrodotoxin/lsp/server/methods.hpp"
+#include "tetrodotoxin/puffer/lsp/methods.hpp"
 
 #include "perimortem/core/diagnostics/log.hpp"
 #include "perimortem/core/null_terminated.hpp"
@@ -14,14 +14,14 @@
 #include "perimortem/serialization/escaped_text.hpp"
 #include "perimortem/serialization/json/node.hpp"
 
-#include "tetrodotoxin/lsp/server/documents.hpp"
-#include "tetrodotoxin/lsp/server/rpc/executor.hpp"
-#include "tetrodotoxin/lsp/server/semantic_tokens.hpp"
+#include "tetrodotoxin/puffer/lsp/documents.hpp"
+#include "tetrodotoxin/puffer/lsp/rpc/executor.hpp"
+#include "tetrodotoxin/puffer/lsp/semantic_tokens.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
 using namespace Perimortem::Serialization;
-using namespace Tetrodotoxin::Lsp;
+using namespace Tetrodotoxin::Puffer;
 
 static auto format_source(
     Allocator::Arena&,
@@ -34,8 +34,8 @@ static auto format_source(
 }
 
 static auto report_document(
-    const Server::Rpc::Request& request,
-    View::Bytes source) -> Server::Rpc::Response {
+    const Lsp::Rpc::Request& request,
+    View::Bytes source) -> Lsp::Rpc::Response {
   auto& arena = request.get_arena();
   View::Bytes encoded = Base64::encode(arena, source);
 
@@ -44,12 +44,12 @@ static auto report_document(
   return request.report_result(Json::Node(result_obj.get_view()));
 }
 
-static auto register_initialize(Server::Rpc::Executor& executor) -> void {
+static auto register_initialize(Lsp::Rpc::Executor& executor) -> void {
   Diagnostics::Log::info("   -- initialize"_view);
   executor.register_method(
       "initialize"_view,
-      [](Server::Rpc::Executor&,
-         const Server::Rpc::Request& request) -> Server::Rpc::Response {
+      [](Lsp::Rpc::Executor&,
+         const Lsp::Rpc::Request& request) -> Lsp::Rpc::Response {
         auto& arena = request.get_arena();
 
         Managed::Vector<Json::Member> text_doc_sync(arena);
@@ -57,7 +57,7 @@ static auto register_initialize(Server::Rpc::Executor& executor) -> void {
         text_doc_sync.insert({"change"_view, Json::Node(Signed_64(1))});
 
         Managed::Vector<Json::Member> semantic_tokens(arena);
-        semantic_tokens.insert({"legend"_view, Server::semantic_legend(arena)});
+        semantic_tokens.insert({"legend"_view, Lsp::semantic_legend(arena)});
         semantic_tokens.insert({"full"_view, Json::Node(True)});
 
         Managed::Vector<Json::Member> capabilities(arena);
@@ -84,12 +84,12 @@ static auto register_initialize(Server::Rpc::Executor& executor) -> void {
       });
 }
 
-static auto register_format(Server::Rpc::Executor& executor) -> void {
+static auto register_format(Lsp::Rpc::Executor& executor) -> void {
   Diagnostics::Log::info("   -- format"_view);
   executor.register_method(
       "format"_view,
-      [](Server::Rpc::Executor&,
-         const Server::Rpc::Request& request) -> Server::Rpc::Response {
+      [](Lsp::Rpc::Executor&,
+         const Lsp::Rpc::Request& request) -> Lsp::Rpc::Response {
         auto& arena = request.get_arena();
         const auto& args = request.get_params();
 
@@ -116,7 +116,7 @@ static auto register_format(Server::Rpc::Executor& executor) -> void {
       });
 }
 
-static auto register_document_state(Server::Rpc::Executor& executor) -> void {
+static auto register_document_state(Lsp::Rpc::Executor& executor) -> void {
   // File URI logs intentionally keep more room than normal status messages.
   // The URI is the useful part of the log, so truncating it usually removes the
   // context we were trying to keep.
@@ -125,8 +125,8 @@ static auto register_document_state(Server::Rpc::Executor& executor) -> void {
   Diagnostics::Log::info("   -- textDocument/didOpen"_view);
   executor.register_method(
       "textDocument/didOpen"_view,
-      [](Server::Rpc::Executor& executor,
-         const Server::Rpc::Request& request) -> Server::Rpc::Response {
+      [](Lsp::Rpc::Executor& executor,
+         const Lsp::Rpc::Request& request) -> Lsp::Rpc::Response {
         auto& arena = request.get_arena();
         const auto uri =
             request.get_params()["textDocument"_view]["uri"_view].get_string();
@@ -143,8 +143,8 @@ static auto register_document_state(Server::Rpc::Executor& executor) -> void {
   Diagnostics::Log::info("   -- textDocument/didChange"_view);
   executor.register_method(
       "textDocument/didChange"_view,
-      [](Server::Rpc::Executor& executor,
-         const Server::Rpc::Request& request) -> Server::Rpc::Response {
+      [](Lsp::Rpc::Executor& executor,
+         const Lsp::Rpc::Request& request) -> Lsp::Rpc::Response {
         auto& arena = request.get_arena();
         const auto uri =
             request.get_params()["textDocument"_view]["uri"_view].get_string();
@@ -164,8 +164,8 @@ static auto register_document_state(Server::Rpc::Executor& executor) -> void {
   Diagnostics::Log::info("   -- textDocument/didClose"_view);
   executor.register_method(
       "textDocument/didClose"_view,
-      [](Server::Rpc::Executor& executor,
-         const Server::Rpc::Request& request) -> Server::Rpc::Response {
+      [](Lsp::Rpc::Executor& executor,
+         const Lsp::Rpc::Request& request) -> Lsp::Rpc::Response {
         const auto uri =
             request.get_params()["textDocument"_view]["uri"_view].get_string();
         executor.get_documents().erase(uri);
@@ -177,22 +177,22 @@ static auto register_document_state(Server::Rpc::Executor& executor) -> void {
       });
 }
 
-static auto register_semantic_tokens(Server::Rpc::Executor& executor) -> void {
+static auto register_semantic_tokens(Lsp::Rpc::Executor& executor) -> void {
   Diagnostics::Log::info("   -- textDocument/semanticTokens/full"_view);
   executor.register_method(
       "textDocument/semanticTokens/full"_view,
-      [](Server::Rpc::Executor& executor,
-         const Server::Rpc::Request& request) -> Server::Rpc::Response {
+      [](Lsp::Rpc::Executor& executor,
+         const Lsp::Rpc::Request& request) -> Lsp::Rpc::Response {
         const auto uri =
             request.get_params()["textDocument"_view]["uri"_view].get_string();
         Dynamic::Bytes source = executor.get_documents().get_text(uri);
         return request.report_result(
-            Server::semantic_tokens_for(
+            Lsp::semantic_tokens_for(
                 request.get_arena(), source.get_view()));
       });
 }
 
-auto Tetrodotoxin::Lsp::Server::register_methods(Rpc::Executor& executor)
+auto Tetrodotoxin::Puffer::Lsp::register_methods(Rpc::Executor& executor)
     -> void {
   register_initialize(executor);
   register_format(executor);

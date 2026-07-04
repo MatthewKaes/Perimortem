@@ -10,7 +10,7 @@
 
 #include "perimortem/memory/dynamic/bytes.hpp"
 
-namespace Tetrodotoxin::Lsp::Server {
+namespace Tetrodotoxin::Puffer::Lsp {
 
 class Documents {
  public:
@@ -35,4 +35,4 @@ class Documents {
   Perimortem::Core::Static::Vector<Record, 64> records;
 };
 
-}  // namespace Tetrodotoxin::Lsp::Server
+}  // namespace Tetrodotoxin::Puffer::Lsp
