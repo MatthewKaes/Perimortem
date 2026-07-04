@@ -1,0 +1,10 @@
+dialect : Library;
+
+private Console : foreign {
+  expose func print[.data : View[Bytes]] -> [];
+}
+
+public func tetrodotoxin_test[.data : View[Bytes]] -> [] {
+  Console -> print("Compiler Test");
+  Console -> print(data);
+}

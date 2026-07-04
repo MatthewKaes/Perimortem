@@ -24,9 +24,8 @@
 static constexpr auto has_named_members(const Ttx::Layout& layout) -> Bool {
   Perimortem::Core::View::Vector<Ttx::Type::Member> members =
       layout.get_members();
-  for (Count member_index = 0; member_index < members.get_size();
-       member_index++) {
-    if (members[member_index].is_named()) {
+  for (Count i = 0; i < members.get_size(); i++) {
+    if (members[i].is_named()) {
       return True;
     }
   }
@@ -83,9 +82,8 @@ auto Ttx::Layout::count_required_members() const -> Count {
     required_member_count--;
   }
 
-  for (Count member_index = 0; member_index < required_member_count;
-       member_index++) {
-    if (member_at(member_index).is_defaulted()) {
+  for (Count i = 0; i < required_member_count; i++) {
+    if (member_at(i).is_defaulted()) {
       // Return a count larger than the layout so callers can treat a malformed
       // default gap the same way they treat an impossible construction.
       return member_count + 1;
@@ -102,10 +100,9 @@ auto Ttx::Layout::equivalent_to(const Layout& other) const -> Bool {
 
   // Equivalence is ordered shape. Names are preserved on entries, including
   // duplicate names, but they do not remap the comparison like struct fields.
-  for (Count member_index = 0; member_index < get_member_count();
-       member_index++) {
+  for (Count i = 0; i < get_member_count(); i++) {
     if (!equivalent_ordered_member(
-            member_at(member_index), other.member_at(member_index))) {
+            member_at(i), other.member_at(i))) {
       return False;
     }
   }

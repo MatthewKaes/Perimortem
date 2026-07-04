@@ -1,0 +1,80 @@
+// Perimortem Engine
+// Copyright © Matt Kaes
+
+#include "tetrodotoxin/puffer/lsp/rpc/request.hpp"
+
+#include "perimortem/core/null_terminated.hpp"
+
+#include "perimortem/memory/managed/bytes.hpp"
+#include "perimortem/memory/managed/vector.hpp"
+
+using namespace Tetrodotoxin::Puffer;
+using namespace Perimortem::Memory;
+using namespace Perimortem::Serialization;
+
+Lsp::Rpc::Request::Request(
+    Perimortem::Memory::Allocator::Arena& arena,
+    Perimortem::Core::View::Bytes source)
+    : arena(arena), source(source) {
+  parsed.parse(arena, source);
+  call_params = parsed["params"_view];
+}
+
+auto Lsp::Rpc::Request::is_valid() const -> Bool {
+  return !parsed.is_null() && !parsed["method"_view].get_string().is_empty() &&
+         !parsed["jsonrpc"_view].get_string().is_empty();
+}
+
+auto Lsp::Rpc::Request::is_request() const -> Bool {
+  return parsed.contains("id"_view);
+}
+
+auto Lsp::Rpc::Request::has_numeric_id() const -> Bool {
+  return parsed["id"_view].is_number();
+}
+
+auto Lsp::Rpc::Request::get_method() const -> Perimortem::Core::View::Bytes {
+  return parsed["method"_view].get_string();
+}
+
+auto Lsp::Rpc::Request::get_id() const -> Signed_64 {
+  return parsed["id"_view].get_number();
+}
+
+auto Lsp::Rpc::Request::get_params() const
+    -> const Perimortem::Serialization::Json::Node& {
+  return call_params;
+}
+
+auto Lsp::Rpc::Request::get_source() const -> Perimortem::Core::View::Bytes {
+  return source;
+}
+
+auto Lsp::Rpc::Request::get_arena() const
+    -> Perimortem::Memory::Allocator::Arena& {
+  return arena;
+}
+
+auto Lsp::Rpc::Request::report_error(
+    Perimortem::Core::View::Bytes error) const -> Lsp::Rpc::Response {
+  Managed::Bytes sanitized(arena);
+  sanitized.proxy(error);
+  sanitized.convert('"', '`');
+
+  const Json::Blueprint entries[] = {
+    {"jsonrpc"_view, parsed["jsonrpc"_view].get_string()},
+    {"id"_view, parsed["id"_view].get_number()},
+    {"error"_view, sanitized.get_view()},
+  };
+  return Json::Node::construct(arena, entries);
+}
+
+auto Lsp::Rpc::Request::report_result(const Response& result) const
+    -> Lsp::Rpc::Response {
+  const Json::Blueprint entries[] = {
+    {"jsonrpc"_view, parsed["jsonrpc"_view].get_string()},
+    {"id"_view, parsed["id"_view].get_number()},
+    {"result"_view, result},
+  };
+  return Json::Node::construct(arena, entries);
+}

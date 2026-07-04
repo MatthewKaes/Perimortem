@@ -40,3 +40,25 @@ PERIMORTEM_UNIT_TEST(TtxParse, access_operators) {
   EXPECT_TEXT(tokens[20].get_text(), "."_view);
   EXPECT(tokens[20].get_class() == Ttx::Lexical::Class::Type::AddressOp);
 }
+
+PERIMORTEM_UNIT_TEST(TtxParse, modifiers) {
+  Allocator::Arena arena;
+  Ttx::Lexical::Tokenizer tokenizer(
+      arena,
+      "public private expose state const @package_name @public"_view,
+      "Test::Package"_view);
+
+  View::Vector<Ttx::Lexical::Token> tokens = tokenizer.get_tokens();
+  ASSERT_EQ(tokens.get_size(), Count(8));
+
+  EXPECT(tokens[0].get_class() == Ttx::Lexical::Class::Type::Public);
+  EXPECT(tokens[1].get_class() == Ttx::Lexical::Class::Type::Private);
+  EXPECT(tokens[2].get_class() == Ttx::Lexical::Class::Type::Expose);
+  EXPECT(tokens[3].get_class() == Ttx::Lexical::Class::Type::State);
+  EXPECT(tokens[4].get_class() == Ttx::Lexical::Class::Type::Const);
+  EXPECT(tokens[5].get_class() == Ttx::Lexical::Class::Type::Attribute);
+  EXPECT_TEXT(tokens[5].get_text(), "@package_name"_view);
+  EXPECT(tokens[6].get_class() == Ttx::Lexical::Class::Type::Attribute);
+  EXPECT_TEXT(tokens[6].get_text(), "@public"_view);
+  EXPECT(tokens[7].get_class() == Ttx::Lexical::Class::Type::EndOfStream);
+}

@@ -21,9 +21,9 @@ class Types {
 
   static constexpr auto find_type(Perimortem::Core::View::Bytes name)
       -> const Type* {
-    for (Count type_index = 0; type_index < types.get_size(); type_index++) {
-      if (types[type_index]->get_name() == name) {
-        return types[type_index];
+    for (Count i = 0; i < types.get_size(); i++) {
+      if (types[i]->get_name() == name) {
+        return types[i];
       }
     }
 
@@ -35,7 +35,19 @@ class Types {
   }
 
  private:
-  static constexpr Type void_type = Type("Void"_view);
+  static constexpr Perimortem::Core::Static::Vector<Attribute, 2>
+      void_attributes = {{
+        {"cpp"_view, "void"_view},
+        {"abi"_view, "void"_view},
+      }};
+  static constexpr Perimortem::Core::Static::Vector<Attribute, 2>
+      view_bytes_attributes = {{
+        {"cpp"_view, "Perimortem::Core::View::Bytes"_view},
+        {"abi"_view, "view_bytes"_view},
+      }};
+
+  static constexpr Type void_type =
+      Type("Void"_view, void_attributes.get_view());
   static constexpr Type bool_type = Type("Bool"_view);
   static constexpr Type count_type = Type("Count"_view);
   static constexpr Type bits_8_type = Type("Bits_8"_view);
@@ -52,6 +64,8 @@ class Types {
   static constexpr Type string_type = Type("String"_view);
   static constexpr Type vec_type = Type("Vec"_view);
   static constexpr Type view_type = Type("View"_view);
+  static constexpr Type view_bytes_type =
+      Type("View[Bytes]"_view, view_bytes_attributes.get_view());
   static constexpr Type access_type = Type("Access"_view);
   static constexpr Type list_type = Type("List"_view);
   static constexpr Type dict_type = Type("Dict"_view);
@@ -94,8 +108,8 @@ class Types {
     &signed_16_type, &signed_32_type, &signed_64_type, &real_32_type,
     &real_64_type,   &bytes_type,     &string_type,    &vec_type,
     &vec2d_type,     &vec3d_type,     &vec4d_type,     &size2d_type,
-    &view_type,      &access_type,    &list_type,      &dict_type,
-    &action_type,
+    &view_type,      &view_bytes_type, &access_type,    &list_type,
+    &dict_type,      &action_type,
   }};
 };
 

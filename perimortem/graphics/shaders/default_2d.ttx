@@ -12,14 +12,14 @@ shader Default2D : Render2D::Renderer2D {
     .texture_uv : Vec2D,
     .screen_position : Vec4D,
   ] {
-    @stack quad_position : Vec2D = uniform.quad_positions:[vertex_index];
-    @stack centered_quad_position : Vec2D =
+    state quad_position : Vec2D = uniform.quad_positions:[vertex_index];
+    state centered_quad_position : Vec2D =
         quad_position - (.x = 0.5, .y = 0.5);
-    @stack normalized_size : Vec2D = (
+    state normalized_size : Vec2D = (
       .x = uniform.size.width,
       .y = uniform.size.height,
     );
-    @stack screen_position : Vec2D =
+    state screen_position : Vec2D =
         uniform.position + centered_quad_position * normalized_size;
     return (
       .texture_uv = uniform.quad_uvs:[vertex_index],
@@ -30,7 +30,7 @@ shader Default2D : Render2D::Renderer2D {
   func pixel[.texture_uv : Vec2D] -> [
     .color : Types::Color,
   ] {
-    @stack sample : Types::Color = uniform.image -> sample(texture_uv);
+    state sample : Types::Color = uniform.image -> sample(texture_uv);
     return (
       .color = (sample.[r, g, b], sample.a * uniform.alpha),
     );

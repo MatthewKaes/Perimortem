@@ -31,12 +31,13 @@ class Bytes {
   auto resize(Count new_size) -> void;
   auto ensure_capacity(Count required_bytes) -> void;
 
+  auto append(Bits_8 byte) -> void;
+  auto append(Bits_8 byte, Count amount) -> void;
+  auto concat(Core::View::Bytes view) -> void;
   // Copies a Core::View::Bytes which may be in a different allocator
   // (dynamic or another arena) into the Arena used by this object.
   auto proxy(Core::View::Bytes view) -> void;
 
-  auto append(Bits_8 b) -> void;
-  auto append(Core::View::Bytes view) -> void;
   auto convert(Bits_8 source, Bits_8 target) -> void;
 
   constexpr auto operator[](Count index) const -> Bits_8 {
@@ -71,8 +72,6 @@ class Bytes {
   }
 
  private:
-  auto grow(Count requested) -> void;
-
   Allocator::Arena& arena;
   Bits_8* source_block;
   Count size;

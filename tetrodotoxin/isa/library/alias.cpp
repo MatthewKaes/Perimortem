@@ -1,0 +1,47 @@
+// Perimortem Engine
+// Copyright © Matt Kaes
+
+#include "tetrodotoxin/isa/library/alias.hpp"
+
+#include "perimortem/memory/managed/vector.hpp"
+
+using namespace Perimortem::Core;
+using namespace Perimortem::Memory;
+using namespace Tetrodotoxin::Isa;
+using namespace Ttx::Lexical;
+
+auto Library::Alias::evaluate(
+    Library::Scope& scope,
+    Cursor& cursor,
+    const Tetrodotoxin::Isa::Definition& definition) -> const Ttx::Type* {
+  if (!cursor.require(
+          Class::Type::Assign,
+          "Expected `=` before library alias target."_view)) {
+    return nullptr;
+  }
+
+  const Count error_count = cursor.get_errors().get_size();
+  const Ttx::Type* target = scope.resolve_type(cursor);
+  if (cursor.get_errors().get_size() != error_count) {
+    return nullptr;
+  }
+
+  if (!cursor.require(
+          Class::Type::EndStatement,
+          "Expected `;` after library alias."_view)) {
+    return nullptr;
+  }
+
+  if (target == nullptr) {
+    cursor.token_error("Library alias target could not be resolved."_view);
+    return nullptr;
+  }
+
+  Managed::Vector<Ttx::Attribute> attributes(scope.get_context().get_arena());
+  attributes.insert({"isa"_view, "Alias"_view});
+  auto& type = scope.get_context().get_arena().construct<Ttx::Type>(
+      Ttx::Type::alias(
+          definition.get_name(), *target, definition.get_documentation(),
+          attributes.get_view()));
+  return &type;
+}

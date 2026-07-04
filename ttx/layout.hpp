@@ -94,9 +94,8 @@ class Layout {
   // or dialect owner that knows whether the shadowing was intentional.
   constexpr auto find_member(Perimortem::Core::View::Bytes name) const
       -> const Type::Member* {
-    for (Count member_index = 0; member_index < members.get_size();
-         member_index++) {
-      const Type::Member& member = members[member_index];
+    for (Count i = 0; i < members.get_size(); i++) {
+      const Type::Member& member = members[i];
       if (member.get_name() == name) {
         return &member;
       }

@@ -28,9 +28,6 @@ class Class {
     Type,          // Any symbol that starts with [A-Z]
     EndStatement,  // ;
 
-    // Special case currently
-    CompileIf,  // @if (TODO, we might want to improve compiler directives)
-
     // ========================================================================
     //                              Data objects
     // ========================================================================
@@ -111,16 +108,14 @@ class Class {
     Dialect,
     Alias,
 
-    // Sigils
-    // Special carve out, these should be moved up to the dialect layer.
-    Public,          // public
-    ConstPublic,     // @public
-    Dynamic,         // expose
-    ConstDynamic,    // @expose
-    Hidden,          // hidden
-    ConstHidden,     // @hidden
-    Temporary,       // stack
-    ConstTemporary,  // @stack
+    // Common modifier keywords. Their meaning belongs to the ISA that consumes
+    // them, but keeping the spellings as fixed tokens gives every ISA the same
+    // cheap starting point.
+    Public,
+    Private,
+    Expose,
+    State,
+    Const,
 
     // ========================================================================
     //                             Control Types
@@ -159,23 +154,6 @@ class Class {
     return False;
   }
 
-  // TODO: Enriching sigil context should be moved to dialects.
-  static constexpr auto is_sigil(Type value) -> Bool {
-    switch (value) {
-    case Type::Public:
-    case Type::ConstPublic:
-    case Type::Dynamic:
-    case Type::ConstDynamic:
-    case Type::Hidden:
-    case Type::ConstHidden:
-    case Type::Temporary:
-    case Type::ConstTemporary:
-      return True;
-    default:
-      return False;
-    }
-  }
-
   static constexpr auto is_type_ref(Type value) -> Bool {
     switch (value) {
     case Type::Type:
@@ -185,7 +163,6 @@ class Class {
     }
   }
 
-  constexpr auto is_sigil() const -> Bool { return is_sigil(type); }
   constexpr auto is_type_ref() const -> Bool { return is_type_ref(type); }
 
   constexpr auto get_type() const -> Type { return type; }
@@ -193,23 +170,17 @@ class Class {
   static constexpr auto get_source_text(Type value)
       -> Perimortem::Core::View::Bytes {
     switch (value) {
-    // Sigils
+    // Modifiers.
     case Type::Public:
       return "public"_view;
-    case Type::ConstPublic:
-      return "@public"_view;
-    case Type::Dynamic:
+    case Type::Private:
+      return "private"_view;
+    case Type::Expose:
       return "expose"_view;
-    case Type::ConstDynamic:
-      return "@expose"_view;
-    case Type::Hidden:
-      return "hidden"_view;
-    case Type::ConstHidden:
-      return "@hidden"_view;
-    case Type::Temporary:
-      return "stack"_view;
-    case Type::ConstTemporary:
-      return "@stack"_view;
+    case Type::State:
+      return "state"_view;
+    case Type::Const:
+      return "const"_view;
 
     // Definition keywords.
     case Type::Alias:
@@ -218,8 +189,6 @@ class Class {
     // Statement and import keywords
     case Type::If:
       return "if"_view;
-    case Type::CompileIf:
-      return "@if"_view;
     case Type::In:
       return "in"_view;
     case Type::For:
@@ -244,7 +213,6 @@ class Class {
       return "dialect"_view;
     case Type::Func:
       return "func"_view;
-
     // Binary operators
     case Type::AddOp:
       return "+"_view;

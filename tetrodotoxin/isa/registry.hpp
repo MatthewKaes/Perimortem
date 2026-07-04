@@ -18,13 +18,13 @@ namespace Tetrodotoxin::Isa {
 // locked as of now as all their computations use a shared cluster memory space
 // that is thread localized.
 //
-// The Boot ISA is not part of this table. Full source files call Boot directly
-// as it's used for initalizing a cluster. Post boot ISAs may select after the
-// `Resolver` has prepared imports for the source record.
+// Preamble ISAs such as Puffer Boot are not part of this table. This registry
+// contains the body ISAs that execute after a caller has prepared imports for a
+// source record.
 class Registry {
  public:
   using EvaluateFunction =
-      Bool (*)(Context& context, Ttx::Lexical::Cursor& cursor);
+      Ttx::Type* (*)(Context& context, Ttx::Lexical::Cursor& cursor);
 
   class Entry {
    public:
@@ -55,6 +55,12 @@ class Registry {
       -> Bool;
 
   auto find(Perimortem::Core::View::Bytes name) const -> const Entry*;
+  auto require_installed(
+      Ttx::Lexical::Cursor& cursor,
+      const Ttx::Lexical::Token& name) const -> Bool;
+  auto require_installed(
+      Ttx::Lexical::Cursor& cursor,
+      Perimortem::Core::View::Bytes name) const -> Bool;
   auto get_installed() const -> Perimortem::Core::View::Vector<Entry>;
 
   constexpr auto get_size() const -> Count { return installed_count; }

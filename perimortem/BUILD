@@ -6,6 +6,17 @@ load("@rules_cc//cc:cc_library.bzl", "cc_library")
 
 package(default_visibility = ["//visibility:public"])
 
+exports_files(
+    [
+        "graphics/library/sprite.ttx",
+        "graphics/library/types.ttx",
+        "graphics/package.ttx",
+        "graphics/renderers/renderer_2d.ttx",
+        "graphics/shaders/default_2d.ttx",
+    ],
+    visibility = ["//visibility:public"],
+)
+
 cc_library(
     name = "perimortem",
     includes = ["."],

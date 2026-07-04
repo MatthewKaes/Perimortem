@@ -74,10 +74,9 @@ auto Ttx::Type::find_member(Perimortem::Core::View::Bytes name) const
     return nullptr;
   }
 
-  for (Count member_index = 0; member_index < type->members.get_size();
-       member_index++) {
-    if (type->members[member_index].get_name() == name) {
-      return &type->members[member_index];
+  for (Count i = 0; i < type->members.get_size(); i++) {
+    if (type->members[i].get_name() == name) {
+      return &type->members[i];
     }
   }
 
@@ -94,9 +93,8 @@ auto Ttx::Type::find_type(Perimortem::Core::View::Bytes name) const
     return nullptr;
   }
 
-  for (Count type_index = 0; type_index < type->types.get_size();
-       type_index++) {
-    const Type* nested_type = type->types[type_index];
+  for (Count i = 0; i < type->types.get_size(); i++) {
+    const Type* nested_type = type->types[i];
     if (nested_type && nested_type->get_name() == name) {
       return nested_type;
     }
@@ -116,10 +114,20 @@ auto Ttx::Type::find_function(Perimortem::Core::View::Bytes name) const
     return nullptr;
   }
 
-  for (Count function_index = 0; function_index < type->functions.get_size();
-       function_index++) {
-    if (type->functions[function_index].get_name() == name) {
-      return &type->functions[function_index];
+  for (Count i = 0; i < type->functions.get_size(); i++) {
+    if (type->functions[i].get_name() == name) {
+      return &type->functions[i];
+    }
+  }
+
+  return nullptr;
+}
+
+auto Ttx::Type::find_attribute(Perimortem::Core::View::Bytes key) const
+    -> const Attribute* {
+  for (Count i = 0; i < attributes.get_size(); i++) {
+    if (attributes[i].get_key() == key) {
+      return &attributes[i];
     }
   }
 

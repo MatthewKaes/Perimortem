@@ -10,9 +10,9 @@ namespace Tetrodotoxin {
 // Toolchain owns the Tetrodotoxin VM capabilities for one caller.
 //
 // A CLI, LSP, test harness, embedded host, or package-local resolver can each
-// install the ISAs it supports. Full source evaluation still starts by calling
-// Boot directly. The registry is the table of body ISAs Boot validates against
-// after reading the source envelope.
+// install the body ISAs it supports. Source-file preambles are caller-owned;
+// Puffer uses its Boot ISA to validate names against this registry before the
+// resolver dispatches to a body ISA.
 class Toolchain {
  public:
   Toolchain() = default;

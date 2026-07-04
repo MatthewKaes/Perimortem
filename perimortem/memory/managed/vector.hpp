@@ -11,7 +11,6 @@
 namespace Perimortem::Memory::Managed {
 
 // A simple linear flat array of trivially constructable values.
-//
 template <typename value_type>
 class Vector {
  public:

@@ -3,10 +3,10 @@
 
 #include "tetrodotoxin/toolchain.hpp"
 
-#include "tetrodotoxin/isa/library/library.hpp"
-#include "tetrodotoxin/isa/package/package.hpp"
-#include "tetrodotoxin/isa/render/render.hpp"
-#include "tetrodotoxin/isa/shader/shader.hpp"
+#include "tetrodotoxin/isa/library/virtual_machine.hpp"
+#include "tetrodotoxin/isa/package/virtual_machine.hpp"
+#include "tetrodotoxin/isa/render/virtual_machine.hpp"
+#include "tetrodotoxin/isa/shader/virtual_machine.hpp"
 
 using namespace Tetrodotoxin;
 
@@ -17,8 +17,16 @@ auto Toolchain::standard() -> Toolchain {
 }
 
 auto Toolchain::install_standard_isas() -> void {
-  isa_registry.install(Isa::Library::get_name(), Isa::Library::evaluate);
-  isa_registry.install(Isa::Package::get_name(), Isa::Package::evaluate);
-  isa_registry.install(Isa::Render::get_name(), Isa::Render::evaluate);
-  isa_registry.install(Isa::Shader::get_name(), Isa::Shader::evaluate);
+  isa_registry.install(
+      Isa::Library::VirtualMachine::get_name(),
+      Isa::Library::VirtualMachine::evaluate);
+  isa_registry.install(
+      Isa::Package::VirtualMachine::get_name(),
+      Isa::Package::VirtualMachine::evaluate);
+  isa_registry.install(
+      Isa::Render::VirtualMachine::get_name(),
+      Isa::Render::VirtualMachine::evaluate);
+  isa_registry.install(
+      Isa::Shader::VirtualMachine::get_name(),
+      Isa::Shader::VirtualMachine::evaluate);
 }

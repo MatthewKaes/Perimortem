@@ -7,23 +7,17 @@
 
 auto Ttx::Lexical::Class::get_name() const -> Perimortem::Core::View::Bytes {
   switch (type) {
-  // Sigils
+  // Modifiers
   case Type::Public:
-    return "public addressable qualifier"_view;
-  case Type::ConstPublic:
-    return "public addressable constant qualifier"_view;
-  case Type::Dynamic:
-    return "exposed addressable qualifier"_view;
-  case Type::ConstDynamic:
-    return "exposed addressable constant qualifier"_view;
-  case Type::Hidden:
-    return "hidden addressable qualifier"_view;
-  case Type::ConstHidden:
-    return "hidden addressable constant qualifier"_view;
-  case Type::Temporary:
-    return "stack addressable qualifier"_view;
-  case Type::ConstTemporary:
-    return "stack addressable constant qualifier"_view;
+    return "public modifier"_view;
+  case Type::Private:
+    return "private modifier"_view;
+  case Type::Expose:
+    return "expose modifier"_view;
+  case Type::State:
+    return "state modifier"_view;
+  case Type::Const:
+    return "const modifier"_view;
 
   // Definition keywords
   case Type::Alias:
@@ -32,8 +26,6 @@ auto Ttx::Lexical::Class::get_name() const -> Perimortem::Core::View::Bytes {
   // Statement and import keywords
   case Type::If:
     return "if"_view;
-  case Type::CompileIf:
-    return "@if"_view;
   case Type::In:
     return "in"_view;
   case Type::For:
@@ -58,7 +50,6 @@ auto Ttx::Lexical::Class::get_name() const -> Perimortem::Core::View::Bytes {
     return "dialect declaration"_view;
   case Type::Func:
     return "function definition"_view;
-
   // Binary operators
   case Type::AddOp:
     return "addition operator (+)"_view;
@@ -151,7 +142,7 @@ auto Ttx::Lexical::Class::get_name() const -> Perimortem::Core::View::Bytes {
 
   // Other fixed markers
   case Type::Attribute:
-    return "compiler directive"_view;
+    return "attribute"_view;
   case Type::Comment:
     return "comment"_view;
   case Type::Disabled:

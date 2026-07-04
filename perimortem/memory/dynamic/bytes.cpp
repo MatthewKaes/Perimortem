@@ -81,9 +81,15 @@ Dynamic::Bytes::~Bytes() {
   reset();
 }
 
-auto Dynamic::Bytes::append(Bits_8 b) -> void {
+auto Dynamic::Bytes::append(Bits_8 byte) -> void {
   ensure_capacity(size + 1);
-  source_block[size++] = b;
+  source_block[size++] = byte;
+}
+
+auto Dynamic::Bytes::append(Bits_8 byte, Count amount) -> void {
+  ensure_capacity(size + amount);
+  Data::set(source_block + size, byte, amount);
+  size += amount;
 }
 
 auto Dynamic::Bytes::concat(Core::View::Bytes view) -> void {

@@ -44,12 +44,18 @@ auto Managed::Bytes::resize(Count new_size) -> void {
   size = new_size;
 }
 
-auto Managed::Bytes::append(Bits_8 b) -> void {
+auto Managed::Bytes::append(Bits_8 byte) -> void {
   ensure_capacity(size + 1);
-  source_block[size++] = b;
+  source_block[size++] = byte;
 }
 
-auto Managed::Bytes::append(View::Bytes view) -> void {
+auto Managed::Bytes::append(Bits_8 byte, Count amount) -> void {
+  ensure_capacity(size + amount);
+  Data::set(source_block + size, byte, amount);
+  size += amount;
+}
+
+auto Managed::Bytes::concat(View::Bytes view) -> void {
   ensure_capacity(size + view.get_size());
 
   memcpy(source_block + size, view.get_data(), view.get_size());
@@ -57,12 +63,8 @@ auto Managed::Bytes::append(View::Bytes view) -> void {
 }
 
 auto Managed::Bytes::proxy(View::Bytes view) -> void {
-  if (view.get_size() > capacity) {
-    grow(view.get_size() - capacity);
-  }
-
-  memcpy(source_block + size, view.get_data(), view.get_size());
-  size = view.get_size();
+  resize(view.get_size());
+  memcpy(source_block, view.get_data(), view.get_size());
 }
 
 auto Managed::Bytes::convert(Bits_8 source, Bits_8 target) -> void {
@@ -90,19 +92,4 @@ auto Managed::Bytes::ensure_capacity(Count required_bytes) -> void {
   memcpy(new_block, source_block, size);
   source_block = new_block;
   capacity = new_capacity;
-}
-
-auto Managed::Bytes::grow(Count requested) -> void {
-  const auto required = capacity + requested;
-  // Attempt to grow by a factor of 2.
-  // If that doesn't work than grow to exact size.
-  capacity *= growth_factor;
-  if (capacity < required) {
-    capacity = required;
-  }
-
-  auto new_block = Data::cast<Bits_8>(arena.allocate(capacity));
-
-  memcpy(new_block, source_block, size);
-  source_block = new_block;
 }

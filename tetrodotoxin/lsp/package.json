@@ -1,0 +1,241 @@
+{
+  "name": "tetrodotoxin-lsp",
+  "description": "TTX language support for Perimortem's Tetrodotoxin Source IR",
+  "categories": [
+    "Programming Languages"
+  ],
+  "displayName": "Tetrodotoxin TTX",
+  "publisher": "Perimortem",
+  "author": "Matt Kaes",
+  "license": "MIT",
+  "icon": "media/icon.png",
+  "version": "0.1.14",
+  "keywords": [
+    "TTX",
+    "Tetrodotoxin",
+    "Perimortem",
+    "source IR",
+    "language server",
+    "shader"
+  ],
+  "pricing": "Free",
+  "galleryBanner": {
+    "color": "#211817",
+    "theme": "dark"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/MatthewKaes/Perimortem"
+  },
+  "homepage": "https://github.com/MatthewKaes/Perimortem/blob/main/README.md",
+  "activationEvents": [
+    "onLanguage:tetrodotoxin"
+  ],
+  "main": "./out/extension",
+  "contributes": {
+    "languages": [
+      {
+        "id": "tetrodotoxin",
+        "aliases": [
+          "Tetrodotoxin"
+        ],
+        "extensions": [
+          ".ttx"
+        ],
+        "icon": {
+          "light": "./media/icon.svg",
+          "dark": "./media/icon.svg"
+        }
+      }
+    ],
+    "grammars": [
+      {
+        "language": "tetrodotoxin",
+        "scopeName": "source.tetrodotoxin",
+        "path": "./syntaxes/tetrodotoxin.tmGrammar.json"
+      }
+    ],
+    "configuration": {
+      "title": "Tetrodotoxin",
+      "properties": {
+        "tetrodotoxin.semanticHighlighting.enabled": {
+          "type": "boolean",
+          "scope": "resource",
+          "default": false,
+          "description": "Enable Tetrodotoxin LSP semantic tokens. Leave disabled to use the bundled TextMate color rules."
+        }
+      }
+    },
+    "configurationDefaults": {
+      "editor.tokenColorCustomizations": {
+        "textMateRules": [
+          {
+            "scope": "source.tetrodotoxin",
+            "settings": {
+              "foreground": "#d8d8d8"
+            }
+          },
+          {
+            "scope": "comment.line.double-slash.tetrodotoxin",
+            "settings": {
+              "foreground": "#787065",
+              "fontStyle": "italic"
+            }
+          },
+          {
+            "scope": "comment.line.disabled.tetrodotoxin",
+            "settings": {
+              "foreground": "#5c5850",
+              "fontStyle": "italic"
+            }
+          },
+          {
+            "scope": "storage.modifier.tetrodotoxin",
+            "settings": {
+              "foreground": "#ad4a52"
+            }
+          },
+          {
+            "scope": "entity.other.attribute-name.tetrodotoxin",
+            "settings": {
+              "foreground": "#ad4a52",
+              "fontStyle": "italic"
+            }
+          },
+          {
+            "scope": [
+              "punctuation.section.braces.tetrodotoxin",
+              "punctuation.section.parens.tetrodotoxin",
+              "punctuation.section.brackets.tetrodotoxin",
+              "punctuation.terminator.statement.tetrodotoxin",
+              "punctuation.separator.comma.tetrodotoxin"
+            ],
+            "settings": {
+              "foreground": "#4e4840"
+            }
+          },
+          {
+            "scope": "punctuation.accessor.tetrodotoxin",
+            "settings": {
+              "foreground": "#605950"
+            }
+          },
+          {
+            "scope": [
+              "constant.numeric.hex-array.tetrodotoxin",
+              "constant.numeric.hex.tetrodotoxin",
+              "constant.numeric.float.tetrodotoxin",
+              "constant.numeric.integer.tetrodotoxin"
+            ],
+            "settings": {
+              "foreground": "#e8c058"
+            }
+          },
+          {
+            "scope": "string.quoted.double.tetrodotoxin",
+            "settings": {
+              "foreground": "#ebd07b"
+            }
+          },
+          {
+            "scope": "entity.name.class.tetrodotoxin",
+            "settings": {
+              "foreground": "#f7a3a7",
+              "fontStyle": ""
+            }
+          },
+          {
+            "scope": "entity.name.type.caller.tetrodotoxin",
+            "settings": {
+              "foreground": "#ed868a",
+              "fontStyle": ""
+            }
+          },
+          {
+            "scope": "constant.language.tetrodotoxin",
+            "settings": {
+              "foreground": "#dd6d72",
+              "fontStyle": "italic"
+            }
+          },
+          {
+            "scope": "entity.name.type.member.tetrodotoxin",
+            "settings": {
+              "foreground": "#f7a3a7",
+              "fontStyle": "italic"
+            }
+          },
+          {
+            "scope": "keyword.other.discard.tetrodotoxin",
+            "settings": {
+              "foreground": "#dd6d72",
+              "fontStyle": "italic"
+            }
+          },
+          {
+            "scope": "keyword.control.tetrodotoxin",
+            "settings": {
+              "foreground": "#dd6d72"
+            }
+          },
+          {
+            "scope": "keyword.other.tetrodotoxin",
+            "settings": {
+              "foreground": "#c7595f"
+            }
+          },
+          {
+            "scope": "entity.name.function.tetrodotoxin",
+            "settings": {
+              "foreground": "#e2d693",
+              "fontStyle": ""
+            }
+          },
+          {
+            "scope": "variable.other.member.tetrodotoxin",
+            "settings": {
+              "foreground": "#c1b6a6"
+            }
+          },
+          {
+            "scope": "support.type.tetrodotoxin",
+            "settings": {
+              "foreground": "#dd6d72"
+            }
+          },
+          {
+            "scope": "entity.name.type.tetrodotoxin",
+            "settings": {
+              "foreground": "#f7a3a7"
+            }
+          },
+          {
+            "scope": [
+              "keyword.operator.tetrodotoxin",
+              "keyword.operator.range.tetrodotoxin"
+            ],
+            "settings": {
+              "foreground": "#988f82"
+            }
+          }
+        ]
+      }
+    }
+  },
+  "scripts": {
+    "bundle": "esbuild src/extension.ts --bundle --platform=node --format=cjs --external:vscode --outfile=out/extension.js",
+    "compile": "tsc --noEmit && npm run bundle",
+    "package": "vsce package"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@types/node": "^22",
+    "@types/vscode": "^1.100.0",
+    "esbuild": "^0.25.6",
+    "typescript": "^5.9.2",
+    "vscode-languageclient": "^9.0.1"
+  },
+  "engines": {
+    "vscode": "^1.100.0"
+  }
+}

@@ -41,7 +41,7 @@ struct TestTiming {
 };
 
 static Diagnostics::Log::Level captured_log_level;
-static Static::Bytes<256> captured_log_message;
+static Static::Bytes<2048> captured_log_message;
 static Count captured_log_message_size = 0;
 
 static Static::Vector<Instance, 4096> binary_tests;

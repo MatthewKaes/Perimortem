@@ -13,7 +13,7 @@ Enable C++ STL comparison benchmarks:
 
 load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
-load("//toolchain:tetrodotoxin.bzl", "ttx_library")
+load("//toolchain:tetrodotoxin.bzl", "ttx_library", "ttx_package")
 
 package(default_visibility = ["//visibility:public"])
 
@@ -32,12 +32,23 @@ cc_library(
     includes = ["."],
 )
 
-# ttx_library(
-#     name = "ttx_tests",
-#     srcs = glob([
-#         "unit_tests/tetrodotoxin/**/*.ttx",
-#     ]),
-# )
+ttx_library(
+    name = "ttx_tests",
+    srcs = [
+        "unit_tests/tetrodotoxin/ttx/source.ttx",
+    ],
+)
+
+ttx_package(
+    name = "graphics_package_smoke",
+    srcs = [
+        "//perimortem:graphics/library/sprite.ttx",
+        "//perimortem:graphics/library/types.ttx",
+        "//perimortem:graphics/package.ttx",
+        "//perimortem:graphics/renderers/renderer_2d.ttx",
+        "//perimortem:graphics/shaders/default_2d.ttx",
+    ],
+)
 
 cc_binary(
     name = "unit_tests",
@@ -50,12 +61,12 @@ cc_binary(
     includes = ["."],
     deps = [
         ":test_headers",
-        # ":ttx_tests",
+        ":ttx_tests",
         "//perimortem",
         "//tetrodotoxin:compiler",
         "//tetrodotoxin:isa",
         "//tetrodotoxin:linker",
-        "//tetrodotoxin:resolution",
+        "//tetrodotoxin:puffer_resolution",
         "//tetrodotoxin:toolchain",
         "//ttx",
     ],

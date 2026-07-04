@@ -3,21 +3,9 @@ Tetrodotoxin - A saltless engine language (.ttx)
 """
 
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 
 package(default_visibility = ["//visibility:public"])
-
-# TODO: Move the standard library packages to the right layer.
-# Maybe ttx? Maybe standard or standard_library?
-# ttx_package(
-#     name = "graphics_package",
-#     srcs = [
-#         "packages/graphics/library/sprite.ttx",
-#         "packages/graphics/library/types.ttx",
-#         "packages/graphics/package.ttx",
-#         "packages/graphics/renderers/renderer_2d.ttx",
-#         "packages/graphics/shaders/default_2d.ttx",
-#     ],
-# )
 
 cc_library(
     name = "isa",
@@ -51,19 +39,73 @@ cc_library(
 )
 
 cc_library(
-    name = "resolution",
+    name = "puffer_resolution",
     srcs = [
-        "resolution/resolver.cpp",
-        "resolution/source/cache.cpp",
+        "puffer/resolution/resolver.cpp",
+        "puffer/resolution/source/cache.cpp",
     ],
     hdrs = [
-        "resolution/resolver.hpp",
-        "resolution/source/cache.hpp",
-        "resolution/source/record.hpp",
+        "puffer/resolution/resolver.hpp",
+        "puffer/resolution/source/cache.hpp",
+        "puffer/resolution/source/record.hpp",
     ],
     includes = ["."],
     deps = [
         ":isa",
+        ":puffer_boot",
+        ":toolchain",
+        "//perimortem",
+        "//ttx",
+    ],
+)
+
+cc_library(
+    name = "puffer_boot",
+    srcs = glob([
+        "puffer/isa/boot/**/*.cpp",
+    ]),
+    hdrs = glob([
+        "puffer/isa/boot/**/*.hpp",
+    ]),
+    includes = ["."],
+    deps = [
+        ":isa",
+        "//perimortem",
+        "//ttx",
+    ],
+)
+
+cc_library(
+    name = "puffer_lsp",
+    srcs = glob([
+        "puffer/lsp/**/*.cpp",
+    ]),
+    hdrs = glob([
+        "puffer/lsp/**/*.hpp",
+    ]),
+    includes = ["."],
+    deps = [
+        ":isa",
+        ":puffer_boot",
+        ":toolchain",
+        "//perimortem",
+        "//perimortem:serialization",
+        "//perimortem:system",
+        "//ttx",
+    ],
+)
+
+cc_binary(
+    name = "puffer",
+    srcs = [
+        "puffer/main.cpp",
+    ],
+    deps = [
+        ":compiler",
+        ":linker",
+        ":puffer_boot",
+        ":puffer_lsp",
+        ":puffer_resolution",
         ":toolchain",
         "//perimortem",
         "//ttx",
@@ -73,15 +115,18 @@ cc_library(
 cc_library(
     name = "compiler",
     srcs = [
+        "compiler/library.cpp",
         "compiler/assembler/spir_v.cpp",
         "compiler/assembler/x86_64.cpp",
     ],
     hdrs = glob([
-        "compiler/assembler/*.hpp",
+        "compiler/**/*.hpp",
     ]),
     includes = ["."],
     deps = [
+        ":linker",
         "//perimortem",
+        "//ttx",
     ],
 )
 

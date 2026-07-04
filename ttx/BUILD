@@ -33,6 +33,7 @@ cc_library(
         "type.cpp",
     ],
     hdrs = [
+        "attribute.hpp",
         "documentation.hpp",
         "layout.hpp",
         "type.hpp",
