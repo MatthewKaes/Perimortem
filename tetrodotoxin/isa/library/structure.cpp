@@ -6,7 +6,7 @@
 #include "perimortem/memory/managed/vector.hpp"
 
 #include "tetrodotoxin/isa/attribute.hpp"
-#include "tetrodotoxin/isa/boot/documentation.hpp"
+#include "tetrodotoxin/isa/documentation.hpp"
 #include "tetrodotoxin/isa/library/addressable.hpp"
 #include "tetrodotoxin/isa/library/function.hpp"
 #include "tetrodotoxin/isa/library/syntax.hpp"
@@ -36,7 +36,7 @@ auto Library::Structure::evaluate(
   while (!cursor.matches(Class::Type::EndOfStream) &&
          !cursor.matches(Class::Type::ScopeEnd)) {
     Ttx::Documentation member_documentation =
-        Boot::Documentation::evaluate(cursor);
+        Documentation::evaluate(cursor);
     if (!Attribute::consume_all(cursor)) {
       return nullptr;
     }

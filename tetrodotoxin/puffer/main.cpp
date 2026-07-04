@@ -18,8 +18,8 @@
 
 #include "tetrodotoxin/compiler/library.hpp"
 #include "tetrodotoxin/linker/linker.hpp"
-#include "tetrodotoxin/resolution/resolver.hpp"
-#include "tetrodotoxin/resolution/source/record.hpp"
+#include "tetrodotoxin/puffer/resolution/resolver.hpp"
+#include "tetrodotoxin/puffer/resolution/source/record.hpp"
 #include "tetrodotoxin/toolchain.hpp"
 #include "ttx/type.hpp"
 
@@ -27,11 +27,11 @@ using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
 using namespace Perimortem::System;
 using namespace Tetrodotoxin;
-using namespace Tetrodotoxin::Resolution;
+using namespace Tetrodotoxin::Puffer::Resolution;
 
-class Puffer {
+class Main {
  public:
-  Puffer() : library_compiler(arena) {}
+  Main() : library_compiler(arena) {}
 
   auto run(View::Vector<View::Bytes> command_line) -> Signed_32 {
     Bool help_requested = requested_help(command_line);
@@ -82,10 +82,10 @@ class Puffer {
       return 1;
     }
 
-    View::Bytes puffer_path = arg_value(options, "-puffer"_view);
-    if (!write_file(puffer_path, terminal_data.get_view())) {
-      fprintf(stderr, "puffer: failed to write puffer sidecar ");
-      print_bytes(stderr, puffer_path);
+    View::Bytes puffer_buffer_path = arg_value(options, "-puffer"_view);
+    if (!write_file(puffer_buffer_path, puffer_buffer.get_view())) {
+      fprintf(stderr, "puffer: failed to write Puffer Buffer ");
+      print_bytes(stderr, puffer_buffer_path);
       fprintf(stderr, "\n");
       return 1;
     }
@@ -97,7 +97,7 @@ class Puffer {
   using Configs = Managed::Map<View::Bytes, Args::Config>;
 
   static constexpr View::Bytes help_summary =
-      "Compile TTX sources into archives and puffer sidecars for Bazel."_view;
+      "Compile TTX sources into archives and Puffer Buffers for Bazel."_view;
 
   static auto print_bytes(FILE* file, View::Bytes bytes) -> void {
     fprintf(
@@ -107,8 +107,7 @@ class Puffer {
 
   static auto requested_help(View::Vector<View::Bytes> command_line) -> Bool {
     for (Count i = 1; i < command_line.get_size(); i++) {
-      if (command_line[i] == "--help"_view || command_line[i] == "-help"_view ||
-          command_line[i] == "-h"_view) {
+      if (command_line[i] == "-help"_view) {
         return True;
       }
     }
@@ -138,7 +137,7 @@ class Puffer {
     variables.insert(
         "-puffer"_view,
         {
-            .help = "Write the puffer terminal sidecar."_view,
+            .help = "Write the Puffer Buffer output."_view,
             .required = True,
         });
     variables.insert(
@@ -265,11 +264,11 @@ class Puffer {
   }
 
   auto append_field(View::Bytes name, View::Bytes value) -> void {
-    terminal_data.concat(name);
-    terminal_data.append(':');
-    terminal_data.append(' ');
-    terminal_data.concat(value);
-    terminal_data.append('\n');
+    puffer_buffer.concat(name);
+    puffer_buffer.append(':');
+    puffer_buffer.append(' ');
+    puffer_buffer.concat(value);
+    puffer_buffer.append('\n');
   }
 
   auto append_type_facts(const Ttx::Type& type, View::Bytes path) -> void {
@@ -302,30 +301,30 @@ class Puffer {
   auto append_member_fact(
       View::Bytes owner,
       const Ttx::Type::Member& member) -> void {
-    terminal_data.concat("member: "_view);
-    terminal_data.concat(owner);
-    terminal_data.concat("."_view);
-    terminal_data.concat(member.get_name().is_empty() ? "_"_view
+    puffer_buffer.concat("member: "_view);
+    puffer_buffer.concat(owner);
+    puffer_buffer.concat("."_view);
+    puffer_buffer.concat(member.get_name().is_empty() ? "_"_view
                                                       : member.get_name());
-    terminal_data.concat(" "_view);
-    terminal_data.concat(type_name(member.get_type()));
-    terminal_data.append('\n');
+    puffer_buffer.concat(" "_view);
+    puffer_buffer.concat(type_name(member.get_type()));
+    puffer_buffer.append('\n');
   }
 
   auto append_function_fact(
       View::Bytes owner,
       const Ttx::Type::Function& function) -> void {
-    terminal_data.concat("function: "_view);
-    terminal_data.concat(owner);
-    terminal_data.concat("->"_view);
-    terminal_data.concat(function.get_name());
-    terminal_data.concat(" params="_view);
-    append_decimal(terminal_data, function.get_parameters().get_size());
-    terminal_data.concat(" result="_view);
-    append_decimal(terminal_data, function.get_result().get_size());
-    terminal_data.concat(" blocks="_view);
-    append_decimal(terminal_data, function.get_blocks().get_size());
-    terminal_data.append('\n');
+    puffer_buffer.concat("function: "_view);
+    puffer_buffer.concat(owner);
+    puffer_buffer.concat("->"_view);
+    puffer_buffer.concat(function.get_name());
+    puffer_buffer.concat(" params="_view);
+    append_decimal(puffer_buffer, function.get_parameters().get_size());
+    puffer_buffer.concat(" result="_view);
+    append_decimal(puffer_buffer, function.get_result().get_size());
+    puffer_buffer.concat(" blocks="_view);
+    append_decimal(puffer_buffer, function.get_blocks().get_size());
+    puffer_buffer.append('\n');
   }
 
   static auto type_name(const Ttx::Type* type) -> View::Bytes {
@@ -403,7 +402,7 @@ class Puffer {
 
   Allocator::Arena arena;
   Compiler::Library library_compiler;
-  Dynamic::Bytes terminal_data;
+  Dynamic::Bytes puffer_buffer;
   Count terminal_count = 0;
   Bool package = False;
 };
@@ -426,6 +425,6 @@ Signed_32 main(Signed_32 argc, Signed_8** argv) {
     arguments[i] = NullTerminated::to_view(argv[i]);
   }
 
-  Puffer puffer;
-  return puffer.run(arguments.slice(0, argument_count));
+  Main main;
+  return main.run(arguments.slice(0, argument_count));
 }

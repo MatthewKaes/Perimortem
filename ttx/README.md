@@ -32,15 +32,15 @@ package, foreign-boundary, and backend facts when those facts are available.
 spellings such as `.`, `.[`, `:[`, `::`, `->`, `[`, and `;` become stable token
 classes here.
 
-Tetrodotoxin begins full-source execution by calling the `Boot` ISA directly.
-Boot understands Tetrodotoxin's source envelope: documentation, the
-`dialect : Name;` instruction, and imports. The dialect instruction selects the
-next body ISA from Tetrodotoxin's active `Isa::Registry`; it is not an
-out-of-band parser option. Boot is called directly for complete source files,
-rather than installed as a body ISA.
+Puffer begins full-source execution by calling its `Boot` ISA directly. Boot
+understands Puffer's source preamble: documentation, the `dialect : Name;`
+instruction, and imports. The dialect instruction selects the next body ISA from
+Tetrodotoxin's active `Isa::Registry`; it is not an out-of-band parser option.
+Boot is called directly for complete source files, rather than installed as a
+body ISA.
 
-The Tetrodotoxin resolver loads the import closure, resolves package names such
-as `Perimortem::Graphics` to manifests, checks that imported files declare the
+The Puffer resolver loads the import closure, resolves package names such as
+`Perimortem::Graphics` to manifests, checks that imported files declare the
 requested ISA, and binds each import to the local name written in the source
 file. It also owns the cache rules that keep source records valid when a
 dependency changes.
@@ -56,8 +56,7 @@ There is no extra authority between resolved TTX and the thing being emitted.
 
 ## Reference Source Envelope
 
-Tetrodotoxin source files start in the Boot ISA. The order is fixed for that
-host:
+Puffer source files start in the Boot ISA. The order is fixed for that host:
 
 ```text
 optional documentation comment
@@ -81,14 +80,14 @@ private Default2D : alias = Graphics::Shaders::Default2D;
 
 The dialect instruction does not select a closed enum. It is an instruction in
 the token stream that names the ISA that should evaluate the body. Boot records
-that name and the imports. Tetrodotoxin package loading then loads the required
-source files and asks the toolchain's `Isa::Registry` for the body evaluator
-once the local import environment is complete.
+that name and the imports. Puffer resolution then loads the required source
+files and asks the toolchain's `Isa::Registry` for the body evaluator once the
+local import environment is complete.
 
 The source execution is intentionally split:
 
 ```text
-Boot ISA: execute header + imports
+Puffer Boot ISA: execute preamble + imports
 Resolver: load files + bind import aliases
 Body ISA: evaluate remaining bytecode with resolved imports
 ```
@@ -106,7 +105,7 @@ That matters because ISAs are open. Adding `Shader`, `Render`, `Entity`, or a
 project-specific authoring space means installing an ISA evaluator into the
 toolchain, not editing a package-kind enum in multiple places.
 
-Boot's job stays small. It reads the ISA name, validates that the active
+Puffer Boot's job stays small. It reads the ISA name, validates that the active
 toolchain installed an evaluator for that name, records the requested imports,
 and leaves the remaining bytecode for that evaluator once resolution has bound
 the local import names.
@@ -302,10 +301,10 @@ The package file is not a second language. It is TTX token bytecode evaluated by
 a Package ISA. Package declares its package identity and describes package
 exports through the same type and layout model.
 
-A host owns the walk from package name to package manifest. Tetrodotoxin tools
-create a root resolver from their active toolchain. Each package can own a local
-resolver for its private files, so package internals such as
-`shaders/default2d.ttx` are not part of the public Tetrodotoxin resolver API.
+A host owns the walk from package name to package manifest. Puffer creates a
+root resolver from its active toolchain. Each package can own a local resolver
+for its private files, so package internals such as `shaders/default2d.ttx` are
+not part of the public Puffer resolver API.
 External sources import `Perimortem::Graphics`, then resolve
 `Graphics::Shaders::Default2D` through the package's exports.
 
@@ -346,13 +345,15 @@ The TTX directory is the language core:
 
 Tetrodotoxin is the surrounding toolchain:
 
-- [`../tetrodotoxin/main.cpp`](../tetrodotoxin/main.cpp) is the `puffer`
+- [`../tetrodotoxin/puffer/main.cpp`](../tetrodotoxin/puffer/main.cpp) is the `puffer`
   command-line surface
+- [`../tetrodotoxin/puffer/isa/boot`](../tetrodotoxin/puffer/isa/boot/) owns
+  Puffer's source preamble ISA
+- [`../tetrodotoxin/puffer/resolution`](../tetrodotoxin/puffer/resolution/) owns source
+  loading, package loading, import binding, the source cache, and cache validity
 - [`../tetrodotoxin/lsp`](../tetrodotoxin/lsp/) serves editor features
 - [`../tetrodotoxin/isa`](../tetrodotoxin/isa/) owns the VM instruction sets
-  such as Boot, Package, Library, Shader, and Render
-- [`../tetrodotoxin/resolution`](../tetrodotoxin/resolution/) owns source
-  loading, package loading, import binding, the source cache, and cache validity
+  such as Package, Library, Shader, and Render
 - [`../perimortem/graphics/package.ttx`](../perimortem/graphics/package.ttx)
   describes the Perimortem graphics ABI as a TTX package
 - [`../toolchain/tetrodotoxin.bzl`](../toolchain/tetrodotoxin.bzl) integrates

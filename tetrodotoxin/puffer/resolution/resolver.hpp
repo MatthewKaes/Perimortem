@@ -10,14 +10,14 @@
 #include "perimortem/memory/dynamic/bytes.hpp"
 #include "perimortem/memory/dynamic/vector.hpp"
 
-#include "tetrodotoxin/isa/boot/import.hpp"
-#include "tetrodotoxin/resolution/source/cache.hpp"
+#include "tetrodotoxin/puffer/isa/boot/import.hpp"
+#include "tetrodotoxin/puffer/resolution/source/cache.hpp"
 #include "tetrodotoxin/toolchain.hpp"
 #include "ttx/lexical/error.hpp"
 
-namespace Tetrodotoxin::Resolution {
+namespace Tetrodotoxin::Puffer::Resolution {
 
-// Resolves TTX source requests into cached source envelopes.
+// Resolves TTX source requests into cached source records.
 //
 // Resolver is the source resolution state machine for one package boundary in a
 // caller-provided Tetrodotoxin toolchain. Tools such as the CLI and LSP create a
@@ -90,7 +90,7 @@ class Resolver {
   auto load_import(
       Context& context,
       Source::Record& owner,
-      const Tetrodotoxin::Isa::Boot::Import& import,
+      const Tetrodotoxin::Puffer::Isa::Boot::Import& import,
       Bool private_source,
       Perimortem::Memory::Dynamic::Vector<Perimortem::Memory::Dynamic::Bytes>&
           resolving,
@@ -131,4 +131,4 @@ class Resolver {
   const Tetrodotoxin::Toolchain& toolchain;
 };
 
-}  // namespace Tetrodotoxin::Resolution
+}  // namespace Tetrodotoxin::Puffer::Resolution

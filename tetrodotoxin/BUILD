@@ -39,20 +39,37 @@ cc_library(
 )
 
 cc_library(
-    name = "resolution",
+    name = "puffer_resolution",
     srcs = [
-        "resolution/resolver.cpp",
-        "resolution/source/cache.cpp",
+        "puffer/resolution/resolver.cpp",
+        "puffer/resolution/source/cache.cpp",
     ],
     hdrs = [
-        "resolution/resolver.hpp",
-        "resolution/source/cache.hpp",
-        "resolution/source/record.hpp",
+        "puffer/resolution/resolver.hpp",
+        "puffer/resolution/source/cache.hpp",
+        "puffer/resolution/source/record.hpp",
     ],
     includes = ["."],
     deps = [
         ":isa",
+        ":puffer_boot",
         ":toolchain",
+        "//perimortem",
+        "//ttx",
+    ],
+)
+
+cc_library(
+    name = "puffer_boot",
+    srcs = glob([
+        "puffer/isa/boot/**/*.cpp",
+    ]),
+    hdrs = glob([
+        "puffer/isa/boot/**/*.hpp",
+    ]),
+    includes = ["."],
+    deps = [
+        ":isa",
         "//perimortem",
         "//ttx",
     ],
@@ -66,7 +83,8 @@ cc_binary(
     deps = [
         ":compiler",
         ":linker",
-        ":resolution",
+        ":puffer_boot",
+        ":puffer_resolution",
         ":toolchain",
         "//perimortem",
         "//ttx",

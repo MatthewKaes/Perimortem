@@ -78,8 +78,7 @@ static auto starts_argument(View::Bytes argument) -> Bool {
 }
 
 static auto requested_help(View::Bytes argument) -> Bool {
-  return argument == "--help"_view || argument == "-help"_view ||
-         argument == "-h"_view;
+  return argument == "-help"_view;
 }
 
 static auto format_help(
@@ -87,7 +86,7 @@ static auto format_help(
     View::Bytes summary,
     const Configs& variables,
     View::Bytes command) -> Managed::Bytes {
-  Count label_width = "-h, --help"_view.get_size();
+  Count label_width = "-help"_view.get_size();
   for (Count i = 0; i < variables.get_size(); i++) {
     const auto* variable = variables.get_entry(i);
     label_width = Math::max(label_width, variable->key.get_size());
@@ -115,8 +114,8 @@ static auto format_help(
     output.append('\n');
   }
 
-  output.concat("  -h, --help"_view);
-  output.append(Bits_8(' '), label_width - "-h, --help"_view.get_size());
+  output.concat("  -help"_view);
+  output.append(Bits_8(' '), label_width - "-help"_view.get_size());
   output.concat("Show this help.\n"_view);
   return output;
 }

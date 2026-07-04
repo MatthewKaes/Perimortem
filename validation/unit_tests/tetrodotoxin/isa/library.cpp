@@ -3,12 +3,12 @@
 
 #include "validation/unit_test.hpp"
 
-#include "tetrodotoxin/resolution/resolver.hpp"
+#include "tetrodotoxin/puffer/resolution/resolver.hpp"
 #include "tetrodotoxin/toolchain.hpp"
 #include "ttx/type.hpp"
 
 using namespace Perimortem::Core;
-using namespace Tetrodotoxin::Resolution;
+using namespace Tetrodotoxin::Puffer::Resolution;
 using namespace Validation;
 
 static Harness TetrodotoxinLibrary = {

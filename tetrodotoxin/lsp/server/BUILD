@@ -46,6 +46,7 @@ cc_binary(
         "//perimortem:serialization",
         "//perimortem:system",
         "//tetrodotoxin:isa",
+        "//tetrodotoxin:puffer_boot",
         "//tetrodotoxin:toolchain",
         "//ttx",
     ],

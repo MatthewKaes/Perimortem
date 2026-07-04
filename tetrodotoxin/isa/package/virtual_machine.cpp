@@ -5,7 +5,7 @@
 
 #include "perimortem/memory/managed/vector.hpp"
 
-#include "tetrodotoxin/isa/boot/documentation.hpp"
+#include "tetrodotoxin/isa/documentation.hpp"
 #include "tetrodotoxin/isa/package/export.hpp"
 #include "tetrodotoxin/isa/package/package_name.hpp"
 #include "ttx/type.hpp"
@@ -59,7 +59,7 @@ auto Package::VirtualMachine::evaluate(Context& context, Cursor& cursor)
   Managed::Vector<Package::Export> exports(cursor.get_arena());
 
   while (!cursor.matches(Class::Type::EndOfStream)) {
-    Ttx::Documentation documentation = Boot::Documentation::evaluate(cursor);
+    Ttx::Documentation documentation = Documentation::evaluate(cursor);
     if (cursor.current().get_class() == Class::Type::Attribute &&
         cursor.current().get_text() == "@package_name"_view) {
       if (!package_name.is_empty()) {

@@ -5,15 +5,15 @@
 
 #include "perimortem/core/view/bytes.hpp"
 
-#include "tetrodotoxin/isa/boot/envelope.hpp"
 #include "tetrodotoxin/isa/registry.hpp"
+#include "tetrodotoxin/puffer/isa/boot/envelope.hpp"
 #include "ttx/lexical/cursor.hpp"
 
-namespace Tetrodotoxin::Isa::Boot {
+namespace Tetrodotoxin::Puffer::Isa::Boot {
 
-// Boot is the fixed startup ISA for full TTX source files.
+// Boot is Puffer's fixed startup ISA for complete source files.
 //
-// It reads the envelope bytecode and leaves the cursor at the selected body ISA
+// It reads the source preamble and leaves the cursor at the selected body ISA
 // once documentation, dialect selection, and imports are known.
 class VirtualMachine {
  public:
@@ -26,4 +26,4 @@ class VirtualMachine {
   }
 };
 
-}  // namespace Tetrodotoxin::Isa::Boot
+}  // namespace Tetrodotoxin::Puffer::Isa::Boot

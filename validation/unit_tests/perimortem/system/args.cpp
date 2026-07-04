@@ -95,22 +95,33 @@ PERIMORTEM_UNIT_TEST(SystemArgs, basic_parse) {
 
 PERIMORTEM_UNIT_TEST(SystemArgs, help_text) {
   constexpr Static::Vector<View::Bytes, 2> raw = {
-    "/tmp/demo"_view, "--help"_view};
+    "/tmp/demo"_view, "-help"_view};
   constexpr View::Bytes expected =
       "usage: demo [arguments]\n\n"
       "Test parser.\n\n"
       "arguments:\n"
-      "  -fast       Enable fast path.\n"
-      "  -ratio      Ratio value.\n"
-      "  -output     Output file.\n"
-      "  -dep        Dependency file.\n"
-      "  -threads    Worker count.\n"
-      "  -h, --help  Show this help.\n"_view;
+      "  -fast     Enable fast path.\n"
+      "  -ratio    Ratio value.\n"
+      "  -output   Output file.\n"
+      "  -dep      Dependency file.\n"
+      "  -threads  Worker count.\n"
+      "  -help     Show this help.\n"_view;
   Allocator::Arena arena;
 
   Args::Values parsed = parse(arena, raw);
   ASSERT(parsed.is_empty());
   EXPECT_TEXT(Test::captured_message(), expected);
+}
+
+PERIMORTEM_UNIT_TEST(SystemArgs, double_dash_help) {
+  constexpr Static::Vector<View::Bytes, 2> raw = {
+    "demo"_view, "--help"_view};
+  Allocator::Arena arena;
+
+  Diagnostics::Log::set_level(Diagnostics::Log::Level::Error);
+  Args::Values parsed = parse(arena, raw);
+  ASSERT(parsed.is_empty());
+  EXPECT(Test::error_contains("unrecognized arg --help"_view));
 }
 
 PERIMORTEM_UNIT_TEST(SystemArgs, empty_value) {

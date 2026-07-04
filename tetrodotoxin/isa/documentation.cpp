@@ -1,16 +1,16 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
-#include "tetrodotoxin/isa/boot/documentation.hpp"
+#include "tetrodotoxin/isa/documentation.hpp"
 
-#include "perimortem/core/null_terminated.hpp"
+#include "perimortem/memory/managed/vector.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
 using namespace Tetrodotoxin::Isa;
 using namespace Ttx::Lexical;
 
-auto Boot::Documentation::evaluate(Cursor& cursor) -> Ttx::Documentation {
+auto Documentation::evaluate(Cursor& cursor) -> Ttx::Documentation {
   // Documentation is a TTX fact, not a token fact, so strip the comment tokens
   // down to the source lines that should travel with the evaluated object.
   Managed::Vector<View::Bytes> lines(cursor.get_arena());

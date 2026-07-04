@@ -1,7 +1,7 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
-#include "tetrodotoxin/resolution/resolver.hpp"
+#include "tetrodotoxin/puffer/resolution/resolver.hpp"
 
 #include "perimortem/core/data.hpp"
 
@@ -10,8 +10,8 @@
 #include "perimortem/system/file.hpp"
 #include "perimortem/system/path.hpp"
 
-#include "tetrodotoxin/isa/boot/virtual_machine.hpp"
 #include "tetrodotoxin/isa/package/virtual_machine.hpp"
+#include "tetrodotoxin/puffer/isa/boot/virtual_machine.hpp"
 #include "ttx/lexical/cursor.hpp"
 #include "ttx/lexical/tokenizer.hpp"
 
@@ -19,7 +19,8 @@ using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
 using namespace Perimortem::System;
 using namespace Tetrodotoxin::Isa;
-using namespace Tetrodotoxin::Resolution;
+using namespace Tetrodotoxin::Puffer::Isa;
+using namespace Tetrodotoxin::Puffer::Resolution;
 
 static auto starts_with(View::Bytes value, View::Bytes prefix) -> Bool {
   return value.get_size() >= prefix.get_size() &&
@@ -483,9 +484,9 @@ auto Resolver::load_import(
 }
 
 auto Resolver::evaluate_boot(Context& context, Source::Record& record) -> Bool {
-  // Resolver calls Boot directly for complete source files and passes the
-  // toolchain's body ISA registry so the envelope can validate the selected ISA
-  // and import ISA operands.
+  // Resolver calls Puffer Boot directly for complete source files and passes
+  // the toolchain's body ISA registry so the preamble can validate the selected
+  // ISA and import ISA operands.
   Ttx::Lexical::Tokenizer tokenizer(
       record.get_arena(), record.get_content(), record.get_source_path());
   Ttx::Lexical::Cursor cursor(tokenizer);

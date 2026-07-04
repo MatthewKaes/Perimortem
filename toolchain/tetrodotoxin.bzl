@@ -3,7 +3,7 @@ Starlark rules for the Tetrodotoxin (TTX) language.
 
 The TTX compiler aims to provide a way to compile TTX directly to static
 libraries that can be consumed by the regular `cc_toolchain`, alongside
-`.puffer` sidecars that carry terminal source facts for Tetrodotoxin tooling.
+Puffer Buffers that carry terminal source facts for Tetrodotoxin tooling.
 
 Usage in a BUILD file:
 
@@ -19,8 +19,8 @@ A generated header is automatically available to dependents:
     #include "ttx_generated/my_lib.hpp"
 
 The default compiler executable is `//tetrodotoxin:puffer`, the Tetrodotoxin
-CLI that resolves sources with the standard toolchain and emits archive plus
-puffer sidecar artifacts for Bazel.
+CLI that resolves sources with the standard toolchain and emits archives plus
+Puffer Buffers for Bazel.
 
 Executable application targets should come back after dialect parsing and
 lowering can produce real declarations. This file intentionally does not
@@ -37,15 +37,16 @@ load("@rules_cc//cc/common:cc_info.bzl", "CcInfo")
 
 TtxPackageInfo = provider(
     doc = (
-        "Transitive TTX source and puffer files visible to Tetrodotoxin."
+        "Transitive TTX source files and Puffer Buffers visible to Tetrodotoxin."
     ),
     fields = {
         "source_files": (
             "depset of .ttx source files used for package and raw-file " +
             "loading."
         ),
-        "puffer_files": (
-            "depset of .puffer sidecars emitted for Tetrodotoxin tooling."
+        "puffer_buffers": (
+            "depset of .puffer Puffer Buffer artifacts emitted for " +
+            "Tetrodotoxin tooling."
         ),
     },
 )
@@ -56,16 +57,16 @@ def _collect_ttx_source_files(deps):
         for dep in deps
     ])
 
-def _collect_puffer_files(deps):
+def _collect_puffer_buffers(deps):
     return depset(transitive = [
-        dep[TtxPackageInfo].puffer_files
+        dep[TtxPackageInfo].puffer_buffers
         for dep in deps
     ])
 
 def _ttx_compile_impl(ctx, package):
     archive = ctx.actions.declare_file(ctx.attr.name + ".a")
     header = ctx.actions.declare_file("ttx_generated/" + ctx.attr.name + ".hpp")
-    puffer = ctx.actions.declare_file(ctx.attr.name + ".puffer")
+    puffer_buffer = ctx.actions.declare_file(ctx.attr.name + ".puffer")
     include_root = ctx.bin_dir.path
     if ctx.label.package:
         include_root = include_root + "/" + ctx.label.package
@@ -77,10 +78,10 @@ def _ttx_compile_impl(ctx, package):
         "-header",
         header.path,
         "-puffer",
-        puffer.path,
+        puffer_buffer.path,
     ]
     dependency_source_files = _collect_ttx_source_files(ctx.attr.deps)
-    dependency_puffer_files = _collect_puffer_files(ctx.attr.deps)
+    dependency_puffer_buffers = _collect_puffer_buffers(ctx.attr.deps)
     for dep_source in dependency_source_files.to_list():
         args.extend(["-dep", dep_source.path])
 
@@ -93,7 +94,7 @@ def _ttx_compile_impl(ctx, package):
             direct = ctx.files.srcs,
             transitive = [dependency_source_files],
         ),
-        outputs = [archive, header, puffer],
+        outputs = [archive, header, puffer_buffer],
         executable = ctx.executable._compiler,
         arguments = args,
         mnemonic = "TtxCompile",
@@ -143,12 +144,12 @@ def _ttx_compile_impl(ctx, package):
                 direct = ctx.files.srcs,
                 transitive = [dependency_source_files],
             ),
-            puffer_files = depset(
-                direct = [puffer],
-                transitive = [dependency_puffer_files],
+            puffer_buffers = depset(
+                direct = [puffer_buffer],
+                transitive = [dependency_puffer_buffers],
             ),
         ),
-        DefaultInfo(files = depset([archive, header, puffer])),
+        DefaultInfo(files = depset([archive, header, puffer_buffer])),
     ]
 
 def _ttx_library_impl(ctx):

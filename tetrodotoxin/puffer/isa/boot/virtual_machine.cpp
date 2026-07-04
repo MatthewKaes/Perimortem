@@ -1,20 +1,20 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
-#include "tetrodotoxin/isa/boot/virtual_machine.hpp"
+#include "tetrodotoxin/puffer/isa/boot/virtual_machine.hpp"
 
 #include "perimortem/memory/managed/vector.hpp"
 
-#include "tetrodotoxin/isa/boot/documentation.hpp"
-#include "tetrodotoxin/isa/boot/import.hpp"
+#include "tetrodotoxin/isa/documentation.hpp"
 
 using namespace Perimortem::Memory;
-using namespace Tetrodotoxin::Isa;
+using namespace Tetrodotoxin::Puffer::Isa;
 using namespace Ttx::Lexical;
 
-auto Boot::VirtualMachine::evaluate(Cursor& cursor, const Registry& registry)
-    -> Boot::Envelope* {
-  const auto documentation = Boot::Documentation::evaluate(cursor);
+auto Boot::VirtualMachine::evaluate(
+    Cursor& cursor,
+    const Tetrodotoxin::Isa::Registry& registry) -> Boot::Envelope* {
+  const auto documentation = Tetrodotoxin::Isa::Documentation::evaluate(cursor);
 
   if (!cursor.require(
           Class::Type::Dialect,

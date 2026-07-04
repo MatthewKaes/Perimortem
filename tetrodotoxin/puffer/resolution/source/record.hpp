@@ -10,15 +10,15 @@
 #include "perimortem/memory/allocator/arena.hpp"
 #include "perimortem/memory/dynamic/bytes.hpp"
 
-#include "tetrodotoxin/isa/boot/envelope.hpp"
+#include "tetrodotoxin/puffer/isa/boot/envelope.hpp"
 #include "ttx/type.hpp"
 
-namespace Tetrodotoxin::Resolution::Source {
+namespace Tetrodotoxin::Puffer::Resolution::Source {
 
 // Stable source entry owned by the resolution cache.
 //
 // A record owns the storage whose lifetime is exactly one resolved source file:
-// normalized source path, source bytes, evaluation arena, Boot envelope, and
+// normalized source path, source bytes, evaluation arena, Boot preamble, and
 // the root TTX type published by the selected ISAs are all stored by the
 // Record. The Resolver's `Cache` owns lookup keys and dependency edges which
 // keeps the Record focused on the local virtualized state of executing a single
@@ -43,7 +43,7 @@ class Record {
   Record(const Record&) = delete;
   auto operator=(const Record&) -> Record& = delete;
 
-  auto set_boot(Tetrodotoxin::Isa::Boot::Envelope& boot) -> void {
+  auto set_boot(Tetrodotoxin::Puffer::Isa::Boot::Envelope& boot) -> void {
     boot_info = &boot;
   }
 
@@ -67,10 +67,11 @@ class Record {
   constexpr auto get_content() const -> Perimortem::Core::View::Bytes {
     return source_text;
   }
-  constexpr auto get_boot() -> Tetrodotoxin::Isa::Boot::Envelope& {
+  constexpr auto get_boot() -> Tetrodotoxin::Puffer::Isa::Boot::Envelope& {
     return *boot_info;
   }
-  constexpr auto get_boot() const -> const Tetrodotoxin::Isa::Boot::Envelope& {
+  constexpr auto get_boot() const
+      -> const Tetrodotoxin::Puffer::Isa::Boot::Envelope& {
     return *boot_info;
   }
   constexpr auto get_type() -> Ttx::Type* { return type; }
@@ -91,9 +92,9 @@ class Record {
   Perimortem::Memory::Dynamic::Bytes source_path;
   Perimortem::Memory::Dynamic::Bytes import_name;
   Perimortem::Memory::Dynamic::Bytes source_text;
-  Tetrodotoxin::Isa::Boot::Envelope* boot_info = nullptr;
+  Tetrodotoxin::Puffer::Isa::Boot::Envelope* boot_info = nullptr;
   Ttx::Type* type = nullptr;
   Bool private_source = False;
 };
 
-}  // namespace Tetrodotoxin::Resolution::Source
+}  // namespace Tetrodotoxin::Puffer::Resolution::Source

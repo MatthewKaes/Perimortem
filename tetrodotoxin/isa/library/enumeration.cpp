@@ -6,7 +6,7 @@
 #include "perimortem/memory/managed/vector.hpp"
 
 #include "tetrodotoxin/isa/attribute.hpp"
-#include "tetrodotoxin/isa/boot/documentation.hpp"
+#include "tetrodotoxin/isa/documentation.hpp"
 #include "tetrodotoxin/isa/library/function.hpp"
 #include "tetrodotoxin/isa/library/syntax.hpp"
 #include "tetrodotoxin/isa/modifier.hpp"
@@ -251,7 +251,7 @@ static auto evaluate_scoped_cases(
   Bool valid = True;
   while (!cursor.matches(Class::Type::EndOfStream) &&
          !cursor.matches(Class::Type::ScopeEnd)) {
-    Ttx::Documentation documentation = Boot::Documentation::evaluate(cursor);
+    Ttx::Documentation documentation = Documentation::evaluate(cursor);
     if (!Attribute::consume_all(cursor)) {
       return nullptr;
     }

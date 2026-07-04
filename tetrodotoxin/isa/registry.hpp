@@ -18,9 +18,9 @@ namespace Tetrodotoxin::Isa {
 // locked as of now as all their computations use a shared cluster memory space
 // that is thread localized.
 //
-// The Boot ISA is not part of this table. Full source files call Boot directly
-// as it's used for initalizing a cluster. Post boot ISAs may select after the
-// `Resolver` has prepared imports for the source record.
+// Preamble ISAs such as Puffer Boot are not part of this table. This registry
+// contains the body ISAs that execute after a caller has prepared imports for a
+// source record.
 class Registry {
  public:
   using EvaluateFunction =

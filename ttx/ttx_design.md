@@ -165,10 +165,10 @@ dialect : Entity;
 ```
 
 The source keyword remains `dialect`, but semantically this instruction names an
-evaluator installed in the active host. Tetrodotoxin implements this convention
-with a direct Boot ISA call and an `Isa::Registry`, but that registry is a
-Tetrodotoxin toolchain detail. An ISA is not a separate lowered IR stage. It is
-the instruction set that owns the next bytecode span and may publish or consume
+evaluator installed in the active host. Puffer implements this convention with a
+direct Boot ISA call and Tetrodotoxin's `Isa::Registry`, but that registry is a
+toolchain detail. An ISA is not a separate lowered IR stage. It is the
+instruction set that owns the next bytecode span and may publish or consume
 `Ttx::Type`, `Ttx::Layout`, or other host facts.
 
 The lowercase `dialect` marker is a reserved keyword. The ISA name after

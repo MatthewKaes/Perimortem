@@ -1,11 +1,11 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
-#include "tetrodotoxin/resolution/source/cache.hpp"
+#include "tetrodotoxin/puffer/resolution/source/cache.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
-using namespace Tetrodotoxin::Resolution;
+using namespace Tetrodotoxin::Puffer::Resolution;
 
 static auto insert_once(
     Dynamic::Vector<Source::Record*>& records,

@@ -8,9 +8,9 @@
 #include "perimortem/memory/dynamic/map.hpp"
 #include "perimortem/memory/dynamic/vector.hpp"
 
-#include "tetrodotoxin/resolution/source/record.hpp"
+#include "tetrodotoxin/puffer/resolution/source/record.hpp"
 
-namespace Tetrodotoxin::Resolution::Source {
+namespace Tetrodotoxin::Puffer::Resolution::Source {
 
 // Resolver source cache with the dependency indexes needed for invalidation.
 //
@@ -59,4 +59,4 @@ class Cache {
       producers_by_consumer;
 };
 
-}  // namespace Tetrodotoxin::Resolution::Source
+}  // namespace Tetrodotoxin::Puffer::Resolution::Source

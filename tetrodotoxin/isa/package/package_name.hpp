@@ -12,11 +12,11 @@ namespace Tetrodotoxin::Isa::Package {
 
 // PackageName owns package identity values such as `TTX::Graphics`.
 //
-// Package directives use it through `@package_name = TTX::Name;`, and Boot uses
-// the same value parser for package imports. This is package metadata, not a
-// type query. The full qualified spelling is preserved so resolution can load
-// and cache packages by their public package name instead of by a private source
-// path or by the root type's short name.
+// Package directives use it through `@package_name = TTX::Name;`, and Puffer's
+// Boot ISA uses the same value parser for package imports. This is package
+// metadata, not a type query. The full qualified spelling is preserved so
+// resolution can load and cache packages by their public package name instead
+// of by a private source path or by the root type's short name.
 class PackageName {
  public:
   PackageName() = default;

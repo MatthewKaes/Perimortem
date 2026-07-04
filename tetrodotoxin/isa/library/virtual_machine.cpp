@@ -11,7 +11,7 @@
 #include "perimortem/utility/table.hpp"
 
 #include "tetrodotoxin/isa/attribute.hpp"
-#include "tetrodotoxin/isa/boot/documentation.hpp"
+#include "tetrodotoxin/isa/documentation.hpp"
 #include "tetrodotoxin/isa/library/addressable.hpp"
 #include "tetrodotoxin/isa/library/alias.hpp"
 #include "tetrodotoxin/isa/library/enumeration.hpp"
@@ -79,7 +79,7 @@ static auto predeclare_library_definitions(
     Library::Scope& scope,
     Cursor& cursor) -> Bool {
   while (!cursor.matches(Class::Type::EndOfStream)) {
-    Ttx::Documentation documentation = Boot::Documentation::evaluate(cursor);
+    Ttx::Documentation documentation = Documentation::evaluate(cursor);
     if (!Attribute::consume_all(cursor)) {
       return False;
     }
@@ -259,7 +259,7 @@ auto Library::VirtualMachine::evaluate(Context& context, Cursor& cursor)
   cursor.seek_token(body_start);
 
   while (!cursor.matches(Class::Type::EndOfStream)) {
-    Ttx::Documentation documentation = Boot::Documentation::evaluate(cursor);
+    Ttx::Documentation documentation = Documentation::evaluate(cursor);
     if (!Attribute::consume_all(cursor)) {
       return nullptr;
     }

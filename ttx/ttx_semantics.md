@@ -101,9 +101,9 @@ TTX does not define a canonical ISA or canonical ISA set. It defines source IR,
 token bytecode, and the shared facts that an interpreter can use. Which ISAs
 execute that bytecode is left to the toolchain that hosts TTX.
 
-The Tetrodotoxin reference host uses a small `Boot` ISA to evaluate its source
-envelope before dispatching to another ISA. For that concrete host model, see
-[`tetrodotoxin_design.md`](../tetrodotoxin/tetrodotoxin_design.md).
+Puffer, Tetrodotoxin's reference CLI host, uses a small `Boot` ISA to evaluate
+its source preamble before dispatching to another ISA. For that concrete host
+model, see [`tetrodotoxin_design.md`](../tetrodotoxin/tetrodotoxin_design.md).
 
 The useful mental model is:
 

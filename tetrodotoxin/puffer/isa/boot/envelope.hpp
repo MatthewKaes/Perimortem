@@ -3,12 +3,12 @@
 
 #pragma once
 
-#include "tetrodotoxin/isa/boot/import.hpp"
+#include "tetrodotoxin/puffer/isa/boot/import.hpp"
 #include "ttx/documentation.hpp"
 
-namespace Tetrodotoxin::Isa::Boot {
+namespace Tetrodotoxin::Puffer::Isa::Boot {
 
-// Envelope is the evaluated universal prefix for one canonical TTX source.
+// Envelope is the evaluated source preamble for one canonical TTX source.
 // It carries documentation, the selected body ISA, and import requests before
 // resolution loads the import graph.
 class Envelope {
@@ -36,4 +36,4 @@ class Envelope {
   Perimortem::Core::View::Vector<Import> imports;
 };
 
-}  // namespace Tetrodotoxin::Isa::Boot
+}  // namespace Tetrodotoxin::Puffer::Isa::Boot

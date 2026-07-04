@@ -1,20 +1,23 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
-#include "tetrodotoxin/isa/boot/import.hpp"
+#include "tetrodotoxin/puffer/isa/boot/import.hpp"
 
 #include "tetrodotoxin/isa/definition.hpp"
 #include "tetrodotoxin/isa/package/package_name.hpp"
 
 using namespace Perimortem::Core;
-using namespace Tetrodotoxin::Isa;
+using namespace Tetrodotoxin::Puffer::Isa;
 using namespace Ttx::Lexical;
 
-auto Boot::Import::evaluate(Cursor& cursor, const Registry& registry)
+auto Boot::Import::evaluate(
+    Cursor& cursor,
+    const Tetrodotoxin::Isa::Registry& registry)
     -> Boot::Import {
-  Definition definition = Definition::evaluate(
-      cursor, Ttx::Documentation(), {{Class::Type::Import}},
-      {{Class::Type::Type}}, {{Class::Type::Type}});
+  Tetrodotoxin::Isa::Definition definition =
+      Tetrodotoxin::Isa::Definition::evaluate(
+          cursor, Ttx::Documentation(), {{Class::Type::Import}},
+          {{Class::Type::Type}}, {{Class::Type::Type}});
   if (!definition.is_valid()) {
     return Boot::Import();
   }
@@ -43,7 +46,7 @@ auto Boot::Import::evaluate(Cursor& cursor, const Registry& registry)
 
   case Class::Type::Type: {
     package = True;
-    auto name = Package::PackageName::evaluate(cursor);
+    auto name = Tetrodotoxin::Isa::Package::PackageName::evaluate(cursor);
     if (!name.is_valid()) {
       cursor.recover_to_statement();
       return Boot::Import();

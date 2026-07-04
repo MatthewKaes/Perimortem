@@ -5,13 +5,13 @@
 
 #include "perimortem/system/file.hpp"
 
-#include "tetrodotoxin/resolution/resolver.hpp"
+#include "tetrodotoxin/puffer/resolution/resolver.hpp"
 #include "tetrodotoxin/toolchain.hpp"
 #include "ttx/type.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::System;
-using namespace Tetrodotoxin::Resolution;
+using namespace Tetrodotoxin::Puffer::Resolution;
 using namespace Validation;
 
 static constexpr View::Bytes disk_root =
@@ -43,7 +43,7 @@ static auto remove_disk_sources() -> void {
 }
 
 static Harness TetrodotoxinResolution = {
-  .name = "Tetrodotoxin::Resolution"_view,
+  .name = "Puffer::Resolution"_view,
   .setup = []() { remove_disk_sources(); },
   .teardown = []() { remove_disk_sources(); },
 };

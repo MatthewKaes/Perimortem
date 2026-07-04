@@ -5,7 +5,7 @@
 
 #include "perimortem/memory/managed/vector.hpp"
 
-#include "tetrodotoxin/isa/boot/documentation.hpp"
+#include "tetrodotoxin/isa/documentation.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -23,7 +23,7 @@ auto Package::Group::evaluate(Context& context, Cursor& cursor)
   Managed::Vector<Package::Export> exports(cursor.get_arena());
   while (!cursor.matches(Class::Type::EndOfStream) &&
          !cursor.matches(Class::Type::ScopeEnd)) {
-    Ttx::Documentation documentation = Boot::Documentation::evaluate(cursor);
+    Ttx::Documentation documentation = Documentation::evaluate(cursor);
     Package::Export export_ =
         Package::Export::evaluate(context, cursor, documentation);
     if (!export_.is_valid()) {
