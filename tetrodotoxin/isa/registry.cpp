@@ -15,24 +15,24 @@ static auto installed_isa_message(
     View::Bytes requested,
     const Registry& registry) -> View::Bytes {
   Managed::Bytes message(cursor.get_arena());
-  message.append("ISA `"_view);
-  message.append(requested);
-  message.append("` is not installed."_view);
+  message.concat("ISA `"_view);
+  message.concat(requested);
+  message.concat("` is not installed."_view);
 
   auto installed = registry.get_installed();
   if (installed.is_empty()) {
-    message.append(" No ISAs are installed."_view);
+    message.concat(" No ISAs are installed."_view);
     return message.get_view();
   }
 
-  message.append(" Installed ISAs: "_view);
+  message.concat(" Installed ISAs: "_view);
   for (Count i = 0; i < installed.get_size(); i++) {
     if (i != 0) {
-      message.append(", "_view);
+      message.concat(", "_view);
     }
-    message.append(installed[i].get_name());
+    message.concat(installed[i].get_name());
   }
-  message.append("."_view);
+  message.concat("."_view);
   return message.get_view();
 }
 

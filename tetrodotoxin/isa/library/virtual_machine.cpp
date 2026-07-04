@@ -210,16 +210,16 @@ auto Library::VirtualMachine::evaluate_definition(
           definition.get_kind());
   if (handler == nullptr) {
     Managed::Bytes message(cursor.get_arena());
-    message.append(
+    message.concat(
         "Definition name provided is not one of the known types {"_view);
     for (Count i = 0; i < library_sub_isas.get_size(); i++) {
       if (i != 0) {
-        message.append(", "_view);
+        message.concat(", "_view);
       }
 
-      message.append(library_sub_isas[i].key);
+      message.concat(library_sub_isas[i].key);
     }
-    message.append("}"_view);
+    message.concat("}"_view);
     cursor.token_error(message.get_view());
     return False;
   }

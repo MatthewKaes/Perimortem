@@ -35,7 +35,8 @@ class Bytes {
   constexpr operator Core::View::Bytes() const { return get_view(); }
   constexpr operator Core::Access::Bytes() { return get_access(); }
 
-  auto append(Bits_8 b) -> void;
+  auto append(Bits_8 byte) -> void;
+  auto append(Bits_8 byte, Count amount) -> void;
   auto concat(Core::View::Bytes view) -> void;
   auto proxy(Core::View::Bytes view) -> void;
   // Resizes the container but attempts to preserve as much of the original

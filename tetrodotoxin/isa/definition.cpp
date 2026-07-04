@@ -17,18 +17,18 @@ static auto token_class_message(
     View::Bytes prefix,
     View::Vector<Class::Type> allowed) -> View::Bytes {
   Managed::Bytes message(cursor.get_arena());
-  message.append(prefix);
-  message.append(" {"_view);
+  message.concat(prefix);
+  message.concat(" {"_view);
   for (Count i = 0; i < allowed.get_size(); i++) {
     if (i != 0) {
-      message.append(", "_view);
+      message.concat(", "_view);
     }
 
     View::Bytes source_text = Class::get_source_text(allowed[i]);
-    message.append(
+    message.concat(
         source_text.is_empty() ? Class(allowed[i]).get_name() : source_text);
   }
-  message.append("}"_view);
+  message.concat("}"_view);
   return message.get_view();
 }
 
