@@ -127,9 +127,11 @@ auto Library::Structure::evaluate(
     return nullptr;
   }
 
+  Managed::Vector<Ttx::Attribute> attributes(scope.get_context().get_arena());
+  attributes.insert({"isa"_view, "Struct"_view});
   auto& type = scope.get_context().get_arena().construct<Ttx::Type>(
       definition.get_name(), members.get_view(),
       View::Vector<const Ttx::Type*>(), functions.get_view(),
-      definition.get_documentation());
+      definition.get_documentation(), attributes.get_view());
   return &type;
 }

@@ -81,9 +81,11 @@ auto Library::Foreign::evaluate(
     return nullptr;
   }
 
+  Managed::Vector<Ttx::Attribute> attributes(scope.get_context().get_arena());
+  attributes.insert({"isa"_view, "Foreign"_view});
   auto& type = scope.get_context().get_arena().construct<Ttx::Type>(
       definition.get_name(), View::Vector<Ttx::Type::Member>(),
       View::Vector<const Ttx::Type*>(), functions.get_view(),
-      definition.get_documentation());
+      definition.get_documentation(), attributes.get_view());
   return &type;
 }

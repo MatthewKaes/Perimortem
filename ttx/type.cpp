@@ -122,3 +122,14 @@ auto Ttx::Type::find_function(Perimortem::Core::View::Bytes name) const
 
   return nullptr;
 }
+
+auto Ttx::Type::find_attribute(Perimortem::Core::View::Bytes key) const
+    -> const Attribute* {
+  for (Count i = 0; i < attributes.get_size(); i++) {
+    if (attributes[i].get_key() == key) {
+      return &attributes[i];
+    }
+  }
+
+  return nullptr;
+}

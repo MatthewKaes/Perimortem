@@ -49,6 +49,10 @@ auto Library::Scope::materialize_type(Cursor& cursor, View::Bytes name)
   }
 
   if (declaration.state == DeclarationState::Evaluating) {
+    if (declaration.type != nullptr) {
+      return declaration.type;
+    }
+
     cursor.token_error(
         "Library type dependency cycle could not be resolved."_view);
     declaration.state = DeclarationState::Failed;
@@ -74,6 +78,18 @@ auto Library::Scope::materialize_type(Cursor& cursor, View::Bytes name)
   declaration.state = DeclarationState::Ready;
   cursor.seek_token(return_index);
   return type;
+}
+
+auto Library::Scope::stage_type_reference(
+    View::Bytes name,
+    const Ttx::Type& type) -> Bool {
+  auto* entry = declarations.find(name);
+  if (!entry || entry->value.state != DeclarationState::Evaluating) {
+    return False;
+  }
+
+  entry->value.type = &type;
+  return True;
 }
 
 auto Library::Scope::seek_after_type(Cursor& cursor, View::Bytes name) const

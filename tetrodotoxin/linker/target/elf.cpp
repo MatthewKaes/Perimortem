@@ -528,7 +528,10 @@ auto Target::Elf::build_library(View::Bytes object_name) -> Dynamic::Bytes {
   Count exported_count = 0;
   Count exported_names_bytes = 0;
   for (Count i = 0; i < symbols.get_size(); i++) {
-    if (symbols.get_view()[i].get_visibility() == Object::Symbol::Visibility::Global) {
+    if (symbols.get_view()[i].get_visibility() ==
+            Object::Symbol::Visibility::Global &&
+        symbols.get_view()[i].get_location() !=
+            Object::Symbol::Location::External) {
       exported_count++;
       exported_names_bytes += symbols.get_view()[i].get_name().get_size() + 1;
     }
@@ -568,7 +571,8 @@ auto Target::Elf::build_library(View::Bytes object_name) -> Dynamic::Bytes {
   }
   for (Count i = 0; i < symbols.get_size(); i++) {
     const auto& symbol = symbols.get_view()[i];
-    if (symbol.get_visibility() != Object::Symbol::Visibility::Global) {
+    if (symbol.get_visibility() != Object::Symbol::Visibility::Global ||
+        symbol.get_location() == Object::Symbol::Location::External) {
       continue;
     }
     const auto name = symbol.get_name();

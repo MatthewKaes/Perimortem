@@ -5,7 +5,6 @@
 
 #include "perimortem/core/data.hpp"
 #include "perimortem/core/diagnostics/log.hpp"
-#include "perimortem/core/hash.hpp"
 #include "perimortem/core/null_terminated.hpp"
 #include "perimortem/core/perimortem.hpp"
 #include "perimortem/core/static/vector.hpp"
@@ -13,27 +12,27 @@
 
 #include "perimortem/memory/allocator/arena.hpp"
 #include "perimortem/memory/dynamic/bytes.hpp"
-#include "perimortem/memory/dynamic/vector.hpp"
 
 #include "perimortem/system/args.hpp"
 #include "perimortem/system/file.hpp"
 
+#include "tetrodotoxin/compiler/library.hpp"
 #include "tetrodotoxin/linker/linker.hpp"
-#include "tetrodotoxin/linker/object/section.hpp"
-#include "tetrodotoxin/linker/object/symbol.hpp"
 #include "tetrodotoxin/resolution/resolver.hpp"
 #include "tetrodotoxin/resolution/source/record.hpp"
 #include "tetrodotoxin/toolchain.hpp"
+#include "ttx/type.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
 using namespace Perimortem::System;
 using namespace Tetrodotoxin;
-using namespace Tetrodotoxin::Linker;
 using namespace Tetrodotoxin::Resolution;
 
 class Puffer {
  public:
+  Puffer() : library_compiler(arena) {}
+
   auto run(View::Vector<View::Bytes> command_line) -> Signed_32 {
     Bool help_requested = requested_help(command_line);
     Allocator::Arena args_arena;
@@ -57,17 +56,13 @@ class Puffer {
       return 1;
     }
 
-    if (terminals.get_size() == 0) {
+    if (terminal_count == 0) {
       fprintf(stderr, "puffer: no TTX roots were selected for output\n");
       return 1;
     }
 
     Tetrodotoxin::Linker::Linker linker;
-    linker.add_section(Object::Section::Type::ReadOnly, terminal_data);
-    for (Count i = 0; i < terminals.get_size(); i++) {
-      linker.add_symbol(Object::Symbol::create_read_only(
-          terminals[i].symbol_name, {terminals[i].offset, terminals[i].size}));
-    }
+    library_compiler.add_to(linker);
 
     View::Bytes output_path = arg_value(options, "-output"_view);
     Dynamic::Bytes archive = linker.build_library("ttx_terminal.o"_view);
@@ -87,21 +82,22 @@ class Puffer {
       return 1;
     }
 
+    View::Bytes puffer_path = arg_value(options, "-puffer"_view);
+    if (!write_file(puffer_path, terminal_data.get_view())) {
+      fprintf(stderr, "puffer: failed to write puffer sidecar ");
+      print_bytes(stderr, puffer_path);
+      fprintf(stderr, "\n");
+      return 1;
+    }
+
     return 0;
   }
 
  private:
-  class Terminal {
-   public:
-    View::Bytes symbol_name;
-    Count offset = 0;
-    Count size = 0;
-  };
-
   using Configs = Managed::Map<View::Bytes, Args::Config>;
 
   static constexpr View::Bytes help_summary =
-      "Compile TTX sources into terminal archives for Bazel."_view;
+      "Compile TTX sources into archives and puffer sidecars for Bazel."_view;
 
   static auto print_bytes(FILE* file, View::Bytes bytes) -> void {
     fprintf(
@@ -137,6 +133,12 @@ class Puffer {
         "-header"_view,
         {
             .help = "Write the generated C++ header."_view,
+            .required = True,
+        });
+    variables.insert(
+        "-puffer"_view,
+        {
+            .help = "Write the puffer terminal sidecar."_view,
             .required = True,
         });
     variables.insert(
@@ -232,6 +234,15 @@ class Puffer {
       }
 
       add_terminal(*record);
+      if (!package && record->get_type() != nullptr &&
+          !library_compiler.lower(
+              build_module_name(record->get_source_path()),
+              *record->get_type())) {
+        fprintf(stderr, "puffer: ");
+        print_bytes(stderr, library_compiler.get_error());
+        fprintf(stderr, "\n");
+        return False;
+      }
     }
 
     if (package && selected_sources == 0) {
@@ -243,19 +254,14 @@ class Puffer {
   }
 
   auto add_terminal(Source::Record& record) -> void {
-    Terminal terminal;
-    terminal.symbol_name = build_symbol_name(record);
-    terminal.offset = terminal_data.get_size();
-
     append_field("source"_view, record.get_source_path());
     append_field("import"_view, record.get_import_name());
     append_field("isa"_view, record.get_boot().get_isa());
     if (record.get_type() != nullptr) {
-      append_field("type"_view, record.get_type()->get_name());
+      append_type_facts(*record.get_type(), record.get_type()->get_name());
     }
 
-    terminal.size = terminal_data.get_size() - terminal.offset;
-    terminals.insert(terminal);
+    terminal_count++;
   }
 
   auto append_field(View::Bytes name, View::Bytes value) -> void {
@@ -266,21 +272,82 @@ class Puffer {
     terminal_data.append('\n');
   }
 
-  auto build_symbol_name(Source::Record& record) -> View::Bytes {
-    View::Bytes key = record.get_import_name().is_empty()
-                          ? record.get_source_path()
-                          : record.get_import_name();
-    Dynamic::Bytes name;
-    name.concat("puffer_terminal_"_view);
-    append_hex(name, Hash(key).get_value());
-    return keep(name.get_view());
+  auto append_type_facts(const Ttx::Type& type, View::Bytes path) -> void {
+    append_field("type"_view, path);
+
+    View::Vector<Ttx::Type::Member> members = type.get_members();
+    for (Count i = 0; i < members.get_size(); i++) {
+      append_member_fact(path, members[i]);
+    }
+
+    View::Vector<Ttx::Type::Function> functions = type.get_functions();
+    for (Count i = 0; i < functions.get_size(); i++) {
+      append_function_fact(path, functions[i]);
+    }
+
+    View::Vector<const Ttx::Type*> types = type.get_types();
+    for (Count i = 0; i < types.get_size(); i++) {
+      if (types[i] == nullptr) {
+        continue;
+      }
+
+      Dynamic::Bytes nested_path;
+      nested_path.concat(path);
+      nested_path.concat("::"_view);
+      nested_path.concat(types[i]->get_name());
+      append_type_facts(*types[i], nested_path.get_view());
+    }
   }
 
-  static auto append_hex(Dynamic::Bytes& output, Bits_64 value) -> void {
-    constexpr View::Bytes digits = "0123456789abcdef"_view;
-    for (Signed_32 shift = 60; shift >= 0; shift -= 4) {
-      output.append(digits[(value >> shift) & 0x0F]);
+  auto append_member_fact(
+      View::Bytes owner,
+      const Ttx::Type::Member& member) -> void {
+    terminal_data.concat("member: "_view);
+    terminal_data.concat(owner);
+    terminal_data.concat("."_view);
+    terminal_data.concat(member.get_name().is_empty() ? "_"_view
+                                                      : member.get_name());
+    terminal_data.concat(" "_view);
+    terminal_data.concat(type_name(member.get_type()));
+    terminal_data.append('\n');
+  }
+
+  auto append_function_fact(
+      View::Bytes owner,
+      const Ttx::Type::Function& function) -> void {
+    terminal_data.concat("function: "_view);
+    terminal_data.concat(owner);
+    terminal_data.concat("->"_view);
+    terminal_data.concat(function.get_name());
+    terminal_data.concat(" params="_view);
+    append_decimal(terminal_data, function.get_parameters().get_size());
+    terminal_data.concat(" result="_view);
+    append_decimal(terminal_data, function.get_result().get_size());
+    terminal_data.concat(" blocks="_view);
+    append_decimal(terminal_data, function.get_blocks().get_size());
+    terminal_data.append('\n');
+  }
+
+  static auto type_name(const Ttx::Type* type) -> View::Bytes {
+    return type == nullptr ? "<unresolved>"_view : type->get_name();
+  }
+
+  auto build_module_name(View::Bytes source_path) -> View::Bytes {
+    Count start = 0;
+    for (Count i = 0; i < source_path.get_size(); i++) {
+      if (source_path[i] == '/' || source_path[i] == '\\') {
+        start = i + 1;
+      }
     }
+
+    Count end = source_path.get_size();
+    for (Count i = start; i < source_path.get_size(); i++) {
+      if (source_path[i] == '.') {
+        end = i;
+      }
+    }
+
+    return keep(source_path.slice(start, end - start));
   }
 
   static auto append_decimal(Dynamic::Bytes& output, Count value) -> void {
@@ -298,16 +365,12 @@ class Puffer {
 
   auto build_header() -> Dynamic::Bytes {
     Dynamic::Bytes header;
-    header.concat("#pragma once\n\n#include <stddef.h>\n\n"_view);
-    for (Count i = 0; i < terminals.get_size(); i++) {
-      header.concat("extern const unsigned char "_view);
-      header.concat(terminals[i].symbol_name);
-      header.concat("[];\nstatic constexpr size_t "_view);
-      header.concat(terminals[i].symbol_name);
-      header.concat("_size = "_view);
-      append_decimal(header, terminals[i].size);
-      header.concat(";\n\n"_view);
-    }
+    header.concat(
+        "#pragma once\n\n"
+        "#include \"perimortem/core/view/bytes.hpp\"\n\n"
+        "namespace Ttx {\n\n"_view);
+    library_compiler.append_header(header);
+    header.concat("\n}  // namespace Ttx\n"_view);
     return header;
   }
 
@@ -339,8 +402,9 @@ class Puffer {
   }
 
   Allocator::Arena arena;
+  Compiler::Library library_compiler;
   Dynamic::Bytes terminal_data;
-  Dynamic::Vector<Terminal> terminals;
+  Count terminal_count = 0;
   Bool package = False;
 };
 

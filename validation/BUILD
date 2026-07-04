@@ -32,12 +32,12 @@ cc_library(
     includes = ["."],
 )
 
-# ttx_library(
-#     name = "ttx_tests",
-#     srcs = glob([
-#         "unit_tests/tetrodotoxin/**/*.ttx",
-#     ]),
-# )
+ttx_library(
+    name = "ttx_tests",
+    srcs = [
+        "unit_tests/tetrodotoxin/ttx/source.ttx",
+    ],
+)
 
 ttx_package(
     name = "graphics_package_smoke",
@@ -61,7 +61,7 @@ cc_binary(
     includes = ["."],
     deps = [
         ":test_headers",
-        # ":ttx_tests",
+        ":ttx_tests",
         "//perimortem",
         "//tetrodotoxin:compiler",
         "//tetrodotoxin:isa",

@@ -14,6 +14,7 @@
 #include "tetrodotoxin/isa/boot/documentation.hpp"
 #include "tetrodotoxin/isa/library/addressable.hpp"
 #include "tetrodotoxin/isa/library/alias.hpp"
+#include "tetrodotoxin/isa/library/enumeration.hpp"
 #include "tetrodotoxin/isa/library/foreign.hpp"
 #include "tetrodotoxin/isa/library/function.hpp"
 #include "tetrodotoxin/isa/library/scope.hpp"
@@ -38,11 +39,15 @@ constexpr Static::Vector<Class::Type, 3> library_modifiers = {{
   Class::Type::Expose,
 }};
 
-constexpr Static::Vector<Pair<View::Bytes, DefinitionEvaluator>, 4>
+constexpr Static::Vector<Pair<View::Bytes, DefinitionEvaluator>, 5>
     library_sub_isas = {{
       {
         Library::Alias::get_name(),
         Library::Alias::evaluate,
+      },
+      {
+        Library::Enumeration::get_name(),
+        Library::Enumeration::evaluate,
       },
       {
         Library::Structure::get_name(),
@@ -275,8 +280,10 @@ auto Library::VirtualMachine::evaluate(Context& context, Cursor& cursor)
     return nullptr;
   }
 
+  Managed::Vector<Ttx::Attribute> attributes(context.get_arena());
+  attributes.insert({"isa"_view, "Library"_view});
   auto& type = context.get_arena().construct<Ttx::Type>(
       Library::VirtualMachine::get_name(), members.get_view(), types.get_view(),
-      functions.get_view());
+      functions.get_view(), Ttx::Documentation(), attributes.get_view());
   return &type;
 }

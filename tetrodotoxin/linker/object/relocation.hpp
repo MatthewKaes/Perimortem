@@ -23,6 +23,11 @@ class Relocation {
     return Relocation(symbol_index, code_offset - 4, Type::Pc32, -4);
   }
 
+  static constexpr auto create_plt32(Count symbol_index, Count code_offset)
+      -> Relocation {
+    return Relocation(symbol_index, code_offset - 4, Type::Plt32, -4);
+  }
+
   constexpr auto get_symbol() const -> Count { return symbol; }
   constexpr auto get_offset() const -> Count { return offset; }
   constexpr auto get_type() const -> Type { return type; }

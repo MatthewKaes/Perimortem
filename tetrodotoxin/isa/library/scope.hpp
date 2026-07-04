@@ -38,6 +38,9 @@ class Scope {
   auto materialize_type(
       Ttx::Lexical::Cursor& cursor,
       Perimortem::Core::View::Bytes name) -> const Ttx::Type*;
+  auto stage_type_reference(
+      Perimortem::Core::View::Bytes name,
+      const Ttx::Type& type) -> Bool;
   auto seek_after_type(
       Ttx::Lexical::Cursor& cursor,
       Perimortem::Core::View::Bytes name) const -> Bool;

@@ -6,6 +6,7 @@
 #include "perimortem/core/view/bytes.hpp"
 #include "perimortem/core/view/vector.hpp"
 
+#include "ttx/attribute.hpp"
 #include "ttx/documentation.hpp"
 #include "ttx/lexical/token.hpp"
 
@@ -221,26 +222,36 @@ class Type {
       : name(name), documentation(documentation) {}
   constexpr Type(
       Perimortem::Core::View::Bytes name,
+      Perimortem::Core::View::Vector<Attribute> attributes,
+      Documentation documentation = Documentation())
+      : name(name), attributes(attributes), documentation(documentation) {}
+  constexpr Type(
+      Perimortem::Core::View::Bytes name,
       Perimortem::Core::View::Vector<Member> members,
       Perimortem::Core::View::Vector<const Type*> types =
           Perimortem::Core::View::Vector<const Type*>(),
       Perimortem::Core::View::Vector<Function> functions =
           Perimortem::Core::View::Vector<Function>(),
-      Documentation documentation = Documentation())
+      Documentation documentation = Documentation(),
+      Perimortem::Core::View::Vector<Attribute> attributes =
+          Perimortem::Core::View::Vector<Attribute>())
       : name(name),
         members(members),
         types(types),
         functions(functions),
+        attributes(attributes),
         documentation(documentation) {}
 
   static constexpr auto alias(
       Perimortem::Core::View::Bytes name,
       const Type& parent,
-      Documentation documentation = Documentation()) -> Type {
+      Documentation documentation = Documentation(),
+      Perimortem::Core::View::Vector<Attribute> attributes =
+          Perimortem::Core::View::Vector<Attribute>()) -> Type {
     // An alias is a new authored name for an existing canonical type. Its
     // documentation belongs to the alias, not to the parent, so tools can show
     // the alias context directly or canonicalize when they want root prose.
-    Type type(name, documentation);
+    Type type(name, attributes, documentation);
     type.alias_parent = &parent;
     return type;
   }
@@ -250,6 +261,10 @@ class Type {
   }
   constexpr auto get_documentation() const -> Documentation {
     return documentation;
+  }
+  constexpr auto get_attributes() const
+      -> Perimortem::Core::View::Vector<Attribute> {
+    return attributes;
   }
 
   // Enumerates the member entries authored on this type.
@@ -306,6 +321,8 @@ class Type {
   auto find_type(Perimortem::Core::View::Bytes name) const -> const Type*;
   auto find_function(Perimortem::Core::View::Bytes name) const
       -> const Function*;
+  auto find_attribute(Perimortem::Core::View::Bytes key) const
+      -> const Attribute*;
   constexpr auto is_alias() const -> Bool { return alias_parent != nullptr; }
 
  private:
@@ -313,6 +330,7 @@ class Type {
   Perimortem::Core::View::Vector<Member> members;
   Perimortem::Core::View::Vector<const Type*> types;
   Perimortem::Core::View::Vector<Function> functions;
+  Perimortem::Core::View::Vector<Attribute> attributes;
   const Type* alias_parent = nullptr;
   Documentation documentation;
 };

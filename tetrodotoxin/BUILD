@@ -61,9 +61,10 @@ cc_library(
 cc_binary(
     name = "puffer",
     srcs = [
-        "main.cpp",
+        "puffer/main.cpp",
     ],
     deps = [
+        ":compiler",
         ":linker",
         ":resolution",
         ":toolchain",
@@ -75,15 +76,18 @@ cc_binary(
 cc_library(
     name = "compiler",
     srcs = [
+        "compiler/library.cpp",
         "compiler/assembler/spir_v.cpp",
         "compiler/assembler/x86_64.cpp",
     ],
     hdrs = glob([
-        "compiler/assembler/*.hpp",
+        "compiler/**/*.hpp",
     ]),
     includes = ["."],
     deps = [
+        ":linker",
         "//perimortem",
+        "//ttx",
     ],
 )
 

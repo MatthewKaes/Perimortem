@@ -91,14 +91,34 @@ class Context {
       }
     }
 
-    if (!consume_type_arguments(cursor)) {
-      return nullptr;
-    }
-
-    return type;
+    return resolve_type_arguments(cursor, type);
   }
 
  private:
+  auto resolve_type_arguments(
+      Ttx::Lexical::Cursor& cursor,
+      const Ttx::Type* type) const -> const Ttx::Type* {
+    if (!cursor.matches(Ttx::Lexical::Class::Type::IndexStart)) {
+      return type;
+    }
+
+    if (type != nullptr && type->get_name() == "View"_view) {
+      const Count start = cursor.get_token_index();
+      cursor.consume();
+      if (cursor.matches(Ttx::Lexical::Class::Type::Type) &&
+          cursor.current().get_text() == "Bytes"_view) {
+        cursor.consume();
+        if (cursor.matches(Ttx::Lexical::Class::Type::IndexEnd)) {
+          cursor.consume();
+          return Ttx::Core::Types::find_type("View[Bytes]"_view);
+        }
+      }
+      cursor.seek_token(start);
+    }
+
+    return consume_type_arguments(cursor) ? type : nullptr;
+  }
+
   auto consume_type_arguments(Ttx::Lexical::Cursor& cursor) const -> Bool {
     if (!cursor.matches(Ttx::Lexical::Class::Type::IndexStart)) {
       return True;

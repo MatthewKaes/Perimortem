@@ -174,8 +174,48 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, type_arguments) {
 
   const Ttx::Type* sprite = nested_type(record, "Sprite"_view);
   ASSERT(sprite != nullptr);
-  ASSERT(member_type(*sprite, "image"_view) != nullptr);
-  EXPECT_TEXT(member_type(*sprite, "image"_view)->get_name(), "View"_view);
+  const Ttx::Type* image = member_type(*sprite, "image"_view);
+  ASSERT(image != nullptr);
+  EXPECT_TEXT(image->get_name(), "View[Bytes]"_view);
+  const Ttx::Attribute* abi = image->find_attribute("abi"_view);
+  ASSERT(abi != nullptr);
+  EXPECT_TEXT(abi->get_value(), "view_bytes"_view);
+}
+
+PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, enum_type) {
+  Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
+  Resolver resolver(toolchain);
+  Resolver::Context context;
+
+  const Source::Record* record = resolver.load_source(
+      context, "unit/enums.ttx"_view,
+      "dialect : Library;\n"
+      "private Color : enum[Bits_8](.red = 1, .green = 2);\n"
+      "private Filter : enum[Bits_8] {\n"
+      "  none = 0;\n"
+      "  sub = 1;\n"
+      "  public func default_filter[] -> Filter {\n"
+      "    return Filter.none;\n"
+      "  }\n"
+      "}\n"_view);
+
+  ASSERT(record != nullptr);
+  EXPECT_NOT(context.has_errors());
+
+  const Ttx::Type* color = nested_type(record, "Color"_view);
+  ASSERT(color != nullptr);
+  EXPECT_TEXT(member_type(*color, "red"_view)->get_name(), "Bits_8"_view);
+  EXPECT_TEXT(member_type(*color, "green"_view)->get_name(), "Bits_8"_view);
+
+  const Ttx::Type* filter = nested_type(record, "Filter"_view);
+  ASSERT(filter != nullptr);
+  EXPECT_TEXT(member_type(*filter, "none"_view)->get_name(), "Bits_8"_view);
+  const Ttx::Type::Function* default_filter =
+      function(*filter, "default_filter"_view);
+  ASSERT(default_filter != nullptr);
+  EXPECT(default_filter->has_body());
+  ASSERT_EQ(default_filter->get_result().get_size(), Count(1));
+  EXPECT(default_filter->get_result()[0].get_type() == filter);
 }
 
 PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, foreign_scope) {
@@ -368,7 +408,7 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, bad_definition) {
   EXPECT_TEXT(
       error_message(context),
       "Definition name provided is not one of the known types "
-      "{alias, struct, object, foreign}"_view);
+      "{alias, enum, struct, object, foreign}"_view);
   context.reset();
 
   EXPECT_NOT(resolver.load_source(
@@ -381,7 +421,32 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, bad_definition) {
   EXPECT_TEXT(
       error_message(context),
       "Definition name provided is not one of the known types "
-      "{alias, struct, object, foreign}"_view);
+      "{alias, enum, struct, object, foreign}"_view);
+}
+
+PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, bad_enum) {
+  Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
+  Resolver resolver(toolchain);
+  Resolver::Context context;
+
+  EXPECT_NOT(resolver.load_source(
+      context, "unit/bad_enum.ttx"_view,
+      "dialect : Library;\n"
+      "private Color : enum[Missing](.red = 1);\n"_view));
+  ASSERT(context.has_errors());
+  EXPECT_TEXT(
+      error_message(context),
+      "Library enum storage type could not be resolved."_view);
+  context.reset();
+
+  EXPECT_NOT(resolver.load_source(
+      context, "unit/duplicate_enum.ttx"_view,
+      "dialect : Library;\n"
+      "private Color : enum[Bits_8](.red = 1, .red = 2);\n"_view));
+  ASSERT(context.has_errors());
+  EXPECT_TEXT(
+      error_message(context),
+      "Library enum case name is already defined."_view);
 }
 
 PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, bad_function) {
