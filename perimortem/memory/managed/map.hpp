@@ -12,8 +12,10 @@
 
 namespace Perimortem::Memory::Managed {
 
-// Unordered flat map that supports only insert for creating structured views of
-// data in arenas for quick look ups.
+// Arena-backed scalar map for structured views that share one lifetime.
+//
+// Like the other managed structures only insert is supported since all produced
+// data by `Managed` types are meant to be stable.
 //
 // Algorithm and storage is a trimmed down version of the more general Scalar
 // version of `Dynamic::Map`.
