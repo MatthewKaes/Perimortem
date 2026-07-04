@@ -387,7 +387,7 @@ auto Server::Rpc::Executor::process_events() -> void {
       return;
     }
 
-    reader.append(chunk.slice(0, Count(bytes_read)));
+    reader.receive(chunk.slice(0, Count(bytes_read)));
 
     View::Bytes message = reader.next_message();
     while (!message.is_empty()) {

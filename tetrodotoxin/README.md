@@ -77,7 +77,7 @@ The language core lives in [`../ttx`](../ttx/README.md):
 
 Tetrodotoxin layers toolchain context around that language core:
 
-- [`cli`](cli/) is the command-line entry point
+- [`main.cpp`](main.cpp) is the `puffer` command-line entry point
 - [`lsp`](lsp/) contains the language server and VSCode client
 - [`toolchain.hpp`](toolchain.hpp) owns the VM capability table for one caller
 - [`isa`](isa/) owns `Isa::Registry` and the VM instruction sets
@@ -86,7 +86,8 @@ Tetrodotoxin layers toolchain context around that language core:
   binding, the source cache, and cache validity
 - [`../perimortem/graphics/package.ttx`](../perimortem/graphics/package.ttx)
   describes the Perimortem graphics ABI as a TTX package
-- [`ttx.bzl`](ttx.bzl) integrates TTX source with Bazel targets
+- [`../toolchain/tetrodotoxin.bzl`](../toolchain/tetrodotoxin.bzl) integrates
+  TTX source with Bazel targets
 - [`compiler/assembler`](compiler/assembler/) emits terminal instruction
   streams such as SPIR-V and x86-64
 - [`linker`](linker/) owns object records, archive packaging, and target formats

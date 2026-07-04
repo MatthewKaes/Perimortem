@@ -346,7 +346,8 @@ The TTX directory is the language core:
 
 Tetrodotoxin is the surrounding toolchain:
 
-- [`../tetrodotoxin/cli`](../tetrodotoxin/cli/) is the command-line surface
+- [`../tetrodotoxin/main.cpp`](../tetrodotoxin/main.cpp) is the `puffer`
+  command-line surface
 - [`../tetrodotoxin/lsp`](../tetrodotoxin/lsp/) serves editor features
 - [`../tetrodotoxin/isa`](../tetrodotoxin/isa/) owns the VM instruction sets
   such as Boot, Package, Library, Shader, and Render
@@ -354,8 +355,8 @@ Tetrodotoxin is the surrounding toolchain:
   loading, package loading, import binding, the source cache, and cache validity
 - [`../perimortem/graphics/package.ttx`](../perimortem/graphics/package.ttx)
   describes the Perimortem graphics ABI as a TTX package
-- [`../tetrodotoxin/ttx.bzl`](../tetrodotoxin/ttx.bzl) integrates TTX with
-  Bazel
+- [`../toolchain/tetrodotoxin.bzl`](../toolchain/tetrodotoxin.bzl) integrates
+  TTX with Bazel
 - [`../tetrodotoxin/compiler/assembler`](../tetrodotoxin/compiler/assembler/)
   emits terminal instruction streams such as SPIR-V and x86-64
 - [`../tetrodotoxin/linker`](../tetrodotoxin/linker/) packages terminal object

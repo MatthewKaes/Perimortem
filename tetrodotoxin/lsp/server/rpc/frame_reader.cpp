@@ -10,7 +10,7 @@
 using namespace Perimortem::Core;
 using namespace Tetrodotoxin::Lsp;
 
-auto Server::Rpc::FrameReader::append(View::Bytes bytes) -> void {
+auto Server::Rpc::FrameReader::receive(View::Bytes bytes) -> void {
   data_stream.concat(bytes);
 }
 

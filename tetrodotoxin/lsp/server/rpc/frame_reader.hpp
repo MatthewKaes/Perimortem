@@ -11,7 +11,7 @@ namespace Tetrodotoxin::Lsp::Server::Rpc {
 
 class FrameReader {
  public:
-  auto append(Perimortem::Core::View::Bytes bytes) -> void;
+  auto receive(Perimortem::Core::View::Bytes bytes) -> void;
   auto next_message() -> Perimortem::Core::View::Bytes;
   auto consume_message() -> void;
 
