@@ -10,7 +10,7 @@ using namespace Perimortem::Memory;
 using namespace Tetrodotoxin::Isa;
 using namespace Ttx::Lexical;
 
-auto Documentation::evaluate(Cursor& cursor) -> Ttx::Documentation {
+auto Boot::Documentation::evaluate(Cursor& cursor) -> Ttx::Documentation {
   // Documentation is a TTX fact, not a token fact, so strip the comment tokens
   // down to the source lines that should travel with the evaluated object.
   Managed::Vector<View::Bytes> lines(cursor.get_arena());

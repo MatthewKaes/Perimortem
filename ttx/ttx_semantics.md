@@ -76,10 +76,10 @@ or reinterpretation of an already-decoded subtree.
 TTX source text is the human-authored source IR. Lexical analysis lowers that
 source IR into TTX token bytecode: a compact instruction stream whose token
 classes already carry stable semantic categories such as `Type`, `Addressable`,
-`Import`, `Assign`, `TypeAccessOp`, `AddressOp`, `CallOp`, sigils, attributes,
+`Import`, `Assign`, `TypeAccessOp`, `AddressOp`, `CallOp`, modifiers, attributes,
 and fixed operators.
 
-The current token class vocabulary has 74 values: 72 source-facing bytecode
+The current token class vocabulary has 70 values: 68 source-facing bytecode
 classes plus `Unknown` and `EndOfStream` sentinels. The class value is stored in
 8 bits, and payload-bearing tokens keep source text views beside that class.
 Those values are arbitrary as byte values, but not arbitrary as language facts:
@@ -156,7 +156,7 @@ The practical rule for moving information left is:
 > explicit queryable context layers.
 
 The lexer classifies stable source spellings such as type-shaped names,
-addressable names, sigils, builtin type forms, and fixed operators. A host can
+addressable names, modifiers, builtin type forms, and fixed operators. A host can
 then choose how much more context it wants: an envelope evaluator, an import
 graph, one or more ISAs, type and layout queries, ABI facts, or backend
 lowering. Compilation asks those contexts questions rather than rediscovering
@@ -277,7 +277,7 @@ the fact, or collect backend-specific metadata into a second authority.
 Common host roles are:
 
 1. **Lexical**: lower source text into meaningful token bytecode. The tokenizer
-   distinguishes addressables, type names, grammar keywords, sigils,
+   distinguishes addressables, type names, grammar keywords, modifiers,
    attributes, byte literals, embedded file literals, and operators.
 2. **Envelope or entry evaluation**: execute any host-defined preamble. A host
    may use no envelope at all, or it may use a small base ISA to collect
@@ -333,7 +333,7 @@ There are deterministic lookahead decisions, and those are intentional:
   field, an unnamed layout, an empty layout, or a direct value type.
 - `Pack::evaluate_fields()` selects named-pack mode only from a leading `.`
   field. Any other expression-starting token selects positional-pack mode.
-- `Member::evaluate()` looks for `sigil func` so function declarations do not
+- `Member::evaluate()` looks for `modifier func` so function declarations do not
   look like ordinary value declarations.
 - `Expression::evaluate_access_chain()` looks after `.` to decide whether there
   is a field access. If the next token is not a valid field name, postfix
@@ -367,7 +367,7 @@ A conforming evaluator follows these rules:
 
 The tokenizer does more semantic work than a minimal lexer would. This is
 intentional. The evaluator sees classes such as `Addressable`, `Type`, `Func`,
-`Struct`, `@if`, `@public`, and `SwizzleOp` directly.
+`public`, `Attribute`, and `SwizzleOp` directly.
 
 Important lexical distinctions:
 
@@ -376,9 +376,9 @@ Important lexical distinctions:
 | `snake_case`                | `Addressable`          | runtime names, fields, functions, local values      |
 | `PascalCase`                | `Type`                 | type names, aliases, ISA names, package names       |
 | `enum`, `struct`, `foreign` | definition keywords    | definition forms, not type references               |
-| `public`, `@public`, etc.   | sigil tokens           | visibility plus runtime/compile-time addressability |
+| `public`, `private`, etc.  | modifier tokens        | ISA-owned visibility, ownership, or storage         |
 | `@name`                     | `Attribute`            | metadata attached to members, params, fields        |
-| `@if`                       | `CompileIf`            | compile-time control-flow keyword                   |
+| `@if`                       | `Attribute`            | directive owned by an ISA or host                   |
 | `break`, `continue`         | control keyword tokens | loop-control statements                             |
 | `0x[...]`                   | `Bytes`                | byte data literal                                   |
 | `$[...]`                    | `Embedded`             | embedded file literal                               |
@@ -432,9 +432,9 @@ keywords, but they are not ISA names. For example:
 ```ttx
 dialect : Library;
 
-@hidden Header : struct {
-  @public width  : Bits_32;
-  @public height : Bits_32;
+private Header : struct {
+  public width  : Bits_32;
+  public height : Bits_32;
 }
 ```
 
@@ -588,11 +588,11 @@ packs and named swizzles through those fields.
 The core definition forms are:
 
 ```ttx
-sigil name : Type::Ref;
-sigil name : Type::Ref = value;
+modifier name : Type::Ref;
+modifier name : Type::Ref = value;
 ```
 
-Parser shape: a definition starts after an optional sigil. The next token must
+Parser shape: a definition starts after an optional modifier. The next token must
 be `Addressable` or `Type`. `Define` selects explicit type parsing. After the
 type reference, `Assign` introduces an initializer. Otherwise the definition
 must end with `EndStatement` or open a scoped builtin body.
@@ -605,58 +605,52 @@ Definitions introduce either addressable values or type-like names depending
 on the name and the right-hand type reference:
 
 ```ttx
-@hidden Header : struct { ... }                     // type definition
-@hidden header : Header = (.width = 4, .height = 2); // runtime value
-@hidden CountAlias : alias = Count;                 // compile-time alias-like definition
+private Header : struct { ... }                     // type definition
+private header : Header = (.width = 4, .height = 2); // runtime value
+private CountAlias : alias = Count;                 // compile-time alias-like definition
 ```
 
 Only builtin definition kinds may open a scope:
 
 ```ttx
-@hidden Data    : struct  { ... }
-@hidden Runtime : object  { ... }
-@hidden C       : foreign { ... }
-@hidden Stage   : Shader  { ... }
+private Data    : struct  { ... }
+private Runtime : object  { ... }
+private C       : foreign { ... }
+private Stage   : Shader  { ... }
 ```
 
 Other type references define values and must end with `;` or use `=`:
 
 ```ttx
-@hidden size  : Count = 4;
-@hidden bytes : Bytes;
+private size  : Count = 4;
+private bytes : Bytes;
 ```
 
 The evaluator reads these shapes. ISA and type owners then check which builtin
 kinds are legal for the active ISA, along with the compatibility of the
-definition name, type, initializer, visibility, and attributes.
+definition name, type, initializer, modifier, and attributes.
 
-## Sigils
+## Modifiers
 
-Sigils combine visibility with runtime addressability. Runtime sigils create
-values that exist at a runtime address. `@` sigils create compile-time values
-that the compiler may fold, inline, remove, specialize, or encode as metadata.
+Modifiers are fixed keyword tokens that give ISAs a shared access and storage
+surface without forcing one language-wide policy. The lexer owns the spelling;
+the active ISA owns the meaning.
 
-Parser shape: sigils are token classes, not attributes. A parser never parses
-`@public` as `Attribute("public")`. Anywhere a sigil is allowed, check the
-token class with the sigil predicate and store the class on the AST node.
+Parser shape: modifiers are token classes, not attributes. A parser never parses
+`public` as `Attribute("public")`. Anywhere a modifier is allowed, pass the
+allowed `Class::Type` values and check the current token against that set.
 
-| Sigil     | Visibility and lifetime                 | Runtime addressable? |
-| --------- | --------------------------------------- | -------------------- |
-| `public`  | public read/write API                   | yes                  |
-| `@public` | public compile-time API                 | no                   |
-| `expose`  | externally readable/runtime-exposed API | yes                  |
-| `@expose` | externally visible compile-time data    | no                   |
-| `hidden`  | private implementation data             | yes                  |
-| `@hidden` | private compile-time data               | no                   |
-| `stack`   | local runtime data                      | yes, within scope    |
-| `@stack`  | local compile-time data                 | no                   |
+| Modifier  | Intended contract                                      |
+| --------- | ------------------------------------------------------ |
+| `public`  | visible API that other sources may read or call        |
+| `private` | implementation detail owned by the active ISA          |
+| `expose`  | externally readable data, written by its owner         |
+| `state`   | stateful storage that is not part of the value shape   |
+| `const`   | write-once or compile-time data                        |
 
-The `@` prefix is not merely style and is not equivalent to an attribute. It is
-a semantic bit carried by the token class.
-
-This replaces older ideas such as `frozen`, `detail`, `@const`, and
-`@comptime`. The language has fewer words, while `Class::Type` carries the
-distinction exactly.
+This replaces older ideas such as `hidden`, `stack`, `@const`, and `@comptime`.
+The language has fewer spellings, while `Class::Type` still gives evaluators a
+cheap dispatch point.
 
 ## Attributes And Directives
 
@@ -705,24 +699,24 @@ shape parsing and later name binding:
 Other attributes may remain target-specific metadata until an ISA defines
 their legality rules.
 
-`@if` is a compile-time control-flow keyword, not a normal attribute named
-`if`:
+`@if` is an attribute-shaped directive. A host or ISA may reserve that spelling
+for compile-time control flow:
 
 ```ttx
 @if(.enabled = true) {
-  @stack generated : Count = 1;
+  state generated : Count = 1;
 }
 ```
 
-The tokenizer gives `@if` its own class, so the parser treats it as a scope
-statement without consulting the attribute registry.
+The tokenizer emits `@if` as `Attribute`. The ISA that supports it decides
+whether the following bytecode span is a scope instruction.
 
 ## Disabled Members
 
 The disabled marker `/>` wraps the following member as disabled source:
 
 ```ttx
-/> @hidden experimental : Count = 1;
+/> private experimental : Count = 1;
 ```
 
 Parser shape: `Disabled` is accepted before a member's attributes and
@@ -739,12 +733,12 @@ compile-time-false construct.
 Functions are explicit syntax:
 
 ```ttx
-@public func name[params] -> returns {
+public func name[params] -> returns {
   ...
 }
 ```
 
-Parser shape: a function member starts with either `Func` or `sigil Func`.
+Parser shape: a function member starts with either `Func` or `modifier Func`.
 `External` may appear before the function only in a `foreign` scope. After
 `Func`, require an `Addressable` function name, parse a parameter layout, require
 `CallOp`, parse a return layout, then parse either a block or `EndStatement`.
@@ -756,9 +750,9 @@ specialization, foreign declarations, and shader compilation.
 Both parameters and returns are layouts:
 
 ```ttx
-@hidden func size[] -> Count;
+private func size[] -> Count;
 
-@public func decode[.source : View[Bytes]] -> [
+public func decode[.source : View[Bytes]] -> [
   .ok : Bool,
   .image : Image,
 ] {
@@ -779,8 +773,8 @@ the call boundary itself uses the function's declared return order.
 `external` marks a function declaration without a body:
 
 ```ttx
-@hidden C : foreign {
-  external @hidden func inflate[.source : View[Bytes]] -> Bytes;
+private C : foreign {
+  external private func inflate[.source : View[Bytes]] -> Bytes;
 }
 ```
 
@@ -803,13 +797,13 @@ definition kind is `enum`, parse enum members. If it is a scoped keyword such as
 Scoped builtins own member lists:
 
 ```ttx
-@hidden Header : struct {
-  @public width  : Bits_32;
-  @public height : Bits_32;
+private Header : struct {
+  public width  : Bits_32;
+  public height : Bits_32;
 }
 
-@hidden C : foreign {
-  external @hidden func inflate[.source : View[Bytes]] -> Bytes;
+private C : foreign {
+  external private func inflate[.source : View[Bytes]] -> Bytes;
 }
 ```
 
@@ -822,7 +816,7 @@ scope and ISA.
 Enums use a storage-typed named-pack declaration shorthand:
 
 ```ttx
-@hidden Color : enum[Bits_8](.red = 1, .green = 2, .blue = 3);
+private Color : enum[Bits_8](.red = 1, .green = 2, .blue = 3);
 ```
 
 Parser shape: after `Define enum`, require exactly one type argument naming the
@@ -841,7 +835,7 @@ out-of-range values before lowering. The compiler may store enum metadata in
 whatever internal representation is best, but the meaning is equivalent to:
 
 ```ttx
-@hidden Color : enum[Bits_8](
+private Color : enum[Bits_8](
   .red = 1,
   .green = 2,
   .blue = 3,
@@ -851,9 +845,9 @@ whatever internal representation is best, but the meaning is equivalent to:
 producing members that behave like:
 
 ```ttx
-@expose red   : Bits_8 = 1;
-@expose green : Bits_8 = 2;
-@expose blue  : Bits_8 = 3;
+expose red   : Bits_8 = 1;
+expose green : Bits_8 = 2;
+expose blue  : Bits_8 = 3;
 ```
 
 within `Color`.
@@ -922,7 +916,7 @@ few explicit slots differ.
 An indexed designator uses an explicit integer literal after `.`:
 
 ```ttx
-@hidden decode_table : Vec[Bits_8, 256] = (
+private decode_table : Vec[Bits_8, 256] = (
   .43 = 62,
   .47 = 63,
   .48 = 52,
@@ -959,17 +953,17 @@ the aggregate in the aggregate's declaration order.
 For example, this declaration order is `a, b, c`:
 
 ```ttx
-@hidden Thing : struct {
-  @expose a : Bits_32;
-  @expose b : Bits_32 = 0;
-  @expose c : Bits_32;
+private Thing : struct {
+  expose a : Bits_32;
+  expose b : Bits_32 = 0;
+  expose c : Bits_32;
 }
 ```
 
 This initializer is valid because the names identify the target fields:
 
 ```ttx
-@stack x : Thing = (
+state x : Thing = (
   .c = 1,
   .a = 3,
 );
@@ -1031,7 +1025,7 @@ layout provides names.
 Use positional composition when the target wants values in a specific order:
 
 ```ttx
-@stack position : Vec3D = (screen_pos.[x, y], z);
+state position : Vec3D = (screen_pos.[x, y], z);
 ```
 
 The swizzle decomposes `screen_pos` into a positional pack, and the outer pack
@@ -1041,7 +1035,7 @@ three values.
 Use a named pack when names are the contract:
 
 ```ttx
-@stack thing : Thing = (
+state thing : Thing = (
   .c = source_c,
   .a = source_a,
 );
@@ -1055,9 +1049,9 @@ layout boundary when names matter.
 Use swizzle or slice when the source is a typed value:
 
 ```ttx
-@stack rgba : Color = texture -> sample(uv);
-@stack rgb_alpha : Vec4D = (rgba.[r, g, b], alpha);
-@stack first_two : Vec2D = rgba:[0, 2];
+state rgba : Color = texture -> sample(uv);
+state rgb_alpha : Vec4D = (rgba.[r, g, b], alpha);
+state first_two : Vec2D = rgba:[0, 2];
 ```
 
 Typed values never splat implicitly. The source must say which fields or range
@@ -1269,8 +1263,8 @@ TTX does not use braced initializers. Braces are scopes and statement blocks.
 Aggregate initialization uses packs:
 
 ```ttx
-@hidden values : Vec[Bits_32, 4] = (1, 2, 3, 4);
-@hidden color  : Color = (.r = 1.0, .g = 0.0, .b = 0.0, .a = 1.0);
+private values : Vec[Bits_32, 4] = (1, 2, 3, 4);
+private color  : Color = (.r = 1.0, .g = 0.0, .b = 0.0, .a = 1.0);
 ```
 
 The receiving type supplies the expected shape. Positional packs match by
@@ -1278,7 +1272,7 @@ layout order. Named packs match by field name. Source must use swizzle or slice
 syntax when it wants to decompose an existing typed value into a pack:
 
 ```ttx
-@stack clip_position : Vec4D = (screen_pos.[x, y], 0.0, 1.0);
+state clip_position : Vec4D = (screen_pos.[x, y], 0.0, 1.0);
 ```
 
 ## Assignment Statements
@@ -1338,7 +1332,7 @@ chain before accepting the assignment operator.
 A statement starts with one of a small number of shapes:
 
 ```ttx
-@stack total : Count = 0;     // declaration
+state total : Count = 0;     // declaration
 return total;                 // return
 if (total > 0) { ... }        // scope keyword
 source -> copy_to(dest);      // expression statement
@@ -1346,7 +1340,7 @@ total += 1;                   // assignment statement
 ```
 
 Parser shape: statement parsing first skips comments. `ScopeEnd` and
-`EndOfStream` end the current block. A sigil starts a declaration. `Return`
+`EndOfStream` end the current block. A modifier starts a declaration. `Return`
 starts a return statement. `Break` and `Continue` start loop-control
 statements. Scope keywords start their corresponding structured statement.
 Everything else starts expression parsing and may become either an assignment
@@ -1369,8 +1363,8 @@ match value {
 condition fits a truthable layout. Numeric truthiness is not implicit. Use
 `Bool` or an explicit comparison.
 
-`@if` uses the same statement shape as `if`, but its condition is compile-time
-data. It resolves before runtime lowering.
+When an ISA supports `@if`, it can use the same statement shape as `if` while
+evaluating the condition as compile-time data.
 
 `match` patterns are expressions or `_`. Each case owns an explicit block.
 There is no fallthrough.
@@ -1427,7 +1421,7 @@ source order:
 ```ttx
 // Stored in source order.
 // Attached to the following member.
-@hidden signature : Vec[Bits_8, 8] = 0x[89 50 4E 47];
+private signature : Vec[Bits_8, 8] = 0x[89 50 4E 47];
 ```
 
 Comments inside statement bodies are currently skipped by statement parsing
@@ -1531,7 +1525,7 @@ remains a small fixed language rather than an extensible operation syntax.
 
 TTX sits above LLVM IR and beside the lower levels of an MLIR-style pipeline.
 It keeps enough human-facing structure to be authored and reviewed directly:
-packages, imports, comments, sigils, attributes, named layouts, packs, scoped
+packages, imports, comments, modifiers, attributes, named layouts, packs, scoped
 builtins, and shader/foreign declarations. At the same time, it avoids the
 open-ended grammar surface of a general programming language. The source is
 structured so an evaluator can build semantic shape directly and cheaply.
@@ -1574,7 +1568,7 @@ TTX maps naturally to LLVM-like IR concepts:
 | field/index access            | address calculation, often `getelementptr`-like          |
 | swizzle                       | vector shuffle, aggregate extract, or aggregate insert   |
 | pack fit                      | call ABI shaping, return shaping, aggregate construction |
-| `@` compile-time values       | constants, metadata, specialization inputs               |
+| `const` values                | constants, metadata, specialization inputs               |
 | `foreign` functions           | declarations resolved by ABI/linker                      |
 | `Shader` package              | shader artifact plus host-side glue                      |
 
@@ -1597,8 +1591,7 @@ When changing TTX, preserve these invariants:
 8. Named packs start with `.field`; named layouts start with `.field` or
    attributes followed by `.field`.
 9. Named and positional aggregate fields do not mix.
-10. Runtime-vs-compile-time addressability remains visible in sigil token
-   classes.
+10. Visibility and storage intent remain visible in modifier token classes.
 11. ISA legality belongs to the ISA/provider that owns the rule, not
     raw parse-shape construction.
 12. Formatter output derives from the same token source text as the lexer

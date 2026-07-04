@@ -2,29 +2,29 @@
 // Copyright © Matt Kaes
 dialect : Library;
 
-import Graphics : Package = TTX::Graphics;
+import Graphics : Package = Perimortem::Graphics;
 
-@private Default2D : Alias = Graphics::Shaders::Default2D;
+private Default2D : Alias = Graphics::Shaders::Default2D;
 
 @extern(.abi = "c")
-@hidden Perimortem : foreign {
-  external @hidden func run_sprite_fade_scene[
+private Perimortem : foreign {
+  external private func run_sprite_fade_scene[
     .scene : SceneConfig,
     .top_icon : Graphics::Sprite,
     .bottom_icon : Graphics::Sprite,
   ] -> [];
 }
 
-@hidden SceneConfig : struct {
-  @hidden title : View[Bytes];
-  @hidden window_size : Bits_32;
-  @hidden fade_in_seconds : Real_64;
-  @hidden hold_seconds : Real_64;
-  @hidden fade_out_seconds : Real_64;
+private SceneConfig : struct {
+  private title : View[Bytes];
+  private window_size : Bits_32;
+  private fade_in_seconds : Real_64;
+  private hold_seconds : Real_64;
+  private fade_out_seconds : Real_64;
 }
 
-@public func main[] -> [] {
-  stack scene : SceneConfig = (
+public func main[] -> [] {
+  const scene : SceneConfig = (
     .title = "Perimortem",
     .window_size = 700,
     .fade_in_seconds = 1.0,
@@ -32,14 +32,14 @@ import Graphics : Package = TTX::Graphics;
     .fade_out_seconds = 1.0,
   );
 
-  stack top_icon : Graphics::Sprite;
+  state top_icon : Graphics::Sprite;
   top_icon.image = ".data/icon.png";
   top_icon.size_pixels = (.width = 250, .height = 250);
   top_icon.position_x = 0.0;
   top_icon.position_y = 0.45;
   top_icon.renderer = Default2D;
 
-  stack bottom_icon : Graphics::Sprite;
+  state bottom_icon : Graphics::Sprite;
   bottom_icon.image = ".data/icon.png";
   bottom_icon.size_pixels = (.width = 250, .height = 250);
   bottom_icon.position_x = 0.0;

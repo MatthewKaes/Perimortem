@@ -18,10 +18,9 @@ static auto insert_once(
 static auto remove_record(
     Dynamic::Vector<Source::Record*>& records,
     const Source::Record& record) -> void {
-  for (Count record_index = 0; record_index < records.get_size();
-       record_index++) {
-    if (records[record_index] == &record) {
-      records.remove(record_index);
+  for (Count i = 0; i < records.get_size(); i++) {
+    if (records[i] == &record) {
+      records.remove(i);
       return;
     }
   }
@@ -86,9 +85,8 @@ auto Source::Cache::collect_transitive_consumers(
     return;
   }
 
-  for (Count consumer_index = 0; consumer_index < entry->value.get_size();
-       consumer_index++) {
-    Record* consumer = entry->value[consumer_index];
+  for (Count i = 0; i < entry->value.get_size(); i++) {
+    Record* consumer = entry->value[i];
     if (consumers.contains(consumer)) {
       continue;
     }
@@ -122,17 +120,15 @@ auto Source::Cache::detach(Record& record) -> void {
     Records producers = producers_entry->value;
     producers_by_consumer.remove(&record);
 
-    for (Count producer_index = 0; producer_index < producers.get_size();
-         producer_index++) {
-      auto* consumers_entry =
-          consumers_by_producer.find(producers[producer_index]);
+    for (Count i = 0; i < producers.get_size(); i++) {
+      auto* consumers_entry = consumers_by_producer.find(producers[i]);
       if (consumers_entry == nullptr) {
         continue;
       }
 
       remove_record(consumers_entry->value, record);
       if (consumers_entry->value.get_size() == 0) {
-        consumers_by_producer.remove(producers[producer_index]);
+        consumers_by_producer.remove(producers[i]);
       }
     }
   }
@@ -142,17 +138,16 @@ auto Source::Cache::detach(Record& record) -> void {
     Records consumers = consumers_entry->value;
     consumers_by_producer.remove(&record);
 
-    for (Count consumer_index = 0; consumer_index < consumers.get_size();
-         consumer_index++) {
+    for (Count i = 0; i < consumers.get_size(); i++) {
       auto* consumer_producers =
-          producers_by_consumer.find(consumers[consumer_index]);
+          producers_by_consumer.find(consumers[i]);
       if (consumer_producers == nullptr) {
         continue;
       }
 
       remove_record(consumer_producers->value, record);
       if (consumer_producers->value.get_size() == 0) {
-        producers_by_consumer.remove(consumers[consumer_index]);
+        producers_by_consumer.remove(consumers[i]);
       }
     }
   }

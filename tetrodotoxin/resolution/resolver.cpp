@@ -10,8 +10,8 @@
 #include "perimortem/system/file.hpp"
 #include "perimortem/system/path.hpp"
 
-#include "tetrodotoxin/isa/boot/boot.hpp"
-#include "tetrodotoxin/isa/package/package.hpp"
+#include "tetrodotoxin/isa/boot/virtual_machine.hpp"
+#include "tetrodotoxin/isa/package/virtual_machine.hpp"
 #include "ttx/lexical/cursor.hpp"
 #include "ttx/lexical/tokenizer.hpp"
 
@@ -107,9 +107,8 @@ static auto package_error_message(
 static auto stack_contains(
     const Dynamic::Vector<Dynamic::Bytes>& resolving,
     View::Bytes key) -> Bool {
-  for (Count stack_index = 0; stack_index < resolving.get_size();
-       stack_index++) {
-    if (resolving[stack_index] == key) {
+  for (Count i = 0; i < resolving.get_size(); i++) {
+    if (resolving[i] == key) {
       return True;
     }
   }
@@ -124,9 +123,8 @@ static auto blocked_contains(
     return False;
   }
 
-  for (Count source_index = 0; source_index < blocked_sources->get_size();
-       source_index++) {
-    if ((*blocked_sources)[source_index] == key) {
+  for (Count i = 0; i < blocked_sources->get_size(); i++) {
+    if ((*blocked_sources)[i] == key) {
       return True;
     }
   }
@@ -164,8 +162,18 @@ static auto stack_remove(
   }
 }
 
-static auto is_package_source(const Boot& source) -> Bool {
-  return source.get_isa().get_name() == Package::get_name();
+static auto is_package_source(const Boot::Envelope& source) -> Bool {
+  return source.get_isa() == Package::VirtualMachine::get_name();
+}
+
+static auto package_name_from_type(const Ttx::Type& type) -> View::Bytes {
+  const Ttx::Type::Member* package_name =
+      type.find_member("package_name"_view);
+  if (package_name == nullptr || package_name->get_type() == nullptr) {
+    return View::Bytes();
+  }
+
+  return package_name->get_type()->get_name();
 }
 
 static auto is_package_private_path(View::Bytes source_path) -> Bool {
@@ -355,9 +363,8 @@ auto Resolver::load_source(
   // happen during cascading Boot since it would just infinitely Boot loop on
   // imports otherwise.
   sources.publish(record);
-  for (Count producer_index = 0; producer_index < producers.get_size();
-       producer_index++) {
-    sources.connect(record, *producers[producer_index]);
+  for (Count i = 0; i < producers.get_size(); i++) {
+    sources.connect(record, *producers[i]);
   }
 
   if (!private_source) {
@@ -370,7 +377,7 @@ auto Resolver::load_source(
 auto Resolver::load_import(
     Context& context,
     Source::Record& owner,
-    const Import& import,
+    const Boot::Import& import,
     Bool private_source,
     Dynamic::Vector<Dynamic::Bytes>& resolving,
     const Dynamic::Vector<Dynamic::Bytes>* blocked_sources) -> Source::Record* {
@@ -482,14 +489,14 @@ auto Resolver::evaluate_boot(Context& context, Source::Record& record) -> Bool {
   Ttx::Lexical::Tokenizer tokenizer(
       record.get_arena(), record.get_content(), record.get_source_path());
   Ttx::Lexical::Cursor cursor(tokenizer);
-  Boot* boot = Boot::evaluate(cursor, toolchain.get_isa_registry());
+  Boot::Envelope* boot =
+      Boot::VirtualMachine::evaluate(cursor, toolchain.get_isa_registry());
 
   auto evaluation_errors = cursor.get_errors();
   // Evaluation diagnostics are copied out before the record can be destroyed on
   // failure. The resolver is only a pass-through for these errors.
-  for (Count error_index = 0; error_index < evaluation_errors.get_size();
-       error_index++) {
-    context.add_error(evaluation_errors[error_index]);
+  for (Count i = 0; i < evaluation_errors.get_size(); i++) {
+    context.add_error(evaluation_errors[i]);
   }
 
   if (boot == nullptr || !evaluation_errors.is_empty()) {
@@ -511,26 +518,28 @@ auto Resolver::execute_body(
   Ttx::Lexical::Tokenizer tokenizer(
       record.get_arena(), record.get_content(), record.get_source_path());
   Ttx::Lexical::Cursor cursor(tokenizer);
-  Boot::evaluate(cursor, toolchain.get_isa_registry());
+  Boot::VirtualMachine::evaluate(cursor, toolchain.get_isa_registry());
 
-  Managed::Vector<Tetrodotoxin::Isa::Context::Import> type_imports(
-      record.get_arena());
+  Tetrodotoxin::Isa::Context isa_context(record.get_arena());
   auto imports = record.get_boot().get_imports();
-  for (Count producer_index = 0; producer_index < producers.get_size();
-       producer_index++) {
-    Ttx::Type* type = producers[producer_index]->get_type();
-    if (type != nullptr) {
-      type_imports.insert({imports[producer_index].get_local_name(), *type});
+  for (Count i = 0; i < producers.get_size(); i++) {
+    Ttx::Type* type = producers[i]->get_type();
+    if (type != nullptr &&
+        !isa_context.define_type(imports[i].get_local_name(), *type)) {
+      add_error(
+          context, record.get_source_path(), record.get_content(),
+          "Import type name is already defined."_view);
+      return False;
     }
   }
 
-  Tetrodotoxin::Isa::Context isa_context(
-      record.get_arena(), record.get_source_path(), type_imports.get_view());
   Bool executed_body_valid = True;
+  Ttx::Type* type = nullptr;
   const auto* body_isa =
-      toolchain.get_isa_registry().find(record.get_boot().get_isa().get_name());
+      toolchain.get_isa_registry().find(record.get_boot().get_isa());
   if (body_isa != nullptr) {
-    if (!body_isa->get_evaluator()(isa_context, cursor)) {
+    type = body_isa->get_evaluator()(isa_context, cursor);
+    if (type == nullptr) {
       executed_body_valid = False;
     }
   } else {
@@ -541,25 +550,21 @@ auto Resolver::execute_body(
   }
 
   auto evaluation_errors = cursor.get_errors();
-  for (Count error_index = 0; error_index < evaluation_errors.get_size();
-       error_index++) {
-    context.add_error(evaluation_errors[error_index]);
+  for (Count i = 0; i < evaluation_errors.get_size(); i++) {
+    context.add_error(evaluation_errors[i]);
   }
 
-  View::Bytes import_name = isa_context.get_import_name().is_empty()
-                                ? record.get_source_path()
-                                : isa_context.get_import_name();
-  if (is_package_source(record.get_boot()) &&
-      isa_context.get_import_name().is_empty()) {
-    executed_body_valid = False;
+  View::Bytes import_name = record.get_source_path();
+  if (type != nullptr && is_package_source(record.get_boot())) {
+    import_name = package_name_from_type(*type);
   }
 
   if (!executed_body_valid || !evaluation_errors.is_empty() ||
-      import_name.is_empty() || isa_context.get_type() == nullptr) {
+      import_name.is_empty() || type == nullptr) {
     return False;
   }
 
-  record.publish(*isa_context.get_type(), import_name);
+  record.publish(*type, import_name);
   return True;
 }
 
@@ -575,9 +580,8 @@ auto Resolver::resolve_imports(
   // Evaluate every requested import so a single load reports as much of the
   // source error surface as possible. Producers are connected only after the
   // whole import list succeeds.
-  for (Count import_index = 0; import_index < requested_imports.get_size();
-       import_index++) {
-    const Import& import = requested_imports[import_index];
+  for (Count i = 0; i < requested_imports.get_size(); i++) {
+    const Boot::Import& import = requested_imports[i];
     Source::Record* producer = load_import(
         context, record, import, record.is_private(), resolving,
         blocked_sources);
@@ -586,7 +590,7 @@ auto Resolver::resolve_imports(
       continue;
     }
 
-    if (!(import.get_isa() == producer->get_boot().get_isa())) {
+    if (import.get_isa() != producer->get_boot().get_isa()) {
       add_error(
           context, record.get_source_path(), record.get_content(),
           "Imported source ISA does not match the requested ISA."_view);
@@ -612,14 +616,13 @@ auto Resolver::update_consumers(
   // changes. If one fails, later consumers should still be checked, but they
   // must treat that failed source as unavailable instead of accidentally using
   // a stale record from earlier in the update.
-  for (Count snapshot_index = 0; snapshot_index < snapshots.get_size();
-       snapshot_index++) {
+  for (Count i = 0; i < snapshots.get_size(); i++) {
     Dynamic::Vector<Dynamic::Bytes> resolving;
     if (load_source(
-            context, snapshots[snapshot_index].source_path.get_view(),
-            snapshots[snapshot_index].source_text.get_view(), False, resolving,
+            context, snapshots[i].source_path.get_view(),
+            snapshots[i].source_text.get_view(), False, resolving,
             &blocked_sources) == nullptr) {
-      blocked_sources.insert(snapshots[snapshot_index].source_path);
+      blocked_sources.insert(snapshots[i].source_path);
     }
   }
 }
@@ -631,11 +634,10 @@ auto Resolver::snapshot_consumers(
   sources.collect_transitive_consumers(record, consumers);
   // Cache removal destroys records, so consumer update work is captured as path
   // and source text snapshots before the dependency tree is removed.
-  for (Count consumer_index = 0; consumer_index < consumers.get_size();
-       consumer_index++) {
+  for (Count i = 0; i < consumers.get_size(); i++) {
     Snapshot snapshot;
-    snapshot.source_path = consumers[consumer_index]->get_source_path();
-    snapshot.source_text = consumers[consumer_index]->get_content();
+    snapshot.source_path = consumers[i]->get_source_path();
+    snapshot.source_text = consumers[i]->get_content();
     snapshots.insert(snapshot);
   }
 }

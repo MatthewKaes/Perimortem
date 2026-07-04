@@ -3,41 +3,31 @@
 
 #include "tetrodotoxin/isa/boot/import.hpp"
 
-#include "perimortem/core/null_terminated.hpp"
-
-#include "tetrodotoxin/isa/qualified_name.hpp"
+#include "tetrodotoxin/isa/definition.hpp"
+#include "tetrodotoxin/isa/package/package_name.hpp"
 
 using namespace Perimortem::Core;
 using namespace Tetrodotoxin::Isa;
 using namespace Ttx::Lexical;
 
-auto Import::should_evaluate(Cursor& cursor) -> Bool {
-  return cursor.matches(Class::Type::Import);
-}
-
-auto Import::evaluate(Cursor& cursor, const Registry& registry) -> Import {
-  if (!should_evaluate(cursor)) {
-    return Import();
-  }
-  cursor.consume();
-
-  auto local_name = cursor.require(
-      Class::Type::Type, "Type name for local import alias."_view);
-  if (!local_name) {
-    cursor.recover_to_statement();
-    return Import();
+auto Boot::Import::evaluate(Cursor& cursor, const Registry& registry)
+    -> Boot::Import {
+  Definition definition = Definition::evaluate(
+      cursor, Ttx::Documentation(), {{Class::Type::Import}},
+      {{Class::Type::Type}}, {{Class::Type::Type}});
+  if (!definition.is_valid()) {
+    return Boot::Import();
   }
 
-  auto isa = Selection::evaluate(cursor, registry);
-  if (!isa.is_valid()) {
+  if (!registry.require_installed(cursor, definition.get_kind())) {
     cursor.recover_to_statement();
-    return Import();
+    return Boot::Import();
   }
 
   if (!cursor.require(
           Class::Type::Assign, "Expected `=` after import ISA."_view)) {
     cursor.recover_to_statement();
-    return Import();
+    return Boot::Import();
   }
 
   // Strings are file imports. Qualified type-shaped names are package imports.
@@ -53,13 +43,13 @@ auto Import::evaluate(Cursor& cursor, const Registry& registry) -> Import {
 
   case Class::Type::Type: {
     package = True;
-    auto name = QualifiedName::evaluate(cursor);
+    auto name = Package::PackageName::evaluate(cursor);
     if (!name.is_valid()) {
       cursor.recover_to_statement();
-      return Import();
+      return Boot::Import();
     }
 
-    import_name = name.get_text();
+    import_name = name.get_name();
     break;
   }
 
@@ -67,7 +57,7 @@ auto Import::evaluate(Cursor& cursor, const Registry& registry) -> Import {
     cursor.error(
         "Unknown import semantics. Expected either a string path or a package "
         "name."_view);
-    return Import();
+    return Boot::Import();
   }
 
   if (!cursor.require(
@@ -75,5 +65,5 @@ auto Import::evaluate(Cursor& cursor, const Registry& registry) -> Import {
     cursor.recover_to_statement();
   }
 
-  return {local_name->get_text(), import_name, isa, package};
+  return {definition.get_name(), import_name, definition.get_kind(), package};
 }

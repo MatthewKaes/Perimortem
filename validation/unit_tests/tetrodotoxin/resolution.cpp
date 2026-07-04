@@ -42,8 +42,8 @@ static auto remove_disk_sources() -> void {
   File::remove(cycle_dep3);
 }
 
-static Harness TtxResolution = {
-  .name = "Ttx::Resolution"_view,
+static Harness TetrodotoxinResolution = {
+  .name = "Tetrodotoxin::Resolution"_view,
   .setup = []() { remove_disk_sources(); },
   .teardown = []() { remove_disk_sources(); },
 };
@@ -88,10 +88,9 @@ static auto has_error(
     const Resolver::Context& context,
     View::Bytes source_path,
     View::Bytes message) -> Bool {
-  for (Count error_index = 0; error_index < context.get_errors().get_size();
-       error_index++) {
-    if (error_path(context, error_index) == source_path &&
-        error_message(context, error_index) == message) {
+  for (Count i = 0; i < context.get_errors().get_size(); i++) {
+    if (error_path(context, i) == source_path &&
+        error_message(context, i) == message) {
       return True;
     }
   }
@@ -116,7 +115,7 @@ static auto root_type(const Source::Record* record) -> const Ttx::Type* {
   return record->get_type();
 }
 
-PERIMORTEM_UNIT_TEST(TtxResolution, package_imports) {
+PERIMORTEM_UNIT_TEST(TetrodotoxinResolution, package_imports) {
   Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
   Resolver resolver(toolchain);
   Resolver::Context context;
@@ -143,7 +142,7 @@ PERIMORTEM_UNIT_TEST(TtxResolution, package_imports) {
   EXPECT_NOT(context.has_errors());
 }
 
-PERIMORTEM_UNIT_TEST(TtxResolution, missing_imports) {
+PERIMORTEM_UNIT_TEST(TetrodotoxinResolution, missing_imports) {
   Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
   Resolver resolver(toolchain);
   Resolver::Context context;
@@ -166,7 +165,7 @@ PERIMORTEM_UNIT_TEST(TtxResolution, missing_imports) {
   EXPECT_NOT(context.has_errors());
 }
 
-PERIMORTEM_UNIT_TEST(TtxResolution, path_slashes) {
+PERIMORTEM_UNIT_TEST(TetrodotoxinResolution, path_slashes) {
   Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
   Resolver resolver(toolchain);
   Resolver::Context context;
@@ -187,7 +186,7 @@ PERIMORTEM_UNIT_TEST(TtxResolution, path_slashes) {
   EXPECT_NOT(resolver.resolve("unit/root.ttx"_view));
 }
 
-PERIMORTEM_UNIT_TEST(TtxResolution, parse_error_retry) {
+PERIMORTEM_UNIT_TEST(TetrodotoxinResolution, parse_error_retry) {
   Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
   Resolver resolver(toolchain);
   Resolver::Context context;
@@ -207,11 +206,11 @@ PERIMORTEM_UNIT_TEST(TtxResolution, parse_error_retry) {
   const Source::Record* record =
       resolver.load_source(context, "unit/memory.ttx"_view, library_source);
   ASSERT(record != nullptr);
-  EXPECT_TEXT(record->get_boot().get_isa().get_name(), "Library"_view);
+  EXPECT_TEXT(record->get_boot().get_isa(), "Library"_view);
   EXPECT_EQ(import_count(record), Count(0));
 }
 
-PERIMORTEM_UNIT_TEST(TtxResolution, missing_isa) {
+PERIMORTEM_UNIT_TEST(TetrodotoxinResolution, missing_isa) {
   Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
   Resolver resolver(toolchain);
   Resolver::Context context;
@@ -225,7 +224,7 @@ PERIMORTEM_UNIT_TEST(TtxResolution, missing_isa) {
   EXPECT_NOT(resolver.resolve("unit/root.ttx"_view));
 }
 
-PERIMORTEM_UNIT_TEST(TtxResolution, isa_mismatch) {
+PERIMORTEM_UNIT_TEST(TetrodotoxinResolution, isa_mismatch) {
   Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
   Resolver resolver(toolchain);
   Resolver::Context context;
@@ -248,7 +247,7 @@ PERIMORTEM_UNIT_TEST(TtxResolution, isa_mismatch) {
   EXPECT_NOT(context.has_errors());
 }
 
-PERIMORTEM_UNIT_TEST(TtxResolution, memory_only_cache) {
+PERIMORTEM_UNIT_TEST(TetrodotoxinResolution, memory_only_cache) {
   Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
   Resolver resolver(toolchain);
   Resolver::Context context;
@@ -322,7 +321,7 @@ PERIMORTEM_UNIT_TEST(TtxResolution, memory_only_cache) {
   EXPECT_NOT(context.has_errors());
 }
 
-PERIMORTEM_UNIT_TEST(TtxResolution, break_cached) {
+PERIMORTEM_UNIT_TEST(TetrodotoxinResolution, break_cached) {
   Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
   Resolver resolver(toolchain);
   Resolver::Context context;
@@ -387,7 +386,7 @@ PERIMORTEM_UNIT_TEST(TtxResolution, break_cached) {
   EXPECT_NOT(resolver.resolve("unit/c.ttx"_view));
 }
 
-PERIMORTEM_UNIT_TEST(TtxResolution, disk_chain) {
+PERIMORTEM_UNIT_TEST(TetrodotoxinResolution, disk_chain) {
   Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
   Resolver resolver(toolchain);
   Resolver::Context context;
@@ -421,7 +420,7 @@ PERIMORTEM_UNIT_TEST(TtxResolution, disk_chain) {
   EXPECT_NOT(context.has_errors());
 }
 
-PERIMORTEM_UNIT_TEST(TtxResolution, disk_cycle) {
+PERIMORTEM_UNIT_TEST(TetrodotoxinResolution, disk_cycle) {
   Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
   Resolver resolver(toolchain);
   Resolver::Context context;
@@ -453,7 +452,7 @@ PERIMORTEM_UNIT_TEST(TtxResolution, disk_cycle) {
   EXPECT_NOT(context.has_errors());
 }
 
-PERIMORTEM_UNIT_TEST(TtxResolution, bad_update) {
+PERIMORTEM_UNIT_TEST(TetrodotoxinResolution, bad_update) {
   Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
   Resolver resolver(toolchain);
   Resolver::Context context;
@@ -523,7 +522,7 @@ PERIMORTEM_UNIT_TEST(TtxResolution, bad_update) {
   EXPECT_NOT(dep2_source == &resolver.resolve(disk_dep2)->get_boot());
 }
 
-PERIMORTEM_UNIT_TEST(TtxResolution, package_loading) {
+PERIMORTEM_UNIT_TEST(TetrodotoxinResolution, package_loading) {
   Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
   Resolver resolver(toolchain);
   Resolver::Context context;
@@ -531,7 +530,7 @@ PERIMORTEM_UNIT_TEST(TtxResolution, package_loading) {
       context, "unit/root.ttx"_view,
       "dialect : Library;\n"
       "import Graphics : Package = Perimortem::Graphics;\n"
-      "@private Default2D : alias = Graphics::Shaders::Default2D;\n"_view);
+      "private Default2D : alias = Graphics::Shaders::Default2D;\n"_view);
   ASSERT(root != nullptr);
   EXPECT_NOT(context.has_errors());
   context.reset();
@@ -548,7 +547,7 @@ PERIMORTEM_UNIT_TEST(TtxResolution, package_loading) {
 
   const Ttx::Type* package = root_type(graphics);
   ASSERT(package != nullptr);
-  EXPECT_TEXT(package->get_name(), "Graphics"_view);
+  EXPECT_TEXT(package->get_name(), "Package"_view);
   ASSERT_EQ(package->get_types().get_size(), Count(5));
   const Ttx::Type* color = package->find_type("Color"_view);
   ASSERT(color != nullptr);
@@ -585,7 +584,7 @@ PERIMORTEM_UNIT_TEST(TtxResolution, package_loading) {
   EXPECT_NOT(resolver.resolve("unit/direct.ttx"_view));
 }
 
-PERIMORTEM_UNIT_TEST(TtxResolution, package_chain) {
+PERIMORTEM_UNIT_TEST(TetrodotoxinResolution, package_chain) {
   Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
   Resolver resolver(toolchain);
   Resolver::Context context;
@@ -595,7 +594,7 @@ PERIMORTEM_UNIT_TEST(TtxResolution, package_chain) {
       "dialect : Package;\n"
       "import Core : Package = User::Core;\n"
       "@package_name = User::Ui;\n"
-      "@public Core : Package = Core;\n"_view));
+      "expose Core : Package = Core;\n"_view));
   EXPECT(has_error(
       context, "packages/user/ui/package.ttx"_view,
       "Import could not find valid `user/core/package.ttx` for package "
@@ -608,7 +607,7 @@ PERIMORTEM_UNIT_TEST(TtxResolution, package_chain) {
       context, "packages/user/core/package.ttx"_view,
       "dialect : Package;\n"
       "@package_name = User::Core;\n"
-      "@public Value : alias = Internal::Value;\n"_view);
+      "expose Value : alias = Internal::Value;\n"_view);
   ASSERT(core != nullptr);
   EXPECT_NOT(context.has_errors());
   context.reset();
@@ -618,7 +617,7 @@ PERIMORTEM_UNIT_TEST(TtxResolution, package_chain) {
       "dialect : Package;\n"
       "import Core : Package = User::Core;\n"
       "@package_name = User::Ui;\n"
-      "@public Core : Package = Core;\n"_view);
+      "expose Core : Package = Core;\n"_view);
   ASSERT(ui != nullptr);
   EXPECT_NOT(context.has_errors());
   context.reset();
@@ -634,7 +633,7 @@ PERIMORTEM_UNIT_TEST(TtxResolution, package_chain) {
       context, "unit/root.ttx"_view,
       "dialect : Library;\n"
       "import Ui : Package = User::Ui;\n"
-      "@private Value : alias = Ui::Core::Value;\n"_view);
+      "private Value : alias = Ui::Core::Value;\n"_view);
   ASSERT(root != nullptr);
   EXPECT_NOT(context.has_errors());
   context.reset();
@@ -655,7 +654,7 @@ PERIMORTEM_UNIT_TEST(TtxResolution, package_chain) {
   EXPECT_NOT(resolver.resolve("User::Core"_view));
 }
 
-PERIMORTEM_UNIT_TEST(TtxResolution, bad_package) {
+PERIMORTEM_UNIT_TEST(TetrodotoxinResolution, bad_package) {
   Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
   Resolver resolver(toolchain);
   Resolver::Context context;

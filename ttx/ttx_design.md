@@ -98,7 +98,7 @@ That makes the reusable TTX model smaller than a full language tree:
 | `TypeAccessOp` such as `::`            | nested type query against the current type or import context  |
 | `AddressOp` such as `.`                | layout member query or ISA-owned address projection           |
 | `CallOp` such as `->`                  | callable dispatch query against the current type or ISA facts |
-| sigil and attribute token classes      | visibility, addressability, package, or ISA-owned metadata    |
+| modifier and attribute token classes   | visibility, storage, package, or ISA-owned metadata           |
 | string, bytes, layout, and pack tokens | source-shaped operands for the active ISA                     |
 
 Library, Package, Shader, Render, and future ISAs then decide what larger source
@@ -134,19 +134,19 @@ casing and punctuation are part of the instruction stream, not decoration.
 | `PascalCase`  | types, aliases, ISA names, and package names                |
 | `.snake_case` | named pack or layout field                                  |
 | `.10`         | indexed pack field for sparse table initialization          |
-| `@name`       | compiler directive or compile-time sigil                    |
+| `@name`       | attribute or ISA-owned directive                            |
 | `_`           | discard value                                               |
 | `(...)`       | forms a packed group, but can be used to emulate precedence |
 
 `.Red` for instance is not a valid field name. Named fields are addressables, so they must
 be written as `.red`. PascalCase belongs to types in **all** token contexts.
 
-Keywords are tokenized before the parser sees them. For example, `struct`,
-`object`, `enum`, `foreign`, `alias`, `func`, and `@if` are distinct token
-classes, not ordinary identifiers that the parser has to reinterpret later.
-They are lowercase because they are grammar forms. PascalCase names remain open
-type or package atoms, so user types named `Struct`, `Object`, or `Package` are still
-ordinary type names.
+Keywords are tokenized before the parser sees them. For example, `alias`,
+`func`, `import`, `dialect`, `public`, `private`, `expose`, `state`, and `const`
+are distinct token classes, not ordinary identifiers that the parser has to
+reinterpret later. They are lowercase because they are grammar forms.
+PascalCase names remain open type or package atoms, so user types named
+`Struct`, `Object`, or `Package` are still ordinary type names.
 
 It should be noted that so far TTX has ***not*** found a use case for significant
 whitespace, but it reserves the right to use it in the future. This means
@@ -180,13 +180,13 @@ In TTX, definition keywords describe how a scoped sub-IR should be treated.
 `object` and `struct` are used inside a package:
 
 ```ttx
-@hidden ImageInfo : struct {
-  @public width  : Bits_32;
-  @public height : Bits_32;
+private ImageInfo : struct {
+  public width  : Bits_32;
+  public height : Bits_32;
 }
 ```
 
-The ISA selection line has no sigil. That keeps the top of the file visually
+The ISA selection line has no modifier. That keeps the top of the file visually
 distinct and gives envelope evaluators a stable entry point. Evaluation can
 start below top level when a host already knows which evaluator should execute
 the bytecode.
@@ -202,7 +202,7 @@ An ISA may produce more than one output. `Render` and `Shader` packages may
 produce shader code such as SPIR-V embedded as binary constants and host code
 that loads those constants, builds the required `Layout` values, and bridges
 them into the engine runtime. The shared TTX syntax substrate still owns
-declarations, layouts, packs, and sigil parsing so authors do not have to learn
+declarations, layouts, packs, and modifier parsing so authors do not have to learn
 an unrelated grammar for each ISA name.
 
 ## Imports
@@ -238,8 +238,8 @@ push constants to the Shader or talk to the GPU via exposed definitions.
 Most declarations follow one of these shapes:
 
 ```ttx
-sigil name : Type;
-sigil name : Type = value;
+modifier name : Type;
+modifier name : Type = value;
 ```
 
 The type is always written at the declaration site. This keeps the AST typed as
@@ -247,45 +247,39 @@ it is parsed and avoids making local declarations depend on expression
 inference:
 
 ```ttx
-@hidden count : Count = 4;
-@hidden converted : Count = Count -> from(4);
+private count : Count = 4;
+private converted : Count = Count -> from(4);
 ```
 
 PascalCase names define types or compile-time names. Snake_case names define
 addressable values.
 
 ```ttx
-@hidden Header : struct { ... }                     // type definition
-@hidden header : Header = (.width = 4, .height = 2); // addressable value
+private Header : struct { ... }                     // type definition
+private header : Header = (.width = 4, .height = 2); // addressable value
 ```
 
 This casing rule removes a common vexing parse: after `PascalCase :`, the parser
 knows it is reading a definition. After `snake_case :`, it is reading an
 addressable declaration.
 
-## Sigils
+## Modifiers
 
-Sigils describe visibility, lifetime, and whether a value exists as a runtime
-address. The current sigils are:
+Modifiers describe visibility, ownership, and storage shape. They are ordinary
+keyword tokens. The exact semantic contract belongs to the active ISA, but the
+shared spellings let ISAs reuse the same definition spine:
 
-| Sigil     | Meaning                               |
-| --------- | ------------------------------------- |
-| `public`  | runtime public addressable value      |
-| `@public` | compile-time public value             |
-| `expose`  | runtime externally readable value     |
-| `@expose` | compile-time externally visible value |
-| `hidden`  | runtime private value                 |
-| `@hidden` | compile-time private value            |
-| `stack`   | runtime local value                   |
-| `@stack`  | compile-time local value              |
+| Modifier  | Intended meaning                                      |
+| --------- | ----------------------------------------------------- |
+| `public`  | visible API that other sources may read or call       |
+| `private` | local implementation detail owned by the current ISA  |
+| `expose`  | externally readable data, written by its owner        |
+| `state`   | stateful storage that is not part of the value shape  |
+| `const`   | write-once or compile-time data                       |
 
-The `@` prefix means the value is not addressable at runtime. It is compile-time
-data visible to the compiler. This replaced older `frozen`, `detail`, `const`,
-and `comptime` spellings with one rule: `@` is the compile-time bit.
-
-That trade off compresses several concepts into the token class. The benefit is
-that the parser and compiler receive the distinction directly from the tokenizer
-instead of rediscovering it from attributes.
+The tokenizer only provides the keyword class. Library, Package, Shader, and
+future ISAs decide which modifiers are legal at each instruction and what facts
+they publish into the TTX data model.
 
 ## Attributes And Directives
 
@@ -301,11 +295,11 @@ field:
 Attributes may take a pack. Since `(...)` is always a pack, attribute arguments
 use the same syntax as call arguments and aggregate values.
 
-`@if` is a named compiler directive:
+`@if` is an attribute-shaped directive:
 
 ```ttx
 @if(.enabled = true) {
-  @stack generated : Count = 1;
+  state generated : Count = 1;
 }
 ```
 
@@ -351,17 +345,17 @@ instead of source spelling.
 Only builtin definition kinds can be followed by a scope:
 
 ```ttx
-@hidden Data      : struct  { ... }
-@hidden Manager   : object  { ... }
-@hidden Api       : foreign { ... }
-@hidden StageData : Shader  { ... }
+private Data      : struct  { ... }
+private Manager   : object  { ... }
+private Api       : foreign { ... }
+private StageData : Shader  { ... }
 ```
 
 Other types are values and use `=` or `;`:
 
 ```ttx
-@hidden count : Count = 1;
-@hidden bytes : Bytes;
+private count : Count = 1;
+private bytes : Bytes;
 ```
 
 This is one of the places where TTX is deliberately closer to IR than to a
@@ -377,8 +371,8 @@ can be a legal builtin in a `Library` package while remaining invalid in a
 Functions are explicit AST nodes, not values declared as `Func`.
 
 ```ttx
-@public func main[.frag_uv : Vec2D] -> Color {
-  @stack s : Color = self.icon_texture -> sample(frag_uv);
+public func main[.frag_uv : Vec2D] -> Color {
+  state s : Color = self.icon_texture -> sample(frag_uv);
   return (s.[r, g, b], s.a * Push.alpha);
 }
 ```
@@ -386,19 +380,19 @@ Functions are explicit AST nodes, not values declared as `Func`.
 The function syntax is:
 
 ```ttx
-sigil? func name[params] -> returns block
+modifier? func name[params] -> returns block
 ```
 
 Both parameters and returns are layouts. A single type may be written directly:
 
 ```ttx
-@public func size[] -> Count { ... }
+public func size[] -> Count { ... }
 ```
 
 A named layout uses fields:
 
 ```ttx
-@public func decode[.source : View[Bytes]] -> [
+public func decode[.source : View[Bytes]] -> [
   .ok : Bool,
   .image : Image,
 ] {
@@ -409,8 +403,8 @@ A named layout uses fields:
 Functions may be declared `external` only inside `foreign` blocks:
 
 ```ttx
-@hidden C : foreign {
-  external @hidden func inflate[.source : View[Bytes]] -> Bytes;
+private C : foreign {
+  external private func inflate[.source : View[Bytes]] -> Bytes;
 }
 ```
 
@@ -489,7 +483,7 @@ named pack can initialize a struct out of declaration order because type and lay
 fitting maps by name, then lowering writes the struct in declaration order:
 
 ```ttx
-@stack thing : Thing = (
+state thing : Thing = (
   .c = source_c,
   .a = source_a,
 );
@@ -500,15 +494,15 @@ or named fields. Grouping, swizzle, and slice produce positional packs unless a
 field explicitly authors a name:
 
 ```ttx
-@stack position : Vec3D = (screen_pos.[x, y], z);
-@stack color    : Vec4D = (sample.[r, g, b], alpha);
+state position : Vec3D = (screen_pos.[x, y], z);
+state color    : Vec4D = (sample.[r, g, b], alpha);
 ```
 
 Indexed packs are for sparse data tables, especially fixed-size aggregates like
 `Vec[T, N]` where most elements use defaults:
 
 ```ttx
-@hidden decode_table : Vec[Bits_8, 256] = (
+private decode_table : Vec[Bits_8, 256] = (
   .43 = 62,
   .47 = 63,
   .65 = 0,
@@ -645,8 +639,8 @@ calls, type/static calls, package calls, and function-pointer dispatch such as
 Aggregate values are initialized by fitting packs to an expected type:
 
 ```ttx
-@stack uv    : Vec2D = (0.0, 1.0);
-@stack color : Color = (.r = 1.0, .g = 0.0, .b = 0.0, .a = 1.0);
+state uv    : Vec2D = (0.0, 1.0);
+state color : Color = (.r = 1.0, .g = 0.0, .b = 0.0, .a = 1.0);
 ```
 
 The target type supplies the layout. A positional pack must match that layout
@@ -656,8 +650,8 @@ by order. A named pack must match the target's field names exactly.
 construction:
 
 ```ttx
-@stack count : Count = Count -> from(width);
-@stack kind  : ColorType = ColorType -> from(byte);
+state count : Count = Count -> from(width);
+state kind  : ColorType = ColorType -> from(byte);
 ```
 
 Use conversion when the value is changing representation or meaning. Use a pack
@@ -667,9 +661,9 @@ TTX does not support braced initializers. Braces are for scopes and statement
 blocks. Aggregate values are initialized with packs:
 
 ```ttx
-@hidden values : Vec[Bits_32, 4] = (1, 2, 3, 4);
+private values : Vec[Bits_32, 4] = (1, 2, 3, 4);
 
-@hidden quad_uvs : Vec[Vec2D, 6] = (
+private quad_uvs : Vec[Vec2D, 6] = (
   (.x = 0.0, .y = 0.0),
   (.x = 1.0, .y = 0.0),
   (.x = 1.0, .y = 1.0),
@@ -712,14 +706,15 @@ side-effecting assignments from appearing where a value is expected.
 A statement begins with one of a small number of shapes:
 
 ```ttx
-@stack total : Count = 0;     // declaration
+state total : Count = 0;     // declaration
 return total;                 // return
 if (total > 0) { ... }        // scope keyword
 source -> copy_to(dest);      // expression statement
 total += 1;                   // assignment statement
 ```
 
-Only keywords spawn scopes: `if`, `@if`, `for`, `while`, and `match`.
+Only keywords spawn scopes: `if`, `for`, `while`, and `match`. Attribute-shaped
+directives such as `@if` may also spawn scopes when an ISA chooses to own them.
 `break;` and `continue;` are simple control statements, not scope forms.
 
 `if` and `while` require a condition pack:
@@ -750,7 +745,7 @@ match value {
 Enums use a concise storage-typed named-pack syntax:
 
 ```ttx
-@hidden Color : enum[Bits_8](.red = 1, .green = 2, .blue = 3);
+private Color : enum[Bits_8](.red = 1, .green = 2, .blue = 3);
 ```
 
 The syntax is short because enums are common compile-time data. Semantically,
@@ -758,7 +753,7 @@ the compiler desugars enum members into exposed compile-time values inside the
 enum namespace, and checks each value against the declared storage type:
 
 ```ttx
-@hidden Color : enum[Bits_8](
+private Color : enum[Bits_8](
   .red = 1,
   .green = 2,
   .blue = 3,
@@ -768,10 +763,10 @@ enum namespace, and checks each value against the declared storage type:
 is treated like:
 
 ```ttx
-@hidden Color : struct {
-  @expose red   : Bits_8 = 1;
-  @expose green : Bits_8 = 2;
-  @expose blue  : Bits_8 = 3;
+private Color : struct {
+  expose red   : Bits_8 = 1;
+  expose green : Bits_8 = 2;
+  expose blue  : Bits_8 = 3;
 }
 ```
 
@@ -812,7 +807,7 @@ collected into one `Documentation` object in source order:
 ```ttx
 // Stored in source order.
 // Attached to the following member.
-@hidden signature : Vec[Bits_8, 8] = 0x[89 50 4E 47];
+private signature : Vec[Bits_8, 8] = 0x[89 50 4E 47];
 ```
 
 Documentation is part of the TTX model because the formatter and LSP need it.
@@ -830,7 +825,7 @@ language features are the same concept:
 - Calls, attributes, aggregate values, `if`, and `while` all use packs.
 - Function parameters, returns, and `for` bindings all use layouts.
 - Field access, swizzle, index, slice, and method call are all postfix access.
-- Runtime and compile-time visibility are sigil tokens.
+- Visibility and storage are modifier tokens.
 - Type paths and aliases are type references.
 - Assignment is a statement, not an expression.
 

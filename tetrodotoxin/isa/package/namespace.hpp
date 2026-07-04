@@ -5,9 +5,10 @@
 
 #include "perimortem/core/view/vector.hpp"
 
+#include "tetrodotoxin/isa/context.hpp"
 #include "tetrodotoxin/isa/package/export.hpp"
 
-namespace Tetrodotoxin::Isa {
+namespace Tetrodotoxin::Isa::Package {
 
 // Namespace groups package exports under one `::` segment.
 //
@@ -20,7 +21,9 @@ class Namespace {
   explicit Namespace(Perimortem::Core::View::Vector<Export> exports)
       : exports(exports), valid(True) {}
 
-  static auto evaluate(Ttx::Lexical::Cursor& cursor) -> Namespace;
+  static auto evaluate(
+      Tetrodotoxin::Isa::Context& context,
+      Ttx::Lexical::Cursor& cursor) -> Namespace;
 
   constexpr auto get_exports() const -> Perimortem::Core::View::Vector<Export> {
     return exports;
@@ -32,4 +35,4 @@ class Namespace {
   Bool valid = False;
 };
 
-}  // namespace Tetrodotoxin::Isa
+}  // namespace Tetrodotoxin::Isa::Package

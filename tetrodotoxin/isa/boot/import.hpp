@@ -5,10 +5,10 @@
 
 #include "perimortem/core/view/bytes.hpp"
 
-#include "tetrodotoxin/isa/boot/selection.hpp"
+#include "tetrodotoxin/isa/registry.hpp"
 #include "ttx/lexical/cursor.hpp"
 
-namespace Tetrodotoxin::Isa {
+namespace Tetrodotoxin::Isa::Boot {
 
 // Import is the unresolved dependency request written in the source envelope.
 //
@@ -31,15 +31,16 @@ class Import {
  public:
   Import() = default;
 
-  static auto should_evaluate(Ttx::Lexical::Cursor& cursor) -> Bool;
   static auto evaluate(
       Ttx::Lexical::Cursor& cursor,
-      const Registry& registry) -> Import;
+      const Tetrodotoxin::Isa::Registry& registry) -> Import;
 
   constexpr auto get_local_name() const -> Perimortem::Core::View::Bytes {
     return local_name;
   }
-  constexpr auto get_isa() const -> const Selection& { return isa; }
+  constexpr auto get_isa() const -> Perimortem::Core::View::Bytes {
+    return isa;
+  }
   constexpr auto get_source_name() const -> Perimortem::Core::View::Bytes {
     return source_name;
   }
@@ -50,14 +51,14 @@ class Import {
   // True when the source envelope produced a complete import request.
   constexpr auto is_valid() const -> Bool {
     return !local_name.is_empty() && !source_name.is_empty() &&
-           isa.is_valid();
+           !isa.is_empty();
   }
 
  private:
   Import(
       Perimortem::Core::View::Bytes local_name,
       Perimortem::Core::View::Bytes source_name,
-      Selection isa,
+      Perimortem::Core::View::Bytes isa,
       Bool package)
       : local_name(local_name),
         source_name(source_name),
@@ -66,8 +67,8 @@ class Import {
 
   Perimortem::Core::View::Bytes local_name;
   Perimortem::Core::View::Bytes source_name;
-  Selection isa;
+  Perimortem::Core::View::Bytes isa;
   Bool package = False;
 };
 
-}  // namespace Tetrodotoxin::Isa
+}  // namespace Tetrodotoxin::Isa::Boot

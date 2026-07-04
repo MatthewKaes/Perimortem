@@ -11,31 +11,31 @@ import Math     : Library = TTX::Math;
 // [?] @extern(.abi = "c") marks methods as C-ABI external symbols resolved at
 // link time. Provisional — C FFI design is not yet finalized.
 @extern(.abi = "c")
-@hidden Deflate : foreign {
-  external @hidden func inflate[.source : View[Bytes], .capacity : Count] -> Bytes;
+private Deflate : foreign {
+  external private func inflate[.source : View[Bytes], .capacity : Count] -> Bytes;
 
-  external @hidden func deflate[.source : View[Bytes]] -> Bytes;
+  external private func deflate[.source : View[Bytes]] -> Bytes;
 }
 
 // PNG file signature — the first 8 bytes of every valid PNG file.
-@hidden png_signature : Vec[Bits_8, 8] = 0x[89 50 4E 47 0D 0A 1A 0A];
+private png_signature : Vec[Bits_8, 8] = 0x[89 50 4E 47 0D 0A 1A 0A];
 
 // Named 4-byte chunk type identifiers.
-@hidden ihdr_tag : Vec[Bits_8, 4] = "IHDR";
-@hidden idat_tag : Vec[Bits_8, 4] = "IDAT";
-@hidden iend_tag : Vec[Bits_8, 4] = "IEND";
-@hidden plte_tag : Vec[Bits_8, 4] = "PLTE";
+private ihdr_tag : Vec[Bits_8, 4] = "IHDR";
+private idat_tag : Vec[Bits_8, 4] = "IDAT";
+private iend_tag : Vec[Bits_8, 4] = "IEND";
+private plte_tag : Vec[Bits_8, 4] = "PLTE";
 
 // Color encoding written in the PNG IHDR chunk. Values match the PNG
 // specification so the field can be read directly from the binary stream.
-@hidden ColorType : enum[Bits_8] {
+private ColorType : enum[Bits_8] {
   greyscale       = 0;
   rgb             = 2;
   indexed         = 3;
   greyscale_alpha = 4;
   rgba            = 6;
 
-  @public func get_channel_count[] -> Count {
+  public func get_channel_count[] -> Count {
     match self {
       case ColorType.indexed : {
         return 1;
@@ -61,7 +61,7 @@ import Math     : Library = TTX::Math;
 
 // Per-row prediction filter applied before DEFLATE. Each value matches the
 // filter byte prepended to the filtered row in the PNG wire format.
-@hidden FilterType : enum[Bits_8] {
+private FilterType : enum[Bits_8] {
   none         = 0;
   sub          = 1;
   previous_row = 2;
@@ -70,18 +70,18 @@ import Math     : Library = TTX::Math;
 
   // Paeth predictor: estimates the next sample by linear extrapolation from
   // the left, upper, and upper-left neighbours, returning the closest.
-  @hidden func paeth_predictor[
+  private func paeth_predictor[
     .left : Bits_8,
     .previous_row : Bits_8,
     .upper_left : Bits_8,
   ] -> Bits_8 {
-    @stack p_left           : Signed_16 = Signed_16 -> from(left);
-    @stack p_up             : Signed_16 = Signed_16 -> from(previous_row);
-    @stack p_upper_left     : Signed_16 = Signed_16 -> from(upper_left);
-    @stack predictor        : Signed_16 = p_left + p_up - p_upper_left;
-    @stack score_left       : Signed_16 = Math -> absolute(predictor - p_left);
-    @stack score_up         : Signed_16 = Math -> absolute(predictor - p_up);
-    @stack score_upper_left : Signed_16 = Math -> absolute(predictor - p_upper_left);
+    state p_left           : Signed_16 = Signed_16 -> from(left);
+    state p_up             : Signed_16 = Signed_16 -> from(previous_row);
+    state p_upper_left     : Signed_16 = Signed_16 -> from(upper_left);
+    state predictor        : Signed_16 = p_left + p_up - p_upper_left;
+    state score_left       : Signed_16 = Math -> absolute(predictor - p_left);
+    state score_up         : Signed_16 = Math -> absolute(predictor - p_up);
+    state score_upper_left : Signed_16 = Math -> absolute(predictor - p_upper_left);
 
     if (score_left <= score_up and score_left <= score_upper_left) {
       return left;
@@ -97,18 +97,18 @@ import Math     : Library = TTX::Math;
   // Scores all five filters for current_row and returns the one with the
   // lowest absolute-residual sum. Pass a zero-length View for previous_row on
   // the first row — Up, Average, and Paeth are excluded from scoring.
-  @hidden func best_for_row[.current_row : View[Bytes], .previous_row : View[Bytes]] -> FilterType {
-    @stack is_first_row : Bool            = previous_row -> get_size() == 0;
-    @stack bpp          : Count           = Graphics.Image -> get_channel_count();
-    @stack scores       : Vec[Bits_64, 5] = (0, 0, 0, 0, 0);
+  private func best_for_row[.current_row : View[Bytes], .previous_row : View[Bytes]] -> FilterType {
+    state is_first_row : Bool            = previous_row -> get_size() == 0;
+    state bpp          : Count           = Graphics.Image -> get_channel_count();
+    state scores       : Vec[Bits_64, 5] = (0, 0, 0, 0, 0);
 
     for [.i : Count] in 0...bpp {
-      @stack cur : Bits_8 = current_row[i];
+      state cur : Bits_8 = current_row[i];
       scores[FilterType.none] += Bits_64 -> from(Math -> signed_abs(Signed_8 -> from(cur)));
       scores[FilterType.sub] += Bits_64 -> from(Math -> signed_abs(Signed_8 -> from(cur)));
 
       if (!is_first_row) {
-        @stack previous_row : Bits_8 = previous_row[i];
+        state previous_row : Bits_8 = previous_row[i];
         scores[FilterType.previous_row] += Bits_64 -> from(
           Math -> signed_abs(Signed_8 -> from(cur - previous_row)),
         );
@@ -122,14 +122,14 @@ import Math     : Library = TTX::Math;
     }
 
     for [.i : Count] in bpp...current_row -> get_size() {
-      @stack cur  : Bits_8 = current_row[i];
-      @stack left : Bits_8 = current_row[i - bpp];
+      state cur  : Bits_8 = current_row[i];
+      state left : Bits_8 = current_row[i - bpp];
       scores[FilterType.none] += Bits_64 -> from(Math -> signed_abs(Signed_8 -> from(cur)));
       scores[FilterType.sub] += Bits_64 -> from(Math -> signed_abs(Signed_8 -> from(cur - left)));
 
       if (!is_first_row) {
-        @stack previous_row : Bits_8 = previous_row[i];
-        @stack upper_left   : Bits_8 = previous_row[i - bpp];
+        state previous_row : Bits_8 = previous_row[i];
+        state upper_left   : Bits_8 = previous_row[i - bpp];
         scores[FilterType.previous_row] += Bits_64 -> from(
           Math -> signed_abs(Signed_8 -> from(cur - previous_row)),
         );
@@ -157,12 +157,12 @@ import Math     : Library = TTX::Math;
 
   // Applies this filter forward to current_row, writing residuals into out.
   // Pass a zero-length View for previous_row only when self is None or Sub.
-  @hidden func apply[
+  private func apply[
     .out : Access[Bytes],
     .current_row : View[Bytes],
     .previous_row : View[Bytes],
   ] -> Void {
-    @stack bpp : Count = Graphics.Image -> get_channel_count();
+    state bpp : Count = Graphics.Image -> get_channel_count();
 
     if (self == FilterType.none) {
       current_row -> copy_to(out);
@@ -170,7 +170,7 @@ import Math     : Library = TTX::Math;
     }
 
     for [.i : Count] in 0...bpp {
-      @stack cur : Bits_8 = current_row[i];
+      state cur : Bits_8 = current_row[i];
 
       match self {
         case FilterType.sub : {
@@ -192,8 +192,8 @@ import Math     : Library = TTX::Math;
     }
 
     for [.i : Count] in bpp...current_row -> get_size() {
-      @stack cur  : Bits_8 = current_row[i];
-      @stack left : Bits_8 = current_row[i - bpp];
+      state cur  : Bits_8 = current_row[i];
+      state left : Bits_8 = current_row[i - bpp];
 
       match self {
         case FilterType.sub : {
@@ -203,14 +203,14 @@ import Math     : Library = TTX::Math;
           out[i] = Bits_8 -> from(cur - previous_row[i]);
         }
         case FilterType.average : {
-          @stack previous_row : Bits_8 = previous_row[i];
+          state previous_row : Bits_8 = previous_row[i];
           out[i] = Bits_8 -> from(
             cur - Bits_8 -> from((Bits_32 -> from(left) + Bits_32 -> from(previous_row)) / 2),
           );
         }
         case FilterType.paeth : {
-          @stack previous_row : Bits_8 = previous_row[i];
-          @stack upper_left   : Bits_8 = previous_row[i - bpp];
+          state previous_row : Bits_8 = previous_row[i];
+          state upper_left   : Bits_8 = previous_row[i - bpp];
           out[i] = Bits_8 -> from(
             cur - FilterType -> paeth_predictor(left, previous_row, upper_left),
           );
@@ -224,14 +224,14 @@ import Math     : Library = TTX::Math;
 
   // Reconstructs one forward-filtered row. Pass a zero-length View for previous_row on
   // the first row — each case degrades correctly to its zero-previous_row equivalent.
-  @hidden func reconstruct[
+  private func reconstruct[
     .filtered_row : View[Bytes],
     .output_row : Access[Bytes],
     .previous_row : View[Bytes],
     .stride : Count,
     .bytes_per_pixel : Count,
   ] -> Bool {
-    @stack is_first_row : Bool = previous_row -> get_size() == 0;
+    state is_first_row : Bool = previous_row -> get_size() == 0;
 
     match self {
       case FilterType.none : {
@@ -307,19 +307,19 @@ import Math     : Library = TTX::Math;
 
 // Mirrors the 13-byte PNG IHDR payload. Width and height are stored in native
 // byte order; read and write handle endian conversion explicitly.
-@hidden ImageInfo : struct {
-  @hidden size               : Count      = 13;
-  @expose width              : Bits_32    = 0;
-  @expose height             : Bits_32    = 0;
-  @expose bit_depth          : Bits_8     = 0;
-  @expose color_type         : ColorType  = ColorType.rgba;
-  @expose compression_method : Bits_8     = 0;
-  @expose filter_method      : FilterType = FilterType.none;
-  @expose interlace_method   : Bits_8     = 0;
+private ImageInfo : struct {
+  private size               : Count      = 13;
+  expose width              : Bits_32    = 0;
+  expose height             : Bits_32    = 0;
+  expose bit_depth          : Bits_8     = 0;
+  expose color_type         : ColorType  = ColorType.rgba;
+  expose compression_method : Bits_8     = 0;
+  expose filter_method      : FilterType = FilterType.none;
+  expose interlace_method   : Bits_8     = 0;
 
   // Parses a 13-byte big-endian IHDR payload.
-  @hidden func from_bytes[.bytes : View[Bytes]] -> ImageInfo {
-    @stack info : ImageInfo;
+  private func from_bytes[.bytes : View[Bytes]] -> ImageInfo {
+    state info : ImageInfo;
     info.width = Bits_32 -> from_big_endian(bytes.[0 +: 4]);
     info.height = Bits_32 -> from_big_endian(bytes.[4 +: 4]);
     info.bit_depth = bytes[8];
@@ -331,7 +331,7 @@ import Math     : Library = TTX::Math;
   }
 
   // Constructs an ImageInfo from an Image for the encode path.
-  @hidden func from_image[.image : View[Graphics.Image]] -> ImageInfo {
+  private func from_image[.image : View[Graphics.Image]] -> ImageInfo {
     return (
       .width = image -> get_width(),
       .height = image -> get_height(),
@@ -344,7 +344,7 @@ import Math     : Library = TTX::Math;
   }
 
   // Serializes into a 13-byte big-endian buffer.
-  @public func write[.buffer : Access[Bytes]] -> Void {
+  public func write[.buffer : Access[Bytes]] -> Void {
     self.width -> write_big_endian(buffer.[0 +: 4]);
     self.height -> write_big_endian(buffer.[4 +: 4]);
     buffer[8] = self.bit_depth;
@@ -354,31 +354,31 @@ import Math     : Library = TTX::Math;
     buffer[12] = self.interlace_method;
   }
 
-  @public func is_valid[] -> Bool {
+  public func is_valid[] -> Bool {
     return self.compression_method == 0 and self.filter_method == FilterType.none
       and self.interlace_method == 0;
   }
 }
 
-@hidden PixelConversion : struct {
-  @expose success : Bool;
-  @expose pixels  : List[Graphics.Pixel];
+private PixelConversion : struct {
+  expose success : Bool;
+  expose pixels  : List[Graphics.Pixel];
 }
 
 // A parsed PNG chunk. Data holds a view into the source buffer.
-@hidden Chunk : struct {
+private Chunk : struct {
   // 4-byte length field + 4-byte type tag + 4-byte CRC.
-  @hidden overhead : Count = 12;
+  private overhead : Count = 12;
 
   // CRC-32 (IEEE 802.3) lookup table placeholder.
-  @hidden crc_table : Vec[Bits_32, 256] = ();
-  @expose type_tag  : Vec[Bits_8, 4];
-  @expose data      : View[Bytes];
-  @expose length    : Bits_32           = 0;
-  @expose valid     : Bool              = False;
+  private crc_table : Vec[Bits_32, 256] = ();
+  expose type_tag  : Vec[Bits_8, 4];
+  expose data      : View[Bytes];
+  expose length    : Bits_32           = 0;
+  expose valid     : Bool              = False;
 
-  @hidden func calculate_crc32[.data : View[Bytes]] -> Bits_32 {
-    @stack running_crc : Bits_32 = 0xFFFFFFFF;
+  private func calculate_crc32[.data : View[Bytes]] -> Bits_32 {
+    state running_crc : Bits_32 = 0xFFFFFFFF;
 
     for [.byte : Bits_8] in data {
       running_crc = Chunk.crc_table[running_crc -> bit_xor(byte)] -> bit_xor(
@@ -390,7 +390,7 @@ import Math     : Library = TTX::Math;
   }
 
   // Reads a chunk from source at offset; sets valid = False on any error.
-  @expose func read[.source : View[Bytes], .offset : Count] -> Void {
+  expose func read[.source : View[Bytes], .offset : Count] -> Void {
     self.valid = False;
 
     if (offset + Chunk.overhead > source -> get_size()) {
@@ -398,7 +398,7 @@ import Math     : Library = TTX::Math;
       return;
     }
 
-    @stack length : Bits_32 = Bits_32 -> from_big_endian(source.[offset +: 4]);
+    state length : Bits_32 = Bits_32 -> from_big_endian(source.[offset +: 4]);
 
     if (offset + Chunk.overhead + Count -> from(length) > source -> get_size()) {
       Log -> error(
@@ -414,10 +414,10 @@ import Math     : Library = TTX::Math;
     self.length = length;
 
     @if (.mode = "debug") {
-      @stack stored_crc : Bits_32 = Bits_32 -> from_big_endian(
+      state stored_crc : Bits_32 = Bits_32 -> from_big_endian(
         source.[offset + 8 + Count -> from(length) +: 4],
       );
-      @stack actual_crc : Bits_32 = Chunk -> calculate_crc32(
+      state actual_crc : Bits_32 = Chunk -> calculate_crc32(
         source.[offset + 4 +: 4 + Count -> from(length)],
       );
 
@@ -432,40 +432,40 @@ import Math     : Library = TTX::Math;
 
   // Writes this chunk (length + tag + payload + CRC-32) into buffer at
   // write_pos. Returns the new write position.
-  @expose func write[.buffer : Access[Bytes], .write_pos : Count] -> Count {
+  expose func write[.buffer : Access[Bytes], .write_pos : Count] -> Count {
     Bits_32 -> from(self.data -> get_size()) -> write_big_endian(buffer.[write_pos +: 4]);
 
-    @stack after_length : Count = write_pos + 4;
+    state after_length : Count = write_pos + 4;
     self.type_tag -> copy_to(buffer.[after_length +: 4]);
 
-    @stack after_tag : Count = after_length + 4;
+    state after_tag : Count = after_length + 4;
     self.data -> copy_to(buffer.[after_tag +: self.data -> get_size()]);
 
-    @stack after_data : Count   = after_tag + self.data -> get_size();
-    @stack crc_span   : Count   = 4 + self.data -> get_size();
-    @stack chunk_crc  : Bits_32 = Chunk -> calculate_crc32(buffer.[after_length +: crc_span]);
+    state after_data : Count   = after_tag + self.data -> get_size();
+    state crc_span   : Count   = 4 + self.data -> get_size();
+    state chunk_crc  : Bits_32 = Chunk -> calculate_crc32(buffer.[after_length +: crc_span]);
     chunk_crc -> write_big_endian(buffer.[after_data +: 4]);
     return after_data + 4;
   }
 }
 
-@public Png : object {
+public Png : object {
   // Decodes a PNG byte stream into an RGBA Image. Returns an empty Image on
   // any parse, validation, or decompression failure.
-  @public func decode[.source : View[Bytes]] -> Graphics.Image {
-    @stack info : ImageInfo = self -> read_header(source);
+  public func decode[.source : View[Bytes]] -> Graphics.Image {
+    state info : ImageInfo = self -> read_header(source);
 
     if (info.width == 0 or info.height == 0) {
       return Graphics.Image -> from();
     }
 
-    @stack binary_data  : View[Bytes] = View[Bytes] -> from();
-    @stack merged_data  : Bytes       = Bytes -> from();
-    @stack palette      : View[Bytes] = View[Bytes] -> from();
-    @stack chunk_offset : Count       = 8;
+    state binary_data  : View[Bytes] = View[Bytes] -> from();
+    state merged_data  : Bytes       = Bytes -> from();
+    state palette      : View[Bytes] = View[Bytes] -> from();
+    state chunk_offset : Count       = 8;
 
     while (chunk_offset < source -> get_size()) {
-      @stack chunk : Chunk;
+      state chunk : Chunk;
       chunk -> read(source, chunk_offset);
 
       if (!chunk.valid) {
@@ -506,44 +506,44 @@ import Math     : Library = TTX::Math;
 
   // Encodes an RGBA Image into a PNG byte stream using adaptive per-row
   // filtering and deflate compression. Returns empty Bytes on failure.
-  @public func encode[.image : View[Graphics.Image]] -> Bytes {
+  public func encode[.image : View[Graphics.Image]] -> Bytes {
     if (image -> get_pixels() -> is_empty()) {
       return Bytes -> from();
     }
 
-    @stack filtered_rows : Bytes = self -> apply_adaptive_filtering(image);
-    @stack compressed    : Bytes = Deflate -> deflate(filtered_rows -> get_view());
+    state filtered_rows : Bytes = self -> apply_adaptive_filtering(image);
+    state compressed    : Bytes = Deflate -> deflate(filtered_rows -> get_view());
 
     if (compressed -> get_size() == 0) {
       return Bytes -> from();
     }
 
-    @stack header       : ImageInfo = ImageInfo -> from_image(image);
-    @stack header_bytes : Bytes     = Bytes -> new(ImageInfo.size);
+    state header       : ImageInfo = ImageInfo -> from_image(image);
+    state header_bytes : Bytes     = Bytes -> new(ImageInfo.size);
     header_bytes -> resize(ImageInfo.size);
     header -> write(header_bytes -> get_access());
 
-    @stack output_size : Count = 8 + Chunk.overhead * 3 + ImageInfo.size + compressed -> get_size();
-    @stack output      : Bytes = Bytes -> new(output_size);
+    state output_size : Count = 8 + Chunk.overhead * 3 + ImageInfo.size + compressed -> get_size();
+    state output      : Bytes = Bytes -> new(output_size);
     output -> resize(output_size);
 
-    @stack buffer : Access[Bytes] = output -> get_access();
-    @stack pos    : Count         = 8;
+    state buffer : Access[Bytes] = output -> get_access();
+    state pos    : Count         = 8;
     package.png_signature -> copy_to(buffer.[0 +: 8]);
 
-    @stack ihdr_chunk : Chunk = (
+    state ihdr_chunk : Chunk = (
       .type_tag = package.ihdr_tag,
       .data = header_bytes -> get_view(),
     );
     pos = ihdr_chunk -> write(buffer, pos);
 
-    @stack idat_chunk : Chunk = (
+    state idat_chunk : Chunk = (
       .type_tag = package.idat_tag,
       .data = compressed -> get_view(),
     );
     pos = idat_chunk -> write(buffer, pos);
 
-    @stack iend_chunk : Chunk = (
+    state iend_chunk : Chunk = (
       .type_tag = package.iend_tag,
       .data = View[Bytes] -> from(),
     );
@@ -554,29 +554,29 @@ import Math     : Library = TTX::Math;
 
   // Scores all five filter types per row, writes the best-filtered rows and a
   // leading filter byte per row into a freshly allocated buffer.
-  @hidden func apply_adaptive_filtering[.image : View[Graphics.Image]] -> Bytes {
-    @stack bpp         : Count       = Graphics.Image -> get_channel_count();
-    @stack row_stride  : Count       = Count -> from(image -> get_width()) * bpp;
-    @stack output_size : Count       = Count -> from(image -> get_height()) * (1 + row_stride);
-    @stack pixel_bytes : View[Bytes] = image -> get_pixel_bytes();
-    @stack output      : Bytes       = Bytes -> new(output_size);
+  private func apply_adaptive_filtering[.image : View[Graphics.Image]] -> Bytes {
+    state bpp         : Count       = Graphics.Image -> get_channel_count();
+    state row_stride  : Count       = Count -> from(image -> get_width()) * bpp;
+    state output_size : Count       = Count -> from(image -> get_height()) * (1 + row_stride);
+    state pixel_bytes : View[Bytes] = image -> get_pixel_bytes();
+    state output      : Bytes       = Bytes -> new(output_size);
     output -> resize(output_size);
 
-    @stack first_row     : View[Bytes]   = pixel_bytes.[0 +: row_stride];
-    @stack best_filter   : FilterType    = FilterType -> best_for_row(
+    state first_row     : View[Bytes]   = pixel_bytes.[0 +: row_stride];
+    state best_filter   : FilterType    = FilterType -> best_for_row(
       first_row,
       View[Bytes] -> from(),
     );
-    @stack output_access : Access[Bytes] = output -> get_access();
+    state output_access : Access[Bytes] = output -> get_access();
     output_access[0] = best_filter;
     best_filter -> apply(output_access.[1 +: row_stride], first_row, View[Bytes] -> from());
 
-    @stack previous_row : View[Bytes] = first_row;
+    state previous_row : View[Bytes] = first_row;
 
     for [.row : Count] in 1...Count -> from(image -> get_height()) {
-      @stack current_row : View[Bytes] = pixel_bytes.[row * row_stride +: row_stride];
-      @stack row_filter  : FilterType  = FilterType -> best_for_row(current_row, previous_row);
-      @stack row_offset  : Count       = row * (1 + row_stride);
+      state current_row : View[Bytes] = pixel_bytes.[row * row_stride +: row_stride];
+      state row_filter  : FilterType  = FilterType -> best_for_row(current_row, previous_row);
+      state row_offset  : Count       = row * (1 + row_stride);
       output_access[row_offset] = row_filter;
       row_filter -> apply(output_access.[row_offset + 1 +: row_stride], current_row, previous_row);
       previous_row = current_row;
@@ -587,15 +587,15 @@ import Math     : Library = TTX::Math;
 
   // Reconstructs all filtered rows into output. Pass a zero-length View for
   // previous_row on the first row so reconstruct handles the no-previous-row cases.
-  @hidden func reconstruct_filter[
+  private func reconstruct_filter[
     .filtered_rows : View[Bytes],
     .width : Count,
     .height : Count,
     .bytes_per_pixel : Count,
     .output : Access[Bytes],
   ] -> Bool {
-    @stack stride    : Count = width * bytes_per_pixel;
-    @stack row_bytes : Count = 1 + stride;
+    state stride    : Count = width * bytes_per_pixel;
+    state row_bytes : Count = 1 + stride;
 
     if (filtered_rows -> get_size() < row_bytes * height) {
       Log -> error(
@@ -606,7 +606,7 @@ import Math     : Library = TTX::Math;
       return False;
     }
 
-    @stack first_filter : FilterType = FilterType -> from(filtered_rows[0]);
+    state first_filter : FilterType = FilterType -> from(filtered_rows[0]);
 
     if (
       !first_filter -> reconstruct(
@@ -621,10 +621,10 @@ import Math     : Library = TTX::Math;
     }
 
     for [.row : Count] in 1...height {
-      @stack filter_type  : FilterType    = FilterType -> from(filtered_rows[row * row_bytes]);
-      @stack filtered_row : View[Bytes]   = filtered_rows.[row * row_bytes + 1 +: stride];
-      @stack output_row   : Access[Bytes] = output.[row * stride +: stride];
-      @stack previous_row : View[Bytes]   = output.[(row - 1) * stride +: stride];
+      state filter_type  : FilterType    = FilterType -> from(filtered_rows[row * row_bytes]);
+      state filtered_row : View[Bytes]   = filtered_rows.[row * row_bytes + 1 +: stride];
+      state output_row   : Access[Bytes] = output.[row * stride +: stride];
+      state previous_row : View[Bytes]   = output.[(row - 1) * stride +: stride];
 
       if (
         !filter_type -> reconstruct(filtered_row, output_row, previous_row, stride, bytes_per_pixel),
@@ -637,7 +637,7 @@ import Math     : Library = TTX::Math;
   }
 
   // Converts a flat byte buffer from an arbitrary PNG color format to RGBA.
-  @hidden func convert_to_pixels[
+  private func convert_to_pixels[
     .raw_pixels : View[Bytes],
     .width : Count,
     .height : Count,
@@ -647,7 +647,7 @@ import Math     : Library = TTX::Math;
     .success : Bool,
     .pixels : List[Graphics.Pixel],
   ] {
-    @stack source_channels : Count = color_type -> get_channel_count();
+    state source_channels : Count = color_type -> get_channel_count();
 
     if (source_channels == 0) {
       return (
@@ -656,12 +656,12 @@ import Math     : Library = TTX::Math;
       );
     }
 
-    @stack pixel_count : Count                = width * height;
-    @stack pixels      : List[Graphics.Pixel] = List[Graphics.Pixel] -> new(pixel_count);
+    state pixel_count : Count                = width * height;
+    state pixels      : List[Graphics.Pixel] = List[Graphics.Pixel] -> new(pixel_count);
     pixels -> resize(pixel_count);
 
     for [.pixel_index : Count] in 0...pixel_count {
-      @stack source_offset : Count = pixel_index * source_channels;
+      state source_offset : Count = pixel_index * source_channels;
 
       match color_type {
         case ColorType.greyscale : {
@@ -674,8 +674,8 @@ import Math     : Library = TTX::Math;
           pixels[pixel_index] = Graphics.Pixel -> from(raw_pixels.[source_offset +: 3]);
         }
         case ColorType.indexed : {
-          @stack palette_index  : Bits_8 = raw_pixels[source_offset];
-          @stack palette_offset : Count  = Count -> from(palette_index) * 3;
+          state palette_index  : Bits_8 = raw_pixels[source_offset];
+          state palette_offset : Count  = Count -> from(palette_index) * 3;
 
           if (palette_offset + 3 > palette -> get_size()) {
             Log -> error(
@@ -709,8 +709,8 @@ import Math     : Library = TTX::Math;
 
   // Validates the leading IHDR chunk and returns a populated ImageInfo.
   // Returns a zero-sized ImageInfo on any parse or validation failure.
-  @hidden func read_header[.source : View[Bytes]] -> ImageInfo {
-    @stack required_size : Count = 8 + Chunk.overhead + ImageInfo.size;
+  private func read_header[.source : View[Bytes]] -> ImageInfo {
+    state required_size : Count = 8 + Chunk.overhead + ImageInfo.size;
 
     if (source -> get_size() < required_size) {
       return ImageInfo -> from();
@@ -721,14 +721,14 @@ import Math     : Library = TTX::Math;
       return ImageInfo -> from();
     }
 
-    @stack first_chunk_tag : Vec[Bits_8, 4] = source.[8 + 4 +: 4];
+    state first_chunk_tag : Vec[Bits_8, 4] = source.[8 + 4 +: 4];
 
     if (first_chunk_tag != package.ihdr_tag) {
       Log -> error("Png: First chunk must be IHDR, got '{}'", first_chunk_tag);
       return ImageInfo -> from();
     }
 
-    @stack info : ImageInfo = ImageInfo -> from_bytes(source.[8 + 8 +: ImageInfo.size]);
+    state info : ImageInfo = ImageInfo -> from_bytes(source.[8 + 8 +: ImageInfo.size]);
 
     if (info.bit_depth != 8) {
       Log -> error("Png: Unsupported bit depth {} (only 8-bit is supported)", info.bit_depth);
@@ -749,26 +749,26 @@ import Math     : Library = TTX::Math;
   }
 
   // Decompresses, un-filters, and converts the IDAT payload into an Image.
-  @hidden func process_data[
+  private func process_data[
     .info : ImageInfo,
     .source : View[Bytes],
     .palette : View[Bytes],
   ] -> Graphics.Image {
-    @stack bpp                   : Count = info.color_type -> get_channel_count();
-    @stack decompressed_capacity : Count = Count -> from(info.width) * Count -> from(info.height) * bpp + Count -> from(
+    state bpp                   : Count = info.color_type -> get_channel_count();
+    state decompressed_capacity : Count = Count -> from(info.width) * Count -> from(info.height) * bpp + Count -> from(
       info.height,
     );
-    @stack filtered_rows         : Bytes = Deflate -> inflate(source, decompressed_capacity);
+    state filtered_rows         : Bytes = Deflate -> inflate(source, decompressed_capacity);
 
     if (filtered_rows -> get_size() == 0) {
       return Graphics.Image -> from();
     }
 
     if (info.color_type == ColorType.rgba) {
-      @stack pixel_count : Count                = Count -> from(info.width) * Count -> from(
+      state pixel_count : Count                = Count -> from(info.width) * Count -> from(
         info.height,
       );
-      @stack pixels      : List[Graphics.Pixel] = List[Graphics.Pixel] -> new(pixel_count);
+      state pixels      : List[Graphics.Pixel] = List[Graphics.Pixel] -> new(pixel_count);
       pixels -> resize(pixel_count);
 
       if (
@@ -787,8 +787,8 @@ import Math     : Library = TTX::Math;
       return Graphics.Image -> from(pixels, info.width, info.height);
     }
 
-    @stack raw_pixel_count : Count = Count -> from(info.width) * Count -> from(info.height) * bpp;
-    @stack raw_pixels      : Bytes = Bytes -> new(raw_pixel_count);
+    state raw_pixel_count : Count = Count -> from(info.width) * Count -> from(info.height) * bpp;
+    state raw_pixels      : Bytes = Bytes -> new(raw_pixel_count);
     raw_pixels -> resize(raw_pixel_count);
 
     if (
@@ -804,7 +804,7 @@ import Math     : Library = TTX::Math;
       return Graphics.Image -> from();
     }
 
-    @stack converted : PixelConversion = self -> convert_to_pixels(
+    state converted : PixelConversion = self -> convert_to_pixels(
       raw_pixels -> get_view(),
       Count -> from(info.width),
       Count -> from(info.height),

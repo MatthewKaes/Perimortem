@@ -24,7 +24,7 @@ namespace Tetrodotoxin::Isa {
 class Registry {
  public:
   using EvaluateFunction =
-      Bool (*)(Context& context, Ttx::Lexical::Cursor& cursor);
+      Ttx::Type* (*)(Context& context, Ttx::Lexical::Cursor& cursor);
 
   class Entry {
    public:
@@ -55,6 +55,12 @@ class Registry {
       -> Bool;
 
   auto find(Perimortem::Core::View::Bytes name) const -> const Entry*;
+  auto require_installed(
+      Ttx::Lexical::Cursor& cursor,
+      const Ttx::Lexical::Token& name) const -> Bool;
+  auto require_installed(
+      Ttx::Lexical::Cursor& cursor,
+      Perimortem::Core::View::Bytes name) const -> Bool;
   auto get_installed() const -> Perimortem::Core::View::Vector<Entry>;
 
   constexpr auto get_size() const -> Count { return installed_count; }

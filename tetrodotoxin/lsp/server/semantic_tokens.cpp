@@ -7,7 +7,7 @@
 
 #include "perimortem/memory/managed/vector.hpp"
 
-#include "tetrodotoxin/isa/boot/boot.hpp"
+#include "tetrodotoxin/isa/boot/virtual_machine.hpp"
 #include "tetrodotoxin/toolchain.hpp"
 #include "ttx/lexical/cursor.hpp"
 #include "ttx/lexical/tokenizer.hpp"
@@ -167,10 +167,9 @@ auto Server::semantic_tokens_for(Allocator::Arena& arena, View::Bytes source)
   View::Vector<::Ttx::Lexical::Token> tokens = tokenizer.get_tokens();
   ::Ttx::Lexical::Cursor cursor(tokenizer);
   const auto toolchain = ::Tetrodotoxin::Toolchain::standard();
-  auto* boot = ::Tetrodotoxin::Isa::Boot::evaluate(
+  auto* boot = ::Tetrodotoxin::Isa::Boot::VirtualMachine::evaluate(
       cursor, toolchain.get_isa_registry());
-  View::Bytes isa =
-      boot == nullptr ? View::Bytes() : boot->get_isa().get_name();
+  View::Bytes isa = boot == nullptr ? View::Bytes() : boot->get_isa();
   Bits_32 previous_line = 0;
   Bits_32 previous_column = 0;
   Bool emitted = False;

@@ -10,7 +10,7 @@
 #include "perimortem/memory/allocator/arena.hpp"
 #include "perimortem/memory/dynamic/bytes.hpp"
 
-#include "tetrodotoxin/isa/boot/boot.hpp"
+#include "tetrodotoxin/isa/boot/envelope.hpp"
 #include "ttx/type.hpp"
 
 namespace Tetrodotoxin::Resolution::Source {
@@ -43,7 +43,9 @@ class Record {
   Record(const Record&) = delete;
   auto operator=(const Record&) -> Record& = delete;
 
-  auto set_boot(Tetrodotoxin::Isa::Boot& boot) -> void { boot_info = &boot; }
+  auto set_boot(Tetrodotoxin::Isa::Boot::Envelope& boot) -> void {
+    boot_info = &boot;
+  }
 
   auto publish(Ttx::Type& type, Perimortem::Core::View::Bytes import_name)
       -> void {
@@ -65,8 +67,10 @@ class Record {
   constexpr auto get_content() const -> Perimortem::Core::View::Bytes {
     return source_text;
   }
-  constexpr auto get_boot() -> Tetrodotoxin::Isa::Boot& { return *boot_info; }
-  constexpr auto get_boot() const -> const Tetrodotoxin::Isa::Boot& {
+  constexpr auto get_boot() -> Tetrodotoxin::Isa::Boot::Envelope& {
+    return *boot_info;
+  }
+  constexpr auto get_boot() const -> const Tetrodotoxin::Isa::Boot::Envelope& {
     return *boot_info;
   }
   constexpr auto get_type() -> Ttx::Type* { return type; }
@@ -87,7 +91,7 @@ class Record {
   Perimortem::Memory::Dynamic::Bytes source_path;
   Perimortem::Memory::Dynamic::Bytes import_name;
   Perimortem::Memory::Dynamic::Bytes source_text;
-  Tetrodotoxin::Isa::Boot* boot_info = nullptr;
+  Tetrodotoxin::Isa::Boot::Envelope* boot_info = nullptr;
   Ttx::Type* type = nullptr;
   Bool private_source = False;
 };

@@ -16,10 +16,7 @@
           "include": "#disabled"
         },
         {
-          "include": "#compile_if"
-        },
-        {
-          "include": "#storage_sigils"
+          "include": "#modifiers"
         },
         {
           "include": "#attributes"
@@ -82,20 +79,9 @@
       "name": "comment.line.disabled.tetrodotoxin",
       "match": "/>.*$"
     },
-    "compile_if": {
-      "match": "(@)(if)\\b",
-      "captures": {
-        "1": {
-          "name": "storage.sigils.tetrodotoxin"
-        },
-        "2": {
-          "name": "keyword.control.tetrodotoxin"
-        }
-      }
-    },
-    "storage_sigils": {
-      "name": "storage.sigils.tetrodotoxin",
-      "match": "(@(?:public|expose|hidden|stack)\\b|\\b(?:public|expose|hidden|stack)\\b)"
+    "modifiers": {
+      "name": "storage.modifier.tetrodotoxin",
+      "match": "\\b(?:public|private|expose|state|const)\\b"
     },
     "attributes": {
       "name": "entity.other.attribute-name.tetrodotoxin",

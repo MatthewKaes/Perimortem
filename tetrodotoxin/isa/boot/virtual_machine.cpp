@@ -1,20 +1,20 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
-#include "tetrodotoxin/isa/boot/boot.hpp"
+#include "tetrodotoxin/isa/boot/virtual_machine.hpp"
 
 #include "perimortem/memory/managed/vector.hpp"
 
 #include "tetrodotoxin/isa/boot/documentation.hpp"
 #include "tetrodotoxin/isa/boot/import.hpp"
-#include "tetrodotoxin/isa/boot/selection.hpp"
 
 using namespace Perimortem::Memory;
 using namespace Tetrodotoxin::Isa;
 using namespace Ttx::Lexical;
 
-auto Boot::evaluate(Cursor& cursor, const Registry& registry) -> Boot* {
-  const auto documentation = Documentation::evaluate(cursor);
+auto Boot::VirtualMachine::evaluate(Cursor& cursor, const Registry& registry)
+    -> Boot::Envelope* {
+  const auto documentation = Boot::Documentation::evaluate(cursor);
 
   if (!cursor.require(
           Class::Type::Dialect,
@@ -22,8 +22,15 @@ auto Boot::evaluate(Cursor& cursor, const Registry& registry) -> Boot* {
     return nullptr;
   }
 
-  const auto isa = Selection::evaluate(cursor, registry);
-  if (!isa.is_valid()) {
+  if (!cursor.require(
+          Class::Type::Define,
+          "Expected `:` after dialect instruction."_view)) {
+    return nullptr;
+  }
+
+  const Token* isa =
+      cursor.require(Class::Type::Type, "Expected ISA name."_view);
+  if (isa == nullptr || !registry.require_installed(cursor, *isa)) {
     return nullptr;
   }
 
@@ -33,9 +40,9 @@ auto Boot::evaluate(Cursor& cursor, const Registry& registry) -> Boot* {
     return nullptr;
   }
 
-  Managed::Vector<Import> imports(cursor.get_arena());
+  Managed::Vector<Boot::Import> imports(cursor.get_arena());
   while (cursor.matches(Class::Type::Import)) {
-    auto import = Import::evaluate(cursor, registry);
+    auto import = Boot::Import::evaluate(cursor, registry);
     if (!import.is_valid()) {
       return nullptr;
     }
@@ -43,5 +50,6 @@ auto Boot::evaluate(Cursor& cursor, const Registry& registry) -> Boot* {
     imports.insert(import);
   }
 
-  return &cursor.get_arena().construct<Boot>(documentation, isa, imports);
+  return &cursor.get_arena().construct<Boot::Envelope>(
+      documentation, isa->get_text(), imports);
 }

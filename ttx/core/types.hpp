@@ -21,9 +21,9 @@ class Types {
 
   static constexpr auto find_type(Perimortem::Core::View::Bytes name)
       -> const Type* {
-    for (Count type_index = 0; type_index < types.get_size(); type_index++) {
-      if (types[type_index]->get_name() == name) {
-        return types[type_index];
+    for (Count i = 0; i < types.get_size(); i++) {
+      if (types[i]->get_name() == name) {
+        return types[i];
       }
     }
 

@@ -4,13 +4,13 @@ dialect : Render;
 
 import Types : Library = "../library/types.ttx";
 
-@public Renderer2D : Render {
-  @public position : Vec2D;
-  @public size : Size2D;
-  @public alpha : Real_32;
-  @public image : Types::Sampler2D;
+public Renderer2D : Render {
+  public position : Vec2D;
+  public size : Size2D;
+  public alpha : Real_32;
+  public image : Types::Sampler2D;
 
-  @hidden quad_positions : Vec[Vec2D, 6] = (
+  private quad_positions : Vec[Vec2D, 6] = (
     (.x = 0.0, .y = 0.0),
     (.x = 1.0, .y = 0.0),
     (.x = 1.0, .y = 1.0),
@@ -19,7 +19,7 @@ import Types : Library = "../library/types.ttx";
     (.x = 0.0, .y = 1.0),
   );
 
-  @hidden quad_uvs : Vec[Vec2D, 6] = (
+  private quad_uvs : Vec[Vec2D, 6] = (
     (.x = 0.0, .y = 0.0),
     (.x = 1.0, .y = 0.0),
     (.x = 1.0, .y = 1.0),
@@ -28,8 +28,8 @@ import Types : Library = "../library/types.ttx";
     (.x = 0.0, .y = 1.0),
   );
 
-  @public Vertex : Shader {
-    @public func main[
+  public Vertex : Shader {
+    public func main[
       .vertex_index : Bits_32,
     ] -> [
       .texture_uv : Vec2D,
@@ -37,8 +37,8 @@ import Types : Library = "../library/types.ttx";
     ] {}
   }
 
-  @public Pixel : Shader {
-    @public func main[
+  public Pixel : Shader {
+    public func main[
       .texture_uv : Vec2D,
     ] -> [
       .color : Types::Color,

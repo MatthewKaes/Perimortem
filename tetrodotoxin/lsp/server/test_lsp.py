@@ -224,7 +224,7 @@ def run_test():
     print("\n--- Semantic tokens: Library/default dialect ---")
     library_source = (
         "dialect : Library;\n"
-        "@public func run[] -> Count {\n"
+        "public func run[] -> Count {\n"
         "  while (true) {\n"
         "    continue;\n"
         "  }\n"
@@ -242,8 +242,8 @@ def run_test():
           "Library document highlights loop-control keywords")
 
     no_dialect_source = (
-        "@public func draft[] -> Count {\n"
-        "  @stack label : Text = \"Icon \\\"Preview\\\"\";\n"
+        "public func draft[] -> Count {\n"
+        "  state label : Text = \"Icon \\\"Preview\\\"\";\n"
         "  if (true) {\n"
         "    continue;\n"
         "  }\n"
@@ -265,7 +265,7 @@ def run_test():
     print("\n--- Semantic tokens: Shader dialect filtering ---")
     shader_source = (
         "dialect : Shader;\n"
-        "@public func main[] -> Count {\n"
+        "public func main[] -> Count {\n"
         "  if (true) {\n"
         "    continue;\n"
         "  }\n"

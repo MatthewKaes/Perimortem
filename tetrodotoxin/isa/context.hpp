@@ -4,21 +4,21 @@
 #pragma once
 
 #include "perimortem/core/view/bytes.hpp"
-#include "perimortem/core/view/vector.hpp"
 
 #include "perimortem/memory/allocator/arena.hpp"
+#include "perimortem/memory/dynamic/map.hpp"
 
 #include "ttx/core/types.hpp"
+#include "ttx/lexical/cursor.hpp"
 #include "ttx/type.hpp"
 
 namespace Tetrodotoxin::Isa {
 
 // Evaluation context for one body ISA.
 //
-// ISAs publish TTX facts into this context instead of returning private result
-// objects. Resolution owns the record and import lifetime. The ISA owns the
-// source body it evaluates and publishes the root Type that represents that
-// body to export for TTX `::`, `.`, and `->` queries.
+// ISAs publish visible working types into this context while evaluating token
+// bytecode. The evaluator returns the root Type for the body once it has enough
+// information to actualize the source result.
 //
 // Any memory associated with a single Virtual Machine cluster should use the
 // clusters shared memory stored in `arena` for object generation if the VM
@@ -27,99 +27,111 @@ namespace Tetrodotoxin::Isa {
 // Bibliotheca for complex temporary objects that are memory intensive.
 class Context {
  public:
-  class Import {
-   public:
-    Import() = default;
-    constexpr Import(Perimortem::Core::View::Bytes name, const Ttx::Type& type)
-        : name(name), type(&type) {}
-
-    constexpr auto get_name() const -> Perimortem::Core::View::Bytes {
-      return name;
-    }
-    constexpr auto get_type() const -> const Ttx::Type* { return type; }
-
-   private:
-    Perimortem::Core::View::Bytes name;
-    const Ttx::Type* type = nullptr;
-  };
-
-  Context(
-      Perimortem::Memory::Allocator::Arena& arena,
-      Perimortem::Core::View::Bytes source_name,
-      Perimortem::Core::View::Vector<Import> imports =
-          Perimortem::Core::View::Vector<Import>())
-      : arena(arena), source_name(source_name), imports(imports) {}
+  explicit Context(Perimortem::Memory::Allocator::Arena& arena)
+      : arena(arena) {}
 
   constexpr auto get_arena() const -> Perimortem::Memory::Allocator::Arena& {
     return arena;
   }
-  constexpr auto get_source_name() const -> Perimortem::Core::View::Bytes {
-    return source_name;
-  }
-  constexpr auto get_import_name() const -> Perimortem::Core::View::Bytes {
-    return import_name;
-  }
-  constexpr auto get_type() const -> Ttx::Type* { return type; }
+  auto define_type(Perimortem::Core::View::Bytes name, const Ttx::Type& type)
+      -> Bool {
+    if (types.find(name) != nullptr || Ttx::Core::Types::find_type(name)) {
+      return False;
+    }
 
-  auto publish(
-      Ttx::Type& type,
-      Perimortem::Core::View::Bytes import_name =
-          Perimortem::Core::View::Bytes()) -> void {
-    this->type = &type;
-    this->import_name = import_name;
+    types.insert(name, &type);
+    return True;
   }
 
-  auto resolve_type(Perimortem::Core::View::Bytes name) const
+  auto define_type(const Ttx::Type& type) -> Bool {
+    return define_type(type.get_name(), type);
+  }
+
+  auto resolve_type(Ttx::Lexical::Cursor& cursor) const -> const Ttx::Type* {
+    const Ttx::Lexical::Token* root = cursor.require(
+        Ttx::Lexical::Class::Type::Type, "Expected Type name."_view);
+    if (root == nullptr) {
+      return nullptr;
+    }
+
+    return resolve_type(cursor, root->get_text());
+  }
+
+  auto resolve_type(
+      Ttx::Lexical::Cursor& cursor,
+      Perimortem::Core::View::Bytes root_name) const -> const Ttx::Type* {
+    const Ttx::Type* type = find_type(root_name);
+    if (type == nullptr) {
+      type = Ttx::Core::Types::find_type(root_name);
+    }
+
+    return resolve_type(cursor, type);
+  }
+
+  auto resolve_type(Ttx::Lexical::Cursor& cursor, const Ttx::Type* type) const
       -> const Ttx::Type* {
-    Count segment_start = 0;
-    const Ttx::Type* type = nullptr;
-    for (Count name_index = 0; name_index <= name.get_size(); name_index++) {
-      Bool at_end = name_index == name.get_size();
-      Bool at_type_access = !at_end && name_index + 1 < name.get_size() &&
-                            name[name_index] == ':' &&
-                            name[name_index + 1] == ':';
-      if (!at_end && !at_type_access) {
-        continue;
-      }
+    while (cursor.matches(Ttx::Lexical::Class::Type::TypeAccessOp)) {
+      cursor.consume();
 
-      auto segment = name.slice(segment_start, name_index - segment_start);
-      if (segment.is_empty()) {
+      const Ttx::Lexical::Token* segment = cursor.require(
+          Ttx::Lexical::Class::Type::Type,
+          "Expected Type name after `::`."_view);
+      if (segment == nullptr) {
         return nullptr;
       }
 
-      type = type == nullptr ? resolve_root_type(segment)
-                             : type->find_type(segment);
-      if (type == nullptr) {
-        return nullptr;
+      if (type != nullptr) {
+        type = type->find_type(segment->get_text());
       }
+    }
 
-      segment_start = name_index + (at_type_access ? 2 : 1);
-      if (at_type_access) {
-        name_index++;
-      }
+    if (!consume_type_arguments(cursor)) {
+      return nullptr;
     }
 
     return type;
   }
 
  private:
-  auto resolve_root_type(Perimortem::Core::View::Bytes name) const
-      -> const Ttx::Type* {
-    for (Count import_index = 0; import_index < imports.get_size();
-         import_index++) {
-      if (imports[import_index].get_name() == name) {
-        return imports[import_index].get_type();
-      }
+  auto consume_type_arguments(Ttx::Lexical::Cursor& cursor) const -> Bool {
+    if (!cursor.matches(Ttx::Lexical::Class::Type::IndexStart)) {
+      return True;
     }
 
-    return Ttx::Core::Types::find_type(name);
+    Count depth = 0;
+    while (!cursor.matches(Ttx::Lexical::Class::Type::EndOfStream)) {
+      if (cursor.matches(Ttx::Lexical::Class::Type::IndexStart)) {
+        depth++;
+        cursor.consume();
+        continue;
+      }
+
+      if (cursor.matches(Ttx::Lexical::Class::Type::IndexEnd)) {
+        cursor.consume();
+        depth--;
+        if (depth == 0) {
+          return True;
+        }
+        continue;
+      }
+
+      cursor.consume();
+    }
+
+    cursor.token_error("Expected `]` after type arguments."_view);
+    return False;
+  }
+
+  auto find_type(Perimortem::Core::View::Bytes name) const -> const Ttx::Type* {
+    const auto* type = types.find(name);
+    return type == nullptr ? nullptr : type->value;
   }
 
   Perimortem::Memory::Allocator::Arena& arena;
-  Perimortem::Core::View::Bytes source_name;
-  Perimortem::Core::View::Bytes import_name;
-  Perimortem::Core::View::Vector<Import> imports;
-  Ttx::Type* type = nullptr;
+  Perimortem::Memory::Dynamic::Map<
+      Perimortem::Core::View::Bytes,
+      const Ttx::Type*>
+      types;
 };
 
 }  // namespace Tetrodotoxin::Isa

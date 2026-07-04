@@ -11,7 +11,7 @@ extension color rules.
 
 - `.ttx` file association with the Tetrodotoxin language id.
 - Bundled TTX TextMate grammar for syntax highlighting.
-- Bundled red TTX color defaults for comments, sigils, attributes, types,
+- Bundled red TTX color defaults for comments, modifiers, attributes, types,
   members, functions, constants, strings, numbers, operators, and punctuation.
 - Document formatting through the bundled Tetrodotoxin language server.
 - Full-document synchronization with the language server for open `.ttx` files.

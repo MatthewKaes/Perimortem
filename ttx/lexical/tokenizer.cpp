@@ -41,7 +41,7 @@ static constexpr auto is_hex(Bits_8 c) -> Bool {
 static constexpr auto check_keyword(
     View::Bytes value,
     Class::Type default_value) -> Class::Type {
-  static constexpr Static::Vector<Pair<View::Bytes, Class::Type>, 23> data = {{
+  static constexpr Static::Vector<Pair<View::Bytes, Class::Type>, 24> data = {{
     {Class::get_source_text(Class::Type::And), Class::Type::And},
     {Class::get_source_text(Class::Type::Or), Class::Type::Or},
     {Class::get_source_text(Class::Type::If), Class::Type::If},
@@ -72,45 +72,20 @@ static constexpr auto check_keyword(
       Class::Type::Public,
     },
     {
-      Class::get_source_text(Class::Type::Dynamic),
-      Class::Type::Dynamic,
+      Class::get_source_text(Class::Type::Private),
+      Class::Type::Private,
     },
     {
-      Class::get_source_text(Class::Type::Hidden),
-      Class::Type::Hidden,
+      Class::get_source_text(Class::Type::Expose),
+      Class::Type::Expose,
     },
     {
-      Class::get_source_text(Class::Type::Temporary),
-      Class::Type::Temporary,
-    },
-  }};
-
-  return Table<Class::Type, data>::find_or_default(value, default_value);
-}
-
-static constexpr auto check_directive(
-    View::Bytes value,
-    Class::Type default_value) -> Class::Type {
-  static constexpr Static::Vector<Pair<View::Bytes, Class::Type>, 5> data = {{
-    {
-      Class::get_source_text(Class::Type::CompileIf),
-      Class::Type::CompileIf,
+      Class::get_source_text(Class::Type::State),
+      Class::Type::State,
     },
     {
-      Class::get_source_text(Class::Type::ConstPublic),
-      Class::Type::ConstPublic,
-    },
-    {
-      Class::get_source_text(Class::Type::ConstDynamic),
-      Class::Type::ConstDynamic,
-    },
-    {
-      Class::get_source_text(Class::Type::ConstHidden),
-      Class::Type::ConstHidden,
-    },
-    {
-      Class::get_source_text(Class::Type::ConstTemporary),
-      Class::Type::ConstTemporary,
+      Class::get_source_text(Class::Type::Const),
+      Class::Type::Const,
     },
   }};
 
@@ -226,8 +201,7 @@ static auto parse_attribute(Context& ctx) -> void {
   const auto token = ctx.current_token_text();
 
   if (!token.is_empty()) {
-    Class::Type klass = check_directive(token, Class::Type::Attribute);
-    ctx.add_token(token, klass);
+    ctx.add_token(token, Class::Type::Attribute);
   }
   ctx.advance_column_to_parse();
 }
@@ -535,8 +509,8 @@ auto Tokenizer::parse(Bool strip_disabled) -> void {
       parse_identifier(ctx);
       break;
 
-    // Originally types had @ but it was clunky, so @ was moved to
-    // Attributes and all Types are simply capitalized.
+    // Type names are PascalCase. Attribute-like directives start with `@` and
+    // are handled by parse_attribute instead.
     case 'A' ... 'Z':
       parse_type(ctx);
       break;

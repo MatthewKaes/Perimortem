@@ -157,11 +157,11 @@ PERIMORTEM_UNIT_TEST(SerializationJson, escaped_frames) {
 
   value.parse(
       arena,
-      "{\"text\":\"@stack label : Text = \\\"Icon\\\";\",\"next\":1}"_view);
+      "{\"text\":\"state label : Text = \\\"Icon\\\";\",\"next\":1}"_view);
   ASSERT(value.is_object());
   EXPECT_TEXT(
       value["text"_view].get_string(),
-      "@stack label : Text = \\\"Icon\\\";"_view);
+      "state label : Text = \\\"Icon\\\";"_view);
   EXPECT_EQ(value["next"_view].get_number(), 1);
 
   value.parse(arena, "{\"text\":\"C:\\\\\",\"next\":1}"_view);

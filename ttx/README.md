@@ -74,7 +74,7 @@ dialect : Library;
 
 import Graphics : Package = Perimortem::Graphics;
 
-@private Default2D : alias = Graphics::Shaders::Default2D;
+private Default2D : alias = Graphics::Shaders::Default2D;
 
 // The rest belongs to the Library ISA.
 ```
@@ -270,7 +270,7 @@ provide a package layer.
 
 ```ttx
 import Graphics : Package = Perimortem::Graphics;
-@private Default2D : alias = Graphics::Shaders::Default2D;
+private Default2D : alias = Graphics::Shaders::Default2D;
 ```
 
 In Tetrodotoxin, the package name `Perimortem::Graphics` resolves to a package
@@ -292,8 +292,8 @@ import Color : Library = "color.ttx";
 import Renderer2D : Render = "renderer2d.ttx";
 import Default2D : Shader = "shaders/default2d.ttx";
 
-@public Sprite : alias = Sprite::Sprite;
-@public Shaders : Package = Shaders;
+expose Sprite : alias = Sprite::Sprite;
+expose Shaders : Package = Shaders;
 ```
 
 The package file is not a second language. It is TTX token bytecode evaluated by

@@ -9,14 +9,14 @@ import Default2D : Shader = "shaders/default_2d.ttx";
 
 @package_name = Perimortem::Graphics;
 
-@public Color : alias = Types::Color;
-@public Sampler2D : alias = Types::Sampler2D;
-@public Sprite : alias = Sprite::Sprite;
+expose Color : alias = Types::Color;
+expose Sampler2D : alias = Types::Sampler2D;
+expose Sprite : alias = Sprite::Sprite;
 
-@public Renderer : Namespace {
-  @public Renderer2D : alias = Render2D::Renderer2D;
+expose Renderer : Namespace {
+  expose Renderer2D : alias = Render2D::Renderer2D;
 }
 
-@public Shaders : Namespace {
-  @public Default2D : alias = Default2D;
+expose Shaders : Namespace {
+  expose Default2D : alias = Default2D;
 }

@@ -3,10 +3,41 @@
 
 #include "tetrodotoxin/isa/registry.hpp"
 
+#include "perimortem/memory/managed/bytes.hpp"
+
+using namespace Perimortem::Core;
+using namespace Perimortem::Memory;
 using namespace Tetrodotoxin::Isa;
+using namespace Ttx::Lexical;
+
+static auto installed_isa_message(
+    Cursor& cursor,
+    View::Bytes requested,
+    const Registry& registry) -> View::Bytes {
+  Managed::Bytes message(cursor.get_arena());
+  message.append("ISA `"_view);
+  message.append(requested);
+  message.append("` is not installed."_view);
+
+  auto installed = registry.get_installed();
+  if (installed.is_empty()) {
+    message.append(" No ISAs are installed."_view);
+    return message.get_view();
+  }
+
+  message.append(" Installed ISAs: "_view);
+  for (Count i = 0; i < installed.get_size(); i++) {
+    if (i != 0) {
+      message.append(", "_view);
+    }
+    message.append(installed[i].get_name());
+  }
+  message.append("."_view);
+  return message.get_view();
+}
 
 auto Registry::install(
-    Perimortem::Core::View::Bytes name,
+    View::Bytes name,
     EvaluateFunction evaluator) -> Bool {
   Entry entry(name, evaluator);
   if (!entry.is_valid() || installed_count >= installed.get_size()) {
@@ -25,7 +56,7 @@ auto Registry::install(
   return True;
 }
 
-auto Registry::find(Perimortem::Core::View::Bytes name) const -> const Entry* {
+auto Registry::find(View::Bytes name) const -> const Entry* {
   for (Count i = 0; i < installed_count; i++) {
     if (installed[i].get_name() == name) {
       return installed.get_data() + i;
@@ -33,6 +64,27 @@ auto Registry::find(Perimortem::Core::View::Bytes name) const -> const Entry* {
   }
 
   return nullptr;
+}
+
+auto Registry::require_installed(Cursor& cursor, const Token& name) const
+    -> Bool {
+  if (find(name.get_text()) != nullptr) {
+    return True;
+  }
+
+  cursor.range_error(
+      name, name, installed_isa_message(cursor, name.get_text(), *this));
+  return False;
+}
+
+auto Registry::require_installed(Cursor& cursor, View::Bytes name) const
+    -> Bool {
+  if (find(name) != nullptr) {
+    return True;
+  }
+
+  cursor.error(installed_isa_message(cursor, name, *this));
+  return False;
 }
 
 auto Registry::get_installed() const

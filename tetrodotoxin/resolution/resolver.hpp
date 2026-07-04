@@ -90,7 +90,7 @@ class Resolver {
   auto load_import(
       Context& context,
       Source::Record& owner,
-      const Tetrodotoxin::Isa::Import& import,
+      const Tetrodotoxin::Isa::Boot::Import& import,
       Bool private_source,
       Perimortem::Memory::Dynamic::Vector<Perimortem::Memory::Dynamic::Bytes>&
           resolving,

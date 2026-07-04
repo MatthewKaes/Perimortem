@@ -90,7 +90,7 @@
             }
           },
           {
-            "scope": "storage.sigils.tetrodotoxin",
+            "scope": "storage.modifier.tetrodotoxin",
             "settings": {
               "foreground": "#ad4a52"
             }
