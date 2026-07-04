@@ -38,6 +38,20 @@ class Cursor {
   constexpr auto current() const -> const Lexical::Token& {
     return tokenizer.get_tokens().get_data()[index];
   }
+  constexpr auto get_token_index() const -> Count { return index; }
+  constexpr auto get_token_span(Count start, Count end) const
+      -> Perimortem::Core::View::Vector<Lexical::Token> {
+    Perimortem::Core::View::Vector<Lexical::Token> tokens =
+        tokenizer.get_tokens();
+    if (start >= end || start >= tokens.get_size()) {
+      return Perimortem::Core::View::Vector<Lexical::Token>();
+    }
+
+    Count bounded_end =
+        end < tokens.get_size() ? end : tokens.get_size();
+    return tokens.slice(start, bounded_end - start);
+  }
+  auto seek_token(Count token_index) -> void;
 
   // Advances at most to the tokenizer's end-of-stream token and returns the
   // token that was current before advancing.
@@ -74,6 +88,11 @@ class Cursor {
 
   constexpr auto matches(Lexical::Class::Type type) const -> Bool {
     return current().get_class() == type;
+  }
+  constexpr auto is_one_of(
+      Perimortem::Core::View::Vector<Lexical::Class::Type> types) const
+      -> Bool {
+    return current().get_class().is_one_of(types);
   }
 
   // Evaluation errors belong to the cursor because the cursor is the local

@@ -17,10 +17,10 @@ namespace Tetrodotoxin::Isa::Library {
 
 // Library is the baseline body ISA for general TTX source files.
 //
-// This first slice keeps the instruction set intentionally small: Library can
-// publish aliases, structs, and shallow foreign scopes as real Ttx::Type facts.
-// Values, expressions, and function bodies come later after the
-// package/compiler spine can already ask useful `::` and `.` questions.
+// Library constructs aliases, aggregate layout, foreign signatures, and
+// callable function bodies as Ttx::Type facts. Function bodies stay as token
+// blocks so compiler lowering can walk them without Library growing a second
+// expression IR.
 class VirtualMachine {
  public:
   static auto evaluate(
@@ -37,7 +37,9 @@ class VirtualMachine {
       Ttx::Lexical::Cursor& cursor,
       Ttx::Documentation documentation,
       Perimortem::Memory::Managed::Vector<Ttx::Type::Member>& members,
-      Perimortem::Memory::Managed::Vector<const Ttx::Type*>& types) -> Bool;
+      Perimortem::Memory::Managed::Vector<const Ttx::Type*>& types,
+      Perimortem::Memory::Managed::Vector<Ttx::Type::Function>& functions)
+      -> Bool;
 };
 
 }  // namespace Tetrodotoxin::Isa::Library

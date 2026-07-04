@@ -7,6 +7,7 @@
 #include "perimortem/core/view/vector.hpp"
 
 #include "ttx/documentation.hpp"
+#include "ttx/lexical/token.hpp"
 
 namespace Ttx {
 
@@ -135,6 +136,32 @@ class Type {
   // already describes the exact same data.
   class Function {
    public:
+    // Block is the source-shaped body owned by a callable function.
+    //
+    // It deliberately keeps token bytecode instead of decoding expressions into
+    // a second tree. Library can record that a body exists and where its
+    // executable token stream lives; compiler lowering can later walk those
+    // tokens with the ABI and backend context it owns.
+    class Block {
+     public:
+      constexpr Block() = default;
+      explicit constexpr Block(
+          Perimortem::Core::View::Vector<Ttx::Lexical::Token> tokens)
+          : tokens(tokens) {}
+
+      constexpr auto get_tokens() const
+          -> Perimortem::Core::View::Vector<Ttx::Lexical::Token> {
+        return tokens;
+      }
+      constexpr auto is_empty() const -> Bool {
+        return tokens.is_empty();
+      }
+
+     private:
+      Perimortem::Core::View::Vector<Ttx::Lexical::Token> tokens;
+    };
+
+    constexpr Function() = default;
     constexpr Function(
         Perimortem::Core::View::Bytes name,
         Perimortem::Core::View::Vector<Member> parameters,
@@ -143,6 +170,17 @@ class Type {
         : name(name),
           parameters(parameters),
           result(result),
+          documentation(documentation) {}
+    constexpr Function(
+        Perimortem::Core::View::Bytes name,
+        Perimortem::Core::View::Vector<Member> parameters,
+        Perimortem::Core::View::Vector<Member> result,
+        Perimortem::Core::View::Vector<Block> blocks,
+        Documentation documentation = Documentation())
+        : name(name),
+          parameters(parameters),
+          result(result),
+          blocks(blocks),
           documentation(documentation) {}
 
     constexpr auto get_name() const -> Perimortem::Core::View::Bytes {
@@ -158,11 +196,22 @@ class Type {
     constexpr auto get_documentation() const -> Documentation {
       return documentation;
     }
+    constexpr auto get_blocks() const -> Perimortem::Core::View::Vector<Block> {
+      return blocks;
+    }
+    constexpr auto has_body() const -> Bool {
+      return !blocks.is_empty();
+    }
+    constexpr auto is_empty() const -> Bool {
+      return name.is_empty() && parameters.is_empty() && result.is_empty() &&
+             blocks.is_empty();
+    }
 
    private:
     Perimortem::Core::View::Bytes name;
     Perimortem::Core::View::Vector<Member> parameters;
     Perimortem::Core::View::Vector<Member> result;
+    Perimortem::Core::View::Vector<Block> blocks;
     Documentation documentation;
   };
 

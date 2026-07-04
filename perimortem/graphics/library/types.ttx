@@ -3,7 +3,7 @@
 dialect : Library;
 
 public Sampler2D : foreign {
-  external public func sample[
+  expose func sample[
     .texture_uv : Vec2D,
   ] -> [Color];
 }

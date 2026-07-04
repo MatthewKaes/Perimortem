@@ -46,6 +46,13 @@ class Definition {
       Perimortem::Core::View::Vector<Ttx::Lexical::Class::Type> allowed_names,
       Perimortem::Core::View::Vector<Ttx::Lexical::Class::Type>
           allowed_qualifiers) -> Definition;
+  static auto evaluate_after_modifier(
+      Ttx::Lexical::Cursor& cursor,
+      Ttx::Documentation documentation,
+      Ttx::Lexical::Class::Type modifier,
+      Perimortem::Core::View::Vector<Ttx::Lexical::Class::Type> allowed_names,
+      Perimortem::Core::View::Vector<Ttx::Lexical::Class::Type>
+          allowed_qualifiers) -> Definition;
 
   constexpr auto get_documentation() const -> Ttx::Documentation {
     return documentation;

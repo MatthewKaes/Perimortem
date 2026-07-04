@@ -47,6 +47,12 @@ class Context {
     return define_type(type.get_name(), type);
   }
 
+  auto find_type(Perimortem::Core::View::Bytes name) const
+      -> const Ttx::Type* {
+    const auto* type = types.find(name);
+    return type == nullptr ? nullptr : type->value;
+  }
+
   auto resolve_type(Ttx::Lexical::Cursor& cursor) const -> const Ttx::Type* {
     const Ttx::Lexical::Token* root = cursor.require(
         Ttx::Lexical::Class::Type::Type, "Expected Type name."_view);
@@ -120,11 +126,6 @@ class Context {
 
     cursor.token_error("Expected `]` after type arguments."_view);
     return False;
-  }
-
-  auto find_type(Perimortem::Core::View::Bytes name) const -> const Ttx::Type* {
-    const auto* type = types.find(name);
-    return type == nullptr ? nullptr : type->value;
   }
 
   Perimortem::Memory::Allocator::Arena& arena;

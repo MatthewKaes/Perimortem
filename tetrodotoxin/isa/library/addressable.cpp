@@ -3,6 +3,8 @@
 
 #include "tetrodotoxin/isa/library/addressable.hpp"
 
+#include "tetrodotoxin/isa/library/syntax.hpp"
+
 using namespace Tetrodotoxin::Isa;
 using namespace Ttx::Lexical;
 
@@ -23,6 +25,12 @@ auto Library::Addressable::evaluate(
   const Count error_count = cursor.get_errors().get_size();
   const Ttx::Type* type = scope.resolve_type(cursor, definition.get_kind());
   if (cursor.get_errors().get_size() != error_count) {
+    return Ttx::Type::Member();
+  }
+
+  if (!Library::Syntax::consume_initializer(
+          cursor,
+          "Expected `;` after library member initializer."_view)) {
     return Ttx::Type::Member();
   }
 

@@ -48,6 +48,17 @@ auto Definition::evaluate(
     return Definition();
   }
 
+  return evaluate_after_modifier(
+      cursor, documentation, modifier.get_type(), allowed_names,
+      allowed_qualifiers);
+}
+
+auto Definition::evaluate_after_modifier(
+    Cursor& cursor,
+    Ttx::Documentation documentation,
+    Class::Type modifier,
+    View::Vector<Class::Type> allowed_names,
+    View::Vector<Class::Type> allowed_qualifiers) -> Definition {
   const Token& name = cursor.current();
   if (!name.get_class().is_one_of(allowed_names)) {
     cursor.token_error(token_class_message(
@@ -74,6 +85,6 @@ auto Definition::evaluate(
 
   cursor.consume();
   return Definition(
-      documentation, modifier.get_type(), name.get_class().get_type(),
+      documentation, modifier, name.get_class().get_type(),
       name.get_text(), kind.get_class().get_type(), kind.get_text());
 }

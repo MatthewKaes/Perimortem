@@ -6,6 +6,11 @@
 using namespace Ttx::Lexical;
 using namespace Perimortem::Core;
 
+auto Cursor::seek_token(Count token_index) -> void {
+  Count token_count = tokenizer.get_tokens().get_size();
+  index = token_index < token_count ? token_index : token_count - 1;
+}
+
 auto Cursor::consume() -> const Lexical::Token& {
   const Lexical::Token& token = current();
   if (index + 1 < tokenizer.get_tokens().get_size()) {

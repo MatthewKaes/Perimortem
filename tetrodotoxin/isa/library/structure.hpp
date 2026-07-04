@@ -10,7 +10,7 @@
 
 namespace Tetrodotoxin::Isa::Library {
 
-// Structure owns Library `struct` bodies and publishes their member layout.
+// Structure owns Library `struct` bodies and constructs their member layout.
 class Structure {
  public:
   static auto evaluate(
