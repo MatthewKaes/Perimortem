@@ -3,7 +3,7 @@
 
 #include "tetrodotoxin/isa/package/export.hpp"
 
-#include "tetrodotoxin/isa/package/namespace.hpp"
+#include "tetrodotoxin/isa/package/group.hpp"
 
 using namespace Perimortem::Core;
 using namespace Tetrodotoxin::Isa;
@@ -15,26 +15,24 @@ auto Package::Export::evaluate(
     Ttx::Documentation documentation) -> Package::Export {
   Definition definition = Definition::evaluate(
       cursor, documentation, {{Class::Type::Expose}},
-      {{Class::Type::Type}}, {{Class::Type::Alias, Class::Type::Type}});
+      {{Class::Type::Type}},
+      {{Class::Type::Alias, Class::Type::Type, Class::Type::Addressable}});
   if (!definition.is_valid()) {
     return Package::Export();
   }
 
-  if (definition.get_kind() == "Namespace"_view) {
-    Package::Namespace name_space = Package::Namespace::evaluate(
-        context, cursor);
-    if (!name_space.is_valid()) {
+  if (definition.get_kind() == "group"_view) {
+    Package::Group group = Package::Group::evaluate(context, cursor);
+    if (!group.is_valid()) {
       return Package::Export();
     }
 
-    return Package::Export(definition, name_space.get_exports());
+    return Package::Export(definition, group.get_exports());
   }
 
-  if (!(definition.get_kind() == "alias"_view ||
-        definition.get_kind() == "Package"_view)) {
+  if (definition.get_kind() != "alias"_view) {
     cursor.token_error(
-        "Expected package definition kind `alias`, `Package`, or "
-        "`Namespace`."_view);
+        "Expected package definition kind `alias` or `group`."_view);
     return Package::Export();
   }
 

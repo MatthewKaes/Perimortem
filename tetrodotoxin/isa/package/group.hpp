@@ -10,20 +10,19 @@
 
 namespace Tetrodotoxin::Isa::Package {
 
-// Namespace groups package exports under one `::` segment.
+// Group owns a package `group` export block.
 //
-// It owns the authored export body for now. When exports can bind, Package
-// should publish this as a real Ttx::Type with nested types rather than a
-// parallel namespace tree.
-class Namespace {
+// A group publishes nested exports under one `::` segment. It is package
+// syntax, not a Type-shaped qualifier pretending to be a namespace.
+class Group {
  public:
-  Namespace() = default;
-  explicit Namespace(Perimortem::Core::View::Vector<Export> exports)
+  Group() = default;
+  explicit Group(Perimortem::Core::View::Vector<Export> exports)
       : exports(exports), valid(True) {}
 
   static auto evaluate(
       Tetrodotoxin::Isa::Context& context,
-      Ttx::Lexical::Cursor& cursor) -> Namespace;
+      Ttx::Lexical::Cursor& cursor) -> Group;
 
   constexpr auto get_exports() const -> Perimortem::Core::View::Vector<Export> {
     return exports;

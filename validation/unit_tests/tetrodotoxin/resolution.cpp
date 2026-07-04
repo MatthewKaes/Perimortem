@@ -553,7 +553,7 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinResolution, package_loading) {
   ASSERT(color != nullptr);
   EXPECT_TEXT(color->get_name(), "Color"_view);
 
-  const Ttx::Type* renderer = package->find_type("Renderer"_view);
+  const Ttx::Type* renderer = package->find_type("Renderers"_view);
   ASSERT(renderer != nullptr);
   ASSERT_EQ(renderer->get_types().get_size(), Count(1));
   const Ttx::Type* renderer_2d = renderer->find_type("Renderer2D"_view);
@@ -594,7 +594,7 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinResolution, package_chain) {
       "dialect : Package;\n"
       "import Core : Package = User::Core;\n"
       "@package_name = User::Ui;\n"
-      "expose Core : Package = Core;\n"_view));
+      "expose Core : alias = Core;\n"_view));
   EXPECT(has_error(
       context, "packages/user/ui/package.ttx"_view,
       "Import could not find valid `user/core/package.ttx` for package "
@@ -617,7 +617,7 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinResolution, package_chain) {
       "dialect : Package;\n"
       "import Core : Package = User::Core;\n"
       "@package_name = User::Ui;\n"
-      "expose Core : Package = Core;\n"_view);
+      "expose Core : alias = Core;\n"_view);
   ASSERT(ui != nullptr);
   EXPECT_NOT(context.has_errors());
   context.reset();
@@ -659,6 +659,31 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinResolution, bad_package) {
   Resolver resolver(toolchain);
   Resolver::Context context;
   EXPECT_NOT(resolver.load_source(
+      context, "unit/package_export.ttx"_view,
+      "dialect : Package;\n"
+      "@package_name = User::PackageExport;\n"
+      "expose Child : Package = Child;\n"_view));
+  EXPECT(has_error(
+      context, "unit/package_export.ttx"_view,
+      "Expected package definition kind `alias` or `group`."_view));
+  context.reset();
+
+  EXPECT_NOT(resolver.resolve("User::PackageExport"_view));
+
+  EXPECT_NOT(resolver.load_source(
+      context, "unit/old_package.ttx"_view,
+      "dialect : Package;\n"
+      "@package_name = User::Old;\n"
+      "expose Old : Namespace {\n"
+      "}\n"_view));
+  EXPECT(has_error(
+      context, "unit/old_package.ttx"_view,
+      "Expected package definition kind `alias` or `group`."_view));
+  context.reset();
+
+  EXPECT_NOT(resolver.resolve("User::Old"_view));
+
+  EXPECT_NOT(resolver.load_source(
       context, "unit/root.ttx"_view,
       "dialect : Library;\n"
       "import Graphics : Package = User::Package::Test;\n"_view));
@@ -673,8 +698,8 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinResolution, bad_package) {
   EXPECT_NOT(resolver.resolve("unit/root.ttx"_view));
   EXPECT_NOT(resolver.resolve("User::Package::Test"_view));
 
-  // Package publishes under @package_name, even when the file was loaded from an
-  // arbitrary path.
+  // Package publishes under @package_name, even when the file was loaded from
+  // an arbitrary path.
   const Source::Record* user_package = resolver.load_source(
       context, "arbitrary/path/package.ttx"_view,
       "dialect : Package;\n"

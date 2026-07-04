@@ -246,7 +246,7 @@ modifier name : qualifier { ... }
 The qualifier is always written at the declaration site. It is the source word
 that tells the active ISA how to evaluate the definition. Sometimes that word is
 a normal type query, such as `Count` or `Header`. Sometimes it is an ISA-owned
-builtin such as `struct`, `alias`, `foreign`, `Package`, or `Namespace`.
+builtin such as `struct`, `alias`, `foreign`, or `group`.
 
 The shared definition parser only extracts the shape: modifier, name,
 `Define`, and qualifier. The active ISA then decides whether the modifier and

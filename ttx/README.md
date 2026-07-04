@@ -280,8 +280,8 @@ manifest such as:
 perimortem/graphics/package.ttx
 ```
 
-That manifest can import concrete source files and re-export their public
-types, functions, resources, or nested packages:
+That manifest can import concrete source files and expose public aliases or
+groups:
 
 ```ttx
 dialect : Package;
@@ -293,7 +293,9 @@ import Renderer2D : Render = "renderer2d.ttx";
 import Default2D : Shader = "shaders/default2d.ttx";
 
 expose Sprite : alias = Sprite::Sprite;
-expose Shaders : Package = Shaders;
+expose Shaders : group {
+  expose Default2D : alias = Default2D;
+}
 ```
 
 The package file is not a second language. It is TTX token bytecode evaluated by

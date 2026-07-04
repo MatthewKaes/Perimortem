@@ -13,10 +13,10 @@ expose Color : alias = Types::Color;
 expose Sampler2D : alias = Types::Sampler2D;
 expose Sprite : alias = Sprite::Sprite;
 
-expose Renderer : Namespace {
+expose Renderers : group {
   expose Renderer2D : alias = Render2D::Renderer2D;
 }
 
-expose Shaders : Namespace {
+expose Shaders : group {
   expose Default2D : alias = Default2D;
 }

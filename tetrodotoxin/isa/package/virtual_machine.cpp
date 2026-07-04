@@ -27,7 +27,7 @@ static auto build_export_type(Context& context, const Package::Export& export_)
   }
 
   const Definition& definition = export_.get_definition();
-  if (definition.get_kind() == "Namespace"_view) {
+  if (definition.get_kind() == "group"_view) {
     return &context.get_arena().construct<Ttx::Type>(
         definition.get_name(), View::Vector<Ttx::Type::Member>(),
         types.get_view(), View::Vector<Ttx::Type::Function>(),
@@ -63,7 +63,8 @@ auto Package::VirtualMachine::evaluate(Context& context, Cursor& cursor)
     if (cursor.current().get_class() == Class::Type::Attribute &&
         cursor.current().get_text() == "@package_name"_view) {
       if (!package_name.is_empty()) {
-        cursor.token_error("Package source already declared `@package_name`."_view);
+        cursor.token_error(
+            "Package source already declared `@package_name`."_view);
         return nullptr;
       }
 
