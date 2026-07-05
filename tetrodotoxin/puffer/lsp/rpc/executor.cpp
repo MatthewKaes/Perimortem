@@ -3,7 +3,6 @@
 
 #include "tetrodotoxin/puffer/lsp/rpc/executor.hpp"
 
-#include <stdio.h>
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <unistd.h>

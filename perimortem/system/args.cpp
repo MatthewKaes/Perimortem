@@ -20,8 +20,6 @@ using namespace Perimortem::Memory;
 using namespace Perimortem::System;
 using namespace Perimortem::Utility;
 
-using Configs = Managed::Map<View::Bytes, Args::Config>;
-
 static auto basename(View::Bytes path) -> View::Bytes {
   for (Count i = path.get_size(); i > 0; i--) {
     if (path[i - 1] == '/' || path[i - 1] == '\\') {
@@ -66,7 +64,7 @@ static auto parse_argument(View::Bytes argument)
 static auto format_help(
     Allocator::Arena& arena,
     View::Bytes summary,
-    const Configs& variables,
+    const Managed::Map<View::Bytes, View::Bytes>& variables,
     View::Bytes command) -> View::Bytes {
   Count label_width = "-help"_view.get_size();
   for (Count i = 0; i < variables.get_size(); i++) {
@@ -92,7 +90,7 @@ static auto format_help(
     output.concat("  -"_view);
     output.concat(variable->key);
     output.append(Bits_8(' '), label_width - variable->key.get_size() - 1);
-    output.concat(variable->value.help);
+    output.concat(variable->value);
     output.append('\n');
   }
 
@@ -101,36 +99,20 @@ static auto format_help(
   output.concat("Show this help.\n"_view);
   return output;
 }
-
 auto Args::parse(
     Allocator::Arena& arena,
-    View::Bytes tool_summary,
-    Managed::Map<View::Bytes, Config> variables,
+    const Managed::Map<View::Bytes, View::Bytes>& variables,
     View::Vector<View::Bytes> arguments) -> Values {
-  // Pull all of the arguments from the config and add them.
-  // Positional arguments use the name of "" (empty view) in the config.
   Values values(arena);
   for (Count i = 1; i < arguments.get_size(); i++) {
     auto argument = parse_argument(arguments[i]);
-
-    if (argument.key == "help"_view) {
-      values["help"_view] =
-          &arena.construct<Managed::Vector<View::Bytes>>(arena);
-      break;
-    }
-
-    // If we hit an unrecongnized arg name then log an error and exit the loop.
-    // Additional act as if "help" was passed so we print help.
-    if (!variables.contains(argument.key)) {
+    if (argument.key != "help"_view && !variables.contains(argument.key)) {
       Diagnostics::Log::Message<256> error_message(
           Diagnostics::Log::Level::Error, Diagnostics::Source());
       error_message << "unrecognized arg"_view << ' ' << arguments[i] << '\n';
-      values["help"_view] =
-          &arena.construct<Managed::Vector<View::Bytes>>(arena);
-      break;
+      return Values(arena);
     }
 
-    // Initalize value vectors if this is the first time we are seeing the name.
     if (!values.contains(argument.key)) {
       values[argument.key] =
           &arena.construct<Managed::Vector<View::Bytes>>(arena);
@@ -138,21 +120,21 @@ auto Args::parse(
     values[argument.key]->insert(argument.value);
   }
 
-  // If help was passed or if we hit an error then log the help info.
-  if (values.contains("help"_view)) {
-    // Get the command name for help.
-    View::Bytes command;
-    if (!arguments.is_empty() && !arguments[0].is_empty()) {
-      command = basename(arguments[0]);
-    } else {
-      command = process_name();
-    }
+  return values;
+}
 
-    Diagnostics::Log::info(
-        format_help(arena, tool_summary, variables, command),
-        Diagnostics::Source());
-    return Values(arena);
+auto Args::log_help(
+    Allocator::Arena& arena,
+    View::Bytes summary,
+    const Managed::Map<View::Bytes, View::Bytes>& variables,
+    View::Vector<View::Bytes> arguments) -> void {
+  View::Bytes command;
+  if (!arguments.is_empty() && !arguments[0].is_empty()) {
+    command = basename(arguments[0]);
+  } else {
+    command = process_name();
   }
 
-  return values;
+  Diagnostics::Log::info(
+      format_help(arena, summary, variables, command), Diagnostics::Source());
 }

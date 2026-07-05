@@ -58,6 +58,22 @@ static constexpr View::Bytes memory_b_cycle_source =
 static constexpr View::Bytes memory_c_source =
     "dialect : Library;\n"
     "import A : Library = \"a.ttx\";\n"_view;
+static constexpr View::Bytes simple_render_source =
+    "dialect : Render;\n"
+    "public Render2D : Render {\n"
+    "  public vertex : stage {\n"
+    "    input [];\n"
+    "    output [];\n"
+    "  }\n"
+    "}\n"_view;
+static constexpr View::Bytes simple_shader_source =
+    "dialect : Shader;\n"
+    "import Renderer : Render = \"render.ttx\";\n"
+    "shader B : Renderer::Render2D {\n"
+    "  func vertex[] -> [] {\n"
+    "    return;\n"
+    "  }\n"
+    "}\n"_view;
 
 static auto write_source(View::Bytes source_path, View::Bytes source) -> Bool {
   File file;
@@ -132,7 +148,7 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinResolution, package_imports) {
   const Source::Record* package_record =
       resolver.resolve("Perimortem::Graphics"_view);
   ASSERT(package_record != nullptr);
-  EXPECT_EQ(import_count(package_record), Count(4));
+  EXPECT_EQ(import_count(package_record), Count(3));
 
   EXPECT_TEXT(import_name(root_record, 0), "Perimortem::Graphics"_view);
   EXPECT(resolver.resolve(import_name(root_record, 0)) == package_record);
@@ -304,8 +320,13 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinResolution, memory_only_cache) {
 
   // B can republish as a valid Shader. A and C still have to leave because
   // their import contracts were built against the old Library record.
+  ASSERT(resolver.load_source(
+      context, "unit/render.ttx"_view, simple_render_source));
+  EXPECT_NOT(context.has_errors());
+  context.reset();
+
   const Source::Record* shader_b = resolver.load_source(
-      context, "unit/b.ttx"_view, "dialect : Shader;\n"_view);
+      context, "unit/b.ttx"_view, simple_shader_source);
   ASSERT(shader_b != nullptr);
   EXPECT(has_error(
       context, "unit/a.ttx"_view,
@@ -548,17 +569,15 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinResolution, package_loading) {
   const Ttx::Type* package = root_type(graphics);
   ASSERT(package != nullptr);
   EXPECT_TEXT(package->get_name(), "Package"_view);
-  ASSERT_EQ(package->get_types().get_size(), Count(5));
+  ASSERT_EQ(package->get_types().get_size(), Count(6));
+  EXPECT(package->find_type("Size2D"_view) == nullptr);
   const Ttx::Type* color = package->find_type("Color"_view);
   ASSERT(color != nullptr);
   EXPECT_TEXT(color->get_name(), "Color"_view);
 
-  const Ttx::Type* renderer = package->find_type("Renderers"_view);
-  ASSERT(renderer != nullptr);
-  ASSERT_EQ(renderer->get_types().get_size(), Count(1));
-  const Ttx::Type* renderer_2d = renderer->find_type("Renderer2D"_view);
-  ASSERT(renderer_2d != nullptr);
-  EXPECT_TEXT(renderer_2d->get_name(), "Renderer2D"_view);
+  const Ttx::Type* render_2d = package->find_type("Render2D"_view);
+  ASSERT(render_2d != nullptr);
+  EXPECT_TEXT(render_2d->get_name(), "Render2D"_view);
 
   const Ttx::Type* shaders = package->find_type("Shaders"_view);
   ASSERT(shaders != nullptr);

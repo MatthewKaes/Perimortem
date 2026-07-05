@@ -47,8 +47,7 @@ class Cursor {
       return Perimortem::Core::View::Vector<Lexical::Token>();
     }
 
-    Count bounded_end =
-        end < tokens.get_size() ? end : tokens.get_size();
+    Count bounded_end = end < tokens.get_size() ? end : tokens.get_size();
     return tokens.slice(start, bounded_end - start);
   }
   auto seek_token(Count token_index) -> void;
@@ -86,9 +85,12 @@ class Cursor {
   // recoverable because it selects the ISA that owns the remaining grammar.
   auto recover_to_statement() -> void;
 
+  // Checks if the current cursor is exactly one type.
   constexpr auto matches(Lexical::Class::Type type) const -> Bool {
     return current().get_class() == type;
   }
+
+  // Checks to see if the class is an item in a range of possible values.
   constexpr auto is_one_of(
       Perimortem::Core::View::Vector<Lexical::Class::Type> types) const
       -> Bool {

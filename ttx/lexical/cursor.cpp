@@ -3,6 +3,8 @@
 
 #include "ttx/lexical/cursor.hpp"
 
+#include "perimortem/core/static/vector.hpp"
+
 using namespace Ttx::Lexical;
 using namespace Perimortem::Core;
 

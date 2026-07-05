@@ -5,7 +5,6 @@
 
 #include "perimortem/core/view/bytes.hpp"
 #include "perimortem/core/view/vector.hpp"
-#include "perimortem/core/static/vector.hpp"
 #include "perimortem/core/null_terminated.hpp"
 
 namespace Ttx::Lexical {
@@ -153,17 +152,6 @@ class Class {
 
     return False;
   }
-
-  static constexpr auto is_type_ref(Type value) -> Bool {
-    switch (value) {
-    case Type::Type:
-      return True;
-    default:
-      return False;
-    }
-  }
-
-  constexpr auto is_type_ref() const -> Bool { return is_type_ref(type); }
 
   constexpr auto get_type() const -> Type { return type; }
 

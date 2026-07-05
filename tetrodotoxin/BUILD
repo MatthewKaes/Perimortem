@@ -116,6 +116,7 @@ cc_library(
     name = "compiler",
     srcs = [
         "compiler/library.cpp",
+        "compiler/shader.cpp",
         "compiler/assembler/spir_v.cpp",
         "compiler/assembler/x86_64.cpp",
     ],

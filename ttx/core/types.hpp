@@ -81,8 +81,8 @@ class Types {
 
   static constexpr Perimortem::Core::Static::Vector<Type::Member, 2>
       size_2d_members = {{
-        {"width"_view, real_32_type},
-        {"height"_view, real_32_type},
+        {"width"_view, bits_32_type},
+        {"height"_view, bits_32_type},
       }};
 
   static constexpr Type vec2d_type = {
@@ -103,11 +103,11 @@ class Types {
   };
 
   static constexpr Perimortem::Core::Static::Vector types = {{
-    &void_type,      &bool_type,      &count_type,     &bits_8_type,
-    &bits_16_type,   &bits_32_type,   &bits_64_type,   &signed_8_type,
-    &signed_16_type, &signed_32_type, &signed_64_type, &real_32_type,
-    &real_64_type,   &bytes_type,     &string_type,    &vec_type,
-    &vec2d_type,     &vec3d_type,     &vec4d_type,     &size2d_type,
+    &void_type,      &bool_type,       &count_type,     &bits_8_type,
+    &bits_16_type,   &bits_32_type,    &bits_64_type,   &signed_8_type,
+    &signed_16_type, &signed_32_type,  &signed_64_type, &real_32_type,
+    &real_64_type,   &bytes_type,      &string_type,    &vec_type,
+    &vec2d_type,     &vec3d_type,      &vec4d_type,     &size2d_type,
     &view_type,      &view_bytes_type, &access_type,    &list_type,
     &dict_type,      &action_type,
   }};
