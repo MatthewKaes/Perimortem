@@ -2,15 +2,37 @@
 // Copyright © Matt Kaes
 dialect : Library;
 
-public Sampler2D : foreign {
-  expose func sample[
-    .texture_uv : Vec2D,
-  ] -> [Color];
-}
-
 public Color : struct {
   public r : Real_32;
   public g : Real_32;
   public b : Real_32;
   public a : Real_32;
+}
+
+public Point2D : alias = Vec2D;
+
+public Size2D : struct {
+  public width : Real_32;
+  public height : Real_32;
+}
+
+public Image : object {
+  public size_pixels : Size2D = (.width = 0.0, .height = 0.0);
+
+  public func from[] -> Image {}
+
+  public func decode[.source : View[Bytes]] -> Image {}
+
+  public func get_size_pixels[] -> Size2D {}
+
+  expose func sample[
+    .texture_uv : Point2D,
+  ] -> [Color] {}
+}
+
+public Window : object {
+  public func create[
+    .title : View[Bytes],
+    .window_size : Size2D,
+  ] -> Window {}
 }

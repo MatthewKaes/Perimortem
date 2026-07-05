@@ -5,34 +5,39 @@
 dialect : Shader;
 
 import Types : Library = "../library/types.ttx";
-import Render2D : Render = "../renderers/renderer_2d.ttx";
+import Renderer2D : Render = "../renderers/renderer_2d.ttx";
 
-shader Default2D : Render2D::Renderer2D {
+shader Default2D : Renderer2D::Render2D {
   func vertex[.vertex_index : Bits_32] -> [
-    .texture_uv : Vec2D,
+    .texture_uv : Types::Point2D,
     .screen_position : Vec4D,
   ] {
-    state quad_position : Vec2D = uniform.quad_positions:[vertex_index];
-    state centered_quad_position : Vec2D =
+    state quad_position : Types::Point2D = constant.quad_positions:[vertex_index];
+    state centered_quad_position : Types::Point2D =
         quad_position - (.x = 0.5, .y = 0.5);
-    state normalized_size : Vec2D = (
-      .x = uniform.size.width,
-      .y = uniform.size.height,
+    state normalized_size : Types::Point2D = (
+      .x = push.size_pixels.width,
+      .y = push.size_pixels.height,
     );
-    state screen_position : Vec2D =
-        uniform.position + centered_quad_position * normalized_size;
+    state screen_position : Types::Point2D =
+        push.position + centered_quad_position * normalized_size;
     return (
-      .texture_uv = uniform.quad_uvs:[vertex_index],
+      .texture_uv = constant.quad_uvs:[vertex_index],
       .screen_position = (screen_position.[x, y], 0.0, 1.0),
     );
   }
 
-  func pixel[.texture_uv : Vec2D] -> [
+  func pixel[.texture_uv : Types::Point2D] -> [
     .color : Types::Color,
   ] {
-    state sample : Types::Color = uniform.image -> sample(texture_uv);
+    state sample : Types::Color = resource.image -> sample(texture_uv);
     return (
-      .color = (sample.[r, g, b], sample.a * uniform.alpha),
+      .color = (
+        .r = sample.r * push.tone.r,
+        .g = sample.g * push.tone.g,
+        .b = sample.b * push.tone.b,
+        .a = sample.a * push.tone.a,
+      ),
     );
   }
 }
