@@ -19,6 +19,17 @@ class Contract {
       Ttx::Lexical::Cursor& cursor,
       const Ttx::Type& contract,
       const Ttx::Type::Function& function) -> Bool;
+
+ private:
+  static constexpr auto is_read_root(Perimortem::Core::View::Bytes name)
+      -> Bool {
+    return name == "constant"_view || name == "push"_view ||
+           name == "resource"_view;
+  }
+  static auto validate_reads(
+      Ttx::Lexical::Cursor& cursor,
+      const Ttx::Type& contract,
+      const Ttx::Type::Function& function) -> Bool;
 };
 
 }  // namespace Tetrodotoxin::Isa::Shader

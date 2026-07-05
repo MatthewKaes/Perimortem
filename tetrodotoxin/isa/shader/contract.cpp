@@ -5,6 +5,7 @@
 
 #include "ttx/layout.hpp"
 
+using namespace Perimortem::Core;
 using namespace Tetrodotoxin::Isa;
 using namespace Ttx::Lexical;
 
@@ -53,6 +54,52 @@ auto Shader::Contract::validate_stage(
     cursor.token_error(
         "Shader stage result does not match the render contract."_view);
     return False;
+  }
+
+  return validate_reads(cursor, contract, function);
+}
+
+auto Shader::Contract::validate_reads(
+    Cursor& cursor,
+    const Ttx::Type& contract,
+    const Ttx::Type::Function& function) -> Bool {
+  const Ttx::Type* stage_facts = contract.find_type(function.get_name());
+  if (stage_facts == nullptr) {
+    cursor.token_error("Shader stage has no render fact contract."_view);
+    return False;
+  }
+
+  View::Vector<Ttx::Type::Function::Block> blocks = function.get_blocks();
+  for (Count i = 0; i < blocks.get_size(); i++) {
+    View::Vector<Token> tokens = blocks[i].get_tokens();
+    for (Count j = 0; j < tokens.get_size(); j++) {
+      const Token& root = tokens[j];
+      if (root.get_class() != Class::Type::Addressable ||
+          !is_read_root(root.get_text())) {
+        continue;
+      }
+
+      if (j + 1 >= tokens.get_size() ||
+          tokens[j + 1].get_class() != Class::Type::AddressOp) {
+        continue;
+      }
+
+      if (j + 2 >= tokens.get_size() ||
+          tokens[j + 2].get_class() != Class::Type::Addressable) {
+        cursor.range_error(
+            root, root, "Shader render fact access needs a member name."_view);
+        return False;
+      }
+
+      const Ttx::Type* reads = stage_facts->find_type(root.get_text());
+      if (reads == nullptr ||
+          reads->find_member(tokens[j + 2].get_text()) == nullptr) {
+        cursor.range_error(
+            tokens[j + 2], tokens[j + 2],
+            "Shader stage cannot read render fact."_view);
+        return False;
+      }
+    }
   }
 
   return True;

@@ -9,46 +9,14 @@
 #include "tetrodotoxin/isa/definition.hpp"
 #include "tetrodotoxin/isa/documentation.hpp"
 #include "tetrodotoxin/isa/expression.hpp"
-#include "tetrodotoxin/isa/layout/evaluator.hpp"
 #include "tetrodotoxin/isa/modifier.hpp"
+#include "tetrodotoxin/isa/render/interface.hpp"
+#include "tetrodotoxin/isa/render/stage.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
 using namespace Tetrodotoxin::Isa;
 using namespace Ttx::Lexical;
-
-static auto block_type_name(View::Bytes block_name) -> View::Bytes {
-  if (block_name == "constants"_view) {
-    return "constant"_view;
-  }
-  if (block_name == "push_constants"_view) {
-    return "push"_view;
-  }
-  if (block_name == "resources"_view) {
-    return "resource"_view;
-  }
-  return View::Bytes();
-}
-
-static auto insert_member(
-    Cursor& cursor,
-    Managed::Vector<Ttx::Type::Member>& members,
-    Ttx::Type::Member member,
-    View::Bytes duplicate_error) -> Bool {
-  if (member.is_empty()) {
-    return False;
-  }
-
-  for (Count i = 0; i < members.get_size(); i++) {
-    if (members[i].get_name() == member.get_name()) {
-      cursor.token_error(duplicate_error);
-      return False;
-    }
-  }
-
-  members.insert(member);
-  return True;
-}
 
 static auto evaluate_member(
     Context& context,
@@ -79,138 +47,6 @@ static auto evaluate_member(
 
   return Ttx::Type::Member(
       definition.get_name(), *type, definition.get_documentation());
-}
-
-static auto evaluate_fact_block(
-    Context& context,
-    Cursor& cursor,
-    View::Bytes block_name) -> const Ttx::Type* {
-  View::Bytes type_name = block_type_name(block_name);
-  if (type_name.is_empty()) {
-    cursor.token_error("Expected render fact block."_view);
-    return nullptr;
-  }
-
-  cursor.consume();
-  if (!cursor.require(
-          Class::Type::ScopeStart,
-          "Expected `{` after render fact block name."_view)) {
-    return nullptr;
-  }
-
-  Managed::Vector<Ttx::Type::Member> members(context.get_arena());
-  Bool valid = True;
-  while (!cursor.matches(Class::Type::EndOfStream) &&
-         !cursor.matches(Class::Type::ScopeEnd)) {
-    Ttx::Documentation documentation = Documentation::evaluate(cursor);
-    Modifier modifier = Modifier::evaluate(
-        cursor, {{Class::Type::Const, Class::Type::State}},
-        "Expected render fact to start with `const` or `state`."_view);
-    if (!modifier.is_valid()) {
-      return nullptr;
-    }
-
-    Definition definition = Definition::evaluate_after_modifier(
-        cursor, documentation, modifier.get_type(),
-        {{Class::Type::Addressable}}, {{Class::Type::Type}});
-    if (!definition.is_valid()) {
-      return nullptr;
-    }
-
-    Ttx::Type::Member member = evaluate_member(
-        context, cursor, definition,
-        "Expected `;` after render fact initializer."_view,
-        "Render fact type could not be resolved."_view);
-    if (!insert_member(
-            cursor, members, member,
-            "Render fact name is already defined."_view)) {
-      valid = False;
-    }
-  }
-
-  if (!cursor.require(
-          Class::Type::ScopeEnd,
-          "Expected `}` after render fact block."_view)) {
-    return nullptr;
-  }
-
-  if (!valid) {
-    return nullptr;
-  }
-
-  Managed::Vector<Ttx::Attribute> attributes(context.get_arena());
-  attributes.insert({"isa"_view, "RenderFacts"_view});
-  attributes.insert({"render_block"_view, block_name});
-  return &context.get_arena().construct<Ttx::Type>(
-      type_name, members.get_view(), View::Vector<const Ttx::Type*>(),
-      View::Vector<Ttx::Type::Function>(), Ttx::Documentation(),
-      attributes.get_view());
-}
-
-static auto evaluate_stage(
-    Context& context,
-    Cursor& cursor,
-    const Definition& definition) -> Ttx::Type::Function {
-  if (!cursor.require(
-          Class::Type::ScopeStart,
-          "Expected `{` after render stage declaration."_view)) {
-    return Ttx::Type::Function();
-  }
-
-  Managed::Vector<Ttx::Type::Member> parameters(context.get_arena());
-  Managed::Vector<Ttx::Type::Member> result(context.get_arena());
-  while (!cursor.matches(Class::Type::EndOfStream) &&
-         !cursor.matches(Class::Type::ScopeEnd)) {
-    if (!cursor.matches(Class::Type::Addressable)) {
-      cursor.token_error("Expected render stage directive."_view);
-      return Ttx::Type::Function();
-    }
-
-    View::Bytes directive = cursor.current().get_text();
-    cursor.consume();
-    if (directive == "reads"_view) {
-      if (!Expression::consume(
-              cursor,
-              "Expected `;` after render stage reads declaration."_view)) {
-        return Ttx::Type::Function();
-      }
-      if (!cursor.require(
-              Class::Type::EndStatement,
-              "Expected `;` after render stage reads declaration."_view)) {
-        return Ttx::Type::Function();
-      }
-      continue;
-    }
-
-    Managed::Vector<Ttx::Type::Member>* target = nullptr;
-    if (directive == "input"_view) {
-      target = &parameters;
-    } else if (directive == "output"_view) {
-      target = &result;
-    } else {
-      cursor.token_error("Expected render stage input, output, or reads."_view);
-      return Ttx::Type::Function();
-    }
-
-    if (!Layout::Evaluator::evaluate_bracketed(context, cursor, *target)) {
-      return Ttx::Type::Function();
-    }
-    if (!cursor.require(
-            Class::Type::EndStatement,
-            "Expected `;` after render stage layout."_view)) {
-      return Ttx::Type::Function();
-    }
-  }
-
-  if (!cursor.require(
-          Class::Type::ScopeEnd,
-          "Expected `}` after render stage declaration."_view)) {
-    return Ttx::Type::Function();
-  }
-
-  return Ttx::Type::Function(
-      definition.get_name(), parameters.get_view(), result.get_view(),
-      definition.get_documentation());
 }
 
 auto Render::VirtualMachine::evaluate(Context& context, Cursor& cursor)
@@ -249,7 +85,7 @@ auto Render::VirtualMachine::evaluate(Context& context, Cursor& cursor)
 
     if (cursor.matches(Class::Type::Addressable)) {
       const Ttx::Type* fact_block =
-          evaluate_fact_block(context, cursor, cursor.current().get_text());
+          Interface::evaluate(context, cursor, cursor.current().get_text());
       if (fact_block == nullptr) {
         return nullptr;
       }
@@ -273,20 +109,15 @@ auto Render::VirtualMachine::evaluate(Context& context, Cursor& cursor)
     }
 
     if (definition.get_kind() == "stage"_view) {
-      Ttx::Type::Function stage =
-          evaluate_stage(context, cursor, definition);
+      Stage::Result stage =
+          Stage::evaluate(context, cursor, definition, types.get_view());
       if (stage.is_empty()) {
         return nullptr;
       }
-      for (Count i = 0; i < functions.get_size(); i++) {
-        if (functions[i].get_name() == stage.get_name()) {
-          cursor.token_error("Render stage name is already defined."_view);
-          valid = False;
-        }
+      if (!Stage::insert(cursor, functions, stage.get_function())) {
+        valid = False;
       }
-      if (valid) {
-        functions.insert(stage);
-      }
+      types.insert(stage.get_facts());
       continue;
     }
 
@@ -294,7 +125,7 @@ auto Render::VirtualMachine::evaluate(Context& context, Cursor& cursor)
         context, cursor, definition,
         "Expected `;` after render member initializer."_view,
         "Render member type could not be resolved."_view);
-    if (!insert_member(
+    if (!Interface::insert(
             cursor, members, member,
             "Render member name is already defined."_view)) {
       valid = False;

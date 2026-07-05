@@ -152,6 +152,43 @@ PERIMORTEM_UNIT_TEST(TtxShader, named_fit) {
   EXPECT_NOT(context.has_errors());
 }
 
+PERIMORTEM_UNIT_TEST(TtxShader, bad_reads) {
+  Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
+  Resolver resolver(toolchain);
+  Resolver::Context context;
+
+  ASSERT(resolver.load_source(
+      context, "unit/render.ttx"_view,
+      "dialect : Render;\n"
+      "public Render2D : Render {\n"
+      "  push_constants {\n"
+      "    const position : Bits_32 = 0;\n"
+      "    const tone : Bits_32 = 0;\n"
+      "  }\n"
+      "  public vertex : stage {\n"
+      "    reads push[position];\n"
+      "    input [];\n"
+      "    output [];\n"
+      "  }\n"
+      "}\n"_view));
+  EXPECT_NOT(context.has_errors());
+  context.reset();
+
+  EXPECT_NOT(resolver.load_source(
+      context, "unit/shader.ttx"_view,
+      "dialect : Shader;\n"
+      "import Renderer : Render = \"render.ttx\";\n"
+      "shader Default2D : Renderer::Render2D {\n"
+      "  func vertex[] -> [] {\n"
+      "    state value : Bits_32 = push.tone;\n"
+      "    return;\n"
+      "  }\n"
+      "}\n"_view));
+
+  ASSERT(context.has_errors());
+  EXPECT_TEXT(first_error(context), "Shader stage cannot read render fact."_view);
+}
+
 PERIMORTEM_UNIT_TEST(TtxShader, stage_symbols) {
   Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
   Resolver resolver(toolchain);
