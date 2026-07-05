@@ -210,7 +210,7 @@ class Main {
     View::Vector<View::Bytes> dependencies = arg_values(args, "dep"_view);
     for (Count i = 0; i < dependencies.get_size(); i++) {
       View::Bytes dependency = dependencies[i];
-      if (package && !is_package_root(dependency)) {
+      if (!is_package_root(dependency)) {
         continue;
       }
 

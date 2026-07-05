@@ -33,10 +33,6 @@ class Function {
       Ttx::Lexical::Cursor& cursor,
       Ttx::Documentation documentation,
       BodyMode body_mode) -> Ttx::Type::Function;
-  static auto evaluate_body(
-      Ttx::Lexical::Cursor& cursor,
-      Perimortem::Memory::Managed::Vector<Ttx::Type::Function::Block>& blocks)
-      -> Bool;
 };
 
 }  // namespace Tetrodotoxin::Isa::Library

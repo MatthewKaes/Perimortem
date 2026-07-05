@@ -1,0 +1,5 @@
+// Perimortem Engine
+// Copyright © Matt Kaes
+dialect : Library;
+
+public Easing : alias = Bits_32;

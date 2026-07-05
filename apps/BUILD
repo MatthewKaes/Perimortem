@@ -3,6 +3,11 @@
 package(default_visibility = ["//visibility:public"])
 
 filegroup(
+    name = "main",
+    srcs = ["main.ttx"],
+)
+
+filegroup(
     name = "splash_screen",
     srcs = ["splash_screen.ttx"],
 )

@@ -235,8 +235,8 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinResolution, missing_isa) {
       context, "unit/root.ttx"_view, "dialect : Missing;\n"_view));
   EXPECT(first_error_is(
       context, "unit/root.ttx"_view,
-      "ISA `Missing` is not installed. Installed ISAs: Library, Package, "
-      "Render, Shader."_view));
+      "ISA `Missing` is not installed. Installed ISAs: App, Library, "
+      "Package, Render, Scene, Shader."_view));
   EXPECT_NOT(resolver.resolve("unit/root.ttx"_view));
 }
 

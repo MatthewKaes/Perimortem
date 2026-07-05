@@ -50,6 +50,35 @@ ttx_package(
     ],
 )
 
+ttx_package(
+    name = "math_package_smoke",
+    srcs = [
+        "//perimortem:math/library/types.ttx",
+        "//perimortem:math/package.ttx",
+    ],
+)
+
+ttx_package(
+    name = "runtime_package_smoke",
+    srcs = [
+        "//perimortem:runtime/library/types.ttx",
+        "//perimortem:runtime/package.ttx",
+    ],
+)
+
+ttx_library(
+    name = "app_scene_smoke",
+    srcs = [
+        "//apps:main",
+        "//apps:splash_screen",
+    ],
+    deps = [
+        ":graphics_package_smoke",
+        ":math_package_smoke",
+        ":runtime_package_smoke",
+    ],
+)
+
 cc_binary(
     name = "unit_tests",
     srcs = glob([

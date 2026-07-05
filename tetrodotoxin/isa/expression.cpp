@@ -79,3 +79,43 @@ auto Expression::consume_initializer(
   cursor.consume();
   return consume(cursor, message);
 }
+
+auto Expression::consume_block(
+    Cursor& cursor,
+    Perimortem::Core::View::Bytes open_error,
+    Perimortem::Core::View::Bytes close_error,
+    Perimortem::Memory::Managed::Vector<Ttx::Type::Function::Block>& blocks)
+    -> Bool {
+  if (!cursor.require(Class::Type::ScopeStart, open_error)) {
+    return False;
+  }
+
+  Count block_start = cursor.get_token_index();
+  Count depth = 1;
+  while (!cursor.matches(Class::Type::EndOfStream)) {
+    if (cursor.matches(Class::Type::ScopeStart)) {
+      depth++;
+      cursor.consume();
+      continue;
+    }
+
+    if (cursor.matches(Class::Type::ScopeEnd)) {
+      if (depth == 1) {
+        Count block_end = cursor.get_token_index();
+        blocks.insert(Ttx::Type::Function::Block(
+            cursor.get_token_span(block_start, block_end)));
+        cursor.consume();
+        return True;
+      }
+
+      depth--;
+      cursor.consume();
+      continue;
+    }
+
+    cursor.consume();
+  }
+
+  cursor.token_error(close_error);
+  return False;
+}

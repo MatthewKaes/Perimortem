@@ -118,6 +118,40 @@ PERIMORTEM_UNIT_TEST(TtxShader, bad_contract) {
       "Shader stage parameters do not match the render contract."_view);
 }
 
+PERIMORTEM_UNIT_TEST(TtxShader, named_fit) {
+  Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
+  Resolver resolver(toolchain);
+  Resolver::Context context;
+
+  ASSERT(resolver.load_source(
+      context, "unit/render.ttx"_view,
+      "dialect : Render;\n"
+      "public Render2D : Render {\n"
+      "  public vertex : stage {\n"
+      "    input [.x : Bits_32, .y : Bits_32];\n"
+      "    output [.color : Vec4D, .depth : Real_32];\n"
+      "  }\n"
+      "}\n"_view));
+  EXPECT_NOT(context.has_errors());
+  context.reset();
+
+  const Source::Record* shader = resolver.load_source(
+      context, "unit/shader.ttx"_view,
+      "dialect : Shader;\n"
+      "import Renderer : Render = \"render.ttx\";\n"
+      "shader Default2D : Renderer::Render2D {\n"
+      "  func vertex[.y : Bits_32, .x : Bits_32] -> [\n"
+      "    .depth : Real_32,\n"
+      "    .color : Vec4D,\n"
+      "  ] {\n"
+      "    return;\n"
+      "  }\n"
+      "}\n"_view);
+
+  ASSERT(shader != nullptr);
+  EXPECT_NOT(context.has_errors());
+}
+
 PERIMORTEM_UNIT_TEST(TtxShader, stage_symbols) {
   Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
   Resolver resolver(toolchain);

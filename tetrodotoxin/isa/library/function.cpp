@@ -3,6 +3,7 @@
 
 #include "tetrodotoxin/isa/library/function.hpp"
 
+#include "tetrodotoxin/isa/expression.hpp"
 #include "tetrodotoxin/isa/layout/evaluator.hpp"
 
 using namespace Perimortem::Core;
@@ -65,50 +66,14 @@ auto Library::Function::evaluate(
             "Expected `;` after library function declaration."_view)) {
       return Ttx::Type::Function();
     }
-  } else if (!evaluate_body(cursor, blocks)) {
+  } else if (!Expression::consume_block(
+                 cursor,
+                 "Expected `{` after library function signature."_view,
+                 "Expected `}` after library function body."_view, blocks)) {
     return Ttx::Type::Function();
   }
 
   return Ttx::Type::Function(
       name->get_text(), parameters.get_view(), result.get_view(),
       blocks.get_view(), documentation);
-}
-
-auto Library::Function::evaluate_body(
-    Cursor& cursor,
-    Managed::Vector<Ttx::Type::Function::Block>& blocks) -> Bool {
-  if (!cursor.require(
-          Class::Type::ScopeStart,
-          "Expected `{` after library function signature."_view)) {
-    return False;
-  }
-
-  Count block_start = cursor.get_token_index();
-  Count depth = 1;
-  while (!cursor.matches(Class::Type::EndOfStream)) {
-    if (cursor.matches(Class::Type::ScopeStart)) {
-      depth++;
-      cursor.consume();
-      continue;
-    }
-
-    if (cursor.matches(Class::Type::ScopeEnd)) {
-      if (depth == 1) {
-        Count block_end = cursor.get_token_index();
-        blocks.insert(Ttx::Type::Function::Block(
-            cursor.get_token_span(block_start, block_end)));
-        cursor.consume();
-        return True;
-      }
-
-      depth--;
-      cursor.consume();
-      continue;
-    }
-
-    cursor.consume();
-  }
-
-  cursor.token_error("Expected `}` after library function body."_view);
-  return False;
 }

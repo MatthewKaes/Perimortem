@@ -5,6 +5,9 @@
 
 #include "perimortem/core/view/bytes.hpp"
 
+#include "perimortem/memory/managed/vector.hpp"
+
+#include "ttx/type.hpp"
 #include "ttx/lexical/cursor.hpp"
 
 namespace Tetrodotoxin::Isa {
@@ -33,6 +36,12 @@ class Expression {
   static auto consume_initializer(
       Ttx::Lexical::Cursor& cursor,
       Perimortem::Core::View::Bytes error_message) -> Bool;
+  static auto consume_block(
+      Ttx::Lexical::Cursor& cursor,
+      Perimortem::Core::View::Bytes open_error,
+      Perimortem::Core::View::Bytes close_error,
+      Perimortem::Memory::Managed::Vector<Ttx::Type::Function::Block>& blocks)
+      -> Bool;
 };
 
 }  // namespace Tetrodotoxin::Isa

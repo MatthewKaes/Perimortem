@@ -1,0 +1,11 @@
+// Perimortem Engine
+// Copyright © Matt Kaes
+dialect : Package;
+
+import Types : Library = "library/types.ttx";
+
+@package_name = Perimortem::Math;
+
+expose Interpolation : group {
+  expose Easing : alias = Types::Easing;
+}

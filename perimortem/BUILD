@@ -13,6 +13,10 @@ exports_files(
         "graphics/package.ttx",
         "graphics/renderers/renderer_2d.ttx",
         "graphics/shaders/default_2d.ttx",
+        "math/library/types.ttx",
+        "math/package.ttx",
+        "runtime/library/types.ttx",
+        "runtime/package.ttx",
     ],
     visibility = ["//visibility:public"],
 )

@@ -146,7 +146,7 @@ layer and interop ISAs it is not unreasonable to lower languages like C into TTX
 leverage Tetrodotoxin directly, but this is most likely more effort than it is worth.
 
 Puffer provides `Boot` for source preambles. Built-in Tetrodotoxin body ISAs
-include `Library`, `Package`, `Shader`, `Render`, and `Entity`.
+include `App`, `Library`, `Package`, `Render`, `Scene`, and `Shader`.
 
 ## Backend outputs
 
@@ -177,9 +177,9 @@ Perimortem integrates it into its Bazel toolchain through [`../toolchain/tetrodo
 Puffer is intentionally thin around the Tetrodotoxin toolchain's default ISA set.
 It creates `Toolchain::standard()` and owns VM startup with its own `Boot` ISA.
 Puffer drives the top `Resolver` layer for source `.ttx` inputs, loading
-dependency sources first, then executing ISAs on selected roots. Puffer's Boot
-ISA reads each source preamble, then dispatches to Tetrodotoxin's built-in body
-ISAs to evaluate the rest of the source.
+dependency package manifests first, then executing ISAs on selected roots.
+Puffer's Boot ISA reads each source preamble, then dispatches to Tetrodotoxin's
+built-in body ISAs to evaluate the rest of the source.
 
 Library, Package, and other ISAs populate to create the full Virtual Machine runtime
 that executes TTX Token Bytecode to produce a full TTX Abstract Machine (types, layouts,

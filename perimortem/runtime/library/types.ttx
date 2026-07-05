@@ -1,0 +1,17 @@
+// Perimortem Engine
+// Copyright © Matt Kaes
+dialect : Library;
+
+public Time : object {
+  public seconds : Real_64 = 0.0;
+
+  public func from_seconds[.value : Real_64] -> Time {}
+
+  public func get_seconds[] -> Real_64 {}
+}
+
+public Frame : struct {
+  public scene_time : Time;
+  public frame_time : Time;
+  public delta_time : Time;
+}
