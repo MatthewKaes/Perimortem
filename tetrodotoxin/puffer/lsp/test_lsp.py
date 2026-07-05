@@ -24,7 +24,7 @@ import time
 SOCKET_PATH = "/tmp/ttx_lsp_test.sock"
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, "..", "..", ".."))
-BINARY = os.path.join(REPO_ROOT, ".bin/bin/tetrodotoxin/puffer")
+BINARY = os.path.join(REPO_ROOT, ".bin/bin/tetrodotoxin/puffer/puffer")
 
 
 def lsp_frame(obj):

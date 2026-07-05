@@ -13,7 +13,7 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 VSIX_DIR="$REPO_ROOT/.vscode"
-SERVER_BIN="$REPO_ROOT/.bin/bin/tetrodotoxin/puffer"
+SERVER_BIN="$REPO_ROOT/.bin/bin/tetrodotoxin/puffer/puffer"
 PACKAGE_SERVER="$SCRIPT_DIR/puffer"
 
 INSTALL=0

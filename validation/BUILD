@@ -95,7 +95,7 @@ cc_binary(
         "//tetrodotoxin:compiler",
         "//tetrodotoxin:isa",
         "//tetrodotoxin:linker",
-        "//tetrodotoxin:puffer_resolution",
+        "//tetrodotoxin/puffer:resolution",
         "//tetrodotoxin:toolchain",
         "//ttx",
     ],

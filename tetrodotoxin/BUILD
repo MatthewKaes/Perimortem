@@ -3,7 +3,6 @@ Tetrodotoxin - A saltless engine language (.ttx)
 """
 
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
-load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 
 package(default_visibility = ["//visibility:public"])
 
@@ -38,78 +37,9 @@ cc_library(
     ],
 )
 
-cc_library(
-    name = "puffer_resolution",
-    srcs = [
-        "puffer/resolution/resolver.cpp",
-        "puffer/resolution/source/cache.cpp",
-    ],
-    hdrs = [
-        "puffer/resolution/resolver.hpp",
-        "puffer/resolution/source/cache.hpp",
-        "puffer/resolution/source/record.hpp",
-    ],
-    includes = ["."],
-    deps = [
-        ":isa",
-        ":puffer_boot",
-        ":toolchain",
-        "//perimortem",
-        "//ttx",
-    ],
-)
-
-cc_library(
-    name = "puffer_boot",
-    srcs = glob([
-        "puffer/isa/boot/**/*.cpp",
-    ]),
-    hdrs = glob([
-        "puffer/isa/boot/**/*.hpp",
-    ]),
-    includes = ["."],
-    deps = [
-        ":isa",
-        "//perimortem",
-        "//ttx",
-    ],
-)
-
-cc_library(
-    name = "puffer_lsp",
-    srcs = glob([
-        "puffer/lsp/**/*.cpp",
-    ]),
-    hdrs = glob([
-        "puffer/lsp/**/*.hpp",
-    ]),
-    includes = ["."],
-    deps = [
-        ":isa",
-        ":puffer_boot",
-        ":toolchain",
-        "//perimortem",
-        "//perimortem:serialization",
-        "//perimortem:system",
-        "//ttx",
-    ],
-)
-
-cc_binary(
+alias(
     name = "puffer",
-    srcs = [
-        "puffer/main.cpp",
-    ],
-    deps = [
-        ":compiler",
-        ":linker",
-        ":puffer_boot",
-        ":puffer_lsp",
-        ":puffer_resolution",
-        ":toolchain",
-        "//perimortem",
-        "//ttx",
-    ],
+    actual = "//tetrodotoxin/puffer:puffer",
 )
 
 cc_library(
