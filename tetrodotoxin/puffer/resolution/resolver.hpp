@@ -69,6 +69,10 @@ class Resolver {
       Perimortem::Core::View::Bytes source_path,
       Perimortem::Core::View::Bytes ttx_content) -> Source::Record*;
   auto resolve(Perimortem::Core::View::Bytes import_name) -> Source::Record*;
+  auto collect_reachable(
+      Source::Record& root,
+      Perimortem::Memory::Dynamic::Vector<Source::Record*>& records) const
+      -> void;
   auto reset() -> void;
 
  private:

@@ -240,6 +240,16 @@ auto Resolver::resolve(View::Bytes key) -> Source::Record* {
   return record;
 }
 
+auto Resolver::collect_reachable(
+    Source::Record& root,
+    Dynamic::Vector<Source::Record*>& records) const -> void {
+  if (!records.contains(&root)) {
+    records.insert(&root);
+  }
+
+  sources.collect_transitive_producers(root, records);
+}
+
 auto Resolver::load_source(Context& context, View::Bytes source_path)
     -> Source::Record* {
   if (has_backslash(source_path)) {

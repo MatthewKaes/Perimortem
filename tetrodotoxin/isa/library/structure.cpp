@@ -32,6 +32,13 @@ auto Library::Structure::evaluate(
   Managed::Vector<Ttx::Type::Member> members(scope.get_context().get_arena());
   Managed::Vector<Ttx::Type::Function> functions(
       scope.get_context().get_arena());
+  Ttx::Type& type = scope.get_context().get_arena().allocate<Ttx::Type>();
+  if (!scope.stage_type_reference(definition.get_name(), type)) {
+    cursor.token_error(
+        "Library aggregate type could not stage self reference."_view);
+    return nullptr;
+  }
+
   Bool valid = True;
   while (!cursor.matches(Class::Type::EndOfStream) &&
          !cursor.matches(Class::Type::ScopeEnd)) {
@@ -129,7 +136,7 @@ auto Library::Structure::evaluate(
 
   Managed::Vector<Ttx::Attribute> attributes(scope.get_context().get_arena());
   attributes.insert({"isa"_view, "Struct"_view});
-  auto& type = scope.get_context().get_arena().construct<Ttx::Type>(
+  new (&type) Ttx::Type(
       definition.get_name(), members.get_view(),
       View::Vector<const Ttx::Type*>(), functions.get_view(),
       definition.get_documentation(), attributes.get_view());

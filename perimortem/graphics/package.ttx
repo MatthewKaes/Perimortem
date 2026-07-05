@@ -12,7 +12,6 @@ expose Color : alias = Types::Color;
 expose Image : alias = Types::Image;
 expose Point2D : alias = Types::Point2D;
 expose Render2D : alias = Renderer2D::Render2D;
-expose Size2D : alias = Types::Size2D;
 expose Window : alias = Types::Window;
 
 expose Shaders : group {

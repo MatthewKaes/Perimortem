@@ -42,6 +42,9 @@ class Cache {
   auto collect_transitive_consumers(
       const Record& record,
       Perimortem::Memory::Dynamic::Vector<Record*>& consumers) const -> void;
+  auto collect_transitive_producers(
+      const Record& record,
+      Perimortem::Memory::Dynamic::Vector<Record*>& producers) const -> void;
 
  private:
   using Records = Perimortem::Memory::Dynamic::Vector<Record*>;

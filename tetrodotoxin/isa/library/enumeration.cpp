@@ -7,6 +7,7 @@
 
 #include "tetrodotoxin/isa/attribute.hpp"
 #include "tetrodotoxin/isa/documentation.hpp"
+#include "tetrodotoxin/isa/expression.hpp"
 #include "tetrodotoxin/isa/library/function.hpp"
 #include "tetrodotoxin/isa/library/syntax.hpp"
 #include "tetrodotoxin/isa/modifier.hpp"
@@ -78,9 +79,7 @@ static auto consume_pack_value(Cursor& cursor) -> Bool {
       continue;
     }
 
-    if (cursor.matches(Class::Type::IndexStart) ||
-        cursor.matches(Class::Type::SliceOp) ||
-        cursor.matches(Class::Type::SwizzleOp)) {
+    if (Expression::is_index_start(cursor.current().get_class())) {
       index_depth++;
       cursor.consume();
       continue;
@@ -244,7 +243,8 @@ static auto evaluate_scoped_cases(
       scope.get_context().get_arena());
   Ttx::Type& type = scope.get_context().get_arena().allocate<Ttx::Type>();
   if (!scope.stage_type_reference(definition.get_name(), type)) {
-    cursor.token_error("Library enum type could not stage self reference."_view);
+    cursor.token_error(
+        "Library enum type could not stage self reference."_view);
     return nullptr;
   }
 
@@ -268,7 +268,7 @@ static auto evaluate_scoped_cases(
         continue;
       }
 
-      if (!Library::Syntax::consume_initializer(
+      if (!Expression::consume_initializer(
               cursor,
               "Expected `;` after library enum case initializer."_view)) {
         return nullptr;

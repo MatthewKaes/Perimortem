@@ -3,6 +3,7 @@
 
 #include "tetrodotoxin/isa/library/addressable.hpp"
 
+#include "tetrodotoxin/isa/expression.hpp"
 #include "tetrodotoxin/isa/library/syntax.hpp"
 
 using namespace Tetrodotoxin::Isa;
@@ -28,9 +29,8 @@ auto Library::Addressable::evaluate(
     return Ttx::Type::Member();
   }
 
-  if (!Library::Syntax::consume_initializer(
-          cursor,
-          "Expected `;` after library member initializer."_view)) {
+  if (!Expression::consume_initializer(
+          cursor, "Expected `;` after library member initializer."_view)) {
     return Ttx::Type::Member();
   }
 

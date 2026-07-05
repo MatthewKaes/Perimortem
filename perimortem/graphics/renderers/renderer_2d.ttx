@@ -6,7 +6,7 @@ import Types : Library = "../library/types.ttx";
 
 public Render2D : Render {
   public position : Types::Point2D = (.x = 0.0, .y = 0.0);
-  public size_pixels : Types::Size2D = (.width = 0.0, .height = 0.0);
+  public size_pixels : Size2D = (.width = 0, .height = 0);
   public tone : Types::Color = (.r = 0.0, .g = 0.0, .b = 0.0, .a = 0.0);
   public image : Types::Image = Types::Image -> from();
 
@@ -32,7 +32,7 @@ public Render2D : Render {
 
   push_constants {
     const position : Types::Point2D = self.position;
-    const size_pixels : Types::Size2D = self.size_pixels;
+    const size_pixels : Size2D = self.size_pixels;
     const tone : Types::Color = self.tone;
   }
 

@@ -96,6 +96,25 @@ auto Source::Cache::collect_transitive_consumers(
   }
 }
 
+auto Source::Cache::collect_transitive_producers(
+    const Record& record,
+    Dynamic::Vector<Record*>& producers) const -> void {
+  const auto* entry = producers_by_consumer.find(&record);
+  if (entry == nullptr) {
+    return;
+  }
+
+  for (Count i = 0; i < entry->value.get_size(); i++) {
+    Record* producer = entry->value[i];
+    if (producers.contains(producer)) {
+      continue;
+    }
+
+    producers.insert(producer);
+    collect_transitive_producers(*producer, producers);
+  }
+}
+
 auto Source::Cache::remove(Record& record) -> void {
   while (true) {
     auto* entry = consumers_by_producer.find(&record);

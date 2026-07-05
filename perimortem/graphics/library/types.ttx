@@ -11,13 +11,8 @@ public Color : struct {
 
 public Point2D : alias = Vec2D;
 
-public Size2D : struct {
-  public width : Real_32;
-  public height : Real_32;
-}
-
 public Image : object {
-  public size_pixels : Size2D = (.width = 0.0, .height = 0.0);
+  public size_pixels : Size2D = (.width = 0, .height = 0);
 
   public func from[] -> Image {}
 
