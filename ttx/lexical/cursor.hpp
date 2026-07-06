@@ -14,17 +14,16 @@
 
 namespace Ttx::Lexical {
 
-// Cursor is the transient evaluation state over one token stream.
+// Cursor is the transient parse state over one token stream.
 //
-// It exists to keep ISA evaluation small and regular. Boot evaluates
-// documentation, the required `dialect : Name;` ISA selection instruction, and
-// zero or more imports. After Boot stops, callers can preserve the remaining
-// token view as a cheap continuation for body ISA evaluation. Cursor owns only
-// the current token position and the errors allocated in the provided arena.
+// It exists to keep dialect parsing small and regular. Callers can preserve any
+// remaining token view as a cheap continuation for a later parser. Cursor owns
+// only the current token position and the errors allocated in the provided
+// arena.
 //
 // The cursor sees the token position at the moment a parse expectation fails,
 // so it is the right place to record error facts. The stored Error objects
-// are still presentation neutral and reusable by ISA evaluators that use the
+// are still presentation neutral and reusable by parsers that use the
 // same cursor.
 //
 // Error rendering, package resolution, and source record management belong
@@ -78,11 +77,11 @@ class Cursor {
       Perimortem::Core::View::Bytes message,
       Perimortem::Core::View::Bytes hint = ""_view) -> void;
 
-  // Envelope recovery is intentionally small.
+  // Statement recovery is intentionally small.
   //
-  // A malformed import can skip to the next statement so later imports still
-  // report errors in the same pass. A malformed dialect instruction is not
-  // recoverable because it selects the ISA that owns the remaining grammar.
+  // A malformed statement can skip to the next statement so later syntax still
+  // reports errors in the same pass. Broader recovery belongs to the caller
+  // because only that layer knows how much grammar is safe to skip.
   auto recover_to_statement() -> void;
 
   // Checks if the current cursor is exactly one type.
@@ -100,10 +99,10 @@ class Cursor {
   // Evaluation errors belong to the cursor because the cursor is the local
   // token context.
   //
-  // Boot results, ISA facts, and lowered IR should not copy this into
-  // their own validity state. Tetrodotoxin can inspect the cursor and decide
-  // whether to stop, continue through recoverable errors, or render error
-  // output without caring which ISA phase produced the error.
+  // Parsed facts and lowered output should not copy this into their own
+  // validity state. Callers can inspect the cursor and decide whether to stop,
+  // continue through recoverable errors, or render error output without caring
+  // which parser produced the error.
   constexpr auto get_errors() const
       -> Perimortem::Core::View::Vector<Lexical::Error> {
     return errors.get_view();

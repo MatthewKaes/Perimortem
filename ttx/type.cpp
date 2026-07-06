@@ -133,3 +133,49 @@ auto Ttx::Type::find_attribute(Perimortem::Core::View::Bytes key) const
 
   return nullptr;
 }
+
+auto Ttx::Type::resolve_attribute(
+    Perimortem::Core::View::Bytes key) const -> const Attribute* {
+  if (canonical() == nullptr) {
+    return nullptr;
+  }
+
+  // Canonicalization above is only the cycle guard. The projected lookup still
+  // walks every alias in authored order so an intermediate alias can override a
+  // value-producing fact before the root type is reached.
+  const Type* type = this;
+  while (type != nullptr) {
+    const Attribute* attribute = type->find_attribute(key);
+    if (attribute != nullptr) {
+      return attribute;
+    }
+
+    type = type->alias_parent;
+  }
+
+  return nullptr;
+}
+
+auto Ttx::Type::attribute_equals(
+    Perimortem::Core::View::Bytes key,
+    Perimortem::Core::View::Bytes value) const -> Bool {
+  if (canonical() == nullptr) {
+    return False;
+  }
+
+  // Equality asks whether any resolved identity in the alias chain owns this
+  // exact fact. A mismatched local key is not an override here; callers use this
+  // query to ask whether the projected type participates in a category such as
+  // `isa = Foreign`.
+  const Type* type = this;
+  while (type != nullptr) {
+    const Attribute* attribute = type->find_attribute(key);
+    if (attribute != nullptr && attribute->get_value() == value) {
+      return True;
+    }
+
+    type = type->alias_parent;
+  }
+
+  return False;
+}

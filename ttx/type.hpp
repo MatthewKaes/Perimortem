@@ -7,6 +7,7 @@
 #include "perimortem/core/view/vector.hpp"
 
 #include "ttx/attribute.hpp"
+#include "ttx/block.hpp"
 #include "ttx/documentation.hpp"
 #include "ttx/lexical/token.hpp"
 
@@ -139,27 +140,36 @@ class Type {
    public:
     // Block is the source-shaped body owned by a callable function.
     //
-    // It deliberately keeps token bytecode instead of decoding expressions into
-    // a second tree. Library can record that a body exists and where its
-    // executable token stream lives; compiler lowering can later walk those
-    // tokens with the ABI and backend context it owns.
+    // Raw tokens preserve the original body stream for syntax-aware tools and
+    // dialects that have not yet published a richer executable body. The
+    // optional `Ttx::Block` pointer is a representation-owned body handle. The
+    // handle reports the Type identity for the representation it stores, so
+    // consumers can ask address-identity questions before casting to their
+    // richer block.
     class Block {
      public:
       constexpr Block() = default;
       explicit constexpr Block(
           Perimortem::Core::View::Vector<Ttx::Lexical::Token> tokens)
           : tokens(tokens) {}
+      explicit constexpr Block(const Ttx::Block& block) : block(&block) {}
+      constexpr Block(
+          Perimortem::Core::View::Vector<Ttx::Lexical::Token> tokens,
+          const Ttx::Block& block)
+          : tokens(tokens), block(&block) {}
 
       constexpr auto get_tokens() const
           -> Perimortem::Core::View::Vector<Ttx::Lexical::Token> {
         return tokens;
       }
+      constexpr auto get_block() const -> const Ttx::Block* { return block; }
       constexpr auto is_empty() const -> Bool {
-        return tokens.is_empty();
+        return tokens.is_empty() && block == nullptr;
       }
 
      private:
       Perimortem::Core::View::Vector<Ttx::Lexical::Token> tokens;
+      const Ttx::Block* block = nullptr;
     };
 
     constexpr Function() = default;
@@ -321,8 +331,27 @@ class Type {
   auto find_type(Perimortem::Core::View::Bytes name) const -> const Type*;
   auto find_function(Perimortem::Core::View::Bytes name) const
       -> const Function*;
+
+  // Attribute lookup has two useful modes.
+  //
+  // `find_attribute` is local authored metadata. It answers what was written on
+  // this exact name, so an alias can still say `isa = Alias` without hiding its
+  // presentation facts.
+  //
+  // `resolve_attribute` is the lowering/dispatch query. It walks the alias
+  // chain in authored order, keeping the first value found. Use it for
+  // value-producing facts such as a target `cpp` type name.
+  //
+  // `attribute_equals` tests the whole resolved identity for one exact value.
+  // A local `isa = Alias` must not mask the canonical `isa = Foreign` when the
+  // compiler asks whether a call target lowers as foreign.
   auto find_attribute(Perimortem::Core::View::Bytes key) const
       -> const Attribute*;
+  auto resolve_attribute(Perimortem::Core::View::Bytes key) const
+      -> const Attribute*;
+  auto attribute_equals(
+      Perimortem::Core::View::Bytes key,
+      Perimortem::Core::View::Bytes value) const -> Bool;
   constexpr auto is_alias() const -> Bool { return alias_parent != nullptr; }
 
  private:

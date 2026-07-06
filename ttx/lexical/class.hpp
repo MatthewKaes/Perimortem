@@ -107,9 +107,9 @@ class Class {
     Dialect,
     Alias,
 
-    // Common modifier keywords. Their meaning belongs to the ISA that consumes
-    // them, but keeping the spellings as fixed tokens gives every ISA the same
-    // cheap starting point.
+    // Common modifier keywords. Their meaning belongs to the dialect that
+    // consumes them, but fixed spellings give every parser the same cheap
+    // starting point.
     Public,
     Private,
     Expose,

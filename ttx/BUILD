@@ -34,6 +34,7 @@ cc_library(
     ],
     hdrs = [
         "attribute.hpp",
+        "block.hpp",
         "documentation.hpp",
         "layout.hpp",
         "type.hpp",
