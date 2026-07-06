@@ -76,6 +76,11 @@ static auto first_error(const Resolver::Context& context) -> View::Bytes {
   return context.get_errors()[0].get_message();
 }
 
+static auto first_error(
+    const Tetrodotoxin::Compiler::Context& context) -> View::Bytes {
+  return context.get_errors()[0];
+}
+
 PERIMORTEM_UNIT_TEST(TtxShader, contract) {
   Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
   Resolver resolver(toolchain);
@@ -212,12 +217,14 @@ PERIMORTEM_UNIT_TEST(TtxShader, stage_symbols) {
   EXPECT_NOT(context.has_errors());
 
   Allocator::Arena arena;
-  Tetrodotoxin::Compiler::Shader compiler(arena);
-  ASSERT(compiler.lower("render"_view, *root_type(render)));
-  ASSERT(compiler.lower("default_2d"_view, *root_type(shader)));
+  Tetrodotoxin::Compiler::Context compiler_context(arena);
+  Tetrodotoxin::Compiler::Shader compiler;
+  ASSERT(compiler.lower(compiler_context, "render"_view, *root_type(render)));
+  ASSERT(compiler.lower(
+      compiler_context, "default_2d"_view, *root_type(shader)));
 
   Tetrodotoxin::Linker::Linker linker;
-  compiler.add_to(linker);
+  linker.add(compiler);
   auto archive = linker.build_library("shader.o"_view);
   EXPECT(
       Algorithm::search(
@@ -251,9 +258,12 @@ PERIMORTEM_UNIT_TEST(TtxShader, needs_render) {
   EXPECT_NOT(context.has_errors());
 
   Allocator::Arena arena;
-  Tetrodotoxin::Compiler::Shader compiler(arena);
-  EXPECT_NOT(compiler.lower("default_2d"_view, *root_type(shader)));
+  Tetrodotoxin::Compiler::Context compiler_context(arena);
+  Tetrodotoxin::Compiler::Shader compiler;
+  EXPECT_NOT(compiler.lower(
+      compiler_context, "default_2d"_view, *root_type(shader)));
+  ASSERT(compiler_context.has_errors());
   EXPECT_TEXT(
-      compiler.get_error(),
+      first_error(compiler_context),
       "Shader compiler could not find render contract."_view);
 }

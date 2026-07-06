@@ -3,6 +3,7 @@
 
 #include "validation/unit_test.hpp"
 
+#include "tetrodotoxin/isa/library/block.hpp"
 #include "tetrodotoxin/puffer/resolution/resolver.hpp"
 #include "tetrodotoxin/toolchain.hpp"
 #include "ttx/type.hpp"
@@ -273,13 +274,87 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, root_function) {
   ASSERT(main != nullptr);
   EXPECT(main->has_body());
   EXPECT_EQ(main->get_blocks().get_size(), Count(1));
-  EXPECT_NOT(main->get_blocks()[0].get_tokens().is_empty());
+  ASSERT(Tetrodotoxin::Isa::Library::Block::from(main->get_blocks()[0]));
+  EXPECT_EQ(
+      Tetrodotoxin::Isa::Library::Block::from(main->get_blocks()[0])
+          ->get_statements()
+          .get_size(),
+      Count(1));
   EXPECT_EQ(main->get_parameters().get_size(), Count(1));
   EXPECT_EQ(main->get_result().get_size(), Count(0));
   EXPECT_TEXT(main->get_parameters()[0].get_name(), "scene"_view);
   ASSERT(main->get_parameters()[0].get_type() != nullptr);
   EXPECT_TEXT(
       main->get_parameters()[0].get_type()->get_name(), "SceneConfig"_view);
+}
+
+PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, body_statements) {
+  Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
+  Resolver resolver(toolchain);
+  Resolver::Context context;
+
+  const Source::Record* record = resolver.load_source(
+      context, "unit/body.ttx"_view,
+      "dialect : Library;\n"
+      "public Console : foreign {\n"
+      "  expose func print[.data : View[Bytes]] -> [];\n"
+      "}\n"
+      "public func hello[.data : View[Bytes]] -> [] {\n"
+      "  Console->print(\"Hi\\n\");\n"
+      "  Console->print(data);\n"
+      "  return;\n"
+      "}\n"_view);
+
+  ASSERT(record != nullptr);
+  EXPECT_NOT(context.has_errors());
+
+  const Ttx::Type* library = source_type(record);
+  ASSERT(library != nullptr);
+  const Ttx::Type::Function* hello = function(*library, "hello"_view);
+  ASSERT(hello != nullptr);
+  ASSERT_EQ(hello->get_blocks().get_size(), Count(1));
+
+  const auto* block =
+      Tetrodotoxin::Isa::Library::Block::from(hello->get_blocks()[0]);
+  ASSERT(block != nullptr);
+  ASSERT(hello->get_blocks()[0].get_block() != nullptr);
+  EXPECT(
+      hello->get_blocks()[0].get_block()->get_representation() ==
+      &Tetrodotoxin::Isa::Library::Block::get_representation_type());
+
+  View::Vector<Tetrodotoxin::Isa::Library::Statement> statements =
+      block->get_statements();
+  ASSERT_EQ(statements.get_size(), Count(3));
+  EXPECT(
+      statements[0].get_kind() ==
+      Tetrodotoxin::Isa::Library::Statement::Kind::Call);
+  EXPECT(
+      statements[1].get_kind() ==
+      Tetrodotoxin::Isa::Library::Statement::Kind::Call);
+  EXPECT(
+      statements[2].get_kind() ==
+      Tetrodotoxin::Isa::Library::Statement::Kind::Return);
+
+  const Tetrodotoxin::Isa::Library::Call& literal_call =
+      statements[0].get_call();
+  ASSERT(literal_call.get_owner() != nullptr);
+  ASSERT(literal_call.get_function() != nullptr);
+  EXPECT_TEXT(literal_call.get_owner()->get_name(), "Console"_view);
+  EXPECT_TEXT(literal_call.get_name(), "print"_view);
+  ASSERT_EQ(literal_call.get_pack().get_values().get_size(), Count(1));
+  EXPECT(
+      literal_call.get_pack().get_values()[0].get_kind() ==
+      Tetrodotoxin::Isa::Expression::Value::Kind::String);
+  EXPECT_TEXT(literal_call.get_pack().get_values()[0].get_value(), "Hi\n"_view);
+
+  const Tetrodotoxin::Isa::Library::Call& parameter_call =
+      statements[1].get_call();
+  ASSERT_EQ(parameter_call.get_pack().get_values().get_size(), Count(1));
+  EXPECT(
+      parameter_call.get_pack().get_values()[0].get_kind() ==
+      Tetrodotoxin::Isa::Expression::Value::Kind::Reference);
+  EXPECT_TEXT(
+      parameter_call.get_pack().get_values()[0].get_value(), "data"_view);
 }
 
 PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, struct_method) {
