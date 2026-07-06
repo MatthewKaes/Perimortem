@@ -5,11 +5,9 @@
 
 #include "perimortem/memory/dynamic/bytes.hpp"
 
-#include "perimortem/system/compression/deflate.hpp"
-
 #include "perimortem/graphics/image.hpp"
 
-namespace Perimortem::Serialization::Format {
+namespace Perimortem::Graphics::Formats {
 
 class Png {
  public:
@@ -31,7 +29,7 @@ class Png {
   //   mandelbrot       43 MB/s        	30 MB/s
   //   zoneplate       143 MB/s        105 MB/s
   //
-  static auto decode(Core::View::Bytes source) -> Graphics::Image;
+  static auto decode(Core::View::Bytes source) -> Image;
 
   // Encodes an Image to a PNG byte stream using an adaptive filtering huristic
   // which scores each line using all five filter types, selecting the one with
@@ -53,7 +51,7 @@ class Png {
   //   mandelbrot       16 MB/s          3 MB/s       1.04 (much bigger)
   //   zoneplate        33 MB/s          7 MB/s       1.40 (much bigger)
   //
-  static auto encode(const Graphics::Image& image) -> Memory::Dynamic::Bytes;
+  static auto encode(const Image& image) -> Memory::Dynamic::Bytes;
 };
 
-}  // namespace Perimortem::Serialization::Format
+}  // namespace Perimortem::Graphics::Formats

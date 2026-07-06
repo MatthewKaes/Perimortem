@@ -16,7 +16,10 @@ cc_library(
     ]),
     includes = ["."],
     deps = [
-        "//perimortem",
+        "//perimortem:core",
+        "//perimortem:memory",
+        "//perimortem:serialization_json",
+        "//perimortem:utility",
         "//ttx",
     ],
 )
@@ -32,7 +35,8 @@ cc_library(
     includes = ["."],
     deps = [
         ":isa",
-        "//perimortem",
+        "//perimortem:core",
+        "//perimortem:memory",
         "//ttx",
     ],
 )
@@ -56,7 +60,9 @@ cc_library(
     includes = ["."],
     deps = [
         ":isa",
-        "//perimortem",
+        "//perimortem:core",
+        "//perimortem:memory",
+        "//perimortem:utility",
         "//ttx",
     ],
 )
@@ -78,7 +84,9 @@ cc_library(
     includes = ["."],
     deps = [
         ":compiler",
-        "//perimortem",
+        "//perimortem:core",
+        "//perimortem:memory",
+        "//perimortem:utility",
         "//ttx",
     ],
 )

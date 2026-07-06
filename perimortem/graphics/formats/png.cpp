@@ -1,7 +1,7 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
-#include "perimortem/serialization/format/png.hpp"
+#include "perimortem/graphics/formats/png.hpp"
 
 #include "perimortem/core/static/bytes.hpp"
 #include "perimortem/core/static/vector.hpp"
@@ -17,7 +17,7 @@
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
-using namespace Perimortem::Serialization;
+using namespace Perimortem::Graphics;
 using namespace Perimortem::System;
 
 // The color encoding used in a PNG file's IHDR chunk.
@@ -43,7 +43,7 @@ enum class FilterType : Bits_8 {
 struct ImageInfo {
  public:
   constexpr ImageInfo() = default;
-  constexpr ImageInfo(const Perimortem::Graphics::Image& image) {
+  constexpr ImageInfo(const Image& image) {
     Data::write<Data::ByteOrder::Big>(&width, image.get_width());
     Data::write<Data::ByteOrder::Big>(&height, image.get_height());
     bit_depth = 8;
@@ -231,25 +231,26 @@ constexpr auto write_chunk(
 // The Paeth predictor estimates the next sample by computing a linear
 // extrapolation using the left, upper, and upper left pixels and returning the
 // value closest to the current pixel.
-constexpr auto paeth_predictor(Static::Vector<Bits_8, 3> pixels) -> Bits_8 {
-  Signed_16 left = Signed_16(pixels[0]);
-  Signed_16 up = Signed_16(pixels[1]);
-  Signed_16 upper_left = Signed_16(pixels[2]);
-  Signed_16 predictor = left + up - upper_left;
+constexpr auto paeth_predictor(Bits_8 left, Bits_8 up, Bits_8 upper_left)
+    -> Bits_8 {
+  Signed_16 signed_left = Signed_16(left);
+  Signed_16 signed_up = Signed_16(up);
+  Signed_16 signed_upper_left = Signed_16(upper_left);
+  Signed_16 predictor = signed_left + signed_up - signed_upper_left;
 
-  Signed_16 score_left = Math::absolute(predictor - left);
-  Signed_16 score_up = Math::absolute(predictor - up);
-  Signed_16 score_upper_left = Math::absolute(predictor - upper_left);
+  Signed_16 score_left = Math::absolute(predictor - signed_left);
+  Signed_16 score_up = Math::absolute(predictor - signed_up);
+  Signed_16 score_upper_left = Math::absolute(predictor - signed_upper_left);
 
   if (score_left <= score_up && score_left <= score_upper_left) {
-    return pixels[0];
+    return left;
   }
 
   if (score_up <= score_upper_left) {
-    return pixels[1];
+    return up;
   }
 
-  return pixels[2];
+  return upper_left;
 }
 
 // Smaller residuals _generally_ compress better under DEFLATE.
@@ -260,8 +261,7 @@ auto score_row(View::Bytes current_row, View::Bytes previous_row)
     -> FilterType {
   constexpr auto signed_abs = Math::absolute<Signed_8>;
   constexpr auto filter_count = first_row ? 2 : 5;
-  constexpr auto channel_count =
-      Perimortem::Graphics::Image::get_channel_count();
+  constexpr auto channel_count = Image::get_channel_count();
   Static::Vector<Bits_64, filter_count> scores;
 
   auto current_row_data = current_row.get_data();
@@ -296,7 +296,7 @@ auto score_row(View::Bytes current_row, View::Bytes previous_row)
       scores[Bits_8(FilterType::Average)] +=
           signed_abs(current_row_data[i] - (Bits_16(left) + Bits_16(up)) / 2);
       scores[Bits_8(FilterType::Paeth)] += signed_abs(
-          current_row_data[i] - paeth_predictor({left, up, upper_left}));
+          current_row_data[i] - paeth_predictor(left, up, upper_left));
     }
   }
 
@@ -314,8 +314,7 @@ constexpr auto apply_row_filter(
     Access::Bytes output_row,
     View::Bytes current_row,
     View::Bytes previous_row) -> void {
-  constexpr auto channel_count =
-      Perimortem::Graphics::Image::get_channel_count();
+  constexpr auto channel_count = Image::get_channel_count();
   Count size = current_row.get_size();
 
   auto output_row_data = output_row.get_data();
@@ -351,7 +350,7 @@ constexpr auto apply_row_filter(
   case FilterType::Paeth:
     for (Count i = 0; i < channel_count; i++) {
       output_row_data[i] = Bits_8(
-          current_row_data[i] - paeth_predictor({0, previous_row_data[i], 0}));
+          current_row_data[i] - paeth_predictor(0, previous_row_data[i], 0));
     }
     break;
 
@@ -387,8 +386,8 @@ constexpr auto apply_row_filter(
       Bits_8 left = current_row_data[i - channel_count];
       Bits_8 up = previous_row_data[i];
       Bits_8 upper_left = previous_row_data[i - channel_count];
-      output_row_data[i] =
-          Bits_8(current_row_data[i] - paeth_predictor({left, up, upper_left}));
+      output_row_data[i] = Bits_8(
+          current_row_data[i] - paeth_predictor(left, up, upper_left));
     }
     break;
 
@@ -401,10 +400,8 @@ constexpr auto apply_row_filter(
 
 // Applies adaptive PNG filtering to the source pixels, scoring all five filter
 // types per row and selecting the lowest-residual option.
-constexpr auto apply_adaptive_filtering(
-    const Perimortem::Graphics::Image& image) -> Dynamic::Bytes {
-  const auto row_stride =
-      Count(image.get_width()) * Perimortem::Graphics::Pixel::get_byte_count();
+constexpr auto apply_adaptive_filtering(const Image& image) -> Dynamic::Bytes {
+  const auto row_stride = Count(image.get_width()) * Pixel::get_byte_count();
   const auto output_size = Count(image.get_height()) * (1 + row_stride);
   const auto raw_bytes = Data::cast<Bits_8>(image.get_pixels().get_data());
 
@@ -524,8 +521,8 @@ auto reconstruct_row(
       for (Count i = bytes_per_pixel; i < stride; i++) {
         output_row[i] = filtered_row[i] +
                         paeth_predictor(
-                            {output_row[i - bytes_per_pixel], previous_row[i],
-                             previous_row[i - bytes_per_pixel]});
+                            output_row[i - bytes_per_pixel], previous_row[i],
+                            previous_row[i - bytes_per_pixel]);
       }
     }
     break;
@@ -591,7 +588,7 @@ constexpr auto convert_to_pixels(
     Count height,
     ColorType color_type,
     View::Bytes palette,
-    Dynamic::Vector<Perimortem::Graphics::Pixel>& output) -> Bool {
+    Dynamic::Vector<Pixel>& output) -> Bool {
   Count source_channels = number_of_color_channels(color_type);
   if (source_channels == 0) [[unlikely]] {
     return False;
@@ -605,14 +602,14 @@ constexpr auto convert_to_pixels(
     Count source_offset = pixel_index * source_channels;
     switch (color_type) {
     case ColorType::Greyscale:
-      output[pixel_index] = Perimortem::Graphics::Pixel(data[source_offset]);
+      output[pixel_index] = Pixel(data[source_offset]);
       break;
     case ColorType::GreyscaleAlpha:
-      output[pixel_index] = Perimortem::Graphics::Pixel(
+      output[pixel_index] = Pixel(
           data[source_offset], data[source_offset + 1]);
       break;
     case ColorType::Rgb:
-      output[pixel_index] = Perimortem::Graphics::Pixel(
+      output[pixel_index] = Pixel(
           data[source_offset + 0], data[source_offset + 1],
           data[source_offset + 2]);
       break;
@@ -631,7 +628,7 @@ constexpr auto convert_to_pixels(
         return False;
       }
 
-      output[pixel_index] = Perimortem::Graphics::Pixel(
+      output[pixel_index] = Pixel(
           palette[palette_offset + 0], palette[palette_offset + 1],
           palette[palette_offset + 2]);
       break;
@@ -683,8 +680,7 @@ constexpr auto read_header(const View::Bytes source) -> ImageInfo {
           .get_data());
 
   // Currently only support 8 bit color depth
-  if (image_info.get_bit_depth() !=
-      Perimortem::Graphics::Image::get_color_depth()) [[unlikely]] {
+  if (image_info.get_bit_depth() != Image::get_color_depth()) [[unlikely]] {
     Diagnostics::Log::Message<96> error_message(Diagnostics::Log::Level::Error);
     error_message << "Png: Unsupported bit depth "_view
                   << Bits_32(image_info.get_bit_depth())
@@ -713,7 +709,7 @@ constexpr auto read_header(const View::Bytes source) -> ImageInfo {
 constexpr auto process_data(
     const ImageInfo info,
     View::Bytes source,
-    View::Bytes palette) -> Perimortem::Graphics::Image {
+    View::Bytes palette) -> Image {
   // The exact decompressed size can be derived from the image info so we can
   // use that to preallocate the buffer.
   Count bytes_per_pixel = number_of_color_channels(info.get_color_type());
@@ -723,24 +719,23 @@ constexpr auto process_data(
   Dynamic::Bytes filtered_rows =
       Compression::Deflate::inflate(source, decompressed_capacity);
   if (filtered_rows.is_empty()) [[unlikely]] {
-    return Perimortem::Graphics::Image();
+    return Image();
   }
 
   // If the target format is our desired format then we can reconstruct the data
   // in place which saves a copy.
   if (info.get_color_type() == ColorType::Rgba) {
-    Dynamic::Vector<Perimortem::Graphics::Pixel> pixels;
+    Dynamic::Vector<Pixel> pixels;
     pixels.forgetful_resize(info.get_width() * info.get_height());
     if (!reconstruct_filter(
             filtered_rows.get_view(), info.get_width(), info.get_height(),
             bytes_per_pixel, pixels.get_access().get_bytes())) [[unlikely]] {
       Diagnostics::Log::error(
           "Png: Filter reconstruction failed — decompressed data may be truncated"_view);
-      return Perimortem::Graphics::Image();
+      return Image();
     }
 
-    return Perimortem::Graphics::Image(
-        Data::take(pixels), info.get_width(), info.get_height());
+    return Image(Data::take(pixels), info.get_width(), info.get_height());
   }
 
   // If we can't construct in place then we have to use a temp buffer to store
@@ -753,28 +748,26 @@ constexpr auto process_data(
           bytes_per_pixel, raw_pixels)) [[unlikely]] {
     Diagnostics::Log::error(
         "Png: Filter reconstruction failed — decompressed data may be truncated"_view);
-    return Perimortem::Graphics::Image();
+    return Image();
   }
 
   // Convert the arbitrary color format into Pixel's RGBA format.
-  Dynamic::Vector<Perimortem::Graphics::Pixel> pixels;
+  Dynamic::Vector<Pixel> pixels;
   if (!convert_to_pixels(
           raw_pixels.get_view(), info.get_width(), info.get_height(),
           info.get_color_type(), palette, pixels)) [[unlikely]] {
     Diagnostics::Log::error("Png: Pixel conversion failed"_view);
-    return Perimortem::Graphics::Image();
+    return Image();
   }
 
-  return Perimortem::Graphics::Image(
-      Data::take(pixels), info.get_width(), info.get_height());
+  return Image(Data::take(pixels), info.get_width(), info.get_height());
 }
 
-auto Format::Png::decode(const View::Bytes source)
-    -> Perimortem::Graphics::Image {
+auto Formats::Png::decode(const View::Bytes source) -> Image {
   // If we can't load the image or if the image is empty then return empty.
   ImageInfo info = read_header(source);
   if (info.get_width() == 0 || info.get_height() == 0) [[unlikely]] {
-    return Perimortem::Graphics::Image();
+    return Image();
   }
 
   // For PNGs with a single IDAT chunk (the common case) we hold a view to avoid
@@ -790,7 +783,7 @@ auto Format::Png::decode(const View::Bytes source)
   while (chunk_offset < source.get_size()) {
     Chunk chunk = read_chunk(source, chunk_offset);
     if (!chunk.get_valid()) [[unlikely]] {
-      return Perimortem::Graphics::Image();
+      return Image();
     }
 
     if (chunk.get_type() == "IEND"_view) {
@@ -821,15 +814,14 @@ auto Format::Png::decode(const View::Bytes source)
 
   if (binary_data.is_empty()) [[unlikely]] {
     Diagnostics::Log::error("Png: No IDAT chunk found or chunk was empty"_view);
-    return Perimortem::Graphics::Image();
+    return Image();
   }
 
   return process_data(info, binary_data, palette);
 }
 
-auto Format::Png::encode(const Perimortem::Graphics::Image& image)
-    -> Dynamic::Bytes {
-  View::Vector<Perimortem::Graphics::Pixel> pixels = image.get_pixels();
+auto Formats::Png::encode(const Image& image) -> Dynamic::Bytes {
+  View::Vector<Pixel> pixels = image.get_pixels();
 
   // Ignore empty images
   if (pixels.is_empty()) [[unlikely]] {

@@ -6,21 +6,6 @@ load("@rules_cc//cc:cc_library.bzl", "cc_library")
 
 package(default_visibility = ["//visibility:public"])
 
-exports_files(
-    [
-        "graphics/library/sprite.ttx",
-        "graphics/library/types.ttx",
-        "graphics/package.ttx",
-        "graphics/renderers/renderer_2d.ttx",
-        "graphics/shaders/default_2d.ttx",
-        "math/library/types.ttx",
-        "math/package.ttx",
-        "runtime/library/types.ttx",
-        "runtime/package.ttx",
-    ],
-    visibility = ["//visibility:public"],
-)
-
 cc_library(
     name = "perimortem",
     includes = ["."],
@@ -122,11 +107,13 @@ cc_library(
     name = "graphics",
     srcs = glob([
         "graphics/*.cpp",
+        "graphics/formats/*.cpp",
         "graphics/vulkan/*.hpp",
         "graphics/vulkan/*.cpp",
     ]),
     hdrs = glob([
         "graphics/*.hpp",
+        "graphics/formats/*.hpp",
     ]),
     includes = ["."],
     linkopts = ["-lvulkan"],
@@ -134,6 +121,7 @@ cc_library(
         ":core",
         ":memory",
         ":platform",
+        ":system",
     ],
 )
 
@@ -172,24 +160,40 @@ cc_library(
 
 cc_library(
     name = "serialization",
-    srcs = glob([
-        # "serialization/archive/*.cpp",
-        "serialization/*.cpp",
-        "serialization/format/*.cpp",
-        "serialization/json/*.cpp",
-    ]),
+    srcs = [
+        "serialization/stream.cpp",
+    ],
     hdrs = glob([
         # "serialization/archive/*.hpp",
         "serialization/*.hpp",
-        "serialization/format/*.hpp",
         "serialization/json/*.hpp",
     ]),
     includes = ["."],
     deps = [
+        ":serialization_json",
         ":core",
-        ":graphics",
         ":memory",
         ":system",
         ":utility",
+    ],
+)
+
+cc_library(
+    name = "serialization_json",
+    srcs = [
+        "serialization/base64.cpp",
+        "serialization/escaped_text.cpp",
+        "serialization/json/node.cpp",
+    ],
+    hdrs = [
+        "serialization/base64.hpp",
+        "serialization/escaped_text.hpp",
+        "serialization/json/blueprint.hpp",
+        "serialization/json/node.hpp",
+    ],
+    includes = ["."],
+    deps = [
+        ":core",
+        ":memory",
     ],
 )
