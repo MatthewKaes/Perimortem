@@ -1,13 +1,14 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
+#include "tetrodotoxin/compiler/shader.hpp"
+
 #include "validation/unit_test.hpp"
 
 #include "perimortem/core/algorithm/search.hpp"
 
 #include "perimortem/memory/allocator/arena.hpp"
 
-#include "tetrodotoxin/compiler/shader.hpp"
 #include "tetrodotoxin/linker/linker.hpp"
 #include "tetrodotoxin/puffer/resolution/resolver.hpp"
 #include "tetrodotoxin/toolchain.hpp"
@@ -26,7 +27,11 @@ static constexpr View::Bytes render_source =
     "dialect : Render;\n"
     "public Render2D : Render {\n"
     "  public position : Vec2D;\n"
+    "  push_constants {\n"
+    "    const position : Vec2D = self.position;\n"
+    "  }\n"
     "  public vertex : stage {\n"
+    "    reads push[position];\n"
     "    input [.vertex_index : Bits_32];\n"
     "    output [.screen_position : Vec4D];\n"
     "  }\n"
@@ -186,10 +191,52 @@ PERIMORTEM_UNIT_TEST(TtxShader, bad_reads) {
       "}\n"_view));
 
   ASSERT(context.has_errors());
-  EXPECT_TEXT(first_error(context), "Shader stage cannot read render fact."_view);
+  EXPECT_TEXT(
+      first_error(context), "Shader stage cannot read render fact."_view);
 }
 
 PERIMORTEM_UNIT_TEST(TtxShader, stage_symbols) {
+  Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
+  Resolver resolver(toolchain);
+  Resolver::Context context;
+
+  const Source::Record* render = load_render(resolver, context);
+  ASSERT(render != nullptr);
+  ASSERT(root_type(render) != nullptr);
+  EXPECT_NOT(context.has_errors());
+  context.reset();
+
+  const Source::Record* shader = load_shader(resolver, context);
+  ASSERT(shader != nullptr);
+  ASSERT(root_type(shader) != nullptr);
+  EXPECT_NOT(context.has_errors());
+
+  Allocator::Arena arena;
+  Tetrodotoxin::Compiler::Shader compiler(arena);
+  ASSERT(compiler.lower("render"_view, *root_type(render)));
+  ASSERT(compiler.lower("default_2d"_view, *root_type(shader)));
+
+  Tetrodotoxin::Linker::Linker linker;
+  compiler.add_to(linker);
+  auto archive = linker.build_library("shader.o"_view);
+  EXPECT(
+      Algorithm::search(
+          archive.get_view(),
+          "TTX_shader_default_2d_Default2D_vertex_spirv"_view) != Count(-1));
+  EXPECT(
+      Algorithm::search(
+          archive.get_view(),
+          "TTX_shader_default_2d_Default2D_pixel_spirv"_view) != Count(-1));
+  EXPECT(
+      Algorithm::search(archive.get_view(), "vertex_index"_view) != Count(-1));
+  EXPECT(
+      Algorithm::search(archive.get_view(), "screen_position"_view) !=
+      Count(-1));
+  EXPECT(Algorithm::search(archive.get_view(), "push"_view) != Count(-1));
+  EXPECT(Algorithm::search(archive.get_view(), "position"_view) != Count(-1));
+}
+
+PERIMORTEM_UNIT_TEST(TtxShader, needs_render) {
   Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
   Resolver resolver(toolchain);
   Resolver::Context context;
@@ -205,17 +252,8 @@ PERIMORTEM_UNIT_TEST(TtxShader, stage_symbols) {
 
   Allocator::Arena arena;
   Tetrodotoxin::Compiler::Shader compiler(arena);
-  ASSERT(compiler.lower("default_2d"_view, *root_type(shader)));
-
-  Tetrodotoxin::Linker::Linker linker;
-  compiler.add_to(linker);
-  auto archive = linker.build_library("shader.o"_view);
-  EXPECT(
-      Algorithm::search(
-          archive.get_view(),
-          "TTX_shader_default_2d_Default2D_vertex_spirv"_view) != Count(-1));
-  EXPECT(
-      Algorithm::search(
-          archive.get_view(),
-          "TTX_shader_default_2d_Default2D_pixel_spirv"_view) != Count(-1));
+  EXPECT_NOT(compiler.lower("default_2d"_view, *root_type(shader)));
+  EXPECT_TEXT(
+      compiler.get_error(),
+      "Shader compiler could not find render contract."_view);
 }

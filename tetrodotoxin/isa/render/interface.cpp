@@ -3,6 +3,8 @@
 
 #include "tetrodotoxin/isa/render/interface.hpp"
 
+#include "perimortem/core/static/vector.hpp"
+
 #include "perimortem/memory/managed/vector.hpp"
 
 #include "perimortem/utility/table.hpp"
@@ -19,14 +21,15 @@ using namespace Perimortem::Utility;
 using namespace Tetrodotoxin::Isa;
 using namespace Ttx::Lexical;
 
-static constexpr Pair<View::Bytes, View::Bytes> render_interface_names[] = {
-  {"constants"_view, "constant"_view},
-  {"constant"_view, "constant"_view},
-  {"push_constants"_view, "push"_view},
-  {"push"_view, "push"_view},
-  {"resources"_view, "resource"_view},
-  {"resource"_view, "resource"_view},
-};
+constexpr Static::Vector<Pair<View::Bytes, View::Bytes>, 6>
+    render_interface_names = {{
+      {"constants"_view, "constant"_view},
+      {"constant"_view, "constant"_view},
+      {"push_constants"_view, "push"_view},
+      {"push"_view, "push"_view},
+      {"resources"_view, "resource"_view},
+      {"resource"_view, "resource"_view},
+    }};
 
 using RenderInterfaceNames = Table<View::Bytes, render_interface_names>;
 

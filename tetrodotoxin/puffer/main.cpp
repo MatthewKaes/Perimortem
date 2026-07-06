@@ -265,6 +265,26 @@ class Main {
     resolver.collect_reachable(root, records);
     for (Count i = 0; i < records.get_size(); i++) {
       add_terminal(*records[i]);
+    }
+
+    // Render records establish the pipeline contracts the Shader compiler uses
+    // while lowering shader stages, so package mode lowers them first and then
+    // lowers the remaining reachable sources in resolver order.
+    for (Count i = 0; i < records.get_size(); i++) {
+      if (records[i]->get_boot().get_isa() != "Render"_view) {
+        continue;
+      }
+
+      if (!lower_record(*records[i])) {
+        return False;
+      }
+    }
+
+    for (Count i = 0; i < records.get_size(); i++) {
+      if (records[i]->get_boot().get_isa() == "Render"_view) {
+        continue;
+      }
+
       if (!lower_record(*records[i])) {
         return False;
       }
@@ -288,7 +308,7 @@ class Main {
       return False;
     }
 
-    if (isa == "Shader"_view &&
+    if ((isa == "Render"_view || isa == "Shader"_view) &&
         !shader_compiler.lower(module, *record.get_type())) {
       Diagnostics::Log::Message<512> error_message(
           Diagnostics::Log::Level::Error, Diagnostics::Source());
