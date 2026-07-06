@@ -115,13 +115,11 @@ class x86_64 {
   auto lea(Reg base, Signed_32 displacement, Reg destination) -> void;
 
   // Loads the address of read only data into the specified register.
-  // Creates null padding to support a PC32 offset relocate by the linker.
+  // Creates null padding for a PC32 relocation target.
   auto read_only(Reg destination) -> void;
 
-  // Creates a call with null padding to support a Program Counter +
-  // 32bit offset relocate by the linker.
-  //
-  // It's up to the compiler to create the correct symbol for the linker.
+  // Creates a call with null padding for a Program Counter + 32 bit
+  // relocation target.
   auto call() -> void;
   auto ret() -> void;
 

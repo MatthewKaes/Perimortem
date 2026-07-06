@@ -16,7 +16,6 @@ using namespace Perimortem::Memory;
 using namespace Perimortem::Utility;
 using namespace Tetrodotoxin;
 using namespace Tetrodotoxin::Compiler;
-using namespace Tetrodotoxin::Linker;
 
 // These are local SPIR-V result ids.
 //
@@ -476,29 +475,31 @@ static auto emit_empty_entry_point(Assembler::SpirV& assembler) -> void {
   assembler.function_end();
 }
 
-auto Shader::lower(View::Bytes module, const Ttx::Type& root) -> Bool {
-  if (type_attribute_equals(root, "isa"_view, "RenderSource"_view) ||
-      type_attribute_equals(root, "isa"_view, "Render"_view)) {
+auto Shader::lower(Context& context, View::Bytes module, const Ttx::Type& root)
+    -> Bool {
+  if (root.attribute_equals("isa"_view, "RenderSource"_view) ||
+      root.attribute_equals("isa"_view, "Render"_view)) {
     register_render_contracts(root);
     return True;
   }
 
-  if (!type_attribute_equals(root, "isa"_view, "Shader"_view)) {
+  if (!root.attribute_equals("isa"_view, "Shader"_view)) {
     return True;
   }
 
   const Ttx::Type* contract = find_contract(root);
   if (contract == nullptr) {
-    return set_error("Shader compiler could not find render contract."_view);
+    return context.report(
+        "Shader compiler could not find render contract."_view);
   }
 
   View::Vector<Ttx::Type::Function> stages = root.get_functions();
   if (stages.is_empty()) {
-    return set_error("Shader source did not declare any stages."_view);
+    return context.report("Shader source did not declare any stages."_view);
   }
 
   for (Count i = 0; i < stages.get_size(); i++) {
-    if (!lower_stage(module, root, *contract, stages[i])) {
+    if (!lower_stage(context, module, root, *contract, stages[i])) {
       return False;
     }
   }
@@ -506,17 +507,8 @@ auto Shader::lower(View::Bytes module, const Ttx::Type& root) -> Bool {
   return True;
 }
 
-auto Shader::add_to(Tetrodotoxin::Linker::Linker& linker) const -> void {
-  if (read_only.get_size() != 0) {
-    linker.add_section(Object::Section::Type::ReadOnly, read_only);
-  }
-
-  for (Count i = 0; i < symbols.get_size(); i++) {
-    linker.add_symbol(symbols[i]);
-  }
-}
-
 auto Shader::lower_stage(
+    Context& context,
     View::Bytes module,
     const Ttx::Type& shader,
     const Ttx::Type& contract,
@@ -527,7 +519,7 @@ auto Shader::lower_stage(
   } else if (stage.get_name() == "pixel"_view) {
     model = Assembler::SpirV::ExecutionModel::Fragment;
   } else {
-    return set_error(
+    return context.report(
         "Only vertex and pixel shader stages can lower today."_view);
   }
 
@@ -536,7 +528,7 @@ auto Shader::lower_stage(
   // mirror for push constants and resources.
   const Ttx::Type* stage_facts = contract.find_type(stage.get_name());
   if (stage_facts == nullptr) {
-    return set_error("Shader stage has no render fact contract."_view);
+    return context.report("Shader stage has no render fact contract."_view);
   }
 
   const Ttx::Type* push = stage_facts->find_type("push"_view);
@@ -549,26 +541,27 @@ auto Shader::lower_stage(
       resource == nullptr ? View::Vector<Ttx::Type::Member>()
                           : resource->get_members();
 
-  Managed::Vector<ResultId> push_member_type_ids(arena);
+  Managed::Vector<ResultId> push_member_type_ids(context.get_arena());
   for (Count i = 0; i < push_members.get_size(); i++) {
     ResultId type_id = spirv_type_id(push_members[i].get_type());
     if (type_id == ResultId::Invalid) {
-      return set_error("Shader push constant type cannot lower today."_view);
+      return context.report(
+          "Shader push constant type cannot lower today."_view);
     }
     push_member_type_ids.insert(type_id);
   }
 
   for (Count i = 0; i < resource_members.get_size(); i++) {
     if (!is_texture_resource(resource_members[i].get_type())) {
-      return set_error("Shader resource type cannot lower today."_view);
+      return context.report("Shader resource type cannot lower today."_view);
     }
   }
 
-  Managed::Vector<Bits_32> interface_ids(arena);
+  Managed::Vector<Bits_32> interface_ids(context.get_arena());
   for (Count i = 0; i < parameters.get_size(); i++) {
     ResultId type_id = spirv_type_id(parameters[i].get_type());
     if (type_id == ResultId::Invalid) {
-      return set_error("Shader parameter type cannot lower today."_view);
+      return context.report("Shader parameter type cannot lower today."_view);
     }
 
     interface_ids.insert(spirv_id(parameter_id(i)));
@@ -577,7 +570,7 @@ auto Shader::lower_stage(
   for (Count i = 0; i < results.get_size(); i++) {
     ResultId type_id = spirv_type_id(results[i].get_type());
     if (type_id == ResultId::Invalid) {
-      return set_error("Shader result type cannot lower today."_view);
+      return context.report("Shader result type cannot lower today."_view);
     }
 
     interface_ids.insert(spirv_id(result_id(i)));
@@ -596,27 +589,28 @@ auto Shader::lower_stage(
   emit_stage_storage_decorations(
       assembler, push_member_type_ids.get_view(), resource_members);
   emit_core_types(assembler);
-  emit_push_type(arena, assembler, push_member_type_ids.get_view());
+  emit_push_type(
+      context.get_arena(), assembler, push_member_type_ids.get_view());
   emit_variables(
       assembler, parameters, results, !push_member_type_ids.is_empty(),
       resource_members);
   emit_empty_entry_point(assembler);
 
   if (!Assembler::SpirV::is_valid_module(words)) {
-    return set_error("Shader compiler emitted invalid SPIR-V."_view);
+    return context.report("Shader compiler emitted invalid SPIR-V."_view);
   }
 
   const Count offset = read_only.get_size();
   read_only.concat(words.get_view());
-  symbols.insert(
-      Object::Symbol::create_read_only(
-          symbol_name(module, shader.get_name(), stage.get_name()),
-          {offset, words.get_size()}));
+  stages.insert({
+    stage_name(context, module, shader.get_name(), stage.get_name()),
+    {offset, words.get_size()},
+  });
   return True;
 }
 
 auto Shader::register_render_contracts(const Ttx::Type& root) -> void {
-  if (type_attribute_equals(root, "isa"_view, "Render"_view)) {
+  if (root.attribute_equals("isa"_view, "Render"_view)) {
     register_render_contract(root);
     return;
   }
@@ -624,7 +618,7 @@ auto Shader::register_render_contracts(const Ttx::Type& root) -> void {
   View::Vector<const Ttx::Type*> types = root.get_types();
   for (Count i = 0; i < types.get_size(); i++) {
     if (types[i] != nullptr &&
-        type_attribute_equals(*types[i], "isa"_view, "Render"_view)) {
+        types[i]->attribute_equals("isa"_view, "Render"_view)) {
       register_render_contract(*types[i]);
     }
   }
@@ -635,7 +629,8 @@ auto Shader::register_render_contract(const Ttx::Type& render) -> void {
 }
 
 auto Shader::find_contract(const Ttx::Type& shader) const -> const Ttx::Type* {
-  const Ttx::Attribute* contract = shader.find_attribute("contract"_view);
+  const Ttx::Attribute* contract =
+      shader.resolve_attribute("contract"_view);
   if (contract == nullptr) {
     return nullptr;
   }
@@ -644,44 +639,30 @@ auto Shader::find_contract(const Ttx::Type& shader) const -> const Ttx::Type* {
   return entry == nullptr ? nullptr : entry->value;
 }
 
-auto Shader::symbol_name(
+auto Shader::stage_name(
+    Context& context,
     View::Bytes module,
     View::Bytes shader,
     View::Bytes stage) -> View::Bytes {
-  Managed::Bytes output(arena);
+  Managed::Bytes output(context.get_arena());
   output.concat("TTX_shader_"_view);
-  append_symbol_segment(output, module);
+  append_name_segment(output, module);
   output.append('_');
   output.concat(shader);
   output.append('_');
   output.concat(stage);
   output.concat("_spirv"_view);
-  return output.get_view();
+  return output;
 }
 
-auto Shader::append_symbol_segment(Managed::Bytes& output, View::Bytes value)
+auto Shader::append_name_segment(Managed::Bytes& output, View::Bytes value)
     -> void {
-  // Module names are derived from source filenames, not TTX identifiers, so
-  // normalize them before they become linker symbol text.
+  // Module names are derived from source filenames, not TTX identifiers, so the
+  // exported stage name needs a normalized module segment.
   for (Count i = 0; i < value.get_size(); i++) {
     Bits_8 c = value[i];
     const Bool alpha = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
     const Bool digit = c >= '0' && c <= '9';
     output.append(alpha || digit || c == '_' ? c : Bits_8('_'));
   }
-}
-
-auto Shader::set_error(View::Bytes message) -> Bool {
-  if (error.get_size() == 0) {
-    error.proxy(message);
-  }
-  return False;
-}
-
-auto Shader::type_attribute_equals(
-    const Ttx::Type& type,
-    View::Bytes key,
-    View::Bytes value) -> Bool {
-  const Ttx::Attribute* attribute = type.find_attribute(key);
-  return attribute != nullptr && attribute->get_value() == value;
 }

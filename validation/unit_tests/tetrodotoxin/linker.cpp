@@ -24,21 +24,34 @@ static Harness TetrodotoxinTerminal = {
   .name = "Tetrodotoxin::Terminal"_view,
 };
 
+PERIMORTEM_UNIT_TEST(TetrodotoxinTerminal, section_ids) {
+  Dynamic::Bytes code;
+  Assembler::x86_64 assembler(code);
+  assembler.ret();
+
+  Tetrodotoxin::Linker::Linker linker;
+  EXPECT_EQ(
+      linker.add_section(Object::Section::Type::Program, code), Bits_16(1));
+  EXPECT_EQ(
+      linker.add_section(Object::Section::Type::Program, code), Bits_16(2));
+}
+
 PERIMORTEM_UNIT_TEST(TetrodotoxinTerminal, archive_symbol) {
   Dynamic::Bytes code;
   Assembler::x86_64 assembler(code);
   assembler.ret();
 
-  auto symbol = Object::Symbol::create_function(
-      "module_entry"_view,
-      Object::Symbol::Visibility::Global);
-  symbol.set_range({0, code.get_size()});
-
   EXPECT(code.get_size() > 0);
 
   Tetrodotoxin::Linker::Linker linker;
-  linker.add_section(
+  Bits_16 program_section = linker.add_section(
       Object::Section::Type::Program, code);
+
+  auto symbol = Object::Symbol::create_function(
+      "module_entry"_view,
+      program_section,
+      Object::Symbol::Visibility::Global);
+  symbol.set_range({0, code.get_size()});
   linker.add_symbol(symbol);
 
   auto archive = linker.build_library("module.o"_view);

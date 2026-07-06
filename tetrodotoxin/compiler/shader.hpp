@@ -4,34 +4,44 @@
 #pragma once
 
 #include "perimortem/core/view/bytes.hpp"
+#include "perimortem/core/view/vector.hpp"
 
-#include "perimortem/memory/allocator/arena.hpp"
 #include "perimortem/memory/dynamic/bytes.hpp"
 #include "perimortem/memory/dynamic/map.hpp"
 #include "perimortem/memory/dynamic/vector.hpp"
 #include "perimortem/memory/managed/bytes.hpp"
 
-#include "tetrodotoxin/linker/linker.hpp"
-#include "tetrodotoxin/linker/object/symbol.hpp"
+#include "tetrodotoxin/compiler/context.hpp"
+#include "tetrodotoxin/compiler/symbol/stage.hpp"
 #include "ttx/type.hpp"
 
 namespace Tetrodotoxin::Compiler {
 
+// Shader lowers Render/Shader type facts into read-only SPIR-V stage modules.
+//
+// Render records register pipeline contracts; Shader records then emit stage
+// blobs that satisfy those contracts. The linker later packages the emitted
+// blobs as ordinary read-only data.
 class Shader {
  public:
-  explicit Shader(Perimortem::Memory::Allocator::Arena& arena)
-      : arena(arena), error(arena) {}
+  Shader() = default;
 
-  auto lower(Perimortem::Core::View::Bytes module, const Ttx::Type& root)
-      -> Bool;
-  auto add_to(Tetrodotoxin::Linker::Linker& linker) const -> void;
+  auto lower(
+      Context& context,
+      Perimortem::Core::View::Bytes module,
+      const Ttx::Type& root) -> Bool;
 
-  constexpr auto get_error() const -> Perimortem::Core::View::Bytes {
-    return error.get_view();
+  constexpr auto get_read_only() const -> Perimortem::Core::View::Bytes {
+    return read_only;
+  }
+  constexpr auto get_stages() const
+      -> Perimortem::Core::View::Vector<Symbol::Stage> {
+    return stages;
   }
 
  private:
   auto lower_stage(
+      Context& context,
       Perimortem::Core::View::Bytes module,
       const Ttx::Type& shader,
       const Ttx::Type& contract,
@@ -39,28 +49,20 @@ class Shader {
   auto register_render_contracts(const Ttx::Type& root) -> void;
   auto register_render_contract(const Ttx::Type& render) -> void;
   auto find_contract(const Ttx::Type& shader) const -> const Ttx::Type*;
-  auto symbol_name(
+  auto stage_name(
+      Context& context,
       Perimortem::Core::View::Bytes module,
       Perimortem::Core::View::Bytes shader,
       Perimortem::Core::View::Bytes stage) -> Perimortem::Core::View::Bytes;
-  auto append_symbol_segment(
+  auto append_name_segment(
       Perimortem::Memory::Managed::Bytes& output,
       Perimortem::Core::View::Bytes value) -> void;
-  auto set_error(Perimortem::Core::View::Bytes message) -> Bool;
 
-  static auto type_attribute_equals(
-      const Ttx::Type& type,
-      Perimortem::Core::View::Bytes key,
-      Perimortem::Core::View::Bytes value) -> Bool;
-
-  Perimortem::Memory::Allocator::Arena& arena;
   Perimortem::Memory::Dynamic::Bytes read_only;
-  Perimortem::Memory::Dynamic::Vector<Tetrodotoxin::Linker::Object::Symbol>
-      symbols;
+  Perimortem::Memory::Dynamic::Vector<Symbol::Stage> stages;
   Perimortem::Memory::Dynamic::
       Map<Perimortem::Core::View::Bytes, const Ttx::Type*>
           contracts;
-  Perimortem::Memory::Managed::Bytes error;
 };
 
 }  // namespace Tetrodotoxin::Compiler
