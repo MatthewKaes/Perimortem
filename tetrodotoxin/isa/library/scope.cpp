@@ -67,7 +67,7 @@ auto Library::Scope::materialize_type(Cursor& cursor, View::Bytes name)
   declaration.state = DeclarationState::Evaluating;
   cursor.seek_token(declaration.body_index);
 
-  type = materializer(*this, cursor, declaration.definition);
+  type = materializer(cursor, *this, declaration.definition);
   if (type == nullptr || !context.define_type(*type)) {
     declaration.state = DeclarationState::Failed;
     cursor.seek_token(return_index);

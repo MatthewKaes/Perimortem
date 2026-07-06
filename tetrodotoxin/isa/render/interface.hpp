@@ -25,8 +25,8 @@ class Interface {
       Perimortem::Core::View::Vector<const Ttx::Type*> types,
       Perimortem::Core::View::Bytes type_name) -> const Ttx::Type*;
   static auto evaluate(
-      Tetrodotoxin::Isa::Context& context,
       Ttx::Lexical::Cursor& cursor,
+      Tetrodotoxin::Isa::Context& context,
       Perimortem::Core::View::Bytes block_name) -> const Ttx::Type*;
   static auto insert(
       Ttx::Lexical::Cursor& cursor,

@@ -10,8 +10,8 @@ using namespace Tetrodotoxin::Isa;
 using namespace Ttx::Lexical;
 
 auto Library::Addressable::evaluate(
-    Library::Scope& scope,
     Cursor& cursor,
+    Library::Scope& scope,
     const Tetrodotoxin::Isa::Definition& definition) -> Ttx::Type::Member {
   if (!definition.has_addressable_name()) {
     cursor.token_error("Expected library member name."_view);

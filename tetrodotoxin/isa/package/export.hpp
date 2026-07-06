@@ -21,8 +21,8 @@ class Export {
   Export() = default;
 
   static auto evaluate(
-      Tetrodotoxin::Isa::Context& context,
       Ttx::Lexical::Cursor& cursor,
+      Tetrodotoxin::Isa::Context& context,
       Ttx::Documentation documentation) -> Export;
 
   constexpr auto get_definition() const

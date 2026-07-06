@@ -15,7 +15,7 @@ using namespace Perimortem::Memory;
 using namespace Tetrodotoxin::Isa;
 using namespace Ttx::Lexical;
 
-auto Shader::VirtualMachine::evaluate(Context& context, Cursor& cursor)
+auto Shader::VirtualMachine::evaluate(Cursor& cursor, Context& context)
     -> Ttx::Type* {
   Ttx::Documentation documentation = Documentation::evaluate(cursor);
   if (!Attribute::consume_all(cursor)) {
@@ -35,7 +35,7 @@ auto Shader::VirtualMachine::evaluate(Context& context, Cursor& cursor)
     return nullptr;
   }
 
-  const Ttx::Type* contract = Shader::Contract::resolve(context, cursor);
+  const Ttx::Type* contract = Shader::Contract::resolve(cursor, context);
   if (contract == nullptr) {
     return nullptr;
   }
@@ -56,7 +56,7 @@ auto Shader::VirtualMachine::evaluate(Context& context, Cursor& cursor)
     }
 
     Ttx::Type::Function function = Shader::Function::evaluate(
-        context, cursor, function_documentation);
+        cursor, context, function_documentation);
     if (function.is_empty()) {
       return nullptr;
     }

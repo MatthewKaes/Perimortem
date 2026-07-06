@@ -19,8 +19,8 @@ using namespace Tetrodotoxin::Isa;
 using namespace Ttx::Lexical;
 
 static auto evaluate_member(
-    Context& context,
     Cursor& cursor,
+    Context& context,
     const Definition& definition,
     View::Bytes initializer_error,
     View::Bytes unresolved_error) -> Ttx::Type::Member {
@@ -49,7 +49,7 @@ static auto evaluate_member(
       definition.get_name(), *type, definition.get_documentation());
 }
 
-auto Render::VirtualMachine::evaluate(Context& context, Cursor& cursor)
+auto Render::VirtualMachine::evaluate(Cursor& cursor, Context& context)
     -> Ttx::Type* {
   Ttx::Documentation documentation = Documentation::evaluate(cursor);
   if (!Attribute::consume_all(cursor)) {
@@ -85,7 +85,7 @@ auto Render::VirtualMachine::evaluate(Context& context, Cursor& cursor)
 
     if (cursor.matches(Class::Type::Addressable)) {
       const Ttx::Type* fact_block =
-          Interface::evaluate(context, cursor, cursor.current().get_text());
+          Interface::evaluate(cursor, context, cursor.current().get_text());
       if (fact_block == nullptr) {
         return nullptr;
       }
@@ -110,7 +110,7 @@ auto Render::VirtualMachine::evaluate(Context& context, Cursor& cursor)
 
     if (definition.get_kind() == "stage"_view) {
       Stage::Result stage =
-          Stage::evaluate(context, cursor, definition, types.get_view());
+          Stage::evaluate(cursor, context, definition, types.get_view());
       if (stage.is_empty()) {
         return nullptr;
       }
@@ -122,7 +122,7 @@ auto Render::VirtualMachine::evaluate(Context& context, Cursor& cursor)
     }
 
     Ttx::Type::Member member = evaluate_member(
-        context, cursor, definition,
+        cursor, context, definition,
         "Expected `;` after render member initializer."_view,
         "Render member type could not be resolved."_view);
     if (!Interface::insert(

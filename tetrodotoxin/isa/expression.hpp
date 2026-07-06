@@ -12,8 +12,17 @@
 
 namespace Tetrodotoxin::Isa {
 
+// Expression owns the reusable expression micro-language shared by body ISAs.
+//
+// A pack is the parenthesized expression form that produces layout-shaped
+// values for calls and future construction sites. ISAs such as Library and
+// Shader decide where expressions are legal, then hand the expression span to
+// this owner instead of inventing local value/pack models.
 class Expression {
  public:
+  class Pack;
+  class Value;
+
   static constexpr auto is_index_start(Ttx::Lexical::Class::Type type)
       -> Bool {
     switch (type) {

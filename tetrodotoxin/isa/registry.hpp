@@ -24,7 +24,7 @@ namespace Tetrodotoxin::Isa {
 class Registry {
  public:
   using EvaluateFunction =
-      Ttx::Type* (*)(Context& context, Ttx::Lexical::Cursor& cursor);
+      Ttx::Type* (*)(Ttx::Lexical::Cursor& cursor, Context& context);
 
   class Entry {
    public:

@@ -29,8 +29,8 @@ using namespace Tetrodotoxin::Isa;
 using namespace Ttx::Lexical;
 
 using DefinitionEvaluator =
-    const Ttx::Type* (*)(Library::Scope & scope,
-                         Cursor& cursor,
+    const Ttx::Type* (*)(Cursor& cursor,
+                         Library::Scope& scope,
                          const Tetrodotoxin::Isa::Definition& definition);
 
 constexpr Static::Vector<Class::Type, 3> library_modifiers = {{
@@ -66,18 +66,18 @@ constexpr Static::Vector<Pair<View::Bytes, DefinitionEvaluator>, 5>
     }};
 
 static auto materialize_library_type(
-    Library::Scope& scope,
     Cursor& cursor,
+    Library::Scope& scope,
     const Tetrodotoxin::Isa::Definition& definition) -> const Ttx::Type* {
   const auto* handler =
       Table<DefinitionEvaluator, library_sub_isas>::find_or_null(
           definition.get_kind());
-  return handler == nullptr ? nullptr : (*handler)(scope, cursor, definition);
+  return handler == nullptr ? nullptr : (*handler)(cursor, scope, definition);
 }
 
 static auto predeclare_library_definitions(
-    Library::Scope& scope,
-    Cursor& cursor) -> Bool {
+    Cursor& cursor,
+    Library::Scope& scope) -> Bool {
   while (!cursor.matches(Class::Type::EndOfStream)) {
     Ttx::Documentation documentation = Documentation::evaluate(cursor);
     if (!Attribute::consume_all(cursor)) {
@@ -150,8 +150,8 @@ static auto predeclare_library_definitions(
 }
 
 auto Library::VirtualMachine::evaluate_definition(
-    Library::Scope& scope,
     Cursor& cursor,
+    Library::Scope& scope,
     Ttx::Documentation documentation,
     Managed::Vector<Ttx::Type::Member>& members,
     Managed::Vector<const Ttx::Type*>& types,
@@ -166,7 +166,7 @@ auto Library::VirtualMachine::evaluate_definition(
 
   if (cursor.matches(Class::Type::Func)) {
     Ttx::Type::Function function =
-        Library::Function::evaluate(scope, cursor, documentation);
+        Library::Function::evaluate(cursor, scope, documentation);
     if (function.is_empty()) {
       return False;
     }
@@ -194,7 +194,7 @@ auto Library::VirtualMachine::evaluate_definition(
 
   if (definition.has_addressable_name()) {
     Ttx::Type::Member member =
-        Library::Addressable::evaluate(scope, cursor, definition);
+        Library::Addressable::evaluate(cursor, scope, definition);
     if (member.is_empty()) {
       return False;
     }
@@ -244,7 +244,7 @@ auto Library::VirtualMachine::evaluate_definition(
   return True;
 }
 
-auto Library::VirtualMachine::evaluate(Context& context, Cursor& cursor)
+auto Library::VirtualMachine::evaluate(Cursor& cursor, Context& context)
     -> Ttx::Type* {
   Managed::Vector<Ttx::Type::Member> members(context.get_arena());
   Managed::Vector<const Ttx::Type*> types(context.get_arena());
@@ -252,7 +252,7 @@ auto Library::VirtualMachine::evaluate(Context& context, Cursor& cursor)
   Library::Scope scope(context, materialize_library_type);
   Count body_start = cursor.get_token_index();
 
-  if (!predeclare_library_definitions(scope, cursor)) {
+  if (!predeclare_library_definitions(cursor, scope)) {
     return nullptr;
   }
 
@@ -268,7 +268,7 @@ auto Library::VirtualMachine::evaluate(Context& context, Cursor& cursor)
     }
 
     if (!evaluate_definition(
-            scope, cursor, documentation, members, types, functions)) {
+            cursor, scope, documentation, members, types, functions)) {
       if (!Library::Syntax::consume_declaration_tail(cursor)) {
         return nullptr;
       }

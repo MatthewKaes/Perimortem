@@ -21,8 +21,8 @@ class Group {
       : exports(exports), valid(True) {}
 
   static auto evaluate(
-      Tetrodotoxin::Isa::Context& context,
-      Ttx::Lexical::Cursor& cursor) -> Group;
+      Ttx::Lexical::Cursor& cursor,
+      Tetrodotoxin::Isa::Context& context) -> Group;
 
   constexpr auto get_exports() const -> Perimortem::Core::View::Vector<Export> {
     return exports;

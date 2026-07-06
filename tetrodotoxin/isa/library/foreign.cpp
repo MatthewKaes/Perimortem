@@ -17,8 +17,8 @@ using namespace Tetrodotoxin::Isa;
 using namespace Ttx::Lexical;
 
 auto Library::Foreign::evaluate(
-    Library::Scope& scope,
     Cursor& cursor,
+    Library::Scope& scope,
     const Tetrodotoxin::Isa::Definition& definition) -> const Ttx::Type* {
   if (!cursor.require(
           Class::Type::ScopeStart,
@@ -48,7 +48,7 @@ auto Library::Foreign::evaluate(
     }
 
     Ttx::Type::Function function =
-        Library::Function::evaluate_declaration(scope, cursor, documentation);
+        Library::Function::evaluate_declaration(cursor, scope, documentation);
     if (function.is_empty()) {
       valid = False;
       if (!Library::Syntax::consume_declaration_tail(cursor)) {

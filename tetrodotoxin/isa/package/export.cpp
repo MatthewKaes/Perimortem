@@ -10,8 +10,8 @@ using namespace Tetrodotoxin::Isa;
 using namespace Ttx::Lexical;
 
 auto Package::Export::evaluate(
-    Context& context,
     Cursor& cursor,
+    Context& context,
     Ttx::Documentation documentation) -> Package::Export {
   Definition definition = Definition::evaluate(
       cursor, documentation, {{Class::Type::Expose}},
@@ -22,7 +22,7 @@ auto Package::Export::evaluate(
   }
 
   if (definition.get_kind() == "group"_view) {
-    Package::Group group = Package::Group::evaluate(context, cursor);
+    Package::Group group = Package::Group::evaluate(cursor, context);
     if (!group.is_valid()) {
       return Package::Export();
     }

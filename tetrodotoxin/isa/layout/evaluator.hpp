@@ -19,22 +19,22 @@ class Evaluator {
  public:
   template <typename Scope>
   static auto evaluate(
-      Scope& scope,
       Ttx::Lexical::Cursor& cursor,
+      Scope& scope,
       Perimortem::Memory::Managed::Vector<Ttx::Type::Member>& members)
       -> Bool {
     if (cursor.matches(Ttx::Lexical::Class::Type::IndexStart)) {
-      return evaluate_bracketed(scope, cursor, members);
+      return evaluate_bracketed(cursor, scope, members);
     }
 
     return evaluate_type_member(
-        scope, cursor, Perimortem::Core::View::Bytes(), members);
+        cursor, scope, Perimortem::Core::View::Bytes(), members);
   }
 
   template <typename Scope>
   static auto evaluate_bracketed(
-      Scope& scope,
       Ttx::Lexical::Cursor& cursor,
+      Scope& scope,
       Perimortem::Memory::Managed::Vector<Ttx::Type::Member>& members)
       -> Bool {
     using namespace Ttx::Lexical;
@@ -68,7 +68,7 @@ class Evaluator {
         }
       }
 
-      if (!evaluate_type_member(scope, cursor, name, members)) {
+      if (!evaluate_type_member(cursor, scope, name, members)) {
         return False;
       }
 
@@ -91,8 +91,8 @@ class Evaluator {
  private:
   template <typename Scope>
   static auto evaluate_type_member(
-      Scope& scope,
       Ttx::Lexical::Cursor& cursor,
+      Scope& scope,
       Perimortem::Core::View::Bytes name,
       Perimortem::Memory::Managed::Vector<Ttx::Type::Member>& members)
       -> Bool {

@@ -17,8 +17,8 @@ class Lifecycle {
  public:
   static auto is_root(Perimortem::Core::View::Bytes name) -> Bool;
   static auto evaluate(
-      Tetrodotoxin::Isa::Context& context,
       Ttx::Lexical::Cursor& cursor,
+      Tetrodotoxin::Isa::Context& context,
       Ttx::Documentation documentation) -> Ttx::Type::Function;
 };
 

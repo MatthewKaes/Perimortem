@@ -16,7 +16,7 @@ using namespace Perimortem::Memory;
 using namespace Tetrodotoxin::Isa;
 using namespace Ttx::Lexical;
 
-auto Scene::VirtualMachine::evaluate(Context& context, Cursor& cursor)
+auto Scene::VirtualMachine::evaluate(Cursor& cursor, Context& context)
     -> Ttx::Type* {
   Managed::Vector<Ttx::Type::Member> members(context.get_arena());
   Managed::Vector<Ttx::Type::Member> state(context.get_arena());
@@ -36,7 +36,7 @@ auto Scene::VirtualMachine::evaluate(Context& context, Cursor& cursor)
     Class::Type current = cursor.current().get_class().get_type();
     if (Scene::Storage::is_modifier(current)) {
       Ttx::Type::Member member =
-          Scene::Storage::evaluate(context, cursor, documentation, current);
+          Scene::Storage::evaluate(cursor, context, documentation, current);
       if (member.is_empty()) {
         return nullptr;
       }
@@ -53,7 +53,7 @@ auto Scene::VirtualMachine::evaluate(Context& context, Cursor& cursor)
 
     if (Scene::Function::is_modifier(current)) {
       Ttx::Type::Function function =
-          Scene::Function::evaluate(context, cursor, documentation);
+          Scene::Function::evaluate(cursor, context, documentation);
       if (function.is_empty()) {
         return nullptr;
       }
@@ -65,7 +65,7 @@ auto Scene::VirtualMachine::evaluate(Context& context, Cursor& cursor)
 
     if (cursor.matches(Class::Type::Addressable)) {
       Ttx::Type::Function function =
-          Scene::Lifecycle::evaluate(context, cursor, documentation);
+          Scene::Lifecycle::evaluate(cursor, context, documentation);
       if (function.is_empty()) {
         return nullptr;
       }

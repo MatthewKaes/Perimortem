@@ -18,14 +18,14 @@ namespace Tetrodotoxin::Isa::Library {
 // Library is the baseline body ISA for general TTX source files.
 //
 // Library constructs aliases, aggregate layout, foreign signatures, and
-// callable function bodies as Ttx::Type facts. Function bodies stay as token
-// blocks so compiler lowering can walk them without Library growing a second
-// expression IR.
+// callable function signatures as Ttx::Type facts. Function bodies publish
+// Library-owned blocks so lowerers consume ISA facts instead of reparsing token
+// streams.
 class VirtualMachine {
  public:
   static auto evaluate(
-      Tetrodotoxin::Isa::Context& context,
-      Ttx::Lexical::Cursor& cursor) -> Ttx::Type*;
+      Ttx::Lexical::Cursor& cursor,
+      Tetrodotoxin::Isa::Context& context) -> Ttx::Type*;
 
   static constexpr auto get_name() -> Perimortem::Core::View::Bytes {
     return "Library"_view;
@@ -33,8 +33,8 @@ class VirtualMachine {
 
  private:
   static auto evaluate_definition(
-      Library::Scope& scope,
       Ttx::Lexical::Cursor& cursor,
+      Library::Scope& scope,
       Ttx::Documentation documentation,
       Perimortem::Memory::Managed::Vector<Ttx::Type::Member>& members,
       Perimortem::Memory::Managed::Vector<const Ttx::Type*>& types,

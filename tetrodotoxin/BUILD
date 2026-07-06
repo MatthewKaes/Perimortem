@@ -55,7 +55,7 @@ cc_library(
     ]),
     includes = ["."],
     deps = [
-        ":linker",
+        ":isa",
         "//perimortem",
         "//ttx",
     ],
@@ -77,6 +77,8 @@ cc_library(
     ],
     includes = ["."],
     deps = [
+        ":compiler",
         "//perimortem",
+        "//ttx",
     ],
 )

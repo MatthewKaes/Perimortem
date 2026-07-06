@@ -27,8 +27,8 @@ class Function {
   }
 
   static auto evaluate(
-      Tetrodotoxin::Isa::Context& context,
       Ttx::Lexical::Cursor& cursor,
+      Tetrodotoxin::Isa::Context& context,
       Ttx::Documentation documentation) -> Ttx::Type::Function;
   static auto insert(
       Ttx::Lexical::Cursor& cursor,

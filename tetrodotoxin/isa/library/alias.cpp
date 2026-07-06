@@ -11,8 +11,8 @@ using namespace Tetrodotoxin::Isa;
 using namespace Ttx::Lexical;
 
 auto Library::Alias::evaluate(
-    Library::Scope& scope,
     Cursor& cursor,
+    Library::Scope& scope,
     const Tetrodotoxin::Isa::Definition& definition) -> const Ttx::Type* {
   if (!cursor.require(
           Class::Type::Assign,

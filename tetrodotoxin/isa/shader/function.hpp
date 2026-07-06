@@ -14,8 +14,8 @@ namespace Tetrodotoxin::Isa::Shader {
 class Function {
  public:
   static auto evaluate(
-      Tetrodotoxin::Isa::Context& context,
       Ttx::Lexical::Cursor& cursor,
+      Tetrodotoxin::Isa::Context& context,
       Ttx::Documentation documentation) -> Ttx::Type::Function;
 };
 

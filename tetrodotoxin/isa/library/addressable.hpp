@@ -14,8 +14,8 @@ namespace Tetrodotoxin::Isa::Library {
 class Addressable {
  public:
   static auto evaluate(
-      Scope& scope,
       Ttx::Lexical::Cursor& cursor,
+      Scope& scope,
       const Tetrodotoxin::Isa::Definition& definition) -> Ttx::Type::Member;
 };
 

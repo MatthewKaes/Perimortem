@@ -14,8 +14,8 @@ using namespace Tetrodotoxin::Isa;
 using namespace Ttx::Lexical;
 
 auto Scene::Storage::evaluate(
-    Context& context,
     Cursor& cursor,
+    Context& context,
     Ttx::Documentation documentation,
     Class::Type storage) -> Ttx::Type::Member {
   cursor.consume();

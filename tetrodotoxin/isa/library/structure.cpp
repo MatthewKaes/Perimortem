@@ -20,8 +20,8 @@ using namespace Ttx::Lexical;
 // The struct evaluation of the bytecode is less than ideal due to functions
 // having a unique syntax.
 auto Library::Structure::evaluate(
-    Library::Scope& scope,
     Cursor& cursor,
+    Library::Scope& scope,
     const Tetrodotoxin::Isa::Definition& definition) -> const Ttx::Type* {
   if (!cursor.require(
           Class::Type::ScopeStart,
@@ -64,7 +64,7 @@ auto Library::Structure::evaluate(
 
     if (cursor.matches(Class::Type::Func)) {
       Ttx::Type::Function function =
-          Library::Function::evaluate(scope, cursor, member_documentation);
+          Library::Function::evaluate(cursor, scope, member_documentation);
       if (function.is_empty()) {
         valid = False;
         if (!Library::Syntax::consume_declaration_tail(cursor)) {
@@ -101,7 +101,7 @@ auto Library::Structure::evaluate(
     }
 
     Ttx::Type::Member member =
-        Library::Addressable::evaluate(scope, cursor, member_definition);
+        Library::Addressable::evaluate(cursor, scope, member_definition);
     if (member.is_empty()) {
       valid = False;
       if (!Library::Syntax::consume_declaration_tail(cursor)) {

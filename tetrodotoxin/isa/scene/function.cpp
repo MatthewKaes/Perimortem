@@ -14,8 +14,8 @@ using namespace Tetrodotoxin::Isa;
 using namespace Ttx::Lexical;
 
 auto Scene::Function::evaluate(
-    Context& context,
     Cursor& cursor,
+    Context& context,
     Ttx::Documentation documentation) -> Ttx::Type::Function {
   cursor.consume();
   if (!cursor.require(
@@ -30,7 +30,7 @@ auto Scene::Function::evaluate(
   }
 
   Managed::Vector<Ttx::Type::Member> parameters(context.get_arena());
-  if (!Layout::Evaluator::evaluate_bracketed(context, cursor, parameters)) {
+  if (!Layout::Evaluator::evaluate_bracketed(cursor, context, parameters)) {
     return Ttx::Type::Function();
   }
 
@@ -41,7 +41,7 @@ auto Scene::Function::evaluate(
   }
 
   Managed::Vector<Ttx::Type::Member> result(context.get_arena());
-  if (!Layout::Evaluator::evaluate(context, cursor, result)) {
+  if (!Layout::Evaluator::evaluate(cursor, context, result)) {
     return Ttx::Type::Function();
   }
 

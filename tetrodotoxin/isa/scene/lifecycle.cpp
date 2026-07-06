@@ -32,8 +32,8 @@ auto Scene::Lifecycle::is_root(View::Bytes name) -> Bool {
 }
 
 auto Scene::Lifecycle::evaluate(
-    Context& context,
     Cursor& cursor,
+    Context& context,
     Ttx::Documentation documentation) -> Ttx::Type::Function {
   const Token& name = cursor.current();
   if (!is_root(name.get_text())) {
@@ -45,7 +45,7 @@ auto Scene::Lifecycle::evaluate(
 
   Managed::Vector<Ttx::Type::Member> parameters(context.get_arena());
   if (cursor.matches(Class::Type::IndexStart) &&
-      !Layout::Evaluator::evaluate_bracketed(context, cursor, parameters)) {
+      !Layout::Evaluator::evaluate_bracketed(cursor, context, parameters)) {
     return Ttx::Type::Function();
   }
 

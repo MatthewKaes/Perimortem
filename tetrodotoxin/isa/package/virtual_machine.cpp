@@ -52,7 +52,7 @@ static auto build_export_type(Context& context, const Package::Export& export_)
       definition.get_name(), definition.get_documentation());
 }
 
-auto Package::VirtualMachine::evaluate(Context& context, Cursor& cursor)
+auto Package::VirtualMachine::evaluate(Cursor& cursor, Context& context)
     -> Ttx::Type* {
   Ttx::Documentation package_documentation;
   View::Bytes package_name;
@@ -93,7 +93,7 @@ auto Package::VirtualMachine::evaluate(Context& context, Cursor& cursor)
 
     if (cursor.matches(Class::Type::Expose)) {
       Package::Export export_ =
-          Package::Export::evaluate(context, cursor, documentation);
+          Package::Export::evaluate(cursor, context, documentation);
       if (!export_.is_valid()) {
         return nullptr;
       }

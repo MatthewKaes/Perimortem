@@ -15,8 +15,8 @@ namespace Tetrodotoxin::Isa::Library {
 class Enumeration {
  public:
   static auto evaluate(
-      Scope& scope,
       Ttx::Lexical::Cursor& cursor,
+      Scope& scope,
       const Tetrodotoxin::Isa::Definition& definition) -> const Ttx::Type*;
 
   static constexpr auto get_name() -> Perimortem::Core::View::Bytes {

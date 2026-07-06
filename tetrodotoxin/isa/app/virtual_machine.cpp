@@ -16,8 +16,8 @@ using namespace Tetrodotoxin::Isa;
 using namespace Ttx::Lexical;
 
 static auto evaluate_function(
-    Context& context,
     Cursor& cursor,
+    Context& context,
     Ttx::Documentation documentation) -> Ttx::Type::Function {
   if (!cursor.require(Class::Type::Func, "Expected `func` in App."_view)) {
     return Ttx::Type::Function();
@@ -30,7 +30,7 @@ static auto evaluate_function(
   }
 
   Managed::Vector<Ttx::Type::Member> parameters(context.get_arena());
-  if (!Layout::Evaluator::evaluate_bracketed(context, cursor, parameters)) {
+  if (!Layout::Evaluator::evaluate_bracketed(cursor, context, parameters)) {
     return Ttx::Type::Function();
   }
 
@@ -40,7 +40,7 @@ static auto evaluate_function(
   }
 
   Managed::Vector<Ttx::Type::Member> result(context.get_arena());
-  if (!Layout::Evaluator::evaluate(context, cursor, result)) {
+  if (!Layout::Evaluator::evaluate(cursor, context, result)) {
     return Ttx::Type::Function();
   }
 
@@ -56,7 +56,7 @@ static auto evaluate_function(
       blocks.get_view(), documentation);
 }
 
-auto App::VirtualMachine::evaluate(Context& context, Cursor& cursor)
+auto App::VirtualMachine::evaluate(Cursor& cursor, Context& context)
     -> Ttx::Type* {
   Managed::Vector<Ttx::Type::Function> functions(context.get_arena());
   Bool valid = True;
@@ -76,7 +76,7 @@ auto App::VirtualMachine::evaluate(Context& context, Cursor& cursor)
     }
 
     Ttx::Type::Function function =
-        evaluate_function(context, cursor, documentation);
+        evaluate_function(cursor, context, documentation);
     if (function.is_empty()) {
       return nullptr;
     }

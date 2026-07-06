@@ -16,8 +16,8 @@ namespace Tetrodotoxin::Isa::Library {
 class Scope;
 
 using TypeMaterializer =
-    const Ttx::Type* (*)(Scope & scope,
-                         Ttx::Lexical::Cursor& cursor,
+    const Ttx::Type* (*)(Ttx::Lexical::Cursor& cursor,
+                         Scope& scope,
                          const Tetrodotoxin::Isa::Definition& definition);
 
 // Scope owns the names that become visible while the Library ISA executes. It

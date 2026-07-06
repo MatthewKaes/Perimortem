@@ -51,8 +51,8 @@ auto Render::Interface::find(
 }
 
 auto Render::Interface::evaluate(
-    Context& context,
     Cursor& cursor,
+    Context& context,
     View::Bytes block_name) -> const Ttx::Type* {
   View::Bytes type_name = source_to_type_name(block_name);
   if (type_name.is_empty()) {

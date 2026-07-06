@@ -9,7 +9,7 @@ using namespace Perimortem::Core;
 using namespace Tetrodotoxin::Isa;
 using namespace Ttx::Lexical;
 
-auto Shader::Contract::resolve(Context& context, Cursor& cursor)
+auto Shader::Contract::resolve(Cursor& cursor, Context& context)
     -> const Ttx::Type* {
   if (!cursor.require(
           Class::Type::Define,

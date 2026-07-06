@@ -38,8 +38,8 @@ class Stage {
   };
 
   static auto evaluate(
-      Tetrodotoxin::Isa::Context& context,
       Ttx::Lexical::Cursor& cursor,
+      Tetrodotoxin::Isa::Context& context,
       const Tetrodotoxin::Isa::Definition& definition,
       Perimortem::Core::View::Vector<const Ttx::Type*> facts) -> Result;
   static auto insert(
@@ -49,8 +49,8 @@ class Stage {
 
  private:
   static auto consume_reads(
-      Tetrodotoxin::Isa::Context& context,
       Ttx::Lexical::Cursor& cursor,
+      Tetrodotoxin::Isa::Context& context,
       Perimortem::Core::View::Vector<const Ttx::Type*> facts,
       Perimortem::Memory::Managed::Vector<Ttx::Type::Member>& constants,
       Perimortem::Memory::Managed::Vector<Ttx::Type::Member>& pushes,

@@ -18,8 +18,8 @@ namespace Tetrodotoxin::Isa::Shader {
 class VirtualMachine {
  public:
   static auto evaluate(
-      Tetrodotoxin::Isa::Context& context,
-      Ttx::Lexical::Cursor& cursor) -> Ttx::Type*;
+      Ttx::Lexical::Cursor& cursor,
+      Tetrodotoxin::Isa::Context& context) -> Ttx::Type*;
 
   static constexpr auto get_name() -> Perimortem::Core::View::Bytes {
     return "Shader"_view;

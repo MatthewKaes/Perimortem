@@ -12,7 +12,7 @@ using namespace Perimortem::Memory;
 using namespace Tetrodotoxin::Isa;
 using namespace Ttx::Lexical;
 
-auto Package::Group::evaluate(Context& context, Cursor& cursor)
+auto Package::Group::evaluate(Cursor& cursor, Context& context)
     -> Package::Group {
   if (!cursor.require(
           Class::Type::ScopeStart,
@@ -25,7 +25,7 @@ auto Package::Group::evaluate(Context& context, Cursor& cursor)
          !cursor.matches(Class::Type::ScopeEnd)) {
     Ttx::Documentation documentation = Documentation::evaluate(cursor);
     Package::Export export_ =
-        Package::Export::evaluate(context, cursor, documentation);
+        Package::Export::evaluate(cursor, context, documentation);
     if (!export_.is_valid()) {
       return Package::Group();
     }

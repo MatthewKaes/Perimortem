@@ -14,8 +14,8 @@ using namespace Tetrodotoxin::Isa;
 using namespace Ttx::Lexical;
 
 auto Render::Stage::evaluate(
-    Context& context,
     Cursor& cursor,
+    Context& context,
     const Definition& definition,
     View::Vector<const Ttx::Type*> facts) -> Result {
   if (!cursor.require(
@@ -40,7 +40,7 @@ auto Render::Stage::evaluate(
     View::Bytes directive = cursor.consume().get_text();
     if (directive == "reads"_view) {
       if (!consume_reads(
-              context, cursor, facts, constants, pushes, resources)) {
+              cursor, context, facts, constants, pushes, resources)) {
         return Result();
       }
       continue;
@@ -56,7 +56,7 @@ auto Render::Stage::evaluate(
       return Result();
     }
 
-    if (!Layout::Evaluator::evaluate_bracketed(context, cursor, *target)) {
+    if (!Layout::Evaluator::evaluate_bracketed(cursor, context, *target)) {
       return Result();
     }
 
@@ -102,8 +102,8 @@ auto Render::Stage::insert(
 }
 
 auto Render::Stage::consume_reads(
-    Context&,
     Cursor& cursor,
+    Context&,
     View::Vector<const Ttx::Type*> facts,
     Managed::Vector<Ttx::Type::Member>& constants,
     Managed::Vector<Ttx::Type::Member>& pushes,

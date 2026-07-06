@@ -13,8 +13,8 @@ namespace Tetrodotoxin::Isa::Shader {
 class Contract {
  public:
   static auto resolve(
-      Tetrodotoxin::Isa::Context& context,
-      Ttx::Lexical::Cursor& cursor) -> const Ttx::Type*;
+      Ttx::Lexical::Cursor& cursor,
+      Tetrodotoxin::Isa::Context& context) -> const Ttx::Type*;
   static auto validate_stage(
       Ttx::Lexical::Cursor& cursor,
       const Ttx::Type& contract,

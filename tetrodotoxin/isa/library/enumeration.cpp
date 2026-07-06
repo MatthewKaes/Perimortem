@@ -17,7 +17,7 @@ using namespace Perimortem::Memory;
 using namespace Tetrodotoxin::Isa;
 using namespace Ttx::Lexical;
 
-static auto parse_storage_type(Library::Scope& scope, Cursor& cursor)
+static auto parse_storage_type(Cursor& cursor, Library::Scope& scope)
     -> const Ttx::Type* {
   if (!cursor.require(
           Class::Type::IndexStart,
@@ -143,8 +143,8 @@ static auto insert_enum_case(
 }
 
 static auto evaluate_packed_cases(
-    Library::Scope& scope,
     Cursor& cursor,
+    Library::Scope& scope,
     const Tetrodotoxin::Isa::Definition& definition,
     const Ttx::Type& storage) -> const Ttx::Type* {
   if (!cursor.require(
@@ -228,8 +228,8 @@ static auto evaluate_packed_cases(
 }
 
 static auto evaluate_scoped_cases(
-    Library::Scope& scope,
     Cursor& cursor,
+    Library::Scope& scope,
     const Tetrodotoxin::Isa::Definition& definition,
     const Ttx::Type& storage) -> const Ttx::Type* {
   if (!cursor.require(
@@ -308,7 +308,7 @@ static auto evaluate_scoped_cases(
     }
 
     Ttx::Type::Function function =
-        Library::Function::evaluate(scope, cursor, documentation);
+        Library::Function::evaluate(cursor, scope, documentation);
     if (function.is_empty()) {
       valid = False;
       if (!Library::Syntax::consume_declaration_tail(cursor)) {
@@ -346,20 +346,20 @@ static auto evaluate_scoped_cases(
 }
 
 auto Library::Enumeration::evaluate(
-    Library::Scope& scope,
     Cursor& cursor,
+    Library::Scope& scope,
     const Tetrodotoxin::Isa::Definition& definition) -> const Ttx::Type* {
-  const Ttx::Type* storage = parse_storage_type(scope, cursor);
+  const Ttx::Type* storage = parse_storage_type(cursor, scope);
   if (storage == nullptr) {
     return nullptr;
   }
 
   if (cursor.matches(Class::Type::PackingStart)) {
-    return evaluate_packed_cases(scope, cursor, definition, *storage);
+    return evaluate_packed_cases(cursor, scope, definition, *storage);
   }
 
   if (cursor.matches(Class::Type::ScopeStart)) {
-    return evaluate_scoped_cases(scope, cursor, definition, *storage);
+    return evaluate_scoped_cases(cursor, scope, definition, *storage);
   }
 
   cursor.token_error(
