@@ -3,7 +3,6 @@
 
 #include "perimortem/core/view/bytes.hpp"
 #include "perimortem/core/static/vector.hpp"
-#include "perimortem/core/data.hpp"
 #include "perimortem/core/diagnostics/log.hpp"
 #include "perimortem/core/null_terminated.hpp"
 #include "perimortem/core/perimortem.hpp"
@@ -15,25 +14,23 @@
 #include "perimortem/system/args.hpp"
 #include "perimortem/system/file.hpp"
 
-#include "tetrodotoxin/compiler/library.hpp"
-#include "tetrodotoxin/compiler/shader.hpp"
 #include "tetrodotoxin/linker/linker.hpp"
 #include "tetrodotoxin/puffer/lsp/methods.hpp"
-#include "tetrodotoxin/puffer/lsp/rpc/executor.hpp"
 #include "tetrodotoxin/puffer/resolution/resolver.hpp"
 #include "tetrodotoxin/puffer/resolution/source/record.hpp"
+#include "tetrodotoxin/puffer/terminal/plan.hpp"
 #include "tetrodotoxin/toolchain.hpp"
-#include "ttx/type.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
 using namespace Perimortem::System;
 using namespace Tetrodotoxin;
+using namespace Tetrodotoxin::Puffer;
 using namespace Tetrodotoxin::Puffer::Resolution;
 
 class Main {
  public:
-  Main() : library_compiler(arena), shader_compiler(arena) {}
+  Main() : terminal_plan(arena) {}
 
   auto run(View::Vector<View::Bytes> command_line) -> Signed_32 {
     Allocator::Arena args_arena;
@@ -66,14 +63,19 @@ class Main {
       return 1;
     }
 
-    if (terminal_count == 0) {
+    if (terminal_plan.is_empty()) {
       log_error("puffer: no TTX roots were selected for output\n"_view);
       return 1;
     }
 
+    if (!terminal_plan.lower()) {
+      print_errors(terminal_plan.get_errors());
+      return 1;
+    }
+
     Tetrodotoxin::Linker::Linker linker;
-    library_compiler.add_to(linker);
-    shader_compiler.add_to(linker);
+    linker.add(terminal_plan.get_library());
+    linker.add(terminal_plan.get_shader());
 
     View::Bytes output_path = arg_value(options, "output"_view);
     Dynamic::Bytes archive = linker.build_library("ttx_terminal.o"_view);
@@ -83,14 +85,14 @@ class Main {
     }
 
     View::Bytes header_path = arg_value(options, "header"_view);
-    Dynamic::Bytes header = build_header();
+    Dynamic::Bytes header = build_header(linker);
     if (!write_file(header_path, header.get_view())) {
       log_write_error("header"_view, header_path);
       return 1;
     }
 
     View::Bytes puffer_buffer_path = arg_value(options, "puffer"_view);
-    if (!write_file(puffer_buffer_path, puffer_buffer.get_view())) {
+    if (!write_file(puffer_buffer_path, terminal_plan.get_puffer_buffer())) {
       log_write_error("Puffer Buffer"_view, puffer_buffer_path);
       return 1;
     }
@@ -183,8 +185,7 @@ class Main {
     }
 
     Diagnostics::Log::info("puffer: starting LSP server"_view);
-    Puffer::Lsp::Rpc::Executor executor;
-    Puffer::Lsp::register_methods(executor);
+    Puffer::Lsp::Executor executor;
     executor.execute(pipe_name);
     return 0;
   }
@@ -241,14 +242,9 @@ class Main {
       }
 
       if (package) {
-        if (!add_package_terminals(resolver, *record)) {
-          return False;
-        }
+        terminal_plan.add_package(resolver, *record);
       } else {
-        add_terminal(*record);
-        if (!lower_record(*record)) {
-          return False;
-        }
+        terminal_plan.add_record(*record);
       }
     }
 
@@ -260,181 +256,14 @@ class Main {
     return True;
   }
 
-  auto add_package_terminals(Resolver& resolver, Source::Record& root) -> Bool {
-    Dynamic::Vector<Source::Record*> records;
-    resolver.collect_reachable(root, records);
-    for (Count i = 0; i < records.get_size(); i++) {
-      add_terminal(*records[i]);
-    }
-
-    // Render records establish the pipeline contracts the Shader compiler uses
-    // while lowering shader stages, so package mode lowers them first and then
-    // lowers the remaining reachable sources in resolver order.
-    for (Count i = 0; i < records.get_size(); i++) {
-      if (records[i]->get_boot().get_isa() != "Render"_view) {
-        continue;
-      }
-
-      if (!lower_record(*records[i])) {
-        return False;
-      }
-    }
-
-    for (Count i = 0; i < records.get_size(); i++) {
-      if (records[i]->get_boot().get_isa() == "Render"_view) {
-        continue;
-      }
-
-      if (!lower_record(*records[i])) {
-        return False;
-      }
-    }
-
-    return True;
-  }
-
-  auto lower_record(Source::Record& record) -> Bool {
-    if (record.get_type() == nullptr) {
-      return True;
-    }
-
-    View::Bytes module = build_module_name(record.get_source_path());
-    View::Bytes isa = record.get_boot().get_isa();
-    if (!package && isa == "Library"_view &&
-        !library_compiler.lower(module, *record.get_type())) {
-      Diagnostics::Log::Message<512> error_message(
-          Diagnostics::Log::Level::Error, Diagnostics::Source());
-      error_message << "puffer: "_view << library_compiler.get_error() << '\n';
-      return False;
-    }
-
-    if ((isa == "Render"_view || isa == "Shader"_view) &&
-        !shader_compiler.lower(module, *record.get_type())) {
-      Diagnostics::Log::Message<512> error_message(
-          Diagnostics::Log::Level::Error, Diagnostics::Source());
-      error_message << "puffer: "_view << shader_compiler.get_error() << '\n';
-      return False;
-    }
-
-    return True;
-  }
-
-  auto add_terminal(Source::Record& record) -> void {
-    append_field("source"_view, record.get_source_path());
-    append_field("import"_view, record.get_import_name());
-    append_field("isa"_view, record.get_boot().get_isa());
-    if (record.get_type() != nullptr) {
-      append_type_facts(*record.get_type(), record.get_type()->get_name());
-    }
-
-    terminal_count++;
-  }
-
-  auto append_field(View::Bytes name, View::Bytes value) -> void {
-    puffer_buffer.concat(name);
-    puffer_buffer.append(':');
-    puffer_buffer.append(' ');
-    puffer_buffer.concat(value);
-    puffer_buffer.append('\n');
-  }
-
-  auto append_type_facts(const Ttx::Type& type, View::Bytes path) -> void {
-    append_field("type"_view, path);
-
-    View::Vector<Ttx::Type::Member> members = type.get_members();
-    for (Count i = 0; i < members.get_size(); i++) {
-      append_member_fact(path, members[i]);
-    }
-
-    View::Vector<Ttx::Type::Function> functions = type.get_functions();
-    for (Count i = 0; i < functions.get_size(); i++) {
-      append_function_fact(path, functions[i]);
-    }
-
-    View::Vector<const Ttx::Type*> types = type.get_types();
-    for (Count i = 0; i < types.get_size(); i++) {
-      if (types[i] == nullptr) {
-        continue;
-      }
-
-      Dynamic::Bytes nested_path;
-      nested_path.concat(path);
-      nested_path.concat("::"_view);
-      nested_path.concat(types[i]->get_name());
-      append_type_facts(*types[i], nested_path.get_view());
-    }
-  }
-
-  auto append_member_fact(View::Bytes owner, const Ttx::Type::Member& member)
-      -> void {
-    puffer_buffer.concat("member: "_view);
-    puffer_buffer.concat(owner);
-    puffer_buffer.concat("."_view);
-    puffer_buffer.concat(
-        member.get_name().is_empty() ? "_"_view : member.get_name());
-    puffer_buffer.concat(" "_view);
-    puffer_buffer.concat(type_name(member.get_type()));
-    puffer_buffer.append('\n');
-  }
-
-  auto append_function_fact(
-      View::Bytes owner,
-      const Ttx::Type::Function& function) -> void {
-    puffer_buffer.concat("function: "_view);
-    puffer_buffer.concat(owner);
-    puffer_buffer.concat("->"_view);
-    puffer_buffer.concat(function.get_name());
-    puffer_buffer.concat(" params="_view);
-    append_decimal(puffer_buffer, function.get_parameters().get_size());
-    puffer_buffer.concat(" result="_view);
-    append_decimal(puffer_buffer, function.get_result().get_size());
-    puffer_buffer.concat(" blocks="_view);
-    append_decimal(puffer_buffer, function.get_blocks().get_size());
-    puffer_buffer.append('\n');
-  }
-
-  static auto type_name(const Ttx::Type* type) -> View::Bytes {
-    return type == nullptr ? "<unresolved>"_view : type->get_name();
-  }
-
-  auto build_module_name(View::Bytes source_path) -> View::Bytes {
-    Count start = 0;
-    for (Count i = 0; i < source_path.get_size(); i++) {
-      if (source_path[i] == '/' || source_path[i] == '\\') {
-        start = i + 1;
-      }
-    }
-
-    Count end = source_path.get_size();
-    for (Count i = start; i < source_path.get_size(); i++) {
-      if (source_path[i] == '.') {
-        end = i;
-      }
-    }
-
-    return keep(source_path.slice(start, end - start));
-  }
-
-  static auto append_decimal(Dynamic::Bytes& output, Count value) -> void {
-    Bits_8 digits[32];
-    Count digit_count = 0;
-    do {
-      digits[digit_count++] = Bits_8('0' + value % 10);
-      value /= 10;
-    } while (value != 0);
-
-    for (Count i = digit_count; i > 0; i--) {
-      output.append(digits[i - 1]);
-    }
-  }
-
-  auto build_header() -> Dynamic::Bytes {
+  auto build_header(const Tetrodotoxin::Linker::Linker& linker)
+      -> Dynamic::Bytes {
     Dynamic::Bytes header;
     header.concat(
         "#pragma once\n\n"
         "#include \"perimortem/core/view/bytes.hpp\"\n\n"
         "namespace Ttx {\n\n"_view);
-    library_compiler.append_header(header);
+    linker.append_header(header, terminal_plan.get_library());
     header.concat("\n}  // namespace Ttx\n"_view);
     return header;
   }
@@ -443,12 +272,6 @@ class Main {
     File file;
     file.update_contents(bytes);
     return file.write(path);
-  }
-
-  auto keep(View::Bytes bytes) -> View::Bytes {
-    Bits_8* copy = arena.allocate(bytes.get_size());
-    Data::copy(copy, bytes.get_data(), bytes.get_size());
-    return View::Bytes(copy, bytes.get_size());
   }
 
   static auto print_errors(const Resolver::Context& context) -> void {
@@ -465,11 +288,16 @@ class Main {
     }
   }
 
+  static auto print_errors(View::Vector<View::Bytes> errors) -> void {
+    for (Count i = 0; i < errors.get_size(); i++) {
+      Diagnostics::Log::Message<512> error_message(
+          Diagnostics::Log::Level::Error, Diagnostics::Source());
+      error_message << "puffer: "_view << errors[i] << '\n';
+    }
+  }
+
   Allocator::Arena arena;
-  Compiler::Library library_compiler;
-  Compiler::Shader shader_compiler;
-  Dynamic::Bytes puffer_buffer;
-  Count terminal_count = 0;
+  Terminal::Plan terminal_plan;
   Bool package = False;
 };
 

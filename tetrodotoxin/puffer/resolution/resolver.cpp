@@ -549,7 +549,7 @@ auto Resolver::execute_body(
   const auto* body_isa =
       toolchain.get_isa_registry().find(record.get_boot().get_isa());
   if (body_isa != nullptr) {
-    type = body_isa->get_evaluator()(isa_context, cursor);
+    type = body_isa->get_evaluator()(cursor, isa_context);
     if (type == nullptr) {
       executed_body_valid = False;
     }

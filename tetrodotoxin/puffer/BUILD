@@ -67,6 +67,24 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "terminal",
+    srcs = [
+        "terminal/plan.cpp",
+    ],
+    hdrs = [
+        "terminal/plan.hpp",
+    ],
+    include_prefix = "tetrodotoxin/puffer",
+    strip_include_prefix = ".",
+    deps = [
+        ":resolution",
+        "//perimortem",
+        "//tetrodotoxin:compiler",
+        "//ttx",
+    ],
+)
+
 cc_binary(
     name = "puffer",
     srcs = [
@@ -76,8 +94,8 @@ cc_binary(
         ":boot",
         ":lsp",
         ":resolution",
+        ":terminal",
         "//perimortem",
-        "//tetrodotoxin:compiler",
         "//tetrodotoxin:linker",
         "//tetrodotoxin:toolchain",
         "//ttx",
