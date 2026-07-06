@@ -3,11 +3,8 @@
 
 #include "validation/unit_test.hpp"
 
-#include "perimortem/core/static/vector.hpp"
 #include "perimortem/core/bibliotheca.hpp"
 #include "perimortem/core/null_terminated.hpp"
-
-#include "perimortem/memory/managed/vector.hpp"
 
 #include "perimortem/system/file.hpp"
 #include "perimortem/serialization/json/node.hpp"
@@ -424,14 +421,27 @@ PERIMORTEM_UNIT_TEST(SerializationJson, round_trip_init_rpc) {
 
 PERIMORTEM_UNIT_TEST(SerializationJson, format_number_zero) {
   Allocator::Arena arena;
-  const Json::Blueprint entries[] = {
-    {"a"_view, 0},
-    {"b"_view, 1},
-    {"c"_view, 10},
-  };
-  auto value = Json::Node::construct(arena, entries);
+  auto value = Json::Node::construct(
+      arena, Json::Blueprint{{
+               {"a"_view, 0},
+               {"b"_view, 1},
+               {"c"_view, 10},
+             }});
 
   constexpr auto expected = "{\"a\":0,\"b\":1,\"c\":10}"_view;
+  auto formated = value.format(arena);
+  ASSERT_TEXT(formated, expected);
+}
+
+PERIMORTEM_UNIT_TEST(SerializationJson, empty_array) {
+  Allocator::Arena arena;
+  auto value = Json::Node::construct(
+      arena, Json::Blueprint{{
+               {"name"_view, "items"_view},
+               Json::Blueprint::empty_array("items"_view),
+             }});
+
+  constexpr auto expected = "{\"name\":\"items\",\"items\":[]}"_view;
   auto formated = value.format(arena);
   ASSERT_TEXT(formated, expected);
 }
@@ -439,17 +449,18 @@ PERIMORTEM_UNIT_TEST(SerializationJson, format_number_zero) {
 PERIMORTEM_UNIT_TEST(SerializationJson, existing_node) {
   Allocator::Arena arena;
 
-  Managed::Vector<Json::Member> inner(arena);
-  inner.insert({"name"_view, Json::Node("ttx-server"_view)});
-  inner.insert({"version"_view, Json::Node("1.0"_view)});
-  const Json::Node inner_node(inner.get_view());
+  const Json::Node inner_node = Json::Node::construct(
+      arena, Json::Blueprint{{
+               {"name"_view, "ttx-server"_view},
+               {"version"_view, "1.0"_view},
+             }});
 
-  const Json::Blueprint entries[] = {
-    {"jsonrpc"_view, "2.0"_view},
-    {"id"_view, 1},
-    {"result"_view, inner_node},
-  };
-  auto value = Json::Node::construct(arena, entries);
+  auto value = Json::Node::construct(
+      arena, Json::Blueprint{{
+               {"jsonrpc"_view, "2.0"_view},
+               {"id"_view, 1},
+               {"result"_view, inner_node},
+             }});
 
   constexpr auto expected =
       "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{\"name\":\"ttx-server\","
@@ -482,16 +493,15 @@ PERIMORTEM_UNIT_TEST(SerializationJson, rpc_from_parsed) {
   ASSERT(parsed["jsonrpc"_view].is_string());
   ASSERT(parsed["id"_view].is_number());
 
-  Managed::Vector<Json::Member> result_obj(arena);
-  result_obj.insert({"serverInfo"_view, Json::Node("ttx"_view)});
-  const Json::Node result_node(result_obj.get_view());
-
-  const Json::Blueprint entries[] = {
-    {"jsonrpc"_view, parsed["jsonrpc"_view].get_string()},
-    {"id"_view, parsed["id"_view].get_number()},
-    {"result"_view, result_node},
-  };
-  auto response = Json::Node::construct(arena, entries);
+  auto response = Json::Node::construct(
+      arena, Json::Blueprint{{
+               {"jsonrpc"_view, parsed["jsonrpc"_view].get_string()},
+               {"id"_view, parsed["id"_view].get_number()},
+               {"result"_view,
+                {
+                  {"serverInfo"_view, "ttx"_view},
+                }},
+             }});
   auto formated = response.format(arena);
 
   ASSERT(formated.get_size() > 0);

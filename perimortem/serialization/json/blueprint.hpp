@@ -92,6 +92,10 @@ struct Blueprint {
   Blueprint(Core::View::Bytes member_name, const Node& node)
       : node_ptr(&node), name(member_name), tag(Tag::Node) {}
 
+  static auto empty_array(Core::View::Bytes member_name = {}) -> Blueprint {
+    return Blueprint(member_name, nullptr, 0);
+  }
+
   // Named Blueprint arrays are treated as a member entry in a hosting Object
   // that hosts a nested structure which could be an Array or Object.
   template <Count N>
@@ -102,6 +106,14 @@ struct Blueprint {
   template <Count N>
   Blueprint(const Blueprint (&children)[N])
       : compound{children, N}, tag(Tag::Compound) {}
+
+ private:
+  Blueprint(
+      Core::View::Bytes member_name,
+      const Blueprint* children,
+      Count child_count)
+      : compound{children, child_count}, name(member_name), tag(Tag::Compound) {
+  }
 };
 
 }  // namespace Perimortem::Serialization::Json

@@ -128,28 +128,27 @@ static auto classify_semantic_token(::Ttx::Lexical::Class klass)
 }
 
 auto Lsp::semantic_legend(Allocator::Arena& arena) -> Json::Node {
-  Managed::Vector<Json::Node> token_types(arena);
-  token_types.insert(Json::Node("namespace"_view));
-  token_types.insert(Json::Node("type"_view));
-  token_types.insert(Json::Node("class"_view));
-  token_types.insert(Json::Node("parameter"_view));
-  token_types.insert(Json::Node("variable"_view));
-  token_types.insert(Json::Node("property"_view));
-  token_types.insert(Json::Node("function"_view));
-  token_types.insert(Json::Node("keyword"_view));
-  token_types.insert(Json::Node("comment"_view));
-  token_types.insert(Json::Node("string"_view));
-  token_types.insert(Json::Node("number"_view));
-  token_types.insert(Json::Node("operator"_view));
-  token_types.insert(Json::Node("decorator"_view));
-
-  Managed::Vector<Json::Node> token_modifiers(arena);
-
-  Managed::Vector<Json::Member> legend(arena);
-  legend.insert({"tokenTypes"_view, Json::Node(token_types.get_view())});
-  legend.insert(
-      {"tokenModifiers"_view, Json::Node(token_modifiers.get_view())});
-  return Json::Node(legend.get_view());
+  return Json::Node::construct(
+      arena,
+      Json::Blueprint{{
+        {"tokenTypes"_view,
+         {
+           "namespace"_view,
+           "type"_view,
+           "class"_view,
+           "parameter"_view,
+           "variable"_view,
+           "property"_view,
+           "function"_view,
+           "keyword"_view,
+           "comment"_view,
+           "string"_view,
+           "number"_view,
+           "operator"_view,
+           "decorator"_view,
+         }},
+        Json::Blueprint::empty_array("tokenModifiers"_view),
+      }});
 }
 
 auto Lsp::semantic_tokens_for(Allocator::Arena& arena, View::Bytes source)
@@ -157,9 +156,12 @@ auto Lsp::semantic_tokens_for(Allocator::Arena& arena, View::Bytes source)
   Managed::Vector<Json::Node> data(arena);
 
   if (source.is_empty()) {
-    Managed::Vector<Json::Member> empty_result(arena);
-    empty_result.insert({"data"_view, Json::Node(data.get_view())});
-    return Json::Node(empty_result.get_view());
+    const Json::Node data_node(data.get_view());
+    return Json::Node::construct(
+        arena,
+        Json::Blueprint{{
+          {"data"_view, data_node},
+        }});
   }
 
   ::Ttx::Lexical::Tokenizer tokenizer(
@@ -209,7 +211,10 @@ auto Lsp::semantic_tokens_for(Allocator::Arena& arena, View::Bytes source)
     emitted = True;
   }
 
-  Managed::Vector<Json::Member> result(arena);
-  result.insert({"data"_view, Json::Node(data.get_view())});
-  return Json::Node(result.get_view());
+  const Json::Node data_node(data.get_view());
+  return Json::Node::construct(
+      arena,
+      Json::Blueprint{{
+        {"data"_view, data_node},
+      }});
 }
