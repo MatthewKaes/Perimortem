@@ -19,7 +19,9 @@ namespace Tetrodotoxin::Linker::Target {
 
 class Elf : public Format {
  public:
-  auto add_section(Object::Section section) -> void override;
+  Elf();
+
+  auto add_section(Object::Section section) -> Bits_16 override;
   auto add_symbol(Object::Symbol symbol) -> void override;
   auto add_relocation(Object::Relocation relocation) -> void override;
   auto build_library(Perimortem::Core::View::Bytes object_name)
@@ -36,7 +38,11 @@ class Elf : public Format {
 
   Perimortem::Memory::Dynamic::Vector<Object::Section> sections;
   Perimortem::Memory::Dynamic::Vector<Object::Symbol> symbols;
-  Perimortem::Memory::Dynamic::Vector<Object::Relocation> relocations;
+  Perimortem::Memory::Dynamic::Vector<
+      Perimortem::Memory::Dynamic::Vector<Object::Relocation>>
+      relocation_tables;
+  Count relocation_count = 0;
+  Count relocation_section_count = 0;
 };
 
 }  // namespace Tetrodotoxin::Linker::Target

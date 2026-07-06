@@ -29,20 +29,14 @@ class Symbol {
     Function = 2,
   };
 
-  enum class Location : Bits_8 {
-    Program,
-    Strings,
-    ReadOnly,
-    External,
-  };
-
   static constexpr auto create_string(
       Perimortem::Core::View::Bytes name,
+      Bits_16 section_index,
       Perimortem::Utility::Range range) -> Symbol {
     Symbol symbol;
     symbol.name = name;
     symbol.type = Type::Object;
-    symbol.location = Location::Strings;
+    symbol.section_index = section_index;
     symbol.visibility = Visibility::Local;
     symbol.range = range;
     return symbol;
@@ -50,11 +44,12 @@ class Symbol {
 
   static constexpr auto create_function(
       Perimortem::Core::View::Bytes name,
+      Bits_16 section_index,
       Visibility visibility) -> Symbol {
     Symbol symbol;
     symbol.name = name;
     symbol.type = Type::Function;
-    symbol.location = Location::Program;
+    symbol.section_index = section_index;
     symbol.visibility = visibility;
     symbol.range = {0, 0};
     return symbol;
@@ -62,12 +57,13 @@ class Symbol {
 
   static constexpr auto create_read_only(
       Perimortem::Core::View::Bytes name,
+      Bits_16 section_index,
       Perimortem::Utility::Range range,
       Visibility visibility = Visibility::Global) -> Symbol {
     Symbol symbol;
     symbol.name = name;
     symbol.type = Type::Object;
-    symbol.location = Location::ReadOnly;
+    symbol.section_index = section_index;
     symbol.visibility = visibility;
     symbol.range = range;
     return symbol;
@@ -79,7 +75,7 @@ class Symbol {
     Symbol symbol;
     symbol.name = name;
     symbol.type = type;
-    symbol.location = Location::External;
+    symbol.section_index = 0;
     symbol.visibility = Visibility::Global;
     symbol.range = {0, 0};
     return symbol;
@@ -88,12 +84,15 @@ class Symbol {
   constexpr auto get_name() const -> Perimortem::Core::View::Bytes {
     return name;
   }
-  constexpr auto get_location() const -> Location { return location; }
+  constexpr auto get_section_index() const -> Bits_16 {
+    return section_index;
+  }
   constexpr auto get_range() const -> Perimortem::Utility::Range {
     return range;
   }
   constexpr auto get_visibility() const -> Visibility { return visibility; }
   constexpr auto get_type() const -> Type { return type; }
+  constexpr auto is_external() const -> Bool { return section_index == 0; }
 
   constexpr auto set_range(Perimortem::Utility::Range range) -> void {
     this->range = range;
@@ -103,7 +102,7 @@ class Symbol {
   constexpr Symbol() = default;
 
   Perimortem::Core::View::Bytes name;
-  Location location = Location::External;
+  Bits_16 section_index = 0;
   Perimortem::Utility::Range range;
   Visibility visibility = Visibility::Local;
   Type type = Type::None;
