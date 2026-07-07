@@ -8,6 +8,7 @@
 #include "perimortem/memory/managed/vector.hpp"
 
 #include "tetrodotoxin/isa/attribute.hpp"
+#include "tetrodotoxin/isa/expression/type.hpp"
 #include "ttx/lexical/cursor.hpp"
 #include "ttx/type.hpp"
 
@@ -89,6 +90,18 @@ class Evaluator {
   }
 
  private:
+  static auto evaluate_type(
+      Ttx::Lexical::Cursor& cursor,
+      Tetrodotoxin::Isa::Context& context) -> const Ttx::Type* {
+    return Tetrodotoxin::Isa::Expression::Type::evaluate(cursor, context);
+  }
+
+  template <typename Scope>
+  static auto evaluate_type(Ttx::Lexical::Cursor& cursor, Scope& scope)
+      -> const Ttx::Type* {
+    return scope.resolve_type(cursor);
+  }
+
   template <typename Scope>
   static auto evaluate_type_member(
       Ttx::Lexical::Cursor& cursor,
@@ -97,7 +110,7 @@ class Evaluator {
       Perimortem::Memory::Managed::Vector<Ttx::Type::Member>& members)
       -> Bool {
     const Count error_count = cursor.get_errors().get_size();
-    const Ttx::Type* type = scope.resolve_type(cursor);
+    const Ttx::Type* type = evaluate_type(cursor, scope);
     if (cursor.get_errors().get_size() != error_count) {
       return False;
     }

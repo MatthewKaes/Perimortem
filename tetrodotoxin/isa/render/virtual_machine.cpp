@@ -9,6 +9,7 @@
 #include "tetrodotoxin/isa/definition.hpp"
 #include "tetrodotoxin/isa/documentation.hpp"
 #include "tetrodotoxin/isa/expression.hpp"
+#include "tetrodotoxin/isa/expression/type.hpp"
 #include "tetrodotoxin/isa/modifier.hpp"
 #include "tetrodotoxin/isa/render/interface.hpp"
 #include "tetrodotoxin/isa/render/stage.hpp"
@@ -25,7 +26,8 @@ static auto evaluate_member(
     View::Bytes initializer_error,
     View::Bytes unresolved_error) -> Ttx::Type::Member {
   const Count error_count = cursor.get_errors().get_size();
-  const Ttx::Type* type = context.resolve_type(cursor, definition.get_kind());
+  const Ttx::Type* type =
+      Expression::Type::evaluate(cursor, context, definition.get_kind());
   if (cursor.get_errors().get_size() != error_count) {
     return Ttx::Type::Member();
   }

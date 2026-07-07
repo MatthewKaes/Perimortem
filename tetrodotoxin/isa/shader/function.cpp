@@ -5,8 +5,8 @@
 
 #include "perimortem/memory/managed/vector.hpp"
 
-#include "tetrodotoxin/isa/expression.hpp"
 #include "tetrodotoxin/isa/layout/evaluator.hpp"
+#include "tetrodotoxin/isa/shader/block.hpp"
 
 using namespace Perimortem::Memory;
 using namespace Tetrodotoxin::Isa;
@@ -44,9 +44,7 @@ auto Shader::Function::evaluate(
   }
 
   Managed::Vector<Ttx::Type::Function::Block> blocks(context.get_arena());
-  if (!Expression::consume_block(
-          cursor, "Expected `{` after shader function signature."_view,
-          "Expected `}` after shader function body."_view, blocks)) {
+  if (!Shader::Block::evaluate(cursor, context, blocks)) {
     return Ttx::Type::Function();
   }
 

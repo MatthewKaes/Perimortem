@@ -3,6 +3,7 @@
 
 #include "tetrodotoxin/isa/package/export.hpp"
 
+#include "tetrodotoxin/isa/expression/type.hpp"
 #include "tetrodotoxin/isa/package/group.hpp"
 
 using namespace Perimortem::Core;
@@ -43,7 +44,7 @@ auto Package::Export::evaluate(
   }
 
   const Count error_count = cursor.get_errors().get_size();
-  const Ttx::Type* target = context.resolve_type(cursor);
+  const Ttx::Type* target = Expression::Type::evaluate(cursor, context);
   if (cursor.get_errors().get_size() != error_count) {
     return Package::Export();
   }

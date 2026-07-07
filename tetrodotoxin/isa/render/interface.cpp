@@ -13,6 +13,7 @@
 #include "tetrodotoxin/isa/definition.hpp"
 #include "tetrodotoxin/isa/documentation.hpp"
 #include "tetrodotoxin/isa/expression.hpp"
+#include "tetrodotoxin/isa/expression/type.hpp"
 #include "tetrodotoxin/isa/modifier.hpp"
 
 using namespace Perimortem::Core;
@@ -87,7 +88,8 @@ auto Render::Interface::evaluate(
     }
 
     const Count error_count = cursor.get_errors().get_size();
-    const Ttx::Type* type = context.resolve_type(cursor, definition.get_kind());
+    const Ttx::Type* type =
+        Expression::Type::evaluate(cursor, context, definition.get_kind());
     if (cursor.get_errors().get_size() != error_count) {
       return nullptr;
     }

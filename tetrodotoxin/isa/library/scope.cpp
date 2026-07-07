@@ -3,7 +3,8 @@
 
 #include "tetrodotoxin/isa/library/scope.hpp"
 
-#include "ttx/core/types.hpp"
+#include "tetrodotoxin/isa/expression/type.hpp"
+#include "tetrodotoxin/standard/types.hpp"
 
 using namespace Perimortem::Core;
 using namespace Tetrodotoxin::Isa;
@@ -18,8 +19,8 @@ auto Library::Scope::declare_type(
     Count body_index,
     Count next_index) -> Bool {
   View::Bytes name = definition.get_name();
-  if (context.find_type(name) || Ttx::Core::Types::find_type(name) ||
-      declarations.find(name)) {
+  if (context.find_type(name) || declarations.find(name) ||
+      Tetrodotoxin::Standard::Types::is_type(name)) {
     return False;
   }
 
@@ -34,8 +35,13 @@ auto Library::Scope::declare_type(
 auto Library::Scope::materialize_type(Cursor& cursor, View::Bytes name)
     -> const Ttx::Type* {
   const Ttx::Type* type = context.find_type(name);
-  if (type || Ttx::Core::Types::find_type(name)) {
-    return type ? type : Ttx::Core::Types::find_type(name);
+  if (type != nullptr) {
+    return type;
+  }
+
+  type = Tetrodotoxin::Standard::Types::find_type(name);
+  if (type != nullptr) {
+    return type;
   }
 
   auto* entry = declarations.find(name);
@@ -120,5 +126,5 @@ auto Library::Scope::resolve_type(Cursor& cursor) -> const Ttx::Type* {
 auto Library::Scope::resolve_type(Cursor& cursor, View::Bytes root_name)
     -> const Ttx::Type* {
   const Ttx::Type* type = materialize_type(cursor, root_name);
-  return context.resolve_type(cursor, type);
+  return Expression::Type::evaluate(cursor, context, type);
 }

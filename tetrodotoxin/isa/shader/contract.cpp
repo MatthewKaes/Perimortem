@@ -3,6 +3,7 @@
 
 #include "tetrodotoxin/isa/shader/contract.hpp"
 
+#include "tetrodotoxin/isa/expression/type.hpp"
 #include "ttx/layout.hpp"
 
 using namespace Perimortem::Core;
@@ -18,7 +19,7 @@ auto Shader::Contract::resolve(Cursor& cursor, Context& context)
   }
 
   const Count error_count = cursor.get_errors().get_size();
-  const Ttx::Type* contract = context.resolve_type(cursor);
+  const Ttx::Type* contract = Expression::Type::evaluate(cursor, context);
   if (cursor.get_errors().get_size() != error_count) {
     return nullptr;
   }

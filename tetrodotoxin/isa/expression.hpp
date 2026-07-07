@@ -21,6 +21,7 @@ namespace Tetrodotoxin::Isa {
 class Expression {
  public:
   class Pack;
+  class Type;
   class Value;
 
   static constexpr auto is_index_start(Ttx::Lexical::Class::Type type)
