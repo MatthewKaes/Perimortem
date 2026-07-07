@@ -138,15 +138,13 @@ class Map {
         __is_trivially_copyable(key_type) &&
         __is_trivially_copyable(value_type)) {
       memcpy(
-          buffer_data.bucket_buffer,
-          rhs.buffer_data.bucket_buffer,
+          buffer_data.bucket_buffer, rhs.buffer_data.bucket_buffer,
           required_buffer_size(rhs.buffer_data.bucket_count));
       return;
     }
 
     memcpy(
-        buffer_data.bucket_buffer,
-        rhs.buffer_data.bucket_buffer,
+        buffer_data.bucket_buffer, rhs.buffer_data.bucket_buffer,
         get_header_size(rhs.buffer_data.bucket_count));
 
     for (Count bucket_index = 0; bucket_index < buffer_data.bucket_count;
@@ -304,8 +302,7 @@ class Map {
   }
 
   auto get_entry(Count index) -> Entry* {
-    return const_cast<Entry*>(
-        static_cast<const Map*>(this)->get_entry(index));
+    return const_cast<Entry*>(static_cast<const Map*>(this)->get_entry(index));
   }
 
   auto get_entry(Count index) const -> const Entry* {
@@ -464,22 +461,18 @@ class Map {
     }
   }
 
-  auto set_slot_key(
-      Count bucket_index,
-      Count slot_index,
-      vector_key_type key) -> void {
+  auto set_slot_key(Count bucket_index, Count slot_index, vector_key_type key)
+      -> void {
     if constexpr (vector_mode == MapVectorization::Scalar) {
       buffer_data.bucket_buffer[bucket_index] = key;
     } else {
-      Core::Data::cast<Bits_8>(buffer_data.bucket_buffer + bucket_index)
-          [slot_index] = key;
+      Core::Data::cast<Bits_8>(
+          buffer_data.bucket_buffer + bucket_index)[slot_index] = key;
     }
   }
 
-  auto advance(
-      Count bucket_index,
-      Count target_index,
-      Count source_index) -> void {
+  auto advance(Count bucket_index, Count target_index, Count source_index)
+      -> void {
     if constexpr (vector_mode != MapVectorization::Scalar) {
       Bits_8* bucket_bytes =
           Core::Data::cast<Bits_8>(buffer_data.bucket_buffer + bucket_index);
@@ -491,8 +484,8 @@ class Map {
     if constexpr (vector_mode == MapVectorization::Scalar) {
       clear_bucket(buffer_data.bucket_buffer + bucket_index);
     } else {
-      Core::Data::cast<Bits_8>(buffer_data.bucket_buffer + bucket_index)
-          [slot_index] = 0;
+      Core::Data::cast<Bits_8>(
+          buffer_data.bucket_buffer + bucket_index)[slot_index] = 0;
     }
   }
 
@@ -521,9 +514,8 @@ class Map {
     }
   }
 
-  static constexpr auto clear_match(
-      mask_type& possible_matches,
-      Count index) -> void {
+  static constexpr auto clear_match(mask_type& possible_matches, Count index)
+      -> void {
     if constexpr (vector_mode == MapVectorization::Scalar) {
       possible_matches = False;
     } else {
@@ -546,8 +538,7 @@ class Map {
         occupied_slots(buffer_data.bucket_buffer[bucket_index]);
     Count last_slot_index = count_occupied(occupancy_bits) - 1;
     slot_type* removed_slot = slot_at(buffer_data, bucket_index, slot_index);
-    slot_type* dead_slot =
-        slot_at(buffer_data, bucket_index, last_slot_index);
+    slot_type* dead_slot = slot_at(buffer_data, bucket_index, last_slot_index);
 
     // Keep each bucket packed. If this bucket was full, remove() rehashes after
     // compaction so any longer probe chain is rebuilt from home.
@@ -589,6 +580,12 @@ class Map {
   }
 
   auto rehash(const Count new_bucket_count) -> void {
+    // If the prior state was empty then there is nothing to rehash.
+    if (buffer_data.bucket_count == 0) {
+      buffer_data = create_buffer(new_bucket_count);
+      return;
+    }
+
     // Store the old values to clone.
     auto current_buffer = buffer_data;
 
@@ -612,8 +609,7 @@ class Map {
            entry_index++) {
         auto valid_slot = slot_at(current_buffer, bucket_index, entry_index);
         emplace_hashed(
-            valid_slot,
-            stored_hash(current_buffer, bucket_index, valid_slot));
+            valid_slot, stored_hash(current_buffer, bucket_index, valid_slot));
       }
     }
 

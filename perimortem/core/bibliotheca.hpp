@@ -44,6 +44,9 @@ class Bibliotheca final {
   // Adds a reservation to the block.
   static auto reserve(Bits_8* entry) -> Count;
 
+  // Returns the number of active reservations on the block.
+  static auto reservation_count(Bits_8* entry) -> Count;
+
   // Removes a reservation from the block.
   // If the number of reservations is zero then the block is checked in to the
   // Bibliotheca for future use.

@@ -341,6 +341,11 @@ auto Bibliotheca::reserve(Bits_8* data) -> Count {
   return entry->reservations++;
 }
 
+auto Bibliotheca::reservation_count(Bits_8* data) -> Count {
+  auto entry = corpus_to_preface(data);
+  return entry->reservations;
+}
+
 auto Bibliotheca::remit(Bits_8* data) -> Count {
   auto entry = corpus_to_preface(data);
   entry->reservations--;
