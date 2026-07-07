@@ -3,43 +3,38 @@
 
 #pragma once
 
-#include "perimortem/core/view/bytes.hpp"
-#include "perimortem/core/bibliotheca.hpp"
 #include "perimortem/core/data.hpp"
+#include "perimortem/core/view/bytes.hpp"
 
 #include "perimortem/memory/allocator/arena.hpp"
-#include "perimortem/memory/dynamic/bytes.hpp"
 
 #include "tetrodotoxin/puffer/isa/boot/envelope.hpp"
+#include "ttx/lexical/tokenizer.hpp"
 #include "ttx/type.hpp"
 
 namespace Tetrodotoxin::Puffer::Resolution::Source {
 
 // Stable source entry owned by the resolution cache.
 //
-// A record owns the storage whose lifetime is exactly one resolved source file:
-// normalized source path, source bytes, evaluation arena, Boot preamble, and
-// the root TTX type published by the selected ISAs are all stored by the
-// Record. The Resolver's `Cache` owns lookup keys and dependency edges which
-// keeps the Record focused on the local virtualized state of executing a single
-// TTX token bytecode stream.
+// A record owns the storage whose lifetime is exactly one resolved source file.
+// Source bytes, token bytes, the Boot preamble, and the root TTX type produced
+// by the selected ISA all live in this arena. The Resolver and Cache keep
+// Record alive through Dynamic::Object handles, leaving Record focused on the
+// local virtualized state of one source stream.
 class Record {
  public:
-  static auto create(
-      Perimortem::Core::View::Bytes source_path,
-      Perimortem::Core::View::Bytes source_text,
-      Bool private_source = False) -> Record& {
-    auto allocation = Perimortem::Core::Bibliotheca::check_out(sizeof(Record));
-    return *new (allocation.ptr)
-        Record(source_path, source_text, private_source);
-  }
+  Record(
+      Perimortem::Core::View::Bytes path,
+      Perimortem::Core::View::Bytes text,
+      Bool private_record)
+      : source_path(copy(arena, path)),
+        import_name(source_path),
+        source_text(copy(arena, text)),
+        tokenizer(arena, source_text, source_path),
+        private_source(private_record) {}
 
-  static auto destroy(Record& record) -> void {
-    record.~Record();
-    Perimortem::Core::Bibliotheca::remit(
-        Perimortem::Core::Data::cast<Bits_8>(&record));
-  }
-
+  // Records are single lifetime owning objects and the `Dynamic::Object`
+  // wrapper should be used to create handles.
   Record(const Record&) = delete;
   auto operator=(const Record&) -> Record& = delete;
 
@@ -55,8 +50,8 @@ class Record {
     }
   }
 
-  constexpr auto get_arena() -> Perimortem::Memory::Allocator::Arena& {
-    return arena;
+  constexpr auto get_tokenizer() const -> const Ttx::Lexical::Tokenizer& {
+    return tokenizer;
   }
   constexpr auto get_source_path() const -> Perimortem::Core::View::Bytes {
     return source_path;
@@ -79,19 +74,23 @@ class Record {
   constexpr auto is_private() const -> Bool { return private_source; }
 
  private:
-  Record(
-      Perimortem::Core::View::Bytes source_path,
-      Perimortem::Core::View::Bytes source_text,
-      Bool private_source)
-      : source_path(source_path),
-        import_name(source_path),
-        source_text(source_text),
-        private_source(private_source) {}
+  static auto copy(
+      Perimortem::Memory::Allocator::Arena& arena,
+      Perimortem::Core::View::Bytes bytes) -> Perimortem::Core::View::Bytes {
+    if (bytes.is_empty()) {
+      return Perimortem::Core::View::Bytes();
+    }
+
+    Bits_8* data = arena.allocate(bytes.get_size());
+    Perimortem::Core::Data::copy(data, bytes.get_data(), bytes.get_size());
+    return Perimortem::Core::View::Bytes(data, bytes.get_size());
+  }
 
   Perimortem::Memory::Allocator::Arena arena;
-  Perimortem::Memory::Dynamic::Bytes source_path;
-  Perimortem::Memory::Dynamic::Bytes import_name;
-  Perimortem::Memory::Dynamic::Bytes source_text;
+  Perimortem::Core::View::Bytes source_path;
+  Perimortem::Core::View::Bytes import_name;
+  Perimortem::Core::View::Bytes source_text;
+  Ttx::Lexical::Tokenizer tokenizer;
   Tetrodotoxin::Puffer::Isa::Boot::Envelope* boot_info = nullptr;
   Ttx::Type* type = nullptr;
   Bool private_source = False;

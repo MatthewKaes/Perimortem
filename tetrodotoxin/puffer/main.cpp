@@ -20,6 +20,7 @@
 #include "tetrodotoxin/puffer/resolution/source/record.hpp"
 #include "tetrodotoxin/puffer/terminal/plan.hpp"
 #include "tetrodotoxin/toolchain.hpp"
+#include "ttx/lexical/errors.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -105,6 +106,15 @@ class Main {
 
   static constexpr View::Bytes help_summary =
       "Compile TTX sources into archives and Puffer Buffers for Bazel."_view;
+  // Keep terminal source diagnostics visually aligned with the bundled TTX
+  // editor theme: red for the failing span, muted brown for context.
+  static constexpr View::Bytes diagnostic_reset = "\x1b[0m"_view;
+  static constexpr View::Bytes diagnostic_error =
+      "\x1b[38;2;221;109;114m"_view;
+  static constexpr View::Bytes diagnostic_source =
+      "\x1b[38;2;216;216;216m"_view;
+  static constexpr View::Bytes diagnostic_hint =
+      "\x1b[38;2;120;112;101m"_view;
 
   static auto log_error(View::Bytes message) -> void {
     Diagnostics::Log::error(message, Diagnostics::Source());
@@ -274,26 +284,113 @@ class Main {
     return file.write(path);
   }
 
-  static auto print_errors(const Resolver::Context& context) -> void {
-    for (Count i = 0; i < context.get_errors().get_size(); i++) {
-      auto error = context.get_errors()[i];
-      Diagnostics::Log::Message<2048> error_message(
-          Diagnostics::Log::Level::Error, Diagnostics::Source());
-      error_message << error.get_source_path();
-      const Ttx::Lexical::Token* token = error.get_start_token();
-      if (token != nullptr) {
-        error_message << ':' << token->get_line() << ':' << token->get_column();
+  static auto source_line(View::Bytes source, Count line) -> View::Bytes {
+    Count current_line = 1;
+    Count line_start = 0;
+    for (Count i = 0; i < source.get_size(); i++) {
+      if (source[i] != '\n') {
+        continue;
       }
-      error_message << ": "_view << error.get_message() << '\n';
+
+      if (current_line == line) {
+        return source.slice(line_start, i - line_start);
+      }
+
+      current_line++;
+      line_start = i + 1;
+    }
+
+    return current_line == line
+               ? source.slice(line_start, source.get_size() - line_start)
+               : View::Bytes();
+  }
+
+  static auto highlight_width(
+      const Ttx::Lexical::Token& start,
+      const Ttx::Lexical::Token* end,
+      View::Bytes line) -> Count {
+    Count start_column = start.get_column();
+    Count line_end_column = line.get_size() + 1;
+    if (end == nullptr || end->get_line() != start.get_line()) {
+      return line_end_column > start_column
+                 ? line_end_column - start_column
+                 : Count(1);
+    }
+
+    Count end_column = Count(end->get_column()) + end->get_text().get_size();
+    return end_column > start_column ? end_column - start_column : Count(1);
+  }
+
+  template <Count size>
+  static auto append_hint(
+      Diagnostics::Log::Message<size>& error_message,
+      const Ttx::Lexical::Errors::Error& error) -> void {
+    if (error.get_hint().is_empty()) {
+      return;
+    }
+
+    error_message << "  "_view << diagnostic_hint << "hint: "_view
+                  << error.get_hint() << diagnostic_reset << '\n';
+  }
+
+  template <Count size>
+  static auto append_source_range(
+      Diagnostics::Log::Message<size>& error_message,
+      const Ttx::Lexical::Errors::Error& error) -> void {
+    const Ttx::Lexical::Token* start = error.get_start_token();
+    if (start == nullptr || error.get_source().is_empty()) {
+      append_hint(error_message, error);
+      return;
+    }
+
+    View::Bytes line = source_line(error.get_source(), start->get_line());
+    if (line.is_empty()) {
+      append_hint(error_message, error);
+      return;
+    }
+
+    error_message << "  "_view << diagnostic_source << line << diagnostic_reset
+                  << '\n' << "  "_view;
+    for (Count i = 1; i < start->get_column(); i++) {
+      error_message << ' ';
+    }
+
+    Count width = highlight_width(*start, error.get_end_token(), line);
+    error_message << diagnostic_error << '^';
+    for (Count i = 1; i < width; i++) {
+      error_message << '~';
+    }
+    error_message << diagnostic_reset << '\n';
+    append_hint(error_message, error);
+  }
+
+  static auto print_errors(View::Vector<Ttx::Lexical::Errors::Error> errors)
+      -> void {
+    for (Count i = 0; i < errors.get_size(); i++) {
+      Diagnostics::Log::Message<4096> error_message(
+          Diagnostics::Log::Level::Error, Diagnostics::Source());
+      if (!errors[i].get_source_path().is_empty()) {
+        error_message << errors[i].get_source_path();
+        const Ttx::Lexical::Token* token = errors[i].get_start_token();
+        if (token != nullptr) {
+          error_message << ':' << token->get_line() << ':'
+                        << token->get_column();
+        }
+        error_message << ": "_view;
+      } else {
+        error_message << "puffer: "_view;
+      }
+      error_message << "error: "_view << diagnostic_error
+                    << errors[i].get_message() << diagnostic_reset << '\n';
+      append_source_range(error_message, errors[i]);
+      if (i + 1 < errors.get_size()) {
+        error_message << '\n';
+      }
     }
   }
 
-  static auto print_errors(View::Vector<View::Bytes> errors) -> void {
-    for (Count i = 0; i < errors.get_size(); i++) {
-      Diagnostics::Log::Message<512> error_message(
-          Diagnostics::Log::Level::Error, Diagnostics::Source());
-      error_message << "puffer: "_view << errors[i] << '\n';
-    }
+  static auto print_errors(const Resolver::Context& context) -> void {
+    print_errors(context.get_errors());
   }
 
   Allocator::Arena arena;

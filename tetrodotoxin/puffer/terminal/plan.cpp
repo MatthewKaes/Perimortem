@@ -13,73 +13,55 @@ using namespace Tetrodotoxin::Puffer;
 using namespace Tetrodotoxin::Puffer::Resolution;
 
 auto Terminal::Plan::add_record(Record& record) -> void {
-  if (records.contains(&record)) {
+  if (!record_set.insert(&record)) {
     return;
   }
 
   records.insert(&record);
-  add_to_kind(record, classify(record));
   append_terminal(record);
 }
 
 auto Terminal::Plan::add_package(Resolver& resolver, Record& root) -> void {
-  Dynamic::Vector<Record*> reachable;
-  resolver.collect_reachable(root, reachable);
-  for (Count i = 0; i < reachable.get_size(); i++) {
-    add_record(*reachable[i]);
-  }
+  resolver.visit_reachable(
+      root, [this](Record& record) -> void { add_record(record); });
 }
 
 auto Terminal::Plan::lower() -> Bool {
   // Render records only register contract facts with the Shader compiler today,
   // but that must happen before any Shader record tries to emit stage modules.
-  return lower_records(library_records) &&
-         lower_records(render_records) &&
-         lower_records(shader_records);
+  return lower_kind(RecordKind::Library) &&
+         lower_kind(RecordKind::Render) &&
+         lower_kind(RecordKind::Shader);
 }
 
-auto Terminal::Plan::add_to_kind(Record& record, RecordKind kind) -> void {
-  switch (kind) {
-  case RecordKind::Package:
-    return;
-  case RecordKind::Library:
-    library_records.insert(&record);
-    return;
-  case RecordKind::Render:
-    render_records.insert(&record);
-    return;
-  case RecordKind::Shader:
-    shader_records.insert(&record);
-    return;
-  case RecordKind::Other:
-    return;
-  }
-}
-
-auto Terminal::Plan::lower_records(View::Vector<Record*> records) -> Bool {
+auto Terminal::Plan::lower_kind(RecordKind kind) -> Bool {
+  Bool valid = True;
   for (Count i = 0; i < records.get_size(); i++) {
-    if (!lower_record(*records[i])) {
-      return False;
+    if (classify(*records[i]) == kind && !lower_record(*records[i], kind)) {
+      valid = False;
     }
   }
 
-  return True;
+  return valid;
 }
 
-auto Terminal::Plan::lower_record(Record& record) -> Bool {
+auto Terminal::Plan::lower_record(Record& record, RecordKind kind) -> Bool {
   const Ttx::Type* type = record.get_type();
   if (type == nullptr) {
     return True;
   }
 
   View::Bytes module = build_module_name(record.get_source_path());
-  switch (classify(record)) {
+  Ttx::Lexical::Source source(record.get_source_path(), record.get_content());
+  switch (kind) {
   case RecordKind::Library:
-    return library_compiler.lower(compiler_context, module, *type);
+    return library_compiler.lower(
+        arena, compiler_errors, source, module, *type);
 
   case RecordKind::Render:
   case RecordKind::Shader:
-    return shader_compiler.lower(compiler_context, module, *type);
+    return shader_compiler.lower(
+        arena, compiler_errors, source, module, *type);
 
   case RecordKind::Package:
   case RecordKind::Other:

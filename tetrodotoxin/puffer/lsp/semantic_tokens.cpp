@@ -167,7 +167,7 @@ auto Lsp::semantic_tokens_for(Allocator::Arena& arena, View::Bytes source)
   ::Ttx::Lexical::Tokenizer tokenizer(
       arena, source, "lsp-buffer.ttx"_view, False);
   View::Vector<::Ttx::Lexical::Token> tokens = tokenizer.get_tokens();
-  ::Ttx::Lexical::Cursor cursor(tokenizer);
+  ::Ttx::Lexical::Cursor cursor(tokenizer, arena);
   const auto toolchain = ::Tetrodotoxin::Toolchain::standard();
   auto* boot = ::Tetrodotoxin::Puffer::Isa::Boot::VirtualMachine::evaluate(
       cursor, toolchain.get_isa_registry());

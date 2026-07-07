@@ -7,27 +7,10 @@ using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
 using namespace Tetrodotoxin::Puffer::Resolution;
 
-static auto insert_once(
-    Dynamic::Vector<Source::Record*>& records,
-    Source::Record& record) -> void {
-  if (!records.contains(&record)) {
-    records.insert(&record);
-  }
-}
-
-static auto remove_record(
-    Dynamic::Vector<Source::Record*>& records,
-    const Source::Record& record) -> void {
-  for (Count i = 0; i < records.get_size(); i++) {
-    if (records[i] == &record) {
-      records.remove(i);
-      return;
-    }
-  }
-}
-
 auto Source::Cache::reset() -> void {
   while (records.get_size() != 0) {
+    // Every published import name points at a valid record. Removing the first
+    // map entry drains the cache because import names are the only cache keys.
     remove(*records.get_entry(0)->value);
   }
 
@@ -36,31 +19,28 @@ auto Source::Cache::reset() -> void {
 }
 
 auto Source::Cache::find(View::Bytes key) -> Source::Record* {
-  return const_cast<Record*>(static_cast<const Cache*>(this)->find(key));
+  auto* entry = records.find(key);
+  return entry == nullptr ? nullptr : &*entry->value;
 }
 
 auto Source::Cache::find(View::Bytes key) const -> const Source::Record* {
   const auto* entry = records.find(key);
-  return entry == nullptr ? nullptr : entry->value;
+  return entry == nullptr ? nullptr : &*entry->value;
 }
 
-auto Source::Cache::publish(Record& record) -> Record& {
-  Record* current = find(record.get_source_path());
-  if (current != nullptr && current != &record) {
+auto Source::Cache::publish(Dynamic::Object<Record>& record) -> Record& {
+  Record& published = *record;
+
+  Record* current = find(published.get_import_name());
+  if (current != nullptr && current != &published) {
     remove(*current);
   }
 
-  current = find(record.get_import_name());
-  if (current != nullptr && current != &record) {
-    remove(*current);
-  }
+  records.insert(published.get_import_name(), record);
+  consumers_by_producer.at(&published);
+  producers_by_consumer.at(&published);
 
-  records.insert(record.get_source_path(), &record);
-  if (record.get_import_name() != record.get_source_path()) {
-    records.insert(record.get_import_name(), &record);
-  }
-
-  return record;
+  return published;
 }
 
 auto Source::Cache::remove(View::Bytes key) -> void {
@@ -73,101 +53,68 @@ auto Source::Cache::remove(View::Bytes key) -> void {
 }
 
 auto Source::Cache::connect(Record& consumer, Record& producer) -> void {
-  insert_once(consumers_by_producer.at(&producer), consumer);
-  insert_once(producers_by_consumer.at(&consumer), producer);
+  consumers_by_producer.find(&producer)->value.insert(&consumer);
+  producers_by_consumer.find(&consumer)->value.insert(&producer);
 }
 
-auto Source::Cache::collect_transitive_consumers(
+auto Source::Cache::collect_consumers(
     const Record& record,
     Dynamic::Vector<Record*>& consumers) const -> void {
   const auto* entry = consumers_by_producer.find(&record);
-  if (entry == nullptr) {
-    return;
-  }
-
-  for (Count i = 0; i < entry->value.get_size(); i++) {
-    Record* consumer = entry->value[i];
+  entry->value.visit([&](Record* consumer) -> void {
     if (consumers.contains(consumer)) {
-      continue;
+      return;
     }
 
     consumers.insert(consumer);
-    collect_transitive_consumers(*consumer, consumers);
-  }
+    collect_consumers(*consumer, consumers);
+  });
 }
 
-auto Source::Cache::collect_transitive_producers(
-    const Record& record,
-    Dynamic::Vector<Record*>& producers) const -> void {
-  const auto* entry = producers_by_consumer.find(&record);
-  if (entry == nullptr) {
+auto Source::Cache::collect_removal_plan(
+    Record& record,
+    Dynamic::Vector<Record*>& records) const -> void {
+  if (records.contains(&record)) {
     return;
   }
+  records.insert(&record);
 
-  for (Count i = 0; i < entry->value.get_size(); i++) {
-    Record* producer = entry->value[i];
-    if (producers.contains(producer)) {
-      continue;
-    }
-
-    producers.insert(producer);
-    collect_transitive_producers(*producer, producers);
-  }
+  const auto* entry = consumers_by_producer.find(&record);
+  entry->value.visit([&](Record* consumer) -> void {
+    collect_removal_plan(*consumer, records);
+  });
 }
 
 auto Source::Cache::remove(Record& record) -> void {
-  while (true) {
-    auto* entry = consumers_by_producer.find(&record);
-    if (entry == nullptr || entry->value.get_size() == 0) {
-      break;
-    }
+  Dynamic::Vector<Record*> removal_plan;
+  collect_removal_plan(record, removal_plan);
 
-    remove(*entry->value[0]);
+  // Cache records are address identities. A replaced producer invalidates every
+  // transitive consumer before any owning handle is released, because consumer
+  // facts can point into producer arenas. The plan keeps those pointers stable
+  // while dependency indexes and public lookup keys are erased.
+  for (Count i = 0; i < removal_plan.get_size(); i++) {
+    detach(*removal_plan[i]);
   }
 
-  detach(record);
-  records.remove(record.get_source_path());
-  if (record.get_import_name() != record.get_source_path()) {
-    records.remove(record.get_import_name());
+  for (Count i = 0; i < removal_plan.get_size(); i++) {
+    Record& removed = *removal_plan[i];
+    consumers_by_producer.remove(&removed);
+    producers_by_consumer.remove(&removed);
+    records.remove(removed.get_import_name());
   }
-  Record::destroy(record);
 }
 
 auto Source::Cache::detach(Record& record) -> void {
-  auto* producers_entry = producers_by_consumer.find(&record);
-  if (producers_entry != nullptr) {
-    Records producers = producers_entry->value;
-    producers_by_consumer.remove(&record);
+  // Dependency edges are inserted into both maps by `connect`. The reciprocal
+  // entry is part of the cache invariant, so detach only removes edges from the
+  // opposite sets. Record entries are removed once the whole invalidation plan
+  // is detached.
+  producers_by_consumer.find(&record)->value.visit([&](Record* producer) {
+    consumers_by_producer.find(producer)->value.remove(&record);
+  });
 
-    for (Count i = 0; i < producers.get_size(); i++) {
-      auto* consumers_entry = consumers_by_producer.find(producers[i]);
-      if (consumers_entry == nullptr) {
-        continue;
-      }
-
-      remove_record(consumers_entry->value, record);
-      if (consumers_entry->value.get_size() == 0) {
-        consumers_by_producer.remove(producers[i]);
-      }
-    }
-  }
-
-  auto* consumers_entry = consumers_by_producer.find(&record);
-  if (consumers_entry != nullptr) {
-    Records consumers = consumers_entry->value;
-    consumers_by_producer.remove(&record);
-
-    for (Count i = 0; i < consumers.get_size(); i++) {
-      auto* consumer_producers =
-          producers_by_consumer.find(consumers[i]);
-      if (consumer_producers == nullptr) {
-        continue;
-      }
-
-      remove_record(consumer_producers->value, record);
-      if (consumer_producers->value.get_size() == 0) {
-        producers_by_consumer.remove(consumers[i]);
-      }
-    }
-  }
+  consumers_by_producer.find(&record)->value.visit([&](Record* consumer) {
+    producers_by_consumer.find(consumer)->value.remove(&record);
+  });
 }
