@@ -118,3 +118,21 @@ PERIMORTEM_UNIT_TEST(DynamicObject, map_owner) {
   values.remove(0);
   EXPECT_EQ(destructor_count, Count(1));
 }
+
+PERIMORTEM_UNIT_TEST(DynamicObject, map_rehash) {
+  Count destructor_count = 0;
+  Dynamic::Map<Count, Dynamic::Object<RaiiProbe>> values;
+
+  for (Count i = 0; i < 16; i++) {
+    Dynamic::Object<RaiiProbe> probe(destructor_count, i);
+    values.insert(i, probe);
+  }
+
+  EXPECT_EQ(destructor_count, Count(0));
+  for (Count i = 0; i < 16; i++) {
+    EXPECT_EQ(values.find(i)->value->get_value(), i);
+  }
+
+  values.clear();
+  EXPECT_EQ(destructor_count, Count(16));
+}

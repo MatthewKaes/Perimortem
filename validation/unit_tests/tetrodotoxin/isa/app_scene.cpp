@@ -15,8 +15,9 @@ static Harness TtxAppScene = {
   .name = "TTX::AppScene"_view,
 };
 
-static auto first_error(const Resolver::Context& context) -> View::Bytes {
-  return context.get_errors()[0].get_message();
+static auto first_error(const Resolver::Context& source_context)
+    -> View::Bytes {
+  return source_context.get_errors()[0].get_message();
 }
 
 static auto function(const Ttx::Type& type, View::Bytes name)
@@ -27,17 +28,17 @@ static auto function(const Ttx::Type& type, View::Bytes name)
 PERIMORTEM_UNIT_TEST(TtxAppScene, app_main) {
   Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
   Resolver resolver(toolchain);
-  Resolver::Context context;
+  Resolver::Context app_source_context;
 
   const Source::Record* record = resolver.load_source(
-      context, "unit/app.ttx"_view,
+      app_source_context, "unit/app.ttx"_view,
       "dialect : App;\n"
       "public func main[] -> [] {\n"
       "  return;\n"
       "}\n"_view);
 
   ASSERT(record != nullptr);
-  EXPECT_NOT(context.has_errors());
+  EXPECT_NOT(app_source_context.has_errors());
   ASSERT(record->get_type() != nullptr);
   EXPECT_TEXT(record->get_type()->get_name(), "App"_view);
   const Ttx::Attribute* isa = record->get_type()->find_attribute("isa"_view);
@@ -50,10 +51,10 @@ PERIMORTEM_UNIT_TEST(TtxAppScene, app_main) {
 PERIMORTEM_UNIT_TEST(TtxAppScene, scene_shape) {
   Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
   Resolver resolver(toolchain);
-  Resolver::Context context;
+  Resolver::Context scene_source_context;
 
   const Source::Record* record = resolver.load_source(
-      context, "unit/scene.ttx"_view,
+      scene_source_context, "unit/scene.ttx"_view,
       "dialect : Scene;\n"
       "state icon : Bits_32 = 0;\n"
       "const fade : Real_64 = 1.0;\n"
@@ -68,7 +69,7 @@ PERIMORTEM_UNIT_TEST(TtxAppScene, scene_shape) {
       "}\n"_view);
 
   ASSERT(record != nullptr);
-  EXPECT_NOT(context.has_errors());
+  EXPECT_NOT(scene_source_context.has_errors());
   const Ttx::Type* scene = record->get_type();
   ASSERT(scene != nullptr);
   EXPECT_TEXT(scene->get_name(), "Scene"_view);
@@ -86,60 +87,65 @@ PERIMORTEM_UNIT_TEST(TtxAppScene, scene_shape) {
 PERIMORTEM_UNIT_TEST(TtxAppScene, bad_app_root) {
   Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
   Resolver resolver(toolchain);
-  Resolver::Context context;
+  Resolver::Context bad_app_source_context;
 
   EXPECT_NOT(resolver.load_source(
-      context, "unit/bad_app.ttx"_view,
+      bad_app_source_context, "unit/bad_app.ttx"_view,
       "dialect : App;\n"
       "public func start[] -> [] {\n"
       "  return;\n"
       "}\n"_view));
 
-  ASSERT(context.has_errors());
-  EXPECT_TEXT(first_error(context), "App root can only define `main`."_view);
+  ASSERT(bad_app_source_context.has_errors());
+  EXPECT_TEXT(
+      first_error(bad_app_source_context),
+      "App root can only define `main`."_view);
 }
 
 PERIMORTEM_UNIT_TEST(TtxAppScene, bad_scene_root) {
   Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
   Resolver resolver(toolchain);
-  Resolver::Context context;
+  Resolver::Context bad_scene_source_context;
 
   EXPECT_NOT(resolver.load_source(
-      context, "unit/bad_scene.ttx"_view,
+      bad_scene_source_context, "unit/bad_scene.ttx"_view,
       "dialect : Scene;\n"
       "draw {\n"
       "  return;\n"
       "}\n"_view));
 
-  ASSERT(context.has_errors());
+  ASSERT(bad_scene_source_context.has_errors());
   EXPECT_TEXT(
-      first_error(context),
+      first_error(bad_scene_source_context),
       "Scene root addressable must be on_start, on_update, or on_exit."_view);
 }
 
 PERIMORTEM_UNIT_TEST(TtxAppScene, scene_dupe) {
   Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
   Resolver resolver(toolchain);
-  Resolver::Context context;
+  Resolver::Context duplicate_scene_source_context;
 
   EXPECT_NOT(resolver.load_source(
-      context, "unit/dupe_scene.ttx"_view,
+      duplicate_scene_source_context, "unit/dupe_scene.ttx"_view,
       "dialect : Scene;\n"
       "state value : Bits_32;\n"
       "const value : Bits_32;\n"_view));
 
-  ASSERT(context.has_errors());
-  EXPECT_TEXT(first_error(context), "Scene member name is already defined."_view);
+  ASSERT(duplicate_scene_source_context.has_errors());
+  EXPECT_TEXT(
+      first_error(duplicate_scene_source_context),
+      "Scene member name is already defined."_view);
 }
 
 PERIMORTEM_UNIT_TEST(TtxAppScene, app_sources) {
   Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
   Resolver resolver(toolchain);
-  Resolver::Context context;
+  Resolver::Context app_source_context;
 
-  const Source::Record* app = resolver.load_source(context, "apps/main.ttx"_view);
+  const Source::Record* app =
+      resolver.load_source(app_source_context, "apps/main.ttx"_view);
   ASSERT(app != nullptr);
-  EXPECT_NOT(context.has_errors());
+  EXPECT_NOT(app_source_context.has_errors());
   ASSERT(app->get_type() != nullptr);
   EXPECT_TEXT(app->get_type()->get_name(), "App"_view);
   ASSERT(function(*app->get_type(), "main"_view) != nullptr);

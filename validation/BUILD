@@ -42,27 +42,27 @@ ttx_library(
 ttx_package(
     name = "graphics_package_smoke",
     srcs = [
-        "//perimortem:graphics/library/sprite.ttx",
-        "//perimortem:graphics/library/types.ttx",
-        "//perimortem:graphics/package.ttx",
-        "//perimortem:graphics/renderers/renderer_2d.ttx",
-        "//perimortem:graphics/shaders/default_2d.ttx",
+        "//tetrodotoxin/standard:perimortem/graphics/library/sprite.ttx",
+        "//tetrodotoxin/standard:perimortem/graphics/library/types.ttx",
+        "//tetrodotoxin/standard:perimortem/graphics/package.ttx",
+        "//tetrodotoxin/standard:perimortem/graphics/renderers/renderer_2d.ttx",
+        "//tetrodotoxin/standard:perimortem/graphics/shaders/default_2d.ttx",
     ],
 )
 
 ttx_package(
     name = "math_package_smoke",
     srcs = [
-        "//perimortem:math/library/types.ttx",
-        "//perimortem:math/package.ttx",
+        "//tetrodotoxin/standard:perimortem/math/library/types.ttx",
+        "//tetrodotoxin/standard:perimortem/math/package.ttx",
     ],
 )
 
 ttx_package(
     name = "runtime_package_smoke",
     srcs = [
-        "//perimortem:runtime/library/types.ttx",
-        "//perimortem:runtime/package.ttx",
+        "//tetrodotoxin/standard:perimortem/runtime/library/types.ttx",
+        "//tetrodotoxin/standard:perimortem/runtime/package.ttx",
     ],
 )
 

@@ -26,10 +26,10 @@ static Harness TerminalPlan = {
 PERIMORTEM_UNIT_TEST(TerminalPlan, package_library) {
   Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
   Resolver resolver(toolchain);
-  Resolver::Context context;
+  Resolver::Context logic_source_context;
 
   ASSERT(resolver.load_source(
-      context, "unit/logic.ttx"_view,
+      logic_source_context, "unit/logic.ttx"_view,
       "dialect : Library;\n"
       "public Console : foreign {\n"
       "  expose func print[.data : View[Bytes]] -> [];\n"
@@ -38,16 +38,16 @@ PERIMORTEM_UNIT_TEST(TerminalPlan, package_library) {
       "  Console->print(data);\n"
       "  return;\n"
       "}\n"_view));
-  EXPECT_NOT(context.has_errors());
-  context.reset();
+  EXPECT_NOT(logic_source_context.has_errors());
+  Resolver::Context package_source_context;
 
   Source::Record* package = resolver.load_source(
-      context, "unit/package.ttx"_view,
+      package_source_context, "unit/package.ttx"_view,
       "dialect : Package;\n"
       "import Logic : Library = \"logic.ttx\";\n"
       "@package_name = Test::Terminal;\n"_view);
   ASSERT(package != nullptr);
-  EXPECT_NOT(context.has_errors());
+  EXPECT_NOT(package_source_context.has_errors());
 
   Allocator::Arena arena;
   Terminal::Plan plan(arena);

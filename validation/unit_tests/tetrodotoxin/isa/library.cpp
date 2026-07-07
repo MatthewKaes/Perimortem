@@ -50,18 +50,18 @@ static auto function(const Ttx::Type& type, View::Bytes name)
 }
 
 static auto error_message(
-    const Resolver::Context& context,
+    const Resolver::Context& source_context,
     Count index = 0) -> View::Bytes {
-  return context.get_errors()[index].get_message();
+  return source_context.get_errors()[index].get_message();
 }
 
 PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, struct_types) {
   Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
   Resolver resolver(toolchain);
-  Resolver::Context context;
+  Resolver::Context types_source_context;
 
   const Source::Record* record = resolver.load_source(
-      context, "unit/types.ttx"_view,
+      types_source_context, "unit/types.ttx"_view,
       "dialect : Library;\n"
       "public Color : struct {\n"
       "  public r : Real_32;\n"
@@ -69,7 +69,7 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, struct_types) {
       "}\n"_view);
 
   ASSERT(record != nullptr);
-  EXPECT_NOT(context.has_errors());
+  EXPECT_NOT(types_source_context.has_errors());
 
   ASSERT(source_type(record) != nullptr);
   EXPECT_TEXT(source_type(record)->get_name(), "Library"_view);
@@ -87,17 +87,17 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, struct_types) {
 PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, root_members) {
   Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
   Resolver resolver(toolchain);
-  Resolver::Context context;
+  Resolver::Context screen_source_context;
 
   const Source::Record* record = resolver.load_source(
-      context, "unit/screen.ttx"_view,
+      screen_source_context, "unit/screen.ttx"_view,
       "dialect : Library;\n"
       "public Screen : struct {\n"
       "}\n"
       "public screen : Screen;\n"_view);
 
   ASSERT(record != nullptr);
-  EXPECT_NOT(context.has_errors());
+  EXPECT_NOT(screen_source_context.has_errors());
 
   const Ttx::Type* library = source_type(record);
   const Ttx::Type* screen = nested_type(record, "Screen"_view);
@@ -111,10 +111,10 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, root_members) {
 PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, aliases) {
   Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
   Resolver resolver(toolchain);
-  Resolver::Context context;
+  Resolver::Context types_source_context;
 
   const Source::Record* record = resolver.load_source(
-      context, "unit/types.ttx"_view,
+      types_source_context, "unit/types.ttx"_view,
       "dialect : Library;\n"
       "public Color : struct {\n"
       "  public r : Real_32;\n"
@@ -122,7 +122,7 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, aliases) {
       "public Tint : alias = Color;\n"_view);
 
   ASSERT(record != nullptr);
-  EXPECT_NOT(context.has_errors());
+  EXPECT_NOT(types_source_context.has_errors());
 
   const Ttx::Type* color = nested_type(record, "Color"_view);
   const Ttx::Type* tint = nested_type(record, "Tint"_view);
@@ -137,10 +137,10 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, aliases) {
 PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, private_alias) {
   Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
   Resolver resolver(toolchain);
-  Resolver::Context context;
+  Resolver::Context types_source_context;
 
   const Source::Record* record = resolver.load_source(
-      context, "unit/types.ttx"_view,
+      types_source_context, "unit/types.ttx"_view,
       "dialect : Library;\n"
       "public Color : struct {\n"
       "  public r : Real_32;\n"
@@ -148,7 +148,7 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, private_alias) {
       "private LocalColor : alias = Color;\n"_view);
 
   ASSERT(record != nullptr);
-  EXPECT_NOT(context.has_errors());
+  EXPECT_NOT(types_source_context.has_errors());
 
   const Ttx::Type* color = nested_type(record, "Color"_view);
   const Ttx::Type* local_color = nested_type(record, "LocalColor"_view);
@@ -161,17 +161,17 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, private_alias) {
 PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, type_arguments) {
   Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
   Resolver resolver(toolchain);
-  Resolver::Context context;
+  Resolver::Context sprite_source_context;
 
   const Source::Record* record = resolver.load_source(
-      context, "unit/sprite.ttx"_view,
+      sprite_source_context, "unit/sprite.ttx"_view,
       "dialect : Library;\n"
       "public Sprite : struct {\n"
       "  public image : View[Bytes];\n"
       "}\n"_view);
 
   ASSERT(record != nullptr);
-  EXPECT_NOT(context.has_errors());
+  EXPECT_NOT(sprite_source_context.has_errors());
 
   const Ttx::Type* sprite = nested_type(record, "Sprite"_view);
   ASSERT(sprite != nullptr);
@@ -186,10 +186,10 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, type_arguments) {
 PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, enum_type) {
   Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
   Resolver resolver(toolchain);
-  Resolver::Context context;
+  Resolver::Context enum_source_context;
 
   const Source::Record* record = resolver.load_source(
-      context, "unit/enums.ttx"_view,
+      enum_source_context, "unit/enums.ttx"_view,
       "dialect : Library;\n"
       "private Color : enum[Bits_8](.red = 1, .green = 2);\n"
       "private Filter : enum[Bits_8] {\n"
@@ -201,7 +201,7 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, enum_type) {
       "}\n"_view);
 
   ASSERT(record != nullptr);
-  EXPECT_NOT(context.has_errors());
+  EXPECT_NOT(enum_source_context.has_errors());
 
   const Ttx::Type* color = nested_type(record, "Color"_view);
   ASSERT(color != nullptr);
@@ -222,10 +222,10 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, enum_type) {
 PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, foreign_scope) {
   Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
   Resolver resolver(toolchain);
-  Resolver::Context context;
+  Resolver::Context foreign_source_context;
 
   const Source::Record* record = resolver.load_source(
-      context, "unit/types.ttx"_view,
+      foreign_source_context, "unit/types.ttx"_view,
       "dialect : Library;\n"
       "public Sampler2D : foreign {\n"
       "  expose func sample[.texture_uv : Vec2D] -> [Color];\n"
@@ -235,7 +235,7 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, foreign_scope) {
       "}\n"_view);
 
   ASSERT(record != nullptr);
-  EXPECT_NOT(context.has_errors());
+  EXPECT_NOT(foreign_source_context.has_errors());
 
   const Ttx::Type* sampler = nested_type(record, "Sampler2D"_view);
   ASSERT(sampler != nullptr);
@@ -253,10 +253,10 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, foreign_scope) {
 PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, root_function) {
   Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
   Resolver resolver(toolchain);
-  Resolver::Context context;
+  Resolver::Context main_source_context;
 
   const Source::Record* record = resolver.load_source(
-      context, "unit/main.ttx"_view,
+      main_source_context, "unit/main.ttx"_view,
       "dialect : Library;\n"
       "public SceneConfig : struct {\n"
       "  public title : View[Bytes] = \"Test\";\n"
@@ -266,7 +266,7 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, root_function) {
       "}\n"_view);
 
   ASSERT(record != nullptr);
-  EXPECT_NOT(context.has_errors());
+  EXPECT_NOT(main_source_context.has_errors());
 
   const Ttx::Type* library = source_type(record);
   ASSERT(library != nullptr);
@@ -291,10 +291,10 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, root_function) {
 PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, body_statements) {
   Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
   Resolver resolver(toolchain);
-  Resolver::Context context;
+  Resolver::Context body_source_context;
 
   const Source::Record* record = resolver.load_source(
-      context, "unit/body.ttx"_view,
+      body_source_context, "unit/body.ttx"_view,
       "dialect : Library;\n"
       "public Console : foreign {\n"
       "  expose func print[.data : View[Bytes]] -> [];\n"
@@ -306,7 +306,7 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, body_statements) {
       "}\n"_view);
 
   ASSERT(record != nullptr);
-  EXPECT_NOT(context.has_errors());
+  EXPECT_NOT(body_source_context.has_errors());
 
   const Ttx::Type* library = source_type(record);
   ASSERT(library != nullptr);
@@ -360,10 +360,10 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, body_statements) {
 PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, struct_method) {
   Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
   Resolver resolver(toolchain);
-  Resolver::Context context;
+  Resolver::Context sprite_source_context;
 
   const Source::Record* record = resolver.load_source(
-      context, "unit/sprite.ttx"_view,
+      sprite_source_context, "unit/sprite.ttx"_view,
       "dialect : Library;\n"
       "public Sprite : struct {\n"
       "  public size : Vec2D;\n"
@@ -373,7 +373,7 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, struct_method) {
       "}\n"_view);
 
   ASSERT(record != nullptr);
-  EXPECT_NOT(context.has_errors());
+  EXPECT_NOT(sprite_source_context.has_errors());
 
   const Ttx::Type* sprite = nested_type(record, "Sprite"_view);
   ASSERT(sprite != nullptr);
@@ -389,27 +389,27 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, struct_method) {
 PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, package_exports) {
   Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
   Resolver resolver(toolchain);
-  Resolver::Context context;
+  Resolver::Context types_source_context;
 
   const Source::Record* types = resolver.load_source(
-      context, "unit/types.ttx"_view,
+      types_source_context, "unit/types.ttx"_view,
       "dialect : Library;\n"
       "public Color : struct {\n"
       "  public r : Real_32;\n"
       "}\n"_view);
   ASSERT(types != nullptr);
-  EXPECT_NOT(context.has_errors());
-  context.reset();
+  EXPECT_NOT(types_source_context.has_errors());
+  Resolver::Context package_source_context;
 
   const Source::Record* package = resolver.load_source(
-      context, "unit/package.ttx"_view,
+      package_source_context, "unit/package.ttx"_view,
       "dialect : Package;\n"
       "import Types : Library = \"types.ttx\";\n"
       "@package_name = Test::Graphics;\n"
       "expose Color : alias = Types::Color;\n"_view);
 
   ASSERT(package != nullptr);
-  EXPECT_NOT(context.has_errors());
+  EXPECT_NOT(package_source_context.has_errors());
 
   const Ttx::Type* library_color = nested_type(types, "Color"_view);
   const Ttx::Type* package_color = nested_type(package, "Color"_view);
@@ -432,16 +432,16 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, package_exports) {
 PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, bad_alias) {
   Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
   Resolver resolver(toolchain);
-  Resolver::Context context;
+  Resolver::Context bad_alias_source_context;
 
   EXPECT_NOT(resolver.load_source(
-      context, "unit/bad.ttx"_view,
+      bad_alias_source_context, "unit/bad.ttx"_view,
       "dialect : Library;\n"
       "public Broken : alias = Missing;\n"_view));
 
-  ASSERT(context.has_errors());
+  ASSERT(bad_alias_source_context.has_errors());
   EXPECT_TEXT(
-      error_message(context),
+      error_message(bad_alias_source_context),
       "Library alias target could not be resolved."_view);
   EXPECT_NOT(resolver.resolve("unit/bad.ttx"_view));
 }
@@ -449,52 +449,52 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, bad_alias) {
 PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, bad_definition) {
   Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
   Resolver resolver(toolchain);
-  Resolver::Context context;
 
+  Resolver::Context bad_modifier_source_context;
   EXPECT_NOT(resolver.load_source(
-      context, "unit/bad_modifier.ttx"_view,
+      bad_modifier_source_context, "unit/bad_modifier.ttx"_view,
       "dialect : Library;\n"
       "state Color : struct {\n"
       "}\n"_view));
-  ASSERT(context.has_errors());
+  ASSERT(bad_modifier_source_context.has_errors());
   EXPECT_TEXT(
-      error_message(context),
+      error_message(bad_modifier_source_context),
       "Expected a definition to start with one of the following modifiers "
       "{public, private, expose}"_view);
-  context.reset();
 
+  Resolver::Context bad_name_source_context;
   EXPECT_NOT(resolver.load_source(
-      context, "unit/bad_name.ttx"_view,
+      bad_name_source_context, "unit/bad_name.ttx"_view,
       "dialect : Library;\n"
       "public 7 : struct {\n"
       "}\n"_view));
-  ASSERT(context.has_errors());
+  ASSERT(bad_name_source_context.has_errors());
   EXPECT_TEXT(
-      error_message(context),
+      error_message(bad_name_source_context),
       "Definitions can only be created here for the following types "
       "{type, addressable identifier}"_view);
-  context.reset();
 
+  Resolver::Context bad_kind_source_context;
   EXPECT_NOT(resolver.load_source(
-      context, "unit/bad_kind.ttx"_view,
+      bad_kind_source_context, "unit/bad_kind.ttx"_view,
       "dialect : Library;\n"
       "public Color : nope;\n"_view));
-  ASSERT(context.has_errors());
+  ASSERT(bad_kind_source_context.has_errors());
   EXPECT_TEXT(
-      error_message(context),
+      error_message(bad_kind_source_context),
       "Definition name provided is not one of the known types "
       "{alias, enum, struct, object, foreign}"_view);
-  context.reset();
 
+  Resolver::Context capital_alias_source_context;
   EXPECT_NOT(resolver.load_source(
-      context, "unit/capital_alias.ttx"_view,
+      capital_alias_source_context, "unit/capital_alias.ttx"_view,
       "dialect : Library;\n"
       "public Color : struct {\n"
       "}\n"
       "public Tint : Alias = Color;\n"_view));
-  ASSERT(context.has_errors());
+  ASSERT(capital_alias_source_context.has_errors());
   EXPECT_TEXT(
-      error_message(context),
+      error_message(capital_alias_source_context),
       "Definition name provided is not one of the known types "
       "{alias, enum, struct, object, foreign}"_view);
 }
@@ -502,91 +502,91 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, bad_definition) {
 PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, bad_enum) {
   Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
   Resolver resolver(toolchain);
-  Resolver::Context context;
+  Resolver::Context missing_storage_source_context;
 
   EXPECT_NOT(resolver.load_source(
-      context, "unit/bad_enum.ttx"_view,
+      missing_storage_source_context, "unit/bad_enum.ttx"_view,
       "dialect : Library;\n"
       "private Color : enum[Missing](.red = 1);\n"_view));
-  ASSERT(context.has_errors());
+  ASSERT(missing_storage_source_context.has_errors());
   EXPECT_TEXT(
-      error_message(context),
+      error_message(missing_storage_source_context),
       "Library enum storage type could not be resolved."_view);
-  context.reset();
+  Resolver::Context duplicate_case_source_context;
 
   EXPECT_NOT(resolver.load_source(
-      context, "unit/duplicate_enum.ttx"_view,
+      duplicate_case_source_context, "unit/duplicate_enum.ttx"_view,
       "dialect : Library;\n"
       "private Color : enum[Bits_8](.red = 1, .red = 2);\n"_view));
-  ASSERT(context.has_errors());
+  ASSERT(duplicate_case_source_context.has_errors());
   EXPECT_TEXT(
-      error_message(context),
+      error_message(duplicate_case_source_context),
       "Library enum case name is already defined."_view);
 }
 
 PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, bad_function) {
   Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
   Resolver resolver(toolchain);
-  Resolver::Context context;
+  Resolver::Context bad_function_source_context;
 
   EXPECT_NOT(resolver.load_source(
-      context, "unit/bad_function.ttx"_view,
+      bad_function_source_context, "unit/bad_function.ttx"_view,
       "dialect : Library;\n"
       "public func main[] [] {\n"
       "}\n"_view));
 
-  ASSERT(context.has_errors());
+  ASSERT(bad_function_source_context.has_errors());
   EXPECT_TEXT(
-      error_message(context),
+      error_message(bad_function_source_context),
       "Expected `->` before library function result."_view);
 }
 
 PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, bad_foreign) {
   Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
   Resolver resolver(toolchain);
-  Resolver::Context context;
+  Resolver::Context bad_foreign_source_context;
 
   EXPECT_NOT(resolver.load_source(
-      context, "unit/bad_foreign.ttx"_view,
+      bad_foreign_source_context, "unit/bad_foreign.ttx"_view,
       "dialect : Library;\n"
       "public Sampler2D : foreign {\n"
       "  public func sample[] -> [Bits_8];\n"
       "}\n"_view));
-  ASSERT(context.has_errors());
+  ASSERT(bad_foreign_source_context.has_errors());
   EXPECT_TEXT(
-      error_message(context),
+      error_message(bad_foreign_source_context),
       "Expected a foreign function declaration to start with expose."_view);
-  context.reset();
+  Resolver::Context foreign_body_source_context;
 
   EXPECT_NOT(resolver.load_source(
-      context, "unit/foreign_body.ttx"_view,
+      foreign_body_source_context, "unit/foreign_body.ttx"_view,
       "dialect : Library;\n"
       "public Sampler2D : foreign {\n"
       "  expose func sample[] -> [Bits_8] {\n"
       "  }\n"
       "}\n"_view));
-  ASSERT(context.has_errors());
+  ASSERT(foreign_body_source_context.has_errors());
   EXPECT_TEXT(
-      error_message(context),
+      error_message(foreign_body_source_context),
       "Expected `;` after library function declaration."_view);
 }
 
 PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, duplicate_type) {
   Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
   Resolver resolver(toolchain);
-  Resolver::Context context;
+  Resolver::Context duplicate_type_source_context;
 
   EXPECT_NOT(resolver.load_source(
-      context, "unit/duplicate.ttx"_view,
+      duplicate_type_source_context, "unit/duplicate.ttx"_view,
       "dialect : Library;\n"
       "public Color : struct {\n"
       "  public r : Real_32;\n"
       "}\n"
       "public Color : alias = Bits_8;\n"_view));
 
-  ASSERT(context.has_errors());
+  ASSERT(duplicate_type_source_context.has_errors());
   EXPECT_TEXT(
-      error_message(context),
+      error_message(duplicate_type_source_context),
       "Library type name is already defined."_view);
   EXPECT_NOT(resolver.resolve("unit/duplicate.ttx"_view));
 }
@@ -594,30 +594,30 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, duplicate_type) {
 PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, duplicate_member) {
   Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
   Resolver resolver(toolchain);
-  Resolver::Context context;
+  Resolver::Context duplicate_member_source_context;
 
   EXPECT_NOT(resolver.load_source(
-      context, "unit/duplicate_member.ttx"_view,
+      duplicate_member_source_context, "unit/duplicate_member.ttx"_view,
       "dialect : Library;\n"
       "public Color : struct {\n"
       "  public r : Real_32;\n"
       "  public r : Real_32;\n"
       "}\n"_view));
-  ASSERT(context.has_errors());
+  ASSERT(duplicate_member_source_context.has_errors());
   EXPECT_TEXT(
-      error_message(context),
+      error_message(duplicate_member_source_context),
       "Library member name is already defined."_view);
-  context.reset();
+  Resolver::Context duplicate_root_member_source_context;
 
   EXPECT_NOT(resolver.load_source(
-      context, "unit/duplicate_root.ttx"_view,
+      duplicate_root_member_source_context, "unit/duplicate_root.ttx"_view,
       "dialect : Library;\n"
       "public Color : struct {\n"
       "}\n"
       "public color : Color;\n"
       "public color : Color;\n"_view));
-  ASSERT(context.has_errors());
+  ASSERT(duplicate_root_member_source_context.has_errors());
   EXPECT_TEXT(
-      error_message(context),
+      error_message(duplicate_root_member_source_context),
       "Library member name is already defined."_view);
 }
