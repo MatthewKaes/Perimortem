@@ -11,18 +11,22 @@ cc_library(
     srcs = [
         "lexical/class.cpp",
         "lexical/cursor.cpp",
+        "lexical/errors.cpp",
         "lexical/tokenizer.cpp",
     ],
     hdrs = [
         "lexical/class.hpp",
         "lexical/cursor.hpp",
-        "lexical/error.hpp",
+        "lexical/errors.hpp",
+        "lexical/source.hpp",
         "lexical/token.hpp",
         "lexical/tokenizer.hpp",
     ],
     include_prefix = "ttx/lexical",
     deps = [
-        "//perimortem",
+        "//perimortem:core",
+        "//perimortem:memory",
+        "//perimortem:utility",
     ],
 )
 
@@ -41,18 +45,17 @@ cc_library(
     ],
     deps = [
         ":lexical",
-        "//perimortem",
+        "//perimortem:core",
+        "//perimortem:memory",
     ],
 )
 
 cc_library(
     name = "ttx",
-    hdrs = [
-        "core/types.hpp",
-    ],
     deps = [
         ":lexical",
         ":model",
-        "//perimortem",
+        "//perimortem:core",
+        "//perimortem:memory",
     ],
 )

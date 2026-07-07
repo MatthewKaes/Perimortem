@@ -7,9 +7,8 @@
 #include "perimortem/core/view/vector.hpp"
 
 #include "perimortem/memory/allocator/arena.hpp"
-#include "perimortem/memory/managed/vector.hpp"
 
-#include "ttx/lexical/error.hpp"
+#include "ttx/lexical/errors.hpp"
 #include "ttx/lexical/tokenizer.hpp"
 
 namespace Ttx::Lexical {
@@ -18,8 +17,8 @@ namespace Ttx::Lexical {
 //
 // It exists to keep dialect parsing small and regular. Callers can preserve any
 // remaining token view as a cheap continuation for a later parser. Cursor owns
-// only the current token position and the errors allocated in the provided
-// arena.
+// only the current token position and an Errors collection backed by the
+// caller's transaction arena.
 //
 // The cursor sees the token position at the moment a parse expectation fails,
 // so it is the right place to record error facts. The stored Error objects
@@ -31,7 +30,9 @@ namespace Ttx::Lexical {
 // errors over one token stream.
 class Cursor {
  public:
-  Cursor(const Lexical::Tokenizer& tokenizer)
+  Cursor(
+      const Lexical::Tokenizer& tokenizer,
+      Perimortem::Memory::Allocator::Arena& error_arena)
       : tokenizer(tokenizer), errors(error_arena) {};
 
   constexpr auto current() const -> const Lexical::Token& {
@@ -97,15 +98,13 @@ class Cursor {
   }
 
   // Evaluation errors belong to the cursor because the cursor is the local
-  // token context.
+  // token context which all executors interact with for a single transaction.
   //
-  // Parsed facts and lowered output should not copy this into their own
-  // validity state. Callers can inspect the cursor and decide whether to stop,
-  // continue through recoverable errors, or render error output without caring
-  // which parser produced the error.
-  constexpr auto get_errors() const
-      -> Perimortem::Core::View::Vector<Lexical::Error> {
-    return errors.get_view();
+  // Parsed facts and lowered output should not copy errors into persisted
+  // state. Consumers that need diagnostics after ending this transaction must
+  // explicitly migrate them into their own lifetime.
+  constexpr auto get_errors() const -> const Lexical::Errors& {
+    return errors;
   }
 
   constexpr auto get_arena() const -> Perimortem::Memory::Allocator::Arena& {
@@ -123,10 +122,7 @@ class Cursor {
   // construction, so the cursor keeps a copy and avoids one pointer hop.
   const Lexical::Tokenizer tokenizer;
 
-  // Cursor errors have their own arena because the token arena may belong to a
-  // record that is destroyed after a failed evaluation.
-  Perimortem::Memory::Allocator::Arena error_arena;
-  Perimortem::Memory::Managed::Vector<Lexical::Error> errors;
+  Lexical::Errors errors;
   Count index = 0;
 };
 

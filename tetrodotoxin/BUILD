@@ -18,8 +18,9 @@ cc_library(
     deps = [
         "//perimortem:core",
         "//perimortem:memory",
-        "//perimortem:serialization_json",
+        "//perimortem:serialization",
         "//perimortem:utility",
+        "//tetrodotoxin/standard:types",
         "//ttx",
     ],
 )

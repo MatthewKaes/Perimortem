@@ -52,6 +52,14 @@ manifests can create package-local resolver graphs. File imports stay under
 that package's source subtree, while package imports can name packages from
 elsewhere and become explicit dependency edges.
 
+Tetrodotoxin's standard TTX packages live under [`standard`](standard/).
+These packages describe the current standard ABI surface that Puffer can resolve
+today, such as `Perimortem::Graphics`, `Perimortem::Math`, and `Perimortem::Runtime`.
+The same layer owns the built-in standard type table used by ISA resolution.
+The matching C++ engine subsystems in Perimortem aren't fully self-hosted yet so the
+standard TTX package layer that the toolchain uses bridges the C++ gap for now, but
+will continue to provide C++/C ABI headers in the future.
+
 Packages are Tetrodotoxin's module boundary. A source imports a package and then
 uses package exports such as `Graphics::Shaders::Default2D`; it does not import
 the package's private shader file directly. If the package resolver cannot
@@ -86,8 +94,8 @@ Tetrodotoxin layers toolchain context around that language core:
 - [`toolchain.hpp`](toolchain.hpp) owns the VM capability table for one caller
 - [`isa`](isa/) owns `Isa::Registry` and the VM instruction sets
   such as Package, Library, Shader, and Render
-- [`../perimortem/graphics/package.ttx`](../perimortem/graphics/package.ttx)
-  describes the Perimortem graphics ABI as a TTX package
+- [`standard`](standard/) owns the standard TTX packages Puffer can resolve,
+  including the Perimortem graphics, math, and runtime ABI surfaces
 - [`../toolchain/tetrodotoxin.bzl`](../toolchain/tetrodotoxin.bzl) integrates
   TTX source with Bazel targets
 - [`compiler/assembler`](compiler/assembler/) emits terminal instruction

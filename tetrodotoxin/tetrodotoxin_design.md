@@ -67,6 +67,12 @@ the package subtree are not imported directly by outside source. Outside source
 imports the package by name, then queries exported types through the package
 surface.
 
+Built-in standard package sources live under `tetrodotoxin/standard`. They are
+resolved by public package name, not by asking user source to import their
+private files. This keeps the standard TTX ABI layer distinct from the current
+C++ engine implementation while the graphics/runtime stack is not fully
+self-hosted.
+
 Package-local resolution can use its own resolver graph. That keeps private
 package files, package imports, and cache invalidation local to the package
 while still allowing package dependencies to become explicit edges in the outer

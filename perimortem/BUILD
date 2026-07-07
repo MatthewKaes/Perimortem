@@ -161,6 +161,9 @@ cc_library(
 cc_library(
     name = "serialization",
     srcs = [
+        "serialization/base64.cpp",
+        "serialization/escaped_text.cpp",
+        "serialization/json/node.cpp",
         "serialization/stream.cpp",
     ],
     hdrs = glob([
@@ -170,30 +173,9 @@ cc_library(
     ]),
     includes = ["."],
     deps = [
-        ":serialization_json",
         ":core",
         ":memory",
         ":system",
         ":utility",
-    ],
-)
-
-cc_library(
-    name = "serialization_json",
-    srcs = [
-        "serialization/base64.cpp",
-        "serialization/escaped_text.cpp",
-        "serialization/json/node.cpp",
-    ],
-    hdrs = [
-        "serialization/base64.hpp",
-        "serialization/escaped_text.hpp",
-        "serialization/json/blueprint.hpp",
-        "serialization/json/node.hpp",
-    ],
-    includes = ["."],
-    deps = [
-        ":core",
-        ":memory",
     ],
 )
