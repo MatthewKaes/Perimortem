@@ -14,11 +14,23 @@ using namespace Perimortem::Memory;
 using namespace Tetrodotoxin;
 using namespace Tetrodotoxin::Compiler;
 
-auto Library::lower(Context& context, View::Bytes module, const Ttx::Type& root)
-    -> Bool {
+static auto report(
+    Ttx::Lexical::Errors& errors,
+    Ttx::Lexical::Source source,
+    View::Bytes message) -> Bool {
+  errors.insert(source, message);
+  return False;
+}
+
+auto Library::lower(
+    Allocator::Arena& arena,
+    Ttx::Lexical::Errors& errors,
+    Ttx::Lexical::Source source,
+    View::Bytes module,
+    const Ttx::Type& root) -> Bool {
   View::Vector<Ttx::Type::Function> functions = root.get_functions();
   for (Count i = 0; i < functions.get_size(); i++) {
-    if (!lower_function(context, module, functions[i])) {
+    if (!lower_function(arena, errors, source, module, functions[i])) {
       return False;
     }
   }
@@ -26,7 +38,9 @@ auto Library::lower(Context& context, View::Bytes module, const Ttx::Type& root)
 }
 
 auto Library::lower_function(
-    Context& context,
+    Allocator::Arena& arena,
+    Ttx::Lexical::Errors& errors,
+    Ttx::Lexical::Source source,
     View::Bytes module,
     const Ttx::Type::Function& function) -> Bool {
   if (!function.has_body()) {
@@ -34,18 +48,21 @@ auto Library::lower_function(
   }
 
   if (!is_void_result(function.get_result())) {
-    return context.report(
+    return report(
+        errors, source,
         "Only void Library functions can lower to C++ today."_view);
   }
 
   View::Vector<Ttx::Type::Member> parameters = function.get_parameters();
   if (parameters.get_size() > 1) {
-    return context.report(
+    return report(
+        errors, source,
         "Only one View[Bytes] function parameter can lower today."_view);
   }
 
   if (parameters.get_size() == 1 && !is_view_bytes(parameters[0].get_type())) {
-    return context.report(
+    return report(
+        errors, source,
         "Only View[Bytes] function parameters can lower today."_view);
   }
 
@@ -62,7 +79,7 @@ auto Library::lower_function(
 
   View::Vector<Ttx::Type::Function::Block> blocks = function.get_blocks();
   for (Count i = 0; i < blocks.get_size(); i++) {
-    if (!lower_block(context, function, blocks[i])) {
+    if (!lower_block(arena, errors, source, function, blocks[i])) {
       return False;
     }
   }
@@ -73,7 +90,7 @@ auto Library::lower_function(
   assembler.ret();
 
   functions.insert({
-    function_name(context, module, function.get_name()),
+    function_name(arena, module, function.get_name()),
     {function_start, machine_code.get_size() - function_start},
     function,
   });
@@ -81,12 +98,14 @@ auto Library::lower_function(
 }
 
 auto Library::lower_block(
-    Context& context,
+    Allocator::Arena& arena,
+    Ttx::Lexical::Errors& errors,
+    Ttx::Lexical::Source source,
     const Ttx::Type::Function& function,
     Ttx::Type::Function::Block block) -> Bool {
   const auto* library_block = Tetrodotoxin::Isa::Library::Block::from(block);
   if (library_block == nullptr) {
-    return context.report("Function body is not a Library block."_view);
+    return report(errors, source, "Function body is not a Library block."_view);
   }
 
   View::Vector<Tetrodotoxin::Isa::Library::Statement> statements =
@@ -97,7 +116,7 @@ auto Library::lower_block(
       return True;
     }
 
-    if (!lower_statement(context, function, statements[i])) {
+    if (!lower_statement(arena, errors, source, function, statements[i])) {
       return False;
     }
   }
@@ -105,40 +124,45 @@ auto Library::lower_block(
 }
 
 auto Library::lower_statement(
-    Context& context,
+    Allocator::Arena& arena,
+    Ttx::Lexical::Errors& errors,
+    Ttx::Lexical::Source source,
     const Ttx::Type::Function& function,
     const Tetrodotoxin::Isa::Library::Statement& statement) -> Bool {
   switch (statement.get_kind()) {
   case Tetrodotoxin::Isa::Library::Statement::Kind::Call:
-    return lower_call(context, function, statement.get_call());
+    return lower_call(arena, errors, source, function, statement.get_call());
   default:
-    return context.report("Unsupported Library statement."_view);
+    return report(errors, source, "Unsupported Library statement."_view);
   }
 }
 
 auto Library::lower_call(
-    Context& context,
+    Allocator::Arena& arena,
+    Ttx::Lexical::Errors& errors,
+    Ttx::Lexical::Source source,
     const Ttx::Type::Function& function,
     const Tetrodotoxin::Isa::Library::Call& call) -> Bool {
   const Ttx::Type* owner = call.get_owner();
   if (owner == nullptr ||
       !owner->attribute_equals("isa"_view, "Foreign"_view)) {
-    return context.report("Call target is not a foreign type."_view);
+    return report(errors, source, "Call target is not a foreign type."_view);
   }
 
   const Ttx::Type::Function* callee = call.get_function();
   if (callee == nullptr) {
-    return context.report("Foreign function could not be resolved."_view);
+    return report(errors, source, "Foreign function could not be resolved."_view);
   }
 
   View::Vector<Tetrodotoxin::Isa::Expression::Value> values =
       call.get_pack().get_values();
   if (values.get_size() != 1) {
-    return context.report(
+    return report(
+        errors, source,
         "Only foreign calls with one View[Bytes] pack value can lower today."_view);
   }
 
-  if (!lower_pack_value(context, function, values[0], *callee)) {
+  if (!lower_pack_value(arena, errors, source, function, values[0], *callee)) {
     return False;
   }
 
@@ -147,29 +171,32 @@ auto Library::lower_call(
 }
 
 auto Library::lower_pack_value(
-    Context& context,
+    Allocator::Arena& arena,
+    Ttx::Lexical::Errors& errors,
+    Ttx::Lexical::Source source,
     const Ttx::Type::Function& function,
     const Tetrodotoxin::Isa::Expression::Value& value,
     const Ttx::Type::Function& callee) -> Bool {
   View::Vector<Ttx::Type::Member> parameters = callee.get_parameters();
   if (parameters.get_size() != 1 || !is_view_bytes(parameters[0].get_type())) {
-    return context.report(
+    return report(
+        errors, source,
         "Only foreign calls with one View[Bytes] pack value can lower today."_view);
   }
 
   switch (value.get_kind()) {
   case Tetrodotoxin::Isa::Expression::Value::Kind::String:
-    return emit_string_argument(context, value.get_value());
+    return emit_string_argument(arena, value.get_value());
   case Tetrodotoxin::Isa::Expression::Value::Kind::Reference:
-    return emit_parameter_argument(context, function, value.get_value());
+    return emit_parameter_argument(errors, source, function, value.get_value());
   default:
-    return context.report("Unsupported foreign call pack value."_view);
+    return report(errors, source, "Unsupported foreign call pack value."_view);
   }
 }
 
-auto Library::emit_string_argument(Context& context, View::Bytes value)
+auto Library::emit_string_argument(Allocator::Arena& arena, View::Bytes value)
     -> Bool {
-  const Count target_index = string_index(context, value);
+  const Count target_index = string_index(arena, value);
 
   Assembler::x86_64 assembler(machine_code);
   assembler.read_only(Assembler::x86_64::Reg::RDI);
@@ -184,18 +211,21 @@ auto Library::emit_string_argument(Context& context, View::Bytes value)
 }
 
 auto Library::emit_parameter_argument(
-    Context& context,
+    Ttx::Lexical::Errors& errors,
+    Ttx::Lexical::Source source,
     const Ttx::Type::Function& function,
     View::Bytes name) -> Bool {
   const Ttx::Type::Member* parameter =
       Ttx::Layout(function.get_parameters()).find_member(name);
   if (parameter == nullptr) {
-    return context.report(
+    return report(
+        errors, source,
         "Foreign call pack value did not resolve to a parameter."_view);
   }
 
   if (!is_view_bytes(parameter->get_type())) {
-    return context.report("Only View[Bytes] parameters can lower today."_view);
+    return report(
+        errors, source, "Only View[Bytes] parameters can lower today."_view);
   }
 
   Assembler::x86_64 assembler(machine_code);
@@ -216,7 +246,8 @@ auto Library::call_external(View::Bytes name) -> void {
   });
 }
 
-auto Library::string_index(Context& context, View::Bytes value) -> Count {
+auto Library::string_index(Allocator::Arena& arena, View::Bytes value)
+    -> Count {
   for (Count i = 0; i < strings.get_size(); i++) {
     if (strings[i].value == value) {
       return i;
@@ -227,7 +258,7 @@ auto Library::string_index(Context& context, View::Bytes value) -> Count {
   string_data.concat(value);
   const Count index = strings.get_size();
   strings.insert(
-      {local_string_name(context, value), value, {offset, value.get_size()}});
+      {local_string_name(arena, value), value, {offset, value.get_size()}});
   return index;
 }
 
@@ -244,10 +275,10 @@ auto Library::external_index(View::Bytes name) -> Count {
 }
 
 auto Library::function_name(
-    Context& context,
+    Allocator::Arena& arena,
     View::Bytes module,
     View::Bytes function) -> View::Bytes {
-  Managed::Bytes output(context.get_arena());
+  Managed::Bytes output(arena);
   output.concat("TTX_"_view);
   append_name_segment(output, module);
   output.append('_');
@@ -255,9 +286,9 @@ auto Library::function_name(
   return output;
 }
 
-auto Library::local_string_name(Context& context, View::Bytes value)
+auto Library::local_string_name(Allocator::Arena& arena, View::Bytes value)
     -> View::Bytes {
-  Managed::Bytes output(context.get_arena());
+  Managed::Bytes output(arena);
   output.concat(".Lttx_"_view);
   append_hex(output, Hash(value).get_value());
   output.append('_');

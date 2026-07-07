@@ -10,6 +10,8 @@
 #include "perimortem/utility/table.hpp"
 
 #include "tetrodotoxin/compiler/assembler/spir_v.hpp"
+#include "tetrodotoxin/isa/shader/block.hpp"
+#include "ttx/layout.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -62,6 +64,7 @@ enum class ResultId : Bits_32 {
   ResultBase = 96,
   PushVariable = 120,
   ResourceBase = 128,
+  TemporaryBase = 160,
 };
 
 static constexpr Bits_32 stage_id_bound = 256;
@@ -247,9 +250,58 @@ static auto resource_id(Count index) -> ResultId {
   return ResultId(spirv_id(ResultId::ResourceBase) + Bits_32(index));
 }
 
+static auto temporary_id(Count index) -> ResultId {
+  return ResultId(spirv_id(ResultId::TemporaryBase) + Bits_32(index));
+}
+
 static auto is_texture_resource(const Ttx::Type* type) -> Bool {
   return type != nullptr && (type_has_name(type, "Image"_view) ||
                              type->find_function("sample"_view) != nullptr);
+}
+
+static auto direct_reference(
+    const Tetrodotoxin::Isa::Expression::Value& value) -> Bool {
+  return value.get_kind() ==
+             Tetrodotoxin::Isa::Expression::Value::Kind::Reference &&
+         value.get_tokens().get_size() == 1;
+}
+
+static auto carrier_matches_results(
+    const Tetrodotoxin::Isa::Expression::Pack& pack,
+    View::Vector<Ttx::Type::Member> results) -> Bool {
+  View::Vector<Tetrodotoxin::Isa::Expression::Pack::Entry> entries =
+      pack.get_entries();
+  if (entries.get_size() != results.get_size()) {
+    return False;
+  }
+
+  for (Count i = 0; i < entries.get_size(); i++) {
+    if (entries[i].is_named() && entries[i].get_name() != results[i].get_name()) {
+      return False;
+    }
+  }
+
+  return True;
+}
+
+static auto ordered_direct_parameters(
+    const Tetrodotoxin::Isa::Expression::Pack& pack,
+    View::Vector<Ttx::Type::Member> parameters) -> Bool {
+  View::Vector<Tetrodotoxin::Isa::Expression::Pack::Entry> entries =
+      pack.get_entries();
+  if (entries.get_size() != parameters.get_size()) {
+    return False;
+  }
+
+  for (Count i = 0; i < entries.get_size(); i++) {
+    Tetrodotoxin::Isa::Expression::Value value = entries[i].get_value();
+    if (!direct_reference(value) ||
+        value.get_value() != parameters[i].get_name()) {
+      return False;
+    }
+  }
+
+  return True;
 }
 
 static auto emit_core_types(Assembler::SpirV& assembler) -> void {
@@ -463,20 +515,187 @@ static auto emit_variables(
   }
 }
 
-static auto emit_empty_entry_point(Assembler::SpirV& assembler) -> void {
-  // Body lowering has not landed yet; the entry point is valid and exposes the
-  // source-shaped interface, but it intentionally performs no work today.
+static auto shader_block(const Ttx::Type::Function& stage)
+    -> const Tetrodotoxin::Isa::Shader::Block* {
+  View::Vector<Ttx::Type::Function::Block> blocks = stage.get_blocks();
+  for (Count i = 0; i < blocks.get_size(); i++) {
+    const auto* block = Tetrodotoxin::Isa::Shader::Block::from(blocks[i]);
+    if (block != nullptr) {
+      return block;
+    }
+  }
+
+  return nullptr;
+}
+
+static auto report(
+    Ttx::Lexical::Errors& errors,
+    Ttx::Lexical::Source source,
+    View::Bytes message,
+    View::Bytes hint = View::Bytes()) -> Bool {
+  errors.insert(source, message, hint);
+  return False;
+}
+
+static auto report_statement(
+    Ttx::Lexical::Errors& errors,
+    Ttx::Lexical::Source source,
+    const Tetrodotoxin::Isa::Shader::Statement& statement,
+    View::Bytes message,
+    View::Bytes hint = View::Bytes()) -> Bool {
+  const Ttx::Lexical::Token* start = statement.get_start_token();
+  const Ttx::Lexical::Token* end = statement.get_end_token();
+  if (start != nullptr && end != nullptr) {
+    errors.insert_range(*start, *end, source, message, hint);
+    return False;
+  }
+
+  return report(errors, source, message, hint);
+}
+
+static auto emit_return_pack(
+    Allocator::Arena& arena,
+    Ttx::Lexical::Errors& errors,
+    Ttx::Lexical::Source source,
+    Assembler::SpirV& assembler,
+    const Tetrodotoxin::Isa::Shader::Statement& statement,
+    const Tetrodotoxin::Isa::Expression::Pack& pack,
+    View::Vector<Ttx::Type::Member> parameters,
+    View::Vector<Ttx::Type::Member> results,
+    Count& temporary_count) -> Bool {
+  View::Vector<Tetrodotoxin::Isa::Expression::Pack::Entry> entries =
+      pack.get_entries();
+  Ttx::Layout parameter_layout(parameters);
+  Ttx::Layout result_layout(results);
+  Managed::Vector<Ttx::Type::Member> value_schema(arena);
+
+  for (Count i = 0; i < entries.get_size(); i++) {
+    Tetrodotoxin::Isa::Expression::Value value = entries[i].get_value();
+    if (!direct_reference(value)) {
+      return report_statement(
+          errors, source, statement,
+          "Only direct shader return references can lower today."_view);
+    }
+
+    const Ttx::Type::Member* parameter =
+        parameter_layout.find_member(value.get_value());
+    if (parameter == nullptr) {
+      return report_statement(
+          errors, source, statement,
+          "Shader return reference did not resolve to a parameter."_view);
+    }
+
+    value_schema.insert(*parameter);
+  }
+
+  if (!pack.schema(arena, value_schema.get_view()).fits(result_layout)) {
+    return report_statement(
+        errors, source, statement,
+        "Shader return pack does not match stage result."_view);
+  }
+
+  if (!carrier_matches_results(pack, results) ||
+      !ordered_direct_parameters(pack, parameters)) {
+    return report_statement(
+        errors, source, statement,
+        "Only ordered shader return pass-through can lower today."_view);
+  }
+
+  for (Count i = 0; i < entries.get_size(); i++) {
+    const Ttx::Type* result_type = results[i].get_type();
+    if (result_type == nullptr) {
+      return report_statement(
+          errors, source, statement,
+          "Shader result type cannot lower today."_view);
+    }
+
+    ResultId type_id = spirv_type_id(result_type);
+    ResultId value_id = temporary_id(temporary_count++);
+    assembler.load(
+        spirv_id(type_id), spirv_id(value_id), spirv_id(parameter_id(i)));
+    assembler.store(spirv_id(result_id(i)), spirv_id(value_id));
+  }
+
+  return True;
+}
+
+static auto emit_shader_block(
+    Allocator::Arena& arena,
+    Ttx::Lexical::Errors& errors,
+    Ttx::Lexical::Source source,
+    Assembler::SpirV& assembler,
+    const Tetrodotoxin::Isa::Shader::Block& block,
+    View::Vector<Ttx::Type::Member> parameters,
+    View::Vector<Ttx::Type::Member> results) -> Bool {
+  Count temporary_count = 0;
+  Bool block_valid = True;
+  View::Vector<Tetrodotoxin::Isa::Shader::Statement> statements =
+      block.get_statements();
+  for (Count i = 0; i < statements.get_size(); i++) {
+    switch (statements[i].get_kind()) {
+    case Tetrodotoxin::Isa::Shader::Statement::Kind::State: {
+      report_statement(
+          errors, source, statements[i],
+          "Shader state statements cannot lower today."_view,
+          "State expressions need SSA lowering before SPIR-V emission."_view);
+      block_valid = False;
+      continue;
+    }
+
+    case Tetrodotoxin::Isa::Shader::Statement::Kind::Return: {
+      const Tetrodotoxin::Isa::Expression::Pack* pack =
+          statements[i].get_pack();
+      if (pack == nullptr) {
+        return block_valid;
+      }
+
+      Bool return_valid = emit_return_pack(
+          arena, errors, source, assembler, statements[i], *pack, parameters,
+          results, temporary_count);
+      return block_valid && return_valid;
+    }
+
+    default:
+      break;
+    }
+  }
+
+  return block_valid;
+}
+
+static auto emit_entry_point(
+    Allocator::Arena& arena,
+    Ttx::Lexical::Errors& errors,
+    Ttx::Lexical::Source source,
+    Assembler::SpirV& assembler,
+    const Tetrodotoxin::Isa::Shader::Block* block,
+    View::Vector<Ttx::Type::Member> parameters,
+    View::Vector<Ttx::Type::Member> results) -> Bool {
+  // Shader entry points return void. Stage results are written through Output
+  // variables, so body lowering emits stores before the final OpReturn.
   assembler.function(
       spirv_id(ResultId::Void), spirv_id(ResultId::EntryFunction),
       Assembler::SpirV::FunctionControl::None,
       spirv_id(ResultId::VoidFunction));
   assembler.label(spirv_id(ResultId::EntryLabel));
+
+  if (block != nullptr &&
+      !emit_shader_block(
+          arena, errors, source, assembler, *block, parameters, results)) {
+    return False;
+  }
+
   assembler.return_void();
   assembler.function_end();
+  return True;
 }
 
-auto Shader::lower(Context& context, View::Bytes module, const Ttx::Type& root)
-    -> Bool {
+auto Shader::lower(
+    Allocator::Arena& arena,
+    Ttx::Lexical::Errors& errors,
+    Ttx::Lexical::Source source,
+    View::Bytes module,
+    const Ttx::Type& root) -> Bool {
   if (root.attribute_equals("isa"_view, "RenderSource"_view) ||
       root.attribute_equals("isa"_view, "Render"_view)) {
     register_render_contracts(root);
@@ -489,26 +708,32 @@ auto Shader::lower(Context& context, View::Bytes module, const Ttx::Type& root)
 
   const Ttx::Type* contract = find_contract(root);
   if (contract == nullptr) {
-    return context.report(
+    return report(
+        errors, source,
         "Shader compiler could not find render contract."_view);
   }
 
   View::Vector<Ttx::Type::Function> stages = root.get_functions();
   if (stages.is_empty()) {
-    return context.report("Shader source did not declare any stages."_view);
+    return report(
+        errors, source, "Shader source did not declare any stages."_view);
   }
 
+  Bool valid = True;
   for (Count i = 0; i < stages.get_size(); i++) {
-    if (!lower_stage(context, module, root, *contract, stages[i])) {
-      return False;
+    if (!lower_stage(
+            arena, errors, source, module, root, *contract, stages[i])) {
+      valid = False;
     }
   }
 
-  return True;
+  return valid;
 }
 
 auto Shader::lower_stage(
-    Context& context,
+    Allocator::Arena& arena,
+    Ttx::Lexical::Errors& errors,
+    Ttx::Lexical::Source source,
     View::Bytes module,
     const Ttx::Type& shader,
     const Ttx::Type& contract,
@@ -519,7 +744,8 @@ auto Shader::lower_stage(
   } else if (stage.get_name() == "pixel"_view) {
     model = Assembler::SpirV::ExecutionModel::Fragment;
   } else {
-    return context.report(
+    return report(
+        errors, source,
         "Only vertex and pixel shader stages can lower today."_view);
   }
 
@@ -528,7 +754,8 @@ auto Shader::lower_stage(
   // mirror for push constants and resources.
   const Ttx::Type* stage_facts = contract.find_type(stage.get_name());
   if (stage_facts == nullptr) {
-    return context.report("Shader stage has no render fact contract."_view);
+    return report(
+        errors, source, "Shader stage has no render fact contract."_view);
   }
 
   const Ttx::Type* push = stage_facts->find_type("push"_view);
@@ -541,11 +768,12 @@ auto Shader::lower_stage(
       resource == nullptr ? View::Vector<Ttx::Type::Member>()
                           : resource->get_members();
 
-  Managed::Vector<ResultId> push_member_type_ids(context.get_arena());
+  Managed::Vector<ResultId> push_member_type_ids(arena);
   for (Count i = 0; i < push_members.get_size(); i++) {
     ResultId type_id = spirv_type_id(push_members[i].get_type());
     if (type_id == ResultId::Invalid) {
-      return context.report(
+      return report(
+          errors, source,
           "Shader push constant type cannot lower today."_view);
     }
     push_member_type_ids.insert(type_id);
@@ -553,15 +781,17 @@ auto Shader::lower_stage(
 
   for (Count i = 0; i < resource_members.get_size(); i++) {
     if (!is_texture_resource(resource_members[i].get_type())) {
-      return context.report("Shader resource type cannot lower today."_view);
+      return report(
+          errors, source, "Shader resource type cannot lower today."_view);
     }
   }
 
-  Managed::Vector<Bits_32> interface_ids(context.get_arena());
+  Managed::Vector<Bits_32> interface_ids(arena);
   for (Count i = 0; i < parameters.get_size(); i++) {
     ResultId type_id = spirv_type_id(parameters[i].get_type());
     if (type_id == ResultId::Invalid) {
-      return context.report("Shader parameter type cannot lower today."_view);
+      return report(
+          errors, source, "Shader parameter type cannot lower today."_view);
     }
 
     interface_ids.insert(spirv_id(parameter_id(i)));
@@ -570,7 +800,8 @@ auto Shader::lower_stage(
   for (Count i = 0; i < results.get_size(); i++) {
     ResultId type_id = spirv_type_id(results[i].get_type());
     if (type_id == ResultId::Invalid) {
-      return context.report("Shader result type cannot lower today."_view);
+      return report(
+          errors, source, "Shader result type cannot lower today."_view);
     }
 
     interface_ids.insert(spirv_id(result_id(i)));
@@ -589,21 +820,25 @@ auto Shader::lower_stage(
   emit_stage_storage_decorations(
       assembler, push_member_type_ids.get_view(), resource_members);
   emit_core_types(assembler);
-  emit_push_type(
-      context.get_arena(), assembler, push_member_type_ids.get_view());
+  emit_push_type(arena, assembler, push_member_type_ids.get_view());
   emit_variables(
       assembler, parameters, results, !push_member_type_ids.is_empty(),
       resource_members);
-  emit_empty_entry_point(assembler);
+  if (!emit_entry_point(
+          arena, errors, source, assembler, shader_block(stage), parameters,
+          results)) {
+    return False;
+  }
 
   if (!Assembler::SpirV::is_valid_module(words)) {
-    return context.report("Shader compiler emitted invalid SPIR-V."_view);
+    return report(
+        errors, source, "Shader compiler emitted invalid SPIR-V."_view);
   }
 
   const Count offset = read_only.get_size();
   read_only.concat(words.get_view());
   stages.insert({
-    stage_name(context, module, shader.get_name(), stage.get_name()),
+    stage_name(arena, module, shader.get_name(), stage.get_name()),
     {offset, words.get_size()},
   });
   return True;
@@ -640,11 +875,11 @@ auto Shader::find_contract(const Ttx::Type& shader) const -> const Ttx::Type* {
 }
 
 auto Shader::stage_name(
-    Context& context,
+    Allocator::Arena& arena,
     View::Bytes module,
     View::Bytes shader,
     View::Bytes stage) -> View::Bytes {
-  Managed::Bytes output(context.get_arena());
+  Managed::Bytes output(arena);
   output.concat("TTX_shader_"_view);
   append_name_segment(output, module);
   output.append('_');

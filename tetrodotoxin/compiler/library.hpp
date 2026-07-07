@@ -6,16 +6,17 @@
 #include "perimortem/core/view/bytes.hpp"
 #include "perimortem/core/view/vector.hpp"
 
+#include "perimortem/memory/allocator/arena.hpp"
 #include "perimortem/memory/dynamic/bytes.hpp"
 #include "perimortem/memory/dynamic/vector.hpp"
 #include "perimortem/memory/managed/bytes.hpp"
 
-#include "tetrodotoxin/compiler/context.hpp"
 #include "tetrodotoxin/compiler/symbol/external.hpp"
 #include "tetrodotoxin/compiler/symbol/function.hpp"
 #include "tetrodotoxin/compiler/symbol/relocation.hpp"
 #include "tetrodotoxin/compiler/symbol/string.hpp"
 #include "tetrodotoxin/isa/library/block.hpp"
+#include "ttx/lexical/errors.hpp"
 #include "ttx/type.hpp"
 
 namespace Tetrodotoxin::Compiler {
@@ -30,7 +31,9 @@ class Library {
   Library() = default;
 
   auto lower(
-      Context& context,
+      Perimortem::Memory::Allocator::Arena& arena,
+      Ttx::Lexical::Errors& errors,
+      Ttx::Lexical::Source source,
       Perimortem::Core::View::Bytes module,
       const Ttx::Type& root) -> Bool;
 
@@ -59,44 +62,57 @@ class Library {
 
  private:
   auto lower_function(
-      Context& context,
+      Perimortem::Memory::Allocator::Arena& arena,
+      Ttx::Lexical::Errors& errors,
+      Ttx::Lexical::Source source,
       Perimortem::Core::View::Bytes module,
       const Ttx::Type::Function& function) -> Bool;
   auto lower_block(
-      Context& context,
+      Perimortem::Memory::Allocator::Arena& arena,
+      Ttx::Lexical::Errors& errors,
+      Ttx::Lexical::Source source,
       const Ttx::Type::Function& function,
       Ttx::Type::Function::Block block) -> Bool;
   auto lower_statement(
-      Context& context,
+      Perimortem::Memory::Allocator::Arena& arena,
+      Ttx::Lexical::Errors& errors,
+      Ttx::Lexical::Source source,
       const Ttx::Type::Function& function,
       const Tetrodotoxin::Isa::Library::Statement& statement) -> Bool;
   auto lower_call(
-      Context& context,
+      Perimortem::Memory::Allocator::Arena& arena,
+      Ttx::Lexical::Errors& errors,
+      Ttx::Lexical::Source source,
       const Ttx::Type::Function& function,
       const Tetrodotoxin::Isa::Library::Call& call) -> Bool;
   auto lower_pack_value(
-      Context& context,
+      Perimortem::Memory::Allocator::Arena& arena,
+      Ttx::Lexical::Errors& errors,
+      Ttx::Lexical::Source source,
       const Ttx::Type::Function& function,
       const Tetrodotoxin::Isa::Expression::Value& value,
       const Ttx::Type::Function& callee) -> Bool;
 
   auto emit_string_argument(
-      Context& context,
+      Perimortem::Memory::Allocator::Arena& arena,
       Perimortem::Core::View::Bytes value) -> Bool;
   auto emit_parameter_argument(
-      Context& context,
+      Ttx::Lexical::Errors& errors,
+      Ttx::Lexical::Source source,
       const Ttx::Type::Function& function,
       Perimortem::Core::View::Bytes name) -> Bool;
   auto call_external(Perimortem::Core::View::Bytes name) -> void;
-  auto string_index(Context& context, Perimortem::Core::View::Bytes value)
-      -> Count;
+  auto string_index(
+      Perimortem::Memory::Allocator::Arena& arena,
+      Perimortem::Core::View::Bytes value) -> Count;
   auto external_index(Perimortem::Core::View::Bytes name) -> Count;
   auto function_name(
-      Context& context,
+      Perimortem::Memory::Allocator::Arena& arena,
       Perimortem::Core::View::Bytes module,
       Perimortem::Core::View::Bytes function) -> Perimortem::Core::View::Bytes;
-  auto local_string_name(Context& context, Perimortem::Core::View::Bytes value)
-      -> Perimortem::Core::View::Bytes;
+  auto local_string_name(
+      Perimortem::Memory::Allocator::Arena& arena,
+      Perimortem::Core::View::Bytes value) -> Perimortem::Core::View::Bytes;
   auto append_name_segment(
       Perimortem::Memory::Managed::Bytes& output,
       Perimortem::Core::View::Bytes value) -> void;

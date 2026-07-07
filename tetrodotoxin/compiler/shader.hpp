@@ -6,13 +6,14 @@
 #include "perimortem/core/view/bytes.hpp"
 #include "perimortem/core/view/vector.hpp"
 
+#include "perimortem/memory/allocator/arena.hpp"
 #include "perimortem/memory/dynamic/bytes.hpp"
 #include "perimortem/memory/dynamic/map.hpp"
 #include "perimortem/memory/dynamic/vector.hpp"
 #include "perimortem/memory/managed/bytes.hpp"
 
-#include "tetrodotoxin/compiler/context.hpp"
 #include "tetrodotoxin/compiler/symbol/stage.hpp"
+#include "ttx/lexical/errors.hpp"
 #include "ttx/type.hpp"
 
 namespace Tetrodotoxin::Compiler {
@@ -27,7 +28,9 @@ class Shader {
   Shader() = default;
 
   auto lower(
-      Context& context,
+      Perimortem::Memory::Allocator::Arena& arena,
+      Ttx::Lexical::Errors& errors,
+      Ttx::Lexical::Source source,
       Perimortem::Core::View::Bytes module,
       const Ttx::Type& root) -> Bool;
 
@@ -41,7 +44,9 @@ class Shader {
 
  private:
   auto lower_stage(
-      Context& context,
+      Perimortem::Memory::Allocator::Arena& arena,
+      Ttx::Lexical::Errors& errors,
+      Ttx::Lexical::Source source,
       Perimortem::Core::View::Bytes module,
       const Ttx::Type& shader,
       const Ttx::Type& contract,
@@ -50,7 +55,7 @@ class Shader {
   auto register_render_contract(const Ttx::Type& render) -> void;
   auto find_contract(const Ttx::Type& shader) const -> const Ttx::Type*;
   auto stage_name(
-      Context& context,
+      Perimortem::Memory::Allocator::Arena& arena,
       Perimortem::Core::View::Bytes module,
       Perimortem::Core::View::Bytes shader,
       Perimortem::Core::View::Bytes stage) -> Perimortem::Core::View::Bytes;
