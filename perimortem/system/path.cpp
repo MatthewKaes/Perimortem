@@ -7,7 +7,6 @@
 #include "perimortem/core/null_terminated.hpp"
 
 using namespace Perimortem::Core;
-using namespace Perimortem::Memory;
 using namespace Perimortem::System;
 
 static auto is_path_separator(Bits_8 value) -> Bool {
@@ -30,37 +29,67 @@ static auto find_directory_size(View::Bytes file_path) -> Count {
   return directory_size;
 }
 
-static auto append_path_segment(
-    Dynamic::Bytes& output,
-    View::Bytes segment) -> Bool {
-  if (output.get_view() != "/"_view && !output.get_view().is_empty()) {
-    output.append('/');
+static auto append(
+    Static::Bytes<Path::max_size>& output,
+    Count& size,
+    Bits_8 byte) -> Bool {
+  if (size >= Path::max_size) {
+    return False;
   }
 
-  output.concat(segment);
-  return output.get_size() <= Path::max_size;
+  output[size] = byte;
+  size++;
+  return True;
 }
 
-static auto pop_path_segment(Dynamic::Bytes& output) -> Bool {
-  if (output.get_view().is_empty() || output.get_view() == "/"_view) {
+static auto concat(
+    Static::Bytes<Path::max_size>& output,
+    Count& size,
+    View::Bytes bytes) -> Bool {
+  if (bytes.get_size() > Path::max_size - size) {
+    return False;
+  }
+
+  Data::copy(output.get_data() + size, bytes.get_data(), bytes.get_size());
+  size += bytes.get_size();
+  return True;
+}
+
+static auto append_segment(
+    Static::Bytes<Path::max_size>& output,
+    Count& size,
+    View::Bytes segment) -> Bool {
+  View::Bytes view(output.get_data(), size);
+  if (view != "/"_view && !view.is_empty() && !append(output, size, '/')) {
+    return False;
+  }
+
+  return concat(output, size, segment);
+}
+
+static auto pop_segment(
+    Static::Bytes<Path::max_size>& output,
+    Count& size) -> Bool {
+  View::Bytes view(output.get_data(), size);
+  if (view.is_empty() || view == "/"_view) {
     return False;
   }
 
   Bool rooted = output[0] == '/';
   Count segment_start = rooted ? Count(1) : Count(0);
-  for (Count path_index = segment_start; path_index < output.get_size();
-       path_index++) {
-    if (output[path_index] == '/') {
-      segment_start = path_index;
+  for (Count i = segment_start; i < size; i++) {
+    if (output[i] == '/') {
+      segment_start = i;
     }
   }
 
-  output.resize(segment_start);
+  size = segment_start;
   return True;
 }
 
 static auto append_path(
-    Dynamic::Bytes& output,
+    Static::Bytes<Path::max_size>& output,
+    Count& size,
     View::Bytes path) -> Bool {
   Count path_index = 0;
   while (path_index < path.get_size()) {
@@ -81,13 +110,13 @@ static auto append_path(
     }
 
     if (segment == ".."_view) {
-      if (!pop_path_segment(output)) {
+      if (!pop_segment(output, size)) {
         return False;
       }
       continue;
     }
 
-    if (!append_path_segment(output, segment)) {
+    if (!append_segment(output, size, segment)) {
       return False;
     }
   }
@@ -98,48 +127,40 @@ static auto append_path(
 static auto normalize_path(
     View::Bytes base_file_path,
     View::Bytes path,
-    Dynamic::Bytes& output) -> Bool {
+    Static::Bytes<Path::max_size>& output,
+    Count& size) -> Bool {
   Bool rooted = is_rooted_path(path);
-  output.clear();
+  size = 0;
 
   if (rooted || (!base_file_path.is_empty() && is_rooted_path(base_file_path))) {
-    output.append('/');
+    if (!append(output, size, '/')) {
+      return False;
+    }
   }
 
   if (!rooted && !base_file_path.is_empty()) {
     View::Bytes base_directory =
         base_file_path.slice(0, find_directory_size(base_file_path));
-    if (!append_path(output, base_directory)) {
+    if (!append_path(output, size, base_directory)) {
       return False;
     }
   }
 
-  if (!append_path(output, path)) {
+  if (!append_path(output, size, path)) {
     return False;
   }
 
-  return !output.get_view().is_empty();
+  return size != 0;
 }
 
-auto Path::set(View::Bytes path) -> Bool {
-  Dynamic::Bytes normalized;
-  if (!normalize_path(View::Bytes(), path, normalized)) {
-    text.clear();
-    return False;
+Path::Path(View::Bytes path) {
+  if (!normalize_path(View::Bytes(), path, text, size)) {
+    size = 0;
   }
-
-  text = Data::take(normalized);
-  return True;
 }
 
-auto Path::set_relative(View::Bytes base_file_path, View::Bytes relative_path)
-    -> Bool {
-  Dynamic::Bytes normalized;
-  if (!normalize_path(base_file_path, relative_path, normalized)) {
-    text.clear();
-    return False;
+Path::Path(View::Bytes base_file_path, View::Bytes relative_path) {
+  if (!normalize_path(base_file_path, relative_path, text, size)) {
+    size = 0;
   }
-
-  text = Data::take(normalized);
-  return True;
 }

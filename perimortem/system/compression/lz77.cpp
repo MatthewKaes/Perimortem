@@ -30,8 +30,9 @@ constexpr auto compute_hash(Static::Bytes<3> data) -> Count {
   return Count((v * knuth_multiplier) >> 17);
 }
 
-// Compare source[position..] against source[candidate..] up to scan_limit bytes,
-// looking for instances of duplication in earlier parts of the source input.
+// Compare source[position..] against source[candidate..] up to scan_limit
+// bytes, looking for instances of duplication in earlier parts of the source
+// input.
 constexpr auto extend_match(
     const Bits_8* data,
     Count position,
@@ -119,8 +120,7 @@ auto Compression::Lz77::insert(View::Bytes source, Count position) -> void {
   if (source.get_size() - position < min_match) {
     return;
   }
-  const Count hash =
-      compute_hash(Static::Bytes<3>::read_range(source.get_data() + position));
+  const Count hash = compute_hash(Static::Bytes<3>(source.get_data()));
   chain_table.get_data()[position & window_mask] = hash_table.get_data()[hash];
   hash_table.get_data()[hash] = Bits_32(position);
 }
@@ -139,7 +139,7 @@ auto Compression::Lz77::find_match_and_insert(
 
   // Insert position before searching so future calls can find it but start the
   // search at the old chain head so we never match position against itself.
-  const Count hash = compute_hash(Static::Bytes<3>::read_range(data + position));
+  const Count hash = compute_hash(Static::Bytes<3>(data + position));
   Bits_32 candidate = hash_table.get_data()[hash];
   chain_table.get_data()[position & window_mask] = candidate;
   hash_table.get_data()[hash] = Bits_32(position);
@@ -154,7 +154,8 @@ auto Compression::Lz77::find_match_and_insert(
       break;
     }
 
-    Count match_length = extend_match(data, position, Count(candidate), scan_limit);
+    Count match_length =
+        extend_match(data, position, Count(candidate), scan_limit);
     if (match_length > best_length) {
       best_length = match_length;
       best_distance = distance;
@@ -173,8 +174,10 @@ auto Compression::Lz77::find_match_and_insert(
   return Match(best_length, best_distance);
 }
 
-auto Compression::Lz77::find_match(View::Bytes source, Count position, Count depth)
-    const -> Match {
+auto Compression::Lz77::find_match(
+    View::Bytes source,
+    Count position,
+    Count depth) const -> Match {
   const Bits_8* data = source.get_data();
   const Count remaining = source.get_size() - position;
 
@@ -183,7 +186,7 @@ auto Compression::Lz77::find_match(View::Bytes source, Count position, Count dep
     return Match();
   }
 
-  const Count hash = compute_hash(Static::Bytes<3>::read_range(data + position));
+  const Count hash = compute_hash(Static::Bytes<3>(data + position));
   Count best_length = min_match - 1;
   Count best_distance = 0;
   Bits_32 candidate = hash_table.get_data()[hash];
