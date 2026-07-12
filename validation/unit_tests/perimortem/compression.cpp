@@ -8,17 +8,19 @@
 #include "perimortem/core/bibliotheca.hpp"
 #include "perimortem/core/null_terminated.hpp"
 
-#include "perimortem/system/compression/deflate.hpp"
 #include "perimortem/system/file.hpp"
+
+#include "perimortem/compression/deflate.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
+using namespace Perimortem;
 using namespace Perimortem::System;
 
 using namespace Validation;
 
-static Harness SystemCompression = {
-  .name = "System::Compression"_view,
+static Harness CompressionTests = {
+  .name = "Compression"_view,
 };
 
 // Known test blobs produced by zlib
@@ -67,7 +69,7 @@ static constexpr Static::Bytes<26> bad_adler_compressed = {
   0xCC, 0xCD, 0x2F, 0x2A, 0x49, 0xCD, 0x55, 0x04, 0x00, 0x3D, 0x2E, 0x06, 0x79,
 };
 
-PERIMORTEM_UNIT_TEST(SystemCompression, dynamic_huffman) {
+PERIMORTEM_UNIT_TEST(CompressionTests, dynamic_huffman) {
   auto start = Bibliotheca::check_out_requests();
   auto out = Compression::Deflate::inflate(hello_compressed);
 
@@ -78,14 +80,14 @@ PERIMORTEM_UNIT_TEST(SystemCompression, dynamic_huffman) {
   EXPECT_EQ(Bibliotheca::check_out_requests(), start + 1);
 }
 
-PERIMORTEM_UNIT_TEST(SystemCompression, stored_blocks) {
+PERIMORTEM_UNIT_TEST(CompressionTests, stored_blocks) {
   auto out = Compression::Deflate::inflate(stored_compressed);
 
   ASSERT_EQ(out.get_size(), stored_raw.get_size());
   EXPECT_HEX(out.get_view(), stored_raw.get_view());
 }
 
-PERIMORTEM_UNIT_TEST(SystemCompression, back_references) {
+PERIMORTEM_UNIT_TEST(CompressionTests, back_references) {
   auto out = Compression::Deflate::inflate(repeat_compressed);
 
   // Check that ABCD bytes are repeated 50 times.
@@ -96,19 +98,19 @@ PERIMORTEM_UNIT_TEST(SystemCompression, back_references) {
   }
 }
 
-PERIMORTEM_UNIT_TEST(SystemCompression, empty_content) {
+PERIMORTEM_UNIT_TEST(CompressionTests, empty_content) {
   auto out = Compression::Deflate::inflate(empty_compressed);
   EXPECT_EQ(out.get_size(), 0);
 }
 
-PERIMORTEM_UNIT_TEST(SystemCompression, inflate_single_byte) {
+PERIMORTEM_UNIT_TEST(CompressionTests, inflate_single_byte) {
   auto out = Compression::Deflate::inflate(single_compressed);
 
   ASSERT_EQ(out.get_size(), 1);
   EXPECT_EQ(out[0], Bits_8(0x42));
 }
 
-PERIMORTEM_UNIT_TEST(SystemCompression, inflate_empty_view) {
+PERIMORTEM_UNIT_TEST(CompressionTests, inflate_empty_view) {
   auto out = Compression::Deflate::inflate(""_view);
   EXPECT_EQ(out.get_size(), 0);
   EXPECT(
@@ -116,7 +118,7 @@ PERIMORTEM_UNIT_TEST(SystemCompression, inflate_empty_view) {
           "Compression: Input too short to be a valid deflate stream"_view));
 }
 
-PERIMORTEM_UNIT_TEST(SystemCompression, truncated_input) {
+PERIMORTEM_UNIT_TEST(CompressionTests, truncated_input) {
   // Hand the decompressor only the zlib header — the deflate payload is
   // missing.
   auto out = Compression::Deflate::inflate(hello_compressed.slice(0, 2));
@@ -126,7 +128,7 @@ PERIMORTEM_UNIT_TEST(SystemCompression, truncated_input) {
           "Compression: Input too short to be a valid deflate stream"_view));
 }
 
-PERIMORTEM_UNIT_TEST(SystemCompression, bad_method) {
+PERIMORTEM_UNIT_TEST(CompressionTests, bad_method) {
   Static::Bytes<26> bad_cm = hello_compressed;
 
   // Corrupt the CM nibble to 9 (DEFLATE requires exactly 8).
@@ -139,7 +141,7 @@ PERIMORTEM_UNIT_TEST(SystemCompression, bad_method) {
           "Compression: Unsupported compression method in deflate header"_view));
 }
 
-PERIMORTEM_UNIT_TEST(SystemCompression, inflate_bad_checksum) {
+PERIMORTEM_UNIT_TEST(CompressionTests, inflate_bad_checksum) {
   auto out = Compression::Deflate::inflate(bad_adler_compressed);
 #if PERI_DEBUG
   EXPECT_EQ(out.get_size(), 0);
@@ -150,7 +152,7 @@ PERIMORTEM_UNIT_TEST(SystemCompression, inflate_bad_checksum) {
 #endif
 }
 
-PERIMORTEM_UNIT_TEST(SystemCompression, corrupted_payload) {
+PERIMORTEM_UNIT_TEST(CompressionTests, corrupted_payload) {
   // Flip all bits of a byte in the middle of the DEFLATE bitstream.
   Static::Bytes<26> corrupt = hello_compressed;
   corrupt[5] ^= 0xFF;
@@ -167,7 +169,7 @@ PERIMORTEM_UNIT_TEST(SystemCompression, corrupted_payload) {
 #endif
 }
 
-PERIMORTEM_UNIT_TEST(SystemCompression, deflate_empty_input) {
+PERIMORTEM_UNIT_TEST(CompressionTests, deflate_empty_input) {
   auto start = Bibliotheca::check_out_requests();
   auto compressed = Compression::Deflate::deflate(""_view);
 
@@ -184,7 +186,7 @@ PERIMORTEM_UNIT_TEST(SystemCompression, deflate_empty_input) {
   EXPECT_EQ(Bibliotheca::check_out_requests(), start + 2);
 }
 
-PERIMORTEM_UNIT_TEST(SystemCompression, deflate_single_byte) {
+PERIMORTEM_UNIT_TEST(CompressionTests, deflate_single_byte) {
   constexpr Static::Bytes<1> source_bytes = {
     0x42,
   };
@@ -196,7 +198,7 @@ PERIMORTEM_UNIT_TEST(SystemCompression, deflate_single_byte) {
   EXPECT_EQ(recovered[0], Bits_8(0x42));
 }
 
-PERIMORTEM_UNIT_TEST(SystemCompression, roundtrip_short) {
+PERIMORTEM_UNIT_TEST(CompressionTests, roundtrip_short) {
   auto compressed = Compression::Deflate::deflate(hello_raw);
   ASSERT(compressed.get_size() > 0);
 
@@ -205,7 +207,7 @@ PERIMORTEM_UNIT_TEST(SystemCompression, roundtrip_short) {
   EXPECT_HEX(recovered.get_view(), hello_raw.get_view());
 }
 
-PERIMORTEM_UNIT_TEST(SystemCompression, roundtrip_binary) {
+PERIMORTEM_UNIT_TEST(CompressionTests, roundtrip_binary) {
   // Binary data with all 256 byte values present.
   Static::Bytes<256> all_bytes;
   for (Count i = 0; i < 256; i++) {
@@ -219,7 +221,7 @@ PERIMORTEM_UNIT_TEST(SystemCompression, roundtrip_binary) {
   EXPECT_HEX(recovered.get_view(), all_bytes.get_view());
 }
 
-PERIMORTEM_UNIT_TEST(SystemCompression, valid_header) {
+PERIMORTEM_UNIT_TEST(CompressionTests, valid_header) {
   auto compressed = Compression::Deflate::deflate(stored_raw);
 
   ASSERT(compressed.get_size() >= 6);
@@ -227,7 +229,7 @@ PERIMORTEM_UNIT_TEST(SystemCompression, valid_header) {
   EXPECT_EQ((Bits_32(compressed[0]) * 256 + compressed[1]) % 31, Bits_32(0));
 }
 
-PERIMORTEM_UNIT_TEST(SystemCompression, repeating_value) {
+PERIMORTEM_UNIT_TEST(CompressionTests, repeating_value) {
   constexpr Count source_size = 512;
   Static::Bytes<source_size> source;
   for (Count i = 0; i < source_size; i++) {
@@ -243,7 +245,7 @@ PERIMORTEM_UNIT_TEST(SystemCompression, repeating_value) {
   EXPECT_HEX(recovered.get_view(), source.get_view());
 }
 
-PERIMORTEM_UNIT_TEST(SystemCompression, roundtrip_large) {
+PERIMORTEM_UNIT_TEST(CompressionTests, roundtrip_large) {
   // 8 KB of structured data spanning multiple stored blocks in deflate output.
   constexpr Count size = 8192;
   Static::Bytes<size> large;
@@ -259,13 +261,12 @@ PERIMORTEM_UNIT_TEST(SystemCompression, roundtrip_large) {
   EXPECT_HEX(recovered.get_view(), large.get_view());
 }
 
-PERIMORTEM_UNIT_TEST(SystemCompression, size_source_file) {
+PERIMORTEM_UNIT_TEST(CompressionTests, size_source_file) {
   // Every level that does real compression must beat the level below it on
   // data that is known to be compressible.
   // Ordering must hold: None > Default >= Best.
-  File source_file;
-  ASSERT(source_file.read("perimortem/system/compression/deflate.cpp"_view));
-  View::Bytes source = source_file.get_view();
+  auto source = File::read("perimortem/compression/deflate.cpp"_view);
+  ASSERT(!source.is_empty());
 
   auto no_compression =
       Compression::Deflate::deflate(source, Compression::Deflate::Level::None);
@@ -289,7 +290,7 @@ PERIMORTEM_UNIT_TEST(SystemCompression, size_source_file) {
   EXPECT_HEX(recovered, source);
 }
 
-PERIMORTEM_UNIT_TEST(SystemCompression, skewed_frequencies) {
+PERIMORTEM_UNIT_TEST(CompressionTests, skewed_frequencies) {
   constexpr Count size = 50000;
   Dynamic::Bytes source;
   source.forgetful_resize(size);
@@ -306,7 +307,7 @@ PERIMORTEM_UNIT_TEST(SystemCompression, skewed_frequencies) {
   EXPECT_HEX(recovered.get_view(), source.get_view());
 }
 
-PERIMORTEM_UNIT_TEST(SystemCompression, size_repetitive_data) {
+PERIMORTEM_UNIT_TEST(CompressionTests, size_repetitive_data) {
   // 4 KB of a 64-byte pattern cycled 64 times.  After the first cycle every
   // subsequent occurrence should be back-referenced, so the compressed output
   // must be substantially smaller than Level::None stored blocks.

@@ -171,38 +171,35 @@ auto cpp_malloc_frame_interleaved() -> void {
   Benchmark::prevent_optimization(ptrs[0]);
 }
 
-#define CYCLE_COMPARISON(size)                                      \
-  static Benchmark::Comparison cycle_##size##_comp = {              \
-    .harness = &AllocatorBench,                                     \
-    .label = "cycle " #size ""_view,                                \
-    .variants =                                                     \
-        {                                                           \
-          Benchmark::ComparisonVariant{                             \
-              "bibliotheca"_view,                                  \
-              "bibliotheca_cycle_" #size ""_view},                 \
-          Benchmark::ComparisonVariant{                             \
-              "arena"_view, "arena_cycle_" #size ""_view},         \
-        },                                                          \
-  };                                                                \
-  PERIMORTEM_COMPARISON(cycle_##size##_comp) {                      \
-    cpp_malloc_cycle<size>();                                       \
+#define CYCLE_COMPARISON(size)                                       \
+  static Benchmark::Comparison cycle_##size##_comp = {               \
+    .harness = &AllocatorBench,                                      \
+    .label = "cycle " #size ""_view,                                 \
+    .variants =                                                      \
+        {                                                            \
+          Benchmark::ComparisonVariant{                              \
+            "bibliotheca"_view, "bibliotheca_cycle_" #size ""_view}, \
+          Benchmark::ComparisonVariant{                              \
+            "arena"_view, "arena_cycle_" #size ""_view},             \
+        },                                                           \
+  };                                                                 \
+  PERIMORTEM_COMPARISON(cycle_##size##_comp) {                       \
+    cpp_malloc_cycle<size>();                                        \
   }
 
 CYCLE_COMPARISON(64)
 CYCLE_COMPARISON(1024)
 CYCLE_COMPARISON(65536)
 
-#define STABILITY_COMPARISON(prefix, count, min_bytes, max_mask)       \
-  static Benchmark::Comparison stability_##prefix##_##count##_comp = { \
-    .harness = &AllocatorBench,                                        \
-    .label = #prefix " " #count ""_view,                               \
-    .variants =                                                        \
-        {Benchmark::ComparisonVariant{                                 \
-            "bibliotheca"_view,                                        \
-            "frame_" #prefix "_" #count "_allocations"_view}},         \
-  };                                                                   \
-  PERIMORTEM_COMPARISON(stability_##prefix##_##count##_comp) {         \
-    cpp_malloc_frame_stability<count, min_bytes, max_mask>();          \
+#define STABILITY_COMPARISON(prefix, count, min_bytes, max_mask)             \
+  static Benchmark::Comparison stability_##prefix##_##count##_comp = {       \
+    .harness = &AllocatorBench,                                              \
+    .label = #prefix " " #count ""_view,                                     \
+    .variants = {Benchmark::ComparisonVariant{                               \
+      "bibliotheca"_view, "frame_" #prefix "_" #count "_allocations"_view}}, \
+  };                                                                         \
+  PERIMORTEM_COMPARISON(stability_##prefix##_##count##_comp) {               \
+    cpp_malloc_frame_stability<count, min_bytes, max_mask>();                \
   }
 
 STABILITY_COMPARISON(small, 1024, 64, 0xFF)
@@ -214,10 +211,9 @@ STABILITY_COMPARISON(varied, 65536, 64, 0xFFFF)
   static Benchmark::Comparison interleaved_##windows##_##count##_comp = { \
     .harness = &AllocatorBench,                                           \
     .label = #windows " windows " #count ""_view,                         \
-    .variants =                                                           \
-        {Benchmark::ComparisonVariant{                                    \
-            "bibliotheca"_view,                                           \
-            "frame_" #windows "_interleaved_" #count "_allocations"_view}}, \
+    .variants = {Benchmark::ComparisonVariant{                            \
+      "bibliotheca"_view,                                                 \
+      "frame_" #windows "_interleaved_" #count "_allocations"_view}},     \
   };                                                                      \
   PERIMORTEM_COMPARISON(interleaved_##windows##_##count##_comp) {         \
     cpp_malloc_frame_interleaved<count, windows, 64, 0xFF>();             \

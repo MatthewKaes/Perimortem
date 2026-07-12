@@ -48,6 +48,17 @@ PERIMORTEM_UNIT_TEST(AlgoSearch, missing_single_byte) {
   EXPECT_EQ(Algorithm::search("a"_view, "b"_view), Count(-1));
 }
 
+PERIMORTEM_UNIT_TEST(AlgoSearch, byte_offset) {
+  Static::Bytes<160> source;
+  for (Count i = 0; i < source.get_size(); i++) {
+    source[i] = 'a';
+  }
+  source[97] = '\\';
+
+  EXPECT_EQ(Algorithm::search(source, Bits_8('\\')), Count(97));
+  EXPECT_EQ(Algorithm::search(source, Bits_8('z')), Count(-1));
+}
+
 PERIMORTEM_UNIT_TEST(AlgoSearch, find) {
   constexpr auto test_word = "world"_view;
   EXPECT_EQ(

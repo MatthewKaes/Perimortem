@@ -1,15 +1,14 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
-#include "perimortem/core/thread/worker.hpp"
+#include "validation/unit_test.hpp"
 
 #include <sched.h>
 
-#include "validation/unit_test.hpp"
-
 #include "perimortem/core/access/bytes.hpp"
-#include "perimortem/core/reader/binary.hpp"
 #include "perimortem/core/static/bytes.hpp"
+#include "perimortem/core/reader/binary.hpp"
+#include "perimortem/core/thread/worker.hpp"
 #include "perimortem/core/writer/binary.hpp"
 
 using namespace Perimortem::Core;
@@ -64,7 +63,8 @@ static auto checksum_worker_payload(View::Bytes payload_bytes) -> Bits_64 {
 static auto read_large_payload_job(View::Bytes job_data) -> void {
   Reader::Binary<Data::ByteOrder::Native> reader(job_data);
   const Bits_64 result_address = reader.read_bits_64();
-  const View::Bytes payload_bytes = reader.read_bytes(large_worker_payload_size);
+  const View::Bytes payload_bytes =
+      reader.read_bytes(large_worker_payload_size);
 
   if (result_address == 0) {
     return;
@@ -73,8 +73,7 @@ static auto read_large_payload_job(View::Bytes job_data) -> void {
   auto* worker_result = reinterpret_cast<WorkerPayloadResult*>(result_address);
   worker_result->byte_count = payload_bytes.get_size();
   worker_result->checksum = checksum_worker_payload(payload_bytes);
-  worker_result->read_successfully =
-      reader.is_valid() && reader.is_empty();
+  worker_result->read_successfully = reader.get_location() == reader.get_size();
 }
 
 static auto read_thread_name_job(View::Bytes job_data) -> void {
@@ -92,8 +91,7 @@ static auto read_thread_name_job(View::Bytes job_data) -> void {
   worker_result->name_size = actual_name.get_size();
   worker_result->checksum = checksum_worker_payload(actual_name);
   worker_result->matches_expected = actual_name == expected_name;
-  worker_result->read_successfully =
-      reader.is_valid() && reader.is_empty();
+  worker_result->read_successfully = reader.get_location() == reader.get_size();
 }
 
 static auto hold_worker_job(View::Bytes job_data) -> void {
@@ -107,8 +105,7 @@ static auto hold_worker_job(View::Bytes job_data) -> void {
   auto* worker_result = reinterpret_cast<WorkerCountResult*>(result_address);
   worker_result->active_worker_count = Thread::Worker::get_worker_count();
   worker_result->thread_id = Thread::Worker::get_thread_id();
-  worker_result->read_successfully =
-      reader.is_valid() && reader.is_empty();
+  worker_result->read_successfully = reader.get_location() == reader.get_size();
   __atomic_store_n(&worker_result->started.value, True.value, __ATOMIC_RELEASE);
 
   while (Bool(__atomic_load_n(
@@ -117,8 +114,7 @@ static auto hold_worker_job(View::Bytes job_data) -> void {
   }
 }
 
-PERIMORTEM_UNIT_TEST(
-    CoreThreadWorker, copies_large_job) {
+PERIMORTEM_UNIT_TEST(CoreThreadWorker, copies_large_job) {
   WorkerPayloadResult worker_result;
   Static::Bytes<large_worker_payload_size> expected_payload;
   fill_worker_payload(expected_payload);
@@ -129,8 +125,8 @@ PERIMORTEM_UNIT_TEST(
       sizeof(Bits_64) + large_worker_payload_size + sizeof(Bits_64) * 2>
       job_storage;
   Count source_offset = 1;
-  if ((Count(job_storage.get_data() + source_offset) &
-       (sizeof(Bits_64) - 1)) == 0) {
+  if ((Count(job_storage.get_data() + source_offset) & (sizeof(Bits_64) - 1)) ==
+      0) {
     source_offset++;
   }
   Access::Bytes job_data(

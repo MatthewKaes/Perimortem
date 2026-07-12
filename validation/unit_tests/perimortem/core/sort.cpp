@@ -40,9 +40,7 @@ class SortBytes {
 
   auto append(Bits_8 byte) -> void { bytes.append(byte); }
 
-  constexpr auto get_view() const -> View::Bytes {
-    return bytes.get_view();
-  }
+  constexpr auto get_view() const -> View::Bytes { return bytes.get_view(); }
 
   auto operator>(const SortBytes& rhs) const -> Bool {
     return bytes_greater(get_view(), rhs.get_view());

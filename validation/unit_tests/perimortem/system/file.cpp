@@ -40,7 +40,8 @@ static Harness SystemFile = {
           return;
         }
 
-        fwrite(json_contents.get_data(), json_contents.get_size(), 1, file_source);
+        fwrite(
+            json_contents.get_data(), json_contents.get_size(), 1, file_source);
         fclose(file_source);
       },
   .teardown =
@@ -60,6 +61,14 @@ PERIMORTEM_UNIT_TEST(SystemFile, empty_file) {
 
   // Creating an empty file should perform zero allocations.
   EXPECT_EQ(Bibliotheca::check_out_requests(), start_requests);
+}
+
+PERIMORTEM_UNIT_TEST(SystemFile, write_empty) {
+  ASSERT(File::write(""_view, test_output));
+
+  EXPECT(File::exists(test_output));
+  EXPECT(File::read(test_output).is_empty());
+  EXPECT(File::remove(test_output));
 }
 
 PERIMORTEM_UNIT_TEST(SystemFile, memory_file) {
@@ -107,7 +116,7 @@ PERIMORTEM_UNIT_TEST(SystemFile, file_contents) {
   auto start_requests = Bibliotheca::check_out_requests();
   File file;
 
-  ASSERT(file.read(test_file));
+  ASSERT(file.load(test_file));
 
   // Reading the file should require an allocation.
   EXPECT_EQ(Bibliotheca::check_out_requests(), start_requests + 1);
@@ -118,9 +127,9 @@ PERIMORTEM_UNIT_TEST(SystemFile, file_contents) {
   // File should round trip without issue.
   auto test_output_location =
       ".bin/bin/validation/file_contents_temp.json"_view;
-  ASSERT(file.write(test_output_location));
+  ASSERT(file.flush(test_output_location));
 
-  ASSERT(file.read(test_output_location));
+  ASSERT(file.load(test_output_location));
 
   EXPECT_TEXT(file.get_view(), json_contents);
 

@@ -11,7 +11,7 @@
 
 using namespace Perimortem::Core;
 using namespace Perimortem::System;
-using namespace Tetrodotoxin::Puffer::Resolution;
+using namespace Tetrodotoxin::Puffer;
 using namespace Validation;
 
 static constexpr View::Bytes disk_root =
@@ -76,23 +76,69 @@ static constexpr View::Bytes simple_shader_source =
     "}\n"_view;
 
 static auto write_source(View::Bytes source_path, View::Bytes source) -> Bool {
-  File file;
-  file.update_contents(source);
-  return file.write(source_path);
+  return File::write(source, source_path);
 }
 
-static auto error_path(const Resolver::Context& source_context, Count index = 0)
-    -> View::Bytes {
+PERIMORTEM_UNIT_TEST(TetrodotoxinResolution, cache_publish) {
+  Resolution::Source::Cache cache;
+  Perimortem::Memory::Dynamic::Object<Resolution::Source::Record> incomplete(
+      "unit/incomplete.ttx"_view, library_source);
+
+  EXPECT_NOT(cache.publish(incomplete));
+  EXPECT_NOT(cache.find("unit/incomplete.ttx"_view));
+}
+
+PERIMORTEM_UNIT_TEST(TetrodotoxinResolution, source_roots) {
+  Resolution::Source::Roots roots;
+
+  EXPECT(roots.include("packages/user/ui/package.ttx"_view));
+  EXPECT(roots.include("packages/user/core/package.ttx"_view));
+  EXPECT(roots.contains("packages/user/shared/types.ttx"_view));
+  EXPECT(roots.include("unit/root.ttx"_view));
+  EXPECT_NOT(roots.contains("tetrodotoxin/standard/private.ttx"_view));
+  EXPECT_NOT(roots.include("generated/root.ttx"_view));
+}
+
+static auto register_package(
+    Resolution::Resolver& resolver,
+    Resolution::Resolver::Context& context,
+    View::Bytes path) -> Bool {
+  auto package_buffer = File::read(path);
+  return !package_buffer.is_empty() &&
+         resolver.register_package_buffer(context, path, package_buffer);
+}
+
+static auto register_standard_packages(
+    Resolution::Resolver& resolver,
+    Resolution::Resolver::Context& context) -> Bool {
+  return register_package(
+             resolver, context,
+             ".bin/bin/tetrodotoxin/standard/Perimortem.Math/"
+             "perimortem_math.puffer"_view) &&
+         register_package(
+             resolver, context,
+             ".bin/bin/tetrodotoxin/standard/Perimortem.Runtime/"
+             "perimortem_runtime.puffer"_view) &&
+         register_package(
+             resolver, context,
+             ".bin/bin/tetrodotoxin/standard/Perimortem.Graphics/"
+             "perimortem_graphics.puffer"_view);
+}
+
+static auto error_path(
+    const Resolution::Resolver::Context& source_context,
+    Count index = 0) -> View::Bytes {
   return source_context.get_errors()[index].get_source_path();
 }
 
 static auto error_message(
-    const Resolver::Context& source_context, Count index = 0) -> View::Bytes {
+    const Resolution::Resolver::Context& source_context,
+    Count index = 0) -> View::Bytes {
   return source_context.get_errors()[index].get_message();
 }
 
 static auto first_error_is(
-    const Resolver::Context& source_context,
+    const Resolution::Resolver::Context& source_context,
     View::Bytes source_path,
     View::Bytes message) -> Bool {
   return source_context.get_errors().get_size() == 1 &&
@@ -101,7 +147,7 @@ static auto first_error_is(
 }
 
 static auto has_error(
-    const Resolver::Context& source_context,
+    const Resolution::Resolver::Context& source_context,
     View::Bytes source_path,
     View::Bytes message) -> Bool {
   for (Count i = 0; i < source_context.get_errors().get_size(); i++) {
@@ -114,48 +160,54 @@ static auto has_error(
   return False;
 }
 
-static auto import_count(const Source::Record* record) -> Count {
-  return record->get_boot().get_imports().get_size();
+static auto import_count(const Resolution::Source::Record* record) -> Count {
+  return record->get_imports().get_size();
 }
 
-static auto import_name(const Source::Record* record, Count index)
+static auto import_name(const Resolution::Source::Record* record, Count index)
     -> View::Bytes {
-  return record->get_boot().get_imports()[index].get_source_name();
+  return record->get_imports()[index].get_source_name();
 }
 
-static auto root_type(const Source::Record* record) -> const Ttx::Type* {
+static auto root_type(const Resolution::Source::Record* record)
+    -> const Ttx::Type* {
   if (record == nullptr) {
     return nullptr;
   }
 
-  return record->get_type();
+  return &record->get_type();
 }
 
 PERIMORTEM_UNIT_TEST(TetrodotoxinResolution, package_imports) {
   Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
-  Resolver resolver(toolchain);
-  Resolver::Context root_source_context;
+  Resolution::Resolver resolver(toolchain);
+  Resolution::Resolver::Context dependency_context;
+  ASSERT(register_standard_packages(resolver, dependency_context));
+  EXPECT_NOT(dependency_context.has_errors());
 
-  const Source::Record* root_record = resolver.load_source(
+  Resolution::Resolver::Context root_source_context;
+
+  const Resolution::Source::Record* root_record = resolver.load_source(
       root_source_context, "unit/root.ttx"_view,
       "dialect : Library;\n"
-      "import Graphics : Package = Perimortem::Graphics;\n"
-      "import Math : Package = Perimortem::Math;\n"
-      "import Runtime : Package = Perimortem::Runtime;\n"_view);
+      "import Graphics : Package = Perimortem.Graphics;\n"
+      "import Math : Package = Perimortem.Math;\n"
+      "import Runtime : Package = Perimortem.Runtime;\n"_view);
   ASSERT(root_record != nullptr);
   EXPECT_NOT(root_source_context.has_errors());
   EXPECT_EQ(import_count(root_record), Count(3));
 
-  const Source::Record* package_record =
-      resolver.resolve("Perimortem::Graphics"_view);
+  const Resolution::Source::Record* package_record =
+      resolver.resolve("Perimortem.Graphics"_view);
   ASSERT(package_record != nullptr);
-  EXPECT_EQ(import_count(package_record), Count(3));
-  EXPECT(resolver.resolve("Perimortem::Math"_view));
-  EXPECT(resolver.resolve("Perimortem::Runtime"_view));
+  EXPECT_EQ(import_count(package_record), Count(1));
+  EXPECT_TEXT(import_name(package_record, 0), "Perimortem.Math"_view);
+  EXPECT(resolver.resolve("Perimortem.Math"_view));
+  EXPECT(resolver.resolve("Perimortem.Runtime"_view));
 
-  EXPECT_TEXT(import_name(root_record, 0), "Perimortem::Graphics"_view);
-  EXPECT_TEXT(import_name(root_record, 1), "Perimortem::Math"_view);
-  EXPECT_TEXT(import_name(root_record, 2), "Perimortem::Runtime"_view);
+  EXPECT_TEXT(import_name(root_record, 0), "Perimortem.Graphics"_view);
+  EXPECT_TEXT(import_name(root_record, 1), "Perimortem.Math"_view);
+  EXPECT_TEXT(import_name(root_record, 2), "Perimortem.Runtime"_view);
   EXPECT(resolver.resolve(import_name(root_record, 0)) == package_record);
   EXPECT_NOT(resolver.resolve("TTX.Graphics"_view));
   EXPECT_NOT(resolver.resolve(
@@ -164,8 +216,8 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinResolution, package_imports) {
 
 PERIMORTEM_UNIT_TEST(TetrodotoxinResolution, missing_imports) {
   Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
-  Resolver resolver(toolchain);
-  Resolver::Context root_source_context;
+  Resolution::Resolver resolver(toolchain);
+  Resolution::Resolver::Context root_source_context;
   EXPECT_NOT(resolver.load_source(
       root_source_context, "unit/root.ttx"_view,
       "dialect : Library;\n"
@@ -185,15 +237,14 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinResolution, missing_imports) {
 
 PERIMORTEM_UNIT_TEST(TetrodotoxinResolution, path_slashes) {
   Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
-  Resolver resolver(toolchain);
-  Resolver::Context bad_path_source_context;
-  EXPECT_NOT(
-      resolver.load_source(
-          bad_path_source_context, "unit\\root.ttx"_view, library_source));
+  Resolution::Resolver resolver(toolchain);
+  Resolution::Resolver::Context bad_path_source_context;
+  EXPECT_NOT(resolver.load_source(
+      bad_path_source_context, "unit\\root.ttx"_view, library_source));
   EXPECT(first_error_is(
       bad_path_source_context, "unit\\root.ttx"_view,
       "File paths must use `/` separators."_view));
-  Resolver::Context bad_import_source_context;
+  Resolution::Resolver::Context bad_import_source_context;
 
   EXPECT_NOT(resolver.load_source(
       bad_import_source_context, "unit/root.ttx"_view,
@@ -209,12 +260,14 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinResolution, error_source_view) {
   static constexpr View::Bytes source =
       "dialect : Library;\n"
       "bad source with enough text to notice if it is copied per error\n"_view;
-  Resolver::Context error_source_context;
+  Resolution::Resolver::Context error_source_context;
 
-  error_source_context.persist_errors(Ttx::Lexical::Errors::Error(
-      "unit/root.ttx"_view, source, "First error."_view));
-  error_source_context.persist_errors(Ttx::Lexical::Errors::Error(
-      "unit/root.ttx"_view, source, "Second error."_view));
+  error_source_context.persist_errors(
+      Ttx::Lexical::Errors::Error(
+          "unit/root.ttx"_view, source, "First error."_view));
+  error_source_context.persist_errors(
+      Ttx::Lexical::Errors::Error(
+          "unit/root.ttx"_view, source, "Second error."_view));
 
   ASSERT_EQ(error_source_context.get_errors().get_size(), Count(2));
   EXPECT(
@@ -227,34 +280,33 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinResolution, error_source_view) {
 
 PERIMORTEM_UNIT_TEST(TetrodotoxinResolution, parse_error_retry) {
   Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
-  Resolver resolver(toolchain);
-  Resolver::Context invalid_root_source_context;
+  Resolution::Resolver resolver(toolchain);
+  Resolution::Resolver::Context invalid_root_source_context;
   EXPECT_NOT(resolver.load_source(
       invalid_root_source_context, "unit/root.ttx"_view, "dialect : ;\n"_view));
   EXPECT(invalid_root_source_context.has_errors());
-  Resolver::Context retried_root_source_context;
+  Resolution::Resolver::Context retried_root_source_context;
 
   EXPECT_NOT(resolver.resolve("unit/root.ttx"_view));
   EXPECT_NOT(retried_root_source_context.has_errors());
 
   ASSERT(resolver.load_source(
       retried_root_source_context, "unit/root.ttx"_view, library_source));
-  Resolver::Context memory_source_context;
+  Resolution::Resolver::Context memory_source_context;
   EXPECT(resolver.resolve("unit/root.ttx"_view));
   EXPECT_NOT(memory_source_context.has_errors());
 
-  const Source::Record* record =
-      resolver.load_source(
-          memory_source_context, "unit/memory.ttx"_view, library_source);
+  const Resolution::Source::Record* record = resolver.load_source(
+      memory_source_context, "unit/memory.ttx"_view, library_source);
   ASSERT(record != nullptr);
-  EXPECT_TEXT(record->get_boot().get_isa(), "Library"_view);
+  EXPECT_TEXT(record->get_dialect().get_name(), "Library"_view);
   EXPECT_EQ(import_count(record), Count(0));
 }
 
 PERIMORTEM_UNIT_TEST(TetrodotoxinResolution, missing_isa) {
   Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
-  Resolver resolver(toolchain);
-  Resolver::Context missing_isa_source_context;
+  Resolution::Resolver resolver(toolchain);
+  Resolution::Resolver::Context missing_isa_source_context;
 
   EXPECT_NOT(resolver.load_source(
       missing_isa_source_context, "unit/root.ttx"_view,
@@ -268,12 +320,12 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinResolution, missing_isa) {
 
 PERIMORTEM_UNIT_TEST(TetrodotoxinResolution, isa_mismatch) {
   Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
-  Resolver resolver(toolchain);
-  Resolver::Context target_source_context;
+  Resolution::Resolver resolver(toolchain);
+  Resolution::Resolver::Context target_source_context;
   ASSERT(resolver.load_source(
       target_source_context, "unit/target.ttx"_view, library_source));
   EXPECT_NOT(target_source_context.has_errors());
-  Resolver::Context root_source_context;
+  Resolution::Resolver::Context root_source_context;
 
   EXPECT_NOT(resolver.load_source(
       root_source_context, "unit/root.ttx"_view,
@@ -288,10 +340,57 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinResolution, isa_mismatch) {
   EXPECT(resolver.resolve("unit/target.ttx"_view));
 }
 
+PERIMORTEM_UNIT_TEST(TetrodotoxinResolution, bad_import_diags) {
+  Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
+  Resolution::Resolver resolver(toolchain);
+  Resolution::Resolver::Context malformed_source_context;
+
+  EXPECT_NOT(resolver.load_source(
+      malformed_source_context, "unit/malformed.ttx"_view,
+      "dialect : Library;\n"
+      "import Bad : Library = 10;\n"_view));
+  EXPECT(first_error_is(
+      malformed_source_context, "unit/malformed.ttx"_view,
+      "Unknown import semantics. Expected either a string path or a package "
+      "name."_view));
+
+  Resolution::Resolver::Context a_source_context;
+  ASSERT(resolver.load_source(
+      a_source_context, "unit/a.ttx"_view, library_source));
+  EXPECT_NOT(a_source_context.has_errors());
+  Resolution::Resolver::Context b_source_context;
+  ASSERT(resolver.load_source(
+      b_source_context, "unit/b.ttx"_view, library_source));
+  EXPECT_NOT(b_source_context.has_errors());
+
+  Resolution::Resolver::Context duplicate_source_context;
+  EXPECT_NOT(resolver.load_source(
+      duplicate_source_context, "unit/duplicate.ttx"_view,
+      "dialect : Library;\n"
+      "import Same : Library = \"a.ttx\";\n"
+      "import Same : Library = \"b.ttx\";\n"_view));
+  EXPECT(first_error_is(
+      duplicate_source_context, "unit/duplicate.ttx"_view,
+      "Import type name is already defined."_view));
+
+  Resolution::Resolver::Context dependency_context;
+  ASSERT(register_standard_packages(resolver, dependency_context));
+  EXPECT_NOT(dependency_context.has_errors());
+
+  Resolution::Resolver::Context wrong_isa_source_context;
+  EXPECT_NOT(resolver.load_source(
+      wrong_isa_source_context, "unit/wrong_isa.ttx"_view,
+      "dialect : Library;\n"
+      "import Math : Library = Perimortem.Math;\n"_view));
+  EXPECT(first_error_is(
+      wrong_isa_source_context, "unit/wrong_isa.ttx"_view,
+      "Imported source ISA does not match the requested ISA."_view));
+}
+
 PERIMORTEM_UNIT_TEST(TetrodotoxinResolution, memory_only_cache) {
   Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
-  Resolver resolver(toolchain);
-  Resolver::Context missing_b_source_context;
+  Resolution::Resolver resolver(toolchain);
+  Resolution::Resolver::Context missing_b_source_context;
   // A memory source is not cached until its imports resolve, so A cannot appear
   // in the graph before B exists somewhere useful.
   EXPECT_NOT(resolver.load_source(
@@ -299,7 +398,7 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinResolution, memory_only_cache) {
   EXPECT(has_error(
       missing_b_source_context, "unit/b.ttx"_view,
       "Imported source file could not be read."_view));
-  Resolver::Context missing_a_source_context;
+  Resolution::Resolver::Context missing_a_source_context;
 
   // The failed A load left no cache record, so B cannot close the cycle through
   // a stale in-memory A.
@@ -314,7 +413,7 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinResolution, memory_only_cache) {
 
   // Once B is valid, A can depend on the cached record even though B is not on
   // disk.
-  Resolver::Context b_source_context;
+  Resolution::Resolver::Context b_source_context;
   ASSERT(resolver.load_source(
       b_source_context, "unit/b.ttx"_view, library_source));
   EXPECT_NOT(b_source_context.has_errors());
@@ -322,9 +421,9 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinResolution, memory_only_cache) {
   EXPECT_NOT(resolver.resolve("unit/a.ttx"_view));
   EXPECT(resolver.resolve("unit/b.ttx"_view));
 
-  Resolver::Context a_source_context;
-  const Source::Record* a =
-      resolver.load_source(a_source_context, "unit/a.ttx"_view, memory_a_source);
+  Resolution::Resolver::Context a_source_context;
+  const Resolution::Source::Record* a = resolver.load_source(
+      a_source_context, "unit/a.ttx"_view, memory_a_source);
   ASSERT(a != nullptr);
   EXPECT_NOT(a_source_context.has_errors());
 
@@ -333,9 +432,9 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinResolution, memory_only_cache) {
   EXPECT_TEXT(import_name(a, 0), "b.ttx"_view);
 
   // C gives the invalidation path a transitive consumer.
-  Resolver::Context c_source_context;
-  const Source::Record* c =
-      resolver.load_source(c_source_context, "unit/c.ttx"_view, memory_c_source);
+  Resolution::Resolver::Context c_source_context;
+  const Resolution::Source::Record* c = resolver.load_source(
+      c_source_context, "unit/c.ttx"_view, memory_c_source);
   ASSERT(c != nullptr);
   EXPECT_NOT(c_source_context.has_errors());
 
@@ -346,13 +445,13 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinResolution, memory_only_cache) {
 
   // B can republish as a valid Shader. A and C still have to leave because
   // their import contracts were built against the old Library record.
-  Resolver::Context render_source_context;
+  Resolution::Resolver::Context render_source_context;
   ASSERT(resolver.load_source(
       render_source_context, "unit/render.ttx"_view, simple_render_source));
   EXPECT_NOT(render_source_context.has_errors());
 
-  Resolver::Context shader_b_source_context;
-  const Source::Record* shader_b = resolver.load_source(
+  Resolution::Resolver::Context shader_b_source_context;
+  const Resolution::Source::Record* shader_b = resolver.load_source(
       shader_b_source_context, "unit/b.ttx"_view, simple_shader_source);
   ASSERT(shader_b != nullptr);
   EXPECT(has_error(
@@ -369,8 +468,8 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinResolution, memory_only_cache) {
 
 PERIMORTEM_UNIT_TEST(TetrodotoxinResolution, break_cached) {
   Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
-  Resolver resolver(toolchain);
-  Resolver::Context missing_b_source_context;
+  Resolution::Resolver resolver(toolchain);
+  Resolution::Resolver::Context missing_b_source_context;
   // A memory source is not cached until its imports resolve, so A cannot appear
   // in the graph before B exists somewhere useful.
   EXPECT_NOT(resolver.load_source(
@@ -378,7 +477,7 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinResolution, break_cached) {
   EXPECT(has_error(
       missing_b_source_context, "unit/b.ttx"_view,
       "Imported source file could not be read."_view));
-  Resolver::Context missing_a_source_context;
+  Resolution::Resolver::Context missing_a_source_context;
 
   // The failed A load left no cache record, so B cannot close the cycle through
   // a stale in-memory A.
@@ -393,7 +492,7 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinResolution, break_cached) {
 
   // Once B is valid, A can depend on the cached record even though B is not on
   // disk.
-  Resolver::Context b_source_context;
+  Resolution::Resolver::Context b_source_context;
   ASSERT(resolver.load_source(
       b_source_context, "unit/b.ttx"_view, library_source));
   EXPECT_NOT(b_source_context.has_errors());
@@ -401,9 +500,9 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinResolution, break_cached) {
   EXPECT_NOT(resolver.resolve("unit/a.ttx"_view));
   EXPECT(resolver.resolve("unit/b.ttx"_view));
 
-  Resolver::Context a_source_context;
-  const Source::Record* a =
-      resolver.load_source(a_source_context, "unit/a.ttx"_view, memory_a_source);
+  Resolution::Resolver::Context a_source_context;
+  const Resolution::Source::Record* a = resolver.load_source(
+      a_source_context, "unit/a.ttx"_view, memory_a_source);
   ASSERT(a != nullptr);
   EXPECT_NOT(a_source_context.has_errors());
 
@@ -411,9 +510,9 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinResolution, break_cached) {
   EXPECT(resolver.resolve("unit/b.ttx"_view));
 
   // C gives the invalidation path a transitive consumer.
-  Resolver::Context c_source_context;
-  const Source::Record* c =
-      resolver.load_source(c_source_context, "unit/c.ttx"_view, memory_c_source);
+  Resolution::Resolver::Context c_source_context;
+  const Resolution::Source::Record* c = resolver.load_source(
+      c_source_context, "unit/c.ttx"_view, memory_c_source);
   ASSERT(c != nullptr);
   EXPECT_NOT(c_source_context.has_errors());
 
@@ -424,7 +523,7 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinResolution, break_cached) {
 
   // A broken producer is removed, and every cached consumer that depends on it
   // is removed with it.
-  Resolver::Context broken_b_source_context;
+  Resolution::Resolver::Context broken_b_source_context;
   EXPECT_NOT(resolver.load_source(
       broken_b_source_context, "unit/b.ttx"_view, "bad ttx contents"_view));
   EXPECT(broken_b_source_context.has_errors());
@@ -436,8 +535,8 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinResolution, break_cached) {
 
 PERIMORTEM_UNIT_TEST(TetrodotoxinResolution, disk_chain) {
   Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
-  Resolver resolver(toolchain);
-  Resolver::Context root_source_context;
+  Resolution::Resolver resolver(toolchain);
+  Resolution::Resolver::Context root_source_context;
 
   ASSERT(write_source(
       disk_root,
@@ -450,13 +549,14 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinResolution, disk_chain) {
       "dialect : Library;\n"
       "import Dep1 : Library = \"ttx_res_disk_dep1.ttx\";\n"_view));
 
-  const Source::Record* root = resolver.load_source(root_source_context, disk_root);
+  const Resolution::Source::Record* root =
+      resolver.load_source(root_source_context, disk_root);
   ASSERT(root != nullptr);
   EXPECT_NOT(root_source_context.has_errors());
 
   EXPECT(resolver.resolve(disk_root) == root);
-  const Source::Record* dep1 = resolver.resolve(disk_dep1);
-  const Source::Record* dep2 = resolver.resolve(disk_dep2);
+  const Resolution::Source::Record* dep1 = resolver.resolve(disk_dep1);
+  const Resolution::Source::Record* dep2 = resolver.resolve(disk_dep2);
   ASSERT(dep1 != nullptr);
   ASSERT(dep2 != nullptr);
   EXPECT_EQ(import_count(root), Count(2));
@@ -468,8 +568,8 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinResolution, disk_chain) {
 
 PERIMORTEM_UNIT_TEST(TetrodotoxinResolution, disk_cycle) {
   Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
-  Resolver resolver(toolchain);
-  Resolver::Context cycle_root_source_context;
+  Resolution::Resolver resolver(toolchain);
+  Resolution::Resolver::Context cycle_root_source_context;
 
   ASSERT(write_source(
       cycle_root,
@@ -498,8 +598,8 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinResolution, disk_cycle) {
 
 PERIMORTEM_UNIT_TEST(TetrodotoxinResolution, bad_update) {
   Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
-  Resolver resolver(toolchain);
-  Resolver::Context root_source_context;
+  Resolution::Resolver resolver(toolchain);
+  Resolution::Resolver::Context root_source_context;
 
   ASSERT(write_source(
       disk_root,
@@ -514,7 +614,8 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinResolution, bad_update) {
       "import Dep1 : Library = \"ttx_res_disk_dep1.ttx\";\n"_view));
   ASSERT(write_source(disk_dep3, library_source));
 
-  const Source::Record* root = resolver.load_source(root_source_context, disk_root);
+  const Resolution::Source::Record* root =
+      resolver.load_source(root_source_context, disk_root);
   ASSERT(root != nullptr);
   EXPECT_NOT(root_source_context.has_errors());
 
@@ -522,19 +623,19 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinResolution, bad_update) {
   EXPECT(resolver.resolve(disk_dep1));
   EXPECT(resolver.resolve(disk_dep2));
   EXPECT(resolver.resolve(disk_dep3));
-  const Source::Record* dep1 = resolver.resolve(disk_dep1);
-  const Source::Record* dep2 = resolver.resolve(disk_dep2);
+  const Resolution::Source::Record* dep1 = resolver.resolve(disk_dep1);
+  const Resolution::Source::Record* dep2 = resolver.resolve(disk_dep2);
   ASSERT(dep1 != nullptr);
   ASSERT(dep2 != nullptr);
-  const auto* dep1_source = &dep1->get_boot();
-  const auto* dep2_source = &dep2->get_boot();
+  const auto* dep1_type = &dep1->get_type();
+  const auto* dep2_type = &dep2->get_type();
 
   EXPECT_EQ(import_count(root), Count(3));
   EXPECT_TEXT(import_name(root, 0), "ttx_res_disk_dep1.ttx"_view);
   EXPECT_TEXT(import_name(root, 1), "ttx_res_disk_dep2.ttx"_view);
   EXPECT_TEXT(import_name(root, 2), "ttx_res_disk_dep3.ttx"_view);
 
-  Resolver::Context broken_dep1_source_context;
+  Resolution::Resolver::Context broken_dep1_source_context;
   EXPECT_NOT(resolver.load_source(
       broken_dep1_source_context, disk_dep1, "bad ttx contents"_view));
   EXPECT(broken_dep1_source_context.has_errors());
@@ -548,7 +649,7 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinResolution, bad_update) {
 
   // Reloading root keeps the valid dep3 record and reloads the records that
   // were removed with dep1.
-  Resolver::Context reloaded_root_source_context;
+  Resolution::Resolver::Context reloaded_root_source_context;
   root = resolver.load_source(reloaded_root_source_context, disk_root);
   ASSERT(root != nullptr);
   EXPECT_NOT(reloaded_root_source_context.has_errors());
@@ -560,30 +661,34 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinResolution, bad_update) {
 
   // Imports stay authored; cache lookups use canonical source paths.
   EXPECT_TEXT(import_name(root, 1), "ttx_res_disk_dep2.ttx"_view);
-  // Rebuilt records publish new Boot objects, even when the source spelling is
-  // the same. Consumers must not keep old type addresses alive.
-  EXPECT_NOT(dep1_source == &resolver.resolve(disk_dep1)->get_boot());
-  EXPECT_NOT(dep2_source == &resolver.resolve(disk_dep2)->get_boot());
+  // Rebuilt records publish new types, even when the source spelling is the
+  // same. Consumers must not keep old type addresses alive.
+  EXPECT_NOT(dep1_type == &resolver.resolve(disk_dep1)->get_type());
+  EXPECT_NOT(dep2_type == &resolver.resolve(disk_dep2)->get_type());
 }
 
 PERIMORTEM_UNIT_TEST(TetrodotoxinResolution, package_loading) {
   Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
-  Resolver resolver(toolchain);
-  Resolver::Context root_source_context;
-  const Source::Record* root = resolver.load_source(
+  Resolution::Resolver resolver(toolchain);
+  Resolution::Resolver::Context dependency_context;
+  ASSERT(register_standard_packages(resolver, dependency_context));
+  EXPECT_NOT(dependency_context.has_errors());
+
+  Resolution::Resolver::Context root_source_context;
+  const Resolution::Source::Record* root = resolver.load_source(
       root_source_context, "unit/root.ttx"_view,
       "dialect : Library;\n"
-      "import Graphics : Package = Perimortem::Graphics;\n"
+      "import Graphics : Package = Perimortem.Graphics;\n"
       "private Default2D : alias = Graphics::Shaders::Default2D;\n"_view);
   ASSERT(root != nullptr);
   EXPECT_NOT(root_source_context.has_errors());
 
   // Package imports resolve through the public package name, while the private
   // source path stays hidden from root lookups.
-  const Source::Record* graphics =
-      resolver.resolve("Perimortem::Graphics"_view);
+  const Resolution::Source::Record* graphics =
+      resolver.resolve("Perimortem.Graphics"_view);
   ASSERT(graphics != nullptr);
-  EXPECT_TEXT(import_name(root, 0), "Perimortem::Graphics"_view);
+  EXPECT_TEXT(import_name(root, 0), "Perimortem.Graphics"_view);
   EXPECT(resolver.resolve(import_name(root, 0)) == graphics);
   EXPECT_NOT(resolver.resolve(
       "tetrodotoxin/standard/perimortem/graphics/shaders/default_2d.ttx"_view));
@@ -591,8 +696,13 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinResolution, package_loading) {
   const Ttx::Type* package = root_type(graphics);
   ASSERT(package != nullptr);
   EXPECT_TEXT(package->get_name(), "Package"_view);
-  ASSERT_EQ(package->get_types().get_size(), Count(6));
-  EXPECT(package->find_type("Size2D"_view) == nullptr);
+  ASSERT_EQ(package->get_types().get_size(), Count(7));
+  const Ttx::Type* size_2d = package->find_type("Size2D"_view);
+  ASSERT(size_2d != nullptr);
+  EXPECT_TEXT(
+      size_2d->describe().get_view(),
+      "Perimortem.Graphics::Size2D alias of "
+      "Perimortem.Math::Geometry::Size2D"_view);
   const Ttx::Type* color = package->find_type("Color"_view);
   ASSERT(color != nullptr);
   EXPECT_TEXT(color->get_name(), "Color"_view);
@@ -608,12 +718,13 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinResolution, package_loading) {
   ASSERT(default_2d != nullptr);
   EXPECT_TEXT(default_2d->get_name(), "Default2D"_view);
 
-  const Source::Record* record = resolver.resolve("unit/root.ttx"_view);
+  const Resolution::Source::Record* record =
+      resolver.resolve("unit/root.ttx"_view);
   ASSERT(record != nullptr);
   EXPECT_EQ(import_count(record), Count(1));
-  EXPECT_TEXT(import_name(record, 0), "Perimortem::Graphics"_view);
+  EXPECT_TEXT(import_name(record, 0), "Perimortem.Graphics"_view);
 
-  Resolver::Context direct_import_source_context;
+  Resolution::Resolver::Context direct_import_source_context;
   EXPECT_NOT(resolver.load_source(
       direct_import_source_context, "unit/direct.ttx"_view,
       "dialect : Library;\n"
@@ -622,150 +733,314 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinResolution, package_loading) {
       "default_2d.ttx\";\n"_view));
   EXPECT(has_error(
       direct_import_source_context, "unit/direct.ttx"_view,
-      "Package private source cannot be imported directly."_view));
+      "Import source path is outside the source tree."_view));
   EXPECT_NOT(resolver.resolve("unit/direct.ttx"_view));
 }
 
 PERIMORTEM_UNIT_TEST(TetrodotoxinResolution, package_chain) {
   Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
-  Resolver resolver(toolchain);
-  Resolver::Context missing_core_source_context;
+  Resolution::Resolver resolver(toolchain);
+  Resolution::Resolver::Context missing_core_source_context;
+  resolver.set_package_name("User.Ui"_view);
 
   EXPECT_NOT(resolver.load_source(
       missing_core_source_context, "packages/user/ui/package.ttx"_view,
       "dialect : Package;\n"
-      "import Core : Package = User::Core;\n"
-      "@package_name = User::Ui;\n"
+      "import Core : Package = User.Core;\n"
       "expose Core : alias = Core;\n"_view));
   EXPECT(has_error(
       missing_core_source_context, "packages/user/ui/package.ttx"_view,
-      "Import could not find valid `user/core/package.ttx` for package "
-      "User::Core.\nMake sure the Package is at the expected location or a "
-      "Package that declares `@package_name = User::Core` is explicitly "
-      "loaded."_view));
+      "Puffer Buffer dependency is not registered: User.Core"_view));
 
-  Resolver::Context core_source_context;
-  const Source::Record* core = resolver.load_source(
+  Resolution::Resolver::Context core_source_context;
+  resolver.set_package_name("User.Core"_view);
+  const Resolution::Source::Record* core = resolver.load_source(
       core_source_context, "packages/user/core/package.ttx"_view,
       "dialect : Package;\n"
-      "@package_name = User::Core;\n"
-      "expose Value : alias = Internal::Value;\n"_view);
+      "expose Value : alias = Bits_32;\n"_view);
   ASSERT(core != nullptr);
   EXPECT_NOT(core_source_context.has_errors());
 
-  Resolver::Context ui_source_context;
-  const Source::Record* ui = resolver.load_source(
+  EXPECT(resolver.resolve("packages/user/core/package.ttx"_view) == core);
+  EXPECT_NOT(resolver.resolve("User.Core"_view));
+
+  Resolution::Resolver::Context ui_source_context;
+  resolver.set_package_name("User.Ui"_view);
+  EXPECT_NOT(resolver.load_source(
       ui_source_context, "packages/user/ui/package.ttx"_view,
       "dialect : Package;\n"
-      "import Core : Package = User::Core;\n"
-      "@package_name = User::Ui;\n"
-      "expose Core : alias = Core;\n"_view);
-  ASSERT(ui != nullptr);
-  EXPECT_NOT(ui_source_context.has_errors());
-  const Ttx::Type* ui_package = root_type(ui);
-  ASSERT(ui_package != nullptr);
-  ASSERT_EQ(ui_package->get_types().get_size(), Count(1));
-  const Ttx::Type* core_export = ui_package->find_type("Core"_view);
-  ASSERT(core_export != nullptr);
-  EXPECT(core_export->is_alias());
-  EXPECT(core_export->find_type("Value"_view));
+      "import Core : Package = User.Core;\n"
+      "expose Core : alias = Core;\n"_view));
+  EXPECT(has_error(
+      ui_source_context, "packages/user/ui/package.ttx"_view,
+      "Puffer Buffer dependency is not registered: User.Core"_view));
+  EXPECT_NOT(resolver.resolve("packages/user/ui/package.ttx"_view));
+  EXPECT_NOT(resolver.resolve("User.Ui"_view));
 
-  Resolver::Context root_source_context;
-  const Source::Record* root = resolver.load_source(
+  Resolution::Resolver::Context root_source_context;
+  EXPECT_NOT(resolver.load_source(
       root_source_context, "unit/root.ttx"_view,
       "dialect : Library;\n"
-      "import Ui : Package = User::Ui;\n"
-      "private Value : alias = Ui::Core::Value;\n"_view);
-  ASSERT(root != nullptr);
-  EXPECT_NOT(root_source_context.has_errors());
+      "import Ui : Package = User.Ui;\n"
+      "private Value : alias = Ui::Core::Value;\n"_view));
+  EXPECT(has_error(
+      root_source_context, "unit/root.ttx"_view,
+      "Puffer Buffer dependency is not registered: User.Ui"_view));
+  EXPECT_NOT(resolver.resolve("unit/root.ttx"_view));
 
-  EXPECT(resolver.resolve("unit/root.ttx"_view) == root);
-  EXPECT(resolver.resolve("User::Ui"_view) == ui);
-  EXPECT(resolver.resolve("User::Core"_view) == core);
-  EXPECT(resolver.resolve(import_name(root, 0)) == ui);
-  EXPECT(resolver.resolve(import_name(ui, 0)) == core);
-
-  Resolver::Context broken_core_source_context;
+  Resolution::Resolver::Context broken_core_source_context;
   EXPECT_NOT(resolver.load_source(
       broken_core_source_context, "packages/user/core/package.ttx"_view,
       "bad ttx contents"_view));
   EXPECT(broken_core_source_context.has_errors());
 
-  EXPECT_NOT(resolver.resolve("unit/root.ttx"_view));
-  EXPECT_NOT(resolver.resolve("User::Ui"_view));
-  EXPECT_NOT(resolver.resolve("User::Core"_view));
+  EXPECT_NOT(resolver.resolve("packages/user/core/package.ttx"_view));
+  EXPECT_NOT(resolver.resolve("User.Core"_view));
 }
 
 PERIMORTEM_UNIT_TEST(TetrodotoxinResolution, bad_package) {
   Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
-  Resolver resolver(toolchain);
-  Resolver::Context package_export_source_context;
+  Resolution::Resolver resolver(toolchain);
+  Resolution::Resolver::Context package_export_source_context;
+  resolver.set_package_name("User.PackageExport"_view);
   EXPECT_NOT(resolver.load_source(
       package_export_source_context, "unit/package_export.ttx"_view,
       "dialect : Package;\n"
-      "@package_name = User::PackageExport;\n"
       "expose Child : Package = Child;\n"_view));
   EXPECT(has_error(
       package_export_source_context, "unit/package_export.ttx"_view,
       "Expected package definition kind `alias` or `group`."_view));
 
-  EXPECT_NOT(resolver.resolve("User::PackageExport"_view));
+  EXPECT_NOT(resolver.resolve("User.PackageExport"_view));
 
-  Resolver::Context old_package_source_context;
+  Resolution::Resolver::Context old_package_source_context;
+  resolver.set_package_name("User.Old"_view);
   EXPECT_NOT(resolver.load_source(
       old_package_source_context, "unit/old_package.ttx"_view,
       "dialect : Package;\n"
-      "@package_name = User::Old;\n"
       "expose Old : Namespace {\n"
       "}\n"_view));
   EXPECT(has_error(
       old_package_source_context, "unit/old_package.ttx"_view,
       "Expected package definition kind `alias` or `group`."_view));
 
-  EXPECT_NOT(resolver.resolve("User::Old"_view));
+  EXPECT_NOT(resolver.resolve("User.Old"_view));
 
-  Resolver::Context missing_package_source_context;
+  Resolution::Resolver::Context missing_package_source_context;
   EXPECT_NOT(resolver.load_source(
       missing_package_source_context, "unit/root.ttx"_view,
       "dialect : Library;\n"
-      "import Graphics : Package = User::Package::Test;\n"_view));
+      "import Graphics : Package = User.Package.Test;\n"_view));
   EXPECT(has_error(
       missing_package_source_context, "unit/root.ttx"_view,
-      "Import could not find valid `user/package/test/package.ttx` for package "
-      "User::Package::Test.\nMake sure the Package is at the expected location "
-      "or a Package that declares `@package_name = User::Package::Test` is "
-      "explicitly loaded."_view));
+      "Puffer Buffer dependency is not registered: User.Package.Test"_view));
 
   EXPECT_NOT(resolver.resolve("unit/root.ttx"_view));
-  EXPECT_NOT(resolver.resolve("User::Package::Test"_view));
+  EXPECT_NOT(resolver.resolve("User.Package.Test"_view));
 
-  // Package publishes under @package_name, even when the file was loaded from
-  // an arbitrary path.
-  Resolver::Context user_package_source_context;
-  const Source::Record* user_package = resolver.load_source(
+  Resolution::Resolver::Context user_package_source_context;
+  resolver.set_package_name("User.Package.Test"_view);
+  const Resolution::Source::Record* user_package = resolver.load_source(
       user_package_source_context, "arbitrary/path/package.ttx"_view,
-      "dialect : Package;\n"
-      "@package_name = User::Package::Test;\n"_view);
+      "dialect : Package;\n"_view);
   ASSERT(user_package != nullptr);
   EXPECT_NOT(user_package_source_context.has_errors());
 
   EXPECT_NOT(resolver.resolve("unit/root.ttx"_view));
-  EXPECT(resolver.resolve("User::Package::Test"_view));
+  EXPECT(resolver.resolve("arbitrary/path/package.ttx"_view) == user_package);
+  EXPECT_NOT(resolver.resolve("User.Package.Test"_view));
 
-  // With a valid package already cached, root can import it without touching
-  // disk.
-  Resolver::Context root_source_context;
-  const Source::Record* record = resolver.load_source(
+  Resolution::Resolver::Context root_source_context;
+  EXPECT_NOT(resolver.load_source(
       root_source_context, "unit/root.ttx"_view,
       "dialect : Library;\n"
-      "import Graphics : Package = User::Package::Test;\n"_view);
-  ASSERT(record != nullptr);
-  EXPECT_NOT(root_source_context.has_errors());
+      "import Graphics : Package = User.Package.Test;\n"_view));
+  EXPECT(has_error(
+      root_source_context, "unit/root.ttx"_view,
+      "Puffer Buffer dependency is not registered: User.Package.Test"_view));
 
-  EXPECT(resolver.resolve("unit/root.ttx"_view));
-  EXPECT(resolver.resolve("User::Package::Test"_view));
+  EXPECT_NOT(resolver.resolve("unit/root.ttx"_view));
+  EXPECT(resolver.resolve("arbitrary/path/package.ttx"_view) == user_package);
+  EXPECT_NOT(resolver.resolve("User.Package.Test"_view));
+}
 
-  // Loading root through the cached package should not republish that package,
-  // so the package record address remains stable.
-  EXPECT(user_package == resolver.resolve(import_name(record, 0)));
+PERIMORTEM_UNIT_TEST(TetrodotoxinResolution, bad_pkg_diags) {
+  Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
+  Resolution::Resolver resolver(toolchain);
+  Resolution::Resolver::Context bad_name_source_context;
+  resolver.set_package_name("User.Authored"_view);
+
+  EXPECT_NOT(resolver.load_source(
+      bad_name_source_context, "unit/bad_name.ttx"_view,
+      "dialect : Package;\n"
+      "@package_name = User.Bad;\n"_view));
+  EXPECT(first_error_is(
+      bad_name_source_context, "unit/bad_name.ttx"_view,
+      "Expected package export."_view));
+
+  resolver.set_package_name(View::Bytes());
+  Resolution::Resolver::Context missing_name_source_context;
+  EXPECT_NOT(resolver.load_source(
+      missing_name_source_context, "unit/missing_name.ttx"_view,
+      "dialect : Package;\n"
+      "expose Value : alias = Bits_32;\n"_view));
+  EXPECT(first_error_is(
+      missing_name_source_context, "unit/missing_name.ttx"_view,
+      "Package compilation requires a package name."_view));
+
+  resolver.set_package_name("User.Empty"_view);
+  Resolution::Resolver::Context empty_source_context;
+  EXPECT_NOT(resolver.load_source(
+      empty_source_context, "unit/empty.ttx"_view,
+      "dialect : Package;\n"
+      "@package_name = User.Empty;\n"_view));
+  EXPECT(first_error_is(
+      empty_source_context, "unit/empty.ttx"_view,
+      "Expected package export."_view));
+
+  resolver.set_package_name("User.MissingTarget"_view);
+  Resolution::Resolver::Context missing_target_source_context;
+  EXPECT_NOT(resolver.load_source(
+      missing_target_source_context, "unit/missing_target.ttx"_view,
+      "dialect : Package;\n"
+      "expose Value : alias;\n"_view));
+  EXPECT(first_error_is(
+      missing_target_source_context, "unit/missing_target.ttx"_view,
+      "Expected `=` before package export target."_view));
+
+  resolver.set_package_name("User.UnknownTarget"_view);
+  Resolution::Resolver::Context unknown_target_source_context;
+  EXPECT_NOT(resolver.load_source(
+      unknown_target_source_context, "unit/unknown_target.ttx"_view,
+      "dialect : Package;\n"
+      "expose Value : alias = Missing;\n"_view));
+  EXPECT(first_error_is(
+      unknown_target_source_context, "unit/unknown_target.ttx"_view,
+      "Package export target could not be resolved."_view));
+
+  resolver.set_package_name("User.DuplicateExport"_view);
+  Resolution::Resolver::Context duplicate_export_source_context;
+  EXPECT_NOT(resolver.load_source(
+      duplicate_export_source_context, "unit/duplicate_export.ttx"_view,
+      "dialect : Package;\n"
+      "expose Value : alias = Bits_32;\n"
+      "expose Value : alias = Bits_32;\n"_view));
+  EXPECT(first_error_is(
+      duplicate_export_source_context, "unit/duplicate_export.ttx"_view,
+      "Package export name is already defined."_view));
+
+  resolver.set_package_name("User.DuplicateGroup"_view);
+  Resolution::Resolver::Context duplicate_group_source_context;
+  EXPECT_NOT(resolver.load_source(
+      duplicate_group_source_context, "unit/duplicate_group.ttx"_view,
+      "dialect : Package;\n"
+      "expose Types : group {\n"
+      "  expose Value : alias = Bits_32;\n"
+      "  expose Value : alias = Bits_32;\n"
+      "}\n"_view));
+  EXPECT(first_error_is(
+      duplicate_group_source_context, "unit/duplicate_group.ttx"_view,
+      "Package export name is already defined."_view));
+}
+
+PERIMORTEM_UNIT_TEST(TetrodotoxinResolution, package_group) {
+  Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
+  Resolution::Resolver resolver(toolchain);
+  Resolution::Resolver::Context package_source_context;
+  resolver.set_package_name("User.Grouped"_view);
+
+  const Resolution::Source::Record* package = resolver.load_source(
+      package_source_context, "unit/package.ttx"_view,
+      "dialect : Package;\n"
+      "expose Types : group {\n"
+      "  expose Value : alias = Bits_32;\n"
+      "}\n"_view);
+
+  ASSERT(package != nullptr);
+  EXPECT_NOT(package_source_context.has_errors());
+  ASSERT(root_type(package) != nullptr);
+  const Ttx::Type* types = root_type(package)->find_type("Types"_view);
+  ASSERT(types != nullptr);
+  EXPECT(types->find_type("Value"_view) != nullptr);
+  EXPECT_TEXT(types->describe().get_view(), "User.Grouped::Types"_view);
+}
+
+PERIMORTEM_UNIT_TEST(TetrodotoxinResolution, package_alias) {
+  Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
+  Resolution::Resolver resolver(toolchain);
+  Resolution::Resolver::Context package_source_context;
+  resolver.set_package_name("User.Alias"_view);
+
+  const Resolution::Source::Record* package = resolver.load_source(
+      package_source_context, "unit/package.ttx"_view,
+      "dialect : Package;\n"
+      "expose Value : alias = Bits_32;\n"_view);
+
+  ASSERT(package != nullptr);
+  EXPECT_NOT(package_source_context.has_errors());
+  ASSERT(root_type(package) != nullptr);
+  const Ttx::Type* value = root_type(package)->find_type("Value"_view);
+  ASSERT(value != nullptr);
+  EXPECT(value->is_alias());
+  EXPECT_TEXT(
+      value->describe().get_view(), "User.Alias::Value alias of Bits_32"_view);
+}
+
+PERIMORTEM_UNIT_TEST(TetrodotoxinResolution, bad_group_end) {
+  Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
+  Resolution::Resolver resolver(toolchain);
+  Resolution::Resolver::Context package_source_context;
+  resolver.set_package_name("User.BadGroup"_view);
+
+  EXPECT_NOT(resolver.load_source(
+      package_source_context, "unit/bad_group.ttx"_view,
+      "dialect : Package;\n"
+      "expose Types : group {\n"
+      "  expose Value : alias = Bits_32;\n"_view));
+
+  EXPECT(first_error_is(
+      package_source_context, "unit/bad_group.ttx"_view,
+      "Expected `}` after package group declaration."_view));
+}
+
+PERIMORTEM_UNIT_TEST(TetrodotoxinResolution, bad_name_start) {
+  Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
+  Resolution::Resolver resolver(toolchain);
+  Resolution::Resolver::Context package_source_context;
+  resolver.set_package_name("User.Bad"_view);
+
+  EXPECT_NOT(resolver.load_source(
+      package_source_context, "unit/bad_name.ttx"_view,
+      "dialect : Package;\n"
+      "@package_name = user.Bad;\n"_view));
+
+  EXPECT(first_error_is(
+      package_source_context, "unit/bad_name.ttx"_view,
+      "Expected package export."_view));
+}
+
+PERIMORTEM_UNIT_TEST(TetrodotoxinResolution, package_reimport) {
+  Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
+  Resolution::Resolver resolver(toolchain);
+  Resolution::Resolver::Context package_source_context;
+  resolver.set_package_name("User.Core"_view);
+  const Resolution::Source::Record* package = resolver.load_source(
+      package_source_context, "packages/user/core/package.ttx"_view,
+      "dialect : Package;\n"
+      "expose Value : alias = Bits_32;\n"_view);
+  ASSERT(package != nullptr);
+  EXPECT_NOT(package_source_context.has_errors());
+  Resolution::Resolver::Context root_source_context;
+
+  EXPECT_NOT(resolver.load_source(
+      root_source_context, "unit/root.ttx"_view,
+      "dialect : Library;\n"
+      "import CoreA : Package = User.Core;\n"
+      "import CoreB : Package = User.Core;\n"_view));
+
+  EXPECT(has_error(
+      root_source_context, "unit/root.ttx"_view,
+      "Puffer Buffer dependency is not registered: User.Core"_view));
+  EXPECT(resolver.resolve("packages/user/core/package.ttx"_view) == package);
+  EXPECT_NOT(resolver.resolve("User.Core"_view));
 }

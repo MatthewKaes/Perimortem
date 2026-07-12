@@ -23,11 +23,35 @@ static Writer::Textual json_text(json_data);
 static constexpr Count batch_count = 1024;
 
 auto load_json(View::Bytes source_path) -> void {
-  File source_file;
-  source_file.read(source_path);
+  auto source = File::read(source_path);
 
   json_text.set_pointer(0);
-  json_text << source_file.get_view();
+  json_text << source;
+}
+
+static Harness JsonBlueprint = {
+  .name = "Json"_view,
+};
+
+PERIMORTEM_BENCHMARK(JsonBlueprint, blueprint) {
+  Count size = 0;
+  Allocator::Arena arena;
+  for (Count i = 0; i < batch_count; i++) {
+    Json::Node node = Json::Node::construct(
+        arena, Json::Blueprint{{
+                 {"jsonrpc"_view, "2.0"_view},
+                 {"id"_view, 1},
+                 {"result"_view,
+                  {
+                    {"name"_view, "ttx"_view},
+                    {"version"_view, "1.0"_view},
+                  }},
+               }});
+    size += node.get_size();
+    arena.reset();
+  }
+
+  Benchmark::prevent_optimization(size);
 }
 
 static Harness JsonSmall = {

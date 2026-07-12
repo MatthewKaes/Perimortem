@@ -4,6 +4,7 @@
 #include "validation/unit_test.hpp"
 
 #include "perimortem/core/static/bytes.hpp"
+#include "perimortem/core/static/vector.hpp"
 #include "perimortem/core/null_terminated.hpp"
 
 #include "perimortem/memory/dynamic/bytes.hpp"
@@ -111,6 +112,56 @@ PERIMORTEM_UNIT_TEST(TtxSpirV, bad_headers) {
   Assembler::SpirV assembler(bad_bound);
   assembler.begin_module(0);
   EXPECT_NOT(Assembler::SpirV::is_valid_module(bad_bound));
+}
+
+PERIMORTEM_UNIT_TEST(TtxSpirV, string_counts) {
+  EXPECT_EQ(
+      Assembler::SpirV::literal_string_word_count(View::Bytes()), Count(1));
+  EXPECT_EQ(Assembler::SpirV::literal_string_word_count("abc"_view), Count(1));
+  EXPECT_EQ(Assembler::SpirV::literal_string_word_count("abcd"_view), Count(2));
+}
+
+PERIMORTEM_UNIT_TEST(TtxSpirV, entry_interface) {
+  Perimortem::Memory::Dynamic::Bytes words;
+  Assembler::SpirV assembler(words);
+  static constexpr Static::Vector<Bits_32, 2> interface_ids = {{
+    7,
+    8,
+  }};
+
+  assembler.begin_module(9);
+  assembler.entry_point(
+      Assembler::SpirV::ExecutionModel::Fragment, 1, "main"_view,
+      interface_ids);
+
+  EXPECT(Assembler::SpirV::is_valid_module(words));
+  EXPECT(words.get_size() > Count(20));
+}
+
+PERIMORTEM_UNIT_TEST(TtxSpirV, decorations) {
+  Perimortem::Memory::Dynamic::Bytes words;
+  Assembler::SpirV assembler(words);
+
+  assembler.decorate(3, Assembler::SpirV::Decoration::Block);
+  assembler.decorate(4, Assembler::SpirV::Decoration::Location, 0);
+  assembler.member_decorate(5, 1, Assembler::SpirV::Decoration::Offset, 16);
+
+  EXPECT_EQ(words.get_size(), Count(48));
+}
+
+PERIMORTEM_UNIT_TEST(TtxSpirV, composite_ops) {
+  Perimortem::Memory::Dynamic::Bytes words;
+  Assembler::SpirV assembler(words);
+  static constexpr Static::Vector<Bits_32, 2> constituents = {{
+    2,
+    3,
+  }};
+
+  assembler.constant_composite(1, 4, constituents);
+  assembler.composite_construct(1, 5, constituents);
+  assembler.composite_extract(1, 6, 5, constituents);
+
+  EXPECT_EQ(words.get_size(), Count(64));
 }
 
 PERIMORTEM_UNIT_TEST(Ttxx86_64, inc) {

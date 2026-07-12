@@ -95,13 +95,10 @@ PERIMORTEM_UNIT_TEST(StaticTable, aligned_keywords) {
   EXPECT_EQ(
       aligned_keywords::find_or_default("unknown"_view, invalid), invalid);
   EXPECT_EQ(aligned_keywords::find_or_default("a"_view, invalid), invalid);
-  EXPECT_EQ(
-      aligned_keywords::find_or_default("As"_view, invalid), invalid);
+  EXPECT_EQ(aligned_keywords::find_or_default("As"_view, invalid), invalid);
   EXPECT_EQ(aligned_keywords::find_or_default(""_view, invalid), invalid);
-  EXPECT_EQ(
-      aligned_keywords::find_or_default("rutern"_view, invalid), invalid);
-  EXPECT_EQ(
-      aligned_keywords::find_or_default("errrr"_view, invalid), invalid);
+  EXPECT_EQ(aligned_keywords::find_or_default("rutern"_view, invalid), invalid);
+  EXPECT_EQ(aligned_keywords::find_or_default("errrr"_view, invalid), invalid);
 }
 
 PERIMORTEM_UNIT_TEST(StaticTable, word_table) {

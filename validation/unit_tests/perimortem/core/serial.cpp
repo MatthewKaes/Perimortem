@@ -30,8 +30,7 @@ PERIMORTEM_UNIT_TEST(CoreSerialReader, regular_values) {
   EXPECT_EQ(reader.read_value(), 0x1234);
   EXPECT_EQ(reader.read_value(), 'PERI');
   EXPECT_EQ(reader.read_value(), Signed_64(0x0123456789ABCDEF));
-  EXPECT(reader.is_valid());
-  EXPECT(reader.is_empty());
+  EXPECT_EQ(reader.get_location(), reader.get_size());
 }
 
 PERIMORTEM_UNIT_TEST(CoreSerialReader, negative_values) {
@@ -49,8 +48,7 @@ PERIMORTEM_UNIT_TEST(CoreSerialReader, negative_values) {
   EXPECT_EQ(reader.read_value(), -'PERI');
   EXPECT_EQ(reader.read_value(), Signed_64(-0x0123456789ABCDEF));
   EXPECT_EQ(reader.read_value(), 0xFFFFFFFFFFFFFF9C);
-  EXPECT(reader.is_valid());
-  EXPECT(reader.is_empty());
+  EXPECT_EQ(reader.get_location(), reader.get_size());
 }
 
 PERIMORTEM_UNIT_TEST(CoreSerialReader, small_blobs) {
@@ -65,8 +63,7 @@ PERIMORTEM_UNIT_TEST(CoreSerialReader, small_blobs) {
   EXPECT_EQ(reader.read_blob(), "Perimortem"_view);
   EXPECT_EQ(reader.read_value(), 4);
   EXPECT_EQ(reader.read_blob(), "Testing String"_view);
-  EXPECT(reader.is_valid());
-  EXPECT(reader.is_empty());
+  EXPECT_EQ(reader.get_location(), reader.get_size());
 }
 
 PERIMORTEM_UNIT_TEST(CoreSerialReader, large_blob) {
@@ -81,8 +78,7 @@ PERIMORTEM_UNIT_TEST(CoreSerialReader, large_blob) {
   Reader::Serial reader(source);
 
   EXPECT_HEX(reader.read_blob(), expected.get_view());
-  EXPECT(reader.is_valid());
-  EXPECT(reader.is_empty());
+  EXPECT_EQ(reader.get_location(), reader.get_size());
 }
 
 PERIMORTEM_UNIT_TEST(CoreSerialReader, only_values) {
@@ -97,8 +93,7 @@ PERIMORTEM_UNIT_TEST(CoreSerialReader, only_values) {
   EXPECT_EQ(reader.read_value(), 0);
   EXPECT_EQ(reader.read_value(), 4);
   EXPECT_EQ(reader.read_value(), 0);
-  EXPECT(reader.is_valid());
-  EXPECT(reader.is_empty());
+  EXPECT_EQ(reader.get_location(), reader.get_size());
 }
 
 PERIMORTEM_UNIT_TEST(CoreSerialReader, only_blobs) {
@@ -113,8 +108,7 @@ PERIMORTEM_UNIT_TEST(CoreSerialReader, only_blobs) {
   EXPECT_EQ(reader.read_blob(), "Perimortem"_view);
   EXPECT_EQ(reader.read_blob(), ""_view);
   EXPECT_EQ(reader.read_blob(), "Testing String"_view);
-  EXPECT(reader.is_valid());
-  EXPECT(reader.is_empty());
+  EXPECT_EQ(reader.get_location(), reader.get_size());
 }
 
 PERIMORTEM_UNIT_TEST(CoreSerialReader, type_mismatch) {
@@ -122,7 +116,7 @@ PERIMORTEM_UNIT_TEST(CoreSerialReader, type_mismatch) {
   auto scope_attribution = Diagnostics::Log::set_attribution();
 
   EXPECT_EQ(reader.read_value(), 0);
-  EXPECT_NOT(reader.is_valid());
+  EXPECT_EQ(reader.get_location(), Count(-1));
 
   // Make sure message was logged.
   constexpr auto error_message =
@@ -135,7 +129,7 @@ PERIMORTEM_UNIT_TEST(CoreSerialReader, bad_encoding) {
   auto scope_attribution = Diagnostics::Log::set_attribution();
 
   EXPECT_EQ(reader.read_value(), 0);
-  EXPECT_NOT(reader.is_valid());
+  EXPECT_EQ(reader.get_location(), Count(-1));
 
   // Make sure message was logged.
   constexpr auto error_message =
@@ -148,7 +142,7 @@ PERIMORTEM_UNIT_TEST(CoreSerialReader, bad_blob) {
   auto scope_attribution = Diagnostics::Log::set_attribution();
 
   EXPECT_EQ(reader.read_value(), 0);
-  EXPECT_NOT(reader.is_valid());
+  EXPECT_EQ(reader.get_location(), Count(-1));
 
   // Make sure message was logged.
   constexpr auto error_message =
@@ -162,7 +156,7 @@ PERIMORTEM_UNIT_TEST(CoreSerialReader, read_from_empty) {
   auto scope_attribution = Diagnostics::Log::set_attribution();
 
   EXPECT_EQ(reader.read_value(), 0);
-  EXPECT_NOT(reader.is_valid());
+  EXPECT_EQ(reader.get_location(), Count(-1));
 
   // Make sure message was logged.
   constexpr auto error_message =

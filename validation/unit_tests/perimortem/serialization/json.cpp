@@ -407,12 +407,12 @@ PERIMORTEM_UNIT_TEST(SerializationJson, construct_nested) {
 }
 
 PERIMORTEM_UNIT_TEST(SerializationJson, round_trip_init_rpc) {
-  File source;
-  ASSERT(source.read("validation/data/json/init_rpc.json"_view));
+  auto source = File::read("validation/data/json/init_rpc.json"_view);
+  ASSERT(!source.is_empty());
 
   Allocator::Arena arena;
   Json::Node value;
-  value.parse(arena, source.get_view());
+  value.parse(arena, source);
   auto formated = value.format(arena);
 
   ASSERT_EQ(formated.get_size(), source.get_size());
@@ -483,12 +483,12 @@ PERIMORTEM_UNIT_TEST(SerializationJson, format_null) {
 }
 
 PERIMORTEM_UNIT_TEST(SerializationJson, rpc_from_parsed) {
-  File source;
-  ASSERT(source.read("validation/data/json/init_rpc.json"_view));
+  auto source = File::read("validation/data/json/init_rpc.json"_view);
+  ASSERT(!source.is_empty());
 
   Allocator::Arena arena;
   Json::Node parsed;
-  parsed.parse(arena, source.get_view());
+  parsed.parse(arena, source);
 
   ASSERT(parsed["jsonrpc"_view].is_string());
   ASSERT(parsed["id"_view].is_number());

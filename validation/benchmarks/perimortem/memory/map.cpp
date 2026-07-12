@@ -29,10 +29,6 @@ using namespace Perimortem::System;
 using namespace Perimortem::Utility;
 using namespace Validation;
 
-constexpr auto scalar = Dynamic::MapVectorization::Scalar;
-constexpr auto partial = Dynamic::MapVectorization::Partial;
-constexpr auto full = Dynamic::MapVectorization::Full;
-
 constexpr Count max_key_count = 1 << 16;
 static Static::Vector<Signed_32, max_key_count> lookup_keys;
 
@@ -52,9 +48,9 @@ static Harness MapSigned_32s = {
   .init = populate_lookup_keys,
 };
 
-template <Dynamic::MapVectorization vector, Count values, Bool lookup>
+template <Count values, Bool lookup>
 auto map_test() -> void {
-  Dynamic::Map<Signed_32, Signed_32, vector> local_map(values);
+  Dynamic::Map<Signed_32, Signed_32> local_map(values);
   for (Count i = 0; i < values; i++) {
     local_map.insert(lookup_keys[i], Signed_32(i));
   }
@@ -71,36 +67,115 @@ auto map_test() -> void {
   Benchmark::prevent_optimization(accumulator);
 }
 
-// Usually Perimortem is anti macros but this just saves sooooooo much boiler
-// plate code that it's not even funny.
-#define MAP_INT_TEST(type, count, var)                               \
-  PERIMORTEM_BENCHMARK(MapSigned_32s, var##_##count##_ints_##type) { \
-    map_test<type, count, var>();                                    \
+#define MAP_INT_TEST(count, var)                              \
+  PERIMORTEM_BENCHMARK(MapSigned_32s, var##_##count##_ints) { \
+    map_test<count, var>();                                   \
   }
-
-#define MAP_INT_TEST_RANGE(count, lookup) \
-  MAP_INT_TEST(scalar, count, lookup);    \
-  MAP_INT_TEST(partial, count, lookup);   \
-  MAP_INT_TEST(full, count, lookup);
 
 constexpr auto lookup = True;
 constexpr auto insert = False;
 
-MAP_INT_TEST_RANGE(256, lookup);
-MAP_INT_TEST_RANGE(1024, lookup);
+MAP_INT_TEST(256, lookup);
+MAP_INT_TEST(1024, lookup);
 #ifdef PERI_SLOW_BENCH
-MAP_INT_TEST_RANGE(4096, lookup);
-MAP_INT_TEST_RANGE(16384, lookup);
-MAP_INT_TEST_RANGE(65536, lookup);
+MAP_INT_TEST(4096, lookup);
+MAP_INT_TEST(16384, lookup);
+MAP_INT_TEST(65536, lookup);
 #endif
 
-MAP_INT_TEST_RANGE(256, insert);
-MAP_INT_TEST_RANGE(1024, insert);
+MAP_INT_TEST(256, insert);
+MAP_INT_TEST(1024, insert);
 #ifdef PERI_SLOW_BENCH
-MAP_INT_TEST_RANGE(4096, insert);
-MAP_INT_TEST_RANGE(16384, insert);
-MAP_INT_TEST_RANGE(65536, insert);
+MAP_INT_TEST(4096, insert);
+MAP_INT_TEST(16384, insert);
+MAP_INT_TEST(65536, insert);
 #endif
+
+static Harness MapWorkloads = {
+  .name = "Map Workloads"_view,
+  .init = populate_lookup_keys,
+};
+
+auto pointer_key(Count index, Bool missing = False) -> const Signed_32* {
+  constexpr CppSize hit_base = 0x100000000;
+  constexpr CppSize miss_base = 0x200000000;
+  return reinterpret_cast<const Signed_32*>(
+      (missing ? miss_base : hit_base) + index * 64);
+}
+
+template <Count values, Bool misses>
+auto pointer_lookup_test() -> void {
+  Dynamic::Map<const Signed_32*, Count> map(values);
+  for (Count i = 0; i < values; i++) {
+    map.insert(pointer_key(i), i);
+  }
+
+  Count accumulator = 0;
+  Benchmark::start_time();
+  for (Count i = 0; i < values; i++) {
+    const Signed_32* key = pointer_key(i, misses);
+    const auto* entry = map.find(key);
+    accumulator += entry == nullptr ? 1 : entry->value;
+  }
+  Benchmark::end_time();
+  Benchmark::prevent_optimization(accumulator);
+}
+
+template <Count values, Bool reserve, Bool duplicate>
+auto pointer_insert_test() -> void {
+  Dynamic::Map<const Signed_32*, Count> map;
+  if constexpr (reserve) {
+    map.ensure_capacity(values);
+  }
+  if constexpr (duplicate) {
+    for (Count i = 0; i < values; i++) {
+      map.insert(pointer_key(i), i);
+    }
+  }
+
+  Benchmark::start_time();
+  for (Count i = 0; i < values; i++) {
+    map.insert(pointer_key(i), i + 1);
+  }
+  Benchmark::end_time();
+  Count size = map.get_size();
+  Benchmark::prevent_optimization(size);
+}
+
+#define MAP_POINTER_LOOKUP(count, kind)                          \
+  PERIMORTEM_BENCHMARK(MapWorkloads, pointer_##kind##_##count) { \
+    pointer_lookup_test<count, kind == miss>();                  \
+  }
+
+#define MAP_POINTER_INSERT(count, reserve, duplicate)                   \
+  PERIMORTEM_BENCHMARK(                                                 \
+      MapWorkloads, pointer_insert_##count##_##reserve##_##duplicate) { \
+    pointer_insert_test<count, reserve, duplicate>();                   \
+  }
+
+constexpr auto hit = False;
+constexpr auto miss = True;
+constexpr auto growing = False;
+constexpr auto reserved = True;
+constexpr auto unique = False;
+constexpr auto duplicate = True;
+
+MAP_POINTER_LOOKUP(32, hit);
+MAP_POINTER_LOOKUP(32, miss);
+MAP_POINTER_LOOKUP(900, hit);
+MAP_POINTER_LOOKUP(900, miss);
+MAP_POINTER_LOOKUP(16384, hit);
+MAP_POINTER_LOOKUP(16384, miss);
+
+MAP_POINTER_INSERT(32, growing, unique);
+MAP_POINTER_INSERT(32, reserved, unique);
+MAP_POINTER_INSERT(900, growing, unique);
+MAP_POINTER_INSERT(900, reserved, unique);
+MAP_POINTER_INSERT(16384, growing, unique);
+MAP_POINTER_INSERT(16384, reserved, unique);
+MAP_POINTER_INSERT(32, reserved, duplicate);
+MAP_POINTER_INSERT(900, reserved, duplicate);
+MAP_POINTER_INSERT(921, reserved, duplicate);
 
 static constexpr Pair<View::Bytes, Count> keyword_source[] = {
   {"as"_view, 0},         {"if"_view, 1},          {"for"_view, 2},
@@ -149,9 +224,9 @@ auto create_scramble(Count mask) -> void {
   }
 }
 
-template <Dynamic::MapVectorization vector, Count values, Count mask>
+template <Count values, Count mask>
 auto keyword_test() -> void {
-  Dynamic::Map<View::Bytes, Signed_32, vector> local_map(keyword_count);
+  Dynamic::Map<View::Bytes, Signed_32> local_map(keyword_count);
   for (Count i = 0; i < keyword_count; i++) {
     local_map.insert(keyword_source[i].key, keyword_source[i].value);
   }
@@ -186,9 +261,9 @@ static Harness MapKeywords = {
   .name = "Keyword Lookup"_view,
 };
 
-#define MAP_KEYWORD_TEST(type, count, mask)                    \
-  PERIMORTEM_BENCHMARK(MapKeywords, count##_##mask##_##type) { \
-    keyword_test<type, count, mask>();                         \
+#define MAP_KEYWORD_TEST(count, mask)                         \
+  PERIMORTEM_BENCHMARK(MapKeywords, count##_##mask##_##map) { \
+    keyword_test<count, mask>();                              \
   }
 
 #define MAP_TABLE_TEST(count, mask)                             \
@@ -196,55 +271,21 @@ static Harness MapKeywords = {
     keyword_table<count, mask>();                               \
   }
 
-#ifdef PERI_SLOW_BENCH
 #define MAP_KEYWORD_TEST_RANGE(count, mask) \
-  MAP_KEYWORD_TEST(scalar, count, mask);    \
-  MAP_KEYWORD_TEST(partial, count, mask);   \
-  MAP_KEYWORD_TEST(full, count, mask);      \
+  MAP_KEYWORD_TEST(count, mask);            \
   MAP_TABLE_TEST(count, mask);
-#else
-#define MAP_KEYWORD_TEST_RANGE(count, mask) \
-  MAP_KEYWORD_TEST(partial, count, mask);   \
-  MAP_TABLE_TEST(count, mask);
-#endif
 
 // Hit ranges in 1 / 1000 chance of keys appearing in the table since table
 // behavior changes based on hit rate.
 // hit_1000 equal 100.0% source keys
 // hit_0016 equal   1.6% source keys
 constexpr auto hit_1000 = Count(0b00000000'00000000);
-#ifdef PERI_SLOW_BENCH
-constexpr auto hit_0500 = Count(0b00000000'00000001);
-constexpr auto hit_0062 = Count(0b00000000'00001111);
-constexpr auto hit_0016 = Count(0b00000000'00111111);
-constexpr auto hit_0004 = Count(0b00000000'11111111);
-#endif
 constexpr auto hit_0001 = Count(0b00000011'11111111);
 
 MAP_KEYWORD_TEST_RANGE(4096, hit_1000);
-#ifdef PERI_SLOW_BENCH
-MAP_KEYWORD_TEST_RANGE(4096, hit_0500);
-MAP_KEYWORD_TEST_RANGE(4096, hit_0062);
-MAP_KEYWORD_TEST_RANGE(4096, hit_0016);
-MAP_KEYWORD_TEST_RANGE(4096, hit_0004);
-#endif
 MAP_KEYWORD_TEST_RANGE(4096, hit_0001);
 MAP_KEYWORD_TEST_RANGE(16384, hit_1000);
-#ifdef PERI_SLOW_BENCH
-MAP_KEYWORD_TEST_RANGE(16384, hit_0500);
-MAP_KEYWORD_TEST_RANGE(16384, hit_0062);
-MAP_KEYWORD_TEST_RANGE(16384, hit_0016);
-MAP_KEYWORD_TEST_RANGE(16384, hit_0004);
-#endif
 MAP_KEYWORD_TEST_RANGE(16384, hit_0001);
-#ifdef PERI_SLOW_BENCH
-MAP_KEYWORD_TEST_RANGE(65536, hit_1000);
-MAP_KEYWORD_TEST_RANGE(65536, hit_0500);
-MAP_KEYWORD_TEST_RANGE(65536, hit_0062);
-MAP_KEYWORD_TEST_RANGE(65536, hit_0016);
-MAP_KEYWORD_TEST_RANGE(65536, hit_0004);
-MAP_KEYWORD_TEST_RANGE(65536, hit_0001);
-#endif
 
 #ifdef PERI_BENCH_CPP
 
@@ -295,22 +336,18 @@ auto cpp_keyword_test() -> void {
   Benchmark::end_time();
 }
 
-#define INT_MAP_COMPARISON(count, var)                            \
-  static Benchmark::Comparison int_map_##var##_##count = {        \
-    .harness = &MapSigned_32s,                                    \
-    .label = #var " " #count " ints"_view,                        \
-    .variants =                                                   \
-        {                                                         \
-          Benchmark::ComparisonVariant{                           \
-              "scalar"_view, #var "_" #count "_ints_scalar"_view}, \
-          Benchmark::ComparisonVariant{                           \
-              "partial"_view, #var "_" #count "_ints_partial"_view}, \
-          Benchmark::ComparisonVariant{                           \
-              "full"_view, #var "_" #count "_ints_full"_view},   \
-        },                                                        \
-  };                                                              \
-  PERIMORTEM_COMPARISON(int_map_##var##_##count) {                \
-    cpp_int_map_test<count, var>();                               \
+#define INT_MAP_COMPARISON(count, var)                        \
+  static Benchmark::Comparison int_map_##var##_##count = {    \
+    .harness = &MapSigned_32s,                                \
+    .label = #var " " #count " ints"_view,                    \
+    .variants =                                               \
+        {                                                     \
+          Benchmark::ComparisonVariant{                       \
+            "Perimortem"_view, #var "_" #count "_ints"_view}, \
+        },                                                    \
+  };                                                          \
+  PERIMORTEM_COMPARISON(int_map_##var##_##count) {            \
+    cpp_int_map_test<count, var>();                           \
   }
 
 INT_MAP_COMPARISON(256, lookup)
@@ -332,13 +369,9 @@ INT_MAP_COMPARISON(65536, insert)
     .variants =                                               \
         {                                                     \
           Benchmark::ComparisonVariant{                       \
-              "scalar"_view, #count "_" #mask "_scalar"_view}, \
+            "Map"_view, #count "_" #mask "_map"_view},        \
           Benchmark::ComparisonVariant{                       \
-              "partial"_view, #count "_" #mask "_partial"_view}, \
-          Benchmark::ComparisonVariant{                       \
-              "full"_view, #count "_" #mask "_full"_view},   \
-          Benchmark::ComparisonVariant{                       \
-              "table"_view, #count "_" #mask "_table"_view}, \
+            "Table"_view, #count "_" #mask "_table"_view},    \
         },                                                    \
   };                                                          \
   PERIMORTEM_COMPARISON(kw_##count##_##mask##_comp) {         \

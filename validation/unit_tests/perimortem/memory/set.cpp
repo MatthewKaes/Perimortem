@@ -1,14 +1,15 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
+#include "perimortem/memory/dynamic/set.hpp"
+
 #include "validation/unit_test.hpp"
 
+#include "perimortem/core/static/vector.hpp"
 #include "perimortem/core/hash.hpp"
 #include "perimortem/core/null_terminated.hpp"
-#include "perimortem/core/static/vector.hpp"
 
 #include "perimortem/memory/dynamic/bytes.hpp"
-#include "perimortem/memory/dynamic/set.hpp"
 #include "unit_tests/perimortem/memory/hashable.hpp"
 
 using namespace Perimortem::Memory;

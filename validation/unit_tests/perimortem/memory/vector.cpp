@@ -1,11 +1,11 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
+#include "perimortem/memory/dynamic/vector.hpp"
+
 #include "validation/unit_test.hpp"
 
 #include "perimortem/core/null_terminated.hpp"
-
-#include "perimortem/memory/dynamic/vector.hpp"
 
 using namespace Perimortem::Memory;
 using namespace Validation;

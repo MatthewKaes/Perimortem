@@ -1,13 +1,14 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
+#include "perimortem/memory/dynamic/map.hpp"
+
 #include "validation/unit_test.hpp"
 
 #include "perimortem/core/static/bytes.hpp"
 #include "perimortem/core/null_terminated.hpp"
 
 #include "perimortem/memory/dynamic/bytes.hpp"
-#include "perimortem/memory/dynamic/map.hpp"
 #include "unit_tests/perimortem/memory/hashable.hpp"
 
 using namespace Perimortem::Memory;
@@ -15,10 +16,8 @@ using namespace Perimortem::Utility;
 
 using namespace Validation;
 
-constexpr auto vector_mode = Dynamic::MapVectorization::Scalar;
-
-static Harness DynamicMapScalar = {
-  .name = "Dynamic::Map Scalar"_view,
+static Harness DynamicMap = {
+  .name = "Dynamic::Map"_view,
   .setup =
       []() {
         default_construct_count = 0;
@@ -26,9 +25,8 @@ static Harness DynamicMapScalar = {
       },
 };
 
-PERIMORTEM_UNIT_TEST(DynamicMapScalar, find_and_get_entry) {
-  Dynamic::Map<Signed_32, Signed_32, vector_mode> int_map = {
-    {{1, 2}, {2, 3}, {4, 5}}};
+PERIMORTEM_UNIT_TEST(DynamicMap, find_and_get_entry) {
+  Dynamic::Map<Signed_32, Signed_32> int_map = {{{1, 2}, {2, 3}, {4, 5}}};
 
   auto* found = int_map.find(2);
   ASSERT(found != nullptr);
@@ -37,8 +35,7 @@ PERIMORTEM_UNIT_TEST(DynamicMapScalar, find_and_get_entry) {
   Count count = 0;
   Signed_32 key_sum = 0;
   Signed_32 value_sum = 0;
-  for (Count entry_index = 0; entry_index < int_map.get_size();
-       entry_index++) {
+  for (Count entry_index = 0; entry_index < int_map.get_size(); entry_index++) {
     auto* entry = int_map.get_entry(entry_index);
     ASSERT(entry != nullptr);
     count++;
@@ -52,18 +49,16 @@ PERIMORTEM_UNIT_TEST(DynamicMapScalar, find_and_get_entry) {
   EXPECT(int_map.get_entry(3) == nullptr);
 }
 
-PERIMORTEM_UNIT_TEST(DynamicMapScalar, empty) {
-  Dynamic::Map<Signed_32, Signed_32, vector_mode> empty_map;
+PERIMORTEM_UNIT_TEST(DynamicMap, empty) {
+  Dynamic::Map<Signed_32, Signed_32> empty_map;
 
-  // Two maps fit in a cache line.
-  EXPECT_EQ(sizeof(empty_map), 32);
+  EXPECT_EQ(sizeof(empty_map), 24);
   EXPECT_EQ(empty_map.get_size(), 0);
   EXPECT_EQ(empty_map.get_capacity(), 0);
 }
 
-PERIMORTEM_UNIT_TEST(DynamicMapScalar, simple_construction) {
-  Dynamic::Map<Signed_32, Signed_32, vector_mode> int_map = {
-    {{1, 2}, {2, 3}, {4, 5}}};
+PERIMORTEM_UNIT_TEST(DynamicMap, simple_construction) {
+  Dynamic::Map<Signed_32, Signed_32> int_map = {{{1, 2}, {2, 3}, {4, 5}}};
 
   EXPECT_EQ(int_map.get_size(), 3);
   ASSERT_EQ(int_map[1], 2);
@@ -71,8 +66,8 @@ PERIMORTEM_UNIT_TEST(DynamicMapScalar, simple_construction) {
   EXPECT_EQ(int_map[4], 5);
 }
 
-PERIMORTEM_UNIT_TEST(DynamicMapScalar, insert_on_index) {
-  Dynamic::Map<Signed_32, Signed_32, vector_mode> empty_map;
+PERIMORTEM_UNIT_TEST(DynamicMap, insert_on_index) {
+  Dynamic::Map<Signed_32, Signed_32> empty_map;
 
   // Populate defaults
   for (Count i = 0; i < 10; i++) {
@@ -85,8 +80,8 @@ PERIMORTEM_UNIT_TEST(DynamicMapScalar, insert_on_index) {
   }
 }
 
-PERIMORTEM_UNIT_TEST(DynamicMapScalar, duplicate_keys) {
-  Dynamic::Map<Signed_32, Signed_32, vector_mode> int_map = {{{1, 2}, {1, 4}}};
+PERIMORTEM_UNIT_TEST(DynamicMap, duplicate_keys) {
+  Dynamic::Map<Signed_32, Signed_32> int_map = {{{1, 2}, {1, 4}}};
 
   EXPECT_EQ(int_map.get_size(), 1);
   ASSERT_EQ(int_map[1], 4);
@@ -97,8 +92,21 @@ PERIMORTEM_UNIT_TEST(DynamicMapScalar, duplicate_keys) {
   EXPECT_EQ(int_map[2], 8);
 }
 
-PERIMORTEM_UNIT_TEST(DynamicMapScalar, remove) {
-  Dynamic::Map<Signed_32, Signed_32, vector_mode> int_map;
+PERIMORTEM_UNIT_TEST(DynamicMap, duplicate_does_not_grow) {
+  Dynamic::Map<Signed_32, Signed_32> int_map;
+  int_map.ensure_capacity(7);
+  for (Signed_32 i = 0; i < 7; i++) {
+    int_map.insert(i, i);
+  }
+
+  Count capacity = int_map.get_capacity();
+  int_map.insert(0, 42);
+  EXPECT_EQ(int_map.get_capacity(), capacity);
+  EXPECT_EQ(int_map[0], 42);
+}
+
+PERIMORTEM_UNIT_TEST(DynamicMap, remove) {
+  Dynamic::Map<Signed_32, Signed_32> int_map;
 
   int_map.ensure_capacity(1000);
   for (Count i = 0; i < 100; i++) {
@@ -119,8 +127,8 @@ PERIMORTEM_UNIT_TEST(DynamicMapScalar, remove) {
   }
 }
 
-PERIMORTEM_UNIT_TEST(DynamicMapScalar, empty_keys) {
-  Dynamic::Map<Dynamic::Bytes, Signed_32, vector_mode> empty_map;
+PERIMORTEM_UNIT_TEST(DynamicMap, empty_keys) {
+  Dynamic::Map<Dynamic::Bytes, Signed_32> empty_map;
 
   Count i = 0;
   while (i < 1000) {
@@ -133,8 +141,8 @@ PERIMORTEM_UNIT_TEST(DynamicMapScalar, empty_keys) {
   EXPECT_EQ(empty_map[Dynamic::Bytes()], i);
 }
 
-PERIMORTEM_UNIT_TEST(DynamicMapScalar, insert_stress_test) {
-  Dynamic::Map<Signed_32, Signed_32, vector_mode> large_map;
+PERIMORTEM_UNIT_TEST(DynamicMap, insert_stress_test) {
+  Dynamic::Map<Signed_32, Signed_32> large_map;
 
   for (Count i = 0; i < 1000; i++) {
     large_map.insert(i, i + 2);
@@ -146,8 +154,8 @@ PERIMORTEM_UNIT_TEST(DynamicMapScalar, insert_stress_test) {
   }
 }
 
-PERIMORTEM_UNIT_TEST(DynamicMapScalar, capacity_stress_test) {
-  Dynamic::Map<Signed_32, Signed_32, vector_mode> large_map;
+PERIMORTEM_UNIT_TEST(DynamicMap, capacity_stress_test) {
+  Dynamic::Map<Signed_32, Signed_32> large_map;
 
   large_map.ensure_capacity(1000);
   for (Count i = 0; i < 1000; i++) {
@@ -160,12 +168,12 @@ PERIMORTEM_UNIT_TEST(DynamicMapScalar, capacity_stress_test) {
   }
 }
 
-PERIMORTEM_UNIT_TEST(DynamicMapScalar, key_construction) {
+PERIMORTEM_UNIT_TEST(DynamicMap, key_construction) {
   Count construct_count = 0;
   Count destruct_count = 0;
 
   {
-    Dynamic::Map<Hashable, Signed_32, vector_mode> custom_map;
+    Dynamic::Map<Hashable, Signed_32> custom_map;
 
     for (Count i = 0; i < 100; i++) {
       custom_map.insert(Hashable(i, construct_count, destruct_count), i);
@@ -183,12 +191,12 @@ PERIMORTEM_UNIT_TEST(DynamicMapScalar, key_construction) {
   EXPECT_EQ(default_destruct_count, 0);
 }
 
-PERIMORTEM_UNIT_TEST(DynamicMapScalar, value_construction) {
+PERIMORTEM_UNIT_TEST(DynamicMap, value_construction) {
   Count construct_count = 0;
   Count destruct_count = 0;
 
   {
-    Dynamic::Map<Signed_32, Hashable, vector_mode> custom_map;
+    Dynamic::Map<Signed_32, Hashable> custom_map;
 
     for (Count i = 0; i < 100; i++) {
       custom_map.insert(i, Hashable(i, construct_count, destruct_count));
@@ -206,12 +214,12 @@ PERIMORTEM_UNIT_TEST(DynamicMapScalar, value_construction) {
   EXPECT_EQ(default_destruct_count, 0);
 }
 
-PERIMORTEM_UNIT_TEST(DynamicMapScalar, emplace_count) {
+PERIMORTEM_UNIT_TEST(DynamicMap, emplace_count) {
   Count construct_count = 0;
   Count destruct_count = 0;
 
   {
-    Dynamic::Map<Signed_32, Hashable, vector_mode> custom_map;
+    Dynamic::Map<Signed_32, Hashable> custom_map;
 
     for (Count i = 0; i < 100; i++) {
       custom_map.emplace(
@@ -231,8 +239,8 @@ PERIMORTEM_UNIT_TEST(DynamicMapScalar, emplace_count) {
   EXPECT_EQ(default_destruct_count, 0);
 }
 
-PERIMORTEM_UNIT_TEST(DynamicMapScalar, dynamic_keys) {
-  Dynamic::Map<Dynamic::Bytes, Signed_32, vector_mode> text_map;
+PERIMORTEM_UNIT_TEST(DynamicMap, dynamic_keys) {
+  Dynamic::Map<Dynamic::Bytes, Signed_32> text_map;
 
   text_map["Hello"_view] = 0;
   text_map["World"_view] = 1;
@@ -261,8 +269,8 @@ PERIMORTEM_UNIT_TEST(DynamicMapScalar, dynamic_keys) {
   ASSERT_EQ(copied["Longer test string"_view], 2);
 }
 
-PERIMORTEM_UNIT_TEST(DynamicMapScalar, dynamic_value) {
-  Dynamic::Map<Signed_32, Dynamic::Bytes, vector_mode> text_map;
+PERIMORTEM_UNIT_TEST(DynamicMap, dynamic_value) {
+  Dynamic::Map<Signed_32, Dynamic::Bytes> text_map;
 
   text_map[0] = "Hello"_view;
   text_map[1] = "World"_view;
@@ -277,9 +285,33 @@ PERIMORTEM_UNIT_TEST(DynamicMapScalar, dynamic_value) {
   ASSERT_TEXT(copied[2].get_view(), "Longer test string"_view);
 }
 
-PERIMORTEM_UNIT_TEST(DynamicMapScalar, size) {
-  Dynamic::Map<Signed_32, Signed_32, vector_mode> empty_map;
-  EXPECT_EQ(sizeof(empty_map), 32);
+PERIMORTEM_UNIT_TEST(DynamicMap, assignment) {
+  Dynamic::Map<Signed_32, Signed_32> source = {{{1, 2}, {3, 4}}};
+  Dynamic::Map<Signed_32, Signed_32> destination = {{{5, 6}}};
+
+  destination = source;
+  source[1] = 8;
+
+  EXPECT_EQ(destination.get_size(), Count(2));
+  EXPECT_EQ(destination[1], 2);
+  EXPECT_EQ(destination[3], 4);
+}
+
+PERIMORTEM_UNIT_TEST(DynamicMap, move_assignment) {
+  Dynamic::Map<Signed_32, Signed_32> source = {{{1, 2}, {3, 4}}};
+  Dynamic::Map<Signed_32, Signed_32> destination = {{{5, 6}}};
+
+  destination = static_cast<Dynamic::Map<Signed_32, Signed_32>&&>(source);
+
+  EXPECT_EQ(destination.get_size(), Count(2));
+  EXPECT_EQ(destination[1], 2);
+  EXPECT_EQ(source.get_size(), Count(1));
+  EXPECT_EQ(source[5], 6);
+}
+
+PERIMORTEM_UNIT_TEST(DynamicMap, size) {
+  Dynamic::Map<Signed_32, Signed_32> empty_map;
+  EXPECT_EQ(sizeof(empty_map), 24);
   EXPECT_EQ(empty_map.get_capacity(), 0);
   empty_map.ensure_capacity(10);
   EXPECT_EQ(empty_map.get_capacity(), 16);
@@ -287,8 +319,8 @@ PERIMORTEM_UNIT_TEST(DynamicMapScalar, size) {
   EXPECT_EQ(empty_map.get_capacity(), 128);
 }
 
-PERIMORTEM_UNIT_TEST(DynamicMapScalar, reuse) {
-  Dynamic::Map<Signed_32, Signed_32, vector_mode> reuse_map;
+PERIMORTEM_UNIT_TEST(DynamicMap, reuse) {
+  Dynamic::Map<Signed_32, Signed_32> reuse_map;
 
   for (Signed_32 loops = 0; loops < 5; loops++) {
     reuse_map.clear();
@@ -305,11 +337,11 @@ PERIMORTEM_UNIT_TEST(DynamicMapScalar, reuse) {
   }
 }
 
-PERIMORTEM_UNIT_TEST(DynamicMapScalar, leak_test) {
+PERIMORTEM_UNIT_TEST(DynamicMap, leak_test) {
   auto pre_test_memory = Bibliotheca::allocated_memory();
 
   {
-    Dynamic::Map<Dynamic::Bytes, Dynamic::Bytes, vector_mode> memory_intensive;
+    Dynamic::Map<Dynamic::Bytes, Dynamic::Bytes> memory_intensive;
     Dynamic::Bytes source;
 
     for (Count i = 0; i < 100; i++) {
@@ -323,7 +355,7 @@ PERIMORTEM_UNIT_TEST(DynamicMapScalar, leak_test) {
   }
 
   {
-    Dynamic::Map<Signed_32, Signed_32, vector_mode> large_map;
+    Dynamic::Map<Signed_32, Signed_32> large_map;
 
     for (Count i = 0; i < 1000; i++) {
       large_map.insert(i, i + 2);

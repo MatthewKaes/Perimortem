@@ -67,7 +67,7 @@ static Benchmark::Comparison random_generate_comp = {
   .harness = &SystemRandom,
   .label = "generate 1024"_view,
   .variants = {Benchmark::ComparisonVariant{
-      "philox"_view, "generate_1024"_view}},
+    "philox"_view, "generate_1024"_view}},
 };
 PERIMORTEM_COMPARISON(random_generate_comp) {
   cpp_mt19937_generate();
@@ -77,7 +77,7 @@ static Benchmark::Comparison random_entropy_comp = {
   .harness = &SystemRandom,
   .label = "entropy 1024"_view,
   .variants = {Benchmark::ComparisonVariant{
-      "rdrand"_view, "read_entropy"_view}},
+    "rdrand"_view, "read_entropy"_view}},
 };
 PERIMORTEM_COMPARISON(random_entropy_comp) {
   cpp_random_device_read();

@@ -123,15 +123,15 @@ auto cpp_string_small_concat() -> void {
   Benchmark::prevent_optimization(size);
 }
 
-#define CONCAT_COMPARISON(size)                              \
-  static Benchmark::Comparison concat_##size##_comp = {      \
-    .harness = &StringBench,                                 \
-    .label = "concat " #size ""_view,                        \
-    .variants = {Benchmark::ComparisonVariant{                \
-        "dynamic"_view, "concat_" #size ""_view}},            \
-  };                                                         \
-  PERIMORTEM_COMPARISON(concat_##size##_comp) {              \
-    cpp_string_concat<size>();                               \
+#define CONCAT_COMPARISON(size)                         \
+  static Benchmark::Comparison concat_##size##_comp = { \
+    .harness = &StringBench,                            \
+    .label = "concat " #size ""_view,                   \
+    .variants = {Benchmark::ComparisonVariant{          \
+      "dynamic"_view, "concat_" #size ""_view}},        \
+  };                                                    \
+  PERIMORTEM_COMPARISON(concat_##size##_comp) {         \
+    cpp_string_concat<size>();                          \
   }
 
 CONCAT_COMPARISON(8)
@@ -144,7 +144,7 @@ static Benchmark::Comparison append_bytes_comp = {
   .harness = &StringBench,
   .label = "append bytes"_view,
   .variants = {Benchmark::ComparisonVariant{
-      "dynamic"_view, "append_bytes"_view}},
+    "dynamic"_view, "append_bytes"_view}},
 };
 PERIMORTEM_COMPARISON(append_bytes_comp) {
   cpp_string_append_bytes();
@@ -154,7 +154,7 @@ static Benchmark::Comparison small_string_comp = {
   .harness = &StringBench,
   .label = "small string"_view,
   .variants = {Benchmark::ComparisonVariant{
-      "dynamic"_view, "small_string"_view}},
+    "dynamic"_view, "small_string"_view}},
 };
 PERIMORTEM_COMPARISON(small_string_comp) {
   cpp_string_small_string();
@@ -164,7 +164,7 @@ static Benchmark::Comparison small_concat_comp = {
   .harness = &StringBench,
   .label = "small concat"_view,
   .variants = {Benchmark::ComparisonVariant{
-      "dynamic"_view, "small_concat"_view}},
+    "dynamic"_view, "small_concat"_view}},
 };
 PERIMORTEM_COMPARISON(small_concat_comp) {
   cpp_string_small_concat();

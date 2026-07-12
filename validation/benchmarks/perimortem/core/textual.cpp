@@ -92,7 +92,7 @@ PERIMORTEM_BENCHMARK(TextualReadBench, read_flags) {
   for (Count i = 0; i < batch_count; i++) {
     Reader::Textual reader(values[i & 0xF]);
     Bool flag = reader.read_flag();
-    accumulator += reader.is_valid() ? flag ? 1 : 2 : 3;
+    accumulator += reader.has_content() ? flag ? 1 : 2 : 3;
   }
   Benchmark::prevent_optimization(accumulator);
 }
@@ -109,7 +109,7 @@ PERIMORTEM_BENCHMARK(TextualReadBench, read_ints) {
   for (Count i = 0; i < batch_count; i++) {
     Reader::Textual reader(values[i & 0xF]);
     Count long_value = reader.read_signed();
-    if (reader.is_valid()) {
+    if (reader.has_content()) {
       accumulator += long_value;
     } else {
       accumulator -= 1;
@@ -128,7 +128,7 @@ PERIMORTEM_BENCHMARK(TextualReadBench, read_floats) {
   for (Count i = 0; i < batch_count; i++) {
     Reader::Textual reader(values[i & 0xF]);
     Real_64 real_value = reader.read_real_64();
-    if (reader.is_valid()) {
+    if (reader.has_content()) {
       accumulator += real_value;
     } else {
       accumulator -= 1;

@@ -49,14 +49,14 @@ PERIMORTEM_UNIT_TEST(SerializationBase64, decode_simple) {
 
 PERIMORTEM_UNIT_TEST(SerializationBase64, decode_vectorized) {
   auto start_requests = Bibliotheca::check_out_requests();
-  File source;
-  ASSERT(source.read("validation/data/ttx/png.ttx"_view));
-  File base64;
-  ASSERT(base64.read("validation/data/base64/png.base64"_view));
+  auto source = File::read("validation/data/ttx/png.ttx"_view);
+  auto base64 = File::read("validation/data/base64/png.base64"_view);
+  ASSERT(!source.is_empty());
+  ASSERT(!base64.is_empty());
 
   // If you touch the source input, regenerate its base64 output or this test
   // will fail.
-  const auto decoded_bytes = Base64::decode(base64.get_view());
+  const auto decoded_bytes = Base64::decode(base64);
   EXPECT_TEXT(decoded_bytes.get_view(), source.get_view());
 
   // Should only perform 3 allocations:
@@ -90,10 +90,10 @@ PERIMORTEM_UNIT_TEST(SerializationBase64, encode_simple) {
 
 PERIMORTEM_UNIT_TEST(SerializationBase64, encode_vectorized) {
   auto start_requests = Bibliotheca::check_out_requests();
-  File source;
-  ASSERT(source.read("validation/data/ttx/png.ttx"_view));
-  File base64;
-  ASSERT(base64.read("validation/data/base64/png.base64"_view));
+  auto source = File::read("validation/data/ttx/png.ttx"_view);
+  auto base64 = File::read("validation/data/base64/png.base64"_view);
+  ASSERT(!source.is_empty());
+  ASSERT(!base64.is_empty());
 
   // If you touch the source input, regenerate its base64 output or this test
   // will fail.
