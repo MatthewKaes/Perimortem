@@ -7,15 +7,15 @@
 #include "perimortem/core/math.hpp"
 
 using namespace Perimortem::Core;
-using namespace Perimortem::Memory::Allocator;
+using namespace Perimortem::Memory;
 
-Arena::Arena() {
+Allocator::Arena::Arena() {
   rented_block = nullptr;
 
   fetch_page(page_size);
 }
 
-Arena::~Arena() {
+Allocator::Arena::~Arena() {
   while (rented_block != nullptr) {
     auto rented = rented_block;
     rented_block = *Core::Data::cast<Bits_8*>(rented_block);
@@ -23,7 +23,7 @@ Arena::~Arena() {
   }
 }
 
-auto Arena::reset() -> void {
+auto Allocator::Arena::reset() -> void {
   // Return all blocks we've rented from the Bibliotheca until we only have a
   // single block left.
   Bits_8* previous = *Core::Data::cast<Bits_8*>(rented_block);
@@ -40,7 +40,7 @@ auto Arena::reset() -> void {
   usage = sizeof(Bits_8*);
 }
 
-auto Arena::fetch_page(Count bytes_requested) -> void {
+auto Allocator::Arena::fetch_page(Count bytes_requested) -> void {
   const Count alloc_size =
       Math::max(page_size, bytes_requested + sizeof(Bits_8*));
   auto alloc = Core::Bibliotheca::check_out(alloc_size);

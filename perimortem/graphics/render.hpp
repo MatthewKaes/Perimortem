@@ -8,15 +8,16 @@
 
 namespace Perimortem::Graphics {
 
-// Runtime render metadata shared by generated TTX headers and the renderer.
-// Tetrodotoxin may generate these objects, but Graphics owns the runtime shape.
+// Backend-independent metadata needed to construct and bind a render program.
 class Render {
  public:
+  // Shader stage used by a module or host-input range.
   enum class Stage : Bits_32 {
     Vertex,
     Pixel,
   };
 
+  // One SPIR-V module and the entry point selected from it.
   class Module {
    public:
     constexpr Module() = default;
@@ -39,6 +40,7 @@ class Render {
     const char* entry = nullptr;
   };
 
+  // Byte range made visible to one or more shader stages as push constants.
   class HostInputRange {
    public:
     constexpr HostInputRange() = default;
@@ -60,6 +62,7 @@ class Render {
     Core::View::Vector<Stage> stages;
   };
 
+  // Named descriptor location expected by the generated render program.
   class DescriptorBinding {
    public:
     constexpr DescriptorBinding() = default;
@@ -76,6 +79,7 @@ class Render {
     Count slot = 0;
   };
 
+  // Named field within the host-input byte layout.
   class HostField {
    public:
     constexpr HostField() = default;
@@ -92,6 +96,8 @@ class Render {
     Count size = 0;
   };
 
+  // Non-owning view of the complete metadata needed to build a pipeline.
+  // Every referenced array and string must outlive the Program.
   class Program {
    public:
     constexpr Program() = default;
@@ -122,7 +128,6 @@ class Render {
       return host_fields;
     }
     constexpr auto get_vertex_count() const -> Count { return vertex_count; }
-    constexpr auto is_valid() const -> Bool { return !modules.is_empty(); }
 
    private:
     Core::View::Vector<Module> modules;
@@ -136,9 +141,6 @@ class Render {
   constexpr Render(const Program& program) : program(&program) {}
 
   constexpr auto get_program() const -> const Program* { return program; }
-  constexpr auto is_valid() const -> Bool {
-    return program && program->is_valid();
-  }
 
  private:
   const Program* program = nullptr;

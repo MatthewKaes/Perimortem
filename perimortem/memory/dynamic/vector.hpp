@@ -135,7 +135,8 @@ class Vector {
 
     Count last_index = size - 1;
     for (Count shift_index = index; shift_index < last_index; shift_index++) {
-      Core::Data::swap(source_block[shift_index], source_block[shift_index + 1]);
+      Core::Data::swap(
+          source_block[shift_index], source_block[shift_index + 1]);
     }
 
     source_block[last_index].~type();

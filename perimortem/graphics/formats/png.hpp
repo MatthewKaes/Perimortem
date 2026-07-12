@@ -9,6 +9,7 @@
 
 namespace Perimortem::Graphics::Formats {
 
+// Stateless PNG codec that converts between encoded bytes and RGBA Images.
 class Png {
  public:
   // Decodes a PNG byte stream into a Graphics::Image (RGBA pixels, row-major).
@@ -31,9 +32,9 @@ class Png {
   //
   static auto decode(Core::View::Bytes source) -> Image;
 
-  // Encodes an Image to a PNG byte stream using an adaptive filtering huristic
+  // Encodes an Image to a PNG byte stream using an adaptive filtering heuristic
   // which scores each line using all five filter types, selecting the one with
-  // the lowest huristic score.
+  // the lowest heuristic score.
   //
   // Returns empty bytes for any bad inputs and empty images.
   //

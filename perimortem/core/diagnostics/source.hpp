@@ -28,8 +28,8 @@ namespace Perimortem::Core::Diagnostics {
 // binary and uses value semantics so a Source copy is always a single pointer
 // copy.
 //
-// TTX can provide source information by embedding the same information as the
-// ABI making it useful for cross language diagnostics.
+// Other runtimes can provide source information using the same fields, which
+// keeps diagnostics useful across language boundaries.
 //
 // Accessors are evaluated lazily since evaluating source most likely means we
 // are already in a diagnostics slow path.

@@ -11,14 +11,13 @@
 #include "perimortem/core/math.hpp"
 #include "perimortem/core/null_terminated.hpp"
 
-#include "perimortem/system/compression/deflate.hpp"
-
+#include "perimortem/compression/deflate.hpp"
 #include "perimortem/graphics/image.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
 using namespace Perimortem::Graphics;
-using namespace Perimortem::System;
+using namespace Perimortem;
 
 // The color encoding used in a PNG file's IHDR chunk.
 enum class ColorType : Bits_8 {
@@ -63,7 +62,7 @@ struct ImageInfo {
   }
   constexpr auto get_bit_depth() const -> Bits_8 { return bit_depth; }
   constexpr auto get_color_type() const -> ColorType { return color_type; }
-  constexpr auto is_valid() const -> Bool {
+  constexpr auto uses_standard_methods() const -> Bool {
     return compression_method == 0 && filter_method == FilterType::None &&
            interlace_method == 0;
   }
@@ -386,8 +385,8 @@ constexpr auto apply_row_filter(
       Bits_8 left = current_row_data[i - channel_count];
       Bits_8 up = previous_row_data[i];
       Bits_8 upper_left = previous_row_data[i - channel_count];
-      output_row_data[i] = Bits_8(
-          current_row_data[i] - paeth_predictor(left, up, upper_left));
+      output_row_data[i] =
+          Bits_8(current_row_data[i] - paeth_predictor(left, up, upper_left));
     }
     break;
 
@@ -605,8 +604,7 @@ constexpr auto convert_to_pixels(
       output[pixel_index] = Pixel(data[source_offset]);
       break;
     case ColorType::GreyscaleAlpha:
-      output[pixel_index] = Pixel(
-          data[source_offset], data[source_offset + 1]);
+      output[pixel_index] = Pixel(data[source_offset], data[source_offset + 1]);
       break;
     case ColorType::Rgb:
       output[pixel_index] = Pixel(
@@ -697,7 +695,7 @@ constexpr auto read_header(const View::Bytes source) -> ImageInfo {
   }
 
   // Check the rest of the data is set correctly.
-  if (!image_info.is_valid()) [[unlikely]] {
+  if (!image_info.uses_standard_methods()) [[unlikely]] {
     Diagnostics::Log::error(
         "Png: Non-standard compression, filter, or interlace method in IHDR"_view);
     return ImageInfo();

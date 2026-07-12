@@ -122,8 +122,8 @@ class Set {
     buffer_data.bucket_buffer[bucket_index] = 0;
 
     // The removed key object stays alive in the hole. Keep scanning until the
-    // first empty bucket because an entry that is already in its home bucket may
-    // be followed by another entry whose probe path still crosses the hole.
+    // first empty bucket because an entry that is already in its home bucket
+    // may be followed by another entry whose probe path still crosses the hole.
     while (buffer_data.bucket_buffer[next_bucket] != 0) {
       Bits_32 hash = buffer_data.bucket_buffer[next_bucket];
       Count home_bucket = extract_bucket_index(hash);

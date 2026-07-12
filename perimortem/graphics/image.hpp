@@ -17,10 +17,7 @@ namespace Perimortem::Graphics {
 // A raster image stored as RGBA pixels in row-major order that provides safe
 // pixel level access as well as raw buffer access for speed.
 //
-// Image provides several addressing modes that sets the behavior for out of
-// range pixels.
-//
-// Image only currently supported format is 8 bit depth RGBA.
+// The only supported format is currently 8 bits per channel.
 class Image {
  public:
   enum class Addressing : Bits_8 {
@@ -67,27 +64,24 @@ class Image {
   auto get_width() const -> Bits_32 { return width; }
   auto get_height() const -> Bits_32 { return height; }
 
-  // Used for getting raw Pixel data for optimized operations.
+  // Returns the contiguous row-major pixel buffer.
   auto get_pixels() const -> Core::View::Vector<Pixel> {
     return pixels.get_view();
   }
 
-  // Returns the pixel at column x, row y with [0, 0] represents the top left
-  // corner following most standard conventions with increasing x going right
-  // and increasing y going down.
+  // Returns the pixel at column x, row y. [0, 0] is the top-left corner, x
+  // increases to the right, and y increases downward.
   //
   // Negative values are valid given the addressing mode which allows for
   // different wrapping modes.
   //
-  // Used when safety is prefered, but for speed most graphics operations should
-  // be vectorized on the CPU or GPU and should go through `get_pixels()` to
-  // directly manipulate the data.
+  // Use get_pixels() for operations that process the buffer in bulk.
   auto get_pixel(Signed_32 x, Signed_32 y) const -> Pixel {
     switch (addressing) {
       // Any out of bounds values are saturated to Bits_8(0)
     case Addressing::Zero:
-      if (x < 0 || x > width || y < 0 || y > height) {
-        return Pixel(0);
+      if (x < 0 || x >= width || y < 0 || y >= height) {
+        return Pixel();
       }
       break;
 
@@ -125,7 +119,7 @@ class Image {
   Memory::Dynamic::Vector<Pixel> pixels;
   Bits_32 width = 0;
   Bits_32 height = 0;
-  Addressing addressing;
+  Addressing addressing = Addressing::Zero;
 };
 
 }  // namespace Perimortem::Graphics

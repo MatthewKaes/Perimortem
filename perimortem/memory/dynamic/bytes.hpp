@@ -77,7 +77,7 @@ class Bytes {
     return Core::Hash(get_view()).get_value();
   }
 
-  auto is_empty() { return size == 0; }
+  constexpr auto is_empty() const -> Bool { return size == 0; }
 
   auto clear() -> void;
   auto reset() -> void;
