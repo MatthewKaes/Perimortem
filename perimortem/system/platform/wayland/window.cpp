@@ -8,8 +8,6 @@
 #include <errno.h>
 #include <poll.h>
 #include <string.h>
-#include <vulkan/vulkan.h>
-#include <vulkan/vulkan_wayland.h>
 #include <wayland-client.h>
 
 #include "perimortem/system/platform/wayland/xdg_shell.hpp"
@@ -134,25 +132,6 @@ auto Platform::Wayland::Window::poll_events() -> Bool {
   return !close_requested;
 }
 
-auto Platform::Wayland::Window::create_vulkan_surface(VkInstance instance) const
-    -> VkSurfaceKHR {
-  if (!display || !surface) {
-    return VK_NULL_HANDLE;
-  }
-
-  VkWaylandSurfaceCreateInfoKHR surface_info = {
-    VK_STRUCTURE_TYPE_WAYLAND_SURFACE_CREATE_INFO_KHR};
-  surface_info.display = display;
-  surface_info.surface = surface;
-
-  VkSurfaceKHR surface = VK_NULL_HANDLE;
-  if (vkCreateWaylandSurfaceKHR(instance, &surface_info, nullptr, &surface) !=
-      VK_SUCCESS) {
-    return VK_NULL_HANDLE;
-  }
-  return surface;
-}
-
 auto Platform::Wayland::Window::get_logical_width() const -> Bits_32 {
   return logical_width;
 }
@@ -171,6 +150,14 @@ auto Platform::Wayland::Window::get_needs_resize() const -> Bool {
 
 auto Platform::Wayland::Window::clear_resize() -> void {
   needs_resize = False;
+}
+
+auto Platform::Wayland::Window::get_display() const -> wl_display* {
+  return display;
+}
+
+auto Platform::Wayland::Window::get_surface() const -> wl_surface* {
+  return surface;
 }
 
 auto Platform::Wayland::Window::destroy() -> void {

@@ -26,6 +26,7 @@ class Path {
   constexpr auto get_view() const -> Core::View::Bytes {
     return text.slice(0, size);
   }
+
   constexpr auto get_file() const -> Core::View::Bytes {
     Core::View::Bytes path = get_view();
     Count file_start = 0;
@@ -66,11 +67,16 @@ class Path {
   }
 
   constexpr operator Core::View::Bytes() const { return get_view(); }
+
   constexpr auto operator==(const Path& rhs) const -> Bool {
     return get_view() == rhs.get_view();
   }
 
  private:
+  auto append_path(Core::View::Bytes path) -> Bool;
+  auto append_segment(Core::View::Bytes segment) -> Bool;
+  auto pop_segment() -> Bool;
+
   Core::Static::Bytes<max_size> text;
   Count size = 0;
 };
