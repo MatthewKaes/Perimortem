@@ -5,7 +5,7 @@
 
 #include "perimortem/core/view/bytes.hpp"
 
-namespace Perimortem::System::Compression::BitStream {
+namespace Perimortem::Compression::BitStream {
 
 // A bit reader for DEFLATE packed streams.
 //
@@ -43,4 +43,4 @@ class Reader {
   Bool invalid_stream = False;
 };
 
-}  // namespace Perimortem::System::Compression::BitStream
+}  // namespace Perimortem::Compression::BitStream

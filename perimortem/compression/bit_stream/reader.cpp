@@ -1,12 +1,12 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
-#include "perimortem/system/compression/bit_stream/reader.hpp"
+#include "perimortem/compression/bit_stream/reader.hpp"
 
 #include "perimortem/core/data.hpp"
 
 using namespace Perimortem::Core;
-using namespace Perimortem::System;
+using namespace Perimortem;
 
 // Loads bytes from the stream into buffer until it buffers at least 57 bits or
 // the stream is exhausted. 57 bits guarantees a 9-bit peek after consuming up

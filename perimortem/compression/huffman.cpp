@@ -1,13 +1,13 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
-#include "perimortem/system/compression/huffman.hpp"
+#include "perimortem/compression/huffman.hpp"
 
 #include "perimortem/core/static/vector.hpp"
 #include "perimortem/core/math.hpp"
 
 using namespace Perimortem::Core;
-using namespace Perimortem::System;
+using namespace Perimortem;
 
 auto Compression::HuffmanTable::compute_lengths(
     View::Vector<Bits_32> frequencies,

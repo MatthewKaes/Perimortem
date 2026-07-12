@@ -5,7 +5,7 @@
 
 #include "perimortem/memory/dynamic/bytes.hpp"
 
-namespace Perimortem::System::Compression::BitStream {
+namespace Perimortem::Compression::BitStream {
 
 // A bit writer for DEFLATE packed streams which dynamically manages a buffer
 // compared to the `Access::Bytes` model used by `Core::Writer`.
@@ -37,4 +37,4 @@ class Writer {
   Count bits = 0;
 };
 
-}  // namespace Perimortem::System::Compression::BitStream
+}  // namespace Perimortem::Compression::BitStream

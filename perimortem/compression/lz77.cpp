@@ -1,7 +1,7 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
-#include "perimortem/system/compression/lz77.hpp"
+#include "perimortem/compression/lz77.hpp"
 
 #include <x86intrin.h>
 
@@ -10,7 +10,7 @@
 #include "perimortem/core/math.hpp"
 
 using namespace Perimortem::Core;
-using namespace Perimortem::System;
+using namespace Perimortem;
 
 // `hash_table` maps a 3-byte hash to the most recent input position that
 // produced it. `chain_table` maps each window position to the previous input

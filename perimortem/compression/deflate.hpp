@@ -5,7 +5,7 @@
 
 #include "perimortem/memory/dynamic/bytes.hpp"
 
-namespace Perimortem::System::Compression {
+namespace Perimortem::Compression {
 
 class Deflate {
  public:
@@ -28,4 +28,4 @@ class Deflate {
       -> Memory::Dynamic::Bytes;
 };
 
-}  // namespace Perimortem::System::Compression
+}  // namespace Perimortem::Compression

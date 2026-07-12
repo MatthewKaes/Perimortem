@@ -1,12 +1,12 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
-#include "perimortem/system/compression/bit_stream/writer.hpp"
+#include "perimortem/compression/bit_stream/writer.hpp"
 
 #include "perimortem/core/data.hpp"
 
 using namespace Perimortem::Core;
-using namespace Perimortem::System;
+using namespace Perimortem;
 
 // Append complete bytes from the accumulator to the output buffer.
 // Leaves at most 7 bits (the partial final byte) in the accumulator.

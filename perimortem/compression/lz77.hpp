@@ -7,7 +7,7 @@
 
 #include "perimortem/memory/dynamic/vector.hpp"
 
-namespace Perimortem::System::Compression {
+namespace Perimortem::Compression {
 
 // Contains all of the Lz77 state used for compression passes.
 // Note that Lz77 uses it's own mini hash table implementation since it's in the
@@ -36,14 +36,16 @@ class Lz77 {
   auto find_match(Core::View::Bytes source, Count position, Count depth) const
       -> Match;
   auto insert(Core::View::Bytes source, Count position) -> void;
-  // Specialized merged find + insert which inserts position into the hash chain then
-  // searches for the best match which avoids reading the hash table twice.
-  auto find_match_and_insert(Core::View::Bytes source, Count position, Count depth)
-      -> Match;
+  // Specialized merged find + insert which inserts position into the hash chain
+  // then searches for the best match which avoids reading the hash table twice.
+  auto find_match_and_insert(
+      Core::View::Bytes source,
+      Count position,
+      Count depth) -> Match;
 
  private:
   Memory::Dynamic::Vector<Bits_32> hash_table;
   Memory::Dynamic::Vector<Bits_32> chain_table;
 };
 
-}  // namespace Perimortem::System::Compression
+}  // namespace Perimortem::Compression

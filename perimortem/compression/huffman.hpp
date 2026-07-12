@@ -6,9 +6,9 @@
 #include "perimortem/core/static/bytes.hpp"
 #include "perimortem/core/static/vector.hpp"
 
-#include "perimortem/system/compression/bit_stream/reader.hpp"
+#include "perimortem/compression/bit_stream/reader.hpp"
 
-namespace Perimortem::System::Compression {
+namespace Perimortem::Compression {
 
 class HuffmanCode {
  public:
@@ -68,7 +68,8 @@ class HuffmanTable {
         symbol_map[position] = Bits_16(i);
         // Store codes in bit-reversed form so the writer can place them
         // directly into the accumulator without a per-symbol reversal.
-        Bits_32 canonical = base_code[length] + Bits_32(position - base_index[length]);
+        Bits_32 canonical =
+            base_code[length] + Bits_32(position - base_index[length]);
         Bits_32 reversed = 0;
         for (Count bit = 0; bit < length; bit++) {
           reversed = (reversed << 1) | (canonical & 1);
@@ -174,4 +175,4 @@ class HuffmanTable {
   Count max_bits = 0;
 };
 
-}  // namespace Perimortem::System::Compression
+}  // namespace Perimortem::Compression

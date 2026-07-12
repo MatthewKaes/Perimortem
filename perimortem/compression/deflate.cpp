@@ -1,7 +1,7 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
-#include "perimortem/system/compression/deflate.hpp"
+#include "perimortem/compression/deflate.hpp"
 
 #include "perimortem/core/static/bytes.hpp"
 #include "perimortem/core/static/vector.hpp"
@@ -10,14 +10,14 @@
 #include "perimortem/core/math.hpp"
 #include "perimortem/core/null_terminated.hpp"
 
-#include "perimortem/system/compression/bit_stream/reader.hpp"
-#include "perimortem/system/compression/bit_stream/writer.hpp"
-#include "perimortem/system/compression/huffman.hpp"
-#include "perimortem/system/compression/lz77.hpp"
+#include "perimortem/compression/bit_stream/reader.hpp"
+#include "perimortem/compression/bit_stream/writer.hpp"
+#include "perimortem/compression/huffman.hpp"
+#include "perimortem/compression/lz77.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
-using namespace Perimortem::System;
+using namespace Perimortem;
 
 // Distance codes 0-29: base distances and extra bits.
 constexpr Static::Vector<Bits_16, 30> distance_base = {
@@ -30,7 +30,8 @@ constexpr Static::Vector<Bits_16, 30> distance_base = {
 // The order puts the most commonly non-zero lengths first so the transmitted
 // sequence can be truncated as soon as all trailing entries are zero.
 constexpr Static::Vector<Bits_8, 19> code_length_order = {
-  16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15};
+  16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15,
+};
 
 constexpr Count deflate_literal_len_count = 286;
 constexpr Count deflate_distance_count = 30;
@@ -573,9 +574,11 @@ constexpr auto rle_encode_code_lengths(
     Bits_8 length = lengths_at(position);
     if (length == 0) {
       Count run = 1;
-      while (position + run < total && lengths_at(position + run) == 0 && run < 138) {
+      while (position + run < total && lengths_at(position + run) == 0 &&
+             run < 138) {
         run++;
       }
+
       if (run >= 11) {
         output[count++] = RleEntry(Bits_8(18), Bits_8(7), Bits_32(run - 11));
       } else if (run >= 3) {
@@ -590,9 +593,12 @@ constexpr auto rle_encode_code_lengths(
       output[count++] = RleEntry(length, Bits_8(0), Bits_32(0));
       position++;
       Count run = 0;
-      while (position + run < total && lengths_at(position + run) == length && run < 6) {
+
+      while (position + run < total && lengths_at(position + run) == length &&
+             run < 6) {
         run++;
       }
+
       if (run >= 3) {
         output[count++] = RleEntry(Bits_8(16), Bits_8(2), Bits_32(run - 3));
         position += run;
@@ -731,8 +737,9 @@ constexpr auto collect_lz77_tokens(
   while (position < source.get_size()) {
     auto match = lz77.find_match_and_insert(source, position, search_depth);
 
-    // Lazy matching: for short matches, check whether position+1 yields a longer
-    // one. If so, emit a literal at position and take the better match from position+1.
+    // Lazy matching: for short matches, check whether position+1 yields a
+    // longer one. If so, emit a literal at position and take the better match
+    // from position+1.
     if (match.get_length() >= Compression::Lz77::min_match &&
         match.get_length() < lazy_match_threshold &&
         position + 1 < source.get_size()) {
