@@ -4,116 +4,90 @@
 #pragma once
 
 #include "perimortem/core/view/bytes.hpp"
+#include "perimortem/core/view/vector.hpp"
+#include "perimortem/core/static/union.hpp"
 
 namespace Perimortem::Serialization::Json {
 
-// Forward declaration — Blueprint stores a pointer to an existing Node for
-// the ExistingNode tag; the full definition lives in node.hpp.
+// Blueprint can reference an existing Node without requiring its definition.
+// The complete type remains owned by node.hpp.
 class Node;
 
-// Temporary aggregate describing a JSON value tree for Node::construct which
-// creates managed Nodes inside of an Arena with appropriate lifetime management
-// out of temporary objects.
+// Describes a temporary JSON tree for Node::construct. Construction
+// materializes its values as managed Nodes in an Arena with a single owning
+// lifetime.
 //
-// Stack provided Scalars, Objects and Arrays are all supported but already
-// managed objects are currently not supproted. Instead when constructing Nodes
-// dynamically build a full Blueprint bottom up instead and provide it to a
-// single Node::construct call.
-struct Blueprint {
-  // Type tags for Blueprint objects which maps almost 1:1 with the types in
-  // Node. Compound is the one edge case which could be an Array or and Object
-  // with and empty `name` field resulting in an Array.
-  enum class Tag : Bits_8 {
-    Null,
-    String,
-    Number,
-    Real,
-    Flag,
-    Node,
-    Compound,
-  };
+// Stack-provided scalars, objects, arrays, and existing Nodes are supported.
+// The value Union keeps each payload paired with its type without exposing a
+// parallel tag or inactive fields.
+class Blueprint {
+ private:
+  using Value = Core::Static::Union<
+      Core::View::Bytes,
+      Core::View::Vector<Blueprint>,
+      const Node*,
+      Signed_64,
+      Real_64,
+      Bool>;
 
-  union {
-    Core::View::Bytes string_val;
-    struct {
-      const Blueprint* ptr;
-      Count size;
-    } compound;
-    const Node* node_ptr;
-    Signed_64 number_val;
-    Real_64 real_val;
-    Bool flag_val;
-  };
-  Core::View::Bytes name;
-  Tag tag = Tag::Null;
-
-  // Unnamed scalar constructors.
-  Blueprint() : string_val(), name(), tag(Tag::Null) {}
-  Blueprint(Core::View::Bytes text)
-      : string_val(text), name(), tag(Tag::String) {}
-  Blueprint(Bits_8 number) : number_val(number), name(), tag(Tag::Number) {}
-  Blueprint(Bits_16 number) : number_val(number), name(), tag(Tag::Number) {}
-  Blueprint(Bits_32 number) : number_val(number), name(), tag(Tag::Number) {}
-  Blueprint(Bits_64 number) : number_val(number), name(), tag(Tag::Number) {}
-  Blueprint(Signed_8 number) : number_val(number), name(), tag(Tag::Number) {}
-  Blueprint(Signed_16 number) : number_val(number), name(), tag(Tag::Number) {}
-  Blueprint(Signed_32 number) : number_val(number), name(), tag(Tag::Number) {}
-  Blueprint(Signed_64 number) : number_val(number), name(), tag(Tag::Number) {}
-  Blueprint(Real_64 real) : real_val(real), name(), tag(Tag::Real) {}
+ public:
+  Blueprint() = default;
+  Blueprint(Core::View::Bytes text) : value(text) {}
+  // Bool has its own JSON representation. Other integers use Signed_64.
+  template <typename Integer>
+    requires(__is_integral(Integer) && !__is_same(Integer, bool))
+  Blueprint(Integer number) : value(Signed_64(number)) {}
+  Blueprint(Real_64 real) : value(real) {}
   Blueprint(Real_32 real) : Blueprint(Real_64(real)) {}
-  Blueprint(Bool flag) : flag_val(flag), name(), tag(Tag::Flag) {}
-  Blueprint(const Node& node) : node_ptr(&node), name(), tag(Tag::Node) {}
+  Blueprint(Bool flag) : value(flag) {}
+  Blueprint(const Node& node) : value(&node) {}
 
-  // Named scalar constructors (member -> scalar)
   Blueprint(Core::View::Bytes member_name, Core::View::Bytes text)
-      : string_val(text), name(member_name), tag(Tag::String) {}
-  Blueprint(Core::View::Bytes member_name, Bits_8 number)
-      : number_val(number), name(member_name), tag(Tag::Number) {}
-  Blueprint(Core::View::Bytes member_name, Bits_16 number)
-      : number_val(number), name(member_name), tag(Tag::Number) {}
-  Blueprint(Core::View::Bytes member_name, Bits_32 number)
-      : number_val(number), name(member_name), tag(Tag::Number) {}
-  Blueprint(Core::View::Bytes member_name, Bits_64 number)
-      : number_val(number), name(member_name), tag(Tag::Number) {}
-  Blueprint(Core::View::Bytes member_name, Signed_8 number)
-      : number_val(number), name(member_name), tag(Tag::Number) {}
-  Blueprint(Core::View::Bytes member_name, Signed_16 number)
-      : number_val(number), name(member_name), tag(Tag::Number) {}
-  Blueprint(Core::View::Bytes member_name, Signed_32 number)
-      : number_val(number), name(member_name), tag(Tag::Number) {}
-  Blueprint(Core::View::Bytes member_name, Signed_64 number)
-      : number_val(number), name(member_name), tag(Tag::Number) {}
+      : name(member_name), value(text) {}
+  template <typename Integer>
+    requires(__is_integral(Integer) && !__is_same(Integer, bool))
+  Blueprint(Core::View::Bytes member_name, Integer number)
+      : name(member_name), value(Signed_64(number)) {}
   Blueprint(Core::View::Bytes member_name, Real_64 real)
-      : real_val(real), name(member_name), tag(Tag::Real) {}
+      : name(member_name), value(real) {}
   Blueprint(Core::View::Bytes member_name, Real_32 real)
       : Blueprint(member_name, Real_64(real)) {}
   Blueprint(Core::View::Bytes member_name, Bool flag)
-      : flag_val(flag), name(member_name), tag(Tag::Flag) {}
+      : name(member_name), value(flag) {}
   Blueprint(Core::View::Bytes member_name, const Node& node)
-      : node_ptr(&node), name(member_name), tag(Tag::Node) {}
+      : name(member_name), value(&node) {}
 
   static auto empty_array(Core::View::Bytes member_name = {}) -> Blueprint {
     return Blueprint(member_name, nullptr, 0);
   }
 
-  // Named Blueprint arrays are treated as a member entry in a hosting Object
-  // that hosts a nested structure which could be an Array or Object.
   template <Count N>
   Blueprint(Core::View::Bytes member_name, const Blueprint (&children)[N])
-      : compound{children, N}, name(member_name), tag(Tag::Compound) {}
+      : name(member_name), value(Core::View::Vector<Blueprint>(children)) {}
 
-  // An Object without a named nesting is just a flat Array.
   template <Count N>
   Blueprint(const Blueprint (&children)[N])
-      : compound{children, N}, tag(Tag::Compound) {}
+      : value(Core::View::Vector<Blueprint>(children)) {}
+
+  constexpr auto get_name() const -> Core::View::Bytes { return name; }
+
+  template <typename... Cases>
+  auto visit(Cases... cases) const -> decltype(auto) {
+    return value.visit(static_cast<Cases&&>(cases)...);
+  }
 
  private:
   Blueprint(
       Core::View::Bytes member_name,
       const Blueprint* children,
       Count child_count)
-      : compound{children, child_count}, name(member_name), tag(Tag::Compound) {
-  }
+      : name(member_name),
+        value(Core::View::Vector<Blueprint>(children, child_count)) {}
+
+  Core::View::Bytes name;
+  Value value;
 };
+
+static_assert(sizeof(Blueprint) == 40);
 
 }  // namespace Perimortem::Serialization::Json

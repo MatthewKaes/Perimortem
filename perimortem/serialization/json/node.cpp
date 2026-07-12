@@ -28,72 +28,6 @@ using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
 using namespace Perimortem::Serialization;
 
-auto construct_from_blueprint(
-    Allocator::Arena& arena,
-    const Json::Blueprint& bp) -> Json::Node;
-
-auto construct_object(
-    Allocator::Arena& arena,
-    const Json::Blueprint* entries,
-    Count count) -> Json::Node {
-  Managed::Vector<Json::Member> members(arena);
-
-  for (Count i = 0; i < count; i++) {
-    members.insert(
-        Json::Member{
-          entries[i].name, construct_from_blueprint(arena, entries[i])});
-  }
-
-  Json::Node result;
-  result.set(members);
-  return result;
-}
-
-auto construct_array(
-    Allocator::Arena& arena,
-    const Json::Blueprint* items,
-    Count count) -> Json::Node {
-  Managed::Vector<Json::Node> nodes(arena);
-
-  for (Count i = 0; i < count; i++) {
-    nodes.insert(construct_from_blueprint(arena, items[i]));
-  }
-
-  Json::Node result;
-  result.set(nodes.get_view());
-  return result;
-}
-
-auto construct_from_blueprint(
-    Allocator::Arena& arena,
-    const Json::Blueprint& bp) -> Json::Node {
-  switch (bp.tag) {
-  case Json::Blueprint::Tag::Null:
-    return Json::Node();
-  case Json::Blueprint::Tag::String:
-    return Json::Node(bp.string_val);
-  case Json::Blueprint::Tag::Number:
-    return Json::Node(bp.number_val);
-  case Json::Blueprint::Tag::Real:
-    return Json::Node(bp.real_val);
-  case Json::Blueprint::Tag::Flag:
-    return Json::Node(bp.flag_val);
-  case Json::Blueprint::Tag::Compound: {
-    // Named children → object; unnamed children → array.
-    const Bool is_object =
-        bp.compound.size > 0 && bp.compound.ptr[0].name.get_size() > 0;
-    if (is_object) {
-      return construct_object(arena, bp.compound.ptr, bp.compound.size);
-    }
-    return construct_array(arena, bp.compound.ptr, bp.compound.size);
-  }
-  case Json::Blueprint::Tag::Node:
-    // TODO: We should check if the data exists in some areana but for now we
-    // just forward it and assume it was constructed correctly.
-    return *bp.node_ptr;
-  }
-}
-
 template <Bits_32 channels, Bits_32 index, Bits_32 range>
 auto optimized_or_merge(Static::Vector<__m256i, channels>& source) -> __m256i {
   if constexpr (range == 1) {
@@ -399,12 +333,47 @@ auto Json::Node::construct(
     Allocator::Arena& arena,
     const Json::Blueprint* entries,
     Count count) -> Node {
-  return construct_object(arena, entries, count);
+  // Named children become objects; unnamed children become arrays.
+  const Bool is_object = count != 0 && !entries[0].get_name().is_empty();
+  if (is_object) {
+    Managed::Vector<Json::Member> members(arena);
+    for (Count i = 0; i < count; i++) {
+      members.insert(
+          Json::Member{
+            entries[i].get_name(), Json::Node::construct(arena, entries[i])});
+    }
+
+    Json::Node result;
+    result.set(members);
+    return result;
+  }
+
+  Managed::Vector<Json::Node> nodes(arena);
+  for (Count i = 0; i < count; i++) {
+    nodes.insert(Json::Node::construct(arena, entries[i]));
+  }
+
+  Json::Node result;
+  result.set(nodes.get_view());
+  return result;
 }
 
 auto Json::Node::construct(Allocator::Arena& arena, const Json::Blueprint& root)
     -> Node {
-  return construct_from_blueprint(arena, root);
+  return root.visit(
+      []() { return Json::Node(); },
+      [](View::Bytes text) { return Json::Node(text); },
+      [](Signed_64 number) { return Json::Node(number); },
+      [](Real_64 real) { return Json::Node(real); },
+      [](Bool flag) { return Json::Node(flag); },
+      [&](View::Vector<Json::Blueprint> compound) {
+        return Json::Node::construct(
+            arena, compound.get_data(), compound.get_size());
+      },
+      [](const Json::Node* node) {
+        // Existing Nodes must outlive construction.
+        return *node;
+      });
 }
 
 auto Json::Node::parse(
