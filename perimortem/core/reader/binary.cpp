@@ -11,7 +11,7 @@ using namespace Perimortem::Core;
 
 auto check_buffer_overruns(Count cursor, Count source_size, Count read_size)
     -> Bool {
-  if (cursor + read_size > source_size) [[unlikely]] {
+  if (cursor > source_size || read_size > source_size - cursor) [[unlikely]] {
     Diagnostics::Log::Message<128> error_message(
         Diagnostics::Log::Level::Error);
     error_message << "Binary read over ran buffer at read location "_view
@@ -24,10 +24,14 @@ auto check_buffer_overruns(Count cursor, Count source_size, Count read_size)
 }
 
 template <Data::ByteOrder endian, typename storage_type>
-static constexpr auto read_value(View::Bytes source, Bool& valid, Count& cursor)
+static constexpr auto read_value(View::Bytes source, Count& cursor)
     -> storage_type {
+  if (cursor == Count(-1)) {
+    return storage_type();
+  }
+
   if (!check_buffer_overruns(cursor, source.get_size(), sizeof(storage_type))) {
-    valid = false;
+    cursor = Count(-1);
     return storage_type();
   }
 
@@ -40,16 +44,20 @@ static constexpr auto read_value(View::Bytes source, Bool& valid, Count& cursor)
 // memcpy is actually too smart for it's own good and will try to interpret
 // bytes for floats and reals rather than just loading it as is.
 template <Data::ByteOrder endian, typename storage_type, typename real_type>
-static constexpr auto read_real(View::Bytes source, Bool& valid, Count& cursor)
+static constexpr auto read_real(View::Bytes source, Count& cursor)
     -> real_type {
+  if (cursor == Count(-1)) {
+    return real_type();
+  }
+
   // Make unit tests fail at least on mismatch.
   if constexpr (sizeof(storage_type) != sizeof(real_type)) {
-    valid = False;
+    cursor = Count(-1);
     return real_type();
   }
 
   if (!check_buffer_overruns(cursor, source.get_size(), sizeof(storage_type))) {
-    valid = False;
+    cursor = Count(-1);
     return real_type();
   }
 
@@ -64,66 +72,64 @@ static constexpr auto read_real(View::Bytes source, Bool& valid, Count& cursor)
 }
 
 template <Data::ByteOrder stream_endian>
-auto Reader::Binary<stream_endian>::set_pointer(Count location) -> void {
-  cursor = location < source.get_size() ? location : source.get_size();
-}
-
-template <Data::ByteOrder stream_endian>
 auto Reader::Binary<stream_endian>::read_bits_8() -> Bits_8 {
-  return read_value<stream_endian, Bits_8>(source, valid_state, cursor);
+  return read_value<stream_endian, Bits_8>(source, cursor);
 }
 
 template <Data::ByteOrder stream_endian>
 auto Reader::Binary<stream_endian>::read_bits_16() -> Bits_16 {
-  return read_value<stream_endian, Bits_16>(source, valid_state, cursor);
+  return read_value<stream_endian, Bits_16>(source, cursor);
 }
 
 template <Data::ByteOrder stream_endian>
 auto Reader::Binary<stream_endian>::read_bits_32() -> Bits_32 {
-  return read_value<stream_endian, Bits_32>(source, valid_state, cursor);
+  return read_value<stream_endian, Bits_32>(source, cursor);
 }
 
 template <Data::ByteOrder stream_endian>
 auto Reader::Binary<stream_endian>::read_bits_64() -> Bits_64 {
-  return read_value<stream_endian, Bits_64>(source, valid_state, cursor);
+  return read_value<stream_endian, Bits_64>(source, cursor);
 }
 
 template <Data::ByteOrder stream_endian>
 auto Reader::Binary<stream_endian>::read_signed_bits_8() -> Signed_8 {
-  return read_value<stream_endian, Signed_8>(source, valid_state, cursor);
+  return read_value<stream_endian, Signed_8>(source, cursor);
 }
 
 template <Data::ByteOrder stream_endian>
 auto Reader::Binary<stream_endian>::read_signed_bits_16() -> Signed_16 {
-  return read_value<stream_endian, Signed_16>(source, valid_state, cursor);
+  return read_value<stream_endian, Signed_16>(source, cursor);
 }
 
 template <Data::ByteOrder stream_endian>
 auto Reader::Binary<stream_endian>::read_signed_bits_32() -> Signed_32 {
-  return read_value<stream_endian, Signed_32>(source, valid_state, cursor);
+  return read_value<stream_endian, Signed_32>(source, cursor);
 }
 
 template <Data::ByteOrder stream_endian>
 auto Reader::Binary<stream_endian>::read_signed_bits_64() -> Signed_64 {
-  return read_value<stream_endian, Signed_64>(source, valid_state, cursor);
+  return read_value<stream_endian, Signed_64>(source, cursor);
 }
 
 template <Data::ByteOrder stream_endian>
 auto Reader::Binary<stream_endian>::read_real_32() -> Real_32 {
-  return read_real<stream_endian, Bits_32, Real_32>(
-      source, valid_state, cursor);
+  return read_real<stream_endian, Bits_32, Real_32>(source, cursor);
 }
 
 template <Data::ByteOrder stream_endian>
 auto Reader::Binary<stream_endian>::read_real_64() -> Real_64 {
-  return read_real<stream_endian, Bits_64, Real_64>(
-      source, valid_state, cursor);
+  return read_real<stream_endian, Bits_64, Real_64>(source, cursor);
 }
 
 template <Data::ByteOrder stream_endian>
 auto Reader::Binary<stream_endian>::read_bytes(Count count) -> View::Bytes {
+  if (cursor == Count(-1)) {
+    return View::Bytes();
+  }
+
   if (!check_buffer_overruns(cursor, source.get_size(), count)) {
-    valid_state = False;
+    cursor = Count(-1);
+    return View::Bytes();
   }
 
   View::Bytes result = source.slice(cursor, count);

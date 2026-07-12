@@ -23,8 +23,12 @@ class Binary {
   constexpr Binary(const Binary& rhs) : source(rhs.source) {}
 
   // Sets the location of the read cursor.
-  // If the index is out of range the cursor is put to the end of the buffer.
-  auto set_pointer(Count location) -> void;
+  //
+  // An out-of-range location invalidates the reader by setting the position to
+  // Count(-1), so using `set_location(Count(-1))` is a cheap way to manually
+  // invalidate a reader.
+  constexpr auto set_location(Count location) -> void { cursor = location; }
+  constexpr auto get_location() const -> Count { return cursor; }
 
   auto read_bits_8() -> Bits_8;
   auto read_bits_16() -> Bits_16;
@@ -39,20 +43,14 @@ class Binary {
   auto read_bytes(Count count) -> View::Bytes;
 
   constexpr auto get_size() const -> Count { return source.get_size(); }
-  constexpr auto get_location() const -> Count { return cursor; }
-  constexpr auto is_valid() const -> Bool { return valid_state; }
-  constexpr auto is_empty() const -> Bool {
-    return get_location() == get_size();
+  constexpr auto has_content() const -> Bool {
+    return cursor < source.get_size();
   }
-  constexpr auto reset() -> void {
-    valid_state = true;
-    cursor = 0;
-  }
+  constexpr auto reset() -> void { cursor = 0; }
 
  private:
   View::Bytes source;
   Count cursor = 0;
-  Bool valid_state = True;
 };
 
 }  // namespace Perimortem::Core::Reader

@@ -41,7 +41,7 @@ class Bytes {
   auto convert(Bits_8 source, Bits_8 target) -> void;
 
   constexpr auto operator[](Count index) const -> Bits_8 {
-    if (index > size) {
+    if (index >= size) {
       return 0;
     }
 
@@ -49,7 +49,7 @@ class Bytes {
   }
 
   constexpr auto at(Count index) const -> Bits_8 {
-    if (index > size) {
+    if (index >= size) {
       return 0;
     }
 

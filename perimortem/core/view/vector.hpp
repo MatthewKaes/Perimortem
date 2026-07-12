@@ -37,6 +37,20 @@ class Vector {
     return false;
   }
 
+  constexpr auto operator==(const Vector& rhs) const -> Bool {
+    if (rhs.size != size) {
+      return false;
+    }
+
+    for (Count i = 0; i < size; i++) {
+      if (source_block[i] != rhs.source_block[i]) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
   constexpr auto operator[](Count index) const -> const data_type& {
     if (index >= size) [[unlikely]] {
       // Aligned storage with no constructor — safe to alias as data_type.
@@ -61,7 +75,8 @@ class Vector {
   constexpr auto get_size() const -> Count { return size; }
   constexpr auto get_data() const -> const data_type* { return source_block; }
   constexpr auto get_bytes() const -> const Bytes {
-    return Bytes(source_block, size * sizeof(data_type));
+    return Bytes(
+        Data::cast<const Bits_8>(source_block), size * sizeof(data_type));
   }
 
  private:

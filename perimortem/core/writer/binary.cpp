@@ -69,7 +69,7 @@ static constexpr auto
       element_type element =
           Data::ensure_endian<Data::ByteOrder::Native, endian>(
               blob.get_data()[index]);
-      Data::copy(data + cursor, &element);
+      Data::copy(data + cursor, element);
       cursor += sizeof(element_type);
     }
   }

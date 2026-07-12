@@ -8,25 +8,23 @@
 using namespace Perimortem::Core;
 
 template <typename storage_type>
-auto parse_decimal(
-    View::Bytes source,
-    Count& cursor,
-    storage_type& output_value) -> Bool {
+auto parse_decimal(View::Bytes source, Count& cursor) -> storage_type {
   if (cursor >= source.get_size()) [[unlikely]] {
-    return False;
+    return storage_type();
   }
 
-  Bool negative = False;
+  storage_type sign = 1;
   if constexpr (storage_type(0) > storage_type(-1)) {
     if (source[cursor] == '-') {
-      negative = True;
+      sign = -1;
       cursor++;
     }
   }
 
   Bits_8 first = source[cursor];
   if (first < '0' || first > '9') [[unlikely]] {
-    return False;
+    cursor = Count(-1);
+    return storage_type();
   }
 
   Bits_64 result = 0;
@@ -39,15 +37,10 @@ auto parse_decimal(
     cursor++;
   }
 
-  output_value = negative ? -storage_type(result) : storage_type(result);
-  return True;
+  return result * sign;
 }
 
-auto Reader::Textual::set_pointer(Count location) -> void {
-  cursor = location < source.get_size() ? location : source.get_size();
-}
-
-auto Reader::Textual::skip_whitespace() -> void {
+auto skip_whitespace(View::Bytes source, Count& cursor) -> void {
   // Outer loop already does a bounds check so grab the raw pointer.
   auto text = source.get_data();
   while (cursor < source.get_size()) {
@@ -60,55 +53,56 @@ auto Reader::Textual::skip_whitespace() -> void {
 }
 
 auto Reader::Textual::read_byte() -> Bits_8 {
-  if (!valid_state) [[unlikely]] {
+  if (!has_content()) [[unlikely]] {
+    cursor = Count(-1);
     return Bits_8(0);
   }
-  if (cursor >= source.get_size()) [[unlikely]] {
-    valid_state = False;
-    return Bits_8(0);
-  }
+
   return source.get_data()[cursor++];
 }
 
 auto Reader::Textual::read_flag() -> Bool {
-  skip_whitespace();
-  if (cursor >= source.get_size()) [[unlikely]] {
-    valid_state = False;
-    return False;
+  skip_whitespace(source, cursor);
+  if (!has_content()) [[unlikely]] {
+    cursor = Count(-1);
+    return false;
   }
 
+  // Use a switch for cheap case insensitivity.
   switch (source.get_data()[cursor]) {
   case 'T':
   case 't':
-    valid_state = source.slice(cursor + 1, "rue"_view.get_size()) == "rue"_view;
-    cursor += 4;
-    return True;
+    if (source.slice(cursor + 1, 3) == "rue"_view) {
+      cursor += 4;
+      return true;
+    } else {
+      cursor = Count(-1);
+      return false;
+    }
 
   case 'F':
   case 'f':
-    valid_state =
-        source.slice(cursor + 1, "alse"_view.get_size()) == "alse"_view;
-    cursor += 5;
-    return False;
+    if (source.slice(cursor + 1, 4) == "alse"_view) {
+      cursor += 5;
+    } else {
+      cursor = Count(-1);
+    }
+    return false;
 
   default:
-    valid_state = False;
-    return False;
+    cursor = Count(-1);
+    return false;
   }
 }
 
 auto Reader::Textual::read_unsigned() -> Bits_64 {
-  skip_whitespace();
-  Bits_64 value = 0;
-  valid_state &= parse_decimal(source, cursor, value);
-  return value;
+  skip_whitespace(source, cursor);
+  return parse_decimal<Bits_64>(source, cursor);
 }
 
 auto Reader::Textual::read_signed() -> Signed_64 {
-  skip_whitespace();
-  Signed_64 value = 0;
-  valid_state &= parse_decimal(source, cursor, value);
-  return value;
+  skip_whitespace(source, cursor);
+  return parse_decimal<Signed_64>(source, cursor);
 }
 
 auto Reader::Textual::read_real_32() -> Real_32 {
@@ -116,46 +110,42 @@ auto Reader::Textual::read_real_32() -> Real_32 {
 }
 
 auto Reader::Textual::read_real_64() -> Real_64 {
-  skip_whitespace();
+  skip_whitespace(source, cursor);
+  if (!has_content()) [[unlikely]] {
+    cursor = Count(-1);
+    return Real_64(0);
+  }
 
+  // Get the raw data to avoid extra range checks.
+  Real_64 sign = 1;
+  if (source[cursor] == '-') {
+    sign = -1;
+    cursor++;
+  }
+
+  Real_64 result = Real_64(parse_decimal<Bits_64>(source, cursor));
+  if (!has_content()) [[unlikely]] {
+    return result * sign;
+  }
+
+  // Check if we have a floating point portion at all.
   auto data = source.get_data();
-
-  if (!valid_state) [[unlikely]] {
-    return Real_64(0);
-  }
-  if (cursor >= source.get_size()) [[unlikely]] {
-    valid_state = False;
-    return Real_64(0);
+  if (data[cursor] != '.') {
+    return result * sign;
   }
 
-  Bool negative = False;
-  if (data[cursor] == '-') {
-    negative = True;
-    cursor++;
-  }
-
-  Signed_64 int_part = 0;
-  if (!parse_decimal(source, cursor, int_part)) [[unlikely]] {
-    valid_state = False;
-    return Real_64(0);
-  }
-
-  Real_64 result = Real_64(int_part);
-
-  if (cursor < source.get_size() && data[cursor] == '.') {
-    cursor++;
-
-    Real_64 frac_mult = 0.1;
-    while (cursor < source.get_size()) {
-      Bits_8 character = data[cursor];
-      if (character < '0' || character > '9') {
-        break;
-      }
-      result += Real_64(character - '0') * frac_mult;
-      frac_mult *= 0.1;
-      cursor++;
+  Real_64 frac_mult = 0.1;
+  cursor++;
+  while (has_content()) {
+    Bits_8 character = data[cursor];
+    if (character < '0' || character > '9') {
+      break;
     }
+
+    result += Real_64(character - '0') * frac_mult;
+    frac_mult *= 0.1;
+    cursor++;
   }
 
-  return negative ? -result : result;
+  return result * sign;
 }

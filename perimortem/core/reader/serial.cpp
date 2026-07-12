@@ -15,20 +15,15 @@ constexpr auto stream_endian = Data::ByteOrder::Little;
 constexpr auto negate_flag = 0x10;
 constexpr auto blob_flag = 0x20;
 
-auto Reader::Serial::set_pointer(Count location) -> void {
-  cursor = location < source.get_size() ? location : source.get_size();
-}
-
 auto Reader::Serial::read() -> Value {
-  if (!valid_state || cursor >= source.get_size()) {
+  if (!has_content()) {
     Diagnostics::Log::Message<128> error_message(
         Diagnostics::Log::Level::Error);
     error_message
         << "Serial read overran data buffer while reading type at byte location "_view
         << cursor << ". source_size="_view << source.get_size();
 
-    // Set to invalid
-    valid_state = False;
+    cursor = Count(-1);
     return Value();
   }
 
@@ -44,8 +39,7 @@ auto Reader::Serial::read() -> Value {
         << cursor << ". source_size="_view << source.get_size()
         << " encoded_size="_view << encoded_size;
 
-    // Set to invalid
-    valid_state = False;
+    cursor = Count(-1);
     return Value();
   }
 
@@ -77,8 +71,7 @@ auto Reader::Serial::read() -> Value {
                   << (encoded_size) << " at byte location "_view << cursor
                   << "."_view;
 
-    // Set to invalid
-    valid_state = False;
+    cursor = Count(-1);
     return Value();
   }
   }
@@ -104,8 +97,7 @@ auto Reader::Serial::read() -> Value {
                   << ". source_size="_view << source.get_size()
                   << " blob_size="_view << value;
 
-    // Set to invalid
-    valid_state = False;
+    cursor = Count(-1);
     return Value();
   }
 

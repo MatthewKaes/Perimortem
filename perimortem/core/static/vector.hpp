@@ -24,11 +24,8 @@ class Vector {
   constexpr Vector(value_pack... values) : source_block{type(values)...} {}
 
   // Used for passing values directly that are already packed.
-  constexpr Vector(const type (&source)[literal_size]) {
-    for (Count i = 0; i < literal_size; i++) {
-      source_block[i] = source[i];
-    }
-  }
+  constexpr Vector(const type (&source)[literal_size])
+      : Vector(source, __make_integer_seq<Indexes, Count, literal_size>()) {}
 
   // Allows for generating data that would be a pain to manually write out.
   constexpr Vector(type (*generator)(Count)) {
@@ -78,6 +75,18 @@ class Vector {
   }
 
  private:
+  // Packed sources initialize each element directly, allowing Vector to hold
+  // types that intentionally have no invalid default state. Clang materializes
+  // the index pack without pulling the standard library into this core header.
+  template <typename index_type, index_type... indexes>
+  struct Indexes {};
+
+  template <Count... indexes>
+  constexpr Vector(
+      const type (&source)[literal_size],
+      Indexes<Count, indexes...>)
+      : source_block{source[indexes]...} {}
+
   type source_block[literal_size]{};
 };
 
