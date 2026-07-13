@@ -27,18 +27,17 @@ namespace Tetrodotoxin::Compiler::Assembler {
 // names for types, constants, variables, labels, functions, and temporary
 // values. The header bound is one greater than every id that can appear.
 //
-// This class intentionally only writes the subset Puffer needs today. It is an
-// assembler, not a full validator: callers still own logical section ordering
-// and type-correct instruction selection.
+// The assembler writes words but does not validate section ordering or operand
+// types. The selected SPIR-V target owns those rules and this is just a basic
+// bytecode emitter.
 class SpirV {
  public:
   enum class Version : Bits_32 {
     V1_0 = 0x00010000,
   };
 
-  // Numeric opcode values are from the SPIR-V grammar. The gaps are real:
-  // opcodes are assigned by the format, unlike ResultId in shader.cpp which is
-  // just our local id allocation.
+  // Numeric opcode values come from the SPIR-V grammar. The gaps are part of
+  // the format since we don't support the entire SPIR-V Spec yet.
   enum class Op : Bits_16 {
     Nop = 0,                  // No operation.
     Undef = 1,                // Creates an undefined value of a type.
@@ -136,6 +135,8 @@ class SpirV {
     Offset = 35,
   };
 
+  // TODO: We are missing a lotttt of coverage here, but in practice we'll see
+  // how much we end up needing.
   enum class BuiltIn : Bits_32 {
     Position = 0,
     VertexIndex = 42,
@@ -149,8 +150,8 @@ class SpirV {
 
   explicit SpirV(Perimortem::Memory::Dynamic::Bytes& words) : words(words) {}
 
-  // Writes the five-word module header. `bound` is not the instruction count;
-  // it is one greater than the largest result id the module may use.
+  // Writes the five-word module header. `bound` is one greater than the largest
+  // result id the module may use, not the instruction count.
   auto begin_module(
       Bits_32 bound,
       Version version = Version::V1_0,
@@ -179,7 +180,7 @@ class SpirV {
   auto execution_mode(Bits_32 entry_point_id, ExecutionMode mode) -> void;
 
   // Debug names do not define ids. They annotate ids that may be declared
-  // later, which is why shader.cpp can emit names before the type/function
+  // later, which is why `shader.cpp` can emit names before the type/function
   // declarations.
   auto name(Bits_32 target_id, Perimortem::Core::View::Bytes name) -> void;
   auto member_name(
@@ -233,7 +234,7 @@ class SpirV {
   auto type_function(Bits_32 result_id, Bits_32 return_type_id) -> void;
 
   // Constants and variables create module-scope ids. A variable's result type
-  // is always a pointer type; its storage class decides whether it is input,
+  // is always a pointer type. Its storage class decides whether it is input,
   // output, push constant, uniform resource, or function-local storage.
   auto constant(Bits_32 result_type_id, Bits_32 result_id, Bits_32 value)
       -> void;
@@ -293,8 +294,7 @@ class SpirV {
       Bits_32 left_id,
       Bits_32 right_id) -> void;
 
-  // Functions contain one or more labelled basic blocks. This tiny writer only
-  // has return-void today because shader body lowering is still being revived.
+  // Functions contain one or more labelled basic blocks.
   auto function(
       Bits_32 result_type_id,
       Bits_32 result_id,
@@ -310,7 +310,7 @@ class SpirV {
       -> Count;
 
   // Lightweight structural check used by tests and the shader compiler. It only
-  // verifies the header and instruction bounds; it does not prove semantic
+  // verifies the header and instruction bounds. It does not prove semantic
   // SPIR-V validity.
   static auto is_valid_module(Perimortem::Core::View::Bytes words) -> Bool;
 

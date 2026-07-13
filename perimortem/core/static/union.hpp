@@ -79,7 +79,8 @@ class Union {
   }
 
   template <typename Type, typename... Rest, typename Self, typename Visitor>
-  static auto visit_active(Self& self, Visitor& visitor) -> decltype(auto) {
+  constexpr static auto visit_active(Self& self, Visitor& visitor)
+      -> decltype(auto) {
     if (self.tag == type_tag<Type>()) {
       return visitor(self.template active<Type>());
     }
@@ -92,7 +93,7 @@ class Union {
   }
 
   template <typename Self, typename... Cases>
-  static auto dispatch(Self& self, Cases... cases) -> decltype(auto) {
+  constexpr static auto dispatch(Self& self, Cases... cases) -> decltype(auto) {
     struct Visitor : Cases... {
       using Cases::operator()...;
     } visitor{static_cast<Cases&&>(cases)...};
@@ -115,7 +116,7 @@ class Union {
     construct<Alternative<Candidate>>(static_cast<Candidate&&>(value));
   }
 
-  Union(const Union& source) {
+  constexpr Union(const Union& source) {
     dispatch(
         source, []() {},
         [this](const auto& value) -> void {
@@ -123,7 +124,7 @@ class Union {
         });
   }
 
-  Union(Union&& source) {
+  constexpr Union(Union&& source) {
     dispatch(
         source, []() {},
         [this](auto& value) -> void {
@@ -133,13 +134,13 @@ class Union {
   }
 
   template <typename Type>
-  auto find() const -> const Type* {
+  constexpr auto find() const -> const Type* {
     static_assert(type_count<Type>() == 1, "Type is not a Union alternative.");
     return tag == type_tag<Type>() ? &active<Type>() : nullptr;
   }
 
   template <typename... Cases>
-  auto visit(Cases... cases) const -> decltype(auto) {
+  constexpr auto visit(Cases... cases) const -> decltype(auto) {
     return dispatch(*this, static_cast<Cases&&>(cases)...);
   }
 

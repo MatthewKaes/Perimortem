@@ -44,8 +44,9 @@ auto Assembler::SpirV::word(Bits_32 value) -> void {
 }
 
 auto Assembler::SpirV::instruction(Op opcode, Count word_count) -> void {
-  // Every instruction begins with one word. The opcode is the low 16 bits; the
-  // total instruction word count, including this header word, is the high 16.
+  // Every instruction begins with one word. The opcode occupies the low 16
+  // bits. The total instruction word count occupies the high 16 bits and
+  // includes this header word.
   word((Bits_32(word_count) << 16) | Bits_32(opcode));
 }
 
@@ -316,7 +317,7 @@ auto Assembler::SpirV::variable(
     Bits_32 result_id,
     StorageClass storage_class) -> void {
   // Variables are storage declarations. For shader inputs/outputs/resources
-  // they are module-scope globals; function-local variables will use Function
+  // they are module-scope globals. Function-local variables will use Function
   // storage.
   instruction(Op::Variable, 4);
   word(result_type_id);
@@ -463,8 +464,8 @@ auto Assembler::SpirV::function(
     Bits_32 result_id,
     FunctionControl control,
     Bits_32 function_type_id) -> void {
-  // OpFunction opens a function body. The function type id names the signature;
-  // the result type id repeats the return type for quick validation.
+  // OpFunction opens a function body. The function type id names the signature.
+  // The result type id repeats the return type for quick validation.
   instruction(Op::Function, 5);
   word(result_type_id);
   word(result_id);
