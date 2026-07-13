@@ -3,12 +3,14 @@
 
 #include "tetrodotoxin/isa/library/syntax.hpp"
 
-#include "tetrodotoxin/isa/expression.hpp"
+#include "tetrodotoxin/isa/base/expression/evaluator.hpp"
 
 using namespace Tetrodotoxin::Isa;
 using namespace Ttx::Lexical;
 
-auto Library::Syntax::consume_declaration_tail(Cursor& cursor) -> Bool {
+auto Library::Syntax::consume_declaration_tail(
+    Cursor& cursor,
+    Bool consume_unmatched_scope) -> Bool {
   Count scope_depth = 0;
   Count packing_depth = 0;
   Count index_depth = 0;
@@ -21,6 +23,12 @@ auto Library::Syntax::consume_declaration_tail(Cursor& cursor) -> Bool {
 
     if (cursor.matches(Class::Type::ScopeEnd)) {
       if (scope_depth == 0) {
+        // Nested evaluators preserve their owner's closing brace. Root
+        // evaluators have no owner and must consume it to guarantee progress.
+        if (consume_unmatched_scope) {
+          cursor.consume();
+        }
+
         return True;
       }
 
@@ -29,6 +37,7 @@ auto Library::Syntax::consume_declaration_tail(Cursor& cursor) -> Bool {
       if (scope_depth == 0) {
         return True;
       }
+
       continue;
     }
 
@@ -42,11 +51,13 @@ auto Library::Syntax::consume_declaration_tail(Cursor& cursor) -> Bool {
       if (packing_depth > 0) {
         packing_depth--;
       }
+
       cursor.consume();
       continue;
     }
 
-    if (Expression::is_index_start(cursor.current().get_class())) {
+    if (Base::Expression::Evaluator::is_index_start(
+            cursor.current().get_class())) {
       index_depth++;
       cursor.consume();
       continue;
@@ -56,6 +67,7 @@ auto Library::Syntax::consume_declaration_tail(Cursor& cursor) -> Bool {
       if (index_depth > 0) {
         index_depth--;
       }
+
       cursor.consume();
       continue;
     }

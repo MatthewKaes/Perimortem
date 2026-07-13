@@ -3,7 +3,7 @@
 
 #include "tetrodotoxin/isa/library/scope.hpp"
 
-#include "tetrodotoxin/isa/expression/type.hpp"
+#include "tetrodotoxin/isa/base/expression/type.hpp"
 #include "tetrodotoxin/standard/types.hpp"
 
 using namespace Perimortem::Core;
@@ -15,20 +15,18 @@ auto Library::Scope::define(const Ttx::Type& type) -> Bool {
 }
 
 auto Library::Scope::declare_type(
-    const Tetrodotoxin::Isa::Definition& definition,
-    Count body_index,
-    Count next_index) -> Bool {
+    const Tetrodotoxin::Isa::Base::Declaration& definition,
+    Perimortem::Utility::Range source) -> Bool {
   View::Bytes name = definition.get_name();
   if (context.find_type(name) || declarations.find(name) ||
       Tetrodotoxin::Standard::Types::is_type(name)) {
     return False;
   }
 
-  Declaration declaration;
-  declaration.definition = definition;
-  declaration.body_index = body_index;
-  declaration.next_index = next_index;
-  declarations.insert(name, declaration);
+  StagedDeclaration staged;
+  staged.declaration = definition;
+  staged.source = source;
+  declarations.insert(name, staged);
   return True;
 }
 
@@ -49,39 +47,39 @@ auto Library::Scope::materialize_type(Cursor& cursor, View::Bytes name)
     return nullptr;
   }
 
-  Declaration& declaration = entry->value;
-  if (declaration.state == DeclarationState::Ready) {
-    return declaration.type;
+  StagedDeclaration& staged = entry->value;
+  if (staged.state == StagedDeclaration::State::Ready) {
+    return staged.type;
   }
 
-  if (declaration.state == DeclarationState::Evaluating) {
-    if (declaration.type != nullptr) {
-      return declaration.type;
+  if (staged.state == StagedDeclaration::State::Evaluating) {
+    if (staged.type != nullptr) {
+      return staged.type;
     }
 
     cursor.token_error(
         "Library type dependency cycle could not be resolved."_view);
-    declaration.state = DeclarationState::Failed;
+    staged.state = StagedDeclaration::State::Failed;
     return nullptr;
   }
 
-  if (declaration.state == DeclarationState::Failed) {
+  if (staged.state == StagedDeclaration::State::Failed) {
     return nullptr;
   }
 
   Count return_index = cursor.get_token_index();
-  declaration.state = DeclarationState::Evaluating;
-  cursor.seek_token(declaration.body_index);
+  staged.state = StagedDeclaration::State::Evaluating;
+  cursor.seek_token(staged.source.start);
 
-  type = materializer(cursor, *this, declaration.definition);
+  type = materializer(cursor, *this, staged.declaration);
   if (type == nullptr || !context.define_type(*type)) {
-    declaration.state = DeclarationState::Failed;
+    staged.state = StagedDeclaration::State::Failed;
     cursor.seek_token(return_index);
     return nullptr;
   }
 
-  declaration.type = type;
-  declaration.state = DeclarationState::Ready;
+  staged.type = type;
+  staged.state = StagedDeclaration::State::Ready;
   cursor.seek_token(return_index);
   return type;
 }
@@ -90,7 +88,7 @@ auto Library::Scope::stage_type_reference(
     View::Bytes name,
     const Ttx::Type& type) -> Bool {
   auto* entry = declarations.find(name);
-  if (!entry || entry->value.state != DeclarationState::Evaluating) {
+  if (!entry || entry->value.state != StagedDeclaration::State::Evaluating) {
     return False;
   }
 
@@ -105,12 +103,23 @@ auto Library::Scope::seek_after_type(Cursor& cursor, View::Bytes name) const
     return False;
   }
 
-  cursor.seek_token(entry->value.next_index);
+  cursor.seek_token(entry->value.source.get_end());
   return True;
 }
 
 auto Library::Scope::find_type(View::Bytes name) const -> const Ttx::Type* {
-  return context.find_type(name);
+  const Ttx::Type* type = context.find_type(name);
+  if (type != nullptr) {
+    return type;
+  }
+
+  type = Tetrodotoxin::Standard::Types::find_type(name);
+  if (type != nullptr) {
+    return type;
+  }
+
+  const auto* staged = declarations.find(name);
+  return staged == nullptr ? nullptr : staged->value.type;
 }
 
 auto Library::Scope::resolve_type(Cursor& cursor) -> const Ttx::Type* {
@@ -126,5 +135,5 @@ auto Library::Scope::resolve_type(Cursor& cursor) -> const Ttx::Type* {
 auto Library::Scope::resolve_type(Cursor& cursor, View::Bytes root_name)
     -> const Ttx::Type* {
   const Ttx::Type* type = materialize_type(cursor, root_name);
-  return Expression::Type::evaluate(cursor, context, type);
+  return Base::Expression::Type::evaluate(cursor, context, type);
 }

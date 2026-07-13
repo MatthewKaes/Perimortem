@@ -12,7 +12,9 @@ namespace Tetrodotoxin::Isa::Library {
 // function before we can remove Library::Syntax.
 class Syntax {
  public:
-  static auto consume_declaration_tail(Ttx::Lexical::Cursor& cursor) -> Bool;
+  static auto consume_declaration_tail(
+      Ttx::Lexical::Cursor& cursor,
+      Bool consume_unmatched_scope = False) -> Bool;
 };
 
 }  // namespace Tetrodotoxin::Isa::Library

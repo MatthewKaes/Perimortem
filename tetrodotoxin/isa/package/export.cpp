@@ -3,7 +3,7 @@
 
 #include "tetrodotoxin/isa/package/export.hpp"
 
-#include "tetrodotoxin/isa/expression/type.hpp"
+#include "tetrodotoxin/isa/base/expression/type.hpp"
 #include "tetrodotoxin/isa/package/group.hpp"
 
 using namespace Perimortem::Core;
@@ -12,23 +12,23 @@ using namespace Ttx::Lexical;
 
 auto Package::Export::evaluate(
     Cursor& cursor,
-    Context& context,
+    Base::Context& context,
     Ttx::Documentation documentation) -> Package::Export {
-  Definition definition = Definition::evaluate(
-      cursor, documentation, {{Class::Type::Expose}},
-      {{Class::Type::Type}},
+  Base::Declaration definition = Base::Declaration::evaluate(
+      cursor, documentation, {{Class::Type::Expose}}, {{Class::Type::Type}},
       {{Class::Type::Alias, Class::Type::Type, Class::Type::Addressable}});
   if (!definition.is_valid()) {
     return Package::Export();
   }
 
   if (definition.get_kind() == "group"_view) {
-    Package::Group group = Package::Group::evaluate(cursor, context);
-    if (!group.is_valid()) {
+    Perimortem::Memory::Managed::Vector<Package::Export> exports(
+        context.get_arena());
+    if (!Package::Group::evaluate(cursor, context, exports)) {
       return Package::Export();
     }
 
-    return Package::Export(definition, group.get_exports());
+    return Package::Export(definition, exports.get_view());
   }
 
   if (definition.get_kind() != "alias"_view) {
@@ -44,8 +44,13 @@ auto Package::Export::evaluate(
   }
 
   const Count error_count = cursor.get_errors().get_size();
-  const Ttx::Type* target = Expression::Type::evaluate(cursor, context);
+  const Ttx::Type* target = Base::Expression::Type::evaluate(cursor, context);
   if (cursor.get_errors().get_size() != error_count) {
+    return Package::Export();
+  }
+
+  if (target == nullptr) {
+    cursor.token_error("Package export target could not be resolved."_view);
     return Package::Export();
   }
 

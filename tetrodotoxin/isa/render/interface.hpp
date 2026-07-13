@@ -8,15 +8,15 @@
 
 #include "perimortem/memory/managed/vector.hpp"
 
-#include "tetrodotoxin/isa/context.hpp"
+#include "tetrodotoxin/isa/base/context.hpp"
 #include "ttx/lexical/cursor.hpp"
 #include "ttx/type.hpp"
 
 namespace Tetrodotoxin::Isa::Render {
 
 // Interface owns Render's named data blocks: constants, push constants, and
-// resources. They become nested TTX types so other ISAs can query them without a
-// compiler-side mirror.
+// resources. They become nested TTX types so other ISAs can query them without
+// a compiler-side mirror.
 class Interface {
  public:
   static auto source_to_type_name(Perimortem::Core::View::Bytes block_name)
@@ -26,12 +26,12 @@ class Interface {
       Perimortem::Core::View::Bytes type_name) -> const Ttx::Type*;
   static auto evaluate(
       Ttx::Lexical::Cursor& cursor,
-      Tetrodotoxin::Isa::Context& context,
+      Tetrodotoxin::Isa::Base::Context& context,
       Perimortem::Core::View::Bytes block_name) -> const Ttx::Type*;
   static auto insert(
       Ttx::Lexical::Cursor& cursor,
-      Perimortem::Memory::Managed::Vector<Ttx::Type::Member>& members,
-      Ttx::Type::Member member,
+      Perimortem::Memory::Managed::Vector<Ttx::Member>& members,
+      Ttx::Member member,
       Perimortem::Core::View::Bytes duplicate_error) -> Bool;
 };
 

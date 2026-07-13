@@ -5,7 +5,10 @@
 
 #include "perimortem/core/view/bytes.hpp"
 
-#include "tetrodotoxin/isa/context.hpp"
+#include "perimortem/memory/managed/vector.hpp"
+
+#include "tetrodotoxin/isa/base/context.hpp"
+#include "ttx/documentation.hpp"
 #include "ttx/lexical/cursor.hpp"
 
 namespace Tetrodotoxin::Isa::App {
@@ -19,11 +22,17 @@ class VirtualMachine {
  public:
   static auto evaluate(
       Ttx::Lexical::Cursor& cursor,
-      Tetrodotoxin::Isa::Context& context) -> Ttx::Type*;
+      Tetrodotoxin::Isa::Base::Context& context) -> Ttx::Type*;
 
   static constexpr auto get_name() -> Perimortem::Core::View::Bytes {
     return "App"_view;
   }
+
+ private:
+  static auto evaluate_function(
+      Ttx::Lexical::Cursor& cursor,
+      Tetrodotoxin::Isa::Base::Context& context,
+      Ttx::Documentation documentation) -> Ttx::Function;
 };
 
 }  // namespace Tetrodotoxin::Isa::App

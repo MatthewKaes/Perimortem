@@ -139,7 +139,7 @@ hidden in `Target::SystemV` or inferred from TTX types by the assembler.
 
 ## Backend and engine
 
-`Backend` is a pair of continuations selected when a `Toolchain` is built:
+`Backend` is a pair of continuations supplied when an `Engine` is built:
 
 - lower an `Execution::Program` into linker records
 - produce the generated host-language interface header

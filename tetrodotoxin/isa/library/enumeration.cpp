@@ -5,12 +5,14 @@
 
 #include "perimortem/memory/managed/vector.hpp"
 
-#include "tetrodotoxin/isa/attribute.hpp"
-#include "tetrodotoxin/isa/documentation.hpp"
-#include "tetrodotoxin/isa/expression.hpp"
+#include "tetrodotoxin/isa/base/attribute.hpp"
+#include "tetrodotoxin/isa/base/documentation.hpp"
+#include "tetrodotoxin/isa/base/expression/evaluator.hpp"
+#include "tetrodotoxin/isa/base/expression/value.hpp"
+#include "tetrodotoxin/isa/base/modifier.hpp"
+#include "tetrodotoxin/isa/library/compiler/function.hpp"
 #include "tetrodotoxin/isa/library/function.hpp"
 #include "tetrodotoxin/isa/library/syntax.hpp"
-#include "tetrodotoxin/isa/modifier.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -40,197 +42,53 @@ static auto parse_storage_type(Cursor& cursor, Library::Scope& scope)
   if (storage == nullptr) {
     cursor.token_error("Library enum storage type could not be resolved."_view);
   }
+
   return storage;
 }
 
-static auto consume_pack_value(Cursor& cursor) -> Bool {
-  Count scope_depth = 0;
-  Count packing_depth = 0;
-  Count index_depth = 0;
-  while (!cursor.matches(Class::Type::EndOfStream)) {
-    if (cursor.matches(Class::Type::ScopeStart)) {
-      scope_depth++;
-      cursor.consume();
-      continue;
-    }
-
-    if (cursor.matches(Class::Type::ScopeEnd)) {
-      if (scope_depth > 0) {
-        scope_depth--;
-      }
-      cursor.consume();
-      continue;
-    }
-
-    if (cursor.matches(Class::Type::PackingStart)) {
-      packing_depth++;
-      cursor.consume();
-      continue;
-    }
-
-    if (cursor.matches(Class::Type::PackingEnd)) {
-      if (scope_depth == 0 && packing_depth == 0 && index_depth == 0) {
-        return True;
-      }
-      if (packing_depth > 0) {
-        packing_depth--;
-      }
-      cursor.consume();
-      continue;
-    }
-
-    if (Expression::is_index_start(cursor.current().get_class())) {
-      index_depth++;
-      cursor.consume();
-      continue;
-    }
-
-    if (cursor.matches(Class::Type::IndexEnd)) {
-      if (index_depth > 0) {
-        index_depth--;
-      }
-      cursor.consume();
-      continue;
-    }
-
-    if (scope_depth == 0 && packing_depth == 0 && index_depth == 0 &&
-        cursor.matches(Class::Type::PackingOp)) {
-      return True;
-    }
-
-    cursor.consume();
-  }
-
-  cursor.token_error("Expected `)` after library enum cases."_view);
-  return False;
-}
-
-static auto has_member(
-    View::Vector<Ttx::Type::Member> members,
-    View::Bytes name) -> Bool {
+static auto has_member(View::Vector<Ttx::Member> members, View::Bytes name)
+    -> Bool {
   for (Count i = 0; i < members.get_size(); i++) {
     if (members[i].get_name() == name) {
       return True;
     }
   }
+
   return False;
 }
 
 static auto has_function(
-    View::Vector<Ttx::Type::Function> functions,
+    View::Vector<Ttx::Function> functions,
     View::Bytes name) -> Bool {
   for (Count i = 0; i < functions.get_size(); i++) {
     if (functions[i].get_name() == name) {
       return True;
     }
   }
+
   return False;
 }
 
 static auto insert_enum_case(
     Cursor& cursor,
-    Managed::Vector<Ttx::Type::Member>& members,
+    Managed::Vector<Ttx::Member>& members,
     View::Bytes name,
     const Ttx::Type& storage,
-    Ttx::Documentation documentation) -> Bool {
+    Ttx::Documentation documentation,
+    View::Vector<Ttx::Attribute> attributes) -> Bool {
   if (has_member(members.get_view(), name)) {
     cursor.token_error("Library enum case name is already defined."_view);
     return False;
   }
 
-  members.insert(Ttx::Type::Member(name, storage, documentation));
+  members.insert(Ttx::Member(name, storage, documentation, False, attributes));
   return True;
 }
 
-static auto evaluate_packed_cases(
+static auto evaluate_cases(
     Cursor& cursor,
     Library::Scope& scope,
-    const Tetrodotoxin::Isa::Definition& definition,
-    const Ttx::Type& storage) -> const Ttx::Type* {
-  if (!cursor.require(
-          Class::Type::PackingStart,
-          "Expected `(` before library enum cases."_view)) {
-    return nullptr;
-  }
-
-  Managed::Vector<Ttx::Type::Member> members(scope.get_context().get_arena());
-  Bool valid = True;
-  while (!cursor.matches(Class::Type::EndOfStream) &&
-         !cursor.matches(Class::Type::PackingEnd)) {
-    if (!cursor.require(
-            Class::Type::AddressOp,
-            "Expected `.` before library enum case name."_view)) {
-      valid = False;
-      if (!consume_pack_value(cursor)) {
-        return nullptr;
-      }
-    } else {
-      const Token* name = cursor.require(
-          Class::Type::Addressable, "Expected library enum case name."_view);
-      if (name == nullptr) {
-        valid = False;
-        if (!consume_pack_value(cursor)) {
-          return nullptr;
-        }
-      } else if (!cursor.require(
-                     Class::Type::Assign,
-                     "Expected `=` after library enum case name."_view)) {
-        valid = False;
-        if (!consume_pack_value(cursor)) {
-          return nullptr;
-        }
-      } else if (!consume_pack_value(cursor)) {
-        return nullptr;
-      } else if (!insert_enum_case(
-                     cursor, members, name->get_text(), storage,
-                     definition.get_documentation())) {
-        valid = False;
-      }
-    }
-
-    if (cursor.matches(Class::Type::PackingOp)) {
-      cursor.consume();
-      continue;
-    }
-
-    if (!cursor.matches(Class::Type::PackingEnd)) {
-      cursor.token_error("Expected `,` or `)` after library enum case."_view);
-      valid = False;
-      if (!consume_pack_value(cursor)) {
-        return nullptr;
-      }
-    }
-  }
-
-  if (!cursor.require(
-          Class::Type::PackingEnd,
-          "Expected `)` after library enum cases."_view)) {
-    return nullptr;
-  }
-
-  if (!cursor.require(
-          Class::Type::EndStatement,
-          "Expected `;` after library enum declaration."_view)) {
-    return nullptr;
-  }
-
-  if (!valid) {
-    return nullptr;
-  }
-
-  Managed::Vector<Ttx::Attribute> attributes(scope.get_context().get_arena());
-  attributes.insert({"isa"_view, "Enum"_view});
-  auto& type = scope.get_context().get_arena().construct<Ttx::Type>(
-      definition.get_name(), members.get_view(),
-      View::Vector<const Ttx::Type*>(), View::Vector<Ttx::Type::Function>(),
-      definition.get_documentation(), attributes.get_view());
-  return &type;
-}
-
-static auto evaluate_scoped_cases(
-    Cursor& cursor,
-    Library::Scope& scope,
-    const Tetrodotoxin::Isa::Definition& definition,
+    const Tetrodotoxin::Isa::Base::Declaration& definition,
     const Ttx::Type& storage) -> const Ttx::Type* {
   if (!cursor.require(
           Class::Type::ScopeStart,
@@ -238,8 +96,13 @@ static auto evaluate_scoped_cases(
     return nullptr;
   }
 
-  Managed::Vector<Ttx::Type::Member> members(scope.get_context().get_arena());
-  Managed::Vector<Ttx::Type::Function> functions(
+  Managed::Vector<Ttx::Member> members(scope.get_context().get_arena());
+  Managed::Vector<Base::Definition> member_definitions(
+      scope.get_context().get_arena());
+  Managed::Vector<Ttx::Function> functions(scope.get_context().get_arena());
+  Managed::Vector<Perimortem::Utility::Range> function_sources(
+      scope.get_context().get_arena());
+  Managed::Vector<Base::Definition> function_definitions(
       scope.get_context().get_arena());
   Ttx::Type& type = scope.get_context().get_arena().allocate<Ttx::Type>();
   if (!scope.stage_type_reference(definition.get_name(), type)) {
@@ -251,8 +114,10 @@ static auto evaluate_scoped_cases(
   Bool valid = True;
   while (!cursor.matches(Class::Type::EndOfStream) &&
          !cursor.matches(Class::Type::ScopeEnd)) {
-    Ttx::Documentation documentation = Documentation::evaluate(cursor);
-    if (!Attribute::consume_all(cursor)) {
+    Ttx::Documentation documentation = Base::Documentation::evaluate(cursor);
+    Managed::Vector<Ttx::Attribute> source_attributes(
+        scope.get_context().get_arena());
+    if (!Base::Attribute::evaluate_all(cursor, source_attributes)) {
       return nullptr;
     }
 
@@ -265,36 +130,51 @@ static auto evaluate_scoped_cases(
         if (!Library::Syntax::consume_declaration_tail(cursor)) {
           return nullptr;
         }
+
         continue;
       }
 
-      if (!Expression::consume_initializer(
-              cursor,
-              "Expected `;` after library enum case initializer."_view)) {
+      cursor.consume();
+
+      Base::Expression::Value value =
+          Base::Expression::Value::evaluate(cursor, scope.get_context());
+      if (value.is_empty()) {
         return nullptr;
       }
 
+      const Base::Expression::Value& initializer =
+          scope.get_context().get_arena().construct<Base::Expression::Value>(
+              value);
       if (!cursor.require(
               Class::Type::EndStatement,
               "Expected `;` after library enum case."_view)) {
         return nullptr;
       }
 
-      if (!insert_enum_case(cursor, members, name, storage, documentation)) {
+      if (!insert_enum_case(
+              cursor, members, name, storage, documentation,
+              source_attributes.get_view())) {
         valid = False;
+      } else {
+        member_definitions.insert(
+            Base::Definition(
+                Class::Type::Expose, source_attributes.get_view(),
+                &initializer));
       }
+
       continue;
     }
 
-    Modifier modifier = Modifier::evaluate(
+    Class::Type modifier = Base::Modifier::evaluate(
         cursor,
         {{Class::Type::Public, Class::Type::Private, Class::Type::Expose}},
         "Expected enum body to contain a case name or function modifier."_view);
-    if (!modifier.is_valid()) {
+    if (modifier == Class::Type::Unknown) {
       valid = False;
       if (!Library::Syntax::consume_declaration_tail(cursor)) {
         return nullptr;
       }
+
       continue;
     }
 
@@ -304,16 +184,19 @@ static auto evaluate_scoped_cases(
       if (!Library::Syntax::consume_declaration_tail(cursor)) {
         return nullptr;
       }
+
       continue;
     }
 
-    Ttx::Type::Function function =
-        Library::Function::evaluate(cursor, scope, documentation);
+    Perimortem::Utility::Range source;
+    Ttx::Function function =
+        Library::Function::evaluate(cursor, scope, documentation, source);
     if (function.is_empty()) {
       valid = False;
       if (!Library::Syntax::consume_declaration_tail(cursor)) {
         return nullptr;
       }
+
       continue;
     }
 
@@ -324,6 +207,9 @@ static auto evaluate_scoped_cases(
     }
 
     functions.insert(function);
+    function_sources.insert(source);
+    function_definitions.insert(
+        Base::Definition(modifier, source_attributes.get_view()));
   }
 
   if (!cursor.require(
@@ -337,32 +223,36 @@ static auto evaluate_scoped_cases(
   }
 
   Managed::Vector<Ttx::Attribute> attributes(scope.get_context().get_arena());
-  attributes.insert({"isa"_view, "Enum"_view});
+  Base::Attribute::append_all(definition.get_attributes(), attributes);
   new (&type) Ttx::Type(
       definition.get_name(), members.get_view(),
       View::Vector<const Ttx::Type*>(), functions.get_view(),
       definition.get_documentation(), attributes.get_view());
+  for (Count i = 0; i < members.get_size(); i++) {
+    if (!scope.get_context().define_implementation(
+            members[i], member_definitions[i])) {
+      return nullptr;
+    }
+  }
+
+  if (!Library::Compiler::Function::publish(
+          cursor, scope, type, function_sources.get_view(),
+          function_definitions.get_view())) {
+    return nullptr;
+  }
+
   return &type;
 }
 
 auto Library::Enumeration::evaluate(
     Cursor& cursor,
     Library::Scope& scope,
-    const Tetrodotoxin::Isa::Definition& definition) -> const Ttx::Type* {
+    const Tetrodotoxin::Isa::Base::Declaration& definition)
+    -> const Ttx::Type* {
   const Ttx::Type* storage = parse_storage_type(cursor, scope);
   if (storage == nullptr) {
     return nullptr;
   }
 
-  if (cursor.matches(Class::Type::PackingStart)) {
-    return evaluate_packed_cases(cursor, scope, definition, *storage);
-  }
-
-  if (cursor.matches(Class::Type::ScopeStart)) {
-    return evaluate_scoped_cases(cursor, scope, definition, *storage);
-  }
-
-  cursor.token_error(
-      "Expected `(` or `{` after library enum storage type."_view);
-  return nullptr;
+  return evaluate_cases(cursor, scope, definition, *storage);
 }

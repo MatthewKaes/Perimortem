@@ -30,33 +30,37 @@ static auto installed_isa_message(
     if (i != 0) {
       message.concat(", "_view);
     }
+
     message.concat(installed[i].get_name());
   }
+
   message.concat("."_view);
   return message.get_view();
 }
 
 auto Registry::install(
     View::Bytes name,
-    EvaluateFunction evaluator) -> Bool {
-  Entry entry(name, evaluator);
-  if (!entry.is_valid() || installed_count >= installed.get_size()) {
+    Dialect::Evaluator evaluator,
+    Dialect::Lowerer lowerer,
+    Bool package_ready) -> Bool {
+  Dialect dialect(name, evaluator, lowerer, package_ready);
+  if (!dialect.is_valid() || installed_count >= installed.get_size()) {
     return False;
   }
 
   for (Count i = 0; i < installed_count; i++) {
     if (installed[i].get_name() == name) {
-      installed[i] = entry;
+      installed[i] = dialect;
       return True;
     }
   }
 
-  installed[installed_count] = entry;
+  installed[installed_count] = dialect;
   installed_count++;
   return True;
 }
 
-auto Registry::find(View::Bytes name) const -> const Entry* {
+auto Registry::find(View::Bytes name) const -> const Dialect* {
   for (Count i = 0; i < installed_count; i++) {
     if (installed[i].get_name() == name) {
       return installed.get_data() + i;
@@ -88,6 +92,6 @@ auto Registry::require_installed(Cursor& cursor, View::Bytes name) const
 }
 
 auto Registry::get_installed() const
-    -> Perimortem::Core::View::Vector<Entry> {
+    -> Perimortem::Core::View::Vector<Dialect> {
   return {installed.get_data(), installed_count};
 }

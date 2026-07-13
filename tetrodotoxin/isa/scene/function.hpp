@@ -5,7 +5,7 @@
 
 #include "perimortem/memory/managed/vector.hpp"
 
-#include "tetrodotoxin/isa/context.hpp"
+#include "tetrodotoxin/isa/base/context.hpp"
 #include "ttx/documentation.hpp"
 #include "ttx/lexical/class.hpp"
 #include "ttx/lexical/cursor.hpp"
@@ -28,12 +28,12 @@ class Function {
 
   static auto evaluate(
       Ttx::Lexical::Cursor& cursor,
-      Tetrodotoxin::Isa::Context& context,
-      Ttx::Documentation documentation) -> Ttx::Type::Function;
+      Tetrodotoxin::Isa::Base::Context& context,
+      Ttx::Documentation documentation) -> Ttx::Function;
   static auto insert(
       Ttx::Lexical::Cursor& cursor,
-      Perimortem::Memory::Managed::Vector<Ttx::Type::Function>& functions,
-      Ttx::Type::Function function) -> Bool;
+      Perimortem::Memory::Managed::Vector<Ttx::Function>& functions,
+      Ttx::Function function) -> Bool;
 };
 
 }  // namespace Tetrodotoxin::Isa::Scene

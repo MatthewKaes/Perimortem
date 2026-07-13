@@ -3,90 +3,86 @@
 
 #include "tetrodotoxin/isa/shader/statement.hpp"
 
-#include "tetrodotoxin/isa/expression/type.hpp"
+#include "tetrodotoxin/isa/base/expression/type.hpp"
 #include "ttx/lexical/cursor.hpp"
 
 using namespace Perimortem::Core;
 using namespace Tetrodotoxin::Isa;
 using namespace Ttx::Lexical;
 
-auto Shader::Statement::evaluate(Cursor& cursor, Context& context) -> Result {
+auto Shader::Statement::evaluate(Cursor& cursor, Base::Context& context)
+    -> Statement {
   switch (cursor.current().get_class().get_type()) {
-  case Class::Type::Comment:
-  case Class::Type::Disabled:
-    cursor.consume();
-    return Result::ignored();
-
   case Class::Type::State: {
     const Token start = cursor.current();
     cursor.consume();
     const Token* name = cursor.require(
         Class::Type::Addressable, "Expected shader state name."_view);
     if (name == nullptr) {
-      return Result::failed();
+      return Statement();
     }
 
     if (!cursor.require(
-            Class::Type::Define, "Expected `:` after shader state name."_view)) {
-      return Result::failed();
+            Class::Type::Define,
+            "Expected `:` after shader state name."_view)) {
+      return Statement();
     }
 
     const Count error_count = cursor.get_errors().get_size();
-    const Ttx::Type* type = Expression::Type::evaluate(cursor, context);
+    const Ttx::Type* type = Base::Expression::Type::evaluate(cursor, context);
     if (cursor.get_errors().get_size() != error_count) {
-      return Result::failed();
+      return Statement();
     }
 
     if (type == nullptr) {
       cursor.token_error("Shader state type could not be resolved."_view);
-      return Result::failed();
+      return Statement();
     }
 
     if (!cursor.require(
             Class::Type::Assign,
             "Expected `=` before shader state initializer."_view)) {
-      return Result::failed();
+      return Statement();
     }
 
-    Expression::Value initializer =
-        Expression::Value::evaluate(cursor, context);
+    Base::Expression::Value initializer =
+        Base::Expression::Value::evaluate(cursor, context);
     if (initializer.is_empty()) {
-      return Result::failed();
+      return Statement();
     }
 
     const Token* end = cursor.require(
         Class::Type::EndStatement,
         "Expected `;` after shader state declaration."_view);
     if (end == nullptr) {
-      return Result::failed();
+      return Statement();
     }
 
-    return Result::ready(state_statement(
-        start, *end, name->get_text(), *type, initializer));
+    return state_statement(start, *end, name->get_text(), *type, initializer);
   }
 
   case Class::Type::Return: {
     const Token start = cursor.current();
     cursor.consume();
-    const Expression::Pack* pack = nullptr;
+    const Base::Expression::Pack* pack = nullptr;
     if (!cursor.matches(Class::Type::EndStatement)) {
-      pack = Expression::Pack::evaluate(cursor, context);
+      pack = Base::Expression::Pack::evaluate(cursor, context);
       if (pack == nullptr) {
-        return Result::failed();
+        return Statement();
       }
     }
 
     const Token* end = cursor.require(
         Class::Type::EndStatement, "Expected `;` after shader return."_view);
     if (end == nullptr) {
-      return Result::failed();
+      return Statement();
     }
 
-    return Result::ready(return_statement(start, *end, pack));
+    return return_statement(start, *end, pack);
   }
 
   default:
     cursor.token_error("Expected shader function statement."_view);
-    return Result::failed();
+    return Statement();
   }
 }

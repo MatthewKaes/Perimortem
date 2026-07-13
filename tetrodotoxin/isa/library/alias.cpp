@@ -5,6 +5,8 @@
 
 #include "perimortem/memory/managed/vector.hpp"
 
+#include "tetrodotoxin/isa/base/attribute.hpp"
+
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
 using namespace Tetrodotoxin::Isa;
@@ -13,7 +15,8 @@ using namespace Ttx::Lexical;
 auto Library::Alias::evaluate(
     Cursor& cursor,
     Library::Scope& scope,
-    const Tetrodotoxin::Isa::Definition& definition) -> const Ttx::Type* {
+    const Tetrodotoxin::Isa::Base::Declaration& definition)
+    -> const Ttx::Type* {
   if (!cursor.require(
           Class::Type::Assign,
           "Expected `=` before library alias target."_view)) {
@@ -38,9 +41,9 @@ auto Library::Alias::evaluate(
   }
 
   Managed::Vector<Ttx::Attribute> attributes(scope.get_context().get_arena());
-  attributes.insert({"isa"_view, "Alias"_view});
-  auto& type = scope.get_context().get_arena().construct<Ttx::Type>(
-      Ttx::Type::alias(
+  Base::Attribute::append_all(definition.get_attributes(), attributes);
+  auto& type =
+      scope.get_context().get_arena().construct<Ttx::Type>(Ttx::Type::alias(
           definition.get_name(), *target, definition.get_documentation(),
           attributes.get_view()));
   return &type;

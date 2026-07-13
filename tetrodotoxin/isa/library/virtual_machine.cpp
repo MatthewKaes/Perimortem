@@ -10,17 +10,18 @@
 
 #include "perimortem/utility/table.hpp"
 
-#include "tetrodotoxin/isa/attribute.hpp"
-#include "tetrodotoxin/isa/documentation.hpp"
+#include "tetrodotoxin/isa/base/attribute.hpp"
+#include "tetrodotoxin/isa/base/documentation.hpp"
+#include "tetrodotoxin/isa/base/modifier.hpp"
+#include "tetrodotoxin/isa/foreign/dialect.hpp"
 #include "tetrodotoxin/isa/library/addressable.hpp"
 #include "tetrodotoxin/isa/library/alias.hpp"
+#include "tetrodotoxin/isa/library/compiler/function.hpp"
 #include "tetrodotoxin/isa/library/enumeration.hpp"
-#include "tetrodotoxin/isa/library/foreign.hpp"
 #include "tetrodotoxin/isa/library/function.hpp"
 #include "tetrodotoxin/isa/library/scope.hpp"
 #include "tetrodotoxin/isa/library/structure.hpp"
 #include "tetrodotoxin/isa/library/syntax.hpp"
-#include "tetrodotoxin/isa/modifier.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -29,9 +30,10 @@ using namespace Tetrodotoxin::Isa;
 using namespace Ttx::Lexical;
 
 using DefinitionEvaluator =
-    const Ttx::Type* (*)(Cursor& cursor,
+    const Ttx::Type* (*)(Cursor & cursor,
                          Library::Scope& scope,
-                         const Tetrodotoxin::Isa::Definition& definition);
+                         const Tetrodotoxin::Isa::Base::Declaration&
+                             definition);
 
 constexpr Static::Vector<Class::Type, 3> library_modifiers = {{
   Class::Type::Public,
@@ -54,21 +56,22 @@ constexpr Static::Vector<Pair<View::Bytes, DefinitionEvaluator>, 5>
         Library::Structure::evaluate,
       },
       {
-        // TODO: object is just a struct with life time management so it uses
-        // the same general ISA for now until we have garbage collection.
+        // Object shares aggregate syntax. Lifetime policy belongs to the
+        // runtime implementation, not this parser.
         "object"_view,
         Library::Structure::evaluate,
       },
       {
-        Library::Foreign::get_name(),
-        Library::Foreign::evaluate,
+        Foreign::Dialect::get_name(),
+        Foreign::Dialect::evaluate,
       },
     }};
 
 static auto materialize_library_type(
     Cursor& cursor,
     Library::Scope& scope,
-    const Tetrodotoxin::Isa::Definition& definition) -> const Ttx::Type* {
+    const Tetrodotoxin::Isa::Base::Declaration& definition)
+    -> const Ttx::Type* {
   const auto* handler =
       Table<DefinitionEvaluator, library_sub_isas>::find_or_null(
           definition.get_kind());
@@ -79,43 +82,49 @@ static auto predeclare_library_definitions(
     Cursor& cursor,
     Library::Scope& scope) -> Bool {
   while (!cursor.matches(Class::Type::EndOfStream)) {
-    Ttx::Documentation documentation = Documentation::evaluate(cursor);
-    if (!Attribute::consume_all(cursor)) {
+    Ttx::Documentation documentation = Base::Documentation::evaluate(cursor);
+    Managed::Vector<Ttx::Attribute> attributes(scope.get_context().get_arena());
+    if (!Base::Attribute::evaluate_all(cursor, attributes)) {
       return False;
     }
+
     if (cursor.matches(Class::Type::EndOfStream)) {
       break;
     }
 
     if (!cursor.is_one_of(library_modifiers)) {
-      if (!Library::Syntax::consume_declaration_tail(cursor)) {
+      if (!Library::Syntax::consume_declaration_tail(cursor, True)) {
         return False;
       }
+
       continue;
     }
 
     Class::Type modifier = cursor.current().get_class().get_type();
     cursor.consume();
     if (cursor.matches(Class::Type::Func)) {
-      if (!Library::Syntax::consume_declaration_tail(cursor)) {
+      if (!Library::Syntax::consume_declaration_tail(cursor, True)) {
         return False;
       }
+
       continue;
     }
 
     const Token& name = cursor.current();
     if (name.get_class() != Class::Type::Type) {
-      if (!Library::Syntax::consume_declaration_tail(cursor)) {
+      if (!Library::Syntax::consume_declaration_tail(cursor, True)) {
         return False;
       }
+
       continue;
     }
 
     cursor.consume();
     if (!cursor.matches(Class::Type::Define)) {
-      if (!Library::Syntax::consume_declaration_tail(cursor)) {
+      if (!Library::Syntax::consume_declaration_tail(cursor, True)) {
         return False;
       }
+
       continue;
     }
 
@@ -123,23 +132,24 @@ static auto predeclare_library_definitions(
     const Token& kind = cursor.current();
     if (Table<DefinitionEvaluator, library_sub_isas>::find_or_null(
             kind.get_text()) == nullptr) {
-      if (!Library::Syntax::consume_declaration_tail(cursor)) {
+      if (!Library::Syntax::consume_declaration_tail(cursor, True)) {
         return False;
       }
+
       continue;
     }
 
-    Tetrodotoxin::Isa::Definition definition(
+    Tetrodotoxin::Isa::Base::Declaration definition(
         documentation, modifier, name.get_class().get_type(), name.get_text(),
-        kind.get_class().get_type(), kind.get_text());
+        kind.get_class().get_type(), kind.get_text(), attributes.get_view());
     cursor.consume();
-    Count body_index = cursor.get_token_index();
-    if (!Library::Syntax::consume_declaration_tail(cursor)) {
+    Range source = {cursor.get_token_index(), 0};
+    if (!Library::Syntax::consume_declaration_tail(cursor, True)) {
       return False;
     }
-    Count next_index = cursor.get_token_index();
 
-    if (!scope.declare_type(definition, body_index, next_index)) {
+    source.size = cursor.get_token_index() - source.start;
+    if (!scope.declare_type(definition, source)) {
       cursor.range_error(
           name, name, "Library type name is already defined."_view);
       return False;
@@ -153,20 +163,25 @@ auto Library::VirtualMachine::evaluate_definition(
     Cursor& cursor,
     Library::Scope& scope,
     Ttx::Documentation documentation,
-    Managed::Vector<Ttx::Type::Member>& members,
+    View::Vector<Ttx::Attribute> attributes,
+    Managed::Vector<Ttx::Member>& members,
+    Managed::Vector<Base::Definition>& member_definitions,
     Managed::Vector<const Ttx::Type*>& types,
-    Managed::Vector<Ttx::Type::Function>& functions) -> Bool {
-  Modifier modifier = Modifier::evaluate(
+    Managed::Vector<Ttx::Function>& functions,
+    Managed::Vector<Range>& function_sources,
+    Managed::Vector<Base::Definition>& function_definitions) -> Bool {
+  Class::Type modifier = Base::Modifier::evaluate(
       cursor, library_modifiers,
       "Expected a definition to start with one of the following modifiers "
       "{public, private, expose}"_view);
-  if (!modifier.is_valid()) {
+  if (modifier == Class::Type::Unknown) {
     return False;
   }
 
   if (cursor.matches(Class::Type::Func)) {
-    Ttx::Type::Function function =
-        Library::Function::evaluate(cursor, scope, documentation);
+    Range source;
+    Ttx::Function function =
+        Library::Function::evaluate(cursor, scope, documentation, source);
     if (function.is_empty()) {
       return False;
     }
@@ -179,34 +194,39 @@ auto Library::VirtualMachine::evaluate_definition(
     }
 
     functions.insert(function);
+    function_sources.insert(source);
+    function_definitions.insert(Base::Definition(modifier, attributes));
     return True;
   }
 
-  Tetrodotoxin::Isa::Definition definition =
-      Tetrodotoxin::Isa::Definition::evaluate_after_modifier(
-          cursor, documentation, modifier.get_type(),
+  Tetrodotoxin::Isa::Base::Declaration definition =
+      Tetrodotoxin::Isa::Base::Declaration::evaluate_after_modifier(
+          cursor, documentation, modifier,
           {{Class::Type::Type, Class::Type::Addressable}},
           {{Class::Type::Addressable, Class::Type::Type, Class::Type::Alias,
-            Class::Type::Func}});
+            Class::Type::Func}},
+          attributes);
   if (!definition.is_valid()) {
     return False;
   }
 
   if (definition.has_addressable_name()) {
-    Ttx::Type::Member member =
-        Library::Addressable::evaluate(cursor, scope, definition);
-    if (member.is_empty()) {
+    Base::Definition member_implementation;
+    const Ttx::Member* member = Library::Addressable::evaluate(
+        cursor, scope, definition, member_implementation);
+    if (member == nullptr) {
       return False;
     }
 
     for (Count i = 0; i < members.get_size(); i++) {
-      if (members[i].get_name() == member.get_name()) {
+      if (members[i].get_name() == member->get_name()) {
         cursor.token_error("Library member name is already defined."_view);
         return False;
       }
     }
 
-    members.insert(member);
+    members.insert(*member);
+    member_definitions.insert(member_implementation);
     return True;
   }
 
@@ -224,6 +244,7 @@ auto Library::VirtualMachine::evaluate_definition(
 
       message.concat(library_sub_isas[i].key);
     }
+
     message.concat("}"_view);
     cursor.token_error(message.get_view());
     return False;
@@ -235,7 +256,7 @@ auto Library::VirtualMachine::evaluate_definition(
   }
 
   if (!scope.seek_after_type(cursor, definition.get_name())) {
-    if (!Library::Syntax::consume_declaration_tail(cursor)) {
+    if (!Library::Syntax::consume_declaration_tail(cursor, True)) {
       return False;
     }
   }
@@ -244,34 +265,40 @@ auto Library::VirtualMachine::evaluate_definition(
   return True;
 }
 
-auto Library::VirtualMachine::evaluate(Cursor& cursor, Context& context)
+auto Library::VirtualMachine::evaluate(Cursor& cursor, Base::Context& context)
     -> Ttx::Type* {
-  Managed::Vector<Ttx::Type::Member> members(context.get_arena());
+  Managed::Vector<Ttx::Member> members(context.get_arena());
+  Managed::Vector<Base::Definition> member_definitions(context.get_arena());
   Managed::Vector<const Ttx::Type*> types(context.get_arena());
-  Managed::Vector<Ttx::Type::Function> functions(context.get_arena());
+  Managed::Vector<Ttx::Function> functions(context.get_arena());
+  Managed::Vector<Range> function_sources(context.get_arena());
+  Managed::Vector<Base::Definition> function_definitions(context.get_arena());
   Library::Scope scope(context, materialize_library_type);
   Count body_start = cursor.get_token_index();
-
   if (!predeclare_library_definitions(cursor, scope)) {
     return nullptr;
   }
 
   cursor.seek_token(body_start);
-
   while (!cursor.matches(Class::Type::EndOfStream)) {
-    Ttx::Documentation documentation = Documentation::evaluate(cursor);
-    if (!Attribute::consume_all(cursor)) {
+    Ttx::Documentation documentation = Base::Documentation::evaluate(cursor);
+    Managed::Vector<Ttx::Attribute> source_attributes(context.get_arena());
+    if (!Base::Attribute::evaluate_all(cursor, source_attributes)) {
       return nullptr;
     }
+
     if (cursor.matches(Class::Type::EndOfStream)) {
       break;
     }
 
     if (!evaluate_definition(
-            cursor, scope, documentation, members, types, functions)) {
-      if (!Library::Syntax::consume_declaration_tail(cursor)) {
+            cursor, scope, documentation, source_attributes.get_view(), members,
+            member_definitions, types, functions, function_sources,
+            function_definitions)) {
+      if (!Library::Syntax::consume_declaration_tail(cursor, True)) {
         return nullptr;
       }
+
       continue;
     }
   }
@@ -280,10 +307,20 @@ auto Library::VirtualMachine::evaluate(Cursor& cursor, Context& context)
     return nullptr;
   }
 
-  Managed::Vector<Ttx::Attribute> attributes(context.get_arena());
-  attributes.insert({"isa"_view, "Library"_view});
   auto& type = context.get_arena().construct<Ttx::Type>(
       Library::VirtualMachine::get_name(), members.get_view(), types.get_view(),
-      functions.get_view(), Ttx::Documentation(), attributes.get_view());
+      functions.get_view());
+  for (Count i = 0; i < members.get_size(); i++) {
+    if (!context.define_implementation(members[i], member_definitions[i])) {
+      return nullptr;
+    }
+  }
+
+  if (!Library::Compiler::Function::publish(
+          cursor, scope, type, function_sources.get_view(),
+          function_definitions.get_view())) {
+    return nullptr;
+  }
+
   return &type;
 }

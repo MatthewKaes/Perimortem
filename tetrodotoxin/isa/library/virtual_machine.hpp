@@ -7,25 +7,36 @@
 
 #include "perimortem/memory/managed/vector.hpp"
 
-#include "tetrodotoxin/isa/context.hpp"
-#include "tetrodotoxin/isa/definition.hpp"
+#include "perimortem/utility/range.hpp"
+
+#include "tetrodotoxin/isa/base/context.hpp"
+#include "tetrodotoxin/isa/base/declaration.hpp"
 #include "tetrodotoxin/isa/library/scope.hpp"
 #include "ttx/documentation.hpp"
 #include "ttx/lexical/cursor.hpp"
+
+namespace Tetrodotoxin::Terminal {
+
+class Context;
+class Input;
+
+}  // namespace Tetrodotoxin::Terminal
 
 namespace Tetrodotoxin::Isa::Library {
 
 // Library is the baseline body ISA for general TTX source files.
 //
 // Library constructs aliases, aggregate layout, foreign signatures, and
-// callable function signatures as Ttx::Type facts. Function bodies publish
-// Library-owned blocks so lowerers consume ISA facts instead of reparsing token
-// streams.
+// function signatures as Ttx::Type facts. Function bodies continue
+// directly into immutable compiler execution data rather than a Library AST.
 class VirtualMachine {
  public:
   static auto evaluate(
       Ttx::Lexical::Cursor& cursor,
-      Tetrodotoxin::Isa::Context& context) -> Ttx::Type*;
+      Tetrodotoxin::Isa::Base::Context& context) -> Ttx::Type*;
+  static auto lower(
+      Tetrodotoxin::Terminal::Context& context,
+      const Tetrodotoxin::Terminal::Input& input) -> Bool;
 
   static constexpr auto get_name() -> Perimortem::Core::View::Bytes {
     return "Library"_view;
@@ -36,10 +47,16 @@ class VirtualMachine {
       Ttx::Lexical::Cursor& cursor,
       Library::Scope& scope,
       Ttx::Documentation documentation,
-      Perimortem::Memory::Managed::Vector<Ttx::Type::Member>& members,
+      Perimortem::Core::View::Vector<Ttx::Attribute> attributes,
+      Perimortem::Memory::Managed::Vector<Ttx::Member>& members,
+      Perimortem::Memory::Managed::Vector<Tetrodotoxin::Isa::Base::Definition>&
+          member_definitions,
       Perimortem::Memory::Managed::Vector<const Ttx::Type*>& types,
-      Perimortem::Memory::Managed::Vector<Ttx::Type::Function>& functions)
-      -> Bool;
+      Perimortem::Memory::Managed::Vector<Ttx::Function>& functions,
+      Perimortem::Memory::Managed::Vector<Perimortem::Utility::Range>&
+          function_sources,
+      Perimortem::Memory::Managed::Vector<Tetrodotoxin::Isa::Base::Definition>&
+          function_definitions) -> Bool;
 };
 
 }  // namespace Tetrodotoxin::Isa::Library

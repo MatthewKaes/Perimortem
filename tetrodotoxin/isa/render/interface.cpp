@@ -9,12 +9,12 @@
 
 #include "perimortem/utility/table.hpp"
 
-#include "tetrodotoxin/isa/attribute.hpp"
-#include "tetrodotoxin/isa/definition.hpp"
-#include "tetrodotoxin/isa/documentation.hpp"
-#include "tetrodotoxin/isa/expression.hpp"
-#include "tetrodotoxin/isa/expression/type.hpp"
-#include "tetrodotoxin/isa/modifier.hpp"
+#include "tetrodotoxin/isa/base/attribute.hpp"
+#include "tetrodotoxin/isa/base/declaration.hpp"
+#include "tetrodotoxin/isa/base/documentation.hpp"
+#include "tetrodotoxin/isa/base/expression/evaluator.hpp"
+#include "tetrodotoxin/isa/base/expression/type.hpp"
+#include "tetrodotoxin/isa/base/modifier.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -53,7 +53,7 @@ auto Render::Interface::find(
 
 auto Render::Interface::evaluate(
     Cursor& cursor,
-    Context& context,
+    Base::Context& context,
     View::Bytes block_name) -> const Ttx::Type* {
   View::Bytes type_name = source_to_type_name(block_name);
   if (type_name.is_empty()) {
@@ -68,33 +68,33 @@ auto Render::Interface::evaluate(
     return nullptr;
   }
 
-  Managed::Vector<Ttx::Type::Member> members(context.get_arena());
+  Managed::Vector<Ttx::Member> members(context.get_arena());
   Bool valid = True;
   while (!cursor.matches(Class::Type::EndOfStream) &&
          !cursor.matches(Class::Type::ScopeEnd)) {
-    Ttx::Documentation documentation = Documentation::evaluate(cursor);
-    Modifier modifier = Modifier::evaluate(
+    Ttx::Documentation documentation = Base::Documentation::evaluate(cursor);
+    Class::Type modifier = Base::Modifier::evaluate(
         cursor, {{Class::Type::Const, Class::Type::State}},
         "Expected render fact to start with `const` or `state`."_view);
-    if (!modifier.is_valid()) {
+    if (modifier == Class::Type::Unknown) {
       return nullptr;
     }
 
-    Definition definition = Definition::evaluate_after_modifier(
-        cursor, documentation, modifier.get_type(),
-        {{Class::Type::Addressable}}, {{Class::Type::Type}});
+    Base::Declaration definition = Base::Declaration::evaluate_after_modifier(
+        cursor, documentation, modifier, {{Class::Type::Addressable}},
+        {{Class::Type::Type}});
     if (!definition.is_valid()) {
       return nullptr;
     }
 
     const Count error_count = cursor.get_errors().get_size();
-    const Ttx::Type* type =
-        Expression::Type::evaluate(cursor, context, definition.get_kind());
+    const Ttx::Type* type = Base::Expression::Type::evaluate(
+        cursor, context, definition.get_kind());
     if (cursor.get_errors().get_size() != error_count) {
       return nullptr;
     }
 
-    if (!Expression::consume_initializer(
+    if (!Base::Expression::Evaluator::consume_initializer(
             cursor, "Expected `;` after render fact initializer."_view)) {
       return nullptr;
     }
@@ -112,7 +112,7 @@ auto Render::Interface::evaluate(
 
     if (!insert(
             cursor, members,
-            Ttx::Type::Member(
+            Ttx::Member(
                 definition.get_name(), *type, definition.get_documentation()),
             "Render fact name is already defined."_view)) {
       valid = False;
@@ -129,24 +129,15 @@ auto Render::Interface::evaluate(
     return nullptr;
   }
 
-  Managed::Vector<Ttx::Attribute> attributes(context.get_arena());
-  attributes.insert({"isa"_view, "RenderFacts"_view});
-  attributes.insert({"render_block"_view, block_name});
   return &context.get_arena().construct<Ttx::Type>(
-      type_name, members.get_view(), View::Vector<const Ttx::Type*>(),
-      View::Vector<Ttx::Type::Function>(), Ttx::Documentation(),
-      attributes.get_view());
+      type_name, members.get_view());
 }
 
 auto Render::Interface::insert(
     Cursor& cursor,
-    Managed::Vector<Ttx::Type::Member>& members,
-    Ttx::Type::Member member,
+    Managed::Vector<Ttx::Member>& members,
+    Ttx::Member member,
     View::Bytes duplicate_error) -> Bool {
-  if (member.is_empty()) {
-    return False;
-  }
-
   for (Count i = 0; i < members.get_size(); i++) {
     if (members[i].get_name() == member.get_name()) {
       cursor.token_error(duplicate_error);
