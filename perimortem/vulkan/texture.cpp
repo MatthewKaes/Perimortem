@@ -3,6 +3,8 @@
 
 #include "perimortem/vulkan/texture.hpp"
 
+#include "perimortem/core/access/bytes.hpp"
+#include "perimortem/core/data.hpp"
 #include "perimortem/core/diagnostics/log.hpp"
 #include "perimortem/core/null_terminated.hpp"
 
@@ -76,7 +78,8 @@ auto Vulkan::Texture::create(
 
   const Bits_32 width = source.get_width();
   const Bits_32 height = source.get_height();
-  const VkDeviceSize image_size = VkDeviceSize(width) * height * 4;
+  const VkDeviceSize image_size =
+      VkDeviceSize(width) * height * Graphics::Pixel::get_byte_count();
 
   // Staging buffer: host-visible, host-coherent.
   VkBufferCreateInfo buffer_info = {VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO};
@@ -107,13 +110,14 @@ auto Vulkan::Texture::create(
   require_success(
       vkMapMemory(ctx.get_device(), staging_memory, 0, image_size, 0, &mapped),
       "Vulkan: Failed to map texture staging memory."_view);
+
   const auto pixels = source.get_pixels();
   // Pixel stores four RGBA bytes in the same order expected by
   // VK_FORMAT_R8G8B8A8_SRGB, so upload does not need a channel shuffle.
-  const Count byte_count = pixels.get_size() * 4;
-  auto source_bytes = Core::Data::cast<const Bits_8>(pixels.get_data());
-  Bits_8* destination_bytes = static_cast<Bits_8*>(mapped);
-  for (Count i = 0; i < byte_count; i++) {
+  const auto source_bytes = pixels.get_bytes();
+  Core::Access::Bytes destination_bytes(
+      Core::Data::cast<Bits_8>(mapped), Count(image_size));
+  for (Count i = 0; i < source_bytes.get_size(); i++) {
     destination_bytes[i] = source_bytes[i];
   }
 

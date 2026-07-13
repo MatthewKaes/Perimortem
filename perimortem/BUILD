@@ -125,6 +125,7 @@ cc_library(
     hdrs = glob([
         "graphics/*.hpp",
         "graphics/formats/*.hpp",
+        "graphics/render/*.hpp",
     ]),
     includes = ["."],
     deps = [
