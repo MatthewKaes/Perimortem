@@ -198,6 +198,7 @@ class Set {
   constexpr auto get_capacity() const -> Count {
     return buffer_data.bucket_count;
   }
+
   constexpr auto is_empty() const -> Bool { return buffer_data.size == 0; }
 
  private:
@@ -276,7 +277,6 @@ class Set {
   auto grow(Count new_bucket_count) -> void {
     BufferData current_buffer = buffer_data;
     buffer_data = create_buffer(new_bucket_count);
-
     for (Count bucket_index = 0; bucket_index < current_buffer.bucket_count;
          bucket_index++) {
       if (current_buffer.bucket_buffer[bucket_index] == 0) {
@@ -292,6 +292,7 @@ class Set {
       Core::Bibliotheca::remit(
           Core::Data::cast<Bits_8>(current_buffer.bucket_buffer));
     }
+
     buffer_data.size = current_buffer.size;
   }
 
@@ -303,7 +304,6 @@ class Set {
     new_buffer.bucket_buffer = Core::Data::cast<Bits_32>(allocation.ptr);
     new_buffer.slots_buffer =
         Core::Data::cast<key_type>(allocation.ptr + slot_offset(buckets));
-
     for (Count bucket_index = 0; bucket_index < buckets; bucket_index++) {
       new_buffer.bucket_buffer[bucket_index] = 0;
     }

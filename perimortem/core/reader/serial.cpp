@@ -30,7 +30,6 @@ auto Reader::Serial::read() -> Value {
   auto data = source.get_data();
   auto byte_flag = data[cursor++];
   Bits_8 encoded_size = byte_flag & 0xF;
-
   if (cursor + encoded_size > source.get_size()) {
     Diagnostics::Log::Message<128> error_message(
         Diagnostics::Log::Level::Error);

@@ -206,7 +206,6 @@ auto Json::Node::at(Bits_32 index) const -> const Json::Node {
 auto Json::Node::at(const View::Bytes name) const -> const Json::Node {
   if (data.state == (Bits_32)NodeState::Object) {
     View::Vector<Member> members((const Member*)data.ptr, data.size);
-
     for (Count i = 0; i < members.get_size(); i++) {
       if (members[i].name == name) {
         return members[i].node;
@@ -228,7 +227,6 @@ auto Json::Node::operator[](const View::Bytes name) const -> const Json::Node {
 auto Json::Node::contains(const View::Bytes name) const -> Bool {
   if (data.state == (Bits_32)NodeState::Object) {
     View::Vector<Member> members((const Member*)data.ptr, data.size);
-
     for (Count i = 0; i < members.get_size(); i++) {
       if (members[i].name == name) {
         return true;
@@ -336,11 +334,11 @@ auto Json::Node::construct(
   // Named children become objects; unnamed children become arrays.
   const Bool is_object = count != 0 && !entries[0].get_name().is_empty();
   if (is_object) {
-    Managed::Vector<Json::Member> members(arena);
+    Managed::Vector<Json::Node::Member> members(arena);
     for (Count i = 0; i < count; i++) {
       members.insert(
-          Json::Member{
-            entries[i].get_name(), Json::Node::construct(arena, entries[i])});
+          Json::Node::Member(
+              entries[i].get_name(), Json::Node::construct(arena, entries[i])));
     }
 
     Json::Node result;
@@ -392,7 +390,6 @@ auto Json::Node::parse(
     case '{': {
       Managed::Vector<Member> members(arena);
       position++;
-
       while (position < source.get_size()) {
         if (source[position] != '"') {
           if (source[position++] == '}') {
@@ -428,7 +425,6 @@ auto Json::Node::parse(
     case '[': {
       Managed::Vector<Json::Node> array(arena);
       position++;
-
       while (position < source.get_size()) {
         if (ignored_characters(source[position])) {
           position++;

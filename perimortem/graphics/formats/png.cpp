@@ -56,10 +56,12 @@ struct ImageInfo {
     return Data::ensure_endian<Data::ByteOrder::Big, Data::ByteOrder::Native>(
         width);
   }
+
   constexpr auto get_height() const -> Bits_32 {
     return Data::ensure_endian<Data::ByteOrder::Big, Data::ByteOrder::Native>(
         height);
   }
+
   constexpr auto get_bit_depth() const -> Bits_8 { return bit_depth; }
   constexpr auto get_color_type() const -> ColorType { return color_type; }
   constexpr auto uses_standard_methods() const -> Bool {
@@ -133,8 +135,10 @@ constexpr auto populate_crc_table() -> Static::Vector<Bits_32, 256> {
       crc_value = (crc_value & 1) ? (ieee_crc32_polynomial ^ (crc_value >> 1))
                                   : (crc_value >> 1);
     }
+
     table[table_index] = crc_value;
   }
+
   return table;
 }
 
@@ -164,7 +168,6 @@ constexpr auto read_chunk(View::Bytes source, Count offset) -> Chunk {
   Bits_32 length =
       Data::ensure_endian<Data::ByteOrder::Big, Data::ByteOrder::Native>(
           *Data::cast<Bits_32>(source.get_data() + offset));
-
   if (offset + chunk_metadata_size + length > source.get_size()) [[unlikely]] {
     Diagnostics::Log::Message<128> error_message(
         Diagnostics::Log::Level::Error);
@@ -240,7 +243,6 @@ constexpr auto paeth_predictor(Bits_8 left, Bits_8 up, Bits_8 upper_left)
   Signed_16 score_left = Math::absolute(predictor - signed_left);
   Signed_16 score_up = Math::absolute(predictor - signed_up);
   Signed_16 score_upper_left = Math::absolute(predictor - signed_upper_left);
-
   if (score_left <= score_up && score_left <= score_upper_left) {
     return left;
   }
@@ -272,7 +274,6 @@ auto score_row(View::Bytes current_row, View::Bytes previous_row)
         signed_abs(Signed_8(current_row_data[i]));
     scores[Bits_8(FilterType::Sub)] +=
         signed_abs(Signed_8(current_row_data[i]));
-
     if constexpr (!first_row) {
       Bits_8 up = previous_row_data[i];
       scores[Bits_8(FilterType::Up)] += signed_abs(current_row_data[i] - up);
@@ -339,18 +340,21 @@ constexpr auto apply_row_filter(
     for (Count i = 0; i < channel_count; i++) {
       output_row_data[i] = Bits_8(current_row_data[i] - previous_row_data[i]);
     }
+
     break;
   case FilterType::Average:
     for (Count i = 0; i < channel_count; i++) {
       output_row_data[i] =
           current_row_data[i] - Bits_8(previous_row_data[i]) / 2;
     }
+
     break;
   case FilterType::Paeth:
     for (Count i = 0; i < channel_count; i++) {
       output_row_data[i] = Bits_8(
           current_row_data[i] - paeth_predictor(0, previous_row_data[i], 0));
     }
+
     break;
 
     // Treat default as None for now, but we should most likely log an error.
@@ -366,11 +370,13 @@ constexpr auto apply_row_filter(
       Bits_8 left = current_row_data[i - channel_count];
       output_row_data[i] = Bits_8(current_row_data[i] - left);
     }
+
     break;
   case FilterType::Up:
     for (Count i = channel_count; i < size; i++) {
       output_row_data[i] = Bits_8(current_row_data[i] - previous_row_data[i]);
     }
+
     break;
   case FilterType::Average:
     for (Count i = channel_count; i < size; i++) {
@@ -379,6 +385,7 @@ constexpr auto apply_row_filter(
       output_row_data[i] = Bits_8(
           current_row_data[i] - Bits_8((Bits_32(left) + Bits_32(up)) / 2));
     }
+
     break;
   case FilterType::Paeth:
     for (Count i = channel_count; i < size; i++) {
@@ -388,6 +395,7 @@ constexpr auto apply_row_filter(
       output_row_data[i] =
           Bits_8(current_row_data[i] - paeth_predictor(left, up, upper_left));
     }
+
     break;
 
     // Treat default as None for now, but we should most likely log an error.
@@ -460,10 +468,10 @@ auto reconstruct_row(
 
   case FilterType::Sub:
     Data::copy(output_row, filtered_row, bytes_per_pixel);
-
     for (Count i = bytes_per_pixel; i < stride; i++) {
       output_row[i] = filtered_row[i] + output_row[i - bytes_per_pixel];
     }
+
     break;
 
   case FilterType::Up:
@@ -476,12 +484,12 @@ auto reconstruct_row(
         output_row[i] = filtered_row[i] + previous_row[i];
       }
     }
+
     break;
 
   case FilterType::Average:
     if constexpr (first_row) {
       Data::copy(output_row, filtered_row, bytes_per_pixel);
-
       for (Count i = bytes_per_pixel; i < stride; i++) {
         output_row[i] = filtered_row[i] +
                         Bits_8(Bits_32(output_row[i - bytes_per_pixel]) / 2);
@@ -501,6 +509,7 @@ auto reconstruct_row(
                                   2);
       }
     }
+
     break;
 
   case FilterType::Paeth:
@@ -524,6 +533,7 @@ auto reconstruct_row(
                             previous_row[i - bytes_per_pixel]);
       }
     }
+
     break;
 
   // For all unknown values error out.
@@ -547,7 +557,6 @@ constexpr auto reconstruct_filter(
   const Count row_bytes = 1 + stride;
   const auto filtered_row_data = filtered_rows.get_data();
   auto output_pixels = output.get_data();
-
   if (filtered_rows.get_size() < row_bytes * height) [[unlikely]] {
     Diagnostics::Log::Message<128> error_message(
         Diagnostics::Log::Level::Error);
@@ -596,7 +605,6 @@ constexpr auto convert_to_pixels(
   Count pixel_count = width * height;
   output.forgetful_resize(pixel_count);
   auto data = raw_pixels.get_data();
-
   for (Count pixel_index = 0; pixel_index < pixel_count; pixel_index++) {
     Count source_offset = pixel_index * source_channels;
     switch (color_type) {
@@ -638,6 +646,7 @@ constexpr auto convert_to_pixels(
       return False;
     }
   }
+
   return True;
 }
 
@@ -664,7 +673,6 @@ constexpr auto read_header(const View::Bytes source) -> ImageInfo {
     Diagnostics::Log::Message<96> error_message(Diagnostics::Log::Level::Error);
     error_message << "Png: First chunk must be \"IHDR\". header="_view
                   << chunk_tag;
-
     return ImageInfo();
   }
 
@@ -683,7 +691,6 @@ constexpr auto read_header(const View::Bytes source) -> ImageInfo {
     error_message << "Png: Unsupported bit depth "_view
                   << Bits_32(image_info.get_bit_depth())
                   << " (only 8 bit is supported)"_view;
-
     return ImageInfo();
   }
 

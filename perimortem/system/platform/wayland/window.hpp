@@ -24,6 +24,11 @@ struct xdg_wm_base_listener;
 
 namespace Perimortem::System::Platform::Wayland {
 
+// Owns one Wayland toplevel and translates compositor callbacks into compact
+// window state for the application loop. Logical size and compositor scale are
+// retained separately because render backends require physical pixel extent.
+// The class does not select a renderer or assign graphics meaning to its native
+// handles.
 class Window {
  public:
   Window() = default;

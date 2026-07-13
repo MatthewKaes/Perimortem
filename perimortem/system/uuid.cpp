@@ -13,28 +13,28 @@ using namespace Perimortem::Core;
 
 #include <x86intrin.h>
 
-constexpr Signed_8 null = 0x80;
+static constexpr Signed_8 null = 0x80;
 
-auto generate_uuid_v4() -> __m128i {
+static auto generate_uuid_v4() -> __m128i {
   const auto value = _mm_set_epi64x(Random::generate(), Random::generate());
 
   const auto v4_mask =
-      _mm_set_epi64x(0xFFFFFFFFFFFF0FFFull, 0x3FFFFFFFFFFFFFFull);
+      _mm_set_epi64x(0xFFFFFFFFFFFF0FFFull, 0x3FFFFFFFFFFFFFFFull);
   const auto v4_set =
-      _mm_set_epi64x(0x0000000000004000ull, 0x800000000000000ull);
-
+      _mm_set_epi64x(0x0000000000004000ull, 0x8000000000000000ull);
   return _mm_or_si128(_mm_and_si128(value, v4_mask), v4_set);
 }
 
-auto generate_uuid_v7() -> __m128i {
-  Bits_64 time_48_bits = Bits_64((Time::now().get_stamp() / 1'000'000) << 16);
-  const auto value = _mm_set_epi64x(time_48_bits, Random::generate());
+static auto generate_uuid_v7() -> __m128i {
+  const Bits_64 timestamp = Time::now().get_stamp() / 1'000'000;
+  const Bits_64 time_and_random =
+      ((timestamp & 0xFFFFFFFFFFFF) << 16) | (Random::generate() & 0xFFFF);
+  const auto value = _mm_set_epi64x(time_and_random, Random::generate());
 
   const auto v7_mask =
-      _mm_set_epi64x(0xFFFFFFFFFFFF0000ull, 0x3FFFFFFFFFFFFFFFull);
+      _mm_set_epi64x(0xFFFFFFFFFFFF0FFFull, 0x3FFFFFFFFFFFFFFFull);
   const auto v7_set =
-      _mm_set_epi64x(0x0000000000007777ull, 0x8000000000000000ull);
-
+      _mm_set_epi64x(0x0000000000007000ull, 0x8000000000000000ull);
   return _mm_or_si128(_mm_and_si128(value, v7_mask), v7_set);
 }
 
@@ -42,7 +42,7 @@ auto generate_uuid_v7() -> __m128i {
 // Bytes are packed from:
 // [hhhhllll][hhhhllll][hhhhllll][hhhhllll]...
 // [____hhhh][____llll][____hhhh][____llll]...
-constexpr auto nibbler(__m128i packed_guid) -> __m256i {
+static constexpr auto nibbler(__m128i packed_guid) -> __m256i {
   const auto nibble_mask = _mm256_set1_epi8(0x0F);
   const auto nibble_high = _mm_srli_epi64(packed_guid, 4);
   const auto two_byte_pack = _mm256_and_si256(
@@ -57,13 +57,12 @@ constexpr auto nibbler(__m128i packed_guid) -> __m256i {
       0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
       // Upper
       0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15);
-
   return _mm256_shuffle_epi8(two_byte_pack, mirror);
 }
 
 // Takes a set of nibbles and applies an offset to them to shift them into
 // their ascii equivilant value (alphas are shifted to their lower case value).
-constexpr auto convert_to_ascii(__m256i nibbles) -> __m256i {
+static constexpr auto convert_to_ascii(__m256i nibbles) -> __m256i {
   const auto numeric_cutoff = _mm256_set1_epi8(0x09);
   const auto ascii_shift = _mm256_set1_epi8('0');
   const auto alpha_values = _mm256_add_epi8(nibbles, ascii_shift);
@@ -73,13 +72,12 @@ constexpr auto convert_to_ascii(__m256i nibbles) -> __m256i {
   const auto slot_offsets = _mm256_and_si256(alpha_slots, ascii_offset);
 
   const auto final_values = _mm256_add_epi8(alpha_values, slot_offsets);
-
   return final_values;
 }
 
 // Takes a set of nibbles and applies an offset to them to shift them into
 // their ascii equivilant value (alphas are shifted to their lower case value).
-constexpr auto convert_to_nibble(__m256i ascii) -> __m256i {
+static constexpr auto convert_to_nibble(__m256i ascii) -> __m256i {
   const auto numeric_cutoff = _mm256_set1_epi8('9');
   const auto ascii_shift = _mm256_set1_epi8('0');
   const auto alpha_values = _mm256_sub_epi8(ascii, ascii_shift);
@@ -89,11 +87,10 @@ constexpr auto convert_to_nibble(__m256i ascii) -> __m256i {
   const auto slot_offsets = _mm256_and_si256(alpha_slots, ascii_offset);
 
   const auto final_values = _mm256_sub_epi8(alpha_values, slot_offsets);
-
   return final_values;
 }
 
-constexpr auto deserialize_ascii(
+static constexpr auto deserialize_ascii(
     __m256i ascii_buffer,
     Static::Vector<Bits_64, 2>& high_low) -> void {
   const auto nibbles = convert_to_nibble(ascii_buffer);
@@ -181,20 +178,17 @@ auto Uuid::serialize() const -> const Static::Bytes<36> {
   Bits_32 last_4 = _mm256_extract_epi32(ascii, 7);
   Data::copy(byte_buffer + 16, dropped_2);
   Data::copy(byte_buffer + 32, last_4);
-
   return uuid_string;
 }
 
 auto Uuid::generate_v4() -> Uuid {
   Bits_64 values[2];
   _mm_storeu_si128(Data::cast<__m128i>(values), generate_uuid_v4());
-
   return Uuid(values[1], values[0]);
 }
 
 auto Uuid::generate_v7() -> Uuid {
   Bits_64 values[2];
   _mm_storeu_si128(Data::cast<__m128i>(values), generate_uuid_v7());
-
   return Uuid(values[1], values[0]);
 }

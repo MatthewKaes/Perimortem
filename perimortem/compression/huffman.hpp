@@ -10,30 +10,30 @@
 
 namespace Perimortem::Compression {
 
-class HuffmanCode {
+// Builds the canonical Huffman codes used to encode and decode DEFLATE symbol
+// streams. One set of code lengths produces both directions, which prevents
+// the writer and reader from drifting into separate interpretations of the
+// same tree. All lookup storage is held directly by the value.
+class Huffman {
  public:
-  constexpr HuffmanCode() {}
-  constexpr HuffmanCode(Bits_32 code, Count length)
-      : length(length), code(code) {}
+  class Code {
+   public:
+    constexpr Code() {}
+    constexpr Code(Bits_32 code, Count length) : length(length), code(code) {}
 
-  constexpr auto get_code() const -> Bits_32 { return code; }
-  constexpr auto get_length() const -> Count { return length; }
+    constexpr auto get_code() const -> Bits_32 { return code; }
+    constexpr auto get_length() const -> Count { return length; }
 
- private:
-  Count length = 0;
-  Bits_32 code = 0;
-};
+   private:
+    Count length = 0;
+    Bits_32 code = 0;
+  };
 
-// A Huffman table for encoding and decoding DEFLATE symbol streams. The encode
-// path is a reverse lookup built from the same code lengths as the decode path.
-// All storage is stack-allocated.
-class HuffmanTable {
- public:
   static constexpr Bits_16 invalid_symbol = 0xFFFF;
   static constexpr Count max_code_bits = 15;
   static constexpr Count max_symbol_count = 320;
 
-  constexpr HuffmanTable(Core::View::Vector<Bits_8> code_lengths) {
+  constexpr Huffman(Core::View::Vector<Bits_8> code_lengths) {
     Core::Static::Vector<Count, max_code_bits + 2> bit_length_count;
     for (Count symbol = 0; symbol < code_lengths.get_size(); symbol++) {
       if (code_lengths[symbol] > 0) {
@@ -99,7 +99,7 @@ class HuffmanTable {
   }
 
   // Simple generator for creating all the fixed literal lengths.
-  static constexpr auto make_fixed_literal() -> HuffmanTable {
+  static constexpr auto make_fixed_literal() -> Huffman {
     Core::Static::Vector<Bits_8, 288> code_lengths([](Count i) -> Bits_8 {
       switch (i) {
       case 144 ... 255:
@@ -110,18 +110,17 @@ class HuffmanTable {
         return 8;
       }
     });
-    return HuffmanTable(code_lengths.get_view());
+    return Huffman(code_lengths.get_view());
   }
 
   static auto compute_lengths(
       Core::View::Vector<Bits_32> frequencies,
       Core::Access::Vector<Bits_8> lengths) -> void;
 
-  static constexpr auto make_fixed_distance() -> HuffmanTable {
+  static constexpr auto make_fixed_distance() -> Huffman {
     Core::Static::Vector<Bits_8, 30> code_lengths(
         [](Count i) -> Bits_8 { return 5; });
-
-    return HuffmanTable(code_lengths.get_view());
+    return Huffman(code_lengths.get_view());
   }
 
   constexpr auto decode_symbol(BitStream::Reader& reader) const -> Bits_16 {
@@ -150,11 +149,12 @@ class HuffmanTable {
     return invalid_symbol;
   }
 
-  constexpr auto encode_symbol(Count symbol) const -> HuffmanCode {
+  constexpr auto encode_symbol(Count symbol) const -> Code {
     if (symbol >= max_symbol_count || encode_lengths[symbol] == 0) {
-      return HuffmanCode();
+      return Code();
     }
-    return HuffmanCode(encode_codes[symbol], encode_lengths[symbol]);
+
+    return Code(encode_codes[symbol], encode_lengths[symbol]);
   }
 
  private:

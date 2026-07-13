@@ -7,15 +7,16 @@
 
 namespace Perimortem::System {
 
+// Supplies fast thread-local pseudorandom values and direct platform seed
+// entropy through separate calls. Normal runtime work should use generate(),
+// which advances a Philox counter without sharing mutable state between
+// threads. read_entropy() crosses into the platform entropy source and is
+// reserved for seeding or values whose unpredictability matters more than
+// throughput.
 class Random {
  public:
-  // Generates a random number from the internal Philox that is localized to the
-  // current thread.
   static auto generate() -> Bits_64;
 
-  // Read a random value directly from what ever entropy source Perimortem uses
-  // for the system. This can be slow so prefer to generate a number rather than
-  // reading from the system.
   static auto read_entropy() -> Bits_64;
 };
 

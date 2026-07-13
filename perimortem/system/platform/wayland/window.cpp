@@ -84,6 +84,7 @@ auto Platform::Wayland::Window::poll_events() -> Bool {
   if (wl_display_dispatch_pending(display) < 0) {
     return False;
   }
+
   if (close_requested) {
     return False;
   }
@@ -92,6 +93,7 @@ auto Platform::Wayland::Window::poll_events() -> Bool {
     if (wl_display_dispatch_pending(display) < 0) {
       return False;
     }
+
     if (close_requested) {
       return False;
     }
@@ -112,7 +114,6 @@ auto Platform::Wayland::Window::poll_events() -> Bool {
   do {
     poll_result = poll(&display_fd, 1, 0);
   } while (poll_result < 0 && errno == EINTR);
-
   if (poll_result < 0) {
     wl_display_cancel_read(display);
     return False;
@@ -129,6 +130,7 @@ auto Platform::Wayland::Window::poll_events() -> Bool {
   if (wl_display_dispatch_pending(display) < 0) {
     return False;
   }
+
   return !close_requested;
 }
 
@@ -165,26 +167,32 @@ auto Platform::Wayland::Window::destroy() -> void {
     xdg_toplevel_destroy(toplevel);
     toplevel = nullptr;
   }
+
   if (shell_surface) {
     xdg_surface_destroy(shell_surface);
     shell_surface = nullptr;
   }
+
   if (surface) {
     wl_surface_destroy(surface);
     surface = nullptr;
   }
+
   if (wm_base) {
     xdg_wm_base_destroy(wm_base);
     wm_base = nullptr;
   }
+
   if (compositor) {
     wl_compositor_destroy(compositor);
     compositor = nullptr;
   }
+
   if (registry) {
     wl_registry_destroy(registry);
     registry = nullptr;
   }
+
   if (display) {
     wl_display_disconnect(display);
     display = nullptr;
@@ -218,7 +226,6 @@ auto Platform::Wayland::Window::on_toplevel_configure(
       width > 0 ? static_cast<Bits_32>(width) : window->initial_width;
   auto new_height =
       height > 0 ? static_cast<Bits_32>(height) : window->initial_height;
-
   if (new_width != window->logical_width ||
       new_height != window->logical_height) {
     window->logical_width = new_width;

@@ -58,6 +58,7 @@ class Vector {
       alignas(alignof(data_type)) static const Bits_8 oob[sizeof(data_type)]{};
       return *Data::cast<const data_type>(oob);
     }
+
     return source_block[index];
   }
 

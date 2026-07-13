@@ -115,6 +115,7 @@ class Bytes {
   constexpr auto get_view() const -> const View::Bytes {
     return View::Bytes(source_block, literal_size);
   }
+
   constexpr auto get_data() const -> const Bits_8* { return source_block; }
   constexpr auto get_data() -> Bits_8* { return source_block; }
   constexpr auto get_access() -> Access::Bytes {

@@ -8,6 +8,7 @@
 #include "perimortem/memory/allocator/arena.hpp"
 
 namespace Perimortem::Core::Writer {
+
 class Textual;
 }
 

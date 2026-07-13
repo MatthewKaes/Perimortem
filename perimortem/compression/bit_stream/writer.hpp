@@ -17,7 +17,7 @@ namespace Perimortem::Compression::BitStream {
 // Internally a 64-bit accumulator buffers bits until complete bytes can be
 // flushed to the output in one store.
 //
-// HuffmanTable::encode_symbol returns pre-reversed codes, so write_code is
+// Huffman::encode_symbol returns pre-reversed codes, so write_code is
 // a zero-overhead alias for write_bits.
 class Writer {
  public:
@@ -25,7 +25,7 @@ class Writer {
 
   // Write `length` bits of `value` LSB-first (extra bits, block headers).
   auto write_bits(Bits_32 value, Count length) -> void;
-  // Write a pre-reversed Huffman code (used with HuffmanTable::encode_symbol).
+  // Write a pre-reversed Huffman code returned by `Huffman::encode_symbol`.
   auto write_code(Bits_32 code, Count length) -> void;
   auto flush() -> void;
 

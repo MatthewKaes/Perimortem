@@ -47,7 +47,6 @@ auto Compression::BitStream::Reader::read_bit() -> Bool {
   // Load the lowest bit of the buffer.
   const Bool bit = buffer & Bits_64(1);
   advance_bits(1);
-
   return bit;
 }
 
@@ -63,7 +62,6 @@ auto Compression::BitStream::Reader::read_code(Count count) -> Bits_32 {
   const Bits_32 mask = ((Bits_32(1) << count) - Bits_32(1));
   const Bits_32 result = Bits_32(buffer) & mask;
   advance_bits(count);
-
   return result;
 }
 
@@ -77,7 +75,6 @@ auto Compression::BitStream::Reader::read_raw_bytes(Count count)
   byte_position -= buffered_bits >> 3;
   buffer = 0;
   buffered_bits = 0;
-
   if (byte_position + count > data.get_size()) [[unlikely]] {
     invalid_stream = True;
     return View::Bytes();

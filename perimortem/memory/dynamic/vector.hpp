@@ -23,7 +23,6 @@ class Vector {
   Vector(const Vector& source_vector) {
     ensure_capacity(source_vector.get_size());
     size = source_vector.get_size();
-
     for (Count i = 0; i < size; i++) {
       new (source_block + i) type(source_vector.source_block[i]);
     }
@@ -54,7 +53,6 @@ class Vector {
     // Swap source blocks. Since move is not destructive, the donor destructor
     // releases the old block this vector used to own.
     Core::Data::swap(source_block, source_vector.source_block);
-
     return *this;
   }
 
@@ -66,7 +64,6 @@ class Vector {
     clear();
     ensure_capacity(source_vector.get_size());
     size = source_vector.get_size();
-
     for (Count i = 0; i < size; i++) {
       new (source_block + i) type(source_vector.source_block[i]);
     }
@@ -83,6 +80,7 @@ class Vector {
     if (source_block) {
       destruct();
     }
+
     size = 0;
   }
 
@@ -194,10 +192,12 @@ class Vector {
   constexpr auto at(Count index) const -> const type& {
     return source_block[index];
   }
+
   constexpr auto at(Count index) -> type& { return source_block[index]; }
   constexpr auto operator[](Count index) const -> const type& {
     return at(index);
   }
+
   constexpr auto operator[](Count index) -> type& { return at(index); }
 
   constexpr auto get_size() const -> Count { return size; }
@@ -205,6 +205,7 @@ class Vector {
   constexpr auto get_view() const -> const Core::View::Vector<type> {
     return Core::View::Vector<type>(source_block, get_size());
   }
+
   constexpr auto get_data() const -> const type* { return source_block; }
   constexpr auto get_data() -> type* { return source_block; }
   constexpr auto get_access() -> Core::Access::Vector<type> {
@@ -235,7 +236,6 @@ class Vector {
     // Fetch and transfer to new block.
     auto alloc = Core::Bibliotheca::check_out(new_capacity * sizeof(type));
     auto new_block = Core::Data::cast<type>(alloc.ptr);
-
     if (source_block) {
       if constexpr (__is_trivially_copyable(type)) {
         memcpy(new_block, source_block, sizeof(type) * size);
@@ -243,8 +243,10 @@ class Vector {
         for (Count i = 0; i < size; i++) {
           new (new_block + i) type(source_block[i]);
         }
+
         destruct();
       }
+
       Core::Bibliotheca::remit((Bits_8*)source_block);
     }
 

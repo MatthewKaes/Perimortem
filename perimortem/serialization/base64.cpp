@@ -88,6 +88,7 @@ auto vectorized_decode(Bits_8* text, View::Bytes source) -> Count {
     if (source[source.get_size() - 1 - i] != '=') {
       break;
     }
+
     size--;
     source_bytes--;
   }
@@ -234,7 +235,6 @@ auto vectorized_decode(Bits_8* text, View::Bytes source) -> Count {
     output_stream -=
         (avx2_channel_width - avx2_channel_width / 4) * fused_channels;
     source_data -= full_channel_width;
-
     for (auto ymm = fused_channels - 1; ymm >= 0; ymm--) {
       // Load
       const auto channel_value = _mm256_loadu_si256(
@@ -301,7 +301,6 @@ auto vectorized_decode(Bits_8* text, View::Bytes source) -> Count {
   output_stream = text + output_vectorized_bytes;
   source_data = source_data + source_vectorized_bytes;
   source_bytes -= source_vectorized_bytes;
-
   for (Count i = 0, j = 0; j < source_bytes;
        i += output_stride, j += source_stride) {
     output_stream[i] = (decode_lookup[source_data[j]] << 2) |

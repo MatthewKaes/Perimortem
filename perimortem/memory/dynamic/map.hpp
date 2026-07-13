@@ -69,6 +69,7 @@ class Map {
         insert(rhs.entries[i]);
       }
     }
+
     return *this;
   }
 
@@ -79,6 +80,7 @@ class Map {
       Core::Data::swap(bucket_count, rhs.bucket_count);
       Core::Data::swap(size, rhs.size);
     }
+
     return *this;
   }
 
@@ -100,6 +102,7 @@ class Map {
     while (items * 10 > new_bucket_count * 9) {
       new_bucket_count <<= 1;
     }
+
     grow(new_bucket_count);
   }
 
@@ -187,6 +190,7 @@ class Map {
         Core::Data::swap(entries[hole], entries[next]);
         hole = next;
       }
+
       next = (next + 1) & bucket_mask;
     }
 
@@ -208,11 +212,14 @@ class Map {
       if (buckets[i] == 0) {
         continue;
       }
+
       if (index == 0) {
         return entries + i;
       }
+
       index--;
     }
+
     return nullptr;
   }
 
@@ -248,6 +255,7 @@ class Map {
     while (buckets[bucket] != 0) {
       bucket = (bucket + 1) & (bucket_count - 1);
     }
+
     buckets[bucket] = extract_bucket_key(hash);
     return entries + bucket;
   }
@@ -264,9 +272,11 @@ class Map {
       if (stored_key == bucket_key && entries[bucket].key == key) {
         return bucket;
       }
+
       if (stored_key == 0) {
         return Count(-1);
       }
+
       bucket = (bucket + 1) & (bucket_count - 1);
     }
   }
@@ -290,6 +300,7 @@ class Map {
       if (buckets[i] == 0) {
         continue;
       }
+
       destruct_entry(entries + i);
       buckets[i] = 0;
     }
@@ -301,7 +312,6 @@ class Map {
     Count old_bucket_count = bucket_count;
     Count old_size = size;
     create_buffer(new_bucket_count);
-
     for (Count i = 0; i < old_bucket_count; i++) {
       if (old_buckets[i] != 0) {
         emplace_hashed(old_entries + i, old_buckets[i]);
@@ -311,6 +321,7 @@ class Map {
     if (old_buckets != nullptr) {
       Core::Bibliotheca::remit(Core::Data::cast<Bits_8>(old_buckets));
     }
+
     size = old_size;
   }
 

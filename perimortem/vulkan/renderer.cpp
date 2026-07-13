@@ -79,6 +79,7 @@ auto Vulkan::Renderer::end_frame(const Frame& frame) -> void {
       present_result != VK_ERROR_OUT_OF_DATE_KHR) {
     Diagnostics::Log::fatal("Vulkan::Renderer: Failed to present frame."_view);
   }
+
   current_frame = (current_frame + 1) % frames_in_flight;
 }
 
@@ -125,7 +126,6 @@ auto Vulkan::Renderer::allocate_frames() -> void {
   allocation.commandPool = context.get_command_pool();
   allocation.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
   allocation.commandBufferCount = 1;
-
   for (Count i = 0; i < frames_in_flight; i++) {
     require_success(
         vkAllocateCommandBuffers(
@@ -159,14 +159,17 @@ auto Vulkan::Renderer::destroy_frames() -> void {
     if (frames[i].fence) {
       vkDestroyFence(context.get_device(), frames[i].fence, nullptr);
     }
+
     if (frames[i].render_finished) {
       vkDestroySemaphore(
           context.get_device(), frames[i].render_finished, nullptr);
     }
+
     if (frames[i].image_available) {
       vkDestroySemaphore(
           context.get_device(), frames[i].image_available, nullptr);
     }
+
     frames[i] = {};
   }
 }

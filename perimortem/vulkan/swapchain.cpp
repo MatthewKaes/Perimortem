@@ -61,6 +61,7 @@ static auto choose_surface_format(
       return surface_formats[i];
     }
   }
+
   return surface_formats[0];
 }
 
@@ -93,6 +94,7 @@ static auto choose_present_mode(
       return VK_PRESENT_MODE_MAILBOX_KHR;
     }
   }
+
   return VK_PRESENT_MODE_FIFO_KHR;
 }
 
@@ -161,6 +163,7 @@ auto Vulkan::Swapchain::build(
   if (swapchain_state.image_count > max_images) {
     Diagnostics::Log::fatal("Vulkan: Too many swapchain images."_view);
   }
+
   require_enumeration_read(
       vkGetSwapchainImagesKHR(
           swapchain_state.device, swapchain_state.swapchain,
@@ -209,6 +212,7 @@ auto Vulkan::Swapchain::recreate(
     vkDestroyImageView(device, image_views[i], nullptr);
     image_views[i] = VK_NULL_HANDLE;
   }
+
   image_count = 0;
   swapchain = VK_NULL_HANDLE;
 
@@ -221,6 +225,7 @@ auto Vulkan::Swapchain::destroy(VkDevice target_device) -> void {
   for (Bits_32 i = 0; i < image_count; i++) {
     vkDestroyImageView(target_device, image_views[i], nullptr);
   }
+
   vkDestroySwapchainKHR(target_device, swapchain, nullptr);
 }
 
@@ -248,6 +253,7 @@ auto Vulkan::Swapchain::operator=(Vulkan::Swapchain&& other) noexcept
     if (device && swapchain) {
       destroy(device);
     }
+
     device = other.device;
     swapchain = other.swapchain;
     format = other.format;
@@ -258,6 +264,7 @@ auto Vulkan::Swapchain::operator=(Vulkan::Swapchain&& other) noexcept
     other.swapchain = VK_NULL_HANDLE;
     other.image_count = 0;
   }
+
   return *this;
 }
 
@@ -269,24 +276,30 @@ auto Vulkan::Swapchain::acquire_next_image(VkSemaphore signal_semaphore) const
   if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) {
     return UINT32_MAX;
   }
+
   return index;
 }
 
 auto Vulkan::Swapchain::get_swapchain() const -> VkSwapchainKHR {
   return swapchain;
 }
+
 auto Vulkan::Swapchain::get_extent() const -> VkExtent2D {
   return extent;
 }
+
 auto Vulkan::Swapchain::get_format() const -> VkFormat {
   return format;
 }
+
 auto Vulkan::Swapchain::get_image(Bits_32 index) const -> VkImage {
   return images[index];
 }
+
 auto Vulkan::Swapchain::get_image_view(Bits_32 index) const -> VkImageView {
   return image_views[index];
 }
+
 auto Vulkan::Swapchain::get_image_count() const -> Bits_32 {
   return image_count;
 }

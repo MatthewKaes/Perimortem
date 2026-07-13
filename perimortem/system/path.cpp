@@ -24,7 +24,6 @@ Path::Path(View::Bytes base_file_path, View::Bytes relative_path) {
   const Bool base_rooted =
       !base_file_path.is_empty() &&
       (base_file_path[0] == '/' || base_file_path[0] == '\\');
-
   if (rooted || base_rooted) {
     text[size++] = '/';
   }

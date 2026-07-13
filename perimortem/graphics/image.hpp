@@ -28,11 +28,11 @@ class Image {
 
   Image() = default;
   Image(Bits_32 width, Bits_32 height, Addressing addressing = Addressing::Zero)
-      : pixels(width * height),
+      : pixels(Count(width) * Count(height)),
         width(width),
         height(height),
         addressing(addressing) {
-    pixels.forgetful_resize(width * height);
+    pixels.forgetful_resize(Count(width) * Count(height));
     auto bytes = pixels.get_access().get_bytes();
     Core::Data::set(bytes.get_data(), 0x00, bytes.get_size());
   }
@@ -46,10 +46,10 @@ class Image {
         width(width),
         height(height),
         addressing(addressing) {
-    if (pixels.get_size() != width * height) {
-      const auto target_size = width * height;
+    const Count target_size = Count(width) * Count(height);
+    if (pixels.get_size() != target_size) {
       const auto original_size = pixels.get_size();
-      pixels.resize(width * height);
+      pixels.resize(target_size);
 
       // Clear out the new size if any.
       if (original_size < target_size) {
@@ -77,12 +77,17 @@ class Image {
   //
   // Use get_pixels() for operations that process the buffer in bulk.
   auto get_pixel(Signed_32 x, Signed_32 y) const -> Pixel {
+    if (width == 0 || height == 0) {
+      return Pixel();
+    }
+
     switch (addressing) {
       // Any out of bounds values are saturated to Bits_8(0)
     case Addressing::Zero:
       if (x < 0 || x >= width || y < 0 || y >= height) {
         return Pixel();
       }
+
       break;
 
       // Any out of bounds values are clamped to the edges of the image.
@@ -97,6 +102,7 @@ class Image {
       y = Core::Math::wrap(y, Signed_32(height));
       break;
     }
+
     return pixels.get_view()[Count(y) * Count(width) + Count(x)];
   }
 

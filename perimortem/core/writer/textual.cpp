@@ -18,7 +18,6 @@ constexpr auto
   auto data = target.get_data();
   Data::copy(data + cursor, text.get_data(), text.get_size());
   cursor += text.get_size();
-
   return true;
 }
 
@@ -95,6 +94,7 @@ static constexpr auto decimal_length(storage_type value) -> Count {
   } else if (abs_value < 10'000'000'000'000'000'000ULL) {
     return sign + 19;
   }
+
   return sign + 20;
 }
 
@@ -119,7 +119,6 @@ constexpr auto write_decimal(
   Bits_8* output_digits = data + cursor;
   storage_type abs_value;
   Count digits = length;
-
   if constexpr (storage_type(0) > storage_type(-1)) {
     if (value < storage_type(0)) {
       *output_digits++ = '-';
@@ -166,7 +165,6 @@ auto Writer::Textual::operator<<(const Bool flag) -> Writer::Textual& {
 auto Writer::Textual::operator<<(const Bits_8 value) -> Writer::Textual& {
   valid_state &= write_decimal(
       source, cursor, value, decimal_length<Bits_8, Bits_8>(value));
-
   return *this;
 }
 

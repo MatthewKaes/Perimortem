@@ -70,4 +70,5 @@ class Bytes {
   const Bits_8* source_block;
   Count size;
 };
+
 }  // namespace Perimortem::Core::View

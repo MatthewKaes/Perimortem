@@ -27,7 +27,6 @@ auto Allocator::Arena::reset() -> void {
   // Return all blocks we've rented from the Bibliotheca until we only have a
   // single block left.
   Bits_8* previous = *Core::Data::cast<Bits_8*>(rented_block);
-
   while (previous != nullptr) {
     auto rented = rented_block;
     rented_block = previous;

@@ -9,6 +9,11 @@
 
 namespace Perimortem::System {
 
+// A 128-bit UUID value with canonical hexadecimal serialization. The two-word
+// representation keeps comparisons and hashing independent from text format.
+// Construction accepts either 32 hexadecimal digits or the 36-byte dashed
+// spelling. Generation provides random version 4 identifiers and time-ordered
+// version 7 identifiers.
 class Uuid {
   static constexpr auto ascii_to_nibble(Bits_8 byte) -> Bits_64 {
     switch (byte) {
@@ -28,15 +33,13 @@ class Uuid {
 
   constexpr Uuid(const Uuid& rhs) : high_low(rhs.high_low) {}
 
-  // Big endian formatting (highest byte to lowest byte)
+  // Reads undashed hexadecimal in network order, highest word first.
   explicit constexpr Uuid(const Core::Static::Bytes<32>& source) {
     if consteval {
-      // High bytes first
       for (Count i = 0; i < 16; i++) {
         high_low[0] |= ascii_to_nibble(source[i]) << (60 - i * 4);
       }
 
-      // Low bytes second
       for (Count i = 0; i < 16; i++) {
         high_low[1] |= ascii_to_nibble(source[i + 16]) << (60 - i * 4);
       }
@@ -45,7 +48,7 @@ class Uuid {
     }
   }
 
-  // Expects values in the order of [High][Low]
+  // Stores the high word followed by the low word.
   explicit constexpr Uuid(Bits_64 high, Bits_64 low) {
     high_low[0] = high;
     high_low[1] = low;
@@ -53,31 +56,25 @@ class Uuid {
 
   explicit constexpr Uuid(const Core::Static::Bytes<36>& source) {
     if consteval {
-      // High 8 block
       for (Count i = 0; i < 8; i++) {
         high_low[0] |= ascii_to_nibble(source[i]) << (60 - i * 4);
       }
 
-      // Highest 4 block
       for (Count i = 0; i < 4; i++) {
         high_low[0] |= ascii_to_nibble(source[i + 9]) << (28 - i * 4);
       }
 
-      // Mid 4 block
       for (Count i = 0; i < 4; i++) {
         high_low[0] |= ascii_to_nibble(source[i + 14]) << (12 - i * 4);
       }
 
-      // Lowest 4 block
       for (Count i = 0; i < 4; i++) {
         high_low[1] |= ascii_to_nibble(source[i + 19]) << (60 - i * 4);
       }
 
-      // Low 12 block
       for (Count i = 0; i < 12; i++) {
         high_low[1] |= ascii_to_nibble(source[i + 24]) << (44 - i * 4);
       }
-
     } else {
       deserialize(source);
     }
@@ -94,9 +91,9 @@ class Uuid {
   constexpr auto operator<(const Uuid& rhs) const -> Bool {
     if (high_low[0] == rhs.high_low[0]) {
       return high_low[1] < rhs.high_low[1];
-    } else {
-      return high_low[0] < rhs.high_low[0];
     }
+
+    return high_low[0] < rhs.high_low[0];
   }
 
   constexpr auto get_value() const -> const Core::Static::Vector<Bits_64, 2> {
@@ -104,7 +101,7 @@ class Uuid {
   }
 
   constexpr auto is_set() const -> Bool {
-    return high_low[0] != 0 && high_low[1] != 0;
+    return high_low[0] != 0 || high_low[1] != 0;
   }
 
   auto deserialize(const Core::Static::Bytes<36>& uuid_string) -> Uuid&;

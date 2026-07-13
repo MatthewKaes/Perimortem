@@ -71,6 +71,7 @@ class Vector {
   constexpr auto at(Count index) const -> value_type& {
     return rented_block[index];
   }
+
   constexpr auto operator[](Count index) -> value_type& { return at(index); }
 
   constexpr auto get_size() const -> Count { return size; }

@@ -28,6 +28,7 @@ auto Compression::BitStream::Writer::write_bits(Bits_32 value, Count length)
   if (length == 0) {
     return;
   }
+
   accumulator |= Bits_64(value) << bits;
   bits += length;
   if (bits >= 8) {
@@ -35,8 +36,9 @@ auto Compression::BitStream::Writer::write_bits(Bits_32 value, Count length)
   }
 }
 
-// Huffman codes stored in HuffmanTable are already bit-reversed into stream
-// order, so they slot directly into the accumulator without further reversal.
+// Huffman codes stored in the Huffman table are already bit-reversed into
+// stream order so they slot directly into the accumulator without further
+// reversal.
 auto Compression::BitStream::Writer::write_code(Bits_32 code, Count length)
     -> void {
   write_bits(code, length);

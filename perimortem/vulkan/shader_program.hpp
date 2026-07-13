@@ -13,7 +13,7 @@
 namespace Perimortem::Vulkan {
 
 // Owns a Vulkan graphics pipeline built from Render::Program metadata. Binding
-// records commands only; command-buffer submission remains with the caller.
+// records commands only. Command-buffer submission remains with the caller.
 class ShaderProgram {
  public:
   static auto create(
@@ -58,6 +58,7 @@ class ShaderProgram {
     constexpr auto get_stage_flags() const -> VkShaderStageFlags {
       return stage_flags;
     }
+
     constexpr auto get_offset() const -> Count { return offset; }
     constexpr auto get_size() const -> Count { return size; }
 

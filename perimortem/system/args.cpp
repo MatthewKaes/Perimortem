@@ -26,6 +26,7 @@ static auto basename(View::Bytes path) -> View::Bytes {
       return path.slice(i);
     }
   }
+
   return path;
 }
 
@@ -71,13 +72,13 @@ static auto format_help(
     const auto* variable = variables.get_entry(i);
     label_width = Math::max(label_width, variable->key.get_size() + 1);
   }
+
   label_width += 2;
 
   Managed::Bytes output(arena);
   output.concat("usage: "_view);
   output.concat(command);
   output.concat(" [arguments]\n\n"_view);
-
   if (!summary.is_empty()) {
     output.concat(summary);
     output.concat("\n\n"_view);
@@ -99,6 +100,7 @@ static auto format_help(
   output.concat("Show this help.\n"_view);
   return output;
 }
+
 auto Args::parse(
     Allocator::Arena& arena,
     const Managed::Map<View::Bytes, View::Bytes>& variables,
@@ -117,6 +119,7 @@ auto Args::parse(
       values[argument.key] =
           &arena.construct<Managed::Vector<View::Bytes>>(arena);
     }
+
     values[argument.key]->insert(argument.value);
   }
 

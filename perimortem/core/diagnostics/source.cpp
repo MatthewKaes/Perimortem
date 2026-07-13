@@ -19,6 +19,7 @@ auto Diagnostics::Source::get_line() const -> Count {
   if (impl == nullptr) {
     return 0;
   }
+
   return Count(impl->_M_line);
 }
 
@@ -30,6 +31,7 @@ auto Diagnostics::Source::get_column() const -> Count {
   if (impl == nullptr) {
     return 0;
   }
+
   return Count(impl->_M_column);
 }
 
@@ -41,6 +43,7 @@ auto Diagnostics::Source::get_file() const -> Core::View::Bytes {
   if (impl == nullptr) {
     return Core::View::Bytes();
   }
+
   return NullTerminated::to_view(impl->_M_file_name);
 }
 
@@ -52,5 +55,6 @@ auto Diagnostics::Source::get_function() const -> Core::View::Bytes {
   if (impl == nullptr) {
     return Core::View::Bytes();
   }
+
   return NullTerminated::to_view(impl->_M_function_name);
 }

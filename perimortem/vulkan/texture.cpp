@@ -29,6 +29,7 @@ static auto allocate_memory(
     Perimortem::Core::Diagnostics::Log::fatal(
         "Vulkan: No compatible texture memory type found."_view);
   }
+
   VkDeviceMemory memory = VK_NULL_HANDLE;
   require_success(
       vkAllocateMemory(ctx.get_device(), &info, nullptr, &memory),
@@ -107,13 +108,15 @@ auto Vulkan::Texture::create(
       vkMapMemory(ctx.get_device(), staging_memory, 0, image_size, 0, &mapped),
       "Vulkan: Failed to map texture staging memory."_view);
   const auto pixels = source.get_pixels();
-  // Pixel is 4 bytes RGBA — layout matches VK_FORMAT_R8G8B8A8_SRGB.
+  // Pixel stores four RGBA bytes in the same order expected by
+  // VK_FORMAT_R8G8B8A8_SRGB, so upload does not need a channel shuffle.
   const Count byte_count = pixels.get_size() * 4;
   auto source_bytes = Core::Data::cast<const Bits_8>(pixels.get_data());
   Bits_8* destination_bytes = static_cast<Bits_8*>(mapped);
   for (Count i = 0; i < byte_count; i++) {
     destination_bytes[i] = source_bytes[i];
   }
+
   vkUnmapMemory(ctx.get_device(), staging_memory);
 
   // Device-local image.
@@ -244,7 +247,6 @@ auto Vulkan::Texture::create(
   write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
   write.pImageInfo = &descriptor_image_info;
   vkUpdateDescriptorSets(ctx.get_device(), 1, &write, 0, nullptr);
-
   return texture;
 }
 
@@ -252,6 +254,7 @@ Vulkan::Texture::~Texture() {
   if (!device) {
     return;
   }
+
   vkDestroyDescriptorPool(device, descriptor_pool, nullptr);
   vkDestroyDescriptorSetLayout(device, descriptor_set_layout, nullptr);
   vkDestroySampler(device, sampler, nullptr);
@@ -286,12 +289,14 @@ auto Vulkan::Texture::operator=(Vulkan::Texture&& other) noexcept
     descriptor_set = other.descriptor_set;
     other.device = VK_NULL_HANDLE;
   }
+
   return *this;
 }
 
 auto Vulkan::Texture::get_descriptor_set() const -> VkDescriptorSet {
   return descriptor_set;
 }
+
 auto Vulkan::Texture::get_descriptor_set_layout() const
     -> VkDescriptorSetLayout {
   return descriptor_set_layout;

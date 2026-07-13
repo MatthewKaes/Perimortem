@@ -8,7 +8,19 @@
 
 namespace Perimortem::Graphics {
 
-// Backend-independent metadata needed to construct and bind a render program.
+// Describes the backend-independent inputs needed to construct a graphics
+// pipeline. Stages, host ranges, descriptor locations, and reflected fields
+// are Graphics facts even though one backend may translate them into Vulkan
+// objects and another may use a different native representation.
+//
+// The current Program is a borrowed descriptor intended for static C++ data.
+// Every referenced module, name, and table must outlive it. That is sufficient
+// for bringing up the C++ rendering path, but it is not the eventual live-edit
+// artifact we need to cover all of our complex scenarios. Editor compilation
+// needs an owning immutable candidate with stable program identity and some
+// generation metadata so a backend can build it, inspect it, and install it at
+// a frame boundary without invalidating the active program. That ownership
+// belongs in Graphics directly rather than being exposed to Vulkan or TTX.
 class Render {
  public:
   // Shader stage used by a module or host-input range.
@@ -96,8 +108,10 @@ class Render {
     Count size = 0;
   };
 
-  // Non-owning view of the complete metadata needed to build a pipeline.
-  // Every referenced array and string must outlive the Program.
+  // A non-owning view of one complete pipeline description. Program does not
+  // cache a backend object and cannot indicate that installation succeeded.
+  // Its only lifetime contract is that every referenced array and string
+  // remains alive while a backend reads the descriptor.
   class Program {
    public:
     constexpr Program() = default;
@@ -116,17 +130,21 @@ class Render {
     constexpr auto get_modules() const -> Core::View::Vector<Module> {
       return modules;
     }
+
     constexpr auto get_host_input_ranges() const
         -> Core::View::Vector<HostInputRange> {
       return host_input_ranges;
     }
+
     constexpr auto get_descriptors() const
         -> Core::View::Vector<DescriptorBinding> {
       return descriptors;
     }
+
     constexpr auto get_host_fields() const -> Core::View::Vector<HostField> {
       return host_fields;
     }
+
     constexpr auto get_vertex_count() const -> Count { return vertex_count; }
 
    private:

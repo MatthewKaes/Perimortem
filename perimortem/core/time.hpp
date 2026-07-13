@@ -76,7 +76,6 @@ class Time {
     // Ensure duration is always the absolute value.
     auto start_stamp = Math::min(get_stamp(), end_point.get_stamp());
     auto end_stamp = Math::max(get_stamp(), end_point.get_stamp());
-
     return Duration(end_stamp - start_stamp);
   }
 

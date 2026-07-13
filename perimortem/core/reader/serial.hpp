@@ -94,6 +94,7 @@ class Serial {
   constexpr auto has_content() const -> Bool {
     return cursor < source.get_size();
   }
+
   constexpr auto reset() -> void { cursor = 0; }
 
  private:

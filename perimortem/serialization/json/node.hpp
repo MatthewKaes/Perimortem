@@ -12,33 +12,39 @@
 
 namespace Perimortem::Serialization::Json {
 
-struct Member;
-
 class Node {
  public:
+  class Member;
+
   Node() : data{.ptr = nullptr, .size = 0, .state = 0} { set(); }
   Node(const Node& rhs) : data(rhs.data) {};
   Node(const Core::View::Bytes value)
       : data{.ptr = nullptr, .size = 0, .state = 0} {
     set(value);
   }
+
   Node(const Core::View::Vector<Node> value)
       : data{.ptr = nullptr, .size = 0, .state = 0} {
     set(value);
   }
+
   Node(const Core::View::Vector<Member> value)
       : data{.ptr = nullptr, .size = 0, .state = 0} {
     set(value);
   }
+
   Node(Signed_64 value) : data{.ptr = nullptr, .size = 0, .state = 0} {
     set(value);
   }
+
   Node(Real_32 value) : data{.ptr = nullptr, .size = 0, .state = 0} {
     set(Real_64(value));
   }
+
   Node(Real_64 value) : data{.ptr = nullptr, .size = 0, .state = 0} {
     set(value);
   }
+
   Node(Bool value) : data{.ptr = nullptr, .size = 0, .state = 0} { set(value); }
 
   auto set(const Core::View::Bytes value) -> void;
@@ -119,14 +125,18 @@ class Node {
   } data;
 };
 
-static_assert(sizeof(Node) == 16, "Size of Node is required to be 16 bytes.");
+class Node::Member {
+ public:
+  constexpr Member(Core::View::Bytes name, Node node)
+      : name(name), node(node) {}
 
-struct Member {
   const Core::View::Bytes name;
   const Node node;
 };
 
-using Object = Core::View::Vector<Json::Member>;
+static_assert(sizeof(Node) == 16, "Size of Node is required to be 16 bytes.");
+
+using Object = Core::View::Vector<Node::Member>;
 using Array = Core::View::Vector<Node>;
 
 }  // namespace Perimortem::Serialization::Json

@@ -92,6 +92,7 @@ constexpr auto level_char(Diagnostics::Log::Level level) -> Signed_8 {
   case Diagnostics::Log::Level::Fatal:
     return 'F';
   }
+
   return '?';
 }
 
@@ -107,6 +108,7 @@ constexpr auto level_color(Diagnostics::Log::Level level) -> View::Bytes {
   case Diagnostics::Log::Level::Fatal:
     return "\x1b[38;5;160m"_view;
   }
+
   return ""_view;
 }
 
@@ -124,6 +126,7 @@ static auto format_message(
     writer << location.get_file() << ':' << location.get_line() << ':'
            << location.get_column() << ": "_view;
   }
+
   writer << message;
   return writer.get_location();
 }
@@ -169,7 +172,6 @@ auto Diagnostics::Log::color_sink(
   Count entry_length =
       format_message(level, message, location, entry_buffer.get_access());
   View::Bytes entry = entry_buffer.slice(0, entry_length);
-
   if (message.is_empty()) {
     return;
   }
@@ -267,7 +269,6 @@ auto Diagnostics::Log::format_entry(
   writer << ':' << location.get_line();
   writer << ':' << location.get_column();
   writer << ": "_view << message << '\n';
-
   return writer.get_location();
 }
 

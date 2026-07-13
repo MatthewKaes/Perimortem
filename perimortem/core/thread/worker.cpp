@@ -192,7 +192,6 @@ class ThreadInitializer {
     // The job data lives in this thread's Bibliotheca. Thread exit owns
     // cleanup.
     release_thread(this_thread_id);
-
     return nullptr;
   }
 
@@ -226,7 +225,6 @@ auto Thread::Worker::operator=(Worker&& other_worker) -> Worker& {
   join();
   handle = other_worker.handle;
   other_worker.handle = 0;
-
   return *this;
 }
 

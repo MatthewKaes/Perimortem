@@ -82,9 +82,11 @@ struct Bool {
   constexpr auto operator==(Bool rhs) const -> Bool {
     return value == rhs.value;
   }
+
   constexpr auto operator!=(Bool rhs) const -> Bool {
     return value != rhs.value;
   }
+
   constexpr auto operator|(Bool rhs) const -> Bool { return value | rhs.value; }
   constexpr auto operator&(Bool rhs) const -> Bool { return value & rhs.value; }
   constexpr auto operator^(Bool rhs) const -> Bool { return value ^ rhs.value; }
@@ -93,10 +95,12 @@ struct Bool {
     value &= rhs.value;
     return *this;
   }
+
   constexpr auto operator|=(Bool rhs) -> Bool& {
     value |= rhs.value;
     return *this;
   }
+
   constexpr auto sign() const -> Signed_64 { return value ? 1 : -1; }
   Bits_8 value;
 };

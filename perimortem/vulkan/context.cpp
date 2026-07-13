@@ -14,17 +14,17 @@
 using namespace Perimortem::Core;
 using namespace Perimortem;
 
-constexpr Static::Vector<const char*, 2> instance_extensions = {
+constexpr Static::Vector<const char*, 2> instance_extensions = {{
   VK_KHR_SURFACE_EXTENSION_NAME,
   VK_KHR_WAYLAND_SURFACE_EXTENSION_NAME,
-};
+}};
 
 constexpr Static::Vector<const char*, 1> device_extensions = {
-  VK_KHR_SWAPCHAIN_EXTENSION_NAME};
+  {VK_KHR_SWAPCHAIN_EXTENSION_NAME}};
 
 #ifdef PERI_DEBUG
 constexpr Static::Vector<const char*, 1> validation_layers = {
-  "VK_LAYER_KHRONOS_validation"};
+  {"VK_LAYER_KHRONOS_validation"}};
 #endif
 
 static auto require_success(VkResult result, View::Bytes message) -> void {
@@ -46,6 +46,7 @@ static auto instance_layer_available(View::Bytes layer_name) -> Bool {
   if (vkEnumerateInstanceLayerProperties(&layer_count, nullptr) != VK_SUCCESS) {
     return False;
   }
+
   if (layer_count == 0) {
     return False;
   }
@@ -90,7 +91,9 @@ static auto select_physical_device(VkInstance instance, VkSurfaceKHR surface)
     return VK_NULL_HANDLE;
   }
 
-  // Prefer discrete GPUs; fall back to any device that can present.
+  // Prefer a discrete GPU when one can present to this surface. Integrated and
+  // software devices remain valid fallbacks so development and inspection do
+  // not depend on a particular machine configuration.
   VkPhysicalDevice fallback = VK_NULL_HANDLE;
   for (Bits_32 i = 0; i < read_physical_device_count; i++) {
     VkPhysicalDeviceProperties properties = {};
@@ -115,6 +118,7 @@ static auto select_physical_device(VkInstance instance, VkSurfaceKHR surface)
       if (!(queue_families[queue_family].queueFlags & VK_QUEUE_GRAPHICS_BIT)) {
         continue;
       }
+
       VkBool32 present_supported = VK_FALSE;
       vkGetPhysicalDeviceSurfaceSupportKHR(
           physical_devices[i], queue_family, surface, &present_supported);
@@ -127,11 +131,14 @@ static auto select_physical_device(VkInstance instance, VkSurfaceKHR surface)
     if (!usable) {
       continue;
     }
+
     if (properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU) {
       return physical_devices[i];
     }
+
     fallback = physical_devices[i];
   }
+
   return fallback;
 }
 
@@ -149,17 +156,18 @@ static auto find_graphics_queue_family(
   queue_families.forgetful_resize(queue_family_count);
   vkGetPhysicalDeviceQueueFamilyProperties(
       physical_device, &queue_family_count, queue_families.get_data());
-
   for (Bits_32 i = 0; i < queue_family_count; i++) {
     if (!(queue_families[i].queueFlags & VK_QUEUE_GRAPHICS_BIT)) {
       continue;
     }
+
     VkBool32 present = VK_FALSE;
     vkGetPhysicalDeviceSurfaceSupportKHR(physical_device, i, surface, &present);
     if (present) {
       return i;
     }
   }
+
   return UINT32_MAX;
 }
 
@@ -248,7 +256,6 @@ auto Vulkan::Context::create(wl_display* display, wl_surface* surface)
   require_success(
       vkCreateCommandPool(ctx.device, &pool_info, nullptr, &ctx.command_pool),
       "Vulkan: Failed to create command pool."_view);
-
   return ctx;
 }
 
@@ -256,6 +263,7 @@ Vulkan::Context::~Context() {
   if (!device) {
     return;
   }
+
   vkDestroyCommandPool(device, command_pool, nullptr);
   vkDestroyDevice(device, nullptr);
   vkDestroySurfaceKHR(instance, surface, nullptr);
@@ -298,6 +306,7 @@ auto Vulkan::Context::operator=(Vulkan::Context&& other) noexcept
     other.graphics_queue_family = 0;
     other.command_pool = VK_NULL_HANDLE;
   }
+
   return *this;
 }
 
@@ -347,7 +356,6 @@ auto Vulkan::Context::begin_immediate_commands() const -> VkCommandBuffer {
   require_success(
       vkBeginCommandBuffer(command_buffer, &begin_info),
       "Vulkan: Failed to begin immediate command buffer."_view);
-
   return command_buffer;
 }
 
@@ -383,5 +391,6 @@ auto Vulkan::Context::find_memory_type(
       return i;
     }
   }
+
   return UINT32_MAX;
 }

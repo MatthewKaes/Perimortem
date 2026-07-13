@@ -33,6 +33,7 @@ auto parse_decimal(View::Bytes source, Count& cursor) -> storage_type {
     if (character < '0' || character > '9') {
       break;
     }
+
     result = result * 10 + Bits_64(character - '0');
     cursor++;
   }
@@ -48,6 +49,7 @@ auto skip_whitespace(View::Bytes source, Count& cursor) -> void {
     if (value != ' ' && value != '\n' && value != '\r' && value != '\t') {
       break;
     }
+
     cursor++;
   }
 }
@@ -87,6 +89,7 @@ auto Reader::Textual::read_flag() -> Bool {
     } else {
       cursor = Count(-1);
     }
+
     return false;
 
   default:

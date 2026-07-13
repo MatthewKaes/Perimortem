@@ -27,6 +27,7 @@ auto Algorithm::search(View::Bytes src, View::Bytes value) -> Count {
   if (value.get_size() == src.get_size()) {
     return value == src ? 0 : Count(-1);
   }
+
   // Setup two additional registers with the exact value test as well as the
   // test mask. Since the source can be any length this is easier to setup by
   // loading from two Static::Bytes.

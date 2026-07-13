@@ -69,6 +69,7 @@ class Bytes {
   constexpr auto get_view() const -> const Core::View::Bytes {
     return Core::View::Bytes(source_block, size);
   }
+
   constexpr auto get_access() -> Core::Access::Bytes {
     return Core::Access::Bytes(source_block, size);
   }

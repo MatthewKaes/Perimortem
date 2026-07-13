@@ -83,7 +83,6 @@ constexpr auto extend_match(
     Bits_64 source_chunk = *Data::cast<Bits_64>(data + position + match_length);
     Bits_64 candidate_chunk =
         *Data::cast<Bits_64>(data + candidate + match_length);
-
     if (source_chunk != candidate_chunk) {
       match_length +=
           Count(__builtin_ctzll(source_chunk ^ candidate_chunk)) / 8;
@@ -98,6 +97,7 @@ constexpr auto extend_match(
          data[position + match_length] == data[candidate + match_length]) {
     match_length++;
   }
+
   return match_length;
 }
 
@@ -120,6 +120,7 @@ auto Compression::Lz77::insert(View::Bytes source, Count position) -> void {
   if (source.get_size() - position < min_match) {
     return;
   }
+
   const Count hash = compute_hash(Static::Bytes<3>(source.get_data()));
   chain_table.get_data()[position & window_mask] = hash_table.get_data()[hash];
   hash_table.get_data()[hash] = Bits_32(position);
@@ -147,7 +148,6 @@ auto Compression::Lz77::find_match_and_insert(
   Count best_length = min_match - 1;
   Count best_distance = 0;
   const Count scan_limit = Math::min(max_match, remaining);
-
   for (Count i = 0; i < depth && candidate != null_entry; i++) {
     const Count distance = position - candidate;
     if (distance > window_size) {
@@ -171,6 +171,7 @@ auto Compression::Lz77::find_match_and_insert(
   if (best_distance == 0) {
     return Match();
   }
+
   return Match(best_length, best_distance);
 }
 
@@ -191,7 +192,6 @@ auto Compression::Lz77::find_match(
   Count best_distance = 0;
   Bits_32 candidate = hash_table.get_data()[hash];
   const Count scan_limit = Math::min(max_match, remaining);
-
   for (Count i = 0; i < depth && candidate != null_entry; i++) {
     const Count distance = position - candidate;
     if (distance > window_size) {
@@ -217,5 +217,6 @@ auto Compression::Lz77::find_match(
   if (best_distance == 0) {
     return Match();
   }
+
   return Match(best_length, best_distance);
 }

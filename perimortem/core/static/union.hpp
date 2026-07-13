@@ -87,6 +87,7 @@ class Union {
     if constexpr (sizeof...(Rest) != 0) {
       return visit_active<Rest...>(self, visitor);
     }
+
     __builtin_unreachable();
   }
 
@@ -95,10 +96,10 @@ class Union {
     struct Visitor : Cases... {
       using Cases::operator()...;
     } visitor{static_cast<Cases&&>(cases)...};
-
     if (self.is_null()) {
       return visitor();
     }
+
     return visit_active<Types...>(self, visitor);
   }
 

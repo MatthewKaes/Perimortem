@@ -9,7 +9,7 @@
 using namespace Perimortem::Core;
 using namespace Perimortem;
 
-auto Compression::HuffmanTable::compute_lengths(
+auto Compression::Huffman::compute_lengths(
     View::Vector<Bits_32> frequencies,
     Access::Vector<Bits_8> lengths) -> void {
   const Count symbol_count = frequencies.get_size();
@@ -20,12 +20,11 @@ auto Compression::HuffmanTable::compute_lengths(
   };
 
   constexpr Bits_16 null_node = 0xFFFF;
-  constexpr Count node_max = Compression::HuffmanTable::max_symbol_count * 2;
+  constexpr Count node_max = Compression::Huffman::max_symbol_count * 2;
 
   Static::Vector<Node, node_max> nodes;
   Count node_count = 0;
   Count leaf_count = 0;
-
   for (Count s = 0; s < symbol_count; s++) {
     lengths[s] = 0;
     if (frequencies[s] > 0) {
@@ -67,6 +66,7 @@ auto Compression::HuffmanTable::compute_lengths(
       if (nodes[next_leaf].frequency <= nodes[next_node].frequency) {
         return next_leaf++;
       }
+
       return next_node++;
     };
 
@@ -125,6 +125,7 @@ auto Compression::HuffmanTable::compute_lengths(
       while (codes_per_length[bits - 1] == 0) {
         bits--;
       }
+
       codes_per_length[bits - 1]--;
       codes_per_length[bits] += 2;
       codes_per_length[max_code_bits]--;

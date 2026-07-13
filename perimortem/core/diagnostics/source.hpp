@@ -7,7 +7,9 @@
 #include "perimortem/core/view/bytes.hpp"
 
 // Compiler extension ABI
+
 namespace std {
+
 class source_location {
  public:
   struct __impl {
@@ -19,6 +21,7 @@ class source_location {
     unsigned _M_column;
   };
 };
+
 }  // namespace std
 
 namespace Perimortem::Core::Diagnostics {

@@ -39,7 +39,6 @@ class Table {
  public:
   static consteval auto required_storage() -> Count {
     Count buckets[max_length()] = {0};
-
     for (Count i = 0; i < get_source_count(); i++) {
       buckets[source[i].key.get_size()] += source[i].key.get_size();
     }
@@ -54,6 +53,7 @@ class Table {
 
       total += buckets[i];
     }
+
     return total;
   }
 
@@ -68,6 +68,7 @@ class Table {
 
     return max;
   }
+
   // The stroage required for all of the string values.
   static constexpr Count storage_size = required_storage();
   static constexpr Count max_range = max_length();
@@ -98,7 +99,6 @@ class Table {
       total = 0;
       for (Count size = 0; size < max_length(); size++) {
         buffer_coordinates[size].item_index = total;
-
         for (Count i = 0; i < get_source_count(); i++) {
           if (source[i].key.get_size() != size) {
             continue;
@@ -107,7 +107,6 @@ class Table {
           mappings[total] = source[i].value;
           buffer_coordinates[size].item_count++;
           total++;
-
           for (Count c = 0; c < source[i].key.get_size(); c++) {
             buffer[buckets[size]++] = source[i].key[c];
           }
@@ -140,7 +139,6 @@ class Table {
     auto item_start = byte_pack.buffer_coordinates[range_step].item_index;
     auto item_count = byte_pack.buffer_coordinates[range_step].item_count;
     auto byte_start = byte_pack.buffer_coordinates[range_step].byte_index;
-
     for (Bits_8 i = 0; i < item_count; i++) {
       const auto byte_index = byte_start + i * range_step;
       if (byte_pack.buffer[byte_index] != key[0]) {

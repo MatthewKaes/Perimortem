@@ -10,12 +10,14 @@ cc_library(
     name = "perimortem",
     includes = ["."],
     deps = [
+        ":compression",
         ":core",
         ":graphics",
         ":memory",
         ":platform",
         ":serialization",
         ":system",
+        ":vulkan",
     ],
 )
 
@@ -81,16 +83,29 @@ cc_library(
 )
 
 cc_library(
+    name = "compression",
+    srcs = glob([
+        "compression/*.cpp",
+        "compression/bit_stream/*.cpp",
+    ]),
+    hdrs = glob([
+        "compression/*.hpp",
+        "compression/bit_stream/*.hpp",
+    ]),
+    includes = ["."],
+    deps = [
+        ":core",
+        ":memory",
+    ],
+)
+
+cc_library(
     name = "system",
     srcs = glob([
         "system/*.cpp",
-        "system/compression/*.cpp",
-        "system/compression/bit_stream/*.cpp",
     ]),
     hdrs = glob([
         "system/*.hpp",
-        "system/compression/*.hpp",
-        "system/compression/bit_stream/*.hpp",
     ], exclude = [
         "system/window.hpp",
     ]),
@@ -99,29 +114,40 @@ cc_library(
     deps = [
         ":core",
         ":memory",
-        ":utility",
     ],
 )
 
 cc_library(
     name = "graphics",
     srcs = glob([
-        "graphics/*.cpp",
         "graphics/formats/*.cpp",
-        "graphics/vulkan/*.hpp",
-        "graphics/vulkan/*.cpp",
     ]),
     hdrs = glob([
         "graphics/*.hpp",
         "graphics/formats/*.hpp",
     ]),
     includes = ["."],
+    deps = [
+        ":compression",
+        ":core",
+        ":memory",
+    ],
+)
+
+cc_library(
+    name = "vulkan",
+    srcs = glob([
+        "vulkan/*.cpp",
+    ]),
+    hdrs = glob([
+        "vulkan/*.hpp",
+    ]),
+    includes = ["."],
     linkopts = ["-lvulkan"],
     deps = [
         ":core",
+        ":graphics",
         ":memory",
-        ":platform",
-        ":system",
     ],
 )
 
@@ -148,10 +174,7 @@ cc_library(
         "system/platform/wayland/*.hpp",
     ]),
     includes = ["."],
-    linkopts = [
-        "-lwayland-client",
-        "-lvulkan",
-    ],
+    linkopts = ["-lwayland-client"],
     deps = [
         ":core",
         ":xdg_shell_protocol",
@@ -164,18 +187,18 @@ cc_library(
         "serialization/base64.cpp",
         "serialization/escaped_text.cpp",
         "serialization/json/node.cpp",
-        "serialization/stream.cpp",
+        "serialization/stream/binary.cpp",
+        "serialization/stream/textual.cpp",
     ],
     hdrs = glob([
         # "serialization/archive/*.hpp",
         "serialization/*.hpp",
         "serialization/json/*.hpp",
+        "serialization/stream/*.hpp",
     ]),
     includes = ["."],
     deps = [
         ":core",
         ":memory",
-        ":system",
-        ":utility",
     ],
 )

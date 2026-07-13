@@ -10,7 +10,7 @@
 namespace Perimortem::System {
 
 // Stateless filesystem transactions. read returns an empty buffer for both an
-// empty file and a failed read; use exists when that distinction matters.
+// empty file and a failed read. Use exists when that distinction matters.
 class File {
  public:
   static auto read(Core::View::Bytes location) -> Memory::Dynamic::Bytes;

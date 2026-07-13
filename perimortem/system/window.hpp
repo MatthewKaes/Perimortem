@@ -12,6 +12,9 @@
 namespace Perimortem::System {
 
 #ifdef PERI_LINUX
+// The public window owner remains System even while only one platform is
+// implemented. Application composition may expose native presentation handles
+// to a selected renderer, but Graphics does not acquire an OS dependency.
 using Window = Platform::Wayland::Window;
 #endif
 

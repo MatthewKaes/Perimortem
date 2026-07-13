@@ -73,6 +73,7 @@ static constexpr auto
       cursor += sizeof(element_type);
     }
   }
+
   return True;
 }
 
@@ -152,6 +153,7 @@ auto Writer::Binary<stream_endian>::operator<<(const View::Bytes raw)
     valid_state = False;
     return *this;
   }
+
   auto data = source.get_data();
   Data::copy(data + cursor, raw.get_data(), raw.get_size());
   cursor += raw.get_size();

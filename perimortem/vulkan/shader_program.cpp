@@ -71,14 +71,15 @@ auto Vulkan::ShaderProgram::create(
   const auto source_modules = render.get_modules();
   const auto source_host_input_ranges = render.get_host_input_ranges();
   const auto source_descriptors = render.get_descriptors();
-
   if (source_modules.is_empty() ||
       source_modules.get_size() > max_shader_modules) {
     Diagnostics::Log::fatal("Vulkan: Invalid render module list."_view);
   }
+
   if (source_host_input_ranges.get_size() > max_push_constant_ranges) {
     Diagnostics::Log::fatal("Vulkan: Too many render host input ranges."_view);
   }
+
   if (source_descriptors.get_size() > max_descriptor_bindings) {
     Diagnostics::Log::fatal(
         "Vulkan: Too many render descriptor bindings."_view);
@@ -89,7 +90,6 @@ auto Vulkan::ShaderProgram::create(
   program.vertex_count = render.get_vertex_count();
   program.push_constant_count = source_host_input_ranges.get_size();
   program.descriptor_count = source_descriptors.get_size();
-
   for (Count i = 0; i < program.push_constant_count; i++) {
     const auto& source_range = source_host_input_ranges[i];
     program.push_constant_ranges[i] = Vulkan::ShaderProgram::PushConstantRange(
@@ -155,8 +155,10 @@ auto Vulkan::ShaderProgram::create(
   color_blending.attachmentCount = 1;
   color_blending.pAttachments = &blend_attachment;
 
-  Static::Vector<VkDynamicState, 2> dynamic_states(
-      VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR);
+  Static::Vector<VkDynamicState, 2> dynamic_states = {{
+    VK_DYNAMIC_STATE_VIEWPORT,
+    VK_DYNAMIC_STATE_SCISSOR,
+  }};
   VkPipelineDynamicStateCreateInfo dynamic_state = {
     VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO};
   dynamic_state.dynamicStateCount = Bits_32(dynamic_states.get_size());
@@ -205,7 +207,6 @@ auto Vulkan::ShaderProgram::create(
           device, VK_NULL_HANDLE, 1, &pipeline_info, nullptr,
           &program.pipeline),
       "Vulkan: Failed to create render pipeline."_view);
-
   for (Count i = 0; i < source_modules.get_size(); i++) {
     vkDestroyShaderModule(device, shader_modules[i], nullptr);
   }
@@ -217,6 +218,7 @@ Vulkan::ShaderProgram::~ShaderProgram() {
   if (!device) {
     return;
   }
+
   vkDestroyPipeline(device, pipeline, nullptr);
   vkDestroyPipelineLayout(device, layout, nullptr);
 }
@@ -257,6 +259,7 @@ auto Vulkan::ShaderProgram::operator=(Vulkan::ShaderProgram&& other) noexcept
     other.descriptor_count = 0;
     other.vertex_count = 0;
   }
+
   return *this;
 }
 
