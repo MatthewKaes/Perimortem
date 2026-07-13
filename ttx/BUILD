@@ -34,13 +34,15 @@ cc_library(
     name = "model",
     srcs = [
         "layout.cpp",
+        "member.cpp",
         "type.cpp",
     ],
     hdrs = [
         "attribute.hpp",
-        "block.hpp",
         "documentation.hpp",
+        "function.hpp",
         "layout.hpp",
+        "member.hpp",
         "type.hpp",
     ],
     deps = [

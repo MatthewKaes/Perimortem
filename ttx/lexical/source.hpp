@@ -15,14 +15,13 @@ namespace Ttx::Lexical {
 class Source {
  public:
   Source() = default;
-  Source(
-      Perimortem::Core::View::Bytes path,
-      Perimortem::Core::View::Bytes text)
+  Source(Perimortem::Core::View::Bytes path, Perimortem::Core::View::Bytes text)
       : path(path), text(text) {}
 
   constexpr auto get_path() const -> Perimortem::Core::View::Bytes {
     return path;
   }
+
   constexpr auto get_text() const -> Perimortem::Core::View::Bytes {
     return text;
   }

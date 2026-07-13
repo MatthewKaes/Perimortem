@@ -3,6 +3,11 @@
 
 #include "ttx/type.hpp"
 
+using namespace Perimortem::Core;
+using namespace Perimortem::Memory;
+
+static const Ttx::Type invalid_type(""_view);
+
 // The type implementation intentionally has very little policy. TTX originally
 // wants to make many things feel type shaped because types are the names users
 // write most often, but that path quickly turns Type into a duplicate program
@@ -21,28 +26,20 @@
 // return the canonical member, type, or function object because those are the
 // objects that own the actual dispatch entries.
 
-auto Ttx::Type::Member::equivalent_to(const Member& other) const -> Bool {
-  if (type && other.type) {
-    return type->equivalent_to(*other.type);
-  }
-
-  return False;
-}
-
-auto Ttx::Type::canonical() const -> const Type* {
+auto Ttx::Type::canonical() const -> const Type& {
   // Aliases form a parent chain. Use the slow and fast pointer technique first
   // so a bad package cannot trap canonicalization in an infinite loop.
   //
-  // Returning null keeps the type model honest. Resolution owns the source
-  // context needed to report which alias declarations formed the cycle.
+  // Returning Invalid keeps the type model non-null while still giving
+  // resolution a bottom value it can diagnose at the source location that
+  // created the cycle.
   const Type* slow = this;
   const Type* fast = this;
   while (fast && fast->alias_parent) {
     slow = slow ? slow->alias_parent : nullptr;
     fast = fast->alias_parent->alias_parent;
-
     if (slow && fast && slow == fast) {
-      return nullptr;
+      return invalid_type;
     }
   }
 
@@ -54,13 +51,52 @@ auto Ttx::Type::canonical() const -> const Type* {
     canonical_type = canonical_type->alias_parent;
   }
 
-  return canonical_type;
+  return canonical_type == nullptr ? invalid_type : *canonical_type;
+}
+
+auto Ttx::Type::is_invalid() const -> Bool {
+  return name.is_empty();
 }
 
 auto Ttx::Type::equivalent_to(const Type& other) const -> Bool {
-  const Type* left = canonical();
-  const Type* right = other.canonical();
-  return left && right && left == right;
+  const Type& left = canonical();
+  const Type& right = other.canonical();
+  return !left.is_invalid() && !right.is_invalid() && &left == &right;
+}
+
+auto Ttx::Type::display_name() const -> View::Bytes {
+  const Attribute* attribute = find_attribute(display_name_attribute);
+  return attribute != nullptr && !attribute->get_value().is_empty()
+             ? attribute->get_value()
+             : name;
+}
+
+auto Ttx::Type::has_display_name() const -> Bool {
+  const Attribute* attribute = find_attribute(display_name_attribute);
+  return attribute != nullptr && !attribute->get_value().is_empty();
+}
+
+auto Ttx::Type::describe() const -> Dynamic::Bytes {
+  Dynamic::Bytes description;
+  description.concat(display_name());
+  if (!is_alias()) {
+    return description;
+  }
+
+  const Type* target = alias_parent;
+  const Type& canonical_type = canonical();
+  if (target == nullptr || canonical_type.is_invalid()) {
+    description.concat(" alias of <invalid type>"_view);
+    return description;
+  }
+
+  if (!target->has_display_name()) {
+    target = &canonical_type;
+  }
+
+  description.concat(" alias of "_view);
+  description.concat(target->display_name());
+  return description;
 }
 
 auto Ttx::Type::find_member(Perimortem::Core::View::Bytes name) const
@@ -69,18 +105,12 @@ auto Ttx::Type::find_member(Perimortem::Core::View::Bytes name) const
   // as the type they name. The first authored name wins for this simple lookup,
   // matching Layout name access. The alias still keeps its own documentation
   // and authored name outside this lookup.
-  const Type* type = canonical();
-  if (!type) {
+  const Type& type = canonical();
+  if (type.is_invalid()) {
     return nullptr;
   }
 
-  for (Count i = 0; i < type->members.get_size(); i++) {
-    if (type->members[i].get_name() == name) {
-      return &type->members[i];
-    }
-  }
-
-  return nullptr;
+  return type.layout.find_member(name);
 }
 
 auto Ttx::Type::find_type(Perimortem::Core::View::Bytes name) const
@@ -88,13 +118,13 @@ auto Ttx::Type::find_type(Perimortem::Core::View::Bytes name) const
   // Nested type lookup is the `::` access path. It is intentionally separate
   // from member lookup so type metadata never has to be duplicated into the
   // projected layout shape. The first authored name wins for this name probe.
-  const Type* type = canonical();
-  if (!type) {
+  const Type& type = canonical();
+  if (type.is_invalid()) {
     return nullptr;
   }
 
-  for (Count i = 0; i < type->types.get_size(); i++) {
-    const Type* nested_type = type->types[i];
+  for (Count i = 0; i < type.types.get_size(); i++) {
+    const Type* nested_type = type.types[i];
     if (nested_type && nested_type->get_name() == name) {
       return nested_type;
     }
@@ -109,14 +139,14 @@ auto Ttx::Type::find_function(Perimortem::Core::View::Bytes name) const
   // table because they have no type identity to dispatch through. Overload
   // selection needs argument layouts, so it should be a separate query instead
   // of making this simple name probe guess.
-  const Type* type = canonical();
-  if (!type) {
+  const Type& type = canonical();
+  if (type.is_invalid()) {
     return nullptr;
   }
 
-  for (Count i = 0; i < type->functions.get_size(); i++) {
-    if (type->functions[i].get_name() == name) {
-      return &type->functions[i];
+  for (Count i = 0; i < type.functions.get_size(); i++) {
+    if (type.functions[i].get_name() == name) {
+      return &type.functions[i];
     }
   }
 
@@ -134,9 +164,9 @@ auto Ttx::Type::find_attribute(Perimortem::Core::View::Bytes key) const
   return nullptr;
 }
 
-auto Ttx::Type::resolve_attribute(
-    Perimortem::Core::View::Bytes key) const -> const Attribute* {
-  if (canonical() == nullptr) {
+auto Ttx::Type::resolve_attribute(Perimortem::Core::View::Bytes key) const
+    -> const Attribute* {
+  if (canonical().is_invalid()) {
     return nullptr;
   }
 
@@ -159,14 +189,13 @@ auto Ttx::Type::resolve_attribute(
 auto Ttx::Type::attribute_equals(
     Perimortem::Core::View::Bytes key,
     Perimortem::Core::View::Bytes value) const -> Bool {
-  if (canonical() == nullptr) {
+  if (canonical().is_invalid()) {
     return False;
   }
 
   // Equality asks whether any resolved identity in the alias chain owns this
-  // exact fact. A mismatched local key is not an override here; callers use this
-  // query to ask whether the projected type participates in a category such as
-  // `isa = Foreign`.
+  // exact fact. A mismatched local key is not an override here because callers
+  // use this query to test category membership rather than select one value.
   const Type* type = this;
   while (type != nullptr) {
     const Attribute* attribute = type->find_attribute(key);

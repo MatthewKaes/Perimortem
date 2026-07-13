@@ -21,8 +21,8 @@ auto Ttx::Lexical::Errors::insert(
     Source source,
     View::Bytes message,
     View::Bytes hint) -> void {
-  errors.insert(Error(
-      token, source.get_path(), source.get_text(), message, hint));
+  errors.insert(
+      Error(token, source.get_path(), source.get_text(), message, hint));
 }
 
 auto Ttx::Lexical::Errors::insert_range(
@@ -31,6 +31,6 @@ auto Ttx::Lexical::Errors::insert_range(
     Source source,
     View::Bytes message,
     View::Bytes hint) -> void {
-  errors.insert(Error(
-      start, end, source.get_path(), source.get_text(), message, hint));
+  errors.insert(
+      Error(start, end, source.get_path(), source.get_text(), message, hint));
 }

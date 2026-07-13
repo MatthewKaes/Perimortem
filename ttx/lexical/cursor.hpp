@@ -38,6 +38,7 @@ class Cursor {
   constexpr auto current() const -> const Lexical::Token& {
     return tokenizer.get_tokens().get_data()[index];
   }
+
   constexpr auto get_token_index() const -> Count { return index; }
   constexpr auto get_token_span(Count start, Count end) const
       -> Perimortem::Core::View::Vector<Lexical::Token> {
@@ -50,6 +51,7 @@ class Cursor {
     Count bounded_end = end < tokens.get_size() ? end : tokens.get_size();
     return tokens.slice(start, bounded_end - start);
   }
+
   auto seek_token(Count token_index) -> void;
 
   // Advances at most to the tokenizer's end-of-stream token and returns the
@@ -103,16 +105,16 @@ class Cursor {
   // Parsed facts and lowered output should not copy errors into persisted
   // state. Consumers that need diagnostics after ending this transaction must
   // explicitly migrate them into their own lifetime.
-  constexpr auto get_errors() const -> const Lexical::Errors& {
-    return errors;
-  }
+  constexpr auto get_errors() const -> const Lexical::Errors& { return errors; }
 
   constexpr auto get_arena() const -> Perimortem::Memory::Allocator::Arena& {
     return tokenizer.get_arena();
   }
+
   constexpr auto get_source_text() const -> Perimortem::Core::View::Bytes {
     return tokenizer.get_source_text();
   }
+
   constexpr auto get_source_name() const -> Perimortem::Core::View::Bytes {
     return tokenizer.get_source_name();
   }

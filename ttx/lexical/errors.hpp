@@ -73,21 +73,27 @@ class Errors {
     constexpr auto get_source_path() const -> Perimortem::Core::View::Bytes {
       return source_path;
     }
+
     constexpr auto get_source() const -> Perimortem::Core::View::Bytes {
       return source;
     }
+
     constexpr auto get_start_token() const -> const Lexical::Token* {
       return start_token;
     }
+
     constexpr auto get_end_token() const -> const Lexical::Token* {
       return end_token;
     }
+
     constexpr auto get_message() const -> Perimortem::Core::View::Bytes {
       return message;
     }
+
     constexpr auto get_hint() const -> Perimortem::Core::View::Bytes {
       return hint;
     }
+
     constexpr auto is_empty() const -> Bool { return message.is_empty(); }
 
    private:
@@ -127,10 +133,10 @@ class Errors {
   constexpr auto has_errors() const -> Bool { return errors.get_size() != 0; }
   constexpr auto is_empty() const -> Bool { return errors.is_empty(); }
   constexpr auto get_size() const -> Count { return errors.get_size(); }
-  constexpr auto get_view() const
-      -> Perimortem::Core::View::Vector<Error> {
+  constexpr auto get_view() const -> Perimortem::Core::View::Vector<Error> {
     return errors;
   }
+
   constexpr operator Perimortem::Core::View::Vector<Error>() const {
     return get_view();
   }

@@ -20,9 +20,11 @@ class Attribute {
   constexpr auto get_key() const -> Perimortem::Core::View::Bytes {
     return key;
   }
+
   constexpr auto get_value() const -> Perimortem::Core::View::Bytes {
     return value;
   }
+
   constexpr auto is_empty() const -> Bool {
     return key.is_empty() && value.is_empty();
   }
