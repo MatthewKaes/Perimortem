@@ -203,9 +203,11 @@ static auto sort_symbols(View::Vector<Object::Symbol> symbols)
       if (Count(symbols[i].get_visibility()) != pass) {
         continue;
       }
+
       sorted.insert({symbols.get_data() + i, i, 0});
     }
   }
+
   return sorted;
 }
 
@@ -216,6 +218,7 @@ static auto build_symbol_slots(View::Vector<SymbolRef> sorted)
   for (Count i = 0; i < sorted.get_size(); i++) {
     slots[sorted[i].original_index] = Bits_32(1 + i);
   }
+
   return slots;
 }
 
@@ -228,6 +231,7 @@ static auto build_string_table(Access::Vector<SymbolRef> symbols)
     string_table.concat(symbols[i].symbol->get_name());
     string_table.append('\0');
   }
+
   return string_table;
 }
 
@@ -238,7 +242,6 @@ static auto build_symbol_table(View::Vector<SymbolRef> sorted)
   data.forgetful_resize(sizeof(SymbolRecord) * entry_count);
   memset(data.get_access().get_data(), 0, sizeof(SymbolRecord) * entry_count);
   auto* entries = Data::cast<SymbolRecord>(data.get_access().get_data());
-
   for (Count i = 0; i < sorted.get_size(); i++) {
     const auto& ref = sorted[i];
     const auto& symbol = *ref.symbol;
@@ -252,6 +255,7 @@ static auto build_symbol_table(View::Vector<SymbolRef> sorted)
     Data::write<elf_endian>(&entry.value, Bits_64(symbol.get_range().start));
     Data::write<elf_endian>(&entry.size, Bits_64(symbol.get_range().size));
   }
+
   return data;
 }
 
@@ -282,10 +286,12 @@ static auto build_section_string_table(Access::Vector<SectionDesc> sections)
       sections[i].name_offset = 0;
       continue;
     }
+
     sections[i].name_offset = shstrtab.get_size();
     shstrtab.concat(sections[i].name);
     shstrtab.append('\0');
   }
+
   return shstrtab;
 }
 
@@ -296,6 +302,7 @@ static auto assign_offsets(Access::Vector<SectionDesc> sections) -> Count {
       sections[i].file_offset = 0;
       continue;
     }
+
     const Count align =
         sections[i].alignment > 0 ? Count(sections[i].alignment) : 1;
     offset = (offset + align - 1) & ~(align - 1);
@@ -326,6 +333,7 @@ auto Target::Elf::add_relocation(Object::Relocation relocation) -> void {
   if (relocation_tables[relocation.get_section_index()].get_size() == 0) {
     relocation_section_count++;
   }
+
   relocation_tables[relocation.get_section_index()].insert(relocation);
   relocation_count++;
 }
@@ -392,7 +400,6 @@ static auto build_section_descriptors(
     Count symbol_table_index,
     Count string_table_index) -> Dynamic::Vector<SectionDesc> {
   Dynamic::Vector<SectionDesc> descriptors;
-
   for (Count i = 0; i < sections.get_size(); i++) {
     descriptors.insert(to_section_desc(sections[i]));
   }
@@ -429,6 +436,7 @@ static auto build_section_descriptors(
         Object::Symbol::Visibility::Local) {
       break;
     }
+
     first_non_local_symbol++;
   }
 
@@ -564,17 +572,20 @@ auto Target::Elf::build_library(View::Bytes object_name) -> Dynamic::Bytes {
         Data::cast<Bits_32>(write_pointer), Bits_32(object_offset));
     write_pointer += 4;
   }
+
   for (Count i = 0; i < symbols.get_size(); i++) {
     const auto& symbol = symbols.get_view()[i];
     if (symbol.get_visibility() != Object::Symbol::Visibility::Global ||
         symbol.is_external()) {
       continue;
     }
+
     const auto name = symbol.get_name();
     Data::copy(write_pointer, name.get_data(), name.get_size());
     write_pointer += name.get_size();
     *write_pointer++ = '\0';
   }
+
   cursor += symbol_table_padded;
 
   // Write the actual object file into the archive.
@@ -584,6 +595,5 @@ auto Target::Elf::build_library(View::Bytes object_name) -> Dynamic::Bytes {
   cursor += sizeof(ArHeader);
   Data::copy(
       output_bytes + cursor, object_view.get_data(), object_view.get_size());
-
   return output;
 }

@@ -3,9 +3,9 @@
 
 #pragma once
 
+#include "perimortem/core/view/bytes.hpp"
 #include "perimortem/core/data.hpp"
 #include "perimortem/core/perimortem.hpp"
-#include "perimortem/core/view/bytes.hpp"
 
 #include "perimortem/utility/range.hpp"
 
@@ -84,12 +84,12 @@ class Symbol {
   constexpr auto get_name() const -> Perimortem::Core::View::Bytes {
     return name;
   }
-  constexpr auto get_section_index() const -> Bits_16 {
-    return section_index;
-  }
+
+  constexpr auto get_section_index() const -> Bits_16 { return section_index; }
   constexpr auto get_range() const -> Perimortem::Utility::Range {
     return range;
   }
+
   constexpr auto get_visibility() const -> Visibility { return visibility; }
   constexpr auto get_type() const -> Type { return type; }
   constexpr auto is_external() const -> Bool { return section_index == 0; }

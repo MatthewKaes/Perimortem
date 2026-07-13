@@ -21,8 +21,7 @@ class Relocation {
   static constexpr auto create_pc32(
       Bits_16 section_index,
       Count symbol_index,
-      Count code_offset)
-      -> Relocation {
+      Count code_offset) -> Relocation {
     return Relocation(
         section_index, symbol_index, code_offset - 4, Type::Pc32, -4);
   }
@@ -30,8 +29,7 @@ class Relocation {
   static constexpr auto create_plt32(
       Bits_16 section_index,
       Count symbol_index,
-      Count code_offset)
-      -> Relocation {
+      Count code_offset) -> Relocation {
     return Relocation(
         section_index, symbol_index, code_offset - 4, Type::Plt32, -4);
   }

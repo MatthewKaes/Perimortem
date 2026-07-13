@@ -10,10 +10,10 @@
 #include "perimortem/memory/dynamic/bytes.hpp"
 #include "perimortem/memory/dynamic/vector.hpp"
 
-#include "tetrodotoxin/linker/target/format.hpp"
 #include "tetrodotoxin/linker/object/relocation.hpp"
 #include "tetrodotoxin/linker/object/section.hpp"
 #include "tetrodotoxin/linker/object/symbol.hpp"
+#include "tetrodotoxin/linker/target/format.hpp"
 
 namespace Tetrodotoxin::Linker::Target {
 
