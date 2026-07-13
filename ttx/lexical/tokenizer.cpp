@@ -88,7 +88,6 @@ static constexpr auto check_keyword(
       Class::Type::Const,
     },
   }};
-
   return Table<Class::Type, data>::find_or_default(value, default_value);
 }
 
@@ -199,10 +198,10 @@ static auto parse_attribute(Context& ctx) -> void {
 
   ctx.advance_parse();
   const auto token = ctx.current_token_text();
-
   if (!token.is_empty()) {
     ctx.add_token(token, Class::Type::Attribute);
   }
+
   ctx.advance_column_to_parse();
 }
 
@@ -247,7 +246,6 @@ static auto recursive_strip(Context& ctx) -> void {
 static auto parse_disabled(Context& ctx, Bool strip_disabled) -> void {
   Count marker_size = Class::get_source_text(Class::Type::Disabled).get_size();
   ctx.advance_parse(marker_size);
-
   if (!strip_disabled) {
     ctx.add_current_token(Class::Type::Disabled);
     ctx.advance_column(marker_size);
@@ -259,6 +257,7 @@ static auto parse_disabled(Context& ctx, Bool strip_disabled) -> void {
         recursive_strip(ctx);
         continue;
       }
+
       ctx.advance_parse();
     }
   }
@@ -267,7 +266,6 @@ static auto parse_disabled(Context& ctx, Bool strip_disabled) -> void {
 static auto string_quote_is_escaped(View::Bytes source, Count position)
     -> Bool {
   Count slash_count = 0;
-
   while (position > 0) {
     position--;
     if (source[position] != '\\') {
@@ -287,9 +285,11 @@ static auto parse_string(Context& ctx) -> void {
           string_quote_is_escaped(ctx.get_source(), ctx.get_parse_index()))) {
     ctx.advance_parse();
   }
+
   if (ctx.can_parse() && ctx.current() == '"') {
     ctx.advance_parse();
   }
+
   ctx.add_current_token(Class::Type::String);
   ctx.advance_column_to_parse();
 }
@@ -299,9 +299,11 @@ static auto parse_embedded(Context& ctx) -> void {
   while (ctx.can_parse() && ctx.current() != ']' && ctx.current() != '\n') {
     ctx.advance_parse();
   }
+
   if (ctx.can_parse() && ctx.current() == ']') {
     ctx.advance_parse();
   }
+
   ctx.add_current_token(Class::Type::Embedded);
   ctx.advance_column_to_parse();
 }
@@ -316,9 +318,11 @@ static auto parse_number(Context& ctx) -> void {
       while (ctx.can_parse() && ctx.current() != ']') {
         ctx.advance_parse();
       }
+
       if (ctx.can_parse()) {
         ctx.advance_parse();
       }
+
       ctx.add_current_token(Class::Type::Bytes);
       ctx.advance_column_to_parse();
       return;
@@ -334,6 +338,7 @@ static auto parse_number(Context& ctx) -> void {
         ctx.advance_parse();
         hex_char = ctx.peek_ahead(1);
       }
+
       ctx.advance_parse();
       ctx.add_current_token(Class::Type::Numeric);
       ctx.advance_column_to_parse();
@@ -358,13 +363,16 @@ static auto parse_number(Context& ctx) -> void {
         ctx.backup_parse();
         break;
       }
+
       if (found_decimal) {
         ctx.backup_parse();
         break;
       }
+
       found_decimal = true;
       klass = Class::Type::Float;
     }
+
     numeric_char = ctx.peek_ahead(1);
   }
 
@@ -525,6 +533,7 @@ auto Tokenizer::parse(Bool strip_disabled) -> void {
       } else {
         parse_unknown(ctx);
       }
+
       break;
 
     case '[':
@@ -557,6 +566,7 @@ auto Tokenizer::parse(Bool strip_disabled) -> void {
       } else {
         parse_simple<Class::Type::NotOp>(ctx);
       }
+
       break;
 
     case ':':
@@ -567,6 +577,7 @@ auto Tokenizer::parse(Bool strip_disabled) -> void {
       } else {
         parse_simple<Class::Type::Define>(ctx);
       }
+
       break;
 
       // Simple spot tokens

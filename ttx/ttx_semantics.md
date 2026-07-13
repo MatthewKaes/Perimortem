@@ -168,7 +168,8 @@ ownership:
 
 - TTX source owns authored bytes and source spans.
 - Lexical owns token classification and token payload views.
-- Documentation, Type, and Layout own the shared TTX data model.
+- Attribute, Documentation, Member, Function, Type, and Layout own the shared
+  TTX data model.
 - Host envelope evaluators own whatever source preamble they choose to execute.
 - Import, module, package, cache, and invalidation layers belong to the host
   that needs them.
@@ -398,7 +399,7 @@ instruction set should evaluate the remaining bytecode:
 dialect : Library;
 dialect : Render;
 dialect : Shader;
-dialect : Entity;
+dialect : Package;
 ```
 
 Envelope shape: full-file evaluation starts at the reserved lowercase `dialect`
@@ -422,9 +423,9 @@ runtime features, and body instructions are legal in the source.
 | ISA       | Purpose                                                            |
 | --------- | ------------------------------------------------------------------ |
 | `Library` | general reusable code, binary formats, data transforms, host logic |
+| `Package` | public package export surfaces                                     |
 | `Render`  | stage-oriented render package authoring and host render contracts  |
 | `Shader`  | shader definitions and shader-specific host glue                   |
-| `Entity`  | entity-oriented package data and behavior                          |
 
 `object`, `struct`, `enum`, `foreign`, and `alias` are core definition
 keywords, but they are not ISA names. For example:
@@ -458,7 +459,7 @@ for package dependencies:
 
 ```ttx
 import ImageLibrary : Library = "graphics/image.ttx";
-import Graphics     : Package = Perimortem::Graphics;
+import Graphics     : Package = Perimortem.Graphics;
 ```
 
 Envelope shape: imports appear immediately after the ISA selection instruction
@@ -476,7 +477,12 @@ import LocalName : IsaName = source;
 The source is either:
 
 - a file-source string, such as `"path.ttx"`
-- a package name such as `Perimortem::Graphics`.
+- a package name such as `Perimortem.Graphics`.
+
+Package names decode as `Type("." Type)*`. Empty segments, lowercase starts,
+double dots, and trailing dots fail through the ordinary token cursor because a
+dot must always be followed by a `Type`. A successfully decoded package name can
+be used directly as a package cache key and package folder name.
 
 The local name participates in type queries and value access after the host has
 bound the import. Imports do not erase ISA boundaries. A `Shader` package
@@ -558,11 +564,11 @@ Vec3D : struct { x : Real_32; y : Real_32; z : Real_32; }
 Vec4D : struct { x : Real_32; y : Real_32; z : Real_32; w : Real_32; }
 ```
 
-`Perimortem::Graphics` is explicit. A package that needs graphics-domain types
+`Perimortem.Graphics` is explicit. A package that needs graphics-domain types
 imports it and refers to those types through the import name:
 
 ```ttx
-import Graphics : Package = Perimortem::Graphics;
+import Graphics : Package = Perimortem.Graphics;
 
 Graphics::Color : struct {
   r : Real_32;
@@ -675,16 +681,11 @@ known attribute.
 Attributes are not runtime values. They are consumed by the compiler or
 forwarded into target metadata.
 
-Some ISAs also consume directive-style attributes as standalone statements.
-For example, a Package manifest declares its package identity with:
-
-```ttx
-@package_name = Perimortem::Graphics;
-```
-
-The decode shape is `Attribute(package_name) Assign PackageName EndStatement`.
-That keeps package identity in the Package ISA body while using the same
-authored package-name surface as package imports.
+Some ISAs may consume directive-style attributes as standalone statements, but
+package identity is not one of them. Package names are compiler configuration
+because build systems such as Bazel require output paths to be declared before
+source evaluation runs. The Package ISA body only describes what the package
+exports. Package imports still use the authored package-name surface.
 
 Known shader ABI attributes have fixed local targets. The compiler keeps these
 rules in `syntax/attribute` so attribute legality stays separate from package
@@ -697,6 +698,10 @@ shape parsing and later name binding:
   scopes in `Shader` packages.
 - `@builtin(.name = "...")` and `@builtin(.slot = N)` apply to shader builtin
   input members or layout fields.
+- `@shader_type(Type)` applies to Library types that deliberately lower as a
+  named shader ABI type. Backends must use this metadata or canonical type
+  identity; they must not infer shader ABI identity from a matching member
+  layout alone.
 
 Other attributes may remain target-specific metadata until an ISA defines
 their legality rules.
@@ -732,7 +737,7 @@ compile-time-false construct.
 
 ## Functions
 
-Functions are explicit syntax:
+Functions are explicit callable syntax:
 
 ```ttx
 public func name[params] -> returns {
@@ -746,8 +751,10 @@ Parser shape: a function member starts with either `Func` or `modifier Func`.
 `CallOp`, parse a return layout, then parse either a block or `EndStatement`.
 
 `func` is a keyword because functions are not merely ordinary values with type
-`Func`. They need a stable AST node for ABI lowering, entry-point discovery,
-specialization, foreign declarations, and shader compilation.
+`Func`. The TTX function model carries the stable callable signature used for
+ABI lowering, entry-point discovery, specialization, foreign declarations, and
+shader compilation. Source bodies are implementation facts owned by the selected
+body evaluator.
 
 Both parameters and returns are layouts:
 
@@ -815,20 +822,20 @@ scope and ISA.
 
 ## Enums
 
-Enums use a storage-typed named-pack declaration shorthand:
+Enums use a storage-typed brace scope:
 
 ```ttx
-private Color : enum[Bits_8](.red = 1, .green = 2, .blue = 3);
+private Color : enum[Bits_8] {
+  red = 1;
+  green = 2;
+  blue = 3;
+}
 ```
 
 Parser shape: after `Define enum`, require exactly one type argument naming the
-enum storage type. Then parse a normal pack and require that every field is
-named. The enum declaration ends with `EndStatement`. It does not open a brace
-scope in source. `enum[Storage](...)` is only a declaration form, not an
-expression form for creating enum values inline.
-
-The pack must be named. Positional enum values are invalid because enum member
-names are the purpose of the construct.
+enum storage type. Then require `ScopeStart` and parse named case assignments or
+enum-owned function declarations until `ScopeEnd`. Positional values are
+invalid because enum member names are the purpose of the construct.
 
 Semantically, enum members are compile-time exposed values inside the enum
 namespace. Each member value must fit the declared storage type. That makes the
@@ -836,15 +843,7 @@ storage width part of the source contract and lets the storage type reject
 out-of-range values before lowering. The compiler may store enum metadata in
 whatever internal representation is best, but the meaning is equivalent to:
 
-```ttx
-private Color : enum[Bits_8](
-  .red = 1,
-  .green = 2,
-  .blue = 3,
-);
-```
-
-producing members that behave like:
+The cases produce members that behave like:
 
 ```ttx
 expose red   : Bits_8 = 1;
@@ -863,11 +862,10 @@ Explicit conversion construction is a static dispatch on the destination type:
 Color -> from(value)
 ```
 
-That keeps aggregate construction on pack fitting and keeps `enum[Storage](pack)`
-reserved for enum declarations. The parser does not need a special conversion
-expression form. It parses conversion as the same explicit call syntax used for
-all callable dispatch, and the destination type owner checks whether it exposes
-a valid `from` function for the source value.
+That keeps aggregate construction on pack fitting. The parser does not need a
+special conversion expression form. It parses conversion as the same explicit
+call syntax used for all callable dispatch, and the destination type owner
+checks whether it exposes a valid `from` function for the source value.
 
 ## Packs
 
@@ -905,10 +903,11 @@ Pack modes must not be mixed:
 (.x = 1, .10 = 2) // invalid
 ```
 
-Packs are in-flight value groups. A pack has a fluid layout: it carries value
-order, optional names, and element types, but it has no runtime object identity
-or address of its own unless it is fitted into a concrete receiving context
-such as a call, return, assignment, attribute, layout, or aggregate type.
+Packs are source-IR expression nodes for in-flight value groups. A pack has a
+fluid layout: it carries value order, optional names, and element types, but it
+has no runtime object identity or address of its own unless it is fitted into a
+concrete receiving context such as a call, return, assignment, attribute,
+layout, or aggregate type.
 
 Indexed packs are a narrow data-table initialization feature. They are intended
 for sparse fixed-size aggregates such as ASCII lookup tables, Base64 decode
@@ -1172,6 +1171,13 @@ for packs. The fixed vector and color types have builtin struct fields:
 
 Expressions produce values. Assignment is not an expression.
 
+Executable syntax belongs to the ISA that gives it meaning; the shared TTX type
+tree only supplies stable declarations, layouts, and identities. Library lowers
+authored expressions directly into immutable compiler bodies keyed by
+`Ttx::Function`. Shader currently publishes Shader-owned blocks and statements
+until it has an equivalent graphics execution interface. Neither path adds body
+tags or generic statement nodes to the shared TTX model.
+
 The expression parser is a precedence parser:
 
 ```text
@@ -1379,15 +1385,15 @@ shape for later lowering.
 
 Literal classes:
 
-| Source            | Meaning                                     |
-| ----------------- | ------------------------------------------- |
-| `123`             | decimal numeric literal                     |
-| `0xFF`            | hexadecimal numeric literal                 |
-| `0.5`             | floating literal                            |
-| `"text"`          | string literal, no implicit null terminator |
-| `0x[01 02 FF]`    | byte data literal                           |
-| `$[path/to/file]` | embedded file data                          |
-| `true`, `false`   | `Bool` literals                             |
+| Source                   | Meaning                                     |
+| ------------------------ | ------------------------------------------- |
+| `123`                    | decimal numeric literal                     |
+| `0xFF`                   | hexadecimal numeric literal                 |
+| `0.5`                    | floating literal                            |
+| `"Raw string"`           | string literal, no implicit null terminator |
+| `0x[AA FF 12 45 ACDE]`   | byte data literal                           |
+| `$[path/to/file]`        | embedded file data                          |
+| `true`, `false`          | `Bool` literals                             |
 
 Integer literals are exact integer values. When no narrower expected type is
 present, decimal and hexadecimal integer literals live in the language's
@@ -1400,6 +1406,11 @@ Floating literals follow the same principle: the literal text represents an
 exact source value, and the type or layout owner either fits it to the expected
 floating target or uses the documented default real type when no narrower target
 exists.
+
+Byte literals ignore whitespace and pair hexadecimal digits from left to right.
+Whitespace is a visual delimiter rather than data, so `0x[AA FF 12 45 ACDE]`
+produces `AA FF 12 45 AC DE`. Quoted strings decode their escape sequences and
+produce the resulting bytes without an implicit null terminator.
 
 `Bytes` literals and embedded-file literals are tokenized as whole literals, but
 their fixed prefixes are still source text entries on `Class`:
@@ -1436,6 +1447,13 @@ documentation for the context that introduced the alias, while
 `AliasName.canonical()` reaches the root type and root documentation. A tool may
 present the alias name with alias documentation, canonical documentation, or a
 stacked documentation view that accumulates each alias layer.
+
+Type descriptions are also a Type-model query. `Type::describe()` returns a
+diagnostic-facing string such as `Size2D` or `Graphics::Size2D alias of
+Math::Geometry::Size2D`. A producer may attach `display_name` when the authored
+name has a public path that the Type object cannot infer from its parent.
+Descriptions do not participate in canonicalization, type equivalence, layout
+equivalence, or layout fitting.
 
 ## Canonicalization
 
@@ -1491,8 +1509,8 @@ The semantic type space is intentionally small:
 | `enum`                    | compile-time namespace      | members lower to constants                       |
 | `alias`                   | compile-time type reference | erased after canonicalization                    |
 
-`Library`, `Shader`, and `Entity` are ISAs. They remain PascalCase type atoms in
-source; ISA registration, not the lexer, decides what they mean.
+`Library`, `Package`, `Render`, and `Shader` are ISAs. They remain PascalCase
+type atoms in source; ISA registration, not the lexer, decides what they mean.
 
 ## Relationship To LLVM IR And MLIR
 

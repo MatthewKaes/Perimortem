@@ -54,7 +54,6 @@ static Harness Base64Bench = {
 
 PERIMORTEM_BENCHMARK(Base64Bench, decode_1k_bytes) {
   Count size = 0;
-
   for (Count i = 0; i < batch_count; i++) {
     auto decoded = Base64::decode(base64_1kb);
     size += decoded.get_size();
@@ -65,7 +64,6 @@ PERIMORTEM_BENCHMARK(Base64Bench, decode_1k_bytes) {
 
 PERIMORTEM_BENCHMARK(Base64Bench, encode_1k_bytes) {
   Count size = 0;
-
   for (Count i = 0; i < batch_count; i++) {
     auto encode = Base64::decode(source_1kb);
     size += encode.get_size();

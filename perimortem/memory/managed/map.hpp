@@ -44,6 +44,7 @@ class Map {
     for (Count i = 0; i < buffer.bucket_count; i++) {
       buffer.bucket_buffer[i] = 0;
     }
+
     buffer.size = 0;
   }
 
@@ -93,6 +94,7 @@ class Map {
       if (index == 0) {
         return &buffer.slots_buffer[bucket].entry;
       }
+
       index--;
     }
 
@@ -104,6 +106,7 @@ class Map {
     if (entry == nullptr) {
       entry = insert(key, value_type());
     }
+
     return entry->value;
   }
 
@@ -138,7 +141,6 @@ class Map {
 
     Bits_32 hash = get_hash(key);
     Count bucket = bucket_index(hash);
-
     while (true) {
       if (buffer.bucket_buffer[bucket] == 0) {
         return nullptr;
@@ -194,10 +196,10 @@ class Map {
     created.bucket_buffer = arena.allocate(bucket_count);
     created.slots_buffer =
         Core::Data::cast<Slot>(arena.allocate(sizeof(Slot) * bucket_count));
-
     for (Count i = 0; i < bucket_count; i++) {
       created.bucket_buffer[i] = 0;
     }
+
     return created;
   }
 

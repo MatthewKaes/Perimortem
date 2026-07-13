@@ -11,7 +11,6 @@
 #include "perimortem/core/writer/textual.hpp"
 
 using namespace Perimortem::Core;
-using namespace Perimortem::Core::Diagnostics;
 using namespace Validation;
 
 constexpr Count max_message_length = 256;
@@ -26,12 +25,12 @@ static Static::Vector<LogEvent, event_log_size> log_events;
 static Count total_events = 0;
 
 static auto capture_sink(
-    Log::Level level,
+    Diagnostics::Log::Level level,
     View::Bytes message,
     const Diagnostics::Source& location) -> void {
   Static::Bytes<max_message_length> formatted;
-  Count formatted_size =
-      Log::format_entry(level, message, location, formatted.get_access());
+  Count formatted_size = Diagnostics::Log::format_entry(
+      level, message, location, formatted.get_access());
   Count index = total_events++ % event_log_size;
   log_events[index].message_size =
       Math::min(max_message_length, formatted_size);
@@ -72,8 +71,17 @@ auto has_valid_header(View::Bytes entry) -> Bool {
   }
 
   // Validate all number values
-  constexpr Static::Vector<Count, 9> number_indexes = {
-    {0, 1, 3, 4, 6, 7, 9, 10, 11}};
+  constexpr Static::Vector<Count, 9> number_indexes = {{
+    0,
+    1,
+    3,
+    4,
+    6,
+    7,
+    9,
+    10,
+    11,
+  }};
   for (Count i = 0; i < number_indexes.get_size(); i++) {
     if (b[number_indexes[i]] < '0' || b[number_indexes[i]] > '9') {
       return false;
@@ -87,47 +95,47 @@ static Harness DiagnosticsLog = {
   .name = "Diagnostics::Log"_view,
   .setup =
       []() {
-        Log::set_sink(capture_sink);
-        Log::set_level(Log::Level::Debug);
-        Log::set_disable_header(False);
+        Diagnostics::Log::set_sink(capture_sink);
+        Diagnostics::Log::set_level(Diagnostics::Log::Level::Debug);
+        Diagnostics::Log::set_disable_header(False);
         total_events = 0;
       },
   .teardown =
       []() {
-        Log::set_sink(Log::default_sink);
-        Log::set_level(Log::Level::Info);
-        Log::set_disable_header(False);
+        Diagnostics::Log::set_sink(Diagnostics::Log::default_sink);
+        Diagnostics::Log::set_level(Diagnostics::Log::Level::Info);
+        Diagnostics::Log::set_disable_header(False);
         total_events = 0;
       },
 };
 
 PERIMORTEM_UNIT_TEST(DiagnosticsLog, timestamp_format) {
-  Log::info("timestamp test"_view);
+  Diagnostics::Log::info("timestamp test"_view);
   ASSERT(last_entry().get_size() > 0);
   EXPECT(has_valid_header(last_entry()));
 }
 
 PERIMORTEM_UNIT_TEST(DiagnosticsLog, newline_terminator) {
-  Log::info("newline test"_view);
+  Diagnostics::Log::info("newline test"_view);
   View::Bytes entry = last_entry();
   ASSERT(entry.get_size() > 0);
   EXPECT_EQ(entry[entry.get_size() - 1], Bits_8('\n'));
 }
 
 PERIMORTEM_UNIT_TEST(DiagnosticsLog, source_location) {
-  Log::info("location test"_view);
+  Diagnostics::Log::info("location test"_view);
   EXPECT(contains(
       last_entry(), "validation/unit_tests/perimortem/core/log.cpp:"_view));
 }
 
 PERIMORTEM_UNIT_TEST(DiagnosticsLog, main_thread_name) {
-  Log::info("thread name test"_view);
+  Diagnostics::Log::info("thread name test"_view);
   ASSERT(last_entry().get_size() > 0);
   EXPECT(contains(last_entry(), "[main]"_view));
 }
 
 PERIMORTEM_UNIT_TEST(DiagnosticsLog, thread_name_order) {
-  Log::info("ordering test"_view);
+  Diagnostics::Log::info("ordering test"_view);
   View::Bytes entry = last_entry();
   ASSERT(entry.get_size() > 21);
   // Format: "X HH:MM:SS.mmm [main] ..."
@@ -135,7 +143,7 @@ PERIMORTEM_UNIT_TEST(DiagnosticsLog, thread_name_order) {
 }
 
 PERIMORTEM_UNIT_TEST(DiagnosticsLog, message_content) {
-  Log::info("unique message string"_view);
+  Diagnostics::Log::info("unique message string"_view);
   EXPECT(contains(last_entry(), "unique message string"_view));
 }
 
@@ -143,7 +151,7 @@ PERIMORTEM_UNIT_TEST(DiagnosticsLog, message_raii_guard) {
   Count events_before = total_events;
 
   {
-    Log::Message<64> message(Log::Level::Info);
+    Diagnostics::Log::Message<64> message(Diagnostics::Log::Level::Info);
     message << "builder emitted value="_view << Bits_32(42);
     EXPECT_EQ(total_events, events_before);
   }
@@ -154,24 +162,24 @@ PERIMORTEM_UNIT_TEST(DiagnosticsLog, message_raii_guard) {
 }
 
 PERIMORTEM_UNIT_TEST(DiagnosticsLog, header_thread_state) {
-  EXPECT_NOT(Log::get_disable_header());
+  EXPECT_NOT(Diagnostics::Log::get_disable_header());
 
-  Log::set_disable_header(True);
-  EXPECT(Log::get_disable_header());
+  Diagnostics::Log::set_disable_header(True);
+  EXPECT(Diagnostics::Log::get_disable_header());
 
-  Log::set_disable_header(False);
-  EXPECT_NOT(Log::get_disable_header());
+  Diagnostics::Log::set_disable_header(False);
+  EXPECT_NOT(Diagnostics::Log::get_disable_header());
 }
 
 PERIMORTEM_UNIT_TEST(DiagnosticsLog, suppress_messages) {
-  Log::set_level(Log::Level::Error);
+  Diagnostics::Log::set_level(Diagnostics::Log::Level::Error);
   Count events_before = total_events;
 
-  Log::error("should pass through"_view);
+  Diagnostics::Log::error("should pass through"_view);
   EXPECT(total_events > events_before);
   events_before = total_events;
 
-  Log::info("should be suppressed"_view);
+  Diagnostics::Log::info("should be suppressed"_view);
   EXPECT_EQ(total_events, events_before);
 
   // Surpressed message shouldn't override the older message.
@@ -180,7 +188,7 @@ PERIMORTEM_UNIT_TEST(DiagnosticsLog, suppress_messages) {
 }
 
 auto logging_function() -> void {
-  Log::error("Test Attribution"_view);
+  Diagnostics::Log::error("Test Attribution"_view);
 }
 
 auto attributing_function() -> void {

@@ -72,7 +72,6 @@ class alignas(64) Slab {
     slab->mapped_size = size;
     slab->ancestor = nullptr;
     slab->bump_ptr = sizeof(Slab);
-
     return slab;
 #else
     return nullptr;
@@ -341,6 +340,11 @@ auto Bibliotheca::reserve(Bits_8* data) -> Count {
   return entry->reservations++;
 }
 
+auto Bibliotheca::reservation_count(Bits_8* data) -> Count {
+  auto entry = corpus_to_preface(data);
+  return entry->reservations;
+}
+
 auto Bibliotheca::remit(Bits_8* data) -> Count {
   auto entry = corpus_to_preface(data);
   entry->reservations--;
@@ -396,7 +400,6 @@ auto Bibliotheca::free_memory() -> Count {
 auto Bibliotheca::allocated_memory() -> Count {
   auto reserved = reserved_memory();
   auto free = free_memory();
-
   return reserved - free;
 }
 

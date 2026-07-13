@@ -96,7 +96,7 @@ That makes the reusable TTX model smaller than a full language tree:
 | `Ttx::Layout`                          | value shape, field order, pack fitting, member projection     |
 | `Documentation`                        | source-authored prose for tools and exported facts            |
 | `TypeAccessOp` such as `::`            | nested type query against the current type or import context  |
-| `AddressOp` such as `.`                | layout member query or ISA-owned address projection           |
+| `AddressOp` such as `.`                | layout member query, package-name segment, or ISA projection  |
 | `CallOp` such as `->`                  | callable dispatch query against the current type or ISA facts |
 | modifier and attribute token classes   | visibility, storage, package, or ISA-owned metadata           |
 | string, bytes, layout, and pack tokens | source-shaped operands for the active ISA                     |
@@ -161,7 +161,7 @@ evaluate its body:
 dialect : Library;
 dialect : Render;
 dialect : Shader;
-dialect : Entity;
+dialect : Package;
 ```
 
 The source keyword remains `dialect`, but semantically this instruction names an
@@ -191,7 +191,7 @@ distinct and gives envelope evaluators a stable entry point. Evaluation can
 start below top level when a host already knows which evaluator should execute
 the bytecode.
 
-`Library`, `Render`, `Shader`, and `Entity` are ISAs. An ISA is
+`Library`, `Package`, `Render`, and `Shader` are ISAs. An ISA is
 more than a backend name: it decides which builtins, types, attributes, and
 body forms are legal in that source. For example, `dialect : Render;`
 and `dialect : Shader;` do not support managed runtime forms such as `object`
@@ -211,7 +211,7 @@ For hosts that use the common envelope, imports define named package
 dependencies to translate into the local ISA:
 
 ```ttx
-import Graphics : Package = Perimortem::Graphics;
+import Graphics : Package = Perimortem.Graphics;
 import Math     : Library = "math.ttx";
 ```
 
@@ -223,7 +223,9 @@ import Alias : IsaName = source;
 
 The left side creates the local name. The ISA name describes what the host
 expects the target source to declare. The right side is either a source path,
-such as `"math.ttx"`, or a package name such as `Perimortem::Graphics`.
+such as `"math.ttx"`, or a package name such as `Perimortem.Graphics`.
+Package names are `Type("." Type)*`; a parsed package name is already a valid
+cache key and folder name for hosts that persist package artifacts.
 
 Imports do not import ISA semantics. A `Shader` package does not inherit
 managed-library semantics like `object` or `List` by importing a `Library`.
@@ -297,10 +299,17 @@ field:
 @builtin(.slot = 0) .source : View[Bytes]
 @packed
 @stage(.kind = "fragment")
+@shader_type(Vec4D)
 ```
 
 Attributes may take a pack. Since `(...)` is always a pack, attribute arguments
 use the same syntax as call arguments and aggregate values.
+
+Target-specific attributes can attach lowering facts to a Type. For example,
+`@shader_type(Vec4D)` says that the authored type intentionally lowers through
+the shader ABI as `Vec4D`. That fact is separate from layout fitting: a type
+with four `Real_32` members is not a shader vector unless the ISA publishes the
+metadata or the type is canonically the vector type.
 
 `@if` is an attribute-shaped directive:
 
@@ -347,6 +356,13 @@ Aliases are compile-time type references. Resolution canonicalizes aliases
 inside a package so later compiler stages can reason about resolved types
 instead of source spelling.
 
+`Type::describe()` is the data-model helper for diagnostics that need to talk
+about source spelling without changing identity. It renders the authored type
+name and, for aliases, the public target name when one is available. Producers
+that know a stable public path may attach the generic `display_name` attribute
+to help the description. The attribute is presentation metadata; canonical
+address identity remains the type-equivalence rule.
+
 ## Builtin Definition Kinds
 
 Only builtin definition kinds can be followed by a scope:
@@ -375,7 +391,7 @@ can be a legal builtin in a `Library` package while remaining invalid in a
 
 ## Functions
 
-Functions are explicit AST nodes, not values declared as `Func`.
+Functions are explicit callable signature nodes, not values declared as `Func`.
 
 ```ttx
 public func main[.frag_uv : Vec2D] -> Color {
@@ -390,7 +406,9 @@ The function syntax is:
 modifier? func name[params] -> returns block
 ```
 
-Both parameters and returns are layouts. A single type may be written directly:
+Both parameters and returns are layouts. The selected body evaluator owns the
+implementation block; the TTX function model carries the callable signature,
+documentation, and dispatch name. A single type may be written directly:
 
 ```ttx
 public func size[] -> Count { ... }
@@ -434,9 +452,10 @@ There is no separate grouping syntax. A one-element pack behaves as the one
 value when the surrounding expression needs a value, so `(a + b) * c` still
 works.
 
-Packs are intermediate aggregate expressions, not concrete runtime objects.
-Typed values consume packs when the surrounding declaration, call, return, or
-assignment supplies a target type.
+Packs are source-IR expression nodes, not concrete runtime objects. They are
+durable enough for tools, diagnostics, and lowering to query their authored
+shape, but they materialize only when the surrounding declaration, call, return,
+or assignment supplies a target type.
 
 Nested positional packs flatten when they are fitted to a pack-compatible
 target. Grouping values with another pack does not create a nested runtime
@@ -473,10 +492,10 @@ Vec3D : struct { x : Real_32; y : Real_32; z : Real_32; }
 Vec4D : struct { x : Real_32; y : Real_32; z : Real_32; w : Real_32; }
 ```
 
-Graphics color lives in `Perimortem::Graphics`, which is explicit:
+Graphics color lives in `Perimortem.Graphics`, which is explicit:
 
 ```ttx
-import Graphics : Package = Perimortem::Graphics;
+import Graphics : Package = Perimortem.Graphics;
 
 Graphics::Color : struct { r : Real_32; g : Real_32; b : Real_32; a : Real_32; }
 ```
@@ -576,6 +595,13 @@ defines the stride through the packed iterable.
 
 Expressions are values. Assignment is not an expression in TTX because it does
 not produce a value.
+
+Executable syntax is owned by the ISA that understands it. Library lowers its
+expressions into immutable compiler bodies published against stable
+`Ttx::Function` identities. Shader currently retains Shader-owned blocks and
+statements until a graphics execution interface can replace that temporary
+boundary. These representations do not add body tags or generic statement
+nodes to the TTX model.
 
 The expression grammar follows a conventional precedence ladder:
 
@@ -749,25 +775,19 @@ match value {
 
 ## Enums
 
-Enums use a concise storage-typed named-pack syntax:
+Enums use a storage-typed brace scope:
 
 ```ttx
-private Color : enum[Bits_8](.red = 1, .green = 2, .blue = 3);
+private Color : enum[Bits_8] {
+  red = 1;
+  green = 2;
+  blue = 3;
+}
 ```
 
-The syntax is short because enums are common compile-time data. Semantically,
-the compiler desugars enum members into exposed compile-time values inside the
-enum namespace, and checks each value against the declared storage type:
-
-```ttx
-private Color : enum[Bits_8](
-  .red = 1,
-  .green = 2,
-  .blue = 3,
-);
-```
-
-is treated like:
+The compiler treats enum members as exposed compile-time values inside the enum
+namespace and checks each value against the declared storage type. The meaning
+is equivalent to:
 
 ```ttx
 private Color : struct {
@@ -779,8 +799,8 @@ private Color : struct {
 
 The internal representation is compiler-owned, but the source storage type is
 part of the contract. Enum members are named compile-time values, not runtime
-fields. `enum[Storage](...)` is an enum declaration shorthand, not a general
-expression form for creating enum values inline.
+fields. The brace scope also leaves room for enum-owned functions without
+inventing a second declaration form.
 
 ## Literals
 
@@ -790,15 +810,18 @@ TTX literals are intentionally small:
 42
 0xFF
 0.5
-"text"
-0x[89 50 4E 47]
+"Raw string"
+0x[AA FF 12 45 ACDE]
 $[path/to/file]
 true
 false
 ```
 
-`0x[...]` is a byte literal. `$[...]` embeds a file as data. Strings do not
-include an implicit null terminator.
+`0x[...]` is a byte literal. Whitespace separates digits for people but is not
+part of the value; hexadecimal digits are paired from left to right, so `ACDE`
+contributes the two bytes `AC DE`. `$[...]` embeds a file as data. Quoted strings
+decode escape sequences into bytes and do not include an implicit null
+terminator.
 
 Integer literals are exact integer values. When no narrower expected type is
 present they default to the language's 64-bit integer domain, with `Count`

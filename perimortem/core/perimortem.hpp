@@ -11,36 +11,28 @@
 
   ==============================================================================
 
-  As C++ has grown as a language it's standard library has gotten quite slow to
-  build and carries over a few annoyances from C compatability. The goal is to
-  slowly self host all of TTX (maybe even drop the clang toolchain?), mostly for
-  sport.
+  Perimortem provides a compact runtime and standard-library surface with
+  explicit control over data layout, allocation, and dependencies. Avoiding the
+  broad C++ standard library also keeps compile times low while keeping the ABI
+  and memory management layers fully controlled.
 
-  In the mean time to speed up compile times by over an order of magnitude and
-  to give us finer grain control of the stdlib surface area we stub most of the
-  C++ standard lib out but we don't want to lose full compatability with the C++
-  standard library (at a minimum it's useful for benchmarking and bootstrapping)
-
-  This file attempts to not make Perimortem _incompatable_ with the C++ standard
-  library, but provide a limited stub that may be mixed with standard C++ header
-  files as necessary. That said, use of C++'s STL is limited as much as possible
-  in throughout the project; some includes bloat compile times by seconds all on
-  their own in C++26.
+  This file provides the fundamental types used throughout the runtime while
+  remaining compatible with C++ standard-library headers when interoperability
+  is useful. The actual Perimortem avoids using the STL as headers add both
+  substantial build cost and leak complexity into the system.
 
   ==============================================================================
 
-                                WHY NOT C?
+                                WHY C++?
 
   ==============================================================================
 
-  TTX is built to target `libc` so the question is why not use C as the base?
-
-  While we don't want many features from the standard library we do make use of
-  a large number of C++ _compiler_ features. All Perimortem features must bottom
-  out to a compatible C ABI for TTX, but there is a lot we can express in C++
-  without full TTX support. Despite it's flaws it's easier for me personally to
-  express in C++ that isn't worth the C or LLVM wranging directly, especially
-  when we are building an entire parallel with TTX anyway.
+  While Perimortem does not use much of the C++ standard library it does use the
+  C++ language feautres to leverage existing toolchains. By limiting usage to C
+  headers we get the benefit of C++ compiler features while sticking to C's
+  low-level data and ABI boundaries where it matters: simple enough for callers
+  written in other languages to use the runtime while keeping the implementation
+  concise and statically checked.
 
 */
 
@@ -90,9 +82,11 @@ struct Bool {
   constexpr auto operator==(Bool rhs) const -> Bool {
     return value == rhs.value;
   }
+
   constexpr auto operator!=(Bool rhs) const -> Bool {
     return value != rhs.value;
   }
+
   constexpr auto operator|(Bool rhs) const -> Bool { return value | rhs.value; }
   constexpr auto operator&(Bool rhs) const -> Bool { return value & rhs.value; }
   constexpr auto operator^(Bool rhs) const -> Bool { return value ^ rhs.value; }
@@ -101,10 +95,12 @@ struct Bool {
     value &= rhs.value;
     return *this;
   }
+
   constexpr auto operator|=(Bool rhs) -> Bool& {
     value |= rhs.value;
     return *this;
   }
+
   constexpr auto sign() const -> Signed_64 { return value ? 1 : -1; }
   Bits_8 value;
 };

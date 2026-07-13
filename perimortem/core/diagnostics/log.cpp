@@ -20,7 +20,6 @@
 #include "perimortem/core/writer/textual.hpp"
 
 using namespace Perimortem::Core;
-using namespace Perimortem::Core::Diagnostics;
 
 constexpr Count max_message_capacity = 1 << 11;
 
@@ -72,50 +71,54 @@ class ThreadWriter {
   Bool file_ready = False;
 };
 
-static thread_local Log::Sink message_sink = Log::default_sink;
-static thread_local Log::Level thread_log_level = Log::Level::Info;
+static thread_local Diagnostics::Log::Sink message_sink =
+    Diagnostics::Log::default_sink;
+static thread_local Diagnostics::Log::Level thread_log_level =
+    Diagnostics::Log::Level::Info;
 static thread_local Bool disable_log_header = False;
-static thread_local Source attribution_override;
+static thread_local Diagnostics::Source attribution_override;
 static thread_local ThreadWriter thread_writer;
 
-constexpr auto level_char(Log::Level level) -> Signed_8 {
+constexpr auto level_char(Diagnostics::Log::Level level) -> Signed_8 {
   switch (level) {
-  case Log::Level::Debug:
+  case Diagnostics::Log::Level::Debug:
     return 'D';
-  case Log::Level::Info:
+  case Diagnostics::Log::Level::Info:
     return 'I';
-  case Log::Level::Warning:
+  case Diagnostics::Log::Level::Warning:
     return 'W';
-  case Log::Level::Error:
+  case Diagnostics::Log::Level::Error:
     return 'E';
-  case Log::Level::Fatal:
+  case Diagnostics::Log::Level::Fatal:
     return 'F';
   }
+
   return '?';
 }
 
-constexpr auto level_color(Log::Level level) -> View::Bytes {
+constexpr auto level_color(Diagnostics::Log::Level level) -> View::Bytes {
   switch (level) {
-  case Log::Level::Debug:
+  case Diagnostics::Log::Level::Debug:
     return "\x1b[38;5;246m"_view;
-  case Log::Level::Info:
+  case Diagnostics::Log::Level::Info:
     return ""_view;
-  case Log::Level::Warning:
+  case Diagnostics::Log::Level::Warning:
     return "\x1b[38;5;220m"_view;
-  case Log::Level::Error:
-  case Log::Level::Fatal:
+  case Diagnostics::Log::Level::Error:
+  case Diagnostics::Log::Level::Fatal:
     return "\x1b[38;5;160m"_view;
   }
+
   return ""_view;
 }
 
 static auto format_message(
-    Log::Level level,
+    Diagnostics::Log::Level level,
     View::Bytes message,
-    const Source& location,
+    const Diagnostics::Source& location,
     Access::Bytes output) -> Count {
   if (!disable_log_header) {
-    return Log::format_entry(level, message, location, output);
+    return Diagnostics::Log::format_entry(level, message, location, output);
   }
 
   Writer::Textual writer(output);
@@ -123,31 +126,36 @@ static auto format_message(
     writer << location.get_file() << ':' << location.get_line() << ':'
            << location.get_column() << ": "_view;
   }
+
   writer << message;
   return writer.get_location();
 }
 
-Log::Attribution::Attribution(Attribution&& rhs) {
+Diagnostics::Log::Attribution::Attribution(Attribution&& rhs) {
   primary_guard = rhs.primary_guard;
   rhs.primary_guard = False;
 }
 
-Log::Attribution::~Attribution() {
+Diagnostics::Log::Attribution::~Attribution() {
   if (primary_guard) {
     attribution_override = Source();
   }
 }
 
-auto Log::file_sink(Level level, View::Bytes message, const Source& location)
-    -> void {
+auto Diagnostics::Log::file_sink(
+    Level level,
+    View::Bytes message,
+    const Source& location) -> void {
   Static::Bytes<max_message_capacity> message_buffer;
   Count message_length =
       format_message(level, message, location, message_buffer.get_access());
   thread_writer.accumulate(message_buffer.slice(0, message_length));
 }
 
-auto Log::console_sink(Level level, View::Bytes message, const Source& location)
-    -> void {
+auto Diagnostics::Log::console_sink(
+    Level level,
+    View::Bytes message,
+    const Source& location) -> void {
   Static::Bytes<max_message_capacity> message_buffer;
   Count message_length =
       format_message(level, message, location, message_buffer.get_access());
@@ -156,13 +164,14 @@ auto Log::console_sink(Level level, View::Bytes message, const Source& location)
   fwrite(formatted.get_data(), 1, formatted.get_size(), stream);
 }
 
-auto Log::color_sink(Level level, View::Bytes message, const Source& location)
-    -> void {
+auto Diagnostics::Log::color_sink(
+    Level level,
+    View::Bytes message,
+    const Source& location) -> void {
   Static::Bytes<max_message_capacity> entry_buffer;
   Count entry_length =
       format_message(level, message, location, entry_buffer.get_access());
   View::Bytes entry = entry_buffer.slice(0, entry_length);
-
   if (message.is_empty()) {
     return;
   }
@@ -179,8 +188,10 @@ auto Log::color_sink(Level level, View::Bytes message, const Source& location)
   fwrite(color_buffer.get_data(), 1, writer.get_location(), stream);
 }
 
-auto Log::stderr_sink(Level level, View::Bytes message, const Source& location)
-    -> void {
+auto Diagnostics::Log::stderr_sink(
+    Level level,
+    View::Bytes message,
+    const Source& location) -> void {
   Static::Bytes<max_message_capacity> message_buffer;
   Count message_length =
       format_message(level, message, location, message_buffer.get_access());
@@ -189,33 +200,35 @@ auto Log::stderr_sink(Level level, View::Bytes message, const Source& location)
   fflush(stderr);
 }
 
-auto Log::debug_sink(Level level, View::Bytes message, const Source& location)
-    -> void {
+auto Diagnostics::Log::debug_sink(
+    Level level,
+    View::Bytes message,
+    const Source& location) -> void {
   console_sink(level, message, location);
   file_sink(level, message, location);
 }
 
-auto Log::set_sink(Sink sink) -> void {
+auto Diagnostics::Log::set_sink(Sink sink) -> void {
   message_sink = sink;
 }
 
-auto Log::get_sink() -> Sink {
+auto Diagnostics::Log::get_sink() -> Sink {
   return message_sink;
 }
 
-auto Log::set_disable_header(Bool disable_header) -> void {
+auto Diagnostics::Log::set_disable_header(Bool disable_header) -> void {
   disable_log_header = disable_header;
 }
 
-auto Log::get_disable_header() -> Bool {
+auto Diagnostics::Log::get_disable_header() -> Bool {
   return disable_log_header;
 }
 
-auto Log::set_level(Level level) -> void {
+auto Diagnostics::Log::set_level(Level level) -> void {
   thread_log_level = level;
 }
 
-auto Log::set_attribution(const Source& location) -> Attribution {
+auto Diagnostics::Log::set_attribution(const Source& location) -> Attribution {
   // If we have someone already claiming attribution higher on the stack then
   // ignore the request.
   // If there is no attribution then create an attribution point.
@@ -228,8 +241,10 @@ auto Log::set_attribution(const Source& location) -> Attribution {
   return scope_guard;
 }
 
-auto Log::log(Level level, View::Bytes message, const Source& location)
-    -> void {
+auto Diagnostics::Log::log(
+    Level level,
+    View::Bytes message,
+    const Source& location) -> void {
   if (level < thread_log_level || !message_sink) {
     return;
   }
@@ -239,7 +254,7 @@ auto Log::log(Level level, View::Bytes message, const Source& location)
   message_sink(level, message, target_source);
 }
 
-auto Log::format_entry(
+auto Diagnostics::Log::format_entry(
     Log::Level level,
     View::Bytes message,
     const Source& location,
@@ -254,27 +269,31 @@ auto Log::format_entry(
   writer << ':' << location.get_line();
   writer << ':' << location.get_column();
   writer << ": "_view << message << '\n';
-
   return writer.get_location();
 }
 
-auto Log::debug(View::Bytes message, const Source& location) -> void {
+auto Diagnostics::Log::debug(View::Bytes message, const Source& location)
+    -> void {
   log(Level::Debug, message, location);
 }
 
-auto Log::info(View::Bytes message, const Source& location) -> void {
+auto Diagnostics::Log::info(View::Bytes message, const Source& location)
+    -> void {
   log(Level::Info, message, location);
 }
 
-auto Log::warning(View::Bytes message, const Source& location) -> void {
+auto Diagnostics::Log::warning(View::Bytes message, const Source& location)
+    -> void {
   log(Level::Warning, message, location);
 }
 
-auto Log::error(View::Bytes message, const Source& location) -> void {
+auto Diagnostics::Log::error(View::Bytes message, const Source& location)
+    -> void {
   log(Level::Error, message, location);
 }
 
-auto Log::fatal(View::Bytes message, const Source& location) -> void {
+auto Diagnostics::Log::fatal(View::Bytes message, const Source& location)
+    -> void {
   log(Level::Fatal, message, location);
   flush();
 
@@ -287,6 +306,6 @@ auto Log::fatal(View::Bytes message, const Source& location) -> void {
   abort();
 }
 
-auto Log::flush() -> void {
+auto Diagnostics::Log::flush() -> void {
   thread_writer.flush();
 }

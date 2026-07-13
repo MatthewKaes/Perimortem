@@ -1,0 +1,9 @@
+// Perimortem Engine
+// Copyright © Matt Kaes
+dialect : Package;
+
+import Types : Library = "library/types.ttx";
+
+expose Frame : alias = Types::Frame;
+expose Time : alias = Types::Time;
+expose Window : alias = Types::Window;

@@ -5,7 +5,6 @@
 
 #include "perimortem/core/view/bytes.hpp"
 #include "perimortem/core/view/vector.hpp"
-#include "perimortem/core/static/vector.hpp"
 #include "perimortem/core/null_terminated.hpp"
 
 namespace Ttx::Lexical {
@@ -108,9 +107,9 @@ class Class {
     Dialect,
     Alias,
 
-    // Common modifier keywords. Their meaning belongs to the ISA that consumes
-    // them, but keeping the spellings as fixed tokens gives every ISA the same
-    // cheap starting point.
+    // Common modifier keywords. Their meaning belongs to the dialect that
+    // consumes them, but fixed spellings give every parser the same cheap
+    // starting point.
     Public,
     Private,
     Expose,
@@ -153,17 +152,6 @@ class Class {
 
     return False;
   }
-
-  static constexpr auto is_type_ref(Type value) -> Bool {
-    switch (value) {
-    case Type::Type:
-      return True;
-    default:
-      return False;
-    }
-  }
-
-  constexpr auto is_type_ref() const -> Bool { return is_type_ref(type); }
 
   constexpr auto get_type() const -> Type { return type; }
 

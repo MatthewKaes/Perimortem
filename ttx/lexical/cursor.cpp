@@ -3,6 +3,8 @@
 
 #include "ttx/lexical/cursor.hpp"
 
+#include "perimortem/core/static/vector.hpp"
+
 using namespace Ttx::Lexical;
 using namespace Perimortem::Core;
 
@@ -32,16 +34,15 @@ auto Cursor::require(Lexical::Class::Type type, View::Bytes message)
 
 auto Cursor::error(View::Bytes message, View::Bytes hint) -> void {
   errors.insert(
-      Lexical::Error(
-          tokenizer.get_source_name(), tokenizer.get_source_text(), message,
-          hint));
+      Source(tokenizer.get_source_name(), tokenizer.get_source_text()), message,
+      hint);
 }
 
 auto Cursor::token_error(View::Bytes message, View::Bytes hint) -> void {
   errors.insert(
-      Lexical::Error(
-          current(), tokenizer.get_source_name(), tokenizer.get_source_text(),
-          message, hint));
+      current(),
+      Source(tokenizer.get_source_name(), tokenizer.get_source_text()), message,
+      hint);
 }
 
 auto Cursor::range_error(
@@ -49,10 +50,10 @@ auto Cursor::range_error(
     const Lexical::Token& end,
     View::Bytes message,
     View::Bytes hint) -> void {
-  errors.insert(
-      Lexical::Error(
-          start, end, tokenizer.get_source_name(), tokenizer.get_source_text(),
-          message, hint));
+  errors.insert_range(
+      start, end,
+      Source(tokenizer.get_source_name(), tokenizer.get_source_text()), message,
+      hint);
 }
 
 auto Cursor::recover_to_statement() -> void {

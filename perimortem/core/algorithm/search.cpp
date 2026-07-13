@@ -10,22 +10,22 @@ using namespace Perimortem::Core;
 
 #include <x86intrin.h>
 
-namespace Perimortem::Core::Algorithm {
+auto Algorithm::search(View::Bytes src, View::Bytes value) -> Count {
+  // Fall back to the more optimized value check if the View::Bytes is only a
+  // single byte long. This avoids all of the extra tail checks.
+  if (value.get_size() == 1) {
+    return search(src, value[0]);
+  }
 
-auto load_vector(const Bits_8* data) -> const __m256i {
-  return _mm256_loadu_si256(Data::cast<const __m256i_u>(data));
-}
-
-auto search(View::Bytes src, View::Bytes value) -> Count {
   // If the value is larger than the source then it can't be a substring.
   if (value.get_size() > src.get_size()) {
-    return -1;
+    return Count(-1);
   }
 
   // If the value and src are the same size then we just have to test if they
   // are the same object.
   if (value.get_size() == src.get_size()) {
-    return value == src ? 0 : -1;
+    return value == src ? 0 : Count(-1);
   }
 
   // Setup two additional registers with the exact value test as well as the
@@ -44,8 +44,10 @@ auto search(View::Bytes src, View::Bytes value) -> Count {
     Data::set(value_filter.get_data(), 0xFF, value.get_size());
     const auto first_byte = _mm256_set1_epi8(value[0]);
     const auto last_byte = _mm256_set1_epi8(value[tail_offset]);
-    const auto test_value = load_vector(value_bytes.get_data());
-    const auto test_filter = load_vector(value_filter.get_data());
+    const auto test_value =
+        _mm256_loadu_si256(Data::cast<const __m256i_u>(value_bytes.get_data()));
+    const auto test_filter = _mm256_loadu_si256(
+        Data::cast<const __m256i_u>(value_filter.get_data()));
 
     // loop through all vectorizable chunks possible.
     // Each chunk tests for 32 possible valid locations based on start and end
@@ -100,7 +102,49 @@ auto search(View::Bytes src, View::Bytes value) -> Count {
   }
 
   // Not found
-  return -1;
+  return Count(-1);
 }
 
-}  // namespace Perimortem::Core::Algorithm
+// Fast vectorized sub string search for a particular byte in a View::Bytes.
+auto Algorithm::search(View::Bytes src, Bits_8 value) -> Count {
+  // If the value is larger than the source then it can't be a substring.
+  if (src.is_empty()) {
+    return Count(-1);
+  }
+
+  // Do a straight forward scan since we can do direct epi8 tests rather than
+  // sub ranges.
+  Count i = 0;
+  auto source_data = src.get_data();
+  constexpr auto vectorize_limit = sizeof(__m256i);
+  if (src.get_size() >= vectorize_limit) [[likely]] {
+    const auto test_mask = _mm256_set1_epi8(value);
+
+    // loop through all vectorizable chunks possible.
+    // Each chunk tests for 32 possible valid locations based on start and end
+    // pairings which performs vastly better than just checking for start values
+    // on long ranges.
+    for (; i < src.get_size() - vectorize_limit; i += vectorize_limit) {
+      const auto source_block =
+          _mm256_loadu_si256(Data::cast<const __m256i_u>(source_data + i));
+
+      const auto source_hits = _mm256_cmpeq_epi8(source_block, test_mask);
+      auto range_mask = Bits_32(_mm256_movemask_epi8(source_hits));
+      if (range_mask) {
+        auto index = __builtin_ctzg(range_mask);
+        range_mask ^= 1 << index;
+        return i + index;
+      }
+    }
+  }
+
+  // Scalar fallback.
+  for (; i < src.get_size(); i++) {
+    if (value == source_data[i]) {
+      return i;
+    }
+  }
+
+  // Not found
+  return Count(-1);
+}

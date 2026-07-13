@@ -73,7 +73,6 @@ auto Dynamic::Bytes::operator=(Bytes&& rhs) -> Bytes& {
   // Swap source blocks and since move isn't "destructive" we can rely on the
   // destructor form the donor bytes.
   Data::swap(source_block, rhs.source_block);
-
   return *this;
 }
 
@@ -200,7 +199,6 @@ auto Dynamic::Bytes::ensure_capacity(Count required_size) -> void {
   // Since the current block doesn't fit in the current archive fetch and
   // transfer to a new block.
   auto alloc = Bibliotheca::check_out(required_size);
-
   if (source_block) {
     memcpy(alloc.ptr, source_block, size);
     Bibliotheca::remit(source_block);

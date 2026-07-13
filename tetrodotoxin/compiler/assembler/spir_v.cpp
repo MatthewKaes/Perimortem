@@ -6,6 +6,9 @@
 using namespace Perimortem::Core;
 using namespace Tetrodotoxin::Compiler;
 
+// Validation reads the same little-endian word stream the writer produces. This
+// stays local because it is only a structural sanity check, not a public
+// reader.
 static auto read_word(View::Bytes words, Count word_index) -> Bits_32 {
   Count byte_index = word_index * 4;
   if (byte_index + 4 > words.get_size()) {
@@ -21,6 +24,8 @@ auto Assembler::SpirV::begin_module(
     Bits_32 bound,
     Version version,
     Bits_32 generator) -> void {
+  // The fifth header word is the reserved schema field. It must be zero for the
+  // current SPIR-V versions.
   word(magic);
   word(Bits_32(version));
   word(generator);
@@ -29,6 +34,9 @@ auto Assembler::SpirV::begin_module(
 }
 
 auto Assembler::SpirV::word(Bits_32 value) -> void {
+  // SPIR-V binary modules are little-endian 32-bit words. Keeping this
+  // primitive explicit makes every higher-level helper a direct spelling of the
+  // wire form.
   words.append(Bits_8(value & 0xFF));
   words.append(Bits_8((value >> 8) & 0xFF));
   words.append(Bits_8((value >> 16) & 0xFF));
@@ -36,10 +44,15 @@ auto Assembler::SpirV::word(Bits_32 value) -> void {
 }
 
 auto Assembler::SpirV::instruction(Op opcode, Count word_count) -> void {
+  // Every instruction begins with one word. The opcode occupies the low 16
+  // bits. The total instruction word count occupies the high 16 bits and
+  // includes this header word.
   word((Bits_32(word_count) << 16) | Bits_32(opcode));
 }
 
 auto Assembler::SpirV::literal_string(View::Bytes text) -> Count {
+  // Literal strings are stored inline as words. The first zero byte terminates
+  // the string, and any remaining bytes in that final word are also zero.
   Count byte_index = 0;
   Count written = 0;
   Count words = literal_string_word_count(text);
@@ -63,6 +76,8 @@ auto Assembler::SpirV::literal_string(View::Bytes text) -> Count {
 }
 
 auto Assembler::SpirV::capability(Capability value) -> void {
+  // OpCapability opts the module into a feature family. The Shader capability
+  // is the baseline required before declaring shader stages.
   instruction(Op::Capability, 2);
   word(Bits_32(value));
 }
@@ -70,6 +85,8 @@ auto Assembler::SpirV::capability(Capability value) -> void {
 auto Assembler::SpirV::memory_model(
     AddressingModel addressing,
     MemoryModel memory) -> void {
+  // OpMemoryModel is mandatory and fixes the pointer/addressing rules the rest
+  // of the module is interpreted under.
   instruction(Op::MemoryModel, 3);
   word(Bits_32(addressing));
   word(Bits_32(memory));
@@ -87,6 +104,8 @@ auto Assembler::SpirV::entry_point(
     Bits_32 function_id,
     View::Bytes name,
     View::Vector<Bits_32> interface_ids) -> void {
+  // OpEntryPoint binds an execution model to a function id and lists the global
+  // input/output variables visible at that boundary.
   instruction(
       Op::EntryPoint,
       3 + literal_string_word_count(name) + interface_ids.get_size());
@@ -101,12 +120,16 @@ auto Assembler::SpirV::entry_point(
 auto Assembler::SpirV::execution_mode(
     Bits_32 entry_point_id,
     ExecutionMode mode) -> void {
+  // OpExecutionMode adds stage-specific facts. Fragment shaders commonly need
+  // OriginUpperLeft so coordinates match the Vulkan framebuffer convention.
   instruction(Op::ExecutionMode, 3);
   word(entry_point_id);
   word(Bits_32(mode));
 }
 
 auto Assembler::SpirV::name(Bits_32 target_id, View::Bytes name) -> void {
+  // OpName is debug metadata. It can legally reference an id before the
+  // instruction that defines that id appears later in the module.
   instruction(Op::Name, 2 + literal_string_word_count(name));
   word(target_id);
   literal_string(name);
@@ -116,6 +139,8 @@ auto Assembler::SpirV::member_name(
     Bits_32 target_id,
     Bits_32 member_index,
     View::Bytes name) -> void {
+  // OpMemberName is the struct-member version of OpName. The member is
+  // addressed by index because struct fields are positional in SPIR-V.
   instruction(Op::MemberName, 3 + literal_string_word_count(name));
   word(target_id);
   word(member_index);
@@ -126,6 +151,8 @@ auto Assembler::SpirV::decorate(
     Bits_32 target_id,
     Decoration decoration,
     Bits_32 value) -> void {
+  // OpDecorate attaches semantic metadata to an id. Decorations are how Vulkan
+  // sees locations, descriptor sets, bindings, and builtin IO roles.
   instruction(Op::Decorate, 4);
   word(target_id);
   word(Bits_32(decoration));
@@ -144,6 +171,8 @@ auto Assembler::SpirV::member_decorate(
     Bits_32 member_index,
     Decoration decoration,
     Bits_32 value) -> void {
+  // OpMemberDecorate is used for layout metadata on a single struct member,
+  // such as the byte offset inside a push constant block.
   instruction(Op::MemberDecorate, 5);
   word(target_id);
   word(member_index);
@@ -152,6 +181,8 @@ auto Assembler::SpirV::member_decorate(
 }
 
 auto Assembler::SpirV::type_void(Bits_32 result_id) -> void {
+  // Type instructions define ids in the type namespace. Later instructions
+  // refer to these ids instead of restating the structural type.
   instruction(Op::TypeVoid, 2);
   word(result_id);
 }
@@ -244,6 +275,8 @@ auto Assembler::SpirV::type_pointer(
     Bits_32 result_id,
     StorageClass storage_class,
     Bits_32 type_id) -> void {
+  // Pointer types include their storage class, so "pointer to Vec2 input" and
+  // "pointer to Vec2 output" are distinct SPIR-V types.
   instruction(Op::TypePointer, 4);
   word(result_id);
   word(Bits_32(storage_class));
@@ -283,6 +316,9 @@ auto Assembler::SpirV::variable(
     Bits_32 result_type_id,
     Bits_32 result_id,
     StorageClass storage_class) -> void {
+  // Variables are storage declarations. For shader inputs/outputs/resources
+  // they are module-scope globals. Function-local variables will use Function
+  // storage.
   instruction(Op::Variable, 4);
   word(result_type_id);
   word(result_id);
@@ -293,6 +329,8 @@ auto Assembler::SpirV::load(
     Bits_32 result_type_id,
     Bits_32 result_id,
     Bits_32 pointer_id) -> void {
+  // OpLoad turns a pointer id into an SSA value id. The result type is the
+  // pointed-to value type, not the pointer type.
   instruction(Op::Load, 4);
   word(result_type_id);
   word(result_id);
@@ -300,6 +338,7 @@ auto Assembler::SpirV::load(
 }
 
 auto Assembler::SpirV::store(Bits_32 pointer_id, Bits_32 object_id) -> void {
+  // OpStore writes an SSA value into a pointer. It has no result id.
   instruction(Op::Store, 3);
   word(pointer_id);
   word(object_id);
@@ -310,6 +349,8 @@ auto Assembler::SpirV::access_chain(
     Bits_32 result_id,
     Bits_32 base_id,
     View::Vector<Bits_32> index_ids) -> void {
+  // OpAccessChain computes a pointer into a composite object. Index ids are SSA
+  // integer values, which lets later lowering address dynamic array elements.
   instruction(Op::AccessChain, 4 + index_ids.get_size());
   word(result_type_id);
   word(result_id);
@@ -325,6 +366,8 @@ auto Assembler::SpirV::vector_shuffle(
     Bits_32 vector_1_id,
     Bits_32 vector_2_id,
     View::Vector<Bits_32> components) -> void {
+  // OpVectorShuffle builds a new vector by selecting lanes from one or two
+  // input vectors. It is the natural target for swizzles.
   instruction(Op::VectorShuffle, 5 + components.get_size());
   word(result_type_id);
   word(result_id);
@@ -339,6 +382,8 @@ auto Assembler::SpirV::composite_construct(
     Bits_32 result_type_id,
     Bits_32 result_id,
     View::Vector<Bits_32> constituents) -> void {
+  // OpCompositeConstruct creates vectors, arrays, and structs from already
+  // computed constituent value ids.
   instruction(Op::CompositeConstruct, 3 + constituents.get_size());
   word(result_type_id);
   word(result_id);
@@ -352,6 +397,8 @@ auto Assembler::SpirV::composite_extract(
     Bits_32 result_id,
     Bits_32 composite_id,
     View::Vector<Bits_32> indexes) -> void {
+  // OpCompositeExtract reads a value out of a composite without producing a
+  // pointer. For a pointer result, use OpAccessChain instead.
   instruction(Op::CompositeExtract, 4 + indexes.get_size());
   word(result_type_id);
   word(result_id);
@@ -366,6 +413,9 @@ auto Assembler::SpirV::image_sample_implicit_lod(
     Bits_32 result_id,
     Bits_32 sampled_image_id,
     Bits_32 coordinate_id) -> void {
+  // OpImageSampleImplicitLod samples an image using implicit derivatives rather
+  // than an explicit LOD operand, which is enough for the first 2D fragment
+  // path.
   instruction(Op::ImageSampleImplicitLod, 5);
   word(result_type_id);
   word(result_id);
@@ -414,6 +464,8 @@ auto Assembler::SpirV::function(
     Bits_32 result_id,
     FunctionControl control,
     Bits_32 function_type_id) -> void {
+  // OpFunction opens a function body. The function type id names the signature.
+  // The result type id repeats the return type for quick validation.
   instruction(Op::Function, 5);
   word(result_type_id);
   word(result_id);
@@ -422,6 +474,8 @@ auto Assembler::SpirV::function(
 }
 
 auto Assembler::SpirV::label(Bits_32 result_id) -> void {
+  // A label begins a basic block. Even a function with no real body needs one
+  // block before it can return.
   instruction(Op::Label, 2);
   word(result_id);
 }
@@ -435,10 +489,13 @@ auto Assembler::SpirV::function_end() -> void {
 }
 
 auto Assembler::SpirV::literal_string_word_count(View::Bytes text) -> Count {
+  // Add one byte for the NUL terminator, then round up to a whole word.
   return (text.get_size() + 4) / 4;
 }
 
 auto Assembler::SpirV::is_valid_module(View::Bytes words) -> Bool {
+  // This is intentionally shallow. It catches broken writers and truncated
+  // modules without pretending to be a SPIR-V semantic validator.
   if (words.get_size() < 20 || words.get_size() % 4 != 0) {
     return False;
   }

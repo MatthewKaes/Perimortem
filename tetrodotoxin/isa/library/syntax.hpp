@@ -3,21 +3,18 @@
 
 #pragma once
 
-#include "perimortem/core/view/bytes.hpp"
-
 #include "ttx/lexical/cursor.hpp"
 
 namespace Tetrodotoxin::Isa::Library {
 
-// Syntax owns Library-level token recovery and source-span skipping. It does
-// not interpret expressions; it only keeps callers aligned on the next
-// declaration boundary.
+// Syntax owns Library-level token recovery and source-span skipping.
+// TODO: Replace this once we have the proper ISAs. We are down to one remianing
+// function before we can remove Library::Syntax.
 class Syntax {
  public:
-  static auto consume_declaration_tail(Ttx::Lexical::Cursor& cursor) -> Bool;
-  static auto consume_initializer(
+  static auto consume_declaration_tail(
       Ttx::Lexical::Cursor& cursor,
-      Perimortem::Core::View::Bytes error_message) -> Bool;
+      Bool consume_unmatched_scope = False) -> Bool;
 };
 
 }  // namespace Tetrodotoxin::Isa::Library

@@ -10,9 +10,13 @@
 
 namespace Tetrodotoxin::Compiler::Assembler {
 
-// Assembler for the x86_64 ISA
-// TODO: Generalize to an ISA interface at some point.
-// Also SSA needs to be pulled out at some point for optimization passes.
+// x86_64 is the private machine-code writer selected by the System V backend.
+// It receives physical operands only, with SSA identity and allocation being
+// part of the target-independent compiler layer.
+//
+// The emitter still performs at least some micro optimization by attempting to
+// emit the shortest encodings possible for most common idioms. Higher order op
+// fusion and microcode optimizations are not currently performed.
 class x86_64 {
  public:
   enum class Reg {
@@ -87,6 +91,17 @@ class x86_64 {
     R15W,
   };
 
+  enum class Xmm : Bits_8 {
+    XMM0,
+    XMM1,
+    XMM2,
+    XMM3,
+    XMM4,
+    XMM5,
+    XMM6,
+    XMM7,
+  };
+
   x86_64(Perimortem::Memory::Dynamic::Bytes& machine_code)
       : code(machine_code) {}
 
@@ -103,25 +118,35 @@ class x86_64 {
   auto mov(Reg source, Reg base, Signed_32 displacement) -> void;
   // Load from memory: mov [base + displacement], destination
   auto mov(Reg base, Signed_32 displacement, Reg destination) -> void;
+  auto mov_bits(Reg source, Xmm destination) -> void;
+  auto mov_bits(Xmm source, Reg destination) -> void;
   auto push(Reg reg) -> void;
   auto pop(Reg reg) -> void;
   auto zero(Reg reg) -> void;
   auto inc(Reg reg) -> void;
   auto dec(Reg reg) -> void;
+  auto add(Reg source, Reg destination) -> void;
   auto add(Bits_32 immediate, Reg destination) -> void;
+  auto sub(Reg source, Reg destination) -> void;
   auto sub(Bits_32 immediate, Reg destination) -> void;
+  auto multiply(Reg source, Reg destination) -> void;
+  auto compare(Reg source, Reg destination) -> void;
+  auto set_equal(Reg destination) -> void;
+  // Unsigned division consumes RDX:RAX and leaves the quotient in RAX.
+  auto divide(Reg divisor) -> void;
+  // Signed division consumes RDX:RAX and leaves quotient and remainder in
+  // RAX and RDX.
+  auto signed_divide(Reg divisor) -> void;
   auto one(Reg reg) -> void;
   auto neg_one(Reg reg) -> void;
   auto lea(Reg base, Signed_32 displacement, Reg destination) -> void;
 
   // Loads the address of read only data into the specified register.
-  // Creates null padding to support a PC32 offset relocate by the linker.
+  // Creates null padding for a PC32 relocation target.
   auto read_only(Reg destination) -> void;
 
-  // Creates a call with null padding to support a Program Counter +
-  // 32bit offset relocate by the linker.
-  //
-  // It's up to the compiler to create the correct symbol for the linker.
+  // Creates a call with null padding for a Program Counter + 32 bit
+  // relocation target.
   auto call() -> void;
   auto ret() -> void;
 

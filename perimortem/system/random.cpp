@@ -14,13 +14,12 @@ static constexpr Count channel_depth = 4;
 static constexpr Count max_index =
     sizeof(__m256i) / sizeof(Bits_64) * channel_depth;
 
-struct alignas(32) PhiloxOutputs {
-  Bits_64 counter[max_index];
-};
-
 struct PhiloxState {
   static constexpr Count round_count = 10;
-  // Pack all of the constants into the lower bits.
+
+  // Philox4x32 uses two multiplication constants and advances its key with two
+  // Weyl constants after each round. Duplicating those pairs across the AVX2
+  // lanes evaluates two independent Philox generators per vector.
   static constexpr __m256i philox4x32_constants = _mm256_set_epi64x(
       Signed_64(0x00000000'D2511F53),
       Signed_64(0x00000000'CD9E8D57),
@@ -36,18 +35,13 @@ struct PhiloxState {
       Signed_64(0xBB67AE85'00000000),
       Signed_64(0x9E2779B9'00000000),
       Signed_64(0xBB67AE85'00000000));
-  // Rolls they counter by 1 key.
-  // This swaps the hi portion between 64 bit sets and shifts the low to hi.
+  // Reorders the multiplied counter halves for the next round. The high half
+  // crosses each 64-bit pair while the low half moves into the high position.
   static constexpr Bits_8 counter_shuffle = 0b10'01'00'11;
 
-  // List of output values.
-  PhiloxOutputs output_state;
-
-  // Setup two parallel channels with different keys and counters.
+  alignas(32) Bits_64 output[max_index];
   __m256i dual_channel_key;
   __m256i dual_channel_counter;
-
-  // Index into the output array.
   Count index;
 };
 
@@ -58,31 +52,32 @@ auto Random::read_entropy() -> Bits_64 {
     timeout -= 1;
   }
 
-  // Something choked for this seed value so just use some rand value as a
-  // fallback.
+  // RDRAND can transiently fail. The bounded retry avoids hanging startup. The
+  // C runtime fallback is only a last-resort seed source and must not be
+  // treated as cryptographic entropy.
   if (timeout == 0) {
-    return Count(rand()) << 32 bitand Count(rand());
+    return (Count(rand()) << 32) | Count(rand());
   }
 
   return value;
 }
 
-// Create multiple AVX channels with each channel caculating two philox4x32.
+// Advances four counter depths for each of the two vectorized Philox channels.
 //
-// With a channel depth of 4 that gives us a total of 8 philox4x32 generators
-// caculated with each counter bump resulting in 16 random 64 bit values.
-constexpr auto bump_counter(PhiloxState& state) -> void {
+// One refill produces sixteen 64-bit values. All four depths must pass through
+// every Philox round. Leaving depth zero as the raw counter would preserve
+// uniqueness while destroying the statistical meaning of the generator.
+static constexpr auto bump_counter(PhiloxState& state) -> void {
   __m256i philox_keys = state.dual_channel_key;
   __m256i philox_channels[channel_depth];
   philox_channels[0] = state.dual_channel_counter;
   for (Count i = 1; i < channel_depth; i++) {
-    // Use set1 to bump the lower counter of every state.
     philox_channels[i] =
         _mm256_add_epi64(state.dual_channel_counter, _mm256_set1_epi64x(i));
   }
 
   for (Count round = 0; round < PhiloxState::round_count; round++) {
-    for (Count i = 1; i < channel_depth; i++) {
+    for (Count i = 0; i < channel_depth; i++) {
       const auto hilo_mul = _mm256_mul_epu32(
           philox_channels[i], PhiloxState::philox4x32_constants);
       const auto xor_mask = _mm256_and_si256(
@@ -99,42 +94,39 @@ constexpr auto bump_counter(PhiloxState& state) -> void {
 
   for (Count i = 0; i < channel_depth; i++) {
     _mm256_store_si256(
-        Data::cast<__m256i>(&state.output_state) + i, philox_channels[i]);
+        Data::cast<__m256i>(state.output) + i, philox_channels[i]);
   }
 
-  // Bump counter and reset index
+  // The next refill starts after every counter consumed by this batch.
   state.dual_channel_counter = _mm256_add_epi64(
       state.dual_channel_counter, _mm256_set1_epi64x(channel_depth));
   state.index = 0;
 }
 
-// Creates a Philox State for PRNG generation that pulls in 48 bytes of random
-// data vastly reduce the chance that any two invocations
-auto create_prng() -> PhiloxState {
+// Seeds independent keys and counters for one thread-local generator. Keeping
+// the state thread-local avoids synchronization and false sharing in the hot
+// generate() path.
+static auto create_prng() -> PhiloxState {
   PhiloxState state;
 
-  // Load the channel seeds (16 bytes of random)
   Bits_64 keys[] = {Random::read_entropy(), Random::read_entropy()};
   state.dual_channel_key = _mm256_set_epi32(
       Bits_32(keys[0] >> 32), 0, Bits_32(keys[0]), 0, Bits_32(keys[1] >> 32), 0,
       Bits_32(keys[1]), 0);
 
-  // Load the counter seeds (32 bytes of random)
   state.dual_channel_counter = _mm256_set_epi64x(
       Random::read_entropy(), Random::read_entropy(), Random::read_entropy(),
       Random::read_entropy());
 
   bump_counter(state);
-
   return state;
 }
 
 auto Random::generate() -> Bits_64 {
   thread_local static PhiloxState engine = create_prng();
-
   if (engine.index == max_index) {
     bump_counter(engine);
   }
 
-  return engine.output_state.counter[engine.index++];
+  return engine.output[engine.index++];
 }

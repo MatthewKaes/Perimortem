@@ -6,15 +6,17 @@
 #include "perimortem/core/view/bytes.hpp"
 #include "perimortem/core/view/vector.hpp"
 
-#include "ttx/type.hpp"
+#include "ttx/member.hpp"
 
 namespace Ttx {
+
+class Type;
 
 // Layout is the shape-bearing half of the TTX model and represents a fluid data
 // state used for describing value transformations without the need for a full
 // named Type.
 //
-// It is a non-owning view over `Type::Member` entries. A layout can come from a
+// It is a non-owning view over `Member` entries. A layout can come from a
 // source literal, from a function parameter list, from a return list, from a
 // swizzle, or from projecting a type with `Layout(type)`. In every case it asks
 // the same family of shape questions:
@@ -60,8 +62,7 @@ class Layout {
  public:
   constexpr Layout() = default;
   explicit Layout(const Type& type);
-  explicit constexpr Layout(
-      Perimortem::Core::View::Vector<Type::Member> members)
+  explicit constexpr Layout(Perimortem::Core::View::Vector<Member> members)
       : members(members) {}
 
   constexpr auto is_empty() const -> Bool { return members.is_empty(); }
@@ -69,21 +70,19 @@ class Layout {
   // Enumerates the member entries in this layout. Use `equivalent_to`, `fits`,
   // or `find_member` for semantic questions so name mapping, duplicate-name
   // access, and defaults stay inside Layout.
-  constexpr auto get_members() const
-      -> Perimortem::Core::View::Vector<Type::Member> {
+  constexpr auto get_members() const -> Perimortem::Core::View::Vector<Member> {
     return members;
   }
+
   constexpr auto get_member_count() const -> Count {
     return members.get_size();
   }
 
-  // Returns an empty member sentinel when the index is outside the layout.
-  //
-  // Layout algorithms use this as a safe bottom case while walking optional
-  // suffixes and positional entries. Code that needs to prove a member exists
-  // should check `get_member_count()` first or use `find_member()`.
-  constexpr auto member_at(Count index) const -> Type::Member {
-    return index < members.get_size() ? members[index] : Type::Member();
+  // Returns an existing member by position. The caller must first prove the
+  // index is in range. Absence belongs to the query boundary; it is not
+  // represented by a partially constructed Member inside the type tree.
+  constexpr auto member_at(Count index) const -> const Member& {
+    return members.get_data()[index];
   }
 
   // Finds the first member with the requested name for layout `.` access.
@@ -93,9 +92,9 @@ class Layout {
   // remain positionally valid and should be diagnosed by the source, package,
   // or dialect owner that knows whether the shadowing was intentional.
   constexpr auto find_member(Perimortem::Core::View::Bytes name) const
-      -> const Type::Member* {
+      -> const Member* {
     for (Count i = 0; i < members.get_size(); i++) {
-      const Type::Member& member = members[i];
+      const Member& member = members[i];
       if (member.get_name() == name) {
         return &member;
       }
@@ -148,7 +147,20 @@ class Layout {
   // or assignment and defaulted trailing members should be accepted.
   auto fits(const Layout& target) const -> Bool;
 
+  // Maps one target entry back to the source entry that constructs it.
+  //
+  // Call this after `fits(target)` succeeds. Named layouts map by member name;
+  // positional layouts map by index. An omitted defaulted target entry returns
+  // Count(-1), allowing construction code to materialize the target default
+  // without reproducing Layout's mapping policy.
+  auto source_index_for(const Layout& target, Count target_index) const
+      -> Count;
+
  private:
+  auto has_named_members() const -> Bool;
+  auto has_duplicate_named_members() const -> Bool;
+  auto maps_by_name(const Layout& target) const -> Bool;
+
   // Returns an impossible count when a target has a defaulted member before a
   // required member.
   //
@@ -156,7 +168,7 @@ class Layout {
   // guess whether a missing positional entry was skipped or shifted.
   auto count_required_members() const -> Count;
 
-  Perimortem::Core::View::Vector<Type::Member> members;
+  Perimortem::Core::View::Vector<Member> members;
 };
 
 }  // namespace Ttx

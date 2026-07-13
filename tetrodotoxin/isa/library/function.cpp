@@ -3,7 +3,8 @@
 
 #include "tetrodotoxin/isa/library/function.hpp"
 
-#include "tetrodotoxin/isa/layout/evaluator.hpp"
+#include "tetrodotoxin/isa/base/layout/evaluator.hpp"
+#include "tetrodotoxin/isa/library/syntax.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -11,104 +12,81 @@ using namespace Tetrodotoxin::Isa;
 using namespace Ttx::Lexical;
 
 auto Library::Function::evaluate(
-    Scope& scope,
     Cursor& cursor,
-    Ttx::Documentation documentation) -> Ttx::Type::Function {
-  return evaluate(scope, cursor, documentation, BodyMode::Definition);
+    Scope& scope,
+    Ttx::Documentation documentation,
+    Perimortem::Utility::Range& source) -> Ttx::Function {
+  return evaluate(cursor, scope, documentation, BodyMode::Definition, source);
 }
 
 auto Library::Function::evaluate_declaration(
-    Scope& scope,
     Cursor& cursor,
-    Ttx::Documentation documentation) -> Ttx::Type::Function {
-  return evaluate(scope, cursor, documentation, BodyMode::Declaration);
+    Scope& scope,
+    Ttx::Documentation documentation) -> Ttx::Function {
+  Perimortem::Utility::Range source;
+  return evaluate(cursor, scope, documentation, BodyMode::Declaration, source);
 }
 
 auto Library::Function::evaluate(
-    Scope& scope,
     Cursor& cursor,
+    Scope& scope,
     Ttx::Documentation documentation,
-    BodyMode body_mode) -> Ttx::Type::Function {
+    BodyMode body_mode,
+    Perimortem::Utility::Range& source) -> Ttx::Function {
   if (!cursor.require(
           Class::Type::Func, "Expected `func` in library function."_view)) {
-    return Ttx::Type::Function();
+    return Ttx::Function();
   }
 
   const Token* name = cursor.require(
       Class::Type::Addressable, "Expected library function name."_view);
   if (name == nullptr) {
-    return Ttx::Type::Function();
+    return Ttx::Function();
   }
 
-  Managed::Vector<Ttx::Type::Member> parameters(
-      scope.get_context().get_arena());
-  if (!Layout::Evaluator::evaluate_bracketed(scope, cursor, parameters)) {
-    return Ttx::Type::Function();
+  Managed::Vector<Ttx::Member> parameters(scope.get_context().get_arena());
+  if (!Base::Layout::Evaluator::evaluate_bracketed(cursor, scope, parameters)) {
+    return Ttx::Function();
   }
 
   if (!cursor.require(
           Class::Type::CallOp,
           "Expected `->` before library function result."_view)) {
-    return Ttx::Type::Function();
+    return Ttx::Function();
   }
 
-  Managed::Vector<Ttx::Type::Member> result(scope.get_context().get_arena());
-  if (!Layout::Evaluator::evaluate(scope, cursor, result)) {
-    return Ttx::Type::Function();
+  Managed::Vector<Ttx::Member> result(scope.get_context().get_arena());
+  if (!Base::Layout::Evaluator::evaluate(cursor, scope, result)) {
+    return Ttx::Function();
   }
 
-  Managed::Vector<Ttx::Type::Function::Block> blocks(
-      scope.get_context().get_arena());
+  Ttx::Function function(
+      name->get_text(), Ttx::Layout(parameters.get_view()),
+      Ttx::Layout(result.get_view()), documentation);
   if (body_mode == BodyMode::Declaration) {
     if (!cursor.require(
             Class::Type::EndStatement,
             "Expected `;` after library function declaration."_view)) {
-      return Ttx::Type::Function();
+      return Ttx::Function();
     }
-  } else if (!evaluate_body(cursor, blocks)) {
-    return Ttx::Type::Function();
-  }
-
-  return Ttx::Type::Function(
-      name->get_text(), parameters.get_view(), result.get_view(),
-      blocks.get_view(), documentation);
-}
-
-auto Library::Function::evaluate_body(
-    Cursor& cursor,
-    Managed::Vector<Ttx::Type::Function::Block>& blocks) -> Bool {
-  if (!cursor.require(
-          Class::Type::ScopeStart,
-          "Expected `{` after library function signature."_view)) {
-    return False;
-  }
-
-  Count block_start = cursor.get_token_index();
-  Count depth = 1;
-  while (!cursor.matches(Class::Type::EndOfStream)) {
-    if (cursor.matches(Class::Type::ScopeStart)) {
-      depth++;
-      cursor.consume();
-      continue;
-    }
-
-    if (cursor.matches(Class::Type::ScopeEnd)) {
-      if (depth == 1) {
-        Count block_end = cursor.get_token_index();
-        blocks.insert(Ttx::Type::Function::Block(
-            cursor.get_token_span(block_start, block_end)));
-        cursor.consume();
-        return True;
-      }
-
-      depth--;
-      cursor.consume();
-      continue;
-    }
-
+  } else if (cursor.matches(Class::Type::EndStatement)) {
     cursor.consume();
+  } else {
+    Count start = cursor.get_token_index();
+    if (!cursor.matches(Class::Type::ScopeStart) ||
+        !Syntax::consume_declaration_tail(cursor)) {
+      return Ttx::Function();
+    }
+
+    Count end = cursor.get_token_index();
+    View::Vector<Token> tail = cursor.get_token_span(end - 1, end);
+    if (tail.is_empty() || tail[0].get_class() != Class::Type::ScopeEnd) {
+      cursor.token_error("Expected `}` after library function body."_view);
+      return Ttx::Function();
+    }
+
+    source = {start, end - start};
   }
 
-  cursor.token_error("Expected `}` after library function body."_view);
-  return False;
+  return function;
 }

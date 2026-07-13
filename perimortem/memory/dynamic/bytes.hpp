@@ -69,6 +69,7 @@ class Bytes {
   constexpr auto get_view() const -> const Core::View::Bytes {
     return Core::View::Bytes(source_block, size);
   }
+
   constexpr auto get_access() -> Core::Access::Bytes {
     return Core::Access::Bytes(source_block, size);
   }
@@ -77,7 +78,7 @@ class Bytes {
     return Core::Hash(get_view()).get_value();
   }
 
-  auto is_empty() { return size == 0; }
+  constexpr auto is_empty() const -> Bool { return size == 0; }
 
   auto clear() -> void;
   auto reset() -> void;

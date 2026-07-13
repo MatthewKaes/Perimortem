@@ -5,8 +5,15 @@
 
 #include "perimortem/core/view/bytes.hpp"
 
-#include "tetrodotoxin/isa/context.hpp"
+#include "tetrodotoxin/isa/base/context.hpp"
 #include "ttx/lexical/cursor.hpp"
+
+namespace Tetrodotoxin::Isa::Lowering {
+
+class Context;
+struct Input;
+
+}  // namespace Tetrodotoxin::Isa::Lowering
 
 namespace Tetrodotoxin::Isa::Shader {
 
@@ -18,8 +25,11 @@ namespace Tetrodotoxin::Isa::Shader {
 class VirtualMachine {
  public:
   static auto evaluate(
-      Tetrodotoxin::Isa::Context& context,
-      Ttx::Lexical::Cursor& cursor) -> Ttx::Type*;
+      Ttx::Lexical::Cursor& cursor,
+      Tetrodotoxin::Isa::Base::Context& context) -> Ttx::Type*;
+  static auto lower(
+      Tetrodotoxin::Isa::Lowering::Context& context,
+      const Tetrodotoxin::Isa::Lowering::Input& input) -> Bool;
 
   static constexpr auto get_name() -> Perimortem::Core::View::Bytes {
     return "Shader"_view;

@@ -3,34 +3,33 @@
 
 #include "tetrodotoxin/puffer/isa/boot/import.hpp"
 
-#include "tetrodotoxin/isa/definition.hpp"
+#include "tetrodotoxin/isa/base/declaration.hpp"
 #include "tetrodotoxin/isa/package/package_name.hpp"
 
 using namespace Perimortem::Core;
-using namespace Tetrodotoxin::Puffer::Isa;
+using namespace Tetrodotoxin::Puffer;
 using namespace Ttx::Lexical;
 
-auto Boot::Import::evaluate(
+auto Isa::Boot::Import::evaluate(
     Cursor& cursor,
-    const Tetrodotoxin::Isa::Registry& registry)
-    -> Boot::Import {
-  Tetrodotoxin::Isa::Definition definition =
-      Tetrodotoxin::Isa::Definition::evaluate(
+    const Tetrodotoxin::Isa::Registry& registry) -> Isa::Boot::Import {
+  Tetrodotoxin::Isa::Base::Declaration definition =
+      Tetrodotoxin::Isa::Base::Declaration::evaluate(
           cursor, Ttx::Documentation(), {{Class::Type::Import}},
           {{Class::Type::Type}}, {{Class::Type::Type}});
   if (!definition.is_valid()) {
-    return Boot::Import();
+    return Isa::Boot::Import();
   }
 
   if (!registry.require_installed(cursor, definition.get_kind())) {
     cursor.recover_to_statement();
-    return Boot::Import();
+    return Isa::Boot::Import();
   }
 
   if (!cursor.require(
           Class::Type::Assign, "Expected `=` after import ISA."_view)) {
     cursor.recover_to_statement();
-    return Boot::Import();
+    return Isa::Boot::Import();
   }
 
   // Strings are file imports. Qualified type-shaped names are package imports.
@@ -49,7 +48,7 @@ auto Boot::Import::evaluate(
     auto name = Tetrodotoxin::Isa::Package::PackageName::evaluate(cursor);
     if (!name.is_valid()) {
       cursor.recover_to_statement();
-      return Boot::Import();
+      return Isa::Boot::Import();
     }
 
     import_name = name.get_name();
@@ -60,7 +59,7 @@ auto Boot::Import::evaluate(
     cursor.error(
         "Unknown import semantics. Expected either a string path or a package "
         "name."_view);
-    return Boot::Import();
+    return Isa::Boot::Import();
   }
 
   if (!cursor.require(

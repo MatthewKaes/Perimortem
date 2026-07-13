@@ -149,6 +149,8 @@ static auto fill_ar_header(ArHeader& header, View::Bytes name, Bits_64 size)
 
 static auto to_section_desc(Object::Section section) -> SectionDesc {
   switch (section.get_type()) {
+  case Object::Section::Type::Undefined:
+    return {};
   case Object::Section::Type::Program:
     return {
       ".text"_view,
@@ -179,6 +181,19 @@ static auto to_section_desc(Object::Section section) -> SectionDesc {
   }
 }
 
+static auto relocation_name_for(Object::Section::Type type) -> View::Bytes {
+  switch (type) {
+  case Object::Section::Type::Program:
+    return ".rela.text"_view;
+  case Object::Section::Type::Strings:
+    return ".rela.rodata.str"_view;
+  case Object::Section::Type::ReadOnly:
+    return ".rela.rodata"_view;
+  default:
+    return ".rela"_view;
+  }
+}
+
 static auto sort_symbols(View::Vector<Object::Symbol> symbols)
     -> Dynamic::Vector<SymbolRef> {
   Dynamic::Vector<SymbolRef> sorted;
@@ -188,21 +203,23 @@ static auto sort_symbols(View::Vector<Object::Symbol> symbols)
       if (Count(symbols[i].get_visibility()) != pass) {
         continue;
       }
+
       sorted.insert({symbols.get_data() + i, i, 0});
     }
   }
+
   return sorted;
 }
 
-static auto find_sorted_position(
-    View::Vector<SymbolRef> sorted,
-    Count original_index) -> Count {
+static auto build_symbol_slots(View::Vector<SymbolRef> sorted)
+    -> Dynamic::Vector<Bits_32> {
+  Dynamic::Vector<Bits_32> slots;
+  slots.resize(sorted.get_size());
   for (Count i = 0; i < sorted.get_size(); i++) {
-    if (sorted[i].original_index == original_index) {
-      return i;
-    }
+    slots[sorted[i].original_index] = Bits_32(1 + i);
   }
-  return 0;
+
+  return slots;
 }
 
 static auto build_string_table(Access::Vector<SymbolRef> symbols)
@@ -214,60 +231,17 @@ static auto build_string_table(Access::Vector<SymbolRef> symbols)
     string_table.concat(symbols[i].symbol->get_name());
     string_table.append('\0');
   }
+
   return string_table;
 }
 
-// Returns the 1-based ELF section index for a symbol's location, or 0
-// (SHN_UNDEF) if not found.
-static auto section_type_for(Object::Symbol::Location location)
-    -> Object::Section::Type {
-  switch (location) {
-  case Object::Symbol::Location::Program:
-    return Object::Section::Type::Program;
-  case Object::Symbol::Location::Strings:
-    return Object::Section::Type::Strings;
-  case Object::Symbol::Location::ReadOnly:
-    return Object::Section::Type::ReadOnly;
-  default:
-    return Object::Section::Type::Invalid;
-  }
-}
-
-static auto section_index_for(
-    View::Vector<Object::Section> sections,
-    Object::Symbol::Location location) -> Bits_16 {
-  const Object::Section::Type type = section_type_for(location);
-  if (type == Object::Section::Type::Invalid) {
-    return 0;
-  }
-
-  for (Count i = 0; i < sections.get_size(); i++) {
-    if (sections[i].get_type() == type) {
-      return Bits_16(1 + i);
-    }
-  }
-  return 0;
-}
-
-static auto build_symbol_table(
-    View::Vector<SymbolRef> sorted,
-    View::Vector<Object::Section> sections,
-    Count& out_first_global) -> Dynamic::Bytes {
-  out_first_global = 1;
-  for (Count i = 0; i < sorted.get_size(); i++) {
-    if (sorted[i].symbol->get_visibility() ==
-        Object::Symbol::Visibility::Global) {
-      break;
-    }
-    out_first_global++;
-  }
-
+static auto build_symbol_table(View::Vector<SymbolRef> sorted)
+    -> Dynamic::Bytes {
   const Count entry_count = 1 + sorted.get_size();
   Dynamic::Bytes data;
   data.forgetful_resize(sizeof(SymbolRecord) * entry_count);
   memset(data.get_access().get_data(), 0, sizeof(SymbolRecord) * entry_count);
   auto* entries = Data::cast<SymbolRecord>(data.get_access().get_data());
-
   for (Count i = 0; i < sorted.get_size(); i++) {
     const auto& ref = sorted[i];
     const auto& symbol = *ref.symbol;
@@ -277,40 +251,30 @@ static auto build_symbol_table(
     Data::write<elf_endian>(
         &entry.name_offset, Bits_32(ref.string_table_offset));
     entry.info = Bits_8((binding << 4) | Bits_8(symbol.get_type()));
-    const Bits_16 section_index =
-        symbol.get_location() == Object::Symbol::Location::External
-            ? Bits_16(0)
-            : section_index_for(sections, symbol.get_location());
-    Data::write<elf_endian>(&entry.section_index, section_index);
+    Data::write<elf_endian>(&entry.section_index, symbol.get_section_index());
     Data::write<elf_endian>(&entry.value, Bits_64(symbol.get_range().start));
     Data::write<elf_endian>(&entry.size, Bits_64(symbol.get_range().size));
   }
+
   return data;
 }
 
-static auto build_relocations(
+static auto write_relocations(
+    Access::Bytes data,
     View::Vector<Object::Relocation> relocations,
-    View::Vector<SymbolRef> sorted) -> Dynamic::Bytes {
-  Dynamic::Bytes data;
-  if (relocations.get_size() == 0) {
-    return data;
-  }
-  data.forgetful_resize(sizeof(RelaRecord) * relocations.get_size());
-  auto* entries = Data::cast<RelaRecord>(data.get_access().get_data());
-
+    View::Vector<Bits_32> symbol_slots) -> void {
+  auto* entries = Data::cast<RelaRecord>(data.get_data());
   for (Count i = 0; i < relocations.get_size(); i++) {
     const auto& reloc = relocations[i];
-    const Bits_64 symbol_slot =
-        Bits_64(1 + find_sorted_position(sorted, reloc.get_symbol()));
     const Bits_32 rtype = reloc.get_type() == Object::Relocation::Type::Plt32
                               ? Bits_32(RelocationType::Plt32)
                               : Bits_32(RelocationType::PcRelative32);
     Data::write<elf_endian>(&entries[i].offset, Bits_64(reloc.get_offset()));
     Data::write<elf_endian>(
-        &entries[i].info, (symbol_slot << 32) | Bits_64(rtype));
+        &entries[i].info,
+        (Bits_64(symbol_slots[reloc.get_symbol()]) << 32) | Bits_64(rtype));
     Data::write<elf_endian>(&entries[i].addend, Signed_64(reloc.get_addend()));
   }
-  return data;
 }
 
 static auto build_section_string_table(Access::Vector<SectionDesc> sections)
@@ -322,10 +286,12 @@ static auto build_section_string_table(Access::Vector<SectionDesc> sections)
       sections[i].name_offset = 0;
       continue;
     }
+
     sections[i].name_offset = shstrtab.get_size();
     shstrtab.concat(sections[i].name);
     shstrtab.append('\0');
   }
+
   return shstrtab;
 }
 
@@ -336,6 +302,7 @@ static auto assign_offsets(Access::Vector<SectionDesc> sections) -> Count {
       sections[i].file_offset = 0;
       continue;
     }
+
     const Count align =
         sections[i].alignment > 0 ? Count(sections[i].alignment) : 1;
     offset = (offset + align - 1) & ~(align - 1);
@@ -347,8 +314,15 @@ static auto assign_offsets(Access::Vector<SectionDesc> sections) -> Count {
   return Data::align<8>(offset);
 }
 
-auto Target::Elf::add_section(Object::Section section) -> void {
+Target::Elf::Elf() {
+  reset();
+}
+
+auto Target::Elf::add_section(Object::Section section) -> Bits_16 {
+  const Bits_16 index = Bits_16(sections.get_size());
   sections.insert(section);
+  relocation_tables.insert(Dynamic::Vector<Object::Relocation>());
+  return index;
 }
 
 auto Target::Elf::add_symbol(Object::Symbol symbol) -> void {
@@ -356,13 +330,22 @@ auto Target::Elf::add_symbol(Object::Symbol symbol) -> void {
 }
 
 auto Target::Elf::add_relocation(Object::Relocation relocation) -> void {
-  relocations.insert(relocation);
+  if (relocation_tables[relocation.get_section_index()].get_size() == 0) {
+    relocation_section_count++;
+  }
+
+  relocation_tables[relocation.get_section_index()].insert(relocation);
+  relocation_count++;
 }
 
 auto Target::Elf::reset() -> void {
   sections.clear();
+  relocation_tables.clear();
+  sections.insert(Object::Section::undefined());
+  relocation_tables.insert(Dynamic::Vector<Object::Relocation>());
   symbols.clear();
-  relocations.clear();
+  relocation_count = 0;
+  relocation_section_count = 0;
 }
 
 auto Target::Elf::write_header(
@@ -408,31 +391,53 @@ static auto write_section_headers(
 
 static auto build_section_descriptors(
     View::Vector<Object::Section> sections,
-    View::Bytes relocation_data,
+    Access::Bytes relocation_data,
+    View::Vector<Dynamic::Vector<Object::Relocation>> relocation_tables,
+    View::Vector<SymbolRef> sorted_symbols,
+    View::Vector<Bits_32> symbol_slots,
     View::Bytes symbol_table,
     View::Bytes string_table,
     Count symbol_table_index,
-    Count string_table_index,
-    Count first_global,
-    Bool has_relocations) -> Dynamic::Vector<SectionDesc> {
+    Count string_table_index) -> Dynamic::Vector<SectionDesc> {
   Dynamic::Vector<SectionDesc> descriptors;
-  descriptors.insert({});  // [0] null
-
   for (Count i = 0; i < sections.get_size(); i++) {
     descriptors.insert(to_section_desc(sections[i]));
   }
 
-  if (has_relocations) {
+  Count relocation_offset = 0;
+  for (Count i = 1; i < sections.get_size(); i++) {
+    View::Vector<Object::Relocation> relocations = relocation_tables[i];
+    if (relocations.get_size() == 0) {
+      continue;
+    }
+
+    const Count data_size = sizeof(RelaRecord) * relocations.get_size();
+    Access::Bytes data = relocation_data.slice(relocation_offset, data_size);
+    write_relocations(data, relocations, symbol_slots);
+    relocation_offset += data_size;
+
     descriptors.insert({
-      ".rela.text"_view,
+      relocation_name_for(sections[i].get_type()),
       SectionType::RelocationAddend,
       0,
       8,
-      relocation_data,
+      data,
       Bits_32(symbol_table_index),
-      Bits_32(1),
+      Bits_32(i),
       sizeof(RelaRecord),
     });
+  }
+
+  // SHT_SYMTAB stores the first non-local symbol slot in sh_info. Slot zero is
+  // the null symbol, and sort_symbols already places local symbols first.
+  Count first_non_local_symbol = 1;
+  for (Count i = 0; i < sorted_symbols.get_size(); i++) {
+    if (sorted_symbols[i].symbol->get_visibility() !=
+        Object::Symbol::Visibility::Local) {
+      break;
+    }
+
+    first_non_local_symbol++;
   }
 
   descriptors.insert({
@@ -442,7 +447,7 @@ static auto build_section_descriptors(
     8,
     symbol_table,
     Bits_32(string_table_index),
-    Bits_32(first_global),
+    Bits_32(first_non_local_symbol),
     sizeof(SymbolRecord),
   });
 
@@ -454,26 +459,25 @@ static auto build_section_descriptors(
 
 auto Target::Elf::build_object() -> Dynamic::Bytes {
   auto sorted = sort_symbols(symbols.get_view());
+  auto symbol_slots = build_symbol_slots(sorted.get_view());
   auto string_table = build_string_table(sorted.get_access());
+  auto symbol_table = build_symbol_table(sorted.get_view());
 
-  Count first_global = 0;
-  auto symbol_table =
-      build_symbol_table(sorted.get_view(), sections.get_view(), first_global);
-  auto relocation_data =
-      build_relocations(relocations.get_view(), sorted.get_view());
-  const Count has_relocations = relocations.get_size() > 0 ? 1 : 0;
+  Dynamic::Bytes relocation_data;
+  relocation_data.forgetful_resize(sizeof(RelaRecord) * relocation_count);
 
   // Get the indexs of the additional sections we need to add.
-  const Count symbol_table_index = 1 + sections.get_size() + has_relocations;
+  const Count symbol_table_index =
+      sections.get_size() + relocation_section_count;
   const Count string_table_index = symbol_table_index + 1;
   const Count section_string_table_index = string_table_index + 1;
   const Count total = section_string_table_index + 1;
 
   // Build the final section descriptor set.
   auto section_descriptors = build_section_descriptors(
-      sections.get_view(), relocation_data.get_view(), symbol_table.get_view(),
-      string_table.get_view(), symbol_table_index, string_table_index,
-      first_global, has_relocations);
+      sections.get_view(), relocation_data.get_access(),
+      relocation_tables.get_view(), sorted.get_view(), symbol_slots.get_view(),
+      symbol_table, string_table, symbol_table_index, string_table_index);
 
   // The string table can now be populated as it requires all of the section
   // descriptor names.
@@ -530,8 +534,7 @@ auto Target::Elf::build_library(View::Bytes object_name) -> Dynamic::Bytes {
   for (Count i = 0; i < symbols.get_size(); i++) {
     if (symbols.get_view()[i].get_visibility() ==
             Object::Symbol::Visibility::Global &&
-        symbols.get_view()[i].get_location() !=
-            Object::Symbol::Location::External) {
+        !symbols.get_view()[i].is_external()) {
       exported_count++;
       exported_names_bytes += symbols.get_view()[i].get_name().get_size() + 1;
     }
@@ -569,17 +572,20 @@ auto Target::Elf::build_library(View::Bytes object_name) -> Dynamic::Bytes {
         Data::cast<Bits_32>(write_pointer), Bits_32(object_offset));
     write_pointer += 4;
   }
+
   for (Count i = 0; i < symbols.get_size(); i++) {
     const auto& symbol = symbols.get_view()[i];
     if (symbol.get_visibility() != Object::Symbol::Visibility::Global ||
-        symbol.get_location() == Object::Symbol::Location::External) {
+        symbol.is_external()) {
       continue;
     }
+
     const auto name = symbol.get_name();
     Data::copy(write_pointer, name.get_data(), name.get_size());
     write_pointer += name.get_size();
     *write_pointer++ = '\0';
   }
+
   cursor += symbol_table_padded;
 
   // Write the actual object file into the archive.
@@ -589,6 +595,5 @@ auto Target::Elf::build_library(View::Bytes object_name) -> Dynamic::Bytes {
   cursor += sizeof(ArHeader);
   Data::copy(
       output_bytes + cursor, object_view.get_data(), object_view.get_size());
-
   return output;
 }

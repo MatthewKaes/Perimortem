@@ -7,8 +7,7 @@
 #include "perimortem/core/view/vector.hpp"
 #include "perimortem/core/static/vector.hpp"
 
-#include "tetrodotoxin/isa/context.hpp"
-#include "ttx/lexical/cursor.hpp"
+#include "tetrodotoxin/isa/dialect.hpp"
 
 namespace Tetrodotoxin::Isa {
 
@@ -23,50 +22,25 @@ namespace Tetrodotoxin::Isa {
 // source record.
 class Registry {
  public:
-  using EvaluateFunction =
-      Ttx::Type* (*)(Context& context, Ttx::Lexical::Cursor& cursor);
-
-  class Entry {
-   public:
-    Entry() = default;
-    Entry(
-        Perimortem::Core::View::Bytes name,
-        Registry::EvaluateFunction evaluator)
-        : name(name), evaluator(evaluator) {}
-
-    constexpr auto get_name() const -> Perimortem::Core::View::Bytes {
-      return name;
-    }
-    constexpr auto get_evaluator() const -> EvaluateFunction {
-      return evaluator;
-    };
-    constexpr auto is_valid() const -> Bool {
-      return !name.is_empty() && evaluator != nullptr;
-    }
-
-   private:
-    Perimortem::Core::View::Bytes name;
-    EvaluateFunction evaluator = nullptr;
-  };
-
   Registry() = default;
 
-  auto install(Perimortem::Core::View::Bytes name, EvaluateFunction evaluator)
-      -> Bool;
-
-  auto find(Perimortem::Core::View::Bytes name) const -> const Entry*;
+  auto install(
+      Perimortem::Core::View::Bytes name,
+      Dialect::Evaluator evaluator,
+      Dialect::Lowerer lowerer = nullptr,
+      Bool package_ready = False) -> Bool;
+  auto find(Perimortem::Core::View::Bytes name) const -> const Dialect*;
   auto require_installed(
       Ttx::Lexical::Cursor& cursor,
       const Ttx::Lexical::Token& name) const -> Bool;
   auto require_installed(
       Ttx::Lexical::Cursor& cursor,
       Perimortem::Core::View::Bytes name) const -> Bool;
-  auto get_installed() const -> Perimortem::Core::View::Vector<Entry>;
-
+  auto get_installed() const -> Perimortem::Core::View::Vector<Dialect>;
   constexpr auto get_size() const -> Count { return installed_count; }
 
  private:
-  Perimortem::Core::Static::Vector<Entry, 64> installed;
+  Perimortem::Core::Static::Vector<Dialect, 64> installed;
   Count installed_count = 0;
 };
 

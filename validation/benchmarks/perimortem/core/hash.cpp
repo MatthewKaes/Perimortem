@@ -53,6 +53,7 @@ PERIMORTEM_BENCHMARK(HashBench, bits_32) {
     accumulator ^= result;
     input = Bits_32(result);
   }
+
   Benchmark::prevent_optimization(accumulator);
 }
 
@@ -64,6 +65,7 @@ PERIMORTEM_BENCHMARK(HashBench, bits_64) {
     accumulator ^= result;
     input = result;
   }
+
   Benchmark::prevent_optimization(accumulator);
 }
 
@@ -77,6 +79,7 @@ auto compute_hash() -> void {
     Count offset = (max_offset > 0) ? (i % (max_offset + 1)) : 0;
     accumulator ^= Hash(hash_buffer.slice(offset, hash_length)).get_value();
   }
+
   Benchmark::prevent_optimization(accumulator);
 }
 
@@ -110,18 +113,19 @@ auto cpp_hash_bytes() -> void {
         std::hash<std::string_view>{}(std::string_view(
             Data::cast<char>(slice.get_data()), slice.get_size())));
   }
+
   Benchmark::prevent_optimization(accumulator);
 }
 
-#define HASH_COMPARISON(key_length)                                       \
-  static Benchmark::Comparison hash_bytes_##key_length##_comp = {         \
-    .harness = &HashBench,                                                \
-    .label = #key_length " bytes"_view,                                   \
-    .variants = {Benchmark::ComparisonVariant{                          \
-        "perimortem"_view, "key_length_" #key_length ""_view}},          \
-  };                                                                      \
-  PERIMORTEM_COMPARISON(hash_bytes_##key_length##_comp) {                 \
-    cpp_hash_bytes<key_length>();                                         \
+#define HASH_COMPARISON(key_length)                               \
+  static Benchmark::Comparison hash_bytes_##key_length##_comp = { \
+    .harness = &HashBench,                                        \
+    .label = #key_length " bytes"_view,                           \
+    .variants = {Benchmark::ComparisonVariant{                    \
+      "perimortem"_view, "key_length_" #key_length ""_view}},     \
+  };                                                              \
+  PERIMORTEM_COMPARISON(hash_bytes_##key_length##_comp) {         \
+    cpp_hash_bytes<key_length>();                                 \
   }
 
 HASH_COMPARISON(64)

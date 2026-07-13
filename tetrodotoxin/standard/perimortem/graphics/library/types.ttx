@@ -1,0 +1,29 @@
+// Perimortem Engine
+// Copyright © Matt Kaes
+dialect : Library;
+
+import Math : Package = Perimortem.Math;
+
+@shader_type(Vec4D)
+public Color : struct {
+  public r : Real_32;
+  public g : Real_32;
+  public b : Real_32;
+  public a : Real_32;
+}
+
+public Point2D : alias = Math::Geometry::Point2D;
+
+public Image : object {
+  public size_pixels : Math::Geometry::Size2D = (.width = 0, .height = 0);
+
+  public func from[] -> Image;
+
+  public func decode[.source : View[Bytes]] -> Image;
+
+  public func get_size_pixels[] -> Math::Geometry::Size2D;
+
+  expose func sample[
+    .texture_uv : Point2D,
+  ] -> [Color];
+}

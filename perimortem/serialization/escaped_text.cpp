@@ -201,8 +201,8 @@ static auto append_json_escape(Writer::Textual& output, Bits_8 value) -> void {
   }
 
   constexpr Static::Vector<Bits_8, 16> hex_digits = {
-    '0', '1', '2', '3', '4', '5', '6', '7',
-    '8', '9', 'A', 'B', 'C', 'D', 'E', 'F'};
+    {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E',
+     'F'}};
   output << '\\';
   output << 'u';
   output << '0';
@@ -218,7 +218,6 @@ auto EscapedText::decode(Allocator::Arena& arena, View::Bytes source, Style)
   }
 
   Managed::Bytes decoded(arena);
-
   for (Count i = 0; i < source.get_size(); i++) {
     if (source[i] != '\\' || i + 1 >= source.get_size()) {
       decoded.append(source[i]);

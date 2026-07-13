@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include "tetrodotoxin/isa/definition.hpp"
+#include "tetrodotoxin/isa/base/declaration.hpp"
 #include "tetrodotoxin/isa/library/scope.hpp"
 #include "ttx/type.hpp"
 
@@ -14,9 +14,11 @@ namespace Tetrodotoxin::Isa::Library {
 class Addressable {
  public:
   static auto evaluate(
-      Scope& scope,
       Ttx::Lexical::Cursor& cursor,
-      const Tetrodotoxin::Isa::Definition& definition) -> Ttx::Type::Member;
+      Scope& scope,
+      const Tetrodotoxin::Isa::Base::Declaration& definition,
+      Tetrodotoxin::Isa::Base::Definition& implementation)
+      -> const Ttx::Member*;
 };
 
 }  // namespace Tetrodotoxin::Isa::Library

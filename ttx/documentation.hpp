@@ -44,6 +44,7 @@ class Documentation {
       -> Perimortem::Core::View::Vector<Perimortem::Core::View::Bytes> {
     return lines;
   }
+
   constexpr auto get_line_count() const -> Count { return lines.get_size(); }
 
   // Returns empty bytes when the line does not exist. Documentation lookup uses
@@ -52,6 +53,7 @@ class Documentation {
     return index < lines.get_size() ? lines[index]
                                     : Perimortem::Core::View::Bytes();
   }
+
   constexpr auto is_empty() const -> Bool { return lines.is_empty(); }
 
  private:

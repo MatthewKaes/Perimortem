@@ -41,7 +41,7 @@ class Bytes {
   auto convert(Bits_8 source, Bits_8 target) -> void;
 
   constexpr auto operator[](Count index) const -> Bits_8 {
-    if (index > size) {
+    if (index >= size) {
       return 0;
     }
 
@@ -49,7 +49,7 @@ class Bytes {
   }
 
   constexpr auto at(Count index) const -> Bits_8 {
-    if (index > size) {
+    if (index >= size) {
       return 0;
     }
 
@@ -61,10 +61,12 @@ class Bytes {
   constexpr auto get_view() const -> const Core::View::Bytes {
     return Core::View::Bytes(source_block, size);
   }
+
   constexpr auto get_data() const -> const Bits_8* { return source_block; }
   constexpr auto get_access() -> Core::Access::Bytes {
     return Core::Access::Bytes(source_block, size);
   }
+
   constexpr auto get_arena() const -> Allocator::Arena& { return arena; }
 
   constexpr auto hash() const -> Bits_64 {

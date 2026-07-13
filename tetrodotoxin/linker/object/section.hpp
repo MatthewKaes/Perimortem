@@ -15,7 +15,7 @@ namespace Tetrodotoxin::Linker::Object {
 class Section {
  public:
   enum class Type : Bits_8 {
-    Invalid,
+    Undefined,
     Program,
     Strings,
     ReadOnly,
@@ -25,13 +25,17 @@ class Section {
   constexpr Section(Type type, Perimortem::Core::View::Bytes data)
       : type(type), data(data) {}
 
+  static constexpr auto undefined() -> Section {
+    return Section(Type::Undefined, Perimortem::Core::View::Bytes());
+  }
+
   constexpr auto get_type() const -> Type { return type; }
   constexpr auto get_data() const -> Perimortem::Core::View::Bytes {
     return data;
   }
 
  private:
-  Type type = Type::Invalid;
+  Type type = Type::Undefined;
   Perimortem::Core::View::Bytes data;
 };
 

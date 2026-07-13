@@ -1,0 +1,64 @@
+// Perimortem Engine
+// Copyright © Matt Kaes
+dialect : Scene;
+
+import Graphics : Package = Perimortem.Graphics;
+import Math : Package = Perimortem.Math;
+import Runtime : Package = Perimortem.Runtime;
+
+// State for scenes is created after the previous scene has terminated.
+// Constructors for state objects are called after `previous -> on_exit()` but before
+// this scene's `on_start()` is called.
+// For stacked scenes all graphical objects are set to not render in the pipeline.
+state icon_image : Graphics::Image = Graphics::Image -> from();
+state top_icon : Graphics::Render2D;
+state bottom_icon : Graphics::Render2D;
+
+// Set the time in seconds for each stage.
+const fade_time : Real_64 = 1.0;
+const hold_time : Real_64 = 1.5;
+
+private func create_icon[.position : Graphics::Point2D] -> Graphics::Render2D {
+  return (
+    .image = self.icon_image,
+    .size_pixels = self.icon_image -> get_size_pixels(),
+    .position = position,
+    .tone = (.r = 1.0, .g = 1.0, .b = 1.0, .a = 1.0),
+  );
+}
+
+// Similar to Godot's _ready function. Scene accepts only on_start, on_update,
+// and on_exit as top-level addressable roots.
+on_start {
+  self.icon_image = Graphics::Image -> decode($[.data/icon.png]);
+  self.top_icon = self -> create_icon(.position = (.x = 200, .y = 100));
+  self.bottom_icon = self -> create_icon(.position = (.x = 200, .y = 400));
+}
+
+// Update function, can technically be called at any time but should be called
+// every frame.
+on_update[.frame : Runtime::Frame] {
+  // Interpolates the points to create a fade in fade out.
+  const alpha_value : Real_64 = Math -> interpolate(
+    .variable = frame.scene_time -> get_seconds(),
+    .function = Math::Interpolation::Easing,
+    // Constructs a view of Vec2D. Named values are just for documentation.
+    .points = View[Vec2D](
+      Vec2D(.point = 0, .output = 0),
+      Vec2D(.point = fade_time, .output = 1),
+      Vec2D(.point = (fade_time + hold_time), .output = 1),
+      Vec2D(.point = (fade_time * 2 + hold_time), .output = 0),
+    ),
+  );
+
+  // Set the two icons alpha.
+  self.top_icon.tone.a = alpha_value;
+  self.bottom_icon.tone.a = alpha_value;
+
+  // Check if we've run long enough that we can just exit the scene.
+  if (frame.scene_time -> get_seconds() > fade_time * 2 + hold_time) {
+    // Notifies the runtime that this scene should be closed after this frame.
+    // Since we didn't stage another scene this will just exit the program.
+    self -> close();
+  }
+}

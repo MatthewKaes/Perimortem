@@ -3,6 +3,8 @@
 
 #include "ttx/layout.hpp"
 
+#include "ttx/type.hpp"
+
 // Layout is where TTX keeps shape policy. That is why this file contains both
 // exact equivalence and construction fitting instead of sending those checks to
 // a separate helper layer. The object that knows how names, positions, member
@@ -21,9 +23,7 @@
 // makes call, assignment, return, and repack code say which proof it actually
 // needs.
 
-static constexpr auto has_named_members(const Ttx::Layout& layout) -> Bool {
-  Perimortem::Core::View::Vector<Ttx::Type::Member> members =
-      layout.get_members();
+auto Ttx::Layout::has_named_members() const -> Bool {
   for (Count i = 0; i < members.get_size(); i++) {
     if (members[i].is_named()) {
       return True;
@@ -33,19 +33,16 @@ static constexpr auto has_named_members(const Ttx::Layout& layout) -> Bool {
   return False;
 }
 
-static constexpr auto has_duplicate_named_members(const Ttx::Layout& layout)
-    -> Bool {
-  Perimortem::Core::View::Vector<Ttx::Type::Member> members =
-      layout.get_members();
+auto Ttx::Layout::has_duplicate_named_members() const -> Bool {
   for (Count left_index = 0; left_index < members.get_size(); left_index++) {
-    Ttx::Type::Member left = members[left_index];
+    Ttx::Member left = members[left_index];
     if (!left.is_named()) {
       continue;
     }
 
-    for (Count right_index = left_index + 1;
-         right_index < members.get_size(); right_index++) {
-      Ttx::Type::Member right = members[right_index];
+    for (Count right_index = left_index + 1; right_index < members.get_size();
+         right_index++) {
+      Ttx::Member right = members[right_index];
       if (right.is_named() && left.get_name() == right.get_name()) {
         return True;
       }
@@ -55,19 +52,19 @@ static constexpr auto has_duplicate_named_members(const Ttx::Layout& layout)
   return False;
 }
 
-static constexpr auto equivalent_ordered_member(
-    Ttx::Type::Member left,
-    Ttx::Type::Member right) -> Bool {
-  return left.get_name() == right.get_name() && left.equivalent_to(right);
+auto Ttx::Layout::maps_by_name(const Layout& target) const -> Bool {
+  return has_named_members() && target.has_named_members() &&
+         !has_duplicate_named_members() &&
+         !target.has_duplicate_named_members();
 }
 
 Ttx::Layout::Layout(const Type& source_type) {
   // Projecting a type to a layout uses canonical identity so aliases produce
   // the same member shape as their root type. Alias documentation stays on the
   // Type because prose is contextual, while the layout answers only shape.
-  const Type* canonical_type = source_type.canonical();
-  if (canonical_type) {
-    members = canonical_type->get_members();
+  const Type& canonical_type = source_type.canonical();
+  if (!canonical_type.is_invalid()) {
+    members = canonical_type.get_members();
   }
 }
 
@@ -101,8 +98,9 @@ auto Ttx::Layout::equivalent_to(const Layout& other) const -> Bool {
   // Equivalence is ordered shape. Names are preserved on entries, including
   // duplicate names, but they do not remap the comparison like struct fields.
   for (Count i = 0; i < get_member_count(); i++) {
-    if (!equivalent_ordered_member(
-            member_at(i), other.member_at(i))) {
+    const Member& left = member_at(i);
+    const Member& right = other.member_at(i);
+    if (left.get_name() != right.get_name() || !left.equivalent_to(right)) {
       return False;
     }
   }
@@ -129,17 +127,15 @@ auto Ttx::Layout::fits(const Layout& target) const -> Bool {
   // When both sides have unique names, construction can use the names as a map.
   // Duplicate names fall back to ordered construction because only the leftmost
   // duplicate is addressable by name.
-  if (has_named_members(*this) && has_named_members(target) &&
-      !has_duplicate_named_members(*this) &&
-      !has_duplicate_named_members(target)) {
+  if (maps_by_name(target)) {
     for (Count source_index = 0; source_index < get_member_count();
          source_index++) {
-      Type::Member source_member = member_at(source_index);
+      const Member& source_member = member_at(source_index);
       if (!source_member.is_named()) {
         return False;
       }
 
-      const Type::Member* target_member =
+      const Member* target_member =
           target.find_member(source_member.get_name());
       if (!target_member || !target_member->equivalent_to(source_member)) {
         return False;
@@ -148,7 +144,7 @@ auto Ttx::Layout::fits(const Layout& target) const -> Bool {
 
     for (Count target_index = 0; target_index < target_member_count;
          target_index++) {
-      Type::Member target_member = target.member_at(target_index);
+      const Member& target_member = target.member_at(target_index);
       if (!target_member.is_named()) {
         return False;
       }
@@ -173,10 +169,32 @@ auto Ttx::Layout::fits(const Layout& target) const -> Bool {
 
   for (Count source_index = 0; source_index < get_member_count();
        source_index++) {
-    if (!target.member_at(source_index).equivalent_to(member_at(source_index))) {
+    if (!target.member_at(source_index)
+             .equivalent_to(member_at(source_index))) {
       return False;
     }
   }
 
   return True;
+}
+
+auto Ttx::Layout::source_index_for(const Layout& target, Count target_index)
+    const -> Count {
+  if (target_index >= target.get_member_count()) {
+    return Count(-1);
+  }
+
+  if (!maps_by_name(target)) {
+    return target_index < get_member_count() ? target_index : Count(-1);
+  }
+
+  Perimortem::Core::View::Bytes target_name =
+      target.member_at(target_index).get_name();
+  for (Count i = 0; i < get_member_count(); i++) {
+    if (member_at(i).get_name() == target_name) {
+      return i;
+    }
+  }
+
+  return Count(-1);
 }

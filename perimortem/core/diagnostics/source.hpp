@@ -7,7 +7,9 @@
 #include "perimortem/core/view/bytes.hpp"
 
 // Compiler extension ABI
+
 namespace std {
+
 class source_location {
  public:
   struct __impl {
@@ -19,16 +21,18 @@ class source_location {
     unsigned _M_column;
   };
 };
+
 }  // namespace std
 
 namespace Perimortem::Core::Diagnostics {
 
 // Thin Perimortem shim over the compiler's source location ABI.
-// Source stores only a pointer to the static __impl struct baked into the binary
-// and uses value semantics so a Source copy is always a single pointer copy.
+// Source stores only a pointer to the static __impl struct baked into the
+// binary and uses value semantics so a Source copy is always a single pointer
+// copy.
 //
-// TTX can provide source information by embedding the same information as the
-// ABI making it useful for cross language diagnostics.
+// Other runtimes can provide source information using the same fields, which
+// keeps diagnostics useful across language boundaries.
 //
 // Accessors are evaluated lazily since evaluating source most likely means we
 // are already in a diagnostics slow path.

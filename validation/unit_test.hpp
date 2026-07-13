@@ -16,6 +16,7 @@
 #include "perimortem/core/diagnostics/log.hpp"
 
 namespace Validation::Test {
+
 auto capture_sink(
     Perimortem::Core::Diagnostics::Log::Level level,
     Perimortem::Core::View::Bytes message,

@@ -30,6 +30,7 @@ auto concat_test() -> void {
     buffer.concat(Static::Bytes<byte_length>());
     size += buffer.get_size();
   }
+
   Benchmark::prevent_optimization(size);
 }
 
@@ -50,6 +51,7 @@ PERIMORTEM_BENCHMARK(StringBench, append_bytes) {
   for (Count i = 0; i < append_count; i++) {
     buffer.append('0');
   }
+
   Count size = buffer.get_size();
   Benchmark::prevent_optimization(size);
   buffer.reset();
@@ -61,6 +63,7 @@ PERIMORTEM_BENCHMARK(StringBench, small_string) {
     Dynamic::Bytes buffer = "small string"_view;
     size += buffer.get_size();
   }
+
   Benchmark::prevent_optimization(size);
 }
 
@@ -71,6 +74,7 @@ PERIMORTEM_BENCHMARK(StringBench, small_concat) {
     buffer.concat(" string"_view);
     size += buffer.get_size();
   }
+
   Benchmark::prevent_optimization(size);
 }
 
@@ -87,6 +91,7 @@ auto cpp_string_concat() -> void {
     Benchmark::prevent_optimization(data);
     size += Count(buffer.data());
   }
+
   Benchmark::prevent_optimization(size);
 }
 
@@ -96,6 +101,7 @@ auto cpp_string_append_bytes() -> void {
   for (Count i = 0; i < append_count; i++) {
     buffer += '0';
   }
+
   Count size = Count(buffer.size());
   Benchmark::prevent_optimization(size);
 }
@@ -108,6 +114,7 @@ auto cpp_string_small_string() -> void {
     Benchmark::prevent_optimization(data);
     size += Count(buffer.size());
   }
+
   Benchmark::prevent_optimization(size);
 }
 
@@ -120,18 +127,19 @@ auto cpp_string_small_concat() -> void {
     Benchmark::prevent_optimization(data);
     size += Count(buffer.size());
   }
+
   Benchmark::prevent_optimization(size);
 }
 
-#define CONCAT_COMPARISON(size)                              \
-  static Benchmark::Comparison concat_##size##_comp = {      \
-    .harness = &StringBench,                                 \
-    .label = "concat " #size ""_view,                        \
-    .variants = {Benchmark::ComparisonVariant{                \
-        "dynamic"_view, "concat_" #size ""_view}},            \
-  };                                                         \
-  PERIMORTEM_COMPARISON(concat_##size##_comp) {              \
-    cpp_string_concat<size>();                               \
+#define CONCAT_COMPARISON(size)                         \
+  static Benchmark::Comparison concat_##size##_comp = { \
+    .harness = &StringBench,                            \
+    .label = "concat " #size ""_view,                   \
+    .variants = {Benchmark::ComparisonVariant{          \
+      "dynamic"_view, "concat_" #size ""_view}},        \
+  };                                                    \
+  PERIMORTEM_COMPARISON(concat_##size##_comp) {         \
+    cpp_string_concat<size>();                          \
   }
 
 CONCAT_COMPARISON(8)
@@ -144,7 +152,7 @@ static Benchmark::Comparison append_bytes_comp = {
   .harness = &StringBench,
   .label = "append bytes"_view,
   .variants = {Benchmark::ComparisonVariant{
-      "dynamic"_view, "append_bytes"_view}},
+    "dynamic"_view, "append_bytes"_view}},
 };
 PERIMORTEM_COMPARISON(append_bytes_comp) {
   cpp_string_append_bytes();
@@ -154,7 +162,7 @@ static Benchmark::Comparison small_string_comp = {
   .harness = &StringBench,
   .label = "small string"_view,
   .variants = {Benchmark::ComparisonVariant{
-      "dynamic"_view, "small_string"_view}},
+    "dynamic"_view, "small_string"_view}},
 };
 PERIMORTEM_COMPARISON(small_string_comp) {
   cpp_string_small_string();
@@ -164,7 +172,7 @@ static Benchmark::Comparison small_concat_comp = {
   .harness = &StringBench,
   .label = "small concat"_view,
   .variants = {Benchmark::ComparisonVariant{
-      "dynamic"_view, "small_concat"_view}},
+    "dynamic"_view, "small_concat"_view}},
 };
 PERIMORTEM_COMPARISON(small_concat_comp) {
   cpp_string_small_concat();

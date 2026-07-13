@@ -40,7 +40,7 @@ Boot is called directly for complete source files, rather than installed as a
 body ISA.
 
 The Puffer resolver loads the import closure, resolves package names such as
-`Perimortem::Graphics` to manifests, checks that imported files declare the
+`Perimortem.Graphics` to manifests, checks that imported files declare the
 requested ISA, and binds each import to the local name written in the source
 file. It also owns the cache rules that keep source records valid when a
 dependency changes.
@@ -71,7 +71,7 @@ In source form:
 // Optional package docs.
 dialect : Library;
 
-import Graphics : Package = Perimortem::Graphics;
+import Graphics : Package = Perimortem.Graphics;
 
 private Default2D : alias = Graphics::Shaders::Default2D;
 
@@ -101,7 +101,7 @@ the source.
 An ISA is an installed semantic instruction set with a name and behavior. Its
 evaluator address is its identity inside the active toolchain configuration.
 
-That matters because ISAs are open. Adding `Shader`, `Render`, `Entity`, or a
+That matters because ISAs are open. Adding `Shader`, `Render`, or a
 project-specific authoring space means installing an ISA evaluator into the
 toolchain, not editing a package-kind enum in multiple places.
 
@@ -145,6 +145,14 @@ documentation. Tools can therefore present the alias name with alias
 documentation, the alias name with canonical documentation, or a stacked view
 that amends the root documentation with each alias layer in the current context.
 
+Types also provide `describe()` for diagnostics and tooling. The description is
+not identity. It is a short user-facing rendering of the authored type name,
+with alias relationships made explicit. A producer that knows a public path can
+attach the generic `display_name` attribute so a type can describe itself as
+`Graphics::Size2D alias of Math::Geometry::Size2D` without a side table. Type
+equivalence still uses canonical address identity, and layout fitting still
+belongs to `Layout`.
+
 Type parameterization is type dispatch over a resolved layout. A source spelling
 such as `View[Bits_8]` first resolves `View`, then resolves `[Bits_8]` as the
 parameter layout, then asks the `View` type object to produce the concrete type
@@ -154,7 +162,7 @@ parameterized type object answers with a concrete address that later type and
 layout queries can use.
 
 `Layout(type)` converts a type into the member view it exposes. A layout stores
-only a `Type::Member` view, so the same object can describe aggregate members,
+only a `Member` view, so the same object can describe aggregate members,
 function parameters, return values, swizzles, slices, and other authored packs.
 It does not own or upgrade itself into a type.
 
@@ -231,11 +239,12 @@ rather than a second bracket meaning. Value indexing uses `:[...]`.
 (color.[r, g], color.b, alpha)
 ```
 
-`::` is type or package access. It walks metadata owned by a package or type.
-It does not degrade to layout.
+`::` is type/export access after a package or type has been bound into the
+current scope. It walks metadata owned by that object. It does not degrade to
+layout, and it is not part of package identity spelling.
 
 ```ttx
-Perimortem::Graphics
+Perimortem.Graphics
 Graphics::Sprite
 Graphics::Shaders::Default2D
 Render2D::Renderer2D
@@ -268,24 +277,25 @@ Package imports resolve to package identities and exported objects in hosts that
 provide a package layer.
 
 ```ttx
-import Graphics : Package = Perimortem::Graphics;
+import Graphics : Package = Perimortem.Graphics;
 private Default2D : alias = Graphics::Shaders::Default2D;
 ```
 
-In Tetrodotoxin, the package name `Perimortem::Graphics` resolves to a package
-manifest such as:
+Package names are `Type("." Type)*` values. If the package name parses, a host
+can use the same string as its cache key and package artifact folder name. In
+Tetrodotoxin, `Perimortem.Graphics` resolves through a registered Puffer Buffer
+published from a package folder, not by guessing where the source manifest
+lives:
 
 ```text
-perimortem/graphics/package.ttx
+Perimortem.Graphics/perimortem_graphics.puffer
 ```
 
-That manifest can import concrete source files and expose public aliases or
-groups:
+The source manifest that produced the package buffer can import concrete source
+files and expose public aliases or groups:
 
 ```ttx
 dialect : Package;
-
-@package_name = Perimortem::Graphics;
 
 import Color : Library = "color.ttx";
 import Renderer2D : Render = "renderer2d.ttx";
@@ -298,14 +308,16 @@ expose Shaders : group {
 ```
 
 The package file is not a second language. It is TTX token bytecode evaluated by
-a Package ISA. Package declares its package identity and describes package
-exports through the same type and layout model.
+a Package ISA. Puffer provides the package identity through compiler
+configuration, and the source describes package exports through the same type
+and layout model.
 
-A host owns the walk from package name to package manifest. Puffer creates a
-root resolver from its active toolchain. Each package can own a local resolver
-for its private files, so package internals such as `shaders/default2d.ttx` are
-not part of the public Puffer resolver API.
-External sources import `Perimortem::Graphics`, then resolve
+A host owns the walk from package name to package artifact. Puffer creates a
+root resolver from its active toolchain and registers dependency package
+buffers before loading source. Each package compile owns the resolver for its
+private source workspace, so package internals such as `shaders/default2d.ttx`
+are not part of the public Puffer resolver API.
+External sources import `Perimortem.Graphics`, then resolve
 `Graphics::Shaders::Default2D` through the package's exports.
 
 TTX owns what the resolved package, type, and layout facts mean once a host
@@ -354,12 +366,12 @@ Tetrodotoxin is the surrounding toolchain:
 - [`../tetrodotoxin/lsp`](../tetrodotoxin/lsp/) serves editor features
 - [`../tetrodotoxin/isa`](../tetrodotoxin/isa/) owns the VM instruction sets
   such as Package, Library, Shader, and Render
-- [`../perimortem/graphics/package.ttx`](../perimortem/graphics/package.ttx)
+- [`../tetrodotoxin/standard/perimortem/graphics/package.ttx`](../tetrodotoxin/standard/perimortem/graphics/package.ttx)
   describes the Perimortem graphics ABI as a TTX package
 - [`../toolchain/tetrodotoxin.bzl`](../toolchain/tetrodotoxin.bzl) integrates
   TTX with Bazel
-- [`../tetrodotoxin/compiler/assembler`](../tetrodotoxin/compiler/assembler/)
-  emits terminal instruction streams such as SPIR-V and x86-64
+- [`../tetrodotoxin/compiler`](../tetrodotoxin/compiler/) owns execution
+  programs, target backends, and private terminal instruction encoders
 - [`../tetrodotoxin/linker`](../tetrodotoxin/linker/) packages terminal object
   records and link targets
 

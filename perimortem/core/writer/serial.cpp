@@ -61,8 +61,8 @@ constexpr auto write_value(
         Data::ensure_endian<native_endian, stream_endian, Bits_64>(value));
     break;
   }
-  cursor += encoding_size;
 
+  cursor += encoding_size;
   return True;
 }
 

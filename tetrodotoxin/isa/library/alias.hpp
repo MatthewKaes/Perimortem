@@ -5,7 +5,7 @@
 
 #include "perimortem/core/view/bytes.hpp"
 
-#include "tetrodotoxin/isa/definition.hpp"
+#include "tetrodotoxin/isa/base/declaration.hpp"
 #include "tetrodotoxin/isa/library/scope.hpp"
 
 namespace Tetrodotoxin::Isa::Library {
@@ -14,9 +14,10 @@ namespace Tetrodotoxin::Isa::Library {
 class Alias {
  public:
   static auto evaluate(
-      Scope& scope,
       Ttx::Lexical::Cursor& cursor,
-      const Tetrodotoxin::Isa::Definition& definition) -> const Ttx::Type*;
+      Scope& scope,
+      const Tetrodotoxin::Isa::Base::Declaration& definition)
+      -> const Ttx::Type*;
 
   static constexpr auto get_name() -> Perimortem::Core::View::Bytes {
     return "alias"_view;

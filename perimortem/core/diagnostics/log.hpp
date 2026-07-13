@@ -160,7 +160,7 @@ class Log {
   // Each thread writes to its own buffer and file.
   // The Source default argument is consteval, so it captures the caller's
   // location at compile time with zero runtime cost.
-  // Source is passed by reference to make it easier for the TTX ABI.
+  // Source is passed by reference to preserve a simple cross-language ABI.
   static auto log(
       Level level,
       Core::View::Bytes message,

@@ -11,13 +11,6 @@ auto Package::PackageName::evaluate(
     Cursor& cursor,
     Ttx::Documentation documentation) -> Package::PackageName {
   switch (cursor.current().get_class().get_type()) {
-  case Class::Type::String: {
-    View::Bytes source_text = cursor.current().get_text();
-    cursor.consume();
-    return Package::PackageName(
-        source_text.slice(1, source_text.get_size() - 2), documentation);
-  }
-
   case Class::Type::Type: {
     const Token* first_segment = cursor.require(
         Class::Type::Type,
@@ -27,7 +20,7 @@ auto Package::PackageName::evaluate(
     }
 
     const Token* last_segment = first_segment;
-    while (cursor.matches(Class::Type::TypeAccessOp)) {
+    while (cursor.matches(Class::Type::AddressOp)) {
       cursor.consume();
       last_segment = cursor.require(
           Class::Type::Type,

@@ -10,38 +10,36 @@
 
 namespace Tetrodotoxin::Isa::Package {
 
-// PackageName owns package identity values such as `TTX::Graphics`.
+// PackageName owns dependency selector values such as `Perimortem.Graphics`.
 //
-// Package directives use it through `@package_name = TTX::Name;`, and Puffer's
-// Boot ISA uses the same value parser for package imports. This is package
-// metadata, not a type query. The full qualified spelling is preserved so
-// resolution can load and cache packages by their public package name instead
-// of by a private source path or by the root type's short name.
+// Puffer Boot uses this parser for package imports. Package identity itself is
+// compiler configuration because Bazel requires package outputs to be declared
+// before source evaluation runs.
 class PackageName {
  public:
   PackageName() = default;
   PackageName(
       Perimortem::Core::View::Bytes name,
       Ttx::Documentation documentation)
-      : name(name), documentation(documentation), valid(True) {}
+      : name(name), documentation(documentation) {}
 
   static auto evaluate(
       Ttx::Lexical::Cursor& cursor,
-      Ttx::Documentation documentation = Ttx::Documentation())
-      -> PackageName;
+      Ttx::Documentation documentation = Ttx::Documentation()) -> PackageName;
 
   constexpr auto get_name() const -> Perimortem::Core::View::Bytes {
     return name;
   }
+
   constexpr auto get_documentation() const -> Ttx::Documentation {
     return documentation;
   }
-  constexpr auto is_valid() const -> Bool { return valid; }
+
+  constexpr auto is_valid() const -> Bool { return !name.is_empty(); }
 
  private:
   Perimortem::Core::View::Bytes name;
   Ttx::Documentation documentation;
-  Bool valid = False;
 };
 
 }  // namespace Tetrodotoxin::Isa::Package

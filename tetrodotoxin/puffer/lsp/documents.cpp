@@ -24,7 +24,6 @@ auto Lsp::Documents::upsert(View::Bytes uri, View::Bytes source) -> void {
 
   pthread_mutex_lock(&mutex);
   Count slot = find(uri);
-
   if (slot == Count(-1)) {
     for (Count i = 0; i < records.get_size(); i++) {
       if (!records[i].active) {
@@ -39,25 +38,25 @@ auto Lsp::Documents::upsert(View::Bytes uri, View::Bytes source) -> void {
   if (slot != Count(-1)) {
     records[slot].text = source;
   }
+
   pthread_mutex_unlock(&mutex);
 }
 
 auto Lsp::Documents::erase(View::Bytes uri) -> void {
   pthread_mutex_lock(&mutex);
   Count slot = find(uri);
-
   if (slot != Count(-1)) {
     records[slot].active = False;
     records[slot].uri.clear();
     records[slot].text.clear();
   }
+
   pthread_mutex_unlock(&mutex);
 }
 
 auto Lsp::Documents::get_text(View::Bytes uri) const -> Dynamic::Bytes {
   pthread_mutex_lock(&mutex);
   Count slot = find(uri);
-
   if (slot == Count(-1)) {
     pthread_mutex_unlock(&mutex);
     return Dynamic::Bytes();

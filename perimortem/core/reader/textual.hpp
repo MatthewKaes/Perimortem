@@ -10,11 +10,9 @@ namespace Perimortem::Core::Reader {
 // Reads human-readable values from a text byte buffer. Reads are greedy so
 // numeric values must be whitespace seperated to be read appropriately.
 //
-// Numeric and boolean reads automatically skip leading whitespace except for
-// read_byte() which never skips whitespace and always consume exactly one byte
-// from the current position.
+// Real, Flag, Unsigned, and Signed reads automatically skip leading whitespace.
 //
-// On overflow or a parse failure the reader enters an invalid state and
+// An overflow or parse failure set the reader to an invalid state and
 // subsequent reads return zero-initialized values without advancing the
 // cursor.
 class Textual {
@@ -23,8 +21,12 @@ class Textual {
   constexpr Textual(const Textual& rhs) : source(rhs.source) {}
 
   // Sets the location of the read cursor.
-  // If the index is out of range the cursor is put to the end of the buffer.
-  auto set_pointer(Count location) -> void;
+  //
+  // An out-of-range location invalidates the reader by setting the position to
+  // Count(-1), so using `set_pointer(Count(-1))` is a cheap way to manually
+  // invalidate a reader.
+  constexpr auto set_location(Count location) -> void { cursor = location; }
+  constexpr auto get_location() const -> Count { return cursor; }
 
   auto read_byte() -> Bits_8;
   auto read_flag() -> Bool;
@@ -34,21 +36,15 @@ class Textual {
   auto read_real_64() -> Real_64;
 
   constexpr auto get_size() const -> Count { return source.get_size(); }
-  constexpr auto get_location() const -> Count { return cursor; }
-  constexpr auto is_valid() const -> Bool { return valid_state; }
-  constexpr auto is_empty() const -> Bool {
-    return get_location() == get_size();
-  }
-  constexpr auto reset() -> void {
-    valid_state = true;
-    cursor = 0;
+  constexpr auto has_content() const -> Bool {
+    return cursor < source.get_size();
   }
 
+  constexpr auto reset() -> void { cursor = 0; }
+
  private:
-  auto skip_whitespace() -> void;
   View::Bytes source;
   Count cursor = 0;
-  Bool valid_state = True;
 };
 
 }  // namespace Perimortem::Core::Reader

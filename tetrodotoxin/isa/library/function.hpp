@@ -5,22 +5,26 @@
 
 #include "perimortem/memory/managed/vector.hpp"
 
+#include "perimortem/utility/range.hpp"
+
 #include "tetrodotoxin/isa/library/scope.hpp"
 #include "ttx/type.hpp"
 
 namespace Tetrodotoxin::Isa::Library {
 
-// Function owns Library callable signatures and body token blocks.
+// Function parses a stable TTX signature and captures the source range of a
+// definition body. Body execution waits until its owner Type is complete.
 class Function {
  public:
   static auto evaluate(
-      Scope& scope,
       Ttx::Lexical::Cursor& cursor,
-      Ttx::Documentation documentation) -> Ttx::Type::Function;
+      Scope& scope,
+      Ttx::Documentation documentation,
+      Perimortem::Utility::Range& source) -> Ttx::Function;
   static auto evaluate_declaration(
-      Scope& scope,
       Ttx::Lexical::Cursor& cursor,
-      Ttx::Documentation documentation) -> Ttx::Type::Function;
+      Scope& scope,
+      Ttx::Documentation documentation) -> Ttx::Function;
 
  private:
   enum class BodyMode {
@@ -29,14 +33,11 @@ class Function {
   };
 
   static auto evaluate(
+      Ttx::Lexical::Cursor& cursor,
       Scope& scope,
-      Ttx::Lexical::Cursor& cursor,
       Ttx::Documentation documentation,
-      BodyMode body_mode) -> Ttx::Type::Function;
-  static auto evaluate_body(
-      Ttx::Lexical::Cursor& cursor,
-      Perimortem::Memory::Managed::Vector<Ttx::Type::Function::Block>& blocks)
-      -> Bool;
+      BodyMode body_mode,
+      Perimortem::Utility::Range& source) -> Ttx::Function;
 };
 
 }  // namespace Tetrodotoxin::Isa::Library

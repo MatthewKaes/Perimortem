@@ -47,7 +47,6 @@ constexpr auto sort(Core::Access::Vector<type> access)
     Bool a_bigger_c = data[a] > data[c];
     Bool b_bigger_c = data[b] > data[c];
     Count index[] = {a, b, c};
-
     return index
         [(a_bigger_b == a_bigger_c).value + (a_bigger_c ^ b_bigger_c).value];
   };
@@ -128,6 +127,7 @@ constexpr auto sort(Core::Access::Vector<type> access)
         new_pivot++;
       }
     }
+
     Core::Data::swap(partition[new_pivot], partition[partition_size - 1]);
     return new_pivot;
   };
@@ -158,7 +158,6 @@ constexpr auto sort(Core::Access::Vector<type> access)
                     data, Count(0), partition_size / 2, partition_size - 1);
 
       Count split = quick_partition(partition, partition_size, pivot_index);
-
       if (split < partition_size - split - 1) {
         self(partition, split, depth);
         partition += split + 1;
@@ -176,7 +175,6 @@ constexpr auto sort(Core::Access::Vector<type> access)
 
   // Fix residual fragmented chunks in the array.
   insertion_sort(data, size);
-
   return access;
 }
 
@@ -189,7 +187,6 @@ consteval auto sort(const type (&data)[item_count])
   }
 
   sort(output.get_access());
-
   return output;
 }
 

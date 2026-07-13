@@ -1,0 +1,11 @@
+// Perimortem Engine
+// Copyright © Matt Kaes
+
+dialect : Render;
+
+public Copy : Render {
+  public pixel : stage {
+    input [.color : Vec4D];
+    output [.color : Vec4D];
+  }
+}

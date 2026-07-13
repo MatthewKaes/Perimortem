@@ -1,0 +1,72 @@
+// Perimortem Engine
+// Copyright © Matt Kaes
+dialect : Render;
+
+import Math : Package = Perimortem.Math;
+import Types : Library = "../library/types.ttx";
+
+public Render2D : Render {
+  public position : Types::Point2D = (.x = 0.0, .y = 0.0);
+  public size_pixels : Math::Geometry::Size2D = (.width = 0, .height = 0);
+  public tone : Types::Color = (.r = 0.0, .g = 0.0, .b = 0.0, .a = 0.0);
+  public image : Types::Image = Types::Image -> from();
+
+  constants {
+    const quad_positions : Vec[Types::Point2D, 6] = (
+      (.x = 0.0, .y = 0.0),
+      (.x = 1.0, .y = 0.0),
+      (.x = 1.0, .y = 1.0),
+      (.x = 0.0, .y = 0.0),
+      (.x = 1.0, .y = 1.0),
+      (.x = 0.0, .y = 1.0),
+    );
+
+    const quad_uvs : Vec[Types::Point2D, 6] = (
+      (.x = 0.0, .y = 0.0),
+      (.x = 1.0, .y = 0.0),
+      (.x = 1.0, .y = 1.0),
+      (.x = 0.0, .y = 0.0),
+      (.x = 1.0, .y = 1.0),
+      (.x = 0.0, .y = 1.0),
+    );
+  }
+
+  push_constants {
+    const position : Types::Point2D = self.position;
+    const size_pixels : Math::Geometry::Size2D = self.size_pixels;
+    const tone : Types::Color = self.tone;
+  }
+
+  resources {
+    const image : Types::Image = self.image;
+  }
+
+  // Stages describe the shader interface required by this render contract.
+  // Shader implementations provide matching functions.
+  public vertex : stage {
+    reads constant[quad_positions, quad_uvs];
+    reads push[position, size_pixels];
+
+    input [
+      .vertex_index : Bits_32,
+    ];
+
+    output [
+      .texture_uv : Types::Point2D,
+      .screen_position : Vec4D,
+    ];
+  }
+
+  public pixel : stage {
+    reads push[tone];
+    reads resource[image];
+
+    input [
+      .texture_uv : Types::Point2D,
+    ];
+
+    output [
+      .color : Types::Color,
+    ];
+  }
+}

@@ -10,60 +10,82 @@
 
 namespace Tetrodotoxin::Compiler::Assembler {
 
+// Minimal SPIR-V module writer.
+//
+// SPIR-V is a stream of 32-bit little-endian words, not a byte-oriented opcode
+// stream. A module starts with a five-word header:
+//
+//   magic, version, generator, bound, schema
+//
+// Every instruction after that starts with one packed word:
+//
+//   high 16 bits = instruction word count
+//   low  16 bits = opcode
+//
+// Operands follow as additional 32-bit words. Strings are UTF-8 bytes packed
+// into words with a trailing null and zero padding. Result ids are module-local
+// names for types, constants, variables, labels, functions, and temporary
+// values. The header bound is one greater than every id that can appear.
+//
+// The assembler writes words but does not validate section ordering or operand
+// types. The selected SPIR-V target owns those rules and this is just a basic
+// bytecode emitter.
 class SpirV {
  public:
   enum class Version : Bits_32 {
     V1_0 = 0x00010000,
   };
 
+  // Numeric opcode values come from the SPIR-V grammar. The gaps are part of
+  // the format since we don't support the entire SPIR-V Spec yet.
   enum class Op : Bits_16 {
-    Nop = 0,
-    Undef = 1,
-    SourceContinued = 2,
-    Source = 3,
-    SourceExtension = 4,
-    Name = 5,
-    MemberName = 6,
-    String = 7,
-    Line = 8,
-    Extension = 10,
-    ExtInstImport = 11,
-    ExtInst = 12,
-    MemoryModel = 14,
-    EntryPoint = 15,
-    ExecutionMode = 16,
-    Capability = 17,
-    TypeVoid = 19,
-    TypeBool = 20,
-    TypeInt = 21,
-    TypeFloat = 22,
-    TypeVector = 23,
-    TypeImage = 25,
-    TypeSampler = 26,
-    TypeSampledImage = 27,
-    TypeArray = 28,
-    TypeStruct = 30,
-    TypePointer = 32,
-    TypeFunction = 33,
-    Constant = 43,
-    ConstantComposite = 44,
-    Function = 54,
-    FunctionEnd = 56,
-    Variable = 59,
-    Load = 61,
-    Store = 62,
-    AccessChain = 65,
-    Decorate = 71,
-    MemberDecorate = 72,
-    VectorShuffle = 79,
-    CompositeConstruct = 80,
-    CompositeExtract = 81,
-    ImageSampleImplicitLod = 87,
-    FAdd = 129,
-    FSub = 131,
-    FMul = 133,
-    Label = 248,
-    Return = 253,
+    Nop = 0,                  // No operation.
+    Undef = 1,                // Creates an undefined value of a type.
+    SourceContinued = 2,      // Continues source-language debug text.
+    Source = 3,               // Describes the source language for debug tools.
+    SourceExtension = 4,      // Names a source language extension.
+    Name = 5,                 // Assigns a debug name to an id.
+    MemberName = 6,           // Assigns a debug name to a struct member.
+    String = 7,               // Creates a reusable debug string literal.
+    Line = 8,                 // Associates following instructions with a line.
+    Extension = 10,           // Requests a SPIR-V extension.
+    ExtInstImport = 11,       // Imports an extended instruction set.
+    ExtInst = 12,             // Calls an extended instruction.
+    MemoryModel = 14,         // Selects addressing and memory semantics.
+    EntryPoint = 15,          // Publishes a callable shader entry function.
+    ExecutionMode = 16,       // Adds stage-specific execution metadata.
+    Capability = 17,          // Enables a group of SPIR-V features.
+    TypeVoid = 19,            // Defines the void type.
+    TypeBool = 20,            // Defines the bool type.
+    TypeInt = 21,             // Defines a signed or unsigned integer type.
+    TypeFloat = 22,           // Defines a floating point type.
+    TypeVector = 23,          // Defines a fixed-width vector type.
+    TypeImage = 25,           // Defines an opaque image resource type.
+    TypeSampler = 26,         // Defines an opaque sampler resource type.
+    TypeSampledImage = 27,    // Defines the image+sampler value used to sample.
+    TypeArray = 28,           // Defines an array type.
+    TypeStruct = 30,          // Defines a struct type.
+    TypePointer = 32,         // Defines a pointer into a storage class.
+    TypeFunction = 33,        // Defines a function signature type.
+    Constant = 43,            // Creates a scalar constant.
+    ConstantComposite = 44,   // Creates a vector/struct/array constant.
+    Function = 54,            // Begins a function body.
+    FunctionEnd = 56,         // Ends the current function body.
+    Variable = 59,            // Declares storage for a pointer-typed value.
+    Load = 61,                // Reads through a pointer.
+    Store = 62,               // Writes through a pointer.
+    AccessChain = 65,         // Computes a pointer to a composite member.
+    Decorate = 71,            // Attaches metadata to an id.
+    MemberDecorate = 72,      // Attaches metadata to a struct member.
+    VectorShuffle = 79,       // Builds a vector by selecting source lanes.
+    CompositeConstruct = 80,  // Builds a composite from constituent ids.
+    CompositeExtract = 81,    // Reads a member/lane out of a composite.
+    ImageSampleImplicitLod = 87,  // Samples an image using implicit LOD.
+    FAdd = 129,                   // Floating point add.
+    FSub = 131,                   // Floating point subtract.
+    FMul = 133,                   // Floating point multiply.
+    Label = 248,                  // Begins a basic block.
+    Return = 253,                 // Returns from the current function.
   };
 
   enum class Capability : Bits_32 {
@@ -113,6 +135,8 @@ class SpirV {
     Offset = 35,
   };
 
+  // TODO: We are missing a lotttt of coverage here, but in practice we'll see
+  // how much we end up needing.
   enum class BuiltIn : Bits_32 {
     Position = 0,
     VertexIndex = 42,
@@ -126,14 +150,22 @@ class SpirV {
 
   explicit SpirV(Perimortem::Memory::Dynamic::Bytes& words) : words(words) {}
 
+  // Writes the five-word module header. `bound` is one greater than the largest
+  // result id the module may use, not the instruction count.
   auto begin_module(
       Bits_32 bound,
       Version version = Version::V1_0,
       Bits_32 generator = 0) -> void;
+
+  // Low-level writing primitives. Most callers should use the typed helpers
+  // below so the instruction word count stays paired with the opcode shape.
   auto word(Bits_32 value) -> void;
   auto instruction(Op opcode, Count word_count) -> void;
   auto literal_string(Perimortem::Core::View::Bytes text) -> Count;
 
+  // Logical layout helpers. SPIR-V validators expect these groups in order:
+  // capabilities, extensions/imports, memory model, entry points/execution
+  // modes, debug names, annotations, type/global declarations, then functions.
   auto capability(Capability value) -> void;
   auto memory_model(AddressingModel addressing, MemoryModel memory) -> void;
   auto entry_point(
@@ -146,11 +178,19 @@ class SpirV {
       Perimortem::Core::View::Bytes name,
       Perimortem::Core::View::Vector<Bits_32> interface_ids) -> void;
   auto execution_mode(Bits_32 entry_point_id, ExecutionMode mode) -> void;
+
+  // Debug names do not define ids. They annotate ids that may be declared
+  // later, which is why `shader.cpp` can emit names before the type/function
+  // declarations.
   auto name(Bits_32 target_id, Perimortem::Core::View::Bytes name) -> void;
   auto member_name(
       Bits_32 target_id,
       Bits_32 member_index,
       Perimortem::Core::View::Bytes name) -> void;
+
+  // Decorations are semantic metadata consumed by APIs such as Vulkan:
+  // locations, descriptor bindings, builtins, push-constant block layout, and
+  // byte offsets.
   auto decorate(Bits_32 target_id, Decoration decoration, Bits_32 value)
       -> void;
   auto decorate(Bits_32 target_id, Decoration decoration) -> void;
@@ -159,6 +199,10 @@ class SpirV {
       Bits_32 member_index,
       Decoration decoration,
       Bits_32 value) -> void;
+
+  // Type declarations produce ids for later instructions. SPIR-V is strongly
+  // typed, so loads, variables, constants, and arithmetic all reference type
+  // ids.
   auto type_void(Bits_32 result_id) -> void;
   auto type_bool(Bits_32 result_id) -> void;
   auto type_int(Bits_32 result_id, Bits_32 width, Bool signedness) -> void;
@@ -188,6 +232,10 @@ class SpirV {
       StorageClass storage_class,
       Bits_32 type_id) -> void;
   auto type_function(Bits_32 result_id, Bits_32 return_type_id) -> void;
+
+  // Constants and variables create module-scope ids. A variable's result type
+  // is always a pointer type. Its storage class decides whether it is input,
+  // output, push constant, uniform resource, or function-local storage.
   auto constant(Bits_32 result_type_id, Bits_32 result_id, Bits_32 value)
       -> void;
   auto constant_composite(
@@ -198,6 +246,10 @@ class SpirV {
       Bits_32 result_type_id,
       Bits_32 result_id,
       StorageClass storage_class) -> void;
+
+  // Body instructions are used inside a function after a label has opened a
+  // basic block. Result-producing instructions take both a result type id and a
+  // fresh result id, matching SPIR-V's SSA-like value model.
   auto load(Bits_32 result_type_id, Bits_32 result_id, Bits_32 pointer_id)
       -> void;
   auto store(Bits_32 pointer_id, Bits_32 object_id) -> void;
@@ -241,6 +293,8 @@ class SpirV {
       Bits_32 result_id,
       Bits_32 left_id,
       Bits_32 right_id) -> void;
+
+  // Functions contain one or more labelled basic blocks.
   auto function(
       Bits_32 result_type_id,
       Bits_32 result_id,
@@ -250,8 +304,14 @@ class SpirV {
   auto return_void() -> void;
   auto function_end() -> void;
 
+  // Counts the 32-bit words needed for a SPIR-V literal string, including its
+  // required NUL byte and padding.
   static auto literal_string_word_count(Perimortem::Core::View::Bytes text)
       -> Count;
+
+  // Lightweight structural check used by tests and the shader compiler. It only
+  // verifies the header and instruction bounds. It does not prove semantic
+  // SPIR-V validity.
   static auto is_valid_module(Perimortem::Core::View::Bytes words) -> Bool;
 
  private:

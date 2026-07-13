@@ -110,7 +110,6 @@ class Hash {
       Bits_64 block[block_stride];
       memcpy_64(block, data);
       data += sizeof(Bits_64) * block_stride;
-
       for (Count k = 0; k < block_stride; k++) {
         result[k] ^= block[k] + const_values[k + 3];
         result[k] *= const_values[k + 1];
@@ -226,7 +225,6 @@ class Hash {
     result *= const_values[4];
     result ^= result >> 33;
     result ^= value;
-
     return result;
   }
 

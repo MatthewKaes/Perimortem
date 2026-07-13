@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include <vulkan/vulkan.h>
+#include <stdint.h>
 
 #include "perimortem/core/perimortem.hpp"
 
@@ -24,6 +24,11 @@ struct xdg_wm_base_listener;
 
 namespace Perimortem::System::Platform::Wayland {
 
+// Owns one Wayland toplevel and translates compositor callbacks into compact
+// window state for the application loop. Logical size and compositor scale are
+// retained separately because render backends require physical pixel extent.
+// The class does not select a renderer or assign graphics meaning to its native
+// handles.
 class Window {
  public:
   Window() = default;
@@ -35,13 +40,17 @@ class Window {
   auto operator=(const Window&) -> Window& = delete;
 
   auto poll_events() -> Bool;
-  auto create_vulkan_surface(VkInstance instance) const -> VkSurfaceKHR;
 
   auto get_logical_width() const -> Bits_32;
   auto get_logical_height() const -> Bits_32;
   auto get_scale() const -> Bits_32;
   auto get_needs_resize() const -> Bool;
   auto clear_resize() -> void;
+
+  // Native presentation handles are exposed without assigning them graphics
+  // meaning. The application selects a renderer and supplies these handles.
+  auto get_display() const -> wl_display*;
+  auto get_surface() const -> wl_surface*;
 
  private:
   auto destroy() -> void;

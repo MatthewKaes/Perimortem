@@ -14,6 +14,11 @@ tetrodotoxin/lsp/*.vsix
 tetrodotoxin/lsp/out/*
 tetrodotoxin/lsp/node_modules/*
 
+# Agent tooling
+.agents/
+.codex/
+.claude/
+
 # Benchmark against 3P
 # nlohmann json, slows down build by quite a bit.
 core/tests/benchmarks/json.hpp

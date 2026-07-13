@@ -82,7 +82,6 @@ private FilterType : enum[Bits_8] {
     state score_left       : Signed_16 = Math -> absolute(predictor - p_left);
     state score_up         : Signed_16 = Math -> absolute(predictor - p_up);
     state score_upper_left : Signed_16 = Math -> absolute(predictor - p_upper_left);
-
     if (score_left <= score_up and score_left <= score_upper_left) {
       return left;
     }
@@ -101,12 +100,10 @@ private FilterType : enum[Bits_8] {
     state is_first_row : Bool            = previous_row -> get_size() == 0;
     state bpp          : Count           = Graphics.Image -> get_channel_count();
     state scores       : Vec[Bits_64, 5] = (0, 0, 0, 0, 0);
-
     for [.i : Count] in 0...bpp {
       state cur : Bits_8 = current_row[i];
       scores[FilterType.none] += Bits_64 -> from(Math -> signed_abs(Signed_8 -> from(cur)));
       scores[FilterType.sub] += Bits_64 -> from(Math -> signed_abs(Signed_8 -> from(cur)));
-
       if (!is_first_row) {
         state previous_row : Bits_8 = previous_row[i];
         scores[FilterType.previous_row] += Bits_64 -> from(
@@ -126,7 +123,6 @@ private FilterType : enum[Bits_8] {
       state left : Bits_8 = current_row[i - bpp];
       scores[FilterType.none] += Bits_64 -> from(Math -> signed_abs(Signed_8 -> from(cur)));
       scores[FilterType.sub] += Bits_64 -> from(Math -> signed_abs(Signed_8 -> from(cur - left)));
-
       if (!is_first_row) {
         state previous_row : Bits_8 = previous_row[i];
         state upper_left   : Bits_8 = previous_row[i - bpp];
@@ -163,7 +159,6 @@ private FilterType : enum[Bits_8] {
     .previous_row : View[Bytes],
   ] -> Void {
     state bpp : Count = Graphics.Image -> get_channel_count();
-
     if (self == FilterType.none) {
       current_row -> copy_to(out);
       return;
@@ -239,7 +234,6 @@ private FilterType : enum[Bits_8] {
       }
       case FilterType.sub : {
         filtered_row.[0 +: bytes_per_pixel] -> copy_to(output_row.[0 +: bytes_per_pixel]);
-
         for [.i : Count] in bytes_per_pixel...stride {
           output_row[i] = filtered_row[i] + output_row[i - bytes_per_pixel];
         }
@@ -256,7 +250,6 @@ private FilterType : enum[Bits_8] {
       case FilterType.average : {
         if (is_first_row) {
           filtered_row.[0 +: bytes_per_pixel] -> copy_to(output_row.[0 +: bytes_per_pixel]);
-
           for [.i : Count] in bytes_per_pixel...stride {
             output_row[i] = filtered_row[i] + Bits_8 -> from(
               Bits_32 -> from(output_row[i - bytes_per_pixel]) / 2,
@@ -277,7 +270,6 @@ private FilterType : enum[Bits_8] {
       case FilterType.paeth : {
         if (is_first_row) {
           filtered_row.[0 +: bytes_per_pixel] -> copy_to(output_row.[0 +: bytes_per_pixel]);
-
           for [.i : Count] in bytes_per_pixel...stride {
             output_row[i] = filtered_row[i] + output_row[i - bytes_per_pixel];
           }
@@ -379,7 +371,6 @@ private Chunk : struct {
 
   private func calculate_crc32[.data : View[Bytes]] -> Bits_32 {
     state running_crc : Bits_32 = 0xFFFFFFFF;
-
     for [.byte : Bits_8] in data {
       running_crc = Chunk.crc_table[running_crc -> bit_xor(byte)] -> bit_xor(
         running_crc -> bit_shr(8),
@@ -392,14 +383,12 @@ private Chunk : struct {
   // Reads a chunk from source at offset; sets valid = False on any error.
   expose func read[.source : View[Bytes], .offset : Count] -> Void {
     self.valid = False;
-
     if (offset + Chunk.overhead > source -> get_size()) {
       Log -> error("Png: Chunk at offset {} truncated before header end", offset);
       return;
     }
 
     state length : Bits_32 = Bits_32 -> from_big_endian(source.[offset +: 4]);
-
     if (offset + Chunk.overhead + Count -> from(length) > source -> get_size()) {
       Log -> error(
         "Png: Chunk at offset {} with length {} extends past end of stream",
@@ -420,7 +409,6 @@ private Chunk : struct {
       state actual_crc : Bits_32 = Chunk -> calculate_crc32(
         source.[offset + 4 +: 4 + Count -> from(length)],
       );
-
       if (stored_crc != actual_crc) {
         Log -> error("Png: CRC-32 mismatch for chunk '{}' at offset {}", self.type_tag, offset);
         return;
@@ -454,7 +442,6 @@ public Png : object {
   // any parse, validation, or decompression failure.
   public func decode[.source : View[Bytes]] -> Graphics.Image {
     state info : ImageInfo = self -> read_header(source);
-
     if (info.width == 0 or info.height == 0) {
       return Graphics.Image -> from();
     }
@@ -463,11 +450,9 @@ public Png : object {
     state merged_data  : Bytes       = Bytes -> from();
     state palette      : View[Bytes] = View[Bytes] -> from();
     state chunk_offset : Count       = 8;
-
     while (chunk_offset < source -> get_size()) {
       state chunk : Chunk;
       chunk -> read(source, chunk_offset);
-
       if (!chunk.valid) {
         return Graphics.Image -> from();
       }
@@ -513,7 +498,6 @@ public Png : object {
 
     state filtered_rows : Bytes = self -> apply_adaptive_filtering(image);
     state compressed    : Bytes = Deflate -> deflate(filtered_rows -> get_view());
-
     if (compressed -> get_size() == 0) {
       return Bytes -> from();
     }
@@ -572,7 +556,6 @@ public Png : object {
     best_filter -> apply(output_access.[1 +: row_stride], first_row, View[Bytes] -> from());
 
     state previous_row : View[Bytes] = first_row;
-
     for [.row : Count] in 1...Count -> from(image -> get_height()) {
       state current_row : View[Bytes] = pixel_bytes.[row * row_stride +: row_stride];
       state row_filter  : FilterType  = FilterType -> best_for_row(current_row, previous_row);
@@ -596,7 +579,6 @@ public Png : object {
   ] -> Bool {
     state stride    : Count = width * bytes_per_pixel;
     state row_bytes : Count = 1 + stride;
-
     if (filtered_rows -> get_size() < row_bytes * height) {
       Log -> error(
         "Png: Decompressed size {} is smaller than required {} bytes for this image",
@@ -607,7 +589,6 @@ public Png : object {
     }
 
     state first_filter : FilterType = FilterType -> from(filtered_rows[0]);
-
     if (
       !first_filter -> reconstruct(
         filtered_rows.[1 +: stride],
@@ -625,7 +606,6 @@ public Png : object {
       state filtered_row : View[Bytes]   = filtered_rows.[row * row_bytes + 1 +: stride];
       state output_row   : Access[Bytes] = output.[row * stride +: stride];
       state previous_row : View[Bytes]   = output.[(row - 1) * stride +: stride];
-
       if (
         !filter_type -> reconstruct(filtered_row, output_row, previous_row, stride, bytes_per_pixel),
       ) {
@@ -648,7 +628,6 @@ public Png : object {
     .pixels : List[Graphics.Pixel],
   ] {
     state source_channels : Count = color_type -> get_channel_count();
-
     if (source_channels == 0) {
       return (
         .success = False,
@@ -659,7 +638,6 @@ public Png : object {
     state pixel_count : Count                = width * height;
     state pixels      : List[Graphics.Pixel] = List[Graphics.Pixel] -> new(pixel_count);
     pixels -> resize(pixel_count);
-
     for [.pixel_index : Count] in 0...pixel_count {
       state source_offset : Count = pixel_index * source_channels;
 
@@ -676,7 +654,6 @@ public Png : object {
         case ColorType.indexed : {
           state palette_index  : Bits_8 = raw_pixels[source_offset];
           state palette_offset : Count  = Count -> from(palette_index) * 3;
-
           if (palette_offset + 3 > palette -> get_size()) {
             Log -> error(
               "Png: Palette index {} at pixel {} exceeds palette size {}",
@@ -711,7 +688,6 @@ public Png : object {
   // Returns a zero-sized ImageInfo on any parse or validation failure.
   private func read_header[.source : View[Bytes]] -> ImageInfo {
     state required_size : Count = 8 + Chunk.overhead + ImageInfo.size;
-
     if (source -> get_size() < required_size) {
       return ImageInfo -> from();
     }
@@ -722,14 +698,12 @@ public Png : object {
     }
 
     state first_chunk_tag : Vec[Bits_8, 4] = source.[8 + 4 +: 4];
-
     if (first_chunk_tag != package.ihdr_tag) {
       Log -> error("Png: First chunk must be IHDR, got '{}'", first_chunk_tag);
       return ImageInfo -> from();
     }
 
     state info : ImageInfo = ImageInfo -> from_bytes(source.[8 + 8 +: ImageInfo.size]);
-
     if (info.bit_depth != 8) {
       Log -> error("Png: Unsupported bit depth {} (only 8-bit is supported)", info.bit_depth);
       return ImageInfo -> from();
@@ -759,7 +733,6 @@ public Png : object {
       info.height,
     );
     state filtered_rows         : Bytes = Deflate -> inflate(source, decompressed_capacity);
-
     if (filtered_rows -> get_size() == 0) {
       return Graphics.Image -> from();
     }
@@ -770,7 +743,6 @@ public Png : object {
       );
       state pixels      : List[Graphics.Pixel] = List[Graphics.Pixel] -> new(pixel_count);
       pixels -> resize(pixel_count);
-
       if (
         !self -> reconstruct_filter(
           filtered_rows -> get_view(),
@@ -790,7 +762,6 @@ public Png : object {
     state raw_pixel_count : Count = Count -> from(info.width) * Count -> from(info.height) * bpp;
     state raw_pixels      : Bytes = Bytes -> new(raw_pixel_count);
     raw_pixels -> resize(raw_pixel_count);
-
     if (
       !self -> reconstruct_filter(
         filtered_rows -> get_view(),
@@ -811,7 +782,6 @@ public Png : object {
       info.color_type,
       palette,
     );
-
     if (!converted.success) {
       return Graphics.Image -> from();
     }

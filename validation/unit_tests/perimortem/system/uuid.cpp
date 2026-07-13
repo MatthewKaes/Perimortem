@@ -27,6 +27,9 @@ PERIMORTEM_UNIT_TEST(SystemUuid, default) {
   EXPECT(!uuid_const.is_set());
   EXPECT_EQ(uuid_const.get_value()[0], 0);
   EXPECT_EQ(uuid_const.get_value()[1], 0);
+
+  EXPECT(Uuid(1, 0).is_set());
+  EXPECT(Uuid(0, 1).is_set());
 }
 
 PERIMORTEM_UNIT_TEST(SystemUuid, deserialize_bits_64) {
@@ -94,6 +97,12 @@ PERIMORTEM_UNIT_TEST(SystemUuid, generate_v4) {
   EXPECT(uuid1.is_set());
   EXPECT(uuid2.is_set());
   EXPECT(uuid1 != uuid2);
+
+  const auto serialized = uuid1.serialize();
+  EXPECT_EQ(serialized[14], Bits_8('4'));
+  EXPECT(
+      serialized[19] == '8' || serialized[19] == '9' || serialized[19] == 'a' ||
+      serialized[19] == 'b');
 }
 
 PERIMORTEM_UNIT_TEST(SystemUuid, generate_v7) {
@@ -102,6 +111,10 @@ PERIMORTEM_UNIT_TEST(SystemUuid, generate_v7) {
 
   auto output = uuid1.serialize();
   EXPECT(output.hash());
+  EXPECT_EQ(output[14], Bits_8('7'));
+  EXPECT(
+      output[19] == '8' || output[19] == '9' || output[19] == 'a' ||
+      output[19] == 'b');
   EXPECT(uuid1.is_set());
   EXPECT(uuid2.is_set());
   EXPECT(uuid1 != uuid2);

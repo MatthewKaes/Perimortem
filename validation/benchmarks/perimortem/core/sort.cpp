@@ -256,15 +256,15 @@ auto cpp_std_sort_views(array_type& arr) -> void {
   Benchmark::prevent_optimization(sorted_size);
 }
 
-#define INT_SORT_COMPARISON(size, buffer)                          \
-  static Benchmark::Comparison sort_##size##_ints_comp = {         \
-    .harness = &SortIntComp,                                       \
-    .label = "ints " #size ""_view,                                \
-    .variants = {Benchmark::ComparisonVariant{                     \
-        "perimortem"_view, "int_" #size "_items"_view}},           \
-  };                                                               \
-  PERIMORTEM_COMPARISON(sort_##size##_ints_comp) {                 \
-    cpp_std_sort_ints(buffer);                                     \
+#define INT_SORT_COMPARISON(size, buffer)                  \
+  static Benchmark::Comparison sort_##size##_ints_comp = { \
+    .harness = &SortIntComp,                               \
+    .label = "ints " #size ""_view,                        \
+    .variants = {Benchmark::ComparisonVariant{             \
+      "perimortem"_view, "int_" #size "_items"_view}},     \
+  };                                                       \
+  PERIMORTEM_COMPARISON(sort_##size##_ints_comp) {         \
+    cpp_std_sort_ints(buffer);                             \
   }
 
 INT_SORT_COMPARISON(64, count_64)
@@ -272,15 +272,15 @@ INT_SORT_COMPARISON(512, count_512)
 INT_SORT_COMPARISON(4k, count_4k)
 INT_SORT_COMPARISON(16k, count_16k)
 
-#define STRING_SORT_COMPARISON(size, buffer)                   \
-  static Benchmark::Comparison sort_##size##_strings_comp = {  \
-    .harness = &SortStringComp,                                \
-    .label = "strings " #size ""_view,                         \
-    .variants = {Benchmark::ComparisonVariant{                 \
-        "perimortem"_view, "views_" #size ""_view}},           \
-  };                                                           \
-  PERIMORTEM_COMPARISON(sort_##size##_strings_comp) {          \
-    cpp_std_sort_views(buffer);                                \
+#define STRING_SORT_COMPARISON(size, buffer)                  \
+  static Benchmark::Comparison sort_##size##_strings_comp = { \
+    .harness = &SortStringComp,                               \
+    .label = "strings " #size ""_view,                        \
+    .variants = {Benchmark::ComparisonVariant{                \
+      "perimortem"_view, "views_" #size ""_view}},            \
+  };                                                          \
+  PERIMORTEM_COMPARISON(sort_##size##_strings_comp) {         \
+    cpp_std_sort_views(buffer);                               \
   }
 
 STRING_SORT_COMPARISON(256, words_256)

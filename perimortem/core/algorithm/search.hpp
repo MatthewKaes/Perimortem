@@ -10,15 +10,17 @@
 
 namespace Perimortem::Core::Algorithm {
 
-// Fast vectorized sub string search for View::Bytes
+// Fast vectorized sub string search for View::Bytes.
 auto search(View::Bytes src, View::Bytes value) -> Count;
+
+// Fast vectorized sub string search for a particular byte in a View::Bytes.
+auto search(View::Bytes src, Bits_8 value) -> Count;
 
 // Returns the index of the smallest element in a View::Vector.
 // If multiple elements are the smallest then the lowest index is used.
 template <typename element_type>
 constexpr auto min_element(View::Vector<element_type> src) -> Count {
   Count target_index = 0;
-
   for (Count i = 1; i < src.get_size(); i++) {
     if (src[i] < src[target_index]) {
       target_index = i;
@@ -33,7 +35,6 @@ constexpr auto min_element(View::Vector<element_type> src) -> Count {
 template <typename element_type>
 constexpr auto max_element(View::Vector<element_type> src) -> Count {
   Count target_index = 0;
-
   for (Count i = 1; i < src.get_size(); i++) {
     if (src[i] > src[target_index]) {
       target_index = i;

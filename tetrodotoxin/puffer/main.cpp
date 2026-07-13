@@ -1,48 +1,42 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
-#include <stdio.h>
-
-#include "perimortem/core/algorithm/search.hpp"
-#include "perimortem/core/data.hpp"
+#include "perimortem/core/view/bytes.hpp"
+#include "perimortem/core/static/vector.hpp"
 #include "perimortem/core/diagnostics/log.hpp"
 #include "perimortem/core/null_terminated.hpp"
 #include "perimortem/core/perimortem.hpp"
-#include "perimortem/core/static/vector.hpp"
-#include "perimortem/core/view/bytes.hpp"
 
 #include "perimortem/memory/allocator/arena.hpp"
-#include "perimortem/memory/dynamic/bytes.hpp"
+#include "perimortem/memory/managed/map.hpp"
 
 #include "perimortem/system/args.hpp"
 #include "perimortem/system/file.hpp"
+#include "perimortem/system/path.hpp"
 
-#include "tetrodotoxin/compiler/library.hpp"
-#include "tetrodotoxin/linker/linker.hpp"
+#include "tetrodotoxin/puffer/compiler.hpp"
 #include "tetrodotoxin/puffer/lsp/methods.hpp"
-#include "tetrodotoxin/puffer/lsp/rpc/executor.hpp"
-#include "tetrodotoxin/puffer/resolution/resolver.hpp"
-#include "tetrodotoxin/puffer/resolution/source/record.hpp"
-#include "tetrodotoxin/toolchain.hpp"
-#include "ttx/type.hpp"
+#include "ttx/lexical/errors.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
 using namespace Perimortem::System;
 using namespace Tetrodotoxin;
-using namespace Tetrodotoxin::Puffer::Resolution;
+using namespace Tetrodotoxin::Puffer;
 
 class Main {
  public:
-  Main() : library_compiler(arena) {}
-
   auto run(View::Vector<View::Bytes> command_line) -> Signed_32 {
-    Bool help_requested = requested_help(command_line);
     Allocator::Arena args_arena;
-    Args::Values options = Args::parse(
-        args_arena, help_summary, create_args(args_arena), command_line);
+    Configs args_config = create_args(args_arena);
+    Args::Values options = Args::parse(args_arena, args_config, command_line);
+    if (options.contains("help"_view)) {
+      Args::log_help(args_arena, help_summary, args_config, command_line);
+      return 0;
+    }
+
     if (options.is_empty()) {
-      return help_requested ? 0 : 2;
+      return 2;
     }
 
     if (options.contains("pipe"_view)) {
@@ -53,47 +47,52 @@ class Main {
       return 2;
     }
 
-    Toolchain toolchain = Toolchain::standard();
-    Resolver resolver(toolchain);
-    Resolver::Context context;
-
-    if (!load_dependencies(options, resolver, context) ||
-        !load_sources(options, resolver, context)) {
-      print_errors(context);
-      return 1;
+    Puffer::Compiler compiler(mode, arg_value(options, "name"_view));
+    View::Vector<View::Bytes> dependencies = arg_values(options, "dep"_view);
+    for (Count i = 0; i < dependencies.get_size(); i++) {
+      if (!compiler.add_dependency(dependencies[i])) {
+        print_errors(compiler.get_errors());
+        return 1;
+      }
     }
 
-    if (terminal_count == 0) {
-      fprintf(stderr, "puffer: no TTX roots were selected for output\n");
-      return 1;
+    View::Vector<View::Bytes> sources = arg_values(options, "source"_view);
+    for (Count i = 0; i < sources.get_size(); i++) {
+      if (!compiler.add_source(sources[i])) {
+        print_errors(compiler.get_errors());
+        return 1;
+      }
     }
-
-    Tetrodotoxin::Linker::Linker linker;
-    library_compiler.add_to(linker);
 
     View::Bytes output_path = arg_value(options, "output"_view);
-    Dynamic::Bytes archive = linker.build_library("ttx_terminal.o"_view);
-    if (!write_file(output_path, archive.get_view())) {
-      fprintf(stderr, "puffer: failed to write archive ");
-      print_bytes(stderr, output_path);
-      fprintf(stderr, "\n");
+    Path output(output_path);
+    View::Bytes file = output.get_file();
+    View::Bytes extension = output.get_extension();
+    Dynamic::Bytes object_name(
+        file.slice(0, file.get_size() - extension.get_size()));
+    object_name.concat(".o"_view);
+    Dynamic::Bytes archive;
+    Dynamic::Bytes header;
+    Dynamic::Bytes puffer_buffer;
+    if (!compiler.build(object_name, archive, header, puffer_buffer)) {
+      print_errors(compiler.get_errors());
+      return 1;
+    }
+
+    if (!write_file(output_path, archive)) {
+      log_write_error("archive"_view, output_path);
       return 1;
     }
 
     View::Bytes header_path = arg_value(options, "header"_view);
-    Dynamic::Bytes header = build_header();
-    if (!write_file(header_path, header.get_view())) {
-      fprintf(stderr, "puffer: failed to write header ");
-      print_bytes(stderr, header_path);
-      fprintf(stderr, "\n");
+    if (!write_file(header_path, header)) {
+      log_write_error("header"_view, header_path);
       return 1;
     }
 
     View::Bytes puffer_buffer_path = arg_value(options, "puffer"_view);
-    if (!write_file(puffer_buffer_path, puffer_buffer.get_view())) {
-      fprintf(stderr, "puffer: failed to write Puffer Buffer ");
-      print_bytes(stderr, puffer_buffer_path);
-      fprintf(stderr, "\n");
+    if (!write_file(puffer_buffer_path, puffer_buffer)) {
+      log_write_error("Puffer Buffer"_view, puffer_buffer_path);
       return 1;
     }
 
@@ -101,79 +100,43 @@ class Main {
   }
 
  private:
-  using Configs = Managed::Map<View::Bytes, Args::Config>;
+  using Configs = Managed::Map<View::Bytes, View::Bytes>;
 
   static constexpr View::Bytes help_summary =
       "Compile TTX sources into archives and Puffer Buffers for Bazel."_view;
+  // Keep terminal source diagnostics visually aligned with the bundled TTX
+  // editor theme: red for the failing span, muted brown for context.
+  static constexpr View::Bytes diagnostic_reset = "\x1b[0m"_view;
+  static constexpr View::Bytes diagnostic_error = "\x1b[38;2;221;109;114m"_view;
+  static constexpr View::Bytes diagnostic_source =
+      "\x1b[38;2;216;216;216m"_view;
+  static constexpr View::Bytes diagnostic_hint = "\x1b[38;2;120;112;101m"_view;
 
-  static auto print_bytes(FILE* file, View::Bytes bytes) -> void {
-    fprintf(
-        file, "%.*s", Signed_32(bytes.get_size()),
-        Data::cast<const char>(bytes.get_data()));
-  }
-
-  static auto requested_help(View::Vector<View::Bytes> command_line) -> Bool {
-    for (Count i = 1; i < command_line.get_size(); i++) {
-      View::Bytes argument = command_line[i];
-      Count dashes = 0;
-      while (dashes < argument.get_size() && argument[dashes] == '-') {
-        dashes++;
-      }
-      if (dashes == 0 || dashes == argument.get_size()) {
-        continue;
-      }
-
-      View::Bytes name = argument.slice(dashes);
-      Count equals = Algorithm::search(name, "="_view);
-      if (equals != Count(-1)) {
-        name = name.slice(0, equals);
-      }
-
-      if (name == "help"_view) {
-        return True;
-      }
-    }
-    return False;
+  static auto log_write_error(View::Bytes artifact, View::Bytes path) -> void {
+    Diagnostics::Log::Message<512> error_message(
+        Diagnostics::Log::Level::Error, Diagnostics::Source());
+    error_message << "puffer: failed to write "_view << artifact << ' ' << path
+                  << '\n';
   }
 
   static auto create_args(Allocator::Arena& arena) -> Configs {
     Configs variables(arena);
     variables.insert(
-        "library"_view,
-        {.help = "Compile source roots as TTX library terminals."_view});
+        "library"_view, "Compile source roots as TTX library terminals."_view);
     variables.insert(
         "package"_view,
-        {.help = "Compile package manifests as TTX package terminals."_view});
+        "Compile package manifests as TTX package terminals."_view);
+    variables.insert("output"_view, "Write the output static archive."_view);
+    variables.insert("header"_view, "Write the generated C++ header."_view);
+    variables.insert("puffer"_view, "Write the Puffer Buffer output."_view);
     variables.insert(
-        "output"_view,
-        {
-            .help = "Write the output static archive."_view,
-            .required = True,
-        });
-    variables.insert(
-        "header"_view,
-        {
-            .help = "Write the generated C++ header."_view,
-            .required = True,
-        });
-    variables.insert(
-        "puffer"_view,
-        {
-            .help = "Write the Puffer Buffer output."_view,
-            .required = True,
-        });
+        "name"_view, "Resolved package name for -package outputs."_view);
     variables.insert(
         "dep"_view,
-        {.help = "Make a dependency source visible while loading."_view});
+        "Make a dependency Puffer Buffer visible while loading."_view);
+    variables.insert("source"_view, "TTX source roots to compile."_view);
     variables.insert(
-        "source"_view,
-        {
-            .help = "TTX source roots to compile."_view,
-            .required = True,
-        });
-    variables.insert(
-        "pipe"_view,
-        {.help = "Run as an LSP server over the provided socket."_view});
+        "pipe"_view, "Run as an LSP server over the provided socket."_view);
     return variables;
   }
 
@@ -195,7 +158,7 @@ class Main {
 
   auto configure(const Args::Values& args) -> Bool {
     Bool library = args.contains("library"_view);
-    package = args.contains("package"_view);
+    Bool package = args.contains("package"_view);
     if (library == package) {
       Diagnostics::Log::error(
           "puffer: select exactly one of -library or -package\n"_view,
@@ -203,248 +166,152 @@ class Main {
       return False;
     }
 
-    return True;
+    mode = package ? Puffer::Compiler::Mode::Package
+                   : Puffer::Compiler::Mode::Library;
+    return require_arg(args, "output"_view) &&
+           require_arg(args, "header"_view) &&
+           require_arg(args, "puffer"_view) &&
+           (!package || require_arg(args, "name"_view)) &&
+           require_arg(args, "source"_view);
+  }
+
+  static auto require_arg(const Args::Values& args, View::Bytes name) -> Bool {
+    if (args.contains(name)) {
+      return True;
+    }
+
+    Diagnostics::Log::Message<256> error_message(
+        Diagnostics::Log::Level::Error, Diagnostics::Source());
+    error_message << "missing required arg"_view << ' ' << name << '\n';
+    return False;
   }
 
   static auto run_lsp(View::Bytes pipe_name) -> Signed_32 {
     if (pipe_name.is_empty() || pipe_name == "true"_view) {
       Diagnostics::Log::error(
-          "puffer: -pipe needs a socket path\n"_view,
-          Diagnostics::Source());
+          "puffer: -pipe needs a socket path\n"_view, Diagnostics::Source());
       return 2;
     }
 
     Diagnostics::Log::info("puffer: starting LSP server"_view);
-    Puffer::Lsp::Rpc::Executor executor;
-    Puffer::Lsp::register_methods(executor);
+    Puffer::Lsp::Executor executor;
     executor.execute(pipe_name);
     return 0;
   }
 
-  static auto is_package_root(View::Bytes source_path) -> Bool {
-    constexpr View::Bytes package_file = "package.ttx"_view;
-    if (source_path == package_file) {
-      return True;
-    }
-
-    return source_path.get_size() > package_file.get_size() &&
-           source_path[source_path.get_size() - package_file.get_size() - 1] ==
-               '/' &&
-           source_path.slice(
-               source_path.get_size() - package_file.get_size(),
-               package_file.get_size()) == package_file;
-  }
-
-  auto load_dependencies(
-      const Args::Values& args,
-      Resolver& resolver,
-      Resolver::Context& context) -> Bool {
-    View::Vector<View::Bytes> dependencies = arg_values(args, "dep"_view);
-    for (Count i = 0; i < dependencies.get_size(); i++) {
-      View::Bytes dependency = dependencies[i];
-      if (package && !is_package_root(dependency)) {
-        continue;
-      }
-
-      if (resolver.load_source(context, dependency) == nullptr) {
-        return False;
-      }
-    }
-
-    return True;
-  }
-
-  auto load_sources(
-      const Args::Values& args,
-      Resolver& resolver,
-      Resolver::Context& context) -> Bool {
-    Count selected_sources = 0;
-    View::Vector<View::Bytes> sources = arg_values(args, "source"_view);
-    for (Count i = 0; i < sources.get_size(); i++) {
-      View::Bytes source = sources[i];
-      if (package && !is_package_root(source)) {
-        continue;
-      }
-
-      selected_sources++;
-      Source::Record* record = resolver.load_source(context, source);
-      if (record == nullptr) {
-        return False;
-      }
-
-      add_terminal(*record);
-      if (!package && record->get_type() != nullptr &&
-          !library_compiler.lower(
-              build_module_name(record->get_source_path()),
-              *record->get_type())) {
-        fprintf(stderr, "puffer: ");
-        print_bytes(stderr, library_compiler.get_error());
-        fprintf(stderr, "\n");
-        return False;
-      }
-    }
-
-    if (package && selected_sources == 0) {
-      fprintf(stderr, "puffer: package mode needs a package.ttx source\n");
-      return False;
-    }
-
-    return True;
-  }
-
-  auto add_terminal(Source::Record& record) -> void {
-    append_field("source"_view, record.get_source_path());
-    append_field("import"_view, record.get_import_name());
-    append_field("isa"_view, record.get_boot().get_isa());
-    if (record.get_type() != nullptr) {
-      append_type_facts(*record.get_type(), record.get_type()->get_name());
-    }
-
-    terminal_count++;
-  }
-
-  auto append_field(View::Bytes name, View::Bytes value) -> void {
-    puffer_buffer.concat(name);
-    puffer_buffer.append(':');
-    puffer_buffer.append(' ');
-    puffer_buffer.concat(value);
-    puffer_buffer.append('\n');
-  }
-
-  auto append_type_facts(const Ttx::Type& type, View::Bytes path) -> void {
-    append_field("type"_view, path);
-
-    View::Vector<Ttx::Type::Member> members = type.get_members();
-    for (Count i = 0; i < members.get_size(); i++) {
-      append_member_fact(path, members[i]);
-    }
-
-    View::Vector<Ttx::Type::Function> functions = type.get_functions();
-    for (Count i = 0; i < functions.get_size(); i++) {
-      append_function_fact(path, functions[i]);
-    }
-
-    View::Vector<const Ttx::Type*> types = type.get_types();
-    for (Count i = 0; i < types.get_size(); i++) {
-      if (types[i] == nullptr) {
-        continue;
-      }
-
-      Dynamic::Bytes nested_path;
-      nested_path.concat(path);
-      nested_path.concat("::"_view);
-      nested_path.concat(types[i]->get_name());
-      append_type_facts(*types[i], nested_path.get_view());
-    }
-  }
-
-  auto append_member_fact(
-      View::Bytes owner,
-      const Ttx::Type::Member& member) -> void {
-    puffer_buffer.concat("member: "_view);
-    puffer_buffer.concat(owner);
-    puffer_buffer.concat("."_view);
-    puffer_buffer.concat(member.get_name().is_empty() ? "_"_view
-                                                      : member.get_name());
-    puffer_buffer.concat(" "_view);
-    puffer_buffer.concat(type_name(member.get_type()));
-    puffer_buffer.append('\n');
-  }
-
-  auto append_function_fact(
-      View::Bytes owner,
-      const Ttx::Type::Function& function) -> void {
-    puffer_buffer.concat("function: "_view);
-    puffer_buffer.concat(owner);
-    puffer_buffer.concat("->"_view);
-    puffer_buffer.concat(function.get_name());
-    puffer_buffer.concat(" params="_view);
-    append_decimal(puffer_buffer, function.get_parameters().get_size());
-    puffer_buffer.concat(" result="_view);
-    append_decimal(puffer_buffer, function.get_result().get_size());
-    puffer_buffer.concat(" blocks="_view);
-    append_decimal(puffer_buffer, function.get_blocks().get_size());
-    puffer_buffer.append('\n');
-  }
-
-  static auto type_name(const Ttx::Type* type) -> View::Bytes {
-    return type == nullptr ? "<unresolved>"_view : type->get_name();
-  }
-
-  auto build_module_name(View::Bytes source_path) -> View::Bytes {
-    Count start = 0;
-    for (Count i = 0; i < source_path.get_size(); i++) {
-      if (source_path[i] == '/' || source_path[i] == '\\') {
-        start = i + 1;
-      }
-    }
-
-    Count end = source_path.get_size();
-    for (Count i = start; i < source_path.get_size(); i++) {
-      if (source_path[i] == '.') {
-        end = i;
-      }
-    }
-
-    return keep(source_path.slice(start, end - start));
-  }
-
-  static auto append_decimal(Dynamic::Bytes& output, Count value) -> void {
-    Bits_8 digits[32];
-    Count digit_count = 0;
-    do {
-      digits[digit_count++] = Bits_8('0' + value % 10);
-      value /= 10;
-    } while (value != 0);
-
-    for (Count i = digit_count; i > 0; i--) {
-      output.append(digits[i - 1]);
-    }
-  }
-
-  auto build_header() -> Dynamic::Bytes {
-    Dynamic::Bytes header;
-    header.concat(
-        "#pragma once\n\n"
-        "#include \"perimortem/core/view/bytes.hpp\"\n\n"
-        "namespace Ttx {\n\n"_view);
-    library_compiler.append_header(header);
-    header.concat("\n}  // namespace Ttx\n"_view);
-    return header;
-  }
-
   static auto write_file(View::Bytes path, View::Bytes bytes) -> Bool {
-    File file;
-    file.update_contents(bytes);
-    return file.write(path);
+    return File::write(bytes, path);
   }
 
-  auto keep(View::Bytes bytes) -> View::Bytes {
-    Bits_8* copy = arena.allocate(bytes.get_size());
-    Data::copy(copy, bytes.get_data(), bytes.get_size());
-    return View::Bytes(copy, bytes.get_size());
-  }
-
-  static auto print_errors(const Resolver::Context& context) -> void {
-    for (Count i = 0; i < context.get_errors().get_size(); i++) {
-      auto error = context.get_errors()[i];
-      print_bytes(stderr, error.get_source_path());
-      const Ttx::Lexical::Token* token = error.get_start_token();
-      if (token != nullptr) {
-        fprintf(
-            stderr, ":%u:%u", token->get_line(), token->get_column());
+  static auto source_line(View::Bytes source, Count line) -> View::Bytes {
+    Count current_line = 1;
+    Count line_start = 0;
+    for (Count i = 0; i < source.get_size(); i++) {
+      if (source[i] != '\n') {
+        continue;
       }
-      fprintf(stderr, ": ");
-      print_bytes(stderr, error.get_message());
-      fprintf(stderr, "\n");
+
+      if (current_line == line) {
+        return source.slice(line_start, i - line_start);
+      }
+
+      current_line++;
+      line_start = i + 1;
+    }
+
+    return current_line == line
+               ? source.slice(line_start, source.get_size() - line_start)
+               : View::Bytes();
+  }
+
+  static auto highlight_width(
+      const Ttx::Lexical::Token& start,
+      const Ttx::Lexical::Token* end,
+      View::Bytes line) -> Count {
+    Count start_column = start.get_column();
+    Count line_end_column = line.get_size() + 1;
+    if (end == nullptr || end->get_line() != start.get_line()) {
+      return line_end_column > start_column ? line_end_column - start_column
+                                            : Count(1);
+    }
+
+    Count end_column = Count(end->get_column()) + end->get_text().get_size();
+    return end_column > start_column ? end_column - start_column : Count(1);
+  }
+
+  template <Count size>
+  static auto append_hint(
+      Diagnostics::Log::Message<size>& error_message,
+      const Ttx::Lexical::Errors::Error& error) -> void {
+    if (error.get_hint().is_empty()) {
+      return;
+    }
+
+    error_message << "  "_view << diagnostic_hint << "hint: "_view
+                  << error.get_hint() << diagnostic_reset << '\n';
+  }
+
+  template <Count size>
+  static auto append_source_range(
+      Diagnostics::Log::Message<size>& error_message,
+      const Ttx::Lexical::Errors::Error& error) -> void {
+    const Ttx::Lexical::Token* start = error.get_start_token();
+    if (start == nullptr || error.get_source().is_empty()) {
+      append_hint(error_message, error);
+      return;
+    }
+
+    View::Bytes line = source_line(error.get_source(), start->get_line());
+    if (line.is_empty()) {
+      append_hint(error_message, error);
+      return;
+    }
+
+    error_message << "  "_view << diagnostic_source << line << diagnostic_reset
+                  << '\n'
+                  << "  "_view;
+    for (Count i = 1; i < start->get_column(); i++) {
+      error_message << ' ';
+    }
+
+    Count width = highlight_width(*start, error.get_end_token(), line);
+    error_message << diagnostic_error << '^';
+    for (Count i = 1; i < width; i++) {
+      error_message << '~';
+    }
+
+    error_message << diagnostic_reset << '\n';
+    append_hint(error_message, error);
+  }
+
+  static auto print_errors(View::Vector<Ttx::Lexical::Errors::Error> errors)
+      -> void {
+    for (Count i = 0; i < errors.get_size(); i++) {
+      Diagnostics::Log::Message<4096> error_message(
+          Diagnostics::Log::Level::Error, Diagnostics::Source());
+      if (!errors[i].get_source_path().is_empty()) {
+        error_message << errors[i].get_source_path();
+        const Ttx::Lexical::Token* token = errors[i].get_start_token();
+        if (token != nullptr) {
+          error_message << ':' << token->get_line() << ':'
+                        << token->get_column();
+        }
+
+        error_message << ": "_view;
+      } else {
+        error_message << "puffer: "_view;
+      }
+
+      error_message << "error: "_view << diagnostic_error
+                    << errors[i].get_message() << diagnostic_reset << '\n';
+      append_source_range(error_message, errors[i]);
+      if (i + 1 < errors.get_size()) {
+        error_message << '\n';
+      }
     }
   }
 
-  Allocator::Arena arena;
-  Compiler::Library library_compiler;
-  Dynamic::Bytes puffer_buffer;
-  Count terminal_count = 0;
-  Bool package = False;
+  Puffer::Compiler::Mode mode = Puffer::Compiler::Mode::Library;
 };
 
 Signed_32 main(Signed_32 argc, Signed_8** argv) {

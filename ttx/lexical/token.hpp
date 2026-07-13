@@ -30,6 +30,7 @@ class Token {
   constexpr auto get_text() const -> Perimortem::Core::View::Bytes {
     return data;
   }
+
   constexpr auto get_line() const -> Bits_32 { return line; }
   constexpr auto get_column() const -> Bits_32 { return column; }
 

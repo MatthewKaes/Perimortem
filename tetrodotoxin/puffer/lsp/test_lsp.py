@@ -24,7 +24,9 @@ import time
 SOCKET_PATH = "/tmp/ttx_lsp_test.sock"
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, "..", "..", ".."))
-BINARY = os.path.join(REPO_ROOT, ".bin/bin/tetrodotoxin/puffer")
+BINARY = os.environ.get(
+    "PUFFER_BINARY",
+    os.path.join(REPO_ROOT, ".bin/bin/tetrodotoxin/puffer/puffer"))
 
 
 def lsp_frame(obj):
@@ -283,15 +285,17 @@ def run_test():
     check("if" not in shader_texts and "continue" not in shader_texts,
           "Shader document filters Library-only control keywords")
 
-    print("\n--- Cancellation ---")
+    print("\n--- Ignored notifications ---")
     conn.sendall(lsp_frame({
         "jsonrpc": "2.0",
         "method": "$/cancelRequest",
         "params": {"id": 999},
     }))
-    cancel_probe_resp = send_semantic_tokens(conn, shader_uri, 23)
-    check(cancel_probe_resp is not None and "result" in cancel_probe_resp,
-          "cancel notification keeps server responsive")
+    notification_probe_resp = send_semantic_tokens(conn, shader_uri, 23)
+    check(
+        notification_probe_resp is not None
+        and "result" in notification_probe_resp,
+        "$ notification keeps server responsive")
 
     print("\n--- Round-trip: validation/data/ttx/png.ttx ---")
     png_path = os.path.join(REPO_ROOT, "validation", "data", "ttx", "png.ttx")
