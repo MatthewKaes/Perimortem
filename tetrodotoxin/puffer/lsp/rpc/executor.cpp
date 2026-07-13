@@ -42,7 +42,6 @@ auto Lsp::Rpc::Executor<dispatch_table, worker_count>::execute(
     alignas(Bits_64) Static::Bytes<sizeof(Bits_64)> job_data;
     Writer::Binary<Data::ByteOrder::Native> job_writer(job_data.get_access());
     job_writer << reinterpret_cast<Bits_64>(this);
-
     for (Count i = 0; i < worker_count; i++) {
       Static::Bytes<16> name_buffer;
       Writer::Textual name_writer(name_buffer);
@@ -103,7 +102,7 @@ auto Lsp::Rpc::Executor<dispatch_table, worker_count>::run_worker_job(
     View::Bytes job_data) -> void {
   Reader::Binary<Data::ByteOrder::Native> reader(job_data);
   const Bits_64 executor_address = reader.read_bits_64();
-  if (!reader.is_valid() || !reader.is_empty() || executor_address == 0) {
+  if (reader.get_location() != reader.get_size() || executor_address == 0) {
     Diagnostics::Log::fatal("Invalid TTX RPC worker job payload."_view);
   }
 
@@ -123,7 +122,6 @@ auto Lsp::Rpc::Executor<dispatch_table, worker_count>::write_jsonrpc_frame(
     Signed_64 bytes = write(
         socket_descriptor, view.get_data() + bytes_written,
         view.get_size() - bytes_written);
-
     if (bytes < 0) {
       Diagnostics::Log::error(
           "Writing RPC frame to socket failed, closing connection"_view);
@@ -170,6 +168,7 @@ auto Lsp::Rpc::Executor<dispatch_table, worker_count>::create_job(
   } else {
     pending_jobs_head = job;
   }
+
   pending_jobs_tail = job;
 
   pthread_cond_signal(&job_signal);
@@ -193,6 +192,7 @@ auto Lsp::Rpc::Executor<dispatch_table, worker_count>::take_job() -> JobBlock* {
   if (pending_jobs_head == nullptr) {
     pending_jobs_tail = nullptr;
   }
+
   job->next = nullptr;
 
   pthread_mutex_unlock(&job_mutex);
@@ -283,7 +283,6 @@ auto Lsp::Rpc::Executor<dispatch_table, worker_count>::process_job(
   }
 
   auto response = job_function(documents, message);
-
   if (!message.expects_response()) {
     return;
   }
@@ -312,11 +311,9 @@ auto Lsp::Rpc::Executor<dispatch_table, worker_count>::process_events()
   constexpr Count chunk_size = 1 << 16;
   Static::Bytes<chunk_size> chunk;
   FrameReader reader;
-
   while (connection_is_open()) {
     const auto bytes_read =
         read(socket_descriptor, chunk.get_data(), chunk.get_size());
-
     if (bytes_read < 0) {
       Diagnostics::Log::error("Error while reading from pipe"_view);
       close_connection();
@@ -338,6 +335,7 @@ auto Lsp::Rpc::Executor<dispatch_table, worker_count>::process_events()
       reader.consume_message();
       message = reader.next_message();
     }
+
     clean_retired_jobs();
   }
 }

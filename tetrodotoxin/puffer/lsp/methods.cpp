@@ -35,51 +35,46 @@ static auto report_document(
     View::Bytes source) -> Lsp::Rpc::Response {
   auto& arena = message.get_arena();
   View::Bytes encoded = Base64::encode(arena, source);
-
   return message.report_result(
       Json::Node::construct(
-          arena,
-          Json::Blueprint{{
-            {"document"_view, encoded},
-          }}));
+          arena, Json::Blueprint{{
+                   {"document"_view, encoded},
+                 }}));
 }
 
 auto Tetrodotoxin::Puffer::Lsp::initialize(
     Documents&,
     const Rpc::Message& message) -> Rpc::Response {
   auto& arena = message.get_arena();
-
   return message.report_result(
       Json::Node::construct(
-          arena,
-          Json::Blueprint{{
-            {"serverInfo"_view,
-             {
-               {"name"_view, "Tetrodotoxin Language Server"_view},
-               {"version"_view, "1.0"_view},
-             }},
-            {"capabilities"_view,
-             {
-               {"positionEncoding"_view, "utf-16"_view},
-               {"textDocumentSync"_view,
-                {
-                  {"openClose"_view, True},
-                  {"change"_view, Signed_64(1)},
-                }},
-               {"semanticTokensProvider"_view,
-                {
-                  {"legend"_view, Lsp::semantic_legend(arena)},
-                  {"full"_view, True},
-                }},
-             }},
-          }}));
+          arena, Json::Blueprint{{
+                   {"serverInfo"_view,
+                    {
+                      {"name"_view, "Tetrodotoxin Language Server"_view},
+                      {"version"_view, "1.0"_view},
+                    }},
+                   {"capabilities"_view,
+                    {
+                      {"positionEncoding"_view, "utf-16"_view},
+                      {"textDocumentSync"_view,
+                       {
+                         {"openClose"_view, True},
+                         {"change"_view, Signed_64(1)},
+                       }},
+                      {"semanticTokensProvider"_view,
+                       {
+                         {"legend"_view, Lsp::semantic_legend(arena)},
+                         {"full"_view, True},
+                       }},
+                    }},
+                 }}));
 }
 
 auto Tetrodotoxin::Puffer::Lsp::format(Documents&, const Rpc::Message& message)
     -> Rpc::Response {
   auto& arena = message.get_arena();
   const auto& args = message.get_params();
-
   if (args.is_null()) {
     return message.report_error("Failed to parse format request."_view);
   }
@@ -124,7 +119,6 @@ auto Tetrodotoxin::Puffer::Lsp::did_change(
   const auto uri =
       message.get_params()["textDocument"_view]["uri"_view].get_string();
   Json::Array changes = message.get_params()["contentChanges"_view].get_array();
-
   if (!changes.is_empty()) {
     const auto text = changes[changes.get_size() - 1]["text"_view].get_string();
     documents.upsert(uri, EscapedText::decode(arena, text));

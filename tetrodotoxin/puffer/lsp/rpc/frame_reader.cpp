@@ -28,7 +28,6 @@ auto Lsp::Rpc::FrameReader::read_header() -> Bool {
   constexpr auto header_info = "Content-Length:"_view;
   Count content_size_location =
       Algorithm::search(data_stream.get_view(), header_info);
-
   if (content_size_location != Count(-1)) {
     const auto value_start = content_size_location + header_info.get_size();
     Reader::Textual count_reader(data_stream.get_view().slice(value_start));

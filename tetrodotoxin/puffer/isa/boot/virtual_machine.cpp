@@ -5,17 +5,17 @@
 
 #include "perimortem/memory/managed/vector.hpp"
 
-#include "tetrodotoxin/isa/documentation.hpp"
+#include "tetrodotoxin/isa/base/documentation.hpp"
 
 using namespace Perimortem::Memory;
-using namespace Tetrodotoxin::Puffer::Isa;
+using namespace Tetrodotoxin::Puffer;
 using namespace Ttx::Lexical;
 
-auto Boot::VirtualMachine::evaluate(
+auto Isa::Boot::VirtualMachine::evaluate(
     Cursor& cursor,
-    const Tetrodotoxin::Isa::Registry& registry) -> Boot::Envelope* {
-  const auto documentation = Tetrodotoxin::Isa::Documentation::evaluate(cursor);
-
+    const Tetrodotoxin::Isa::Registry& registry) -> Isa::Boot::Envelope* {
+  const auto documentation =
+      Tetrodotoxin::Isa::Base::Documentation::evaluate(cursor);
   if (!cursor.require(
           Class::Type::Dialect,
           "Expected ISA selection such as `dialect : Library`."_view)) {
@@ -40,9 +40,9 @@ auto Boot::VirtualMachine::evaluate(
     return nullptr;
   }
 
-  Managed::Vector<Boot::Import> imports(cursor.get_arena());
+  Managed::Vector<Isa::Boot::Import> imports(cursor.get_arena());
   while (cursor.matches(Class::Type::Import)) {
-    auto import = Boot::Import::evaluate(cursor, registry);
+    auto import = Isa::Boot::Import::evaluate(cursor, registry);
     if (!import.is_valid()) {
       return nullptr;
     }
@@ -50,6 +50,6 @@ auto Boot::VirtualMachine::evaluate(
     imports.insert(import);
   }
 
-  return &cursor.get_arena().construct<Boot::Envelope>(
+  return &cursor.get_arena().construct<Isa::Boot::Envelope>(
       documentation, isa->get_text(), imports);
 }

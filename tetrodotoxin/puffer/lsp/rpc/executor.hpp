@@ -44,9 +44,8 @@ class Executor {
   auto clean_up(JobBlock* job_queue) -> void;
   auto clean_retired_jobs() -> void;
   auto destroy_job(JobBlock* job) -> void;
-  auto process_job(
-      Perimortem::Memory::Allocator::Arena& arena,
-      JobBlock* job) -> void;
+  auto process_job(Perimortem::Memory::Allocator::Arena& arena, JobBlock* job)
+      -> void;
   auto run_worker() -> void;
   auto process_events() -> void;
   auto close_connection() -> void;

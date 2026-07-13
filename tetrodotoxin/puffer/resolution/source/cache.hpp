@@ -16,9 +16,9 @@ namespace Tetrodotoxin::Puffer::Resolution::Source {
 
 // Resolver source cache with the dependency indexes needed for invalidation.
 //
-// Only valid records are published here. Records are addressed by import name:
-// file sources use their normalized file path, while packages use their
-// declared package name.
+// Only valid records are published here. Source records are addressed by their
+// normalized source path. Restored package buffers are addressed by package
+// name after the package archive has already constructed its TTX tree.
 //
 // The two dependency maps are indexes over the producer / consumer
 // relationships between clusters: producers let a changed record find its
@@ -40,7 +40,7 @@ class Cache {
   auto reset() -> void;
   auto find(Perimortem::Core::View::Bytes key) -> Record*;
   auto find(Perimortem::Core::View::Bytes key) const -> const Record*;
-  auto publish(Perimortem::Memory::Dynamic::Object<Record>& record) -> Record&;
+  auto publish(Perimortem::Memory::Dynamic::Object<Record>& record) -> Bool;
   auto remove(Perimortem::Core::View::Bytes key) -> void;
   auto remove(Record& record) -> void;
   auto connect(Record& consumer, Record& producer) -> void;
@@ -53,14 +53,32 @@ class Cache {
 
   template <typename visitor_type>
   auto visit_producers(const Record& record, visitor_type visit) const -> void {
+    Perimortem::Memory::Dynamic::Set<const Record*> visited;
+    visit_producers(record, visited, visit);
+  }
+
+  template <typename visitor_type>
+  auto visit_direct_producers(const Record& record, visitor_type visit) const
+      -> void {
     const auto* entry = producers_by_consumer.find(&record);
-    entry->value.visit([&](Record* producer) -> void {
-      visit(*producer);
-      visit_producers(*producer, visit);
-    });
+    entry->value.visit([&](Record* producer) -> void { visit(*producer); });
   }
 
  private:
+  template <typename visitor_type>
+  auto visit_producers(
+      const Record& record,
+      Perimortem::Memory::Dynamic::Set<const Record*>& visited,
+      visitor_type visit) const -> void {
+    const auto* entry = producers_by_consumer.find(&record);
+    entry->value.visit([&](Record* producer) -> void {
+      if (visited.insert(producer)) {
+        visit(*producer);
+        visit_producers(*producer, visited, visit);
+      }
+    });
+  }
+
   using Records = Perimortem::Memory::Dynamic::Set<Record*>;
 
   auto collect_removal_plan(
@@ -68,8 +86,8 @@ class Cache {
       Perimortem::Memory::Dynamic::Vector<Record*>& records) const -> void;
   auto detach(Record& record) -> void;
 
-  // Import name to record. This is the public resolver lookup surface and owns
-  // published records.
+  // Source path or restored package name to record. This is the public resolver
+  // lookup surface and owns published records.
   Perimortem::Memory::Dynamic::Map<
       Perimortem::Core::View::Bytes,
       Perimortem::Memory::Dynamic::Object<Record>>

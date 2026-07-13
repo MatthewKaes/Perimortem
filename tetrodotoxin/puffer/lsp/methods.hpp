@@ -3,9 +3,9 @@
 
 #pragma once
 
+#include "perimortem/core/view/bytes.hpp"
 #include "perimortem/core/static/vector.hpp"
 #include "perimortem/core/null_terminated.hpp"
-#include "perimortem/core/view/bytes.hpp"
 
 #include "perimortem/utility/pair.hpp"
 
@@ -16,8 +16,7 @@ namespace Tetrodotoxin::Puffer::Lsp {
 
 auto initialize(Documents& documents, const Rpc::Message& message)
     -> Rpc::Response;
-auto format(Documents& documents, const Rpc::Message& message)
-    -> Rpc::Response;
+auto format(Documents& documents, const Rpc::Message& message) -> Rpc::Response;
 auto did_open(Documents& documents, const Rpc::Message& message)
     -> Rpc::Response;
 auto did_change(Documents& documents, const Rpc::Message& message)
@@ -27,9 +26,8 @@ auto did_close(Documents& documents, const Rpc::Message& message)
 auto semantic_tokens(Documents& documents, const Rpc::Message& message)
     -> Rpc::Response;
 
-using Method = Perimortem::Utility::Pair<
-    Perimortem::Core::View::Bytes,
-    Rpc::DispatchFunc>;
+using Method =
+    Perimortem::Utility::Pair<Perimortem::Core::View::Bytes, Rpc::DispatchFunc>;
 
 inline constexpr Perimortem::Core::Static::Vector<Method, 6> method_table = {{
   {"initialize"_view, initialize},

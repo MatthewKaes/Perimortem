@@ -5,12 +5,12 @@
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
-using namespace Tetrodotoxin::Puffer::Resolution;
+using namespace Tetrodotoxin::Puffer;
 
-auto Source::Cache::reset() -> void {
+auto Resolution::Source::Cache::reset() -> void {
   while (records.get_size() != 0) {
-    // Every published import name points at a valid record. Removing the first
-    // map entry drains the cache because import names are the only cache keys.
+    // Every published source key points at a valid record. Removing the first
+    // map entry drains the cache because source keys are the only cache keys.
     remove(*records.get_entry(0)->value);
   }
 
@@ -18,32 +18,37 @@ auto Source::Cache::reset() -> void {
   producers_by_consumer.clear();
 }
 
-auto Source::Cache::find(View::Bytes key) -> Source::Record* {
+auto Resolution::Source::Cache::find(View::Bytes key)
+    -> Resolution::Source::Record* {
   auto* entry = records.find(key);
   return entry == nullptr ? nullptr : &*entry->value;
 }
 
-auto Source::Cache::find(View::Bytes key) const -> const Source::Record* {
+auto Resolution::Source::Cache::find(View::Bytes key) const
+    -> const Resolution::Source::Record* {
   const auto* entry = records.find(key);
   return entry == nullptr ? nullptr : &*entry->value;
 }
 
-auto Source::Cache::publish(Dynamic::Object<Record>& record) -> Record& {
+auto Resolution::Source::Cache::publish(Dynamic::Object<Record>& record)
+    -> Bool {
   Record& published = *record;
+  if (!published.is_complete()) {
+    return False;
+  }
 
-  Record* current = find(published.get_import_name());
+  Record* current = find(published.get_source_path());
   if (current != nullptr && current != &published) {
     remove(*current);
   }
 
-  records.insert(published.get_import_name(), record);
+  records.insert(published.get_source_path(), record);
   consumers_by_producer.at(&published);
   producers_by_consumer.at(&published);
-
-  return published;
+  return True;
 }
 
-auto Source::Cache::remove(View::Bytes key) -> void {
+auto Resolution::Source::Cache::remove(View::Bytes key) -> void {
   auto* entry = records.find(key);
   if (entry == nullptr) {
     return;
@@ -52,12 +57,13 @@ auto Source::Cache::remove(View::Bytes key) -> void {
   remove(*entry->value);
 }
 
-auto Source::Cache::connect(Record& consumer, Record& producer) -> void {
+auto Resolution::Source::Cache::connect(Record& consumer, Record& producer)
+    -> void {
   consumers_by_producer.find(&producer)->value.insert(&consumer);
   producers_by_consumer.find(&consumer)->value.insert(&producer);
 }
 
-auto Source::Cache::collect_consumers(
+auto Resolution::Source::Cache::collect_consumers(
     const Record& record,
     Dynamic::Vector<Record*>& consumers) const -> void {
   const auto* entry = consumers_by_producer.find(&record);
@@ -71,12 +77,13 @@ auto Source::Cache::collect_consumers(
   });
 }
 
-auto Source::Cache::collect_removal_plan(
+auto Resolution::Source::Cache::collect_removal_plan(
     Record& record,
     Dynamic::Vector<Record*>& records) const -> void {
   if (records.contains(&record)) {
     return;
   }
+
   records.insert(&record);
 
   const auto* entry = consumers_by_producer.find(&record);
@@ -85,7 +92,7 @@ auto Source::Cache::collect_removal_plan(
   });
 }
 
-auto Source::Cache::remove(Record& record) -> void {
+auto Resolution::Source::Cache::remove(Record& record) -> void {
   Dynamic::Vector<Record*> removal_plan;
   collect_removal_plan(record, removal_plan);
 
@@ -101,11 +108,11 @@ auto Source::Cache::remove(Record& record) -> void {
     Record& removed = *removal_plan[i];
     consumers_by_producer.remove(&removed);
     producers_by_consumer.remove(&removed);
-    records.remove(removed.get_import_name());
+    records.remove(removed.get_source_path());
   }
 }
 
-auto Source::Cache::detach(Record& record) -> void {
+auto Resolution::Source::Cache::detach(Record& record) -> void {
   // Dependency edges are inserted into both maps by `connect`. The reciprocal
   // entry is part of the cache invariant, so detach only removes edges from the
   // opposite sets. Record entries are removed once the whole invalidation plan

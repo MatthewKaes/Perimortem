@@ -19,6 +19,19 @@ class Import {
  public:
   Import() = default;
 
+  static constexpr auto from_package(
+      Perimortem::Core::View::Bytes local_name,
+      Perimortem::Core::View::Bytes source_name) -> Import {
+    return {local_name, source_name, "Package"_view, True};
+  }
+
+  static constexpr auto from_source(
+      Perimortem::Core::View::Bytes local_name,
+      Perimortem::Core::View::Bytes source_name,
+      Perimortem::Core::View::Bytes isa) -> Import {
+    return {local_name, source_name, isa, False};
+  }
+
   static auto evaluate(
       Ttx::Lexical::Cursor& cursor,
       const Tetrodotoxin::Isa::Registry& registry) -> Import;
@@ -26,17 +39,18 @@ class Import {
   constexpr auto get_local_name() const -> Perimortem::Core::View::Bytes {
     return local_name;
   }
+
   constexpr auto get_isa() const -> Perimortem::Core::View::Bytes {
     return isa;
   }
+
   constexpr auto get_source_name() const -> Perimortem::Core::View::Bytes {
     return source_name;
   }
 
   constexpr auto is_package() const -> Bool { return package; }
   constexpr auto is_valid() const -> Bool {
-    return !local_name.is_empty() && !source_name.is_empty() &&
-           !isa.is_empty();
+    return !local_name.is_empty() && !source_name.is_empty() && !isa.is_empty();
   }
 
  private:

@@ -10,6 +10,8 @@
 
 #include "perimortem/memory/dynamic/bytes.hpp"
 
+#include "tetrodotoxin/puffer/lsp/document.hpp"
+
 namespace Tetrodotoxin::Puffer::Lsp {
 
 class Documents {
@@ -22,17 +24,10 @@ class Documents {
       -> Perimortem::Memory::Dynamic::Bytes;
 
  private:
-  class Record {
-   public:
-    Bool active = False;
-    Perimortem::Memory::Dynamic::Bytes uri;
-    Perimortem::Memory::Dynamic::Bytes text;
-  };
-
   auto find(Perimortem::Core::View::Bytes uri) const -> Count;
 
   mutable pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
-  Perimortem::Core::Static::Vector<Record, 64> records;
+  Perimortem::Core::Static::Vector<Document, 64> records;
 };
 
 }  // namespace Tetrodotoxin::Puffer::Lsp

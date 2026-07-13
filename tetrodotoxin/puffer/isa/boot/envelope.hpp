@@ -23,9 +23,11 @@ class Envelope {
   constexpr auto get_documentation() const -> Ttx::Documentation {
     return documentation;
   }
+
   constexpr auto get_isa() const -> Perimortem::Core::View::Bytes {
     return isa;
   }
+
   constexpr auto get_imports() const -> Perimortem::Core::View::Vector<Import> {
     return imports;
   }

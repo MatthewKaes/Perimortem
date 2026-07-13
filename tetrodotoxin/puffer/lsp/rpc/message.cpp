@@ -48,23 +48,20 @@ auto Lsp::Rpc::Message::report_error(Perimortem::Core::View::Bytes error) const
   Managed::Bytes sanitized(arena);
   sanitized.proxy(error);
   sanitized.convert('"', '`');
-
   return Json::Node::construct(
-      arena,
-      Json::Blueprint{{
-        {"jsonrpc"_view, parsed["jsonrpc"_view].get_string()},
-        {"id"_view, parsed["id"_view].get_number()},
-        {"error"_view, sanitized.get_view()},
-      }});
+      arena, Json::Blueprint{{
+               {"jsonrpc"_view, parsed["jsonrpc"_view].get_string()},
+               {"id"_view, parsed["id"_view].get_number()},
+               {"error"_view, sanitized.get_view()},
+             }});
 }
 
 auto Lsp::Rpc::Message::report_result(const Response& result) const
     -> Lsp::Rpc::Response {
   return Json::Node::construct(
-      arena,
-      Json::Blueprint{{
-        {"jsonrpc"_view, parsed["jsonrpc"_view].get_string()},
-        {"id"_view, parsed["id"_view].get_number()},
-        {"result"_view, result},
-      }});
+      arena, Json::Blueprint{{
+               {"jsonrpc"_view, parsed["jsonrpc"_view].get_string()},
+               {"id"_view, parsed["id"_view].get_number()},
+               {"result"_view, result},
+             }});
 }

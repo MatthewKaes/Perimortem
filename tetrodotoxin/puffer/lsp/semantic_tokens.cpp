@@ -8,7 +8,7 @@
 #include "perimortem/memory/managed/vector.hpp"
 
 #include "tetrodotoxin/puffer/isa/boot/virtual_machine.hpp"
-#include "tetrodotoxin/toolchain.hpp"
+#include "tetrodotoxin/puffer/toolchain.hpp"
 #include "ttx/lexical/cursor.hpp"
 #include "ttx/lexical/tokenizer.hpp"
 
@@ -33,8 +33,7 @@ enum SemanticToken : Signed_64 {
   SemanticDecorator,
 };
 
-static auto should_filter_shader_keyword(::Ttx::Lexical::Class klass)
-    -> Bool {
+static auto should_filter_shader_keyword(::Ttx::Lexical::Class klass) -> Bool {
   switch (klass.get_type()) {
   case ::Ttx::Lexical::Class::Type::If:
   case ::Ttx::Lexical::Class::Type::In:
@@ -56,8 +55,7 @@ static auto has_newline(View::Bytes text) -> Bool {
   return Algorithm::search(text, "\n"_view) != Count(-1);
 }
 
-static auto classify_semantic_token(::Ttx::Lexical::Class klass)
-    -> Signed_64 {
+static auto classify_semantic_token(::Ttx::Lexical::Class klass) -> Signed_64 {
   switch (klass.get_type()) {
   case ::Ttx::Lexical::Class::Type::Comment:
   case ::Ttx::Lexical::Class::Type::Disabled:
@@ -129,56 +127,52 @@ static auto classify_semantic_token(::Ttx::Lexical::Class klass)
 
 auto Lsp::semantic_legend(Allocator::Arena& arena) -> Json::Node {
   return Json::Node::construct(
-      arena,
-      Json::Blueprint{{
-        {"tokenTypes"_view,
-         {
-           "namespace"_view,
-           "type"_view,
-           "class"_view,
-           "parameter"_view,
-           "variable"_view,
-           "property"_view,
-           "function"_view,
-           "keyword"_view,
-           "comment"_view,
-           "string"_view,
-           "number"_view,
-           "operator"_view,
-           "decorator"_view,
-         }},
-        Json::Blueprint::empty_array("tokenModifiers"_view),
-      }});
+      arena, Json::Blueprint{{
+               {"tokenTypes"_view,
+                {
+                  "namespace"_view,
+                  "type"_view,
+                  "class"_view,
+                  "parameter"_view,
+                  "variable"_view,
+                  "property"_view,
+                  "function"_view,
+                  "keyword"_view,
+                  "comment"_view,
+                  "string"_view,
+                  "number"_view,
+                  "operator"_view,
+                  "decorator"_view,
+                }},
+               Json::Blueprint::empty_array("tokenModifiers"_view),
+             }});
 }
 
 auto Lsp::semantic_tokens_for(Allocator::Arena& arena, View::Bytes source)
     -> Json::Node {
   Managed::Vector<Json::Node> data(arena);
-
   if (source.is_empty()) {
     const Json::Node data_node(data.get_view());
     return Json::Node::construct(
-        arena,
-        Json::Blueprint{{
-          {"data"_view, data_node},
-        }});
+        arena, Json::Blueprint{{
+                 {"data"_view, data_node},
+               }});
   }
 
   ::Ttx::Lexical::Tokenizer tokenizer(
       arena, source, "lsp-buffer.ttx"_view, False);
   View::Vector<::Ttx::Lexical::Token> tokens = tokenizer.get_tokens();
   ::Ttx::Lexical::Cursor cursor(tokenizer, arena);
-  const auto toolchain = ::Tetrodotoxin::Toolchain::standard();
+  const auto isa_registry =
+      ::Tetrodotoxin::Puffer::Toolchain::standard_registry();
   auto* boot = ::Tetrodotoxin::Puffer::Isa::Boot::VirtualMachine::evaluate(
-      cursor, toolchain.get_isa_registry());
+      cursor, isa_registry);
   View::Bytes isa = boot == nullptr ? View::Bytes() : boot->get_isa();
   Bits_32 previous_line = 0;
   Bits_32 previous_column = 0;
   Bool emitted = False;
-
   for (Count i = 0; i < tokens.get_size(); i++) {
     ::Ttx::Lexical::Token token = tokens[i];
-
     if (isa == "Shader"_view &&
         should_filter_shader_keyword(token.get_class())) {
       continue;
@@ -213,8 +207,7 @@ auto Lsp::semantic_tokens_for(Allocator::Arena& arena, View::Bytes source)
 
   const Json::Node data_node(data.get_view());
   return Json::Node::construct(
-      arena,
-      Json::Blueprint{{
-        {"data"_view, data_node},
-      }});
+      arena, Json::Blueprint{{
+               {"data"_view, data_node},
+             }});
 }
