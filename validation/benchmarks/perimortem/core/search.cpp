@@ -54,6 +54,7 @@ PERIMORTEM_BENCHMARK(AlgorithmSearch, 2_byte) {
   for (Count i = 0; i < batch_count; i++) {
     result += Algorithm::search(source.get_view(), "if"_view);
   }
+
   Benchmark::prevent_optimization(result);
 }
 
@@ -62,6 +63,7 @@ PERIMORTEM_BENCHMARK(AlgorithmSearch, 4_byte) {
   for (Count i = 0; i < batch_count; i++) {
     result += Algorithm::search(source.get_view(), "func"_view);
   }
+
   Benchmark::prevent_optimization(result);
 }
 
@@ -70,6 +72,7 @@ PERIMORTEM_BENCHMARK(AlgorithmSearch, 6_byte) {
   for (Count i = 0; i < batch_count; i++) {
     result += Algorithm::search(source.get_view(), "struct"_view);
   }
+
   Benchmark::prevent_optimization(result);
 }
 
@@ -78,6 +81,7 @@ PERIMORTEM_BENCHMARK(AlgorithmSearch, 12_byte) {
   for (Count i = 0; i < batch_count; i++) {
     result += Algorithm::search(source.get_view(), "alias Pipeli"_view);
   }
+
   Benchmark::prevent_optimization(result);
 }
 
@@ -88,6 +92,7 @@ PERIMORTEM_BENCHMARK(AlgorithmSearch, 62_byte) {
         source.get_view(),
         "init pass = RenderPass { width: 1920, height: 1080, depth: 4 }"_view);
   }
+
   Benchmark::prevent_optimization(result);
 }
 
@@ -96,6 +101,7 @@ PERIMORTEM_BENCHMARK(AlgorithmSearch, total_miss) {
   for (Count i = 0; i < batch_count; i++) {
     result += Algorithm::search(source.get_view(), "zarningz"_view);
   }
+
   Benchmark::prevent_optimization(result);
 }
 
@@ -104,6 +110,7 @@ PERIMORTEM_BENCHMARK(AlgorithmSearch, near_miss) {
   for (Count i = 0; i < batch_count; i++) {
     result += Algorithm::search(source.get_view(), "stract"_view);
   }
+
   Benchmark::prevent_optimization(result);
 }
 
@@ -114,5 +121,6 @@ PERIMORTEM_BENCHMARK(AlgorithmSearch, near_miss_large) {
         source.get_view(),
         "init pass = RendeaPass { width: 1920, height: 1080, depth: 5 }"_view);
   }
+
   Benchmark::prevent_optimization(result);
 }

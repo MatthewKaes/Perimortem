@@ -5,10 +5,10 @@
 
 #include "perimortem/memory/allocator/arena.hpp"
 
-#include "tetrodotoxin/compiler/execution.hpp"
+#include "tetrodotoxin/compiler/execution/body.hpp"
 #include "tetrodotoxin/puffer/resolution/resolver.hpp"
+#include "tetrodotoxin/puffer/toolchain.hpp"
 #include "tetrodotoxin/standard/types.hpp"
-#include "tetrodotoxin/toolchain.hpp"
 #include "ttx/type.hpp"
 
 using namespace Perimortem::Core;
@@ -61,8 +61,9 @@ static auto error_message(
 }
 
 PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, struct_types) {
-  Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
-  Resolution::Resolver resolver(toolchain);
+  Tetrodotoxin::Isa::Registry isa_registry =
+      Tetrodotoxin::Puffer::Toolchain::standard_registry();
+  Resolution::Resolver resolver(isa_registry);
   Resolution::Resolver::Context types_source_context;
 
   const Resolution::Source::Record* record = resolver.load_source(
@@ -90,8 +91,9 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, struct_types) {
 }
 
 PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, root_members) {
-  Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
-  Resolution::Resolver resolver(toolchain);
+  Tetrodotoxin::Isa::Registry isa_registry =
+      Tetrodotoxin::Puffer::Toolchain::standard_registry();
+  Resolution::Resolver resolver(isa_registry);
   Resolution::Resolver::Context screen_source_context;
 
   const Resolution::Source::Record* record = resolver.load_source(
@@ -114,8 +116,9 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, root_members) {
 }
 
 PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, aliases) {
-  Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
-  Resolution::Resolver resolver(toolchain);
+  Tetrodotoxin::Isa::Registry isa_registry =
+      Tetrodotoxin::Puffer::Toolchain::standard_registry();
+  Resolution::Resolver resolver(isa_registry);
   Resolution::Resolver::Context types_source_context;
 
   const Resolution::Source::Record* record = resolver.load_source(
@@ -140,8 +143,9 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, aliases) {
 }
 
 PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, private_alias) {
-  Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
-  Resolution::Resolver resolver(toolchain);
+  Tetrodotoxin::Isa::Registry isa_registry =
+      Tetrodotoxin::Puffer::Toolchain::standard_registry();
+  Resolution::Resolver resolver(isa_registry);
   Resolution::Resolver::Context types_source_context;
 
   const Resolution::Source::Record* record = resolver.load_source(
@@ -164,8 +168,9 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, private_alias) {
 }
 
 PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, type_arguments) {
-  Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
-  Resolution::Resolver resolver(toolchain);
+  Tetrodotoxin::Isa::Registry isa_registry =
+      Tetrodotoxin::Puffer::Toolchain::standard_registry();
+  Resolution::Resolver resolver(isa_registry);
   Resolution::Resolver::Context sprite_source_context;
 
   const Resolution::Source::Record* record = resolver.load_source(
@@ -199,8 +204,9 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, type_arguments) {
 }
 
 PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, bad_type_args) {
-  Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
-  Resolution::Resolver resolver(toolchain);
+  Tetrodotoxin::Isa::Registry isa_registry =
+      Tetrodotoxin::Puffer::Toolchain::standard_registry();
+  Resolution::Resolver resolver(isa_registry);
   Resolution::Resolver::Context source_context;
 
   EXPECT_NOT(resolver.load_source(
@@ -216,8 +222,9 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, bad_type_args) {
 }
 
 PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, enum_type) {
-  Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
-  Resolution::Resolver resolver(toolchain);
+  Tetrodotoxin::Isa::Registry isa_registry =
+      Tetrodotoxin::Puffer::Toolchain::standard_registry();
+  Resolution::Resolver resolver(isa_registry);
   Resolution::Resolver::Context enum_source_context;
 
   const Resolution::Source::Record* record = resolver.load_source(
@@ -262,8 +269,9 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, enum_type) {
 }
 
 PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, foreign_scope) {
-  Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
-  Resolution::Resolver resolver(toolchain);
+  Tetrodotoxin::Isa::Registry isa_registry =
+      Tetrodotoxin::Puffer::Toolchain::standard_registry();
+  Resolution::Resolver resolver(isa_registry);
   Resolution::Resolver::Context foreign_source_context;
 
   const Resolution::Source::Record* record = resolver.load_source(
@@ -298,8 +306,9 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, foreign_scope) {
 }
 
 PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, foreign_import) {
-  Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
-  Resolution::Resolver resolver(toolchain);
+  Tetrodotoxin::Isa::Registry isa_registry =
+      Tetrodotoxin::Puffer::Toolchain::standard_registry();
+  Resolution::Resolver resolver(isa_registry);
   Resolution::Resolver::Context producer_context;
 
   const Resolution::Source::Record* producer = resolver.load_source(
@@ -334,8 +343,9 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, foreign_import) {
 }
 
 PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, ttx_call) {
-  Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
-  Resolution::Resolver resolver(toolchain);
+  Tetrodotoxin::Isa::Registry isa_registry =
+      Tetrodotoxin::Puffer::Toolchain::standard_registry();
+  Resolution::Resolver resolver(isa_registry);
   Resolution::Resolver::Context producer_context;
 
   const Resolution::Source::Record* producer = resolver.load_source(
@@ -370,8 +380,9 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, ttx_call) {
 }
 
 PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, root_function) {
-  Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
-  Resolution::Resolver resolver(toolchain);
+  Tetrodotoxin::Isa::Registry isa_registry =
+      Tetrodotoxin::Puffer::Toolchain::standard_registry();
+  Resolution::Resolver resolver(isa_registry);
   Resolution::Resolver::Context main_source_context;
 
   const Resolution::Source::Record* record = resolver.load_source(
@@ -405,8 +416,9 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, root_function) {
 }
 
 PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, body_statements) {
-  Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
-  Resolution::Resolver resolver(toolchain);
+  Tetrodotoxin::Isa::Registry isa_registry =
+      Tetrodotoxin::Puffer::Toolchain::standard_registry();
+  Resolution::Resolver resolver(isa_registry);
   Resolution::Resolver::Context body_source_context;
 
   const Resolution::Source::Record* record = resolver.load_source(
@@ -461,8 +473,9 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, body_statements) {
 }
 
 PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, struct_method) {
-  Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
-  Resolution::Resolver resolver(toolchain);
+  Tetrodotoxin::Isa::Registry isa_registry =
+      Tetrodotoxin::Puffer::Toolchain::standard_registry();
+  Resolution::Resolver resolver(isa_registry);
   Resolution::Resolver::Context sprite_source_context;
 
   const Resolution::Source::Record* record = resolver.load_source(
@@ -498,8 +511,9 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, struct_method) {
 }
 
 PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, scalar_values) {
-  Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
-  Resolution::Resolver resolver(toolchain);
+  Tetrodotoxin::Isa::Registry isa_registry =
+      Tetrodotoxin::Puffer::Toolchain::standard_registry();
+  Resolution::Resolver resolver(isa_registry);
   Resolution::Resolver::Context source_context;
 
   const Resolution::Source::Record* record = resolver.load_source(
@@ -538,8 +552,9 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, scalar_values) {
 }
 
 PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, constant_folding) {
-  Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
-  Resolution::Resolver resolver(toolchain);
+  Tetrodotoxin::Isa::Registry isa_registry =
+      Tetrodotoxin::Puffer::Toolchain::standard_registry();
+  Resolution::Resolver resolver(isa_registry);
   Resolution::Resolver::Context source_context;
 
   const Resolution::Source::Record* record = resolver.load_source(
@@ -567,8 +582,9 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, constant_folding) {
 }
 
 PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, named_return_mapping) {
-  Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
-  Resolution::Resolver resolver(toolchain);
+  Tetrodotoxin::Isa::Registry isa_registry =
+      Tetrodotoxin::Puffer::Toolchain::standard_registry();
+  Resolution::Resolver resolver(isa_registry);
   Resolution::Resolver::Context source_context;
 
   const Resolution::Source::Record* record = resolver.load_source(
@@ -605,8 +621,9 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, named_return_mapping) {
 }
 
 PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, unknown_return_parameter) {
-  Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
-  Resolution::Resolver resolver(toolchain);
+  Tetrodotoxin::Isa::Registry isa_registry =
+      Tetrodotoxin::Puffer::Toolchain::standard_registry();
+  Resolution::Resolver resolver(isa_registry);
   Resolution::Resolver::Context source_context;
 
   EXPECT_NOT(resolver.load_source(
@@ -632,8 +649,9 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, unknown_return_parameter) {
 }
 
 PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, package_exports) {
-  Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
-  Resolution::Resolver resolver(toolchain);
+  Tetrodotoxin::Isa::Registry isa_registry =
+      Tetrodotoxin::Puffer::Toolchain::standard_registry();
+  Resolution::Resolver resolver(isa_registry);
   Resolution::Resolver::Context types_source_context;
 
   const Resolution::Source::Record* types = resolver.load_source(
@@ -675,8 +693,9 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, package_exports) {
 }
 
 PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, bad_alias) {
-  Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
-  Resolution::Resolver resolver(toolchain);
+  Tetrodotoxin::Isa::Registry isa_registry =
+      Tetrodotoxin::Puffer::Toolchain::standard_registry();
+  Resolution::Resolver resolver(isa_registry);
   Resolution::Resolver::Context bad_alias_source_context;
 
   EXPECT_NOT(resolver.load_source(
@@ -692,8 +711,9 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, bad_alias) {
 }
 
 PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, bad_definition) {
-  Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
-  Resolution::Resolver resolver(toolchain);
+  Tetrodotoxin::Isa::Registry isa_registry =
+      Tetrodotoxin::Puffer::Toolchain::standard_registry();
+  Resolution::Resolver resolver(isa_registry);
 
   Resolution::Resolver::Context bad_modifier_source_context;
   EXPECT_NOT(resolver.load_source(
@@ -756,8 +776,9 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, bad_definition) {
 }
 
 PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, bad_enum) {
-  Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
-  Resolution::Resolver resolver(toolchain);
+  Tetrodotoxin::Isa::Registry isa_registry =
+      Tetrodotoxin::Puffer::Toolchain::standard_registry();
+  Resolution::Resolver resolver(isa_registry);
   Resolution::Resolver::Context missing_storage_source_context;
 
   EXPECT_NOT(resolver.load_source(
@@ -781,8 +802,9 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, bad_enum) {
 }
 
 PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, bad_function) {
-  Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
-  Resolution::Resolver resolver(toolchain);
+  Tetrodotoxin::Isa::Registry isa_registry =
+      Tetrodotoxin::Puffer::Toolchain::standard_registry();
+  Resolution::Resolver resolver(isa_registry);
   Resolution::Resolver::Context bad_function_source_context;
 
   EXPECT_NOT(resolver.load_source(
@@ -810,8 +832,9 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, bad_function) {
 }
 
 PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, bad_foreign) {
-  Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
-  Resolution::Resolver resolver(toolchain);
+  Tetrodotoxin::Isa::Registry isa_registry =
+      Tetrodotoxin::Puffer::Toolchain::standard_registry();
+  Resolution::Resolver resolver(isa_registry);
   Resolution::Resolver::Context bad_foreign_source_context;
 
   EXPECT_NOT(resolver.load_source(
@@ -840,8 +863,9 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, bad_foreign) {
 }
 
 PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, duplicate_type) {
-  Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
-  Resolution::Resolver resolver(toolchain);
+  Tetrodotoxin::Isa::Registry isa_registry =
+      Tetrodotoxin::Puffer::Toolchain::standard_registry();
+  Resolution::Resolver resolver(isa_registry);
   Resolution::Resolver::Context duplicate_type_source_context;
 
   EXPECT_NOT(resolver.load_source(
@@ -860,8 +884,9 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, duplicate_type) {
 }
 
 PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, duplicate_member) {
-  Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
-  Resolution::Resolver resolver(toolchain);
+  Tetrodotoxin::Isa::Registry isa_registry =
+      Tetrodotoxin::Puffer::Toolchain::standard_registry();
+  Resolution::Resolver resolver(isa_registry);
   Resolution::Resolver::Context duplicate_member_source_context;
 
   EXPECT_NOT(resolver.load_source(
@@ -891,8 +916,9 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, duplicate_member) {
 }
 
 PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, struct_layout) {
-  Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
-  Resolution::Resolver resolver(toolchain);
+  Tetrodotoxin::Isa::Registry isa_registry =
+      Tetrodotoxin::Puffer::Toolchain::standard_registry();
+  Resolution::Resolver resolver(isa_registry);
   Resolution::Resolver::Context point_source_context;
 
   const Resolution::Source::Record* record = resolver.load_source(
@@ -914,8 +940,9 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, struct_layout) {
 }
 
 PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, type_attribute) {
-  Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
-  Resolution::Resolver resolver(toolchain);
+  Tetrodotoxin::Isa::Registry isa_registry =
+      Tetrodotoxin::Puffer::Toolchain::standard_registry();
+  Resolution::Resolver resolver(isa_registry);
   Resolution::Resolver::Context color_source_context;
 
   const Resolution::Source::Record* record = resolver.load_source(
@@ -939,8 +966,9 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, type_attribute) {
 }
 
 PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, func_layout) {
-  Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
-  Resolution::Resolver resolver(toolchain);
+  Tetrodotoxin::Isa::Registry isa_registry =
+      Tetrodotoxin::Puffer::Toolchain::standard_registry();
+  Resolution::Resolver resolver(isa_registry);
   Resolution::Resolver::Context function_source_context;
 
   const Resolution::Source::Record* record = resolver.load_source(
@@ -963,8 +991,9 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, func_layout) {
 }
 
 PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, dupe_function) {
-  Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
-  Resolution::Resolver resolver(toolchain);
+  Tetrodotoxin::Isa::Registry isa_registry =
+      Tetrodotoxin::Puffer::Toolchain::standard_registry();
+  Resolution::Resolver resolver(isa_registry);
   Resolution::Resolver::Context duplicate_function_source_context;
 
   EXPECT_NOT(resolver.load_source(
@@ -980,8 +1009,9 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, dupe_function) {
 }
 
 PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, bad_member_type) {
-  Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
-  Resolution::Resolver resolver(toolchain);
+  Tetrodotoxin::Isa::Registry isa_registry =
+      Tetrodotoxin::Puffer::Toolchain::standard_registry();
+  Resolution::Resolver resolver(isa_registry);
   Resolution::Resolver::Context bad_member_source_context;
 
   EXPECT_NOT(resolver.load_source(
@@ -996,8 +1026,9 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, bad_member_type) {
 }
 
 PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, missing_body_end) {
-  Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
-  Resolution::Resolver resolver(toolchain);
+  Tetrodotoxin::Isa::Registry isa_registry =
+      Tetrodotoxin::Puffer::Toolchain::standard_registry();
+  Resolution::Resolver resolver(isa_registry);
   Resolution::Resolver::Context bad_body_source_context;
 
   EXPECT_NOT(resolver.load_source(

@@ -178,6 +178,7 @@ auto Test::expected_text(View::Bytes value, View::Bytes other, Bool actual)
       printf("%s%c", clear_color, value[i]);
     }
   }
+
   putchar('\n');
 }
 
@@ -186,6 +187,7 @@ auto Test::expected_hex(View::Bytes value, Bool actual) -> void {
   for (Count index = 0; index < value.get_size(); index++) {
     printf("%02X ", value[index]);
   }
+
   putchar('\n');
 }
 
@@ -195,9 +197,8 @@ auto output_break() -> void {
       dark_color, clear_color);
 }
 
-auto output_results() -> void {
+auto output_results(Count test_count) -> void {
   printf("%s\n  Testing Completed:\n", perimortem_color);
-
   if (passed_tests) {
     printf(
         "%s      Passed:  %llu%s\n", pass_color,
@@ -222,31 +223,48 @@ auto output_results() -> void {
         (unsigned long long)not_run_tests, clear_color);
   }
 
-  Real_64 pass_rate =
-      Real_64(passed_tests) / Real_64(binary_tests_count) * 100.0;
+  Real_64 pass_rate = test_count == 0
+                          ? 0.0
+                          : Real_64(passed_tests) / Real_64(test_count) * 100.0;
   printf(
       "%s  Pass Rate: %s%llu / %llu%s ( %g %%)\n%s", perimortem_color,
       clear_color, (unsigned long long)passed_tests,
-      (unsigned long long)binary_tests_count, system_color, pass_rate,
-      clear_color);
+      (unsigned long long)test_count, system_color, pass_rate, clear_color);
 }
 
-int main() {
+int main(int argc, const char* argv[]) {
   test_suites = 0;
   passed_tests = 0;
   failed_tests = 0;
-  not_run_tests = binary_tests_count;
+
+  View::Bytes filter =
+      argc > 1 ? NullTerminated::to_view(argv[1]) : View::Bytes();
+  Static::Vector<Count, 4096> test_indexes;
+  Count test_count = 0;
+  for (Count i = 0; i < binary_tests_count; i++) {
+    const Instance& test = binary_tests[i];
+    if (!filter.is_empty() &&
+        Algorithm::search(test.harness->name, filter) == Count(-1) &&
+        Algorithm::search(test.name, filter) == Count(-1)) {
+      continue;
+    }
+
+    test_indexes[test_count++] = i;
+  }
+
+  not_run_tests = test_count;
 
   TestTiming slowest_test;
   Count longest_test_name = 12;
 
   const Harness* harness = nullptr;
-  for (Count index = 0; index < binary_tests_count; index++) {
-    const Instance& test = binary_tests[index];
+  for (Count i = 0; i < test_count; i++) {
+    const Instance& test = binary_tests[test_indexes[i]];
     Count name_length = test.name.get_size();
     if (name_length > longest_test_name) {
       longest_test_name = name_length;
     }
+
     if (test.harness != harness) {
       test_suites++;
       harness = test.harness;
@@ -261,15 +279,14 @@ int main() {
       perimortem_color);
   printf(
       "  Tests found:  %s%llu%s (%llu Harness)%s\n", clear_color,
-      (unsigned long long)binary_tests_count, system_color,
+      (unsigned long long)test_count, system_color,
       (unsigned long long)test_suites, clear_color);
   output_break();
 
   Time start_full = Time::now();
-
-  for (Count index = 0; index < binary_tests_count; index++) {
+  for (Count i = 0; i < test_count; i++) {
+    Count index = test_indexes[i];
     const Instance& test = binary_tests[index];
-
     if (test.harness != harness) {
       harness = test.harness;
       printf(
@@ -298,7 +315,6 @@ int main() {
 
     harness->teardown();
     Diagnostics::Log::set_sink(Diagnostics::Log::default_sink);
-
     if (test_time_ms > slowest_test.time_ms) {
       slowest_test.time_ms = test_time_ms;
       slowest_test.test_name = test.name;
@@ -329,13 +345,12 @@ int main() {
   Real_64 full_time_ms = start_full.measure().convert_to_milliseconds();
 
   output_break();
-  output_results();
+  output_results(test_count);
   printf(
       "%s\n  Total Time:  %s%g ms\n\n%s", perimortem_color, clear_color,
       full_time_ms, clear_color);
   output_break();
   printf("\n");
   fflush(stdout);
-
   return (int)failed_tests;
 }

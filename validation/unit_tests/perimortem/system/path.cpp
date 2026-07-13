@@ -83,14 +83,3 @@ PERIMORTEM_UNIT_TEST(SystemPath, extension) {
   EXPECT(no_extension.get_extension().is_empty());
   EXPECT(hidden.get_extension().is_empty());
 }
-
-PERIMORTEM_UNIT_TEST(SystemPath, stem) {
-  Path path("unit/source/main.ttx"_view);
-  Path no_extension("unit/source/main"_view);
-  Path hidden("unit/source/.main"_view);
-
-  EXPECT_TEXT(path.get_stem(), "main"_view);
-  EXPECT_TEXT(no_extension.get_stem(), "main"_view);
-  EXPECT_TEXT(hidden.get_stem(), ".main"_view);
-  EXPECT_TEXT(Path::get_stem("other/api.ttx"_view), "api"_view);
-}

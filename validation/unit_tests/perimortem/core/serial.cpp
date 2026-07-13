@@ -73,6 +73,7 @@ PERIMORTEM_UNIT_TEST(CoreSerialReader, large_blob) {
     if (i < 3) {
       return "\x22\xF4\x01"_view[i];
     }
+
     return (i - 3);
   });
   Reader::Serial reader(source);
@@ -232,6 +233,7 @@ PERIMORTEM_UNIT_TEST(CoreSerialWriter, large_blob) {
     if (i < 3) {
       return "\x22\xF4\x01"_view[i];
     }
+
     return (i - 3);
   });
   Static::Bytes<expected.get_size()> buffer;

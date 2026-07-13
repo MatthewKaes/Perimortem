@@ -5,7 +5,7 @@
 
 #include "validation/unit_test.hpp"
 
-#include "tetrodotoxin/compiler/execution.hpp"
+#include "tetrodotoxin/compiler/execution/body.hpp"
 #include "tetrodotoxin/isa/base/context.hpp"
 #include "tetrodotoxin/isa/shader/block.hpp"
 #include "ttx/type.hpp"

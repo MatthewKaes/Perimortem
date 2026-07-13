@@ -13,7 +13,7 @@
 #include "tetrodotoxin/isa/shader/block.hpp"
 #include "tetrodotoxin/isa/shader/compiler.hpp"
 #include "tetrodotoxin/puffer/resolution/resolver.hpp"
-#include "tetrodotoxin/toolchain.hpp"
+#include "tetrodotoxin/puffer/toolchain.hpp"
 #include "ttx/type.hpp"
 
 using namespace Perimortem::Core;
@@ -91,8 +91,9 @@ static auto first_error(const Ttx::Lexical::Errors& errors) -> View::Bytes {
 }
 
 PERIMORTEM_UNIT_TEST(TtxShader, contract) {
-  Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
-  Resolution::Resolver resolver(toolchain);
+  Tetrodotoxin::Isa::Registry isa_registry =
+      Tetrodotoxin::Puffer::Toolchain::standard_registry();
+  Resolution::Resolver resolver(isa_registry);
   Resolution::Resolver::Context render_source_context;
 
   const Resolution::Source::Record* render =
@@ -129,8 +130,9 @@ PERIMORTEM_UNIT_TEST(TtxShader, contract) {
 }
 
 PERIMORTEM_UNIT_TEST(TtxShader, bad_contract) {
-  Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
-  Resolution::Resolver resolver(toolchain);
+  Tetrodotoxin::Isa::Registry isa_registry =
+      Tetrodotoxin::Puffer::Toolchain::standard_registry();
+  Resolution::Resolver resolver(isa_registry);
   Resolution::Resolver::Context render_source_context;
 
   ASSERT(load_render(resolver, render_source_context) != nullptr);
@@ -154,8 +156,9 @@ PERIMORTEM_UNIT_TEST(TtxShader, bad_contract) {
 }
 
 PERIMORTEM_UNIT_TEST(TtxShader, named_fit) {
-  Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
-  Resolution::Resolver resolver(toolchain);
+  Tetrodotoxin::Isa::Registry isa_registry =
+      Tetrodotoxin::Puffer::Toolchain::standard_registry();
+  Resolution::Resolver resolver(isa_registry);
   Resolution::Resolver::Context render_source_context;
 
   ASSERT(resolver.load_source(
@@ -188,8 +191,9 @@ PERIMORTEM_UNIT_TEST(TtxShader, named_fit) {
 }
 
 PERIMORTEM_UNIT_TEST(TtxShader, bad_reads) {
-  Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
-  Resolution::Resolver resolver(toolchain);
+  Tetrodotoxin::Isa::Registry isa_registry =
+      Tetrodotoxin::Puffer::Toolchain::standard_registry();
+  Resolution::Resolver resolver(isa_registry);
   Resolution::Resolver::Context render_source_context;
 
   ASSERT(resolver.load_source(
@@ -227,8 +231,9 @@ PERIMORTEM_UNIT_TEST(TtxShader, bad_reads) {
 }
 
 PERIMORTEM_UNIT_TEST(TtxShader, stage_symbols) {
-  Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
-  Resolution::Resolver resolver(toolchain);
+  Tetrodotoxin::Isa::Registry isa_registry =
+      Tetrodotoxin::Puffer::Toolchain::standard_registry();
+  Resolution::Resolver resolver(isa_registry);
   Resolution::Resolver::Context render_source_context;
 
   const Resolution::Source::Record* render =
@@ -273,8 +278,9 @@ PERIMORTEM_UNIT_TEST(TtxShader, stage_symbols) {
 }
 
 PERIMORTEM_UNIT_TEST(TtxShader, pass_through) {
-  Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
-  Resolution::Resolver resolver(toolchain);
+  Tetrodotoxin::Isa::Registry isa_registry =
+      Tetrodotoxin::Puffer::Toolchain::standard_registry();
+  Resolution::Resolver resolver(isa_registry);
   Resolution::Resolver::Context render_source_context;
 
   const Resolution::Source::Record* render = resolver.load_source(
@@ -313,7 +319,7 @@ PERIMORTEM_UNIT_TEST(TtxShader, pass_through) {
       "copy"_view, *root_type(shader), shader->get_implementation()));
 
   static constexpr Static::Vector<Bits_8, 4> store_instruction = {
-    0x3E, 0x00, 0x03, 0x00};
+    {0x3E, 0x00, 0x03, 0x00}};
   constexpr View::Bytes store_pattern(
       store_instruction.get_data(), store_instruction.get_size());
   EXPECT(
@@ -321,8 +327,9 @@ PERIMORTEM_UNIT_TEST(TtxShader, pass_through) {
 }
 
 PERIMORTEM_UNIT_TEST(TtxShader, annotated_type) {
-  Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
-  Resolution::Resolver resolver(toolchain);
+  Tetrodotoxin::Isa::Registry isa_registry =
+      Tetrodotoxin::Puffer::Toolchain::standard_registry();
+  Resolution::Resolver resolver(isa_registry);
   Resolution::Resolver::Context types_source_context;
 
   ASSERT(resolver.load_source(
@@ -378,8 +385,9 @@ PERIMORTEM_UNIT_TEST(TtxShader, annotated_type) {
 }
 
 PERIMORTEM_UNIT_TEST(TtxShader, unmarked_type) {
-  Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
-  Resolution::Resolver resolver(toolchain);
+  Tetrodotoxin::Isa::Registry isa_registry =
+      Tetrodotoxin::Puffer::Toolchain::standard_registry();
+  Resolution::Resolver resolver(isa_registry);
   Resolution::Resolver::Context types_source_context;
 
   ASSERT(resolver.load_source(
@@ -437,8 +445,9 @@ PERIMORTEM_UNIT_TEST(TtxShader, unmarked_type) {
 }
 
 PERIMORTEM_UNIT_TEST(TtxShader, state_diag) {
-  Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
-  Resolution::Resolver resolver(toolchain);
+  Tetrodotoxin::Isa::Registry isa_registry =
+      Tetrodotoxin::Puffer::Toolchain::standard_registry();
+  Resolution::Resolver resolver(isa_registry);
   Resolution::Resolver::Context render_source_context;
 
   const Resolution::Source::Record* render = resolver.load_source(
@@ -494,8 +503,9 @@ PERIMORTEM_UNIT_TEST(TtxShader, state_diag) {
 }
 
 PERIMORTEM_UNIT_TEST(TtxShader, no_render_pass) {
-  Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
-  Resolution::Resolver resolver(toolchain);
+  Tetrodotoxin::Isa::Registry isa_registry =
+      Tetrodotoxin::Puffer::Toolchain::standard_registry();
+  Resolution::Resolver resolver(isa_registry);
   Resolution::Resolver::Context render_source_context;
 
   ASSERT(load_render(resolver, render_source_context) != nullptr);
@@ -519,8 +529,9 @@ PERIMORTEM_UNIT_TEST(TtxShader, no_render_pass) {
 }
 
 PERIMORTEM_UNIT_TEST(TtxShader, bad_result) {
-  Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
-  Resolution::Resolver resolver(toolchain);
+  Tetrodotoxin::Isa::Registry isa_registry =
+      Tetrodotoxin::Puffer::Toolchain::standard_registry();
+  Resolution::Resolver resolver(isa_registry);
   Resolution::Resolver::Context render_source_context;
 
   ASSERT(load_render(resolver, render_source_context) != nullptr);
@@ -544,8 +555,9 @@ PERIMORTEM_UNIT_TEST(TtxShader, bad_result) {
 }
 
 PERIMORTEM_UNIT_TEST(TtxShader, missing_stage) {
-  Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
-  Resolution::Resolver resolver(toolchain);
+  Tetrodotoxin::Isa::Registry isa_registry =
+      Tetrodotoxin::Puffer::Toolchain::standard_registry();
+  Resolution::Resolver resolver(isa_registry);
   Resolution::Resolver::Context render_source_context;
 
   ASSERT(load_render(resolver, render_source_context) != nullptr);
@@ -569,8 +581,9 @@ PERIMORTEM_UNIT_TEST(TtxShader, missing_stage) {
 }
 
 PERIMORTEM_UNIT_TEST(TtxShader, dupe_stage) {
-  Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
-  Resolution::Resolver resolver(toolchain);
+  Tetrodotoxin::Isa::Registry isa_registry =
+      Tetrodotoxin::Puffer::Toolchain::standard_registry();
+  Resolution::Resolver resolver(isa_registry);
   Resolution::Resolver::Context render_source_context;
 
   ASSERT(load_render(resolver, render_source_context) != nullptr);
@@ -593,8 +606,9 @@ PERIMORTEM_UNIT_TEST(TtxShader, dupe_stage) {
 }
 
 PERIMORTEM_UNIT_TEST(TtxShader, bad_contract_ref) {
-  Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
-  Resolution::Resolver resolver(toolchain);
+  Tetrodotoxin::Isa::Registry isa_registry =
+      Tetrodotoxin::Puffer::Toolchain::standard_registry();
+  Resolution::Resolver resolver(isa_registry);
   Resolution::Resolver::Context render_source_context;
 
   ASSERT(load_render(resolver, render_source_context) != nullptr);
@@ -615,8 +629,9 @@ PERIMORTEM_UNIT_TEST(TtxShader, bad_contract_ref) {
 }
 
 PERIMORTEM_UNIT_TEST(TtxShader, read_needs_member) {
-  Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
-  Resolution::Resolver resolver(toolchain);
+  Tetrodotoxin::Isa::Registry isa_registry =
+      Tetrodotoxin::Puffer::Toolchain::standard_registry();
+  Resolution::Resolver resolver(isa_registry);
   Resolution::Resolver::Context render_source_context;
 
   ASSERT(resolver.load_source(

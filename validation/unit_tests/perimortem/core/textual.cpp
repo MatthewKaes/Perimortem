@@ -68,10 +68,10 @@ PERIMORTEM_UNIT_TEST(CoreTextualReader, floats) {
 
 PERIMORTEM_UNIT_TEST(CoreTextualReader, prevent_overflow) {
   Reader::Textual reader("Hello"_view);
-
   for (Count i = 0; i < 5; i++) {
     reader.read_byte();
   }
+
   EXPECT_NOT(reader.has_content());
 
   reader.read_byte();

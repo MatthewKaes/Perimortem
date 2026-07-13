@@ -122,7 +122,6 @@ PERIMORTEM_UNIT_TEST(DynamicObject, map_owner) {
 PERIMORTEM_UNIT_TEST(DynamicObject, map_rehash) {
   Count destructor_count = 0;
   Dynamic::Map<Count, Dynamic::Object<RaiiProbe>> values;
-
   for (Count i = 0; i < 16; i++) {
     Dynamic::Object<RaiiProbe> probe(destructor_count, i);
     values.insert(i, probe);

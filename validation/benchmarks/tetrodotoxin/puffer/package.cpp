@@ -1,7 +1,7 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
-#include "tetrodotoxin/package/package.hpp"
+#include "tetrodotoxin/archiver/package.hpp"
 
 #include "validation/benchmark.hpp"
 
@@ -10,8 +10,8 @@
 
 #include "perimortem/system/file.hpp"
 
-#include "tetrodotoxin/package/archive/reader.hpp"
-#include "tetrodotoxin/package/archive/writer.hpp"
+#include "tetrodotoxin/archiver/reader.hpp"
+#include "tetrodotoxin/archiver/writer.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;

@@ -68,6 +68,7 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinDiagnostics, arbitrary_name_length) {
     expected[i] = 'a';
     misspelled[i] = 'a';
   }
+
   expected[expected.get_size() - 1] = 'x';
   misspelled[misspelled.get_size() - 1] = 'y';
 

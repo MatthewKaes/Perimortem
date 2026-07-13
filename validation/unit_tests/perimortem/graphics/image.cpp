@@ -57,3 +57,15 @@ PERIMORTEM_UNIT_TEST(GraphicsImage, wrap_addressing_uses_image_domain) {
   EXPECT_EQ(from_right.red, Bits_8(0x11));
   EXPECT_EQ(from_right.alpha, Bits_8(0x44));
 }
+
+PERIMORTEM_UNIT_TEST(GraphicsImage, empty_addressing_returns_zero) {
+  Image clamp(0, 0, Image::Addressing::Clamp);
+  Image wrap(0, 0, Image::Addressing::Wrap);
+
+  const Pixel clamped = clamp.get_pixel(4, -2);
+  const Pixel wrapped = wrap.get_pixel(-4, 2);
+  EXPECT_EQ(clamped.red, Bits_8(0));
+  EXPECT_EQ(clamped.alpha, Bits_8(0));
+  EXPECT_EQ(wrapped.red, Bits_8(0));
+  EXPECT_EQ(wrapped.alpha, Bits_8(0));
+}

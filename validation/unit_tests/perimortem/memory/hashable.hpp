@@ -3,8 +3,6 @@
 
 #include "perimortem/core/hash.hpp"
 
-using namespace Perimortem::Core;
-
 static Count default_construct_count = 0;
 static Count default_destruct_count = 0;
 
@@ -20,12 +18,14 @@ class Hashable {
         destruct_count(destruct_count) {
     this->construct_count++;
   }
+
   Hashable(const Hashable& rhs)
       : id(rhs.id),
         construct_count(rhs.construct_count),
         destruct_count(rhs.destruct_count) {
     this->construct_count++;
   }
+
   Hashable(const Hashable&& rhs)
       : id(rhs.id),
         construct_count(rhs.construct_count),
@@ -36,12 +36,14 @@ class Hashable {
   auto operator=(const Hashable& rhs) -> Hashable& {
     this->construct_count++;
     id = rhs.id;
-
     return *this;
   }
 
   ~Hashable() { destruct_count++; }
-  auto hash() const -> Bits_64 { return Hash(id).get_value(); }
+  auto hash() const -> Bits_64 {
+    return Perimortem::Core::Hash(id).get_value();
+  }
+
   auto operator==(const Hashable& rhs) const -> Bool { return rhs.id == id; }
 
  private:

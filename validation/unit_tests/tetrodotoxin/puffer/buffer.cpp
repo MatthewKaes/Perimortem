@@ -14,14 +14,14 @@
 
 #include "perimortem/system/file.hpp"
 
-#include "tetrodotoxin/compiler/execution.hpp"
-#include "tetrodotoxin/package/archive/format.hpp"
-#include "tetrodotoxin/package/archive/reader.hpp"
-#include "tetrodotoxin/package/archive/writer.hpp"
-#include "tetrodotoxin/package/package.hpp"
+#include "tetrodotoxin/archiver/format.hpp"
+#include "tetrodotoxin/archiver/package.hpp"
+#include "tetrodotoxin/archiver/reader.hpp"
+#include "tetrodotoxin/archiver/writer.hpp"
+#include "tetrodotoxin/compiler/execution/body.hpp"
 #include "tetrodotoxin/puffer/package/builder.hpp"
 #include "tetrodotoxin/puffer/resolution/resolver.hpp"
-#include "tetrodotoxin/toolchain.hpp"
+#include "tetrodotoxin/puffer/toolchain.hpp"
 #include "ttx/type.hpp"
 
 using namespace Perimortem::Core;
@@ -204,7 +204,7 @@ static auto write_test_package(
     View::Vector<Terminal> terminals = View::Vector<Terminal>())
     -> View::Bytes {
   Tetrodotoxin::Archiver::Package package(
-      Manifest(name, Tetrodotoxin::Version(), View::Vector<Dependency>()), root,
+      Manifest(name, Version(), View::Vector<Dependency>()), root,
       View::Vector<const Ttx::Type*>(), terminals);
   return Tetrodotoxin::Archiver::Writer::write(
       arena, package, View::Vector<Reference>());
@@ -241,15 +241,17 @@ static auto load_core_package(
 static auto build_core_buffer(
     Dynamic::Bytes& output,
     View::Bytes value_type = "Bits_32"_view) -> Bool {
-  Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
-  Resolution::Resolver resolver(toolchain);
+  Tetrodotoxin::Isa::Registry isa_registry =
+      Tetrodotoxin::Puffer::Toolchain::standard_registry();
+  Resolution::Resolver resolver(isa_registry);
   Resolution::Source::Record* package = load_core_package(resolver, value_type);
   return package != nullptr && build_archive_buffer(resolver, *package, output);
 }
 
 static auto build_foreign_buffer(Dynamic::Bytes& output) -> Bool {
-  Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
-  Resolution::Resolver resolver(toolchain);
+  Tetrodotoxin::Isa::Registry isa_registry =
+      Tetrodotoxin::Puffer::Toolchain::standard_registry();
+  Resolution::Resolver resolver(isa_registry);
   Resolution::Resolver::Context library_context;
   if (resolver.load_source(
           library_context, "user/host/console.ttx"_view,
@@ -273,8 +275,9 @@ static auto build_foreign_buffer(Dynamic::Bytes& output) -> Bool {
 }
 
 static auto build_linkage_buffer(Dynamic::Bytes& output) -> Bool {
-  Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
-  Resolution::Resolver resolver(toolchain);
+  Tetrodotoxin::Isa::Registry isa_registry =
+      Tetrodotoxin::Puffer::Toolchain::standard_registry();
+  Resolution::Resolver resolver(isa_registry);
   Resolution::Resolver::Context library_context;
   if (resolver.load_source(
           library_context, "user/callable/api.ttx"_view,
@@ -324,8 +327,9 @@ static auto load_ui_package(Resolution::Resolver& resolver)
 
 static auto build_ui_buffer(View::Bytes core_buffer, Dynamic::Bytes& output)
     -> Bool {
-  Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
-  Resolution::Resolver resolver(toolchain);
+  Tetrodotoxin::Isa::Registry isa_registry =
+      Tetrodotoxin::Puffer::Toolchain::standard_registry();
+  Resolution::Resolver resolver(isa_registry);
   if (!register_core_buffer(resolver, core_buffer)) {
     return False;
   }
@@ -363,8 +367,9 @@ static auto build_app_buffer(
     View::Bytes core_buffer,
     View::Bytes ui_buffer,
     Dynamic::Bytes& output) -> Bool {
-  Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
-  Resolution::Resolver resolver(toolchain);
+  Tetrodotoxin::Isa::Registry isa_registry =
+      Tetrodotoxin::Puffer::Toolchain::standard_registry();
+  Resolution::Resolver resolver(isa_registry);
   if (!register_core_buffer(resolver, core_buffer) ||
       !register_ui_buffer(resolver, ui_buffer)) {
     return False;
@@ -375,14 +380,15 @@ static auto build_app_buffer(
 }
 
 PERIMORTEM_UNIT_TEST(PufferBuffer, package_chain) {
-  Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
+  Tetrodotoxin::Isa::Registry isa_registry =
+      Tetrodotoxin::Puffer::Toolchain::standard_registry();
 
   Dynamic::Bytes core_buffer;
   Dynamic::Bytes ui_buffer;
   ASSERT(build_core_buffer(core_buffer));
   ASSERT(build_ui_buffer(core_buffer, ui_buffer));
 
-  Resolution::Resolver consumer(toolchain);
+  Resolution::Resolver consumer(isa_registry);
   Resolution::Resolver::Context dependency_context;
   ASSERT(consumer.register_package_buffer(
       dependency_context, "user_ui.puffer"_view, ui_buffer));
@@ -415,7 +421,8 @@ PERIMORTEM_UNIT_TEST(PufferBuffer, package_chain) {
 }
 
 PERIMORTEM_UNIT_TEST(PufferBuffer, transitive_chain) {
-  Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
+  Tetrodotoxin::Isa::Registry isa_registry =
+      Tetrodotoxin::Puffer::Toolchain::standard_registry();
 
   Dynamic::Bytes core_buffer;
   Dynamic::Bytes ui_buffer;
@@ -424,7 +431,7 @@ PERIMORTEM_UNIT_TEST(PufferBuffer, transitive_chain) {
   ASSERT(build_ui_buffer(core_buffer, ui_buffer));
   ASSERT(build_app_buffer(core_buffer, ui_buffer, app_buffer));
 
-  Resolution::Resolver consumer(toolchain);
+  Resolution::Resolver consumer(isa_registry);
   Resolution::Resolver::Context dependency_context;
   ASSERT(consumer.register_package_buffer(
       dependency_context, "user_app.puffer"_view, app_buffer));
@@ -485,8 +492,9 @@ PERIMORTEM_UNIT_TEST(PufferBuffer, standard_pkg) {
   ASSERT(!math_buffer.is_empty());
   ASSERT(!graphics_buffer.is_empty());
 
-  Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
-  Resolution::Resolver resolver(toolchain);
+  Tetrodotoxin::Isa::Registry isa_registry =
+      Tetrodotoxin::Puffer::Toolchain::standard_registry();
+  Resolution::Resolver resolver(isa_registry);
   Resolution::Resolver::Context dependency_context;
   ASSERT(resolver.register_package_buffer(
       dependency_context, "perimortem_math.puffer"_view, math_buffer));
@@ -545,8 +553,9 @@ PERIMORTEM_UNIT_TEST(PufferBuffer, round_trip) {
   static constexpr View::Bytes round_trip_path =
       ".bin/bin/validation/puffer_round_trip.puffer"_view;
 
-  Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
-  Resolution::Resolver resolver(toolchain);
+  Tetrodotoxin::Isa::Registry isa_registry =
+      Tetrodotoxin::Puffer::Toolchain::standard_registry();
+  Resolution::Resolver resolver(isa_registry);
   Resolution::Source::Record* package = load_core_package(resolver);
   ASSERT(package != nullptr);
 
@@ -570,8 +579,9 @@ PERIMORTEM_UNIT_TEST(PufferBuffer, foreign_facts) {
   Dynamic::Bytes buffer;
   ASSERT(build_foreign_buffer(buffer));
 
-  Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
-  Resolution::Resolver resolver(toolchain);
+  Tetrodotoxin::Isa::Registry isa_registry =
+      Tetrodotoxin::Puffer::Toolchain::standard_registry();
+  Resolution::Resolver resolver(isa_registry);
   Resolution::Resolver::Context dependency_context;
   ASSERT(resolver.register_package_buffer(
       dependency_context, "user_host.puffer"_view, buffer));
@@ -613,8 +623,9 @@ PERIMORTEM_UNIT_TEST(PufferBuffer, linkage_facts) {
   Dynamic::Bytes buffer;
   ASSERT(build_linkage_buffer(buffer));
 
-  Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
-  Resolution::Resolver resolver(toolchain);
+  Tetrodotoxin::Isa::Registry isa_registry =
+      Tetrodotoxin::Puffer::Toolchain::standard_registry();
+  Resolution::Resolver resolver(isa_registry);
   Resolution::Resolver::Context dependency_context;
   ASSERT(resolver.register_package_buffer(
       dependency_context, "user_callable.puffer"_view, buffer));
@@ -654,8 +665,9 @@ PERIMORTEM_UNIT_TEST(PufferBuffer, linkage_facts) {
 }
 
 PERIMORTEM_UNIT_TEST(PufferBuffer, bad_header) {
-  Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
-  Resolution::Resolver resolver(toolchain);
+  Tetrodotoxin::Isa::Registry isa_registry =
+      Tetrodotoxin::Puffer::Toolchain::standard_registry();
+  Resolution::Resolver resolver(isa_registry);
   Resolution::Resolver::Context context;
 
   EXPECT_NOT(resolver.register_package_buffer(
@@ -667,11 +679,12 @@ PERIMORTEM_UNIT_TEST(PufferBuffer, bad_header) {
 }
 
 PERIMORTEM_UNIT_TEST(PufferBuffer, dup_same) {
-  Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
+  Tetrodotoxin::Isa::Registry isa_registry =
+      Tetrodotoxin::Puffer::Toolchain::standard_registry();
   Dynamic::Bytes core_buffer;
   ASSERT(build_core_buffer(core_buffer));
 
-  Resolution::Resolver resolver(toolchain);
+  Resolution::Resolver resolver(isa_registry);
   Resolution::Resolver::Context context;
   ASSERT(resolver.register_package_buffer(
       context, "user_core.puffer"_view, core_buffer));
@@ -681,13 +694,14 @@ PERIMORTEM_UNIT_TEST(PufferBuffer, dup_same) {
 }
 
 PERIMORTEM_UNIT_TEST(PufferBuffer, dup_conflict) {
-  Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
+  Tetrodotoxin::Isa::Registry isa_registry =
+      Tetrodotoxin::Puffer::Toolchain::standard_registry();
   Dynamic::Bytes expected_core_buffer;
   Dynamic::Bytes actual_core_buffer;
   ASSERT(build_core_buffer(expected_core_buffer));
   ASSERT(build_core_buffer(actual_core_buffer, "Bits_64"_view));
 
-  Resolution::Resolver resolver(toolchain);
+  Resolution::Resolver resolver(isa_registry);
   Resolution::Resolver::Context valid_context;
   ASSERT(resolver.register_package_buffer(
       valid_context, "user_core.puffer"_view, expected_core_buffer));
@@ -704,13 +718,14 @@ PERIMORTEM_UNIT_TEST(PufferBuffer, dup_conflict) {
 }
 
 PERIMORTEM_UNIT_TEST(PufferBuffer, missing_dep) {
-  Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
+  Tetrodotoxin::Isa::Registry isa_registry =
+      Tetrodotoxin::Puffer::Toolchain::standard_registry();
   Dynamic::Bytes core_buffer;
   Dynamic::Bytes ui_buffer;
   ASSERT(build_core_buffer(core_buffer));
   ASSERT(build_ui_buffer(core_buffer, ui_buffer));
 
-  Resolution::Resolver consumer(toolchain);
+  Resolution::Resolver consumer(isa_registry);
   Resolution::Resolver::Context dependency_context;
   ASSERT(consumer.register_package_buffer(
       dependency_context, "user_ui.puffer"_view, ui_buffer));
@@ -728,7 +743,8 @@ PERIMORTEM_UNIT_TEST(PufferBuffer, missing_dep) {
 }
 
 PERIMORTEM_UNIT_TEST(PufferBuffer, missing_transitive) {
-  Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
+  Tetrodotoxin::Isa::Registry isa_registry =
+      Tetrodotoxin::Puffer::Toolchain::standard_registry();
   Dynamic::Bytes core_buffer;
   Dynamic::Bytes ui_buffer;
   Dynamic::Bytes app_buffer;
@@ -736,7 +752,7 @@ PERIMORTEM_UNIT_TEST(PufferBuffer, missing_transitive) {
   ASSERT(build_ui_buffer(core_buffer, ui_buffer));
   ASSERT(build_app_buffer(core_buffer, ui_buffer, app_buffer));
 
-  Resolution::Resolver consumer(toolchain);
+  Resolution::Resolver consumer(isa_registry);
   Resolution::Resolver::Context dependency_context;
   ASSERT(consumer.register_package_buffer(
       dependency_context, "user_app.puffer"_view, app_buffer));
@@ -756,7 +772,8 @@ PERIMORTEM_UNIT_TEST(PufferBuffer, missing_transitive) {
 }
 
 PERIMORTEM_UNIT_TEST(PufferBuffer, version_mismatch) {
-  Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
+  Tetrodotoxin::Isa::Registry isa_registry =
+      Tetrodotoxin::Puffer::Toolchain::standard_registry();
   Dynamic::Bytes expected_core_buffer;
   Dynamic::Bytes actual_core_buffer;
   Dynamic::Bytes ui_buffer;
@@ -773,7 +790,7 @@ PERIMORTEM_UNIT_TEST(PufferBuffer, version_mismatch) {
   ASSERT(actual_archive.get_version().is_set());
   EXPECT(expected_archive.get_version() != actual_archive.get_version());
 
-  Resolution::Resolver consumer(toolchain);
+  Resolution::Resolver consumer(isa_registry);
   Resolution::Resolver::Context dependency_context;
   ASSERT(consumer.register_package_buffer(
       dependency_context, "user_ui.puffer"_view, ui_buffer));
@@ -824,7 +841,7 @@ PERIMORTEM_UNIT_TEST(PufferBuffer, package_version) {
   const Tetrodotoxin::Archiver::Package* archive =
       read_buffer_package(archive_arena, core_buffer);
   ASSERT(archive != nullptr);
-  Tetrodotoxin::Version version = archive->get_manifest().get_version();
+  Version version = archive->get_manifest().get_version();
 
   EXPECT(version.is_set());
   EXPECT(archive->get_manifest().get_version() == version);
@@ -849,13 +866,14 @@ PERIMORTEM_UNIT_TEST(PufferBuffer, type_table) {
   for (Count i = 0; i < types.get_size(); i++) {
     found_value = found_value || types[i] == value;
   }
+
   EXPECT(found_value);
 }
 
 PERIMORTEM_UNIT_TEST(PufferBuffer, reference_identity) {
-  constexpr Tetrodotoxin::Version a_version(1, 1);
-  constexpr Tetrodotoxin::Version b_version(2, 2);
-  constexpr Tetrodotoxin::Version c_version(3, 3);
+  constexpr Version a_version(1, 1);
+  constexpr Version b_version(2, 2);
+  constexpr Version c_version(3, 3);
   Ttx::Type a_type("A"_view);
   Ttx::Type b_type("B"_view);
   Ttx::Type c_type("C"_view);
@@ -886,7 +904,7 @@ PERIMORTEM_UNIT_TEST(PufferBuffer, reference_identity) {
     Dependency("B"_view, "User.B"_view, b_version),
   }};
   Tetrodotoxin::Archiver::Package source(
-      Manifest("User.Root"_view, Tetrodotoxin::Version(), imports), root,
+      Manifest("User.Root"_view, Version(), imports), root,
       View::Vector<const Ttx::Type*>(), View::Vector<Terminal>());
   Static::Vector<Reference, 3> write_references = {{
     Reference(a_package),

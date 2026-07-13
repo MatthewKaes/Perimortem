@@ -187,6 +187,7 @@ PERIMORTEM_UNIT_TEST(Ttxx86_64, inc) {
        reg = Assembler::x86_64::Reg(Bits_8(reg) + 1)) {
     assembler.inc(reg);
   }
+
   EXPECT_HEX(
       machine_code,
       "\x48\xFF\xC0\x48\xFF\xC1\x48\xFF\xC2\x48\xFF\xC3\x48\xFF\xC4\x48\xFF\xC5"
@@ -217,6 +218,7 @@ PERIMORTEM_UNIT_TEST(Ttxx86_64, dec) {
        reg = Assembler::x86_64::Reg(Bits_8(reg) + 1)) {
     assembler.dec(reg);
   }
+
   EXPECT_HEX(
       machine_code,
       "\x48\xFF\xC8\x48\xFF\xC9\x48\xFF\xCA\x48\xFF\xCB\x48\xFF\xCC\x48\xFF\xCD"
@@ -247,6 +249,7 @@ PERIMORTEM_UNIT_TEST(Ttxx86_64, zero) {
        reg = Assembler::x86_64::Reg(Bits_8(reg) + 1)) {
     assembler.zero(reg);
   }
+
   // Should be the same as the 64 bit operations.
   EXPECT_HEX(
       machine_code,
@@ -280,6 +283,7 @@ PERIMORTEM_UNIT_TEST(Ttxx86_64, one) {
        reg = Assembler::x86_64::Reg(Bits_8(reg) + 1)) {
     assembler.one(reg);
   }
+
   EXPECT_HEX(
       machine_code,
       "\x31\xC0\xFF\xC0\x31\xC9\xFF\xC1\x31\xD2\xFF\xC2\x31\xDB\xFF\xC3\x31\xE4"
@@ -314,6 +318,7 @@ PERIMORTEM_UNIT_TEST(Ttxx86_64, neg_one) {
        reg = Assembler::x86_64::Reg(Bits_8(reg) + 1)) {
     assembler.neg_one(reg);
   }
+
   // Neg one can't optimize for the lower 3 bit registers since dec needs to
   // wrap around.
   EXPECT_HEX(
@@ -333,6 +338,7 @@ PERIMORTEM_UNIT_TEST(Ttxx86_64, mov_reg8) {
        reg = Assembler::x86_64::Reg(Bits_8(reg) + 1)) {
     assembler.mov(reg, reg);
   }
+
   // AL-BL: no REX. SPL-DIL: bare REX 0x40. R8B-R15B: REX.R|REX.B = 0x45.
   EXPECT_HEX(
       machine_code,
@@ -388,6 +394,7 @@ PERIMORTEM_UNIT_TEST(Ttxx86_64, mov_reg16) {
        reg = Assembler::x86_64::Reg(Bits_8(reg) + 1)) {
     assembler.mov(reg, reg);
   }
+
   // AX-DI: 0x66 prefix, no REX. R8W-R15W: 0x66 + REX.R|REX.B = 0x45.
   EXPECT_HEX(
       machine_code,
@@ -432,6 +439,7 @@ PERIMORTEM_UNIT_TEST(Ttxx86_64, mov_reg32) {
        reg = Assembler::x86_64::Reg(Bits_8(reg) + 1)) {
     assembler.mov(reg, reg);
   }
+
   // EAX-EDI: no REX prefix. R8D-R15D: REX.R|REX.B = 0x45.
   EXPECT_HEX(
       machine_code,
@@ -475,6 +483,7 @@ PERIMORTEM_UNIT_TEST(Ttxx86_64, mov_reg64) {
        reg = Assembler::x86_64::Reg(Bits_8(reg) + 1)) {
     assembler.mov(reg, reg);
   }
+
   // RAX-RDI: REX.W = 0x48. R8-R15: REX.W|REX.R|REX.B = 0x4D.
   EXPECT_HEX(
       machine_code,
@@ -521,6 +530,7 @@ PERIMORTEM_UNIT_TEST(Ttxx86_64, mov_r8_imm8) {
        reg = Assembler::x86_64::Reg(Bits_8(reg) + 1)) {
     assembler.mov(Bits_8(0x42), reg);
   }
+
   // AL-BL: B0+rd + imm8 (2 bytes). SPL-DIL: bare REX(0x40) + B4+rd + imm8 (3
   // bytes). R8B-R15B: REX.B(0x41) + B0+rd + imm8 (3 bytes).
   EXPECT_HEX(
@@ -539,6 +549,7 @@ PERIMORTEM_UNIT_TEST(Ttxx86_64, mov_r16_imm16) {
        reg = Assembler::x86_64::Reg(Bits_8(reg) + 1)) {
     assembler.mov(Bits_16(0x1234), reg);
   }
+
   // AX-DI: 0x66 + B8+rd + imm16 (4 bytes). R8W-R15W: 0x66 + REX.B(0x41) + B8+rd
   // + imm16 (5 bytes).
   EXPECT_HEX(
@@ -569,6 +580,7 @@ PERIMORTEM_UNIT_TEST(Ttxx86_64, mov_r32_imm32) {
        reg = Assembler::x86_64::Reg(Bits_8(reg) + 1)) {
     assembler.mov(Bits_32(0x12345678), reg);
   }
+
   // EAX-EDI: B8+rd, imm32 (5 bytes). R8D-R15D: REX.B(0x41) + B8+rd, imm32 (6
   // bytes).
   EXPECT_HEX(

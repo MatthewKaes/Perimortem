@@ -80,7 +80,8 @@ struct Comparison {
       variants;
 };
 
-auto create_comparison(const Comparison& comparison, BenchmarkFunc func) -> void;
+auto create_comparison(const Comparison& comparison, BenchmarkFunc func)
+    -> void;
 
 class ComparisonEntry {
  public:

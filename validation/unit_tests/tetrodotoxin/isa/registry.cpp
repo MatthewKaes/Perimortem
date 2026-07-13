@@ -23,8 +23,8 @@ static auto evaluate_other(Ttx::Lexical::Cursor&, Base::Context&)
 }
 
 static auto lower_test(
-    Tetrodotoxin::Terminal::Context&,
-    const Tetrodotoxin::Terminal::Input&) -> Bool {
+    Tetrodotoxin::Isa::Lowering::Context&,
+    const Tetrodotoxin::Isa::Lowering::Input&) -> Bool {
   return True;
 }
 

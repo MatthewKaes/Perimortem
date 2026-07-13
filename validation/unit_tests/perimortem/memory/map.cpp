@@ -11,6 +11,7 @@
 #include "perimortem/memory/dynamic/bytes.hpp"
 #include "unit_tests/perimortem/memory/hashable.hpp"
 
+using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
 using namespace Perimortem::Utility;
 
@@ -119,7 +120,6 @@ PERIMORTEM_UNIT_TEST(DynamicMap, remove) {
   EXPECT(!int_map.contains(50));
   EXPECT_EQ(int_map.get_size(), Count(99));
   EXPECT_EQ(int_map.get_capacity(), capacity);
-
   for (Count i = 0; i < 100; i++) {
     if (i != 50) {
       ASSERT_EQ(int_map[i], i + 2);
@@ -143,7 +143,6 @@ PERIMORTEM_UNIT_TEST(DynamicMap, empty_keys) {
 
 PERIMORTEM_UNIT_TEST(DynamicMap, insert_stress_test) {
   Dynamic::Map<Signed_32, Signed_32> large_map;
-
   for (Count i = 0; i < 1000; i++) {
     large_map.insert(i, i + 2);
   }
@@ -174,7 +173,6 @@ PERIMORTEM_UNIT_TEST(DynamicMap, key_construction) {
 
   {
     Dynamic::Map<Hashable, Signed_32> custom_map;
-
     for (Count i = 0; i < 100; i++) {
       custom_map.insert(Hashable(i, construct_count, destruct_count), i);
     }
@@ -197,7 +195,6 @@ PERIMORTEM_UNIT_TEST(DynamicMap, value_construction) {
 
   {
     Dynamic::Map<Signed_32, Hashable> custom_map;
-
     for (Count i = 0; i < 100; i++) {
       custom_map.insert(i, Hashable(i, construct_count, destruct_count));
     }
@@ -220,7 +217,6 @@ PERIMORTEM_UNIT_TEST(DynamicMap, emplace_count) {
 
   {
     Dynamic::Map<Signed_32, Hashable> custom_map;
-
     for (Count i = 0; i < 100; i++) {
       custom_map.emplace(
           static_cast<Signed_32&&>(i),
@@ -262,6 +258,7 @@ PERIMORTEM_UNIT_TEST(DynamicMap, dynamic_keys) {
     text.get_access()[0] = ch;
     ASSERT_EQ(text_map[text], 2 + ch);
   }
+
   ASSERT_EQ(text_map["Longer test string"_view], 2);
 
   auto copied = text_map;
@@ -321,11 +318,9 @@ PERIMORTEM_UNIT_TEST(DynamicMap, size) {
 
 PERIMORTEM_UNIT_TEST(DynamicMap, reuse) {
   Dynamic::Map<Signed_32, Signed_32> reuse_map;
-
   for (Signed_32 loops = 0; loops < 5; loops++) {
     reuse_map.clear();
     ASSERT_EQ(reuse_map.get_size(), 0);
-
     for (Count i = 0; i < 100; i++) {
       reuse_map[i] = i;
     }
@@ -343,7 +338,6 @@ PERIMORTEM_UNIT_TEST(DynamicMap, leak_test) {
   {
     Dynamic::Map<Dynamic::Bytes, Dynamic::Bytes> memory_intensive;
     Dynamic::Bytes source;
-
     for (Count i = 0; i < 100; i++) {
       source.append('A');
       memory_intensive[source] = "Test text to copy"_view;
@@ -356,7 +350,6 @@ PERIMORTEM_UNIT_TEST(DynamicMap, leak_test) {
 
   {
     Dynamic::Map<Signed_32, Signed_32> large_map;
-
     for (Count i = 0; i < 1000; i++) {
       large_map.insert(i, i + 2);
     }

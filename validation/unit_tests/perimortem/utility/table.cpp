@@ -68,7 +68,6 @@ static Harness StaticTable = {
 
 PERIMORTEM_UNIT_TEST(StaticTable, keyword_table) {
   constexpr auto invalid = -1;
-
   for (Count i = 0; i < keyword_source.get_size(); i++) {
     EXPECT_EQ(
         keyword_table::find_or_default(keyword_source[i].key, invalid),
@@ -85,7 +84,6 @@ PERIMORTEM_UNIT_TEST(StaticTable, keyword_table) {
 
 PERIMORTEM_UNIT_TEST(StaticTable, aligned_keywords) {
   constexpr auto invalid = -1;
-
   for (Count i = 0; i < keyword_source.get_size(); i++) {
     EXPECT_EQ(
         aligned_keywords::find_or_default(keyword_source[i].key, invalid),
@@ -103,7 +101,6 @@ PERIMORTEM_UNIT_TEST(StaticTable, aligned_keywords) {
 
 PERIMORTEM_UNIT_TEST(StaticTable, word_table) {
   constexpr auto invalid = "nope"_view;
-
   for (Count i = 0; i < word_source.get_size(); i++) {
     EXPECT_TEXT(
         word_table::find_or_default(word_source[i].key, invalid),
@@ -120,7 +117,6 @@ PERIMORTEM_UNIT_TEST(StaticTable, word_table) {
 
 PERIMORTEM_UNIT_TEST(StaticTable, word_table_aligned) {
   constexpr auto invalid = "nope"_view;
-
   for (Count i = 0; i < word_source.get_size(); i++) {
     EXPECT_TEXT(
         word_table_aligned::find_or_default(word_source[i].key, invalid),

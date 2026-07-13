@@ -210,6 +210,7 @@ PERIMORTEM_UNIT_TEST(GraphicsPng, roundtrip_64x64) {
         Bits_8(col * 8), Bits_8(row * 8), Bits_8(128), Bits_8(255)};
     }
   }
+
   Image source_image(Data::take(source_pixels), width, height);
 
   auto encoded = Formats::Png::encode(source_image);

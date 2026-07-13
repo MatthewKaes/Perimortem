@@ -173,7 +173,6 @@ PERIMORTEM_UNIT_TEST(DynamicSet, remove_displacements) {
 
 PERIMORTEM_UNIT_TEST(DynamicSet, insert_stress_test) {
   Dynamic::Set<Signed_32> values;
-
   for (Count i = 0; i < 1000; i++) {
     EXPECT(values.insert(i));
   }
@@ -190,7 +189,6 @@ PERIMORTEM_UNIT_TEST(DynamicSet, capacity_stress_test) {
 
   values.ensure_capacity(1000);
   EXPECT_EQ(Bibliotheca::check_out_requests(), check_out_requests + 1);
-
   for (Count i = 0; i < 1000; i++) {
     values.insert(i);
   }
@@ -250,9 +248,11 @@ PERIMORTEM_UNIT_TEST(DynamicSet, pointer_keys) {
     auto hash() const -> Bits_64 {
       return Hash(Bits_64(reinterpret_cast<CppSize>(object))).get_value();
     }
+
     constexpr auto operator==(const StableObjectKey& rhs) const -> Bool {
       return object == rhs.object;
     }
+
     constexpr auto get_object() const -> const StableObject* { return object; }
 
    private:
@@ -287,7 +287,6 @@ PERIMORTEM_UNIT_TEST(DynamicSet, key_construction) {
 
   {
     Dynamic::Set<Hashable> values;
-
     for (Count i = 0; i < 100; i++) {
       values.insert(Hashable(i, construct_count, destruct_count));
     }
@@ -311,7 +310,6 @@ PERIMORTEM_UNIT_TEST(DynamicSet, growth) {
 
   {
     Dynamic::Set<Hashable> values;
-
     for (Count i = 0; i < 1000; i++) {
       ASSERT(values.insert(Hashable(i, construct_count, destruct_count)));
     }
@@ -331,11 +329,9 @@ PERIMORTEM_UNIT_TEST(DynamicSet, growth) {
 
 PERIMORTEM_UNIT_TEST(DynamicSet, reuse) {
   Dynamic::Set<Signed_32> values;
-
   for (Signed_32 loops = 0; loops < 5; loops++) {
     values.clear();
     ASSERT_EQ(values.get_size(), 0);
-
     for (Count i = 0; i < 100; i++) {
       values.insert(i);
     }
@@ -353,7 +349,6 @@ PERIMORTEM_UNIT_TEST(DynamicSet, leak_test) {
   {
     Dynamic::Set<Dynamic::Bytes> memory_intensive;
     Dynamic::Bytes source;
-
     for (Count i = 0; i < 100; i++) {
       source.append('A');
       memory_intensive.insert(source);
@@ -367,7 +362,6 @@ PERIMORTEM_UNIT_TEST(DynamicSet, leak_test) {
 
   {
     Dynamic::Set<Signed_32> large_set;
-
     for (Count i = 0; i < 1000; i++) {
       large_set.insert(i);
     }

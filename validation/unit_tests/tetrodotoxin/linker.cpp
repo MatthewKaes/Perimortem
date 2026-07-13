@@ -13,8 +13,8 @@
 #include "perimortem/memory/managed/vector.hpp"
 
 #include "tetrodotoxin/compiler/assembler/x86_64.hpp"
+#include "tetrodotoxin/isa/lowering/context.hpp"
 #include "tetrodotoxin/linker/object/symbol.hpp"
-#include "tetrodotoxin/terminal/context.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -22,11 +22,11 @@ using namespace Tetrodotoxin::Compiler;
 using namespace Tetrodotoxin::Linker;
 using namespace Validation;
 
-static Harness TetrodotoxinTerminal = {
-  .name = "Tetrodotoxin::Terminal"_view,
+static Harness TetrodotoxinLowering = {
+  .name = "Tetrodotoxin::Lowering"_view,
 };
 
-PERIMORTEM_UNIT_TEST(TetrodotoxinTerminal, section_ids) {
+PERIMORTEM_UNIT_TEST(TetrodotoxinLowering, section_ids) {
   Dynamic::Bytes code;
   Assembler::x86_64 assembler(code);
   assembler.ret();
@@ -38,7 +38,7 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinTerminal, section_ids) {
       linker.add_section(Object::Section::Type::Program, code), Bits_16(2));
 }
 
-PERIMORTEM_UNIT_TEST(TetrodotoxinTerminal, archive_symbol) {
+PERIMORTEM_UNIT_TEST(TetrodotoxinLowering, archive_symbol) {
   Dynamic::Bytes code;
   Assembler::x86_64 assembler(code);
   assembler.ret();
@@ -61,13 +61,14 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinTerminal, archive_symbol) {
       Algorithm::search(archive.get_view(), "module_entry"_view) != Count(-1));
 }
 
-PERIMORTEM_UNIT_TEST(TetrodotoxinTerminal, terminal_publish) {
+PERIMORTEM_UNIT_TEST(TetrodotoxinLowering, terminal_publish) {
   Allocator::Arena arena;
   Ttx::Lexical::Errors errors(arena);
   Tetrodotoxin::Compiler::Engine engine(
       errors, Tetrodotoxin::Compiler::Backend());
   Managed::Vector<Tetrodotoxin::Archiver::Terminal> terminals(arena);
-  Tetrodotoxin::Terminal::Context context(arena, errors, engine, terminals);
+  Tetrodotoxin::Isa::Lowering::Context context(
+      arena, errors, engine, terminals);
 
   {
     Dynamic::Bytes content("backend output"_view);

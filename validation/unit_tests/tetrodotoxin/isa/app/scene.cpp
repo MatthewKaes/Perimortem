@@ -6,7 +6,7 @@
 #include "perimortem/system/file.hpp"
 
 #include "tetrodotoxin/puffer/resolution/resolver.hpp"
-#include "tetrodotoxin/toolchain.hpp"
+#include "tetrodotoxin/puffer/toolchain.hpp"
 #include "ttx/type.hpp"
 
 using namespace Perimortem::Core;
@@ -55,8 +55,9 @@ static auto register_standard_packages(
 }
 
 PERIMORTEM_UNIT_TEST(TtxAppScene, app_main) {
-  Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
-  Resolution::Resolver resolver(toolchain);
+  Tetrodotoxin::Isa::Registry isa_registry =
+      Tetrodotoxin::Puffer::Toolchain::standard_registry();
+  Resolution::Resolver resolver(isa_registry);
   Resolution::Resolver::Context app_source_context;
 
   const Resolution::Source::Record* record = resolver.load_source(
@@ -76,8 +77,9 @@ PERIMORTEM_UNIT_TEST(TtxAppScene, app_main) {
 }
 
 PERIMORTEM_UNIT_TEST(TtxAppScene, scene_shape) {
-  Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
-  Resolution::Resolver resolver(toolchain);
+  Tetrodotoxin::Isa::Registry isa_registry =
+      Tetrodotoxin::Puffer::Toolchain::standard_registry();
+  Resolution::Resolver resolver(isa_registry);
   Resolution::Resolver::Context scene_source_context;
 
   const Resolution::Source::Record* record = resolver.load_source(
@@ -111,8 +113,9 @@ PERIMORTEM_UNIT_TEST(TtxAppScene, scene_shape) {
 }
 
 PERIMORTEM_UNIT_TEST(TtxAppScene, bad_app_root) {
-  Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
-  Resolution::Resolver resolver(toolchain);
+  Tetrodotoxin::Isa::Registry isa_registry =
+      Tetrodotoxin::Puffer::Toolchain::standard_registry();
+  Resolution::Resolver resolver(isa_registry);
   Resolution::Resolver::Context bad_app_source_context;
 
   EXPECT_NOT(resolver.load_source(
@@ -129,8 +132,9 @@ PERIMORTEM_UNIT_TEST(TtxAppScene, bad_app_root) {
 }
 
 PERIMORTEM_UNIT_TEST(TtxAppScene, bad_scene_root) {
-  Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
-  Resolution::Resolver resolver(toolchain);
+  Tetrodotoxin::Isa::Registry isa_registry =
+      Tetrodotoxin::Puffer::Toolchain::standard_registry();
+  Resolution::Resolver resolver(isa_registry);
   Resolution::Resolver::Context bad_scene_source_context;
 
   EXPECT_NOT(resolver.load_source(
@@ -147,8 +151,9 @@ PERIMORTEM_UNIT_TEST(TtxAppScene, bad_scene_root) {
 }
 
 PERIMORTEM_UNIT_TEST(TtxAppScene, scene_dupe) {
-  Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
-  Resolution::Resolver resolver(toolchain);
+  Tetrodotoxin::Isa::Registry isa_registry =
+      Tetrodotoxin::Puffer::Toolchain::standard_registry();
+  Resolution::Resolver resolver(isa_registry);
   Resolution::Resolver::Context duplicate_scene_source_context;
 
   EXPECT_NOT(resolver.load_source(
@@ -164,8 +169,9 @@ PERIMORTEM_UNIT_TEST(TtxAppScene, scene_dupe) {
 }
 
 PERIMORTEM_UNIT_TEST(TtxAppScene, app_sources) {
-  Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
-  Resolution::Resolver resolver(toolchain);
+  Tetrodotoxin::Isa::Registry isa_registry =
+      Tetrodotoxin::Puffer::Toolchain::standard_registry();
+  Resolution::Resolver resolver(isa_registry);
   Resolution::Resolver::Context dependency_context;
   ASSERT(register_standard_packages(resolver, dependency_context));
   EXPECT_NOT(dependency_context.has_errors());
@@ -173,22 +179,25 @@ PERIMORTEM_UNIT_TEST(TtxAppScene, app_sources) {
   Resolution::Resolver::Context app_source_context;
 
   const Resolution::Source::Record* app =
-      resolver.load_source(app_source_context, "apps/demo/main.ttx"_view);
+      resolver.load_source(app_source_context, "apps/ttx/demo/main.ttx"_view);
   ASSERT(app != nullptr);
   EXPECT_NOT(app_source_context.has_errors());
+  EXPECT_TEXT(app->get_module(), "main"_view);
   EXPECT_TEXT(app->get_type().get_name(), "App"_view);
   ASSERT(function(app->get_type(), "main"_view) != nullptr);
 
   const Resolution::Source::Record* scene =
-      resolver.resolve("apps/demo/splash_screen.ttx"_view);
+      resolver.resolve("apps/ttx/demo/splash_screen.ttx"_view);
   ASSERT(scene != nullptr);
+  EXPECT_TEXT(scene->get_module(), "splash_screen"_view);
   EXPECT_TEXT(scene->get_type().get_name(), "Scene"_view);
   EXPECT(function(scene->get_type(), "on_update"_view) != nullptr);
 }
 
 PERIMORTEM_UNIT_TEST(TtxAppScene, app_needs_main) {
-  Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
-  Resolution::Resolver resolver(toolchain);
+  Tetrodotoxin::Isa::Registry isa_registry =
+      Tetrodotoxin::Puffer::Toolchain::standard_registry();
+  Resolution::Resolver resolver(isa_registry);
   Resolution::Resolver::Context app_source_context;
 
   EXPECT_NOT(resolver.load_source(
@@ -201,8 +210,9 @@ PERIMORTEM_UNIT_TEST(TtxAppScene, app_needs_main) {
 }
 
 PERIMORTEM_UNIT_TEST(TtxAppScene, app_bad_shape) {
-  Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
-  Resolution::Resolver resolver(toolchain);
+  Tetrodotoxin::Isa::Registry isa_registry =
+      Tetrodotoxin::Puffer::Toolchain::standard_registry();
+  Resolution::Resolver resolver(isa_registry);
   Resolution::Resolver::Context app_source_context;
 
   EXPECT_NOT(resolver.load_source(
@@ -219,8 +229,9 @@ PERIMORTEM_UNIT_TEST(TtxAppScene, app_bad_shape) {
 }
 
 PERIMORTEM_UNIT_TEST(TtxAppScene, app_dupe_main) {
-  Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
-  Resolution::Resolver resolver(toolchain);
+  Tetrodotoxin::Isa::Registry isa_registry =
+      Tetrodotoxin::Puffer::Toolchain::standard_registry();
+  Resolution::Resolver resolver(isa_registry);
   Resolution::Resolver::Context app_source_context;
 
   EXPECT_NOT(resolver.load_source(
@@ -236,8 +247,9 @@ PERIMORTEM_UNIT_TEST(TtxAppScene, app_dupe_main) {
 }
 
 PERIMORTEM_UNIT_TEST(TtxAppScene, scene_lifecycle) {
-  Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
-  Resolution::Resolver resolver(toolchain);
+  Tetrodotoxin::Isa::Registry isa_registry =
+      Tetrodotoxin::Puffer::Toolchain::standard_registry();
+  Resolution::Resolver resolver(isa_registry);
   Resolution::Resolver::Context scene_source_context;
 
   const Resolution::Source::Record* record = resolver.load_source(
@@ -253,8 +265,9 @@ PERIMORTEM_UNIT_TEST(TtxAppScene, scene_lifecycle) {
 }
 
 PERIMORTEM_UNIT_TEST(TtxAppScene, scene_bad_type) {
-  Tetrodotoxin::Toolchain toolchain = Tetrodotoxin::Toolchain::standard();
-  Resolution::Resolver resolver(toolchain);
+  Tetrodotoxin::Isa::Registry isa_registry =
+      Tetrodotoxin::Puffer::Toolchain::standard_registry();
+  Resolution::Resolver resolver(isa_registry);
   Resolution::Resolver::Context scene_source_context;
 
   EXPECT_NOT(resolver.load_source(

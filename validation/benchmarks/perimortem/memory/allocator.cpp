@@ -65,9 +65,11 @@ auto frame_stability() {
         (Random::generate() & size_range) + size_minimum);
     ptrs[i] = alloc.ptr;
   }
+
   for (Count i = 0; i < frame_alloc_count; i++) {
     Bibliotheca::remit(ptrs[i]);
   }
+
   Benchmark::prevent_optimization(ptrs[0]);
 }
 
@@ -142,9 +144,11 @@ auto cpp_malloc_frame_stability() -> void {
   for (Count i = 0; i < frame_alloc_count; i++) {
     ptrs[i] = malloc((Random::generate() & size_range) + size_minimum);
   }
+
   for (Count i = 0; i < frame_alloc_count; i++) {
     free(ptrs[i]);
   }
+
   Benchmark::prevent_optimization(ptrs[0]);
 }
 
@@ -156,14 +160,15 @@ template <
 auto cpp_malloc_frame_interleaved() -> void {
   constexpr Count window = frame_alloc_count / window_count;
   Static::Vector<void*, frame_alloc_count> ptrs;
-
   for (Count i = 0; i < window; i++) {
     ptrs[i] = malloc((Random::generate() & size_range) + size_minimum);
   }
+
   for (Count i = window; i < frame_alloc_count; i++) {
     ptrs[i] = malloc((Random::generate() & size_range) + size_minimum);
     free(ptrs[i - window]);
   }
+
   for (Count i = frame_alloc_count - window; i < frame_alloc_count; i++) {
     free(ptrs[i]);
   }

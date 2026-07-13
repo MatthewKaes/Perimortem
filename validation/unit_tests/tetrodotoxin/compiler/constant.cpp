@@ -1,9 +1,9 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
-#include "validation/unit_test.hpp"
+#include "tetrodotoxin/compiler/execution/constant.hpp"
 
-#include "tetrodotoxin/compiler/execution.hpp"
+#include "validation/unit_test.hpp"
 
 using namespace Perimortem::Core;
 using namespace Tetrodotoxin::Compiler;

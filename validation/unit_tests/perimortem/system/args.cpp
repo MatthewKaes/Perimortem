@@ -85,8 +85,8 @@ static constexpr View::Bytes expected_help =
 
 PERIMORTEM_UNIT_TEST(SystemArgs, basic_parse) {
   constexpr Static::Vector<View::Bytes, 6> raw = {
-    "demo"_view,         "-fast"_view,       "-output=out.a"_view,
-    "-dep=dep.ttx"_view, "-threads=-8"_view, "-ratio=0.25"_view};
+    {"demo"_view, "-fast"_view, "-output=out.a"_view, "-dep=dep.ttx"_view,
+     "-threads=-8"_view, "-ratio=0.25"_view}};
   Allocator::Arena arena;
 
   Args::Values parsed = parse(arena, raw);
@@ -102,7 +102,7 @@ PERIMORTEM_UNIT_TEST(SystemArgs, basic_parse) {
 
 PERIMORTEM_UNIT_TEST(SystemArgs, help_text) {
   constexpr Static::Vector<View::Bytes, 2> raw = {
-    "/tmp/demo"_view, "-help"_view};
+    {"/tmp/demo"_view, "-help"_view}};
   Allocator::Arena arena;
   Configs config = test_config(arena);
 
@@ -114,7 +114,7 @@ PERIMORTEM_UNIT_TEST(SystemArgs, help_text) {
 }
 
 PERIMORTEM_UNIT_TEST(SystemArgs, double_dash_help) {
-  constexpr Static::Vector<View::Bytes, 2> raw = {"demo"_view, "--help"_view};
+  constexpr Static::Vector<View::Bytes, 2> raw = {{"demo"_view, "--help"_view}};
   Allocator::Arena arena;
   Configs config = test_config(arena);
 
@@ -127,7 +127,7 @@ PERIMORTEM_UNIT_TEST(SystemArgs, double_dash_help) {
 
 PERIMORTEM_UNIT_TEST(SystemArgs, help_keeps_parsing) {
   constexpr Static::Vector<View::Bytes, 4> raw = {
-    "demo"_view, "-help"_view, "-fast"_view, "-output=out.a"_view};
+    {"demo"_view, "-help"_view, "-fast"_view, "-output=out.a"_view}};
   Allocator::Arena arena;
 
   Args::Values parsed = parse(arena, raw);
@@ -140,8 +140,8 @@ PERIMORTEM_UNIT_TEST(SystemArgs, help_keeps_parsing) {
 
 PERIMORTEM_UNIT_TEST(SystemArgs, double_dash_parse) {
   constexpr Static::Vector<View::Bytes, 5> raw = {
-    "demo"_view, "--fast"_view, "--output=out.a"_view, "---dep=dep.ttx"_view,
-    "----ratio=1.5"_view};
+    {"demo"_view, "--fast"_view, "--output=out.a"_view, "---dep=dep.ttx"_view,
+     "----ratio=1.5"_view}};
   Allocator::Arena arena;
 
   Args::Values parsed = parse(arena, raw);
@@ -154,7 +154,8 @@ PERIMORTEM_UNIT_TEST(SystemArgs, double_dash_parse) {
 }
 
 PERIMORTEM_UNIT_TEST(SystemArgs, empty_value) {
-  constexpr Static::Vector<View::Bytes, 2> raw = {"demo"_view, "-output="_view};
+  constexpr Static::Vector<View::Bytes, 2> raw = {
+    {"demo"_view, "-output="_view}};
   Allocator::Arena arena;
 
   Args::Values parsed = parse(arena, raw);
@@ -164,7 +165,7 @@ PERIMORTEM_UNIT_TEST(SystemArgs, empty_value) {
 
 PERIMORTEM_UNIT_TEST(SystemArgs, unknown_arg) {
   constexpr Static::Vector<View::Bytes, 3> raw = {
-    "demo"_view, "-other"_view, "-output=out"_view};
+    {"demo"_view, "-other"_view, "-output=out"_view}};
   Allocator::Arena arena;
 
   Diagnostics::Log::set_level(Diagnostics::Log::Level::Error);
@@ -175,7 +176,7 @@ PERIMORTEM_UNIT_TEST(SystemArgs, unknown_arg) {
 
 PERIMORTEM_UNIT_TEST(SystemArgs, bare_value) {
   constexpr Static::Vector<View::Bytes, 3> raw = {
-    "demo"_view, "-output=out"_view, "source.ttx"_view};
+    {"demo"_view, "-output=out"_view, "source.ttx"_view}};
   Allocator::Arena arena;
 
   Diagnostics::Log::set_level(Diagnostics::Log::Level::Error);
@@ -186,7 +187,7 @@ PERIMORTEM_UNIT_TEST(SystemArgs, bare_value) {
 
 PERIMORTEM_UNIT_TEST(SystemArgs, repeated_values) {
   constexpr Static::Vector<View::Bytes, 4> raw = {
-    "demo"_view, "-output=out"_view, "-dep=a.ttx"_view, "-dep=b.ttx"_view};
+    {"demo"_view, "-output=out"_view, "-dep=a.ttx"_view, "-dep=b.ttx"_view}};
   Allocator::Arena arena;
 
   Args::Values parsed = parse(arena, raw);
@@ -197,7 +198,7 @@ PERIMORTEM_UNIT_TEST(SystemArgs, repeated_values) {
 }
 
 PERIMORTEM_UNIT_TEST(SystemArgs, dash_only) {
-  constexpr Static::Vector<View::Bytes, 2> raw = {"demo"_view, "--"_view};
+  constexpr Static::Vector<View::Bytes, 2> raw = {{"demo"_view, "--"_view}};
   Allocator::Arena arena;
 
   Diagnostics::Log::set_level(Diagnostics::Log::Level::Error);

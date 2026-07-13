@@ -53,6 +53,7 @@ PERIMORTEM_BENCHMARK(HashBench, bits_32) {
     accumulator ^= result;
     input = Bits_32(result);
   }
+
   Benchmark::prevent_optimization(accumulator);
 }
 
@@ -64,6 +65,7 @@ PERIMORTEM_BENCHMARK(HashBench, bits_64) {
     accumulator ^= result;
     input = result;
   }
+
   Benchmark::prevent_optimization(accumulator);
 }
 
@@ -77,6 +79,7 @@ auto compute_hash() -> void {
     Count offset = (max_offset > 0) ? (i % (max_offset + 1)) : 0;
     accumulator ^= Hash(hash_buffer.slice(offset, hash_length)).get_value();
   }
+
   Benchmark::prevent_optimization(accumulator);
 }
 
@@ -110,6 +113,7 @@ auto cpp_hash_bytes() -> void {
         std::hash<std::string_view>{}(std::string_view(
             Data::cast<char>(slice.get_data()), slice.get_size())));
   }
+
   Benchmark::prevent_optimization(accumulator);
 }
 

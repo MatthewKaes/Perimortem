@@ -13,7 +13,7 @@ Enable C++ STL comparison benchmarks:
 
 load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
-load("//toolchain:tetrodotoxin.bzl", "ttx_library", "ttx_package")
+load("//toolchain:tetrodotoxin.bzl", "ttx_library")
 
 package(default_visibility = ["//visibility:public"])
 
@@ -39,43 +39,39 @@ ttx_library(
     ],
 )
 
-ttx_package(
+ttx_library(
+    name = "shader_artifact_smoke",
+    srcs = [
+        "data/ttx/shader_artifact/render.ttx",
+        "data/ttx/shader_artifact/shader.ttx",
+    ],
+)
+
+alias(
     name = "graphics_package_smoke",
-    srcs = [
-        "//tetrodotoxin/standard:perimortem/graphics/library/sprite.ttx",
-        "//tetrodotoxin/standard:perimortem/graphics/library/types.ttx",
-        "//tetrodotoxin/standard:perimortem/graphics/package.ttx",
-        "//tetrodotoxin/standard:perimortem/graphics/renderers/renderer_2d.ttx",
-        "//tetrodotoxin/standard:perimortem/graphics/shaders/default_2d.ttx",
-    ],
+    actual = "//tetrodotoxin/standard:perimortem_graphics",
 )
 
-ttx_package(
+alias(
     name = "math_package_smoke",
-    srcs = [
-        "//tetrodotoxin/standard:perimortem/math/library/types.ttx",
-        "//tetrodotoxin/standard:perimortem/math/package.ttx",
-    ],
+    actual = "//tetrodotoxin/standard:perimortem_math",
 )
 
-ttx_package(
+alias(
     name = "runtime_package_smoke",
-    srcs = [
-        "//tetrodotoxin/standard:perimortem/runtime/library/types.ttx",
-        "//tetrodotoxin/standard:perimortem/runtime/package.ttx",
-    ],
+    actual = "//tetrodotoxin/standard:perimortem_runtime",
 )
 
 ttx_library(
-    name = "app_scene_smoke",
+    name = "app_scene_parse_smoke",
     srcs = [
-        "//apps:main",
-        "//apps:splash_screen",
+        "//apps/ttx/demo:main",
+        "//apps/ttx/demo:splash_screen",
     ],
     deps = [
-        ":graphics_package_smoke",
-        ":math_package_smoke",
-        ":runtime_package_smoke",
+        "//tetrodotoxin/standard:perimortem_graphics",
+        "//tetrodotoxin/standard:perimortem_math",
+        "//tetrodotoxin/standard:perimortem_runtime",
     ],
 )
 
@@ -83,9 +79,17 @@ cc_binary(
     name = "unit_tests",
     srcs = glob([
         "unit_tests/perimortem/**/*.cpp",
+        "unit_tests/ttx/**/*.cpp",
         "unit_tests/tetrodotoxin/**/*.cpp",
     ]) + [
         "unit_test.cpp",
+    ],
+    data = [
+        ":shader_artifact_smoke",
+        ":ttx_tests",
+        "//tetrodotoxin/standard:perimortem_graphics",
+        "//tetrodotoxin/standard:perimortem_math",
+        "//tetrodotoxin/standard:perimortem_runtime",
     ],
     includes = ["."],
     deps = [
@@ -93,11 +97,14 @@ cc_binary(
         ":ttx_tests",
         "//perimortem",
         "//tetrodotoxin:compiler",
+        "//tetrodotoxin:diagnostics",
         "//tetrodotoxin:isa",
+        "//tetrodotoxin:isa_lowerers",
         "//tetrodotoxin:linker",
+        "//tetrodotoxin/archiver",
+        "//tetrodotoxin/puffer:package_builder",
         "//tetrodotoxin/puffer:resolution",
-        "//tetrodotoxin/puffer:terminal",
-        "//tetrodotoxin:toolchain",
+        "//tetrodotoxin/puffer:toolchain",
         "//ttx",
     ],
 )
@@ -106,8 +113,13 @@ cc_binary(
     name = "benchmarks",
     srcs = glob([
         "benchmarks/perimortem/**/*.cpp",
+        "benchmarks/tetrodotoxin/**/*.cpp",
     ]) + [
         "benchmark.cpp",
+    ],
+    data = [
+        "//tetrodotoxin/standard:perimortem_graphics",
+        "//tetrodotoxin/standard:perimortem_math",
     ],
     includes = ["."],
     local_defines = select({
@@ -117,5 +129,6 @@ cc_binary(
     deps = [
         ":test_headers",
         "//perimortem",
+        "//tetrodotoxin/archiver",
     ],
 )

@@ -23,6 +23,7 @@ PERIMORTEM_BENCHMARK(SystemUuid, generate) {
     auto uuid = Uuid::generate_v4();
     value ^= uuid.get_value()[0];
   }
+
   Benchmark::prevent_optimization(value);
 }
 
@@ -34,6 +35,7 @@ PERIMORTEM_BENCHMARK(SystemUuid, serialize) {
     auto serialized = uuid.serialize();
     value += serialized[0];
   }
+
   Benchmark::prevent_optimization(value);
 }
 
@@ -47,6 +49,7 @@ PERIMORTEM_BENCHMARK(SystemUuid, deserialize_uuid) {
     value ^= uuid.get_value()[0];
     uuid_text[i & 0b11111] += 1;
   }
+
   Benchmark::prevent_optimization(value);
 }
 
@@ -60,5 +63,6 @@ PERIMORTEM_BENCHMARK(SystemUuid, deserialize_packed) {
     value ^= uuid.get_value()[0];
     uuid_text[i & 0b11111] += 1;
   }
+
   Benchmark::prevent_optimization(value);
 }

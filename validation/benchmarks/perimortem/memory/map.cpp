@@ -37,9 +37,11 @@ auto populate_lookup_keys() -> void {
   if (populated) {
     return;
   }
+
   for (Count i = 0; i < max_key_count; i++) {
     lookup_keys[i] = Signed_32(i);
   }
+
   populated = True;
 }
 
@@ -54,8 +56,8 @@ auto map_test() -> void {
   for (Count i = 0; i < values; i++) {
     local_map.insert(lookup_keys[i], Signed_32(i));
   }
-  Signed_32 accumulator = local_map.get_size();
 
+  Signed_32 accumulator = local_map.get_size();
   if constexpr (lookup) {
     Benchmark::start_time();
     accumulator = 0;
@@ -63,6 +65,7 @@ auto map_test() -> void {
       accumulator += local_map.at(lookup_keys[i % values]);
     }
   }
+
   Benchmark::end_time();
   Benchmark::prevent_optimization(accumulator);
 }
@@ -117,6 +120,7 @@ auto pointer_lookup_test() -> void {
     const auto* entry = map.find(key);
     accumulator += entry == nullptr ? 1 : entry->value;
   }
+
   Benchmark::end_time();
   Benchmark::prevent_optimization(accumulator);
 }
@@ -127,6 +131,7 @@ auto pointer_insert_test() -> void {
   if constexpr (reserve) {
     map.ensure_capacity(values);
   }
+
   if constexpr (duplicate) {
     for (Count i = 0; i < values; i++) {
       map.insert(pointer_key(i), i);
@@ -137,6 +142,7 @@ auto pointer_insert_test() -> void {
   for (Count i = 0; i < values; i++) {
     map.insert(pointer_key(i), i + 1);
   }
+
   Benchmark::end_time();
   Count size = map.get_size();
   Benchmark::prevent_optimization(size);
@@ -238,6 +244,7 @@ auto keyword_test() -> void {
   for (Count i = 0; i < values; i++) {
     accumulator += local_map.find_or_default(*loopup_scramble[i], -1);
   }
+
   Benchmark::prevent_optimization(accumulator);
   Benchmark::end_time();
 }
@@ -253,6 +260,7 @@ auto keyword_table() -> void {
   for (Count i = 0; i < values; i++) {
     accumulator += KeywordTable::find_or_default(*loopup_scramble[i], -1);
   }
+
   Benchmark::prevent_optimization(accumulator);
   Benchmark::end_time();
 }
@@ -296,8 +304,8 @@ auto cpp_int_map_test() -> void {
   for (Count i = 0; i < values; i++) {
     cpp_map.emplace(int(lookup_keys[i]), int(i));
   }
-  int accumulator = int(cpp_map.size());
 
+  int accumulator = int(cpp_map.size());
   if constexpr (is_lookup) {
     Benchmark::start_time();
     accumulator = 0;
@@ -308,6 +316,7 @@ auto cpp_int_map_test() -> void {
       }
     }
   }
+
   Benchmark::end_time();
   Benchmark::prevent_optimization(accumulator);
 }
@@ -322,6 +331,7 @@ auto cpp_keyword_test() -> void {
             Data::cast<char>(kv.key.get_data()), kv.key.get_size()),
         kv.value);
   }
+
   create_scramble(mask);
   int accumulator = int(cpp_map.size());
 
@@ -332,6 +342,7 @@ auto cpp_keyword_test() -> void {
         std::string_view(Data::cast<char>(key.get_data()), key.get_size()));
     accumulator += (it != cpp_map.end()) ? it->second : -1;
   }
+
   Benchmark::prevent_optimization(accumulator);
   Benchmark::end_time();
 }

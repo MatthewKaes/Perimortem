@@ -71,8 +71,17 @@ auto has_valid_header(View::Bytes entry) -> Bool {
   }
 
   // Validate all number values
-  constexpr Static::Vector<Count, 9> number_indexes = {
-    {0, 1, 3, 4, 6, 7, 9, 10, 11}};
+  constexpr Static::Vector<Count, 9> number_indexes = {{
+    0,
+    1,
+    3,
+    4,
+    6,
+    7,
+    9,
+    10,
+    11,
+  }};
   for (Count i = 0; i < number_indexes.get_size(); i++) {
     if (b[number_indexes[i]] < '0' || b[number_indexes[i]] > '9') {
       return false;

@@ -83,7 +83,6 @@ PERIMORTEM_UNIT_TEST(ManagedMap, clear) {
 PERIMORTEM_UNIT_TEST(ManagedMap, insert_stress_test) {
   Allocator::Arena arena;
   Managed::Map<Signed_32, Signed_32> values(arena);
-
   for (Count i = 0; i < 1000; i++) {
     values.insert(i, i + 2);
   }

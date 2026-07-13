@@ -2,15 +2,15 @@
 // Copyright © Matt Kaes
 dialect : App;
 
-import Graphics : Package = Perimortem::Graphics;
-import Runtime : Package = Perimortem::Runtime;
+import Runtime : Package = Perimortem.Runtime;
 import SplashScreen : Scene = "splash_screen.ttx";
 
 public func main[] -> [] {
   // Create a window for the thread so we can render scene objects.
-  const window : Graphics::Window = Graphics::Window -> create(
+  const window : Runtime::Window = Runtime::Window -> create(
     .title = "Perimortem",
-    .window_size = (.width = 750, .height = 750),
+    .width = 750,
+    .height = 750,
   );
 
   // Set the initial scene and run it until scene is set to Void.

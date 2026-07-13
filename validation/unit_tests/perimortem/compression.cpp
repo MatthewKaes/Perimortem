@@ -213,6 +213,7 @@ PERIMORTEM_UNIT_TEST(CompressionTests, roundtrip_binary) {
   for (Count i = 0; i < 256; i++) {
     all_bytes[i] = Bits_8(i);
   }
+
   auto compressed = Compression::Deflate::deflate(all_bytes);
   ASSERT(compressed.get_size() > 0);
 

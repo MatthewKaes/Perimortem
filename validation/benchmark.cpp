@@ -73,6 +73,7 @@ auto count_variants(const Benchmark::Comparison& comparison) -> Count {
          comparison.variants[count].header.get_size() > 0) {
     count++;
   }
+
   return count;
 }
 #endif
@@ -87,30 +88,29 @@ auto Benchmark::create(
 }
 
 #ifdef PERI_BENCH_CPP
-auto Benchmark::create_comparison(const Comparison& comparison, BenchmarkFunc func)
-    -> void {
+auto Benchmark::create_comparison(
+    const Comparison& comparison,
+    BenchmarkFunc func) -> void {
   comparisons[comparison_count++] = {&comparison, func};
 }
 #endif
 
 // Returns a View::Bytes into buffer with the formatted time string.
-auto format_time(Static::Bytes<16>& buffer, Bits_64 ns)
-    -> View::Bytes {
+auto format_time(Static::Bytes<16>& buffer, Bits_64 ns) -> View::Bytes {
   auto* character_buffer = Data::cast<char>(buffer.get_data());
   int written = 0;
   if (ns < 1'000ULL) {
     written = snprintf(
-        character_buffer, buffer.get_size(), "%llu ns",
-        (unsigned long long)ns);
+        character_buffer, buffer.get_size(), "%llu ns", (unsigned long long)ns);
   } else if (ns < 1'000'000ULL) {
     written = snprintf(
-        character_buffer, buffer.get_size(), "%.2f us",
-        Real_64(ns) / 1'000.0);
+        character_buffer, buffer.get_size(), "%.2f us", Real_64(ns) / 1'000.0);
   } else {
     written = snprintf(
         character_buffer, buffer.get_size(), "%.2f ms",
         Real_64(ns) / 1'000'000.0);
   }
+
   return View::Bytes(buffer.get_data(), Count(written > 0 ? written : 0));
 }
 
@@ -118,10 +118,12 @@ auto bucket_avg(Count start, Count end_index) -> Bits_64 {
   if (start >= end_index) {
     return time_samples[end_index > 0 ? end_index - 1 : 0];
   }
+
   Bits_64 total = 0;
   for (Count index = start; index < end_index; index++) {
     total += time_samples[index];
   }
+
   return total / (end_index - start);
 }
 
@@ -140,7 +142,6 @@ auto compute_stats(Count sample_count, Bits_64 alloc_requests) -> SampleStats {
   stats.bottom_avg_ns = bucket_avg(0, tenth);
   stats.middle_avg_ns = bucket_avg(tenth, sample_count - tenth);
   stats.top_avg_ns = bucket_avg(sample_count - tenth, sample_count);
-
   return stats;
 }
 
@@ -157,7 +158,6 @@ auto print_stats(View::Bytes name, Count col_width, const SampleStats& stats)
       (int)bottom.get_size(), Data::cast<char>(bottom.get_data()), clear_color,
       (int)middle.get_size(), Data::cast<char>(middle.get_data()), slow_color,
       (int)top.get_size(), Data::cast<char>(top.get_data()), clear_color);
-
   if (stats.alloc_requests_per_iter > 0) {
     printf(
         "  | %s%lld alloc/iter%s", system_color,
@@ -197,7 +197,6 @@ auto run_samples(const Harness& harness, Benchmark::BenchmarkFunc func)
   Count sample_count = 0;
   Bits_64 total_alloc_delta = 0;
   total_start = Time::now();
-
   while (sample_count < max_sample_count) {
     harness.setup();
     Count allocs_before = Bibliotheca::check_out_requests();
@@ -261,6 +260,7 @@ auto find_stored_time(View::Bytes harness_name, View::Bytes bench_name)
       return stored_stats[bi].middle_avg_ns;
     }
   }
+
   return Bits_64(-1);
 }
 #endif
@@ -269,15 +269,18 @@ auto harness_matches(View::Bytes name) -> Bool {
   if (benchmark_filter.get_size() == 0) {
     return True;
   }
+
   if (benchmark_filter.get_size() > name.get_size()) {
     return False;
   }
+
   for (Count i = 0; i < benchmark_filter.get_size(); i++) {
     if ((benchmark_filter.get_data()[i] | 0x20) !=
         (name.get_data()[i] | 0x20)) {
       return False;
     }
   }
+
   return True;
 }
 
@@ -290,15 +293,16 @@ auto compute_layout() -> Layout {
   Count col_width = 16;
   Count harness_count = 0;
   const Harness* prev_harness = nullptr;
-
   for (Count index = 0; index < benchmark_count; index++) {
     if (!harness_matches(binary_benchmarks[index].harness->name)) {
       continue;
     }
+
     Count name_length = binary_benchmarks[index].name.get_size();
     if (name_length > col_width) {
       col_width = name_length;
     }
+
     if (binary_benchmarks[index].harness != prev_harness) {
       harness_count++;
       prev_harness = binary_benchmarks[index].harness;
@@ -332,7 +336,6 @@ auto run_benchmark_pass(const Layout& layout) -> void {
   for (Count benchmark_index = 0; benchmark_index < benchmark_count;
        benchmark_index++) {
     const Instance& benchmark = binary_benchmarks[benchmark_index];
-
     if (benchmark.harness == nullptr) {
       continue;
     }
@@ -373,17 +376,18 @@ auto compute_section_layout(Count comparison_index, Count section_end)
     -> SectionLayout {
   SectionLayout layout = {};
   layout.label_column = 8;
-
   for (Count i = comparison_index; i < section_end; i++) {
     const Benchmark::Comparison& comparison = *comparisons[i].comparison;
     Count label_length = comparison.label.get_size();
     if (label_length > layout.label_column) {
       layout.label_column = label_length;
     }
+
     Count variant_count = count_variants(comparison);
     if (variant_count > layout.max_variant_count) {
       layout.max_variant_count = variant_count;
     }
+
     for (Count v = 0; v < variant_count; v++) {
       Count header_length = comparison.variants[v].header.get_size();
       Count column_width = header_length > 10 ? header_length : 10;
@@ -418,10 +422,12 @@ auto print_section_header(
         break;
       }
     }
+
     printf(
         "  %*.*s", (int)layout.variant_columns[v], (int)header.get_size(),
         Data::cast<char>(header.get_data()));
   }
+
   printf("  %10s  %10s  %7s%s\n", "C++", "Best", "Delta", clear_color);
 }
 
@@ -432,8 +438,7 @@ auto run_comparison_row(Count comparison_index, const SectionLayout& layout)
   Count variant_count = count_variants(comparison);
 
   Bits_64 cpp_time =
-      run_samples(*comparison.harness, comparison_instance.func)
-          .middle_avg_ns;
+      run_samples(*comparison.harness, comparison_instance.func).middle_avg_ns;
   print_view(dark_color, -(int)layout.label_column, comparison.label);
 
   Static::Vector<Bits_64, Benchmark::max_comparison_variants> variant_times;
@@ -453,6 +458,7 @@ auto run_comparison_row(Count comparison_index, const SectionLayout& layout)
         fastest_time = variant_time;
         fastest_variant = v;
       }
+
       if (variant_time > slowest_time) {
         slowest_time = variant_time;
       }
@@ -468,6 +474,7 @@ auto run_comparison_row(Count comparison_index, const SectionLayout& layout)
       } else if (variant_time == slowest_time) {
         color = slow_color;
       }
+
       print_time(color, (int)layout.variant_columns[v], variant_time);
     } else if (v < variant_count) {
       printf("  %*s", (int)layout.variant_columns[v], "---");
@@ -477,11 +484,11 @@ auto run_comparison_row(Count comparison_index, const SectionLayout& layout)
   }
 
   print_time(system_color, 10, cpp_time);
-
   if (fastest_time != Bits_64(-1)) {
-    Real_64 delta = (fastest_time > 0) ? Real_64(cpp_time - fastest_time) /
-                                             Real_64(fastest_time) * 100.0
-                                       : 0.0;
+    Real_64 delta = (fastest_time > 0)
+                        ? (Real_64(cpp_time) - Real_64(fastest_time)) /
+                              Real_64(fastest_time) * 100.0
+                        : 0.0;
     const char* delta_color = (delta >= 0.0) ? fast_color : slow_color;
     View::Bytes best_name = (cpp_time < fastest_time)
                                 ? "C++"_view
@@ -489,6 +496,7 @@ auto run_comparison_row(Count comparison_index, const SectionLayout& layout)
     print_view(delta_color, 10, best_name);
     printf("  %s%+7.1f%%%s", delta_color, delta, clear_color);
   }
+
   printf("\n");
 }
 
@@ -513,7 +521,6 @@ auto run_comparison_pass() -> void {
           compute_section_layout(comparison_index, section_end);
       print_section_header(
           *section_harness, comparison_index, section_end, layout);
-
       for (Count i = comparison_index; i < section_end; i++) {
         run_comparison_row(i, layout);
       }
@@ -529,6 +536,7 @@ int main(int argc, const char* argv[]) {
   if (argc > 1) {
     benchmark_filter = NullTerminated::to_view(argv[1]);
   }
+
   Layout layout = compute_layout();
   print_run_header(layout);
   run_benchmark_pass(layout);
