@@ -9,18 +9,24 @@
 #include "perimortem/memory/allocator/arena.hpp"
 #include "perimortem/memory/dynamic/bytes.hpp"
 #include "perimortem/memory/dynamic/vector.hpp"
+#include "perimortem/memory/managed/vector.hpp"
 
+#include "tetrodotoxin/archiver/terminal.hpp"
+#include "tetrodotoxin/compiler/engine.hpp"
+#include "tetrodotoxin/isa/lowering/context.hpp"
+#include "tetrodotoxin/isa/lowering/input.hpp"
 #include "tetrodotoxin/puffer/resolution/context.hpp"
 #include "tetrodotoxin/puffer/resolution/resolver.hpp"
 #include "tetrodotoxin/puffer/toolchain.hpp"
-#include "tetrodotoxin/terminal/plan.hpp"
 #include "ttx/lexical/errors.hpp"
 
 namespace Tetrodotoxin::Puffer {
 
-// Coordinates source resolution, terminal lowering, and package serialization.
-// Source records are transaction inputs; build returns every derived artifact
-// to the caller.
+// Owns one Puffer compilation transaction from source resolution through
+// lowering and package serialization. Resolver, Compiler::Engine, and the ISA
+// lowering context borrow or retain only the state needed for this transaction.
+// Build returns the derived host artifacts to the caller rather than caching a
+// second copy on the compiler.
 class Compiler {
  public:
   enum class Mode {
@@ -59,7 +65,10 @@ class Compiler {
   Tetrodotoxin::Isa::Registry isa_registry;
   Resolution::Resolver resolver;
   Resolution::Context resolution;
-  Tetrodotoxin::Terminal::Plan terminals;
+  Tetrodotoxin::Compiler::Engine engine;
+  Perimortem::Memory::Managed::Vector<Tetrodotoxin::Archiver::Terminal>
+      terminal_products;
+  Tetrodotoxin::Isa::Lowering::Context lowering;
   Perimortem::Memory::Dynamic::Vector<Record*> records;
   Record* package_root = nullptr;
   Mode mode;

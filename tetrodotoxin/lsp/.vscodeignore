@@ -4,4 +4,5 @@ out/*.map
 package-lock.json
 tsconfig.json
 tsconfig.tsbuildinfo
+ttx-lang-server
 *.vsix

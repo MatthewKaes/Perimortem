@@ -168,7 +168,7 @@ auto Render::VirtualMachine::evaluate(Cursor& cursor, Base::Context& context)
 }
 
 auto Render::VirtualMachine::lower(
-    Tetrodotoxin::Terminal::Context&,
-    const Tetrodotoxin::Terminal::Input&) -> Bool {
+    Tetrodotoxin::Isa::Lowering::Context&,
+    const Tetrodotoxin::Isa::Lowering::Input&) -> Bool {
   return True;
 }

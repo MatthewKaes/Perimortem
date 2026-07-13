@@ -8,12 +8,12 @@
 #include "tetrodotoxin/isa/base/context.hpp"
 #include "ttx/lexical/cursor.hpp"
 
-namespace Tetrodotoxin::Terminal {
+namespace Tetrodotoxin::Isa::Lowering {
 
 class Context;
-class Input;
+struct Input;
 
-}  // namespace Tetrodotoxin::Terminal
+}  // namespace Tetrodotoxin::Isa::Lowering
 
 namespace Tetrodotoxin::Isa {
 
@@ -27,8 +27,8 @@ class Dialect {
   using Evaluator = Ttx::Type* (*)(Ttx::Lexical::Cursor & cursor,
                                    Base::Context& context);
   using Lowerer = Bool (*)(
-      Tetrodotoxin::Terminal::Context& context,
-      const Tetrodotoxin::Terminal::Input& input);
+      Tetrodotoxin::Isa::Lowering::Context& context,
+      const Tetrodotoxin::Isa::Lowering::Input& input);
 
   Dialect() = default;
   Dialect(

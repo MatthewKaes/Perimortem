@@ -9,12 +9,12 @@
 #include "tetrodotoxin/isa/base/declaration.hpp"
 #include "ttx/lexical/cursor.hpp"
 
-namespace Tetrodotoxin::Terminal {
+namespace Tetrodotoxin::Isa::Lowering {
 
 class Context;
-class Input;
+struct Input;
 
-}  // namespace Tetrodotoxin::Terminal
+}  // namespace Tetrodotoxin::Isa::Lowering
 
 namespace Tetrodotoxin::Isa::Render {
 
@@ -29,8 +29,8 @@ class VirtualMachine {
       Ttx::Lexical::Cursor& cursor,
       Tetrodotoxin::Isa::Base::Context& context) -> Ttx::Type*;
   static auto lower(
-      Tetrodotoxin::Terminal::Context& context,
-      const Tetrodotoxin::Terminal::Input& input) -> Bool;
+      Tetrodotoxin::Isa::Lowering::Context& context,
+      const Tetrodotoxin::Isa::Lowering::Input& input) -> Bool;
 
   static constexpr auto get_name() -> Perimortem::Core::View::Bytes {
     return "Render"_view;

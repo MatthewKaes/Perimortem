@@ -26,6 +26,7 @@ done
 
 echo "==> Reading extension manifest..."
 PACKAGE_NAME="$(node -p "require('$SCRIPT_DIR/package.json').name")"
+PACKAGE_PUBLISHER="$(node -p "require('$SCRIPT_DIR/package.json').publisher")"
 PACKAGE_VERSION="$(node -p "require('$SCRIPT_DIR/package.json').version")"
 VSIX_NAME="${PACKAGE_NAME}-${PACKAGE_VERSION}.vsix"
 VSIX="$VSIX_DIR/$VSIX_NAME"
@@ -76,6 +77,7 @@ echo "==> Packaged: $VSIX"
 
 if [ "$INSTALL" -eq 1 ]; then
   echo "==> Installing extension into VS Code..."
-  code --install-extension "$VSIX"
+  code --uninstall-extension "$PACKAGE_PUBLISHER.$PACKAGE_NAME" || true
+  code --install-extension "$VSIX" --force
   echo "==> Done. Reload VS Code to activate the new version."
 fi

@@ -30,7 +30,7 @@ ISA-owned meaning
 - [`linkage.hpp`](linkage.hpp) joins canonical TTX functions to the symbols
   published by their producers.
 - [`backend.hpp`](backend.hpp) is the toolchain-selected lowering contract.
-- [`engine.hpp`](engine.hpp) is the front door shared by terminal lowerers.
+- [`engine.hpp`](engine.hpp) is the front door shared by ISA lowerers.
 
 The root contains coordination interfaces only. Adding another execution
 instruction belongs in `Execution`. Adding an x86-64 rule belongs in `Target`,

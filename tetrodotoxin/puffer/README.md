@@ -2,11 +2,11 @@
 
 Puffer is Tetrodotoxin's command-line compiler and language-server host. It
 loads complete TTX source files, evaluates their Boot preambles, resolves
-source and package imports, runs the selected body ISAs, and asks the terminal
-toolchain for durable products.
+source and package imports, runs the selected body ISAs, and invokes their
+installed lowerers to produce durable products.
 
 Puffer owns source orchestration. The reusable package reader and writer live
-in [`../package`](../package/) under `Tetrodotoxin::Archiver`; they do not
+in [`../archiver`](../archiver/) under `Tetrodotoxin::Archiver`; they do not
 depend on the Puffer CLI, resolver, or filesystem.
 
 ## Package compilation
@@ -16,8 +16,8 @@ source closure and registers dependency `.puffer` buffers supplied by the
 caller. Package imports are resolved by manifest name and version. They do not
 fall back to guessed source paths outside the current project roots.
 
-After evaluation, terminal production lowers every eligible record. The
-package builder then assembles:
+After evaluation, Puffer lowers every eligible record through the active ISA
+registry. The package builder then assembles:
 
 - a manifest containing package identity and authored import names
 - the resolved external packages needed by type references

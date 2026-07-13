@@ -7,11 +7,18 @@ Puffer Buffers that carry terminal source facts for Tetrodotoxin tooling.
 
 Usage in a BUILD file:
 
-    load("//toolchain:tetrodotoxin.bzl", "ttx_library")
+    load("//toolchain:tetrodotoxin.bzl", "ttx_library", "ttx_package_folder")
 
     ttx_library(
         name = "my_lib",
         srcs = ["png.ttx"],
+    )
+
+    ttx_package_folder(
+        name = "my_package",
+        root = "perimortem/graphics",
+        package_name = "Perimortem.Graphics",
+        deps = [":my_dependency"],
     )
 
 A generated header is automatically available to dependents:
@@ -37,25 +44,15 @@ load("@rules_cc//cc/common:cc_info.bzl", "CcInfo")
 
 TtxPackageInfo = provider(
     doc = (
-        "Transitive TTX source files and Puffer Buffers visible to Tetrodotoxin."
+        "Transitive package Puffer Buffers visible to Tetrodotoxin."
     ),
     fields = {
-        "source_files": (
-            "depset of .ttx source files used for package and raw-file " +
-            "loading."
-        ),
         "puffer_buffers": (
-            "depset of .puffer Puffer Buffer artifacts emitted for " +
-            "Tetrodotoxin tooling."
+            "depset of .puffer Puffer Buffer package interfaces emitted for " +
+            "Tetrodotoxin resolution."
         ),
     },
 )
-
-def _collect_ttx_source_files(deps):
-    return depset(transitive = [
-        dep[TtxPackageInfo].source_files
-        for dep in deps
-    ])
 
 def _collect_puffer_buffers(deps):
     return depset(transitive = [
@@ -64,12 +61,22 @@ def _collect_puffer_buffers(deps):
     ])
 
 def _ttx_compile_impl(ctx, package):
-    archive = ctx.actions.declare_file(ctx.attr.name + ".a")
-    header = ctx.actions.declare_file("ttx_generated/" + ctx.attr.name + ".hpp")
-    puffer_buffer = ctx.actions.declare_file(ctx.attr.name + ".puffer")
+    output_root = ""
+    if package:
+        output_root = ctx.attr.package_name + "/"
+
+    archive = ctx.actions.declare_file(output_root + ctx.attr.name + ".a")
+    header = ctx.actions.declare_file(
+        output_root + "ttx_generated/" + ctx.attr.name + ".hpp"
+    )
+    puffer_buffer = ctx.actions.declare_file(
+        output_root + ctx.attr.name + ".puffer"
+    )
     include_root = ctx.bin_dir.path
     if ctx.label.package:
         include_root = include_root + "/" + ctx.label.package
+    if package:
+        include_root = include_root + "/" + ctx.attr.package_name
 
     args = [
         "-package" if package else "-library",
@@ -77,10 +84,12 @@ def _ttx_compile_impl(ctx, package):
         "-header=%s" % header.path,
         "-puffer=%s" % puffer_buffer.path,
     ]
-    dependency_source_files = _collect_ttx_source_files(ctx.attr.deps)
+    if package:
+        args.append("-name=%s" % ctx.attr.package_name)
+
     dependency_puffer_buffers = _collect_puffer_buffers(ctx.attr.deps)
-    for dep_source in dependency_source_files.to_list():
-        args.append("-dep=%s" % dep_source.path)
+    for dep_buffer in dependency_puffer_buffers.to_list():
+        args.append("-dep=%s" % dep_buffer.path)
 
     for src in ctx.files.srcs:
         args.append("-source=%s" % src.path)
@@ -89,7 +98,7 @@ def _ttx_compile_impl(ctx, package):
     ctx.actions.run(
         inputs = depset(
             direct = ctx.files.srcs,
-            transitive = [dependency_source_files],
+            transitive = [dependency_puffer_buffers],
         ),
         outputs = [archive, header, puffer_buffer],
         executable = ctx.executable._compiler,
@@ -131,18 +140,18 @@ def _ttx_compile_impl(ctx, package):
         system_includes = depset([include_root]),
     )
 
+    package_buffers = []
+    if package:
+        package_buffers.append(puffer_buffer)
+
     return [
         CcInfo(
             compilation_context = compilation_context,
             linking_context = linking_context,
         ),
         TtxPackageInfo(
-            source_files = depset(
-                direct = ctx.files.srcs,
-                transitive = [dependency_source_files],
-            ),
             puffer_buffers = depset(
-                direct = [puffer_buffer],
+                direct = package_buffers,
                 transitive = [dependency_puffer_buffers],
             ),
         ),
@@ -166,7 +175,7 @@ ttx_library = rule(
         deps = attr.label_list(
             providers = [TtxPackageInfo],
             doc = (
-                "TTX package dependencies whose source manifests must be " +
+                "TTX package dependencies whose Puffer Buffers must be " +
                 "visible during package loading."
             ),
         ),
@@ -198,8 +207,15 @@ ttx_package = rule(
         deps = attr.label_list(
             providers = [TtxPackageInfo],
             doc = (
-                "Dependent TTX packages whose source manifests must be " +
+                "Dependent TTX packages whose Puffer Buffers must be " +
                 "visible while loading this module."
+            ),
+        ),
+        package_name = attr.string(
+            mandatory = True,
+            doc = (
+                "Resolved TTX package identity. Package terminals are emitted " +
+                "under this folder."
             ),
         ),
         _compiler = attr.label(
@@ -216,3 +232,18 @@ ttx_package = rule(
         "exports its manifest to dependent TTX targets."
     ),
 )
+
+def ttx_package_folder(name, root, package_name, deps = None, **kwargs):
+    """Compiles a TTX package folder rooted at a package.ttx file.
+
+    Bazel still sees the concrete .ttx files through native.glob, but BUILD
+    files can name the source package as the authored folder instead of
+    repeating every implementation file.
+    """
+    ttx_package(
+        name = name,
+        srcs = native.glob([root + "/**/*.ttx"]),
+        deps = deps or [],
+        package_name = package_name,
+        **kwargs
+    )

@@ -9,7 +9,6 @@
 #include "perimortem/system/path.hpp"
 
 #include "tetrodotoxin/puffer/package/builder.hpp"
-#include "tetrodotoxin/terminal/input.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -21,7 +20,9 @@ Puffer::Compiler::Compiler(Mode mode, View::Bytes package_name)
     : errors(arena),
       isa_registry(Toolchain::standard_registry()),
       resolver(isa_registry),
-      terminals(arena, errors, Toolchain::standard_backend()),
+      engine(errors, Toolchain::standard_backend()),
+      terminal_products(arena),
+      lowering(arena, errors, engine, terminal_products),
       mode(mode) {
   if (mode == Mode::Package) {
     resolver.set_package_name(package_name);
@@ -99,28 +100,39 @@ auto Puffer::Compiler::build(
   }
 
   for (Count i = 0; i < records.get_size(); i++) {
-    Terminal::Input input(
-        Ttx::Lexical::Source(
-            records[i]->get_source_path(), records[i]->get_content()),
-        records[i]->get_module(), records[i]->get_type(),
-        records[i]->get_implementation());
-    if (!terminals.lower(
-            records[i]->get_dialect(), input, mode == Mode::Package)) {
+    const Tetrodotoxin::Isa::Dialect& dialect = records[i]->get_dialect();
+    if (!dialect.can_lower() ||
+        (mode == Mode::Package && !dialect.can_lower_package())) {
+      continue;
+    }
+
+    const Tetrodotoxin::Isa::Lowering::Input input = {
+      .source = Ttx::Lexical::Source(
+          records[i]->get_source_path(), records[i]->get_content()),
+      .module = records[i]->get_module(),
+      .type = records[i]->get_type(),
+      .implementation = records[i]->get_implementation(),
+    };
+    if (!dialect.get_lowerer()(lowering, input)) {
       return False;
     }
   }
 
-  if (!terminals.build(object_name, archive, header)) {
+  archive = engine.build_archive(object_name);
+  if (archive.is_empty()) {
     return False;
   }
 
+  header = engine.build_header();
+  lowering.publish("linker"_view, "root.a"_view, archive);
+  lowering.publish("header"_view, "root.hpp"_view, header);
   if (mode == Mode::Library) {
     return True;
   }
 
   Package::Builder builder(arena, errors);
   puffer_buffer = builder.build(
-      resolver, *package_root, records, terminals.get_terminals());
+      resolver, *package_root, records, terminal_products.get_view());
   if (puffer_buffer.is_empty()) {
     return report(
         package_root->get_source_path(),

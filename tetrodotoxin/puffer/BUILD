@@ -141,8 +141,9 @@ cc_binary(
         "//perimortem:system",
         "//perimortem:utility",
         "//tetrodotoxin/archiver",
+        "//tetrodotoxin:compiler",
+        "//tetrodotoxin:isa",
         "//tetrodotoxin:linker",
-        "//tetrodotoxin:terminal",
         "//ttx",
     ],
 )

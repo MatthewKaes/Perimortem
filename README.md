@@ -1,106 +1,125 @@
 # Perimortem
 
-A high performance library and engine to serve as a collection of over optimized solutions to common
-game engine problems.
+Perimortem is a general-purpose runtime library for performance-sensitive
+applications and engines. It provides the low-level data, memory, system,
+serialization, compression, image, and rendering components needed to build a
+runtime without imposing an application language or scene model.
 
-## About
+The library is intentionally independent from Tetrodotoxin and TTX. This
+repository develops all three together, but their dependency direction is
+strict:
 
-Perimortem serves as a highly opinionated engine + toolchain with a focus performance from the ground
-up. This includes both runtime _AND_ build performance.
+```text
+Tetrodotoxin -> TTX -> Perimortem
+```
 
-My background is in Performance Engineering (embedded, Cloud, GPUs, FPGA / ISA design, ect.), and over
-my career I've grown a love for creating optimized solutions for target problems.
-Perimortem is my attempt at a from scratch collections of highly optimized E2E solutions to a number of
-problems in the game engine / app development space.
+The arrows point toward dependencies. Tetrodotoxin uses TTX as its semantic
+model, and both use Perimortem as runtime infrastructure. Perimortem does not
+know about TTX source, compiler artifacts, editor documents, or Tetrodotoxin
+application concepts. This allows the runtime to remain useful to ordinary C++
+programs and to other language frontends.
 
-The core engine includes it's own memory model and standard library, built from the ground up in C++26
-without leveraging STL headers to keep the build snappy.
-Perimortem can be integrated with projects that use the STL but cross support is ill advised for both
-build and runtime performance reasons.
+## Runtime design
 
-Currently the project targets x64_86 and Linux as it's primary optimization targets. Windows support will
-be brought on eventually, while ARM is less lower on the priority list.
+Perimortem separates portable domain data from operating-system integration
+and concrete rendering APIs.
 
-Tetrodotoxin contains the prototype of a self hosted compiler from the ground up that emits object files
-directly which are compatable with the clang and lld. ELF is the only supported target with support for
-DWARF for debugging planned. Codegen only emits x64_86 machine code.
+```text
+application or runtime composition
+|-- System
+`-- Vulkan -> Graphics
 
-### Third-party dependencies
+Graphics -> Compression
+Graphics -> Memory
+System   -> Memory
+Memory   -> Core
+```
 
-Perimortem aims to limit it's dependencies as much as possible and everything has been built black-box.
+`Core` owns the small data, view, algorithm, reader, writer, diagnostics, and
+threading primitives used throughout the runtime. `Memory` owns allocation and
+managed or dynamic storage. `Compression` and `Serialization` build format
+algorithms on those foundations without becoming general object models.
 
-Third-party dependencies are currently limited to:
-* `Bazel` (build system)
+`System` owns operating-system concerns such as files, arguments, random and
+identity services, input, windows, platform events, and application lifecycle.
+The current window implementation uses Wayland. A Windows implementation
+belongs behind the same System responsibility rather than inside Graphics or
+Vulkan.
 
-The toolchain is configured for `clang` as the main compiler.
+`Graphics` owns backend-independent concepts such as pixels, decoded images,
+and render descriptions. It does not own windows, devices, presentation,
+application lifecycle, or Vulkan objects. A C++ application and a compiled TTX
+application must be able to produce the same Graphics data.
 
-### How to build
+[`Graphics::Render`](perimortem/graphics/render/) is the boundary for pipeline
+descriptions. Its `Program` record borrows shader modules, host-input layouts,
+descriptor locations, and reflection data long enough for a backend to build
+its own program. It does not retain backend resources or per-draw values such
+as host-input bytes and vertex counts. This keeps pipeline description, backend
+lifetime, and command submission as separate responsibilities.
 
-To perform a full debug build simply run:
+`Vulkan` is a concrete rendering backend. It depends on Graphics and translates
+Graphics data into devices, surfaces, swapchains, pipelines, commands, and
+synchronization. The application-facing runtime coordinates native System
+window handles with the selected backend. Graphics never dispatches to Vulkan,
+and Vulkan never receives TTX or editor objects.
 
-> bazel clean
-> bazel build ...
+This dependency direction leaves room for another backend without creating a
+backend registry inside Graphics. The composition layer chooses the backend it
+actually uses.
 
-### How to Test
+## Building and validation
 
-You can run the standard unit tests with:
+Perimortem currently targets x86-64 Linux with Clang and Bazel. The windowed
+runtime requires Wayland, and the Vulkan backend requires a Vulkan loader and
+driver.
 
-> bazel run //validation:unit_tests
+Build the repository with:
 
-### List of dependencies
+```sh
+bazel build //...
+```
 
-To bootstrap for Arch linux simply run the following:
+Run the complete unit-test suite with:
 
-`pacman -S bazel clang llvm`
+```sh
+bazel run //validation:unit_tests --config=debug
+```
 
-For Windows and other distros you'll need to install `bazel` and `clang` via your dedicated package manager.
+The small C++ composition example at
+[`apps/perimortem/basic_window`](apps/perimortem/basic_window) creates a System
+window and a Vulkan renderer without involving TTX. It is the runtime-side
+reference path for bringing up the corresponding Tetrodotoxin application.
+Build and run it with:
 
-## Supported Editors
+```sh
+bazel run //apps/perimortem/basic_window
+```
 
-Perimortem has built in support for VSCode. To run OOTB you'll need the following extensions:
+## Tetrodotoxin tooling
 
-* `Bazel - The Bazel Team`
-* `C/C++ - Microsoft`
-* `CodeLLDB - Vadim Chugunov`
+Tetrodotoxin is the compiler and toolchain developed alongside Perimortem. Its
+language and compiler design are documented in
+[`tetrodotoxin/README.md`](tetrodotoxin/README.md), while the semantic data
+model is documented in [`ttx/README.md`](ttx/README.md).
 
-If you are running on Arch you will need the closed source version of VSCode in order to run the C++ extensions.
+The repository includes a VS Code extension backed by the Puffer language
+server. Build and install it with:
 
-### Tetrodotoxin Toolchain Support
+```sh
+./tetrodotoxin/lsp/package.sh --install
+```
 
-Perimortem supports Tetrodotoxin in VSCode via an LSP (Language Server Protocol) service.
+Package the extension without installing it by omitting `--install`. Editors
+that support LSP over a Unix-domain socket can run `puffer --pipe=<socket>`
+directly.
 
-To build the language server and install the VSCode extension in one step:
+## Project status
 
-> ./tetrodotoxin/lsp/package.sh --install
+Perimortem is an active research and development project rather than a
+production-supported runtime. Linux and Wayland are the current platform
+focus. Windows support and additional rendering backends are future work.
 
-Or to package without installing (e.g. for distribution):
-
-> ./tetrodotoxin/lsp/package.sh
-
-The script requires `npm` and `npx` in addition to Bazel and clang. On Arch:
-
-> pacman -S nodejs npm
-
-During development you can also attach the VSCode debugger directly using the launch config:
-
-> debug Launch TTX Client
-
-If you aren't using VSCode you can run `puffer --pipe=<socket>` with any editor that supports LSP over a Unix-domain socket. The server source lives in `tetrodotoxin/puffer/lsp`; `tetrodotoxin/lsp` is the VSCode extension.
-
-If you are looking for the Tetrodotoxin spec check out its dedicated [README](https://github.com/MatthewKaes/Perimortem/blob/main/tetrodotoxin/README.md).
-
-### OS Supported
-
-* Arch Linux (X and Wayland)
-
-Windows support is in the works.
-
-## Shout-outs
-
-If you are interested in performance engineering, go read [Agner Fog's](https://www.agner.org/optimize/) optimization manuals.
-
-## Disclaimer
-
-As this project and the code herewithin is currently not meant for production.
-
-I take no responsibility for any damage reading the source of this codebase may do to you, emotionally, mentally, physically, financially, or romantically.
+If you are interested in low-level performance engineering, Agner Fog's
+[optimization manuals](https://www.agner.org/optimize/) are an excellent
+reference.
