@@ -32,7 +32,9 @@ Perimortem aims to limit it's dependencies as much as possible and everything ha
 Third-party dependencies are currently limited to:
 * `Bazel` (build system)
 
-The toolchain is configured for `clang` as the main compiler.
+The project uses an in progress self hosted custom extensible toolchain + language platform called
+`Tetrodotoxin` using its own compiler `Puffer`, but also supports `clang` as the secondary toolchain
+for C++ interop support.
 
 ### How to build
 
@@ -57,7 +59,7 @@ For Windows and other distros you'll need to install `bazel` and `clang` via you
 
 ## Supported Editors
 
-Perimortem has built in support for VSCode. To run OOTB you'll need the following extensions:
+Perimortem has built in support for VSCode. To run "out of the box" the following extensions are suggested:
 
 * `Bazel - The Bazel Team`
 * `C/C++ - Microsoft`
@@ -85,7 +87,8 @@ During development you can also attach the VSCode debugger directly using the la
 
 > debug Launch TTX Client
 
-If you aren't using VSCode you can run `puffer --pipe=<socket>` with any editor that supports LSP over a Unix-domain socket. The server source lives in `tetrodotoxin/puffer/lsp`; `tetrodotoxin/lsp` is the VSCode extension.
+If you aren't using VSCode you can run `puffer --pipe=<socket>` with any editor that supports LSP over a Unix-domain socket. 
+The server source lives in `tetrodotoxin/puffer/lsp` with `tetrodotoxin/lsp` being the packaged `Puffer` VSCode extension.
 
 If you are looking for the Tetrodotoxin spec check out its dedicated [README](https://github.com/MatthewKaes/Perimortem/blob/main/tetrodotoxin/README.md).
 
