@@ -2,18 +2,16 @@
 // Copyright © Matt Kaes
 dialect : Package;
 
+import Math : Package = Perimortem.Math;
 import Types : Library = "library/types.ttx";
 import Renderer2D : Render = "renderers/renderer_2d.ttx";
 import Default2D : Shader = "shaders/default_2d.ttx";
-
-@package_name = Perimortem::Graphics;
 
 expose Color : alias = Types::Color;
 expose Image : alias = Types::Image;
 expose Point2D : alias = Types::Point2D;
 expose Render2D : alias = Renderer2D::Render2D;
-expose Window : alias = Types::Window;
-
+expose Size2D : alias = Math::Geometry::Size2D;
 expose Shaders : group {
   expose Default2D : alias = Default2D;
 }

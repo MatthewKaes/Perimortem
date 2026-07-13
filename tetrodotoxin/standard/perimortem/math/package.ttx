@@ -4,7 +4,10 @@ dialect : Package;
 
 import Types : Library = "library/types.ttx";
 
-@package_name = Perimortem::Math;
+expose Geometry : group {
+  expose Point2D : alias = Types::Point2D;
+  expose Size2D : alias = Types::Size2D;
+}
 
 expose Interpolation : group {
   expose Easing : alias = Types::Easing;

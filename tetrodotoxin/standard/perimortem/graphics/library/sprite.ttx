@@ -1,9 +1,0 @@
-// Perimortem Engine
-// Copyright © Matt Kaes
-dialect : Library;
-
-import Renderer2D : Render = "../renderers/renderer_2d.ttx";
-
-// Sprite is kept private as a compatibility spelling while app code moves to
-// the Render2D object directly.
-private Sprite : alias = Renderer2D::Render2D;
