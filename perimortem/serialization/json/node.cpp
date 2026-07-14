@@ -407,7 +407,7 @@ auto Json::Node::parse(
 
         // Try to parse the child and if it fails propagate errors up the stack
         // and terminate parsing since we got garbage.
-        Json::Node& child = arena.allocate<Json::Node>();
+        Json::Node& child = arena.construct<Json::Node>();
         position = child.parse(arena, source, position);
         if (position == Count(-1)) {
           set();
@@ -436,7 +436,7 @@ auto Json::Node::parse(
 
         // Try to parse the child and if it fails propagate errors up the stack
         // and terminate parsing since we got garbage.
-        Json::Node& child = arena.allocate<Json::Node>();
+        Json::Node& child = arena.construct<Json::Node>();
         position = child.parse(arena, source, position);
         if (position == Count(-1)) {
           set();

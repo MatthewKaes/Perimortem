@@ -53,7 +53,7 @@ class Vector {
 
   constexpr auto operator[](Count index) const -> const data_type& {
     if (index >= size) [[unlikely]] {
-      // Aligned storage with no constructor — safe to alias as data_type.
+      // Aligned storage has no constructor and is safe to alias as data_type.
       // We zero-init so callers reading an OOB entry get a defined value.
       alignas(alignof(data_type)) static const Bits_8 oob[sizeof(data_type)]{};
       return *Data::cast<const data_type>(oob);

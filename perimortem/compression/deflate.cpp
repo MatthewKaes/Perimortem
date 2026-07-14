@@ -730,7 +730,7 @@ constexpr auto collect_lz77_tokens(
     Static::Vector<Bits_32, deflate_literal_len_count>& literal_len_frequencies,
     Static::Vector<Bits_32, deflate_distance_count>& distance_frequencies)
     -> void {
-  // Matches at least this long are emitted immediately without looking ahead —
+  // Matches at least this long are emitted immediately without looking ahead.
   // the extra chain search is wasted work when the current match is already
   // good. Same heuristic as zlib level 6.
   constexpr Count lazy_match_threshold = 32;
@@ -767,7 +767,7 @@ constexpr auto collect_lz77_tokens(
       // Insert the last position of the match so the next block has a
       // distance-1 candidate. Without this, long matches skip intermediate
       // positions and the next block's nearest chain entry is match_length
-      // bytes back — costing extra bits on the distance code for every
+      // bytes back, which costs extra bits on the distance code for every
       // subsequent match in a run (e.g., gradient rows after Up filtering).
       const Count last_position = position + match.get_length() - 1;
       if (last_position + Compression::Lz77::min_match < source.get_size()) {

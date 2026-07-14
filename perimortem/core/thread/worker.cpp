@@ -17,7 +17,7 @@
 static_assert(
     sizeof(pthread_t) == sizeof(Bits_64) &&
         alignof(pthread_t) == sizeof(Bits_64),
-    "pthread_t layout differs from Bits_64 — update Thread::handle");
+    "pthread_t layout differs from Bits_64. Update Thread::handle");
 
 using namespace Perimortem::Core;
 

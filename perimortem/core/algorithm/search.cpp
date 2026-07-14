@@ -82,7 +82,7 @@ auto Algorithm::search(View::Bytes src, View::Bytes value) -> Count {
 
   // Scalar fallback using head/tail checking.
   for (; i < src.get_size() - tail_offset; i++) {
-    // Skip unless BOTH head and tail bytes match — any mismatch rules out this
+    // Skip unless both head and tail bytes match. Any mismatch rules out this
     // position without touching the middle bytes.
     if (src[i] != value[0] || src[i + tail_offset] != value[tail_offset]) {
       continue;

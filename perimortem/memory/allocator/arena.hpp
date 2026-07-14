@@ -7,18 +7,18 @@
 
 namespace Perimortem::Memory::Allocator {
 
-// Used for only allocating memory which all shares the same lifetime enabling
-// fast allocation / deallocation.
+// Allocates objects that share one lifetime, allowing fast allocation and
+// bulk deallocation.
 //
-// Arenas avoid the book marking overhead of preface blocks so they are vastly
-// more efficent if a large number of small objects need to be allocated rapidly
-// which all share an assosiated lifetime (such as json deserialization).
+// An arena avoids the bookkeeping overhead of an allocation header for every
+// object. This makes it useful when many small objects must be created quickly
+// and discarded together, such as a deserialized JSON document or one compiler
+// transaction.
 //
-// While constructors are called, deconstructors are never called for objects
-// allocated out of an arena as it's assume they all get removed together when
-// the arena's life time ends. Storing any Bibliotheca data in an arena will
-// result in a leak until thread exit unless `Bibliotheca::remit` is explictly
-// called on any rented data.
+// `construct()` begins an object's lifetime, but Arena does not call individual
+// destructors when it resets. Arena-owned objects must therefore release no
+// independently owned resources from their destructors. In particular, rented
+// Bibliotheca storage must be remitted before the arena is reset or destroyed.
 class Arena {
  public:
   // Attempt to request blocks in 32k pages including the preface and a previous
@@ -28,16 +28,18 @@ class Arena {
 
   Arena();
   ~Arena();
-  Arena(Arena& arena) = delete;
-  Arena(Arena&& arena) = delete;
+  Arena(const Arena&) = delete;
+  Arena(Arena&&) = delete;
+  auto operator=(const Arena&) -> Arena& = delete;
+  auto operator=(Arena&&) -> Arena& = delete;
 
   inline auto allocate(Count bytes_requested) -> Bits_8* {
     // Fetch a new page if we are full due to either running out of our current
     // page, or needing to allocate an object larger than our page size.
     //
-    // Arena's are meant to be quick and scrapy do they don't do any of the page
-    // demotion that the Bibliotheca performs. Long lived Arena's most likely
-    // will cause fragmentation issues so use them only for short lifetimes.
+    // An arena favors cheap allocation over page demotion. A long-lived arena
+    // can therefore retain an unusually large page after one large request.
+    // Use it for bounded transactions rather than an unbounded object cache.
     if (usage + bytes_requested > page_size) {
       fetch_page(bytes_requested);
     }
@@ -48,15 +50,22 @@ class Arena {
     return root;
   }
 
-  // Creates a basic value type object but does not construct it.
+  // Reserves storage for one object without beginning its lifetime.
+  //
+  // The returned pointer may be retained as the future object's stable address,
+  // but it must not be dereferenced until placement construction has completed.
+  // Recursive immutable graphs use this to establish address identity before
+  // constructing their edges. Ordinary objects should use construct().
   template <typename type>
-  auto allocate() -> type& {
-    return *Core::Data::cast<type>(allocate(sizeof(type)));
+  auto reserve() -> type* {
+    static_assert(alignof(type) <= arena_alignment);
+    return Core::Data::cast<type>(allocate(sizeof(type)));
   }
 
-  // Creates a basic value type object but does not construct it.
+  // Allocates and constructs one object whose lifetime is owned by the arena.
   template <typename type, typename... arg_types>
   auto construct(arg_types&&... args) -> type& {
+    static_assert(alignof(type) <= arena_alignment);
     Bits_8* ptr = allocate(sizeof(type));
     return *new (ptr) type(static_cast<arg_types&&>(args)...);
   }

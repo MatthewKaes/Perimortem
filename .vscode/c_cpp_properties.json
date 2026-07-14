@@ -4,7 +4,8 @@
             "name": "Linux (Editor)",
             "includePath": [
                 "${workspaceFolder}/**",
-                ".bin/Perimortem/external/bazel_tools/",
+                "${workspaceFolder}/.bin/bin",
+                ".bin/Perimortem/external/bazel_tools/"
             ],
             "defines": [
                 "PERI_DEBUG",
@@ -12,7 +13,7 @@
                 "PERI_EDITOR"
             ],
             "compilerArgs": [
-              "-mavx2"
+                "-mavx2"
             ],
             "compilerPath": "/usr/bin/clang",
             "cStandard": "c23",

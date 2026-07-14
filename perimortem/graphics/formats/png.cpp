@@ -736,7 +736,7 @@ constexpr auto process_data(
             filtered_rows.get_view(), info.get_width(), info.get_height(),
             bytes_per_pixel, pixels.get_access().get_bytes())) [[unlikely]] {
       Diagnostics::Log::error(
-          "Png: Filter reconstruction failed — decompressed data may be truncated"_view);
+          "Png: Filter reconstruction failed. Decompressed data may be truncated"_view);
       return Image();
     }
 
@@ -752,7 +752,7 @@ constexpr auto process_data(
           filtered_rows.get_view(), info.get_width(), info.get_height(),
           bytes_per_pixel, raw_pixels)) [[unlikely]] {
     Diagnostics::Log::error(
-        "Png: Filter reconstruction failed — decompressed data may be truncated"_view);
+        "Png: Filter reconstruction failed. Decompressed data may be truncated"_view);
     return Image();
   }
 

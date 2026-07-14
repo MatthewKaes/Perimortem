@@ -4,13 +4,9 @@
 #pragma once
 
 #include "perimortem/core/view/bytes.hpp"
+#include "perimortem/core/writer/textual.hpp"
 
 #include "perimortem/memory/allocator/arena.hpp"
-
-namespace Perimortem::Core::Writer {
-
-class Textual;
-}
 
 namespace Perimortem::Serialization {
 
