@@ -6,17 +6,17 @@
 #include "perimortem/core/view/bytes.hpp"
 #include "perimortem/core/view/vector.hpp"
 
+#include "perimortem/system/uuid.hpp"
+
 #include "tetrodotoxin/archiver/dependency.hpp"
-#include "tetrodotoxin/archiver/version.hpp"
 
 namespace Tetrodotoxin::Archiver {
 
 class Manifest {
  public:
-  Manifest() = default;
   Manifest(
       Perimortem::Core::View::Bytes name,
-      Version version,
+      Perimortem::System::Uuid version,
       Perimortem::Core::View::Vector<Dependency> imports)
       : name(name), version(version), imports(imports) {}
 
@@ -24,20 +24,18 @@ class Manifest {
     return name;
   }
 
-  constexpr auto get_version() const -> Version { return version; }
+  constexpr auto get_version() const -> Perimortem::System::Uuid {
+    return version;
+  }
 
   constexpr auto get_imports() const
       -> Perimortem::Core::View::Vector<Dependency> {
     return imports;
   }
 
-  constexpr auto is_valid() const -> Bool {
-    return version.is_set() && !name.is_empty();
-  }
-
  private:
   Perimortem::Core::View::Bytes name;
-  Version version;
+  Perimortem::System::Uuid version;
   Perimortem::Core::View::Vector<Dependency> imports;
 };
 

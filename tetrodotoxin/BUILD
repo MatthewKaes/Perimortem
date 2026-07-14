@@ -24,12 +24,15 @@ cc_library(
 
 cc_library(
     name = "isa",
-    srcs = glob([
-        "isa/**/*.cpp",
-    ], exclude = [
-        "isa/library/lowering.cpp",
-        "isa/shader/lowering.cpp",
-    ]),
+    srcs = glob(
+        [
+            "isa/**/*.cpp",
+        ],
+        exclude = [
+            "isa/library/lowering.cpp",
+            "isa/shader/lowering.cpp",
+        ],
+    ),
     hdrs = glob(["isa/**/*.hpp"]),
     includes = ["."],
     deps = [
@@ -39,6 +42,7 @@ cc_library(
         "//perimortem:memory",
         "//perimortem:serialization",
         "//perimortem:utility",
+        "//tetrodotoxin/abi:lowerings",
         "//tetrodotoxin/archiver",
         "//tetrodotoxin/standard:types",
         "//ttx",
@@ -53,9 +57,10 @@ alias(
 cc_library(
     name = "compiler",
     srcs = [
+        "compiler/allocation/registers.cpp",
+        "compiler/allocation/system_v.cpp",
         "compiler/assembler/spir_v.cpp",
         "compiler/assembler/x86_64.cpp",
-        "compiler/allocation/registers.cpp",
         "compiler/engine.cpp",
         "compiler/execution/builder.cpp",
         "compiler/execution/program.cpp",
@@ -65,6 +70,7 @@ cc_library(
     ],
     hdrs = [
         "compiler/allocation/registers.hpp",
+        "compiler/allocation/system_v.hpp",
         "compiler/assembler/spir_v.hpp",
         "compiler/assembler/x86_64.hpp",
         "compiler/backend.hpp",
@@ -94,6 +100,8 @@ cc_library(
         "//perimortem:memory",
         "//perimortem:serialization",
         "//perimortem:utility",
+        "//tetrodotoxin/abi",
+        "//tetrodotoxin/abi:lowerings",
         "//ttx",
     ],
 )

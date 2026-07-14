@@ -6,9 +6,9 @@
 #include "perimortem/core/view/bytes.hpp"
 #include "perimortem/core/view/vector.hpp"
 
+#include "tetrodotoxin/abi/linkage.hpp"
 #include "tetrodotoxin/archiver/manifest.hpp"
 #include "tetrodotoxin/archiver/terminal.hpp"
-#include "tetrodotoxin/compiler/linkage.hpp"
 #include "ttx/type.hpp"
 
 namespace Tetrodotoxin::Archiver {
@@ -18,7 +18,7 @@ namespace Tetrodotoxin::Archiver {
 // Resolution owns how source files become a type tree. Package owns how that
 // tree, function linkage, and terminal byte artifacts appear after a
 // Puffer Buffer is restored. Its Manifest is required package identity and
-// dependency data. Reference tables are restore inputs only and are not
+// dependency data. External packages are restore inputs only and are not
 // retained by Package.
 //
 // Package does not own an arena. Reader constructs it from caller-owned
@@ -30,8 +30,7 @@ class Package {
       const Ttx::Type& root_type,
       Perimortem::Core::View::Vector<const Ttx::Type*> types,
       Perimortem::Core::View::Vector<Terminal> terminals,
-      Perimortem::Core::View::Vector<Tetrodotoxin::Compiler::Linkage> linkages =
-          {})
+      Perimortem::Core::View::Vector<Tetrodotoxin::Abi::Linkage> linkages = {})
       : manifest(manifest),
         root_type(root_type),
         types(types),
@@ -53,10 +52,6 @@ class Package {
     return Perimortem::Core::View::Bytes();
   }
 
-  constexpr auto is_valid() const -> Bool {
-    return manifest.is_valid() && !root_type.is_invalid();
-  }
-
   constexpr auto get_type() const -> const Ttx::Type& { return root_type; }
   constexpr auto get_types() const
       -> Perimortem::Core::View::Vector<const Ttx::Type*> {
@@ -69,7 +64,7 @@ class Package {
   }
 
   constexpr auto get_linkages() const
-      -> Perimortem::Core::View::Vector<Tetrodotoxin::Compiler::Linkage> {
+      -> Perimortem::Core::View::Vector<Tetrodotoxin::Abi::Linkage> {
     return linkages;
   }
 
@@ -78,7 +73,7 @@ class Package {
   const Ttx::Type& root_type;
   Perimortem::Core::View::Vector<const Ttx::Type*> types;
   Perimortem::Core::View::Vector<Terminal> terminals;
-  Perimortem::Core::View::Vector<Tetrodotoxin::Compiler::Linkage> linkages;
+  Perimortem::Core::View::Vector<Tetrodotoxin::Abi::Linkage> linkages;
 };
 
 }  // namespace Tetrodotoxin::Archiver

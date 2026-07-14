@@ -7,18 +7,6 @@ load("@rules_cc//cc:cc_library.bzl", "cc_library")
 package(default_visibility = ["//visibility:public"])
 
 cc_library(
-    name = "version",
-    hdrs = [
-        "version.hpp",
-    ],
-    include_prefix = "tetrodotoxin/archiver",
-    strip_include_prefix = ".",
-    deps = [
-        "//perimortem:core",
-    ],
-)
-
-cc_library(
     name = "archiver",
     srcs = [
         "reader.cpp",
@@ -30,7 +18,6 @@ cc_library(
         "manifest.hpp",
         "package.hpp",
         "reader.hpp",
-        "reference.hpp",
         "terminal.hpp",
         "type/reference.hpp",
         "writer.hpp",
@@ -38,11 +25,11 @@ cc_library(
     include_prefix = "tetrodotoxin/archiver",
     strip_include_prefix = ".",
     deps = [
-        ":version",
         "//perimortem:core",
         "//perimortem:memory",
         "//perimortem:serialization",
-        "//tetrodotoxin:compiler",
+        "//perimortem:system",
+        "//tetrodotoxin/abi",
         "//tetrodotoxin/standard:types",
         "//ttx",
     ],

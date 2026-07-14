@@ -16,18 +16,19 @@
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
+using namespace Perimortem::System;
 using namespace Tetrodotoxin::Archiver;
 
-using PackageReader = Perimortem::Core::Reader::Binary<Data::ByteOrder::Little>;
+using BinaryReader = Perimortem::Core::Reader::Binary<Data::ByteOrder::Little>;
 
-class Restore {
+class PackageReader {
  public:
-  Restore(
+  PackageReader(
       Allocator::Arena& arena,
       View::Bytes source,
       View::Bytes linkages,
-      Manifest manifest,
-      View::Vector<Reference> references)
+      const Manifest& manifest,
+      View::Vector<const Package*> references)
       : arena(arena),
         manifest(manifest),
         references(references),
@@ -40,15 +41,23 @@ class Restore {
   static auto read_table(
       View::Bytes source,
       Format::Table table,
-      Version& archive_version) -> View::Bytes {
-    PackageReader reader(source);
-    if (source.get_size() < Format::data_offset ||
-        reader.read_bytes(Format::magic.get_size()) != Format::magic ||
-        reader.read_bits_32() != Format::format_version) {
+      Uuid& content_id) -> View::Bytes {
+    BinaryReader reader(source);
+    if (source.get_size() < Format::data_offset) {
       return View::Bytes();
     }
 
-    archive_version = Version(reader.read_bits_64(), reader.read_bits_64());
+    View::Bytes magic = reader.read_bytes(Format::magic.get_size());
+    if (magic != Format::magic) {
+      return View::Bytes();
+    }
+
+    Bits_32 format_version = reader.read_bits_32();
+    if (format_version != Format::format_version) {
+      return View::Bytes();
+    }
+
+    content_id = Uuid(reader.read_bits_64(), reader.read_bits_64());
 
     Static::Vector<Bits_64, Format::table_count> offsets;
     for (Count i = 0; i < Format::table_count; i++) {
@@ -76,10 +85,10 @@ class Restore {
   static auto read_manifest(
       Allocator::Arena& arena,
       View::Bytes source,
-      Version version) -> Manifest {
-    PackageReader reader(source);
+      Uuid version) -> const Manifest* {
+    BinaryReader reader(source);
     View::Bytes name = read_bytes(reader);
-    Version standard_version = read_version(reader);
+    Uuid standard_version = read_uuid(reader);
 
     Managed::Vector<Dependency> imports(arena);
     Count import_count = read_size(reader);
@@ -87,37 +96,49 @@ class Restore {
     for (Count i = 0; i < import_count; i++) {
       View::Bytes local_name = read_bytes(reader);
       View::Bytes source_name = read_bytes(reader);
-      imports.insert(Dependency(local_name, source_name, read_version(reader)));
+      Uuid import_version = read_uuid(reader);
+      if (local_name.is_empty() || source_name.is_empty() ||
+          !import_version.is_set()) {
+        return nullptr;
+      }
+
+      imports.insert(Dependency(local_name, source_name, import_version));
     }
 
-    if (standard_version != Tetrodotoxin::Standard::Types::get_version() ||
-        !version.is_set() || reader.get_location() != reader.get_size()) {
-      return Manifest();
+    Bool valid =
+        !name.is_empty() && version.is_set() &&
+        standard_version == Tetrodotoxin::Standard::Types::get_version() &&
+        reader.get_location() == reader.get_size();
+    if (!valid) {
+      return nullptr;
     }
 
-    return Manifest(name, version, imports);
+    return &arena.construct<Manifest>(name, version, imports.get_view());
   }
 
   static auto resolve_references(
       Allocator::Arena& arena,
       View::Bytes source,
-      View::Vector<Reference> available,
-      Managed::Vector<Reference>& resolved) -> Bool {
-    Managed::Map<View::Bytes, Reference> by_name(arena);
+      View::Vector<const Package*> available,
+      Managed::Vector<const Package*>& resolved) -> Bool {
+    Managed::Map<View::Bytes, const Package*> by_name(arena);
     for (Count i = 0; i < available.get_size(); i++) {
-      if (available[i].is_valid()) {
-        by_name.insert(available[i].get_source_name(), available[i]);
+      if (available[i] == nullptr) {
+        return False;
       }
+
+      by_name.insert(available[i]->get_manifest().get_name(), available[i]);
     }
 
-    PackageReader reader(source);
+    BinaryReader reader(source);
     Count reference_count = read_size(reader);
     resolved.reset(reference_count);
     for (Count i = 0; i < reference_count; i++) {
       View::Bytes name = read_bytes(reader);
-      Version version = read_version(reader);
+      Uuid version = read_uuid(reader);
       const auto* match = by_name.find(name);
-      if (match == nullptr || match->value.get_version() != version) {
+      if (match == nullptr ||
+          match->value->get_manifest().get_version() != version) {
         return False;
       }
 
@@ -128,10 +149,6 @@ class Restore {
   }
 
   auto read() -> Package* {
-    if (!manifest.is_valid()) {
-      return nullptr;
-    }
-
     Count root_id = read_size(reader);
     Count type_count = read_size(reader);
     local_types.reset(type_count);
@@ -139,17 +156,27 @@ class Restore {
     // reading the type bodies so aliases and members can point forward without
     // losing TTX address identity.
     for (Count i = 0; i < type_count; i++) {
-      local_types.insert(&arena.allocate<Ttx::Type>());
+      local_types.insert(arena.reserve<Ttx::Type>());
     }
 
     for (Count i = 0; i < local_types.get_size(); i++) {
-      if (!restore_type(*local_types[i], local_types)) {
+      Bool restored = restore_type(local_types[i], local_types);
+      if (!restored) {
         return nullptr;
       }
     }
 
-    if (reader.get_location() == Count(-1) || root_id >= type_count ||
-        !read_terminals() || !read_linkages()) {
+    if (reader.get_location() == Count(-1) || root_id >= type_count) {
+      return nullptr;
+    }
+
+    Bool read_terminal_table = read_terminals();
+    if (!read_terminal_table) {
+      return nullptr;
+    }
+
+    Bool read_linkage_table = read_linkages();
+    if (!read_linkage_table) {
       return nullptr;
     }
 
@@ -174,7 +201,7 @@ class Restore {
   }
 
  private:
-  static auto read_size(PackageReader& reader) -> Count {
+  static auto read_size(BinaryReader& reader) -> Count {
     Count value = 0;
     Count shift = 0;
     while (shift < sizeof(Count) * 8) {
@@ -195,17 +222,17 @@ class Restore {
     return Count();
   }
 
-  static auto read_bytes(PackageReader& reader) -> View::Bytes {
+  static auto read_bytes(BinaryReader& reader) -> View::Bytes {
     return reader.read_bytes(read_size(reader));
   }
 
-  static auto read_version(PackageReader& reader) -> Version {
+  static auto read_uuid(BinaryReader& reader) -> Uuid {
     Bits_64 high = reader.read_bits_64();
     Bits_64 low = reader.read_bits_64();
-    return Version(high, low);
+    return Uuid(high, low);
   }
 
-  auto read_ref(PackageReader& source, View::Vector<Ttx::Type*> local_types)
+  auto read_ref(BinaryReader& source, View::Vector<Ttx::Type*> local_types)
       -> const Ttx::Type* {
     auto kind = Type::Reference::Kind(source.read_bits_8());
     switch (kind) {
@@ -228,12 +255,8 @@ class Restore {
         return nullptr;
       }
 
-      const Reference& reference = references[reference_id];
-      if (!reference.is_valid()) {
-        return nullptr;
-      }
-
-      View::Vector<const Ttx::Type*> types = reference.get_types();
+      const Package& package = *references[reference_id];
+      View::Vector<const Ttx::Type*> types = package.get_types();
       return type_id < types.get_size() ? types[type_id] : nullptr;
     }
     }
@@ -252,12 +275,78 @@ class Restore {
     return Ttx::Documentation(lines);
   }
 
-  auto read_attributes(Managed::Vector<Ttx::Attribute>& attributes) -> void {
+  auto read_attribute(Managed::Vector<Ttx::Attribute>& attributes) -> Bool {
+    View::Bytes key = read_bytes(reader);
+    auto kind = Ttx::Attribute::Kind(reader.read_bits_8());
+    if (reader.get_location() == Count(-1)) {
+      return False;
+    }
+
+    switch (kind) {
+    case Ttx::Attribute::Kind::Empty:
+      attributes.insert(Ttx::Attribute(key));
+      return True;
+    case Ttx::Attribute::Kind::Bytes: {
+      View::Bytes value = read_bytes(reader);
+      if (reader.get_location() == Count(-1)) {
+        return False;
+      }
+
+      attributes.insert(Ttx::Attribute(key, value));
+      return True;
+    }
+    case Ttx::Attribute::Kind::Unsigned: {
+      Bits_64 value = reader.read_bits_64();
+      if (reader.get_location() == Count(-1)) {
+        return False;
+      }
+
+      attributes.insert(Ttx::Attribute(key, value));
+      return True;
+    }
+    case Ttx::Attribute::Kind::Signed: {
+      Signed_64 value = reader.read_signed_bits_64();
+      if (reader.get_location() == Count(-1)) {
+        return False;
+      }
+
+      attributes.insert(Ttx::Attribute(key, value));
+      return True;
+    }
+    case Ttx::Attribute::Kind::Real: {
+      Real_64 value = reader.read_real_64();
+      if (reader.get_location() == Count(-1)) {
+        return False;
+      }
+
+      attributes.insert(Ttx::Attribute(key, value));
+      return True;
+    }
+    case Ttx::Attribute::Kind::Boolean: {
+      Bits_8 value = reader.read_bits_8();
+      if (reader.get_location() == Count(-1) || value > 1) {
+        return False;
+      }
+
+      attributes.insert(Ttx::Attribute(key, Bool(value != 0)));
+      return True;
+    }
+    }
+
+    return False;
+  }
+
+  auto read_attributes(Managed::Vector<Ttx::Attribute>& attributes) -> Bool {
     Count attribute_count = read_size(reader);
     attributes.reset(attribute_count);
     for (Count i = 0; i < attribute_count; i++) {
-      attributes.insert(Ttx::Attribute(read_bytes(reader), read_bytes(reader)));
+      Bool read = read_attribute(attributes);
+      if (!read) {
+        return False;
+      }
     }
+
+    return True;
   }
 
   auto read_members(
@@ -271,14 +360,14 @@ class Restore {
       Bool defaulted = reader.read_bits_8() != 0;
       Ttx::Documentation documentation = read_documentation();
       Managed::Vector<Ttx::Attribute> attributes(arena);
-      read_attributes(attributes);
-      if (type == nullptr) {
+      Bool read_member_attributes = read_attributes(attributes);
+      if (!read_member_attributes || type == nullptr) {
         return False;
       }
 
       members.insert(
           Ttx::Member(
-              name, *type, defaulted, documentation, attributes.get_view()));
+              name, type, defaulted, documentation, attributes.get_view()));
     }
 
     return True;
@@ -311,8 +400,13 @@ class Restore {
       Ttx::Documentation documentation = read_documentation();
       Managed::Vector<Ttx::Member> parameters(arena);
       Managed::Vector<Ttx::Member> results(arena);
-      if (!read_members(parameters, local_types) ||
-          !read_members(results, local_types)) {
+      Bool read_parameters = read_members(parameters, local_types);
+      if (!read_parameters) {
+        return False;
+      }
+
+      Bool read_results = read_members(results, local_types);
+      if (!read_results) {
         return False;
       }
 
@@ -336,104 +430,157 @@ class Restore {
     return reader.get_location() == reader.get_size();
   }
 
-  auto read_linkages() -> Bool {
+  auto read_function_linkages(
+      const Ttx::Type& owner,
+      View::Vector<Ttx::Function> functions) -> Bool {
     Count linkage_count = read_size(linkage_reader);
-    linkages.reset(linkage_count);
     for (Count i = 0; i < linkage_count; i++) {
-      const Ttx::Type* owner = read_ref(linkage_reader, local_types.get_view());
       Count function = read_size(linkage_reader);
       View::Bytes symbol = read_bytes(linkage_reader);
-      if (owner == nullptr || function >= owner->get_functions().get_size() ||
-          symbol.is_empty()) {
+      if (function >= functions.get_size() || symbol.is_empty()) {
         return False;
       }
 
       linkages.insert(
-          Tetrodotoxin::Compiler::Linkage(
-              *owner, owner->get_functions()[function], symbol));
+          Tetrodotoxin::Abi::Linkage(owner, functions[function], symbol));
+    }
+
+    return True;
+  }
+
+  auto read_linkages() -> Bool {
+    Count owner_count = read_size(linkage_reader);
+    for (Count i = 0; i < owner_count; i++) {
+      const Ttx::Type* owner = read_ref(linkage_reader, local_types.get_view());
+      if (owner == nullptr) {
+        return False;
+      }
+
+      Bool read_type =
+          read_function_linkages(*owner, owner->get_type_functions());
+      if (!read_type) {
+        return False;
+      }
+
+      Bool read_addressable =
+          read_function_linkages(*owner, owner->get_addressable_functions());
+      if (!read_addressable) {
+        return False;
+      }
     }
 
     return linkage_reader.get_location() == linkage_reader.get_size();
   }
 
-  auto restore_type(Ttx::Type& type, View::Vector<Ttx::Type*> local_types)
+  auto restore_type(Ttx::Type* type, View::Vector<Ttx::Type*> local_types)
       -> Bool {
     View::Bytes name = read_bytes(reader);
     Ttx::Documentation documentation = read_documentation();
 
     Managed::Vector<Ttx::Attribute> attributes(arena);
-    read_attributes(attributes);
+    Bool read_type_attributes = read_attributes(attributes);
+    if (!read_type_attributes) {
+      return False;
+    }
 
     const Ttx::Type* alias_parent = read_ref(reader, local_types);
 
     Managed::Vector<Ttx::Member> members(arena);
     Managed::Vector<const Ttx::Type*> nested(arena);
-    Managed::Vector<Ttx::Function> functions(arena);
-    if (!read_members(members, local_types) ||
-        !read_nested(nested, local_types) ||
-        !read_functions(functions, local_types)) {
+    Managed::Vector<Ttx::Function> type_functions(arena);
+    Managed::Vector<Ttx::Function> addressable_functions(arena);
+    Bool read_type_members = read_members(members, local_types);
+    if (!read_type_members) {
       return False;
     }
 
+    Bool read_nested_types = read_nested(nested, local_types);
+    if (!read_nested_types) {
+      return False;
+    }
+
+    Bool read_type_functions = read_functions(type_functions, local_types);
+    if (!read_type_functions) {
+      return False;
+    }
+
+    Bool read_addressable_functions =
+        read_functions(addressable_functions, local_types);
+    if (!read_addressable_functions) {
+      return False;
+    }
+
+    for (Count i = 0; i < addressable_functions.get_size(); i++) {
+      Ttx::Layout parameters = addressable_functions[i].get_parameters();
+      if (parameters.is_empty() || !parameters.member_at(0).references(type)) {
+        return False;
+      }
+    }
+
     if (alias_parent != nullptr) {
-      new (&type) Ttx::Type(
-          Ttx::Type::alias(name, *alias_parent, documentation, attributes));
+      new (type) Ttx::Type(
+          Ttx::Type::alias(name, alias_parent, documentation, attributes));
       return True;
     }
 
-    new (&type)
-        Ttx::Type(name, members, nested, functions, documentation, attributes);
+    new (type) Ttx::Type(
+        name, members, nested, type_functions, addressable_functions,
+        documentation, attributes);
     return True;
   }
 
   Allocator::Arena& arena;
   Manifest manifest;
-  View::Vector<Reference> references;
-  PackageReader reader;
-  PackageReader linkage_reader;
+  View::Vector<const Package*> references;
+  BinaryReader reader;
+  BinaryReader linkage_reader;
   Managed::Vector<Ttx::Type*> local_types;
   Managed::Vector<Terminal> terminals;
-  Managed::Vector<Tetrodotoxin::Compiler::Linkage> linkages;
+  Managed::Vector<Tetrodotoxin::Abi::Linkage> linkages;
 };
 
 auto Tetrodotoxin::Archiver::Reader::read_manifest(
-    Allocator::Arena& arena) const -> Manifest {
-  Version version;
+    Allocator::Arena& arena) const -> const Manifest* {
+  Uuid version;
   View::Bytes manifest_table =
-      Restore::read_table(source, Format::Table::Manifest, version);
-  return Restore::read_manifest(arena, manifest_table, version);
+      PackageReader::read_table(source, Format::Table::Manifest, version);
+  return PackageReader::read_manifest(arena, manifest_table, version);
 }
 
 auto Tetrodotoxin::Archiver::Reader::read_package(
     Allocator::Arena& arena,
-    Manifest manifest,
-    View::Vector<Reference> references) const -> Package* {
-  Version reference_version;
-  View::Bytes reference_table =
-      Restore::read_table(source, Format::Table::References, reference_version);
-  Managed::Vector<Reference> resolved_references(arena);
-  if (reference_version != manifest.get_version() ||
-      !Restore::resolve_references(
-          arena, reference_table, references, resolved_references)) {
+    const Manifest& manifest,
+    View::Vector<const Package*> references) const -> Package* {
+  Uuid reference_version;
+  View::Bytes reference_table = PackageReader::read_table(
+      source, Format::Table::References, reference_version);
+  Managed::Vector<const Package*> resolved_references(arena);
+  if (reference_version != manifest.get_version()) {
     return nullptr;
   }
 
-  Version package_version;
-  View::Bytes package_table =
-      Restore::read_table(source, Format::Table::Package, package_version);
+  Bool resolved = PackageReader::resolve_references(
+      arena, reference_table, references, resolved_references);
+  if (!resolved) {
+    return nullptr;
+  }
+
+  Uuid package_version;
+  View::Bytes package_table = PackageReader::read_table(
+      source, Format::Table::Package, package_version);
   if (package_version != manifest.get_version()) {
     return nullptr;
   }
 
-  Version linkage_version;
-  View::Bytes linkage_table =
-      Restore::read_table(source, Format::Table::Linkages, linkage_version);
+  Uuid linkage_version;
+  View::Bytes linkage_table = PackageReader::read_table(
+      source, Format::Table::Linkages, linkage_version);
   if (linkage_version != manifest.get_version()) {
     return nullptr;
   }
 
-  return Restore(
-             arena, package_table, linkage_table, manifest,
-             resolved_references.get_view())
-      .read();
+  PackageReader reader(
+      arena, package_table, linkage_table, manifest,
+      resolved_references.get_view());
+  return reader.read();
 }

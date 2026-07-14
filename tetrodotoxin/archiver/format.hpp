@@ -23,9 +23,9 @@ class Format {
   };
 
   static constexpr auto magic = "TTXP"_view;
-  static constexpr Bits_32 format_version = 10;
-  static constexpr Count version_offset = magic.get_size() + sizeof(Bits_32);
-  static constexpr Count header_size = version_offset + sizeof(Bits_64) * 2;
+  static constexpr Bits_32 format_version = 13;
+  static constexpr Count content_id_offset = magic.get_size() + sizeof(Bits_32);
+  static constexpr Count header_size = content_id_offset + sizeof(Bits_64) * 2;
   static constexpr Count table_count = Count(Table::End);
   static constexpr Count directory_size = table_count * sizeof(Bits_64);
   static constexpr Count data_offset = header_size + directory_size;

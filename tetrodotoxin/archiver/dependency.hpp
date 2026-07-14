@@ -5,7 +5,7 @@
 
 #include "perimortem/core/view/bytes.hpp"
 
-#include "tetrodotoxin/archiver/version.hpp"
+#include "perimortem/system/uuid.hpp"
 
 namespace Tetrodotoxin::Archiver {
 
@@ -16,15 +16,11 @@ namespace Tetrodotoxin::Archiver {
 // compact type-ref restore table by walking these imports recursively.
 class Dependency {
  public:
-  Dependency() = default;
   constexpr Dependency(
       Perimortem::Core::View::Bytes local_name,
-      Perimortem::Core::View::Bytes source_name =
-          Perimortem::Core::View::Bytes(),
-      Version version = Version())
-      : local_name(local_name),
-        source_name(source_name.is_empty() ? local_name : source_name),
-        version(version) {}
+      Perimortem::Core::View::Bytes source_name,
+      Perimortem::System::Uuid version)
+      : local_name(local_name), source_name(source_name), version(version) {}
 
   constexpr auto operator==(const Dependency& rhs) const -> Bool {
     return version == rhs.version && local_name == rhs.local_name &&
@@ -43,17 +39,14 @@ class Dependency {
     return source_name;
   }
 
-  constexpr auto get_version() const -> Version { return version; }
-
-  constexpr auto is_valid() const -> Bool {
-    return !local_name.is_empty() && !source_name.is_empty() &&
-           version.is_set();
+  constexpr auto get_version() const -> Perimortem::System::Uuid {
+    return version;
   }
 
  private:
   Perimortem::Core::View::Bytes local_name;
   Perimortem::Core::View::Bytes source_name;
-  Version version;
+  Perimortem::System::Uuid version;
 };
 
 }  // namespace Tetrodotoxin::Archiver
