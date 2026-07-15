@@ -8,8 +8,9 @@ graph, packaging, ISA dispatch, and backend entry points.
 
 The design goal is simplicity: lower source text into a compact token stream,
 let a host execute that stream with the active instruction set, and publish
-queryable TTX facts as more context becomes available. Types, callables,
-layouts, routes, and ISA-specific contracts remain separate facts in one graph.
+queryable TTX facts as more context becomes available. Abstract identities,
+types, callables, layouts, and ISA-specific contracts remain separate facts in
+one graph.
 
 ## Pipeline
 
@@ -98,9 +99,9 @@ the source.
 
 ## ISAs
 
-An ISA is an installed semantic instruction set with a name, registered schema
-Route, and behavior. Its registry entry is its local identity inside the active
-toolchain configuration; its address is never durable identity.
+An ISA is an installed semantic instruction set with a name and behavior. Its
+host-owned installation is local configuration; durable semantic identity comes
+from the named Abstract facts the ISA publishes, never from a process address.
 
 That matters because ISAs are open. Adding `Shader`, `Render`, or a
 project-specific authoring space means installing an ISA evaluator into the
@@ -118,14 +119,14 @@ ISA-owned enrichments over the same TTX token bytecode.
 
 ## Abstracts, types, callables, and layouts
 
-Every evaluated semantic object implements `Abstract`. Registered subclasses
-publish the operations that make the object useful:
+Every evaluated semantic object implements `Abstract`. Derived contracts publish
+the operations that make the object useful:
 
 ```text
 Abstract
+├── Alias
 ├── Invalid
 ├── Type
-│   ├── Alias
 │   ├── Generic
 │   └── ISA-defined types
 ├── Callable
@@ -134,40 +135,36 @@ Abstract
 └── Address
 ```
 
-`Abstract` owns named identity, its ClassDB class, and contract-filtered child
-queries. `Type` adds canonicalization and concrete Layout. `Alias` preserves its
-own name and route while canonicalizing through another Type. `Generic` creates
-or finds a concrete compiler-owned Type. `Callable` adds complete parameter and
-result Layouts plus an Address query. Free calls have no receiver. Self calls
-include the receiver as parameter zero. Address describes a local, external,
+`Abstract` owns only local naming, identity resolution, and context resolution
+over borrowed `View::Bytes`. `Alias` is the closed named redirect to another
+Abstract. `Invalid` is the closed stateless absorbing failure. `Type` adds a
+concrete Layout and Type-owned query surfaces. `Generic` creates or finds a
+concrete compiler-owned Type. `Callable` adds complete parameter and result
+Layouts plus an Address query. Free calls have no receiver. Self calls include
+the receiver as parameter zero. Address describes a local, external,
 interpreted, runtime, or explicitly unresolved invocation endpoint.
 
 Type is not the universal semantic base, and there is no vague `Typed` marker.
-A tool asks directly for Type children, Callable children, or Self callables.
-Lower compiler layers can accept Type without knowing whether it is an Alias,
-Generic, or ISA-specific subtype.
+A consumer resolves Abstract identity, proves the contract it needs, and then
+uses that narrower interface. Contexts own their lookup representation and may
+interpret a route atomically, slice it, or redirect it unchanged. No central
+class database, stored Route, or resolution-state object participates.
 
-ClassDB supplies this hierarchy without C++ RTTI. Its durable class identity is
-a readable, versioned schema route. Native C++ objects and foreign-language
-objects use the same ancestry and operation descriptions; foreign objects cross
-the ABI as opaque handles and callbacks rather than C++ vtables.
+The same ordered query chain from the same Abstract is deterministic until the
+DAG changes. Differently partitioned routes need not be equivalent. Public
+names walk an explicitly selected named ownership chain reversibly and never
+use a signature hash.
 
-A successful query returns both an Abstract reference and the Route walked to
-reach it. This matters because one object can be visible through several aliases
-or imports. Canonicalizing a Type does not erase the authored route used for
-diagnostics, documentation, or publication. Public names encode a selected
-route reversibly and never use a signature hash.
+Failure produces `Invalid : Abstract`, not a null semantic pointer. Invalid is
+stateless and absorbing; the source-owning query retains the failed route and
+diagnostic cause. Empty scopes use empty views; unresolved callable linkage uses
+an explicit unresolved Address or Invalid.
 
-Failure produces `Invalid : Abstract`, not a null semantic pointer. Invalid
-retains the failed route and diagnostic cause. Empty scopes use empty views;
-unresolved callable linkage uses an explicit unresolved Address or Invalid.
-
-A Layout is recursive shape and storage:
+A Layout is recursive target-independent shape:
 
 - fluid or concrete kind
 - field order and optional field names
-- child Types and concrete offsets
-- size and alignment for concrete storage
+- child Types
 - pack fitting rules
 
 Types admitted to value positions project to concrete Layouts, while Layouts do
@@ -177,10 +174,10 @@ be recursively deconstructed by terminal lowering. A target then asks terminal
 Type contracts how empty-layout leaves are represented. An authored `@abi`
 number is not a substitute for this query.
 
-Documentation is not canonicalized with aliases. An Alias can carry its own
-documentation while `canonicalize()` reaches the root Type. Tools can present
-the authored Resolution route, the canonical route, or a stacked documentation
-view without inventing a `display_name` identity.
+Documentation is separate from identity resolution. The declaration that
+introduces an Alias may own contextual documentation, while the resolved target
+keeps its own prose. Alias itself owns neither documentation nor a
+`display_name` identity substitute.
 
 Type parameterization proves that the resolved Type implements Generic, resolves
 the arguments, and asks it for a concrete Type. `View[Bits_8]`,
@@ -193,9 +190,8 @@ layout, or other receiving boundary can provide names for fitting and later
 access. Repack operations such as grouping, swizzle, and slice produce
 positional layouts unless the operator explicitly authors or preserves names.
 This keeps temporary expression shape from accidentally inheriting names through
-composition. Duplicate names are still representable because layouts can be
-merged or generated by ISAs. Source and package diagnostics can report that
-only the leftmost duplicate is reachable by name.
+composition. Duplicate non-empty names are rejected by the source, package,
+generated-data, or ISA owner before it publishes a semantic Layout.
 
 Layout fitting uses `source.fits(target)`. Exact structural equality uses
 `equivalent_to`. Defaulted members are only valid as a trailing suffix. A target
@@ -257,8 +253,8 @@ rather than a second bracket meaning. Value indexing uses `:[...]`.
 ```
 
 `::` is Type access after an Abstract has been bound into the current scope. It
-performs one `resolve<Type>()` route step. It does not degrade to Layout, and it
-is not string concatenation.
+performs a context query and proves the resulting Type contract. It does not
+degrade to Layout, and it is not string concatenation.
 
 ```ttx
 Perimortem.Graphics
@@ -268,7 +264,7 @@ Render2D::Renderer2D
 ```
 
 `->` is Callable dispatch. A Type or package receiver resolves Free; an
-addressable value resolves Self through its canonical Type. It requires a
+addressable value resolves Self through its resolved Type. It requires a
 dispatchable identity and does not work on a pure Layout.
 
 ```ttx
@@ -343,20 +339,21 @@ hands them back under names like `Graphics`, `Types`, or `Render2D`.
 
 Failures are reported where the owning query has enough information to answer.
 
-An empty lookup produces an Invalid object carrying a missing-name diagnostic.
+An empty lookup produces Invalid while the owning query retains the missing-name
+diagnostic.
 
 A pack that cannot fit a target layout becomes a layout-mismatch diagnostic.
 
-A call receiver with no Type or dispatchable identity produces Invalid with a
-call-dispatch diagnostic.
+A call receiver with no Type or dispatchable identity produces Invalid while
+the call owner reports the dispatch diagnostic.
 
 An imported file with a different ISA than the import requested becomes an
 ISA-mismatch diagnostic at the import.
 
-The model stays small because each concept reports its own failures and Invalid
-preserves the first cause. There is no need for a separate layer whose job is to
-rediscover what packages, ISAs, Types, Layouts, eventual ABI providers, or
-backends already know.
+The model stays small because each owner reports its own failure and returns the
+same absorbing Invalid. There is no need for a separate layer whose job is to
+rediscover what packages, ISAs, Types, Layouts, ABI providers, or backends
+already know.
 
 ## Repository map
 
@@ -364,13 +361,14 @@ The TTX directory is the language core:
 
 - [`lexical`](lexical/) lowers source text into stable token bytecode
 - [`documentation.hpp`](documentation.hpp) models source-authored
-  documentation attached to language objects
+  documentation owned beside semantic objects by declarations and contexts
 - [`abstract.hpp`](abstract.hpp) is the root semantic query contract
-- Type, Alias, Generic, Callable, Free, Self, and Invalid extend Abstract with
-  up-castable operations registered through ClassDB
+- Alias and Invalid are closed Abstract concepts; Type, Generic, Callable, Free,
+  Self, Address, and ISA-specific contracts extend the graph with narrow
+  operations
 - [`layout.hpp`](layout.hpp) and [`layout.cpp`](layout.cpp) model shape,
   fitting, exact equivalence, named member access, and type-to-layout views
-- [`core/prelude.hpp`](core/prelude.hpp) provides the top-level prelude types
+- host prelude contexts provide the top-level scalar, vector, and memory Types
   available to ordinary source contexts
 
 Tetrodotoxin is the surrounding toolchain:

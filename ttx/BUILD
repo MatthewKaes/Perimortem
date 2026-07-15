@@ -31,6 +31,18 @@ cc_library(
 )
 
 cc_library(
+    name = "abstract",
+    hdrs = [
+        "abstract.hpp",
+        "alias.hpp",
+        "invalid.hpp",
+    ],
+    deps = [
+        "//perimortem:core",
+    ],
+)
+
+cc_library(
     name = "model",
     srcs = [
         "layout.cpp",
@@ -55,6 +67,7 @@ cc_library(
 cc_library(
     name = "ttx",
     deps = [
+        ":abstract",
         ":lexical",
         ":model",
         "//perimortem:core",

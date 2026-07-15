@@ -8,31 +8,27 @@
 
 namespace Ttx {
 
-// Documentation is a core part of the TTX spec and is part of the type system.
+// Documentation is a core TTX source and tooling fact. It is not part of
+// Abstract identity, Type identity, Layout equivalence, or Layout fitting.
 //
-// In a typical language multiple tools need to decide how to handle comments
-// and documentation across tools. Having documentation be a first class citizen
-// in TTX instead of just a source code concept unlocks a lot of nice to have
-// features for tooling:
+// Keeping documentation as a first-class value lets source-owning declarations
+// and contexts publish prose without pushing presentation into semantic
+// contracts:
 //
 // * TTX packages can require a document comment natively.
 // * Dialects can easily attach a common documentation format if desired.
-// * Type resoltuion can propagate documentation, such as through aliases.
 // * Formatting doesn't need to special case documentation.
 //
-// Documentation is intentionally not canonicalized since the context it's
-// defined in is as much part of the documentation as the text itself. Graphic's
-// canonical Sprite type can document the actual graphics object. An alias such
-// as HudSprite can document the UI specific promises that matter when the same
-// Sprite type is used. A member can document the color format for `.tint` on a
-// containing type, and a function can document the behavior promised by one
-// callable entry.
+// Documentation is intentionally separate from identity resolution because the
+// source context is part of the prose. A declaration that introduces HudSprite
+// may document why it redirects to Sprite, while Sprite keeps its own
+// documentation. Closed Alias owns neither value. A member can document the
+// color format for `.tint`, and a callable declaration can document its local
+// promise.
 //
-// While this layering is required to be representable in the TTX data model
-// tools can perform whatever projections they wish with it. They can show alias
-// documentation directly, ignore it and show the canonical type documentation,
-// or stack both so the alias amends the canonical prose with details from the
-// aliased context.
+// Tools may show source-context prose, resolved-target prose, or a stacked
+// presentation while walking a query. That presentation remains outside Alias
+// and does not alter semantic identity.
 class Documentation {
  public:
   constexpr Documentation() = default;

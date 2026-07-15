@@ -64,6 +64,20 @@ ttx_library(
 )
 
 cc_binary(
+    name = "ttx_abstract_tests",
+    srcs = [
+        "unit_test.cpp",
+        "unit_tests/ttx/abstract.cpp",
+    ],
+    includes = ["."],
+    deps = [
+        ":test_headers",
+        "//perimortem",
+        "//ttx:abstract",
+    ],
+)
+
+cc_binary(
     name = "unit_tests",
     srcs = glob([
         "unit_tests/perimortem/**/*.cpp",

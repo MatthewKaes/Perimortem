@@ -1,0 +1,44 @@
+// Perimortem Engine
+// Copyright © Matt Kaes
+
+#pragma once
+
+#include "ttx/abstract.hpp"
+
+namespace Ttx {
+
+// Alias is the closed named-redirection concept in the TTX graph. It is not a
+// Type, owner, container, documentation record, or resolution result. A source
+// declaration may attach those facts beside an Alias, but Alias itself only
+// preserves the local name and borrows its target.
+//
+// `get_name()` returns the local alias name. `resolve()` follows the target to
+// its represented identity. `resolve_context(route)` first resolves that target
+// and then gives it the complete borrowed route, so the target owns all
+// parsing, indexing, slicing, and further redirection.
+//
+// The graph owner must keep the target alive and reject alias cycles before the
+// Alias becomes queryable. Alias should gain no additional concepts unless the
+// fundamental Abstract contract changes and every Alias must reflect it.
+class Alias final : public Abstract {
+ public:
+  Alias(Perimortem::Core::View::Bytes name, const Abstract& target)
+      : name(name), target(target) {}
+
+  constexpr auto get_name() const -> Perimortem::Core::View::Bytes override {
+    return name;
+  }
+
+  auto resolve() const -> const Abstract& override { return target.resolve(); }
+
+  auto resolve_context(Perimortem::Core::View::Bytes route) const
+      -> const Abstract& override {
+    return target.resolve().resolve_context(route);
+  }
+
+ private:
+  Perimortem::Core::View::Bytes name;
+  const Abstract& target;
+};
+
+}  // namespace Ttx
