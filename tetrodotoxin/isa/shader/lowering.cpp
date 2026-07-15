@@ -12,12 +12,14 @@ auto Isa::Shader::VirtualMachine::lower(
     Isa::Lowering::Context& context,
     const Isa::Lowering::Input& input) -> Bool {
   Isa::Shader::Compiler compiler;
-  if (!compiler.lower(
-          context.get_arena(), context.get_errors(), input.source, input.module,
-          input.type, input.implementation)) {
+  Bool lowered = compiler.lower(
+      context.get_arena(), context.get_errors(), input.source, input.module,
+      input.type, input.implementation);
+  if (!lowered) {
     return False;
   }
 
-  return context.publish_read_only(
+  Bool published = context.publish_read_only(
       compiler.get_read_only(), compiler.get_stages());
+  return published;
 }

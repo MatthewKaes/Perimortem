@@ -9,12 +9,11 @@
 
 #include "tetrodotoxin/isa/base/context.hpp"
 #include "tetrodotoxin/isa/base/declaration.hpp"
+#include "tetrodotoxin/isa/render/stage_result.hpp"
 #include "ttx/lexical/cursor.hpp"
 #include "ttx/type.hpp"
 
 namespace Tetrodotoxin::Isa::Render {
-
-class StageResult;
 
 // Stage owns render stage declarations and the shader-visible reads each stage
 // exposes from Render fact blocks.
@@ -24,7 +23,8 @@ class Stage {
       Ttx::Lexical::Cursor& cursor,
       Tetrodotoxin::Isa::Base::Context& context,
       const Tetrodotoxin::Isa::Base::Declaration& definition,
-      Perimortem::Core::View::Vector<const Ttx::Type*> facts) -> StageResult;
+      Perimortem::Core::View::Vector<Ttx::Type::Reference> facts)
+      -> StageResult;
   static auto insert(
       Ttx::Lexical::Cursor& cursor,
       Perimortem::Memory::Managed::Vector<Ttx::Function>& functions,
@@ -34,7 +34,7 @@ class Stage {
   static auto consume_reads(
       Ttx::Lexical::Cursor& cursor,
       Tetrodotoxin::Isa::Base::Context& context,
-      Perimortem::Core::View::Vector<const Ttx::Type*> facts,
+      Perimortem::Core::View::Vector<Ttx::Type::Reference> facts,
       Perimortem::Memory::Managed::Vector<Ttx::Member>& constants,
       Perimortem::Memory::Managed::Vector<Ttx::Member>& pushes,
       Perimortem::Memory::Managed::Vector<Ttx::Member>& resources) -> Bool;
@@ -44,7 +44,7 @@ class Stage {
       Perimortem::Memory::Managed::Vector<Ttx::Member>& constants,
       Perimortem::Memory::Managed::Vector<Ttx::Member>& pushes,
       Perimortem::Memory::Managed::Vector<Ttx::Member>& resources)
-      -> const Ttx::Type*;
+      -> const Ttx::Type&;
 };
 
 }  // namespace Tetrodotoxin::Isa::Render

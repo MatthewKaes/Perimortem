@@ -7,16 +7,21 @@
 #include "perimortem/core/hash.hpp"
 
 #include "perimortem/memory/allocator/arena.hpp"
+#include "perimortem/memory/dynamic/map.hpp"
+#include "perimortem/memory/dynamic/set.hpp"
 #include "perimortem/memory/dynamic/vector.hpp"
 #include "perimortem/memory/managed/bytes.hpp"
 
+#include "tetrodotoxin/abi/type.hpp"
 #include "tetrodotoxin/compiler/allocation/registers.hpp"
+#include "tetrodotoxin/compiler/allocation/system_v.hpp"
 #include "tetrodotoxin/compiler/assembler/x86_64.hpp"
 #include "tetrodotoxin/compiler/execution/binary.hpp"
 #include "tetrodotoxin/compiler/execution/body.hpp"
 #include "tetrodotoxin/compiler/execution/call.hpp"
 #include "tetrodotoxin/compiler/execution/operand.hpp"
 #include "tetrodotoxin/compiler/execution/return.hpp"
+#include "tetrodotoxin/compiler/target/cpp.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -24,36 +29,22 @@ using namespace Perimortem::Utility;
 using namespace Tetrodotoxin;
 using namespace Tetrodotoxin::Compiler;
 
-struct GeneratedFunction {
-  View::Bytes name;
-  Range range;
-};
-
-struct GeneratedString {
-  View::Bytes name;
-  View::Bytes value;
-  Range range;
-};
-
-struct ExternalSymbol {
-  View::Bytes name;
-};
-
-struct Relocation {
-  enum class Target : Bits_8 {
-    String,
-    External,
-  };
-
-  Target target;
-  Count target_index;
-  Count code_offset;
-};
-
+// Lowers one immutable execution program into a native object transaction.
+//
+// Each function receives deterministic first-fit register allocation before
+// its operations are emitted. Constants and external names are interned while
+// instructions are written, but symbols and relocations are published only
+// after every function succeeds. A failed function therefore leaves no partial
+// object in the linker.
+//
+// The transaction keeps generated code and publication records in memory. This
+// is simpler than patching linker state during instruction emission and fits
+// the small programs produced today. Ordered vectors define publication order,
+// while maps provide direct lookup for interning and export projection.
 class SystemVLowerer {
  public:
   SystemVLowerer(
-      const Execution::Program& program,
+      const Program& program,
       Ttx::Lexical::Errors& errors,
       Linker::Linker& linker)
       : program(program), errors(errors), linker(linker) {}
@@ -61,6 +52,32 @@ class SystemVLowerer {
   auto build() -> Bool;
 
  private:
+  struct GeneratedFunction {
+    View::Bytes name;
+    Range range;
+  };
+
+  struct GeneratedString {
+    View::Bytes name;
+    View::Bytes value;
+    Range range;
+  };
+
+  struct ExternalSymbol {
+    View::Bytes name;
+  };
+
+  struct Relocation {
+    enum class Target : Bits_8 {
+      String,
+      External,
+    };
+
+    Target target;
+    Count target_index;
+    Count code_offset;
+  };
+
   auto lower_function(const Execution::Function& function) -> Bool;
   auto lower_binary(
       const Execution::Function& function,
@@ -92,21 +109,18 @@ class SystemVLowerer {
   auto local_string_name(View::Bytes value) -> View::Bytes;
   auto append_hex(Managed::Bytes& output, Bits_64 value) -> void;
 
-  static auto is_view_bytes(const Ttx::Type& type) -> Bool;
-  static auto is_integer(const Ttx::Type& type) -> Bool;
-  static auto is_signed(const Ttx::Type& type) -> Bool;
-  static auto is_real(const Ttx::Type& type) -> Bool;
-  static auto register_width(const Ttx::Type& type) -> Count;
-
   Allocator::Arena arena;
-  const Execution::Program& program;
+  const Program& program;
   Ttx::Lexical::Errors& errors;
   Linker::Linker& linker;
   Dynamic::Bytes machine_code;
   Dynamic::Bytes string_data;
   Dynamic::Vector<GeneratedFunction> functions;
+  Dynamic::Map<View::Bytes, Count> function_indices;
   Dynamic::Vector<GeneratedString> strings;
+  Dynamic::Map<View::Bytes, Count> string_indices;
   Dynamic::Vector<ExternalSymbol> externals;
+  Dynamic::Map<View::Bytes, Count> external_indices;
   Dynamic::Vector<Relocation> relocations;
 };
 
@@ -151,18 +165,21 @@ static constexpr Static::Vector<Assembler::x86_64::Xmm, 2> real_results = {{
   Assembler::x86_64::Xmm::XMM1,
 }};
 
-auto Target::SystemV::lower(
-    const Execution::Program& program,
-    Ttx::Lexical::Errors& errors,
-    Linker::Linker& linker) -> Bool {
-  SystemVLowerer compiler(program, errors, linker);
-  return compiler.build();
+auto Target::SystemV::backend() -> Backend {
+  return Backend(
+      [](const Program& program, Ttx::Lexical::Errors& errors,
+         Linker::Linker& linker) -> Bool {
+        SystemVLowerer compiler(program, errors, linker);
+        return compiler.build();
+      },
+      Target::Cpp::build_header);
 }
 
 auto SystemVLowerer::build() -> Bool {
   View::Vector<Execution::Function> source_functions = program.get_functions();
   for (Count i = 0; i < source_functions.get_size(); i++) {
-    if (!lower_function(source_functions[i])) {
+    Bool lowered = lower_function(source_functions[i]);
+    if (!lowered) {
       return False;
     }
   }
@@ -178,7 +195,7 @@ auto SystemVLowerer::lower_function(const Execution::Function& function)
   View::Vector<Execution::Binding> bindings = body.get_bindings();
   Dynamic::Vector<Count> widths;
   for (Count i = 0; i < bindings.get_size(); i++) {
-    Count width = register_width(bindings[i].get_type());
+    Count width = Allocation::SystemV::get_width(bindings[i].get_type());
     if (width == 0) {
       return report(
           function,
@@ -190,7 +207,6 @@ auto SystemVLowerer::lower_function(const Execution::Function& function)
 
   Allocation::Registers allocation(
       body, widths.get_view(), allocation_registers.get_size());
-
   Count used_registers = 0;
   for (Count i = 0; i < bindings.get_size(); i++) {
     Count color = allocation.get_color(i);
@@ -222,26 +238,20 @@ auto SystemVLowerer::lower_function(const Execution::Function& function)
 
   View::Vector<Ttx::Member> parameters =
       signature.get_parameters().get_members();
-  Count integer_index = 0;
-  Count real_index = 0;
-  Count stack_index = 0;
+  Allocation::SystemV convention(parameters);
   for (Count i = 0; i < parameters.get_size(); i++) {
-    const Ttx::Type& type = parameters[i].get_type();
-    Count width = register_width(type);
-    Bool stack = is_real(type)
-                     ? real_index + width > real_arguments.get_size()
-                     : integer_index + width > integer_arguments.get_size();
+    Count width = Allocation::SystemV::get_width(parameters[i].get_type());
     for (Count k = 0; k < width; k++) {
+      Allocation::SystemV::Location location = convention.get(i, k);
       Assembler::x86_64::Reg source = Assembler::x86_64::Reg::R11;
-      if (stack) {
+      if (location.bank == Allocation::SystemV::Bank::Stack) {
         Signed_32 offset =
-            Signed_32(frame_size + used_registers * 8 + 8 + stack_index * 8);
+            Signed_32(frame_size + used_registers * 8 + 8 + location.index * 8);
         assembler.mov(Assembler::x86_64::Reg::RSP, offset, source);
-        stack_index++;
-      } else if (is_real(type)) {
-        assembler.mov_bits(real_arguments[real_index++], source);
+      } else if (location.bank == Allocation::SystemV::Bank::Real) {
+        assembler.mov_bits(real_arguments[location.index], source);
       } else {
-        source = integer_arguments[integer_index++];
+        source = integer_arguments[location.index];
       }
 
       Count color = allocation.get_color(i, k);
@@ -293,6 +303,7 @@ auto SystemVLowerer::lower_function(const Execution::Function& function)
   }
 
   assembler.ret();
+  function_indices.insert(function.get_symbol(), functions.get_size());
   functions.insert({
     function.get_symbol(),
     {function_start, machine_code.get_size() - function_start},
@@ -309,9 +320,21 @@ auto SystemVLowerer::lower_binary(
   const Count binding = binary.get_result().get_id();
   Count color = allocation.get_color(binding);
   Count spill = allocation.get_spill(binding);
-  if (!is_integer(type) || (color == Count(-1) && spill == Count(-1))) {
+  Abi::Lowering lowering =
+      Abi::Lowering(type.resolve_attribute("abi"_view).get_unsigned());
+  switch (lowering) {
+  case Abi::Lowering::Bool:
+  case Abi::Lowering::Integer:
+  case Abi::Lowering::Signed:
+    break;
+
+  default:
     return report(
         function, "System V binary operation requires an integer value."_view);
+  }
+
+  if (color == Count(-1) && spill == Count(-1)) {
+    return report(function, "System V binary result has no location."_view);
   }
 
   Assembler::x86_64 assembler(machine_code);
@@ -319,12 +342,18 @@ auto SystemVLowerer::lower_binary(
                                            ? allocation_registers[color]
                                            : Assembler::x86_64::Reg::R10;
   if (binary.get_operator() == Execution::Binary::Operator::Equal) {
-    if (!materialize(
-            body, allocation, type, binary.get_left(), 0,
-            Assembler::x86_64::Reg::RAX) ||
-        !materialize(
-            body, allocation, type, binary.get_right(), 0,
-            Assembler::x86_64::Reg::R11)) {
+    Bool materialized_left = materialize(
+        body, allocation, type, binary.get_left(), 0,
+        Assembler::x86_64::Reg::RAX);
+    if (!materialized_left) {
+      return report(
+          function, "System V could not materialize comparison operands."_view);
+    }
+
+    Bool materialized_right = materialize(
+        body, allocation, type, binary.get_right(), 0,
+        Assembler::x86_64::Reg::R11);
+    if (!materialized_right) {
       return report(
           function, "System V could not materialize comparison operands."_view);
     }
@@ -340,24 +369,32 @@ auto SystemVLowerer::lower_binary(
     return True;
   }
 
-  if (!materialize(body, allocation, type, binary.get_left(), 0, destination)) {
+  Bool materialized_left =
+      materialize(body, allocation, type, binary.get_left(), 0, destination);
+  if (!materialized_left) {
     return report(
         function, "System V could not materialize a binary operand."_view);
   }
 
   if (binary.get_operator() == Execution::Binary::Operator::Divide ||
       binary.get_operator() == Execution::Binary::Operator::Remainder) {
-    if (!materialize(
-            body, allocation, type, binary.get_left(), 0,
-            Assembler::x86_64::Reg::RAX) ||
-        !materialize(
-            body, allocation, type, binary.get_right(), 0,
-            Assembler::x86_64::Reg::R11)) {
+    Bool materialized_dividend = materialize(
+        body, allocation, type, binary.get_left(), 0,
+        Assembler::x86_64::Reg::RAX);
+    if (!materialized_dividend) {
       return report(
           function, "System V could not materialize division operands."_view);
     }
 
-    if (is_signed(type)) {
+    Bool materialized_divisor = materialize(
+        body, allocation, type, binary.get_right(), 0,
+        Assembler::x86_64::Reg::R11);
+    if (!materialized_divisor) {
+      return report(
+          function, "System V could not materialize division operands."_view);
+    }
+
+    if (lowering == Abi::Lowering::Signed) {
       assembler.signed_divide(Assembler::x86_64::Reg::R11);
     } else {
       assembler.divide(Assembler::x86_64::Reg::R11);
@@ -376,9 +413,10 @@ auto SystemVLowerer::lower_binary(
     return True;
   }
 
-  if (!materialize(
-          body, allocation, type, binary.get_right(), 0,
-          Assembler::x86_64::Reg::R11)) {
+  Bool materialized_right = materialize(
+      body, allocation, type, binary.get_right(), 0,
+      Assembler::x86_64::Reg::R11);
+  if (!materialized_right) {
     return report(
         function, "System V could not materialize a binary operand."_view);
   }
@@ -421,36 +459,29 @@ auto SystemVLowerer::lower_call(
   }
 
   Assembler::x86_64 assembler(machine_code);
-  Dynamic::Vector<Bool> stack_arguments;
-  Count integer_index = 0;
-  Count real_index = 0;
-  Count stack_components = 0;
+  Allocation::SystemV convention(parameters);
   for (Count i = 0; i < argument_range.size; i++) {
     const Execution::Operand& operand = operands[argument_range.start + i];
     const Ttx::Type& type = parameters[i].get_type();
-    Count width = register_width(type);
-    Bool stack = is_real(type)
-                     ? real_index + width > real_arguments.get_size()
-                     : integer_index + width > integer_arguments.get_size();
-    stack_arguments.insert(stack);
-    if (stack) {
-      stack_components += width;
+    Count width = Allocation::SystemV::get_width(type);
+    if (convention.get(i, 0).bank == Allocation::SystemV::Bank::Stack) {
       continue;
     }
 
     for (Count k = 0; k < width; k++) {
-      Bool lowered = False;
-      if (is_real(type)) {
+      Allocation::SystemV::Location location = convention.get(i, k);
+      Bool lowered;
+      if (location.bank == Allocation::SystemV::Bank::Real) {
         lowered = materialize(
             body, allocation, type, operand, k, Assembler::x86_64::Reg::R11);
         if (lowered) {
           assembler.mov_bits(
-              Assembler::x86_64::Reg::R11, real_arguments[real_index++]);
+              Assembler::x86_64::Reg::R11, real_arguments[location.index]);
         }
       } else {
         lowered = materialize(
             body, allocation, type, operand, k,
-            integer_arguments[integer_index++]);
+            integer_arguments[location.index]);
       }
 
       if (!lowered) {
@@ -461,6 +492,7 @@ auto SystemVLowerer::lower_call(
     }
   }
 
+  const Count stack_components = convention.get_stack_count();
   const Bool padded = (stack_components & 1) != 0;
   if (padded) {
     assembler.sub(Bits_32(8), Assembler::x86_64::Reg::RSP);
@@ -468,17 +500,18 @@ auto SystemVLowerer::lower_call(
 
   Count stack_shift = padded ? 1 : 0;
   for (Count i = argument_range.size; i > 0; i--) {
-    if (!stack_arguments[i - 1]) {
+    if (convention.get(i - 1, 0).bank != Allocation::SystemV::Bank::Stack) {
       continue;
     }
 
     const Execution::Operand& operand = operands[argument_range.start + i - 1];
     const Ttx::Type& type = parameters[i - 1].get_type();
-    Count width = register_width(type);
+    Count width = Allocation::SystemV::get_width(type);
     for (Count k = width; k > 0; k--) {
-      if (!materialize(
-              body, allocation, type, operand, k - 1,
-              Assembler::x86_64::Reg::R11, stack_shift)) {
+      Bool lowered = materialize(
+          body, allocation, type, operand, k - 1, Assembler::x86_64::Reg::R11,
+          stack_shift);
+      if (!lowered) {
         return report(
             function,
             "The x86-64 System V backend could not lower a call argument."_view);
@@ -489,7 +522,8 @@ auto SystemVLowerer::lower_call(
     }
   }
 
-  const Count target = external_index(call.get_symbol());
+  const Count target =
+      external_index(program.resolve_symbol(call.get_symbol()));
   assembler.call();
   relocations.insert({
     Relocation::Target::External,
@@ -506,7 +540,8 @@ auto SystemVLowerer::lower_call(
       call.get_signature().get_result().get_members();
   Count result_components = 0;
   for (Count i = 0; i < result_members.get_size(); i++) {
-    result_components += register_width(result_members[i].get_type());
+    result_components +=
+        Allocation::SystemV::get_width(result_members[i].get_type());
   }
 
   if (results.size != result_members.get_size() || result_components > 2) {
@@ -515,14 +550,16 @@ auto SystemVLowerer::lower_call(
         "The x86-64 System V backend supports two register results."_view);
   }
 
-  integer_index = 0;
-  real_index = 0;
+  Count integer_index = 0;
+  Count real_index = 0;
   for (Count i = 0; i < result_members.get_size(); i++) {
     const Ttx::Type& type = result_members[i].get_type();
-    Count width = register_width(type);
+    Count width = Allocation::SystemV::get_width(type);
+    Abi::Lowering lowering =
+        Abi::Lowering(type.resolve_attribute("abi"_view).get_unsigned());
     for (Count k = 0; k < width; k++) {
       Assembler::x86_64::Reg source;
-      if (is_real(type)) {
+      if (lowering == Abi::Lowering::Real) {
         source = Assembler::x86_64::Reg::R11;
         assembler.mov_bits(real_results[real_index++], source);
       } else {
@@ -557,6 +594,8 @@ auto SystemVLowerer::materialize(
     Assembler::x86_64::Reg destination,
     Count stack_shift) -> Bool {
   Assembler::x86_64 assembler(machine_code);
+  Abi::Lowering lowering =
+      Abi::Lowering(type.resolve_attribute("abi"_view).get_unsigned());
   const Execution::Addressable* addressable =
       operand.find<Execution::Addressable>();
   if (addressable != nullptr) {
@@ -583,7 +622,7 @@ auto SystemVLowerer::materialize(
   }
 
   if (const View::Bytes* bytes = constant->find<View::Bytes>()) {
-    if (!is_view_bytes(type) || component > 1) {
+    if (lowering != Abi::Lowering::ViewBytes || component > 1) {
       return False;
     }
 
@@ -607,7 +646,8 @@ auto SystemVLowerer::materialize(
   }
 
   if (const Bits_64* integer = constant->find<Bits_64>()) {
-    if (!is_integer(type)) {
+    if (lowering != Abi::Lowering::Bool && lowering != Abi::Lowering::Integer &&
+        lowering != Abi::Lowering::Signed) {
       return False;
     }
 
@@ -616,7 +656,8 @@ auto SystemVLowerer::materialize(
   }
 
   if (const Signed_64* integer = constant->find<Signed_64>()) {
-    if (!is_integer(type)) {
+    if (lowering != Abi::Lowering::Bool && lowering != Abi::Lowering::Integer &&
+        lowering != Abi::Lowering::Signed) {
       return False;
     }
 
@@ -627,7 +668,7 @@ auto SystemVLowerer::materialize(
   }
 
   if (const Real_64* real = constant->find<Real_64>()) {
-    if (!is_real(type)) {
+    if (lowering != Abi::Lowering::Real) {
       return False;
     }
 
@@ -638,7 +679,7 @@ auto SystemVLowerer::materialize(
   }
 
   const Bool* flag = constant->find<Bool>();
-  if (flag == nullptr || !is_integer(type)) {
+  if (flag == nullptr || lowering != Abi::Lowering::Bool) {
     return False;
   }
 
@@ -660,7 +701,7 @@ auto SystemVLowerer::lower_return(
 
   Count components = 0;
   for (Count i = 0; i < members.get_size(); i++) {
-    components += register_width(members[i].get_type());
+    components += Allocation::SystemV::get_width(members[i].get_type());
   }
 
   if (components > 2) {
@@ -676,21 +717,26 @@ auto SystemVLowerer::lower_return(
   for (Count i = 0; i < members.get_size(); i++) {
     const Ttx::Type& type = members[i].get_type();
     const Execution::Operand& operand = operands[values.start + i];
-    Count width = register_width(type);
+    Count width = Allocation::SystemV::get_width(type);
+    Abi::Lowering lowering =
+        Abi::Lowering(type.resolve_attribute("abi"_view).get_unsigned());
     for (Count k = 0; k < width; k++) {
-      if (is_real(type)) {
-        if (!materialize(
-                body, allocation, type, operand, k,
-                Assembler::x86_64::Reg::R11)) {
+      if (lowering == Abi::Lowering::Real) {
+        Bool materialized = materialize(
+            body, allocation, type, operand, k, Assembler::x86_64::Reg::R11);
+        if (!materialized) {
           return report(
               function, "System V could not materialize a real return."_view);
         }
 
         assembler.mov_bits(
             Assembler::x86_64::Reg::R11, real_results[real_index++]);
-      } else if (!materialize(
-                     body, allocation, type, operand, k,
-                     integer_results[integer_index++])) {
+        continue;
+      }
+
+      Bool materialized = materialize(
+          body, allocation, type, operand, k, integer_results[integer_index++]);
+      if (!materialized) {
         return report(
             function, "System V could not materialize an integer return."_view);
       }
@@ -718,6 +764,26 @@ auto SystemVLowerer::publish() -> void {
         functions[i].name, program_section,
         Linker::Object::Symbol::Visibility::Global);
     symbol.set_range(functions[i].range);
+    linker.add_symbol(symbol);
+  }
+
+  View::Vector<Abi::Export> exports = program.get_exports();
+  Dynamic::Set<View::Bytes> published_exports;
+  for (Count i = 0; i < exports.get_size(); i++) {
+    Bool inserted = published_exports.insert(exports[i].get_symbol());
+    if (!inserted) {
+      continue;
+    }
+
+    const auto* target = function_indices.find(exports[i].get_target_symbol());
+    if (target == nullptr) {
+      continue;
+    }
+
+    Linker::Object::Symbol symbol = Linker::Object::Symbol::create_function(
+        exports[i].get_symbol(), program_section,
+        Linker::Object::Symbol::Visibility::Global);
+    symbol.set_range(functions[target->value].range);
     linker.add_symbol(symbol);
   }
 
@@ -767,27 +833,27 @@ auto SystemVLowerer::report(
 }
 
 auto SystemVLowerer::string_index(View::Bytes value) -> Count {
-  for (Count i = 0; i < strings.get_size(); i++) {
-    if (strings[i].value == value) {
-      return i;
-    }
+  const auto* existing = string_indices.find(value);
+  if (existing != nullptr) {
+    return existing->value;
   }
 
   const Count offset = string_data.get_size();
   string_data.concat(value);
   const Count index = strings.get_size();
+  string_indices.insert(value, index);
   strings.insert({local_string_name(value), value, {offset, value.get_size()}});
   return index;
 }
 
 auto SystemVLowerer::external_index(View::Bytes name) -> Count {
-  for (Count i = 0; i < externals.get_size(); i++) {
-    if (externals[i].name == name) {
-      return i;
-    }
+  const auto* existing = external_indices.find(name);
+  if (existing != nullptr) {
+    return existing->value;
   }
 
   const Count index = externals.get_size();
+  external_indices.insert(name, index);
   externals.insert({name});
   return index;
 }
@@ -806,28 +872,4 @@ auto SystemVLowerer::append_hex(Managed::Bytes& output, Bits_64 value) -> void {
   for (Signed_32 shift = 60; shift >= 0; shift -= 4) {
     output.append(digits[(value >> shift) & 0x0F]);
   }
-}
-
-auto SystemVLowerer::is_view_bytes(const Ttx::Type& type) -> Bool {
-  return type.attribute_equals("abi"_view, "view_bytes"_view);
-}
-
-auto SystemVLowerer::is_integer(const Ttx::Type& type) -> Bool {
-  return type.attribute_equals("abi"_view, "integer"_view);
-}
-
-auto SystemVLowerer::is_signed(const Ttx::Type& type) -> Bool {
-  return type.canonical().get_name() == "Signed_64"_view;
-}
-
-auto SystemVLowerer::is_real(const Ttx::Type& type) -> Bool {
-  return type.attribute_equals("abi"_view, "real"_view);
-}
-
-auto SystemVLowerer::register_width(const Ttx::Type& type) -> Count {
-  if (is_view_bytes(type)) {
-    return 2;
-  }
-
-  return is_integer(type) || is_real(type) ? 1 : 0;
 }

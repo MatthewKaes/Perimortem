@@ -19,7 +19,9 @@ auto App::VirtualMachine::evaluate_function(
     Cursor& cursor,
     Base::Context& context,
     Ttx::Documentation documentation) -> Ttx::Function {
-  if (!cursor.require(Class::Type::Func, "Expected `func` in App."_view)) {
+  Bool has_function =
+      cursor.require(Class::Type::Func, "Expected `func` in App."_view);
+  if (!has_function) {
     return Ttx::Function();
   }
 
@@ -30,25 +32,29 @@ auto App::VirtualMachine::evaluate_function(
   }
 
   Managed::Vector<Ttx::Member> parameters(context.get_arena());
-  if (!Base::Layout::Evaluator::evaluate_bracketed(
-          cursor, context, parameters)) {
+  Bool parameters_evaluated =
+      Base::Layout::Evaluator::evaluate_bracketed(cursor, context, parameters);
+  if (!parameters_evaluated) {
     return Ttx::Function();
   }
 
-  if (!cursor.require(
-          Class::Type::CallOp,
-          "Expected `->` before App function result."_view)) {
+  Bool has_call = cursor.require(
+      Class::Type::CallOp, "Expected `->` before App function result."_view);
+  if (!has_call) {
     return Ttx::Function();
   }
 
   Managed::Vector<Ttx::Member> result(context.get_arena());
-  if (!Base::Layout::Evaluator::evaluate(cursor, context, result)) {
+  Bool result_evaluated =
+      Base::Layout::Evaluator::evaluate(cursor, context, result);
+  if (!result_evaluated) {
     return Ttx::Function();
   }
 
-  if (!Base::Expression::Evaluator::consume_block(
-          cursor, "Expected `{` after App function signature."_view,
-          "Expected `}` after App function body."_view)) {
+  Bool body_consumed = Base::Expression::Evaluator::consume_block(
+      cursor, "Expected `{` after App function signature."_view,
+      "Expected `}` after App function body."_view);
+  if (!body_consumed) {
     return Ttx::Function();
   }
 
@@ -63,7 +69,8 @@ auto App::VirtualMachine::evaluate(Cursor& cursor, Base::Context& context)
   Bool valid = True;
   while (!cursor.matches(Class::Type::EndOfStream)) {
     Ttx::Documentation documentation = Base::Documentation::evaluate(cursor);
-    if (!Base::Attribute::consume_all(cursor)) {
+    Bool attributes_consumed = Base::Attribute::consume_all(cursor);
+    if (!attributes_consumed) {
       return nullptr;
     }
 
@@ -71,8 +78,9 @@ auto App::VirtualMachine::evaluate(Cursor& cursor, Base::Context& context)
       break;
     }
 
-    if (!cursor.require(
-            Class::Type::Public, "Expected public App `main` function."_view)) {
+    Bool is_public = cursor.require(
+        Class::Type::Public, "Expected public App `main` function."_view);
+    if (!is_public) {
       return nullptr;
     }
 
@@ -112,12 +120,13 @@ auto App::VirtualMachine::evaluate(Cursor& cursor, Base::Context& context)
     return nullptr;
   }
 
-  if (!context.define_implementation(
-          functions[0], Base::Definition(Class::Type::Public))) {
+  Bool implementation_defined = context.define_implementation(
+      functions[0], Base::Definition(Class::Type::Public));
+  if (!implementation_defined) {
     return nullptr;
   }
 
   return &context.get_arena().construct<Ttx::Type>(
       App::VirtualMachine::get_name(), View::Vector<Ttx::Member>(),
-      View::Vector<const Ttx::Type*>(), functions.get_view());
+      View::Vector<Ttx::Type::Reference>(), functions.get_view());
 }

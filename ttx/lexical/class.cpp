@@ -78,9 +78,9 @@ auto Ttx::Lexical::Class::get_name() const -> Perimortem::Core::View::Bytes {
   case Type::Or:
     return "logical or"_view;
   case Type::AndOp:
-    return "bitwise-and (&) — reserved, use -> bit_and()"_view;
+    return "bitwise-and (&) is reserved. Use -> bit_and()"_view;
   case Type::OrOp:
-    return "bitwise-or (|) — reserved, use -> bit_or()"_view;
+    return "bitwise-or (|) is reserved. Use -> bit_or()"_view;
 
   // Assignment operators
   case Type::Assign:

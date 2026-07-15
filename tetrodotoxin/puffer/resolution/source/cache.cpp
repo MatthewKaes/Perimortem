@@ -31,12 +31,8 @@ auto Resolution::Source::Cache::find(View::Bytes key) const
 }
 
 auto Resolution::Source::Cache::publish(Dynamic::Object<Record>& record)
-    -> Bool {
+    -> void {
   Record& published = *record;
-  if (!published.is_complete()) {
-    return False;
-  }
-
   Record* current = find(published.get_source_path());
   if (current != nullptr && current != &published) {
     remove(*current);
@@ -45,7 +41,6 @@ auto Resolution::Source::Cache::publish(Dynamic::Object<Record>& record)
   records.insert(published.get_source_path(), record);
   consumers_by_producer.at(&published);
   producers_by_consumer.at(&published);
-  return True;
 }
 
 auto Resolution::Source::Cache::remove(View::Bytes key) -> void {
@@ -59,14 +54,18 @@ auto Resolution::Source::Cache::remove(View::Bytes key) -> void {
 
 auto Resolution::Source::Cache::connect(Record& consumer, Record& producer)
     -> void {
-  consumers_by_producer.find(&producer)->value.insert(&consumer);
-  producers_by_consumer.find(&consumer)->value.insert(&producer);
+  consumers_by_producer.at(&producer).insert(&consumer);
+  producers_by_consumer.at(&consumer).insert(&producer);
 }
 
 auto Resolution::Source::Cache::collect_consumers(
     const Record& record,
     Dynamic::Vector<Record*>& consumers) const -> void {
   const auto* entry = consumers_by_producer.find(&record);
+  if (entry == nullptr) {
+    return;
+  }
+
   entry->value.visit([&](Record* consumer) -> void {
     if (consumers.contains(consumer)) {
       return;
@@ -87,6 +86,10 @@ auto Resolution::Source::Cache::collect_removal_plan(
   records.insert(&record);
 
   const auto* entry = consumers_by_producer.find(&record);
+  if (entry == nullptr) {
+    return;
+  }
+
   entry->value.visit([&](Record* consumer) -> void {
     collect_removal_plan(*consumer, records);
   });
@@ -117,11 +120,23 @@ auto Resolution::Source::Cache::detach(Record& record) -> void {
   // entry is part of the cache invariant, so detach only removes edges from the
   // opposite sets. Record entries are removed once the whole invalidation plan
   // is detached.
-  producers_by_consumer.find(&record)->value.visit([&](Record* producer) {
-    consumers_by_producer.find(producer)->value.remove(&record);
-  });
+  const auto* producers = producers_by_consumer.find(&record);
+  if (producers != nullptr) {
+    producers->value.visit([&](Record* producer) {
+      auto* consumers = consumers_by_producer.find(producer);
+      if (consumers != nullptr) {
+        consumers->value.remove(&record);
+      }
+    });
+  }
 
-  consumers_by_producer.find(&record)->value.visit([&](Record* consumer) {
-    producers_by_consumer.find(consumer)->value.remove(&record);
-  });
+  const auto* consumers = consumers_by_producer.find(&record);
+  if (consumers != nullptr) {
+    consumers->value.visit([&](Record* consumer) {
+      auto* producers = producers_by_consumer.find(consumer);
+      if (producers != nullptr) {
+        producers->value.remove(&record);
+      }
+    });
+  }
 }

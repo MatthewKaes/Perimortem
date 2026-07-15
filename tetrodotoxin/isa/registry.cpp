@@ -44,7 +44,7 @@ auto Registry::install(
     Dialect::Lowerer lowerer,
     Bool package_ready) -> Bool {
   Dialect dialect(name, evaluator, lowerer, package_ready);
-  if (!dialect.is_valid() || installed_count >= installed.get_size()) {
+  if (dialect.is_empty() || installed_count >= installed.get_size()) {
     return False;
   }
 

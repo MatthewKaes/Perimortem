@@ -17,14 +17,15 @@ auto Package::Export::evaluate(
   Base::Declaration definition = Base::Declaration::evaluate(
       cursor, documentation, {{Class::Type::Expose}}, {{Class::Type::Type}},
       {{Class::Type::Alias, Class::Type::Type, Class::Type::Addressable}});
-  if (!definition.is_valid()) {
+  if (definition.is_empty()) {
     return Package::Export();
   }
 
   if (definition.get_kind() == "group"_view) {
     Perimortem::Memory::Managed::Vector<Package::Export> exports(
         context.get_arena());
-    if (!Package::Group::evaluate(cursor, context, exports)) {
+    Bool evaluated = Package::Group::evaluate(cursor, context, exports);
+    if (!evaluated) {
       return Package::Export();
     }
 
@@ -37,9 +38,9 @@ auto Package::Export::evaluate(
     return Package::Export();
   }
 
-  if (!cursor.require(
-          Class::Type::Assign,
-          "Expected `=` before package export target."_view)) {
+  Bool has_assignment = cursor.require(
+      Class::Type::Assign, "Expected `=` before package export target."_view);
+  if (!has_assignment) {
     return Package::Export();
   }
 
@@ -54,9 +55,9 @@ auto Package::Export::evaluate(
     return Package::Export();
   }
 
-  if (!cursor.require(
-          Class::Type::EndStatement,
-          "Expected `;` after package export."_view)) {
+  Bool has_statement_end = cursor.require(
+      Class::Type::EndStatement, "Expected `;` after package export."_view);
+  if (!has_statement_end) {
     return Package::Export();
   }
 

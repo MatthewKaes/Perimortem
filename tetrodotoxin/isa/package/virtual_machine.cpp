@@ -18,7 +18,7 @@ using namespace Ttx::Lexical;
 static auto build_export_type(
     Base::Context& context,
     View::Bytes parent_path,
-    const Package::Export& export_) -> const Ttx::Type* {
+    const Package::Export& export_) -> const Ttx::Type& {
   const Base::Declaration& definition = export_.get_definition();
   Managed::Bytes display_name(context.get_arena(), parent_path);
   if (!display_name.get_view().is_empty()) {
@@ -27,24 +27,24 @@ static auto build_export_type(
 
   display_name.concat(definition.get_name());
 
-  Managed::Vector<const Ttx::Type*> types(context.get_arena());
+  Managed::Vector<Ttx::Type::Reference> types(context.get_arena());
   for (Count i = 0; i < export_.get_exports().get_size(); i++) {
-    const Ttx::Type* nested = build_export_type(
+    const Ttx::Type& nested = build_export_type(
         context, display_name.get_view(), export_.get_exports()[i]);
-    types.insert(nested);
+    types.insert(Ttx::Type::Reference(nested));
   }
 
   Managed::Vector<Ttx::Attribute> attributes(context.get_arena());
   attributes.insert({Ttx::Type::display_name_attribute, display_name});
   if (definition.get_kind() == "group"_view) {
-    return &context.get_arena().construct<Ttx::Type>(
+    return context.get_arena().construct<Ttx::Type>(
         definition.get_name(), View::Vector<Ttx::Member>(), types.get_view(),
-        View::Vector<Ttx::Function>(), definition.get_documentation(),
-        attributes.get_view());
+        View::Vector<Ttx::Function>(), View::Vector<Ttx::Function>(),
+        definition.get_documentation(), attributes.get_view());
   }
 
-  return &context.get_arena().construct<Ttx::Type>(Ttx::Type::alias(
-      definition.get_name(), *export_.get_target(),
+  return context.get_arena().construct<Ttx::Type>(Ttx::Type::alias(
+      definition.get_name(), export_.get_target(),
       definition.get_documentation(), attributes.get_view()));
 }
 
@@ -62,7 +62,7 @@ auto Package::VirtualMachine::evaluate(Cursor& cursor, Base::Context& context)
     if (cursor.matches(Class::Type::Expose)) {
       Package::Export export_ =
           Package::Export::evaluate(cursor, context, documentation);
-      if (!export_.is_valid()) {
+      if (export_.is_empty()) {
         return nullptr;
       }
 
@@ -80,21 +80,19 @@ auto Package::VirtualMachine::evaluate(Cursor& cursor, Base::Context& context)
     return nullptr;
   }
 
-  Managed::Vector<const Ttx::Type*> types(context.get_arena());
+  Managed::Vector<Ttx::Type::Reference> types(context.get_arena());
   for (Count i = 0; i < exports.get_size(); i++) {
-    types.insert(build_export_type(context, package_name, exports[i]));
+    const Ttx::Type& type =
+        build_export_type(context, package_name, exports[i]);
+    types.insert(Ttx::Type::Reference(type));
   }
 
   Managed::Vector<Ttx::Attribute> package_attributes(context.get_arena());
   package_attributes.insert({Ttx::Type::display_name_attribute, package_name});
 
-  auto& package_name_type =
-      context.get_arena().construct<Ttx::Type>(package_name);
-  Managed::Vector<Ttx::Member> members(context.get_arena());
-  members.insert(Ttx::Member("package_name"_view, package_name_type));
-
   auto& package_type = context.get_arena().construct<Ttx::Type>(
-      Package::VirtualMachine::get_name(), members.get_view(), types.get_view(),
+      Package::VirtualMachine::get_name(), View::Vector<Ttx::Member>(),
+      types.get_view(), View::Vector<Ttx::Function>(),
       View::Vector<Ttx::Function>(), Ttx::Documentation(),
       package_attributes.get_view());
   return &package_type;

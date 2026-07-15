@@ -120,9 +120,9 @@ class Table {
       Bits_16 byte_index = 0;
     };
 
-    Coord buffer_coordinates[(max_range + 1)];
-    value_type mappings[get_source_count()] = {};
-    alignas(64) Bits_8 buffer[storage_size] = {0};
+    Core::Static::Vector<Coord, max_range + 1> buffer_coordinates = {};
+    Core::Static::Vector<value_type, get_source_count()> mappings = {};
+    alignas(64) Core::Static::Vector<Bits_8, storage_size> buffer = {};
   };
 
   static constexpr PackedBuffer byte_pack;
@@ -136,9 +136,10 @@ class Table {
       return nullptr;
     }
 
-    auto item_start = byte_pack.buffer_coordinates[range_step].item_index;
-    auto item_count = byte_pack.buffer_coordinates[range_step].item_count;
-    auto byte_start = byte_pack.buffer_coordinates[range_step].byte_index;
+    const auto entry = byte_pack.buffer_coordinates.get_data()[range_step];
+    const auto item_start = entry.item_index;
+    const auto item_count = entry.item_count;
+    const auto byte_start = entry.byte_index;
     for (Bits_8 i = 0; i < item_count; i++) {
       const auto byte_index = byte_start + i * range_step;
       if (byte_pack.buffer[byte_index] != key[0]) {
@@ -146,7 +147,8 @@ class Table {
       }
 
       if (Core::Data::compare(
-              byte_pack.buffer + byte_index, key.get_data(), range_step)) {
+              byte_pack.buffer.get_data() + byte_index, key.get_data(),
+              range_step)) {
         return &byte_pack.mappings[item_start + i];
       }
     }
@@ -161,8 +163,8 @@ class Table {
     return value == nullptr ? default_value : *value;
   }
 
-  static consteval auto get_memory_consumption() -> Count {
-    return sizeof(PackedBuffer);
+  static consteval auto get_values() -> Core::View::Vector<value_type> {
+    return byte_pack.mappings;
   }
 };
 

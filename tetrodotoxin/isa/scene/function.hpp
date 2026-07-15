@@ -29,7 +29,9 @@ class Function {
   static auto evaluate(
       Ttx::Lexical::Cursor& cursor,
       Tetrodotoxin::Isa::Base::Context& context,
-      Ttx::Documentation documentation) -> Ttx::Function;
+      Ttx::Documentation documentation,
+      const Ttx::Type* owner,
+      Bool& addressable) -> Ttx::Function;
   static auto insert(
       Ttx::Lexical::Cursor& cursor,
       Perimortem::Memory::Managed::Vector<Ttx::Function>& functions,

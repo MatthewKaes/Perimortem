@@ -34,7 +34,8 @@ auto Scene::Lifecycle::is_root(View::Bytes name) -> Bool {
 auto Scene::Lifecycle::evaluate(
     Cursor& cursor,
     Base::Context& context,
-    Ttx::Documentation documentation) -> Ttx::Function {
+    Ttx::Documentation documentation,
+    const Ttx::Type* owner) -> Ttx::Function {
   const Token& name = cursor.current();
   if (!is_root(name.get_text())) {
     cursor.token_error(
@@ -45,16 +46,23 @@ auto Scene::Lifecycle::evaluate(
   cursor.consume();
 
   Managed::Vector<Ttx::Member> parameters(context.get_arena());
-  if (cursor.matches(Class::Type::IndexStart) &&
-      !Base::Layout::Evaluator::evaluate_bracketed(
-          cursor, context, parameters)) {
+  Bool parameters_evaluated = Base::Layout::Evaluator::evaluate_bracketed(
+      cursor, context, parameters, owner);
+  if (!parameters_evaluated) {
+    return Ttx::Function();
+  }
+
+  if (parameters.is_empty() || parameters[0].get_name() != "self"_view ||
+      !parameters[0].references(owner)) {
+    cursor.token_error("Scene lifecycle layout must begin with `self`."_view);
     return Ttx::Function();
   }
 
   Managed::Vector<Ttx::Member> result(context.get_arena());
-  if (!Base::Expression::Evaluator::consume_block(
-          cursor, "Expected `{` after Scene lifecycle declaration."_view,
-          "Expected `}` after Scene lifecycle body."_view)) {
+  Bool body_consumed = Base::Expression::Evaluator::consume_block(
+      cursor, "Expected `{` after Scene lifecycle declaration."_view,
+      "Expected `}` after Scene lifecycle body."_view);
+  if (!body_consumed) {
     return Ttx::Function();
   }
 

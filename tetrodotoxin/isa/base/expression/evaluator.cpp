@@ -89,7 +89,8 @@ auto Base::Expression::Evaluator::consume_block(
     Cursor& cursor,
     Perimortem::Core::View::Bytes open_error,
     Perimortem::Core::View::Bytes close_error) -> Bool {
-  if (!cursor.require(Class::Type::ScopeStart, open_error)) {
+  Bool has_scope = cursor.require(Class::Type::ScopeStart, open_error);
+  if (!has_scope) {
     return False;
   }
 

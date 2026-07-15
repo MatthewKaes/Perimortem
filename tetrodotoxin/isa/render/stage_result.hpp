@@ -14,7 +14,7 @@ class StageResult {
       : function(function), facts(&facts) {}
 
   constexpr auto get_function() const -> Ttx::Function { return function; }
-  constexpr auto get_facts() const -> const Ttx::Type* { return facts; }
+  constexpr auto get_facts() const -> const Ttx::Type& { return *facts; }
   constexpr auto is_empty() const -> Bool {
     return function.is_empty() || facts == nullptr;
   }

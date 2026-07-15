@@ -15,13 +15,15 @@
 
 namespace Tetrodotoxin::Puffer::Resolution {
 
-// Per-request diagnostic sink.
+// Per-request source lifetime and diagnostic surface.
 //
 // Source::Cache owns published records, while Context retains the records
 // returned during this request. That keeps a caller's raw Record address alive
 // if a later update removes it from the cache. Each Record already owns its
 // arena, so Context does not retain transaction state separately. Failed
 // diagnostics are migrated before their cursor and transaction disappear.
+// Compilation rooted in this request uses the same sink, which gives callers
+// one result surface for resolver, ISA, compiler, and target errors.
 class Context {
  public:
   Context() : errors(error_arena) {}
@@ -41,6 +43,9 @@ class Context {
   }
 
   constexpr auto has_errors() const -> Bool { return errors.has_errors(); }
+  // Long-lived services receive the sink rather than storing another error
+  // collection and forcing callers to arbitrate between competing results.
+  constexpr auto get_error_sink() -> Ttx::Lexical::Errors& { return errors; }
   constexpr auto get_errors() const
       -> Perimortem::Core::View::Vector<Ttx::Lexical::Errors::Error> {
     return errors;

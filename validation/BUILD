@@ -34,6 +34,7 @@ cc_library(
 
 ttx_library(
     name = "ttx_tests",
+    library_name = "Validation.TtxTests",
     srcs = [
         "unit_tests/tetrodotoxin/ttx/source.ttx",
     ],
@@ -41,37 +42,24 @@ ttx_library(
 
 ttx_library(
     name = "shader_artifact_smoke",
+    library_name = "Validation.ShaderArtifact",
     srcs = [
         "data/ttx/shader_artifact/render.ttx",
         "data/ttx/shader_artifact/shader.ttx",
     ],
 )
 
-alias(
-    name = "graphics_package_smoke",
-    actual = "//tetrodotoxin/standard:perimortem_graphics",
-)
-
-alias(
-    name = "math_package_smoke",
-    actual = "//tetrodotoxin/standard:perimortem_math",
-)
-
-alias(
-    name = "runtime_package_smoke",
-    actual = "//tetrodotoxin/standard:perimortem_runtime",
-)
-
 ttx_library(
     name = "app_scene_parse_smoke",
+    library_name = "Validation.AppScene",
     srcs = [
         "//apps/ttx/demo:main",
         "//apps/ttx/demo:splash_screen",
     ],
     deps = [
-        "//tetrodotoxin/standard:perimortem_graphics",
-        "//tetrodotoxin/standard:perimortem_math",
-        "//tetrodotoxin/standard:perimortem_runtime",
+        "//tetrodotoxin/standard:graphics",
+        "//tetrodotoxin/standard:math",
+        "//tetrodotoxin/standard:runtime",
     ],
 )
 
@@ -84,24 +72,27 @@ cc_binary(
     ]) + [
         "unit_test.cpp",
     ],
+    copts = ["-Wreturn-type-c-linkage"],
     data = [
         ":shader_artifact_smoke",
         ":ttx_tests",
-        "//tetrodotoxin/standard:perimortem_graphics",
-        "//tetrodotoxin/standard:perimortem_math",
-        "//tetrodotoxin/standard:perimortem_runtime",
+        "//tetrodotoxin/standard:graphics",
+        "//tetrodotoxin/standard:math",
+        "//tetrodotoxin/standard:runtime",
     ],
     includes = ["."],
     deps = [
         ":test_headers",
         ":ttx_tests",
         "//perimortem",
+        "//tetrodotoxin/abi",
         "//tetrodotoxin:compiler",
         "//tetrodotoxin:diagnostics",
         "//tetrodotoxin:isa",
         "//tetrodotoxin:isa_lowerers",
         "//tetrodotoxin:linker",
         "//tetrodotoxin/archiver",
+        "//tetrodotoxin/puffer:compiler",
         "//tetrodotoxin/puffer:package_builder",
         "//tetrodotoxin/puffer:resolution",
         "//tetrodotoxin/puffer:toolchain",
@@ -118,8 +109,8 @@ cc_binary(
         "benchmark.cpp",
     ],
     data = [
-        "//tetrodotoxin/standard:perimortem_graphics",
-        "//tetrodotoxin/standard:perimortem_math",
+        "//tetrodotoxin/standard:graphics",
+        "//tetrodotoxin/standard:math",
     ],
     includes = ["."],
     local_defines = select({

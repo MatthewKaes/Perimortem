@@ -120,14 +120,16 @@ auto Platform::Wayland::Window::poll_events() -> Bool {
   }
 
   if (poll_result > 0 && (display_fd.revents & POLLIN) != 0) {
-    if (wl_display_read_events(display) < 0) {
+    int events_read = wl_display_read_events(display);
+    if (events_read < 0) {
       return False;
     }
   } else {
     wl_display_cancel_read(display);
   }
 
-  if (wl_display_dispatch_pending(display) < 0) {
+  int events_dispatched = wl_display_dispatch_pending(display);
+  if (events_dispatched < 0) {
     return False;
   }
 

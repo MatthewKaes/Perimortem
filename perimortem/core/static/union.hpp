@@ -133,6 +133,35 @@ class Union {
         });
   }
 
+  constexpr auto operator=(const Union& source) -> Union& {
+    if (this == &source) {
+      return *this;
+    }
+
+    tag = 0;
+    dispatch(
+        source, []() {},
+        [this](const auto& value) -> void {
+          this->template construct<Alternative<decltype(value)>>(value);
+        });
+    return *this;
+  }
+
+  constexpr auto operator=(Union&& source) -> Union& {
+    if (this == &source) {
+      return *this;
+    }
+
+    tag = 0;
+    dispatch(
+        source, []() {},
+        [this](auto& value) -> void {
+          this->template construct<Alternative<decltype(value)>>(
+              Data::take(value));
+        });
+    return *this;
+  }
+
   template <typename Type>
   constexpr auto find() const -> const Type* {
     static_assert(type_count<Type>() == 1, "Type is not a Union alternative.");

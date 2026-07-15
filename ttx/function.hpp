@@ -11,16 +11,19 @@
 
 namespace Ttx {
 
-// Function is callable behavior attached to a type.
+// Function is a callable name with parameter and result layouts.
 //
-// Calls require a type because pure layouts have no function table to dispatch
-// through. `Sprite->draw(...)` can ask the Sprite type for a function.
-// `(.x = 2, .y = 3)->format()` is invalid because the layout has no identity
-// and therefore no owner for `format`.
+// It deliberately does not classify itself as Type or Addressable behavior.
+// That fact belongs to the Ttx::Type table containing the function. Keeping
+// ownership there prevents parameter names such as `self` from becoming a
+// hidden dispatch flag and lets dialects choose their own receiver shorthand.
 //
 // Parameters and results are layouts. Calls, construction, returns, and shader
 // boundary checks can therefore use the same Layout fit rules instead of
-// growing a parallel argument model.
+// growing a parallel argument model. An Addressable call contributes its
+// receiver as the first argument before fitting the complete parameter layout.
+// Consumers never manufacture a second call-site layout with that entry
+// removed.
 class Function {
  public:
   constexpr Function() = default;

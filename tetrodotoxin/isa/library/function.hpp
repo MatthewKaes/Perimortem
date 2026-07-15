@@ -21,23 +21,18 @@ class Function {
       Scope& scope,
       Ttx::Documentation documentation,
       Perimortem::Utility::Range& source) -> Ttx::Function;
-  static auto evaluate_declaration(
-      Ttx::Lexical::Cursor& cursor,
-      Scope& scope,
-      Ttx::Documentation documentation) -> Ttx::Function;
-
- private:
-  enum class BodyMode {
-    Definition,
-    Declaration,
-  };
-
   static auto evaluate(
       Ttx::Lexical::Cursor& cursor,
       Scope& scope,
       Ttx::Documentation documentation,
-      BodyMode body_mode,
-      Perimortem::Utility::Range& source) -> Ttx::Function;
+      Perimortem::Utility::Range& source,
+      const Ttx::Type* owner,
+      Bool& addressable) -> Ttx::Function;
+  static auto evaluate_declaration(
+      Ttx::Lexical::Cursor& cursor,
+      Scope& scope,
+      Ttx::Documentation documentation,
+      const Ttx::Type* owner = nullptr) -> Ttx::Function;
 };
 
 }  // namespace Tetrodotoxin::Isa::Library

@@ -23,22 +23,31 @@ auto Library::Structure::evaluate(
     Library::Scope& scope,
     const Tetrodotoxin::Isa::Base::Declaration& definition)
     -> const Ttx::Type* {
-  if (!cursor.require(
-          Class::Type::ScopeStart,
-          "Expected `{` after library aggregate declaration."_view)) {
+  Bool has_scope = cursor.require(
+      Class::Type::ScopeStart,
+      "Expected `{` after library aggregate declaration."_view);
+  if (!has_scope) {
     return nullptr;
   }
 
   Managed::Vector<Ttx::Member> members(scope.get_context().get_arena());
   Managed::Vector<Base::Definition> member_definitions(
       scope.get_context().get_arena());
-  Managed::Vector<Ttx::Function> functions(scope.get_context().get_arena());
+  Managed::Vector<Ttx::Function> type_functions(
+      scope.get_context().get_arena());
+  Managed::Vector<Ttx::Function> addressable_functions(
+      scope.get_context().get_arena());
   Managed::Vector<Perimortem::Utility::Range> function_sources(
+      scope.get_context().get_arena());
+  Managed::Vector<Perimortem::Utility::Range> addressable_function_sources(
       scope.get_context().get_arena());
   Managed::Vector<Base::Definition> function_definitions(
       scope.get_context().get_arena());
-  Ttx::Type& type = scope.get_context().get_arena().allocate<Ttx::Type>();
-  if (!scope.stage_type_reference(definition.get_name(), type)) {
+  Managed::Vector<Base::Definition> addressable_function_definitions(
+      scope.get_context().get_arena());
+  Ttx::Type* type = scope.get_context().get_arena().reserve<Ttx::Type>();
+  Bool staged = scope.stage_type_reference(definition.get_name(), type);
+  if (!staged) {
     cursor.token_error(
         "Library aggregate type could not stage self reference."_view);
     return nullptr;
@@ -51,7 +60,9 @@ auto Library::Structure::evaluate(
         Base::Documentation::evaluate(cursor);
     Managed::Vector<Ttx::Attribute> member_attributes(
         scope.get_context().get_arena());
-    if (!Base::Attribute::evaluate_all(cursor, member_attributes)) {
+    Bool attributes_evaluated =
+        Base::Attribute::evaluate_all(cursor, member_attributes);
+    if (!attributes_evaluated) {
       return nullptr;
     }
 
@@ -63,7 +74,8 @@ auto Library::Structure::evaluate(
         "{public, private, expose, state, const}"_view);
     if (modifier == Class::Type::Unknown) {
       valid = False;
-      if (!Library::Syntax::consume_declaration_tail(cursor)) {
+      Bool recovered = Library::Syntax::consume_declaration_tail(cursor);
+      if (!recovered) {
         return nullptr;
       }
 
@@ -72,33 +84,51 @@ auto Library::Structure::evaluate(
 
     if (cursor.matches(Class::Type::Func)) {
       Perimortem::Utility::Range source;
+      Bool addressable = False;
       Ttx::Function function = Library::Function::evaluate(
-          cursor, scope, member_documentation, source);
+          cursor, scope, member_documentation, source, type, addressable);
       if (function.is_empty()) {
         valid = False;
-        if (!Library::Syntax::consume_declaration_tail(cursor)) {
+        Bool recovered = Library::Syntax::consume_declaration_tail(cursor);
+        if (!recovered) {
           return nullptr;
         }
 
         continue;
       }
 
-      for (Count i = 0; i < functions.get_size(); i++) {
-        if (functions[i].get_name() == function.get_name()) {
-          cursor.token_error("Library function name is already defined."_view);
-          valid = False;
+      View::Vector<Ttx::Function> siblings =
+          addressable ? addressable_functions.get_view()
+                      : type_functions.get_view();
+      Bool is_duplicate = False;
+      for (Count i = 0; i < siblings.get_size(); i++) {
+        if (siblings[i].get_name() == function.get_name()) {
+          is_duplicate = True;
           break;
         }
+      }
+
+      if (is_duplicate) {
+        cursor.token_error("Library function name is already defined."_view);
+        valid = False;
       }
 
       if (!valid) {
         continue;
       }
 
-      functions.insert(function);
-      function_sources.insert(source);
-      function_definitions.insert(
-          Base::Definition(modifier, member_attributes.get_view()));
+      if (addressable) {
+        addressable_functions.insert(function);
+        addressable_function_sources.insert(source);
+        addressable_function_definitions.insert(
+            Base::Definition(modifier, member_attributes.get_view()));
+      } else {
+        type_functions.insert(function);
+        function_sources.insert(source);
+        function_definitions.insert(
+            Base::Definition(modifier, member_attributes.get_view()));
+      }
+
       continue;
     }
 
@@ -107,9 +137,10 @@ auto Library::Structure::evaluate(
             cursor, member_documentation, modifier,
             {{Class::Type::Addressable}}, {{Class::Type::Type}},
             member_attributes.get_view());
-    if (!member_definition.is_valid()) {
+    if (member_definition.is_empty()) {
       valid = False;
-      if (!Library::Syntax::consume_declaration_tail(cursor)) {
+      Bool recovered = Library::Syntax::consume_declaration_tail(cursor);
+      if (!recovered) {
         return nullptr;
       }
 
@@ -121,7 +152,8 @@ auto Library::Structure::evaluate(
         cursor, scope, member_definition, member_implementation);
     if (member == nullptr) {
       valid = False;
-      if (!Library::Syntax::consume_declaration_tail(cursor)) {
+      Bool recovered = Library::Syntax::consume_declaration_tail(cursor);
+      if (!recovered) {
         return nullptr;
       }
 
@@ -144,9 +176,10 @@ auto Library::Structure::evaluate(
     member_definitions.insert(member_implementation);
   }
 
-  if (!cursor.require(
-          Class::Type::ScopeEnd,
-          "Expected `}` after library struct declaration."_view)) {
+  Bool has_scope_end = cursor.require(
+      Class::Type::ScopeEnd,
+      "Expected `}` after library struct declaration."_view);
+  if (!has_scope_end) {
     return nullptr;
   }
 
@@ -156,22 +189,34 @@ auto Library::Structure::evaluate(
 
   Managed::Vector<Ttx::Attribute> attributes(scope.get_context().get_arena());
   Base::Attribute::append_all(definition.get_attributes(), attributes);
-  new (&type) Ttx::Type(
+  new (type) Ttx::Type(
       definition.get_name(), members.get_view(),
-      View::Vector<const Ttx::Type*>(), functions.get_view(),
-      definition.get_documentation(), attributes.get_view());
+      View::Vector<Ttx::Type::Reference>(), type_functions.get_view(),
+      addressable_functions.get_view(), definition.get_documentation(),
+      attributes.get_view());
   for (Count i = 0; i < members.get_size(); i++) {
-    if (!scope.get_context().define_implementation(
-            members[i], member_definitions[i])) {
+    Bool implementation_defined = scope.get_context().define_implementation(
+        members[i], member_definitions[i]);
+    if (!implementation_defined) {
       return nullptr;
     }
   }
 
-  if (!Library::Compiler::Function::publish(
-          cursor, scope, type, function_sources.get_view(),
-          function_definitions.get_view())) {
+  Bool published_type = Library::Compiler::Function::publish(
+      cursor, scope, *type, definition.get_name(), type->get_type_functions(),
+      function_sources.get_view(), function_definitions.get_view(), False);
+  if (!published_type) {
     return nullptr;
   }
 
-  return &type;
+  Bool published_addressable = Library::Compiler::Function::publish(
+      cursor, scope, *type, definition.get_name(),
+      type->get_addressable_functions(),
+      addressable_function_sources.get_view(),
+      addressable_function_definitions.get_view(), True);
+  if (!published_addressable) {
+    return nullptr;
+  }
+
+  return type;
 }

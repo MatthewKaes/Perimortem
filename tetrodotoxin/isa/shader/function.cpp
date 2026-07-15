@@ -17,8 +17,9 @@ auto Shader::Function::evaluate(
     Base::Context& context,
     Ttx::Documentation documentation,
     const Block*& block) -> Ttx::Function {
-  if (!cursor.require(
-          Class::Type::Func, "Expected `func` in shader stage."_view)) {
+  Bool has_function = cursor.require(
+      Class::Type::Func, "Expected `func` in shader stage."_view);
+  if (!has_function) {
     return Ttx::Function();
   }
 
@@ -29,19 +30,22 @@ auto Shader::Function::evaluate(
   }
 
   Managed::Vector<Ttx::Member> parameters(context.get_arena());
-  if (!Base::Layout::Evaluator::evaluate_bracketed(
-          cursor, context, parameters)) {
+  Bool parameters_evaluated =
+      Base::Layout::Evaluator::evaluate_bracketed(cursor, context, parameters);
+  if (!parameters_evaluated) {
     return Ttx::Function();
   }
 
-  if (!cursor.require(
-          Class::Type::CallOp,
-          "Expected `->` before shader stage result."_view)) {
+  Bool has_call = cursor.require(
+      Class::Type::CallOp, "Expected `->` before shader stage result."_view);
+  if (!has_call) {
     return Ttx::Function();
   }
 
   Managed::Vector<Ttx::Member> result(context.get_arena());
-  if (!Base::Layout::Evaluator::evaluate(cursor, context, result)) {
+  Bool result_evaluated =
+      Base::Layout::Evaluator::evaluate(cursor, context, result);
+  if (!result_evaluated) {
     return Ttx::Function();
   }
 

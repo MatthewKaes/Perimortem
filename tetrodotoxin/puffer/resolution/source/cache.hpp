@@ -24,7 +24,7 @@ namespace Tetrodotoxin::Puffer::Resolution::Source {
 // relationships between clusters: producers let a changed record find its
 // consumers, and consumers let a removed record detach from its producers
 // without scanning unrelated sources. Published records always have entries in
-// both maps; an empty dependency set is represented by an empty set, not by a
+// both maps. An empty dependency set is represented by an empty set, not by a
 // missing map entry.
 //
 // That matters because TTX facts are address identities rather than the prior
@@ -40,7 +40,7 @@ class Cache {
   auto reset() -> void;
   auto find(Perimortem::Core::View::Bytes key) -> Record*;
   auto find(Perimortem::Core::View::Bytes key) const -> const Record*;
-  auto publish(Perimortem::Memory::Dynamic::Object<Record>& record) -> Bool;
+  auto publish(Perimortem::Memory::Dynamic::Object<Record>& record) -> void;
   auto remove(Perimortem::Core::View::Bytes key) -> void;
   auto remove(Record& record) -> void;
   auto connect(Record& consumer, Record& producer) -> void;
@@ -61,6 +61,10 @@ class Cache {
   auto visit_direct_producers(const Record& record, visitor_type visit) const
       -> void {
     const auto* entry = producers_by_consumer.find(&record);
+    if (entry == nullptr) {
+      return;
+    }
+
     entry->value.visit([&](Record* producer) -> void { visit(*producer); });
   }
 
@@ -71,8 +75,13 @@ class Cache {
       Perimortem::Memory::Dynamic::Set<const Record*>& visited,
       visitor_type visit) const -> void {
     const auto* entry = producers_by_consumer.find(&record);
+    if (entry == nullptr) {
+      return;
+    }
+
     entry->value.visit([&](Record* producer) -> void {
-      if (visited.insert(producer)) {
+      Bool inserted = visited.insert(producer);
+      if (inserted) {
         visit(*producer);
         visit_producers(*producer, visited, visit);
       }

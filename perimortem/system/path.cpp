@@ -13,7 +13,8 @@ Path::Path(View::Bytes path) {
     text[size++] = '/';
   }
 
-  if (!append_path(path) || size == 0) {
+  Bool appended = append_path(path);
+  if (!appended || size == 0) {
     size = 0;
   }
 }
@@ -36,13 +37,15 @@ Path::Path(View::Bytes base_file_path, View::Bytes relative_path) {
       }
     }
 
-    if (!append_path(base_file_path.slice(0, directory_size))) {
+    Bool base_appended = append_path(base_file_path.slice(0, directory_size));
+    if (!base_appended) {
       size = 0;
       return;
     }
   }
 
-  if (!append_path(relative_path) || size == 0) {
+  Bool relative_appended = append_path(relative_path);
+  if (!relative_appended || size == 0) {
     size = 0;
   }
 }
@@ -65,14 +68,16 @@ auto Path::append_path(View::Bytes path) -> Bool {
     }
 
     if (segment.get_size() == 2 && segment[0] == '.' && segment[1] == '.') {
-      if (!pop_segment()) {
+      Bool popped = pop_segment();
+      if (!popped) {
         return False;
       }
 
       continue;
     }
 
-    if (!append_segment(segment)) {
+    Bool appended = append_segment(segment);
+    if (!appended) {
       return False;
     }
   }

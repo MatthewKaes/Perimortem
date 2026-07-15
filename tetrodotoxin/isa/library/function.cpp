@@ -11,30 +11,22 @@ using namespace Perimortem::Memory;
 using namespace Tetrodotoxin::Isa;
 using namespace Ttx::Lexical;
 
-auto Library::Function::evaluate(
-    Cursor& cursor,
-    Scope& scope,
-    Ttx::Documentation documentation,
-    Perimortem::Utility::Range& source) -> Ttx::Function {
-  return evaluate(cursor, scope, documentation, BodyMode::Definition, source);
-}
+enum class BodyMode : Bits_8 {
+  Definition,
+  Declaration,
+};
 
-auto Library::Function::evaluate_declaration(
+static auto evaluate_function(
     Cursor& cursor,
-    Scope& scope,
-    Ttx::Documentation documentation) -> Ttx::Function {
-  Perimortem::Utility::Range source;
-  return evaluate(cursor, scope, documentation, BodyMode::Declaration, source);
-}
-
-auto Library::Function::evaluate(
-    Cursor& cursor,
-    Scope& scope,
+    Library::Scope& scope,
     Ttx::Documentation documentation,
     BodyMode body_mode,
-    Perimortem::Utility::Range& source) -> Ttx::Function {
-  if (!cursor.require(
-          Class::Type::Func, "Expected `func` in library function."_view)) {
+    Perimortem::Utility::Range& source,
+    const Ttx::Type* owner,
+    Bool* addressable) -> Ttx::Function {
+  Bool has_function = cursor.require(
+      Class::Type::Func, "Expected `func` in library function."_view);
+  if (!has_function) {
     return Ttx::Function();
   }
 
@@ -45,18 +37,23 @@ auto Library::Function::evaluate(
   }
 
   Managed::Vector<Ttx::Member> parameters(scope.get_context().get_arena());
-  if (!Base::Layout::Evaluator::evaluate_bracketed(cursor, scope, parameters)) {
+  Bool parameters_evaluated = Base::Layout::Evaluator::evaluate_bracketed(
+      cursor, scope, parameters, owner, addressable);
+  if (!parameters_evaluated) {
     return Ttx::Function();
   }
 
-  if (!cursor.require(
-          Class::Type::CallOp,
-          "Expected `->` before library function result."_view)) {
+  Bool has_call = cursor.require(
+      Class::Type::CallOp,
+      "Expected `->` before library function result."_view);
+  if (!has_call) {
     return Ttx::Function();
   }
 
   Managed::Vector<Ttx::Member> result(scope.get_context().get_arena());
-  if (!Base::Layout::Evaluator::evaluate(cursor, scope, result)) {
+  Bool result_evaluated =
+      Base::Layout::Evaluator::evaluate(cursor, scope, result);
+  if (!result_evaluated) {
     return Ttx::Function();
   }
 
@@ -64,17 +61,22 @@ auto Library::Function::evaluate(
       name->get_text(), Ttx::Layout(parameters.get_view()),
       Ttx::Layout(result.get_view()), documentation);
   if (body_mode == BodyMode::Declaration) {
-    if (!cursor.require(
-            Class::Type::EndStatement,
-            "Expected `;` after library function declaration."_view)) {
+    Bool has_statement_end = cursor.require(
+        Class::Type::EndStatement,
+        "Expected `;` after library function declaration."_view);
+    if (!has_statement_end) {
       return Ttx::Function();
     }
   } else if (cursor.matches(Class::Type::EndStatement)) {
     cursor.consume();
   } else {
     Count start = cursor.get_token_index();
-    if (!cursor.matches(Class::Type::ScopeStart) ||
-        !Syntax::consume_declaration_tail(cursor)) {
+    if (!cursor.matches(Class::Type::ScopeStart)) {
+      return Ttx::Function();
+    }
+
+    Bool consumed = Library::Syntax::consume_declaration_tail(cursor);
+    if (!consumed) {
       return Ttx::Function();
     }
 
@@ -89,4 +91,37 @@ auto Library::Function::evaluate(
   }
 
   return function;
+}
+
+auto Library::Function::evaluate(
+    Cursor& cursor,
+    Scope& scope,
+    Ttx::Documentation documentation,
+    Perimortem::Utility::Range& source) -> Ttx::Function {
+  return evaluate_function(
+      cursor, scope, documentation, BodyMode::Definition, source, nullptr,
+      nullptr);
+}
+
+auto Library::Function::evaluate(
+    Cursor& cursor,
+    Scope& scope,
+    Ttx::Documentation documentation,
+    Perimortem::Utility::Range& source,
+    const Ttx::Type* owner,
+    Bool& addressable) -> Ttx::Function {
+  return evaluate_function(
+      cursor, scope, documentation, BodyMode::Definition, source, owner,
+      &addressable);
+}
+
+auto Library::Function::evaluate_declaration(
+    Cursor& cursor,
+    Scope& scope,
+    Ttx::Documentation documentation,
+    const Ttx::Type* owner) -> Ttx::Function {
+  Perimortem::Utility::Range source;
+  return evaluate_function(
+      cursor, scope, documentation, BodyMode::Declaration, source, owner,
+      nullptr);
 }

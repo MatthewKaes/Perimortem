@@ -4,7 +4,6 @@
 #pragma once
 
 #include "tetrodotoxin/compiler/backend.hpp"
-#include "tetrodotoxin/compiler/target/cpp.hpp"
 
 namespace Tetrodotoxin::Compiler::Target {
 
@@ -12,15 +11,7 @@ namespace Tetrodotoxin::Compiler::Target {
 // the standard toolchain.
 class SystemV {
  public:
-  static constexpr auto backend() -> Backend {
-    return Backend(lower, Cpp::build_header);
-  }
-
- private:
-  static auto lower(
-      const Execution::Program& program,
-      Ttx::Lexical::Errors& errors,
-      Tetrodotoxin::Linker::Linker& linker) -> Bool;
+  static auto backend() -> Backend;
 };
 
 }  // namespace Tetrodotoxin::Compiler::Target

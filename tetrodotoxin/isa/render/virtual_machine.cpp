@@ -33,14 +33,15 @@ auto Render::VirtualMachine::evaluate_member(
     return nullptr;
   }
 
-  if (!Base::Expression::Evaluator::consume_initializer(
-          cursor, initializer_error)) {
+  Bool initializer_consumed = Base::Expression::Evaluator::consume_initializer(
+      cursor, initializer_error);
+  if (!initializer_consumed) {
     return nullptr;
   }
 
-  if (!cursor.require(
-          Class::Type::EndStatement,
-          "Expected `;` after render member."_view)) {
+  Bool has_statement_end = cursor.require(
+      Class::Type::EndStatement, "Expected `;` after render member."_view);
+  if (!has_statement_end) {
     return nullptr;
   }
 
@@ -56,14 +57,15 @@ auto Render::VirtualMachine::evaluate_member(
 auto Render::VirtualMachine::evaluate(Cursor& cursor, Base::Context& context)
     -> Ttx::Type* {
   Ttx::Documentation documentation = Base::Documentation::evaluate(cursor);
-  if (!Base::Attribute::consume_all(cursor)) {
+  Bool attributes_consumed = Base::Attribute::consume_all(cursor);
+  if (!attributes_consumed) {
     return nullptr;
   }
 
   Base::Declaration render_definition = Base::Declaration::evaluate(
       cursor, documentation, {{Class::Type::Public}}, {{Class::Type::Type}},
       {{Class::Type::Type}});
-  if (!render_definition.is_valid()) {
+  if (render_definition.is_empty()) {
     return nullptr;
   }
 
@@ -72,21 +74,22 @@ auto Render::VirtualMachine::evaluate(Cursor& cursor, Base::Context& context)
     return nullptr;
   }
 
-  if (!cursor.require(
-          Class::Type::ScopeStart,
-          "Expected `{` after render declaration."_view)) {
+  Bool has_scope = cursor.require(
+      Class::Type::ScopeStart, "Expected `{` after render declaration."_view);
+  if (!has_scope) {
     return nullptr;
   }
 
   Managed::Vector<Ttx::Member> members(context.get_arena());
-  Managed::Vector<const Ttx::Type*> types(context.get_arena());
+  Managed::Vector<Ttx::Type::Reference> types(context.get_arena());
   Managed::Vector<Ttx::Function> functions(context.get_arena());
   Bool valid = True;
   while (!cursor.matches(Class::Type::EndOfStream) &&
          !cursor.matches(Class::Type::ScopeEnd)) {
     Ttx::Documentation member_documentation =
         Base::Documentation::evaluate(cursor);
-    if (!Base::Attribute::consume_all(cursor)) {
+    Bool member_attributes_consumed = Base::Attribute::consume_all(cursor);
+    if (!member_attributes_consumed) {
       return nullptr;
     }
 
@@ -97,7 +100,7 @@ auto Render::VirtualMachine::evaluate(Cursor& cursor, Base::Context& context)
         return nullptr;
       }
 
-      types.insert(fact_block);
+      types.insert(Ttx::Type::Reference(*fact_block));
       continue;
     }
 
@@ -111,7 +114,7 @@ auto Render::VirtualMachine::evaluate(Cursor& cursor, Base::Context& context)
     Base::Declaration definition = Base::Declaration::evaluate_after_modifier(
         cursor, member_documentation, modifier, {{Class::Type::Addressable}},
         {{Class::Type::Type, Class::Type::Addressable}});
-    if (!definition.is_valid()) {
+    if (definition.is_empty()) {
       return nullptr;
     }
 
@@ -122,11 +125,12 @@ auto Render::VirtualMachine::evaluate(Cursor& cursor, Base::Context& context)
         return nullptr;
       }
 
-      if (!Stage::insert(cursor, functions, stage.get_function())) {
+      Bool inserted = Stage::insert(cursor, functions, stage.get_function());
+      if (!inserted) {
         valid = False;
       }
 
-      types.insert(stage.get_facts());
+      types.insert(Ttx::Type::Reference(stage.get_facts()));
       continue;
     }
 
@@ -138,16 +142,17 @@ auto Render::VirtualMachine::evaluate(Cursor& cursor, Base::Context& context)
       return nullptr;
     }
 
-    if (!Interface::insert(
-            cursor, members, *member,
-            "Render member name is already defined."_view)) {
+    Bool inserted = Interface::insert(
+        cursor, members, *member,
+        "Render member name is already defined."_view);
+    if (!inserted) {
       valid = False;
     }
   }
 
-  if (!cursor.require(
-          Class::Type::ScopeEnd,
-          "Expected `}` after render declaration."_view)) {
+  Bool has_scope_end = cursor.require(
+      Class::Type::ScopeEnd, "Expected `}` after render declaration."_view);
+  if (!has_scope_end) {
     return nullptr;
   }
 
@@ -157,11 +162,12 @@ auto Render::VirtualMachine::evaluate(Cursor& cursor, Base::Context& context)
 
   auto& render_type = context.get_arena().construct<Ttx::Type>(
       render_definition.get_name(), members.get_view(), types.get_view(),
-      functions.get_view(), render_definition.get_documentation(),
+      functions.get_view(), View::Vector<Ttx::Function>(),
+      render_definition.get_documentation(),
       render_definition.get_attributes());
 
-  Managed::Vector<const Ttx::Type*> root_types(context.get_arena());
-  root_types.insert(&render_type);
+  Managed::Vector<Ttx::Type::Reference> root_types(context.get_arena());
+  root_types.insert(Ttx::Type::Reference(render_type));
   return &context.get_arena().construct<Ttx::Type>(
       Render::VirtualMachine::get_name(), View::Vector<Ttx::Member>(),
       root_types.get_view());

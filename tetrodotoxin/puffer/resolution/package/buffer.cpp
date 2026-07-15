@@ -13,14 +13,14 @@ Resolution::Package::Buffer::Buffer(View::Bytes content)
 
 auto Resolution::Package::Buffer::read_manifest(
     Perimortem::Memory::Allocator::Arena& target) const
-    -> Tetrodotoxin::Archiver::Manifest {
+    -> const Tetrodotoxin::Archiver::Manifest* {
   return Tetrodotoxin::Archiver::Reader(source).read_manifest(target);
 }
 
 auto Resolution::Package::Buffer::read_package(
     Perimortem::Memory::Allocator::Arena& target,
-    Tetrodotoxin::Archiver::Manifest manifest,
-    Perimortem::Core::View::Vector<Tetrodotoxin::Archiver::Reference>
+    const Tetrodotoxin::Archiver::Manifest& manifest,
+    Perimortem::Core::View::Vector<const Tetrodotoxin::Archiver::Package*>
         references) const -> Tetrodotoxin::Archiver::Package* {
   return Tetrodotoxin::Archiver::Reader(source).read_package(
       target, manifest, references);

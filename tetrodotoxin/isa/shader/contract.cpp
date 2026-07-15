@@ -57,7 +57,7 @@ static auto validate_reference_read(
 static auto validate_pack_reads(
     Cursor& cursor,
     const Ttx::Type& stage_facts,
-    const Base::Expression::Pack* pack) -> Bool;
+    const Base::Expression::Pack& pack) -> Bool;
 
 static auto validate_value_reads(
     Cursor& cursor,
@@ -68,9 +68,15 @@ static auto validate_value_reads(
     return validate_reference_read(cursor, stage_facts, value.get_tokens());
   case Base::Expression::Value::Kind::Pack:
     return validate_pack_reads(cursor, stage_facts, value.get_pack());
-  case Base::Expression::Value::Kind::Binary:
-    return validate_value_reads(cursor, stage_facts, *value.get_left()) &&
-           validate_value_reads(cursor, stage_facts, *value.get_right());
+  case Base::Expression::Value::Kind::Binary: {
+    Bool left_valid =
+        validate_value_reads(cursor, stage_facts, value.get_left());
+    if (!left_valid) {
+      return False;
+    }
+
+    return validate_value_reads(cursor, stage_facts, value.get_right());
+  }
   default:
     return True;
   }
@@ -79,14 +85,11 @@ static auto validate_value_reads(
 static auto validate_pack_reads(
     Cursor& cursor,
     const Ttx::Type& stage_facts,
-    const Base::Expression::Pack* pack) -> Bool {
-  if (pack == nullptr) {
-    return True;
-  }
-
-  View::Vector<Base::Expression::Value> values = pack->get_values();
+    const Base::Expression::Pack& pack) -> Bool {
+  View::Vector<Base::Expression::Value> values = pack.get_values();
   for (Count i = 0; i < values.get_size(); i++) {
-    if (!validate_value_reads(cursor, stage_facts, values[i])) {
+    Bool valid = validate_value_reads(cursor, stage_facts, values[i]);
+    if (!valid) {
       return False;
     }
   }
@@ -98,22 +101,29 @@ static auto validate_statement_reads(
     Cursor& cursor,
     const Ttx::Type& stage_facts,
     const Shader::Statement& statement) -> Bool {
-  const Shader::Statement::State* state = statement.find_state();
-  if (state != nullptr) {
-    return validate_value_reads(cursor, stage_facts, state->get_initializer());
+  switch (statement.get_kind()) {
+  case Shader::Statement::Kind::State:
+    return validate_value_reads(
+        cursor, stage_facts, statement.get_state().get_initializer());
+  case Shader::Statement::Kind::Return:
+    return validate_pack_reads(
+        cursor, stage_facts, statement.get_return_pack());
+  case Shader::Statement::Kind::BareReturn:
+    return True;
+  case Shader::Statement::Kind::Empty:
+    cursor.token_error(
+        "Shader contract received an empty durable statement."_view);
+    return False;
   }
 
-  return statement.is_return()
-             ? validate_pack_reads(
-                   cursor, stage_facts, statement.get_return_pack())
-             : True;
+  __builtin_unreachable();
 }
 
 auto Shader::Contract::resolve(Cursor& cursor, Base::Context& context)
     -> const Ttx::Type* {
-  if (!cursor.require(
-          Class::Type::Define,
-          "Expected `:` before shader render contract."_view)) {
+  Bool has_definition = cursor.require(
+      Class::Type::Define, "Expected `:` before shader render contract."_view);
+  if (!has_definition) {
     return nullptr;
   }
 
@@ -136,7 +146,7 @@ auto Shader::Contract::validate_stage(
     const Ttx::Type& contract,
     const Ttx::Function& function,
     const Shader::Block& block) -> Bool {
-  const Ttx::Function* stage = contract.find_function(function.get_name());
+  const Ttx::Function* stage = contract.find_type_function(function.get_name());
   if (stage == nullptr) {
     cursor.token_error(
         "Shader stage is not declared by the render contract."_view);
@@ -171,7 +181,8 @@ auto Shader::Contract::validate_reads(
 
   View::Vector<Shader::Statement> statements = block.get_statements();
   for (Count i = 0; i < statements.get_size(); i++) {
-    if (!validate_statement_reads(cursor, *stage_facts, statements[i])) {
+    Bool valid = validate_statement_reads(cursor, *stage_facts, statements[i]);
+    if (!valid) {
       return False;
     }
   }

@@ -52,7 +52,7 @@ class Errors {
           message(message),
           hint(hint),
           start_token(&token),
-          end_token(nullptr) {}
+          end_token(&token) {}
 
     // Creates an error that highlights a range of tokens for issues that cross
     // multiple tokens such as an expression.
@@ -78,12 +78,12 @@ class Errors {
       return source;
     }
 
-    constexpr auto get_start_token() const -> const Lexical::Token* {
-      return start_token;
+    constexpr auto has_tokens() const -> Bool { return start_token != nullptr; }
+    constexpr auto get_start_token() const -> const Lexical::Token& {
+      return *start_token;
     }
-
-    constexpr auto get_end_token() const -> const Lexical::Token* {
-      return end_token;
+    constexpr auto get_end_token() const -> const Lexical::Token& {
+      return *end_token;
     }
 
     constexpr auto get_message() const -> Perimortem::Core::View::Bytes {

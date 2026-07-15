@@ -1,15 +1,15 @@
 # TTX
 
 TTX is a small source IR format. It provides a human-authored source surface,
-token bytecode, and a core Type and Layout model that a host can execute, inspect,
-or use as an interchange boundary. Tetrodotoxin is the reference host in this
-repository: it provides the VM, CLI, LSP, Bazel integration, source graph,
-packaging, ISA dispatch, and backend entry points.
+token bytecode, and a queryable Abstract object model. A host can execute that model,
+inspect it, or use it as an interchange boundary. Tetrodotoxin is the reference
+host in this repository. It provides the VM, CLI, LSP, Bazel integration, source
+graph, packaging, ISA dispatch, and backend entry points.
 
 The design goal is simplicity: lower source text into a compact token stream,
 let a host execute that stream with the active instruction set, and publish
-queryable TTX facts as more context becomes available. Most of those facts
-reduce to types and layouts.
+queryable TTX facts as more context becomes available. Types, callables,
+layouts, routes, and ISA-specific contracts remain separate facts in one graph.
 
 ## Pipeline
 
@@ -35,9 +35,9 @@ classes here.
 Puffer begins full-source execution by calling its `Boot` ISA directly. Boot
 understands Puffer's source preamble: documentation, the `dialect : Name;`
 instruction, and imports. The dialect instruction selects the next body ISA from
-Tetrodotoxin's active `Isa::Registry`; it is not an out-of-band parser option.
-Boot is called directly for complete source files, rather than installed as a
-body ISA.
+Tetrodotoxin's active `Isa::Registry`. It is part of the token stream, not an
+out-of-band parser option. Puffer calls Boot directly for complete source files
+instead of installing it as a body ISA.
 
 The Puffer resolver loads the import closure, resolves package names such as
 `Perimortem.Graphics` to manifests, checks that imported files declare the
@@ -51,10 +51,10 @@ types, values, and callable facts. Shader and Render ISAs can add their own
 legality and lowering facts. Another host could choose a different envelope or
 skip the envelope entirely when the evaluator is already known.
 
-Lowering belongs to the ISA or backend that owns the requested output.
-There is no extra authority between resolved TTX and the thing being emitted.
+The ISA or backend that owns an output also owns its lowering. Resolved TTX
+facts flow directly to that owner.
 
-## Reference Source Envelope
+## Reference source envelope
 
 Puffer source files start in the Boot ISA. The order is fixed for that host:
 
@@ -84,7 +84,7 @@ that name and the imports. Puffer resolution then loads the required source
 files and asks the toolchain's `Isa::Registry` for the body evaluator once the
 local import environment is complete.
 
-The source execution is intentionally split:
+Puffer splits source execution across three owners:
 
 ```text
 Puffer Boot ISA: execute preamble + imports
@@ -92,14 +92,15 @@ Resolver: load files + bind import aliases
 Body ISA: evaluate remaining bytecode with resolved imports
 ```
 
-That keeps filesystem and package graph management out of TTX while still
-letting Tetrodotoxin ISAs evaluate with the type and package names requested by
+Tetrodotoxin owns the filesystem and package graph. TTX remains focused on the
+language model, while body ISAs receive the type and package names requested by
 the source.
 
 ## ISAs
 
-An ISA is an installed semantic instruction set with a name and behavior. Its
-evaluator address is its identity inside the active toolchain configuration.
+An ISA is an installed semantic instruction set with a name, registered schema
+Route, and behavior. Its registry entry is its local identity inside the active
+toolchain configuration; its address is never durable identity.
 
 That matters because ISAs are open. Adding `Shader`, `Render`, or a
 project-specific authoring space means installing an ISA evaluator into the
@@ -115,56 +116,76 @@ Shader ISA can expose shader stage facts. A Package ISA can expose package
 exports. A Library ISA can expose callable functions and ABI facts. Those are
 ISA-owned enrichments over the same TTX token bytecode.
 
-## Types And Layouts
+## Abstracts, types, callables, and layouts
 
-A layout is shape:
+Every evaluated semantic object implements `Abstract`. Registered subclasses
+publish the operations that make the object useful:
 
-- field order
-- optional field names
-- field types
+```text
+Abstract
+├── Invalid
+├── Type
+│   ├── Alias
+│   ├── Generic
+│   └── ISA-defined types
+├── Callable
+│   ├── Free
+│   └── Self
+└── Address
+```
+
+`Abstract` owns named identity, its ClassDB class, and contract-filtered child
+queries. `Type` adds canonicalization and concrete Layout. `Alias` preserves its
+own name and route while canonicalizing through another Type. `Generic` creates
+or finds a concrete compiler-owned Type. `Callable` adds complete parameter and
+result Layouts plus an Address query. Free calls have no receiver. Self calls
+include the receiver as parameter zero. Address describes a local, external,
+interpreted, runtime, or explicitly unresolved invocation endpoint.
+
+Type is not the universal semantic base, and there is no vague `Typed` marker.
+A tool asks directly for Type children, Callable children, or Self callables.
+Lower compiler layers can accept Type without knowing whether it is an Alias,
+Generic, or ISA-specific subtype.
+
+ClassDB supplies this hierarchy without C++ RTTI. Its durable class identity is
+a readable, versioned schema route. Native C++ objects and foreign-language
+objects use the same ancestry and operation descriptions; foreign objects cross
+the ABI as opaque handles and callbacks rather than C++ vtables.
+
+A successful query returns both an Abstract reference and the Route walked to
+reach it. This matters because one object can be visible through several aliases
+or imports. Canonicalizing a Type does not erase the authored route used for
+diagnostics, documentation, or publication. Public names encode a selected
+route reversibly and never use a signature hash.
+
+Failure produces `Invalid : Abstract`, not a null semantic pointer. Invalid
+retains the failed route and diagnostic cause. Empty scopes use empty views;
+unresolved callable linkage uses an explicit unresolved Address or Invalid.
+
+A Layout is recursive shape and storage:
+
+- fluid or concrete kind
+- field order and optional field names
+- child Types and concrete offsets
+- size and alignment for concrete storage
 - pack fitting rules
 
-A type is identity plus behavior:
+Types admitted to value positions project to concrete Layouts, while Layouts do
+not become Types or own dispatch. A bare Generic must first produce a concrete
+Type. A scalar has an empty concrete Layout. An aggregate has entries and must
+be recursively deconstructed by terminal lowering. A target then asks terminal
+Type contracts how empty-layout leaves are represented. An authored `@abi`
+number is not a substitute for this query.
 
-- name
-- documentation
-- parent or package ownership
-- types
-- functions
-- structural members and defaults
+Documentation is not canonicalized with aliases. An Alias can carry its own
+documentation while `canonicalize()` reaches the root Type. Tools can present
+the authored Resolution route, the canonical route, or a stacked documentation
+view without inventing a `display_name` identity.
 
-This is the center of TTX. Values, packs, function arguments, function returns,
-struct fields, shader resources, ABI carriers, and package exports are modeled
-through type and layout queries. Documentation is carried by the
-type/member/function that owns it, but it does not participate in type identity
-or layout fitting.
-
-Documentation is not canonicalized with aliases. An alias can carry its own
-documentation while `canonical()` still reaches the root type and its
-documentation. Tools can therefore present the alias name with alias
-documentation, the alias name with canonical documentation, or a stacked view
-that amends the root documentation with each alias layer in the current context.
-
-Types also provide `describe()` for diagnostics and tooling. The description is
-not identity. It is a short user-facing rendering of the authored type name,
-with alias relationships made explicit. A producer that knows a public path can
-attach the generic `display_name` attribute so a type can describe itself as
-`Graphics::Size2D alias of Math::Geometry::Size2D` without a side table. Type
-equivalence still uses canonical address identity, and layout fitting still
-belongs to `Layout`.
-
-Type parameterization is type dispatch over a resolved layout. A source spelling
-such as `View[Bits_8]` first resolves `View`, then resolves `[Bits_8]` as the
-parameter layout, then asks the `View` type object to produce the concrete type
-identity for that layout. `Vec[Real_32, 4]`, `List[Sprite]`, and similar forms
-follow the same rule. They are not templates or generated type families; the
-parameterized type object answers with a concrete address that later type and
-layout queries can use.
-
-`Layout(type)` converts a type into the member view it exposes. A layout stores
-only a `Member` view, so the same object can describe aggregate members,
-function parameters, return values, swizzles, slices, and other authored packs.
-It does not own or upgrade itself into a type.
+Type parameterization proves that the resolved Type implements Generic, resolves
+the arguments, and asks it for a concrete Type. `View[Bits_8]`,
+`Vec[Real_32, 4]`, and `List[Sprite]` follow the same rule. They are not a
+parallel template or generated-type system.
 
 Names in a layout are authored or boundary-provided facts. An explicit named
 pack authors names. A function parameter layout, function return layout, type
@@ -176,25 +197,22 @@ composition. Duplicate names are still representable because layouts can be
 merged or generated by ISAs. Source and package diagnostics can report that
 only the leftmost duplicate is reachable by name.
 
-Layouts do not own storage facts in the root model. Size, alignment, and offsets
-are produced later by the lowering owner that knows the target ABI or backend.
-Primitive types therefore keep type identity without pretending to expose byte
-storage at this level. Aggregate types expose structural members. Layout fitting
-uses `source.fits(target)`; exact structural equality uses `equivalent_to`.
-Defaulted members are only valid as a trailing suffix. A target layout with a
-defaulted member followed by a required member does not fit, even when the
-source provides that later required member.
+Layout fitting uses `source.fits(target)`. Exact structural equality uses
+`equivalent_to`. Defaulted members are only valid as a trailing suffix. A target
+layout with a defaulted member followed by a required member does not fit, even
+when the source provides that later required member.
 
 Core scalar, vector, and memory types are prelude types. They are injected into
-every source context as top-level names such as `Void`, `Real_32`, and `Vec2D`;
-they are not accessed through `Core::Void` or imported as `TTX::Core`.
+every source context as top-level names such as `Void`, `Real_32`, and `Vec2D`.
+Source uses these names directly instead of importing `TTX::Core` or writing
+`Core::Void`.
 
 ## Operators
 
 TTX keeps three access modes separate.
 
-`.` is named layout access. It works on layouts, and on typed values or types
-after converting the type with `Layout(type)`.
+`.` is named layout access. It works on layouts, and on typed values or Types
+after querying the Type's Layout.
 
 ```ttx
 sprite.size_pixels.width
@@ -207,25 +225,24 @@ the receiving boundary later supplies them. `.[` swizzle references member names
 from the receiver layout while selecting values, then produces a positional
 pack. `:[` index or slice evaluates expressions and selects by position.
 
-```
+```ttx
 // swizzle to repack
-color.[r, g, b] // selects r g b from color and produces a positional pack.
-color.[r, r, r] // repeats are allowed and still produce positional entries.
-color.[r] // swizzles may be any size.
+color.[r, g, b] // Select r, g, and b into a positional pack.
+color.[r, r, r] // Repeated members remain separate positional entries.
+color.[r]       // Swizzles may contain one member.
 
-// indexes and slices evaluate their arguments.
-color:[1] // one member at index 1.
-color:[start] // one member at the evaluated start index.
+// Indexes and slices evaluate their arguments.
+color:[1]     // Read the member at index 1.
+color:[start] // Evaluate start and read that member.
 
-// slices get consecutive elements based on order.
-// This call gets two consecutive members starting at index 1 which in this case is the
-// same as `color.[g, b]`.
+// Slices read consecutive members. This selects the same members as
+// color.[g, b], but it evaluates its index and count.
 color:[1, 2]
 ```
 
-The split is intentional. `color.[r, g]` cannot read local variables named `r`
-and `g`; it names fields in `color`'s layout. `color:[r, g]` evaluates local
-state and uses the result as index/slice arguments.
+The two forms answer different questions. `color.[r, g]` names fields in
+`color`'s layout and cannot read local variables named `r` and `g`.
+`color:[r, g]` evaluates local state and uses the results as slice arguments.
 
 Bare `[...]` is reserved only for layouts. Function parameters and return values
 are layouts. They may be named, but those names belong to the declared boundary,
@@ -233,15 +250,15 @@ not to arbitrary expressions that later fit that boundary. Type arguments are
 types with layout parameterization, so they still use the same layout syntax
 rather than a second bracket meaning. Value indexing uses `:[...]`.
 
-`(...)` allows for a "regrouping" of a layout:
+`(...)` regroups a layout:
 
 ```
 (color.[r, g], color.b, alpha)
 ```
 
-`::` is type/export access after a package or type has been bound into the
-current scope. It walks metadata owned by that object. It does not degrade to
-layout, and it is not part of package identity spelling.
+`::` is Type access after an Abstract has been bound into the current scope. It
+performs one `resolve<Type>()` route step. It does not degrade to Layout, and it
+is not string concatenation.
 
 ```ttx
 Perimortem.Graphics
@@ -250,9 +267,9 @@ Graphics::Shaders::Default2D
 Render2D::Renderer2D
 ```
 
-`->` is callable dispatch. It requires a dispatchable identity: a typed value,
-a type object, a package object, or eventually a function pointer. It does not
-work on a pure layout.
+`->` is Callable dispatch. A Type or package receiver resolves Free; an
+addressable value resolves Self through its canonical Type. It requires a
+dispatchable identity and does not work on a pure Layout.
 
 ```ttx
 Count -> from(value)
@@ -266,7 +283,7 @@ This is invalid:
 (.x = 2, .y = 3) -> format()
 ```
 
-The pack has shape, but no type identity and no function table. It may fit into
+The pack has shape, but no Type identity and no Callable children. It may fit into
 a target type later, such as assignment to `Vec2D` or passing into a parameter
 with a concrete expected type. Until that context exists, there is nothing to
 dispatch.
@@ -281,14 +298,13 @@ import Graphics : Package = Perimortem.Graphics;
 private Default2D : alias = Graphics::Shaders::Default2D;
 ```
 
-Package names are `Type("." Type)*` values. If the package name parses, a host
-can use the same string as its cache key and package artifact folder name. In
-Tetrodotoxin, `Perimortem.Graphics` resolves through a registered Puffer Buffer
-published from a package folder, not by guessing where the source manifest
-lives:
+Package names are `Type("." Type)*` values. The authored name identifies both
+the package and its module directory. Tetrodotoxin resolves
+`Perimortem.Graphics` through its registered Puffer Buffer rather than guessing
+where the source manifest lives:
 
 ```text
-Perimortem.Graphics/perimortem_graphics.puffer
+Perimortem.Graphics/binary_archive.puffer
 ```
 
 The source manifest that produced the package buffer can import concrete source
@@ -327,29 +343,31 @@ hands them back under names like `Graphics`, `Types`, or `Render2D`.
 
 Failures are reported where the owning query has enough information to answer.
 
-An empty lookup becomes a missing-object diagnostic.
+An empty lookup produces an Invalid object carrying a missing-name diagnostic.
 
 A pack that cannot fit a target layout becomes a layout-mismatch diagnostic.
 
-A call receiver with no type or dispatchable identity becomes a call-dispatch
-diagnostic.
+A call receiver with no Type or dispatchable identity produces Invalid with a
+call-dispatch diagnostic.
 
 An imported file with a different ISA than the import requested becomes an
 ISA-mismatch diagnostic at the import.
 
-The model stays small because each concept reports its own failures. There is no
-need for a separate layer whose job is to rediscover what packages, ISAs,
-types, layouts, eventual ABI providers, or backends already know.
+The model stays small because each concept reports its own failures and Invalid
+preserves the first cause. There is no need for a separate layer whose job is to
+rediscover what packages, ISAs, Types, Layouts, eventual ABI providers, or
+backends already know.
 
-## Repository Map
+## Repository map
 
 The TTX directory is the language core:
 
 - [`lexical`](lexical/) lowers source text into stable token bytecode
 - [`documentation.hpp`](documentation.hpp) models source-authored
   documentation attached to language objects
-- [`type.hpp`](type.hpp) and [`type.cpp`](type.cpp) model type identity,
-  aliases, members, nested types, functions, and type-owned documentation
+- [`abstract.hpp`](abstract.hpp) is the root semantic query contract
+- Type, Alias, Generic, Callable, Free, Self, and Invalid extend Abstract with
+  up-castable operations registered through ClassDB
 - [`layout.hpp`](layout.hpp) and [`layout.cpp`](layout.cpp) model shape,
   fitting, exact equivalence, named member access, and type-to-layout views
 - [`core/prelude.hpp`](core/prelude.hpp) provides the top-level prelude types
@@ -370,11 +388,12 @@ Tetrodotoxin is the surrounding toolchain:
   describes the Perimortem graphics ABI as a TTX package
 - [`../toolchain/tetrodotoxin.bzl`](../toolchain/tetrodotoxin.bzl) integrates
   TTX with Bazel
-- [`../tetrodotoxin/compiler`](../tetrodotoxin/compiler/) owns execution
-  programs, target backends, and private terminal instruction encoders
+- [`../tetrodotoxin/compiler`](../tetrodotoxin/compiler/) owns the per-build
+  Abstract DAG and memory boundary, terminal planning, target backends, and
+  private terminal instruction encoders
 - [`../tetrodotoxin/linker`](../tetrodotoxin/linker/) packages terminal object
   records and link targets
 
-The split keeps TTX focused on source IR, token bytecode, and the Type and Layout
+The split keeps TTX focused on source IR, token bytecode, and the Abstract query
 model while Tetrodotoxin supplies VM execution, files, packages, editor
 integration, build integration, and terminal artifacts.

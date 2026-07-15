@@ -88,8 +88,8 @@ class Declaration {
     return name_class == Ttx::Lexical::Class::Type::Addressable;
   }
 
-  constexpr auto is_valid() const -> Bool {
-    return modifier != Ttx::Lexical::Class::Type::Unknown;
+  constexpr auto is_empty() const -> Bool {
+    return modifier == Ttx::Lexical::Class::Type::Unknown;
   }
 
  private:

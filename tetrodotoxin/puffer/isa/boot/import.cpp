@@ -17,17 +17,19 @@ auto Isa::Boot::Import::evaluate(
       Tetrodotoxin::Isa::Base::Declaration::evaluate(
           cursor, Ttx::Documentation(), {{Class::Type::Import}},
           {{Class::Type::Type}}, {{Class::Type::Type}});
-  if (!definition.is_valid()) {
+  if (definition.is_empty()) {
     return Isa::Boot::Import();
   }
 
-  if (!registry.require_installed(cursor, definition.get_kind())) {
+  Bool installed = registry.require_installed(cursor, definition.get_kind());
+  if (!installed) {
     cursor.recover_to_statement();
     return Isa::Boot::Import();
   }
 
-  if (!cursor.require(
-          Class::Type::Assign, "Expected `=` after import ISA."_view)) {
+  Bool has_assignment = cursor.require(
+      Class::Type::Assign, "Expected `=` after import ISA."_view);
+  if (!has_assignment) {
     cursor.recover_to_statement();
     return Isa::Boot::Import();
   }
@@ -46,7 +48,7 @@ auto Isa::Boot::Import::evaluate(
   case Class::Type::Type: {
     package = True;
     auto name = Tetrodotoxin::Isa::Package::PackageName::evaluate(cursor);
-    if (!name.is_valid()) {
+    if (name.is_empty()) {
       cursor.recover_to_statement();
       return Isa::Boot::Import();
     }
@@ -62,8 +64,9 @@ auto Isa::Boot::Import::evaluate(
     return Isa::Boot::Import();
   }
 
-  if (!cursor.require(
-          Class::Type::EndStatement, "Expected `;` after import."_view)) {
+  Bool has_statement_end = cursor.require(
+      Class::Type::EndStatement, "Expected `;` after import."_view);
+  if (!has_statement_end) {
     cursor.recover_to_statement();
   }
 

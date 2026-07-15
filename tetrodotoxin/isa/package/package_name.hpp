@@ -35,7 +35,7 @@ class PackageName {
     return documentation;
   }
 
-  constexpr auto is_valid() const -> Bool { return !name.is_empty(); }
+  constexpr auto is_empty() const -> Bool { return name.is_empty(); }
 
  private:
   Perimortem::Core::View::Bytes name;

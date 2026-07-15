@@ -7,18 +7,18 @@ Language support for TTX, Perimortem's Tetrodotoxin source IR.
 This preview is a static package asset built from TTX source text and the
 extension color rules.
 
-## Current Feature Set
+## Current feature set
 
 - `.ttx` file association with the Tetrodotoxin language id.
 - Bundled TTX TextMate grammar for syntax highlighting.
 - Bundled red TTX color defaults for comments, modifiers, attributes, types,
   members, functions, constants, strings, numbers, operators, and punctuation.
-- Document formatting through the bundled Tetrodotoxin language server.
+- A format request that currently preserves the authored source unchanged.
 - Full-document synchronization with the language server for open `.ttx` files.
 - Optional LSP semantic tokens for users who want editor semantic highlighting.
 - Tetrodotoxin file icon for `.ttx` documents.
 
-## Semantic Highlighting
+## Semantic highlighting
 
 Semantic tokens are disabled by default and can be turned on to override the
 bundled TTX TextMate color scheme.
@@ -29,11 +29,15 @@ bundled TTX TextMate color scheme.
 }
 ```
 
-## Bundled TTX Language Server
+## Bundled TTX language server
 
-The extension packages the current `puffer` binary for Linux machines and starts it in LSP mode.
+The extension packages the current Linux `puffer` binary and starts it in LSP
+mode. The server currently supplies transport, document synchronization, and
+lexical semantic tokens. Dialect-aware formatting and diagnostics will use the
+same resolver and evaluator path as package compilation when that integration
+lands.
 
-## Not Yet Included
+## Not yet included
 
 The current extension does not advertise completions, hover, go-to-definition,
 references, or published diagnostics.

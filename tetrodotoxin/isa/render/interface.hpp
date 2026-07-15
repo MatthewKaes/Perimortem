@@ -22,7 +22,7 @@ class Interface {
   static auto source_to_type_name(Perimortem::Core::View::Bytes block_name)
       -> Perimortem::Core::View::Bytes;
   static auto find(
-      Perimortem::Core::View::Vector<const Ttx::Type*> types,
+      Perimortem::Core::View::Vector<Ttx::Type::Reference> types,
       Perimortem::Core::View::Bytes type_name) -> const Ttx::Type*;
   static auto evaluate(
       Ttx::Lexical::Cursor& cursor,

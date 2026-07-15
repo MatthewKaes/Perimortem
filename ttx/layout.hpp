@@ -79,7 +79,7 @@ class Layout {
   }
 
   // Returns an existing member by position. The caller must first prove the
-  // index is in range. Absence belongs to the query boundary; it is not
+  // index is in range. Absence belongs to the query boundary. It is not
   // represented by a partially constructed Member inside the type tree.
   constexpr auto member_at(Count index) const -> const Member& {
     return members.get_data()[index];
@@ -149,8 +149,8 @@ class Layout {
 
   // Maps one target entry back to the source entry that constructs it.
   //
-  // Call this after `fits(target)` succeeds. Named layouts map by member name;
-  // positional layouts map by index. An omitted defaulted target entry returns
+  // Call this after `fits(target)` succeeds. Named layouts map by member name.
+  // Positional layouts map by index. An omitted defaulted target entry returns
   // Count(-1), allowing construction code to materialize the target default
   // without reproducing Layout's mapping policy.
   auto source_index_for(const Layout& target, Count target_index) const

@@ -38,10 +38,11 @@ class Member {
       Documentation documentation = Documentation(),
       Perimortem::Core::View::Vector<Attribute> attributes = {})
       : name(name),
-        type(type),
+        type(&type),
         defaulted(defaulted),
         documentation(documentation),
         attributes(attributes) {}
+
   constexpr Member(
       Perimortem::Core::View::Bytes name,
       const Type& type,
@@ -54,7 +55,14 @@ class Member {
     return name;
   }
 
-  constexpr auto get_type() const -> const Type& { return type; }
+  constexpr auto get_type() const -> const Type& { return *type; }
+  // Compares the stored identity without beginning or observing the Type's
+  // lifetime. Recursive builders use this only while validating an edge to a
+  // reserved Type. Semantic consumers should query get_type() after the graph
+  // has been completed.
+  constexpr auto references(const Type* candidate) const -> Bool {
+    return type == candidate;
+  }
   constexpr auto get_documentation() const -> Documentation {
     return documentation;
   }
@@ -81,8 +89,20 @@ class Member {
   auto equivalent_to(const Member& other) const -> Bool;
 
  private:
+  constexpr Member(
+      Perimortem::Core::View::Bytes name,
+      const Type* type,
+      Bool defaulted,
+      Documentation documentation,
+      Perimortem::Core::View::Vector<Attribute> attributes)
+      : name(name),
+        type(type),
+        defaulted(defaulted),
+        documentation(documentation),
+        attributes(attributes) {}
+
   Perimortem::Core::View::Bytes name;
-  const Type& type;
+  const Type* type;
   Bool defaulted = False;
   Documentation documentation;
   Perimortem::Core::View::Vector<Attribute> attributes;

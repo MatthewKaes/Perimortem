@@ -22,9 +22,9 @@ auto Shader::Statement::evaluate(Cursor& cursor, Base::Context& context)
       return Statement();
     }
 
-    if (!cursor.require(
-            Class::Type::Define,
-            "Expected `:` after shader state name."_view)) {
+    Bool has_definition = cursor.require(
+        Class::Type::Define, "Expected `:` after shader state name."_view);
+    if (!has_definition) {
       return Statement();
     }
 
@@ -39,9 +39,10 @@ auto Shader::Statement::evaluate(Cursor& cursor, Base::Context& context)
       return Statement();
     }
 
-    if (!cursor.require(
-            Class::Type::Assign,
-            "Expected `=` before shader state initializer."_view)) {
+    Bool has_assignment = cursor.require(
+        Class::Type::Assign,
+        "Expected `=` before shader state initializer."_view);
+    if (!has_assignment) {
       return Statement();
     }
 
@@ -64,12 +65,20 @@ auto Shader::Statement::evaluate(Cursor& cursor, Base::Context& context)
   case Class::Type::Return: {
     const Token start = cursor.current();
     cursor.consume();
-    const Base::Expression::Pack* pack = nullptr;
-    if (!cursor.matches(Class::Type::EndStatement)) {
-      pack = Base::Expression::Pack::evaluate(cursor, context);
-      if (pack == nullptr) {
+    if (cursor.matches(Class::Type::EndStatement)) {
+      const Token* end = cursor.require(
+          Class::Type::EndStatement, "Expected `;` after shader return."_view);
+      if (end == nullptr) {
         return Statement();
       }
+
+      return return_statement(start, *end);
+    }
+
+    const Base::Expression::Pack* pack =
+        Base::Expression::Pack::evaluate(cursor, context);
+    if (pack == nullptr) {
+      return Statement();
     }
 
     const Token* end = cursor.require(
@@ -78,7 +87,7 @@ auto Shader::Statement::evaluate(Cursor& cursor, Base::Context& context)
       return Statement();
     }
 
-    return return_statement(start, *end, pack);
+    return return_statement(start, *end, *pack);
   }
 
   default:

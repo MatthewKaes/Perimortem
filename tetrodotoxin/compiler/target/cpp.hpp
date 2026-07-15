@@ -5,16 +5,24 @@
 
 #include "perimortem/memory/dynamic/bytes.hpp"
 
-#include "tetrodotoxin/compiler/execution/program.hpp"
+#include "tetrodotoxin/compiler/program.hpp"
 
 namespace Tetrodotoxin::Compiler::Target {
 
-// Emits the C++ declarations used to call compiled TTX functions. Linkage
-// symbols remain unmangled while TTX types provide their authored C++ spelling
-// through the `cpp` attribute.
+// Emits the host-facing projection of a compiled TTX public interface.
+//
+// Stable C-linkage declarations name the actual linker exports and use plain
+// ABI carriers for every parameter and result. Inline C++ functions marshal
+// those carriers into the authored package, type, and dispatch surfaces. This
+// keeps classes such as Bool and View::Bytes away from the C-linkage boundary
+// without hiding an Addressable function's explicit `self` argument.
+//
+// Public wrappers use authored TTX type names directly. The generated header
+// supplies the small C++ compatibility surface, such as aliasing Void to void,
+// without storing target-language spellings on every TTX Type.
 class Cpp {
  public:
-  static auto build_header(const Execution::Program& program)
+  static auto build_header(const Program& program)
       -> Perimortem::Memory::Dynamic::Bytes;
 };
 

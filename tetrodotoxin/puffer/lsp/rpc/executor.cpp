@@ -31,7 +31,8 @@ using namespace Tetrodotoxin::Puffer;
 template <const auto& dispatch_table, Count worker_count>
 auto Lsp::Rpc::Executor<dispatch_table, worker_count>::execute(
     View::Bytes pipe_name) -> void {
-  if (!create_connection(pipe_name)) {
+  Bool connected = create_connection(pipe_name);
+  if (!connected) {
     Diagnostics::Log::error("RPC server is in a bad state. Exiting..."_view);
     return;
   }

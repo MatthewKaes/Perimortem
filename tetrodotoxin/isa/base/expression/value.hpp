@@ -5,9 +5,11 @@
 
 #include "perimortem/core/view/bytes.hpp"
 #include "perimortem/core/view/vector.hpp"
+#include "perimortem/core/static/union.hpp"
 
-#include "tetrodotoxin/isa/base/expression/evaluator.hpp"
+#include "ttx/lexical/cursor.hpp"
 #include "ttx/lexical/token.hpp"
+#include "ttx/type.hpp"
 
 namespace Tetrodotoxin::Isa::Base {
 
@@ -44,8 +46,64 @@ class Value {
     Pack,
     Call,
     Binary,
+    Type,
   };
 
+ private:
+  class PackPayload {
+   public:
+    explicit PackPayload(const Pack& value) : value(value) {}
+    constexpr auto get_value() const -> const Pack& { return value; }
+
+   private:
+    const Pack& value;
+  };
+
+  class CallPayload {
+   public:
+    CallPayload(
+        const Value& owner,
+        Perimortem::Core::View::Bytes name,
+        const Pack& arguments)
+        : owner(owner), name(name), arguments(arguments) {}
+
+    constexpr auto get_owner() const -> const Value& { return owner; }
+    constexpr auto get_name() const -> Perimortem::Core::View::Bytes {
+      return name;
+    }
+    constexpr auto get_arguments() const -> const Pack& { return arguments; }
+
+   private:
+    const Value& owner;
+    Perimortem::Core::View::Bytes name;
+    const Pack& arguments;
+  };
+
+  class BinaryPayload {
+   public:
+    BinaryPayload(Operator op, const Value& left, const Value& right)
+        : op(op), left(left), right(right) {}
+
+    constexpr auto get_operator() const -> Operator { return op; }
+    constexpr auto get_left() const -> const Value& { return left; }
+    constexpr auto get_right() const -> const Value& { return right; }
+
+   private:
+    Operator op;
+    const Value& left;
+    const Value& right;
+  };
+
+  class TypePayload {
+   public:
+    explicit TypePayload(const Ttx::Type& value) : value(value) {}
+    constexpr auto get_value() const -> const Ttx::Type& { return value; }
+
+   private:
+    const Ttx::Type& value;
+  };
+
+ public:
   constexpr Value() = default;
 
   static auto evaluate(Ttx::Lexical::Cursor& cursor, Context& context) -> Value;
@@ -67,6 +125,13 @@ class Value {
     return Value(Kind::Bytes, value);
   }
 
+  // A Type value borrows the canonical identity owned by the active resolution
+  // transaction. This is the same lifetime as other expression references and
+  // is sufficient for semantic inspection, completion, and lowering. A
+  // terminal must choose a durable target representation before materializing
+  // the value at runtime. Compiler addresses are not a runtime ABI.
+  static auto type(const Ttx::Type& value) -> Value { return Value(value); }
+
   static constexpr auto numeric(
       Perimortem::Core::View::Bytes value,
       Bool negative = False) -> Value {
@@ -83,34 +148,26 @@ class Value {
     return result;
   }
 
-  static constexpr auto pack(const Pack& value) -> Value {
-    Value result(Kind::Pack);
-    result.pack_value = &value;
-    return result;
+  static auto pack(const Pack& value) -> Value {
+    return Value(PackPayload(value));
   }
 
-  static constexpr auto call(
+  static auto call(
       const Value& owner,
       Perimortem::Core::View::Bytes name,
       const Pack& arguments) -> Value {
-    Value result(Kind::Call);
-    result.call_owner = &owner;
-    result.call_name = name;
-    result.call_arguments = &arguments;
-    return result;
+    return Value(CallPayload(owner, name, arguments));
   }
 
-  static constexpr auto
-      binary(Operator op, const Value& left, const Value& right) -> Value {
-    Value result(Kind::Binary);
-    result.op = op;
-    result.left = &left;
-    result.right = &right;
-    return result;
+  static auto binary(Operator op, const Value& left, const Value& right)
+      -> Value {
+    return Value(BinaryPayload(op, left, right));
   }
 
   constexpr auto get_kind() const -> Kind { return kind; }
-  constexpr auto get_operator() const -> Operator { return op; }
+  constexpr auto get_operator() const -> Operator {
+    return payload.find<BinaryPayload>()->get_operator();
+  }
   constexpr auto get_value() const -> Perimortem::Core::View::Bytes {
     return value;
   }
@@ -122,18 +179,29 @@ class Value {
     return tokens;
   }
 
-  constexpr auto get_pack() const -> const Pack* { return pack_value; }
-  constexpr auto get_call_owner() const -> const Value* { return call_owner; }
+  constexpr auto get_pack() const -> const Pack& {
+    return payload.find<PackPayload>()->get_value();
+  }
+  constexpr auto get_call_owner() const -> const Value& {
+    return payload.find<CallPayload>()->get_owner();
+  }
   constexpr auto get_call_name() const -> Perimortem::Core::View::Bytes {
-    return call_name;
+    return payload.find<CallPayload>()->get_name();
   }
 
-  constexpr auto get_call_arguments() const -> const Pack* {
-    return call_arguments;
+  constexpr auto get_call_arguments() const -> const Pack& {
+    return payload.find<CallPayload>()->get_arguments();
   }
 
-  constexpr auto get_left() const -> const Value* { return left; }
-  constexpr auto get_right() const -> const Value* { return right; }
+  constexpr auto get_left() const -> const Value& {
+    return payload.find<BinaryPayload>()->get_left();
+  }
+  constexpr auto get_right() const -> const Value& {
+    return payload.find<BinaryPayload>()->get_right();
+  }
+  constexpr auto get_type() const -> const Ttx::Type& {
+    return payload.find<TypePayload>()->get_value();
+  }
   constexpr auto is_empty() const -> Bool { return kind == Kind::Empty; }
 
  private:
@@ -146,19 +214,20 @@ class Value {
       Perimortem::Core::View::Bytes value,
       Perimortem::Core::View::Vector<Ttx::Lexical::Token> tokens)
       : kind(kind), value(value), tokens(tokens) {}
+  explicit Value(PackPayload value) : kind(Kind::Pack), payload(value) {}
+  explicit Value(CallPayload value) : kind(Kind::Call), payload(value) {}
+  explicit Value(BinaryPayload value) : kind(Kind::Binary), payload(value) {}
+  explicit Value(const Ttx::Type& value)
+      : kind(Kind::Type), payload(TypePayload(value)) {}
 
   Kind kind = Kind::Empty;
-  Operator op = Operator::None;
   Perimortem::Core::View::Bytes value;
   Bool flag = False;
   Bool negative = False;
   Perimortem::Core::View::Vector<Ttx::Lexical::Token> tokens;
-  const Pack* pack_value = nullptr;
-  const Value* call_owner = nullptr;
-  Perimortem::Core::View::Bytes call_name;
-  const Pack* call_arguments = nullptr;
-  const Value* left = nullptr;
-  const Value* right = nullptr;
+  Perimortem::Core::Static::
+      Union<PackPayload, CallPayload, BinaryPayload, TypePayload>
+          payload;
 };
 
 }  // namespace Tetrodotoxin::Isa::Base::Expression

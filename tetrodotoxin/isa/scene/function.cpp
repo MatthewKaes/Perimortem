@@ -16,11 +16,13 @@ using namespace Ttx::Lexical;
 auto Scene::Function::evaluate(
     Cursor& cursor,
     Base::Context& context,
-    Ttx::Documentation documentation) -> Ttx::Function {
+    Ttx::Documentation documentation,
+    const Ttx::Type* owner,
+    Bool& addressable) -> Ttx::Function {
   cursor.consume();
-  if (!cursor.require(
-          Class::Type::Func,
-          "Expected `func` after Scene function modifier."_view)) {
+  Bool has_function = cursor.require(
+      Class::Type::Func, "Expected `func` after Scene function modifier."_view);
+  if (!has_function) {
     return Ttx::Function();
   }
 
@@ -31,25 +33,29 @@ auto Scene::Function::evaluate(
   }
 
   Managed::Vector<Ttx::Member> parameters(context.get_arena());
-  if (!Base::Layout::Evaluator::evaluate_bracketed(
-          cursor, context, parameters)) {
+  Bool parameters_evaluated = Base::Layout::Evaluator::evaluate_bracketed(
+      cursor, context, parameters, owner, &addressable);
+  if (!parameters_evaluated) {
     return Ttx::Function();
   }
 
-  if (!cursor.require(
-          Class::Type::CallOp,
-          "Expected `->` before Scene function result."_view)) {
+  Bool has_call = cursor.require(
+      Class::Type::CallOp, "Expected `->` before Scene function result."_view);
+  if (!has_call) {
     return Ttx::Function();
   }
 
   Managed::Vector<Ttx::Member> result(context.get_arena());
-  if (!Base::Layout::Evaluator::evaluate(cursor, context, result)) {
+  Bool result_evaluated =
+      Base::Layout::Evaluator::evaluate(cursor, context, result);
+  if (!result_evaluated) {
     return Ttx::Function();
   }
 
-  if (!Base::Expression::Evaluator::consume_block(
-          cursor, "Expected `{` after Scene function signature."_view,
-          "Expected `}` after Scene function body."_view)) {
+  Bool body_consumed = Base::Expression::Evaluator::consume_block(
+      cursor, "Expected `{` after Scene function signature."_view,
+      "Expected `}` after Scene function body."_view);
+  if (!body_consumed) {
     return Ttx::Function();
   }
 

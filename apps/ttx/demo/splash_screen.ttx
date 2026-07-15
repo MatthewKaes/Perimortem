@@ -18,7 +18,10 @@ state bottom_icon : Graphics::Render2D;
 const fade_time : Real_64 = 1.0;
 const hold_time : Real_64 = 1.5;
 
-private func create_icon[.position : Graphics::Point2D] -> Graphics::Render2D {
+private func create_icon[
+  self,
+  .position : Graphics::Point2D,
+] -> Graphics::Render2D {
   return (
     .image = self.icon_image,
     .size_pixels = self.icon_image -> get_size_pixels(),
@@ -29,7 +32,7 @@ private func create_icon[.position : Graphics::Point2D] -> Graphics::Render2D {
 
 // Similar to Godot's _ready function. Scene accepts only on_start, on_update,
 // and on_exit as top-level addressable roots.
-on_start {
+on_start[self] {
   self.icon_image = Graphics::Image -> decode($[.data/icon.png]);
   self.top_icon = self -> create_icon(.position = (.x = 200, .y = 100));
   self.bottom_icon = self -> create_icon(.position = (.x = 200, .y = 400));
@@ -37,7 +40,7 @@ on_start {
 
 // Update function, can technically be called at any time but should be called
 // every frame.
-on_update[.frame : Runtime::Frame] {
+on_update[self, .frame : Runtime::Frame] {
   // Interpolates the points to create a fade in fade out.
   const alpha_value : Real_64 = Math -> interpolate(
     .variable = frame.scene_time -> get_seconds(),

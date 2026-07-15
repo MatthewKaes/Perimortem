@@ -21,9 +21,10 @@ using namespace Ttx::Lexical;
 
 static auto parse_storage_type(Cursor& cursor, Library::Scope& scope)
     -> const Ttx::Type* {
-  if (!cursor.require(
-          Class::Type::IndexStart,
-          "Expected `[` before library enum storage type."_view)) {
+  Bool has_index = cursor.require(
+      Class::Type::IndexStart,
+      "Expected `[` before library enum storage type."_view);
+  if (!has_index) {
     return nullptr;
   }
 
@@ -33,9 +34,10 @@ static auto parse_storage_type(Cursor& cursor, Library::Scope& scope)
     return nullptr;
   }
 
-  if (!cursor.require(
-          Class::Type::IndexEnd,
-          "Expected `]` after library enum storage type."_view)) {
+  Bool has_index_end = cursor.require(
+      Class::Type::IndexEnd,
+      "Expected `]` after library enum storage type."_view);
+  if (!has_index_end) {
     return nullptr;
   }
 
@@ -90,9 +92,10 @@ static auto evaluate_cases(
     Library::Scope& scope,
     const Tetrodotoxin::Isa::Base::Declaration& definition,
     const Ttx::Type& storage) -> const Ttx::Type* {
-  if (!cursor.require(
-          Class::Type::ScopeStart,
-          "Expected `{` after library enum storage type."_view)) {
+  Bool has_scope = cursor.require(
+      Class::Type::ScopeStart,
+      "Expected `{` after library enum storage type."_view);
+  if (!has_scope) {
     return nullptr;
   }
 
@@ -100,12 +103,19 @@ static auto evaluate_cases(
   Managed::Vector<Base::Definition> member_definitions(
       scope.get_context().get_arena());
   Managed::Vector<Ttx::Function> functions(scope.get_context().get_arena());
+  Managed::Vector<Ttx::Function> addressable_functions(
+      scope.get_context().get_arena());
   Managed::Vector<Perimortem::Utility::Range> function_sources(
+      scope.get_context().get_arena());
+  Managed::Vector<Perimortem::Utility::Range> addressable_function_sources(
       scope.get_context().get_arena());
   Managed::Vector<Base::Definition> function_definitions(
       scope.get_context().get_arena());
-  Ttx::Type& type = scope.get_context().get_arena().allocate<Ttx::Type>();
-  if (!scope.stage_type_reference(definition.get_name(), type)) {
+  Managed::Vector<Base::Definition> addressable_function_definitions(
+      scope.get_context().get_arena());
+  Ttx::Type* type = scope.get_context().get_arena().reserve<Ttx::Type>();
+  Bool staged = scope.stage_type_reference(definition.get_name(), type);
+  if (!staged) {
     cursor.token_error(
         "Library enum type could not stage self reference."_view);
     return nullptr;
@@ -117,7 +127,9 @@ static auto evaluate_cases(
     Ttx::Documentation documentation = Base::Documentation::evaluate(cursor);
     Managed::Vector<Ttx::Attribute> source_attributes(
         scope.get_context().get_arena());
-    if (!Base::Attribute::evaluate_all(cursor, source_attributes)) {
+    Bool attributes_evaluated =
+        Base::Attribute::evaluate_all(cursor, source_attributes);
+    if (!attributes_evaluated) {
       return nullptr;
     }
 
@@ -127,7 +139,8 @@ static auto evaluate_cases(
       if (!cursor.matches(Class::Type::Assign)) {
         cursor.token_error("Expected `=` after library enum case name."_view);
         valid = False;
-        if (!Library::Syntax::consume_declaration_tail(cursor)) {
+        Bool recovered = Library::Syntax::consume_declaration_tail(cursor);
+        if (!recovered) {
           return nullptr;
         }
 
@@ -142,24 +155,22 @@ static auto evaluate_cases(
         return nullptr;
       }
 
-      const Base::Expression::Value& initializer =
-          scope.get_context().get_arena().construct<Base::Expression::Value>(
-              value);
-      if (!cursor.require(
-              Class::Type::EndStatement,
-              "Expected `;` after library enum case."_view)) {
+      Bool has_statement_end = cursor.require(
+          Class::Type::EndStatement,
+          "Expected `;` after library enum case."_view);
+      if (!has_statement_end) {
         return nullptr;
       }
 
-      if (!insert_enum_case(
-              cursor, members, name, storage, documentation,
-              source_attributes.get_view())) {
+      Bool inserted = insert_enum_case(
+          cursor, members, name, storage, documentation,
+          source_attributes.get_view());
+      if (!inserted) {
         valid = False;
       } else {
         member_definitions.insert(
             Base::Definition(
-                Class::Type::Expose, source_attributes.get_view(),
-                &initializer));
+                Class::Type::Expose, source_attributes.get_view(), value));
       }
 
       continue;
@@ -171,7 +182,8 @@ static auto evaluate_cases(
         "Expected enum body to contain a case name or function modifier."_view);
     if (modifier == Class::Type::Unknown) {
       valid = False;
-      if (!Library::Syntax::consume_declaration_tail(cursor)) {
+      Bool recovered = Library::Syntax::consume_declaration_tail(cursor);
+      if (!recovered) {
         return nullptr;
       }
 
@@ -181,7 +193,8 @@ static auto evaluate_cases(
     if (!cursor.matches(Class::Type::Func)) {
       cursor.token_error("Expected enum member function."_view);
       valid = False;
-      if (!Library::Syntax::consume_declaration_tail(cursor)) {
+      Bool recovered = Library::Syntax::consume_declaration_tail(cursor);
+      if (!recovered) {
         return nullptr;
       }
 
@@ -189,32 +202,44 @@ static auto evaluate_cases(
     }
 
     Perimortem::Utility::Range source;
-    Ttx::Function function =
-        Library::Function::evaluate(cursor, scope, documentation, source);
+    Bool addressable = False;
+    Ttx::Function function = Library::Function::evaluate(
+        cursor, scope, documentation, source, type, addressable);
     if (function.is_empty()) {
       valid = False;
-      if (!Library::Syntax::consume_declaration_tail(cursor)) {
+      Bool recovered = Library::Syntax::consume_declaration_tail(cursor);
+      if (!recovered) {
         return nullptr;
       }
 
       continue;
     }
 
-    if (has_function(functions.get_view(), function.get_name())) {
+    View::Vector<Ttx::Function> siblings =
+        addressable ? addressable_functions.get_view() : functions.get_view();
+    if (has_function(siblings, function.get_name())) {
       cursor.token_error("Library function name is already defined."_view);
       valid = False;
       continue;
     }
 
-    functions.insert(function);
-    function_sources.insert(source);
-    function_definitions.insert(
-        Base::Definition(modifier, source_attributes.get_view()));
+    if (addressable) {
+      addressable_functions.insert(function);
+      addressable_function_sources.insert(source);
+      addressable_function_definitions.insert(
+          Base::Definition(modifier, source_attributes.get_view()));
+    } else {
+      functions.insert(function);
+      function_sources.insert(source);
+      function_definitions.insert(
+          Base::Definition(modifier, source_attributes.get_view()));
+    }
   }
 
-  if (!cursor.require(
-          Class::Type::ScopeEnd,
-          "Expected `}` after library enum declaration."_view)) {
+  Bool has_scope_end = cursor.require(
+      Class::Type::ScopeEnd,
+      "Expected `}` after library enum declaration."_view);
+  if (!has_scope_end) {
     return nullptr;
   }
 
@@ -224,24 +249,36 @@ static auto evaluate_cases(
 
   Managed::Vector<Ttx::Attribute> attributes(scope.get_context().get_arena());
   Base::Attribute::append_all(definition.get_attributes(), attributes);
-  new (&type) Ttx::Type(
+  new (type) Ttx::Type(
       definition.get_name(), members.get_view(),
-      View::Vector<const Ttx::Type*>(), functions.get_view(),
-      definition.get_documentation(), attributes.get_view());
+      View::Vector<Ttx::Type::Reference>(), functions.get_view(),
+      addressable_functions.get_view(), definition.get_documentation(),
+      attributes.get_view());
   for (Count i = 0; i < members.get_size(); i++) {
-    if (!scope.get_context().define_implementation(
-            members[i], member_definitions[i])) {
+    Bool implementation_defined = scope.get_context().define_implementation(
+        members[i], member_definitions[i]);
+    if (!implementation_defined) {
       return nullptr;
     }
   }
 
-  if (!Library::Compiler::Function::publish(
-          cursor, scope, type, function_sources.get_view(),
-          function_definitions.get_view())) {
+  Bool published_type = Library::Compiler::Function::publish(
+      cursor, scope, *type, definition.get_name(), type->get_type_functions(),
+      function_sources.get_view(), function_definitions.get_view(), False);
+  if (!published_type) {
     return nullptr;
   }
 
-  return &type;
+  Bool published_addressable = Library::Compiler::Function::publish(
+      cursor, scope, *type, definition.get_name(),
+      type->get_addressable_functions(),
+      addressable_function_sources.get_view(),
+      addressable_function_definitions.get_view(), True);
+  if (!published_addressable) {
+    return nullptr;
+  }
+
+  return type;
 }
 
 auto Library::Enumeration::evaluate(

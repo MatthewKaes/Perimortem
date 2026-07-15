@@ -3,12 +3,13 @@
 
 #include "tetrodotoxin/isa/library/compiler/function.hpp"
 
+#include "perimortem/core/static/vector.hpp"
 #include "perimortem/core/reader/textual.hpp"
 
 #include "perimortem/memory/managed/bytes.hpp"
 #include "perimortem/memory/managed/vector.hpp"
 
-#include "tetrodotoxin/compiler/linkage.hpp"
+#include "tetrodotoxin/abi/linkage.hpp"
 #include "tetrodotoxin/diagnostics/suggestions.hpp"
 #include "tetrodotoxin/isa/base/expression/pack.hpp"
 #include "tetrodotoxin/standard/types.hpp"
@@ -53,27 +54,37 @@ auto Library::Compiler::Function::publish(
     Cursor& cursor,
     Scope& scope,
     const Ttx::Type& owner,
+    View::Bytes owner_path,
+    View::Vector<Ttx::Function> functions,
     View::Vector<Range> sources,
-    View::Vector<Base::Definition> definitions) -> Bool {
-  View::Vector<Ttx::Function> functions = owner.get_functions();
+    View::Vector<Base::Definition> definitions,
+    Bool addressable) -> Bool {
   if (sources.get_size() != functions.get_size() ||
       definitions.get_size() != functions.get_size()) {
     return False;
   }
 
   for (Count i = 0; i < functions.get_size(); i++) {
-    Linkage linkage = Linkage::internal(
-        scope.get_context().get_arena(), owner, functions[i],
-        scope.get_context().get_module());
-    if (!linkage.is_valid() || !scope.get_context().define_linkage(linkage)) {
+    Abi::Linkage linkage =
+        addressable ? Abi::Linkage::addressable(
+                          scope.get_context().get_arena(), owner, functions[i],
+                          scope.get_context().get_unit_name(),
+                          scope.get_context().get_module(), owner_path)
+                    : Abi::Linkage::type(
+                          scope.get_context().get_arena(), owner, functions[i],
+                          scope.get_context().get_unit_name(),
+                          scope.get_context().get_module(), owner_path);
+    Bool defined = scope.get_context().define_linkage(linkage);
+    if (!defined) {
       return False;
     }
   }
 
   for (Count i = 0; i < functions.get_size(); i++) {
     if (sources[i].is_empty()) {
-      if (!scope.get_context().define_implementation(
-              functions[i], definitions[i])) {
+      Bool defined = scope.get_context().define_implementation(
+          functions[i], definitions[i]);
+      if (!defined) {
         return False;
       }
 
@@ -82,8 +93,13 @@ auto Library::Compiler::Function::publish(
 
     const Execution::Body* body =
         compile(cursor, scope, functions[i], sources[i]);
-    if (body == nullptr || !scope.get_context().define_implementation(
-                               functions[i], *body, definitions[i])) {
+    if (body == nullptr) {
+      return False;
+    }
+
+    Bool defined = scope.get_context().define_implementation(
+        functions[i], *body, definitions[i]);
+    if (!defined) {
       return False;
     }
   }
@@ -118,18 +134,28 @@ auto Library::Compiler::Function::resolve_type(
 
 auto Library::Compiler::Function::emit_call(
     const Ttx::Function& target,
-    const Linkage& linkage,
-    const Base::Expression::Pack& source_arguments) -> Range {
+    const Abi::Linkage& linkage,
+    const Base::Expression::Pack& source_arguments,
+    View::Vector<Execution::Operand> leading) -> Range {
   View::Vector<Base::Expression::Value> values = source_arguments.get_values();
   View::Vector<Ttx::Member> parameters = target.get_parameters().get_members();
-  if (values.get_size() != parameters.get_size()) {
+  if (leading.get_size() + values.get_size() != parameters.get_size()) {
     return {Count(-1), 0};
   }
 
   Managed::Vector<Execution::Operand> arguments(
       scope.get_context().get_arena());
+  for (Count i = 0; i < leading.get_size(); i++) {
+    if (leading[i].is_null()) {
+      return {Count(-1), 0};
+    }
+
+    arguments.insert(leading[i]);
+  }
+
   for (Count i = 0; i < values.get_size(); i++) {
-    auto operand = lower(values[i], parameters[i].get_type());
+    auto operand =
+        lower(values[i], parameters[leading.get_size() + i].get_type());
     if (operand.is_null()) {
       return {Count(-1), 0};
     }
@@ -181,6 +207,8 @@ auto Library::Compiler::Function::infer_type(
         value.is_negative() ? "Signed_64"_view : "Bits_64"_view);
   case Base::Expression::Value::Kind::Real:
     return Standard::Types::find_type("Real_64"_view);
+  case Base::Expression::Value::Kind::Type:
+    return Standard::Types::find_type("Type"_view);
   case Base::Expression::Value::Kind::Reference: {
     View::Vector<Token> tokens = value.get_tokens();
     if (tokens.get_size() == 1) {
@@ -192,12 +220,18 @@ auto Library::Compiler::Function::infer_type(
     return nullptr;
   }
   case Base::Expression::Value::Kind::Call: {
-    const Base::Expression::Value* source_owner = value.get_call_owner();
-    const Ttx::Type* owner =
-        source_owner == nullptr ? nullptr : resolve_type(*source_owner);
+    const Base::Expression::Value& source_owner = value.get_call_owner();
+    const Ttx::Type* owner = resolve_type(source_owner);
     const Ttx::Function* target =
         owner == nullptr ? nullptr
-                         : owner->find_function(value.get_call_name());
+                         : owner->find_type_function(value.get_call_name());
+    if (target == nullptr) {
+      owner = infer_type(source_owner);
+      target = owner == nullptr
+                   ? nullptr
+                   : owner->find_addressable_function(value.get_call_name());
+    }
+
     return target == nullptr || target->get_result().get_member_count() != 1
                ? nullptr
                : &target->get_result().member_at(0).get_type();
@@ -205,8 +239,7 @@ auto Library::Compiler::Function::infer_type(
   case Base::Expression::Value::Kind::Binary:
     return value.get_operator() == Base::Expression::Value::Operator::Equal
                ? Standard::Types::find_type("Bool"_view)
-           : value.get_left() == nullptr ? nullptr
-                                         : infer_type(*value.get_left());
+               : infer_type(value.get_left());
   default:
     return nullptr;
   }
@@ -260,12 +293,11 @@ auto Library::Compiler::Function::lower_reference(
       member == nullptr ? nullptr
                         : scope.get_context().find_definition(*member);
   if (member == nullptr || definition == nullptr ||
-      definition->get_initializer() == nullptr ||
-      !owner->equivalent_to(expected)) {
+      !definition->has_initializer() || !owner->equivalent_to(expected)) {
     return Execution::Operand();
   }
 
-  return lower(*definition->get_initializer(), member->get_type());
+  return lower(definition->get_initializer(), member->get_type());
 }
 
 auto Library::Compiler::Function::report_missing_parameter(
@@ -300,25 +332,40 @@ auto Library::Compiler::Function::lower_call(
 
 auto Library::Compiler::Function::emit_call(
     const Base::Expression::Value& value) -> Range {
-  const Base::Expression::Value* source_owner = value.get_call_owner();
-  const Base::Expression::Pack* arguments = value.get_call_arguments();
-  if (source_owner == nullptr || arguments == nullptr) {
-    return {Count(-1), 0};
-  }
-
-  const Ttx::Type* owner = resolve_type(*source_owner);
+  const Base::Expression::Value& source_owner = value.get_call_owner();
+  const Base::Expression::Pack& arguments = value.get_call_arguments();
+  const Ttx::Type* owner = resolve_type(source_owner);
   const Ttx::Function* target =
-      owner == nullptr ? nullptr : owner->find_function(value.get_call_name());
-  if (target == nullptr) {
+      owner == nullptr ? nullptr
+                       : owner->find_type_function(value.get_call_name());
+  if (target != nullptr) {
+    const Abi::Linkage* linkage = scope.get_context().find_linkage(*target);
+    return linkage == nullptr || linkage->get_symbol().is_empty()
+               ? Range{Count(-1), 0}
+               : emit_call(*target, *linkage, arguments);
+  }
+
+  owner = infer_type(source_owner);
+  target = owner == nullptr
+               ? nullptr
+               : owner->find_addressable_function(value.get_call_name());
+  if (target == nullptr || target->get_parameters().is_empty()) {
     return {Count(-1), 0};
   }
 
-  const Linkage* linkage = scope.get_context().find_linkage(*target);
+  Execution::Operand receiver =
+      lower(source_owner, target->get_parameters().member_at(0).get_type());
+  if (receiver.is_null()) {
+    return {Count(-1), 0};
+  }
+
+  const Abi::Linkage* linkage = scope.get_context().find_linkage(*target);
   if (linkage == nullptr || linkage->get_symbol().is_empty()) {
     return {Count(-1), 0};
   }
 
-  return emit_call(*target, *linkage, *arguments);
+  Static::Vector<Execution::Operand, 1> leading = {{receiver}};
+  return emit_call(*target, *linkage, arguments, leading);
 }
 
 auto Library::Compiler::Function::lower(
@@ -375,13 +422,9 @@ auto Library::Compiler::Function::lower(
   case Base::Expression::Value::Kind::Call:
     return lower_call(value);
   case Base::Expression::Value::Kind::Binary: {
-    if (value.get_left() == nullptr || value.get_right() == nullptr) {
-      return Execution::Operand();
-    }
-
-    const Ttx::Type* operand_type = infer_type(*value.get_left());
+    const Ttx::Type* operand_type = infer_type(value.get_left());
     if (operand_type == nullptr) {
-      operand_type = infer_type(*value.get_right());
+      operand_type = infer_type(value.get_right());
     }
 
     const Ttx::Type* result_type =
@@ -393,8 +436,8 @@ auto Library::Compiler::Function::lower(
       return Execution::Operand();
     }
 
-    Execution::Operand left = lower(*value.get_left(), *operand_type);
-    Execution::Operand right = lower(*value.get_right(), *operand_type);
+    Execution::Operand left = lower(value.get_left(), *operand_type);
+    Execution::Operand right = lower(value.get_right(), *operand_type);
     if (left.is_null() || right.is_null()) {
       return Execution::Operand();
     }
@@ -441,8 +484,7 @@ auto Library::Compiler::Function::evaluate_return() -> Bool {
       return False;
     }
 
-    const Base::Expression::Pack* pack = value.get_pack();
-    if (pack == nullptr) {
+    if (value.get_kind() != Base::Expression::Value::Kind::Pack) {
       if (result.get_member_count() != 1) {
         cursor.token_error(
             "Return value does not match the result layout."_view);
@@ -461,7 +503,8 @@ auto Library::Compiler::Function::evaluate_return() -> Bool {
 
       values.insert(operand);
     } else {
-      View::Vector<Base::Expression::Value> packed_values = pack->get_values();
+      const Base::Expression::Pack& pack = value.get_pack();
+      View::Vector<Base::Expression::Value> packed_values = pack.get_values();
       Managed::Vector<Ttx::Member> value_schema(
           scope.get_context().get_arena());
       for (Count i = 0; i < packed_values.get_size(); i++) {
@@ -484,8 +527,8 @@ auto Library::Compiler::Function::evaluate_return() -> Bool {
         value_schema.insert(Ttx::Member(View::Bytes(), *type));
       }
 
-      Ttx::Layout source = pack->schema(
-          scope.get_context().get_arena(), value_schema.get_view());
+      Ttx::Layout source =
+          pack.schema(scope.get_context().get_arena(), value_schema.get_view());
       if (!source.fits(result)) {
         cursor.token_error(
             "Return pack does not fit the function result."_view);
@@ -516,12 +559,14 @@ auto Library::Compiler::Function::evaluate_return() -> Bool {
     }
   }
 
-  if (!cursor.require(
-          Class::Type::EndStatement, "Expected `;` after return."_view)) {
+  Bool has_statement_end = cursor.require(
+      Class::Type::EndStatement, "Expected `;` after return."_view);
+  if (!has_statement_end) {
     return False;
   }
 
-  if (!builder.return_values(values.get_view())) {
+  Bool returned = builder.return_values(values.get_view());
+  if (!returned) {
     cursor.token_error("Return values do not fit the function result."_view);
     return False;
   }
@@ -530,52 +575,25 @@ auto Library::Compiler::Function::evaluate_return() -> Bool {
 }
 
 auto Library::Compiler::Function::evaluate_call() -> Bool {
-  const Token owner_token = cursor.current();
-  const Ttx::Type* owner = scope.resolve_type(cursor);
-  if (owner == nullptr) {
+  const Token& owner_token = cursor.current();
+  Base::Expression::Value value =
+      Base::Expression::Value::evaluate(cursor, scope.get_context());
+  if (value.get_kind() != Base::Expression::Value::Kind::Call) {
     cursor.range_error(
-        owner_token, owner_token,
-        "Library call target could not be resolved."_view);
+        owner_token, owner_token, "Expected Library call expression."_view);
     return False;
   }
 
-  if (!cursor.require(
-          Class::Type::CallOp, "Expected `->` in library call."_view)) {
+  Bool has_statement_end = cursor.require(
+      Class::Type::EndStatement, "Expected `;` after library call."_view);
+  if (!has_statement_end) {
     return False;
   }
 
-  const Token* name = cursor.require(
-      Class::Type::Addressable, "Expected library function name."_view);
-  if (name == nullptr) {
-    return False;
-  }
-
-  const Ttx::Function* target = owner->find_function(name->get_text());
-  if (target == nullptr) {
-    cursor.range_error(
-        *name, *name, "Library call function could not be resolved."_view);
-    return False;
-  }
-
-  const Base::Expression::Pack* arguments =
-      Base::Expression::Pack::evaluate(cursor, scope.get_context());
-  const Linkage* linkage = scope.get_context().find_linkage(*target);
-  if (arguments == nullptr || linkage == nullptr ||
-      linkage->get_symbol().is_empty()) {
-    cursor.range_error(
-        owner_token, *name, "Library call target has no linkage symbol."_view);
-    return False;
-  }
-
-  if (!cursor.require(
-          Class::Type::EndStatement, "Expected `;` after library call."_view)) {
-    return False;
-  }
-
-  Range results = emit_call(*target, *linkage, *arguments);
+  Range results = emit_call(value);
   if (results.start == Count(-1)) {
     cursor.range_error(
-        owner_token, *name, "Library call could not be compiled."_view);
+        owner_token, owner_token, "Library call could not be compiled."_view);
     return False;
   }
 
@@ -583,9 +601,10 @@ auto Library::Compiler::Function::evaluate_call() -> Bool {
 }
 
 auto Library::Compiler::Function::build() -> const Execution::Body* {
-  if (!cursor.require(
-          Class::Type::ScopeStart,
-          "Expected `{` after library function signature."_view)) {
+  Bool has_scope = cursor.require(
+      Class::Type::ScopeStart,
+      "Expected `{` after library function signature."_view);
+  if (!has_scope) {
     return nullptr;
   }
 
@@ -611,15 +630,19 @@ auto Library::Compiler::Function::build() -> const Execution::Body* {
     }
 
     if (cursor.matches(Class::Type::Return)) {
-      if (!evaluate_return()) {
+      Bool evaluated = evaluate_return();
+      if (!evaluated) {
         return nullptr;
       }
 
       continue;
     }
 
-    if (cursor.matches(Class::Type::Type)) {
-      if (!evaluate_call()) {
+    if (cursor.is_one_of(
+            {{Class::Type::Type, Class::Type::Addressable,
+              Class::Type::Self}})) {
+      Bool evaluated = evaluate_call();
+      if (!evaluated) {
         return nullptr;
       }
 

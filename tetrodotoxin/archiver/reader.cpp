@@ -233,35 +233,49 @@ class PackageReader {
   }
 
   auto read_ref(BinaryReader& source, View::Vector<Ttx::Type*> local_types)
-      -> const Ttx::Type* {
+      -> const Ttx::Type& {
     auto kind = Type::Reference::Kind(source.read_bits_8());
+    if (source.get_location() == Count(-1)) {
+      return Ttx::Type::invalid();
+    }
+
     switch (kind) {
     case Type::Reference::Kind::None:
-      return nullptr;
+      return TypeReference::none();
 
-    case Type::Reference::Kind::Builtin:
-      return Tetrodotoxin::Standard::Types::find_type(read_bytes(source));
+    case Type::Reference::Kind::Builtin: {
+      View::Bytes name = read_bytes(source);
+      return source.get_location() == Count(-1)
+                 ? TypeReference::invalid()
+                 : TypeReference::resolved(
+                       Tetrodotoxin::Standard::Types::find_type(name));
+    }
 
     case Type::Reference::Kind::Local: {
       Count local_id = read_size(source);
-      return local_id < local_types.get_size() ? local_types[local_id]
-                                               : nullptr;
+      return source.get_location() != Count(-1) &&
+                     local_id < local_types.get_size()
+                 ? TypeReference::resolved(local_types[local_id])
+                 : TypeReference::invalid();
     }
 
     case Type::Reference::Kind::Package: {
       Count reference_id = read_size(source);
       Count type_id = read_size(source);
-      if (reference_id >= references.get_size()) {
-        return nullptr;
+      if (source.get_location() == Count(-1) ||
+          reference_id >= references.get_size()) {
+        return TypeReference::invalid();
       }
 
       const Package& package = *references[reference_id];
       View::Vector<const Ttx::Type*> types = package.get_types();
-      return type_id < types.get_size() ? types[type_id] : nullptr;
+      return type_id < types.get_size()
+                 ? TypeReference::resolved(types[type_id])
+                 : TypeReference::invalid();
     }
     }
 
-    return nullptr;
+    return TypeReference::invalid();
   }
 
   auto read_documentation() -> Ttx::Documentation {
@@ -356,25 +370,26 @@ class PackageReader {
     members.reset(member_count);
     for (Count i = 0; i < member_count; i++) {
       View::Bytes name = read_bytes(reader);
-      const Ttx::Type* type = read_ref(reader, local_types);
+      TypeReference type = read_ref(reader, local_types);
       Bool defaulted = reader.read_bits_8() != 0;
       Ttx::Documentation documentation = read_documentation();
       Managed::Vector<Ttx::Attribute> attributes(arena);
       Bool read_member_attributes = read_attributes(attributes);
-      if (!read_member_attributes || type == nullptr) {
+      if (!read_member_attributes || type.is_none() || type.is_invalid()) {
         return False;
       }
 
       members.insert(
-          Ttx::Member(
-              name, type, defaulted, documentation, attributes.get_view()));
+          Ttx::Member::reserved_type(
+              name, type.get_storage(), defaulted, documentation,
+              attributes.get_view()));
     }
 
     return True;
   }
 
   auto read_nested(
-      Managed::Vector<const Ttx::Type*>& nested,
+      Managed::Vector<Ttx::Type::Reference>& nested,
       View::Vector<Ttx::Type*> local_types) -> Bool {
     Count nested_count = read_size(reader);
     nested.reset(nested_count);
@@ -384,7 +399,7 @@ class PackageReader {
         return False;
       }
 
-      nested.insert(local_types[id]);
+      nested.insert(Ttx::Type::Reference::reserved(local_types[id]));
     }
 
     return True;
@@ -451,19 +466,19 @@ class PackageReader {
   auto read_linkages() -> Bool {
     Count owner_count = read_size(linkage_reader);
     for (Count i = 0; i < owner_count; i++) {
-      const Ttx::Type* owner = read_ref(linkage_reader, local_types.get_view());
-      if (owner == nullptr) {
+      TypeReference owner = read_ref(linkage_reader, local_types.get_view());
+      if (owner.is_none() || owner.is_invalid()) {
         return False;
       }
 
-      Bool read_type =
-          read_function_linkages(*owner, owner->get_type_functions());
+      Bool read_type = read_function_linkages(
+          owner.get_type(), owner.get_type().get_type_functions());
       if (!read_type) {
         return False;
       }
 
-      Bool read_addressable =
-          read_function_linkages(*owner, owner->get_addressable_functions());
+      Bool read_addressable = read_function_linkages(
+          owner.get_type(), owner.get_type().get_addressable_functions());
       if (!read_addressable) {
         return False;
       }
@@ -483,10 +498,13 @@ class PackageReader {
       return False;
     }
 
-    const Ttx::Type* alias_parent = read_ref(reader, local_types);
+    TypeReference alias_parent = read_ref(reader, local_types);
+    if (alias_parent.is_invalid()) {
+      return False;
+    }
 
     Managed::Vector<Ttx::Member> members(arena);
-    Managed::Vector<const Ttx::Type*> nested(arena);
+    Managed::Vector<Ttx::Type::Reference> nested(arena);
     Managed::Vector<Ttx::Function> type_functions(arena);
     Managed::Vector<Ttx::Function> addressable_functions(arena);
     Bool read_type_members = read_members(members, local_types);
@@ -517,9 +535,10 @@ class PackageReader {
       }
     }
 
-    if (alias_parent != nullptr) {
+    if (!alias_parent.is_none()) {
       new (type) Ttx::Type(
-          Ttx::Type::alias(name, alias_parent, documentation, attributes));
+          Ttx::Type::alias_reserved(
+              name, alias_parent.get_storage(), documentation, attributes));
       return True;
     }
 

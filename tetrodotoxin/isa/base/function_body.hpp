@@ -8,23 +8,32 @@
 namespace Tetrodotoxin::Isa::Base {
 
 // FunctionBody is one type-safe connection between a stable TTX function and
-// body data owned by the ISA that evaluated it.
+// body data owned by the ISA that evaluated it. The erased pointer remains an
+// implementation detail because it borrows a typed object from source storage.
+// A byte view would lose that object identity and invent a size contract that
+// the implementation table neither owns nor needs.
 class FunctionBody {
  public:
   constexpr FunctionBody() = default;
-  constexpr FunctionBody(
-      const void* value,
-      const void* type,
-      Definition definition)
-      : value(value), type(type), definition(definition) {}
+  explicit constexpr FunctionBody(Definition definition)
+      : definition(definition) {}
+  template <typename Body>
+  constexpr FunctionBody(const Body& value, Definition definition)
+      : value(&value), type(&body_type<Body>), definition(definition) {}
 
-  constexpr auto get_value() const -> const void* { return value; }
-  constexpr auto get_type() const -> const void* { return type; }
+  template <typename Body>
+  constexpr auto find() const -> const Body* {
+    return type == &body_type<Body> ? static_cast<const Body*>(value) : nullptr;
+  }
+
   constexpr auto get_definition() const -> const Definition& {
     return definition;
   }
 
  private:
+  template <typename Body>
+  inline static constexpr Bits_8 body_type = 0;
+
   const void* value = nullptr;
   const void* type = nullptr;
   Definition definition;

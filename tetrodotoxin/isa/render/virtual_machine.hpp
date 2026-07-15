@@ -7,14 +7,9 @@
 
 #include "tetrodotoxin/isa/base/context.hpp"
 #include "tetrodotoxin/isa/base/declaration.hpp"
+#include "tetrodotoxin/isa/lowering/context.hpp"
+#include "tetrodotoxin/isa/lowering/input.hpp"
 #include "ttx/lexical/cursor.hpp"
-
-namespace Tetrodotoxin::Isa::Lowering {
-
-class Context;
-struct Input;
-
-}  // namespace Tetrodotoxin::Isa::Lowering
 
 namespace Tetrodotoxin::Isa::Render {
 

@@ -134,53 +134,42 @@ static constexpr auto spirv_id(SpirvId value) -> Bits_32 {
   return Bits_32(value);
 }
 
-static auto type_has_name(const Ttx::Type* type, View::Bytes name) -> Bool {
-  if (type == nullptr) {
-    return False;
-  }
-
+static auto type_has_name(const Ttx::Type& type, View::Bytes name) -> Bool {
   // Authored names let domain types such as Image keep their source identity,
   // while canonical names let aliases such as Point2D behave like their target
   // Vec2D during backend lowering.
-  if (type->get_name() == name) {
+  if (type.get_name() == name) {
     return True;
   }
 
-  const Ttx::Type& canonical = type->canonical();
+  const Ttx::Type& canonical = type.canonical();
   return !canonical.is_invalid() && canonical.get_name() == name;
 }
 
-static auto named_spirv_type_id(const Ttx::Type* type) -> SpirvId {
-  if (type == nullptr) {
-    return SpirvId::Invalid;
-  }
-
-  const Ttx::Attribute* attribute =
-      type->resolve_attribute(shader_type_attribute);
-  if (attribute != nullptr) {
-    SpirvId result = ShaderTypeNames::find_or_default(
-        attribute->get_value(), SpirvId::Invalid);
-    if (result != SpirvId::Invalid) {
-      return result;
-    }
-  }
-
+static auto named_spirv_type_id(const Ttx::Type& type) -> SpirvId {
+  View::Bytes shader_type =
+      type.resolve_attribute(shader_type_attribute).get_bytes();
   SpirvId result =
-      SpirvTypeNames::find_or_default(type->get_name(), SpirvId::Invalid);
+      ShaderTypeNames::find_or_default(shader_type, SpirvId::Invalid);
   if (result != SpirvId::Invalid) {
     return result;
   }
 
-  const Ttx::Type& canonical = type->canonical();
-  return canonical.is_invalid() || &canonical == type
+  result = SpirvTypeNames::find_or_default(type.get_name(), SpirvId::Invalid);
+  if (result != SpirvId::Invalid) {
+    return result;
+  }
+
+  const Ttx::Type& canonical = type.canonical();
+  return canonical.is_invalid() || &canonical == &type
              ? SpirvId::Invalid
              : SpirvTypeNames::find_or_default(
                    canonical.get_name(), SpirvId::Invalid);
 }
 
-static auto spirv_type_id(const Ttx::Type* type) -> SpirvId {
+static auto spirv_type_id(const Ttx::Type& type) -> SpirvId {
   // Shader lowering is identity based. A 4x Real_32 layout is not automatically
-  // a vec4; it only lowers that way when the TTX type or one of its aliases
+  // a vec4. It only lowers that way when the TTX type or one of its aliases
   // carries the shader_type fact.
   return named_spirv_type_id(type);
 }
@@ -232,9 +221,9 @@ static auto temporary_id(Count index) -> SpirvId {
   return SpirvId(spirv_id(SpirvId::TemporaryBase) + Bits_32(index));
 }
 
-static auto is_texture_resource(const Ttx::Type* type) -> Bool {
-  return type != nullptr && (type_has_name(type, "Image"_view) ||
-                             type->find_function("sample"_view) != nullptr);
+static auto is_texture_resource(const Ttx::Type& type) -> Bool {
+  return type_has_name(type, "Image"_view) ||
+         type.find_addressable_function("sample"_view) != nullptr;
 }
 
 static auto direct_reference(
@@ -367,8 +356,8 @@ static auto emit_interface_decorations(
     View::Vector<Ttx::Member> parameters,
     View::Vector<Ttx::Member> results) -> void {
   // Render stage signatures become the shader entry interface. The current
-  // naming convention maps vertex_index and screen_position to Vulkan builtins;
-  // the remaining stage handoff values use dense locations.
+  // naming convention maps vertex_index and screen_position to Vulkan builtins.
+  // The remaining stage handoff values use dense locations.
   Count input_location = 0;
   for (Count i = 0; i < parameters.get_size(); i++) {
     if (model == Assembler::SpirV::ExecutionModel::Vertex &&
@@ -434,7 +423,7 @@ static auto emit_push_type(
     View::Vector<SpirvId> push_member_type_ids) -> void {
   // Push constants are represented as a Block-decorated struct plus a pointer
   // to that struct in the PushConstant storage class. The offsets were emitted
-  // in the annotation phase; this phase declares the actual structural type.
+  // in the annotation phase. This phase declares the actual structural type.
   if (push_member_type_ids.is_empty()) {
     return;
   }
@@ -462,7 +451,7 @@ static auto emit_variables(
   // types and storage classes. Shader inputs, outputs, push constants, and
   // resources are all global variables from SPIR-V's point of view.
   for (Count i = 0; i < parameters.get_size(); i++) {
-    SpirvId type_id = spirv_type_id(&parameters[i].get_type());
+    SpirvId type_id = spirv_type_id(parameters[i].get_type());
     assembler.variable(
         spirv_id(
             pointer_type_id(type_id, Assembler::SpirV::StorageClass::Input)),
@@ -470,7 +459,7 @@ static auto emit_variables(
   }
 
   for (Count i = 0; i < results.get_size(); i++) {
-    SpirvId type_id = spirv_type_id(&results[i].get_type());
+    SpirvId type_id = spirv_type_id(results[i].get_type());
     assembler.variable(
         spirv_id(
             pointer_type_id(type_id, Assembler::SpirV::StorageClass::Output)),
@@ -521,14 +510,10 @@ static auto report_statement(
     const Tetrodotoxin::Isa::Shader::Statement& statement,
     View::Bytes message,
     View::Bytes hint = View::Bytes()) -> Bool {
-  const Ttx::Lexical::Token* start = statement.get_start_token();
-  const Ttx::Lexical::Token* end = statement.get_end_token();
-  if (start != nullptr && end != nullptr) {
-    errors.insert_range(*start, *end, source, message, hint);
-    return False;
-  }
-
-  return report(errors, source, message, hint);
+  errors.insert_range(
+      statement.get_start_token(), statement.get_end_token(), source, message,
+      hint);
+  return False;
 }
 
 static auto emit_return_pack(
@@ -565,7 +550,8 @@ static auto emit_return_pack(
     value_schema.insert(*parameter);
   }
 
-  if (!pack.schema(arena, value_schema.get_view()).fits(result_layout)) {
+  Ttx::Layout return_schema = pack.schema(arena, value_schema.get_view());
+  if (!return_schema.fits(result_layout)) {
     return report_statement(
         errors, source, statement,
         "Shader return pack does not match stage result."_view);
@@ -579,14 +565,7 @@ static auto emit_return_pack(
   }
 
   for (Count i = 0; i < entries.get_size(); i++) {
-    const Ttx::Type* result_type = &results[i].get_type();
-    if (result_type == nullptr) {
-      return report_statement(
-          errors, source, statement,
-          "Shader result type cannot lower today."_view);
-    }
-
-    SpirvId type_id = spirv_type_id(result_type);
+    SpirvId type_id = spirv_type_id(results[i].get_type());
     SpirvId value_id = temporary_id(temporary_count++);
     assembler.load(
         spirv_id(type_id), spirv_id(value_id), spirv_id(parameter_id(i)));
@@ -609,7 +588,8 @@ static auto emit_shader_block(
   View::Vector<Tetrodotoxin::Isa::Shader::Statement> statements =
       block.get_statements();
   for (Count i = 0; i < statements.get_size(); i++) {
-    if (statements[i].find_state() != nullptr) {
+    Tetrodotoxin::Isa::Shader::Statement::Kind kind = statements[i].get_kind();
+    if (kind == Tetrodotoxin::Isa::Shader::Statement::Kind::State) {
       report_statement(
           errors, source, statements[i],
           "Shader state statements cannot lower today."_view,
@@ -618,14 +598,19 @@ static auto emit_shader_block(
       continue;
     }
 
-    if (!statements[i].is_return() ||
-        statements[i].get_return_pack() == nullptr) {
+    if (kind == Tetrodotoxin::Isa::Shader::Statement::Kind::BareReturn) {
       return block_valid;
+    }
+
+    if (kind == Tetrodotoxin::Isa::Shader::Statement::Kind::Empty) {
+      return report(
+          errors, source,
+          "Shader compiler received an empty durable statement."_view);
     }
 
     Bool return_valid = emit_return_pack(
         arena, errors, source, assembler, statements[i],
-        *statements[i].get_return_pack(), parameters, results, temporary_count);
+        statements[i].get_return_pack(), parameters, results, temporary_count);
     return block_valid && return_valid;
   }
 
@@ -646,10 +631,12 @@ static auto emit_entry_point(
       spirv_id(SpirvId::Void), spirv_id(SpirvId::EntryFunction),
       Assembler::SpirV::FunctionControl::None, spirv_id(SpirvId::VoidFunction));
   assembler.label(spirv_id(SpirvId::EntryLabel));
-  if (block != nullptr &&
-      !emit_shader_block(
-          arena, errors, source, assembler, *block, parameters, results)) {
-    return False;
+  if (block != nullptr) {
+    Bool emitted = emit_shader_block(
+        arena, errors, source, assembler, *block, parameters, results);
+    if (!emitted) {
+      return False;
+    }
   }
 
   assembler.return_void();
@@ -670,7 +657,7 @@ auto Isa::Shader::Compiler::lower(
         errors, source, "Shader compiler could not find render contract."_view);
   }
 
-  View::Vector<Ttx::Function> stages = root.get_functions();
+  View::Vector<Ttx::Function> stages = root.get_type_functions();
   if (stages.is_empty()) {
     return report(
         errors, source, "Shader source did not declare any stages."_view);
@@ -678,9 +665,10 @@ auto Isa::Shader::Compiler::lower(
 
   Bool valid = True;
   for (Count i = 0; i < stages.get_size(); i++) {
-    if (!lower_stage(
-            arena, errors, source, module, root, *contract, stages[i],
-            implementation)) {
+    Bool lowered = lower_stage(
+        arena, errors, source, module, root, *contract, stages[i],
+        implementation);
+    if (!lowered) {
       valid = False;
     }
   }
@@ -728,7 +716,7 @@ auto Isa::Shader::Compiler::lower_stage(
 
   Managed::Vector<SpirvId> push_member_type_ids(arena);
   for (Count i = 0; i < push_members.get_size(); i++) {
-    SpirvId type_id = spirv_type_id(&push_members[i].get_type());
+    SpirvId type_id = spirv_type_id(push_members[i].get_type());
     if (type_id == SpirvId::Invalid) {
       return report(
           errors, source, "Shader push constant type cannot lower today."_view);
@@ -738,7 +726,7 @@ auto Isa::Shader::Compiler::lower_stage(
   }
 
   for (Count i = 0; i < resource_members.get_size(); i++) {
-    if (!is_texture_resource(&resource_members[i].get_type())) {
+    if (!is_texture_resource(resource_members[i].get_type())) {
       return report(
           errors, source, "Shader resource type cannot lower today."_view);
     }
@@ -746,7 +734,7 @@ auto Isa::Shader::Compiler::lower_stage(
 
   Managed::Vector<Bits_32> interface_ids(arena);
   for (Count i = 0; i < parameters.get_size(); i++) {
-    SpirvId type_id = spirv_type_id(&parameters[i].get_type());
+    SpirvId type_id = spirv_type_id(parameters[i].get_type());
     if (type_id == SpirvId::Invalid) {
       return report(
           errors, source, "Shader parameter type cannot lower today."_view);
@@ -756,7 +744,7 @@ auto Isa::Shader::Compiler::lower_stage(
   }
 
   for (Count i = 0; i < results.get_size(); i++) {
-    SpirvId type_id = spirv_type_id(&results[i].get_type());
+    SpirvId type_id = spirv_type_id(results[i].get_type());
     if (type_id == SpirvId::Invalid) {
       return report(
           errors, source, "Shader result type cannot lower today."_view);
@@ -782,9 +770,10 @@ auto Isa::Shader::Compiler::lower_stage(
   emit_variables(
       assembler, parameters, results, !push_member_type_ids.is_empty(),
       resource_members);
-  if (!emit_entry_point(
-          arena, errors, source, assembler, shader_block(implementation, stage),
-          parameters, results)) {
+  Bool entry_emitted = emit_entry_point(
+      arena, errors, source, assembler, shader_block(implementation, stage),
+      parameters, results);
+  if (!entry_emitted) {
     return False;
   }
 

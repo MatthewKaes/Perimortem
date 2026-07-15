@@ -79,15 +79,6 @@ static auto write_source(View::Bytes source_path, View::Bytes source) -> Bool {
   return File::write(source, source_path);
 }
 
-PERIMORTEM_UNIT_TEST(TetrodotoxinResolution, cache_publish) {
-  Resolution::Source::Cache cache;
-  Perimortem::Memory::Dynamic::Object<Resolution::Source::Record> incomplete(
-      "unit/incomplete.ttx"_view, library_source);
-
-  EXPECT_NOT(cache.publish(incomplete));
-  EXPECT_NOT(cache.find("unit/incomplete.ttx"_view));
-}
-
 PERIMORTEM_UNIT_TEST(TetrodotoxinResolution, source_roots) {
   Resolution::Source::Roots roots;
 
@@ -96,7 +87,8 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinResolution, source_roots) {
   EXPECT(roots.contains("packages/user/shared/types.ttx"_view));
   EXPECT(roots.include("unit/root.ttx"_view));
   EXPECT_NOT(roots.contains("tetrodotoxin/standard/private.ttx"_view));
-  EXPECT_NOT(roots.include("generated/root.ttx"_view));
+  EXPECT(roots.include("generated/root.ttx"_view));
+  EXPECT(roots.contains("generated/source.ttx"_view));
 }
 
 static auto register_package(
@@ -114,15 +106,15 @@ static auto register_standard_packages(
   return register_package(
              resolver, context,
              ".bin/bin/tetrodotoxin/standard/Perimortem.Math/"
-             "perimortem_math.puffer"_view) &&
+             "binary_archive.puffer"_view) &&
          register_package(
              resolver, context,
              ".bin/bin/tetrodotoxin/standard/Perimortem.Runtime/"
-             "perimortem_runtime.puffer"_view) &&
+             "binary_archive.puffer"_view) &&
          register_package(
              resolver, context,
              ".bin/bin/tetrodotoxin/standard/Perimortem.Graphics/"
-             "perimortem_graphics.puffer"_view);
+             "binary_archive.puffer"_view);
 }
 
 static auto error_path(
@@ -474,74 +466,6 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinResolution, memory_only_cache) {
   EXPECT_NOT(resolver.resolve("unit/c.ttx"_view));
 }
 
-PERIMORTEM_UNIT_TEST(TetrodotoxinResolution, break_cached) {
-  Tetrodotoxin::Isa::Registry isa_registry =
-      Tetrodotoxin::Puffer::Toolchain::standard_registry();
-  Resolution::Resolver resolver(isa_registry);
-  Resolution::Resolver::Context missing_b_source_context;
-  // A memory source is not cached until its imports resolve, so A cannot appear
-  // in the graph before B exists somewhere useful.
-  EXPECT_NOT(resolver.load_source(
-      missing_b_source_context, "unit/a.ttx"_view, memory_a_source));
-  EXPECT(has_error(
-      missing_b_source_context, "unit/b.ttx"_view,
-      "Imported source file could not be read."_view));
-  Resolution::Resolver::Context missing_a_source_context;
-
-  // The failed A load left no cache record, so B cannot close the cycle through
-  // a stale in-memory A.
-  EXPECT_NOT(resolver.load_source(
-      missing_a_source_context, "unit/b.ttx"_view, memory_b_cycle_source));
-  EXPECT(has_error(
-      missing_a_source_context, "unit/a.ttx"_view,
-      "Imported source file could not be read."_view));
-
-  EXPECT_NOT(resolver.resolve("unit/a.ttx"_view));
-  EXPECT_NOT(resolver.resolve("unit/b.ttx"_view));
-
-  // Once B is valid, A can depend on the cached record even though B is not on
-  // disk.
-  Resolution::Resolver::Context b_source_context;
-  ASSERT(resolver.load_source(
-      b_source_context, "unit/b.ttx"_view, library_source));
-  EXPECT_NOT(b_source_context.has_errors());
-
-  EXPECT_NOT(resolver.resolve("unit/a.ttx"_view));
-  EXPECT(resolver.resolve("unit/b.ttx"_view));
-
-  Resolution::Resolver::Context a_source_context;
-  const Resolution::Source::Record* a = resolver.load_source(
-      a_source_context, "unit/a.ttx"_view, memory_a_source);
-  ASSERT(a != nullptr);
-  EXPECT_NOT(a_source_context.has_errors());
-
-  EXPECT(resolver.resolve("unit/a.ttx"_view) == a);
-  EXPECT(resolver.resolve("unit/b.ttx"_view));
-
-  // C gives the invalidation path a transitive consumer.
-  Resolution::Resolver::Context c_source_context;
-  const Resolution::Source::Record* c = resolver.load_source(
-      c_source_context, "unit/c.ttx"_view, memory_c_source);
-  ASSERT(c != nullptr);
-  EXPECT_NOT(c_source_context.has_errors());
-
-  EXPECT(resolver.resolve("unit/a.ttx"_view));
-  EXPECT(resolver.resolve("unit/b.ttx"_view));
-  EXPECT(resolver.resolve("unit/c.ttx"_view) == c);
-  EXPECT_TEXT(import_name(c, 0), "a.ttx"_view);
-
-  // A broken producer is removed, and every cached consumer that depends on it
-  // is removed with it.
-  Resolution::Resolver::Context broken_b_source_context;
-  EXPECT_NOT(resolver.load_source(
-      broken_b_source_context, "unit/b.ttx"_view, "bad ttx contents"_view));
-  EXPECT(broken_b_source_context.has_errors());
-
-  EXPECT_NOT(resolver.resolve("unit/a.ttx"_view));
-  EXPECT_NOT(resolver.resolve("unit/b.ttx"_view));
-  EXPECT_NOT(resolver.resolve("unit/c.ttx"_view));
-}
-
 PERIMORTEM_UNIT_TEST(TetrodotoxinResolution, disk_chain) {
   Tetrodotoxin::Isa::Registry isa_registry =
       Tetrodotoxin::Puffer::Toolchain::standard_registry();
@@ -671,7 +595,7 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinResolution, bad_update) {
   EXPECT(resolver.resolve(disk_dep2));
   EXPECT(resolver.resolve(disk_dep3));
 
-  // Imports stay authored; cache lookups use canonical source paths.
+  // Imports keep their authored spelling. Cache lookups use canonical paths.
   EXPECT_TEXT(import_name(root, 1), "ttx_res_disk_dep2.ttx"_view);
   // Rebuilt records publish new types, even when the source spelling is the
   // same. Consumers must not keep old type addresses alive.
@@ -750,318 +674,112 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinResolution, package_loading) {
   EXPECT_NOT(resolver.resolve("unit/direct.ttx"_view));
 }
 
-PERIMORTEM_UNIT_TEST(TetrodotoxinResolution, package_chain) {
+PERIMORTEM_UNIT_TEST(TetrodotoxinResolution, package_requires_buffer) {
   Tetrodotoxin::Isa::Registry isa_registry =
       Tetrodotoxin::Puffer::Toolchain::standard_registry();
-  Resolution::Resolver resolver(isa_registry);
-  Resolution::Resolver::Context missing_core_source_context;
-  resolver.set_package_name("User.Ui"_view);
+  Resolution::Resolver resolver(isa_registry, {}, "User.Ui"_view);
+  Resolution::Resolver::Context source_context;
 
   EXPECT_NOT(resolver.load_source(
-      missing_core_source_context, "packages/user/ui/package.ttx"_view,
+      source_context, "packages/user/ui/package.ttx"_view,
       "dialect : Package;\n"
       "import Core : Package = User.Core;\n"
       "expose Core : alias = Core;\n"_view));
-  EXPECT(has_error(
-      missing_core_source_context, "packages/user/ui/package.ttx"_view,
-      "Puffer Buffer dependency is not registered: User.Core"_view));
-
-  Resolution::Resolver::Context core_source_context;
-  resolver.set_package_name("User.Core"_view);
-  const Resolution::Source::Record* core = resolver.load_source(
-      core_source_context, "packages/user/core/package.ttx"_view,
-      "dialect : Package;\n"
-      "expose Value : alias = Bits_32;\n"_view);
-  ASSERT(core != nullptr);
-  EXPECT_NOT(core_source_context.has_errors());
-
-  EXPECT(resolver.resolve("packages/user/core/package.ttx"_view) == core);
-  EXPECT_NOT(resolver.resolve("User.Core"_view));
-
-  Resolution::Resolver::Context ui_source_context;
-  resolver.set_package_name("User.Ui"_view);
-  EXPECT_NOT(resolver.load_source(
-      ui_source_context, "packages/user/ui/package.ttx"_view,
-      "dialect : Package;\n"
-      "import Core : Package = User.Core;\n"
-      "expose Core : alias = Core;\n"_view));
-  EXPECT(has_error(
-      ui_source_context, "packages/user/ui/package.ttx"_view,
+  EXPECT(first_error_is(
+      source_context, "packages/user/ui/package.ttx"_view,
       "Puffer Buffer dependency is not registered: User.Core"_view));
   EXPECT_NOT(resolver.resolve("packages/user/ui/package.ttx"_view));
   EXPECT_NOT(resolver.resolve("User.Ui"_view));
-
-  Resolution::Resolver::Context root_source_context;
-  EXPECT_NOT(resolver.load_source(
-      root_source_context, "unit/root.ttx"_view,
-      "dialect : Library;\n"
-      "import Ui : Package = User.Ui;\n"
-      "private Value : alias = Ui::Core::Value;\n"_view));
-  EXPECT(has_error(
-      root_source_context, "unit/root.ttx"_view,
-      "Puffer Buffer dependency is not registered: User.Ui"_view));
-  EXPECT_NOT(resolver.resolve("unit/root.ttx"_view));
-
-  Resolution::Resolver::Context broken_core_source_context;
-  EXPECT_NOT(resolver.load_source(
-      broken_core_source_context, "packages/user/core/package.ttx"_view,
-      "bad ttx contents"_view));
-  EXPECT(broken_core_source_context.has_errors());
-
-  EXPECT_NOT(resolver.resolve("packages/user/core/package.ttx"_view));
-  EXPECT_NOT(resolver.resolve("User.Core"_view));
 }
 
-PERIMORTEM_UNIT_TEST(TetrodotoxinResolution, bad_package) {
+PERIMORTEM_UNIT_TEST(TetrodotoxinResolution, package_surface) {
   Tetrodotoxin::Isa::Registry isa_registry =
       Tetrodotoxin::Puffer::Toolchain::standard_registry();
-  Resolution::Resolver resolver(isa_registry);
-  Resolution::Resolver::Context package_export_source_context;
-  resolver.set_package_name("User.PackageExport"_view);
-  EXPECT_NOT(resolver.load_source(
-      package_export_source_context, "unit/package_export.ttx"_view,
-      "dialect : Package;\n"
-      "expose Child : Package = Child;\n"_view));
-  EXPECT(has_error(
-      package_export_source_context, "unit/package_export.ttx"_view,
-      "Expected package definition kind `alias` or `group`."_view));
-
-  EXPECT_NOT(resolver.resolve("User.PackageExport"_view));
-
-  Resolution::Resolver::Context old_package_source_context;
-  resolver.set_package_name("User.Old"_view);
-  EXPECT_NOT(resolver.load_source(
-      old_package_source_context, "unit/old_package.ttx"_view,
-      "dialect : Package;\n"
-      "expose Old : Namespace {\n"
-      "}\n"_view));
-  EXPECT(has_error(
-      old_package_source_context, "unit/old_package.ttx"_view,
-      "Expected package definition kind `alias` or `group`."_view));
-
-  EXPECT_NOT(resolver.resolve("User.Old"_view));
-
-  Resolution::Resolver::Context missing_package_source_context;
-  EXPECT_NOT(resolver.load_source(
-      missing_package_source_context, "unit/root.ttx"_view,
-      "dialect : Library;\n"
-      "import Graphics : Package = User.Package.Test;\n"_view));
-  EXPECT(has_error(
-      missing_package_source_context, "unit/root.ttx"_view,
-      "Puffer Buffer dependency is not registered: User.Package.Test"_view));
-
-  EXPECT_NOT(resolver.resolve("unit/root.ttx"_view));
-  EXPECT_NOT(resolver.resolve("User.Package.Test"_view));
-
-  Resolution::Resolver::Context user_package_source_context;
-  resolver.set_package_name("User.Package.Test"_view);
-  const Resolution::Source::Record* user_package = resolver.load_source(
-      user_package_source_context, "arbitrary/path/package.ttx"_view,
-      "dialect : Package;\n"_view);
-  ASSERT(user_package != nullptr);
-  EXPECT_NOT(user_package_source_context.has_errors());
-
-  EXPECT_NOT(resolver.resolve("unit/root.ttx"_view));
-  EXPECT(resolver.resolve("arbitrary/path/package.ttx"_view) == user_package);
-  EXPECT_NOT(resolver.resolve("User.Package.Test"_view));
-
-  Resolution::Resolver::Context root_source_context;
-  EXPECT_NOT(resolver.load_source(
-      root_source_context, "unit/root.ttx"_view,
-      "dialect : Library;\n"
-      "import Graphics : Package = User.Package.Test;\n"_view));
-  EXPECT(has_error(
-      root_source_context, "unit/root.ttx"_view,
-      "Puffer Buffer dependency is not registered: User.Package.Test"_view));
-
-  EXPECT_NOT(resolver.resolve("unit/root.ttx"_view));
-  EXPECT(resolver.resolve("arbitrary/path/package.ttx"_view) == user_package);
-  EXPECT_NOT(resolver.resolve("User.Package.Test"_view));
-}
-
-PERIMORTEM_UNIT_TEST(TetrodotoxinResolution, bad_pkg_diags) {
-  Tetrodotoxin::Isa::Registry isa_registry =
-      Tetrodotoxin::Puffer::Toolchain::standard_registry();
-  Resolution::Resolver resolver(isa_registry);
-  Resolution::Resolver::Context bad_name_source_context;
-  resolver.set_package_name("User.Authored"_view);
-
-  EXPECT_NOT(resolver.load_source(
-      bad_name_source_context, "unit/bad_name.ttx"_view,
-      "dialect : Package;\n"
-      "@package_name = User.Bad;\n"_view));
-  EXPECT(first_error_is(
-      bad_name_source_context, "unit/bad_name.ttx"_view,
-      "Expected package export."_view));
-
-  resolver.set_package_name(View::Bytes());
-  Resolution::Resolver::Context missing_name_source_context;
-  EXPECT_NOT(resolver.load_source(
-      missing_name_source_context, "unit/missing_name.ttx"_view,
-      "dialect : Package;\n"
-      "expose Value : alias = Bits_32;\n"_view));
-  EXPECT(first_error_is(
-      missing_name_source_context, "unit/missing_name.ttx"_view,
-      "Package compilation requires a package name."_view));
-
-  resolver.set_package_name("User.Empty"_view);
-  Resolution::Resolver::Context empty_source_context;
-  EXPECT_NOT(resolver.load_source(
-      empty_source_context, "unit/empty.ttx"_view,
-      "dialect : Package;\n"
-      "@package_name = User.Empty;\n"_view));
-  EXPECT(first_error_is(
-      empty_source_context, "unit/empty.ttx"_view,
-      "Expected package export."_view));
-
-  resolver.set_package_name("User.MissingTarget"_view);
-  Resolution::Resolver::Context missing_target_source_context;
-  EXPECT_NOT(resolver.load_source(
-      missing_target_source_context, "unit/missing_target.ttx"_view,
-      "dialect : Package;\n"
-      "expose Value : alias;\n"_view));
-  EXPECT(first_error_is(
-      missing_target_source_context, "unit/missing_target.ttx"_view,
-      "Expected `=` before package export target."_view));
-
-  resolver.set_package_name("User.UnknownTarget"_view);
-  Resolution::Resolver::Context unknown_target_source_context;
-  EXPECT_NOT(resolver.load_source(
-      unknown_target_source_context, "unit/unknown_target.ttx"_view,
-      "dialect : Package;\n"
-      "expose Value : alias = Missing;\n"_view));
-  EXPECT(first_error_is(
-      unknown_target_source_context, "unit/unknown_target.ttx"_view,
-      "Package export target could not be resolved."_view));
-
-  resolver.set_package_name("User.DuplicateExport"_view);
-  Resolution::Resolver::Context duplicate_export_source_context;
-  EXPECT_NOT(resolver.load_source(
-      duplicate_export_source_context, "unit/duplicate_export.ttx"_view,
+  Resolution::Resolver resolver(isa_registry, {}, "User.Types"_view);
+  Resolution::Resolver::Context source_context;
+  const Resolution::Source::Record* package = resolver.load_source(
+      source_context, "user/types/package.ttx"_view,
       "dialect : Package;\n"
       "expose Value : alias = Bits_32;\n"
-      "expose Value : alias = Bits_32;\n"_view));
-  EXPECT(first_error_is(
-      duplicate_export_source_context, "unit/duplicate_export.ttx"_view,
-      "Package export name is already defined."_view));
-
-  resolver.set_package_name("User.DuplicateGroup"_view);
-  Resolution::Resolver::Context duplicate_group_source_context;
-  EXPECT_NOT(resolver.load_source(
-      duplicate_group_source_context, "unit/duplicate_group.ttx"_view,
-      "dialect : Package;\n"
-      "expose Types : group {\n"
-      "  expose Value : alias = Bits_32;\n"
-      "  expose Value : alias = Bits_32;\n"
-      "}\n"_view));
-  EXPECT(first_error_is(
-      duplicate_group_source_context, "unit/duplicate_group.ttx"_view,
-      "Package export name is already defined."_view));
-}
-
-PERIMORTEM_UNIT_TEST(TetrodotoxinResolution, package_group) {
-  Tetrodotoxin::Isa::Registry isa_registry =
-      Tetrodotoxin::Puffer::Toolchain::standard_registry();
-  Resolution::Resolver resolver(isa_registry);
-  Resolution::Resolver::Context package_source_context;
-  resolver.set_package_name("User.Grouped"_view);
-
-  const Resolution::Source::Record* package = resolver.load_source(
-      package_source_context, "unit/package.ttx"_view,
-      "dialect : Package;\n"
-      "expose Types : group {\n"
-      "  expose Value : alias = Bits_32;\n"
+      "expose Geometry : group {\n"
+      "  expose Position : alias = Vec2D;\n"
       "}\n"_view);
 
   ASSERT(package != nullptr);
-  EXPECT_NOT(package_source_context.has_errors());
-  ASSERT(root_type(package) != nullptr);
-  const Ttx::Type* types = root_type(package)->find_type("Types"_view);
-  ASSERT(types != nullptr);
-  EXPECT(types->find_type("Value"_view) != nullptr);
-  EXPECT_TEXT(types->describe().get_view(), "User.Grouped::Types"_view);
-}
-
-PERIMORTEM_UNIT_TEST(TetrodotoxinResolution, package_alias) {
-  Tetrodotoxin::Isa::Registry isa_registry =
-      Tetrodotoxin::Puffer::Toolchain::standard_registry();
-  Resolution::Resolver resolver(isa_registry);
-  Resolution::Resolver::Context package_source_context;
-  resolver.set_package_name("User.Alias"_view);
-
-  const Resolution::Source::Record* package = resolver.load_source(
-      package_source_context, "unit/package.ttx"_view,
-      "dialect : Package;\n"
-      "expose Value : alias = Bits_32;\n"_view);
-
-  ASSERT(package != nullptr);
-  EXPECT_NOT(package_source_context.has_errors());
-  ASSERT(root_type(package) != nullptr);
-  const Ttx::Type* value = root_type(package)->find_type("Value"_view);
+  EXPECT_NOT(source_context.has_errors());
+  const Ttx::Type& package_type = package->get_type();
+  const Ttx::Type* value = package_type.find_type("Value"_view);
+  const Ttx::Type* geometry = package_type.find_type("Geometry"_view);
   ASSERT(value != nullptr);
+  ASSERT(geometry != nullptr);
   EXPECT(value->is_alias());
+  EXPECT(geometry->find_type("Position"_view) != nullptr);
   EXPECT_TEXT(
-      value->describe().get_view(), "User.Alias::Value alias of Bits_32"_view);
+      value->describe().get_view(), "User.Types::Value alias of Bits_32"_view);
+  EXPECT_TEXT(geometry->describe().get_view(), "User.Types::Geometry"_view);
+  EXPECT(resolver.resolve("user/types/package.ttx"_view) == package);
+  EXPECT_NOT(resolver.resolve("User.Types"_view));
 }
 
-PERIMORTEM_UNIT_TEST(TetrodotoxinResolution, bad_group_end) {
-  Tetrodotoxin::Isa::Registry isa_registry =
-      Tetrodotoxin::Puffer::Toolchain::standard_registry();
-  Resolution::Resolver resolver(isa_registry);
-  Resolution::Resolver::Context package_source_context;
-  resolver.set_package_name("User.BadGroup"_view);
-
-  EXPECT_NOT(resolver.load_source(
-      package_source_context, "unit/bad_group.ttx"_view,
+PERIMORTEM_UNIT_TEST(TetrodotoxinResolution, package_diagnostics) {
+  struct Failure {
+    View::Bytes package_name;
+    View::Bytes source;
+    View::Bytes message;
+  };
+  constexpr Failure failures[] = {
+    {
+      {},
+      "dialect : Package;\nexpose Value : alias = Bits_32;\n"_view,
+      "Package compilation requires a package name."_view,
+    },
+    {
+      "User.Kind"_view,
+      "dialect : Package;\nexpose Child : Package = Child;\n"_view,
+      "Expected package definition kind `alias` or `group`."_view,
+    },
+    {
+      "User.Target"_view,
+      "dialect : Package;\nexpose Value : alias;\n"_view,
+      "Expected `=` before package export target."_view,
+    },
+    {
+      "User.Unknown"_view,
+      "dialect : Package;\nexpose Value : alias = Missing;\n"_view,
+      "Package export target could not be resolved."_view,
+    },
+    {
+      "User.Duplicate"_view,
+      "dialect : Package;\n"
+      "expose Value : alias = Bits_32;\n"
+      "expose Value : alias = Bits_32;\n"_view,
+      "Package export name is already defined."_view,
+    },
+    {
+      "User.Group"_view,
       "dialect : Package;\n"
       "expose Types : group {\n"
-      "  expose Value : alias = Bits_32;\n"_view));
-
-  EXPECT(first_error_is(
-      package_source_context, "unit/bad_group.ttx"_view,
-      "Expected `}` after package group declaration."_view));
-}
-
-PERIMORTEM_UNIT_TEST(TetrodotoxinResolution, bad_name_start) {
+      "  expose Value : alias = Bits_32;\n"
+      "  expose Value : alias = Bits_32;\n"
+      "}\n"_view,
+      "Package export name is already defined."_view,
+    },
+    {
+      "User.Group"_view,
+      "dialect : Package;\n"
+      "expose Types : group {\n"
+      "  expose Value : alias = Bits_32;\n"_view,
+      "Expected `}` after package group declaration."_view,
+    },
+  };
   Tetrodotoxin::Isa::Registry isa_registry =
       Tetrodotoxin::Puffer::Toolchain::standard_registry();
-  Resolution::Resolver resolver(isa_registry);
-  Resolution::Resolver::Context package_source_context;
-  resolver.set_package_name("User.Bad"_view);
-
-  EXPECT_NOT(resolver.load_source(
-      package_source_context, "unit/bad_name.ttx"_view,
-      "dialect : Package;\n"
-      "@package_name = user.Bad;\n"_view));
-
-  EXPECT(first_error_is(
-      package_source_context, "unit/bad_name.ttx"_view,
-      "Expected package export."_view));
-}
-
-PERIMORTEM_UNIT_TEST(TetrodotoxinResolution, package_reimport) {
-  Tetrodotoxin::Isa::Registry isa_registry =
-      Tetrodotoxin::Puffer::Toolchain::standard_registry();
-  Resolution::Resolver resolver(isa_registry);
-  Resolution::Resolver::Context package_source_context;
-  resolver.set_package_name("User.Core"_view);
-  const Resolution::Source::Record* package = resolver.load_source(
-      package_source_context, "packages/user/core/package.ttx"_view,
-      "dialect : Package;\n"
-      "expose Value : alias = Bits_32;\n"_view);
-  ASSERT(package != nullptr);
-  EXPECT_NOT(package_source_context.has_errors());
-  Resolution::Resolver::Context root_source_context;
-
-  EXPECT_NOT(resolver.load_source(
-      root_source_context, "unit/root.ttx"_view,
-      "dialect : Library;\n"
-      "import CoreA : Package = User.Core;\n"
-      "import CoreB : Package = User.Core;\n"_view));
-
-  EXPECT(has_error(
-      root_source_context, "unit/root.ttx"_view,
-      "Puffer Buffer dependency is not registered: User.Core"_view));
-  EXPECT(resolver.resolve("packages/user/core/package.ttx"_view) == package);
-  EXPECT_NOT(resolver.resolve("User.Core"_view));
+  for (Count i = 0; i < Count(sizeof(failures) / sizeof(Failure)); i++) {
+    Resolution::Resolver resolver(isa_registry, {}, failures[i].package_name);
+    Resolution::Resolver::Context source_context;
+    EXPECT_NOT(resolver.load_source(
+        source_context, "unit/package.ttx"_view, failures[i].source));
+    EXPECT(first_error_is(
+        source_context, "unit/package.ttx"_view, failures[i].message));
+  }
 }

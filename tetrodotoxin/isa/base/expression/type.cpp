@@ -89,9 +89,13 @@ static auto evaluate_view_arguments(
     const Ttx::Type& root) -> const Ttx::Type* {
   cursor.consume();
   const Ttx::Type* argument = type_argument(cursor, context);
-  if (argument == nullptr ||
-      !cursor.require(
-          Class::Type::IndexEnd, "Expected `]` after View argument."_view)) {
+  if (argument == nullptr) {
+    return nullptr;
+  }
+
+  Bool has_index_end = cursor.require(
+      Class::Type::IndexEnd, "Expected `]` after View argument."_view);
+  if (!has_index_end) {
     return nullptr;
   }
 
@@ -105,18 +109,25 @@ static auto evaluate_vec_arguments(
     const Ttx::Type& root) -> const Ttx::Type* {
   cursor.consume();
   const Ttx::Type* argument = type_argument(cursor, context);
-  if (argument == nullptr ||
-      !cursor.require(
-          Class::Type::PackingOp,
-          "Expected `,` before Vec element count."_view)) {
+  if (argument == nullptr) {
+    return nullptr;
+  }
+
+  Bool has_packing = cursor.require(
+      Class::Type::PackingOp, "Expected `,` before Vec element count."_view);
+  if (!has_packing) {
     return nullptr;
   }
 
   const Token* extent_token =
       cursor.require(Class::Type::Numeric, "Expected Vec element count."_view);
-  if (extent_token == nullptr ||
-      !cursor.require(
-          Class::Type::IndexEnd, "Expected `]` after Vec arguments."_view)) {
+  if (extent_token == nullptr) {
+    return nullptr;
+  }
+
+  Bool has_index_end = cursor.require(
+      Class::Type::IndexEnd, "Expected `]` after Vec arguments."_view);
+  if (!has_index_end) {
     return nullptr;
   }
 
@@ -146,7 +157,8 @@ static auto evaluate_type_arguments(
   }
 
   cursor.token_error("Type arguments are not supported for this type."_view);
-  if (!consume_type_arguments(cursor)) {
+  Bool arguments_consumed = consume_type_arguments(cursor);
+  if (!arguments_consumed) {
     return nullptr;
   }
 

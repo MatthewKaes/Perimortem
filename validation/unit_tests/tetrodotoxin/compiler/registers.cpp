@@ -5,6 +5,9 @@
 
 #include "validation/unit_test.hpp"
 
+#include "tetrodotoxin/compiler/allocation/system_v.hpp"
+#include "tetrodotoxin/standard/types.hpp"
+
 using namespace Perimortem::Core;
 using namespace Tetrodotoxin::Compiler;
 using namespace Validation;
@@ -22,9 +25,7 @@ PERIMORTEM_UNIT_TEST(CompilerRegisters, reuses_non_overlapping_colors) {
   };
   Count widths[] = {1, 1, 1};
   Execution::Body body({}, {}, {}, bindings);
-
   Allocation::Registers allocation(body, widths, 2);
-
   EXPECT_EQ(allocation.get_color(0), Count(0));
   EXPECT_EQ(allocation.get_color(1), Count(0));
   EXPECT_EQ(allocation.get_color(2), Count(1));
@@ -48,9 +49,7 @@ PERIMORTEM_UNIT_TEST(CompilerRegisters, extends_ranges_through_uses) {
   };
   Count widths[] = {1, 1};
   Execution::Body body(blocks, operations, operands, bindings);
-
   Allocation::Registers allocation(body, widths, 1);
-
   EXPECT_EQ(allocation.get_color(0), Count(0));
   EXPECT_EQ(allocation.get_color(1), Count(-1));
   EXPECT_EQ(allocation.get_spill(1), Count(0));
@@ -65,13 +64,42 @@ PERIMORTEM_UNIT_TEST(CompilerRegisters, keeps_components_consecutive) {
   };
   Count widths[] = {2, 2};
   Execution::Body body({}, {}, {}, bindings);
-
   Allocation::Registers allocation(body, widths, 3);
-
   EXPECT_EQ(allocation.get_color(0, 0), Count(0));
   EXPECT_EQ(allocation.get_color(0, 1), Count(1));
   EXPECT_EQ(allocation.get_color(1), Count(-1));
   EXPECT_EQ(allocation.get_spill(1, 0), Count(0));
   EXPECT_EQ(allocation.get_spill(1, 1), Count(1));
   EXPECT_EQ(allocation.get_spill_count(), Count(2));
+}
+
+PERIMORTEM_UNIT_TEST(CompilerRegisters, system_v_parameter_banks) {
+  const Ttx::Type& integer =
+      *Tetrodotoxin::Standard::Types::find_type("Bits_64"_view);
+  const Ttx::Type& real =
+      *Tetrodotoxin::Standard::Types::find_type("Real_64"_view);
+  const Ttx::Type& bytes =
+      *Tetrodotoxin::Standard::Types::find_type("View[Bytes]"_view);
+  Ttx::Member parameters[] = {
+    {"i0"_view, integer}, {"i1"_view, integer}, {"i2"_view, integer},
+    {"i3"_view, integer}, {"i4"_view, integer}, {"bytes"_view, bytes},
+    {"i5"_view, integer}, {"r0"_view, real},    {"r1"_view, real},
+    {"r2"_view, real},    {"r3"_view, real},    {"r4"_view, real},
+    {"r5"_view, real},    {"r6"_view, real},    {"r7"_view, real},
+    {"r8"_view, real},
+  };
+  Allocation::SystemV allocation(parameters);
+
+  EXPECT(allocation.get(0, 0).bank == Allocation::SystemV::Bank::Integer);
+  EXPECT_EQ(allocation.get(0, 0).index, Count(0));
+  EXPECT(allocation.get(5, 0).bank == Allocation::SystemV::Bank::Stack);
+  EXPECT_EQ(allocation.get(5, 0).index, Count(0));
+  EXPECT_EQ(allocation.get(5, 1).index, Count(1));
+  EXPECT(allocation.get(6, 0).bank == Allocation::SystemV::Bank::Integer);
+  EXPECT_EQ(allocation.get(6, 0).index, Count(5));
+  EXPECT(allocation.get(14, 0).bank == Allocation::SystemV::Bank::Real);
+  EXPECT_EQ(allocation.get(14, 0).index, Count(7));
+  EXPECT(allocation.get(15, 0).bank == Allocation::SystemV::Bank::Stack);
+  EXPECT_EQ(allocation.get(15, 0).index, Count(2));
+  EXPECT_EQ(allocation.get_stack_count(), Count(3));
 }

@@ -19,7 +19,7 @@ namespace Tetrodotoxin::Isa::Base {
 //
 // It owns the arena used to synthesize durable TTX objects for that source
 // transaction and the type names made visible by imports or earlier evaluated
-// declarations. It deliberately does not parse type expressions; that grammar
+// declarations. It deliberately does not parse type expressions. That grammar
 // belongs to Expression::Type.
 //
 // Temporary scratch data should stay with the cursor or a local container. This
@@ -36,26 +36,28 @@ class Context {
 
   explicit Context(
       Perimortem::Memory::Allocator::Arena& arena,
-      Implementation* implementation = nullptr,
+      Implementation& implementation,
+      Perimortem::Core::View::Bytes unit_name = {},
+      Perimortem::Core::View::Bytes module = {},
+      Perimortem::Core::View::Bytes package_name = {},
       ReadEmbedded read_embedded = nullptr)
       : arena(arena),
         implementation(implementation),
-        embedded_reader(read_embedded) {}
+        embedded_reader(read_embedded),
+        package_name(package_name),
+        unit_name(unit_name),
+        module(module) {}
 
   constexpr auto get_arena() const -> Perimortem::Memory::Allocator::Arena& {
     return arena;
-  }
-
-  constexpr auto set_package_name(Perimortem::Core::View::Bytes name) -> void {
-    package_name = name;
   }
 
   constexpr auto get_package_name() const -> Perimortem::Core::View::Bytes {
     return package_name;
   }
 
-  constexpr auto set_module(Perimortem::Core::View::Bytes value) -> void {
-    module = value;
+  constexpr auto get_unit_name() const -> Perimortem::Core::View::Bytes {
+    return unit_name;
   }
 
   constexpr auto get_module() const -> Perimortem::Core::View::Bytes {
@@ -82,6 +84,25 @@ class Context {
     return define_type(type.get_name(), type);
   }
 
+  // A staged declaration becomes visible with its authored definition. Check
+  // both publication tables before either mutation so consumers cannot observe
+  // a type name whose implementation fact failed to publish.
+  auto define_type(const Ttx::Type& type, Definition definition) -> Bool {
+    if (types.find(type.get_name()) != nullptr ||
+        Tetrodotoxin::Standard::Types::is_type(type.get_name()) ||
+        implementation.has(type)) {
+      return False;
+    }
+
+    Bool defined_implementation = implementation.define(type, definition);
+    if (!defined_implementation) {
+      return False;
+    }
+
+    types.insert(type.get_name(), &type);
+    return True;
+  }
+
   auto find_type(Perimortem::Core::View::Bytes name) const -> const Ttx::Type* {
     const auto* type = types.find(name);
     return type == nullptr ? nullptr : type->value;
@@ -89,8 +110,8 @@ class Context {
 
   // Parameterization dispatches a type over an unnamed argument layout.
   // Repeated queries return the same concrete identity for this transaction.
-  // Extent is the normalized value argument used by fixed-size type families;
-  // it does not replace the type-argument layout.
+  // Extent is the normalized value argument used by fixed-size type families.
+  // It does not replace the type-argument layout.
   auto parameterize_type(
       const Ttx::Type& root,
       Ttx::Layout arguments,
@@ -100,8 +121,7 @@ class Context {
   auto define_implementation(
       const Ttx::Function& function,
       Definition definition = {}) -> Bool {
-    return implementation == nullptr ||
-           implementation->define(function, definition);
+    return implementation.define(function, definition);
   }
 
   template <typename Body>
@@ -109,18 +129,21 @@ class Context {
       const Ttx::Function& function,
       const Body& body,
       Definition definition = {}) -> Bool {
-    return implementation == nullptr ||
-           implementation->define(function, body, definition);
+    return implementation.define(function, body, definition);
   }
 
   auto define_implementation(const Ttx::Member& member, Definition definition)
       -> Bool {
-    return implementation == nullptr ||
-           implementation->define(member, definition);
+    return implementation.define(member, definition);
   }
 
-  auto define_linkage(Tetrodotoxin::Compiler::Linkage linkage) -> Bool {
-    return implementation == nullptr || implementation->define(linkage);
+  auto define_implementation(const Ttx::Type& type, Definition definition)
+      -> Bool {
+    return implementation.define(type, definition);
+  }
+
+  auto define_linkage(Tetrodotoxin::Abi::Linkage linkage) -> Bool {
+    return implementation.define(linkage);
   }
 
   // Producers remain alive for the whole evaluation transaction. Retaining
@@ -132,12 +155,10 @@ class Context {
   }
 
   auto find_linkage(const Ttx::Function& function) const
-      -> const Tetrodotoxin::Compiler::Linkage* {
-    if (implementation != nullptr) {
-      const auto* linkage = implementation->find_linkage(function);
-      if (linkage != nullptr) {
-        return linkage;
-      }
+      -> const Tetrodotoxin::Abi::Linkage* {
+    const auto* linkage = implementation.find_linkage(function);
+    if (linkage != nullptr) {
+      return linkage;
     }
 
     for (Count i = 0; i < imported_implementations.get_size(); i++) {
@@ -151,11 +172,9 @@ class Context {
   }
 
   auto find_definition(const Ttx::Member& member) const -> const Definition* {
-    if (implementation != nullptr) {
-      const Definition* definition = implementation->find(member);
-      if (definition != nullptr) {
-        return definition;
-      }
+    const Definition* definition = implementation.find(member);
+    if (definition != nullptr) {
+      return definition;
     }
 
     for (Count i = 0; i < imported_implementations.get_size(); i++) {
@@ -196,12 +215,13 @@ class Context {
   };
 
   Perimortem::Memory::Allocator::Arena& arena;
-  Implementation* implementation = nullptr;
+  Implementation& implementation;
   ReadEmbedded embedded_reader = nullptr;
   Perimortem::Memory::Dynamic::Vector<const Implementation*>
       imported_implementations;
   Perimortem::Memory::Dynamic::Vector<Parameterization> parameterizations;
   Perimortem::Core::View::Bytes package_name;
+  Perimortem::Core::View::Bytes unit_name;
   Perimortem::Core::View::Bytes module;
   Perimortem::Memory::Dynamic::
       Map<Perimortem::Core::View::Bytes, const Ttx::Type*>

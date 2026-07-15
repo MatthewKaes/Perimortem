@@ -54,8 +54,8 @@ cc_library(
         "resolution/package/cache.cpp",
         "resolution/resolver.cpp",
         "resolution/source/cache.cpp",
-        "resolution/source/record.cpp",
         "resolution/source/roots.cpp",
+        "resolution/source/storage.cpp",
     ],
     hdrs = [
         "resolution/context.hpp",
@@ -67,6 +67,7 @@ cc_library(
         "resolution/source/record.hpp",
         "resolution/source/roots.hpp",
         "resolution/source/snapshot.hpp",
+        "resolution/source/storage.hpp",
     ],
     include_prefix = "tetrodotoxin/puffer",
     strip_include_prefix = ".",
@@ -97,6 +98,7 @@ cc_library(
         "//perimortem:core",
         "//perimortem:memory",
         "//tetrodotoxin/archiver",
+        "//tetrodotoxin/abi",
         "//ttx",
     ],
 )
@@ -123,27 +125,45 @@ cc_library(
     ],
 )
 
-cc_binary(
-    name = "puffer",
+cc_library(
+    name = "compiler",
     srcs = [
         "compiler.cpp",
-        "compiler.hpp",
-        "main.cpp",
     ],
+    hdrs = [
+        "compiler.hpp",
+    ],
+    include_prefix = "tetrodotoxin/puffer",
+    strip_include_prefix = ".",
     deps = [
         ":boot",
-        ":lsp",
         ":package_builder",
         ":resolution",
         ":toolchain",
         "//perimortem:core",
         "//perimortem:memory",
         "//perimortem:system",
-        "//perimortem:utility",
+        "//tetrodotoxin/abi",
         "//tetrodotoxin/archiver",
         "//tetrodotoxin:compiler",
         "//tetrodotoxin:isa",
-        "//tetrodotoxin:linker",
+        "//tetrodotoxin/standard:types",
+        "//ttx",
+    ],
+)
+
+cc_binary(
+    name = "puffer",
+    srcs = [
+        "main.cpp",
+    ],
+    deps = [
+        ":compiler",
+        ":lsp",
+        ":resolution",
+        "//perimortem:core",
+        "//perimortem:memory",
+        "//perimortem:system",
         "//ttx",
     ],
 )

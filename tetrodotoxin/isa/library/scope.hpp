@@ -16,19 +16,17 @@
 
 namespace Tetrodotoxin::Isa::Library {
 
-class Scope;
-
-using TypeMaterializer =
-    const Ttx::Type* (*)(Ttx::Lexical::Cursor & cursor,
-                         Scope& scope,
-                         const Tetrodotoxin::Isa::Base::Declaration&
-                             definition);
-
 // Scope owns the names that become visible while the Library ISA executes. It
 // checks the current file first, then falls back to imported types exposed by
 // the surrounding ISA context.
 class Scope {
  public:
+  using TypeMaterializer =
+      const Ttx::Type* (*)(Ttx::Lexical::Cursor & cursor,
+                           Scope& scope,
+                           const Tetrodotoxin::Isa::Base::Declaration&
+                               definition);
+
   explicit Scope(
       Tetrodotoxin::Isa::Base::Context& context,
       TypeMaterializer materializer = nullptr)
@@ -43,7 +41,7 @@ class Scope {
       Perimortem::Core::View::Bytes name) -> const Ttx::Type*;
   auto stage_type_reference(
       Perimortem::Core::View::Bytes name,
-      const Ttx::Type& type) -> Bool;
+      const Ttx::Type* type) -> Bool;
   auto seek_after_type(
       Ttx::Lexical::Cursor& cursor,
       Perimortem::Core::View::Bytes name) const -> Bool;

@@ -5,7 +5,7 @@
 
 #include "perimortem/memory/dynamic/bytes.hpp"
 
-#include "tetrodotoxin/compiler/execution/program.hpp"
+#include "tetrodotoxin/compiler/program.hpp"
 #include "tetrodotoxin/linker/linker.hpp"
 #include "ttx/lexical/errors.hpp"
 
@@ -19,32 +19,30 @@ namespace Tetrodotoxin::Compiler {
 class Backend {
  public:
   using Lowerer = Bool (*)(
-      const Execution::Program& program,
+      const Program& program,
       Ttx::Lexical::Errors& errors,
       Tetrodotoxin::Linker::Linker& linker);
   using HeaderBuilder =
-      Perimortem::Memory::Dynamic::Bytes (*)(const Execution::Program& program);
+      Perimortem::Memory::Dynamic::Bytes (*)(const Program& program);
 
-  constexpr Backend() = default;
   constexpr Backend(Lowerer lowerer, HeaderBuilder header_builder)
       : lowerer(lowerer), header_builder(header_builder) {}
 
   constexpr auto lower(
-      const Execution::Program& program,
+      const Program& program,
       Ttx::Lexical::Errors& errors,
       Tetrodotoxin::Linker::Linker& linker) const -> Bool {
-    return lowerer != nullptr && lowerer(program, errors, linker);
+    return lowerer(program, errors, linker);
   }
 
-  auto build_header(const Execution::Program& program) const
+  auto build_header(const Program& program) const
       -> Perimortem::Memory::Dynamic::Bytes {
-    return header_builder == nullptr ? Perimortem::Memory::Dynamic::Bytes()
-                                     : header_builder(program);
+    return header_builder(program);
   }
 
  private:
-  Lowerer lowerer = nullptr;
-  HeaderBuilder header_builder = nullptr;
+  Lowerer lowerer;
+  HeaderBuilder header_builder;
 };
 
 }  // namespace Tetrodotoxin::Compiler

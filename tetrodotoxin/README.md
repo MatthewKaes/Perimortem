@@ -4,12 +4,11 @@ Tetrodotoxin is the source-IR toolchain used by Perimortem. It owns the
 programs that load source files, build package graphs, serve editor requests,
 compile packages, link outputs, and integrate with Bazel.
 
-TTX is the default language that lives in this toolchain. In the repository, the
-language core is the top-level [`ttx`](../ttx/README.md) package. Tetrodotoxin
-uses that package for source text, token bytecode, type and layout facts, and
-documentation. The `tetrodotoxin` directory then hosts the VM that evaluates
-that bytecode with a caller-owned ISA registry, Puffer source resolution,
-tooling, and backend context.
+The top-level [`ttx`](../ttx/README.md) package supplies the language model. It
+owns source text, token bytecode, the Abstract class hierarchy, Layouts, Routes,
+and documentation.
+Tetrodotoxin provides the VM that evaluates the bytecode, along with the ISA
+registry, Puffer source resolution, tooling, and backend context.
 
 Use these documents for the language itself:
 
@@ -21,7 +20,7 @@ Use these documents for the language itself:
 Use [`tetrodotoxin_design.md`](tetrodotoxin_design.md) for the VM, ISA,
 Puffer resolution, package, and output model owned by this toolchain.
 
-## Toolchain Shape
+## Toolchain shape
 
 Tetrodotoxin is not a second language model beside TTX. It is the toolchain that
 hosts TTX and gives it the context a single source file cannot know.
@@ -32,55 +31,64 @@ source text
 -> Puffer Boot preamble evaluation
 -> Puffer resolution and package loading
 -> declared ISA evaluation
--> owned query contexts
--> compilation
+-> Compiler-owned Abstract DAG
+-> terminal Type and Layout lowering
 -> generation
 ```
 
 Lexical lowers source text into TTX token bytecode. Puffer starts full source
 execution by calling its `Boot` ISA directly. Boot evaluates the source
-preamble: documentation, the `dialect : Name;` instruction, and imports. The
-source keyword remains `dialect`, but semantically it selects the next ISA from
+preamble, which contains documentation, the `dialect : Name;` instruction, and
+imports. The source keyword remains `dialect`, but semantically it selects the
+next ISA from
 the active `Isa::Registry`. Puffer Boot is not a selectable body ISA in that
 registry.
 
 Puffer Resolution loads package files, resolves package names such as
 `Perimortem.Graphics`, checks that imported files declare the requested ISA,
 binds local import aliases, and calls the evaluator installed under the declared
-name. Resolution retains the resolved dialect value on each published record;
-it does not pass the authored name forward for another registry lookup. Package
+name. Resolution retains the resolved dialect value on each published record.
+Later stages do not repeat the registry lookup from the authored name. Package
 names are `Type("." Type)*`, so a parsed package name can be used directly as
 the package cache key. Puffer creates a root resolver from the body ISA registry
 selected for that session. File imports stay within at most two coalesced
 project source roots owned once by that resolver. Package imports use the
 separate registered-buffer repository and become explicit dependency edges.
 
-Tetrodotoxin's standard TTX packages live under [`standard`](standard/).
-These packages describe the current standard ABI surface that Puffer can resolve
-today, such as `Perimortem.Graphics`, `Perimortem.Math`, and `Perimortem.Runtime`.
-The same layer owns the built-in standard type table used by ISA resolution.
-The matching C++ engine subsystems in Perimortem aren't fully self-hosted yet so the
-standard TTX package layer that the toolchain uses bridges the C++ gap for now, but
-will continue to provide C++/C ABI headers in the future.
+Tetrodotoxin's standard TTX packages live under [`standard`](standard/). They
+describe the ABI surfaces that Puffer can resolve today, including
+`Perimortem.Graphics`, `Perimortem.Math`, and `Perimortem.Runtime`. The same
+subsystem registers the built-in prelude objects and schemas used during ISA
+evaluation. Perimortem's
+C++ subsystems still implement parts of these APIs, so generated C++ headers
+currently connect the standard packages to that runtime.
 
-Packages are Tetrodotoxin's module boundary. A source imports a package and then
-uses package exports such as `Graphics::Shaders::Default2D`; it does not import
-the package's private shader file directly. If the package resolver cannot
-resolve its private graph, the package source is dropped from the outer cache
+Packages are Tetrodotoxin's module boundary. Source imports a package and uses
+exports such as `Graphics::Shaders::Default2D`. It cannot import the package's
+private shader file directly. If the package resolver cannot resolve its
+private graph, the package source is dropped from the outer cache
 with its consumers.
 
 That split keeps filesystem identity, package records, cache invalidation, and
 cross-file lookup in Tetrodotoxin while keeping the TTX language package small.
-TTX can ask type and layout questions once Tetrodotoxin has supplied the
+TTX can ask Abstract, Type, Callable, Route, and Layout questions once Tetrodotoxin has supplied the
 resolved imports, but it does not manage the source tree itself.
 
-## Repository Map
+The Toolchain owns the ClassDB for its installed TTX and ISA schemas. One
+Compiler borrows that registry and owns the arena, Abstract DAG, routes,
+Generic instantiations, Layouts, Callable bodies and Addresses, diagnostics,
+linker state, and terminal products for one build. This is the language-neutral
+memory boundary. C++ RTTI and vtables do not cross it; foreign implementations
+use registered classes, opaque Abstract handles, and Layout-described calls.
+
+## Repository map
 
 The language core lives in [`../ttx`](../ttx/README.md):
 
 - [`../ttx/lexical`](../ttx/lexical/) lowers source text into token bytecode
-- [`../ttx/type.hpp`](../ttx/type.hpp) models type identity, aliases, members,
-  nested types, functions, and type-owned documentation
+- [`../ttx/abstract.hpp`](../ttx/abstract.hpp) is the root semantic query
+  contract; Type, Alias, Generic, Callable, Free, Self, and Invalid extend it
+  through ClassDB
 - [`../ttx/layout.hpp`](../ttx/layout.hpp) models shape, fitting, exact
   equivalence, named member access, and type-to-layout views
 - [`../ttx/documentation.hpp`](../ttx/documentation.hpp) preserves
@@ -88,20 +96,19 @@ The language core lives in [`../ttx`](../ttx/README.md):
 
 Tetrodotoxin layers toolchain context around that language core:
 
-- [`puffer`](puffer/README.md) owns the command-line host, source orchestration,
-  and the Puffer Buffer format reference
+- [`puffer`](puffer/README.md) owns the command-line host and source
+  orchestration
 - [`puffer/main.cpp`](puffer/main.cpp) is the `puffer` command-line entry point
-- [`puffer/compiler.hpp`](puffer/compiler.hpp) owns one resolved compile,
-  lowering, and package-serialization transaction without owning command syntax
-  or backend-specific behavior
+- [`puffer/compiler.hpp`](puffer/compiler.hpp) coordinates one resolved compile
+  against a Compiler boundary without owning command syntax or target behavior
 - [`puffer/isa/boot`](puffer/isa/boot/) owns Puffer's source preamble ISA
 - [`puffer/lsp`](puffer/lsp/) owns Puffer's native language server mode
 - [`puffer/resolution`](puffer/resolution/) owns source loading, package
   loading, import binding, the source cache, and cache validity
-- [`puffer/package`](puffer/package/) assembles resolved package closures into
-  Puffer Buffers without teaching the CLI about archive reference tables
-- [`puffer/toolchain.hpp`](puffer/toolchain.hpp) defines Puffer's stateless
-  standard ISA and host-backend composition policy
+- [`puffer/package`](puffer/package/) presents resolved package closures to the
+  Archiver without teaching the CLI about serialization tables
+- [`puffer/toolchain.hpp`](puffer/toolchain.hpp) defines Puffer's standard
+  ClassDB, ISA, and host-target composition policy
 - [`archiver`](archiver/) owns durable package identities, dependency records,
   restored package data, and Puffer Buffer serialization
 - [`lsp`](lsp/) contains the VSCode extension client and package assets
@@ -113,11 +120,12 @@ Tetrodotoxin layers toolchain context around that language core:
   including the Perimortem graphics, math, and runtime ABI surfaces
 - [`../toolchain/tetrodotoxin.bzl`](../toolchain/tetrodotoxin.bzl) integrates
   TTX source with Bazel targets
-- [`compiler`](compiler/README.md) owns target-independent execution programs,
-  allocation, target backends, and their private assemblers
+- [`compiler`](compiler/README.md) owns the per-build Abstract DAG and memory
+  boundary, terminal planning, execution facts, allocation, target backends,
+  and their private assemblers
 - [`linker`](linker/) owns object records, archive packaging, and target formats
 
-## TTX in the Toolchain
+## TTX in the toolchain
 
 TTX is source shaped by design. The same authored source supports multiple
 tooling depths:
@@ -132,41 +140,31 @@ tooling depths:
 - Generation emits terminal outputs such as shader binaries, objects, archives,
   generated headers, and editor data
 
-To support this Tetrodotoxin uses a layering approach to the toolchain where
-various toolchain layers act on the core TTX Abstract Machine as the compatibility
-layer rather than independent intermediary representations.
+Every layer works with the same TTX Abstract graph. Tetrodotoxin does not create
+a replacement semantic representation for each tool. A layer may add registered
+facts and edges, but it cannot replace the graph with Type projections,
+publishing paths, or pointer-keyed implementation tables. The cache model
+depends on this forward-only rule.
 
-Each layer may produce as many terminal outputs as it requires and may add data
-to the TTX Abstract Machine but it may never mutate or delete data from "left"
-layers. This additive only model serves as the core to Tetrodotoxin's cache model.
+Terminal outputs include SPIR-V, machine code, ELF files, JSON, and generated
+headers. A terminal leaves the semantic pipeline when its owner produces it. If
+a later layer needs the same information, the earlier layer must publish the
+required TTX facts instead of feeding a generated terminal back into the
+pipeline.
 
-Terminal outputs may be lowered into SPIR-V, machine code, ELF files, JSON, or
-other backend formats. Those outputs are products of the toolchain, not new
-primary representations for earlier TTX layers. Once a terminal is produced it
-exits the toolchain. Any layer can introduce terminals into the toolchain but
-terminals that are reentrant (leave at a left layer but are used in a right layer)
-are a major code smell and should be avoided. Generally if terminal data is required
-to the right layers it should be explicitly expressed as TTX operations so the output
-can be used as a proper continuation.
+## ISAs and virtual machines
 
-## ISAs and Virtual Machines
+TTX defines token bytecode and an abstract machine. Its canonical lexer lowers
+the textual TTX format, but another frontend can produce the same bytecode.
+Tetrodotoxin executes that bytecode through registered instruction set
+architectures, or ISAs. Each ISA owns the instructions and facts for one source
+region. The active registry therefore defines the program that a Tetrodotoxin
+toolchain can execute.
 
-TTX itself is not a language with a defined Syntax but just a Bytecode spec and an
-attached Abstract Machine model. While TTX has a textual format which can be lowered
-to TTX Bytecode via its canonical lexer package, any source can produce valid TTX Bytecode.
-
-To actually do something useful with that bytecode it must be interpreted as an
-Abstract Machine that produces actual TTX data. To handle this Tetrodotoxin uses TTX as
-a sort of RISC model that it executes using a set of ISAs (Instruction Set Architectures)
-that define an implementation of a TTX Abstract Machine. These ISAs are implemented as
-layers that can be added to Tetrodotoxin to execute chunks of TTX Token Bytecode. A TTX
-program then can be defined as the set of registered ISAs the toolchain uses.
-
-This leaves the actual TTX Source IR Syntax left up to the toolchain. Adding a language or
-a new syntax is as simple as defining a new ISA to handle a chunk of stream. The default TTX
-lexer does make a number of assumptions about the source syntax, but with a custom `Lexer`
-layer and interop ISAs it is not unreasonable to lower languages like C into TTX Bytecode to
-leverage Tetrodotoxin directly, but this is most likely more effort than it is worth.
+The canonical lexer makes deliberate choices about TTX source syntax. A custom
+lexer and a suitable set of ISAs could lower another language into the same
+bytecode, but that is an integration path rather than a promise that TTX models
+every source language directly.
 
 Puffer provides `Boot` for source preambles. Built-in Tetrodotoxin body ISAs
 include `App`, `Library`, `Package`, `Render`, `Scene`, and `Shader`.
@@ -174,70 +172,70 @@ include `App`, `Library`, `Package`, `Render`, `Scene`, and `Shader`.
 ## Backend outputs
 
 ISAs own source meaning and lower it into the execution interface appropriate
-to that domain. Library emits a target-independent `Compiler::Execution::Program` with
-typed operands and ordered calls. The backend supplied to the
-`Compiler::Engine` owned by `Puffer::Compiler` chooses ABI, registers,
-instruction encoding, symbols, and relocations. Foreign is a Library child
-dialect that publishes typed `Compiler::Linkage` linkage rather than an opaque
-provider object. A `Linker` converts backend facts into durable binary records.
+to that domain. Library attaches target-independent execution facts to Callable
+objects in the Compiler-owned DAG. Foreign attaches external Address contracts.
+The selected terminal planner canonicalizes each Type, recursively deconstructs
+non-empty Layouts, and lowers terminal leaves through target contracts. The
+backend then chooses registers, instruction encoding, reversible route symbols,
+and relocations. A `Linker` converts terminal facts into durable binary records.
 
-Shader currently still emits SPIR-V through its assembler-facing state machine.
-Moving that path behind a graphics execution interface is the next compiler
-boundary; the assembler is an implementation choice, not a public ISA API.
+Shader currently emits SPIR-V through its assembler-facing state machine. A
+future graphics execution interface should own that compiler boundary. The
+assembler remains an implementation choice and not a public ISA API.
 
-## Layer Interaction / TTX Abstract Machine
+## Layer interaction
 
 Tetrodotoxin layers ask the owner of a fact instead of copying the whole program
-into a private replacement model. Layout fitting is a
-[`Layout`](../ttx/layout.hpp) question. Type identity and member lookup are
-[`Type`](../ttx/type.hpp) questions. ISA legality belongs to the active
-`Isa::Registry`. Package reachability belongs to the package graph.
-Backends
-consume the resolved facts they need when the toolchain crosses into a terminal
-artifact.
+into a private replacement model. Named lookup and contract discovery are
+Abstract queries. Canonicalization is a Type query. Fitting and recursive
+storage shape are [`Layout`](../ttx/layout.hpp) queries. Invocation is a Free or
+Self Callable query. ISA legality belongs to the active registry. Package
+reachability belongs to the package graph. Backends consume these facts only
+when the toolchain crosses into a terminal artifact.
 
 ## Puffer
 
-Puffer is the canonical Tetrodotoxin command-line compiler for the Perimortem Engine.
-Perimortem integrates it into its Bazel toolchain through [`../toolchain/tetrodotoxin.bzl`](../toolchain/tetrodotoxin.bzl). It can be run independently when a caller wants to turn selected
-`.ttx` roots into toolchain outputs that Perimortem can manage.
+Puffer is Tetrodotoxin's command-line compiler for Perimortem. Bazel integrates
+it through [`../toolchain/tetrodotoxin.bzl`](../toolchain/tetrodotoxin.bzl).
+Puffer can also compile selected `.ttx` roots directly.
 
-Puffer is intentionally thin around Tetrodotoxin's body ISAs and compiler
-backend. `Main` owns command syntax, diagnostics, and file output.
-`Puffer::Compiler` owns a registry created by
-`Puffer::Toolchain::standard_registry()`. Its Resolver borrows that registry,
-while its Compiler Engine receives the independently selected host backend. The
-compiler loads dependency package manifests first, then executes ISAs on the
-resolved closure.
+Puffer stays thin around Tetrodotoxin's body ISAs and compiler backend. `Main`
+owns command syntax, diagnostics, and file output.
+`Puffer::Toolchain` owns the standard ClassDB, ISA registry, and backend
+composition. `Puffer::Compiler` borrows those immutable schemas while owning the
+objects and outputs of one compilation. Its Resolver and selected ISAs publish
+into that boundary. The compiler loads dependency package manifests first, then
+executes ISAs on the resolved closure.
 Puffer's Boot ISA reads each source preamble, then dispatches to Tetrodotoxin's
 built-in body ISAs to evaluate the rest of the source.
 
-Library, Package, and other ISAs populate to create the full Virtual Machine runtime
-that executes TTX Token Bytecode to produce a full TTX Abstract Machine (types, layouts,
-members, functions, etc). In this sense as a layer `Puffer` acts as the front end
-orchestrator for one-shot compiles and long-running tooling sessions.
+Library, Package, and the other ISAs publish Abstract-derived objects, Layouts,
+and ISA contracts produced by the TTX abstract machine. Puffer coordinates those ISAs
+for one-shot compiles and long-running tooling sessions.
 
 In `-library` mode, Puffer invokes the lowerer installed with each resolved ISA.
 Library's continuation emits host linker records and a generated C++ FFI
-header; Puffer never dispatches on Library or Foreign itself.
+header. Puffer never dispatches on Library or Foreign itself.
 
 In `-package` mode, Puffer walks the resolved root closure and passes each input
 to its installed lowerer through `Isa::Lowering`. Registry entries explicitly
-state whether their lowerer is complete enough for package output; partial
-backends remain usable without being silently treated as durable package
-producers. The package builder then freezes the resolved TTX facts together
+state whether their lowerer is complete enough for package output. Partial
+backends remain usable without becoming durable package producers. The package
+builder then freezes the resolved TTX facts together
 with the archive and generated header terminals as Tetrodotoxin's
 precompiled-library equivalent.
 
 Package dependencies are resolved by package name, not by leaking source files
 from one package into another. Bazel passes dependency `.puffer` outputs to
-Puffer with `-dep=...`; the resolver registers each buffer and restores its
-package once. The restored `Package` owns its manifest identity, TTX type tree,
-terminal byte payloads, and function linkage. Physical paths remain resolver
+Puffer with `-dep=...`. The resolver registers each buffer and restores its
+package once. The restored `Package` owns its manifest identity, TTX Abstract
+graph, terminal byte payloads, and callable Addresses. Physical paths remain resolver
 diagnostic context and are not durable package identity. Direct source loading
-is only for files in the current package workspace; package imports do not fall
-back to guessed `.ttx` paths. The complete package model and byte layout are
-documented in [`puffer/README.md`](puffer/README.md).
+only reads files in the current package workspace. Package imports do not fall
+back to guessed `.ttx` paths. The restored semantic surface is an Abstract DAG
+with ClassDB schema references, Routes, Layouts, and Addresses rather than a
+monolithic serialized Type table. The complete package model is documented in
+[`archiver/README.md`](archiver/README.md).
 
 Dependency restore is transitive, but name visibility is not. Importing
 `Perimortem.Graphics` can make its Math-backed member types valid because the
@@ -259,6 +257,9 @@ In `--pipe=<socket>` mode, Puffer starts the native LSP server over the socket
 provided by an editor client. The VSCode extension packages and launches the
 same `puffer` binary rather than a separate language-server executable.
 
-Puffer writes package snapshots as `.puffer` files. Bazel exposes the snapshot
-separately from its generated archive and header so later compiler and tooling
-transactions can restore the typed package directly.
+Puffer writes each package into a module directory named from its authored
+identity. `Perimortem.Math` therefore contains `binary_archive.puffer`,
+`x86_64.a`, and `cpp_abi.hpp` regardless of the Bazel target or repository that
+built it. The manifest carries the same package identity so compiler and tooling
+transactions can restore the typed package directly. Standalone library targets
+produce the archive and C++ ABI header without a Puffer Buffer.

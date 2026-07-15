@@ -64,30 +64,30 @@ PERIMORTEM_UNIT_TEST(TtxImplementation, linkage) {
   Ttx::Function function("print"_view, Ttx::Layout(), Ttx::Layout());
   Static::Vector<Ttx::Function, 1> functions = {{function}};
   Ttx::Type foreign("Console"_view, Ttx::Layout(), {}, functions);
-  const Ttx::Function& published = foreign.get_functions()[0];
+  const Ttx::Function& published = foreign.get_type_functions()[0];
 
   EXPECT(implementation.define(
-      Tetrodotoxin::Compiler::Linkage(foreign, published, "print"_view)));
+      Tetrodotoxin::Abi::Linkage(foreign, published, "print"_view)));
   const auto* linkage = implementation.find_linkage(published);
   ASSERT(linkage != nullptr);
   EXPECT(&linkage->get_owner() == &foreign);
   EXPECT_TEXT(linkage->get_symbol(), "print"_view);
   EXPECT_NOT(implementation.define(
-      Tetrodotoxin::Compiler::Linkage(foreign, published, "other"_view)));
+      Tetrodotoxin::Abi::Linkage(foreign, published, "other"_view)));
 }
 
 PERIMORTEM_UNIT_TEST(TtxImplementation, imported_call) {
   Perimortem::Memory::Allocator::Arena arena;
   Isa::Base::Implementation producer;
   Isa::Base::Implementation consumer;
-  Isa::Base::Context context(arena, &consumer);
+  Isa::Base::Context context(arena, consumer);
   Ttx::Function function("print"_view, Ttx::Layout(), Ttx::Layout());
   Static::Vector<Ttx::Function, 1> functions = {{function}};
   Ttx::Type foreign("Console"_view, Ttx::Layout(), {}, functions);
-  const Ttx::Function& published = foreign.get_functions()[0];
+  const Ttx::Function& published = foreign.get_type_functions()[0];
 
   EXPECT(producer.define(
-      Tetrodotoxin::Compiler::Linkage(foreign, published, "print"_view)));
+      Tetrodotoxin::Abi::Linkage(foreign, published, "print"_view)));
   EXPECT(context.find_linkage(published) == nullptr);
   context.import_implementation(producer);
   const auto* linkage = context.find_linkage(published);
@@ -105,19 +105,20 @@ PERIMORTEM_UNIT_TEST(TtxImplementation, member_facts) {
   }};
   Isa::Base::Expression::Value initializer =
       Isa::Base::Expression::Value::numeric("1"_view);
+  Isa::Base::Definition declaration(Ttx::Lexical::Class::Type::Expose);
 
+  EXPECT_NOT(declaration.has_initializer());
   EXPECT(implementation.define(
-      member,
-      Isa::Base::Definition(
-          Ttx::Lexical::Class::Type::Expose, attributes, &initializer)));
+      member, Isa::Base::Definition(
+                  Ttx::Lexical::Class::Type::Expose, attributes, initializer)));
   const Isa::Base::Definition* facts = implementation.find(member);
   ASSERT(facts != nullptr);
   EXPECT(facts->get_modifier() == Ttx::Lexical::Class::Type::Expose);
-  ASSERT(facts->get_initializer() != nullptr);
+  ASSERT(facts->has_initializer());
   EXPECT(
-      facts->get_initializer()->get_kind() ==
+      facts->get_initializer().get_kind() ==
       Isa::Base::Expression::Value::Kind::Numeric);
-  EXPECT_TEXT(facts->get_initializer()->get_value(), "1"_view);
+  EXPECT_TEXT(facts->get_initializer().get_value(), "1"_view);
   ASSERT_EQ(facts->get_attributes().get_size(), Count(1));
   EXPECT_TEXT(facts->get_attributes()[0].get_key(), "range"_view);
 }

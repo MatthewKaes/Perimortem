@@ -38,14 +38,20 @@ auto Engine::publish_read_only(
   return True;
 }
 
-auto Engine::build_archive(View::Bytes object_name) -> Dynamic::Bytes {
-  if (object_name.is_empty() || !backend.lower(program, errors, linker)) {
+auto Engine::build_archive(const Program& program, View::Bytes object_name)
+    -> Dynamic::Bytes {
+  if (object_name.is_empty()) {
+    return Dynamic::Bytes();
+  }
+
+  Bool lowered = backend.lower(program, errors, linker);
+  if (!lowered) {
     return Dynamic::Bytes();
   }
 
   return linker.build_library(object_name);
 }
 
-auto Engine::build_header() const -> Dynamic::Bytes {
+auto Engine::build_header(const Program& program) const -> Dynamic::Bytes {
   return backend.build_header(program);
 }

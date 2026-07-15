@@ -35,10 +35,17 @@ class Evaluator {
   static auto evaluate_bracketed(
       Ttx::Lexical::Cursor& cursor,
       Scope& scope,
-      Perimortem::Memory::Managed::Vector<Ttx::Member>& members) -> Bool {
-    if (!cursor.require(
-            Ttx::Lexical::Class::Type::IndexStart,
-            "Expected `[` before layout."_view)) {
+      Perimortem::Memory::Managed::Vector<Ttx::Member>& members,
+      const Ttx::Type* self_type = nullptr,
+      Bool* addressable = nullptr) -> Bool {
+    if (addressable != nullptr) {
+      *addressable = False;
+    }
+
+    Bool has_index = cursor.require(
+        Ttx::Lexical::Class::Type::IndexStart,
+        "Expected `[` before layout."_view);
+    if (!has_index) {
       return False;
     }
 
@@ -46,32 +53,61 @@ class Evaluator {
            !cursor.matches(Ttx::Lexical::Class::Type::IndexEnd)) {
       Perimortem::Memory::Managed::Vector<Ttx::Attribute> attributes(
           get_context(scope).get_arena());
-      if (!Tetrodotoxin::Isa::Base::Attribute::evaluate_all(
-              cursor, attributes)) {
+      Bool attributes_evaluated =
+          Tetrodotoxin::Isa::Base::Attribute::evaluate_all(cursor, attributes);
+      if (!attributes_evaluated) {
         return False;
       }
 
-      Perimortem::Core::View::Bytes name;
-      if (cursor.matches(Ttx::Lexical::Class::Type::AddressOp)) {
+      if (cursor.matches(Ttx::Lexical::Class::Type::Self)) {
+        if (self_type == nullptr) {
+          cursor.token_error(
+              "`self` is only valid in an Addressable function layout."_view);
+          return False;
+        }
+
+        if (!members.is_empty()) {
+          cursor.token_error(
+              "`self` must be the first function layout entry."_view);
+          return False;
+        }
+
+        if (!attributes.is_empty()) {
+          cursor.token_error("`self` does not accept attributes."_view);
+          return False;
+        }
+
         cursor.consume();
-        const Ttx::Lexical::Token* name_token = cursor.require(
-            Ttx::Lexical::Class::Type::Addressable,
-            "Expected member name after `.` in layout."_view);
-        if (name_token == nullptr) {
-          return False;
+        members.insert(Ttx::Member::reserved_type("self"_view, self_type));
+        if (addressable != nullptr) {
+          *addressable = True;
+        }
+      } else {
+        Perimortem::Core::View::Bytes name;
+        if (cursor.matches(Ttx::Lexical::Class::Type::AddressOp)) {
+          cursor.consume();
+
+          const Ttx::Lexical::Token* name_token = cursor.require(
+              Ttx::Lexical::Class::Type::Addressable,
+              "Expected member name after `.` in layout."_view);
+          if (name_token == nullptr) {
+            return False;
+          }
+
+          name = name_token->get_text();
+          Bool has_definition = cursor.require(
+              Ttx::Lexical::Class::Type::Define,
+              "Expected `:` after layout member name."_view);
+          if (!has_definition) {
+            return False;
+          }
         }
 
-        name = name_token->get_text();
-        if (!cursor.require(
-                Ttx::Lexical::Class::Type::Define,
-                "Expected `:` after layout member name."_view)) {
+        Bool member_evaluated = evaluate_type_member(
+            cursor, scope, name, attributes.get_view(), members);
+        if (!member_evaluated) {
           return False;
         }
-      }
-
-      if (!evaluate_type_member(
-              cursor, scope, name, attributes.get_view(), members)) {
-        return False;
       }
 
       if (cursor.matches(Ttx::Lexical::Class::Type::PackingOp)) {
@@ -85,9 +121,9 @@ class Evaluator {
       }
     }
 
-    return cursor.require(
-               Ttx::Lexical::Class::Type::IndexEnd,
-               "Expected `]` after layout."_view) != nullptr;
+    const Ttx::Lexical::Token* index_end = cursor.require(
+        Ttx::Lexical::Class::Type::IndexEnd, "Expected `]` after layout."_view);
+    return index_end != nullptr;
   }
 
  private:

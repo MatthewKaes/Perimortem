@@ -21,7 +21,8 @@ class Lifecycle {
   static auto evaluate(
       Ttx::Lexical::Cursor& cursor,
       Tetrodotoxin::Isa::Base::Context& context,
-      Ttx::Documentation documentation) -> Ttx::Function;
+      Ttx::Documentation documentation,
+      const Ttx::Type* owner) -> Ttx::Function;
 };
 
 }  // namespace Tetrodotoxin::Isa::Scene

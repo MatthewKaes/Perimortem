@@ -172,13 +172,12 @@ auto Execution::Builder::fold_binary(
 }
 
 auto Execution::Builder::call(
-    const Compiler::Linkage& linkage,
+    const Abi::Linkage& linkage,
     View::Vector<Operand> arguments) -> Range {
   const Ttx::Function& signature = linkage.get_function();
   View::Vector<Ttx::Member> parameters =
       signature.get_parameters().get_members();
-  if (!linkage.is_valid() || terminated ||
-      arguments.get_size() != parameters.get_size()) {
+  if (terminated || arguments.get_size() != parameters.get_size()) {
     return {Count(-1), 0};
   }
 
@@ -233,8 +232,11 @@ auto Execution::Builder::finish() -> const Body* {
     return nullptr;
   }
 
-  if (!terminated && !return_values()) {
-    return nullptr;
+  if (!terminated) {
+    Bool returned = return_values();
+    if (!returned) {
+      return nullptr;
+    }
   }
 
   const Block& block = arena.construct<Block>(Range{0, operations.get_size()});

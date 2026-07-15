@@ -40,7 +40,8 @@ auto Lsp::Rpc::FrameReader::read_header() -> Bool {
 }
 
 auto Lsp::Rpc::FrameReader::next_message() -> View::Bytes {
-  if (!read_header()) {
+  Bool header_read = read_header();
+  if (!header_read) {
     return View::Bytes();
   }
 

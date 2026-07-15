@@ -32,10 +32,9 @@ auto Resolution::Package::Cache::register_buffer(
     View::Bytes content) -> Bool {
   Dynamic::Object<Resolution::Package::Buffer> buffer(content);
   Allocator::Arena manifest_arena;
-  Tetrodotoxin::Archiver::Manifest manifest =
+  const Tetrodotoxin::Archiver::Manifest* manifest =
       buffer->read_manifest(manifest_arena);
-  View::Bytes package_name = manifest.get_name();
-  if (package_name.is_empty()) {
+  if (manifest == nullptr) {
     context.persist_errors(
         Ttx::Lexical::Errors::Error(
             buffer_path, content,
@@ -43,11 +42,14 @@ auto Resolution::Package::Cache::register_buffer(
     return False;
   }
 
+  View::Bytes package_name = manifest->get_name();
+
   auto* existing = buffers.find(package_name);
   if (existing != nullptr) {
-    Tetrodotoxin::Archiver::Manifest existing_manifest =
+    const Tetrodotoxin::Archiver::Manifest* existing_manifest =
         existing->value->read_manifest(manifest_arena);
-    if (existing_manifest.get_version() == manifest.get_version()) {
+    if (existing_manifest != nullptr &&
+        existing_manifest->get_version() == manifest->get_version()) {
       return True;
     }
 
@@ -89,9 +91,9 @@ auto Resolution::Package::Cache::load(
   }
 
   Allocator::Arena manifest_arena;
-  Tetrodotoxin::Archiver::Manifest manifest =
+  const Tetrodotoxin::Archiver::Manifest* manifest =
       buffer->read_manifest(manifest_arena);
-  if (!manifest.is_valid()) {
+  if (manifest == nullptr) {
     cursor.error("Puffer Buffer package imports could not be read."_view);
     return nullptr;
   }
@@ -99,7 +101,7 @@ auto Resolution::Package::Cache::load(
   active_includes.insert(package_name);
   Dynamic::Vector<Source::Record*> producers;
   View::Vector<Tetrodotoxin::Archiver::Dependency> imports =
-      manifest.get_imports();
+      manifest->get_imports();
   for (Count i = 0; i < imports.get_size(); i++) {
     Tetrodotoxin::Archiver::Dependency dependency = imports[i];
     View::Bytes dependency_name = dependency.get_source_name();
@@ -113,9 +115,10 @@ auto Resolution::Package::Cache::load(
       return nullptr;
     }
 
-    Tetrodotoxin::Archiver::Manifest dependency_manifest =
+    const Tetrodotoxin::Archiver::Manifest* dependency_manifest =
         dependency_buffer->read_manifest(manifest_arena);
-    if (dependency_manifest.get_version() != dependency.get_version()) {
+    if (dependency_manifest == nullptr ||
+        dependency_manifest->get_version() != dependency.get_version()) {
       active_includes.remove(package_name);
       Managed::Bytes message(cursor.get_arena());
       package_version_message(dependency_name, message);
@@ -134,13 +137,16 @@ auto Resolution::Package::Cache::load(
   }
 
   Dynamic::Set<Source::Record*> referenced_records;
-  Dynamic::Vector<Tetrodotoxin::Archiver::Reference> package_references;
+  Dynamic::Vector<const Tetrodotoxin::Archiver::Package*> package_references;
   auto add_reference = [&](Source::Record& record) -> void {
-    if (referenced_records.insert(&record)) {
-      const auto* package = find(record.get_source_path());
-      if (package != nullptr) {
-        package_references.insert(Tetrodotoxin::Archiver::Reference(*package));
-      }
+    Bool inserted = referenced_records.insert(&record);
+    if (!inserted) {
+      return;
+    }
+
+    const auto* package = find(record.get_source_path());
+    if (package != nullptr) {
+      package_references.insert(package);
     }
   };
   for (Count i = 0; i < producers.get_size(); i++) {
@@ -148,12 +154,12 @@ auto Resolution::Package::Cache::load(
     sources.visit_producers(*producers[i], add_reference);
   }
 
-  Dynamic::Object<Source::Record> record_handle(manifest.get_name());
-  Source::Record& record = *record_handle;
+  Dynamic::Object<Source::Storage> storage_handle(manifest->get_name());
+  Source::Storage& storage = *storage_handle;
 
   Tetrodotoxin::Archiver::Package* package = buffer->read_package(
-      record.get_arena(), manifest, package_references.get_view());
-  if (package == nullptr || !package->is_valid()) {
+      storage.get_arena(), *manifest, package_references.get_view());
+  if (package == nullptr) {
     active_includes.remove(package_name);
     cursor.error("Puffer Buffer package could not be restored."_view);
     return nullptr;
@@ -161,14 +167,15 @@ auto Resolution::Package::Cache::load(
 
   auto linkages = package->get_linkages();
   for (Count i = 0; i < linkages.get_size(); i++) {
-    if (!record.get_implementation().define(linkages[i])) {
+    Bool defined = storage.get_implementation().define(linkages[i]);
+    if (!defined) {
       active_includes.remove(package_name);
       cursor.error("Puffer Buffer linkage could not be restored."_view);
       return nullptr;
     }
   }
 
-  Managed::Vector<Isa::Boot::Import> boot_imports(record.get_arena());
+  Managed::Vector<Isa::Boot::Import> boot_imports(storage.get_arena());
   View::Vector<Tetrodotoxin::Archiver::Dependency> package_imports =
       package->get_manifest().get_imports();
   boot_imports.reset(package_imports.get_size());
@@ -179,20 +186,13 @@ auto Resolution::Package::Cache::load(
             package_imports[i].get_source_name()));
   }
 
-  if (!record.complete(dialect, boot_imports.get_view(), package->get_type())) {
-    active_includes.remove(package_name);
-    cursor.error("Puffer Buffer package record could not be completed."_view);
-    return nullptr;
-  }
+  Dynamic::Object<Source::Record> record_handle(
+      storage_handle, dialect, boot_imports.get_view(), package->get_type());
+  Source::Record& record = *record_handle;
 
   auto* restored_entry = restored.insert(
       package->get_manifest().get_name(), Restored(record_handle, *package));
-  if (!sources.publish(restored_entry->value.get_record())) {
-    active_includes.remove(package_name);
-    cursor.error("Puffer Buffer package record could not be published."_view);
-    return nullptr;
-  }
-
+  sources.publish(restored_entry->value.get_record());
   for (Count i = 0; i < producers.get_size(); i++) {
     sources.connect(record, *producers[i]);
   }

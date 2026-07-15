@@ -49,8 +49,8 @@ class Import {
   }
 
   constexpr auto is_package() const -> Bool { return package; }
-  constexpr auto is_valid() const -> Bool {
-    return !local_name.is_empty() && !source_name.is_empty() && !isa.is_empty();
+  constexpr auto is_empty() const -> Bool {
+    return local_name.is_empty() || source_name.is_empty() || isa.is_empty();
   }
 
  private:

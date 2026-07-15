@@ -9,19 +9,17 @@ using namespace Tetrodotoxin;
 auto Isa::Base::Implementation::define(
     const Ttx::Function& function,
     Definition definition) -> Bool {
-  return define(function, nullptr, nullptr, definition);
+  return define(function, FunctionBody(definition));
 }
 
 auto Isa::Base::Implementation::define(
     const Ttx::Function& function,
-    const void* body,
-    const void* type,
-    Definition definition) -> Bool {
+    FunctionBody body) -> Bool {
   if (functions.find(&function) != nullptr) {
     return False;
   }
 
-  functions.insert(&function, FunctionBody(body, type, definition));
+  functions.insert(&function, body);
   return True;
 }
 
@@ -36,24 +34,32 @@ auto Isa::Base::Implementation::define(
   return True;
 }
 
-auto Isa::Base::Implementation::define(Compiler::Linkage linkage) -> Bool {
-  if (!linkage.is_valid() || find_linkage(linkage.get_function()) != nullptr) {
+auto Isa::Base::Implementation::define(
+    const Ttx::Type& type,
+    Definition definition) -> Bool {
+  if (types.find(&type) != nullptr) {
     return False;
   }
 
+  types.insert(&type, definition);
+  return True;
+}
+
+auto Isa::Base::Implementation::define(Abi::Linkage linkage) -> Bool {
+  const Ttx::Function* function = &linkage.get_function();
+  if (linkage_indices.find(function) != nullptr) {
+    return False;
+  }
+
+  linkage_indices.insert(function, linkages.get_size());
   linkages.insert(linkage);
   return True;
 }
 
 auto Isa::Base::Implementation::find_linkage(
-    const Ttx::Function& function) const -> const Compiler::Linkage* {
-  for (Count i = 0; i < linkages.get_size(); i++) {
-    if (&linkages[i].get_function() == &function) {
-      return &linkages[i];
-    }
-  }
-
-  return nullptr;
+    const Ttx::Function& function) const -> const Abi::Linkage* {
+  const auto* entry = linkage_indices.find(&function);
+  return entry == nullptr ? nullptr : &linkages[entry->value];
 }
 
 auto Isa::Base::Implementation::find_body(const Ttx::Function& function) const
@@ -74,6 +80,12 @@ auto Isa::Base::Implementation::find(const Ttx::Member& member) const
   return entry == nullptr ? nullptr : &entry->value;
 }
 
+auto Isa::Base::Implementation::find(const Ttx::Type& type) const
+    -> const Definition* {
+  const auto* entry = types.find(&type);
+  return entry == nullptr ? nullptr : &entry->value;
+}
+
 auto Isa::Base::Implementation::has(const Ttx::Function& function) const
     -> Bool {
   return find_body(function) != nullptr;
@@ -81,4 +93,8 @@ auto Isa::Base::Implementation::has(const Ttx::Function& function) const
 
 auto Isa::Base::Implementation::has(const Ttx::Member& member) const -> Bool {
   return find(member) != nullptr;
+}
+
+auto Isa::Base::Implementation::has(const Ttx::Type& type) const -> Bool {
+  return find(type) != nullptr;
 }

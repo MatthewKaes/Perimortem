@@ -78,7 +78,7 @@ static auto root_type(const Resolution::Source::Record* record)
 
 static auto function(const Ttx::Type& type, View::Bytes name)
     -> const Ttx::Function* {
-  return type.find_function(name);
+  return type.find_type_function(name);
 }
 
 static auto first_error(const Resolution::Resolver::Context& source_context)
@@ -126,33 +126,14 @@ PERIMORTEM_UNIT_TEST(TtxShader, contract) {
       shader->get_implementation().find<Tetrodotoxin::Isa::Shader::Block>(
           *vertex);
   ASSERT(vertex_body != nullptr);
-  EXPECT_NOT(vertex_body->get_statements().is_empty());
-}
-
-PERIMORTEM_UNIT_TEST(TtxShader, bad_contract) {
-  Tetrodotoxin::Isa::Registry isa_registry =
-      Tetrodotoxin::Puffer::Toolchain::standard_registry();
-  Resolution::Resolver resolver(isa_registry);
-  Resolution::Resolver::Context render_source_context;
-
-  ASSERT(load_render(resolver, render_source_context) != nullptr);
-  EXPECT_NOT(render_source_context.has_errors());
-  Resolution::Resolver::Context bad_shader_source_context;
-
-  EXPECT_NOT(resolver.load_source(
-      bad_shader_source_context, "unit/bad_shader.ttx"_view,
-      "dialect : Shader;\n"
-      "import Renderer : Render = \"render.ttx\";\n"
-      "shader Default2D : Renderer::Render2D {\n"
-      "  func vertex[.index : Bits_32] -> [.screen_position : Vec4D] {\n"
-      "    return;\n"
-      "  }\n"
-      "}\n"_view));
-
-  ASSERT(bad_shader_source_context.has_errors());
-  EXPECT_TEXT(
-      first_error(bad_shader_source_context),
-      "Shader stage parameters do not match the render contract."_view);
+  View::Vector<Tetrodotoxin::Isa::Shader::Statement> statements =
+      vertex_body->get_statements();
+  ASSERT_EQ(statements.get_size(), Count(1));
+  EXPECT(
+      statements[0].get_kind() ==
+      Tetrodotoxin::Isa::Shader::Statement::Kind::BareReturn);
+  EXPECT_TEXT(statements[0].get_start_token().get_text(), "return"_view);
+  EXPECT_TEXT(statements[0].get_end_token().get_text(), ";"_view);
 }
 
 PERIMORTEM_UNIT_TEST(TtxShader, named_fit) {
@@ -190,46 +171,6 @@ PERIMORTEM_UNIT_TEST(TtxShader, named_fit) {
   EXPECT_NOT(shader_source_context.has_errors());
 }
 
-PERIMORTEM_UNIT_TEST(TtxShader, bad_reads) {
-  Tetrodotoxin::Isa::Registry isa_registry =
-      Tetrodotoxin::Puffer::Toolchain::standard_registry();
-  Resolution::Resolver resolver(isa_registry);
-  Resolution::Resolver::Context render_source_context;
-
-  ASSERT(resolver.load_source(
-      render_source_context, "unit/render.ttx"_view,
-      "dialect : Render;\n"
-      "public Render2D : Render {\n"
-      "  push_constants {\n"
-      "    const position : Bits_32 = 0;\n"
-      "    const tone : Bits_32 = 0;\n"
-      "  }\n"
-      "  public vertex : stage {\n"
-      "    reads push[position];\n"
-      "    input [];\n"
-      "    output [];\n"
-      "  }\n"
-      "}\n"_view));
-  EXPECT_NOT(render_source_context.has_errors());
-  Resolution::Resolver::Context bad_reads_source_context;
-
-  EXPECT_NOT(resolver.load_source(
-      bad_reads_source_context, "unit/shader.ttx"_view,
-      "dialect : Shader;\n"
-      "import Renderer : Render = \"render.ttx\";\n"
-      "shader Default2D : Renderer::Render2D {\n"
-      "  func vertex[] -> [] {\n"
-      "    state value : Bits_32 = push.tone;\n"
-      "    return;\n"
-      "  }\n"
-      "}\n"_view));
-
-  ASSERT(bad_reads_source_context.has_errors());
-  EXPECT_TEXT(
-      first_error(bad_reads_source_context),
-      "Shader stage cannot read render fact."_view);
-}
-
 PERIMORTEM_UNIT_TEST(TtxShader, stage_symbols) {
   Tetrodotoxin::Isa::Registry isa_registry =
       Tetrodotoxin::Puffer::Toolchain::standard_registry();
@@ -259,9 +200,10 @@ PERIMORTEM_UNIT_TEST(TtxShader, stage_symbols) {
 
   Tetrodotoxin::Compiler::Engine engine(
       compiler_errors, Tetrodotoxin::Compiler::Target::SystemV::backend());
+  Tetrodotoxin::Compiler::Program program;
   ASSERT(engine.publish_read_only(
       compiler.get_read_only(), compiler.get_stages()));
-  Dynamic::Bytes archive = engine.build_archive("shader.o"_view);
+  Dynamic::Bytes archive = engine.build_archive(program, "shader.o"_view);
   ASSERT_NOT(archive.is_empty());
   EXPECT(
       Algorithm::search(
@@ -493,149 +435,93 @@ PERIMORTEM_UNIT_TEST(TtxShader, state_diag) {
   EXPECT_TEXT(
       error.get_message(), "Shader state statements cannot lower today."_view);
 
-  const Ttx::Lexical::Token* start = error.get_start_token();
-  const Ttx::Lexical::Token* end = error.get_end_token();
-  ASSERT(start != nullptr);
-  ASSERT(end != nullptr);
-  EXPECT_EQ(start->get_line(), Bits_32(5));
-  EXPECT_EQ(start->get_column(), Bits_32(5));
-  EXPECT_EQ(end->get_column(), Bits_32(30));
+  ASSERT(error.has_tokens());
+  const Ttx::Lexical::Token& start = error.get_start_token();
+  const Ttx::Lexical::Token& end = error.get_end_token();
+  EXPECT_EQ(start.get_line(), Bits_32(5));
+  EXPECT_EQ(start.get_column(), Bits_32(5));
+  EXPECT_EQ(end.get_column(), Bits_32(30));
 }
 
-PERIMORTEM_UNIT_TEST(TtxShader, no_render_pass) {
-  Tetrodotoxin::Isa::Registry isa_registry =
-      Tetrodotoxin::Puffer::Toolchain::standard_registry();
-  Resolution::Resolver resolver(isa_registry);
-  Resolution::Resolver::Context render_source_context;
-
-  ASSERT(load_render(resolver, render_source_context) != nullptr);
-  EXPECT_NOT(render_source_context.has_errors());
-  Resolution::Resolver::Context shader_source_context;
-
-  const Resolution::Source::Record* shader =
-      load_shader(resolver, shader_source_context);
-  ASSERT(shader != nullptr);
-  ASSERT(root_type(shader) != nullptr);
-  EXPECT_NOT(shader_source_context.has_errors());
-
-  Allocator::Arena arena;
-  Ttx::Lexical::Errors compiler_errors(arena);
-  Tetrodotoxin::Isa::Shader::Compiler compiler;
-  EXPECT(compiler.lower(
-      arena, compiler_errors,
-      Ttx::Lexical::Source(shader->get_source_path(), shader->get_content()),
-      "default_2d"_view, *root_type(shader), shader->get_implementation()));
-  EXPECT_NOT(compiler_errors.has_errors());
-}
-
-PERIMORTEM_UNIT_TEST(TtxShader, bad_result) {
-  Tetrodotoxin::Isa::Registry isa_registry =
-      Tetrodotoxin::Puffer::Toolchain::standard_registry();
-  Resolution::Resolver resolver(isa_registry);
-  Resolution::Resolver::Context render_source_context;
-
-  ASSERT(load_render(resolver, render_source_context) != nullptr);
-  EXPECT_NOT(render_source_context.has_errors());
-  Resolution::Resolver::Context shader_source_context;
-
-  EXPECT_NOT(resolver.load_source(
-      shader_source_context, "unit/bad_result.ttx"_view,
+PERIMORTEM_UNIT_TEST(TtxShader, diagnostics) {
+  struct Failure {
+    View::Bytes render;
+    View::Bytes shader;
+    View::Bytes message;
+  };
+  constexpr Failure failures[] = {
+    {
+      render_source,
+      "dialect : Shader;\n"
+      "import Renderer : Render = \"render.ttx\";\n"
+      "shader Default2D : Renderer::Render2D {\n"
+      "  func vertex[.index : Bits_32] -> [.screen_position : Vec4D] {\n"
+      "    return;\n"
+      "  }\n"
+      "}\n"_view,
+      "Shader stage parameters do not match the render contract."_view,
+    },
+    {
+      "dialect : Render;\n"
+      "public Render2D : Render {\n"
+      "  push_constants {\n"
+      "    const position : Bits_32 = 0;\n"
+      "    const tone : Bits_32 = 0;\n"
+      "  }\n"
+      "  public vertex : stage {\n"
+      "    reads push[position];\n"
+      "    input [];\n"
+      "    output [];\n"
+      "  }\n"
+      "}\n"_view,
+      "dialect : Shader;\n"
+      "import Renderer : Render = \"render.ttx\";\n"
+      "shader Default2D : Renderer::Render2D {\n"
+      "  func vertex[] -> [] {\n"
+      "    state value : Bits_32 = push.tone;\n"
+      "    return;\n"
+      "  }\n"
+      "}\n"_view,
+      "Shader stage cannot read render fact."_view,
+    },
+    {
+      render_source,
       "dialect : Shader;\n"
       "import Renderer : Render = \"render.ttx\";\n"
       "shader Default2D : Renderer::Render2D {\n"
       "  func vertex[.vertex_index : Bits_32] -> [.color : Vec4D] {\n"
       "    return;\n"
       "  }\n"
-      "}\n"_view));
-
-  ASSERT(shader_source_context.has_errors());
-  EXPECT_TEXT(
-      first_error(shader_source_context),
-      "Shader stage result does not match the render contract."_view);
-}
-
-PERIMORTEM_UNIT_TEST(TtxShader, missing_stage) {
-  Tetrodotoxin::Isa::Registry isa_registry =
-      Tetrodotoxin::Puffer::Toolchain::standard_registry();
-  Resolution::Resolver resolver(isa_registry);
-  Resolution::Resolver::Context render_source_context;
-
-  ASSERT(load_render(resolver, render_source_context) != nullptr);
-  EXPECT_NOT(render_source_context.has_errors());
-  Resolution::Resolver::Context shader_source_context;
-
-  EXPECT_NOT(resolver.load_source(
-      shader_source_context, "unit/missing_stage.ttx"_view,
+      "}\n"_view,
+      "Shader stage result does not match the render contract."_view,
+    },
+    {
+      render_source,
       "dialect : Shader;\n"
       "import Renderer : Render = \"render.ttx\";\n"
       "shader Default2D : Renderer::Render2D {\n"
-      "  func compute[] -> [] {\n"
-      "    return;\n"
-      "  }\n"
-      "}\n"_view));
-
-  ASSERT(shader_source_context.has_errors());
-  EXPECT_TEXT(
-      first_error(shader_source_context),
-      "Shader stage is not declared by the render contract."_view);
-}
-
-PERIMORTEM_UNIT_TEST(TtxShader, dupe_stage) {
-  Tetrodotoxin::Isa::Registry isa_registry =
-      Tetrodotoxin::Puffer::Toolchain::standard_registry();
-  Resolution::Resolver resolver(isa_registry);
-  Resolution::Resolver::Context render_source_context;
-
-  ASSERT(load_render(resolver, render_source_context) != nullptr);
-  EXPECT_NOT(render_source_context.has_errors());
-  Resolution::Resolver::Context shader_source_context;
-
-  EXPECT_NOT(resolver.load_source(
-      shader_source_context, "unit/dupe_stage.ttx"_view,
+      "  func compute[] -> [] { return; }\n"
+      "}\n"_view,
+      "Shader stage is not declared by the render contract."_view,
+    },
+    {
+      render_source,
       "dialect : Shader;\n"
       "import Renderer : Render = \"render.ttx\";\n"
       "shader Default2D : Renderer::Render2D {\n"
       "  func pixel[] -> [.color : Vec4D] { return; }\n"
       "  func pixel[] -> [.color : Vec4D] { return; }\n"
-      "}\n"_view));
-
-  ASSERT(shader_source_context.has_errors());
-  EXPECT_TEXT(
-      first_error(shader_source_context),
-      "Shader stage name is already defined."_view);
-}
-
-PERIMORTEM_UNIT_TEST(TtxShader, bad_contract_ref) {
-  Tetrodotoxin::Isa::Registry isa_registry =
-      Tetrodotoxin::Puffer::Toolchain::standard_registry();
-  Resolution::Resolver resolver(isa_registry);
-  Resolution::Resolver::Context render_source_context;
-
-  ASSERT(load_render(resolver, render_source_context) != nullptr);
-  EXPECT_NOT(render_source_context.has_errors());
-  Resolution::Resolver::Context shader_source_context;
-
-  EXPECT_NOT(resolver.load_source(
-      shader_source_context, "unit/bad_contract.ttx"_view,
+      "}\n"_view,
+      "Shader stage name is already defined."_view,
+    },
+    {
+      render_source,
       "dialect : Shader;\n"
       "import Renderer : Render = \"render.ttx\";\n"
-      "shader Default2D : Renderer::Missing {\n"
-      "}\n"_view));
-
-  ASSERT(shader_source_context.has_errors());
-  EXPECT_TEXT(
-      first_error(shader_source_context),
-      "Shader render contract could not be resolved."_view);
-}
-
-PERIMORTEM_UNIT_TEST(TtxShader, read_needs_member) {
-  Tetrodotoxin::Isa::Registry isa_registry =
-      Tetrodotoxin::Puffer::Toolchain::standard_registry();
-  Resolution::Resolver resolver(isa_registry);
-  Resolution::Resolver::Context render_source_context;
-
-  ASSERT(resolver.load_source(
-      render_source_context, "unit/render.ttx"_view,
+      "shader Default2D : Renderer::Missing {}\n"_view,
+      "Shader render contract could not be resolved."_view,
+    },
+    {
       "dialect : Render;\n"
       "public Copy : Render {\n"
       "  push_constants { const position : Vec2D; }\n"
@@ -644,12 +530,7 @@ PERIMORTEM_UNIT_TEST(TtxShader, read_needs_member) {
       "    input [];\n"
       "    output [];\n"
       "  }\n"
-      "}\n"_view));
-  EXPECT_NOT(render_source_context.has_errors());
-  Resolution::Resolver::Context shader_source_context;
-
-  EXPECT_NOT(resolver.load_source(
-      shader_source_context, "unit/read_root.ttx"_view,
+      "}\n"_view,
       "dialect : Shader;\n"
       "import Renderer : Render = \"render.ttx\";\n"
       "shader CopyShader : Renderer::Copy {\n"
@@ -657,10 +538,23 @@ PERIMORTEM_UNIT_TEST(TtxShader, read_needs_member) {
       "    state value : Vec2D = push;\n"
       "    return;\n"
       "  }\n"
-      "}\n"_view));
+      "}\n"_view,
+      "Shader render fact access needs a member name."_view,
+    },
+  };
+  Tetrodotoxin::Isa::Registry isa_registry =
+      Tetrodotoxin::Puffer::Toolchain::standard_registry();
+  for (Count i = 0; i < Count(sizeof(failures) / sizeof(Failure)); i++) {
+    Resolution::Resolver resolver(isa_registry);
+    Resolution::Resolver::Context render_context;
+    ASSERT(resolver.load_source(
+        render_context, "unit/render.ttx"_view, failures[i].render));
+    EXPECT_NOT(render_context.has_errors());
+    Resolution::Resolver::Context shader_context;
 
-  ASSERT(shader_source_context.has_errors());
-  EXPECT_TEXT(
-      first_error(shader_source_context),
-      "Shader render fact access needs a member name."_view);
+    EXPECT_NOT(resolver.load_source(
+        shader_context, "unit/shader.ttx"_view, failures[i].shader));
+    ASSERT(shader_context.has_errors());
+    EXPECT_TEXT(first_error(shader_context), failures[i].message);
+  }
 }

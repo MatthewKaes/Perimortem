@@ -1,7 +1,9 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
-#include "tetrodotoxin/puffer/resolution/source/record.hpp"
+#include "tetrodotoxin/puffer/resolution/source/storage.hpp"
+
+#include "perimortem/core/data.hpp"
 
 #include "perimortem/system/path.hpp"
 
@@ -9,7 +11,7 @@ using namespace Perimortem::Core;
 using namespace Perimortem::System;
 using namespace Tetrodotoxin::Puffer;
 
-Resolution::Source::Record::Record(
+Resolution::Source::Storage::Storage(
     View::Bytes source_path,
     View::Bytes source_text)
     : source_path(retain(source_path)), source_text(retain(source_text)) {
@@ -19,24 +21,10 @@ Resolution::Source::Record::Record(
   module = retain(file.slice(0, file.get_size() - extension.get_size()));
 }
 
-Resolution::Source::Record::Record(View::Bytes source_path)
-    : Record(source_path, View::Bytes()) {}
+Resolution::Source::Storage::Storage(View::Bytes source_path)
+    : Storage(source_path, View::Bytes()) {}
 
-auto Resolution::Source::Record::complete(
-    const Tetrodotoxin::Isa::Dialect& dialect,
-    View::Vector<Tetrodotoxin::Puffer::Isa::Boot::Import> imports,
-    const Ttx::Type& type) -> Bool {
-  if (is_complete() || !dialect.is_valid() || type.is_invalid()) {
-    return False;
-  }
-
-  this->dialect = dialect;
-  this->imports = imports;
-  this->type = &type;
-  return True;
-}
-
-auto Resolution::Source::Record::retain(View::Bytes bytes) -> View::Bytes {
+auto Resolution::Source::Storage::retain(View::Bytes bytes) -> View::Bytes {
   if (bytes.is_empty()) {
     return View::Bytes();
   }

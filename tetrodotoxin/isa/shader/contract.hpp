@@ -4,12 +4,11 @@
 #pragma once
 
 #include "tetrodotoxin/isa/base/context.hpp"
+#include "tetrodotoxin/isa/shader/block.hpp"
 #include "ttx/lexical/cursor.hpp"
 #include "ttx/type.hpp"
 
 namespace Tetrodotoxin::Isa::Shader {
-
-class Block;
 
 // Contract owns the Shader-to-Render handshake.
 class Contract {

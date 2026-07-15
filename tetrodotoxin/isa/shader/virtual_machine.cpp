@@ -18,7 +18,8 @@ using namespace Ttx::Lexical;
 auto Shader::VirtualMachine::evaluate(Cursor& cursor, Base::Context& context)
     -> Ttx::Type* {
   Ttx::Documentation documentation = Base::Documentation::evaluate(cursor);
-  if (!Base::Attribute::consume_all(cursor)) {
+  Bool attributes_consumed = Base::Attribute::consume_all(cursor);
+  if (!attributes_consumed) {
     return nullptr;
   }
 
@@ -41,9 +42,9 @@ auto Shader::VirtualMachine::evaluate(Cursor& cursor, Base::Context& context)
     return nullptr;
   }
 
-  if (!cursor.require(
-          Class::Type::ScopeStart,
-          "Expected `{` after shader declaration."_view)) {
+  Bool has_scope = cursor.require(
+      Class::Type::ScopeStart, "Expected `{` after shader declaration."_view);
+  if (!has_scope) {
     return nullptr;
   }
 
@@ -54,7 +55,8 @@ auto Shader::VirtualMachine::evaluate(Cursor& cursor, Base::Context& context)
          !cursor.matches(Class::Type::ScopeEnd)) {
     Ttx::Documentation function_documentation =
         Base::Documentation::evaluate(cursor);
-    if (!Base::Attribute::consume_all(cursor)) {
+    Bool function_attributes_consumed = Base::Attribute::consume_all(cursor);
+    if (!function_attributes_consumed) {
       return nullptr;
     }
 
@@ -72,8 +74,9 @@ auto Shader::VirtualMachine::evaluate(Cursor& cursor, Base::Context& context)
       }
     }
 
-    if (!Shader::Contract::validate_stage(
-            cursor, *contract, function, *block)) {
+    Bool stage_valid =
+        Shader::Contract::validate_stage(cursor, *contract, function, *block);
+    if (!stage_valid) {
       valid = False;
     }
 
@@ -83,9 +86,9 @@ auto Shader::VirtualMachine::evaluate(Cursor& cursor, Base::Context& context)
     }
   }
 
-  if (!cursor.require(
-          Class::Type::ScopeEnd,
-          "Expected `}` after shader declaration."_view)) {
+  Bool has_scope_end = cursor.require(
+      Class::Type::ScopeEnd, "Expected `}` after shader declaration."_view);
+  if (!has_scope_end) {
     return nullptr;
   }
 
@@ -94,16 +97,18 @@ auto Shader::VirtualMachine::evaluate(Cursor& cursor, Base::Context& context)
   }
 
   for (Count i = 0; i < functions.get_size(); i++) {
-    if (!context.define_implementation(functions[i], *function_blocks[i])) {
+    Bool implementation_defined =
+        context.define_implementation(functions[i], *function_blocks[i]);
+    if (!implementation_defined) {
       return nullptr;
     }
   }
 
   auto& contract_alias = context.get_arena().construct<Ttx::Type>(
       Ttx::Type::alias("Contract"_view, *contract));
-  Managed::Vector<const Ttx::Type*> types(context.get_arena());
-  types.insert(&contract_alias);
+  Managed::Vector<Ttx::Type::Reference> types(context.get_arena());
+  types.insert(Ttx::Type::Reference(contract_alias));
   return &context.get_arena().construct<Ttx::Type>(
       name->get_text(), View::Vector<Ttx::Member>(), types.get_view(),
-      functions.get_view(), documentation);
+      functions.get_view(), View::Vector<Ttx::Function>(), documentation);
 }

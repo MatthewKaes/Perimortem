@@ -23,9 +23,7 @@ auto Library::Scope::declare_type(
     return False;
   }
 
-  StagedDeclaration staged;
-  staged.declaration = definition;
-  staged.source = source;
+  StagedDeclaration staged(definition, source);
   declarations.insert(name, staged);
   return True;
 }
@@ -48,52 +46,71 @@ auto Library::Scope::materialize_type(Cursor& cursor, View::Bytes name)
   }
 
   StagedDeclaration& staged = entry->value;
-  if (staged.state == StagedDeclaration::State::Ready) {
-    return staged.type;
+  if (staged.get_state() == StagedDeclaration::State::Ready) {
+    return staged.find_type();
   }
 
-  if (staged.state == StagedDeclaration::State::Evaluating) {
-    if (staged.type != nullptr) {
-      return staged.type;
+  if (staged.get_state() == StagedDeclaration::State::Evaluating) {
+    const Ttx::Type* staged_type = staged.find_type();
+    if (staged_type != nullptr) {
+      return staged_type;
     }
 
     cursor.token_error(
         "Library type dependency cycle could not be resolved."_view);
-    staged.state = StagedDeclaration::State::Failed;
+    staged.fail();
     return nullptr;
   }
 
-  if (staged.state == StagedDeclaration::State::Failed) {
+  if (staged.get_state() == StagedDeclaration::State::Failed) {
     return nullptr;
   }
 
   Count return_index = cursor.get_token_index();
-  staged.state = StagedDeclaration::State::Evaluating;
-  cursor.seek_token(staged.source.start);
+  Bool began_evaluation = staged.begin_evaluation();
+  if (!began_evaluation) {
+    return nullptr;
+  }
 
-  type = materializer(cursor, *this, staged.declaration);
-  if (type == nullptr || !context.define_type(*type)) {
-    staged.state = StagedDeclaration::State::Failed;
+  cursor.seek_token(staged.get_source().start);
+
+  type = materializer(cursor, *this, staged.get_declaration());
+  if (type == nullptr) {
+    staged.fail();
     cursor.seek_token(return_index);
     return nullptr;
   }
 
-  staged.type = type;
-  staged.state = StagedDeclaration::State::Ready;
+  Bool completed = staged.complete(*type);
+  if (!completed) {
+    staged.fail();
+    cursor.seek_token(return_index);
+    return nullptr;
+  }
+
+  Base::Definition definition(
+      staged.get_declaration().get_modifier(),
+      staged.get_declaration().get_attributes());
+  Bool defined_type = context.define_type(*type, definition);
+  if (!defined_type) {
+    staged.fail();
+    cursor.seek_token(return_index);
+    return nullptr;
+  }
+
   cursor.seek_token(return_index);
   return type;
 }
 
 auto Library::Scope::stage_type_reference(
     View::Bytes name,
-    const Ttx::Type& type) -> Bool {
+    const Ttx::Type* type) -> Bool {
   auto* entry = declarations.find(name);
-  if (!entry || entry->value.state != StagedDeclaration::State::Evaluating) {
+  if (!entry) {
     return False;
   }
 
-  entry->value.type = &type;
-  return True;
+  return entry->value.stage_type(type);
 }
 
 auto Library::Scope::seek_after_type(Cursor& cursor, View::Bytes name) const
@@ -103,7 +120,7 @@ auto Library::Scope::seek_after_type(Cursor& cursor, View::Bytes name) const
     return False;
   }
 
-  cursor.seek_token(entry->value.source.get_end());
+  cursor.seek_token(entry->value.get_source().get_end());
   return True;
 }
 
@@ -119,7 +136,7 @@ auto Library::Scope::find_type(View::Bytes name) const -> const Ttx::Type* {
   }
 
   const auto* staged = declarations.find(name);
-  return staged == nullptr ? nullptr : staged->value.type;
+  return staged == nullptr ? nullptr : staged->value.find_type();
 }
 
 auto Library::Scope::resolve_type(Cursor& cursor) -> const Ttx::Type* {

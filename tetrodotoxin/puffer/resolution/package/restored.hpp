@@ -12,8 +12,8 @@ namespace Tetrodotoxin::Puffer::Resolution::Package {
 
 // One restored package and the source-graph record that exposes its Type.
 //
-// The Record retains the restoration arena, so the Package pointer remains
-// valid for exactly the same lifetime as the graph identity published from it.
+// The Record retains its source Storage, so the Package pointer remains valid
+// for exactly the same lifetime as the graph identity published from it.
 class Restored {
  public:
   Restored(

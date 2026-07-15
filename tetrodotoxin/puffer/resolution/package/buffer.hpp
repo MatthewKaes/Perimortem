@@ -9,12 +9,7 @@
 #include "perimortem/memory/managed/bytes.hpp"
 
 #include "tetrodotoxin/archiver/manifest.hpp"
-#include "tetrodotoxin/archiver/reference.hpp"
-
-namespace Tetrodotoxin::Archiver {
-
-class Package;
-}
+#include "tetrodotoxin/archiver/package.hpp"
 
 namespace Tetrodotoxin::Puffer::Resolution::Package {
 
@@ -27,11 +22,11 @@ class Buffer {
   explicit Buffer(Perimortem::Core::View::Bytes content);
 
   auto read_manifest(Perimortem::Memory::Allocator::Arena& target) const
-      -> Tetrodotoxin::Archiver::Manifest;
+      -> const Tetrodotoxin::Archiver::Manifest*;
   auto read_package(
       Perimortem::Memory::Allocator::Arena& target,
-      Tetrodotoxin::Archiver::Manifest manifest,
-      Perimortem::Core::View::Vector<Tetrodotoxin::Archiver::Reference>
+      const Tetrodotoxin::Archiver::Manifest& manifest,
+      Perimortem::Core::View::Vector<const Tetrodotoxin::Archiver::Package*>
           references) const -> Tetrodotoxin::Archiver::Package*;
 
  private:

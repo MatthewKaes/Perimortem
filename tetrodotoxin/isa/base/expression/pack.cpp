@@ -14,9 +14,9 @@ using namespace Ttx::Lexical;
 
 auto Base::Expression::Pack::evaluate(Cursor& cursor, Base::Context& context)
     -> const Base::Expression::Pack* {
-  if (!cursor.require(
-          Class::Type::PackingStart,
-          "Expected `(` before expression pack."_view)) {
+  Bool has_pack = cursor.require(
+      Class::Type::PackingStart, "Expected `(` before expression pack."_view);
+  if (!has_pack) {
     return nullptr;
   }
 
@@ -34,9 +34,10 @@ auto Base::Expression::Pack::evaluate(Cursor& cursor, Base::Context& context)
         return nullptr;
       }
 
-      if (!cursor.require(
-              Class::Type::Assign,
-              "Expected `=` after expression pack entry name."_view)) {
+      Bool has_assignment = cursor.require(
+          Class::Type::Assign,
+          "Expected `=` after expression pack entry name."_view);
+      if (!has_assignment) {
         return nullptr;
       }
 
@@ -57,9 +58,9 @@ auto Base::Expression::Pack::evaluate(Cursor& cursor, Base::Context& context)
     cursor.consume();
   }
 
-  if (!cursor.require(
-          Class::Type::PackingEnd,
-          "Expected `)` after expression pack."_view)) {
+  Bool has_pack_end = cursor.require(
+      Class::Type::PackingEnd, "Expected `)` after expression pack."_view);
+  if (!has_pack_end) {
     return nullptr;
   }
 

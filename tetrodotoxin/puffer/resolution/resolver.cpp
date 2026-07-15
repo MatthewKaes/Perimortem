@@ -84,7 +84,8 @@ auto Resolution::Resolver::load_source(
     return nullptr;
   }
 
-  if (!source_roots.include(normalized_path.get_view())) {
+  Bool included = source_roots.include(normalized_path.get_view());
+  if (!included) {
     context.persist_errors(
         Ttx::Lexical::Errors::Error(
             source_path, View::Bytes(),
@@ -135,7 +136,8 @@ auto Resolution::Resolver::load_source(
     return nullptr;
   }
 
-  if (!source_roots.include(normalized_path)) {
+  Bool included = source_roots.include(normalized_path);
+  if (!included) {
     context.persist_errors(
         Ttx::Lexical::Errors::Error(
             source_path, ttx_content,
@@ -181,19 +183,18 @@ auto Resolution::Resolver::load_source(
     sources.remove(*existing);
   }
 
-  Dynamic::Object<Source::Record> candidate_handle(source_path, ttx_content);
-  Source::Record& candidate = *candidate_handle;
+  Dynamic::Object<Source::Storage> storage_handle(source_path, ttx_content);
+  Source::Storage& storage = *storage_handle;
   Ttx::Lexical::Tokenizer tokenizer(
-      candidate.get_arena(), candidate.get_content(),
-      candidate.get_source_path());
-  Ttx::Lexical::Cursor cursor(tokenizer, candidate.get_arena());
+      storage.get_arena(), storage.get_content(), storage.get_source_path());
+  Ttx::Lexical::Cursor cursor(tokenizer, storage.get_arena());
   Isa::Boot::Envelope* boot = evaluate_boot(cursor);
   if (boot == nullptr || cursor.get_errors().has_errors()) {
     context.persist_errors(cursor.get_errors());
     return nullptr;
   }
 
-  View::Bytes include_key = candidate.get_source_path();
+  View::Bytes include_key = storage.get_source_path();
   if (active_includes.contains(include_key)) {
     cursor.error("Import cycle detected while resolving source graph."_view);
     context.persist_errors(cursor.get_errors());
@@ -205,7 +206,7 @@ auto Resolution::Resolver::load_source(
   active_includes.insert(include_key);
   Dynamic::Vector<Source::Record*> producers;
   Bool resolved = resolve_imports(
-      context, cursor, candidate.get_source_path(), *boot, producers,
+      context, cursor, storage.get_source_path(), *boot, producers,
       active_includes, blocked_sources);
   active_includes.remove(include_key);
   if (!resolved || cursor.get_errors().has_errors()) {
@@ -221,7 +222,7 @@ auto Resolution::Resolver::load_source(
   }
 
   Ttx::Type* type =
-      execute_body(cursor, candidate, *dialect, *boot, producers.get_view());
+      execute_body(cursor, storage, *dialect, *boot, producers.get_view());
   if (type == nullptr && cursor.get_errors().is_empty()) {
     cursor.error("Selected ISA did not produce a TTX type."_view);
   }
@@ -231,14 +232,9 @@ auto Resolution::Resolver::load_source(
     return nullptr;
   }
 
-  if (!candidate.complete(*dialect, boot->get_imports(), *type)) {
-    cursor.error("Resolved source record could not be completed."_view);
-    context.persist_errors(cursor.get_errors());
-    return nullptr;
-  }
-
-  Dynamic::Object<Source::Record> record_handle =
-      context.adopt_record(candidate_handle);
+  Dynamic::Object<Source::Record> record_handle(
+      storage_handle, *dialect, boot->get_imports(), *type);
+  record_handle = context.adopt_record(record_handle);
   Source::Record& record = *record_handle;
   existing = sources.find(record.get_source_path());
   if (existing != nullptr) {
@@ -254,10 +250,7 @@ auto Resolution::Resolver::load_source(
   // page fault for the evaluating machine which means cycle detection has to
   // happen during cascading Boot since it would just infinitely Boot loop on
   // imports otherwise.
-  if (!sources.publish(record_handle)) {
-    return nullptr;
-  }
-
+  sources.publish(record_handle);
   for (Count i = 0; i < producers.get_size(); i++) {
     sources.connect(record, *producers[i]);
   }
@@ -342,7 +335,7 @@ auto Resolution::Resolver::evaluate_boot(Ttx::Lexical::Cursor& cursor)
 
 auto Resolution::Resolver::execute_body(
     Ttx::Lexical::Cursor& cursor,
-    Source::Record& record,
+    Source::Storage& storage,
     const Tetrodotoxin::Isa::Dialect& dialect,
     const Isa::Boot::Envelope& boot,
     View::Vector<Source::Record*> producers) -> Ttx::Type* {
@@ -351,14 +344,14 @@ auto Resolution::Resolver::execute_body(
   // bind authored references to real Ttx::Type addresses instead of inventing a
   // temporary semantic tree.
   Tetrodotoxin::Isa::Base::Context isa_context(
-      cursor.get_arena(), &record.get_implementation(), &read_embedded);
-  isa_context.set_package_name(package_name);
-  isa_context.set_module(record.get_module());
+      cursor.get_arena(), storage.get_implementation(), unit_name,
+      storage.get_module(), package_name, &read_embedded);
 
   auto imports = boot.get_imports();
   for (Count i = 0; i < producers.get_size(); i++) {
     const Ttx::Type& type = producers[i]->get_type();
-    if (!isa_context.define_type(imports[i].get_local_name(), type)) {
+    Bool defined = isa_context.define_type(imports[i].get_local_name(), type);
+    if (!defined) {
       cursor.error("Import type name is already defined."_view);
       return nullptr;
     }
@@ -420,10 +413,10 @@ auto Resolution::Resolver::update_consumers(
   // a stale record from earlier in the update.
   for (Count i = 0; i < snapshots.get_size(); i++) {
     Dynamic::Set<View::Bytes> active_includes;
-    if (load_source(
-            context, snapshots[i].get_source_path(),
-            snapshots[i].get_source_text(), active_includes,
-            &blocked_sources) == nullptr) {
+    Source::Record* loaded = load_source(
+        context, snapshots[i].get_source_path(), snapshots[i].get_source_text(),
+        active_includes, &blocked_sources);
+    if (loaded == nullptr) {
       blocked_sources.insert(snapshots[i].get_source_path());
     }
   }

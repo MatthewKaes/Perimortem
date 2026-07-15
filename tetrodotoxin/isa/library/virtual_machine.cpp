@@ -35,10 +35,11 @@ using DefinitionEvaluator =
                          const Tetrodotoxin::Isa::Base::Declaration&
                              definition);
 
-constexpr Static::Vector<Class::Type, 3> library_modifiers = {{
+constexpr Static::Vector<Class::Type, 4> library_modifiers = {{
   Class::Type::Public,
   Class::Type::Private,
   Class::Type::Expose,
+  Class::Type::Const,
 }};
 
 constexpr Static::Vector<Pair<View::Bytes, DefinitionEvaluator>, 5>
@@ -84,7 +85,9 @@ static auto predeclare_library_definitions(
   while (!cursor.matches(Class::Type::EndOfStream)) {
     Ttx::Documentation documentation = Base::Documentation::evaluate(cursor);
     Managed::Vector<Ttx::Attribute> attributes(scope.get_context().get_arena());
-    if (!Base::Attribute::evaluate_all(cursor, attributes)) {
+    Bool attributes_evaluated =
+        Base::Attribute::evaluate_all(cursor, attributes);
+    if (!attributes_evaluated) {
       return False;
     }
 
@@ -93,7 +96,8 @@ static auto predeclare_library_definitions(
     }
 
     if (!cursor.is_one_of(library_modifiers)) {
-      if (!Library::Syntax::consume_declaration_tail(cursor, True)) {
+      Bool recovered = Library::Syntax::consume_declaration_tail(cursor, True);
+      if (!recovered) {
         return False;
       }
 
@@ -103,7 +107,8 @@ static auto predeclare_library_definitions(
     Class::Type modifier = cursor.current().get_class().get_type();
     cursor.consume();
     if (cursor.matches(Class::Type::Func)) {
-      if (!Library::Syntax::consume_declaration_tail(cursor, True)) {
+      Bool recovered = Library::Syntax::consume_declaration_tail(cursor, True);
+      if (!recovered) {
         return False;
       }
 
@@ -112,7 +117,8 @@ static auto predeclare_library_definitions(
 
     const Token& name = cursor.current();
     if (name.get_class() != Class::Type::Type) {
-      if (!Library::Syntax::consume_declaration_tail(cursor, True)) {
+      Bool recovered = Library::Syntax::consume_declaration_tail(cursor, True);
+      if (!recovered) {
         return False;
       }
 
@@ -121,7 +127,8 @@ static auto predeclare_library_definitions(
 
     cursor.consume();
     if (!cursor.matches(Class::Type::Define)) {
-      if (!Library::Syntax::consume_declaration_tail(cursor, True)) {
+      Bool recovered = Library::Syntax::consume_declaration_tail(cursor, True);
+      if (!recovered) {
         return False;
       }
 
@@ -132,7 +139,8 @@ static auto predeclare_library_definitions(
     const Token& kind = cursor.current();
     if (Table<DefinitionEvaluator, library_sub_isas>::find_or_null(
             kind.get_text()) == nullptr) {
-      if (!Library::Syntax::consume_declaration_tail(cursor, True)) {
+      Bool recovered = Library::Syntax::consume_declaration_tail(cursor, True);
+      if (!recovered) {
         return False;
       }
 
@@ -144,12 +152,14 @@ static auto predeclare_library_definitions(
         kind.get_class().get_type(), kind.get_text(), attributes.get_view());
     cursor.consume();
     Range source = {cursor.get_token_index(), 0};
-    if (!Library::Syntax::consume_declaration_tail(cursor, True)) {
+    Bool recovered = Library::Syntax::consume_declaration_tail(cursor, True);
+    if (!recovered) {
       return False;
     }
 
     source.size = cursor.get_token_index() - source.start;
-    if (!scope.declare_type(definition, source)) {
+    Bool declared = scope.declare_type(definition, source);
+    if (!declared) {
       cursor.range_error(
           name, name, "Library type name is already defined."_view);
       return False;
@@ -166,14 +176,14 @@ auto Library::VirtualMachine::evaluate_definition(
     View::Vector<Ttx::Attribute> attributes,
     Managed::Vector<Ttx::Member>& members,
     Managed::Vector<Base::Definition>& member_definitions,
-    Managed::Vector<const Ttx::Type*>& types,
+    Managed::Vector<Ttx::Type::Reference>& types,
     Managed::Vector<Ttx::Function>& functions,
     Managed::Vector<Range>& function_sources,
     Managed::Vector<Base::Definition>& function_definitions) -> Bool {
   Class::Type modifier = Base::Modifier::evaluate(
       cursor, library_modifiers,
       "Expected a definition to start with one of the following modifiers "
-      "{public, private, expose}"_view);
+      "{public, private, expose, const}"_view);
   if (modifier == Class::Type::Unknown) {
     return False;
   }
@@ -206,7 +216,7 @@ auto Library::VirtualMachine::evaluate_definition(
           {{Class::Type::Addressable, Class::Type::Type, Class::Type::Alias,
             Class::Type::Func}},
           attributes);
-  if (!definition.is_valid()) {
+  if (definition.is_empty()) {
     return False;
   }
 
@@ -255,13 +265,15 @@ auto Library::VirtualMachine::evaluate_definition(
     return False;
   }
 
-  if (!scope.seek_after_type(cursor, definition.get_name())) {
-    if (!Library::Syntax::consume_declaration_tail(cursor, True)) {
+  Bool positioned = scope.seek_after_type(cursor, definition.get_name());
+  if (!positioned) {
+    Bool recovered = Library::Syntax::consume_declaration_tail(cursor, True);
+    if (!recovered) {
       return False;
     }
   }
 
-  types.insert(type);
+  types.insert(Ttx::Type::Reference(*type));
   return True;
 }
 
@@ -269,13 +281,14 @@ auto Library::VirtualMachine::evaluate(Cursor& cursor, Base::Context& context)
     -> Ttx::Type* {
   Managed::Vector<Ttx::Member> members(context.get_arena());
   Managed::Vector<Base::Definition> member_definitions(context.get_arena());
-  Managed::Vector<const Ttx::Type*> types(context.get_arena());
+  Managed::Vector<Ttx::Type::Reference> types(context.get_arena());
   Managed::Vector<Ttx::Function> functions(context.get_arena());
   Managed::Vector<Range> function_sources(context.get_arena());
   Managed::Vector<Base::Definition> function_definitions(context.get_arena());
   Library::Scope scope(context, materialize_library_type);
   Count body_start = cursor.get_token_index();
-  if (!predeclare_library_definitions(cursor, scope)) {
+  Bool predeclared = predeclare_library_definitions(cursor, scope);
+  if (!predeclared) {
     return nullptr;
   }
 
@@ -283,7 +296,9 @@ auto Library::VirtualMachine::evaluate(Cursor& cursor, Base::Context& context)
   while (!cursor.matches(Class::Type::EndOfStream)) {
     Ttx::Documentation documentation = Base::Documentation::evaluate(cursor);
     Managed::Vector<Ttx::Attribute> source_attributes(context.get_arena());
-    if (!Base::Attribute::evaluate_all(cursor, source_attributes)) {
+    Bool attributes_evaluated =
+        Base::Attribute::evaluate_all(cursor, source_attributes);
+    if (!attributes_evaluated) {
       return nullptr;
     }
 
@@ -291,11 +306,13 @@ auto Library::VirtualMachine::evaluate(Cursor& cursor, Base::Context& context)
       break;
     }
 
-    if (!evaluate_definition(
-            cursor, scope, documentation, source_attributes.get_view(), members,
-            member_definitions, types, functions, function_sources,
-            function_definitions)) {
-      if (!Library::Syntax::consume_declaration_tail(cursor, True)) {
+    Bool evaluated = evaluate_definition(
+        cursor, scope, documentation, source_attributes.get_view(), members,
+        member_definitions, types, functions, function_sources,
+        function_definitions);
+    if (!evaluated) {
+      Bool recovered = Library::Syntax::consume_declaration_tail(cursor, True);
+      if (!recovered) {
         return nullptr;
       }
 
@@ -311,14 +328,18 @@ auto Library::VirtualMachine::evaluate(Cursor& cursor, Base::Context& context)
       Library::VirtualMachine::get_name(), members.get_view(), types.get_view(),
       functions.get_view());
   for (Count i = 0; i < members.get_size(); i++) {
-    if (!context.define_implementation(members[i], member_definitions[i])) {
+    Bool implementation_defined =
+        context.define_implementation(members[i], member_definitions[i]);
+    if (!implementation_defined) {
       return nullptr;
     }
   }
 
-  if (!Library::Compiler::Function::publish(
-          cursor, scope, type, function_sources.get_view(),
-          function_definitions.get_view())) {
+  Bool published = Library::Compiler::Function::publish(
+      cursor, scope, type, Library::VirtualMachine::get_name(),
+      type.get_type_functions(), function_sources.get_view(),
+      function_definitions.get_view(), False);
+  if (!published) {
     return nullptr;
   }
 

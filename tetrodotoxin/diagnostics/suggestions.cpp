@@ -12,68 +12,8 @@
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
 
-auto Tetrodotoxin::Diagnostics::Suggestions::possible_candidate(
-    Allocator::Arena& arena,
-    View::Bytes name,
-    View::Vector<View::Bytes> candidates) -> View::Bytes {
-  Count index = possible_index(
-      name, candidates.get_data(), candidates.get_size(), view_name);
-  return index == Count(-1) ? View::Bytes() : format(arena, candidates[index]);
-}
-
-auto Tetrodotoxin::Diagnostics::Suggestions::possible_candidate(
-    Allocator::Arena& arena,
-    View::Bytes name,
-    Ttx::Layout candidates) -> View::Bytes {
-  View::Vector<Ttx::Member> members = candidates.get_members();
-  Count index =
-      possible_index(name, members.get_data(), members.get_size(), member_name);
-  return index == Count(-1) ? View::Bytes()
-                            : format(arena, members[index].get_name());
-}
-
-auto Tetrodotoxin::Diagnostics::Suggestions::possible_index(
-    View::Bytes name,
-    const void* candidates,
-    Count candidate_count,
-    CandidateName candidate_name) -> Count {
-  Count best_index = Count(-1);
-  for (Count i = 0; i < candidate_count; i++) {
-    View::Bytes candidate = candidate_name(candidates, i);
-    if (candidate.is_empty()) {
-      continue;
-    }
-
-    // Check if the candidate is good enough that we should just use it.
-    Count candidate_distance = distance(name, candidate);
-    if (candidate_distance <= 1) {
-      return i;
-    }
-
-    // If this is the best candidate we've found so far then use it.
-    if (candidate_distance == 2 && best_index == Count(-1)) {
-      best_index = i;
-    }
-  }
-
-  return best_index;
-}
-
-auto Tetrodotoxin::Diagnostics::Suggestions::view_name(
-    const void* candidates,
-    Count index) -> View::Bytes {
-  return static_cast<const View::Bytes*>(candidates)[index];
-}
-
-auto Tetrodotoxin::Diagnostics::Suggestions::member_name(
-    const void* candidates,
-    Count index) -> View::Bytes {
-  return static_cast<const Ttx::Member*>(candidates)[index].get_name();
-}
-
-auto Tetrodotoxin::Diagnostics::Suggestions::format(
-    Allocator::Arena& arena,
-    View::Bytes candidate) -> View::Bytes {
+static auto format(Allocator::Arena& arena, View::Bytes candidate)
+    -> View::Bytes {
   Managed::Bytes hint(arena);
   hint.concat("Did you mean `"_view);
   hint.concat(candidate);
@@ -81,9 +21,7 @@ auto Tetrodotoxin::Diagnostics::Suggestions::format(
   return hint;
 }
 
-auto Tetrodotoxin::Diagnostics::Suggestions::distance(
-    View::Bytes left,
-    View::Bytes right) -> Count {
+static auto distance(View::Bytes left, View::Bytes right) -> Count {
   Count maximum_distance =
       Math::max(left.get_size(), right.get_size()) <= 4 ? Count(1) : Count(2);
 
@@ -157,4 +95,58 @@ auto Tetrodotoxin::Diagnostics::Suggestions::distance(
 
   Count result = rows[previous_row][right.get_size() & row_mask];
   return result <= maximum_distance ? result : Count(-1);
+}
+
+static auto consider(
+    View::Bytes name,
+    View::Bytes candidate,
+    Count index,
+    Count& best_index) -> Bool {
+  if (candidate.is_empty()) {
+    return False;
+  }
+
+  Count candidate_distance = distance(name, candidate);
+  if (candidate_distance <= 1) {
+    best_index = index;
+    return True;
+  }
+
+  if (candidate_distance == 2 && best_index == Count(-1)) {
+    best_index = index;
+  }
+
+  return False;
+}
+
+auto Tetrodotoxin::Diagnostics::Suggestions::possible_candidate(
+    Allocator::Arena& arena,
+    View::Bytes name,
+    View::Vector<View::Bytes> candidates) -> View::Bytes {
+  Count best_index = Count(-1);
+  for (Count i = 0; i < candidates.get_size(); i++) {
+    if (consider(name, candidates[i], i, best_index)) {
+      break;
+    }
+  }
+
+  return best_index == Count(-1) ? View::Bytes()
+                                 : format(arena, candidates[best_index]);
+}
+
+auto Tetrodotoxin::Diagnostics::Suggestions::possible_candidate(
+    Allocator::Arena& arena,
+    View::Bytes name,
+    Ttx::Layout candidates) -> View::Bytes {
+  View::Vector<Ttx::Member> members = candidates.get_members();
+  Count best_index = Count(-1);
+  for (Count i = 0; i < members.get_size(); i++) {
+    if (consider(name, members[i].get_name(), i, best_index)) {
+      break;
+    }
+  }
+
+  return best_index == Count(-1)
+             ? View::Bytes()
+             : format(arena, members[best_index].get_name());
 }

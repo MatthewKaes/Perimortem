@@ -21,9 +21,10 @@ public Image : object {
 
   public func decode[.source : View[Bytes]] -> Image;
 
-  public func get_size_pixels[] -> Math::Geometry::Size2D;
+  public func get_size_pixels[self] -> Math::Geometry::Size2D;
 
   expose func sample[
+    self,
     .texture_uv : Point2D,
   ] -> [Color];
 }

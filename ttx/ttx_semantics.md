@@ -168,8 +168,9 @@ ownership:
 
 - TTX source owns authored bytes and source spans.
 - Lexical owns token classification and token payload views.
-- Attribute, Documentation, Member, Function, Type, and Layout own the shared
-  TTX data model.
+- Abstract objects and their registered contracts own the shared TTX semantic
+  graph. Type, Alias, Generic, Callable, Free, Self, and Invalid are contracts
+  in that graph. Layout owns value and storage shape.
 - Host envelope evaluators own whatever source preamble they choose to execute.
 - Import, module, package, cache, and invalidation layers belong to the host
   that needs them.
@@ -180,6 +181,150 @@ ownership:
 - Terminal emitters own output-specific representations such as SPIR-V words,
   LLVM IR, object files, archives, generated headers, editor JSON, or formatted
   source text.
+
+## Semantic Object Model
+
+The evaluated semantic model is a directed graph of `Abstract` objects. An
+object may be reached through more than one import or alias edge, so its
+ownership graph is not forced into a tree and the object does not store one
+authoritative parent path. Resolution produces a Route beside the object it
+reached.
+
+The base hierarchy is:
+
+```text
+Abstract
+├── Invalid
+├── Type
+│   ├── Alias
+│   ├── Generic
+│   └── ISA-defined types
+├── Callable
+│   ├── Free
+│   └── Self
+└── Address
+```
+
+These names describe up-castable semantic contracts:
+
+| Contract | Required meaning |
+| -------- | ---------------- |
+| `Abstract` | object name, registered class, named child queries, and child enumeration by contract |
+| `Type` | total canonicalization to `Type&` and a concrete Layout query |
+| `Alias` | a named Type that canonicalizes through another Type while retaining its own route and documentation |
+| `Generic` | a Type that resolves arguments to a compiler-owned concrete Type |
+| `Callable` | complete parameter and result Layouts plus an address/linkage query |
+| `Free` | invocation that does not consume an addressable receiver |
+| `Self` | invocation whose addressable receiver is parameter zero |
+| `Address` | local, external, interpreted, runtime, or explicitly unresolved invocation endpoint |
+| `Invalid` | failed resolution with the failed Route, source, and diagnostic cause |
+
+`Type` is not the root of this model. Callable, package, diagnostic, ISA, and
+future runtime objects do not inherit Type merely to become queryable. There is
+also no `Typed` marker. A consumer asks for the actual contract it needs:
+
+```text
+children<Type>()       objects that define types
+children<Callable>()   callable objects
+children<Self>()       calls requiring a receiver
+resolve<Type>(name)    one named Type child
+```
+
+Lower layers can operate on `Type` without knowing that an object is an Alias,
+Generic, or an ISA-specific subtype. A documentation or language-binding layer
+can query the more specific contract through the same object.
+
+### ClassDB
+
+The hierarchy is described by a language-neutral ClassDB. TTX does not depend
+on C++ RTTI, C++ vtable layout, or C++ mangled names. Each registered class has:
+
+- a unique, versioned schema Route
+- its parent Class
+- required inherited operations
+- construction and destruction callbacks
+- method, property, and callable Layout descriptions
+- language or plugin ownership
+- documentation and reflection metadata.
+
+Every Abstract exposes its Class descriptor. `is<Contract>()` asks ClassDB
+whether that class derives from the requested schema. After that proof,
+`as<Contract>()` returns a reference under a checked precondition; failed casts
+do not return nullable pointers. Native implementations may use a static cast
+after ClassDB proves ancestry. Foreign implementations travel through opaque
+object handles and registered C ABI callbacks. A C++ vtable never crosses the
+language boundary.
+
+Durable class identity is its readable schema Route, for example:
+
+```text
+Ttx1.Abstract.Type.Generic
+Ttx1.Abstract.Callable.Self
+Shader1.Abstract.Type.Stage
+```
+
+A loaded ClassDB may assign dense local indices for fast ancestry and operation
+lookup. Such indices are registry-local acceleration only: they are never
+serialized, embedded in public symbols, or assumed equal across processes or
+languages.
+
+### Routes And Resolution
+
+A Route is the ordered record of named query steps used to reach an object.
+Each step records both the name and the contract layer selected for that query.
+Names are unique inside each layer. For example, these are distinct routes:
+
+```text
+Widget / Callable.Free / open
+Widget / Callable.Self / open
+```
+
+The ClassDB schema steps are real resolution facts, not `.Type` or
+`.Addressable` suffixes manufactured while exporting a symbol. A type or package
+receiver selects `Free`. A runtime value canonicalizes its Type and selects
+`Self`. Both layers independently reject duplicate `open` children.
+
+Resolution returns the Route and a reference to the resulting Abstract. The
+same object can have several routes. An Alias retains the authored route while
+canonicalization supplies the Type used for layout and equivalence. Diagnostics
+and generated source normally use the authored route. Publication uses an
+explicit selected public route. No phase chooses a lexicographically preferred
+alias as hidden identity.
+
+Durable names use a reversible route encoding. A textual representation may
+print the schema and object segments directly; a binary or symbol encoding may
+length-prefix them. Neither form hashes the route or callable signature. If
+incompatible package or ABI versions must coexist, version is an explicit route
+segment rather than an input to a hash.
+
+### Invalid And Total References
+
+`Invalid : Abstract` is the semantic failure object. It represents missing
+names, a wrong requested contract, ambiguous resolution, alias cycles, invalid
+archives, unsupported ISA construction, and unresolved linkage when a semantic
+object is required. It records the first failed Route, source range, and useful
+diagnostic message.
+
+Queries through Invalid are absorbing: they return the same Invalid, or a more
+specific Invalid that retains the original cause. This prevents one bad name
+from producing a cascade of unrelated failures.
+
+The semantic interface follows these rules:
+
+| Situation | Representation |
+| --------- | -------------- |
+| failed name or contract query | `Resolution` containing `Invalid&` |
+| no children | empty child view |
+| unresolved callable address | explicit unresolved Address or `Invalid&` |
+| corrupt restored package | Invalid package root |
+| valid Alias canonicalization | `Type&` |
+| checked contract conversion | reference after ClassDB ancestry proof |
+
+`nullptr` is not a pseudo-Abstract, a failed cast, or an absent semantic edge.
+Invalid does not inherit Type, Callable, and every other contract to satisfy
+narrow return signatures. Operations that can fail return Abstract or
+Resolution. After validation and ClassDB up-casting, narrow operations such as
+`Type::canonicalize()` and `Type::get_layout()` are total and reference-based.
 
 ## Layout Facts
 
@@ -201,14 +346,27 @@ There are two important layout kinds:
   ABI or wire-format meaning.
 
 A concrete layout may contain entries. Each entry has an optional name, a child
-type, and an offset computed under the parent layout policy. A scalar is the
-terminal case: a concrete layout with no entries. A struct or vector is the
-same fact shape with entries.
+Type, and an offset computed under the parent layout policy. The layout records
+its concrete size and alignment. A scalar is the terminal case: a concrete
+layout with no entries. A struct, vector, view, callable carrier, or other
+composite uses the same recursive fact shape with entries. If target choice can
+change storage, the Compiler resolves the target's concrete Layout before
+terminal lowering; the backend does not replace the Type with an unrelated ABI
+enum.
 
-Methods are not layout entries. A layout describes shape and storage; a type or
-scope owns dispatch. Method signatures may reference layouts for their argument
-and result shapes, but method lookup belongs to the concrete typed receiver or
-package scope.
+Every Type admitted to a value or lowering position supplies a concrete Layout
+after canonicalization. Alias delegates that query to its canonical Type. A
+bare Generic is a valid compile-time query receiver but is not admitted to a
+value position; parameterization must first produce a concrete compiler-owned
+Type. This is the complete interface needed by a lower compiler layer:
+canonicalize the validated Type, inspect its Layout, recursively lower each
+non-empty entry, and ask the terminal Type contract how an empty layout is
+represented.
+
+Callables are not layout entries. A Layout describes shape and storage. An
+Abstract scope publishes Callable children. Callable signatures reference
+Layouts for argument and result shape, while method lookup resolves a Free or
+Self object through the concrete typed receiver or package scope.
 
 The core invariant is:
 
@@ -354,7 +512,7 @@ A conforming evaluator follows these rules:
 1. Let token classes carry the first layer of meaning.
 2. Pick the next production from the current token whenever possible.
 3. Treat named and positional aggregate syntax as disjoint modes. Named packs
-   start with `.field`; named layouts start with `.field` or attributes followed
+   start with `.field`. Named layouts start with `.field` or attributes followed
    by `.field`.
 4. Use bounded lookahead only for local shape decisions, such as distinguishing
    a named layout from an unnamed layout.
@@ -499,7 +657,9 @@ TTX uses casing as a semantic boundary:
 - `snake_case` names are addressable runtime values or fields.
 - `PascalCase` names are types, aliases, package names, or ISA names.
 
-Type references are progressive queries, not stored string paths:
+Type references are progressive Abstract queries constrained to the Type
+contract. The object does not own one string path, but each successful
+Resolution retains the Route it walked:
 
 ```ttx
 Bits_32
@@ -509,45 +669,60 @@ Math::Matrix[Real_32, 4, 4]
 ```
 
 The first `Type` token is resolved immediately from the active context. Each
-operator then dispatches on the current value:
+operator then dispatches on the current object or value:
 
-- `:: Name` queries a nested type on the current `Ttx::Type`.
+- `:: Name` queries a nested Type on the current Abstract.
 - `.name` queries a layout/member on the current value or `Layout(type)`.
 - `-> name(...)` queries callable dispatch.
 - `.[...]` dispatches to swizzle/repack semantics.
 - `:[...]` dispatches to index or slice semantics.
 
 `::` is therefore not string concatenation. `Graphics::Color` means resolve the
-local type/package name `Graphics`, then ask that object for nested type
-`Color`. A type query only advances one level per operator, which keeps the
-model allocation-free and lets each owner report the error at the exact failed
-step.
+local type/package name `Graphics`, then ask that object for the Type named
+`Color`. A type query advances one level per operator. The Route is compact
+transaction-owned data rather than a fresh general-purpose string, and it lets
+the owner report the error at the exact failed step.
 
 Type arguments use `[]`, not `<>`, because `<` and `>` are comparison
 operators. Numeric type arguments, such as the `4` in `Vec[Bits_8, 4]`, are
 part of the type query and are checked while proving that query.
 
-Parameterization is type dispatch over a resolved layout. A type reference such
-as `View[Bits_8]` resolves `View`, resolves `[Bits_8]` into the parameter
-layout, then asks the `View` type object to produce the concrete type identity
-for that layout. A type that does not support the requested layout reports the
-error at that point. This keeps parameterized types such as `View[T]`,
-`Vec[T, N]`, `List[T]`, and package-owned forms as normal type objects rather
-than a template or code-generation system.
+Parameterization is Generic dispatch over resolved arguments. A type reference
+such as `View[Bits_8]` resolves `View`, proves that it implements `Generic`,
+resolves `[Bits_8]`, and asks the Generic to create or find the concrete Type.
+A Type that is not Generic produces Invalid at that exact step. This keeps
+parameterized types such as `View[T]`, `Vec[T, N]`, `List[T]`, and
+package-owned forms in the same up-castable Type hierarchy rather than a
+separate template system.
 
-The concrete type returned by parameterization is the address used for type
-equivalence, member lookup, nested type lookup, function lookup, and
-`Layout(type)`. The parameter layout is an input to type construction; it is not
-stored as an independent representation.
+The concrete Type returned by parameterization is compiler-owned. Its stable
+handle is used for local equivalence, member lookup, nested Type lookup,
+Callable lookup, and Layout queries. Its durable identity is its Route. The
+parameter layout is an input to construction, not a second semantic model.
 
-`alias` creates a compile-time type reference. After canonicalization, later
-passes do not need to know whether a type was written directly or reached
-through an alias.
+`alias` creates an `Alias : Type`. Lower compiler layers can canonicalize it and
+forget the distinction. Documentation and reflection layers can still query
+the Alias contract, route, and authored documentation.
+
+A resolved type may also be stored as a compile-time value whose type is the
+standard `Type` type:
+
+```ttx
+const reflected_type : Type = Graphics::Image;
+```
+
+The initializer stores the resolved Type handle and its Route, not source
+spelling. This gives reflection, diagnostics, and editor inspection a
+value-system foundation while preserving the same canonical identity used by
+ordinary type queries. A terminal that materializes Type values uses the
+ClassDB-compatible Abstract handle defined by that runtime. Compiler pointers
+and C++ vtables are never the public representation.
 
 Decode shape: a type reference starts with `Type`, or a numeric token when
-decoding a numeric type argument. `TypeAccessOp` performs one nested-type query
-on the current `Ttx::Type`. Type arguments start with `IndexStart`, contain
-type references separated by `PackingOp`, and end with `IndexEnd`.
+decoding a numeric type argument. `TypeAccessOp` performs one
+`resolve<Type>()` step on the current Abstract. Type arguments start with
+`IndexStart`, contain type references separated by `PackingOp`, and end with
+`IndexEnd`.
 
 ## Prelude And Package Aggregate Types
 
@@ -641,8 +816,8 @@ definition name, qualifier, initializer, modifier, and attributes.
 ## Modifiers
 
 Modifiers are fixed keyword tokens that give ISAs a shared access and storage
-surface without forcing one language-wide policy. The lexer owns the spelling;
-the active ISA owns the meaning.
+surface without forcing one language-wide policy. The lexer owns the spelling.
+The active ISA owns the meaning.
 
 Parser shape: modifiers are token classes, not attributes. A parser never parses
 `public` as `Attribute("public")`. Anywhere a modifier is allowed, pass the
@@ -665,18 +840,17 @@ cheap dispatch point.
 Attributes attach compiler metadata to members, layout fields, and parameters:
 
 ```ttx
-@builtin(.slot = 0) .source : View[Bytes]
-@stage(.kind = "fragment")
-@binding(.set = 0, .slot = 1)
+@builtin @slot(0) .source : View[Bytes]
+@stage(fragment)
+@binding @set(0) @slot(1)
 ```
 
 Parser shape: an attribute starts with `Attribute`, whose token text includes
-the leading `@`. If the next token is `PackingStart`, parse a pack as the
-attribute argument list. Otherwise the attribute has no arguments.
-
-Attribute arguments are packs. Named and positional fields must not be mixed,
-and the attribute owner checks the expected keys and legal targets for each
-known attribute.
+the leading `@`. It may stand alone as a marker or take one scalar value inside
+`PackingStart` and `PackingEnd`. Scalar values may be text, unsigned or signed
+integers, real numbers, or booleans. Structured values are not part of the
+attribute model. Write another attribute when a declaration needs another
+fact.
 
 Attributes are not runtime values. They are consumed by the compiler or
 forwarded into target metadata.
@@ -687,21 +861,19 @@ because build systems such as Bazel require output paths to be declared before
 source evaluation runs. The Package ISA body only describes what the package
 exports. Package imports still use the authored package-name surface.
 
-Known shader ABI attributes have fixed local targets. The compiler keeps these
-rules in `syntax/attribute` so attribute legality stays separate from package
-shape parsing and later name binding:
+Known shader ABI attributes have fixed local targets. The owning ISA checks
+their legality while it evaluates the declaration:
 
-- `@stage(.kind = "...")` applies to `Shader` definitions in `Shader` packages.
+- `@stage(name)` applies to `Shader` definitions in `Shader` packages.
 - `@push_constant` applies to exposed `foreign` ABI blocks in `Shader`
   packages.
-- `@binding(.set = N, .slot = N)` applies to resource members inside `Shader`
-  scopes in `Shader` packages.
-- `@builtin(.name = "...")` and `@builtin(.slot = N)` apply to shader builtin
-  input members or layout fields.
+- `@binding`, `@set(N)`, and `@slot(N)` describe separate resource facts on
+  members inside `Shader` scopes.
+- `@builtin(name)` and `@builtin @slot(N)` apply to shader builtin input members
+  or layout fields.
 - `@shader_type(Type)` applies to Library types that deliberately lower as a
   named shader ABI type. Backends must use this metadata or canonical type
-  identity; they must not infer shader ABI identity from a matching member
-  layout alone.
+  identity. A matching member layout does not imply shader ABI identity.
 
 Other attributes may remain target-specific metadata until an ISA defines
 their legality rules.
@@ -710,7 +882,7 @@ their legality rules.
 for compile-time control flow:
 
 ```ttx
-@if(.enabled = true) {
+@if(enabled) {
   state generated : Count = 1;
 }
 ```
@@ -751,10 +923,10 @@ Parser shape: a function member starts with either `Func` or `modifier Func`.
 `CallOp`, parse a return layout, then parse either a block or `EndStatement`.
 
 `func` is a keyword because functions are not merely ordinary values with type
-`Func`. The TTX function model carries the stable callable signature used for
-ABI lowering, entry-point discovery, specialization, foreign declarations, and
-shader compilation. Source bodies are implementation facts owned by the selected
-body evaluator.
+`Func`. Evaluation publishes a `Callable : Abstract` carrying the stable
+signature used for lowering, entry-point discovery, specialization, foreign
+declarations, and shader compilation. Source bodies enrich that same object
+through ISA-defined contracts owned by the selected body evaluator.
 
 Both parameters and returns are layouts:
 
@@ -768,6 +940,66 @@ public func decode[.source : View[Bytes]] -> [
   ...
 }
 ```
+
+Callable has two registered subtypes:
+
+- `Free` is selected by a type or package receiver.
+- `Self` is selected by a runtime value and consumes that receiver.
+
+The subtype is the semantic classification. Consumers do not infer it from a
+parameter name, a boolean flag, or the table in which a plain Function happened
+to be stored.
+
+```ttx
+public Counter : struct {
+  public func identity[.value : Count] -> Count {
+    return value;
+  }
+
+  public func identity[self] -> Counter {
+    return self;
+  }
+}
+
+const reflected_type : Type = Counter;
+state counter : Counter;
+state scalar  : Count   = Counter -> identity(41);
+counter = counter -> identity();
+```
+
+The first call resolves `Free/identity` beneath Counter. The second resolves
+`Self/identity` beneath Counter and passes `counter` as the declared receiver.
+Identical names are legal because the receiver selects a real ClassDB contract
+layer before name lookup. Duplicates within one layer are rejected.
+
+In the Library dialect, bare `self` is shorthand for an ordinary typed member
+whose name is `self` and whose type is the owning Type. It causes the Callable
+object to implement `Self`. The member is part of the function signature rather
+than an implicit compiler local. The parser requires it first.
+`Self::get_parameters()` returns the complete effective layout, including this
+receiver at position zero. Reflection, generated bindings, pack fitting,
+register allocation, and ABI lowering all consume that layout. A Self call
+contributes its receiver as the first value, appends the authored argument pack,
+and fits the complete sequence. No consumer prepends or slices a second
+call-site layout. Root package functions cannot use this shorthand because a
+package is not an addressable runtime value.
+
+A callable placed under a Type is type-owned; that does not make “typed
+function” another subtype. `Free` and `Self` describe invocation semantics.
+Ownership is carried by the Resolution route.
+
+The split is also a tooling contract. Completion after a type token enumerates
+Free children. Completion after an expression result enumerates Self children
+of the inferred canonical Type. The tokenizer can choose the first route for a
+bare type name, while semantic typing handles values produced by member access,
+indexing, or earlier calls.
+
+Callable publishes an address query because a declaration may be unresolved,
+interpreted, compiled locally, restored from a package, or supplied by another
+language runtime. A resolved call receives an Address Abstract with the
+appropriate linkage contract. An unresolved external receives an explicit
+unresolved Address or Invalid. It never receives `nullptr` and never derives a
+linker name by hashing its signature.
 
 The return side is called `returns` in the AST because it is a layout, not a
 separate grammar family.
@@ -974,7 +1206,7 @@ The source pack carrier order is `c, a`. The constructed `Thing` stores fields
 as `a, b, c`, filling `b` from its default. This is an automatic materialization
 shuffle from a named fluid layout into a concrete layout. If a function declares
 a named return layout ordered as `c, a`, the return carrier order is also
-`c, a`; assigning that result to `Thing` requires lowering to shuffle the
+`c, a`. Assigning that result to `Thing` requires lowering to shuffle the
 returned values into the target aggregate order.
 
 TTX has three explicit ways to produce packs:
@@ -1073,7 +1305,7 @@ Count
 []
 [Bits_32, Bits_32]
 [.x : Bits_32, .y : Bits_32]
-[@builtin(.slot = 0) .source : View[Bytes], .count : Count]
+[@builtin @slot(0) .source : View[Bytes], .count : Count]
 ```
 
 Parser shape: a layout either starts with a type reference or with
@@ -1141,7 +1373,7 @@ Rules:
 7. Nested positional packs flatten before positional arity is checked.
 8. Named packs may fit typed aggregates when the target type has named fields
    and every provided field name and type matches the target. Required target
-   fields must be present; fields with defaults may be omitted only when all
+   fields must be present. Fields with defaults may be omitted only when all
    defaulted fields form a trailing suffix.
 9. Positional packs may fit typed aggregates when the pack order matches the
    target layout exactly. Omitted fields are only valid when the omitted region
@@ -1171,10 +1403,10 @@ for packs. The fixed vector and color types have builtin struct fields:
 
 Expressions produce values. Assignment is not an expression.
 
-Executable syntax belongs to the ISA that gives it meaning; the shared TTX type
-tree only supplies stable declarations, layouts, and identities. Library lowers
-authored expressions directly into immutable compiler bodies keyed by
-`Ttx::Function`. Shader currently publishes Shader-owned blocks and statements
+Executable syntax belongs to the ISA that gives it meaning. The shared TTX
+Abstract graph supplies stable declarations, layouts, routes, and identities.
+Library lowers authored expressions directly into immutable compiler bodies
+owned by Callable objects. Shader currently publishes Shader-owned blocks and statements
 until it has an equivalent graphics execution interface. Neither path adds body
 tags or generic statement nodes to the shared TTX model.
 
@@ -1200,7 +1432,7 @@ current token no longer starts a valid suffix.
 
 Unary `-` is parsed as a prefix operator, not as part of a signed numeric token.
 The lexical pass always emits `SubOp` for `-`. In operand position the syntax
-parser consumes `SubOp` as unary negation; after an expression it consumes the
+parser consumes `SubOp` as unary negation. After an expression it consumes the
 same token as binary subtraction. This makes `value-1`, `value - 1`, and
 `value - -1` whitespace independent without backtracking or token
 reinterpretation.
@@ -1242,8 +1474,8 @@ lookup. `CallOp` is the only call marker. It requires a callable name and a
 pack. The call base may be a value, `self`, `package`, a package or type query,
 or a future function-pointer value. `IndexStart` parses index or index-slice content.
 `SwizzleOp` parses swizzle fields or a swizzle slice. A swizzle or swizzle slice
-produces a positional pack. `PackingStart` after a type expression is invalid;
-aggregate construction is pack fitting against an expected type, while explicit
+produces a positional pack. `PackingStart` after a type expression is invalid.
+Aggregate construction is pack fitting against an expected type, while explicit
 conversion is ordinary `-> from(...)` dispatch.
 
 Access forms:
@@ -1257,9 +1489,10 @@ Access forms:
 | `-> name(pack)`   | callable dispatch from the left-side base    |
 
 Calls always take a pack. If no arguments are present, the call still formats
-as `receiver -> method()`. Static functions use the same syntax:
-`Type -> name(args)` or `package -> name(args)`. Function-pointer invocation is
-ordinary dispatch on the function-pointer value, such as
+as `receiver -> method()`. A type or package receiver resolves a Free callable.
+An addressable receiver canonicalizes its inferred Type, resolves a Self
+callable, and contributes the declared receiver parameter. Function-pointer
+invocation is Self dispatch on the callable value, such as
 `callback -> invoke(args)`.
 
 The dispatch receiver must be concrete: a typed value, a type name, or a
@@ -1358,7 +1591,7 @@ Scope statements are keyword-led:
 
 ```ttx
 if (condition) { ... }
-@if(.enabled = true) { ... }
+@if(enabled) { ... }
 while (condition) { ... }
 for [.i : Count] in values { ... }
 match value {
@@ -1444,21 +1677,19 @@ queries. It does not participate in type identity or layout fitting.
 
 Documentation is intentionally not canonicalized. `AliasName` can carry
 documentation for the context that introduced the alias, while
-`AliasName.canonical()` reaches the root type and root documentation. A tool may
-present the alias name with alias documentation, canonical documentation, or a
-stacked documentation view that accumulates each alias layer.
-
-Type descriptions are also a Type-model query. `Type::describe()` returns a
-diagnostic-facing string such as `Size2D` or `Graphics::Size2D alias of
-Math::Geometry::Size2D`. A producer may attach `display_name` when the authored
-name has a public path that the Type object cannot infer from its parent.
-Descriptions do not participate in canonicalization, type equivalence, layout
-equivalence, or layout fitting.
+`AliasName.canonicalize()` reaches the root Type and root documentation. A tool
+may present the authored Resolution route with alias documentation, the
+canonical route with canonical documentation, or a stacked view that
+accumulates each alias layer. There is no `display_name` identity substitute:
+the Route already records how the object was reached. Presentation does not
+participate in canonicalization, type equivalence, layout equivalence, or layout
+fitting.
 
 ## Canonicalization
 
-Canonicalization is an owned context query. It happens after the relevant source
-shape has been evaluated and before queries that depend on resolved types.
+Canonicalization is the total operation on a validated Type. It happens after
+the relevant source shape has been evaluated and before queries that depend on
+resolved types.
 
 It resolves:
 
@@ -1469,9 +1700,11 @@ It resolves:
 - type parameterization
 - numeric parameter values.
 
-Canonicalization is allowed to lose source spelling. The formatter may preserve
-spelling for source output, but compiler analysis uses resolved type identity
-rather than repeatedly comparing source text.
+Canonicalization may return a different Type object, but it does not mutate or
+discard the Resolution route. The formatter and diagnostics use the authored
+route; compiler analysis uses the canonical Type's stable local handle and
+Layout. Alias cycles are rejected during graph construction, so a valid
+`Type::canonicalize()` returns `Type&` rather than a nullable result.
 
 ## Diagnostics And Recovery
 
@@ -1507,10 +1740,12 @@ The semantic type space is intentionally small:
 | `foreign`                 | external ABI scope          | declarations lower to linked symbols             |
 | `Shader`                  | shader scope or ISA concept | may lower to GPU module plus host glue           |
 | `enum`                    | compile-time namespace      | members lower to constants                       |
-| `alias`                   | compile-time type reference | erased after canonicalization                    |
+| `alias`                   | compile-time Type subtype   | canonicalizes while retaining authored route     |
+| `Type`                    | compile-time type value     | stores resolved Type handle and Resolution route |
 
 `Library`, `Package`, `Render`, and `Shader` are ISAs. They remain PascalCase
-type atoms in source; ISA registration, not the lexer, decides what they mean.
+type atoms in source. ISA registration decides what they mean instead of the
+lexer.
 
 ## Relationship To LLVM IR And MLIR
 
@@ -1520,7 +1755,7 @@ The difference is mostly one of layer and audience.
 | Area                   | LLVM IR                                             | MLIR                                                          | TTX                                                          |
 | ---------------------- | --------------------------------------------------- | ------------------------------------------------------------- | ------------------------------------------------------------ |
 | Primary representation | Lowered SSA module/function/block/instruction IR    | Extensible operation/SSA IR with regions                      | Source IR plus token bytecode and context layers             |
-| Main extension point   | Intrinsics, metadata, passes, and targets           | Dialects define operations, types, attributes, and interfaces | Fixed syntax; ISAs define evaluation, legality, and metadata |
+| Main extension point   | Intrinsics, metadata, passes, and targets           | Dialects define operations, types, attributes, and interfaces | Fixed syntax with ISAs defining evaluation, legality, and metadata |
 | Typical motion         | Optimize and transform already-lowered IR           | Rewrite and convert operations between dialects               | Evaluate token bytecode and enrich queryable facts           |
 | Text form              | Debug, test, and serialization form for compiler IR | Debug, test, and serialization form for multi-level IR        | Human-authored canonical source surface                      |
 | Extension granularity  | Target and metadata oriented                        | Operations from many dialects can coexist freely              | One declared ISA controls the legal semantic world           |
@@ -1596,6 +1831,37 @@ The source-level constructs are frontend contracts. Many disappear during
 lowering, but they remain explicit long enough to produce good diagnostics,
 check ISA rules, and encode target metadata.
 
+Terminal lowering is driven by Type and Layout facts, not by source attributes
+that secretly encode one compiler enum. For every parameter, result, SSA value,
+field, or stored value, a lowerer performs the same operation:
+
+```text
+canonical Type
+-> concrete Layout
+-> non-empty Layout: recursively lower entries in layout order
+-> empty Layout: query the terminal Type contract for this target
+```
+
+A non-empty Layout is never collapsed to an invented scalar carrier merely
+because a backend recognizes the outer Type name. A byte view, vector, struct,
+render contract, and user aggregate are recursively deconstructed according to
+their entries. The source value remains one semantic aggregate; the terminal
+representation is its ordered projection. Calls, returns, stack placement,
+register classification, generated host declarations, and archive descriptions
+must consume the same projection.
+
+An empty Layout alone does not say whether a terminal is an integer, real,
+opaque handle, zero-width value, or target-defined resource. The canonical Type
+must implement the terminal contract registered by the active ISA or target.
+An ISA can enrich the Abstract graph with that target meaning. A lower compiler
+only knows the Type and terminal interfaces; it does not need to know whether
+the Type was an Alias, Generic, shader scalar, or foreign-language object.
+
+Lowering therefore must not depend on an authored `@abi` number, a global
+`Abi::Lowering` switch, a C++ type name, or a pointer-keyed side table. Those
+forms duplicate semantic facts outside the Abstract graph and become wrong as
+soon as a new ISA or language runtime contributes another terminal contract.
+
 ## Design Invariants
 
 When changing TTX, preserve these invariants:
@@ -1606,9 +1872,9 @@ When changing TTX, preserve these invariants:
 4. Assignment remains a statement, not an expression.
 5. Parentheses always mean pack.
 6. Function parameters, function returns, and `for` bindings all use layouts.
-7. Type parameterization is type dispatch over a resolved layout and returns a
-   concrete type identity.
-8. Named packs start with `.field`; named layouts start with `.field` or
+7. Type parameterization proves the Generic contract over resolved arguments
+   and returns a concrete compiler-owned Type.
+8. Named packs start with `.field`. Named layouts start with `.field` or
    attributes followed by `.field`.
 9. Named and positional aggregate fields do not mix.
 10. Visibility and storage intent remain visible in modifier token classes.
@@ -1616,6 +1882,15 @@ When changing TTX, preserve these invariants:
     raw parse-shape construction.
 12. Formatter output derives from the same token source text as the lexer
     whenever the token has fixed source text.
+13. Every semantic object implements Abstract and exposes its registered Class;
+    Type is a queryable subtype, not the universal base.
+14. Failed semantic resolution returns Invalid, never a null pseudo-Abstract.
+15. Free and Self are Callable subtypes, and Self's complete parameter Layout
+    contains the receiver at position zero.
+16. Resolution retains a reversible Route. Canonicalization does not erase the
+    authored route, and publication never substitutes a signature hash.
+17. Composite terminal lowering recursively deconstructs every non-empty
+    concrete Layout before asking terminal Type contracts to lower leaves.
 
 These rules are what keep TTX readable while still letting it behave like a
 compiler IR.

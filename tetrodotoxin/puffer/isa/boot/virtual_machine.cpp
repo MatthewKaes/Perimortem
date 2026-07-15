@@ -16,34 +16,41 @@ auto Isa::Boot::VirtualMachine::evaluate(
     const Tetrodotoxin::Isa::Registry& registry) -> Isa::Boot::Envelope* {
   const auto documentation =
       Tetrodotoxin::Isa::Base::Documentation::evaluate(cursor);
-  if (!cursor.require(
-          Class::Type::Dialect,
-          "Expected ISA selection such as `dialect : Library`."_view)) {
+  Bool has_dialect = cursor.require(
+      Class::Type::Dialect,
+      "Expected ISA selection such as `dialect : Library`."_view);
+  if (!has_dialect) {
     return nullptr;
   }
 
-  if (!cursor.require(
-          Class::Type::Define,
-          "Expected `:` after dialect instruction."_view)) {
+  Bool has_definition = cursor.require(
+      Class::Type::Define, "Expected `:` after dialect instruction."_view);
+  if (!has_definition) {
     return nullptr;
   }
 
   const Token* isa =
       cursor.require(Class::Type::Type, "Expected ISA name."_view);
-  if (isa == nullptr || !registry.require_installed(cursor, *isa)) {
+  if (isa == nullptr) {
     return nullptr;
   }
 
-  if (!cursor.require(
-          Class::Type::EndStatement,
-          "Expected `;` after dialect instruction."_view)) {
+  Bool installed = registry.require_installed(cursor, *isa);
+  if (!installed) {
+    return nullptr;
+  }
+
+  Bool has_statement_end = cursor.require(
+      Class::Type::EndStatement,
+      "Expected `;` after dialect instruction."_view);
+  if (!has_statement_end) {
     return nullptr;
   }
 
   Managed::Vector<Isa::Boot::Import> imports(cursor.get_arena());
   while (cursor.matches(Class::Type::Import)) {
     auto import = Isa::Boot::Import::evaluate(cursor, registry);
-    if (!import.is_valid()) {
+    if (import.is_empty()) {
       return nullptr;
     }
 

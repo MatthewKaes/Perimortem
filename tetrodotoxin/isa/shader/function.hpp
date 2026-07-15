@@ -6,13 +6,12 @@
 #include "perimortem/memory/managed/vector.hpp"
 
 #include "tetrodotoxin/isa/base/context.hpp"
+#include "tetrodotoxin/isa/shader/block.hpp"
 #include "ttx/documentation.hpp"
 #include "ttx/lexical/cursor.hpp"
 #include "ttx/type.hpp"
 
 namespace Tetrodotoxin::Isa::Shader {
-
-class Block;
 
 // Function owns shader stage syntax.
 class Function {

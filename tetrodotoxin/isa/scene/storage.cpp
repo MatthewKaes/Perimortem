@@ -6,8 +6,8 @@
 #include "perimortem/memory/managed/vector.hpp"
 
 #include "tetrodotoxin/isa/base/declaration.hpp"
-#include "tetrodotoxin/isa/base/expression/evaluator.hpp"
 #include "tetrodotoxin/isa/base/expression/type.hpp"
+#include "tetrodotoxin/isa/base/expression/value.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -18,29 +18,37 @@ auto Scene::Storage::evaluate(
     Cursor& cursor,
     Base::Context& context,
     Ttx::Documentation documentation,
-    Class::Type storage) -> const Ttx::Member* {
+    Class::Type storage,
+    Base::Definition& implementation) -> const Ttx::Member* {
   cursor.consume();
-  Base::Declaration definition = Base::Declaration::evaluate_after_modifier(
+
+  Base::Declaration declaration = Base::Declaration::evaluate_after_modifier(
       cursor, documentation, storage, {{Class::Type::Addressable}},
       {{Class::Type::Type}});
-  if (!definition.is_valid()) {
+  if (declaration.is_empty()) {
     return nullptr;
   }
 
   const Count error_count = cursor.get_errors().get_size();
   const Ttx::Type* type =
-      Base::Expression::Type::evaluate(cursor, context, definition.get_kind());
+      Base::Expression::Type::evaluate(cursor, context, declaration.get_kind());
   if (cursor.get_errors().get_size() != error_count) {
     return nullptr;
   }
 
-  if (!Base::Expression::Evaluator::consume_initializer(
-          cursor, "Expected `;` after Scene member initializer."_view)) {
-    return nullptr;
+  Base::Expression::Value initializer;
+  if (cursor.matches(Class::Type::Assign)) {
+    cursor.consume();
+
+    initializer = Base::Expression::Value::evaluate(cursor, context);
+    if (initializer.is_empty()) {
+      return nullptr;
+    }
   }
 
-  if (!cursor.require(
-          Class::Type::EndStatement, "Expected `;` after Scene member."_view)) {
+  Bool has_statement_end = cursor.require(
+      Class::Type::EndStatement, "Expected `;` after Scene member."_view);
+  if (!has_statement_end) {
     return nullptr;
   }
 
@@ -49,8 +57,9 @@ auto Scene::Storage::evaluate(
     return nullptr;
   }
 
+  implementation = Base::Definition(storage, {}, initializer);
   return &context.get_arena().construct<Ttx::Member>(
-      definition.get_name(), *type, definition.get_documentation());
+      declaration.get_name(), *type, declaration.get_documentation());
 }
 
 auto Scene::Storage::insert(
@@ -66,11 +75,4 @@ auto Scene::Storage::insert(
 
   members.insert(member);
   return True;
-}
-
-auto Scene::Storage::build_fact_type(
-    Base::Context& context,
-    View::Bytes type_name,
-    View::Vector<Ttx::Member> members) -> const Ttx::Type* {
-  return &context.get_arena().construct<Ttx::Type>(type_name, members);
 }

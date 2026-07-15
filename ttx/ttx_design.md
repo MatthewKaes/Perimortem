@@ -10,8 +10,9 @@ binary formats, shader stages, data transforms, package boundaries, FFI-like
 source interchange, and other code where layout is not an implementation detail.
 TTX is not trying to hide the machine. It is trying to make the machine legible.
 Tetrodotoxin is the reference host in this repository, but the TTX source IR,
-token bytecode, and Type and Layout model are intentionally reusable outside
-that toolchain.
+token bytecode, and Abstract query model are intentionally reusable outside
+that toolchain. `Type` and `Layout` are important contracts in that model; they
+are not the root of every semantic object.
 
 The organizing idea is **monotonic context layering**. A TTX file begins as an
 authoring surface, then is lowered into token bytecode. A host can then evaluate
@@ -68,7 +69,7 @@ they optimize for different moments in the toolchain:
 | Area                   | LLVM IR                                             | MLIR                                                          | TTX                                                          |
 | ---------------------- | --------------------------------------------------- | ------------------------------------------------------------- | ------------------------------------------------------------ |
 | Primary representation | Lowered SSA module/function/block/instruction IR    | Extensible operation/SSA IR with regions                      | Source IR plus token bytecode and context layers             |
-| Main extension point   | Intrinsics, metadata, passes, and targets           | Dialects define operations, types, attributes, and interfaces | Fixed syntax; ISAs define evaluation, legality, and metadata |
+| Main extension point   | Intrinsics, metadata, passes, and targets           | Dialects define operations, types, attributes, and interfaces | Fixed syntax with ISAs defining evaluation, legality, and metadata |
 | Typical motion         | Optimize and transform already-lowered IR           | Rewrite and convert operations between dialects               | Evaluate token bytecode and enrich queryable facts           |
 | Text form              | Debug, test, and serialization form for compiler IR | Debug, test, and serialization form for multi-level IR        | Human-authored canonical source surface                      |
 | Extension granularity  | Target and metadata oriented                        | Operations from many dialects can coexist freely              | One declared ISA controls the legal semantic world           |
@@ -92,7 +93,9 @@ That makes the reusable TTX model smaller than a full language tree:
 
 | TTX data or token shape                | Usually becomes                                               |
 | -------------------------------------- | ------------------------------------------------------------- |
-| `Ttx::Type`                            | type identity, alias identity, namespace-like type lookup     |
+| `Ttx::Abstract`                        | named semantic identity and contract-filtered child queries   |
+| `Ttx::Type`                            | canonical type identity and concrete layout                   |
+| `Ttx::Callable`                        | free or receiver-bound callable layout and linkage query       |
 | `Ttx::Layout`                          | value shape, field order, pack fitting, member projection     |
 | `Documentation`                        | source-authored prose for tools and exported facts            |
 | `TypeAccessOp` such as `::`            | nested type query against the current type or import context  |
@@ -105,7 +108,8 @@ Library, Package, Shader, Render, and future ISAs then decide what larger source
 forms mean. A Library ISA may define functions, control flow, and local storage.
 A Shader ISA may define stage metadata and GPU legality. A Package ISA may turn
 exports into type facts. The syntax gives those ISAs a shared instruction stream
-and a shared Type and Layout model, but the ISA owns the meaning of its body.
+and a shared Abstract, Type, Callable, and Layout model, but the ISA owns the
+meaning of its body.
 
 That split is the important difference from a lowered IR. LLVM IR is already
 past most authoring concerns. TTX keeps package names, imports, comments,
@@ -169,7 +173,7 @@ evaluator installed in the active host. Puffer implements this convention with a
 direct Boot ISA call and Tetrodotoxin's `Isa::Registry`, but that registry is a
 toolchain detail. An ISA is not a separate lowered IR stage. It is the
 instruction set that owns the next bytecode span and may publish or consume
-`Ttx::Type`, `Ttx::Layout`, or other host facts.
+`Ttx::Abstract`, `Ttx::Type`, `Ttx::Layout`, or other host facts.
 
 The lowercase `dialect` marker is a reserved keyword. The ISA name after
 the colon is still a PascalCase type atom, so names such as `Package`,
@@ -224,7 +228,7 @@ import Alias : IsaName = source;
 The left side creates the local name. The ISA name describes what the host
 expects the target source to declare. The right side is either a source path,
 such as `"math.ttx"`, or a package name such as `Perimortem.Graphics`.
-Package names are `Type("." Type)*`; a parsed package name is already a valid
+Package names are `Type("." Type)*`. A parsed package name is already a valid
 cache key and folder name for hosts that persist package artifacts.
 
 Imports do not import ISA semantics. A `Shader` package does not inherit
@@ -296,25 +300,27 @@ Attributes are compiler directives attached to the next member, parameter, or
 field:
 
 ```ttx
-@builtin(.slot = 0) .source : View[Bytes]
+@builtin @slot(0) .source : View[Bytes]
 @packed
-@stage(.kind = "fragment")
+@stage(fragment)
 @shader_type(Vec4D)
 ```
 
-Attributes may take a pack. Since `(...)` is always a pack, attribute arguments
-use the same syntax as call arguments and aggregate values.
+An attribute is either a marker or one named scalar fact. Declarations that
+need several facts use several attributes, such as `@binding @set(0) @slot(1)`.
+This keeps metadata lookup direct and prevents attributes from growing a second
+untyped object model beside Layout.
 
 Target-specific attributes can attach lowering facts to a Type. For example,
 `@shader_type(Vec4D)` says that the authored type intentionally lowers through
-the shader ABI as `Vec4D`. That fact is separate from layout fitting: a type
+the shader ABI as `Vec4D`. That fact is separate from layout fitting. A type
 with four `Real_32` members is not a shader vector unless the ISA publishes the
 metadata or the type is canonically the vector type.
 
 `@if` is an attribute-shaped directive:
 
 ```ttx
-@if(.enabled = true) {
+@if(enabled) {
   state generated : Count = 1;
 }
 ```
@@ -323,10 +329,84 @@ The disabled marker `/>` is source-level sugar for disabling the following
 member. It is intended for hand-authored experiments and formatter-preserving
 comments, not as a semantic feature.
 
+## Abstract Query Model
+
+TTX's semantic world is a directed graph of named `Abstract` objects. Every
+object publishes its registered class and the named objects reachable from it.
+Tools ask for the contract they need instead of assuming that every declaration
+is a Type:
+
+```text
+Abstract
+├── Invalid
+├── Type
+│   ├── Alias
+│   ├── Generic
+│   └── ISA-defined types
+├── Callable
+│   ├── Free
+│   └── Self
+└── Address
+```
+
+This hierarchy is semantic, not C++ RTTI. A language-neutral ClassDB registers
+each class, its parent class, and its operations. Native and foreign-language
+objects therefore answer the same queries. Lower layers can ask for `Type`
+without knowing whether the result is an `Alias`, `Generic`, or ISA-specific
+subtype. Documentation tools can ask the same object whether it is an `Alias`.
+
+The core contracts are deliberately narrow:
+
+| Contract   | Responsibility |
+| ---------- | -------------- |
+| `Abstract` | name, registered class, and contract-filtered child resolution |
+| `Type`     | canonicalization and concrete layout |
+| `Alias`    | a named Type whose canonicalization follows another Type |
+| `Generic`  | a Type that creates or finds a concrete Type from arguments |
+| `Callable` | complete parameter/result layouts and an address/linkage query |
+| `Free`     | invocation without an addressable receiver |
+| `Self`     | invocation on an addressable receiver included as parameter zero |
+| `Address`  | resolved or explicitly unresolved invocation endpoint |
+| `Invalid`  | a failed query with source, route, and diagnostic context |
+
+There is no generic `Typed` marker. A query asks for the real operation it
+needs: Type children, Callable children, Self callables, or a Type's Layout.
+New contracts are added only when they publish operations that those existing
+contracts cannot express.
+
+Names are unique inside each query layer. A route records each named step and
+the contract view used to take it. This permits a Type to publish a same-named
+Free and Self callable without inventing a publishing-time suffix:
+
+```text
+Widget / Callable.Free / open
+Widget / Callable.Self / open
+```
+
+`Widget -> open()` selects the Free layer. `widget -> open()` canonicalizes the
+receiver Type and selects the Self layer. Both layers independently require
+unique names. These contract steps are real ClassDB schema names and resolution
+facts, not strings synthesized by a linker or header generator.
+
+An object can be reachable through several import or alias routes. Resolution
+therefore returns both the object and the route used to reach it. Canonicalizing
+a Type may change the object used for layout and equivalence, but it does not
+erase the authored route used for diagnostics, documentation, or publication.
+Public symbols encode a selected public route reversibly. They do not hash a
+signature or choose a lexicographically preferred alias. If incompatible
+package or ABI versions coexist, the version is an explicit route segment.
+
+Failure is also an object. A missing name, wrong requested contract, ambiguous
+query, alias cycle, invalid archive, or unresolved linkage produces an
+`Invalid : Abstract` result rather than `nullptr`. Continuing a query through
+Invalid preserves the original cause so one bad name does not become a cascade
+of unrelated errors. Empty child sets are empty views; absence is never modeled
+by a null pseudo-Abstract.
+
 ## Type References
 
-Type references are progressive PascalCase queries with optional type
-arguments:
+Type references are progressive PascalCase Abstract queries constrained to the
+`Type` contract, with optional type arguments:
 
 ```ttx
 Bits_32
@@ -336,32 +416,45 @@ Math::Matrix[Real_32, 4, 4]
 ```
 
 The first type token resolves from the current context. `::` then asks that
-resolved type or package for one nested type at a time. It is not string
-concatenation, and a compiler should not allocate a general path object just to
-answer `Graphics::Color`.
+resolved type or package for one nested Type at a time. It is not string
+concatenation. The resolver retains a compact Route because the path by which an
+object was reached is a durable semantic fact, even when the object has another
+canonical route.
 
 Type arguments use `[]`, not `<>`, because `<` and `>` are comparison
 operators. Numeric size arguments, such as the `4` in `Vec[Bits_8, 4]`, are part
 of the type reference.
 
 Parameterized types are not templates and do not generate code by themselves.
-Resolution first builds the argument layout, then asks the type object being
-parameterized to return the
-concrete type identity for that layout. `View[Bits_8]`, `Vec[Real_32, 4]`, and
-`List[Graphics::Sprite]` are all the same operation: type dispatch over a
-resolved layout. The returned concrete type is what later member, nested type,
-function, and layout queries use.
+Resolution first builds the argument layout, proves that the resolved object
+implements `Generic`, then asks it for a concrete Type. `View[Bits_8]`,
+`Vec[Real_32, 4]`, and `List[Graphics::Sprite]` are all the same operation. The
+compiler owns the resulting concrete object and makes it queryable through the
+same Type contract as any authored type.
 
-Aliases are compile-time type references. Resolution canonicalizes aliases
-inside a package so later compiler stages can reason about resolved types
-instead of source spelling.
+Aliases are compile-time Type objects. `Alias : Type` preserves its name,
+documentation, and route while `canonicalize()` follows the referenced Type.
+Alias cycles are rejected during construction, so canonicalization of a valid
+Alias always returns a valid `Type&`.
 
-`Type::describe()` is the data-model helper for diagnostics that need to talk
-about source spelling without changing identity. It renders the authored type
-name and, for aliases, the public target name when one is available. Producers
-that know a stable public path may attach the generic `display_name` attribute
-to help the description. The attribute is presentation metadata; canonical
-address identity remains the type-equivalence rule.
+Types are also compile-time values of the standard `Type` type. This keeps a
+resolved identity available for reflection and editor tooling without reducing
+it to source text:
+
+```ttx
+const reflected_type : Type = Graphics::Image;
+```
+
+The stored value is a reference to the resolved Type object together with its
+route, not a source string or a runtime pointer ABI. A terminal that needs
+runtime reflection uses the ClassDB and language-neutral Abstract handle. C++
+object addresses and vtables never become the cross-language representation.
+
+Diagnostics render the Resolution route that reached the object. An Alias may
+also show the canonical Type's route, but no `display_name` attribute or
+side-table path is needed to reconstruct identity. Within one compiler boundary
+object identity can be compared by stable handle; durable identity is the
+reversible route, never the process address.
 
 ## Builtin Definition Kinds
 
@@ -394,7 +487,7 @@ can be a legal builtin in a `Library` package while remaining invalid in a
 Functions are explicit callable signature nodes, not values declared as `Func`.
 
 ```ttx
-public func main[.frag_uv : Vec2D] -> Color {
+public func sample[self, .frag_uv : Vec2D] -> Color {
   state s : Color = self.icon_texture -> sample(frag_uv);
   return (s.[r, g, b], s.a * Push.alpha);
 }
@@ -407,12 +500,48 @@ modifier? func name[params] -> returns block
 ```
 
 Both parameters and returns are layouts. The selected body evaluator owns the
-implementation block; the TTX function model carries the callable signature,
-documentation, and dispatch name. A single type may be written directly:
+implementation block. The published semantic object implements `Callable` and
+carries the callable signature, documentation, and dispatch name. A single type
+may be written directly:
 
 ```ttx
 public func size[] -> Count { ... }
 ```
+
+Callable has two semantic subtypes. `Free` is selected through a type or package
+name and does not consume a receiver. `Self` is selected through a runtime value
+and requires that receiver as parameter zero:
+
+```ttx
+public Counter : struct {
+  public func from[.value : Count] -> Counter { ... }
+  public func increment[self, .amount : Count] -> Counter { ... }
+}
+
+state counter : Counter = Counter -> from(1);
+counter = counter -> increment(2);
+```
+
+The Library dialect expands its bare `self` shorthand into the ordinary layout
+member `.self : Counter` and constructs a `Self` object. It is not an implicit
+local laundered into the function by the compiler, nor is its spelling a hidden
+flag. `Self::get_parameters()` exposes the complete effective layout including
+that receiver. Reflection, pack fitting, invocation, and ABI lowering therefore
+consume the same truth, and no compiler layer prepends `self` again. Library
+syntax requires this shorthand first and rejects it for a package-level
+function because a package is not a runtime value.
+
+Free and Self may publish the same callable name because they are resolved
+through different registered contract layers. `Counter -> identity(...)`
+queries `Free`; `counter -> identity(...)` queries `Self`. Duplicates inside one
+contract layer are invalid. Completion selects the same contract before it
+enumerates children.
+
+Placing a Free callable beneath a Type makes it type-owned; it does not create a
+third callable subtype. “Typed function” is therefore not a semantic category.
+An implementation or resolved external linkage may enrich either callable with
+an Address object. Until linkage exists, the callable's address query returns an
+explicit unresolved or Invalid Abstract, never a null pointer.
 
 A named layout uses fields:
 
@@ -500,11 +629,11 @@ import Graphics : Package = Perimortem.Graphics;
 Graphics::Color : struct { r : Real_32; g : Real_32; b : Real_32; a : Real_32; }
 ```
 
-So `screen_pos.[x, y]` is not special pack syntax over an alias; it is a
+So `screen_pos.[x, y]` is not special pack syntax over an alias. It is a
 swizzle over real fields on a real typed aggregate.
 
 Pack order matters when a pack is passed, returned, or materialized. Names are
-authored or boundary-provided facts; they do not erase the carrier order. A
+authored or boundary-provided facts. They do not erase the carrier order. A
 named pack can initialize a struct out of declaration order because type and layout
 fitting maps by name, then lowering writes the struct in declaration order:
 
@@ -540,7 +669,7 @@ expression and does not accept character literals or named constants:
 
 ```ttx
 (.'A' = 0)   // invalid
-(.upper = 0) // invalid for Vec tables; named field, not index 65
+(.upper = 0) // invalid for Vec tables because this is a named field
 (.40 + 3 = 62) // invalid
 ```
 
@@ -569,7 +698,7 @@ Count
 []
 [Bits_32, Bits_32]
 [.x : Bits_32, .y : Bits_32]
-[@builtin(.slot = 0) .source : View[Bytes], .count : Count]
+[@builtin @slot(0) .source : View[Bytes], .count : Count]
 ```
 
 A named layout field starts with `.` and an addressable name. Attributes may
@@ -597,8 +726,8 @@ Expressions are values. Assignment is not an expression in TTX because it does
 not produce a value.
 
 Executable syntax is owned by the ISA that understands it. Library lowers its
-expressions into immutable compiler bodies published against stable
-`Ttx::Function` identities. Shader currently retains Shader-owned blocks and
+expressions into immutable compiler bodies published against stable Callable
+objects. Shader currently retains Shader-owned blocks and
 statements until a graphics execution interface can replace that temporary
 boundary. These representations do not add body tags or generic statement
 nodes to the TTX model.
@@ -663,8 +792,10 @@ The access forms are:
 | `-> name(pack)`   | callable dispatch from the left-side base |
 
 Calls take a pack because call arguments are written with `(...)`, and `(...)`
-is always a pack. `.` is lookup only. `->` marks every call, including receiver
-calls, type/static calls, package calls, and function-pointer dispatch such as
+is always a pack. `.` is lookup only. `->` marks every call. A type or package
+receiver resolves a `Free` callable. An addressable value resolves a `Self`
+callable from its canonical Type and contributes the declared receiver argument.
+Function-pointer dispatch is Self dispatch on the callable value, such as
 `callback -> invoke(args)`.
 
 ## Aggregate Initialization And Explicit Conversion
@@ -758,7 +889,7 @@ while (index < count) { ... }
 ```
 
 The compiler checks that the first packed value is truthable. Today that means
-`Bool`; numeric truthiness is intentionally not implicit.
+`Bool`. Numeric truthiness is intentionally not implicit.
 
 `match` has explicit case blocks:
 
@@ -818,7 +949,7 @@ false
 ```
 
 `0x[...]` is a byte literal. Whitespace separates digits for people but is not
-part of the value; hexadecimal digits are paired from left to right, so `ACDE`
+part of the value. Hexadecimal digits are paired from left to right, so `ACDE`
 contributes the two bytes `AC DE`. `$[...]` embeds a file as data. Quoted strings
 decode escape sequences into bytes and do not include an implicit null
 terminator.

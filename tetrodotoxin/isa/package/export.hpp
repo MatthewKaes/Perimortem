@@ -43,12 +43,12 @@ class Export {
     return definition;
   }
 
-  constexpr auto get_target() const -> const Ttx::Type* { return target; }
+  constexpr auto get_target() const -> const Ttx::Type& { return *target; }
   constexpr auto get_exports() const -> Perimortem::Core::View::Vector<Export> {
     return exports;
   }
 
-  constexpr auto is_valid() const -> Bool { return definition.is_valid(); }
+  constexpr auto is_empty() const -> Bool { return definition.is_empty(); }
 
  private:
   Export(

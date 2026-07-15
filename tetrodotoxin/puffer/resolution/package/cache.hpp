@@ -9,22 +9,14 @@
 #include "perimortem/memory/dynamic/object.hpp"
 #include "perimortem/memory/dynamic/set.hpp"
 
+#include "tetrodotoxin/archiver/package.hpp"
 #include "tetrodotoxin/isa/dialect.hpp"
 #include "tetrodotoxin/isa/registry.hpp"
 #include "tetrodotoxin/puffer/resolution/context.hpp"
 #include "tetrodotoxin/puffer/resolution/package/buffer.hpp"
 #include "tetrodotoxin/puffer/resolution/package/restored.hpp"
 #include "tetrodotoxin/puffer/resolution/source/cache.hpp"
-
-namespace Tetrodotoxin::Archiver {
-
-class Package;
-}
-
-namespace Ttx::Lexical {
-
-class Cursor;
-}
+#include "ttx/lexical/cursor.hpp"
 
 namespace Tetrodotoxin::Puffer::Resolution::Package {
 

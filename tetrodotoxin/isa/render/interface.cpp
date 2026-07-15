@@ -40,11 +40,12 @@ auto Render::Interface::source_to_type_name(View::Bytes block_name)
 }
 
 auto Render::Interface::find(
-    View::Vector<const Ttx::Type*> types,
+    View::Vector<Ttx::Type::Reference> types,
     View::Bytes name) -> const Ttx::Type* {
   for (Count i = 0; i < types.get_size(); i++) {
-    if (types[i] != nullptr && types[i]->get_name() == name) {
-      return types[i];
+    const Ttx::Type& type = types[i].get_type();
+    if (type.get_name() == name) {
+      return &type;
     }
   }
 
@@ -62,9 +63,10 @@ auto Render::Interface::evaluate(
   }
 
   cursor.consume();
-  if (!cursor.require(
-          Class::Type::ScopeStart,
-          "Expected `{` after render fact block name."_view)) {
+  Bool has_scope = cursor.require(
+      Class::Type::ScopeStart,
+      "Expected `{` after render fact block name."_view);
+  if (!has_scope) {
     return nullptr;
   }
 
@@ -83,7 +85,7 @@ auto Render::Interface::evaluate(
     Base::Declaration definition = Base::Declaration::evaluate_after_modifier(
         cursor, documentation, modifier, {{Class::Type::Addressable}},
         {{Class::Type::Type}});
-    if (!definition.is_valid()) {
+    if (definition.is_empty()) {
       return nullptr;
     }
 
@@ -94,14 +96,16 @@ auto Render::Interface::evaluate(
       return nullptr;
     }
 
-    if (!Base::Expression::Evaluator::consume_initializer(
-            cursor, "Expected `;` after render fact initializer."_view)) {
+    Bool initializer_consumed =
+        Base::Expression::Evaluator::consume_initializer(
+            cursor, "Expected `;` after render fact initializer."_view);
+    if (!initializer_consumed) {
       return nullptr;
     }
 
-    if (!cursor.require(
-            Class::Type::EndStatement,
-            "Expected `;` after render member."_view)) {
+    Bool has_statement_end = cursor.require(
+        Class::Type::EndStatement, "Expected `;` after render member."_view);
+    if (!has_statement_end) {
       return nullptr;
     }
 
@@ -110,18 +114,19 @@ auto Render::Interface::evaluate(
       return nullptr;
     }
 
-    if (!insert(
-            cursor, members,
-            Ttx::Member(
-                definition.get_name(), *type, definition.get_documentation()),
-            "Render fact name is already defined."_view)) {
+    Bool inserted = insert(
+        cursor, members,
+        Ttx::Member(
+            definition.get_name(), *type, definition.get_documentation()),
+        "Render fact name is already defined."_view);
+    if (!inserted) {
       valid = False;
     }
   }
 
-  if (!cursor.require(
-          Class::Type::ScopeEnd,
-          "Expected `}` after render fact block."_view)) {
+  Bool has_scope_end = cursor.require(
+      Class::Type::ScopeEnd, "Expected `}` after render fact block."_view);
+  if (!has_scope_end) {
     return nullptr;
   }
 

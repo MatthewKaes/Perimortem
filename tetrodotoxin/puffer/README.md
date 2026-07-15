@@ -1,253 +1,111 @@
 # Puffer
 
 Puffer is Tetrodotoxin's command-line compiler and language-server host. It
-loads complete TTX source files, evaluates their Boot preambles, resolves
-source and package imports, runs the selected body ISAs, and invokes their
-installed lowerers to produce durable products.
+loads complete TTX source files, evaluates Boot preambles, resolves source and
+package imports, runs selected body ISAs, and asks the compiler toolchain to
+produce durable artifacts.
 
 Puffer owns source orchestration. The reusable package reader and writer live
-in [`../archiver`](../archiver/) under `Tetrodotoxin::Archiver`; they do not
-depend on the Puffer CLI, resolver, or filesystem.
+in [`../archiver`](../archiver/) under `Tetrodotoxin::Archiver`. They know the
+Puffer Buffer format but do not depend on the CLI, resolver, filesystem, or
+compiler transaction.
 
-## Package compilation
+## Compilation Transaction
 
-A package build starts from one `package.ttx` root. Puffer resolves its private
-source closure and registers dependency `.puffer` buffers supplied by the
-caller. Package imports are resolved by manifest name and version. They do not
-fall back to guessed source paths outside the current project roots.
+A build starts with an explicit package or unit Route, dependency buffers, and
+source paths. The Toolchain supplies the ClassDB, ISA registry, and terminal
+targets. One Compiler borrows those immutable schemas and owns every Abstract,
+Route, Layout, Address, diagnostic, and output created during the transaction.
 
-After evaluation, Puffer lowers every eligible record through the active ISA
-registry. The package builder then assembles:
+A standalone Library build resolves each supplied source root. A package build
+requires one `package.ttx` root and walks its complete source closure. Package
+imports come from buffers registered by the caller. Resolution never guesses a
+package source path when a buffer is missing.
 
-- a manifest containing package identity and authored import names
-- the resolved external packages needed by type references
-- the root TTX type and every reachable local type
-- grouped terminal byte products
-- function linkage
+Each selected ISA constructs or enriches Abstract-derived objects in the same
+Compiler-owned graph. Puffer does not collect a second Type tree, pointer-keyed
+Implementation table, or publication projection. Terminal planners consume the
+same Type, Callable, Layout, Address, and ISA contracts that resolution
+published.
 
-The result is one `.puffer` file called a Puffer Buffer. The buffer is a
-Tetrodotoxin package snapshot, not an object-file extension and not a public C
-or C++ ABI format.
+The transaction returns completed artifacts. Puffer does not retain a previous
+build's Compiler objects or local handles.
 
-## Durable package model
+## Public Routes And ABI
 
-`Archiver::Package` contains a required `Manifest`, the root `Ttx::Type`, the
-local type table, terminal products, and function linkage. The manifest is the one
-owner of package name, version, and imports. A package does not retain the path
-from which its buffer was loaded.
+Puffer preserves the authored route through every import, group, Alias, Type,
+and Callable query. A canonical Type may have several routes; canonicalization
+does not erase the route used to reach it. Package publication explicitly
+selects public routes from the authored package surface.
 
-An import is an `Archiver::Dependency`:
-
-```text
-local name | source package name | package version
-```
-
-The local name preserves the source-visible alias. The source name and version
-identify the dependency package. An `Archiver::Reference` is a resolved package
-used while writing or restoring cross-package type ids; it borrows the package
-instead of copying its identity and types.
-
-A terminal is an opaque triple:
+Free and Self callables occupy registered contract layers:
 
 ```text
-group | path | content
+Widget / Callable.Free / open
+Widget / Callable.Self / open
 ```
 
-The group and path identify a product to the consuming toolchain. The binary
-format does not reserve particular terminal names or interpret the content.
+The route already records the invocation distinction. Puffer does not
+synthesize `.Type` or `.Addressable` suffixes, infer a surface from a parameter,
+or choose the lexicographically first Alias.
 
-## Binary conventions
+Public and internal machine names are reversible encodings of selected Routes.
+They do not hash package names, signatures, canonical Type names, or content.
+Explicit route segments carry package and ABI versions when incompatible
+versions must coexist.
 
-All fixed-width integers are little endian. Variable counts and byte lengths
-use an unsigned base-128 integer: seven payload bits per byte and bit 7 set when
-another byte follows.
+Only public and exposed Callable Addresses enter the package surface. Private
+Addresses remain local to the compiler product. Restored packages, foreign
+runtimes, and local bodies expose the same Address contract, so Puffer does not
+branch on the producer.
 
-The descriptions below use this notation:
+## Package Products
+
+The package builder presents the Archiver with:
+
+- the authored package Route and explicit version
+- dependency aliases, Routes, and versions
+- required ClassDB schema Routes
+- the reachable Abstract graph and contract-qualified edges
+- authored and public Resolution routes
+- recursive Layouts
+- public Callable Addresses
+- terminal products produced by ISA lowerers.
+
+The resulting `.puffer` file is a Tetrodotoxin package snapshot. It is not an
+object-file extension and it is not the C++ ABI. A companion native archive may
+contain machine code, while generated language interfaces are independent
+terminal projections over the same routes and Layout-described calls.
+
+An authored package identity can name an output directory:
 
 ```text
-u8, u32, u64     fixed-width little-endian integers
-count            unsigned base-128 integer
-bytes            count followed by that many bytes
-version          u64 high followed by u64 low
-type_ref         tagged type reference described below
+Perimortem.Math/binary_archive.puffer
+Perimortem.Math/x86_64.a
+Perimortem.Math/cpp_abi.hpp
 ```
 
-There is no alignment padding between fields or tables.
+These paths describe package products rather than becoming semantic identity.
+Another build system may publish the same package Route and version.
 
-## Header and table directory
+## Resolution Ownership
 
-Format version 10 begins with a 24-byte header and a 32-byte table directory.
-Table offsets are absolute offsets from the beginning of the buffer.
+The resolver owns the source and package dependency graph for one workspace.
+Boot evaluates the preamble, the resolver binds imports, and the selected body
+ISA evaluates the remaining bytecode. A source record becomes a valid cache hit
+only after that work produces a complete root Abstract. Failed evaluation
+retains an Invalid root for diagnostics but cannot expose stale semantic state.
 
-| Offset | Size | Field |
-| ---: | ---: | --- |
-| 0 | 4 | ASCII magic `TTXP` |
-| 4 | 4 | format version, currently `10` |
-| 8 | 8 | package version high word |
-| 16 | 8 | package version low word |
-| 24 | 8 | Manifest table offset |
-| 32 | 8 | References table offset |
-| 40 | 8 | Package table offset |
-| 48 | 8 | Linkages table offset |
-| 56 | variable | first table data |
+Updating a source invalidates every consumer that may retain handles into its
+Compiler boundary. Re-evaluation creates a new graph; process addresses never
+serve as durable package identity.
 
-Offsets must be at least 56, strictly increasing, and inside the buffer. A
-table ends at the next table offset; Linkages ends at the end of the buffer.
-This lets a reader seek to any table without parsing or caching the preceding
-tables.
+Package buffers are registered by package Route and explicit version. Restore
+allocates their Abstract graph inside the current Compiler, reconnects imports,
+and publishes their public routes into the same resolution graph as source
+records. Unknown schemas, corrupt edges, or incompatible versions produce an
+Invalid package root rather than a partially null DAG.
 
-The two version words are deterministic content stamps. The writer hashes the
-bytes from the Manifest table through the end of the buffer for the high word,
-then hashes the bytes from the Package table through the end for the low word.
-`Version` reserves the low bit as the set marker when the header is read. The
-reader currently uses this stamp for package identity and version matching; it
-does not recompute the hashes as an integrity check.
-
-## Manifest table
-
-```text
-bytes package_name
-version standard_type_table_version
-count import_count
-repeat import_count:
-  bytes local_name
-  bytes source_package_name
-  version dependency_version
-```
-
-The standard type-table version identifies the exact built-in TTX type table
-used by the writer. Restore rejects a buffer produced against a different
-table. The package version is not repeated here; it comes from the fixed
-header.
-
-## References table
-
-```text
-count reference_count
-repeat reference_count:
-  bytes source_package_name
-  version package_version
-```
-
-The entry position is the archive-local reference id used by package type
-references. Restore matches each entry against the available packages by name
-and version, so caller vector order has no meaning.
-
-This table is a restore dictionary, not the package's authored import list. A
-dependency records source visibility; a reference records every external type
-table needed to restore canonical pointers.
-
-## Package table
-
-```text
-count root_type_id
-count local_type_count
-repeat local_type_count:
-  serialized_type
-count terminal_count
-repeat terminal_count:
-  bytes group
-  bytes path
-  bytes content
-```
-
-`root_type_id` and nested-type ids index the local type table. The reader
-allocates every local `Ttx::Type` slot before restoring any body. Forward
-references, aliases, recursion, and nested types can therefore recover stable
-address identity.
-
-A serialized type is:
-
-```text
-bytes name
-documentation
-attributes
-type_ref alias_parent
-members
-count nested_type_count
-repeat nested_type_count:
-  count local_type_id
-count function_count
-repeat function_count:
-  bytes name
-  documentation
-  members parameters
-  members results
-```
-
-The shared records are:
-
-```text
-documentation:
-  count line_count
-  repeat line_count: bytes line
-
-attributes:
-  count attribute_count
-  repeat attribute_count:
-    bytes key
-    bytes value
-
-members:
-  count member_count
-  repeat member_count:
-    bytes name
-    type_ref type
-    u8 defaulted
-    documentation
-    attributes
-```
-
-`defaulted` is written as zero or one. A member type must resolve to a real
-type. The nullable type-reference form is only valid where the data model has a
-nullable edge, currently a type with no alias parent.
-
-## Type references
-
-Every type edge starts with one `u8` kind:
-
-| Kind | Value | Payload | Meaning |
-| --- | ---: | --- | --- |
-| None | 0 | none | No type on a nullable edge. |
-| Builtin | 1 | `bytes type_name` | Entry in the standard TTX type table. |
-| Local | 2 | `count type_id` | Entry in this Package table's local types. |
-| Package | 3 | `count reference_id`, `count type_id` | Type in a package named by the References table. |
-
-Buffers never serialize process pointers. Local and external ids are resolved
-back to the real arena-backed TTX objects during restore.
-
-## Linkages table
-
-```text
-count linkage_count
-repeat linkage_count:
-  type_ref owner
-  count function_index
-  bytes linkage_symbol
-```
-
-The owner must restore to a real type. `function_index` selects an entry from
-that owner's canonical `get_functions()` table. This keeps symbol publication
-attached to the TTX function it implements without storing dialect names,
-implementation payload bytes, or registry callbacks.
-
-## Reading and compatibility
-
-`Archiver::Reader` borrows the source buffer and retains no decoded state.
-`read_manifest()` and `read_package()` are safe to issue independently because
-each call validates the fixed header and seeks through the directory. Returned
-objects and their tables are allocated in the caller's arena.
-
-Restore validates:
-
-- magic, exact format version, directory bounds, and table order
-- complete consumption of every selected table
-- standard type-table version
-- dependency package name and version
-- local, package, function, and terminal bounds
-- non-null member types and valid linkage symbols
-
-Format version 10 has no backward-compatibility reader. Changing a field or
-adding a durable table requires a format-version change. A new table receives a
-fixed directory slot so unrelated readers can continue to seek directly rather
-than scanning variable data.
+The archive remains the owner of serialization rules. See
+[`../archiver/README.md`](../archiver/README.md) for the durable graph and
+compatibility contract.

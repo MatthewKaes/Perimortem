@@ -20,7 +20,7 @@ class Definition {
   constexpr Definition(
       Ttx::Lexical::Class::Type modifier,
       Perimortem::Core::View::Vector<Ttx::Attribute> attributes = {},
-      const Expression::Value* initializer = nullptr)
+      Expression::Value initializer = Expression::Value())
       : modifier(modifier), attributes(attributes), initializer(initializer) {}
   constexpr Definition(const Definition&) = default;
   constexpr auto operator=(const Definition& other) -> Definition& {
@@ -40,14 +40,18 @@ class Definition {
     return attributes;
   }
 
-  constexpr auto get_initializer() const -> const Expression::Value* {
+  constexpr auto has_initializer() const -> Bool {
+    return !initializer.is_empty();
+  }
+
+  constexpr auto get_initializer() const -> const Expression::Value& {
     return initializer;
   }
 
  private:
   Ttx::Lexical::Class::Type modifier = Ttx::Lexical::Class::Type::Unknown;
   Perimortem::Core::View::Vector<Ttx::Attribute> attributes;
-  const Expression::Value* initializer = nullptr;
+  Expression::Value initializer;
 };
 
 }  // namespace Tetrodotoxin::Isa::Base

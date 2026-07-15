@@ -28,6 +28,20 @@ private Math : foreign {
   ] -> Real_64;
 }
 
+@cpp(Count)
+@abi(integer)
+public Counter : struct {
+  public func identity[.value : Count] -> Count {
+    return value;
+  }
+
+  public func identity[self] -> Counter {
+    return self;
+  }
+}
+
+const reflected_type : Type = Counter;
+
 public func tetrodotoxin_test[.data : View[Bytes]] -> [] {
   Console -> print("Compiler Test");
   Console -> print(data);
@@ -72,11 +86,15 @@ public func call_real9[
   .h : Real_64,
   .i : Real_64
 ] -> Real_64 {
-  return Math->ttx_test_real9(a, b, c, d, e, f, g, h, i);
+  return Math -> ttx_test_real9(a, b, c, d, e, f, g, h, i);
 }
 
 public func is_even[.value : Count] -> Bool {
   return value % 2 == 0;
+}
+
+public func bool_identity[.value : Bool] -> Bool {
+  return value;
 }
 
 public func negative[] -> Signed_64 {
@@ -109,4 +127,12 @@ public func source_file[] -> View[Bytes] {
 
 public func swap[.first : Count, .second : Count] -> [.first : Count, .second : Count] {
   return (.second = first, .first = second);
+}
+
+public func type_call[.value : Count] -> Count {
+  return Counter -> identity(value);
+}
+
+public func addressable_call[.value : Counter] -> Counter {
+  return value -> identity();
 }

@@ -15,6 +15,7 @@
 #include "tetrodotoxin/compiler/assembler/x86_64.hpp"
 #include "tetrodotoxin/isa/lowering/context.hpp"
 #include "tetrodotoxin/linker/object/symbol.hpp"
+#include "tetrodotoxin/puffer/toolchain.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -65,10 +66,11 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinLowering, terminal_publish) {
   Allocator::Arena arena;
   Ttx::Lexical::Errors errors(arena);
   Tetrodotoxin::Compiler::Engine engine(
-      errors, Tetrodotoxin::Compiler::Backend());
+      errors, Tetrodotoxin::Puffer::Toolchain::standard_backend());
+  Tetrodotoxin::Compiler::Program program;
   Managed::Vector<Tetrodotoxin::Archiver::Terminal> terminals(arena);
   Tetrodotoxin::Isa::Lowering::Context context(
-      arena, errors, engine, terminals);
+      arena, errors, program, engine, terminals);
 
   {
     Dynamic::Bytes content("backend output"_view);

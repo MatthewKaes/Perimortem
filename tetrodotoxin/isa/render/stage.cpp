@@ -54,10 +54,11 @@ auto Render::Stage::evaluate(
     Cursor& cursor,
     Base::Context& context,
     const Base::Declaration& definition,
-    View::Vector<const Ttx::Type*> facts) -> StageResult {
-  if (!cursor.require(
-          Class::Type::ScopeStart,
-          "Expected `{` after render stage declaration."_view)) {
+    View::Vector<Ttx::Type::Reference> facts) -> StageResult {
+  Bool has_scope = cursor.require(
+      Class::Type::ScopeStart,
+      "Expected `{` after render stage declaration."_view);
+  if (!has_scope) {
     return StageResult();
   }
 
@@ -76,8 +77,9 @@ auto Render::Stage::evaluate(
     StageDirective directive = StageDirectives::find_or_default(
         cursor.consume().get_text(), StageDirective::Invalid);
     if (directive == StageDirective::Reads) {
-      if (!consume_reads(
-              cursor, context, facts, constants, pushes, resources)) {
+      Bool reads_consumed =
+          consume_reads(cursor, context, facts, constants, pushes, resources);
+      if (!reads_consumed) {
         return StageResult();
       }
 
@@ -97,31 +99,34 @@ auto Render::Stage::evaluate(
       return StageResult();
     }
 
-    if (!Base::Layout::Evaluator::evaluate_bracketed(
-            cursor, context, *target)) {
+    Bool layout_evaluated =
+        Base::Layout::Evaluator::evaluate_bracketed(cursor, context, *target);
+    if (!layout_evaluated) {
       return StageResult();
     }
 
-    if (!cursor.require(
-            Class::Type::EndStatement,
-            "Expected `;` after render stage layout."_view)) {
+    Bool has_statement_end = cursor.require(
+        Class::Type::EndStatement,
+        "Expected `;` after render stage layout."_view);
+    if (!has_statement_end) {
       return StageResult();
     }
   }
 
-  if (!cursor.require(
-          Class::Type::ScopeEnd,
-          "Expected `}` after render stage declaration."_view)) {
+  Bool has_scope_end = cursor.require(
+      Class::Type::ScopeEnd,
+      "Expected `}` after render stage declaration."_view);
+  if (!has_scope_end) {
     return StageResult();
   }
 
-  const Ttx::Type* stage_facts =
+  const Ttx::Type& stage_facts =
       build_facts(context, definition.get_name(), constants, pushes, resources);
   return StageResult(
       Ttx::Function(
           definition.get_name(), Ttx::Layout(parameters.get_view()),
           Ttx::Layout(result.get_view()), definition.get_documentation()),
-      *stage_facts);
+      stage_facts);
 }
 
 auto Render::Stage::insert(
@@ -146,7 +151,7 @@ auto Render::Stage::insert(
 auto Render::Stage::consume_reads(
     Cursor& cursor,
     Base::Context&,
-    View::Vector<const Ttx::Type*> facts,
+    View::Vector<Ttx::Type::Reference> facts,
     Managed::Vector<Ttx::Member>& constants,
     Managed::Vector<Ttx::Member>& pushes,
     Managed::Vector<Ttx::Member>& resources) -> Bool {
@@ -184,9 +189,10 @@ auto Render::Stage::consume_reads(
     return False;
   }
 
-  if (!cursor.require(
-          Class::Type::IndexStart,
-          "Expected `[` after render stage read kind."_view)) {
+  Bool has_index = cursor.require(
+      Class::Type::IndexStart,
+      "Expected `[` after render stage read kind."_view);
+  if (!has_index) {
     return False;
   }
 
@@ -204,10 +210,10 @@ auto Render::Stage::consume_reads(
       return False;
     }
 
-    if (!Interface::insert(
-            cursor, *target,
-            Ttx::Member(read_name->get_text(), source->get_type()),
-            "Render stage read name is already defined."_view)) {
+    Bool inserted = Interface::insert(
+        cursor, *target, Ttx::Member(read_name->get_text(), source->get_type()),
+        "Render stage read name is already defined."_view);
+    if (!inserted) {
       return False;
     }
 
@@ -222,13 +228,16 @@ auto Render::Stage::consume_reads(
     }
   }
 
-  return cursor.require(
-             Class::Type::IndexEnd,
-             "Expected `]` after render stage reads."_view) != nullptr &&
-         cursor.require(
-             Class::Type::EndStatement,
-             "Expected `;` after render stage reads declaration."_view) !=
-             nullptr;
+  const Token* index_end = cursor.require(
+      Class::Type::IndexEnd, "Expected `]` after render stage reads."_view);
+  if (index_end == nullptr) {
+    return False;
+  }
+
+  const Token* statement_end = cursor.require(
+      Class::Type::EndStatement,
+      "Expected `;` after render stage reads declaration."_view);
+  return statement_end != nullptr;
 }
 
 auto Render::Stage::build_facts(
@@ -236,23 +245,26 @@ auto Render::Stage::build_facts(
     View::Bytes stage_name,
     Managed::Vector<Ttx::Member>& constants,
     Managed::Vector<Ttx::Member>& pushes,
-    Managed::Vector<Ttx::Member>& resources) -> const Ttx::Type* {
-  Managed::Vector<const Ttx::Type*> types(context.get_arena());
+    Managed::Vector<Ttx::Member>& resources) -> const Ttx::Type& {
+  Managed::Vector<Ttx::Type::Reference> types(context.get_arena());
   if (!constants.is_empty()) {
-    types.insert(&context.get_arena().construct<Ttx::Type>(
-        "constant"_view, constants.get_view()));
+    const Ttx::Type& type = context.get_arena().construct<Ttx::Type>(
+        "constant"_view, constants.get_view());
+    types.insert(Ttx::Type::Reference(type));
   }
 
   if (!pushes.is_empty()) {
-    types.insert(&context.get_arena().construct<Ttx::Type>(
-        "push"_view, pushes.get_view()));
+    const Ttx::Type& type = context.get_arena().construct<Ttx::Type>(
+        "push"_view, pushes.get_view());
+    types.insert(Ttx::Type::Reference(type));
   }
 
   if (!resources.is_empty()) {
-    types.insert(&context.get_arena().construct<Ttx::Type>(
-        "resource"_view, resources.get_view()));
+    const Ttx::Type& type = context.get_arena().construct<Ttx::Type>(
+        "resource"_view, resources.get_view());
+    types.insert(Ttx::Type::Reference(type));
   }
 
-  return &context.get_arena().construct<Ttx::Type>(
+  return context.get_arena().construct<Ttx::Type>(
       stage_name, View::Vector<Ttx::Member>(), types.get_view());
 }

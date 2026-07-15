@@ -27,23 +27,18 @@ auto Resolution::Context::persist_errors(
 auto Resolution::Context::persist_error(
     const Ttx::Lexical::Errors::Error& error) -> void {
   Ttx::Lexical::Source source(
-      persist(error.get_source_path()), error.get_source());
+      persist(error.get_source_path()), persist(error.get_source()));
   View::Bytes message = persist(error.get_message());
   View::Bytes hint = persist(error.get_hint());
 
-  const Ttx::Lexical::Token* start = error.get_start_token();
-  const Ttx::Lexical::Token* end = error.get_end_token();
-  if (start == nullptr) {
+  if (!error.has_tokens()) {
     errors.insert(source, message, hint);
     return;
   }
 
-  if (end == nullptr) {
-    errors.insert(persist(*start), source, message, hint);
-    return;
-  }
-
-  errors.insert_range(persist(*start), persist(*end), source, message, hint);
+  errors.insert_range(
+      persist(error.get_start_token()), persist(error.get_end_token()), source,
+      message, hint);
 }
 
 auto Resolution::Context::persist(View::Bytes bytes) -> View::Bytes {

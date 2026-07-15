@@ -70,8 +70,9 @@ auto Base::Declaration::evaluate_after_modifier(
   }
 
   cursor.consume();
-  if (!cursor.require(
-          Class::Type::Define, "Expected `:` after definition name."_view)) {
+  Bool has_definition = cursor.require(
+      Class::Type::Define, "Expected `:` after definition name."_view);
+  if (!has_definition) {
     return Base::Declaration();
   }
 

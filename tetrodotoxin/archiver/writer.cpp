@@ -199,9 +199,9 @@ auto PackageWriter::collect_local_type(const Ttx::Type* type) -> void {
     collect_local_type(&members[i].get_type());
   }
 
-  View::Vector<const Ttx::Type*> nested = type->get_types();
+  View::Vector<Ttx::Type::Reference> nested = type->get_types();
   for (Count i = 0; i < nested.get_size(); i++) {
-    collect_local_type(nested[i]);
+    collect_local_type(&nested[i].get_type());
   }
 
   collect_functions(type->get_type_functions());
@@ -325,10 +325,10 @@ auto PackageWriter::write_type(const Ttx::Type& type) -> Bool {
     return False;
   }
 
-  View::Vector<const Ttx::Type*> nested = type.get_types();
+  View::Vector<Ttx::Type::Reference> nested = type.get_types();
   write_size(writer, nested.get_size());
   for (Count i = 0; i < nested.get_size(); i++) {
-    auto* id = local_ids.find(nested[i]);
+    auto* id = local_ids.find(&nested[i].get_type());
     if (id == nullptr) {
       return False;
     }

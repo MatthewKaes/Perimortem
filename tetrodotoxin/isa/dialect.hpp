@@ -6,14 +6,9 @@
 #include "perimortem/core/view/bytes.hpp"
 
 #include "tetrodotoxin/isa/base/context.hpp"
+#include "tetrodotoxin/isa/lowering/context.hpp"
+#include "tetrodotoxin/isa/lowering/input.hpp"
 #include "ttx/lexical/cursor.hpp"
-
-namespace Tetrodotoxin::Isa::Lowering {
-
-class Context;
-struct Input;
-
-}  // namespace Tetrodotoxin::Isa::Lowering
 
 namespace Tetrodotoxin::Isa {
 
@@ -52,8 +47,8 @@ class Dialect {
     return lowerer != nullptr && package_ready;
   }
 
-  constexpr auto is_valid() const -> Bool {
-    return !name.is_empty() && evaluator != nullptr;
+  constexpr auto is_empty() const -> Bool {
+    return name.is_empty() || evaluator == nullptr;
   }
 
  private:

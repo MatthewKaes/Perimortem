@@ -50,7 +50,7 @@ PERIMORTEM_UNIT_TEST(TtxMember, attributes) {
 
   ASSERT_EQ(member.get_attributes().get_size(), Count(1));
   EXPECT_TEXT(member.get_attributes()[0].get_key(), "builtin"_view);
-  EXPECT_TEXT(member.get_attributes()[0].get_value(), "position"_view);
+  EXPECT_TEXT(member.get_attributes()[0].get_bytes(), "position"_view);
 }
 
 PERIMORTEM_UNIT_TEST(TtxMember, unnamed) {

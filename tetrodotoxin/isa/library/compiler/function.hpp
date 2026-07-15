@@ -22,13 +22,22 @@ class Function {
       const Ttx::Function& function,
       Perimortem::Utility::Range source)
       -> const Tetrodotoxin::Compiler::Execution::Body*;
+
+  // Publishes one complete dispatch surface. The three vectors are parallel:
+  // each function owns the source range compiled into its body and the
+  // definition facts retained beside that body. Keeping the selected surface
+  // explicit lets the owner push its current table into linkage generation
+  // without making Linkage search backward through the owner.
   static auto publish(
       Ttx::Lexical::Cursor& cursor,
       Scope& scope,
       const Ttx::Type& owner,
+      Perimortem::Core::View::Bytes owner_path,
+      Perimortem::Core::View::Vector<Ttx::Function> functions,
       Perimortem::Core::View::Vector<Perimortem::Utility::Range> sources,
       Perimortem::Core::View::Vector<Tetrodotoxin::Isa::Base::Definition>
-          definitions) -> Bool;
+          definitions,
+      Bool addressable) -> Bool;
 
  private:
   Function(
@@ -49,9 +58,10 @@ class Function {
       -> Perimortem::Utility::Range;
   auto emit_call(
       const Ttx::Function& target,
-      const Tetrodotoxin::Compiler::Linkage& linkage,
-      const Tetrodotoxin::Isa::Base::Expression::Pack& arguments)
-      -> Perimortem::Utility::Range;
+      const Tetrodotoxin::Abi::Linkage& linkage,
+      const Tetrodotoxin::Isa::Base::Expression::Pack& arguments,
+      Perimortem::Core::View::Vector<Tetrodotoxin::Compiler::Execution::Operand>
+          leading = {}) -> Perimortem::Utility::Range;
   auto evaluate_return() -> Bool;
   auto evaluate_call() -> Bool;
   auto resolve_type(const Tetrodotoxin::Isa::Base::Expression::Value& value)

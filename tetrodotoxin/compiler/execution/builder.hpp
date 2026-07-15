@@ -6,12 +6,12 @@
 #include "perimortem/memory/allocator/arena.hpp"
 #include "perimortem/memory/managed/vector.hpp"
 
+#include "tetrodotoxin/abi/linkage.hpp"
 #include "tetrodotoxin/compiler/execution/binary.hpp"
 #include "tetrodotoxin/compiler/execution/body.hpp"
 #include "tetrodotoxin/compiler/execution/constant.hpp"
 #include "tetrodotoxin/compiler/execution/operand.hpp"
 #include "tetrodotoxin/compiler/execution/operation.hpp"
-#include "tetrodotoxin/compiler/linkage.hpp"
 #include "ttx/function.hpp"
 
 namespace Tetrodotoxin::Compiler::Execution {
@@ -40,7 +40,7 @@ class Builder {
       Operand left,
       Operand right) -> Operand;
   auto call(
-      const Tetrodotoxin::Compiler::Linkage& linkage,
+      const Tetrodotoxin::Abi::Linkage& linkage,
       Perimortem::Core::View::Vector<Operand> arguments)
       -> Perimortem::Utility::Range;
   auto return_values(Perimortem::Core::View::Vector<Operand> values = {})

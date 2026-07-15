@@ -152,8 +152,8 @@ PERIMORTEM_UNIT_TEST(TtxLexical, range_error) {
 
   ASSERT(cursor.get_errors().has_errors());
   const Ttx::Lexical::Errors::Error& error = cursor.get_errors().get_view()[0];
-  EXPECT(error.get_start_token() == &start);
-  EXPECT(error.get_end_token() == &end);
+  EXPECT(&error.get_start_token() == &start);
+  EXPECT(&error.get_end_token() == &end);
   EXPECT_TEXT(error.get_hint(), "Use a value."_view);
 }
 
@@ -183,10 +183,11 @@ PERIMORTEM_UNIT_TEST(TtxLexical, token_error) {
       "Bad token."_view);
 
   ASSERT(errors.has_errors());
-  EXPECT(errors.get_view()[0].get_start_token() == &token);
-  EXPECT(errors.get_view()[0].get_end_token() == nullptr);
-  EXPECT_EQ(errors.get_view()[0].get_start_token()->get_line(), Bits_32(4));
-  EXPECT_EQ(errors.get_view()[0].get_start_token()->get_column(), Bits_32(7));
+  EXPECT(errors.get_view()[0].has_tokens());
+  EXPECT(&errors.get_view()[0].get_start_token() == &token);
+  EXPECT(&errors.get_view()[0].get_end_token() == &token);
+  EXPECT_EQ(errors.get_view()[0].get_start_token().get_line(), Bits_32(4));
+  EXPECT_EQ(errors.get_view()[0].get_start_token().get_column(), Bits_32(7));
 }
 
 PERIMORTEM_UNIT_TEST(TtxLexical, recover_stmt) {

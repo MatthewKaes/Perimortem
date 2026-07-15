@@ -16,9 +16,10 @@ auto Package::Group::evaluate(
     Cursor& cursor,
     Base::Context& context,
     Managed::Vector<Package::Export>& exports) -> Bool {
-  if (!cursor.require(
-          Class::Type::ScopeStart,
-          "Expected `{` after package group declaration."_view)) {
+  Bool has_scope = cursor.require(
+      Class::Type::ScopeStart,
+      "Expected `{` after package group declaration."_view);
+  if (!has_scope) {
     return False;
   }
 
@@ -27,7 +28,7 @@ auto Package::Group::evaluate(
     Ttx::Documentation documentation = Base::Documentation::evaluate(cursor);
     Package::Export export_ =
         Package::Export::evaluate(cursor, context, documentation);
-    if (!export_.is_valid()) {
+    if (export_.is_empty()) {
       return False;
     }
 
@@ -40,9 +41,10 @@ auto Package::Group::evaluate(
     exports.insert(export_);
   }
 
-  if (!cursor.require(
-          Class::Type::ScopeEnd,
-          "Expected `}` after package group declaration."_view)) {
+  Bool has_scope_end = cursor.require(
+      Class::Type::ScopeEnd,
+      "Expected `}` after package group declaration."_view);
+  if (!has_scope_end) {
     return False;
   }
 

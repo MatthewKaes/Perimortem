@@ -17,7 +17,7 @@ static Harness TtxType = {
 PERIMORTEM_UNIT_TEST(TtxType, alias_attrs) {
   static constexpr Static::Vector<Ttx::Attribute, 3> foreign_attributes = {{
     {"role"_view, "foreign"_view},
-    {"abi"_view, "foreign"_view},
+    {"storage"_view, "foreign"_view},
     {"cpp"_view, "ForeignCpp"_view},
   }};
   static constexpr Static::Vector<Ttx::Attribute, 2> alias_attributes = {{
@@ -25,7 +25,7 @@ PERIMORTEM_UNIT_TEST(TtxType, alias_attrs) {
     {"cpp"_view, "AliasCpp"_view},
   }};
   static constexpr Static::Vector<Ttx::Attribute, 2> middle_attributes = {{
-    {"abi"_view, "middle"_view},
+    {"storage"_view, "middle"_view},
     {"cpp"_view, "MiddleCpp"_view},
   }};
   static constexpr Static::Vector<Ttx::Attribute, 1> relay_attributes = {{
@@ -42,29 +42,19 @@ PERIMORTEM_UNIT_TEST(TtxType, alias_attrs) {
 
   const Ttx::Attribute* role = alias.find_attribute("role"_view);
   ASSERT(role != nullptr);
-  EXPECT_TEXT(role->get_value(), "alias"_view);
+  EXPECT_TEXT(role->get_bytes(), "alias"_view);
 
-  EXPECT(alias.attribute_equals("role"_view, "alias"_view));
-  EXPECT(alias.attribute_equals("role"_view, "foreign"_view));
-  EXPECT(alias.attribute_equals("abi"_view, "foreign"_view));
-  EXPECT_NOT(alias.attribute_equals("role"_view, "library"_view));
-
-  const Ttx::Attribute* cpp = alias.resolve_attribute("cpp"_view);
-  ASSERT(cpp != nullptr);
-  EXPECT_TEXT(cpp->get_value(), "AliasCpp"_view);
-
-  const Ttx::Attribute* abi = alias.resolve_attribute("abi"_view);
-  ASSERT(abi != nullptr);
-  EXPECT_TEXT(abi->get_value(), "foreign"_view);
+  EXPECT_TEXT(alias.resolve_attribute("role"_view).get_bytes(), "alias"_view);
+  EXPECT_TEXT(alias.resolve_attribute("cpp"_view).get_bytes(), "AliasCpp"_view);
+  EXPECT_TEXT(
+      alias.resolve_attribute("storage"_view).get_bytes(), "foreign"_view);
 
   EXPECT(&relay.canonical() == &foreign);
-  EXPECT(relay.attribute_equals("role"_view, "foreign"_view));
-  EXPECT(relay.attribute_equals("abi"_view, "middle"_view));
-  EXPECT(relay.attribute_equals("abi"_view, "foreign"_view));
-
-  cpp = relay.resolve_attribute("cpp"_view);
-  ASSERT(cpp != nullptr);
-  EXPECT_TEXT(cpp->get_value(), "MiddleCpp"_view);
+  EXPECT_TEXT(relay.resolve_attribute("role"_view).get_bytes(), "alias"_view);
+  EXPECT_TEXT(
+      relay.resolve_attribute("cpp"_view).get_bytes(), "MiddleCpp"_view);
+  EXPECT_TEXT(
+      relay.resolve_attribute("storage"_view).get_bytes(), "middle"_view);
 }
 
 PERIMORTEM_UNIT_TEST(TtxType, describe) {
@@ -94,14 +84,21 @@ PERIMORTEM_UNIT_TEST(TtxType, alias_lookup) {
   Static::Vector<Ttx::Member, 1> members = {{
     {"value"_view, bits},
   }};
-  Static::Vector<const Ttx::Type*, 1> nested_types = {{
-    &nested,
+  Static::Vector<Ttx::Type::Reference, 1> nested_types = {{
+    Ttx::Type::Reference(nested),
   }};
   Static::Vector<Ttx::Function, 1> functions = {{
     Ttx::Function("draw"_view, Ttx::Layout(), Ttx::Layout()),
   }};
+  Static::Vector<Ttx::Member, 1> self = {{
+    {"self"_view, bits},
+  }};
+  Static::Vector<Ttx::Function, 1> addressable_functions = {{
+    Ttx::Function("draw"_view, Ttx::Layout(self), Ttx::Layout()),
+  }};
 
-  Ttx::Type root("Root"_view, members, nested_types, functions);
+  Ttx::Type root(
+      "Root"_view, members, nested_types, functions, addressable_functions);
   Ttx::Type alias = Ttx::Type::alias("Alias"_view, root);
 
   const Ttx::Member* member = alias.find_member("value"_view);
@@ -109,9 +106,15 @@ PERIMORTEM_UNIT_TEST(TtxType, alias_lookup) {
   EXPECT(&member->get_type() == &bits);
   EXPECT(alias.find_type("Nested"_view) == &nested);
 
-  const Ttx::Function* function = alias.find_function("draw"_view);
+  const Ttx::Function* function = alias.find_type_function("draw"_view);
   ASSERT(function != nullptr);
   EXPECT_TEXT(function->get_name(), "draw"_view);
+  const Ttx::Function* addressable =
+      alias.find_addressable_function("draw"_view);
+  ASSERT(addressable != nullptr);
+  EXPECT(&root.get_type_functions()[0] == function);
+  EXPECT(&root.get_addressable_functions()[0] == addressable);
+  EXPECT_EQ(addressable->get_parameters().get_member_count(), Count(1));
 }
 
 PERIMORTEM_UNIT_TEST(TtxType, alias_docs) {
@@ -177,6 +180,8 @@ PERIMORTEM_UNIT_TEST(TtxType, alias_shape) {
   Ttx::Type storage("Storage"_view, Ttx::Layout(members));
   Ttx::Type alias = Ttx::Type::alias("Alias"_view, storage);
 
+  EXPECT(storage.get_alias_parent().is_invalid());
+  EXPECT(&alias.get_alias_parent() == &storage);
   EXPECT(alias.get_members().is_empty());
   EXPECT(Ttx::Layout(alias).equivalent_to(Ttx::Layout(storage)));
 }
@@ -217,7 +222,7 @@ PERIMORTEM_UNIT_TEST(TtxType, invalid_alias) {
   EXPECT_NOT(alias.equivalent_to(invalid));
   EXPECT(alias.find_member("value"_view) == nullptr);
   EXPECT(alias.find_type("Nested"_view) == nullptr);
-  EXPECT(alias.find_function("call"_view) == nullptr);
+  EXPECT(alias.find_type_function("call"_view) == nullptr);
 }
 
 PERIMORTEM_UNIT_TEST(TtxType, attr_override) {
@@ -232,24 +237,21 @@ PERIMORTEM_UNIT_TEST(TtxType, attr_override) {
   Ttx::Type alias = Ttx::Type::alias(
       "Alias"_view, root, Ttx::Documentation(), alias_attributes);
 
-  const Ttx::Attribute* attribute = alias.resolve_attribute("cpp"_view);
-  ASSERT(attribute != nullptr);
-  EXPECT_TEXT(attribute->get_value(), "AliasCpp"_view);
-  EXPECT(alias.attribute_equals("cpp"_view, "RootCpp"_view));
-  EXPECT(alias.attribute_equals("cpp"_view, "AliasCpp"_view));
+  EXPECT_TEXT(alias.resolve_attribute("cpp"_view).get_bytes(), "AliasCpp"_view);
 }
 
 PERIMORTEM_UNIT_TEST(TtxType, nested_missing) {
   Ttx::Type nested("Nested"_view);
-  Static::Vector<const Ttx::Type*, 1> nested_types = {{
-    &nested,
+  Static::Vector<Ttx::Type::Reference, 1> nested_types = {{
+    Ttx::Type::Reference(nested),
   }};
 
   Ttx::Type root("Root"_view, Ttx::Layout(), nested_types);
 
   EXPECT(root.find_type("Nested"_view) == &nested);
   EXPECT(root.find_type("Missing"_view) == nullptr);
-  EXPECT(root.find_function("Missing"_view) == nullptr);
+  EXPECT(root.find_type_function("Missing"_view) == nullptr);
+  EXPECT(root.find_addressable_function("Missing"_view) == nullptr);
 }
 
 PERIMORTEM_UNIT_TEST(TtxType, layout_is_local) {
@@ -265,9 +267,14 @@ PERIMORTEM_UNIT_TEST(TtxType, layout_is_local) {
 }
 
 PERIMORTEM_UNIT_TEST(TtxType, attr_missing) {
-  Ttx::Type type("Value"_view);
+  static constexpr Static::Vector<Ttx::Attribute, 1> attributes = {{
+    Ttx::Attribute("marker"_view),
+  }};
+  Ttx::Type type("Value"_view, attributes);
 
   EXPECT(type.find_attribute("missing"_view) == nullptr);
-  EXPECT(type.resolve_attribute("missing"_view) == nullptr);
-  EXPECT_NOT(type.attribute_equals("missing"_view, "value"_view));
+  EXPECT(type.resolve_attribute("missing"_view).is_empty());
+  EXPECT(type.find_attribute("marker"_view) != nullptr);
+  EXPECT_NOT(type.resolve_attribute("marker"_view).is_empty());
+  EXPECT_NOT(type.resolve_attribute("marker"_view).has_value());
 }

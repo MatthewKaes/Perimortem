@@ -30,25 +30,6 @@ class Suggestions {
       Perimortem::Memory::Allocator::Arena& arena,
       Perimortem::Core::View::Bytes name,
       Ttx::Layout candidates) -> Perimortem::Core::View::Bytes;
-
- private:
-  using CandidateName = Perimortem::Core::View::Bytes (*)(const void*, Count);
-
-  static auto possible_index(
-      Perimortem::Core::View::Bytes name,
-      const void* candidates,
-      Count candidate_count,
-      CandidateName candidate_name) -> Count;
-  static auto view_name(const void* candidates, Count index)
-      -> Perimortem::Core::View::Bytes;
-  static auto member_name(const void* candidates, Count index)
-      -> Perimortem::Core::View::Bytes;
-  static auto format(
-      Perimortem::Memory::Allocator::Arena& arena,
-      Perimortem::Core::View::Bytes candidate) -> Perimortem::Core::View::Bytes;
-  static auto distance(
-      Perimortem::Core::View::Bytes left,
-      Perimortem::Core::View::Bytes right) -> Count;
 };
 
 }  // namespace Tetrodotoxin::Diagnostics

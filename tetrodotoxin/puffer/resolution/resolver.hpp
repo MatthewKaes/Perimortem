@@ -17,11 +17,7 @@
 #include "tetrodotoxin/puffer/resolution/source/cache.hpp"
 #include "tetrodotoxin/puffer/resolution/source/roots.hpp"
 #include "tetrodotoxin/puffer/resolution/source/snapshot.hpp"
-
-namespace Ttx::Lexical {
-
-class Cursor;
-}
+#include "ttx/lexical/cursor.hpp"
 
 namespace Tetrodotoxin::Puffer::Resolution {
 
@@ -40,12 +36,13 @@ class Resolver {
  public:
   using Context = Resolution::Context;
 
-  explicit Resolver(const Tetrodotoxin::Isa::Registry& isa_registry)
-      : isa_registry(isa_registry) {}
-
-  constexpr auto set_package_name(Perimortem::Core::View::Bytes name) -> void {
-    package_name = name;
-  }
+  explicit Resolver(
+      const Tetrodotoxin::Isa::Registry& isa_registry,
+      Perimortem::Core::View::Bytes unit_name = {},
+      Perimortem::Core::View::Bytes package_name = {})
+      : unit_name(unit_name),
+        package_name(package_name),
+        isa_registry(isa_registry) {}
 
   auto load_source(Context& context, Perimortem::Core::View::Bytes source_path)
       -> Source::Record*;
@@ -96,7 +93,7 @@ class Resolver {
       -> Tetrodotoxin::Puffer::Isa::Boot::Envelope*;
   auto execute_body(
       Ttx::Lexical::Cursor& cursor,
-      Source::Record& record,
+      Source::Storage& storage,
       const Tetrodotoxin::Isa::Dialect& dialect,
       const Tetrodotoxin::Puffer::Isa::Boot::Envelope& boot,
       Perimortem::Core::View::Vector<Source::Record*> producers) -> Ttx::Type*;
@@ -120,7 +117,8 @@ class Resolver {
   Source::Cache sources;
   Source::Roots source_roots;
   Package::Cache packages;
-  Perimortem::Core::View::Bytes package_name;
+  Perimortem::Memory::Dynamic::Bytes unit_name;
+  Perimortem::Memory::Dynamic::Bytes package_name;
   const Tetrodotoxin::Isa::Registry& isa_registry;
 };
 

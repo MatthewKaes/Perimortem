@@ -53,7 +53,7 @@ PERIMORTEM_UNIT_TEST(TtxRender, render_shape) {
   ASSERT(render != nullptr);
   EXPECT(render->find_member("position"_view) != nullptr);
 
-  const Ttx::Function* vertex = render->find_function("vertex"_view);
+  const Ttx::Function* vertex = render->find_type_function("vertex"_view);
   ASSERT(vertex != nullptr);
   ASSERT_EQ(vertex->get_parameters().get_member_count(), Count(1));
   ASSERT_EQ(vertex->get_result().get_member_count(), Count(1));

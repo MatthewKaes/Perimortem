@@ -23,9 +23,14 @@ static auto first_error(const Resolution::Resolver::Context& source_context)
   return source_context.get_errors()[0].get_message();
 }
 
-static auto function(const Ttx::Type& type, View::Bytes name)
+static auto type_function(const Ttx::Type& type, View::Bytes name)
     -> const Ttx::Function* {
-  return type.find_function(name);
+  return type.find_type_function(name);
+}
+
+static auto addressable_function(const Ttx::Type& type, View::Bytes name)
+    -> const Ttx::Function* {
+  return type.find_addressable_function(name);
 }
 
 static auto register_package(
@@ -43,15 +48,15 @@ static auto register_standard_packages(
   return register_package(
              resolver, context,
              ".bin/bin/tetrodotoxin/standard/Perimortem.Math/"
-             "perimortem_math.puffer"_view) &&
+             "binary_archive.puffer"_view) &&
          register_package(
              resolver, context,
              ".bin/bin/tetrodotoxin/standard/Perimortem.Runtime/"
-             "perimortem_runtime.puffer"_view) &&
+             "binary_archive.puffer"_view) &&
          register_package(
              resolver, context,
              ".bin/bin/tetrodotoxin/standard/Perimortem.Graphics/"
-             "perimortem_graphics.puffer"_view);
+             "binary_archive.puffer"_view);
 }
 
 PERIMORTEM_UNIT_TEST(TtxAppScene, app_main) {
@@ -71,7 +76,7 @@ PERIMORTEM_UNIT_TEST(TtxAppScene, app_main) {
   EXPECT_NOT(app_source_context.has_errors());
   EXPECT_TEXT(record->get_type().get_name(), "App"_view);
   EXPECT_TEXT(record->get_dialect().get_name(), "App"_view);
-  const Ttx::Function* main = function(record->get_type(), "main"_view);
+  const Ttx::Function* main = type_function(record->get_type(), "main"_view);
   ASSERT(main != nullptr);
   EXPECT(record->get_implementation().has(*main));
 }
@@ -90,26 +95,36 @@ PERIMORTEM_UNIT_TEST(TtxAppScene, scene_shape) {
       "private func create_icon[] -> Bits_32 {\n"
       "  return 0;\n"
       "}\n"
-      "on_start {\n"
+      "on_start[self] {\n"
       "  return;\n"
       "}\n"
-      "on_update[.frame : Bits_32] {\n"
+      "on_update[self, .frame : Bits_32] {\n"
       "  return;\n"
       "}\n"_view);
 
   ASSERT(record != nullptr);
   EXPECT_NOT(scene_source_context.has_errors());
-  const Ttx::Type* scene = &record->get_type();
-  EXPECT_TEXT(scene->get_name(), "Scene"_view);
-  EXPECT(scene->find_member("icon"_view) != nullptr);
-  EXPECT(scene->find_member("fade"_view) != nullptr);
-  ASSERT(scene->find_type("state"_view) != nullptr);
-  ASSERT(scene->find_type("const"_view) != nullptr);
-  EXPECT(scene->find_type("state"_view)->find_member("icon"_view) != nullptr);
-  EXPECT(scene->find_type("const"_view)->find_member("fade"_view) != nullptr);
-  EXPECT(function(*scene, "create_icon"_view) != nullptr);
-  EXPECT(function(*scene, "on_start"_view) != nullptr);
-  EXPECT(function(*scene, "on_update"_view) != nullptr);
+  const Ttx::Type& scene = record->get_type();
+  EXPECT_TEXT(scene.get_name(), "Scene"_view);
+  const Ttx::Member* icon_member = scene.find_member("icon"_view);
+  const Ttx::Member* fade_member = scene.find_member("fade"_view);
+  ASSERT(icon_member != nullptr);
+  ASSERT(fade_member != nullptr);
+  EXPECT(scene.find_type("state"_view) == nullptr);
+  EXPECT(scene.find_type("const"_view) == nullptr);
+  const Tetrodotoxin::Isa::Base::Definition* icon =
+      record->get_implementation().find(*icon_member);
+  const Tetrodotoxin::Isa::Base::Definition* fade =
+      record->get_implementation().find(*fade_member);
+  ASSERT(icon != nullptr);
+  ASSERT(fade != nullptr);
+  EXPECT(icon->get_modifier() == Ttx::Lexical::Class::Type::State);
+  EXPECT(fade->get_modifier() == Ttx::Lexical::Class::Type::Const);
+  EXPECT(icon->has_initializer());
+  EXPECT(fade->has_initializer());
+  EXPECT(type_function(scene, "create_icon"_view) != nullptr);
+  EXPECT(addressable_function(scene, "on_start"_view) != nullptr);
+  EXPECT(addressable_function(scene, "on_update"_view) != nullptr);
 }
 
 PERIMORTEM_UNIT_TEST(TtxAppScene, bad_app_root) {
@@ -184,14 +199,14 @@ PERIMORTEM_UNIT_TEST(TtxAppScene, app_sources) {
   EXPECT_NOT(app_source_context.has_errors());
   EXPECT_TEXT(app->get_module(), "main"_view);
   EXPECT_TEXT(app->get_type().get_name(), "App"_view);
-  ASSERT(function(app->get_type(), "main"_view) != nullptr);
+  ASSERT(type_function(app->get_type(), "main"_view) != nullptr);
 
   const Resolution::Source::Record* scene =
       resolver.resolve("apps/ttx/demo/splash_screen.ttx"_view);
   ASSERT(scene != nullptr);
   EXPECT_TEXT(scene->get_module(), "splash_screen"_view);
   EXPECT_TEXT(scene->get_type().get_name(), "Scene"_view);
-  EXPECT(function(scene->get_type(), "on_update"_view) != nullptr);
+  EXPECT(addressable_function(scene->get_type(), "on_update"_view) != nullptr);
 }
 
 PERIMORTEM_UNIT_TEST(TtxAppScene, app_needs_main) {
@@ -255,13 +270,13 @@ PERIMORTEM_UNIT_TEST(TtxAppScene, scene_lifecycle) {
   const Resolution::Source::Record* record = resolver.load_source(
       scene_source_context, "unit/scene.ttx"_view,
       "dialect : Scene;\n"
-      "on_start { return; }\n"
-      "on_exit { return; }\n"_view);
+      "on_start[self] { return; }\n"
+      "on_exit[self] { return; }\n"_view);
 
   ASSERT(record != nullptr);
   EXPECT_NOT(scene_source_context.has_errors());
-  EXPECT(function(record->get_type(), "on_start"_view) != nullptr);
-  EXPECT(function(record->get_type(), "on_exit"_view) != nullptr);
+  EXPECT(addressable_function(record->get_type(), "on_start"_view) != nullptr);
+  EXPECT(addressable_function(record->get_type(), "on_exit"_view) != nullptr);
 }
 
 PERIMORTEM_UNIT_TEST(TtxAppScene, scene_bad_type) {

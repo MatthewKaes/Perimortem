@@ -20,11 +20,11 @@ auto Resolution::Source::Roots::include(View::Bytes source_path) -> Bool {
   View::Bytes root = path.get_directory();
   if (root.is_empty()) {
     reset();
-    root_count = 1;
+    roots.insert(Perimortem::Memory::Dynamic::Bytes());
     return True;
   }
 
-  for (Count i = 0; i < root_count; i++) {
+  for (Count i = 0; i < roots.get_size(); i++) {
     View::Bytes existing = roots[i].get_view();
     if (existing.is_empty()) {
       return True;
@@ -41,18 +41,13 @@ auto Resolution::Source::Roots::include(View::Bytes source_path) -> Bool {
     }
   }
 
-  if (root_count >= roots.get_size()) {
-    return False;
-  }
-
-  roots[root_count] = root;
-  root_count++;
+  roots.insert(Perimortem::Memory::Dynamic::Bytes(root));
   return True;
 }
 
 auto Resolution::Source::Roots::contains(View::Bytes source_path) const
     -> Bool {
-  for (Count i = 0; i < root_count; i++) {
+  for (Count i = 0; i < roots.get_size(); i++) {
     View::Bytes root = roots[i].get_view();
     if (root.is_empty() || source_path == root ||
         (source_path.get_size() > root.get_size() &&
@@ -66,11 +61,7 @@ auto Resolution::Source::Roots::contains(View::Bytes source_path) const
 }
 
 auto Resolution::Source::Roots::reset() -> void {
-  for (Count i = 0; i < root_count; i++) {
-    roots[i].clear();
-  }
-
-  root_count = 0;
+  roots.clear();
 }
 
 auto Resolution::Source::Roots::common(View::Bytes left, View::Bytes right)

@@ -1,23 +1,23 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 //
-// PNG codec — decode from and encode to the PNG wire format.
+// PNG codec for decoding and encoding the PNG wire format.
 dialect : Library;
 
 import Graphics : Library = "graphics/image.ttx";
 import Log      : Library = TTX::Log;
 import Math     : Library = TTX::Math;
 
-// [?] @extern(.abi = "c") marks methods as C-ABI external symbols resolved at
-// link time. Provisional — C FFI design is not yet finalized.
-@extern(.abi = "c")
+// @extern(c) marks methods as C ABI external symbols resolved at link time.
+// The C foreign function interface is still provisional.
+@extern(c)
 private Deflate : foreign {
   external private func inflate[.source : View[Bytes], .capacity : Count] -> Bytes;
 
   external private func deflate[.source : View[Bytes]] -> Bytes;
 }
 
-// PNG file signature — the first 8 bytes of every valid PNG file.
+// PNG file signature. These are the first 8 bytes of every valid PNG file.
 private png_signature : Vec[Bits_8, 8] = 0x[89 50 4E 47 0D 0A 1A 0A];
 
 // Named 4-byte chunk type identifiers.
@@ -95,7 +95,7 @@ private FilterType : enum[Bits_8] {
 
   // Scores all five filters for current_row and returns the one with the
   // lowest absolute-residual sum. Pass a zero-length View for previous_row on
-  // the first row — Up, Average, and Paeth are excluded from scoring.
+  // the first row. Up, Average, and Paeth are excluded from scoring.
   private func best_for_row[.current_row : View[Bytes], .previous_row : View[Bytes]] -> FilterType {
     state is_first_row : Bool            = previous_row -> get_size() == 0;
     state bpp          : Count           = Graphics.Image -> get_channel_count();
@@ -218,7 +218,7 @@ private FilterType : enum[Bits_8] {
   }
 
   // Reconstructs one forward-filtered row. Pass a zero-length View for previous_row on
-  // the first row — each case degrades correctly to its zero-previous_row equivalent.
+  // the first row. Each case degrades to its zero-previous_row equivalent.
   private func reconstruct[
     .filtered_row : View[Bytes],
     .output_row : Access[Bytes],
@@ -402,7 +402,7 @@ private Chunk : struct {
     self.data = source.[offset + 8 +: Count -> from(length)];
     self.length = length;
 
-    @if (.mode = "debug") {
+    @if(debug) {
       state stored_crc : Bits_32 = Bits_32 -> from_big_endian(
         source.[offset + 8 + Count -> from(length) +: 4],
       );
@@ -752,7 +752,7 @@ public Png : object {
           pixels -> get_bytes(),
         ),
       ) {
-        Log -> error("Png: Filter reconstruction failed — decompressed data may be truncated");
+        Log -> error("Png: Filter reconstruction failed. Decompressed data may be truncated");
         return Graphics.Image -> from();
       }
 
@@ -771,7 +771,7 @@ public Png : object {
         raw_pixels -> get_access(),
       ),
     ) {
-      Log -> error("Png: Filter reconstruction failed — decompressed data may be truncated");
+      Log -> error("Png: Filter reconstruction failed. Decompressed data may be truncated");
       return Graphics.Image -> from();
     }
 

@@ -29,11 +29,9 @@ auto Base::Context::parameterize_type(
     }
   }
 
-  const Ttx::Type* result = Standard::Types::find_type(name);
-  if (result == nullptr) {
-    Managed::Bytes stored_name(arena, name);
-    result = &arena.construct<Ttx::Type>(stored_name.get_view());
-  }
+  Managed::Bytes stored_name(arena, name);
+  const Ttx::Type& result =
+      arena.construct<Ttx::Type>(stored_name.get_view());
 
   Managed::Vector<Ttx::Member> stored_arguments(arena);
   View::Vector<Ttx::Member> members = arguments.get_members();
@@ -42,6 +40,6 @@ auto Base::Context::parameterize_type(
   }
 
   parameterizations.insert(Parameterization(
-      root, Ttx::Layout(stored_arguments.get_view()), extent, *result));
-  return *result;
+      root, Ttx::Layout(stored_arguments.get_view()), extent, result));
+  return result;
 }

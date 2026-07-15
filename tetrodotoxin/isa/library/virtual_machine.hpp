@@ -12,15 +12,10 @@
 #include "tetrodotoxin/isa/base/context.hpp"
 #include "tetrodotoxin/isa/base/declaration.hpp"
 #include "tetrodotoxin/isa/library/scope.hpp"
+#include "tetrodotoxin/isa/lowering/context.hpp"
+#include "tetrodotoxin/isa/lowering/input.hpp"
 #include "ttx/documentation.hpp"
 #include "ttx/lexical/cursor.hpp"
-
-namespace Tetrodotoxin::Isa::Lowering {
-
-class Context;
-struct Input;
-
-}  // namespace Tetrodotoxin::Isa::Lowering
 
 namespace Tetrodotoxin::Isa::Library {
 
@@ -43,6 +38,14 @@ class VirtualMachine {
   }
 
  private:
+  static auto lower_functions(
+      Tetrodotoxin::Isa::Lowering::Context& context,
+      const Tetrodotoxin::Isa::Lowering::Input& input,
+      Perimortem::Core::View::Vector<Ttx::Function> functions) -> Bool;
+  static auto lower_type(
+      Tetrodotoxin::Isa::Lowering::Context& context,
+      const Tetrodotoxin::Isa::Lowering::Input& input,
+      const Ttx::Type& type) -> Bool;
   static auto evaluate_definition(
       Ttx::Lexical::Cursor& cursor,
       Library::Scope& scope,
@@ -51,7 +54,7 @@ class VirtualMachine {
       Perimortem::Memory::Managed::Vector<Ttx::Member>& members,
       Perimortem::Memory::Managed::Vector<Tetrodotoxin::Isa::Base::Definition>&
           member_definitions,
-      Perimortem::Memory::Managed::Vector<const Ttx::Type*>& types,
+      Perimortem::Memory::Managed::Vector<Ttx::Type::Reference>& types,
       Perimortem::Memory::Managed::Vector<Ttx::Function>& functions,
       Perimortem::Memory::Managed::Vector<Perimortem::Utility::Range>&
           function_sources,

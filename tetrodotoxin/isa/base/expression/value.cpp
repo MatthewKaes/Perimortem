@@ -77,11 +77,22 @@ static auto evaluate_reference(Cursor& cursor, Base::Context& context)
   const Count start = cursor.get_token_index();
   View::Bytes root = cursor.consume().get_text();
   while (!cursor.matches(Class::Type::EndOfStream)) {
+    if (cursor.matches(Class::Type::TypeAccessOp)) {
+      cursor.consume();
+      Bool has_type = cursor.require(
+          Class::Type::Type, "Expected nested type name after `::`."_view);
+      if (!has_type) {
+        return Base::Expression::Value();
+      }
+
+      continue;
+    }
+
     if (cursor.matches(Class::Type::AddressOp)) {
       cursor.consume();
-      if (!cursor.require(
-              Class::Type::Addressable,
-              "Expected member name after `.`."_view)) {
+      Bool has_member = cursor.require(
+          Class::Type::Addressable, "Expected member name after `.`."_view);
+      if (!has_member) {
         return Base::Expression::Value();
       }
 
@@ -92,9 +103,9 @@ static auto evaluate_reference(Cursor& cursor, Base::Context& context)
       cursor.consume();
       while (!cursor.matches(Class::Type::EndOfStream) &&
              !cursor.matches(Class::Type::IndexEnd)) {
-        if (!cursor.require(
-                Class::Type::Addressable,
-                "Expected swizzle member name."_view)) {
+        Bool has_member = cursor.require(
+            Class::Type::Addressable, "Expected swizzle member name."_view);
+        if (!has_member) {
           return Base::Expression::Value();
         }
 
@@ -109,8 +120,9 @@ static auto evaluate_reference(Cursor& cursor, Base::Context& context)
         }
       }
 
-      if (!cursor.require(
-              Class::Type::IndexEnd, "Expected `]` after swizzle."_view)) {
+      Bool has_index_end = cursor.require(
+          Class::Type::IndexEnd, "Expected `]` after swizzle."_view);
+      if (!has_index_end) {
         return Base::Expression::Value();
       }
 
@@ -118,7 +130,8 @@ static auto evaluate_reference(Cursor& cursor, Base::Context& context)
     }
 
     if (cursor.is_one_of(expression_index_starts)) {
-      if (!consume_index(cursor, context)) {
+      Bool index_consumed = consume_index(cursor, context);
+      if (!index_consumed) {
         return Base::Expression::Value();
       }
 
@@ -225,9 +238,9 @@ static auto evaluate_primary(Cursor& cursor, Base::Context& context)
     }
 
     View::Bytes content;
-    if (!context.read_embedded(
-            cursor.get_source_name(), text.slice(2, text.get_size() - 3),
-            content)) {
+    Bool embedded_read = context.read_embedded(
+        cursor.get_source_name(), text.slice(2, text.get_size() - 3), content);
+    if (!embedded_read) {
       cursor.range_error(token, token, "Embedded file could not be read."_view);
       return Base::Expression::Value();
     }

@@ -5,7 +5,9 @@
 
 #include "perimortem/memory/allocator/arena.hpp"
 
+#include "tetrodotoxin/abi/type.hpp"
 #include "tetrodotoxin/compiler/execution/body.hpp"
+#include "tetrodotoxin/isa/library/staged_declaration.hpp"
 #include "tetrodotoxin/puffer/resolution/resolver.hpp"
 #include "tetrodotoxin/puffer/toolchain.hpp"
 #include "tetrodotoxin/standard/types.hpp"
@@ -51,7 +53,7 @@ static auto member_type(const Ttx::Type& type, View::Bytes name)
 
 static auto function(const Ttx::Type& type, View::Bytes name)
     -> const Ttx::Function* {
-  return type.find_function(name);
+  return type.find_type_function(name);
 }
 
 static auto error_message(
@@ -60,139 +62,116 @@ static auto error_message(
   return source_context.get_errors()[index].get_message();
 }
 
-PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, struct_types) {
+PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, staged_failure_revokes_type) {
+  Perimortem::Memory::Allocator::Arena arena;
+  Ttx::Type* reserved = arena.reserve<Ttx::Type>();
+  Tetrodotoxin::Isa::Library::StagedDeclaration staged(
+      Tetrodotoxin::Isa::Base::Declaration(), {4, 8});
+
+  EXPECT(staged.begin_evaluation());
+  EXPECT(staged.find_type() == nullptr);
+  EXPECT(staged.stage_type(reserved));
+  EXPECT(staged.find_type() == reserved);
+  Ttx::Type other("Other"_view);
+  EXPECT_NOT(staged.complete(other));
+
+  staged.fail();
+  EXPECT(
+      staged.get_state() ==
+      Tetrodotoxin::Isa::Library::StagedDeclaration::State::Failed);
+  EXPECT(staged.find_type() == nullptr);
+  EXPECT_NOT(staged.stage_type(reserved));
+}
+
+PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, reflected_type_value) {
   Tetrodotoxin::Isa::Registry isa_registry =
       Tetrodotoxin::Puffer::Toolchain::standard_registry();
   Resolution::Resolver resolver(isa_registry);
-  Resolution::Resolver::Context types_source_context;
+  Resolution::Resolver::Context source_context;
 
   const Resolution::Source::Record* record = resolver.load_source(
-      types_source_context, "unit/types.ttx"_view,
+      source_context, "unit/reflection.ttx"_view,
+      "dialect : Library;\n"
+      "public Window : struct {\n"
+      "}\n"
+      "const reflected_type : Type = Window;\n"_view);
+
+  ASSERT(record != nullptr);
+  EXPECT_NOT(source_context.has_errors());
+  const Ttx::Type* library = source_type(record);
+  const Ttx::Type* window = nested_type(record, "Window"_view);
+  const Ttx::Type* meta_type =
+      Tetrodotoxin::Standard::Types::find_type("Type"_view);
+  ASSERT(library != nullptr);
+  ASSERT(window != nullptr);
+  ASSERT(meta_type != nullptr);
+
+  const Ttx::Member* reflected = library->find_member("reflected_type"_view);
+  ASSERT(reflected != nullptr);
+  EXPECT(reflected->get_type().equivalent_to(*meta_type));
+  const auto* definition = record->get_implementation().find(*reflected);
+  ASSERT(definition != nullptr);
+  ASSERT(definition->has_initializer());
+  EXPECT(
+      definition->get_initializer().get_kind() ==
+      Tetrodotoxin::Isa::Base::Expression::Value::Kind::Type);
+  EXPECT(&definition->get_initializer().get_type() == window);
+}
+
+PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, type_model) {
+  Tetrodotoxin::Isa::Registry isa_registry =
+      Tetrodotoxin::Puffer::Toolchain::standard_registry();
+  Resolution::Resolver resolver(isa_registry);
+  Resolution::Resolver::Context source_context;
+
+  const Resolution::Source::Record* record = resolver.load_source(
+      source_context, "unit/types.ttx"_view,
       "dialect : Library;\n"
       "public Color : struct {\n"
       "  public r : Real_32;\n"
       "  public g : Real_32;\n"
-      "}\n"_view);
-
-  ASSERT(record != nullptr);
-  EXPECT_NOT(types_source_context.has_errors());
-
-  ASSERT(source_type(record) != nullptr);
-  EXPECT_TEXT(source_type(record)->get_name(), "Library"_view);
-
-  const Ttx::Type* color = nested_type(record, "Color"_view);
-  ASSERT(color != nullptr);
-  EXPECT_TEXT(color->get_name(), "Color"_view);
-  EXPECT_EQ(color->get_members().get_size(), Count(2));
-  ASSERT(member_type(*color, "r"_view) != nullptr);
-  ASSERT(member_type(*color, "g"_view) != nullptr);
-  EXPECT_TEXT(member_type(*color, "r"_view)->get_name(), "Real_32"_view);
-  EXPECT_TEXT(member_type(*color, "g"_view)->get_name(), "Real_32"_view);
-}
-
-PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, root_members) {
-  Tetrodotoxin::Isa::Registry isa_registry =
-      Tetrodotoxin::Puffer::Toolchain::standard_registry();
-  Resolution::Resolver resolver(isa_registry);
-  Resolution::Resolver::Context screen_source_context;
-
-  const Resolution::Source::Record* record = resolver.load_source(
-      screen_source_context, "unit/screen.ttx"_view,
-      "dialect : Library;\n"
-      "public Screen : struct {\n"
       "}\n"
-      "public screen : Screen;\n"_view);
-
-  ASSERT(record != nullptr);
-  EXPECT_NOT(screen_source_context.has_errors());
-
-  const Ttx::Type* library = source_type(record);
-  const Ttx::Type* screen = nested_type(record, "Screen"_view);
-  ASSERT(library != nullptr);
-  ASSERT(screen != nullptr);
-  EXPECT_TEXT(library->get_name(), "Library"_view);
-  EXPECT_EQ(library->get_members().get_size(), Count(1));
-  EXPECT(member_type(*library, "screen"_view) == screen);
-}
-
-PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, aliases) {
-  Tetrodotoxin::Isa::Registry isa_registry =
-      Tetrodotoxin::Puffer::Toolchain::standard_registry();
-  Resolution::Resolver resolver(isa_registry);
-  Resolution::Resolver::Context types_source_context;
-
-  const Resolution::Source::Record* record = resolver.load_source(
-      types_source_context, "unit/types.ttx"_view,
-      "dialect : Library;\n"
-      "public Color : struct {\n"
-      "  public r : Real_32;\n"
-      "}\n"
-      "public Tint : alias = Color;\n"_view);
-
-  ASSERT(record != nullptr);
-  EXPECT_NOT(types_source_context.has_errors());
-
-  const Ttx::Type* color = nested_type(record, "Color"_view);
-  const Ttx::Type* tint = nested_type(record, "Tint"_view);
-  ASSERT(color != nullptr);
-  ASSERT(tint != nullptr);
-  EXPECT(tint->is_alias());
-  EXPECT(&tint->canonical() == color);
-  ASSERT(member_type(*tint, "r"_view) != nullptr);
-  EXPECT_TEXT(member_type(*tint, "r"_view)->get_name(), "Real_32"_view);
-}
-
-PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, private_alias) {
-  Tetrodotoxin::Isa::Registry isa_registry =
-      Tetrodotoxin::Puffer::Toolchain::standard_registry();
-  Resolution::Resolver resolver(isa_registry);
-  Resolution::Resolver::Context types_source_context;
-
-  const Resolution::Source::Record* record = resolver.load_source(
-      types_source_context, "unit/types.ttx"_view,
-      "dialect : Library;\n"
-      "public Color : struct {\n"
-      "  public r : Real_32;\n"
-      "}\n"
-      "private LocalColor : alias = Color;\n"_view);
-
-  ASSERT(record != nullptr);
-  EXPECT_NOT(types_source_context.has_errors());
-
-  const Ttx::Type* color = nested_type(record, "Color"_view);
-  const Ttx::Type* local_color = nested_type(record, "LocalColor"_view);
-  ASSERT(color != nullptr);
-  ASSERT(local_color != nullptr);
-  EXPECT(local_color->is_alias());
-  EXPECT(&local_color->canonical() == color);
-}
-
-PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, type_arguments) {
-  Tetrodotoxin::Isa::Registry isa_registry =
-      Tetrodotoxin::Puffer::Toolchain::standard_registry();
-  Resolution::Resolver resolver(isa_registry);
-  Resolution::Resolver::Context sprite_source_context;
-
-  const Resolution::Source::Record* record = resolver.load_source(
-      sprite_source_context, "unit/sprite.ttx"_view,
-      "dialect : Library;\n"
+      "public Tint : alias = Color;\n"
+      "private LocalColor : alias = Color;\n"
       "public Sprite : struct {\n"
       "  public image : View[Bytes];\n"
       "  public values : Vec[Bits_8, 4];\n"
       "  public copy : Vec[Bits_8, 4];\n"
-      "}\n"_view);
+      "}\n"
+      "public Screen : struct {}\n"
+      "public screen : Screen;\n"_view);
 
   ASSERT(record != nullptr);
-  EXPECT_NOT(sprite_source_context.has_errors());
+  EXPECT_NOT(source_context.has_errors());
+  const Ttx::Type& library = record->get_type();
+  EXPECT_TEXT(library.get_name(), "Library"_view);
 
-  const Ttx::Type* sprite = nested_type(record, "Sprite"_view);
+  const Ttx::Type* color = library.find_type("Color"_view);
+  const Ttx::Type* tint = library.find_type("Tint"_view);
+  const Ttx::Type* local_color = library.find_type("LocalColor"_view);
+  const Ttx::Type* screen = library.find_type("Screen"_view);
+  ASSERT(color != nullptr);
+  ASSERT(tint != nullptr);
+  ASSERT(local_color != nullptr);
+  ASSERT(screen != nullptr);
+  EXPECT_EQ(color->get_members().get_size(), Count(2));
+  EXPECT_TEXT(member_type(*color, "r"_view)->get_name(), "Real_32"_view);
+  EXPECT_TEXT(member_type(*color, "g"_view)->get_name(), "Real_32"_view);
+  EXPECT(tint->is_alias());
+  EXPECT(local_color->is_alias());
+  EXPECT(&tint->canonical() == color);
+  EXPECT(&local_color->canonical() == color);
+  EXPECT(member_type(library, "screen"_view) == screen);
+
+  const Ttx::Type* sprite = library.find_type("Sprite"_view);
   ASSERT(sprite != nullptr);
   const Ttx::Type* image = member_type(*sprite, "image"_view);
   ASSERT(image != nullptr);
   EXPECT_TEXT(image->get_name(), "View[Bytes]"_view);
-  const Ttx::Attribute* abi = image->find_attribute("abi"_view);
-  ASSERT(abi != nullptr);
-  EXPECT_TEXT(abi->get_value(), "view_bytes"_view);
+  EXPECT(
+      Tetrodotoxin::Abi::Lowering(
+          image->resolve_attribute("abi"_view).get_unsigned()) ==
+      Tetrodotoxin::Abi::Lowering::ViewBytes);
 
   const Ttx::Type* values = member_type(*sprite, "values"_view);
   const Ttx::Type* copy = member_type(*sprite, "copy"_view);
@@ -201,24 +180,6 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, type_arguments) {
   EXPECT_TEXT(values->get_name(), "Vec[Bits_8,4]"_view);
   EXPECT(values == copy);
   EXPECT(values != Tetrodotoxin::Standard::Types::find_type("Vec"_view));
-}
-
-PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, bad_type_args) {
-  Tetrodotoxin::Isa::Registry isa_registry =
-      Tetrodotoxin::Puffer::Toolchain::standard_registry();
-  Resolution::Resolver resolver(isa_registry);
-  Resolution::Resolver::Context source_context;
-
-  EXPECT_NOT(resolver.load_source(
-      source_context, "unit/bad_type_arguments.ttx"_view,
-      "dialect : Library;\n"
-      "public Value : struct {\n"
-      "  public data : Bits_32[Bytes];\n"
-      "}\n"_view));
-  ASSERT(source_context.has_errors());
-  EXPECT_TEXT(
-      error_message(source_context),
-      "Type arguments are not supported for this type."_view);
 }
 
 PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, enum_type) {
@@ -254,8 +215,8 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, enum_type) {
   const auto* red_facts = record->get_implementation().find(*red);
   ASSERT(red_facts != nullptr);
   EXPECT(red_facts->get_modifier() == Ttx::Lexical::Class::Type::Expose);
-  ASSERT(red_facts->get_initializer() != nullptr);
-  EXPECT_TEXT(red_facts->get_initializer()->get_value(), "1"_view);
+  ASSERT(red_facts->has_initializer());
+  EXPECT_TEXT(red_facts->get_initializer().get_value(), "1"_view);
 
   const Ttx::Type* filter = nested_type(record, "Filter"_view);
   ASSERT(filter != nullptr);
@@ -296,7 +257,10 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, foreign_scope) {
   const auto* linkage = record->get_implementation().find_linkage(*sample);
   ASSERT(linkage != nullptr);
   EXPECT_TEXT(linkage->get_symbol(), "sample"_view);
-  EXPECT_NOT(record->get_implementation().has(*sample));
+  const auto* definition =
+      record->get_implementation().find_definition(*sample);
+  ASSERT(definition != nullptr);
+  EXPECT(definition->get_modifier() == Ttx::Lexical::Class::Type::Expose);
   EXPECT_EQ(sample->get_parameters().get_member_count(), Count(1));
   EXPECT_EQ(sample->get_result().get_member_count(), Count(1));
   EXPECT_TEXT(
@@ -326,7 +290,7 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, foreign_import) {
       "dialect : Library;\n"
       "import Api : Library = \"foreign.ttx\";\n"
       "public func main[] -> [] {\n"
-      "  Api::Console->print(\"Hello\");\n"
+      "  Api::Console -> print(\"Hello\");\n"
       "}\n"_view);
   ASSERT(consumer != nullptr);
   EXPECT_NOT(consumer_context.has_errors());
@@ -363,7 +327,7 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, ttx_call) {
       "dialect : Library;\n"
       "import Api : Library = \"api.ttx\";\n"
       "public func main[] -> [] {\n"
-      "  Api->echo(\"Hello\");\n"
+      "  Api -> echo(\"Hello\");\n"
       "}\n"_view);
   ASSERT(consumer != nullptr);
   EXPECT_NOT(consumer_context.has_errors());
@@ -374,9 +338,10 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, ttx_call) {
                          .find<Tetrodotoxin::Compiler::Execution::Body>(*main);
   ASSERT(body != nullptr);
   ASSERT_EQ(body->count<Tetrodotoxin::Compiler::Execution::Call>(), Count(1));
-  EXPECT_TEXT(
-      body->find<Tetrodotoxin::Compiler::Execution::Call>()->get_symbol(),
-      "TTX_api_echo"_view);
+  View::Bytes symbol =
+      body->find<Tetrodotoxin::Compiler::Execution::Call>()->get_symbol();
+  ASSERT(symbol.get_size() >= Count(6));
+  EXPECT_TEXT(symbol.slice(0, 13), "ttx_internal_"_view);
 }
 
 PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, root_function) {
@@ -391,7 +356,7 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, root_function) {
       "public SceneConfig : struct {\n"
       "  public title : View[Bytes] = \"Test\";\n"
       "}\n"
-      "public func main[@builtin(.slot = 0) .scene : SceneConfig] -> [] {\n"
+      "public func main[@slot(0) .scene : SceneConfig] -> [] {\n"
       "  return;\n"
       "}\n"_view);
 
@@ -428,8 +393,8 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, body_statements) {
       "  expose func print[.data : View[Bytes]] -> [];\n"
       "}\n"
       "public func hello[.data : View[Bytes]] -> [] {\n"
-      "  Console->print(\"Hi\\n\");\n"
-      "  Console->print(data);\n"
+      "  Console -> print(\"Hi\\n\");\n"
+      "  Console -> print(data);\n"
       "  return;\n"
       "}\n"_view);
 
@@ -642,16 +607,16 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, unknown_return_parameter) {
       "Function has no parameter named `second3`."_view);
   EXPECT_TEXT(
       source_context.get_errors()[0].get_hint(), "Did you mean `second`?"_view);
-  const Ttx::Lexical::Token* token =
+  ASSERT(source_context.get_errors()[0].has_tokens());
+  const Ttx::Lexical::Token& token =
       source_context.get_errors()[0].get_start_token();
-  ASSERT(token != nullptr);
-  EXPECT_TEXT(token->get_text(), "second3"_view);
+  EXPECT_TEXT(token.get_text(), "second3"_view);
 }
 
 PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, package_exports) {
   Tetrodotoxin::Isa::Registry isa_registry =
       Tetrodotoxin::Puffer::Toolchain::standard_registry();
-  Resolution::Resolver resolver(isa_registry);
+  Resolution::Resolver resolver(isa_registry, {}, "Test.Graphics"_view);
   Resolution::Resolver::Context types_source_context;
 
   const Resolution::Source::Record* types = resolver.load_source(
@@ -664,7 +629,6 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, package_exports) {
   EXPECT_NOT(types_source_context.has_errors());
   Resolution::Resolver::Context package_source_context;
 
-  resolver.set_package_name("Test.Graphics"_view);
   const Resolution::Source::Record* package = resolver.load_source(
       package_source_context, "unit/package.ttx"_view,
       "dialect : Package;\n"
@@ -679,10 +643,7 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, package_exports) {
   const Ttx::Type* package_type = source_type(package);
   ASSERT(package_type != nullptr);
   EXPECT_TEXT(package_type->get_name(), "Package"_view);
-  const Ttx::Member* package_name =
-      package_type->find_member("package_name"_view);
-  ASSERT(package_name != nullptr);
-  EXPECT_TEXT(package_name->get_type().get_name(), "Test.Graphics"_view);
+  EXPECT(package_type->find_member("package_name"_view) == nullptr);
   EXPECT(resolver.resolve("unit/package.ttx"_view) == package);
   EXPECT_NOT(resolver.resolve("Test.Graphics"_view));
 
@@ -692,227 +653,107 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, package_exports) {
   EXPECT(&package_color->canonical() == library_color);
 }
 
-PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, bad_alias) {
-  Tetrodotoxin::Isa::Registry isa_registry =
-      Tetrodotoxin::Puffer::Toolchain::standard_registry();
-  Resolution::Resolver resolver(isa_registry);
-  Resolution::Resolver::Context bad_alias_source_context;
-
-  EXPECT_NOT(resolver.load_source(
-      bad_alias_source_context, "unit/bad.ttx"_view,
+PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, diagnostics) {
+  struct Failure {
+    View::Bytes source;
+    View::Bytes message;
+  };
+  constexpr Failure failures[] = {
+    {
       "dialect : Library;\n"
-      "public Broken : alias = Missing;\n"_view));
-
-  ASSERT(bad_alias_source_context.has_errors());
-  EXPECT_TEXT(
-      error_message(bad_alias_source_context),
-      "Library alias target could not be resolved."_view);
-  EXPECT_NOT(resolver.resolve("unit/bad.ttx"_view));
-}
-
-PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, bad_definition) {
-  Tetrodotoxin::Isa::Registry isa_registry =
-      Tetrodotoxin::Puffer::Toolchain::standard_registry();
-  Resolution::Resolver resolver(isa_registry);
-
-  Resolution::Resolver::Context bad_modifier_source_context;
-  EXPECT_NOT(resolver.load_source(
-      bad_modifier_source_context, "unit/bad_modifier.ttx"_view,
-      "dialect : Library;\n"
-      "state Color : struct {\n"
-      "}\n"_view));
-  ASSERT(bad_modifier_source_context.has_errors());
-  EXPECT_TEXT(
-      error_message(bad_modifier_source_context),
+      "public Value : struct { public data : Bits_32[Bytes]; }\n"_view,
+      "Type arguments are not supported for this type."_view,
+    },
+    {
+      "dialect : Library;\npublic Broken : alias = Missing;\n"_view,
+      "Library alias target could not be resolved."_view,
+    },
+    {
+      "dialect : Library;\nstate Color : struct {}\n"_view,
       "Expected a definition to start with one of the following modifiers "
-      "{public, private, expose}"_view);
-
-  Resolution::Resolver::Context bad_name_source_context;
-  EXPECT_NOT(resolver.load_source(
-      bad_name_source_context, "unit/bad_name.ttx"_view,
-      "dialect : Library;\n"
-      "public 7 : struct {\n"
-      "}\n"_view));
-  ASSERT(bad_name_source_context.has_errors());
-  EXPECT_TEXT(
-      error_message(bad_name_source_context),
-      "Definitions can only be created here for the following types "
-      "{type, addressable identifier}"_view);
-
-  Resolution::Resolver::Context bad_kind_source_context;
-  EXPECT_NOT(resolver.load_source(
-      bad_kind_source_context, "unit/bad_kind.ttx"_view,
-      "dialect : Library;\n"
-      "public Color : nope;\n"_view));
-  ASSERT(bad_kind_source_context.has_errors());
-  EXPECT_TEXT(
-      error_message(bad_kind_source_context),
+      "{public, private, expose, const}"_view,
+    },
+    {
+      "dialect : Library;\npublic Color : nope;\n"_view,
       "Definition name provided is not one of the known types "
-      "{alias, enum, struct, object, foreign}"_view);
-
-  Resolution::Resolver::Context capital_alias_source_context;
-  EXPECT_NOT(resolver.load_source(
-      capital_alias_source_context, "unit/capital_alias.ttx"_view,
+      "{alias, enum, struct, object, foreign}"_view,
+    },
+    {
       "dialect : Library;\n"
-      "public Color : struct {\n"
-      "}\n"
-      "public Tint : Alias = Color;\n"_view));
-  ASSERT(capital_alias_source_context.has_errors());
-  EXPECT_TEXT(
-      error_message(capital_alias_source_context),
-      "Definition name provided is not one of the known types "
-      "{alias, enum, struct, object, foreign}"_view);
-
-  Resolution::Resolver::Context unmatched_scope_source_context;
-  EXPECT_NOT(resolver.load_source(
-      unmatched_scope_source_context, "unit/unmatched_scope.ttx"_view,
+      "private Color : enum[Missing] { red = 1; }\n"_view,
+      "Library enum storage type could not be resolved."_view,
+    },
+    {
       "dialect : Library;\n"
-      "}\n"_view));
-  ASSERT(unmatched_scope_source_context.has_errors());
-  EXPECT_TEXT(
-      error_message(unmatched_scope_source_context),
-      "Expected a definition to start with one of the following modifiers "
-      "{public, private, expose}"_view);
-}
-
-PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, bad_enum) {
+      "private Color : enum[Bits_8] { red = 1; red = 2; }\n"_view,
+      "Library enum case name is already defined."_view,
+    },
+    {
+      "dialect : Library;\npublic func main[] [] {}\n"_view,
+      "Expected `->` before library function result."_view,
+    },
+    {
+      "dialect : Library;\n"
+      "public func value[] -> [.result : Real_32] { return; }\n"_view,
+      "Return values do not fit the function result."_view,
+    },
+    {
+      "dialect : Library;\n"
+      "public Sampler : foreign { public func sample[] -> []; }\n"_view,
+      "Expected a foreign function declaration to start with expose."_view,
+    },
+    {
+      "dialect : Library;\n"
+      "public Sampler : foreign { expose func sample[] -> [] {} }\n"_view,
+      "Expected `;` after library function declaration."_view,
+    },
+    {
+      "dialect : Library;\n"
+      "public Color : struct {}\npublic Color : alias = Bits_8;\n"_view,
+      "Library type name is already defined."_view,
+    },
+    {
+      "dialect : Library;\n"
+      "public Color : struct { public r : Real_32; "
+      "public r : Real_32; }\n"_view,
+      "Library member name is already defined."_view,
+    },
+    {
+      "dialect : Library;\n"
+      "public func invalid[self] -> [] { return; }\n"_view,
+      "`self` is only valid in an Addressable function layout."_view,
+    },
+    {
+      "dialect : Library;\n"
+      "public Counter : struct { public func invalid[.value : Count, self] "
+      "-> Count { return value; } }\n"_view,
+      "`self` must be the first function layout entry."_view,
+    },
+    {
+      "dialect : Library;\n"
+      "public func main[] -> [] { return; }\n"
+      "public func main[] -> [] { return; }\n"_view,
+      "Library function name is already defined."_view,
+    },
+    {
+      "dialect : Library;\npublic value : MissingType;\n"_view,
+      "Library member type could not be resolved."_view,
+    },
+    {
+      "dialect : Library;\npublic func main[] -> [] { return;\n"_view,
+      "Expected `}` after library function body."_view,
+    },
+  };
   Tetrodotoxin::Isa::Registry isa_registry =
       Tetrodotoxin::Puffer::Toolchain::standard_registry();
   Resolution::Resolver resolver(isa_registry);
-  Resolution::Resolver::Context missing_storage_source_context;
-
-  EXPECT_NOT(resolver.load_source(
-      missing_storage_source_context, "unit/bad_enum.ttx"_view,
-      "dialect : Library;\n"
-      "private Color : enum[Missing] { red = 1; }\n"_view));
-  ASSERT(missing_storage_source_context.has_errors());
-  EXPECT_TEXT(
-      error_message(missing_storage_source_context),
-      "Library enum storage type could not be resolved."_view);
-  Resolution::Resolver::Context duplicate_case_source_context;
-
-  EXPECT_NOT(resolver.load_source(
-      duplicate_case_source_context, "unit/duplicate_enum.ttx"_view,
-      "dialect : Library;\n"
-      "private Color : enum[Bits_8] { red = 1; red = 2; }\n"_view));
-  ASSERT(duplicate_case_source_context.has_errors());
-  EXPECT_TEXT(
-      error_message(duplicate_case_source_context),
-      "Library enum case name is already defined."_view);
-}
-
-PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, bad_function) {
-  Tetrodotoxin::Isa::Registry isa_registry =
-      Tetrodotoxin::Puffer::Toolchain::standard_registry();
-  Resolution::Resolver resolver(isa_registry);
-  Resolution::Resolver::Context bad_function_source_context;
-
-  EXPECT_NOT(resolver.load_source(
-      bad_function_source_context, "unit/bad_function.ttx"_view,
-      "dialect : Library;\n"
-      "public func main[] [] {\n"
-      "}\n"_view));
-
-  ASSERT(bad_function_source_context.has_errors());
-  EXPECT_TEXT(
-      error_message(bad_function_source_context),
-      "Expected `->` before library function result."_view);
-
-  Resolution::Resolver::Context empty_return_source_context;
-  EXPECT_NOT(resolver.load_source(
-      empty_return_source_context, "unit/empty_return.ttx"_view,
-      "dialect : Library;\n"
-      "public func value[] -> [.result : Real_32] {\n"
-      "  return;\n"
-      "}\n"_view));
-  ASSERT(empty_return_source_context.has_errors());
-  EXPECT_TEXT(
-      error_message(empty_return_source_context),
-      "Return values do not fit the function result."_view);
-}
-
-PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, bad_foreign) {
-  Tetrodotoxin::Isa::Registry isa_registry =
-      Tetrodotoxin::Puffer::Toolchain::standard_registry();
-  Resolution::Resolver resolver(isa_registry);
-  Resolution::Resolver::Context bad_foreign_source_context;
-
-  EXPECT_NOT(resolver.load_source(
-      bad_foreign_source_context, "unit/bad_foreign.ttx"_view,
-      "dialect : Library;\n"
-      "public Sampler2D : foreign {\n"
-      "  public func sample[] -> [Bits_8];\n"
-      "}\n"_view));
-  ASSERT(bad_foreign_source_context.has_errors());
-  EXPECT_TEXT(
-      error_message(bad_foreign_source_context),
-      "Expected a foreign function declaration to start with expose."_view);
-  Resolution::Resolver::Context foreign_body_source_context;
-
-  EXPECT_NOT(resolver.load_source(
-      foreign_body_source_context, "unit/foreign_body.ttx"_view,
-      "dialect : Library;\n"
-      "public Sampler2D : foreign {\n"
-      "  expose func sample[] -> [Bits_8] {\n"
-      "  }\n"
-      "}\n"_view));
-  ASSERT(foreign_body_source_context.has_errors());
-  EXPECT_TEXT(
-      error_message(foreign_body_source_context),
-      "Expected `;` after library function declaration."_view);
-}
-
-PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, duplicate_type) {
-  Tetrodotoxin::Isa::Registry isa_registry =
-      Tetrodotoxin::Puffer::Toolchain::standard_registry();
-  Resolution::Resolver resolver(isa_registry);
-  Resolution::Resolver::Context duplicate_type_source_context;
-
-  EXPECT_NOT(resolver.load_source(
-      duplicate_type_source_context, "unit/duplicate.ttx"_view,
-      "dialect : Library;\n"
-      "public Color : struct {\n"
-      "  public r : Real_32;\n"
-      "}\n"
-      "public Color : alias = Bits_8;\n"_view));
-
-  ASSERT(duplicate_type_source_context.has_errors());
-  EXPECT_TEXT(
-      error_message(duplicate_type_source_context),
-      "Library type name is already defined."_view);
-  EXPECT_NOT(resolver.resolve("unit/duplicate.ttx"_view));
-}
-
-PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, duplicate_member) {
-  Tetrodotoxin::Isa::Registry isa_registry =
-      Tetrodotoxin::Puffer::Toolchain::standard_registry();
-  Resolution::Resolver resolver(isa_registry);
-  Resolution::Resolver::Context duplicate_member_source_context;
-
-  EXPECT_NOT(resolver.load_source(
-      duplicate_member_source_context, "unit/duplicate_member.ttx"_view,
-      "dialect : Library;\n"
-      "public Color : struct {\n"
-      "  public r : Real_32;\n"
-      "  public r : Real_32;\n"
-      "}\n"_view));
-  ASSERT(duplicate_member_source_context.has_errors());
-  EXPECT_TEXT(
-      error_message(duplicate_member_source_context),
-      "Library member name is already defined."_view);
-  Resolution::Resolver::Context duplicate_root_member_source_context;
-
-  EXPECT_NOT(resolver.load_source(
-      duplicate_root_member_source_context, "unit/duplicate_root.ttx"_view,
-      "dialect : Library;\n"
-      "public Color : struct {\n"
-      "}\n"
-      "public color : Color;\n"
-      "public color : Color;\n"_view));
-  ASSERT(duplicate_root_member_source_context.has_errors());
-  EXPECT_TEXT(
-      error_message(duplicate_root_member_source_context),
-      "Library member name is already defined."_view);
+  for (Count i = 0; i < Count(sizeof(failures) / sizeof(Failure)); i++) {
+    Resolution::Resolver::Context source_context;
+    EXPECT_NOT(resolver.load_source(
+        source_context, "unit/error.ttx"_view, failures[i].source));
+    ASSERT(source_context.has_errors());
+    EXPECT_TEXT(error_message(source_context), failures[i].message);
+  }
 }
 
 PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, struct_layout) {
@@ -962,7 +803,21 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, type_attribute) {
   ASSERT(color != nullptr);
   const Ttx::Attribute* attribute = color->find_attribute("shader_type"_view);
   ASSERT(attribute != nullptr);
-  EXPECT_TEXT(attribute->get_value(), "Vec4D"_view);
+  EXPECT_TEXT(attribute->get_bytes(), "Vec4D"_view);
+}
+
+PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, bad_abi_attribute) {
+  Tetrodotoxin::Isa::Registry isa_registry =
+      Tetrodotoxin::Puffer::Toolchain::standard_registry();
+  Resolution::Resolver resolver(isa_registry);
+  Resolution::Resolver::Context source_context;
+
+  EXPECT_NOT(resolver.load_source(
+      source_context, "unit/bad_abi.ttx"_view,
+      "dialect : Library;\n"
+      "@abi(unknown)\n"
+      "public Value : struct {}\n"_view));
+  EXPECT(source_context.has_errors());
 }
 
 PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, func_layout) {
@@ -990,55 +845,37 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, func_layout) {
   EXPECT_TEXT(point->get_result().member_at(0).get_name(), "size"_view);
 }
 
-PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, dupe_function) {
+PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, function_surfaces) {
   Tetrodotoxin::Isa::Registry isa_registry =
       Tetrodotoxin::Puffer::Toolchain::standard_registry();
   Resolution::Resolver resolver(isa_registry);
-  Resolution::Resolver::Context duplicate_function_source_context;
+  Resolution::Resolver::Context source_context;
 
-  EXPECT_NOT(resolver.load_source(
-      duplicate_function_source_context, "unit/duplicate_function.ttx"_view,
+  const Resolution::Source::Record* record = resolver.load_source(
+      source_context, "unit/function_surfaces.ttx"_view,
       "dialect : Library;\n"
-      "public func main[] -> [] { return; }\n"
-      "public func main[] -> [] { return; }\n"_view));
+      "public Counter : struct {\n"
+      "  public func identity[.value : Count] -> Count {\n"
+      "    return value;\n"
+      "  }\n"
+      "  public func identity[self] -> Counter {\n"
+      "    return self;\n"
+      "  }\n"
+      "}\n"_view);
 
-  ASSERT(duplicate_function_source_context.has_errors());
-  EXPECT_TEXT(
-      error_message(duplicate_function_source_context),
-      "Library function name is already defined."_view);
-}
-
-PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, bad_member_type) {
-  Tetrodotoxin::Isa::Registry isa_registry =
-      Tetrodotoxin::Puffer::Toolchain::standard_registry();
-  Resolution::Resolver resolver(isa_registry);
-  Resolution::Resolver::Context bad_member_source_context;
-
-  EXPECT_NOT(resolver.load_source(
-      bad_member_source_context, "unit/bad_member.ttx"_view,
-      "dialect : Library;\n"
-      "public value : MissingType;\n"_view));
-
-  ASSERT(bad_member_source_context.has_errors());
-  EXPECT_TEXT(
-      error_message(bad_member_source_context),
-      "Library member type could not be resolved."_view);
-}
-
-PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, missing_body_end) {
-  Tetrodotoxin::Isa::Registry isa_registry =
-      Tetrodotoxin::Puffer::Toolchain::standard_registry();
-  Resolution::Resolver resolver(isa_registry);
-  Resolution::Resolver::Context bad_body_source_context;
-
-  EXPECT_NOT(resolver.load_source(
-      bad_body_source_context, "unit/bad_body.ttx"_view,
-      "dialect : Library;\n"
-      "public func main[] -> [] {\n"
-      "  return;\n"_view));
-
-  ASSERT(bad_body_source_context.has_errors());
-  EXPECT_TEXT(
-      error_message(bad_body_source_context),
-      "Expected `}` after library function body."_view);
+  ASSERT(record != nullptr);
+  EXPECT_NOT(source_context.has_errors());
+  const Ttx::Type* counter = nested_type(record, "Counter"_view);
+  ASSERT(counter != nullptr);
+  const Ttx::Function* type_identity =
+      counter->find_type_function("identity"_view);
+  const Ttx::Function* addressable_identity =
+      counter->find_addressable_function("identity"_view);
+  ASSERT(type_identity != nullptr);
+  ASSERT(addressable_identity != nullptr);
+  EXPECT(&counter->get_type_functions()[0] == type_identity);
+  EXPECT(&counter->get_addressable_functions()[0] == addressable_identity);
+  EXPECT_EQ(type_identity->get_parameters().get_member_count(), Count(1));
+  EXPECT_EQ(
+      addressable_identity->get_parameters().get_member_count(), Count(1));
 }

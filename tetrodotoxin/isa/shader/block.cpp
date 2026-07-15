@@ -11,9 +11,10 @@ using namespace Ttx::Lexical;
 
 auto Shader::Block::evaluate(Cursor& cursor, Base::Context& context)
     -> const Block* {
-  if (!cursor.require(
-          Class::Type::ScopeStart,
-          "Expected `{` after shader function signature."_view)) {
+  Bool has_scope = cursor.require(
+      Class::Type::ScopeStart,
+      "Expected `{` after shader function signature."_view);
+  if (!has_scope) {
     return nullptr;
   }
 

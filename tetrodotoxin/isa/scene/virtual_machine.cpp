@@ -19,14 +19,18 @@ using namespace Ttx::Lexical;
 auto Scene::VirtualMachine::evaluate(Cursor& cursor, Base::Context& context)
     -> Ttx::Type* {
   Managed::Vector<Ttx::Member> members(context.get_arena());
-  Managed::Vector<Ttx::Member> state(context.get_arena());
-  Managed::Vector<Ttx::Member> constants(context.get_arena());
-  Managed::Vector<Ttx::Function> functions(context.get_arena());
+  Managed::Vector<Base::Definition> member_definitions(context.get_arena());
+  Managed::Vector<Ttx::Function> type_functions(context.get_arena());
+  Managed::Vector<Ttx::Function> addressable_functions(context.get_arena());
   Managed::Vector<Base::Definition> function_definitions(context.get_arena());
+  Managed::Vector<Base::Definition> addressable_function_definitions(
+      context.get_arena());
+  Ttx::Type* scene = context.get_arena().reserve<Ttx::Type>();
   Bool valid = True;
   while (!cursor.matches(Class::Type::EndOfStream)) {
     Ttx::Documentation documentation = Base::Documentation::evaluate(cursor);
-    if (!Base::Attribute::consume_all(cursor)) {
+    Bool attributes_consumed = Base::Attribute::consume_all(cursor);
+    if (!attributes_consumed) {
       return nullptr;
     }
 
@@ -36,34 +40,40 @@ auto Scene::VirtualMachine::evaluate(Cursor& cursor, Base::Context& context)
 
     Class::Type current = cursor.current().get_class().get_type();
     if (Scene::Storage::is_modifier(current)) {
-      const Ttx::Member* member =
-          Scene::Storage::evaluate(cursor, context, documentation, current);
+      Base::Definition definition;
+      const Ttx::Member* member = Scene::Storage::evaluate(
+          cursor, context, documentation, current, definition);
       if (member == nullptr) {
         return nullptr;
       }
 
-      if (!Scene::Storage::insert(cursor, members, *member)) {
+      Bool inserted = Scene::Storage::insert(cursor, members, *member);
+      if (!inserted) {
         valid = False;
         continue;
       }
 
-      Managed::Vector<Ttx::Member>& storage_members =
-          current == Class::Type::State ? state : constants;
-      storage_members.insert(*member);
+      member_definitions.insert(definition);
       continue;
     }
 
     if (Scene::Function::is_modifier(current)) {
-      Ttx::Function function =
-          Scene::Function::evaluate(cursor, context, documentation);
+      Bool addressable = False;
+      Ttx::Function function = Scene::Function::evaluate(
+          cursor, context, documentation, scene, addressable);
       if (function.is_empty()) {
         return nullptr;
       }
 
-      if (!Scene::Function::insert(cursor, functions, function)) {
+      Managed::Vector<Ttx::Function>& functions =
+          addressable ? addressable_functions : type_functions;
+      Managed::Vector<Base::Definition>& definitions =
+          addressable ? addressable_function_definitions : function_definitions;
+      Bool inserted = Scene::Function::insert(cursor, functions, function);
+      if (!inserted) {
         valid = False;
       } else {
-        function_definitions.insert(Base::Definition(current));
+        definitions.insert(Base::Definition(current));
       }
 
       continue;
@@ -71,15 +81,17 @@ auto Scene::VirtualMachine::evaluate(Cursor& cursor, Base::Context& context)
 
     if (cursor.matches(Class::Type::Addressable)) {
       Ttx::Function function =
-          Scene::Lifecycle::evaluate(cursor, context, documentation);
+          Scene::Lifecycle::evaluate(cursor, context, documentation, scene);
       if (function.is_empty()) {
         return nullptr;
       }
 
-      if (!Scene::Function::insert(cursor, functions, function)) {
+      Bool inserted =
+          Scene::Function::insert(cursor, addressable_functions, function);
+      if (!inserted) {
         valid = False;
       } else {
-        function_definitions.insert(Base::Definition());
+        addressable_function_definitions.insert(Base::Definition());
       }
 
       continue;
@@ -94,26 +106,33 @@ auto Scene::VirtualMachine::evaluate(Cursor& cursor, Base::Context& context)
     return nullptr;
   }
 
-  for (Count i = 0; i < functions.get_size(); i++) {
-    if (!context.define_implementation(functions[i], function_definitions[i])) {
+  for (Count i = 0; i < type_functions.get_size(); i++) {
+    Bool implementation_defined = context.define_implementation(
+        type_functions[i], function_definitions[i]);
+    if (!implementation_defined) {
       return nullptr;
     }
   }
 
-  Managed::Vector<const Ttx::Type*> types(context.get_arena());
-  if (state.get_size() != 0) {
-    types.insert(
-        Scene::Storage::build_fact_type(
-            context, "state"_view, state.get_view()));
+  for (Count i = 0; i < addressable_functions.get_size(); i++) {
+    Bool implementation_defined = context.define_implementation(
+        addressable_functions[i], addressable_function_definitions[i]);
+    if (!implementation_defined) {
+      return nullptr;
+    }
   }
 
-  if (constants.get_size() != 0) {
-    types.insert(
-        Scene::Storage::build_fact_type(
-            context, "const"_view, constants.get_view()));
+  new (scene) Ttx::Type(
+      Scene::VirtualMachine::get_name(), members.get_view(),
+      View::Vector<Ttx::Type::Reference>(), type_functions.get_view(),
+      addressable_functions.get_view());
+  for (Count i = 0; i < members.get_size(); i++) {
+    Bool implementation_defined =
+        context.define_implementation(members[i], member_definitions[i]);
+    if (!implementation_defined) {
+      return nullptr;
+    }
   }
 
-  return &context.get_arena().construct<Ttx::Type>(
-      Scene::VirtualMachine::get_name(), members.get_view(), types.get_view(),
-      functions.get_view());
+  return scene;
 }

@@ -15,18 +15,24 @@
 namespace Tetrodotoxin::Isa::Lowering {
 
 // Borrows the services available to one selected ISA lowerer. Puffer owns the
-// arena, diagnostics, compiler engine, and terminal product list for the whole
-// compilation transaction. Context exposes those sinks without giving the
-// lowerer ownership of their lifetime or a place to cache derived products.
+// arena, diagnostics, execution product, native publisher, and terminal list
+// for the whole compilation transaction. Context exposes the transactions an
+// ISA may perform without exposing Program as a mutable container or giving
+// the lowerer a place to cache derived products.
 class Context {
  public:
   Context(
       Perimortem::Memory::Allocator::Arena& arena,
       Ttx::Lexical::Errors& errors,
+      Tetrodotoxin::Compiler::Program& program,
       Tetrodotoxin::Compiler::Engine& engine,
       Perimortem::Memory::Managed::Vector<Tetrodotoxin::Archiver::Terminal>&
           terminals)
-      : arena(arena), errors(errors), engine(engine), terminals(terminals) {}
+      : arena(arena),
+        errors(errors),
+        program(program),
+        engine(engine),
+        terminals(terminals) {}
 
   // Copies an opaque terminal product into transaction storage because the
   // lowerer's scratch storage may be released before package serialization.
@@ -44,9 +50,13 @@ class Context {
   }
 
   constexpr auto get_errors() const -> Ttx::Lexical::Errors& { return errors; }
-  constexpr auto get_program() const
-      -> Tetrodotoxin::Compiler::Execution::Program& {
-    return engine.get_program();
+
+  auto publish_function(
+      Ttx::Lexical::Source source,
+      Perimortem::Core::View::Bytes symbol,
+      const Ttx::Function& function,
+      const Tetrodotoxin::Compiler::Execution::Body& body) -> Bool {
+    return program.define(source, symbol, function, body);
   }
 
   auto publish_read_only(
@@ -70,6 +80,7 @@ class Context {
 
   Perimortem::Memory::Allocator::Arena& arena;
   Ttx::Lexical::Errors& errors;
+  Tetrodotoxin::Compiler::Program& program;
   Tetrodotoxin::Compiler::Engine& engine;
   Perimortem::Memory::Managed::Vector<Tetrodotoxin::Archiver::Terminal>&
       terminals;

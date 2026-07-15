@@ -14,28 +14,29 @@ cc_library(
     ],
     deps = [
         "//perimortem:core",
-        "//tetrodotoxin/archiver:version",
+        "//perimortem:system",
+        "//tetrodotoxin/abi",
         "//ttx",
     ],
 )
 
 ttx_package_folder(
-    name = "perimortem_math",
+    name = "math",
     package_name = "Perimortem.Math",
     root = "perimortem/math",
 )
 
 ttx_package_folder(
-    name = "perimortem_runtime",
+    name = "runtime",
     package_name = "Perimortem.Runtime",
     root = "perimortem/runtime",
 )
 
 ttx_package_folder(
-    name = "perimortem_graphics",
+    name = "graphics",
     package_name = "Perimortem.Graphics",
     root = "perimortem/graphics",
     deps = [
-        ":perimortem_math",
+        ":math",
     ],
 )

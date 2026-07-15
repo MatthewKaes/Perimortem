@@ -6,6 +6,7 @@
 #include "tetrodotoxin/isa/base/expression/evaluator.hpp"
 #include "tetrodotoxin/isa/base/expression/value.hpp"
 #include "tetrodotoxin/isa/library/syntax.hpp"
+#include "tetrodotoxin/standard/types.hpp"
 
 using namespace Tetrodotoxin::Isa;
 using namespace Ttx::Lexical;
@@ -31,23 +32,38 @@ auto Library::Addressable::evaluate(
     return nullptr;
   }
 
-  const Base::Expression::Value* initializer = nullptr;
+  Base::Expression::Value initializer;
   if (cursor.matches(Class::Type::Assign)) {
     cursor.consume();
-    Base::Expression::Value value =
-        Base::Expression::Value::evaluate(cursor, scope.get_context());
-    if (value.is_empty()) {
-      return nullptr;
+
+    const Ttx::Type* meta_type =
+        Tetrodotoxin::Standard::Types::find_type("Type"_view);
+    if (type != nullptr && meta_type != nullptr &&
+        type->equivalent_to(*meta_type) && cursor.matches(Class::Type::Type)) {
+      // A Type initializer is a semantic type query, not a runtime reference
+      // expression. Resolve it through the Library scope so imports, nested
+      // types, and aliases produce the same canonical identity used by every
+      // other type query.
+      const Ttx::Type* reflected = scope.resolve_type(cursor);
+      if (reflected == nullptr) {
+        cursor.token_error("Reflected Type could not be resolved."_view);
+        return nullptr;
+      }
+
+      initializer = Base::Expression::Value::type(*reflected);
+    } else {
+      initializer =
+          Base::Expression::Value::evaluate(cursor, scope.get_context());
     }
 
-    initializer =
-        &scope.get_context().get_arena().construct<Base::Expression::Value>(
-            value);
+    if (initializer.is_empty()) {
+      return nullptr;
+    }
   }
 
-  if (!cursor.require(
-          Class::Type::EndStatement,
-          "Expected `;` after library member."_view)) {
+  Bool has_statement_end = cursor.require(
+      Class::Type::EndStatement, "Expected `;` after library member."_view);
+  if (!has_statement_end) {
     return nullptr;
   }
 
