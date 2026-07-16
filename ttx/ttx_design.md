@@ -11,7 +11,7 @@ source interchange, and other code where layout is not an implementation detail.
 TTX is not trying to hide the machine. It is trying to make the machine legible.
 Tetrodotoxin is the reference host in this repository, but the TTX source IR,
 token bytecode, and Abstract query model are intentionally reusable outside
-that toolchain. `Type` and `Layout` are important contracts in that model; they
+that toolchain. `Type` and `Layout` are important contracts in that model. They
 are not the root of every semantic object.
 
 The organizing idea is **monotonic context layering**. A TTX file begins as an
@@ -57,7 +57,7 @@ structured typed storage. A pack such as `(a, b, c)` is Fluid or Named: it can
 be fitted or repacked before it becomes a typed value. A struct, vector, color,
 scalar, or ABI block supplies a Structured Layout made from its real
 Addressables and retains Type identity. Terminal Types publish their direct size
-and alignment; composite offsets and aggregate storage are derived recursively.
+and alignment. Composite offsets and aggregate storage are derived recursively.
 Carrier and calling-convention rules remain compiler decisions. TTX lets value
 flow initialize structured values when the shape fits, but it does not silently
 unpack typed values back into packs. Source uses swizzle or slice syntax when it
@@ -156,7 +156,7 @@ PascalCase names remain open type or package atoms, so user types named
 `Struct`, `Object`, or `Package` are still ordinary type names.
 
 Whitespace is not currently significant. The authoritative formatter defines
-the canonical source style; making whitespace semantic would require an
+the canonical source style. Making whitespace semantic would require an
 explicit language revision rather than an incidental parser change.
 
 ## Source Envelopes and ISAs
@@ -186,7 +186,7 @@ the colon is still a PascalCase type atom, so names such as `Package`,
 
 In TTX, an evaluator may give a lowercase addressable spelling a definition
 meaning. `object` and `struct`, for example, are ISA-owned forms used inside a
-package; unlike the fixed `alias` keyword, they are not separate lexical
+package. Unlike the fixed `alias` keyword, they are not separate lexical
 classes:
 
 ```ttx
@@ -351,8 +351,8 @@ assuming that every declaration is a Type:
 Ttx::Abstraction::Abstract
 ├── Ttx::Abstraction::Alias
 ├── Ttx::Abstraction::Invalid
+├── Ttx::Model::Generic
 ├── Ttx::Model::Type
-│   ├── Ttx::Model::Generic
 │   ├── Ttx::Model::Types::Terminal
 │   │   └── Unsigned / Signed / Real / Flag
 │   └── ISA-defined model types
@@ -400,7 +400,7 @@ The core contracts are deliberately narrow:
 | `Signed`      | Terminal signed integer domain                                   |
 | `Real`        | Terminal floating-point domain                                   |
 | `Flag`        | Terminal two-value logical domain                                |
-| `Generic`     | a Type that creates or finds a concrete Type from arguments      |
+| `Generic`     | instruction that creates or finds a concrete Type from arguments |
 | `Callable`    | complete parameter/result layouts and an address/linkage query   |
 | `Static`      | invocation selected through a Type or package without a receiver |
 | `Self`        | invocation on an addressable receiver included as parameter zero |
@@ -426,7 +426,7 @@ objects or their richer contracts rather than becoming nullable Layout fields.
 
 There is no generic `Typed` marker. A query asks for the real operation it
 needs. The remaining route is a borrowed `View::Bytes`. The public virtual
-`Abstract::resolve()` may redirect identity; the public virtual
+`Abstract::resolve()` may redirect identity. The public virtual
 `resolve_context(route)` lets the object interpret that route inside its own
 context. It may treat the route atomically, split it, forward a suffix, or
 redirect the unchanged view. Alias redirects both operations to its target, and
@@ -442,7 +442,7 @@ The contract is intentionally flexible about lookup but strict about meaning:
   until the DAG changes.
 - context redirection may forward an unchanged route, but valid graph
   construction must guarantee termination.
-- every result is an Abstract reference; semantic failure is Invalid, not null.
+- every result is an Abstract reference. Semantic failure is Invalid, not null.
 
 This is the ground-truth Abstract model from which the other TTX contracts are
 refined. Its surface is heavily restricted, not permanently closed. A proposed
@@ -454,7 +454,7 @@ disguise. As a practical warning boundary, `abstract.hpp` should remain around
 Alias and Invalid are closed concepts. Alias owns only a local name and a
 borrowed target, redirects both Abstract queries, and relies on the graph owner
 for target lifetime and cycle rejection. Invalid is a stateless absorbing
-Abstract; diagnostics remain with the source-owning query. Neither class grows
+Abstract. Diagnostics remain with the source-owning query. Neither class grows
 Type, Layout, documentation, package, ownership, route-history, or specialized
 failure responsibilities.
 
@@ -475,7 +475,7 @@ linkage produces an `Invalid : Abstract` result rather than `nullptr`.
 Continuing a query through Invalid returns the same Invalid, leaving the source
 owner's original cause authoritative so one bad name does not become a cascade
 of unrelated errors.
-Empty child sets are empty views; absence is never modeled by a null
+Empty child sets are empty views. Absence is never modeled by a null
 pseudo-Abstract.
 
 ### Stable Construction And Resolution
@@ -519,7 +519,7 @@ Math::Matrix[Real_32, 4, 4]
 ```
 
 The first type token resolves from the current context. `::` establishes a
-nested context query; it is not string concatenation. The receiving Abstract
+nested context query. It is not string concatenation. The receiving Abstract
 may interpret the remaining borrowed `View::Bytes` atomically, slice a suffix,
 or redirect them unchanged. An evaluator may issue ordered queries at source
 operators or offer a combined route, and those forms are not required to be
@@ -530,11 +530,23 @@ operators. Numeric size arguments, such as the `4` in `Vec[Bits_8, 4]`, are part
 of the type reference.
 
 Parameterized types are not templates and do not generate code by themselves.
-Resolution first builds the argument layout, proves that the resolved object
+Resolution first builds the arguments, proves that the resolved object
 implements `Generic`, then asks it for a concrete Type. `View[Bits_8]`,
 `Vec[Real_32, 4]`, and `List[Graphics::Sprite]` are all the same operation. The
 compiler owns the resulting concrete object and makes it queryable through the
 same Type contract as any authored type.
+
+Each Generic is a named formula registered in the current source context. `Vec`
+owns Vec argument validation and materialization. `View` owns View argument
+validation and materialization. The context owns name lookup and can keep
+Generic formulas separate from concrete Types. There is no global formula
+registry and no parser switch on formula names.
+
+The Generic normalizes its arguments before consulting its compiler-owned
+cache. Repeating the same formula with the same normalized Abstract identities
+and scalar values returns the same concrete Type identity. Missing formula
+lookup and a found formula rejecting its argument shape remain distinct source
+errors, with both represented semantically by Invalid.
 
 Aliases are closed compile-time Abstract redirects. Alias preserves its local
 name while `resolve()` follows the target's represented identity and
@@ -561,7 +573,7 @@ When a host exports an object, it renders a selected named ownership chain.
 Tooling may show either the authored Alias name or the resolved target's
 ownership chain, but no `display_name` attribute or side-table path is needed to
 reconstruct identity. Within one compiler boundary object identity can be
-compared by stable handle; durable export identity is reversible names, never
+compared by stable handle. Durable export identity is reversible names, never
 the process address.
 
 ### Terminal Type Registration
@@ -668,7 +680,7 @@ surface; `counter -> identity(...)` queries the self surface. Duplicates inside
 one surface are invalid. Completion selects the same surface before it
 enumerates entries.
 
-Placing a Static callable beneath a Type makes it type-owned; it does not create a
+Placing a Static callable beneath a Type makes it type-owned. It does not create a
 third callable subtype. “Typed function” is therefore not a semantic category.
 An implementation or resolved external linkage may enrich either callable with
 an Addressable object. Until linkage exists, the callable's address query returns an
@@ -842,7 +854,7 @@ The model uses three narrow contracts rather than one tagged record:
 Layout owns order and fitting only. It does not copy a field's Type,
 documentation, attributes, default, or target storage into a generic member.
 Those facts stay on the Addressable, its source owner, or a richer derived
-contract. A Type or system that is not ready resolves to Invalid; there is no
+contract. A Type or system that is not ready resolves to Invalid. There is no
 Incomplete Layout and no publication bit.
 
 A named layout field starts with `.` and an addressable name. Attributes may
@@ -863,7 +875,7 @@ for [.x : Real_32, .y : Real_32] in points {
 ```
 
 The iterable owns advancement and the Layout of one produced iteration value.
-The binding Layout must fit that value; its field count never controls stride.
+The binding Layout must fit that value. Its field count never controls stride.
 
 ## Expressions
 
@@ -1002,7 +1014,7 @@ self.field
 
 `self` is only an assignment root when it has an access suffix. Bare
 `self = value;` is invalid. A package is a top-level Type, not a lowercase
-pseudo-root; package-owned state is reached through an ordinary bound package
+pseudo-root. Package-owned state is reached through an ordinary bound package
 or Type context.
 
 This rule is why the grammar has `assignChain assignOp expr` instead of parsing

@@ -61,7 +61,7 @@ class Abstract {
   }
 
   // Converts after proving the requested contract. A failed conversion is a
-  // caller contract violation rather than a nullable semantic result; fallible
+  // caller contract violation rather than a nullable semantic result. Fallible
   // resolution returns Invalid before a narrow contract is requested.
   template <typename Requested>
   auto as() const -> const Requested& {

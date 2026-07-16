@@ -12,7 +12,7 @@ namespace Ttx::Model {
 // but is interpreted by a layer above the core Type model.
 //
 // Core::Static::Union owns the closed scalar value representation. Attribute
-// adds only the name that gives that value meaning; it must not duplicate the
+// adds only the name that gives that value meaning. It must not duplicate the
 // Union tag, storage, or dispatch machinery. Separate attributes express
 // separate facts, so `@slot(0)` and `@space(1)` remain easier to query and
 // serialize than a structured metadata object. Layout is not reused here

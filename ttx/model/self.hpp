@@ -8,7 +8,7 @@
 namespace Ttx::Model {
 
 // Self is the invocation distinction for a Callable selected through an
-// addressable value. The receiver is entry zero of get_parameters(); no
+// addressable value. The receiver is entry zero of get_parameters(). No
 // parser, compiler, reflector, or ABI layer may prepend it a second time.
 class Self : public Callable {
  public:

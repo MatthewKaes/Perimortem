@@ -100,7 +100,7 @@ the source.
 ## ISAs
 
 An ISA is an installed semantic instruction set with a name and behavior. Its
-host-owned installation is local configuration; durable semantic identity comes
+host-owned installation is local configuration. Durable semantic identity comes
 from the named Abstract facts the ISA exposes, never from a process address.
 
 That matters because ISAs are open. Adding `Shader`, `Render`, or a
@@ -126,8 +126,8 @@ the operations that make the object useful:
 Ttx::Abstraction::Abstract
 ├── Ttx::Abstraction::Alias
 ├── Ttx::Abstraction::Invalid
+├── Ttx::Model::Generic
 ├── Ttx::Model::Type
-│   ├── Ttx::Model::Generic
 │   └── ISA-defined model types
 ├── Ttx::Model::Callable
 │   ├── Ttx::Model::Static
@@ -143,8 +143,9 @@ value facts.
 `Abstract` owns only local naming, identity resolution, and context resolution
 over borrowed `View::Bytes`. `Alias` is the closed named redirect to another
 Abstract. `Invalid` is the closed stateless absorbing failure. `Type` adds a
-Structured Layout and Type-owned query surfaces. `Generic` creates or finds a
-compiler-owned Type. `Callable` adds complete parameter and result Layouts plus
+Structured Layout and Type-owned query surfaces. `Generic` is an instruction
+that creates or finds a compiler-owned Type from accepted arguments. `Callable`
+adds complete parameter and result Layouts plus
 an Addressable query. Static calls have no receiver. Self calls include the
 receiver as parameter zero. Addressable is a named semantic edge whose
 resolution supplies the addressed Abstract.
@@ -161,8 +162,8 @@ names walk an explicitly selected named ownership chain reversibly and never
 use a signature hash.
 
 Failure produces `Invalid : Abstract`, not a null semantic pointer. Invalid is
-stateless and absorbing; the source-owning query retains the failed route and
-diagnostic cause. Empty scopes use empty views; unresolved callable linkage uses
+stateless and absorbing. The source-owning query retains the failed route and
+diagnostic cause. Empty scopes use empty views. Unresolved callable linkage uses
 an explicit unresolved Addressable or Invalid.
 
 A Layout is an ordered fitting contract over real Abstracts. Fluid represents
@@ -172,13 +173,14 @@ does not copy their names, Types, documentation, attributes, defaults, or target
 storage into a Member record.
 
 `Type::get_layout()` returns a Structured Layout. A Terminal has an empty
-Structured Layout plus direct size/alignment queries. An aggregate recursively
-resolves each Addressable to its child Type during lowering. A bare Generic must
-first produce a resolved Type. An authored `@abi` number is not a substitute
+Structured Layout plus direct size/alignment queries. Lowering proves Terminal
+before inspecting Layout. Every non-Terminal Type recursively resolves its
+Addressables, including a valid empty aggregate. A Generic must first produce a
+resolved Type. An authored `@abi` number is not a substitute
 for Terminal contract proof.
 
 Source hosts may reserve nonmoving Type and Callable objects before every fact
-is known. An incomplete Type or containing system resolves to Invalid; Layout
+is known. An incomplete Type or containing system resolves to Invalid. Layout
 has no Incomplete state. The host may enrich that object, replace an enclosing
 resolver, or build immutable snapshots according to its own cache model. Public
 export is optional and does not determine whether a Type is semantically real.
@@ -186,7 +188,7 @@ export is optional and does not determine whether a Type is semantically real.
 `Terminal : Type` publishes direct byte size and alignment. `Unsigned`,
 `Signed`, `Real`, and `Flag` provide the standard terminal domains, while an
 active toolchain constructs and names only the widths it supports. Current
-Perimortem `Bits_*` names implement `Unsigned`; they do not create a Bits
+Perimortem `Bits_*` names implement `Unsigned`. They do not create a Bits
 contract. Register and instruction width remain compiler decisions, so a
 one-byte terminal may still use a wider carrier. Core TTX owns no prelude,
 global width table, or concrete class for each spelling.
@@ -196,10 +198,15 @@ introduces an Alias may own contextual documentation, while the resolved target
 keeps its own prose. Alias itself owns neither documentation nor a
 `display_name` identity substitute.
 
-Type parameterization proves that the resolved Type implements Generic, resolves
-the arguments, and asks it for a concrete Type. `View[Bits_8]`,
+Type parameterization proves that the resolved Abstract implements Generic,
+resolves the arguments, and asks it for a concrete Type. `View[Bits_8]`,
 `Vec[Real_32, 4]`, and `List[Sprite]` follow the same rule. They are not a
 parallel template or generated-type system.
+
+A source context registers named Generic formulas. Each formula owns its
+accepted argument shape, normalization, materialization, and cache lookup. The
+context owns name resolution. The parser does not hard-code `Vec`, `View`, or
+another formula name.
 
 Names belong to the actual Abstracts in a Named or Structured Layout. Repack
 operations such as grouping, swizzle, and slice produce Fluid layouts unless
@@ -275,7 +282,7 @@ Graphics::Shaders::Default2D
 Render2D::Renderer2D
 ```
 
-`->` is Callable dispatch. A Type or package receiver resolves Static; an
+`->` is Callable dispatch. A Type or package receiver resolves Static. An
 addressable value resolves Self through its resolved Type. It requires a
 dispatchable identity and does not work on a pure Layout.
 
@@ -378,14 +385,14 @@ The TTX directory is the language core:
   documentation owned beside semantic objects by declarations and contexts
 - [`abstraction/abstract.hpp`](abstraction/abstract.hpp) is the root semantic
   query contract
-- Alias and Invalid are closed Abstract concepts; Type, Generic, Callable, Static,
+- Alias and Invalid are closed Abstract concepts. Type, Generic, Callable, Static,
   Self, Addressable, and ISA-specific contracts extend the graph with narrow
   operations
-- [`model/layout.hpp`](model/layout.hpp) defines the ordered fitting contract;
+- [`model/layout.hpp`](model/layout.hpp) defines the ordered fitting contract.
   [`model/layouts`](model/layouts/) contains Fluid, Named, and Structured
 - [`model/type.hpp`](model/type.hpp) supplies the narrow target-independent Type
-  contract; [`model/types`](model/types/) adds Terminal, Unsigned, Signed, Real,
-  and Flag contracts; [`model/callable.hpp`](model/callable.hpp),
+  contract. [`model/types`](model/types/) adds Terminal, Unsigned, Signed, Real,
+  and Flag contracts. [`model/callable.hpp`](model/callable.hpp),
   [`model/static.hpp`](model/static.hpp), [`model/self.hpp`](model/self.hpp), and
   [`model/addressable.hpp`](model/addressable.hpp) supply invocation contracts
   without making Callable a subtype of Type

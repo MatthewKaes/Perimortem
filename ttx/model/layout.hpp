@@ -23,7 +23,7 @@ class Layout {
   virtual auto get_size() const -> Count = 0;
 
   // The caller proves index is in range. Implementations borrow only real
-  // Abstracts; an unresolved slot points to Invalid rather than nullptr.
+  // Abstracts. An unresolved slot points to Invalid rather than nullptr.
   virtual auto get_abstract(Count index) const
       -> const Abstraction::Abstract& = 0;
 

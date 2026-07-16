@@ -1,111 +1,58 @@
 # Puffer
 
-Puffer is Tetrodotoxin's command-line compiler and language-server host. It
-loads complete TTX source files, evaluates Boot preambles, resolves source and
-package imports, runs selected body ISAs, and asks the compiler toolchain to
-produce durable artifacts.
+Puffer is Tetrodotoxin's command-line and language-server host. It loads complete
+TTX sources, evaluates the Boot preamble, resolves source and package imports,
+selects body ISAs, and requests terminal products from the compiler.
 
-Puffer owns source orchestration. The reusable package reader and writer live
-in [`../archiver`](../archiver/) under `Tetrodotoxin::Archiver`. They know the
-Puffer Buffer format but do not depend on the CLI, resolver, filesystem, or
-compiler transaction.
+Puffer owns orchestration. It does not own the TTX semantic contracts, backend
+ABI rules, linker formats, or a parallel Type model.
 
-## Compilation Transaction
+## Build transaction
 
-A build starts with an explicit package or unit Route, dependency buffers, and
-source paths. The Toolchain supplies the ClassDB, ISA registry, and terminal
-targets. One Compiler borrows those immutable schemas and owns every Abstract,
-Route, Layout, Address, diagnostic, and output created during the transaction.
+A build begins from explicit source roots, package inputs, and the ISAs installed
+by the active toolchain. Boot reads the source envelope. The resolver binds the
+import closure. The selected body ISA evaluates the remaining token bytecode and
+constructs Abstract-derived objects inside the build boundary.
 
-A standalone Library build resolves each supplied source root. A package build
-requires one `package.ttx` root and walks its complete source closure. Package
-imports come from buffers registered by the caller. Resolution never guesses a
-package source path when a buffer is missing.
+Puffer does not supply a ClassDB, allocated Route model, or global semantic
+registry. ISA installation selects evaluators. Semantic lookup still occurs
+through the Abstract graph and borrowed `View::Bytes` routes.
 
-Each selected ISA constructs or enriches Abstract-derived objects in the same
-Compiler-owned graph. Puffer does not collect a second Type tree, pointer-keyed
-Implementation table, or publication projection. Terminal planners consume the
-same Type, Callable, Layout, Address, and ISA contracts that resolution
-published.
+The build returns completed artifacts. Puffer does not retain Type, Callable,
+Layout, or other local object identities after their owning Compiler boundary
+ends.
 
-The transaction returns completed artifacts. Puffer does not retain a previous
-build's Compiler objects or local handles.
+## Resolution ownership
 
-## Public Routes And ABI
+The resolver owns the source and package dependency graph for its workspace.
+It decides whether a source system can be enriched, whether a dependency closure
+must be replaced, and which readers may retain borrowed references into that
+closure.
 
-Puffer preserves the authored route through every import, group, Alias, Type,
-and Callable query. A canonical Type may have several routes; canonicalization
-does not erase the route used to reach it. Package publication explicitly
-selects public routes from the authored package surface.
+The same starting Abstract and ordered query chain are deterministic while the
+graph is unchanged. When Puffer changes the graph, it also owns invalidation and
+reference lifetime. Process addresses are valid local identities only for that
+stable lifetime.
 
-Free and Self callables occupy registered contract layers:
+Failed source or package evaluation resolves to Invalid and retains diagnostics
+on the source-owning record. A partially connected semantic graph and a null root
+are not valid published results.
 
-```text
-Widget / Callable.Free / open
-Widget / Callable.Self / open
-```
+## Packages and outputs
 
-The route already records the invocation distinction. Puffer does not
-synthesize `.Type` or `.Addressable` suffixes, infer a surface from a parameter,
-or choose the lexicographically first Alias.
+Package identity comes from authored names and explicit versions. Filesystem
+paths and local cache indices are host data rather than semantic identity.
+Package imports bind a local name to the resolved package root, which is a
+top-level Type context.
 
-Public and internal machine names are reversible encodings of selected Routes.
-They do not hash package names, signatures, canonical Type names, or content.
-Explicit route segments carry package and ABI versions when incompatible
-versions must coexist.
+Public names come from explicitly selected named chains in that package graph.
+Puffer does not manufacture `.Type` or `.Addressable` suffixes, allocate route
+history, hash signatures, or choose one alias by lexicographic order.
 
-Only public and exposed Callable Addresses enter the package surface. Private
-Addresses remain local to the compiler product. Restored packages, foreign
-runtimes, and local bodies expose the same Address contract, so Puffer does not
-branch on the producer.
+The package builder passes complete semantic and terminal facts to
+[`../archiver`](../archiver/). The archive format owns serialization. Puffer
+owns when a package is loaded, cached, invalidated, and exposed to another build.
 
-## Package Products
-
-The package builder presents the Archiver with:
-
-- the authored package Route and explicit version
-- dependency aliases, Routes, and versions
-- required ClassDB schema Routes
-- the reachable Abstract graph and contract-qualified edges
-- authored and public Resolution routes
-- recursive Layouts
-- public Callable Addresses
-- terminal products produced by ISA lowerers.
-
-The resulting `.puffer` file is a Tetrodotoxin package snapshot. It is not an
-object-file extension and it is not the C++ ABI. A companion native archive may
-contain machine code, while generated language interfaces are independent
-terminal projections over the same routes and Layout-described calls.
-
-An authored package identity can name an output directory:
-
-```text
-Perimortem.Math/binary_archive.puffer
-Perimortem.Math/x86_64.a
-Perimortem.Math/cpp_abi.hpp
-```
-
-These paths describe package products rather than becoming semantic identity.
-Another build system may publish the same package Route and version.
-
-## Resolution Ownership
-
-The resolver owns the source and package dependency graph for one workspace.
-Boot evaluates the preamble, the resolver binds imports, and the selected body
-ISA evaluates the remaining bytecode. A source record becomes a valid cache hit
-only after that work produces a complete root Abstract. Failed evaluation
-retains an Invalid root for diagnostics but cannot expose stale semantic state.
-
-Updating a source invalidates every consumer that may retain handles into its
-Compiler boundary. Re-evaluation creates a new graph; process addresses never
-serve as durable package identity.
-
-Package buffers are registered by package Route and explicit version. Restore
-allocates their Abstract graph inside the current Compiler, reconnects imports,
-and publishes their public routes into the same resolution graph as source
-records. Unknown schemas, corrupt edges, or incompatible versions produce an
-Invalid package root rather than a partially null DAG.
-
-The archive remains the owner of serialization rules. See
-[`../archiver/README.md`](../archiver/README.md) for the durable graph and
-compatibility contract.
+The current implementation still contains objects from the earlier Type-centric
+model. They are migration inputs, not contracts that the new TTX model must
+preserve.

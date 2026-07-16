@@ -12,7 +12,7 @@ For high-level language design and usage, see
 semantics. When implementation and this contract disagree, the implementation
 is migration work rather than precedent. The document explains how each
 language concept is tokenized, evaluated, represented, and checked by the owner
-that knows the rule before lowering; incomplete derived C++ contracts must not
+that knows the rule before lowering. Incomplete derived C++ contracts must not
 be guessed into the Abstract base.
 
 TTX's central design philosophy is to provide as much of a human-editable
@@ -37,7 +37,7 @@ directly. Casing separates addressable names from type names. Sigils encode
 visibility and compile-time addressability. The fixed `alias` keyword has its
 own lexical class. ISA-owned definition words such as `struct`, `object`,
 `enum`, and `foreign` are lowercase addressable spellings whose meaning belongs
-to the active evaluator; they are not PascalCase type references. Packs,
+to the active evaluator. They are not PascalCase type references. Packs,
 layouts, access chains, and assignment statements all have distinct local
 shapes.
 
@@ -191,7 +191,7 @@ The evaluated semantic model is a directed graph of `Abstract` objects. An
 object may be reached through more than one import or alias edge, so its
 ownership graph is not forced into a tree and the object does not store one
 authoritative parent path. Resolution passes the remaining borrowed
-`View::Bytes` directly through the objects it reaches; it does not allocate or
+`View::Bytes` directly through the objects it reaches. It does not allocate or
 persist a parallel path graph.
 
 The base hierarchy is:
@@ -200,8 +200,8 @@ The base hierarchy is:
 Ttx::Abstraction::Abstract
 ├── Ttx::Abstraction::Alias
 ├── Ttx::Abstraction::Invalid
+├── Ttx::Model::Generic
 ├── Ttx::Model::Type
-│   ├── Ttx::Model::Generic
 │   ├── Ttx::Model::Types::Terminal
 │   │   ├── Ttx::Model::Types::Unsigned
 │   │   ├── Ttx::Model::Types::Signed
@@ -226,7 +226,7 @@ These names describe up-castable semantic contracts:
 | `Abstract`    | object name, identity redirection, and progressive context resolution               |
 | `Alias`       | closed named redirection of identity and context queries to another Abstract        |
 | `Type`        | resolved semantic identity with a total Structured Layout query                     |
-| `Generic`     | a Type that resolves arguments to a compiler-owned concrete Type                    |
+| `Generic`     | instruction contract that resolves arguments to a concrete Type                    |
 | `Callable`    | complete parameter and result Layouts plus an address/linkage query                 |
 | `Static`      | invocation selected through a Type or package without a receiver                    |
 | `Self`        | invocation whose addressable receiver is parameter zero                             |
@@ -255,7 +255,7 @@ Callable::get_address()        -> const Abstract&
 ```
 
 The final query may return Addressable or Invalid. Layout itself stores no
-member record. It exposes ordered Abstract references; Structured narrows those
+member record. It exposes ordered Abstract references. Structured narrows those
 entries to the actual Addressable objects in a Type. Their names, resolved child
 Types, documentation, attributes, defaults, and ISA facts remain on those real
 objects or on richer contracts they implement. Consumers resolve identity
@@ -274,7 +274,7 @@ requires no allocation or dynamic registry lookup.
 Contract identifiers identify interfaces only. They never identify an Abstract
 object, replace its name, form a resolution route, select an export symbol,
 version a package, or become a serialized object handle. Object identity inside
-one stable DAG remains its address; durable identity remains a reversible chain
+one stable DAG remains its address. Durable identity remains a reversible chain
 of names. An incompatible change to a contract's required operations receives a
 new contract identifier rather than silently changing the old meaning.
 
@@ -286,7 +286,7 @@ abstract.as<Type>()  -> const Type&
 ```
 
 `is<Contract>()` asks the object to prove the declared contract and its base
-chain. `as<Contract>()` checks that proof and returns a reference; asking it to
+chain. `as<Contract>()` checks that proof and returns a reference. Asking it to
 convert an unproven contract is a caller invariant violation. Fallible semantic
 work first returns `Abstract&`, checks the desired contract, and returns Invalid
 from its own query boundary on failure. It never uses a nullable cast result.
@@ -389,14 +389,14 @@ preferred alias.
 names, a wrong requested contract, ambiguous resolution, rejected alias-cycle
 construction, invalid archives, unsupported ISA construction, and unresolved
 linkage when a semantic object is required. The source-owning caller retains the
-authored route, source range, and presentation context; Invalid does not grow a
+authored route, source range, and presentation context. Invalid does not grow a
 second diagnostic state model. A successfully constructed Alias is therefore
 always acyclic.
 
 Queries through Invalid are absorbing and always return the same Invalid. This
 prevents one bad name from producing a cascade of unrelated failures. Invalid
 is closed and stateless. It never owns the failed route, source range, message,
-or a specialized failure subtype; the source-owning query retains those facts.
+or a specialized failure subtype. The source-owning query retains those facts.
 
 The semantic interface follows these rules:
 
@@ -437,15 +437,15 @@ The three v1 contracts are deliberately separate classes:
   production order. Fluid fitting compares resolved identity in that order.
 - **Named** is reshapeable value flow whose actual Abstracts author non-empty
   names. Named fitting requires unique source names and matches each name and
-  resolved identity exactly once in the target; target order is independent.
+  resolved identity exactly once in the target. Target order is independent.
 - **Structured** is the stable shape supplied by a resolved Type. Its entries
   are the actual Addressable objects in the semantic DAG. Structured fitting
-  preserves those identities; two separately authored fields do not become the
+  preserves those identities. Two separately authored fields do not become the
   same field merely because their spellings and child Types happen to match.
 
 Fitting is directional: `source.fits(target)`. Fluid and Named values may fit a
 Structured target without acquiring Type identity themselves. A Structured
-value does not silently decompose into value flow; source uses swizzle or slice
+value does not silently decompose into value flow. Source uses swizzle or slice
 syntax to make that transition explicit.
 
 Layout does not copy a field's name, Type, documentation, attributes, default,
@@ -461,11 +461,11 @@ alignment. For a composite, lowering walks the Addressables in order, resolves
 each one, proves the resulting Type contract, and recurses into that Type's
 Structured Layout. Composite offsets and aggregate size/alignment are derived
 from those Terminal facts. Carrier, register class, calling convention, and
-wire policy remain later compiler queries; none of these are Layout fields.
+wire policy remain later compiler queries. None of these are Layout fields.
 
-A Type-targeting Alias is resolved before the Type contract is proved. A bare
-Generic may be a valid compile-time query receiver but is not a value merely by
-having the Type base; parameterization must produce a resolved Type whose
+A Type-targeting Alias is resolved before the Type contract is proved. A
+Generic is a compile-time instruction rather than a Type or value.
+Parameterization must produce a resolved Type whose
 Structured Layout can be queried. Layout identity alone never substitutes for
 Type identity.
 
@@ -510,7 +510,7 @@ snapshot are optional host concerns. They may require their own validation and
 immutable product, but a Type does not become semantically real by being
 published. Internal Types, transient compiler Types, runtime-provided Types,
 and partially loaded systems all participate through the same resolution
-contract; unavailable facts resolve to Invalid.
+contract. Unavailable facts resolve to Invalid.
 
 ## Host Architecture
 
@@ -701,7 +701,7 @@ runtime features, and body instructions are legal in the source.
 
 `alias` is the fixed definition keyword. ISA-owned lowercase spellings such as
 `object`, `struct`, `enum`, and `foreign` are definition forms only when the
-active evaluator assigns them that meaning; none of them are ISA names. For
+active evaluator assigns them that meaning. None of them are ISA names. For
 example:
 
 ```ttx
@@ -799,7 +799,7 @@ operator then dispatches on the current object or value:
 `::` is therefore not string concatenation. It establishes a nested context
 query whose receiving Abstract owns the lookup grammar. An evaluator may offer
 the remaining `Graphics::Color` bytes as one view or issue ordered queries at
-the source operators; those forms are not required to be equivalent. The final
+the source operators. Those forms are not required to be equivalent. The final
 result must prove Type. The source owner retains the authored input and the
 operation being resolved so it can report the exact failed boundary.
 
@@ -810,16 +810,28 @@ part of the type query and are checked while proving that query.
 Parameterization is Generic dispatch over resolved arguments. A type reference
 such as `View[Bits_8]` resolves `View`, proves that it implements `Generic`,
 resolves `[Bits_8]`, and asks the Generic to create or find the concrete Type.
-A Type that is not Generic produces Invalid at that exact step. This keeps
-parameterized types such as `View[T]`, `Vec[T, N]`, `List[T]`, and
-package-owned forms in the same up-castable Type hierarchy rather than a
-separate template system.
+An Abstract that is not Generic produces Invalid at that exact step. The
+Generic validates its accepted argument form and returns a real Abstract. The
+caller then resolves that result and proves Type. Generic is not a placeholder
+Type and does not have a Layout of its own.
+
+Each named Generic is a registered formula such as `Vec`, `View`, or `Dict`.
+The current source context owns the lookup surface and may index Generic names
+separately from concrete Type names. The Generic object owns its accepted
+argument schema, normalization, and materialization rule. TTX does not define a
+global Generic registry or switch on formula names.
+
+Missing formula lookup returns Invalid at the owning context. A resolved object
+that does not implement Generic fails the contract proof. A Generic whose
+argument schema does not accept the supplied values returns Invalid from
+materialization. These are separate source errors even though they share the
+same semantic failure object.
 
 The concrete Type returned by parameterization is compiler-owned. Its stable
 handle is used for local equivalence, member lookup, nested Type lookup,
 Callable lookup, and Layout queries. A host that exports it derives a durable
-name by walking a selected named ownership chain. The parameter layout is an
-input to construction, not a second semantic model.
+name by walking a selected named ownership chain. The normalized argument
+sequence is an input to construction, not a second semantic model.
 
 `alias` creates an Alias Abstract that preserves the authored local name and
 redirects to its resolved target. When that target is a Type, a Type consumer
@@ -842,7 +854,7 @@ runtime. Compiler pointers and C++ vtables are never the public representation.
 
 Decode shape: a type reference starts with `Type`, or a numeric token when
 decoding a numeric type argument. `TypeAccessOp` continues progressive context
-resolution; the receiving Abstract owns route interpretation, and the completed
+resolution. The receiving Abstract owns route interpretation, and the completed
 query proves the resolved object's Type contract. Type arguments start with
 `IndexStart`, contain type references separated by `PackingOp`, and end with
 `IndexEnd`.
@@ -878,7 +890,7 @@ the ordinary Abstract query returns Invalid.
 The current Perimortem C++ surface can register `Bool`, `Bits_8`, `Bits_16`,
 `Bits_32`, `Bits_64`, `Signed_8`, `Signed_16`, `Signed_32`, `Signed_64`,
 `Real_32`, `Real_64`, and `Real_128`. The `Bits_*` spellings implement the
-`Unsigned` contract; their current names do not create a separate Bits concept.
+`Unsigned` contract. Their current names do not create a separate Bits concept.
 `Count` can be an Alias to the registered 64-bit Unsigned instance. `CppSize`
 can be an Alias to the Unsigned instance matching the active C++ interface.
 `True` and `False` are Flag values, not additional Types.
@@ -1135,7 +1147,7 @@ and fits the complete sequence. No consumer prepends or slices a second
 call-site layout. Root package functions cannot use this shorthand because a
 package is not an addressable runtime value.
 
-A callable placed under a Type is type-owned; that does not make “typed
+A callable placed under a Type is type-owned. That does not make “typed
 function” another subtype. `Static` and `Self` describe invocation semantics.
 Ownership is carried by the containing Type and the selected lookup surface.
 
@@ -1691,7 +1703,7 @@ self.field
 ```
 
 Bare `self` is not an assignment target. It is a context root and requires an
-access suffix. A package is a Type, not a lowercase pseudo-root; package-owned
+access suffix. A package is a Type, not a lowercase pseudo-root. Package-owned
 state is reached through the ordinary bound package or Type context.
 
 Valid assignment targets include:
@@ -1750,7 +1762,7 @@ match value {
 ```
 
 `if` and `while` take condition packs. The condition must fit the single-value
-`Bool` Layout. Numeric truthiness is not implicit; use an explicit comparison.
+`Bool` Layout. Numeric truthiness is not implicit. Use an explicit comparison.
 
 When an ISA supports `@if`, it can use the same statement shape as `if` while
 evaluating the condition as compile-time data.
@@ -1819,7 +1831,7 @@ private signature : Vec[Bits_8, 8] = 0x[89 50 4E 47];
 ```
 
 Comments inside statement bodies remain lexical source facts for formatting and
-diagnostics; they are not executable statements. Documentation belongs to the
+diagnostics. They are not executable statements. Documentation belongs to the
 type, member, or function that owns it and is preserved for formatter and LSP
 queries. It does not participate in type identity or layout fitting.
 
@@ -1834,14 +1846,14 @@ equivalence, or Layout fitting.
 ## Identity Resolution
 
 `Abstract::resolve()` is the total identity operation. Alias follows its target
-transitively; ordinary Abstracts normally return themselves. A consumer resolves
+transitively. Ordinary Abstracts normally return themselves. A consumer resolves
 identity before proving a narrower contract such as Type. Type does not grow a
 second identity mechanism for aliases.
 
 Name lookup, nested queries, Generic parameterization, and numeric argument
 validation remain the responsibility of the Abstract context that receives
 them. Identity resolution does not mutate or replace the authored source query.
-The formatter and diagnostics use the original source; compiler analysis uses
+The formatter and diagnostics use the original source. Compiler analysis uses
 the resolved Abstract identity and its proven contracts. Alias cycles are
 rejected during graph construction, so resolution of a valid DAG terminates and
 never returns a nullable result.
@@ -1916,21 +1928,20 @@ field, or stored value, a lowerer performs the same operation:
 
 ```text
 resolved Type
--> Structured Layout
--> non-empty: resolve each Addressable and recursively lower its Type in order
--> empty: prove Terminal, then query its family, size, and alignment
+-> Terminal: query its family, size, and alignment
+-> otherwise: walk its Structured Layout and recursively lower each Addressable
 ```
 
 A non-empty Structured Layout is never collapsed to an invented scalar carrier merely
 because a backend recognizes the outer Type name. A byte view, vector, struct,
 render contract, and user aggregate are recursively deconstructed according to
-their actual Addressables. The source value remains one semantic aggregate; the
+their actual Addressables. The source value remains one semantic aggregate. The
 terminal representation is its ordered projection. Calls, returns, stack
 placement, register classification, generated host declarations, and archive
 descriptions must consume the same projection.
 
 An empty Layout alone does not say whether a Type is Terminal or merely an empty
-composite. The resolved Type must prove `Terminal`; it can then be viewed as
+composite. The resolved Type must prove `Terminal`. It can then be viewed as
 `Unsigned`, `Signed`, `Real`, `Flag`, or another toolchain-defined Terminal
 subtype. A lower compiler needs only those Type and Terminal interfaces. It does
 not need to know whether the authored query reached the Type through an Alias,
@@ -1961,7 +1972,7 @@ When changing TTX, preserve these invariants:
     raw parse-shape construction.
 12. Formatter output derives from the same token source text as the lexer
     whenever the token has fixed source text.
-13. Every queryable semantic identity implements Abstract; Type is a queryable
+13. Every queryable semantic identity implements Abstract. Type is a queryable
     subtype, not the universal base. Reflection and schema identities are
     Abstracts too. Layout and metadata are facts, not competing identities.
 14. Failed semantic resolution returns Invalid, never a null pseudo-Abstract.
@@ -1971,11 +1982,11 @@ When changing TTX, preserve these invariants:
     The same ordered chain is deterministic while the DAG is unchanged. Alias
     may redirect an unchanged route. Optional export naming never substitutes a
     signature hash for the selected named ownership chain.
-17. Composite lowering recursively deconstructs every non-empty Structured
-    Layout through its real Addressables before reading Terminal family, size,
-    and alignment facts at the leaves.
+17. Lowering proves Terminal before reading a Type's Structured Layout.
+    Non-Terminal Types recursively deconstruct every Addressable in that Layout,
+    including the valid zero-entry aggregate case.
 18. Layout is an ordered fitting contract over Abstracts. Fluid, Named, and
-    Structured express distinct semantics through inheritance; there is no
+    Structured express distinct semantics through inheritance. There is no
     Member record, kind enum, or Incomplete Layout.
 
 These rules are what keep TTX readable while still letting it behave like a

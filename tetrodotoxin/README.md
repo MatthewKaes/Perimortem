@@ -78,7 +78,7 @@ One Compiler owns the arena, Abstract DAG, source-owned resolver contexts,
 Generic instantiations, Layouts, Callable bodies and Addressables, diagnostics,
 linker state, and terminal products for one build. There is no ClassDB or
 allocated Route model. A future foreign boundary must use explicit versioned
-operations and opaque non-null handles; C++ RTTI and vtables do not cross it.
+operations and opaque non-null handles. C++ RTTI and vtables do not cross it.
 
 ## Repository map
 
@@ -86,7 +86,7 @@ The language core lives in [`../ttx`](../ttx/README.md):
 
 - [`../ttx/lexical`](../ttx/lexical/) lowers source text into token bytecode
 - [`../ttx/abstraction/abstract.hpp`](../ttx/abstraction/abstract.hpp) is the root semantic query
-  contract; Alias, Invalid, Type, Generic, Callable, Static, Self, Addressable,
+  contract. Alias, Invalid, Type, Generic, Callable, Static, Self, Addressable,
   and ISA-specific objects extend it through ordinary inheritance
 - [`../ttx/model/layout.hpp`](../ttx/model/layout.hpp) defines ordered fitting;
   [`../ttx/model/layouts`](../ttx/model/layouts/) contains Fluid, Named, and
@@ -234,7 +234,7 @@ graph, terminal byte payloads, and callable Addressables. Physical paths remain
 resolver diagnostic context and are not durable package identity. Direct source
 loading only reads files in the current package workspace. Package imports do
 not fall back to guessed `.ttx` paths. A durable package must reconstruct its
-resolver from named facts and owner-defined data; it cannot depend on ClassDB
+resolver from named facts and owner-defined data. It cannot depend on ClassDB
 schema references, allocated Routes, or process Addresses. The complete package
 model is documented in
 [`archiver/README.md`](archiver/README.md).

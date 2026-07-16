@@ -46,7 +46,7 @@ An installed ISA contributes objects and contexts that implement the Abstract
 contracts it owns. Shader can expose Stage Types and terminal GPU facts. Library
 can attach executable bodies and host-callable address contracts. Another
 language runtime can provide its own Type or Callable implementations. These
-objects enrich one graph; the ISA registry only selects evaluators and never
+objects enrich one graph. The ISA registry only selects evaluators and never
 becomes a semantic class registry.
 
 ## Abstract Extension And Foreign Boundaries
@@ -106,7 +106,7 @@ Packages are Tetrodotoxin's module boundary. A package source is evaluated by
 the Package ISA and can expose package exports as TTX facts. Private files under
 the package subtree are not imported directly by outside source. Outside source
 imports the package by name, then queries exported Abstracts by contract through
-the package surface. Type queries are one view of that graph; tooling may
+the package surface. Type queries are one view of that graph. Tooling may
 query Callable, Alias, or ISA-specific contracts through the same root.
 
 Built-in standard package sources live under `tetrodotoxin/standard`. They are
@@ -189,7 +189,7 @@ whose terminal representation is the ordered projection of its entries.
 Static and Self Callable objects expose their complete parameter and result
 Layouts. Self includes its receiver at parameter zero. The compiler never
 prepends that receiver a second time. A resolved implementation supplies an
-Addressable object; unresolved linkage supplies an explicit unresolved Addressable or
+Addressable object. Unresolved linkage supplies an explicit unresolved Addressable or
 Invalid, not `nullptr`.
 
 If an output needs symbols, its owner walks the selected named resolution
@@ -239,7 +239,7 @@ or introduce frontend concepts such as Scene, Render2D, or Sprite.
 `Isa::Lowering::Input` borrows the selected source facts.
 `Isa::Lowering::Context` exposes the Compiler-owned Abstract graph and terminal
 transactions. The selected ISAs enrich that graph and expose their execution
-facts; the selected terminal planner and backend consume the same objects.
+facts. The selected terminal planner and backend consume the same objects.
 Archive and header builds return their products to the caller. A lowerer can
 also return an arbitrary group and path terminal whose bytes the Compiler
 retains. Adding a backend output does not add another semantic owner.

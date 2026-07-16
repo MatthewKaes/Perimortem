@@ -12,13 +12,13 @@ namespace Ttx::Model {
 // value or lowering position. It contributes target-independent recursive
 // shape. Type itself does not require size, alignment, offsets, register
 // selection, calling convention, documentation, aliases, or one universal
-// child table. Terminal specializes Type with direct size and alignment facts/
+// child table. Terminal specializes Type with direct size and alignment facts.
 // Composite Types derive those facts by walking their real Layout. Derived
 // Types resolve their own static and Self contexts using the ordinary Abstract
 // route query and may optimize those contexts independently.
 //
 // A host may reserve a stable Type before all of its facts are available. That
-// object resolves to Invalid until its owner can answer the Type contract; no
+// object resolves to Invalid until its owner can answer the Type contract. No
 // universal publication phase or Incomplete Layout is required. The host may
 // later enrich the same nonmoving object, replace its enclosing system, or use
 // another resolution policy without changing this interface.
