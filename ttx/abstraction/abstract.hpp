@@ -5,7 +5,7 @@
 
 #include "perimortem/core/view/bytes.hpp"
 
-namespace Ttx {
+namespace Ttx::Abstraction {
 
 // TTX does not begin with a closed type system. It begins with named abstract
 // contexts whose behavior can be extended by the language, an ISA, a compiler,
@@ -70,4 +70,4 @@ class Abstract {
       -> const Abstract& = 0;
 };
 
-}  // namespace Ttx
+}  // namespace Ttx::Abstraction

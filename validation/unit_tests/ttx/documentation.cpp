@@ -1,7 +1,7 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
-#include "ttx/documentation.hpp"
+#include "ttx/model/documentation.hpp"
 
 #include "validation/unit_test.hpp"
 
@@ -15,7 +15,7 @@ static Harness TtxDocumentation = {
 };
 
 PERIMORTEM_UNIT_TEST(TtxDocumentation, empty) {
-  Ttx::Documentation documentation;
+  Ttx::Model::Documentation documentation;
 
   EXPECT(documentation.is_empty());
   EXPECT_EQ(documentation.get_line_count(), Count(0));
@@ -28,7 +28,7 @@ PERIMORTEM_UNIT_TEST(TtxDocumentation, lines) {
     "Second"_view,
   }};
 
-  Ttx::Documentation documentation(lines);
+  Ttx::Model::Documentation documentation(lines);
 
   EXPECT_NOT(documentation.is_empty());
   EXPECT_EQ(documentation.get_line_count(), Count(2));
@@ -43,7 +43,7 @@ PERIMORTEM_UNIT_TEST(TtxDocumentation, empty_line) {
     "Second"_view,
   }};
 
-  Ttx::Documentation documentation(lines);
+  Ttx::Model::Documentation documentation(lines);
 
   EXPECT_NOT(documentation.is_empty());
   EXPECT(documentation.line_at(0).is_empty());
@@ -55,7 +55,7 @@ PERIMORTEM_UNIT_TEST(TtxDocumentation, view_identity) {
     "Stable"_view,
   }};
 
-  Ttx::Documentation documentation(lines);
+  Ttx::Model::Documentation documentation(lines);
 
   EXPECT(documentation.get_lines().get_data() == lines.get_data());
   EXPECT_EQ(documentation.get_lines().get_size(), Count(1));
@@ -67,7 +67,7 @@ PERIMORTEM_UNIT_TEST(TtxDocumentation, late_bound) {
     "Second"_view,
   }};
 
-  Ttx::Documentation documentation(lines);
+  Ttx::Model::Documentation documentation(lines);
   lines[0] = "Updated"_view;
 
   EXPECT_TEXT(documentation.line_at(0), "Updated"_view);

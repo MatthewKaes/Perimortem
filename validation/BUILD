@@ -73,7 +73,26 @@ cc_binary(
     deps = [
         ":test_headers",
         "//perimortem",
-        "//ttx:abstract",
+        "//ttx:abstraction",
+    ],
+)
+
+cc_binary(
+    name = "ttx_model_tests",
+    srcs = [
+        "unit_test.cpp",
+        "unit_tests/ttx/attribute.cpp",
+        "unit_tests/ttx/callable.cpp",
+        "unit_tests/ttx/documentation.cpp",
+        "unit_tests/ttx/layout.cpp",
+        "unit_tests/ttx/type.cpp",
+    ],
+    includes = ["."],
+    deps = [
+        ":test_headers",
+        "//perimortem",
+        "//ttx:abstraction",
+        "//ttx:model",
     ],
 )
 

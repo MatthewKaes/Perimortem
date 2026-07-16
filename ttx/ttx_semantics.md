@@ -121,8 +121,8 @@ TTX source IR
 
 An ISA is a semantic instruction set, not a backend target and not a parse-tree
 visitor. It decodes the token bytecode it owns, validates the rules for that
-authoring domain, and publishes TTX facts: types, layouts, package exports,
-callable facts, ABI facts, shader facts, or other queryable context.
+authoring domain, and makes TTX facts queryable: types, layouts, package
+exports, callable facts, ABI facts, shader facts, or other context.
 
 Import loading, package loading, cache validity, and body-ISA dispatch are host
 concerns. TTX describes the bytecode and shared data model those systems execute
@@ -171,14 +171,14 @@ systems. The important distinction is ownership:
 - TTX source owns authored bytes and source spans.
 - Lexical owns token classification and token payload views.
 - Abstract objects and their virtual contracts form the shared TTX semantic
-  graph. Type, Alias, Generic, Callable, Free, Self, and Invalid are contracts
-  in that graph. Layout owns value shape and target-independent aggregate
-  structure.
+  graph. Type, Alias, Generic, Callable, Static, Self, Addressable, and Invalid
+  are contracts in that graph. Layout is the fitting contract over an ordered
+  group of those real objects.
 - Host envelope evaluators own whatever source preamble they choose to execute.
 - Import, module, package, cache, and invalidation layers belong to the host
   that needs them.
 - ISAs or evaluators own the bytecode spans they understand and the facts they
-  publish from those spans.
+  make queryable from those spans.
 - ABI, provider, and backend queries expose derived answers without cloning the
   program into a second semantic tree.
 - Terminal emitters own output-specific representations such as SPIR-V words,
@@ -197,31 +197,53 @@ persist a parallel path graph.
 The base hierarchy is:
 
 ```text
-Abstract
-├── Alias
-├── Invalid
-├── Type
-│   ├── Generic
-│   └── ISA-defined types
-├── Callable
-│   ├── Free
-│   └── Self
-└── Address
+Ttx::Abstraction::Abstract
+├── Ttx::Abstraction::Alias
+├── Ttx::Abstraction::Invalid
+├── Ttx::Model::Type
+│   ├── Ttx::Model::Generic
+│   └── ISA-defined model types
+├── Ttx::Model::Callable
+│   ├── Ttx::Model::Static
+│   └── Ttx::Model::Self
+└── Ttx::Model::Addressable
 ```
+
+`Ttx::Abstraction` owns the restricted identity and resolution substrate.
+`Ttx::Model` owns the shared semantic vocabulary built on that substrate.
+Model is a namespace and source-IR ownership boundary, not a central registry
+or a second graph.
 
 These names describe up-castable semantic contracts:
 
-| Contract | Required meaning |
-| -------- | ---------------- |
-| `Abstract` | object name, identity redirection, and progressive context resolution |
-| `Alias` | closed named redirection of identity and context queries to another Abstract |
-| `Type` | concrete Layout and Type-owned query surfaces |
-| `Generic` | a Type that resolves arguments to a compiler-owned concrete Type |
-| `Callable` | complete parameter and result Layouts plus an address/linkage query |
-| `Free` | invocation that does not consume an addressable receiver |
-| `Self` | invocation whose addressable receiver is parameter zero |
-| `Address` | local, external, interpreted, runtime, or explicitly unresolved invocation endpoint |
-| `Invalid` | absorbing failed resolution |
+| Contract      | Required meaning                                                                    |
+| ------------- | ----------------------------------------------------------------------------------- |
+| `Abstract`    | object name, identity redirection, and progressive context resolution               |
+| `Alias`       | closed named redirection of identity and context queries to another Abstract        |
+| `Type`        | resolved semantic identity with a total Structured Layout query                     |
+| `Generic`     | a Type that resolves arguments to a compiler-owned concrete Type                    |
+| `Callable`    | complete parameter and result Layouts plus an address/linkage query                 |
+| `Static`      | invocation selected through a Type or package without a receiver                    |
+| `Self`        | invocation whose addressable receiver is parameter zero                             |
+| `Addressable` | named semantic edge whose resolution supplies the addressed Abstract                |
+| `Invalid`     | absorbing failed resolution                                                         |
+
+The first narrow native contracts are deliberately reference based:
+
+```text
+Type::get_layout()             -> const Layouts::Structured&
+Callable::get_parameters()     -> const Layout&
+Callable::get_results()        -> const Layout&
+Callable::get_address()        -> const Abstract&
+```
+
+The final query may return Addressable or Invalid. Layout itself stores no
+member record. It exposes ordered Abstract references; Structured narrows those
+entries to the actual Addressable objects in a Type. Their names, resolved child
+Types, documentation, attributes, defaults, and ISA facts remain on those real
+objects or on richer contracts they implement. Consumers resolve identity
+before using a narrow contract. No nullable reference is part of the Layout
+interface.
 
 `Type` is not the root of this model. Callable, diagnostic, ISA, and
 future runtime objects do not inherit Type merely to become queryable. There is
@@ -268,18 +290,18 @@ hard-coded into a central resolver.
 
 The following rules are the ground truth for this contract:
 
-| Query rule | Required behavior |
-| ---------- | ----------------- |
-| local name | `get_name()` names the current Abstract, including an authored Alias |
-| canonical name | call `resolve().get_name()` when the represented identity's name is required |
-| identity | `resolve()` returns a real Abstract reference and is idempotent for an unchanged valid DAG |
-| route ownership | `resolve_context(route)` receives the entire borrowed view and the current Abstract owns its interpretation |
-| route partitioning | chained queries and one combined route are not required to be equivalent |
-| context redirection | a resolver may forward an unchanged route while selecting a different context |
-| empty route | `resolve_context("")` has no base-defined relationship to `resolve()` |
-| determinism | the same ordered query chain from the same Abstract returns the same final identity until the DAG changes |
-| termination | a valid constructed DAG cannot redirect a resolution chain forever |
-| failure | failure returns an Invalid Abstract reference, never a null pseudo-Abstract |
+| Query rule          | Required behavior                                                                                           |
+| ------------------- | ----------------------------------------------------------------------------------------------------------- |
+| local name          | `get_name()` names the current Abstract, including an authored Alias                                        |
+| canonical name      | call `resolve().get_name()` when the represented identity's name is required                                |
+| identity            | `resolve()` returns a real Abstract reference and is idempotent for an unchanged valid DAG                  |
+| route ownership     | `resolve_context(route)` receives the entire borrowed view and the current Abstract owns its interpretation |
+| route partitioning  | chained queries and one combined route are not required to be equivalent                                    |
+| context redirection | a resolver may forward an unchanged route while selecting a different context                               |
+| empty route         | `resolve_context("")` has no base-defined relationship to `resolve()`                                       |
+| determinism         | the same ordered query chain from the same Abstract returns the same final identity until the DAG changes   |
+| termination         | a valid constructed DAG cannot redirect a resolution chain forever                                          |
+| failure             | failure returns an Invalid Abstract reference, never a null pseudo-Abstract                                 |
 
 These rules permit a context to select the lookup representation appropriate to
 its domain without weakening reproducibility. They do not require a universal
@@ -299,9 +321,10 @@ Alias becomes queryable.
 
 Names remain unique inside each lookup surface. Static and self callables may
 share a name because the receiver chooses the Type-owned surface before lookup.
-Publication walks the selected public ownership chain and writes each name
-reversibly. It does not store an allocated path, hash a signature, or choose a
-lexicographically preferred alias.
+If a host exports a symbol, that optional export owner walks its selected public
+ownership chain and writes each name reversibly. Resolution itself does not
+store an allocated path, hash a signature, or choose a lexicographically
+preferred alias.
 
 ### Invalid And Total References
 
@@ -320,14 +343,14 @@ or a specialized failure subtype; the source-owning query retains those facts.
 
 The semantic interface follows these rules:
 
-| Situation | Representation |
-| --------- | -------------- |
-| failed name or contract query | `Invalid&` |
-| no children | empty child view |
-| unresolved callable address | explicit unresolved Address or `Invalid&` |
-| corrupt restored package | Invalid Abstract in place of the top-level Type |
+| Situation                       | Representation                                          |
+| ------------------------------- | ------------------------------------------------------- |
+| failed name or contract query   | `Invalid&`                                              |
+| no children                     | empty child view                                        |
+| unresolved callable address     | explicit unresolved Addressable or `Invalid&`           |
+| corrupt restored package        | Invalid Abstract in place of the top-level Type         |
 | Type-targeting Alias resolution | resolved `Abstract&`, followed by a Type contract proof |
-| checked contract conversion | reference after semantic contract proof |
+| checked contract conversion     | reference after semantic contract proof                 |
 
 `nullptr` is not a pseudo-Abstract, a failed cast, or an absent semantic edge.
 Invalid does not inherit Type, Callable, and every other contract to satisfy
@@ -344,82 +367,92 @@ other derived concept is an architectural smell.
 
 ## Layout Facts
 
-TTX uses Layout as the shared fact for value shape and target-independent
-aggregate structure. Scalars, vectors, colors, structs, function parameters,
-returns, packs, and swizzles all bottom out in layout questions: what entries
-exist, what names they have, what types they carry, and whether the result is a
-concrete typed shape.
+Layout is the shared fitting contract over an ordered group of real Abstracts.
+It answers only three questions: how many objects are present, which Abstract
+is at an index, and whether this source shape fits a target shape. It is not an
+Abstract, a member container, a Type registry, a storage record, or a lifecycle
+state.
 
-There are two important layout kinds:
+The three v1 contracts are deliberately separate classes:
 
-- **Fluid layouts** describe value flow. Packs, grouped values, function
-  argument packs, and intermediate return packs are fluid. They can flatten
-  nested positional groups, acquire names from authored syntax or receiving
-  boundaries, discard names during repacks, and be repacked before they
-  materialize. A fluid layout has no stable address of its own.
-- **Concrete layouts** describe the recursive shape published by a resolved
-  Type at a materialization boundary. Scalars, structs, `Vec2D`, `Vec3D`,
-  `Vec4D`, `Color`, ABI blocks, and other typed values have concrete layouts.
-  Their entry order is stable, but core Layout does not precompute one target's
-  size, alignment, offsets, register classes, or wire-format policy.
+- **Fluid** is positional value flow. Packs, grouped values, swizzles, slices,
+  argument packs, and intermediate returns expose the actual Abstract values in
+  production order. Fluid fitting compares resolved identity in that order.
+- **Named** is reshapeable value flow whose actual Abstracts author non-empty
+  names. Named fitting requires unique source names and matches each name and
+  resolved identity exactly once in the target; target order is independent.
+- **Structured** is the stable shape supplied by a resolved Type. Its entries
+  are the actual Addressable objects in the semantic DAG. Structured fitting
+  preserves those identities; two separately authored fields do not become the
+  same field merely because their spellings and child Types happen to match.
 
-A concrete layout may contain entries. Each entry has an optional name and a
-child Type. A scalar is the terminal case: a concrete layout with no entries. A
-struct, vector, view, callable carrier, or other composite uses the same
-recursive fact shape with entries. A target-specific storage contract may
-derive offsets, size, and alignment after the target is known; those facts do
-not belong to the reusable core Layout.
+Fitting is directional: `source.fits(target)`. Fluid and Named values may fit a
+Structured target without acquiring Type identity themselves. A Structured
+value does not silently decompose into value flow; source uses swizzle or slice
+syntax to make that transition explicit.
 
-Every Type admitted to a value or lowering position supplies a concrete Layout
-after Abstract identity resolution. A Type-targeting Alias is resolved before
-the Type contract is proved. A bare Generic is a valid compile-time query
-receiver but is not admitted to a value position; parameterization must first
-produce a concrete compiler-owned Type. This is the complete interface needed
-by a lower compiler layer: resolve identity, prove Type, inspect its Layout,
-recursively lower each non-empty entry, and ask the terminal Type contract how
-an empty layout is represented.
+Layout does not copy a field's name, Type, documentation, attributes, default,
+storage, or ISA metadata into a generic entry. The Abstract supplies its own
+name and represented identity. Structured supplies the stronger guarantee that
+the object is the real Addressable edge owned by the Type. Additional facts stay
+on that object, its source owner, or a narrower derived contract. There is no
+`Member` model object and no optional-name/default bit embedded in Layout.
 
-Callables are not layout entries. A Layout describes value shape and concrete
-typed structure, not target storage metrics. An Abstract scope publishes
-Callable children. Callable signatures reference Layouts for argument and
-result shape, while method lookup resolves a Free or Self object through the
-concrete typed receiver or package scope.
+`Type::get_layout()` returns `const Layouts::Structured&`. A scalar Type has an
+empty Structured Layout. For a composite, lowering walks the Addressables in
+order, resolves each one, proves the resulting Type contract, and recurses into
+that Type's Structured Layout. Target size, alignment, offset, carrier,
+register class, calling convention, and wire policy are later target queries;
+they are not Layout fields.
 
-The core invariant is:
+A Type-targeting Alias is resolved before the Type contract is proved. A bare
+Generic may be a valid compile-time query receiver but is not a value merely by
+having the Type base; parameterization must produce a resolved Type whose
+Structured Layout can be queried. Layout identity alone never substitutes for
+Type identity.
 
-> Fluid layouts describe value flow. Concrete layouts describe stable typed
-> structure. TTX may reshape value flow, but it does not silently reshape a
-> concrete typed value.
+Callable parameters and results use the base Layout contract because signatures
+may be Fluid, Named, or Structured. Static and Self are Callable objects found
+through their owning contexts, not Layout entries. Self includes its receiver at
+parameter zero, so fitting, reflection, invocation, and lowering all consume the
+same complete signature.
 
-Names are authored or boundary-provided facts. A named pack authors names. A
-function parameter layout, function return layout, type layout, or other
-receiving boundary can provide names for fitting and later access. A repack
-operation produces a positional fluid layout unless the operator explicitly
-authors or preserves names. This keeps temporary expression shape from carrying
-incidental field labels through grouping, swizzle, slice, calls, or returns.
+Core fitting requires the objects presented to it. A source language or ISA
+that supports omitted defaults resolves those defaults on the real Addressable
+objects and constructs the complete value flow before asking Layout to fit.
+This keeps default policy out of every layout consumer.
 
-Non-empty names are unique within one Layout. Duplicate names are rejected by
-the source, package, generated-data, or ISA owner before it publishes the
-Layout. There is no leftmost-wins semantic fallback: accepting an ambiguous
-Layout would move an owner validation failure into every consumer.
+### Resolution, Completion, And Invalidation
 
-This is why a pack can initialize a struct by name while an existing struct
-does not implicitly decompose back into a pack. Source must use swizzle or
-slice syntax to cross from concrete storage back into fluid value flow.
+Source loading may require preregistration for recursive Types, aliases,
+mutually visible Callables, imports, or ISA-specific declarations. That is a
+host construction technique, not a universal publication lifecycle.
 
-Callable dispatch also requires a concrete receiver. The `->` operator is
-valid on concrete typed values, concrete type names, or concrete package scopes.
-It is not valid on a raw fluid pack because a fluid pack has no stable receiver
-identity. Its entries can still be mapped, fitted, reordered, or materialized by
-type and layout fitting, but they are not addressable storage until a concrete
-target is known.
+A host may reserve a stable, nonmoving Type or containing resolver before all
+facts are known. While the requested fact is incomplete, the object or system
+resolves that query to Invalid. Once the owner has enough information,
+resolution reaches the real Type and `get_layout()` is a total Structured
+reference. Layout has no `Incomplete` kind, and an empty Structured Layout is
+never overloaded to mean "not ready."
 
-Implementations prefer queryable views over copied summaries. For example, a
-shader backend asks a shader ISA context for `stage_of(type)`,
-`descriptor_of(member)`, and `is_push_constant(type)`, and asks the type and
-layout query surface for `type_of(expression)` or `fit_of(pack)`. It does not
-need a separate shader-specific clone of the package semantic graph before it
-starts lowering.
+Different hosts may complete the graph differently. One may enrich a reserved
+object after a declaration pass. Another may replace an enclosing resolver or
+source system. A third may build an immutable snapshot. Abstract, Type, Layout,
+and Callable prescribe none of those policies. They prescribe only that real
+query results are references and failed or premature queries resolve to
+Invalid.
+
+The Abstract determinism rule is scoped to an unchanged DAG. The owner that
+changes or replaces a DAG also owns reference lifetime, cache invalidation, and
+any revision or epoch used by its readers. Process addresses may be local
+identity while that owner keeps them stable, but they are never durable names.
+
+Exporting a public symbol, archiving a package, and presenting an editor
+snapshot are optional host concerns. They may require their own validation and
+immutable product, but a Type does not become semantically real by being
+published. Internal Types, transient compiler Types, runtime-provided Types,
+and partially loaded systems all participate through the same resolution
+contract; unavailable facts resolve to Invalid.
 
 ## Host Architecture
 
@@ -467,7 +500,7 @@ Common host roles are:
 3. **Import or module context**: attach cross-file, package, module, or FFI
    state when the host needs more than one source unit.
 4. **ISA or body evaluation**: execute the token spans owned by the selected
-   instruction set and publish TTX facts from that execution.
+   instruction set and expose TTX facts from that execution.
 5. **Owned queries**: expose type, layout, ISA, provider, ABI, and
    backend-boundary answers over the evaluated facts.
 6. **Terminal output**: emit a requested output format such as shader binaries,
@@ -486,8 +519,8 @@ When a host supports imports, imports are graph edges between independently
 owned source units. TTX does not require C or C++ style text inclusion, and it
 does not require one global package graph. A host can bind token bytecode to
 foreign source units, native ABI facts, editor data, generated packages, or
-another language runtime as long as the boundary publishes the TTX facts its
-queries need.
+another language runtime as long as the boundary makes the TTX facts its
+queries need available through resolution.
 
 A program is ready for lowering when the host has proven the facts its output
 requires. For a compiler this may mean every expression has a concrete value
@@ -552,19 +585,19 @@ intentional. The evaluator sees classes such as `Addressable`, `Type`, `Func`,
 
 Important lexical distinctions:
 
-| Source shape                | Token class            | Semantic meaning                                    |
-| --------------------------- | ---------------------- | --------------------------------------------------- |
-| `snake_case`                | `Addressable`          | runtime names, fields, functions, local values      |
-| `PascalCase`                | `Type`                 | type names, aliases, ISA names, package names       |
-| `enum`, `struct`, `foreign` | `Addressable`          | ISA-owned definition forms, not type references     |
-| `alias`                     | `Alias`                | fixed Abstract-redirection definition               |
-| `public`, `private`, etc.  | modifier tokens        | ISA-owned visibility, ownership, or storage         |
-| `@name`                     | `Attribute`            | metadata attached to members, params, fields        |
-| `@if`                       | `Attribute`            | directive owned by an ISA or host                   |
-| `break`, `continue`         | control keyword tokens | loop-control statements                             |
-| `0x[...]`                   | `Bytes`                | byte data literal                                   |
-| `$[...]`                    | `Embedded`             | embedded file literal                               |
-| `_`                         | `Discard`              | wildcard or ignored value                           |
+| Source shape                | Token class            | Semantic meaning                                |
+| --------------------------- | ---------------------- | ----------------------------------------------- |
+| `snake_case`                | `Addressable`          | runtime names, fields, functions, local values  |
+| `PascalCase`                | `Type`                 | type names, aliases, ISA names, package names   |
+| `enum`, `struct`, `foreign` | `Addressable`          | ISA-owned definition forms, not type references |
+| `alias`                     | `Alias`                | fixed Abstract-redirection definition           |
+| `public`, `private`, etc.   | modifier tokens        | ISA-owned visibility, ownership, or storage     |
+| `@name`                     | `Attribute`            | metadata attached to members, params, fields    |
+| `@if`                       | `Attribute`            | directive owned by an ISA or host               |
+| `break`, `continue`         | control keyword tokens | loop-control statements                         |
+| `0x[...]`                   | `Bytes`                | byte data literal                               |
+| `$[...]`                    | `Embedded`             | embedded file literal                           |
+| `_`                         | `Discard`              | wildcard or ignored value                       |
 
 Fixed source spellings live in `Lexical::Class::get_source_text()`. The lexer
 and formatter call into `Class` rather than duplicate strings for
@@ -699,7 +732,8 @@ The first `Type` token is resolved immediately from the active context. Each
 operator then dispatches on the current object or value:
 
 - `:: Name` queries a nested Type on the current Abstract.
-- `.name` queries a layout/member on the current value or `Layout(type)`.
+- `.name` queries a layout/member on the current value or the resolved Type's
+  `get_layout()` result.
 - `-> name(...)` queries callable dispatch.
 - `.[...]` dispatches to swizzle/repack semantics.
 - `:[...]` dispatches to index or slice semantics.
@@ -725,9 +759,9 @@ separate template system.
 
 The concrete Type returned by parameterization is compiler-owned. Its stable
 handle is used for local equivalence, member lookup, nested Type lookup,
-Callable lookup, and Layout queries. Durable publication identity is produced
-by walking its selected named ownership chain. The parameter layout is an input
-to construction, not a second semantic model.
+Callable lookup, and Layout queries. A host that exports it derives a durable
+name by walking a selected named ownership chain. The parameter layout is an
+input to construction, not a second semantic model.
 
 `alias` creates an Alias Abstract that preserves the authored local name and
 redirects to its resolved target. When that target is a Type, a Type consumer
@@ -764,7 +798,7 @@ special branch in the resolver.
 
 TTX treats the small vector and graphics color types as real typed aggregates,
 not pack aliases. The core prelude and explicit package manifests provide them
-with fixed field names and `Real_32` storage.
+with fixed field names and `Real_32` component Types.
 
 The core prelude supplies universal scalar, vector, and memory forms as
 top-level names. Source uses these names without a package qualifier:
@@ -774,6 +808,29 @@ Vec2D : struct { x : Real_32; y : Real_32; }
 Vec3D : struct { x : Real_32; y : Real_32; z : Real_32; }
 Vec4D : struct { x : Real_32; y : Real_32; z : Real_32; w : Real_32; }
 ```
+
+The scalar names describe language intent. `Bool`, `Bits_8`, `Bits_16`,
+`Bits_32`, `Bits_64`, `Signed_8`, `Signed_16`, `Signed_32`, `Signed_64`,
+`Real_32`, and `Real_64` specify value domains and precision. The suffix is not
+a core Layout size, C++ `sizeof`, alignment, register width, ABI carrier, or
+instruction opcode. For example, a target may correctly carry `Bits_8` in a
+32-bit register and select a 32-bit move while preserving the eight-bit value
+semantics at observable boundaries. Its terminal contract owns that decision.
+
+These scalar Types expose empty Structured Layouts because they are recursive
+leaves. The active target or ISA must still prove the terminal contract that
+explains how each leaf is represented. `Count` is the ordinary alias for the
+documented 64-bit count domain; it does not acquire the host process's pointer
+width. Aggregate and memory forms such as `Vec`, `View`, `Bytes`, and `String`
+expose their real Addressable structure or ISA-specific terminal contracts
+rather than inheriting the host C++ layout by coincidence.
+
+Core TTX defines the Type contract, not one concrete C++ class for every
+prelude spelling. The host prelude owns the stable instances. Implementations
+may be organized under a `type/` directory by semantic family when a family
+earns a real query contract, such as integer range or real precision. A header
+whose only purpose is to encode one spelling or return host size and alignment
+would duplicate the prelude and prematurely freeze target policy.
 
 `Perimortem.Graphics` is explicit. A package that needs graphics-domain types
 imports it and refers to those types through the import name:
@@ -859,13 +916,13 @@ Parser shape: modifiers are token classes, not attributes. A parser never parses
 `public` as `Attribute("public")`. Anywhere a modifier is allowed, pass the
 allowed `Class::Type` values and check the current token against that set.
 
-| Modifier  | Intended contract                                      |
-| --------- | ------------------------------------------------------ |
-| `public`  | visible API that other sources may read or call        |
-| `private` | implementation detail owned by the active ISA          |
-| `expose`  | externally readable data, written by its owner         |
-| `state`   | stateful storage that is not part of the value shape   |
-| `const`   | write-once or compile-time data                        |
+| Modifier  | Intended contract                                    |
+| --------- | ---------------------------------------------------- |
+| `public`  | visible API that other sources may read or call      |
+| `private` | implementation detail owned by the active ISA        |
+| `expose`  | externally readable data, written by its owner       |
+| `state`   | stateful storage that is not part of the value shape |
+| `const`   | write-once or compile-time data                      |
 
 This replaces older ideas such as `hidden`, `stack`, `@const`, and `@comptime`.
 The language has fewer spellings, while `Class::Type` still gives evaluators a
@@ -887,6 +944,9 @@ the leading `@`. It may stand alone as a marker or take one scalar value inside
 integers, real numbers, or booleans. Structured values are not part of the
 attribute model. Write another attribute when a declaration needs another
 fact.
+
+The scalar carrier is `Core::Static::Union`. `Attribute` owns the authored key,
+not a parallel tag or value-storage implementation.
 
 Attributes are not runtime values. They are consumed by the compiler or
 forwarded into target metadata.
@@ -937,8 +997,8 @@ The disabled marker `/>` wraps the following member as disabled source:
 `Disabled` is a lexical marker, not a member, statement, or expression. A
 compilation tokenization strips the marker and the source it guards before
 semantic evaluation. A source-preserving tokenization emits the marker so tools
-can format and highlight the original bytes. Disabled source never publishes a
-semantic member and is never lowered as a compile-time-false construct.
+can format and highlight the original bytes. Disabled source never produces a
+semantic object and is never lowered as a compile-time-false construct.
 
 ## Functions
 
@@ -957,7 +1017,7 @@ require `CallOp`, parse a return layout, then parse either a block or
 evaluator rather than to an `external` marker in the core grammar.
 
 `func` is a keyword because functions are not merely ordinary values with type
-`Func`. Evaluation publishes a `Callable : Abstract` carrying the stable
+`Func`. Evaluation constructs a `Callable : Abstract` carrying the stable
 signature used for lowering, entry-point discovery, specialization, foreign
 declarations, and shader compilation. Source bodies enrich that same object
 through ISA-defined contracts owned by the selected body evaluator.
@@ -977,12 +1037,12 @@ public func decode[.source : View[Bytes]] -> [
 
 Callable has two semantic subtypes:
 
-- `Free` is selected by a type or package receiver.
+- `Static` is selected by a type or package receiver.
 - `Self` is selected by a runtime value and consumes that receiver.
 
 The subtype is the semantic classification. Consumers do not infer it from a
-parameter name, a boolean flag, or the table in which a plain Function happened
-to be stored.
+parameter name, a boolean flag, or the table in which a legacy function record
+happened to be stored.
 
 ```ttx
 public Counter : struct {
@@ -1001,7 +1061,7 @@ state scalar  : Count   = Counter -> identity(41);
 counter = counter -> identity();
 ```
 
-The first call resolves `Free/identity` beneath Counter. The second resolves
+The first call resolves `Static/identity` beneath Counter. The second resolves
 `Self/identity` beneath Counter and passes `counter` as the declared receiver.
 Identical names are legal because the receiver selects Counter's static or self
 lookup surface before name lookup. Duplicates within one surface are rejected.
@@ -1019,20 +1079,20 @@ call-site layout. Root package functions cannot use this shorthand because a
 package is not an addressable runtime value.
 
 A callable placed under a Type is type-owned; that does not make “typed
-function” another subtype. `Free` and `Self` describe invocation semantics.
+function” another subtype. `Static` and `Self` describe invocation semantics.
 Ownership is carried by the containing Type and the selected lookup surface.
 
 The split is also a tooling contract. Completion after a type token enumerates
-Free children. Completion after an expression result enumerates Self children
+Static children. Completion after an expression result enumerates Self children
 of the inferred resolved Type. A bare type name selects the static surface,
 while semantic typing selects the self surface for values produced by member
 access, indexing, or earlier calls.
 
-Callable publishes an address query because a declaration may be unresolved,
+Callable exposes an address query because a declaration may be unresolved,
 interpreted, compiled locally, restored from a package, or supplied by another
-language runtime. A resolved call receives an Address Abstract with the
+language runtime. A resolved call receives an Addressable Abstract with the
 appropriate linkage contract. An unresolved external receives an explicit
-unresolved Address or Invalid. It never receives `nullptr` and never derives a
+unresolved Addressable or Invalid. It never receives `nullptr` and never derives a
 linker name by hashing its signature.
 
 The return side is a layout, not a separate grammar family.
@@ -1058,10 +1118,12 @@ ABI promise, and the linker or foreign ABI provider must resolve it.
 
 ## Members And Scoped Builtins
 
-Package-level and scoped definitions are represented as members. A semantic
-member may have documentation, attributes, a function form, a scoped builtin
-body, an enum shorthand, or a value definition. Disabled source is handled by
-the lexical boundary and never becomes a member.
+"Member" in this section names a source position inside a package or scope. It
+does not imply a universal `Member` model object. Evaluation constructs the real
+semantic object required by the declaration: an Addressable, Type, Alias,
+Callable, or an ISA-specific Abstract. Documentation and attributes remain with
+the source owner or the richer object that exposes them. Disabled source is
+handled by the lexical boundary and constructs no semantic object.
 
 Parser shape: member parsing proceeds in layers: consume documentation comments,
 consume attributes, then choose between function syntax and definition syntax.
@@ -1405,25 +1467,26 @@ Rules:
 5. Indexed packs fit index-addressable aggregate types by literal index.
 6. Named, indexed, and positional fields do not mix.
 7. Nested positional packs flatten before positional arity is checked.
-8. Named packs may fit typed aggregates when the target type has named fields
-   and every provided field name and type matches the target. Required target
-   fields must be present. Fields with defaults may be omitted only when all
-   defaulted fields form a trailing suffix.
-9. Positional packs may fit typed aggregates when the pack order matches the
-   target layout exactly. Omitted fields are only valid when the omitted region
-   is a trailing region of defaulted fields.
-10. Indexed packs may fit fixed-size homogeneous aggregates such as `Vec[T, N]`.
-    Omitted indexes use the element default. Indexes must be explicit integer
-    literals, in range, and unique.
-11. Concrete typed values do not flatten into packs implicitly. Source must use
+8. Named packs may fit Structured aggregates when every name and resolved
+   identity matches exactly once. Core Layout fitting requires the complete
+   value set. An ISA that permits omitted defaults obtains those defaults from
+   the real Addressables and completes the Named value flow first.
+9. Positional packs may fit Structured aggregates when their resolved identities
+   match the target's Addressables in declaration order. Core fitting does not
+   manufacture omitted entries.
+10. Indexed pack syntax may initialize fixed-size homogeneous aggregates such as
+    `Vec[T, N]`. Its owner validates literal indexes and expands them into the
+    complete ordered value flow before core Layout fitting.
+11. Structured typed values do not flatten into packs implicitly. Source must use
    swizzle or slice syntax to decompose a typed value into a fluid pack.
 12. Repack operations produce positional packs unless the syntax explicitly
     authors names or the receiving boundary supplies them.
 13. A named pack fitted into a typed aggregate maps by name, then lowers into
     the aggregate's declaration order. A function with a named return layout
     exposes that declared return layout's carrier order at the call boundary.
-14. Duplicate non-empty field names are invalid. The owner with source or
-    generated-data context diagnoses them before publishing the Layout.
+14. Duplicate or empty names make a Named Layout fail fitting. The owner with
+    source or generated-data context retains the information needed for the
+    diagnostic.
 
 `Vec[T, N]`, `Vec2D`, `Vec3D`, `Vec4D`, `Color`, user structs, and other
 aggregate types are concrete typed values. They may consume compatible packs,
@@ -1520,7 +1583,7 @@ Access forms:
 | `-> name(pack)`   | callable dispatch from the left-side base    |
 
 Calls always take a pack. If no arguments are present, the call still formats
-as `receiver -> method()`. A type or package receiver resolves a Free callable.
+as `receiver -> method()`. A type or package receiver resolves a Static callable.
 An addressable receiver resolves its inferred Type identity, selects a Self
 callable, and contributes the declared receiver parameter. Function-pointer
 invocation is Self dispatch on the callable value, such as
@@ -1646,15 +1709,15 @@ shape for later lowering.
 
 Literal classes:
 
-| Source                   | Meaning                                     |
-| ------------------------ | ------------------------------------------- |
-| `123`                    | decimal numeric literal                     |
-| `0xFF`                   | hexadecimal numeric literal                 |
-| `0.5`                    | floating literal                            |
-| `"Raw string"`           | string literal, no implicit null terminator |
-| `0x[AA FF 12 45 ACDE]`   | byte data literal                           |
-| `$[path/to/file]`        | embedded file data                          |
-| `true`, `false`          | `Bool` literals                             |
+| Source                 | Meaning                                     |
+| ---------------------- | ------------------------------------------- |
+| `123`                  | decimal numeric literal                     |
+| `0xFF`                 | hexadecimal numeric literal                 |
+| `0.5`                  | floating literal                            |
+| `"Raw string"`         | string literal, no implicit null terminator |
+| `0x[AA FF 12 45 ACDE]` | byte data literal                           |
+| `$[path/to/file]`      | embedded file data                          |
+| `true`, `false`        | `Bool` literals                             |
 
 Integer literals are exact integer values. When no narrower expected type is
 present, decimal and hexadecimal integer literals live in the language's
@@ -1748,20 +1811,20 @@ invalid type argument list highlights the argument range when possible.
 
 The common semantic vocabulary is intentionally small:
 
-| Kind                                | Runtime model                  | Notes                                                    |
-| ----------------------------------- | ------------------------------ | -------------------------------------------------------- |
-| primitive numeric types             | value                          | fixed width, no implicit widening                        |
-| `Bool`                              | value                          | only `true` and `false` are truthable by default         |
-| `Vec[T, N]`                         | typed aggregate value          | homogeneous fixed-size aggregate                         |
-| `Vec2D`, `Vec3D`, `Vec4D`, `Color` | typed aggregate value          | named components with stable semantic order              |
-| layout                              | structural value stream        | anonymous heterogeneous aggregate                        |
-| `struct`                            | nominal value                  | does not flatten implicitly                              |
-| `object`                            | nominal managed value          | heap/reference semantics, ISA-limited                    |
-| `foreign`                           | external ABI scope             | declarations lower to linked symbols                     |
-| `Shader`                            | shader scope or ISA concept    | may lower to GPU module plus host glue                   |
-| `enum`                              | compile-time namespace         | members lower to constants                               |
-| `alias`                             | compile-time Abstract redirect | preserves its authored name while redirecting queries    |
-| `Type`                              | compile-time type value        | stores a resolved Type reference                         |
+| Kind                               | Runtime model                  | Notes                                                 |
+| ---------------------------------- | ------------------------------ | ----------------------------------------------------- |
+| primitive numeric types            | value                          | fixed width, no implicit widening                     |
+| `Bool`                             | value                          | only `true` and `false` are truthable by default      |
+| `Vec[T, N]`                        | typed aggregate value          | homogeneous fixed-size aggregate                      |
+| `Vec2D`, `Vec3D`, `Vec4D`, `Color` | typed aggregate value          | named components with stable semantic order           |
+| layout                             | structural value stream        | anonymous heterogeneous aggregate                     |
+| `struct`                           | nominal value                  | does not flatten implicitly                           |
+| `object`                           | nominal managed value          | heap/reference semantics, ISA-limited                 |
+| `foreign`                          | external ABI scope             | declarations lower to linked symbols                  |
+| `Shader`                           | shader scope or ISA concept    | may lower to GPU module plus host glue                |
+| `enum`                             | compile-time namespace         | members lower to constants                            |
+| `alias`                            | compile-time Abstract redirect | preserves its authored name while redirecting queries |
+| `Type`                             | compile-time type value        | stores a resolved Type reference                      |
 
 `Library`, `Package`, `Render`, and `Shader` are ISAs. They remain PascalCase
 type atoms in source. ISA registration decides what they mean instead of the
@@ -1775,7 +1838,7 @@ TTX maps naturally to LLVM-like IR concepts:
 | ----------------------------- | -------------------------------------------------------- |
 | package                       | module or compilation unit                               |
 | import                        | module dependency or package alias                       |
-| function                      | function definition or ISA-owned bodyless declaration     |
+| function                      | function definition or ISA-owned bodyless declaration    |
 | block                         | structured region that lowers to basic blocks            |
 | `if`, `while`, `for`, `match` | branches, loops, phi/select logic, block graphs          |
 | `break`, `continue`           | loop exits and loop-iteration control                    |
@@ -1796,22 +1859,22 @@ field, or stored value, a lowerer performs the same operation:
 
 ```text
 resolved Type
--> concrete Layout
--> non-empty Layout: recursively lower entries in layout order
--> empty Layout: query the terminal Type contract for this target
+-> Structured Layout
+-> non-empty: resolve each Addressable and recursively lower its Type in order
+-> empty: query the terminal Type contract for this target
 ```
 
-A non-empty Layout is never collapsed to an invented scalar carrier merely
+A non-empty Structured Layout is never collapsed to an invented scalar carrier merely
 because a backend recognizes the outer Type name. A byte view, vector, struct,
 render contract, and user aggregate are recursively deconstructed according to
-their entries. The source value remains one semantic aggregate; the terminal
-representation is its ordered projection. Calls, returns, stack placement,
-register classification, generated host declarations, and archive descriptions
-must consume the same projection.
+their actual Addressables. The source value remains one semantic aggregate; the
+terminal representation is its ordered projection. Calls, returns, stack
+placement, register classification, generated host declarations, and archive
+descriptions must consume the same projection.
 
 An empty Layout alone does not say whether a terminal is an integer, real,
 opaque handle, zero-width value, or target-defined resource. The resolved Type
-must implement the terminal contract published by the active ISA or target. An
+must implement the terminal contract contributed by the active ISA or target. An
 ISA can enrich the Abstract graph with that target meaning. A lower compiler
 only knows the Type and terminal interfaces; it does not need to know whether
 the authored query reached that Type through an Alias, Generic, shader context,
@@ -1842,17 +1905,22 @@ When changing TTX, preserve these invariants:
     raw parse-shape construction.
 12. Formatter output derives from the same token source text as the lexer
     whenever the token has fixed source text.
-13. Every semantic object implements Abstract; Type is a queryable subtype, not
-    the universal base. Reflection and schema objects are Abstracts too.
+13. Every queryable semantic identity implements Abstract; Type is a queryable
+    subtype, not the universal base. Reflection and schema identities are
+    Abstracts too. Layout and metadata are facts, not competing identities.
 14. Failed semantic resolution returns Invalid, never a null pseudo-Abstract.
-15. Free and Self are Callable subtypes, and Self's complete parameter Layout
+15. Static and Self are Callable subtypes, and Self's complete parameter Layout
     contains the receiver at position zero.
 16. Resolution passes borrowed `View::Bytes` without prescribing partitioning.
-    The same ordered chain is deterministic until the DAG changes; Alias may
-    redirect an unchanged route, and publication never substitutes a signature
-    hash for the selected named ownership chain.
+    The same ordered chain is deterministic while the DAG is unchanged. Alias
+    may redirect an unchanged route. Optional export naming never substitutes a
+    signature hash for the selected named ownership chain.
 17. Composite terminal lowering recursively deconstructs every non-empty
-    concrete Layout before asking terminal Type contracts to lower leaves.
+    Structured Layout through its real Addressables before asking terminal Type
+    contracts to lower leaves.
+18. Layout is an ordered fitting contract over Abstracts. Fluid, Named, and
+    Structured express distinct semantics through inheritance; there is no
+    Member record, kind enum, or Incomplete Layout.
 
 These rules are what keep TTX readable while still letting it behave like a
 compiler IR.

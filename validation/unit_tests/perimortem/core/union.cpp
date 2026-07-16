@@ -55,7 +55,26 @@ PERIMORTEM_UNIT_TEST(CoreUnion, copy_move) {
   EXPECT_TEXT(*third.find<View::Bytes>(), "copy"_view);
 }
 
+PERIMORTEM_UNIT_TEST(CoreUnion, equality) {
+  Static::Union<Bits_64> hundred(Bits_64(100));
+  Static::Union<Bits_64> another_hundred(Bits_64(100));
+  Static::Union<Bits_64> different(Bits_64(101));
+  Static::Union<Bits_64> empty;
+  Static::Union<Bits_64, View::Bytes> bits(Bits_64(100));
+  Static::Union<Bits_64, View::Bytes> text("100"_view);
+
+  EXPECT(hundred == 100);
+  EXPECT(hundred == another_hundred);
+  EXPECT(hundred != different);
+  EXPECT(different != 100);
+  EXPECT(empty == Static::Union<Bits_64>());
+  EXPECT(empty != hundred);
+  EXPECT(bits != text);
+}
+
 static_assert(sizeof(Static::Union<Bits_32, Bits_64>) <= 16);
 static_assert(sizeof(Static::Union<View::Bytes, Signed_64>) == 24);
+static_assert(__is_constructible(Static::Union<Bits_64>, int));
+static_assert(!__is_constructible(Static::Union<Bits_64, Signed_64>, int));
 static_assert(
     __is_trivially_destructible(Static::Union<View::Bytes, Signed_64>));

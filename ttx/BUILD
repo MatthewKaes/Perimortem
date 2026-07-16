@@ -31,11 +31,11 @@ cc_library(
 )
 
 cc_library(
-    name = "abstract",
+    name = "abstraction",
     hdrs = [
-        "abstract.hpp",
-        "alias.hpp",
-        "invalid.hpp",
+        "abstraction/abstract.hpp",
+        "abstraction/alias.hpp",
+        "abstraction/invalid.hpp",
     ],
     deps = [
         "//perimortem:core",
@@ -45,29 +45,33 @@ cc_library(
 cc_library(
     name = "model",
     srcs = [
-        "layout.cpp",
-        "member.cpp",
-        "type.cpp",
+        "model/layouts/fluid.cpp",
+        "model/layouts/named.cpp",
+        "model/layouts/structured.cpp",
     ],
     hdrs = [
-        "attribute.hpp",
-        "documentation.hpp",
-        "function.hpp",
-        "layout.hpp",
-        "member.hpp",
-        "type.hpp",
+        "model/addressable.hpp",
+        "model/attribute.hpp",
+        "model/callable.hpp",
+        "model/documentation.hpp",
+        "model/layout.hpp",
+        "model/layouts/fluid.hpp",
+        "model/layouts/named.hpp",
+        "model/layouts/structured.hpp",
+        "model/self.hpp",
+        "model/static.hpp",
+        "model/type.hpp",
     ],
     deps = [
-        ":lexical",
+        ":abstraction",
         "//perimortem:core",
-        "//perimortem:memory",
     ],
 )
 
 cc_library(
     name = "ttx",
     deps = [
-        ":abstract",
+        ":abstraction",
         ":lexical",
         ":model",
         "//perimortem:core",

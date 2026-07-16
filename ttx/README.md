@@ -7,7 +7,7 @@ host in this repository. It provides the VM, CLI, LSP, Bazel integration, source
 graph, packaging, ISA dispatch, and backend entry points.
 
 The design goal is simplicity: lower source text into a compact token stream,
-let a host execute that stream with the active instruction set, and publish
+let a host execute that stream with the active instruction set, and expose
 queryable TTX facts as more context becomes available. Abstract identities,
 types, callables, layouts, and ISA-specific contracts remain separate facts in
 one graph.
@@ -47,7 +47,7 @@ file. It also owns the cache rules that keep source records valid when a
 dependency changes.
 
 The declared ISA then evaluates the remaining token bytecode with those imports
-available. A Package ISA can publish package exports. A Library ISA can publish
+available. A Package ISA can export package objects. A Library ISA can expose
 types, values, and callable facts. Shader and Render ISAs can add their own
 legality and lowering facts. Another host could choose a different envelope or
 skip the envelope entirely when the evaluator is already known.
@@ -101,7 +101,7 @@ the source.
 
 An ISA is an installed semantic instruction set with a name and behavior. Its
 host-owned installation is local configuration; durable semantic identity comes
-from the named Abstract facts the ISA publishes, never from a process address.
+from the named Abstract facts the ISA exposes, never from a process address.
 
 That matters because ISAs are open. Adding `Shader`, `Render`, or a
 project-specific authoring space means installing an ISA evaluator into the
@@ -117,32 +117,37 @@ Shader ISA can expose shader stage facts. A Package ISA can expose package
 exports. A Library ISA can expose callable functions and ABI facts. Those are
 ISA-owned enrichments over the same TTX token bytecode.
 
-## Abstracts, types, callables, and layouts
+## Abstracts and the model
 
-Every evaluated semantic object implements `Abstract`. Derived contracts publish
+Every queryable semantic identity implements `Abstract`. Derived contracts expose
 the operations that make the object useful:
 
 ```text
-Abstract
-├── Alias
-├── Invalid
-├── Type
-│   ├── Generic
-│   └── ISA-defined types
-├── Callable
-│   ├── Free
-│   └── Self
-└── Address
+Ttx::Abstraction::Abstract
+├── Ttx::Abstraction::Alias
+├── Ttx::Abstraction::Invalid
+├── Ttx::Model::Type
+│   ├── Ttx::Model::Generic
+│   └── ISA-defined model types
+├── Ttx::Model::Callable
+│   ├── Ttx::Model::Static
+│   └── Ttx::Model::Self
+└── Ttx::Model::Addressable
 ```
+
+The `Ttx::Abstraction` namespace owns the restricted resolution substrate. The
+`Ttx::Model` namespace owns the shared semantic vocabulary built on that
+substrate, including Type, Layout, Callable, metadata, and their supporting
+value facts.
 
 `Abstract` owns only local naming, identity resolution, and context resolution
 over borrowed `View::Bytes`. `Alias` is the closed named redirect to another
 Abstract. `Invalid` is the closed stateless absorbing failure. `Type` adds a
-concrete Layout and Type-owned query surfaces. `Generic` creates or finds a
-concrete compiler-owned Type. `Callable` adds complete parameter and result
-Layouts plus an Address query. Free calls have no receiver. Self calls include
-the receiver as parameter zero. Address describes a local, external,
-interpreted, runtime, or explicitly unresolved invocation endpoint.
+Structured Layout and Type-owned query surfaces. `Generic` creates or finds a
+compiler-owned Type. `Callable` adds complete parameter and result Layouts plus
+an Addressable query. Static calls have no receiver. Self calls include the
+receiver as parameter zero. Addressable is a named semantic edge whose
+resolution supplies the addressed Abstract.
 
 Type is not the universal semantic base, and there is no vague `Typed` marker.
 A consumer resolves Abstract identity, proves the contract it needs, and then
@@ -158,21 +163,31 @@ use a signature hash.
 Failure produces `Invalid : Abstract`, not a null semantic pointer. Invalid is
 stateless and absorbing; the source-owning query retains the failed route and
 diagnostic cause. Empty scopes use empty views; unresolved callable linkage uses
-an explicit unresolved Address or Invalid.
+an explicit unresolved Addressable or Invalid.
 
-A Layout is recursive target-independent shape:
+A Layout is an ordered fitting contract over real Abstracts. Fluid represents
+positional value flow, Named represents uniquely named value flow, and
+Structured is a Type's stable sequence of actual Addressable objects. Layout
+does not copy their names, Types, documentation, attributes, defaults, or target
+storage into a Member record.
 
-- fluid or concrete kind
-- field order and optional field names
-- child Types
-- pack fitting rules
+`Type::get_layout()` returns a Structured Layout. A scalar has an empty
+Structured Layout. An aggregate recursively resolves each Addressable to its
+child Type during lowering. A bare Generic must first produce a resolved Type.
+An authored `@abi` number is not a substitute for terminal Type queries.
 
-Types admitted to value positions project to concrete Layouts, while Layouts do
-not become Types or own dispatch. A bare Generic must first produce a concrete
-Type. A scalar has an empty concrete Layout. An aggregate has entries and must
-be recursively deconstructed by terminal lowering. A target then asks terminal
-Type contracts how empty-layout leaves are represented. An authored `@abi`
-number is not a substitute for this query.
+Source hosts may reserve nonmoving Type and Callable objects before every fact
+is known. An incomplete Type or containing system resolves to Invalid; Layout
+has no Incomplete state. The host may enrich that object, replace an enclosing
+resolver, or build immutable snapshots according to its own cache model. Public
+export is optional and does not determine whether a Type is semantically real.
+
+Prelude scalar names such as `Bool`, `Bits_8`, `Signed_32`, and `Real_64`
+describe value domain and precision, not host `sizeof`, target alignment,
+register width, or instruction width. A target may use a 32-bit carrier or move
+for `Bits_8` when it preserves the eight-bit semantics. The prelude owns stable
+Type instances; target terminal contracts own representation. Core TTX does
+not need a concrete class for each spelling.
 
 Documentation is separate from identity resolution. The declaration that
 introduces an Alias may own contextual documentation, while the resolved target
@@ -184,19 +199,15 @@ the arguments, and asks it for a concrete Type. `View[Bits_8]`,
 `Vec[Real_32, 4]`, and `List[Sprite]` follow the same rule. They are not a
 parallel template or generated-type system.
 
-Names in a layout are authored or boundary-provided facts. An explicit named
-pack authors names. A function parameter layout, function return layout, type
-layout, or other receiving boundary can provide names for fitting and later
-access. Repack operations such as grouping, swizzle, and slice produce
-positional layouts unless the operator explicitly authors or preserves names.
-This keeps temporary expression shape from accidentally inheriting names through
-composition. Duplicate non-empty names are rejected by the source, package,
-generated-data, or ISA owner before it publishes a semantic Layout.
+Names belong to the actual Abstracts in a Named or Structured Layout. Repack
+operations such as grouping, swizzle, and slice produce Fluid layouts unless
+the syntax explicitly authors named objects. Named fitting rejects empty or
+duplicate names and matches names independently of target order.
 
-Layout fitting uses `source.fits(target)`. Exact structural equality uses
-`equivalent_to`. Defaulted members are only valid as a trailing suffix. A target
-layout with a defaulted member followed by a required member does not fit, even
-when the source provides that later required member.
+Layout fitting is directional: `source.fits(target)`. Core fitting does not
+manufacture omitted defaults. A language or ISA that supports omission resolves
+defaults through the real Addressables and completes the source value flow
+before fitting.
 
 Core scalar, vector, and memory types are prelude types. They are injected into
 every source context as top-level names such as `Void`, `Real_32`, and `Vec2D`.
@@ -263,7 +274,7 @@ Graphics::Shaders::Default2D
 Render2D::Renderer2D
 ```
 
-`->` is Callable dispatch. A Type or package receiver resolves Free; an
+`->` is Callable dispatch. A Type or package receiver resolves Static; an
 addressable value resolves Self through its resolved Type. It requires a
 dispatchable identity and does not work on a pure Layout.
 
@@ -360,14 +371,22 @@ already know.
 The TTX directory is the language core:
 
 - [`lexical`](lexical/) lowers source text into stable token bytecode
-- [`documentation.hpp`](documentation.hpp) models source-authored
+- [`model`](model/) owns the shared Type, Layout, Callable, Attribute, and
+  Documentation vocabulary
+- [`model/documentation.hpp`](model/documentation.hpp) models source-authored
   documentation owned beside semantic objects by declarations and contexts
-- [`abstract.hpp`](abstract.hpp) is the root semantic query contract
-- Alias and Invalid are closed Abstract concepts; Type, Generic, Callable, Free,
-  Self, Address, and ISA-specific contracts extend the graph with narrow
+- [`abstraction/abstract.hpp`](abstraction/abstract.hpp) is the root semantic
+  query contract
+- Alias and Invalid are closed Abstract concepts; Type, Generic, Callable, Static,
+  Self, Addressable, and ISA-specific contracts extend the graph with narrow
   operations
-- [`layout.hpp`](layout.hpp) and [`layout.cpp`](layout.cpp) model shape,
-  fitting, exact equivalence, named member access, and type-to-layout views
+- [`model/layout.hpp`](model/layout.hpp) defines the ordered fitting contract;
+  [`model/layouts`](model/layouts/) contains Fluid, Named, and Structured
+- [`model/type.hpp`](model/type.hpp) supplies the narrow target-independent Type
+  contract; [`model/callable.hpp`](model/callable.hpp),
+  [`model/static.hpp`](model/static.hpp), [`model/self.hpp`](model/self.hpp), and
+  [`model/addressable.hpp`](model/addressable.hpp) supply invocation contracts
+  without making Callable a subtype of Type
 - host prelude contexts provide the top-level scalar, vector, and memory Types
   available to ordinary source contexts
 

@@ -52,31 +52,31 @@ navigation may need a module or package graph, but not backend code generation.
 Compilation uses more layers, but it still asks the same source-shaped program
 richer questions rather than reconstructing intent from a lower-level copy.
 
-One of the central rules is the difference between fluid value flow and
-concrete storage. A pack such as `(a, b, c)` is fluid: it can be flattened,
-named, fitted, or repacked before it becomes a real value. A struct, vector,
-color, scalar, or ABI block is concrete: it has stable ordered shape and
-addressable Type identity. Target-specific storage contracts derive offsets,
-alignment, and carrier rules later. TTX lets fluid packs initialize concrete
-values when the shape fits, but it does not silently unpack concrete values back
-into packs. Source uses swizzle or slice syntax when it wants to cross that
-boundary explicitly.
+One of the central rules is the difference between reshapeable value flow and
+structured typed storage. A pack such as `(a, b, c)` is Fluid or Named: it can
+be fitted or repacked before it becomes a typed value. A struct, vector, color,
+scalar, or ABI block supplies a Structured Layout made from its real
+Addressables and retains Type identity. Target-specific storage contracts derive
+offsets, alignment, and carrier rules later. TTX lets value flow initialize
+structured values when the shape fits, but it does not silently unpack typed
+values back into packs. Source uses swizzle or slice syntax when it wants to
+cross that boundary explicitly.
 
 ## Relationship To LLVM IR And MLIR
 
 The short version is that LLVM IR, MLIR, and TTX all live in the IR family, but
 they optimize for different moments in the toolchain:
 
-| Area                   | LLVM IR                                             | MLIR                                                          | TTX                                                          |
-| ---------------------- | --------------------------------------------------- | ------------------------------------------------------------- | ------------------------------------------------------------ |
-| Primary representation | Lowered SSA module/function/block/instruction IR    | Extensible operation/SSA IR with regions                      | Source IR plus token bytecode and context layers             |
+| Area                   | LLVM IR                                             | MLIR                                                          | TTX                                                                |
+| ---------------------- | --------------------------------------------------- | ------------------------------------------------------------- | ------------------------------------------------------------------ |
+| Primary representation | Lowered SSA module/function/block/instruction IR    | Extensible operation/SSA IR with regions                      | Source IR plus token bytecode and context layers                   |
 | Main extension point   | Intrinsics, metadata, passes, and targets           | Dialects define operations, types, attributes, and interfaces | Fixed syntax with ISAs defining evaluation, legality, and metadata |
-| Typical motion         | Optimize and transform already-lowered IR           | Rewrite and convert operations between dialects               | Evaluate token bytecode and enrich queryable facts           |
-| Text form              | Debug, test, and serialization form for compiler IR | Debug, test, and serialization form for multi-level IR        | Human-authored canonical source surface                      |
-| Extension granularity  | Target and metadata oriented                        | Operations from many dialects can coexist freely              | One declared ISA controls the legal semantic world           |
-| Source preservation    | Mostly lowered away before LLVM IR                  | Supported through locations and higher-level dialects         | Central design constraint                                    |
-| Tooling goal           | Optimizer and code-generation substrate             | Reusable compiler infrastructure                              | Shared frontend IR for compiler, editor, and build tooling   |
-| Lowering               | Already lowered enough for optimization             | Core workflow through dialect conversion                      | Delayed until terminal artifacts                             |
+| Typical motion         | Optimize and transform already-lowered IR           | Rewrite and convert operations between dialects               | Evaluate token bytecode and enrich queryable facts                 |
+| Text form              | Debug, test, and serialization form for compiler IR | Debug, test, and serialization form for multi-level IR        | Human-authored canonical source surface                            |
+| Extension granularity  | Target and metadata oriented                        | Operations from many dialects can coexist freely              | One declared ISA controls the legal semantic world                 |
+| Source preservation    | Mostly lowered away before LLVM IR                  | Supported through locations and higher-level dialects         | Central design constraint                                          |
+| Tooling goal           | Optimizer and code-generation substrate             | Reusable compiler infrastructure                              | Shared frontend IR for compiler, editor, and build tooling         |
+| Lowering               | Already lowered enough for optimization             | Core workflow through dialect conversion                      | Delayed until terminal artifacts                                   |
 
 TTX is closer to a human-editable source IR than to C++ with different
 punctuation. It shares LLVM's bias toward explicit values, typed calls, and
@@ -87,18 +87,18 @@ The source format is inspired by LLVM concepts, but TTX does not globally define
 every construct that might lower to LLVM-like IR. Lexical lowers authored source
 into token bytecode. A host selects an evaluator for the relevant bytecode span.
 That evaluator decides which token spans are executable instructions, what facts
-they publish, and whether those facts can later lower to LLVM IR, SPIR-V, object
-code, editor data, or something else.
+they make queryable, and whether those facts can later lower to LLVM IR, SPIR-V,
+object code, editor data, or something else.
 
 That makes the reusable TTX model smaller than a full language tree:
 
 | TTX data or token shape                | Usually becomes                                               |
 | -------------------------------------- | ------------------------------------------------------------- |
-| `Ttx::Abstract`                        | named semantic identity and progressive context resolution    |
-| `Ttx::Type`                            | resolved type identity and concrete layout                    |
-| `Ttx::Callable`                        | free or receiver-bound callable layout and linkage query       |
-| `Ttx::Layout`                          | value shape, field order, pack fitting, member projection     |
-| `Documentation`                        | source-authored prose for tools and exported facts            |
+| `Ttx::Abstraction::Abstract`           | named semantic identity and progressive context resolution    |
+| `Ttx::Model::Type`                     | resolved type identity and Structured layout                  |
+| `Ttx::Model::Callable`                 | static or receiver-bound callable layout and linkage query    |
+| `Ttx::Model::Layout`                   | ordered Abstract shape and directional fitting                |
+| `Ttx::Model::Documentation`            | source-authored prose for tools and exported facts            |
 | `TypeAccessOp` such as `::`            | nested type query against the current type or import context  |
 | `AddressOp` such as `.`                | layout member query, package-name segment, or ISA projection  |
 | `CallOp` such as `->`                  | callable dispatch query against the current type or ISA facts |
@@ -173,8 +173,9 @@ The source keyword remains `dialect`, but semantically this instruction names an
 evaluator installed in the active host. Puffer implements this convention with a
 direct Boot ISA call and Tetrodotoxin's `Isa::Registry`, but that registry is a
 toolchain detail. An ISA is not a separate lowered IR stage. It is the
-instruction set that owns the next bytecode span and may publish or consume
-`Ttx::Abstract`, `Ttx::Type`, `Ttx::Layout`, or other host facts.
+instruction set that owns the next bytecode span and may expose or consume
+`Ttx::Abstraction::Abstract`, `Ttx::Model::Type`, `Ttx::Model::Layout`, or
+other host facts.
 
 The lowercase `dialect` marker is a reserved keyword. The ISA name after
 the colon is still a PascalCase type atom, so names such as `Package`,
@@ -261,8 +262,8 @@ whether that form is legal in its scope.
 
 The shared definition parser only extracts the shape: modifier, name,
 `Define`, and qualifier. The active ISA then decides whether the modifier and
-qualifier are legal, whether the body opens a scope, and what TTX facts are
-published.
+qualifier are legal, whether the body opens a scope, and what TTX facts become
+queryable.
 
 ```ttx
 private count : Count = 4;
@@ -287,17 +288,17 @@ Modifiers describe visibility, ownership, and storage shape. They are ordinary
 keyword tokens. The exact semantic contract belongs to the active ISA, but the
 shared spellings let ISAs reuse the same definition spine:
 
-| Modifier  | Intended meaning                                      |
-| --------- | ----------------------------------------------------- |
-| `public`  | visible API that other sources may read or call       |
-| `private` | local implementation detail owned by the current ISA  |
-| `expose`  | externally readable data, written by its owner        |
-| `state`   | stateful storage that is not part of the value shape  |
-| `const`   | write-once or compile-time data                       |
+| Modifier  | Intended meaning                                     |
+| --------- | ---------------------------------------------------- |
+| `public`  | visible API that other sources may read or call      |
+| `private` | local implementation detail owned by the current ISA |
+| `expose`  | externally readable data, written by its owner       |
+| `state`   | stateful storage that is not part of the value shape |
+| `const`   | write-once or compile-time data                      |
 
 The tokenizer only provides the keyword class. Library, Package, Shader, and
 future ISAs decide which modifiers are legal at each instruction and what facts
-they publish into the TTX data model.
+they expose through the TTX data model.
 
 ## Attributes And Directives
 
@@ -316,10 +317,13 @@ need several facts use several attributes, such as `@binding @set(0) @slot(1)`.
 This keeps metadata lookup direct and prevents attributes from growing a second
 untyped object model beside Layout.
 
+The scalar carrier is `Core::Static::Union`. `Attribute` adds the authored key;
+it does not define another tag, storage union, or dispatch mechanism.
+
 Target-specific attributes can attach lowering facts to a Type. For example,
 `@shader_type(Vec4D)` says that the authored type intentionally lowers through
 the shader ABI as `Vec4D`. That fact is separate from layout fitting. A type
-with four `Real_32` members is not a shader vector unless the ISA publishes the
+with four `Real_32` members is not a shader vector unless the ISA exposes the
 metadata or the query resolves to the vector Type.
 
 `@if` is an attribute-shaped directive:
@@ -337,22 +341,26 @@ comments, not as a semantic feature.
 ## Abstract Query Model
 
 TTX's semantic world is a directed graph of named `Abstract` objects. Every
-object publishes the virtual contracts it implements and the named objects
+object exposes the virtual contracts it implements and the named objects
 reachable from its context. Tools ask for the contract they need instead of
 assuming that every declaration is a Type:
 
 ```text
-Abstract
-├── Alias
-├── Invalid
-├── Type
-│   ├── Generic
-│   └── ISA-defined types
-├── Callable
-│   ├── Free
-│   └── Self
-└── Address
+Ttx::Abstraction::Abstract
+├── Ttx::Abstraction::Alias
+├── Ttx::Abstraction::Invalid
+├── Ttx::Model::Type
+│   ├── Ttx::Model::Generic
+│   └── ISA-defined model types
+├── Ttx::Model::Callable
+│   ├── Ttx::Model::Static
+│   └── Ttx::Model::Self
+└── Ttx::Model::Addressable
 ```
+
+`Ttx::Abstraction` owns only the restricted identity and resolution substrate.
+`Ttx::Model` owns the shared source-IR vocabulary layered on that substrate. It
+does not own a registry, global object collection, or parallel semantic graph.
 
 This hierarchy is semantic, not C++ RTTI. Native and foreign-language objects
 answer the same progressive Abstract queries without a central class authority.
@@ -364,17 +372,32 @@ another Abstract in the graph, not a repository attached to the base class.
 
 The core contracts are deliberately narrow:
 
-| Contract   | Responsibility |
-| ---------- | -------------- |
-| `Abstract` | name, identity redirection, and progressive context resolution |
-| `Alias`    | closed named redirection to another Abstract |
-| `Type`     | concrete Layout and Type-owned query surfaces |
-| `Generic`  | a Type that creates or finds a concrete Type from arguments |
-| `Callable` | complete parameter/result layouts and an address/linkage query |
-| `Free`     | invocation without an addressable receiver |
-| `Self`     | invocation on an addressable receiver included as parameter zero |
-| `Address`  | resolved or explicitly unresolved invocation endpoint |
-| `Invalid`  | an absorbing failed query |
+| Contract      | Responsibility                                                   |
+| ------------- | ---------------------------------------------------------------- |
+| `Abstract`    | name, identity redirection, and progressive context resolution   |
+| `Alias`       | closed named redirection to another Abstract                     |
+| `Type`        | resolved identity with a total Structured Layout query           |
+| `Generic`     | a Type that creates or finds a concrete Type from arguments      |
+| `Callable`    | complete parameter/result layouts and an address/linkage query   |
+| `Static`      | invocation selected through a Type or package without a receiver |
+| `Self`        | invocation on an addressable receiver included as parameter zero |
+| `Addressable` | named semantic edge resolving to the addressed Abstract           |
+| `Invalid`     | an absorbing failed query                                        |
+
+The initial native query surface is intentionally small and total:
+
+```text
+Type::get_layout()             -> const Layouts::Structured&
+Callable::get_parameters()     -> const Layout&
+Callable::get_results()        -> const Layout&
+Callable::get_address()        -> const Abstract&
+```
+
+Addressable failure remains Invalid or an explicitly unresolved Addressable.
+Layout stores no copied Member record. It exposes real Abstracts, and Structured
+narrows those entries to the actual Addressables owned by a Type. Names, child
+Types, documentation, attributes, defaults, and ISA facts remain on the real
+objects or their richer contracts rather than becoming nullable Layout fields.
 
 There is no generic `Typed` marker. A query asks for the real operation it
 needs. The remaining route is a borrowed `View::Bytes`. The public virtual
@@ -430,6 +453,34 @@ of unrelated errors.
 Empty child sets are empty views; absence is never modeled by a null
 pseudo-Abstract.
 
+### Stable Construction And Resolution
+
+Real TTX envelopes and body ISAs may require preregistration or more than one
+evaluation pass. The Abstract model permits that without imposing one
+construction/publication lifecycle on every host.
+
+A host may reserve nonmoving objects and install names that later declarations
+can query. Until a requested Type or system has enough facts, it resolves that
+query to Invalid. Once resolution reaches the real Type, its Structured Layout
+is a total reference. Layout therefore has no Incomplete state, and an empty
+Structured Layout remains the unambiguous terminal scalar case.
+
+The Package, Library, Foreign, Shader, Render, Scene, App, or another active ISA
+completes the facts it owns using the pass structure appropriate to that
+dialect. A host may enrich the reserved object, replace an enclosing resolver,
+or build an immutable snapshot. Abstract, Type, Layout, and Callable prescribe
+none of those mutation, snapshot, or pass-management policies.
+
+Abstract determinism applies while the DAG is unchanged. The owner that changes
+or replaces the DAG also owns reference lifetime, cache invalidation, and any
+revision used by its readers. Process addresses can be local identity while
+kept stable, but are never durable names.
+
+Public export is a separate optional concern. A package host may validate and
+archive an immutable public surface, while an interpreter or compiler may use
+internal and transient Types that are never exported. Resolution, not
+publication status, determines whether a semantic fact is currently available.
+
 ## Type References
 
 Type references are progressive PascalCase Abstract queries whose final result
@@ -481,11 +532,34 @@ route and source context. A terminal that needs runtime reflection consumes an
 explicit Abstract contract defined by that runtime. C++ object addresses and
 vtables never become the cross-language representation.
 
-Publication renders a selected named ownership chain. Tooling may show either
-the authored Alias name or the resolved target's ownership chain, but no
-`display_name` attribute or side-table path is needed to reconstruct identity.
-Within one compiler boundary object identity can be compared by stable handle;
-durable publication identity is reversible names, never the process address.
+When a host exports an object, it renders a selected named ownership chain.
+Tooling may show either the authored Alias name or the resolved target's
+ownership chain, but no `display_name` attribute or side-table path is needed to
+reconstruct identity. Within one compiler boundary object identity can be
+compared by stable handle; durable export identity is reversible names, never
+the process address.
+
+### Prelude Type Intent
+
+The universal spellings `Bool`, `Bits_8`, `Bits_16`, `Bits_32`, `Bits_64`,
+`Signed_8`, `Signed_16`, `Signed_32`, `Signed_64`, `Real_32`, and `Real_64`
+describe semantic value domains and precision. They do not copy the C++ types
+with those names into the target ABI. In particular, `Bits_8` does not require
+an eight-bit register or instruction: a target may select a 32-bit carrier or
+`mov32` when it preserves the eight-bit semantics at the required boundaries.
+
+These scalar Types are empty Structured Layout leaves. Target size, alignment,
+offset, carrier, instruction, and calling-convention decisions are supplied by
+the terminal contract contributed by the active target or ISA. `Count` remains
+the documented 64-bit count-domain alias rather than silently becoming the
+host pointer width.
+
+The prelude owns stable instances of these Types. Core TTX does not create one
+implementation class per spelling. A future `type/` implementation directory
+may group real semantic family contracts, such as integer range or real
+precision, when downstream queries require them. Class-per-name headers or
+`sizeof`-returning base Types would confuse source intent, host representation,
+and terminal policy and are therefore not part of this slice.
 
 ## Builtin Definition Kinds
 
@@ -532,7 +606,7 @@ modifier? func name[params] -> returns block
 ```
 
 Both parameters and returns are layouts. The selected body evaluator owns the
-implementation block. The published semantic object implements `Callable` and
+implementation block. The resulting semantic object implements `Callable` and
 carries the callable signature, documentation, and dispatch name. A single type
 may be written directly:
 
@@ -540,7 +614,7 @@ may be written directly:
 public func size[] -> Count { ... }
 ```
 
-Callable has two semantic subtypes. `Free` is selected through a type or package
+Callable has two semantic subtypes. `Static` is selected through a type or package
 name and does not consume a receiver. `Self` is selected through a runtime value
 and requires that receiver as parameter zero:
 
@@ -563,16 +637,16 @@ consume the same truth, and no compiler layer prepends `self` again. Library
 syntax requires this shorthand first and rejects it for a package-level
 function because a package is not a runtime value.
 
-Free and Self may publish the same callable name because Type owns independent
+Static and Self may expose the same callable name because Type owns independent
 static and self lookup surfaces. `Counter -> identity(...)` queries the static
 surface; `counter -> identity(...)` queries the self surface. Duplicates inside
 one surface are invalid. Completion selects the same surface before it
 enumerates entries.
 
-Placing a Free callable beneath a Type makes it type-owned; it does not create a
+Placing a Static callable beneath a Type makes it type-owned; it does not create a
 third callable subtype. “Typed function” is therefore not a semantic category.
 An implementation or resolved external linkage may enrich either callable with
-an Address object. Until linkage exists, the callable's address query returns an
+an Addressable object. Until linkage exists, the callable's address query returns an
 explicit unresolved or Invalid Abstract, never a null pointer.
 
 A named layout uses fields:
@@ -734,6 +808,18 @@ Count
 [@builtin @slot(0) .source : View[Bytes], .count : Count]
 ```
 
+The model uses three narrow contracts rather than one tagged record:
+
+- `Fluid` carries ordered positional Abstract values.
+- `Named` carries ordered, uniquely named Abstract values and fits by name.
+- `Structured` is returned by Type and carries its actual Addressable objects.
+
+Layout owns order and fitting only. It does not copy a field's Type,
+documentation, attributes, default, or target storage into a generic member.
+Those facts stay on the Addressable, its source owner, or a richer derived
+contract. A Type or system that is not ready resolves to Invalid; there is no
+Incomplete Layout and no publication bit.
+
 A named layout field starts with `.` and an addressable name. Attributes may
 decorate layout fields, but the field marker remains visible before the field
 body. An unnamed layout is just a list of type references.
@@ -759,8 +845,8 @@ The binding Layout must fit that value; its field count never controls stride.
 Expressions are values. Assignment is not an expression in TTX because it does
 not produce a value.
 
-Executable syntax is owned by the ISA that understands it. An ISA may publish
-an owned executable body against a stable Callable, but that representation
+Executable syntax is owned by the ISA that understands it. An ISA may attach
+an owned executable body to a stable Callable, but that representation
 does not add body tags or a generic statement hierarchy to the shared TTX
 model.
 
@@ -825,7 +911,7 @@ The access forms are:
 
 Calls take a pack because call arguments are written with `(...)`, and `(...)`
 is always a pack. `.` is lookup only. `->` marks every call. A type or package
-receiver resolves a `Free` callable. An addressable value resolves a `Self`
+receiver resolves a `Static` callable. An addressable value resolves a `Self`
 callable from its resolved Type and contributes the declared receiver argument.
 Function-pointer dispatch is Self dispatch on the callable value, such as
 `callback -> invoke(args)`.

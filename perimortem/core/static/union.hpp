@@ -57,8 +57,28 @@ class Union {
   using Alternative = __remove_cvref(Type);
 
   template <typename Candidate>
+  static consteval auto constructible_count() -> Count {
+    return (Count(__is_constructible(Types, Candidate&&)) + ...);
+  }
+
+  template <typename Candidate, typename Type>
+  static consteval auto selects() -> bool {
+    // An exact alternative always wins. Otherwise the source must construct
+    // exactly one alternative, allowing `Union<Bits_64>` to accept an integer
+    // literal without making a multi-numeric Union guess its intended type.
+    constexpr Count exact = type_count<Alternative<Candidate>>();
+    if constexpr (exact != 0) {
+      return __is_same(Alternative<Candidate>, Type) &&
+             __is_constructible(Type, Candidate&&);
+    }
+
+    return constructible_count<Candidate>() == 1 &&
+           __is_constructible(Type, Candidate&&);
+  }
+
+  template <typename Candidate>
   static consteval auto accepts() -> bool {
-    return type_count<Alternative<Candidate>>() == 1;
+    return (Count(selects<Candidate, Types>()) + ...) == 1;
   }
 
   template <typename Type, typename... Arguments>
@@ -66,6 +86,19 @@ class Union {
     Type& value = *new (storage) Type(static_cast<Arguments&&>(arguments)...);
     tag = type_tag<Type>();
     return value;
+  }
+
+  template <typename Type, typename... Rest, typename Candidate>
+  auto construct_candidate(Candidate&& value) -> void {
+    if constexpr (selects<Candidate, Type>()) {
+      construct<Type>(static_cast<Candidate&&>(value));
+    } else if constexpr (sizeof...(Rest) != 0) {
+      construct_candidate<Rest...>(static_cast<Candidate&&>(value));
+    } else {
+      static_assert(
+          selects<Candidate, Type>(),
+          "Union construction candidate does not select a supported type.");
+    }
   }
 
   template <typename Type>
@@ -112,8 +145,8 @@ class Union {
 
   template <typename Candidate>
     requires(accepts<Candidate>())
-  explicit Union(Candidate&& value) {
-    construct<Alternative<Candidate>>(static_cast<Candidate&&>(value));
+  Union(Candidate&& value) {
+    construct_candidate<Types...>(static_cast<Candidate&&>(value));
   }
 
   constexpr Union(const Union& source) {
@@ -160,6 +193,23 @@ class Union {
               Data::take(value));
         });
     return *this;
+  }
+
+  constexpr auto operator==(const Union& rhs) const -> Bool {
+    if (tag != rhs.tag) {
+      return False;
+    }
+
+    return dispatch(
+        *this, []() { return True; },
+        [&rhs](const auto& value) {
+          using Type = Alternative<decltype(value)>;
+          return Bool(value == rhs.template active<Type>());
+        });
+  }
+
+  constexpr auto operator!=(const Union& rhs) const -> Bool {
+    return !(*this == rhs);
   }
 
   template <typename Type>

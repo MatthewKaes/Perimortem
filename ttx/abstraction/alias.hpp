@@ -3,9 +3,9 @@
 
 #pragma once
 
-#include "ttx/abstract.hpp"
+#include "ttx/abstraction/abstract.hpp"
 
-namespace Ttx {
+namespace Ttx::Abstraction {
 
 // Alias is the closed named-redirection concept in the TTX graph. It is not a
 // Type, owner, container, documentation record, or resolution result. A source
@@ -41,4 +41,4 @@ class Alias final : public Abstract {
   const Abstract& target;
 };
 
-}  // namespace Ttx
+}  // namespace Ttx::Abstraction

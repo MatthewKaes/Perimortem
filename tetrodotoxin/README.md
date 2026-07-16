@@ -5,8 +5,8 @@ programs that load source files, build package graphs, serve editor requests,
 compile packages, link outputs, and integrate with Bazel.
 
 The top-level [`ttx`](../ttx/README.md) package supplies the language model. It
-owns source text, token bytecode, the Abstract class hierarchy, Layouts, Routes,
-and documentation.
+owns source text, token bytecode, the Abstract class hierarchy, Layouts, and
+documentation.
 Tetrodotoxin provides the VM that evaluates the bytecode, along with the ISA
 registry, Puffer source resolution, tooling, and backend context.
 
@@ -33,7 +33,7 @@ source text
 -> declared ISA evaluation
 -> Compiler-owned Abstract DAG
 -> terminal Type and Layout lowering
--> generation
+-> requested terminal products
 ```
 
 Lexical lowers source text into TTX token bytecode. Puffer starts full source
@@ -47,7 +47,7 @@ registry.
 Puffer Resolution loads package files, resolves package names such as
 `Perimortem.Graphics`, checks that imported files declare the requested ISA,
 binds local import aliases, and calls the evaluator installed under the declared
-name. Resolution retains the resolved dialect value on each published record.
+name. Resolution may retain the resolved dialect value on each source record.
 Later stages do not repeat the registry lookup from the authored name. Package
 names are `Type("." Type)*`, so a parsed package name can be used directly as
 the package cache key. Puffer creates a root resolver from the body ISA registry
@@ -58,7 +58,7 @@ separate registered-buffer repository and become explicit dependency edges.
 Tetrodotoxin's standard TTX packages live under [`standard`](standard/). They
 describe the ABI surfaces that Puffer can resolve today, including
 `Perimortem.Graphics`, `Perimortem.Math`, and `Perimortem.Runtime`. The same
-subsystem registers the built-in prelude objects and schemas used during ISA
+subsystem provides the built-in prelude objects and contexts used during ISA
 evaluation. Perimortem's
 C++ subsystems still implement parts of these APIs, so generated C++ headers
 currently connect the standard packages to that runtime.
@@ -71,27 +71,27 @@ with its consumers.
 
 That split keeps filesystem identity, package records, cache invalidation, and
 cross-file lookup in Tetrodotoxin while keeping the TTX language package small.
-TTX can ask Abstract, Type, Callable, Route, and Layout questions once Tetrodotoxin has supplied the
-resolved imports, but it does not manage the source tree itself.
+TTX can ask Abstract, Type, Callable, and Layout questions once Tetrodotoxin has
+supplied the resolved imports, but it does not manage the source tree itself.
 
-The Toolchain owns the ClassDB for its installed TTX and ISA schemas. One
-Compiler borrows that registry and owns the arena, Abstract DAG, routes,
-Generic instantiations, Layouts, Callable bodies and Addresses, diagnostics,
-linker state, and terminal products for one build. This is the language-neutral
-memory boundary. C++ RTTI and vtables do not cross it; foreign implementations
-use registered classes, opaque Abstract handles, and Layout-described calls.
+One Compiler owns the arena, Abstract DAG, source-owned resolver contexts,
+Generic instantiations, Layouts, Callable bodies and Addressables, diagnostics,
+linker state, and terminal products for one build. There is no ClassDB or
+allocated Route model. A future foreign boundary must use explicit versioned
+operations and opaque non-null handles; C++ RTTI and vtables do not cross it.
 
 ## Repository map
 
 The language core lives in [`../ttx`](../ttx/README.md):
 
 - [`../ttx/lexical`](../ttx/lexical/) lowers source text into token bytecode
-- [`../ttx/abstract.hpp`](../ttx/abstract.hpp) is the root semantic query
-  contract; Type, Alias, Generic, Callable, Free, Self, and Invalid extend it
-  through ClassDB
-- [`../ttx/layout.hpp`](../ttx/layout.hpp) models shape, fitting, exact
-  equivalence, named member access, and type-to-layout views
-- [`../ttx/documentation.hpp`](../ttx/documentation.hpp) preserves
+- [`../ttx/abstraction/abstract.hpp`](../ttx/abstraction/abstract.hpp) is the root semantic query
+  contract; Alias, Invalid, Type, Generic, Callable, Static, Self, Addressable,
+  and ISA-specific objects extend it through ordinary inheritance
+- [`../ttx/model/layout.hpp`](../ttx/model/layout.hpp) defines ordered fitting;
+  [`../ttx/model/layouts`](../ttx/model/layouts/) contains Fluid, Named, and
+  Structured
+- [`../ttx/model/documentation.hpp`](../ttx/model/documentation.hpp) preserves
   source-authored documentation for editor, package, and export surfaces
 
 Tetrodotoxin layers toolchain context around that language core:
@@ -107,8 +107,8 @@ Tetrodotoxin layers toolchain context around that language core:
   loading, import binding, the source cache, and cache validity
 - [`puffer/package`](puffer/package/) presents resolved package closures to the
   Archiver without teaching the CLI about serialization tables
-- [`puffer/toolchain.hpp`](puffer/toolchain.hpp) defines Puffer's standard
-  ClassDB, ISA, and host-target composition policy
+- [`puffer/toolchain.hpp`](puffer/toolchain.hpp) defines Puffer's standard ISA
+  and host-target composition policy
 - [`archiver`](archiver/) owns durable package identities, dependency records,
   restored package data, and Puffer Buffer serialization
 - [`lsp`](lsp/) contains the VSCode extension client and package assets
@@ -141,14 +141,14 @@ tooling depths:
   generated headers, and editor data
 
 Every layer works with the same TTX Abstract graph. Tetrodotoxin does not create
-a replacement semantic representation for each tool. A layer may add registered
-facts and edges, but it cannot replace the graph with Type projections,
-publishing paths, or pointer-keyed implementation tables. The cache model
-depends on this forward-only rule.
+a replacement semantic representation for each tool. A layer may enrich real
+objects and contexts, but it cannot replace the graph with Type projections,
+synthesized export paths, or pointer-keyed implementation tables. The cache
+owner defines how those objects remain valid when its source graph changes.
 
 Terminal outputs include SPIR-V, machine code, ELF files, JSON, and generated
 headers. A terminal leaves the semantic pipeline when its owner produces it. If
-a later layer needs the same information, the earlier layer must publish the
+a later layer needs the same information, the earlier layer must expose the
 required TTX facts instead of feeding a generated terminal back into the
 pipeline.
 
@@ -173,10 +173,11 @@ include `App`, `Library`, `Package`, `Render`, `Scene`, and `Shader`.
 
 ISAs own source meaning and lower it into the execution interface appropriate
 to that domain. Library attaches target-independent execution facts to Callable
-objects in the Compiler-owned DAG. Foreign attaches external Address contracts.
-The selected terminal planner canonicalizes each Type, recursively deconstructs
-non-empty Layouts, and lowers terminal leaves through target contracts. The
-backend then chooses registers, instruction encoding, reversible route symbols,
+objects in the Compiler-owned DAG. Foreign attaches external Addressable contracts.
+The selected terminal planner resolves Abstract identity, proves Type,
+recursively deconstructs non-empty Structured Layouts through their actual
+Addressables, and lowers terminal leaves through target contracts. The backend
+then chooses registers, instruction encoding, reversible name-derived symbols,
 and relocations. A `Linker` converts terminal facts into durable binary records.
 
 Shader currently emits SPIR-V through its assembler-facing state machine. A
@@ -187,11 +188,12 @@ assembler remains an implementation choice and not a public ISA API.
 
 Tetrodotoxin layers ask the owner of a fact instead of copying the whole program
 into a private replacement model. Named lookup and contract discovery are
-Abstract queries. Canonicalization is a Type query. Fitting and recursive
-storage shape are [`Layout`](../ttx/layout.hpp) queries. Invocation is a Free or
-Self Callable query. ISA legality belongs to the active registry. Package
-reachability belongs to the package graph. Backends consume these facts only
-when the toolchain crosses into a terminal artifact.
+Abstract queries. Represented identity comes from `Abstract::resolve()`.
+Fitting and recursive storage shape are
+[`Layout`](../ttx/model/layout.hpp) queries. Invocation is a Static or Self
+Callable query. ISA legality belongs to the active registry. Package reachability
+belongs to the package graph. Backends consume these facts only when the
+toolchain crosses into a terminal artifact.
 
 ## Puffer
 
@@ -201,15 +203,14 @@ Puffer can also compile selected `.ttx` roots directly.
 
 Puffer stays thin around Tetrodotoxin's body ISAs and compiler backend. `Main`
 owns command syntax, diagnostics, and file output.
-`Puffer::Toolchain` owns the standard ClassDB, ISA registry, and backend
-composition. `Puffer::Compiler` borrows those immutable schemas while owning the
-objects and outputs of one compilation. Its Resolver and selected ISAs publish
-into that boundary. The compiler loads dependency package manifests first, then
-executes ISAs on the resolved closure.
+`Puffer::Toolchain` owns the ISA registry and backend composition.
+`Puffer::Compiler` owns the objects and outputs of one compilation. Its Resolver
+and selected ISAs enrich that boundary. The compiler loads dependency package
+manifests first, then executes ISAs on the resolved closure.
 Puffer's Boot ISA reads each source preamble, then dispatches to Tetrodotoxin's
 built-in body ISAs to evaluate the rest of the source.
 
-Library, Package, and the other ISAs publish Abstract-derived objects, Layouts,
+Library, Package, and the other ISAs construct Abstract-derived objects, Layouts,
 and ISA contracts produced by the TTX abstract machine. Puffer coordinates those ISAs
 for one-shot compiles and long-running tooling sessions.
 
@@ -229,12 +230,13 @@ Package dependencies are resolved by package name, not by leaking source files
 from one package into another. Bazel passes dependency `.puffer` outputs to
 Puffer with `-dep=...`. The resolver registers each buffer and restores its
 package once. The restored `Package` owns its manifest identity, TTX Abstract
-graph, terminal byte payloads, and callable Addresses. Physical paths remain resolver
-diagnostic context and are not durable package identity. Direct source loading
-only reads files in the current package workspace. Package imports do not fall
-back to guessed `.ttx` paths. The restored semantic surface is an Abstract DAG
-with ClassDB schema references, Routes, Layouts, and Addresses rather than a
-monolithic serialized Type table. The complete package model is documented in
+graph, terminal byte payloads, and callable Addressables. Physical paths remain
+resolver diagnostic context and are not durable package identity. Direct source
+loading only reads files in the current package workspace. Package imports do
+not fall back to guessed `.ttx` paths. A durable package must reconstruct its
+resolver from named facts and owner-defined data; it cannot depend on ClassDB
+schema references, allocated Routes, or process Addresses. The complete package
+model is documented in
 [`archiver/README.md`](archiver/README.md).
 
 Dependency restore is transitive, but name visibility is not. Importing

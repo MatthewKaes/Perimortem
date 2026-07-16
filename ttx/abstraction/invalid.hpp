@@ -3,9 +3,9 @@
 
 #pragma once
 
-#include "ttx/abstract.hpp"
+#include "ttx/abstraction/abstract.hpp"
 
-namespace Ttx {
+namespace Ttx::Abstraction {
 
 // Invalid is the closed absorbing failure concept in the TTX graph. It is not a
 // diagnostic, nullable stand-in, partially constructed semantic object, or a
@@ -30,4 +30,4 @@ class Invalid final : public Abstract {
   }
 };
 
-}  // namespace Ttx
+}  // namespace Ttx::Abstraction

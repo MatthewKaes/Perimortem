@@ -3,18 +3,19 @@
 
 #include "validation/unit_test.hpp"
 
-#include "ttx/alias.hpp"
-#include "ttx/invalid.hpp"
+#include "ttx/abstraction/alias.hpp"
+#include "ttx/abstraction/invalid.hpp"
 
 using namespace Perimortem::Core;
+using namespace Ttx::Abstraction;
 using namespace Validation;
 
 static Harness TtxAbstract = {
-  .name = "TTX::Abstract"_view,
+  .name = "Abstract"_view,
 };
 
 PERIMORTEM_UNIT_TEST(TtxAbstract, invalid_is_absorbing) {
-  Ttx::Invalid invalid;
+  Invalid invalid;
 
   EXPECT_TEXT(invalid.get_name(), "Invalid"_view);
   EXPECT(&invalid.resolve() == &invalid);
@@ -22,33 +23,32 @@ PERIMORTEM_UNIT_TEST(TtxAbstract, invalid_is_absorbing) {
 }
 
 PERIMORTEM_UNIT_TEST(TtxAbstract, alias_reroutes_context) {
-  class Value : public Ttx::Abstract {
+  class Value : public Abstract {
    public:
-    Value(View::Bytes name, const Ttx::Invalid& invalid)
+    Value(View::Bytes name, const Invalid& invalid)
         : name(name), invalid(invalid) {}
 
     auto get_name() const -> View::Bytes override { return name; }
-    auto resolve_context(View::Bytes) const -> const Ttx::Abstract& override {
+    auto resolve_context(View::Bytes) const -> const Abstract& override {
       return invalid;
     }
 
    private:
     View::Bytes name;
-    const Ttx::Invalid& invalid;
+    const Invalid& invalid;
   };
 
-  class Context : public Ttx::Abstract {
+  class Context : public Abstract {
    public:
     Context(
         View::Bytes name,
         View::Bytes child_name,
-        const Ttx::Abstract& child,
-        const Ttx::Invalid& invalid)
+        const Abstract& child,
+        const Invalid& invalid)
         : name(name), child_name(child_name), child(child), invalid(invalid) {}
 
     auto get_name() const -> View::Bytes override { return name; }
-    auto resolve_context(View::Bytes route) const
-        -> const Ttx::Abstract& override {
+    auto resolve_context(View::Bytes route) const -> const Abstract& override {
       if (route == child_name) {
         return child.resolve();
       }
@@ -58,15 +58,15 @@ PERIMORTEM_UNIT_TEST(TtxAbstract, alias_reroutes_context) {
    private:
     View::Bytes name;
     View::Bytes child_name;
-    const Ttx::Abstract& child;
-    const Ttx::Invalid& invalid;
+    const Abstract& child;
+    const Invalid& invalid;
   };
 
-  Ttx::Invalid invalid;
+  Invalid invalid;
   Value color("Color"_view, invalid);
   Context graphics("Graphics"_view, "Color"_view, color, invalid);
-  Ttx::Alias palette("Palette"_view, graphics);
-  Ttx::Alias colors("Colors"_view, palette);
+  Alias palette("Palette"_view, graphics);
+  Alias colors("Colors"_view, palette);
 
   EXPECT_TEXT(palette.get_name(), "Palette"_view);
   EXPECT_TEXT(palette.resolve().get_name(), "Graphics"_view);

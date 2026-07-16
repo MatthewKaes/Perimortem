@@ -35,66 +35,44 @@ the selected body ISA can continue the execution.
 An ISA is an executable semantic instruction set for a TTX token stream. The
 lexer has already assigned each token a bytecode class, but the ISA decides how
 many tokens to fetch, what instruction shape those tokens form, and which TTX
-facts to publish.
+facts to make queryable.
 
 The registry is contextual. A CLI, LSP, test harness, embedded runtime, or
 package-local resolver can each install the ISAs it intends to support. The name
 in the source `dialect` instruction is therefore not a global enum. It is a
 lookup in the active `Isa::Registry`.
 
-An installed ISA also registers the Abstract classes and operations it
-contributes. Shader can register Stage Types and terminal GPU facts. Library can
-register executable bodies and host-callable address contracts. Another
-language runtime can register its own Type or Callable subtypes. These classes
-enrich one graph; they do not require a new universal Type switch.
+An installed ISA contributes objects and contexts that implement the Abstract
+contracts it owns. Shader can expose Stage Types and terminal GPU facts. Library
+can attach executable bodies and host-callable address contracts. Another
+language runtime can provide its own Type or Callable implementations. These
+objects enrich one graph; the ISA registry only selects evaluators and never
+becomes a semantic class registry.
 
-## ClassDB And Abstract ABI
+## Abstract Extension And Foreign Boundaries
 
-The Toolchain owns one long-lived ClassDB containing the schemas installed for
-that configuration. A Compiler borrows the immutable registry while it owns the
-objects created for one compilation boundary.
+Tetrodotoxin has no ClassDB. A central repository of classes, ancestry,
+operations, or schema routes would duplicate the Abstract graph and force every
+language or ISA through one authority.
 
-```text
-Toolchain-owned ClassDB
-          |
-          v
-Compiler-owned Abstract DAG
-          |
-          +-- Type -> Alias / Generic / ISA Type
-          +-- Callable -> Free / Self
-          +-- Address -> native / external / runtime / unresolved
-          +-- ISA and language-specific contracts
-          `-- Invalid
-```
+Reflection, schema description, dynamic configuration, and language extension
+are themselves Abstract concepts. The subsystem that needs one provides an
+Abstract context whose ordinary `resolve_context(View::Bytes)` query exposes
+its named children. It may use a table, generated index, language runtime, or
+another optimized representation internally. No storage or lookup strategy is
+part of the Abstract contract.
 
-ClassDB replaces C++ RTTI as the authority for dynamic semantic contracts. A
-registered Class has a unique versioned schema Route, a parent Class, required
-operations, construction and destruction callbacks, reflected methods and
-properties, callable Layouts, language/plugin ownership, and documentation.
-Native implementations and foreign-language implementations expose the same
-Class descriptor. Native code may use ClassDB ancestry to justify a static C++
-cast. Foreign objects use opaque handles and registered C ABI callbacks; C++
-vtables and object layouts never cross the boundary.
+Native C++ implementations use the local semantic inheritance hierarchy.
+C++ RTTI, vtables, and object layouts must not cross a language boundary. A
+future foreign ABI therefore needs non-null opaque object handles and explicit
+versioned operations corresponding to the narrow Abstract, Type, Layout, and
+Callable contracts. Failed queries designate Invalid. The boundary may expose
+its own schema Abstracts for configuration, but those schemas are participants
+in resolution rather than entries in a mandatory global database.
 
-A loaded registry may assign dense local Class indices for fast lookup. They
-are process-local acceleration only. Durable identity is the schema Route, such
-as `Ttx1.Abstract.Callable.Self`; indices are never serialized, hashed into
-symbols, or assumed equal across languages.
-
-The public ABI has three cooperating parts:
-
-| Part | Responsibility |
-| ---- | -------------- |
-| ClassDB | schema registration, ancestry, reflection, and operation lookup |
-| Abstract handles | non-null language-neutral references to compiler-owned objects |
-| Layout-described calls | complete parameter/result shape and target terminal lowering |
-
-A C-facing Abstract handle contains an opaque object identity and Class handle.
-It always designates a real object. Failed resolution designates the registered
-Invalid object. Versioned entry points expose operations equivalent to class
-registration, class resolution, ancestry checks, Abstract resolution, class
-inspection, and Callable invocation. API versioning is explicit in the function
-and schema names rather than folded into a hash.
+The exact foreign contract-proof mechanism is not defined by this slice. It
+must be designed from the required cross-language operations rather than by
+serializing C++ inheritance or reintroducing a universal Type switch.
 
 ## Puffer Resolution
 
@@ -107,20 +85,20 @@ ISA, and binds each import to the local name written in source. Once imports are
 available, the resolver dispatches the remaining bytecode to the selected body
 ISA with those imports in context.
 
-Boot's authored ISA name is resolved once to an installed `Isa::Dialect`.
-Unpublished source records progressively build their arena-backed facts, then
-attach that semantic dialect, imports, and root Abstract before entering the
-cache. A failed record publishes an Invalid root for diagnostics and is not a
-valid cache hit. File imports are limited by the
-resolver's compact project-root table. Compiled packages use the separate
-package repository rather than carrying filesystem roots on every record.
+Boot's authored ISA name is resolved to an installed `Isa::Dialect`. A source
+record may reserve stable objects while its imports and body facts are still
+being assembled. Queries whose facts are not ready resolve to Invalid. There is
+no publication bit or Incomplete Layout between construction and resolution.
+File imports are limited by the resolver's compact project-root table. Compiled
+packages use the separate package repository rather than carrying filesystem
+roots on every record.
 
-The resolver also owns cache safety. Local object handles remain stable only for
-the Compiler boundary that owns their arena. If a producer source is removed or
-republished, every consumer that may retain those handles must leave the cache
-or execute again. Durable package identity remains its authored Route and
-version, not a process address or content hash. That dependency graph is a
-Tetrodotoxin concern, not a TTX language feature.
+The resolver also owns cache safety. It decides whether to enrich a stable
+source system, replace an invalidated closure, or rebuild a complete Compiler
+boundary. Every consumer that may retain borrowed references participates in
+that lifetime policy. Durable package identity remains its authored name and
+explicit version, not a process address or content hash. That dependency graph
+is a Tetrodotoxin concern, not a TTX language feature.
 
 ## Packages
 
@@ -137,7 +115,10 @@ private files. This keeps the standard TTX ABI layer distinct from the current
 C++ engine implementation while the graphics/runtime stack is not fully
 self-hosted.
 
-Package-local resolution can use its own resolver graph. That keeps private
+The package root is a top-level Type whose context resolves imports and declared
+children. It may use separate static and self maps or any other lookup
+representation appropriate to the package. Package-local resolution can use
+its own resolver graph. That keeps private
 package files, package imports, and cache invalidation local to the package
 while still allowing package dependencies to become explicit edges in the outer
 source graph.
@@ -145,9 +126,9 @@ source graph.
 ## Body ISAs
 
 After Puffer Boot and resolution, the selected body ISA executes the rest of the
-token bytecode. A Package ISA can publish package exports. A Library ISA can
-publish Type and Callable objects plus executable-body contracts. Shader and
-Render ISAs can publish stage, Layout, binding, and terminal facts.
+token bytecode. A Package ISA can expose package exports. A Library ISA can
+construct Type and Callable objects plus executable-body contracts. Shader and
+Render ISAs can expose stage, Layout, binding, and terminal facts.
 
 Those ISAs are sometimes dialect-like authoring spaces, but their job is more
 specific than parsing. They are executable state machines over TTX token
@@ -159,7 +140,7 @@ owns shared authored forms such as documentation, attributes, declarations,
 layouts, expressions, and graph construction context. Base is not a
 registry-selectable body dialect and does not define a generic block or
 statement. Library, Shader, Scene, App, and future ISAs own those bodies and
-enrich the relevant Abstract objects through their registered contracts. A
+enrich the relevant Abstract objects through their derived contracts. A
 pointer-keyed `Implementation` table must not become a second semantic
 authority beside the graph.
 
@@ -169,31 +150,33 @@ The Compiler is the memory and terminal-product boundary for one build. It
 owns:
 
 - the arena and every instantiated Abstract object
-- Resolution routes and imported graph edges
-- concrete Generic instantiations and Layouts
-- Callable bodies, Addresses, and linkage objects
+- imported graph edges and source-owned resolution contexts
+- Generic instantiations and Layouts
+- Callable bodies, Addressables, and linkage objects
 - diagnostics and Invalid objects
 - target-independent execution facts
 - linker state, generated interfaces, and other terminal products.
 
-ISAs construct registered Abstract-derived objects inside that boundary and
+ISAs construct Abstract-derived objects inside that boundary and
 enrich them with their own contracts. Library may attach a target-independent
-execution body to a Callable. Foreign may attach an external Address. Shader
+execution body to a Callable. Foreign may attach an external Addressable. Shader
 may attach stage and GPU terminal facts. The compiler consumes these contracts
 without switching on the producer ISA and without reconstructing ownership from
 pointer-keyed side tables.
 
-Lower compiler layers operate on narrow interfaces. For a Type they
-canonicalize it and obtain its concrete Layout. Non-empty Layouts are recursively
-deconstructed in declaration order. Empty Layouts are lowered through a
-terminal contract registered by the selected target or ISA. The same recursive
-projection drives parameters, results, registers, stack placement, generated
-host declarations, and durable archive descriptions.
+Lower compiler layers operate on narrow interfaces. They resolve an Abstract,
+prove Type, and obtain its Structured Layout. Non-empty Structured Layouts are
+recursively deconstructed through their actual Addressables in declaration
+order. Empty Structured Layouts are lowered through a terminal contract
+contributed by the selected target or ISA. The same recursive projection drives
+parameters, results, registers, stack placement, generated host declarations,
+and durable archive descriptions.
 
 ```text
-Type::canonicalize()
+Abstract::resolve()
+-> prove Type
 -> Type::get_layout()
--> aggregate: recursively lower child Types
+-> aggregate: resolve each Addressable and recursively lower its Type
 -> terminal: invoke selected terminal Type contract
 ```
 
@@ -203,17 +186,18 @@ be laundered into one scalar because a backend recognizes its name. A view,
 struct, vector, render contract, or foreign carrier remains one semantic value
 whose terminal representation is the ordered projection of its entries.
 
-Free and Self Callable objects expose their complete parameter and result
+Static and Self Callable objects expose their complete parameter and result
 Layouts. Self includes its receiver at parameter zero. The compiler never
 prepends that receiver a second time. A resolved implementation supplies an
-Address object; unresolved linkage supplies an explicit unresolved Address or
+Addressable object; unresolved linkage supplies an explicit unresolved Addressable or
 Invalid, not `nullptr`.
 
-Public and internal symbols are reversible encodings of selected Routes. The
-route already contains real Callable.Free or Callable.Self schema steps, so the
-compiler does not invent `.Type` and `.Addressable` publishing paths. It does
-not select a lexicographically preferred alias and does not hash a path or
-signature. ABI and package versions, when needed, are explicit route segments.
+If an output needs symbols, its owner walks the selected named resolution
+contexts and encodes those names reversibly. It preserves the Static or Self
+surface selected during lookup, does not invent `.Type` and `.Addressable`
+publishing paths, does not choose a lexicographically preferred alias, and does
+not hash a path or signature. ABI and package versions, when needed, are
+explicit name components.
 
 Only terminal artifacts escape the Compiler boundary: machine objects,
 archives, generated language interfaces, SPIR-V modules, or another explicitly
@@ -234,8 +218,8 @@ SPIR-V. Terminal lowering must preserve their TTX identities and emit compiled
 layout projections so runtime code can bind value storage by offsets and ranges
 rather than rediscovering fields by name.
 
-Scene lowering can then identify members whose canonical types are Render
-contracts and publish where those values live in scene storage. A compiled C++
+Scene lowering can then identify Addressables whose resolved Types are Render
+contracts and expose where those values live in scene storage. A compiled C++
 application, a Puffer-hosted application, or another language host can feed the
 same frame transaction to Graphics because the transaction contains data,
 resource handles, and compiled program identity rather than C++ scene or sprite
@@ -254,19 +238,21 @@ or introduce frontend concepts such as Scene, Render2D, or Sprite.
 `Puffer::Compiler` dispatches only lowerers installed by the active registry.
 `Isa::Lowering::Input` borrows the selected source facts.
 `Isa::Lowering::Context` exposes the Compiler-owned Abstract graph and terminal
-transactions. The selected ISAs enrich that graph and publish their execution
+transactions. The selected ISAs enrich that graph and expose their execution
 facts; the selected terminal planner and backend consume the same objects.
 Archive and header builds return their products to the caller. A lowerer can
-also publish an arbitrary group and path terminal whose bytes the Compiler
+also return an arbitrary group and path terminal whose bytes the Compiler
 retains. Adding a backend output does not add another semantic owner.
 Package lowering is an explicit registry capability so an incomplete backend
 is not mistaken for a durable package producer.
 
-Puffer Buffers serialize ClassDB schema references, Abstract objects,
-contract-qualified child edges, Routes, Layouts, Addresses, and terminal
-products. Restore allocates a complete graph in the receiving Compiler boundary.
-Unknown or incompatible schemas and corrupt edges produce an Invalid package
-root; nullable type edges and partially published objects are not part of the
-model. The filesystem path used to register the buffer remains resolver
-diagnostic context. The durable object model and compatibility rules are
-documented in [`archiver/README.md`](archiver/README.md).
+Puffer Buffers are terminal archive products owned by Tetrodotoxin. A durable
+format must preserve the named facts and owner-defined data required to
+reconstruct a package resolver, plus any requested machine or generated
+terminals. It must not serialize process pointers, a ClassDB, or allocated Route
+objects. Unknown contracts, incompatible versions, and corrupt edges restore as
+an Invalid package root. The exact v1 Abstract archive schema remains migration
+work and must be earned from the contracts that actually need persistence. The
+filesystem path used to register the buffer remains resolver diagnostic
+context. Compatibility rules belong in
+[`archiver/README.md`](archiver/README.md).

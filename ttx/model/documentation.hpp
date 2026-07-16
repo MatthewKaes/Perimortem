@@ -6,13 +6,13 @@
 #include "perimortem/core/view/bytes.hpp"
 #include "perimortem/core/view/vector.hpp"
 
-namespace Ttx {
+namespace Ttx::Model {
 
 // Documentation is a core TTX source and tooling fact. It is not part of
-// Abstract identity, Type identity, Layout equivalence, or Layout fitting.
+// Abstract identity, Type identity, or Layout fitting.
 //
 // Keeping documentation as a first-class value lets source-owning declarations
-// and contexts publish prose without pushing presentation into semantic
+// and contexts expose prose without pushing presentation into semantic
 // contracts:
 //
 // * TTX packages can require a document comment natively.
@@ -22,18 +22,17 @@ namespace Ttx {
 // Documentation is intentionally separate from identity resolution because the
 // source context is part of the prose. A declaration that introduces HudSprite
 // may document why it redirects to Sprite, while Sprite keeps its own
-// documentation. Closed Alias owns neither value. A member can document the
-// color format for `.tint`, and a callable declaration can document its local
-// promise.
+// documentation. Closed Alias owns neither value. The source owner of an
+// Addressable can document the color format for `.tint`, and a callable
+// declaration can document its local promise.
 //
 // Tools may show source-context prose, resolved-target prose, or a stacked
 // presentation while walking a query. That presentation remains outside Alias
 // and does not alter semantic identity.
 class Documentation {
  public:
-  constexpr Documentation() = default;
   explicit constexpr Documentation(
-      Perimortem::Core::View::Vector<Perimortem::Core::View::Bytes> lines)
+      Perimortem::Core::View::Vector<Perimortem::Core::View::Bytes> lines = {})
       : lines(lines) {}
 
   constexpr auto get_lines() const
@@ -56,4 +55,4 @@ class Documentation {
   Perimortem::Core::View::Vector<Perimortem::Core::View::Bytes> lines;
 };
 
-}  // namespace Ttx
+}  // namespace Ttx::Model

@@ -1,248 +1,136 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
-#include "ttx/layout.hpp"
-
 #include "validation/unit_test.hpp"
 
 #include "perimortem/core/static/vector.hpp"
 
-#include "ttx/type.hpp"
+#include "ttx/abstraction/alias.hpp"
+#include "ttx/abstraction/invalid.hpp"
+#include "ttx/model/layouts/fluid.hpp"
+#include "ttx/model/layouts/named.hpp"
+#include "ttx/model/layouts/structured.hpp"
+#include "ttx/model/type.hpp"
 
 using namespace Perimortem::Core;
+using namespace Ttx::Abstraction;
+using namespace Ttx::Model;
+using namespace Ttx::Model::Layouts;
 using namespace Validation;
+
+class LayoutType final : public Type {
+ public:
+  LayoutType(View::Bytes name, const Invalid& invalid)
+      : name(name), invalid(invalid) {}
+
+  auto get_name() const -> View::Bytes override { return name; }
+  auto resolve_context(View::Bytes) const -> const Abstract& override {
+    return invalid;
+  }
+  auto get_layout() const -> const Structured& override { return layout; }
+
+ private:
+  View::Bytes name;
+  const Invalid& invalid;
+  Structured layout;
+};
+
+class LayoutField final : public Addressable {
+ public:
+  LayoutField(View::Bytes name, const Abstract& type)
+      : name(name), type(type) {}
+
+  auto get_name() const -> View::Bytes override { return name; }
+  auto resolve() const -> const Abstract& override { return type.resolve(); }
+  auto resolve_context(View::Bytes route) const -> const Abstract& override {
+    return type.resolve().resolve_context(route);
+  }
+
+ private:
+  View::Bytes name;
+  const Abstract& type;
+};
 
 static Harness TtxLayout = {
   .name = "TTX::Layout"_view,
 };
 
-PERIMORTEM_UNIT_TEST(TtxLayout, leftmost_name) {
-  Ttx::Type real("Real_32"_view);
-  Ttx::Type bits("Bits_32"_view);
-  static constexpr View::Bytes x = "x"_view;
+PERIMORTEM_UNIT_TEST(TtxLayout, fluid_is_ordered_abstract_flow) {
+  Invalid invalid;
+  LayoutType real("Real_32"_view, invalid);
+  LayoutType bits("Bits_32"_view, invalid);
+  Static::Vector<const Abstract*, 2> values = {{&real, &bits}};
+  Fluid layout(values);
 
-  Static::Vector<Ttx::Member, 3> members = {{
-    {x, real},
-    {"y"_view, bits},
-    {x, bits},
-  }};
-
-  Ttx::Layout layout(members);
-  const Ttx::Member* member = layout.find_member(x);
-  ASSERT(member != nullptr);
-  EXPECT(&member->get_type() == &real);
+  EXPECT_EQ(layout.get_size(), Count(2));
+  EXPECT(&layout.get_abstract(0) == &real);
+  EXPECT(&layout.get_abstract(1).resolve() == &bits);
 }
 
-PERIMORTEM_UNIT_TEST(TtxLayout, exact_shape) {
-  Ttx::Type real("Real_32"_view);
-  Ttx::Type bits("Bits_32"_view);
-  Ttx::Type real_alias = Ttx::Type::alias("RealAlias"_view, real);
+PERIMORTEM_UNIT_TEST(TtxLayout, structured_borrows_real_addressables) {
+  Invalid invalid;
+  LayoutType real("Real_32"_view, invalid);
+  LayoutType bits("Bits_32"_view, invalid);
+  LayoutField x("x"_view, real);
+  LayoutField y("y"_view, bits);
+  Static::Vector<const Addressable*, 2> fields = {{&x, &y}};
+  Structured layout(fields);
 
-  Static::Vector<Ttx::Member, 2> left = {{
-    {"x"_view, real_alias, True},
-    {"y"_view, bits},
-  }};
-  Static::Vector<Ttx::Member, 2> same = {{
-    {"x"_view, real},
-    {"y"_view, bits, True},
-  }};
-  Static::Vector<Ttx::Member, 2> reordered = {{
-    {"y"_view, bits},
-    {"x"_view, real},
-  }};
-
-  EXPECT(Ttx::Layout(left).equivalent_to(Ttx::Layout(same)));
-  EXPECT_NOT(Ttx::Layout(left).equivalent_to(Ttx::Layout(reordered)));
+  EXPECT_EQ(layout.get_size(), Count(2));
+  EXPECT(&layout.get_abstract(0) == &x);
+  EXPECT_TEXT(layout.get_abstract(0).get_name(), "x"_view);
+  EXPECT(&layout.get_abstract(0).resolve() == &real);
+  EXPECT(&layout.get_abstract(1).resolve() == &bits);
 }
 
-PERIMORTEM_UNIT_TEST(TtxLayout, named_fit) {
-  Ttx::Type real("Real_32"_view);
-  Ttx::Type bits("Bits_32"_view);
+PERIMORTEM_UNIT_TEST(TtxLayout, layout_contracts_own_fitting) {
+  Invalid invalid;
+  LayoutType real("Real_32"_view, invalid);
+  LayoutType bits("Bits_32"_view, invalid);
+  LayoutField x("x"_view, real);
+  LayoutField y("y"_view, bits);
+  Alias named_x("x"_view, real);
+  Alias named_y("y"_view, bits);
+  Static::Vector<const Addressable*, 2> fields = {{&x, &y}};
+  Static::Vector<const Abstract*, 2> positional = {{&real, &bits}};
+  Static::Vector<const Abstract*, 2> reordered = {{&named_y, &named_x}};
+  Structured structured(fields);
+  Fluid fluid(positional);
+  Named named(reordered);
 
-  Static::Vector<Ttx::Member, 3> target = {{
-    {"x"_view, real},
-    {"y"_view, bits},
-    {"z"_view, real, True},
-  }};
-  Static::Vector<Ttx::Member, 2> source = {{
-    {"y"_view, bits},
-    {"x"_view, real},
-  }};
-  Static::Vector<Ttx::Member, 2> missing = {{
-    {"x"_view, real},
-    {"z"_view, real},
-  }};
-
-  EXPECT(Ttx::Layout(source).fits(Ttx::Layout(target)));
-  EXPECT_NOT(Ttx::Layout(missing).fits(Ttx::Layout(target)));
-  EXPECT_EQ(
-      Ttx::Layout(source).source_index_for(Ttx::Layout(target), 0), Count(1));
-  EXPECT_EQ(
-      Ttx::Layout(source).source_index_for(Ttx::Layout(target), 1), Count(0));
-  EXPECT_EQ(
-      Ttx::Layout(source).source_index_for(Ttx::Layout(target), 2), Count(-1));
+  EXPECT(fluid.fits(structured));
+  EXPECT(named.fits(structured));
+  EXPECT(structured.fits(structured));
 }
 
-PERIMORTEM_UNIT_TEST(TtxLayout, trailing_defaults) {
-  Ttx::Type real("Real_32"_view);
-  Ttx::Type bits("Bits_32"_view);
+PERIMORTEM_UNIT_TEST(TtxLayout, named_fitting_rejects_ambiguous_facts) {
+  Invalid invalid;
+  LayoutType real("Real_32"_view, invalid);
+  LayoutType bits("Bits_32"_view, invalid);
+  LayoutField x("x"_view, real);
+  LayoutField y("y"_view, bits);
+  Alias first("x"_view, real);
+  Alias duplicate("x"_view, bits);
+  Static::Vector<const Addressable*, 2> fields = {{&x, &y}};
+  Static::Vector<const Abstract*, 2> values = {{&first, &duplicate}};
+  Structured structured(fields);
+  Named named(values);
 
-  Static::Vector<Ttx::Member, 1> source = {{
-    {View::Bytes(), real},
-  }};
-  Static::Vector<Ttx::Member, 2> target = {{
-    {View::Bytes(), real},
-    {View::Bytes(), bits, True},
-  }};
-  Static::Vector<Ttx::Member, 2> default_gap = {{
-    {View::Bytes(), real, True},
-    {View::Bytes(), bits},
-  }};
-
-  EXPECT(Ttx::Layout(source).fits(Ttx::Layout(target)));
-  EXPECT_NOT(Ttx::Layout(source).fits(Ttx::Layout(default_gap)));
+  EXPECT_NOT(named.fits(structured));
 }
 
-PERIMORTEM_UNIT_TEST(TtxLayout, alias_projection) {
-  Ttx::Type real("Real_32"_view);
-  Static::Vector<Ttx::Member, 1> members = {{
-    {"x"_view, real},
-  }};
+PERIMORTEM_UNIT_TEST(TtxLayout, structured_identity_is_not_shape_laundering) {
+  Invalid invalid;
+  LayoutType real("Real_32"_view, invalid);
+  LayoutField first_x("x"_view, real);
+  LayoutField second_x("x"_view, real);
+  Static::Vector<const Addressable*, 1> first_fields = {{&first_x}};
+  Static::Vector<const Addressable*, 1> same_fields = {{&first_x}};
+  Static::Vector<const Addressable*, 1> other_fields = {{&second_x}};
+  Structured first(first_fields);
+  Structured same(same_fields);
+  Structured other(other_fields);
 
-  Ttx::Type point("Point"_view, members);
-  Ttx::Type point_alias = Ttx::Type::alias("PointAlias"_view, point);
-
-  EXPECT(Ttx::Layout(point_alias).equivalent_to(Ttx::Layout(point)));
-}
-
-PERIMORTEM_UNIT_TEST(TtxLayout, empty_target) {
-  Ttx::Type real("Real_32"_view);
-  Static::Vector<Ttx::Member, 1> members = {{
-    {"x"_view, real},
-  }};
-
-  EXPECT(Ttx::Layout().fits(Ttx::Layout()));
-  EXPECT_NOT(Ttx::Layout(members).fits(Ttx::Layout()));
-}
-
-PERIMORTEM_UNIT_TEST(TtxLayout, duplicate_order) {
-  Ttx::Type real("Real_32"_view);
-  Ttx::Type bits("Bits_32"_view);
-  Static::Vector<Ttx::Member, 2> source = {{
-    {"x"_view, real},
-    {"x"_view, bits},
-  }};
-  Static::Vector<Ttx::Member, 2> same = {{
-    {"x"_view, real},
-    {"x"_view, bits},
-  }};
-  Static::Vector<Ttx::Member, 2> swapped = {{
-    {"x"_view, bits},
-    {"x"_view, real},
-  }};
-
-  EXPECT(Ttx::Layout(source).fits(Ttx::Layout(same)));
-  EXPECT_NOT(Ttx::Layout(source).fits(Ttx::Layout(swapped)));
-}
-
-PERIMORTEM_UNIT_TEST(TtxLayout, mixed_names) {
-  Ttx::Type real("Real_32"_view);
-  Static::Vector<Ttx::Member, 2> source = {{
-    {"x"_view, real},
-    {View::Bytes(), real},
-  }};
-  Static::Vector<Ttx::Member, 2> target = {{
-    {"x"_view, real},
-    {"y"_view, real},
-  }};
-
-  EXPECT_NOT(Ttx::Layout(source).fits(Ttx::Layout(target)));
-}
-
-PERIMORTEM_UNIT_TEST(TtxLayout, source_overrun) {
-  Ttx::Type real("Real_32"_view);
-  Static::Vector<Ttx::Member, 2> source = {{
-    {View::Bytes(), real},
-    {View::Bytes(), real},
-  }};
-  Static::Vector<Ttx::Member, 1> target = {{
-    {View::Bytes(), real},
-  }};
-
-  EXPECT_NOT(Ttx::Layout(source).fits(Ttx::Layout(target)));
-}
-
-PERIMORTEM_UNIT_TEST(TtxLayout, alias_fit) {
-  Ttx::Type real("Real_32"_view);
-  Ttx::Type real_alias = Ttx::Type::alias("RealAlias"_view, real);
-  Static::Vector<Ttx::Member, 1> source = {{
-    {"x"_view, real_alias},
-  }};
-  Static::Vector<Ttx::Member, 1> target = {{
-    {"x"_view, real},
-  }};
-
-  EXPECT(Ttx::Layout(source).fits(Ttx::Layout(target)));
-}
-
-PERIMORTEM_UNIT_TEST(TtxLayout, name_mismatch) {
-  Ttx::Type real("Real_32"_view);
-  Static::Vector<Ttx::Member, 1> source = {{
-    {"x"_view, real},
-  }};
-  Static::Vector<Ttx::Member, 1> target = {{
-    {"y"_view, real},
-  }};
-
-  EXPECT_NOT(Ttx::Layout(source).fits(Ttx::Layout(target)));
-}
-
-PERIMORTEM_UNIT_TEST(TtxLayout, source_extra) {
-  Ttx::Type real("Real_32"_view);
-  Static::Vector<Ttx::Member, 2> source = {{
-    {"x"_view, real},
-    {"z"_view, real},
-  }};
-  Static::Vector<Ttx::Member, 1> target = {{
-    {"x"_view, real},
-  }};
-
-  EXPECT_NOT(Ttx::Layout(source).fits(Ttx::Layout(target)));
-}
-
-PERIMORTEM_UNIT_TEST(TtxLayout, named_default) {
-  Ttx::Type real("Real_32"_view);
-  Static::Vector<Ttx::Member, 1> source = {{
-    {"x"_view, real},
-  }};
-  Static::Vector<Ttx::Member, 2> target = {{
-    {"x"_view, real},
-    {"y"_view, real, True},
-  }};
-
-  EXPECT(Ttx::Layout(source).fits(Ttx::Layout(target)));
-}
-
-PERIMORTEM_UNIT_TEST(TtxLayout, name_not_equal) {
-  Ttx::Type real("Real_32"_view);
-  Static::Vector<Ttx::Member, 1> left = {{
-    {"x"_view, real},
-  }};
-  Static::Vector<Ttx::Member, 1> right = {{
-    {"y"_view, real},
-  }};
-
-  EXPECT_NOT(Ttx::Layout(left).equivalent_to(Ttx::Layout(right)));
-}
-
-PERIMORTEM_UNIT_TEST(TtxLayout, positional_fit) {
-  Ttx::Type real("Real_32"_view);
-  Static::Vector<Ttx::Member, 1> source = {{
-    {View::Bytes(), real},
-  }};
-  Static::Vector<Ttx::Member, 1> target = {{
-    {View::Bytes(), real},
-  }};
-
-  EXPECT(Ttx::Layout(source).fits(Ttx::Layout(target)));
+  EXPECT(first.fits(same));
+  EXPECT_NOT(first.fits(other));
 }
