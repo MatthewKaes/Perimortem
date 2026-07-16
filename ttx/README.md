@@ -127,6 +127,9 @@ Ttx::Abstraction::Abstract
 ├── Ttx::Abstraction::Alias
 ├── Ttx::Abstraction::Invalid
 ├── Ttx::Model::Generic
+├── Ttx::Model::Expression
+│   └── Ttx::Model::Constant
+│       └── Ttx::Model::Constants::{Unsigned, Signed, Real, Flag, Bytes}
 ├── Ttx::Model::Type
 │   └── ISA-defined model types
 ├── Ttx::Model::Callable
@@ -173,6 +176,19 @@ does not copy their names, Types, documentation, attributes, defaults, or target
 storage into a Member record. Its contiguous storage uses non-null borrowed
 Reference values rather than nullable semantic pointers.
 
+Expression is one evaluatable value whose identity remains distinct from its
+result Type. It exposes the proven Type, its ordered input Layout, and whether
+the value fits another Type. Constant is an immutable zero-input Expression
+already in normal form. Unsigned, Signed, Real, Flag, and Bytes are open Constant
+domains, not alternatives in one central tagged expression. Constants compare
+by domain, resolved Type, and payload. Real NaNs compare as one semantic value
+so equality remains suitable for caches. TTX has no native String Constant.
+
+Fluid and Named fitting normally compare resolved semantic identity. When the
+source entry is an Expression they instead ask it to fit the target Type. This
+permits proven constant narrowing without adding numeric rules to Layout.
+Structured fitting continues to preserve actual Addressable identity.
+
 `Type::get_layout()` returns a Structured Layout. A Terminal has an empty
 Structured Layout plus direct size/alignment queries. Lowering proves Terminal
 before inspecting Layout. Every non-Terminal Type recursively resolves its
@@ -208,15 +224,16 @@ A source context registers named Generic formulas. Each formula owns its
 accepted argument shape, materialization, and cache lookup. The evaluator gives
 it an ordered Argument sequence whose Abstract entries have already resolved
 through aliases and type-producing expressions. Bool and unsigned entries use
-their tagged values. That sequence is the complete formula-local cache key.
-Names, routes, parents, and hashes are not cache identity. The context owns name
-resolution. The parser does not hard-code `Vec`, `View`, or another formula
-name.
+their tagged values. Constants remain value-bearing Abstract entries and compare
+by domain, resolved Type, and payload. That sequence is the complete
+formula-local cache key. Names, routes, parents, and hashes are not cache
+identity. The context owns name resolution. The parser does not hard-code
+`Vec`, `View`, or another formula name.
 
 Names belong to the actual Abstracts in a Named or Structured Layout. Repack
-operations such as grouping, swizzle, and slice produce Fluid layouts unless
-the syntax explicitly authors named objects. Named fitting rejects empty or
-duplicate names and matches names independently of target order.
+operations such as grouping, swizzle, and constant slice produce Fluid layouts
+unless the syntax explicitly authors named objects. Named fitting rejects empty
+or duplicate names and matches names independently of target order.
 
 Layout fitting is directional: `source.fits(target)`. Core fitting does not
 manufacture omitted defaults. A language or ISA that supports omission resolves
@@ -245,7 +262,8 @@ Layouts allow transformations called repacks. A repack produces a new fluid
 layout. Its result is positional unless the syntax explicitly authors names or
 the receiving boundary later supplies them. `.[` swizzle references member names
 from the receiver layout while selecting values, then produces a positional
-pack. `:[` index or slice evaluates expressions and selects by position.
+pack. `:[` index or slice requires constant-evaluated Unsigned arguments and
+selects by position.
 
 ```ttx
 // swizzle to repack
@@ -253,18 +271,21 @@ color.[r, g, b] // Select r, g, and b into a positional pack.
 color.[r, r, r] // Repeated members remain separate positional entries.
 color.[r]       // Swizzles may contain one member.
 
-// Indexes and slices evaluate their arguments.
-color:[1]     // Read the member at index 1.
-color:[start] // Evaluate start and read that member.
+// Indexes and slices require constant-evaluated arguments.
+color:[1]           // Read the member at index 1.
+color:[first_index] // Valid when first_index evaluates to a Constant.
 
 // Slices read consecutive members. This selects the same members as
-// color.[g, b], but it evaluates its index and count.
+// color.[g, b], but it selects through constant positions.
 color:[1, 2]
 ```
 
 The two forms answer different questions. `color.[r, g]` names fields in
 `color`'s layout and cannot read local variables named `r` and `g`.
-`color:[r, g]` evaluates local state and uses the results as slice arguments.
+`color:[r, g]` is valid only when both expressions evaluate to Unsigned
+Constants. Dynamic slicing uses ordinary dispatch such as
+`color -> slice(start, count)` and returns one View-like typed value rather than
+a compile-time pack.
 
 Bare `[...]` is reserved only for layouts. Function parameters and return values
 are layouts. They may be named, but those names belong to the declared boundary,
@@ -386,20 +407,23 @@ already know.
 The TTX directory is the language core:
 
 - [`lexical`](lexical/) lowers source text into stable token bytecode
-- [`model`](model/) owns the shared Type, Layout, Callable, Attribute, and
-  Documentation vocabulary
+- [`model`](model/) owns the shared Type, Layout, Expression, Constant,
+  Callable, Attribute, and Documentation vocabulary
 - [`model/documentation.hpp`](model/documentation.hpp) models source-authored
   documentation owned beside semantic objects by declarations and contexts
 - [`abstraction/abstract.hpp`](abstraction/abstract.hpp) is the root semantic
   query contract
-- Alias and Invalid are closed Abstract concepts. Type, Generic, Callable, Static,
-  Self, Addressable, and ISA-specific contracts extend the graph with narrow
-  operations
+- Alias and Invalid are closed Abstract concepts. Type, Generic, Expression,
+  Constant, Callable, Static, Self, Addressable, and ISA-specific contracts
+  extend the graph with narrow operations
 - [`model/layout.hpp`](model/layout.hpp) defines the ordered fitting contract.
   [`model/layouts`](model/layouts/) contains Fluid, Named, and Structured
 - [`model/type.hpp`](model/type.hpp) supplies the narrow target-independent Type
   contract. [`model/types`](model/types/) adds Terminal, Unsigned, Signed, Real,
-  and Flag contracts. [`model/callable.hpp`](model/callable.hpp),
+  and Flag contracts. [`model/expression.hpp`](model/expression.hpp),
+  [`model/constant.hpp`](model/constant.hpp), and
+  [`model/constants`](model/constants/) supply value and constant-domain
+  contracts. [`model/callable.hpp`](model/callable.hpp),
   [`model/static.hpp`](model/static.hpp), [`model/self.hpp`](model/self.hpp), and
   [`model/addressable.hpp`](model/addressable.hpp) supply invocation contracts
   without making Callable a subtype of Type

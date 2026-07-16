@@ -98,6 +98,8 @@ That makes the reusable TTX model smaller than a full language tree:
 | `Ttx::Abstraction::Abstract`           | named semantic identity and progressive context resolution    |
 | `Ttx::Model::Type`                     | resolved type identity and Structured layout                  |
 | `Ttx::Model::Types::Terminal`           | direct target byte size and alignment                         |
+| `Ttx::Model::Expression`               | evaluatable value with result Type and ordered input queries  |
+| `Ttx::Model::Constant`                 | immutable zero-input value already in normal form             |
 | `Ttx::Model::Callable`                 | static or receiver-bound callable layout and linkage query    |
 | `Ttx::Model::Layout`                   | ordered Abstract shape and directional fitting                |
 | `Ttx::Model::Documentation`            | source-authored prose for tools and exported facts            |
@@ -105,7 +107,7 @@ That makes the reusable TTX model smaller than a full language tree:
 | `AddressOp` such as `.`                | layout member query, package-name segment, or ISA projection  |
 | `CallOp` such as `->`                  | callable dispatch query against the current type or ISA facts |
 | modifier and attribute token classes   | visibility, storage, package, or ISA-owned metadata           |
-| string, bytes, layout, and pack tokens | source-shaped operands for the active ISA                     |
+| quoted bytes, layout, and pack tokens  | source-shaped operands for the active ISA                     |
 
 Library, Package, Shader, Render, and future ISAs then decide what larger source
 forms mean. A Library ISA may define functions, control flow, and local storage.
@@ -352,6 +354,9 @@ Ttx::Abstraction::Abstract
 ├── Ttx::Abstraction::Alias
 ├── Ttx::Abstraction::Invalid
 ├── Ttx::Model::Generic
+├── Ttx::Model::Expression
+│   └── Ttx::Model::Constant
+│       └── Ttx::Model::Constants::{Unsigned, Signed, Real, Flag, Bytes}
 ├── Ttx::Model::Type
 │   ├── Ttx::Model::Types::Terminal
 │   │   └── Unsigned / Signed / Real / Flag
@@ -401,6 +406,8 @@ The core contracts are deliberately narrow:
 | `Real`        | Terminal floating-point domain                                   |
 | `Flag`        | Terminal two-value logical domain                                |
 | `Generic`     | instruction that creates or finds a concrete Type from arguments |
+| `Expression`  | value with result Type, input Layout, and fitting queries          |
+| `Constant`    | immutable zero-input Expression with value equality                |
 | `Callable`    | complete parameter/result layouts and an address/linkage query   |
 | `Static`      | invocation selected through a Type or package without a receiver |
 | `Self`        | invocation on an addressable receiver included as parameter zero |
@@ -417,6 +424,10 @@ Callable::get_parameters()     -> const Layout&
 Callable::get_results()        -> const Layout&
 Callable::get_address()        -> const Abstract&
 Generic::materialize(args)     -> const Abstract&
+Expression::get_type()         -> const Abstract&
+Expression::get_inputs()       -> const Layout&
+Expression::fits(type)         -> Bool
+Constant::equals(constant)     -> Bool
 Layout::get_fitted(target, i)  -> const Abstract&
 ```
 
@@ -549,13 +560,15 @@ registry and no parser switch on formula names.
 
 The evaluator constructs a closed ordered Argument sequence before calling the
 formula. An Abstract argument stores its resolved identity. Bool and unsigned
-arguments store their tagged values. That complete sequence is the formula's
-cache key. Repeating the same formula with an Alias, expression, or direct Type
-that resolves to the same final object returns the same concrete Type identity.
-Unrelated objects with the same local name remain distinct. Names, routes,
-parents, and hashes do not participate. Missing formula lookup and a found
-formula rejecting its argument shape remain distinct source errors, with both
-represented semantically by Invalid.
+arguments store their tagged values. Constants stay Abstract values and compare
+by domain, resolved Type, and payload instead of collapsing to their result
+Type. That complete sequence is the formula's cache key. Repeating the same
+formula with an Alias, type-producing expression, or direct Type that resolves
+to the same final object returns the same concrete Type identity. Unrelated
+objects with the same local name remain distinct. Names, routes, parents, and
+hashes do not participate. Missing formula lookup and a found formula rejecting
+its argument shape remain distinct source errors, with both represented
+semantically by Invalid.
 
 Aliases are closed compile-time Abstract redirects. Alias preserves its local
 name while `resolve()` follows the target's represented identity and
@@ -757,16 +770,17 @@ wants to decompose it into a pack, it must swizzle or slice it:
 
 The Structured Layout supplies the selected Addressable facts but does not
 evaluate the access. The active expression ISA creates projection Abstracts
-that retain the receiver and selected Addressable while resolving to the field
-Type. Swizzle and slice produce Fluid Layouts over those projections. Joining
-packs concatenates already produced expression Abstracts and never implicitly
-deconstructs a Structured typed value.
+that retain the receiver and selected Addressable. A projection remains its own
+Expression identity and publishes the field Type through `get_type()`. Swizzle
+and slice produce Fluid Layouts over those projections. Joining packs
+concatenates already produced Expressions and never implicitly deconstructs a
+Structured typed value.
 
 That gives TTX three explicit ways to make packs:
 
 - grouping values with `(...)`
 - swizzling fields with `value.[x, y]`
-- slicing ranges with `value:[start, count]`.
+- slicing constant-evaluated ranges with `value:[start, count]`.
 
 `Vec`, `Vec2D`, `Vec3D`, `Vec4D`, graphics color values, and user structs are
 typed values, not pack aliases. They may be initialized from compatible packs,
@@ -867,6 +881,12 @@ The model uses three narrow contracts rather than one tagged record:
 - `Named` carries ordered, uniquely named Abstract values and fits by name.
 - `Structured` is returned by Type and carries its actual Addressable objects.
 
+Fluid and Named normally compare resolved identity against each target slot.
+When a source entry implements Expression, they instead prove the target's Type
+and call `Expression::fits()`. This is how a Constant can safely fit a narrower
+numeric slot without teaching Layout about numeric domains. Structured fitting
+continues to preserve actual Addressable identity.
+
 Layout owns order and fitting only. It does not copy a field's Type,
 documentation, attributes, default, or target storage into a generic member.
 Those facts stay on the Addressable, its source owner, or a richer derived
@@ -904,6 +924,24 @@ The binding Layout must fit that value. Its field count never controls stride.
 
 Expressions are values. Assignment is not an expression in TTX because it does
 not produce a value.
+
+The shared `Expression` contract represents one evaluatable value without
+prescribing its syntax or executor. Expression identity remains distinct from
+result Type identity. `get_type()` returns the proven Type or Invalid,
+`get_inputs()` exposes the ordered values required to evaluate it, and
+`fits(type)` answers whether the value can safely occupy a target Type. The
+default fit is exact resolved Type identity.
+
+`Constant` is an immutable Expression already in normal form. It has no inputs
+and compares by domain, resolved Type, and payload. The common open domains are
+Unsigned, Signed, Real, Flag, and Bytes. Integer domains may prove narrower
+contextual fits from their values, and Flag fits any Flag Type. Real and Bytes
+use exact Type fitting in the first slice. Real NaNs compare as one semantic
+value so equality remains suitable for caches. TTX has no native String
+Constant. Quoted source decodes to bytes, while a language may build a String
+Type and operations above that data. Parsing, evaluation, folding, and lowering
+remain ISA or compiler concerns. A future foldable expression can expose a
+Constant without adding evaluation to every Expression.
 
 Executable syntax is owned by the ISA that understands it. An ISA may attach
 an owned executable body to a stable Callable, but that representation
@@ -952,6 +990,7 @@ Graphics.version
 self.texture
 source:[0]
 source:[0, 4]
+source -> slice(start, count)
 color.[r, g, b]
 source -> get_size()
 Image -> from_bytes(bytes)
@@ -964,8 +1003,8 @@ The access forms are:
 | Syntax            | Meaning                                   |
 | ----------------- | ----------------------------------------- |
 | `.field`          | field or package/type member access       |
-| `:[index]`        | index access                              |
-| `:[start, count]` | index slice                               |
+| `:[index]`        | constant-evaluated index access           |
+| `:[start, count]` | constant-evaluated index slice            |
 | `.[a, b, c]`      | swizzle into a positional pack            |
 | `-> name(pack)`   | callable dispatch from the left-side base |
 
@@ -975,6 +1014,12 @@ receiver resolves a `Static` callable. An addressable value resolves a `Self`
 callable from its resolved Type and contributes the declared receiver argument.
 Function-pointer dispatch is Self dispatch on the callable value, such as
 `callback -> invoke(args)`.
+
+The `:[...]` operands must evaluate to Unsigned Constants. This form performs
+compile-time selection and produces a projection or positional pack. Runtime
+slicing is ordinary Self dispatch such as `value -> slice(start, count)`. It
+returns one View-like typed value and will be supported by the receiver's
+Indexable contract rather than by weakening the compile-time slice rule.
 
 ## Aggregate Initialization And Explicit Conversion
 
@@ -1120,7 +1165,7 @@ TTX literals are intentionally small:
 42
 0xFF
 0.5
-"Raw string"
+"Raw bytes"
 0x[AA FF 12 45 ACDE]
 $[path/to/file]
 true
@@ -1129,9 +1174,9 @@ false
 
 `0x[...]` is a byte literal. Whitespace separates digits for people but is not
 part of the value. Hexadecimal digits are paired from left to right, so `ACDE`
-contributes the two bytes `AC DE`. `$[...]` embeds a file as data. Quoted strings
-decode escape sequences into bytes and do not include an implicit null
-terminator.
+contributes the two bytes `AC DE`. `$[...]` embeds a file as data. Quoted byte
+literals decode escape sequences into bytes and do not include an implicit null
+terminator. TTX assigns no native String meaning to those bytes.
 
 Integer literals are exact integer values. When no narrower expected type is
 present they default to the language's 64-bit integer domain, with `Count`

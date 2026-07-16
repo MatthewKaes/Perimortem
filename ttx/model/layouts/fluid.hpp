@@ -12,7 +12,9 @@ namespace Ttx::Model::Layouts {
 
 // Fluid is positional value flow. Its entries are the real Abstracts produced
 // by an expression, pack, return, or other reshapeable source. It fits another
-// Layout by ordered resolved identity and carries no field metadata.
+// Layout by ordered resolved identity and carries no field metadata. An
+// Expression entry instead proves that it fits the resolved target Type, which
+// keeps value-domain conversion knowledge out of Layout.
 class Fluid : public Layout {
  public:
   Fluid(

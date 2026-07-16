@@ -84,6 +84,7 @@ cc_binary(
         "unit_tests/ttx/attribute.cpp",
         "unit_tests/ttx/callable.cpp",
         "unit_tests/ttx/documentation.cpp",
+        "unit_tests/ttx/expression.cpp",
         "unit_tests/ttx/generic.cpp",
         "unit_tests/ttx/layout.cpp",
         "unit_tests/ttx/type.cpp",

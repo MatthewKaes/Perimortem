@@ -13,7 +13,9 @@ namespace Ttx::Model::Layouts {
 // Named is reshapeable value flow whose Abstracts author non-empty names.
 // Names affect fitting but do not make the values addressable storage. The
 // source owner supplies real Abstract objects whose get_name() and resolve()
-// queries carry the complete fitting facts.
+// queries carry the complete fitting facts. After a name matches, an Expression
+// may prove value compatibility against the resolved target Type instead of
+// laundering itself into Type identity.
 class Named : public Layout {
  public:
   Named(

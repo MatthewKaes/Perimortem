@@ -204,11 +204,12 @@ class GenericScope final : public Type {
   Structured layout;
 };
 
-/// An expression can resolve through aliases to a Type before it becomes a
-/// Generic argument without moving expression behavior into the core model.
-class GenericExpression final : public Abstract {
+/// Argument normalization follows ordinary Abstract identity redirection. A
+/// future type-producing expression can use this path after evaluation chooses
+/// its concrete Type without making every Expression resolve to its result.
+class TypeRedirect final : public Abstract {
  public:
-  GenericExpression(View::Bytes name, const Abstract& type)
+  TypeRedirect(View::Bytes name, const Abstract& type)
       : name(name), type(type) {}
 
   auto get_name() const -> View::Bytes override { return name; }
@@ -231,7 +232,7 @@ PERIMORTEM_UNIT_TEST(TtxGeneric, resolved_cache_key) {
   Invalid invalid;
   GenericType unsigned_64("Unsigned_64"_view, invalid);
   Alias count("Count"_view, unsigned_64);
-  GenericExpression expression("computed_type"_view, count);
+  TypeRedirect expression("computed_type"_view, count);
   VecFormula vec(arena, invalid);
   GenericScope scope(vec, unsigned_64, invalid);
   const Argument alias_arguments[] = {count, Bits_64(3)};

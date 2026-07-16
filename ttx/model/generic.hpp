@@ -15,10 +15,12 @@ namespace Ttx::Model {
 // Each concrete formula owns argument validation, materialization, and any
 // cache of concrete Types it creates.
 //
-// Arguments already contain resolved semantic identities. A formula can use
-// their ordered values directly as its cache key without alias walks, names,
-// hashes, parent links, or another canonicalization interface. Failure returns
-// Invalid while the source owner retains the diagnostic.
+// Arguments already contain resolved semantic identities or explicit scalar
+// values. Constants preserve their domain, resolved Type, and payload during
+// equality. A formula can use the ordered arguments directly as its cache key
+// without alias walks, names, hashes, parent links, or another canonicalization
+// interface. Failure returns Invalid while the source owner retains the
+// diagnostic.
 class Generic : public Abstraction::Abstract {
  public:
   using ContractOwner = Generic;

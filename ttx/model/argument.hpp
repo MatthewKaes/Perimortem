@@ -5,15 +5,15 @@
 
 #include "perimortem/core/static/union.hpp"
 
-#include "ttx/abstraction/invalid.hpp"
 #include "ttx/abstraction/reference.hpp"
 
 namespace Ttx::Model {
 
 // Argument is one fully resolved input to a Generic formula. Abstract inputs
-// are normalized through resolve() when the Argument is constructed. Alias and
-// expression spellings can therefore share one materialized Type when they
-// represent the same final semantic object.
+// are normalized through resolve() when the Argument is constructed. Aliases
+// and explicit expression redirections can therefore share one materialized
+// Type when they represent the same final semantic object. Constants resolve
+// to themselves so their values remain part of the cache key.
 //
 // Bool and unsigned values are the closed inline scalar set for this slice.
 // Other compile-time facts remain extensible as Abstract contracts. The
@@ -31,29 +31,11 @@ class Argument {
 
   constexpr auto get_value() const -> const Value& { return value; }
 
-  constexpr auto operator==(const Argument& rhs) const -> Bool {
-    return value == rhs.value;
-  }
-
-  constexpr auto operator!=(const Argument& rhs) const -> Bool {
-    return !(*this == rhs);
-  }
+  auto operator==(const Argument& rhs) const -> Bool;
+  auto operator!=(const Argument& rhs) const -> Bool;
 
  private:
-  static auto normalize(Value value) -> Value {
-    return value.visit(
-        []() -> Value {
-          static const Abstraction::Invalid invalid;
-          return Abstraction::Reference<Abstraction::Abstract>(invalid);
-        },
-        [](const Abstraction::Reference<Abstraction::Abstract>& abstract)
-            -> Value {
-          return Abstraction::Reference<Abstraction::Abstract>(
-              abstract.get().resolve());
-        },
-        [](Bool flag) -> Value { return Value(flag); },
-        [](Bits_64 unsigned_value) -> Value { return Value(unsigned_value); });
-  }
+  static auto normalize(Value value) -> Value;
 
   Value value;
 };

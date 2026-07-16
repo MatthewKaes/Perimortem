@@ -171,9 +171,9 @@ systems. The important distinction is ownership:
 - TTX source owns authored bytes and source spans.
 - Lexical owns token classification and token payload views.
 - Abstract objects and their virtual contracts form the shared TTX semantic
-  graph. Type, Alias, Generic, Callable, Static, Self, Addressable, and Invalid
-  are contracts in that graph. Layout is the fitting contract over an ordered
-  group of those real objects.
+  graph. Type, Alias, Generic, Expression, Constant, Callable, Static, Self,
+  Addressable, and Invalid are contracts in that graph. Layout is the fitting
+  contract over an ordered group of those real objects.
 - Host envelope evaluators own whatever source preamble they choose to execute.
 - Import, module, package, cache, and invalidation layers belong to the host
   that needs them.
@@ -201,6 +201,9 @@ Ttx::Abstraction::Abstract
 ├── Ttx::Abstraction::Alias
 ├── Ttx::Abstraction::Invalid
 ├── Ttx::Model::Generic
+├── Ttx::Model::Expression
+│   └── Ttx::Model::Constant
+│       └── Ttx::Model::Constants::{Unsigned, Signed, Real, Flag, Bytes}
 ├── Ttx::Model::Type
 │   ├── Ttx::Model::Types::Terminal
 │   │   ├── Ttx::Model::Types::Unsigned
@@ -227,6 +230,8 @@ These names describe up-castable semantic contracts:
 | `Alias`       | closed named redirection of identity and context queries to another Abstract        |
 | `Type`        | resolved semantic identity with a total Structured Layout query                     |
 | `Generic`     | instruction contract that resolves arguments to a concrete Type                    |
+| `Expression`  | one evaluatable value with a result Type query and ordered input Layout             |
+| `Constant`    | immutable Expression already in normal form with value equality                    |
 | `Callable`    | complete parameter and result Layouts plus an address/linkage query                 |
 | `Static`      | invocation selected through a Type or package without a receiver                    |
 | `Self`        | invocation whose addressable receiver is parameter zero                             |
@@ -253,6 +258,10 @@ Callable::get_parameters()     -> const Layout&
 Callable::get_results()        -> const Layout&
 Callable::get_address()        -> const Abstract&
 Generic::materialize(args)     -> const Abstract&
+Expression::get_type()         -> const Abstract&
+Expression::get_inputs()       -> const Layout&
+Expression::fits(type)         -> Bool
+Constant::equals(constant)     -> Bool
 Layout::get_fitted(target, i)  -> const Abstract&
 ```
 
@@ -430,6 +439,49 @@ the heart of TTX and should remain roughly 150 lines or fewer. Growth toward a
 registry, type container, package model, diagnostic store, traversal state, or
 other derived concept is an architectural smell.
 
+### Expression And Constant Facts
+
+Expression is the shared contract for one evaluatable value. Its identity is
+not its result Type. `resolve()` therefore remains ordinary Abstract identity
+unless a specific type-producing expression deliberately redirects to a
+materialized object. `get_type()` returns the Type currently proven for the
+value or Invalid, and `get_inputs()` returns the ordered Layout of values needed
+to evaluate it. The active ISA owns operator legality, executable bodies,
+parsing, evaluation, and diagnostics.
+
+`Expression::fits(target)` is the value-to-Type seam used by Layout fitting. An
+ordinary expression fits only the exact resolved Type returned by `get_type()`.
+A narrower expression contract may prove a safe contextual fit from additional
+facts. This keeps conversion knowledge on the value domain without turning
+Layout into a numeric conversion table.
+
+Constant is an immutable Expression already in normal form. It has an empty
+input Layout and defines value equality, but it does not define a parser,
+operator set, evaluator, folding pass, or lowering representation. The shared
+constant domains are open up-castable contracts:
+
+| Contract                | Payload       | Contextual fitting rule                              |
+| ----------------------- | ------------- | ---------------------------------------------------- |
+| `Constants::Unsigned`   | `Bits_64`     | any Unsigned Type that can represent the value       |
+| `Constants::Signed`     | `Signed_64`   | any Signed Type that can represent the value         |
+| `Constants::Real`       | `Real_128`    | exact resolved Type in the first slice               |
+| `Constants::Flag`       | `Bool`        | any Flag Type                                        |
+| `Constants::Bytes`      | `View::Bytes` | exact resolved Type in the first slice               |
+
+Constant equality requires the same domain contract, the same resolved Type,
+and the same payload. Two independently allocated constants with those facts
+are equal. Real NaNs compare as one semantic value so equality remains a valid
+cache equivalence relation. Constant identity is never collapsed to Type
+identity. TTX has no native String constant. Quoted source text is decoded to
+bytes, and a language that wants String semantics builds its own Type and
+operations from that data.
+
+Exact decimal source text may remain an ISA-owned literal Expression until an
+expected Type chooses a floating format. `Constants::Real` represents a value
+that has already been evaluated into `Real_128`. A future folding facility can
+be another narrow contract over expressions that can prove a Constant. It does
+not require an evaluation method on every Expression.
+
 ## Layout Facts
 
 Layout is the shared fitting contract over an ordered group of real Abstracts.
@@ -443,9 +495,13 @@ The three v1 contracts are deliberately separate classes:
 - **Fluid** is positional value flow. Packs, grouped values, swizzles, slices,
   argument packs, and intermediate returns expose the actual Abstract values in
   production order. Fluid fitting compares resolved identity in that order.
+  When a source entry implements Expression, it instead asks that value whether
+  it fits the resolved target Type.
 - **Named** is reshapeable value flow whose actual Abstracts author non-empty
   names. Named fitting requires unique source names and matches each name and
-  resolved identity exactly once in the target. Target order is independent.
+  resolved identity exactly once in the target. An Expression may supply the
+  same value-to-Type fitting proof after its name matches. Target order is
+  independent.
 - **Structured** is the stable shape supplied by a resolved Type. Its entries
   are the actual Addressable objects in the semantic DAG. Structured fitting
   preserves those identities. Two separately authored fields do not become the
@@ -810,7 +866,7 @@ operator then dispatches on the current object or value:
   `get_layout()` result.
 - `-> name(...)` queries callable dispatch.
 - `.[...]` dispatches to swizzle/repack semantics.
-- `:[...]` dispatches to index or slice semantics.
+- `:[...]` dispatches to constant-evaluated index or slice semantics.
 
 `::` is therefore not string concatenation. It establishes a nested context
 query whose receiving Abstract owns the lookup grammar. An evaluator may offer
@@ -839,12 +895,14 @@ define a global Generic registry or switch on formula names.
 
 The evaluator constructs each `Argument` before calling the formula. An
 Abstract argument stores the result of `resolve()`. Bool and unsigned arguments
-store their tagged scalar values. Argument order is preserved. The ordered
-Argument sequence is therefore the complete cache key inside one formula.
-Aliases and type-producing expressions that resolve to the same final Abstract
-share a cache entry. Unrelated Abstracts with the same local name remain
-different entries. The key never includes a parent pointer, authored route,
-formatted Type name, or hash.
+store their tagged scalar values. Constants remain Abstract arguments because
+their resolved identity is the value, not its Type. Two constants compare as
+the same Argument when their domain, resolved Type, and payload are equal.
+Argument order is preserved. The ordered Argument sequence is therefore the
+complete cache key inside one formula. Aliases and type-producing expressions
+that resolve to the same final Abstract share a cache entry. Unrelated
+Abstracts with the same local name remain different entries. The key never
+includes a parent pointer, authored route, formatted Type name, or hash.
 
 Missing formula lookup returns Invalid at the owning context. A resolved object
 that does not implement Generic fails the contract proof. A Generic whose
@@ -925,9 +983,10 @@ can be an Alias to the Unsigned instance matching the active C++ interface.
 Size and alignment are real Terminal facts, but they still do not dictate
 register or instruction width. A one-byte Unsigned Type may correctly use a
 32-bit carrier or move when observable stores and arithmetic preserve its value
-domain. Aggregates such as `Vec`, `View`, `Bytes`, and `String` instead expose
-their real Addressable structure unless a toolchain deliberately registers them
-as another Terminal contract.
+domain. Aggregates such as `Vec`, `View`, and a language-defined String Type
+instead expose their real Addressable structure unless a toolchain deliberately
+registers them as another Terminal contract. A byte-array Constant can use an
+aggregate Type without creating a native TTX String concept.
 
 `Perimortem.Graphics` is explicit. A package that needs graphics-domain types
 imports it and refers to those types through the import name:
@@ -1404,7 +1463,7 @@ TTX has three explicit ways to produce packs:
 
 1. grouping values with `(...)`
 2. swizzling fields with `value.[a, b, c]`
-3. slicing a range with `value:[start, count]`.
+3. slicing a constant-evaluated range with `value:[start, count]`.
 
 Those forms are the only source-level decomposition operations. A concrete
 typed object inside a pack remains one value until source explicitly swizzles or
@@ -1435,10 +1494,10 @@ must access, swizzle, or slice the fields explicitly:
 The Type's Structured Layout supplies the selected Addressable facts, but it
 does not evaluate an access. An expression ISA constructs a projection
 Abstract from the receiver and selected Addressable. That projection resolves
-to the field Type and retains the receiver path needed for evaluation and
-lowering. Swizzle and slice results are Fluid Layouts over those projection
-Abstracts. Join concatenates already produced expression Abstracts and never
-implicitly decomposes a Structured typed value.
+to itself, returns the field Type from `Expression::get_type()`, and retains the
+receiver path needed for evaluation and lowering. Swizzle and slice results are
+Fluid Layouts over those projection Expressions. Join concatenates already
+produced expressions and never implicitly decomposes a Structured typed value.
 
 ### Repacking
 
@@ -1448,8 +1507,9 @@ construction, swizzle, slice, and named fields already express the operation
 directly.
 
 Names are transient during repacking. Swizzle uses names to select fields, but
-the selected result is positional. Slice selects by evaluated positions, so its
-result is also positional. Grouping positional values keeps positional order.
+the selected result is positional. Slice selects by constant-evaluated
+positions, so its result is also positional. Grouping positional values keeps
+positional order.
 The only ordinary way to create a named repack result is to author named fields
 with `.field = value`, or to fit a produced pack into a declared boundary whose
 layout provides names.
@@ -1488,6 +1548,14 @@ state first_two : Vec2D = rgba:[0, 2];
 
 Typed values never splat implicitly. The source must say which fields or range
 are being repacked.
+
+`:[...]` is a compile-time decomposition operator. Its index, start, and count
+must evaluate to Unsigned Constants before the projection pack is built. A
+dynamic range is a different operation because it produces one typed view
+rather than a compile-time pack. The canonical dynamic form is ordinary Self
+dispatch such as `value -> slice(start, count)`. Its receiver Type proves the
+future Indexable contract and the Callable returns a View-like Type. C++
+`View::Bytes::slice` follows the same dynamic shape.
 
 Returns follow the same rule. A return statement evaluates an expression pack
 and fits it to the function's declared return layout. If the return expression
@@ -1604,9 +1672,12 @@ for packs. The fixed vector and color types have builtin struct fields:
 Expressions produce values. Assignment is not an expression.
 
 Executable syntax belongs to the ISA that gives it meaning. The shared TTX
-Abstract graph supplies stable declarations, layouts, and local identities.
-An ISA may attach an owned executable body to a Callable, but that body
-representation is not a generic statement hierarchy in the shared TTX model.
+Abstract graph supplies stable declarations, layouts, local identities, and the
+narrow Expression queries. Expression identity does not resolve to its result
+Type. `get_type()` publishes that fact separately, and `get_inputs()` publishes
+the ordered dependencies. An ISA may attach an owned executable body to a
+Callable, but that body representation is not a generic statement hierarchy in
+the shared TTX model.
 
 The expression parser is a precedence parser:
 
@@ -1658,6 +1729,7 @@ Graphics.version
 self.texture
 source:[0]
 source:[0, 4]
+source -> slice(start, count)
 color.[r, g, b]
 source -> get_size()
 Image -> from_bytes(bytes)
@@ -1670,7 +1742,8 @@ continues only when followed by an addressable or type name. `AddressOp` is
 lookup only: package lookup, type lookup, enum member lookup, or value field
 lookup. `CallOp` is the only call marker. It requires a callable name and a
 pack. The call base may be a value, `self`, a package or type query, or a future
-function-pointer value. `IndexStart` parses index or index-slice content.
+function-pointer value. `IndexStart` parses constant-evaluated index or
+index-slice content.
 `SwizzleOp` parses swizzle fields or a swizzle slice. A swizzle or swizzle slice
 produces a positional pack. `PackingStart` after a type expression is invalid.
 Aggregate construction is pack fitting against an expected type, while explicit
@@ -1681,8 +1754,8 @@ Access forms:
 | Syntax            | Meaning                                      |
 | ----------------- | -------------------------------------------- |
 | `.field`          | field, package member, or type member access |
-| `:[index]`        | index access                                 |
-| `:[start, count]` | index slice                                  |
+| `:[index]`        | constant-evaluated index access              |
+| `:[start, count]` | constant-evaluated index slice               |
 | `.[a, b, c]`      | swizzle that produces a positional pack      |
 | `-> name(pack)`   | callable dispatch from the left-side base    |
 
@@ -1697,6 +1770,12 @@ The dispatch receiver must be concrete: a typed value, a type name, or a
 package scope. A fluid pack is not a receiver because it has no concrete type or
 addressable identity. To call through a value carried inside a pack, source or
 the owning query must first select the concrete entry that is the receiver.
+
+Dynamic slicing is callable dispatch, not relaxed `:[...]` syntax. A
+receiver-defined `-> slice(start, count)` consumes runtime values and returns a
+single View-like typed value. The receiver's future Indexable contract proves
+element access and result Type facts. The compile-time `:[...]` operator instead
+requires Constant arguments and produces projections or a positional pack.
 
 TTX does not use braced initializers. Braces are scopes and statement blocks.
 Aggregate initialization uses packs:
@@ -1818,7 +1897,7 @@ Literal classes:
 | `123`                  | decimal numeric literal                     |
 | `0xFF`                 | hexadecimal numeric literal                 |
 | `0.5`                  | floating literal                            |
-| `"Raw string"`         | string literal, no implicit null terminator |
+| `"Raw bytes"`          | quoted byte literal                         |
 | `0x[AA FF 12 45 ACDE]` | byte data literal                           |
 | `$[path/to/file]`      | embedded file data                          |
 | `true`, `false`        | `Bool` literals                             |
@@ -1837,8 +1916,9 @@ exists.
 
 Byte literals ignore whitespace and pair hexadecimal digits from left to right.
 Whitespace is a visual delimiter rather than data, so `0x[AA FF 12 45 ACDE]`
-produces `AA FF 12 45 AC DE`. Quoted strings decode their escape sequences and
-produce the resulting bytes without an implicit null terminator.
+produces `AA FF 12 45 AC DE`. Quoted byte literals decode their escape sequences
+and produce the resulting bytes without an implicit null terminator. Both forms
+produce byte-array values. TTX assigns no native String semantics to either.
 
 `Bytes` literals and embedded-file literals are tokenized as whole literals, but
 their fixed prefixes are still source text entries on `Class`:
@@ -2023,6 +2103,12 @@ When changing TTX, preserve these invariants:
 18. Layout is an ordered fitting contract over Abstracts. Fluid, Named, and
     Structured express distinct semantics through inheritance. There is no
     Member record, kind enum, or Incomplete Layout.
+19. Expression identity remains distinct from its result Type. Constant is an
+    immutable zero-input Expression, and its equality includes domain, resolved
+    Type, and payload.
+20. `:[...]` requires constant-evaluated Unsigned arguments and produces
+    projections or a positional pack. Dynamic slicing is Callable dispatch that
+    returns one View-like typed value.
 
 These rules are what keep TTX readable while still letting it behave like a
 compiler IR.

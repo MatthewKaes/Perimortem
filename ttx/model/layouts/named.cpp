@@ -3,6 +3,8 @@
 
 #include "ttx/model/layouts/named.hpp"
 
+#include "ttx/model/expression.hpp"
+
 auto Ttx::Model::Layouts::Named::has_unique_names() const -> Bool {
   for (Count i = 0; i < get_size(); i++) {
     Perimortem::Core::View::Bytes name = get_abstract(i).get_name();
@@ -36,7 +38,13 @@ auto Ttx::Model::Layouts::Named::fits(const Layout& target) const -> Bool {
         continue;
       }
 
-      if (&source.resolve() != &candidate.resolve()) {
+      const Abstraction::Abstract& target_type = candidate.resolve();
+      if (source.is<Expression>()) {
+        if (!target_type.is<Type>() ||
+            !source.as<Expression>().fits(target_type.as<Type>())) {
+          return False;
+        }
+      } else if (&source.resolve() != &target_type) {
         return False;
       }
 
@@ -61,8 +69,17 @@ auto Ttx::Model::Layouts::Named::get_fitted(
   const Abstraction::Abstract& requested = target.get_abstract(target_index);
   for (Count i = 0; i < get_size(); i++) {
     const Abstraction::Abstract& source = get_abstract(i);
-    if (source.get_name() == requested.get_name() &&
-        &source.resolve() == &requested.resolve()) {
+    if (source.get_name() != requested.get_name()) {
+      continue;
+    }
+
+    const Abstraction::Abstract& target_type = requested.resolve();
+    if (source.is<Expression>()) {
+      if (target_type.is<Type>() &&
+          source.as<Expression>().fits(target_type.as<Type>())) {
+        return source;
+      }
+    } else if (&source.resolve() == &target_type) {
       return source;
     }
   }

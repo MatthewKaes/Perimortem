@@ -47,6 +47,7 @@ cc_library(
 cc_library(
     name = "model",
     srcs = [
+        "model/argument.cpp",
         "model/layouts/fluid.cpp",
         "model/layouts/named.cpp",
         "model/layouts/structured.cpp",
@@ -56,7 +57,14 @@ cc_library(
         "model/argument.hpp",
         "model/attribute.hpp",
         "model/callable.hpp",
+        "model/constant.hpp",
+        "model/constants/bytes.hpp",
+        "model/constants/flag.hpp",
+        "model/constants/real.hpp",
+        "model/constants/signed.hpp",
+        "model/constants/unsigned.hpp",
         "model/documentation.hpp",
+        "model/expression.hpp",
         "model/generic.hpp",
         "model/layout.hpp",
         "model/layouts/fluid.hpp",
