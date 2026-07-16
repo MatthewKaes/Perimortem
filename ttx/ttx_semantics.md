@@ -252,6 +252,8 @@ Terminal::get_alignment()      -> Count
 Callable::get_parameters()     -> const Layout&
 Callable::get_results()        -> const Layout&
 Callable::get_address()        -> const Abstract&
+Generic::materialize(args)     -> const Abstract&
+Layout::get_fitted(target, i)  -> const Abstract&
 ```
 
 The final query may return Addressable or Invalid. Layout itself stores no
@@ -261,6 +263,12 @@ Types, documentation, attributes, defaults, and ISA facts remain on those real
 objects or on richer contracts they implement. Consumers resolve identity
 before using a narrow contract. No nullable reference is part of the Layout
 interface.
+
+Contiguous semantic collections store `Abstraction::Reference<Contract>`, a
+non-null borrowed reference value. It preserves the object it receives.
+Consumers call `resolve()` explicitly when they need represented identity, so a
+Structured Layout retains its real Addressables while a Generic Argument can
+retain the resolved object chosen at its own query boundary.
 
 ### Contract Proof And Upcasting
 
@@ -425,10 +433,10 @@ other derived concept is an architectural smell.
 ## Layout Facts
 
 Layout is the shared fitting contract over an ordered group of real Abstracts.
-It answers only three questions: how many objects are present, which Abstract
-is at an index, and whether this source shape fits a target shape. It is not an
-Abstract, a member container, a Type registry, a storage record, or a lifecycle
-state.
+It answers how many objects are present, which Abstract is at an index, whether
+this source shape fits a target shape, and which source Abstract supplies each
+target slot. An invalid index or fit returns Invalid. Layout is not an Abstract,
+a member container, a Type registry, a storage record, or a lifecycle state.
 
 The three v1 contracts are deliberately separate classes:
 
@@ -447,6 +455,14 @@ Fitting is directional: `source.fits(target)`. Fluid and Named values may fit a
 Structured target without acquiring Type identity themselves. A Structured
 value does not silently decompose into value flow. Source uses swizzle or slice
 syntax to make that transition explicit.
+
+`source.get_fitted(target, target_index)` returns the original source Abstract
+that supplies that target slot. A failed fit, invalid index, or missing mapping
+returns Invalid so the source owner can retain the diagnostic. Fluid and
+Structured preserve positional order. Named exposes the permutation it proved
+by name and resolved identity. This is fitting evidence, not a copied member or
+an allocated mapping. A caller can construct target-ordered value flow without
+repeating Named matching.
 
 Layout does not copy a field's name, Type, documentation, attributes, default,
 storage, or ISA metadata into a generic entry. The Abstract supplies its own
@@ -818,8 +834,17 @@ Type and does not have a Layout of its own.
 Each named Generic is a registered formula such as `Vec`, `View`, or `Dict`.
 The current source context owns the lookup surface and may index Generic names
 separately from concrete Type names. The Generic object owns its accepted
-argument schema, normalization, and materialization rule. TTX does not define a
-global Generic registry or switch on formula names.
+argument schema, materialization rule, and concrete-Type cache. TTX does not
+define a global Generic registry or switch on formula names.
+
+The evaluator constructs each `Argument` before calling the formula. An
+Abstract argument stores the result of `resolve()`. Bool and unsigned arguments
+store their tagged scalar values. Argument order is preserved. The ordered
+Argument sequence is therefore the complete cache key inside one formula.
+Aliases and type-producing expressions that resolve to the same final Abstract
+share a cache entry. Unrelated Abstracts with the same local name remain
+different entries. The key never includes a parent pointer, authored route,
+formatted Type name, or hash.
 
 Missing formula lookup returns Invalid at the owning context. A resolved object
 that does not implement Generic fails the contract proof. A Generic whose
@@ -831,7 +856,9 @@ The concrete Type returned by parameterization is compiler-owned. Its stable
 handle is used for local equivalence, member lookup, nested Type lookup,
 Callable lookup, and Layout queries. A host that exports it derives a durable
 name by walking a selected named ownership chain. The normalized argument
-sequence is an input to construction, not a second semantic model.
+sequence is an input to construction, not a second semantic model. The source
+owner retains the authored route for diagnostics. A publication owner selects
+and renders a public ownership chain independently of local cache identity.
 
 `alias` creates an Alias Abstract that preserves the authored local name and
 redirects to its resolved target. When that target is a Type, a Type consumer
@@ -1404,6 +1431,14 @@ must access, swizzle, or slice the fields explicitly:
 (screen_pos, 0.0, 1.0)        // three values: Vec2D, Real_32, Real_32
 (screen_pos.[x, y], 0.0, 1.0) // four Real_32 values
 ```
+
+The Type's Structured Layout supplies the selected Addressable facts, but it
+does not evaluate an access. An expression ISA constructs a projection
+Abstract from the receiver and selected Addressable. That projection resolves
+to the field Type and retains the receiver path needed for evaluation and
+lowering. Swizzle and slice results are Fluid Layouts over those projection
+Abstracts. Join concatenates already produced expression Abstracts and never
+implicitly decomposes a Structured typed value.
 
 ### Repacking
 

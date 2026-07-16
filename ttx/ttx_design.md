@@ -319,8 +319,8 @@ need several facts use several attributes, such as `@binding @set(0) @slot(1)`.
 This keeps metadata lookup direct and prevents attributes from growing a second
 untyped object model beside Layout.
 
-The scalar carrier is `Core::Static::Union`. `Attribute` adds the authored key;
-it does not define another tag, storage union, or dispatch mechanism.
+The scalar carrier is `Core::Static::Union`. `Attribute` adds the authored key.
+It does not define another tag, storage union, or dispatch mechanism.
 
 Target-specific attributes can attach lowering facts to a Type. For example,
 `@shader_type(Vec4D)` says that the authored type intentionally lowers through
@@ -376,7 +376,7 @@ another Abstract in the graph, not a repository attached to the base class.
 
 Each declared native contract owns a stable 128-bit interface UUID and proves
 its own direct inheritance chain. `abstract.is<Type>()` performs two word
-comparisons per shallow level; `abstract.as<Type>()` checks that proof and
+comparisons per shallow level. `abstract.as<Type>()` checks that proof and
 returns `const Type&`. There is no hash, allocation, nullable cast, global class
 table, or centrally assigned type number. These UUIDs identify contract schemas
 only: Abstract objects still use stable local addresses, resolution still uses
@@ -416,6 +416,8 @@ Terminal::get_alignment()      -> Count
 Callable::get_parameters()     -> const Layout&
 Callable::get_results()        -> const Layout&
 Callable::get_address()        -> const Abstract&
+Generic::materialize(args)     -> const Abstract&
+Layout::get_fitted(target, i)  -> const Abstract&
 ```
 
 Addressable failure remains Invalid or an explicitly unresolved Addressable.
@@ -423,6 +425,8 @@ Layout stores no copied Member record. It exposes real Abstracts, and Structured
 narrows those entries to the actual Addressables owned by a Type. Names, child
 Types, documentation, attributes, defaults, and ISA facts remain on the real
 objects or their richer contracts rather than becoming nullable Layout fields.
+Contiguous model collections use non-null `Abstraction::Reference<Contract>`
+values rather than raw semantic pointers.
 
 There is no generic `Typed` marker. A query asks for the real operation it
 needs. The remaining route is a borrowed `View::Bytes`. The public virtual
@@ -434,7 +438,7 @@ a package is simply a top-level Type with an appropriate child index.
 
 The contract is intentionally flexible about lookup but strict about meaning:
 
-- `get_name()` is local; `resolve().get_name()` asks for the canonical name.
+- `get_name()` is local. `resolve().get_name()` asks for the canonical name.
 - `resolve()` is idempotent for an unchanged valid DAG.
 - differently partitioned routes need not be equivalent.
 - an empty context route need not behave like `resolve()`.
@@ -460,7 +464,7 @@ failure responsibilities.
 
 Resolution policy stays with the owning object. A Type may keep separate static
 and self maps, permitting both surfaces to contain `open` without introducing a
-global contract discriminator. `Widget -> open()` asks Widget's static surface;
+global contract discriminator. `Widget -> open()` asks Widget's static surface.
 `widget -> open()` resolves the receiver Type and asks Widget's self surface.
 Duplicates are rejected within the selected surface.
 
@@ -487,8 +491,9 @@ construction/publication lifecycle on every host.
 A host may reserve nonmoving objects and install names that later declarations
 can query. Until a requested Type or system has enough facts, it resolves that
 query to Invalid. Once resolution reaches the real Type, its Structured Layout
-is a total reference. Layout therefore has no Incomplete state, and an empty
-Structured Layout remains the unambiguous terminal scalar case.
+is a total reference. Layout therefore has no Incomplete state. An empty
+Structured Layout may belong to a Terminal or a valid empty aggregate, so a
+consumer proves Terminal before treating it as a scalar leaf.
 
 The Package, Library, Foreign, Shader, Render, Scene, App, or another active ISA
 completes the facts it owns using the pass structure appropriate to that
@@ -537,16 +542,20 @@ compiler owns the resulting concrete object and makes it queryable through the
 same Type contract as any authored type.
 
 Each Generic is a named formula registered in the current source context. `Vec`
-owns Vec argument validation and materialization. `View` owns View argument
-validation and materialization. The context owns name lookup and can keep
-Generic formulas separate from concrete Types. There is no global formula
+owns Vec argument validation, materialization, and its concrete-Type cache.
+`View` owns the corresponding View rules. The context owns name lookup and can
+keep Generic formulas separate from concrete Types. There is no global formula
 registry and no parser switch on formula names.
 
-The Generic normalizes its arguments before consulting its compiler-owned
-cache. Repeating the same formula with the same normalized Abstract identities
-and scalar values returns the same concrete Type identity. Missing formula
-lookup and a found formula rejecting its argument shape remain distinct source
-errors, with both represented semantically by Invalid.
+The evaluator constructs a closed ordered Argument sequence before calling the
+formula. An Abstract argument stores its resolved identity. Bool and unsigned
+arguments store their tagged values. That complete sequence is the formula's
+cache key. Repeating the same formula with an Alias, expression, or direct Type
+that resolves to the same final object returns the same concrete Type identity.
+Unrelated objects with the same local name remain distinct. Names, routes,
+parents, and hashes do not participate. Missing formula lookup and a found
+formula rejecting its argument shape remain distinct source errors, with both
+represented semantically by Invalid.
 
 Aliases are closed compile-time Abstract redirects. Alias preserves its local
 name while `resolve()` follows the target's represented identity and
@@ -746,6 +755,13 @@ wants to decompose it into a pack, it must swizzle or slice it:
 (screen_pos.[x, y], 0.0, 1.0) // Real_32, Real_32, Real_32, Real_32
 ```
 
+The Structured Layout supplies the selected Addressable facts but does not
+evaluate the access. The active expression ISA creates projection Abstracts
+that retain the receiver and selected Addressable while resolving to the field
+Type. Swizzle and slice produce Fluid Layouts over those projections. Joining
+packs concatenates already produced expression Abstracts and never implicitly
+deconstructs a Structured typed value.
+
 That gives TTX three explicit ways to make packs:
 
 - grouping values with `(...)`
@@ -856,6 +872,13 @@ documentation, attributes, default, or target storage into a generic member.
 Those facts stay on the Addressable, its source owner, or a richer derived
 contract. A Type or system that is not ready resolves to Invalid. There is no
 Incomplete Layout and no publication bit.
+
+Fitting also exposes its ordering evidence.
+`source.get_fitted(target, target_index)` returns the original source Abstract
+for that target slot. A failed fit, invalid index, or missing mapping returns
+Invalid. Named therefore publishes the permutation it proved instead of making
+every ISA repeat name matching. This operation does not allocate or create
+another Layout.
 
 A named layout field starts with `.` and an addressable name. Attributes may
 decorate layout fields, but the field marker remains visible before the field

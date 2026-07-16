@@ -3,7 +3,8 @@
 
 #include "validation/unit_test.hpp"
 
-#include "perimortem/core/static/vector.hpp"
+#include "perimortem/memory/allocator/arena.hpp"
+#include "perimortem/memory/managed/vector.hpp"
 
 #include "ttx/abstraction/alias.hpp"
 #include "ttx/abstraction/invalid.hpp"
@@ -18,10 +19,14 @@ using namespace Ttx::Model;
 using namespace Ttx::Model::Layouts;
 using namespace Validation;
 
+/// A Type owns its stable shape while Layout only exposes ordered Abstracts.
 class LayoutType final : public Type {
  public:
-  LayoutType(View::Bytes name, const Invalid& invalid)
-      : name(name), invalid(invalid) {}
+  LayoutType(
+      View::Bytes name,
+      const Invalid& invalid,
+      Structured layout = Structured())
+      : name(name), invalid(invalid), layout(layout) {}
 
   auto get_name() const -> View::Bytes override { return name; }
   auto resolve_context(View::Bytes) const -> const Abstract& override {
@@ -35,6 +40,8 @@ class LayoutType final : public Type {
   Structured layout;
 };
 
+/// Structured layouts retain fields as Addressable facts instead of copying
+/// their names and Types into a parallel member model.
 class LayoutField final : public Addressable {
  public:
   LayoutField(View::Bytes name, const Abstract& type)
@@ -55,25 +62,26 @@ static Harness TtxLayout = {
   .name = "TTX::Layout"_view,
 };
 
-PERIMORTEM_UNIT_TEST(TtxLayout, fluid_is_ordered_abstract_flow) {
+PERIMORTEM_UNIT_TEST(TtxLayout, fluid_order) {
   Invalid invalid;
   LayoutType real("Real_32"_view, invalid);
   LayoutType bits("Bits_32"_view, invalid);
-  Static::Vector<const Abstract*, 2> values = {{&real, &bits}};
+  const Reference<Abstract> values[] = {real, bits};
   Fluid layout(values);
 
   EXPECT_EQ(layout.get_size(), Count(2));
   EXPECT(&layout.get_abstract(0) == &real);
   EXPECT(&layout.get_abstract(1).resolve() == &bits);
+  EXPECT(layout.get_abstract(2).is<Invalid>());
 }
 
-PERIMORTEM_UNIT_TEST(TtxLayout, structured_borrows_real_addressables) {
+PERIMORTEM_UNIT_TEST(TtxLayout, structured_fields) {
   Invalid invalid;
   LayoutType real("Real_32"_view, invalid);
   LayoutType bits("Bits_32"_view, invalid);
   LayoutField x("x"_view, real);
   LayoutField y("y"_view, bits);
-  Static::Vector<const Addressable*, 2> fields = {{&x, &y}};
+  const Reference<Addressable> fields[] = {x, y};
   Structured layout(fields);
 
   EXPECT_EQ(layout.get_size(), Count(2));
@@ -81,9 +89,10 @@ PERIMORTEM_UNIT_TEST(TtxLayout, structured_borrows_real_addressables) {
   EXPECT_TEXT(layout.get_abstract(0).get_name(), "x"_view);
   EXPECT(&layout.get_abstract(0).resolve() == &real);
   EXPECT(&layout.get_abstract(1).resolve() == &bits);
+  EXPECT(layout.get_abstract(2).is<Invalid>());
 }
 
-PERIMORTEM_UNIT_TEST(TtxLayout, layout_contracts_own_fitting) {
+PERIMORTEM_UNIT_TEST(TtxLayout, fitting_contracts) {
   Invalid invalid;
   LayoutType real("Real_32"_view, invalid);
   LayoutType bits("Bits_32"_view, invalid);
@@ -91,9 +100,9 @@ PERIMORTEM_UNIT_TEST(TtxLayout, layout_contracts_own_fitting) {
   LayoutField y("y"_view, bits);
   Alias named_x("x"_view, real);
   Alias named_y("y"_view, bits);
-  Static::Vector<const Addressable*, 2> fields = {{&x, &y}};
-  Static::Vector<const Abstract*, 2> positional = {{&real, &bits}};
-  Static::Vector<const Abstract*, 2> reordered = {{&named_y, &named_x}};
+  const Reference<Addressable> fields[] = {x, y};
+  const Reference<Abstract> positional[] = {real, bits};
+  const Reference<Abstract> reordered[] = {named_y, named_x};
   Structured structured(fields);
   Fluid fluid(positional);
   Named named(reordered);
@@ -101,9 +110,14 @@ PERIMORTEM_UNIT_TEST(TtxLayout, layout_contracts_own_fitting) {
   EXPECT(fluid.fits(structured));
   EXPECT(named.fits(structured));
   EXPECT(structured.fits(structured));
+  EXPECT(&fluid.get_fitted(structured, 0) == &real);
+  EXPECT(&named.get_fitted(structured, 0) == &named_x);
+  EXPECT(&named.get_fitted(structured, 1) == &named_y);
+  EXPECT(&structured.get_fitted(structured, 1) == &y);
+  EXPECT(fluid.get_fitted(structured, 2).is<Invalid>());
 }
 
-PERIMORTEM_UNIT_TEST(TtxLayout, named_fitting_rejects_ambiguous_facts) {
+PERIMORTEM_UNIT_TEST(TtxLayout, named_ambiguity) {
   Invalid invalid;
   LayoutType real("Real_32"_view, invalid);
   LayoutType bits("Bits_32"_view, invalid);
@@ -111,26 +125,130 @@ PERIMORTEM_UNIT_TEST(TtxLayout, named_fitting_rejects_ambiguous_facts) {
   LayoutField y("y"_view, bits);
   Alias first("x"_view, real);
   Alias duplicate("x"_view, bits);
-  Static::Vector<const Addressable*, 2> fields = {{&x, &y}};
-  Static::Vector<const Abstract*, 2> values = {{&first, &duplicate}};
+  const Reference<Addressable> fields[] = {x, y};
+  const Reference<Abstract> values[] = {first, duplicate};
   Structured structured(fields);
   Named named(values);
 
   EXPECT_NOT(named.fits(structured));
+  EXPECT(named.get_fitted(structured, 0).is<Invalid>());
 }
 
-PERIMORTEM_UNIT_TEST(TtxLayout, structured_identity_is_not_shape_laundering) {
+PERIMORTEM_UNIT_TEST(TtxLayout, structured_identity) {
   Invalid invalid;
   LayoutType real("Real_32"_view, invalid);
   LayoutField first_x("x"_view, real);
   LayoutField second_x("x"_view, real);
-  Static::Vector<const Addressable*, 1> first_fields = {{&first_x}};
-  Static::Vector<const Addressable*, 1> same_fields = {{&first_x}};
-  Static::Vector<const Addressable*, 1> other_fields = {{&second_x}};
+  const Reference<Addressable> first_fields[] = {first_x};
+  const Reference<Addressable> same_fields[] = {first_x};
+  const Reference<Addressable> other_fields[] = {second_x};
   Structured first(first_fields);
   Structured same(same_fields);
   Structured other(other_fields);
 
   EXPECT(first.fits(same));
   EXPECT_NOT(first.fits(other));
+  EXPECT(first.get_fitted(other, 0).is<Invalid>());
+}
+
+/// A projection preserves both the evaluated receiver and selected field while
+/// resolving to the field's Type.
+class LayoutProjection final : public Abstract {
+ public:
+  LayoutProjection(const Abstract& receiver, const Addressable& field)
+      : receiver(receiver), field(field) {}
+
+  auto get_name() const -> View::Bytes override { return field.get_name(); }
+  auto resolve() const -> const Abstract& override { return field.resolve(); }
+  auto resolve_context(View::Bytes route) const -> const Abstract& override {
+    return field.resolve().resolve_context(route);
+  }
+
+  constexpr auto get_receiver() const -> const Abstract& { return receiver; }
+  constexpr auto get_field() const -> const Addressable& { return field; }
+
+ private:
+  const Abstract& receiver;
+  const Addressable& field;
+};
+
+/// ISA-owned expressions construct projection facts. Core Layout remains a
+/// shape and fitting contract rather than becoming an expression manager.
+class LayoutExpression final : public Abstract {
+ public:
+  LayoutExpression(View::Bytes name, const Type& type)
+      : name(name), type(type) {}
+
+  auto get_name() const -> View::Bytes override { return name; }
+  auto resolve() const -> const Abstract& override { return type.resolve(); }
+  auto resolve_context(View::Bytes route) const -> const Abstract& override {
+    return type.resolve().resolve_context(route);
+  }
+
+  auto project(
+      Perimortem::Memory::Allocator::Arena& arena,
+      const Addressable& field) const -> const LayoutProjection& {
+    return arena.construct<LayoutProjection>(*this, field);
+  }
+
+  auto swizzle(
+      Perimortem::Memory::Allocator::Arena& arena,
+      View::Vector<Reference<Addressable>> fields) const -> Fluid {
+    Perimortem::Memory::Managed::Vector<Reference<Abstract>> projections(arena);
+    for (Count i = 0; i < fields.get_size(); i++) {
+      const LayoutProjection& projection = project(arena, fields[i].get());
+      projections.insert(Reference<Abstract>(projection));
+    }
+    return Fluid(projections.get_view());
+  }
+
+  auto slice(
+      Perimortem::Memory::Allocator::Arena& arena,
+      Count start,
+      Count size) const -> Fluid {
+    const Structured& layout = type.get_layout();
+    Perimortem::Memory::Managed::Vector<Reference<Abstract>> projections(arena);
+    for (Count i = start; i < start + size; i++) {
+      const LayoutProjection& projection =
+          project(arena, layout.get_abstract(i).as<Addressable>());
+      projections.insert(Reference<Abstract>(projection));
+    }
+    return Fluid(projections.get_view());
+  }
+
+ private:
+  View::Bytes name;
+  const Type& type;
+};
+
+PERIMORTEM_UNIT_TEST(TtxLayout, expression_repack) {
+  Perimortem::Memory::Allocator::Arena arena;
+  Invalid invalid;
+  LayoutType real("Real_32"_view, invalid);
+  LayoutField r("r"_view, real);
+  LayoutField g("g"_view, real);
+  const Reference<Addressable> color_fields[] = {r, g};
+  LayoutType color("Color"_view, invalid, Structured(color_fields));
+  LayoutExpression rgba("rgba"_view, color);
+  LayoutExpression alpha("alpha"_view, real);
+
+  const Reference<Addressable> selected_fields[] = {g, r};
+  Fluid swizzle = rgba.swizzle(arena, selected_fields);
+  Fluid slice = rgba.slice(arena, 0, 2);
+  Perimortem::Memory::Managed::Vector<Reference<Abstract>> joined_values(arena);
+  for (Count i = 0; i < swizzle.get_size(); i++) {
+    joined_values.insert(Reference<Abstract>(swizzle.get_abstract(i)));
+  }
+  joined_values.insert(Reference<Abstract>(alpha));
+  Fluid joined(joined_values.get_view());
+  const auto& projected_g =
+      static_cast<const LayoutProjection&>(swizzle.get_abstract(0));
+
+  EXPECT_EQ(swizzle.get_size(), Count(2));
+  EXPECT(&swizzle.get_abstract(0).resolve() == &real);
+  EXPECT_TEXT(slice.get_abstract(0).get_name(), "r"_view);
+  EXPECT_EQ(joined.get_size(), Count(3));
+  EXPECT(&joined.get_abstract(2) == &alpha);
+  EXPECT(&projected_g.get_receiver() == &rgba);
+  EXPECT(&projected_g.get_field() == &g);
 }

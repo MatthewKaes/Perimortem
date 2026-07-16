@@ -20,8 +20,8 @@ static Harness TtxTypes = {
   .name = "TTX::Types"_view,
 };
 
-// A toolchain implementation owns the concrete terminal record and decides
-// which contract instances participate in its resolution context.
+/// A toolchain owns concrete terminal records and decides which widths
+/// participate in its resolution context.
 template <typename Contract>
 class RegisteredTerminal final : public Contract {
  public:
@@ -46,7 +46,7 @@ class RegisteredTerminal final : public Contract {
   const Invalid& invalid;
 };
 
-PERIMORTEM_UNIT_TEST(TtxTypes, terminal_is_a_queryable_type_contract) {
+PERIMORTEM_UNIT_TEST(TtxTypes, terminal_contract) {
   Invalid invalid;
   RegisteredTerminal<Unsigned> unsigned_8(
       "Bits_8"_view, sizeof(::Bits_8), alignof(::Bits_8), invalid);
@@ -71,7 +71,7 @@ PERIMORTEM_UNIT_TEST(TtxTypes, terminal_is_a_queryable_type_contract) {
   EXPECT(abstract.resolve_context("Anything"_view).is<Invalid>());
 }
 
-PERIMORTEM_UNIT_TEST(TtxTypes, families_are_distinct_terminal_contracts) {
+PERIMORTEM_UNIT_TEST(TtxTypes, terminal_families) {
   Invalid invalid;
   RegisteredTerminal<Unsigned> unsigned_type("Unsigned"_view, 4, 4, invalid);
   RegisteredTerminal<Signed> signed_type("Signed"_view, 4, 4, invalid);
@@ -90,7 +90,7 @@ PERIMORTEM_UNIT_TEST(TtxTypes, families_are_distinct_terminal_contracts) {
   EXPECT(flag_type.is<Terminal>());
 }
 
-PERIMORTEM_UNIT_TEST(TtxTypes, toolchain_selects_supported_widths) {
+PERIMORTEM_UNIT_TEST(TtxTypes, supported_widths) {
   Invalid invalid;
   RegisteredTerminal<Unsigned> unsigned_8(
       "Bits_8"_view, sizeof(::Bits_8), alignof(::Bits_8), invalid);
@@ -144,7 +144,7 @@ PERIMORTEM_UNIT_TEST(TtxTypes, toolchain_selects_supported_widths) {
       cpp_size.resolve().as<Terminal>().get_size(), Count(sizeof(::CppSize)));
 }
 
-PERIMORTEM_UNIT_TEST(TtxTypes, widths_are_instances_not_cpp_classes) {
+PERIMORTEM_UNIT_TEST(TtxTypes, width_instances) {
   Invalid invalid;
   RegisteredTerminal<Unsigned> unsigned_24("Unsigned_24"_view, 3, 1, invalid);
 

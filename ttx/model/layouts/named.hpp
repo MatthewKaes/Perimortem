@@ -5,6 +5,7 @@
 
 #include "perimortem/core/view/vector.hpp"
 
+#include "ttx/abstraction/reference.hpp"
 #include "ttx/model/layout.hpp"
 
 namespace Ttx::Model::Layouts {
@@ -16,22 +17,29 @@ namespace Ttx::Model::Layouts {
 class Named : public Layout {
  public:
   Named(
-      Perimortem::Core::View::Vector<const Abstraction::Abstract*> abstracts =
-          {})
+      Perimortem::Core::View::Vector<
+          Abstraction::Reference<Abstraction::Abstract>> abstracts = {})
       : abstracts(abstracts) {}
 
   auto get_size() const -> Count override { return abstracts.get_size(); }
   auto get_abstract(Count index) const
       -> const Abstraction::Abstract& override {
-    return *abstracts[index];
+    if (index >= abstracts.get_size()) {
+      return invalid_result;
+    }
+
+    return abstracts[index].get();
   }
 
   auto fits(const Layout& target) const -> Bool override;
+  auto get_fitted(const Layout& target, Count target_index) const
+      -> const Abstraction::Abstract& override;
 
  private:
   auto has_unique_names() const -> Bool;
 
-  Perimortem::Core::View::Vector<const Abstraction::Abstract*> abstracts;
+  Perimortem::Core::View::Vector<Abstraction::Reference<Abstraction::Abstract>>
+      abstracts;
 };
 
 }  // namespace Ttx::Model::Layouts

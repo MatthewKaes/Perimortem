@@ -170,7 +170,8 @@ A Layout is an ordered fitting contract over real Abstracts. Fluid represents
 positional value flow, Named represents uniquely named value flow, and
 Structured is a Type's stable sequence of actual Addressable objects. Layout
 does not copy their names, Types, documentation, attributes, defaults, or target
-storage into a Member record.
+storage into a Member record. Its contiguous storage uses non-null borrowed
+Reference values rather than nullable semantic pointers.
 
 `Type::get_layout()` returns a Structured Layout. A Terminal has an empty
 Structured Layout plus direct size/alignment queries. Lowering proves Terminal
@@ -204,9 +205,13 @@ resolves the arguments, and asks it for a concrete Type. `View[Bits_8]`,
 parallel template or generated-type system.
 
 A source context registers named Generic formulas. Each formula owns its
-accepted argument shape, normalization, materialization, and cache lookup. The
-context owns name resolution. The parser does not hard-code `Vec`, `View`, or
-another formula name.
+accepted argument shape, materialization, and cache lookup. The evaluator gives
+it an ordered Argument sequence whose Abstract entries have already resolved
+through aliases and type-producing expressions. Bool and unsigned entries use
+their tagged values. That sequence is the complete formula-local cache key.
+Names, routes, parents, and hashes are not cache identity. The context owns name
+resolution. The parser does not hard-code `Vec`, `View`, or another formula
+name.
 
 Names belong to the actual Abstracts in a Named or Structured Layout. Repack
 operations such as grouping, swizzle, and slice produce Fluid layouts unless
@@ -216,7 +221,9 @@ duplicate names and matches names independently of target order.
 Layout fitting is directional: `source.fits(target)`. Core fitting does not
 manufacture omitted defaults. A language or ISA that supports omission resolves
 defaults through the real Addressables and completes the source value flow
-before fitting.
+before fitting. `get_fitted()` exposes which original source Abstract supplies
+each target slot. A failed fit, invalid index, or missing mapping returns
+Invalid so the source owner can report the authored shape error.
 
 The active toolchain may install scalar, vector, and memory Types as top-level
 names such as `Void`, `Real_32`, and `Vec2D`. They are ordinary Abstracts in

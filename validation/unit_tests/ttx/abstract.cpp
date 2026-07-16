@@ -14,7 +14,7 @@ static Harness TtxAbstract = {
   .name = "Abstract"_view,
 };
 
-PERIMORTEM_UNIT_TEST(TtxAbstract, invalid_is_absorbing) {
+PERIMORTEM_UNIT_TEST(TtxAbstract, invalid_absorbs) {
   Invalid invalid;
 
   EXPECT_TEXT(invalid.get_name(), "Invalid"_view);
@@ -22,7 +22,9 @@ PERIMORTEM_UNIT_TEST(TtxAbstract, invalid_is_absorbing) {
   EXPECT(&invalid.resolve_context("Anything::Else"_view) == &invalid);
 }
 
-PERIMORTEM_UNIT_TEST(TtxAbstract, alias_reroutes_context) {
+PERIMORTEM_UNIT_TEST(TtxAbstract, alias_reroutes) {
+  /// A leaf proves that Alias routing preserves the target's resolution
+  /// contract without adding a second model for values.
   class Value : public Abstract {
    public:
     Value(View::Bytes name, const Invalid& invalid)
@@ -38,6 +40,8 @@ PERIMORTEM_UNIT_TEST(TtxAbstract, alias_reroutes_context) {
     const Invalid& invalid;
   };
 
+  /// A context owns the meaning of its routes. Alias only changes which
+  /// context receives the borrowed route.
   class Context : public Abstract {
    public:
     Context(

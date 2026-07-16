@@ -16,3 +16,13 @@ auto Ttx::Model::Layouts::Structured::fits(const Layout& target) const -> Bool {
 
   return True;
 }
+
+auto Ttx::Model::Layouts::Structured::get_fitted(
+    const Layout& target,
+    Count target_index) const -> const Abstraction::Abstract& {
+  if (!fits(target) || target_index >= target.get_size()) {
+    return invalid_result;
+  }
+
+  return get_abstract(target_index);
+}

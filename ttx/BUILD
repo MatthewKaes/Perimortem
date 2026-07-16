@@ -36,6 +36,7 @@ cc_library(
         "abstraction/abstract.hpp",
         "abstraction/alias.hpp",
         "abstraction/invalid.hpp",
+        "abstraction/reference.hpp",
     ],
     deps = [
         "//perimortem:core",
@@ -52,9 +53,11 @@ cc_library(
     ],
     hdrs = [
         "model/addressable.hpp",
+        "model/argument.hpp",
         "model/attribute.hpp",
         "model/callable.hpp",
         "model/documentation.hpp",
+        "model/generic.hpp",
         "model/layout.hpp",
         "model/layouts/fluid.hpp",
         "model/layouts/named.hpp",

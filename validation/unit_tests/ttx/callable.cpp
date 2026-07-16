@@ -3,8 +3,6 @@
 
 #include "validation/unit_test.hpp"
 
-#include "perimortem/core/static/vector.hpp"
-
 #include "ttx/abstraction/alias.hpp"
 #include "ttx/abstraction/invalid.hpp"
 #include "ttx/model/addressable.hpp"
@@ -20,6 +18,7 @@ using namespace Ttx::Model;
 using namespace Ttx::Model::Layouts;
 using namespace Validation;
 
+/// A callable may refer to Types without making invocation a Type concern.
 class CallableType final : public Type {
  public:
   CallableType(View::Bytes name, const Invalid& invalid)
@@ -37,6 +36,7 @@ class CallableType final : public Type {
   Structured layout;
 };
 
+/// An address is an Abstract fact and may remain Invalid before linkage.
 class CallableAddress final : public Addressable {
  public:
   CallableAddress(View::Bytes name, const Invalid& invalid)
@@ -52,6 +52,7 @@ class CallableAddress final : public Addressable {
   const Invalid& invalid;
 };
 
+/// Static and Self callables share the same total layout and address contract.
 class TestStatic final : public Ttx::Model::Static {
  public:
   TestStatic(
@@ -82,6 +83,7 @@ class TestStatic final : public Ttx::Model::Static {
   const Invalid& invalid;
 };
 
+/// Self is distinguished by contract identity, not a hidden receiver rewrite.
 class TestSelf final : public Self {
  public:
   TestSelf(
@@ -116,19 +118,16 @@ static Harness TtxCallable = {
   .name = "TTX::Callable"_view,
 };
 
-PERIMORTEM_UNIT_TEST(TtxCallable, static_and_self_use_layout_contracts) {
+PERIMORTEM_UNIT_TEST(TtxCallable, callable_layouts) {
   Invalid invalid;
   CallableType counter("Counter"_view, invalid);
   CallableType count("Count"_view, invalid);
   CallableAddress address("identity"_view, invalid);
   Alias value("value"_view, count);
   Alias receiver("self"_view, counter);
-  Perimortem::Core::Static::Vector<const Abstract*, 1> static_values = {
-    {&value}};
-  Perimortem::Core::Static::Vector<const Abstract*, 1> self_values = {
-    {&receiver}};
-  Perimortem::Core::Static::Vector<const Abstract*, 1> result_values = {
-    {&counter}};
+  const Reference<Abstract> static_values[] = {value};
+  const Reference<Abstract> self_values[] = {receiver};
+  const Reference<Abstract> result_values[] = {counter};
   Named static_parameters(static_values);
   Named self_parameters(self_values);
   Fluid results(result_values);
@@ -157,7 +156,7 @@ PERIMORTEM_UNIT_TEST(TtxCallable, static_and_self_use_layout_contracts) {
   EXPECT(&static_callable.as<Callable>() == &static_callable);
 }
 
-PERIMORTEM_UNIT_TEST(TtxCallable, unresolved_address_is_invalid) {
+PERIMORTEM_UNIT_TEST(TtxCallable, unresolved_address) {
   Invalid invalid;
   Fluid parameters;
   Fluid results;
