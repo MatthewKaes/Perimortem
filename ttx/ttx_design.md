@@ -406,8 +406,11 @@ The core contracts are deliberately narrow:
 | `Real`        | Terminal floating-point domain                                   |
 | `Flag`        | Terminal two-value logical domain                                |
 | `Generic`     | instruction that creates or finds a concrete Type from arguments |
-| `Expression`  | value with result Type, input Layout, and fitting queries          |
+| `Pack`        | grouped value flow exposing an identity-free fitting Layout        |
+| `Expression`  | one value with result Type, input Layout, and fitting queries       |
 | `Constant`    | immutable zero-input Expression with value equality                |
+| `Projection`  | Expression selecting an Addressable through a receiver              |
+| `Binding`     | Expression giving another Expression an authored flow name          |
 | `Callable`    | complete parameter/result layouts and an address/linkage query   |
 | `Static`      | invocation selected through a Type or package without a receiver |
 | `Self`        | invocation on an addressable receiver included as parameter zero |
@@ -424,6 +427,7 @@ Callable::get_parameters()     -> const Layout&
 Callable::get_results()        -> const Layout&
 Callable::get_address()        -> const Abstract&
 Generic::materialize(args)     -> const Abstract&
+Pack::get_layout()             -> const Layout&
 Expression::get_type()         -> const Abstract&
 Expression::get_inputs()       -> const Layout&
 Expression::fits(type)         -> Bool
@@ -747,14 +751,22 @@ There is no separate grouping syntax. A one-element pack behaves as the one
 value when the surrounding expression needs a value, so `(a + b) * c` still
 works.
 
-Packs are source-IR expression shapes, not concrete runtime objects. They are
-durable enough for tools, diagnostics, and lowering to query their authored
-shape, but they materialize only when the surrounding declaration, call, return,
-or assignment supplies a target type.
+Packs are Abstracts for grouped value flow, not Expressions, Types, runtime
+storage, or addressable objects. Their semantic identity lets evaluators,
+tools, and lowering return and inspect a multi-value result before a receiving
+Type exists. `Pack::get_layout()` exposes the identity-free fitting view.
 
-Nested positional packs flatten when they are fitted to a pack-compatible
-target. Grouping values with another pack does not create a nested runtime
-tuple:
+The evaluator flattens nested positional Packs into one borrowed Abstract view
+before constructing `Packs::Positional`. The Pack then owns one Fluid fitting
+object and allocates no copied list. `Packs::Named` owns one Named fitting
+object over actual named Abstracts in authored carrier order and does not
+flatten. An authored field uses Binding when its name is a new edge to an
+underlying Expression. Binding is not a binder, symbol table, declaration,
+storage edge, or resolution phase. The evaluator rejects mixed pack modes
+before construction.
+
+The evaluator flattens nested positional packs before it constructs the outer
+Pack. Grouping values with another pack does not create a nested runtime tuple:
 
 ```ttx
 (1, (2, 3)) == (1, 2, 3)
@@ -769,12 +781,13 @@ wants to decompose it into a pack, it must swizzle or slice it:
 ```
 
 The Structured Layout supplies the selected Addressable facts but does not
-evaluate the access. The active expression ISA creates projection Abstracts
-that retain the receiver and selected Addressable. A projection remains its own
-Expression identity and publishes the field Type through `get_type()`. Swizzle
-and slice produce Fluid Layouts over those projections. Joining packs
-concatenates already produced Expressions and never implicitly deconstructs a
-Structured typed value.
+evaluate the access. The active expression ISA creates Projections that retain
+the receiver and selected Addressable. A Projection remains its own Expression
+identity and publishes the field Type through `get_type()`. Swizzle and fixed
+slice construct Positional Packs over those Projections. Joining constructs a
+Positional Pack over already produced values and never implicitly deconstructs
+a Structured typed value. Swizzle, Slice, and Join remain evaluator operations
+instead of shared model subclasses until a unique query requires one.
 
 That gives TTX three explicit ways to make packs:
 
@@ -829,6 +842,10 @@ state color    : Vec4D = (sample.[r, g, b], alpha);
 
 Indexed packs are for sparse data tables, especially fixed-size aggregates like
 `Vec[T, N]` where most elements use defaults:
+
+The shared v1 model does not add an Indexed Pack contract. The receiving Type
+and evaluator validate the designators and expand them into complete positional
+value flow or Invalid before core Layout fitting.
 
 ```ttx
 private decode_table : Vec[Bits_8, 256] = (
@@ -928,17 +945,29 @@ not produce a value.
 The shared `Expression` contract represents one evaluatable value without
 prescribing its syntax or executor. Expression identity remains distinct from
 result Type identity. `get_type()` returns the proven Type or Invalid,
-`get_inputs()` exposes the ordered values required to evaluate it, and
+`get_inputs()` exposes the Layout of values required to evaluate it, and
 `fits(type)` answers whether the value can safely occupy a target Type. The
 default fit is exact resolved Type identity.
 
-`Constant` is an immutable Expression already in normal form. It has no inputs
-and compares by domain, resolved Type, and payload. The common open domains are
-Unsigned, Signed, Real, Flag, and Bytes. Integer domains may prove narrower
-contextual fits from their values, and Flag fits any Flag Type. Real and Bytes
-use exact Type fitting in the first slice. Real NaNs compare as one semantic
-value so equality remains suitable for caches. TTX has no native String
-Constant. Quoted source decodes to bytes, while a language may build a String
+`Pack` and `Layout` deliberately meet at only one seam. Pack is the queryable
+semantic carrier for grouped flow. Layout is its identity-free shape and
+fitting view. Concrete Packs own their Layout objects instead of inheriting
+them. Expression dependency lists also use identity-free Layouts because an
+operand list is not itself an authored multi-value result. This keeps grouped
+flow queryable without making every Type Layout into an Abstract value.
+
+`Projection` and `Binding` are concrete Expressions. Projection retains a
+receiver and selected Addressable. Binding retains an authored name and one
+underlying Expression so Named flow contains real Abstracts instead of shadow
+name and value arrays.
+
+`Constant` is an immutable Expression already in normal form. It has an empty
+input Layout and compares by domain, resolved Type, and payload. The common
+open domains are Unsigned, Signed, Real, Flag, and Bytes. Integer domains may
+prove narrower contextual fits from their values, and Flag fits any Flag Type.
+Real and Bytes use exact Type fitting in the first slice. Real NaNs compare as
+one semantic value so equality remains suitable for caches. TTX has no native
+String Constant. Quoted source decodes to bytes, while a language may build a String
 Type and operations above that data. Parsing, evaluation, folding, and lowering
 remain ISA or compiler concerns. A future foldable expression can expose a
 Constant without adding evaluation to every Expression.

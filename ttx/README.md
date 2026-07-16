@@ -127,7 +127,12 @@ Ttx::Abstraction::Abstract
 ├── Ttx::Abstraction::Alias
 ├── Ttx::Abstraction::Invalid
 ├── Ttx::Model::Generic
+├── Ttx::Model::Pack
+│   ├── Ttx::Model::Packs::Positional
+│   └── Ttx::Model::Packs::Named
 ├── Ttx::Model::Expression
+│   ├── Ttx::Model::Projection
+│   ├── Ttx::Model::Binding
 │   └── Ttx::Model::Constant
 │       └── Ttx::Model::Constants::{Unsigned, Signed, Real, Flag, Bytes}
 ├── Ttx::Model::Type
@@ -176,13 +181,24 @@ does not copy their names, Types, documentation, attributes, defaults, or target
 storage into a Member record. Its contiguous storage uses non-null borrowed
 Reference values rather than nullable semantic pointers.
 
+Pack is the Abstract carrier for grouped value flow. It is not one Expression,
+a Type, runtime storage, or an Addressable. Its Layout is the identity-free
+fitting view over the carried Abstracts. Positional Packs expose Fluid and
+borrow an entry view that the evaluator has already flattened. Named Packs
+expose Named over actual named Abstracts and never flatten. An authored field
+uses Binding when its name is a new edge to an underlying Expression. Both Pack
+forms own their Layout object rather than inheriting a second public contract.
+
 Expression is one evaluatable value whose identity remains distinct from its
 result Type. It exposes the proven Type, its ordered input Layout, and whether
-the value fits another Type. Constant is an immutable zero-input Expression
-already in normal form. Unsigned, Signed, Real, Flag, and Bytes are open Constant
-domains, not alternatives in one central tagged expression. Constants compare
-by domain, resolved Type, and payload. Real NaNs compare as one semantic value
-so equality remains suitable for caches. TTX has no native String Constant.
+the value fits another Type. Projection is the Expression selecting one
+Addressable through one receiver. Binding is the authored named edge to one
+underlying Expression, not a symbol table or binding phase. Constant is an
+immutable Expression with an empty input Layout. Unsigned, Signed, Real, Flag,
+and Bytes are open Constant domains, not alternatives in one central tagged
+expression. Constants compare by domain, resolved Type, and payload. Real NaNs
+compare as one semantic value so equality remains suitable for caches. TTX has
+no native String Constant.
 
 Fluid and Named fitting normally compare resolved semantic identity. When the
 source entry is an Expression they instead ask it to fit the target Type. This
@@ -407,17 +423,23 @@ already know.
 The TTX directory is the language core:
 
 - [`lexical`](lexical/) lowers source text into stable token bytecode
-- [`model`](model/) owns the shared Type, Layout, Expression, Constant,
+- [`model`](model/) owns the shared Type, Layout, Pack, Expression, Constant,
   Callable, Attribute, and Documentation vocabulary
 - [`model/documentation.hpp`](model/documentation.hpp) models source-authored
   documentation owned beside semantic objects by declarations and contexts
 - [`abstraction/abstract.hpp`](abstraction/abstract.hpp) is the root semantic
   query contract
-- Alias and Invalid are closed Abstract concepts. Type, Generic, Expression,
-  Constant, Callable, Static, Self, Addressable, and ISA-specific contracts
-  extend the graph with narrow operations
+- Alias and Invalid are closed Abstract concepts. Type, Generic, Pack,
+  Expression, Constant, Projection, Binding, Callable, Static, Self,
+  Addressable, and ISA-specific contracts extend the graph with narrow
+  operations
 - [`model/layout.hpp`](model/layout.hpp) defines the ordered fitting contract.
   [`model/layouts`](model/layouts/) contains Fluid, Named, and Structured
+- [`model/pack.hpp`](model/pack.hpp) supplies grouped value identity.
+  [`model/packs`](model/packs/) contains the zero-allocation Positional and
+  Named carriers. [`model/projection.hpp`](model/projection.hpp) and
+  [`model/binding.hpp`](model/binding.hpp) preserve selected and named value
+  provenance without adding parser operations to the model
 - [`model/type.hpp`](model/type.hpp) supplies the narrow target-independent Type
   contract. [`model/types`](model/types/) adds Terminal, Unsigned, Signed, Real,
   and Flag contracts. [`model/expression.hpp`](model/expression.hpp),

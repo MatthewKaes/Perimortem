@@ -230,8 +230,11 @@ These names describe up-castable semantic contracts:
 | `Alias`       | closed named redirection of identity and context queries to another Abstract        |
 | `Type`        | resolved semantic identity with a total Structured Layout query                     |
 | `Generic`     | instruction contract that resolves arguments to a concrete Type                    |
+| `Pack`        | grouped value flow with a fitting Layout and no implied Type                        |
 | `Expression`  | one evaluatable value with a result Type query and ordered input Layout             |
 | `Constant`    | immutable Expression already in normal form with value equality                    |
+| `Projection`  | Expression selecting one Addressable from one receiver Expression                  |
+| `Binding`     | Expression giving one underlying Expression an authored flow name                  |
 | `Callable`    | complete parameter and result Layouts plus an address/linkage query                 |
 | `Static`      | invocation selected through a Type or package without a receiver                    |
 | `Self`        | invocation whose addressable receiver is parameter zero                             |
@@ -258,6 +261,7 @@ Callable::get_parameters()     -> const Layout&
 Callable::get_results()        -> const Layout&
 Callable::get_address()        -> const Abstract&
 Generic::materialize(args)     -> const Abstract&
+Pack::get_layout()             -> const Layout&
 Expression::get_type()         -> const Abstract&
 Expression::get_inputs()       -> const Layout&
 Expression::fits(type)         -> Bool
@@ -445,9 +449,25 @@ Expression is the shared contract for one evaluatable value. Its identity is
 not its result Type. `resolve()` therefore remains ordinary Abstract identity
 unless a specific type-producing expression deliberately redirects to a
 materialized object. `get_type()` returns the Type currently proven for the
-value or Invalid, and `get_inputs()` returns the ordered Layout of values needed
-to evaluate it. The active ISA owns operator legality, executable bodies,
-parsing, evaluation, and diagnostics.
+value or Invalid, and `get_inputs()` returns the Layout of values needed to
+evaluate it. The active ISA owns operator legality, executable bodies, parsing,
+evaluation, and diagnostics.
+
+Pack and Layout are related but not interchangeable. Pack is a queryable
+Abstract that carries grouped value flow through the semantic DAG. Layout is
+the identity-free fitting view exposed by that Pack. This separation lets an
+evaluator return either one Expression, one Pack, or Invalid without turning
+every Type Layout into a value object. Concrete positional and named Packs own
+their fitting views by composition and do not inherit Layout as another public
+contract. Expression dependencies remain an identity-free Layout because an
+operand list is not itself an authored multi-value result.
+
+Projection and Binding are concrete Expression facts. Projection retains one
+receiver Expression and the selected Addressable, then publishes the
+Addressable's resolved Type through `get_type()`. Binding retains one authored
+name and one underlying Expression. It exists so Named flow contains real
+named Abstracts instead of parallel name and value arrays. It is not a symbol
+table, binding phase, declaration, storage edge, or resolution context.
 
 `Expression::fits(target)` is the value-to-Type seam used by Layout fitting. An
 ordinary expression fits only the exact resolved Type returned by `get_type()`.
@@ -492,9 +512,10 @@ a member container, a Type registry, a storage record, or a lifecycle state.
 
 The three v1 contracts are deliberately separate classes:
 
-- **Fluid** is positional value flow. Packs, grouped values, swizzles, slices,
-  argument packs, and intermediate returns expose the actual Abstract values in
-  production order. Fluid fitting compares resolved identity in that order.
+- **Fluid** is the positional fitting view exposed by grouped values, swizzles,
+  slices, argument packs, and intermediate returns. It exposes the actual
+  Abstract values in production order. Fluid fitting compares resolved
+  identity in that order.
   When a source entry implements Expression, it instead asks that value whether
   it fits the resolved target Type.
 - **Named** is reshapeable value flow whose actual Abstracts author non-empty
@@ -1384,16 +1405,30 @@ Pack modes must not be mixed:
 (.x = 1, .10 = 2) // invalid
 ```
 
-Packs are source-IR expression shapes for in-flight value groups. A pack has a
-fluid layout: it carries value order, optional names, and element types, but it
-has no runtime object identity or address of its own unless it is fitted into a
-concrete receiving context such as a call, return, assignment, attribute,
-layout, or aggregate type.
+Packs are Abstracts for in-flight value groups. A Pack has semantic object
+identity so evaluators, tools, and lowering can return and query it, but it is
+not one Expression, a Type, runtime storage, or an addressable object. It
+exposes an identity-free Layout for fitting. `Packs::Positional` exposes Fluid
+and `Packs::Named` exposes Named.
+
+A positional Pack borrows an already normalized view of real Abstract entries.
+The evaluator flattens nested positional Packs while constructing that view, so
+the Pack owns only one Fluid fitting object and allocates no second list. A
+named Pack owns one Named fitting object over actual named Abstracts and never
+flattens. An authored `.field = value` uses Binding when the name is a new edge
+rather than a fact already owned by the value. The Layout does not copy or
+parallel-store names. The evaluator selects one mode before constructing a
+Pack and returns Invalid for mixed modes.
 
 Indexed packs are a narrow data-table initialization feature. They are intended
 for sparse fixed-size aggregates such as ASCII lookup tables, Base64 decode
 tables, opcode tables, and similar cases where most elements use defaults and a
 few explicit slots differ.
+
+The shared v1 model has no Indexed Pack subtype. Indexed syntax needs its
+receiving Type to validate bounds, duplicates, element fitting, and defaults.
+The owning evaluator performs that work and produces complete positional value
+flow or Invalid before core Layout fitting.
 
 An indexed designator uses an explicit integer literal after `.`:
 
@@ -1470,7 +1505,8 @@ typed object inside a pack remains one value until source explicitly swizzles or
 slices it back into a fluid pack. Grouping, swizzle, and slice produce
 positional packs unless a field in the grouping explicitly authors a name.
 
-Nested positional packs flatten during pack fitting:
+The evaluator flattens nested positional packs while constructing the outer
+Pack:
 
 ```ttx
 (1, (2, 3))
@@ -1492,12 +1528,14 @@ must access, swizzle, or slice the fields explicitly:
 ```
 
 The Type's Structured Layout supplies the selected Addressable facts, but it
-does not evaluate an access. An expression ISA constructs a projection
-Abstract from the receiver and selected Addressable. That projection resolves
-to itself, returns the field Type from `Expression::get_type()`, and retains the
-receiver path needed for evaluation and lowering. Swizzle and slice results are
-Fluid Layouts over those projection Expressions. Join concatenates already
-produced expressions and never implicitly decomposes a Structured typed value.
+does not evaluate an access. An expression ISA constructs a Projection from
+the receiver and selected Addressable. That Projection resolves to itself,
+returns the field Type from `Expression::get_type()`, and retains the receiver
+path needed for evaluation and lowering. Swizzle and fixed slice construct a
+Positional Pack over those Projection Expressions. Join constructs another
+Positional Pack over already produced values and never implicitly decomposes a
+Structured typed value. Swizzle, Slice, and Join do not need shared subclasses
+unless a future consumer needs a query that Pack and Projection cannot answer.
 
 ### Repacking
 
@@ -1521,8 +1559,8 @@ state position : Vec3D = (screen_pos.[x, y], z);
 ```
 
 The swizzle decomposes `screen_pos` into a positional pack, and the outer pack
-adds `z`. Nested positional packs flatten during fitting, so the target sees
-three values.
+adds `z`. The evaluator flattens that nested Pack before construction, so the
+target sees three values.
 
 Use a named pack when names are the contract:
 
@@ -1550,11 +1588,11 @@ Typed values never splat implicitly. The source must say which fields or range
 are being repacked.
 
 `:[...]` is a compile-time decomposition operator. Its index, start, and count
-must evaluate to Unsigned Constants before the projection pack is built. A
-dynamic range is a different operation because it produces one typed view
-rather than a compile-time pack. The canonical dynamic form is ordinary Self
-dispatch such as `value -> slice(start, count)`. Its receiver Type proves the
-future Indexable contract and the Callable returns a View-like Type. C++
+must evaluate to Unsigned Constants before the positional Pack of Projections
+is built. A dynamic range is a different operation because it produces one
+typed view rather than a compile-time pack. The canonical dynamic form is
+ordinary Self dispatch such as `value -> slice(start, count)`. Its receiver
+Type proves the future Indexable contract and the Callable returns a View-like Type. C++
 `View::Bytes::slice` follows the same dynamic shape.
 
 Returns follow the same rule. A return statement evaluates an expression pack
@@ -1638,7 +1676,8 @@ Rules:
 4. Named packs fit named layouts by field name.
 5. Indexed packs fit index-addressable aggregate types by literal index.
 6. Named, indexed, and positional fields do not mix.
-7. Nested positional packs flatten before positional arity is checked.
+7. The evaluator flattens nested positional packs before constructing the
+   Pack whose Layout participates in fitting.
 8. Named packs may fit Structured aggregates when every name and resolved
    identity matches exactly once. Core Layout fitting requires the complete
    value set. An ISA that permits omitted defaults obtains those defaults from
@@ -1675,7 +1714,7 @@ Executable syntax belongs to the ISA that gives it meaning. The shared TTX
 Abstract graph supplies stable declarations, layouts, local identities, and the
 narrow Expression queries. Expression identity does not resolve to its result
 Type. `get_type()` publishes that fact separately, and `get_inputs()` publishes
-the ordered dependencies. An ISA may attach an owned executable body to a
+the ordered dependency Layout. An ISA may attach an owned executable body to a
 Callable, but that body representation is not a generic statement hierarchy in
 the shared TTX model.
 
@@ -1694,7 +1733,7 @@ primary
 ```
 
 Parser shape: expression parsing starts at range precedence and descends through
-the precedence ladder. Primary expressions include literals, addressables,
+the precedence ladder. Primary evaluation can produce literals, addressables,
 `self`, discard, type references, packs, and data expressions.
 Postfix parsing then extends the primary with access-chain suffixes until the
 current token no longer starts a valid suffix.
