@@ -56,11 +56,12 @@ One of the central rules is the difference between reshapeable value flow and
 structured typed storage. A pack such as `(a, b, c)` is Fluid or Named: it can
 be fitted or repacked before it becomes a typed value. A struct, vector, color,
 scalar, or ABI block supplies a Structured Layout made from its real
-Addressables and retains Type identity. Target-specific storage contracts derive
-offsets, alignment, and carrier rules later. TTX lets value flow initialize
-structured values when the shape fits, but it does not silently unpack typed
-values back into packs. Source uses swizzle or slice syntax when it wants to
-cross that boundary explicitly.
+Addressables and retains Type identity. Terminal Types publish their direct size
+and alignment; composite offsets and aggregate storage are derived recursively.
+Carrier and calling-convention rules remain compiler decisions. TTX lets value
+flow initialize structured values when the shape fits, but it does not silently
+unpack typed values back into packs. Source uses swizzle or slice syntax when it
+wants to cross that boundary explicitly.
 
 ## Relationship To LLVM IR And MLIR
 
@@ -96,6 +97,7 @@ That makes the reusable TTX model smaller than a full language tree:
 | -------------------------------------- | ------------------------------------------------------------- |
 | `Ttx::Abstraction::Abstract`           | named semantic identity and progressive context resolution    |
 | `Ttx::Model::Type`                     | resolved type identity and Structured layout                  |
+| `Ttx::Model::Types::Terminal`           | direct target byte size and alignment                         |
 | `Ttx::Model::Callable`                 | static or receiver-bound callable layout and linkage query    |
 | `Ttx::Model::Layout`                   | ordered Abstract shape and directional fitting                |
 | `Ttx::Model::Documentation`            | source-authored prose for tools and exported facts            |
@@ -351,6 +353,8 @@ Ttx::Abstraction::Abstract
 ├── Ttx::Abstraction::Invalid
 ├── Ttx::Model::Type
 │   ├── Ttx::Model::Generic
+│   ├── Ttx::Model::Types::Terminal
+│   │   └── Unsigned / Signed / Real / Flag
 │   └── ISA-defined model types
 ├── Ttx::Model::Callable
 │   ├── Ttx::Model::Static
@@ -370,6 +374,20 @@ ISA-specific context. Documentation tools can inspect an authored Alias before
 resolution. Any future class, schema, or reflection description is itself
 another Abstract in the graph, not a repository attached to the base class.
 
+Each declared native contract owns a stable 128-bit interface UUID and proves
+its own direct inheritance chain. `abstract.is<Type>()` performs two word
+comparisons per shallow level; `abstract.as<Type>()` checks that proof and
+returns `const Type&`. There is no hash, allocation, nullable cast, global class
+table, or centrally assigned type number. These UUIDs identify contract schemas
+only: Abstract objects still use stable local addresses, resolution still uses
+borrowed names, and exports still render reversible named ownership chains.
+Shared implementation bases are not query contracts unless they explicitly
+declare an identifier. The native v1 contract hierarchy has one semantic
+inheritance spine per object, and an implementation may prove only its public
+C++ base contracts. Foreign-language adapters may prove the same identifiers by
+implementing the corresponding native adapter contract without exposing C++
+vtables across the ABI.
+
 The core contracts are deliberately narrow:
 
 | Contract      | Responsibility                                                   |
@@ -377,6 +395,11 @@ The core contracts are deliberately narrow:
 | `Abstract`    | name, identity redirection, and progressive context resolution   |
 | `Alias`       | closed named redirection to another Abstract                     |
 | `Type`        | resolved identity with a total Structured Layout query           |
+| `Terminal`    | Type leaf with direct byte size and alignment                    |
+| `Unsigned`    | Terminal non-negative integer domain                             |
+| `Signed`      | Terminal signed integer domain                                   |
+| `Real`        | Terminal floating-point domain                                   |
+| `Flag`        | Terminal two-value logical domain                                |
 | `Generic`     | a Type that creates or finds a concrete Type from arguments      |
 | `Callable`    | complete parameter/result layouts and an address/linkage query   |
 | `Static`      | invocation selected through a Type or package without a receiver |
@@ -388,6 +411,8 @@ The initial native query surface is intentionally small and total:
 
 ```text
 Type::get_layout()             -> const Layouts::Structured&
+Terminal::get_size()           -> Count
+Terminal::get_alignment()      -> Count
 Callable::get_parameters()     -> const Layout&
 Callable::get_results()        -> const Layout&
 Callable::get_address()        -> const Abstract&
@@ -539,27 +564,27 @@ reconstruct identity. Within one compiler boundary object identity can be
 compared by stable handle; durable export identity is reversible names, never
 the process address.
 
-### Prelude Type Intent
+### Terminal Type Registration
 
-The universal spellings `Bool`, `Bits_8`, `Bits_16`, `Bits_32`, `Bits_64`,
-`Signed_8`, `Signed_16`, `Signed_32`, `Signed_64`, `Real_32`, and `Real_64`
-describe semantic value domains and precision. They do not copy the C++ types
-with those names into the target ABI. In particular, `Bits_8` does not require
-an eight-bit register or instruction: a target may select a 32-bit carrier or
-`mov32` when it preserves the eight-bit semantics at the required boundaries.
+Core TTX defines `Terminal : Type` with direct byte-size and alignment queries,
+then `Unsigned`, `Signed`, `Real`, and `Flag` as its standard semantic families.
+It owns neither a prelude nor a supported-width registry. The active toolchain
+constructs stable instances for the widths and formats it supports and installs
+their names in its own Abstract resolution context. An unsupported name resolves
+to Invalid through that context.
 
-These scalar Types are empty Structured Layout leaves. Target size, alignment,
-offset, carrier, instruction, and calling-convention decisions are supplied by
-the terminal contract contributed by the active target or ISA. `Count` remains
-the documented 64-bit count-domain alias rather than silently becoming the
-host pointer width.
+The current Perimortem C++ toolchain can register `Bool`, `Bits_8`, `Bits_16`,
+`Bits_32`, `Bits_64`, `Signed_8`, `Signed_16`, `Signed_32`, `Signed_64`,
+`Real_32`, `Real_64`, and `Real_128`. The `Bits_*` names are instances of
+`Unsigned`, not a separate Bits contract. `Count` may Alias the registered
+64-bit Unsigned instance, while `CppSize` may Alias the Unsigned instance for
+the active C++ interface. `True` and `False` are Flag values rather than Types.
 
-The prelude owns stable instances of these Types. Core TTX does not create one
-implementation class per spelling. A future `type/` implementation directory
-may group real semantic family contracts, such as integer range or real
-precision, when downstream queries require them. Class-per-name headers or
-`sizeof`-returning base Types would confuse source intent, host representation,
-and terminal policy and are therefore not part of this slice.
+Terminal size and alignment are storage facts, not instruction mandates. A
+one-byte Unsigned Type may use a wider register or move when its observable
+semantics remain correct. Widths are instance data rather than C++ classes, so
+another toolchain may register a different supported set without changing core
+TTX or consulting a central type authority.
 
 ## Builtin Definition Kinds
 
@@ -719,8 +744,8 @@ That gives TTX three explicit ways to make packs:
 typed values, not pack aliases. They may be initialized from compatible packs,
 but they do not implicitly splat back into packs.
 
-The small vector types are provided by the implicit core prelude as top-level
-types with concrete `Real_32` fields:
+An active toolchain may provide the small vector types as top-level Types with
+concrete `Real_32` fields:
 
 ```ttx
 Vec2D : struct { x : Real_32; y : Real_32; }

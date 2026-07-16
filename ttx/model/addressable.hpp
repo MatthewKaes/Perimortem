@@ -17,6 +17,17 @@ namespace Ttx::Model {
 // Addressable objects, so documentation, attributes, defaults, ISA facts, and
 // target storage remain on their real owners. Core TTX assigns no pointer
 // width, offset, symbol spelling, calling convention, or storage policy.
-class Addressable : public Abstraction::Abstract {};
+class Addressable : public Abstraction::Abstract {
+ public:
+  using ContractOwner = Addressable;
+  static constexpr Perimortem::System::Uuid contract_id{
+    0x3d308ace3cf44051,
+    0x9458c12c65d0d615,
+  };
+
+  auto implements(Perimortem::System::Uuid requested) const -> Bool override {
+    return requested == contract_id || Abstract::implements(requested);
+  }
+};
 
 }  // namespace Ttx::Model

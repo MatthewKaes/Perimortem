@@ -171,10 +171,11 @@ Structured is a Type's stable sequence of actual Addressable objects. Layout
 does not copy their names, Types, documentation, attributes, defaults, or target
 storage into a Member record.
 
-`Type::get_layout()` returns a Structured Layout. A scalar has an empty
-Structured Layout. An aggregate recursively resolves each Addressable to its
-child Type during lowering. A bare Generic must first produce a resolved Type.
-An authored `@abi` number is not a substitute for terminal Type queries.
+`Type::get_layout()` returns a Structured Layout. A Terminal has an empty
+Structured Layout plus direct size/alignment queries. An aggregate recursively
+resolves each Addressable to its child Type during lowering. A bare Generic must
+first produce a resolved Type. An authored `@abi` number is not a substitute
+for Terminal contract proof.
 
 Source hosts may reserve nonmoving Type and Callable objects before every fact
 is known. An incomplete Type or containing system resolves to Invalid; Layout
@@ -182,12 +183,13 @@ has no Incomplete state. The host may enrich that object, replace an enclosing
 resolver, or build immutable snapshots according to its own cache model. Public
 export is optional and does not determine whether a Type is semantically real.
 
-Prelude scalar names such as `Bool`, `Bits_8`, `Signed_32`, and `Real_64`
-describe value domain and precision, not host `sizeof`, target alignment,
-register width, or instruction width. A target may use a 32-bit carrier or move
-for `Bits_8` when it preserves the eight-bit semantics. The prelude owns stable
-Type instances; target terminal contracts own representation. Core TTX does
-not need a concrete class for each spelling.
+`Terminal : Type` publishes direct byte size and alignment. `Unsigned`,
+`Signed`, `Real`, and `Flag` provide the standard terminal domains, while an
+active toolchain constructs and names only the widths it supports. Current
+Perimortem `Bits_*` names implement `Unsigned`; they do not create a Bits
+contract. Register and instruction width remain compiler decisions, so a
+one-byte terminal may still use a wider carrier. Core TTX owns no prelude,
+global width table, or concrete class for each spelling.
 
 Documentation is separate from identity resolution. The declaration that
 introduces an Alias may own contextual documentation, while the resolved target
@@ -209,10 +211,9 @@ manufacture omitted defaults. A language or ISA that supports omission resolves
 defaults through the real Addressables and completes the source value flow
 before fitting.
 
-Core scalar, vector, and memory types are prelude types. They are injected into
-every source context as top-level names such as `Void`, `Real_32`, and `Vec2D`.
-Source uses these names directly instead of importing `TTX::Core` or writing
-`Core::Void`.
+The active toolchain may install scalar, vector, and memory Types as top-level
+names such as `Void`, `Real_32`, and `Vec2D`. They are ordinary Abstracts in
+that toolchain's resolution context, not injected members of a core prelude.
 
 ## Operators
 
@@ -383,12 +384,13 @@ The TTX directory is the language core:
 - [`model/layout.hpp`](model/layout.hpp) defines the ordered fitting contract;
   [`model/layouts`](model/layouts/) contains Fluid, Named, and Structured
 - [`model/type.hpp`](model/type.hpp) supplies the narrow target-independent Type
-  contract; [`model/callable.hpp`](model/callable.hpp),
+  contract; [`model/types`](model/types/) adds Terminal, Unsigned, Signed, Real,
+  and Flag contracts; [`model/callable.hpp`](model/callable.hpp),
   [`model/static.hpp`](model/static.hpp), [`model/self.hpp`](model/self.hpp), and
   [`model/addressable.hpp`](model/addressable.hpp) supply invocation contracts
   without making Callable a subtype of Type
-- host prelude contexts provide the top-level scalar, vector, and memory Types
-  available to ordinary source contexts
+- active toolchain contexts provide the scalar, vector, and memory Types they
+  support as ordinary resolvable Abstracts
 
 Tetrodotoxin is the surrounding toolchain:
 

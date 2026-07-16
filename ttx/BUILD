@@ -39,6 +39,7 @@ cc_library(
     ],
     deps = [
         "//perimortem:core",
+        "//perimortem:system",
     ],
 )
 
@@ -61,6 +62,11 @@ cc_library(
         "model/self.hpp",
         "model/static.hpp",
         "model/type.hpp",
+        "model/types/flag.hpp",
+        "model/types/real.hpp",
+        "model/types/signed.hpp",
+        "model/types/terminal.hpp",
+        "model/types/unsigned.hpp",
     ],
     deps = [
         ":abstraction",

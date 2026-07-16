@@ -22,8 +22,18 @@ namespace Ttx::Abstraction {
 // fundamental Abstract contract changes and every Alias must reflect it.
 class Alias final : public Abstract {
  public:
+  using ContractOwner = Alias;
+  static constexpr Perimortem::System::Uuid contract_id{
+    0x58e8b4a115e9461a,
+    0x88a5767626d4a21a,
+  };
+
   Alias(Perimortem::Core::View::Bytes name, const Abstract& target)
       : name(name), target(target) {}
+
+  auto implements(Perimortem::System::Uuid requested) const -> Bool override {
+    return requested == contract_id || Abstract::implements(requested);
+  }
 
   constexpr auto get_name() const -> Perimortem::Core::View::Bytes override {
     return name;

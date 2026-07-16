@@ -145,6 +145,16 @@ PERIMORTEM_UNIT_TEST(TtxCallable, static_and_self_use_layout_contracts) {
   EXPECT(&self_callable.get_parameters().get_abstract(0).resolve() == &counter);
   EXPECT(&static_callable.get_address() == &address);
   EXPECT(&self_callable.get_address() == &address);
+  EXPECT(static_callable.is<Ttx::Model::Static>());
+  EXPECT(static_callable.is<Callable>());
+  EXPECT(static_callable.is<Abstract>());
+  EXPECT_NOT(static_callable.is<Self>());
+  EXPECT_NOT(static_callable.is<Type>());
+  EXPECT(self_callable.is<Self>());
+  EXPECT(self_callable.is<Callable>());
+  EXPECT_NOT(self_callable.is<Ttx::Model::Static>());
+  EXPECT(address.is<Addressable>());
+  EXPECT(&static_callable.as<Callable>() == &static_callable);
 }
 
 PERIMORTEM_UNIT_TEST(TtxCallable, unresolved_address_is_invalid) {

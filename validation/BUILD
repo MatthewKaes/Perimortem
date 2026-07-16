@@ -86,6 +86,7 @@ cc_binary(
         "unit_tests/ttx/documentation.cpp",
         "unit_tests/ttx/layout.cpp",
         "unit_tests/ttx/type.cpp",
+        "unit_tests/ttx/types.cpp",
     ],
     includes = ["."],
     deps = [

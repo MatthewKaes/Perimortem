@@ -20,6 +20,16 @@ namespace Ttx::Model {
 // target address or calling-convention facts itself.
 class Callable : public Abstraction::Abstract {
  public:
+  using ContractOwner = Callable;
+  static constexpr Perimortem::System::Uuid contract_id{
+    0x01cc41c70a414b03,
+    0xacf5c601eccfd393,
+  };
+
+  auto implements(Perimortem::System::Uuid requested) const -> Bool override {
+    return requested == contract_id || Abstract::implements(requested);
+  }
+
   virtual auto get_parameters() const -> const Layout& = 0;
   virtual auto get_results() const -> const Layout& = 0;
   virtual auto get_address() const -> const Abstraction::Abstract& = 0;

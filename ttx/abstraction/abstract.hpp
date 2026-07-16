@@ -5,6 +5,8 @@
 
 #include "perimortem/core/view/bytes.hpp"
 
+#include "perimortem/system/uuid.hpp"
+
 namespace Ttx::Abstraction {
 
 // TTX does not begin with a closed type system. It begins with named abstract
@@ -32,7 +34,42 @@ namespace Ttx::Abstraction {
 // to every semantic object, not conveniences for one derived contract.
 class Abstract {
  public:
+  using ContractOwner = Abstract;
+  static constexpr Perimortem::System::Uuid contract_id{
+    0x67e0e29bc31340ef,
+    0xb8fae3b06a1a7be5,
+  };
+
   virtual ~Abstract() = default;
+
+  // Proves a semantic contract without C++ RTTI or a central class registry.
+  // Derived contracts recognize their stable identifier and then delegate to
+  // their base contract. These identifiers describe interfaces only. Object
+  // identity and durable names continue to come from the Abstract graph. A
+  // native implementation may return true only for public C++ base contracts,
+  // this invariant makes the checked reference conversion well-defined.
+  virtual auto implements(Perimortem::System::Uuid requested) const -> Bool {
+    return requested == contract_id;
+  }
+
+  template <typename Requested>
+  auto is() const -> Bool {
+    static_assert(
+        __is_same(Requested, typename Requested::ContractOwner),
+        "Only declared TTX contracts can be queried.");
+    return implements(Requested::contract_id);
+  }
+
+  // Converts after proving the requested contract. A failed conversion is a
+  // caller contract violation rather than a nullable semantic result; fallible
+  // resolution returns Invalid before a narrow contract is requested.
+  template <typename Requested>
+  auto as() const -> const Requested& {
+    if (!is<Requested>()) {
+      __builtin_trap();
+    }
+    return static_cast<const Requested&>(*this);
+  }
 
   // Gets the name of this Abstract.
   // If a canonical name is required then first call `resolve()`:

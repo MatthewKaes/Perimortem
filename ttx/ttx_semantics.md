@@ -202,6 +202,11 @@ Ttx::Abstraction::Abstract
 ├── Ttx::Abstraction::Invalid
 ├── Ttx::Model::Type
 │   ├── Ttx::Model::Generic
+│   ├── Ttx::Model::Types::Terminal
+│   │   ├── Ttx::Model::Types::Unsigned
+│   │   ├── Ttx::Model::Types::Signed
+│   │   ├── Ttx::Model::Types::Real
+│   │   └── Ttx::Model::Types::Flag
 │   └── ISA-defined model types
 ├── Ttx::Model::Callable
 │   ├── Ttx::Model::Static
@@ -228,10 +233,22 @@ These names describe up-castable semantic contracts:
 | `Addressable` | named semantic edge whose resolution supplies the addressed Abstract                |
 | `Invalid`     | absorbing failed resolution                                                         |
 
+Terminal Types add narrow storage and domain contracts:
+
+| Contract   | Required meaning                                           |
+| ---------- | ---------------------------------------------------------- |
+| `Terminal` | Layout leaf with direct byte size and alignment             |
+| `Unsigned` | non-negative integer domain                                |
+| `Signed`   | signed integer domain                                      |
+| `Real`     | floating-point domain                                      |
+| `Flag`     | two-value logical domain                                   |
+
 The first narrow native contracts are deliberately reference based:
 
 ```text
 Type::get_layout()             -> const Layouts::Structured&
+Terminal::get_size()           -> Count
+Terminal::get_alignment()      -> Count
 Callable::get_parameters()     -> const Layout&
 Callable::get_results()        -> const Layout&
 Callable::get_address()        -> const Abstract&
@@ -244,6 +261,46 @@ Types, documentation, attributes, defaults, and ISA facts remain on those real
 objects or on richer contracts they implement. Consumers resolve identity
 before using a narrow contract. No nullable reference is part of the Layout
 interface.
+
+### Contract Proof And Upcasting
+
+TTX contract inheritance is queryable without C++ RTTI, a ClassDB, a global
+type-number allocator, or a hash. Every declared semantic contract owns a
+stable 128-bit `Perimortem::System::Uuid`. Its implementation recognizes that
+identifier and delegates unrecognized identifiers to its direct base contract.
+The work is therefore two word comparisons per shallow inheritance level and
+requires no allocation or dynamic registry lookup.
+
+Contract identifiers identify interfaces only. They never identify an Abstract
+object, replace its name, form a resolution route, select an export symbol,
+version a package, or become a serialized object handle. Object identity inside
+one stable DAG remains its address; durable identity remains a reversible chain
+of names. An incompatible change to a contract's required operations receives a
+new contract identifier rather than silently changing the old meaning.
+
+Native consumers use the total query pair:
+
+```text
+abstract.is<Type>()  -> Bool
+abstract.as<Type>()  -> const Type&
+```
+
+`is<Contract>()` asks the object to prove the declared contract and its base
+chain. `as<Contract>()` checks that proof and returns a reference; asking it to
+convert an unproven contract is a caller invariant violation. Fallible semantic
+work first returns `Abstract&`, checks the desired contract, and returns Invalid
+from its own query boundary on failure. It never uses a nullable cast result.
+Every native `implements()` override may report only contracts that are public
+C++ bases of that object, which keeps the checked reference conversion valid.
+
+The first native model has one semantic inheritance spine per object, matching
+the hierarchy above. A scalar can therefore be proven and viewed as its full
+`Type`, as `Terminal`, and as exactly one of `Unsigned`, `Signed`, `Real`, or
+`Flag`. C++ implementation inheritance manufactures no additional facts beyond
+the contracts explicitly declared on that spine.
+Foreign-language bridges may expose the same stable contract identifiers
+through an adapter that implements the corresponding native contract, but C++
+vtables and foreign object layouts do not cross that ABI boundary.
 
 `Type` is not the root of this model. Callable, diagnostic, ISA, and
 future runtime objects do not inherit Type merely to become queryable. There is
@@ -398,12 +455,13 @@ the object is the real Addressable edge owned by the Type. Additional facts stay
 on that object, its source owner, or a narrower derived contract. There is no
 `Member` model object and no optional-name/default bit embedded in Layout.
 
-`Type::get_layout()` returns `const Layouts::Structured&`. A scalar Type has an
-empty Structured Layout. For a composite, lowering walks the Addressables in
-order, resolves each one, proves the resulting Type contract, and recurses into
-that Type's Structured Layout. Target size, alignment, offset, carrier,
-register class, calling convention, and wire policy are later target queries;
-they are not Layout fields.
+`Type::get_layout()` returns `const Layouts::Structured&`. A Terminal has an
+empty Structured Layout and directly publishes its target byte size and
+alignment. For a composite, lowering walks the Addressables in order, resolves
+each one, proves the resulting Type contract, and recurses into that Type's
+Structured Layout. Composite offsets and aggregate size/alignment are derived
+from those Terminal facts. Carrier, register class, calling convention, and
+wire policy remain later compiler queries; none of these are Layout fields.
 
 A Type-targeting Alias is resolved before the Type contract is proved. A bare
 Generic may be a valid compile-time query receiver but is not a value merely by
@@ -789,7 +847,7 @@ query proves the resolved object's Type contract. Type arguments start with
 `IndexStart`, contain type references separated by `PackingOp`, and end with
 `IndexEnd`.
 
-## Prelude And Package Types
+## Terminal Registration And Package Types
 
 A package is a top-level Type. Its ordinary context indexes imported and
 declared Types, values, and callables using the lookup structures appropriate
@@ -797,11 +855,12 @@ to that package. It is not a parallel package-shaped semantic object or a
 special branch in the resolver.
 
 TTX treats the small vector and graphics color types as real typed aggregates,
-not pack aliases. The core prelude and explicit package manifests provide them
-with fixed field names and `Real_32` component Types.
+not pack aliases. Active toolchain contexts and explicit package manifests
+provide them with fixed field names and `Real_32` component Types.
 
-The core prelude supplies universal scalar, vector, and memory forms as
-top-level names. Source uses these names without a package qualifier:
+An active toolchain may supply scalar, vector, and memory forms as top-level
+names. Source can use the names installed in that context without a package
+qualifier:
 
 ```ttx
 Vec2D : struct { x : Real_32; y : Real_32; }
@@ -809,28 +868,27 @@ Vec3D : struct { x : Real_32; y : Real_32; z : Real_32; }
 Vec4D : struct { x : Real_32; y : Real_32; z : Real_32; w : Real_32; }
 ```
 
-The scalar names describe language intent. `Bool`, `Bits_8`, `Bits_16`,
+Core TTX exposes `Unsigned`, `Signed`, `Real`, and `Flag` as Terminal contracts.
+It does not own a prelude, singleton catalogue, supported-width list, or one C++
+class per spelling. A toolchain constructs stable instances for the formats it
+supports, gives them names in its own resolution context, and supplies each
+instance's byte size and alignment. If that context does not install a width,
+the ordinary Abstract query returns Invalid.
+
+The current Perimortem C++ surface can register `Bool`, `Bits_8`, `Bits_16`,
 `Bits_32`, `Bits_64`, `Signed_8`, `Signed_16`, `Signed_32`, `Signed_64`,
-`Real_32`, and `Real_64` specify value domains and precision. The suffix is not
-a core Layout size, C++ `sizeof`, alignment, register width, ABI carrier, or
-instruction opcode. For example, a target may correctly carry `Bits_8` in a
-32-bit register and select a 32-bit move while preserving the eight-bit value
-semantics at observable boundaries. Its terminal contract owns that decision.
+`Real_32`, `Real_64`, and `Real_128`. The `Bits_*` spellings implement the
+`Unsigned` contract; their current names do not create a separate Bits concept.
+`Count` can be an Alias to the registered 64-bit Unsigned instance. `CppSize`
+can be an Alias to the Unsigned instance matching the active C++ interface.
+`True` and `False` are Flag values, not additional Types.
 
-These scalar Types expose empty Structured Layouts because they are recursive
-leaves. The active target or ISA must still prove the terminal contract that
-explains how each leaf is represented. `Count` is the ordinary alias for the
-documented 64-bit count domain; it does not acquire the host process's pointer
-width. Aggregate and memory forms such as `Vec`, `View`, `Bytes`, and `String`
-expose their real Addressable structure or ISA-specific terminal contracts
-rather than inheriting the host C++ layout by coincidence.
-
-Core TTX defines the Type contract, not one concrete C++ class for every
-prelude spelling. The host prelude owns the stable instances. Implementations
-may be organized under a `type/` directory by semantic family when a family
-earns a real query contract, such as integer range or real precision. A header
-whose only purpose is to encode one spelling or return host size and alignment
-would duplicate the prelude and prematurely freeze target policy.
+Size and alignment are real Terminal facts, but they still do not dictate
+register or instruction width. A one-byte Unsigned Type may correctly use a
+32-bit carrier or move when observable stores and arithmetic preserve its value
+domain. Aggregates such as `Vec`, `View`, `Bytes`, and `String` instead expose
+their real Addressable structure unless a toolchain deliberately registers them
+as another Terminal contract.
 
 `Perimortem.Graphics` is explicit. A package that needs graphics-domain types
 imports it and refers to those types through the import name:
@@ -846,11 +904,10 @@ Graphics::Color : struct {
 }
 ```
 
-The prelude declarations are conceptual definitions rather than source that
-appears in every file. Package declarations come from resolved package manifests.
-All later stages must behave as if the fields are present. Member lookup,
-swizzle checks, pack fitting, future host-boundary metadata, and shader lowering
-all use these same field definitions.
+Toolchain-provided declarations are semantic objects rather than source copied
+into every file. Package declarations come from resolved package manifests. All
+later stages use the same objects for member lookup, swizzle checks, pack
+fitting, future host-boundary metadata, and shader lowering.
 
 `Vec[T, N]` is different. It is a fixed-size homogeneous aggregate indexed by
 position, so indexed packs may initialize sparse entries. `Vec2D`, `Vec3D`,
@@ -1861,7 +1918,7 @@ field, or stored value, a lowerer performs the same operation:
 resolved Type
 -> Structured Layout
 -> non-empty: resolve each Addressable and recursively lower its Type in order
--> empty: query the terminal Type contract for this target
+-> empty: prove Terminal, then query its family, size, and alignment
 ```
 
 A non-empty Structured Layout is never collapsed to an invented scalar carrier merely
@@ -1872,13 +1929,12 @@ terminal representation is its ordered projection. Calls, returns, stack
 placement, register classification, generated host declarations, and archive
 descriptions must consume the same projection.
 
-An empty Layout alone does not say whether a terminal is an integer, real,
-opaque handle, zero-width value, or target-defined resource. The resolved Type
-must implement the terminal contract contributed by the active ISA or target. An
-ISA can enrich the Abstract graph with that target meaning. A lower compiler
-only knows the Type and terminal interfaces; it does not need to know whether
-the authored query reached that Type through an Alias, Generic, shader context,
-or foreign-language object.
+An empty Layout alone does not say whether a Type is Terminal or merely an empty
+composite. The resolved Type must prove `Terminal`; it can then be viewed as
+`Unsigned`, `Signed`, `Real`, `Flag`, or another toolchain-defined Terminal
+subtype. A lower compiler needs only those Type and Terminal interfaces. It does
+not need to know whether the authored query reached the Type through an Alias,
+Generic, shader context, or foreign-language object.
 
 Lowering therefore must not depend on an authored `@abi` number, a global
 `Abi::Lowering` switch, a C++ type name, or a pointer-keyed side table. Those
@@ -1915,9 +1971,9 @@ When changing TTX, preserve these invariants:
     The same ordered chain is deterministic while the DAG is unchanged. Alias
     may redirect an unchanged route. Optional export naming never substitutes a
     signature hash for the selected named ownership chain.
-17. Composite terminal lowering recursively deconstructs every non-empty
-    Structured Layout through its real Addressables before asking terminal Type
-    contracts to lower leaves.
+17. Composite lowering recursively deconstructs every non-empty Structured
+    Layout through its real Addressables before reading Terminal family, size,
+    and alignment facts at the leaves.
 18. Layout is an ordered fitting contract over Abstracts. Fluid, Named, and
     Structured express distinct semantics through inheritance; there is no
     Member record, kind enum, or Incomplete Layout.
