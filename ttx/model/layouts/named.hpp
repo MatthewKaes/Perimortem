@@ -26,7 +26,7 @@ class Named : public Concept::Layout {
   auto get_size() const -> Count override { return abstracts.get_size(); }
   auto get_abstract(Count index) const -> const Concept::Abstract& override {
     if (index >= abstracts.get_size()) {
-      return invalid_result;
+      return Concept::Invalid::get_invalid();
     }
 
     return abstracts[index].get();

@@ -32,6 +32,9 @@ cc_library(
 
 cc_library(
     name = "concept",
+    srcs = [
+        "concept/invalid.cpp",
+    ],
     hdrs = [
         "concept/abstract.hpp",
         "concept/alias.hpp",
@@ -51,6 +54,7 @@ cc_library(
     srcs = [
         "model/argument.cpp",
         "model/binding.cpp",
+        "model/group.cpp",
         "model/layouts/fluid.cpp",
         "model/layouts/named.cpp",
         "model/layouts/structured.cpp",
@@ -58,6 +62,7 @@ cc_library(
         "model/packs/named.cpp",
         "model/packs/positional.cpp",
         "model/projection.cpp",
+        "model/scope.cpp",
     ],
     hdrs = [
         "model/addressable.hpp",
@@ -75,6 +80,7 @@ cc_library(
         "model/constants/unsigned.hpp",
         "model/expression.hpp",
         "model/generic.hpp",
+        "model/group.hpp",
         "model/layouts/fluid.hpp",
         "model/layouts/named.hpp",
         "model/layouts/structured.hpp",
@@ -82,6 +88,7 @@ cc_library(
         "model/packs/named.hpp",
         "model/packs/positional.hpp",
         "model/projection.hpp",
+        "model/scope.hpp",
         "model/type.hpp",
         "model/types/flag.hpp",
         "model/types/real.hpp",

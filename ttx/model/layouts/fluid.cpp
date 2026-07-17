@@ -34,7 +34,7 @@ auto Ttx::Model::Layouts::Fluid::get_fitted(
     const Concept::Layout& target,
     Count target_index) const -> const Concept::Abstract& {
   if (!fits(target) || target_index >= target.get_size()) {
-    return invalid_result;
+    return Concept::Invalid::get_invalid();
   }
 
   return get_abstract(target_index);

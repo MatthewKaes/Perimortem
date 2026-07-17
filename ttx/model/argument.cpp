@@ -36,8 +36,8 @@ auto Ttx::Model::Argument::operator!=(const Argument& rhs) const -> Bool {
 auto Ttx::Model::Argument::normalize(Value value) -> Value {
   return value.visit(
       []() -> Value {
-        static const Concept::Invalid invalid;
-        return Concept::Reference<Concept::Abstract>(invalid);
+        return Concept::Reference<Concept::Abstract>(
+            Concept::Invalid::get_invalid());
       },
       [](const Concept::Reference<Concept::Abstract>& abstract) -> Value {
         return Concept::Reference<Concept::Abstract>(abstract.get().resolve());

@@ -25,7 +25,7 @@ class Structured : public Concept::Layout {
   auto get_size() const -> Count override { return addressables.get_size(); }
   auto get_abstract(Count index) const -> const Concept::Abstract& override {
     if (index >= addressables.get_size()) {
-      return invalid_result;
+      return Concept::Invalid::get_invalid();
     }
 
     return addressables[index].get();

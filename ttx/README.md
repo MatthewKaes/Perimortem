@@ -129,6 +129,8 @@ Ttx::Concept
 │   ├── Alias
 │   ├── Invalid
 │   ├── Ttx::Model::Generic
+│   ├── Ttx::Model::Group
+│   ├── Ttx::Model::Scope
 │   ├── Ttx::Model::Pack
 │   │   ├── Ttx::Model::Packs::Positional
 │   │   └── Ttx::Model::Packs::Named
@@ -158,10 +160,12 @@ over borrowed `View::Bytes`. `Alias` is the closed local name, documentation,
 and redirect to another Abstract. `Invalid` is the closed stateless absorbing
 failure. `Type` adds a Structured Layout and Type-owned query surfaces.
 `Generic` is an instruction that creates or finds a compiler-owned Type from
-accepted arguments. `Callable` adds complete parameter and result Layouts plus
-an Addressable query. Static calls have no receiver. Self calls include the
-receiver as parameter zero. Addressable is a named semantic edge whose
-resolution supplies the addressed Abstract.
+accepted arguments. `Group` is durable named containment over real Abstracts.
+`Scope` composes local and outer Abstract contexts without owning either lookup
+representation. `Callable` adds complete parameter and result Layouts plus an
+Addressable query. Static calls have no receiver. Self calls include the receiver
+as parameter zero. Addressable is a named semantic edge whose resolution
+supplies the addressed Abstract.
 
 Type is not the universal semantic base, and there is no vague `Typed` marker.
 A consumer resolves Abstract identity, proves the contract it needs, and then
@@ -175,9 +179,10 @@ names walk an explicitly selected named ownership chain reversibly and never
 use a signature hash.
 
 Failure produces `Invalid : Abstract`, not a null semantic pointer. Invalid is
-stateless and absorbing. The source-owning query retains the failed route and
-diagnostic cause. Empty scopes use empty views. Unresolved callable linkage uses
-an explicit unresolved Addressable or Invalid.
+one binary-wide stateless absorbing object. Semantic owners do not store an
+Invalid reference or construct local failure sentinels. The source-owning query
+retains the failed route and diagnostic cause. Empty groups use empty views.
+Unresolved callable linkage uses an explicit unresolved Addressable or Invalid.
 
 A `Concept::Layout` is an ordered fitting contract over real Abstracts. Fluid represents
 positional value flow, Named represents uniquely named value flow, and

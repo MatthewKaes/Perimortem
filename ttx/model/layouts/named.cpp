@@ -63,7 +63,7 @@ auto Ttx::Model::Layouts::Named::get_fitted(
     const Concept::Layout& target,
     Count target_index) const -> const Concept::Abstract& {
   if (!fits(target) || target_index >= target.get_size()) {
-    return invalid_result;
+    return Concept::Invalid::get_invalid();
   }
 
   const Concept::Abstract& requested = target.get_abstract(target_index);
@@ -84,5 +84,5 @@ auto Ttx::Model::Layouts::Named::get_fitted(
     }
   }
 
-  return invalid_result;
+  return Concept::Invalid::get_invalid();
 }

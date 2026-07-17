@@ -26,6 +26,13 @@ class Invalid final : public Abstract {
     0x8c39f04bd4a2f525,
   };
 
+  // Invalid has no object-specific state. Every semantic failure returns this
+  // one binary-wide object so owners never store or construct failure state.
+  static auto get_invalid() -> const Invalid&;
+
+  Invalid(const Invalid&) = delete;
+  auto operator=(const Invalid&) -> Invalid& = delete;
+
   auto implements(Perimortem::System::Uuid requested) const -> Bool override {
     return requested == contract_id || Abstract::implements(requested);
   }
@@ -40,6 +47,9 @@ class Invalid final : public Abstract {
       -> const Abstract& override {
     return *this;
   }
+
+ private:
+  Invalid() = default;
 };
 
 }  // namespace Ttx::Concept

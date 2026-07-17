@@ -44,9 +44,6 @@ class Layout {
       -> const Abstract& = 0;
 
   auto is_empty() const -> Bool { return get_size() == 0; }
-
- protected:
-  inline static const Invalid invalid_result;
 };
 
 }  // namespace Ttx::Concept

@@ -11,6 +11,5 @@ auto Ttx::Model::Pack::get_name() const -> Perimortem::Core::View::Bytes {
 
 auto Ttx::Model::Pack::resolve_context(Perimortem::Core::View::Bytes) const
     -> const Concept::Abstract& {
-  static const Concept::Invalid invalid;
-  return invalid;
+  return Concept::Invalid::get_invalid();
 }

@@ -203,6 +203,8 @@ Ttx::Concept
 │   ├── Alias
 │   ├── Invalid
 │   ├── Ttx::Model::Generic
+│   ├── Ttx::Model::Group
+│   ├── Ttx::Model::Scope
 │   ├── Ttx::Model::Expression
 │   │   └── Ttx::Model::Constant
 │   │       └── Ttx::Model::Constants::{Unsigned, Signed, Real, Flag, Bytes}
@@ -239,6 +241,8 @@ Documentation remain ordinary first-class contracts or values:
 | `Layout`        | identity-free ordered shape, directional fitting, and fitting evidence               |
 | `Type`          | resolved semantic identity with a total Structured Layout query                     |
 | `Generic`       | instruction contract that resolves arguments to a concrete Type                    |
+| `Group`         | durable named context over an ordered set of real Abstracts                         |
+| `Scope`         | local-first composition of two existing Abstract contexts                          |
 | `Pack`          | grouped value flow with a fitting Layout and no implied Type                        |
 | `Expression`    | one evaluatable value with a result Type query and ordered input Layout             |
 | `Constant`      | immutable Expression already in normal form with value equality                    |
@@ -414,6 +418,29 @@ ownership chain and writes each name reversibly. Resolution itself does not
 store an allocated path, hash a signature, or choose a lexicographically
 preferred alias.
 
+### Group And Scope
+
+`Group : Abstract` is the shared durable representation of a named collection.
+It borrows an ordered view of real Abstract children and resolves a direct child
+only when that name is unique. Group is not a Type, Layout, Pack, package record,
+or interpreter registry. Package exports, nested authored groups, and other
+stable named collections can use the same mechanism while their children retain
+their real contracts.
+
+`Scope : Abstract` is the shared transient composition rule. It borrows a local
+Abstract context and an outer Abstract context. Resolution asks the local
+context first and forwards the unchanged route to the outer context only when
+the local query returns Invalid. The two contexts remain free to use maps,
+tables, direct parsing, independent static and self indexes, or another
+domain-specific lookup policy.
+
+Scope stores no children, path, cursor, arena, or failure object. A source owner
+rejects ambiguous or corrupt local contexts before composition, so Invalid from
+the local query means that route has no local selection. The owner can rebuild a
+small Scope as declarations become visible and publish a durable Group only
+after validation. This recovers the useful local-first behavior of the historic
+`resolve_scope` API without adding another virtual query to Abstract.
+
 ### Invalid And Total References
 
 `Invalid : Abstract` is the semantic failure object. It represents missing
@@ -424,10 +451,12 @@ authored route, source range, and presentation context. Invalid does not grow a
 second diagnostic state model. A successfully constructed Alias is therefore
 always acyclic.
 
-Queries through Invalid are absorbing and always return the same Invalid. This
-prevents one bad name from producing a cascade of unrelated failures. Invalid
-is closed and stateless. It never owns the failed route, source range, message,
-or a specialized failure subtype. The source-owning query retains those facts.
+Queries through Invalid are absorbing and always return the binary-wide Invalid
+object. Invalid construction is private, so semantic owners cannot create or
+store local failure sentinels. This prevents one bad name from producing a
+cascade of unrelated failures. Invalid is closed and stateless. It never owns
+the failed route, source range, message, or a specialized failure subtype. The
+source-owning query retains those facts.
 
 The semantic interface follows these rules:
 

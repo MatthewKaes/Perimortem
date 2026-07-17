@@ -98,6 +98,8 @@ That makes the reusable TTX model smaller than a full language tree:
 | `Ttx::Concept::Abstract`              | named semantic identity and progressive context resolution    |
 | `Ttx::Concept::Layout`                | ordered Abstract shape and directional fitting                |
 | `Ttx::Concept::Documentation`         | source-authored prose borrowed by its semantic owner           |
+| `Ttx::Model::Group`                   | durable named context over real Abstract children              |
+| `Ttx::Model::Scope`                   | local-first composition of existing Abstract contexts          |
 | `Ttx::Model::Type`                    | resolved type identity and Structured layout                  |
 | `Ttx::Model::Types::Terminal`         | direct target byte size and alignment                         |
 | `Ttx::Model::Expression`              | evaluatable value with result Type and ordered input queries  |
@@ -355,6 +357,8 @@ Ttx::Concept
 │   ├── Alias
 │   ├── Invalid
 │   ├── Ttx::Model::Generic
+│   ├── Ttx::Model::Group
+│   ├── Ttx::Model::Scope
 │   ├── Ttx::Model::Expression
 │   │   └── Ttx::Model::Constant
 │   │       └── Ttx::Model::Constants::{Unsigned, Signed, Real, Flag, Bytes}
@@ -414,6 +418,8 @@ The core contracts are deliberately narrow:
 | `Real`          | Terminal floating-point domain                                   |
 | `Flag`          | Terminal two-value logical domain                                |
 | `Generic`       | instruction that creates or finds a concrete Type from arguments |
+| `Group`         | durable named context over real Abstract children                 |
+| `Scope`         | local-first composition of existing Abstract contexts             |
 | `Pack`          | grouped value flow exposing an identity-free fitting Layout      |
 | `Expression`    | one value with result Type, input Layout, and fitting queries     |
 | `Constant`      | immutable zero-input Expression with value equality              |
@@ -504,6 +510,16 @@ owner's original cause authoritative so one bad name does not become a cascade
 of unrelated errors.
 Empty child sets are empty views. Absence is never modeled by a null
 pseudo-Abstract.
+
+Invalid is one binary-wide stateless object with private construction. An
+Abstract, Layout, evaluator, or resolver returns that object directly when a
+semantic query fails. It does not store an Invalid reference as configuration
+and does not construct a subsystem-local sentinel.
+
+Durable named containment uses `Ttx::Model::Group`. Local-first lookup uses
+`Ttx::Model::Scope`, which asks one Abstract context before forwarding the
+unchanged route to an outer context. Scope does not prescribe how either side
+indexes names and it does not add a second resolution operation to Abstract.
 
 ### Stable Construction And Resolution
 
