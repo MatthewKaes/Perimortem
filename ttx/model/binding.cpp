@@ -17,11 +17,11 @@ auto Ttx::Model::Binding::get_name() const -> Perimortem::Core::View::Bytes {
   return name;
 }
 
-auto Ttx::Model::Binding::get_type() const -> const Abstraction::Abstract& {
+auto Ttx::Model::Binding::get_type() const -> const Concept::Abstract& {
   return get_expression().get_type();
 }
 
-auto Ttx::Model::Binding::get_inputs() const -> const Layout& {
+auto Ttx::Model::Binding::get_inputs() const -> const Concept::Layout& {
   return inputs;
 }
 

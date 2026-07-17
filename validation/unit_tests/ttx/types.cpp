@@ -3,15 +3,15 @@
 
 #include "validation/unit_test.hpp"
 
-#include "ttx/abstraction/alias.hpp"
-#include "ttx/abstraction/invalid.hpp"
+#include "ttx/concept/alias.hpp"
+#include "ttx/concept/invalid.hpp"
 #include "ttx/model/types/flag.hpp"
 #include "ttx/model/types/real.hpp"
 #include "ttx/model/types/signed.hpp"
 #include "ttx/model/types/unsigned.hpp"
 
 using namespace Perimortem::Core;
-using namespace Ttx::Abstraction;
+using namespace Ttx::Concept;
 using namespace Ttx::Model;
 using namespace Ttx::Model::Types;
 using namespace Validation;

@@ -3,19 +3,20 @@
 
 #pragma once
 
-#include "ttx/abstraction/abstract.hpp"
-#include "ttx/model/layout.hpp"
+#include "ttx/concept/abstract.hpp"
+#include "ttx/concept/layout.hpp"
 
 namespace Ttx::Model {
 
-// Pack is the Abstract contract for one grouped value flow. It is neither one
-// Expression nor a Type, and resolving it preserves Pack identity. Positional
-// packs expose Fluid Layout while named packs expose Named Layout.
+// Pack is the Abstract mechanism for one grouped value flow. It is neither one
+// Expression nor a Type, and resolving it preserves Pack identity. Pack
+// publishes the fundamental Concept::Layout contract without becoming the
+// shape itself. Positional packs expose Fluid while named packs expose Named.
 //
 // Pack has no local name or child context. Its entries remain the real
 // Abstracts selected by the source owner, allowing tools and lowering to
 // inspect value provenance without inventing a tuple Type.
-class Pack : public Abstraction::Abstract {
+class Pack : public Concept::Abstract {
  public:
   using ContractOwner = Pack;
   static constexpr Perimortem::System::Uuid contract_id{
@@ -29,9 +30,9 @@ class Pack : public Abstraction::Abstract {
 
   auto get_name() const -> Perimortem::Core::View::Bytes final;
   auto resolve_context(Perimortem::Core::View::Bytes route) const
-      -> const Abstraction::Abstract& final;
+      -> const Concept::Abstract& final;
 
-  virtual auto get_layout() const -> const Layout& = 0;
+  virtual auto get_layout() const -> const Concept::Layout& = 0;
 };
 
 }  // namespace Ttx::Model

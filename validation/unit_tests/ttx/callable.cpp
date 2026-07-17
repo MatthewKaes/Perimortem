@@ -3,18 +3,19 @@
 
 #include "validation/unit_test.hpp"
 
-#include "ttx/abstraction/alias.hpp"
-#include "ttx/abstraction/invalid.hpp"
+#include "ttx/concept/alias.hpp"
+#include "ttx/concept/invalid.hpp"
 #include "ttx/model/addressable.hpp"
+#include "ttx/model/callables/self.hpp"
+#include "ttx/model/callables/static.hpp"
 #include "ttx/model/layouts/fluid.hpp"
 #include "ttx/model/layouts/named.hpp"
-#include "ttx/model/self.hpp"
-#include "ttx/model/static.hpp"
 #include "ttx/model/type.hpp"
 
 using namespace Perimortem::Core;
-using namespace Ttx::Abstraction;
+using namespace Ttx::Concept;
 using namespace Ttx::Model;
+using namespace Ttx::Model::Callables;
 using namespace Ttx::Model::Layouts;
 using namespace Validation;
 
@@ -53,7 +54,7 @@ class CallableAddress final : public Addressable {
 };
 
 /// Static and Self callables share the same total layout and address contract.
-class TestStatic final : public Ttx::Model::Static {
+class TestStatic final : public Ttx::Model::Callables::Static {
  public:
   TestStatic(
       View::Bytes name,
@@ -144,14 +145,14 @@ PERIMORTEM_UNIT_TEST(TtxCallable, callable_layouts) {
   EXPECT(&self_callable.get_parameters().get_abstract(0).resolve() == &counter);
   EXPECT(&static_callable.get_address() == &address);
   EXPECT(&self_callable.get_address() == &address);
-  EXPECT(static_callable.is<Ttx::Model::Static>());
+  EXPECT(static_callable.is<Ttx::Model::Callables::Static>());
   EXPECT(static_callable.is<Callable>());
   EXPECT(static_callable.is<Abstract>());
   EXPECT_NOT(static_callable.is<Self>());
   EXPECT_NOT(static_callable.is<Type>());
   EXPECT(self_callable.is<Self>());
   EXPECT(self_callable.is<Callable>());
-  EXPECT_NOT(self_callable.is<Ttx::Model::Static>());
+  EXPECT_NOT(self_callable.is<Ttx::Model::Callables::Static>());
   EXPECT(address.is<Addressable>());
   EXPECT(&static_callable.as<Callable>() == &static_callable);
 }

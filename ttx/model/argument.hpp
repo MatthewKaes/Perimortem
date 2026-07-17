@@ -5,7 +5,7 @@
 
 #include "perimortem/core/static/union.hpp"
 
-#include "ttx/abstraction/reference.hpp"
+#include "ttx/concept/reference.hpp"
 
 namespace Ttx::Model {
 
@@ -22,7 +22,7 @@ namespace Ttx::Model {
 class Argument {
  public:
   using Value = Perimortem::Core::Static::
-      Union<Abstraction::Reference<Abstraction::Abstract>, Bool, Bits_64>;
+      Union<Concept::Reference<Concept::Abstract>, Bool, Bits_64>;
 
   template <typename Candidate>
     requires(__is_constructible(Value, Candidate &&))

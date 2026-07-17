@@ -5,7 +5,7 @@
 
 #include "ttx/model/callable.hpp"
 
-namespace Ttx::Model {
+namespace Ttx::Model::Callables {
 
 // Self is the invocation distinction for a Callable selected through an
 // addressable value. The receiver is entry zero of get_parameters(). No
@@ -23,4 +23,4 @@ class Self : public Callable {
   }
 };
 
-}  // namespace Ttx::Model
+}  // namespace Ttx::Model::Callables

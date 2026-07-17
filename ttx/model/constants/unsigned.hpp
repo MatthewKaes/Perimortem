@@ -34,7 +34,7 @@ class Unsigned : public Constant {
       return False;
     }
 
-    const Abstraction::Abstract& target_type = target.resolve();
+    const Concept::Abstract& target_type = target.resolve();
     if (!target_type.is<Types::Unsigned>()) {
       return False;
     }

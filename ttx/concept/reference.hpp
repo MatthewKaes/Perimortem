@@ -3,9 +3,9 @@
 
 #pragma once
 
-#include "ttx/abstraction/abstract.hpp"
+#include "ttx/concept/abstract.hpp"
 
-namespace Ttx::Abstraction {
+namespace Ttx::Concept {
 
 // Reference is a non-null borrowed semantic edge. It exists because C++
 // references cannot be stored directly in contiguous Views or tagged Unions,
@@ -35,4 +35,4 @@ class Reference {
   const Contract& abstract;
 };
 
-}  // namespace Ttx::Abstraction
+}  // namespace Ttx::Concept

@@ -22,23 +22,23 @@ auto Ttx::Model::Layouts::Named::has_unique_names() const -> Bool {
   return True;
 }
 
-auto Ttx::Model::Layouts::Named::fits(const Layout& target) const -> Bool {
+auto Ttx::Model::Layouts::Named::fits(const Concept::Layout& target) const
+    -> Bool {
   if (get_size() != target.get_size() || !has_unique_names()) {
     return False;
   }
 
   for (Count i = 0; i < get_size(); i++) {
-    const Abstraction::Abstract& source = get_abstract(i);
+    const Concept::Abstract& source = get_abstract(i);
     Count matches = 0;
     for (Count target_index = 0; target_index < target.get_size();
          target_index++) {
-      const Abstraction::Abstract& candidate =
-          target.get_abstract(target_index);
+      const Concept::Abstract& candidate = target.get_abstract(target_index);
       if (source.get_name() != candidate.get_name()) {
         continue;
       }
 
-      const Abstraction::Abstract& target_type = candidate.resolve();
+      const Concept::Abstract& target_type = candidate.resolve();
       if (source.is<Expression>()) {
         if (!target_type.is<Type>() ||
             !source.as<Expression>().fits(target_type.as<Type>())) {
@@ -60,20 +60,20 @@ auto Ttx::Model::Layouts::Named::fits(const Layout& target) const -> Bool {
 }
 
 auto Ttx::Model::Layouts::Named::get_fitted(
-    const Layout& target,
-    Count target_index) const -> const Abstraction::Abstract& {
+    const Concept::Layout& target,
+    Count target_index) const -> const Concept::Abstract& {
   if (!fits(target) || target_index >= target.get_size()) {
     return invalid_result;
   }
 
-  const Abstraction::Abstract& requested = target.get_abstract(target_index);
+  const Concept::Abstract& requested = target.get_abstract(target_index);
   for (Count i = 0; i < get_size(); i++) {
-    const Abstraction::Abstract& source = get_abstract(i);
+    const Concept::Abstract& source = get_abstract(i);
     if (source.get_name() != requested.get_name()) {
       continue;
     }
 
-    const Abstraction::Abstract& target_type = requested.resolve();
+    const Concept::Abstract& target_type = requested.resolve();
     if (source.is<Expression>()) {
       if (target_type.is<Type>() &&
           source.as<Expression>().fits(target_type.as<Type>())) {

@@ -5,7 +5,7 @@
 
 #include "perimortem/core/view/vector.hpp"
 
-#include "ttx/abstraction/abstract.hpp"
+#include "ttx/concept/abstract.hpp"
 #include "ttx/model/argument.hpp"
 
 namespace Ttx::Model {
@@ -21,7 +21,7 @@ namespace Ttx::Model {
 // without alias walks, names, hashes, parent links, or another canonicalization
 // interface. Failure returns Invalid while the source owner retains the
 // diagnostic.
-class Generic : public Abstraction::Abstract {
+class Generic : public Concept::Abstract {
  public:
   using ContractOwner = Generic;
   static constexpr Perimortem::System::Uuid contract_id{
@@ -34,7 +34,7 @@ class Generic : public Abstraction::Abstract {
   }
 
   virtual auto materialize(Perimortem::Core::View::Vector<Argument> arguments)
-      const -> const Abstraction::Abstract& = 0;
+      const -> const Concept::Abstract& = 0;
 };
 
 }  // namespace Ttx::Model

@@ -5,8 +5,8 @@
 
 #include "perimortem/core/view/vector.hpp"
 
-#include "ttx/abstraction/reference.hpp"
-#include "ttx/model/layout.hpp"
+#include "ttx/concept/layout.hpp"
+#include "ttx/concept/reference.hpp"
 
 namespace Ttx::Model::Layouts {
 
@@ -16,16 +16,15 @@ namespace Ttx::Model::Layouts {
 // queries carry the complete fitting facts. After a name matches, an Expression
 // may prove value compatibility against the resolved target Type instead of
 // laundering itself into Type identity.
-class Named : public Layout {
+class Named : public Concept::Layout {
  public:
   Named(
-      Perimortem::Core::View::Vector<
-          Abstraction::Reference<Abstraction::Abstract>> abstracts = {})
+      Perimortem::Core::View::Vector<Concept::Reference<Concept::Abstract>>
+          abstracts = {})
       : abstracts(abstracts) {}
 
   auto get_size() const -> Count override { return abstracts.get_size(); }
-  auto get_abstract(Count index) const
-      -> const Abstraction::Abstract& override {
+  auto get_abstract(Count index) const -> const Concept::Abstract& override {
     if (index >= abstracts.get_size()) {
       return invalid_result;
     }
@@ -33,14 +32,14 @@ class Named : public Layout {
     return abstracts[index].get();
   }
 
-  auto fits(const Layout& target) const -> Bool override;
-  auto get_fitted(const Layout& target, Count target_index) const
-      -> const Abstraction::Abstract& override;
+  auto fits(const Concept::Layout& target) const -> Bool override;
+  auto get_fitted(const Concept::Layout& target, Count target_index) const
+      -> const Concept::Abstract& override;
 
  private:
   auto has_unique_names() const -> Bool;
 
-  Perimortem::Core::View::Vector<Abstraction::Reference<Abstraction::Abstract>>
+  Perimortem::Core::View::Vector<Concept::Reference<Concept::Abstract>>
       abstracts;
 };
 

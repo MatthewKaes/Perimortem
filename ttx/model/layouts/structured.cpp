@@ -3,7 +3,8 @@
 
 #include "ttx/model/layouts/structured.hpp"
 
-auto Ttx::Model::Layouts::Structured::fits(const Layout& target) const -> Bool {
+auto Ttx::Model::Layouts::Structured::fits(const Concept::Layout& target) const
+    -> Bool {
   if (get_size() != target.get_size()) {
     return False;
   }
@@ -18,8 +19,8 @@ auto Ttx::Model::Layouts::Structured::fits(const Layout& target) const -> Bool {
 }
 
 auto Ttx::Model::Layouts::Structured::get_fitted(
-    const Layout& target,
-    Count target_index) const -> const Abstraction::Abstract& {
+    const Concept::Layout& target,
+    Count target_index) const -> const Concept::Abstract& {
   if (!fits(target) || target_index >= target.get_size()) {
     return invalid_result;
   }

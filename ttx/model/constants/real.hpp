@@ -38,8 +38,8 @@ class Real : public Constant {
   }
 
   auto fits(const Type& target) const -> Bool final {
-    const Abstraction::Abstract& source_type = get_type().resolve();
-    const Abstraction::Abstract& target_type = target.resolve();
+    const Concept::Abstract& source_type = get_type().resolve();
+    const Concept::Abstract& target_type = target.resolve();
     return source_type.is<Types::Real>() && target_type.is<Types::Real>() &&
            &source_type == &target_type;
   }

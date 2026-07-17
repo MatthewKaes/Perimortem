@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include "ttx/abstraction/reference.hpp"
+#include "ttx/concept/reference.hpp"
 #include "ttx/model/expression.hpp"
 #include "ttx/model/layouts/fluid.hpp"
 
@@ -32,15 +32,15 @@ class Binding final : public Expression {
 
   auto implements(Perimortem::System::Uuid requested) const -> Bool override;
   auto get_name() const -> Perimortem::Core::View::Bytes override;
-  auto get_type() const -> const Abstraction::Abstract& override;
-  auto get_inputs() const -> const Layout& override;
+  auto get_type() const -> const Concept::Abstract& override;
+  auto get_inputs() const -> const Concept::Layout& override;
   auto fits(const Type& target) const -> Bool override;
 
   auto get_expression() const -> const Expression&;
 
  private:
   Perimortem::Core::View::Bytes name;
-  Abstraction::Reference<Abstraction::Abstract> expression;
+  Concept::Reference<Concept::Abstract> expression;
   Layouts::Fluid inputs;
 };
 

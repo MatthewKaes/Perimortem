@@ -4,8 +4,8 @@
 #include "ttx/model/packs/positional.hpp"
 
 Ttx::Model::Packs::Positional::Positional(
-    Perimortem::Core::View::Vector<
-        Abstraction::Reference<Abstraction::Abstract>> values)
+    Perimortem::Core::View::Vector<Concept::Reference<Concept::Abstract>>
+        values)
     : layout(values) {}
 
 auto Ttx::Model::Packs::Positional::implements(

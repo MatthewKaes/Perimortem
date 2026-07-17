@@ -31,12 +31,14 @@ cc_library(
 )
 
 cc_library(
-    name = "abstraction",
+    name = "concept",
     hdrs = [
-        "abstraction/abstract.hpp",
-        "abstraction/alias.hpp",
-        "abstraction/invalid.hpp",
-        "abstraction/reference.hpp",
+        "concept/abstract.hpp",
+        "concept/alias.hpp",
+        "concept/documentation.hpp",
+        "concept/invalid.hpp",
+        "concept/layout.hpp",
+        "concept/reference.hpp",
     ],
     deps = [
         "//perimortem:core",
@@ -63,16 +65,16 @@ cc_library(
         "model/attribute.hpp",
         "model/binding.hpp",
         "model/callable.hpp",
+        "model/callables/self.hpp",
+        "model/callables/static.hpp",
         "model/constant.hpp",
         "model/constants/bytes.hpp",
         "model/constants/flag.hpp",
         "model/constants/real.hpp",
         "model/constants/signed.hpp",
         "model/constants/unsigned.hpp",
-        "model/documentation.hpp",
         "model/expression.hpp",
         "model/generic.hpp",
-        "model/layout.hpp",
         "model/layouts/fluid.hpp",
         "model/layouts/named.hpp",
         "model/layouts/structured.hpp",
@@ -80,8 +82,6 @@ cc_library(
         "model/packs/named.hpp",
         "model/packs/positional.hpp",
         "model/projection.hpp",
-        "model/self.hpp",
-        "model/static.hpp",
         "model/type.hpp",
         "model/types/flag.hpp",
         "model/types/real.hpp",
@@ -90,7 +90,7 @@ cc_library(
         "model/types/unsigned.hpp",
     ],
     deps = [
-        ":abstraction",
+        ":concept",
         "//perimortem:core",
     ],
 )
@@ -98,7 +98,7 @@ cc_library(
 cc_library(
     name = "ttx",
     deps = [
-        ":abstraction",
+        ":concept",
         ":lexical",
         ":model",
         "//perimortem:core",

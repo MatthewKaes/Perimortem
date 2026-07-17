@@ -28,7 +28,7 @@ class Constant : public Expression {
     return requested == contract_id || Expression::implements(requested);
   }
 
-  auto get_inputs() const -> const Layout& final { return inputs; }
+  auto get_inputs() const -> const Concept::Layout& final { return inputs; }
 
   virtual auto equals(const Constant& rhs) const -> Bool = 0;
 
@@ -37,8 +37,8 @@ class Constant : public Expression {
 
  protected:
   auto has_same_type(const Constant& rhs) const -> Bool {
-    const Abstraction::Abstract& lhs_type = get_type().resolve();
-    const Abstraction::Abstract& rhs_type = rhs.get_type().resolve();
+    const Concept::Abstract& lhs_type = get_type().resolve();
+    const Concept::Abstract& rhs_type = rhs.get_type().resolve();
     return lhs_type.is<Type>() && rhs_type.is<Type>() && &lhs_type == &rhs_type;
   }
 

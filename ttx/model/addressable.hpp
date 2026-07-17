@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include "ttx/abstraction/abstract.hpp"
+#include "ttx/concept/abstract.hpp"
 
 namespace Ttx::Model {
 
@@ -17,7 +17,7 @@ namespace Ttx::Model {
 // Addressable objects, so documentation, attributes, defaults, ISA facts, and
 // target storage remain on their real owners. Core TTX assigns no pointer
 // width, offset, symbol spelling, calling convention, or storage policy.
-class Addressable : public Abstraction::Abstract {
+class Addressable : public Concept::Abstract {
  public:
   using ContractOwner = Addressable;
   static constexpr Perimortem::System::Uuid contract_id{

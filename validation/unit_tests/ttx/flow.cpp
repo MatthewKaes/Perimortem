@@ -6,8 +6,8 @@
 #include "perimortem/memory/allocator/arena.hpp"
 #include "perimortem/memory/managed/vector.hpp"
 
-#include "ttx/abstraction/alias.hpp"
-#include "ttx/abstraction/invalid.hpp"
+#include "ttx/concept/alias.hpp"
+#include "ttx/concept/invalid.hpp"
 #include "ttx/model/binding.hpp"
 #include "ttx/model/constants/flag.hpp"
 #include "ttx/model/constants/unsigned.hpp"
@@ -17,7 +17,7 @@
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
-using namespace Ttx::Abstraction;
+using namespace Ttx::Concept;
 using namespace Ttx::Model;
 using namespace Ttx::Model::Layouts;
 using namespace Validation;

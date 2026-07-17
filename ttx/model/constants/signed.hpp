@@ -34,7 +34,7 @@ class Signed : public Constant {
       return False;
     }
 
-    const Abstraction::Abstract& target_type = target.resolve();
+    const Concept::Abstract& target_type = target.resolve();
     if (!target_type.is<Types::Signed>()) {
       return False;
     }

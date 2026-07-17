@@ -93,21 +93,21 @@ object code, editor data, or something else.
 
 That makes the reusable TTX model smaller than a full language tree:
 
-| TTX data or token shape                | Usually becomes                                               |
-| -------------------------------------- | ------------------------------------------------------------- |
-| `Ttx::Abstraction::Abstract`           | named semantic identity and progressive context resolution    |
-| `Ttx::Model::Type`                     | resolved type identity and Structured layout                  |
-| `Ttx::Model::Types::Terminal`           | direct target byte size and alignment                         |
-| `Ttx::Model::Expression`               | evaluatable value with result Type and ordered input queries  |
-| `Ttx::Model::Constant`                 | immutable zero-input value already in normal form             |
-| `Ttx::Model::Callable`                 | static or receiver-bound callable layout and linkage query    |
-| `Ttx::Model::Layout`                   | ordered Abstract shape and directional fitting                |
-| `Ttx::Model::Documentation`            | source-authored prose for tools and exported facts            |
-| `TypeAccessOp` such as `::`            | nested type query against the current type or import context  |
-| `AddressOp` such as `.`                | layout member query, package-name segment, or ISA projection  |
-| `CallOp` such as `->`                  | callable dispatch query against the current type or ISA facts |
-| modifier and attribute token classes   | visibility, storage, package, or ISA-owned metadata           |
-| quoted bytes, layout, and pack tokens  | source-shaped operands for the active ISA                     |
+| TTX data or token shape               | Usually becomes                                               |
+| ------------------------------------- | ------------------------------------------------------------- |
+| `Ttx::Concept::Abstract`              | named semantic identity and progressive context resolution    |
+| `Ttx::Concept::Layout`                | ordered Abstract shape and directional fitting                |
+| `Ttx::Concept::Documentation`         | source-authored prose borrowed by its semantic owner           |
+| `Ttx::Model::Type`                    | resolved type identity and Structured layout                  |
+| `Ttx::Model::Types::Terminal`         | direct target byte size and alignment                         |
+| `Ttx::Model::Expression`              | evaluatable value with result Type and ordered input queries  |
+| `Ttx::Model::Constant`                | immutable zero-input value already in normal form             |
+| `Ttx::Model::Callable`                | static or receiver-bound callable layout and linkage query    |
+| `TypeAccessOp` such as `::`           | nested type query against the current type or import context  |
+| `AddressOp` such as `.`               | layout member query, package-name segment, or ISA projection  |
+| `CallOp` such as `->`                 | callable dispatch query against the current type or ISA facts |
+| modifier and attribute token classes  | visibility, storage, package, or ISA-owned metadata           |
+| quoted bytes, layout, and pack tokens | source-shaped operands for the active ISA                     |
 
 Library, Package, Shader, Render, and future ISAs then decide what larger source
 forms mean. A Library ISA may define functions, control flow, and local storage.
@@ -178,7 +178,7 @@ evaluator installed in the active host. Puffer implements this convention with a
 direct Boot ISA call and Tetrodotoxin's `Isa::Registry`, but that registry is a
 toolchain detail. An ISA is not a separate lowered IR stage. It is the
 instruction set that owns the next bytecode span and may expose or consume
-`Ttx::Abstraction::Abstract`, `Ttx::Model::Type`, `Ttx::Model::Layout`, or
+`Ttx::Concept::Abstract`, `Ttx::Model::Type`, `Ttx::Concept::Layout`, or
 other host facts.
 
 The lowercase `dialect` marker is a reserved keyword. The ISA name after
@@ -350,26 +350,32 @@ reachable from its context. Tools ask for the contract they need instead of
 assuming that every declaration is a Type:
 
 ```text
-Ttx::Abstraction::Abstract
-├── Ttx::Abstraction::Alias
-├── Ttx::Abstraction::Invalid
-├── Ttx::Model::Generic
-├── Ttx::Model::Expression
-│   └── Ttx::Model::Constant
-│       └── Ttx::Model::Constants::{Unsigned, Signed, Real, Flag, Bytes}
-├── Ttx::Model::Type
-│   ├── Ttx::Model::Types::Terminal
-│   │   └── Unsigned / Signed / Real / Flag
-│   └── ISA-defined model types
-├── Ttx::Model::Callable
-│   ├── Ttx::Model::Static
-│   └── Ttx::Model::Self
-└── Ttx::Model::Addressable
+Ttx::Concept
+├── Abstract
+│   ├── Alias
+│   ├── Invalid
+│   ├── Ttx::Model::Generic
+│   ├── Ttx::Model::Expression
+│   │   └── Ttx::Model::Constant
+│   │       └── Ttx::Model::Constants::{Unsigned, Signed, Real, Flag, Bytes}
+│   ├── Ttx::Model::Type
+│   │   ├── Ttx::Model::Types::Terminal
+│   │   │   └── Unsigned / Signed / Real / Flag
+│   │   └── ISA-defined model types
+│   ├── Ttx::Model::Callable
+│   │   ├── Ttx::Model::Callables::Static
+│   │   └── Ttx::Model::Callables::Self
+│   └── Ttx::Model::Addressable
+├── Documentation
+└── Layout
 ```
 
-`Ttx::Abstraction` owns only the restricted identity and resolution substrate.
-`Ttx::Model` owns the shared source-IR vocabulary layered on that substrate. It
-does not own a registry, global object collection, or parallel semantic graph.
+`Ttx::Concept` owns foundational contracts and values that have no narrower
+semantic owner. Abstract supplies identity and progressive resolution. Layout
+supplies shape and fitting without identity. Documentation preserves borrowed
+authored prose. `Ttx::Model` owns the shared source-IR mechanisms layered on
+those concepts. It does not own a registry, global object collection, or
+parallel semantic graph.
 
 This hierarchy is semantic, not C++ RTTI. Native and foreign-language objects
 answer the same progressive Abstract queries without a central class authority.
@@ -395,27 +401,29 @@ vtables across the ABI.
 
 The core contracts are deliberately narrow:
 
-| Contract      | Responsibility                                                   |
-| ------------- | ---------------------------------------------------------------- |
-| `Abstract`    | name, identity redirection, and progressive context resolution   |
-| `Alias`       | closed named redirection to another Abstract                     |
-| `Type`        | resolved identity with a total Structured Layout query           |
-| `Terminal`    | Type leaf with direct byte size and alignment                    |
-| `Unsigned`    | Terminal non-negative integer domain                             |
-| `Signed`      | Terminal signed integer domain                                   |
-| `Real`        | Terminal floating-point domain                                   |
-| `Flag`        | Terminal two-value logical domain                                |
-| `Generic`     | instruction that creates or finds a concrete Type from arguments |
-| `Pack`        | grouped value flow exposing an identity-free fitting Layout        |
-| `Expression`  | one value with result Type, input Layout, and fitting queries       |
-| `Constant`    | immutable zero-input Expression with value equality                |
-| `Projection`  | Expression selecting an Addressable through a receiver              |
-| `Binding`     | Expression giving another Expression an authored flow name          |
-| `Callable`    | complete parameter/result layouts and an address/linkage query   |
-| `Static`      | invocation selected through a Type or package without a receiver |
-| `Self`        | invocation on an addressable receiver included as parameter zero |
-| `Addressable` | named semantic edge resolving to the addressed Abstract           |
-| `Invalid`     | an absorbing failed query                                        |
+| Contract        | Responsibility                                                   |
+| --------------- | ---------------------------------------------------------------- |
+| `Abstract`      | name, identity redirection, and progressive context resolution   |
+| `Alias`         | closed local name, documentation, and redirection to an Abstract  |
+| `Documentation` | borrowed source-authored prose with no semantic identity         |
+| `Layout`        | identity-free ordered shape, fitting, and fitting evidence        |
+| `Type`          | resolved identity with a total Structured Layout query           |
+| `Terminal`      | Type leaf with direct byte size and alignment                    |
+| `Unsigned`      | Terminal non-negative integer domain                             |
+| `Signed`        | Terminal signed integer domain                                   |
+| `Real`          | Terminal floating-point domain                                   |
+| `Flag`          | Terminal two-value logical domain                                |
+| `Generic`       | instruction that creates or finds a concrete Type from arguments |
+| `Pack`          | grouped value flow exposing an identity-free fitting Layout      |
+| `Expression`    | one value with result Type, input Layout, and fitting queries     |
+| `Constant`      | immutable zero-input Expression with value equality              |
+| `Projection`    | Expression selecting an Addressable through a receiver           |
+| `Binding`       | Expression giving another Expression an authored flow name       |
+| `Callable`      | complete parameter/result layouts and an address/linkage query   |
+| `Static`        | invocation selected through a Type or package without a receiver |
+| `Self`          | invocation on an addressable receiver included as parameter zero |
+| `Addressable`   | named semantic edge resolving to the addressed Abstract          |
+| `Invalid`       | an absorbing failed query                                        |
 
 The initial native query surface is intentionally small and total:
 
@@ -423,13 +431,13 @@ The initial native query surface is intentionally small and total:
 Type::get_layout()             -> const Layouts::Structured&
 Terminal::get_size()           -> Count
 Terminal::get_alignment()      -> Count
-Callable::get_parameters()     -> const Layout&
-Callable::get_results()        -> const Layout&
+Callable::get_parameters()     -> const Concept::Layout&
+Callable::get_results()        -> const Concept::Layout&
 Callable::get_address()        -> const Abstract&
 Generic::materialize(args)     -> const Abstract&
-Pack::get_layout()             -> const Layout&
+Pack::get_layout()             -> const Concept::Layout&
 Expression::get_type()         -> const Abstract&
-Expression::get_inputs()       -> const Layout&
+Expression::get_inputs()       -> const Concept::Layout&
 Expression::fits(type)         -> Bool
 Constant::equals(constant)     -> Bool
 Layout::get_fitted(target, i)  -> const Abstract&
@@ -440,7 +448,7 @@ Layout stores no copied Member record. It exposes real Abstracts, and Structured
 narrows those entries to the actual Addressables owned by a Type. Names, child
 Types, documentation, attributes, defaults, and ISA facts remain on the real
 objects or their richer contracts rather than becoming nullable Layout fields.
-Contiguous model collections use non-null `Abstraction::Reference<Contract>`
+Contiguous model collections use non-null `Concept::Reference<Contract>`
 values rather than raw semantic pointers.
 
 There is no generic `Typed` marker. A query asks for the real operation it
@@ -470,12 +478,12 @@ package, registry, reflection, diagnostic, ownership, or traversal concern in
 disguise. As a practical warning boundary, `abstract.hpp` should remain around
 150 lines or fewer.
 
-Alias and Invalid are closed concepts. Alias owns only a local name and a
-borrowed target, redirects both Abstract queries, and relies on the graph owner
-for target lifetime and cycle rejection. Invalid is a stateless absorbing
-Abstract. Diagnostics remain with the source-owning query. Neither class grows
-Type, Layout, documentation, package, ownership, route-history, or specialized
-failure responsibilities.
+Alias and Invalid are closed concepts. Alias owns a local name, its local
+documentation, and a borrowed target. It redirects both Abstract queries and
+relies on the graph owner for target lifetime and cycle rejection. Invalid is a
+stateless absorbing Abstract. Diagnostics remain with the source-owning query.
+Neither class grows Type, Layout, package, ownership, route-history, or
+specialized failure responsibilities.
 
 Resolution policy stays with the owning object. A Type may keep separate static
 and self maps, permitting both surfaces to contain `open` without introducing a
@@ -575,10 +583,11 @@ its argument shape remain distinct source errors, with both represented
 semantically by Invalid.
 
 Aliases are closed compile-time Abstract redirects. Alias preserves its local
-name while `resolve()` follows the target's represented identity and
-`resolve_context(route)` gives the complete route to the resolved target. If
-that target is a Type, the consumer proves the Type contract after resolution.
-The source declaration owns documentation beside the Alias. Alias cycles are
+name and authored documentation while `resolve()` follows the target's
+represented identity and `resolve_context(route)` gives the complete route to
+the resolved target. If that target is a Type, the consumer proves the Type
+contract after resolution. The Alias documentation explains its local name and
+does not replace or modify documentation owned by the target. Alias cycles are
 rejected during graph construction.
 
 Types are also compile-time values of the standard `Type` type. This keeps a
@@ -949,10 +958,11 @@ result Type identity. `get_type()` returns the proven Type or Invalid,
 `fits(type)` answers whether the value can safely occupy a target Type. The
 default fit is exact resolved Type identity.
 
-`Pack` and `Layout` deliberately meet at only one seam. Pack is the queryable
-semantic carrier for grouped flow. Layout is its identity-free shape and
-fitting view. Concrete Packs own their Layout objects instead of inheriting
-them. Expression dependency lists also use identity-free Layouts because an
+`Pack` and `Layout` deliberately meet at only one seam. Layout is the
+fundamental identity-free shape and fitting concept. Pack is the queryable
+Abstract mechanism for grouped flow and publishes that Layout. Concrete Packs
+own their Layout objects instead of inheriting them. Expression dependency
+lists also use identity-free Layouts because an
 operand list is not itself an authored multi-value result. This keeps grouped
 flow queryable without making every Type Layout into an Abstract value.
 
@@ -1224,13 +1234,13 @@ collected into one `Documentation` object in source order:
 private signature : Vec[Bits_8, 8] = 0x[89 50 4E 47];
 ```
 
-Documentation is part of the TTX model because the formatter and LSP need it.
-It is not part of type identity, layout equivalence, or layout fitting.
-It is also not folded into identity resolution. The declaration that introduces
-an Alias may document why the target is being used in that context, while the
-resolved target keeps its own documentation. An LSP hover can choose source,
-resolved, or stacked presentation without storing prose on Alias or changing
-type equivalence.
+Documentation is a first-class Concept value because Abstract and Model objects
+both need to borrow authored prose. It is not an Abstract and does not
+participate in type identity, layout equivalence, layout fitting, or identity
+resolution. Alias owns the prose for its local authored name while the resolved
+target keeps its own documentation. An LSP hover can choose local, resolved, or
+stacked presentation without changing either object or their semantic
+equivalence.
 
 ## Why The Grammar Is Small
 

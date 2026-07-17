@@ -5,7 +5,7 @@
 
 #include "perimortem/core/view/vector.hpp"
 
-#include "ttx/abstraction/reference.hpp"
+#include "ttx/concept/reference.hpp"
 #include "ttx/model/layouts/fluid.hpp"
 #include "ttx/model/pack.hpp"
 
@@ -26,8 +26,8 @@ class Positional final : public Pack {
   };
 
   Positional(
-      Perimortem::Core::View::Vector<
-          Abstraction::Reference<Abstraction::Abstract>> values);
+      Perimortem::Core::View::Vector<Concept::Reference<Concept::Abstract>>
+          values);
 
   auto implements(Perimortem::System::Uuid requested) const -> Bool override;
   auto get_layout() const -> const Layouts::Fluid& override;

@@ -5,7 +5,7 @@
 
 #include "perimortem/core/view/vector.hpp"
 
-#include "ttx/abstraction/reference.hpp"
+#include "ttx/concept/reference.hpp"
 #include "ttx/model/layouts/named.hpp"
 #include "ttx/model/pack.hpp"
 
@@ -28,8 +28,8 @@ class Named final : public Pack {
   };
 
   Named(
-      Perimortem::Core::View::Vector<
-          Abstraction::Reference<Abstraction::Abstract>> bindings);
+      Perimortem::Core::View::Vector<Concept::Reference<Concept::Abstract>>
+          bindings);
 
   auto implements(Perimortem::System::Uuid requested) const -> Bool override;
   auto get_layout() const -> const Layouts::Named& override;

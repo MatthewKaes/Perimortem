@@ -19,11 +19,11 @@ auto Ttx::Model::Projection::get_name() const -> Perimortem::Core::View::Bytes {
   return addressable.get_name();
 }
 
-auto Ttx::Model::Projection::get_type() const -> const Abstraction::Abstract& {
+auto Ttx::Model::Projection::get_type() const -> const Concept::Abstract& {
   return addressable.resolve();
 }
 
-auto Ttx::Model::Projection::get_inputs() const -> const Layout& {
+auto Ttx::Model::Projection::get_inputs() const -> const Concept::Layout& {
   return inputs;
 }
 

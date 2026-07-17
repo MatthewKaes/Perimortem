@@ -5,9 +5,9 @@
 
 #include "perimortem/core/null_terminated.hpp"
 
-#include "ttx/abstraction/abstract.hpp"
+#include "ttx/concept/abstract.hpp"
 
-namespace Ttx::Abstraction {
+namespace Ttx::Concept {
 
 // Invalid is the closed absorbing failure concept in the TTX graph. It is not a
 // diagnostic, nullable stand-in, partially constructed semantic object, or a
@@ -42,4 +42,4 @@ class Invalid final : public Abstract {
   }
 };
 
-}  // namespace Ttx::Abstraction
+}  // namespace Ttx::Concept

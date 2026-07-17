@@ -3,14 +3,14 @@
 
 #include "ttx/model/pack.hpp"
 
-#include "ttx/abstraction/invalid.hpp"
+#include "ttx/concept/invalid.hpp"
 
 auto Ttx::Model::Pack::get_name() const -> Perimortem::Core::View::Bytes {
   return {};
 }
 
 auto Ttx::Model::Pack::resolve_context(Perimortem::Core::View::Bytes) const
-    -> const Abstraction::Abstract& {
-  static const Abstraction::Invalid invalid;
+    -> const Concept::Abstract& {
+  static const Concept::Invalid invalid;
   return invalid;
 }

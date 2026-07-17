@@ -3,11 +3,13 @@
 
 #include "validation/unit_test.hpp"
 
-#include "ttx/abstraction/alias.hpp"
-#include "ttx/abstraction/invalid.hpp"
+#include "perimortem/core/static/vector.hpp"
+
+#include "ttx/concept/alias.hpp"
+#include "ttx/concept/invalid.hpp"
 
 using namespace Perimortem::Core;
-using namespace Ttx::Abstraction;
+using namespace Ttx::Concept;
 using namespace Validation;
 
 static Harness TtxAbstract = {
@@ -67,12 +69,20 @@ PERIMORTEM_UNIT_TEST(TtxAbstract, alias_reroutes) {
   };
 
   Invalid invalid;
+  static constexpr Static::Vector<View::Bytes, 2> lines = {{
+    "Use the palette context."_view,
+    "Preserve authored color names."_view,
+  }};
   Value color("Color"_view, invalid);
   Context graphics("Graphics"_view, "Color"_view, color, invalid);
-  Alias palette("Palette"_view, graphics);
+  Alias palette("Palette"_view, graphics, Ttx::Concept::Documentation(lines));
   Alias colors("Colors"_view, palette);
 
   EXPECT_TEXT(palette.get_name(), "Palette"_view);
+  EXPECT_EQ(palette.get_documentation().get_line_count(), Count(2));
+  EXPECT_TEXT(
+      palette.get_documentation().line_at(0), "Use the palette context."_view);
+  EXPECT(colors.get_documentation().is_empty());
   EXPECT_TEXT(palette.resolve().get_name(), "Graphics"_view);
   EXPECT(&palette.resolve() == &graphics);
   EXPECT(&colors.resolve() == &colors.resolve().resolve());

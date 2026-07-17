@@ -5,8 +5,8 @@
 
 #include "perimortem/core/view/vector.hpp"
 
-#include "ttx/abstraction/reference.hpp"
-#include "ttx/model/layout.hpp"
+#include "ttx/concept/layout.hpp"
+#include "ttx/concept/reference.hpp"
 
 namespace Ttx::Model::Layouts {
 
@@ -15,16 +15,15 @@ namespace Ttx::Model::Layouts {
 // Layout by ordered resolved identity and carries no field metadata. An
 // Expression entry instead proves that it fits the resolved target Type, which
 // keeps value-domain conversion knowledge out of Layout.
-class Fluid : public Layout {
+class Fluid : public Concept::Layout {
  public:
   Fluid(
-      Perimortem::Core::View::Vector<
-          Abstraction::Reference<Abstraction::Abstract>> abstracts = {})
+      Perimortem::Core::View::Vector<Concept::Reference<Concept::Abstract>>
+          abstracts = {})
       : abstracts(abstracts) {}
 
   auto get_size() const -> Count override { return abstracts.get_size(); }
-  auto get_abstract(Count index) const
-      -> const Abstraction::Abstract& override {
+  auto get_abstract(Count index) const -> const Concept::Abstract& override {
     if (index >= abstracts.get_size()) {
       return invalid_result;
     }
@@ -32,12 +31,12 @@ class Fluid : public Layout {
     return abstracts[index].get();
   }
 
-  auto fits(const Layout& target) const -> Bool override;
-  auto get_fitted(const Layout& target, Count target_index) const
-      -> const Abstraction::Abstract& override;
+  auto fits(const Concept::Layout& target) const -> Bool override;
+  auto get_fitted(const Concept::Layout& target, Count target_index) const
+      -> const Concept::Abstract& override;
 
  private:
-  Perimortem::Core::View::Vector<Abstraction::Reference<Abstraction::Abstract>>
+  Perimortem::Core::View::Vector<Concept::Reference<Concept::Abstract>>
       abstracts;
 };
 

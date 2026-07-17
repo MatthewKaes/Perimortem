@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include "ttx/abstraction/abstract.hpp"
+#include "ttx/concept/abstract.hpp"
 #include "ttx/model/layouts/structured.hpp"
 
 namespace Ttx::Model {
@@ -26,7 +26,7 @@ namespace Ttx::Model {
 // Once Type resolution succeeds, get_layout() returns its Structured shape.
 // The structure contains real Addressable objects whose own resolution yields
 // the child Types needed by fitting and lowering.
-class Type : public Abstraction::Abstract {
+class Type : public Concept::Abstract {
  public:
   using ContractOwner = Type;
   static constexpr Perimortem::System::Uuid contract_id{

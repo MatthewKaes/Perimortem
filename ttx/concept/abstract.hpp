@@ -7,7 +7,7 @@
 
 #include "perimortem/system/uuid.hpp"
 
-namespace Ttx::Abstraction {
+namespace Ttx::Concept {
 
 // TTX does not begin with a closed type system. It begins with named abstract
 // contexts whose behavior can be extended by the language, an ISA, a compiler,
@@ -107,4 +107,4 @@ class Abstract {
       -> const Abstract& = 0;
 };
 
-}  // namespace Ttx::Abstraction
+}  // namespace Ttx::Concept

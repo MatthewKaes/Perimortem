@@ -172,8 +172,9 @@ systems. The important distinction is ownership:
 - Lexical owns token classification and token payload views.
 - Abstract objects and their virtual contracts form the shared TTX semantic
   graph. Type, Alias, Generic, Expression, Constant, Callable, Static, Self,
-  Addressable, and Invalid are contracts in that graph. Layout is the fitting
-  contract over an ordered group of those real objects.
+  Addressable, and Invalid are contracts in that graph. Layout is the
+  fundamental identity-free fitting contract over an ordered group of those
+  real objects. Documentation is the fundamental borrowed authored-prose value.
 - Host envelope evaluators own whatever source preamble they choose to execute.
 - Import, module, package, cache, and invalidation layers belong to the host
   that needs them.
@@ -194,52 +195,60 @@ authoritative parent path. Resolution passes the remaining borrowed
 `View::Bytes` directly through the objects it reaches. It does not allocate or
 persist a parallel path graph.
 
-The base hierarchy is:
+The Concept layer and Abstract hierarchy are:
 
 ```text
-Ttx::Abstraction::Abstract
-├── Ttx::Abstraction::Alias
-├── Ttx::Abstraction::Invalid
-├── Ttx::Model::Generic
-├── Ttx::Model::Expression
-│   └── Ttx::Model::Constant
-│       └── Ttx::Model::Constants::{Unsigned, Signed, Real, Flag, Bytes}
-├── Ttx::Model::Type
-│   ├── Ttx::Model::Types::Terminal
-│   │   ├── Ttx::Model::Types::Unsigned
-│   │   ├── Ttx::Model::Types::Signed
-│   │   ├── Ttx::Model::Types::Real
-│   │   └── Ttx::Model::Types::Flag
-│   └── ISA-defined model types
-├── Ttx::Model::Callable
-│   ├── Ttx::Model::Static
-│   └── Ttx::Model::Self
-└── Ttx::Model::Addressable
+Ttx::Concept
+├── Abstract
+│   ├── Alias
+│   ├── Invalid
+│   ├── Ttx::Model::Generic
+│   ├── Ttx::Model::Expression
+│   │   └── Ttx::Model::Constant
+│   │       └── Ttx::Model::Constants::{Unsigned, Signed, Real, Flag, Bytes}
+│   ├── Ttx::Model::Type
+│   │   ├── Ttx::Model::Types::Terminal
+│   │   │   ├── Ttx::Model::Types::Unsigned
+│   │   │   ├── Ttx::Model::Types::Signed
+│   │   │   ├── Ttx::Model::Types::Real
+│   │   │   └── Ttx::Model::Types::Flag
+│   │   └── ISA-defined model types
+│   ├── Ttx::Model::Callable
+│   │   ├── Ttx::Model::Callables::Static
+│   │   └── Ttx::Model::Callables::Self
+│   └── Ttx::Model::Addressable
+├── Documentation
+└── Layout
 ```
 
-`Ttx::Abstraction` owns the restricted identity and resolution substrate.
-`Ttx::Model` owns the shared semantic vocabulary built on that substrate.
-Model is a namespace and source-IR ownership boundary, not a central registry
-or a second graph.
+`Ttx::Concept` owns foundational contracts and values that have no narrower
+semantic owner. Abstract supplies identity and progressive resolution. Layout
+supplies shape and fitting without identity. Documentation preserves borrowed
+authored prose. `Ttx::Model` owns the semantic mechanisms built from those
+concepts. Model is a namespace and source-IR ownership boundary, not a central
+registry or a second graph.
 
-These names describe up-castable semantic contracts:
+Only the Abstract branch is queried through `is()` and `as()`. Layout and
+Documentation remain ordinary first-class contracts or values:
 
-| Contract      | Required meaning                                                                    |
-| ------------- | ----------------------------------------------------------------------------------- |
-| `Abstract`    | object name, identity redirection, and progressive context resolution               |
-| `Alias`       | closed named redirection of identity and context queries to another Abstract        |
-| `Type`        | resolved semantic identity with a total Structured Layout query                     |
-| `Generic`     | instruction contract that resolves arguments to a concrete Type                    |
-| `Pack`        | grouped value flow with a fitting Layout and no implied Type                        |
-| `Expression`  | one evaluatable value with a result Type query and ordered input Layout             |
-| `Constant`    | immutable Expression already in normal form with value equality                    |
-| `Projection`  | Expression selecting one Addressable from one receiver Expression                  |
-| `Binding`     | Expression giving one underlying Expression an authored flow name                  |
-| `Callable`    | complete parameter and result Layouts plus an address/linkage query                 |
-| `Static`      | invocation selected through a Type or package without a receiver                    |
-| `Self`        | invocation whose addressable receiver is parameter zero                             |
-| `Addressable` | named semantic edge whose resolution supplies the addressed Abstract                |
-| `Invalid`     | absorbing failed resolution                                                         |
+| Contract        | Required meaning                                                                    |
+| --------------- | ----------------------------------------------------------------------------------- |
+| `Abstract`      | object name, identity redirection, and progressive context resolution               |
+| `Alias`         | closed local name, documentation, and redirection to another Abstract                |
+| `Documentation` | borrowed source-authored prose with no semantic identity                             |
+| `Layout`        | identity-free ordered shape, directional fitting, and fitting evidence               |
+| `Type`          | resolved semantic identity with a total Structured Layout query                     |
+| `Generic`       | instruction contract that resolves arguments to a concrete Type                    |
+| `Pack`          | grouped value flow with a fitting Layout and no implied Type                        |
+| `Expression`    | one evaluatable value with a result Type query and ordered input Layout             |
+| `Constant`      | immutable Expression already in normal form with value equality                    |
+| `Projection`    | Expression selecting one Addressable from one receiver Expression                  |
+| `Binding`       | Expression giving one underlying Expression an authored flow name                  |
+| `Callable`      | complete parameter and result Layouts plus an address/linkage query                 |
+| `Static`        | invocation selected through a Type or package without a receiver                    |
+| `Self`          | invocation whose addressable receiver is parameter zero                             |
+| `Addressable`   | named semantic edge whose resolution supplies the addressed Abstract                |
+| `Invalid`       | absorbing failed resolution                                                         |
 
 Terminal Types add narrow storage and domain contracts:
 
@@ -257,13 +266,13 @@ The first narrow native contracts are deliberately reference based:
 Type::get_layout()             -> const Layouts::Structured&
 Terminal::get_size()           -> Count
 Terminal::get_alignment()      -> Count
-Callable::get_parameters()     -> const Layout&
-Callable::get_results()        -> const Layout&
+Callable::get_parameters()     -> const Concept::Layout&
+Callable::get_results()        -> const Concept::Layout&
 Callable::get_address()        -> const Abstract&
 Generic::materialize(args)     -> const Abstract&
-Pack::get_layout()             -> const Layout&
+Pack::get_layout()             -> const Concept::Layout&
 Expression::get_type()         -> const Abstract&
-Expression::get_inputs()       -> const Layout&
+Expression::get_inputs()       -> const Concept::Layout&
 Expression::fits(type)         -> Bool
 Constant::equals(constant)     -> Bool
 Layout::get_fitted(target, i)  -> const Abstract&
@@ -277,7 +286,7 @@ objects or on richer contracts they implement. Consumers resolve identity
 before using a narrow contract. No nullable reference is part of the Layout
 interface.
 
-Contiguous semantic collections store `Abstraction::Reference<Contract>`, a
+Contiguous semantic collections store `Concept::Reference<Contract>`, a
 non-null borrowed reference value. It preserves the object it receives.
 Consumers call `resolve()` explicitly when they need represented identity, so a
 Structured Layout retains its real Addressables while a Generic Argument can
@@ -391,11 +400,12 @@ Alias overrides `resolve()` to return its target's resolved identity and
 `Palette` in the package Type and `Color` in the aliased Type without
 manufacturing or rewriting an intermediate path object.
 
-Alias is closed around that responsibility. It owns only its local name and a
-borrowed target reference. It does not own Type behavior, layout,
-documentation, attributes, diagnostics, package membership, or route history.
-The graph owner guarantees target lifetime and rejects alias cycles before an
-Alias becomes queryable.
+Alias is closed around local redirection. It owns its local name, local
+documentation, and a borrowed target reference. The documentation describes
+the authored Alias rather than the target and does not participate in either
+resolution query. Alias does not own Type behavior, layout, attributes,
+diagnostics, package membership, or route history. The graph owner guarantees
+target lifetime and rejects alias cycles before an Alias becomes queryable.
 
 Names remain unique inside each lookup surface. Static and self callables may
 share a name because the receiver chooses the Type-owned surface before lookup.
@@ -453,9 +463,10 @@ value or Invalid, and `get_inputs()` returns the Layout of values needed to
 evaluate it. The active ISA owns operator legality, executable bodies, parsing,
 evaluation, and diagnostics.
 
-Pack and Layout are related but not interchangeable. Pack is a queryable
-Abstract that carries grouped value flow through the semantic DAG. Layout is
-the identity-free fitting view exposed by that Pack. This separation lets an
+Pack and Layout are related but not interchangeable. Layout is the fundamental
+identity-free shape and fitting concept. Pack is the queryable Abstract
+mechanism that carries grouped value flow through the semantic DAG and
+publishes a Layout. This separation lets an
 evaluator return either one Expression, one Pack, or Invalid without turning
 every Type Layout into a value object. Concrete positional and named Packs own
 their fitting views by composition and do not inherit Layout as another public
@@ -504,7 +515,7 @@ not require an evaluation method on every Expression.
 
 ## Layout Facts
 
-Layout is the shared fitting contract over an ordered group of real Abstracts.
+`Concept::Layout` is the shared fitting contract over an ordered group of real Abstracts.
 It answers how many objects are present, which Abstract is at an index, whether
 this source shape fits a target shape, and which source Abstract supplies each
 target slot. An invalid index or fit returns Invalid. Layout is not an Abstract,
@@ -940,10 +951,10 @@ owner retains the authored route for diagnostics. A publication owner selects
 and renders a public ownership chain independently of local cache identity.
 
 `alias` creates an Alias Abstract that preserves the authored local name and
-redirects to its resolved target. When that target is a Type, a Type consumer
-calls `resolve()`, proves the Type contract, and then forgets the Alias.
-Documentation belongs to the source declaration or owning context beside the
-Alias, not to the closed Alias object itself.
+documentation while redirecting to its resolved target. When that target is a
+Type, a Type consumer calls `resolve()`, proves the Type contract, and then
+forgets the Alias. Documentation tools may inspect the Alias first to retain
+that local source context.
 
 A resolved type may also be stored as a compile-time value whose type is the
 standard `Type` type:
@@ -1989,13 +2000,12 @@ diagnostics. They are not executable statements. Documentation belongs to the
 type, member, or function that owns it and is preserved for formatter and LSP
 queries. It does not participate in type identity or layout fitting.
 
-Documentation is intentionally separate from identity resolution. The source
-declaration or owning context may document why an Alias exists, while the
-resolved target has its own documentation. A tool may present either source or
-resolved documentation, or accumulate presentation while it follows the Alias
-chain. Alias itself owns neither prose nor a `display_name` substitute.
-Presentation does not participate in identity, Type equivalence, Layout
-equivalence, or Layout fitting.
+Documentation is intentionally separate from identity resolution. Alias owns
+the prose authored for its local name, while the resolved target retains its
+own documentation. A tool may present local or resolved documentation, or
+accumulate presentation while it follows the Alias chain. Documentation is not
+a `display_name` substitute and does not participate in identity, Type
+equivalence, Layout equivalence, or Layout fitting.
 
 ## Identity Resolution
 

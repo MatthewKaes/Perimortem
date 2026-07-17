@@ -4,8 +4,8 @@
 #include "ttx/model/packs/named.hpp"
 
 Ttx::Model::Packs::Named::Named(
-    Perimortem::Core::View::Vector<
-        Abstraction::Reference<Abstraction::Abstract>> bindings)
+    Perimortem::Core::View::Vector<Concept::Reference<Concept::Abstract>>
+        bindings)
     : layout(bindings) {}
 
 auto Ttx::Model::Packs::Named::implements(

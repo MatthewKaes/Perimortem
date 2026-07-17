@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include "ttx/abstraction/reference.hpp"
+#include "ttx/concept/reference.hpp"
 #include "ttx/model/addressable.hpp"
 #include "ttx/model/expression.hpp"
 #include "ttx/model/layouts/fluid.hpp"
@@ -36,8 +36,8 @@ class Projection final : public Expression {
 
   auto implements(Perimortem::System::Uuid requested) const -> Bool override;
   auto get_name() const -> Perimortem::Core::View::Bytes override;
-  auto get_type() const -> const Abstraction::Abstract& override;
-  auto get_inputs() const -> const Layout& override;
+  auto get_type() const -> const Concept::Abstract& override;
+  auto get_inputs() const -> const Concept::Layout& override;
 
   auto get_receiver() const -> const Expression&;
   constexpr auto get_addressable() const -> const Addressable& {
@@ -45,7 +45,7 @@ class Projection final : public Expression {
   }
 
  private:
-  Abstraction::Reference<Abstraction::Abstract> receiver;
+  Concept::Reference<Concept::Abstract> receiver;
   const Addressable& addressable;
   Layouts::Fluid inputs;
 };

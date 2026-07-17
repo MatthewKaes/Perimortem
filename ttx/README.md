@@ -117,43 +117,48 @@ Shader ISA can expose shader stage facts. A Package ISA can expose package
 exports. A Library ISA can expose callable functions and ABI facts. Those are
 ISA-owned enrichments over the same TTX token bytecode.
 
-## Abstracts and the model
+## Concepts and the model
 
 Every queryable semantic identity implements `Abstract`. Derived contracts expose
-the operations that make the object useful:
+the operations that make the object useful. Layout and Documentation are
+equally fundamental concepts, but neither needs semantic identity:
 
 ```text
-Ttx::Abstraction::Abstract
-├── Ttx::Abstraction::Alias
-├── Ttx::Abstraction::Invalid
-├── Ttx::Model::Generic
-├── Ttx::Model::Pack
-│   ├── Ttx::Model::Packs::Positional
-│   └── Ttx::Model::Packs::Named
-├── Ttx::Model::Expression
-│   ├── Ttx::Model::Projection
-│   ├── Ttx::Model::Binding
-│   └── Ttx::Model::Constant
-│       └── Ttx::Model::Constants::{Unsigned, Signed, Real, Flag, Bytes}
-├── Ttx::Model::Type
-│   └── ISA-defined model types
-├── Ttx::Model::Callable
-│   ├── Ttx::Model::Static
-│   └── Ttx::Model::Self
-└── Ttx::Model::Addressable
+Ttx::Concept
+├── Abstract
+│   ├── Alias
+│   ├── Invalid
+│   ├── Ttx::Model::Generic
+│   ├── Ttx::Model::Pack
+│   │   ├── Ttx::Model::Packs::Positional
+│   │   └── Ttx::Model::Packs::Named
+│   ├── Ttx::Model::Expression
+│   │   ├── Ttx::Model::Projection
+│   │   ├── Ttx::Model::Binding
+│   │   └── Ttx::Model::Constant
+│   │       └── Ttx::Model::Constants::{Unsigned, Signed, Real, Flag, Bytes}
+│   ├── Ttx::Model::Type
+│   │   └── ISA-defined model types
+│   ├── Ttx::Model::Callable
+│   │   ├── Ttx::Model::Callables::Static
+│   │   └── Ttx::Model::Callables::Self
+│   └── Ttx::Model::Addressable
+├── Documentation
+└── Layout
 ```
 
-The `Ttx::Abstraction` namespace owns the restricted resolution substrate. The
-`Ttx::Model` namespace owns the shared semantic vocabulary built on that
-substrate, including Type, Layout, Callable, metadata, and their supporting
-value facts.
+The `Ttx::Concept` namespace owns the foundational contracts and values used
+across TTX. Abstract supplies identity and resolution. Layout supplies shape and
+fitting without identity. Documentation preserves borrowed authored prose. The
+`Ttx::Model` namespace owns the semantic mechanisms built from those concepts,
+including Type, Pack, Expression, Callable, and their concrete refinements.
 
 `Abstract` owns only local naming, identity resolution, and context resolution
-over borrowed `View::Bytes`. `Alias` is the closed named redirect to another
-Abstract. `Invalid` is the closed stateless absorbing failure. `Type` adds a
-Structured Layout and Type-owned query surfaces. `Generic` is an instruction
-that creates or finds a compiler-owned Type from accepted arguments. `Callable`
-adds complete parameter and result Layouts plus
+over borrowed `View::Bytes`. `Alias` is the closed local name, documentation,
+and redirect to another Abstract. `Invalid` is the closed stateless absorbing
+failure. `Type` adds a Structured Layout and Type-owned query surfaces.
+`Generic` is an instruction that creates or finds a compiler-owned Type from
+accepted arguments. `Callable` adds complete parameter and result Layouts plus
 an Addressable query. Static calls have no receiver. Self calls include the
 receiver as parameter zero. Addressable is a named semantic edge whose
 resolution supplies the addressed Abstract.
@@ -174,16 +179,16 @@ stateless and absorbing. The source-owning query retains the failed route and
 diagnostic cause. Empty scopes use empty views. Unresolved callable linkage uses
 an explicit unresolved Addressable or Invalid.
 
-A Layout is an ordered fitting contract over real Abstracts. Fluid represents
+A `Concept::Layout` is an ordered fitting contract over real Abstracts. Fluid represents
 positional value flow, Named represents uniquely named value flow, and
 Structured is a Type's stable sequence of actual Addressable objects. Layout
 does not copy their names, Types, documentation, attributes, defaults, or target
 storage into a Member record. Its contiguous storage uses non-null borrowed
 Reference values rather than nullable semantic pointers.
 
-Pack is the Abstract carrier for grouped value flow. It is not one Expression,
-a Type, runtime storage, or an Addressable. Its Layout is the identity-free
-fitting view over the carried Abstracts. Positional Packs expose Fluid and
+Pack is the Abstract mechanism for grouped value flow. It is not one Expression,
+a Type, runtime storage, or an Addressable. It publishes a fundamental Layout
+as the identity-free fitting view over the carried Abstracts. Positional Packs expose Fluid and
 borrow an entry view that the evaluator has already flattened. Named Packs
 expose Named over actual named Abstracts and never flatten. An authored field
 uses Binding when its name is a new edge to an underlying Expression. Both Pack
@@ -226,10 +231,10 @@ contract. Register and instruction width remain compiler decisions, so a
 one-byte terminal may still use a wider carrier. Core TTX owns no prelude,
 global width table, or concrete class for each spelling.
 
-Documentation is separate from identity resolution. The declaration that
-introduces an Alias may own contextual documentation, while the resolved target
-keeps its own prose. Alias itself owns neither documentation nor a
-`display_name` identity substitute.
+Documentation is separate from identity resolution. Alias owns the contextual
+documentation authored for its local name, while the resolved target keeps its
+own prose. Neither local nor resolved documentation is a `display_name`
+identity substitute.
 
 Type parameterization proves that the resolved Abstract implements Generic,
 resolves the arguments, and asks it for a concrete Type. `View[Bits_8]`,
@@ -423,18 +428,20 @@ already know.
 The TTX directory is the language core:
 
 - [`lexical`](lexical/) lowers source text into stable token bytecode
-- [`model`](model/) owns the shared Type, Layout, Pack, Expression, Constant,
-  Callable, Attribute, and Documentation vocabulary
-- [`model/documentation.hpp`](model/documentation.hpp) models source-authored
-  documentation owned beside semantic objects by declarations and contexts
-- [`abstraction/abstract.hpp`](abstraction/abstract.hpp) is the root semantic
-  query contract
+- [`concept`](concept/) owns Abstract, Alias, Invalid, Reference,
+  Documentation, and Layout as the foundational TTX concepts
+- [`concept/abstract.hpp`](concept/abstract.hpp) is the root semantic query
+  contract. [`concept/layout.hpp`](concept/layout.hpp) defines identity-free
+  shape and fitting. [`concept/documentation.hpp`](concept/documentation.hpp)
+  preserves borrowed authored prose
+- [`model`](model/) owns Type, Pack, Expression, Constant, Callable, Attribute,
+  and the concrete strategies built on the Concept layer
 - Alias and Invalid are closed Abstract concepts. Type, Generic, Pack,
   Expression, Constant, Projection, Binding, Callable, Static, Self,
   Addressable, and ISA-specific contracts extend the graph with narrow
   operations
-- [`model/layout.hpp`](model/layout.hpp) defines the ordered fitting contract.
-  [`model/layouts`](model/layouts/) contains Fluid, Named, and Structured
+- [`model/layouts`](model/layouts/) contains the Fluid, Named, and Structured
+  implementations of `Concept::Layout`
 - [`model/pack.hpp`](model/pack.hpp) supplies grouped value identity.
   [`model/packs`](model/packs/) contains the zero-allocation Positional and
   Named carriers. [`model/projection.hpp`](model/projection.hpp) and
@@ -446,7 +453,7 @@ The TTX directory is the language core:
   [`model/constant.hpp`](model/constant.hpp), and
   [`model/constants`](model/constants/) supply value and constant-domain
   contracts. [`model/callable.hpp`](model/callable.hpp),
-  [`model/static.hpp`](model/static.hpp), [`model/self.hpp`](model/self.hpp), and
+  [`model/callables`](model/callables/), and
   [`model/addressable.hpp`](model/addressable.hpp) supply invocation contracts
   without making Callable a subtype of Type
 - active toolchain contexts provide the scalar, vector, and memory Types they
