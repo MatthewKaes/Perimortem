@@ -18,7 +18,7 @@ PERIMORTEM_UNIT_TEST(ManagedBytes, bounds) {
   Allocator::Arena arena;
   Managed::Bytes bytes(arena, "abc"_view);
 
-  EXPECT_EQ(bytes[2], Bits_8('c'));
-  EXPECT_EQ(bytes[3], Bits_8(0));
-  EXPECT_EQ(bytes.at(Count(-1)), Bits_8(0));
+  EXPECT_EQ(bytes[2], Unsigned_8('c'));
+  EXPECT_EQ(bytes[3], Unsigned_8(0));
+  EXPECT_EQ(bytes.at(Count(-1)), Unsigned_8(0));
 }

@@ -19,7 +19,7 @@ namespace Tetrodotoxin::Linker::Target {
 class Format {
  public:
   virtual ~Format() {}
-  virtual auto add_section(Object::Section section) -> Bits_16 = 0;
+  virtual auto add_section(Object::Section section) -> Unsigned_16 = 0;
   virtual auto add_symbol(Object::Symbol symbol) -> void = 0;
   virtual auto add_relocation(Object::Relocation relocation) -> void = 0;
   virtual auto build_library(Perimortem::Core::View::Bytes object_name)

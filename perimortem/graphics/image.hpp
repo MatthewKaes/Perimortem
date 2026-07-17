@@ -20,14 +20,17 @@ namespace Perimortem::Graphics {
 // The only supported format is currently 8 bits per channel.
 class Image {
  public:
-  enum class Addressing : Bits_8 {
+  enum class Addressing : Unsigned_8 {
     Zero,
     Clamp,
     Wrap,
   };
 
   Image() = default;
-  Image(Bits_32 width, Bits_32 height, Addressing addressing = Addressing::Zero)
+  Image(
+      Unsigned_32 width,
+      Unsigned_32 height,
+      Addressing addressing = Addressing::Zero)
       : pixels(Count(width) * Count(height)),
         width(width),
         height(height),
@@ -39,8 +42,8 @@ class Image {
 
   Image(
       Memory::Dynamic::Vector<Pixel>&& source,
-      Bits_32 width,
-      Bits_32 height,
+      Unsigned_32 width,
+      Unsigned_32 height,
       Addressing addressing = Addressing::Zero)
       : pixels(Core::Data::take(source)),
         width(width),
@@ -61,8 +64,8 @@ class Image {
     }
   }
 
-  auto get_width() const -> Bits_32 { return width; }
-  auto get_height() const -> Bits_32 { return height; }
+  auto get_width() const -> Unsigned_32 { return width; }
+  auto get_height() const -> Unsigned_32 { return height; }
 
   // Returns the contiguous row-major pixel buffer.
   auto get_pixels() const -> Core::View::Vector<Pixel> {
@@ -82,7 +85,7 @@ class Image {
     }
 
     switch (addressing) {
-      // Any out of bounds values are saturated to Bits_8(0)
+      // Any out of bounds values are saturated to Unsigned_8(0)
     case Addressing::Zero:
       if (x < 0 || x >= width || y < 0 || y >= height) {
         return Pixel();
@@ -108,23 +111,25 @@ class Image {
 
   // Returns the number of bits that are used to represent a single value of any
   // given channel.
-  static constexpr auto get_color_depth() -> Bits_8 { return color_depth; }
+  static constexpr auto get_color_depth() -> Unsigned_8 { return color_depth; }
 
   // The number of channels used per logical pixel.
   //
   // The size of a logical pixel in bits is equal to the image's color depth
   // multiplied by the number of channels.
-  static constexpr auto get_channel_count() -> Bits_8 { return channel_count; }
+  static constexpr auto get_channel_count() -> Unsigned_8 {
+    return channel_count;
+  }
 
  private:
   // Currently only 8 bit is supported.
-  static constexpr Bits_8 color_depth = 8;
+  static constexpr Unsigned_8 color_depth = 8;
   // Currently only RGBA is supported.
-  static constexpr Bits_8 channel_count = 4;
+  static constexpr Unsigned_8 channel_count = 4;
 
   Memory::Dynamic::Vector<Pixel> pixels;
-  Bits_32 width = 0;
-  Bits_32 height = 0;
+  Unsigned_32 width = 0;
+  Unsigned_32 height = 0;
   Addressing addressing = Addressing::Zero;
 };
 

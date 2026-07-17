@@ -42,7 +42,7 @@ static auto require_enumeration_read(VkResult result, View::Bytes message)
 
 #ifdef PERI_DEBUG
 static auto instance_layer_available(View::Bytes layer_name) -> Bool {
-  Bits_32 layer_count = 0;
+  Unsigned_32 layer_count = 0;
   if (vkEnumerateInstanceLayerProperties(&layer_count, nullptr) != VK_SUCCESS) {
     return False;
   }
@@ -53,14 +53,14 @@ static auto instance_layer_available(View::Bytes layer_name) -> Bool {
 
   Perimortem::Memory::Dynamic::Vector<VkLayerProperties> layers;
   layers.forgetful_resize(layer_count);
-  Bits_32 read_layer_count = layer_count;
+  Unsigned_32 read_layer_count = layer_count;
   const VkResult layer_read_result =
       vkEnumerateInstanceLayerProperties(&read_layer_count, layers.get_data());
   if (layer_read_result != VK_SUCCESS && layer_read_result != VK_INCOMPLETE) {
     return False;
   }
 
-  for (Bits_32 i = 0; i < read_layer_count; i++) {
+  for (Unsigned_32 i = 0; i < read_layer_count; i++) {
     if (NullTerminated::to_view(layers[i].layerName) == layer_name) {
       return True;
     }
@@ -72,7 +72,7 @@ static auto instance_layer_available(View::Bytes layer_name) -> Bool {
 
 static auto select_physical_device(VkInstance instance, VkSurfaceKHR surface)
     -> VkPhysicalDevice {
-  Bits_32 physical_device_count = 0;
+  Unsigned_32 physical_device_count = 0;
   require_success(
       vkEnumeratePhysicalDevices(instance, &physical_device_count, nullptr),
       "Vulkan: Failed to query physical devices."_view);
@@ -82,7 +82,7 @@ static auto select_physical_device(VkInstance instance, VkSurfaceKHR surface)
 
   Perimortem::Memory::Dynamic::Vector<VkPhysicalDevice> physical_devices;
   physical_devices.forgetful_resize(physical_device_count);
-  Bits_32 read_physical_device_count = physical_device_count;
+  Unsigned_32 read_physical_device_count = physical_device_count;
   require_enumeration_read(
       vkEnumeratePhysicalDevices(
           instance, &read_physical_device_count, physical_devices.get_data()),
@@ -95,12 +95,12 @@ static auto select_physical_device(VkInstance instance, VkSurfaceKHR surface)
   // software devices remain valid fallbacks so development and inspection do
   // not depend on a particular machine configuration.
   VkPhysicalDevice fallback = VK_NULL_HANDLE;
-  for (Bits_32 i = 0; i < read_physical_device_count; i++) {
+  for (Unsigned_32 i = 0; i < read_physical_device_count; i++) {
     VkPhysicalDeviceProperties properties = {};
     vkGetPhysicalDeviceProperties(physical_devices[i], &properties);
 
     // Check that a queue family supports both graphics and present.
-    Bits_32 queue_family_count = 0;
+    Unsigned_32 queue_family_count = 0;
     vkGetPhysicalDeviceQueueFamilyProperties(
         physical_devices[i], &queue_family_count, nullptr);
     if (queue_family_count == 0) {
@@ -113,7 +113,7 @@ static auto select_physical_device(VkInstance instance, VkSurfaceKHR surface)
         physical_devices[i], &queue_family_count, queue_families.get_data());
 
     Bool usable = False;
-    for (Bits_32 queue_family = 0; queue_family < queue_family_count;
+    for (Unsigned_32 queue_family = 0; queue_family < queue_family_count;
          queue_family++) {
       if (!(queue_families[queue_family].queueFlags & VK_QUEUE_GRAPHICS_BIT)) {
         continue;
@@ -144,8 +144,8 @@ static auto select_physical_device(VkInstance instance, VkSurfaceKHR surface)
 
 static auto find_graphics_queue_family(
     VkPhysicalDevice physical_device,
-    VkSurfaceKHR surface) -> Bits_32 {
-  Bits_32 queue_family_count = 0;
+    VkSurfaceKHR surface) -> Unsigned_32 {
+  Unsigned_32 queue_family_count = 0;
   vkGetPhysicalDeviceQueueFamilyProperties(
       physical_device, &queue_family_count, nullptr);
   if (queue_family_count == 0) {
@@ -156,7 +156,7 @@ static auto find_graphics_queue_family(
   queue_families.forgetful_resize(queue_family_count);
   vkGetPhysicalDeviceQueueFamilyProperties(
       physical_device, &queue_family_count, queue_families.get_data());
-  for (Bits_32 i = 0; i < queue_family_count; i++) {
+  for (Unsigned_32 i = 0; i < queue_family_count; i++) {
     if (!(queue_families[i].queueFlags & VK_QUEUE_GRAPHICS_BIT)) {
       continue;
     }
@@ -182,12 +182,13 @@ auto Vulkan::Context::create(wl_display* display, wl_surface* surface)
 
   VkInstanceCreateInfo instance_info = {VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO};
   instance_info.pApplicationInfo = &app_info;
-  instance_info.enabledExtensionCount = Bits_32(instance_extensions.get_size());
+  instance_info.enabledExtensionCount =
+      Unsigned_32(instance_extensions.get_size());
   instance_info.ppEnabledExtensionNames = instance_extensions.get_data();
 
 #ifdef PERI_DEBUG
   if (instance_layer_available("VK_LAYER_KHRONOS_validation"_view)) {
-    instance_info.enabledLayerCount = Bits_32(validation_layers.get_size());
+    instance_info.enabledLayerCount = Unsigned_32(validation_layers.get_size());
     instance_info.ppEnabledLayerNames = validation_layers.get_data();
   }
 #endif
@@ -240,7 +241,7 @@ auto Vulkan::Context::create(wl_display* display, wl_surface* surface)
   device_info.pNext = &sync2;
   device_info.queueCreateInfoCount = 1;
   device_info.pQueueCreateInfos = &queue_info;
-  device_info.enabledExtensionCount = Bits_32(device_extensions.get_size());
+  device_info.enabledExtensionCount = Unsigned_32(device_extensions.get_size());
   device_info.ppEnabledExtensionNames = device_extensions.get_data();
 
   require_success(
@@ -330,7 +331,7 @@ auto Vulkan::Context::get_graphics_queue() const -> VkQueue {
   return graphics_queue;
 }
 
-auto Vulkan::Context::get_graphics_queue_family() const -> Bits_32 {
+auto Vulkan::Context::get_graphics_queue_family() const -> Unsigned_32 {
   return graphics_queue_family;
 }
 
@@ -378,11 +379,11 @@ auto Vulkan::Context::submit_immediate_commands(
 }
 
 auto Vulkan::Context::find_memory_type(
-    Bits_32 type_filter,
-    VkMemoryPropertyFlags properties) const -> Bits_32 {
+    Unsigned_32 type_filter,
+    VkMemoryPropertyFlags properties) const -> Unsigned_32 {
   VkPhysicalDeviceMemoryProperties memory_properties = {};
   vkGetPhysicalDeviceMemoryProperties(physical_device, &memory_properties);
-  for (Bits_32 i = 0; i < memory_properties.memoryTypeCount; i++) {
+  for (Unsigned_32 i = 0; i < memory_properties.memoryTypeCount; i++) {
     const Bool type_matches = Bool((type_filter & (1u << i)) != 0);
     const Bool properties_match = Bool(
         (memory_properties.memoryTypes[i].propertyFlags & properties) ==

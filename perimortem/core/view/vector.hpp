@@ -55,7 +55,8 @@ class Vector {
     if (index >= size) [[unlikely]] {
       // Aligned storage has no constructor and is safe to alias as data_type.
       // We zero-init so callers reading an OOB entry get a defined value.
-      alignas(alignof(data_type)) static const Bits_8 oob[sizeof(data_type)]{};
+      alignas(
+          alignof(data_type)) static const Unsigned_8 oob[sizeof(data_type)]{};
       return *Data::cast<const data_type>(oob);
     }
 
@@ -77,7 +78,7 @@ class Vector {
   constexpr auto get_data() const -> const data_type* { return source_block; }
   constexpr auto get_bytes() const -> const Bytes {
     return Bytes(
-        Data::cast<const Bits_8>(source_block), size * sizeof(data_type));
+        Data::cast<const Unsigned_8>(source_block), size * sizeof(data_type));
   }
 
  private:

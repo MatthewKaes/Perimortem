@@ -95,7 +95,7 @@ PERIMORTEM_UNIT_TEST(TtxAbi, scalar_constants) {
 }
 
 PERIMORTEM_UNIT_TEST(TtxAbi, byte_constants) {
-  constexpr Bits_8 expected[] = {0xAA, 0xFF, 0x12, 0x45, 0xAC, 0xDE};
+  constexpr Unsigned_8 expected[] = {0xAA, 0xFF, 0x12, 0x45, 0xAC, 0xDE};
   View::Bytes bytes = Ttx::Validation::TtxTests::Type::byte_array();
   ASSERT_EQ(bytes.get_size(), Count(6));
   EXPECT(bytes == View::Bytes(expected, 6));

@@ -67,8 +67,8 @@ PERIMORTEM_UNIT_TEST(CoreSerialReader, small_blobs) {
 }
 
 PERIMORTEM_UNIT_TEST(CoreSerialReader, large_blob) {
-  Static::Bytes<500> expected([](Count i) -> Bits_8 { return i; });
-  Static::Bytes<503> source([](Count i) -> Bits_8 {
+  Static::Bytes<500> expected([](Count i) -> Unsigned_8 { return i; });
+  Static::Bytes<503> source([](Count i) -> Unsigned_8 {
     // Header
     if (i < 3) {
       return "\x22\xF4\x01"_view[i];
@@ -227,8 +227,8 @@ PERIMORTEM_UNIT_TEST(CoreSerialWriter, small_blobs) {
 }
 
 PERIMORTEM_UNIT_TEST(CoreSerialWriter, large_blob) {
-  Static::Bytes<500> source([](Count i) -> Bits_8 { return i; });
-  Static::Bytes<503> expected([](Count i) -> Bits_8 {
+  Static::Bytes<500> source([](Count i) -> Unsigned_8 { return i; });
+  Static::Bytes<503> expected([](Count i) -> Unsigned_8 {
     // Header
     if (i < 3) {
       return "\x22\xF4\x01"_view[i];

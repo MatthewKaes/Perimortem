@@ -9,8 +9,8 @@ dialect : Library;
 public Window : object {
   public func create[
     .title : View[Bytes],
-    .width : Bits_32,
-    .height : Bits_32,
+    .width : Unsigned_32,
+    .height : Unsigned_32,
   ] -> Window;
 }
 
@@ -19,7 +19,7 @@ public Window : object {
 // public boundary while Frame can copy each timestamp without managed object
 // identity or allocation.
 public Time : struct {
-  private timestamp : Bits_64 = 0;
+  private timestamp : Unsigned_64 = 0;
 
   public func from_seconds[.value : Real_64] -> Time;
 

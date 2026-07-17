@@ -36,7 +36,7 @@ Managed::Bytes::Bytes(Allocator::Arena& arena, View::Bytes view)
 auto Managed::Bytes::reset(Count reserved_capacity) -> void {
   size = 0;
   capacity = reserved_capacity;
-  source_block = Data::cast<Bits_8>(arena.allocate(reserved_capacity));
+  source_block = Data::cast<Unsigned_8>(arena.allocate(reserved_capacity));
 }
 
 auto Managed::Bytes::resize(Count new_size) -> void {
@@ -44,12 +44,12 @@ auto Managed::Bytes::resize(Count new_size) -> void {
   size = new_size;
 }
 
-auto Managed::Bytes::append(Bits_8 byte) -> void {
+auto Managed::Bytes::append(Unsigned_8 byte) -> void {
   ensure_capacity(size + 1);
   source_block[size++] = byte;
 }
 
-auto Managed::Bytes::append(Bits_8 byte, Count amount) -> void {
+auto Managed::Bytes::append(Unsigned_8 byte, Count amount) -> void {
   ensure_capacity(size + amount);
   Data::set(source_block + size, byte, amount);
   size += amount;
@@ -67,7 +67,7 @@ auto Managed::Bytes::proxy(View::Bytes view) -> void {
   memcpy(source_block, view.get_data(), view.get_size());
 }
 
-auto Managed::Bytes::convert(Bits_8 source, Bits_8 target) -> void {
+auto Managed::Bytes::convert(Unsigned_8 source, Unsigned_8 target) -> void {
   for (int i = 0; i < size; i++) {
     if (source_block[i] == source) {
       source_block[i] = target;
@@ -86,7 +86,7 @@ auto Managed::Bytes::ensure_capacity(Count required_bytes) -> void {
   const auto new_capacity = Math::max(capacity * 2, required_bytes);
 
   // Fetch and transfer to new block.
-  auto new_block = Data::cast<Bits_8>(arena.allocate(new_capacity));
+  auto new_block = Data::cast<Unsigned_8>(arena.allocate(new_capacity));
 
   // Update block and get the new capacity.
   memcpy(new_block, source_block, size);

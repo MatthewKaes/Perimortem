@@ -8,7 +8,7 @@ import Types : Library = "../library/types.ttx";
 import Renderer2D : Render = "../renderers/renderer_2d.ttx";
 
 shader Default2D : Renderer2D::Render2D {
-  func vertex[.vertex_index : Bits_32] -> [
+  func vertex[.vertex_index : Unsigned_32] -> [
     .texture_uv : Types::Point2D,
     .screen_position : Vec4D,
   ] {

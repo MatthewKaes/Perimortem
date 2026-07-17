@@ -20,7 +20,7 @@ using namespace Perimortem::Graphics;
 using namespace Perimortem;
 
 // The color encoding used in a PNG file's IHDR chunk.
-enum class ColorType : Bits_8 {
+enum class ColorType : Unsigned_8 {
   Greyscale = 0,
   Rgb = 2,
   Indexed = 3,
@@ -30,7 +30,7 @@ enum class ColorType : Bits_8 {
 
 // Per-row prediction applied before DEFLATE. Each value matches the filter
 // byte written at the start of the filtered row per the PNG specification.
-enum class FilterType : Bits_8 {
+enum class FilterType : Unsigned_8 {
   None = 0,
   Sub = 1,
   Up = 2,
@@ -52,17 +52,17 @@ struct ImageInfo {
   // C++ will add padding to the end of the struct so store the actual size.
   static constexpr Count size = 13;
 
-  constexpr auto get_width() const -> Bits_32 {
+  constexpr auto get_width() const -> Unsigned_32 {
     return Data::ensure_endian<Data::ByteOrder::Big, Data::ByteOrder::Native>(
         width);
   }
 
-  constexpr auto get_height() const -> Bits_32 {
+  constexpr auto get_height() const -> Unsigned_32 {
     return Data::ensure_endian<Data::ByteOrder::Big, Data::ByteOrder::Native>(
         height);
   }
 
-  constexpr auto get_bit_depth() const -> Bits_8 { return bit_depth; }
+  constexpr auto get_bit_depth() const -> Unsigned_8 { return bit_depth; }
   constexpr auto get_color_type() const -> ColorType { return color_type; }
   constexpr auto uses_standard_methods() const -> Bool {
     return compression_method == 0 && filter_method == FilterType::None &&
@@ -70,13 +70,13 @@ struct ImageInfo {
   }
 
  private:
-  Bits_32 width = 0;
-  Bits_32 height = 0;
-  Bits_8 bit_depth = 0;
+  Unsigned_32 width = 0;
+  Unsigned_32 height = 0;
+  Unsigned_8 bit_depth = 0;
   ColorType color_type = ColorType::Rgba;
-  Bits_8 compression_method = 0;
+  Unsigned_8 compression_method = 0;
   FilterType filter_method = FilterType::None;
-  Bits_8 interlace_method = 0;
+  Unsigned_8 interlace_method = 0;
 };
 
 // A parsed PNG chunk. PNG files are made of sequential chunks, each with a
@@ -84,18 +84,18 @@ struct ImageInfo {
 class Chunk {
  public:
   constexpr Chunk() = default;
-  constexpr Chunk(View::Bytes data, Static::Bytes<4> type, Bits_32 length)
+  constexpr Chunk(View::Bytes data, Static::Bytes<4> type, Unsigned_32 length)
       : data(data), type(type), length(length), valid(True) {}
 
   constexpr auto get_data() const -> View::Bytes { return data; }
   constexpr auto get_type() const -> View::Bytes { return type.get_view(); }
-  constexpr auto get_length() const -> Bits_32 { return length; }
+  constexpr auto get_length() const -> Unsigned_32 { return length; }
   constexpr auto get_valid() const -> Bool { return valid; }
 
  private:
   View::Bytes data;
   Static::Bytes<4> type;
-  Bits_32 length = 0;
+  Unsigned_32 length = 0;
   Bool valid = False;
 };
 
@@ -122,15 +122,15 @@ constexpr auto number_of_color_channels(ColorType color_type) -> Count {
   }
 }
 
-constexpr auto populate_crc_table() -> Static::Vector<Bits_32, 256> {
+constexpr auto populate_crc_table() -> Static::Vector<Unsigned_32, 256> {
   // CRC-32 (Cyclic Redundancy Check): a 32-bit error-detection hash used by the
   // PNG specification to verify each chunk has not been corrupted in transit.
   // The IEEE 802.3 polynomial (0xEDB88320) is the standard choice for CRC-32.
-  constexpr Bits_32 ieee_crc32_polynomial = 0xEDB88320;
+  constexpr Unsigned_32 ieee_crc32_polynomial = 0xEDB88320;
 
-  Static::Vector<Bits_32, 256> table;
-  for (Bits_32 table_index = 0; table_index < 256; table_index++) {
-    Bits_32 crc_value = table_index;
+  Static::Vector<Unsigned_32, 256> table;
+  for (Unsigned_32 table_index = 0; table_index < 256; table_index++) {
+    Unsigned_32 crc_value = table_index;
     for (Count bit_index = 0; bit_index < 8; bit_index++) {
       crc_value = (crc_value & 1) ? (ieee_crc32_polynomial ^ (crc_value >> 1))
                                   : (crc_value >> 1);
@@ -142,12 +142,12 @@ constexpr auto populate_crc_table() -> Static::Vector<Bits_32, 256> {
   return table;
 }
 
-constexpr auto calculate_crc32(View::Bytes data) -> Bits_32 {
+constexpr auto calculate_crc32(View::Bytes data) -> Unsigned_32 {
   // The 256 CRC-32 look up table is prepopulated at compile time.
-  constexpr Static::Vector<Bits_32, 256> crc_table = populate_crc_table();
+  constexpr Static::Vector<Unsigned_32, 256> crc_table = populate_crc_table();
 
   // CRC computation starts with all bit set.
-  Bits_32 running_crc = 0xFFFFFFFF;
+  Unsigned_32 running_crc = 0xFFFFFFFF;
   for (Count byte_index = 0; byte_index < data.get_size(); byte_index++) {
     running_crc =
         crc_table[(running_crc ^ data[byte_index]) & 0xFF] ^ (running_crc >> 8);
@@ -165,9 +165,9 @@ constexpr auto read_chunk(View::Bytes source, Count offset) -> Chunk {
     return Chunk();
   }
 
-  Bits_32 length =
+  Unsigned_32 length =
       Data::ensure_endian<Data::ByteOrder::Big, Data::ByteOrder::Native>(
-          *Data::cast<Bits_32>(source.get_data() + offset));
+          *Data::cast<Unsigned_32>(source.get_data() + offset));
   if (offset + chunk_metadata_size + length > source.get_size()) [[unlikely]] {
     Diagnostics::Log::Message<128> error_message(
         Diagnostics::Log::Level::Error);
@@ -185,10 +185,11 @@ constexpr auto read_chunk(View::Bytes source, Count offset) -> Chunk {
   // release builds removing the CRC check improves throughput by as much as
   // 20% for large images.
 #if PERI_DEBUG
-  Bits_32 stored_crc =
+  Unsigned_32 stored_crc =
       Data::ensure_endian<Data::ByteOrder::Big, Data::ByteOrder::Native>(
-          *Data::cast<Bits_32>(source.get_data() + offset + 8 + length));
-  Bits_32 actual_crc = calculate_crc32(source.slice(offset + 4, 4 + length));
+          *Data::cast<Unsigned_32>(source.get_data() + offset + 8 + length));
+  Unsigned_32 actual_crc =
+      calculate_crc32(source.slice(offset + 4, 4 + length));
   if (stored_crc != actual_crc) [[unlikely]] {
     Diagnostics::Log::Message<96> error_message(Diagnostics::Log::Level::Error);
     error_message << "Png: CRC-32 mismatch for chunk '"_view << type.get_view()
@@ -209,8 +210,9 @@ constexpr auto write_chunk(
 
   // Write the size in Big endian format
   Data::write<Data::ByteOrder::Big>(
-      Data::cast<Bits_32>(output + write_position), Bits_32(data.get_size()));
-  write_position += sizeof(Bits_32);
+      Data::cast<Unsigned_32>(output + write_position),
+      Unsigned_32(data.get_size()));
+  write_position += sizeof(Unsigned_32);
 
   // Copy the tag into the buffer.
   Data::copy(output + write_position, type_tag.get_data(), type_tag.get_size());
@@ -223,18 +225,20 @@ constexpr auto write_chunk(
   // Finally write out the crc32 value (also in big endian) which includes the
   // tag and any other chunk data.
   Count chunk_length = type_tag.get_size() + data.get_size();
-  Bits_32 chunk_crc = calculate_crc32(
+  Unsigned_32 chunk_crc = calculate_crc32(
       View::Bytes(output + write_position - chunk_length, chunk_length));
   Data::write<Data::ByteOrder::Big>(
-      Data::cast<Bits_32>(output + write_position), chunk_crc);
+      Data::cast<Unsigned_32>(output + write_position), chunk_crc);
   write_position += 4;
 }
 
 // The Paeth predictor estimates the next sample by computing a linear
 // extrapolation using the left, upper, and upper left pixels and returning the
 // value closest to the current pixel.
-constexpr auto paeth_predictor(Bits_8 left, Bits_8 up, Bits_8 upper_left)
-    -> Bits_8 {
+constexpr auto paeth_predictor(
+    Unsigned_8 left,
+    Unsigned_8 up,
+    Unsigned_8 upper_left) -> Unsigned_8 {
   Signed_16 signed_left = Signed_16(left);
   Signed_16 signed_up = Signed_16(up);
   Signed_16 signed_upper_left = Signed_16(upper_left);
@@ -263,44 +267,47 @@ auto score_row(View::Bytes current_row, View::Bytes previous_row)
   constexpr auto signed_abs = Math::absolute<Signed_8>;
   constexpr auto filter_count = first_row ? 2 : 5;
   constexpr auto channel_count = Image::get_channel_count();
-  Static::Vector<Bits_64, filter_count> scores;
+  Static::Vector<Unsigned_64, filter_count> scores;
 
   auto current_row_data = current_row.get_data();
   auto previous_row_data = previous_row.get_data();
 
   // Process the first column of data.
   for (Count i = 0; i < channel_count; i++) {
-    scores[Bits_8(FilterType::None)] +=
+    scores[Unsigned_8(FilterType::None)] +=
         signed_abs(Signed_8(current_row_data[i]));
-    scores[Bits_8(FilterType::Sub)] +=
+    scores[Unsigned_8(FilterType::Sub)] +=
         signed_abs(Signed_8(current_row_data[i]));
     if constexpr (!first_row) {
-      Bits_8 up = previous_row_data[i];
-      scores[Bits_8(FilterType::Up)] += signed_abs(current_row_data[i] - up);
-      scores[Bits_8(FilterType::Average)] +=
+      Unsigned_8 up = previous_row_data[i];
+      scores[Unsigned_8(FilterType::Up)] +=
+          signed_abs(current_row_data[i] - up);
+      scores[Unsigned_8(FilterType::Average)] +=
           signed_abs(current_row_data[i] - up / 2);
-      scores[Bits_8(FilterType::Paeth)] += signed_abs(current_row_data[i] - up);
+      scores[Unsigned_8(FilterType::Paeth)] +=
+          signed_abs(current_row_data[i] - up);
     }
   }
 
   for (Count i = channel_count; i < current_row.get_size(); i++) {
-    Bits_8 left = current_row_data[i - channel_count];
-    scores[Bits_8(FilterType::None)] +=
+    Unsigned_8 left = current_row_data[i - channel_count];
+    scores[Unsigned_8(FilterType::None)] +=
         signed_abs(Signed_8(current_row_data[i]));
-    scores[Bits_8(FilterType::Sub)] +=
+    scores[Unsigned_8(FilterType::Sub)] +=
         Math::absolute<Signed_8>(current_row_data[i] - left);
     if constexpr (!first_row) {
-      Bits_8 up = previous_row_data[i];
-      Bits_8 upper_left = previous_row_data[i - channel_count];
-      scores[Bits_8(FilterType::Up)] += signed_abs(current_row_data[i] - up);
-      scores[Bits_8(FilterType::Average)] +=
-          signed_abs(current_row_data[i] - (Bits_16(left) + Bits_16(up)) / 2);
-      scores[Bits_8(FilterType::Paeth)] += signed_abs(
+      Unsigned_8 up = previous_row_data[i];
+      Unsigned_8 upper_left = previous_row_data[i - channel_count];
+      scores[Unsigned_8(FilterType::Up)] +=
+          signed_abs(current_row_data[i] - up);
+      scores[Unsigned_8(FilterType::Average)] += signed_abs(
+          current_row_data[i] - (Unsigned_16(left) + Unsigned_16(up)) / 2);
+      scores[Unsigned_8(FilterType::Paeth)] += signed_abs(
           current_row_data[i] - paeth_predictor(left, up, upper_left));
     }
   }
 
-  return FilterType(Algorithm::min_element<Bits_64>(scores));
+  return FilterType(Algorithm::min_element<Unsigned_64>(scores));
 }
 
 // Applies a PNG forward filter to one row of pixels, writing residuals into the
@@ -338,20 +345,21 @@ constexpr auto apply_row_filter(
     break;
   case FilterType::Up:
     for (Count i = 0; i < channel_count; i++) {
-      output_row_data[i] = Bits_8(current_row_data[i] - previous_row_data[i]);
+      output_row_data[i] =
+          Unsigned_8(current_row_data[i] - previous_row_data[i]);
     }
 
     break;
   case FilterType::Average:
     for (Count i = 0; i < channel_count; i++) {
       output_row_data[i] =
-          current_row_data[i] - Bits_8(previous_row_data[i]) / 2;
+          current_row_data[i] - Unsigned_8(previous_row_data[i]) / 2;
     }
 
     break;
   case FilterType::Paeth:
     for (Count i = 0; i < channel_count; i++) {
-      output_row_data[i] = Bits_8(
+      output_row_data[i] = Unsigned_8(
           current_row_data[i] - paeth_predictor(0, previous_row_data[i], 0));
     }
 
@@ -367,33 +375,35 @@ constexpr auto apply_row_filter(
   switch (filter_type) {
   case FilterType::Sub:
     for (Count i = channel_count; i < size; i++) {
-      Bits_8 left = current_row_data[i - channel_count];
-      output_row_data[i] = Bits_8(current_row_data[i] - left);
+      Unsigned_8 left = current_row_data[i - channel_count];
+      output_row_data[i] = Unsigned_8(current_row_data[i] - left);
     }
 
     break;
   case FilterType::Up:
     for (Count i = channel_count; i < size; i++) {
-      output_row_data[i] = Bits_8(current_row_data[i] - previous_row_data[i]);
+      output_row_data[i] =
+          Unsigned_8(current_row_data[i] - previous_row_data[i]);
     }
 
     break;
   case FilterType::Average:
     for (Count i = channel_count; i < size; i++) {
-      Bits_8 left = current_row_data[i - channel_count];
-      Bits_8 up = previous_row_data[i];
-      output_row_data[i] = Bits_8(
-          current_row_data[i] - Bits_8((Bits_32(left) + Bits_32(up)) / 2));
+      Unsigned_8 left = current_row_data[i - channel_count];
+      Unsigned_8 up = previous_row_data[i];
+      output_row_data[i] = Unsigned_8(
+          current_row_data[i] -
+          Unsigned_8((Unsigned_32(left) + Unsigned_32(up)) / 2));
     }
 
     break;
   case FilterType::Paeth:
     for (Count i = channel_count; i < size; i++) {
-      Bits_8 left = current_row_data[i - channel_count];
-      Bits_8 up = previous_row_data[i];
-      Bits_8 upper_left = previous_row_data[i - channel_count];
-      output_row_data[i] =
-          Bits_8(current_row_data[i] - paeth_predictor(left, up, upper_left));
+      Unsigned_8 left = current_row_data[i - channel_count];
+      Unsigned_8 up = previous_row_data[i];
+      Unsigned_8 upper_left = previous_row_data[i - channel_count];
+      output_row_data[i] = Unsigned_8(
+          current_row_data[i] - paeth_predictor(left, up, upper_left));
     }
 
     break;
@@ -410,7 +420,7 @@ constexpr auto apply_row_filter(
 constexpr auto apply_adaptive_filtering(const Image& image) -> Dynamic::Bytes {
   const auto row_stride = Count(image.get_width()) * Pixel::get_byte_count();
   const auto output_size = Count(image.get_height()) * (1 + row_stride);
-  const auto raw_bytes = Data::cast<Bits_8>(image.get_pixels().get_data());
+  const auto raw_bytes = Data::cast<Unsigned_8>(image.get_pixels().get_data());
 
   // Create the full output buffer and resize it to the full size.
   Dynamic::Bytes output(output_size);
@@ -425,7 +435,7 @@ constexpr auto apply_adaptive_filtering(const Image& image) -> Dynamic::Bytes {
   apply_row_filter(
       best_filter, output.get_access().slice(1, row_stride),
       View::Bytes(raw_bytes, row_stride), View::Bytes(raw_bytes, row_stride));
-  output.get_access()[0] = Bits_8(best_filter);
+  output.get_access()[0] = Unsigned_8(best_filter);
 
   // The rest of the rows after the first are scored against all filters.
   for (Count row = 1; row < image.get_height(); row++) {
@@ -440,7 +450,7 @@ constexpr auto apply_adaptive_filtering(const Image& image) -> Dynamic::Bytes {
     Access::Bytes output_row =
         output.get_access().slice(row * (1 + row_stride) + 1, row_stride);
     apply_row_filter(best_filter, output_row, current_row, previous_row);
-    output.get_access()[row * (1 + row_stride)] = Bits_8(best_filter);
+    output.get_access()[row * (1 + row_stride)] = Unsigned_8(best_filter);
   }
 
   return output;
@@ -451,14 +461,15 @@ constexpr auto apply_adaptive_filtering(const Image& image) -> Dynamic::Bytes {
 // processing the first row, while guaranteeing that previous_row is always
 // valid for the following rows.
 //
-// The code takes raw Bits_8* pointers and is hand optimized since it's the main
-// hot loop for the load path which is the main use case for production builds.
+// The code takes raw Unsigned_8* pointers and is hand optimized since it's the
+// main hot loop for the load path which is the main use case for production
+// builds.
 template <Bool first_row>
 auto reconstruct_row(
     FilterType filter_type,
-    const Bits_8* filtered_row,
-    Bits_8* output_row,
-    const Bits_8* previous_row,
+    const Unsigned_8* filtered_row,
+    Unsigned_8* output_row,
+    const Unsigned_8* previous_row,
     Count stride,
     Count bytes_per_pixel) -> Bool {
   switch (filter_type) {
@@ -491,22 +502,24 @@ auto reconstruct_row(
     if constexpr (first_row) {
       Data::copy(output_row, filtered_row, bytes_per_pixel);
       for (Count i = bytes_per_pixel; i < stride; i++) {
-        output_row[i] = filtered_row[i] +
-                        Bits_8(Bits_32(output_row[i - bytes_per_pixel]) / 2);
+        output_row[i] =
+            filtered_row[i] +
+            Unsigned_8(Unsigned_32(output_row[i - bytes_per_pixel]) / 2);
       }
     } else {
       // First column
       for (Count i = 0; i < bytes_per_pixel; i++) {
-        output_row[i] = filtered_row[i] + Bits_8(Bits_32(previous_row[i]) / 2);
+        output_row[i] =
+            filtered_row[i] + Unsigned_8(Unsigned_32(previous_row[i]) / 2);
       }
 
       // Rest of the row
       for (Count i = bytes_per_pixel; i < stride; i++) {
-        output_row[i] =
-            filtered_row[i] + Bits_8(
-                                  (Bits_32(output_row[i - bytes_per_pixel]) +
-                                   Bits_32(previous_row[i])) /
-                                  2);
+        output_row[i] = filtered_row[i] +
+                        Unsigned_8(
+                            (Unsigned_32(output_row[i - bytes_per_pixel]) +
+                             Unsigned_32(previous_row[i])) /
+                            2);
       }
     }
 
@@ -539,7 +552,8 @@ auto reconstruct_row(
   // For all unknown values error out.
   default: {
     Diagnostics::Log::Message<64> error_message(Diagnostics::Log::Level::Error);
-    error_message << "Png: Unknown filter type "_view << Bits_32(filter_type);
+    error_message << "Png: Unknown filter type "_view
+                  << Unsigned_32(filter_type);
     return False;
   }
   }
@@ -577,9 +591,9 @@ constexpr auto reconstruct_filter(
   // Now that previous_row is always valid no runtime null checks needed.
   for (Count row = 1; row < height; row++) {
     FilterType filter_type = FilterType(filtered_row_data[row * row_bytes]);
-    const Bits_8* filtered_row = filtered_row_data + row * row_bytes + 1;
-    Bits_8* output_row = output_pixels + row * stride;
-    const Bits_8* previous_row = output_row - stride;
+    const Unsigned_8* filtered_row = filtered_row_data + row * row_bytes + 1;
+    Unsigned_8* output_row = output_pixels + row * stride;
+    const Unsigned_8* previous_row = output_row - stride;
     if (!reconstruct_row<False>(
             filter_type, filtered_row, output_row, previous_row, stride,
             bytes_per_pixel)) [[unlikely]] {
@@ -620,16 +634,16 @@ constexpr auto convert_to_pixels(
           data[source_offset + 2]);
       break;
     case ColorType::Indexed: {
-      Bits_8 palette_index = data[source_offset];
+      Unsigned_8 palette_index = data[source_offset];
       Count palette_offset = Count(palette_index) * 3;
 
       // If the color is outside the palette size then error out.
       if (palette_offset + 3 > palette.get_size()) [[unlikely]] {
         Diagnostics::Log::Message<128> error_message(
             Diagnostics::Log::Level::Error);
-        error_message << "Png: Palette index "_view << Bits_32(palette_index)
-                      << " at pixel "_view << Signed_64(pixel_index)
-                      << " exceeds palette size "_view
+        error_message << "Png: Palette index "_view
+                      << Unsigned_32(palette_index) << " at pixel "_view
+                      << Signed_64(pixel_index) << " exceeds palette size "_view
                       << Signed_64(palette.get_size() / 3);
         return False;
       }
@@ -668,7 +682,7 @@ constexpr auto read_header(const View::Bytes source) -> ImageInfo {
   // Check that the first tag is IHDR
   constexpr auto header_tag = "IHDR"_view;
   auto chunk_tag = source.slice(
-      png_signature.get_size() + sizeof(Bits_32), header_tag.get_size());
+      png_signature.get_size() + sizeof(Unsigned_32), header_tag.get_size());
   if (chunk_tag != "IHDR"_view) [[unlikely]] {
     Diagnostics::Log::Message<96> error_message(Diagnostics::Log::Level::Error);
     error_message << "Png: First chunk must be \"IHDR\". header="_view
@@ -680,7 +694,7 @@ constexpr auto read_header(const View::Bytes source) -> ImageInfo {
   auto image_info = *Data::cast<const ImageInfo>(
       source
           .slice(
-              png_signature.get_size() + sizeof(Bits_32) +
+              png_signature.get_size() + sizeof(Unsigned_32) +
                   header_tag.get_size(),
               ImageInfo::size)
           .get_data());
@@ -689,7 +703,7 @@ constexpr auto read_header(const View::Bytes source) -> ImageInfo {
   if (image_info.get_bit_depth() != Image::get_color_depth()) [[unlikely]] {
     Diagnostics::Log::Message<96> error_message(Diagnostics::Log::Level::Error);
     error_message << "Png: Unsupported bit depth "_view
-                  << Bits_32(image_info.get_bit_depth())
+                  << Unsigned_32(image_info.get_bit_depth())
                   << " (only 8 bit is supported)"_view;
     return ImageInfo();
   }
@@ -697,7 +711,8 @@ constexpr auto read_header(const View::Bytes source) -> ImageInfo {
   const ColorType color_type = image_info.get_color_type();
   if (number_of_color_channels(color_type) == 0) [[unlikely]] {
     Diagnostics::Log::Message<96> error_message(Diagnostics::Log::Level::Error);
-    error_message << "Png: Unsupported color type "_view << Bits_32(color_type);
+    error_message << "Png: Unsupported color type "_view
+                  << Unsigned_32(color_type);
     return ImageInfo();
   }
 
@@ -857,7 +872,7 @@ auto Formats::Png::encode(const Image& image) -> Dynamic::Bytes {
   Count write_position = png_signature.get_size();
   write_chunk(
       data, write_position, "IHDR"_view,
-      View::Bytes(Data::cast<Bits_8>(&header), ImageInfo::size));
+      View::Bytes(Data::cast<Unsigned_8>(&header), ImageInfo::size));
   write_chunk(data, write_position, "IDAT"_view, compressed.get_view());
   write_chunk(data, write_position, "IEND"_view, View::Bytes());
 

@@ -32,7 +32,7 @@ class Statement {
   };
 
  public:
-  enum class Kind : Bits_8 {
+  enum class Kind : Unsigned_8 {
     Empty,
     State,
     BareReturn,

@@ -43,7 +43,7 @@ static auto read_scalar(Cursor& cursor, View::Bytes key) -> Ttx::Attribute {
 
   Ttx::Attribute::Kind kind = Ttx::Attribute::Kind::Empty;
   View::Bytes bytes;
-  Bits_64 unsigned_value = 0;
+  Unsigned_64 unsigned_value = 0;
   Signed_64 signed_value = 0;
   Real_64 real_value = 0;
   Bool boolean_value = False;
@@ -63,7 +63,7 @@ static auto read_scalar(Cursor& cursor, View::Bytes key) -> Ttx::Attribute {
 
   case Class::Type::Numeric: {
     Reader::Textual reader(token.get_text());
-    Bits_64 value = reader.read_unsigned();
+    Unsigned_64 value = reader.read_unsigned();
     if (reader.get_location() != reader.get_size()) {
       cursor.token_error("Attribute integer could not be decoded."_view);
       return Ttx::Attribute();
@@ -161,7 +161,7 @@ static auto read_attribute(Cursor& cursor) -> Ttx::Attribute {
     return Ttx::Attribute();
   }
 
-  return Ttx::Attribute(key, Bits_64(lowering));
+  return Ttx::Attribute(key, Unsigned_64(lowering));
 }
 
 auto Base::Attribute::consume_all(Cursor& cursor) -> Bool {

@@ -24,19 +24,20 @@ using namespace Validation;
 /// the same local name.
 class GenericType final : public Type {
  public:
-  GenericType(View::Bytes name, const Invalid& invalid)
-      : name(name), invalid(invalid) {}
+  GenericType(View::Bytes name) : name(name) {}
 
   auto get_name() const -> View::Bytes override { return name; }
+  auto get_documentation() const -> const Documentation& override {
+    return Comment::get_empty();
+  }
   auto resolve_context(View::Bytes) const -> const Abstract& override {
-    return invalid;
+    return Invalid::get_invalid();
   }
   auto get_layout() const -> const Structured& override { return layout; }
 
  private:
   View::Bytes name;
-  const Invalid& invalid;
-  Structured layout;
+  inline static const Structured layout;
 };
 
 /// Materialized fields remain real Addressable edges in Structured layouts.
@@ -45,6 +46,9 @@ class GenericField final : public Addressable {
   GenericField(View::Bytes name, const Type& type) : name(name), type(type) {}
 
   auto get_name() const -> View::Bytes override { return name; }
+  auto get_documentation() const -> const Documentation& override {
+    return Comment::get_empty();
+  }
   auto resolve() const -> const Abstract& override { return type.resolve(); }
   auto resolve_context(View::Bytes route) const -> const Abstract& override {
     return type.resolve().resolve_context(route);
@@ -58,21 +62,20 @@ class GenericField final : public Addressable {
 /// A successful formula produces an ordinary Type, not a Generic subtype.
 class MaterializedVector final : public Type {
  public:
-  MaterializedVector(
-      View::Bytes name,
-      const Invalid& invalid,
-      Structured layout)
-      : name(name), invalid(invalid), layout(layout) {}
+  MaterializedVector(View::Bytes name, Structured layout)
+      : name(name), layout(layout) {}
 
   auto get_name() const -> View::Bytes override { return name; }
+  auto get_documentation() const -> const Documentation& override {
+    return Comment::get_empty();
+  }
   auto resolve_context(View::Bytes) const -> const Abstract& override {
-    return invalid;
+    return Invalid::get_invalid();
   }
   auto get_layout() const -> const Structured& override { return layout; }
 
  private:
   View::Bytes name;
-  const Invalid& invalid;
   Structured layout;
 };
 
@@ -99,18 +102,20 @@ class VecFormula final : public Generic {
   };
 
  public:
-  VecFormula(Allocator::Arena& arena, const Invalid& invalid)
-      : arena(arena), invalid(invalid), cache(arena) {}
+  VecFormula(Allocator::Arena& arena) : arena(arena), cache(arena) {}
 
   auto get_name() const -> View::Bytes override { return "Vec"_view; }
+  auto get_documentation() const -> const Documentation& override {
+    return documentation;
+  }
   auto resolve_context(View::Bytes) const -> const Abstract& override {
-    return invalid;
+    return Invalid::get_invalid();
   }
 
   auto materialize(View::Vector<Argument> arguments) const
       -> const Abstract& override {
     if (arguments.get_size() != 2) {
-      return invalid;
+      return Invalid::get_invalid();
     }
 
     const Bool valid_element = arguments[0].get_value().visit(
@@ -121,10 +126,10 @@ class VecFormula final : public Generic {
         [](auto) -> Bool { return False; });
     const Bool valid_extent = arguments[1].get_value().visit(
         []() -> Bool { return False; },
-        [](Bits_64 extent) -> Bool { return extent == 3; },
+        [](Unsigned_64 extent) -> Bool { return extent == 3; },
         [](auto) -> Bool { return False; });
     if (!valid_element || !valid_extent) {
-      return invalid;
+      return Invalid::get_invalid();
     }
 
     for (Count i = 0; i < cache.get_size(); i++) {
@@ -134,11 +139,11 @@ class VecFormula final : public Generic {
     }
 
     const Reference<Abstract> element = arguments[0].get_value().visit(
-        [this]() -> Reference<Abstract> { return invalid; },
+        []() -> Reference<Abstract> { return Invalid::get_invalid(); },
         [](const Reference<Abstract>& value) -> Reference<Abstract> {
           return value;
         },
-        [this](auto) -> Reference<Abstract> { return invalid; });
+        [](auto) -> Reference<Abstract> { return Invalid::get_invalid(); });
     const Type& element_type = element.get().as<Type>();
     Managed::Bytes name(arena, "Vec["_view);
     name.concat(element_type.get_name());
@@ -157,7 +162,7 @@ class VecFormula final : public Generic {
     }
 
     const MaterializedVector& result = arena.construct<MaterializedVector>(
-        name.get_view(), invalid, Structured(fields.get_view()));
+        name.get_view(), Structured(fields.get_view()));
     Managed::Vector<Argument> stored_arguments(arena);
     for (Count i = 0; i < arguments.get_size(); i++) {
       stored_arguments.insert(arguments[i]);
@@ -171,21 +176,23 @@ class VecFormula final : public Generic {
 
  private:
   Allocator::Arena& arena;
-  const Invalid& invalid;
   mutable Managed::Vector<CacheEntry> cache;
+  inline static constexpr Comment documentation{
+    "Creates a fixed-size vector Type."_view,
+  };
 };
 
 /// The selected scope owns formula lookup and keeps missing names distinct
 /// from failures reported by a formula that was found.
 class GenericScope final : public Type {
  public:
-  GenericScope(
-      const Generic& formula,
-      const Type& concrete,
-      const Invalid& invalid)
-      : formula(formula), concrete(concrete), invalid(invalid) {}
+  GenericScope(const Generic& formula, const Type& concrete)
+      : formula(formula), concrete(concrete) {}
 
   auto get_name() const -> View::Bytes override { return "Package"_view; }
+  auto get_documentation() const -> const Documentation& override {
+    return Comment::get_empty();
+  }
   auto resolve_context(View::Bytes route) const -> const Abstract& override {
     if (route == formula.get_name()) {
       return formula;
@@ -193,15 +200,14 @@ class GenericScope final : public Type {
     if (route == concrete.get_name()) {
       return concrete;
     }
-    return invalid;
+    return Invalid::get_invalid();
   }
   auto get_layout() const -> const Structured& override { return layout; }
 
  private:
   const Generic& formula;
   const Type& concrete;
-  const Invalid& invalid;
-  Structured layout;
+  inline static const Structured layout;
 };
 
 /// Argument normalization follows ordinary Abstract identity redirection. A
@@ -213,6 +219,9 @@ class TypeRedirect final : public Abstract {
       : name(name), type(type) {}
 
   auto get_name() const -> View::Bytes override { return name; }
+  auto get_documentation() const -> const Documentation& override {
+    return Comment::get_empty();
+  }
   auto resolve() const -> const Abstract& override { return type.resolve(); }
   auto resolve_context(View::Bytes route) const -> const Abstract& override {
     return type.resolve().resolve_context(route);
@@ -229,15 +238,14 @@ static Harness TtxGeneric = {
 
 PERIMORTEM_UNIT_TEST(TtxGeneric, resolved_cache_key) {
   Allocator::Arena arena;
-  Invalid invalid;
-  GenericType unsigned_64("Unsigned_64"_view, invalid);
+  GenericType unsigned_64("Unsigned_64"_view);
   Alias count("Count"_view, unsigned_64);
   TypeRedirect expression("computed_type"_view, count);
-  VecFormula vec(arena, invalid);
-  GenericScope scope(vec, unsigned_64, invalid);
-  const Argument alias_arguments[] = {count, Bits_64(3)};
-  const Argument direct_arguments[] = {unsigned_64, Bits_64(3)};
-  const Argument expression_arguments[] = {expression, Bits_64(3)};
+  VecFormula vec(arena);
+  GenericScope scope(vec, unsigned_64);
+  const Argument alias_arguments[] = {count, Unsigned_64(3)};
+  const Argument direct_arguments[] = {unsigned_64, Unsigned_64(3)};
+  const Argument expression_arguments[] = {expression, Unsigned_64(3)};
 
   const Abstract& selected = scope.resolve_context("Vec"_view);
   const Abstract& from_alias =
@@ -262,12 +270,11 @@ PERIMORTEM_UNIT_TEST(TtxGeneric, resolved_cache_key) {
 
 PERIMORTEM_UNIT_TEST(TtxGeneric, name_is_not_identity) {
   Allocator::Arena arena;
-  Invalid invalid;
-  GenericType graphics_image("Image"_view, invalid);
-  GenericType runtime_image("Image"_view, invalid);
-  VecFormula vec(arena, invalid);
-  const Argument graphics_arguments[] = {graphics_image, Bits_64(3)};
-  const Argument runtime_arguments[] = {runtime_image, Bits_64(3)};
+  GenericType graphics_image("Image"_view);
+  GenericType runtime_image("Image"_view);
+  VecFormula vec(arena);
+  const Argument graphics_arguments[] = {graphics_image, Unsigned_64(3)};
+  const Argument runtime_arguments[] = {runtime_image, Unsigned_64(3)};
 
   const Abstract& graphics = vec.materialize(graphics_arguments);
   const Abstract& runtime = vec.materialize(runtime_arguments);
@@ -279,19 +286,18 @@ PERIMORTEM_UNIT_TEST(TtxGeneric, name_is_not_identity) {
 
 PERIMORTEM_UNIT_TEST(TtxGeneric, failure_boundaries) {
   Allocator::Arena arena;
-  Invalid invalid;
-  GenericType unsigned_64("Unsigned_64"_view, invalid);
-  VecFormula vec(arena, invalid);
-  GenericScope scope(vec, unsigned_64, invalid);
+  GenericType unsigned_64("Unsigned_64"_view);
+  VecFormula vec(arena);
+  GenericScope scope(vec, unsigned_64);
   const Argument rejected_arguments[] = {unsigned_64, True};
   const Argument empty_arguments[] = {
     Argument::Value(),
-    Bits_64(3),
+    Unsigned_64(3),
   };
 
   EXPECT(scope.resolve_context("Missing"_view).is<Invalid>());
   EXPECT_NOT(scope.resolve_context("Unsigned_64"_view).is<Generic>());
-  EXPECT(&vec.materialize(rejected_arguments) == &invalid);
-  EXPECT(&vec.materialize(empty_arguments) == &invalid);
+  EXPECT(&vec.materialize(rejected_arguments) == &Invalid::get_invalid());
+  EXPECT(&vec.materialize(empty_arguments) == &Invalid::get_invalid());
   EXPECT_EQ(vec.get_cache_size(), Count(0));
 }

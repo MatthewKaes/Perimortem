@@ -41,7 +41,7 @@ PERIMORTEM_UNIT_TEST(TtxRender, render_shape) {
       "public Render2D : Render {\n"
       "  public position : Vec2D;\n"
       "  public vertex : stage {\n"
-      "    input [.vertex_index : Bits_32];\n"
+      "    input [.vertex_index : Unsigned_32];\n"
       "    output [.screen_position : Vec4D];\n"
       "  }\n"
       "}\n"_view);
@@ -74,7 +74,7 @@ PERIMORTEM_UNIT_TEST(TtxRender, fact_blocks) {
       "dialect : Render;\n"
       "public Render2D : Render {\n"
       "  constants {\n"
-      "    const quad_count : Bits_32;\n"
+      "    const quad_count : Unsigned_32;\n"
       "  }\n"
       "  push_constants {\n"
       "    const position : Vec2D;\n"
@@ -111,7 +111,7 @@ PERIMORTEM_UNIT_TEST(TtxRender, stage_reads) {
       render_source_context, "unit/render.ttx"_view,
       "dialect : Render;\n"
       "public Render2D : Render {\n"
-      "  constants { const quad_count : Bits_32; }\n"
+      "  constants { const quad_count : Unsigned_32; }\n"
       "  push_constants { const position : Vec2D; }\n"
       "  resources { state texture : View[Bytes]; }\n"
       "  public vertex : stage {\n"

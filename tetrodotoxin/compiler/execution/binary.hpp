@@ -11,7 +11,7 @@ namespace Tetrodotoxin::Compiler::Execution {
 // A three-address operation with one SSA result.
 class Binary {
  public:
-  enum class Operator : Bits_8 {
+  enum class Operator : Unsigned_8 {
     Add,
     Subtract,
     Multiply,

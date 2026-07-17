@@ -700,7 +700,7 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinResolution, package_surface) {
   const Resolution::Source::Record* package = resolver.load_source(
       source_context, "user/types/package.ttx"_view,
       "dialect : Package;\n"
-      "expose Value : alias = Bits_32;\n"
+      "expose Value : alias = Unsigned_32;\n"
       "expose Geometry : group {\n"
       "  expose Position : alias = Vec2D;\n"
       "}\n"_view);
@@ -715,7 +715,8 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinResolution, package_surface) {
   EXPECT(value->is_alias());
   EXPECT(geometry->find_type("Position"_view) != nullptr);
   EXPECT_TEXT(
-      value->describe().get_view(), "User.Types::Value alias of Bits_32"_view);
+      value->describe().get_view(),
+      "User.Types::Value alias of Unsigned_32"_view);
   EXPECT_TEXT(geometry->describe().get_view(), "User.Types::Geometry"_view);
   EXPECT(resolver.resolve("user/types/package.ttx"_view) == package);
   EXPECT_NOT(resolver.resolve("User.Types"_view));
@@ -730,7 +731,7 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinResolution, package_diagnostics) {
   constexpr Failure failures[] = {
     {
       {},
-      "dialect : Package;\nexpose Value : alias = Bits_32;\n"_view,
+      "dialect : Package;\nexpose Value : alias = Unsigned_32;\n"_view,
       "Package compilation requires a package name."_view,
     },
     {
@@ -751,16 +752,16 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinResolution, package_diagnostics) {
     {
       "User.Duplicate"_view,
       "dialect : Package;\n"
-      "expose Value : alias = Bits_32;\n"
-      "expose Value : alias = Bits_32;\n"_view,
+      "expose Value : alias = Unsigned_32;\n"
+      "expose Value : alias = Unsigned_32;\n"_view,
       "Package export name is already defined."_view,
     },
     {
       "User.Group"_view,
       "dialect : Package;\n"
       "expose Types : group {\n"
-      "  expose Value : alias = Bits_32;\n"
-      "  expose Value : alias = Bits_32;\n"
+      "  expose Value : alias = Unsigned_32;\n"
+      "  expose Value : alias = Unsigned_32;\n"
       "}\n"_view,
       "Package export name is already defined."_view,
     },
@@ -768,7 +769,7 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinResolution, package_diagnostics) {
       "User.Group"_view,
       "dialect : Package;\n"
       "expose Types : group {\n"
-      "  expose Value : alias = Bits_32;\n"_view,
+      "  expose Value : alias = Unsigned_32;\n"_view,
       "Expected `}` after package group declaration."_view,
     },
   };

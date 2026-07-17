@@ -34,7 +34,7 @@ namespace Tetrodotoxin::Compiler::Allocation {
 // before instruction lowering learns another set of classification rules.
 class SystemV {
  public:
-  enum class Bank : Bits_8 {
+  enum class Bank : Unsigned_8 {
     Integer,
     Real,
     Stack,

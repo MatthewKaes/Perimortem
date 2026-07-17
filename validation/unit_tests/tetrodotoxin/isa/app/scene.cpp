@@ -90,15 +90,15 @@ PERIMORTEM_UNIT_TEST(TtxAppScene, scene_shape) {
   const Resolution::Source::Record* record = resolver.load_source(
       scene_source_context, "unit/scene.ttx"_view,
       "dialect : Scene;\n"
-      "state icon : Bits_32 = 0;\n"
+      "state icon : Unsigned_32 = 0;\n"
       "const fade : Real_64 = 1.0;\n"
-      "private func create_icon[] -> Bits_32 {\n"
+      "private func create_icon[] -> Unsigned_32 {\n"
       "  return 0;\n"
       "}\n"
       "on_start[self] {\n"
       "  return;\n"
       "}\n"
-      "on_update[self, .frame : Bits_32] {\n"
+      "on_update[self, .frame : Unsigned_32] {\n"
       "  return;\n"
       "}\n"_view);
 
@@ -174,8 +174,8 @@ PERIMORTEM_UNIT_TEST(TtxAppScene, scene_dupe) {
   EXPECT_NOT(resolver.load_source(
       duplicate_scene_source_context, "unit/dupe_scene.ttx"_view,
       "dialect : Scene;\n"
-      "state value : Bits_32;\n"
-      "const value : Bits_32;\n"_view));
+      "state value : Unsigned_32;\n"
+      "const value : Unsigned_32;\n"_view));
 
   ASSERT(duplicate_scene_source_context.has_errors());
   EXPECT_TEXT(
@@ -233,7 +233,7 @@ PERIMORTEM_UNIT_TEST(TtxAppScene, app_bad_shape) {
   EXPECT_NOT(resolver.load_source(
       app_source_context, "unit/bad_app.ttx"_view,
       "dialect : App;\n"
-      "public func main[.argc : Bits_32] -> [] {\n"
+      "public func main[.argc : Unsigned_32] -> [] {\n"
       "  return;\n"
       "}\n"_view));
 

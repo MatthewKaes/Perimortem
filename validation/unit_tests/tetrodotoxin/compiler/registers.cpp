@@ -75,7 +75,7 @@ PERIMORTEM_UNIT_TEST(CompilerRegisters, keeps_components_consecutive) {
 
 PERIMORTEM_UNIT_TEST(CompilerRegisters, system_v_parameter_banks) {
   const Ttx::Type& integer =
-      *Tetrodotoxin::Standard::Types::find_type("Bits_64"_view);
+      *Tetrodotoxin::Standard::Types::find_type("Unsigned_64"_view);
   const Ttx::Type& real =
       *Tetrodotoxin::Standard::Types::find_type("Real_64"_view);
   const Ttx::Type& bytes =

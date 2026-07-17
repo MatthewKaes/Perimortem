@@ -110,21 +110,21 @@ auto Test::expected(View::Bytes value, Bool actual) -> void {
   putchar('\n');
 }
 
-auto Test::expected(Bits_16 value, Bool actual) -> void {
+auto Test::expected(Unsigned_16 value, Bool actual) -> void {
   Static::Bytes<32> buffer;
   Writer::Textual text(buffer.get_access());
   text << (actual ? actual_label : expected_label) << value << "\n"_view;
   fwrite(buffer.get_data(), 1, text.get_location(), stdout);
 }
 
-auto Test::expected(Bits_32 value, Bool actual) -> void {
+auto Test::expected(Unsigned_32 value, Bool actual) -> void {
   Static::Bytes<32> buffer;
   Writer::Textual text(buffer.get_access());
   text << (actual ? actual_label : expected_label) << value << "\n"_view;
   fwrite(buffer.get_data(), 1, text.get_location(), stdout);
 }
 
-auto Test::expected(Bits_64 value, Bool actual) -> void {
+auto Test::expected(Unsigned_64 value, Bool actual) -> void {
   Static::Bytes<32> buffer;
   Writer::Textual text(buffer.get_access());
   text << (actual ? actual_label : expected_label) << value << "\n"_view;

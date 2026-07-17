@@ -29,10 +29,10 @@ class Binary {
   // buffer.
   auto set_pointer(Count location) -> void;
 
-  auto operator<<(const Bits_8 value) -> Binary&;
-  auto operator<<(const Bits_16 value) -> Binary&;
-  auto operator<<(const Bits_32 value) -> Binary&;
-  auto operator<<(const Bits_64 value) -> Binary&;
+  auto operator<<(const Unsigned_8 value) -> Binary&;
+  auto operator<<(const Unsigned_16 value) -> Binary&;
+  auto operator<<(const Unsigned_32 value) -> Binary&;
+  auto operator<<(const Unsigned_64 value) -> Binary&;
   auto operator<<(const Signed_8 value) -> Binary&;
   auto operator<<(const Signed_16 value) -> Binary&;
   auto operator<<(const Signed_32 value) -> Binary&;
@@ -40,10 +40,10 @@ class Binary {
   auto operator<<(const Real_32 value) -> Binary&;
   auto operator<<(const Real_64 value) -> Binary&;
   auto operator<<(const View::Bytes blob) -> Binary&;
-  auto operator<<(const View::Vector<Bits_8> blob) -> Binary&;
-  auto operator<<(const View::Vector<Bits_16> blob) -> Binary&;
-  auto operator<<(const View::Vector<Bits_32> blob) -> Binary&;
-  auto operator<<(const View::Vector<Bits_64> blob) -> Binary&;
+  auto operator<<(const View::Vector<Unsigned_8> blob) -> Binary&;
+  auto operator<<(const View::Vector<Unsigned_16> blob) -> Binary&;
+  auto operator<<(const View::Vector<Unsigned_32> blob) -> Binary&;
+  auto operator<<(const View::Vector<Unsigned_64> blob) -> Binary&;
   auto operator<<(const View::Vector<Signed_8> blob) -> Binary&;
   auto operator<<(const View::Vector<Signed_16> blob) -> Binary&;
   auto operator<<(const View::Vector<Signed_32> blob) -> Binary&;

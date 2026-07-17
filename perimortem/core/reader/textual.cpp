@@ -21,20 +21,20 @@ auto parse_decimal(View::Bytes source, Count& cursor) -> storage_type {
     }
   }
 
-  Bits_8 first = source[cursor];
+  Unsigned_8 first = source[cursor];
   if (first < '0' || first > '9') [[unlikely]] {
     cursor = Count(-1);
     return storage_type();
   }
 
-  Bits_64 result = 0;
+  Unsigned_64 result = 0;
   while (cursor < source.get_size()) {
-    Bits_8 character = source[cursor];
+    Unsigned_8 character = source[cursor];
     if (character < '0' || character > '9') {
       break;
     }
 
-    result = result * 10 + Bits_64(character - '0');
+    result = result * 10 + Unsigned_64(character - '0');
     cursor++;
   }
 
@@ -45,7 +45,7 @@ auto skip_whitespace(View::Bytes source, Count& cursor) -> void {
   // Outer loop already does a bounds check so grab the raw pointer.
   auto text = source.get_data();
   while (cursor < source.get_size()) {
-    Bits_8 value = text[cursor];
+    Unsigned_8 value = text[cursor];
     if (value != ' ' && value != '\n' && value != '\r' && value != '\t') {
       break;
     }
@@ -54,10 +54,10 @@ auto skip_whitespace(View::Bytes source, Count& cursor) -> void {
   }
 }
 
-auto Reader::Textual::read_byte() -> Bits_8 {
+auto Reader::Textual::read_byte() -> Unsigned_8 {
   if (!has_content()) [[unlikely]] {
     cursor = Count(-1);
-    return Bits_8(0);
+    return Unsigned_8(0);
   }
 
   return source.get_data()[cursor++];
@@ -98,9 +98,9 @@ auto Reader::Textual::read_flag() -> Bool {
   }
 }
 
-auto Reader::Textual::read_unsigned() -> Bits_64 {
+auto Reader::Textual::read_unsigned() -> Unsigned_64 {
   skip_whitespace(source, cursor);
-  return parse_decimal<Bits_64>(source, cursor);
+  return parse_decimal<Unsigned_64>(source, cursor);
 }
 
 auto Reader::Textual::read_signed() -> Signed_64 {
@@ -126,7 +126,7 @@ auto Reader::Textual::read_real_64() -> Real_64 {
     cursor++;
   }
 
-  Real_64 result = Real_64(parse_decimal<Bits_64>(source, cursor));
+  Real_64 result = Real_64(parse_decimal<Unsigned_64>(source, cursor));
   if (!has_content()) [[unlikely]] {
     return result * sign;
   }
@@ -140,7 +140,7 @@ auto Reader::Textual::read_real_64() -> Real_64 {
   Real_64 frac_mult = 0.1;
   cursor++;
   while (has_content()) {
-    Bits_8 character = data[cursor];
+    Unsigned_8 character = data[cursor];
     if (character < '0' || character > '9') {
       break;
     }

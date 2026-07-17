@@ -79,7 +79,7 @@ static thread_local Bool disable_log_header = False;
 static thread_local Diagnostics::Source attribution_override;
 static thread_local ThreadWriter thread_writer;
 
-constexpr auto level_char(Diagnostics::Log::Level level) -> Signed_8 {
+constexpr auto level_char(Diagnostics::Log::Level level) -> char {
   switch (level) {
   case Diagnostics::Log::Level::Debug:
     return 'D';

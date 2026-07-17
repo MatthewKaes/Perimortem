@@ -13,7 +13,7 @@ namespace Tetrodotoxin::Isa::Library {
 // A Library declaration retained until its type is first referenced.
 class StagedDeclaration {
  public:
-  enum class State : Bits_8 {
+  enum class State : Unsigned_8 {
     Pending,
     Evaluating,
     Ready,

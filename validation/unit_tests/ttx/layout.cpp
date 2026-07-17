@@ -19,21 +19,20 @@ using namespace Validation;
 /// A Type owns its stable shape while Layout only exposes ordered Abstracts.
 class LayoutType final : public Type {
  public:
-  LayoutType(
-      View::Bytes name,
-      const Invalid& invalid,
-      Structured layout = Structured())
-      : name(name), invalid(invalid), layout(layout) {}
+  LayoutType(View::Bytes name, Structured layout = Structured())
+      : name(name), layout(layout) {}
 
   auto get_name() const -> View::Bytes override { return name; }
+  auto get_documentation() const -> const Documentation& override {
+    return Comment::get_empty();
+  }
   auto resolve_context(View::Bytes) const -> const Abstract& override {
-    return invalid;
+    return Invalid::get_invalid();
   }
   auto get_layout() const -> const Structured& override { return layout; }
 
  private:
   View::Bytes name;
-  const Invalid& invalid;
   Structured layout;
 };
 
@@ -45,6 +44,9 @@ class LayoutField final : public Addressable {
       : name(name), type(type) {}
 
   auto get_name() const -> View::Bytes override { return name; }
+  auto get_documentation() const -> const Documentation& override {
+    return Comment::get_empty();
+  }
   auto resolve() const -> const Abstract& override { return type.resolve(); }
   auto resolve_context(View::Bytes route) const -> const Abstract& override {
     return type.resolve().resolve_context(route);
@@ -60,22 +62,20 @@ static Harness TtxLayout = {
 };
 
 PERIMORTEM_UNIT_TEST(TtxLayout, fluid_order) {
-  Invalid invalid;
-  LayoutType real("Real_32"_view, invalid);
-  LayoutType bits("Bits_32"_view, invalid);
+  LayoutType real("Real_32"_view);
+  LayoutType bits("Unsigned_32"_view);
   const Reference<Abstract> values[] = {real, bits};
   Fluid layout(values);
 
   EXPECT_EQ(layout.get_size(), Count(2));
   EXPECT(&layout.get_abstract(0) == &real);
   EXPECT(&layout.get_abstract(1).resolve() == &bits);
-  EXPECT(layout.get_abstract(2).is<Invalid>());
+  EXPECT(&layout.get_abstract(2) == &Invalid::get_invalid());
 }
 
 PERIMORTEM_UNIT_TEST(TtxLayout, structured_fields) {
-  Invalid invalid;
-  LayoutType real("Real_32"_view, invalid);
-  LayoutType bits("Bits_32"_view, invalid);
+  LayoutType real("Real_32"_view);
+  LayoutType bits("Unsigned_32"_view);
   LayoutField x("x"_view, real);
   LayoutField y("y"_view, bits);
   const Reference<Addressable> fields[] = {x, y};
@@ -90,9 +90,8 @@ PERIMORTEM_UNIT_TEST(TtxLayout, structured_fields) {
 }
 
 PERIMORTEM_UNIT_TEST(TtxLayout, fitting_contracts) {
-  Invalid invalid;
-  LayoutType real("Real_32"_view, invalid);
-  LayoutType bits("Bits_32"_view, invalid);
+  LayoutType real("Real_32"_view);
+  LayoutType bits("Unsigned_32"_view);
   LayoutField x("x"_view, real);
   LayoutField y("y"_view, bits);
   Alias named_x("x"_view, real);
@@ -115,9 +114,8 @@ PERIMORTEM_UNIT_TEST(TtxLayout, fitting_contracts) {
 }
 
 PERIMORTEM_UNIT_TEST(TtxLayout, named_ambiguity) {
-  Invalid invalid;
-  LayoutType real("Real_32"_view, invalid);
-  LayoutType bits("Bits_32"_view, invalid);
+  LayoutType real("Real_32"_view);
+  LayoutType bits("Unsigned_32"_view);
   LayoutField x("x"_view, real);
   LayoutField y("y"_view, bits);
   Alias first("x"_view, real);
@@ -132,8 +130,7 @@ PERIMORTEM_UNIT_TEST(TtxLayout, named_ambiguity) {
 }
 
 PERIMORTEM_UNIT_TEST(TtxLayout, structured_identity) {
-  Invalid invalid;
-  LayoutType real("Real_32"_view, invalid);
+  LayoutType real("Real_32"_view);
   LayoutField first_x("x"_view, real);
   LayoutField second_x("x"_view, real);
   const Reference<Addressable> first_fields[] = {first_x};

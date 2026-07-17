@@ -35,8 +35,8 @@ class Bytes {
   constexpr operator Core::View::Bytes() const { return get_view(); }
   constexpr operator Core::Access::Bytes() { return get_access(); }
 
-  auto append(Bits_8 byte) -> void;
-  auto append(Bits_8 byte, Count amount) -> void;
+  auto append(Unsigned_8 byte) -> void;
+  auto append(Unsigned_8 byte, Count amount) -> void;
   auto concat(Core::View::Bytes view) -> void;
   auto proxy(Core::View::Bytes view) -> void;
   // Resizes the container but attempts to preserve as much of the original
@@ -58,10 +58,10 @@ class Bytes {
   // equivilant to a clear.
   auto shrink(Count bytes_to_remove) -> void;
 
-  auto operator[](Count index) const -> Bits_8;
-  auto at(Count index) const -> Bits_8;
-  auto set(Bits_8 target) -> void;
-  auto convert(Bits_8 source, Bits_8 target) -> void;
+  auto operator[](Count index) const -> Unsigned_8;
+  auto at(Count index) const -> Unsigned_8;
+  auto set(Unsigned_8 target) -> void;
+  auto convert(Unsigned_8 source, Unsigned_8 target) -> void;
   auto slice(Count start, Count size) const -> Core::View::Bytes;
 
   constexpr auto get_size() const -> Count { return size; }
@@ -74,7 +74,7 @@ class Bytes {
     return Core::Access::Bytes(source_block, size);
   }
 
-  constexpr auto hash() const -> Bits_64 {
+  constexpr auto hash() const -> Unsigned_64 {
     return Core::Hash(get_view()).get_value();
   }
 
@@ -85,7 +85,7 @@ class Bytes {
   auto ensure_capacity(Count required_size) -> void;
 
  private:
-  Bits_8* source_block = nullptr;
+  Unsigned_8* source_block = nullptr;
   Count size = 0;
   Count capacity = 0;
 };

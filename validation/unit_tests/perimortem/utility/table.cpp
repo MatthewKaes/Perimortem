@@ -13,7 +13,7 @@ using namespace Perimortem::Utility;
 
 using namespace Validation;
 
-using KeywordEntry = Pair<View::Bytes, Bits_8>;
+using KeywordEntry = Pair<View::Bytes, Unsigned_8>;
 constexpr Static::Vector<KeywordEntry, 23> keyword_source = {{
   {"as"_view, 1},       {"if"_view, 2},       {"for"_view, 3},
   {"new"_view, 4},      {"else"_view, 5},     {"func"_view, 6},
@@ -25,7 +25,7 @@ constexpr Static::Vector<KeywordEntry, 23> keyword_source = {{
   {"package"_view, 22}, {"warning"_view, 23},
 }};
 
-using keyword_table = Table<Bits_32, keyword_source>;
+using keyword_table = Table<Unsigned_32, keyword_source>;
 
 using WordEntry = Pair<View::Bytes, View::Bytes>;
 constexpr Static::Vector<WordEntry, 8> word_source = {{

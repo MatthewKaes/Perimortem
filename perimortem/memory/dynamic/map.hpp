@@ -90,7 +90,7 @@ class Map {
     }
 
     destruct();
-    Core::Bibliotheca::remit(Core::Data::cast<Bits_8>(buckets));
+    Core::Bibliotheca::remit(Core::Data::cast<Unsigned_8>(buckets));
   }
 
   auto ensure_capacity(Count items) -> void {
@@ -116,7 +116,7 @@ class Map {
   }
 
   auto insert(const key_type& key, const value_type& value) -> Entry* {
-    Bits_32 hash = get_hash(key);
+    Unsigned_32 hash = get_hash(key);
     Count bucket = find_bucket(key, hash);
     if (bucket != Count(-1)) {
       entries[bucket].value = value;
@@ -137,7 +137,7 @@ class Map {
   }
 
   auto emplace(key_type&& key, value_type&& value) -> Entry* {
-    Bits_32 hash = get_hash(key);
+    Unsigned_32 hash = get_hash(key);
     Count bucket = find_bucket(key, hash);
     if (bucket != Count(-1)) {
       entries[bucket].value = static_cast<value_type&&>(value);
@@ -180,7 +180,7 @@ class Map {
     // been repaired. Moving a displaced entry backward carries that removed
     // object forward, leaving exactly one object to destroy at the final hole.
     while (buckets[next] != 0) {
-      Bits_32 hash = buckets[next];
+      Unsigned_32 hash = buckets[next];
       Count home = extract_bucket_index(hash);
       Count entry_distance = (next - home) & bucket_mask;
       Count hole_distance = (hole - home) & bucket_mask;
@@ -224,7 +224,7 @@ class Map {
   }
 
   auto at(const key_type& key) -> value_type& {
-    Bits_32 hash = get_hash(key);
+    Unsigned_32 hash = get_hash(key);
     Count bucket = find_bucket(key, hash);
     if (bucket != Count(-1)) {
       return entries[bucket].value;
@@ -250,7 +250,7 @@ class Map {
   constexpr auto is_empty() const -> Bool { return size == 0; }
 
  private:
-  auto get_empty(Bits_32 hash) -> Entry* {
+  auto get_empty(Unsigned_32 hash) -> Entry* {
     Count bucket = extract_bucket_index(hash);
     while (buckets[bucket] != 0) {
       bucket = (bucket + 1) & (bucket_count - 1);
@@ -260,15 +260,15 @@ class Map {
     return entries + bucket;
   }
 
-  auto find_bucket(const key_type& key, Bits_32 hash) const -> Count {
+  auto find_bucket(const key_type& key, Unsigned_32 hash) const -> Count {
     if (size == 0) {
       return Count(-1);
     }
 
-    Bits_32 bucket_key = extract_bucket_key(hash);
+    Unsigned_32 bucket_key = extract_bucket_key(hash);
     Count bucket = extract_bucket_index(hash);
     while (True) {
-      Bits_32 stored_key = buckets[bucket];
+      Unsigned_32 stored_key = buckets[bucket];
       if (stored_key == bucket_key && entries[bucket].key == key) {
         return bucket;
       }
@@ -281,7 +281,7 @@ class Map {
     }
   }
 
-  auto emplace_hashed(Entry* entry, Bits_32 hash) -> void {
+  auto emplace_hashed(Entry* entry, Unsigned_32 hash) -> void {
     Entry* empty = get_empty(hash);
     memcpy(Core::Data::cast<void>(empty), entry, sizeof(Entry));
   }
@@ -307,7 +307,7 @@ class Map {
   }
 
   auto grow(Count new_bucket_count) -> void {
-    Bits_32* old_buckets = buckets;
+    Unsigned_32* old_buckets = buckets;
     Entry* old_entries = entries;
     Count old_bucket_count = bucket_count;
     Count old_size = size;
@@ -319,7 +319,7 @@ class Map {
     }
 
     if (old_buckets != nullptr) {
-      Core::Bibliotheca::remit(Core::Data::cast<Bits_8>(old_buckets));
+      Core::Bibliotheca::remit(Core::Data::cast<Unsigned_8>(old_buckets));
     }
 
     size = old_size;
@@ -328,7 +328,7 @@ class Map {
   auto create_buffer(Count new_bucket_count) -> void {
     Core::Bibliotheca::Allocation allocation =
         Core::Bibliotheca::check_out(required_buffer_size(new_bucket_count));
-    buckets = Core::Data::cast<Bits_32>(allocation.ptr);
+    buckets = Core::Data::cast<Unsigned_32>(allocation.ptr);
     entries = Core::Data::cast<Entry>(
         allocation.ptr + entry_offset(new_bucket_count));
     bucket_count = new_bucket_count;
@@ -343,25 +343,26 @@ class Map {
   }
 
   static constexpr auto entry_offset(Count bucket_count) -> Count {
-    return Core::Data::align<alignof(Entry)>(sizeof(Bits_32) * bucket_count);
+    return Core::Data::align<alignof(Entry)>(
+        sizeof(Unsigned_32) * bucket_count);
   }
 
-  constexpr auto extract_bucket_index(Bits_32 hash) const -> Count {
+  constexpr auto extract_bucket_index(Unsigned_32 hash) const -> Count {
     return hash & (bucket_count - 1);
   }
 
-  static constexpr auto extract_bucket_key(Bits_32 hash) -> Bits_32 {
-    return hash | Bits_32(0x80000000);
+  static constexpr auto extract_bucket_key(Unsigned_32 hash) -> Unsigned_32 {
+    return hash | Unsigned_32(0x80000000);
   }
 
-  static auto get_hash(const key_type& key) -> Bits_32 {
-    return Bits_32(Core::Hash(key).get_value());
+  static auto get_hash(const key_type& key) -> Unsigned_32 {
+    return Unsigned_32(Core::Hash(key).get_value());
   }
 
-  Bits_32* buckets = nullptr;
+  Unsigned_32* buckets = nullptr;
   Entry* entries = nullptr;
-  Bits_32 bucket_count = 0;
-  Bits_32 size = 0;
+  Unsigned_32 bucket_count = 0;
+  Unsigned_32 size = 0;
 };
 
 }  // namespace Perimortem::Memory::Dynamic

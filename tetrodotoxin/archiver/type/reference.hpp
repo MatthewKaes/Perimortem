@@ -14,7 +14,7 @@ namespace Tetrodotoxin::Archiver::Type {
 // restore the real TTX address on read.
 class Reference {
  public:
-  enum class Kind : Bits_8 {
+  enum class Kind : Unsigned_8 {
     None = 0,
     Builtin = 1,
     Local = 2,

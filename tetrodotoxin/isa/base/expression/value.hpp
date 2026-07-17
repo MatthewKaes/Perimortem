@@ -25,7 +25,7 @@ class Value {
  public:
   // TODO: Operators should either be an extensible class set or it's own closed
   // class form that handles operations rather than stuffing it in value.
-  enum class Operator : Bits_8 {
+  enum class Operator : Unsigned_8 {
     None,
     Add,
     Subtract,
@@ -35,7 +35,7 @@ class Value {
     Equal,
   };
 
-  enum class Kind : Bits_8 {
+  enum class Kind : Unsigned_8 {
     Empty,
     String,
     Bytes,

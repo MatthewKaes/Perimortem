@@ -46,7 +46,7 @@ auto Resolution::Context::persist(View::Bytes bytes) -> View::Bytes {
     return View::Bytes();
   }
 
-  Bits_8* copy = error_arena.allocate(bytes.get_size());
+  Unsigned_8* copy = error_arena.allocate(bytes.get_size());
   Data::copy(copy, bytes.get_data(), bytes.get_size());
   return View::Bytes(copy, bytes.get_size());
 }

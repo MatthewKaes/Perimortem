@@ -11,14 +11,15 @@ using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
 using namespace Tetrodotoxin;
 
-static constexpr Bits_64 fnv_prime = 1099511628211ull;
-static constexpr Bits_64 high_seed = 14695981039346656037ull;
-static constexpr Bits_64 low_seed = 7809847782465536322ull;
+static constexpr Unsigned_64 fnv_prime = 1099511628211ull;
+static constexpr Unsigned_64 high_seed = 14695981039346656037ull;
+static constexpr Unsigned_64 low_seed = 7809847782465536322ull;
 
-static auto append(Bits_64& high, Bits_64& low, View::Bytes value) -> void {
+static auto append(Unsigned_64& high, Unsigned_64& low, View::Bytes value)
+    -> void {
   Count size = value.get_size();
   for (Count i = 0; i < sizeof(Count); i++) {
-    Bits_8 byte = Bits_8(size >> (i * 8));
+    Unsigned_8 byte = Unsigned_8(size >> (i * 8));
     high = (high ^ byte) * fnv_prime;
     low = (low ^ byte) * fnv_prime;
   }
@@ -29,23 +30,27 @@ static auto append(Bits_64& high, Bits_64& low, View::Bytes value) -> void {
   }
 }
 
-static auto append(Bits_64& high, Bits_64& low, Bits_64 value) -> void {
-  Static::Bytes<sizeof(Bits_64)> bytes;
+static auto append(Unsigned_64& high, Unsigned_64& low, Unsigned_64 value)
+    -> void {
+  Static::Bytes<sizeof(Unsigned_64)> bytes;
   for (Count i = 0; i < bytes.get_size(); i++) {
-    bytes[i] = Bits_8(value >> (i * 8));
+    bytes[i] = Unsigned_8(value >> (i * 8));
   }
 
   append(high, low, bytes);
 }
 
-static auto append(Bits_64& high, Bits_64& low, const Ttx::Type& type) -> void {
+static auto append(Unsigned_64& high, Unsigned_64& low, const Ttx::Type& type)
+    -> void {
   append(high, low, type.resolve_attribute("cpp"_view).get_bytes());
   append(high, low, type.resolve_attribute("abi"_view).get_unsigned());
   append(high, low, type.canonical().get_name());
 }
 
-static auto append(Bits_64& high, Bits_64& low, const Ttx::Function& function)
-    -> void {
+static auto append(
+    Unsigned_64& high,
+    Unsigned_64& low,
+    const Ttx::Function& function) -> void {
   append(high, low, function.get_name());
 
   View::Vector<Ttx::Member> parameters =
@@ -63,8 +68,8 @@ static auto append(Bits_64& high, Bits_64& low, const Ttx::Function& function)
 }
 
 static auto append(
-    Bits_64& high,
-    Bits_64& low,
+    Unsigned_64& high,
+    Unsigned_64& low,
     const Ttx::Type& type,
     View::Vector<Abi::Type> type_identities) -> Bool {
   append(high, low, type.resolve_attribute("cpp"_view).get_bytes());
@@ -82,8 +87,8 @@ static auto append(
 }
 
 static auto append(
-    Bits_64& high,
-    Bits_64& low,
+    Unsigned_64& high,
+    Unsigned_64& low,
     const Ttx::Function& function,
     View::Vector<Abi::Type> type_identities) -> Bool {
   append(high, low, function.get_name());
@@ -114,8 +119,8 @@ static auto append(
 static auto build_symbol(
     Allocator::Arena& arena,
     View::Bytes prefix,
-    Bits_64 high,
-    Bits_64 low) -> View::Bytes {
+    Unsigned_64 high,
+    Unsigned_64 low) -> View::Bytes {
   constexpr View::Bytes digits = "0123456789abcdef"_view;
   Managed::Bytes output(arena);
   output.concat(prefix);
@@ -137,8 +142,8 @@ static auto build_internal_symbol(
     View::Bytes table,
     View::Bytes owner_path,
     const Ttx::Function& function) -> View::Bytes {
-  Bits_64 high = high_seed;
-  Bits_64 low = low_seed;
+  Unsigned_64 high = high_seed;
+  Unsigned_64 low = low_seed;
   append(high, low, "Tetrodotoxin internal symbol"_view);
   append(high, low, unit);
   append(high, low, module);
@@ -177,8 +182,8 @@ auto Abi::Symbol::exported(
     return View::Bytes();
   }
 
-  Bits_64 high = high_seed;
-  Bits_64 low = low_seed;
+  Unsigned_64 high = high_seed;
+  Unsigned_64 low = low_seed;
   append(high, low, "Tetrodotoxin exported symbol"_view);
   append(high, low, public_path);
   Bool appended = append(high, low, function, type_identities);

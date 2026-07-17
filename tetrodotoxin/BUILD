@@ -23,17 +23,56 @@ cc_library(
 )
 
 cc_library(
+    name = "model",
+    srcs = glob([
+        "model/**/*.cpp",
+    ]),
+    hdrs = glob([
+        "model/**/*.hpp",
+    ]),
+    includes = ["."],
+    deps = [
+        "//perimortem:core",
+        "//ttx:concept",
+        "//ttx:model",
+    ],
+)
+
+cc_library(
+    name = "interpreter",
+    srcs = glob([
+        "interpreter/**/*.cpp",
+    ]),
+    hdrs = glob([
+        "interpreter/**/*.hpp",
+    ]),
+    includes = ["."],
+    deps = [
+        ":model",
+        "//perimortem:core",
+        "//perimortem:memory",
+        "//ttx:concept",
+        "//ttx:lexical",
+        "//ttx:model",
+    ],
+)
+
+cc_library(
     name = "isa",
     srcs = glob(
         [
             "isa/**/*.cpp",
         ],
         exclude = [
+            "isa/package/**/*.cpp",
             "isa/library/lowering.cpp",
             "isa/shader/lowering.cpp",
         ],
     ),
-    hdrs = glob(["isa/**/*.hpp"]),
+    hdrs = glob(
+        ["isa/**/*.hpp"],
+        exclude = ["isa/package/**/*.hpp"],
+    ),
     includes = ["."],
     deps = [
         ":compiler",

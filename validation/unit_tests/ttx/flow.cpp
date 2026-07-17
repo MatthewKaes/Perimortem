@@ -14,6 +14,8 @@
 #include "ttx/model/packs/named.hpp"
 #include "ttx/model/packs/positional.hpp"
 #include "ttx/model/projection.hpp"
+#include "ttx/model/types/boolean.hpp"
+#include "ttx/model/types/unsigned_64.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -26,21 +28,20 @@ using namespace Validation;
 /// swizzle, and slice construction without adding expression behavior to Type.
 class FlowType final : public Type {
  public:
-  FlowType(
-      View::Bytes name,
-      const Invalid& invalid,
-      Structured layout = Structured())
-      : name(name), invalid(invalid), layout(layout) {}
+  FlowType(View::Bytes name, Structured layout = Structured())
+      : name(name), layout(layout) {}
 
   auto get_name() const -> View::Bytes override { return name; }
+  auto get_documentation() const -> const Documentation& override {
+    return Comment::get_empty();
+  }
   auto resolve_context(View::Bytes) const -> const Abstract& override {
-    return invalid;
+    return Invalid::get_invalid();
   }
   auto get_layout() const -> const Structured& override { return layout; }
 
  private:
   View::Bytes name;
-  const Invalid& invalid;
   Structured layout;
 };
 
@@ -50,6 +51,9 @@ class FlowField final : public Addressable {
   FlowField(View::Bytes name, const Abstract& type) : name(name), type(type) {}
 
   auto get_name() const -> View::Bytes override { return name; }
+  auto get_documentation() const -> const Documentation& override {
+    return Comment::get_empty();
+  }
   auto resolve() const -> const Abstract& override { return type.resolve(); }
   auto resolve_context(View::Bytes route) const -> const Abstract& override {
     return type.resolve().resolve_context(route);
@@ -68,6 +72,9 @@ class FlowExpression final : public Expression {
       : name(name), type(type) {}
 
   auto get_name() const -> View::Bytes override { return name; }
+  auto get_documentation() const -> const Documentation& override {
+    return Comment::get_empty();
+  }
   auto get_type() const -> const Abstract& override { return type; }
   auto get_inputs() const -> const Layout& override { return inputs; }
 
@@ -75,31 +82,6 @@ class FlowExpression final : public Expression {
   View::Bytes name;
   const Abstract& type;
   inline static const Fluid inputs;
-};
-
-/// Terminal fixtures keep constant domains tied to toolchain-selected Types.
-template <typename Contract>
-class FlowTerminal final : public Contract {
- public:
-  FlowTerminal(
-      View::Bytes name,
-      Count size,
-      Count alignment,
-      const Invalid& invalid)
-      : name(name), size(size), alignment(alignment), invalid(invalid) {}
-
-  auto get_name() const -> View::Bytes override { return name; }
-  auto resolve_context(View::Bytes) const -> const Abstract& override {
-    return invalid;
-  }
-  auto get_size() const -> Count override { return size; }
-  auto get_alignment() const -> Count override { return alignment; }
-
- private:
-  View::Bytes name;
-  Count size;
-  Count alignment;
-  const Invalid& invalid;
 };
 
 /// Constant fixtures make fixed slice arguments semantic values rather than
@@ -127,8 +109,7 @@ class FlowConstant final : public Contract {
 /// Invalid instead of placing failure state inside Pack.
 class FlowOwner final {
  public:
-  FlowOwner(Allocator::Arena& arena, const Invalid& invalid)
-      : arena(arena), invalid(invalid) {}
+  FlowOwner(Allocator::Arena& arena) : arena(arena) {}
 
   auto group(View::Vector<Reference<Abstract>> values) const
       -> const Packs::Positional& {
@@ -143,7 +124,7 @@ class FlowOwner final {
       const -> const Abstract& {
     const Abstract& receiver_type = receiver.get_type().resolve();
     if (!receiver_type.is<Type>()) {
-      return invalid;
+      return Invalid::get_invalid();
     }
 
     const Structured& fields = receiver_type.as<Type>().get_layout();
@@ -159,7 +140,7 @@ class FlowOwner final {
         }
       }
       if (matches != 1) {
-        return invalid;
+        return Invalid::get_invalid();
       }
 
       const Addressable& field =
@@ -177,19 +158,19 @@ class FlowOwner final {
       const Constant& start,
       const Constant& count) const -> const Abstract& {
     if (!start.is<Constants::Unsigned>() || !count.is<Constants::Unsigned>()) {
-      return invalid;
+      return Invalid::get_invalid();
     }
 
     const Abstract& receiver_type = receiver.get_type().resolve();
     if (!receiver_type.is<Type>()) {
-      return invalid;
+      return Invalid::get_invalid();
     }
 
     const Structured& fields = receiver_type.as<Type>().get_layout();
-    Bits_64 first = start.as<Constants::Unsigned>().get_value();
-    Bits_64 size = count.as<Constants::Unsigned>().get_value();
+    Unsigned_64 first = start.as<Constants::Unsigned>().get_value();
+    Unsigned_64 size = count.as<Constants::Unsigned>().get_value();
     if (first > fields.get_size() || size > fields.get_size() - first) {
-      return invalid;
+      return Invalid::get_invalid();
     }
 
     Managed::Vector<Reference<Abstract>> projections(arena);
@@ -220,7 +201,6 @@ class FlowOwner final {
   }
 
   Allocator::Arena& arena;
-  const Invalid& invalid;
 };
 
 static Harness TtxFlow = {
@@ -228,14 +208,13 @@ static Harness TtxFlow = {
 };
 
 PERIMORTEM_UNIT_TEST(TtxFlow, projection) {
-  Invalid invalid;
-  FlowType real("Real"_view, invalid);
+  FlowType real("Real"_view);
   FlowField r("r"_view, real);
   const Reference<Addressable> fields[] = {r};
-  FlowType color("Color"_view, invalid, Structured(fields));
+  FlowType color("Color"_view, Structured(fields));
   FlowExpression receiver("color"_view, color);
   Projection projection(receiver, r);
-  FlowField missing("missing"_view, invalid);
+  FlowField missing("missing"_view, Invalid::get_invalid());
   Projection unresolved(receiver, missing);
 
   EXPECT(projection.is<Expression>());
@@ -256,8 +235,7 @@ PERIMORTEM_UNIT_TEST(TtxFlow, projection) {
 }
 
 PERIMORTEM_UNIT_TEST(TtxFlow, binding) {
-  Invalid invalid;
-  FlowType real("Real"_view, invalid);
+  FlowType real("Real"_view);
   FlowExpression source("source"_view, real);
   Binding binding("x"_view, source);
 
@@ -276,9 +254,8 @@ PERIMORTEM_UNIT_TEST(TtxFlow, binding) {
 
 PERIMORTEM_UNIT_TEST(TtxFlow, pack_flatten) {
   Allocator::Arena arena;
-  Invalid invalid;
-  FlowOwner owner(arena, invalid);
-  FlowType real("Real"_view, invalid);
+  FlowOwner owner(arena);
+  FlowType real("Real"_view);
   FlowExpression a("a"_view, real);
   FlowExpression b("b"_view, real);
   FlowExpression c("c"_view, real);
@@ -300,7 +277,7 @@ PERIMORTEM_UNIT_TEST(TtxFlow, pack_flatten) {
   FlowField x("x"_view, real);
   FlowField y("y"_view, real);
   const Reference<Addressable> fields[] = {x, y};
-  FlowType vector("Vector"_view, invalid, Structured(fields));
+  FlowType vector("Vector"_view, Structured(fields));
   FlowExpression typed("typed"_view, vector);
   const Reference<Abstract> typed_values[] = {outer, typed};
   const Packs::Positional& with_typed = owner.group(typed_values);
@@ -321,8 +298,7 @@ PERIMORTEM_UNIT_TEST(TtxFlow, pack_flatten) {
 }
 
 PERIMORTEM_UNIT_TEST(TtxFlow, named_pack) {
-  Invalid invalid;
-  FlowType real("Real"_view, invalid);
+  FlowType real("Real"_view);
   FlowExpression first("first"_view, real);
   FlowExpression second("second"_view, real);
   Binding x("x"_view, first);
@@ -366,16 +342,15 @@ PERIMORTEM_UNIT_TEST(TtxFlow, named_pack) {
 
 PERIMORTEM_UNIT_TEST(TtxFlow, swizzle) {
   Allocator::Arena arena;
-  Invalid invalid;
-  FlowType real("Real"_view, invalid);
+  FlowType real("Real"_view);
   FlowField r("r"_view, real);
   FlowField g("g"_view, real);
   FlowField b("b"_view, real);
   const Reference<Addressable> fields[] = {r, g, b};
-  FlowType color("Color"_view, invalid, Structured(fields));
+  FlowType color("Color"_view, Structured(fields));
   FlowExpression receiver("color"_view, color);
-  FlowExpression unresolved("unresolved"_view, invalid);
-  FlowOwner owner(arena, invalid);
+  FlowExpression unresolved("unresolved"_view, Invalid::get_invalid());
+  FlowOwner owner(arena);
   const View::Bytes names[] = {"g"_view, "r"_view, "g"_view};
   const View::Bytes missing[] = {"missing"_view};
 
@@ -394,26 +369,25 @@ PERIMORTEM_UNIT_TEST(TtxFlow, swizzle) {
 
 PERIMORTEM_UNIT_TEST(TtxFlow, fixed_slice) {
   Allocator::Arena arena;
-  Invalid invalid;
-  FlowType real("Real"_view, invalid);
+  FlowType real("Real"_view);
   FlowField r("r"_view, real);
   FlowField g("g"_view, real);
   FlowField b("b"_view, real);
   const Reference<Addressable> fields[] = {r, g, b};
-  FlowType color("Color"_view, invalid, Structured(fields));
+  FlowType color("Color"_view, Structured(fields));
   FlowExpression receiver("color"_view, color);
-  FlowTerminal<Types::Unsigned> unsigned_64("Unsigned_64"_view, 8, 8, invalid);
-  FlowTerminal<Types::Flag> flag_type("Flag"_view, 1, 1, invalid);
+  Types::Unsigned_64 unsigned_64;
+  Types::Boolean flag_type;
   FlowConstant<Constants::Unsigned> start(
-      "start"_view, unsigned_64, Bits_64(1));
+      "start"_view, unsigned_64, Unsigned_64(1));
   FlowConstant<Constants::Unsigned> count(
-      "count"_view, unsigned_64, Bits_64(2));
+      "count"_view, unsigned_64, Unsigned_64(2));
   FlowConstant<Constants::Unsigned> empty(
-      "empty"_view, unsigned_64, Bits_64(0));
+      "empty"_view, unsigned_64, Unsigned_64(0));
   FlowConstant<Constants::Unsigned> too_many(
-      "too_many"_view, unsigned_64, Bits_64(3));
+      "too_many"_view, unsigned_64, Unsigned_64(3));
   FlowConstant<Constants::Flag> flag("flag"_view, flag_type, True);
-  FlowOwner owner(arena, invalid);
+  FlowOwner owner(arena);
 
   const Abstract& selected = owner.slice(receiver, start, count);
   const Layout& layout = selected.as<Pack>().get_layout();

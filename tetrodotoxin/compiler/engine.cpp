@@ -27,7 +27,7 @@ auto Engine::publish_read_only(
     }
   }
 
-  Bits_16 section = linker.add_section(
+  Unsigned_16 section = linker.add_section(
       Tetrodotoxin::Linker::Object::Section::Type::ReadOnly, content);
   for (Count i = 0; i < symbols.get_size(); i++) {
     linker.add_symbol(

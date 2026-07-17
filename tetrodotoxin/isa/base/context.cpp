@@ -30,8 +30,7 @@ auto Base::Context::parameterize_type(
   }
 
   Managed::Bytes stored_name(arena, name);
-  const Ttx::Type& result =
-      arena.construct<Ttx::Type>(stored_name.get_view());
+  const Ttx::Type& result = arena.construct<Ttx::Type>(stored_name.get_view());
 
   Managed::Vector<Ttx::Member> stored_arguments(arena);
   View::Vector<Ttx::Member> members = arguments.get_members();

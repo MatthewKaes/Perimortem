@@ -116,7 +116,7 @@ class Vector {
         arena.allocate(sizeof(value_type) * capacity));
 
     Core::Data::copy(
-        Core::Data::cast<Bits_8>(new_block), rented_block,
+        Core::Data::cast<Unsigned_8>(new_block), rented_block,
         sizeof(value_type) * size);
     rented_block = new_block;
   }

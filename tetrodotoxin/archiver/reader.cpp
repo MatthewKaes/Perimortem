@@ -52,16 +52,16 @@ class PackageReader {
       return View::Bytes();
     }
 
-    Bits_32 format_version = reader.read_bits_32();
+    Unsigned_32 format_version = reader.read_unsigned_32();
     if (format_version != Format::format_version) {
       return View::Bytes();
     }
 
-    content_id = Uuid(reader.read_bits_64(), reader.read_bits_64());
+    content_id = Uuid(reader.read_unsigned_64(), reader.read_unsigned_64());
 
-    Static::Vector<Bits_64, Format::table_count> offsets;
+    Static::Vector<Unsigned_64, Format::table_count> offsets;
     for (Count i = 0; i < Format::table_count; i++) {
-      offsets[i] = reader.read_bits_64();
+      offsets[i] = reader.read_unsigned_64();
       Count offset = Count(offsets[i]);
       if (reader.get_location() == Count(-1) || offset < Format::data_offset ||
           offset >= source.get_size() ||
@@ -205,7 +205,7 @@ class PackageReader {
     Count value = 0;
     Count shift = 0;
     while (shift < sizeof(Count) * 8) {
-      Bits_8 byte = reader.read_bits_8();
+      Unsigned_8 byte = reader.read_unsigned_8();
       if (reader.get_location() == Count(-1)) {
         return Count();
       }
@@ -227,14 +227,14 @@ class PackageReader {
   }
 
   static auto read_uuid(BinaryReader& reader) -> Uuid {
-    Bits_64 high = reader.read_bits_64();
-    Bits_64 low = reader.read_bits_64();
+    Unsigned_64 high = reader.read_unsigned_64();
+    Unsigned_64 low = reader.read_unsigned_64();
     return Uuid(high, low);
   }
 
   auto read_ref(BinaryReader& source, View::Vector<Ttx::Type*> local_types)
       -> const Ttx::Type& {
-    auto kind = Type::Reference::Kind(source.read_bits_8());
+    auto kind = Type::Reference::Kind(source.read_unsigned_8());
     if (source.get_location() == Count(-1)) {
       return Ttx::Type::invalid();
     }
@@ -291,7 +291,7 @@ class PackageReader {
 
   auto read_attribute(Managed::Vector<Ttx::Attribute>& attributes) -> Bool {
     View::Bytes key = read_bytes(reader);
-    auto kind = Ttx::Attribute::Kind(reader.read_bits_8());
+    auto kind = Ttx::Attribute::Kind(reader.read_unsigned_8());
     if (reader.get_location() == Count(-1)) {
       return False;
     }
@@ -310,7 +310,7 @@ class PackageReader {
       return True;
     }
     case Ttx::Attribute::Kind::Unsigned: {
-      Bits_64 value = reader.read_bits_64();
+      Unsigned_64 value = reader.read_unsigned_64();
       if (reader.get_location() == Count(-1)) {
         return False;
       }
@@ -319,7 +319,7 @@ class PackageReader {
       return True;
     }
     case Ttx::Attribute::Kind::Signed: {
-      Signed_64 value = reader.read_signed_bits_64();
+      Signed_64 value = reader.read_signed_64();
       if (reader.get_location() == Count(-1)) {
         return False;
       }
@@ -337,7 +337,7 @@ class PackageReader {
       return True;
     }
     case Ttx::Attribute::Kind::Boolean: {
-      Bits_8 value = reader.read_bits_8();
+      Unsigned_8 value = reader.read_unsigned_8();
       if (reader.get_location() == Count(-1) || value > 1) {
         return False;
       }
@@ -371,7 +371,7 @@ class PackageReader {
     for (Count i = 0; i < member_count; i++) {
       View::Bytes name = read_bytes(reader);
       TypeReference type = read_ref(reader, local_types);
-      Bool defaulted = reader.read_bits_8() != 0;
+      Bool defaulted = reader.read_unsigned_8() != 0;
       Ttx::Documentation documentation = read_documentation();
       Managed::Vector<Ttx::Attribute> attributes(arena);
       Bool read_member_attributes = read_attributes(attributes);

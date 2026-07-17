@@ -64,16 +64,17 @@ ttx_library(
 )
 
 cc_binary(
-    name = "ttx_abstract_tests",
+    name = "ttx_concept_tests",
     srcs = [
         "unit_test.cpp",
         "unit_tests/ttx/abstract.cpp",
+        "unit_tests/ttx/documentation.cpp",
     ],
     includes = ["."],
     deps = [
         ":test_headers",
         "//perimortem",
-        "//ttx:abstraction",
+        "//ttx:concept",
     ],
 )
 
@@ -83,10 +84,10 @@ cc_binary(
         "unit_test.cpp",
         "unit_tests/ttx/attribute.cpp",
         "unit_tests/ttx/callable.cpp",
-        "unit_tests/ttx/documentation.cpp",
         "unit_tests/ttx/expression.cpp",
         "unit_tests/ttx/flow.cpp",
         "unit_tests/ttx/generic.cpp",
+        "unit_tests/ttx/group.cpp",
         "unit_tests/ttx/layout.cpp",
         "unit_tests/ttx/type.cpp",
         "unit_tests/ttx/types.cpp",
@@ -95,7 +96,41 @@ cc_binary(
     deps = [
         ":test_headers",
         "//perimortem",
-        "//ttx:abstraction",
+        "//ttx:concept",
+        "//ttx:model",
+    ],
+)
+
+cc_binary(
+    name = "tetrodotoxin_model_tests",
+    srcs = [
+        "unit_test.cpp",
+        "unit_tests/tetrodotoxin/model.cpp",
+    ],
+    includes = ["."],
+    deps = [
+        ":test_headers",
+        "//perimortem",
+        "//tetrodotoxin:model",
+        "//ttx:concept",
+        "//ttx:model",
+    ],
+)
+
+cc_binary(
+    name = "interpreter_tests",
+    srcs = [
+        "unit_test.cpp",
+        "unit_tests/tetrodotoxin/interpreter.cpp",
+    ],
+    includes = ["."],
+    deps = [
+        ":test_headers",
+        "//perimortem",
+        "//tetrodotoxin:interpreter",
+        "//tetrodotoxin:model",
+        "//ttx:concept",
+        "//ttx:lexical",
         "//ttx:model",
     ],
 )
@@ -125,9 +160,11 @@ cc_binary(
         "//tetrodotoxin/abi",
         "//tetrodotoxin:compiler",
         "//tetrodotoxin:diagnostics",
+        "//tetrodotoxin:interpreter",
         "//tetrodotoxin:isa",
         "//tetrodotoxin:isa_lowerers",
         "//tetrodotoxin:linker",
+        "//tetrodotoxin:model",
         "//tetrodotoxin/archiver",
         "//tetrodotoxin/puffer:compiler",
         "//tetrodotoxin/puffer:package_builder",

@@ -10,17 +10,17 @@ using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
 using namespace Tetrodotoxin::Compiler;
 
-static constexpr auto reg_code(Assembler::x86_64::Reg reg) -> Bits_8 {
-  return Bits_8(reg) & Bits_8(0x7);
+static constexpr auto reg_code(Assembler::x86_64::Reg reg) -> Unsigned_8 {
+  return Unsigned_8(reg) & Unsigned_8(0x7);
 }
 
-static constexpr auto xmm_code(Assembler::x86_64::Xmm reg) -> Bits_8 {
-  return Bits_8(reg) & Bits_8(0x7);
+static constexpr auto xmm_code(Assembler::x86_64::Xmm reg) -> Unsigned_8 {
+  return Unsigned_8(reg) & Unsigned_8(0x7);
 }
 
 // REX extensions.
 // Can be bit or'ed together to add multiple extensions.
-enum class RexExt : Bits_8 {
+enum class RexExt : Unsigned_8 {
   // Expands r/m to 4 bits
   // Also expands short call to 4 bits
   B = 0x41,
@@ -33,7 +33,7 @@ enum class RexExt : Bits_8 {
 
 // gen_modrm_byte
 // Can be bit or'ed together to add multiple extensions.
-enum class AddressMode : Bits_8 {
+enum class AddressMode : Unsigned_8 {
   Memory = 0b00000000,     // Memory with no displacement
   Memory_8 = 0b01000000,   // Memory with 1 byte of displacement (signed)
   Memory_32 = 0b10000000,  // Memory with 4 bytes of displacement (signed)
@@ -56,7 +56,7 @@ static constexpr auto rex_short(
     Dynamic::Bytes& code,
     Assembler::x86_64::Reg reg) -> void {
   if (reg > Assembler::x86_64::Reg::RDI) {
-    code.append(Bits_8(RexExt::B));
+    code.append(Unsigned_8(RexExt::B));
   }
 }
 
@@ -64,26 +64,26 @@ static constexpr auto gen_rex_byte(
     Dynamic::Bytes& code,
     Assembler::x86_64::Reg reg,
     Assembler::x86_64::Reg rm) -> void {
-  Bits_8 rex_code = 0;
+  Unsigned_8 rex_code = 0;
 
   // REX.W only for 64-bit operand size (upper nibble == 0x1)
   if ((reg != Assembler::x86_64::Reg::None &&
-       (Bits_8(reg) & Bits_8(0xF0)) == Bits_8(0x10)) ||
+       (Unsigned_8(reg) & Unsigned_8(0xF0)) == Unsigned_8(0x10)) ||
       (rm != Assembler::x86_64::Reg::None &&
-       (Bits_8(rm) & Bits_8(0xF0)) == Bits_8(0x10))) {
-    rex_code = Bits_8(RexExt::W);
+       (Unsigned_8(rm) & Unsigned_8(0xF0)) == Unsigned_8(0x10))) {
+    rex_code = Unsigned_8(RexExt::W);
   }
 
   // Register extension to 4 bit address
   if (reg != Assembler::x86_64::Reg::None &&
-      (Bits_8(reg) & Bits_8(0x0F)) > 0x07) {
-    rex_code |= Bits_8(RexExt::R);
+      (Unsigned_8(reg) & Unsigned_8(0x0F)) > 0x07) {
+    rex_code |= Unsigned_8(RexExt::R);
   }
 
   // Reg / Mem extension to 4 bit address
   if (rm != Assembler::x86_64::Reg::None &&
-      (Bits_8(rm) & Bits_8(0x0F)) > 0x07) {
-    rex_code |= Bits_8(RexExt::B);
+      (Unsigned_8(rm) & Unsigned_8(0x0F)) > 0x07) {
+    rex_code |= Unsigned_8(RexExt::B);
   }
 
   if (rex_code) {
@@ -97,15 +97,15 @@ static constexpr auto gen_rex_byte_16(
     Dynamic::Bytes& code,
     Assembler::x86_64::Reg reg,
     Assembler::x86_64::Reg rm) -> void {
-  Bits_8 rex_code = 0;
+  Unsigned_8 rex_code = 0;
   if (reg != Assembler::x86_64::Reg::None &&
-      (Bits_8(reg) & Bits_8(0x0F)) > 0x07) {
-    rex_code |= Bits_8(RexExt::R);
+      (Unsigned_8(reg) & Unsigned_8(0x0F)) > 0x07) {
+    rex_code |= Unsigned_8(RexExt::R);
   }
 
   if (rm != Assembler::x86_64::Reg::None &&
-      (Bits_8(rm) & Bits_8(0x0F)) > 0x07) {
-    rex_code |= Bits_8(RexExt::B);
+      (Unsigned_8(rm) & Unsigned_8(0x0F)) > 0x07) {
+    rex_code |= Unsigned_8(RexExt::B);
   }
 
   if (rex_code) {
@@ -120,15 +120,15 @@ static constexpr auto gen_rex_byte_32(
     Dynamic::Bytes& code,
     Assembler::x86_64::Reg reg,
     Assembler::x86_64::Reg rm) -> void {
-  Bits_8 rex_code = 0;
+  Unsigned_8 rex_code = 0;
   if (reg != Assembler::x86_64::Reg::None &&
-      (Bits_8(reg) & Bits_8(0x0F)) > 0x07) {
-    rex_code |= Bits_8(RexExt::R);
+      (Unsigned_8(reg) & Unsigned_8(0x0F)) > 0x07) {
+    rex_code |= Unsigned_8(RexExt::R);
   }
 
   if (rm != Assembler::x86_64::Reg::None &&
-      (Bits_8(rm) & Bits_8(0x0F)) > 0x07) {
-    rex_code |= Bits_8(RexExt::B);
+      (Unsigned_8(rm) & Unsigned_8(0x0F)) > 0x07) {
+    rex_code |= Unsigned_8(RexExt::B);
   }
 
   if (rex_code) {
@@ -143,24 +143,24 @@ static constexpr auto gen_rex_byte_8(
     Dynamic::Bytes& code,
     Assembler::x86_64::Reg reg,
     Assembler::x86_64::Reg rm) -> void {
-  Bits_8 rex_code = 0;
+  Unsigned_8 rex_code = 0;
   if (reg != Assembler::x86_64::Reg::None &&
-      (Bits_8(reg) & Bits_8(0x0F)) > 0x07) {
-    rex_code |= Bits_8(RexExt::R);
+      (Unsigned_8(reg) & Unsigned_8(0x0F)) > 0x07) {
+    rex_code |= Unsigned_8(RexExt::R);
   }
 
   if (rm != Assembler::x86_64::Reg::None &&
-      (Bits_8(rm) & Bits_8(0x0F)) > 0x07) {
-    rex_code |= Bits_8(RexExt::B);
+      (Unsigned_8(rm) & Unsigned_8(0x0F)) > 0x07) {
+    rex_code |= Unsigned_8(RexExt::B);
   }
 
   // SPL/BPL/SIL/DIL special case due to encoding aliasing.
   auto anti_alias_rex = [](Assembler::x86_64::Reg r) -> bool {
-    auto c = Bits_8(r) & Bits_8(0x0F);
+    auto c = Unsigned_8(r) & Unsigned_8(0x0F);
     return c >= 0x04 && c <= 0x07;
   };
   if (anti_alias_rex(reg) || anti_alias_rex(rm)) {
-    rex_code |= Bits_8(RexExt::Bare);
+    rex_code |= Unsigned_8(RexExt::Bare);
   }
 
   if (rex_code) {
@@ -171,14 +171,15 @@ static constexpr auto gen_rex_byte_8(
 static constexpr auto gen_modrm_byte(
     AddressMode mode,
     Assembler::x86_64::Reg reg,
-    Assembler::x86_64::Reg rm) -> Bits_8 {
-  return Bits_8(mode) | (reg_code(reg) << 3) | reg_code(rm);
+    Assembler::x86_64::Reg rm) -> Unsigned_8 {
+  return Unsigned_8(mode) | (reg_code(reg) << 3) | reg_code(rm);
 }
 
 static constexpr auto gen_modrm_byte(
     Assembler::x86_64::Reg reg,
-    Assembler::x86_64::Reg rm) -> Bits_8 {
-  return Bits_8(AddressMode::RegToReg) | (reg_code(reg) << 3) | reg_code(rm);
+    Assembler::x86_64::Reg rm) -> Unsigned_8 {
+  return Unsigned_8(AddressMode::RegToReg) | (reg_code(reg) << 3) |
+         reg_code(rm);
 }
 
 // Writes ModRM and optional SIB/displacement bytes for a
@@ -188,10 +189,10 @@ static auto gen_memory_operand(
     Assembler::x86_64::Reg reg,
     Assembler::x86_64::Reg base,
     Signed_32 displacement) -> void {
-  const bool rip_override =
-      (Bits_8(base) & Bits_8(0x7)) == 5;  // RBP/R13: mod=00 means RIP-relative
-  const bool sib_override =
-      (Bits_8(base) & Bits_8(0x7)) == 4;  // RSP/R12: rm=4 means SIB byte
+  const bool rip_override = (Unsigned_8(base) & Unsigned_8(0x7)) ==
+                            5;  // RBP/R13: mod=00 means RIP-relative
+  const bool sib_override = (Unsigned_8(base) & Unsigned_8(0x7)) ==
+                            4;  // RSP/R12: rm=4 means SIB byte
 
   AddressMode mod;
   if (displacement == 0 && !rip_override) {
@@ -205,15 +206,15 @@ static auto gen_memory_operand(
   if (sib_override) {
     // rm=4 signals SIB present
     code.append(gen_modrm_byte(mod, reg, Assembler::x86_64::Reg(0x4)));
-    code.append(Bits_8(0x24));  // SIB: scale=0, no index, RSP/R12 base
+    code.append(Unsigned_8(0x24));  // SIB: scale=0, no index, RSP/R12 base
   } else {
     code.append(gen_modrm_byte(mod, reg, base));
   }
 
   if (mod == AddressMode::Memory_8) {
-    code.append(Bits_8(displacement));
+    code.append(Unsigned_8(displacement));
   } else if (mod == AddressMode::Memory_32) {
-    write_const(code, Bits_32(displacement));
+    write_const(code, Unsigned_32(displacement));
   }
 }
 
@@ -221,7 +222,7 @@ auto Assembler::x86_64::mov(
     Assembler::x86_64::Reg source,
     Assembler::x86_64::Reg destination) -> void {
   // 8-bit: opcode 0x88 (MR encoding: r/m8 = r8)
-  if ((Bits_8(source) & Bits_8(0xF0)) == Bits_8(0x20)) {
+  if ((Unsigned_8(source) & Unsigned_8(0xF0)) == Unsigned_8(0x20)) {
     gen_rex_byte_8(code, source, destination);
     code.append(0x88);
     code.append(gen_modrm_byte(source, destination));
@@ -229,8 +230,8 @@ auto Assembler::x86_64::mov(
   }
 
   // 16-bit: 0x66 operand size prefix + opcode 0x89
-  if ((Bits_8(source) & Bits_8(0xF0)) == Bits_8(0x30)) {
-    code.append(Bits_8(0x66));
+  if ((Unsigned_8(source) & Unsigned_8(0xF0)) == Unsigned_8(0x30)) {
+    code.append(Unsigned_8(0x66));
     gen_rex_byte_16(code, source, destination);
     code.append(0x89);
     code.append(gen_modrm_byte(source, destination));
@@ -244,15 +245,15 @@ auto Assembler::x86_64::mov(
 }
 
 auto Assembler::x86_64::mov(
-    Bits_8 immediate,
+    Unsigned_8 immediate,
     Assembler::x86_64::Reg destination) -> void {
   // B0+rd encoding for 8-bit immediate.
   // SPL/BPL/SIL/DIL (codes 4-7) need a bare REX to avoid selecting AH/CH/DH/BH.
-  auto code_low = Bits_8(destination) & Bits_8(0x0F);
+  auto code_low = Unsigned_8(destination) & Unsigned_8(0x0F);
   if (code_low > 0x7) {
-    code.append(Bits_8(RexExt::B));  // REX.B for R8B-R15B
+    code.append(Unsigned_8(RexExt::B));  // REX.B for R8B-R15B
   } else if (code_low >= 4) {
-    code.append(Bits_8(0x40));  // Bare REX for SPL/BPL/SIL/DIL
+    code.append(Unsigned_8(0x40));  // Bare REX for SPL/BPL/SIL/DIL
   }
 
   code.append(0xB0 + reg_code(destination));
@@ -260,7 +261,7 @@ auto Assembler::x86_64::mov(
 }
 
 auto Assembler::x86_64::mov(
-    Bits_16 immediate,
+    Unsigned_16 immediate,
     Assembler::x86_64::Reg destination) -> void {
   // Only one 16 bit alternate encoding seems to be smaller.
   // XOR r32, r32 clears the 16 bit register with no 0x66 prefix (2 vs 4 bytes).
@@ -270,9 +271,9 @@ auto Assembler::x86_64::mov(
   }
 
   // 0x66 operand size prefix + B8 + rd encoding.
-  code.append(Bits_8(0x66));
-  if ((Bits_8(destination) & Bits_8(0x0F)) > 0x7) {
-    code.append(Bits_8(RexExt::B));
+  code.append(Unsigned_8(0x66));
+  if ((Unsigned_8(destination) & Unsigned_8(0x0F)) > 0x7) {
+    code.append(Unsigned_8(RexExt::B));
   }
 
   code.append(0xB8 + reg_code(destination));
@@ -280,7 +281,7 @@ auto Assembler::x86_64::mov(
 }
 
 auto Assembler::x86_64::mov(
-    Bits_32 immediate,
+    Unsigned_32 immediate,
     Assembler::x86_64::Reg destination) -> void {
   // Special cases with more compact alternatives to mov.
   switch (immediate) {
@@ -293,8 +294,8 @@ auto Assembler::x86_64::mov(
   }
 
   // B8 + rd encoding: zero-extends to 64 bits implicitly.
-  if ((Bits_8(destination) & Bits_8(0x0F)) > 0x7) {
-    code.append(Bits_8(RexExt::B));
+  if ((Unsigned_8(destination) & Unsigned_8(0x0F)) > 0x7) {
+    code.append(Unsigned_8(RexExt::B));
   }
 
   code.append(0xB8 + reg_code(destination));
@@ -302,7 +303,7 @@ auto Assembler::x86_64::mov(
 }
 
 auto Assembler::x86_64::mov(
-    Bits_64 immediate,
+    Unsigned_64 immediate,
     Assembler::x86_64::Reg destination) -> void {
   // Special cases with more compact alternatives to mov.
   switch (immediate) {
@@ -318,23 +319,23 @@ auto Assembler::x86_64::mov(
   }
 
   // Zero-extending 32-bit move: MOV r32, imm32 (5-6 bytes, zero-extends to 64).
-  if (immediate <= Bits_64(0xFFFFFFFF)) {
-    if ((Bits_8(destination) & Bits_8(0x0F)) > 0x7) {
-      code.append(Bits_8(RexExt::B));
+  if (immediate <= Unsigned_64(0xFFFFFFFF)) {
+    if ((Unsigned_8(destination) & Unsigned_8(0x0F)) > 0x7) {
+      code.append(Unsigned_8(RexExt::B));
     }
 
     code.append(0xB8 + reg_code(destination));
-    write_const(code, Bits_32(immediate));
+    write_const(code, Unsigned_32(immediate));
     return;
   }
 
   // Sign-extending 32-bit move: MOV r/m64, imm32 (7-8 bytes).
   // Handles [INT32_MIN, -2] more compactly than a 10-byte MOVABS.
-  if (immediate >= Bits_64(0xFFFFFFFF80000000ULL)) {
+  if (immediate >= Unsigned_64(0xFFFFFFFF80000000ULL)) {
     gen_rex_byte(code, Assembler::x86_64::Reg::None, destination);
     code.append(0xC7);
     code.append(gen_modrm_byte(Assembler::x86_64::Reg(0x00), destination));
-    write_const(code, Bits_32(immediate));
+    write_const(code, Unsigned_32(immediate));
     return;
   }
 
@@ -349,22 +350,22 @@ auto Assembler::x86_64::mov(
     Assembler::x86_64::Reg base,
     Signed_32 displacement) -> void {
   // Store: mov source, [base + displacement]
-  if ((Bits_8(source) & Bits_8(0xF0)) == Bits_8(0x20)) {
+  if ((Unsigned_8(source) & Unsigned_8(0xF0)) == Unsigned_8(0x20)) {
     gen_rex_byte_8(code, source, base);
     code.append(0x88);
     gen_memory_operand(code, source, base, displacement);
     return;
   }
 
-  if ((Bits_8(source) & Bits_8(0xF0)) == Bits_8(0x30)) {
-    code.append(Bits_8(0x66));
+  if ((Unsigned_8(source) & Unsigned_8(0xF0)) == Unsigned_8(0x30)) {
+    code.append(Unsigned_8(0x66));
     gen_rex_byte_16(code, source, base);
     code.append(0x89);
     gen_memory_operand(code, source, base, displacement);
     return;
   }
 
-  if ((Bits_8(source) & Bits_8(0xF0)) == Bits_8(0x00)) {
+  if ((Unsigned_8(source) & Unsigned_8(0xF0)) == Unsigned_8(0x00)) {
     gen_rex_byte_32(code, source, base);
   } else {
     gen_rex_byte(code, source, base);
@@ -379,22 +380,22 @@ auto Assembler::x86_64::mov(
     Signed_32 displacement,
     Assembler::x86_64::Reg destination) -> void {
   // Load: mov [base + displacement], destination
-  if ((Bits_8(destination) & Bits_8(0xF0)) == Bits_8(0x20)) {
+  if ((Unsigned_8(destination) & Unsigned_8(0xF0)) == Unsigned_8(0x20)) {
     gen_rex_byte_8(code, destination, base);
     code.append(0x8A);
     gen_memory_operand(code, destination, base, displacement);
     return;
   }
 
-  if ((Bits_8(destination) & Bits_8(0xF0)) == Bits_8(0x30)) {
-    code.append(Bits_8(0x66));
+  if ((Unsigned_8(destination) & Unsigned_8(0xF0)) == Unsigned_8(0x30)) {
+    code.append(Unsigned_8(0x66));
     gen_rex_byte_16(code, destination, base);
     code.append(0x8B);
     gen_memory_operand(code, destination, base, displacement);
     return;
   }
 
-  if ((Bits_8(destination) & Bits_8(0xF0)) == Bits_8(0x00)) {
+  if ((Unsigned_8(destination) & Unsigned_8(0xF0)) == Unsigned_8(0x00)) {
     gen_rex_byte_32(code, destination, base);
   } else {
     gen_rex_byte(code, destination, base);
@@ -407,42 +408,42 @@ auto Assembler::x86_64::mov(
 auto Assembler::x86_64::mov_bits(
     Assembler::x86_64::Reg source,
     Assembler::x86_64::Xmm destination) -> void {
-  code.append(Bits_8(0x66));
-  Bits_8 rex = Bits_8(RexExt::W);
-  if (Bits_8(destination) > 7) {
-    rex |= Bits_8(RexExt::R);
+  code.append(Unsigned_8(0x66));
+  Unsigned_8 rex = Unsigned_8(RexExt::W);
+  if (Unsigned_8(destination) > 7) {
+    rex |= Unsigned_8(RexExt::R);
   }
 
-  if ((Bits_8(source) & Bits_8(0x0F)) > 7) {
-    rex |= Bits_8(RexExt::B);
+  if ((Unsigned_8(source) & Unsigned_8(0x0F)) > 7) {
+    rex |= Unsigned_8(RexExt::B);
   }
 
   code.append(rex);
-  code.append(Bits_8(0x0F));
-  code.append(Bits_8(0x6E));
+  code.append(Unsigned_8(0x0F));
+  code.append(Unsigned_8(0x6E));
   code.append(
-      Bits_8(AddressMode::RegToReg) | Bits_8(xmm_code(destination) << 3) |
-      reg_code(source));
+      Unsigned_8(AddressMode::RegToReg) |
+      Unsigned_8(xmm_code(destination) << 3) | reg_code(source));
 }
 
 auto Assembler::x86_64::mov_bits(
     Assembler::x86_64::Xmm source,
     Assembler::x86_64::Reg destination) -> void {
-  code.append(Bits_8(0x66));
-  Bits_8 rex = Bits_8(RexExt::W);
-  if (Bits_8(source) > 7) {
-    rex |= Bits_8(RexExt::R);
+  code.append(Unsigned_8(0x66));
+  Unsigned_8 rex = Unsigned_8(RexExt::W);
+  if (Unsigned_8(source) > 7) {
+    rex |= Unsigned_8(RexExt::R);
   }
 
-  if ((Bits_8(destination) & Bits_8(0x0F)) > 7) {
-    rex |= Bits_8(RexExt::B);
+  if ((Unsigned_8(destination) & Unsigned_8(0x0F)) > 7) {
+    rex |= Unsigned_8(RexExt::B);
   }
 
   code.append(rex);
-  code.append(Bits_8(0x0F));
-  code.append(Bits_8(0x7E));
+  code.append(Unsigned_8(0x0F));
+  code.append(Unsigned_8(0x7E));
   code.append(
-      Bits_8(AddressMode::RegToReg) | Bits_8(xmm_code(source) << 3) |
+      Unsigned_8(AddressMode::RegToReg) | Unsigned_8(xmm_code(source) << 3) |
       reg_code(destination));
 }
 
@@ -494,7 +495,7 @@ auto Assembler::x86_64::add(
 }
 
 auto Assembler::x86_64::add(
-    Bits_32 immediate,
+    Unsigned_32 immediate,
     Assembler::x86_64::Reg destination) -> void {
   if (immediate == 0) {
     return;
@@ -515,7 +516,7 @@ auto Assembler::x86_64::sub(
 }
 
 auto Assembler::x86_64::sub(
-    Bits_32 immediate,
+    Unsigned_32 immediate,
     Assembler::x86_64::Reg destination) -> void {
   if (immediate == 0) {
     return;
@@ -540,14 +541,14 @@ auto Assembler::x86_64::compare(
     Assembler::x86_64::Reg source,
     Assembler::x86_64::Reg destination) -> void {
   gen_rex_byte(code, source, destination);
-  code.append(Bits_8(0x39));
+  code.append(Unsigned_8(0x39));
   code.append(gen_modrm_byte(source, destination));
 }
 
 auto Assembler::x86_64::set_equal(Assembler::x86_64::Reg destination) -> void {
   gen_rex_byte_8(code, Assembler::x86_64::Reg::None, destination);
-  code.append(Bits_8(0x0F));
-  code.append(Bits_8(0x94));
+  code.append(Unsigned_8(0x0F));
+  code.append(Unsigned_8(0x94));
   code.append(gen_modrm_byte(Assembler::x86_64::Reg(0), destination));
 }
 
@@ -559,10 +560,10 @@ auto Assembler::x86_64::divide(Assembler::x86_64::Reg divisor) -> void {
 }
 
 auto Assembler::x86_64::signed_divide(Assembler::x86_64::Reg divisor) -> void {
-  code.append(Bits_8(RexExt::W));
-  code.append(Bits_8(0x99));
+  code.append(Unsigned_8(RexExt::W));
+  code.append(Unsigned_8(0x99));
   gen_rex_byte(code, Assembler::x86_64::Reg::None, divisor);
-  code.append(Bits_8(0xF7));
+  code.append(Unsigned_8(0xF7));
   code.append(gen_modrm_byte(Assembler::x86_64::Reg(0x07), divisor));
 }
 
@@ -595,21 +596,21 @@ auto Assembler::x86_64::lea(
 }
 
 auto Assembler::x86_64::read_only(Assembler::x86_64::Reg destination) -> void {
-  code.append(Bits_8(RexExt::W));
+  code.append(Unsigned_8(RexExt::W));
   code.append(0x8D);
   // LEA has a special case when mod=00 (Memory) and RM=101 (RBP / R13)
   // This uses RIP with a 32bit offset.
   code.append(gen_modrm_byte(
       AddressMode::Memory, destination, Assembler::x86_64::Reg::RBP));
   // Emit placeholder disp32 for the PC32 relocation to patch.
-  write_const(code, Bits_32(0));
+  write_const(code, Unsigned_32(0));
 }
 
 auto Assembler::x86_64::call() -> void {
   // Generate the hex for a PC32 call.
   code.append(0xE8);
   // Emit placeholder disp32 for the PC32 relocation to patch.
-  write_const(code, Bits_32(0));
+  write_const(code, Unsigned_32(0));
 }
 
 auto Assembler::x86_64::ret() -> void {

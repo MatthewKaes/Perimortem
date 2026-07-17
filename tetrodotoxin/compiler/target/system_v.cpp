@@ -68,7 +68,7 @@ class SystemVLowerer {
   };
 
   struct Relocation {
-    enum class Target : Bits_8 {
+    enum class Target : Unsigned_8 {
       String,
       External,
     };
@@ -107,7 +107,7 @@ class SystemVLowerer {
   auto string_index(View::Bytes value) -> Count;
   auto external_index(View::Bytes name) -> Count;
   auto local_string_name(View::Bytes value) -> View::Bytes;
-  auto append_hex(Managed::Bytes& output, Bits_64 value) -> void;
+  auto append_hex(Managed::Bytes& output, Unsigned_64 value) -> void;
 
   Allocator::Arena arena;
   const Program& program;
@@ -233,7 +233,7 @@ auto SystemVLowerer::lower_function(const Execution::Function& function)
 
   const Count frame_size = frame_slots * 8;
   if (frame_size != 0) {
-    assembler.sub(Bits_32(frame_size), Assembler::x86_64::Reg::RSP);
+    assembler.sub(Unsigned_32(frame_size), Assembler::x86_64::Reg::RSP);
   }
 
   View::Vector<Ttx::Member> parameters =
@@ -295,7 +295,7 @@ auto SystemVLowerer::lower_function(const Execution::Function& function)
   }
 
   if (frame_size != 0) {
-    assembler.add(Bits_32(frame_size), Assembler::x86_64::Reg::RSP);
+    assembler.add(Unsigned_32(frame_size), Assembler::x86_64::Reg::RSP);
   }
 
   for (Count i = used_registers; i > 0; i--) {
@@ -495,7 +495,7 @@ auto SystemVLowerer::lower_call(
   const Count stack_components = convention.get_stack_count();
   const Bool padded = (stack_components & 1) != 0;
   if (padded) {
-    assembler.sub(Bits_32(8), Assembler::x86_64::Reg::RSP);
+    assembler.sub(Unsigned_32(8), Assembler::x86_64::Reg::RSP);
   }
 
   Count stack_shift = padded ? 1 : 0;
@@ -532,7 +532,7 @@ auto SystemVLowerer::lower_call(
   });
   Count call_stack = (stack_components + (padded ? 1 : 0)) * 8;
   if (call_stack != 0) {
-    assembler.add(Bits_32(call_stack), Assembler::x86_64::Reg::RSP);
+    assembler.add(Unsigned_32(call_stack), Assembler::x86_64::Reg::RSP);
   }
 
   Range results = call.get_results();
@@ -627,7 +627,7 @@ auto SystemVLowerer::materialize(
     }
 
     if (component == 1) {
-      assembler.mov(Bits_64(bytes->get_size()), destination);
+      assembler.mov(Unsigned_64(bytes->get_size()), destination);
       return True;
     }
 
@@ -645,7 +645,7 @@ auto SystemVLowerer::materialize(
     return False;
   }
 
-  if (const Bits_64* integer = constant->find<Bits_64>()) {
+  if (const Unsigned_64* integer = constant->find<Unsigned_64>()) {
     if (lowering != Abi::Lowering::Bool && lowering != Abi::Lowering::Integer &&
         lowering != Abi::Lowering::Signed) {
       return False;
@@ -661,8 +661,8 @@ auto SystemVLowerer::materialize(
       return False;
     }
 
-    Bits_64 bits;
-    Data::copy(Data::cast<Bits_8>(&bits), *integer);
+    Unsigned_64 bits;
+    Data::copy(Data::cast<Unsigned_8>(&bits), *integer);
     assembler.mov(bits, destination);
     return True;
   }
@@ -672,8 +672,8 @@ auto SystemVLowerer::materialize(
       return False;
     }
 
-    Bits_64 bits;
-    Data::copy(Data::cast<Bits_8>(&bits), *real);
+    Unsigned_64 bits;
+    Data::copy(Data::cast<Unsigned_8>(&bits), *real);
     assembler.mov(bits, destination);
     return True;
   }
@@ -683,7 +683,7 @@ auto SystemVLowerer::materialize(
     return False;
   }
 
-  assembler.mov(Bits_64(*flag ? 1 : 0), destination);
+  assembler.mov(Unsigned_64(*flag ? 1 : 0), destination);
   return True;
 }
 
@@ -747,13 +747,13 @@ auto SystemVLowerer::lower_return(
 }
 
 auto SystemVLowerer::publish() -> void {
-  Bits_16 program_section = 0;
+  Unsigned_16 program_section = 0;
   if (!machine_code.is_empty()) {
     program_section = linker.add_section(
         Linker::Object::Section::Type::Program, machine_code);
   }
 
-  Bits_16 string_section = 0;
+  Unsigned_16 string_section = 0;
   if (!string_data.is_empty()) {
     string_section =
         linker.add_section(Linker::Object::Section::Type::Strings, string_data);
@@ -867,7 +867,8 @@ auto SystemVLowerer::local_string_name(View::Bytes value) -> View::Bytes {
   return output;
 }
 
-auto SystemVLowerer::append_hex(Managed::Bytes& output, Bits_64 value) -> void {
+auto SystemVLowerer::append_hex(Managed::Bytes& output, Unsigned_64 value)
+    -> void {
   constexpr View::Bytes digits = "0123456789abcdef"_view;
   for (Signed_32 shift = 60; shift >= 0; shift -= 4) {
     output.append(digits[(value >> shift) & 0x0F]);

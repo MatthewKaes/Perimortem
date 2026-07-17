@@ -28,17 +28,17 @@ class Object {
   }
 
   Object(Object& rhs) : value(rhs.value) {
-    Core::Bibliotheca::reserve(Core::Data::cast<Bits_8>(value));
+    Core::Bibliotheca::reserve(Core::Data::cast<Unsigned_8>(value));
   }
 
   Object(const Object& rhs) : value(rhs.value) {
-    Core::Bibliotheca::reserve(Core::Data::cast<Bits_8>(value));
+    Core::Bibliotheca::reserve(Core::Data::cast<Unsigned_8>(value));
   }
 
   Object(Object&& rhs) : Object(rhs) {}
 
   ~Object() {
-    Bits_8* data = Core::Data::cast<Bits_8>(value);
+    Unsigned_8* data = Core::Data::cast<Unsigned_8>(value);
     if (Core::Bibliotheca::reservation_count(data) == 1) {
       value->~value_type();
     }

@@ -168,8 +168,8 @@ auto Lsp::semantic_tokens_for(Allocator::Arena& arena, View::Bytes source)
   auto* boot = ::Tetrodotoxin::Puffer::Isa::Boot::VirtualMachine::evaluate(
       cursor, isa_registry);
   View::Bytes isa = boot == nullptr ? View::Bytes() : boot->get_isa();
-  Bits_32 previous_line = 0;
-  Bits_32 previous_column = 0;
+  Unsigned_32 previous_line = 0;
+  Unsigned_32 previous_column = 0;
   Bool emitted = False;
   for (Count i = 0; i < tokens.get_size(); i++) {
     ::Ttx::Lexical::Token token = tokens[i];
@@ -188,10 +188,10 @@ auto Lsp::semantic_tokens_for(Allocator::Arena& arena, View::Bytes source)
       continue;
     }
 
-    Bits_32 line = token.get_line() - 1;
-    Bits_32 column = token.get_column() - 1;
-    Bits_32 delta_line = emitted ? line - previous_line : line;
-    Bits_32 delta_column =
+    Unsigned_32 line = token.get_line() - 1;
+    Unsigned_32 column = token.get_column() - 1;
+    Unsigned_32 delta_line = emitted ? line - previous_line : line;
+    Unsigned_32 delta_column =
         emitted && delta_line == 0 ? column - previous_column : column;
 
     data.insert(Json::Node(Signed_64(delta_line)));

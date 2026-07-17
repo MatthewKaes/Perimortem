@@ -9,7 +9,7 @@ namespace Perimortem::Compression {
 
 class Deflate {
  public:
-  enum class Level : Bits_8 {
+  enum class Level : Unsigned_8 {
     None = 0,     // Fastest
     Default = 1,  // Solid compression at a moderate cost
     Best = 2,     // Large compute cost, but moderate improvements

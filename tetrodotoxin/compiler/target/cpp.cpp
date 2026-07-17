@@ -75,14 +75,14 @@ static auto get_cpp_result_name(const Ttx::Function& function)
   View::Bytes source = function.get_name();
   Bool uppercase = True;
   for (Count i = 0; i < source.get_size(); i++) {
-    Bits_8 character = source[i];
+    Unsigned_8 character = source[i];
     if (character == '_') {
       uppercase = True;
       continue;
     }
 
     if (uppercase && character >= 'a' && character <= 'z') {
-      character = Bits_8(character - 'a' + 'A');
+      character = Unsigned_8(character - 'a' + 'A');
     }
 
     name.append(character);
@@ -166,7 +166,7 @@ static auto write_abi_type(
   case Abi::Lowering::Bool:
   case Abi::Lowering::Integer:
   case Abi::Lowering::Signed:
-    output << "Bits_64"_view;
+    output << "Unsigned_64"_view;
     return;
 
   case Abi::Lowering::Real:
@@ -228,14 +228,14 @@ static auto write_argument(
     return;
 
   case Abi::Lowering::Bool:
-    output << "Bits_64("_view;
+    output << "Unsigned_64("_view;
     write_member_name(output, parameter, index);
     output << ".value"_view;
     break;
 
   case Abi::Lowering::Integer:
   case Abi::Lowering::Signed:
-    output << "Bits_64("_view;
+    output << "Unsigned_64("_view;
     write_member_name(output, parameter, index);
     break;
 
@@ -489,7 +489,7 @@ auto Target::Cpp::build_header(const Program& program) -> Dynamic::Bytes {
               "// representation never becomes part of the C-linkage "
               "declaration.\n"
               "struct ViewBytes {\n"
-              "  const Bits_8* data;\n"
+              "  const Unsigned_8* data;\n"
               "  Count size;\n"
               "};\n\n"_view;
   }

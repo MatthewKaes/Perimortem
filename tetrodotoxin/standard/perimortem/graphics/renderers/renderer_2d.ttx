@@ -48,7 +48,7 @@ public Render2D : Render {
     reads push[position, size_pixels];
 
     input [
-      .vertex_index : Bits_32,
+      .vertex_index : Unsigned_32,
     ];
 
     output [

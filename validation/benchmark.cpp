@@ -39,13 +39,13 @@ struct Instance {
 };
 
 struct SampleStats {
-  Bits_64 bottom_avg_ns;
-  Bits_64 middle_avg_ns;
-  Bits_64 top_avg_ns;
-  Bits_64 min_ns;
-  Bits_64 max_ns;
+  Unsigned_64 bottom_avg_ns;
+  Unsigned_64 middle_avg_ns;
+  Unsigned_64 top_avg_ns;
+  Unsigned_64 min_ns;
+  Unsigned_64 max_ns;
   Count sample_count;
-  Bits_64 alloc_requests_per_iter;
+  Unsigned_64 alloc_requests_per_iter;
 };
 
 static constexpr Count max_benchmark_count = 1024;
@@ -53,7 +53,7 @@ static constexpr Count max_sample_count = 4096;
 static constexpr Real_64 time_cap_sec = 1.5;
 
 static Static::Vector<Instance, max_benchmark_count> binary_benchmarks;
-static Static::Vector<Bits_64, max_sample_count> time_samples;
+static Static::Vector<Unsigned_64, max_sample_count> time_samples;
 static Count benchmark_count = 0;
 static View::Bytes benchmark_filter = {};
 
@@ -96,7 +96,7 @@ auto Benchmark::create_comparison(
 #endif
 
 // Returns a View::Bytes into buffer with the formatted time string.
-auto format_time(Static::Bytes<16>& buffer, Bits_64 ns) -> View::Bytes {
+auto format_time(Static::Bytes<16>& buffer, Unsigned_64 ns) -> View::Bytes {
   auto* character_buffer = Data::cast<char>(buffer.get_data());
   int written = 0;
   if (ns < 1'000ULL) {
@@ -114,12 +114,12 @@ auto format_time(Static::Bytes<16>& buffer, Bits_64 ns) -> View::Bytes {
   return View::Bytes(buffer.get_data(), Count(written > 0 ? written : 0));
 }
 
-auto bucket_avg(Count start, Count end_index) -> Bits_64 {
+auto bucket_avg(Count start, Count end_index) -> Unsigned_64 {
   if (start >= end_index) {
     return time_samples[end_index > 0 ? end_index - 1 : 0];
   }
 
-  Bits_64 total = 0;
+  Unsigned_64 total = 0;
   for (Count index = start; index < end_index; index++) {
     total += time_samples[index];
   }
@@ -127,7 +127,8 @@ auto bucket_avg(Count start, Count end_index) -> Bits_64 {
   return total / (end_index - start);
 }
 
-auto compute_stats(Count sample_count, Bits_64 alloc_requests) -> SampleStats {
+auto compute_stats(Count sample_count, Unsigned_64 alloc_requests)
+    -> SampleStats {
   SampleStats stats = {};
   stats.sample_count = sample_count;
   stats.min_ns = time_samples[0];
@@ -195,7 +196,7 @@ auto run_samples(const Harness& harness, Benchmark::BenchmarkFunc func)
   harness.teardown();
 
   Count sample_count = 0;
-  Bits_64 total_alloc_delta = 0;
+  Unsigned_64 total_alloc_delta = 0;
   total_start = Time::now();
   while (sample_count < max_sample_count) {
     harness.setup();
@@ -220,7 +221,7 @@ auto run_samples(const Harness& harness, Benchmark::BenchmarkFunc func)
     time_samples[sample_count++] =
         sample_start.measure(sample_end).convert_to_nanoseconds() /
         harness.batch_count;
-    total_alloc_delta += Bits_64(allocs_after - allocs_before);
+    total_alloc_delta += Unsigned_64(allocs_after - allocs_before);
 
     // Check every 16 samples if we are over our time budget, if we are then
     // early terminate.
@@ -232,13 +233,14 @@ auto run_samples(const Harness& harness, Benchmark::BenchmarkFunc func)
   }
 
   Algorithm::sort(
-      Access::Vector<Bits_64>(time_samples.get_data(), sample_count));
-  return compute_stats(sample_count, total_alloc_delta / Bits_64(sample_count));
+      Access::Vector<Unsigned_64>(time_samples.get_data(), sample_count));
+  return compute_stats(
+      sample_count, total_alloc_delta / Unsigned_64(sample_count));
 }
 
 #ifdef PERI_BENCH_CPP
 
-auto print_time(const char* color, int width, Bits_64 ns) -> void {
+auto print_time(const char* color, int width, Unsigned_64 ns) -> void {
   Static::Bytes<16> buffer;
   View::Bytes time_text = format_time(buffer, ns);
   printf(
@@ -253,7 +255,7 @@ auto print_view(const char* color, int width, View::Bytes text) -> void {
 }
 
 auto find_stored_time(View::Bytes harness_name, View::Bytes bench_name)
-    -> Bits_64 {
+    -> Unsigned_64 {
   for (Count bi = 0; bi < benchmark_count; bi++) {
     if (binary_benchmarks[bi].harness->name == harness_name &&
         binary_benchmarks[bi].name == bench_name) {
@@ -261,7 +263,7 @@ auto find_stored_time(View::Bytes harness_name, View::Bytes bench_name)
     }
   }
 
-  return Bits_64(-1);
+  return Unsigned_64(-1);
 }
 #endif
 
@@ -437,23 +439,23 @@ auto run_comparison_row(Count comparison_index, const SectionLayout& layout)
   const Benchmark::Comparison& comparison = *comparison_instance.comparison;
   Count variant_count = count_variants(comparison);
 
-  Bits_64 cpp_time =
+  Unsigned_64 cpp_time =
       run_samples(*comparison.harness, comparison_instance.func).middle_avg_ns;
   print_view(dark_color, -(int)layout.label_column, comparison.label);
 
-  Static::Vector<Bits_64, Benchmark::max_comparison_variants> variant_times;
+  Static::Vector<Unsigned_64, Benchmark::max_comparison_variants> variant_times;
   for (Count v = 0; v < Benchmark::max_comparison_variants; v++) {
-    variant_times[v] = Bits_64(-1);
+    variant_times[v] = Unsigned_64(-1);
   }
 
-  Bits_64 fastest_time = Bits_64(-1);
-  Bits_64 slowest_time = 0;
+  Unsigned_64 fastest_time = Unsigned_64(-1);
+  Unsigned_64 slowest_time = 0;
   Count fastest_variant = Benchmark::max_comparison_variants;
   for (Count v = 0; v < variant_count; v++) {
-    Bits_64 variant_time = find_stored_time(
+    Unsigned_64 variant_time = find_stored_time(
         comparison.harness->name, comparison.variants[v].benchmark_name);
     variant_times[v] = variant_time;
-    if (variant_time != Bits_64(-1)) {
+    if (variant_time != Unsigned_64(-1)) {
       if (variant_time < fastest_time) {
         fastest_time = variant_time;
         fastest_variant = v;
@@ -466,8 +468,8 @@ auto run_comparison_row(Count comparison_index, const SectionLayout& layout)
   }
 
   for (Count v = 0; v < layout.max_variant_count; v++) {
-    if (v < variant_count && variant_times[v] != Bits_64(-1)) {
-      Bits_64 variant_time = variant_times[v];
+    if (v < variant_count && variant_times[v] != Unsigned_64(-1)) {
+      Unsigned_64 variant_time = variant_times[v];
       const char* color = clear_color;
       if (variant_time == fastest_time) {
         color = fast_color;
@@ -484,7 +486,7 @@ auto run_comparison_row(Count comparison_index, const SectionLayout& layout)
   }
 
   print_time(system_color, 10, cpp_time);
-  if (fastest_time != Bits_64(-1)) {
+  if (fastest_time != Unsigned_64(-1)) {
     Real_64 delta = (fastest_time > 0)
                         ? (Real_64(cpp_time) - Real_64(fastest_time)) /
                               Real_64(fastest_time) * 100.0

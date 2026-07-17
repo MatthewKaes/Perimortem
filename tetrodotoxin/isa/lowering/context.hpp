@@ -73,7 +73,7 @@ class Context {
       return Perimortem::Core::View::Bytes();
     }
 
-    Bits_8* copy = arena.allocate(source.get_size());
+    Unsigned_8* copy = arena.allocate(source.get_size());
     Perimortem::Core::Data::copy(copy, source.get_data(), source.get_size());
     return Perimortem::Core::View::Bytes(copy, source.get_size());
   }

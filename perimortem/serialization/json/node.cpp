@@ -14,7 +14,7 @@
 
 #include "perimortem/serialization/escaped_text.hpp"
 
-enum class NodeState : Bits_32 {
+enum class NodeState : Unsigned_32 {
   Null,
   String,
   Number,
@@ -28,7 +28,7 @@ using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
 using namespace Perimortem::Serialization;
 
-template <Bits_32 channels, Bits_32 index, Bits_32 range>
+template <Unsigned_32 channels, Unsigned_32 index, Unsigned_32 range>
 auto optimized_or_merge(Static::Vector<__m256i, channels>& source) -> __m256i {
   if constexpr (range == 1) {
     return source[index];
@@ -42,7 +42,7 @@ auto optimized_or_merge(Static::Vector<__m256i, channels>& source) -> __m256i {
   }
 }
 
-auto scan(View::Bytes bytes, Bits_8 search, Count position) -> Count {
+auto scan(View::Bytes bytes, Unsigned_8 search, Count position) -> Count {
   // Use 8 AVX2 channels to get out as much performance as we can for long
   // searches.
   constexpr const auto fused_channels = 8;
@@ -69,11 +69,11 @@ auto scan(View::Bytes bytes, Bits_8 search, Count position) -> Count {
     if (!_mm256_testz_si256(group_mask, group_mask)) {
       Count ymm;
       for (ymm = 0; ymm < fused_channels - 2; ymm += 2) {
-        const Bits_32 result_lower = _mm256_movemask_epi8(masks[ymm]);
-        const Bits_32 result_upper = _mm256_movemask_epi8(masks[ymm + 1]);
-        const Bits_64 result_merged = (Bits_64)result_upper
-                                          << Data::size_in_bits<Bits_32>() |
-                                      (Bits_64)result_lower;
+        const Unsigned_32 result_lower = _mm256_movemask_epi8(masks[ymm]);
+        const Unsigned_32 result_upper = _mm256_movemask_epi8(masks[ymm + 1]);
+        const Unsigned_64 result_merged =
+            (Unsigned_64)result_upper << Data::size_in_bits<Unsigned_32>() |
+            (Unsigned_64)result_lower;
 
         // Since we have additional channels only return if we have our
         // target.
@@ -85,11 +85,11 @@ auto scan(View::Bytes bytes, Bits_8 search, Count position) -> Count {
 
       // Not found in channels 0..fused_channels-2, so it must be in the
       // final pair.
-      const Bits_32 result_lower = _mm256_movemask_epi8(masks[ymm]);
-      const Bits_32 result_upper = _mm256_movemask_epi8(masks[ymm + 1]);
-      const Bits_64 result_merged = (Bits_64)result_upper
-                                        << Data::size_in_bits<Bits_32>() |
-                                    (Bits_64)result_lower;
+      const Unsigned_32 result_lower = _mm256_movemask_epi8(masks[ymm]);
+      const Unsigned_32 result_upper = _mm256_movemask_epi8(masks[ymm + 1]);
+      const Unsigned_64 result_merged =
+          (Unsigned_64)result_upper << Data::size_in_bits<Unsigned_32>() |
+          (Unsigned_64)result_lower;
       return position + __builtin_ctzg(result_merged) +
              avx2_channel_width * ymm;
     }
@@ -149,49 +149,49 @@ auto parse_string(View::Bytes source, Count& position) -> View::Bytes {
   return source.slice(start, end - start);
 }
 
-auto ignored_characters(Bits_8 c) {
+auto ignored_characters(Unsigned_8 c) {
   return c == ',' || c == '\n' || c == ' ';
 }
 
 auto Json::Node::set(const Core::View::Bytes value) -> void {
   data.ptr = value.get_data();
   data.size = value.get_size();
-  data.state = (Bits_32)NodeState::String;
+  data.state = (Unsigned_32)NodeState::String;
 }
 
 auto Json::Node::set(const Core::View::Vector<Node> value) -> void {
   data.ptr = value.get_data();
   data.size = value.get_size();
-  data.state = (Bits_32)NodeState::Array;
+  data.state = (Unsigned_32)NodeState::Array;
 }
 
 auto Json::Node::set(const Core::View::Vector<Member> value) -> void {
   data.ptr = value.get_data();
   data.size = value.get_size();
-  data.state = (Bits_32)NodeState::Object;
+  data.state = (Unsigned_32)NodeState::Object;
 }
 
 auto Json::Node::set(Signed_64 value) -> void {
   data.number = value;
-  data.state = (Bits_32)NodeState::Number;
+  data.state = (Unsigned_32)NodeState::Number;
 }
 
 auto Json::Node::set(Real_64 value) -> void {
   data.real = value;
-  data.state = (Bits_32)NodeState::Real;
+  data.state = (Unsigned_32)NodeState::Real;
 }
 
 auto Json::Node::set(Bool value) -> void {
   data.flag = value;
-  data.state = (Bits_32)NodeState::Flag;
+  data.state = (Unsigned_32)NodeState::Flag;
 }
 
 auto Json::Node::set() -> void {
-  data.state = (Bits_32)NodeState::Null;
+  data.state = (Unsigned_32)NodeState::Null;
 }
 
-auto Json::Node::at(Bits_32 index) const -> const Json::Node {
-  if (data.state == (Bits_32)NodeState::Array) {
+auto Json::Node::at(Unsigned_32 index) const -> const Json::Node {
+  if (data.state == (Unsigned_32)NodeState::Array) {
     View::Vector<Json::Node> array((const Json::Node*)data.ptr, data.size);
     if (array.get_size() <= index) {
       return Json::Node();
@@ -204,7 +204,7 @@ auto Json::Node::at(Bits_32 index) const -> const Json::Node {
 }
 
 auto Json::Node::at(const View::Bytes name) const -> const Json::Node {
-  if (data.state == (Bits_32)NodeState::Object) {
+  if (data.state == (Unsigned_32)NodeState::Object) {
     View::Vector<Member> members((const Member*)data.ptr, data.size);
     for (Count i = 0; i < members.get_size(); i++) {
       if (members[i].name == name) {
@@ -216,7 +216,7 @@ auto Json::Node::at(const View::Bytes name) const -> const Json::Node {
   return Json::Node();
 }
 
-auto Json::Node::operator[](Bits_32 index) const -> const Json::Node {
+auto Json::Node::operator[](Unsigned_32 index) const -> const Json::Node {
   return at(index);
 }
 
@@ -225,7 +225,7 @@ auto Json::Node::operator[](const View::Bytes name) const -> const Json::Node {
 }
 
 auto Json::Node::contains(const View::Bytes name) const -> Bool {
-  if (data.state == (Bits_32)NodeState::Object) {
+  if (data.state == (Unsigned_32)NodeState::Object) {
     View::Vector<Member> members((const Member*)data.ptr, data.size);
     for (Count i = 0; i < members.get_size(); i++) {
       if (members[i].name == name) {
@@ -240,7 +240,7 @@ auto Json::Node::contains(const View::Bytes name) const -> Bool {
 }
 
 auto Json::Node::get_flag() const -> Bool {
-  if (data.state == (Bits_32)NodeState::Flag) {
+  if (data.state == (Unsigned_32)NodeState::Flag) {
     return data.flag;
   }
 
@@ -248,7 +248,7 @@ auto Json::Node::get_flag() const -> Bool {
 }
 
 auto Json::Node::get_number() const -> Signed_64 {
-  if (data.state == (Bits_32)NodeState::Number) {
+  if (data.state == (Unsigned_32)NodeState::Number) {
     return data.number;
   }
 
@@ -256,7 +256,7 @@ auto Json::Node::get_number() const -> Signed_64 {
 }
 
 auto Json::Node::get_real() const -> double {
-  if (data.state == (Bits_32)NodeState::Real) {
+  if (data.state == (Unsigned_32)NodeState::Real) {
     return data.real;
   }
 
@@ -264,15 +264,15 @@ auto Json::Node::get_real() const -> double {
 }
 
 auto Json::Node::get_string() const -> const View::Bytes {
-  if (data.state == (Bits_32)NodeState::String) {
-    return View::Bytes((const Bits_8*)data.ptr, data.size);
+  if (data.state == (Unsigned_32)NodeState::String) {
+    return View::Bytes((const Unsigned_8*)data.ptr, data.size);
   }
 
   return View::Bytes();
 }
 
 auto Json::Node::get_array() const -> const View::Vector<Node> {
-  if (data.state == (Bits_32)NodeState::Array) {
+  if (data.state == (Unsigned_32)NodeState::Array) {
     return View::Vector<Node>((const Node*)data.ptr, data.size);
   }
 
@@ -280,7 +280,7 @@ auto Json::Node::get_array() const -> const View::Vector<Node> {
 }
 
 auto Json::Node::get_object() const -> const View::Vector<Member> {
-  if (data.state == (Bits_32)NodeState::Object) {
+  if (data.state == (Unsigned_32)NodeState::Object) {
     return View::Vector<Member>((const Member*)data.ptr, data.size);
   }
 
@@ -514,7 +514,7 @@ auto Json::Node::parse(
 
       position++;  // consume '.'
       Real_64 float_value = value;
-      Bits_64 divisor = 1;
+      Unsigned_64 divisor = 1;
 
       // Try to perserve precision by using fixed point and only convert into
       // floating point once.
@@ -564,7 +564,7 @@ auto Json::Node::serialized_size() const -> Count {
   case NodeState::Array: {
     Count accumulated = 0;
     View::Vector<Json::Node> array = get_array();
-    for (Bits_32 i = 0; i < array.get_size(); i++) {
+    for (Unsigned_32 i = 0; i < array.get_size(); i++) {
       accumulated += array[i].serialized_size();
     }
 
@@ -576,7 +576,7 @@ auto Json::Node::serialized_size() const -> Count {
   case NodeState::Object: {
     Count accumulated = 0;
     View::Vector<Member> members = get_object();
-    for (Bits_32 i = 0; i < members.get_size(); i++) {
+    for (Unsigned_32 i = 0; i < members.get_size(); i++) {
       const auto& member = members[i];
       accumulated += member.name.get_size();
       accumulated += "\"\":"_view.get_size();
@@ -653,7 +653,7 @@ auto Json::Node::format(Allocator::Arena& arena) const -> View::Bytes {
       output << '[';
 
       View::Vector<Json::Node> array = node.get_array();
-      for (Bits_32 i = 0; i < array.get_size(); i++) {
+      for (Unsigned_32 i = 0; i < array.get_size(); i++) {
         self(output, array[i]);
         if (i != array.get_size() - 1) {
           output << ',';
@@ -668,7 +668,7 @@ auto Json::Node::format(Allocator::Arena& arena) const -> View::Bytes {
       output << '{';
 
       View::Vector<Member> members = node.get_object();
-      for (Bits_32 i = 0; i < members.get_size(); i++) {
+      for (Unsigned_32 i = 0; i < members.get_size(); i++) {
         const auto& member = members[i];
         output << '\"' << member.name << "\":"_view;
 

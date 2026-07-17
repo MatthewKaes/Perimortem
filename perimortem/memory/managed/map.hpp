@@ -119,12 +119,12 @@ class Map {
  private:
   struct Slot {
     Entry entry;
-    Bits_32 hash = 0;
+    Unsigned_32 hash = 0;
   };
 
   class Buffer {
    public:
-    Bits_8* bucket_buffer = nullptr;
+    Unsigned_8* bucket_buffer = nullptr;
     Slot* slots_buffer = nullptr;
     Count bucket_count = 0;
     Count size = 0;
@@ -139,7 +139,7 @@ class Map {
       return nullptr;
     }
 
-    Bits_32 hash = get_hash(key);
+    Unsigned_32 hash = get_hash(key);
     Count bucket = bucket_index(hash);
     while (true) {
       if (buffer.bucket_buffer[bucket] == 0) {
@@ -155,7 +155,7 @@ class Map {
     }
   }
 
-  auto get_empty(Bits_32 hash) -> Slot* {
+  auto get_empty(Unsigned_32 hash) -> Slot* {
     Count bucket = bucket_index(hash);
     while (buffer.bucket_buffer[bucket] != 0) {
       bucket = (bucket + 1) & (buffer.bucket_count - 1);
@@ -166,7 +166,7 @@ class Map {
   }
 
   auto emplace_hashed(
-      Bits_32 hash,
+      Unsigned_32 hash,
       const key_type& key,
       const value_type& value) -> Entry* {
     Slot* slot = get_empty(hash);
@@ -203,11 +203,11 @@ class Map {
     return created;
   }
 
-  auto get_hash(const key_type& key) const -> Bits_32 {
-    return Bits_32(Core::Hash(key).get_value());
+  auto get_hash(const key_type& key) const -> Unsigned_32 {
+    return Unsigned_32(Core::Hash(key).get_value());
   }
 
-  auto bucket_index(Bits_32 hash) const -> Count {
+  auto bucket_index(Unsigned_32 hash) const -> Count {
     return Count(hash & (buffer.bucket_count - 1));
   }
 

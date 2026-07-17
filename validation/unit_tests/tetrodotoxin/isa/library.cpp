@@ -135,8 +135,8 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, type_model) {
       "private LocalColor : alias = Color;\n"
       "public Sprite : struct {\n"
       "  public image : View[Bytes];\n"
-      "  public values : Vec[Bits_8, 4];\n"
-      "  public copy : Vec[Bits_8, 4];\n"
+      "  public values : Vec[Unsigned_8, 4];\n"
+      "  public copy : Vec[Unsigned_8, 4];\n"
       "}\n"
       "public Screen : struct {}\n"
       "public screen : Screen;\n"_view);
@@ -177,7 +177,7 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, type_model) {
   const Ttx::Type* copy = member_type(*sprite, "copy"_view);
   ASSERT(values != nullptr);
   ASSERT(copy != nullptr);
-  EXPECT_TEXT(values->get_name(), "Vec[Bits_8,4]"_view);
+  EXPECT_TEXT(values->get_name(), "Vec[Unsigned_8,4]"_view);
   EXPECT(values == copy);
   EXPECT(values != Tetrodotoxin::Standard::Types::find_type("Vec"_view));
 }
@@ -191,11 +191,11 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, enum_type) {
   const Resolution::Source::Record* record = resolver.load_source(
       enum_source_context, "unit/enums.ttx"_view,
       "dialect : Library;\n"
-      "private Color : enum[Bits_8] {\n"
+      "private Color : enum[Unsigned_8] {\n"
       "  red = 1;\n"
       "  green = 2;\n"
       "}\n"
-      "private Filter : enum[Bits_8] {\n"
+      "private Filter : enum[Unsigned_8] {\n"
       "  none = 0;\n"
       "  sub = 1;\n"
       "  public func default_filter[] -> Filter {\n"
@@ -210,8 +210,8 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, enum_type) {
   ASSERT(color != nullptr);
   const Ttx::Member* red = color->find_member("red"_view);
   ASSERT(red != nullptr);
-  EXPECT_TEXT(red->get_type().get_name(), "Bits_8"_view);
-  EXPECT_TEXT(member_type(*color, "green"_view)->get_name(), "Bits_8"_view);
+  EXPECT_TEXT(red->get_type().get_name(), "Unsigned_8"_view);
+  EXPECT_TEXT(member_type(*color, "green"_view)->get_name(), "Unsigned_8"_view);
   const auto* red_facts = record->get_implementation().find(*red);
   ASSERT(red_facts != nullptr);
   EXPECT(red_facts->get_modifier() == Ttx::Lexical::Class::Type::Expose);
@@ -220,7 +220,7 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, enum_type) {
 
   const Ttx::Type* filter = nested_type(record, "Filter"_view);
   ASSERT(filter != nullptr);
-  EXPECT_TEXT(member_type(*filter, "none"_view)->get_name(), "Bits_8"_view);
+  EXPECT_TEXT(member_type(*filter, "none"_view)->get_name(), "Unsigned_8"_view);
   const Ttx::Function* default_filter =
       function(*filter, "default_filter"_view);
   ASSERT(default_filter != nullptr);
@@ -512,8 +512,8 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, scalar_values) {
   value = body->get_operands()[0]
               .find<Tetrodotoxin::Compiler::Execution::Constant>();
   ASSERT(value != nullptr);
-  ASSERT(value->find<Bits_64>() != nullptr);
-  EXPECT_EQ(*value->find<Bits_64>(), Bits_64(42));
+  ASSERT(value->find<Unsigned_64>() != nullptr);
+  EXPECT_EQ(*value->find<Unsigned_64>(), Unsigned_64(42));
 }
 
 PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, constant_folding) {
@@ -542,8 +542,8 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, constant_folding) {
       body->get_operands()[0]
           .find<Tetrodotoxin::Compiler::Execution::Constant>();
   ASSERT(constant != nullptr);
-  ASSERT(constant->find<Bits_64>() != nullptr);
-  EXPECT_EQ(*constant->find<Bits_64>(), Bits_64(5));
+  ASSERT(constant->find<Unsigned_64>() != nullptr);
+  EXPECT_EQ(*constant->find<Unsigned_64>(), Unsigned_64(5));
 }
 
 PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, named_return_mapping) {
@@ -661,7 +661,7 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, diagnostics) {
   constexpr Failure failures[] = {
     {
       "dialect : Library;\n"
-      "public Value : struct { public data : Bits_32[Bytes]; }\n"_view,
+      "public Value : struct { public data : Unsigned_32[Bytes]; }\n"_view,
       "Type arguments are not supported for this type."_view,
     },
     {
@@ -685,7 +685,7 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, diagnostics) {
     },
     {
       "dialect : Library;\n"
-      "private Color : enum[Bits_8] { red = 1; red = 2; }\n"_view,
+      "private Color : enum[Unsigned_8] { red = 1; red = 2; }\n"_view,
       "Library enum case name is already defined."_view,
     },
     {
@@ -709,7 +709,7 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinLibrary, diagnostics) {
     },
     {
       "dialect : Library;\n"
-      "public Color : struct {}\npublic Color : alias = Bits_8;\n"_view,
+      "public Color : struct {}\npublic Color : alias = Unsigned_8;\n"_view,
       "Library type name is already defined."_view,
     },
     {

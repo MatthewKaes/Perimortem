@@ -17,24 +17,24 @@ using namespace Validation;
 /// Resolution remains total by returning Invalid until completion.
 class ResolvingType final : public Type {
  public:
-  ResolvingType(
-      View::Bytes name,
-      const Invalid& invalid,
-      Structured layout = Structured())
-      : name(name), invalid(invalid), layout(layout) {}
+  ResolvingType(View::Bytes name, Structured layout = Structured())
+      : name(name), layout(layout) {}
 
   auto get_name() const -> View::Bytes override { return name; }
+  auto get_documentation() const -> const Documentation& override {
+    return Comment::get_empty();
+  }
   auto resolve() const -> const Abstract& override {
     if (complete_state) {
       return *this;
     }
-    return invalid;
+    return Invalid::get_invalid();
   }
   auto resolve_context(View::Bytes) const -> const Abstract& override {
     if (complete_state) {
       return *this;
     }
-    return invalid;
+    return Invalid::get_invalid();
   }
   auto get_layout() const -> const Structured& override { return layout; }
 
@@ -42,7 +42,6 @@ class ResolvingType final : public Type {
 
  private:
   View::Bytes name;
-  const Invalid& invalid;
   Structured layout;
   Bool complete_state = False;
 };
@@ -53,6 +52,9 @@ class TypeField final : public Addressable {
   TypeField(View::Bytes name, const Abstract& type) : name(name), type(type) {}
 
   auto get_name() const -> View::Bytes override { return name; }
+  auto get_documentation() const -> const Documentation& override {
+    return Comment::get_empty();
+  }
   auto resolve() const -> const Abstract& override { return type.resolve(); }
   auto resolve_context(View::Bytes route) const -> const Abstract& override {
     return type.resolve().resolve_context(route);
@@ -68,11 +70,10 @@ static Harness TtxType = {
 };
 
 PERIMORTEM_UNIT_TEST(TtxType, incomplete_type) {
-  Invalid invalid;
-  ResolvingType reserved("Reserved"_view, invalid);
+  ResolvingType reserved("Reserved"_view);
   const Type& type = reserved;
 
-  EXPECT(&type.resolve() == &invalid);
+  EXPECT(&type.resolve() == &Invalid::get_invalid());
 
   reserved.complete();
 
@@ -81,15 +82,14 @@ PERIMORTEM_UNIT_TEST(TtxType, incomplete_type) {
 }
 
 PERIMORTEM_UNIT_TEST(TtxType, type_fields) {
-  Invalid invalid;
-  ResolvingType real("Real_32"_view, invalid);
+  ResolvingType real("Real_32"_view);
   real.complete();
   TypeField x("x"_view, real);
   TypeField y("y"_view, real);
   const Reference<Addressable> fields[] = {x, y};
-  ResolvingType point("Point"_view, invalid, Structured(fields));
+  ResolvingType point("Point"_view, Structured(fields));
 
-  EXPECT(&point.resolve() == &invalid);
+  EXPECT(&point.resolve() == &Invalid::get_invalid());
 
   point.complete();
 

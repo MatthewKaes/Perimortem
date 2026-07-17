@@ -14,7 +14,7 @@ using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
 using namespace Perimortem::System;
 
-auto File::create_path(Bits_8* output, View::Bytes path) -> const Signed_8* {
+auto File::create_path(Unsigned_8* output, View::Bytes path) -> const char* {
   if (path.get_size() >= max_path_size) {
     return "";
   }
@@ -24,11 +24,11 @@ auto File::create_path(Bits_8* output, View::Bytes path) -> const Signed_8* {
   }
 
   output[path.get_size()] = '\0';
-  return Data::cast<const Signed_8>(output);
+  return Data::cast<const char>(output);
 }
 
 auto File::read(View::Bytes location) -> Dynamic::Bytes {
-  Bits_8 path_buffer[max_path_size];
+  Unsigned_8 path_buffer[max_path_size];
   const auto path = create_path(path_buffer, location);
 
 #ifdef PERI_LINUX
@@ -62,7 +62,7 @@ auto File::read(View::Bytes location) -> Dynamic::Bytes {
 }
 
 auto File::write(View::Bytes data, View::Bytes location) -> Bool {
-  Bits_8 path_buffer[max_path_size];
+  Unsigned_8 path_buffer[max_path_size];
   const auto path = create_path(path_buffer, location);
 
   FILE* file = fopen(path, "wb");
@@ -81,14 +81,14 @@ auto File::write(View::Bytes data, View::Bytes location) -> Bool {
 }
 
 auto File::remove(View::Bytes location) -> Bool {
-  Bits_8 path_buffer[max_path_size];
+  Unsigned_8 path_buffer[max_path_size];
   const auto path = create_path(path_buffer, location);
   int removed = ::remove(path);
   return removed == 0;
 }
 
 auto File::exists(View::Bytes location) -> Bool {
-  Bits_8 path_buffer[max_path_size];
+  Unsigned_8 path_buffer[max_path_size];
   const auto path = create_path(path_buffer, location);
 
 #ifdef PERI_LINUX

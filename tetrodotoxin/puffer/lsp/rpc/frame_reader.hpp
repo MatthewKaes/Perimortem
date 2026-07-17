@@ -19,7 +19,7 @@ class FrameReader {
   auto read_header() -> Bool;
 
   Perimortem::Memory::Dynamic::Bytes data_stream;
-  Bits_64 data_bytes_to_read = 0;
+  Unsigned_64 data_bytes_to_read = 0;
   Bool header_found = False;
 };
 

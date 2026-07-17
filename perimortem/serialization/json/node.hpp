@@ -55,10 +55,10 @@ class Node {
   auto set(Bool value) -> void;
   auto set() -> void;
 
-  auto at(Bits_32 index) const -> const Node;
+  auto at(Unsigned_32 index) const -> const Node;
   auto at(const Core::View::Bytes name) const -> const Node;
 
-  auto operator[](Bits_32 index) const -> const Node;
+  auto operator[](Unsigned_32 index) const -> const Node;
   auto operator[](const Core::View::Bytes name) const -> const Node;
 
   auto contains(const Core::View::Bytes name) const -> Bool;
@@ -120,8 +120,8 @@ class Node {
       Real_64 real;
       Bool flag;
     };
-    Bits_32 size;
-    Bits_32 state;
+    Unsigned_32 size;
+    Unsigned_32 state;
   } data;
 };
 

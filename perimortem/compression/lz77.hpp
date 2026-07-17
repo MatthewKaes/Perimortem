@@ -44,8 +44,8 @@ class Lz77 {
       Count depth) -> Match;
 
  private:
-  Memory::Dynamic::Vector<Bits_32> hash_table;
-  Memory::Dynamic::Vector<Bits_32> chain_table;
+  Memory::Dynamic::Vector<Unsigned_32> hash_table;
+  Memory::Dynamic::Vector<Unsigned_32> chain_table;
 };
 
 }  // namespace Perimortem::Compression

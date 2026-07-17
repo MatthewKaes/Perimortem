@@ -116,7 +116,8 @@ static auto write_test_package(
 
 static auto load_core_package(
     Resolution::Resolver& resolver,
-    View::Bytes value_type = "Bits_32"_view) -> Resolution::Source::Record* {
+    View::Bytes value_type = "Unsigned_32"_view)
+    -> Resolution::Source::Record* {
   Resolution::Resolver::Context types_context;
   Dynamic::Bytes types_source;
   types_source.concat("dialect : Library;\npublic Value : alias = "_view);
@@ -143,7 +144,7 @@ static auto load_core_package(
 
 static auto build_core_buffer(
     Dynamic::Bytes& output,
-    View::Bytes value_type = "Bits_32"_view) -> Bool {
+    View::Bytes value_type = "Unsigned_32"_view) -> Bool {
   Tetrodotoxin::Isa::Registry isa_registry =
       Tetrodotoxin::Puffer::Toolchain::standard_registry();
   Resolution::Resolver resolver(isa_registry, {}, "User.Core"_view);
@@ -585,7 +586,7 @@ PERIMORTEM_UNIT_TEST(PufferBuffer, dup_conflict) {
   Dynamic::Bytes expected_core_buffer;
   Dynamic::Bytes actual_core_buffer;
   ASSERT(build_core_buffer(expected_core_buffer));
-  ASSERT(build_core_buffer(actual_core_buffer, "Bits_64"_view));
+  ASSERT(build_core_buffer(actual_core_buffer, "Unsigned_64"_view));
 
   Resolution::Resolver resolver(isa_registry);
   Resolution::Resolver::Context valid_context;
@@ -640,7 +641,7 @@ PERIMORTEM_UNIT_TEST(PufferBuffer, version_mismatch) {
   Dynamic::Bytes ui_buffer;
   ASSERT(build_core_buffer(expected_core_buffer));
   ASSERT(build_ui_buffer(expected_core_buffer, ui_buffer));
-  ASSERT(build_core_buffer(actual_core_buffer, "Bits_64"_view));
+  ASSERT(build_core_buffer(actual_core_buffer, "Unsigned_64"_view));
 
   Allocator::Arena archive_arena;
   const Manifest* expected_archive =
@@ -691,7 +692,8 @@ PERIMORTEM_UNIT_TEST(PufferBuffer, archive_identity) {
   ASSERT(value != nullptr);
   EXPECT(value->is_alias());
   EXPECT_TEXT(
-      value->describe().get_view(), "User.Core::Value alias of Bits_32"_view);
+      value->describe().get_view(),
+      "User.Core::Value alias of Unsigned_32"_view);
   View::Vector<const Ttx::Type*> types = core->get_types();
   ASSERT(types.get_size() >= Count(2));
   EXPECT(types[0] == &core->get_type());
@@ -844,9 +846,9 @@ PERIMORTEM_UNIT_TEST(PufferBuffer, table_bounds) {
       write_test_package(writer_arena, "User.Bounds"_view, root);
   ASSERT(!output.is_empty());
 
-  Bits_64 invalid_offset =
+  Unsigned_64 invalid_offset =
       Data::ensure_endian<Data::ByteOrder::Native, Data::ByteOrder::Little>(
-          Bits_64(output.get_size()));
+          Unsigned_64(output.get_size()));
   Data::copy(
       output.get_access().get_data() + Format::slot(Format::Table::Manifest),
       invalid_offset);
@@ -867,20 +869,20 @@ PERIMORTEM_UNIT_TEST(PufferBuffer, invalid_alias_reference) {
 
   Perimortem::Core::Reader::Binary<Data::ByteOrder::Little> encoded(output);
   encoded.set_location(Format::slot(Format::Table::Package));
-  Count package_offset = Count(encoded.read_bits_64());
+  Count package_offset = Count(encoded.read_unsigned_64());
   encoded.set_location(package_offset);
-  EXPECT_EQ(encoded.read_bits_8(), Bits_8(0));
-  EXPECT_EQ(encoded.read_bits_8(), Bits_8(2));
-  Count name_size = encoded.read_bits_8();
+  EXPECT_EQ(encoded.read_unsigned_8(), Unsigned_8(0));
+  EXPECT_EQ(encoded.read_unsigned_8(), Unsigned_8(2));
+  Count name_size = encoded.read_unsigned_8();
   encoded.set_location(encoded.get_location() + name_size);
-  EXPECT_EQ(encoded.read_bits_8(), Bits_8(0));
-  EXPECT_EQ(encoded.read_bits_8(), Bits_8(0));
+  EXPECT_EQ(encoded.read_unsigned_8(), Unsigned_8(0));
+  EXPECT_EQ(encoded.read_unsigned_8(), Unsigned_8(0));
   EXPECT_EQ(
-      encoded.read_bits_8(),
-      Bits_8(Tetrodotoxin::Archiver::Type::Reference::Kind::Local));
+      encoded.read_unsigned_8(),
+      Unsigned_8(Tetrodotoxin::Archiver::Type::Reference::Kind::Local));
 
   Count alias_id_location = encoded.get_location();
-  output.get_access().get_data()[alias_id_location] = Bits_8(0x7f);
+  output.get_access().get_data()[alias_id_location] = Unsigned_8(0x7f);
 
   Allocator::Arena reader_arena;
   Tetrodotoxin::Archiver::Reader reader(output);
@@ -891,10 +893,10 @@ PERIMORTEM_UNIT_TEST(PufferBuffer, invalid_alias_reference) {
           reader_arena, *manifest,
           View::Vector<const Tetrodotoxin::Archiver::Package*>()) == nullptr);
 
-  output.get_access().get_data()[alias_id_location] = Bits_8(1);
-  Bits_64 truncated_package =
+  output.get_access().get_data()[alias_id_location] = Unsigned_8(1);
+  Unsigned_64 truncated_package =
       Data::ensure_endian<Data::ByteOrder::Native, Data::ByteOrder::Little>(
-          Bits_64(alias_id_location));
+          Unsigned_64(alias_id_location));
   Data::copy(
       output.get_access().get_data() + Format::slot(Format::Table::Linkages),
       truncated_package);

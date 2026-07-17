@@ -45,23 +45,23 @@ static Harness HashBench = {
 // a feel for scalar performance since in real use hashes tend to be performed
 // as part of a hot path and it's not typical to vectorize over a range of a
 // thousand keys in one go.
-PERIMORTEM_BENCHMARK(HashBench, bits_32) {
-  Bits_32 input = Data::cast<Bits_32>(hash_buffer.get_data())[0];
-  Bits_64 accumulator = 0;
+PERIMORTEM_BENCHMARK(HashBench, unsigned_32) {
+  Unsigned_32 input = Data::cast<Unsigned_32>(hash_buffer.get_data())[0];
+  Unsigned_64 accumulator = 0;
   for (Count i = 0; i < batch_count * 8; i++) {
-    Bits_64 result = Hash(input).get_value();
+    Unsigned_64 result = Hash(input).get_value();
     accumulator ^= result;
-    input = Bits_32(result);
+    input = Unsigned_32(result);
   }
 
   Benchmark::prevent_optimization(accumulator);
 }
 
-PERIMORTEM_BENCHMARK(HashBench, bits_64) {
-  Bits_64 input = Data::cast<Bits_64>(hash_buffer.get_data())[0];
-  Bits_64 accumulator = 0;
+PERIMORTEM_BENCHMARK(HashBench, unsigned_64) {
+  Unsigned_64 input = Data::cast<Unsigned_64>(hash_buffer.get_data())[0];
+  Unsigned_64 accumulator = 0;
   for (Count i = 0; i < batch_count * 8; i++) {
-    Bits_64 result = Hash(input).get_value();
+    Unsigned_64 result = Hash(input).get_value();
     accumulator ^= result;
     input = result;
   }
@@ -74,7 +74,7 @@ auto compute_hash() -> void {
   // Slide the window by one byte per iteration so the optimizer cannot prove
   // all calls return the same value and fold the XOR chain to zero.
   constexpr Count max_offset = 8;
-  Bits_64 accumulator = 0;
+  Unsigned_64 accumulator = 0;
   for (Count i = 0; i < batch_count * 8; i++) {
     Count offset = (max_offset > 0) ? (i % (max_offset + 1)) : 0;
     accumulator ^= Hash(hash_buffer.slice(offset, hash_length)).get_value();
@@ -105,11 +105,11 @@ HASH_BENCH(8192);
 template <Count hash_length>
 auto cpp_hash_bytes() -> void {
   constexpr Count max_offset = 8;
-  Bits_64 accumulator = 0;
+  Unsigned_64 accumulator = 0;
   for (Count i = 0; i < batch_count * 8; i++) {
     Count offset = (max_offset > 0) ? (i % (max_offset + 1)) : 0;
     auto slice = hash_buffer.slice(offset, hash_length);
-    accumulator ^= Bits_64(
+    accumulator ^= Unsigned_64(
         std::hash<std::string_view>{}(std::string_view(
             Data::cast<char>(slice.get_data()), slice.get_size())));
   }

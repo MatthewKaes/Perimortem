@@ -31,13 +31,13 @@ PERIMORTEM_UNIT_TEST(CoreTextualReader, integers) {
 PERIMORTEM_UNIT_TEST(CoreTextualReader, integers_and_text) {
   Reader::Textual reader("count: 412010 items"_view);
 
-  EXPECT_EQ(reader.read_byte(), Bits_8('c'));
+  EXPECT_EQ(reader.read_byte(), Unsigned_8('c'));
   reader.read_byte();  // 'o'
   reader.read_byte();  // 'u'
   reader.read_byte();  // 'n'
-  EXPECT_EQ(reader.read_byte(), Bits_8('t'));
+  EXPECT_EQ(reader.read_byte(), Unsigned_8('t'));
   reader.read_byte();  // ':'
-  EXPECT_EQ(reader.read_unsigned(), Bits_64(412010));
+  EXPECT_EQ(reader.read_unsigned(), Unsigned_64(412010));
   EXPECT(reader.has_content());
 }
 
@@ -46,8 +46,8 @@ PERIMORTEM_UNIT_TEST(CoreTextualReader, boolean) {
   // that for ABI reasons, and use Bool (proper ABI) for "true"/"false".
   Reader::Textual reader("10truefalseTrueFalse"_view);
 
-  EXPECT_EQ(reader.read_byte(), Bits_8('1'));
-  EXPECT_EQ(reader.read_byte(), Bits_8('0'));
+  EXPECT_EQ(reader.read_byte(), Unsigned_8('1'));
+  EXPECT_EQ(reader.read_byte(), Unsigned_8('0'));
   EXPECT(reader.read_flag());
   EXPECT_NOT(reader.read_flag());
   EXPECT(reader.read_flag());
@@ -174,6 +174,16 @@ PERIMORTEM_UNIT_TEST(CoreTextual, integers) {
 
   EXPECT(writer.is_valid());
   EXPECT_TEXT(buffer, "120000-31208"_view);
+}
+
+PERIMORTEM_UNIT_TEST(CoreTextual, characters) {
+  Static::Bytes<8> buffer;
+  Writer::Textual writer(buffer.get_access());
+
+  writer << Signed_8(-128) << ':' << Unsigned_8(255);
+
+  EXPECT(writer.is_valid());
+  EXPECT_TEXT(buffer, "-128:255"_view);
 }
 
 PERIMORTEM_UNIT_TEST(CoreTextual, integers_and_text) {

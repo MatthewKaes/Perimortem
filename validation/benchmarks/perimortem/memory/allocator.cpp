@@ -59,7 +59,7 @@ CYCLE_BENCH(65536)
 
 template <Count frame_alloc_count, Count size_minimum, Count size_range>
 auto frame_stability() {
-  Static::Vector<Bits_8*, frame_alloc_count> ptrs;
+  Static::Vector<Unsigned_8*, frame_alloc_count> ptrs;
   for (Count i = 0; i < frame_alloc_count; i++) {
     auto alloc = Bibliotheca::check_out(
         (Random::generate() & size_range) + size_minimum);
@@ -91,7 +91,7 @@ template <
     Count size_range>
 auto frame_stability_interleaved() {
   constexpr Count window = frame_alloc_count / window_count;
-  Static::Vector<Bits_8*, frame_alloc_count> ptrs;
+  Static::Vector<Unsigned_8*, frame_alloc_count> ptrs;
 
   // Initial allocation.
   for (Count i = 0; i < window; i++) {

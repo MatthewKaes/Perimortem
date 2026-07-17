@@ -29,7 +29,7 @@ auto Reader::Serial::read() -> Value {
 
   auto data = source.get_data();
   auto byte_flag = data[cursor++];
-  Bits_8 encoded_size = byte_flag & 0xF;
+  Unsigned_8 encoded_size = byte_flag & 0xF;
   if (cursor + encoded_size > source.get_size()) {
     Diagnostics::Log::Message<128> error_message(
         Diagnostics::Log::Level::Error);
@@ -48,19 +48,19 @@ auto Reader::Serial::read() -> Value {
     value = source[cursor];
     break;
   case 2: {
-    Bits_16 actual_bytes;
-    memcpy(&actual_bytes, data + cursor, sizeof(Bits_16));
+    Unsigned_16 actual_bytes;
+    memcpy(&actual_bytes, data + cursor, sizeof(Unsigned_16));
     value = Data::ensure_endian<stream_endian, native_endian>(actual_bytes);
     break;
   }
   case 4: {
-    Bits_32 actual_bytes;
-    memcpy(&actual_bytes, data + cursor, sizeof(Bits_32));
+    Unsigned_32 actual_bytes;
+    memcpy(&actual_bytes, data + cursor, sizeof(Unsigned_32));
     value = Data::ensure_endian<stream_endian, native_endian>(actual_bytes);
     break;
   }
   case 8:
-    memcpy(&value, data + cursor, sizeof(Bits_64));
+    memcpy(&value, data + cursor, sizeof(Unsigned_64));
     value = Data::ensure_endian<stream_endian, native_endian>(value);
     break;
   default: {

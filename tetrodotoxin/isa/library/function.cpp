@@ -11,7 +11,7 @@ using namespace Perimortem::Memory;
 using namespace Tetrodotoxin::Isa;
 using namespace Ttx::Lexical;
 
-enum class BodyMode : Bits_8 {
+enum class BodyMode : Unsigned_8 {
   Definition,
   Declaration,
 };

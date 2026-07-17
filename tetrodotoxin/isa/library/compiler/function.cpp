@@ -183,8 +183,9 @@ auto Library::Compiler::Function::literal_fits(
     View::Bytes name = expected.canonical().get_name();
     Bool signed_integer = name == "Signed_8"_view || name == "Signed_16"_view ||
                           name == "Signed_32"_view || name == "Signed_64"_view;
-    Bool unsigned_integer = name == "Bits_8"_view || name == "Bits_16"_view ||
-                            name == "Bits_32"_view || name == "Bits_64"_view;
+    Bool unsigned_integer =
+        name == "Unsigned_8"_view || name == "Unsigned_16"_view ||
+        name == "Unsigned_32"_view || name == "Unsigned_64"_view;
     return signed_integer || (!value.is_negative() && unsigned_integer);
   }
   case Base::Expression::Value::Kind::Real:
@@ -204,7 +205,7 @@ auto Library::Compiler::Function::infer_type(
     return Standard::Types::find_type("Bool"_view);
   case Base::Expression::Value::Kind::Numeric:
     return Standard::Types::find_type(
-        value.is_negative() ? "Signed_64"_view : "Bits_64"_view);
+        value.is_negative() ? "Signed_64"_view : "Unsigned_64"_view);
   case Base::Expression::Value::Kind::Real:
     return Standard::Types::find_type("Real_64"_view);
   case Base::Expression::Value::Kind::Type:
@@ -383,14 +384,14 @@ auto Library::Compiler::Function::lower(
                : Execution::Operand();
   case Base::Expression::Value::Kind::Numeric: {
     Reader::Textual reader(value.get_value());
-    Bits_64 magnitude = reader.read_unsigned();
+    Unsigned_64 magnitude = reader.read_unsigned();
     if (!literal_fits(value, expected)) {
       return Execution::Operand();
     }
 
     const Ttx::Type* signed_type = Standard::Types::find_type("Signed_64"_view);
     if (signed_type != nullptr && expected.equivalent_to(*signed_type)) {
-      constexpr Bits_64 signed_limit = Bits_64(1) << 63;
+      constexpr Unsigned_64 signed_limit = Unsigned_64(1) << 63;
       if (magnitude > signed_limit ||
           (!value.is_negative() && magnitude == signed_limit)) {
         return Execution::Operand();

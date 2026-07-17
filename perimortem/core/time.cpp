@@ -13,7 +13,7 @@ constexpr Count nano_to_seconds = Count(1'000'000'000);
 const Time boot_timestamp = Time::now();
 
 template <Bool extend_digits = False>
-auto write_fixed(Writer::Textual& writer, Bits_64 value) -> void {
+auto write_fixed(Writer::Textual& writer, Unsigned_64 value) -> void {
   if constexpr (extend_digits) {
     if (value < 100) {
       writer << '0';
@@ -45,7 +45,7 @@ auto Time::boot() -> Time {
 
 auto Time::calculate_clock() const -> Static::Bytes<12> {
   // Calculate time components.
-  Bits_64 seconds_today = (get_stamp() / nano_to_seconds) % 86400;
+  Unsigned_64 seconds_today = (get_stamp() / nano_to_seconds) % 86400;
   auto hours = seconds_today / 3600;
   auto minutes = (seconds_today % 3600) / 60;
   auto seconds = seconds_today % 60;

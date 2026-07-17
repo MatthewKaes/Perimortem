@@ -80,12 +80,12 @@ Dynamic::Bytes::~Bytes() {
   reset();
 }
 
-auto Dynamic::Bytes::append(Bits_8 byte) -> void {
+auto Dynamic::Bytes::append(Unsigned_8 byte) -> void {
   ensure_capacity(size + 1);
   source_block[size++] = byte;
 }
 
-auto Dynamic::Bytes::append(Bits_8 byte, Count amount) -> void {
+auto Dynamic::Bytes::append(Unsigned_8 byte, Count amount) -> void {
   ensure_capacity(size + amount);
   Data::set(source_block + size, byte, amount);
   size += amount;
@@ -104,11 +104,11 @@ auto Dynamic::Bytes::proxy(Core::View::Bytes view) -> void {
   Data::copy(source_block, view.get_data(), view.get_size());
 }
 
-auto Dynamic::Bytes::set(Bits_8 target) -> void {
+auto Dynamic::Bytes::set(Unsigned_8 target) -> void {
   Data::set(source_block, target, get_size());
 }
 
-auto Dynamic::Bytes::convert(Bits_8 source, Bits_8 target) -> void {
+auto Dynamic::Bytes::convert(Unsigned_8 source, Unsigned_8 target) -> void {
   for (int i = 0; i < size; i++) {
     if (source_block[i] == source) {
       source_block[i] = target;
@@ -161,7 +161,7 @@ auto Dynamic::Bytes::shrink(Count bytes_to_remove) -> void {
   memmove(source_block, source_block + bytes_to_remove, size);
 }
 
-auto Dynamic::Bytes::operator[](Count index) const -> Bits_8 {
+auto Dynamic::Bytes::operator[](Count index) const -> Unsigned_8 {
   if (index > size) {
     return 0;
   }
@@ -169,7 +169,7 @@ auto Dynamic::Bytes::operator[](Count index) const -> Bits_8 {
   return source_block[index];
 }
 
-auto Dynamic::Bytes::at(Count index) const -> Bits_8 {
+auto Dynamic::Bytes::at(Count index) const -> Unsigned_8 {
   if (index > size) {
     return 0;
   }

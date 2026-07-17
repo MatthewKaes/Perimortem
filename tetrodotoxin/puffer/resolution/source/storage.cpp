@@ -29,7 +29,7 @@ auto Resolution::Source::Storage::retain(View::Bytes bytes) -> View::Bytes {
     return View::Bytes();
   }
 
-  Bits_8* data = arena.allocate(bytes.get_size());
+  Unsigned_8* data = arena.allocate(bytes.get_size());
   Data::copy(data, bytes.get_data(), bytes.get_size());
   return View::Bytes(data, bytes.get_size());
 }

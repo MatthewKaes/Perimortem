@@ -97,7 +97,7 @@ PERIMORTEM_UNIT_TEST(TtxImplementation, imported_call) {
 
 PERIMORTEM_UNIT_TEST(TtxImplementation, member_facts) {
   Isa::Base::Implementation implementation;
-  Ttx::Type type("Bits_8"_view);
+  Ttx::Type type("Unsigned_8"_view);
   Ttx::Member member("red"_view, type);
   Ttx::Attribute source_attribute("range"_view, "byte"_view);
   Static::Vector<Ttx::Attribute, 1> attributes = {{

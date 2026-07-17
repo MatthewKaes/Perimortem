@@ -149,7 +149,7 @@ auto Execution::Builder::fold_binary(
           case Binary::Operator::Multiply:
             return constant(Constant(left_value * *right_value));
           case Binary::Operator::Divide:
-            if constexpr (__is_same(Type, Bits_64)) {
+            if constexpr (__is_same(Type, Unsigned_64)) {
               return *right_value == 0
                          ? Operand()
                          : constant(Constant(left_value / *right_value));
@@ -157,7 +157,7 @@ auto Execution::Builder::fold_binary(
               return constant(Constant(left_value / *right_value));
             }
           case Binary::Operator::Remainder:
-            if constexpr (__is_same(Type, Bits_64)) {
+            if constexpr (__is_same(Type, Unsigned_64)) {
               return *right_value == 0
                          ? Operand()
                          : constant(Constant(left_value % *right_value));

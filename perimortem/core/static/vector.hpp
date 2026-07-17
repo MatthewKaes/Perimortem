@@ -23,7 +23,7 @@ class Vector {
 
   // Static vectors initialize their complete storage from one fixed-size
   // array. Call sites use an extra pair of braces to create that array, as in
-  // `Static::Vector<Bits_8, 3> values = {{1, 2, 3}}`.
+  // `Static::Vector<Unsigned_8, 3> values = {{1, 2, 3}}`.
   //
   // Treating the source as one array keeps initialization independent of the
   // number of elements. A variadic constructor would instead manufacture a

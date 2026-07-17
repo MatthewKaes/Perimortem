@@ -38,7 +38,7 @@ class SortBytes {
     return *this;
   }
 
-  auto append(Bits_8 byte) -> void { bytes.append(byte); }
+  auto append(Unsigned_8 byte) -> void { bytes.append(byte); }
 
   constexpr auto get_view() const -> View::Bytes { return bytes.get_view(); }
 
@@ -108,8 +108,8 @@ PERIMORTEM_UNIT_TEST(AlgoSort, dynamic_types) {
   SortBytes test[item_count] = {};
   for (Count i = 0; i < item_count; i++) {
     test[i] = "test_string #"_view;
-    test[i].append(Bits_8('0' + (i / 10)));
-    test[i].append(Bits_8('0' + (i % 10)));
+    test[i].append(Unsigned_8('0' + (i / 10)));
+    test[i].append(Unsigned_8('0' + (i % 10)));
   }
 
   // Shuffle array
@@ -126,8 +126,8 @@ PERIMORTEM_UNIT_TEST(AlgoSort, dynamic_types) {
   Dynamic::Bytes validate = {};
   for (Count i = 0; i < item_count; i++) {
     validate = "test_string #"_view;
-    validate.append(Bits_8('0' + (i / 10)));
-    validate.append(Bits_8('0' + (i % 10)));
+    validate.append(Unsigned_8('0' + (i / 10)));
+    validate.append(Unsigned_8('0' + (i % 10)));
     EXPECT_TEXT(sorted[i].get_view(), validate.get_view());
   }
 }

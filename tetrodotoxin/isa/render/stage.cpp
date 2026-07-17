@@ -19,7 +19,7 @@ using namespace Perimortem::Utility;
 using namespace Tetrodotoxin::Isa;
 using namespace Ttx::Lexical;
 
-enum class StageDirective : Bits_8 {
+enum class StageDirective : Unsigned_8 {
   Reads,
   Input,
   Output,
@@ -35,7 +35,7 @@ static constexpr Static::Vector<Pair<View::Bytes, StageDirective>, 3>
 
 using StageDirectives = Table<StageDirective, stage_directives>;
 
-enum class ReadKind : Bits_8 {
+enum class ReadKind : Unsigned_8 {
   Constant,
   Push,
   Resource,

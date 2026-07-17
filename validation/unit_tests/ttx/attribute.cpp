@@ -46,16 +46,16 @@ PERIMORTEM_UNIT_TEST(TtxAttribute, value_only) {
 }
 
 PERIMORTEM_UNIT_TEST(TtxAttribute, scalar_values) {
-  Ttx::Model::Attribute unsigned_value("slot"_view, Bits_64(7));
+  Ttx::Model::Attribute unsigned_value("slot"_view, Unsigned_64(7));
   Ttx::Model::Attribute signed_value("offset"_view, Signed_64(-2));
   Ttx::Model::Attribute real_value("scale"_view, Real_64(0.5));
   Ttx::Model::Attribute boolean_value("enabled"_view, True);
 
-  EXPECT(unsigned_value.get_value() == Bits_64(7));
+  EXPECT(unsigned_value.get_value() == Unsigned_64(7));
   EXPECT(signed_value.get_value() == Signed_64(-2));
   EXPECT(real_value.get_value() == Real_64(0.5));
   EXPECT(boolean_value.get_value() == True);
-  EXPECT(unsigned_value == Ttx::Model::Attribute("slot"_view, Bits_64(7)));
+  EXPECT(unsigned_value == Ttx::Model::Attribute("slot"_view, Unsigned_64(7)));
   EXPECT_NOT(
       unsigned_value == Ttx::Model::Attribute("slot"_view, Signed_64(7)));
 }

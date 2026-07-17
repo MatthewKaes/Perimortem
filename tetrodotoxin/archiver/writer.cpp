@@ -81,9 +81,9 @@ class PackageWriter {
 
 static auto write_header(BinaryStream& writer) -> void {
   writer << Format::magic << Format::format_version;
-  writer << Bits_64(0) << Bits_64(0);
+  writer << Unsigned_64(0) << Unsigned_64(0);
   for (Count i = 0; i < Format::table_count; i++) {
-    writer << Bits_64(0);
+    writer << Unsigned_64(0);
   }
 }
 
@@ -92,12 +92,12 @@ static auto write_table_offset(
     Format::Table table,
     Count offset) -> void {
   writer.set_pointer(Format::slot(table));
-  writer << Bits_64(offset);
+  writer << Unsigned_64(offset);
 }
 
 static auto write_size(BinaryStream& writer, Count value) -> void {
   do {
-    Bits_8 byte = Bits_8(value & 0x7f);
+    Unsigned_8 byte = Unsigned_8(value & 0x7f);
     value >>= 7;
     if (value != 0) {
       byte |= 0x80;
@@ -210,24 +210,24 @@ auto PackageWriter::collect_local_type(const Ttx::Type* type) -> void {
 
 auto PackageWriter::write_ref(const Ttx::Type* type) -> Bool {
   if (type == nullptr || type->is_invalid()) {
-    writer << static_cast<Bits_8>(Type::Reference::Kind::None);
+    writer << static_cast<Unsigned_8>(Type::Reference::Kind::None);
     return True;
   }
 
   if (is_builtin_type(type)) {
-    writer << static_cast<Bits_8>(Type::Reference::Kind::Builtin);
+    writer << static_cast<Unsigned_8>(Type::Reference::Kind::Builtin);
     write_bytes(writer, type->get_name());
     return True;
   }
 
   if (auto* local = local_ids.find(type)) {
-    writer << static_cast<Bits_8>(Type::Reference::Kind::Local);
+    writer << static_cast<Unsigned_8>(Type::Reference::Kind::Local);
     write_size(writer, local->value);
     return True;
   }
 
   if (auto* external = external_refs.find(type)) {
-    writer << static_cast<Bits_8>(Type::Reference::Kind::Package);
+    writer << static_cast<Unsigned_8>(Type::Reference::Kind::Package);
     write_size(writer, external->value.get_reference_id());
     write_size(writer, external->value.get_type_id());
     return True;
@@ -250,7 +250,7 @@ auto PackageWriter::write_attributes(View::Vector<Ttx::Attribute> attributes)
   write_size(writer, attributes.get_size());
   for (Count i = 0; i < attributes.get_size(); i++) {
     write_bytes(writer, attributes[i].get_key());
-    writer << Bits_8(attributes[i].get_kind());
+    writer << Unsigned_8(attributes[i].get_kind());
     switch (attributes[i].get_kind()) {
     case Ttx::Attribute::Kind::Empty:
       break;
@@ -282,7 +282,7 @@ auto PackageWriter::write_members(View::Vector<Ttx::Member> members) -> Bool {
       return False;
     }
 
-    writer << (members[i].is_defaulted() ? Bits_8(1) : Bits_8(0));
+    writer << (members[i].is_defaulted() ? Unsigned_8(1) : Unsigned_8(0));
     write_documentation(members[i].get_documentation());
     write_attributes(members[i].get_attributes());
   }

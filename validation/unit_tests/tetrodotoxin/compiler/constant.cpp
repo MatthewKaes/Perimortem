@@ -14,9 +14,9 @@ static Harness CompilerConstant = {
 };
 
 PERIMORTEM_UNIT_TEST(CompilerConstant, alternatives) {
-  Execution::Constant bits(Bits_64(42));
-  ASSERT(bits.find<Bits_64>() != nullptr);
-  EXPECT_EQ(*bits.find<Bits_64>(), Bits_64(42));
+  Execution::Constant bits(Unsigned_64(42));
+  ASSERT(bits.find<Unsigned_64>() != nullptr);
+  EXPECT_EQ(*bits.find<Unsigned_64>(), Unsigned_64(42));
   EXPECT(bits.find<Real_64>() == nullptr);
 
   Execution::Constant signed_bits(Signed_64(-42));

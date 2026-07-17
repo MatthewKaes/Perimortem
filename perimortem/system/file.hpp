@@ -20,8 +20,8 @@ class File {
 
  private:
   static constexpr Count max_path_size = 512;
-  static auto create_path(Bits_8* output, Core::View::Bytes path)
-      -> const Signed_8*;
+  static auto create_path(Unsigned_8* output, Core::View::Bytes path) -> const
+      char*;
 };
 
 }  // namespace Perimortem::System

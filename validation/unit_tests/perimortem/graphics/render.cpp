@@ -16,7 +16,7 @@ static Harness GraphicsRender = {
 };
 
 PERIMORTEM_UNIT_TEST(GraphicsRender, describes_borrowed_pipeline_layout) {
-  const Bits_32 words[] = {0x07230203, 0x00010000, 0, 1};
+  const Unsigned_32 words[] = {0x07230203, 0x00010000, 0, 1};
   const Render::Stage stages[] = {
     Render::Stage::Vertex,
     Render::Stage::Pixel,

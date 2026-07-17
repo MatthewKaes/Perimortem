@@ -6,6 +6,7 @@
 #include "perimortem/core/static/vector.hpp"
 
 #include "ttx/concept/alias.hpp"
+#include "ttx/concept/comments.hpp"
 #include "ttx/concept/invalid.hpp"
 
 using namespace Perimortem::Core;
@@ -17,11 +18,13 @@ static Harness TtxAbstract = {
 };
 
 PERIMORTEM_UNIT_TEST(TtxAbstract, invalid_absorbs) {
-  Invalid invalid;
+  const Invalid& invalid = Invalid::get_invalid();
 
   EXPECT_TEXT(invalid.get_name(), "Invalid"_view);
+  EXPECT(&invalid == &Invalid::get_invalid());
   EXPECT(&invalid.resolve() == &invalid);
   EXPECT(&invalid.resolve_context("Anything::Else"_view) == &invalid);
+  EXPECT(invalid.get_documentation().is_empty());
 }
 
 PERIMORTEM_UNIT_TEST(TtxAbstract, alias_reroutes) {
@@ -29,17 +32,22 @@ PERIMORTEM_UNIT_TEST(TtxAbstract, alias_reroutes) {
   /// contract without adding a second model for values.
   class Value : public Abstract {
    public:
-    Value(View::Bytes name, const Invalid& invalid)
-        : name(name), invalid(invalid) {}
+    Value(
+        View::Bytes name,
+        const Documentation& documentation = Comment::get_empty())
+        : name(name), documentation(documentation) {}
 
     auto get_name() const -> View::Bytes override { return name; }
     auto resolve_context(View::Bytes) const -> const Abstract& override {
-      return invalid;
+      return Invalid::get_invalid();
+    }
+    auto get_documentation() const -> const Documentation& override {
+      return documentation;
     }
 
    private:
     View::Bytes name;
-    const Invalid& invalid;
+    const Documentation& documentation;
   };
 
   /// A context owns the meaning of its routes. Alias only changes which
@@ -50,39 +58,50 @@ PERIMORTEM_UNIT_TEST(TtxAbstract, alias_reroutes) {
         View::Bytes name,
         View::Bytes child_name,
         const Abstract& child,
-        const Invalid& invalid)
-        : name(name), child_name(child_name), child(child), invalid(invalid) {}
+        const Documentation& documentation = Comment::get_empty())
+        : name(name),
+          child_name(child_name),
+          child(child),
+          documentation(documentation) {}
 
     auto get_name() const -> View::Bytes override { return name; }
     auto resolve_context(View::Bytes route) const -> const Abstract& override {
       if (route == child_name) {
         return child.resolve();
       }
-      return invalid;
+      return Invalid::get_invalid();
+    }
+    auto get_documentation() const -> const Documentation& override {
+      return documentation;
     }
 
    private:
     View::Bytes name;
     View::Bytes child_name;
     const Abstract& child;
-    const Invalid& invalid;
+    const Documentation& documentation;
   };
 
-  Invalid invalid;
   static constexpr Static::Vector<View::Bytes, 2> lines = {{
     "Use the palette context."_view,
     "Preserve authored color names."_view,
   }};
-  Value color("Color"_view, invalid);
-  Context graphics("Graphics"_view, "Color"_view, color, invalid);
-  Alias palette("Palette"_view, graphics, Ttx::Concept::Documentation(lines));
+  static constexpr Comment graphics_comment("The graphics context."_view);
+  static constexpr Comments palette_comments(lines);
+  Value color("Color"_view);
+  Context graphics("Graphics"_view, "Color"_view, color, graphics_comment);
+  Alias palette("Palette"_view, graphics, palette_comments);
   Alias colors("Colors"_view, palette);
 
   EXPECT_TEXT(palette.get_name(), "Palette"_view);
-  EXPECT_EQ(palette.get_documentation().get_line_count(), Count(2));
+  EXPECT_EQ(palette.get_documentation().line_count(), Count(3));
   EXPECT_TEXT(
-      palette.get_documentation().line_at(0), "Use the palette context."_view);
-  EXPECT(colors.get_documentation().is_empty());
+      palette.get_documentation().get_line(0), "Use the palette context."_view);
+  EXPECT_TEXT(
+      palette.get_documentation().get_line(2), "The graphics context."_view);
+  EXPECT_EQ(colors.get_documentation().line_count(), Count(3));
+  EXPECT_TEXT(
+      colors.get_documentation().get_line(2), "The graphics context."_view);
   EXPECT_TEXT(palette.resolve().get_name(), "Graphics"_view);
   EXPECT(&palette.resolve() == &graphics);
   EXPECT(&colors.resolve() == &colors.resolve().resolve());
@@ -91,5 +110,5 @@ PERIMORTEM_UNIT_TEST(TtxAbstract, alias_reroutes) {
       &palette.resolve_context("Color"_view) ==
       &palette.resolve_context("Color"_view));
   EXPECT(&colors.resolve_context("Color"_view) == &color);
-  EXPECT(&palette.resolve_context("Missing"_view) == &invalid);
+  EXPECT(&palette.resolve_context("Missing"_view) == &Invalid::get_invalid());
 }

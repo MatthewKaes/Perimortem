@@ -46,9 +46,9 @@ class Union {
   }
 
   template <typename Type>
-  static consteval auto type_tag() -> Bits_8 {
-    Bits_8 result = 0;
-    Bits_8 candidate = 1;
+  static consteval auto type_tag() -> Unsigned_8 {
+    Unsigned_8 result = 0;
+    Unsigned_8 candidate = 1;
     ((result = __is_same(Type, Types) ? candidate : result, candidate++), ...);
     return result;
   }
@@ -64,8 +64,9 @@ class Union {
   template <typename Candidate, typename Type>
   static consteval auto selects() -> bool {
     // An exact alternative always wins. Otherwise the source must construct
-    // exactly one alternative, allowing `Union<Bits_64>` to accept an integer
-    // literal without making a multi-numeric Union guess its intended type.
+    // exactly one alternative, allowing `Union<Unsigned_64>` to accept an
+    // integer literal without making a multi-numeric Union guess its intended
+    // type.
     constexpr Count exact = type_count<Alternative<Candidate>>();
     if constexpr (exact != 0) {
       return __is_same(Alternative<Candidate>, Type) &&
@@ -137,8 +138,8 @@ class Union {
     return visit_active<Types...>(self, visitor);
   }
 
-  alignas(storage_alignment()) Bits_8 storage[storage_size()];
-  Bits_8 tag = 0;
+  alignas(storage_alignment()) Unsigned_8 storage[storage_size()];
+  Unsigned_8 tag = 0;
 
  public:
   constexpr Union() = default;

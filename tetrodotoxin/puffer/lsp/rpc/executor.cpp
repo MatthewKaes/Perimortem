@@ -40,9 +40,9 @@ auto Lsp::Rpc::Executor<dispatch_table, worker_count>::execute(
   // Create a block to scope the lifetime of the workers.
   {
     Static::Vector<Thread::Worker, worker_count> workers;
-    alignas(Bits_64) Static::Bytes<sizeof(Bits_64)> job_data;
+    alignas(Unsigned_64) Static::Bytes<sizeof(Unsigned_64)> job_data;
     Writer::Binary<Data::ByteOrder::Native> job_writer(job_data.get_access());
-    job_writer << reinterpret_cast<Bits_64>(this);
+    job_writer << reinterpret_cast<Unsigned_64>(this);
     for (Count i = 0; i < worker_count; i++) {
       Static::Bytes<16> name_buffer;
       Writer::Textual name_writer(name_buffer);
@@ -80,7 +80,8 @@ auto Lsp::Rpc::Executor<dispatch_table, worker_count>::create_connection(
   Count path_length =
       Math::min(pipe_name.get_size(), Count(sizeof(address.sun_path) - 1));
   Data::copy(
-      Data::cast<Bits_8>(address.sun_path), pipe_name.get_data(), path_length);
+      Data::cast<Unsigned_8>(address.sun_path), pipe_name.get_data(),
+      path_length);
   address.sun_path[path_length] = '\0';
 
   auto connect_result =
@@ -102,7 +103,7 @@ template <const auto& dispatch_table, Count worker_count>
 auto Lsp::Rpc::Executor<dispatch_table, worker_count>::run_worker_job(
     View::Bytes job_data) -> void {
   Reader::Binary<Data::ByteOrder::Native> reader(job_data);
-  const Bits_64 executor_address = reader.read_bits_64();
+  const Unsigned_64 executor_address = reader.read_unsigned_64();
   if (reader.get_location() != reader.get_size() || executor_address == 0) {
     Diagnostics::Log::fatal("Invalid TTX RPC worker job payload."_view);
   }
@@ -152,7 +153,7 @@ template <const auto& dispatch_table, Count worker_count>
 auto Lsp::Rpc::Executor<dispatch_table, worker_count>::create_job(
     View::Bytes data) -> void {
   auto allocation = Bibliotheca::check_out(sizeof(JobBlock) + data.get_size());
-  Bits_8* job_data = allocation.ptr + sizeof(JobBlock);
+  Unsigned_8* job_data = allocation.ptr + sizeof(JobBlock);
   Data::copy(job_data, data.get_data(), data.get_size());
   JobBlock* job =
       new (allocation.ptr) JobBlock(View::Bytes(job_data, data.get_size()));
@@ -242,7 +243,7 @@ auto Lsp::Rpc::Executor<dispatch_table, worker_count>::destroy_job(
   }
 
   job->~JobBlock();
-  Bibliotheca::remit(Data::cast<Bits_8>(job));
+  Bibliotheca::remit(Data::cast<Unsigned_8>(job));
 }
 
 template <const auto& dispatch_table, Count worker_count>

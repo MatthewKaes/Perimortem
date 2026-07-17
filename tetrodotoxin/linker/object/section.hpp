@@ -14,7 +14,7 @@ namespace Tetrodotoxin::Linker::Object {
 // source, dialect, resolution, or compiler-local bookkeeping.
 class Section {
  public:
-  enum class Type : Bits_8 {
+  enum class Type : Unsigned_8 {
     Undefined,
     Program,
     Strings,

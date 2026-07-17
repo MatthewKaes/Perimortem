@@ -24,10 +24,10 @@ PERIMORTEM_UNIT_TEST(GraphicsImage, zero_addressing_includes_edge_coordinates) {
 
   const Pixel horizontal_edge = image.get_pixel(1, 0);
   const Pixel vertical_edge = image.get_pixel(0, 1);
-  EXPECT_EQ(horizontal_edge.red, Bits_8(0));
-  EXPECT_EQ(horizontal_edge.alpha, Bits_8(0));
-  EXPECT_EQ(vertical_edge.red, Bits_8(0));
-  EXPECT_EQ(vertical_edge.alpha, Bits_8(0));
+  EXPECT_EQ(horizontal_edge.red, Unsigned_8(0));
+  EXPECT_EQ(horizontal_edge.alpha, Unsigned_8(0));
+  EXPECT_EQ(vertical_edge.red, Unsigned_8(0));
+  EXPECT_EQ(vertical_edge.alpha, Unsigned_8(0));
 }
 
 PERIMORTEM_UNIT_TEST(GraphicsImage, clamp_addressing_uses_nearest_edge) {
@@ -38,10 +38,10 @@ PERIMORTEM_UNIT_TEST(GraphicsImage, clamp_addressing_uses_nearest_edge) {
 
   const Pixel left = image.get_pixel(-1, 0);
   const Pixel right = image.get_pixel(2, 0);
-  EXPECT_EQ(left.red, Bits_8(0x11));
-  EXPECT_EQ(left.alpha, Bits_8(0x44));
-  EXPECT_EQ(right.red, Bits_8(0x55));
-  EXPECT_EQ(right.alpha, Bits_8(0x88));
+  EXPECT_EQ(left.red, Unsigned_8(0x11));
+  EXPECT_EQ(left.alpha, Unsigned_8(0x44));
+  EXPECT_EQ(right.red, Unsigned_8(0x55));
+  EXPECT_EQ(right.alpha, Unsigned_8(0x88));
 }
 
 PERIMORTEM_UNIT_TEST(GraphicsImage, wrap_addressing_uses_image_domain) {
@@ -52,10 +52,10 @@ PERIMORTEM_UNIT_TEST(GraphicsImage, wrap_addressing_uses_image_domain) {
 
   const Pixel from_left = image.get_pixel(-1, 0);
   const Pixel from_right = image.get_pixel(2, 0);
-  EXPECT_EQ(from_left.red, Bits_8(0x55));
-  EXPECT_EQ(from_left.alpha, Bits_8(0x88));
-  EXPECT_EQ(from_right.red, Bits_8(0x11));
-  EXPECT_EQ(from_right.alpha, Bits_8(0x44));
+  EXPECT_EQ(from_left.red, Unsigned_8(0x55));
+  EXPECT_EQ(from_left.alpha, Unsigned_8(0x88));
+  EXPECT_EQ(from_right.red, Unsigned_8(0x11));
+  EXPECT_EQ(from_right.alpha, Unsigned_8(0x44));
 }
 
 PERIMORTEM_UNIT_TEST(GraphicsImage, empty_addressing_returns_zero) {
@@ -64,8 +64,8 @@ PERIMORTEM_UNIT_TEST(GraphicsImage, empty_addressing_returns_zero) {
 
   const Pixel clamped = clamp.get_pixel(4, -2);
   const Pixel wrapped = wrap.get_pixel(-4, 2);
-  EXPECT_EQ(clamped.red, Bits_8(0));
-  EXPECT_EQ(clamped.alpha, Bits_8(0));
-  EXPECT_EQ(wrapped.red, Bits_8(0));
-  EXPECT_EQ(wrapped.alpha, Bits_8(0));
+  EXPECT_EQ(clamped.red, Unsigned_8(0));
+  EXPECT_EQ(clamped.alpha, Unsigned_8(0));
+  EXPECT_EQ(wrapped.red, Unsigned_8(0));
+  EXPECT_EQ(wrapped.alpha, Unsigned_8(0));
 }

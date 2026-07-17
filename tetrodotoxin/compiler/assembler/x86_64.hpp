@@ -91,7 +91,7 @@ class x86_64 {
     R15W,
   };
 
-  enum class Xmm : Bits_8 {
+  enum class Xmm : Unsigned_8 {
     XMM0,
     XMM1,
     XMM2,
@@ -109,11 +109,11 @@ class x86_64 {
   auto close() -> void {};
 
   auto mov(Reg source, Reg destination) -> void;
-  auto mov(Bits_8 immediate, Reg destination) -> void;
-  auto mov(Bits_16 immediate, Reg destination) -> void;
-  auto mov(Bits_32 immediate, Reg destination) -> void;
+  auto mov(Unsigned_8 immediate, Reg destination) -> void;
+  auto mov(Unsigned_16 immediate, Reg destination) -> void;
+  auto mov(Unsigned_32 immediate, Reg destination) -> void;
   // Encoding optimized 64 bit mov.
-  auto mov(Bits_64 immediate, Reg destination) -> void;
+  auto mov(Unsigned_64 immediate, Reg destination) -> void;
   // Store to memory: mov source, [base + displacement]
   auto mov(Reg source, Reg base, Signed_32 displacement) -> void;
   // Load from memory: mov [base + displacement], destination
@@ -126,9 +126,9 @@ class x86_64 {
   auto inc(Reg reg) -> void;
   auto dec(Reg reg) -> void;
   auto add(Reg source, Reg destination) -> void;
-  auto add(Bits_32 immediate, Reg destination) -> void;
+  auto add(Unsigned_32 immediate, Reg destination) -> void;
   auto sub(Reg source, Reg destination) -> void;
-  auto sub(Bits_32 immediate, Reg destination) -> void;
+  auto sub(Unsigned_32 immediate, Reg destination) -> void;
   auto multiply(Reg source, Reg destination) -> void;
   auto compare(Reg source, Reg destination) -> void;
   auto set_equal(Reg destination) -> void;

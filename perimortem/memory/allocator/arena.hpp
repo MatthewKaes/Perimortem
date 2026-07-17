@@ -23,8 +23,8 @@ class Arena {
  public:
   // Attempt to request blocks in 32k pages including the preface and a previous
   // pointer.
-  static constexpr Bits_64 page_size = (1 << 15);
-  static constexpr Bits_64 arena_alignment = sizeof(Count);
+  static constexpr Unsigned_64 page_size = (1 << 15);
+  static constexpr Unsigned_64 arena_alignment = sizeof(Count);
 
   Arena();
   ~Arena();
@@ -33,7 +33,7 @@ class Arena {
   auto operator=(const Arena&) -> Arena& = delete;
   auto operator=(Arena&&) -> Arena& = delete;
 
-  inline auto allocate(Count bytes_requested) -> Bits_8* {
+  inline auto allocate(Count bytes_requested) -> Unsigned_8* {
     // Fetch a new page if we are full due to either running out of our current
     // page, or needing to allocate an object larger than our page size.
     //
@@ -45,7 +45,7 @@ class Arena {
     }
 
     // Align the bump pointer to keep produced data aligned.
-    Bits_8* root = rented_block + usage;
+    Unsigned_8* root = rented_block + usage;
     usage = Core::Data::align<arena_alignment>(usage + bytes_requested);
     return root;
   }
@@ -66,7 +66,7 @@ class Arena {
   template <typename type, typename... arg_types>
   auto construct(arg_types&&... args) -> type& {
     static_assert(alignof(type) <= arena_alignment);
-    Bits_8* ptr = allocate(sizeof(type));
+    Unsigned_8* ptr = allocate(sizeof(type));
     return *new (ptr) type(static_cast<arg_types&&>(args)...);
   }
 
@@ -75,7 +75,7 @@ class Arena {
  private:
   auto fetch_page(Count bytes_requested) -> void;
 
-  Bits_8* rented_block;
+  Unsigned_8* rented_block;
   Count usage;
 };
 

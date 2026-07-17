@@ -37,14 +37,14 @@ class Types {
   }
 
   static constexpr auto get_version() -> Perimortem::System::Uuid {
-    constexpr Bits_64 major = 1;
-    constexpr Bits_64 minor = 12;
+    constexpr Unsigned_64 major = 1;
+    constexpr Unsigned_64 minor = 13;
     return Perimortem::System::Uuid(major, minor);
   }
 
  private:
-  static constexpr TypeStorage bits_64_type = {
-    "Bits_64"_view,
+  static constexpr TypeStorage unsigned_64_type = {
+    "Unsigned_64"_view,
     Tetrodotoxin::Abi::Lowering::Unsigned_64,
   };
   static constexpr TypeStorage real_32_type = {
@@ -54,7 +54,7 @@ class Types {
   static constexpr TypeStorage count_type = {
     "Count"_view,
     Tetrodotoxin::Abi::Lowering::Unsigned_64,
-    bits_64_type.get_type(),
+    unsigned_64_type.get_type(),
   };
 
   static constexpr Perimortem::Core::Static::Vector<Ttx::Member, 4>
@@ -84,9 +84,9 @@ class Types {
   static constexpr TypeStorage type_storage[] = {
     {"Void"_view, Tetrodotoxin::Abi::Lowering::Void},
     {"Bool"_view, Tetrodotoxin::Abi::Lowering::Bool},
-    {"Bits_8"_view, Tetrodotoxin::Abi::Lowering::Unsigned_8},
-    {"Bits_16"_view, Tetrodotoxin::Abi::Lowering::Unsigned_16},
-    {"Bits_32"_view, Tetrodotoxin::Abi::Lowering::Unsigned_32},
+    {"Unsigned_8"_view, Tetrodotoxin::Abi::Lowering::Unsigned_8},
+    {"Unsigned_16"_view, Tetrodotoxin::Abi::Lowering::Unsigned_16},
+    {"Unsigned_32"_view, Tetrodotoxin::Abi::Lowering::Unsigned_32},
     {"Signed_8"_view, Tetrodotoxin::Abi::Lowering::Signed_8},
     {"Signed_16"_view, Tetrodotoxin::Abi::Lowering::Signed_16},
     {"Signed_32"_view, Tetrodotoxin::Abi::Lowering::Signed_32},
@@ -110,10 +110,10 @@ class Types {
         {"Void"_view, &type_storage[0].get_type()},
         {"Bool"_view, &type_storage[1].get_type()},
         {"Count"_view, &count_type.get_type()},
-        {"Bits_8"_view, &type_storage[2].get_type()},
-        {"Bits_16"_view, &type_storage[3].get_type()},
-        {"Bits_32"_view, &type_storage[4].get_type()},
-        {"Bits_64"_view, &bits_64_type.get_type()},
+        {"Unsigned_8"_view, &type_storage[2].get_type()},
+        {"Unsigned_16"_view, &type_storage[3].get_type()},
+        {"Unsigned_32"_view, &type_storage[4].get_type()},
+        {"Unsigned_64"_view, &unsigned_64_type.get_type()},
         {"Signed_8"_view, &type_storage[5].get_type()},
         {"Signed_16"_view, &type_storage[6].get_type()},
         {"Signed_32"_view, &type_storage[7].get_type()},

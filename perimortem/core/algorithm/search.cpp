@@ -62,7 +62,7 @@ auto Algorithm::search(View::Bytes src, View::Bytes value) -> Count {
       const auto head_slots = _mm256_cmpeq_epi8(head_block, first_byte);
       const auto tail_slots = _mm256_cmpeq_epi8(tail_block, last_byte);
       const auto test_ranges = _mm256_and_si256(head_slots, tail_slots);
-      auto range_mask = Bits_32(_mm256_movemask_epi8(test_ranges));
+      auto range_mask = Unsigned_32(_mm256_movemask_epi8(test_ranges));
       while (range_mask) {
         auto index = __builtin_ctzg(range_mask);
         range_mask ^= 1 << index;
@@ -72,7 +72,7 @@ auto Algorithm::search(View::Bytes src, View::Bytes value) -> Count {
             Data::cast<const __m256i_u>(src.get_data() + i + index));
         const auto possible_match = _mm256_and_si256(test_block, test_filter);
         const auto match_value = _mm256_cmpeq_epi8(possible_match, test_value);
-        auto match = Bits_32(_mm256_movemask_epi8(match_value));
+        auto match = Unsigned_32(_mm256_movemask_epi8(match_value));
         if (match == 0xFFFFFFFF) {
           return i + index;
         }
@@ -106,7 +106,7 @@ auto Algorithm::search(View::Bytes src, View::Bytes value) -> Count {
 }
 
 // Fast vectorized sub string search for a particular byte in a View::Bytes.
-auto Algorithm::search(View::Bytes src, Bits_8 value) -> Count {
+auto Algorithm::search(View::Bytes src, Unsigned_8 value) -> Count {
   // If the value is larger than the source then it can't be a substring.
   if (src.is_empty()) {
     return Count(-1);
@@ -129,7 +129,7 @@ auto Algorithm::search(View::Bytes src, Bits_8 value) -> Count {
           _mm256_loadu_si256(Data::cast<const __m256i_u>(source_data + i));
 
       const auto source_hits = _mm256_cmpeq_epi8(source_block, test_mask);
-      auto range_mask = Bits_32(_mm256_movemask_epi8(source_hits));
+      auto range_mask = Unsigned_32(_mm256_movemask_epi8(source_hits));
       if (range_mask) {
         auto index = __builtin_ctzg(range_mask);
         range_mask ^= 1 << index;

@@ -27,11 +27,12 @@ class Textual {
   // buffer.
   auto set_pointer(Count location) -> void;
 
+  auto operator<<(char character) -> Textual&;
   auto operator<<(const Bool flag) -> Textual&;
-  auto operator<<(const Bits_8 byte) -> Textual&;
-  auto operator<<(const Bits_16 value) -> Textual&;
-  auto operator<<(const Bits_32 value) -> Textual&;
-  auto operator<<(const Bits_64 value) -> Textual&;
+  auto operator<<(const Unsigned_8 byte) -> Textual&;
+  auto operator<<(const Unsigned_16 value) -> Textual&;
+  auto operator<<(const Unsigned_32 value) -> Textual&;
+  auto operator<<(const Unsigned_64 value) -> Textual&;
   auto operator<<(const Signed_8 value) -> Textual&;
   auto operator<<(const Signed_16 value) -> Textual&;
   auto operator<<(const Signed_32 value) -> Textual&;

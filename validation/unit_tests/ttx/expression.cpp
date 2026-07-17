@@ -14,7 +14,14 @@
 #include "ttx/model/layouts/fluid.hpp"
 #include "ttx/model/layouts/named.hpp"
 #include "ttx/model/layouts/structured.hpp"
-#include "ttx/model/types/real.hpp"
+#include "ttx/model/types/boolean.hpp"
+#include "ttx/model/types/real_128.hpp"
+#include "ttx/model/types/real_64.hpp"
+#include "ttx/model/types/signed_64.hpp"
+#include "ttx/model/types/signed_8.hpp"
+#include "ttx/model/types/unsigned_16.hpp"
+#include "ttx/model/types/unsigned_64.hpp"
+#include "ttx/model/types/unsigned_8.hpp"
 
 using namespace Perimortem::Core;
 using namespace Ttx::Concept;
@@ -22,49 +29,24 @@ using namespace Ttx::Model;
 using namespace Ttx::Model::Layouts;
 using namespace Validation;
 
-/// A terminal fixture keeps target width facts on the Type selected by the
-/// toolchain. Constant values can then prove contextual fitting independently.
-template <typename Contract>
-class ConstantTerminal final : public Contract {
- public:
-  ConstantTerminal(
-      View::Bytes name,
-      Count size,
-      Count alignment,
-      const Invalid& invalid)
-      : name(name), size(size), alignment(alignment), invalid(invalid) {}
-
-  auto get_name() const -> View::Bytes override { return name; }
-  auto resolve_context(View::Bytes) const -> const Abstract& override {
-    return invalid;
-  }
-  auto get_size() const -> Count override { return size; }
-  auto get_alignment() const -> Count override { return alignment; }
-
- private:
-  View::Bytes name;
-  Count size;
-  Count alignment;
-  const Invalid& invalid;
-};
-
 /// Byte arrays may use an ordinary composite Type. Their Constant contract
 /// does not pretend that bytes are a language-level String or one terminal.
 class BytesType final : public Type {
  public:
-  BytesType(View::Bytes name, const Invalid& invalid)
-      : name(name), invalid(invalid) {}
+  BytesType(View::Bytes name) : name(name) {}
 
   auto get_name() const -> View::Bytes override { return name; }
+  auto get_documentation() const -> const Documentation& override {
+    return Comment::get_empty();
+  }
   auto resolve_context(View::Bytes) const -> const Abstract& override {
-    return invalid;
+    return Invalid::get_invalid();
   }
   auto get_layout() const -> const Structured& override { return layout; }
 
  private:
   View::Bytes name;
-  const Invalid& invalid;
-  Structured layout;
+  inline static const Structured layout;
 };
 
 /// Constant implementations publish one immutable payload and borrow the Type
@@ -94,6 +76,9 @@ class ConstantField final : public Addressable {
   ConstantField(View::Bytes name, const Type& type) : name(name), type(type) {}
 
   auto get_name() const -> View::Bytes override { return name; }
+  auto get_documentation() const -> const Documentation& override {
+    return Comment::get_empty();
+  }
   auto resolve() const -> const Abstract& override { return type.resolve(); }
   auto resolve_context(View::Bytes route) const -> const Abstract& override {
     return type.resolve().resolve_context(route);
@@ -109,19 +94,16 @@ static Harness TtxExpression = {
 };
 
 PERIMORTEM_UNIT_TEST(TtxExpression, constant_identity) {
-  Invalid invalid;
-  ConstantTerminal<Types::Unsigned> unsigned_64(
-      "Unsigned_64"_view, 8, 8, invalid);
-  ConstantTerminal<Types::Unsigned> other_unsigned_64(
-      "OtherUnsigned_64"_view, 8, 8, invalid);
+  Types::Unsigned_64 unsigned_64;
+  Types::Unsigned_64 other_unsigned_64;
   ConstantValue<Constants::Unsigned> first(
-      "first"_view, unsigned_64, Bits_64(100));
+      "first"_view, unsigned_64, Unsigned_64(100));
   ConstantValue<Constants::Unsigned> same(
-      "same"_view, unsigned_64, Bits_64(100));
+      "same"_view, unsigned_64, Unsigned_64(100));
   ConstantValue<Constants::Unsigned> different(
-      "different"_view, unsigned_64, Bits_64(101));
+      "different"_view, unsigned_64, Unsigned_64(101));
   ConstantValue<Constants::Unsigned> other_type(
-      "other"_view, other_unsigned_64, Bits_64(100));
+      "other"_view, other_unsigned_64, Unsigned_64(100));
 
   EXPECT(first.is<Expression>());
   EXPECT(first.is<Constant>());
@@ -137,11 +119,10 @@ PERIMORTEM_UNIT_TEST(TtxExpression, constant_identity) {
 }
 
 PERIMORTEM_UNIT_TEST(TtxExpression, constant_domains) {
-  Invalid invalid;
-  ConstantTerminal<Types::Signed> signed_type("Signed_64"_view, 8, 8, invalid);
-  ConstantTerminal<Types::Real> real_type("Real_128"_view, 16, 16, invalid);
-  ConstantTerminal<Types::Flag> flag_type("Flag"_view, 1, 1, invalid);
-  BytesType bytes_type("Bytes"_view, invalid);
+  Types::Signed_64 signed_type;
+  Types::Real_128 real_type;
+  Types::Boolean flag_type;
+  BytesType bytes_type("Bytes"_view);
   ConstantValue<Constants::Signed> signed_value(
       "negative"_view, signed_type, Signed_64(-20));
   ConstantValue<Constants::Real> real_value(
@@ -169,24 +150,19 @@ PERIMORTEM_UNIT_TEST(TtxExpression, constant_domains) {
 }
 
 PERIMORTEM_UNIT_TEST(TtxExpression, constant_fitting) {
-  Invalid invalid;
-  ConstantTerminal<Types::Unsigned> unsigned_64(
-      "Unsigned_64"_view, 8, 8, invalid);
-  ConstantTerminal<Types::Unsigned> unsigned_8(
-      "Unsigned_8"_view, 1, 1, invalid);
-  ConstantTerminal<Types::Unsigned> unsigned_16(
-      "Unsigned_16"_view, 2, 2, invalid);
-  ConstantTerminal<Types::Signed> signed_64("Signed_64"_view, 8, 8, invalid);
-  ConstantTerminal<Types::Signed> signed_8("Signed_8"_view, 1, 1, invalid);
-  ConstantTerminal<Types::Flag> source_flag("FlagA"_view, 1, 1, invalid);
-  ConstantTerminal<Types::Flag> target_flag("FlagB"_view, 4, 4, invalid);
-  ConstantTerminal<Types::Real> real_64("Real_64"_view, 8, 8, invalid);
-  ConstantTerminal<Types::Real> other_real_64(
-      "OtherReal_64"_view, 8, 8, invalid);
+  Types::Unsigned_64 unsigned_64;
+  Types::Unsigned_8 unsigned_8;
+  Types::Unsigned_16 unsigned_16;
+  Types::Signed_64 signed_64;
+  Types::Signed_8 signed_8;
+  Types::Boolean source_flag;
+  Types::Boolean target_flag;
+  Types::Real_64 real_64;
+  Types::Real_64 other_real_64;
   ConstantValue<Constants::Unsigned> fits_8(
-      "fits"_view, unsigned_64, Bits_64(255));
+      "fits"_view, unsigned_64, Unsigned_64(255));
   ConstantValue<Constants::Unsigned> needs_16(
-      "wide"_view, unsigned_64, Bits_64(256));
+      "wide"_view, unsigned_64, Unsigned_64(256));
   ConstantValue<Constants::Signed> fits_signed(
       "fits"_view, signed_64, Signed_64(-128));
   ConstantValue<Constants::Signed> misses_signed(
@@ -205,14 +181,11 @@ PERIMORTEM_UNIT_TEST(TtxExpression, constant_fitting) {
 }
 
 PERIMORTEM_UNIT_TEST(TtxExpression, layout_constants) {
-  Invalid invalid;
-  ConstantTerminal<Types::Unsigned> unsigned_64(
-      "Unsigned_64"_view, 8, 8, invalid);
-  ConstantTerminal<Types::Unsigned> unsigned_8(
-      "Unsigned_8"_view, 1, 1, invalid);
-  ConstantTerminal<Types::Signed> signed_64("Signed_64"_view, 8, 8, invalid);
-  ConstantTerminal<Types::Signed> signed_8("Signed_8"_view, 1, 1, invalid);
-  ConstantValue<Constants::Unsigned> x("x"_view, unsigned_64, Bits_64(255));
+  Types::Unsigned_64 unsigned_64;
+  Types::Unsigned_8 unsigned_8;
+  Types::Signed_64 signed_64;
+  Types::Signed_8 signed_8;
+  ConstantValue<Constants::Unsigned> x("x"_view, unsigned_64, Unsigned_64(255));
   ConstantValue<Constants::Signed> y("y"_view, signed_64, Signed_64(-20));
   ConstantField x_field("x"_view, unsigned_8);
   ConstantField y_field("y"_view, signed_8);
@@ -231,20 +204,17 @@ PERIMORTEM_UNIT_TEST(TtxExpression, layout_constants) {
 }
 
 PERIMORTEM_UNIT_TEST(TtxExpression, argument_values) {
-  Invalid invalid;
-  ConstantTerminal<Types::Unsigned> unsigned_64(
-      "Unsigned_64"_view, 8, 8, invalid);
-  ConstantTerminal<Types::Unsigned> other_unsigned_64(
-      "OtherUnsigned_64"_view, 8, 8, invalid);
+  Types::Unsigned_64 unsigned_64;
+  Types::Unsigned_64 other_unsigned_64;
   ConstantValue<Constants::Unsigned> first(
-      "first"_view, unsigned_64, Bits_64(100));
+      "first"_view, unsigned_64, Unsigned_64(100));
   ConstantValue<Constants::Unsigned> same(
-      "same"_view, unsigned_64, Bits_64(100));
+      "same"_view, unsigned_64, Unsigned_64(100));
   ConstantValue<Constants::Unsigned> different(
-      "different"_view, unsigned_64, Bits_64(101));
+      "different"_view, unsigned_64, Unsigned_64(101));
   ConstantValue<Constants::Unsigned> other_type(
-      "other"_view, other_unsigned_64, Bits_64(100));
-  BytesType bytes_type("Bytes"_view, invalid);
+      "other"_view, other_unsigned_64, Unsigned_64(100));
+  BytesType bytes_type("Bytes"_view);
   ConstantValue<Constants::Bytes> first_bytes(
       "first_bytes"_view, bytes_type, "cache"_view);
   ConstantValue<Constants::Bytes> same_bytes(
@@ -256,6 +226,6 @@ PERIMORTEM_UNIT_TEST(TtxExpression, argument_values) {
   EXPECT(Argument(first) != Argument(different));
   EXPECT(Argument(first) != Argument(other_type));
   EXPECT(Argument(first_bytes) == Argument(same_bytes));
-  EXPECT(Argument(Bits_64(100)) == Argument(Bits_64(100)));
-  EXPECT(Argument(Bits_64(100)) != Argument(Bits_64(101)));
+  EXPECT(Argument(Unsigned_64(100)) == Argument(Unsigned_64(100)));
+  EXPECT(Argument(Unsigned_64(100)) != Argument(Unsigned_64(101)));
 }

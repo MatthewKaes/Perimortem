@@ -5,151 +5,172 @@
 
 #include "ttx/concept/alias.hpp"
 #include "ttx/concept/invalid.hpp"
-#include "ttx/model/types/flag.hpp"
-#include "ttx/model/types/real.hpp"
-#include "ttx/model/types/signed.hpp"
-#include "ttx/model/types/unsigned.hpp"
+#include "ttx/model/types/boolean.hpp"
+#include "ttx/model/types/real_128.hpp"
+#include "ttx/model/types/real_32.hpp"
+#include "ttx/model/types/real_64.hpp"
+#include "ttx/model/types/signed_16.hpp"
+#include "ttx/model/types/signed_32.hpp"
+#include "ttx/model/types/signed_64.hpp"
+#include "ttx/model/types/signed_8.hpp"
+#include "ttx/model/types/unsigned_16.hpp"
+#include "ttx/model/types/unsigned_32.hpp"
+#include "ttx/model/types/unsigned_64.hpp"
+#include "ttx/model/types/unsigned_8.hpp"
 
 using namespace Perimortem::Core;
 using namespace Ttx::Concept;
 using namespace Ttx::Model;
-using namespace Ttx::Model::Types;
 using namespace Validation;
+
+namespace Types = Ttx::Model::Types;
 
 static Harness TtxTypes = {
   .name = "TTX::Types"_view,
 };
 
-/// A toolchain owns concrete terminal records and decides which widths
-/// participate in its resolution context.
-template <typename Contract>
-class RegisteredTerminal final : public Contract {
- public:
-  RegisteredTerminal(
-      View::Bytes name,
-      Count size,
-      Count alignment,
-      const Invalid& invalid)
-      : name(name), size(size), alignment(alignment), invalid(invalid) {}
-
-  auto get_name() const -> View::Bytes override { return name; }
-  auto resolve_context(View::Bytes) const -> const Abstract& override {
-    return invalid;
-  }
-  auto get_size() const -> Count override { return size; }
-  auto get_alignment() const -> Count override { return alignment; }
-
- private:
-  View::Bytes name;
-  Count size;
-  Count alignment;
-  const Invalid& invalid;
-};
-
 PERIMORTEM_UNIT_TEST(TtxTypes, terminal_contract) {
-  Invalid invalid;
-  RegisteredTerminal<Unsigned> unsigned_8(
-      "Bits_8"_view, sizeof(::Bits_8), alignof(::Bits_8), invalid);
+  Types::Unsigned_8 unsigned_8;
   const Abstract& abstract = unsigned_8;
   const Type& type = abstract.as<Type>();
-  const Terminal& terminal = type.as<Terminal>();
+  const Types::Terminal& terminal = type.as<Types::Terminal>();
 
   EXPECT(abstract.is<Abstract>());
   EXPECT(abstract.is<Type>());
-  EXPECT(abstract.is<Terminal>());
-  EXPECT(abstract.is<Unsigned>());
-  EXPECT_NOT(abstract.is<Signed>());
-  EXPECT_NOT(abstract.is<Real>());
-  EXPECT_NOT(abstract.is<Flag>());
-  EXPECT(type.is<Terminal>());
+  EXPECT(abstract.is<Types::Terminal>());
+  EXPECT(abstract.is<Types::Unsigned>());
+  EXPECT_NOT(abstract.is<Types::Signed>());
+  EXPECT_NOT(abstract.is<Types::Real>());
+  EXPECT_NOT(abstract.is<Types::Flag>());
+  EXPECT(type.is<Types::Terminal>());
   EXPECT(terminal.is<Type>());
   EXPECT(&type == &terminal);
-  EXPECT(&terminal == &abstract.as<Unsigned>());
+  EXPECT(&terminal == &abstract.as<Types::Unsigned>());
   EXPECT(type.get_layout().is_empty());
-  EXPECT_EQ(terminal.get_size(), Count(sizeof(::Bits_8)));
-  EXPECT_EQ(terminal.get_alignment(), Count(alignof(::Bits_8)));
+  EXPECT_EQ(terminal.get_width(), Count(8));
+  EXPECT_EQ(terminal.get_size(), Count(sizeof(::Unsigned_8)));
+  EXPECT_EQ(terminal.get_alignment(), Count(alignof(::Unsigned_8)));
+  EXPECT_NOT(terminal.get_documentation().is_empty());
   EXPECT(abstract.resolve_context("Anything"_view).is<Invalid>());
 }
 
 PERIMORTEM_UNIT_TEST(TtxTypes, terminal_families) {
-  Invalid invalid;
-  RegisteredTerminal<Unsigned> unsigned_type("Unsigned"_view, 4, 4, invalid);
-  RegisteredTerminal<Signed> signed_type("Signed"_view, 4, 4, invalid);
-  RegisteredTerminal<Real> real_type("Real"_view, 4, 4, invalid);
-  RegisteredTerminal<Flag> flag_type("Flag"_view, 1, 1, invalid);
+  Types::Unsigned_32 unsigned_type;
+  Types::Signed_32 signed_type;
+  Types::Real_32 real_type;
+  Types::Boolean flag_type;
 
-  EXPECT(unsigned_type.is<Unsigned>());
-  EXPECT_NOT(unsigned_type.is<Signed>());
-  EXPECT(signed_type.is<Signed>());
-  EXPECT_NOT(signed_type.is<Unsigned>());
-  EXPECT(real_type.is<Real>());
-  EXPECT(flag_type.is<Flag>());
-  EXPECT(unsigned_type.is<Terminal>());
-  EXPECT(signed_type.is<Terminal>());
-  EXPECT(real_type.is<Terminal>());
-  EXPECT(flag_type.is<Terminal>());
+  EXPECT(unsigned_type.is<Types::Unsigned>());
+  EXPECT_NOT(unsigned_type.is<Types::Signed>());
+  EXPECT(signed_type.is<Types::Signed>());
+  EXPECT_NOT(signed_type.is<Types::Unsigned>());
+  EXPECT(real_type.is<Types::Real>());
+  EXPECT(flag_type.is<Types::Flag>());
+  EXPECT(unsigned_type.is<Types::Terminal>());
+  EXPECT(signed_type.is<Types::Terminal>());
+  EXPECT(real_type.is<Types::Terminal>());
+  EXPECT(flag_type.is<Types::Terminal>());
 }
 
-PERIMORTEM_UNIT_TEST(TtxTypes, supported_widths) {
-  Invalid invalid;
-  RegisteredTerminal<Unsigned> unsigned_8(
-      "Bits_8"_view, sizeof(::Bits_8), alignof(::Bits_8), invalid);
-  RegisteredTerminal<Unsigned> unsigned_16(
-      "Bits_16"_view, sizeof(::Bits_16), alignof(::Bits_16), invalid);
-  RegisteredTerminal<Unsigned> unsigned_32(
-      "Bits_32"_view, sizeof(::Bits_32), alignof(::Bits_32), invalid);
-  RegisteredTerminal<Unsigned> unsigned_64(
-      "Bits_64"_view, sizeof(::Bits_64), alignof(::Bits_64), invalid);
-  RegisteredTerminal<Signed> signed_8(
-      "Signed_8"_view, sizeof(::Signed_8), alignof(::Signed_8), invalid);
-  RegisteredTerminal<Signed> signed_16(
-      "Signed_16"_view, sizeof(::Signed_16), alignof(::Signed_16), invalid);
-  RegisteredTerminal<Signed> signed_32(
-      "Signed_32"_view, sizeof(::Signed_32), alignof(::Signed_32), invalid);
-  RegisteredTerminal<Signed> signed_64(
-      "Signed_64"_view, sizeof(::Signed_64), alignof(::Signed_64), invalid);
-  RegisteredTerminal<Real> real_32(
-      "Real_32"_view, sizeof(::Real_32), alignof(::Real_32), invalid);
-  RegisteredTerminal<Real> real_64(
-      "Real_64"_view, sizeof(::Real_64), alignof(::Real_64), invalid);
-  RegisteredTerminal<Real> real_128(
-      "Real_128"_view, sizeof(::Real_128), alignof(::Real_128), invalid);
-  RegisteredTerminal<Flag> boolean(
-      "Bool"_view, sizeof(::Bool), alignof(::Bool), invalid);
+PERIMORTEM_UNIT_TEST(TtxTypes, terminal_abi) {
+  Types::Unsigned_8 unsigned_8;
+  Types::Unsigned_16 unsigned_16;
+  Types::Unsigned_32 unsigned_32;
+  Types::Unsigned_64 unsigned_64;
+  Types::Signed_8 signed_8;
+  Types::Signed_16 signed_16;
+  Types::Signed_32 signed_32;
+  Types::Signed_64 signed_64;
+  Types::Real_32 real_32;
+  Types::Real_64 real_64;
+  Types::Real_128 real_128;
+  Types::Boolean boolean;
+  EXPECT_EQ(unsigned_8.get_size(), Count(sizeof(::Unsigned_8)));
+  EXPECT_EQ(unsigned_16.get_size(), Count(sizeof(::Unsigned_16)));
+  EXPECT_EQ(unsigned_32.get_size(), Count(sizeof(::Unsigned_32)));
+  EXPECT_EQ(unsigned_64.get_size(), Count(sizeof(::Unsigned_64)));
+  EXPECT_EQ(signed_8.get_size(), Count(sizeof(::Signed_8)));
+  EXPECT_EQ(signed_16.get_size(), Count(sizeof(::Signed_16)));
+  EXPECT_EQ(signed_32.get_size(), Count(sizeof(::Signed_32)));
+  EXPECT_EQ(signed_64.get_size(), Count(sizeof(::Signed_64)));
+  EXPECT_EQ(real_32.get_size(), Count(sizeof(::Real_32)));
+  EXPECT_EQ(real_64.get_size(), Count(sizeof(::Real_64)));
+  EXPECT_EQ(real_128.get_size(), Count(sizeof(::Real_128)));
+  EXPECT_EQ(boolean.get_size(), Count(sizeof(::Bool)));
+
+  EXPECT_EQ(unsigned_8.get_alignment(), Count(alignof(::Unsigned_8)));
+  EXPECT_EQ(unsigned_16.get_alignment(), Count(alignof(::Unsigned_16)));
+  EXPECT_EQ(unsigned_32.get_alignment(), Count(alignof(::Unsigned_32)));
+  EXPECT_EQ(unsigned_64.get_alignment(), Count(alignof(::Unsigned_64)));
+  EXPECT_EQ(signed_8.get_alignment(), Count(alignof(::Signed_8)));
+  EXPECT_EQ(signed_16.get_alignment(), Count(alignof(::Signed_16)));
+  EXPECT_EQ(signed_32.get_alignment(), Count(alignof(::Signed_32)));
+  EXPECT_EQ(signed_64.get_alignment(), Count(alignof(::Signed_64)));
+  EXPECT_EQ(real_32.get_alignment(), Count(alignof(::Real_32)));
+  EXPECT_EQ(real_64.get_alignment(), Count(alignof(::Real_64)));
+  EXPECT_EQ(real_128.get_alignment(), Count(alignof(::Real_128)));
+  EXPECT_EQ(boolean.get_alignment(), Count(alignof(::Bool)));
+
+  EXPECT_EQ(unsigned_8.get_width(), Count(sizeof(::Unsigned_8) * 8));
+  EXPECT_EQ(unsigned_16.get_width(), Count(sizeof(::Unsigned_16) * 8));
+  EXPECT_EQ(unsigned_32.get_width(), Count(sizeof(::Unsigned_32) * 8));
+  EXPECT_EQ(unsigned_64.get_width(), Count(sizeof(::Unsigned_64) * 8));
+  EXPECT_EQ(signed_8.get_width(), Count(sizeof(::Signed_8) * 8));
+  EXPECT_EQ(signed_16.get_width(), Count(sizeof(::Signed_16) * 8));
+  EXPECT_EQ(signed_32.get_width(), Count(sizeof(::Signed_32) * 8));
+  EXPECT_EQ(signed_64.get_width(), Count(sizeof(::Signed_64) * 8));
+  EXPECT_EQ(real_32.get_width(), Count(sizeof(::Real_32) * 8));
+  EXPECT_EQ(real_64.get_width(), Count(sizeof(::Real_64) * 8));
+  EXPECT_EQ(real_128.get_width(), Count(sizeof(::Real_128) * 8));
+  EXPECT_EQ(boolean.get_width(), Count(1));
+}
+
+PERIMORTEM_UNIT_TEST(TtxTypes, terminal_aliases) {
+  Types::Unsigned_32 unsigned_32;
+  Types::Unsigned_64 unsigned_64;
   Alias count("Count"_view, unsigned_64);
   const Abstract& cpp_size_type =
-      sizeof(::CppSize) == sizeof(::Bits_64)
+      sizeof(::CppSize) == sizeof(::Unsigned_64)
           ? static_cast<const Abstract&>(unsigned_64)
           : static_cast<const Abstract&>(unsigned_32);
   Alias cpp_size("CppSize"_view, cpp_size_type);
 
-  EXPECT_EQ(unsigned_8.get_size(), Count(1));
-  EXPECT_EQ(unsigned_16.get_size(), Count(2));
-  EXPECT_EQ(unsigned_32.get_size(), Count(4));
-  EXPECT_EQ(unsigned_64.get_size(), Count(8));
-  EXPECT_EQ(signed_8.get_size(), Count(1));
-  EXPECT_EQ(signed_16.get_size(), Count(2));
-  EXPECT_EQ(signed_32.get_size(), Count(4));
-  EXPECT_EQ(signed_64.get_size(), Count(8));
-  EXPECT_EQ(real_32.get_size(), Count(4));
-  EXPECT_EQ(real_64.get_size(), Count(8));
-  EXPECT_EQ(real_128.get_size(), Count(16));
-  EXPECT_EQ(boolean.get_size(), Count(1));
-  EXPECT_EQ(unsigned_64.get_alignment(), Count(alignof(::Bits_64)));
-  EXPECT_EQ(signed_64.get_alignment(), Count(alignof(::Signed_64)));
-  EXPECT_EQ(real_128.get_alignment(), Count(alignof(::Real_128)));
-  EXPECT_EQ(boolean.get_alignment(), Count(alignof(::Bool)));
   EXPECT(&count.resolve() == &unsigned_64);
   EXPECT_EQ(
-      cpp_size.resolve().as<Terminal>().get_size(), Count(sizeof(::CppSize)));
+      cpp_size.resolve().as<Types::Terminal>().get_size(),
+      Count(sizeof(::CppSize)));
 }
 
-PERIMORTEM_UNIT_TEST(TtxTypes, width_instances) {
-  Invalid invalid;
-  RegisteredTerminal<Unsigned> unsigned_24("Unsigned_24"_view, 3, 1, invalid);
+PERIMORTEM_UNIT_TEST(TtxTypes, terminal_names) {
+  Types::Unsigned_8 unsigned_8;
+  Types::Unsigned_16 unsigned_16;
+  Types::Unsigned_32 unsigned_32;
+  Types::Unsigned_64 unsigned_64;
+  Types::Signed_8 signed_8;
+  Types::Signed_16 signed_16;
+  Types::Signed_32 signed_32;
+  Types::Signed_64 signed_64;
+  Types::Real_32 real_32;
+  Types::Real_64 real_64;
+  Types::Real_128 real_128;
+  Types::Boolean boolean;
 
-  EXPECT(unsigned_24.is<Unsigned>());
-  EXPECT(unsigned_24.is<Terminal>());
-  EXPECT_EQ(unsigned_24.get_size(), Count(3));
-  EXPECT_EQ(unsigned_24.get_alignment(), Count(1));
+  EXPECT_TEXT(unsigned_8.get_name(), "Unsigned_8"_view);
+  EXPECT_TEXT(unsigned_16.get_name(), "Unsigned_16"_view);
+  EXPECT_TEXT(unsigned_32.get_name(), "Unsigned_32"_view);
+  EXPECT_TEXT(unsigned_64.get_name(), "Unsigned_64"_view);
+  EXPECT_TEXT(signed_8.get_name(), "Signed_8"_view);
+  EXPECT_TEXT(signed_16.get_name(), "Signed_16"_view);
+  EXPECT_TEXT(signed_32.get_name(), "Signed_32"_view);
+  EXPECT_TEXT(signed_64.get_name(), "Signed_64"_view);
+  EXPECT_TEXT(real_32.get_name(), "Real_32"_view);
+  EXPECT_TEXT(real_64.get_name(), "Real_64"_view);
+  EXPECT_TEXT(real_128.get_name(), "Real_128"_view);
+  EXPECT_TEXT(boolean.get_name(), "Bool"_view);
+  EXPECT_TEXT(
+      real_32.get_documentation().get_line(0),
+      "Real_32 is stored as a 4 byte IEEE floating value."_view);
+  EXPECT_TEXT(
+      real_64.get_documentation().get_line(0),
+      "Real_64 is stored as an 8 byte IEEE floating value."_view);
 }

@@ -49,7 +49,7 @@ PERIMORTEM_UNIT_TEST(TtxSpirV, module) {
 PERIMORTEM_UNIT_TEST(TtxSpirV, function_and_composites) {
   Dynamic::Bytes words;
   Assembler::SpirV assembler(words);
-  constexpr Static::Vector<Bits_32, 2> components = {{2, 3}};
+  constexpr Static::Vector<Unsigned_32, 2> components = {{2, 3}};
   assembler.type_void(2);
   assembler.type_function(3, 2);
   assembler.function(2, 1, Assembler::SpirV::FunctionControl::None, 3);
@@ -129,13 +129,13 @@ PERIMORTEM_UNIT_TEST(Ttxx86_64, register_moves) {
 PERIMORTEM_UNIT_TEST(Ttxx86_64, immediate_moves) {
   Dynamic::Bytes machine_code;
   Assembler::x86_64 assembler(machine_code);
-  assembler.mov(Bits_64(0), Assembler::x86_64::Reg::RAX);
-  assembler.mov(Bits_64(1), Assembler::x86_64::Reg::R8);
-  assembler.mov(Bits_64(-1), Assembler::x86_64::Reg::RAX);
-  assembler.mov(Bits_64(2), Assembler::x86_64::Reg::RAX);
-  assembler.mov(Bits_64(0xFFFFFFFF), Assembler::x86_64::Reg::R8);
-  assembler.mov(Bits_64(0xFFFFFFFF80000000), Assembler::x86_64::Reg::RAX);
-  assembler.mov(Bits_64(0x100000000), Assembler::x86_64::Reg::R8);
+  assembler.mov(Unsigned_64(0), Assembler::x86_64::Reg::RAX);
+  assembler.mov(Unsigned_64(1), Assembler::x86_64::Reg::R8);
+  assembler.mov(Unsigned_64(-1), Assembler::x86_64::Reg::RAX);
+  assembler.mov(Unsigned_64(2), Assembler::x86_64::Reg::RAX);
+  assembler.mov(Unsigned_64(0xFFFFFFFF), Assembler::x86_64::Reg::R8);
+  assembler.mov(Unsigned_64(0xFFFFFFFF80000000), Assembler::x86_64::Reg::RAX);
+  assembler.mov(Unsigned_64(0x100000000), Assembler::x86_64::Reg::R8);
 
   EXPECT_HEX(
       machine_code,

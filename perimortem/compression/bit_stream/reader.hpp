@@ -21,9 +21,9 @@ class Reader {
   constexpr Reader(Core::View::Bytes source) : data(source) {}
 
   auto read_bit() -> Bool;
-  auto read_code(Count count) -> Bits_32;
+  auto read_code(Count count) -> Unsigned_32;
   auto read_raw_bytes(Count count) -> Core::View::Bytes;
-  auto peek_code(Count count) -> Bits_32;
+  auto peek_code(Count count) -> Unsigned_32;
 
   constexpr auto advance_bits(Count count) -> void {
     buffer >>= count;
@@ -37,7 +37,7 @@ class Reader {
   auto fill() -> void;
 
   Core::View::Bytes data;
-  Bits_64 buffer = 0;
+  Unsigned_64 buffer = 0;
   Count buffered_bits = 0;
   Count byte_position = 0;
   Bool invalid_stream = False;

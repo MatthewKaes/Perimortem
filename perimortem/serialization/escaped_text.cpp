@@ -12,7 +12,7 @@ using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
 using namespace Perimortem::Serialization;
 
-static auto hex_value(Bits_8 value) -> Signed_32 {
+static auto hex_value(Unsigned_8 value) -> Signed_32 {
   if (value >= '0' && value <= '9') {
     return value - '0';
   }
@@ -28,8 +28,10 @@ static auto hex_value(Bits_8 value) -> Signed_32 {
   return -1;
 }
 
-static auto read_hex_quad(View::Bytes source, Count position, Bits_32& value)
-    -> Bool {
+static auto read_hex_quad(
+    View::Bytes source,
+    Count position,
+    Unsigned_32& value) -> Bool {
   if (position + 4 > source.get_size()) {
     return False;
   }
@@ -41,58 +43,58 @@ static auto read_hex_quad(View::Bytes source, Count position, Bits_32& value)
       return False;
     }
 
-    value = (value << 4) | Bits_32(digit);
+    value = (value << 4) | Unsigned_32(digit);
   }
 
   return True;
 }
 
-static auto is_high_surrogate(Bits_32 value) -> Bool {
+static auto is_high_surrogate(Unsigned_32 value) -> Bool {
   return value >= 0xD800 && value <= 0xDBFF;
 }
 
-static auto is_low_surrogate(Bits_32 value) -> Bool {
+static auto is_low_surrogate(Unsigned_32 value) -> Bool {
   return value >= 0xDC00 && value <= 0xDFFF;
 }
 
-static auto append_utf8(Managed::Bytes& output, Bits_32 codepoint) -> void {
+static auto append_utf8(Managed::Bytes& output, Unsigned_32 codepoint) -> void {
   if (codepoint <= 0x7F) {
-    output.append(Bits_8(codepoint));
+    output.append(Unsigned_8(codepoint));
     return;
   }
 
   if (codepoint <= 0x7FF) {
-    output.append(Bits_8(0xC0 | (codepoint >> 6)));
-    output.append(Bits_8(0x80 | (codepoint & 0x3F)));
+    output.append(Unsigned_8(0xC0 | (codepoint >> 6)));
+    output.append(Unsigned_8(0x80 | (codepoint & 0x3F)));
     return;
   }
 
   if (codepoint <= 0xFFFF) {
-    output.append(Bits_8(0xE0 | (codepoint >> 12)));
-    output.append(Bits_8(0x80 | ((codepoint >> 6) & 0x3F)));
-    output.append(Bits_8(0x80 | (codepoint & 0x3F)));
+    output.append(Unsigned_8(0xE0 | (codepoint >> 12)));
+    output.append(Unsigned_8(0x80 | ((codepoint >> 6) & 0x3F)));
+    output.append(Unsigned_8(0x80 | (codepoint & 0x3F)));
     return;
   }
 
   if (codepoint <= 0x10FFFF) {
-    output.append(Bits_8(0xF0 | (codepoint >> 18)));
-    output.append(Bits_8(0x80 | ((codepoint >> 12) & 0x3F)));
-    output.append(Bits_8(0x80 | ((codepoint >> 6) & 0x3F)));
-    output.append(Bits_8(0x80 | (codepoint & 0x3F)));
+    output.append(Unsigned_8(0xF0 | (codepoint >> 18)));
+    output.append(Unsigned_8(0x80 | ((codepoint >> 12) & 0x3F)));
+    output.append(Unsigned_8(0x80 | ((codepoint >> 6) & 0x3F)));
+    output.append(Unsigned_8(0x80 | (codepoint & 0x3F)));
   }
 }
 
 static auto read_unicode_escape(
     View::Bytes source,
     Count slash,
-    Bits_32& codepoint,
+    Unsigned_32& codepoint,
     Count& consumed) -> Bool {
   if (slash + 6 > source.get_size() || source[slash] != '\\' ||
       source[slash + 1] != 'u') {
     return False;
   }
 
-  Bits_32 first = 0;
+  Unsigned_32 first = 0;
   if (!read_hex_quad(source, slash + 2, first)) {
     return False;
   }
@@ -112,7 +114,7 @@ static auto read_unicode_escape(
     return False;
   }
 
-  Bits_32 second = 0;
+  Unsigned_32 second = 0;
   if (!read_hex_quad(source, slash + 8, second) || !is_low_surrogate(second)) {
     return False;
   }
@@ -132,7 +134,7 @@ static auto contains_escape_sequence(View::Bytes source) -> Bool {
   return False;
 }
 
-static auto json_escape_size(Bits_8 value) -> Count {
+static auto json_escape_size(Unsigned_8 value) -> Count {
   switch (value) {
   case '"':
   case '\\':
@@ -147,7 +149,7 @@ static auto json_escape_size(Bits_8 value) -> Count {
   }
 }
 
-static auto requires_json_escape(Bits_8 value) -> Bool {
+static auto requires_json_escape(Unsigned_8 value) -> Bool {
   return value == '"' || value == '\\' || value < 0x20;
 }
 
@@ -161,7 +163,8 @@ static auto scan_json_escape(View::Bytes source, Count position) -> Count {
   return Count(-1);
 }
 
-static auto append_json_escape(Writer::Textual& output, Bits_8 value) -> void {
+static auto append_json_escape(Writer::Textual& output, Unsigned_8 value)
+    -> void {
   switch (value) {
   case '"':
     output << '\\';
@@ -196,19 +199,19 @@ static auto append_json_escape(Writer::Textual& output, Bits_8 value) -> void {
   }
 
   if (value >= 0x20) {
-    output << Signed_8(value);
+    output << char(value);
     return;
   }
 
-  constexpr Static::Vector<Bits_8, 16> hex_digits = {
+  constexpr Static::Vector<Unsigned_8, 16> hex_digits = {
     {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E',
      'F'}};
   output << '\\';
   output << 'u';
   output << '0';
   output << '0';
-  output << Signed_8(hex_digits[value >> 4]);
-  output << Signed_8(hex_digits[value & 0x0F]);
+  output << char(hex_digits[value >> 4]);
+  output << char(hex_digits[value & 0x0F]);
 }
 
 auto EscapedText::decode(Allocator::Arena& arena, View::Bytes source, Style)
@@ -252,7 +255,7 @@ auto EscapedText::decode(Allocator::Arena& arena, View::Bytes source, Style)
       decoded.append('\f');
       break;
     case 'u': {
-      Bits_32 codepoint = 0;
+      Unsigned_32 codepoint = 0;
       Count consumed = 0;
       if (read_unicode_escape(source, slash, codepoint, consumed)) {
         append_utf8(decoded, codepoint);

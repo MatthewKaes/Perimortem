@@ -15,10 +15,17 @@ A durable package needs enough information to restore:
 
 - its authored package name and explicit version
 - dependency names and versions
-- the package's public semantic surface
-- the concrete Types and Layout relationships required by that surface
-- public Callable and ISA-owned facts required by consumers
+- its Source root and the named semantic surface below it
+- every typed Abstract edge reachable from that root that the selected product
+  requires
+- the concrete Types, Layouts, Callables, and ISA-owned facts on those edges
 - opaque terminal products carried with the package.
+
+The Source root is not a Type. It has no empty Layout and does not carry a
+generic linkage vector. Alias targets, Structured Addressables, Callable
+addresses, executable bodies, and ISA extensions remain relationships owned by
+their concrete contracts. Archiver preserves those graph edges rather than
+projecting them into a root Type table plus unrelated linkage records.
 
 Archive-local indices may compact references inside one buffer. They are not
 durable names and cannot escape as semantic identity. Process pointers, C++
@@ -31,9 +38,9 @@ class repository merely to make arbitrary objects serializable.
 
 ## Writing
 
-The writer accepts a complete and validated package product. It may assign dense
-local indices, deduplicate immutable records, and choose a compact physical
-layout. Those choices remain private to the format version.
+The writer accepts a complete and validated Source-rooted package product. It
+may assign dense local indices, deduplicate immutable records, and choose a
+compact physical layout. Those choices remain private to the format version.
 
 The writer does not discover package identity, select public names, infer Alias
 targets, reconstruct Type shape from backend records, or publish private
@@ -64,3 +71,22 @@ owns them.
 The exact encoding cannot be finalized before Generic, ISA extension, and
 foreign-boundary contracts are concrete. Until then, current reader and writer
 code is migration evidence rather than a specification for the new model.
+
+## Current Migration Delta
+
+The checked-in reader and writer still encode the rejected split:
+
+| Current code                                      | Required replacement                                  |
+| ------------------------------------------------- | ----------------------------------------------------- |
+| `Package` retains a root `Ttx::Type`              | package product retains a Source root                 |
+| writer receives a caller-built Type side table    | writer discovers typed edges from the Source graph    |
+| reader reserves only concrete `Ttx::Type` records | reader restores the contracts present in the graph    |
+| ABI linkages occupy a separate table              | address and execution edges stay on their real owners |
+| source records carry an `Implementation` table    | Dialects enrich the same reachable Abstract objects   |
+
+Adapting Source back into the old `root_type` parameter would preserve the
+wrong architecture behind a new name. The next archive implementation begins
+only after executable, address, and ISA-owned contracts expose the edges that
+must survive restoration. Its first slice should define how those concrete
+contracts encode and restore themselves, then replace the root and traversal
+together.

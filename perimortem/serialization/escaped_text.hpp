@@ -12,7 +12,7 @@ namespace Perimortem::Serialization {
 
 class EscapedText {
  public:
-  enum class Style : Bits_8 {
+  enum class Style : Unsigned_8 {
     Json,
   };
 

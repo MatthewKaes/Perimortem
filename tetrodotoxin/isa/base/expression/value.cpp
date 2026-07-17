@@ -193,27 +193,27 @@ static auto evaluate_primary(Cursor& cursor, Base::Context& context)
     }
 
     Managed::Bytes bytes(context.get_arena());
-    Bits_8 byte = 0;
+    Unsigned_8 byte = 0;
     Bool high = True;
     for (Count i = 3; i + 1 < text.get_size(); i++) {
-      Bits_8 c = text[i];
+      Unsigned_8 c = text[i];
       if (c == ' ' || c == '\t' || c == '\r' || c == '\n') {
         continue;
       }
 
-      Bits_8 nibble = c >= '0' && c <= '9'   ? c - '0'
-                      : c >= 'a' && c <= 'f' ? c - 'a' + 10
-                      : c >= 'A' && c <= 'F' ? c - 'A' + 10
-                                             : 0xFF;
+      Unsigned_8 nibble = c >= '0' && c <= '9'   ? c - '0'
+                          : c >= 'a' && c <= 'f' ? c - 'a' + 10
+                          : c >= 'A' && c <= 'F' ? c - 'A' + 10
+                                                 : 0xFF;
       if (nibble == 0xFF) {
         cursor.range_error(token, token, "Malformed byte literal."_view);
         return Base::Expression::Value();
       }
 
       if (high) {
-        byte = Bits_8(nibble << 4);
+        byte = Unsigned_8(nibble << 4);
       } else {
-        bytes.append(Bits_8(byte | nibble));
+        bytes.append(Unsigned_8(byte | nibble));
       }
 
       high = !high;

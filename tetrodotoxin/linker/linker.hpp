@@ -23,8 +23,8 @@ class Linker {
 
   auto add_section(
       Object::Section::Type type,
-      Perimortem::Core::View::Bytes data) -> Bits_16;
-  auto add_section(Object::Section section) -> Bits_16;
+      Perimortem::Core::View::Bytes data) -> Unsigned_16;
+  auto add_section(Object::Section section) -> Unsigned_16;
 
   auto add_symbol(Object::Symbol symbol) -> Count;
   auto add_relocation(Object::Relocation relocation) -> void;

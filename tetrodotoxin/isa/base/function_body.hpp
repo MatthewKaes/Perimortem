@@ -32,7 +32,7 @@ class FunctionBody {
 
  private:
   template <typename Body>
-  inline static constexpr Bits_8 body_type = 0;
+  inline static constexpr Unsigned_8 body_type = 0;
 
   const void* value = nullptr;
   const void* type = nullptr;

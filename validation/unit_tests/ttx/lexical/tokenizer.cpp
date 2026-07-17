@@ -186,8 +186,9 @@ PERIMORTEM_UNIT_TEST(TtxLexical, token_error) {
   EXPECT(errors.get_view()[0].has_tokens());
   EXPECT(&errors.get_view()[0].get_start_token() == &token);
   EXPECT(&errors.get_view()[0].get_end_token() == &token);
-  EXPECT_EQ(errors.get_view()[0].get_start_token().get_line(), Bits_32(4));
-  EXPECT_EQ(errors.get_view()[0].get_start_token().get_column(), Bits_32(7));
+  EXPECT_EQ(errors.get_view()[0].get_start_token().get_line(), Unsigned_32(4));
+  EXPECT_EQ(
+      errors.get_view()[0].get_start_token().get_column(), Unsigned_32(7));
 }
 
 PERIMORTEM_UNIT_TEST(TtxLexical, recover_stmt) {

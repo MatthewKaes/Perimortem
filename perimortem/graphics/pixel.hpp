@@ -18,31 +18,31 @@ class Pixel {
   Pixel() = default;
 
   // Replicates grey to all color channels and uses full opacity.
-  explicit Pixel(Bits_8 grey)
+  explicit Pixel(Unsigned_8 grey)
       : red(grey), green(grey), blue(grey), alpha(opaque) {}
 
   // Replicates grey to all color channels with an explicit alpha value.
-  Pixel(Bits_8 grey, Bits_8 alpha)
+  Pixel(Unsigned_8 grey, Unsigned_8 alpha)
       : red(grey), green(grey), blue(grey), alpha(alpha) {}
 
   // Stores three independent color channels and uses full opacity.
-  Pixel(Bits_8 red, Bits_8 green, Bits_8 blue)
+  Pixel(Unsigned_8 red, Unsigned_8 green, Unsigned_8 blue)
       : red(red), green(green), blue(blue), alpha(opaque) {}
 
   // Stores all four channels directly.
-  Pixel(Bits_8 red, Bits_8 green, Bits_8 blue, Bits_8 alpha)
+  Pixel(Unsigned_8 red, Unsigned_8 green, Unsigned_8 blue, Unsigned_8 alpha)
       : red(red), green(green), blue(blue), alpha(alpha) {}
 
   static constexpr auto get_bit_depth() -> Count { return 8; }
   static constexpr auto get_byte_count() -> Count { return 4; }
 
-  Bits_8 red = 0;
-  Bits_8 green = 0;
-  Bits_8 blue = 0;
-  Bits_8 alpha = 0;
+  Unsigned_8 red = 0;
+  Unsigned_8 green = 0;
+  Unsigned_8 blue = 0;
+  Unsigned_8 alpha = 0;
 
  private:
-  static constexpr Bits_8 opaque = 0xFF;
+  static constexpr Unsigned_8 opaque = 0xFF;
 };
 
 static_assert(sizeof(Pixel) == 4);

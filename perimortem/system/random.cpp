@@ -12,7 +12,7 @@ using namespace Perimortem::System;
 
 static constexpr Count channel_depth = 4;
 static constexpr Count max_index =
-    sizeof(__m256i) / sizeof(Bits_64) * channel_depth;
+    sizeof(__m256i) / sizeof(Unsigned_64) * channel_depth;
 
 struct PhiloxState {
   static constexpr Count round_count = 10;
@@ -37,16 +37,16 @@ struct PhiloxState {
       Signed_64(0xBB67AE85'00000000));
   // Reorders the multiplied counter halves for the next round. The high half
   // crosses each 64-bit pair while the low half moves into the high position.
-  static constexpr Bits_8 counter_shuffle = 0b10'01'00'11;
+  static constexpr Unsigned_8 counter_shuffle = 0b10'01'00'11;
 
-  alignas(32) Bits_64 output[max_index];
+  alignas(32) Unsigned_64 output[max_index];
   __m256i dual_channel_key;
   __m256i dual_channel_counter;
   Count index;
 };
 
-auto Random::read_entropy() -> Bits_64 {
-  Bits_64 value;
+auto Random::read_entropy() -> Unsigned_64 {
+  Unsigned_64 value;
   Count timeout = 100000;
   while (!_rdrand64_step(&value) and timeout) {
     timeout -= 1;
@@ -109,10 +109,10 @@ static constexpr auto bump_counter(PhiloxState& state) -> void {
 static auto create_prng() -> PhiloxState {
   PhiloxState state;
 
-  Bits_64 keys[] = {Random::read_entropy(), Random::read_entropy()};
+  Unsigned_64 keys[] = {Random::read_entropy(), Random::read_entropy()};
   state.dual_channel_key = _mm256_set_epi32(
-      Bits_32(keys[0] >> 32), 0, Bits_32(keys[0]), 0, Bits_32(keys[1] >> 32), 0,
-      Bits_32(keys[1]), 0);
+      Unsigned_32(keys[0] >> 32), 0, Unsigned_32(keys[0]), 0,
+      Unsigned_32(keys[1] >> 32), 0, Unsigned_32(keys[1]), 0);
 
   state.dual_channel_counter = _mm256_set_epi64x(
       Random::read_entropy(), Random::read_entropy(), Random::read_entropy(),
@@ -122,7 +122,7 @@ static auto create_prng() -> PhiloxState {
   return state;
 }
 
-auto Random::generate() -> Bits_64 {
+auto Random::generate() -> Unsigned_64 {
   thread_local static PhiloxState engine = create_prng();
   if (engine.index == max_index) {
     bump_counter(engine);

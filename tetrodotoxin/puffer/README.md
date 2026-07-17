@@ -42,8 +42,8 @@ are not valid published results.
 
 Package identity comes from authored names and explicit versions. Filesystem
 paths and local cache indices are host data rather than semantic identity.
-Package imports bind a local name to the resolved package root, which is a
-top-level Type context.
+Package imports bind a local name to the resolved Source root. That root is a
+named Abstract context, not a Type with an empty Layout.
 
 Public names come from explicitly selected named chains in that package graph.
 Puffer does not manufacture `.Type` or `.Addressable` suffixes, allocate route

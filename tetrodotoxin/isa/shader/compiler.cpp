@@ -31,7 +31,7 @@ using namespace Tetrodotoxin::Compiler;
 // Leaving each family in a visible range keeps ids stable as shared helper
 // types are added and makes disassembly/archive inspection less miserable than
 // a dense "whatever came next" allocator.
-enum class SpirvId : Bits_32 {
+enum class SpirvId : Unsigned_32 {
   Invalid = 0,
   EntryFunction = 1,
   Void = 2,
@@ -68,12 +68,12 @@ enum class SpirvId : Bits_32 {
   TemporaryBase = 160,
 };
 
-static constexpr Bits_32 stage_id_bound = 256;
+static constexpr Unsigned_32 stage_id_bound = 256;
 static constexpr View::Bytes shader_type_attribute = "shader_type"_view;
 
 static constexpr Static::Vector<Pair<View::Bytes, SpirvId>, 4>
     spirv_type_names = {{
-      {"Bits_32"_view, SpirvId::Bits32},
+      {"Unsigned_32"_view, SpirvId::Bits32},
       {"Real_32"_view, SpirvId::Real32},
       {"Vec2D"_view, SpirvId::Vec2},
       {"Vec4D"_view, SpirvId::Vec4},
@@ -83,7 +83,7 @@ using SpirvTypeNames = Table<SpirvId, spirv_type_names>;
 
 static constexpr Static::Vector<Pair<View::Bytes, SpirvId>, 5>
     shader_type_names = {{
-      {"Bits_32"_view, SpirvId::Bits32},
+      {"Unsigned_32"_view, SpirvId::Bits32},
       {"Real_32"_view, SpirvId::Real32},
       {"Vec2D"_view, SpirvId::Vec2},
       {"Vec4D"_view, SpirvId::Vec4},
@@ -130,8 +130,8 @@ static constexpr Static::Vector<PointerDecl, 11> core_pointer_decls = {{
    Assembler::SpirV::StorageClass::UniformConstant},
 }};
 
-static constexpr auto spirv_id(SpirvId value) -> Bits_32 {
-  return Bits_32(value);
+static constexpr auto spirv_id(SpirvId value) -> Unsigned_32 {
+  return Unsigned_32(value);
 }
 
 static auto type_has_name(const Ttx::Type& type, View::Bytes name) -> Bool {
@@ -187,7 +187,7 @@ static auto pointer_type_id(
   return SpirvId::Invalid;
 }
 
-static auto spirv_type_size(SpirvId type_id) -> Bits_32 {
+static auto spirv_type_size(SpirvId type_id) -> Unsigned_32 {
   switch (type_id) {
   case SpirvId::Bits32:
   case SpirvId::Real32:
@@ -206,19 +206,19 @@ static auto spirv_type_size(SpirvId type_id) -> Bits_32 {
 }
 
 static auto parameter_id(Count index) -> SpirvId {
-  return SpirvId(spirv_id(SpirvId::ParameterBase) + Bits_32(index));
+  return SpirvId(spirv_id(SpirvId::ParameterBase) + Unsigned_32(index));
 }
 
 static auto result_id(Count index) -> SpirvId {
-  return SpirvId(spirv_id(SpirvId::ResultBase) + Bits_32(index));
+  return SpirvId(spirv_id(SpirvId::ResultBase) + Unsigned_32(index));
 }
 
 static auto resource_id(Count index) -> SpirvId {
-  return SpirvId(spirv_id(SpirvId::ResourceBase) + Bits_32(index));
+  return SpirvId(spirv_id(SpirvId::ResourceBase) + Unsigned_32(index));
 }
 
 static auto temporary_id(Count index) -> SpirvId {
-  return SpirvId(spirv_id(SpirvId::TemporaryBase) + Bits_32(index));
+  return SpirvId(spirv_id(SpirvId::TemporaryBase) + Unsigned_32(index));
 }
 
 static auto is_texture_resource(const Ttx::Type& type) -> Bool {
@@ -300,7 +300,7 @@ static auto emit_core_types(Assembler::SpirV& assembler) -> void {
 static auto begin_stage_module(
     Assembler::SpirV& assembler,
     Assembler::SpirV::ExecutionModel model,
-    View::Vector<Bits_32> interface_ids) -> void {
+    View::Vector<Unsigned_32> interface_ids) -> void {
   // A shader module starts with the normal SPIR-V header and declares the entry
   // point before any debug names, decorations, types, variables, or functions.
   // The bound is one greater than every id the fixed stage ranges may emit.
@@ -340,7 +340,7 @@ static auto emit_names(
     assembler.name(spirv_id(SpirvId::PushVariable), "push"_view);
     for (Count i = 0; i < push_members.get_size(); i++) {
       assembler.member_name(
-          spirv_id(SpirvId::PushStruct), Bits_32(i),
+          spirv_id(SpirvId::PushStruct), Unsigned_32(i),
           push_members[i].get_name());
     }
   }
@@ -364,13 +364,13 @@ static auto emit_interface_decorations(
         parameters[i].get_name() == "vertex_index"_view) {
       assembler.decorate(
           spirv_id(parameter_id(i)), Assembler::SpirV::Decoration::BuiltIn,
-          Bits_32(Assembler::SpirV::BuiltIn::VertexIndex));
+          Unsigned_32(Assembler::SpirV::BuiltIn::VertexIndex));
       continue;
     }
 
     assembler.decorate(
         spirv_id(parameter_id(i)), Assembler::SpirV::Decoration::Location,
-        Bits_32(input_location++));
+        Unsigned_32(input_location++));
   }
 
   Count output_location = 0;
@@ -379,13 +379,13 @@ static auto emit_interface_decorations(
         results[i].get_name() == "screen_position"_view) {
       assembler.decorate(
           spirv_id(result_id(i)), Assembler::SpirV::Decoration::BuiltIn,
-          Bits_32(Assembler::SpirV::BuiltIn::Position));
+          Unsigned_32(Assembler::SpirV::BuiltIn::Position));
       continue;
     }
 
     assembler.decorate(
         spirv_id(result_id(i)), Assembler::SpirV::Decoration::Location,
-        Bits_32(output_location++));
+        Unsigned_32(output_location++));
   }
 }
 
@@ -398,10 +398,10 @@ static auto emit_stage_storage_decorations(
   if (!push_member_type_ids.is_empty()) {
     assembler.decorate(
         spirv_id(SpirvId::PushStruct), Assembler::SpirV::Decoration::Block);
-    Bits_32 offset = 0;
+    Unsigned_32 offset = 0;
     for (Count i = 0; i < push_member_type_ids.get_size(); i++) {
       assembler.member_decorate(
-          spirv_id(SpirvId::PushStruct), Bits_32(i),
+          spirv_id(SpirvId::PushStruct), Unsigned_32(i),
           Assembler::SpirV::Decoration::Offset, offset);
       offset += spirv_type_size(push_member_type_ids[i]);
     }
@@ -413,7 +413,7 @@ static auto emit_stage_storage_decorations(
         0);
     assembler.decorate(
         spirv_id(resource_id(i)), Assembler::SpirV::Decoration::Binding,
-        Bits_32(i));
+        Unsigned_32(i));
   }
 }
 
@@ -428,7 +428,7 @@ static auto emit_push_type(
     return;
   }
 
-  Managed::Vector<Bits_32> push_member_type_words(arena);
+  Managed::Vector<Unsigned_32> push_member_type_words(arena);
   for (Count i = 0; i < push_member_type_ids.get_size(); i++) {
     push_member_type_words.insert(spirv_id(push_member_type_ids[i]));
   }
@@ -732,7 +732,7 @@ auto Isa::Shader::Compiler::lower_stage(
     }
   }
 
-  Managed::Vector<Bits_32> interface_ids(arena);
+  Managed::Vector<Unsigned_32> interface_ids(arena);
   for (Count i = 0; i < parameters.get_size(); i++) {
     SpirvId type_id = spirv_type_id(parameters[i].get_type());
     if (type_id == SpirvId::Invalid) {
@@ -812,9 +812,9 @@ auto Isa::Shader::Compiler::append_name_segment(
   // Module names are derived from source filenames, not TTX identifiers, so the
   // exported stage name needs a normalized module segment.
   for (Count i = 0; i < value.get_size(); i++) {
-    Bits_8 c = value[i];
+    Unsigned_8 c = value[i];
     const Bool alpha = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
     const Bool digit = c >= '0' && c <= '9';
-    output.append(alpha || digit || c == '_' ? c : Bits_8('_'));
+    output.append(alpha || digit || c == '_' ? c : Unsigned_8('_'));
   }
 }

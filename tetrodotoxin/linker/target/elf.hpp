@@ -21,7 +21,7 @@ class Elf : public Format {
  public:
   Elf();
 
-  auto add_section(Object::Section section) -> Bits_16 override;
+  auto add_section(Object::Section section) -> Unsigned_16 override;
   auto add_symbol(Object::Symbol symbol) -> void override;
   auto add_relocation(Object::Relocation relocation) -> void override;
   auto build_library(Perimortem::Core::View::Bytes object_name)
@@ -32,9 +32,9 @@ class Elf : public Format {
   auto build_object() -> Perimortem::Memory::Dynamic::Bytes;
   auto write_header(
       Perimortem::Core::Access::Bytes buffer,
-      Bits_64 section_offset,
-      Bits_16 section_count,
-      Bits_16 section_string_table_index) -> void;
+      Unsigned_64 section_offset,
+      Unsigned_16 section_count,
+      Unsigned_16 section_string_table_index) -> void;
 
   Perimortem::Memory::Dynamic::Vector<Object::Section> sections;
   Perimortem::Memory::Dynamic::Vector<Object::Symbol> symbols;

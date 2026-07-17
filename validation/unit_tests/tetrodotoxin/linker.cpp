@@ -34,9 +34,9 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinLowering, section_ids) {
 
   Tetrodotoxin::Linker::Linker linker;
   EXPECT_EQ(
-      linker.add_section(Object::Section::Type::Program, code), Bits_16(1));
+      linker.add_section(Object::Section::Type::Program, code), Unsigned_16(1));
   EXPECT_EQ(
-      linker.add_section(Object::Section::Type::Program, code), Bits_16(2));
+      linker.add_section(Object::Section::Type::Program, code), Unsigned_16(2));
 }
 
 PERIMORTEM_UNIT_TEST(TetrodotoxinLowering, archive_symbol) {
@@ -47,7 +47,7 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinLowering, archive_symbol) {
   EXPECT(code.get_size() > 0);
 
   Tetrodotoxin::Linker::Linker linker;
-  Bits_16 program_section =
+  Unsigned_16 program_section =
       linker.add_section(Object::Section::Type::Program, code);
 
   auto symbol = Object::Symbol::create_function(

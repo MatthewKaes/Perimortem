@@ -34,7 +34,7 @@ static constexpr View::Bytes render_source =
     "  }\n"
     "  public vertex : stage {\n"
     "    reads push[position];\n"
-    "    input [.vertex_index : Bits_32];\n"
+    "    input [.vertex_index : Unsigned_32];\n"
     "    output [.screen_position : Vec4D];\n"
     "  }\n"
     "  public pixel : stage {\n"
@@ -47,7 +47,8 @@ static constexpr View::Bytes shader_source =
     "dialect : Shader;\n"
     "import Renderer : Render = \"render.ttx\";\n"
     "shader Default2D : Renderer::Render2D {\n"
-    "  func vertex[.vertex_index : Bits_32] -> [.screen_position : Vec4D] {\n"
+    "  func vertex[.vertex_index : Unsigned_32] -> [.screen_position : Vec4D] "
+    "{\n"
     "    return;\n"
     "  }\n"
     "  func pixel[] -> [.color : Vec4D] {\n"
@@ -147,7 +148,7 @@ PERIMORTEM_UNIT_TEST(TtxShader, named_fit) {
       "dialect : Render;\n"
       "public Render2D : Render {\n"
       "  public vertex : stage {\n"
-      "    input [.x : Bits_32, .y : Bits_32];\n"
+      "    input [.x : Unsigned_32, .y : Unsigned_32];\n"
       "    output [.color : Vec4D, .depth : Real_32];\n"
       "  }\n"
       "}\n"_view));
@@ -159,7 +160,7 @@ PERIMORTEM_UNIT_TEST(TtxShader, named_fit) {
       "dialect : Shader;\n"
       "import Renderer : Render = \"render.ttx\";\n"
       "shader Default2D : Renderer::Render2D {\n"
-      "  func vertex[.y : Bits_32, .x : Bits_32] -> [\n"
+      "  func vertex[.y : Unsigned_32, .x : Unsigned_32] -> [\n"
       "    .depth : Real_32,\n"
       "    .color : Vec4D,\n"
       "  ] {\n"
@@ -260,7 +261,7 @@ PERIMORTEM_UNIT_TEST(TtxShader, pass_through) {
       Ttx::Lexical::Source(shader->get_source_path(), shader->get_content()),
       "copy"_view, *root_type(shader), shader->get_implementation()));
 
-  static constexpr Static::Vector<Bits_8, 4> store_instruction = {
+  static constexpr Static::Vector<Unsigned_8, 4> store_instruction = {
     {0x3E, 0x00, 0x03, 0x00}};
   constexpr View::Bytes store_pattern(
       store_instruction.get_data(), store_instruction.get_size());
@@ -412,8 +413,8 @@ PERIMORTEM_UNIT_TEST(TtxShader, state_diag) {
       "import Renderer : Render = \"render.ttx\";\n"
       "shader CopyShader : Renderer::Copy {\n"
       "  func pixel[] -> [] {\n"
-      "    state value : Bits_32 = 0;\n"
-      "    state other : Bits_32 = 1;\n"
+      "    state value : Unsigned_32 = 0;\n"
+      "    state other : Unsigned_32 = 1;\n"
       "    return;\n"
       "  }\n"
       "}\n"_view);
@@ -438,9 +439,9 @@ PERIMORTEM_UNIT_TEST(TtxShader, state_diag) {
   ASSERT(error.has_tokens());
   const Ttx::Lexical::Token& start = error.get_start_token();
   const Ttx::Lexical::Token& end = error.get_end_token();
-  EXPECT_EQ(start.get_line(), Bits_32(5));
-  EXPECT_EQ(start.get_column(), Bits_32(5));
-  EXPECT_EQ(end.get_column(), Bits_32(30));
+  EXPECT_EQ(start.get_line(), Unsigned_32(5));
+  EXPECT_EQ(start.get_column(), Unsigned_32(5));
+  EXPECT_EQ(end.get_column(), Unsigned_32(30));
 }
 
 PERIMORTEM_UNIT_TEST(TtxShader, diagnostics) {
@@ -455,7 +456,7 @@ PERIMORTEM_UNIT_TEST(TtxShader, diagnostics) {
       "dialect : Shader;\n"
       "import Renderer : Render = \"render.ttx\";\n"
       "shader Default2D : Renderer::Render2D {\n"
-      "  func vertex[.index : Bits_32] -> [.screen_position : Vec4D] {\n"
+      "  func vertex[.index : Unsigned_32] -> [.screen_position : Vec4D] {\n"
       "    return;\n"
       "  }\n"
       "}\n"_view,
@@ -465,8 +466,8 @@ PERIMORTEM_UNIT_TEST(TtxShader, diagnostics) {
       "dialect : Render;\n"
       "public Render2D : Render {\n"
       "  push_constants {\n"
-      "    const position : Bits_32 = 0;\n"
-      "    const tone : Bits_32 = 0;\n"
+      "    const position : Unsigned_32 = 0;\n"
+      "    const tone : Unsigned_32 = 0;\n"
       "  }\n"
       "  public vertex : stage {\n"
       "    reads push[position];\n"
@@ -478,7 +479,7 @@ PERIMORTEM_UNIT_TEST(TtxShader, diagnostics) {
       "import Renderer : Render = \"render.ttx\";\n"
       "shader Default2D : Renderer::Render2D {\n"
       "  func vertex[] -> [] {\n"
-      "    state value : Bits_32 = push.tone;\n"
+      "    state value : Unsigned_32 = push.tone;\n"
       "    return;\n"
       "  }\n"
       "}\n"_view,
@@ -489,7 +490,7 @@ PERIMORTEM_UNIT_TEST(TtxShader, diagnostics) {
       "dialect : Shader;\n"
       "import Renderer : Render = \"render.ttx\";\n"
       "shader Default2D : Renderer::Render2D {\n"
-      "  func vertex[.vertex_index : Bits_32] -> [.color : Vec4D] {\n"
+      "  func vertex[.vertex_index : Unsigned_32] -> [.color : Vec4D] {\n"
       "    return;\n"
       "  }\n"
       "}\n"_view,

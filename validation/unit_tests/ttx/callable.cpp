@@ -22,35 +22,37 @@ using namespace Validation;
 /// A callable may refer to Types without making invocation a Type concern.
 class CallableType final : public Type {
  public:
-  CallableType(View::Bytes name, const Invalid& invalid)
-      : name(name), invalid(invalid) {}
+  CallableType(View::Bytes name) : name(name) {}
 
   auto get_name() const -> View::Bytes override { return name; }
+  auto get_documentation() const -> const Documentation& override {
+    return Comment::get_empty();
+  }
   auto resolve_context(View::Bytes) const -> const Abstract& override {
-    return invalid;
+    return Invalid::get_invalid();
   }
   auto get_layout() const -> const Structured& override { return layout; }
 
  private:
   View::Bytes name;
-  const Invalid& invalid;
-  Structured layout;
+  inline static const Structured layout;
 };
 
 /// An address is an Abstract fact and may remain Invalid before linkage.
 class CallableAddress final : public Addressable {
  public:
-  CallableAddress(View::Bytes name, const Invalid& invalid)
-      : name(name), invalid(invalid) {}
+  CallableAddress(View::Bytes name) : name(name) {}
 
   auto get_name() const -> View::Bytes override { return name; }
+  auto get_documentation() const -> const Documentation& override {
+    return Comment::get_empty();
+  }
   auto resolve_context(View::Bytes) const -> const Abstract& override {
-    return invalid;
+    return Invalid::get_invalid();
   }
 
  private:
   View::Bytes name;
-  const Invalid& invalid;
 };
 
 /// Static and Self callables share the same total layout and address contract.
@@ -60,17 +62,18 @@ class TestStatic final : public Ttx::Model::Callables::Static {
       View::Bytes name,
       const Layout& parameters,
       const Layout& results,
-      const Abstract& address,
-      const Invalid& invalid)
+      const Abstract& address)
       : name(name),
         parameters(parameters),
         results(results),
-        address(address),
-        invalid(invalid) {}
+        address(address) {}
 
   auto get_name() const -> View::Bytes override { return name; }
+  auto get_documentation() const -> const Documentation& override {
+    return Comment::get_empty();
+  }
   auto resolve_context(View::Bytes) const -> const Abstract& override {
-    return invalid;
+    return Invalid::get_invalid();
   }
   auto get_parameters() const -> const Layout& override { return parameters; }
   auto get_results() const -> const Layout& override { return results; }
@@ -81,7 +84,6 @@ class TestStatic final : public Ttx::Model::Callables::Static {
   const Layout& parameters;
   const Layout& results;
   const Abstract& address;
-  const Invalid& invalid;
 };
 
 /// Self is distinguished by contract identity, not a hidden receiver rewrite.
@@ -91,17 +93,18 @@ class TestSelf final : public Self {
       View::Bytes name,
       const Layout& parameters,
       const Layout& results,
-      const Abstract& address,
-      const Invalid& invalid)
+      const Abstract& address)
       : name(name),
         parameters(parameters),
         results(results),
-        address(address),
-        invalid(invalid) {}
+        address(address) {}
 
   auto get_name() const -> View::Bytes override { return name; }
+  auto get_documentation() const -> const Documentation& override {
+    return Comment::get_empty();
+  }
   auto resolve_context(View::Bytes) const -> const Abstract& override {
-    return invalid;
+    return Invalid::get_invalid();
   }
   auto get_parameters() const -> const Layout& override { return parameters; }
   auto get_results() const -> const Layout& override { return results; }
@@ -112,7 +115,6 @@ class TestSelf final : public Self {
   const Layout& parameters;
   const Layout& results;
   const Abstract& address;
-  const Invalid& invalid;
 };
 
 static Harness TtxCallable = {
@@ -120,10 +122,9 @@ static Harness TtxCallable = {
 };
 
 PERIMORTEM_UNIT_TEST(TtxCallable, callable_layouts) {
-  Invalid invalid;
-  CallableType counter("Counter"_view, invalid);
-  CallableType count("Count"_view, invalid);
-  CallableAddress address("identity"_view, invalid);
+  CallableType counter("Counter"_view);
+  CallableType count("Count"_view);
+  CallableAddress address("identity"_view);
   Alias value("value"_view, count);
   Alias receiver("self"_view, counter);
   const Reference<Abstract> static_values[] = {value};
@@ -133,9 +134,8 @@ PERIMORTEM_UNIT_TEST(TtxCallable, callable_layouts) {
   Named self_parameters(self_values);
   Fluid results(result_values);
   TestStatic static_callable(
-      "identity"_view, static_parameters, results, address, invalid);
-  TestSelf self_callable(
-      "identity"_view, self_parameters, results, address, invalid);
+      "identity"_view, static_parameters, results, address);
+  TestSelf self_callable("identity"_view, self_parameters, results, address);
 
   EXPECT_TEXT(static_callable.get_name(), self_callable.get_name());
   EXPECT_EQ(static_callable.get_parameters().get_size(), Count(1));
@@ -158,10 +158,10 @@ PERIMORTEM_UNIT_TEST(TtxCallable, callable_layouts) {
 }
 
 PERIMORTEM_UNIT_TEST(TtxCallable, unresolved_address) {
-  Invalid invalid;
   Fluid parameters;
   Fluid results;
-  TestStatic unresolved("load"_view, parameters, results, invalid, invalid);
+  TestStatic unresolved(
+      "load"_view, parameters, results, Invalid::get_invalid());
 
-  EXPECT(&unresolved.get_address() == &invalid);
+  EXPECT(&unresolved.get_address() == &Invalid::get_invalid());
 }
