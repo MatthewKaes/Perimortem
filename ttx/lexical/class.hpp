@@ -16,7 +16,7 @@ namespace Ttx::Lexical {
 // All symbols are context free. A Dialect is required to parse them.
 class Class {
  public:
-  enum class Type : Bits_8 {
+  enum class Type : Unsigned_8 {
     // ========================================================================
     //                              TTX Data Model
     // ========================================================================
@@ -31,6 +31,7 @@ class Class {
     //                              Data objects
     // ========================================================================
     Numeric,   // 0-1 no decimal
+    Hex,       // The hex portion after 0x...
     Float,     // 9. 0.9 as floats, 9.. Float + Access Op, 9...
     String,    // " " (does not embed null terminator)
     Bytes,     // 0x[FF FF FF]
@@ -78,8 +79,8 @@ class Class {
     //
     // Bit ops are currently supported as method calls and always shrinks or
     // grows to the output type:
-    // - `Bits_32 -> from(value) -> bit_and(Bits_8 -> from(0xFF))`
-    // - `Bits_8 -> from(value) -> bit_or(Bits_32 -> from(0xFF000000))`
+    // - `Unsigned_32 -> from(value) -> bit_and(Unsigned_8 -> from(0xFF))`
+    // - `Unsigned_8 -> from(value) -> bit_or(Unsigned_32 -> from(0xFF000000))`
     AndOp,  // & reserved
     OrOp,   // | reserved
 
@@ -286,6 +287,8 @@ class Class {
       return "false"_view;
 
     // Literal markers
+    case Type::Hex:
+      return "0x"_view;
     case Type::Bytes:
       return "0x["_view;
     case Type::Embedded:
@@ -298,6 +301,8 @@ class Class {
       return "//"_view;
     case Type::Disabled:
       return "/>"_view;
+    case Type::String:
+      return "\""_view;
 
     // Return empty for anything that should be sourced from the token itself.
     default:

@@ -5,6 +5,7 @@
 
 #include "perimortem/core/view/bytes.hpp"
 #include "perimortem/core/view/vector.hpp"
+#include "perimortem/core/static/vector.hpp"
 
 #include "perimortem/memory/allocator/arena.hpp"
 
@@ -13,79 +14,116 @@
 
 namespace Ttx::Lexical {
 
-// Cursor is the transient parse state over one token stream.
-//
-// It exists to keep dialect parsing small and regular. Callers can preserve any
-// remaining token view as a cheap continuation for a later parser. Cursor owns
-// only the current token position and an Errors collection backed by the
-// caller's transaction arena.
-//
-// The cursor sees the token position at the moment a parse expectation fails,
-// so it is the right place to record error facts. The stored Error objects
-// are still presentation neutral and reusable by parsers that use the
-// same cursor.
-//
-// Error rendering, package resolution, and source record management belong
-// to the layers that have that context. Cursor stays token position plus
-// errors over one token stream.
+// Cursor acts as a transitive iterator over a token stream and can be used to
+// persist parse state during a transaction.
+// Any errors created are pushed to the provided error collector.
 class Cursor {
  public:
-  Cursor(
-      const Lexical::Tokenizer& tokenizer,
-      Perimortem::Memory::Allocator::Arena& error_arena)
-      : tokenizer(tokenizer), errors(error_arena) {};
+  Cursor(const Lexical::Tokenizer& tokenizer, Lexical::Errors& errors)
+      : tokenizer(tokenizer), errors(errors) {
+    errors.set_source_context(
+        tokenizer.get_source_path(), tokenizer.get_source_text());
+  };
 
-  constexpr auto current() const -> const Lexical::Token& {
+  constexpr auto current() const -> Lexical::Token {
     return tokenizer.get_tokens().get_data()[index];
   }
 
   constexpr auto get_token_index() const -> Count { return index; }
-  constexpr auto get_token_span(Count start, Count end) const
-      -> Perimortem::Core::View::Vector<Lexical::Token> {
-    Perimortem::Core::View::Vector<Lexical::Token> tokens =
-        tokenizer.get_tokens();
-    if (start >= end || start >= tokens.get_size()) {
-      return Perimortem::Core::View::Vector<Lexical::Token>();
-    }
-
-    Count bounded_end = end < tokens.get_size() ? end : tokens.get_size();
-    return tokens.slice(start, bounded_end - start);
-  }
-
-  auto seek_token(Count token_index) -> void;
 
   // Advances at most to the tokenizer's end-of-stream token and returns the
   // token that was current before advancing.
-  auto consume() -> const Lexical::Token&;
+  constexpr auto consume() -> Lexical::Token {
+    const auto tokens = tokenizer.get_tokens();
+    Lexical::Token consumed = current();
+    if (index + 1 < tokens.get_size()) {
+      index++;
+    }
+
+    return consumed;
+  }
 
   // Requires the current token to have the expected class. Success consumes and
-  // returns the token. Failure records the provided message and returns null.
-  auto require(Lexical::Class::Type type, Perimortem::Core::View::Bytes message)
-      -> const Lexical::Token*;
+  // returns the token. Failure records the provided message on the mismatched
+  // token and returns null.
+  constexpr auto require(
+      Lexical::Class::Type type,
+      Perimortem::Core::View::Bytes message) -> Lexical::Token {
+    if (!matches(type)) {
+      create_token_error(message);
+      return Lexical::Token();
+    }
 
-  // Emits an error that is about the stream rather than one specific token.
-  auto error(
-      Perimortem::Core::View::Bytes message,
-      Perimortem::Core::View::Bytes hint = ""_view) -> void;
+    return consume();
+  }
 
-  // Emits an error on the current token.
-  auto token_error(
+  // Creates a source level error message.
+  // Views can be temporary as the error context copies the data into its local
+  // memory space in case the error outlives the source.
+  constexpr auto create_error(
       Perimortem::Core::View::Bytes message,
-      Perimortem::Core::View::Bytes hint = ""_view) -> void;
+      Perimortem::Core::View::Bytes hint = ""_view) -> void {
+    errors.create_general_error(message, hint);
+  }
+
+  // Creates an error at the current token.
+  // Views can be temporary as the error context copies the data into its local
+  // memory space in case the error outlives the source.
+  auto create_token_error(
+      Perimortem::Core::View::Bytes message,
+      Perimortem::Core::View::Bytes hint = ""_view) -> void {
+    errors.create_token_error(current(), message, hint);
+  }
+
+  auto create_token_error(
+      Lexical::Token token,
+      Perimortem::Core::View::Bytes message,
+      Perimortem::Core::View::Bytes hint = ""_view) -> void {
+    errors.create_token_error(token, message, hint);
+  }
 
   // Emits an error over an already-known token range.
-  auto range_error(
-      const Lexical::Token& start,
-      const Lexical::Token& end,
+  // Views can be temporary as the error context copies the data into its local
+  // memory space in case the error outlives the source.
+  auto create_expression_error(
+      Lexical::Token start,
+      Lexical::Token end,
       Perimortem::Core::View::Bytes message,
-      Perimortem::Core::View::Bytes hint = ""_view) -> void;
+      Perimortem::Core::View::Bytes hint = ""_view) -> void {
+    errors.create_expression_error(start, end, message, hint);
+  }
 
   // Statement recovery is intentionally small.
   //
   // A malformed statement can skip to the next statement so later syntax still
   // reports errors in the same pass. Broader recovery belongs to the caller
   // because only that layer knows how much grammar is safe to skip.
-  auto recover_to_statement() -> void;
+  constexpr auto recover_to_statement() -> void {
+    // The source envelope only recovers at statement boundaries. That is enough
+    // to keep independent import errors visible without pretending to
+    // understand the dialect body after a malformed envelope item.
+    constexpr Perimortem::Core::Static::Vector<Lexical::Class::Type, 3>
+        terminals = {{
+          Lexical::Class::Type::EndOfStream,
+          Lexical::Class::Type::EndStatement,
+          Lexical::Class::Type::ScopeEnd,
+        }};
+
+    auto type = current().get_class();
+    while (!type.is_one_of(terminals)) {
+      consume();
+      type = current().get_class();
+    }
+
+    // Consume the terminal to get it out of the way to keep parser logic
+    // simple.
+    //
+    // It's safe to consume end of stream since the cursor makes sure to never
+    // pass the end of the token stream.
+    if (type.is_one_of(terminals)) {
+      consume();
+    }
+  }
 
   // Checks if the current cursor is exactly one type.
   constexpr auto matches(Lexical::Class::Type type) const -> Bool {
@@ -99,14 +137,6 @@ class Cursor {
     return current().get_class().is_one_of(types);
   }
 
-  // Evaluation errors belong to the cursor because the cursor is the local
-  // token context which all executors interact with for a single transaction.
-  //
-  // Parsed facts and lowered output should not copy errors into persisted
-  // state. Consumers that need diagnostics after ending this transaction must
-  // explicitly migrate them into their own lifetime.
-  constexpr auto get_errors() const -> const Lexical::Errors& { return errors; }
-
   constexpr auto get_arena() const -> Perimortem::Memory::Allocator::Arena& {
     return tokenizer.get_arena();
   }
@@ -115,16 +145,13 @@ class Cursor {
     return tokenizer.get_source_text();
   }
 
-  constexpr auto get_source_name() const -> Perimortem::Core::View::Bytes {
-    return tokenizer.get_source_name();
+  constexpr auto get_source_path() const -> Perimortem::Core::View::Bytes {
+    return tokenizer.get_source_path();
   }
 
  private:
-  // Tokenizers only hold structured views over their arena state after
-  // construction, so the cursor keeps a copy and avoids one pointer hop.
-  const Lexical::Tokenizer tokenizer;
-
-  Lexical::Errors errors;
+  const Lexical::Tokenizer& tokenizer;
+  Lexical::Errors& errors;
   Count index = 0;
 };
 

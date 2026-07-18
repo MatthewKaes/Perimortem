@@ -24,8 +24,8 @@ class Map {
  public:
   using Entry = Utility::Pair<key_type, value_type>;
 
-  Map(Allocator::Arena& arena) : arena(arena) {}
-  Map(const Map&) = default;
+  constexpr Map(Allocator::Arena& arena) : arena(arena) {}
+  constexpr Map(const Map&) = default;
 
   auto ensure_capacity(Count items) -> void {
     if (buffer.bucket_buffer && items * 10 <= buffer.bucket_count * 9) {

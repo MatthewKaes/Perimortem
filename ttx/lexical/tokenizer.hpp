@@ -26,10 +26,9 @@ class Tokenizer {
   Tokenizer(
       Perimortem::Memory::Allocator::Arena& arena,
       Perimortem::Core::View::Bytes source_text,
-      Perimortem::Core::View::Bytes source_name,
-      Bool strip_disabled = True)
-      : arena(arena), source_text(source_text), source_name(source_name) {
-    parse(strip_disabled);
+      Perimortem::Core::View::Bytes source_path)
+      : arena(arena), source_text(source_text), source_path(source_path) {
+    parse();
   }
 
   constexpr auto get_tokens() const -> Perimortem::Core::View::Vector<Token> {
@@ -44,9 +43,9 @@ class Tokenizer {
     return source_text;
   };
 
-  constexpr auto get_source_name() const
+  constexpr auto get_source_path() const
       -> const Perimortem::Core::View::Bytes {
-    return source_name;
+    return source_path;
   };
 
   constexpr auto get_arena() const -> Perimortem::Memory::Allocator::Arena& {
@@ -54,12 +53,12 @@ class Tokenizer {
   };
 
  private:
-  auto parse(Bool strip_disabled = true) -> void;
+  auto parse() -> void;
 
   // All light weight objects that represent the structured view over the arena.
   Perimortem::Memory::Allocator::Arena& arena;
   Perimortem::Core::View::Bytes source_text;
-  Perimortem::Core::View::Bytes source_name;
+  Perimortem::Core::View::Bytes source_path;
   Perimortem::Core::View::Vector<Token> tokens;
 };
 
