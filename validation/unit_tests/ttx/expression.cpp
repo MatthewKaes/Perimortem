@@ -3,6 +3,8 @@
 
 #include "validation/unit_test.hpp"
 
+#include "perimortem/core/static/vector.hpp"
+
 #include "ttx/concept/alias.hpp"
 #include "ttx/concept/invalid.hpp"
 #include "ttx/model/argument.hpp"
@@ -189,9 +191,9 @@ PERIMORTEM_UNIT_TEST(TtxExpression, layout_constants) {
   ConstantValue<Constants::Signed> y("y"_view, signed_64, Signed_64(-20));
   ConstantField x_field("x"_view, unsigned_8);
   ConstantField y_field("y"_view, signed_8);
-  const Reference<Abstract> ordered[] = {x, y};
-  const Reference<Abstract> reordered[] = {y, x};
-  const Reference<Addressable> fields[] = {x_field, y_field};
+  const Static::Vector<Reference<Abstract>, 2> ordered = {{x, y}};
+  const Static::Vector<Reference<Abstract>, 2> reordered = {{y, x}};
+  const Static::Vector<Reference<Addressable>, 2> fields = {{x_field, y_field}};
   Fluid fluid(ordered);
   Named named(reordered);
   Structured target(fields);

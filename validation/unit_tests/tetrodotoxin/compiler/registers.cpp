@@ -90,16 +90,16 @@ PERIMORTEM_UNIT_TEST(CompilerRegisters, system_v_parameter_banks) {
   };
   Allocation::SystemV allocation(parameters);
 
-  EXPECT(allocation.get(0, 0).bank == Allocation::SystemV::Bank::Integer);
-  EXPECT_EQ(allocation.get(0, 0).index, Count(0));
-  EXPECT(allocation.get(5, 0).bank == Allocation::SystemV::Bank::Stack);
-  EXPECT_EQ(allocation.get(5, 0).index, Count(0));
-  EXPECT_EQ(allocation.get(5, 1).index, Count(1));
-  EXPECT(allocation.get(6, 0).bank == Allocation::SystemV::Bank::Integer);
-  EXPECT_EQ(allocation.get(6, 0).index, Count(5));
-  EXPECT(allocation.get(14, 0).bank == Allocation::SystemV::Bank::Real);
-  EXPECT_EQ(allocation.get(14, 0).index, Count(7));
-  EXPECT(allocation.get(15, 0).bank == Allocation::SystemV::Bank::Stack);
-  EXPECT_EQ(allocation.get(15, 0).index, Count(2));
+  EXPECT(allocation.get(0, 0).get_bank() == Allocation::SystemVBank::Integer);
+  EXPECT_EQ(allocation.get(0, 0).get_index(), Count(0));
+  EXPECT(allocation.get(5, 0).get_bank() == Allocation::SystemVBank::Stack);
+  EXPECT_EQ(allocation.get(5, 0).get_index(), Count(0));
+  EXPECT_EQ(allocation.get(5, 1).get_index(), Count(1));
+  EXPECT(allocation.get(6, 0).get_bank() == Allocation::SystemVBank::Integer);
+  EXPECT_EQ(allocation.get(6, 0).get_index(), Count(5));
+  EXPECT(allocation.get(14, 0).get_bank() == Allocation::SystemVBank::Real);
+  EXPECT_EQ(allocation.get(14, 0).get_index(), Count(7));
+  EXPECT(allocation.get(15, 0).get_bank() == Allocation::SystemVBank::Stack);
+  EXPECT_EQ(allocation.get(15, 0).get_index(), Count(2));
   EXPECT_EQ(allocation.get_stack_count(), Count(3));
 }

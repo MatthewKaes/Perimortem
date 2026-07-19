@@ -3,6 +3,11 @@
 
 #include "validation/unit_test.hpp"
 
+#include "perimortem/core/static/vector.hpp"
+
+#include "perimortem/memory/allocator/arena.hpp"
+#include "perimortem/memory/dynamic/bytes.hpp"
+
 #include "tetrodotoxin/model/source.hpp"
 #include "ttx/concept/alias.hpp"
 #include "ttx/concept/comments.hpp"
@@ -11,10 +16,11 @@
 #include "ttx/model/type.hpp"
 
 using namespace Perimortem::Core;
+using namespace Perimortem::Memory;
 using namespace Ttx::Concept;
 using namespace Validation;
 
-/// A named leaf keeps Source tests focused on containment rather than Type.
+/// A named leaf keeps Source tests focused on general Abstract resolution.
 class SourceLeaf final : public Abstract {
  public:
   explicit SourceLeaf(View::Bytes name) : name(name) {}
@@ -36,20 +42,73 @@ static Harness SourceTests = {
 };
 
 PERIMORTEM_UNIT_TEST(SourceTests, source_root) {
-  SourceLeaf value("Value"_view);
-  Alias alias("PublicValue"_view, value);
-  const Reference<Abstract> definitions[] = {alias};
-  const View::Bytes lines[] = {"public source"_view};
-  Comments documentation(lines);
   Tetrodotoxin::Model::Source source(
-      "Validation.Source"_view, definitions, documentation);
+      "expose PublicValue : alias = Value;"_view, "validation/source.ttx"_view);
+  SourceLeaf& value = source.get_arena().construct<SourceLeaf>("Value"_view);
+  const Static::Vector<View::Bytes, 1> lines = {{"public source"_view}};
+  Comments& documentation =
+      source.get_arena().construct<Comments>(lines.get_view());
+  Alias& alias = source.get_arena().construct<Alias>(
+      "PublicValue"_view, value, documentation);
 
-  EXPECT(source.is<Tetrodotoxin::Model::Source>());
+  Bool rooted = source.root(alias);
+
+  EXPECT(rooted);
+  ASSERT(source.is<Tetrodotoxin::Model::Source>());
   EXPECT_NOT(source.is<Ttx::Model::Type>());
-  EXPECT_TEXT(source.get_name(), "Validation.Source"_view);
-  EXPECT_EQ(source.get_definitions().get_abstracts().get_size(), Count(1));
-  EXPECT_TEXT(source.get_documentation().get_line(0), "public source"_view);
+  EXPECT(source.get_name().is_empty());
+  EXPECT_TEXT(source.get_path(), "validation/source.ttx"_view);
+  EXPECT_TEXT(source.get_text(), "expose PublicValue : alias = Value;"_view);
+  EXPECT_TEXT(source.get_tokenizer().get_source_name(), source.get_path());
+  EXPECT_EQ(source.get_definitions().get_size(), Count(1));
+  EXPECT(source.get_documentation().is_empty());
   EXPECT(&source.resolve_context("PublicValue"_view) == &alias);
   EXPECT(&source.resolve_context("Missing"_view) == &Invalid::get_invalid());
   EXPECT(&alias.resolve() == &value);
+}
+
+PERIMORTEM_UNIT_TEST(SourceTests, duplicate_root) {
+  Tetrodotoxin::Model::Source source(View::Bytes{}, View::Bytes{});
+  SourceLeaf& first = source.get_arena().construct<SourceLeaf>("Value"_view);
+  SourceLeaf& second = source.get_arena().construct<SourceLeaf>("Value"_view);
+
+  Bool first_rooted = source.root(first);
+  Bool second_rooted = source.root(second);
+
+  EXPECT(first_rooted);
+  EXPECT_NOT(second_rooted);
+  EXPECT(source.get_path().is_empty());
+  EXPECT(source.get_text().is_empty());
+  EXPECT(&source.resolve_context("Value"_view) == &first);
+}
+
+PERIMORTEM_UNIT_TEST(SourceTests, anonymous_roots) {
+  Tetrodotoxin::Model::Source source(View::Bytes{}, View::Bytes{});
+  SourceLeaf& first = source.get_arena().construct<SourceLeaf>(View::Bytes{});
+  SourceLeaf& second = source.get_arena().construct<SourceLeaf>(View::Bytes{});
+
+  Bool first_rooted = source.root(first);
+  Bool second_rooted = source.root(second);
+  Bool first_repeated = source.root(first);
+
+  EXPECT(first_rooted);
+  EXPECT(second_rooted);
+  EXPECT_NOT(first_repeated);
+  EXPECT_EQ(source.get_definitions().get_size(), Count(2));
+  EXPECT(source.resolve_context(View::Bytes{}).is<Invalid>());
+}
+
+PERIMORTEM_UNIT_TEST(SourceTests, owns_input_and_tokenizer) {
+  Dynamic::Bytes input("expose Value : alias = Target;"_view);
+  Dynamic::Bytes path("snippet.ttx"_view);
+  Tetrodotoxin::Model::Source source(input, path);
+
+  input.clear();
+  path.clear();
+
+  EXPECT_TEXT(source.get_text(), "expose Value : alias = Target;"_view);
+  EXPECT_TEXT(source.get_path(), "snippet.ttx"_view);
+  EXPECT_TEXT(source.get_tokenizer().get_source_text(), source.get_text());
+  EXPECT_TEXT(source.get_tokenizer().get_source_name(), source.get_path());
+  EXPECT_NOT(source.get_tokenizer().is_empty());
 }

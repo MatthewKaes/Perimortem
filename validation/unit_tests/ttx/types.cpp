@@ -23,29 +23,28 @@ using namespace Ttx::Concept;
 using namespace Ttx::Model;
 using namespace Validation;
 
-namespace Types = Ttx::Model::Types;
-
 static Harness TtxTypes = {
   .name = "TTX::Types"_view,
 };
 
 PERIMORTEM_UNIT_TEST(TtxTypes, terminal_contract) {
-  Types::Unsigned_8 unsigned_8;
+  Ttx::Model::Types::Unsigned_8 unsigned_8;
   const Abstract& abstract = unsigned_8;
   const Type& type = abstract.as<Type>();
-  const Types::Terminal& terminal = type.as<Types::Terminal>();
+  const Ttx::Model::Types::Terminal& terminal =
+      type.as<Ttx::Model::Types::Terminal>();
 
   EXPECT(abstract.is<Abstract>());
   EXPECT(abstract.is<Type>());
-  EXPECT(abstract.is<Types::Terminal>());
-  EXPECT(abstract.is<Types::Unsigned>());
-  EXPECT_NOT(abstract.is<Types::Signed>());
-  EXPECT_NOT(abstract.is<Types::Real>());
-  EXPECT_NOT(abstract.is<Types::Flag>());
-  EXPECT(type.is<Types::Terminal>());
+  EXPECT(abstract.is<Ttx::Model::Types::Terminal>());
+  EXPECT(abstract.is<Ttx::Model::Types::Unsigned>());
+  EXPECT_NOT(abstract.is<Ttx::Model::Types::Signed>());
+  EXPECT_NOT(abstract.is<Ttx::Model::Types::Real>());
+  EXPECT_NOT(abstract.is<Ttx::Model::Types::Flag>());
+  EXPECT(type.is<Ttx::Model::Types::Terminal>());
   EXPECT(terminal.is<Type>());
   EXPECT(&type == &terminal);
-  EXPECT(&terminal == &abstract.as<Types::Unsigned>());
+  EXPECT(&terminal == &abstract.as<Ttx::Model::Types::Unsigned>());
   EXPECT(type.get_layout().is_empty());
   EXPECT_EQ(terminal.get_width(), Count(8));
   EXPECT_EQ(terminal.get_size(), Count(sizeof(::Unsigned_8)));
@@ -55,36 +54,36 @@ PERIMORTEM_UNIT_TEST(TtxTypes, terminal_contract) {
 }
 
 PERIMORTEM_UNIT_TEST(TtxTypes, terminal_families) {
-  Types::Unsigned_32 unsigned_type;
-  Types::Signed_32 signed_type;
-  Types::Real_32 real_type;
-  Types::Boolean flag_type;
+  Ttx::Model::Types::Unsigned_32 unsigned_type;
+  Ttx::Model::Types::Signed_32 signed_type;
+  Ttx::Model::Types::Real_32 real_type;
+  Ttx::Model::Types::Boolean flag_type;
 
-  EXPECT(unsigned_type.is<Types::Unsigned>());
-  EXPECT_NOT(unsigned_type.is<Types::Signed>());
-  EXPECT(signed_type.is<Types::Signed>());
-  EXPECT_NOT(signed_type.is<Types::Unsigned>());
-  EXPECT(real_type.is<Types::Real>());
-  EXPECT(flag_type.is<Types::Flag>());
-  EXPECT(unsigned_type.is<Types::Terminal>());
-  EXPECT(signed_type.is<Types::Terminal>());
-  EXPECT(real_type.is<Types::Terminal>());
-  EXPECT(flag_type.is<Types::Terminal>());
+  EXPECT(unsigned_type.is<Ttx::Model::Types::Unsigned>());
+  EXPECT_NOT(unsigned_type.is<Ttx::Model::Types::Signed>());
+  EXPECT(signed_type.is<Ttx::Model::Types::Signed>());
+  EXPECT_NOT(signed_type.is<Ttx::Model::Types::Unsigned>());
+  EXPECT(real_type.is<Ttx::Model::Types::Real>());
+  EXPECT(flag_type.is<Ttx::Model::Types::Flag>());
+  EXPECT(unsigned_type.is<Ttx::Model::Types::Terminal>());
+  EXPECT(signed_type.is<Ttx::Model::Types::Terminal>());
+  EXPECT(real_type.is<Ttx::Model::Types::Terminal>());
+  EXPECT(flag_type.is<Ttx::Model::Types::Terminal>());
 }
 
 PERIMORTEM_UNIT_TEST(TtxTypes, terminal_abi) {
-  Types::Unsigned_8 unsigned_8;
-  Types::Unsigned_16 unsigned_16;
-  Types::Unsigned_32 unsigned_32;
-  Types::Unsigned_64 unsigned_64;
-  Types::Signed_8 signed_8;
-  Types::Signed_16 signed_16;
-  Types::Signed_32 signed_32;
-  Types::Signed_64 signed_64;
-  Types::Real_32 real_32;
-  Types::Real_64 real_64;
-  Types::Real_128 real_128;
-  Types::Boolean boolean;
+  Ttx::Model::Types::Unsigned_8 unsigned_8;
+  Ttx::Model::Types::Unsigned_16 unsigned_16;
+  Ttx::Model::Types::Unsigned_32 unsigned_32;
+  Ttx::Model::Types::Unsigned_64 unsigned_64;
+  Ttx::Model::Types::Signed_8 signed_8;
+  Ttx::Model::Types::Signed_16 signed_16;
+  Ttx::Model::Types::Signed_32 signed_32;
+  Ttx::Model::Types::Signed_64 signed_64;
+  Ttx::Model::Types::Real_32 real_32;
+  Ttx::Model::Types::Real_64 real_64;
+  Ttx::Model::Types::Real_128 real_128;
+  Ttx::Model::Types::Boolean boolean;
   EXPECT_EQ(unsigned_8.get_size(), Count(sizeof(::Unsigned_8)));
   EXPECT_EQ(unsigned_16.get_size(), Count(sizeof(::Unsigned_16)));
   EXPECT_EQ(unsigned_32.get_size(), Count(sizeof(::Unsigned_32)));
@@ -126,8 +125,8 @@ PERIMORTEM_UNIT_TEST(TtxTypes, terminal_abi) {
 }
 
 PERIMORTEM_UNIT_TEST(TtxTypes, terminal_aliases) {
-  Types::Unsigned_32 unsigned_32;
-  Types::Unsigned_64 unsigned_64;
+  Ttx::Model::Types::Unsigned_32 unsigned_32;
+  Ttx::Model::Types::Unsigned_64 unsigned_64;
   Alias count("Count"_view, unsigned_64);
   const Abstract& cpp_size_type =
       sizeof(::CppSize) == sizeof(::Unsigned_64)
@@ -137,23 +136,23 @@ PERIMORTEM_UNIT_TEST(TtxTypes, terminal_aliases) {
 
   EXPECT(&count.resolve() == &unsigned_64);
   EXPECT_EQ(
-      cpp_size.resolve().as<Types::Terminal>().get_size(),
+      cpp_size.resolve().as<Ttx::Model::Types::Terminal>().get_size(),
       Count(sizeof(::CppSize)));
 }
 
 PERIMORTEM_UNIT_TEST(TtxTypes, terminal_names) {
-  Types::Unsigned_8 unsigned_8;
-  Types::Unsigned_16 unsigned_16;
-  Types::Unsigned_32 unsigned_32;
-  Types::Unsigned_64 unsigned_64;
-  Types::Signed_8 signed_8;
-  Types::Signed_16 signed_16;
-  Types::Signed_32 signed_32;
-  Types::Signed_64 signed_64;
-  Types::Real_32 real_32;
-  Types::Real_64 real_64;
-  Types::Real_128 real_128;
-  Types::Boolean boolean;
+  Ttx::Model::Types::Unsigned_8 unsigned_8;
+  Ttx::Model::Types::Unsigned_16 unsigned_16;
+  Ttx::Model::Types::Unsigned_32 unsigned_32;
+  Ttx::Model::Types::Unsigned_64 unsigned_64;
+  Ttx::Model::Types::Signed_8 signed_8;
+  Ttx::Model::Types::Signed_16 signed_16;
+  Ttx::Model::Types::Signed_32 signed_32;
+  Ttx::Model::Types::Signed_64 signed_64;
+  Ttx::Model::Types::Real_32 real_32;
+  Ttx::Model::Types::Real_64 real_64;
+  Ttx::Model::Types::Real_128 real_128;
+  Ttx::Model::Types::Boolean boolean;
 
   EXPECT_TEXT(unsigned_8.get_name(), "Unsigned_8"_view);
   EXPECT_TEXT(unsigned_16.get_name(), "Unsigned_16"_view);

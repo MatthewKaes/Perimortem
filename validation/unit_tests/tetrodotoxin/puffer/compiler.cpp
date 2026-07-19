@@ -22,13 +22,13 @@ PERIMORTEM_UNIT_TEST(PufferCompiler, library_output) {
     "validation/unit_tests/tetrodotoxin/ttx/source.ttx"_view,
   }};
   Resolution::Context context;
-  Compiler::Output output = Compiler::build_library(
+  Compilation output = Compiler::build_library(
       context, "Validation.Direct"_view, View::Vector<View::Bytes>(), sources);
 
   EXPECT_NOT(context.has_errors());
-  EXPECT_NOT(output.native_archive.is_empty());
-  EXPECT_NOT(output.cpp_header.is_empty());
-  EXPECT(output.package_buffer.is_empty());
+  EXPECT_NOT(output.get_native_archive().is_empty());
+  EXPECT_NOT(output.get_cpp_header().is_empty());
+  EXPECT(output.get_package_buffer().is_empty());
 }
 
 PERIMORTEM_UNIT_TEST(PufferCompiler, package_output) {
@@ -41,21 +41,21 @@ PERIMORTEM_UNIT_TEST(PufferCompiler, package_output) {
     "tetrodotoxin/standard/perimortem/math/package.ttx"_view,
   }};
   Resolution::Context context;
-  Compiler::Output output = Compiler::build_package(
+  Compilation output = Compiler::build_package(
       context, "Perimortem.Math"_view, View::Vector<View::Bytes>(), sources);
   Resolution::Context reordered_context;
-  Compiler::Output reordered = Compiler::build_package(
+  Compilation reordered = Compiler::build_package(
       reordered_context, "Perimortem.Math"_view, View::Vector<View::Bytes>(),
       reordered_sources);
 
   EXPECT_NOT(context.has_errors());
   EXPECT_NOT(reordered_context.has_errors());
-  EXPECT_NOT(output.native_archive.is_empty());
-  EXPECT_NOT(output.cpp_header.is_empty());
-  EXPECT_NOT(output.package_buffer.is_empty());
-  EXPECT(output.native_archive == reordered.native_archive);
-  EXPECT(output.cpp_header == reordered.cpp_header);
-  EXPECT(output.package_buffer == reordered.package_buffer);
+  EXPECT_NOT(output.get_native_archive().is_empty());
+  EXPECT_NOT(output.get_cpp_header().is_empty());
+  EXPECT_NOT(output.get_package_buffer().is_empty());
+  EXPECT(output.get_native_archive() == reordered.get_native_archive());
+  EXPECT(output.get_cpp_header() == reordered.get_cpp_header());
+  EXPECT(output.get_package_buffer() == reordered.get_package_buffer());
 }
 
 PERIMORTEM_UNIT_TEST(PufferCompiler, missing_package_root) {
@@ -63,13 +63,13 @@ PERIMORTEM_UNIT_TEST(PufferCompiler, missing_package_root) {
     "tetrodotoxin/standard/perimortem/math/library/types.ttx"_view,
   }};
   Resolution::Context context;
-  Compiler::Output output = Compiler::build_package(
+  Compilation output = Compiler::build_package(
       context, "Perimortem.Math"_view, View::Vector<View::Bytes>(), sources);
 
   EXPECT(context.has_errors());
-  EXPECT(output.native_archive.is_empty());
-  EXPECT(output.cpp_header.is_empty());
-  EXPECT(output.package_buffer.is_empty());
+  EXPECT(output.get_native_archive().is_empty());
+  EXPECT(output.get_cpp_header().is_empty());
+  EXPECT(output.get_package_buffer().is_empty());
   EXPECT_TEXT(
       context.get_errors()[0].get_message(),
       "Package compilation needs a package.ttx root."_view);

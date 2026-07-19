@@ -195,9 +195,8 @@ PERIMORTEM_UNIT_TEST(TtxShader, stage_symbols) {
   Ttx::Lexical::Errors compiler_errors(arena);
   Tetrodotoxin::Isa::Shader::Compiler compiler;
   ASSERT(compiler.lower(
-      arena, compiler_errors,
-      Ttx::Lexical::Source(shader->get_source_path(), shader->get_content()),
-      "default_2d"_view, *root_type(shader), shader->get_implementation()));
+      arena, compiler_errors, shader->get_source(), "default_2d"_view,
+      *root_type(shader), shader->get_implementation()));
 
   Tetrodotoxin::Compiler::Engine engine(
       compiler_errors, Tetrodotoxin::Compiler::Target::SystemV::backend());
@@ -257,9 +256,8 @@ PERIMORTEM_UNIT_TEST(TtxShader, pass_through) {
   Ttx::Lexical::Errors compiler_errors(arena);
   Tetrodotoxin::Isa::Shader::Compiler compiler;
   ASSERT(compiler.lower(
-      arena, compiler_errors,
-      Ttx::Lexical::Source(shader->get_source_path(), shader->get_content()),
-      "copy"_view, *root_type(shader), shader->get_implementation()));
+      arena, compiler_errors, shader->get_source(), "copy"_view,
+      *root_type(shader), shader->get_implementation()));
 
   static constexpr Static::Vector<Unsigned_8, 4> store_instruction = {
     {0x3E, 0x00, 0x03, 0x00}};
@@ -321,9 +319,8 @@ PERIMORTEM_UNIT_TEST(TtxShader, annotated_type) {
   Ttx::Lexical::Errors compiler_errors(arena);
   Tetrodotoxin::Isa::Shader::Compiler compiler;
   EXPECT(compiler.lower(
-      arena, compiler_errors,
-      Ttx::Lexical::Source(shader->get_source_path(), shader->get_content()),
-      "copy"_view, *root_type(shader), shader->get_implementation()));
+      arena, compiler_errors, shader->get_source(), "copy"_view,
+      *root_type(shader), shader->get_implementation()));
   EXPECT_NOT(compiler_errors.has_errors());
 }
 
@@ -378,9 +375,8 @@ PERIMORTEM_UNIT_TEST(TtxShader, unmarked_type) {
   Ttx::Lexical::Errors compiler_errors(arena);
   Tetrodotoxin::Isa::Shader::Compiler compiler;
   EXPECT_NOT(compiler.lower(
-      arena, compiler_errors,
-      Ttx::Lexical::Source(shader->get_source_path(), shader->get_content()),
-      "copy"_view, *root_type(shader), shader->get_implementation()));
+      arena, compiler_errors, shader->get_source(), "copy"_view,
+      *root_type(shader), shader->get_implementation()));
   ASSERT(compiler_errors.has_errors());
   EXPECT_TEXT(
       first_error(compiler_errors),
@@ -426,9 +422,8 @@ PERIMORTEM_UNIT_TEST(TtxShader, state_diag) {
   Ttx::Lexical::Errors compiler_errors(arena);
   Tetrodotoxin::Isa::Shader::Compiler compiler;
   EXPECT_NOT(compiler.lower(
-      arena, compiler_errors,
-      Ttx::Lexical::Source(shader->get_source_path(), shader->get_content()),
-      "copy"_view, *root_type(shader), shader->get_implementation()));
+      arena, compiler_errors, shader->get_source(), "copy"_view,
+      *root_type(shader), shader->get_implementation()));
   ASSERT(compiler_errors.has_errors());
   EXPECT_EQ(compiler_errors.get_view().get_size(), Count(2));
   const auto error = compiler_errors.get_view()[0];

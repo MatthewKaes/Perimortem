@@ -66,7 +66,7 @@ static auto build_archive_buffer(
       continue;
     }
 
-    const auto* restored = resolver.find_package(records[i]->get_source_path());
+    const auto* restored = resolver.find_package(records[i]->get_key());
     if (restored == nullptr) {
       return False;
     }
@@ -399,7 +399,8 @@ PERIMORTEM_UNIT_TEST(PufferBuffer, standard_pkg) {
   const auto* graphics_package =
       resolver.find_package("Perimortem.Graphics"_view);
   ASSERT(graphics_package != nullptr);
-  EXPECT_TEXT(graphics->get_source_path(), "Perimortem.Graphics"_view);
+  EXPECT_TEXT(graphics->get_key(), "Perimortem.Graphics"_view);
+  EXPECT(graphics->get_source().get_path().is_empty());
   View::Vector<Dependency> graphics_imports =
       graphics_package->get_manifest().get_imports();
   ASSERT_EQ(graphics_imports.get_size(), Count(1));

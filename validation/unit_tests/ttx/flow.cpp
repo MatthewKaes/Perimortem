@@ -3,6 +3,8 @@
 
 #include "validation/unit_test.hpp"
 
+#include "perimortem/core/static/vector.hpp"
+
 #include "perimortem/memory/allocator/arena.hpp"
 #include "perimortem/memory/managed/vector.hpp"
 
@@ -210,7 +212,7 @@ static Harness TtxFlow = {
 PERIMORTEM_UNIT_TEST(TtxFlow, projection) {
   FlowType real("Real"_view);
   FlowField r("r"_view, real);
-  const Reference<Addressable> fields[] = {r};
+  const Static::Vector<Reference<Addressable>, 1> fields = {{r}};
   FlowType color("Color"_view, Structured(fields));
   FlowExpression receiver("color"_view, color);
   Projection projection(receiver, r);
@@ -259,27 +261,27 @@ PERIMORTEM_UNIT_TEST(TtxFlow, pack_flatten) {
   FlowExpression a("a"_view, real);
   FlowExpression b("b"_view, real);
   FlowExpression c("c"_view, real);
-  const Reference<Abstract> inner_values[] = {a, b};
+  const Static::Vector<Reference<Abstract>, 2> inner_values = {{a, b}};
   const Packs::Positional& inner = owner.group(inner_values);
   Alias pair("pair"_view, inner);
-  const Reference<Abstract> outer_values[] = {pair, c};
+  const Static::Vector<Reference<Abstract>, 2> outer_values = {{pair, c}};
   const Packs::Positional& outer = owner.group(outer_values);
   FlowField first_slot("first"_view, real);
   FlowField second_slot("second"_view, real);
   FlowField third_slot("third"_view, real);
-  const Reference<Addressable> outer_fields[] = {
+  const Static::Vector<Reference<Addressable>, 3> outer_fields = {{
     first_slot,
     second_slot,
     third_slot,
-  };
+  }};
   Structured outer_target(outer_fields);
 
   FlowField x("x"_view, real);
   FlowField y("y"_view, real);
-  const Reference<Addressable> fields[] = {x, y};
+  const Static::Vector<Reference<Addressable>, 2> fields = {{x, y}};
   FlowType vector("Vector"_view, Structured(fields));
   FlowExpression typed("typed"_view, vector);
-  const Reference<Abstract> typed_values[] = {outer, typed};
+  const Static::Vector<Reference<Abstract>, 2> typed_values = {{outer, typed}};
   const Packs::Positional& with_typed = owner.group(typed_values);
 
   EXPECT(inner.is<Pack>());
@@ -303,28 +305,31 @@ PERIMORTEM_UNIT_TEST(TtxFlow, named_pack) {
   FlowExpression second("second"_view, real);
   Binding x("x"_view, first);
   Binding y("y"_view, second);
-  const Reference<Abstract> values[] = {y, x};
+  const Static::Vector<Reference<Abstract>, 2> values = {{y, x}};
   Packs::Named named(values);
 
   FlowField x_field("x"_view, real);
   FlowField y_field("y"_view, real);
-  const Reference<Addressable> fields[] = {x_field, y_field};
+  const Static::Vector<Reference<Addressable>, 2> fields = {{x_field, y_field}};
   Structured target(fields);
 
   Binding duplicate("x"_view, second);
-  const Reference<Abstract> duplicates[] = {x, duplicate};
+  const Static::Vector<Reference<Abstract>, 2> duplicates = {{x, duplicate}};
   Packs::Named ambiguous(duplicates);
   Binding unnamed({}, second);
-  const Reference<Abstract> empty_names[] = {x, unnamed};
+  const Static::Vector<Reference<Abstract>, 2> empty_names = {{x, unnamed}};
   Packs::Named nameless(empty_names);
-  const Reference<Abstract> intrinsic_values[] = {first, second};
+  const Static::Vector<Reference<Abstract>, 2> intrinsic_values = {{
+    first,
+    second,
+  }};
   Packs::Named intrinsic(intrinsic_values);
   FlowField first_field("first"_view, real);
   FlowField second_field("second"_view, real);
-  const Reference<Addressable> intrinsic_fields[] = {
+  const Static::Vector<Reference<Addressable>, 2> intrinsic_fields = {{
     first_field,
     second_field,
-  };
+  }};
   Structured intrinsic_target(intrinsic_fields);
 
   EXPECT(named.is<Pack>());
@@ -346,13 +351,17 @@ PERIMORTEM_UNIT_TEST(TtxFlow, swizzle) {
   FlowField r("r"_view, real);
   FlowField g("g"_view, real);
   FlowField b("b"_view, real);
-  const Reference<Addressable> fields[] = {r, g, b};
+  const Static::Vector<Reference<Addressable>, 3> fields = {{r, g, b}};
   FlowType color("Color"_view, Structured(fields));
   FlowExpression receiver("color"_view, color);
   FlowExpression unresolved("unresolved"_view, Invalid::get_invalid());
   FlowOwner owner(arena);
-  const View::Bytes names[] = {"g"_view, "r"_view, "g"_view};
-  const View::Bytes missing[] = {"missing"_view};
+  const Static::Vector<View::Bytes, 3> names = {{
+    "g"_view,
+    "r"_view,
+    "g"_view,
+  }};
+  const Static::Vector<View::Bytes, 1> missing = {{"missing"_view}};
 
   const Abstract& selected = owner.swizzle(receiver, names);
   const Layout& layout = selected.as<Pack>().get_layout();
@@ -373,7 +382,7 @@ PERIMORTEM_UNIT_TEST(TtxFlow, fixed_slice) {
   FlowField r("r"_view, real);
   FlowField g("g"_view, real);
   FlowField b("b"_view, real);
-  const Reference<Addressable> fields[] = {r, g, b};
+  const Static::Vector<Reference<Addressable>, 3> fields = {{r, g, b}};
   FlowType color("Color"_view, Structured(fields));
   FlowExpression receiver("color"_view, color);
   Types::Unsigned_64 unsigned_64;

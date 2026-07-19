@@ -5,6 +5,8 @@
 
 #include "validation/unit_test.hpp"
 
+#include "perimortem/core/static/vector.hpp"
+
 #include "perimortem/memory/allocator/arena.hpp"
 #include "perimortem/memory/managed/bytes.hpp"
 #include "perimortem/memory/managed/vector.hpp"
@@ -149,11 +151,11 @@ class VecFormula final : public Generic {
     name.concat(element_type.get_name());
     name.concat(",3]"_view);
 
-    constexpr View::Bytes component_names[] = {
+    constexpr Static::Vector<View::Bytes, 3> component_names = {{
       "x"_view,
       "y"_view,
       "z"_view,
-    };
+    }};
     Managed::Vector<Reference<Addressable>> fields(arena);
     for (Count i = 0; i < 3; i++) {
       const GenericField& field =
@@ -177,7 +179,7 @@ class VecFormula final : public Generic {
  private:
   Allocator::Arena& arena;
   mutable Managed::Vector<CacheEntry> cache;
-  inline static constexpr Comment documentation{
+  static constexpr Comment documentation{
     "Creates a fixed-size vector Type."_view,
   };
 };
@@ -243,9 +245,18 @@ PERIMORTEM_UNIT_TEST(TtxGeneric, resolved_cache_key) {
   TypeRedirect expression("computed_type"_view, count);
   VecFormula vec(arena);
   GenericScope scope(vec, unsigned_64);
-  const Argument alias_arguments[] = {count, Unsigned_64(3)};
-  const Argument direct_arguments[] = {unsigned_64, Unsigned_64(3)};
-  const Argument expression_arguments[] = {expression, Unsigned_64(3)};
+  const Static::Vector<Argument, 2> alias_arguments = {{
+    count,
+    Unsigned_64(3),
+  }};
+  const Static::Vector<Argument, 2> direct_arguments = {{
+    unsigned_64,
+    Unsigned_64(3),
+  }};
+  const Static::Vector<Argument, 2> expression_arguments = {{
+    expression,
+    Unsigned_64(3),
+  }};
 
   const Abstract& selected = scope.resolve_context("Vec"_view);
   const Abstract& from_alias =
@@ -273,8 +284,14 @@ PERIMORTEM_UNIT_TEST(TtxGeneric, name_is_not_identity) {
   GenericType graphics_image("Image"_view);
   GenericType runtime_image("Image"_view);
   VecFormula vec(arena);
-  const Argument graphics_arguments[] = {graphics_image, Unsigned_64(3)};
-  const Argument runtime_arguments[] = {runtime_image, Unsigned_64(3)};
+  const Static::Vector<Argument, 2> graphics_arguments = {{
+    graphics_image,
+    Unsigned_64(3),
+  }};
+  const Static::Vector<Argument, 2> runtime_arguments = {{
+    runtime_image,
+    Unsigned_64(3),
+  }};
 
   const Abstract& graphics = vec.materialize(graphics_arguments);
   const Abstract& runtime = vec.materialize(runtime_arguments);
@@ -289,11 +306,14 @@ PERIMORTEM_UNIT_TEST(TtxGeneric, failure_boundaries) {
   GenericType unsigned_64("Unsigned_64"_view);
   VecFormula vec(arena);
   GenericScope scope(vec, unsigned_64);
-  const Argument rejected_arguments[] = {unsigned_64, True};
-  const Argument empty_arguments[] = {
+  const Static::Vector<Argument, 2> rejected_arguments = {{
+    unsigned_64,
+    True,
+  }};
+  const Static::Vector<Argument, 2> empty_arguments = {{
     Argument::Value(),
     Unsigned_64(3),
-  };
+  }};
 
   EXPECT(scope.resolve_context("Missing"_view).is<Invalid>());
   EXPECT_NOT(scope.resolve_context("Unsigned_64"_view).is<Generic>());

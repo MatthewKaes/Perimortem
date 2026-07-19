@@ -3,6 +3,8 @@
 
 #include "validation/unit_test.hpp"
 
+#include "perimortem/core/static/vector.hpp"
+
 #include "ttx/concept/alias.hpp"
 #include "ttx/concept/invalid.hpp"
 #include "ttx/model/addressable.hpp"
@@ -127,9 +129,13 @@ PERIMORTEM_UNIT_TEST(TtxCallable, callable_layouts) {
   CallableAddress address("identity"_view);
   Alias value("value"_view, count);
   Alias receiver("self"_view, counter);
-  const Reference<Abstract> static_values[] = {value};
-  const Reference<Abstract> self_values[] = {receiver};
-  const Reference<Abstract> result_values[] = {counter};
+  const Perimortem::Core::Static::Vector<Reference<Abstract>, 1> static_values =
+      {{value}};
+  const Perimortem::Core::Static::Vector<Reference<Abstract>, 1> self_values = {
+    {receiver},
+  };
+  const Perimortem::Core::Static::Vector<Reference<Abstract>, 1> result_values =
+      {{counter}};
   Named static_parameters(static_values);
   Named self_parameters(self_values);
   Fluid results(result_values);

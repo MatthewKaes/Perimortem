@@ -84,10 +84,10 @@ cc_binary(
         "unit_test.cpp",
         "unit_tests/ttx/attribute.cpp",
         "unit_tests/ttx/callable.cpp",
+        "unit_tests/ttx/constexpr.cpp",
         "unit_tests/ttx/expression.cpp",
         "unit_tests/ttx/flow.cpp",
         "unit_tests/ttx/generic.cpp",
-        "unit_tests/ttx/group.cpp",
         "unit_tests/ttx/layout.cpp",
         "unit_tests/ttx/type.cpp",
         "unit_tests/ttx/types.cpp",
@@ -98,6 +98,20 @@ cc_binary(
         "//perimortem",
         "//ttx:concept",
         "//ttx:model",
+    ],
+)
+
+cc_binary(
+    name = "ttx_lexical_tests",
+    srcs = [
+        "unit_test.cpp",
+        "unit_tests/ttx/lexical/tokenizer.cpp",
+    ],
+    includes = ["."],
+    deps = [
+        ":test_headers",
+        "//perimortem",
+        "//ttx:lexical",
     ],
 )
 

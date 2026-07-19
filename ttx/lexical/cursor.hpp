@@ -45,7 +45,7 @@ class Cursor {
 
   // Requires the current token to have the expected class. Success consumes and
   // returns the token. Failure records the provided message on the mismatched
-  // token and returns null.
+  // token and returns an invalid end of stream token.
   constexpr auto require(
       Lexical::Class::Type type,
       Perimortem::Core::View::Bytes message) -> Lexical::Token {

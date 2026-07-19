@@ -146,9 +146,11 @@ class Context {
   constexpr auto begin_token() -> void { token_start = parse_index; }
 
   // Restarts the token after a token class preamble.
+  // Doesn't advance the column so errors and parsers can get the actual start
+  // of the token by column index.
   constexpr auto strip_class_header(Class::Type klass) -> void {
+    const Count header_size = Class::get_source_text(klass).get_size();
     advance_parse(Class::get_source_text(klass).get_size());
-    begin_token();
   }
 
   // Closes a range token with a possible closing symbol if available.
@@ -169,13 +171,13 @@ class Context {
       }
     }
 
-    add_token(klass);
     if constexpr (consume_terminal) {
       if (can_parse() && current() == terminal_symbol) {
         advance_parse();
       }
     }
 
+    add_token(klass);
     advance_column();
   }
 
@@ -344,7 +346,7 @@ auto Tokenizer::parse() -> void {
     case ' ':
     case '\t':
     case '\r':
-      ctx.advance_column();
+      ctx.advance_column(1);
       ctx.advance_parse();
       break;
 

@@ -61,7 +61,6 @@ using Signed_64 = signed long long;
 
 using Real_32 = float;
 using Real_64 = double;
-using Real_128 = long double;
 
 // Definition for all used based types.
 using Count = Unsigned_64;
@@ -122,7 +121,6 @@ static_assert(sizeof(Unsigned_32) == sizeof(Signed_32));
 static_assert(sizeof(Unsigned_64) == sizeof(Signed_64));
 static_assert(sizeof(Real_32) == 4);
 static_assert(sizeof(Real_64) == 8);
-static_assert(sizeof(Real_128) == 16);
 
 static_assert(sizeof(Bool) == 1);
 
