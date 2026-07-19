@@ -7,8 +7,9 @@
 
 namespace Ttx::Model::Types {
 
-// Signed is the Terminal contract for a signed integer domain. Width support
-// and source names belong to the constructing toolchain.
+// Signed is the Terminal contract for a two's-complement integer domain.
+// Concrete width Types supply their fixed name, representation, and
+// documentation.
 class Signed : public Terminal {
  public:
   using ContractOwner = Signed;
@@ -17,7 +18,8 @@ class Signed : public Terminal {
     0x8a76a2ead91b2550,
   };
 
-  auto implements(Perimortem::System::Uuid requested) const -> Bool override {
+  constexpr auto implements(Perimortem::System::Uuid requested) const
+      -> Bool override {
     return requested == contract_id || Terminal::implements(requested);
   }
 };

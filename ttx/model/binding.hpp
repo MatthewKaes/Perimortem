@@ -28,15 +28,32 @@ class Binding final : public Expression {
     0xbabe4b64c2c7b77c,
   };
 
-  Binding(Perimortem::Core::View::Bytes name, const Expression& expression);
+  constexpr Binding(
+      Perimortem::Core::View::Bytes name,
+      const Expression& expression)
+      : name(name), expression(expression), inputs({&this->expression, 1}) {}
 
-  auto implements(Perimortem::System::Uuid requested) const -> Bool override;
-  auto get_name() const -> Perimortem::Core::View::Bytes override;
-  auto get_type() const -> const Concept::Abstract& override;
-  auto get_inputs() const -> const Concept::Layout& override;
-  auto fits(const Type& target) const -> Bool override;
+  constexpr auto implements(Perimortem::System::Uuid requested) const
+      -> Bool override {
+    return requested == contract_id || Expression::implements(requested);
+  }
+  constexpr auto get_name() const -> Perimortem::Core::View::Bytes override {
+    return name;
+  }
+  auto get_documentation() const -> const Concept::Documentation& override;
+  constexpr auto get_type() const -> const Concept::Abstract& override {
+    return get_expression().get_type();
+  }
+  constexpr auto get_inputs() const -> const Concept::Layout& override {
+    return inputs;
+  }
+  constexpr auto fits(const Type& target) const -> Bool override {
+    return get_expression().fits(target);
+  }
 
-  auto get_expression() const -> const Expression&;
+  constexpr auto get_expression() const -> const Expression& {
+    return expression.get().as<Expression>();
+  }
 
  private:
   Perimortem::Core::View::Bytes name;

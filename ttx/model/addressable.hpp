@@ -25,7 +25,8 @@ class Addressable : public Concept::Abstract {
     0x9458c12c65d0d615,
   };
 
-  auto implements(Perimortem::System::Uuid requested) const -> Bool override {
+  constexpr auto implements(Perimortem::System::Uuid requested) const
+      -> Bool override {
     return requested == contract_id || Abstract::implements(requested);
   }
 };

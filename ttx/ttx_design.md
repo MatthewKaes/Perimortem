@@ -95,13 +95,11 @@ That makes the reusable TTX model smaller than a full language tree:
 
 | TTX data or token shape               | Usually becomes                                               |
 | ------------------------------------- | ------------------------------------------------------------- |
-| `Ttx::Concept::Abstract`              | named semantic identity and progressive context resolution    |
+| `Ttx::Concept::Abstract`              | naming, documentation, identity, and progressive resolution   |
 | `Ttx::Concept::Layout`                | ordered Abstract shape and directional fitting                |
-| `Ttx::Concept::Documentation`         | source-authored prose borrowed by its semantic owner           |
-| `Ttx::Model::Group`                   | durable named context over real Abstract children              |
-| `Ttx::Model::Scope`                   | local-first composition of existing Abstract contexts          |
+| `Ttx::Concept::Documentation`         | ordered borrowed authored or generated prose                  |
 | `Ttx::Model::Type`                    | resolved type identity and Structured layout                  |
-| `Ttx::Model::Types::Terminal`         | direct target byte size and alignment                         |
+| `Ttx::Model::Types::Terminal`         | value width, byte size, alignment, and generated prose         |
 | `Ttx::Model::Expression`              | evaluatable value with result Type and ordered input queries  |
 | `Ttx::Model::Constant`                | immutable zero-input value already in normal form             |
 | `Ttx::Model::Callable`                | static or receiver-bound callable layout and linkage query    |
@@ -195,8 +193,8 @@ classes:
 
 ```ttx
 private ImageInfo : struct {
-  public width  : Bits_32;
-  public height : Bits_32;
+  public width  : Unsigned_32;
+  public height : Unsigned_32;
 }
 ```
 
@@ -254,22 +252,29 @@ push constants to the Shader or talk to the GPU via exposed definitions.
 Most declarations follow one of these shapes:
 
 ```ttx
-modifier name : qualifier;
-modifier name : qualifier = value;
-modifier name : qualifier { ... }
+sigil name : dialect;
+sigil name : dialect = value;
+sigil name : dialect { ... }
 ```
 
-The qualifier is always written at the declaration site. It is the source word
-that tells the active ISA how to evaluate the definition. Sometimes that word is
-a normal type query, such as `Count` or `Header`. Sometimes it is an ISA-owned
-builtin such as `struct`, `foreign`, or `group`. `alias` is the fixed
-Abstract-redirection definition word, though the active ISA still decides
-whether that form is legal in its scope.
+The sigil is a fixed keyword such as `public`, `private`, or `expose` selected
+by the active Dialect. The name is always either `Type` or `Addressable`. The
+word after `:` selects the Dialect that evaluates the remaining definition.
+Sometimes it is a normal Type query such as `Count` or `Header`. Sometimes it is
+a toolchain Dialect such as `struct`, `foreign`, or `group`. `alias` selects the
+Dialect that constructs an Abstract redirection, though the parent Dialect still
+decides whether that continuation is legal in its scope.
 
-The shared definition parser only extracts the shape: modifier, name,
-`Define`, and qualifier. The active ISA then decides whether the modifier and
-qualifier are legal, whether the body opens a scope, and what TTX facts become
-queryable.
+The parent configures the shared `Definitions<...>` grammar with constexpr
+`Definition<Dialect, Sigils...>` types. Each Definition type is the mapping:
+it carries the Dialect and accepted sigils without constructing an evaluator,
+function-pointer record, or polymorphic registry. Definitions consumes
+`(Documentation)*`, the sigil, name, and `Define`, then passes those values and
+the durable export owner directly to the selected definition Dialect. A duplicate
+Dialect name is rejected when the mapping type is instantiated. No transient
+Abstract is created for the handoff. The selected Dialect consumes its suffix
+and constructs the real TTX fact directly. “Subdialect” only describes this
+recursive relationship. It is not a separate contract.
 
 ```ttx
 private count : Count = 4;
@@ -288,23 +293,23 @@ This casing rule removes a common vexing parse: after `PascalCase :`, the parser
 knows it is reading a type-like definition. After `snake_case :`, it is reading
 an addressable definition.
 
-## Modifiers
+## Definition Sigils
 
-Modifiers describe visibility, ownership, and storage shape. They are ordinary
-keyword tokens. The exact semantic contract belongs to the active ISA, but the
-shared spellings let ISAs reuse the same definition spine:
+Definition sigils describe visibility, ownership, and storage shape. They are
+ordinary fixed keyword tokens. The exact semantic contract belongs to the
+active Dialect, but the shared spellings let Dialects reuse Definitions:
 
-| Modifier  | Intended meaning                                     |
+| Sigil     | Intended meaning                                     |
 | --------- | ---------------------------------------------------- |
 | `public`  | visible API that other sources may read or call      |
-| `private` | local implementation detail owned by the current ISA |
+| `private` | local implementation detail owned by the Dialect     |
 | `expose`  | externally readable data, written by its owner       |
 | `state`   | stateful storage that is not part of the value shape |
 | `const`   | write-once or compile-time data                      |
 
 The tokenizer only provides the keyword class. Library, Package, Shader, and
-future ISAs decide which modifiers are legal at each instruction and what facts
-they expose through the TTX data model.
+future Dialects decide which sigils are legal at each definition and what
+facts they expose through the TTX data model.
 
 ## Attributes And Directives
 
@@ -357,14 +362,15 @@ Ttx::Concept
 │   ├── Alias
 │   ├── Invalid
 │   ├── Ttx::Model::Generic
-│   ├── Ttx::Model::Group
-│   ├── Ttx::Model::Scope
 │   ├── Ttx::Model::Expression
 │   │   └── Ttx::Model::Constant
 │   │       └── Ttx::Model::Constants::{Unsigned, Signed, Real, Flag, Bytes}
 │   ├── Ttx::Model::Type
 │   │   ├── Ttx::Model::Types::Terminal
-│   │   │   └── Unsigned / Signed / Real / Flag
+│   │   │   ├── Unsigned -> Unsigned_8 / 16 / 32 / 64
+│   │   │   ├── Signed -> Signed_8 / 16 / 32 / 64
+│   │   │   ├── Real -> Real_32 / 64 / 128
+│   │   │   └── Flag -> Boolean
 │   │   └── ISA-defined model types
 │   ├── Ttx::Model::Callable
 │   │   ├── Ttx::Model::Callables::Static
@@ -375,9 +381,9 @@ Ttx::Concept
 ```
 
 `Ttx::Concept` owns foundational contracts and values that have no narrower
-semantic owner. Abstract supplies identity and progressive resolution. Layout
-supplies shape and fitting without identity. Documentation preserves borrowed
-authored prose. `Ttx::Model` owns the shared source-IR mechanisms layered on
+semantic owner. Abstract supplies identity, progressive resolution, and a
+stable Documentation query. Layout supplies shape and fitting without identity.
+Documentation preserves borrowed authored or generated prose. `Ttx::Model` owns the shared source-IR mechanisms layered on
 those concepts. It does not own a registry, global object collection, or
 parallel semantic graph.
 
@@ -407,26 +413,23 @@ The core contracts are deliberately narrow:
 
 | Contract        | Responsibility                                                   |
 | --------------- | ---------------------------------------------------------------- |
-| `Abstract`      | name, identity redirection, and progressive context resolution   |
-| `Alias`         | closed local name, documentation, and redirection to an Abstract  |
-| `Documentation` | borrowed source-authored prose with no semantic identity         |
+| `Abstract`      | name, documentation, identity redirection, and context resolution |
+| `Alias`         | closed local name, accumulated documentation, and redirection     |
+| `Documentation` | borrowed ordered prose with no semantic identity                  |
 | `Layout`        | identity-free ordered shape, fitting, and fitting evidence        |
-| `Type`          | resolved identity with a total Structured Layout query           |
-| `Terminal`      | Type leaf with direct byte size and alignment                    |
+| `Type`          | Structured shape and direct Abstract name resolution              |
+| `Terminal`      | Type leaf with value width, byte size, alignment, and prose       |
 | `Unsigned`      | Terminal non-negative integer domain                             |
 | `Signed`        | Terminal signed integer domain                                   |
 | `Real`          | Terminal floating-point domain                                   |
 | `Flag`          | Terminal two-value logical domain                                |
 | `Generic`       | instruction that creates or finds a concrete Type from arguments |
-| `Group`         | durable named context over real Abstract children                 |
-| `Scope`         | local-first composition of existing Abstract contexts             |
-| `Pack`          | grouped value flow exposing an identity-free fitting Layout      |
 | `Expression`    | one value with result Type, input Layout, and fitting queries     |
 | `Constant`      | immutable zero-input Expression with value equality              |
 | `Projection`    | Expression selecting an Addressable through a receiver           |
 | `Binding`       | Expression giving another Expression an authored flow name       |
 | `Callable`      | complete parameter/result layouts and an address/linkage query   |
-| `Static`        | invocation selected through a Type or package without a receiver |
+| `Static`        | invocation selected without a runtime receiver                    |
 | `Self`          | invocation on an addressable receiver included as parameter zero |
 | `Addressable`   | named semantic edge resolving to the addressed Abstract          |
 | `Invalid`       | an absorbing failed query                                        |
@@ -435,13 +438,13 @@ The initial native query surface is intentionally small and total:
 
 ```text
 Type::get_layout()             -> const Layouts::Structured&
+Terminal::get_width()          -> Count
 Terminal::get_size()           -> Count
 Terminal::get_alignment()      -> Count
 Callable::get_parameters()     -> const Concept::Layout&
 Callable::get_results()        -> const Concept::Layout&
 Callable::get_address()        -> const Abstract&
 Generic::materialize(args)     -> const Abstract&
-Pack::get_layout()             -> const Concept::Layout&
 Expression::get_type()         -> const Abstract&
 Expression::get_inputs()       -> const Concept::Layout&
 Expression::fits(type)         -> Bool
@@ -462,8 +465,9 @@ needs. The remaining route is a borrowed `View::Bytes`. The public virtual
 `Abstract::resolve()` may redirect identity. The public virtual
 `resolve_context(route)` lets the object interpret that route inside its own
 context. It may treat the route atomically, split it, forward a suffix, or
-redirect the unchanged view. Alias redirects both operations to its target, and
-a package is simply a top-level Type with an appropriate child index.
+redirect the unchanged view. Alias redirects both operations to its target.
+Named source and package contexts are host-owned Abstract extensions rather
+than Types with fabricated Layouts.
 
 The contract is intentionally flexible about lookup but strict about meaning:
 
@@ -476,6 +480,9 @@ The contract is intentionally flexible about lookup but strict about meaning:
 - context redirection may forward an unchanged route, but valid graph
   construction must guarantee termination.
 - every result is an Abstract reference. Semantic failure is Invalid, not null.
+- pure construction and query paths remain `constexpr` when their dependencies
+  permit it. Constant evaluation never justifies duplicating a contract or
+  moving runtime-owned logic across its boundary.
 
 This is the ground-truth Abstract model from which the other TTX contracts are
 refined. Its surface is heavily restricted, not permanently closed. A proposed
@@ -484,18 +491,19 @@ package, registry, reflection, diagnostic, ownership, or traversal concern in
 disguise. As a practical warning boundary, `abstract.hpp` should remain around
 150 lines or fewer.
 
-Alias and Invalid are closed concepts. Alias owns a local name, its local
-documentation, and a borrowed target. It redirects both Abstract queries and
-relies on the graph owner for target lifetime and cycle rejection. Invalid is a
+Alias and Invalid are closed concepts. Alias owns a local name, stable
+documentation that presents its local lines before the target's visible lines,
+and a borrowed target. It redirects both Abstract queries and relies on the
+graph owner for target lifetime and cycle rejection. Invalid is a
 stateless absorbing Abstract. Diagnostics remain with the source-owning query.
 Neither class grows Type, Layout, package, ownership, route-history, or
 specialized failure responsibilities.
 
-Resolution policy stays with the owning object. A Type may keep separate static
-and self maps, permitting both surfaces to contain `open` without introducing a
-global contract discriminator. `Widget -> open()` asks Widget's static surface.
-`widget -> open()` resolves the receiver Type and asks Widget's self surface.
-Duplicates are rejected within the selected surface.
+Resolution policy stays with the owning Abstract. A Type answers its named
+context directly. `Widget -> open()` requires the selected Callable to prove
+Static. `widget -> open()` resolves the receiver Type and requires the selected
+Callable to prove Self. Receiver form does not create a second TTX lookup
+interface. A missing name or wrong Callable contract returns Invalid.
 
 An object can be reachable through several imports or aliases. Diagnostics keep
 the authored input bytes. Public symbols walk an explicitly selected ownership
@@ -512,14 +520,23 @@ Empty child sets are empty views. Absence is never modeled by a null
 pseudo-Abstract.
 
 Invalid is one binary-wide stateless object with private construction. An
-Abstract, Layout, evaluator, or resolver returns that object directly when a
+Abstract, Layout, evaluator, or context returns that object directly when a
 semantic query fails. It does not store an Invalid reference as configuration
 and does not construct a subsystem-local sentinel.
 
-Durable named containment uses `Ttx::Model::Group`. Local-first lookup uses
-`Ttx::Model::Scope`, which asks one Abstract context before forwarding the
-unchanged route to an outer context. Scope does not prescribe how either side
-indexes names and it does not add a second resolution operation to Abstract.
+TTX does not prescribe one durable Group, Namespace, Source, module, or package
+contract. A host defines those domains as Abstracts and owns their indexing and
+child-edge policy. The durable owner answers `resolve_context()` from imported
+contexts and definitions already rooted into it. Evaluating a literal body
+enriches that same owner instead of creating an unnamed lookup frame.
+
+Evaluation scopes never shadow. Before accepting a parameter, loop binding, or
+local definition, the evaluator checks the complete active context. If that name
+already resolves, the new declaration is invalid. Leaving a nested block may
+remove its local names from the active context, but entering a block never makes
+an existing name available for reuse. Package and owner state remain explicit
+queries such as `package.value` or `self.value`, so they do not need implicit
+local aliases.
 
 ### Stable Construction And Resolution
 
@@ -536,7 +553,7 @@ consumer proves Terminal before treating it as a scalar leaf.
 
 The Package, Library, Foreign, Shader, Render, Scene, App, or another active ISA
 completes the facts it owns using the pass structure appropriate to that
-dialect. A host may enrich the reserved object, replace an enclosing resolver,
+dialect. A host may enrich the reserved object, replace an enclosing context,
 or build an immutable snapshot. Abstract, Type, Layout, and Callable prescribe
 none of those mutation, snapshot, or pass-management policies.
 
@@ -556,8 +573,8 @@ Type references are progressive PascalCase Abstract queries whose final result
 must prove the `Type` contract, with optional type arguments:
 
 ```ttx
-Bits_32
-Vec[Bits_8, 4]
+Unsigned_32
+Vec[Unsigned_8, 4]
 Graphics::Image
 Math::Matrix[Real_32, 4, 4]
 ```
@@ -570,12 +587,12 @@ operators or offer a combined route, and those forms are not required to be
 equivalent. The final result must prove Type, and no path object is allocated.
 
 Type arguments use `[]`, not `<>`, because `<` and `>` are comparison
-operators. Numeric size arguments, such as the `4` in `Vec[Bits_8, 4]`, are part
+operators. Numeric size arguments, such as the `4` in `Vec[Unsigned_8, 4]`, are part
 of the type reference.
 
 Parameterized types are not templates and do not generate code by themselves.
 Resolution first builds the arguments, proves that the resolved object
-implements `Generic`, then asks it for a concrete Type. `View[Bits_8]`,
+implements `Generic`, then asks it for a concrete Type. `View[Unsigned_8]`,
 `Vec[Real_32, 4]`, and `List[Graphics::Sprite]` are all the same operation. The
 compiler owns the resulting concrete object and makes it queryable through the
 same Type contract as any authored type.
@@ -599,12 +616,13 @@ its argument shape remain distinct source errors, with both represented
 semantically by Invalid.
 
 Aliases are closed compile-time Abstract redirects. Alias preserves its local
-name and authored documentation while `resolve()` follows the target's
-represented identity and `resolve_context(route)` gives the complete route to
-the resolved target. If that target is a Type, the consumer proves the Type
-contract after resolution. The Alias documentation explains its local name and
-does not replace or modify documentation owned by the target. Alias cycles are
-rejected during graph construction.
+name while `resolve()` follows the target's represented identity and
+`resolve_context(route)` gives the complete route to the resolved target. Its
+Documentation view returns local lines first and then the target's visible
+lines. A chain of Aliases therefore accumulates authored context without
+copying or modifying any target Documentation. If the target is a Type, the
+consumer proves the Type contract after resolution. Alias cycles are rejected
+during graph construction.
 
 Types are also compile-time values of the standard `Type` type. This keeps a
 resolved identity available for reflection and editor tooling without reducing
@@ -629,25 +647,46 @@ the process address.
 
 ### Terminal Type Registration
 
-Core TTX defines `Terminal : Type` with direct byte-size and alignment queries,
-then `Unsigned`, `Signed`, `Real`, and `Flag` as its standard semantic families.
-It owns neither a prelude nor a supported-width registry. The active toolchain
-constructs stable instances for the widths and formats it supports and installs
-their names in its own Abstract resolution context. An unsupported name resolves
-to Invalid through that context.
+Core TTX defines `Terminal : Type` with fixed name, Documentation, value-width,
+byte-size, and byte-alignment queries. `Unsigned`, `Signed`, `Real`, and `Flag`
+add the standard semantic family contracts. Width-specific classes such as
+`Unsigned_8`, `Signed_32`, and `Real_64` return literal names, exact
+representation facts, and rich documentation directly. Core owns neither a
+prelude nor a supported-width registry. The active toolchain constructs and
+installs the concrete Types it supports in its own Abstract context. An
+unsupported name resolves to Invalid through that context.
 
-The current Perimortem C++ toolchain can register `Bool`, `Bits_8`, `Bits_16`,
-`Bits_32`, `Bits_64`, `Signed_8`, `Signed_16`, `Signed_32`, `Signed_64`,
-`Real_32`, `Real_64`, and `Real_128`. The `Bits_*` names are instances of
-`Unsigned`, not a separate Bits contract. `Count` may Alias the registered
-64-bit Unsigned instance, while `CppSize` may Alias the Unsigned instance for
-the active C++ interface. `True` and `False` are Flag values rather than Types.
+The standard classes are stateless apart from their C++ virtual identity. Each
+returns a literal authored name and a static Comment directly:
 
-Terminal size and alignment are storage facts, not instruction mandates. A
-one-byte Unsigned Type may use a wider register or move when its observable
-semantics remain correct. Widths are instance data rather than C++ classes, so
-another toolchain may register a different supported set without changing core
-TTX or consulting a central type authority.
+| Concrete Type | Family     | Value width | Storage  | Documentation                                                |
+| ------------- | ---------- | ----------- | -------- | ------------------------------------------------------------ |
+| `Unsigned_8`  | `Unsigned` | 8 bits      | 1 byte   | `Unsigned_8 is stored as a 1 byte unsigned integer.`         |
+| `Unsigned_16` | `Unsigned` | 16 bits     | 2 bytes  | `Unsigned_16 is stored as a 2 byte unsigned integer.`        |
+| `Unsigned_32` | `Unsigned` | 32 bits     | 4 bytes  | `Unsigned_32 is stored as a 4 byte unsigned integer.`        |
+| `Unsigned_64` | `Unsigned` | 64 bits     | 8 bytes  | `Unsigned_64 is stored as an 8 byte unsigned integer.`       |
+| `Signed_8`    | `Signed`   | 8 bits      | 1 byte   | `Signed_8 is stored as a 1 byte two's-complement integer.`   |
+| `Signed_16`   | `Signed`   | 16 bits     | 2 bytes  | `Signed_16 is stored as a 2 byte two's-complement integer.`  |
+| `Signed_32`   | `Signed`   | 32 bits     | 4 bytes  | `Signed_32 is stored as a 4 byte two's-complement integer.`  |
+| `Signed_64`   | `Signed`   | 64 bits     | 8 bytes  | `Signed_64 is stored as an 8 byte two's-complement integer.` |
+| `Real_32`     | `Real`     | 32 bits     | 4 bytes  | `Real_32 is stored as a 4 byte IEEE floating value.`         |
+| `Real_64`     | `Real`     | 64 bits     | 8 bytes  | `Real_64 is stored as an 8 byte IEEE floating value.`        |
+| `Real_128`    | `Real`     | 128 bits    | 16 bytes | `Real_128 is stored as a 16 byte extended floating value.`   |
+| `Boolean`     | `Flag`     | 1 bit       | 1 byte   | `Bool is stored as a 1 byte logical value.`                  |
+
+The current Perimortem C++ toolchain can register `Bool`, `Unsigned_8`,
+`Unsigned_16`, `Unsigned_32`, `Unsigned_64`, `Signed_8`, `Signed_16`,
+`Signed_32`, `Signed_64`, `Real_32`, `Real_64`, and `Real_128`. `Count` may
+Alias the registered 64-bit Unsigned instance, while `CppSize` may Alias the
+Unsigned instance for the active C++ interface. `True` and `False` are Flag
+values rather than Types.
+
+Terminal value width describes the accepted value domain. Size and alignment
+describe storage. None of those facts mandate an instruction width. An
+eight-bit, one-byte Unsigned Type may use a wider register or move when its
+observable semantics remain correct. Another toolchain may install a different
+supported set or add another Terminal subtype without changing a central type
+authority.
 
 ## Builtin Definition Kinds
 
@@ -702,9 +741,9 @@ may be written directly:
 public func size[] -> Count { ... }
 ```
 
-Callable has two semantic subtypes. `Static` is selected through a type or package
-name and does not consume a receiver. `Self` is selected through a runtime value
-and requires that receiver as parameter zero:
+Callable has two semantic subtypes. `Static` is selected through a named
+context and does not consume a runtime receiver. `Self` is selected through a
+runtime value and requires that receiver as parameter zero:
 
 ```ttx
 public Counter : struct {
@@ -760,150 +799,37 @@ This is not a general `external` keyword. Forward declarations are not a TTX
 feature. In a `foreign` context, a function without a body is an ABI promise
 owned by that ISA.
 
-## Packs
+## Grouped Value Flow
 
-Parentheses always form a pack. Always.
+Parentheses author grouped value flow:
 
 ```ttx
-()                    // empty pack, Void
-(value)               // one-element pack
-(one, two)            // positional pack
-(.ok = true, .value = 7) // named pack
-(.10 = 50, .65 = 14)  // indexed pack
+()                       // empty flow
+(value)                  // one positional value
+(one, two)               // positional flow
+(.ok = true, .value = 7) // named flow
+(.10 = 50, .65 = 14)     // indexed source syntax
 ```
 
-There is no separate grouping syntax. A one-element pack behaves as the one
-value when the surrounding expression needs a value, so `(a + b) * c` still
-works.
+Grouped flow has no separate Abstract identity. An evaluator normalizes the
+authored values and exposes `Layouts::Fluid` for positional order or
+`Layouts::Named` for named fitting. The Layout directly borrows the real
+Abstract entries; there is no carrier object whose only operation returns that
+Layout.
 
-Packs are Abstracts for grouped value flow, not Expressions, Types, runtime
-storage, or addressable objects. Their semantic identity lets evaluators,
-tools, and lowering return and inspect a multi-value result before a receiving
-Type exists. `Pack::get_layout()` exposes the identity-free fitting view.
-
-The evaluator flattens nested positional Packs into one borrowed Abstract view
-before constructing `Packs::Positional`. The Pack then owns one Fluid fitting
-object and allocates no copied list. `Packs::Named` owns one Named fitting
-object over actual named Abstracts in authored carrier order and does not
-flatten. An authored field uses Binding when its name is a new edge to an
-underlying Expression. Binding is not a binder, symbol table, declaration,
-storage edge, or resolution phase. The evaluator rejects mixed pack modes
-before construction.
-
-The evaluator flattens nested positional packs before it constructs the outer
-Pack. Grouping values with another pack does not create a nested runtime tuple:
+Nested positional grouping is flattened by the evaluator, while a typed object
+remains one value unless swizzle or slice explicitly produces its fields:
 
 ```ttx
 (1, (2, 3)) == (1, 2, 3)
+(screen_pos, 0.0, 1.0)
+(screen_pos.[x, y], 0.0, 1.0)
 ```
 
-Flattening is explicit. A typed object inside a pack remains one value. If code
-wants to decompose it into a pack, it must swizzle or slice it:
-
-```ttx
-(screen_pos, 0.0, 1.0)       // Vec2D, Real_32, Real_32
-(screen_pos.[x, y], 0.0, 1.0) // Real_32, Real_32, Real_32, Real_32
-```
-
-The Structured Layout supplies the selected Addressable facts but does not
-evaluate the access. The active expression ISA creates Projections that retain
-the receiver and selected Addressable. A Projection remains its own Expression
-identity and publishes the field Type through `get_type()`. Swizzle and fixed
-slice construct Positional Packs over those Projections. Joining constructs a
-Positional Pack over already produced values and never implicitly deconstructs
-a Structured typed value. Swizzle, Slice, and Join remain evaluator operations
-instead of shared model subclasses until a unique query requires one.
-
-That gives TTX three explicit ways to make packs:
-
-- grouping values with `(...)`
-- swizzling fields with `value.[x, y]`
-- slicing constant-evaluated ranges with `value:[start, count]`.
-
-`Vec`, `Vec2D`, `Vec3D`, `Vec4D`, graphics color values, and user structs are
-typed values, not pack aliases. They may be initialized from compatible packs,
-but they do not implicitly splat back into packs.
-
-An active toolchain may provide the small vector types as top-level Types with
-concrete `Real_32` fields:
-
-```ttx
-Vec2D : struct { x : Real_32; y : Real_32; }
-Vec3D : struct { x : Real_32; y : Real_32; z : Real_32; }
-Vec4D : struct { x : Real_32; y : Real_32; z : Real_32; w : Real_32; }
-```
-
-Graphics color lives in `Perimortem.Graphics`, which is explicit:
-
-```ttx
-import Graphics : Package = Perimortem.Graphics;
-
-Graphics::Color : struct { r : Real_32; g : Real_32; b : Real_32; a : Real_32; }
-```
-
-So `screen_pos.[x, y]` is not special pack syntax over an alias. It is a
-swizzle over real fields on a real typed aggregate.
-
-Pack order matters when a pack is passed, returned, or materialized. Names are
-authored or boundary-provided facts. They do not erase the carrier order. A
-named pack can initialize a struct out of declaration order because type and layout
-fitting maps by name, then lowering writes the struct in declaration order:
-
-```ttx
-state thing : Thing = (
-  .b = source_b,
-  .a = source_a,
-);
-```
-
-To repack values, build the new pack explicitly with grouping, swizzle, slice,
-or named fields. Grouping, swizzle, and slice produce positional packs unless a
-field explicitly authors a name:
-
-```ttx
-state position : Vec3D = (screen_pos.[x, y], z);
-state color    : Vec4D = (sample.[r, g, b], alpha);
-```
-
-Indexed packs are for sparse data tables, especially fixed-size aggregates like
-`Vec[T, N]` where most elements use defaults:
-
-The shared v1 model does not add an Indexed Pack contract. The receiving Type
-and evaluator validate the designators and expand them into complete positional
-value flow or Invalid before core Layout fitting.
-
-```ttx
-private decode_table : Vec[Bits_8, 256] = (
-  .43 = 62,
-  .47 = 63,
-  .65 = 0,
-);
-```
-
-An indexed designator must be an explicit integer literal. It is not an
-expression and does not accept character literals or named constants:
-
-```ttx
-(.'A' = 0)   // invalid
-(.upper = 0) // invalid for Vec tables because this is a named field
-(.40 + 3 = 62) // invalid
-```
-
-Pack modes cannot be mixed in the same pack:
-
-```ttx
-(.name = value, .other = 1) // valid
-(value, other)             // valid
-(.10 = value, .20 = other) // valid
-(value, .other = 1)        // invalid
-(.name = value, .10 = 1)   // invalid
-```
-
-This keeps pack fitting deterministic.
-
-The first field determines the pack mode. A named pack starts with `.field`, an
-indexed pack starts with `.integer`, and a positional pack starts with a value
-expression. Later fields cannot change the mode.
+Named and indexed syntax remains evaluator policy. The receiving Type and
+evaluator validate designators and expand indexed source syntax into complete
+positional flow or Invalid before Layout fitting. Positional, named, and
+indexed modes cannot be mixed in one authored group.
 
 ## Layouts
 
@@ -912,8 +838,8 @@ Layouts describe the shape expected by a function, return, or loop value:
 ```ttx
 Count
 []
-[Bits_32, Bits_32]
-[.x : Bits_32, .y : Bits_32]
+[Unsigned_32, Unsigned_32]
+[.x : Unsigned_32, .y : Unsigned_32]
 [@builtin @slot(0) .source : View[Bytes], .count : Count]
 ```
 
@@ -974,13 +900,9 @@ result Type identity. `get_type()` returns the proven Type or Invalid,
 `fits(type)` answers whether the value can safely occupy a target Type. The
 default fit is exact resolved Type identity.
 
-`Pack` and `Layout` deliberately meet at only one seam. Layout is the
-fundamental identity-free shape and fitting concept. Pack is the queryable
-Abstract mechanism for grouped flow and publishes that Layout. Concrete Packs
-own their Layout objects instead of inheriting them. Expression dependency
-lists also use identity-free Layouts because an
-operand list is not itself an authored multi-value result. This keeps grouped
-flow queryable without making every Type Layout into an Abstract value.
+Layout is the fundamental identity-free shape and fitting concept. Grouped
+flow and Expression dependency lists use Layout directly because neither an
+operand list nor a multi-value result needs a second Abstract identity.
 
 `Projection` and `Binding` are concrete Expressions. Projection retains a
 receiver and selected Addressable. Binding retains an authored name and one
@@ -1033,7 +955,7 @@ Bitwise `&` and `|` are reserved. Bit operations are methods so width
 conversion stays explicit:
 
 ```ttx
-Bits_32 -> from(value) -> bit_and(Bits_32 -> from(0xFF));
+Unsigned_32 -> from(value) -> bit_and(Unsigned_32 -> from(0xFF));
 ```
 
 ## Access Chains
@@ -1057,16 +979,17 @@ The access forms are:
 
 | Syntax            | Meaning                                   |
 | ----------------- | ----------------------------------------- |
-| `.field`          | field or package/type member access       |
+| `.field`          | field or named-context member access      |
 | `:[index]`        | constant-evaluated index access           |
 | `:[start, count]` | constant-evaluated index slice            |
 | `.[a, b, c]`      | swizzle into a positional pack            |
 | `-> name(pack)`   | callable dispatch from the left-side base |
 
 Calls take a pack because call arguments are written with `(...)`, and `(...)`
-is always a pack. `.` is lookup only. `->` marks every call. A type or package
-receiver resolves a `Static` callable. An addressable value resolves a `Self`
-callable from its resolved Type and contributes the declared receiver argument.
+is always a pack. `.` is lookup only. `->` marks every call. A Type or Source
+context resolves a `Static` callable. An addressable value resolves a
+`Self` callable from its resolved Type and contributes the declared receiver
+argument.
 Function-pointer dispatch is Self dispatch on the callable value, such as
 `callback -> invoke(args)`.
 
@@ -1103,7 +1026,7 @@ TTX does not support braced initializers. Braces are for scopes and statement
 blocks. Aggregate values are initialized with packs:
 
 ```ttx
-private values : Vec[Bits_32, 4] = (1, 2, 3, 4);
+private values : Vec[Unsigned_32, 4] = (1, 2, 3, 4);
 
 private quad_uvs : Vec[Vec2D, 6] = (
   (.x = 0.0, .y = 0.0),
@@ -1136,9 +1059,9 @@ self.field
 ```
 
 `self` is only an assignment root when it has an access suffix. Bare
-`self = value;` is invalid. A package is a top-level Type, not a lowercase
-pseudo-root. Package-owned state is reached through an ordinary bound package
-or Type context.
+`self = value;` is invalid. A package Source is not a lowercase pseudo-root or
+a runtime value. Package-owned state is reached through an ordinary bound
+Addressable or Type context.
 
 This rule is why the grammar has `assignChain assignOp expr` instead of parsing
 assignment as a low-precedence expression. It gives better errors and prevents
@@ -1188,7 +1111,7 @@ match value {
 Enums use a storage-typed brace scope:
 
 ```ttx
-private Color : enum[Bits_8] {
+private Color : enum[Unsigned_8] {
   red = 1;
   green = 2;
   blue = 3;
@@ -1201,9 +1124,9 @@ is equivalent to:
 
 ```ttx
 private Color : struct {
-  expose red   : Bits_8 = 1;
-  expose green : Bits_8 = 2;
-  expose blue  : Bits_8 = 3;
+  expose red   : Unsigned_8 = 1;
+  expose green : Unsigned_8 = 2;
+  expose blue  : Unsigned_8 = 3;
 }
 ```
 
@@ -1247,16 +1170,16 @@ collected into one `Documentation` object in source order:
 ```ttx
 // Stored in source order.
 // Attached to the following member.
-private signature : Vec[Bits_8, 8] = 0x[89 50 4E 47];
+private signature : Vec[Unsigned_8, 8] = 0x[89 50 4E 47];
 ```
 
-Documentation is a first-class Concept value because Abstract and Model objects
-both need to borrow authored prose. It is not an Abstract and does not
-participate in type identity, layout equivalence, layout fitting, or identity
-resolution. Alias owns the prose for its local authored name while the resolved
-target keeps its own documentation. An LSP hover can choose local, resolved, or
-stacked presentation without changing either object or their semantic
-equivalence.
+Documentation is a first-class Concept contract because every Abstract needs a
+stable prose query. It is not an Abstract and does not participate in identity,
+Layout equivalence, fitting, or resolution. `Comment` supplies one generated
+line or the shared empty result. `Comments` borrows an ordered source-line view.
+Alias supplies a stable composed implementation that presents local lines and
+then its target's visible lines. Constants return the empty Comment because
+documentation for a named constant belongs to its Addressable owner.
 
 ## Why The Grammar Is Small
 

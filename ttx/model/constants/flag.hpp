@@ -19,21 +19,22 @@ class Flag : public Constant {
     0x897a36a658c2486a,
   };
 
-  auto implements(Perimortem::System::Uuid requested) const -> Bool override {
+  constexpr auto implements(Perimortem::System::Uuid requested) const
+      -> Bool override {
     return requested == contract_id || Constant::implements(requested);
   }
 
-  auto equals(const Constant& rhs) const -> Bool final {
+  constexpr auto equals(const Constant& rhs) const -> Bool final {
     return rhs.is<Flag>() && has_same_type(rhs) &&
            get_value() == rhs.as<Flag>().get_value();
   }
 
-  auto fits(const Type& target) const -> Bool final {
+  constexpr auto fits(const Type& target) const -> Bool final {
     return get_type().resolve().is<Types::Flag>() &&
            target.resolve().is<Types::Flag>();
   }
 
-  virtual auto get_value() const -> Value = 0;
+  virtual constexpr auto get_value() const -> Value = 0;
 };
 
 }  // namespace Ttx::Model::Constants

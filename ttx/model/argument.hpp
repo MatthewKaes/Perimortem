@@ -22,7 +22,7 @@ namespace Ttx::Model {
 class Argument {
  public:
   using Value = Perimortem::Core::Static::
-      Union<Concept::Reference<Concept::Abstract>, Bool, Bits_64>;
+      Union<Concept::Reference<Concept::Abstract>, Bool, Unsigned_64>;
 
   template <typename Candidate>
     requires(__is_constructible(Value, Candidate &&))

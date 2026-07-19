@@ -22,8 +22,12 @@ namespace Ttx::Model {
 // inside Attribute.
 class Attribute {
  public:
-  using Value = Perimortem::Core::Static::
-      Union<Perimortem::Core::View::Bytes, Bits_64, Signed_64, Real_64, Bool>;
+  using Value = Perimortem::Core::Static::Union<
+      Perimortem::Core::View::Bytes,
+      Unsigned_64,
+      Signed_64,
+      Real_64,
+      Bool>;
 
   constexpr Attribute(Perimortem::Core::View::Bytes key = {}, Value value = {})
       : key(key), value(value) {}

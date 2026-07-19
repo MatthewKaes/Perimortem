@@ -18,13 +18,16 @@ namespace Ttx::Model::Layouts {
 // laundering itself into Type identity.
 class Named : public Concept::Layout {
  public:
-  Named(
+  constexpr Named(
       Perimortem::Core::View::Vector<Concept::Reference<Concept::Abstract>>
           abstracts = {})
       : abstracts(abstracts) {}
 
-  auto get_size() const -> Count override { return abstracts.get_size(); }
-  auto get_abstract(Count index) const -> const Concept::Abstract& override {
+  constexpr auto get_size() const -> Count override {
+    return abstracts.get_size();
+  }
+  constexpr auto get_abstract(Count index) const
+      -> const Concept::Abstract& override {
     if (index >= abstracts.get_size()) {
       return Concept::Invalid::get_invalid();
     }

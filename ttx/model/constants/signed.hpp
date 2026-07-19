@@ -20,16 +20,17 @@ class Signed : public Constant {
     0x9361ac25cc53d15e,
   };
 
-  auto implements(Perimortem::System::Uuid requested) const -> Bool override {
+  constexpr auto implements(Perimortem::System::Uuid requested) const
+      -> Bool override {
     return requested == contract_id || Constant::implements(requested);
   }
 
-  auto equals(const Constant& rhs) const -> Bool final {
+  constexpr auto equals(const Constant& rhs) const -> Bool final {
     return rhs.is<Signed>() && has_same_type(rhs) &&
            get_value() == rhs.as<Signed>().get_value();
   }
 
-  auto fits(const Type& target) const -> Bool final {
+  constexpr auto fits(const Type& target) const -> Bool final {
     if (!get_type().resolve().is<Types::Signed>()) {
       return False;
     }
@@ -51,7 +52,7 @@ class Signed : public Constant {
     return get_value() >= -limit && get_value() < limit;
   }
 
-  virtual auto get_value() const -> Value = 0;
+  virtual constexpr auto get_value() const -> Value = 0;
 };
 
 }  // namespace Ttx::Model::Constants

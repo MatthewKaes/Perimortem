@@ -7,11 +7,8 @@
 
 namespace Ttx::Model::Types {
 
-// Flag is the Terminal contract for a binary logical domain. Its storage
-// size is toolchain-defined and does not dictate the chosen instruction width.
-// On most reasonable architectures it should be assumed the size is 1 byte, but
-// leaving it up to the toolchain allows for optimizations such as bit packing
-// flags into bit arrays.
+// Flag is the Terminal contract for a binary logical domain. Concrete logical
+// Types supply their fixed name, representation, and documentation.
 class Flag : public Terminal {
  public:
   using ContractOwner = Flag;
@@ -20,7 +17,8 @@ class Flag : public Terminal {
     0x8a4d310f695ed0cc,
   };
 
-  auto implements(Perimortem::System::Uuid requested) const -> Bool override {
+  constexpr auto implements(Perimortem::System::Uuid requested) const
+      -> Bool override {
     return requested == contract_id || Terminal::implements(requested);
   }
 };

@@ -7,8 +7,8 @@
 
 namespace Ttx::Model::Types {
 
-// Real is the Terminal contract for a floating-point domain. The constructing
-// toolchain determines its supported formats, sizes, alignments, and names.
+// Real is the Terminal contract for an IEEE floating-point domain. Concrete
+// precision Types supply their fixed name, representation, and documentation.
 class Real : public Terminal {
  public:
   using ContractOwner = Real;
@@ -17,7 +17,8 @@ class Real : public Terminal {
     0x929dae6e905f5dfa,
   };
 
-  auto implements(Perimortem::System::Uuid requested) const -> Bool override {
+  constexpr auto implements(Perimortem::System::Uuid requested) const
+      -> Bool override {
     return requested == contract_id || Terminal::implements(requested);
   }
 };

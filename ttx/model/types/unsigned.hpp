@@ -7,8 +7,8 @@
 
 namespace Ttx::Model::Types {
 
-// Unsigned is the Terminal contract for a non-negative integer domain. Width
-// support and source names belong to the constructing toolchain.
+// Unsigned is the Terminal contract for a non-negative integer domain. Concrete
+// width Types supply their fixed name, representation, and documentation.
 class Unsigned : public Terminal {
  public:
   using ContractOwner = Unsigned;
@@ -17,7 +17,8 @@ class Unsigned : public Terminal {
     0x9e5d43885c4050b2,
   };
 
-  auto implements(Perimortem::System::Uuid requested) const -> Bool override {
+  constexpr auto implements(Perimortem::System::Uuid requested) const
+      -> Bool override {
     return requested == contract_id || Terminal::implements(requested);
   }
 };

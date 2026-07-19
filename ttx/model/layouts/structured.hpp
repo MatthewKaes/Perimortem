@@ -17,13 +17,16 @@ namespace Ttx::Model::Layouts {
 // remain queryable on their real owner without becoming Layout fields.
 class Structured : public Concept::Layout {
  public:
-  Structured(
+  constexpr Structured(
       Perimortem::Core::View::Vector<Concept::Reference<Addressable>>
           addressables = {})
       : addressables(addressables) {}
 
-  auto get_size() const -> Count override { return addressables.get_size(); }
-  auto get_abstract(Count index) const -> const Concept::Abstract& override {
+  constexpr auto get_size() const -> Count override {
+    return addressables.get_size();
+  }
+  constexpr auto get_abstract(Count index) const
+      -> const Concept::Abstract& override {
     if (index >= addressables.get_size()) {
       return Concept::Invalid::get_invalid();
     }
@@ -31,9 +34,28 @@ class Structured : public Concept::Layout {
     return addressables[index].get();
   }
 
-  auto fits(const Concept::Layout& target) const -> Bool override;
-  auto get_fitted(const Concept::Layout& target, Count target_index) const
-      -> const Concept::Abstract& override;
+  constexpr auto fits(const Concept::Layout& target) const -> Bool override {
+    if (get_size() != target.get_size()) {
+      return False;
+    }
+
+    for (Count i = 0; i < get_size(); i++) {
+      if (&get_abstract(i) != &target.get_abstract(i)) {
+        return False;
+      }
+    }
+
+    return True;
+  }
+
+  constexpr auto get_fitted(const Concept::Layout& target, Count target_index)
+      const -> const Concept::Abstract& override {
+    if (!fits(target) || target_index >= target.get_size()) {
+      return Concept::Invalid::get_invalid();
+    }
+
+    return get_abstract(target_index);
+  }
 
  private:
   Perimortem::Core::View::Vector<Concept::Reference<Addressable>> addressables;

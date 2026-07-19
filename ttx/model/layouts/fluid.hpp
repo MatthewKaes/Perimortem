@@ -17,13 +17,16 @@ namespace Ttx::Model::Layouts {
 // keeps value-domain conversion knowledge out of Layout.
 class Fluid : public Concept::Layout {
  public:
-  Fluid(
+  constexpr Fluid(
       Perimortem::Core::View::Vector<Concept::Reference<Concept::Abstract>>
           abstracts = {})
       : abstracts(abstracts) {}
 
-  auto get_size() const -> Count override { return abstracts.get_size(); }
-  auto get_abstract(Count index) const -> const Concept::Abstract& override {
+  constexpr auto get_size() const -> Count override {
+    return abstracts.get_size();
+  }
+  constexpr auto get_abstract(Count index) const
+      -> const Concept::Abstract& override {
     if (index >= abstracts.get_size()) {
       return Concept::Invalid::get_invalid();
     }

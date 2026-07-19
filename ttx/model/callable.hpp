@@ -26,13 +26,14 @@ class Callable : public Concept::Abstract {
     0xacf5c601eccfd393,
   };
 
-  auto implements(Perimortem::System::Uuid requested) const -> Bool override {
+  constexpr auto implements(Perimortem::System::Uuid requested) const
+      -> Bool override {
     return requested == contract_id || Abstract::implements(requested);
   }
 
-  virtual auto get_parameters() const -> const Concept::Layout& = 0;
-  virtual auto get_results() const -> const Concept::Layout& = 0;
-  virtual auto get_address() const -> const Concept::Abstract& = 0;
+  virtual constexpr auto get_parameters() const -> const Concept::Layout& = 0;
+  virtual constexpr auto get_results() const -> const Concept::Layout& = 0;
+  virtual constexpr auto get_address() const -> const Concept::Abstract& = 0;
 };
 
 }  // namespace Ttx::Model

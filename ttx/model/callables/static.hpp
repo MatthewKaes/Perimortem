@@ -17,7 +17,8 @@ class Static : public Callable {
     0x8dd2193e3cdaf357,
   };
 
-  auto implements(Perimortem::System::Uuid requested) const -> Bool override {
+  constexpr auto implements(Perimortem::System::Uuid requested) const
+      -> Bool override {
     return requested == contract_id || Callable::implements(requested);
   }
 };

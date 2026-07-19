@@ -4,6 +4,7 @@
 #pragma once
 
 #include "ttx/concept/abstract.hpp"
+#include "ttx/concept/invalid.hpp"
 #include "ttx/model/layouts/structured.hpp"
 
 namespace Ttx::Model {
@@ -13,9 +14,9 @@ namespace Ttx::Model {
 // shape. Type itself does not require size, alignment, offsets, register
 // selection, calling convention, documentation, aliases, or one universal
 // child table. Terminal specializes Type with direct size and alignment facts.
-// Composite Types derive those facts by walking their real Layout. Derived
-// Types resolve their own static and Self contexts using the ordinary Abstract
-// route query and may optimize those contexts independently.
+// Composite Types derive those facts by walking their real Layout. Static and
+// Name resolution remains the Abstract query on the durable Type itself; Type
+// does not manufacture separate lexical scopes for static or receiver access.
 //
 // A host may reserve a stable Type before all of its facts are available. That
 // object resolves to Invalid until its owner can answer the Type contract. No
@@ -34,11 +35,17 @@ class Type : public Concept::Abstract {
     0x896512640a01b446,
   };
 
-  auto implements(Perimortem::System::Uuid requested) const -> Bool override {
+  constexpr auto implements(Perimortem::System::Uuid requested) const
+      -> Bool override {
     return requested == contract_id || Abstract::implements(requested);
   }
 
-  virtual auto get_layout() const -> const Layouts::Structured& = 0;
+  virtual constexpr auto get_layout() const -> const Layouts::Structured& {
+    return empty_layout;
+  }
+
+ private:
+  static constexpr Layouts::Structured empty_layout;
 };
 
 }  // namespace Ttx::Model

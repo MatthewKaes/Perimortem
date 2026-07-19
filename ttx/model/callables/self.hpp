@@ -18,7 +18,8 @@ class Self : public Callable {
     0x94be43b98183e6ab,
   };
 
-  auto implements(Perimortem::System::Uuid requested) const -> Bool override {
+  constexpr auto implements(Perimortem::System::Uuid requested) const
+      -> Bool override {
     return requested == contract_id || Callable::implements(requested);
   }
 };

@@ -30,16 +30,36 @@ class Projection final : public Expression {
     0xb38fc893710f519e,
   };
 
-  Projection(const Expression& receiver, const Addressable& addressable);
+  constexpr Projection(
+      const Expression& receiver,
+      const Addressable& addressable)
+      : receiver(receiver),
+        addressable(addressable),
+        inputs({&this->receiver, 1}) {}
 
   using Expression::fits;
 
-  auto implements(Perimortem::System::Uuid requested) const -> Bool override;
-  auto get_name() const -> Perimortem::Core::View::Bytes override;
-  auto get_type() const -> const Concept::Abstract& override;
-  auto get_inputs() const -> const Concept::Layout& override;
+  constexpr auto implements(Perimortem::System::Uuid requested) const
+      -> Bool override {
+    return requested == contract_id || Expression::implements(requested);
+  }
+  constexpr auto get_name() const -> Perimortem::Core::View::Bytes override {
+    return addressable.get_name();
+  }
+  constexpr auto get_documentation() const
+      -> const Concept::Documentation& override {
+    return addressable.get_documentation();
+  }
+  constexpr auto get_type() const -> const Concept::Abstract& override {
+    return addressable.resolve();
+  }
+  constexpr auto get_inputs() const -> const Concept::Layout& override {
+    return inputs;
+  }
 
-  auto get_receiver() const -> const Expression&;
+  constexpr auto get_receiver() const -> const Expression& {
+    return receiver.get().as<Expression>();
+  }
   constexpr auto get_addressable() const -> const Addressable& {
     return addressable;
   }

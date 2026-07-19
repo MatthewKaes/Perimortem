@@ -120,26 +120,27 @@ ISA-owned enrichments over the same TTX token bytecode.
 ## Concepts and the model
 
 Every queryable semantic identity implements `Abstract`. Derived contracts expose
-the operations that make the object useful. Layout and Documentation are
-equally fundamental concepts, but neither needs semantic identity:
+the operations that make the object useful. Layout and Documentation are equally
+fundamental identity-free concepts. Durable owners answer name resolution from
+their imported contexts and already-rooted definitions:
 
 ```text
 Ttx::Concept
 ├── Abstract
-│   ├── Alias
 │   ├── Invalid
+│   ├── Ttx::Model::Alias
 │   ├── Ttx::Model::Generic
-│   ├── Ttx::Model::Group
-│   ├── Ttx::Model::Scope
-│   ├── Ttx::Model::Pack
-│   │   ├── Ttx::Model::Packs::Positional
-│   │   └── Ttx::Model::Packs::Named
 │   ├── Ttx::Model::Expression
 │   │   ├── Ttx::Model::Projection
 │   │   ├── Ttx::Model::Binding
 │   │   └── Ttx::Model::Constant
 │   │       └── Ttx::Model::Constants::{Unsigned, Signed, Real, Flag, Bytes}
 │   ├── Ttx::Model::Type
+│   │   ├── Ttx::Model::Types::Terminal
+│   │   │   ├── Unsigned -> Unsigned_8 / 16 / 32 / 64
+│   │   │   ├── Signed -> Signed_8 / 16 / 32 / 64
+│   │   │   ├── Real -> Real_32 / 64 / 128
+│   │   │   └── Flag -> Boolean
 │   │   └── ISA-defined model types
 │   ├── Ttx::Model::Callable
 │   │   ├── Ttx::Model::Callables::Static
@@ -150,22 +151,28 @@ Ttx::Concept
 ```
 
 The `Ttx::Concept` namespace owns the foundational contracts and values used
-across TTX. Abstract supplies identity and resolution. Layout supplies shape and
-fitting without identity. Documentation preserves borrowed authored prose. The
+across TTX. Abstract supplies semantic identity, contextual lookup, and a stable
+Documentation query. Layout supplies shape and fitting without identity.
+Documentation preserves borrowed authored or generated prose. The
 `Ttx::Model` namespace owns the semantic mechanisms built from those concepts,
-including Type, Pack, Expression, Callable, and their concrete refinements.
+including Alias, Type, Expression, Callable, documentation implementations,
+and their concrete refinements.
 
-`Abstract` owns only local naming, identity resolution, and context resolution
-over borrowed `View::Bytes`. `Alias` is the closed local name, documentation,
-and redirect to another Abstract. `Invalid` is the closed stateless absorbing
+`Abstract` owns local naming, identity resolution, context resolution over
+borrowed `View::Bytes`, and documentation visible at that exact object. `Alias`
+is the closed local name, documentation chain, and redirect to another Abstract.
+`Invalid` is the closed stateless absorbing
 failure. `Type` adds a Structured Layout and Type-owned query surfaces.
 `Generic` is an instruction that creates or finds a compiler-owned Type from
-accepted arguments. `Group` is durable named containment over real Abstracts.
-`Scope` composes local and outer Abstract contexts without owning either lookup
-representation. `Callable` adds complete parameter and result Layouts plus an
-Addressable query. Static calls have no receiver. Self calls include the receiver
-as parameter zero. Addressable is a named semantic edge whose resolution
-supplies the addressed Abstract.
+accepted arguments. Name lookup belongs to the durable Abstract that owns the
+exported names; it queries imported contexts and definitions already rooted in
+that owner. TTX intentionally defines no universal
+Group, Namespace, Source, module, or package contract. A host may implement
+those domains as Abstracts without making containment a Type. `Callable` adds
+complete parameter and result Layouts plus an Addressable query. Static calls
+have no receiver. Self calls include the receiver as parameter zero.
+Addressable is a named semantic edge whose resolution supplies the addressed
+Abstract.
 
 Type is not the universal semantic base, and there is no vague `Typed` marker.
 A consumer resolves Abstract identity, proves the contract it needs, and then
@@ -191,13 +198,10 @@ does not copy their names, Types, documentation, attributes, defaults, or target
 storage into a Member record. Its contiguous storage uses non-null borrowed
 Reference values rather than nullable semantic pointers.
 
-Pack is the Abstract mechanism for grouped value flow. It is not one Expression,
-a Type, runtime storage, or an Addressable. It publishes a fundamental Layout
-as the identity-free fitting view over the carried Abstracts. Positional Packs expose Fluid and
-borrow an entry view that the evaluator has already flattened. Named Packs
-expose Named over actual named Abstracts and never flatten. An authored field
-uses Binding when its name is a new edge to an underlying Expression. Both Pack
-forms own their Layout object rather than inheriting a second public contract.
+Grouped value flow uses `Layouts::Fluid` or `Layouts::Named` directly. Layout
+already owns the identity-free ordered fitting contract, so no Abstract Pack
+identity or `get_layout()` wrapper sits around it. An authored field uses
+Binding when its name is a new edge to an underlying Expression.
 
 Expression is one evaluatable value whose identity remains distinct from its
 result Type. It exposes the proven Type, its ordered input Layout, and whether
@@ -216,8 +220,8 @@ permits proven constant narrowing without adding numeric rules to Layout.
 Structured fitting continues to preserve actual Addressable identity.
 
 `Type::get_layout()` returns a Structured Layout. A Terminal has an empty
-Structured Layout plus direct size/alignment queries. Lowering proves Terminal
-before inspecting Layout. Every non-Terminal Type recursively resolves its
+Structured Layout plus direct value-width, size, and alignment queries. Lowering
+proves Terminal before inspecting Layout. Every non-Terminal Type recursively resolves its
 Addressables, including a valid empty aggregate. A Generic must first produce a
 resolved Type. An authored `@abi` number is not a substitute
 for Terminal contract proof.
@@ -225,24 +229,29 @@ for Terminal contract proof.
 Source hosts may reserve nonmoving Type and Callable objects before every fact
 is known. An incomplete Type or containing system resolves to Invalid. Layout
 has no Incomplete state. The host may enrich that object, replace an enclosing
-resolver, or build immutable snapshots according to its own cache model. Public
+context, or build immutable snapshots according to its own cache model. Public
 export is optional and does not determine whether a Type is semantically real.
 
-`Terminal : Type` publishes direct byte size and alignment. `Unsigned`,
-`Signed`, `Real`, and `Flag` provide the standard terminal domains, while an
-active toolchain constructs and names only the widths it supports. Current
-Perimortem `Bits_*` names implement `Unsigned`. They do not create a Bits
-contract. Register and instruction width remain compiler decisions, so a
-one-byte terminal may still use a wider carrier. Core TTX owns no prelude,
-global width table, or concrete class for each spelling.
+`Terminal : Type` defines the fixed name, documentation, value-width, byte-size,
+and byte-alignment queries. `Unsigned`, `Signed`, `Real`, and `Flag` provide the
+standard domains. Width-specific classes such as `Unsigned_8` and `Real_64`
+return their literal names and rich documentation directly. An active toolchain
+constructs and installs only the classes it supports. Perimortem and TTX use
+the same `Unsigned_*`, `Signed_*`, and `Real_*` names. Register and instruction
+width remain compiler decisions, so a one-byte terminal may still use a wider
+carrier. Core TTX owns no prelude or global terminal catalogue.
 
-Documentation is separate from identity resolution. Alias owns the contextual
-documentation authored for its local name, while the resolved target keeps its
-own prose. Neither local nor resolved documentation is a `display_name`
-identity substitute.
+Every Abstract returns a stable Documentation reference. Authored objects may
+borrow source comments, implementation concepts may expose generated comments,
+and objects without useful prose return the binary-wide empty Comment. Constant
+deliberately terminates this query because its Addressable owner carries any
+authored context. Alias instead presents its local lines followed by the
+target's visible documentation. Alias chains therefore accumulate prose without
+changing identity resolution. Documentation is never a `display_name` identity
+substitute.
 
 Type parameterization proves that the resolved Abstract implements Generic,
-resolves the arguments, and asks it for a concrete Type. `View[Bits_8]`,
+resolves the arguments, and asks it for a concrete Type. `View[Unsigned_8]`,
 `Vec[Real_32, 4]`, and `List[Sprite]` follow the same rule. They are not a
 parallel template or generated-type system.
 
@@ -336,7 +345,7 @@ Graphics::Shaders::Default2D
 Render2D::Renderer2D
 ```
 
-`->` is Callable dispatch. A Type or package receiver resolves Static. An
+`->` is Callable dispatch. A Type or Source context resolves Static. An
 addressable value resolves Self through its resolved Type. It requires a
 dispatchable identity and does not work on a pure Layout.
 
@@ -367,8 +376,10 @@ import Graphics : Package = Perimortem.Graphics;
 private Default2D : alias = Graphics::Shaders::Default2D;
 ```
 
-Package names are `Type("." Type)*` values. The authored name identifies both
-the package and its module directory. Tetrodotoxin resolves
+Package names use the token shape `Type("." Type)*`. That spelling is a host
+package identity, not proof that the package model implements Type. The
+authored name identifies both the package and its module directory.
+Tetrodotoxin resolves
 `Perimortem.Graphics` through its registered Puffer Buffer rather than guessing
 where the source manifest lives:
 
@@ -393,9 +404,17 @@ expose Shaders : group {
 ```
 
 The package file is not a second language. It is TTX token bytecode evaluated by
-a Package ISA. Puffer provides the package identity through compiler
-configuration, and the source describes package exports through the same type
-and layout model.
+a Package Dialect. Puffer provides the package identity through compiler
+configuration. The anonymous Source owns its text, Tokenizer, arena, resolved
+Dependency edges, and formatter-capable Abstract graph. The Package Dialect
+returns a distinct Package surface assembled from that Source collection; its
+exports retain their real contracts.
+
+Consumers resolve the same Package graph whether it was interpreted from
+Sources or reconstructed from a compiled Puffer Buffer. Source-dependent tools
+first prove the optional `Packages::Interpreted` Abstract contract and then ask
+for its Sources. A precompiled Package cannot prove that capability and does not
+pretend it can reproduce the original source.
 
 A host owns the walk from package name to package artifact. Puffer creates a
 root resolver from its active toolchain and registers dependency package
@@ -433,28 +452,27 @@ already know.
 The TTX directory is the language core:
 
 - [`lexical`](lexical/) lowers source text into stable token bytecode
-- [`concept`](concept/) owns Abstract, Alias, Invalid, Reference,
-  Documentation, and Layout as the foundational TTX concepts
+- [`concept`](concept/) owns Abstract, Invalid, Reference, Documentation, and
+  Layout as the foundational TTX contracts
 - [`concept/abstract.hpp`](concept/abstract.hpp) is the root semantic query
   contract. [`concept/layout.hpp`](concept/layout.hpp) defines identity-free
   shape and fitting. [`concept/documentation.hpp`](concept/documentation.hpp)
-  preserves borrowed authored prose
-- [`model`](model/) owns Type, Pack, Expression, Constant, Callable, Attribute,
-  and the concrete strategies built on the Concept layer
-- Alias and Invalid are closed Abstract concepts. Type, Generic, Pack,
+  defines the prose query
+- [`model`](model/) owns Alias, Type, Expression, Constant, Callable, Attribute,
+  documentation implementations, and the concrete strategies built on the
+  Concept layer
+- Alias and Invalid are closed Abstract implementations. Type, Generic,
   Expression, Constant, Projection, Binding, Callable, Static, Self,
   Addressable, and ISA-specific contracts extend the graph with narrow
   operations
 - [`model/layouts`](model/layouts/) contains the Fluid, Named, and Structured
   implementations of `Concept::Layout`
-- [`model/pack.hpp`](model/pack.hpp) supplies grouped value identity.
-  [`model/packs`](model/packs/) contains the zero-allocation Positional and
-  Named carriers. [`model/projection.hpp`](model/projection.hpp) and
+- [`model/projection.hpp`](model/projection.hpp) and
   [`model/binding.hpp`](model/binding.hpp) preserve selected and named value
   provenance without adding parser operations to the model
 - [`model/type.hpp`](model/type.hpp) supplies the narrow target-independent Type
-  contract. [`model/types`](model/types/) adds Terminal, Unsigned, Signed, Real,
-  and Flag contracts. [`model/expression.hpp`](model/expression.hpp),
+  contract. [`model/types`](model/types/) adds the Terminal family contracts and
+  width-specific Perimortem Types. [`model/expression.hpp`](model/expression.hpp),
   [`model/constant.hpp`](model/constant.hpp), and
   [`model/constants`](model/constants/) supply value and constant-domain
   contracts. [`model/callable.hpp`](model/callable.hpp),

@@ -24,26 +24,39 @@ class Constant : public Expression {
     0x99c434aed9d840fa,
   };
 
-  auto implements(Perimortem::System::Uuid requested) const -> Bool override {
+  constexpr auto implements(Perimortem::System::Uuid requested) const
+      -> Bool override {
     return requested == contract_id || Expression::implements(requested);
   }
 
-  auto get_inputs() const -> const Concept::Layout& final { return inputs; }
+  // A Constant is a value rather than an authored declaration. When it is
+  // stored under a documented name, that prose belongs to the Addressable.
+  auto get_documentation() const -> const Concept::Documentation& override {
+    return Concept::Documentation::get_empty();
+  }
 
-  virtual auto equals(const Constant& rhs) const -> Bool = 0;
+  constexpr auto get_inputs() const -> const Concept::Layout& final {
+    return inputs;
+  }
 
-  auto operator==(const Constant& rhs) const -> Bool { return equals(rhs); }
-  auto operator!=(const Constant& rhs) const -> Bool { return !equals(rhs); }
+  virtual constexpr auto equals(const Constant& rhs) const -> Bool = 0;
+
+  constexpr auto operator==(const Constant& rhs) const -> Bool {
+    return equals(rhs);
+  }
+  constexpr auto operator!=(const Constant& rhs) const -> Bool {
+    return !equals(rhs);
+  }
 
  protected:
-  auto has_same_type(const Constant& rhs) const -> Bool {
+  constexpr auto has_same_type(const Constant& rhs) const -> Bool {
     const Concept::Abstract& lhs_type = get_type().resolve();
     const Concept::Abstract& rhs_type = rhs.get_type().resolve();
     return lhs_type.is<Type>() && rhs_type.is<Type>() && &lhs_type == &rhs_type;
   }
 
  private:
-  inline static const Layouts::Fluid inputs;
+  static constexpr Layouts::Fluid inputs;
 };
 
 }  // namespace Ttx::Model

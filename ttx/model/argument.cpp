@@ -43,5 +43,7 @@ auto Ttx::Model::Argument::normalize(Value value) -> Value {
         return Concept::Reference<Concept::Abstract>(abstract.get().resolve());
       },
       [](Bool flag) -> Value { return Value(flag); },
-      [](Bits_64 unsigned_value) -> Value { return Value(unsigned_value); });
+      [](Unsigned_64 unsigned_value) -> Value {
+        return Value(unsigned_value);
+      });
 }

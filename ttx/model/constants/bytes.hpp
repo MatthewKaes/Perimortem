@@ -23,16 +23,17 @@ class Bytes : public Constant {
     0xb723464db6c29666,
   };
 
-  auto implements(Perimortem::System::Uuid requested) const -> Bool override {
+  constexpr auto implements(Perimortem::System::Uuid requested) const
+      -> Bool override {
     return requested == contract_id || Constant::implements(requested);
   }
 
-  auto equals(const Constant& rhs) const -> Bool final {
+  constexpr auto equals(const Constant& rhs) const -> Bool final {
     return rhs.is<Bytes>() && has_same_type(rhs) &&
            get_value() == rhs.as<Bytes>().get_value();
   }
 
-  virtual auto get_value() const -> Value = 0;
+  virtual constexpr auto get_value() const -> Value = 0;
 };
 
 }  // namespace Ttx::Model::Constants

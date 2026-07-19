@@ -29,7 +29,8 @@ class Generic : public Concept::Abstract {
     0x9b3824546cc3bb50,
   };
 
-  auto implements(Perimortem::System::Uuid requested) const -> Bool override {
+  constexpr auto implements(Perimortem::System::Uuid requested) const
+      -> Bool override {
     return requested == contract_id || Abstract::implements(requested);
   }
 
