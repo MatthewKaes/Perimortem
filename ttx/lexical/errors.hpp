@@ -62,21 +62,9 @@ class Errors {
       Perimortem::Core::View::Bytes message,
       Perimortem::Core::View::Bytes hint = Perimortem::Core::View::Bytes())
       -> void {
-    auto persist = [](Perimortem::Memory::Allocator::Arena& arena,
-                      Perimortem::Core::View::Bytes text)
-        -> Perimortem::Core::View::Bytes {
-      if (text.is_empty()) {
-        return Perimortem::Core::View::Bytes();
-      }
-
-      Unsigned_8* buffer = arena.allocate(text.get_size());
-      Perimortem::Core::Data::copy(buffer, text.get_data(), text.get_size());
-      return Perimortem::Core::View::Bytes(buffer, text.get_size());
-    };
-
     Error error;
-    error.message = persist(arena, message);
-    error.hint = persist(arena, hint);
+    error.message = arena.proxy(message);
+    error.hint = arena.proxy(hint);
     error.start_token = start;
     error.end_token =
         start.is_valid() &&
@@ -89,8 +77,8 @@ class Errors {
     if (source_map.is_empty() ||
         source_map.at(source_map.get_size() - 1).name != current_context.name) {
       Info new_mapping;
-      new_mapping.name = persist(arena, current_context.name);
-      new_mapping.text = persist(arena, current_context.text);
+      new_mapping.name = arena.proxy(current_context.name);
+      new_mapping.text = arena.proxy(current_context.text);
       source_map.insert(new_mapping);
     }
 

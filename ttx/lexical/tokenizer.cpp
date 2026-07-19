@@ -149,7 +149,6 @@ class Context {
   // Doesn't advance the column so errors and parsers can get the actual start
   // of the token by column index.
   constexpr auto strip_class_header(Class::Type klass) -> void {
-    const Count header_size = Class::get_source_text(klass).get_size();
     advance_parse(Class::get_source_text(klass).get_size());
   }
 
@@ -224,6 +223,7 @@ static auto parse_attribute(Context& ctx) -> void {
   // Skip the '@' in the token name. Empty attributes are allowed in
   // tokenization but should be rejected by parsers.
   ctx.strip_class_header(Class::Type::Attribute);
+  ctx.begin_token();
   while (is_identifier(ctx.peek_ahead(1))) {
     ctx.advance_parse();
   }

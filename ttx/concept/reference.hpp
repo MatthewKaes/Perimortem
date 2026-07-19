@@ -19,12 +19,12 @@ class Reference {
   static_assert(__is_base_of(Abstract, Contract));
 
  public:
-  constexpr Reference(const Contract& abstract) : abstract(abstract) {}
+  constexpr Reference(const Contract& abstract) : abstract(&abstract) {}
 
-  constexpr auto get() const -> const Contract& { return abstract; }
+  constexpr auto get() const -> const Contract& { return *abstract; }
 
   constexpr auto operator==(const Reference& rhs) const -> Bool {
-    return &abstract == &rhs.abstract;
+    return abstract == rhs.abstract;
   }
 
   constexpr auto operator!=(const Reference& rhs) const -> Bool {
@@ -32,7 +32,9 @@ class Reference {
   }
 
  private:
-  const Contract& abstract;
+  // The pointer is private storage for an assignable non-null reference value.
+  // Construction requires a real Contract and no API exposes nullable state.
+  const Contract* abstract;
 };
 
 }  // namespace Ttx::Concept

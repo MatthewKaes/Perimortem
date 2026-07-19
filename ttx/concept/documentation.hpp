@@ -4,45 +4,45 @@
 #pragma once
 
 #include "perimortem/core/view/bytes.hpp"
-#include "perimortem/core/view/vector.hpp"
 
 namespace Ttx::Concept {
 
-// Documentation preserves source-authored prose in source order. It is a
-// borrowed first-class concept, not an Abstract or semantic identity. Any TTX
-// object whose authored context needs an explanation can own the value without
-// changing resolution, Type equivalence, Layout equivalence, or fitting.
+// Documentation preserves text form in presentation order. It is a borrowed
+// first-class concept, not an Abstract or semantic identity. Abstracts expose
+// this contract directly as treating documentation as a universal query saves
+// a ton of headache down the road compared to models that treat documentation
+// as an optional chunk of metadata.
 //
-// Context is intentional. An Alias can explain why its local name redirects
-// to a target while that target retains independent documentation. Package
-// groups, members, callables, and ISA-owned objects can make the same choice.
-// Consumers decide whether to present local prose, resolved prose, or both.
+// Documentation allows for wrapping and interception. Alias for instance
+// either forward their target's documentation directly or use a `Merged` node
+// to wrap their local documentation on the target's documentation. This creates
+// a direct way for layering and enriching documentation context just like any
+// other system inside of TTX.
 //
-// The owner of a Documentation value must keep the line storage and referenced
-// source bytes alive. Missing prose is an empty view, not Invalid, because
-// documentation is optional presentation rather than a failed semantic query.
+// Implementations may own source authored lines, generate a stable comment, or
+// combine documentation from several Abstracts. They must keep every borrowed
+// line alive for as long as this object is queryable. Missing documentation is
+// empty and does not resolve to to an Invalid since presentation is optional
+// rather than a failed semantic query.
+//
+// Formaters and Serializers should be cautious when querying documentation and
+// should not assume that all documentation follows a naive schema and should
+// instead treat it as a proper contractual heirarchy to avoid needless amounts
+// of duplication.
 class Documentation {
  public:
-  explicit constexpr Documentation(
-      Perimortem::Core::View::Vector<Perimortem::Core::View::Bytes> lines = {})
-      : lines(lines) {}
+  constexpr virtual ~Documentation() = default;
 
-  constexpr auto get_lines() const
-      -> Perimortem::Core::View::Vector<Perimortem::Core::View::Bytes> {
-    return lines;
+  static auto get_empty() -> const Documentation&;
+
+  virtual constexpr auto get_line(Count index) const
+      -> Perimortem::Core::View::Bytes {
+    return {};
   }
 
-  constexpr auto get_line_count() const -> Count { return lines.get_size(); }
+  virtual constexpr auto line_count() const -> Count { return 0; }
 
-  constexpr auto line_at(Count index) const -> Perimortem::Core::View::Bytes {
-    return index < lines.get_size() ? lines[index]
-                                    : Perimortem::Core::View::Bytes();
-  }
-
-  constexpr auto is_empty() const -> Bool { return lines.is_empty(); }
-
- private:
-  Perimortem::Core::View::Vector<Perimortem::Core::View::Bytes> lines;
+  virtual constexpr auto is_empty() const -> Bool { return line_count() == 0; }
 };
 
 }  // namespace Ttx::Concept

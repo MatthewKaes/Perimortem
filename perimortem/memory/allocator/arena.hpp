@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include "perimortem/core/view/bytes.hpp"
 #include "perimortem/core/data.hpp"
 
 namespace Perimortem::Memory::Allocator {
@@ -68,6 +69,18 @@ class Arena {
     static_assert(alignof(type) <= arena_alignment);
     Unsigned_8* ptr = allocate(sizeof(type));
     return *new (ptr) type(static_cast<arg_types&&>(args)...);
+  }
+
+  // Creates a duplicate of the target buffer in the current arena.
+  // Useful for migrating data from one arena to another.
+  auto proxy(Core::View::Bytes source) -> Core::View::Bytes {
+    if (source.is_empty()) {
+      return Perimortem::Core::View::Bytes();
+    }
+
+    Unsigned_8* ptr = allocate(source.get_size());
+    Core::Data::copy(ptr, source.get_data(), source.get_size());
+    return Core::View::Bytes(ptr, source.get_size());
   }
 
   auto reset() -> void;

@@ -9,15 +9,18 @@
 
 namespace Ttx::Concept {
 
-// Invalid is the closed absorbing failure concept in the TTX graph. It is not a
-// diagnostic, nullable stand-in, partially constructed semantic object, or a
-// subtype of every contract that might fail. The source-owning caller retains
-// the route, source range, and explanation while returning this real Abstract.
+// Invalid is the closed unit type for a conceptual failure in the TTX graph.
+// It is not a diagnostic, nullable stand-in, partially constructed semantic
+// object, or a subtype of every contract that might fail.
 //
-// Both identity and context resolution return the same Invalid. This preserves
-// the first failed boundary and prevents secondary queries from manufacturing
-// unrelated semantic results. Invalid is stateless and should gain no further
-// concepts unless the fundamental Abstract contract changes.
+// All queries of any form on Invalid loops back to Invalid. This means any
+// query that returns Invalid can be safely chained.
+//
+// Both identity and context resolution return the
+// same Invalid. This preserves the first failed boundary and prevents secondary
+// queries from manufacturing unrelated semantic results. Invalid is stateless
+// and should gain no further concepts unless the fundamental Abstract contract
+// changes.
 class Invalid final : public Abstract {
  public:
   using ContractOwner = Invalid;
@@ -33,7 +36,8 @@ class Invalid final : public Abstract {
   Invalid(const Invalid&) = delete;
   auto operator=(const Invalid&) -> Invalid& = delete;
 
-  auto implements(Perimortem::System::Uuid requested) const -> Bool override {
+  constexpr auto implements(Perimortem::System::Uuid requested) const
+      -> Bool override {
     return requested == contract_id || Abstract::implements(requested);
   }
 
@@ -41,15 +45,19 @@ class Invalid final : public Abstract {
     return "Invalid"_view;
   }
 
-  auto resolve() const -> const Abstract& override { return *this; }
+  auto get_documentation() const -> const Documentation& override {
+    return Documentation::get_empty();
+  }
 
-  auto resolve_context(Perimortem::Core::View::Bytes) const
+  constexpr auto resolve() const -> const Abstract& override { return *this; }
+
+  constexpr auto resolve_context(Perimortem::Core::View::Bytes) const
       -> const Abstract& override {
     return *this;
   }
 
  private:
-  Invalid() = default;
+  constexpr Invalid() = default;
 };
 
 }  // namespace Ttx::Concept

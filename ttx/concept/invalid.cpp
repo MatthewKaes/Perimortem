@@ -4,6 +4,6 @@
 #include "ttx/concept/invalid.hpp"
 
 auto Ttx::Concept::Invalid::get_invalid() -> const Invalid& {
-  static const Invalid invalid;
+  static constexpr Invalid invalid;
   return invalid;
 }
