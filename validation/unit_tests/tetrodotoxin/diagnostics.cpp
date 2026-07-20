@@ -4,12 +4,12 @@
 #include "validation/unit_test.hpp"
 
 #include "perimortem/core/static/bytes.hpp"
+#include "perimortem/core/static/vector.hpp"
 
 #include "perimortem/memory/allocator/arena.hpp"
 #include "perimortem/memory/managed/bytes.hpp"
 
 #include "tetrodotoxin/diagnostics/suggestions.hpp"
-#include "ttx/type.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -73,11 +73,10 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinDiagnostics, arbitrary_name_length) {
   misspelled[misspelled.get_size() - 1] = 'y';
 
   Allocator::Arena arena;
-  Ttx::Type type("Count"_view);
-  const Ttx::Member candidates[] = {{expected, type}};
+  Static::Vector<View::Bytes, 1> candidates = {{expected}};
   View::Bytes suggestion =
       Tetrodotoxin::Diagnostics::Suggestions::possible_candidate(
-          arena, misspelled, Ttx::Layout(candidates));
+          arena, misspelled, candidates);
 
   Managed::Bytes expected_hint(arena);
   expected_hint.concat("Did you mean `"_view);

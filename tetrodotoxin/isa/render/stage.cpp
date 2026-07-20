@@ -56,7 +56,7 @@ auto Render::Stage::evaluate(
     const Base::Declaration& definition,
     View::Vector<Ttx::Type::Reference> facts) -> StageResult {
   Bool has_scope = cursor.require(
-      Class::Type::ScopeStart,
+      Code::Type::ScopeStart,
       "Expected `{` after render stage declaration."_view);
   if (!has_scope) {
     return StageResult();
@@ -67,9 +67,9 @@ auto Render::Stage::evaluate(
   Managed::Vector<Ttx::Member> constants(context.get_arena());
   Managed::Vector<Ttx::Member> pushes(context.get_arena());
   Managed::Vector<Ttx::Member> resources(context.get_arena());
-  while (!cursor.matches(Class::Type::EndOfStream) &&
-         !cursor.matches(Class::Type::ScopeEnd)) {
-    if (!cursor.matches(Class::Type::Addressable)) {
+  while (!cursor.matches(Code::Type::Terminal) &&
+         !cursor.matches(Code::Type::ScopeEnd)) {
+    if (!cursor.matches(Code::Type::Addressable)) {
       cursor.token_error("Expected render stage directive."_view);
       return StageResult();
     }
@@ -106,7 +106,7 @@ auto Render::Stage::evaluate(
     }
 
     Bool has_statement_end = cursor.require(
-        Class::Type::EndStatement,
+        Code::Type::EndStatement,
         "Expected `;` after render stage layout."_view);
     if (!has_statement_end) {
       return StageResult();
@@ -114,7 +114,7 @@ auto Render::Stage::evaluate(
   }
 
   Bool has_scope_end = cursor.require(
-      Class::Type::ScopeEnd,
+      Code::Type::ScopeEnd,
       "Expected `}` after render stage declaration."_view);
   if (!has_scope_end) {
     return StageResult();
@@ -156,7 +156,7 @@ auto Render::Stage::consume_reads(
     Managed::Vector<Ttx::Member>& pushes,
     Managed::Vector<Ttx::Member>& resources) -> Bool {
   const Token* kind = cursor.require(
-      Class::Type::Addressable, "Expected render stage read kind."_view);
+      Code::Type::Addressable, "Expected render stage read kind."_view);
   if (kind == nullptr) {
     return False;
   }
@@ -190,16 +190,16 @@ auto Render::Stage::consume_reads(
   }
 
   Bool has_index = cursor.require(
-      Class::Type::IndexStart,
+      Code::Type::LayoutStart,
       "Expected `[` after render stage read kind."_view);
   if (!has_index) {
     return False;
   }
 
-  while (!cursor.matches(Class::Type::EndOfStream) &&
-         !cursor.matches(Class::Type::IndexEnd)) {
+  while (!cursor.matches(Code::Type::Terminal) &&
+         !cursor.matches(Code::Type::LayoutEnd)) {
     const Token* read_name = cursor.require(
-        Class::Type::Addressable, "Expected render stage read name."_view);
+        Code::Type::Addressable, "Expected render stage read name."_view);
     if (read_name == nullptr) {
       return False;
     }
@@ -217,25 +217,25 @@ auto Render::Stage::consume_reads(
       return False;
     }
 
-    if (cursor.matches(Class::Type::PackingOp)) {
+    if (cursor.matches(Code::Type::PackingOp)) {
       cursor.consume();
       continue;
     }
 
-    if (!cursor.matches(Class::Type::IndexEnd)) {
+    if (!cursor.matches(Code::Type::LayoutEnd)) {
       cursor.token_error("Expected `,` or `]` after render stage read."_view);
       return False;
     }
   }
 
   const Token* index_end = cursor.require(
-      Class::Type::IndexEnd, "Expected `]` after render stage reads."_view);
+      Code::Type::LayoutEnd, "Expected `]` after render stage reads."_view);
   if (index_end == nullptr) {
     return False;
   }
 
   const Token* statement_end = cursor.require(
-      Class::Type::EndStatement,
+      Code::Type::EndStatement,
       "Expected `;` after render stage reads declaration."_view);
   return statement_end != nullptr;
 }

@@ -57,9 +57,9 @@ auto Package::VirtualMachine::evaluate(Cursor& cursor, Base::Context& context)
   }
 
   Managed::Vector<Package::Export> exports(cursor.get_arena());
-  while (!cursor.matches(Class::Type::EndOfStream)) {
+  while (!cursor.matches(Code::Type::Terminal)) {
     Ttx::Documentation documentation = Base::Documentation::evaluate(cursor);
-    if (cursor.matches(Class::Type::Expose)) {
+    if (cursor.matches(Code::Type::Expose)) {
       Package::Export export_ =
           Package::Export::evaluate(cursor, context, documentation);
       if (export_.is_empty()) {

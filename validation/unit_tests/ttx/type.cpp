@@ -10,7 +10,7 @@
 #include "ttx/concept/invalid.hpp"
 #include "ttx/concept/reference.hpp"
 #include "ttx/model/addressable.hpp"
-#include "ttx/model/scope.hpp"
+#include "ttx/model/addressables/writable.hpp"
 
 using namespace Perimortem::Core;
 using namespace Ttx::Concept;
@@ -27,7 +27,7 @@ class ResolvingType final : public Type {
 
   auto get_name() const -> View::Bytes override { return name; }
   auto get_documentation() const -> const Documentation& override {
-    return Comment::get_empty();
+    return Documentation::get_empty();
   }
   auto resolve() const -> const Abstract& override {
     if (complete_state) {
@@ -58,45 +58,33 @@ class TypeField final : public Addressable {
 
   auto get_name() const -> View::Bytes override { return name; }
   auto get_documentation() const -> const Documentation& override {
-    return Comment::get_empty();
+    return Documentation::get_empty();
   }
-  auto resolve() const -> const Abstract& override { return type.resolve(); }
-  auto resolve_context(View::Bytes route) const -> const Abstract& override {
-    return type.resolve().resolve_context(route);
-  }
+  auto get_type() const -> const Abstract& override { return type; }
 
  private:
   View::Bytes name;
   const Abstract& type;
 };
 
-/// Lookup Type proves static and receiver names are independent Type facts.
-class LookupType final : public Type {
+class WritableField final : public Ttx::Model::Addressables::Writable {
  public:
-  LookupType(
-      View::Bytes name,
-      const Resolver<Abstract>& statics,
-      const Resolver<Abstract>& members)
-      : name(name), statics(statics), members(members) {}
+  WritableField(View::Bytes name, const Abstract& type)
+      : name(name), type(type), read_only(name, type) {}
 
   auto get_name() const -> View::Bytes override { return name; }
   auto get_documentation() const -> const Documentation& override {
-    return Comment::get_empty();
+    return Documentation::get_empty();
   }
-  auto resolve_context(View::Bytes) const -> const Abstract& override {
-    return Invalid::get_invalid();
-  }
-  auto get_static_resolver() const -> const Resolver<Abstract>& override {
-    return statics;
-  }
-  auto get_self_resolver() const -> const Resolver<Abstract>& override {
-    return members;
+  auto get_type() const -> const Abstract& override { return type; }
+  auto get_read_only() const -> const Addressable& override {
+    return read_only;
   }
 
  private:
   View::Bytes name;
-  const Resolver<Abstract>& statics;
-  const Resolver<Abstract>& members;
+  const Abstract& type;
+  TypeField read_only;
 };
 
 static Harness TtxType = {
@@ -128,31 +116,25 @@ PERIMORTEM_UNIT_TEST(TtxType, type_fields) {
   point.complete();
 
   const Addressable& first =
-      point.get_layout().get_abstract(0).as<Addressable>();
+      point.get_layout().get_abstract(0).assume<Addressable>();
   EXPECT(&first == &x);
   EXPECT(&point.get_layout().get_abstract(1) == &y);
-  EXPECT(&first.resolve() == &real);
+  EXPECT(&first.resolve() == &first);
+  EXPECT(&first.get_type().resolve() == &real);
 }
 
-PERIMORTEM_UNIT_TEST(TtxType, type_resolvers) {
-  Perimortem::Memory::Allocator::Arena arena;
-  ResolvingType static_slice("StaticSlice"_view);
-  ResolvingType self_slice("SelfSlice"_view);
-  TypeField static_name("slice"_view, static_slice);
-  TypeField self_name("slice"_view, self_slice);
-  Scope statics(arena, Invalid::get_invalid());
-  Scope members(arena, Invalid::get_invalid());
-  Bool inserted = statics.insert("slice"_view, static_name);
-  EXPECT(inserted);
-  inserted = members.insert("slice"_view, self_name);
-  EXPECT(inserted);
-  LookupType bytes("Bytes"_view, statics, members);
+PERIMORTEM_UNIT_TEST(TtxType, writable_field) {
+  ResolvingType real("Real_32"_view);
+  real.complete();
+  WritableField field("value"_view, real);
 
-  const Abstract& selected_static =
-      bytes.get_static_resolver().resolve_context("slice"_view);
-  const Abstract& selected_self =
-      bytes.get_self_resolver().resolve_context("slice"_view);
+  const Addressable& read_only = field.get_read_only();
 
-  EXPECT(&selected_static == &static_name);
-  EXPECT(&selected_self == &self_name);
+  EXPECT(field.is<Addressable>());
+  EXPECT(field.is<Ttx::Model::Addressables::Writable>());
+  EXPECT(read_only.is<Addressable>());
+  EXPECT_NOT(read_only.is<Ttx::Model::Addressables::Writable>());
+  EXPECT_TEXT(read_only.get_name(), field.get_name());
+  EXPECT(&read_only.get_type().resolve() == &field.get_type().resolve());
+  EXPECT(&field.get_read_only() == &read_only);
 }

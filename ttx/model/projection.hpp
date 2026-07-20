@@ -12,12 +12,12 @@ namespace Ttx::Model {
 
 // Projection is the Expression that selects one real Addressable from
 // one receiver Expression. It preserves its own identity, publishes the
-// Addressable's resolved object through get_type(), and retains the receiver as
+// Addressable's resolved Type through get_type(), and retains the receiver as
 // its input Layout.
 //
 // The evaluator resolves names and validates receiver shape before constructing
-// a Projection. If the selected Addressable later resolves to Invalid, ordinary
-// Expression queries propagate that failure without trapping.
+// a Projection. If the selected Addressable later reports Invalid as its Type,
+// ordinary Expression queries propagate that failure without trapping.
 //
 // The input Layout borrows the stored receiver Reference. The graph owner
 // constructs a Projection at its final stable address and keeps both borrowed
@@ -51,14 +51,14 @@ class Projection final : public Expression {
     return addressable.get_documentation();
   }
   constexpr auto get_type() const -> const Concept::Abstract& override {
-    return addressable.resolve();
+    return addressable.get_type().resolve();
   }
   constexpr auto get_inputs() const -> const Concept::Layout& override {
     return inputs;
   }
 
   constexpr auto get_receiver() const -> const Expression& {
-    return receiver.get().as<Expression>();
+    return receiver.get().assume<Expression>();
   }
   constexpr auto get_addressable() const -> const Addressable& {
     return addressable;

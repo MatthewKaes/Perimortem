@@ -3,10 +3,8 @@
 
 #pragma once
 
-#include "perimortem/core/view/vector.hpp"
-
 #include "ttx/concept/abstract.hpp"
-#include "ttx/model/argument.hpp"
+#include "ttx/concept/layout.hpp"
 
 namespace Ttx::Model {
 
@@ -15,12 +13,13 @@ namespace Ttx::Model {
 // Each concrete formula owns argument validation, materialization, and any
 // cache of concrete Types it creates.
 //
-// Arguments already contain resolved semantic identities or explicit scalar
-// values. Constants preserve their domain, resolved Type, and payload during
-// equality. A formula can use the ordered arguments directly as its cache key
-// without alias walks, names, hashes, parent links, or another canonicalization
-// interface. Failure returns Invalid while the source owner retains the
-// diagnostic.
+// Arguments are real compile-time Abstracts carried by an identity-free
+// ordered Layout. Types are therefore first-class formula inputs, while scalar
+// values remain real Constant Abstracts with their domain, Type, and payload
+// intact. Generic owns the cache equivalence rule so no argument like wrapper
+// can become a second semantic representation.
+//
+// Failure returns Invalid while the source owner retains the diagnostic.
 class Generic : public Concept::Abstract {
  public:
   using ContractOwner = Generic;
@@ -34,8 +33,16 @@ class Generic : public Concept::Abstract {
     return requested == contract_id || Abstract::implements(requested);
   }
 
-  virtual auto materialize(Perimortem::Core::View::Vector<Argument> arguments)
-      const -> const Concept::Abstract& = 0;
+  virtual auto materialize(const Concept::Layout& arguments) const
+      -> const Concept::Abstract& = 0;
+
+ protected:
+  // Resolution removes authored aliases and redirections. Constants with
+  // distinct object identities still denote the same compile-time input when
+  // their contracts prove equal; all other Abstracts retain object identity.
+  static auto arguments_equal(
+      const Concept::Layout& lhs,
+      const Concept::Layout& rhs) -> Bool;
 };
 
 }  // namespace Ttx::Model

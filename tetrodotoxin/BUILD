@@ -33,129 +33,98 @@ cc_library(
     includes = ["."],
     deps = [
         "//perimortem:core",
-        "//ttx:concept",
-        "//ttx:model",
-    ],
-)
-
-cc_library(
-    name = "interpreter",
-    srcs = glob([
-        "interpreter/**/*.cpp",
-    ]),
-    hdrs = glob([
-        "interpreter/**/*.hpp",
-    ]),
-    includes = ["."],
-    deps = [
-        ":model",
-        "//perimortem:core",
         "//perimortem:memory",
+        "//perimortem:serialization",
         "//ttx:concept",
         "//ttx:lexical",
         "//ttx:model",
     ],
 )
 
-cc_library(
-    name = "isa",
-    srcs = glob(
-        [
-            "isa/**/*.cpp",
-        ],
-        exclude = [
-            "isa/package/**/*.cpp",
-            "isa/library/lowering.cpp",
-            "isa/shader/lowering.cpp",
-        ],
-    ),
-    hdrs = glob(
-        ["isa/**/*.hpp"],
-        exclude = ["isa/package/**/*.hpp"],
-    ),
-    includes = ["."],
-    deps = [
-        ":compiler",
-        ":diagnostics",
-        "//perimortem:core",
-        "//perimortem:memory",
-        "//perimortem:serialization",
-        "//perimortem:utility",
-        "//tetrodotoxin/abi",
-        "//tetrodotoxin/archiver",
-        "//tetrodotoxin/standard:types",
-        "//ttx",
-    ],
-)
+# cc_library(
+#     name = "isa",
+#     srcs = glob(
+#         [
+#             "isa/**/*.cpp",
+#         ],
+#         exclude = [
+#             "isa/package/**/*.cpp",
+#             "isa/library/lowering.cpp",
+#             "isa/shader/lowering.cpp",
+#         ],
+#     ),
+#     hdrs = glob(
+#         ["isa/**/*.hpp"],
+#         exclude = ["isa/package/**/*.hpp"],
+#     ),
+#     includes = ["."],
+#     deps = [
+#         ":compiler",
+#         ":diagnostics",
+#         "//perimortem:core",
+#         "//perimortem:memory",
+#         "//perimortem:serialization",
+#         "//perimortem:utility",
+#         "//tetrodotoxin/abi",
+#         "//tetrodotoxin/archiver",
+#         "//tetrodotoxin/standard:types",
+#         "//ttx",
+#     ],
+# )
 
-alias(
-    name = "puffer",
-    actual = "//tetrodotoxin/puffer:puffer",
-)
+# alias(
+#     name = "puffer",
+#     actual = "//tetrodotoxin/puffer:puffer",
+# )
 
-cc_library(
-    name = "compiler",
-    srcs = [
-        "compiler/allocation/registers.cpp",
-        "compiler/allocation/system_v.cpp",
-        "compiler/assembler/spir_v.cpp",
-        "compiler/assembler/x86_64.cpp",
-        "compiler/engine.cpp",
-        "compiler/execution/builder.cpp",
-        "compiler/program.cpp",
-        "compiler/target/cpp.cpp",
-        "compiler/target/system_v.cpp",
-    ],
-    hdrs = [
-        "compiler/allocation/registers.hpp",
-        "compiler/allocation/system_v.hpp",
-        "compiler/assembler/spir_v.hpp",
-        "compiler/assembler/x86_64.hpp",
-        "compiler/backend.hpp",
-        "compiler/engine.hpp",
-        "compiler/execution/addressable.hpp",
-        "compiler/execution/binary.hpp",
-        "compiler/execution/binding.hpp",
-        "compiler/execution/block.hpp",
-        "compiler/execution/body.hpp",
-        "compiler/execution/builder.hpp",
-        "compiler/execution/call.hpp",
-        "compiler/execution/constant.hpp",
-        "compiler/execution/function.hpp",
-        "compiler/execution/operand.hpp",
-        "compiler/execution/operation.hpp",
-        "compiler/program.hpp",
-        "compiler/execution/return.hpp",
-        "compiler/symbol.hpp",
-        "compiler/target/cpp.hpp",
-        "compiler/target/system_v.hpp",
-    ],
-    includes = ["."],
-    deps = [
-        ":linker",
-        "//perimortem:core",
-        "//perimortem:memory",
-        "//perimortem:serialization",
-        "//perimortem:utility",
-        "//tetrodotoxin/abi",
-        "//ttx",
-    ],
-)
-
-cc_library(
-    name = "isa_lowerers",
-    srcs = [
-        "isa/library/lowering.cpp",
-        "isa/shader/lowering.cpp",
-    ],
-    includes = ["."],
-    deps = [
-        ":compiler",
-        ":isa",
-        "//perimortem:core",
-        "//ttx",
-    ],
-)
+# cc_library(
+#     name = "compiler",
+#     srcs = [
+#         "compiler/allocation/registers.cpp",
+#         "compiler/allocation/system_v.cpp",
+#         "compiler/assembler/spir_v.cpp",
+#         "compiler/assembler/x86_64.cpp",
+#         "compiler/engine.cpp",
+#         "compiler/execution/builder.cpp",
+#         "compiler/program.cpp",
+#         "compiler/target/cpp.cpp",
+#         "compiler/target/system_v.cpp",
+#     ],
+#     hdrs = [
+#         "compiler/allocation/registers.hpp",
+#         "compiler/allocation/system_v.hpp",
+#         "compiler/assembler/spir_v.hpp",
+#         "compiler/assembler/x86_64.hpp",
+#         "compiler/backend.hpp",
+#         "compiler/engine.hpp",
+#         "compiler/execution/addressable.hpp",
+#         "compiler/execution/binary.hpp",
+#         "compiler/execution/binding.hpp",
+#         "compiler/execution/block.hpp",
+#         "compiler/execution/body.hpp",
+#         "compiler/execution/builder.hpp",
+#         "compiler/execution/call.hpp",
+#         "compiler/execution/constant.hpp",
+#         "compiler/execution/function.hpp",
+#         "compiler/execution/operand.hpp",
+#         "compiler/execution/operation.hpp",
+#         "compiler/program.hpp",
+#         "compiler/execution/return.hpp",
+#         "compiler/symbol.hpp",
+#         "compiler/target/cpp.hpp",
+#         "compiler/target/system_v.hpp",
+#     ],
+#     includes = ["."],
+#     deps = [
+#         ":linker",
+#         "//perimortem:core",
+#         "//perimortem:memory",
+#         "//perimortem:serialization",
+#         "//perimortem:utility",
+#         "//tetrodotoxin/abi",
+#         "//ttx",
+#     ],
+# )
 
 cc_library(
     name = "linker",

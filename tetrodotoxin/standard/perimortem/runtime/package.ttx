@@ -4,6 +4,6 @@ dialect : Package;
 
 import Types : Library = "library/types.ttx";
 
-expose Frame : alias = Types::Frame;
-expose Time : alias = Types::Time;
-expose Window : alias = Types::Window;
+public Frame : alias = Types::Frame;
+public Time : alias = Types::Time;
+public Window : alias = Types::Window;

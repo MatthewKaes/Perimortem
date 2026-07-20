@@ -13,7 +13,12 @@
 
 namespace Tetrodotoxin::Archiver {
 
-// Package is the durable Puffer Buffer view of a compiled TTX package.
+// Legacy Puffer Buffer view retained while the old format is replaced.
+//
+// This is not the canonical package contract. New consumers use
+// Tetrodotoxin::Model::Package, and the replacement reader reconstructs
+// Model::Packages::Precompiled. Do not adapt Source or Model::Package into this
+// root-Type representation merely to preserve the old format.
 //
 // Resolution owns how source files become a type tree. Package owns how that
 // tree, function linkage, and terminal byte artifacts appear after a

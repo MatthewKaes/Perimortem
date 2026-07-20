@@ -27,7 +27,7 @@ class Signed : public Constant {
 
   constexpr auto equals(const Constant& rhs) const -> Bool final {
     return rhs.is<Signed>() && has_same_type(rhs) &&
-           get_value() == rhs.as<Signed>().get_value();
+           get_value() == rhs.assume<Signed>().get_value();
   }
 
   constexpr auto fits(const Type& target) const -> Bool final {
@@ -40,7 +40,7 @@ class Signed : public Constant {
       return False;
     }
 
-    Count size = target_type.as<Types::Signed>().get_size();
+    Count size = target_type.assume<Types::Signed>().get_size();
     if (size == 0) {
       return False;
     }

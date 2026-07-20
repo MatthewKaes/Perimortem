@@ -21,13 +21,13 @@ auto Scene::Function::evaluate(
     Bool& addressable) -> Ttx::Function {
   cursor.consume();
   Bool has_function = cursor.require(
-      Class::Type::Func, "Expected `func` after Scene function modifier."_view);
+      Code::Type::Func, "Expected `func` after Scene function modifier."_view);
   if (!has_function) {
     return Ttx::Function();
   }
 
   const Token* name = cursor.require(
-      Class::Type::Addressable, "Expected Scene function name."_view);
+      Code::Type::Addressable, "Expected Scene function name."_view);
   if (name == nullptr) {
     return Ttx::Function();
   }
@@ -40,7 +40,7 @@ auto Scene::Function::evaluate(
   }
 
   Bool has_call = cursor.require(
-      Class::Type::CallOp, "Expected `->` before Scene function result."_view);
+      Code::Type::CallOp, "Expected `->` before Scene function result."_view);
   if (!has_call) {
     return Ttx::Function();
   }

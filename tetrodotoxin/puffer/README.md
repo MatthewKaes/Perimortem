@@ -2,21 +2,22 @@
 
 Puffer is Tetrodotoxin's command-line and language-server host. It loads complete
 TTX sources, evaluates the Boot preamble, resolves source and package imports,
-selects body ISAs, and requests terminal products from the compiler.
+selects body Dialects, and requests terminal products from the compiler.
 
 Puffer owns orchestration. It does not own the TTX semantic contracts, backend
 ABI rules, linker formats, or a parallel Type model.
 
 ## Build transaction
 
-A build begins from explicit source roots, package inputs, and the ISAs installed
-by the active toolchain. Boot reads the source envelope. The resolver binds the
-import closure. The selected body ISA evaluates the remaining token bytecode and
-constructs Abstract-derived objects inside the build boundary.
+A build begins from explicit source roots, package inputs, and the Dialects
+exposed by the active toolchain. Boot reads the source envelope. The resolver
+binds the import closure. The selected Dialect evaluates the remaining token
+bytecode and constructs Abstract-derived objects inside the build boundary.
 
 Puffer does not supply a ClassDB, allocated Route model, or global semantic
-registry. ISA installation selects evaluators. Semantic lookup still occurs
-through the Abstract graph and borrowed `View::Bytes` routes.
+registry. Dialect selection is ordinary Abstract resolution through the host's
+`Dialects` context. Semantic lookup continues through the Abstract graph and
+borrowed `View::Bytes` routes.
 
 The build returns completed artifacts. Puffer does not retain Type, Callable,
 Layout, or other local object identities after their owning Compiler boundary

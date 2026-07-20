@@ -54,6 +54,6 @@ auto Resolution::Context::persist(View::Bytes bytes) -> View::Bytes {
 auto Resolution::Context::persist(const Ttx::Lexical::Token& token)
     -> const Ttx::Lexical::Token& {
   return error_arena.construct<Ttx::Lexical::Token>(
-      persist(token.get_text()), token.get_class(), token.get_line(),
+      persist(token.get_text()), token.get_code(), token.get_line(),
       token.get_column());
 }

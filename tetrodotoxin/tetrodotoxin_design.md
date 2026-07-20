@@ -2,15 +2,15 @@
 
 Tetrodotoxin is the Dialect and toolchain host for TTX source IR. TTX supplies the
 human-authored source format, token bytecode, and shared Abstract query model.
-Tetrodotoxin decides which instruction sets execute that bytecode and which
+Tetrodotoxin decides which Dialects evaluate that bytecode and which
 terminal artifacts are emitted. Puffer, as Tetrodotoxin's command-line host,
 owns complete source-file preambles, source loading, package resolution, and the
 source cache.
 
-TTX does not have a canonical ISA or canonical ISA set. A host can install
-whatever ISAs it understands. Puffer's standard composition installs the body
-ISAs used by Perimortem: Package, Library, Shader, Render, and future authoring
-spaces as they become real. Puffer owns Boot as its source-file preamble ISA.
+TTX does not prescribe one canonical Dialect set. A host exposes the Dialects
+it understands through an ordinary Abstract context. Puffer's standard
+composition supplies Package, Library, Shader, Render, and future authoring
+spaces as they become real. Puffer owns Boot as its source-file envelope.
 
 ## Boot
 
@@ -22,8 +22,8 @@ Boot has an intentionally small instruction set:
 
 - read source documentation
 - execute the `dialect : Name;` instruction
-- collect imports
-- validate that requested dialect names resolve to installed Dialects
+- execute the import instructions shared by every source Dialect
+- validate that requested dialect names resolve to available Dialects
 
 That is the minimum preamble Puffer needs to attach source bytes to the Dialect
 model. Boot does not own package loading, type binding, lowering, or backend
@@ -32,24 +32,35 @@ the selected Dialect can continue the execution.
 
 ## Dialects
 
-An ISA is an executable semantic instruction set for a TTX token stream. The
-lexer has already assigned each token a bytecode class, but the ISA decides how
-many tokens to fetch, what instruction shape those tokens form, and which TTX
+A Dialect is a named model that evaluates a TTX token stream. The lexer has
+already assigned each token a bytecode class, but the Dialect decides how many
+tokens to fetch, what instruction shape those tokens form, and which real TTX
 facts to make queryable.
 
 An authored dialect names a `Dialect` Abstract. A CLI, LSP, test harness,
-embedded runtime, or package-local resolver provides a `Ttx::Model::Group`
-named `Dialects` containing the Dialects it intends to support. The name in the
-source `dialect` instruction is therefore not a global enum or registry lookup.
-It is an ordinary `resolve_context(View::Bytes)` query.
+embedded runtime, or package-local resolver may provide a
+`Tetrodotoxin::Model::Namespace` named `Dialects` containing the Dialects it
+intends to support. The name in the source `dialect` instruction is therefore
+not a global enum or registry lookup. It is an ordinary
+`resolve_context(View::Bytes)` query.
 
 A Dialect is a reusable toolchain building block, not a compiler phase. Its
 caller owns the Cursor, construction arena, diagnostics, and the TTX Abstract
 context or contexts participating in one execution. A Dialect can construct a
 new Abstract DAG, enrich an existing DAG, or hand the continuation to another
-named Dialect. Alias and Group are ordinary Dialects selected by Defines.
+named Dialect. Alias and Group are compile-time definition Dialects selected by
+Definitions.
 Package is an ordinary Dialect selected by Boot. “Subdialect” describes one
 handoff relationship and never denotes another contract hierarchy.
+
+The Dialect name on a source import selects the root dispatch used to interpret
+that source. It does not become the C++ class of the Source root, and the Source
+may retain additional Dialects with the products they interpret. A Library
+evaluator may expose Types, Callables, Constants, and aliases through one
+general Source context. A query such as `Graphics::Image` walks that context,
+then proves Type only on the selected `Image`. Render, Shader, Scene, and App
+sources can expose their own contracts without laundering every source through
+Type.
 
 The inputs and outputs remain TTX Abstract graphs throughout the toolchain. A
 host may compose multiple DAGs containing language facts, engine reflection,
@@ -61,15 +72,15 @@ execution.
 Shader can expose Stage Types and terminal GPU facts. Library can attach
 executable bodies and host-callable address contracts. Another language runtime
 can provide its own Type or Callable implementations. These objects enrich one
-or more Abstract graphs supplied to the composition. The Group only selects a
-Dialect and never becomes a semantic class registry or a second dialect
-container.
+or more Abstract graphs supplied to the composition. The host-owned Dialects
+context only selects a Dialect and never becomes a semantic class registry or a
+second semantic authority.
 
 ## Abstract Extension And Foreign Boundaries
 
 Tetrodotoxin has no ClassDB. A central repository of classes, ancestry,
 operations, or schema routes would duplicate the Abstract graph and force every
-language or ISA through one authority.
+language or Dialect through one authority.
 
 Reflection, schema description, dynamic configuration, and language extension
 are themselves Abstract concepts. The subsystem that needs one provides an
@@ -93,15 +104,33 @@ serializing C++ inheritance or reintroducing a universal Type switch.
 ## Puffer Resolution
 
 The resolver is not a Dialect. It is the source loading and cache-validity
-layer between Puffer Boot and body evaluation.
+layer between Puffer Boot and Dialect evaluation.
 
 After Puffer Boot evaluates the preamble, resolution loads the requested import
-closure, resolves packages, checks imported source files declare the expected
-ISA, and binds each import to the local name written in source. Once imports are
-available, the resolver gives the remaining bytecode and the imported Abstract
-context to the selected Dialect.
+closure, resolves packages, checks imported source files declare the requested
+root Dialect, and publishes each resolved edge on the importing Source. Imports
+are ordinary Source dependencies, not arguments injected into every Dialect.
 
-Boot's authored dialect name is resolved to an installed `Dialect`. A source
+`Tetrodotoxin::Model::Dependency` is the open resolved-edge contract.
+`Dependencies::Source` says that a producer is found through an authored source
+path and retains the resolved Source. `Dependencies::Package` says that a
+producer is found through durable package identity. There is no dependency-kind
+enum or selector union. Another loading system adds another Dependency contract
+instead of extending a central classification.
+
+Every Dependency retains the requested root Dialect and the TTX Alias binding
+the produced `Exports` surface under its authored local name. Source owns the
+ordered Dependency edges, and name resolution exposes those Aliases.
+The target surface resolves only its enumerated exports. A nested route begins
+inside the selected export rather than searching the producer's private roots
+or imported Source closure.
+Documentation belongs to the Alias, not the resolver edge. A source dependency
+may therefore bind a Library, Shader, Render, or other public product without
+pretending the product is the Source that supplied it. A package dependency
+binds the common Package contract whether its target is interpreted or
+precompiled.
+
+Boot's authored dialect name is resolved to a real `Model::Dialect`. A source
 record may reserve stable objects while its imports and body facts are still
 being assembled. Queries whose facts are not ready resolve to Invalid. There is
 no publication bit or Incomplete Layout between construction and resolution.
@@ -112,18 +141,19 @@ roots on every record.
 The resolver also owns cache safety. It decides whether to enrich a stable
 source system, replace an invalidated closure, or rebuild a complete Compiler
 boundary. Every consumer that may retain borrowed references participates in
-that lifetime policy. Durable package identity remains its authored name and
-explicit version, not a process address or content hash. That dependency graph
-is a Tetrodotoxin concern, not a TTX language feature.
+that lifetime policy. The resolver's durable package key remains its authored
+name and explicit version, not a process address or content hash. That key and
+dependency graph are Tetrodotoxin concerns, not fields on the Package Abstract
+or TTX language features.
 
 ## Packages
 
 Packages are Tetrodotoxin's module boundary. A package source is evaluated by
-the Package Dialect and can expose package exports as TTX facts. Private files
-under the package subtree are not imported directly by outside source. Outside source
-imports the package by name, then queries exported Abstracts by contract through
-the package surface. Type queries are one view of that graph. Tooling may
-query Callable, Alias, or ISA-specific contracts through the same root.
+the Package Dialect and can publish package exports as TTX facts. Private files
+under the package subtree are not imported directly by outside source. Outside
+source imports the package by name, then queries exported Abstracts by contract
+through the package surface. Type queries are one view of that graph. Tooling
+may query Callable, Alias, or Dialect-specific contracts through the same root.
 
 Built-in standard package sources live under `tetrodotoxin/standard`. They are
 resolved by public package name, not by asking user source to import their
@@ -131,34 +161,87 @@ private files. This keeps the standard TTX ABI layer distinct from the current
 C++ engine implementation while the graphics/runtime stack is not fully
 self-hosted.
 
-The Package Dialect produces a `Tetrodotoxin::Model::Source`. Source is the
-durable named root for one evaluated source unit and owns its definition
-`Ttx::Model::Group` by value. It delegates ordinary name queries to that Group
-but does not implement Type or fabricate an empty Layout. Its children retain
-their real Alias, Type, Callable, or extended contracts. While evaluating a
-body, `Ttx::Model::Scope` composes the current local Group with the supplied
-outer context.
+The Package Dialect evaluates a `Tetrodotoxin::Model::Source` and returns a
+`Tetrodotoxin::Model::Package`. Source and Package are deliberately different
+contracts. Source is the complete authoring graph for one source unit; Package
+is the exported reflection and execution surface assembled from a resolved
+collection of Sources. Package proves the shared TTX `Exports` contract and adds
+only its package dependency closure. Source dependencies bind the same `Exports`
+contract produced by their selected root Dialect. Neither Source nor Package is
+a Namespace or Type, and neither fabricates an empty Layout.
 
-Package composes the reusable Defines Dialect with `expose` as its accepted
-sigil and Alias and Group as its continuation Dialects. Defines consumes
-documentation, the sigil, a Type or Addressable name, and `:`, then gives the
-suffix and a transient Definition Abstract to the selected ordinary Dialect.
-Alias resolves and constructs a real TTX Alias. Group hands its nested body back
-to the same Defines Dialect and constructs a real TTX Group. There is no special
-second child-Dialect type or package-specific Export syntax record.
+Source is also the source-lifetime owner. Construction copies the optional
+diagnostic path and immutable input stream into its nonmoving Arena, then
+constructs the Tokenizer against those owned bytes. Cursor remains a transient
+evaluation view. No token, documentation line, definition edge, or parsed
+object may outlive its Source.
 
-A Source may replace Group with another lookup representation only when its
-domain earns that policy through a concrete contract. Completed declarations
-resolve before an unchanged name is delegated to the outer context. A
-successful body publishes one durable Source root. That keeps private package
-files, package imports, and cache invalidation local to the package while still
-allowing package dependencies to become explicit edges in the outer source
-graph.
+The durable Source model is sufficient to regenerate equivalent TTX without
+consulting its original bytes. It retains dependencies in authored order; each
+dependency retains its concrete locator, requested root Dialect, and Alias
+binding. Every rooted result is paired at publication with the actual typed
+Dialect that interpreted it. A Source can therefore contain multiple interpreted
+Dialects and products without reducing them to one expected-Dialect field.
+Whitespace and other incidental spelling may change when a formatter emits the
+graph, but no semantic source instruction is missing.
+
+Resolver identity remains outside that boundary. Puffer's source Record owns
+the normalized file path, package name, editor identity, or other cache key
+associated with a Source. A restored named package therefore has a package key
+and an empty Source diagnostic path; it does not smuggle package identity into
+`Source::get_name()` or `Source::get_path()`.
+
+Package itself stays small. It composes `Definitions<Definition<Alias, Public>,
+Definition<Group, Public>>`. Definition is the compile-time mapping itself;
+there is no evaluator helper, runtime registration record, or transient
+Definition Abstract. Definitions consumes documentation, the ordered modifier
+prefix, a Type or Addressable name, and `:`, then passes those authored tokens
+plus the visible Abstract contexts to the selected continuation. A duplicate
+Dialect name is an invalid mapping and fails at compile time. Alias constructs
+a real TTX Alias. Group hands its nested body back to the same Definitions
+mapping and returns a complete Tetrodotoxin Namespace implementing TTX
+`Exports`. Definitions alone roots the returned object and publishes the edge
+selected by the publication slot. Package permits only `public`, so its rooted
+and exported edges are identical. `group` is the authored grammar name, not
+another TTX model contract.
+There is no special second child-Dialect type or package-specific Export syntax
+record.
+
+Before publishing a declaration, Source or Namespace checks its complete
+visible Abstract context. A name that already resolves through an import,
+earlier definition, or outer Namespace is rejected; nested package groups never
+shadow. The Package Dialect constructs its export Namespace and returns the
+source-backed Package that owns that public surface. `Source::evaluate()` then
+roots that exact returned Package with the Package Dialect. The producer never
+inserts an internal Namespace substitute into Source, and Source never erases
+the Dialect edge to Abstract. This keeps private package files, package imports,
+and cache invalidation local to the package while still allowing package
+dependencies to become explicit edges.
+
+`Model::Package` is the common anonymous consumer contract: exported
+definitions, dependency Packages, name resolution, and documentation. Source
+availability is the narrower `Model::Packages::Interpreted` capability. A tool
+that needs source proves that contract with `package.is<Packages::Interpreted>()`
+and then reads `get_sources()`. This remains a public Abstract contract so a
+different host can provide an alternative interpreted implementation.
+
+Tetrodotoxin's concrete source-backed implementation is
+`Model::Packages::Sources`. It retains the already-resolved Source closure and
+Package dependencies without acquiring a repository key or path. Resolvers,
+manifests, and Dependency bindings own the projected names used to find either
+an interpreted or precompiled Package; `Package::get_name()` is always empty.
+
+`Model::Packages::Precompiled` is the source-free receiving side for a Package
+restored from a compiled Puffer Buffer. It implements Package but not
+Interpreted. Ordinary Package consumers therefore do not branch on storage;
+only source-specific tools perform the narrower capability query. Converting
+Sources into a Package is intentionally lossy, and compiling that Package is
+more lossy still.
 
 Source does not own an untyped linkage vector. Relationships are the typed
 edges of the Abstract graph. Alias retains its target, Structured Layout retains
-its Addressables, Callable retains its address, and future executable or shader
-contracts retain their own facts. This is the graph the Archiver must restore.
+its Addressables, and ABI, executable, or shader contracts retain their own
+facts. This is the graph the Archiver must restore.
 Adding a side table for relationships would make the serialized package more
 complete than the live model and recreate the old split authority.
 
@@ -169,8 +252,8 @@ token bytecode. The Package Dialect exposes package exports. Library can
 construct Type and Callable objects plus executable-body contracts. Shader and
 Render can expose stage, Layout, binding, and terminal facts.
 
-The ISA is the semantic instruction set that a Dialect implements, not a
-parallel software hierarchy. Evaluation is more specific than parsing. It
+The Dialect owns its semantic instruction set; no parallel software hierarchy
+implements it. Evaluation is more specific than parsing. It
 executes TTX token bytecode and enriches the shared TTX model with facts owned
 by that authoring space.
 
@@ -182,6 +265,12 @@ memory. Library, Shader, Scene, App, and future Dialects may compose shared
 evaluation code while retaining their own legality rules. A pointer-keyed
 `Implementation` table must not become a second semantic authority beside the
 graph.
+
+In the standard package sources, `Math::Geometry::Point2D` demonstrates the
+separation directly. Source owns the top-level context, `Geometry` is a
+Tetrodotoxin Namespace implementing `Exports` for package `group` syntax, and
+only the final Alias target must prove Type. Neither intermediate context has a
+Layout.
 
 ## Outputs
 
@@ -200,14 +289,15 @@ Dialects construct Abstract-derived objects inside that boundary and
 enrich them with their own contracts. Library may attach a target-independent
 execution body to a Callable. Foreign may attach an external Addressable. Shader
 may attach stage and GPU terminal facts. The compiler consumes these contracts
-without switching on the producer ISA and without reconstructing ownership from
+without switching on the producer Dialect and without reconstructing ownership from
 pointer-keyed side tables.
 
 Lower compiler layers operate on narrow interfaces. They resolve an Abstract,
-prove Type, and obtain its Structured Layout. Non-empty Structured Layouts are
-recursively deconstructed through their actual Addressables in declaration
-order. Empty Structured Layouts are lowered through a terminal contract
-contributed by the selected target or ISA. The same recursive projection drives
+prove Type, and obtain its Layout. Structured layouts are recursively
+deconstructed through their actual Addressables in declaration order; Ranged
+layouts repeat one queried Type across a fixed count. Empty layouts are lowered
+through a terminal contract contributed by the selected target or Dialect. The
+same recursive projection drives
 parameters, results, registers, stack placement, generated host declarations,
 and durable archive descriptions.
 
@@ -215,7 +305,8 @@ and durable archive descriptions.
 Abstract::resolve()
 -> prove Type
 -> Type::get_layout()
--> aggregate: resolve each Addressable and recursively lower its Type
+-> Structured: ask each Addressable for its Type and recursively lower it
+-> Ranged: recursively lower the repeated Type across its fixed count
 -> terminal: invoke selected terminal Type contract
 ```
 
@@ -227,9 +318,9 @@ whose terminal representation is the ordered projection of its entries.
 
 Static and Self Callable objects expose their complete parameter and result
 Layouts. Self includes its receiver at parameter zero. The compiler never
-prepends that receiver a second time. A resolved implementation supplies an
-Addressable object. Unresolved linkage supplies an explicit unresolved Addressable or
-Invalid, not `nullptr`.
+prepends that receiver a second time. Resolved and unresolved linkage are owned
+by an ABI or execution contract rather than broadening core Callable or
+Addressable.
 
 If an output needs symbols, its owner walks the selected named resolution
 contexts and encodes those names reversibly. It preserves the Static or Self
@@ -244,7 +335,7 @@ owned output. Semantic objects and local handles do not outlive their owner.
 
 ## Application runtime boundary
 
-App and Scene are host-execution ISAs. Puffer resolves and compiles their
+App and Scene are host-execution Dialects. Puffer resolves and compiles their
 sources, but the resulting application runtime is not a Puffer-owned graphics
 model. The runtime owns scene storage and lifecycle, receives a Graphics
 presentation target, and submits Render-typed scene values through the
@@ -257,7 +348,7 @@ SPIR-V. Terminal lowering must preserve their TTX identities and emit compiled
 layout projections so runtime code can bind value storage by offsets and ranges
 rather than rediscovering fields by name.
 
-Scene lowering can then identify Addressables whose resolved Types are Render
+Scene lowering can then identify Addressables whose queried Types are Render
 contracts and expose where those values live in scene storage. A compiled C++
 application, a Puffer-hosted application, or another language host can feed the
 same frame transaction to Graphics because the transaction contains data,

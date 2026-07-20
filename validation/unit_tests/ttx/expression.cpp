@@ -5,9 +5,8 @@
 
 #include "perimortem/core/static/vector.hpp"
 
-#include "ttx/concept/alias.hpp"
 #include "ttx/concept/invalid.hpp"
-#include "ttx/model/argument.hpp"
+#include "ttx/model/alias.hpp"
 #include "ttx/model/constants/bytes.hpp"
 #include "ttx/model/constants/flag.hpp"
 #include "ttx/model/constants/real.hpp"
@@ -16,8 +15,7 @@
 #include "ttx/model/layouts/fluid.hpp"
 #include "ttx/model/layouts/named.hpp"
 #include "ttx/model/layouts/structured.hpp"
-#include "ttx/model/types/boolean.hpp"
-#include "ttx/model/types/real_128.hpp"
+#include "ttx/model/types/bool.hpp"
 #include "ttx/model/types/real_64.hpp"
 #include "ttx/model/types/signed_64.hpp"
 #include "ttx/model/types/signed_8.hpp"
@@ -39,7 +37,7 @@ class BytesType final : public Type {
 
   auto get_name() const -> View::Bytes override { return name; }
   auto get_documentation() const -> const Documentation& override {
-    return Comment::get_empty();
+    return Documentation::get_empty();
   }
   auto resolve_context(View::Bytes) const -> const Abstract& override {
     return Invalid::get_invalid();
@@ -71,7 +69,7 @@ class ConstantValue final : public Contract {
   Value value;
 };
 
-/// Target layout slots remain Addressables. Their resolution supplies the Type
+/// Target layout slots remain Addressables. Their type query supplies the Type
 /// against which a source Expression proves that it fits.
 class ConstantField final : public Addressable {
  public:
@@ -79,12 +77,9 @@ class ConstantField final : public Addressable {
 
   auto get_name() const -> View::Bytes override { return name; }
   auto get_documentation() const -> const Documentation& override {
-    return Comment::get_empty();
+    return Documentation::get_empty();
   }
-  auto resolve() const -> const Abstract& override { return type.resolve(); }
-  auto resolve_context(View::Bytes route) const -> const Abstract& override {
-    return type.resolve().resolve_context(route);
-  }
+  auto get_type() const -> const Abstract& override { return type; }
 
  private:
   View::Bytes name;
@@ -122,13 +117,13 @@ PERIMORTEM_UNIT_TEST(TtxExpression, constant_identity) {
 
 PERIMORTEM_UNIT_TEST(TtxExpression, constant_domains) {
   Types::Signed_64 signed_type;
-  Types::Real_128 real_type;
+  Types::Real_64 real_type;
   Types::Boolean flag_type;
   BytesType bytes_type("Bytes"_view);
   ConstantValue<Constants::Signed> signed_value(
       "negative"_view, signed_type, Signed_64(-20));
   ConstantValue<Constants::Real> real_value(
-      "fraction"_view, real_type, Real_128(0.5));
+      "fraction"_view, real_type, Real_64(0.5));
   ConstantValue<Constants::Real> first_nan(
       "first_nan"_view, real_type, __builtin_nanl(""));
   ConstantValue<Constants::Real> same_nan(
@@ -142,7 +137,7 @@ PERIMORTEM_UNIT_TEST(TtxExpression, constant_domains) {
       "other"_view, bytes_type, "date"_view);
 
   EXPECT_EQ(signed_value.get_value(), Signed_64(-20));
-  EXPECT(real_value.get_value() == Real_128(0.5));
+  EXPECT(real_value.get_value() == Real_64(0.5));
   EXPECT(first_nan == same_nan);
   EXPECT(flag_value.get_value());
   EXPECT_TEXT(first_bytes.get_value(), "data"_view);
@@ -170,7 +165,7 @@ PERIMORTEM_UNIT_TEST(TtxExpression, constant_fitting) {
   ConstantValue<Constants::Signed> misses_signed(
       "wide"_view, signed_64, Signed_64(-129));
   ConstantValue<Constants::Flag> flag("flag"_view, source_flag, True);
-  ConstantValue<Constants::Real> real("real"_view, real_64, Real_128(0.5));
+  ConstantValue<Constants::Real> real("real"_view, real_64, Real_64(0.5));
 
   EXPECT(fits_8.fits(unsigned_8));
   EXPECT_NOT(needs_16.fits(unsigned_8));
@@ -203,31 +198,4 @@ PERIMORTEM_UNIT_TEST(TtxExpression, layout_constants) {
   EXPECT(&fluid.get_fitted(target, 0) == &x);
   EXPECT(&named.get_fitted(target, 0) == &x);
   EXPECT(&named.get_fitted(target, 1) == &y);
-}
-
-PERIMORTEM_UNIT_TEST(TtxExpression, argument_values) {
-  Types::Unsigned_64 unsigned_64;
-  Types::Unsigned_64 other_unsigned_64;
-  ConstantValue<Constants::Unsigned> first(
-      "first"_view, unsigned_64, Unsigned_64(100));
-  ConstantValue<Constants::Unsigned> same(
-      "same"_view, unsigned_64, Unsigned_64(100));
-  ConstantValue<Constants::Unsigned> different(
-      "different"_view, unsigned_64, Unsigned_64(101));
-  ConstantValue<Constants::Unsigned> other_type(
-      "other"_view, other_unsigned_64, Unsigned_64(100));
-  BytesType bytes_type("Bytes"_view);
-  ConstantValue<Constants::Bytes> first_bytes(
-      "first_bytes"_view, bytes_type, "cache"_view);
-  ConstantValue<Constants::Bytes> same_bytes(
-      "same_bytes"_view, bytes_type, "cache"_view);
-  Alias alias("Hundred"_view, first);
-
-  EXPECT(Argument(first) == Argument(same));
-  EXPECT(Argument(alias) == Argument(first));
-  EXPECT(Argument(first) != Argument(different));
-  EXPECT(Argument(first) != Argument(other_type));
-  EXPECT(Argument(first_bytes) == Argument(same_bytes));
-  EXPECT(Argument(Unsigned_64(100)) == Argument(Unsigned_64(100)));
-  EXPECT(Argument(Unsigned_64(100)) != Argument(Unsigned_64(101)));
 }

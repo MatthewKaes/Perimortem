@@ -15,7 +15,7 @@ using namespace Ttx::Lexical;
 auto Base::Expression::Pack::evaluate(Cursor& cursor, Base::Context& context)
     -> const Base::Expression::Pack* {
   Bool has_pack = cursor.require(
-      Class::Type::PackingStart, "Expected `(` before expression pack."_view);
+      Code::Type::PackingStart, "Expected `(` before expression pack."_view);
   if (!has_pack) {
     return nullptr;
   }
@@ -23,19 +23,19 @@ auto Base::Expression::Pack::evaluate(Cursor& cursor, Base::Context& context)
   Managed::Vector<Entry> entries(context.get_arena());
   Managed::Vector<Value> values(context.get_arena());
   while (!cursor.is_one_of(
-      {{Class::Type::EndOfStream, Class::Type::PackingEnd}})) {
+      {{Code::Type::Terminal, Code::Type::PackingEnd}})) {
     View::Bytes name;
-    if (cursor.matches(Class::Type::AddressOp)) {
+    if (cursor.matches(Code::Type::AddressOp)) {
       cursor.consume();
       const Token* token = cursor.require(
-          Class::Type::Addressable,
+          Code::Type::Addressable,
           "Expected expression pack entry name."_view);
       if (token == nullptr) {
         return nullptr;
       }
 
       Bool has_assignment = cursor.require(
-          Class::Type::Assign,
+          Code::Type::Assign,
           "Expected `=` after expression pack entry name."_view);
       if (!has_assignment) {
         return nullptr;
@@ -51,7 +51,7 @@ auto Base::Expression::Pack::evaluate(Cursor& cursor, Base::Context& context)
 
     entries.insert(Entry(name, value));
     values.insert(value);
-    if (!cursor.matches(Class::Type::PackingOp)) {
+    if (!cursor.matches(Code::Type::PackingOp)) {
       break;
     }
 
@@ -59,7 +59,7 @@ auto Base::Expression::Pack::evaluate(Cursor& cursor, Base::Context& context)
   }
 
   Bool has_pack_end = cursor.require(
-      Class::Type::PackingEnd, "Expected `)` after expression pack."_view);
+      Code::Type::PackingEnd, "Expected `)` after expression pack."_view);
   if (!has_pack_end) {
     return nullptr;
   }

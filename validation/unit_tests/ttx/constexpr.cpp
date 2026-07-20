@@ -3,16 +3,19 @@
 
 #include "perimortem/core/static/vector.hpp"
 
-#include "ttx/concept/alias.hpp"
 #include "ttx/model/addressable.hpp"
+#include "ttx/model/alias.hpp"
+#include "ttx/model/documentations/comment.hpp"
+#include "ttx/model/documentations/merged.hpp"
+#include "ttx/model/layouts/fluid.hpp"
 #include "ttx/model/layouts/structured.hpp"
-#include "ttx/model/packs/positional.hpp"
 #include "ttx/model/types/signed.hpp"
 #include "ttx/model/types/unsigned_8.hpp"
 
 using namespace Perimortem::Core;
 using namespace Ttx::Concept;
 using namespace Ttx::Model;
+using namespace Ttx::Model::Documentations;
 
 /// A field proves that constexpr Layouts retain the real Addressable identity.
 class ConstexprField final : public Addressable {
@@ -24,12 +27,7 @@ class ConstexprField final : public Addressable {
   constexpr auto get_documentation() const -> const Documentation& override {
     return documentation;
   }
-  constexpr auto resolve() const -> const Abstract& override {
-    return type.resolve();
-  }
-  auto resolve_context(View::Bytes route) const -> const Abstract& override {
-    return type.resolve().resolve_context(route);
-  }
+  constexpr auto get_type() const -> const Abstract& override { return type; }
 
  private:
   View::Bytes name;
@@ -41,12 +39,15 @@ class ConstexprField final : public Addressable {
 // below is required to succeed during constant evaluation.
 constexpr Ttx::Model::Types::Unsigned_8 unsigned_8;
 constexpr Comment alias_comment{"A byte-sized count."_view};
-constexpr Alias octet("Octet"_view, unsigned_8, alias_comment);
+constexpr Merged octet_documentation(
+    alias_comment,
+    unsigned_8.get_documentation());
+constexpr Alias octet("Octet"_view, unsigned_8, octet_documentation);
 constexpr ConstexprField value("value"_view, octet);
 constexpr Static::Vector<Reference<Addressable>, 1> fields = {{value}};
 constexpr Ttx::Model::Layouts::Structured structure(fields);
 constexpr Static::Vector<Reference<Abstract>, 1> values = {{octet}};
-constexpr Ttx::Model::Packs::Positional pack(values);
+constexpr Ttx::Model::Layouts::Fluid flow(values);
 
 static_assert(unsigned_8.is<Abstract>());
 static_assert(unsigned_8.is<Type>());
@@ -67,5 +68,5 @@ static_assert(&structure.get_abstract(0) == &value);
 static_assert(structure.fits(structure));
 static_assert(&structure.get_fitted(structure, 0) == &value);
 
-static_assert(pack.get_layout().get_size() == 1);
-static_assert(&pack.get_layout().get_abstract(0) == &octet);
+static_assert(flow.get_size() == 1);
+static_assert(&flow.get_abstract(0) == &octet);

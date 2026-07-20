@@ -5,6 +5,7 @@
 
 #include "ttx/concept/abstract.hpp"
 #include "ttx/concept/invalid.hpp"
+#include "ttx/concept/layout.hpp"
 #include "ttx/model/layouts/structured.hpp"
 
 namespace Ttx::Model {
@@ -24,9 +25,10 @@ namespace Ttx::Model {
 // later enrich the same nonmoving object, replace its enclosing system, or use
 // another resolution policy without changing this interface.
 //
-// Once Type resolution succeeds, get_layout() returns its Structured shape.
-// The structure contains real Addressable objects whose own resolution yields
-// the child Types needed by fitting and lowering.
+// Once Type resolution succeeds, get_layout() returns its Layout shape. A
+// Structured layout contains real Addressable fields. A homogeneous Ranged
+// layout can instead expose one repeated Type across a compact interval, as in
+// Bytes[N], without allocating one semantic node per index.
 class Type : public Concept::Abstract {
  public:
   using ContractOwner = Type;
@@ -40,7 +42,7 @@ class Type : public Concept::Abstract {
     return requested == contract_id || Abstract::implements(requested);
   }
 
-  virtual constexpr auto get_layout() const -> const Layouts::Structured& {
+  virtual constexpr auto get_layout() const -> const Concept::Layout& {
     return empty_layout;
   }
 

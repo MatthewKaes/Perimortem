@@ -18,13 +18,13 @@ auto Scene::Storage::evaluate(
     Cursor& cursor,
     Base::Context& context,
     Ttx::Documentation documentation,
-    Class::Type storage,
+    Code::Type storage,
     Base::Definition& implementation) -> const Ttx::Member* {
   cursor.consume();
 
   Base::Declaration declaration = Base::Declaration::evaluate_after_modifier(
-      cursor, documentation, storage, {{Class::Type::Addressable}},
-      {{Class::Type::Type}});
+      cursor, documentation, storage, {{Code::Type::Addressable}},
+      {{Code::Type::Type}});
   if (declaration.is_empty()) {
     return nullptr;
   }
@@ -37,7 +37,7 @@ auto Scene::Storage::evaluate(
   }
 
   Base::Expression::Value initializer;
-  if (cursor.matches(Class::Type::Assign)) {
+  if (cursor.matches(Code::Type::Assign)) {
     cursor.consume();
 
     initializer = Base::Expression::Value::evaluate(cursor, context);
@@ -47,7 +47,7 @@ auto Scene::Storage::evaluate(
   }
 
   Bool has_statement_end = cursor.require(
-      Class::Type::EndStatement, "Expected `;` after Scene member."_view);
+      Code::Type::EndStatement, "Expected `;` after Scene member."_view);
   if (!has_statement_end) {
     return nullptr;
   }

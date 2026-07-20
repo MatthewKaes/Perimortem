@@ -16,11 +16,11 @@
 
 namespace Tetrodotoxin::Standard {
 
-// Types is the Tetrodotoxin standard surface that every ISA context can see.
+// Types is the Tetrodotoxin standard surface that every Dialect context can see.
 //
 // The standard surface is a condensed version of TTX Type objects that compiles
 // to a `clang` friendly package like buffer. The table itself is not part of
-// the TTX language model but it's a useful terminal format for ISAs to consume
+// the TTX language model but it's a useful terminal format for Dialects to consume
 // since it's mostly stable and ships with the standard toolchain. Concrete
 // identities carry their ABI lowering; generic roots are dispatch identities
 // whose concrete representations are produced by parameterization.

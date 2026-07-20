@@ -3,10 +3,9 @@
 
 #include "validation/unit_test.hpp"
 
-#include "ttx/concept/alias.hpp"
 #include "ttx/concept/invalid.hpp"
-#include "ttx/model/types/boolean.hpp"
-#include "ttx/model/types/real_128.hpp"
+#include "ttx/model/alias.hpp"
+#include "ttx/model/types/bool.hpp"
 #include "ttx/model/types/real_32.hpp"
 #include "ttx/model/types/real_64.hpp"
 #include "ttx/model/types/signed_16.hpp"
@@ -30,9 +29,9 @@ static Harness TtxTypes = {
 PERIMORTEM_UNIT_TEST(TtxTypes, terminal_contract) {
   Ttx::Model::Types::Unsigned_8 unsigned_8;
   const Abstract& abstract = unsigned_8;
-  const Type& type = abstract.as<Type>();
+  const Type& type = abstract.assume<Type>();
   const Ttx::Model::Types::Terminal& terminal =
-      type.as<Ttx::Model::Types::Terminal>();
+      type.assume<Ttx::Model::Types::Terminal>();
 
   EXPECT(abstract.is<Abstract>());
   EXPECT(abstract.is<Type>());
@@ -44,7 +43,7 @@ PERIMORTEM_UNIT_TEST(TtxTypes, terminal_contract) {
   EXPECT(type.is<Ttx::Model::Types::Terminal>());
   EXPECT(terminal.is<Type>());
   EXPECT(&type == &terminal);
-  EXPECT(&terminal == &abstract.as<Ttx::Model::Types::Unsigned>());
+  EXPECT(&terminal == &abstract.assume<Ttx::Model::Types::Unsigned>());
   EXPECT(type.get_layout().is_empty());
   EXPECT_EQ(terminal.get_width(), Count(8));
   EXPECT_EQ(terminal.get_size(), Count(sizeof(::Unsigned_8)));
@@ -82,7 +81,6 @@ PERIMORTEM_UNIT_TEST(TtxTypes, terminal_abi) {
   Ttx::Model::Types::Signed_64 signed_64;
   Ttx::Model::Types::Real_32 real_32;
   Ttx::Model::Types::Real_64 real_64;
-  Ttx::Model::Types::Real_128 real_128;
   Ttx::Model::Types::Boolean boolean;
   EXPECT_EQ(unsigned_8.get_size(), Count(sizeof(::Unsigned_8)));
   EXPECT_EQ(unsigned_16.get_size(), Count(sizeof(::Unsigned_16)));
@@ -94,7 +92,6 @@ PERIMORTEM_UNIT_TEST(TtxTypes, terminal_abi) {
   EXPECT_EQ(signed_64.get_size(), Count(sizeof(::Signed_64)));
   EXPECT_EQ(real_32.get_size(), Count(sizeof(::Real_32)));
   EXPECT_EQ(real_64.get_size(), Count(sizeof(::Real_64)));
-  EXPECT_EQ(real_128.get_size(), Count(sizeof(::Real_128)));
   EXPECT_EQ(boolean.get_size(), Count(sizeof(::Bool)));
 
   EXPECT_EQ(unsigned_8.get_alignment(), Count(alignof(::Unsigned_8)));
@@ -107,7 +104,6 @@ PERIMORTEM_UNIT_TEST(TtxTypes, terminal_abi) {
   EXPECT_EQ(signed_64.get_alignment(), Count(alignof(::Signed_64)));
   EXPECT_EQ(real_32.get_alignment(), Count(alignof(::Real_32)));
   EXPECT_EQ(real_64.get_alignment(), Count(alignof(::Real_64)));
-  EXPECT_EQ(real_128.get_alignment(), Count(alignof(::Real_128)));
   EXPECT_EQ(boolean.get_alignment(), Count(alignof(::Bool)));
 
   EXPECT_EQ(unsigned_8.get_width(), Count(sizeof(::Unsigned_8) * 8));
@@ -120,7 +116,6 @@ PERIMORTEM_UNIT_TEST(TtxTypes, terminal_abi) {
   EXPECT_EQ(signed_64.get_width(), Count(sizeof(::Signed_64) * 8));
   EXPECT_EQ(real_32.get_width(), Count(sizeof(::Real_32) * 8));
   EXPECT_EQ(real_64.get_width(), Count(sizeof(::Real_64) * 8));
-  EXPECT_EQ(real_128.get_width(), Count(sizeof(::Real_128) * 8));
   EXPECT_EQ(boolean.get_width(), Count(1));
 }
 
@@ -136,7 +131,7 @@ PERIMORTEM_UNIT_TEST(TtxTypes, terminal_aliases) {
 
   EXPECT(&count.resolve() == &unsigned_64);
   EXPECT_EQ(
-      cpp_size.resolve().as<Ttx::Model::Types::Terminal>().get_size(),
+      cpp_size.resolve().assume<Ttx::Model::Types::Terminal>().get_size(),
       Count(sizeof(::CppSize)));
 }
 
@@ -151,7 +146,6 @@ PERIMORTEM_UNIT_TEST(TtxTypes, terminal_names) {
   Ttx::Model::Types::Signed_64 signed_64;
   Ttx::Model::Types::Real_32 real_32;
   Ttx::Model::Types::Real_64 real_64;
-  Ttx::Model::Types::Real_128 real_128;
   Ttx::Model::Types::Boolean boolean;
 
   EXPECT_TEXT(unsigned_8.get_name(), "Unsigned_8"_view);
@@ -164,7 +158,6 @@ PERIMORTEM_UNIT_TEST(TtxTypes, terminal_names) {
   EXPECT_TEXT(signed_64.get_name(), "Signed_64"_view);
   EXPECT_TEXT(real_32.get_name(), "Real_32"_view);
   EXPECT_TEXT(real_64.get_name(), "Real_64"_view);
-  EXPECT_TEXT(real_128.get_name(), "Real_128"_view);
   EXPECT_TEXT(boolean.get_name(), "Bool"_view);
   EXPECT_TEXT(
       real_32.get_documentation().get_line(0),

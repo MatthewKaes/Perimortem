@@ -13,8 +13,9 @@ namespace Ttx::Model::Layouts {
 
 // Structured is the stable shape of a Type. Every entry is the actual
 // Addressable object in the semantic DAG, not a copied member record. Its name,
-// resolved Type, documentation, attributes, defaults, and ISA facts therefore
-// remain queryable on their real owner without becoming Layout fields.
+// resolved Type, documentation, attributes, defaults, and Dialect facts
+// therefore remain queryable on their real owner without becoming Layout
+// fields.
 class Structured : public Concept::Layout {
  public:
   constexpr Structured(
@@ -34,13 +35,14 @@ class Structured : public Concept::Layout {
     return addressables[index].get();
   }
 
-  constexpr auto fits(const Concept::Layout& target) const -> Bool override {
-    if (get_size() != target.get_size()) {
+  constexpr auto fits_at(const Concept::Layout& target, Count target_offset)
+      const -> Bool override {
+    if (!has_target_segment(target, target_offset)) {
       return False;
     }
 
     for (Count i = 0; i < get_size(); i++) {
-      if (&get_abstract(i) != &target.get_abstract(i)) {
+      if (&get_abstract(i) != &target.get_abstract(target_offset + i)) {
         return False;
       }
     }
@@ -48,9 +50,11 @@ class Structured : public Concept::Layout {
     return True;
   }
 
-  constexpr auto get_fitted(const Concept::Layout& target, Count target_index)
-      const -> const Concept::Abstract& override {
-    if (!fits(target) || target_index >= target.get_size()) {
+  constexpr auto get_fitted_at(
+      const Concept::Layout& target,
+      Count target_offset,
+      Count target_index) const -> const Concept::Abstract& override {
+    if (target_index >= get_size() || !fits_at(target, target_offset)) {
       return Concept::Invalid::get_invalid();
     }
 

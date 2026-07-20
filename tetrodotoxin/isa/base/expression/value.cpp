@@ -18,31 +18,31 @@ using namespace Perimortem::Serialization;
 using namespace Tetrodotoxin::Isa;
 using namespace Ttx::Lexical;
 
-static constexpr Static::Vector<Class::Type, 3> expression_reference_starts = {{
-  Class::Type::Type,
-  Class::Type::Addressable,
-  Class::Type::Self,
+static constexpr Static::Vector<Code::Type, 3> expression_reference_starts = {{
+  Code::Type::Type,
+  Code::Type::Addressable,
+  Code::Type::Self,
 }};
 
-static constexpr Static::Vector<Class::Type, 2> expression_index_starts = {{
-  Class::Type::SliceOp,
-  Class::Type::IndexStart,
+static constexpr Static::Vector<Code::Type, 2> expression_index_starts = {{
+  Code::Type::SliceOp,
+  Code::Type::LayoutStart,
 }};
 
-static auto binary_operator(Class::Type type)
+static auto binary_operator(Code::Type type)
     -> Base::Expression::Value::Operator {
   switch (type) {
-  case Class::Type::AddOp:
+  case Code::Type::AddOp:
     return Base::Expression::Value::Operator::Add;
-  case Class::Type::SubOp:
+  case Code::Type::SubOp:
     return Base::Expression::Value::Operator::Subtract;
-  case Class::Type::MulOp:
+  case Code::Type::MulOp:
     return Base::Expression::Value::Operator::Multiply;
-  case Class::Type::DivOp:
+  case Code::Type::DivOp:
     return Base::Expression::Value::Operator::Divide;
-  case Class::Type::ModOp:
+  case Code::Type::ModOp:
     return Base::Expression::Value::Operator::Remainder;
-  case Class::Type::CmpOp:
+  case Code::Type::CmpOp:
     return Base::Expression::Value::Operator::Equal;
   default:
     return Base::Expression::Value::Operator::None;
@@ -76,11 +76,11 @@ static auto evaluate_reference(Cursor& cursor, Base::Context& context)
     -> Base::Expression::Value {
   const Count start = cursor.get_token_index();
   View::Bytes root = cursor.consume().get_text();
-  while (!cursor.matches(Class::Type::EndOfStream)) {
-    if (cursor.matches(Class::Type::TypeAccessOp)) {
+  while (!cursor.matches(Code::Type::Terminal)) {
+    if (cursor.matches(Code::Type::TypeAccessOp)) {
       cursor.consume();
       Bool has_type = cursor.require(
-          Class::Type::Type, "Expected nested type name after `::`."_view);
+          Code::Type::Type, "Expected nested type name after `::`."_view);
       if (!has_type) {
         return Base::Expression::Value();
       }
@@ -88,10 +88,10 @@ static auto evaluate_reference(Cursor& cursor, Base::Context& context)
       continue;
     }
 
-    if (cursor.matches(Class::Type::AddressOp)) {
+    if (cursor.matches(Code::Type::AddressOp)) {
       cursor.consume();
       Bool has_member = cursor.require(
-          Class::Type::Addressable, "Expected member name after `.`."_view);
+          Code::Type::Addressable, "Expected member name after `.`."_view);
       if (!has_member) {
         return Base::Expression::Value();
       }
@@ -99,29 +99,29 @@ static auto evaluate_reference(Cursor& cursor, Base::Context& context)
       continue;
     }
 
-    if (cursor.matches(Class::Type::SwizzleOp)) {
+    if (cursor.matches(Code::Type::SwizzleOp)) {
       cursor.consume();
-      while (!cursor.matches(Class::Type::EndOfStream) &&
-             !cursor.matches(Class::Type::IndexEnd)) {
+      while (!cursor.matches(Code::Type::Terminal) &&
+             !cursor.matches(Code::Type::LayoutEnd)) {
         Bool has_member = cursor.require(
-            Class::Type::Addressable, "Expected swizzle member name."_view);
+            Code::Type::Addressable, "Expected swizzle member name."_view);
         if (!has_member) {
           return Base::Expression::Value();
         }
 
-        if (cursor.matches(Class::Type::PackingOp)) {
+        if (cursor.matches(Code::Type::PackingOp)) {
           cursor.consume();
           continue;
         }
 
-        if (!cursor.matches(Class::Type::IndexEnd)) {
+        if (!cursor.matches(Code::Type::LayoutEnd)) {
           cursor.token_error("Expected `,` or `]` after swizzle member."_view);
           return Base::Expression::Value();
         }
       }
 
       Bool has_index_end = cursor.require(
-          Class::Type::IndexEnd, "Expected `]` after swizzle."_view);
+          Code::Type::LayoutEnd, "Expected `]` after swizzle."_view);
       if (!has_index_end) {
         return Base::Expression::Value();
       }
@@ -138,7 +138,7 @@ static auto evaluate_reference(Cursor& cursor, Base::Context& context)
       continue;
     }
 
-    if (cursor.matches(Class::Type::CallOp)) {
+    if (cursor.matches(Code::Type::CallOp)) {
       const Base::Expression::Value& owner =
           context.get_arena().construct<Base::Expression::Value>(
               Base::Expression::Value::reference(
@@ -146,7 +146,7 @@ static auto evaluate_reference(Cursor& cursor, Base::Context& context)
                   cursor.get_token_span(start, cursor.get_token_index())));
       cursor.consume();
       const Token* name = cursor.require(
-          Class::Type::Addressable, "Expected function name after `->`."_view);
+          Code::Type::Addressable, "Expected function name after `->`."_view);
       if (name == nullptr) {
         return Base::Expression::Value();
       }
@@ -169,7 +169,7 @@ static auto evaluate_reference(Cursor& cursor, Base::Context& context)
 
 static auto evaluate_primary(Cursor& cursor, Base::Context& context)
     -> Base::Expression::Value {
-  if (cursor.matches(Class::Type::String)) {
+  if (cursor.matches(Code::Type::String)) {
     const Token& token = cursor.consume();
     View::Bytes text = token.get_text();
     if (text.get_size() < 2 || text[0] != '"' ||
@@ -183,7 +183,7 @@ static auto evaluate_primary(Cursor& cursor, Base::Context& context)
             context.get_arena(), text.slice(1, text.get_size() - 2)));
   }
 
-  if (cursor.matches(Class::Type::Bytes)) {
+  if (cursor.matches(Code::Type::Bytes)) {
     const Token& token = cursor.consume();
     View::Bytes text = token.get_text();
     if (text.get_size() < 4 || text[0] != '0' || text[1] != 'x' ||
@@ -228,7 +228,7 @@ static auto evaluate_primary(Cursor& cursor, Base::Context& context)
     return Base::Expression::Value::bytes(bytes.get_view());
   }
 
-  if (cursor.matches(Class::Type::Embedded)) {
+  if (cursor.matches(Code::Type::Embedded)) {
     const Token& token = cursor.consume();
     View::Bytes text = token.get_text();
     if (text.get_size() < 4 || text[0] != '$' || text[1] != '[' ||
@@ -248,32 +248,32 @@ static auto evaluate_primary(Cursor& cursor, Base::Context& context)
     return Base::Expression::Value::bytes(content);
   }
 
-  if (cursor.matches(Class::Type::True)) {
+  if (cursor.matches(Code::Type::True)) {
     cursor.consume();
     return Base::Expression::Value::boolean(True);
   }
 
-  if (cursor.matches(Class::Type::False)) {
+  if (cursor.matches(Code::Type::False)) {
     cursor.consume();
     return Base::Expression::Value::boolean(False);
   }
 
-  if (cursor.matches(Class::Type::Numeric)) {
+  if (cursor.matches(Code::Type::Numeric)) {
     return Base::Expression::Value::numeric(cursor.consume().get_text());
   }
 
-  if (cursor.matches(Class::Type::Float)) {
+  if (cursor.matches(Code::Type::Float)) {
     return Base::Expression::Value::floating(cursor.consume().get_text());
   }
 
-  if (cursor.matches(Class::Type::SubOp)) {
+  if (cursor.matches(Code::Type::SubOp)) {
     const Token& sign = cursor.consume();
-    if (cursor.matches(Class::Type::Numeric)) {
+    if (cursor.matches(Code::Type::Numeric)) {
       return Base::Expression::Value::numeric(
           cursor.consume().get_text(), True);
     }
 
-    if (cursor.matches(Class::Type::Float)) {
+    if (cursor.matches(Code::Type::Float)) {
       return Base::Expression::Value::floating(
           cursor.consume().get_text(), True);
     }
@@ -283,7 +283,7 @@ static auto evaluate_primary(Cursor& cursor, Base::Context& context)
     return Base::Expression::Value();
   }
 
-  if (cursor.matches(Class::Type::PackingStart)) {
+  if (cursor.matches(Code::Type::PackingStart)) {
     const Base::Expression::Pack* pack =
         Base::Expression::Pack::evaluate(cursor, context);
     return pack == nullptr ? Base::Expression::Value()
@@ -307,9 +307,9 @@ static auto evaluate_expression(
     return left;
   }
 
-  while (!cursor.matches(Class::Type::EndOfStream)) {
+  while (!cursor.matches(Code::Type::Terminal)) {
     Base::Expression::Value::Operator op =
-        binary_operator(cursor.current().get_class().get_type());
+        binary_operator(cursor.current().get_code().get_type());
     Count precedence = operator_precedence(op);
     if (precedence < minimum_precedence) {
       break;
@@ -334,7 +334,7 @@ static auto evaluate_expression(
 
 static auto consume_index(Cursor& cursor, Base::Context& context) -> Bool {
   cursor.consume();
-  if (!cursor.matches(Class::Type::IndexEnd)) {
+  if (!cursor.matches(Code::Type::LayoutEnd)) {
     Base::Expression::Value index = evaluate_expression(cursor, context, 1);
     if (index.is_empty()) {
       return False;
@@ -342,7 +342,7 @@ static auto consume_index(Cursor& cursor, Base::Context& context) -> Bool {
   }
 
   return cursor.require(
-             Class::Type::IndexEnd,
+             Code::Type::LayoutEnd,
              "Expected `]` after expression index."_view) != nullptr;
 }
 

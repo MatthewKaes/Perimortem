@@ -31,7 +31,7 @@ class Cursor {
 
   constexpr auto get_token_index() const -> Count { return index; }
 
-  // Advances at most to the tokenizer's end-of-stream token and returns the
+  // Advances at most to the tokenizer's terminal token and returns the
   // token that was current before advancing.
   constexpr auto consume() -> Lexical::Token {
     const auto tokens = tokenizer.get_tokens();
@@ -43,11 +43,11 @@ class Cursor {
     return consumed;
   }
 
-  // Requires the current token to have the expected class. Success consumes and
+  // Requires the current token to have the expected Code. Success consumes and
   // returns the token. Failure records the provided message on the mismatched
   // token and returns an invalid end of stream token.
   constexpr auto require(
-      Lexical::Class::Type type,
+      Lexical::Code::Type type,
       Perimortem::Core::View::Bytes message) -> Lexical::Token {
     if (!matches(type)) {
       create_token_error(message);
@@ -82,7 +82,7 @@ class Cursor {
     errors.create_token_error(token, message, hint);
   }
 
-  // Emits an error over an already-known token range.
+  // Emits an error over an existing token range.
   // Views can be temporary as the error context copies the data into its local
   // memory space in case the error outlives the source.
   auto create_expression_error(
@@ -102,17 +102,17 @@ class Cursor {
     // The source envelope only recovers at statement boundaries. That is enough
     // to keep independent import errors visible without pretending to
     // understand the dialect body after a malformed envelope item.
-    constexpr Perimortem::Core::Static::Vector<Lexical::Class::Type, 3>
+    constexpr Perimortem::Core::Static::Vector<Lexical::Code::Type, 3>
         terminals = {{
-          Lexical::Class::Type::EndOfStream,
-          Lexical::Class::Type::EndStatement,
-          Lexical::Class::Type::ScopeEnd,
+          Lexical::Code::Type::Terminal,
+          Lexical::Code::Type::EndStatement,
+          Lexical::Code::Type::ScopeEnd,
         }};
 
-    auto type = current().get_class();
+    auto type = current().get_code();
     while (!type.is_one_of(terminals)) {
       consume();
-      type = current().get_class();
+      type = current().get_code();
     }
 
     // Consume the terminal to get it out of the way to keep parser logic
@@ -126,15 +126,14 @@ class Cursor {
   }
 
   // Checks if the current cursor is exactly one type.
-  constexpr auto matches(Lexical::Class::Type type) const -> Bool {
-    return current().get_class() == type;
+  constexpr auto matches(Lexical::Code::Type type) const -> Bool {
+    return current().get_code() == type;
   }
 
-  // Checks to see if the class is an item in a range of possible values.
+  // Checks to see if the Code is an item in a range of possible values.
   constexpr auto is_one_of(
-      Perimortem::Core::View::Vector<Lexical::Class::Type> types) const
-      -> Bool {
-    return current().get_class().is_one_of(types);
+      Perimortem::Core::View::Vector<Lexical::Code::Type> types) const -> Bool {
+    return current().get_code().is_one_of(types);
   }
 
   constexpr auto get_arena() const -> Perimortem::Memory::Allocator::Arena& {

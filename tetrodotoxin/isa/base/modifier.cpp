@@ -9,12 +9,12 @@ using namespace Ttx::Lexical;
 
 auto Base::Modifier::evaluate(
     Cursor& cursor,
-    View::Vector<Class::Type> allowed,
-    View::Bytes error_message) -> Class::Type {
-  Class type = cursor.current().get_class();
+    View::Vector<Code::Type> allowed,
+    View::Bytes error_message) -> Code::Type {
+  Code type = cursor.current().get_code();
   if (!type.is_one_of(allowed)) {
     cursor.token_error(error_message);
-    return Class::Type::Unknown;
+    return Code::Type::Unknown;
   }
 
   cursor.consume();

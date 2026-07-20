@@ -17,18 +17,18 @@ namespace Tetrodotoxin::Isa::Base::Expression {
 // this owner instead of inventing local value or pack models.
 class Evaluator {
  public:
-  static constexpr auto is_index_start(Ttx::Lexical::Class::Type type) -> Bool {
+  static constexpr auto is_index_start(Ttx::Lexical::Code::Type type) -> Bool {
     switch (type) {
-    case Ttx::Lexical::Class::Type::IndexStart:
-    case Ttx::Lexical::Class::Type::SliceOp:
-    case Ttx::Lexical::Class::Type::SwizzleOp:
+    case Ttx::Lexical::Code::Type::LayoutStart:
+    case Ttx::Lexical::Code::Type::SliceOp:
+    case Ttx::Lexical::Code::Type::SwizzleOp:
       return True;
     default:
       return False;
     }
   }
 
-  static constexpr auto is_index_start(Ttx::Lexical::Class type) -> Bool {
+  static constexpr auto is_index_start(Ttx::Lexical::Code type) -> Bool {
     return is_index_start(type.get_type());
   }
 

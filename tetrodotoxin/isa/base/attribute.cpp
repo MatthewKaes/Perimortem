@@ -31,12 +31,12 @@ static auto attribute_key(View::Bytes source) -> View::Bytes {
 }
 
 static auto read_scalar(Cursor& cursor, View::Bytes key) -> Ttx::Attribute {
-  if (!cursor.matches(Class::Type::PackingStart)) {
+  if (!cursor.matches(Code::Type::PackingStart)) {
     return Ttx::Attribute(key);
   }
 
   cursor.consume();
-  Bool negative = cursor.matches(Class::Type::SubOp);
+  Bool negative = cursor.matches(Code::Type::SubOp);
   if (negative) {
     cursor.consume();
   }
@@ -48,10 +48,10 @@ static auto read_scalar(Cursor& cursor, View::Bytes key) -> Ttx::Attribute {
   Real_64 real_value = 0;
   Bool boolean_value = False;
   const Token& token = cursor.current();
-  switch (token.get_class().get_type()) {
-  case Class::Type::Addressable:
-  case Class::Type::Type:
-  case Class::Type::String:
+  switch (token.get_code().get_type()) {
+  case Code::Type::Addressable:
+  case Code::Type::Type:
+  case Code::Type::String:
     if (negative) {
       cursor.token_error("Only numeric attribute values can be negative."_view);
       return Ttx::Attribute();
@@ -61,7 +61,7 @@ static auto read_scalar(Cursor& cursor, View::Bytes key) -> Ttx::Attribute {
     bytes = token.get_text();
     break;
 
-  case Class::Type::Numeric: {
+  case Code::Type::Numeric: {
     Reader::Textual reader(token.get_text());
     Unsigned_64 value = reader.read_unsigned();
     if (reader.get_location() != reader.get_size()) {
@@ -80,7 +80,7 @@ static auto read_scalar(Cursor& cursor, View::Bytes key) -> Ttx::Attribute {
     break;
   }
 
-  case Class::Type::Float: {
+  case Code::Type::Float: {
     Reader::Textual reader(token.get_text());
     Real_64 value = reader.read_real_64();
     if (reader.get_location() != reader.get_size()) {
@@ -93,15 +93,15 @@ static auto read_scalar(Cursor& cursor, View::Bytes key) -> Ttx::Attribute {
     break;
   }
 
-  case Class::Type::True:
-  case Class::Type::False:
+  case Code::Type::True:
+  case Code::Type::False:
     if (negative) {
       cursor.token_error("Only numeric attribute values can be negative."_view);
       return Ttx::Attribute();
     }
 
     kind = Ttx::Attribute::Kind::Boolean;
-    boolean_value = token.get_class() == Class::Type::True;
+    boolean_value = token.get_code() == Code::Type::True;
     break;
 
   default:
@@ -112,7 +112,7 @@ static auto read_scalar(Cursor& cursor, View::Bytes key) -> Ttx::Attribute {
   }
 
   cursor.consume();
-  if (!cursor.matches(Class::Type::PackingEnd)) {
+  if (!cursor.matches(Code::Type::PackingEnd)) {
     cursor.token_error(
         "Attribute accepts exactly one scalar value."_view,
         "Use another attribute for each additional fact."_view);
@@ -140,7 +140,7 @@ static auto read_scalar(Cursor& cursor, View::Bytes key) -> Ttx::Attribute {
 
 static auto read_attribute(Cursor& cursor) -> Ttx::Attribute {
   const Token* token =
-      cursor.require(Class::Type::Attribute, "Expected attribute."_view);
+      cursor.require(Code::Type::Attribute, "Expected attribute."_view);
   if (token == nullptr) {
     return Ttx::Attribute();
   }
@@ -165,7 +165,7 @@ static auto read_attribute(Cursor& cursor) -> Ttx::Attribute {
 }
 
 auto Base::Attribute::consume_all(Cursor& cursor) -> Bool {
-  while (cursor.matches(Class::Type::Attribute)) {
+  while (cursor.matches(Code::Type::Attribute)) {
     Ttx::Attribute attribute = read_attribute(cursor);
     if (attribute.is_empty()) {
       return False;
@@ -178,7 +178,7 @@ auto Base::Attribute::consume_all(Cursor& cursor) -> Bool {
 auto Base::Attribute::evaluate_all(
     Cursor& cursor,
     Perimortem::Memory::Managed::Vector<Ttx::Attribute>& attributes) -> Bool {
-  while (cursor.matches(Class::Type::Attribute)) {
+  while (cursor.matches(Code::Type::Attribute)) {
     Ttx::Attribute attribute = read_attribute(cursor);
     if (attribute.is_empty()) {
       return False;

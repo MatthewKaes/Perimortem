@@ -7,7 +7,7 @@
 
 #include "tetrodotoxin/isa/base/expression/value.hpp"
 #include "ttx/attribute.hpp"
-#include "ttx/lexical/class.hpp"
+#include "ttx/lexical/code.hpp"
 
 namespace Tetrodotoxin::Isa::Base {
 
@@ -18,7 +18,7 @@ class Definition {
  public:
   constexpr Definition() = default;
   constexpr Definition(
-      Ttx::Lexical::Class::Type modifier,
+      Ttx::Lexical::Code::Type modifier,
       Perimortem::Core::View::Vector<Ttx::Attribute> attributes = {},
       Expression::Value initializer = Expression::Value())
       : modifier(modifier), attributes(attributes), initializer(initializer) {}
@@ -31,7 +31,7 @@ class Definition {
     return *this;
   }
 
-  constexpr auto get_modifier() const -> Ttx::Lexical::Class::Type {
+  constexpr auto get_modifier() const -> Ttx::Lexical::Code::Type {
     return modifier;
   }
 
@@ -49,7 +49,7 @@ class Definition {
   }
 
  private:
-  Ttx::Lexical::Class::Type modifier = Ttx::Lexical::Class::Type::Unknown;
+  Ttx::Lexical::Code::Type modifier = Ttx::Lexical::Code::Type::Unknown;
   Perimortem::Core::View::Vector<Ttx::Attribute> attributes;
   Expression::Value initializer;
 };

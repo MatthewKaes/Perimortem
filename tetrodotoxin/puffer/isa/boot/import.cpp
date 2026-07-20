@@ -15,8 +15,8 @@ auto Isa::Boot::Import::evaluate(
     const Tetrodotoxin::Isa::Registry& registry) -> Isa::Boot::Import {
   Tetrodotoxin::Isa::Base::Declaration definition =
       Tetrodotoxin::Isa::Base::Declaration::evaluate(
-          cursor, Ttx::Documentation(), {{Class::Type::Import}},
-          {{Class::Type::Type}}, {{Class::Type::Type}});
+          cursor, Ttx::Documentation(), {{Code::Type::Import}},
+          {{Code::Type::Type}}, {{Code::Type::Type}});
   if (definition.is_empty()) {
     return Isa::Boot::Import();
   }
@@ -28,7 +28,7 @@ auto Isa::Boot::Import::evaluate(
   }
 
   Bool has_assignment = cursor.require(
-      Class::Type::Assign, "Expected `=` after import ISA."_view);
+      Code::Type::Assign, "Expected `=` after import ISA."_view);
   if (!has_assignment) {
     cursor.recover_to_statement();
     return Isa::Boot::Import();
@@ -37,15 +37,15 @@ auto Isa::Boot::Import::evaluate(
   // Strings are file imports. Qualified type-shaped names are package imports.
   View::Bytes import_name;
   Bool package = False;
-  switch (cursor.current().get_class().get_type()) {
-  case Class::Type::String: {
+  switch (cursor.current().get_code().get_type()) {
+  case Code::Type::String: {
     auto source_text = cursor.current().get_text();
     import_name = source_text.slice(1, source_text.get_size() - 2);
     cursor.consume();
     break;
   }
 
-  case Class::Type::Type: {
+  case Code::Type::Type: {
     package = True;
     auto name = Tetrodotoxin::Isa::Package::PackageName::evaluate(cursor);
     if (name.is_empty()) {
@@ -65,7 +65,7 @@ auto Isa::Boot::Import::evaluate(
   }
 
   Bool has_statement_end = cursor.require(
-      Class::Type::EndStatement, "Expected `;` after import."_view);
+      Code::Type::EndStatement, "Expected `;` after import."_view);
   if (!has_statement_end) {
     cursor.recover_to_statement();
   }

@@ -6,17 +6,23 @@ load("@rules_cc//cc:cc_library.bzl", "cc_library")
 
 package(default_visibility = ["//visibility:public"])
 
+exports_files([
+    "library/abstract.ttx",
+    "library/lifecycle.ttx",
+])
+
 cc_library(
     name = "lexical",
     srcs = [
-        "lexical/class.cpp",
+        "lexical/code.cpp",
         "lexical/errors.cpp",
         "lexical/tokenizer.cpp",
     ],
     hdrs = [
-        "lexical/class.hpp",
+        "lexical/code.hpp",
         "lexical/cursor.hpp",
         "lexical/errors.hpp",
+        "lexical/lexicon.hpp",
         "lexical/token.hpp",
         "lexical/tokenizer.hpp",
     ],
@@ -50,16 +56,18 @@ cc_library(
 cc_library(
     name = "model",
     srcs = [
-        "model/argument.cpp",
         "model/binding.cpp",
         "model/documentations/comment.cpp",
+        "model/generic.cpp",
+        "model/layouts/composite.cpp",
         "model/layouts/fluid.cpp",
         "model/layouts/named.cpp",
+        "model/layouts/ranged.cpp",
     ],
     hdrs = [
         "model/addressable.hpp",
+        "model/addressables/writable.hpp",
         "model/alias.hpp",
-        "model/argument.hpp",
         "model/attribute.hpp",
         "model/binding.hpp",
         "model/callable.hpp",
@@ -75,9 +83,12 @@ cc_library(
         "model/documentations/comment.hpp",
         "model/documentations/merged.hpp",
         "model/expression.hpp",
+        "model/exports.hpp",
         "model/generic.hpp",
+        "model/layouts/composite.hpp",
         "model/layouts/fluid.hpp",
         "model/layouts/named.hpp",
+        "model/layouts/ranged.hpp",
         "model/layouts/structured.hpp",
         "model/projection.hpp",
         "model/type.hpp",

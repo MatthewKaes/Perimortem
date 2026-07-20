@@ -5,11 +5,12 @@
 
 #include "perimortem/core/static/vector.hpp"
 
-#include "ttx/concept/comment.hpp"
-#include "ttx/concept/comments.hpp"
+#include "ttx/model/documentations/block.hpp"
+#include "ttx/model/documentations/comment.hpp"
 
 using namespace Perimortem::Core;
 using namespace Ttx::Concept;
+using namespace Ttx::Model::Documentations;
 using namespace Validation;
 
 static Harness TtxDocumentation = {
@@ -32,7 +33,7 @@ PERIMORTEM_UNIT_TEST(TtxDocumentation, lines) {
     "Second"_view,
   }};
 
-  Comments documentation(lines);
+  Block documentation(lines);
 
   EXPECT_NOT(documentation.is_empty());
   EXPECT_EQ(documentation.line_count(), Count(2));
@@ -47,7 +48,7 @@ PERIMORTEM_UNIT_TEST(TtxDocumentation, empty_line) {
     "Second"_view,
   }};
 
-  Comments documentation(lines);
+  Block documentation(lines);
 
   EXPECT_NOT(documentation.is_empty());
   EXPECT(documentation.get_line(0).is_empty());
@@ -68,7 +69,7 @@ PERIMORTEM_UNIT_TEST(TtxDocumentation, late_bound) {
     "Second"_view,
   }};
 
-  Comments documentation(lines);
+  Block documentation(lines);
   lines[0] = "Updated"_view;
 
   EXPECT_TEXT(documentation.get_line(0), "Updated"_view);

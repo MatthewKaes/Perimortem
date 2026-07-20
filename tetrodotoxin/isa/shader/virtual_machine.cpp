@@ -23,7 +23,7 @@ auto Shader::VirtualMachine::evaluate(Cursor& cursor, Base::Context& context)
     return nullptr;
   }
 
-  if (!cursor.matches(Class::Type::Addressable) ||
+  if (!cursor.matches(Code::Type::Addressable) ||
       cursor.current().get_text() != "shader"_view) {
     cursor.token_error("Expected `shader` declaration."_view);
     return nullptr;
@@ -32,7 +32,7 @@ auto Shader::VirtualMachine::evaluate(Cursor& cursor, Base::Context& context)
   cursor.consume();
 
   const Token* name =
-      cursor.require(Class::Type::Type, "Expected shader type name."_view);
+      cursor.require(Code::Type::Type, "Expected shader type name."_view);
   if (name == nullptr) {
     return nullptr;
   }
@@ -43,7 +43,7 @@ auto Shader::VirtualMachine::evaluate(Cursor& cursor, Base::Context& context)
   }
 
   Bool has_scope = cursor.require(
-      Class::Type::ScopeStart, "Expected `{` after shader declaration."_view);
+      Code::Type::ScopeStart, "Expected `{` after shader declaration."_view);
   if (!has_scope) {
     return nullptr;
   }
@@ -51,8 +51,8 @@ auto Shader::VirtualMachine::evaluate(Cursor& cursor, Base::Context& context)
   Managed::Vector<Ttx::Function> functions(context.get_arena());
   Managed::Vector<const Shader::Block*> function_blocks(context.get_arena());
   Bool valid = True;
-  while (!cursor.matches(Class::Type::EndOfStream) &&
-         !cursor.matches(Class::Type::ScopeEnd)) {
+  while (!cursor.matches(Code::Type::Terminal) &&
+         !cursor.matches(Code::Type::ScopeEnd)) {
     Ttx::Documentation function_documentation =
         Base::Documentation::evaluate(cursor);
     Bool function_attributes_consumed = Base::Attribute::consume_all(cursor);
@@ -87,12 +87,12 @@ auto Shader::VirtualMachine::evaluate(Cursor& cursor, Base::Context& context)
   }
 
   Bool has_scope_end = cursor.require(
-      Class::Type::ScopeEnd, "Expected `}` after shader declaration."_view);
+      Code::Type::ScopeEnd, "Expected `}` after shader declaration."_view);
   if (!has_scope_end) {
     return nullptr;
   }
 
-  if (!valid || !cursor.matches(Class::Type::EndOfStream)) {
+  if (!valid || !cursor.matches(Code::Type::Terminal)) {
     return nullptr;
   }
 

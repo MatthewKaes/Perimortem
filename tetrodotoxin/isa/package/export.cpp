@@ -15,8 +15,8 @@ auto Package::Export::evaluate(
     Base::Context& context,
     Ttx::Documentation documentation) -> Package::Export {
   Base::Declaration definition = Base::Declaration::evaluate(
-      cursor, documentation, {{Class::Type::Expose}}, {{Class::Type::Type}},
-      {{Class::Type::Alias, Class::Type::Type, Class::Type::Addressable}});
+      cursor, documentation, {{Code::Type::Expose}}, {{Code::Type::Type}},
+      {{Code::Type::Alias, Code::Type::Type, Code::Type::Addressable}});
   if (definition.is_empty()) {
     return Package::Export();
   }
@@ -39,7 +39,7 @@ auto Package::Export::evaluate(
   }
 
   Bool has_assignment = cursor.require(
-      Class::Type::Assign, "Expected `=` before package export target."_view);
+      Code::Type::Assign, "Expected `=` before package export target."_view);
   if (!has_assignment) {
     return Package::Export();
   }
@@ -56,7 +56,7 @@ auto Package::Export::evaluate(
   }
 
   Bool has_statement_end = cursor.require(
-      Class::Type::EndStatement, "Expected `;` after package export."_view);
+      Code::Type::EndStatement, "Expected `;` after package export."_view);
   if (!has_statement_end) {
     return Package::Export();
   }

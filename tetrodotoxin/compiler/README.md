@@ -13,7 +13,7 @@ implementation table.
 TTX Abstract graph
         |
         v
-Type, Layout, Callable, and ISA queries
+Type, Layout, Callable, and Dialect queries
         |
         v
 target planning and execution
@@ -39,9 +39,9 @@ One Compiler owns:
 - target plans, linker state, and terminal products
 - diagnostics retained by the source-owning system.
 
-The active toolchain owns installed ISA evaluators and targets. Puffer owns
-source loading, dependency resolution, and cache invalidation. TTX owns the
-shared Abstract, Type, Layout, and Callable contracts.
+The active toolchain owns its `Dialects` context and targets. Puffer owns source
+loading, dependency resolution, and cache invalidation. TTX owns the shared
+Abstract, Type, Layout, and Callable contracts.
 
 ## Semantic input
 
@@ -53,9 +53,10 @@ Aliases redirect through `Abstract::resolve()`. Generic objects consume their
 accepted arguments and return a concrete Abstract that must resolve to Type.
 Neither Alias nor Generic is itself a Type.
 
-A Type supplies its Structured Layout. The Layout contains the real
-Addressables owned by that Type. It does not copy child Types, offsets,
-documentation, attributes, defaults, or target storage into a compiler record.
+A Type supplies its Layout. Structured contains the real Addressables owned by
+that Type; Ranged compactly repeats one queried Type. Layout does not copy child
+Types, offsets, documentation, attributes, defaults, or target storage into a
+compiler record.
 
 ## Lowering
 
@@ -65,7 +66,8 @@ Lowering selects behavior by proven contracts:
 resolve Abstract
 -> prove Type
 -> Terminal: read its domain, size, and alignment
--> otherwise: recursively lower every Addressable in its Structured Layout
+-> Structured: recursively lower every Addressable
+-> Ranged: recursively lower the repeated Type across its fixed count
 ```
 
 Terminal proof precedes Layout inspection. This preserves the distinction
@@ -80,18 +82,20 @@ They are not source attributes or Type fields.
 
 ## Callables
 
-Callable publishes complete parameter and result Layouts plus an address query.
-Static invocation has no receiver. Self invocation includes its receiver as
-parameter zero. Reflection, fitting, call lowering, and generated interfaces
-all consume that same complete signature.
+Callable publishes complete parameter and result Layouts. Static invocation has
+no receiver. Self invocation includes its receiver as parameter zero.
+Reflection, fitting, call lowering, and generated interfaces all consume that
+same complete signature. Machine linkage belongs to a narrower ABI or execution
+contract rather than core Callable or Addressable.
 
-An unresolved endpoint is represented by an unresolved Addressable or Invalid.
-The compiler does not infer invocation mode from a function name, prepend a
-receiver later, or use a null pointer as linkage state.
+An unresolved endpoint is represented by its ABI owner or Invalid. The compiler
+does not infer invocation mode from a function name, prepend a receiver later,
+or use a null pointer as linkage state.
 
-Target-independent body tables may be attached to a Callable through an
-ISA-owned contract. Those tables describe execution. They do not own Type
-identity, name resolution, or package publication.
+A target-independent executable body may be attached to a Callable through a
+Dialect-owned contract. That real body contract describes execution without a
+pointer-keyed implementation table and does not own Type identity, name
+resolution, or package publication.
 
 ## Target planning
 

@@ -18,13 +18,13 @@ auto Shader::Function::evaluate(
     Ttx::Documentation documentation,
     const Block*& block) -> Ttx::Function {
   Bool has_function = cursor.require(
-      Class::Type::Func, "Expected `func` in shader stage."_view);
+      Code::Type::Func, "Expected `func` in shader stage."_view);
   if (!has_function) {
     return Ttx::Function();
   }
 
   const Token* name = cursor.require(
-      Class::Type::Addressable, "Expected shader stage name."_view);
+      Code::Type::Addressable, "Expected shader stage name."_view);
   if (name == nullptr) {
     return Ttx::Function();
   }
@@ -37,7 +37,7 @@ auto Shader::Function::evaluate(
   }
 
   Bool has_call = cursor.require(
-      Class::Type::CallOp, "Expected `->` before shader stage result."_view);
+      Code::Type::CallOp, "Expected `->` before shader stage result."_view);
   if (!has_call) {
     return Ttx::Function();
   }

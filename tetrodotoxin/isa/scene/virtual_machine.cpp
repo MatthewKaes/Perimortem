@@ -27,18 +27,18 @@ auto Scene::VirtualMachine::evaluate(Cursor& cursor, Base::Context& context)
       context.get_arena());
   Ttx::Type* scene = context.get_arena().reserve<Ttx::Type>();
   Bool valid = True;
-  while (!cursor.matches(Class::Type::EndOfStream)) {
+  while (!cursor.matches(Code::Type::Terminal)) {
     Ttx::Documentation documentation = Base::Documentation::evaluate(cursor);
     Bool attributes_consumed = Base::Attribute::consume_all(cursor);
     if (!attributes_consumed) {
       return nullptr;
     }
 
-    if (cursor.matches(Class::Type::EndOfStream)) {
+    if (cursor.matches(Code::Type::Terminal)) {
       break;
     }
 
-    Class::Type current = cursor.current().get_class().get_type();
+    Code::Type current = cursor.current().get_code().get_type();
     if (Scene::Storage::is_modifier(current)) {
       Base::Definition definition;
       const Ttx::Member* member = Scene::Storage::evaluate(
@@ -79,7 +79,7 @@ auto Scene::VirtualMachine::evaluate(Cursor& cursor, Base::Context& context)
       continue;
     }
 
-    if (cursor.matches(Class::Type::Addressable)) {
+    if (cursor.matches(Code::Type::Addressable)) {
       Ttx::Function function =
           Scene::Lifecycle::evaluate(cursor, context, documentation, scene);
       if (function.is_empty()) {

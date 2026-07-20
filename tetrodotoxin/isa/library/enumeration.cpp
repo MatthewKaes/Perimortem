@@ -22,7 +22,7 @@ using namespace Ttx::Lexical;
 static auto parse_storage_type(Cursor& cursor, Library::Scope& scope)
     -> const Ttx::Type* {
   Bool has_index = cursor.require(
-      Class::Type::IndexStart,
+      Code::Type::LayoutStart,
       "Expected `[` before library enum storage type."_view);
   if (!has_index) {
     return nullptr;
@@ -35,7 +35,7 @@ static auto parse_storage_type(Cursor& cursor, Library::Scope& scope)
   }
 
   Bool has_index_end = cursor.require(
-      Class::Type::IndexEnd,
+      Code::Type::LayoutEnd,
       "Expected `]` after library enum storage type."_view);
   if (!has_index_end) {
     return nullptr;
@@ -93,7 +93,7 @@ static auto evaluate_cases(
     const Tetrodotoxin::Isa::Base::Declaration& definition,
     const Ttx::Type& storage) -> const Ttx::Type* {
   Bool has_scope = cursor.require(
-      Class::Type::ScopeStart,
+      Code::Type::ScopeStart,
       "Expected `{` after library enum storage type."_view);
   if (!has_scope) {
     return nullptr;
@@ -122,8 +122,8 @@ static auto evaluate_cases(
   }
 
   Bool valid = True;
-  while (!cursor.matches(Class::Type::EndOfStream) &&
-         !cursor.matches(Class::Type::ScopeEnd)) {
+  while (!cursor.matches(Code::Type::Terminal) &&
+         !cursor.matches(Code::Type::ScopeEnd)) {
     Ttx::Documentation documentation = Base::Documentation::evaluate(cursor);
     Managed::Vector<Ttx::Attribute> source_attributes(
         scope.get_context().get_arena());
@@ -133,10 +133,10 @@ static auto evaluate_cases(
       return nullptr;
     }
 
-    if (cursor.matches(Class::Type::Addressable)) {
+    if (cursor.matches(Code::Type::Addressable)) {
       View::Bytes name = cursor.current().get_text();
       cursor.consume();
-      if (!cursor.matches(Class::Type::Assign)) {
+      if (!cursor.matches(Code::Type::Assign)) {
         cursor.token_error("Expected `=` after library enum case name."_view);
         valid = False;
         Bool recovered = Library::Syntax::consume_declaration_tail(cursor);
@@ -156,7 +156,7 @@ static auto evaluate_cases(
       }
 
       Bool has_statement_end = cursor.require(
-          Class::Type::EndStatement,
+          Code::Type::EndStatement,
           "Expected `;` after library enum case."_view);
       if (!has_statement_end) {
         return nullptr;
@@ -170,17 +170,16 @@ static auto evaluate_cases(
       } else {
         member_definitions.insert(
             Base::Definition(
-                Class::Type::Expose, source_attributes.get_view(), value));
+                Code::Type::Expose, source_attributes.get_view(), value));
       }
 
       continue;
     }
 
-    Class::Type modifier = Base::Modifier::evaluate(
-        cursor,
-        {{Class::Type::Public, Class::Type::Private, Class::Type::Expose}},
+    Code::Type modifier = Base::Modifier::evaluate(
+        cursor, {{Code::Type::Public, Code::Type::Private, Code::Type::Expose}},
         "Expected enum body to contain a case name or function modifier."_view);
-    if (modifier == Class::Type::Unknown) {
+    if (modifier == Code::Type::Unknown) {
       valid = False;
       Bool recovered = Library::Syntax::consume_declaration_tail(cursor);
       if (!recovered) {
@@ -190,7 +189,7 @@ static auto evaluate_cases(
       continue;
     }
 
-    if (!cursor.matches(Class::Type::Func)) {
+    if (!cursor.matches(Code::Type::Func)) {
       cursor.token_error("Expected enum member function."_view);
       valid = False;
       Bool recovered = Library::Syntax::consume_declaration_tail(cursor);
@@ -237,7 +236,7 @@ static auto evaluate_cases(
   }
 
   Bool has_scope_end = cursor.require(
-      Class::Type::ScopeEnd,
+      Code::Type::ScopeEnd,
       "Expected `}` after library enum declaration."_view);
   if (!has_scope_end) {
     return nullptr;

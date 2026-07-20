@@ -11,7 +11,7 @@ namespace Ttx::Model {
 // Constant is an immutable Expression already in normal form. It defines no
 // parser, operator set, evaluator, or lowering representation. Concrete value
 // domains expose their payload through derived contracts, allowing tools and
-// ISAs to add constants without extending a central tag.
+// Dialects to add constants without extending a central tag.
 //
 // Constants have no evaluation inputs. Equality includes resolved Type identity
 // as well as the derived value, preserving the distinction between equal bits

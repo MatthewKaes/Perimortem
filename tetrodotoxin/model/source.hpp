@@ -3,28 +3,57 @@
 
 #pragma once
 
-#include "ttx/model/group.hpp"
+#include "perimortem/memory/allocator/arena.hpp"
+#include "perimortem/memory/managed/map.hpp"
+#include "perimortem/memory/managed/vector.hpp"
+
+#include "tetrodotoxin/model/dependency.hpp"
+#include "tetrodotoxin/model/dialect.hpp"
+#include "ttx/concept/abstract.hpp"
+#include "ttx/concept/reference.hpp"
+#include "ttx/lexical/tokenizer.hpp"
 
 namespace Tetrodotoxin::Model {
 
-// Source is the durable root produced by evaluating one source unit. It owns
-// its named definition Group directly so the source boundary is explicit
-// without pretending that a module is a runtime Type or giving it an empty
-// Layout.
+// Source owns one immutable source stream and every object derived from it.
+// Construction copies the optional diagnostic path and source text into its
+// arena before tokenization, so tokens, documentation, definitions, and nested
+// graph edges cannot outlive their backing bytes. Ordered Dependency edges and
+// the Dialect paired with every rooted result preserve the instructions needed
+// to regenerate equivalent source without retaining incidental whitespace.
 //
-// The Group contains the real Abstracts produced by the selected Dialects.
-// Their typed edges are the source graph: Alias retains its target, Structured
-// Layout retains Addressables, Callable retains an address, and future
-// executable or shader contracts retain the facts they define. Source does not
-// collect those relationships into an untyped linkage side table.
-//
-// Source owns no cursor, source bytes, Dialect, package version, archive index,
-// terminal artifact, or diagnostic state. Those belong to the evaluator,
-// resolver, Compiler, or Archiver boundary that owns this stable object.
-// The contract remains derivable when a source-unit concern earns additional
-// operations. A Dialect name or package role alone does not justify a subtype.
-class Source : public Ttx::Concept::Abstract {
+// The Source itself is a durable, anonymous Abstract root. A resolver or cache
+// associates an external name with it. Snippets and anonymous blobs use the
+// same contract without fabricating an identity. Root definitions retain their
+// real Alias, Type, Callable, or host contracts. Named roots resolve through
+// one index. Multiple anonymous roots remain durable graph edges without
+// inventing lookup keys. Cursor remains transient evaluation state over this
+// owned data. Name resolution emerges from Dependencies and rooted definitions
+// already retained by Source.
+class Source final : public Ttx::Concept::Abstract {
  public:
+  // Root is one authored top level result and the Dialect that can
+  // reproduce it. Keeping the relationship as one value prevents definition
+  // and Dialect order from becoming independently mutable shadow state.
+  class Root {
+   public:
+    constexpr Root(
+        const Ttx::Concept::Abstract& definition,
+        const Dialect& dialect)
+        : definition(definition), dialect(dialect) {}
+
+    constexpr auto get_definition() const -> const Ttx::Concept::Abstract& {
+      return definition.get();
+    }
+    constexpr auto get_dialect() const -> const Dialect& {
+      return dialect.get();
+    }
+
+   private:
+    Ttx::Concept::Reference<Ttx::Concept::Abstract> definition;
+    Ttx::Concept::Reference<Dialect> dialect;
+  };
+
   using ContractOwner = Source;
   static constexpr Perimortem::System::Uuid contract_id{
     0x39a6aff4e0734177,
@@ -32,25 +61,92 @@ class Source : public Ttx::Concept::Abstract {
   };
 
   Source(
-      Perimortem::Core::View::Bytes name,
-      Perimortem::Core::View::Vector<
-          Ttx::Concept::Reference<Ttx::Concept::Abstract>> definitions,
-      const Ttx::Concept::Documentation& documentation =
-          Ttx::Concept::Comment::get_empty());
+      Perimortem::Core::View::Bytes text,
+      Perimortem::Core::View::Bytes path = {})
+      : path(arena.proxy(path)),
+        text(arena.proxy(text)),
+        tokenizer(arena, this->text, this->path),
+        roots(arena),
+        dependencies(arena),
+        definitions_by_name(arena),
+        dependencies_by_name(arena) {}
 
   auto implements(Perimortem::System::Uuid requested) const -> Bool override;
 
-  auto get_name() const -> Perimortem::Core::View::Bytes override;
-
-  auto get_definitions() const -> const Ttx::Model::Group&;
+  constexpr auto get_name() const -> Perimortem::Core::View::Bytes override {
+    return {};
+  }
 
   auto get_documentation() const -> const Ttx::Concept::Documentation& override;
 
   auto resolve_context(Perimortem::Core::View::Bytes route) const
       -> const Ttx::Concept::Abstract& override;
 
+  // Evaluates one Dialect against this Source and retains the exact result it
+  // returns. Source owns this transaction because it owns both the token
+  // stream and the durable relationship between a result and its Dialect.
+  // Dialects only produce facts. They never root an internal substitute into
+  // their caller.
+  auto evaluate(const Dialect& dialect, Ttx::Lexical::Cursor& cursor)
+      -> const Ttx::Concept::Abstract&;
+
+  // Retains one interpreted result and the Dialect that produced it. A named
+  // result is rejected when that name already resolves through a Dependency or
+  // earlier result. Anonymous results are retained by identity and are
+  // intentionally absent from lookup. Pairing publication with its Dialect
+  // prevents a partially modeled Source that a formatter cannot reproduce.
+  auto add_root(
+      const Ttx::Concept::Abstract& definition,
+      const Dialect& dialect) -> Bool;
+
+  // Retains one resolved import instruction. Dependency owns the authored
+  // root Dialect, concrete locator contract, and Alias bound to the produced
+  // Exports surface. Source owns ordering, uniqueness, and local lookup.
+  // Resolution exposes the Alias, not the Dependency edge.
+  auto depend(const Dependency& dependency) -> Bool;
+
+  constexpr auto get_arena() -> Perimortem::Memory::Allocator::Arena& {
+    return arena;
+  }
+
+  constexpr auto get_tokenizer() const -> const Ttx::Lexical::Tokenizer& {
+    return tokenizer;
+  }
+
+  constexpr auto get_path() const -> Perimortem::Core::View::Bytes {
+    return path;
+  }
+
+  constexpr auto get_text() const -> Perimortem::Core::View::Bytes {
+    return text;
+  }
+
+  constexpr auto get_roots() const -> Perimortem::Core::View::Vector<Root> {
+    return roots;
+  }
+
+  constexpr auto get_dependencies() const
+      -> Perimortem::Core::View::Vector<Ttx::Concept::Reference<Dependency>> {
+    return dependencies;
+  }
+
  private:
-  Ttx::Model::Group definitions;
+  using Definitions = Perimortem::Memory::Managed::Map<
+      Perimortem::Core::View::Bytes,
+      Ttx::Concept::Reference<Ttx::Concept::Abstract>>;
+  using Dependencies = Perimortem::Memory::Managed::Map<
+      Perimortem::Core::View::Bytes,
+      Ttx::Concept::Reference<Ttx::Model::Alias>>;
+
+  Perimortem::Memory::Allocator::Arena arena;
+  Perimortem::Core::View::Bytes path;
+  Perimortem::Core::View::Bytes text;
+  Ttx::Lexical::Tokenizer tokenizer;
+  Perimortem::Memory::Managed::Vector<Root> roots;
+  Perimortem::Memory::Managed::Vector<Ttx::Concept::Reference<Dependency>>
+      dependencies;
+  Definitions definitions_by_name;
+  Dependencies dependencies_by_name;
 };
 
 }  // namespace Tetrodotoxin::Model

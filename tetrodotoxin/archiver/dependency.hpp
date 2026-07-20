@@ -9,7 +9,11 @@
 
 namespace Tetrodotoxin::Archiver {
 
-// Dependency is a package import edge stored in a Puffer Buffer manifest.
+// Legacy package import record stored by the current Puffer Buffer format.
+// This is not Model::Dependency: the live Source graph uses the open
+// Dependencies::Source and Dependencies::Package Abstract contracts. The
+// replacement archive format derives the durable dependency data it needs from
+// Model::Package.
 //
 // Imports preserve the authored local name so a restored package can rebuild
 // its source-visible Boot preamble. Archive readers and writers derive the

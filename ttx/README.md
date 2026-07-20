@@ -3,14 +3,14 @@
 TTX is a small source IR format. It provides a human-authored source surface,
 token bytecode, and a queryable Abstract object model. A host can execute that model,
 inspect it, or use it as an interchange boundary. Tetrodotoxin is the reference
-host in this repository. It provides the VM, CLI, LSP, Bazel integration, source
-graph, packaging, ISA dispatch, and backend entry points.
+host in this repository. It provides Dialect models, the CLI, LSP, Bazel
+integration, source graph, packaging, and backend entry points.
 
 The design goal is simplicity: lower source text into a compact token stream,
 let a host execute that stream with the active instruction set, and expose
 queryable TTX facts as more context becomes available. Abstract identities,
-types, callables, layouts, and ISA-specific contracts remain separate facts in
-one graph.
+types, callables, layouts, and Dialect-specific contracts remain separate facts
+in one graph.
 
 ## Pipeline
 
@@ -21,49 +21,49 @@ TTX source IR
 -> lexical token bytecode
 -> optional envelope evaluation
 -> optional import or module loading
--> optional ISA evaluation
+-> optional Dialect evaluation
 -> lowering, tooling, or interchange output
 ```
 
 Each layer adds context to the same source-shaped program. The early layers are
-cheap enough for editor features. Later layers can add source graph, ISA,
+cheap enough for editor features. Later layers can add source graph, Dialect,
 package, foreign-boundary, and backend facts when those facts are available.
 
 [`lexical`](lexical/) lowers source bytes into TTX token bytecode. Fixed
-spellings such as `.`, `.[`, `:[`, `::`, `->`, `[`, and `;` become stable token
-classes here.
+spellings such as `.`, `.[`, `:[`, `::`, `->`, `[`, and `;` receive semantic
+Codes in the concrete Lexer contract.
 
-Puffer begins full-source execution by calling its `Boot` ISA directly. Boot
-understands Puffer's source preamble: documentation, the `dialect : Name;`
-instruction, and imports. The dialect instruction selects the next body ISA from
-Tetrodotoxin's active `Isa::Registry`. It is part of the token stream, not an
-out-of-band parser option. Puffer calls Boot directly for complete source files
-instead of installing it as a body ISA.
+Puffer begins full-source evaluation with its Boot envelope. Boot understands
+documentation, the `dialect : Name;` instruction, and imports. The dialect
+instruction resolves one `Tetrodotoxin::Model::Dialect` from the host's
+`Dialects` Abstract context. It is part of the token stream, not an out-of-band
+parser option or a lookup in a second registry.
 
 The Puffer resolver loads the import closure, resolves package names such as
 `Perimortem.Graphics` to manifests, checks that imported files declare the
-requested ISA, and binds each import to the local name written in the source
+requested Dialect, and binds each import to the local name written in the source
 file. It also owns the cache rules that keep source records valid when a
 dependency changes.
 
-The declared ISA then evaluates the remaining token bytecode with those imports
-available. A Package ISA can export package objects. A Library ISA can expose
-types, values, and callable facts. Shader and Render ISAs can add their own
-legality and lowering facts. Another host could choose a different envelope or
-skip the envelope entirely when the evaluator is already known.
+The declared Dialect then evaluates the remaining token bytecode with those
+imports available. Package can export package objects. Library can expose
+types, values, and callable facts. Shader and Render can add their own legality
+and lowering facts. Another host may choose a different envelope or skip it
+when the Dialect is already known.
 
-The ISA or backend that owns an output also owns its lowering. Resolved TTX
+The Dialect or backend that owns an output also owns its lowering. Resolved TTX
 facts flow directly to that owner.
 
 ## Reference source envelope
 
-Puffer source files start in the Boot ISA. The order is fixed for that host:
+Puffer source files start in the Boot envelope. The order is fixed for that
+host:
 
 ```text
 optional documentation comment
-required ISA selection instruction
+required Dialect selection instruction
 zero or more imports
-ISA-owned body
+Dialect-owned body
 ```
 
 In source form:
@@ -76,46 +76,46 @@ import Graphics : Package = Perimortem.Graphics;
 
 private Default2D : alias = Graphics::Shaders::Default2D;
 
-// The rest belongs to the Library ISA.
+// The rest belongs to the Library Dialect.
 ```
 
-The dialect instruction does not select a closed enum. It is an instruction in
-the token stream that names the ISA that should evaluate the body. Boot records
-that name and the imports. Puffer resolution then loads the required source
-files and asks the toolchain's `Isa::Registry` for the body evaluator once the
-local import environment is complete.
+The dialect instruction does not select a closed enum. It names the Dialect
+that should evaluate the body. Boot resolves that name through the host's
+ordinary `Dialects` context after Puffer has loaded the required sources and
+bound the local imports.
 
 Puffer splits source execution across three owners:
 
 ```text
-Puffer Boot ISA: execute preamble + imports
+Puffer Boot: execute preamble + imports
 Resolver: load files + bind import aliases
-Body ISA: evaluate remaining bytecode with resolved imports
+Model::Dialect: evaluate remaining bytecode with resolved imports
 ```
 
 Tetrodotoxin owns the filesystem and package graph. TTX remains focused on the
-language model, while body ISAs receive the type and package names requested by
-the source.
+language model, while the selected Dialect receives the Type and Package names
+requested by the source.
 
-## ISAs
+## Dialects
 
-An ISA is an installed semantic instruction set with a name and behavior. Its
-host-owned installation is local configuration. Durable semantic identity comes
-from the named Abstract facts the ISA exposes, never from a process address.
+A Dialect is a named model that evaluates one source region or continuation.
+The host supplies available Dialects through an ordinary Abstract context.
+Durable semantic identity comes from the Dialect and the real Abstract facts it
+produces, never from a process address or registry record.
 
-That matters because ISAs are open. Adding `Shader`, `Render`, or a
-project-specific authoring space means installing an ISA evaluator into the
-toolchain, not editing a package-kind enum in multiple places.
+Adding `Shader`, `Render`, or a project-specific authoring space means exposing
+another Dialect in that context, not editing a package-kind enum or installing
+an evaluator callback in a second registry.
 
-Puffer Boot's job stays small. It reads the ISA name, validates that the active
-toolchain installed an evaluator for that name, records the requested imports,
-and leaves the remaining bytecode for that evaluator once resolution has bound
-the local import names.
+Puffer Boot's job stays small. It reads the Dialect name, resolves the real
+model, records the requested imports, and leaves the remaining bytecode for
+that model once resolution has bound the local import names.
 
-The ISA then owns its own instruction set, exported facts, and lowering path. A
-Shader ISA can expose shader stage facts. A Package ISA can expose package
-exports. A Library ISA can expose callable functions and ABI facts. Those are
-ISA-owned enrichments over the same TTX token bytecode.
+The Dialect owns its instruction set, exported facts, and any narrow lowering
+contracts it contributes. Shader can expose stage facts, Package can expose
+package exports, and Library can expose callable functions and ABI facts. No
+separate evaluator or instruction-set object sits between a Dialect and those
+real models.
 
 ## Concepts and the model
 
@@ -129,6 +129,7 @@ Ttx::Concept
 ├── Abstract
 │   ├── Invalid
 │   ├── Ttx::Model::Alias
+│   ├── Ttx::Model::Exports
 │   ├── Ttx::Model::Generic
 │   ├── Ttx::Model::Expression
 │   │   ├── Ttx::Model::Projection
@@ -141,11 +142,12 @@ Ttx::Concept
 │   │   │   ├── Signed -> Signed_8 / 16 / 32 / 64
 │   │   │   ├── Real -> Real_32 / 64 / 128
 │   │   │   └── Flag -> Boolean
-│   │   └── ISA-defined model types
+│   │   └── Dialect-defined model types
 │   ├── Ttx::Model::Callable
 │   │   ├── Ttx::Model::Callables::Static
 │   │   └── Ttx::Model::Callables::Self
 │   └── Ttx::Model::Addressable
+│       └── Ttx::Model::Addressables::Writable
 ├── Documentation
 └── Layout
 ```
@@ -162,17 +164,22 @@ and their concrete refinements.
 borrowed `View::Bytes`, and documentation visible at that exact object. `Alias`
 is the closed local name, documentation chain, and redirect to another Abstract.
 `Invalid` is the closed stateless absorbing
-failure. `Type` adds a Structured Layout and Type-owned query surfaces.
+failure. `Type` adds a Layout and Type-owned query surfaces.
 `Generic` is an instruction that creates or finds a compiler-owned Type from
-accepted arguments. Name lookup belongs to the durable Abstract that owns the
-exported names; it queries imported contexts and definitions already rooted in
-that owner. TTX intentionally defines no universal
-Group, Namespace, Source, module, or package contract. A host may implement
-those domains as Abstracts without making containment a Type. `Callable` adds
-complete parameter and result Layouts plus an Addressable query. Static calls
-have no receiver. Self calls include the receiver as parameter zero.
-Addressable is a named semantic edge whose resolution supplies the addressed
-Abstract.
+accepted arguments. `Exports` is the narrow durable contract for an ordered
+public definition surface. Direct lookup is closed over that surface, so a name
+resolves exactly when it belongs to one enumerated export. Private roots and
+imported contexts cannot leak through the boundary.
+Source dependencies, package dependencies, restored packages, nested groups,
+reflection, and tools can therefore consume one graph without requiring a
+universal Group, Namespace, Source, module, or package model. A host implements
+those concrete domains without making containment a Type. `Callable` adds
+complete parameter and result Layouts. Static calls have no receiver. Self
+calls include the receiver as parameter zero. Addressable is a named address to
+typed data; `get_type()` supplies Type or Invalid without resolving away the
+address identity. Writable is the narrower assignment capability and supplies
+the stable non-writable projection used by `expose state`. Machine linkage
+belongs to an ABI or execution contract.
 
 Type is not the universal semantic base, and there is no vague `Typed` marker.
 A consumer resolves Abstract identity, proves the contract it needs, and then
@@ -189,19 +196,22 @@ Failure produces `Invalid : Abstract`, not a null semantic pointer. Invalid is
 one binary-wide stateless absorbing object. Semantic owners do not store an
 Invalid reference or construct local failure sentinels. The source-owning query
 retains the failed route and diagnostic cause. Empty groups use empty views.
-Unresolved callable linkage uses an explicit unresolved Addressable or Invalid.
+Unresolved linkage is modeled by the ABI or execution contract that owns it.
 
-A `Concept::Layout` is an ordered fitting contract over real Abstracts. Fluid represents
-positional value flow, Named represents uniquely named value flow, and
-Structured is a Type's stable sequence of actual Addressable objects. Layout
-does not copy their names, Types, documentation, attributes, defaults, or target
-storage into a Member record. Its contiguous storage uses non-null borrowed
-Reference values rather than nullable semantic pointers.
+A `Concept::Layout` is an ordered fitting contract over real Abstracts. Fluid
+represents positional value flow, Named represents uniquely named value flow,
+Structured is a Type's stable sequence of actual Addressable objects, Ranged
+compactly repeats one Abstract over a fixed interval, and Composite joins two
+complete Layouts without copying their entries. `Bytes[N]` can therefore answer
+indexed Type queries without allocating N edges, then compose with another
+Layout without becoming a flattened Fluid. Layout does not copy names, Types,
+documentation, attributes, defaults, or target storage into a Member record.
 
-Grouped value flow uses `Layouts::Fluid` or `Layouts::Named` directly. Layout
-already owns the identity-free ordered fitting contract, so no Abstract Pack
-identity or `get_layout()` wrapper sits around it. An authored field uses
-Binding when its name is a new edge to an underlying Expression.
+Grouped value flow uses `Layouts::Fluid`, `Layouts::Named`, or
+`Layouts::Composite` directly. Layout already owns the identity-free ordered
+fitting contract, so no Abstract Pack identity or `get_layout()` wrapper sits
+around it. An authored field uses Binding when its name is a new edge to an
+underlying Expression.
 
 Expression is one evaluatable value whose identity remains distinct from its
 result Type. It exposes the proven Type, its ordered input Layout, and whether
@@ -219,12 +229,12 @@ source entry is an Expression they instead ask it to fit the target Type. This
 permits proven constant narrowing without adding numeric rules to Layout.
 Structured fitting continues to preserve actual Addressable identity.
 
-`Type::get_layout()` returns a Structured Layout. A Terminal has an empty
-Structured Layout plus direct value-width, size, and alignment queries. Lowering
-proves Terminal before inspecting Layout. Every non-Terminal Type recursively resolves its
-Addressables, including a valid empty aggregate. A Generic must first produce a
-resolved Type. An authored `@abi` number is not a substitute
-for Terminal contract proof.
+`Type::get_layout()` returns the base Layout contract. A Terminal has an empty
+Structured Layout plus direct value-width, size, and alignment queries. An
+authored aggregate normally returns Structured; a fixed homogeneous Type can
+return Ranged. Lowering proves Terminal before applying the appropriate
+aggregate rule. A Generic must first produce a resolved Type. An authored
+`@abi` number is not a substitute for Terminal contract proof.
 
 Source hosts may reserve nonmoving Type and Callable objects before every fact
 is known. An incomplete Type or containing system resolves to Invalid. Layout
@@ -257,21 +267,22 @@ parallel template or generated-type system.
 
 A source context registers named Generic formulas. Each formula owns its
 accepted argument shape, materialization, and cache lookup. The evaluator gives
-it an ordered Argument sequence whose Abstract entries have already resolved
-through aliases and type-producing expressions. Bool and unsigned entries use
-their tagged values. Constants remain value-bearing Abstract entries and compare
-by domain, resolved Type, and payload. That sequence is the complete
-formula-local cache key. Names, routes, parents, and hashes are not cache
-identity. The context owns name resolution. The parser does not hard-code
-`Vec`, `View`, or another formula name.
+it an ordered Layout of real compile-time Abstracts. Types are direct
+first-class inputs; scalar inputs are real Constants rather than inline tags in
+a second argument model. Generic compares resolved identities and Constant
+value equality, making that Layout the complete formula-local cache key. Names,
+routes, parents, and hashes are not cache identity. The context owns name
+resolution. The parser does not hard-code `Vec`, `View`, or another formula
+name.
 
 Names belong to the actual Abstracts in a Named or Structured Layout. Repack
-operations such as grouping, swizzle, and constant slice produce Fluid layouts
-unless the syntax explicitly authors named objects. Named fitting rejects empty
-or duplicate names and matches names independently of target order.
+operations such as grouping, swizzle, and fixed slice produce positional
+Layouts unless the syntax explicitly authors named objects. Composite preserves
+complete positional child Layouts when they are joined. Named fitting rejects
+empty or duplicate names and matches names independently of target order.
 
 Layout fitting is directional: `source.fits(target)`. Core fitting does not
-manufacture omitted defaults. A language or ISA that supports omission resolves
+manufacture omitted defaults. A language or Dialect that supports omission resolves
 defaults through the real Addressables and completes the source value flow
 before fitting. `get_fitted()` exposes which original source Abstract supplies
 each target slot. A failed fit, invalid index, or missing mapping returns
@@ -293,34 +304,52 @@ sprite.size_pixels.width
 uniform.image
 ```
 
-Layouts allow transformations called repacks. A repack produces a new fluid
-layout. Its result is positional unless the syntax explicitly authors names or
-the receiving boundary later supplies them. `.[` swizzle references member names
-from the receiver layout while selecting values, then produces a positional
-pack. `:[` index or slice requires constant-evaluated Unsigned arguments and
-selects by position.
+Layouts allow transformations called repacks. A repack produces a positional
+Layout unless the syntax explicitly authors names or the receiving boundary
+later supplies them. Joining existing positional Layouts produces Composite so
+compact Ranged and Fluid representations survive the operation. `.[` swizzle
+references member names from the receiver Layout while selecting values. `:[`
+indexes or selects a fixed width range by position. A slice count is always a
+constant evaluated Unsigned value because it determines the resulting Layout.
 
 ```ttx
 // swizzle to repack
-color.[r, g, b] // Select r, g, and b into a positional pack.
+color.[r, g, b] // Select r, g, and b into a Fluid Layout.
 color.[r, r, r] // Repeated members remain separate positional entries.
 color.[r]       // Swizzles may contain one member.
 
-// Indexes and slices require constant-evaluated arguments.
-color:[1]           // Read the member at index 1.
-color:[first_index] // Valid when first_index evaluates to a Constant.
+// A constant index can select from any known Layout.
+color:[1]
 
-// Slices read consecutive members. This selects the same members as
-// color.[g, b], but it selects through constant positions.
+// A dynamic index is valid for a uniform indexed value.
+pixels:[pixel_index]
+
+// Slices select a fixed number of consecutive members. The start may be
+// dynamic for a uniform indexed value, but the count remains constant.
 color:[1, 2]
+bytes:[offset, 4]
 ```
 
 The two forms answer different questions. `color.[r, g]` names fields in
 `color`'s layout and cannot read local variables named `r` and `g`.
-`color:[r, g]` is valid only when both expressions evaluate to Unsigned
-Constants. Dynamic slicing uses ordinary dispatch such as
-`color -> slice(start, count)` and returns one View-like typed value rather than
-a compile-time pack.
+`bytes:[offset, 4]` evaluates `offset` at runtime but produces a four-entry
+Fluid Layout because `Bytes` has a uniform element Type and `4` is constant.
+Constant structured positions use ordinary Addressable Projections. Dynamic
+uniform positions are indexed Expressions owned by the active Dialect: Ranged or
+the receiver Type's indexed access contract proves the element Type without
+inventing dynamic Addressables or runtime Layout members.
+When the count is dynamic, ordinary dispatch such as
+`bytes -> slice(offset, count)` returns one View-like typed value rather than a
+fixed Fluid Layout.
+
+A writable fixed slice is an explicit aggregate assignment target. The source
+must fit the selected homogeneous range or positional Layout; this permits
+compact fixed wire writes without making ordinary typed values splat:
+
+```ttx
+target:[8, 5] = 0x[08 06 00 00 00];
+target:[offset, 4] = pixel.[red, green, blue, alpha];
+```
 
 Bare `[...]` is reserved only for layouts. Function parameters and return values
 are layouts. They may be named, but those names belong to the declared boundary,
@@ -346,7 +375,7 @@ Render2D::Renderer2D
 ```
 
 `->` is Callable dispatch. A Type or Source context resolves Static. An
-addressable value resolves Self through its resolved Type. It requires a
+addressable value queries Self through its Type. It requires a
 dispatchable identity and does not work on a pure Layout.
 
 ```ttx
@@ -361,10 +390,10 @@ This is invalid:
 (.x = 2, .y = 3) -> format()
 ```
 
-The pack has shape, but no Type identity and no Callable children. It may fit into
-a target type later, such as assignment to `Vec2D` or passing into a parameter
-with a concrete expected type. Until that context exists, there is nothing to
-dispatch.
+The grouped values have a Fluid Layout, but no Type identity and no Callable
+children. They may fit into a target type later, such as assignment to `Vec2D`
+or passing into a parameter with a concrete expected type. Until that context
+exists, there is nothing to dispatch.
 
 ## Packages
 
@@ -397,18 +426,20 @@ import Color : Library = "color.ttx";
 import Renderer2D : Render = "renderer2d.ttx";
 import Default2D : Shader = "shaders/default2d.ttx";
 
-expose Sprite : alias = Sprite::Sprite;
-expose Shaders : group {
-  expose Default2D : alias = Default2D;
+public Sprite : alias = Sprite::Sprite;
+public Shaders : group {
+  public Default2D : alias = Default2D;
 }
 ```
 
 The package file is not a second language. It is TTX token bytecode evaluated by
-a Package Dialect. Puffer provides the package identity through compiler
-configuration. The anonymous Source owns its text, Tokenizer, arena, resolved
-Dependency edges, and formatter-capable Abstract graph. The Package Dialect
-returns a distinct Package surface assembled from that Source collection; its
-exports retain their real contracts.
+a Package Dialect. Puffer projects the package key through compiler
+configuration and resolution; the Package Abstract remains anonymous. Source
+owns its text, Tokenizer, arena, resolved Dependency edges, and
+formatter-capable Abstract graph. The Package Dialect returns a distinct
+Package surface assembled from that Source collection, and Source roots that
+exact result with its typed Dialect edge. Package exports retain their real
+contracts.
 
 Consumers resolve the same Package graph whether it was interpreted from
 Sources or reconstructed from a compiled Puffer Buffer. Source-dependent tools
@@ -434,42 +465,50 @@ Failures are reported where the owning query has enough information to answer.
 An empty lookup produces Invalid while the owning query retains the missing-name
 diagnostic.
 
-A pack that cannot fit a target layout becomes a layout-mismatch diagnostic.
+Grouped value flow that cannot fit a target Layout becomes a layout-mismatch
+diagnostic.
 
 A call receiver with no Type or dispatchable identity produces Invalid while
 the call owner reports the dispatch diagnostic.
 
-An imported file with a different ISA than the import requested becomes an
-ISA-mismatch diagnostic at the import.
+An imported file with a different Dialect than the import requested becomes a
+Dialect-mismatch diagnostic at the import.
 
 The model stays small because each owner reports its own failure and returns the
 same absorbing Invalid. There is no need for a separate layer whose job is to
-rediscover what packages, ISAs, Types, Layouts, ABI providers, or backends
+rediscover what Packages, Dialects, Types, Layouts, ABI providers, or backends
 already know.
 
 ## Repository map
 
 The TTX directory is the language core:
 
-- [`lexical`](lexical/) lowers source text into stable token bytecode
+- [`lexical`](lexical/) owns the concrete Lexer Code stream and the Lexicon
+  mapping fixed source spellings onto those Codes
 - [`concept`](concept/) owns Abstract, Invalid, Reference, Documentation, and
   Layout as the foundational TTX contracts
 - [`concept/abstract.hpp`](concept/abstract.hpp) is the root semantic query
   contract. [`concept/layout.hpp`](concept/layout.hpp) defines identity-free
   shape and fitting. [`concept/documentation.hpp`](concept/documentation.hpp)
   defines the prose query
-- [`model`](model/) owns Alias, Type, Expression, Constant, Callable, Attribute,
-  documentation implementations, and the concrete strategies built on the
-  Concept layer
-- Alias and Invalid are closed Abstract implementations. Type, Generic,
+- [`model`](model/) owns Alias, Exports, Type, Expression, Constant, Callable,
+  Attribute, documentation implementations, and the concrete strategies built
+  on the Concept layer
+- [`model/addressables/writable.hpp`](model/addressables/writable.hpp) narrows
+  Addressable to assignment capability and supplies the stable non-writable
+  projection required by `expose state`
+- Alias and Invalid are closed Abstract implementations. Exports, Type, Generic,
   Expression, Constant, Projection, Binding, Callable, Static, Self,
-  Addressable, and ISA-specific contracts extend the graph with narrow
-  operations
-- [`model/layouts`](model/layouts/) contains the Fluid, Named, and Structured
-  implementations of `Concept::Layout`
+  Addressable, Writable, and Dialect-specific contracts extend the graph with
+  narrow operations
+- [`model/layouts`](model/layouts/) contains the Fluid, Named, Structured,
+  Ranged, and Composite implementations of `Concept::Layout`
 - [`model/projection.hpp`](model/projection.hpp) and
   [`model/binding.hpp`](model/binding.hpp) preserve selected and named value
   provenance without adding parser operations to the model
+- [`library/abstract.ttx`](library/abstract.ttx) is an explicitly experimental
+  Library-dialect sketch of the core contracts written in TTX itself. It is a
+  self-hosting design surface, not source accepted by the current evaluator
 - [`model/type.hpp`](model/type.hpp) supplies the narrow target-independent Type
   contract. [`model/types`](model/types/) adds the Terminal family contracts and
   width-specific Perimortem Types. [`model/expression.hpp`](model/expression.hpp),
@@ -486,13 +525,17 @@ Tetrodotoxin is the surrounding toolchain:
 
 - [`../tetrodotoxin/puffer/main.cpp`](../tetrodotoxin/puffer/main.cpp) is the `puffer`
   command-line surface
-- [`../tetrodotoxin/puffer/isa/boot`](../tetrodotoxin/puffer/isa/boot/) owns
-  Puffer's source preamble ISA
+- [`../tetrodotoxin/puffer/isa/boot`](../tetrodotoxin/puffer/isa/boot/) is the
+  legacy implementation of Puffer's source preamble while Boot migrates to the
+  direct Dialect model
 - [`../tetrodotoxin/puffer/resolution`](../tetrodotoxin/puffer/resolution/) owns source
   loading, package loading, import binding, the source cache, and cache validity
 - [`../tetrodotoxin/lsp`](../tetrodotoxin/lsp/) serves editor features
-- [`../tetrodotoxin/isa`](../tetrodotoxin/isa/) owns the VM instruction sets
-  such as Package, Library, Shader, and Render
+- [`../tetrodotoxin/model/dialects`](../tetrodotoxin/model/dialects/) owns the
+  direct Dialect models, beginning with Package, Alias, and Group
+- [`../tetrodotoxin/isa`](../tetrodotoxin/isa/) is legacy evaluator code used
+  only as migration reference while Library, Shader, and the remaining domains
+  move to real Model contracts
 - [`../tetrodotoxin/standard/perimortem/graphics/package.ttx`](../tetrodotoxin/standard/perimortem/graphics/package.ttx)
   describes the Perimortem graphics ABI as a TTX package
 - [`../toolchain/tetrodotoxin.bzl`](../toolchain/tetrodotoxin.bzl) integrates
@@ -504,5 +547,5 @@ Tetrodotoxin is the surrounding toolchain:
   records and link targets
 
 The split keeps TTX focused on source IR, token bytecode, and the Abstract query
-model while Tetrodotoxin supplies VM execution, files, packages, editor
+model while Tetrodotoxin supplies Dialect evaluation, files, packages, editor
 integration, build integration, and terminal artifacts.

@@ -22,25 +22,25 @@ auto Foreign::Dialect::evaluate(
     Library::Scope& scope,
     const Base::Declaration& definition) -> const Ttx::Type* {
   Bool has_scope = cursor.require(
-      Class::Type::ScopeStart, "Expected `{` after foreign declaration."_view);
+      Code::Type::ScopeStart, "Expected `{` after foreign declaration."_view);
   if (!has_scope) {
     return nullptr;
   }
 
   Managed::Vector<Ttx::Function> functions(scope.get_context().get_arena());
   Bool valid = True;
-  while (!cursor.matches(Class::Type::EndOfStream) &&
-         !cursor.matches(Class::Type::ScopeEnd)) {
+  while (!cursor.matches(Code::Type::Terminal) &&
+         !cursor.matches(Code::Type::ScopeEnd)) {
     Ttx::Documentation documentation = Base::Documentation::evaluate(cursor);
     Bool attributes_consumed = Base::Attribute::consume_all(cursor);
     if (!attributes_consumed) {
       return nullptr;
     }
 
-    Class::Type modifier = Base::Modifier::evaluate(
-        cursor, {{Class::Type::Expose}},
+    Code::Type modifier = Base::Modifier::evaluate(
+        cursor, {{Code::Type::Expose}},
         "Expected a foreign function declaration to start with expose."_view);
-    if (modifier == Class::Type::Unknown) {
+    if (modifier == Code::Type::Unknown) {
       valid = False;
       Bool recovered = Library::Syntax::consume_declaration_tail(cursor);
       if (!recovered) {
@@ -76,7 +76,7 @@ auto Foreign::Dialect::evaluate(
   }
 
   Bool has_scope_end = cursor.require(
-      Class::Type::ScopeEnd, "Expected `}` after foreign declaration."_view);
+      Code::Type::ScopeEnd, "Expected `}` after foreign declaration."_view);
   if (!has_scope_end || !valid) {
     return nullptr;
   }
@@ -92,7 +92,7 @@ auto Foreign::Dialect::evaluate(
   View::Vector<Ttx::Function> published = type.get_type_functions();
   for (Count i = 0; i < published.get_size(); i++) {
     Bool implementation_defined = scope.get_context().define_implementation(
-        published[i], Base::Definition(Class::Type::Expose));
+        published[i], Base::Definition(Code::Type::Expose));
     if (!implementation_defined) {
       return nullptr;
     }

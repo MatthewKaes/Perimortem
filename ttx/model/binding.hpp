@@ -52,7 +52,7 @@ class Binding final : public Expression {
   }
 
   constexpr auto get_expression() const -> const Expression& {
-    return expression.get().as<Expression>();
+    return expression.get().assume<Expression>();
   }
 
  private:

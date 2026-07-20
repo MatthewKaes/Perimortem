@@ -8,7 +8,7 @@
 
 #include "ttx/attribute.hpp"
 #include "ttx/documentation.hpp"
-#include "ttx/lexical/class.hpp"
+#include "ttx/lexical/code.hpp"
 #include "ttx/lexical/cursor.hpp"
 
 namespace Tetrodotoxin::Isa::Base {
@@ -17,7 +17,7 @@ namespace Tetrodotoxin::Isa::Base {
 //
 //   modifier Name : kind
 //
-// The allowed token classes come from the ISA that calls it. The qualifier is a
+// The allowed token Codes come from the ISA that calls it. The qualifier is a
 // source name, not a closed enum. Package, Library, and later ISAs decide
 // whether that name maps to an alias, struct, package, function, or another
 // sub-ISA.
@@ -26,10 +26,10 @@ class Declaration {
   Declaration() = default;
   Declaration(
       Ttx::Documentation documentation,
-      Ttx::Lexical::Class::Type modifier,
-      Ttx::Lexical::Class::Type name_class,
+      Ttx::Lexical::Code::Type modifier,
+      Ttx::Lexical::Code::Type name_class,
       Perimortem::Core::View::Bytes name,
-      Ttx::Lexical::Class::Type kind_class,
+      Ttx::Lexical::Code::Type kind_class,
       Perimortem::Core::View::Bytes kind,
       Perimortem::Core::View::Vector<Ttx::Attribute> attributes =
           Perimortem::Core::View::Vector<Ttx::Attribute>())
@@ -44,17 +44,17 @@ class Declaration {
   static auto evaluate(
       Ttx::Lexical::Cursor& cursor,
       Ttx::Documentation documentation,
-      Perimortem::Core::View::Vector<Ttx::Lexical::Class::Type>
+      Perimortem::Core::View::Vector<Ttx::Lexical::Code::Type>
           allowed_modifiers,
-      Perimortem::Core::View::Vector<Ttx::Lexical::Class::Type> allowed_names,
-      Perimortem::Core::View::Vector<Ttx::Lexical::Class::Type>
+      Perimortem::Core::View::Vector<Ttx::Lexical::Code::Type> allowed_names,
+      Perimortem::Core::View::Vector<Ttx::Lexical::Code::Type>
           allowed_qualifiers) -> Declaration;
   static auto evaluate_after_modifier(
       Ttx::Lexical::Cursor& cursor,
       Ttx::Documentation documentation,
-      Ttx::Lexical::Class::Type modifier,
-      Perimortem::Core::View::Vector<Ttx::Lexical::Class::Type> allowed_names,
-      Perimortem::Core::View::Vector<Ttx::Lexical::Class::Type>
+      Ttx::Lexical::Code::Type modifier,
+      Perimortem::Core::View::Vector<Ttx::Lexical::Code::Type> allowed_names,
+      Perimortem::Core::View::Vector<Ttx::Lexical::Code::Type>
           allowed_qualifiers,
       Perimortem::Core::View::Vector<Ttx::Attribute> attributes = {})
       -> Declaration;
@@ -63,7 +63,7 @@ class Declaration {
     return documentation;
   }
 
-  constexpr auto get_modifier() const -> Ttx::Lexical::Class::Type {
+  constexpr auto get_modifier() const -> Ttx::Lexical::Code::Type {
     return modifier;
   }
 
@@ -71,7 +71,7 @@ class Declaration {
     return name;
   }
 
-  constexpr auto get_kind_class() const -> Ttx::Lexical::Class::Type {
+  constexpr auto get_kind_class() const -> Ttx::Lexical::Code::Type {
     return kind_class;
   }
 
@@ -85,19 +85,19 @@ class Declaration {
   }
 
   constexpr auto has_addressable_name() const -> Bool {
-    return name_class == Ttx::Lexical::Class::Type::Addressable;
+    return name_class == Ttx::Lexical::Code::Type::Addressable;
   }
 
   constexpr auto is_empty() const -> Bool {
-    return modifier == Ttx::Lexical::Class::Type::Unknown;
+    return modifier == Ttx::Lexical::Code::Type::Unknown;
   }
 
  private:
   Ttx::Documentation documentation;
-  Ttx::Lexical::Class::Type modifier = Ttx::Lexical::Class::Type::Unknown;
-  Ttx::Lexical::Class::Type name_class = Ttx::Lexical::Class::Type::Unknown;
+  Ttx::Lexical::Code::Type modifier = Ttx::Lexical::Code::Type::Unknown;
+  Ttx::Lexical::Code::Type name_class = Ttx::Lexical::Code::Type::Unknown;
   Perimortem::Core::View::Bytes name;
-  Ttx::Lexical::Class::Type kind_class = Ttx::Lexical::Class::Type::Unknown;
+  Ttx::Lexical::Code::Type kind_class = Ttx::Lexical::Code::Type::Unknown;
   Perimortem::Core::View::Bytes kind;
   Perimortem::Core::View::Vector<Ttx::Attribute> attributes;
 };

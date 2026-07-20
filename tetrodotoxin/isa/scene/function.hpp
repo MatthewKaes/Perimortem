@@ -7,7 +7,7 @@
 
 #include "tetrodotoxin/isa/base/context.hpp"
 #include "ttx/documentation.hpp"
-#include "ttx/lexical/class.hpp"
+#include "ttx/lexical/code.hpp"
 #include "ttx/lexical/cursor.hpp"
 #include "ttx/type.hpp"
 
@@ -16,10 +16,10 @@ namespace Tetrodotoxin::Isa::Scene {
 // Function owns normal Scene helper functions.
 class Function {
  public:
-  static constexpr auto is_modifier(Ttx::Lexical::Class::Type type) -> Bool {
+  static constexpr auto is_modifier(Ttx::Lexical::Code::Type type) -> Bool {
     switch (type) {
-    case Ttx::Lexical::Class::Type::Public:
-    case Ttx::Lexical::Class::Type::Private:
+    case Ttx::Lexical::Code::Type::Public:
+    case Ttx::Lexical::Code::Type::Private:
       return True;
     default:
       return False;

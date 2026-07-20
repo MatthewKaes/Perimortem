@@ -64,7 +64,7 @@ auto Render::Interface::evaluate(
 
   cursor.consume();
   Bool has_scope = cursor.require(
-      Class::Type::ScopeStart,
+      Code::Type::ScopeStart,
       "Expected `{` after render fact block name."_view);
   if (!has_scope) {
     return nullptr;
@@ -72,19 +72,19 @@ auto Render::Interface::evaluate(
 
   Managed::Vector<Ttx::Member> members(context.get_arena());
   Bool valid = True;
-  while (!cursor.matches(Class::Type::EndOfStream) &&
-         !cursor.matches(Class::Type::ScopeEnd)) {
+  while (!cursor.matches(Code::Type::Terminal) &&
+         !cursor.matches(Code::Type::ScopeEnd)) {
     Ttx::Documentation documentation = Base::Documentation::evaluate(cursor);
-    Class::Type modifier = Base::Modifier::evaluate(
-        cursor, {{Class::Type::Const, Class::Type::State}},
+    Code::Type modifier = Base::Modifier::evaluate(
+        cursor, {{Code::Type::Const, Code::Type::State}},
         "Expected render fact to start with `const` or `state`."_view);
-    if (modifier == Class::Type::Unknown) {
+    if (modifier == Code::Type::Unknown) {
       return nullptr;
     }
 
     Base::Declaration definition = Base::Declaration::evaluate_after_modifier(
-        cursor, documentation, modifier, {{Class::Type::Addressable}},
-        {{Class::Type::Type}});
+        cursor, documentation, modifier, {{Code::Type::Addressable}},
+        {{Code::Type::Type}});
     if (definition.is_empty()) {
       return nullptr;
     }
@@ -104,7 +104,7 @@ auto Render::Interface::evaluate(
     }
 
     Bool has_statement_end = cursor.require(
-        Class::Type::EndStatement, "Expected `;` after render member."_view);
+        Code::Type::EndStatement, "Expected `;` after render member."_view);
     if (!has_statement_end) {
       return nullptr;
     }
@@ -125,7 +125,7 @@ auto Render::Interface::evaluate(
   }
 
   Bool has_scope_end = cursor.require(
-      Class::Type::ScopeEnd, "Expected `}` after render fact block."_view);
+      Code::Type::ScopeEnd, "Expected `}` after render fact block."_view);
   if (!has_scope_end) {
     return nullptr;
   }

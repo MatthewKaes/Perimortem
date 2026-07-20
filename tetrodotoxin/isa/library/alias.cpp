@@ -18,7 +18,7 @@ auto Library::Alias::evaluate(
     const Tetrodotoxin::Isa::Base::Declaration& definition)
     -> const Ttx::Type* {
   Bool has_assignment = cursor.require(
-      Class::Type::Assign, "Expected `=` before library alias target."_view);
+      Code::Type::Assign, "Expected `=` before library alias target."_view);
   if (!has_assignment) {
     return nullptr;
   }
@@ -30,7 +30,7 @@ auto Library::Alias::evaluate(
   }
 
   Bool has_statement_end = cursor.require(
-      Class::Type::EndStatement, "Expected `;` after library alias."_view);
+      Code::Type::EndStatement, "Expected `;` after library alias."_view);
   if (!has_statement_end) {
     return nullptr;
   }

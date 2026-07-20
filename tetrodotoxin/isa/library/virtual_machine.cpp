@@ -35,11 +35,11 @@ using DefinitionEvaluator =
                          const Tetrodotoxin::Isa::Base::Declaration&
                              definition);
 
-constexpr Static::Vector<Class::Type, 4> library_modifiers = {{
-  Class::Type::Public,
-  Class::Type::Private,
-  Class::Type::Expose,
-  Class::Type::Const,
+constexpr Static::Vector<Code::Type, 4> library_modifiers = {{
+  Code::Type::Public,
+  Code::Type::Private,
+  Code::Type::Expose,
+  Code::Type::Const,
 }};
 
 constexpr Static::Vector<Pair<View::Bytes, DefinitionEvaluator>, 5>
@@ -82,7 +82,7 @@ static auto materialize_library_type(
 static auto predeclare_library_definitions(
     Cursor& cursor,
     Library::Scope& scope) -> Bool {
-  while (!cursor.matches(Class::Type::EndOfStream)) {
+  while (!cursor.matches(Code::Type::Terminal)) {
     Ttx::Documentation documentation = Base::Documentation::evaluate(cursor);
     Managed::Vector<Ttx::Attribute> attributes(scope.get_context().get_arena());
     Bool attributes_evaluated =
@@ -91,7 +91,7 @@ static auto predeclare_library_definitions(
       return False;
     }
 
-    if (cursor.matches(Class::Type::EndOfStream)) {
+    if (cursor.matches(Code::Type::Terminal)) {
       break;
     }
 
@@ -104,9 +104,9 @@ static auto predeclare_library_definitions(
       continue;
     }
 
-    Class::Type modifier = cursor.current().get_class().get_type();
+    Code::Type modifier = cursor.current().get_code().get_type();
     cursor.consume();
-    if (cursor.matches(Class::Type::Func)) {
+    if (cursor.matches(Code::Type::Func)) {
       Bool recovered = Library::Syntax::consume_declaration_tail(cursor, True);
       if (!recovered) {
         return False;
@@ -116,7 +116,7 @@ static auto predeclare_library_definitions(
     }
 
     const Token& name = cursor.current();
-    if (name.get_class() != Class::Type::Type) {
+    if (name.get_code() != Code::Type::Type) {
       Bool recovered = Library::Syntax::consume_declaration_tail(cursor, True);
       if (!recovered) {
         return False;
@@ -126,7 +126,7 @@ static auto predeclare_library_definitions(
     }
 
     cursor.consume();
-    if (!cursor.matches(Class::Type::Define)) {
+    if (!cursor.matches(Code::Type::Define)) {
       Bool recovered = Library::Syntax::consume_declaration_tail(cursor, True);
       if (!recovered) {
         return False;
@@ -148,8 +148,8 @@ static auto predeclare_library_definitions(
     }
 
     Tetrodotoxin::Isa::Base::Declaration definition(
-        documentation, modifier, name.get_class().get_type(), name.get_text(),
-        kind.get_class().get_type(), kind.get_text(), attributes.get_view());
+        documentation, modifier, name.get_code().get_type(), name.get_text(),
+        kind.get_code().get_type(), kind.get_text(), attributes.get_view());
     cursor.consume();
     Range source = {cursor.get_token_index(), 0};
     Bool recovered = Library::Syntax::consume_declaration_tail(cursor, True);
@@ -180,15 +180,15 @@ auto Library::VirtualMachine::evaluate_definition(
     Managed::Vector<Ttx::Function>& functions,
     Managed::Vector<Range>& function_sources,
     Managed::Vector<Base::Definition>& function_definitions) -> Bool {
-  Class::Type modifier = Base::Modifier::evaluate(
+  Code::Type modifier = Base::Modifier::evaluate(
       cursor, library_modifiers,
       "Expected a definition to start with one of the following modifiers "
       "{public, private, expose, const}"_view);
-  if (modifier == Class::Type::Unknown) {
+  if (modifier == Code::Type::Unknown) {
     return False;
   }
 
-  if (cursor.matches(Class::Type::Func)) {
+  if (cursor.matches(Code::Type::Func)) {
     Range source;
     Ttx::Function function =
         Library::Function::evaluate(cursor, scope, documentation, source);
@@ -212,9 +212,9 @@ auto Library::VirtualMachine::evaluate_definition(
   Tetrodotoxin::Isa::Base::Declaration definition =
       Tetrodotoxin::Isa::Base::Declaration::evaluate_after_modifier(
           cursor, documentation, modifier,
-          {{Class::Type::Type, Class::Type::Addressable}},
-          {{Class::Type::Addressable, Class::Type::Type, Class::Type::Alias,
-            Class::Type::Func}},
+          {{Code::Type::Type, Code::Type::Addressable}},
+          {{Code::Type::Addressable, Code::Type::Type, Code::Type::Alias,
+            Code::Type::Func}},
           attributes);
   if (definition.is_empty()) {
     return False;
@@ -293,7 +293,7 @@ auto Library::VirtualMachine::evaluate(Cursor& cursor, Base::Context& context)
   }
 
   cursor.seek_token(body_start);
-  while (!cursor.matches(Class::Type::EndOfStream)) {
+  while (!cursor.matches(Code::Type::Terminal)) {
     Ttx::Documentation documentation = Base::Documentation::evaluate(cursor);
     Managed::Vector<Ttx::Attribute> source_attributes(context.get_arena());
     Bool attributes_evaluated =
@@ -302,7 +302,7 @@ auto Library::VirtualMachine::evaluate(Cursor& cursor, Base::Context& context)
       return nullptr;
     }
 
-    if (cursor.matches(Class::Type::EndOfStream)) {
+    if (cursor.matches(Code::Type::Terminal)) {
       break;
     }
 

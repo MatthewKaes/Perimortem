@@ -12,14 +12,14 @@ auto Base::Expression::Evaluator::consume(
   Count scope_depth = 0;
   Count packing_depth = 0;
   Count index_depth = 0;
-  while (!cursor.matches(Class::Type::EndOfStream)) {
-    if (cursor.matches(Class::Type::ScopeStart)) {
+  while (!cursor.matches(Code::Type::Terminal)) {
+    if (cursor.matches(Code::Type::ScopeStart)) {
       scope_depth++;
       cursor.consume();
       continue;
     }
 
-    if (cursor.matches(Class::Type::ScopeEnd)) {
+    if (cursor.matches(Code::Type::ScopeEnd)) {
       if (scope_depth > 0) {
         scope_depth--;
         cursor.consume();
@@ -29,13 +29,13 @@ auto Base::Expression::Evaluator::consume(
       break;
     }
 
-    if (cursor.matches(Class::Type::PackingStart)) {
+    if (cursor.matches(Code::Type::PackingStart)) {
       packing_depth++;
       cursor.consume();
       continue;
     }
 
-    if (cursor.matches(Class::Type::PackingEnd)) {
+    if (cursor.matches(Code::Type::PackingEnd)) {
       if (packing_depth > 0) {
         packing_depth--;
         cursor.consume();
@@ -46,13 +46,13 @@ auto Base::Expression::Evaluator::consume(
     }
 
     if (Base::Expression::Evaluator::is_index_start(
-            cursor.current().get_class())) {
+            cursor.current().get_code())) {
       index_depth++;
       cursor.consume();
       continue;
     }
 
-    if (cursor.matches(Class::Type::IndexEnd)) {
+    if (cursor.matches(Code::Type::LayoutEnd)) {
       if (index_depth > 0) {
         index_depth--;
         cursor.consume();
@@ -63,7 +63,7 @@ auto Base::Expression::Evaluator::consume(
     }
 
     if (scope_depth == 0 && packing_depth == 0 && index_depth == 0 &&
-        cursor.matches(Class::Type::EndStatement)) {
+        cursor.matches(Code::Type::EndStatement)) {
       return True;
     }
 
@@ -77,7 +77,7 @@ auto Base::Expression::Evaluator::consume(
 auto Base::Expression::Evaluator::consume_initializer(
     Cursor& cursor,
     Perimortem::Core::View::Bytes message) -> Bool {
-  if (!cursor.matches(Class::Type::Assign)) {
+  if (!cursor.matches(Code::Type::Assign)) {
     return True;
   }
 
@@ -89,20 +89,20 @@ auto Base::Expression::Evaluator::consume_block(
     Cursor& cursor,
     Perimortem::Core::View::Bytes open_error,
     Perimortem::Core::View::Bytes close_error) -> Bool {
-  Bool has_scope = cursor.require(Class::Type::ScopeStart, open_error);
+  Bool has_scope = cursor.require(Code::Type::ScopeStart, open_error);
   if (!has_scope) {
     return False;
   }
 
   Count depth = 1;
-  while (!cursor.matches(Class::Type::EndOfStream)) {
-    if (cursor.matches(Class::Type::ScopeStart)) {
+  while (!cursor.matches(Code::Type::Terminal)) {
+    if (cursor.matches(Code::Type::ScopeStart)) {
       depth++;
       cursor.consume();
       continue;
     }
 
-    if (cursor.matches(Class::Type::ScopeEnd)) {
+    if (cursor.matches(Code::Type::ScopeEnd)) {
       if (depth == 1) {
         cursor.consume();
         return True;

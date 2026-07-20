@@ -12,18 +12,18 @@ using namespace Ttx::Lexical;
 
 auto Shader::Statement::evaluate(Cursor& cursor, Base::Context& context)
     -> Statement {
-  switch (cursor.current().get_class().get_type()) {
-  case Class::Type::State: {
+  switch (cursor.current().get_code().get_type()) {
+  case Code::Type::State: {
     const Token start = cursor.current();
     cursor.consume();
     const Token* name = cursor.require(
-        Class::Type::Addressable, "Expected shader state name."_view);
+        Code::Type::Addressable, "Expected shader state name."_view);
     if (name == nullptr) {
       return Statement();
     }
 
     Bool has_definition = cursor.require(
-        Class::Type::Define, "Expected `:` after shader state name."_view);
+        Code::Type::Define, "Expected `:` after shader state name."_view);
     if (!has_definition) {
       return Statement();
     }
@@ -40,7 +40,7 @@ auto Shader::Statement::evaluate(Cursor& cursor, Base::Context& context)
     }
 
     Bool has_assignment = cursor.require(
-        Class::Type::Assign,
+        Code::Type::Assign,
         "Expected `=` before shader state initializer."_view);
     if (!has_assignment) {
       return Statement();
@@ -53,7 +53,7 @@ auto Shader::Statement::evaluate(Cursor& cursor, Base::Context& context)
     }
 
     const Token* end = cursor.require(
-        Class::Type::EndStatement,
+        Code::Type::EndStatement,
         "Expected `;` after shader state declaration."_view);
     if (end == nullptr) {
       return Statement();
@@ -62,12 +62,12 @@ auto Shader::Statement::evaluate(Cursor& cursor, Base::Context& context)
     return state_statement(start, *end, name->get_text(), *type, initializer);
   }
 
-  case Class::Type::Return: {
+  case Code::Type::Return: {
     const Token start = cursor.current();
     cursor.consume();
-    if (cursor.matches(Class::Type::EndStatement)) {
+    if (cursor.matches(Code::Type::EndStatement)) {
       const Token* end = cursor.require(
-          Class::Type::EndStatement, "Expected `;` after shader return."_view);
+          Code::Type::EndStatement, "Expected `;` after shader return."_view);
       if (end == nullptr) {
         return Statement();
       }
@@ -82,7 +82,7 @@ auto Shader::Statement::evaluate(Cursor& cursor, Base::Context& context)
     }
 
     const Token* end = cursor.require(
-        Class::Type::EndStatement, "Expected `;` after shader return."_view);
+        Code::Type::EndStatement, "Expected `;` after shader return."_view);
     if (end == nullptr) {
       return Statement();
     }

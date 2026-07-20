@@ -1,12 +1,12 @@
 dialect : Library;
 
 private Console : foreign {
-  expose func print[.data : View[Bytes]] -> [];
+  public func print[.data : View[Bytes]] -> [];
 }
 
 private Math : foreign {
-  expose func ttx_test_add[.left : Count, .right : Count] -> [.result : Count];
-  expose func ttx_test_sum7[
+  public func ttx_test_add[.left : Count, .right : Count] -> [.result : Count];
+  public func ttx_test_sum7[
     .a : Count,
     .b : Count,
     .c : Count,
@@ -15,7 +15,7 @@ private Math : foreign {
     .f : Count,
     .g : Count
   ] -> Count;
-  expose func ttx_test_real9[
+  public func ttx_test_real9[
     .a : Real_64,
     .b : Real_64,
     .c : Real_64,

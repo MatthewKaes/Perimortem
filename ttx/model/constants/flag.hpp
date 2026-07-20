@@ -26,7 +26,7 @@ class Flag : public Constant {
 
   constexpr auto equals(const Constant& rhs) const -> Bool final {
     return rhs.is<Flag>() && has_same_type(rhs) &&
-           get_value() == rhs.as<Flag>().get_value();
+           get_value() == rhs.assume<Flag>().get_value();
   }
 
   constexpr auto fits(const Type& target) const -> Bool final {

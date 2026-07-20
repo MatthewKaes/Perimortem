@@ -141,7 +141,7 @@ auto Library::Scope::find_type(View::Bytes name) const -> const Ttx::Type* {
 
 auto Library::Scope::resolve_type(Cursor& cursor) -> const Ttx::Type* {
   const Token* root =
-      cursor.require(Class::Type::Type, "Expected Type name."_view);
+      cursor.require(Code::Type::Type, "Expected Type name."_view);
   if (root == nullptr) {
     return nullptr;
   }

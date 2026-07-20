@@ -20,13 +20,13 @@ auto App::VirtualMachine::evaluate_function(
     Base::Context& context,
     Ttx::Documentation documentation) -> Ttx::Function {
   Bool has_function =
-      cursor.require(Class::Type::Func, "Expected `func` in App."_view);
+      cursor.require(Code::Type::Func, "Expected `func` in App."_view);
   if (!has_function) {
     return Ttx::Function();
   }
 
   const Token* name = cursor.require(
-      Class::Type::Addressable, "Expected App function name."_view);
+      Code::Type::Addressable, "Expected App function name."_view);
   if (name == nullptr) {
     return Ttx::Function();
   }
@@ -39,7 +39,7 @@ auto App::VirtualMachine::evaluate_function(
   }
 
   Bool has_call = cursor.require(
-      Class::Type::CallOp, "Expected `->` before App function result."_view);
+      Code::Type::CallOp, "Expected `->` before App function result."_view);
   if (!has_call) {
     return Ttx::Function();
   }
@@ -67,19 +67,19 @@ auto App::VirtualMachine::evaluate(Cursor& cursor, Base::Context& context)
     -> Ttx::Type* {
   Managed::Vector<Ttx::Function> functions(context.get_arena());
   Bool valid = True;
-  while (!cursor.matches(Class::Type::EndOfStream)) {
+  while (!cursor.matches(Code::Type::Terminal)) {
     Ttx::Documentation documentation = Base::Documentation::evaluate(cursor);
     Bool attributes_consumed = Base::Attribute::consume_all(cursor);
     if (!attributes_consumed) {
       return nullptr;
     }
 
-    if (cursor.matches(Class::Type::EndOfStream)) {
+    if (cursor.matches(Code::Type::Terminal)) {
       break;
     }
 
     Bool is_public = cursor.require(
-        Class::Type::Public, "Expected public App `main` function."_view);
+        Code::Type::Public, "Expected public App `main` function."_view);
     if (!is_public) {
       return nullptr;
     }
@@ -121,7 +121,7 @@ auto App::VirtualMachine::evaluate(Cursor& cursor, Base::Context& context)
   }
 
   Bool implementation_defined = context.define_implementation(
-      functions[0], Base::Definition(Class::Type::Public));
+      functions[0], Base::Definition(Code::Type::Public));
   if (!implementation_defined) {
     return nullptr;
   }

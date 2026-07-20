@@ -297,27 +297,6 @@ def run_test():
         and "result" in notification_probe_resp,
         "$ notification keeps server responsive")
 
-    print("\n--- Round-trip: validation/data/ttx/png.ttx ---")
-    png_path = os.path.join(REPO_ROOT, "validation", "data", "ttx", "png.ttx")
-    with open(png_path, "r", encoding="utf-8") as f:
-        png_source = f.read()
-
-    png_formatted = send_format(conn, png_source, "png.ttx")
-    if png_formatted is not None:
-        if png_formatted == png_source:
-            print("  [OK] png.ttx is unchanged after formatting")
-        else:
-            print("  [DIFF] png.ttx changed after formatting:")
-            src_lines = png_source.splitlines()
-            fmt_lines = png_formatted.splitlines()
-            for i, (a, b) in enumerate(zip(src_lines, fmt_lines), 1):
-                if a != b:
-                    print(f"    line {i}:")
-                    print(f"      before: {repr(a)}")
-                    print(f"      after:  {repr(b)}")
-            if len(src_lines) != len(fmt_lines):
-                print(f"  line count: {len(src_lines)} → {len(fmt_lines)}")
-
     print("\n--- Round-trip: apps/splash_screen.ttx ---")
     splash_path = os.path.join(REPO_ROOT, "apps", "splash_screen.ttx")
     with open(splash_path, "r", encoding="utf-8") as f:

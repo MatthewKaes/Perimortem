@@ -121,8 +121,8 @@ auto Library::Compiler::Function::resolve_type(
   const Ttx::Type* type = scope.find_type(tokens[0].get_text());
   for (Count i = 1; type != nullptr && i < tokens.get_size(); i += 2) {
     if (i + 1 >= tokens.get_size() ||
-        tokens[i].get_class() != Class::Type::TypeAccessOp ||
-        tokens[i + 1].get_class() != Class::Type::Type) {
+        tokens[i].get_code() != Code::Type::TypeAccessOp ||
+        tokens[i + 1].get_code() != Code::Type::Type) {
       return nullptr;
     }
 
@@ -271,15 +271,15 @@ auto Library::Compiler::Function::lower_reference(
   }
 
   if (tokens.get_size() < 3 ||
-      tokens[tokens.get_size() - 2].get_class() != Class::Type::AddressOp ||
-      tokens[tokens.get_size() - 1].get_class() != Class::Type::Addressable) {
+      tokens[tokens.get_size() - 2].get_code() != Code::Type::AddressOp ||
+      tokens[tokens.get_size() - 1].get_code() != Code::Type::Addressable) {
     return Execution::Operand();
   }
 
   const Ttx::Type* owner = scope.find_type(tokens[0].get_text());
   for (Count i = 1; owner != nullptr && i + 2 < tokens.get_size(); i += 2) {
-    if (tokens[i].get_class() != Class::Type::TypeAccessOp ||
-        tokens[i + 1].get_class() != Class::Type::Type) {
+    if (tokens[i].get_code() != Code::Type::TypeAccessOp ||
+        tokens[i + 1].get_code() != Code::Type::Type) {
       return Execution::Operand();
     }
 
@@ -478,7 +478,7 @@ auto Library::Compiler::Function::evaluate_return() -> Bool {
   cursor.consume();
   Managed::Vector<Execution::Operand> values(scope.get_context().get_arena());
   Ttx::Layout result = function.get_result();
-  if (!cursor.matches(Class::Type::EndStatement)) {
+  if (!cursor.matches(Code::Type::EndStatement)) {
     Base::Expression::Value value =
         Base::Expression::Value::evaluate(cursor, scope.get_context());
     if (value.is_empty()) {
@@ -561,7 +561,7 @@ auto Library::Compiler::Function::evaluate_return() -> Bool {
   }
 
   Bool has_statement_end = cursor.require(
-      Class::Type::EndStatement, "Expected `;` after return."_view);
+      Code::Type::EndStatement, "Expected `;` after return."_view);
   if (!has_statement_end) {
     return False;
   }
@@ -586,7 +586,7 @@ auto Library::Compiler::Function::evaluate_call() -> Bool {
   }
 
   Bool has_statement_end = cursor.require(
-      Class::Type::EndStatement, "Expected `;` after library call."_view);
+      Code::Type::EndStatement, "Expected `;` after library call."_view);
   if (!has_statement_end) {
     return False;
   }
@@ -603,14 +603,14 @@ auto Library::Compiler::Function::evaluate_call() -> Bool {
 
 auto Library::Compiler::Function::build() -> const Execution::Body* {
   Bool has_scope = cursor.require(
-      Class::Type::ScopeStart,
+      Code::Type::ScopeStart,
       "Expected `{` after library function signature."_view);
   if (!has_scope) {
     return nullptr;
   }
 
-  while (!cursor.matches(Class::Type::EndOfStream)) {
-    if (cursor.matches(Class::Type::ScopeEnd)) {
+  while (!cursor.matches(Code::Type::Terminal)) {
+    if (cursor.matches(Code::Type::ScopeEnd)) {
       cursor.consume();
       const auto* body = builder.finish();
       if (body == nullptr) {
@@ -620,7 +620,7 @@ auto Library::Compiler::Function::build() -> const Execution::Body* {
       return body;
     }
 
-    if (cursor.is_one_of({{Class::Type::Comment, Class::Type::Disabled}})) {
+    if (cursor.is_one_of({{Code::Type::Comment, Code::Type::Disabled}})) {
       cursor.consume();
       continue;
     }
@@ -630,7 +630,7 @@ auto Library::Compiler::Function::build() -> const Execution::Body* {
       return nullptr;
     }
 
-    if (cursor.matches(Class::Type::Return)) {
+    if (cursor.matches(Code::Type::Return)) {
       Bool evaluated = evaluate_return();
       if (!evaluated) {
         return nullptr;
@@ -640,8 +640,8 @@ auto Library::Compiler::Function::build() -> const Execution::Body* {
     }
 
     if (cursor.is_one_of(
-            {{Class::Type::Type, Class::Type::Addressable,
-              Class::Type::Self}})) {
+            {{Code::Type::Type, Code::Type::Addressable,
+              Code::Type::Self}})) {
       Bool evaluated = evaluate_call();
       if (!evaluated) {
         return nullptr;

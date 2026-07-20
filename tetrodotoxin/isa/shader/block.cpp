@@ -12,21 +12,21 @@ using namespace Ttx::Lexical;
 auto Shader::Block::evaluate(Cursor& cursor, Base::Context& context)
     -> const Block* {
   Bool has_scope = cursor.require(
-      Class::Type::ScopeStart,
+      Code::Type::ScopeStart,
       "Expected `{` after shader function signature."_view);
   if (!has_scope) {
     return nullptr;
   }
 
   Managed::Vector<Shader::Statement> statements(context.get_arena());
-  while (!cursor.matches(Class::Type::EndOfStream)) {
-    if (cursor.matches(Class::Type::ScopeEnd)) {
+  while (!cursor.matches(Code::Type::Terminal)) {
+    if (cursor.matches(Code::Type::ScopeEnd)) {
       cursor.consume();
       return &context.get_arena().construct<Shader::Block>(
           statements.get_view());
     }
 
-    if (cursor.is_one_of({{Class::Type::Comment, Class::Type::Disabled}})) {
+    if (cursor.is_one_of({{Code::Type::Comment, Code::Type::Disabled}})) {
       cursor.consume();
       continue;
     }

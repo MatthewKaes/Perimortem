@@ -25,13 +25,13 @@ static auto evaluate_function(
     const Ttx::Type* owner,
     Bool* addressable) -> Ttx::Function {
   Bool has_function = cursor.require(
-      Class::Type::Func, "Expected `func` in library function."_view);
+      Code::Type::Func, "Expected `func` in library function."_view);
   if (!has_function) {
     return Ttx::Function();
   }
 
   const Token* name = cursor.require(
-      Class::Type::Addressable, "Expected library function name."_view);
+      Code::Type::Addressable, "Expected library function name."_view);
   if (name == nullptr) {
     return Ttx::Function();
   }
@@ -44,7 +44,7 @@ static auto evaluate_function(
   }
 
   Bool has_call = cursor.require(
-      Class::Type::CallOp,
+      Code::Type::CallOp,
       "Expected `->` before library function result."_view);
   if (!has_call) {
     return Ttx::Function();
@@ -62,16 +62,16 @@ static auto evaluate_function(
       Ttx::Layout(result.get_view()), documentation);
   if (body_mode == BodyMode::Declaration) {
     Bool has_statement_end = cursor.require(
-        Class::Type::EndStatement,
+        Code::Type::EndStatement,
         "Expected `;` after library function declaration."_view);
     if (!has_statement_end) {
       return Ttx::Function();
     }
-  } else if (cursor.matches(Class::Type::EndStatement)) {
+  } else if (cursor.matches(Code::Type::EndStatement)) {
     cursor.consume();
   } else {
     Count start = cursor.get_token_index();
-    if (!cursor.matches(Class::Type::ScopeStart)) {
+    if (!cursor.matches(Code::Type::ScopeStart)) {
       return Ttx::Function();
     }
 
@@ -82,7 +82,7 @@ static auto evaluate_function(
 
     Count end = cursor.get_token_index();
     View::Vector<Token> tail = cursor.get_token_span(end - 1, end);
-    if (tail.is_empty() || tail[0].get_class() != Class::Type::ScopeEnd) {
+    if (tail.is_empty() || tail[0].get_code() != Code::Type::ScopeEnd) {
       cursor.token_error("Expected `}` after library function body."_view);
       return Ttx::Function();
     }

@@ -9,14 +9,24 @@
 
 namespace Ttx::Lexical {
 
-// Class labels the valid value of a token in the smallest possible ctx.
-// Tokens of different classes can't have any overlap and any arbitrary string
-// of bytes is guaranteed to have a single valid tokenization in a single pass.
+// Class represents the context free semantics of a TTX bytecode value.
 //
-// All symbols are context free. A Dialect is required to parse them.
+// Each value represents one of 256 TTX bytecode operations. With the exception
+// of 0x00 and 0xFF the remaining 254 TTX bytecode values may be arbitraily
+// mapped to whatever is useful for the given toolchain.
 class Class {
  public:
   enum class Type : Unsigned_8 {
+    // ========================================================================
+    //                             Control Types
+    //
+    //       These are the only two required TTX symbols by the spec.
+    // ========================================================================
+    // 0xFF is used for any bytecode out of range and can be ignored.
+    Unknown = 0xFF,
+    // 0x00 is reserved for the terminal bytecode.
+    Terminal = 0x00,
+
     // ========================================================================
     //                              TTX Data Model
     // ========================================================================
@@ -46,8 +56,8 @@ class Class {
     ScopeEnd,      // }
     PackingStart,  // (
     PackingEnd,    // )
-    IndexStart,    // [ type args or layout
-    IndexEnd,      // ]
+    LayoutStart,   // [ type args or layout
+    LayoutEnd,     // ]
 
     // ========================================================================
     //                               Operators
@@ -85,9 +95,18 @@ class Class {
     OrOp,   // | reserved
 
     // ========================================================================
-    //              Fixed keywords that are all lower case.
+    //                       Fixed keywords unit spaces
     // ========================================================================
-    // The list should aim to be as limited as possible.
+    // The list should aim to be as limited as possible as these leak into the
+    // TTX Data Model. Expressive keywords can allow the lexer to generate rich
+    // semantics but adds full toolchain complexity. This means a "keyword" must
+    // have value across multiple systems while not limiting future ones.
+    //
+    // Keywords are _ONLY_ allowed to alias the addressable space. This means
+    // all keywords must follow its lexical semantics and mapping keyword tokens
+    // items outside of the addressable space is illegal for TTX bytecode. While
+    // a front end may define any arbitrary space for addressables the rule is
+    // keywords must exist in their own separate space or alias to addressables.
     And,
     Or,
     If,
@@ -111,17 +130,16 @@ class Class {
     // Common modifier keywords. Their meaning belongs to the dialect that
     // consumes them, but fixed spellings give every parser the same cheap
     // starting point.
+    //
+    // Modifiers are a key part of the TTX data model so they are given first
+    // class handling, not just to aid dialects but also to help prevent future
+    // dialects from overloading and shadowing core TTX concepts. They still can
+    // but this makes it so they have to explictly jump through hoops.
     Public,
     Private,
     Expose,
     State,
     Const,
-
-    // ========================================================================
-    //                             Control Types
-    // ========================================================================
-    Unknown,
-    EndOfStream,
   };
 
   constexpr Class() = default;
@@ -152,6 +170,19 @@ class Class {
     }
 
     return False;
+  }
+
+  constexpr auto is_publication_modifier() const -> Bool {
+    return type == Type::Public || type == Type::Private ||
+           type == Type::Expose;
+  }
+
+  constexpr auto is_evaluation_modifier() const -> Bool {
+    return type == Type::State || type == Type::Const;
+  }
+
+  constexpr auto is_modifier() const -> Bool {
+    return is_publication_modifier() || is_evaluation_modifier();
   }
 
   constexpr auto get_type() const -> Type { return type; }
@@ -251,9 +282,9 @@ class Class {
       return "("_view;
     case Type::PackingEnd:
       return ")"_view;
-    case Type::IndexStart:
+    case Type::LayoutStart:
       return "["_view;
-    case Type::IndexEnd:
+    case Type::LayoutEnd:
       return "]"_view;
     case Type::Define:
       return ":"_view;
@@ -310,8 +341,9 @@ class Class {
     }
   }
 
-  // Gets a human readable name for the class.
-  auto get_name() const -> Perimortem::Core::View::Bytes;
+  // Returns the encoded semantics that was used by the Lexer to determain why
+  // this bytecode was generated.
+  auto get_semantics() const -> Perimortem::Core::View::Bytes;
 
   // Gets the source-level text for tokens whose type encodes a fixed spelling
   // such as an operator, keyword, or builtin label.
@@ -322,7 +354,7 @@ class Class {
   }
 
  private:
-  Type type = Type::EndOfStream;
+  Type type = Type::Terminal;
 };
 
 }  // namespace Ttx::Lexical

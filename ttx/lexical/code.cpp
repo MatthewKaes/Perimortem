@@ -1,0 +1,177 @@
+// Perimortem Engine
+// Copyright © Matt Kaes
+
+#include "ttx/lexical/code.hpp"
+
+#include "perimortem/core/null_terminated.hpp"
+
+auto Ttx::Lexical::Code::get_semantics() const
+    -> Perimortem::Core::View::Bytes {
+  switch (type) {
+  // Modifiers
+  case Type::Public:
+    return "public publication modifier"_view;
+  case Type::Private:
+    return "private publication modifier"_view;
+  case Type::Expose:
+    return "expose publication modifier"_view;
+  case Type::State:
+    return "state evaluation modifier"_view;
+  case Type::Const:
+    return "const evaluation modifier"_view;
+
+  // Definition keywords
+  case Type::Alias:
+    return "Alias definition"_view;
+
+  // Statement and import keywords
+  case Type::If:
+    return "conditional branch"_view;
+  case Type::In:
+    return "iteration relation"_view;
+  case Type::For:
+    return "iteration loop"_view;
+  case Type::Break:
+    return "loop break"_view;
+  case Type::Continue:
+    return "loop continuation"_view;
+  case Type::Match:
+    return "pattern match"_view;
+  case Type::Case:
+    return "match case"_view;
+  case Type::Else:
+    return "alternate branch"_view;
+  case Type::While:
+    return "conditional loop"_view;
+  case Type::Return:
+    return "return statement"_view;
+  case Type::Import:
+    return "Dependency import"_view;
+  case Type::Dialect:
+    return "source Dialect selection"_view;
+  case Type::Func:
+    return "Callable definition"_view;
+  // Binary operators
+  case Type::AddOp:
+    return "addition operator"_view;
+  case Type::SubOp:
+    return "subtraction operator"_view;
+  case Type::MulOp:
+    return "multiplication operator"_view;
+  case Type::DivOp:
+    return "division operator"_view;
+  case Type::ModOp:
+    return "remainder operator"_view;
+  case Type::CmpOp:
+    return "equality comparison operator"_view;
+  case Type::NotEqOp:
+    return "inequality comparison operator"_view;
+  case Type::LessOp:
+    return "less than comparison operator"_view;
+  case Type::GreaterOp:
+    return "greater than comparison operator"_view;
+  case Type::LessEqOp:
+    return "less than or equal comparison operator"_view;
+  case Type::GreaterEqOp:
+    return "greater than or equal comparison operator"_view;
+  case Type::And:
+    return "logical conjunction operator"_view;
+  case Type::Or:
+    return "logical disjunction operator"_view;
+  case Type::AndOp:
+    return "reserved bitwise conjunction operator"_view;
+  case Type::OrOp:
+    return "reserved bitwise disjunction operator"_view;
+
+  // Assignment operators
+  case Type::Assign:
+    return "assignment operator"_view;
+  case Type::AddAssign:
+    return "addition assignment operator"_view;
+  case Type::SubAssign:
+    return "subtraction assignment operator"_view;
+
+  // Address, packing, and parser operators
+  case Type::ScopeStart:
+    return "scope start"_view;
+  case Type::ScopeEnd:
+    return "scope end"_view;
+  case Type::PackingStart:
+    return "packing start"_view;
+  case Type::PackingEnd:
+    return "packing end"_view;
+  case Type::LayoutStart:
+    return "layout start"_view;
+  case Type::LayoutEnd:
+    return "layout end"_view;
+  case Type::Define:
+    return "definition separator"_view;
+  case Type::TypeAccessOp:
+    return "Type context access operator"_view;
+  case Type::EndStatement:
+    return "statement terminator"_view;
+  case Type::CallOp:
+    return "Callable invocation operator"_view;
+  case Type::RangeOp:
+    return "range operator"_view;
+  case Type::PackingOp:
+    return "packing separator"_view;
+  case Type::AddressOp:
+    return "Addressable access operator"_view;
+  case Type::SwizzleOp:
+    return "swizzle access operator"_view;
+  case Type::SliceOp:
+    return "index or slice access operator"_view;
+  case Type::NotOp:
+    return "logical negation operator"_view;
+  case Type::Discard:
+    return "discard value"_view;
+
+  // Other fixed keywords and markers
+  case Type::Self:
+    return "self reference"_view;
+  case Type::True:
+    return "Flag literal true"_view;
+  case Type::False:
+    return "Flag literal false"_view;
+
+  // Literal markers
+  case Type::Bytes:
+    return "Bytes literal"_view;
+  case Type::Embedded:
+    return "embedded source literal"_view;
+
+  // Other fixed markers
+  case Type::Attribute:
+    return "Attribute name"_view;
+  case Type::Comment:
+    return "source comment"_view;
+  case Type::Disabled:
+    return "disabled source marker"_view;
+
+  // Source carried groupings
+  case Type::String:
+    return "quoted Bytes literal"_view;
+  case Type::Numeric:
+    return "Unsigned_64 literal"_view;
+  case Type::Hex:
+    return "Unsigned_64 hexadecimal literal"_view;
+  case Type::Float:
+    return "Real_64 literal"_view;
+  case Type::Addressable:
+    return "Addressable space name"_view;
+  case Type::Type:
+    return "Type space name"_view;
+  case Type::PackedData:
+    return "packed data source"_view;
+  case Type::Terminal:
+    return "terminal Code"_view;
+
+  // Unknown is the prescribed fallback for any source without a richer
+  // semantic grouping in this Lexer contract.
+  case Type::Unknown:
+    return "unknown source Code"_view;
+  }
+
+  return "unknown source Code"_view;
+}

@@ -8,8 +8,6 @@
 
 #include "perimortem/memory/allocator/arena.hpp"
 
-#include "ttx/layout.hpp"
-
 namespace Tetrodotoxin::Diagnostics {
 
 // Stateless spelling suggestions for failed semantic name lookups.
@@ -26,10 +24,6 @@ class Suggestions {
       Perimortem::Core::View::Bytes name,
       Perimortem::Core::View::Vector<Perimortem::Core::View::Bytes> candidates)
       -> Perimortem::Core::View::Bytes;
-  static auto possible_candidate(
-      Perimortem::Memory::Allocator::Arena& arena,
-      Perimortem::Core::View::Bytes name,
-      Ttx::Layout candidates) -> Perimortem::Core::View::Bytes;
 };
 
 }  // namespace Tetrodotoxin::Diagnostics

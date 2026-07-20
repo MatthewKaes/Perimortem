@@ -132,8 +132,8 @@ PERIMORTEM_UNIT_TEST(SerializationStream, textual_api) {
   Dynamic::Bytes output;
   Stream::Textual<Dynamic::Bytes> writer(output);
 
-  writer << "value="_view << Unsigned_32(120000) << ',' << Signed_32(-31) << ' '
-         << True;
+  writer << "value="_view << Unsigned_32(120000) << ","_view << Signed_32(-31)
+         << " "_view << True;
 
   EXPECT_TEXT(output, "value=120000,-31 true"_view);
 }
@@ -152,7 +152,7 @@ PERIMORTEM_UNIT_TEST(SerializationStream, managed_textual) {
   Managed::Bytes output(arena);
   Stream::Textual<Managed::Bytes> writer(output);
 
-  writer << Real_32(12.5) << ' ' << False;
+  writer << Real_32(12.5) << " "_view << False;
 
   EXPECT_TEXT(output.get_view(), "12.5 false"_view);
 }

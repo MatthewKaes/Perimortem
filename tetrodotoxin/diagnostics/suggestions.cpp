@@ -135,20 +135,3 @@ auto Tetrodotoxin::Diagnostics::Suggestions::possible_candidate(
   return best_index == Count(-1) ? View::Bytes()
                                  : format(arena, candidates[best_index]);
 }
-
-auto Tetrodotoxin::Diagnostics::Suggestions::possible_candidate(
-    Allocator::Arena& arena,
-    View::Bytes name,
-    Ttx::Layout candidates) -> View::Bytes {
-  View::Vector<Ttx::Member> members = candidates.get_members();
-  Count best_index = Count(-1);
-  for (Count i = 0; i < members.get_size(); i++) {
-    if (consider(name, members[i].get_name(), i, best_index)) {
-      break;
-    }
-  }
-
-  return best_index == Count(-1)
-             ? View::Bytes()
-             : format(arena, members[best_index].get_name());
-}

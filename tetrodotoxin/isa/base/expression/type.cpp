@@ -15,19 +15,19 @@ using namespace Tetrodotoxin::Isa;
 using namespace Ttx::Lexical;
 
 static auto consume_type_arguments(Cursor& cursor) -> Bool {
-  if (!cursor.matches(Class::Type::IndexStart)) {
+  if (!cursor.matches(Code::Type::LayoutStart)) {
     return True;
   }
 
   Count depth = 0;
-  while (!cursor.matches(Class::Type::EndOfStream)) {
-    if (cursor.matches(Class::Type::IndexStart)) {
+  while (!cursor.matches(Code::Type::Terminal)) {
+    if (cursor.matches(Code::Type::LayoutStart)) {
       depth++;
       cursor.consume();
       continue;
     }
 
-    if (cursor.matches(Class::Type::IndexEnd)) {
+    if (cursor.matches(Code::Type::LayoutEnd)) {
       cursor.consume();
       depth--;
       if (depth == 0) {
@@ -94,7 +94,7 @@ static auto evaluate_view_arguments(
   }
 
   Bool has_index_end = cursor.require(
-      Class::Type::IndexEnd, "Expected `]` after View argument."_view);
+      Code::Type::LayoutEnd, "Expected `]` after View argument."_view);
   if (!has_index_end) {
     return nullptr;
   }
@@ -114,19 +114,19 @@ static auto evaluate_vec_arguments(
   }
 
   Bool has_packing = cursor.require(
-      Class::Type::PackingOp, "Expected `,` before Vec element count."_view);
+      Code::Type::PackingOp, "Expected `,` before Vec element count."_view);
   if (!has_packing) {
     return nullptr;
   }
 
   const Token* extent_token =
-      cursor.require(Class::Type::Numeric, "Expected Vec element count."_view);
+      cursor.require(Code::Type::Numeric, "Expected Vec element count."_view);
   if (extent_token == nullptr) {
     return nullptr;
   }
 
   Bool has_index_end = cursor.require(
-      Class::Type::IndexEnd, "Expected `]` after Vec arguments."_view);
+      Code::Type::LayoutEnd, "Expected `]` after Vec arguments."_view);
   if (!has_index_end) {
     return nullptr;
   }
@@ -142,7 +142,7 @@ static auto evaluate_type_arguments(
     Cursor& cursor,
     Base::Context& context,
     const Ttx::Type* type) -> const Ttx::Type* {
-  if (!cursor.matches(Class::Type::IndexStart)) {
+  if (!cursor.matches(Code::Type::LayoutStart)) {
     return type;
   }
 
@@ -168,7 +168,7 @@ static auto evaluate_type_arguments(
 auto Base::Expression::Type::evaluate(Cursor& cursor, Base::Context& context)
     -> const Ttx::Type* {
   const Token* root =
-      cursor.require(Class::Type::Type, "Expected Type name."_view);
+      cursor.require(Code::Type::Type, "Expected Type name."_view);
   if (root == nullptr) {
     return nullptr;
   }
@@ -193,11 +193,11 @@ auto Base::Expression::Type::evaluate(
     Base::Context& context,
     const Ttx::Type* root) -> const Ttx::Type* {
   const Ttx::Type* type = root;
-  while (cursor.matches(Class::Type::TypeAccessOp)) {
+  while (cursor.matches(Code::Type::TypeAccessOp)) {
     cursor.consume();
 
-    const Token* segment = cursor.require(
-        Class::Type::Type, "Expected Type name after `::`."_view);
+    const Token* segment =
+        cursor.require(Code::Type::Type, "Expected Type name after `::`."_view);
     if (segment == nullptr) {
       return nullptr;
     }

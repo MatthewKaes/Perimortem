@@ -23,7 +23,7 @@ class Evaluator {
       Ttx::Lexical::Cursor& cursor,
       Scope& scope,
       Perimortem::Memory::Managed::Vector<Ttx::Member>& members) -> Bool {
-    if (cursor.matches(Ttx::Lexical::Class::Type::IndexStart)) {
+    if (cursor.matches(Ttx::Lexical::Code::Type::LayoutStart)) {
       return evaluate_bracketed(cursor, scope, members);
     }
 
@@ -43,14 +43,14 @@ class Evaluator {
     }
 
     Bool has_index = cursor.require(
-        Ttx::Lexical::Class::Type::IndexStart,
+        Ttx::Lexical::Code::Type::LayoutStart,
         "Expected `[` before layout."_view);
     if (!has_index) {
       return False;
     }
 
-    while (!cursor.matches(Ttx::Lexical::Class::Type::EndOfStream) &&
-           !cursor.matches(Ttx::Lexical::Class::Type::IndexEnd)) {
+    while (!cursor.matches(Ttx::Lexical::Code::Type::Terminal) &&
+           !cursor.matches(Ttx::Lexical::Code::Type::LayoutEnd)) {
       Perimortem::Memory::Managed::Vector<Ttx::Attribute> attributes(
           get_context(scope).get_arena());
       Bool attributes_evaluated =
@@ -59,7 +59,7 @@ class Evaluator {
         return False;
       }
 
-      if (cursor.matches(Ttx::Lexical::Class::Type::Self)) {
+      if (cursor.matches(Ttx::Lexical::Code::Type::Self)) {
         if (self_type == nullptr) {
           cursor.token_error(
               "`self` is only valid in an Addressable function layout."_view);
@@ -84,11 +84,11 @@ class Evaluator {
         }
       } else {
         Perimortem::Core::View::Bytes name;
-        if (cursor.matches(Ttx::Lexical::Class::Type::AddressOp)) {
+        if (cursor.matches(Ttx::Lexical::Code::Type::AddressOp)) {
           cursor.consume();
 
           const Ttx::Lexical::Token* name_token = cursor.require(
-              Ttx::Lexical::Class::Type::Addressable,
+              Ttx::Lexical::Code::Type::Addressable,
               "Expected member name after `.` in layout."_view);
           if (name_token == nullptr) {
             return False;
@@ -96,7 +96,7 @@ class Evaluator {
 
           name = name_token->get_text();
           Bool has_definition = cursor.require(
-              Ttx::Lexical::Class::Type::Define,
+              Ttx::Lexical::Code::Type::Define,
               "Expected `:` after layout member name."_view);
           if (!has_definition) {
             return False;
@@ -110,19 +110,19 @@ class Evaluator {
         }
       }
 
-      if (cursor.matches(Ttx::Lexical::Class::Type::PackingOp)) {
+      if (cursor.matches(Ttx::Lexical::Code::Type::PackingOp)) {
         cursor.consume();
         continue;
       }
 
-      if (!cursor.matches(Ttx::Lexical::Class::Type::IndexEnd)) {
+      if (!cursor.matches(Ttx::Lexical::Code::Type::LayoutEnd)) {
         cursor.token_error("Expected `,` or `]` after layout member."_view);
         return False;
       }
     }
 
     const Ttx::Lexical::Token* index_end = cursor.require(
-        Ttx::Lexical::Class::Type::IndexEnd, "Expected `]` after layout."_view);
+        Ttx::Lexical::Code::Type::LayoutEnd, "Expected `]` after layout."_view);
     return index_end != nullptr;
   }
 

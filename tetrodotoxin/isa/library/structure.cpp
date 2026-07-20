@@ -24,7 +24,7 @@ auto Library::Structure::evaluate(
     const Tetrodotoxin::Isa::Base::Declaration& definition)
     -> const Ttx::Type* {
   Bool has_scope = cursor.require(
-      Class::Type::ScopeStart,
+      Code::Type::ScopeStart,
       "Expected `{` after library aggregate declaration."_view);
   if (!has_scope) {
     return nullptr;
@@ -54,8 +54,8 @@ auto Library::Structure::evaluate(
   }
 
   Bool valid = True;
-  while (!cursor.matches(Class::Type::EndOfStream) &&
-         !cursor.matches(Class::Type::ScopeEnd)) {
+  while (!cursor.matches(Code::Type::Terminal) &&
+         !cursor.matches(Code::Type::ScopeEnd)) {
     Ttx::Documentation member_documentation =
         Base::Documentation::evaluate(cursor);
     Managed::Vector<Ttx::Attribute> member_attributes(
@@ -66,13 +66,13 @@ auto Library::Structure::evaluate(
       return nullptr;
     }
 
-    Class::Type modifier = Base::Modifier::evaluate(
+    Code::Type modifier = Base::Modifier::evaluate(
         cursor,
-        {{Class::Type::Public, Class::Type::Private, Class::Type::Expose,
-          Class::Type::State, Class::Type::Const}},
+        {{Code::Type::Public, Code::Type::Private, Code::Type::Expose,
+          Code::Type::State, Code::Type::Const}},
         "Expected a definition to start with one of the following modifiers "
         "{public, private, expose, state, const}"_view);
-    if (modifier == Class::Type::Unknown) {
+    if (modifier == Code::Type::Unknown) {
       valid = False;
       Bool recovered = Library::Syntax::consume_declaration_tail(cursor);
       if (!recovered) {
@@ -82,7 +82,7 @@ auto Library::Structure::evaluate(
       continue;
     }
 
-    if (cursor.matches(Class::Type::Func)) {
+    if (cursor.matches(Code::Type::Func)) {
       Perimortem::Utility::Range source;
       Bool addressable = False;
       Ttx::Function function = Library::Function::evaluate(
@@ -135,7 +135,7 @@ auto Library::Structure::evaluate(
     Tetrodotoxin::Isa::Base::Declaration member_definition =
         Tetrodotoxin::Isa::Base::Declaration::evaluate_after_modifier(
             cursor, member_documentation, modifier,
-            {{Class::Type::Addressable}}, {{Class::Type::Type}},
+            {{Code::Type::Addressable}}, {{Code::Type::Type}},
             member_attributes.get_view());
     if (member_definition.is_empty()) {
       valid = False;
@@ -177,7 +177,7 @@ auto Library::Structure::evaluate(
   }
 
   Bool has_scope_end = cursor.require(
-      Class::Type::ScopeEnd,
+      Code::Type::ScopeEnd,
       "Expected `}` after library struct declaration."_view);
   if (!has_scope_end) {
     return nullptr;

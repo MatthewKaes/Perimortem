@@ -30,7 +30,7 @@ class Bytes : public Constant {
 
   constexpr auto equals(const Constant& rhs) const -> Bool final {
     return rhs.is<Bytes>() && has_same_type(rhs) &&
-           get_value() == rhs.as<Bytes>().get_value();
+           get_value() == rhs.assume<Bytes>().get_value();
   }
 
   virtual constexpr auto get_value() const -> Value = 0;

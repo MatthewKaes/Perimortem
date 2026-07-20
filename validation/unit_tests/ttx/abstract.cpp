@@ -5,12 +5,16 @@
 
 #include "perimortem/core/static/vector.hpp"
 
-#include "ttx/concept/alias.hpp"
-#include "ttx/concept/comments.hpp"
 #include "ttx/concept/invalid.hpp"
+#include "ttx/model/alias.hpp"
+#include "ttx/model/documentations/block.hpp"
+#include "ttx/model/documentations/comment.hpp"
+#include "ttx/model/documentations/merged.hpp"
 
 using namespace Perimortem::Core;
 using namespace Ttx::Concept;
+using namespace Ttx::Model;
+using namespace Ttx::Model::Documentations;
 using namespace Validation;
 
 static Harness TtxAbstract = {
@@ -34,7 +38,7 @@ PERIMORTEM_UNIT_TEST(TtxAbstract, alias_reroutes) {
    public:
     Value(
         View::Bytes name,
-        const Documentation& documentation = Comment::get_empty())
+        const Documentation& documentation = Documentation::get_empty())
         : name(name), documentation(documentation) {}
 
     auto get_name() const -> View::Bytes override { return name; }
@@ -58,7 +62,7 @@ PERIMORTEM_UNIT_TEST(TtxAbstract, alias_reroutes) {
         View::Bytes name,
         View::Bytes child_name,
         const Abstract& child,
-        const Documentation& documentation = Comment::get_empty())
+        const Documentation& documentation = Documentation::get_empty())
         : name(name),
           child_name(child_name),
           child(child),
@@ -87,10 +91,12 @@ PERIMORTEM_UNIT_TEST(TtxAbstract, alias_reroutes) {
     "Preserve authored color names."_view,
   }};
   static constexpr Comment graphics_comment("The graphics context."_view);
-  static constexpr Comments palette_comments(lines);
+  static constexpr Block palette_comments(lines);
+  static constexpr Merged palette_documentation(
+      palette_comments, graphics_comment);
   Value color("Color"_view);
   Context graphics("Graphics"_view, "Color"_view, color, graphics_comment);
-  Alias palette("Palette"_view, graphics, palette_comments);
+  Alias palette("Palette"_view, graphics, palette_documentation);
   Alias colors("Colors"_view, palette);
 
   EXPECT_TEXT(palette.get_name(), "Palette"_view);

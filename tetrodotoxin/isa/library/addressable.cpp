@@ -21,7 +21,7 @@ auto Library::Addressable::evaluate(
     return nullptr;
   }
 
-  if (definition.get_kind_class() != Class::Type::Type) {
+  if (definition.get_kind_class() != Code::Type::Type) {
     cursor.token_error("Expected library member type."_view);
     return nullptr;
   }
@@ -33,13 +33,13 @@ auto Library::Addressable::evaluate(
   }
 
   Base::Expression::Value initializer;
-  if (cursor.matches(Class::Type::Assign)) {
+  if (cursor.matches(Code::Type::Assign)) {
     cursor.consume();
 
     const Ttx::Type* meta_type =
         Tetrodotoxin::Standard::Types::find_type("Type"_view);
     if (type != nullptr && meta_type != nullptr &&
-        type->equivalent_to(*meta_type) && cursor.matches(Class::Type::Type)) {
+        type->equivalent_to(*meta_type) && cursor.matches(Code::Type::Type)) {
       // A Type initializer is a semantic type query, not a runtime reference
       // expression. Resolve it through the Library scope so imports, nested
       // types, and aliases produce the same canonical identity used by every
@@ -62,7 +62,7 @@ auto Library::Addressable::evaluate(
   }
 
   Bool has_statement_end = cursor.require(
-      Class::Type::EndStatement, "Expected `;` after library member."_view);
+      Code::Type::EndStatement, "Expected `;` after library member."_view);
   if (!has_statement_end) {
     return nullptr;
   }

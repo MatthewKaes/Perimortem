@@ -5,7 +5,8 @@
 
 #include "perimortem/core/null_terminated.hpp"
 
-auto Ttx::Lexical::Class::get_name() const -> Perimortem::Core::View::Bytes {
+auto Ttx::Lexical::Class::get_semantics() const
+    -> Perimortem::Core::View::Bytes {
   switch (type) {
   // Modifiers
   case Type::Public:
@@ -99,9 +100,9 @@ auto Ttx::Lexical::Class::get_name() const -> Perimortem::Core::View::Bytes {
     return "packing operator `(`"_view;
   case Type::PackingEnd:
     return "closing operator `)`"_view;
-  case Type::IndexStart:
+  case Type::LayoutStart:
     return "type argument or layout operator `[`"_view;
-  case Type::IndexEnd:
+  case Type::LayoutEnd:
     return "closing type argument or layout operator `]`"_view;
   case Type::Define:
     return "definition `:`"_view;
@@ -161,7 +162,7 @@ auto Ttx::Lexical::Class::get_name() const -> Perimortem::Core::View::Bytes {
     return "type"_view;
   case Type::PackedData:
     return "packed data source"_view;
-  case Type::EndOfStream:
+  case Type::Terminal:
     return "end of file"_view;
 
     // Surface tokenization errors to the user which should only happen on

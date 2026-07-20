@@ -10,7 +10,8 @@
 
 namespace Ttx::Model::Layouts {
 
-// Named is reshapeable value flow whose Abstracts author non-empty names.
+// Named is reshapeable value flow whose Abstracts author names that are not
+// empty.
 // Names affect fitting but do not make the values addressable storage. The
 // source owner supplies real Abstract objects whose get_name() and resolve()
 // queries carry the complete fitting facts. After a name matches, an Expression
@@ -35,9 +36,12 @@ class Named : public Concept::Layout {
     return abstracts[index].get();
   }
 
-  auto fits(const Concept::Layout& target) const -> Bool override;
-  auto get_fitted(const Concept::Layout& target, Count target_index) const
-      -> const Concept::Abstract& override;
+  auto fits_at(const Concept::Layout& target, Count target_offset) const
+      -> Bool override;
+  auto get_fitted_at(
+      const Concept::Layout& target,
+      Count target_offset,
+      Count target_index) const -> const Concept::Abstract& override;
 
  private:
   auto has_unique_names() const -> Bool;

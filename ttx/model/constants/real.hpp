@@ -9,8 +9,8 @@
 namespace Ttx::Model::Constants {
 
 // Real is an evaluated floating-point Constant. Source decimal text may remain
-// an ISA-owned literal Expression until a receiving Type selects a format, so
-// constructing this contract never silently narrows an exact source literal.
+// a Dialect-owned literal Expression until a receiving Type selects a format,
+// so constructing this contract never silently narrows an exact source literal.
 // NaN values compare as one semantic value so Constant equality remains an
 // equivalence relation suitable for Generic argument caches.
 class Real : public Constant {
@@ -33,7 +33,7 @@ class Real : public Constant {
     }
 
     Value lhs_value = get_value();
-    Value rhs_value = rhs.as<Real>().get_value();
+    Value rhs_value = rhs.assume<Real>().get_value();
     return lhs_value == rhs_value ||
            (__builtin_isnan(lhs_value) && __builtin_isnan(rhs_value));
   }

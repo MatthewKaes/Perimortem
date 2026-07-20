@@ -14,7 +14,7 @@ namespace Ttx::Model {
 //
 // get_type() returns the Type produced by the expression or Invalid when the
 // source owner cannot establish one. get_inputs() exposes the ordered values
-// required to evaluate the expression. The active ISA owns parsing, operator
+// required to evaluate the expression. The active Dialect owns parsing, operator
 // legality, and executable bodies while shared fitting and reflection consume
 // these stable queries.
 class Expression : public Concept::Abstract {

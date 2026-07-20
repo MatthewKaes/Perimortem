@@ -27,7 +27,7 @@ class Unsigned : public Constant {
 
   constexpr auto equals(const Constant& rhs) const -> Bool final {
     return rhs.is<Unsigned>() && has_same_type(rhs) &&
-           get_value() == rhs.as<Unsigned>().get_value();
+           get_value() == rhs.assume<Unsigned>().get_value();
   }
 
   constexpr auto fits(const Type& target) const -> Bool final {
@@ -40,7 +40,7 @@ class Unsigned : public Constant {
       return False;
     }
 
-    Count size = target_type.as<Types::Unsigned>().get_size();
+    Count size = target_type.assume<Types::Unsigned>().get_size();
     if (size == 0) {
       return False;
     }

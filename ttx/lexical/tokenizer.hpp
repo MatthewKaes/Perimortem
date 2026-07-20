@@ -35,7 +35,7 @@ class Tokenizer {
     return tokens;
   };
 
-  // The tokenizer is empty if it has 0 or 1 (EndOfStream) tokens.
+  // The tokenizer is empty if it has 0 or 1 (Terminal) tokens.
   constexpr auto is_empty() const -> Bool { return tokens.get_size() <= 1; }
 
   constexpr auto get_source_text() const

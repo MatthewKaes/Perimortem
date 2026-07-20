@@ -33,17 +33,17 @@ enum SemanticToken : Signed_64 {
   SemanticDecorator,
 };
 
-static auto should_filter_shader_keyword(::Ttx::Lexical::Class klass) -> Bool {
-  switch (klass.get_type()) {
-  case ::Ttx::Lexical::Class::Type::If:
-  case ::Ttx::Lexical::Class::Type::In:
-  case ::Ttx::Lexical::Class::Type::For:
-  case ::Ttx::Lexical::Class::Type::Break:
-  case ::Ttx::Lexical::Class::Type::Continue:
-  case ::Ttx::Lexical::Class::Type::Case:
-  case ::Ttx::Lexical::Class::Type::Else:
-  case ::Ttx::Lexical::Class::Type::Match:
-  case ::Ttx::Lexical::Class::Type::While:
+static auto should_filter_shader_keyword(::Ttx::Lexical::Code code) -> Bool {
+  switch (code.get_type()) {
+  case ::Ttx::Lexical::Code::Type::If:
+  case ::Ttx::Lexical::Code::Type::In:
+  case ::Ttx::Lexical::Code::Type::For:
+  case ::Ttx::Lexical::Code::Type::Break:
+  case ::Ttx::Lexical::Code::Type::Continue:
+  case ::Ttx::Lexical::Code::Type::Case:
+  case ::Ttx::Lexical::Code::Type::Else:
+  case ::Ttx::Lexical::Code::Type::Match:
+  case ::Ttx::Lexical::Code::Type::While:
     return True;
 
   default:
@@ -55,69 +55,70 @@ static auto has_newline(View::Bytes text) -> Bool {
   return Algorithm::search(text, "\n"_view) != Count(-1);
 }
 
-static auto classify_semantic_token(::Ttx::Lexical::Class klass) -> Signed_64 {
-  switch (klass.get_type()) {
-  case ::Ttx::Lexical::Class::Type::Comment:
-  case ::Ttx::Lexical::Class::Type::Disabled:
+static auto classify_semantic_token(::Ttx::Lexical::Code code) -> Signed_64 {
+  switch (code.get_type()) {
+  case ::Ttx::Lexical::Code::Type::Comment:
+  case ::Ttx::Lexical::Code::Type::Disabled:
     return SemanticComment;
 
-  case ::Ttx::Lexical::Class::Type::String:
-  case ::Ttx::Lexical::Class::Type::Embedded:
-  case ::Ttx::Lexical::Class::Type::PackedData:
+  case ::Ttx::Lexical::Code::Type::String:
+  case ::Ttx::Lexical::Code::Type::Embedded:
+  case ::Ttx::Lexical::Code::Type::PackedData:
     return SemanticString;
 
-  case ::Ttx::Lexical::Class::Type::Numeric:
-  case ::Ttx::Lexical::Class::Type::Float:
-  case ::Ttx::Lexical::Class::Type::Bytes:
+  case ::Ttx::Lexical::Code::Type::Numeric:
+  case ::Ttx::Lexical::Code::Type::Hex:
+  case ::Ttx::Lexical::Code::Type::Float:
+  case ::Ttx::Lexical::Code::Type::Bytes:
     return SemanticNumber;
 
-  case ::Ttx::Lexical::Class::Type::Attribute:
+  case ::Ttx::Lexical::Code::Type::Attribute:
     return SemanticDecorator;
 
-  case ::Ttx::Lexical::Class::Type::Type:
-  case ::Ttx::Lexical::Class::Type::Alias:
+  case ::Ttx::Lexical::Code::Type::Type:
+  case ::Ttx::Lexical::Code::Type::Alias:
     return SemanticType;
 
-  case ::Ttx::Lexical::Class::Type::Addressable:
+  case ::Ttx::Lexical::Code::Type::Addressable:
     return SemanticVariable;
 
-  case ::Ttx::Lexical::Class::Type::AddOp:
-  case ::Ttx::Lexical::Class::Type::SubOp:
-  case ::Ttx::Lexical::Class::Type::DivOp:
-  case ::Ttx::Lexical::Class::Type::MulOp:
-  case ::Ttx::Lexical::Class::Type::ModOp:
-  case ::Ttx::Lexical::Class::Type::LessOp:
-  case ::Ttx::Lexical::Class::Type::GreaterOp:
-  case ::Ttx::Lexical::Class::Type::LessEqOp:
-  case ::Ttx::Lexical::Class::Type::GreaterEqOp:
-  case ::Ttx::Lexical::Class::Type::CmpOp:
-  case ::Ttx::Lexical::Class::Type::NotEqOp:
-  case ::Ttx::Lexical::Class::Type::CallOp:
-  case ::Ttx::Lexical::Class::Type::AddressOp:
-  case ::Ttx::Lexical::Class::Type::SwizzleOp:
-  case ::Ttx::Lexical::Class::Type::SliceOp:
-  case ::Ttx::Lexical::Class::Type::PackingOp:
-  case ::Ttx::Lexical::Class::Type::NotOp:
-  case ::Ttx::Lexical::Class::Type::RangeOp:
-  case ::Ttx::Lexical::Class::Type::AndOp:
-  case ::Ttx::Lexical::Class::Type::OrOp:
-  case ::Ttx::Lexical::Class::Type::Assign:
-  case ::Ttx::Lexical::Class::Type::AddAssign:
-  case ::Ttx::Lexical::Class::Type::SubAssign:
-  case ::Ttx::Lexical::Class::Type::ScopeStart:
-  case ::Ttx::Lexical::Class::Type::ScopeEnd:
-  case ::Ttx::Lexical::Class::Type::PackingStart:
-  case ::Ttx::Lexical::Class::Type::PackingEnd:
-  case ::Ttx::Lexical::Class::Type::IndexStart:
-  case ::Ttx::Lexical::Class::Type::IndexEnd:
-  case ::Ttx::Lexical::Class::Type::Define:
-  case ::Ttx::Lexical::Class::Type::TypeAccessOp:
-  case ::Ttx::Lexical::Class::Type::EndStatement:
-  case ::Ttx::Lexical::Class::Type::Discard:
+  case ::Ttx::Lexical::Code::Type::AddOp:
+  case ::Ttx::Lexical::Code::Type::SubOp:
+  case ::Ttx::Lexical::Code::Type::DivOp:
+  case ::Ttx::Lexical::Code::Type::MulOp:
+  case ::Ttx::Lexical::Code::Type::ModOp:
+  case ::Ttx::Lexical::Code::Type::LessOp:
+  case ::Ttx::Lexical::Code::Type::GreaterOp:
+  case ::Ttx::Lexical::Code::Type::LessEqOp:
+  case ::Ttx::Lexical::Code::Type::GreaterEqOp:
+  case ::Ttx::Lexical::Code::Type::CmpOp:
+  case ::Ttx::Lexical::Code::Type::NotEqOp:
+  case ::Ttx::Lexical::Code::Type::CallOp:
+  case ::Ttx::Lexical::Code::Type::AddressOp:
+  case ::Ttx::Lexical::Code::Type::SwizzleOp:
+  case ::Ttx::Lexical::Code::Type::SliceOp:
+  case ::Ttx::Lexical::Code::Type::PackingOp:
+  case ::Ttx::Lexical::Code::Type::NotOp:
+  case ::Ttx::Lexical::Code::Type::RangeOp:
+  case ::Ttx::Lexical::Code::Type::AndOp:
+  case ::Ttx::Lexical::Code::Type::OrOp:
+  case ::Ttx::Lexical::Code::Type::Assign:
+  case ::Ttx::Lexical::Code::Type::AddAssign:
+  case ::Ttx::Lexical::Code::Type::SubAssign:
+  case ::Ttx::Lexical::Code::Type::ScopeStart:
+  case ::Ttx::Lexical::Code::Type::ScopeEnd:
+  case ::Ttx::Lexical::Code::Type::PackingStart:
+  case ::Ttx::Lexical::Code::Type::PackingEnd:
+  case ::Ttx::Lexical::Code::Type::LayoutStart:
+  case ::Ttx::Lexical::Code::Type::LayoutEnd:
+  case ::Ttx::Lexical::Code::Type::Define:
+  case ::Ttx::Lexical::Code::Type::TypeAccessOp:
+  case ::Ttx::Lexical::Code::Type::EndStatement:
+  case ::Ttx::Lexical::Code::Type::Discard:
     return SemanticOperator;
 
-  case ::Ttx::Lexical::Class::Type::Unknown:
-  case ::Ttx::Lexical::Class::Type::EndOfStream:
+  case ::Ttx::Lexical::Code::Type::Unknown:
+  case ::Ttx::Lexical::Code::Type::Terminal:
     return Signed_64(-1);
 
   default:
@@ -174,7 +175,7 @@ auto Lsp::semantic_tokens_for(Allocator::Arena& arena, View::Bytes source)
   for (Count i = 0; i < tokens.get_size(); i++) {
     ::Ttx::Lexical::Token token = tokens[i];
     if (isa == "Shader"_view &&
-        should_filter_shader_keyword(token.get_class())) {
+        should_filter_shader_keyword(token.get_code())) {
       continue;
     }
 
@@ -183,7 +184,7 @@ auto Lsp::semantic_tokens_for(Allocator::Arena& arena, View::Bytes source)
       continue;
     }
 
-    Signed_64 token_type = classify_semantic_token(token.get_class());
+    Signed_64 token_type = classify_semantic_token(token.get_code());
     if (token_type < 0) {
       continue;
     }

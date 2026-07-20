@@ -1,0 +1,219 @@
+// Perimortem Engine
+// Copyright © Matt Kaes
+
+#pragma once
+
+#include "perimortem/core/view/bytes.hpp"
+#include "perimortem/core/static/vector.hpp"
+#include "perimortem/core/null_terminated.hpp"
+
+#include "perimortem/utility/pair.hpp"
+#include "perimortem/utility/table.hpp"
+
+#include "ttx/lexical/code.hpp"
+
+namespace Ttx::Lexical {
+
+// Lexicon owns the fixed source spellings in one concrete Lexer contract.
+// Code owns the prescribed semantic grouping while Lexicon owns how that
+// grouping appears in source text. Codes whose spelling comes from an authored
+// token payload return an empty view.
+class Lexicon {
+ public:
+  Lexicon() = delete;
+
+  static constexpr auto get_spelling(Code::Type type)
+      -> Perimortem::Core::View::Bytes {
+    switch (type) {
+    // Modifiers
+    case Code::Type::Public:
+      return "public"_view;
+    case Code::Type::Private:
+      return "private"_view;
+    case Code::Type::Expose:
+      return "expose"_view;
+    case Code::Type::State:
+      return "state"_view;
+    case Code::Type::Const:
+      return "const"_view;
+
+    // Definition keywords
+    case Code::Type::Alias:
+      return "alias"_view;
+
+    // Statement and import keywords
+    case Code::Type::If:
+      return "if"_view;
+    case Code::Type::In:
+      return "in"_view;
+    case Code::Type::For:
+      return "for"_view;
+    case Code::Type::Break:
+      return "break"_view;
+    case Code::Type::Continue:
+      return "continue"_view;
+    case Code::Type::Match:
+      return "match"_view;
+    case Code::Type::Case:
+      return "case"_view;
+    case Code::Type::Else:
+      return "else"_view;
+    case Code::Type::While:
+      return "while"_view;
+    case Code::Type::Return:
+      return "return"_view;
+    case Code::Type::Import:
+      return "import"_view;
+    case Code::Type::Dialect:
+      return "dialect"_view;
+    case Code::Type::Func:
+      return "func"_view;
+
+    // Binary operators
+    case Code::Type::AddOp:
+      return "+"_view;
+    case Code::Type::SubOp:
+      return "-"_view;
+    case Code::Type::MulOp:
+      return "*"_view;
+    case Code::Type::DivOp:
+      return "/"_view;
+    case Code::Type::ModOp:
+      return "%"_view;
+    case Code::Type::CmpOp:
+      return "=="_view;
+    case Code::Type::NotEqOp:
+      return "!="_view;
+    case Code::Type::LessOp:
+      return "<"_view;
+    case Code::Type::GreaterOp:
+      return ">"_view;
+    case Code::Type::LessEqOp:
+      return "<="_view;
+    case Code::Type::GreaterEqOp:
+      return ">="_view;
+    case Code::Type::And:
+      return "and"_view;
+    case Code::Type::Or:
+      return "or"_view;
+    case Code::Type::AndOp:
+      return "&"_view;
+    case Code::Type::OrOp:
+      return "|"_view;
+
+    // Assignment operators
+    case Code::Type::Assign:
+      return "="_view;
+    case Code::Type::AddAssign:
+      return "+="_view;
+    case Code::Type::SubAssign:
+      return "-="_view;
+
+    // Address, packing, and parser operators
+    case Code::Type::ScopeStart:
+      return "{"_view;
+    case Code::Type::ScopeEnd:
+      return "}"_view;
+    case Code::Type::PackingStart:
+      return "("_view;
+    case Code::Type::PackingEnd:
+      return ")"_view;
+    case Code::Type::LayoutStart:
+      return "["_view;
+    case Code::Type::LayoutEnd:
+      return "]"_view;
+    case Code::Type::Define:
+      return ":"_view;
+    case Code::Type::TypeAccessOp:
+      return "::"_view;
+    case Code::Type::EndStatement:
+      return ";"_view;
+    case Code::Type::CallOp:
+      return "->"_view;
+    case Code::Type::AddressOp:
+      return "."_view;
+    case Code::Type::SwizzleOp:
+      return ".["_view;
+    case Code::Type::SliceOp:
+      return ":["_view;
+    case Code::Type::PackingOp:
+      return ","_view;
+    case Code::Type::NotOp:
+      return "!"_view;
+    case Code::Type::RangeOp:
+      return "..."_view;
+    case Code::Type::Discard:
+      return "_"_view;
+
+    // Other fixed keywords and markers
+    case Code::Type::Self:
+      return "self"_view;
+    case Code::Type::True:
+      return "true"_view;
+    case Code::Type::False:
+      return "false"_view;
+
+    // Literal markers
+    case Code::Type::Hex:
+      return "0x"_view;
+    case Code::Type::Bytes:
+      return "0x["_view;
+    case Code::Type::Embedded:
+      return "$["_view;
+
+    // Other fixed markers
+    case Code::Type::Attribute:
+      return "@"_view;
+    case Code::Type::Comment:
+      return "//"_view;
+    case Code::Type::Disabled:
+      return "/>"_view;
+    case Code::Type::String:
+      return "\""_view;
+
+    default:
+      return ""_view;
+    }
+  }
+
+  // Maps names promoted out of the Addressable source space onto their
+  // prescribed Codes. A name that is not reserved keeps the caller supplied
+  // Addressable grouping.
+  static constexpr auto get_keyword(
+      Perimortem::Core::View::Bytes spelling,
+      Code::Type fallback) -> Code::Type {
+    using Entry =
+        Perimortem::Utility::Pair<Perimortem::Core::View::Bytes, Code::Type>;
+
+    static constexpr Perimortem::Core::Static::Vector<Entry, 24> keywords = {{
+      {get_spelling(Code::Type::And), Code::Type::And},
+      {get_spelling(Code::Type::Or), Code::Type::Or},
+      {get_spelling(Code::Type::If), Code::Type::If},
+      {get_spelling(Code::Type::In), Code::Type::In},
+      {get_spelling(Code::Type::For), Code::Type::For},
+      {get_spelling(Code::Type::While), Code::Type::While},
+      {get_spelling(Code::Type::Case), Code::Type::Case},
+      {get_spelling(Code::Type::Match), Code::Type::Match},
+      {get_spelling(Code::Type::Break), Code::Type::Break},
+      {get_spelling(Code::Type::Continue), Code::Type::Continue},
+      {get_spelling(Code::Type::Else), Code::Type::Else},
+      {get_spelling(Code::Type::Func), Code::Type::Func},
+      {get_spelling(Code::Type::Self), Code::Type::Self},
+      {get_spelling(Code::Type::True), Code::Type::True},
+      {get_spelling(Code::Type::False), Code::Type::False},
+      {get_spelling(Code::Type::Return), Code::Type::Return},
+      {get_spelling(Code::Type::Import), Code::Type::Import},
+      {get_spelling(Code::Type::Dialect), Code::Type::Dialect},
+      {get_spelling(Code::Type::Alias), Code::Type::Alias},
+      {get_spelling(Code::Type::Public), Code::Type::Public},
+      {get_spelling(Code::Type::Private), Code::Type::Private},
+      {get_spelling(Code::Type::Expose), Code::Type::Expose},
+      {get_spelling(Code::Type::State), Code::Type::State},
+      {get_spelling(Code::Type::Const), Code::Type::Const},
+    }};
+    return Perimortem::Utility::Table<Code::Type, keywords>::find_or_default(
+        spelling, fallback);
+  }
+};
+
+}  // namespace Ttx::Lexical

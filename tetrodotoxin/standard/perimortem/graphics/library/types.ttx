@@ -23,7 +23,7 @@ public Image : object {
 
   public func get_size_pixels[self] -> Math::Geometry::Size2D;
 
-  expose func sample[
+  public func sample[
     self,
     .texture_uv : Point2D,
   ] -> [Color];

@@ -6,7 +6,7 @@
 #include "perimortem/core/view/bytes.hpp"
 #include "perimortem/core/null_terminated.hpp"
 
-#include "ttx/lexical/class.hpp"
+#include "ttx/lexical/code.hpp"
 
 namespace Ttx::Lexical {
 
@@ -22,8 +22,8 @@ class Token {
       Unsigned_16 line,
       Unsigned_16 column,
       Unsigned_8 size,
-      Class klass)
-      : offset(offset), line(line), column(column), size(size), klass(klass) {}
+      Code code)
+      : offset(offset), line(line), column(column), size(size), code(code) {}
 
   constexpr auto caculate_text(Perimortem::Core::View::Bytes source) const
       -> Perimortem::Core::View::Bytes {
@@ -31,21 +31,21 @@ class Token {
   }
 
   constexpr auto is_valid() const -> Bool {
-    return klass != Class::Type::EndOfStream;
+    return code != Code::Type::Terminal;
   }
 
   constexpr auto get_offset() const -> Unsigned_16 { return offset; }
   constexpr auto get_line() const -> Unsigned_16 { return line; }
   constexpr auto get_column() const -> Unsigned_16 { return column; }
   constexpr auto get_size() const -> Unsigned_8 { return size; }
-  constexpr auto get_class() const -> Class { return klass; }
+  constexpr auto get_code() const -> Code { return code; }
 
  private:
   Unsigned_16 offset;
   Unsigned_16 line;
   Unsigned_16 column;
   Unsigned_8 size;
-  Class klass = Class::Type::EndOfStream;
+  Code code = Code::Type::Terminal;
 };
 
 static_assert(sizeof(Token) == 8);

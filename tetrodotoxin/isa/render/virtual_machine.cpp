@@ -40,7 +40,7 @@ auto Render::VirtualMachine::evaluate_member(
   }
 
   Bool has_statement_end = cursor.require(
-      Class::Type::EndStatement, "Expected `;` after render member."_view);
+      Code::Type::EndStatement, "Expected `;` after render member."_view);
   if (!has_statement_end) {
     return nullptr;
   }
@@ -63,8 +63,8 @@ auto Render::VirtualMachine::evaluate(Cursor& cursor, Base::Context& context)
   }
 
   Base::Declaration render_definition = Base::Declaration::evaluate(
-      cursor, documentation, {{Class::Type::Public}}, {{Class::Type::Type}},
-      {{Class::Type::Type}});
+      cursor, documentation, {{Code::Type::Public}}, {{Code::Type::Type}},
+      {{Code::Type::Type}});
   if (render_definition.is_empty()) {
     return nullptr;
   }
@@ -75,7 +75,7 @@ auto Render::VirtualMachine::evaluate(Cursor& cursor, Base::Context& context)
   }
 
   Bool has_scope = cursor.require(
-      Class::Type::ScopeStart, "Expected `{` after render declaration."_view);
+      Code::Type::ScopeStart, "Expected `{` after render declaration."_view);
   if (!has_scope) {
     return nullptr;
   }
@@ -84,8 +84,8 @@ auto Render::VirtualMachine::evaluate(Cursor& cursor, Base::Context& context)
   Managed::Vector<Ttx::Type::Reference> types(context.get_arena());
   Managed::Vector<Ttx::Function> functions(context.get_arena());
   Bool valid = True;
-  while (!cursor.matches(Class::Type::EndOfStream) &&
-         !cursor.matches(Class::Type::ScopeEnd)) {
+  while (!cursor.matches(Code::Type::Terminal) &&
+         !cursor.matches(Code::Type::ScopeEnd)) {
     Ttx::Documentation member_documentation =
         Base::Documentation::evaluate(cursor);
     Bool member_attributes_consumed = Base::Attribute::consume_all(cursor);
@@ -93,7 +93,7 @@ auto Render::VirtualMachine::evaluate(Cursor& cursor, Base::Context& context)
       return nullptr;
     }
 
-    if (cursor.matches(Class::Type::Addressable)) {
+    if (cursor.matches(Code::Type::Addressable)) {
       const Ttx::Type* fact_block =
           Interface::evaluate(cursor, context, cursor.current().get_text());
       if (fact_block == nullptr) {
@@ -104,16 +104,16 @@ auto Render::VirtualMachine::evaluate(Cursor& cursor, Base::Context& context)
       continue;
     }
 
-    Class::Type modifier = Base::Modifier::evaluate(
-        cursor, {{Class::Type::Public, Class::Type::Private}},
+    Code::Type modifier = Base::Modifier::evaluate(
+        cursor, {{Code::Type::Public, Code::Type::Private}},
         "Expected render member or stage to start with public or private."_view);
-    if (modifier == Class::Type::Unknown) {
+    if (modifier == Code::Type::Unknown) {
       return nullptr;
     }
 
     Base::Declaration definition = Base::Declaration::evaluate_after_modifier(
-        cursor, member_documentation, modifier, {{Class::Type::Addressable}},
-        {{Class::Type::Type, Class::Type::Addressable}});
+        cursor, member_documentation, modifier, {{Code::Type::Addressable}},
+        {{Code::Type::Type, Code::Type::Addressable}});
     if (definition.is_empty()) {
       return nullptr;
     }
@@ -151,12 +151,12 @@ auto Render::VirtualMachine::evaluate(Cursor& cursor, Base::Context& context)
   }
 
   Bool has_scope_end = cursor.require(
-      Class::Type::ScopeEnd, "Expected `}` after render declaration."_view);
+      Code::Type::ScopeEnd, "Expected `}` after render declaration."_view);
   if (!has_scope_end) {
     return nullptr;
   }
 
-  if (!valid || !cursor.matches(Class::Type::EndOfStream)) {
+  if (!valid || !cursor.matches(Code::Type::Terminal)) {
     return nullptr;
   }
 

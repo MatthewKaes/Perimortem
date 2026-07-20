@@ -10,20 +10,20 @@ using namespace Ttx::Lexical;
 auto Package::PackageName::evaluate(
     Cursor& cursor,
     Ttx::Documentation documentation) -> Package::PackageName {
-  switch (cursor.current().get_class().get_type()) {
-  case Class::Type::Type: {
+  switch (cursor.current().get_code().get_type()) {
+  case Code::Type::Type: {
     const Token* first_segment = cursor.require(
-        Class::Type::Type,
+        Code::Type::Type,
         "Expected package name to start with a Type name."_view);
     if (first_segment == nullptr) {
       return Package::PackageName();
     }
 
     const Token* last_segment = first_segment;
-    while (cursor.matches(Class::Type::AddressOp)) {
+    while (cursor.matches(Code::Type::AddressOp)) {
       cursor.consume();
       last_segment = cursor.require(
-          Class::Type::Type,
+          Code::Type::Type,
           "Package name segments should all be Type names."_view);
       if (last_segment == nullptr) {
         return Package::PackageName();

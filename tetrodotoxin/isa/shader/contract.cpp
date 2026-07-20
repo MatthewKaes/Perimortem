@@ -22,20 +22,20 @@ static auto validate_reference_read(
     View::Vector<Token> tokens) -> Bool {
   for (Count i = 0; i < tokens.get_size(); i++) {
     const Token& root = tokens[i];
-    if (root.get_class() != Class::Type::Addressable ||
+    if (root.get_code() != Code::Type::Addressable ||
         !is_read_root(root.get_text())) {
       continue;
     }
 
     if (i + 1 >= tokens.get_size() ||
-        tokens[i + 1].get_class() != Class::Type::AddressOp) {
+        tokens[i + 1].get_code() != Code::Type::AddressOp) {
       cursor.range_error(
           root, root, "Shader render fact access needs a member name."_view);
       return False;
     }
 
     if (i + 2 >= tokens.get_size() ||
-        tokens[i + 2].get_class() != Class::Type::Addressable) {
+        tokens[i + 2].get_code() != Code::Type::Addressable) {
       cursor.range_error(
           root, root, "Shader render fact access needs a member name."_view);
       return False;
@@ -122,7 +122,7 @@ static auto validate_statement_reads(
 auto Shader::Contract::resolve(Cursor& cursor, Base::Context& context)
     -> const Ttx::Type* {
   Bool has_definition = cursor.require(
-      Class::Type::Define, "Expected `:` before shader render contract."_view);
+      Code::Type::Define, "Expected `:` before shader render contract."_view);
   if (!has_definition) {
     return nullptr;
   }

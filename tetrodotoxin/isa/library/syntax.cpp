@@ -14,14 +14,14 @@ auto Library::Syntax::consume_declaration_tail(
   Count scope_depth = 0;
   Count packing_depth = 0;
   Count index_depth = 0;
-  while (!cursor.matches(Class::Type::EndOfStream)) {
-    if (cursor.matches(Class::Type::ScopeStart)) {
+  while (!cursor.matches(Code::Type::Terminal)) {
+    if (cursor.matches(Code::Type::ScopeStart)) {
       scope_depth++;
       cursor.consume();
       continue;
     }
 
-    if (cursor.matches(Class::Type::ScopeEnd)) {
+    if (cursor.matches(Code::Type::ScopeEnd)) {
       if (scope_depth == 0) {
         // Nested evaluators preserve their owner's closing brace. Root
         // evaluators have no owner and must consume it to guarantee progress.
@@ -41,13 +41,13 @@ auto Library::Syntax::consume_declaration_tail(
       continue;
     }
 
-    if (cursor.matches(Class::Type::PackingStart)) {
+    if (cursor.matches(Code::Type::PackingStart)) {
       packing_depth++;
       cursor.consume();
       continue;
     }
 
-    if (cursor.matches(Class::Type::PackingEnd)) {
+    if (cursor.matches(Code::Type::PackingEnd)) {
       if (packing_depth > 0) {
         packing_depth--;
       }
@@ -57,13 +57,13 @@ auto Library::Syntax::consume_declaration_tail(
     }
 
     if (Base::Expression::Evaluator::is_index_start(
-            cursor.current().get_class())) {
+            cursor.current().get_code())) {
       index_depth++;
       cursor.consume();
       continue;
     }
 
-    if (cursor.matches(Class::Type::IndexEnd)) {
+    if (cursor.matches(Code::Type::LayoutEnd)) {
       if (index_depth > 0) {
         index_depth--;
       }
@@ -73,7 +73,7 @@ auto Library::Syntax::consume_declaration_tail(
     }
 
     if (scope_depth == 0 && packing_depth == 0 && index_depth == 0 &&
-        cursor.matches(Class::Type::EndStatement)) {
+        cursor.matches(Code::Type::EndStatement)) {
       cursor.consume();
       return True;
     }

@@ -13,7 +13,6 @@ Enable C++ STL comparison benchmarks:
 
 load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
-load("//toolchain:tetrodotoxin.bzl", "ttx_library")
 
 package(default_visibility = ["//visibility:public"])
 
@@ -32,37 +31,6 @@ cc_library(
     includes = ["."],
 )
 
-ttx_library(
-    name = "ttx_tests",
-    library_name = "Validation.TtxTests",
-    srcs = [
-        "unit_tests/tetrodotoxin/ttx/source.ttx",
-    ],
-)
-
-ttx_library(
-    name = "shader_artifact_smoke",
-    library_name = "Validation.ShaderArtifact",
-    srcs = [
-        "data/ttx/shader_artifact/render.ttx",
-        "data/ttx/shader_artifact/shader.ttx",
-    ],
-)
-
-ttx_library(
-    name = "app_scene_parse_smoke",
-    library_name = "Validation.AppScene",
-    srcs = [
-        "//apps/ttx/demo:main",
-        "//apps/ttx/demo:splash_screen",
-    ],
-    deps = [
-        "//tetrodotoxin/standard:graphics",
-        "//tetrodotoxin/standard:math",
-        "//tetrodotoxin/standard:runtime",
-    ],
-)
-
 cc_binary(
     name = "ttx_concept_tests",
     srcs = [
@@ -75,6 +43,7 @@ cc_binary(
         ":test_headers",
         "//perimortem",
         "//ttx:concept",
+        "//ttx:model",
     ],
 )
 
@@ -132,16 +101,15 @@ cc_binary(
 )
 
 cc_binary(
-    name = "interpreter_tests",
+    name = "dialect_tests",
     srcs = [
         "unit_test.cpp",
-        "unit_tests/tetrodotoxin/interpreter.cpp",
+        "unit_tests/tetrodotoxin/dialect.cpp",
     ],
     includes = ["."],
     deps = [
         ":test_headers",
         "//perimortem",
-        "//tetrodotoxin:interpreter",
         "//tetrodotoxin:model",
         "//ttx:concept",
         "//ttx:lexical",
@@ -155,35 +123,15 @@ cc_binary(
         "unit_tests/perimortem/**/*.cpp",
         "unit_tests/ttx/**/*.cpp",
         "unit_tests/tetrodotoxin/**/*.cpp",
-    ]) + [
-        "unit_test.cpp",
-    ],
+    ]) + ["unit_test.cpp"],
     copts = ["-Wreturn-type-c-linkage"],
-    data = [
-        ":shader_artifact_smoke",
-        ":ttx_tests",
-        "//tetrodotoxin/standard:graphics",
-        "//tetrodotoxin/standard:math",
-        "//tetrodotoxin/standard:runtime",
-    ],
     includes = ["."],
     deps = [
         ":test_headers",
-        ":ttx_tests",
         "//perimortem",
-        "//tetrodotoxin/abi",
-        "//tetrodotoxin:compiler",
         "//tetrodotoxin:diagnostics",
-        "//tetrodotoxin:interpreter",
-        "//tetrodotoxin:isa",
-        "//tetrodotoxin:isa_lowerers",
         "//tetrodotoxin:linker",
         "//tetrodotoxin:model",
-        "//tetrodotoxin/archiver",
-        "//tetrodotoxin/puffer:compiler",
-        "//tetrodotoxin/puffer:package_builder",
-        "//tetrodotoxin/puffer:resolution",
-        "//tetrodotoxin/puffer:toolchain",
         "//ttx",
     ],
 )
@@ -192,13 +140,8 @@ cc_binary(
     name = "benchmarks",
     srcs = glob([
         "benchmarks/perimortem/**/*.cpp",
-        "benchmarks/tetrodotoxin/**/*.cpp",
     ]) + [
         "benchmark.cpp",
-    ],
-    data = [
-        "//tetrodotoxin/standard:graphics",
-        "//tetrodotoxin/standard:math",
     ],
     includes = ["."],
     local_defines = select({
@@ -208,6 +151,5 @@ cc_binary(
     deps = [
         ":test_headers",
         "//perimortem",
-        "//tetrodotoxin/archiver",
     ],
 )
