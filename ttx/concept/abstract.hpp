@@ -12,7 +12,7 @@
 namespace Ttx::Concept {
 
 // TTX does not begin with a closed type system. It begins with named abstract
-// contexts whose behavior can be extended by the language, an ISA, a compiler,
+// contexts whose behavior can be extended by the language, a Dialect, a compiler,
 // or a host without teaching a central registry about every possible concept.
 //
 // The lexer deliberately provides useful name and token distinctions without
@@ -63,11 +63,12 @@ class Abstract {
     return implements(Requested::contract_id);
   }
 
-  // Converts after proving the requested contract. A failed conversion is a
-  // caller contract violation rather than a nullable semantic result. Fallible
-  // resolution returns Invalid before a narrow contract is requested.
+  // Narrows after verifying the contract assumed by the caller. A failed
+  // assumption is a caller invariant violation rather than a nullable semantic
+  // result. Fallible resolution returns Invalid before a narrow contract is
+  // assumed.
   template <typename Requested>
-  constexpr auto as() const -> const Requested& {
+  constexpr auto assume() const -> const Requested& {
     if (!is<Requested>()) {
       __builtin_trap();
     }

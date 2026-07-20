@@ -12,7 +12,7 @@ Usage in a BUILD file:
     ttx_library(
         name = "my_lib",
         library_name = "Example.MyLib",
-        srcs = ["png.ttx"],
+        srcs = ["library.ttx"],
     )
 
     ttx_package_folder(
