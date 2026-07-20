@@ -9,6 +9,11 @@ if Perimortem, Tetrodotoxin and TTX are treated as separate projects.
 Run unit tests:
   bazel run //validation:unit_tests
 
+Run every unit test with compact output:
+  bazel run //validation:unit_tests -- silent
+
+Silent mode changes reporting only. It never selects or skips tests.
+
 Run the full benchmark suite:
   bazel run -c opt //validation:benchmarks
 
@@ -38,6 +43,7 @@ cc_library(
 
 # Every unit test source belongs to this target. New suites live beneath
 # unit_tests so they build and run against the complete validation graph.
+# The runner has no test selection argument.
 cc_binary(
     name = "unit_tests",
     srcs = glob([

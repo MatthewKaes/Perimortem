@@ -86,6 +86,15 @@ Run the complete unit-test suite with:
 bazel run //validation:unit_tests --config=debug
 ```
 
+Automation can reduce console spam with:
+
+```sh
+bazel run //validation:unit_tests --config=debug -- silent
+```
+
+`silent` still runs the complete suite and reports failures, final totals, and
+total execution time.
+
 The small C++ composition example at
 [`apps/perimortem/basic_window`](apps/perimortem/basic_window) creates a System
 window and a Vulkan renderer without involving TTX. It is the runtime-side
