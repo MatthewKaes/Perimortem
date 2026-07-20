@@ -130,10 +130,13 @@ pretending the product is the Source that supplied it. A package dependency
 binds the common Package contract whether its target is interpreted or
 precompiled.
 
-Boot's authored dialect name is resolved to a real `Model::Dialect`. A source
-record may reserve stable objects while its imports and body facts are still
-being assembled. Queries whose facts are not ready resolve to Invalid. There is
-no publication bit or Incomplete Layout between construction and resolution.
+Boot's authored dialect name is resolved to a real `Model::Dialect` implemented
+by the selected Interpreter owner. Source constructs that evaluation's Cursor
+from its own Tokenizer and Arena and privately commits only the completed
+result. A source record may reserve stable objects while its imports and body
+facts are still being assembled. Queries whose facts are not ready resolve to
+Invalid. There is no publication bit or Incomplete Layout between construction
+and resolution.
 File imports are limited by the resolver's compact project-root table. Compiled
 packages use the separate package repository rather than carrying filesystem
 roots on every record.

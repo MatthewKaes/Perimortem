@@ -9,7 +9,7 @@
 #include "ttx/lexical/code.hpp"
 #include "ttx/lexical/cursor.hpp"
 
-namespace Tetrodotoxin::Model {
+namespace Tetrodotoxin::Interpreter {
 
 // Definition maps one definition Dialect to the modifier classes accepted by
 // its parent grammar. It does not own a context or retain the result it helps
@@ -40,8 +40,7 @@ class Definition {
     }
 
     for (Count i = 0; i < prefix.get_size(); i++) {
-      const Ttx::Lexical::Code::Type modifier =
-          prefix[i].get_code().get_type();
+      const Ttx::Lexical::Code::Type modifier = prefix[i].get_code().get_type();
       if (!((modifier == modifiers) || ...)) {
         return False;
       }
@@ -72,4 +71,4 @@ class Definition {
   }
 };
 
-}  // namespace Tetrodotoxin::Model
+}  // namespace Tetrodotoxin::Interpreter

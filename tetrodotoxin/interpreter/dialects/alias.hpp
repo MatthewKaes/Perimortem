@@ -8,7 +8,7 @@
 #include "ttx/concept/reference.hpp"
 #include "ttx/lexical/cursor.hpp"
 
-namespace Tetrodotoxin::Model::Dialects {
+namespace Tetrodotoxin::Interpreter::Dialects {
 
 // Alias is the grammar handler for an authored Abstract redirection.
 // Definitions selects it as a compile time Definition, then Alias resolves the
@@ -38,4 +38,4 @@ class Alias final {
       -> const Ttx::Concept::Abstract&;
 };
 
-}  // namespace Tetrodotoxin::Model::Dialects
+}  // namespace Tetrodotoxin::Interpreter::Dialects

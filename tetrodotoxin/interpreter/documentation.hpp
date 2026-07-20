@@ -6,7 +6,7 @@
 #include "ttx/concept/documentation.hpp"
 #include "ttx/lexical/cursor.hpp"
 
-namespace Tetrodotoxin::Model {
+namespace Tetrodotoxin::Interpreter {
 
 // Documentation evaluates the comment prefix shared by authored definitions.
 // It constructs the first class TTX Documentation value directly from source
@@ -17,4 +17,4 @@ class Documentation {
       -> const Ttx::Concept::Documentation&;
 };
 
-}  // namespace Tetrodotoxin::Model
+}  // namespace Tetrodotoxin::Interpreter

@@ -48,16 +48,41 @@ class SourceLeaf final : public Abstract {
 /// A Dialect fixture proves Source and Dependency retain the real contract.
 class SourceDialect final : public Tetrodotoxin::Model::Dialect {
  public:
-  explicit SourceDialect(View::Bytes name) : name(name) {}
+  SourceDialect(View::Bytes name, View::Bytes result_name)
+      : name(name), result_name(result_name) {}
 
   auto get_name() const -> View::Bytes override { return name; }
-  auto evaluate(Ttx::Lexical::Cursor&, const Abstract&) const
+  auto evaluate(Ttx::Lexical::Cursor& cursor, const Abstract&) const
       -> const Abstract& override {
-    return Invalid::get_invalid();
+    return cursor.get_arena().construct<SourceLeaf>(result_name);
   }
 
  private:
   View::Bytes name;
+  View::Bytes result_name;
+};
+
+// A Source-owned Namespace fixture builds its root through the same
+// arena-backed transaction used by production Dialects.
+class SourceNamespaceDialect final : public Tetrodotoxin::Model::Dialect {
+ public:
+  SourceNamespaceDialect(
+      View::Bytes name,
+      View::Bytes namespace_name,
+      View::Vector<Reference<Abstract>> definitions)
+      : name(name), namespace_name(namespace_name), definitions(definitions) {}
+
+  auto get_name() const -> View::Bytes override { return name; }
+  auto evaluate(Ttx::Lexical::Cursor& cursor, const Abstract&) const
+      -> const Abstract& override {
+    return Tetrodotoxin::Model::Namespace::construct(
+        cursor.get_arena(), namespace_name, definitions);
+  }
+
+ private:
+  View::Bytes name;
+  View::Bytes namespace_name;
+  View::Vector<Reference<Abstract>> definitions;
 };
 
 static Harness SourceTests = {
@@ -65,18 +90,14 @@ static Harness SourceTests = {
 };
 
 PERIMORTEM_UNIT_TEST(SourceTests, source_root) {
+  SourceDialect dialect("Package"_view, "PublicValue"_view);
   Tetrodotoxin::Model::Source source(
       "public PublicValue : alias = Value;"_view, "validation/source.ttx"_view);
-  SourceDialect dialect("Package"_view);
-  SourceLeaf& value = source.get_arena().construct<SourceLeaf>("Value"_view);
-  const Static::Vector<View::Bytes, 1> lines = {{"public source"_view}};
-  Block& documentation = source.get_arena().construct<Block>(lines.get_view());
-  Alias& alias = source.get_arena().construct<Alias>(
-      "PublicValue"_view, value, documentation);
+  Ttx::Lexical::Errors errors;
 
-  Bool rooted = source.add_root(alias, dialect);
+  const Abstract& evaluated = source.evaluate(dialect, errors);
 
-  EXPECT(rooted);
+  EXPECT_NOT(evaluated.is<Invalid>());
   ASSERT(source.is<Tetrodotoxin::Model::Source>());
   EXPECT_NOT(source.is<Ttx::Model::Type>());
   EXPECT(source.get_name().is_empty());
@@ -84,44 +105,41 @@ PERIMORTEM_UNIT_TEST(SourceTests, source_root) {
   EXPECT_TEXT(source.get_text(), "public PublicValue : alias = Value;"_view);
   EXPECT_TEXT(source.get_tokenizer().get_source_path(), source.get_path());
   ASSERT_EQ(source.get_roots().get_size(), Count(1));
-  EXPECT(&source.get_roots()[0].get_definition() == &alias);
+  EXPECT(&source.get_roots()[0].get_definition() == &evaluated);
   EXPECT(&source.get_roots()[0].get_dialect() == &dialect);
   EXPECT(source.get_documentation().is_empty());
-  EXPECT(&source.resolve_context("PublicValue"_view) == &alias);
+  EXPECT(&source.resolve_context("PublicValue"_view) == &evaluated);
   EXPECT(&source.resolve_context("Missing"_view) == &Invalid::get_invalid());
-  EXPECT(&alias.resolve() == &value);
+  EXPECT(errors.is_empty());
 }
 
 PERIMORTEM_UNIT_TEST(SourceTests, duplicate_root) {
+  SourceDialect dialect("Package"_view, "Value"_view);
   Tetrodotoxin::Model::Source source(View::Bytes{}, View::Bytes{});
-  SourceDialect dialect("Package"_view);
-  SourceLeaf& first = source.get_arena().construct<SourceLeaf>("Value"_view);
-  SourceLeaf& second = source.get_arena().construct<SourceLeaf>("Value"_view);
+  Ttx::Lexical::Errors errors;
 
-  Bool first_rooted = source.add_root(first, dialect);
-  Bool second_rooted = source.add_root(second, dialect);
+  const Abstract& first = source.evaluate(dialect, errors);
+  const Abstract& second = source.evaluate(dialect, errors);
 
-  EXPECT(first_rooted);
-  EXPECT_NOT(second_rooted);
+  EXPECT_NOT(first.is<Invalid>());
+  EXPECT(second.is<Invalid>());
   EXPECT(source.get_path().is_empty());
   EXPECT(source.get_text().is_empty());
   EXPECT(&source.resolve_context("Value"_view) == &first);
+  EXPECT_EQ(errors.get_size(), Count(1));
 }
 
 PERIMORTEM_UNIT_TEST(SourceTests, anonymous_roots) {
+  SourceDialect first_dialect("Package"_view, View::Bytes{});
+  SourceDialect second_dialect("Library"_view, View::Bytes{});
   Tetrodotoxin::Model::Source source(View::Bytes{}, View::Bytes{});
-  SourceDialect first_dialect("Package"_view);
-  SourceDialect second_dialect("Library"_view);
-  SourceLeaf& first = source.get_arena().construct<SourceLeaf>(View::Bytes{});
-  SourceLeaf& second = source.get_arena().construct<SourceLeaf>(View::Bytes{});
+  Ttx::Lexical::Errors errors;
 
-  Bool first_rooted = source.add_root(first, first_dialect);
-  Bool second_rooted = source.add_root(second, second_dialect);
-  Bool first_repeated = source.add_root(first, first_dialect);
+  const Abstract& first = source.evaluate(first_dialect, errors);
+  const Abstract& second = source.evaluate(second_dialect, errors);
 
-  EXPECT(first_rooted);
-  EXPECT(second_rooted);
-  EXPECT_NOT(first_repeated);
+  EXPECT_NOT(first.is<Invalid>());
+  EXPECT_NOT(second.is<Invalid>());
   ASSERT_EQ(source.get_roots().get_size(), Count(2));
   EXPECT(&source.get_roots()[0].get_definition() == &first);
   EXPECT(&source.get_roots()[0].get_dialect() == &first_dialect);
@@ -131,16 +149,18 @@ PERIMORTEM_UNIT_TEST(SourceTests, anonymous_roots) {
 }
 
 PERIMORTEM_UNIT_TEST(SourceTests, dependency_contracts) {
-  Tetrodotoxin::Model::Source source({}, "root.ttx"_view);
-  Tetrodotoxin::Model::Source provider({}, "types.ttx"_view);
-  SourceDialect source_dialect("Library"_view);
   SourceLeaf target("Value"_view);
   const Static::Vector<Reference<Abstract>, 1> exported = {{target}};
+  SourceNamespaceDialect source_dialect("Library"_view, "Types"_view, exported);
+  SourceDialect package_dialect("Package"_view, View::Bytes{});
+  Tetrodotoxin::Model::Source source({}, "root.ttx"_view);
+  Tetrodotoxin::Model::Source provider({}, "types.ttx"_view);
+  Ttx::Lexical::Errors provider_errors;
+  const Abstract& provider_root =
+      provider.evaluate(source_dialect, provider_errors);
+  ASSERT(provider_root.is<Tetrodotoxin::Model::Namespace>());
   const Tetrodotoxin::Model::Namespace& provider_exports =
-      Tetrodotoxin::Model::Namespace::construct(
-          provider.get_arena(), "Types"_view, exported)
-          .assume<Tetrodotoxin::Model::Namespace>();
-  EXPECT(provider.add_root(provider_exports, source_dialect));
+      provider_root.assume<Tetrodotoxin::Model::Namespace>();
   const Static::Vector<View::Bytes, 1> lines = {{"local import"_view}};
   Block documentation(lines);
   const auto& source_dependency =
@@ -176,7 +196,6 @@ PERIMORTEM_UNIT_TEST(SourceTests, dependency_contracts) {
           package_arena, {}, View::Vector<Reference<Abstract>>())
           .assume<Tetrodotoxin::Model::Namespace>();
   Tetrodotoxin::Model::Packages::Precompiled package(package_arena, exports);
-  SourceDialect package_dialect("Package"_view);
   const auto& package_dependency =
       source.get_arena().construct<Tetrodotoxin::Model::Dependencies::Package>(
           package_dialect, "Perimortem.Math"_view, "Math"_view, package,

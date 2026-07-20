@@ -6,11 +6,6 @@ load("@rules_cc//cc:cc_library.bzl", "cc_library")
 
 package(default_visibility = ["//visibility:public"])
 
-exports_files([
-    "library/abstract.ttx",
-    "library/lifecycle.ttx",
-])
-
 cc_library(
     name = "lexical",
     srcs = [
@@ -82,8 +77,8 @@ cc_library(
         "model/documentations/block.hpp",
         "model/documentations/comment.hpp",
         "model/documentations/merged.hpp",
-        "model/expression.hpp",
         "model/exports.hpp",
+        "model/expression.hpp",
         "model/generic.hpp",
         "model/layouts/composite.hpp",
         "model/layouts/fluid.hpp",

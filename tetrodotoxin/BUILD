@@ -34,6 +34,25 @@ cc_library(
     deps = [
         "//perimortem:core",
         "//perimortem:memory",
+        "//ttx:concept",
+        "//ttx:lexical",
+        "//ttx:model",
+    ],
+)
+
+cc_library(
+    name = "interpreter",
+    srcs = glob([
+        "interpreter/**/*.cpp",
+    ]),
+    hdrs = glob([
+        "interpreter/**/*.hpp",
+    ]),
+    includes = ["."],
+    deps = [
+        ":model",
+        "//perimortem:core",
+        "//perimortem:memory",
         "//perimortem:serialization",
         "//ttx:concept",
         "//ttx:lexical",

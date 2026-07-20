@@ -9,7 +9,7 @@
 #include "ttx/concept/invalid.hpp"
 #include "ttx/lexical/cursor.hpp"
 
-namespace Tetrodotoxin::Model::Dialects {
+namespace Tetrodotoxin::Interpreter::Dialects {
 
 // Group is the Dialect for package namespace syntax. Its body hands each nested
 // definition back to the same Definitions continuation, then returns a
@@ -61,4 +61,4 @@ class Group final {
   }
 };
 
-}  // namespace Tetrodotoxin::Model::Dialects
+}  // namespace Tetrodotoxin::Interpreter::Dialects

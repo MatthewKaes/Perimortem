@@ -1,7 +1,7 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
-#include "tetrodotoxin/model/documentation.hpp"
+#include "tetrodotoxin/interpreter/documentation.hpp"
 
 #include "perimortem/memory/managed/vector.hpp"
 
@@ -12,7 +12,7 @@ using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
 using namespace Ttx::Lexical;
 
-auto Tetrodotoxin::Model::Documentation::evaluate(Cursor& cursor)
+auto Tetrodotoxin::Interpreter::Documentation::evaluate(Cursor& cursor)
     -> const Ttx::Concept::Documentation& {
   Managed::Vector<View::Bytes> lines(cursor.get_arena());
 

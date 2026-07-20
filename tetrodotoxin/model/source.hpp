@@ -34,7 +34,9 @@ class Source final : public Ttx::Concept::Abstract {
  public:
   // Root is one authored top level result and the Dialect that can
   // reproduce it. Keeping the relationship as one value prevents definition
-  // and Dialect order from becoming independently mutable shadow state.
+  // and Dialect order from becoming independently mutable shadow state. The
+  // Dialect is borrowed from the host's durable Dialects context and must
+  // outlive the Source that retains it.
   class Root {
    public:
     constexpr Root(
@@ -82,22 +84,13 @@ class Source final : public Ttx::Concept::Abstract {
   auto resolve_context(Perimortem::Core::View::Bytes route) const
       -> const Ttx::Concept::Abstract& override;
 
-  // Evaluates one Dialect against this Source and retains the exact result it
-  // returns. Source owns this transaction because it owns both the token
-  // stream and the durable relationship between a result and its Dialect.
-  // Dialects only produce facts. They never root an internal substitute into
-  // their caller.
-  auto evaluate(const Dialect& dialect, Ttx::Lexical::Cursor& cursor)
+  // Evaluates one Dialect against a Cursor constructed from this Source's
+  // Tokenizer and Arena, then retains the exact result it returns. Source owns
+  // the complete transaction so a caller cannot pair its graph with objects
+  // allocated by another source stream. Dialects only produce facts. They
+  // never root an internal substitute into their caller.
+  auto evaluate(const Dialect& dialect, Ttx::Lexical::Errors& errors)
       -> const Ttx::Concept::Abstract&;
-
-  // Retains one interpreted result and the Dialect that produced it. A named
-  // result is rejected when that name already resolves through a Dependency or
-  // earlier result. Anonymous results are retained by identity and are
-  // intentionally absent from lookup. Pairing publication with its Dialect
-  // prevents a partially modeled Source that a formatter cannot reproduce.
-  auto add_root(
-      const Ttx::Concept::Abstract& definition,
-      const Dialect& dialect) -> Bool;
 
   // Retains one resolved import instruction. Dependency owns the authored
   // root Dialect, concrete locator contract, and Alias bound to the produced
@@ -131,6 +124,13 @@ class Source final : public Ttx::Concept::Abstract {
   }
 
  private:
+  // Publication is the commit point of Source evaluation. Keeping it private
+  // prevents callers from injecting an arbitrary Abstract or inventing a
+  // Dialect association outside the Source-owned Cursor transaction.
+  auto add_root(
+      const Ttx::Concept::Abstract& definition,
+      const Dialect& dialect) -> Bool;
+
   using Definitions = Perimortem::Memory::Managed::Map<
       Perimortem::Core::View::Bytes,
       Ttx::Concept::Reference<Ttx::Concept::Abstract>>;

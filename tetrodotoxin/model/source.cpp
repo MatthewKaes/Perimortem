@@ -20,7 +20,9 @@ auto Tetrodotoxin::Model::Source::get_documentation() const
 
 auto Tetrodotoxin::Model::Source::evaluate(
     const Dialect& dialect,
-    Ttx::Lexical::Cursor& cursor) -> const Abstract& {
+    Ttx::Lexical::Errors& errors) -> const Abstract& {
+  Ttx::Lexical::Cursor cursor(tokenizer, errors);
+
   // The Dialect produces a complete result before Source mutates its graph.
   // Invalid therefore leaves no partial root or Dialect edge behind.
   const Abstract& result = dialect.evaluate(cursor, *this);

@@ -10,13 +10,13 @@
 
 #include "perimortem/serialization/stream/textual.hpp"
 
-#include "tetrodotoxin/model/definition.hpp"
-#include "tetrodotoxin/model/documentation.hpp"
+#include "tetrodotoxin/interpreter/definition.hpp"
+#include "tetrodotoxin/interpreter/documentation.hpp"
 #include "ttx/concept/invalid.hpp"
 #include "ttx/concept/reference.hpp"
 #include "ttx/model/addressables/writable.hpp"
 
-namespace Tetrodotoxin::Model {
+namespace Tetrodotoxin::Interpreter {
 
 // Definitions evaluates the shared authored definition spine:
 //
@@ -87,7 +87,7 @@ class Definitions final {
     // Documentation and modifiers must be consumed before the name because
     // their authored order selects both publication and evaluation policy.
     const Ttx::Concept::Documentation& documentation =
-        Tetrodotoxin::Model::Documentation::evaluate(cursor);
+        Documentation::evaluate(cursor);
 
     Static::Vector<Token, 2> modifier_storage;
     Count modifier_count = 0;
@@ -467,4 +467,4 @@ class Definitions final {
   }
 };
 
-}  // namespace Tetrodotoxin::Model
+}  // namespace Tetrodotoxin::Interpreter

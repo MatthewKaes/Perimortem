@@ -8,8 +8,10 @@
 
 namespace Tetrodotoxin::Model {
 
-// Dialect is one named Tetrodotoxin evaluation building block. A Dialect may
-// own a complete source body or a compile time Definitions continuation.
+// Dialect is the durable named contract for one Tetrodotoxin evaluation
+// building block. Concrete token-consuming implementations belong to
+// Tetrodotoxin::Interpreter, while Source and Dependency retain this Model
+// identity for lookup, formatting, and regeneration.
 //
 // Evaluation consumes authored token bytecode and constructs real TTX facts
 // directly. The caller supplies the Abstract context in which those facts are
@@ -19,8 +21,9 @@ namespace Tetrodotoxin::Model {
 // a compiler phase or require inputs to be flattened into one private
 // representation.
 //
-// Definition continuations are ordinary compile time classes. They do not
-// inherit Dialect or Abstract merely to participate in a fixed grammar map.
+// Definition continuations are ordinary Interpreter compile time classes. They
+// do not inherit Dialect or Abstract merely to participate in a fixed grammar
+// map.
 class Dialect : public Ttx::Concept::Abstract {
  public:
   using ContractOwner = Dialect;

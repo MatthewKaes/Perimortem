@@ -121,12 +121,14 @@ Tetrodotoxin layers toolchain context around that language core:
   Tetrodotoxin's concrete source-backed form, and
   [`model/packages/precompiled.hpp`](model/packages/precompiled.hpp) is the
   source-free restored form
-- [`model/dialect.hpp`](model/dialect.hpp) is the named evaluation contract;
-  [`model/definition.hpp`](model/definition.hpp) and
-  [`model/definitions.hpp`](model/definitions.hpp) own compile-time definition
-  composition, and [`model/dialects`](model/dialects/) begins with Package,
-  Alias, and Group. Source invokes a Dialect and retains the exact returned
-  result with that typed Dialect edge
+- [`model/dialect.hpp`](model/dialect.hpp) is the durable named evaluation
+  contract retained by Source and Dependency
+- [`interpreter/definition.hpp`](interpreter/definition.hpp) and
+  [`interpreter/definitions.hpp`](interpreter/definitions.hpp) own compile-time
+  definition composition, and [`interpreter/dialects`](interpreter/dialects/)
+  begins with Package, Alias, and Group. Source constructs their Cursor from its
+  own Tokenizer and Arena, invokes the selected Dialect, and privately commits
+  the exact returned result with that typed Dialect edge
 - [`puffer`](puffer/README.md) owns the command-line host and source
   orchestration
 - [`puffer/main.cpp`](puffer/main.cpp) is the `puffer` command-line entry point
@@ -194,9 +196,9 @@ Abstract context of Dialects therefore defines the program a Tetrodotoxin host
 can execute without creating a global registry or second semantic model.
 
 Parent Dialects compose continuations with constexpr Definition mappings in one
-`Definitions<...>` grammar. Each mapping carries its Dialect and the modifier
-token Codes accepted by that parent grammar; it does not construct an
-evaluator object, runtime function-pointer record, or polymorphic registry.
+`Interpreter::Definitions<...>` grammar. Each mapping carries its Dialect and
+the modifier token Codes accepted by that parent grammar; it does not construct
+an evaluator object, runtime function-pointer record, or polymorphic registry.
 Definitions consumes the ordered publication/evaluation slots, owns collision,
 rooting, and publication, and passes the authored tokens plus visible Abstract
 contexts to the selected continuation. A richer Dialect supplies its own

@@ -5,7 +5,7 @@
 
 #include "tetrodotoxin/model/dialect.hpp"
 
-namespace Tetrodotoxin::Model::Dialects {
+namespace Tetrodotoxin::Interpreter::Dialects {
 
 // Package is the selectable Dialect for a package source body. It composes
 // Definitions with the `public` modifier and the Alias and Group handlers.
@@ -13,7 +13,7 @@ namespace Tetrodotoxin::Model::Dialects {
 // surface contains only the authored exports. Source remains the lossless
 // authoring graph and lifetime owner. Package is evaluation policy and never
 // represents the resulting model.
-class Package final : public Dialect {
+class Package final : public Tetrodotoxin::Model::Dialect {
  public:
   using ContractOwner = Package;
   static constexpr Perimortem::System::Uuid contract_id{
@@ -34,4 +34,4 @@ class Package final : public Dialect {
       -> const Ttx::Concept::Abstract& override;
 };
 
-}  // namespace Tetrodotoxin::Model::Dialects
+}  // namespace Tetrodotoxin::Interpreter::Dialects

@@ -89,7 +89,7 @@ Puffer splits source execution across three owners:
 ```text
 Puffer Boot: execute preamble + imports
 Resolver: load files + bind import aliases
-Model::Dialect: evaluate remaining bytecode with resolved imports
+Interpreter: execute the selected Model::Dialect with resolved imports
 ```
 
 Tetrodotoxin owns the filesystem and package graph. TTX remains focused on the
@@ -506,9 +506,6 @@ The TTX directory is the language core:
 - [`model/projection.hpp`](model/projection.hpp) and
   [`model/binding.hpp`](model/binding.hpp) preserve selected and named value
   provenance without adding parser operations to the model
-- [`library/abstract.ttx`](library/abstract.ttx) is an explicitly experimental
-  Library-dialect sketch of the core contracts written in TTX itself. It is a
-  self-hosting design surface, not source accepted by the current evaluator
 - [`model/type.hpp`](model/type.hpp) supplies the narrow target-independent Type
   contract. [`model/types`](model/types/) adds the Terminal family contracts and
   width-specific Perimortem Types. [`model/expression.hpp`](model/expression.hpp),
@@ -531,8 +528,10 @@ Tetrodotoxin is the surrounding toolchain:
 - [`../tetrodotoxin/puffer/resolution`](../tetrodotoxin/puffer/resolution/) owns source
   loading, package loading, import binding, the source cache, and cache validity
 - [`../tetrodotoxin/lsp`](../tetrodotoxin/lsp/) serves editor features
-- [`../tetrodotoxin/model/dialects`](../tetrodotoxin/model/dialects/) owns the
-  direct Dialect models, beginning with Package, Alias, and Group
+- [`../tetrodotoxin/model/dialect.hpp`](../tetrodotoxin/model/dialect.hpp) owns
+  durable Dialect identity, while
+  [`../tetrodotoxin/interpreter/dialects`](../tetrodotoxin/interpreter/dialects/)
+  owns concrete bytecode evaluation beginning with Package, Alias, and Group
 - [`../tetrodotoxin/isa`](../tetrodotoxin/isa/) is legacy evaluator code used
   only as migration reference while Library, Shader, and the remaining domains
   move to real Model contracts

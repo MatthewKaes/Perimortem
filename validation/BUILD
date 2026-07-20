@@ -57,6 +57,7 @@ cc_binary(
         ":test_headers",
         "//perimortem",
         "//tetrodotoxin:diagnostics",
+        "//tetrodotoxin:interpreter",
         "//tetrodotoxin:linker",
         "//tetrodotoxin:model",
         "//ttx",

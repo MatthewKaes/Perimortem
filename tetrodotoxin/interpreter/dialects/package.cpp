@@ -1,14 +1,14 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
-#include "tetrodotoxin/model/dialects/package.hpp"
+#include "tetrodotoxin/interpreter/dialects/package.hpp"
 
 #include "perimortem/core/static/vector.hpp"
 
-#include "tetrodotoxin/model/definition.hpp"
-#include "tetrodotoxin/model/definitions.hpp"
-#include "tetrodotoxin/model/dialects/alias.hpp"
-#include "tetrodotoxin/model/dialects/group.hpp"
+#include "tetrodotoxin/interpreter/definition.hpp"
+#include "tetrodotoxin/interpreter/definitions.hpp"
+#include "tetrodotoxin/interpreter/dialects/alias.hpp"
+#include "tetrodotoxin/interpreter/dialects/group.hpp"
 #include "tetrodotoxin/model/namespace.hpp"
 #include "tetrodotoxin/model/packages/sources.hpp"
 #include "tetrodotoxin/model/source.hpp"
@@ -18,12 +18,12 @@ using namespace Perimortem::Core;
 using namespace Ttx::Concept;
 using namespace Ttx::Lexical;
 
-auto Tetrodotoxin::Model::Dialects::Package::implements(
+auto Tetrodotoxin::Interpreter::Dialects::Package::implements(
     Perimortem::System::Uuid requested) const -> Bool {
-  return requested == contract_id || Dialect::implements(requested);
+  return requested == contract_id || Model::Dialect::implements(requested);
 }
 
-auto Tetrodotoxin::Model::Dialects::Package::evaluate(
+auto Tetrodotoxin::Interpreter::Dialects::Package::evaluate(
     Cursor& cursor,
     const Abstract& context) const -> const Abstract& {
   using PackageDefinitions = Definitions<

@@ -1,7 +1,7 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
-#include "tetrodotoxin/model/dialects/alias.hpp"
+#include "tetrodotoxin/interpreter/dialects/alias.hpp"
 
 #include "perimortem/core/static/vector.hpp"
 
@@ -19,7 +19,7 @@ using namespace Perimortem::Serialization;
 using namespace Ttx::Concept;
 using namespace Ttx::Lexical;
 
-auto Tetrodotoxin::Model::Dialects::Alias::unresolved_target_error(
+auto Tetrodotoxin::Interpreter::Dialects::Alias::unresolved_target_error(
     Cursor& cursor,
     const Token& target) -> void {
   Managed::Bytes message(cursor.get_arena());
@@ -30,7 +30,7 @@ auto Tetrodotoxin::Model::Dialects::Alias::unresolved_target_error(
   cursor.create_token_error(target, message);
 }
 
-auto Tetrodotoxin::Model::Dialects::Alias::resolve_target(
+auto Tetrodotoxin::Interpreter::Dialects::Alias::resolve_target(
     Cursor& cursor,
     View::Vector<Reference<Abstract>> visible) -> const Abstract& {
   if (!cursor.matches(Code::Type::Type) &&
@@ -65,7 +65,7 @@ auto Tetrodotoxin::Model::Dialects::Alias::resolve_target(
   return resolve_target(cursor, nested);
 }
 
-auto Tetrodotoxin::Model::Dialects::Alias::evaluate(
+auto Tetrodotoxin::Interpreter::Dialects::Alias::evaluate(
     Cursor& cursor,
     View::Bytes name,
     const Documentation& documentation,
