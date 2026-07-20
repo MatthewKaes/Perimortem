@@ -1,6 +1,11 @@
 """
 Validation - Unit tests and benchmarks for the Perimortem engine.
 
+Unit tests and benchmarks are all self contained and all tests are run
+from a single target. Avoiding multiple targets in the mono repository
+prevents drift and ensures all parts of the codebase work together, even
+if Perimortem, Tetrodotoxin and TTX are treated as separate projects.
+
 Run unit tests:
   bazel run //validation:unit_tests
 
@@ -31,92 +36,8 @@ cc_library(
     includes = ["."],
 )
 
-cc_binary(
-    name = "ttx_concept_tests",
-    srcs = [
-        "unit_test.cpp",
-        "unit_tests/ttx/abstract.cpp",
-        "unit_tests/ttx/documentation.cpp",
-    ],
-    includes = ["."],
-    deps = [
-        ":test_headers",
-        "//perimortem",
-        "//ttx:concept",
-        "//ttx:model",
-    ],
-)
-
-cc_binary(
-    name = "ttx_model_tests",
-    srcs = [
-        "unit_test.cpp",
-        "unit_tests/ttx/attribute.cpp",
-        "unit_tests/ttx/callable.cpp",
-        "unit_tests/ttx/constexpr.cpp",
-        "unit_tests/ttx/expression.cpp",
-        "unit_tests/ttx/flow.cpp",
-        "unit_tests/ttx/generic.cpp",
-        "unit_tests/ttx/layout.cpp",
-        "unit_tests/ttx/type.cpp",
-        "unit_tests/ttx/types.cpp",
-    ],
-    includes = ["."],
-    deps = [
-        ":test_headers",
-        "//perimortem",
-        "//ttx:concept",
-        "//ttx:model",
-    ],
-)
-
-cc_binary(
-    name = "ttx_lexical_tests",
-    srcs = [
-        "unit_test.cpp",
-        "unit_tests/ttx/lexical/tokenizer.cpp",
-    ],
-    includes = ["."],
-    deps = [
-        ":test_headers",
-        "//perimortem",
-        "//ttx:lexical",
-    ],
-)
-
-cc_binary(
-    name = "tetrodotoxin_model_tests",
-    srcs = [
-        "unit_test.cpp",
-        "unit_tests/tetrodotoxin/model.cpp",
-    ],
-    includes = ["."],
-    deps = [
-        ":test_headers",
-        "//perimortem",
-        "//tetrodotoxin:model",
-        "//ttx:concept",
-        "//ttx:model",
-    ],
-)
-
-cc_binary(
-    name = "dialect_tests",
-    srcs = [
-        "unit_test.cpp",
-        "unit_tests/tetrodotoxin/dialect.cpp",
-    ],
-    includes = ["."],
-    deps = [
-        ":test_headers",
-        "//perimortem",
-        "//tetrodotoxin:model",
-        "//ttx:concept",
-        "//ttx:lexical",
-        "//ttx:model",
-    ],
-)
-
+# Every unit test source belongs to this target. New suites live beneath
+# unit_tests so they build and run against the complete validation graph.
 cc_binary(
     name = "unit_tests",
     srcs = glob([
