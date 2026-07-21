@@ -1,33 +1,31 @@
 #option-defaults
-common --symlink_prefix=./.bin/
+common --symlink_prefix=./.bin/bazel-
 common --spawn_strategy=standalone
 run --run_in_cwd
 test --run_in_cwd
 test --test_output=streamed
 test --spawn_strategy=standalone
 
-# Base Linux settings — applied to every build regardless of configuration.
+# Base settings — applied to every build regardless of host operating system.
 # compilation_mode=dbg makes bare `bazel build` a debug-mode build by default;
 # -g is intentionally absent here so the stripping warning cannot fire when
 # --config=release is used (Bazel only checks explicit --copt=-g, not toolchain
 # features, for that warning).
 build --compilation_mode=dbg
 build --copt=-fdiagnostics-color=always
-build --copt=-DPERI_LINUX
 build --copt=-DPERI_EDITOR
 
 # Mirror platform defines for exec-config tools (e.g. the TTX compiler)
 # so perimortem compiles correctly when built as a host tool dependency.
-build --host_copt=-DPERI_LINUX
 build --host_copt=-DPERI_DEBUG
 
-# Linux Debug
+# Debug
 build:debug --compilation_mode=dbg
 build:debug --copt=-g
 build:debug --copt=-O0
 build:debug --copt=-DPERI_DEBUG
 
-# Linux Release — ThinLTO, native tuning, stripped.
+# Release — ThinLTO, native tuning, stripped.
 # Usage: bazel build --config=release //...
 build:release --compilation_mode=opt
 build:release --copt=-g0

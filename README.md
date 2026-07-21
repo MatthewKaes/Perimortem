@@ -70,15 +70,28 @@ actually uses.
 
 ## Building and validation
 
-Perimortem currently targets x86-64 Linux with Clang and Bazel. The windowed
-runtime requires Wayland, and the Vulkan backend requires a Vulkan loader and
-driver.
-
-Build the repository with:
+Perimortem uses Bazel with a pinned, hermetic LLVM/Clang 22.1.4 toolchain on
+x86-64 Linux and Windows. This ensures all builds use the same bootstrapping
+toolchain. All you need is to have Bazel install and build the repository with:
 
 ```sh
-bazel build //...
+bazel build ...
 ```
+
+Bazel selects the distribution for the host operating system and downloads clang
+on the first build so a system install of clang is not required. The extracted
+tools live in Bazel's externals and the downloaded archive is retained in Bazel's
+repository cache.
+
+
+After any changes format all C++ sources with:
+
+```sh
+./.vscode/format.sh
+```
+
+The script currently runs `clang-format` for C++, but will also format TTX and 
+other types in the future.
 
 Run the complete unit-test suite with:
 
@@ -90,6 +103,9 @@ The small C++ composition example at
 [`apps/perimortem/basic_window`](apps/perimortem/basic_window) creates a System
 window and a Vulkan renderer without involving TTX. It is the runtime-side
 reference path for bringing up the corresponding Tetrodotoxin application.
+
+### Test Apps
+
 Build and run it with:
 
 ```sh
@@ -99,26 +115,31 @@ bazel run //apps/perimortem/basic_window
 ## Tetrodotoxin tooling
 
 Tetrodotoxin is the compiler and toolchain developed alongside Perimortem. Its
-language and compiler design are documented in
-[`tetrodotoxin/README.md`](tetrodotoxin/README.md), while the semantic data
-model is documented in [`ttx/README.md`](ttx/README.md).
+language and compiler design are documented in [`tetrodotoxin/README.md`](tetrodotoxin/README.md),
+while the semantic data model for the tool chain is documented in [`ttx/README.md`](ttx/README.md).
 
-The repository includes a VS Code extension backed by the Puffer language
-server. Build and install it with:
+
+### Bootstrapping
+
+`bazel build ...` will boot strap the Tetrodotoxin toolchain and compiler, `puffer`,
+using the hermetically fetched `clang`.
+
+The repository includes a VS Code extension backed by `puffer` to provide a TTX language
+server. It requires nodejs to build but can be and install it with:
 
 ```sh
 ./tetrodotoxin/lsp/package.sh --install
 ```
 
-Package the extension without installing it by omitting `--install`. Editors
-that support LSP over a Unix-domain socket can run `puffer --pipe=<socket>`
+Editors that support LSP over a Unix-domain socket can run `puffer --pipe=<socket>`
 directly.
 
 ## Project status
 
 Perimortem is an active research and development project rather than a
-production-supported runtime. Linux and Wayland are the current platform
-focus. Windows support and additional rendering backends are future work.
+production supported runtime. Hermetic Clang builds are configured for Linux
+and Windows, but Linux and Wayland remain the current runtime focus. Native
+Windows support and additional rendering backends are on the roadmap.
 
 If you are interested in low-level performance engineering, Agner Fog's
 [optimization manuals](https://www.agner.org/optimize/) are an excellent

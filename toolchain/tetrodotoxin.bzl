@@ -189,7 +189,7 @@ ttx_library = rule(
     toolchains = ["@bazel_tools//tools/cpp:toolchain_type"],
     fragments = ["cpp"],
     doc = (
-        "Compiles TTX source files into an x86-64 ELF static library usable " +
+        "Compiles TTX source files into an x86-64 static library usable " +
         "by cc_binary."
     ),
 )

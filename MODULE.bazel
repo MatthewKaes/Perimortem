@@ -7,7 +7,9 @@ module(
 
 bazel_dep(name = "rules_cc", version = "0.2.17")
 bazel_dep(name = "platforms", version = "1.0.0")
+llvm = use_extension("//toolchain:llvm.bzl", "llvm")
+use_repo(llvm, "llvm")
 
 register_toolchains(
-    "//toolchain:cc_toolchain_for_linux_x86_64",
+    "@llvm//:cc_toolchain_for_host_x86_64",
 )

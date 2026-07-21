@@ -1,10 +1,10 @@
 """
 Toolchain configuration for Perimortem
 
-Currently supports:
-- Arch Linux (Hyprland)
-
-You'll need to make sure you install clang.
+Supports x86-64 Linux and Windows with the pinned LLVM distribution fetched by
+//toolchain:llvm.bzl. Bazel materializes the tools in its external
+repository area; no system LLVM installation is required. The Clang driver is
+used for both compilation and linking.
 
 For debugging use the CodeLLDB extension in VSCode plus the included .vscode launch and task jsons.
 """
@@ -28,51 +28,47 @@ c_compile_actions = [
     ACTION_NAMES.c_compile,
 ]
 
-all_link_actions = [
-    ACTION_NAMES.cpp_link_executable,
-    # ACTION_NAMES.c_compile,
-    ACTION_NAMES.cpp_link_nodeps_dynamic_library,
-]
-
 def _impl(ctx):
+    windows = ctx.attr.target_os == "windows"
+    llvm_bin = ctx.attr.tool_root
     tool_paths = [
         tool_path(
             # Compiler is referenced by the name "gcc" for historic reasons.
             name = "gcc",
-            path = "/usr/bin/clang++",
+            path = llvm_bin + ("clang++.exe" if windows else "clang++"),
         ),
         tool_path(
             # Compiler is referenced by the name "gcc" for historic reasons.
             name = "g++",
-            path = "/usr/bin/clang++",
+            path = llvm_bin + ("clang++.exe" if windows else "clang++"),
         ),
         tool_path(
             name = "ld",
-            path = "/usr/bin/ldd",
+            path = llvm_bin + ("clang++.exe" if windows else "clang++"),
         ),
         tool_path(
             name = "ar",
-            path = "/usr/bin/ar",
+            path = llvm_bin + ("llvm-ar.exe" if windows else "llvm-ar"),
         ),
         tool_path(
             name = "cpp",
-            path = "/usr/bin/clang-cpp",
+            path = llvm_bin + ("clang-cpp.exe" if windows else "clang-cpp"),
         ),
         tool_path(
             name = "gcov",
-            path = "/bin/false",
+            path = llvm_bin + ("llvm-cov.exe" if windows else "llvm-cov"),
         ),
         tool_path(
             name = "nm",
-            path = "/usr/bin/nm",
+            path = llvm_bin + ("llvm-nm.exe" if windows else "llvm-nm"),
         ),
         tool_path(
             name = "objdump",
-            path = "/bin/false",
+            path = llvm_bin + ("llvm-objdump.exe" if windows else "llvm-objdump"),
         ),
         tool_path(
             name = "strip",
-            path = "/bin/false",
+            path = llvm_bin + ("llvm-strip.exe" if windows else "llvm-strip"),
         ),
     ]
 
@@ -94,9 +90,10 @@ def _impl(ctx):
                                 "-fno-rtti",
                                 "-mavx2",  # AVX2 support required
                                 "-mrdrnd",  # _rdrand64_step
-                                "-march=znver4",
+                                "-march=x86-64-v3" if windows else "-march=znver4",
                                 "-std=c++26",
                                 "-no-canonical-prefixes",
+                                "-DPERI_WINDOWS" if windows else "-DPERI_LINUX",
                             ],
                         ),
                     ]),
@@ -119,27 +116,12 @@ def _impl(ctx):
                                 "-Wno-character-conversion",  # google-test
                                 "-fno-exceptions",
                                 "-fno-rtti",
-                                "-march=znver4",
+                                "-march=x86-64-v3" if windows else "-march=znver4",
                                 "-std=c23",
                                 "-no-canonical-prefixes",
                                 # Force C builds from external libraries to build in C.
                                 "-xc",
-                            ],
-                        ),
-                    ]),
-                ),
-            ],
-        ),
-        feature(
-            name = "default_linker_flags",
-            enabled = True,
-            flag_sets = [
-                flag_set(
-                    actions = all_link_actions,
-                    flag_groups = ([
-                        flag_group(
-                            flags = [
-                                "-lstdc++",
+                                "-DPERI_WINDOWS" if windows else "-DPERI_LINUX",
                             ],
                         ),
                     ]),
@@ -151,17 +133,21 @@ def _impl(ctx):
     return cc_common.create_cc_toolchain_config_info(
         ctx = ctx,
         features = features,
-        cxx_builtin_include_directories = [
+        cxx_builtin_include_directories = ([
+            "C:/Program Files/LLVM/lib/clang/22/include",
+            "C:/Program Files/LLVM/lib/clang/21/include",
+            "C:/Program Files/LLVM/lib/clang/20/include",
+        ] if windows else [
             "/usr/lib/clang/22/include",
             "/usr/lib/clang/21/include",
             "/usr/lib/clang/20/include",
             "/usr/include",
-        ],
-        toolchain_identifier = "k8-toolchain",
+        ]),
+        toolchain_identifier = ("windows_x86_64" if windows else "linux_x86_64") + "-clang-toolchain",
         host_system_name = "local",
         target_system_name = "local",
-        target_cpu = "k8",
-        target_libc = "unknown",
+        target_cpu = "x64_windows" if windows else "k8",
+        target_libc = "msvcrt" if windows else "unknown",
         compiler = "clang",
         abi_version = "unknown",
         abi_libc_version = "unknown",
@@ -170,6 +156,12 @@ def _impl(ctx):
 
 cc_toolchain_config = rule(
     implementation = _impl,
-    attrs = {},
+    attrs = {
+        "target_os": attr.string(
+            mandatory = True,
+            values = ["linux", "windows"],
+        ),
+        "tool_root": attr.string(default = "bin/"),
+    },
     provides = [CcToolchainConfigInfo],
 )
