@@ -55,7 +55,7 @@ TTX has two useful formal layers:
   lexical analysis. The grammar is designed for predictive decoding with
   bounded fixed lookahead, plus operator-precedence decoding for expressions.
 - The set of semantically valid TTX programs is context-sensitive. Name binding,
-  import binding, Abstract identity resolution, Type proofs, Dialect rules, pack
+  Environment binding, Abstract identity resolution, Type proofs, Dialect rules, pack
   fitting, and addressability checks all depend on program context.
 
 TTX is not trying to be a maximally expressive context-free grammar. It is a
@@ -81,7 +81,7 @@ or reinterpretation of an already-decoded subtree.
 TTX source text is the human-authored source IR. A concrete Lexer lowers that
 source IR into TTX token bytecode. Every emitted token carries one `Lexical::Code`
 that identifies the prescribed semantic grouping for its source span. Examples
-include `Type`, `Addressable`, `Import`, `Assign`, `TypeAccessOp`, `AddressOp`,
+include `Type`, `Addressable`, `Assign`, `TypeAccessOp`, `AddressOp`,
 `CallOp`, modifiers, attributes, and fixed operators.
 
 Each Code is stored in 8 bits. `Terminal` reserves `0x00` and `Unknown` reserves
@@ -115,7 +115,7 @@ The useful mental model is:
 TTX source IR
 -> lexical token bytecode
 -> optional envelope evaluation
--> optional import or module loading
+-> optional Environment injection
 -> optional Dialect evaluation
 -> lowering, tooling, or interchange output
 ```
@@ -126,7 +126,7 @@ rules for that authoring domain, and makes real TTX facts queryable: Types,
 Layouts, package exports, Callable facts, ABI facts, shader facts, or other
 context.
 
-Import loading, package loading, cache validity, and Dialect selection are host
+Environment assembly, package loading, cache validity, and Dialect selection are host
 concerns. TTX describes the bytecode and shared data model those systems execute
 against.
 
@@ -141,7 +141,7 @@ bytecode with progressively enriched context.
 TTX source IR
 -> lexical token bytecode
 -> optional host envelope context
--> optional import or module context
+-> optional Environment context
 -> optional Dialect context
 -> owned query context
 -> terminal output
@@ -162,8 +162,8 @@ The practical rule for moving information left is:
 
 The lexer classifies stable source spellings such as type-shaped names,
 addressable names, modifiers, builtin type forms, and fixed operators. A host can
-then choose how much more context it wants: an envelope evaluator, an import
-graph, one or more Dialects, Type and Layout queries, ABI facts, or backend
+then choose how much more context it wants: an envelope evaluator, an
+Environment, one or more Dialects, Type and Layout queries, ABI facts, or backend
 lowering. Compilation asks those contexts questions rather than rediscovering
 source intent from raw text.
 
@@ -178,7 +178,7 @@ systems. The important distinction is ownership:
   fundamental identity-free fitting contract over an ordered group of those
   real objects. Documentation is the fundamental borrowed authored-prose value.
 - Host envelope evaluators own whatever source preamble they choose to execute.
-- Import, module, package, cache, and invalidation layers belong to the host
+- Environment, module, package, cache, and invalidation layers belong to the host
   that needs them.
 - Dialects own the bytecode spans they understand and the facts they
   make queryable from those spans.
@@ -191,7 +191,7 @@ systems. The important distinction is ownership:
 ## Semantic Object Model
 
 The evaluated semantic model is a directed graph of `Abstract` objects. An
-object may be reached through more than one import or alias edge, so its
+object may be reached through more than one Environment binding or Alias edge, so its
 ownership graph is not forced into a tree and the object does not store one
 authoritative parent path. Resolution passes the remaining borrowed
 `View::Bytes` directly through the objects it reaches. It does not allocate or
@@ -691,7 +691,7 @@ This keeps default policy out of every layout consumer.
 ### Resolution, Completion, And Invalidation
 
 Source loading may require preregistration for recursive Types, aliases,
-mutually visible Callables, imports, or Dialect-specific declarations. That is a
+mutually visible Callables, Environment bindings, or Dialect-specific declarations. That is a
 host construction technique, not a universal publication lifecycle.
 
 A host may reserve a stable, nonmoving Type or containing context before all
@@ -735,7 +735,7 @@ After that, the host decides which additional layers exist:
 ```text
 token bytecode
 -> optional envelope or entry evaluator
--> optional import or module graph
+-> optional Environment or module context
 -> optional Dialect evaluation
 -> optional owned queries
 -> optional terminal output
@@ -762,9 +762,9 @@ Common host roles are:
    attributes, byte literals, embedded file literals, and operators.
 2. **Envelope or entry evaluation**: execute any host-defined preamble. A host
    may use no envelope at all, or it may use a small Boot evaluator to collect
-   documentation, the selected Dialect name, and import requests.
-3. **Import or module context**: attach cross-file, package, module, or FFI
-   state when the host needs more than one source unit.
+   documentation and the selected Dialect name.
+3. **Environment or module context**: attach package, local-product, module, or
+   FFI state when the host needs more than one source unit.
 4. **Dialect evaluation**: execute the token spans owned by the selected
    Dialect and expose TTX facts from that evaluation.
 5. **Owned queries**: expose Type, Layout, Dialect, provider, ABI, and
@@ -781,12 +781,11 @@ dispatch. The token and operator shape already chose the namespace of the
 query. A host only has to prove whether the selected name exists and whether
 the result can be used in the local context.
 
-When a host supports imports, imports are graph edges between independently
-owned source units. TTX does not require C or C++ style text inclusion, and it
-does not require one global package graph. A host can bind token bytecode to
-foreign source units, native ABI facts, editor data, generated packages, or
-another language runtime as long as the boundary makes the TTX facts its
-queries need available through resolution.
+When a host needs multiple source units, its container selects them explicitly
+and injects their completed products through Environment. TTX does not require
+C or C++ style text inclusion or one global package graph. A host can bind
+native ABI facts, editor data, generated packages, or another language runtime
+as long as the boundary makes the required facts available through resolution.
 
 A program is ready for lowering when the host has proven the facts its output
 requires. For a compiler this may mean every expression has a concrete value
@@ -923,7 +922,7 @@ private Header : struct {
 ```
 
 The active Dialect may reject a construct that is syntactically valid. Once the host
-has prepared whatever envelope, imports, or module context it requires, the
+has prepared whatever envelope, Environment, or module context it requires, the
 selected Dialect owns body evaluation and may reject constructs that do not belong
 to that authoring space. `Render` and `Shader` packages do not accept managed
 runtime concepts such as `object` or `List` unless those Dialects explicitly define
@@ -935,46 +934,74 @@ constants, builds pipeline layouts, and bridges them into the Perimortem
 runtime. Backend outputs such as SPIR-V, x86_64, generated headers, or Vulkan
 bridge code are compilation targets, not separate Dialects.
 
-## Imports
+## Container Environments
 
-For hosts that use the common envelope, imports introduce explicit local aliases
-for package dependencies:
-
-```ttx
-import ImageLibrary : Library = "graphics/image.ttx";
-import Graphics     : Package = Perimortem.Graphics;
-```
-
-Envelope shape: imports appear immediately after the Dialect selection instruction
-and before members. An import starts with `Import`, then a PascalCase local
-name, `Define`, an expected Dialect name, `Assign`, an import source, and
-`EndStatement`. The import source is chosen from the current token: `String`
-means a file source, while `Type` means a package name.
-
-The import shape is:
+For hosts that use the common package container, exact external Packages and
+explicit member Sources are selected before any Source is evaluated:
 
 ```ttx
-import LocalName : DialectName = source;
+resolve Graphics : Perimortem.Graphics = "2.2";
+source ImageLibrary : Library = "graphics/image.ttx";
 ```
 
-The source is either:
+The canonical `package.ttx` order is fixed:
 
-- a file-source string, such as `"path.ttx"`
-- a package name such as `Perimortem.Graphics`.
+```text
+optional descriptor Documentation
+dialect : Package;
+zero or more resolve declarations
+zero or more source declarations
+Package-Dialect export body
+```
 
-Package names decode as `Type("." Type)*`. Empty segments, lowercase starts,
-double dots, and trailing dots fail through the ordinary token cursor because a
-dot must always be followed by a `Type`. A successfully decoded package name can
-be used directly as a package cache key and package folder name.
+Puffer's package Descriptor parses this prefix, resolves the named Dialect
+objects, and records the exact resolutions, ordered members, Documentation, and
+remaining body token. The package container uses those facts to complete the
+shared Environment and declared members. Descriptor evaluation then hands the
+verified same Source and remaining token position to the real Package Dialect.
+The descriptor root and every declared member form the explicit Source vector
+used to construct the source-backed Package.
 
-The local name participates in type queries and value access after the host has
-bound the import. Imports do not erase Dialect boundaries. A `Shader` package
-cannot make `object` legal by importing a `Library` that contains objects.
-Imported definitions must still be valid in the importing Dialect after identity
-resolution.
+The resolution belongs to the package container rather than a Source preamble.
+It starts with `Resolve`, then a PascalCase local name, `Define`, a
+package name, `Assign`, a quoted canonical Major.Minor version, and
+`EndStatement`:
 
-There is no `using` or wildcard import syntax. Imports are named aliases so
-source reviews and diagnostics can see package boundaries.
+```ttx
+resolve LocalName : Package.Name = "Major.Minor";
+```
+
+The version is a `String` token decoded directly as two independent unsigned
+components. It never enters the Float or Real model. `"0.1"` is valid and
+`"0.0"` is the unset version. Leading zeroes are noncanonical and rejected so
+accepted text has one stable round trip. Package names decode as
+`Type("." Type)*`. Empty segments, lowercase starts, double dots, and trailing
+dots fail through the ordinary token cursor because a dot must always be
+followed by a `Type`.
+
+The host resolves every declaration to one exact anonymous Package and builds a
+shared Environment. Repeating the same exact dependency under another Alias
+does not duplicate the Package edge. Reusing an Alias for another resolution or
+claiming the same name and version for a different Package is invalid.
+
+The container also assigns local names and expected Dialects to member files:
+
+```ttx
+source LocalName : DialectName = "path.ttx";
+```
+
+The expected Dialect checks the selected file before its body is evaluated.
+Every selected Source borrows the same Environment. Source owns no membership,
+file, or Package edge; the container passes the complete member vector to the
+source-backed Package explicitly.
+
+Environment names participate in type queries and value access after the host
+has bound them. Availability does not import Dialect semantics. A `Shader`
+Source cannot make `object` legal merely because a Library product is present.
+Resolved definitions must still be valid in the active Dialect.
+
+There is no `using` or wildcard binding syntax. Names remain explicit in the
+container so reviews and diagnostics can see package and file boundaries.
 
 ## Names And Type Queries
 
@@ -1087,7 +1114,7 @@ Core TTX defines no package contract. A host may expose a Source, module,
 package, or another Abstract context whose ordinary query indexes Types,
 values, callables, and extended facts. Such a context has no Layout unless it
 independently implements Type for a real value-domain reason. Merely being an
-import or publication boundary never supplies that contract.
+Environment or publication boundary never supplies that contract.
 
 TTX treats the small vector and graphics color types as real typed aggregates,
 not pack aliases. Active toolchain contexts and explicit package manifests
@@ -1145,10 +1172,10 @@ registers them as another Terminal contract. A byte-array Constant can use an
 aggregate Type without creating a native TTX String concept.
 
 `Perimortem.Graphics` is explicit. A package that needs graphics-domain types
-imports it and refers to those types through the import name:
+receives it through Environment and refers to those types through the bound name:
 
 ```ttx
-import Graphics : Package = Perimortem.Graphics;
+resolve Graphics : Perimortem.Graphics = "2.2";
 
 Graphics::Color : struct {
   r : Real_32;
@@ -1379,10 +1406,10 @@ Attributes are not runtime values. They are consumed by the compiler or
 forwarded into target metadata.
 
 Some Dialects may consume directive-style attributes as standalone statements, but
-package identity is not one of them. Package names are compiler configuration
-because build systems such as Bazel require output paths to be declared before
-source evaluation runs. The Package Dialect body only describes what the package
-exports. Package imports still use the authored package-name surface.
+package identity is not one of them. Exact package resolutions are envelope
+configuration because build systems such as Bazel require output paths to be
+declared before source evaluation runs. The Package Dialect body only describes
+what the package exports.
 
 Known shader ABI attributes have fixed local targets. The owning Dialect checks
 their legality while it evaluates the declaration:
@@ -1686,7 +1713,7 @@ private decode_table : Vec[Unsigned_8, 256] = (
 ```
 
 The designator position is not an expression context. It does not accept
-character literals, names, imports, enum values, arithmetic, or constants:
+character literals, names, enum values, arithmetic, or constants:
 
 ```ttx
 (.'A' = 0)          // invalid
@@ -2369,7 +2396,7 @@ TTX maps naturally to LLVM-like IR concepts:
 | TTX                           | Lowering idea                                             |
 | ----------------------------- | --------------------------------------------------------- |
 | package                       | module or compilation unit                                |
-| import                        | module dependency or package alias                        |
+| Environment binding           | module dependency or package alias                        |
 | function                      | function definition or Dialect-owned bodyless declaration |
 | block                         | structured region that lowers to basic blocks             |
 | `if`, `while`, `for`, `match` | branches, loops, phi/select logic, block graphs           |

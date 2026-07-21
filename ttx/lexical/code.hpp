@@ -114,7 +114,8 @@ class Code {
     True,
     False,
     Return,
-    Import,
+    Resolve,
+    Source,
     Dialect,
     Alias,
 

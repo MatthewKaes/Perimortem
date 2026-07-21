@@ -37,28 +37,30 @@ source text
 -> requested terminal products
 ```
 
-Lexical lowers source text into TTX token bytecode. Puffer starts full source
-execution with its Boot envelope. Boot evaluates the source
-preamble, which contains documentation, the `dialect : Name;` instruction, and
-imports. The source keyword remains `dialect`, but semantically its name
-resolves to a Dialect in the host's Abstract context named `Dialects`. A
-Tetrodotoxin Namespace is one concrete representation. Puffer Boot hands the
-body continuation to the selected Dialect after resolving imports.
+Lexical lowers source text into TTX token bytecode. Before evaluation, the
+caller constructs one `Model::Environment` containing every package, local
+product, or host object the Source may name. Boot evaluates only the source
+preamble: documentation and the `dialect : Name;` instruction. The Dialect name
+resolves in the host's Abstract context named `Dialects`; a Tetrodotoxin
+Namespace is one concrete representation. The selected Dialect then evaluates
+the body against the Source and its already-complete Environment.
 
-Puffer Resolution loads package files, resolves package names such as
-`Perimortem.Graphics`, checks that imported files declare the requested Dialect,
-constructs Source or Package Dependency contracts with their local TTX Alias
-bindings, and calls the Dialect resolved under the declared name. Source retains
-each actual interpreted Dialect with the result it produced. Later stages do
-not repeat name resolution from the authored spelling.
+Puffer Resolution restores exact package names and versions such as
+`Perimortem.Graphics` 2.2 once per package container and publishes their local
+Aliases into that Environment. The container also selects its member source
+files, evaluates them in the required order, and can bind completed local
+products for later members. Source owns no import or dependency edge. It
+retains only its text, rooted results, and the actual Dialect paired with each
+result. Later stages do not repeat package or Dialect lookup from authored
+spelling.
 Package names use the token shape `Type("." Type)*`, so a parsed package name
 can be used directly as the package cache key. The spelling alone does not make
 a package identity a Type. The Package Dialect produces a source-backed Package
 whose exports retain their actual contracts. Puffer creates a root
-resolver from the Dialects context selected for that session. File imports stay
-within at most two
-coalesced project source roots owned once by that resolver. Package imports use the
-separate registered-buffer repository and become explicit dependency edges.
+resolver from the Dialects context selected for that session. Exact package
+resolutions use the registered-buffer repository and become one deduplicated
+dependency vector on the shared Environment. Package membership is an explicit
+container input rather than a graph inferred from Source statements.
 
 Tetrodotoxin's standard TTX packages live under [`standard`](standard/). They
 describe the ABI surfaces that Puffer can resolve today, including
@@ -68,16 +70,17 @@ contexts rather than a separate prelude model. Perimortem's C++ subsystems still
 implement parts of these APIs, so generated C++ headers currently connect the
 standard packages to that runtime.
 
-Packages are Tetrodotoxin's module boundary. Source imports a package and uses
-exports such as `Graphics::Shaders::Default2D`. It cannot import the package's
-private shader file directly. If the package resolver cannot resolve its
-private graph, the package source is dropped from the outer cache
-with its consumers.
+Packages are Tetrodotoxin's module boundary. A caller injects a Package under a
+name such as `Graphics`, and Source uses exports such as
+`Graphics::Shaders::Default2D`. Package-private source files are selected only
+by that package's container. If its Environment or explicit member set cannot
+be completed, no package is published to consumers.
 
 That split keeps filesystem identity, package records, cache invalidation, and
 cross-file lookup in Tetrodotoxin while keeping the TTX language package small.
 TTX can ask Abstract, Type, Callable, and Layout questions once Tetrodotoxin has
-supplied the resolved imports, but it does not manage the source tree itself.
+supplied the resolved Environment, but it does not manage the source tree
+itself.
 
 One Compiler owns the arena, Abstract DAG, source-owned Abstract contexts,
 Generic instantiations, Layouts, Callable bodies and Addressables, diagnostics,
@@ -110,17 +113,24 @@ Tetrodotoxin layers toolchain context around that language core:
   `Exports` owner for durable named source containment. It retains produced
   roots separately while direct lookup remains closed over its authored ordered
   exports, and
-  [`model/source.hpp`](model/source.hpp) owns a complete
-  formatter-capable source graph. [`model/dependency.hpp`](model/dependency.hpp)
-  is the open import edge, with separate Source and Package locator contracts
-  under [`model/dependencies`](model/dependencies/). None is a Type
+  [`model/source.hpp`](model/source.hpp) owns a complete formatter-capable
+  source transaction, and [`model/environment.hpp`](model/environment.hpp)
+  owns every injected binding plus the exact shared Package dependency set
+  supplied to each member Source. [`model/dependency.hpp`](model/dependency.hpp)
+  and [`model/dependencies/package.hpp`](model/dependencies/package.hpp) retain
+  only external Package resolution facts. Source has no dependency graph. None
+  is a Type
 - [`model/package.hpp`](model/package.hpp) extends `Exports` with the common
-  package dependency surface;
+  package dependency surface and a canonical definition table. Public lookup
+  remains closed over Exports, while the definition table assigns stable local
+  IDs to private as well as public graph objects for direct archive linkage;
   [`model/packages/interpreted.hpp`](model/packages/interpreted.hpp) adds optional
   Source access, [`model/packages/sources.hpp`](model/packages/sources.hpp) is
   Tetrodotoxin's concrete source-backed form, and
   [`model/packages/precompiled.hpp`](model/packages/precompiled.hpp) is the
-  source-free restored form
+  source-free restored form, and
+  [`model/packages/compiled.hpp`](model/packages/compiled.hpp) is the optional
+  terminal-product capability implemented by that restored form
 - [`model/dialect.hpp`](model/dialect.hpp) is the durable named evaluation
   contract retained by Source and Dependency
 - [`interpreter/definition.hpp`](interpreter/definition.hpp) and
@@ -137,8 +147,8 @@ Tetrodotoxin layers toolchain context around that language core:
 - [`puffer/isa/boot`](puffer/isa/boot/) is the legacy implementation of
   Puffer's Boot envelope while that code migrates to the direct model
 - [`puffer/lsp`](puffer/lsp/) owns Puffer's native language server mode
-- [`puffer/resolution`](puffer/resolution/) owns source loading, package
-  loading, import binding, the source cache, and cache validity
+- [`puffer/resolution`](puffer/resolution/) owns source loading, Environment
+  assembly, package loading, the source cache, and cache validity
 - [`puffer/package`](puffer/package/) presents resolved package closures to the
   Archiver without teaching the CLI about serialization tables
 - [`puffer/toolchain.hpp`](puffer/toolchain.hpp) defines Puffer's standard
@@ -270,31 +280,33 @@ readiness. The package builder freezes the resolved TTX facts together
 with the archive and generated header terminals as Tetrodotoxin's
 precompiled-library equivalent.
 
-Package dependencies are resolved by package name, not by leaking source files
-from one package into another. Bazel passes dependency `.puffer` outputs to
-Puffer with `-dep=...`. The resolver registers each buffer and restores its
-package once. Interpreted and restored packages implement the same Model::Package
+Package dependencies are resolved by package name and exact Major.Minor version,
+not by leaking source files from one package into another. Bazel passes
+dependency `.puffer` outputs to Puffer with `-dep=...`. The repository registers
+each buffer in a hash index and restores its package once. Puffer then publishes
+the selected direct dependencies into one Environment before evaluating any
+Source. Interpreted and restored packages implement the same Model::Package
 contract. Only the interpreted form proves `Packages::Interpreted` and exposes
 its Source collection. The restored package owns its TTX Abstract graph,
-terminal byte payloads, and ABI execution facts. The resolver owns manifest
-identity and projects its package key through Dependency bindings; the Package
-Abstract itself remains anonymous. Physical paths remain resolver diagnostic
-context and are not durable package identity. Direct source
-loading only reads files in the current package workspace. Package imports do
-not fall back to guessed `.ttx` paths. A durable package must reconstruct its
-resolver from named facts and owner-defined data. It cannot depend on ClassDB
-schema references, allocated Routes, or process Addresses. The complete package
-model is documented in
+canonical definition IDs, terminal byte payloads, and ABI execution facts. The
+resolver owns manifest identity and projects its package key through resolution
+bindings; the Package Abstract itself remains anonymous. Physical paths remain
+resolver diagnostic context and are not durable package identity. Direct source
+loading only reads files in the current package workspace. Package resolution
+does not fall back to guessed `.ttx` paths. A durable package must reconstruct
+its resolver from named facts and owner-defined data. It cannot depend on
+ClassDB schema references, allocated Routes, or process Addresses. The complete
+package model is documented in
 [`archiver/README.md`](archiver/README.md).
 
-Dependency restore is transitive, but name visibility is not. Importing
+Dependency restore is transitive, but name visibility is not. Resolving
 `Perimortem.Graphics` can make its Math-backed member types valid because the
 Graphics Puffer Buffer references `Perimortem.Math`, but it does not bind a
 local `Math` name for the consumer. Public forwarding is explicit package
 surface:
 
 ```ttx
-import Math : Package = Perimortem.Math;
+resolve Math : Perimortem.Math = "1.2";
 
 public Size2D : alias = Math::Geometry::Size2D;
 ```
@@ -307,9 +319,10 @@ In `--pipe=<socket>` mode, Puffer starts the native LSP server over the socket
 provided by an editor client. The VSCode extension packages and launches the
 same `puffer` binary rather than a separate language-server executable.
 
-Puffer writes each package into a module directory named from its authored
-identity. `Perimortem.Math` therefore contains `binary_archive.puffer`,
-`x86_64.a`, and `cpp_abi.hpp` regardless of the Bazel target or repository that
-built it. The manifest carries the same package identity so compiler and tooling
-transactions can restore the source-free Package graph directly. Standalone
-library targets produce the archive and C++ ABI header without a Puffer Buffer.
+Puffer writes each package beneath its authored name and exact version.
+`Perimortem.Math/1.2` therefore contains `binary_archive.puffer`, `x86_64.a`,
+and `cpp_abi.hpp` regardless of the Bazel target or repository that built it.
+The Manifest carries that same authored name plus Major and Minor so compiler
+and tooling transactions can restore the source-free Package graph directly.
+Standalone library targets produce the archive and C++ ABI header without a
+Puffer Buffer.

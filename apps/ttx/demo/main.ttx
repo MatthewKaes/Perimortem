@@ -2,9 +2,6 @@
 // Copyright © Matt Kaes
 dialect : App;
 
-import Runtime : Package = Perimortem.Runtime;
-import SplashScreen : Scene = "splash_screen.ttx";
-
 public func main[] -> [] {
   // Create a window for the thread so we can render scene objects.
   const window : Runtime::Window = Runtime::Window -> create(

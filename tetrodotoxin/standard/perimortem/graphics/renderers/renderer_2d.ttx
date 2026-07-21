@@ -2,8 +2,7 @@
 // Copyright © Matt Kaes
 dialect : Render;
 
-import Math : Package = Perimortem.Math;
-import Types : Library = "../library/types.ttx";
+// `Types` and `Math` are bindings in the package Environment.
 
 public Render2D : Render {
   public position : Types::Point2D = (.x = 0.0, .y = 0.0);

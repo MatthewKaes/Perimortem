@@ -52,6 +52,12 @@ cc_binary(
         "unit_tests/tetrodotoxin/**/*.cpp",
     ]) + ["unit_test.cpp"],
     copts = ["-Wreturn-type-c-linkage"],
+    data = glob([
+        "data/**/*.ttx",
+    ]) + [
+        "//apps/ttx/demo:sources",
+        "//tetrodotoxin/standard:sources",
+    ],
     includes = ["."],
     deps = [
         ":test_headers",
@@ -60,6 +66,10 @@ cc_binary(
         "//tetrodotoxin:interpreter",
         "//tetrodotoxin:linker",
         "//tetrodotoxin:model",
+        "//tetrodotoxin/archiver",
+        "//tetrodotoxin/puffer:package_descriptor",
+        "//tetrodotoxin/puffer:package_materializer",
+        "//tetrodotoxin/puffer:package_repository",
         "//ttx",
     ],
 )
@@ -68,6 +78,7 @@ cc_binary(
     name = "benchmarks",
     srcs = glob([
         "benchmarks/perimortem/**/*.cpp",
+        "benchmarks/tetrodotoxin/**/*.cpp",
     ]) + [
         "benchmark.cpp",
     ],
@@ -79,5 +90,9 @@ cc_binary(
     deps = [
         ":test_headers",
         "//perimortem",
+        "//tetrodotoxin:model",
+        "//tetrodotoxin/archiver",
+        "//ttx:concept",
+        "//ttx:model",
     ],
 )

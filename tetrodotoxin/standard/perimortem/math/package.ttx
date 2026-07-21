@@ -2,7 +2,7 @@
 // Copyright © Matt Kaes
 dialect : Package;
 
-import Types : Library = "library/types.ttx";
+source Types : Library = "library/types.ttx";
 
 public Geometry : group {
   public Point2D : alias = Types::Point2D;

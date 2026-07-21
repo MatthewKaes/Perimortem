@@ -1,0 +1,10 @@
+// Perimortem Engine
+// Copyright © Matt Kaes
+dialect : Package;
+
+resolve Graphics : Perimortem.Graphics = "1.0";
+resolve Math : Perimortem.Math = "1.0";
+resolve Runtime : Perimortem.Runtime = "1.0";
+
+source SplashScreen : Scene = "splash_screen.ttx";
+source Main : App = "main.ttx";

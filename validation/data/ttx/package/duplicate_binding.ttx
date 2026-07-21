@@ -1,0 +1,4 @@
+dialect : Package;
+
+resolve Types : Perimortem.Types = "1.2";
+source Types : Library = "types.ttx";

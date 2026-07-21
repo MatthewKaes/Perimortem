@@ -19,6 +19,8 @@ Usage in a BUILD file:
         name = "my_package",
         root = "perimortem/graphics",
         package_name = "Perimortem.Graphics",
+        major = 1,
+        minor = 0,
         deps = [":my_dependency"],
     )
 
@@ -65,14 +67,27 @@ def _collect_puffer_buffers(deps):
 
 def _ttx_compile_impl(ctx, package):
     unit_name = ctx.attr.package_name if package else ctx.attr.library_name
-    artifact_root = unit_name + "/"
+    if package:
+        if ctx.attr.major < 0 or ctx.attr.major > 65535:
+            fail("ttx_package major must fit in Unsigned_16")
+        if ctx.attr.minor < 0 or ctx.attr.minor > 65535:
+            fail("ttx_package minor must fit in Unsigned_16")
+        if ctx.attr.major == 0 and ctx.attr.minor == 0:
+            fail("ttx_package version 0.0 is reserved for an unset version")
+        artifact_root = "%s/%d.%d/" % (
+            unit_name,
+            ctx.attr.major,
+            ctx.attr.minor,
+        )
+    else:
+        artifact_root = unit_name + "/"
     archive = ctx.actions.declare_file(artifact_root + "x86_64.a")
     header = ctx.actions.declare_file(artifact_root + "cpp_abi.hpp")
     puffer_buffer = None
     outputs = [archive, header]
     if package:
         puffer_buffer = ctx.actions.declare_file(
-            artifact_root + "binary_archive.puffer"
+            artifact_root + "binary_archive.puffer",
         )
         outputs.append(puffer_buffer)
 
@@ -87,6 +102,8 @@ def _ttx_compile_impl(ctx, package):
     ]
     if package:
         args.append("-puffer=%s" % puffer_buffer.path)
+        args.append("-major=%d" % ctx.attr.major)
+        args.append("-minor=%d" % ctx.attr.minor)
 
     args.append("-name=%s" % unit_name)
 
@@ -229,9 +246,17 @@ ttx_package = rule(
         package_name = attr.string(
             mandatory = True,
             doc = (
-                "Resolved TTX package identity. Package terminals are emitted " +
-                "under this folder."
+                "Authored TTX package name. Package terminals are emitted " +
+                "beneath its explicit version directory."
             ),
+        ),
+        major = attr.int(
+            mandatory = True,
+            doc = "Authored package Major version; zero is valid with a nonzero Minor.",
+        ),
+        minor = attr.int(
+            mandatory = True,
+            doc = "Authored package Minor version; 0.0 is reserved as unset.",
         ),
         _compiler = attr.label(
             default = "//tetrodotoxin:puffer",
@@ -248,7 +273,14 @@ ttx_package = rule(
     ),
 )
 
-def ttx_package_folder(name, root, package_name, deps = None, **kwargs):
+def ttx_package_folder(
+        name,
+        root,
+        package_name,
+        major,
+        minor,
+        deps = None,
+        **kwargs):
     """Compiles a TTX package folder rooted at a package.ttx file.
 
     Bazel still sees the concrete .ttx files through native.glob, but BUILD
@@ -260,5 +292,7 @@ def ttx_package_folder(name, root, package_name, deps = None, **kwargs):
         srcs = native.glob([root + "/**/*.ttx"]),
         deps = deps or [],
         package_name = package_name,
+        major = major,
+        minor = minor,
         **kwargs
     )

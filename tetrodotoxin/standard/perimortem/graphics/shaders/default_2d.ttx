@@ -4,8 +4,7 @@
 // Default 2D shader program: samples a texture and modulates it by alpha.
 dialect : Shader;
 
-import Types : Library = "../library/types.ttx";
-import Renderer2D : Render = "../renderers/renderer_2d.ttx";
+// `Types` and `Renderer2D` are bindings in the package Environment.
 
 shader Default2D : Renderer2D::Render2D {
   func vertex[.vertex_index : Unsigned_32] -> [

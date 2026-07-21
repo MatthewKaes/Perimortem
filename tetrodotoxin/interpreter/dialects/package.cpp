@@ -36,7 +36,7 @@ auto Tetrodotoxin::Interpreter::Dialects::Package::evaluate(
   }
 
   // Package owns one closed public Namespace. The Source remains an outer
-  // visible context so definitions can reach imported Alias bindings without
+  // visible context so definitions can reach Environment bindings without
   // copying them into the Package surface.
   const Model::Source& source = context.assume<Model::Source>();
   Model::Namespace& exports = cursor.get_arena().construct<Model::Namespace>(
@@ -52,6 +52,7 @@ auto Tetrodotoxin::Interpreter::Dialects::Package::evaluate(
 
   // Source publication happens in Source::evaluate after this complete Package
   // has been produced. The internal Namespace is never substituted as a root.
-  return cursor.get_arena().construct<Model::Packages::Sources>(
-      cursor.get_arena(), source, exports);
+  const Static::Vector<Reference<Model::Source>, 1> members = {{source}};
+  return Model::Packages::Sources::construct(
+      cursor.get_arena(), members, exports);
 }

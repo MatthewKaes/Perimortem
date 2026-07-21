@@ -10,21 +10,14 @@
 
 namespace Tetrodotoxin::Model {
 
-// Dependency is the open contract for one resolved import instruction. It
-// retains the root Dialect used to interpret the dependency and owns the Alias
-// that binds its resulting Exports surface into the importing Source. Alias is
-// the closed binding contract shared by every dependency, so locator subtypes
-// supply its authored facts rather than virtualizing or reimplementing the
-// binding.
+// Dependency is the contract for one resolved external graph edge. It retains
+// the root Dialect associated with the edge and owns the Alias that binds its
+// resulting Exports surface into an Environment. Alias remains the closed
+// binding contract, while the concrete edge retains durable resolver facts.
 //
-// How the resolver finds the producer belongs to a narrower Dependency
-// contract such as Dependencies::Source or Dependencies::Package. There is no
-// kind tag: other loading systems can add contracts without extending a closed
-// classification here.
-//
-// Dependency itself has no documentation. Authored import documentation
+// Dependency itself has no documentation. Authored resolution documentation
 // belongs to the bound Alias, which is the named semantic object consumers see
-// through Source resolution.
+// through Environment resolution.
 class Dependency : public Ttx::Concept::Abstract {
  public:
   using ContractOwner = Dependency;

@@ -64,6 +64,12 @@ class Namespace final : public Ttx::Model::Exports {
   auto get_export_count() const -> Count override;
   auto get_export(Count index) const -> const Ttx::Concept::Abstract& override;
 
+  // Retained roots are the complete semantic contents of this concrete
+  // Namespace. Package canonicalization enumerates them so private definitions
+  // receive stable IDs; resolve_context() remains closed over exports.
+  auto get_root_count() const -> Count;
+  auto get_root(Count index) const -> const Ttx::Concept::Abstract&;
+
   // Retains one produced definition for the current owner transaction. Rooting
   // alone never makes that name visible through the Exports context.
   auto add_root(const Ttx::Concept::Abstract& definition) -> Bool;
@@ -82,6 +88,9 @@ class Namespace final : public Ttx::Model::Exports {
       Ttx::Concept::Reference<Ttx::Concept::Abstract>>;
 
   Perimortem::Core::View::Bytes name;
+  Perimortem::Memory::Managed::Vector<
+      Ttx::Concept::Reference<Ttx::Concept::Abstract>>
+      roots;
   Perimortem::Memory::Managed::Vector<
       Ttx::Concept::Reference<Ttx::Concept::Abstract>>
       exports;

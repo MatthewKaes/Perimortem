@@ -14,7 +14,6 @@
 #include "tetrodotoxin/interpreter/dialects/group.hpp"
 #include "tetrodotoxin/interpreter/dialects/package.hpp"
 #include "tetrodotoxin/model/dependencies/package.hpp"
-#include "tetrodotoxin/model/dependencies/source.hpp"
 #include "tetrodotoxin/model/dependency.hpp"
 #include "tetrodotoxin/model/namespace.hpp"
 #include "tetrodotoxin/model/package.hpp"
@@ -156,29 +155,22 @@ static auto evaluate_dialect(
   return source.evaluate(dialect, errors);
 }
 
-static auto add_dependency(
-    Tetrodotoxin::Model::Source& source,
-    const Tetrodotoxin::Model::Dialect& dialect,
+static auto add_binding(
+    Tetrodotoxin::Model::Environment& environment,
     View::Bytes name,
-    const Tetrodotoxin::Model::Source& provider,
-    const Exports& target) -> Bool {
-  const Tetrodotoxin::Model::Dependency& dependency =
-      source.get_arena().construct<Tetrodotoxin::Model::Dependencies::Source>(
-          dialect, provider.get_path(), provider, name, target,
-          target.get_documentation());
-  return source.depend(dependency);
+    const Abstract& target) -> Bool {
+  return environment.bind(name, target, target.get_documentation());
 }
 
 static auto add_dependency(
-    Tetrodotoxin::Model::Source& source,
+    Tetrodotoxin::Model::Environment& environment,
     const Tetrodotoxin::Model::Dialect& dialect,
     View::Bytes name,
     View::Bytes package_name,
     const Tetrodotoxin::Model::Package& package) -> Bool {
-  const Tetrodotoxin::Model::Dependency& dependency =
-      source.get_arena().construct<Tetrodotoxin::Model::Dependencies::Package>(
-          dialect, package_name, name, package, package.get_documentation());
-  return source.depend(dependency);
+  return environment.resolve(
+      dialect, name, package_name, Perimortem::System::Version(1, 2), package,
+      package.get_documentation());
 }
 
 static Harness DialectTests = {
@@ -263,6 +255,7 @@ PERIMORTEM_UNIT_TEST(DialectTests, dialect_parts) {
 }
 
 PERIMORTEM_UNIT_TEST(DialectTests, definition_publication) {
+  Tetrodotoxin::Model::Environment empty_environment;
   using StateDefinition = Tetrodotoxin::Interpreter::Definition<
       StateDialect, Ttx::Lexical::Code::Type::Public,
       Ttx::Lexical::Code::Type::Private, Ttx::Lexical::Code::Type::Expose,
@@ -271,6 +264,7 @@ PERIMORTEM_UNIT_TEST(DialectTests, definition_publication) {
       Tetrodotoxin::Interpreter::Definitions<StateDefinition>;
 
   Tetrodotoxin::Model::Source source(
+      empty_environment,
       "private state hidden : slot;\n"
       "public state open : slot;\n"
       "expose state observed : slot;"_view,
@@ -311,6 +305,7 @@ PERIMORTEM_UNIT_TEST(DialectTests, definition_publication) {
 }
 
 PERIMORTEM_UNIT_TEST(DialectTests, expose_requires_state) {
+  Tetrodotoxin::Model::Environment empty_environment;
   using StateDefinition = Tetrodotoxin::Interpreter::Definition<
       StateDialect, Ttx::Lexical::Code::Type::Expose,
       Ttx::Lexical::Code::Type::Const>;
@@ -319,7 +314,8 @@ PERIMORTEM_UNIT_TEST(DialectTests, expose_requires_state) {
 
   Allocator::Arena render_arena;
   Tetrodotoxin::Model::Source source(
-      "expose const observed : slot;"_view, "state.ttx"_view);
+      empty_environment, "expose const observed : slot;"_view,
+      "state.ttx"_view);
   Tetrodotoxin::Model::Namespace roots(source.get_arena(), "Internal"_view);
   Tetrodotoxin::Model::Namespace exports(source.get_arena(), "Public"_view);
   Ttx::Lexical::Errors errors;
@@ -340,6 +336,7 @@ PERIMORTEM_UNIT_TEST(DialectTests, expose_requires_state) {
 }
 
 PERIMORTEM_UNIT_TEST(DialectTests, package_alias) {
+  Tetrodotoxin::Model::Environment environment;
   Types::Unsigned_8 value;
   Types::Unsigned_8 child;
   Alias value_import("Value"_view, value);
@@ -352,7 +349,7 @@ PERIMORTEM_UNIT_TEST(DialectTests, package_alias) {
   }};
   NamespaceDialect types_dialect("Fixture"_view, "Types"_view, imported);
   Tetrodotoxin::Interpreter::Dialects::Package package;
-  Tetrodotoxin::Model::Source types_source({}, "fixture.ttx"_view);
+  Tetrodotoxin::Model::Source types_source(environment, {}, "fixture.ttx"_view);
   Ttx::Lexical::Errors types_errors;
   const Abstract& types_root =
       types_source.evaluate(types_dialect, types_errors);
@@ -364,6 +361,7 @@ PERIMORTEM_UNIT_TEST(DialectTests, package_alias) {
       build_namespace(package_arena, {}, {});
   Tetrodotoxin::Model::Packages::Precompiled math(package_arena, math_exports);
   Tetrodotoxin::Model::Source source(
+      environment,
       "// public package\n"
       "public Value : alias = Types::Value;\n"
       "public Copy : alias = Value;\n"
@@ -375,9 +373,9 @@ PERIMORTEM_UNIT_TEST(DialectTests, package_alias) {
       "  public Parent : alias = Value;\n"
       "}"_view,
       "package.ttx"_view);
-  EXPECT(add_dependency(source, package, "Types"_view, types_source, types));
+  EXPECT(add_binding(environment, "Types"_view, types));
   EXPECT(add_dependency(
-      source, package, "Math"_view, "Perimortem.Math"_view, math));
+      environment, package, "Math"_view, "Perimortem.Math"_view, math));
   Ttx::Lexical::Errors errors;
 
   const Abstract& evaluated = evaluate_dialect(package, errors, source);
@@ -396,11 +394,9 @@ PERIMORTEM_UNIT_TEST(DialectTests, package_alias) {
   const auto sources =
       evaluated.assume<Tetrodotoxin::Model::Packages::Interpreted>()
           .get_sources();
-  ASSERT_EQ(sources.get_size(), Count(2));
+  ASSERT_EQ(sources.get_size(), Count(1));
   EXPECT(&sources[0].get() == &source);
-  EXPECT(&sources[1].get() == &types_source);
   ASSERT_EQ(source.get_roots().get_size(), Count(1));
-  EXPECT_EQ(source.get_dependencies().get_size(), Count(2));
   EXPECT(&source.get_roots()[0].get_definition() == &evaluated);
   EXPECT(source.get_roots()[0]
              .get_definition()
@@ -472,13 +468,15 @@ PERIMORTEM_UNIT_TEST(DialectTests, precompiled_package_surface) {
 }
 
 PERIMORTEM_UNIT_TEST(DialectTests, local_collision) {
+  Tetrodotoxin::Model::Environment empty_environment;
   Allocator::Arena render_arena;
   Types::Unsigned_8 value;
   Alias value_import("Value"_view, value);
   const Static::Vector<Reference<Abstract>, 1> imported = {{value_import}};
   NamespaceDialect types_dialect("Fixture"_view, "Types"_view, imported);
   Tetrodotoxin::Interpreter::Dialects::Package package;
-  Tetrodotoxin::Model::Source types_source({}, "fixture.ttx"_view);
+  Tetrodotoxin::Model::Source types_source(
+      empty_environment, {}, "fixture.ttx"_view);
   Ttx::Lexical::Errors types_errors;
   const Abstract& types_root =
       types_source.evaluate(types_dialect, types_errors);
@@ -486,10 +484,11 @@ PERIMORTEM_UNIT_TEST(DialectTests, local_collision) {
   const Tetrodotoxin::Model::Namespace& types =
       types_root.assume<Tetrodotoxin::Model::Namespace>();
   Tetrodotoxin::Model::Source source(
+      empty_environment,
       "public Value : alias = Types::Value;\n"
       "public Value : alias = Types::Value;"_view,
       "package.ttx"_view);
-  EXPECT(add_dependency(source, package, "Types"_view, types_source, types));
+  EXPECT(add_binding(empty_environment, "Types"_view, types));
   Ttx::Lexical::Errors errors;
 
   const Abstract& evaluated = evaluate_dialect(package, errors, source);
@@ -505,7 +504,8 @@ PERIMORTEM_UNIT_TEST(DialectTests, local_collision) {
   EXPECT(Algorithm::search(rendered, "Value"_view) != Count(-1));
 }
 
-PERIMORTEM_UNIT_TEST(DialectTests, import_collision) {
+PERIMORTEM_UNIT_TEST(DialectTests, environment_collision) {
+  Tetrodotoxin::Model::Environment empty_environment;
   Allocator::Arena render_arena;
   Types::Unsigned_8 value;
   Alias imported_value("Value"_view, value);
@@ -515,7 +515,8 @@ PERIMORTEM_UNIT_TEST(DialectTests, import_collision) {
   NamespaceDialect provider_dialect(
       "Fixture"_view, View::Bytes{}, provider_definitions);
   Tetrodotoxin::Interpreter::Dialects::Package package;
-  Tetrodotoxin::Model::Source provider({}, "fixture.ttx"_view);
+  Tetrodotoxin::Model::Source provider(
+      empty_environment, {}, "fixture.ttx"_view);
   Ttx::Lexical::Errors provider_errors;
   const Abstract& provider_root =
       provider.evaluate(provider_dialect, provider_errors);
@@ -523,9 +524,9 @@ PERIMORTEM_UNIT_TEST(DialectTests, import_collision) {
   const Tetrodotoxin::Model::Namespace& provider_exports =
       provider_root.assume<Tetrodotoxin::Model::Namespace>();
   Tetrodotoxin::Model::Source source(
-      "public Value : alias = Value;"_view, "package.ttx"_view);
-  EXPECT(add_dependency(
-      source, package, "Value"_view, provider, provider_exports));
+      empty_environment, "public Value : alias = Value;"_view,
+      "package.ttx"_view);
+  EXPECT(add_binding(empty_environment, "Value"_view, provider_exports));
   Ttx::Lexical::Errors errors;
 
   const Abstract& evaluated = evaluate_dialect(package, errors, source);
@@ -541,13 +542,15 @@ PERIMORTEM_UNIT_TEST(DialectTests, import_collision) {
 }
 
 PERIMORTEM_UNIT_TEST(DialectTests, nested_shadowing) {
+  Tetrodotoxin::Model::Environment empty_environment;
   Allocator::Arena render_arena;
   Types::Unsigned_8 value;
   Alias value_import("Value"_view, value);
   const Static::Vector<Reference<Abstract>, 1> imported = {{value_import}};
   NamespaceDialect types_dialect("Fixture"_view, "Types"_view, imported);
   Tetrodotoxin::Interpreter::Dialects::Package package;
-  Tetrodotoxin::Model::Source types_source({}, "fixture.ttx"_view);
+  Tetrodotoxin::Model::Source types_source(
+      empty_environment, {}, "fixture.ttx"_view);
   Ttx::Lexical::Errors types_errors;
   const Abstract& types_root =
       types_source.evaluate(types_dialect, types_errors);
@@ -555,12 +558,13 @@ PERIMORTEM_UNIT_TEST(DialectTests, nested_shadowing) {
   const Tetrodotoxin::Model::Namespace& types =
       types_root.assume<Tetrodotoxin::Model::Namespace>();
   Tetrodotoxin::Model::Source source(
+      empty_environment,
       "public Value : alias = Types::Value;\n"
       "public Nested : group {\n"
       "  public Value : alias = Types::Value;\n"
       "}"_view,
       "package.ttx"_view);
-  EXPECT(add_dependency(source, package, "Types"_view, types_source, types));
+  EXPECT(add_binding(empty_environment, "Types"_view, types));
   Ttx::Lexical::Errors errors;
 
   const Abstract& evaluated = evaluate_dialect(package, errors, source);
@@ -576,10 +580,12 @@ PERIMORTEM_UNIT_TEST(DialectTests, nested_shadowing) {
 }
 
 PERIMORTEM_UNIT_TEST(DialectTests, wrong_modifier) {
+  Tetrodotoxin::Model::Environment empty_environment;
   Allocator::Arena render_arena;
   Tetrodotoxin::Interpreter::Dialects::Package package;
   Tetrodotoxin::Model::Source source(
-      "private Value : alias = Missing;"_view, "package.ttx"_view);
+      empty_environment, "private Value : alias = Missing;"_view,
+      "package.ttx"_view);
   Ttx::Lexical::Errors errors;
   const Abstract& evaluated = evaluate_dialect(package, errors, source);
 
@@ -595,10 +601,12 @@ PERIMORTEM_UNIT_TEST(DialectTests, wrong_modifier) {
 }
 
 PERIMORTEM_UNIT_TEST(DialectTests, package_rejects_evaluation_modifier) {
+  Tetrodotoxin::Model::Environment empty_environment;
   Allocator::Arena render_arena;
   Tetrodotoxin::Interpreter::Dialects::Package package;
   Tetrodotoxin::Model::Source source(
-      "public const Value : alias = Missing;"_view, "package.ttx"_view);
+      empty_environment, "public const Value : alias = Missing;"_view,
+      "package.ttx"_view);
   Ttx::Lexical::Errors errors;
   const Abstract& evaluated = evaluate_dialect(package, errors, source);
 
@@ -614,10 +622,11 @@ PERIMORTEM_UNIT_TEST(DialectTests, package_rejects_evaluation_modifier) {
 }
 
 PERIMORTEM_UNIT_TEST(DialectTests, wrong_dialect) {
+  Tetrodotoxin::Model::Environment empty_environment;
   Allocator::Arena render_arena;
   Tetrodotoxin::Interpreter::Dialects::Package package;
   Tetrodotoxin::Model::Source source(
-      "public Value : missing;"_view, "package.ttx"_view);
+      empty_environment, "public Value : missing;"_view, "package.ttx"_view);
   Ttx::Lexical::Errors errors;
   const Abstract& evaluated = evaluate_dialect(package, errors, source);
 
@@ -633,10 +642,12 @@ PERIMORTEM_UNIT_TEST(DialectTests, wrong_dialect) {
 }
 
 PERIMORTEM_UNIT_TEST(DialectTests, modifier_order) {
+  Tetrodotoxin::Model::Environment empty_environment;
   Allocator::Arena render_arena;
   Tetrodotoxin::Interpreter::Dialects::Package package;
   Tetrodotoxin::Model::Source source(
-      "public private : alias = Missing;"_view, "package.ttx"_view);
+      empty_environment, "public private : alias = Missing;"_view,
+      "package.ttx"_view);
   Ttx::Lexical::Errors errors;
   const Abstract& evaluated = evaluate_dialect(package, errors, source);
 
@@ -652,10 +663,12 @@ PERIMORTEM_UNIT_TEST(DialectTests, modifier_order) {
 }
 
 PERIMORTEM_UNIT_TEST(DialectTests, invalid_target) {
+  Tetrodotoxin::Model::Environment empty_environment;
   Allocator::Arena render_arena;
   Tetrodotoxin::Interpreter::Dialects::Package package;
   Tetrodotoxin::Model::Source source(
-      "public Value : alias = Missing;"_view, "package.ttx"_view);
+      empty_environment, "public Value : alias = Missing;"_view,
+      "package.ttx"_view);
   Ttx::Lexical::Errors errors;
   const Abstract& evaluated = evaluate_dialect(package, errors, source);
 
@@ -670,10 +683,12 @@ PERIMORTEM_UNIT_TEST(DialectTests, invalid_target) {
 }
 
 PERIMORTEM_UNIT_TEST(DialectTests, missing_open) {
+  Tetrodotoxin::Model::Environment empty_environment;
   Allocator::Arena render_arena;
   Tetrodotoxin::Interpreter::Dialects::Package package;
   Tetrodotoxin::Model::Source source(
-      "public Nested : group public"_view, "package.ttx"_view);
+      empty_environment, "public Nested : group public"_view,
+      "package.ttx"_view);
   Ttx::Lexical::Errors errors;
   const Abstract& evaluated = evaluate_dialect(package, errors, source);
 
@@ -687,10 +702,11 @@ PERIMORTEM_UNIT_TEST(DialectTests, missing_open) {
 }
 
 PERIMORTEM_UNIT_TEST(DialectTests, missing_close) {
+  Tetrodotoxin::Model::Environment empty_environment;
   Allocator::Arena render_arena;
   Tetrodotoxin::Interpreter::Dialects::Package package;
   Tetrodotoxin::Model::Source source(
-      "public Nested : group {"_view, "package.ttx"_view);
+      empty_environment, "public Nested : group {"_view, "package.ttx"_view);
   Ttx::Lexical::Errors errors;
   const Abstract& evaluated = evaluate_dialect(package, errors, source);
 
@@ -703,10 +719,12 @@ PERIMORTEM_UNIT_TEST(DialectTests, missing_close) {
 }
 
 PERIMORTEM_UNIT_TEST(DialectTests, missing_assign) {
+  Tetrodotoxin::Model::Environment empty_environment;
   Allocator::Arena render_arena;
   Tetrodotoxin::Interpreter::Dialects::Package package;
   Tetrodotoxin::Model::Source source(
-      "public Value : alias Missing;"_view, "package.ttx"_view);
+      empty_environment, "public Value : alias Missing;"_view,
+      "package.ttx"_view);
   Ttx::Lexical::Errors errors;
   const Abstract& evaluated = evaluate_dialect(package, errors, source);
 
@@ -720,6 +738,7 @@ PERIMORTEM_UNIT_TEST(DialectTests, missing_assign) {
 }
 
 PERIMORTEM_UNIT_TEST(DialectTests, missing_end) {
+  Tetrodotoxin::Model::Environment empty_environment;
   Allocator::Arena render_arena;
   Types::Unsigned_8 value;
   Alias imported_value("Value"_view, value);
@@ -729,7 +748,8 @@ PERIMORTEM_UNIT_TEST(DialectTests, missing_end) {
   NamespaceDialect provider_dialect(
       "Fixture"_view, View::Bytes{}, provider_definitions);
   Tetrodotoxin::Interpreter::Dialects::Package package;
-  Tetrodotoxin::Model::Source provider({}, "fixture.ttx"_view);
+  Tetrodotoxin::Model::Source provider(
+      empty_environment, {}, "fixture.ttx"_view);
   Ttx::Lexical::Errors provider_errors;
   const Abstract& provider_root =
       provider.evaluate(provider_dialect, provider_errors);
@@ -737,9 +757,9 @@ PERIMORTEM_UNIT_TEST(DialectTests, missing_end) {
   const Tetrodotoxin::Model::Namespace& provider_exports =
       provider_root.assume<Tetrodotoxin::Model::Namespace>();
   Tetrodotoxin::Model::Source source(
-      "public Copy : alias = Value"_view, "package.ttx"_view);
-  EXPECT(add_dependency(
-      source, package, "Value"_view, provider, provider_exports));
+      empty_environment, "public Copy : alias = Value"_view,
+      "package.ttx"_view);
+  EXPECT(add_binding(empty_environment, "Value"_view, provider_exports));
   Ttx::Lexical::Errors errors;
 
   const Abstract& evaluated = evaluate_dialect(package, errors, source);
@@ -753,8 +773,10 @@ PERIMORTEM_UNIT_TEST(DialectTests, missing_end) {
 }
 
 PERIMORTEM_UNIT_TEST(DialectTests, anonymous_source) {
+  Tetrodotoxin::Model::Environment empty_environment;
   Tetrodotoxin::Interpreter::Dialects::Package package;
-  Tetrodotoxin::Model::Source source(View::Bytes{}, View::Bytes{});
+  Tetrodotoxin::Model::Source source(
+      empty_environment, View::Bytes{}, View::Bytes{});
   Ttx::Lexical::Errors errors;
   const Abstract& evaluated = evaluate_dialect(package, errors, source);
 

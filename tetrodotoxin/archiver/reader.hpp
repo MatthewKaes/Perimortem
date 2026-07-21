@@ -9,14 +9,13 @@
 #include "perimortem/memory/allocator/arena.hpp"
 
 #include "tetrodotoxin/archiver/manifest.hpp"
-#include "tetrodotoxin/archiver/package.hpp"
+#include "tetrodotoxin/model/package.hpp"
 
 namespace Tetrodotoxin::Archiver {
 
-// Random-access Puffer Buffer reader.
-//
-// The fixed table directory makes each read independent. Reader owns no
-// decoded archive state. The caller owns every returned Manifest or Package.
+// Random-access Puffer Buffer reader. Manifest inspection is independent from
+// semantic restoration. A Package read validates and constructs the complete
+// graph in the target arena before returning any queryable root.
 class Reader {
  public:
   explicit constexpr Reader(Perimortem::Core::View::Bytes source)
@@ -27,8 +26,8 @@ class Reader {
   auto read_package(
       Perimortem::Memory::Allocator::Arena& arena,
       const Manifest& manifest,
-      Perimortem::Core::View::Vector<const Package*> references) const
-      -> Package*;
+      Perimortem::Core::View::Vector<Ttx::Concept::Reference<Model::Package>>
+          dependencies) const -> const Ttx::Concept::Abstract&;
 
  private:
   Perimortem::Core::View::Bytes source;

@@ -43,9 +43,10 @@ class repository merely to make arbitrary objects serializable.
 
 ## Writing
 
-The replacement writer accepts a complete and validated `Model::Package`. It
-may assign dense local indices, deduplicate immutable records, and choose a
-compact physical layout. Those choices remain private to the format version.
+The replacement writer accepts a complete and validated `Model::Package`. The
+Package already owns its canonical definition table; Writer validates and emits
+those IDs instead of rediscovering object ownership by searching export trees.
+String and physical section compaction remain private to the format version.
 
 The writer does not discover package identity, select public names, infer Alias
 targets, reconstruct Type shape from backend records, or publish private
@@ -65,6 +66,43 @@ by source-backed packages, but it does not implement
 Failure produces Invalid through the package-owning boundary. Consumers never
 observe a partially connected graph or null semantic references.
 
+Restored terminal products are available through the narrow
+`Model::Packages::Compiled` Package capability. The concrete
+`Model::Terminal` owns one relative logical output path and opaque bytes;
+neither the capability nor `Precompiled` exposes archive tables or filesystem
+policy.
+
+## Format 16
+
+The first current-model format uses independently bounded Manifest, string,
+graph, and terminal sections. Manifest identity bytes live directly in the
+Manifest section, so repository indexing never parses or allocates the
+graph-wide string table. `System::Version` owns a four-byte Major.Minor
+value with two `Unsigned_16` components. Either component may be zero, while
+0.0 is the null value and cannot identify a Manifest or dependency. Major and
+Minor are encoded independently with compact unsigned integers, so small
+versions do not pay even the fixed four-byte in-memory cost on the wire.
+
+Namespace and Alias records use the Package's canonical local definition IDs.
+A cross-package Alias reference stores the Manifest dependency ordinal plus the
+target Package's definition ID; a reference to the dependency Package root
+stores only the ordinal. Writer builds one arena-backed reverse index over the
+direct dependency definitions, then resolves each Alias target in expected
+`O(1)` time. The full pass is `O(dependency definitions + local aliases)` and
+allocates no per-reference paths or search vectors.
+
+Definition IDs are package-local coordinates, not global or source-level
+identity. Source-backed Packages assign them by canonical named graph traversal,
+and restored Packages retain the encoded order. Public visibility still comes
+only from Exports. A Package can retain definitions that are absent from its
+export scope so another package can preserve a canonical Type edge without
+making that Type publicly discoverable by name.
+
+The initial graph deliberately accepts Package, Namespace, Alias, visible
+Documentation, dependency closure, and terminal products. Type, Layout,
+Addressable, Callable, Constant, Generic, and Dialect extension persistence
+remain unsupported and make Writer reject the package.
+
 ## Layout and terminal facts
 
 Structured Layouts restore references to their real Addressable objects. The
@@ -80,23 +118,11 @@ The exact encoding cannot be finalized before Generic, Dialect extension, and
 foreign-boundary contracts are concrete. Until then, current reader and writer
 code is migration evidence rather than a specification for the new model.
 
-## Current Migration Delta
+## Current migration boundary
 
-The checked-in reader and writer still encode the rejected split:
-
-| Current code                                      | Required replacement                                  |
-| ------------------------------------------------- | ----------------------------------------------------- |
-| `Package` retains a root `Ttx::Type`              | restored object implements `Model::Package`           |
-| writer receives a caller-built Type side table    | writer discovers edges from the Package export graph  |
-| reader reserves only concrete `Ttx::Type` records | reader restores the contracts present in the graph    |
-| ABI linkages occupy a separate table              | address and execution edges stay on their real owners |
-| source records carry an `Implementation` table    | Dialects enrich the same reachable Abstract objects   |
-
-Adapting Source or `Model::Package` back into the old `root_type` parameter
-would preserve the wrong architecture behind a new name. The current
-`Model::Packages::Precompiled` class establishes the receiving Abstract
-contract, but the checked-in Archiver reader and writer have not yet migrated to
-it. The next archive implementation begins only after executable, address, and
-Dialect-owned contracts expose the edges that must survive restoration. Its first
-slice should define how those concrete contracts encode and restore themselves,
-then replace the root and traversal together.
+The active reader and writer no longer accept a root Type, caller-built Type
+table, Member or Function copies, built-in catalogue, ABI linkage side table,
+Boot reconstruction, or source Record. The old files remain historical
+migration evidence outside the active Archiver target. Future format work
+extends the reachable current-model graph from concrete owner contracts; it
+does not adapt those rejected inputs back into Writer.

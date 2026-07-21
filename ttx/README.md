@@ -20,7 +20,7 @@ TTX source moves through a short chain of host-selectable layers:
 TTX source IR
 -> lexical token bytecode
 -> optional envelope evaluation
--> optional import or module loading
+-> optional Environment injection
 -> optional Dialect evaluation
 -> lowering, tooling, or interchange output
 ```
@@ -34,19 +34,18 @@ spellings such as `.`, `.[`, `:[`, `::`, `->`, `[`, and `;` receive semantic
 Codes in the concrete Lexer contract.
 
 Puffer begins full-source evaluation with its Boot envelope. Boot understands
-documentation, the `dialect : Name;` instruction, and imports. The dialect
+documentation and the `dialect : Name;` instruction. The dialect
 instruction resolves one `Tetrodotoxin::Model::Dialect` from the host's
 `Dialects` Abstract context. It is part of the token stream, not an out-of-band
 parser option or a lookup in a second registry.
 
-The Puffer resolver loads the import closure, resolves package names such as
-`Perimortem.Graphics` to manifests, checks that imported files declare the
-requested Dialect, and binds each import to the local name written in the source
-file. It also owns the cache rules that keep source records valid when a
-dependency changes.
+The Puffer resolver selects an explicit package member set, resolves package
+names such as `Perimortem.Graphics` to manifests, and injects all available
+bindings into one Environment before evaluation. It also owns the cache rules
+that keep source records valid when a dependency changes.
 
-The declared Dialect then evaluates the remaining token bytecode with those
-imports available. Package can export package objects. Library can expose
+The declared Dialect then evaluates the remaining token bytecode with that
+Environment available. Package can export package objects. Library can expose
 types, values, and callable facts. Shader and Render can add their own legality
 and lowering facts. Another host may choose a different envelope or skip it
 when the Dialect is already known.
@@ -62,7 +61,6 @@ host:
 ```text
 optional documentation comment
 required Dialect selection instruction
-zero or more imports
 Dialect-owned body
 ```
 
@@ -72,8 +70,6 @@ In source form:
 // Optional package docs.
 dialect : Library;
 
-import Graphics : Package = Perimortem.Graphics;
-
 private Default2D : alias = Graphics::Shaders::Default2D;
 
 // The rest belongs to the Library Dialect.
@@ -81,15 +77,16 @@ private Default2D : alias = Graphics::Shaders::Default2D;
 
 The dialect instruction does not select a closed enum. It names the Dialect
 that should evaluate the body. Boot resolves that name through the host's
-ordinary `Dialects` context after Puffer has loaded the required sources and
-bound the local imports.
+ordinary `Dialects` context. Puffer resolves the exact package Environment and
+explicit Source membership before evaluating any body. Every member Source in
+that package transaction borrows the same Environment.
 
 Puffer splits source execution across three owners:
 
 ```text
-Puffer Boot: execute preamble + imports
-Resolver: load files + bind import aliases
-Interpreter: execute the selected Model::Dialect with resolved imports
+Container: select Sources + construct Environment
+Puffer Boot: execute each Source preamble
+Interpreter: execute the selected Model::Dialect with Environment lookup
 ```
 
 Tetrodotoxin owns the filesystem and package graph. TTX remains focused on the
@@ -108,8 +105,8 @@ another Dialect in that context, not editing a package-kind enum or installing
 an evaluator callback in a second registry.
 
 Puffer Boot's job stays small. It reads the Dialect name, resolves the real
-model, records the requested imports, and leaves the remaining bytecode for
-that model once resolution has bound the local import names.
+model, and leaves the remaining bytecode for that model. Dependency and local
+product bindings were already installed by the caller's Environment.
 
 The Dialect owns its instruction set, exported facts, and any narrow lowering
 contracts it contributes. Shader can expose stage facts, Package can expose
@@ -122,7 +119,7 @@ real models.
 Every queryable semantic identity implements `Abstract`. Derived contracts expose
 the operations that make the object useful. Layout and Documentation are equally
 fundamental identity-free concepts. Durable owners answer name resolution from
-their imported contexts and already-rooted definitions:
+their borrowed Environment and already-rooted definitions:
 
 ```text
 Ttx::Concept
@@ -169,9 +166,9 @@ failure. `Type` adds a Layout and Type-owned query surfaces.
 accepted arguments. `Exports` is the narrow durable contract for an ordered
 public definition surface. Direct lookup is closed over that surface, so a name
 resolves exactly when it belongs to one enumerated export. Private roots and
-imported contexts cannot leak through the boundary.
-Source dependencies, package dependencies, restored packages, nested groups,
-reflection, and tools can therefore consume one graph without requiring a
+Environment bindings cannot leak through the boundary.
+Package dependencies, restored packages, nested groups, reflection, and tools
+can therefore consume one graph without requiring a
 universal Group, Namespace, Source, module, or package model. A host implements
 those concrete domains without making containment a Type. `Callable` adds
 complete parameter and result Layouts. Static calls have no receiver. Self
@@ -397,17 +394,21 @@ exists, there is nothing to dispatch.
 
 ## Packages
 
-Package imports resolve to package identities and exported objects in hosts that
-provide a package layer.
+Package resolutions bind exact package identities and exported objects in hosts
+that provide a package layer.
 
 ```ttx
-import Graphics : Package = Perimortem.Graphics;
+resolve Graphics : Perimortem.Graphics = "2.2";
 private Default2D : alias = Graphics::Shaders::Default2D;
 ```
 
 Package names use the token shape `Type("." Type)*`. That spelling is a host
-package identity, not proof that the package model implements Type. The
-authored name identifies both the package and its module directory.
+package identity, not proof that the package model implements Type. The quoted
+`"2.2"` spelling is parsed directly into independent Major and Minor unsigned
+components and never becomes a Real value. `"0.1"` is valid while `"0.0"` is
+the unset version. Canonical text rejects leading zeroes so every accepted
+version has one round trip. The authored name identifies both the package and
+its module directory.
 Tetrodotoxin resolves
 `Perimortem.Graphics` through its registered Puffer Buffer rather than guessing
 where the source manifest lives:
@@ -416,17 +417,13 @@ where the source manifest lives:
 Perimortem.Graphics/binary_archive.puffer
 ```
 
-The source manifest that produced the package buffer can import concrete source
-files and expose public aliases or groups:
+The package container selects concrete source files and constructs their shared
+Environment. A Package Source itself contains only its Dialect and body:
 
 ```ttx
 dialect : Package;
 
-import Color : Library = "color.ttx";
-import Renderer2D : Render = "renderer2d.ttx";
-import Default2D : Shader = "shaders/default2d.ttx";
-
-public Sprite : alias = Sprite::Sprite;
+public Sprite : alias = SpriteTypes::Sprite;
 public Shaders : group {
   public Default2D : alias = Default2D;
 }
@@ -435,11 +432,10 @@ public Shaders : group {
 The package file is not a second language. It is TTX token bytecode evaluated by
 a Package Dialect. Puffer projects the package key through compiler
 configuration and resolution; the Package Abstract remains anonymous. Source
-owns its text, Tokenizer, arena, resolved Dependency edges, and
-formatter-capable Abstract graph. The Package Dialect returns a distinct
-Package surface assembled from that Source collection, and Source roots that
-exact result with its typed Dialect edge. Package exports retain their real
-contracts.
+owns its text, Tokenizer, arena, and formatter-capable rooted Abstract graph.
+It owns no import or package dependency edges. The package container explicitly
+passes its member Sources to the source-backed Package, and Package exports
+retain their real contracts.
 
 Consumers resolve the same Package graph whether it was interpreted from
 Sources or reconstructed from a compiled Puffer Buffer. Source-dependent tools
@@ -452,7 +448,7 @@ root resolver from its active toolchain and registers dependency package
 buffers before loading source. Each package compile owns the resolver for its
 private source workspace, so package internals such as `shaders/default2d.ttx`
 are not part of the public Puffer resolver API.
-External sources import `Perimortem.Graphics`, then resolve
+External callers inject `Perimortem.Graphics` as `Graphics`, then Sources resolve
 `Graphics::Shaders::Default2D` through the package's exports.
 
 TTX owns what the resolved package, type, and layout facts mean once a host
@@ -471,8 +467,8 @@ diagnostic.
 A call receiver with no Type or dispatchable identity produces Invalid while
 the call owner reports the dispatch diagnostic.
 
-An imported file with a different Dialect than the import requested becomes a
-Dialect-mismatch diagnostic at the import.
+A Source whose selected Dialect is unavailable produces a diagnostic at its
+container-owned source selection.
 
 The model stays small because each owner reports its own failure and returns the
 same absorbing Invalid. There is no need for a separate layer whose job is to
@@ -526,7 +522,7 @@ Tetrodotoxin is the surrounding toolchain:
   legacy implementation of Puffer's source preamble while Boot migrates to the
   direct Dialect model
 - [`../tetrodotoxin/puffer/resolution`](../tetrodotoxin/puffer/resolution/) owns source
-  loading, package loading, import binding, the source cache, and cache validity
+  loading, package loading, Environment assembly, the source cache, and cache validity
 - [`../tetrodotoxin/lsp`](../tetrodotoxin/lsp/) serves editor features
 - [`../tetrodotoxin/model/dialect.hpp`](../tetrodotoxin/model/dialect.hpp) owns
   durable Dialect identity, while

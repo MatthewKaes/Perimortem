@@ -45,8 +45,10 @@ auto Ttx::Lexical::Code::get_semantics() const
     return "conditional loop"_view;
   case Type::Return:
     return "return statement"_view;
-  case Type::Import:
-    return "Dependency import"_view;
+  case Type::Resolve:
+    return "exact package resolution"_view;
+  case Type::Source:
+    return "package Source membership"_view;
   case Type::Dialect:
     return "source Dialect selection"_view;
   case Type::Func:

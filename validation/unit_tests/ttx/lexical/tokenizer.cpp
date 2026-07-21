@@ -81,6 +81,10 @@ PERIMORTEM_UNIT_TEST(TtxLexical, lexicon) {
   EXPECT_TEXT(
       Ttx::Lexical::Lexicon::get_spelling(Token::Dialect), "dialect"_view);
   EXPECT_TEXT(
+      Ttx::Lexical::Lexicon::get_spelling(Token::Resolve), "resolve"_view);
+  EXPECT_TEXT(
+      Ttx::Lexical::Lexicon::get_spelling(Token::Source), "source"_view);
+  EXPECT_TEXT(
       Ttx::Lexical::Lexicon::get_spelling(Token::Expose), "expose"_view);
   EXPECT(Ttx::Lexical::Lexicon::get_spelling(Token::Addressable).is_empty());
   EXPECT(Ttx::Lexical::Lexicon::get_spelling(Token::Numeric).is_empty());

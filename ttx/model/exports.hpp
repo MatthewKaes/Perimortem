@@ -8,7 +8,7 @@
 namespace Ttx::Model {
 
 // Exports is the narrow contract for an Abstract that publishes an ordered
-// named definition surface. Source dependencies, package dependencies, nested
+// named definition surface. Package dependencies, Environment bindings, nested
 // groups, restored packages, reflection, and tooling can all consume this same
 // contract without knowing which Dialect or storage mechanism produced it.
 //
@@ -21,9 +21,10 @@ namespace Ttx::Model {
 //
 // Direct lookup is closed over the enumerated surface. A name resolves from an
 // Exports context exactly when one indexed edge owns that name. Private roots
-// and imported contexts remain unreachable through this boundary. Nested
-// lookup begins only after selecting one exported edge, which keeps dependency
-// resolution local instead of searching the producer's complete source graph.
+// and outer Environment contexts remain unreachable through this boundary.
+// Nested lookup begins only after selecting one exported edge, which keeps
+// dependency resolution local instead of searching the producer's complete
+// source graph.
 //
 // Exports owns no collection implementation, mutation API, visibility Kind, or
 // route grammar. A concrete owner retains the stable references, validates

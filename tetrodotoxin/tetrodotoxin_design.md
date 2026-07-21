@@ -22,13 +22,13 @@ Boot has an intentionally small instruction set:
 
 - read source documentation
 - execute the `dialect : Name;` instruction
-- execute the import instructions shared by every source Dialect
 - validate that requested dialect names resolve to available Dialects
 
 That is the minimum preamble Puffer needs to attach source bytes to the Dialect
-model. Boot does not own package loading, type binding, lowering, or backend
-output. It leaves the cursor positioned at the body bytecode so resolution and
-the selected Dialect can continue the execution.
+model. Boot does not own package loading, source membership, type binding,
+lowering, or backend output. Puffer Resolution constructs the shared
+Environment before Boot evaluates any Source. Boot leaves the cursor positioned
+at the body bytecode so the selected Dialect can continue execution.
 
 ## Dialects
 
@@ -53,9 +53,9 @@ Definitions.
 Package is an ordinary Dialect selected by Boot. “Subdialect” describes one
 handoff relationship and never denotes another contract hierarchy.
 
-The Dialect name on a source import selects the root dispatch used to interpret
-that source. It does not become the C++ class of the Source root, and the Source
-may retain additional Dialects with the products they interpret. A Library
+The package container selects the root Dialect used to interpret each member
+Source. It does not become the C++ class of the Source root, and the Source may
+retain additional Dialects with the products they interpret. A Library
 evaluator may expose Types, Callables, Constants, and aliases through one
 general Source context. A query such as `Graphics::Image` walks that context,
 then proves Type only on the selected `Image`. Render, Shader, Scene, and App
@@ -106,40 +106,35 @@ serializing C++ inheritance or reintroducing a universal Type switch.
 The resolver is not a Dialect. It is the source loading and cache-validity
 layer between Puffer Boot and Dialect evaluation.
 
-After Puffer Boot evaluates the preamble, resolution loads the requested import
-closure, resolves packages, checks imported source files declare the requested
-root Dialect, and publishes each resolved edge on the importing Source. Imports
-are ordinary Source dependencies, not arguments injected into every Dialect.
+Before Puffer Boot touches a member Source, resolution restores every requested
+package name and exact Major.Minor version into one `Model::Environment`. The
+package container supplies an explicit ordered member list and the binding name
+for any local product exposed to later members. Every Source borrows the same
+completed Environment; no Source receives or reconstructs a dependency vector.
 
-`Tetrodotoxin::Model::Dependency` is the open resolved-edge contract.
-`Dependencies::Source` says that a producer is found through an authored source
-path and retains the resolved Source. `Dependencies::Package` says that a
-producer is found through durable package identity. There is no dependency-kind
-enum or selector union. Another loading system adds another Dependency contract
-instead of extending a central classification.
+`Tetrodotoxin::Model::Dependency` retains one resolved external edge.
+`Dependencies::Package` records the durable package name, exact Version, root
+Dialect, and local Alias selected by the container. Environment owns those
+edges once for the whole transaction and deduplicates exact Package identities.
+Generic `Environment::bind` entries expose local or host Abstracts without
+fabricating external dependency edges.
 
-Every Dependency retains the requested root Dialect and the TTX Alias binding
-the produced `Exports` surface under its authored local name. Source owns the
-ordered Dependency edges, and name resolution exposes those Aliases.
-The target surface resolves only its enumerated exports. A nested route begins
-inside the selected export rather than searching the producer's private roots
-or imported Source closure.
-Documentation belongs to the Alias, not the resolver edge. A source dependency
-may therefore bind a Library, Shader, Render, or other public product without
-pretending the product is the Source that supplied it. A package dependency
-binds the common Package contract whether its target is interpreted or
-precompiled.
+Source lookup checks its own rooted definitions before falling through to the
+Environment's hash-indexed bindings. The target surface resolves only its
+enumerated exports. A nested route begins inside the selected export rather
+than searching private roots or another Source. Documentation belongs to the
+Alias visible through Environment, not to Source.
 
 Boot's authored dialect name is resolved to a real `Model::Dialect` implemented
 by the selected Interpreter owner. Source constructs that evaluation's Cursor
 from its own Tokenizer and Arena and privately commits only the completed
-result. A source record may reserve stable objects while its imports and body
+result. A source record may reserve stable objects while its body
 facts are still being assembled. Queries whose facts are not ready resolve to
 Invalid. There is no publication bit or Incomplete Layout between construction
 and resolution.
-File imports are limited by the resolver's compact project-root table. Compiled
-packages use the separate package repository rather than carrying filesystem
-roots on every record.
+Source paths and member order are container data. Compiled packages use the
+separate package repository rather than carrying filesystem roots on semantic
+objects.
 
 The resolver also owns cache safety. It decides whether to enrich a stable
 source system, replace an invalidated closure, or rebuild a complete Compiler
@@ -154,8 +149,8 @@ or TTX language features.
 Packages are Tetrodotoxin's module boundary. A package source is evaluated by
 the Package Dialect and can publish package exports as TTX facts. Private files
 under the package subtree are not imported directly by outside source. Outside
-source imports the package by name, then queries exported Abstracts by contract
-through the package surface. Type queries are one view of that graph. Tooling
+source resolves the package by name and version, then queries exported Abstracts
+by contract through the package surface. Type queries are one view of that graph. Tooling
 may query Callable, Alias, or Dialect-specific contracts through the same root.
 
 Built-in standard package sources live under `tetrodotoxin/standard`. They are
@@ -168,10 +163,12 @@ The Package Dialect evaluates a `Tetrodotoxin::Model::Source` and returns a
 `Tetrodotoxin::Model::Package`. Source and Package are deliberately different
 contracts. Source is the complete authoring graph for one source unit; Package
 is the exported reflection and execution surface assembled from a resolved
-collection of Sources. Package proves the shared TTX `Exports` contract and adds
-only its package dependency closure. Source dependencies bind the same `Exports`
-contract produced by their selected root Dialect. Neither Source nor Package is
-a Namespace or Type, and neither fabricates an empty Layout.
+collection of Sources. Package proves the shared TTX `Exports` contract, adds
+its direct package dependency closure, and assigns canonical local IDs to its
+complete definition graph. Environment bindings can target any product that
+implements the required Abstract contracts, while Package membership remains an
+explicit container vector rather than another semantic edge. Neither Source nor
+Package is a Namespace or Type, and neither fabricates an empty Layout.
 
 Source is also the source-lifetime owner. Construction copies the optional
 diagnostic path and immutable input stream into its nonmoving Arena, then
@@ -180,13 +177,14 @@ evaluation view. No token, documentation line, definition edge, or parsed
 object may outlive its Source.
 
 The durable Source model is sufficient to regenerate equivalent TTX without
-consulting its original bytes. It retains dependencies in authored order; each
-dependency retains its concrete locator, requested root Dialect, and Alias
-binding. Every rooted result is paired at publication with the actual typed
-Dialect that interpreted it. A Source can therefore contain multiple interpreted
-Dialects and products without reducing them to one expected-Dialect field.
-Whitespace and other incidental spelling may change when a formatter emits the
-graph, but no semantic source instruction is missing.
+consulting its original bytes. It retains file dependencies in authored order;
+each dependency retains its concrete locator, requested root Dialect, and Alias
+binding. Package resolution instructions are retained once by the borrowed
+Environment. Every rooted result is paired at publication with the actual
+typed Dialect that interpreted it. A Source can therefore contain multiple
+interpreted Dialects and products without reducing them to one expected-Dialect
+field. Whitespace and other incidental spelling may change when a formatter
+emits the graph, but no semantic source instruction is missing.
 
 Resolver identity remains outside that boundary. Puffer's source Record owns
 the normalized file path, package name, editor identity, or other cache key
@@ -211,26 +209,29 @@ There is no special second child-Dialect type or package-specific Export syntax
 record.
 
 Before publishing a declaration, Source or Namespace checks its complete
-visible Abstract context. A name that already resolves through an import,
+visible Abstract context. A name that already resolves through Environment,
 earlier definition, or outer Namespace is rejected; nested package groups never
 shadow. The Package Dialect constructs its export Namespace and returns the
 source-backed Package that owns that public surface. `Source::evaluate()` then
 roots that exact returned Package with the Package Dialect. The producer never
 inserts an internal Namespace substitute into Source, and Source never erases
-the Dialect edge to Abstract. This keeps private package files, package imports,
-and cache invalidation local to the package while still allowing package
-dependencies to become explicit edges.
+the Dialect edge to Abstract. This keeps private package files, exact package
+resolutions, and cache invalidation local to the package while still allowing
+package dependencies to become explicit edges.
 
 `Model::Package` is the common anonymous consumer contract: exported
-definitions, dependency Packages, name resolution, and documentation. Source
+definitions, dependency Packages, canonical definition IDs, name resolution,
+and documentation. Source
 availability is the narrower `Model::Packages::Interpreted` capability. A tool
 that needs source proves that contract with `package.is<Packages::Interpreted>()`
 and then reads `get_sources()`. This remains a public Abstract contract so a
 different host can provide an alternative interpreted implementation.
 
 Tetrodotoxin's concrete source-backed implementation is
-`Model::Packages::Sources`. It retains the already-resolved Source closure and
-Package dependencies without acquiring a repository key or path. Resolvers,
+`Model::Packages::Sources`. It retains the explicit Source member vector,
+rejects duplicate members or mixed Environments, copies the distinct direct
+Packages from that Environment, and indexes its
+canonical definitions without acquiring a repository key or path. Resolvers,
 manifests, and Dependency bindings own the projected names used to find either
 an interpreted or precompiled Package; `Package::get_name()` is always empty.
 
@@ -245,8 +246,11 @@ Source does not own an untyped linkage vector. Relationships are the typed
 edges of the Abstract graph. Alias retains its target, Structured Layout retains
 its Addressables, and ABI, executable, or shader contracts retain their own
 facts. This is the graph the Archiver must restore.
-Adding a side table for relationships would make the serialized package more
-complete than the live model and recreate the old split authority.
+The Package definition table is part of that live graph contract. Archiver uses
+`(dependency slot, definition ID)` for external edges instead of creating an
+export-path or linkage side table. Adding any second relationship table would
+make the serialized package more complete than the live model and recreate the
+old split authority.
 
 ## Body Evaluation
 
@@ -261,7 +265,7 @@ executes TTX token bytecode and enriches the shared TTX model with facts owned
 by that authoring space.
 
 Shared authored forms remain narrow evaluators owned by the concept they
-construct. There is no universal graph-construction context. Imports are the
+construct. There is no universal graph-construction context. Environment is the
 starting Abstract context, Generic owns parameterization, Callable and
 Addressable objects own implementation facts, and the source or Compiler owns
 memory. Library, Shader, Scene, App, and future Dialects may compose shared
@@ -281,7 +285,7 @@ The Compiler is the memory and terminal-product boundary for one build. It
 owns:
 
 - the arena and every instantiated Abstract object
-- imported graph edges and source-owned resolution contexts
+- the shared Environment and explicit package member Sources
 - Generic instantiations and Layouts
 - Callable bodies, Addressables, and linkage objects
 - diagnostics, while semantic failures reference the binary-wide Invalid

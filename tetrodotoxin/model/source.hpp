@@ -7,8 +7,8 @@
 #include "perimortem/memory/managed/map.hpp"
 #include "perimortem/memory/managed/vector.hpp"
 
-#include "tetrodotoxin/model/dependency.hpp"
 #include "tetrodotoxin/model/dialect.hpp"
+#include "tetrodotoxin/model/environment.hpp"
 #include "ttx/concept/abstract.hpp"
 #include "ttx/concept/reference.hpp"
 #include "ttx/lexical/tokenizer.hpp"
@@ -18,9 +18,10 @@ namespace Tetrodotoxin::Model {
 // Source owns one immutable source stream and every object derived from it.
 // Construction copies the optional diagnostic path and source text into its
 // arena before tokenization, so tokens, documentation, definitions, and nested
-// graph edges cannot outlive their backing bytes. Ordered Dependency edges and
-// the Dialect paired with every rooted result preserve the instructions needed
-// to regenerate equivalent source without retaining incidental whitespace.
+// graph edges cannot outlive their backing bytes. The Dialect paired with every
+// rooted result preserves the instruction needed to regenerate equivalent
+// source without retaining incidental whitespace. Every external name comes
+// from the borrowed Environment completed before evaluation.
 //
 // The Source itself is a durable, anonymous Abstract root. A resolver or cache
 // associates an external name with it. Snippets and anonymous blobs use the
@@ -28,8 +29,8 @@ namespace Tetrodotoxin::Model {
 // real Alias, Type, Callable, or host contracts. Named roots resolve through
 // one index. Multiple anonymous roots remain durable graph edges without
 // inventing lookup keys. Cursor remains transient evaluation state over this
-// owned data. Name resolution emerges from Dependencies and rooted definitions
-// already retained by Source.
+// owned data. Name resolution has exactly two authorities: rooted definitions
+// owned here and bindings injected by Environment.
 class Source final : public Ttx::Concept::Abstract {
  public:
   // Root is one authored top level result and the Dialect that can
@@ -63,15 +64,15 @@ class Source final : public Ttx::Concept::Abstract {
   };
 
   Source(
+      const Environment& environment,
       Perimortem::Core::View::Bytes text,
       Perimortem::Core::View::Bytes path = {})
-      : path(arena.proxy(path)),
+      : environment(environment),
+        path(arena.proxy(path)),
         text(arena.proxy(text)),
         tokenizer(arena, this->text, this->path),
         roots(arena),
-        dependencies(arena),
-        definitions_by_name(arena),
-        dependencies_by_name(arena) {}
+        definitions_by_name(arena) {}
 
   auto implements(Perimortem::System::Uuid requested) const -> Bool override;
 
@@ -92,14 +93,21 @@ class Source final : public Ttx::Concept::Abstract {
   auto evaluate(const Dialect& dialect, Ttx::Lexical::Errors& errors)
       -> const Ttx::Concept::Abstract&;
 
-  // Retains one resolved import instruction. Dependency owns the authored
-  // root Dialect, concrete locator contract, and Alias bound to the produced
-  // Exports surface. Source owns ordering, uniqueness, and local lookup.
-  // Resolution exposes the Alias, not the Dependency edge.
-  auto depend(const Dependency& dependency) -> Bool;
+  // Envelope and package-container owners can begin Dialect evaluation at the
+  // first body token they parsed from this exact source stream. Source still
+  // constructs the Cursor itself, preserving the invariant that every result
+  // retained here was allocated by this Source's arena and tokenizer.
+  auto evaluate(
+      const Dialect& dialect,
+      Ttx::Lexical::Errors& errors,
+      Count body_token_index) -> const Ttx::Concept::Abstract&;
 
   constexpr auto get_arena() -> Perimortem::Memory::Allocator::Arena& {
     return arena;
+  }
+
+  constexpr auto get_environment() const -> const Environment& {
+    return environment;
   }
 
   constexpr auto get_tokenizer() const -> const Ttx::Lexical::Tokenizer& {
@@ -118,11 +126,6 @@ class Source final : public Ttx::Concept::Abstract {
     return roots;
   }
 
-  constexpr auto get_dependencies() const
-      -> Perimortem::Core::View::Vector<Ttx::Concept::Reference<Dependency>> {
-    return dependencies;
-  }
-
  private:
   // Publication is the commit point of Source evaluation. Keeping it private
   // prevents callers from injecting an arbitrary Abstract or inventing a
@@ -134,19 +137,14 @@ class Source final : public Ttx::Concept::Abstract {
   using Definitions = Perimortem::Memory::Managed::Map<
       Perimortem::Core::View::Bytes,
       Ttx::Concept::Reference<Ttx::Concept::Abstract>>;
-  using Dependencies = Perimortem::Memory::Managed::Map<
-      Perimortem::Core::View::Bytes,
-      Ttx::Concept::Reference<Ttx::Model::Alias>>;
 
+  const Environment& environment;
   Perimortem::Memory::Allocator::Arena arena;
   Perimortem::Core::View::Bytes path;
   Perimortem::Core::View::Bytes text;
   Ttx::Lexical::Tokenizer tokenizer;
   Perimortem::Memory::Managed::Vector<Root> roots;
-  Perimortem::Memory::Managed::Vector<Ttx::Concept::Reference<Dependency>>
-      dependencies;
   Definitions definitions_by_name;
-  Dependencies dependencies_by_name;
 };
 
 }  // namespace Tetrodotoxin::Model

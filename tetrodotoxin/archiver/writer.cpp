@@ -3,10 +3,9 @@
 
 #include "tetrodotoxin/archiver/writer.hpp"
 
-#include "perimortem/core/hash.hpp"
+#include "perimortem/core/static/vector.hpp"
 #include "perimortem/core/writer/binary.hpp"
 
-#include "perimortem/memory/allocator/arena.hpp"
 #include "perimortem/memory/managed/bytes.hpp"
 #include "perimortem/memory/managed/map.hpp"
 #include "perimortem/memory/managed/vector.hpp"
@@ -14,88 +13,38 @@
 #include "perimortem/serialization/stream/binary.hpp"
 
 #include "tetrodotoxin/archiver/format.hpp"
-#include "tetrodotoxin/archiver/type/reference.hpp"
-#include "tetrodotoxin/standard/types.hpp"
+#include "tetrodotoxin/model/namespace.hpp"
+#include "ttx/concept/invalid.hpp"
+#include "ttx/model/alias.hpp"
+#include "ttx/model/exports.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
 using namespace Perimortem::Serialization;
 using namespace Tetrodotoxin::Archiver;
+using namespace Ttx::Concept;
 
 using BinaryStream = Stream::Binary<Data::ByteOrder::Little, Managed::Bytes>;
 using PatchWriter = Perimortem::Core::Writer::Binary<Data::ByteOrder::Little>;
+using StringIndex = Managed::Map<View::Bytes, Count>;
 
-class PackageWriter {
+class EncodedReference {
  public:
-  PackageWriter(Allocator::Arena& arena, Managed::Bytes& output)
-      : output(output),
-        writer(output),
-        local_ids(arena),
-        external_refs(arena),
-        local_types(arena),
-        linkage_by_function(arena),
-        linkage_owners(arena) {}
-
-  auto write(
-      View::Bytes package_name,
-      View::Vector<Dependency> imports,
-      const Ttx::Type& root_type,
-      View::Vector<const Ttx::Type*> types,
-      View::Vector<Terminal> terminals,
-      View::Vector<Tetrodotoxin::Abi::Linkage> linkages,
-      View::Vector<const Package*> references) -> Bool;
-
- private:
-  auto is_builtin_type(const Ttx::Type* type) const -> Bool;
-  auto collect_references(View::Vector<const Package*> references) -> Bool;
-  auto collect_external_refs(const Package& package, Count reference_id)
-      -> Bool;
-  auto is_external_type(const Ttx::Type* type) const -> Bool;
-  auto collect_functions(View::Vector<Ttx::Function> functions) -> void;
-  auto collect_local_type(const Ttx::Type* type) -> void;
-  auto write_ref(const Ttx::Type* type) -> Bool;
-  auto write_documentation(Ttx::Documentation documentation) -> void;
-  auto write_attributes(View::Vector<Ttx::Attribute> attributes) -> void;
-  auto write_members(View::Vector<Ttx::Member> members) -> Bool;
-  auto write_functions(View::Vector<Ttx::Function> functions) -> Bool;
-  auto write_type(const Ttx::Type& type) -> Bool;
-  auto write_imports(View::Vector<Dependency> imports) -> Bool;
-  auto write_references(View::Vector<const Package*> references) -> Bool;
-  auto write_terminals(View::Vector<Terminal> terminals) -> void;
-  auto write_function_linkages(
-      const Ttx::Type& owner,
-      View::Vector<Ttx::Function> functions,
-      Count& written) -> Bool;
-  auto write_linkages(View::Vector<Tetrodotoxin::Abi::Linkage> linkages)
-      -> Bool;
-
-  Managed::Bytes& output;
-  BinaryStream writer;
-  Managed::Map<const Ttx::Type*, Count> local_ids;
-  Managed::Map<const Ttx::Type*, Type::Reference> external_refs;
-  Managed::Vector<const Ttx::Type*> local_types;
-  Managed::Map<const Ttx::Function*, const Tetrodotoxin::Abi::Linkage*>
-      linkage_by_function;
-  Managed::Vector<const Ttx::Type*> linkage_owners;
+  Format::ReferenceCode code = Format::ReferenceCode::Local;
+  Count dependency = Count(-1);
+  Count definition = Count(-1);
 };
 
-static auto write_header(BinaryStream& writer) -> void {
-  writer << Format::magic << Format::format_version;
-  writer << Unsigned_64(0) << Unsigned_64(0);
-  for (Count i = 0; i < Format::table_count; i++) {
-    writer << Unsigned_64(0);
-  }
-}
+class IndexedReference {
+ public:
+  EncodedReference reference;
+  Bool ambiguous = False;
+};
 
-static auto write_table_offset(
-    PatchWriter& writer,
-    Format::Table table,
-    Count offset) -> void {
-  writer.set_pointer(Format::slot(table));
-  writer << Unsigned_64(offset);
-}
+using ReferenceIndex = Managed::Map<const Ttx::Model::Alias*, EncodedReference>;
+using ExternalIndex = Managed::Map<const Abstract*, IndexedReference>;
 
-static auto write_size(BinaryStream& writer, Count value) -> void {
+static auto write_size(BinaryStream& writer, Unsigned_64 value) -> void {
   do {
     Unsigned_8 byte = Unsigned_8(value & 0x7f);
     value >>= 7;
@@ -112,453 +61,367 @@ static auto write_bytes(BinaryStream& writer, View::Bytes value) -> void {
   writer << value;
 }
 
-static auto write_uuid(BinaryStream& writer, Perimortem::System::Uuid value)
-    -> void {
-  writer << value.get_value()[0] << value.get_value()[1];
+static auto find_string(const StringIndex& index, View::Bytes value) -> Count {
+  const StringIndex::Entry* selected = index.find(value);
+  return selected == nullptr ? Count(-1) : selected->value;
 }
 
-auto PackageWriter::is_builtin_type(const Ttx::Type* type) const -> Bool {
-  View::Vector<const Ttx::Type*> types =
-      Tetrodotoxin::Standard::Types::get_types();
-  for (Count i = 0; i < types.get_size(); i++) {
-    if (type == types[i]) {
-      return True;
-    }
+static auto add_string(
+    Managed::Vector<View::Bytes>& strings,
+    StringIndex& index,
+    View::Bytes value) -> Count {
+  Count existing = find_string(index, value);
+  if (existing != Count(-1)) {
+    return existing;
   }
 
-  return False;
+  Count inserted = strings.get_size();
+  strings.insert(value);
+  index.insert(value, inserted);
+  return inserted;
 }
 
-auto PackageWriter::collect_references(View::Vector<const Package*> references)
-    -> Bool {
-  external_refs.clear();
-  for (Count i = 0; i < references.get_size(); i++) {
-    if (references[i] == nullptr) {
-      return False;
-    }
-
-    Bool collected = collect_external_refs(*references[i], i);
-    if (!collected) {
-      return False;
-    }
-  }
-
-  return True;
-}
-
-auto PackageWriter::collect_external_refs(
-    const Package& package,
-    Count reference_id) -> Bool {
-  View::Vector<const Ttx::Type*> types = package.get_types();
-  const Manifest& manifest = package.get_manifest();
-  if (manifest.get_name().is_empty() || !manifest.get_version().is_set() ||
-      types.is_empty()) {
-    return False;
-  }
-
-  for (Count i = 0; i < types.get_size(); i++) {
-    external_refs.insert(types[i], Type::Reference(reference_id, i));
-  }
-
-  return True;
-}
-
-auto PackageWriter::is_external_type(const Ttx::Type* type) const -> Bool {
-  return type != nullptr && external_refs.contains(type);
-}
-
-auto PackageWriter::collect_functions(View::Vector<Ttx::Function> functions)
-    -> void {
-  for (Count i = 0; i < functions.get_size(); i++) {
-    View::Vector<Ttx::Member> parameters =
-        functions[i].get_parameters().get_members();
-    for (Count k = 0; k < parameters.get_size(); k++) {
-      collect_local_type(&parameters[k].get_type());
-    }
-
-    View::Vector<Ttx::Member> results = functions[i].get_result().get_members();
-    for (Count k = 0; k < results.get_size(); k++) {
-      collect_local_type(&results[k].get_type());
-    }
-  }
-}
-
-auto PackageWriter::collect_local_type(const Ttx::Type* type) -> void {
-  if (type == nullptr || type->is_invalid() || is_builtin_type(type) ||
-      is_external_type(type) || local_ids.contains(type)) {
+static auto add_external_reference(
+    ExternalIndex& references,
+    const Abstract& target,
+    const EncodedReference& encoded) -> void {
+  ExternalIndex::Entry* existing = references.find(&target);
+  if (existing != nullptr) {
+    existing->value.ambiguous = True;
     return;
   }
 
-  local_ids.insert(type, local_types.get_size());
-  local_types.insert(type);
-
-  collect_local_type(&type->get_alias_parent());
-
-  View::Vector<Ttx::Member> members = type->get_members();
-  for (Count i = 0; i < members.get_size(); i++) {
-    collect_local_type(&members[i].get_type());
-  }
-
-  View::Vector<Ttx::Type::Reference> nested = type->get_types();
-  for (Count i = 0; i < nested.get_size(); i++) {
-    collect_local_type(&nested[i].get_type());
-  }
-
-  collect_functions(type->get_type_functions());
-  collect_functions(type->get_addressable_functions());
+  IndexedReference indexed;
+  indexed.reference = encoded;
+  references.insert(&target, indexed);
 }
 
-auto PackageWriter::write_ref(const Ttx::Type* type) -> Bool {
-  if (type == nullptr || type->is_invalid()) {
-    writer << static_cast<Unsigned_8>(Type::Reference::Kind::None);
+static auto index_external_references(
+    ExternalIndex& references,
+    View::Vector<Ttx::Concept::Reference<Tetrodotoxin::Model::Package>>
+        dependencies) -> Bool {
+  for (Count i = 0; i < dependencies.get_size(); i++) {
+    const Tetrodotoxin::Model::Package& dependency = dependencies[i].get();
+    EncodedReference package_reference;
+    package_reference.code = Format::ReferenceCode::Dependency;
+    package_reference.dependency = i;
+    add_external_reference(references, dependency, package_reference);
+
+    for (Count definition = 0; definition < dependency.get_definition_count();
+         definition++) {
+      const Abstract& target = dependency.get_definition(definition);
+      if (target.is<Invalid>() ||
+          dependency.get_definition_id(target) != definition) {
+        return False;
+      }
+
+      EncodedReference definition_reference;
+      definition_reference.code = Format::ReferenceCode::DependencyDefinition;
+      definition_reference.dependency = i;
+      definition_reference.definition = definition;
+      add_external_reference(references, target, definition_reference);
+    }
+  }
+
+  return True;
+}
+
+static auto validate_record(
+    const Abstract& record,
+    const Tetrodotoxin::Model::Package& package) -> Bool {
+  Bool supported = record.is<Tetrodotoxin::Model::Namespace>() ||
+                   record.is<Ttx::Model::Alias>();
+  if (!supported || record.get_name().is_empty()) {
+    return False;
+  }
+
+  if (record.is<Tetrodotoxin::Model::Namespace>()) {
+    const auto& namespace_object =
+        record.assume<Tetrodotoxin::Model::Namespace>();
+    for (Count i = 0; i < namespace_object.get_export_count(); i++) {
+      if (package.get_definition_id(namespace_object.get_export(i)) ==
+          Count(-1)) {
+        return False;
+      }
+    }
+
     return True;
   }
 
-  if (is_builtin_type(type)) {
-    writer << static_cast<Unsigned_8>(Type::Reference::Kind::Builtin);
-    write_bytes(writer, type->get_name());
+  return True;
+}
+
+static auto resolve_reference(
+    const Ttx::Model::Alias& alias,
+    const ExternalIndex& external_references,
+    const Tetrodotoxin::Model::Package& package,
+    EncodedReference& result) -> Bool {
+  const Abstract& target = alias.resolve();
+  const ExternalIndex::Entry* external = external_references.find(&target);
+  if (external != nullptr && !external->value.ambiguous) {
+    result = external->value.reference;
+    return True;
+  }
+  if (external != nullptr || !target.is<Tetrodotoxin::Model::Namespace>()) {
+    return False;
+  }
+
+  Count local = package.get_definition_id(target);
+  if (local == Count(-1)) {
+    return False;
+  }
+
+  result.code = Format::ReferenceCode::Local;
+  result.definition = local;
+  return True;
+}
+
+static auto collect_documentation(
+    const Documentation& documentation,
+    Managed::Vector<View::Bytes>& strings,
+    StringIndex& index) -> Bool {
+  if (documentation.line_count() > Format::max_count) {
+    return False;
+  }
+
+  for (Count i = 0; i < documentation.line_count(); i++) {
+    add_string(strings, index, documentation.get_line(i));
+  }
+
+  return True;
+}
+
+static auto write_documentation(
+    BinaryStream& writer,
+    const Documentation& documentation,
+    const StringIndex& strings) -> Bool {
+  write_size(writer, documentation.line_count());
+  for (Count i = 0; i < documentation.line_count(); i++) {
+    Count string_index = find_string(strings, documentation.get_line(i));
+    if (string_index == Count(-1)) {
+      return False;
+    }
+
+    write_size(writer, string_index);
+  }
+
+  return True;
+}
+
+static auto write_reference(
+    BinaryStream& writer,
+    const EncodedReference& reference) -> void {
+  writer << Unsigned_8(reference.code);
+  if (reference.code == Format::ReferenceCode::Local) {
+    write_size(writer, reference.definition);
+    return;
+  }
+
+  write_size(writer, reference.dependency);
+  if (reference.code == Format::ReferenceCode::DependencyDefinition) {
+    write_size(writer, reference.definition);
+  }
+}
+
+static auto collect_reference(
+    ReferenceIndex& references,
+    const Abstract& definition,
+    const ExternalIndex& external_references,
+    const Tetrodotoxin::Model::Package& package) -> Bool {
+  if (!definition.is<Ttx::Model::Alias>()) {
     return True;
   }
 
-  if (auto* local = local_ids.find(type)) {
-    writer << static_cast<Unsigned_8>(Type::Reference::Kind::Local);
-    write_size(writer, local->value);
-    return True;
+  const Ttx::Model::Alias& alias = definition.assume<Ttx::Model::Alias>();
+  EncodedReference reference;
+  if (!resolve_reference(alias, external_references, package, reference)) {
+    return False;
   }
 
-  if (auto* external = external_refs.find(type)) {
-    writer << static_cast<Unsigned_8>(Type::Reference::Kind::Package);
-    write_size(writer, external->value.get_reference_id());
-    write_size(writer, external->value.get_type_id());
-    return True;
-  }
-
-  return False;
-}
-
-auto PackageWriter::write_documentation(Ttx::Documentation documentation)
-    -> void {
-  View::Vector<View::Bytes> lines = documentation.get_lines();
-  write_size(writer, lines.get_size());
-  for (Count i = 0; i < lines.get_size(); i++) {
-    write_bytes(writer, lines[i]);
-  }
-}
-
-auto PackageWriter::write_attributes(View::Vector<Ttx::Attribute> attributes)
-    -> void {
-  write_size(writer, attributes.get_size());
-  for (Count i = 0; i < attributes.get_size(); i++) {
-    write_bytes(writer, attributes[i].get_key());
-    writer << Unsigned_8(attributes[i].get_kind());
-    switch (attributes[i].get_kind()) {
-    case Ttx::Attribute::Kind::Empty:
-      break;
-    case Ttx::Attribute::Kind::Bytes:
-      write_bytes(writer, attributes[i].get_bytes());
-      break;
-    case Ttx::Attribute::Kind::Unsigned:
-      writer << attributes[i].get_unsigned();
-      break;
-    case Ttx::Attribute::Kind::Signed:
-      writer << attributes[i].get_signed();
-      break;
-    case Ttx::Attribute::Kind::Real:
-      writer << attributes[i].get_real();
-      break;
-    case Ttx::Attribute::Kind::Boolean:
-      writer << attributes[i].get_boolean().value;
-      break;
-    }
-  }
-}
-
-auto PackageWriter::write_members(View::Vector<Ttx::Member> members) -> Bool {
-  write_size(writer, members.get_size());
-  for (Count i = 0; i < members.get_size(); i++) {
-    write_bytes(writer, members[i].get_name());
-    Bool wrote_type = write_ref(&members[i].get_type());
-    if (!wrote_type) {
-      return False;
-    }
-
-    writer << (members[i].is_defaulted() ? Unsigned_8(1) : Unsigned_8(0));
-    write_documentation(members[i].get_documentation());
-    write_attributes(members[i].get_attributes());
-  }
-
+  references.insert(&alias, reference);
   return True;
-}
-
-auto PackageWriter::write_functions(View::Vector<Ttx::Function> functions)
-    -> Bool {
-  write_size(writer, functions.get_size());
-  for (Count i = 0; i < functions.get_size(); i++) {
-    write_bytes(writer, functions[i].get_name());
-    write_documentation(functions[i].get_documentation());
-    Bool wrote_parameters =
-        write_members(functions[i].get_parameters().get_members());
-    if (!wrote_parameters) {
-      return False;
-    }
-
-    Bool wrote_results = write_members(functions[i].get_result().get_members());
-    if (!wrote_results) {
-      return False;
-    }
-  }
-
-  return True;
-}
-
-auto PackageWriter::write_type(const Ttx::Type& type) -> Bool {
-  write_bytes(writer, type.get_name());
-  write_documentation(type.get_documentation());
-  write_attributes(type.get_attributes());
-  Bool wrote_alias = write_ref(&type.get_alias_parent());
-  if (!wrote_alias) {
-    return False;
-  }
-
-  Bool wrote_members = write_members(type.get_members());
-  if (!wrote_members) {
-    return False;
-  }
-
-  View::Vector<Ttx::Type::Reference> nested = type.get_types();
-  write_size(writer, nested.get_size());
-  for (Count i = 0; i < nested.get_size(); i++) {
-    auto* id = local_ids.find(&nested[i].get_type());
-    if (id == nullptr) {
-      return False;
-    }
-
-    write_size(writer, id->value);
-  }
-
-  Bool wrote_type_functions = write_functions(type.get_type_functions());
-  if (!wrote_type_functions) {
-    return False;
-  }
-
-  Bool wrote_addressable_functions =
-      write_functions(type.get_addressable_functions());
-  return wrote_addressable_functions;
-}
-
-auto PackageWriter::write_imports(View::Vector<Dependency> imports) -> Bool {
-  write_size(writer, imports.get_size());
-  for (Count i = 0; i < imports.get_size(); i++) {
-    if (imports[i].get_local_name().is_empty() ||
-        imports[i].get_source_name().is_empty() ||
-        !imports[i].get_version().is_set()) {
-      return False;
-    }
-
-    write_bytes(writer, imports[i].get_local_name());
-    write_bytes(writer, imports[i].get_source_name());
-    write_uuid(writer, imports[i].get_version());
-  }
-
-  return True;
-}
-
-auto PackageWriter::write_references(View::Vector<const Package*> references)
-    -> Bool {
-  write_size(writer, references.get_size());
-  for (Count i = 0; i < references.get_size(); i++) {
-    if (references[i] == nullptr) {
-      return False;
-    }
-
-    const Package& package = *references[i];
-    const Manifest& manifest = package.get_manifest();
-    if (manifest.get_name().is_empty() || !manifest.get_version().is_set() ||
-        package.get_types().is_empty()) {
-      return False;
-    }
-
-    write_bytes(writer, manifest.get_name());
-    write_uuid(writer, manifest.get_version());
-  }
-
-  return True;
-}
-
-auto PackageWriter::write_terminals(View::Vector<Terminal> terminals) -> void {
-  write_size(writer, terminals.get_size());
-  for (Count i = 0; i < terminals.get_size(); i++) {
-    write_bytes(writer, terminals[i].get_group());
-    write_bytes(writer, terminals[i].get_path());
-    write_bytes(writer, terminals[i].get_content());
-  }
-}
-
-auto PackageWriter::write_function_linkages(
-    const Ttx::Type& owner,
-    View::Vector<Ttx::Function> functions,
-    Count& written) -> Bool {
-  Count count = 0;
-  for (Count i = 0; i < functions.get_size(); i++) {
-    const auto* entry = linkage_by_function.find(&functions[i]);
-    if (entry == nullptr) {
-      continue;
-    }
-
-    if (&entry->value->get_owner() != &owner) {
-      return False;
-    }
-
-    count++;
-  }
-
-  write_size(writer, count);
-  for (Count i = 0; i < functions.get_size(); i++) {
-    const auto* entry = linkage_by_function.find(&functions[i]);
-    if (entry == nullptr) {
-      continue;
-    }
-
-    write_size(writer, i);
-    write_bytes(writer, entry->value->get_symbol());
-    written++;
-  }
-
-  return True;
-}
-
-auto PackageWriter::write_linkages(
-    View::Vector<Tetrodotoxin::Abi::Linkage> linkages) -> Bool {
-  linkage_by_function.clear();
-  linkage_owners.clear();
-  for (Count i = 0; i < linkages.get_size(); i++) {
-    const Ttx::Function* function = &linkages[i].get_function();
-    if (linkages[i].get_symbol().is_empty() ||
-        linkage_by_function.find(function) != nullptr) {
-      return False;
-    }
-
-    linkage_by_function.insert(function, &linkages[i]);
-    const Ttx::Type* owner = &linkages[i].get_owner();
-    if (!linkage_owners.contains(owner)) {
-      linkage_owners.insert(owner);
-    }
-  }
-
-  Count written = 0;
-  write_size(writer, linkage_owners.get_size());
-  for (Count i = 0; i < linkage_owners.get_size(); i++) {
-    const Ttx::Type& owner = *linkage_owners[i];
-    Bool wrote_owner = write_ref(&owner);
-    if (!wrote_owner) {
-      return False;
-    }
-
-    Bool wrote_type =
-        write_function_linkages(owner, owner.get_type_functions(), written);
-    if (!wrote_type) {
-      return False;
-    }
-
-    Bool wrote_addressable = write_function_linkages(
-        owner, owner.get_addressable_functions(), written);
-    if (!wrote_addressable) {
-      return False;
-    }
-  }
-
-  return written == linkages.get_size();
-}
-
-auto PackageWriter::write(
-    View::Bytes package_name,
-    View::Vector<Dependency> imports,
-    const Ttx::Type& root,
-    View::Vector<const Ttx::Type*> types,
-    View::Vector<Terminal> terminals,
-    View::Vector<Tetrodotoxin::Abi::Linkage> linkages,
-    View::Vector<const Package*> references) -> Bool {
-  Bool collected_references = collect_references(references);
-  if (!collected_references) {
-    return False;
-  }
-
-  collect_local_type(&root);
-
-  for (Count i = 0; i < types.get_size(); i++) {
-    collect_local_type(types[i]);
-  }
-
-  for (Count i = 0; i < linkages.get_size(); i++) {
-    collect_local_type(&linkages[i].get_owner());
-  }
-
-  auto* root_id = local_ids.find(&root);
-  if (root_id == nullptr) {
-    return False;
-  }
-
-  write_header(writer);
-
-  Count manifest_offset = output.get_size();
-  write_bytes(writer, package_name);
-  write_uuid(writer, Tetrodotoxin::Standard::Types::get_version());
-  Bool wrote_imports = write_imports(imports);
-  if (!wrote_imports) {
-    return False;
-  }
-
-  Count references_offset = output.get_size();
-  Bool wrote_references = write_references(references);
-  if (!wrote_references) {
-    return False;
-  }
-
-  Count package_offset = output.get_size();
-  write_size(writer, root_id->value);
-  write_size(writer, local_types.get_size());
-  for (Count i = 0; i < local_types.get_size(); i++) {
-    Bool wrote_type = write_type(*local_types[i]);
-    if (!wrote_type) {
-      return False;
-    }
-  }
-
-  write_terminals(terminals);
-
-  Count linkages_offset = output.get_size();
-  Bool wrote_linkages = write_linkages(linkages);
-  if (!wrote_linkages) {
-    return False;
-  }
-
-  PatchWriter patch(output.get_access());
-  write_table_offset(patch, Format::Table::Manifest, manifest_offset);
-  write_table_offset(patch, Format::Table::References, references_offset);
-  write_table_offset(patch, Format::Table::Package, package_offset);
-  write_table_offset(patch, Format::Table::Linkages, linkages_offset);
-
-  patch.set_pointer(Format::content_id_offset);
-  patch << Hash(output.get_view().slice(manifest_offset)).get_value();
-  patch << Hash(output.get_view().slice(package_offset)).get_value();
-  return patch.is_valid();
 }
 
 auto Tetrodotoxin::Archiver::Writer::write(
     Allocator::Arena& arena,
-    View::Bytes package_name,
-    View::Vector<Dependency> imports,
-    const Ttx::Type& root_type,
-    View::Vector<const Ttx::Type*> types,
-    View::Vector<Terminal> terminals,
-    View::Vector<Tetrodotoxin::Abi::Linkage> linkages,
-    View::Vector<const Package*> references) -> View::Bytes {
+    const Manifest& manifest,
+    const Tetrodotoxin::Model::Package& package,
+    View::Vector<Tetrodotoxin::Model::Terminal> terminals) -> View::Bytes {
+  if (!manifest.is_valid(arena) || terminals.get_size() > Format::max_count) {
+    return {};
+  }
+
+  View::Vector<Reference<Tetrodotoxin::Model::Package>> dependencies =
+      package.get_dependencies();
+  if (manifest.get_dependencies().get_size() != dependencies.get_size()) {
+    return {};
+  }
+
+  Managed::Map<View::Bytes, Bool> terminal_paths(arena);
+  for (Count i = 0; i < terminals.get_size(); i++) {
+    if (!Tetrodotoxin::Model::Terminal::is_valid_path(
+            terminals[i].get_path()) ||
+        terminal_paths.find(terminals[i].get_path()) != nullptr) {
+      return {};
+    }
+    terminal_paths.insert(terminals[i].get_path(), True);
+  }
+
+  if (package.get_export_count() > Format::max_count ||
+      package.get_definition_count() > Format::max_count) {
+    return {};
+  }
+  ExternalIndex external_references(arena);
+  if (!index_external_references(external_references, dependencies)) {
+    return {};
+  }
+  ReferenceIndex references(arena);
+  for (Count i = 0; i < package.get_definition_count(); i++) {
+    const Abstract& definition = package.get_definition(i);
+    if (definition.is<Invalid>() ||
+        package.get_definition_id(definition) != i ||
+        !validate_record(definition, package) ||
+        !collect_reference(
+            references, definition, external_references, package)) {
+      return {};
+    }
+  }
+
+  Managed::Map<View::Bytes, Bool> export_names(arena);
+  for (Count i = 0; i < package.get_export_count(); i++) {
+    const Abstract& edge = package.get_export(i);
+    if (edge.get_name().is_empty() ||
+        package.get_definition_id(edge) == Count(-1) ||
+        export_names.find(edge.get_name()) != nullptr) {
+      return {};
+    }
+    export_names.insert(edge.get_name(), True);
+  }
+
+  Managed::Vector<View::Bytes> strings(arena);
+  StringIndex string_index(arena);
+  View::Vector<Dependency> manifest_dependencies = manifest.get_dependencies();
+
+  Bool root_documentation =
+      collect_documentation(package.get_documentation(), strings, string_index);
+  if (!root_documentation) {
+    return {};
+  }
+
+  for (Count i = 0; i < package.get_definition_count(); i++) {
+    const Abstract& record = package.get_definition(i);
+    add_string(strings, string_index, record.get_name());
+    Bool documented = collect_documentation(
+        record.get_documentation(), strings, string_index);
+    if (!documented) {
+      return {};
+    }
+  }
+
+  for (Count i = 0; i < terminals.get_size(); i++) {
+    add_string(strings, string_index, terminals[i].get_path());
+  }
+  if (strings.get_size() > Format::max_count) {
+    return {};
+  }
+
   Managed::Bytes output(arena);
-  PackageWriter writer(arena, output);
-  Bool wrote = writer.write(
-      package_name, imports, root_type, types, terminals, linkages, references);
-  if (!wrote) {
-    return View::Bytes();
+  BinaryStream writer(output);
+  writer << Format::magic << Format::format_version;
+  for (Count i = 0; i < Format::directory_count; i++) {
+    writer << Unsigned_64(0);
+  }
+
+  Static::Vector<Unsigned_64, Format::directory_count> offsets;
+  offsets[Count(Format::Section::Manifest)] = output.get_size();
+  write_bytes(writer, manifest.get_name());
+  write_size(writer, manifest.get_version().get_major());
+  write_size(writer, manifest.get_version().get_minor());
+  write_size(writer, manifest_dependencies.get_size());
+  for (Count i = 0; i < manifest_dependencies.get_size(); i++) {
+    write_bytes(writer, manifest_dependencies[i].get_name());
+    write_size(writer, manifest_dependencies[i].get_version().get_major());
+    write_size(writer, manifest_dependencies[i].get_version().get_minor());
+  }
+
+  offsets[Count(Format::Section::Strings)] = output.get_size();
+  write_size(writer, strings.get_size());
+  for (Count i = 0; i < strings.get_size(); i++) {
+    write_size(writer, strings[i].get_size());
+    writer << strings[i];
+  }
+
+  offsets[Count(Format::Section::Graph)] = output.get_size();
+  Bool wrote_root_documentation =
+      write_documentation(writer, package.get_documentation(), string_index);
+  if (!wrote_root_documentation) {
+    return {};
+  }
+
+  write_size(writer, package.get_export_count());
+  for (Count i = 0; i < package.get_export_count(); i++) {
+    Count record_index = package.get_definition_id(package.get_export(i));
+    if (record_index == Count(-1)) {
+      return {};
+    }
+
+    write_size(writer, record_index);
+  }
+
+  write_size(writer, package.get_definition_count());
+  for (Count i = 0; i < package.get_definition_count(); i++) {
+    const Abstract& record = package.get_definition(i);
+    if (record.is<Tetrodotoxin::Model::Namespace>()) {
+      writer << Unsigned_8(Format::RecordCode::Namespace);
+    } else if (record.is<Ttx::Model::Alias>()) {
+      writer << Unsigned_8(Format::RecordCode::Alias);
+    } else {
+      return {};
+    }
+
+    write_size(writer, find_string(string_index, record.get_name()));
+    Bool wrote_documentation =
+        write_documentation(writer, record.get_documentation(), string_index);
+    if (!wrote_documentation) {
+      return {};
+    }
+
+    if (record.is<Tetrodotoxin::Model::Namespace>()) {
+      const auto& namespace_object =
+          record.assume<Tetrodotoxin::Model::Namespace>();
+      write_size(writer, namespace_object.get_export_count());
+      for (Count k = 0; k < namespace_object.get_export_count(); k++) {
+        Count child = package.get_definition_id(namespace_object.get_export(k));
+        if (child == Count(-1)) {
+          return {};
+        }
+
+        write_size(writer, child);
+      }
+      continue;
+    }
+
+    const auto* reference =
+        references.find(&record.assume<Ttx::Model::Alias>());
+    if (reference == nullptr) {
+      return {};
+    }
+    write_reference(writer, reference->value);
+  }
+
+  offsets[Count(Format::Section::Terminals)] = output.get_size();
+  write_size(writer, terminals.get_size());
+  for (Count i = 0; i < terminals.get_size(); i++) {
+    write_size(writer, find_string(string_index, terminals[i].get_path()));
+    write_size(writer, terminals[i].get_content().get_size());
+    writer << terminals[i].get_content();
+  }
+  offsets[Count(Format::Section::End)] = output.get_size();
+
+  PatchWriter patch(output.get_access());
+  for (Count i = 0; i < Format::directory_count; i++) {
+    patch.set_pointer(Format::slot(Format::Section(i)));
+    patch << offsets[i];
   }
 
   return output.get_view();

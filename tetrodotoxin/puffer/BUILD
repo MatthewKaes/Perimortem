@@ -7,6 +7,67 @@ load("@rules_cc//cc:cc_library.bzl", "cc_library")
 
 package(default_visibility = ["//visibility:public"])
 
+cc_library(
+    name = "package_descriptor",
+    srcs = [
+        "package/descriptor.cpp",
+    ],
+    hdrs = [
+        "package/descriptor.hpp",
+    ],
+    include_prefix = "tetrodotoxin/puffer",
+    strip_include_prefix = ".",
+    deps = [
+        "//perimortem:core",
+        "//perimortem:memory",
+        "//perimortem:system",
+        "//tetrodotoxin:interpreter",
+        "//tetrodotoxin:model",
+        "//ttx:concept",
+        "//ttx:lexical",
+    ],
+)
+
+cc_library(
+    name = "package_repository",
+    srcs = [
+        "resolution/package/repository.cpp",
+    ],
+    hdrs = [
+        "resolution/package/repository.hpp",
+    ],
+    include_prefix = "tetrodotoxin/puffer",
+    strip_include_prefix = ".",
+    deps = [
+        "//perimortem:core",
+        "//perimortem:memory",
+        "//perimortem:system",
+        "//tetrodotoxin:model",
+        "//tetrodotoxin/archiver",
+        "//ttx:concept",
+    ],
+)
+
+cc_library(
+    name = "package_materializer",
+    srcs = [
+        "package/materializer.cpp",
+    ],
+    hdrs = [
+        "package/materializer.hpp",
+    ],
+    include_prefix = "tetrodotoxin/puffer",
+    strip_include_prefix = ".",
+    deps = [
+        "//perimortem:core",
+        "//perimortem:memory",
+        "//perimortem:serialization",
+        "//perimortem:system",
+        "//tetrodotoxin:model",
+        "//tetrodotoxin/archiver",
+    ],
+)
+
 # cc_library(
 #     name = "toolchain",
 #     srcs = [

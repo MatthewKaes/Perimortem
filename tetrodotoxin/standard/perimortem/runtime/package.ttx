@@ -2,7 +2,7 @@
 // Copyright © Matt Kaes
 dialect : Package;
 
-import Types : Library = "library/types.ttx";
+source Types : Library = "library/types.ttx";
 
 public Frame : alias = Types::Frame;
 public Time : alias = Types::Time;

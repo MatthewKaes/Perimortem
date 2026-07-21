@@ -62,8 +62,10 @@ class Lexicon {
       return "while"_view;
     case Code::Type::Return:
       return "return"_view;
-    case Code::Type::Import:
-      return "import"_view;
+    case Code::Type::Resolve:
+      return "resolve"_view;
+    case Code::Type::Source:
+      return "source"_view;
     case Code::Type::Dialect:
       return "dialect"_view;
     case Code::Type::Func:
@@ -185,7 +187,7 @@ class Lexicon {
     using Entry =
         Perimortem::Utility::Pair<Perimortem::Core::View::Bytes, Code::Type>;
 
-    static constexpr Perimortem::Core::Static::Vector<Entry, 24> keywords = {{
+    static constexpr Perimortem::Core::Static::Vector<Entry, 25> keywords = {{
       {get_spelling(Code::Type::And), Code::Type::And},
       {get_spelling(Code::Type::Or), Code::Type::Or},
       {get_spelling(Code::Type::If), Code::Type::If},
@@ -202,7 +204,8 @@ class Lexicon {
       {get_spelling(Code::Type::True), Code::Type::True},
       {get_spelling(Code::Type::False), Code::Type::False},
       {get_spelling(Code::Type::Return), Code::Type::Return},
-      {get_spelling(Code::Type::Import), Code::Type::Import},
+      {get_spelling(Code::Type::Resolve), Code::Type::Resolve},
+      {get_spelling(Code::Type::Source), Code::Type::Source},
       {get_spelling(Code::Type::Dialect), Code::Type::Dialect},
       {get_spelling(Code::Type::Alias), Code::Type::Alias},
       {get_spelling(Code::Type::Public), Code::Type::Public},

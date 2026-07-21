@@ -16,7 +16,7 @@ are not the root of every semantic object.
 
 The organizing idea is **monotonic context layering**. A TTX file begins as an
 authoring surface, then is lowered into token bytecode. A host can then evaluate
-an envelope, attach imports or modules, execute a Dialect, and query Type, Layout,
+an envelope, attach an Environment or module, execute a Dialect, and query Type, Layout,
 provider, backend boundary, and output owners. Each layer enriches the same
 source structure with additional context. It does not erase what came before
 until the host intentionally emits a terminal artifact such as formatted text,
@@ -47,7 +47,7 @@ source-language conveniences so the parser, formatter, compiler, and reader all
 see the same shape.
 
 That rigidity keeps common tools cheap. Syntax highlighting needs only lexical
-classification. Formatting needs syntax and comments, but not imports. Project
+classification. Formatting needs syntax and comments, but not Environment. Project
 navigation may need a module or package graph, but not backend code generation.
 Compilation uses more layers, but it still asks the same source-shaped program
 richer questions rather than reconstructing intent from a lower-level copy.
@@ -105,7 +105,7 @@ That makes the reusable TTX model smaller than a full language tree:
 | `Ttx::Model::Expression`              | evaluatable value with result Type and ordered input queries  |
 | `Ttx::Model::Constant`                | immutable zero-input value already in normal form             |
 | `Ttx::Model::Callable`                | static or receiver-bound callable layout                      |
-| `TypeAccessOp` such as `::`           | nested type query against the current type or import context  |
+| `TypeAccessOp` such as `::`           | nested type query against the current type or Environment     |
 | `AddressOp` such as `.`               | layout member query, package-name segment, or Dialect projection  |
 | `CallOp` such as `->`                 | callable dispatch query against current Type or Dialect facts |
 | modifier and attribute token Codes    | publication, evaluation, package, or Dialect-owned metadata        |
@@ -120,7 +120,7 @@ the Dialect owns the
 meaning of its body.
 
 That split is the important difference from a lowered IR. LLVM IR is already
-past most authoring concerns. TTX keeps package names, imports, comments,
+past most authoring concerns. TTX keeps package names, binding names, comments,
 attributes, named fields, named packs, layouts, shader entry points, foreign ABI
 declarations, and compile-time directives alive until the Dialect or lowerer that
 understands them can use them. The compiler lowers TTX without guessing what the
@@ -154,7 +154,7 @@ casing and punctuation are part of the instruction stream, not decoration.
 be written as `.red`. PascalCase belongs to types in **all** token contexts.
 
 Keywords are tokenized before the parser sees them. For example, `alias`,
-`func`, `import`, `dialect`, `public`, `private`, `expose`, `state`, and `const`
+`func`, `dialect`, `public`, `private`, `expose`, `state`, and `const`
 are distinct token Codes, not ordinary identifiers that the parser has to
 reinterpret later. They are lowercase because they are grammar forms.
 PascalCase names remain open type or package atoms, so user types named
@@ -218,35 +218,48 @@ them into the engine runtime. The shared TTX syntax substrate still owns
 declarations, layouts, packs, and modifier parsing so authors do not have to learn
 an unrelated grammar for each Dialect name.
 
-## Imports
+## Container Environments
 
-For hosts that use the common envelope, imports define named package
-dependencies to translate into the local Dialect:
-
-```ttx
-import Graphics : Package = Perimortem.Graphics;
-import Math     : Library = "math.ttx";
-```
-
-An import reads like a special definition:
+Hosts construct one shared Environment before evaluating any member Source.
+Package resolutions and Source membership are container inputs, not Source
+statements:
 
 ```ttx
-import Alias : DialectName = source;
+resolve Graphics : Perimortem.Graphics = "2.2";
+source MathTypes : Library = "math.ttx";
 ```
 
-The left side creates the local name. The Dialect name describes what the host
-expects the target source to declare. The right side is either a source path,
-such as `"math.ttx"`, or a package name such as `Perimortem.Graphics`.
-Package names are `Type("." Type)*`. A parsed package name is already a valid
-cache key and folder name for hosts that persist package artifacts.
+In canonical `package.ttx`, these declarations appear after
+`dialect : Package;` and before the Package-Dialect export body. Puffer parses
+the descriptor first, resolves the named Dialect objects, and records the exact
+Environment requests and ordered members. Once the package container completes
+those inputs, Descriptor evaluation verifies the same Source and evaluates its
+body from the exact remaining token. The descriptor root plus its declared
+members are the Package's complete explicit Source vector.
 
-Imports do not import Dialect semantics. A `Shader` package does not inherit
-managed-library semantics like `object` or `List` by importing a `Library`.
-Instead the imported definitions are queried through the importing Dialect's
-rules after Abstract identity resolution.
+A package resolution reads:
 
-As an example: importing a `Shader` into a `Library` allows the `Library` to set
-push constants to the Shader or talk to the GPU via exposed definitions.
+```ttx
+resolve Alias : Package.Name = "Major.Minor";
+```
+
+The left side is the Environment-wide local Alias. The package name and
+Major.Minor select one exact external artifact. Every member Source borrows
+that completed Environment, so files can use `Graphics` without owning package
+edges. `source` is package-container syntax: it selects and names a member but
+does not become an edge on either Source. A standalone script receives the same
+kind of Environment dynamically from its host. Package names are
+`Type("." Type)*`. Versions are quoted canonical text parsed directly into two
+unsigned components without a floating-point intermediate; `"0.1"` is valid
+and `"0.0"` is unset.
+
+Environment bindings do not import Dialect semantics. A `Shader` Source does
+not inherit managed-library semantics like `object` or `List` because a Library
+product is available. It queries that product through its own Dialect's rules
+after Abstract identity resolution.
+
+As an example, injecting a Shader product into a Library Environment lets the
+Library name exposed shader definitions without changing Library legality.
 
 ## Definitions
 
@@ -575,7 +588,7 @@ Static. `widget -> open()` resolves the receiver Type and requires the selected
 Callable to prove Self. Receiver form does not create a second TTX lookup
 interface. A missing name or wrong Callable contract returns Invalid.
 
-An object can be reachable through several imports or aliases. Diagnostics keep
+An object can be reachable through several Environment bindings or Aliases. Diagnostics keep
 the authored input bytes. Public symbols walk an explicitly selected ownership
 chain and encode its names reversibly. They do not allocate a semantic path,
 hash a signature, or choose a lexicographically preferred alias.
@@ -587,7 +600,7 @@ Every entry has a unique non-empty local name and is the same edge returned by
 direct contextual resolution of that name. Alias therefore preserves authored
 naming and documentation at the export boundary before canonical resolution.
 No other name resolves from that Exports context. Nested lookup begins only
-after selecting an exported edge, so private roots and imported contexts cannot
+after selecting an exported edge, so private roots and outer Environments cannot
 leak through the public boundary.
 
 Exports is also the common dependency product. Source and package locators may
@@ -614,7 +627,7 @@ and does not construct a subsystem-local sentinel.
 TTX does not prescribe one durable Group, Namespace, Source, module, or package
 contract. A host defines those domains as Abstracts, owns their indexing and
 child-edge policy, and proves Exports only when the public roots are enumerable.
-The durable owner answers `resolve_context()` from imported contexts and
+The durable owner answers `resolve_context()` from its Environment and
 definitions already rooted into it. Evaluating a literal body enriches that
 same owner instead of creating an unnamed lookup frame.
 

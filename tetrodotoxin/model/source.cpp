@@ -21,7 +21,21 @@ auto Tetrodotoxin::Model::Source::get_documentation() const
 auto Tetrodotoxin::Model::Source::evaluate(
     const Dialect& dialect,
     Ttx::Lexical::Errors& errors) -> const Abstract& {
+  return evaluate(dialect, errors, 0);
+}
+
+auto Tetrodotoxin::Model::Source::evaluate(
+    const Dialect& dialect,
+    Ttx::Lexical::Errors& errors,
+    Count body_token_index) -> const Abstract& {
   Ttx::Lexical::Cursor cursor(tokenizer, errors);
+  if (body_token_index >= tokenizer.get_tokens().get_size()) {
+    cursor.create_error("The source body token is outside this Source."_view);
+    return Invalid::get_invalid();
+  }
+  for (Count i = 0; i < body_token_index; i++) {
+    cursor.consume();
+  }
 
   // The Dialect produces a complete result before Source mutates its graph.
   // Invalid therefore leaves no partial root or Dialect edge behind.
@@ -46,7 +60,7 @@ auto Tetrodotoxin::Model::Source::add_root(
   View::Bytes name = definition.get_name();
 
   // Identity protects anonymous roots while contextual lookup protects names
-  // already owned by either a definition or Dependency Alias.
+  // already owned by either a definition or Environment binding.
   for (Count i = 0; i < roots.get_size(); i++) {
     if (&roots[i].get_definition() == &definition) {
       return False;
@@ -65,27 +79,6 @@ auto Tetrodotoxin::Model::Source::add_root(
   return True;
 }
 
-auto Tetrodotoxin::Model::Source::depend(const Dependency& dependency) -> Bool {
-  const Ttx::Model::Alias& binding = dependency.get_binding();
-  const View::Bytes name = binding.get_name();
-
-  // Only the Alias enters Source lookup. The Dependency remains an ordered
-  // locator edge used by formatters, caches, and package closure collection.
-  if (name.is_empty() || !resolve_context(name).is<Invalid>()) {
-    return False;
-  }
-
-  for (Count i = 0; i < dependencies.get_size(); i++) {
-    if (&dependencies[i].get() == &dependency) {
-      return False;
-    }
-  }
-
-  dependencies.insert(Reference<Dependency>(dependency));
-  dependencies_by_name.insert(name, Reference<Ttx::Model::Alias>(binding));
-  return True;
-}
-
 auto Tetrodotoxin::Model::Source::resolve_context(View::Bytes route) const
     -> const Abstract& {
   const Definitions::Entry* selected = definitions_by_name.find(route);
@@ -93,10 +86,5 @@ auto Tetrodotoxin::Model::Source::resolve_context(View::Bytes route) const
     return selected->value.get();
   }
 
-  const Dependencies::Entry* dependency = dependencies_by_name.find(route);
-  if (dependency != nullptr) {
-    return dependency->value.get();
-  }
-
-  return Invalid::get_invalid();
+  return environment.resolve_context(route);
 }

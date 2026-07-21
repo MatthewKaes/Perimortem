@@ -2,10 +2,6 @@
 // Copyright © Matt Kaes
 dialect : Scene;
 
-import Graphics : Package = Perimortem.Graphics;
-import Math : Package = Perimortem.Math;
-import Runtime : Package = Perimortem.Runtime;
-
 // State for scenes is created after the previous scene has terminated.
 // Constructors for state objects are called after `previous -> on_exit()` but before
 // this scene's `on_start()` is called.

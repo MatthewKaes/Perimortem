@@ -2,8 +2,6 @@
 // Copyright © Matt Kaes
 dialect : Library;
 
-import Math : Package = Perimortem.Math;
-
 @shader_type(Vec4D)
 public Color : struct {
   public r : Real_32;

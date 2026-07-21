@@ -29,6 +29,7 @@ Tetrodotoxin::Model::Namespace::Namespace(
     View::Bytes name,
     const Documentation& documentation)
     : name(name),
+      roots(arena),
       exports(arena),
       documentation(documentation),
       roots_by_name(arena),
@@ -61,6 +62,19 @@ auto Tetrodotoxin::Model::Namespace::get_export(Count index) const
   return exports.at(index).get();
 }
 
+auto Tetrodotoxin::Model::Namespace::get_root_count() const -> Count {
+  return roots.get_size();
+}
+
+auto Tetrodotoxin::Model::Namespace::get_root(Count index) const
+    -> const Abstract& {
+  if (index >= roots.get_size()) {
+    return Invalid::get_invalid();
+  }
+
+  return roots.at(index).get();
+}
+
 auto Tetrodotoxin::Model::Namespace::add_root(const Abstract& definition)
     -> Bool {
   const View::Bytes definition_name = definition.get_name();
@@ -70,6 +84,7 @@ auto Tetrodotoxin::Model::Namespace::add_root(const Abstract& definition)
   }
 
   roots_by_name.insert(definition_name, Reference<Abstract>(definition));
+  roots.insert(Reference<Abstract>(definition));
   return True;
 }
 
@@ -87,6 +102,7 @@ auto Tetrodotoxin::Model::Namespace::add_export(const Abstract& definition)
   const RootIndex::Entry* rooted = roots_by_name.find(definition_name);
   if (rooted == nullptr) {
     roots_by_name.insert(definition_name, Reference<Abstract>(definition));
+    roots.insert(Reference<Abstract>(definition));
   } else if (&rooted->value.get() != &definition) {
     return False;
   }

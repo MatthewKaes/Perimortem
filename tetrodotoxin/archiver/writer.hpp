@@ -8,26 +8,21 @@
 
 #include "perimortem/memory/allocator/arena.hpp"
 
-#include "tetrodotoxin/abi/linkage.hpp"
-#include "tetrodotoxin/archiver/dependency.hpp"
-#include "tetrodotoxin/archiver/package.hpp"
-#include "tetrodotoxin/archiver/terminal.hpp"
-#include "ttx/type.hpp"
+#include "tetrodotoxin/archiver/manifest.hpp"
+#include "tetrodotoxin/model/package.hpp"
+#include "tetrodotoxin/model/terminal.hpp"
 
 namespace Tetrodotoxin::Archiver {
 
-// Writes a Package into one dense Puffer Buffer.
+// Traverses one completed current-model Package and its opaque terminal
+// products into one immutable arena-owned Puffer Buffer.
 class Writer {
  public:
   static auto write(
       Perimortem::Memory::Allocator::Arena& arena,
-      Perimortem::Core::View::Bytes package_name,
-      Perimortem::Core::View::Vector<Dependency> imports,
-      const Ttx::Type& root_type,
-      Perimortem::Core::View::Vector<const Ttx::Type*> types,
-      Perimortem::Core::View::Vector<Terminal> terminals,
-      Perimortem::Core::View::Vector<Tetrodotoxin::Abi::Linkage> linkages,
-      Perimortem::Core::View::Vector<const Package*> references)
+      const Manifest& manifest,
+      const Model::Package& package,
+      Perimortem::Core::View::Vector<Model::Terminal> terminals)
       -> Perimortem::Core::View::Bytes;
 };
 

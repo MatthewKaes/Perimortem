@@ -1,0 +1,3 @@
+dialect : Package;
+
+resolve Math : Perimortem.Math = "01.2";

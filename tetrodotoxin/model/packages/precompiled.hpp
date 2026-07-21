@@ -4,23 +4,27 @@
 #pragma once
 
 #include "perimortem/memory/allocator/arena.hpp"
+#include "perimortem/memory/managed/map.hpp"
 #include "perimortem/memory/managed/vector.hpp"
 
 #include "tetrodotoxin/model/namespace.hpp"
-#include "tetrodotoxin/model/package.hpp"
+#include "tetrodotoxin/model/packages/compiled.hpp"
 
 namespace Tetrodotoxin::Model::Packages {
 
 // Precompiled is the Package graph reconstructed from a Puffer Buffer. The
 // Archiver owns how records become real Abstract objects. This class exposes
 // the restored public graph without pretending the original Sources survived.
-class Precompiled final : public Model::Package {
+class Precompiled final : public Compiled {
  public:
   Precompiled(
       Perimortem::Memory::Allocator::Arena& arena,
       const Model::Namespace& exports,
       Perimortem::Core::View::Vector<Ttx::Concept::Reference<Model::Package>>
-          dependencies = {});
+          dependencies = {},
+      Perimortem::Core::View::Vector<
+          Ttx::Concept::Reference<Ttx::Concept::Abstract>> definitions = {},
+      Perimortem::Core::View::Vector<Model::Terminal> terminals = {});
 
   constexpr auto get_documentation() const
       -> const Ttx::Concept::Documentation& override {
@@ -41,6 +45,20 @@ class Precompiled final : public Model::Package {
     return dependencies;
   }
 
+  constexpr auto get_terminals() const
+      -> Perimortem::Core::View::Vector<Model::Terminal> override {
+    return terminals;
+  }
+
+  constexpr auto get_definition_count() const -> Count override {
+    return definitions.get_size();
+  }
+
+  auto get_definition(Count id) const -> const Ttx::Concept::Abstract& override;
+
+  auto get_definition_id(const Ttx::Concept::Abstract& definition) const
+      -> Count override;
+
   auto resolve_context(Perimortem::Core::View::Bytes route) const
       -> const Ttx::Concept::Abstract& override;
 
@@ -48,6 +66,12 @@ class Precompiled final : public Model::Package {
   const Model::Namespace& exports;
   Perimortem::Memory::Managed::Vector<Ttx::Concept::Reference<Model::Package>>
       dependencies;
+  Perimortem::Memory::Managed::Vector<
+      Ttx::Concept::Reference<Ttx::Concept::Abstract>>
+      definitions;
+  Perimortem::Memory::Managed::Map<const Ttx::Concept::Abstract*, Count>
+      definition_index;
+  Perimortem::Memory::Managed::Vector<Model::Terminal> terminals;
 };
 
 }  // namespace Tetrodotoxin::Model::Packages

@@ -5,6 +5,11 @@ set -euo pipefail
 repository="$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)"
 cd "$repository"
 
+if (($# > 0)); then
+  clang-format -i -- "$@"
+  exit 0
+fi
+
 # ripgrep honors the repository ignore rules, keeping generated Bazel trees and
 # external dependencies out of the formatter input.
 rg --files --null -g '*.cpp' -g '*.hpp' |

@@ -3,8 +3,6 @@
 
 dialect : Shader;
 
-import Renderer : Render = "render.ttx";
-
 shader CopyShader : Renderer::Copy {
   func pixel[.color : Vec4D] -> [.color : Vec4D] {
     return (.color = color);
