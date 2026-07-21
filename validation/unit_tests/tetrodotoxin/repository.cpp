@@ -1,6 +1,8 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
+#include "tetrodotoxin/puffer/resolution/package/repository.hpp"
+
 #include "validation/unit_test.hpp"
 
 #include <stdlib.h>
@@ -29,7 +31,6 @@
 #include "tetrodotoxin/model/packages/precompiled.hpp"
 #include "tetrodotoxin/model/source.hpp"
 #include "tetrodotoxin/puffer/package/materializer.hpp"
-#include "tetrodotoxin/puffer/resolution/package/repository.hpp"
 #include "ttx/concept/invalid.hpp"
 #include "ttx/concept/reference.hpp"
 #include "ttx/lexical/errors.hpp"
@@ -271,9 +272,7 @@ static auto external_dependency_offset(View::Bytes buffer) -> Count {
   return Count(-1);
 }
 
-PERIMORTEM_UNIT_TEST(
-    RepositoryTests,
-    recursive_restore_and_materialize) {
+PERIMORTEM_UNIT_TEST(RepositoryTests, recursive_restore_and_materialize) {
   Tetrodotoxin::Model::Environment empty_environment;
   Tetrodotoxin::Interpreter::Dialects::Package dialect;
   Tetrodotoxin::Model::Source core_source(
@@ -489,9 +488,7 @@ PERIMORTEM_UNIT_TEST(RepositoryTests, conflicts_missing_and_cycles) {
   EXPECT(cycle_repository.resolve("Cycle.B"_view, Version(1, 0)).is<Invalid>());
 }
 
-PERIMORTEM_UNIT_TEST(
-    RepositoryTests,
-    external_paths_ignore_record_order) {
+PERIMORTEM_UNIT_TEST(RepositoryTests, external_paths_ignore_record_order) {
   Tetrodotoxin::Model::Environment empty_environment;
   Tetrodotoxin::Interpreter::Dialects::Package dialect;
   Tetrodotoxin::Model::Source first_core_source(

@@ -17,8 +17,8 @@
 namespace Tetrodotoxin::Compiler {
 
 // Owns the native publication state for one compiler transaction. The caller
-// owns the Program because Dialect lowering builds that product before a backend
-// consumes it. Keeping the two lifetimes separate prevents Engine from
+// owns the Program because Dialect lowering builds that product before a
+// backend consumes it. Keeping the two lifetimes separate prevents Engine from
 // becoming a mutable compiler context that later phases can use as a cache.
 class Engine {
  public:

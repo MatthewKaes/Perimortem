@@ -12,8 +12,9 @@
 namespace Ttx::Concept {
 
 // TTX does not begin with a closed type system. It begins with named abstract
-// contexts whose behavior can be extended by the language, a Dialect, a compiler,
-// or a host without teaching a central registry about every possible concept.
+// contexts whose behavior can be extended by the language, a Dialect, a
+// compiler, or a host without teaching a central registry about every possible
+// concept.
 //
 // The lexer deliberately provides useful name and token distinctions without
 // parser feedback. The parser can therefore resolve progressively inside the

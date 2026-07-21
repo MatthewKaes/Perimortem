@@ -134,9 +134,8 @@ auto Library::Structure::evaluate(
 
     Tetrodotoxin::Isa::Base::Declaration member_definition =
         Tetrodotoxin::Isa::Base::Declaration::evaluate_after_modifier(
-            cursor, member_documentation, modifier,
-            {{Code::Type::Addressable}}, {{Code::Type::Type}},
-            member_attributes.get_view());
+            cursor, member_documentation, modifier, {{Code::Type::Addressable}},
+            {{Code::Type::Type}}, member_attributes.get_view());
     if (member_definition.is_empty()) {
       valid = False;
       Bool recovered = Library::Syntax::consume_declaration_tail(cursor);

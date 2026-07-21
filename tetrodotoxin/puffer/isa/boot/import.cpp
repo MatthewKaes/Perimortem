@@ -27,8 +27,8 @@ auto Isa::Boot::Import::evaluate(
     return Isa::Boot::Import();
   }
 
-  Bool has_assignment = cursor.require(
-      Code::Type::Assign, "Expected `=` after import ISA."_view);
+  Bool has_assignment =
+      cursor.require(Code::Type::Assign, "Expected `=` after import ISA."_view);
   if (!has_assignment) {
     cursor.recover_to_statement();
     return Isa::Boot::Import();

@@ -18,8 +18,8 @@ namespace Ttx::Model {
 // get_name() supplies the addressable name and get_type() supplies its Type or
 // Invalid. Address identity does not resolve away into that Type. Structured
 // Layouts borrow the actual Addressable objects, so documentation, attributes,
-// defaults, Dialect facts, and target storage remain on their real owners. Core TTX
-// assigns no pointer width, offset, symbol spelling, calling convention, or
+// defaults, Dialect facts, and target storage remain on their real owners. Core
+// TTX assigns no pointer width, offset, symbol spelling, calling convention, or
 // storage policy.
 class Addressable : public Concept::Abstract {
  public:

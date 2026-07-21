@@ -44,8 +44,7 @@ static auto evaluate_function(
   }
 
   Bool has_call = cursor.require(
-      Code::Type::CallOp,
-      "Expected `->` before library function result."_view);
+      Code::Type::CallOp, "Expected `->` before library function result."_view);
   if (!has_call) {
     return Ttx::Function();
   }

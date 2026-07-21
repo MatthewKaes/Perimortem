@@ -41,8 +41,7 @@ auto Isa::Boot::VirtualMachine::evaluate(
   }
 
   Bool has_statement_end = cursor.require(
-      Code::Type::EndStatement,
-      "Expected `;` after dialect instruction."_view);
+      Code::Type::EndStatement, "Expected `;` after dialect instruction."_view);
   if (!has_statement_end) {
     return nullptr;
   }

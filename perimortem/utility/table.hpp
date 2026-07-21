@@ -3,9 +3,9 @@
 
 #pragma once
 
-#include "perimortem/core/static/vector.hpp"
 #include "perimortem/core/view/bytes.hpp"
 #include "perimortem/core/view/vector.hpp"
+#include "perimortem/core/static/vector.hpp"
 #include "perimortem/core/data.hpp"
 
 #include "perimortem/utility/pair.hpp"

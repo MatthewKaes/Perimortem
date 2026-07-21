@@ -17,8 +17,8 @@ auto Shader::Function::evaluate(
     Base::Context& context,
     Ttx::Documentation documentation,
     const Block*& block) -> Ttx::Function {
-  Bool has_function = cursor.require(
-      Code::Type::Func, "Expected `func` in shader stage."_view);
+  Bool has_function =
+      cursor.require(Code::Type::Func, "Expected `func` in shader stage."_view);
   if (!has_function) {
     return Ttx::Function();
   }

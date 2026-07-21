@@ -22,14 +22,12 @@ auto Base::Expression::Pack::evaluate(Cursor& cursor, Base::Context& context)
 
   Managed::Vector<Entry> entries(context.get_arena());
   Managed::Vector<Value> values(context.get_arena());
-  while (!cursor.is_one_of(
-      {{Code::Type::Terminal, Code::Type::PackingEnd}})) {
+  while (!cursor.is_one_of({{Code::Type::Terminal, Code::Type::PackingEnd}})) {
     View::Bytes name;
     if (cursor.matches(Code::Type::AddressOp)) {
       cursor.consume();
       const Token* token = cursor.require(
-          Code::Type::Addressable,
-          "Expected expression pack entry name."_view);
+          Code::Type::Addressable, "Expected expression pack entry name."_view);
       if (token == nullptr) {
         return nullptr;
       }

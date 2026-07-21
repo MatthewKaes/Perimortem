@@ -275,9 +275,9 @@ auto Transaction::publish_functions(
   for (Count i = 0; i < functions.get_size(); i++) {
     const Tetrodotoxin::Isa::Base::Definition* definition =
         find_definition(functions[i]);
-    Ttx::Lexical::Code::Type modifier =
-        definition == nullptr ? Ttx::Lexical::Code::Type::Unknown
-                              : definition->get_modifier();
+    Ttx::Lexical::Code::Type modifier = definition == nullptr
+                                            ? Ttx::Lexical::Code::Type::Unknown
+                                            : definition->get_modifier();
     // Public functions are supplied by the TTX unit. Expose functions are
     // supplied by their external owner. Both are callable ABI facts once the
     // containing type is published, while Private remains implementation-only.

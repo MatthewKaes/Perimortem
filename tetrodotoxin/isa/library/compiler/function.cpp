@@ -640,8 +640,7 @@ auto Library::Compiler::Function::build() -> const Execution::Body* {
     }
 
     if (cursor.is_one_of(
-            {{Code::Type::Type, Code::Type::Addressable,
-              Code::Type::Self}})) {
+            {{Code::Type::Type, Code::Type::Addressable, Code::Type::Self}})) {
       Bool evaluated = evaluate_call();
       if (!evaluated) {
         return nullptr;
