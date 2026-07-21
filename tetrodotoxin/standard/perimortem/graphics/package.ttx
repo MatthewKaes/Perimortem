@@ -1,68 +1,6 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
-dialect : Enviornment;
-
-// Required symbols to be accessable.
-// Accessed via the following mechanics:
-//
-// foreign -> print("Bytes");
-// foreign.global_variable;
-//
-foreign {
-  // A function that takes a View::Bytes in foreign representation
-  // Explicit form: A const pointer to an Unsigned_8 and a 
-  func print[View[Unsigned_8], Unsigned_64] -> [View[Unsigned_8], Unsigned_64];
-  //
-  // func print[View::Bytes] -> [View::Bytes];
-  //
-  // The type would be included as such?
-  // private View : alias = Perimortem::Core::View;
-  //
-  // TTX source for Bytes?
-  // perimortem/core/view/bytes.ttx:
-  // public Bytes : struct {
-  //   // data pointer and size getters but not setters?
-  //   expose state data : View[Unsigned_8];
-  //   expose state size : Unsigned_64;
-  // }
-
-  const global_variable : Int;
-
-  // Foreign Static::Vector<Unsigned_8, 13> representation, not a pointer.
-  const hello_string : Vec[Unsigned_8, 13];
-}
-
-// Special types?
-// (T1, T2, ...) -> Special type that represents a fluid layout (just a Layouts::Fluid)
-// Static[T, N] -> Special type that represents a continous layout (just a Layouts::Range)
-// View[T] -> Special type that represents a constant reference (???) size is 8 bytes
-// Access[T] -> Special type that represents a non-constant reference (???) size is 8 bytes
-// ???????
-
-// Types of data we can represent:
-// (u8, u64, u8) -> Composite types with hetrogenous layouts.
-// [u8] -> Special case a single value?
-// [u8, u8, u8, u8, u8] -> Fixed length arrays
-// [u8, ...] -> Arrays of a _known size_ at runtime (can be empty)
-//
-// Versions of each of these by you may only observe the elements:
-// (u8, u64, u8) -> Composite types with hetrogenous layouts.
-// [u8] -> Special case a single value?
-// [u8, u8, u8, u8, u8] -> Fixed length arrays
-// [u8, ...] -> Arrays of a _known size_ at runtime (can be empty)
-//
-// If everything is a LAYOUT then this is the matrix:
-// [u8, u8, u8] -> Fixed length Ranged
-// [u8, ...] -> Variable length Ranged
-// [u8, u64, u8] -> Fixed length Composite
-//
-// Fluididity is just that flat temp layouts:
-// [u8, u8, u8] + [u8, u8] = (u8, 5)
-// [u8, ...] + [u8, u8] = ((u8, ...), (u8, 2))
-// [u8, ...] + [u8, u8] = ((u8, 2), (u8, ...))
-// [u8, ...] + [u8, ...] = (u8, ...) ???
-// [u8, ...] + [u8, u8] + [u8, ...] = ((u8, ...), (u8, 2), (u8, ...))
-
+dialect : Package;
 
 resolve Math : Perimortem.Math = "1.0";
 
