@@ -64,6 +64,7 @@ cc_binary(
         "//tetrodotoxin:diagnostics",
         "//tetrodotoxin:linker",
         "//tetrodotoxin:model",
+        "//tetrodotoxin:parser",
         "//ttx",
     ],
 )
