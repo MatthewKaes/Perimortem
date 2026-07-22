@@ -8,8 +8,11 @@
 namespace Perimortem::Core::Static {
 
 // A tagged union type that allows null tagging to represent no value.
-// Each possible type must be unique and values are managed using byte
-// laundering so destructable types aren't supported.
+// Each possible type must be unique. Value alternatives are managed using byte
+// laundering, while reference alternatives store one non-owning pointer and
+// preserve the referred object's identity. A reference can only be constructed
+// from an lvalue, so the Union cannot retain a temporary through const binding.
+// Destructable alternatives aren't supported.
 template <typename... Types>
 class Union {
  private:
@@ -32,15 +35,27 @@ class Union {
       (__is_trivially_destructible(Types) && ...),
       "All provided Union types must be trivially destructible.");
 
+  template <typename Type>
+  static auto storage_type() -> Type;
+
+  template <typename Type>
+    requires(__is_lvalue_reference(Type))
+  static auto storage_type() -> __remove_reference_t(Type)*;
+
+  template <typename Type>
+  using Storage = decltype(storage_type<Type>());
+
   static consteval auto storage_size() -> Count {
     Count size = 0;
-    ((size = size < sizeof(Types) ? sizeof(Types) : size), ...);
+    ((size = size < sizeof(Storage<Types>) ? sizeof(Storage<Types>) : size),
+     ...);
     return size;
   }
 
   static consteval auto storage_alignment() -> Count {
     Count alignment = 0;
-    ((alignment = alignment < alignof(Types) ? alignof(Types) : alignment),
+    ((alignment = alignment < alignof(Storage<Types>) ? alignof(Storage<Types>)
+                                                      : alignment),
      ...);
     return alignment;
   }
@@ -56,9 +71,15 @@ class Union {
   template <typename Type>
   using Alternative = __remove_cvref(Type);
 
+  template <typename Candidate, typename Type>
+  static consteval auto constructible() -> bool {
+    return (!__is_lvalue_reference(Type) || __is_lvalue_reference(Candidate)) &&
+           __is_constructible(Type, Candidate&&);
+  }
+
   template <typename Candidate>
   static consteval auto constructible_count() -> Count {
-    return (Count(__is_constructible(Types, Candidate&&)) + ...);
+    return (Count(constructible<Candidate, Types>()) + ...);
   }
 
   template <typename Candidate, typename Type>
@@ -67,14 +88,19 @@ class Union {
     // exactly one alternative, allowing `Union<Unsigned_64>` to accept an
     // integer literal without making a multi-numeric Union guess its intended
     // type.
-    constexpr Count exact = type_count<Alternative<Candidate>>();
-    if constexpr (exact != 0) {
+    constexpr Count exact_reference = type_count<Candidate>();
+    if constexpr (exact_reference != 0) {
+      return __is_same(Candidate, Type) && constructible<Candidate, Type>();
+    }
+
+    constexpr Count exact_value = type_count<Alternative<Candidate>>();
+    if constexpr (exact_value != 0) {
       return __is_same(Alternative<Candidate>, Type) &&
-             __is_constructible(Type, Candidate&&);
+             constructible<Candidate, Type>();
     }
 
     return constructible_count<Candidate>() == 1 &&
-           __is_constructible(Type, Candidate&&);
+           constructible<Candidate, Type>();
   }
 
   template <typename Candidate>
@@ -82,11 +108,18 @@ class Union {
     return (Count(selects<Candidate, Types>()) + ...) == 1;
   }
 
-  template <typename Type, typename... Arguments>
-  auto construct(Arguments&&... arguments) -> Type& {
-    Type& value = *new (storage) Type(static_cast<Arguments&&>(arguments)...);
-    tag = type_tag<Type>();
-    return value;
+  template <typename Type, typename Candidate>
+  auto construct(Candidate&& candidate) -> decltype(auto) {
+    if constexpr (__is_lvalue_reference(Type)) {
+      auto& reference = static_cast<Type>(candidate);
+      new (storage) Storage<Type>(&reference);
+      tag = type_tag<Type>();
+      return reference;
+    } else {
+      Type& value = *new (storage) Type(static_cast<Candidate&&>(candidate));
+      tag = type_tag<Type>();
+      return value;
+    }
   }
 
   template <typename Type, typename... Rest, typename Candidate>
@@ -103,13 +136,55 @@ class Union {
   }
 
   template <typename Type>
-  auto active() -> Type& {
-    return *Data::cast<Type>(storage);
+  auto active() -> decltype(auto) {
+    if constexpr (__is_lvalue_reference(Type)) {
+      return **Data::cast<Storage<Type>>(storage);
+    } else {
+      return *Data::cast<Type>(storage);
+    }
   }
 
   template <typename Type>
-  auto active() const -> const Type& {
-    return *Data::cast<const Type>(storage);
+  auto active() const -> decltype(auto) {
+    if constexpr (__is_lvalue_reference(Type)) {
+      return **Data::cast<Storage<Type>>(storage);
+    } else {
+      return *Data::cast<const Type>(storage);
+    }
+  }
+
+  template <typename Type, typename... Rest, typename Source>
+  auto construct_active(Source& source) -> void {
+    if (source.tag == type_tag<Type>()) {
+      if constexpr (
+          __is_same(Source, const Union) || __is_lvalue_reference(Type)) {
+        construct<Type>(source.template active<Type>());
+      } else {
+        construct<Type>(Data::take(source.template active<Type>()));
+      }
+      return;
+    }
+
+    if constexpr (sizeof...(Rest) != 0) {
+      construct_active<Rest...>(source);
+    }
+  }
+
+  template <typename Type, typename... Rest>
+  constexpr auto equals_active(const Union& rhs) const -> Bool {
+    if (tag == type_tag<Type>()) {
+      if constexpr (__is_lvalue_reference(Type)) {
+        return &active<Type>() == &rhs.template active<Type>();
+      } else {
+        return active<Type>() == rhs.template active<Type>();
+      }
+    }
+
+    if constexpr (sizeof...(Rest) != 0) {
+      return equals_active<Rest...>(rhs);
+    }
+
+    __builtin_unreachable();
   }
 
   template <typename Type, typename... Rest, typename Self, typename Visitor>
@@ -151,20 +226,15 @@ class Union {
   }
 
   constexpr Union(const Union& source) {
-    dispatch(
-        source, []() {},
-        [this](const auto& value) -> void {
-          this->template construct<Alternative<decltype(value)>>(value);
-        });
+    if (!source.is_null()) {
+      construct_active<Types...>(source);
+    }
   }
 
   constexpr Union(Union&& source) {
-    dispatch(
-        source, []() {},
-        [this](auto& value) -> void {
-          this->template construct<Alternative<decltype(value)>>(
-              Data::take(value));
-        });
+    if (!source.is_null()) {
+      construct_active<Types...>(source);
+    }
   }
 
   constexpr auto operator=(const Union& source) -> Union& {
@@ -173,11 +243,9 @@ class Union {
     }
 
     tag = 0;
-    dispatch(
-        source, []() {},
-        [this](const auto& value) -> void {
-          this->template construct<Alternative<decltype(value)>>(value);
-        });
+    if (!source.is_null()) {
+      construct_active<Types...>(source);
+    }
     return *this;
   }
 
@@ -187,12 +255,9 @@ class Union {
     }
 
     tag = 0;
-    dispatch(
-        source, []() {},
-        [this](auto& value) -> void {
-          this->template construct<Alternative<decltype(value)>>(
-              Data::take(value));
-        });
+    if (!source.is_null()) {
+      construct_active<Types...>(source);
+    }
     return *this;
   }
 
@@ -201,12 +266,7 @@ class Union {
       return False;
     }
 
-    return dispatch(
-        *this, []() { return True; },
-        [&rhs](const auto& value) {
-          using Type = Alternative<decltype(value)>;
-          return Bool(value == rhs.template active<Type>());
-        });
+    return is_null() ? True : equals_active<Types...>(rhs);
   }
 
   constexpr auto operator!=(const Union& rhs) const -> Bool {
@@ -214,7 +274,7 @@ class Union {
   }
 
   template <typename Type>
-  constexpr auto find() const -> const Type* {
+  constexpr auto find() const {
     static_assert(type_count<Type>() == 1, "Type is not a Union alternative.");
     return tag == type_tag<Type>() ? &active<Type>() : nullptr;
   }

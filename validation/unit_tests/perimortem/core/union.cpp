@@ -72,9 +72,57 @@ PERIMORTEM_UNIT_TEST(CoreUnion, equality) {
   EXPECT(bits != text);
 }
 
+class ReferencedValue {
+ public:
+  constexpr ReferencedValue(Unsigned_64 value) : values{value} {}
+
+  constexpr auto set(Unsigned_64 replacement) -> void {
+    values[0] = replacement;
+  }
+  constexpr auto get() const -> Unsigned_64 { return values[0]; }
+
+ private:
+  Unsigned_64 values[8];
+};
+
+PERIMORTEM_UNIT_TEST(CoreUnion, reference_alternative) {
+  ReferencedValue first(42);
+  ReferencedValue equal_value(42);
+  Static::Union<ReferencedValue&, Unsigned_64, Bool> original(first);
+  Static::Union<ReferencedValue&, Unsigned_64, Bool> same(first);
+  Static::Union<ReferencedValue&, Unsigned_64, Bool> distinct(equal_value);
+  Static::Union<ReferencedValue&, Unsigned_64, Bool> copied(original);
+  Static::Union<ReferencedValue&, Unsigned_64, Bool> moved(Data::take(copied));
+  const auto& constant = original;
+
+  constant.find<ReferencedValue&>()->set(84);
+
+  EXPECT(original.find<ReferencedValue&>() == &first);
+  EXPECT(moved.find<ReferencedValue&>() == &first);
+  EXPECT_EQ(first.get(), Unsigned_64(84));
+  EXPECT(original == same);
+  EXPECT(original != distinct);
+}
+
 static_assert(sizeof(Static::Union<Unsigned_32, Unsigned_64>) <= 16);
 static_assert(sizeof(Static::Union<View::Bytes, Signed_64>) == 24);
+static_assert(sizeof(Static::Union<ReferencedValue&, Unsigned_64, Bool>) <= 16);
 static_assert(__is_constructible(Static::Union<Unsigned_64>, int));
 static_assert(!__is_constructible(Static::Union<Unsigned_64, Signed_64>, int));
+static_assert(__is_constructible(
+    Static::Union<ReferencedValue&, Unsigned_64, Bool>,
+    ReferencedValue&));
+static_assert(!__is_constructible(
+    Static::Union<ReferencedValue&, Unsigned_64, Bool>,
+    const ReferencedValue&));
+static_assert(!__is_constructible(
+    Static::Union<ReferencedValue&, Unsigned_64, Bool>,
+    ReferencedValue));
+static_assert(__is_constructible(
+    Static::Union<const ReferencedValue&, Unsigned_64, Bool>,
+    const ReferencedValue&));
+static_assert(!__is_constructible(
+    Static::Union<const ReferencedValue&, Unsigned_64, Bool>,
+    ReferencedValue));
 static_assert(
     __is_trivially_destructible(Static::Union<View::Bytes, Signed_64>));
