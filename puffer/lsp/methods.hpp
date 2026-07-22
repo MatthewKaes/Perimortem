@@ -9,8 +9,8 @@
 
 #include "perimortem/utility/pair.hpp"
 
-#include "tetrodotoxin/puffer/lsp/documents.hpp"
-#include "tetrodotoxin/puffer/lsp/rpc/executor.hpp"
+#include "puffer/lsp/documents.hpp"
+#include "puffer/lsp/rpc/executor.hpp"
 
 namespace Tetrodotoxin::Puffer::Lsp {
 

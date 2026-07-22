@@ -1,7 +1,7 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
-#include "tetrodotoxin/puffer/lsp/methods.hpp"
+#include "puffer/lsp/methods.hpp"
 
 #include "perimortem/core/diagnostics/log.hpp"
 #include "perimortem/core/null_terminated.hpp"
@@ -13,9 +13,9 @@
 #include "perimortem/serialization/escaped_text.hpp"
 #include "perimortem/serialization/json/node.hpp"
 
-#include "tetrodotoxin/puffer/lsp/documents.hpp"
-#include "tetrodotoxin/puffer/lsp/rpc/executor.hpp"
-#include "tetrodotoxin/puffer/lsp/semantic_tokens.hpp"
+#include "puffer/lsp/documents.hpp"
+#include "puffer/lsp/rpc/executor.hpp"
+#include "puffer/lsp/semantic_tokens.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;

@@ -54,10 +54,7 @@ cc_binary(
     copts = ["-Wreturn-type-c-linkage"],
     data = glob([
         "data/**/*.ttx",
-    ]) + [
-        "//apps/canonical/scene_demo:sources",
-        "//tetrodotoxin/standard:sources",
-    ],
+    ]),
     includes = ["."],
     deps = [
         ":test_headers",
@@ -65,11 +62,8 @@ cc_binary(
         "//tetrodotoxin:archiver",
         "//tetrodotoxin:compiler",
         "//tetrodotoxin:diagnostics",
-        "//tetrodotoxin:graphics_runtime",
-        "//tetrodotoxin:interpreter",
         "//tetrodotoxin:linker",
         "//tetrodotoxin:model",
-        "//tetrodotoxin:runtime",
         "//ttx",
     ],
 )
@@ -90,8 +84,8 @@ cc_binary(
     deps = [
         ":test_headers",
         "//perimortem",
+        "//tetrodotoxin:archiver",
         "//tetrodotoxin:model",
-        "//tetrodotoxin/archiver",
         "//ttx:concept",
         "//ttx:model",
     ],

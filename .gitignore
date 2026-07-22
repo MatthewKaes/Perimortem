@@ -6,13 +6,13 @@
 MODULE.bazel.lock
 
 # LSP Client
-tetrodotoxin/extension/package-lock.json
-tetrodotoxin/extension/puffer
-tetrodotoxin/extension/ttx-lang-server
-tetrodotoxin/extension/tsconfig.tsbuildinfo
-tetrodotoxin/extension/*.vsix
-tetrodotoxin/extension/out/*
-tetrodotoxin/extension/node_modules/*
+extension/package-lock.json
+extension/puffer
+extension/ttx-lang-server
+extension/tsconfig.tsbuildinfo
+extension/*.vsix
+extension/out/*
+extension/node_modules/*
 
 # Agent tooling
 .agents/

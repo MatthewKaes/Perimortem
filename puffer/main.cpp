@@ -13,16 +13,12 @@
 #include "perimortem/system/args.hpp"
 #include "perimortem/system/file.hpp"
 
-#include "tetrodotoxin/puffer/compiler.hpp"
-#include "tetrodotoxin/puffer/lsp/methods.hpp"
-#include "tetrodotoxin/puffer/resolution/context.hpp"
+#include "puffer/lsp/rpc/executor.hpp"
 #include "ttx/lexical/errors.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
 using namespace Perimortem::System;
-using namespace Tetrodotoxin;
-using namespace Tetrodotoxin::Puffer;
 
 using Configs = Managed::Map<View::Bytes, View::Bytes>;
 

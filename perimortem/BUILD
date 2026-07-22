@@ -104,11 +104,14 @@ cc_library(
     srcs = glob([
         "system/*.cpp",
     ]),
-    hdrs = glob([
-        "system/*.hpp",
-    ], exclude = [
-        "system/window.hpp",
-    ]),
+    hdrs = glob(
+        [
+            "system/*.hpp",
+        ],
+        exclude = [
+            "system/window.hpp",
+        ],
+    ),
     includes = ["."],
     linkopts = ["-lpthread"],
     deps = [
@@ -164,11 +167,14 @@ cc_library(
 
 cc_library(
     name = "platform",
-    srcs = glob([
-        "system/platform/wayland/*.cpp",
-    ], exclude = [
-        "system/platform/wayland/xdg_shell.cpp",
-    ]),
+    srcs = glob(
+        [
+            "system/platform/wayland/*.cpp",
+        ],
+        exclude = [
+            "system/platform/wayland/xdg_shell.cpp",
+        ],
+    ),
     hdrs = [
         "system/window.hpp",
     ] + glob([
@@ -186,13 +192,11 @@ cc_library(
     name = "serialization",
     srcs = [
         "serialization/base64.cpp",
-        "serialization/escaped_text.cpp",
         "serialization/json/node.cpp",
         "serialization/stream/binary.cpp",
         "serialization/stream/textual.cpp",
     ],
     hdrs = glob([
-        # "serialization/archive/*.hpp",
         "serialization/*.hpp",
         "serialization/json/*.hpp",
         "serialization/stream/*.hpp",
