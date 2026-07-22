@@ -1,0 +1,22 @@
+// Perimortem Engine
+// Copyright © Matt Kaes
+dialect : App;
+
+windowed {
+  title = "Scene Lifetime",
+  width = 800,
+  height = 600,
+  // type = Terminal,
+  type = Scene,
+}
+
+// terminal {
+//  entry_point Some::File -> main;
+// }
+
+scene {
+  initial Scenes::Splash;
+  on Scenes::Splash.finished replace Scenes::Title;
+  on Scenes::Title.shift_pressed replace Scenes::Splash;
+  on Scenes::Title.space_pressed exit;
+}
