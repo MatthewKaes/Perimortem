@@ -179,6 +179,13 @@ class Map {
   auto rehash(Count bucket_count) -> void {
     Buffer current = buffer;
     buffer = create_buffer(bucket_count);
+
+    // A default buffer has no storage or entries to migrate. Keeping initial
+    // allocation separate also makes the source-storage invariant explicit.
+    if (current.bucket_buffer == nullptr) {
+      return;
+    }
+
     for (Count i = 0; i < current.bucket_count; i++) {
       if (current.bucket_buffer[i] == 0) {
         continue;
