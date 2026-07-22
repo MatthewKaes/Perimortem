@@ -3,7 +3,6 @@
 
 #include "perimortem/serialization/json/node.hpp"
 
-#include "perimortem/core/static/vector.hpp"
 #include "perimortem/core/null_terminated.hpp"
 
 #include "perimortem/memory/managed/bytes.hpp"
@@ -31,8 +30,12 @@ auto parse_string(View::Bytes source, Count& position) -> View::Bytes {
   auto data = source.get_data();
   while (position < source.get_size()) {
     switch (data[position]) {
-    case '"':
-      return source.slice(start, position - start);
+    case '"': {
+      auto result = source.slice(start, position - start);
+      position++;
+      return result;
+    }
+
     case '\\':
       position += 2;
       break;
@@ -465,98 +468,86 @@ auto Json::Node::format(Allocator::Arena& arena) const -> View::Bytes {
     }
 
     case NodeState::Array: {
-      stream << '[';
+      stream << "["_view;
 
       View::Vector<Json::Node> array = node.get_array();
       for (Unsigned_32 i = 0; i < array.get_size(); i++) {
         self(stream, array[i]);
         if (i != array.get_size() - 1) {
-          stream << ',';
+          stream << ","_view;
         }
       }
 
-      stream << ']';
+      stream << "]"_view;
       return;
     }
 
     case NodeState::Object: {
-      stream << '{';
+      stream << "{"_view;
 
       View::Vector<Member> members = node.get_object();
       for (Unsigned_32 i = 0; i < members.get_size(); i++) {
         const auto& member = members[i];
-        stream << '\"' << member.name << "\":"_view;
+        stream << "\""_view << member.name << "\":"_view;
 
         self(stream, member.node);
         if (i != members.get_size() - 1) {
-          stream << ',';
+          stream << ","_view;
         }
       }
 
-      stream << '}';
+      stream << "}"_view;
       return;
     }
 
     case NodeState::String: {
-      stream << '\"';
-      constexpr Static::Vector<Unsigned_8, 16> hex_digits = {
-        {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D',
-         'E', 'F'}};
+      stream << "\""_view;
+      constexpr auto hex_digits = "0123456789ABCDEF"_view;
       auto string = node.get_string();
       for (Count i = 0; i < string.get_size(); i++) {
         switch (string[i]) {
         case '"':
-          stream << '\\';
-          stream << '"';
+          stream << "\\\""_view;
           break;
 
         case '\\':
-          stream << '\\';
-          stream << '\\';
+          stream << "\\\\"_view;
           break;
 
         case '\b':
-          stream << '\\';
-          stream << 'b';
+          stream << "\\b"_view;
           break;
 
         case '\f':
-          stream << '\\';
-          stream << 'f';
+          stream << "\\f"_view;
           break;
 
         case '\n':
-          stream << '\\';
-          stream << 'n';
+          stream << "\\n"_view;
           break;
 
         case '\r':
-          stream << '\\';
-          stream << 'r';
+          stream << "\\r"_view;
           break;
 
         case '\t':
-          stream << '\\';
-          stream << 't';
+          stream << "\\t"_view;
           break;
 
         default:
           if (string[i] >= 0x20) {
-            stream << char(string[i]);
+            stream << string.slice(i, 1);
             break;
           }
 
-          stream << '\\';
-          stream << 'u';
-          stream << '0';
-          stream << '0';
-          stream << char(hex_digits[string[i] >> 4]);
-          stream << char(hex_digits[string[i] & 0x0F]);
+          stream << "\\u00"_view;
+          stream << hex_digits.slice(string[i] >> 4, 1);
+          stream << hex_digits.slice(string[i] & 0x0F, 1);
           break;
         }
       }
 
-      stream << '\"';
+      stream << "\""_view;
       return;
     }
 
