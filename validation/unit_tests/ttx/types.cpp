@@ -5,7 +5,7 @@
 
 #include "ttx/concept/invalid.hpp"
 #include "ttx/model/alias.hpp"
-#include "ttx/model/types/boolean.hpp"
+#include "ttx/model/types/bool.hpp"
 #include "ttx/model/types/real_32.hpp"
 #include "ttx/model/types/real_64.hpp"
 #include "ttx/model/types/signed_16.hpp"

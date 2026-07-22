@@ -21,44 +21,47 @@
 #include "ttx/model/types/unsigned_64.hpp"
 #include "ttx/model/types/unsigned_8.hpp"
 
-using namespace Perimortem::Core;
-using namespace Perimortem::Utility;
-using namespace Ttx::Model;
+namespace Tetrodotoxin::Parser {
 
-static constexpr Types::Boolean boolean;
-static constexpr Types::Unsigned_8 unsigned_8;
-static constexpr Types::Unsigned_16 unsigned_16;
-static constexpr Types::Unsigned_32 unsigned_32;
-static constexpr Types::Unsigned_64 unsigned_64;
-static constexpr Types::Signed_8 signed_8;
-static constexpr Types::Signed_16 signed_16;
-static constexpr Types::Signed_32 signed_32;
-static constexpr Types::Signed_64 signed_64;
-static constexpr Types::Real_32 real_32;
-static constexpr Types::Real_64 real_64;
+using Builtin = Perimortem::Utility::Option<const Ttx::Model::Type&>;
+using Entry = Perimortem::Utility::Pair<Perimortem::Core::View::Bytes, Builtin>;
 
-using Builtin = Option<const Type&>;
-using Entry = Pair<View::Bytes, Builtin>;
+static constexpr Ttx::Model::Types::Boolean boolean;
+static constexpr Ttx::Model::Types::Unsigned_8 unsigned_8;
+static constexpr Ttx::Model::Types::Unsigned_16 unsigned_16;
+static constexpr Ttx::Model::Types::Unsigned_32 unsigned_32;
+static constexpr Ttx::Model::Types::Unsigned_64 unsigned_64;
+static constexpr Ttx::Model::Types::Signed_8 signed_8;
+static constexpr Ttx::Model::Types::Signed_16 signed_16;
+static constexpr Ttx::Model::Types::Signed_32 signed_32;
+static constexpr Ttx::Model::Types::Signed_64 signed_64;
+static constexpr Ttx::Model::Types::Real_32 real_32;
+static constexpr Ttx::Model::Types::Real_64 real_64;
 
-// Count is Tetrodotoxin's ordinary size alias. Parsing returns the resolved
-// Unsigned_64 Type identity rather than manufacturing a second alias Type.
-static constexpr Static::Vector<Entry, 12> builtin_source = {{
-  {"Bool"_view, boolean},
+// Built in types used by common dialects (such as Library) can be optimized to
+// have a global override context by simply having a look up type intercept Type
+// parsing and abstract mapping.
+static constexpr Perimortem::Core::Static::Vector<Entry, 12> builtin_source = {{
+  {boolean.get_name(), boolean},
+  {real_32.get_name(), real_32},
+  {real_64.get_name(), real_64},
+  {signed_8.get_name(), signed_8},
+  {signed_16.get_name(), signed_16},
+  {signed_32.get_name(), signed_32},
+  {signed_64.get_name(), signed_64},
+  {unsigned_8.get_name(), unsigned_8},
+  {unsigned_16.get_name(), unsigned_16},
+  {unsigned_32.get_name(), unsigned_32},
+  {unsigned_64.get_name(), unsigned_64},
+  // Count is Tetrodotoxin's ordinary size alias. Parsing returns the resolved
+  // Unsigned_64 Type identity rather than manufacturing a second alias Type.
   {"Count"_view, unsigned_64},
-  {"Real_32"_view, real_32},
-  {"Real_64"_view, real_64},
-  {"Signed_8"_view, signed_8},
-  {"Signed_16"_view, signed_16},
-  {"Signed_32"_view, signed_32},
-  {"Signed_64"_view, signed_64},
-  {"Unsigned_8"_view, unsigned_8},
-  {"Unsigned_16"_view, unsigned_16},
-  {"Unsigned_32"_view, unsigned_32},
-  {"Unsigned_64"_view, unsigned_64},
 }};
 
-using BuiltinTable = Table<Builtin, builtin_source>;
+using BuiltinTable = Perimortem::Utility::Table<Builtin, builtin_source>;
 
-auto Tetrodotoxin::Parser::Builtins::find(View::Bytes name) -> Builtin {
-  return BuiltinTable::find_or_default(name, none);
+auto Builtins::find(Perimortem::Core::View::Bytes name) -> Builtin {
+  return BuiltinTable::find_or_default(name, Perimortem::Utility::none);
 }
+
+}  // namespace Tetrodotoxin::Parser

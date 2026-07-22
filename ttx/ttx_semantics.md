@@ -174,7 +174,7 @@ systems. The important distinction is ownership:
 - TTX source owns authored bytes and source spans.
 - Lexical owns Code assignment and token payload views.
 - Abstract objects and their virtual contracts form the shared TTX semantic
-  graph. Type, Alias, Generic, Expression, Constant, Callable, Static, Self,
+  graph. Type, Alias, Types::Generic, Expression, Constant, Callable, Static, Self,
   Addressable, Writable, and Invalid are contracts in that graph. Layout is the
   fundamental identity-free fitting contract over an ordered group of those
   real objects. Documentation is the fundamental borrowed authored-prose value.
@@ -206,7 +206,7 @@ Ttx::Concept
 │   ├── Alias
 │   ├── Invalid
 │   ├── Ttx::Model::Exports
-│   ├── Ttx::Model::Generic
+│   ├── Ttx::Model::Types::Generic
 │   ├── Ttx::Model::Expression
 │   │   └── Ttx::Model::Constant
 │   │       └── Ttx::Model::Constants::{Unsigned, Signed, Real, Flag, Bytes}
@@ -289,7 +289,8 @@ Callable::get_parameters()     -> const Concept::Layout&
 Callable::get_results()        -> const Concept::Layout&
 Addressable::get_type()        -> const Abstract&
 Writable::get_read_only()      -> const Addressable&
-Generic::materialize(layout)   -> const Abstract&
+Generic::get_parameterization() -> View::Vector<Parameters>
+Generic::find(arguments)        -> Option<Type&>
 Expression::get_type()         -> const Abstract&
 Expression::get_inputs()       -> const Concept::Layout&
 Expression::fits(type)         -> Bool
@@ -337,8 +338,8 @@ that would restore the capability the projection exists to withhold.
 Contiguous semantic collections store `Concept::Reference<Contract>`, a
 non-null borrowed reference value. It preserves the object it receives.
 Consumers call `resolve()` explicitly when they need represented identity, so a
-Structured Layout retains its real Addressables while Generic cache comparison
-can compare the resolved Abstracts in its argument Layout.
+Structured Layout retains its real Addressables while a Generic argument keeps
+the resolved `const Type&` identity selected by the parser.
 
 ### Contract Proof And Narrowing
 
@@ -1176,42 +1177,47 @@ part of the type query and are checked while proving that query.
 
 Parameterization is Generic dispatch over resolved arguments. A type reference
 such as `View[Unsigned_8]` resolves `View`, proves that it implements `Generic`,
-resolves `[Unsigned_8]`, and asks the Generic to create or find the concrete Type.
-An Abstract that is not Generic produces Invalid at that exact step. The
-Generic validates its accepted argument form and returns a real Abstract. The
-caller then resolves that result and proves Type. Generic is not a placeholder
-Type and does not have a Layout of its own.
+resolves `[Unsigned_8]`, and asks the Generic to find the concrete Type. An
+Abstract that is not Generic fails at that exact parser step. The parser
+validates the declared argument kinds and proves the returned Type contract.
+Generic is not a placeholder Type and does not have a Layout of its own.
 
-Each named Generic is a registered formula such as `Vec`, `View`, or `Dict`.
-The current source context owns the lookup surface and may index Generic names
-separately from concrete Type names. The Generic object owns its accepted
-argument schema, materialization rule, and concrete-Type cache. TTX does not
-define a global Generic registry or switch on formula names.
+Each named Generic is a formula such as `Vec`, `View`, or `Dict`. The current
+source context owns formula lookup; a toolchain may also expose a closed
+immutable builtin table. The Generic object owns its ordered parameter
+signature, materialization rule, and concrete-Type cache. TTX does not define a
+mutable Generic registry or switch on formula names.
 
-The evaluator gives the formula an identity-free ordered Layout containing
-real compile-time Abstracts. A Type is passed directly as first-class compiler
-information. A scalar is a real Constant Abstract; there is no inline Bool or
-unsigned shadow representation and no `Argument` wrapper. Generic compares
-entries after resolution. Aliases and type-producing redirections that resolve
-to the same final Abstract share a cache entry, while independently allocated
-Constants fold when their domain, resolved Type, and payload are equal.
-Unrelated Abstracts with the same local name remain different entries. The
-ordered Layout is therefore the complete formula-local cache key; it never
-includes a parent pointer, authored route, formatted Type name, or hash.
+`get_parameterization()` returns the complete ordered signature before any
+argument is consumed. Every entry is `Type`, `Unsigned_64`, or `Bool`. The
+parser validates the authored tokens against that signature and supplies
+`find()` a borrowed ordered view of
+`Union<const Type&, Unsigned_64, Bool>`. This union is a compact call carrier,
+not an Abstract or a second semantic graph. A Type alternative preserves the
+resolved semantic identity as a const reference. Unsigned and boolean
+alternatives are direct compile-time values.
 
-Missing formula lookup returns Invalid at the owning context. A resolved object
-that does not implement Generic fails the contract proof. A Generic whose
-argument schema does not accept the supplied values returns Invalid from
-materialization. These are separate source errors even though they share the
-same semantic failure object.
+The formula compares Type arguments by resolved identity and scalar arguments
+by value. Unrelated Types with the same local name remain distinct. The ordered
+argument view is the complete formula-local cache key; it never includes a
+parent pointer, authored route, formatted Type name, or hash.
+
+Missing formula lookup returns Invalid at the owning Abstract context. Once
+parsing begins, a wrong contract, malformed list, rejected argument shape, or
+rejected value produces a source diagnostic and `Utility::None`; parse failure
+is not inserted into the Abstract graph. The parser can therefore recover at a
+statement or scope sequence point without manufacturing an Invalid Type.
 
 The concrete Type returned by parameterization is compiler-owned. Its stable
 handle is used for local equivalence, member lookup, nested Type lookup,
 Callable lookup, and Layout queries. A host that exports it derives a durable
-name by walking a selected named ownership chain. The argument Layout is an
-input to construction, not a second semantic model. The source
-owner retains the authored route for diagnostics. A publication owner selects
-and renders a public ownership chain independently of local cache identity.
+name by walking a selected named ownership chain. The compact argument view is
+an input to construction, not another semantic model. The source owner
+retains the authored route for diagnostics. A materialized Type may add a
+formula-specific contract such as `View::Type`, allowing consumers to ask
+`is<View::Type>()` without treating the `View` generator as a Type. A
+publication owner selects and renders a public ownership chain independently of
+local cache identity.
 
 `alias` creates an Alias Abstract that preserves the authored local name and
 documentation while redirecting to its resolved target. When that target is a
@@ -1232,12 +1238,13 @@ Publication walks an explicitly selected named ownership chain. A terminal that
 materializes Type values uses the explicit Abstract contract defined by that
 runtime. Compiler pointers and C++ vtables are never the public representation.
 
-Decode shape: a type reference starts with `Type`, or a numeric token when
-decoding a numeric type argument. `TypeAccessOp` continues progressive context
-resolution. The receiving Abstract owns route interpretation, and the completed
-query proves the resolved object's Type contract. Type arguments start with
-`LayoutStart`, contain type references separated by `PackingOp`, and end with
-`LayoutEnd`.
+Decode shape: a type reference starts with `Type`. `TypeAccessOp` continues
+progressive context resolution. The receiving Abstract owns route
+interpretation. When `LayoutStart` follows a Generic, the parser walks the
+formula's signature and accepts a nested Type reference, decimal or hexadecimal
+Unsigned_64, or `true`/`false` for each corresponding parameter. `PackingOp`
+separates arguments and `LayoutEnd` closes the list. The completed query proves
+the materialized object's Type contract.
 
 ## Terminal Registration And Source Contexts
 

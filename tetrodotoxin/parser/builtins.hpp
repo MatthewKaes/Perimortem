@@ -12,8 +12,8 @@
 namespace Tetrodotoxin::Parser {
 
 // Builtins owns Tetrodotoxin's fixed scalar Type identities and their immutable
-// name lookup. It is not a registry: no source, Dialect, or caller can add,
-// replace, or remove entries at runtime.
+// name lookup. Generic formulas belong to the active Environment and therefore
+// resolve through the ordinary source context.
 class Builtins {
  public:
   static auto find(Perimortem::Core::View::Bytes name)

@@ -7,9 +7,6 @@
 #include "perimortem/core/algorithm/sort.hpp"
 
 #include "tetrodotoxin/model/addressables/initialized.hpp"
-#include "tetrodotoxin/model/app.hpp"
-#include "tetrodotoxin/model/apps/lifecycle.hpp"
-#include "tetrodotoxin/model/apps/program.hpp"
 #include "tetrodotoxin/model/constants/aggregate.hpp"
 #include "tetrodotoxin/model/expressions/call.hpp"
 #include "tetrodotoxin/model/render.hpp"
@@ -19,10 +16,7 @@
 #include "tetrodotoxin/model/renderables/value.hpp"
 #include "tetrodotoxin/model/renders/contract.hpp"
 #include "tetrodotoxin/model/shader.hpp"
-#include "tetrodotoxin/model/stages/implemented.hpp"
 #include "tetrodotoxin/model/stages/required.hpp"
-#include "tetrodotoxin/model/types/named_vector.hpp"
-#include "tetrodotoxin/model/types/object.hpp"
 #include "tetrodotoxin/model/types/represented.hpp"
 #include "tetrodotoxin/model/types/structure.hpp"
 #include "ttx/concept/invalid.hpp"
@@ -30,14 +24,10 @@
 #include "ttx/model/alias.hpp"
 #include "ttx/model/callable.hpp"
 #include "ttx/model/expression.hpp"
-#include "ttx/model/generic.hpp"
-#include "ttx/model/types/access.hpp"
-#include "ttx/model/types/accesses/materialized.hpp"
+#include "ttx/model/types/generics.hpp"
+#include "ttx/model/types/generics/access.hpp"
+#include "ttx/model/types/generics/view.hpp"
 #include "ttx/model/types/terminal.hpp"
-#include "ttx/model/types/vector.hpp"
-#include "ttx/model/types/vectors/materialized.hpp"
-#include "ttx/model/types/view.hpp"
-#include "ttx/model/types/views/materialized.hpp"
 
 using namespace Perimortem::Core;
 using namespace Ttx::Concept;
@@ -232,61 +222,16 @@ auto Tetrodotoxin::Model::Packages::Sources::collect_definition(
     return;
   }
 
-  if (definition.is<Model::Types::Object>()) {
-    const auto& object = definition.assume<Model::Types::Object>();
-    for (Count i = 0; i < object.get_member_count(); i++) {
-      collect_definition(object.get_member(i));
-    }
-    return;
-  }
-
-  if (definition.is<Model::Types::NamedVector>()) {
-    const auto& vector = definition.assume<Model::Types::NamedVector>();
-    collect_definition(vector.get_element_type());
-    for (Count i = 0; i < vector.get_member_count(); i++) {
-      collect_definition(vector.get_member(i));
-    }
-    return;
-  }
-
-  if (definition.is<Ttx::Model::Types::Vectors::Materialized>()) {
-    const auto& vector =
-        definition.assume<Ttx::Model::Types::Vectors::Materialized>();
-    collect_definition(vector.get_generic());
-    collect_layout(vector.get_arguments());
-    return;
-  }
-  if (definition.is<Ttx::Model::Types::Accesses::Materialized>()) {
+  if (definition.is<Ttx::Model::Types::Generics::Access::Type>()) {
     const auto& access =
-        definition.assume<Ttx::Model::Types::Accesses::Materialized>();
-    collect_definition(access.get_generic());
-    collect_layout(access.get_arguments());
+        definition.assume<Ttx::Model::Types::Generics::Access::Type>();
+    collect_definition(access.get_element_type());
     return;
   }
-  if (definition.is<Ttx::Model::Types::Views::Materialized>()) {
+  if (definition.is<Ttx::Model::Types::Generics::View::Type>()) {
     const auto& view =
-        definition.assume<Ttx::Model::Types::Views::Materialized>();
-    collect_definition(view.get_generic());
-    collect_layout(view.get_arguments());
-    return;
-  }
-
-  if (definition.is<Model::App>()) {
-    const auto& app = definition.assume<Model::App>();
-    collect_layout(app.get_layout());
-    for (Count i = 0; i < app.get_member_count(); i++) {
-      collect_definition(app.get_member(i));
-    }
-    collect_definition(app.get_start());
-    collect_definition(app.get_frame());
-    collect_definition(app.get_stop());
-    for (Count i = 0; i < app.get_render_root_count(); i++) {
-      collect_definition(app.get_render_root(i));
-    }
-    for (Count i = 0; i < app.get_binding_count(); i++) {
-      collect_definition(app.get_binding(i).get_render());
-      collect_definition(app.get_binding(i).get_shader());
-    }
+        definition.assume<Ttx::Model::Types::Generics::View::Type>();
+    collect_definition(view.get_element_type());
     return;
   }
 
@@ -320,14 +265,6 @@ auto Tetrodotoxin::Model::Packages::Sources::collect_definition(
     return;
   }
 
-  if (definition.is<Model::Stages::Implemented>()) {
-    const auto& stage = definition.assume<Model::Stages::Implemented>();
-    collect_definition(stage.get_required());
-    collect_layout(stage.get_parameters());
-    collect_layout(stage.get_results());
-    collect_body(stage.get_body());
-    return;
-  }
   if (definition.is<Model::Stages::Required>()) {
     const auto& stage = definition.assume<Model::Stages::Required>();
     collect_layout(stage.get_parameters());
@@ -337,14 +274,6 @@ auto Tetrodotoxin::Model::Packages::Sources::collect_definition(
     }
     return;
   }
-  if (definition.is<Model::Apps::Lifecycle>()) {
-    const auto& lifecycle = definition.assume<Model::Apps::Lifecycle>();
-    collect_layout(lifecycle.get_parameters());
-    collect_layout(lifecycle.get_results());
-    collect_body(lifecycle.get_body());
-    return;
-  }
-
   if (definition.is<Ttx::Model::Callable>()) {
     const auto& callable = definition.assume<Ttx::Model::Callable>();
     collect_layout(callable.get_parameters());
@@ -411,22 +340,6 @@ auto Tetrodotoxin::Model::Packages::Sources::collect_definition(
     return;
   }
 
-  if (definition.is<Ttx::Model::Types::Vector>()) {
-    const auto& vector = definition.assume<Ttx::Model::Types::Vector>();
-    collect_definition(vector.get_element_type());
-    collect_layout(vector.get_layout());
-    return;
-  }
-  if (definition.is<Ttx::Model::Types::Access>()) {
-    collect_definition(
-        definition.assume<Ttx::Model::Types::Access>().get_element_type());
-    return;
-  }
-  if (definition.is<Ttx::Model::Types::View>()) {
-    collect_definition(
-        definition.assume<Ttx::Model::Types::View>().get_element_type());
-    return;
-  }
   if (definition.is<Ttx::Model::Type>()) {
     collect_layout(definition.assume<Ttx::Model::Type>().get_layout());
     return;
@@ -437,46 +350,6 @@ auto Tetrodotoxin::Model::Packages::Sources::collect_layout(
     const Ttx::Concept::Layout& layout) -> void {
   for (Count i = 0; i < layout.get_size(); i++) {
     collect_definition(layout.get_abstract(i));
-  }
-}
-
-auto Tetrodotoxin::Model::Packages::Sources::collect_body(
-    const Ttx::Model::Body& body) -> void {
-  const auto values = body.get_values();
-  for (Count i = 0; i < values.get_size(); i++) {
-    collect_definition(values[i].get_type());
-  }
-
-  // A Body operation is a closed value union. Visit it directly so semantic
-  // references are collected once without manufacturing nullable candidates
-  // for alternatives which are not present.
-  const auto operations = body.get_operations();
-  for (Count i = 0; i < operations.get_size(); i++) {
-    operations[i].visit(
-        []() -> void { __builtin_trap(); },
-        [&](const Ttx::Model::Bodies::Operations::Constant& value) -> void {
-          collect_definition(value.get_value());
-        },
-        [](const Ttx::Model::Bodies::Operations::Aggregate&) -> void {},
-        [&](const Ttx::Model::Bodies::Operations::Projection& value) -> void {
-          collect_definition(value.get_addressable());
-        },
-        [&](const Ttx::Model::Bodies::Operations::Call& value) -> void {
-          collect_definition(value.get_callable());
-        },
-        [&](const Ttx::Model::Bodies::Operations::Load& value) -> void {
-          collect_definition(value.get_addressable());
-        },
-        [&](const Ttx::Model::Bodies::Operations::Store& value) -> void {
-          collect_definition(value.get_addressable());
-        },
-        [](const Ttx::Model::Bodies::Operations::Binary&) -> void {},
-        [](const Ttx::Model::Bodies::Operations::Convert&) -> void {},
-        [](const Ttx::Model::Bodies::Operations::IndexedRead&) -> void {},
-        [](const Ttx::Model::Bodies::Operations::IndexedWrite&) -> void {},
-        [](const Ttx::Model::Bodies::Operations::Branch&) -> void {},
-        [](const Ttx::Model::Bodies::Operations::Jump&) -> void {},
-        [](const Ttx::Model::Bodies::Operations::Return&) -> void {});
   }
 }
 
@@ -497,7 +370,7 @@ auto Tetrodotoxin::Model::Packages::Sources::is_external(
     // expose the same evaluator identity, this package assigns its own local
     // coordinate. A non builtin semantic owner remains ambiguous and invalid.
     if (definition.is<Ttx::Model::Types::Terminal>() ||
-        definition.is<Ttx::Model::Generic>()) {
+        definition.is<Ttx::Model::Types::Generic>()) {
       return False;
     }
     valid = False;

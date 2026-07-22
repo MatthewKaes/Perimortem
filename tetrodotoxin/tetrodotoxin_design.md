@@ -99,6 +99,11 @@ leak through it.
 
 ## Library and common Body
 
+The shared Environment owns the common `View` and `Access` formulas and caches
+their materialized Types by exact parameter identity. Every member Source
+therefore observes the same materialized address during one interpretation
+transaction.
+
 Library constructs the real Types used by the vertical:
 
 - Math supplies `Point2D`, `Size2D`, and their scalar fields;
@@ -106,8 +111,7 @@ Library constructs the real Types used by the vertical:
   Callables;
 - Graphics supplies explicit represented `Color`, managed `Image`, and the
   Image sampling Callable;
-- fixed-vector, `View[T]`, and `Access[T]` Types are materialized through real
-  Generic owners and cached by exact parameter identity.
+- fixed-vector Types are materialized through their real Generic owners.
 
 `object` produces a Type proving `Ttx::Model::Types::Managed`. That proof means
 the value is a managed object reference. Layout still owns only semantic field

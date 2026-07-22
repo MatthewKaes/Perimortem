@@ -15,7 +15,7 @@
 #include "ttx/model/layouts/fluid.hpp"
 #include "ttx/model/layouts/named.hpp"
 #include "ttx/model/layouts/structured.hpp"
-#include "ttx/model/types/boolean.hpp"
+#include "ttx/model/types/bool.hpp"
 #include "ttx/model/types/real_64.hpp"
 #include "ttx/model/types/signed_64.hpp"
 #include "ttx/model/types/signed_8.hpp"

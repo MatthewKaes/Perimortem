@@ -446,7 +446,7 @@ Ttx::Concept
 │   ├── Alias
 │   ├── Invalid
 │   ├── Ttx::Model::Exports
-│   ├── Ttx::Model::Generic
+│   ├── Ttx::Model::Types::Generic
 │   ├── Ttx::Model::Expression
 │   │   └── Ttx::Model::Constant
 │   │       └── Ttx::Model::Constants::{Unsigned, Signed, Real, Flag, Bytes}
@@ -536,7 +536,8 @@ Callable::get_parameters()     -> const Concept::Layout&
 Callable::get_results()        -> const Concept::Layout&
 Addressable::get_type()        -> const Abstract&
 Writable::get_read_only()      -> const Addressable&
-Generic::materialize(layout)   -> const Abstract&
+Generic::get_parameterization() -> View::Vector<Parameters>
+Generic::find(arguments)        -> Option<Type&>
 Expression::get_type()         -> const Abstract&
 Expression::get_inputs()       -> const Concept::Layout&
 Expression::fits(type)         -> Bool
@@ -712,23 +713,25 @@ implements `Generic`, then asks it for a concrete Type. `View[Unsigned_8]`,
 compiler owns the resulting concrete object and makes it queryable through the
 same Type contract as any authored type.
 
-Each Generic is a named formula registered in the current source context. `Vec`
-owns Vec argument validation, materialization, and its concrete-Type cache.
-`View` owns the corresponding View rules. The context owns name lookup and can
-keep Generic formulas separate from concrete Types. There is no global formula
-registry and no parser switch on formula names.
+Each Generic is a named formula available from the current source context or a
+toolchain's immutable builtin table. `Vec` owns Vec materialization and its
+concrete-Type cache. `View` owns the corresponding View rules. There is no
+mutable formula registry and no parser switch on formula names.
 
-The evaluator gives the formula a closed ordered Layout of real compile-time
-Abstracts. Types are direct first-class inputs and scalar inputs are real
-Constant Abstracts; no `Argument` wrapper or inline scalar representation sits
-between the formula and the graph. Generic compares resolved identities and
-uses Constant equality for independently allocated equal values. Repeating the
-same formula with an Alias, type-producing redirection, or direct Type that
-resolves to the same final object returns the same concrete Type identity.
-Unrelated objects with the same local name remain distinct. Names, routes,
-parents, and hashes do not participate. Missing formula lookup and a found
-formula rejecting its argument shape remain distinct source errors, with both
-represented semantically by Invalid.
+The formula publishes its complete ordered parameter signature up front. Each
+parameter is `Type`, `Unsigned_64`, or `Bool`. The parser uses that signature to
+consume and diagnose the authored list in one pass, then supplies a compact
+ordered `Union<const Type&, Unsigned_64, Bool>` view to `find()`. The union is a
+non-semantic call carrier: Type arguments preserve resolved object identity,
+while scalar arguments are direct compile-time values. Unrelated Types with the
+same local name remain distinct. Names, routes, parents, and hashes do not
+participate in the cache key.
+
+Malformed source or rejected values produce a parser diagnostic and
+`Utility::None`; parse failure is not an Abstract graph identity. A successful
+formula returns its cache-owned Type. A formula may publish a class-specific
+materialized contract such as `View::Type`, allowing consumers to query
+`is<View::Type>()` without treating the `View` generator as a Type.
 
 Aliases are closed compile-time Abstract redirects. Alias preserves its local
 name while `resolve()` follows the target's represented identity and

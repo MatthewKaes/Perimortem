@@ -53,9 +53,10 @@ graph is complete.
 - `Types::Managed` proves that values of a Type are managed object references.
   It says nothing about tracing, allocation, movement, or target storage.
 - terminal Type families prove numeric or flag meaning and width.
-- `Generic` is a compile-time materialization/cache boundary. A concrete
-  argument list returns one stable real Type identity; the Generic is not a
-  Type itself.
+- `Types::Generic` is a compile-time materialization/cache boundary.
+  Its ordered signature selects `const Type&`, `Unsigned_64`, or `Bool`
+  arguments, and a valid argument list returns one stable real Type identity.
+  The Generic formula is not a Type itself.
 - `Expression` is a value fact distinct from its result Type. `Constant` is an
   immutable, zero-input Expression.
 - `Addressable` is a named typed storage location. `Writable` is its narrower
@@ -176,7 +177,7 @@ Render2D/Default2D/Demo walkthrough plus the canonical Scene composition.
   lexical diagnostics.
 - [`concept`](concept/) owns Abstract, Documentation, Invalid, Layout, and
   non-null Reference.
-- [`model`](model/) owns Type families, Layout implementations, Generic,
+- [`model`](model/) owns Type families, Layout implementations, Generics,
   Expression/Constant, Addressable/Writable, Callable, Alias, Exports, and
   common Body.
 - [`../tetrodotoxin/model`](../tetrodotoxin/model/) owns Source, Environment,

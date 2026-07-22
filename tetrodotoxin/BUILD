@@ -78,16 +78,17 @@ cc_library(
     deps = [
         "//perimortem",
         "//ttx",
+        ":model",
     ],
 )
 
 cc_library(
     name = "compiler",
     srcs = glob([
-        "compiler/**/*.cpp",
+        "compiler/assembler/**/*.cpp",
     ]),
     hdrs = glob([
-        "compiler/**/*.hpp",
+        "compiler/assembler/**/*.hpp",
     ]),
     includes = ["."],
     deps = [

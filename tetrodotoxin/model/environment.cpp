@@ -68,21 +68,16 @@ auto Tetrodotoxin::Model::Environment::bind(
 
 auto Tetrodotoxin::Model::Environment::resolve_context(View::Bytes route) const
     -> const Abstract& {
-  const Bindings::Entry* selected = bindings_by_name.find(route);
-  if (selected != nullptr) {
-    return selected->value.get();
-  }
-
-  if (route == vector.get_name()) {
-    return vector;
-  }
-
   if (route == view.get_name()) {
     return view;
   }
-
   if (route == access.get_name()) {
     return access;
+  }
+
+  const Bindings::Entry* selected = bindings_by_name.find(route);
+  if (selected != nullptr) {
+    return selected->value.get();
   }
 
   return Invalid::get_invalid();

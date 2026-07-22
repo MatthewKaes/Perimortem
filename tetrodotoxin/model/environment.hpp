@@ -11,10 +11,8 @@
 
 #include "tetrodotoxin/model/dependencies/package.hpp"
 #include "ttx/concept/reference.hpp"
-#include "ttx/model/generics/access.hpp"
-#include "ttx/model/generics/vec.hpp"
-#include "ttx/model/generics/view.hpp"
-#include "ttx/model/materialization.hpp"
+#include "ttx/model/types/generics/access.hpp"
+#include "ttx/model/types/generics/view.hpp"
 
 namespace Tetrodotoxin::Model {
 
@@ -24,17 +22,20 @@ namespace Tetrodotoxin::Model {
 // lookup can therefore bind a local Alias without searching a repository or
 // rediscovering a transitive package graph.
 //
-// The Environment owns every injected Alias. Package resolutions additionally
-// retain their exact external identity and deduplicated Package edge. Generic
-// bindings let a container expose already-built local or host objects without
-// pretending that a Source imported them.
+// The Environment owns every injected Alias and the common Generic formulas
+// shared by the transaction. Their materializations therefore have one address
+// across every member Source without relying on process-static storage. Package
+// resolutions additionally retain their exact external identity and
+// deduplicated Package edge. Direct bindings let a container expose
+// already-built local or host objects without pretending that a Source imported
+// them. The Environment and its Sources remain on one worker for the complete
+// transaction because the shared arena is backed by worker-local Bibliotheca
+// storage.
 class Environment {
  public:
   Environment()
-      : materialization(arena),
-        vector(materialization),
-        view(materialization),
-        access(materialization),
+      : view(arena),
+        access(arena),
         resolutions(arena),
         dependencies(arena),
         packages(arena),
@@ -104,10 +105,8 @@ class Environment {
       Ttx::Concept::Reference<Ttx::Model::Alias>>;
 
   Perimortem::Memory::Allocator::Arena arena;
-  Ttx::Model::Materialization materialization;
-  Ttx::Model::Generics::Vec vector;
-  Ttx::Model::Generics::View view;
-  Ttx::Model::Generics::Access access;
+  Ttx::Model::Types::Generics::View view;
+  Ttx::Model::Types::Generics::Access access;
   Perimortem::Memory::Managed::Vector<
       Ttx::Concept::Reference<Dependencies::Package>>
       resolutions;

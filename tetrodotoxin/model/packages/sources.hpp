@@ -10,7 +10,6 @@
 #include "tetrodotoxin/model/namespace.hpp"
 #include "tetrodotoxin/model/packages/interpreted.hpp"
 #include "ttx/concept/layout.hpp"
-#include "ttx/model/body.hpp"
 
 namespace Tetrodotoxin::Model::Packages {
 
@@ -95,7 +94,6 @@ class Sources final : public Interpreted {
   auto collect_namespace(const Model::Namespace& namespace_object) -> void;
   auto collect_definition(const Ttx::Concept::Abstract& definition) -> void;
   auto collect_layout(const Ttx::Concept::Layout& layout) -> void;
-  auto collect_body(const Ttx::Model::Body& body) -> void;
   auto is_external(const Ttx::Concept::Abstract& definition) -> Bool;
 
   using SourceIndex =
