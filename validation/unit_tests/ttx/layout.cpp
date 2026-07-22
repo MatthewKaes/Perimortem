@@ -64,7 +64,7 @@ class ByteSequence final : public Type {
  public:
   ByteSequence(const Type& byte, Count size) : layout(byte, size) {}
 
-  auto get_name() const -> View::Bytes override { return "Bytes"_view; }
+  auto get_name() const -> View::Bytes override { return "ByteSequence"_view; }
   auto get_documentation() const -> const Documentation& override {
     return Documentation::get_empty();
   }

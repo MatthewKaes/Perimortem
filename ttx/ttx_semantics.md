@@ -105,9 +105,10 @@ TTX does not define a canonical Dialect set. It defines source IR, token
 bytecode, and the shared facts that a Dialect can use. Which Dialects evaluate
 that bytecode is left to the toolchain that hosts TTX.
 
-Puffer, Tetrodotoxin's reference CLI host, uses a small Boot envelope to
-evaluate its source preamble before selecting a body Dialect. For that concrete host
-model, see [`tetrodotoxin_design.md`](../tetrodotoxin/tetrodotoxin_design.md).
+Tetrodotoxin's active package Container evaluates the small source envelope
+(`dialect : Name;`) before handing the remaining token range to the selected
+body Dialect. For that concrete host model, see
+[`tetrodotoxin_design.md`](../tetrodotoxin/tetrodotoxin_design.md).
 
 The useful mental model is:
 
@@ -210,6 +211,7 @@ Ttx::Concept
 │   │   └── Ttx::Model::Constant
 │   │       └── Ttx::Model::Constants::{Unsigned, Signed, Real, Flag, Bytes}
 │   ├── Ttx::Model::Type
+│   │   ├── Ttx::Model::Types::Managed
 │   │   ├── Ttx::Model::Types::Terminal
 │   │   │   ├── Unsigned -> Unsigned_8 / 16 / 32 / 64
 │   │   │   ├── Signed -> Signed_8 / 16 / 32 / 64
@@ -222,7 +224,8 @@ Ttx::Concept
 │   └── Ttx::Model::Addressable
 │       └── Ttx::Model::Addressables::Writable
 ├── Documentation
-└── Layout
+├── Layout
+└── Ttx::Model::Body
 ```
 
 `Ttx::Concept` owns foundational contracts and values that have no narrower
@@ -243,6 +246,7 @@ Documentation remain ordinary identity-free contracts or values:
 | `Documentation` | borrowed ordered prose with no semantic identity                         |
 | `Layout`        | identity-free ordered shape, directional fitting, and fitting evidence   |
 | `Type`          | resolved semantic identity with a total Layout query                     |
+| `Managed`       | Type proof that values are runtime-managed object references              |
 | `Generic`       | instruction contract that resolves arguments to a concrete Type          |
 | `Expression`    | one evaluatable value with a result Type query and ordered input Layout  |
 | `Constant`      | immutable Expression already in normal form with value equality          |
@@ -254,6 +258,7 @@ Documentation remain ordinary identity-free contracts or values:
 | `Addressable`   | named address to typed data whose `get_type()` supplies Type or Invalid  |
 | `Writable`      | Addressable assignment capability with a stable non-writable projection  |
 | `Invalid`       | absorbing failed resolution                                              |
+| `Body`          | identity-free executable blocks, values, and operations                  |
 
 Terminal Types add narrow storage and domain contracts:
 
@@ -264,6 +269,12 @@ Terminal Types add narrow storage and domain contracts:
 | `Signed`   | signed integer domain                                         |
 | `Real`     | floating-point domain                                         |
 | `Flag`     | two-value logical domain                                      |
+
+`Unsigned_8` is the common semantic byte element. TTX has no separate `Byte`
+or scalar `Bytes` Type alias because that would give the same stored value two
+semantic identities and duplicate every consumer's numeric handling. The
+`Constants::Bytes` contract instead names a byte-array literal domain. Its
+resolved collection Type is distinct from its `Unsigned_8` element Type.
 
 The first narrow native contracts are deliberately reference based:
 
@@ -293,6 +304,23 @@ Types, documentation, attributes, defaults, and Dialect facts remain on those re
 objects or on richer contracts they implement. Consumers ask an Addressable
 for its Type; address identity does not resolve away into Type identity. No
 nullable reference is part of the Layout interface.
+
+`Types::Managed : Type` is the narrow semantic proof that a value is a managed
+object reference rather than an inline value. It says nothing about tracing
+algorithm, pointer width, storage class, target address space, allocator,
+moving policy, or object header. Those are runtime and target Representation
+decisions. A concrete Library `object` Type proves Managed; an inline struct,
+vector, choice, or range Type does not. A Dialect such as Shader rejects a
+Managed Type unless an explicit representation contract supplies a legal
+non-managed target Type.
+
+`Types::Void : Type` is the result Type of invoking a Callable whose result
+Layout is empty. It keeps the invocation represented in an executable Body
+when the Callable produces no values but may still mutate state, invoke Foreign
+code, or perform another observable side effect. Void is not inserted into the
+Callable's result Layout and is not storage, an empty aggregate, runtime
+absence, or semantic failure. An optimizer may remove a Void invocation only
+after independently proving that the invocation has no observable effects.
 
 `Addressables::Writable : Addressable` is the narrower proof that assignment
 may target an address. It does not add a mutability boolean to every
@@ -607,6 +635,47 @@ that has already been evaluated into `Real_128`. A future folding facility can
 be another narrow contract over expressions that can prove a Constant. It does
 not require an evaluation method on every Expression.
 
+## Executable Body
+
+`Model::Body` is the common identity-free executable value produced after a
+Dialect has consumed authored source. It is not an Abstract, AST, parse tree,
+scope, cursor snapshot, or second Type graph. The concrete Callable, Shader
+Stage, or App lifecycle owner retains the complete Body and supplies the
+semantic identity around it.
+
+A Body is an immutable set of compact tables:
+
+- blocks name ordered operation ranges and their explicit terminators;
+- body-local value IDs name parameters, locals, computed values, and
+  projections;
+- operations retain body-local IDs and only the graph edges required by their
+  shape. Operand and result Types live once in the Body value table;
+- aggregate construction and projection preserve semantic Layout order;
+- loads and stores refer to real Addressable identities, and stores require a
+  Writable proof;
+- calls refer to real Callable or explicit intrinsic owners rather than copied
+  signatures or domain-specific universal opcodes;
+- branches, merge structure, loops, and returns use block IDs rather than
+  replayable source positions.
+
+The common alternatives cover structural operation shapes such as constants,
+aggregate construction, calls, loads, stores, unary and binary values,
+branches, and returns. A binary operation records one Dialect-owned bytecode
+and exactly two body-local operands. TTX does not define what `+` means or
+manufacture an Abstract for each operand Type pair. The active Dialect proves
+the ordered `(left Type, right Type) -> result Type` rule before publishing the
+Body. Texture sampling, managed allocation, and Foreign linkage remain calls
+to their real semantic owners. Adding one of those domains does not add a
+central semantic Kind or a parallel expression tree.
+
+Every result-producing operation declares its result Type and produces one
+fresh body-local value ID. All operand, value, block, and graph edges are
+validated before the Body is published. IDs are dense within the Body, have no
+meaning outside it, and are the only Body facts an archive stores directly;
+semantic graph edges use Package definition IDs. Source tokens and Cursor
+state are consumed construction inputs and never survive as executable
+authority.
+
 ## Layout Facts
 
 `Concept::Layout` is the shared fitting contract over an ordered group of real Abstracts.
@@ -634,7 +703,7 @@ The five v1 contracts are deliberately separate classes:
   same field merely because their spellings and child Types happen to match.
 - **Ranged** is a compact homogeneous shape. It stores one real Abstract and a
   count, then returns that same answer for every index inside the interval and
-  Invalid outside it. Fixed `Bytes[N]` and `Static::Vector<T, N>` Types can
+  Invalid outside it. Fixed `Unsigned_8[N]` and `Static::Vector<T, N>` Types can
   therefore participate in recursive projection without allocating N copied
   edges.
 - **Composite** is positional composition over two complete Layouts. It routes
@@ -671,6 +740,15 @@ instead expose Ranged and answer every valid index from one repeated Type.
 Storage offsets and aggregate size and alignment are derived from those facts.
 Carrier, register class, calling convention, and wire policy remain later
 compiler queries. None of these are Layout fields.
+
+Target Representation is a derived compiler product over real Type, Layout,
+Addressable, Callable, Body, and Dialect facts. It may cache target-local IDs,
+offsets, alignments, storage classes, descriptor bindings, register classes,
+and ABI carriers for one compilation. Those records are neither Abstract
+identities nor Layout entries, and an archive never treats them as the
+semantic source of truth. Terminal bytes may be archived as derived products
+only together with the semantic and versioned Dialect facts required to prove
+their meaning.
 
 A Type-targeting Alias is resolved before the Type contract is proved. A
 Generic is a compile-time instruction rather than a Type or value.
@@ -900,12 +978,21 @@ access such as `YourType::Package` is still valid syntax.
 The Dialect controls which builtins, attributes, Types, address spaces, runtime
 features, and body instructions are legal in the source.
 
+A Dialect controls source presentation, accepted builtins, evaluation,
+legality, and its additional versioned facts. Its durable result participates
+in the one shared semantic graph. A Dialect may reject or narrow a common
+construct, but it may not reinterpret an existing common contract. In
+particular, Environment binding makes another identity available without
+importing that identity's Dialect builtins or legality rules.
+
 | Dialect   | Purpose                                                            |
 | --------- | ------------------------------------------------------------------ |
 | `Library` | general reusable code, binary formats, data transforms, host logic |
 | `Package` | public package export surfaces                                     |
 | `Render`  | stage-oriented render package authoring and host render contracts  |
 | `Shader`  | shader definitions and shader-specific host glue                   |
+| `Scene`   | reusable managed state, lifecycle, render roots, and typed outcomes |
+| `App`     | process lifecycle, Scene composition, and target selection policy  |
 
 `alias` is the fixed definition keyword. Dialect-owned lowercase spellings such as
 `object`, `struct`, `enum`, and `foreign` are definition forms only when the
@@ -933,6 +1020,50 @@ may produce GPU code, such as SPIR-V, and host-side code that loads those
 constants, builds pipeline layouts, and bridges them into the Perimortem
 runtime. Backend outputs such as SPIR-V, x86_64, generated headers, or Vulkan
 bridge code are compilation targets, not separate Dialects.
+
+### Scene State And App Composition
+
+A Scene is a reusable managed state owner inside an App. It owns its state
+Layout, ordinary lifecycle Callables, render-root Addressables, and declared
+typed signals. The lifecycle roles are `enter`, `frame`, and `exit`. Their
+meaning is recorded as direct Callable edges; a runtime never discovers them
+by searching for a conventional function name.
+
+A Scene does not select the next Scene and does not terminate the containing
+App directly. Its frame Callable returns a real `Scene::Flow` value which
+either keeps the current Scene active or emits one signal owned by that Scene.
+The App owns the initial Scene and the complete transition table from
+`(Scene, signal)` to `replace`, `push`, `pop`, or App exit behavior. Transition
+targets are direct Scene identity edges after evaluation, never source paths or
+runtime strings.
+
+A signal is a Scene-owned semantic identity with a complete payload Layout.
+`signal finished;` has an empty payload. A future declaration such as
+`signal selected[.item : ItemId];` carries one fitted value without creating a
+second event Type system. `Scene::Flow` is an ordinary closed runtime value
+containing Stay or an emitted signal coordinate and its fitted payload. A
+compiled runtime may use owner-local ordinals, but the semantic and durable
+edges remain the real Scene and signal identities.
+
+This ownership permits a state-machine cycle without a Source dependency
+cycle. If Splash emits `finished` and Title emits `shift_pressed`, the App may
+map Splash to Title and Title back to Splash. Neither Scene queries or imports
+the other. Both real Scene owners exist before the App composition is
+evaluated, and the App contains the transition edges. The archive graph is
+therefore an ordinary finite owner graph rather than mutually recursive export
+surfaces or forward declarations.
+
+A replacement transition is transactional. Runtime completes the current
+frame, calls the old Scene's `exit`, releases its external resources,
+constructs and roots the new Scene state in the worker Realm, calls its
+`enter`, and only then publishes it as current. Failure follows the App's
+normal cleanup guarantee and does not expose a partially entered Scene.
+
+Scene render roots use the same Render contracts and explicit App-owned
+Render-to-Shader bindings as App roots. Graphics receives evaluated Render
+values from the active Scene set; it never acquires Scene, Source, or lifecycle
+concepts. A stacked Scene policy may keep lower Scene state alive while
+choosing independently whether those roots update or render.
 
 ## Container Environments
 
@@ -1251,7 +1382,7 @@ Other type-like Dialects define values and must end with `;` or use `=`:
 
 ```ttx
 private size  : Count = 4;
-private bytes : Bytes;
+private octet : Unsigned_8;
 ```
 
 The parent supplies constexpr Definition mappings to one `Definitions<...>`
@@ -1288,13 +1419,16 @@ evaluator roots each real Addressable, Type, or Callable as it is consumed and
 rejects a name that already resolves in the active context. TTX never creates a
 forward declaration, incomplete proxy, or second placeholder Abstract.
 
-Function bodies and value initializers are retained executable token spans.
-Their name queries run against the completed owning Type or source Abstract when
-the selected Dialect evaluates or compiles them. This late binding permits an
-earlier public body or initializer to use a later private implementation member
-while preserving ordered declaration, collision, and no-shadowing checks. The
-declaration header itself is checked when consumed, so a public signature cannot
-depend on a private implementation type that has not been declared.
+Function bodies and value initializers are consumed once by the selected
+Dialect. A declaration pass may retain a bounded token range temporarily while
+the package transaction reserves real owners. Its name queries run against the
+completed owning Type or source Abstract. Successful evaluation attaches a
+complete identity-free Body to the concrete owner; Cursor state and token
+ranges do not remain the executable program. This permits an earlier public
+body or initializer to use a later private implementation member while
+preserving ordered declaration, collision, and no-shadowing checks. The
+declaration header itself is checked when consumed, so a public signature
+cannot depend on a private implementation type that has not been declared.
 
 A callable without an authored body is complete only when its active Dialect
 supplies its implementation, such as Foreign linkage or a Library `new`
@@ -1387,7 +1521,7 @@ parse dispatch.
 Attributes attach compiler metadata to members, layout fields, and parameters:
 
 ```ttx
-@builtin @slot(0) .source : View[Bytes]
+@builtin @slot(0) .source : View[Unsigned_8]
 @stage(fragment)
 @binding @set(0) @slot(1)
 ```
@@ -1481,7 +1615,7 @@ Both parameters and returns are layouts:
 ```ttx
 private func size[] -> Count;
 
-public func decode[.source : View[Bytes]] -> [
+public func decode[.source : View[Unsigned_8]] -> [
   .ok : Bool,
   .image : Image,
 ] {
@@ -1560,7 +1694,10 @@ The Foreign Dialect accepts public function declarations without bodies:
 
 ```ttx
 private C : foreign {
-  public func inflate[.source : View[Bytes]] -> Bytes;
+  public func inflate[
+    .source : View[Unsigned_8],
+    .destination : Access[Unsigned_8],
+  ] -> Count;
 }
 ```
 
@@ -1592,7 +1729,10 @@ private Header : struct {
 }
 
 private C : foreign {
-  public func inflate[.source : View[Bytes]] -> Bytes;
+  public func inflate[
+    .source : View[Unsigned_8],
+    .destination : Access[Unsigned_8],
+  ] -> Count;
 }
 ```
 
@@ -1926,7 +2066,7 @@ Count
 []
 [Unsigned_32, Unsigned_32]
 [.x : Unsigned_32, .y : Unsigned_32]
-[@builtin @slot(0) .source : View[Bytes], .count : Count]
+[@builtin @slot(0) .source : View[Unsigned_8], .count : Count]
 ```
 
 Parser shape: a layout either starts with a type reference or with
@@ -2030,9 +2170,10 @@ Executable syntax belongs to the Dialect that gives it meaning. The shared TTX
 Abstract graph supplies stable declarations, layouts, local identities, and the
 narrow Expression queries. Expression identity does not resolve to its result
 Type. `get_type()` publishes that fact separately, and `get_inputs()` publishes
-the ordered dependency Layout. A Dialect may attach an owned executable body to a
-Callable, but that body representation is not a generic statement hierarchy in
-the shared TTX model.
+the ordered dependency Layout. A Dialect consumes its syntax into the common
+identity-free Body tables described above and attaches that Body to its real
+Callable, Stage, or lifecycle owner. Body is not a generic statement class
+hierarchy and does not preserve the parse tree.
 
 The expression parser is a precedence parser:
 
@@ -2381,11 +2522,13 @@ The common semantic vocabulary is intentionally small:
 | `object`                           | nominal managed value          | heap/reference semantics, Dialect-limited             |
 | `foreign`                          | external ABI scope             | declarations lower to linked symbols                  |
 | `Shader`                           | shader Dialect or scope        | may lower to GPU module plus host glue                |
+| `Scene`                            | managed state machine node     | emits typed outcomes, never chooses another Scene     |
+| `App`                              | process composition root       | owns Scene transitions and Render-to-Shader policy    |
 | `enum`                             | compile-time namespace         | members lower to constants                            |
 | `alias`                            | compile-time Abstract redirect | preserves its authored name while redirecting queries |
 | `Type`                             | compile-time type value        | stores a resolved Type reference                      |
 
-`Library`, `Package`, `Render`, and `Shader` are Dialects. They remain
+`Library`, `Package`, `Render`, `Shader`, `Scene`, and `App` are Dialects. They remain
 PascalCase Type atoms in source. The host's `Dialects` Abstract context selects
 their real model identities instead of the lexer or a registry.
 
@@ -2412,36 +2555,46 @@ The source-level constructs are frontend contracts. Many disappear during
 lowering, but they remain explicit long enough to produce good diagnostics,
 check Dialect rules, and encode target metadata.
 
-Terminal lowering is driven by Type and Layout facts, not by source attributes
-that secretly encode one compiler enum. For every parameter, result, SSA value,
-field, or stored value, a lowerer performs the same operation:
+Terminal lowering is driven by Type, Layout, and explicit Dialect contracts,
+not by source attributes that secretly encode one compiler enum. For every
+parameter, result, Body value, field, or stored value, a lowerer first derives
+one compilation-local target Representation:
 
 ```text
-resolved Type
--> Terminal: query its family, value width, size, and alignment
--> Structured: ask each Addressable for its Type and recursively lower it
--> Ranged: recursively lower the repeated Type across its fixed count
+resolved semantic Type
+-> prove terminal family, concrete vector/range contract, or explicit
+   Dialect-owned representation edge
+-> deconstruct semantic Layout through its real Addressables
+-> derive target scalar/vector/aggregate, size, alignment, offsets, pointer,
+   address-space, storage-class, interface, and ABI records
+-> lower common Body operations against those temporary records
+-> emit terminal bytes and discard the target records
 ```
 
-A non-empty aggregate Layout is never collapsed to an invented scalar carrier merely
-because a backend recognizes the outer Type name. A byte view, vector, struct,
-render contract, and user aggregate are recursively deconstructed according to
-their concrete Layout contract. The source value remains one semantic aggregate. The
-terminal representation is its ordered projection. Calls, returns, stack
-placement, register classification, generated host declarations, and archive
-descriptions must consume the same projection.
+A non-empty aggregate Layout is never collapsed to an invented scalar carrier
+merely because a backend recognizes the outer Type name. A byte view, vector,
+struct, render contract, and user aggregate are recursively deconstructed
+according to their real contracts. Structural coincidence is insufficient: a
+four-field color becomes a GPU vector only through an explicit Shader
+representation edge or a real Vector proof. The source value remains one
+semantic aggregate while each target derives its own physical projection.
 
 An empty Layout alone does not say whether a Type is Terminal or merely an empty
-composite. The resolved Type must prove `Terminal`. It can then be viewed as
-`Unsigned`, `Signed`, `Real`, `Flag`, or another toolchain-defined Terminal
-subtype. A lower compiler needs only those Type and Terminal interfaces. It does
-not need to know whether the authored query reached the Type through an Alias,
-Generic, shader context, or foreign-language object.
+composite. The resolved Type must prove `Terminal` or another explicit
+representation contract. A terminal can then be viewed as `Unsigned`,
+`Signed`, `Real`, `Flag`, or another toolchain-defined Terminal subtype. The
+target, not Layout, chooses physical size, alignment, offsets, pointer width,
+register class, storage class, and ABI carrier. A lower compiler does not need
+to know whether the authored query reached the Type through an Alias, Generic,
+Shader context, or foreign-language object.
 
 Lowering therefore must not depend on an authored `@abi` number, a global
 `Abi::Lowering` switch, a C++ type name, or a pointer-keyed side table. Those
 forms duplicate semantic facts outside the Abstract graph and become wrong as
 soon as a new Dialect or language runtime contributes another terminal contract.
+Target Representation is derived data, is not a TTX identity, and is never
+serialized as semantic source of truth. An archive stores semantic owners and,
+when required, the already selected opaque terminal product.
 
 ## Design Invariants
 
@@ -2496,6 +2649,24 @@ When changing TTX, preserve these invariants:
     Its read-only projection is stable, preserves name and resolved Type, does
     not prove Writable, and does not resolve back to the writable identity.
     Runtime indexed mutation remains owned by the active Dialect and receiver Type.
+23. A Scene owns state, lifecycle edges, render roots, and typed signals. It
+    never owns a transition to another Scene or process-exit policy.
+24. App owns the initial Scene and the complete transition mapping. A cyclic
+    transition graph does not imply cyclic Source resolution because Scene
+    definitions do not reference their transition targets.
+23. Managed is the only common proof that a Type is a runtime-managed object
+    reference. Allocation, tracing, object headers, movement, address spaces,
+    and pointer representation remain runtime or target facts.
+24. Body is one identity-free executable value retained by its real Callable,
+    Stage, or lifecycle owner. It contains compact local IDs and non-null real
+    graph edges; it is never an AST, Abstract, replayable Cursor, or second Type
+    graph.
+25. A Dialect controls presentation, accepted builtins, evaluation, legality,
+    and additional versioned facts. It may restrict a common contract but may
+    not reinterpret it, and Environment binding never imports Dialect rules.
+26. Layout owns semantic order and directional fitting only. Physical size,
+    offsets, target alignment, pointers, storage classes, register classes,
+    ABI carriers, and collector policy belong to derived target/runtime owners.
 
 These rules are what keep TTX readable while still letting it behave like a
 compiler IR.

@@ -15,7 +15,7 @@
 #include "ttx/model/layouts/fluid.hpp"
 #include "ttx/model/layouts/named.hpp"
 #include "ttx/model/layouts/structured.hpp"
-#include "ttx/model/types/bool.hpp"
+#include "ttx/model/types/boolean.hpp"
 #include "ttx/model/types/real_64.hpp"
 #include "ttx/model/types/signed_64.hpp"
 #include "ttx/model/types/signed_8.hpp"
@@ -31,9 +31,9 @@ using namespace Validation;
 
 /// Byte arrays may use an ordinary composite Type. Their Constant contract
 /// does not pretend that bytes are a language-level String or one terminal.
-class BytesType final : public Type {
+class ByteArrayType final : public Type {
  public:
-  BytesType(View::Bytes name) : name(name) {}
+  ByteArrayType(View::Bytes name) : name(name) {}
 
   auto get_name() const -> View::Bytes override { return name; }
   auto get_documentation() const -> const Documentation& override {
@@ -119,7 +119,7 @@ PERIMORTEM_UNIT_TEST(TtxExpression, constant_domains) {
   Types::Signed_64 signed_type;
   Types::Real_64 real_type;
   Types::Boolean flag_type;
-  BytesType bytes_type("Bytes"_view);
+  ByteArrayType bytes_type("ByteArray"_view);
   ConstantValue<Constants::Signed> signed_value(
       "negative"_view, signed_type, Signed_64(-20));
   ConstantValue<Constants::Real> real_value(

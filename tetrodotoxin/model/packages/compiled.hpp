@@ -4,6 +4,7 @@
 #pragma once
 
 #include "tetrodotoxin/model/package.hpp"
+#include "tetrodotoxin/model/shaders/product.hpp"
 #include "tetrodotoxin/model/terminal.hpp"
 
 namespace Tetrodotoxin::Model::Packages {
@@ -19,13 +20,14 @@ class Compiled : public Model::Package {
     0x8a26a7bc02bf0202,
   };
 
-  constexpr auto implements(Perimortem::System::Uuid requested) const
-      -> Bool override {
+  auto implements(Perimortem::System::Uuid requested) const -> Bool override {
     return requested == contract_id || Package::implements(requested);
   }
 
-  virtual constexpr auto get_terminals() const
+  virtual auto get_terminals() const
       -> Perimortem::Core::View::Vector<Model::Terminal> = 0;
+  virtual auto get_shader_products() const
+      -> Perimortem::Core::View::Vector<Model::Shaders::Product> = 0;
 };
 
 }  // namespace Tetrodotoxin::Model::Packages

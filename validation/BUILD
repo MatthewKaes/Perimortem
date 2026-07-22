@@ -55,21 +55,21 @@ cc_binary(
     data = glob([
         "data/**/*.ttx",
     ]) + [
-        "//apps/ttx/demo:sources",
+        "//apps/canonical/scene_demo:sources",
         "//tetrodotoxin/standard:sources",
     ],
     includes = ["."],
     deps = [
         ":test_headers",
         "//perimortem",
+        "//tetrodotoxin:archiver",
+        "//tetrodotoxin:compiler",
         "//tetrodotoxin:diagnostics",
+        "//tetrodotoxin:graphics_runtime",
         "//tetrodotoxin:interpreter",
         "//tetrodotoxin:linker",
         "//tetrodotoxin:model",
-        "//tetrodotoxin/archiver",
-        "//tetrodotoxin/puffer:package_descriptor",
-        "//tetrodotoxin/puffer:package_materializer",
-        "//tetrodotoxin/puffer:package_repository",
+        "//tetrodotoxin:runtime",
         "//ttx",
     ],
 )

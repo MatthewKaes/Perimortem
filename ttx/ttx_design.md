@@ -101,10 +101,12 @@ That makes the reusable TTX model smaller than a full language tree:
 | `Ttx::Concept::Layout`                | ordered Abstract shape and directional fitting                |
 | `Ttx::Concept::Documentation`         | ordered borrowed authored or generated prose                  |
 | `Ttx::Model::Type`                    | resolved type identity and Layout                             |
+| `Ttx::Model::Types::Managed`          | proof of a managed object-reference value                     |
 | `Ttx::Model::Types::Terminal`         | value width, byte size, alignment, and generated prose         |
 | `Ttx::Model::Expression`              | evaluatable value with result Type and ordered input queries  |
 | `Ttx::Model::Constant`                | immutable zero-input value already in normal form             |
 | `Ttx::Model::Callable`                | static or receiver-bound callable layout                      |
+| `Ttx::Model::Body`                    | immutable body-local blocks, values, and operations           |
 | `TypeAccessOp` such as `::`           | nested type query against the current type or Environment     |
 | `AddressOp` such as `.`               | layout member query, package-name segment, or Dialect projection  |
 | `CallOp` such as `->`                 | callable dispatch query against current Type or Dialect facts |
@@ -182,6 +184,12 @@ function-pointer record, VM object, or second registry. The Dialect owns the
 next bytecode span and may expose or consume `Ttx::Concept::Abstract`,
 `Ttx::Model::Type`, `Ttx::Concept::Layout`, or other host facts directly.
 
+A Dialect controls presentation, accepted builtins, evaluation, legality, and
+its additional versioned facts. It may reject or narrow a common TTX construct,
+but it may not reinterpret an existing common contract. Binding an identity in
+the Environment makes that identity available; it does not import the builtins
+or legality rules of the identity's producing Dialect.
+
 The lowercase `dialect` marker is a reserved keyword. The Dialect name after
 the colon is still a PascalCase type atom, so names such as `Package`,
 `Library`, and `Shader` remain valid in type-access expressions like
@@ -245,10 +253,14 @@ resolve Alias : Package.Name = "Major.Minor";
 
 The left side is the Environment-wide local Alias. The package name and
 Major.Minor select one exact external artifact. Every member Source borrows
-that completed Environment, so files can use `Graphics` without owning package
-edges. `source` is package-container syntax: it selects and names a member but
-does not become an edge on either Source. A standalone script receives the same
-kind of Environment dynamically from its host. Package names are
+that package-owned Environment, so files can use `Graphics` without owning
+package edges. The active Container completes external bindings first and then
+publishes each completed member for later descriptor members. Arbitrary
+cross-member declarations require a future package-owned synchronization
+phase over their eventual real owners. `source` is package-container syntax.
+It selects and names a member but does not become an edge on either Source. A
+standalone script receives the same kind of Environment dynamically from its
+host. Package names are
 `Type("." Type)*`. Versions are quoted canonical text parsed directly into two
 unsigned components without a floating-point intermediate; `"0.1"` is valid
 and `"0.0"` is unset.
@@ -320,14 +332,16 @@ Type-like definitions occupy the corresponding non-function group. Unpublished
 Library-owned member `state` storage occupies the private-addressable group;
 `state` does not create a third publication block.
 
-This ordering does not introduce forward declarations. Initializers and function
-bodies are retained executable source and resolve their names against the
-completed owning Type or source Abstract when evaluated or compiled. A public
-function body may therefore call a private function written later, and a
-type-owned constant may invoke a later intrinsic callable, without constructing
-a placeholder declaration or a second semantic object. Declaration headers are
-still checked when consumed; a public signature cannot expose an unresolved
-private implementation type.
+This ordering does not introduce forward declarations. A declaration pass may
+retain bounded initializer and function-body token ranges until the owning Type
+or source Abstract is complete. The selected Dialect then consumes each range
+once and attaches an immutable Body to the real owner. A public function body
+may therefore call a private function written later, and a type-owned constant
+may invoke a later intrinsic callable, without constructing a placeholder
+declaration or a second semantic object. Cursor state and token ranges are not
+the published executable form. Declaration headers are still checked when
+consumed; a public signature cannot expose an unresolved private implementation
+type.
 
 A bodyless callable is legal only when its Dialect supplies the complete
 implementation contract, such as a Foreign linkage or a Library allocation
@@ -387,7 +401,7 @@ Attributes are compiler directives attached to the next member, parameter, or
 field:
 
 ```ttx
-@builtin @slot(0) .source : View[Bytes]
+@builtin @slot(0) .source : View[Unsigned_8]
 @packed
 @stage(fragment)
 @shader_type(Vec4D)
@@ -804,7 +818,7 @@ Other types are values and use `=` or `;`:
 
 ```ttx
 private count : Count = 1;
-private bytes : Bytes;
+private octet : Unsigned_8;
 ```
 
 This is one of the places where TTX is deliberately closer to IR than to a
@@ -814,6 +828,17 @@ semantic object is being created.
 The active Dialect may reject otherwise valid builtin forms. `object`
 can be a legal builtin in a `Library` package while remaining invalid in a
 `Shader` package.
+
+`Unsigned_8` is also the byte element Type. There is no separate scalar
+`Bytes` alias. Byte arrays use `View[Unsigned_8]`, `Access[Unsigned_8]`, or a
+real Library-owned collection Type, while `Constants::Bytes` remains the
+literal-value contract for byte arrays.
+
+`Void` is the result Type of a Callable invocation with an empty result Layout.
+It preserves an effectful invocation in the executable Body even though the
+invocation produces no value. It is not a stored value or an empty aggregate,
+and an optimizer must prove the invocation has no observable effects before it
+may remove it.
 
 ## Functions
 
@@ -835,7 +860,11 @@ modifier? func name[params] -> returns block
 
 Both parameters and returns are Layouts. The selected Dialect owns the
 implementation block. The resulting semantic object implements `Callable` and
-carries the callable signature, documentation, and dispatch name. A single type
+carries the callable signature, documentation, dispatch name, and common
+identity-free Body. Body-local IDs name parameters, locals, values, and blocks;
+operations retain non-null edges to real Types, Callables, Addressables,
+Constants, or explicit intrinsic owners. The Body is not an Abstract, replayed
+token Cursor, parse tree, or generic statement class hierarchy. A single type
 may be written directly:
 
 ```ttx
@@ -880,7 +909,7 @@ because it can be invoked.
 A named layout uses fields:
 
 ```ttx
-public func decode[.source : View[Bytes]] -> [
+public func decode[.source : View[Unsigned_8]] -> [
   .ok : Bool,
   .image : Image,
 ] {
@@ -892,7 +921,10 @@ The Foreign Dialect accepts public function declarations without bodies:
 
 ```ttx
 private C : foreign {
-  public func inflate[.source : View[Bytes]] -> Bytes;
+  public func inflate[
+    .source : View[Unsigned_8],
+    .destination : Access[Unsigned_8],
+  ] -> Count;
 }
 ```
 
@@ -942,7 +974,7 @@ Count
 []
 [Unsigned_32, Unsigned_32]
 [.x : Unsigned_32, .y : Unsigned_32]
-[@builtin @slot(0) .source : View[Bytes], .count : Count]
+[@builtin @slot(0) .source : View[Unsigned_8], .count : Count]
 ```
 
 The model uses five narrow contracts rather than one tagged record:
@@ -1026,10 +1058,13 @@ Type and operations above that data. Parsing, evaluation, folding, and lowering
 remain Dialect or compiler concerns. A future foldable expression can expose a
 Constant without adding evaluation to every Expression.
 
-Executable syntax is owned by the Dialect that understands it. A Dialect may attach
-an owned executable body to a stable Callable, but that representation
-does not add body tags or a generic statement hierarchy to the shared TTX
-model.
+Executable syntax is owned by the Dialect that understands it. The Dialect
+consumes that syntax into one common identity-free Body retained by a stable
+Callable, Shader Stage, or App lifecycle owner. Different host and target
+consumers read the same Body; they do not maintain competing Library and Shader
+statement trees. Target Representation derives offsets, address spaces,
+storage classes, register classes, and ABI carriers without adding any of those
+facts to Layout.
 
 The expression grammar follows a conventional precedence ladder:
 
@@ -1307,6 +1342,248 @@ line or the shared empty result. `Comments` borrows an ordered source-line view.
 Alias supplies a stable composed implementation that presents local lines and
 then its target's visible lines. Constants return the empty Comment because
 documentation for a named constant belongs to its Addressable owner.
+
+## Complete Render, Shader, And App Example
+
+The canonical vertical uses three ordinary source files. They are shown here
+in full because their owner edges, rather than hidden naming policy, define the
+executable program.
+
+The Render source declares the value state, constant arrays, push constants,
+Image resource, and exact Vertex/Fragment contracts that an implementation
+must satisfy:
+
+```ttx
+dialect : Render;
+
+public Render2D : Render {
+  public position : Types::Point2D = (.x = 0.0, .y = 0.0);
+  public size_pixels : Math::Geometry::Size2D = (.width = 0, .height = 0);
+  public tone : Types::Color = (.r = 0.0, .g = 0.0, .b = 0.0, .a = 0.0);
+  public image : Types::Image = Types::Image -> from();
+
+  constants {
+    const quad_positions : Vec[Types::Point2D, 6] = (
+      (.x = 0.0, .y = 0.0),
+      (.x = 1.0, .y = 0.0),
+      (.x = 1.0, .y = 1.0),
+      (.x = 0.0, .y = 0.0),
+      (.x = 1.0, .y = 1.0),
+      (.x = 0.0, .y = 1.0),
+    );
+
+    const quad_uvs : Vec[Types::Point2D, 6] = (
+      (.x = 0.0, .y = 0.0),
+      (.x = 1.0, .y = 0.0),
+      (.x = 1.0, .y = 1.0),
+      (.x = 0.0, .y = 0.0),
+      (.x = 1.0, .y = 1.0),
+      (.x = 0.0, .y = 1.0),
+    );
+  }
+
+  push_constants {
+    const position : Types::Point2D = self.position;
+    const size_pixels : Math::Geometry::Size2D = self.size_pixels;
+    const tone : Types::Color = self.tone;
+  }
+
+  resources {
+    const image : Types::Image = self.image @binding(0, 0);
+  }
+
+  public vertex : stage Vertex {
+    reads constant[quad_positions, quad_uvs];
+    reads push[position, size_pixels];
+    input [
+      .vertex_index : Unsigned_32 @builtin(VertexIndex),
+    ];
+    output [
+      .texture_uv : Types::Point2D @location(0),
+      .screen_position : Vec4D @builtin(Position),
+    ];
+  }
+
+  public pixel : stage Fragment {
+    reads push[tone];
+    reads resource[image];
+    input [
+      .texture_uv : Types::Point2D @location(0),
+    ];
+    output [
+      .color : Types::Color @location(0),
+    ];
+  }
+}
+```
+
+The Shader source names that real Render identity and supplies exactly one Body
+for each required Stage. `constant`, `push`, and `resource` are Shader-owned
+views of the Addressables declared by Render, not ambient globals. The sampling
+expression dispatches to the real Image receiver Callable:
+
+```ttx
+dialect : Shader;
+
+shader Default2D : Renderer2D::Render2D {
+  func vertex[.vertex_index : Unsigned_32] -> [
+    .texture_uv : Types::Point2D,
+    .screen_position : Vec4D,
+  ] {
+    state quad_position : Types::Point2D =
+        constant.quad_positions:[vertex_index];
+    state centered_quad_position : Types::Point2D =
+        quad_position - (.x = 0.5, .y = 0.5);
+    state normalized_size : Types::Point2D = (
+      .x = Real_32(push.size_pixels.width),
+      .y = Real_32(push.size_pixels.height),
+    );
+    state screen_position : Types::Point2D =
+        push.position + centered_quad_position * normalized_size;
+    return (
+      .texture_uv = constant.quad_uvs:[vertex_index],
+      .screen_position = (
+        .x = screen_position.x,
+        .y = screen_position.y,
+        .z = 0.0,
+        .w = 1.0,
+      ),
+    );
+  }
+
+  func pixel[.texture_uv : Types::Point2D] -> [
+    .color : Types::Color,
+  ] {
+    state sample : Types::Color = resource.image -> sample(texture_uv);
+    return (
+      .color = (
+        .r = sample.r * push.tone.r,
+        .g = sample.g * push.tone.g,
+        .b = sample.b * push.tone.b,
+        .a = sample.a * push.tone.a,
+      ),
+    );
+  }
+}
+```
+
+Evaluation constructs one real `Render2D` Type, its real Addressables and
+required Stage Callables, one real `Default2D` Shader, two implemented Stage
+owners, and two common identity-free Bodies. Shader validation proves the
+directional Layout fits and declared access sets before lowering. The SPIR-V
+planner derives temporary target Representation, emits and internally
+validates the Vertex and Fragment modules, then publishes their stable logical
+terminal paths and interface sidecars. Archive format 1 stores the semantic owner
+edges, Bodies, versioned Render/Shader facts, product relations, and terminal
+bytes. Restoration reconstructs the same owner relations without Source and
+reuses the stored module bytes.
+
+The complete App source uses ordinary local Callable names but assigns their
+runtime meaning through direct lifecycle edges. Render submission and Shader
+selection are equally explicit:
+
+```ttx
+dialect : App;
+
+public Demo : App {
+  state render : Graphics::Render2D;
+
+  private func prepare[self] -> [] {
+    return ();
+  }
+
+  private func draw[self, .frame : Runtime::Frame] -> [Flag] {
+    return true;
+  }
+
+  private func release[self] -> [] {
+    return ();
+  }
+
+  lifecycle {
+    start = prepare;
+    frame = draw;
+    stop = release;
+  }
+
+  render_root render;
+  bind Graphics::Render2D -> Graphics::Shaders::Default2D;
+}
+```
+
+App evaluation constructs one managed App Type, real state Addressables,
+self-typed Callables and Bodies, direct start/frame/stop role edges, one render
+root, and one exact Render-to-Shader edge. Runtime creates a worker-local Realm,
+roots App state, calls start once, supplies a typed Frame, calls frame, submits
+the explicit Render-root selection through the explicit Shader binding,
+consumes the real Flag continue/exit result, calls stop once, releases Graphics,
+collects, and tears down the Realm. The current neutral transaction does not
+yet evaluate or carry the concrete Render field value. Archive format 1 stores the
+same App owner edges and Bodies, so the source-free Package follows the
+identical lifecycle without magic-name search or `Invalid` as a runtime value.
+
+The containing descriptors make external identities and member ownership
+visible:
+
+```ttx
+dialect : Package;
+
+resolve Graphics : Perimortem.Graphics = "1.0";
+resolve Runtime : Perimortem.Runtime = "1.0";
+source Main : App = "main.ttx";
+
+public Demo : alias = Main::Demo;
+```
+
+### Multi-Scene Application
+
+The larger canonical App fixture separates reusable Scene behavior from App
+composition policy. Splash and Title declare only their own state, lifecycle,
+render roots, and typed outcomes. The App connects those outcomes after both
+Scene owners exist:
+
+```ttx
+dialect : App;
+
+public SceneDemo : App {
+  scenes {
+    initial Splash::SplashScreen;
+    on Splash::SplashScreen::finished replace Title::TitleScreen;
+    on Title::TitleScreen::shift_pressed replace Splash::SplashScreen;
+    on Title::TitleScreen::space_pressed exit;
+  }
+
+  bind Graphics::Render2D -> Graphics::Shaders::Default2D;
+}
+```
+
+The two replacement edges form a runtime state-machine loop, not a package
+resolution loop. `SplashScreen` does not name `TitleScreen`, and `TitleScreen`
+does not name `SplashScreen`. Each frame returns a real `Scene::Flow` that stays
+or emits a Scene-owned signal. The App transition table owns the target Scene
+identity and the replace or exit policy.
+
+[`apps/canonical/scene_demo`](../apps/canonical/scene_demo/) contains the full
+package, Splash fade logic, Title input logic, and App composition. It is a
+normative design pressure fixture. Tetrodotoxin currently parses its Package
+descriptor but does not yet implement the Scene evaluator, runtime transition
+transaction, evaluated Render payload submission, or Scene archive schema.
+Keeping that status explicit prevents source tokenization from being presented
+as semantic execution.
+
+The smaller production-evaluated Package, Library, Render, Shader, and App
+vertical has this complete implemented chain. The Scene fixture is the next
+consumer of it:
+
+```text
+authored source
+-> evaluated owner-shaped semantic facts and common Bodies
+-> SPIR-V target Representation or Realm runtime plan
+-> terminal modules or deterministic lifecycle submission
+-> archive format 1 records and definition-ID edges
+-> restored source-free graph
+-> byte-identical modules and equivalent lifecycle behavior
+```
 
 ## Why The Grammar Is Small
 

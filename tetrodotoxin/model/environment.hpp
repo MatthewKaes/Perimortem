@@ -11,6 +11,10 @@
 
 #include "tetrodotoxin/model/dependencies/package.hpp"
 #include "ttx/concept/reference.hpp"
+#include "ttx/model/generics/access.hpp"
+#include "ttx/model/generics/vec.hpp"
+#include "ttx/model/generics/view.hpp"
+#include "ttx/model/materialization.hpp"
 
 namespace Tetrodotoxin::Model {
 
@@ -27,7 +31,11 @@ namespace Tetrodotoxin::Model {
 class Environment {
  public:
   Environment()
-      : resolutions(arena),
+      : materialization(arena),
+        vector(materialization),
+        view(materialization),
+        access(materialization),
+        resolutions(arena),
         dependencies(arena),
         packages(arena),
         bindings_by_name(arena),
@@ -56,7 +64,7 @@ class Environment {
   }
 
   // Dependencies and Packages are parallel, deduplicated views in authored
-  // first-resolution order. Manifest construction consumes the identity edge;
+  // first resolution order. Manifest construction consumes the identity edge.
   // Model::Package consumes the anonymous Package at the same index.
   constexpr auto get_dependencies() const -> Perimortem::Core::View::Vector<
       Ttx::Concept::Reference<Dependencies::Package>> {
@@ -96,6 +104,10 @@ class Environment {
       Ttx::Concept::Reference<Ttx::Model::Alias>>;
 
   Perimortem::Memory::Allocator::Arena arena;
+  Ttx::Model::Materialization materialization;
+  Ttx::Model::Generics::Vec vector;
+  Ttx::Model::Generics::View view;
+  Ttx::Model::Generics::Access access;
   Perimortem::Memory::Managed::Vector<
       Ttx::Concept::Reference<Dependencies::Package>>
       resolutions;

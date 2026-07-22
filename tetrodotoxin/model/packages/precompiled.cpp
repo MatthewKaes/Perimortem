@@ -13,12 +13,14 @@ Tetrodotoxin::Model::Packages::Precompiled::Precompiled(
     const Model::Namespace& exports,
     View::Vector<Reference<Model::Package>> dependencies,
     View::Vector<Reference<Abstract>> definitions,
-    View::Vector<Model::Terminal> terminals)
+    View::Vector<Model::Terminal> terminals,
+    View::Vector<Model::Shaders::Product> shader_products)
     : exports(exports),
       dependencies(arena),
       definitions(arena),
       definition_index(arena),
-      terminals(arena) {
+      terminals(arena),
+      shader_products(arena) {
   for (Count i = 0; i < dependencies.get_size(); i++) {
     this->dependencies.insert(dependencies[i]);
   }
@@ -33,6 +35,13 @@ Tetrodotoxin::Model::Packages::Precompiled::Precompiled(
     this->terminals.insert(
         Model::Terminal(
             arena, terminals[i].get_path(), terminals[i].get_content()));
+  }
+  this->shader_products.reset(shader_products.get_size());
+  for (Count i = 0; i < shader_products.get_size(); i++) {
+    this->shader_products.insert(
+        Model::Shaders::Product(
+            arena, shader_products[i].get_shader(),
+            shader_products[i].get_stages()));
   }
 }
 

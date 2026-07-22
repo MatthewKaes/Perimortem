@@ -66,7 +66,7 @@ class Namespace final : public Ttx::Model::Exports {
 
   // Retained roots are the complete semantic contents of this concrete
   // Namespace. Package canonicalization enumerates them so private definitions
-  // receive stable IDs; resolve_context() remains closed over exports.
+  // receive stable IDs. resolve_context() remains closed over exports.
   auto get_root_count() const -> Count;
   auto get_root(Count index) const -> const Ttx::Concept::Abstract&;
 

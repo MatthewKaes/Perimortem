@@ -42,7 +42,7 @@ class Package : public Ttx::Model::Exports {
   // Every package assigns a stable local ID to each definition in its complete
   // semantic graph. Archive edges can consequently name an external object as
   // `(dependency slot, definition ID)` without recursively searching exports.
-  // Definitions need not be public; Exports remains the visibility boundary.
+  // Definitions need not be public. Exports remains the visibility boundary.
   virtual constexpr auto get_definition_count() const -> Count = 0;
   virtual auto get_definition(Count id) const
       -> const Ttx::Concept::Abstract& = 0;

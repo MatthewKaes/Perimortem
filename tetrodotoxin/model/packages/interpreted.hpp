@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include "tetrodotoxin/model/package.hpp"
+#include "tetrodotoxin/model/packages/compiled.hpp"
 #include "tetrodotoxin/model/source.hpp"
 
 namespace Tetrodotoxin::Model::Packages {
@@ -15,7 +15,7 @@ namespace Tetrodotoxin::Model::Packages {
 //
 // Interpreted is a contract rather than a concrete storage class so embedded
 // runtimes and alternative source systems can provide their own implementation.
-class Interpreted : public Model::Package {
+class Interpreted : public Compiled {
  public:
   using ContractOwner = Interpreted;
   static constexpr Perimortem::System::Uuid contract_id{
@@ -23,12 +23,11 @@ class Interpreted : public Model::Package {
     0xb99416db24775b5e,
   };
 
-  constexpr auto implements(Perimortem::System::Uuid requested) const
-      -> Bool override {
-    return requested == contract_id || Package::implements(requested);
+  auto implements(Perimortem::System::Uuid requested) const -> Bool override {
+    return requested == contract_id || Compiled::implements(requested);
   }
 
-  virtual constexpr auto get_sources() const -> Perimortem::Core::View::Vector<
+  virtual auto get_sources() const -> Perimortem::Core::View::Vector<
       Ttx::Concept::Reference<Model::Source>> = 0;
 };
 

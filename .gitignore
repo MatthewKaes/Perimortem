@@ -6,13 +6,13 @@
 MODULE.bazel.lock
 
 # LSP Client
-tetrodotoxin/lsp/package-lock.json
-tetrodotoxin/lsp/puffer
-tetrodotoxin/lsp/ttx-lang-server
-tetrodotoxin/lsp/tsconfig.tsbuildinfo
-tetrodotoxin/lsp/*.vsix
-tetrodotoxin/lsp/out/*
-tetrodotoxin/lsp/node_modules/*
+tetrodotoxin/extension/package-lock.json
+tetrodotoxin/extension/puffer
+tetrodotoxin/extension/ttx-lang-server
+tetrodotoxin/extension/tsconfig.tsbuildinfo
+tetrodotoxin/extension/*.vsix
+tetrodotoxin/extension/out/*
+tetrodotoxin/extension/node_modules/*
 
 # Agent tooling
 .agents/
@@ -29,5 +29,4 @@ perf.*
 # Testing locally.
 .scratch/*
 build_trace.data
-post_pass.md
-refactor.md
+AGENTS.md

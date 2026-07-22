@@ -24,33 +24,39 @@ class Precompiled final : public Compiled {
           dependencies = {},
       Perimortem::Core::View::Vector<
           Ttx::Concept::Reference<Ttx::Concept::Abstract>> definitions = {},
-      Perimortem::Core::View::Vector<Model::Terminal> terminals = {});
+      Perimortem::Core::View::Vector<Model::Terminal> terminals = {},
+      Perimortem::Core::View::Vector<Model::Shaders::Product> shader_products =
+          {});
 
-  constexpr auto get_documentation() const
+  auto get_documentation() const
       -> const Ttx::Concept::Documentation& override {
     return exports.get_documentation();
   }
 
-  constexpr auto get_export_count() const -> Count override {
+  auto get_export_count() const -> Count override {
     return exports.get_export_count();
   }
 
-  constexpr auto get_export(Count index) const
-      -> const Ttx::Concept::Abstract& override {
+  auto get_export(Count index) const -> const Ttx::Concept::Abstract& override {
     return exports.get_export(index);
   }
 
-  constexpr auto get_dependencies() const -> Perimortem::Core::View::Vector<
+  auto get_dependencies() const -> Perimortem::Core::View::Vector<
       Ttx::Concept::Reference<Model::Package>> override {
     return dependencies;
   }
 
-  constexpr auto get_terminals() const
+  auto get_terminals() const
       -> Perimortem::Core::View::Vector<Model::Terminal> override {
     return terminals;
   }
 
-  constexpr auto get_definition_count() const -> Count override {
+  auto get_shader_products() const
+      -> Perimortem::Core::View::Vector<Model::Shaders::Product> override {
+    return shader_products;
+  }
+
+  auto get_definition_count() const -> Count override {
     return definitions.get_size();
   }
 
@@ -72,6 +78,7 @@ class Precompiled final : public Compiled {
   Perimortem::Memory::Managed::Map<const Ttx::Concept::Abstract*, Count>
       definition_index;
   Perimortem::Memory::Managed::Vector<Model::Terminal> terminals;
+  Perimortem::Memory::Managed::Vector<Model::Shaders::Product> shader_products;
 };
 
 }  // namespace Tetrodotoxin::Model::Packages

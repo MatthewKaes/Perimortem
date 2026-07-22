@@ -15,6 +15,8 @@
 #include "tetrodotoxin/archiver/format.hpp"
 #include "tetrodotoxin/archiver/reader.hpp"
 #include "tetrodotoxin/archiver/writer.hpp"
+#include "tetrodotoxin/interpreter/builtins.hpp"
+#include "tetrodotoxin/interpreter/dialects/library.hpp"
 #include "tetrodotoxin/interpreter/dialects/package.hpp"
 #include "tetrodotoxin/linker/linker.hpp"
 #include "tetrodotoxin/linker/object/symbol.hpp"
@@ -24,6 +26,10 @@
 #include "tetrodotoxin/model/packages/precompiled.hpp"
 #include "tetrodotoxin/model/packages/sources.hpp"
 #include "tetrodotoxin/model/source.hpp"
+#include "tetrodotoxin/model/types/represented.hpp"
+#include "tetrodotoxin/model/types/structure.hpp"
+#include "tetrodotoxin/puffer/package/container.hpp"
+#include "tetrodotoxin/puffer/resolution/package/repository.hpp"
 #include "ttx/concept/invalid.hpp"
 #include "ttx/concept/reference.hpp"
 #include "ttx/lexical/errors.hpp"
@@ -81,11 +87,19 @@ static auto evaluate_package(
     Tetrodotoxin::Interpreter::Dialects::Package& dialect)
     -> const Tetrodotoxin::Model::Package& {
   Ttx::Lexical::Errors errors;
-  const Abstract& result = source.evaluate(dialect, errors);
-  if (!errors.is_empty() || !result.is<Tetrodotoxin::Model::Package>()) {
+  const Abstract& exports = source.evaluate(dialect, errors);
+  if (!errors.is_empty() || !exports.is<Tetrodotoxin::Model::Namespace>()) {
     __builtin_trap();
   }
-
+  const Static::Vector<Reference<Tetrodotoxin::Model::Source>, 1> sources = {{
+    source,
+  }};
+  const Abstract& result = Tetrodotoxin::Model::Packages::Sources::construct(
+      source.get_arena(), sources,
+      exports.assume<Tetrodotoxin::Model::Namespace>());
+  if (!result.is<Tetrodotoxin::Model::Package>()) {
+    __builtin_trap();
+  }
   return result.assume<Tetrodotoxin::Model::Package>();
 }
 
@@ -163,6 +177,15 @@ static auto skip_size(
   return Unsigned_64(-1);
 }
 
+static auto skip_reference(
+    Perimortem::Core::Reader::Binary<Data::ByteOrder::Little>& reader) -> void {
+  Unsigned_8 code = reader.read_unsigned_8();
+  skip_size(reader);
+  if (code == Unsigned_8(Format::ReferenceCode::DependencyDefinition)) {
+    skip_size(reader);
+  }
+}
+
 static auto first_record_offset(View::Bytes buffer) -> Count {
   Count graph_offset = Count(read_offset(buffer, Format::Section::Graph));
   Perimortem::Core::Reader::Binary<Data::ByteOrder::Little> reader(
@@ -171,12 +194,10 @@ static auto first_record_offset(View::Bytes buffer) -> Count {
   for (Count i = 0; i < documentation_count; i++) {
     skip_size(reader);
   }
-
   Count export_count = Count(skip_size(reader));
   for (Count i = 0; i < export_count; i++) {
-    skip_size(reader);
+    skip_reference(reader);
   }
-
   skip_size(reader);
   return graph_offset + reader.get_location();
 }
@@ -192,7 +213,7 @@ static auto first_alias_target_offset(View::Bytes buffer) -> Count {
 
   Count export_count = Count(skip_size(reader));
   for (Count i = 0; i < export_count; i++) {
-    skip_size(reader);
+    skip_reference(reader);
   }
 
   Count record_count = Count(skip_size(reader));
@@ -207,13 +228,18 @@ static auto first_alias_target_offset(View::Bytes buffer) -> Count {
     if (code == Unsigned_8(Format::RecordCode::Namespace)) {
       Count child_count = Count(skip_size(reader));
       for (Count k = 0; k < child_count; k++) {
-        skip_size(reader);
+        skip_reference(reader);
+        reader.read_unsigned_8();
       }
       continue;
     }
 
-    reader.read_unsigned_8();
-    return graph_offset + reader.get_location();
+    if (code == Unsigned_8(Format::RecordCode::Alias)) {
+      reader.read_unsigned_8();
+      return graph_offset + reader.get_location();
+    }
+
+    return Count(-1);
   }
 
   return Count(-1);
@@ -232,10 +258,17 @@ PERIMORTEM_UNIT_TEST(ArchiverTests, compact_manifest_versions) {
       manifest, package, View::Vector<Tetrodotoxin::Model::Terminal>());
 
   ASSERT_NOT(buffer.is_empty());
+  Perimortem::Core::Reader::Binary<Data::ByteOrder::Little> header(buffer);
+  EXPECT_TEXT(header.read_bytes(Format::magic.get_size()), Format::magic);
+  EXPECT_EQ(Format::format_version, Unsigned_32(1));
+  EXPECT_EQ(header.read_unsigned_32(), Format::format_version);
   Unsigned_64 manifest_offset = read_offset(buffer, Format::Section::Manifest);
   Unsigned_64 string_offset = read_offset(buffer, Format::Section::Strings);
   EXPECT(string_offset - manifest_offset > Unsigned_64(4));
-  EXPECT_EQ(buffer[Count(string_offset)], Unsigned_8(0));
+  Perimortem::Core::Reader::Binary<Data::ByteOrder::Little> strings(buffer);
+  strings.set_location(Count(string_offset));
+  EXPECT_EQ(skip_size(strings), Unsigned_64(1));
+  EXPECT_EQ(skip_size(strings), Unsigned_64(0));
   Allocator::Arena arena;
   const Manifest* restored =
       Tetrodotoxin::Archiver::Reader(buffer).read_manifest(arena);
@@ -260,7 +293,10 @@ PERIMORTEM_UNIT_TEST(ArchiverTests, development_version) {
   Unsigned_64 manifest_offset = read_offset(buffer, Format::Section::Manifest);
   Unsigned_64 string_offset = read_offset(buffer, Format::Section::Strings);
   EXPECT(string_offset - manifest_offset > Unsigned_64(4));
-  EXPECT_EQ(buffer[Count(string_offset)], Unsigned_8(0));
+  Perimortem::Core::Reader::Binary<Data::ByteOrder::Little> strings(buffer);
+  strings.set_location(Count(string_offset));
+  EXPECT_EQ(skip_size(strings), Unsigned_64(1));
+  EXPECT_EQ(skip_size(strings), Unsigned_64(0));
 
   Allocator::Arena arena;
   const Manifest* restored =
@@ -282,6 +318,89 @@ PERIMORTEM_UNIT_TEST(ArchiverTests, development_version) {
   EXPECT_NOT(unset_dependency.is_valid());
 }
 
+PERIMORTEM_UNIT_TEST(ArchiverTests, current_math_semantic_graph) {
+  Allocator::Arena dialect_arena;
+  Tetrodotoxin::Interpreter::Builtins builtins;
+  Tetrodotoxin::Interpreter::Dialects::Package package_dialect;
+  Tetrodotoxin::Interpreter::Dialects::Library library_dialect(builtins);
+  const Static::Vector<Reference<Abstract>, 2> installed = {{
+    package_dialect,
+    library_dialect,
+  }};
+  const Abstract& dialects = Tetrodotoxin::Model::Namespace::construct(
+      dialect_arena, "Dialects"_view, installed);
+  ASSERT(dialects.is<Tetrodotoxin::Model::Namespace>());
+  Ttx::Lexical::Errors errors;
+  Tetrodotoxin::Puffer::Resolution::Package::Repository repository;
+  Tetrodotoxin::Puffer::Package::Container container(
+      dialects, repository,
+      "tetrodotoxin/standard/perimortem/math/package.ttx"_view, errors);
+  const Abstract& evaluated = container.get_result();
+  ASSERT(errors.is_empty());
+  ASSERT(evaluated.is<Tetrodotoxin::Model::Packages::Compiled>());
+  const auto& package = evaluated.assume<Tetrodotoxin::Model::Package>();
+  const auto& compiled =
+      evaluated.assume<Tetrodotoxin::Model::Packages::Compiled>();
+  Manifest manifest(
+      "Perimortem.Math"_view, Version(1, 0), View::Vector<Dependency>());
+  Dynamic::Bytes buffer =
+      write_package(manifest, package, compiled.get_terminals());
+  ASSERT_NOT(buffer.is_empty());
+  Perimortem::Core::Reader::Binary<Data::ByteOrder::Little> header(buffer);
+  EXPECT_TEXT(header.read_bytes(Format::magic.get_size()), Format::magic);
+  EXPECT_EQ(header.read_unsigned_32(), Format::format_version);
+
+  Allocator::Arena restore_arena;
+  const Abstract& restored =
+      Tetrodotoxin::Archiver::Reader(buffer).read_package(
+          restore_arena, manifest,
+          View::Vector<Reference<Tetrodotoxin::Model::Package>>());
+  ASSERT(restored.is<Tetrodotoxin::Model::Packages::Compiled>());
+  EXPECT_NOT(restored.is<Tetrodotoxin::Model::Packages::Interpreted>());
+  const Abstract& size = restored.resolve_context("Geometry"_view)
+                             .resolve_context("Size2D"_view)
+                             .resolve();
+  ASSERT(size.is<Tetrodotoxin::Model::Types::Structure>());
+  ASSERT(size.is<Tetrodotoxin::Model::Types::Represented>());
+  EXPECT_EQ(size.assume<Ttx::Model::Type>().get_layout().get_size(), Count(2));
+  EXPECT_TEXT(
+      size.assume<Tetrodotoxin::Model::Types::Represented>()
+          .get_shader_type()
+          .get_name(),
+      "Uvec2"_view);
+  EXPECT_EQ(
+      restored.assume<Tetrodotoxin::Model::Package>().get_definition_count(),
+      package.get_definition_count());
+
+  Dynamic::Bytes unknown_record(buffer);
+  unknown_record.get_access()[first_record_offset(unknown_record)] = 0x7f;
+  Allocator::Arena unknown_arena;
+  EXPECT(
+      Tetrodotoxin::Archiver::Reader(unknown_record)
+          .read_package(
+              unknown_arena, manifest,
+              View::Vector<Reference<Tetrodotoxin::Model::Package>>())
+          .is<Invalid>());
+
+  Allocator::Arena truncated_arena;
+  EXPECT(
+      Tetrodotoxin::Archiver::Reader(buffer.slice(0, buffer.get_size() - 1))
+          .read_package(
+              truncated_arena, manifest,
+              View::Vector<Reference<Tetrodotoxin::Model::Package>>())
+          .is<Invalid>());
+
+  Dynamic::Bytes incompatible(buffer);
+  incompatible.get_access()[Format::magic.get_size()] = 2;
+  Allocator::Arena incompatible_arena;
+  EXPECT(
+      Tetrodotoxin::Archiver::Reader(incompatible)
+          .read_package(
+              incompatible_arena, manifest,
+              View::Vector<Reference<Tetrodotoxin::Model::Package>>())
+          .is<Invalid>());
+}
+
 PERIMORTEM_UNIT_TEST(ArchiverTests, package_graph_and_terminals) {
   Tetrodotoxin::Model::Environment empty_environment;
   Tetrodotoxin::Interpreter::Dialects::Package dialect;
@@ -298,7 +417,10 @@ PERIMORTEM_UNIT_TEST(ArchiverTests, package_graph_and_terminals) {
   const Tetrodotoxin::Model::Package& package =
       evaluate_package(source, dialect);
   ASSERT(package.is<Tetrodotoxin::Model::Packages::Interpreted>());
-  EXPECT_NOT(package.is<Tetrodotoxin::Model::Packages::Compiled>());
+  ASSERT(package.is<Tetrodotoxin::Model::Packages::Compiled>());
+  EXPECT(package.assume<Tetrodotoxin::Model::Packages::Compiled>()
+             .get_terminals()
+             .is_empty());
 
   Allocator::Arena terminal_arena;
   Managed::Vector<Tetrodotoxin::Model::Terminal> terminals(terminal_arena);

@@ -17,7 +17,7 @@ auto Tetrodotoxin::Model::Environment::resolve(
     const Package& package,
     const Documentation& documentation) -> Bool {
   if (local_name.is_empty() || package_name.is_empty() || version.is_null() ||
-      bindings_by_name.find(local_name) != nullptr) {
+      !resolve_context(local_name).is<Invalid>()) {
     return False;
   }
 
@@ -55,7 +55,7 @@ auto Tetrodotoxin::Model::Environment::bind(
     const Abstract& target,
     const Documentation& documentation) -> Bool {
   if (local_name.is_empty() || target.is<Invalid>() ||
-      bindings_by_name.find(local_name) != nullptr) {
+      !resolve_context(local_name).is<Invalid>()) {
     return False;
   }
 
@@ -69,9 +69,21 @@ auto Tetrodotoxin::Model::Environment::bind(
 auto Tetrodotoxin::Model::Environment::resolve_context(View::Bytes route) const
     -> const Abstract& {
   const Bindings::Entry* selected = bindings_by_name.find(route);
-  if (selected == nullptr) {
-    return Invalid::get_invalid();
+  if (selected != nullptr) {
+    return selected->value.get();
   }
 
-  return selected->value.get();
+  if (route == vector.get_name()) {
+    return vector;
+  }
+
+  if (route == view.get_name()) {
+    return view;
+  }
+
+  if (route == access.get_name()) {
+    return access;
+  }
+
+  return Invalid::get_invalid();
 }
