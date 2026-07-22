@@ -29,6 +29,7 @@
 #include "tetrodotoxin/model/namespace.hpp"
 #include "tetrodotoxin/model/packages/compiled.hpp"
 #include "tetrodotoxin/model/packages/precompiled.hpp"
+#include "tetrodotoxin/model/packages/sources.hpp"
 #include "tetrodotoxin/model/source.hpp"
 #include "tetrodotoxin/puffer/package/materializer.hpp"
 #include "ttx/concept/invalid.hpp"
@@ -95,11 +96,19 @@ static auto evaluate_package(
     Tetrodotoxin::Interpreter::Dialects::Package& dialect)
     -> const Tetrodotoxin::Model::Package& {
   Ttx::Lexical::Errors errors;
-  const Abstract& result = source.evaluate(dialect, errors);
-  if (!errors.is_empty() || !result.is<Tetrodotoxin::Model::Package>()) {
+  const Abstract& exports = source.evaluate(dialect, errors);
+  if (!errors.is_empty() || !exports.is<Tetrodotoxin::Model::Namespace>()) {
     __builtin_trap();
   }
-
+  const Static::Vector<Reference<Tetrodotoxin::Model::Source>, 1> sources = {{
+    source,
+  }};
+  const Abstract& result = Tetrodotoxin::Model::Packages::Sources::construct(
+      source.get_arena(), sources,
+      exports.assume<Tetrodotoxin::Model::Namespace>());
+  if (!result.is<Tetrodotoxin::Model::Package>()) {
+    __builtin_trap();
+  }
   return result.assume<Tetrodotoxin::Model::Package>();
 }
 
@@ -217,6 +226,17 @@ static auto skip_size(
   return Unsigned_64(-1);
 }
 
+static auto skip_reference(
+    Perimortem::Core::Reader::Binary<Data::ByteOrder::Little>& reader) -> void {
+  Unsigned_8 code = reader.read_unsigned_8();
+  skip_size(reader);
+  if (code == Unsigned_8(
+                  Tetrodotoxin::Archiver::Format::ReferenceCode::
+                      DependencyDefinition)) {
+    skip_size(reader);
+  }
+}
+
 static auto external_dependency_offset(View::Bytes buffer) -> Count {
   Perimortem::Core::Reader::Binary<Data::ByteOrder::Little> header(buffer);
   header.read_bytes(Tetrodotoxin::Archiver::Format::magic.get_size());
@@ -235,7 +255,7 @@ static auto external_dependency_offset(View::Bytes buffer) -> Count {
   }
   Count export_count = Count(skip_size(reader));
   for (Count i = 0; i < export_count; i++) {
-    skip_size(reader);
+    skip_reference(reader);
   }
 
   Count record_count = Count(skip_size(reader));
@@ -251,7 +271,8 @@ static auto external_dependency_offset(View::Bytes buffer) -> Count {
         Unsigned_8(Tetrodotoxin::Archiver::Format::RecordCode::Namespace)) {
       Count child_count = Count(skip_size(reader));
       for (Count k = 0; k < child_count; k++) {
-        skip_size(reader);
+        skip_reference(reader);
+        reader.read_unsigned_8();
       }
       continue;
     }

@@ -1,20 +1,17 @@
 dialect : Library;
 
-private Console : foreign {
-  public func print[.data : View[Bytes]] -> [];
-}
-
-private Math : foreign {
-  public func ttx_test_add[.left : Count, .right : Count] -> [.result : Count];
+// Allow direct calling of C symbols.
+foreign "C" {
+  public func ttx_test_add[.left : Unsigned_64, .right : Unsigned_64] -> [.result : Unsigned_64];
   public func ttx_test_sum7[
-    .a : Count,
-    .b : Count,
-    .c : Count,
-    .d : Count,
-    .e : Count,
-    .f : Count,
-    .g : Count
-  ] -> Count;
+    .a : Unsigned_64,
+    .b : Unsigned_64,
+    .c : Unsigned_64,
+    .d : Unsigned_64,
+    .e : Unsigned_64,
+    .f : Unsigned_64,
+    .g : Unsigned_64
+  ] -> Unsigned_64;
   public func ttx_test_real9[
     .a : Real_64,
     .b : Real_64,
@@ -28,51 +25,50 @@ private Math : foreign {
   ] -> Real_64;
 }
 
-@cpp(Count)
-@abi(integer)
-public Counter : struct {
-  public func identity[.value : Count] -> Count {
+public AddCounter : struct {
+  public value : Unsigned_64 = 0;
+  public add : Unsigned_64 = 0;
+
+  public func identity[.value : Unsigned_64] -> Unsigned_64 {
     return value;
   }
 
-  public func identity[self] -> Counter {
-    return self;
+  public func identity[self] -> Unsigned_64 {
+    return self.value + self.add;
   }
 }
 
-const reflected_type : Type = Counter;
-
-public func tetrodotoxin_test[.data : View[Bytes]] -> [] {
-  Console -> print("Compiler Test");
-  Console -> print(data);
+public func tetrodotoxin_test[.data : View[Unsigned_8]] -> [] {
+  foreign -> print("Compiler Test");
+  foreign -> print(data);
 }
 
-public func arithmetic[.value : Count] -> [.result : Count] {
-  return Math -> ttx_test_add(value, 5) * 2;
+public func arithmetic[.value : Unsigned_64] -> [.result : Unsigned_64] {
+  return foreign -> ttx_test_add(value, 5) * 2;
 }
 
 public func sum7[
-  .a : Count,
-  .b : Count,
-  .c : Count,
-  .d : Count,
-  .e : Count,
-  .f : Count,
-  .g : Count
-] -> [.result : Count] {
+  .a : Unsigned_64,
+  .b : Unsigned_64,
+  .c : Unsigned_64,
+  .d : Unsigned_64,
+  .e : Unsigned_64,
+  .f : Unsigned_64,
+  .g : Unsigned_64
+] -> [.result : Unsigned_64] {
   return a + b + c + d + e + f + g;
 }
 
 public func call_sum7[
-  .a : Count,
-  .b : Count,
-  .c : Count,
-  .d : Count,
-  .e : Count,
-  .f : Count,
-  .g : Count
-] -> Count {
-  return Math -> ttx_test_sum7(a, b, c, d, e, f, g);
+  .a : Unsigned_64,
+  .b : Unsigned_64,
+  .c : Unsigned_64,
+  .d : Unsigned_64,
+  .e : Unsigned_64,
+  .f : Unsigned_64,
+  .g : Unsigned_64
+] -> Unsigned_64 {
+  return foreign -> ttx_test_sum7(a, b, c, d, e, f, g);
 }
 
 public func call_real9[
@@ -86,10 +82,10 @@ public func call_real9[
   .h : Real_64,
   .i : Real_64
 ] -> Real_64 {
-  return Math -> ttx_test_real9(a, b, c, d, e, f, g, h, i);
+  return foreign -> ttx_test_real9(a, b, c, d, e, f, g, h, i);
 }
 
-public func is_even[.value : Count] -> Bool {
+public func is_even[.value : Unsigned_64] -> Bool {
   return value % 2 == 0;
 }
 
@@ -109,30 +105,30 @@ public func real_constant[] -> Real_64 {
   return 4.25;
 }
 
-public func constant_math[] -> Count {
+public func constant_math[] -> Unsigned_64 {
   return 2 + 3;
 }
 
-public func byte_array[] -> View[Bytes] {
+public func byte_array[] -> View[Unsigned_8] {
   return 0x[AA FF 12 45 ACDE];
 }
 
-public func text_literal[] -> View[Bytes] {
+public func text_literal[] -> View[Unsigned_8] {
   return "Raw string";
 }
 
-public func source_file[] -> View[Bytes] {
+public func source_file[] -> View[Unsigned_8] {
   return $[source.ttx];
 }
 
-public func swap[.first : Count, .second : Count] -> [.first : Count, .second : Count] {
+public func swap[.first : Unsigned_64, .second : Unsigned_64] -> [.first : Unsigned_64, .second : Unsigned_64] {
   return (.second = first, .first = second);
 }
 
-public func type_call[.value : Count] -> Count {
-  return Counter -> identity(value);
+public func type_call[.value : Unsigned_64] -> Unsigned_64 {
+  return AddCounter -> identity(value);
 }
 
-public func addressable_call[.value : Counter] -> Counter {
+public func addressable_call[.value : Unsigned_64er] -> Unsigned_64er {
   return value -> identity();
 }

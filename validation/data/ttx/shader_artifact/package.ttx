@@ -2,5 +2,5 @@
 // Copyright © Matt Kaes
 dialect : Package;
 
-source Renderer : Render = "render.ttx";
-source CopyShader : Shader = "shader.ttx";
+source Formats = "render.ttx";
+source "shader.ttx";

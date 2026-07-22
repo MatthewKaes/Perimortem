@@ -12,8 +12,6 @@
 #include "perimortem/memory/managed/bytes.hpp"
 #include "perimortem/memory/managed/vector.hpp"
 
-#include "perimortem/serialization/escaped_text.hpp"
-
 enum class NodeState : Unsigned_32 {
   Null,
   String,

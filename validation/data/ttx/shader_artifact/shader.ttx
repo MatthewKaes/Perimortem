@@ -3,8 +3,10 @@
 
 dialect : Shader;
 
-shader CopyShader : Renderer::Copy {
-  func pixel[.color : Vec4D] -> [.color : Vec4D] {
-    return (.color = color);
+shader TestShader : Formats::Simple {
+  func Fragment[.color : Vec4D] -> [.color : Vec4D] {
+    state divisor : Vec4D = (.x = 1.0, .y = 1.0, .z = 1.0, .w = 1.0);
+    state copied : Vec4D = color / divisor;
+    return (.color = copied);
   }
 }
