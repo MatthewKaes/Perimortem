@@ -108,8 +108,6 @@ class Node {
   auto format(Memory::Allocator::Arena& arena) const -> Core::View::Bytes;
 
  private:
-  auto serialized_size() const -> Count;
-
   // Node deliberately packs its scalar payload, range size, and state into 16
   // bytes. Static::Union would require separate storage for its tag and since
   // C++ can't unpack the struct it will tack it on to the end with padding.

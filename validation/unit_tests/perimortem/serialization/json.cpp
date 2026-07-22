@@ -8,6 +8,7 @@
 
 #include "perimortem/system/file.hpp"
 #include "perimortem/serialization/json/node.hpp"
+#include "perimortem/serialization/stream/textual.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;

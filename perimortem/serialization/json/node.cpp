@@ -3,14 +3,13 @@
 
 #include "perimortem/serialization/json/node.hpp"
 
-#include <x86intrin.h>
-
 #include "perimortem/core/static/vector.hpp"
 #include "perimortem/core/null_terminated.hpp"
-#include "perimortem/core/writer/textual.hpp"
 
 #include "perimortem/memory/managed/bytes.hpp"
 #include "perimortem/memory/managed/vector.hpp"
+
+#include "perimortem/serialization/stream/textual.hpp"
 
 enum class NodeState : Unsigned_32 {
   Null,
@@ -26,125 +25,24 @@ using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
 using namespace Perimortem::Serialization;
 
-template <Unsigned_32 channels, Unsigned_32 index, Unsigned_32 range>
-auto optimized_or_merge(Static::Vector<__m256i, channels>& source) -> __m256i {
-  if constexpr (range == 1) {
-    return source[index];
-  } else if constexpr (range == 2) {
-    return _mm256_or_si256(source[index], source[index + 1]);
-  } else {
-    return _mm256_or_si256(
-        optimized_or_merge<channels, index, (range / 2)>(source),
-        optimized_or_merge<channels, index + (range / 2), range - (range / 2)>(
-            source));
-  }
-}
-
-auto scan(View::Bytes bytes, Unsigned_8 search, Count position) -> Count {
-  // Use 8 AVX2 channels to get out as much performance as we can for long
-  // searches.
-  constexpr const auto fused_channels = 8;
-  constexpr const auto avx2_channel_width = sizeof(__m256i);
-  constexpr const auto full_channel_width = avx2_channel_width * fused_channels;
-
-  auto search_mask = _mm256_set1_epi8(search);
-  for (; position + full_channel_width <= bytes.get_size();
-       position += full_channel_width) {
-    // Load all channels and check for our target byte.
-    Static::Vector<__m256i, fused_channels> masks;
-    for (auto ymm = 0; ymm < fused_channels; ymm++) {
-      const auto value =
-          _mm256_loadu_si256((const __m256i*)(bytes.get_data() + position +
-                                              avx2_channel_width * ymm));
-      masks[ymm] = _mm256_cmpeq_epi8(value, search_mask);
-    }
-
-    // Simple handrolled or optimization for channel depth testing.
-    const auto group_mask =
-        optimized_or_merge<fused_channels, 0, fused_channels>(masks);
-
-    // Check if we found the byte at all.
-    if (!_mm256_testz_si256(group_mask, group_mask)) {
-      Count ymm;
-      for (ymm = 0; ymm < fused_channels - 2; ymm += 2) {
-        const Unsigned_32 result_lower = _mm256_movemask_epi8(masks[ymm]);
-        const Unsigned_32 result_upper = _mm256_movemask_epi8(masks[ymm + 1]);
-        const Unsigned_64 result_merged =
-            (Unsigned_64)result_upper << Data::size_in_bits<Unsigned_32>() |
-            (Unsigned_64)result_lower;
-
-        // Since we have additional channels only return if we have our
-        // target.
-        if (result_merged) {
-          return position + __builtin_ctzg(result_merged) +
-                 avx2_channel_width * ymm;
-        }
-      }
-
-      // Not found in channels 0..fused_channels-2, so it must be in the
-      // final pair.
-      const Unsigned_32 result_lower = _mm256_movemask_epi8(masks[ymm]);
-      const Unsigned_32 result_upper = _mm256_movemask_epi8(masks[ymm + 1]);
-      const Unsigned_64 result_merged =
-          (Unsigned_64)result_upper << Data::size_in_bits<Unsigned_32>() |
-          (Unsigned_64)result_lower;
-      return position + __builtin_ctzg(result_merged) +
-             avx2_channel_width * ymm;
-    }
-  }
-
-  // Scalar fallback to prevent buffer overruns.
-  for (; position < bytes.get_size(); position += 1) {
-    if (bytes.get_data()[position] == search) {
-      return position;
-    }
-  }
-
-  // String was never closed so just treat the entire range as a string.
-  return Count(-1);
-}
-
-// Scans for the end of the string while supporting escaped quotes (\").
-// Uses a vectorized scan for finding possible candidates followed by a
-// backwards walk to resolve escape sequences.
-// If the quote is indeed escaped then the scan continues until it either finds
-// a closing candidate or hits the end of the source view.
-auto scan_string_end(View::Bytes source, Count position) -> Count {
-  while (position < source.get_size()) {
-    Count quote = scan(source, '"', position);
-    if (quote == Count(-1)) {
-      return Count(-1);
-    }
-
-    if (quote == 0 || source[quote - 1] != '\\') {
-      return quote;
-    }
-
-    Count first_slash = quote - 1;
-    while (first_slash > 0 && source[first_slash - 1] == '\\') {
-      first_slash--;
-    }
-
-    if (((quote - first_slash) & 1) == 0) {
-      return quote;
-    }
-
-    position = quote + 1;
-  }
-
-  return Count(-1);
-}
-
+// Scans a string byte by byte so ascii escape characters are skipped.
 auto parse_string(View::Bytes source, Count& position) -> View::Bytes {
-  Count start = ++position;
-  Count end = scan_string_end(source, position);
-  if (end == Count(-1)) {
-    position = source.get_size();
-    return source.slice(start);
+  const auto start = ++position;
+  auto data = source.get_data();
+  while (position < source.get_size()) {
+    switch (data[position]) {
+    case '"':
+      return source.slice(start, position - start);
+    case '\\':
+      position += 2;
+      break;
+    default:
+      position++;
+      break;
+    }
   }
 
-  position = end + 1;
-  return source.slice(start, end - start);
+  return source.slice(start);
 }
 
 auto ignored_characters(Unsigned_8 c) {
@@ -553,167 +451,135 @@ auto Json::Node::parse(
   return position;
 }
 
-auto Json::Node::serialized_size() const -> Count {
-  switch ((NodeState)data.state) {
-  case NodeState::Null: {
-    return "null"_view.get_size();
-  }
-
-  case NodeState::Array: {
-    Count accumulated = 0;
-    View::Vector<Json::Node> array = get_array();
-    for (Unsigned_32 i = 0; i < array.get_size(); i++) {
-      accumulated += array[i].serialized_size();
-    }
-
-    const auto number_of_commas =
-        array.get_size() == 0 ? Count(0) : array.get_size() - 1;
-    return accumulated + "[]"_view.get_size() + number_of_commas;
-  }
-
-  case NodeState::Object: {
-    Count accumulated = 0;
-    View::Vector<Member> members = get_object();
-    for (Unsigned_32 i = 0; i < members.get_size(); i++) {
-      const auto& member = members[i];
-      accumulated += member.name.get_size();
-      accumulated += "\"\":"_view.get_size();
-      accumulated += member.node.serialized_size();
-    }
-
-    const auto number_of_commas =
-        members.get_size() == 0 ? Count(0) : members.get_size() - 1;
-    return accumulated + "{}"_view.get_size() + number_of_commas;
-  }
-
-  case NodeState::String: {
-    auto length = EscapedText::encoded_size(get_string());
-    return length + "\"\""_view.get_size();
-  }
-
-  case NodeState::Flag: {
-    if (data.flag) {
-      return "true"_view.get_size();
-    } else {
-      return "false"_view.get_size();
-    }
-  }
-
-  case NodeState::Number: {
-    Count accumulated = 0;
-    auto number = data.number;
-    if (number == 0) {
-      return accumulated + 1;
-    }
-
-    // Include space for the negative sign.
-    if (number < 0) {
-      accumulated += 1;
-      number = number * -1;
-    }
-
-    // Slightly overestimates number of digits by computing log8(number) of
-    // the number and rounding up.
-    // Only overestimates by 1 byte for any value upto 10^9 an only 2 bytes
-    // for the entire 64 bit range, compared to the div 10 version.
-    while (number > 0) {
-      number >>= 3;
-      accumulated += 1;
-    }
-
-    return accumulated;
-  }
-
-  // Assume 32 bytes is sufficient
-  case NodeState::Real: {
-    return 32;
-  }
-  }
-}
-
 auto Json::Node::format(Allocator::Arena& arena) const -> View::Bytes {
-  // Get an upper bound which should be fairly accurate but can be pessemsitic
-  // in the case of a large number of reals.
-  Count upper_bound = serialized_size();
-  Managed::Bytes formatted_output(arena);
-  formatted_output.resize(upper_bound);
-  Writer::Textual output(formatted_output.get_access());
+  Managed::Bytes output(arena);
+  Stream::Textual<Managed::Bytes> stream(output);
 
-  auto inplace_format = [](this auto&& self, Writer::Textual& output,
+  auto inplace_format = [](this auto&& self,
+                           Stream::Textual<Managed::Bytes>& stream,
                            const Json::Node& node) -> void {
     switch ((NodeState)node.data.state) {
     case NodeState::Null: {
-      output << "null"_view;
+      stream << "null"_view;
       return;
     }
 
     case NodeState::Array: {
-      output << '[';
+      stream << '[';
 
       View::Vector<Json::Node> array = node.get_array();
       for (Unsigned_32 i = 0; i < array.get_size(); i++) {
-        self(output, array[i]);
+        self(stream, array[i]);
         if (i != array.get_size() - 1) {
-          output << ',';
+          stream << ',';
         }
       }
 
-      output << ']';
+      stream << ']';
       return;
     }
 
     case NodeState::Object: {
-      output << '{';
+      stream << '{';
 
       View::Vector<Member> members = node.get_object();
       for (Unsigned_32 i = 0; i < members.get_size(); i++) {
         const auto& member = members[i];
-        output << '\"' << member.name << "\":"_view;
+        stream << '\"' << member.name << "\":"_view;
 
-        self(output, member.node);
+        self(stream, member.node);
         if (i != members.get_size() - 1) {
-          output << ',';
+          stream << ',';
         }
       }
 
-      output << '}';
+      stream << '}';
       return;
     }
 
     case NodeState::String: {
-      output << '\"';
-      EscapedText::encode(output, node.get_string());
-      output << '\"';
+      stream << '\"';
+      constexpr Static::Vector<Unsigned_8, 16> hex_digits = {
+        {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D',
+         'E', 'F'}};
+      auto string = node.get_string();
+      for (Count i = 0; i < string.get_size(); i++) {
+        switch (string[i]) {
+        case '"':
+          stream << '\\';
+          stream << '"';
+          break;
+
+        case '\\':
+          stream << '\\';
+          stream << '\\';
+          break;
+
+        case '\b':
+          stream << '\\';
+          stream << 'b';
+          break;
+
+        case '\f':
+          stream << '\\';
+          stream << 'f';
+          break;
+
+        case '\n':
+          stream << '\\';
+          stream << 'n';
+          break;
+
+        case '\r':
+          stream << '\\';
+          stream << 'r';
+          break;
+
+        case '\t':
+          stream << '\\';
+          stream << 't';
+          break;
+
+        default:
+          if (string[i] >= 0x20) {
+            stream << char(string[i]);
+            break;
+          }
+
+          stream << '\\';
+          stream << 'u';
+          stream << '0';
+          stream << '0';
+          stream << char(hex_digits[string[i] >> 4]);
+          stream << char(hex_digits[string[i] & 0x0F]);
+          break;
+        }
+      }
+
+      stream << '\"';
       return;
     }
 
     case NodeState::Flag: {
-      output << node.data.flag;
+      stream << node.data.flag;
       return;
     }
 
     case NodeState::Number: {
-      output << node.data.number;
+      stream << node.data.number;
       return;
     }
 
     case NodeState::Real: {
-      output << node.data.real;
+      stream << node.data.real;
       return;
     }
     }
   };
 
   // Start the format chain.
-  inplace_format(output, *this);
+  inplace_format(stream, *this);
 
-  // If we went over the buffer or if we failed to format the data return an
-  // empty view.
-  if (!output.is_valid()) {
-    return View::Bytes();
-  }
-
-  // Shrink to actual size.
-  formatted_output.resize(output.get_location());
-  return formatted_output;
+  // Return the output buffer.
+  return output;
 }
