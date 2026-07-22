@@ -74,6 +74,9 @@ auto Tetrodotoxin::Model::Environment::resolve_context(View::Bytes route) const
   if (route == access.get_name()) {
     return access;
   }
+  if (route == fixed.get_name()) {
+    return fixed;
+  }
 
   const Bindings::Entry* selected = bindings_by_name.find(route);
   if (selected != nullptr) {

@@ -11,6 +11,7 @@
 
 #include "ttx/concept/invalid.hpp"
 #include "ttx/model/types/generics/access.hpp"
+#include "ttx/model/types/generics/fixed.hpp"
 #include "ttx/model/types/generics/view.hpp"
 #include "ttx/model/types/unsigned_8.hpp"
 
@@ -23,6 +24,8 @@ using namespace Validation;
 static Harness TtxGeneric = {
   .name = "TTX::Types::Generics"_view,
 };
+
+static_assert(sizeof(Model::Types::Generic::Argument) <= 16);
 
 class EquivalentNameType final : public Model::Type {
  public:
@@ -57,15 +60,20 @@ PERIMORTEM_UNIT_TEST(TtxGeneric, publishes_parameterization) {
   Allocator::Arena arena;
   Model::Types::Generics::View view(arena);
   Model::Types::Generics::Access access(arena);
+  Model::Types::Generics::Fixed fixed(arena);
   auto view_parameters = view.get_parameterization();
   auto access_parameters = access.get_parameterization();
+  auto fixed_parameters = fixed.get_parameterization();
 
   EXPECT(view.is<Model::Types::Generic>());
   EXPECT_NOT(view.is<Model::Type>());
   EXPECT_EQ(view_parameters.get_size(), Count(1));
   EXPECT_EQ(access_parameters.get_size(), Count(1));
+  EXPECT_EQ(fixed_parameters.get_size(), Count(2));
   EXPECT(view_parameters[0] == Model::Types::Generic::Parameters::Type);
   EXPECT(access_parameters[0] == Model::Types::Generic::Parameters::Type);
+  EXPECT(fixed_parameters[0] == Model::Types::Generic::Parameters::Type);
+  EXPECT(fixed_parameters[1] == Model::Types::Generic::Parameters::Signed_64);
 }
 
 PERIMORTEM_UNIT_TEST(TtxGeneric, caches_class_specific_types) {
@@ -96,6 +104,46 @@ PERIMORTEM_UNIT_TEST(TtxGeneric, caches_class_specific_types) {
       access_type.assume<Model::Types::Generics::Access::Type>();
   EXPECT(&concrete_view.get_element_type() == &element);
   EXPECT(&concrete_access.get_element_type() == &element);
+}
+
+PERIMORTEM_UNIT_TEST(TtxGeneric, materializes_fixed_ranged_layouts) {
+  Allocator::Arena arena;
+  Model::Types::Unsigned_8 element;
+  EquivalentNameType equivalent_name;
+  Model::Types::Generics::Fixed fixed(arena);
+  const Static::Vector<Model::Types::Generic::Argument, 2> four_arguments = {{
+    element,
+    Signed_64(4),
+  }};
+  const Static::Vector<Model::Types::Generic::Argument, 2> six_arguments = {{
+    element,
+    Signed_64(6),
+  }};
+  const Static::Vector<Model::Types::Generic::Argument, 2>
+      equivalent_arguments = {{
+        equivalent_name,
+        Signed_64(4),
+      }};
+
+  Model::Type& first = get_type(fixed.find(four_arguments));
+  Model::Type& cached = get_type(fixed.find(four_arguments));
+  Model::Type& distinct_extent = get_type(fixed.find(six_arguments));
+  Model::Type& distinct_element = get_type(fixed.find(equivalent_arguments));
+  const auto& concrete = first.assume<Model::Types::Generics::Fixed::Type>();
+  const Concept::Layout& layout = concrete.get_layout();
+
+  EXPECT(&first == &cached);
+  EXPECT(&first != &distinct_extent);
+  EXPECT(&first != &distinct_element);
+  EXPECT_TEXT(first.get_name(), distinct_element.get_name());
+  EXPECT(first.is<Model::Types::Generics::Fixed::Type>());
+  EXPECT_TEXT(first.get_name(), "Fixed[Unsigned_8,4]"_view);
+  EXPECT(&concrete.get_element_type() == &element);
+  EXPECT_EQ(concrete.get_extent(), Signed_64(4));
+  EXPECT_EQ(layout.get_size(), Count(4));
+  EXPECT(&layout.get_abstract(0) == &element);
+  EXPECT(&layout.get_abstract(3) == &element);
+  EXPECT(layout.get_abstract(4).is<Concept::Invalid>());
 }
 
 PERIMORTEM_UNIT_TEST(TtxGeneric, cache_uses_semantic_identity) {
@@ -130,6 +178,23 @@ PERIMORTEM_UNIT_TEST(TtxGeneric, rejects_wrong_argument_shapes) {
   EXPECT(is_none(view.find(unsigned_argument)));
   EXPECT(is_none(view.find(bool_argument)));
   EXPECT(is_none(view.find(extra_arguments)));
+}
+
+PERIMORTEM_UNIT_TEST(TtxGeneric, fixed_rejects_non_ranges) {
+  Allocator::Arena arena;
+  Model::Types::Unsigned_8 element;
+  Model::Types::Generics::Fixed fixed(arena);
+  const Static::Vector<Model::Types::Generic::Argument, 2> negative = {{
+    element,
+    Signed_64(-1),
+  }};
+  const Static::Vector<Model::Types::Generic::Argument, 2> unsigned_extent = {{
+    element,
+    Unsigned_64(4),
+  }};
+
+  EXPECT(is_none(fixed.find(negative)));
+  EXPECT(is_none(fixed.find(unsigned_extent)));
 }
 
 PERIMORTEM_UNIT_TEST(TtxGeneric, caches_are_formula_local) {

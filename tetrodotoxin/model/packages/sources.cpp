@@ -26,6 +26,7 @@
 #include "ttx/model/expression.hpp"
 #include "ttx/model/types/generics.hpp"
 #include "ttx/model/types/generics/access.hpp"
+#include "ttx/model/types/generics/fixed.hpp"
 #include "ttx/model/types/generics/view.hpp"
 #include "ttx/model/types/terminal.hpp"
 
@@ -226,6 +227,12 @@ auto Tetrodotoxin::Model::Packages::Sources::collect_definition(
     const auto& access =
         definition.assume<Ttx::Model::Types::Generics::Access::Type>();
     collect_definition(access.get_element_type());
+    return;
+  }
+  if (definition.is<Ttx::Model::Types::Generics::Fixed::Type>()) {
+    const auto& fixed =
+        definition.assume<Ttx::Model::Types::Generics::Fixed::Type>();
+    collect_definition(fixed.get_element_type());
     return;
   }
   if (definition.is<Ttx::Model::Types::Generics::View::Type>()) {

@@ -22,13 +22,14 @@ class Generic : public Concept::Abstract {
   enum class Parameters : Unsigned_8 {
     Type,
     Unsigned_64,
+    Signed_64,
     Bool,
   };
 
   // Semantic graph queries expose const references. Scalar arguments are
   // copied directly, while Type arguments retain their resolved identity.
   using Argument = Perimortem::Core::Static::
-      Union<const Ttx::Model::Type&, ::Unsigned_64, ::Bool>;
+      Union<const Ttx::Model::Type&, ::Unsigned_64, ::Signed_64, ::Bool>;
 
   using ContractOwner = Generic;
   static constexpr Perimortem::System::Uuid contract_id{

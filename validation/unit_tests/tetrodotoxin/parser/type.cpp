@@ -22,6 +22,7 @@
 #include "ttx/lexical/tokenizer.hpp"
 #include "ttx/model/type.hpp"
 #include "ttx/model/types/generics/access.hpp"
+#include "ttx/model/types/generics/fixed.hpp"
 #include "ttx/model/types/generics/view.hpp"
 
 using namespace Perimortem::Core;
@@ -307,6 +308,130 @@ PERIMORTEM_UNIT_TEST(ParserTypeTests, materializes_environment_generics) {
   EXPECT(cursor.matches(Lexical::Code::Type::Terminal));
 }
 
+PERIMORTEM_UNIT_TEST(ParserTypeTests, materializes_fixed_ranges) {
+  Allocator::Arena arena;
+  Lexical::Errors errors;
+  Tetrodotoxin::Model::Environment environment;
+  Tetrodotoxin::Model::Source source(environment, {});
+  Lexical::Tokenizer tokenizer(
+      arena, "Fixed[Unsigned_8, 4]"_view, "<fixed generic type>"_view);
+  Lexical::Cursor cursor(tokenizer, errors);
+
+  Option<const Ttx::Model::Type&> parsed = Parser::Type::parse(cursor, source);
+  Bool correct = parsed.visit(
+      [](const None&) { return False; },
+      [](const Ttx::Model::Type& selected) -> Bool {
+        if (!selected.is<Ttx::Model::Types::Generics::Fixed::Type>()) {
+          return False;
+        }
+
+        const auto& fixed =
+            selected.assume<Ttx::Model::Types::Generics::Fixed::Type>();
+        return fixed.get_element_type().get_name() == "Unsigned_8"_view &&
+               fixed.get_extent() == Signed_64(4) &&
+               fixed.get_layout().get_size() == Count(4);
+      });
+
+  EXPECT(correct);
+  EXPECT(errors.is_empty());
+  EXPECT(cursor.matches(Lexical::Code::Type::Terminal));
+}
+
+PERIMORTEM_UNIT_TEST(ParserTypeTests, materializes_recursive_fixed_ranges) {
+  Allocator::Arena arena;
+  Lexical::Errors errors;
+  Tetrodotoxin::Model::Environment environment;
+  Tetrodotoxin::Model::Source source(environment, {});
+  Lexical::Tokenizer tokenizer(
+      arena, "Fixed[Fixed[Fixed[Unsigned_8, 2], 3], 4]"_view,
+      "<recursive fixed generic type>"_view);
+  Lexical::Cursor cursor(tokenizer, errors);
+
+  Option<const Ttx::Model::Type&> parsed = Parser::Type::parse(cursor, source);
+  Bool correct = parsed.visit(
+      [](const None&) { return False; },
+      [](const Ttx::Model::Type& selected) -> Bool {
+        if (!selected.is<Ttx::Model::Types::Generics::Fixed::Type>()) {
+          return False;
+        }
+
+        const auto& outer =
+            selected.assume<Ttx::Model::Types::Generics::Fixed::Type>();
+        const Ttx::Model::Type& middle_type = outer.get_element_type();
+        if (!middle_type.is<Ttx::Model::Types::Generics::Fixed::Type>()) {
+          return False;
+        }
+
+        const auto& middle =
+            middle_type.assume<Ttx::Model::Types::Generics::Fixed::Type>();
+        const Ttx::Model::Type& inner_type = middle.get_element_type();
+        if (!inner_type.is<Ttx::Model::Types::Generics::Fixed::Type>()) {
+          return False;
+        }
+
+        const auto& inner =
+            inner_type.assume<Ttx::Model::Types::Generics::Fixed::Type>();
+        return outer.get_extent() == Signed_64(4) &&
+               outer.get_layout().get_size() == Count(4) &&
+               middle.get_extent() == Signed_64(3) &&
+               middle.get_layout().get_size() == Count(3) &&
+               inner.get_extent() == Signed_64(2) &&
+               inner.get_layout().get_size() == Count(2) &&
+               inner.get_element_type().get_name() == "Unsigned_8"_view;
+      });
+
+  EXPECT(correct);
+  EXPECT(errors.is_empty());
+  EXPECT(cursor.matches(Lexical::Code::Type::Terminal));
+}
+
+PERIMORTEM_UNIT_TEST(
+    ParserTypeTests,
+    recovers_after_recursive_generic_argument_failure) {
+  Allocator::Arena arena;
+  Allocator::Arena render_arena;
+  Lexical::Errors errors;
+  Tetrodotoxin::Model::Environment environment;
+  Tetrodotoxin::Model::Source source(environment, {});
+  Lexical::Tokenizer tokenizer(
+      arena,
+      "Fixed[Fixed[Fixed[Unsigned_8, 2], Unsigned_16], 4]; "
+      "Fixed[Real_32, 2]"_view,
+      "<recursive fixed recovery>"_view);
+  Lexical::Cursor cursor(tokenizer, errors);
+
+  Option<const Ttx::Model::Type&> rejected =
+      Parser::Type::parse(cursor, source);
+  View::Bytes rendered = errors.render_message(render_arena, 0);
+
+  EXPECT(is_none(rejected));
+  EXPECT_EQ(errors.get_size(), Count(1));
+  EXPECT(contains(rendered, "expected Signed_64"_view));
+  EXPECT(cursor.matches(Lexical::Code::Type::Type));
+  EXPECT_TEXT(
+      cursor.current().caculate_text(cursor.get_source_text()), "Fixed"_view);
+
+  Option<const Ttx::Model::Type&> recovered =
+      Parser::Type::parse(cursor, source);
+  Bool correct = recovered.visit(
+      [](const None&) { return False; },
+      [](const Ttx::Model::Type& selected) -> Bool {
+        if (!selected.is<Ttx::Model::Types::Generics::Fixed::Type>()) {
+          return False;
+        }
+
+        const auto& fixed =
+            selected.assume<Ttx::Model::Types::Generics::Fixed::Type>();
+        return fixed.get_element_type().get_name() == "Real_32"_view &&
+               fixed.get_extent() == Signed_64(2) &&
+               fixed.get_layout().get_size() == Count(2);
+      });
+
+  EXPECT(correct);
+  EXPECT_EQ(errors.get_size(), Count(1));
+  EXPECT(cursor.matches(Lexical::Code::Type::Terminal));
+}
+
 PERIMORTEM_UNIT_TEST(
     ParserTypeTests,
     reuses_environment_materialization_across_sources) {
@@ -466,6 +591,48 @@ PERIMORTEM_UNIT_TEST(ParserTypeTests, rejects_overflow_and_recovers) {
   EXPECT(is_none(parsed));
   EXPECT_EQ(errors.get_size(), Count(1));
   EXPECT(contains(rendered, "outside Unsigned_64"_view));
+  EXPECT(cursor.matches(Lexical::Code::Type::Type));
+  EXPECT_TEXT(
+      cursor.current().caculate_text(cursor.get_source_text()), "Bool"_view);
+}
+
+PERIMORTEM_UNIT_TEST(
+    ParserTypeTests,
+    rejects_negative_fixed_extent_and_recovers) {
+  Allocator::Arena arena;
+  Lexical::Errors errors;
+  Tetrodotoxin::Model::Environment environment;
+  Tetrodotoxin::Model::Source source(environment, {});
+  Lexical::Tokenizer tokenizer(
+      arena, "Fixed[Unsigned_8,-1]; Bool"_view, "<negative fixed extent>"_view);
+  Lexical::Cursor cursor(tokenizer, errors);
+
+  Option<const Ttx::Model::Type&> parsed = Parser::Type::parse(cursor, source);
+
+  EXPECT(is_none(parsed));
+  EXPECT_EQ(errors.get_size(), Count(1));
+  EXPECT(cursor.matches(Lexical::Code::Type::Type));
+  EXPECT_TEXT(
+      cursor.current().caculate_text(cursor.get_source_text()), "Bool"_view);
+}
+
+PERIMORTEM_UNIT_TEST(ParserTypeTests, rejects_signed_overflow_and_recovers) {
+  Allocator::Arena arena;
+  Allocator::Arena render_arena;
+  Lexical::Errors errors;
+  Tetrodotoxin::Model::Environment environment;
+  Tetrodotoxin::Model::Source source(environment, {});
+  Lexical::Tokenizer tokenizer(
+      arena, "Fixed[Unsigned_8,9223372036854775808]; Bool"_view,
+      "<overflow fixed extent>"_view);
+  Lexical::Cursor cursor(tokenizer, errors);
+
+  Option<const Ttx::Model::Type&> parsed = Parser::Type::parse(cursor, source);
+  View::Bytes rendered = errors.render_message(render_arena, 0);
+
+  EXPECT(is_none(parsed));
+  EXPECT_EQ(errors.get_size(), Count(1));
+  EXPECT(contains(rendered, "outside Signed_64"_view));
   EXPECT(cursor.matches(Lexical::Code::Type::Type));
   EXPECT_TEXT(
       cursor.current().caculate_text(cursor.get_source_text()), "Bool"_view);

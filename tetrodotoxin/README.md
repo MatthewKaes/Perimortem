@@ -116,8 +116,9 @@ members so those requirements cannot be hidden by the minimal Demo.
 
 The durable model is one graph of real TTX Abstract identities plus
 identity-free Layout and Body values. Package owns only export composition.
-Environment owns common Generic formulas and their materializations for every
-Source in one interpretation transaction. Library owns reusable inline/managed
+Environment owns the common `View`, `Access`, and `Fixed` Generic formulas and
+their materializations for every Source in one interpretation transaction.
+Library owns reusable inline/managed
 Types, Callables, constants, and host Bodies. Render owns value state,
 constant/push/resource roles, and required stage Callable contracts. Shader
 owns exact Render implementation edges, Stage Bodies, GPU interface facts,

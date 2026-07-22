@@ -704,9 +704,9 @@ The five v1 contracts are deliberately separate classes:
   same field merely because their spellings and child Types happen to match.
 - **Ranged** is a compact homogeneous shape. It stores one real Abstract and a
   count, then returns that same answer for every index inside the interval and
-  Invalid outside it. Fixed `Unsigned_8[N]` and `Static::Vector<T, N>` Types can
-  therefore participate in recursive projection without allocating N copied
-  edges.
+  Invalid outside it. `Fixed[Unsigned_8, N]` and `Static::Vector<T, N>` Types
+  can therefore participate in recursive projection without allocating N
+  copied edges.
 - **Composite** is positional composition over two complete Layouts. It routes
   indexes and target segments to the owning child, preserving each child's
   fitting rules without copying its Abstract entries. Composite may recursively
@@ -1149,7 +1149,7 @@ suffix, or redirect them unchanged without allocating a second representation:
 
 ```ttx
 Unsigned_32
-Vec[Unsigned_8, 4]
+Fixed[Unsigned_8, 4]
 Graphics::Image
 Math::Matrix[Real_32, 4, 4]
 ```
@@ -1172,7 +1172,7 @@ result must prove Type. The source owner retains the authored input and the
 operation being resolved so it can report the exact failed boundary.
 
 Type arguments use `[]`, not `<>`, because `<` and `>` are comparison
-operators. Numeric type arguments, such as the `4` in `Vec[Unsigned_8, 4]`, are
+operators. Numeric type arguments, such as the `4` in `Fixed[Unsigned_8, 4]`, are
 part of the type query and are checked while proving that query.
 
 Parameterization is Generic dispatch over resolved arguments. A type reference
@@ -1182,20 +1182,20 @@ Abstract that is not Generic fails at that exact parser step. The parser
 validates the declared argument kinds and proves the returned Type contract.
 Generic is not a placeholder Type and does not have a Layout of its own.
 
-Each named Generic is a formula such as `Vec`, `View`, or `Dict`. The current
+Each named Generic is a formula such as `Fixed`, `View`, or `Dict`. The current
 source context owns formula lookup; a toolchain may also expose a closed
 immutable builtin table. The Generic object owns its ordered parameter
 signature, materialization rule, and concrete-Type cache. TTX does not define a
 mutable Generic registry or switch on formula names.
 
 `get_parameterization()` returns the complete ordered signature before any
-argument is consumed. Every entry is `Type`, `Unsigned_64`, or `Bool`. The
-parser validates the authored tokens against that signature and supplies
-`find()` a borrowed ordered view of
-`Union<const Type&, Unsigned_64, Bool>`. This union is a compact call carrier,
-not an Abstract or a second semantic graph. A Type alternative preserves the
-resolved semantic identity as a const reference. Unsigned and boolean
-alternatives are direct compile-time values.
+argument is consumed. Every entry is `Type`, `Unsigned_64`, `Signed_64`, or
+`Bool`. The parser validates the authored tokens against that signature and
+supplies `find()` a borrowed ordered view of
+`Union<const Type&, Unsigned_64, Signed_64, Bool>`. This union is a compact call
+carrier, not an Abstract or a second semantic graph. A Type alternative
+preserves the resolved semantic identity as a const reference. Numeric and
+boolean alternatives are direct compile-time values.
 
 The formula compares Type arguments by resolved identity and scalar arguments
 by value. Unrelated Types with the same local name remain distinct. The ordered
@@ -1304,10 +1304,11 @@ Flag values, not additional Types.
 Value width describes the terminal domain. Size and alignment describe storage.
 None of them dictate register or instruction width. An eight-bit, one-byte
 Unsigned Type may correctly use a 32-bit carrier or move when observable stores
-and arithmetic preserve its value domain. Aggregates such as `Vec`, `View`, and a language-defined String Type
-instead expose their real Addressable structure unless a toolchain deliberately
-registers them as another Terminal contract. A byte-array Constant can use an
-aggregate Type without creating a native TTX String concept.
+and arithmetic preserve its value domain. Aggregates such as `Fixed`, `View`,
+and a language-defined String Type instead expose their real Layout structure
+unless a toolchain deliberately registers them as another Terminal contract. A
+byte-array Constant can use an aggregate Type without creating a native TTX
+String concept.
 
 `Perimortem.Graphics` is explicit. A package that needs graphics-domain types
 receives it through Environment and refers to those types through the bound name:
@@ -1328,7 +1329,7 @@ into every file. Package declarations come from resolved package manifests. All
 later stages use the same objects for member lookup, swizzle checks, pack
 fitting, future host-boundary metadata, and shader lowering.
 
-`Vec[T, N]` is different. It is a fixed-size homogeneous aggregate indexed by
+`Fixed[T, N]` is different. It is a fixed-size homogeneous aggregate indexed by
 position, so indexed packs may initialize sparse entries. `Vec2D`, `Vec3D`,
 `Vec4D`, and `Graphics::Color` have named component fields and support named
 packs and named swizzles through those fields.
@@ -1851,7 +1852,7 @@ flow or Invalid before core Layout fitting.
 An indexed designator uses an explicit integer literal after `.`:
 
 ```ttx
-private decode_table : Vec[Unsigned_8, 256] = (
+private decode_table : Fixed[Unsigned_8, 256] = (
   .43 = 62,
   .47 = 63,
   .48 = 52,
@@ -2149,7 +2150,7 @@ Rules:
    match the target's Addressables in declaration order. Core fitting does not
    manufacture omitted entries.
 10. Indexed pack syntax may initialize fixed-size homogeneous aggregates such as
-    `Vec[T, N]`. Its owner validates literal indexes and expands them into the
+    `Fixed[T, N]`. Its owner validates literal indexes and expands them into the
     complete ordered value flow before core Layout fitting.
 11. Structured typed values do not flatten into packs implicitly. Source must use
    swizzle or slice syntax to decompose a typed value into a fluid pack.
@@ -2162,7 +2163,7 @@ Rules:
     source or generated-data context retains the information needed for the
     diagnostic.
 
-`Vec[T, N]`, `Vec2D`, `Vec3D`, `Vec4D`, `Color`, user structs, and other
+`Fixed[T, N]`, `Vec2D`, `Vec3D`, `Vec4D`, `Color`, user structs, and other
 aggregate types are concrete typed values. They may consume compatible packs,
 and they may lower to the same storage representation, but they are not aliases
 for packs. The fixed vector and color types have builtin struct fields:
@@ -2287,7 +2288,7 @@ TTX does not use braced initializers. Braces are scopes and statement blocks.
 Aggregate initialization uses packs:
 
 ```ttx
-private values : Vec[Unsigned_32, 4] = (1, 2, 3, 4);
+private values : Fixed[Unsigned_32, 4] = (1, 2, 3, 4);
 private color  : Color = (.r = 1.0, .g = 0.0, .b = 0.0, .a = 1.0);
 ```
 
@@ -2462,7 +2463,7 @@ source order:
 ```ttx
 // Stored in source order.
 // Attached to the following member.
-private signature : Vec[Unsigned_8, 8] = 0x[89 50 4E 47];
+private signature : Fixed[Unsigned_8, 8] = 0x[89 50 4E 47];
 ```
 
 Comments inside statement bodies remain lexical source facts for formatting and
@@ -2522,7 +2523,7 @@ The common semantic vocabulary is intentionally small:
 | ---------------------------------- | ------------------------------ | ----------------------------------------------------- |
 | primitive numeric types            | value                          | fixed width, no implicit widening                     |
 | `Bool`                             | value                          | only `true` and `false` are truthable by default      |
-| `Vec[T, N]`                        | typed aggregate value          | homogeneous fixed-size aggregate                      |
+| `Fixed[T, N]`                      | typed aggregate value          | homogeneous fixed-size aggregate                      |
 | `Vec2D`, `Vec3D`, `Vec4D`, `Color` | typed aggregate value          | named components with stable semantic order           |
 | layout                             | structural value stream        | anonymous heterogeneous aggregate                     |
 | `struct`                           | nominal value                  | does not flatten implicitly                           |

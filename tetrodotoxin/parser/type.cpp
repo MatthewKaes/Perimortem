@@ -64,6 +64,8 @@ static constexpr auto parameter_name(Generic::Parameters parameter)
     return "Type"_view;
   case Generic::Parameters::Unsigned_64:
     return "Unsigned_64"_view;
+  case Generic::Parameters::Signed_64:
+    return "Signed_64"_view;
   case Generic::Parameters::Bool:
     return "Bool"_view;
   }
@@ -71,9 +73,10 @@ static constexpr auto parameter_name(Generic::Parameters parameter)
   __builtin_unreachable();
 }
 
-static constexpr auto parse_unsigned(
+static constexpr auto parse_magnitude(
     View::Bytes text,
     Unsigned_64 radix,
+    Unsigned_64 maximum,
     Unsigned_64& value) -> Bool {
   Count index = radix == 16 ? Count(2) : Count(0);
   Unsigned_64 parsed = 0;
@@ -94,7 +97,6 @@ static constexpr auto parse_unsigned(
       return False;
     }
 
-    constexpr Unsigned_64 maximum = Unsigned_64(-1);
     if (digit >= radix || parsed > (maximum - digit) / radix) {
       return False;
     }
@@ -173,7 +175,7 @@ static auto parse_argument(
     View::Bytes text = token.caculate_text(cursor.get_source_text());
     Unsigned_64 value = 0;
     Unsigned_64 radix = token.get_code() == Code::Type::Hex ? 16 : 10;
-    Bool valid = parse_unsigned(text, radix, value);
+    Bool valid = parse_magnitude(text, radix, Unsigned_64(-1), value);
     if (!valid) {
       Managed::Bytes message(cursor.get_arena());
       Stream::Textual<Managed::Bytes> output(message);
@@ -181,6 +183,51 @@ static auto parse_argument(
              << generic.get_name() << "` is outside Unsigned_64."_view;
       cursor.create_token_error(token, message);
       return False;
+    }
+
+    Argument argument(value);
+    arguments.insert(argument);
+    return True;
+  }
+
+  if (parameter == Generic::Parameters::Signed_64) {
+    Bool negative = cursor.matches(Code::Type::SubOp);
+    if (negative) {
+      cursor.consume();
+    }
+
+    const Bool numeric =
+        cursor.matches(Code::Type::Numeric) || cursor.matches(Code::Type::Hex);
+    if (!numeric) {
+      unexpected_argument_error(cursor, generic, parameter);
+      return False;
+    }
+
+    Token token = cursor.consume();
+    View::Bytes text = token.caculate_text(cursor.get_source_text());
+    Unsigned_64 radix = token.get_code() == Code::Type::Hex ? 16 : 10;
+    Unsigned_64 maximum = Unsigned_64(-1) >> 1;
+    if (negative) {
+      maximum++;
+    }
+
+    Unsigned_64 magnitude = 0;
+    Bool valid = parse_magnitude(text, radix, maximum, magnitude);
+    if (!valid) {
+      Managed::Bytes message(cursor.get_arena());
+      Stream::Textual<Managed::Bytes> output(message);
+      output << "Signed argument for generic Type `"_view << generic.get_name()
+             << "` is outside Signed_64."_view;
+      cursor.create_token_error(token, message);
+      return False;
+    }
+
+    Signed_64 value = 0;
+    if (negative) {
+      constexpr Signed_64 minimum = -9223372036854775807LL - 1;
+      value = magnitude == maximum ? minimum : -Signed_64(magnitude);
+    } else {
+      value = Signed_64(magnitude);
     }
 
     Argument argument(value);
@@ -332,7 +379,7 @@ static auto parse_value(Cursor& cursor, const Abstract& context)
     if (!resolved.is<Generic>()) {
       cursor.create_token_error(
           "Type arguments require a Generic Type formula."_view,
-          "Remove the arguments or select a Generic such as View or Access."_view);
+          "Remove the arguments or select a Generic such as View, Access, or Fixed."_view);
       return none;
     }
 

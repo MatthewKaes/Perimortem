@@ -690,7 +690,7 @@ must prove the `Type` contract, with optional type arguments:
 
 ```ttx
 Unsigned_32
-Vec[Unsigned_8, 4]
+Fixed[Unsigned_8, 4]
 Graphics::Image
 Math::Matrix[Real_32, 4, 4]
 ```
@@ -703,29 +703,29 @@ operators or offer a combined route, and those forms are not required to be
 equivalent. The final result must prove Type, and no path object is allocated.
 
 Type arguments use `[]`, not `<>`, because `<` and `>` are comparison
-operators. Numeric size arguments, such as the `4` in `Vec[Unsigned_8, 4]`, are part
-of the type reference.
+operators. Numeric size arguments, such as the `4` in
+`Fixed[Unsigned_8, 4]`, are part of the type reference.
 
 Parameterized types are not templates and do not generate code by themselves.
 Resolution first builds the arguments, proves that the resolved object
 implements `Generic`, then asks it for a concrete Type. `View[Unsigned_8]`,
-`Vec[Real_32, 4]`, and `List[Graphics::Sprite]` are all the same operation. The
+`Fixed[Real_32, 4]`, and `List[Graphics::Sprite]` are all the same operation. The
 compiler owns the resulting concrete object and makes it queryable through the
 same Type contract as any authored type.
 
 Each Generic is a named formula available from the current source context or a
-toolchain's immutable builtin table. `Vec` owns Vec materialization and its
+toolchain's immutable builtin table. `Fixed` owns Fixed materialization and its
 concrete-Type cache. `View` owns the corresponding View rules. There is no
 mutable formula registry and no parser switch on formula names.
 
 The formula publishes its complete ordered parameter signature up front. Each
-parameter is `Type`, `Unsigned_64`, or `Bool`. The parser uses that signature to
-consume and diagnose the authored list in one pass, then supplies a compact
-ordered `Union<const Type&, Unsigned_64, Bool>` view to `find()`. The union is a
-non-semantic call carrier: Type arguments preserve resolved object identity,
-while scalar arguments are direct compile-time values. Unrelated Types with the
-same local name remain distinct. Names, routes, parents, and hashes do not
-participate in the cache key.
+parameter is `Type`, `Unsigned_64`, `Signed_64`, or `Bool`. The parser uses that
+signature to consume and diagnose the authored list in one pass, then supplies
+a compact ordered `Union<const Type&, Unsigned_64, Signed_64, Bool>` view to
+`find()`. The union is a non-semantic call carrier: Type arguments preserve
+resolved object identity, while scalar arguments are direct compile-time
+values. Unrelated Types with the same local name remain distinct. Names,
+routes, parents, and hashes do not participate in the cache key.
 
 Malformed source or rejected values produce a parser diagnostic and
 `Utility::None`; parse failure is not an Abstract graph identity. A successful
@@ -1188,9 +1188,9 @@ TTX does not support braced initializers. Braces are for scopes and statement
 blocks. Aggregate values are initialized with packs:
 
 ```ttx
-private values : Vec[Unsigned_32, 4] = (1, 2, 3, 4);
+private values : Fixed[Unsigned_32, 4] = (1, 2, 3, 4);
 
-private quad_uvs : Vec[Vec2D, 6] = (
+private quad_uvs : Fixed[Vec2D, 6] = (
   (.x = 0.0, .y = 0.0),
   (.x = 1.0, .y = 0.0),
   (.x = 1.0, .y = 1.0),
@@ -1335,7 +1335,7 @@ collected into one `Documentation` object in source order:
 ```ttx
 // Stored in source order.
 // Attached to the following member.
-private signature : Vec[Unsigned_8, 8] = 0x[89 50 4E 47];
+private signature : Fixed[Unsigned_8, 8] = 0x[89 50 4E 47];
 ```
 
 Documentation is a first-class Concept contract because every Abstract needs a
@@ -1366,7 +1366,7 @@ public Render2D : Render {
   public image : Types::Image = Types::Image -> from();
 
   constants {
-    const quad_positions : Vec[Types::Point2D, 6] = (
+    const quad_positions : Fixed[Types::Point2D, 6] = (
       (.x = 0.0, .y = 0.0),
       (.x = 1.0, .y = 0.0),
       (.x = 1.0, .y = 1.0),
@@ -1375,7 +1375,7 @@ public Render2D : Render {
       (.x = 0.0, .y = 1.0),
     );
 
-    const quad_uvs : Vec[Types::Point2D, 6] = (
+    const quad_uvs : Fixed[Types::Point2D, 6] = (
       (.x = 0.0, .y = 0.0),
       (.x = 1.0, .y = 0.0),
       (.x = 1.0, .y = 1.0),

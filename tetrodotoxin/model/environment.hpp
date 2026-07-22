@@ -12,6 +12,7 @@
 #include "tetrodotoxin/model/dependencies/package.hpp"
 #include "ttx/concept/reference.hpp"
 #include "ttx/model/types/generics/access.hpp"
+#include "ttx/model/types/generics/fixed.hpp"
 #include "ttx/model/types/generics/view.hpp"
 
 namespace Tetrodotoxin::Model {
@@ -36,6 +37,7 @@ class Environment {
   Environment()
       : view(arena),
         access(arena),
+        fixed(arena),
         resolutions(arena),
         dependencies(arena),
         packages(arena),
@@ -107,6 +109,7 @@ class Environment {
   Perimortem::Memory::Allocator::Arena arena;
   Ttx::Model::Types::Generics::View view;
   Ttx::Model::Types::Generics::Access access;
+  Ttx::Model::Types::Generics::Fixed fixed;
   Perimortem::Memory::Managed::Vector<
       Ttx::Concept::Reference<Dependencies::Package>>
       resolutions;
