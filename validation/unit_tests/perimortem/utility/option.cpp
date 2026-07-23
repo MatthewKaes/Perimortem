@@ -18,6 +18,38 @@ static Harness UtilityOption = {
 class BorrowedBase {};
 class BorrowedDerived final : public BorrowedBase {};
 
+class StackValue final {
+ public:
+  StackValue(Signed_32 value, Count& destructions)
+      : value(value), destructions(destructions) {}
+
+  StackValue(const StackValue& source)
+      : value(source.value), destructions(source.destructions) {}
+  StackValue(StackValue&& source)
+      : value(source.value), destructions(source.destructions) {
+    source.moved = True;
+  }
+
+  ~StackValue() {
+    if (!moved) {
+      destructions++;
+    }
+  }
+
+  auto increment() -> void { value++; }
+  auto get() const -> Signed_32 { return value; }
+
+ private:
+  Signed_32 value;
+  Bool moved = False;
+  Count& destructions;
+};
+
+static auto create_stack_value(Count& destructions) -> Option<StackValue> {
+  StackValue value(41, destructions);
+  return Data::take(value);
+}
+
 PERIMORTEM_UNIT_TEST(UtilityOption, visits_none) {
   Option<const Signed_32&> selected;
 
@@ -49,9 +81,79 @@ PERIMORTEM_UNIT_TEST(UtilityOption, copies_borrow) {
   EXPECT_EQ(found, value);
 }
 
+PERIMORTEM_UNIT_TEST(UtilityOption, copies_value) {
+  Option<Signed_32> first(41);
+  Option<Signed_32> second(first);
+
+  second.visit(
+      [](const None&) {}, [](Signed_32& selected) -> void { selected++; });
+
+  Signed_32 first_value = first.visit(
+      [](const None&) { return Signed_32(0); },
+      [](Signed_32 selected) { return selected; });
+  Signed_32 second_value = second.visit(
+      [](const None&) { return Signed_32(0); },
+      [](Signed_32 selected) { return selected; });
+
+  EXPECT_EQ(first_value, 41);
+  EXPECT_EQ(second_value, 42);
+}
+
+PERIMORTEM_UNIT_TEST(UtilityOption, owns_stack_value) {
+  Count destructions = 0;
+
+  {
+    Option<StackValue> selected = create_stack_value(destructions);
+    Option<StackValue> moved(Data::take(selected));
+
+    moved.visit(
+        [](const None&) {},
+        [](StackValue& value) -> void { value.increment(); });
+
+    const Option<StackValue>& observed = moved;
+    Signed_32 found = observed.visit(
+        [](const None&) { return Signed_32(0); },
+        [](const StackValue& value) { return value.get(); });
+
+    EXPECT_EQ(found, 42);
+  }
+
+  EXPECT_EQ(destructions, Count(1));
+}
+
+PERIMORTEM_UNIT_TEST(UtilityOption, moves_empty_value) {
+  Count destructions = 0;
+  Option<StackValue> first;
+  Option<StackValue> second(first);
+
+  Count branch = second.visit(
+      [](const None&) { return Count(1); },
+      [](const StackValue&) { return Count(2); });
+
+  EXPECT_EQ(branch, Count(1));
+  EXPECT_EQ(destructions, Count(0));
+}
+
+PERIMORTEM_UNIT_TEST(UtilityOption, moves_none_into_value) {
+  Count destructions = 0;
+  Option<StackValue> selected = create_stack_value(destructions);
+  None empty;
+
+  selected = Data::take(empty);
+
+  Count branch = selected.visit(
+      [](const None&) { return Count(1); },
+      [](const StackValue&) { return Count(2); });
+
+  EXPECT_EQ(branch, Count(1));
+  EXPECT_EQ(destructions, Count(1));
+}
+
 static_assert(sizeof(Option<const Signed_32&>) == sizeof(const Signed_32*));
 static_assert(__is_trivially_copyable(Option<const Signed_32&>));
 static_assert(__is_constructible(Option<const Signed_32&>, const Signed_32&));
 static_assert(!__is_constructible(Option<const Signed_32&>, Signed_32&&));
 static_assert(
     !__is_constructible(Option<const BorrowedBase&>, BorrowedDerived&&));
+static_assert(__is_constructible(Option<StackValue>, StackValue&&));
+static_assert(__is_constructible(Option<StackValue>, Option<StackValue>&&));
