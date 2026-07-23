@@ -5,9 +5,9 @@ products, durable package buffers, and execution. TTX owns the shared language
 contracts; Tetrodotoxin owns the concrete transaction that turns package files
 into one executable and archiveable semantic graph.
 
-## Implemented vertical
+## Package vertical
 
-The production path is:
+The intended production path is:
 
 ```text
 package directory
@@ -22,6 +22,12 @@ package directory
 -> compile selected Shader stages to SPIR-V terminals
 -> publish one Packages::Sources
 ```
+
+The live checkout does not yet contain `tetrodotoxin/puffer`, a package
+Descriptor, a confined Workspace, or a package Container. The path above is
+the owner contract for the planned host lane, not current execution evidence.
+The active Model can represent part of the resulting graph, but callers
+currently construct its Environment and Sources directly.
 
 The canonical acceptance closure is:
 
@@ -39,10 +45,10 @@ App with direct lifecycle roles, one Render root, and an explicit
 `Render2D -> Default2D` binding.
 
 No Source imports another Source or stores package dependencies. Package
-membership is container data. Every member Source borrows the same completed
-external Environment. The current Container then publishes each completed
-member before evaluating the next descriptor member. Package is published only
-after member evaluation, export evaluation, Shader validation, and terminal
+membership is container data. Every member Source borrows the same progressive
+Environment. The planned Container publishes each completed member before
+evaluating the next descriptor member. Package publication occurs only after
+member evaluation, export evaluation, target validation, and terminal
 compilation succeed.
 
 ## Owner boundaries
@@ -54,10 +60,10 @@ compilation succeed.
 - [`interpreter`](interpreter/) consumes TTX token bytecode. Its fixed compile-
   time Definition composition and concrete Package, Library, Render, Shader,
   and App evaluators attach facts to the real owners.
-- [`puffer/package`](puffer/package/) owns Descriptor parsing, the package
-  Container transaction, the source-backed Workspace, and terminal
-  Materializer. [`puffer/resolution/package`](puffer/resolution/package/) owns
-  exact Catalog/Repository lookup and source-free recursive restore.
+- The planned `puffer/` owner supplies Descriptor parsing, the package
+  Container transaction, the confined source-backed Workspace, exact
+  Catalog/Repository lookup, source-free recursive restore, and terminal
+  Materializer. No live Puffer path or Bazel target exists at this checkpoint.
 - [`target/spir_v`](target/spir_v/) owns compilation-local target
   Representation, Shader legality, SPIR-V planning, internal validation, and
   stable terminal metadata.
@@ -76,28 +82,20 @@ compilation succeed.
 The current owner-shaped targets are:
 
 ```text
+//tetrodotoxin:diagnostics
 //tetrodotoxin:model
-//tetrodotoxin:interpreter
-//tetrodotoxin:spir_v_assembler
-//tetrodotoxin:register_allocator
-//tetrodotoxin:x86_64_assembler
-//tetrodotoxin:spir_v_target
-//tetrodotoxin:runtime
-//tetrodotoxin:graphics_runtime
+//tetrodotoxin:parser
+//tetrodotoxin:compiler
 //tetrodotoxin:linker
-//tetrodotoxin/archiver:archiver
-//tetrodotoxin/puffer:package_descriptor
-//tetrodotoxin/puffer:package_container
-//tetrodotoxin/puffer:package_workspace
-//tetrodotoxin/puffer:package_repository
-//tetrodotoxin/puffer:package_materializer
+//tetrodotoxin:archiver
 ```
 
 The reusable SPIR-V word emitter is isolated in `spir_v_assembler`; activating
 it does not activate the old compiler execution tree or ISA registry.
 
-There is no active Puffer CLI, LSP target, or general native compiler target in
-this slice. The superseded ISA and private compiler execution trees were
+There is no active Puffer package host, CLI, LSP target, Interpreter target,
+runtime target, graphics target, or general native compiler target in this
+slice. The superseded ISA and private compiler execution trees were
 removed after the common Body and owner-shaped target path replaced them; the
 preserved assembler and allocation utilities consume selected instructions or
 the common Body rather than a second semantic system. The vertical does not
@@ -120,9 +118,11 @@ identity-free Layout and Body values. Package owns only export composition.
 Environment owns the common immutable `View`, `Access`, and `Fixed` Generic
 formulas and one append-only materialization writer for every Source in one
 interpretation transaction.
-The Library resource slice will also give that Environment one package root,
-a result-bearing confined resource cache, and interned byte backing. Literal
-parsing will diagnose failed reads and construct Bytes Constants; only
+The Library resource lane will give Environment a borrowed capability for one
+Puffer Workspace root, a result-bearing resource cache, and interned byte
+backing. Workspace will pin and confine the filesystem root. Environment will
+normalize logical routes and own successful transaction snapshots. Literal
+parsing will diagnose failed lookups and construct Bytes Constants; only
 reachable folded bytes, never roots or cache state, become durable Package
 facts.
 Library owns reusable inline/managed

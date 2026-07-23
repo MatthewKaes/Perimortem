@@ -124,18 +124,63 @@ Writer may observe a partially declared import surface.
 
 ### Embedded resource transaction
 
-The package Container establishes one canonical package root when it creates
-the shared Environment. During semantic literal parsing, `$[path]` asks that
-Environment for a package-relative resource. Environment owns the
-transaction-local route cache and interned byte backing, so two Sources that
-request the same normalized route observe one stable snapshot and do not load
-duplicate storage.
+The package Container establishes one canonical package root before it creates
+the shared Environment. The Puffer Workspace opens that root once and owns the
+resulting directory capability for the whole package transaction. Environment
+borrows the capability. It never owns a process path, current working
+directory, Source directory, repository search object, or independently opened
+filesystem handle.
 
-The confined read returns a result that distinguishes success with zero bytes
-from missing, unreadable, non-file, or escaping input. Failure is diagnosed at
-the embedded literal and prevents Source publication. Absolute paths, lexical
-escapes, and resolved targets outside the package root are invalid. Access to
-another location requires a resolved Package rather than a filesystem escape.
+During semantic literal parsing, `$[path]` asks Source's Environment for a
+package-relative resource. Environment first rejects an absolute or lexically
+escaping authored route, normalizes every accepted segment to one relative
+logical route, and queries its route cache. A cache miss invokes the borrowed
+Workspace capability with that normalized route. Literal never sees the
+Workspace, a filesystem path, or an operating-system handle.
+
+The Workspace operation returns one closed result:
+
+- success owns the complete bytes read from the selected regular file, and a
+  zero-length success is distinct from failure;
+- missing means no selected object exists;
+- non-file means the opened object is not a regular file;
+- unreadable means the selected object cannot be opened or completely read;
+  and
+- outside-root means filesystem resolution attempted to leave the pinned
+  package root.
+
+Absolute and lexical-escape failures are produced before the Workspace
+operation. The other failures are observations from the confined open. No
+result has a public unselected state, and no failure carries a partial byte
+buffer.
+
+Confinement and reading are one same-opened-object transaction. Workspace
+resolves and opens the normalized route relative to its pinned root with a
+kernel-enforced beneath-root constraint, queries file kind on that opened
+object, and reads that same object through end of file. It never performs
+`realpath` followed by `System::File::read`, never validates one pathname and
+reopens another, and never returns a pathname or handle for Environment to
+read. A Linux implementation may use `openat2` beneath-root resolution followed
+by `fstat` and reads on the returned descriptor, but the same-opened-object
+rule is the contract rather than a particular syscall spelling. An internal
+symlink may resolve only when the confined open proves that its selected object
+remains beneath the pinned root. Changing a symlink between validation and
+read can therefore select neither an outside object nor a separately reopened
+object.
+
+Environment moves a complete success into transaction-owned backing before
+publishing a cache entry. Repeated requests for the same normalized route
+return one stable backing snapshot. Different routes with equal content may
+share backing only after hash and byte equality both succeed; their Constant
+identities remain distinct. Failure appends no route entry or byte backing.
+
+Environment returns Literal a closed success-or-failure lookup result. Success
+borrows the Environment-owned backing, including a valid empty view. Literal
+maps each failure to a diagnostic on the embedded token and prevents Source
+publication. Neither Environment nor Workspace writes a parser diagnostic.
+There is no fallback to a Source directory, process working directory, or
+unconfined `System::File::read`. Access to another location requires a resolved
+Package rather than a filesystem escape.
 
 The Literal parser constructs the concrete Bytes Constant before Body
 publication. Constant evaluation may then reduce a fixed slice of a large
