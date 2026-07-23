@@ -42,9 +42,14 @@ The Dialect responsibilities and implementation status are:
 | Shader | exact Render implementation, GPU legality/interface facts, Stage Bodies, explicit representation edges, and Shader terminal production | Implemented for Default2D and Copy |
 | App | managed state, lifecycle role edges, render roots, explicit Render-to-Shader selection, and CPU Bodies | Implemented for the minimal Demo |
 | Scene | reusable managed state, lifecycle role edges, render roots, and typed outcomes | Specified by the canonical fixture, not implemented |
+| Foreign (embedded) | complete source-local native data and Callable imports under an explicit FFI/ABI selector | Specified, not implemented |
 
-Foreign raw carriers and ABI linkage are outside this vertical. Managed Library
-objects are not silently accepted by Shader.
+Foreign is an embedded Dialect rather than a Source envelope. Library, Scene,
+App, and any other CPU-executable Dialect admit it only through explicit opt-in;
+Package and Shader do not. The grammar and semantic contract are normative,
+but the current vertical has no Foreign parser, concrete durable owner,
+Archiver records, or native lowering. Managed Library objects are not silently
+accepted by Shader.
 
 ## Package transaction
 
@@ -57,11 +62,13 @@ forms:
 
 ```ttx
 resolve Math : Perimortem.Math = "1.0";
-source Types : Library = "library/types.ttx";
+source "library/types.ttx";
 ```
 
 The version is two independent unsigned components. Member paths are normalized
-relative to the descriptor and rejected when they escape the package root.
+relative to the descriptor and rejected when they escape the package root. A
+member's source envelope selects its Dialect. Application construction selects
+the sole evaluated App root; `main.ttx` is only a naming convention.
 
 `Puffer::Package::Container` performs this transaction:
 
@@ -74,16 +81,18 @@ parse descriptor
 -> populate one Environment with exact external bindings
 -> evaluate members in descriptor order
 -> append each completed real product for later members
--> evaluate the Package export body
+-> evaluate an optional Package body or select the sole App root
 -> compile reachable Shader programs into terminal products
 -> publish one Packages::Sources
 ```
 
 No member is evaluated before all source streams and external bindings exist.
-Every Source borrows the same Environment and owns no imports or dependency
-vector. `Packages::Sources` retains the explicit members, derives distinct
-direct dependency Packages from the Environment, owns terminal products, and
-assigns canonical definition IDs to the complete reachable graph.
+Every Source borrows the same Environment and owns no package imports or
+dependency vector. An embedded Foreign import is a source-local ABI contract,
+not a package dependency or provider selection. `Packages::Sources` retains
+the explicit members, derives distinct direct dependency Packages from the
+Environment, owns terminal products, and assigns canonical definition IDs to
+the complete reachable graph.
 
 The canonical standard graph is ordered so each member uses only exact
 externals or earlier completed member products. That closes this vertical
@@ -107,6 +116,33 @@ reachable Type, signature, and Body, call each concrete mutable surface's
 graph before that barrier, and no graph mutation occurs afterward. Consumers
 finish, materialization queries stop, member Sources are destroyed, and
 Environment is destroyed last.
+
+Once Foreign is implemented, the same barrier seals each Source's private
+import surface and validates its ABI selector, symbol uniqueness,
+Addressable capabilities, Types, and Callable Layouts. No Compiler, Linker, or
+Writer may observe a partially declared import surface.
+
+### Embedded resource transaction
+
+The package Container establishes one canonical package root when it creates
+the shared Environment. During semantic literal parsing, `$[path]` asks that
+Environment for a package-relative resource. Environment owns the
+transaction-local route cache and interned byte backing, so two Sources that
+request the same normalized route observe one stable snapshot and do not load
+duplicate storage.
+
+The confined read returns a result that distinguishes success with zero bytes
+from missing, unreadable, non-file, or escaping input. Failure is diagnosed at
+the embedded literal and prevents Source publication. Absolute paths, lexical
+escapes, and resolved targets outside the package root are invalid. Access to
+another location requires a resolved Package rather than a filesystem escape.
+
+The Literal parser constructs the concrete Bytes Constant before Body
+publication. Constant evaluation may then reduce a fixed slice of a large
+resource before Package traversal. Environment's package root, route cache,
+and unused source bytes remain transaction state. Archive format `1` retains
+only reachable Constants or deduplicated byte blobs, so restored compilation
+requires no filesystem capability.
 
 ## Library and common Body
 
@@ -146,6 +182,58 @@ result Type they produce. No Type pair becomes an Abstract or a cached
 Callable. `Image::sample` remains a call to the real Image receiver Callable.
 The host executor and SPIR-V lowerer consume the same Body tables under
 different legality profiles.
+
+### Embedded Foreign import surface
+
+A CPU Dialect that opts into Foreign admits this shared member form:
+
+```ttx
+foreign "C" {
+  public const library_limit : Unsigned_64;
+  public state library_counter : Unsigned_64;
+  public func library_add[
+    .left : Unsigned_64,
+    .right : Unsigned_64,
+  ] -> Unsigned_64;
+}
+```
+
+`"C"` is the FFI/ABI selector. It never names the package, object file,
+library, or process that will provide a symbol. Package or link configuration
+chooses providers independently.
+
+Every block contributes to one reserved, private, source-local `foreign`
+surface. The `public` modifier publishes the declaration to that surface; it
+does not add the declaration or the surface to Package `Exports`. A dot selects
+declared data and an arrow selects declared Callables. Only declared names
+resolve; ambient Linker symbols cannot satisfy undeclared source uses:
+
+```ttx
+foreign.library_counter = foreign.library_limit;
+return foreign -> library_add(
+  foreign.library_counter,
+  foreign.library_limit
+);
+```
+
+Foreign `const` declares a global read-only external Addressable. It is not a
+materialized TTX Constant. Foreign `state` declares a global writable external
+Addressable, and Foreign `func` declares a bodyless external Callable with
+complete parameter and result Layouts. The Type or Layout edges are already
+complete when the declaration is accepted. These are explicit imports that a
+native provider must satisfy, not incomplete TTX owners or declarations that a
+later TTX body may complete.
+
+The concrete Foreign surface retains ordered edges to real imported
+Addressable, Writable, and Callable owners. Each imported owner retains its
+block's selector, exact external symbol, access capability, documentation,
+attributes, and real Type or Layout edges. This preserves repeated Foreign
+blocks without inventing a provider relationship or losing their FFI
+distinction. The surface does not copy those semantic owners or retain a native
+provider, process address, or target relocation. Native compilation derives
+undefined object/function symbols and target relocations from this graph; those
+products remain compilation-local and the Linker matches them against
+separately selected providers.
 
 ## Render and Shader handshake
 
@@ -278,10 +366,11 @@ needed by Demo and rejects unsupported Body alternatives before execution.
 ### Scene state machine
 
 Scene is the next managed owner below App. Each Scene retains ordinary
-`enter`, `frame`, and `exit` Callable edges, state Addressables, render roots,
-and its own typed signals. A Scene frame returns `Scene::Flow::stay` or emits
-one of those signals. It neither names another Scene nor decides that the
-process should terminate.
+`prepare`, `update`, and `release` Callable edges, state Addressables, render
+roots, and its own typed signals. The `Scene` prefix records the lifecycle role
+of an ordinary authored Self Callable. A Scene update returns
+`Scene::Flow::stay` or emits one of those signals. It neither names another
+Scene nor decides that the process should terminate.
 
 Each signal is a real owner with a complete payload Layout. Empty signals do
 not require an invented payload Type. Runtime Flow carries the emitting Scene
@@ -295,15 +384,15 @@ owner shape permits a Splash-to-Title-to-Splash loop without cyclic member
 evaluation. The Scene members are independently completed before the App
 member connects them.
 
-Runtime will apply one transition after a Scene frame completes:
+Runtime will apply one transition after a Scene update completes:
 
 ```text
 observe Scene::Flow
 -> find the exact App-owned transition edge
--> call the outgoing Scene exit role
+-> call the outgoing Scene release role
 -> release its external resources according to stack policy
 -> allocate and root replacement state in the worker Realm
--> call the incoming Scene enter role
+-> call the incoming Scene prepare role
 -> publish the new active Scene set
 ```
 
@@ -313,7 +402,7 @@ only after evaluation and use the App's explicit Render-to-Shader mapping.
 Graphics receives concrete Render values and remains unaware of Scene.
 
 The source contract lives in
-[`../apps/canonical/scene_demo`](../apps/canonical/scene_demo/). Production
+[`../apps/ttx/scene_lifetime`](../apps/ttx/scene_lifetime/). Production
 validation currently parses only its Package descriptor. Scene evaluation,
 general host Body execution, concrete Render payload submission, transition
 execution, and durable Scene records remain required before this flow is an
@@ -339,6 +428,14 @@ the rich graph:
 - Render, Shader, Stage, interface, representation, and App relations;
 - direct dependencies and cross-package definition edges;
 - Shader products, terminal paths, metadata, and bytes.
+
+The current format 1 Writer and Reader have no Foreign section. The prototype
+extension must encode the source-local surface and complete ordered import
+entries atomically, including each entry's selector, symbol, capability,
+documentation, attributes, and Type or Layout edges. It must never encode
+provider selection, a process address, or a target relocation. Until that
+record exists, Writer must reject a graph containing Foreign rather than
+silently discard its import contract.
 
 Local references use Package definition IDs. External semantic references use
 dependency ordinal plus dependency definition ID. Render, Shader, and App use
@@ -385,7 +482,7 @@ The authored sources are:
   explicit lifecycle roles, render root, and `Render2D -> Default2D` binding.
 
 The larger human-review fixture at
-[`../apps/canonical/scene_demo`](../apps/canonical/scene_demo/) specifies two
+[`../apps/ttx/scene_lifetime`](../apps/ttx/scene_lifetime/) specifies two
 Scene members and their App-owned transition cycle. It is intentionally not
 included in the implemented interpretation diagram below.
 

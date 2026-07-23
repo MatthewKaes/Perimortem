@@ -1,0 +1,28 @@
+dialect : Library;
+
+// library_native is the stable C-harness entry point.
+public func library_native[] -> Unsigned_64 {
+  total += PrivateOps -> increment();
+  foreign.library_foreign_state = total;
+  return foreign -> library_foreign_add(
+    foreign.library_foreign_state,
+    foreign.library_foreign_bias
+  );
+}
+
+private state total : Unsigned_64 = 0;
+
+private PrivateOps : struct {
+  public func increment[] -> Unsigned_64 {
+    return 20;
+  }
+}
+
+foreign "C" {
+  public const library_foreign_bias : Unsigned_64;
+  public state library_foreign_state : Unsigned_64;
+  public func library_foreign_add[
+    .left : Unsigned_64,
+    .right : Unsigned_64,
+  ] -> Unsigned_64;
+}

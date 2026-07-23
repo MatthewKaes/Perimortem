@@ -13,6 +13,7 @@ filegroup(
 #
 # ttx_application(
 #     name = "scene_demo",
+#     srcs = glob(["**/*.ttx"]),
 #     package = "package.ttx",
 #     resources = [
 #         "//:.data/icon.png",

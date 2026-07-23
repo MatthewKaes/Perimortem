@@ -1,0 +1,10 @@
+dialect : Library;
+
+foreign "C" {
+  public func known[] -> Void;
+}
+
+public func consume[] -> Void {
+  foreign -> missing();
+  return Void;
+}

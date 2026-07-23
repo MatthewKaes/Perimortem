@@ -37,10 +37,11 @@ To make that work, the syntax carries a large amount of semantic information
 directly. Casing separates addressable names from type names. Ordered definition
 modifiers keep publication separate from runtime storage and compile-time
 evaluation. The fixed `alias` keyword has its own lexical Code. Dialect-owned
-definition words such as `struct`, `object`, `enum`, and `foreign` are lowercase
-addressable spellings whose meaning belongs to the active evaluator. They are
-not PascalCase type references. Packs, layouts, access chains, and assignment
-statements all have distinct local shapes.
+definition words such as `struct`, `object`, and `enum`, and embedded-Dialect
+markers such as `foreign`, are lowercase addressable spellings whose meaning
+belongs to the active evaluator. They are not PascalCase type references.
+Packs, layouts, access chains, and assignment statements all have distinct
+local shapes.
 
 Each major section below describes the source form, the token or local shape
 that starts evaluation, the TTX facts produced, and the checks owned by that
@@ -949,7 +950,8 @@ Important lexical distinctions:
 | --------------------------- | ---------------------- | --------------------------------------------------- |
 | `snake_case`                | `Addressable`          | runtime names, fields, functions, local values      |
 | `PascalCase`                | `Type`                 | type names, aliases, Dialect names, package names   |
-| `enum`, `struct`, `foreign` | `Addressable`          | Dialect-owned definition forms, not type references |
+| `enum`, `struct`, `object`  | `Addressable`          | Dialect-owned definition forms, not type references |
+| `foreign`                   | `Addressable`          | embedded FFI Dialect marker                          |
 | `alias`                     | `Alias`                | fixed Abstract-redirection definition               |
 | `public`, `private`, etc.   | modifier tokens        | Dialect-owned publication or evaluation intent      |
 | `@name`                     | `Attribute`            | metadata attached to members, params, fields        |
@@ -1010,10 +1012,12 @@ importing that identity's Dialect builtins or legality rules.
 | `Scene`   | reusable managed state, lifecycle, render roots, and typed outcomes |
 | `App`     | process lifecycle, Scene composition, and target selection policy  |
 
-`alias` is the fixed definition keyword. Dialect-owned lowercase spellings such as
-`object`, `struct`, `enum`, and `foreign` are definition forms only when the
-active evaluator assigns them that meaning. None of them are Dialect names. For
-example:
+`alias` is the fixed definition keyword. Dialect-owned lowercase spellings
+such as `object`, `struct`, and `enum` are definition forms only when the
+active evaluator assigns them that meaning. `foreign` instead introduces an
+embedded FFI Dialect when the active parent explicitly permits native symbol
+imports. It is neither a named Definition continuation nor a top-level source
+envelope. For example:
 
 ```ttx
 dialect : Library;
@@ -1041,12 +1045,14 @@ bridge code are compilation targets, not separate Dialects.
 
 A Scene is a reusable managed state owner inside an App. It owns its state
 Layout, ordinary lifecycle Callables, render-root Addressables, and declared
-typed signals. The lifecycle roles are `enter`, `frame`, and `exit`. Their
-meaning is recorded as direct Callable edges; a runtime never discovers them
-by searching for a conventional function name.
+typed signals. The canonical authored lifecycle roles are `prepare`, `update`,
+and `release`. A declaration such as `Scene prepare[self] -> Void` constructs
+an ordinary Self Callable named `prepare` and records a direct Scene lifecycle
+edge to it. `Scene` is the role marker; runtime never discovers lifecycle
+behavior by searching for a conventional function name.
 
 A Scene does not select the next Scene and does not terminate the containing
-App directly. Its frame Callable returns a real `Scene::Flow` value which
+App directly. Its update Callable returns a real `Scene::Flow` value which
 either keeps the current Scene active or emits one signal owned by that Scene.
 The App owns the initial Scene and the complete transition table from
 `(Scene, signal)` to `replace`, `push`, `pop`, or App exit behavior. Transition
@@ -1070,10 +1076,10 @@ therefore an ordinary finite owner graph rather than mutually recursive export
 surfaces or forward declarations.
 
 A replacement transition is transactional. Runtime completes the current
-frame, calls the old Scene's `exit`, releases its external resources,
+update, calls the old Scene's `release`, releases its external resources,
 constructs and roots the new Scene state in the worker Realm, calls its
-`enter`, and only then publishes it as current. Failure follows the App's
-normal cleanup guarantee and does not expose a partially entered Scene.
+`prepare`, and only then publishes it as current. Failure follows the App's
+normal cleanup guarantee and does not expose a partially prepared Scene.
 
 Scene render roots use the same Render contracts and explicit App-owned
 Render-to-Shader bindings as App roots. Graphics receives evaluated Render
@@ -1088,7 +1094,7 @@ explicit member Sources are selected before any Source is evaluated:
 
 ```ttx
 resolve Graphics : Perimortem.Graphics = "2.2";
-source ImageLibrary : Library = "graphics/image.ttx";
+source "graphics/image.ttx";
 ```
 
 The canonical `package.ttx` order is fixed:
@@ -1098,16 +1104,17 @@ optional descriptor Documentation
 dialect : Package;
 zero or more resolve declarations
 zero or more source declarations
-Package-Dialect export body
+optional Package-Dialect body
 ```
 
-Puffer's package Descriptor parses this prefix, resolves the named Dialect
-objects, and records the exact resolutions, ordered members, Documentation, and
-remaining body token. The package container uses those facts to complete the
-shared Environment and declared members. Descriptor evaluation then hands the
+Puffer's package Descriptor parses this prefix and records the exact
+resolutions, ordered members, Documentation, and any remaining body token. The
+package container uses those facts to complete the shared Environment and
+declared members. If a Package body remains, Descriptor evaluation hands the
 verified same Source and remaining token position to the real Package Dialect.
-The descriptor root and every declared member form the explicit Source vector
-used to construct the source-backed Package.
+An application descriptor may end after its source declarations and select the
+sole completed App root. The descriptor root and every declared member form the
+explicit Source vector used to construct the source-backed Package.
 
 The resolution belongs to the package container rather than a Source preamble.
 It starts with `Resolve`, then a PascalCase local name, `Define`, a
@@ -1131,16 +1138,19 @@ shared Environment. Repeating the same exact dependency under another Alias
 does not duplicate the Package edge. Reusing an Alias for another resolution or
 claiming the same name and version for a different Package is invalid.
 
-The container also assigns local names and expected Dialects to member files:
+The container selects member files by confined package-relative path:
 
 ```ttx
-source LocalName : DialectName = "path.ttx";
+source "path.ttx";
 ```
 
-The expected Dialect checks the selected file before its body is evaluated.
-Every selected Source borrows the same Environment. Source owns no membership,
-file, or Package edge; the container passes the complete member vector to the
-source-backed Package explicitly.
+Each selected Source declares its own Dialect in its source envelope. The
+container loads and evaluates every declared member, then requires exactly one
+App root when it is constructing an application package. `main.ttx` is only a
+filename convention and has no entry-point semantics. Every selected Source
+borrows the same Environment. Source owns no membership, file, or Package edge;
+the container passes the complete member vector to the source-backed Package
+explicitly.
 
 Environment names participate in type queries and value access after the host
 has bound them. Availability does not import Dialect semantics. A `Shader`
@@ -1377,6 +1387,7 @@ The core definition forms are:
 [publication] [evaluation] name : dialect;
 [publication] [evaluation] name : dialect = value;
 [publication] [evaluation] name : dialect { ... }
+[publication] [evaluation] name := value;
 ```
 
 `publication` is one of `public`, `expose`, or `private`. `evaluation` is one of
@@ -1399,9 +1410,22 @@ Each mapping carries its Dialect and the ordered modifier prefixes that Dialect
 accepts. Each Dialect name appears exactly once; duplicate registrations are an
 invalid program rather than a runtime source error.
 
-TTX does not have an inferred declaration operator. Every definition writes its
-continuation Dialect at the declaration site so evaluation knows which rule to
-run before expression analysis.
+`:=` is the inferred declaration form. Its initializer must independently prove
+one concrete Type after late name binding and expression evaluation. Inference
+does not choose among user Types or use a destination-only construction rule.
+It may be delivered after the first explicitly typed Library parser slice, but
+it is accepted language direction rather than stale compatibility syntax.
+
+`new` is expected-Type-driven empty construction:
+
+```ttx
+state value : Some::Type = new;
+```
+
+The declared Type selects whatever empty construction mechanism its Dialect
+provides. `new` cannot infer a Type and is therefore invalid as the initializer
+of `value := new;`. It exists because managed and other constructed values do
+not acquire an implicit null/default value merely from declaration.
 
 Definitions introduce either addressable values or type-like names depending
 on the name and selected Dialect:
@@ -1417,8 +1441,15 @@ Only builtin definition kinds may open a scope:
 ```ttx
 private Data    : struct  { ... }
 private Runtime : object  { ... }
-private C       : foreign { ... }
 private Stage   : Shader  { ... }
+```
+
+An embedded Foreign block is a separate member form rather than a Definition:
+
+```ttx
+foreign "C" {
+  public func external_function[] -> Void;
+}
 ```
 
 Other type-like Dialects define values and must end with `;` or use `=`:
@@ -1470,12 +1501,20 @@ complete identity-free Body to the concrete owner; Cursor state and token
 ranges do not remain the executable program. This permits an earlier public
 body or initializer to use a later private implementation member while
 preserving ordered declaration, collision, and no-shadowing checks. The
-declaration header itself is checked when consumed, so a public signature
-cannot depend on a private implementation type that has not been declared.
+declaration prepass may reserve the real identity of a later private Type, but
+a public parameter or result Layout may never expose that private identity.
+Publication rejects the signature regardless of declaration timing. Delayed
+private binding is an implementation facility for bodies and initializers, not
+a way to leak private Types through the public surface.
 
 A callable without an authored body is complete only when its active Dialect
 supplies its implementation, such as Foreign linkage or a Library `new`
 intrinsic. It is not a prototype for a later authored definition.
+
+Embedded Foreign imports are outside the ordinary Definition ordering above.
+Their block constructs one source-local requirement surface, preserves the
+authored import order, and rejects duplicate external names across every
+Foreign block in that Source.
 
 ## Definition Modifiers
 
@@ -1500,6 +1539,13 @@ Modifiers occupy two independent ordered slots:
 | `state`    | create mutable runtime storage owned by the active scope or Type                                                        |
 | `const`    | require complete compile-time evaluation and bind the stable materialized result; failure to evaluate is a source error |
 | omitted    | use the selected Dialect's ordinary definition semantics                                                                |
+
+These rows describe ordinary Definitions. Inside an embedded Foreign block,
+`const` and `state` are import-kind markers: `const` binds externally defined
+read-only data and `state` binds externally defined writable data. Neither
+allocates Source-owned storage, and a Foreign `const` is not compile-time
+materialized. The Foreign Dialect supplies the complete external linkage
+contract in place of an initializer.
 
 `public` does not manufacture write access. It publishes the target unchanged:
 a Callable remains invocable, an Addressable remains readable, and a narrower
@@ -1592,8 +1638,8 @@ Known shader ABI attributes have fixed local targets. The owning Dialect checks
 their legality while it evaluates the declaration:
 
 - `@stage(name)` applies to `Shader` definitions in `Shader` packages.
-- `@push_constant` applies to exposed `foreign` ABI blocks in `Shader`
-  packages.
+- `@push_constant` applies only to Shader-owned push-constant declarations; it
+  does not enable CPU Foreign imports in Shader.
 - `@binding`, `@set(N)`, and `@slot(N)` describe separate resource facts on
   members inside `Shader` scopes.
 - `@builtin(name)` and `@builtin @slot(N)` apply to shader builtin input members
@@ -1731,22 +1777,55 @@ preserves both the field names and their declared order. Callers may bind that
 result into another named layout or aggregate if the names and types fit, but
 the call boundary itself uses the function's declared return order.
 
-### Foreign Function Declarations
+## Embedded Foreign Imports
 
-The Foreign Dialect accepts public function declarations without bodies:
+A native CPU Dialect may opt into the embedded Foreign FFI Dialect:
 
 ```ttx
-private C : foreign {
+foreign "C" {
+  public const external_limit : Unsigned_64;
+  public state external_counter : Unsigned_64;
   public func inflate[
     .source : View[Unsigned_8],
     .destination : Access[Unsigned_8],
   ] -> Count;
 }
+
+state limit : Unsigned_64 = foreign.external_limit;
+foreign.external_counter += 1;
+state written : Count = foreign -> inflate(source, destination);
 ```
 
-This is a Foreign-owned declaration form, not a general `external` keyword or
-ordinary forward declaration. In that context a function without a body is an
-ABI promise, and the linker or foreign ABI provider must resolve it.
+The quoted selector chooses the embedded FFI Dialect and ABI rules; `"C"`
+selects the C FFI. It does not choose a package, library, or other provider.
+Provider selection belongs to packaging and link configuration. The enclosing
+Source retains one reserved `foreign` requirement surface. `foreign.name`
+resolves only explicitly declared external data, while
+`foreign -> name(...)` resolves only explicitly declared external callables.
+An undeclared access fails even if the linker could otherwise find a matching
+symbol.
+
+The Foreign declaration triad is complete:
+
+- `const` declares a read-only external Addressable. It is not a
+  `Ttx::Model::Constant` and its value need not be known during source
+  evaluation.
+- `state` declares a writable external Addressable.
+- `func` declares a bodyless external Callable with exact parameter and result
+  Layouts.
+
+Each declaration is a complete ABI import promise, colloquially similar to a
+forward declaration but never an incomplete TTX owner awaiting a later
+authored definition. The durable graph retains the ABI selector, external
+symbol, exact Type or Layouts, and read/write/call capability. It retains
+neither provider selection nor a process address.
+
+Publication inside the block controls membership on that private Source-local
+surface. It never turns an imported symbol into a Source or Package export.
+
+Library and Scene accept this embedded Dialect because their Bodies compile for
+the CPU. Another CPU-executable parent may opt in explicitly. Package and
+Shader do not inherit Foreign merely because they share TTX grammar.
 
 ## Members And Scoped Builtins
 
@@ -1757,11 +1836,12 @@ Callable, or a Dialect-specific Abstract. Documentation and attributes remain wi
 the source owner or the richer object that exposes them. Disabled source is
 handled by the lexical boundary and constructs no semantic object.
 
-Parser shape: member parsing proceeds in layers: consume documentation comments,
-consume attributes, then choose between function syntax and definition syntax.
-If the definition kind is `enum`, parse enum members. If it is a Dialect-owned
-scoped word such as `struct`, parse a member scope. Otherwise parse a value
-definition.
+Parser shape: member parsing proceeds in layers: consume documentation
+comments, consume attributes, then choose an enabled embedded Dialect, function
+syntax, or definition syntax. A supported `foreign` marker followed by its
+quoted FFI selector selects the Foreign parser directly. If the definition kind
+is `enum`, parse enum members. If it is a Dialect-owned scoped word such as
+`struct`, parse a member scope. Otherwise parse a value definition.
 
 Scoped builtins own member lists:
 
@@ -1769,13 +1849,6 @@ Scoped builtins own member lists:
 private Header : struct {
   public width  : Unsigned_32;
   public height : Unsigned_32;
-}
-
-private C : foreign {
-  public func inflate[
-    .source : View[Unsigned_8],
-    .destination : Access[Unsigned_8],
-  ] -> Count;
 }
 ```
 
@@ -2100,6 +2173,10 @@ is a swizzle or slice, the expression result is positional. If the declared
 return layout is named, that declaration is the boundary that supplies the
 returned names visible to callers.
 
+An empty result is written `return Void;`. Here `Void` is the explicit
+empty-result marker and emits an empty return range; it is not a stored runtime
+value. Bare `return;` is invalid.
+
 ## Layouts
 
 Layouts describe expected value shape:
@@ -2299,6 +2376,20 @@ Access forms:
 | `.[a, b, c]`      | swizzle that produces a positional pack   |
 | `-> name(pack)`   | callable dispatch from the left-side base |
 
+For an enabled embedded Foreign Dialect, the reserved source-local `foreign`
+base uses the same operators without permitting ambient linker discovery:
+
+```ttx
+state limit : Unsigned_64 = foreign.external_limit;
+foreign.external_counter += 1;
+state written : Count = foreign -> inflate(source, destination);
+```
+
+The dot form must select a declared external `const` or `state` Addressable.
+The call form must select a declared external `func` Callable. Using the wrong
+operator for the declared symbol kind or naming a symbol absent from the
+Foreign block is invalid.
+
 Calls always take a pack. If no arguments are present, the call still formats
 as `receiver -> method()`. A Type or Source context resolves a Static
 callable. An addressable receiver queries its Type identity, selects
@@ -2406,6 +2497,7 @@ A statement starts with one of a small number of shapes:
 ```ttx
 state total : Count = 0;     // declaration
 return total;                 // return
+return Void;                  // explicit empty return
 if (total > 0) { ... }        // scope keyword
 source -> copy_to(dest);      // expression statement
 total += 1;                   // assignment statement
@@ -2475,6 +2567,41 @@ Whitespace is a visual delimiter rather than data, so `0x[AA FF 12 45 ACDE]`
 produces `AA FF 12 45 AC DE`. Quoted byte literals decode their escape sequences
 and produce the resulting bytes without an implicit null terminator. Both forms
 produce byte-array values. TTX assigns no native String semantics to either.
+
+### Embedded Resource Resolution
+
+`$[...]` is resolved during semantic literal parsing rather than by the lexer,
+compiler, linker, or archiver. In the common package host, the parser requests
+the resource through the Source's shared Environment. The authored path is
+relative to that Environment's package root, not the containing Source
+directory or process working directory.
+
+The package owner normalizes the authored path and rejects absolute paths,
+lexical escapes, and resolved filesystem targets outside the package root.
+Sources can access content outside their package only through another resolved
+Package. A successful zero-byte read is a valid Bytes value. A missing,
+unreadable, non-file, or escaped target produces a source diagnostic and
+prevents the Source from being published.
+
+Environment owns one stable resource snapshot for its graph-construction
+transaction. Repeated requests for the same normalized route reuse the same
+backing bytes. It may also intern byte-identical payloads reached through
+different routes, but that storage optimization does not collapse distinct
+Constant identities.
+
+Resource loading before Body publication permits ordinary constant evaluation
+to retain only the part of a file that remains reachable:
+
+```ttx
+private const header : Fixed[Unsigned_8, 64] =
+  $[resources/table.bin]:[0, 64];
+```
+
+If only `header` survives evaluation, a Package archive or terminal artifact
+needs those 64 bytes rather than the complete input file. The package root,
+authored route, read cache, and unused input bytes are transaction state and
+are never durable format facts. Format `1` stores only reachable Bytes
+constants or deduplicated payload blobs.
 
 `Bytes` literals and embedded-file literals are tokenized as whole literals, but
 their fixed prefixes are currently source text entries on `Code`:
@@ -2563,7 +2690,7 @@ The common semantic vocabulary is intentionally small:
 | layout                             | structural value stream        | anonymous heterogeneous aggregate                     |
 | `struct`                           | nominal value                  | does not flatten implicitly                           |
 | `object`                           | nominal managed value          | heap/reference semantics, Dialect-limited             |
-| `foreign`                          | external ABI scope             | declarations lower to linked symbols                  |
+| `foreign "C"`                      | source-local FFI imports       | explicit const/state/func requirements lower to linked symbols |
 | `Shader`                           | shader Dialect or scope        | may lower to GPU module plus host glue                |
 | `Scene`                            | managed state machine node     | emits typed outcomes, never chooses another Scene     |
 | `App`                              | process composition root       | owns Scene transitions and Render-to-Shader policy    |
@@ -2591,7 +2718,8 @@ TTX maps naturally to LLVM-like IR concepts:
 | swizzle                       | vector shuffle, aggregate extract, or aggregate insert    |
 | pack fit                      | call ABI shaping, return shaping, aggregate construction  |
 | `const` values                | constants, metadata, specialization inputs                |
-| `foreign` functions           | declarations resolved by ABI/linker                       |
+| `foreign` const/state imports | external data symbols and load/store relocations           |
+| `foreign` func imports        | external function symbols and call relocations              |
 | `Shader` package              | shader artifact plus host-side glue                       |
 
 The source-level constructs are frontend contracts. Many disappear during
@@ -2710,6 +2838,11 @@ When changing TTX, preserve these invariants:
 26. Layout owns semantic order and directional fitting only. Physical size,
     offsets, target alignment, pointers, storage classes, register classes,
     ABI carriers, and collector policy belong to derived target/runtime owners.
+27. An embedded Foreign block explicitly declares every external symbol a
+    Source consumes. Its `const`, `state`, and `func` entries become real
+    read-only Addressable, Writable Addressable, and Callable owners with
+    durable ABI-selector and symbol facts. Lookup never discovers undeclared
+    linker symbols, and the graph never retains a process address.
 
 These rules are what keep TTX readable while still letting it behave like a
 compiler IR.

@@ -125,17 +125,61 @@ a validated subset. The current host executor is limited to App control flow,
 while the Shader target consumes the arithmetic, aggregate, projection, load,
 index, call, and conversion operations required by Default2D.
 
+## Embedded Foreign imports
+
+A CPU-executable Dialect may explicitly admit the embedded Foreign Dialect:
+
+```ttx
+foreign "C" {
+  public const library_limit : Unsigned_64;
+  public state library_counter : Unsigned_64;
+  public func library_add[
+    .left : Unsigned_64,
+    .right : Unsigned_64,
+  ] -> Unsigned_64;
+}
+```
+
+`"C"` selects the FFI and ABI identity. It does not select a package or native
+provider. The declarations populate one reserved, private, source-local
+`foreign` import surface; `public` publishes a declaration to that surface,
+not to Package `Exports`. A dot selects declared data, while an arrow invokes
+a declared Callable. Only declared names resolve; an ambient linker symbol
+never makes an undeclared source use valid:
+
+```ttx
+foreign.library_counter = foreign.library_limit;
+return foreign -> library_add(
+  foreign.library_counter,
+  foreign.library_limit
+);
+```
+
+A Foreign `const` is a read-only external `Addressable`, not a TTX
+`Constant`. A Foreign `state` is a writable external `Addressable`, and a
+Foreign `func` is a bodyless external `Callable` with complete parameter and
+result Layouts. Each declaration is therefore a complete semantic import
+promise, never an incomplete TTX owner waiting for a later TTX definition.
+Library, Scene, App, and any other CPU-executable Dialect must opt into this
+grammar explicitly. Package and Shader do not admit it.
+
+This source contract is normative. Tetrodotoxin does not yet implement the
+corresponding Foreign parser, durable import records, archive support, or
+native lowering.
+
 ## Scene and App composition
 
 Scene is the reusable managed state boundary beneath App. A Scene owns
-`enter`, `frame`, and `exit` Callable edges, render roots, and typed signals.
+`prepare`, `update`, and `release` Callable edges, render roots, and typed
+signals. The `Scene` prefix on a lifecycle declaration records a direct edge to
+an otherwise ordinary Self Callable.
 It emits an outcome but never names the next Scene. App owns the initial Scene
 and maps `(Scene, signal)` pairs to replace, push, pop, or process exit policy.
 This makes Splash-to-Title-to-Splash a runtime state-machine cycle without a
 cyclic Source dependency or forward proxy.
 
 The complete proposed source is maintained in
-[`../apps/canonical/scene_demo`](../apps/canonical/scene_demo/). Its Package
+[`../apps/ttx/scene_lifetime`](../apps/ttx/scene_lifetime/). Its Package
 descriptor is parsed through the production descriptor path, but Scene
 evaluation and execution are not implemented yet. The fixture is not counted
 as semantic acceptance until its owners, transitions, runtime transaction, and
@@ -156,19 +200,21 @@ container, not Source:
 dialect : Package;
 
 resolve Graphics : Perimortem.Graphics = "1.0";
-source Main : App = "main.ttx";
-
-public Demo : alias = Main::Demo;
+source "main.ttx";
 ```
 
 The quoted `Major.Minor` is parsed as two independent unsigned components,
-never through floating point. Every member Source owns its bytes, Tokenizer,
-Arena, and evaluated roots while borrowing one package-owned Environment.
-Source has no imports or dependency vector. The active Container publishes
-completed members in descriptor order, so declaration synchronization for
-arbitrary mutually referring members is not yet implemented. Public package
-names come only from the final Package `Exports` surface. Manifest and
-repository own the external name and exact Version.
+never through floating point. A member's own envelope selects its Dialect, and
+an application package selects the sole evaluated App root rather than a
+special filename. Every member Source owns its bytes, Tokenizer, Arena, and
+evaluated roots while borrowing one package-owned Environment.
+Source has no package imports or dependency vector. An embedded Foreign import
+is an explicit source-local ABI contract, not a package dependency or provider
+selection. The active Container publishes completed members in descriptor
+order, so declaration synchronization for arbitrary mutually referring members
+is not yet implemented. Public package names come only from the final Package
+`Exports` surface. Manifest and repository own the external name and exact
+Version.
 
 See [ttx_semantics.md](ttx_semantics.md) for normative contracts and
 [ttx_design.md](ttx_design.md) for author-facing syntax and the complete

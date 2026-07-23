@@ -27,7 +27,7 @@ private func create_icon[self, .image : Graphics::Image, .position : Graphics::P
 Scene prepare[self] -> Void {
   // TODO: Move this to a Library and give it global state so we only decode it once and use
   // the result across scenes rather than decoding the same embedded each transition.
-  state image := Graphics::Image -> decode($[.data/icon.png]);
+  state image := Graphics::Image -> decode($[resources/logo.png]);
   self.top_icon = self -> create_icon(image, (.x = 200, .y = 100));
   self.bottom_icon = self -> create_icon(image, (.x = 200, .y = 400));
   return;

@@ -41,6 +41,19 @@ cc_library(
     includes = ["."],
 )
 
+# This target compiles the independent C-side native oracle without attempting
+# to link the intentionally unresolved TTX entry point.
+cc_library(
+    name = "library_native_oracle",
+    srcs = ["data/ttx/library/native_harness.c"],
+    copts = [
+        "-std=c17",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+    ],
+)
+
 # Every unit test source belongs to this target. New suites live beneath
 # unit_tests so they build and run against the complete validation graph.
 # The runner has no test selection argument.

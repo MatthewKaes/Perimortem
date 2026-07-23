@@ -12,7 +12,7 @@ state title_card : Graphics::Sprite = new;
 
 Scene prepare[self] -> Void {
   self.title_card = (
-    .image = Graphics::Image -> decode($[.data/logo.png]),
+    .image = Graphics::Image -> decode($[resources/logo.png]),
     .size_pixels = self.title_image -> get_size_pixels(),
     .position = (.x = 200, .y = 250),
     .tone = (.r = 1.0, .g = 1.0, .b = 1.0, .a = 1.0),

@@ -234,16 +234,17 @@ statements:
 
 ```ttx
 resolve Graphics : Perimortem.Graphics = "2.2";
-source MathTypes : Library = "math.ttx";
+source "math.ttx";
 ```
 
 In canonical `package.ttx`, these declarations appear after
-`dialect : Package;` and before the Package-Dialect export body. Puffer parses
-the descriptor first, resolves the named Dialect objects, and records the exact
-Environment requests and ordered members. Once the package container completes
-those inputs, Descriptor evaluation verifies the same Source and evaluates its
-body from the exact remaining token. The descriptor root plus its declared
-members are the Package's complete explicit Source vector.
+`dialect : Package;` and before any optional Package-Dialect body. Puffer parses
+the descriptor first and records the exact Environment requests and ordered
+members. Once the package container completes those inputs, Descriptor
+evaluation verifies the same Source and evaluates a body when one remains. An
+application descriptor may end after its sources and select the sole completed
+App root. The descriptor root plus its declared members are the Package's
+complete explicit Source vector.
 
 A package resolution reads:
 
@@ -254,13 +255,15 @@ resolve Alias : Package.Name = "Major.Minor";
 The left side is the Environment-wide local Alias. The package name and
 Major.Minor select one exact external artifact. Every member Source borrows
 that package-owned Environment, so files can use `Graphics` without owning
-package edges. The active Container completes external bindings first and then
-publishes each completed member for later descriptor members. Arbitrary
+package edges. Each member's source envelope selects its Dialect. The active
+Container completes external bindings first and then publishes each completed
+member for later descriptor members. An application package selects the sole
+evaluated App root; `main.ttx` is only a conventional filename. Arbitrary
 cross-member declarations require a future package-owned synchronization
 phase over their eventual real owners. `source` is package-container syntax.
-It selects and names a member but does not become an edge on either Source. A
-standalone script receives the same kind of Environment dynamically from its
-host. Package names are
+It selects a confined package-relative member but does not become an edge on
+either Source. A standalone script receives the same kind of Environment
+dynamically from its host. Package names are
 `Type("." Type)*`. Versions are quoted canonical text parsed directly into two
 unsigned components without a floating-point intermediate; `"0.1"` is valid
 and `"0.0"` is unset.
@@ -281,6 +284,7 @@ Most declarations follow one of these shapes:
 [publication] [evaluation] name : dialect;
 [publication] [evaluation] name : dialect = value;
 [publication] [evaluation] name : dialect { ... }
+[publication] [evaluation] name := value;
 ```
 
 Publication is one of `public`, `expose`, or `private`. Evaluation is one of
@@ -289,9 +293,10 @@ evaluation when both are present, and the active Dialect decides which
 combinations are legal. The name is always either `Type` or `Addressable`. The
 word after `:` selects the Dialect that evaluates the remaining definition.
 Sometimes it is a normal Type query such as `Count` or `Header`. Sometimes it is
-a toolchain Dialect such as `struct`, `foreign`, or `group`. `alias` selects the
-Dialect that constructs an Abstract redirection, though the parent Dialect still
-decides whether that continuation is legal in its scope.
+a toolchain Dialect such as `struct` or `group`. `alias` selects the Dialect
+that constructs an Abstract redirection, though the parent Dialect still
+decides whether that continuation is legal in its scope. `foreign "C" { ... }`
+is a separate embedded-Dialect member form rather than a named Definition.
 
 The parent configures the shared `Definitions<...>` grammar with constexpr
 Definition mappings. Each mapping carries the Dialect and its accepted ordered
@@ -307,7 +312,14 @@ relationship. It is not a separate contract.
 ```ttx
 private count : Count = 4;
 private converted : Count = Count -> from(4);
+state inferred := source -> get_count();
+state object : Some::Type = new;
 ```
+
+`:=` infers one concrete Type from its initializer after name resolution. It
+does not guess among user Types. `new` uses the declaration's expected Type to
+perform empty construction and therefore cannot be used as `state value :=
+new;`. Empty construction does not mean null initialization.
 
 PascalCase names define types or compile-time names. Snake_case names define
 addressable values.
@@ -339,9 +351,10 @@ once and attaches an immutable Body to the real owner. A public function body
 may therefore call a private function written later, and a type-owned constant
 may invoke a later intrinsic callable, without constructing a placeholder
 declaration or a second semantic object. Cursor state and token ranges are not
-the published executable form. Declaration headers are still checked when
-consumed; a public signature cannot expose an unresolved private implementation
-type.
+the published executable form. A declaration prepass may reserve a later
+private Type's real identity, but a public parameter or result Layout may never
+expose that private identity. Publication rejects the signature independently
+of declaration timing.
 
 A bodyless callable is legal only when its Dialect supplies the complete
 implementation contract, such as a Foreign linkage or a Library allocation
@@ -366,6 +379,12 @@ instead of storing a visibility or storage Kind on the resulting Abstract.
 | `state` | mutable runtime storage owned by the active scope or Type |
 | `const` | compile-time evaluation to a stable materialized Abstract, or a source error |
 | omitted | the selected Dialect's ordinary definition semantics |
+
+Those meanings apply to ordinary Definitions. Inside an embedded Foreign block,
+`const` declares externally defined read-only data and `state` declares
+externally defined writable data. Neither form allocates Source-owned storage,
+and the Foreign `const` is not a compile-time Constant. Its complete
+implementation contract is external linkage rather than an initializer.
 
 `public` publishes the target unchanged. A public writable Addressable remains
 writable and a public Callable remains invocable. `expose` is legal only for
@@ -836,8 +855,15 @@ Only builtin definition kinds can be followed by a scope:
 ```ttx
 private Data      : struct  { ... }
 private Manager   : object  { ... }
-private Api       : foreign { ... }
 private StageData : Shader  { ... }
+```
+
+An enabled CPU Dialect accepts an embedded Foreign block separately:
+
+```ttx
+foreign "C" {
+  public func external_function[] -> Void;
+}
 ```
 
 Other types are values and use `=` or `;`:
@@ -943,20 +969,39 @@ public func decode[.source : View[Unsigned_8]] -> [
 }
 ```
 
-The Foreign Dialect accepts public function declarations without bodies:
+An executable CPU Dialect can embed an explicit Foreign import block:
 
 ```ttx
-private C : foreign {
+foreign "C" {
+  public const external_limit : Unsigned_64;
+  public state external_counter : Unsigned_64;
   public func inflate[
     .source : View[Unsigned_8],
     .destination : Access[Unsigned_8],
   ] -> Count;
 }
+
+state limit : Unsigned_64 = foreign.external_limit;
+foreign.external_counter += 1;
+state written : Count = foreign -> inflate(source, destination);
 ```
 
-This is not a general `external` keyword. Forward declarations are not a TTX
-feature. In a `foreign` context, a function without a body is an ABI promise
-owned by that Dialect.
+`"C"` selects the FFI and ABI contract, not a package or link provider. The
+block is the Source's explicit inventory of external requirements: dot access
+selects only a declared `const` or `state` data symbol, and call access selects
+only a declared `func`. The linker cannot make an undeclared name visible by
+accident.
+
+Foreign `const` is a read-only external Addressable rather than a compile-time
+Constant. Foreign `state` is a writable external Addressable. Foreign `func` is
+a bodyless external Callable with exact parameter and result Layouts. These are
+complete ABI promises, not TTX definitions that a later authored body
+completes. Library, Scene, App, and another CPU-executable Dialect may opt in;
+Package and Shader do not gain Foreign syntax automatically.
+
+Publication within the block exposes an entry only on the private Source-local
+`foreign` surface. It never republishes an imported symbol from the Source or
+Package.
 
 ## Grouped Value Flow
 
@@ -1152,6 +1197,18 @@ The access forms are:
 | `.[a, b, c]`      | swizzle into a positional pack            |
 | `-> name(pack)`   | callable dispatch from the left-side base |
 
+An enabled Foreign block contributes one reserved source-local base:
+
+```ttx
+foreign.global_constant
+foreign.global_state = value;
+foreign -> external_function(value);
+```
+
+The dot forms select explicitly imported external data, while the call form
+selects an explicitly imported external Callable. Neither spelling searches
+ambient linker symbols.
+
 Calls take a pack because call arguments are written with `(...)`, and `(...)`
 is always a pack. `.` is lookup only. `->` marks every call. A Type or Source
 context resolves a `Static` callable. An addressable value queries a
@@ -1262,6 +1319,7 @@ A statement begins with one of a small number of shapes:
 ```ttx
 state total : Count = 0;     // declaration
 return total;                 // return
+return Void;                  // explicit empty return
 if (total > 0) { ... }        // scope keyword
 source -> copy_to(dest);      // expression statement
 total += 1;                   // assignment statement
@@ -1270,6 +1328,7 @@ total += 1;                   // assignment statement
 Only keywords spawn scopes: `if`, `for`, `while`, and `match`. Attribute-shaped
 directives such as `@if` may also spawn scopes when a Dialect chooses to own them.
 `break;` and `continue;` are simple control statements, not scope forms.
+An empty result is written `return Void;`; bare `return;` is not a statement.
 
 `if` and `while` require a condition pack:
 
@@ -1343,6 +1402,21 @@ part of the value. Hexadecimal digits are paired from left to right, so `ACDE`
 contributes the two bytes `AC DE`. `$[...]` embeds a file as data. Quoted byte
 literals decode escape sequences into bytes and do not include an implicit null
 terminator. TTX assigns no native String meaning to those bytes.
+
+For the common package host, embedded paths are relative to the package root
+and are resolved through the Source's shared Environment:
+
+```ttx
+private const header : Fixed[Unsigned_8, 64] =
+  $[resources/table.bin]:[0, 64];
+```
+
+The Environment confines the route to the package, distinguishes an empty file
+from a read failure, and reuses one transaction-owned byte snapshot when
+multiple Sources request the same resource. Loading during semantic parsing
+allows constant evaluation to retain only the selected 64-byte header. Archive
+format `1` stores reachable byte values, not package roots, authored paths,
+filesystem caches, or unused source payload.
 
 Integer literals are exact integer values. When no narrower expected type is
 present they default to the language's 64-bit integer domain, with `Count`
@@ -1556,10 +1630,11 @@ dialect : Package;
 
 resolve Graphics : Perimortem.Graphics = "1.0";
 resolve Runtime : Perimortem.Runtime = "1.0";
-source Main : App = "main.ttx";
-
-public Demo : alias = Main::Demo;
+source "main.ttx";
 ```
+
+The member's envelope establishes that it is an App. The package selects the
+sole App root; the filename `main.ttx` remains conventional.
 
 ### Multi-Scene Application
 
@@ -1589,7 +1664,7 @@ does not name `SplashScreen`. Each frame returns a real `Scene::Flow` that stays
 or emits a Scene-owned signal. The App transition table owns the target Scene
 identity and the replace or exit policy.
 
-[`apps/canonical/scene_demo`](../apps/canonical/scene_demo/) contains the full
+[`apps/ttx/scene_lifetime`](../apps/ttx/scene_lifetime/) contains the full
 package, Splash fade logic, Title input logic, and App composition. It is a
 normative design pressure fixture. Tetrodotoxin currently parses its Package
 descriptor but does not yet implement the Scene evaluator, runtime transition

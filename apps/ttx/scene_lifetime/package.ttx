@@ -1,5 +1,8 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
+//
+// Establishes a full enviornment from a collection of various Source files.
+// Resolved symbols are pushed to all loaded sources as part of the enviornment.
 dialect : Package;
 
 resolve Math : Perimortem.Math = "1.0";

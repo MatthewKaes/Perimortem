@@ -101,11 +101,12 @@ this slice. The superseded ISA and private compiler execution trees were
 removed after the common Body and owner-shaped target path replaced them; the
 preserved assembler and allocation utilities consume selected instructions or
 the common Body rather than a second semantic system. The vertical does not
-self-host all standard packages, implement a window/GPU backend, or expose
-Foreign raw carriers.
+self-host all standard packages or implement a window/GPU backend. The
+normative embedded Foreign Dialect is also not yet implemented by the parser,
+durable model, Archiver, or native compiler path.
 
 The canonical multi-Scene application under
-[`../apps/canonical/scene_demo`](../apps/canonical/scene_demo/) is retained as
+[`../apps/ttx/scene_lifetime`](../apps/ttx/scene_lifetime/) is retained as
 the next acceptance target. Its production Package descriptor parses, but no
 Scene evaluator, transition runtime, or durable Scene schema is claimed. The
 fixture deliberately exercises Splash and Title state, semantic input, typed
@@ -119,6 +120,11 @@ identity-free Layout and Body values. Package owns only export composition.
 Environment owns the common immutable `View`, `Access`, and `Fixed` Generic
 formulas and one append-only materialization writer for every Source in one
 interpretation transaction.
+The Library resource slice will also give that Environment one package root,
+a result-bearing confined resource cache, and interned byte backing. Literal
+parsing will diagnose failed reads and construct Bytes Constants; only
+reachable folded bytes, never roots or cache state, become durable Package
+facts.
 Library owns reusable inline/managed
 Types, Callables, constants, and host Bodies. Render owns value state,
 constant/push/resource roles, and required stage Callable contracts. Shader
@@ -134,6 +140,25 @@ A Dialect controls source presentation, accepted builtins, evaluation,
 legality, and additional versioned facts. It may reject or narrow a common TTX
 construct, but it may not reinterpret a common contract. Environment binding
 exposes identity only; it does not merge Dialect builtins or rules.
+
+Library, Scene, App, and other CPU-executable Dialects may explicitly opt into
+the shared `foreign "C" { ... }` grammar. Package and Shader do not. Every
+Foreign block contributes declarations to one private, source-local `foreign`
+surface: `foreign.name` selects declared `const` or `state` data and
+`foreign -> name(...)` selects a declared `func`. Foreign `const` is a
+read-only external Addressable rather than a Constant, Foreign `state` is a
+writable external Addressable, and Foreign `func` is a bodyless external
+Callable with complete Layouts. These imports are complete semantic promises,
+not TTX forward declarations awaiting later bodies. Only declared names
+resolve; an ambient Linker symbol cannot legalize an undeclared source use.
+
+The durable Foreign facts will be the `"C"` FFI/ABI selector, exact external
+symbol, access capability, real Type or parameter/result Layout edges, authored
+order, documentation, and attributes. The private surface is not Package
+`Exports`. It retains no package/native provider, process address, or
+target-specific relocation. Provider selection belongs to package or link
+configuration; addresses and relocations are derived by the native target and
+Linker.
 
 ## Default2D target path
 
@@ -205,6 +230,13 @@ Render/Shader/App, dependency, product, and terminal facts. Local edges use
 Package definition IDs; external edges use dependency ordinal plus the
 dependency's definition ID. Render, Shader, and App extension records use
 stable contract UUIDs and explicit Major.Minor schema versions.
+
+The format 1 Writer and Reader do not yet encode Foreign. Its prototype
+extension must encode the source-local surface and complete import facts
+atomically, while continuing to exclude providers, process addresses, and
+target relocations. Native lowering will derive undefined function/object
+symbols, the required load/store capability, and target relocations from those
+restored facts rather than archive target artifacts.
 
 Repository owns archive bytes and recursively restores exact dependencies.
 Reader validates all bounded sections, references, graph legality, Bodies,
