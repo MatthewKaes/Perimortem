@@ -39,24 +39,18 @@ auto Types::Generic::Materializations::materialize(
     return none;
   }
 
+  // Validate each parameter in order against the argument list.
+  // The values themselves are not actually validated, on the kind.
   for (Count i = 0; i < parameters.get_size(); i++) {
-    Bool valid = False;
-    switch (parameters[i]) {
-    case Parameters::Type: {
-      const Type* type = arguments[i].find<const Type&>();
-      valid = type != nullptr && &type->resolve() == type;
-      break;
-    }
-    case Parameters::Unsigned_64:
-      valid = arguments[i].find<Unsigned_64>() != nullptr;
-      break;
-    case Parameters::Signed_64:
-      valid = arguments[i].find<Signed_64>() != nullptr;
-      break;
-    case Parameters::Bool:
-      valid = arguments[i].find<Bool>() != nullptr;
-      break;
-    }
+    Bool valid = arguments[i].visit(
+        [&]() { return false; },
+        [&](const Type& type) {
+          return &type.resolve() == &type && parameters[i] == Parameters::Type;
+        },
+        [&](Unsigned_64) { return parameters[i] == Parameters::Unsigned_64; },
+        [&](Signed_64) { return parameters[i] == Parameters::Signed_64; },
+        [&](Bool) { return parameters[i] == Parameters::Bool; });
+
     if (!valid) {
       return none;
     }
