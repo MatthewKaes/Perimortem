@@ -9,8 +9,8 @@
 
 #include "perimortem/memory/allocator/arena.hpp"
 
-#include "tetrodotoxin/puffer/lsp/documents.hpp"
-#include "tetrodotoxin/puffer/lsp/rpc/message.hpp"
+#include "puffer/lsp/documents.hpp"
+#include "puffer/lsp/rpc/message.hpp"
 
 namespace Tetrodotoxin::Puffer::Lsp::Rpc {
 

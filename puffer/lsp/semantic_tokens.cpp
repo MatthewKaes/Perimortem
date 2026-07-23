@@ -1,14 +1,12 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
-#include "tetrodotoxin/puffer/lsp/semantic_tokens.hpp"
+#include "puffer/lsp/semantic_tokens.hpp"
 
 #include "perimortem/core/algorithm/search.hpp"
 
 #include "perimortem/memory/managed/vector.hpp"
 
-#include "tetrodotoxin/puffer/isa/boot/virtual_machine.hpp"
-#include "tetrodotoxin/puffer/toolchain.hpp"
 #include "ttx/lexical/cursor.hpp"
 #include "ttx/lexical/tokenizer.hpp"
 
@@ -16,6 +14,7 @@ using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
 using namespace Perimortem::Serialization;
 using namespace Tetrodotoxin::Puffer;
+using namespace Ttx::Lexical;
 
 enum SemanticToken : Signed_64 {
   SemanticNamespace,
@@ -33,17 +32,17 @@ enum SemanticToken : Signed_64 {
   SemanticDecorator,
 };
 
-static auto should_filter_shader_keyword(::Ttx::Lexical::Code code) -> Bool {
+static auto should_filter_shader_keyword(Code code) -> Bool {
   switch (code.get_type()) {
-  case ::Ttx::Lexical::Code::Type::If:
-  case ::Ttx::Lexical::Code::Type::In:
-  case ::Ttx::Lexical::Code::Type::For:
-  case ::Ttx::Lexical::Code::Type::Break:
-  case ::Ttx::Lexical::Code::Type::Continue:
-  case ::Ttx::Lexical::Code::Type::Case:
-  case ::Ttx::Lexical::Code::Type::Else:
-  case ::Ttx::Lexical::Code::Type::Match:
-  case ::Ttx::Lexical::Code::Type::While:
+  case Code::Type::If:
+  case Code::Type::In:
+  case Code::Type::For:
+  case Code::Type::Break:
+  case Code::Type::Continue:
+  case Code::Type::Case:
+  case Code::Type::Else:
+  case Code::Type::Match:
+  case Code::Type::While:
     return True;
 
   default:
@@ -55,70 +54,70 @@ static auto has_newline(View::Bytes text) -> Bool {
   return Algorithm::search(text, "\n"_view) != Count(-1);
 }
 
-static auto classify_semantic_token(::Ttx::Lexical::Code code) -> Signed_64 {
+static auto classify_semantic_token(Code code) -> Signed_64 {
   switch (code.get_type()) {
-  case ::Ttx::Lexical::Code::Type::Comment:
-  case ::Ttx::Lexical::Code::Type::Disabled:
+  case Code::Type::Comment:
+  case Code::Type::Disabled:
     return SemanticComment;
 
-  case ::Ttx::Lexical::Code::Type::String:
-  case ::Ttx::Lexical::Code::Type::Embedded:
-  case ::Ttx::Lexical::Code::Type::PackedData:
+  case Code::Type::String:
+  case Code::Type::Embedded:
+  case Code::Type::PackedData:
     return SemanticString;
 
-  case ::Ttx::Lexical::Code::Type::Numeric:
-  case ::Ttx::Lexical::Code::Type::Hex:
-  case ::Ttx::Lexical::Code::Type::Float:
-  case ::Ttx::Lexical::Code::Type::Bytes:
+  case Code::Type::Numeric:
+  case Code::Type::Hex:
+  case Code::Type::Float:
+  case Code::Type::Bytes:
     return SemanticNumber;
 
-  case ::Ttx::Lexical::Code::Type::Attribute:
+  case Code::Type::Attribute:
     return SemanticDecorator;
 
-  case ::Ttx::Lexical::Code::Type::Type:
-  case ::Ttx::Lexical::Code::Type::Alias:
+  case Code::Type::Type:
+  case Code::Type::Alias:
     return SemanticType;
 
-  case ::Ttx::Lexical::Code::Type::Addressable:
+  case Code::Type::Addressable:
     return SemanticVariable;
 
-  case ::Ttx::Lexical::Code::Type::AddOp:
-  case ::Ttx::Lexical::Code::Type::SubOp:
-  case ::Ttx::Lexical::Code::Type::DivOp:
-  case ::Ttx::Lexical::Code::Type::MulOp:
-  case ::Ttx::Lexical::Code::Type::ModOp:
-  case ::Ttx::Lexical::Code::Type::LessOp:
-  case ::Ttx::Lexical::Code::Type::GreaterOp:
-  case ::Ttx::Lexical::Code::Type::LessEqOp:
-  case ::Ttx::Lexical::Code::Type::GreaterEqOp:
-  case ::Ttx::Lexical::Code::Type::CmpOp:
-  case ::Ttx::Lexical::Code::Type::NotEqOp:
-  case ::Ttx::Lexical::Code::Type::CallOp:
-  case ::Ttx::Lexical::Code::Type::AddressOp:
-  case ::Ttx::Lexical::Code::Type::SwizzleOp:
-  case ::Ttx::Lexical::Code::Type::SliceOp:
-  case ::Ttx::Lexical::Code::Type::PackingOp:
-  case ::Ttx::Lexical::Code::Type::NotOp:
-  case ::Ttx::Lexical::Code::Type::RangeOp:
-  case ::Ttx::Lexical::Code::Type::AndOp:
-  case ::Ttx::Lexical::Code::Type::OrOp:
-  case ::Ttx::Lexical::Code::Type::Assign:
-  case ::Ttx::Lexical::Code::Type::AddAssign:
-  case ::Ttx::Lexical::Code::Type::SubAssign:
-  case ::Ttx::Lexical::Code::Type::ScopeStart:
-  case ::Ttx::Lexical::Code::Type::ScopeEnd:
-  case ::Ttx::Lexical::Code::Type::PackingStart:
-  case ::Ttx::Lexical::Code::Type::PackingEnd:
-  case ::Ttx::Lexical::Code::Type::LayoutStart:
-  case ::Ttx::Lexical::Code::Type::LayoutEnd:
-  case ::Ttx::Lexical::Code::Type::Define:
-  case ::Ttx::Lexical::Code::Type::TypeAccessOp:
-  case ::Ttx::Lexical::Code::Type::EndStatement:
-  case ::Ttx::Lexical::Code::Type::Discard:
+  case Code::Type::AddOp:
+  case Code::Type::SubOp:
+  case Code::Type::DivOp:
+  case Code::Type::MulOp:
+  case Code::Type::ModOp:
+  case Code::Type::LessOp:
+  case Code::Type::GreaterOp:
+  case Code::Type::LessEqOp:
+  case Code::Type::GreaterEqOp:
+  case Code::Type::CmpOp:
+  case Code::Type::NotEqOp:
+  case Code::Type::CallOp:
+  case Code::Type::AddressOp:
+  case Code::Type::SwizzleOp:
+  case Code::Type::SliceOp:
+  case Code::Type::PackingOp:
+  case Code::Type::NotOp:
+  case Code::Type::RangeOp:
+  case Code::Type::AndOp:
+  case Code::Type::OrOp:
+  case Code::Type::Assign:
+  case Code::Type::AddAssign:
+  case Code::Type::SubAssign:
+  case Code::Type::ScopeStart:
+  case Code::Type::ScopeEnd:
+  case Code::Type::PackingStart:
+  case Code::Type::PackingEnd:
+  case Code::Type::LayoutStart:
+  case Code::Type::LayoutEnd:
+  case Code::Type::Define:
+  case Code::Type::TypeAccessOp:
+  case Code::Type::EndStatement:
+  case Code::Type::Discard:
     return SemanticOperator;
 
-  case ::Ttx::Lexical::Code::Type::Unknown:
-  case ::Ttx::Lexical::Code::Type::Terminal:
+  case Code::Type::Unknown:
+  case Code::Type::Terminal:
     return Signed_64(-1);
 
   default:
@@ -160,26 +159,24 @@ auto Lsp::semantic_tokens_for(Allocator::Arena& arena, View::Bytes source)
                }});
   }
 
-  ::Ttx::Lexical::Tokenizer tokenizer(
-      arena, source, "lsp-buffer.ttx"_view, False);
-  View::Vector<::Ttx::Lexical::Token> tokens = tokenizer.get_tokens();
-  ::Ttx::Lexical::Cursor cursor(tokenizer, arena);
-  const auto isa_registry =
-      ::Tetrodotoxin::Puffer::Toolchain::standard_registry();
-  auto* boot = ::Tetrodotoxin::Puffer::Isa::Boot::VirtualMachine::evaluate(
-      cursor, isa_registry);
-  View::Bytes isa = boot == nullptr ? View::Bytes() : boot->get_isa();
+  Tokenizer tokenizer(arena, source, "lsp-buffer.ttx"_view);
+  View::Vector<Token> tokens = tokenizer.get_tokens();
+  Errors errors;
+  Cursor cursor(tokenizer, errors);
+
+  // Only use one semantic dialect for now.
+  View::Bytes source_dialect = "Library"_view;
   Unsigned_32 previous_line = 0;
   Unsigned_32 previous_column = 0;
   Bool emitted = False;
   for (Count i = 0; i < tokens.get_size(); i++) {
-    ::Ttx::Lexical::Token token = tokens[i];
-    if (isa == "Shader"_view &&
+    Token token = tokens[i];
+    if (source_dialect == "Shader"_view &&
         should_filter_shader_keyword(token.get_code())) {
       continue;
     }
 
-    View::Bytes text = token.get_text();
+    View::Bytes text = token.caculate_text(cursor.get_source_text());
     if (text.is_empty() || has_newline(text)) {
       continue;
     }

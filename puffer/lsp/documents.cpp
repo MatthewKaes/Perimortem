@@ -1,7 +1,7 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
-#include "tetrodotoxin/puffer/lsp/documents.hpp"
+#include "puffer/lsp/documents.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;

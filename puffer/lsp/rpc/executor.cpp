@@ -1,7 +1,7 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
-#include "tetrodotoxin/puffer/lsp/rpc/executor.hpp"
+#include "puffer/lsp/rpc/executor.hpp"
 
 #include <sys/socket.h>
 #include <sys/un.h>
@@ -20,8 +20,8 @@
 
 #include "perimortem/utility/table.hpp"
 
-#include "tetrodotoxin/puffer/lsp/methods.hpp"
-#include "tetrodotoxin/puffer/lsp/rpc/frame_reader.hpp"
+#include "puffer/lsp/methods.hpp"
+#include "puffer/lsp/rpc/frame_reader.hpp"
 
 using namespace Perimortem::Memory;
 using namespace Perimortem::Core;

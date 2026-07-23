@@ -11,8 +11,8 @@ The goal is not a language conformance suite; it is a cheap crash and framing
 probe for the server boundary that VSCode exercises.
 
 Usage:
-    python3 tetrodotoxin/puffer/lsp/stress_lsp.py
-    python3 tetrodotoxin/puffer/lsp/stress_lsp.py --sessions=10 --requests=50
+    python3 puffer/lsp/stress_lsp.py
+    python3 puffer/lsp/stress_lsp.py --sessions=10 --requests=50
 """
 
 import argparse
@@ -60,7 +60,13 @@ def source_for(iteration):
             "}\n"
         )
     with open(
-        os.path.join(REPO_ROOT, "apps", "splash_screen.ttx"),
+        os.path.join(
+            REPO_ROOT,
+            "apps",
+            "ttx",
+            "scene_lifetime",
+            "scenes",
+            "splash.ttx"),
         "r",
         encoding="utf-8") as source_file:
         return source_file.read()

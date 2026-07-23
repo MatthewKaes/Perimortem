@@ -1,7 +1,7 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
-#include "tetrodotoxin/puffer/lsp/rpc/frame_reader.hpp"
+#include "puffer/lsp/rpc/frame_reader.hpp"
 
 #include "perimortem/core/algorithm/search.hpp"
 #include "perimortem/core/null_terminated.hpp"

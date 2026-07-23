@@ -1,6 +1,4 @@
-"""
-Puffer - Tetrodotoxin CLI, source resolver, Boot ISA, and LSP server.
-"""
+"""Puffer - Tetrodotoxin language-server host."""
 
 load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
@@ -15,8 +13,6 @@ cc_library(
     hdrs = glob([
         "lsp/**/*.hpp",
     ]),
-    include_prefix = "tetrodotoxin/puffer",
-    strip_include_prefix = ".",
     deps = [
         "//perimortem",
         "//ttx",

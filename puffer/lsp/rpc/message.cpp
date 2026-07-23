@@ -1,7 +1,7 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
-#include "tetrodotoxin/puffer/lsp/rpc/message.hpp"
+#include "puffer/lsp/rpc/message.hpp"
 
 #include "perimortem/core/null_terminated.hpp"
 

@@ -9,7 +9,7 @@ Creates a Unix socket server to test the TTX language server with a few basic
 commands without having to do a full .visx build + restart of VS Code.
 
 Usage:
-    python3 tetrodotoxin/puffer/lsp/test_lsp.py
+    python3 puffer/lsp/test_lsp.py
 """
 
 import base64
@@ -23,10 +23,10 @@ import time
 
 SOCKET_PATH = "/tmp/ttx_lsp_test.sock"
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-REPO_ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, "..", "..", ".."))
+REPO_ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, "..", ".."))
 BINARY = os.environ.get(
     "PUFFER_BINARY",
-    os.path.join(REPO_ROOT, ".bin/bin/tetrodotoxin/puffer/puffer"))
+    os.path.join(REPO_ROOT, ".bin/bin/puffer/puffer"))
 
 
 def lsp_frame(obj):
@@ -297,17 +297,18 @@ def run_test():
         and "result" in notification_probe_resp,
         "$ notification keeps server responsive")
 
-    print("\n--- Round-trip: apps/splash_screen.ttx ---")
-    splash_path = os.path.join(REPO_ROOT, "apps", "splash_screen.ttx")
+    print("\n--- Round-trip: apps/ttx/scene_lifetime/scenes/splash.ttx ---")
+    splash_path = os.path.join(
+        REPO_ROOT, "apps", "ttx", "scene_lifetime", "scenes", "splash.ttx")
     with open(splash_path, "r", encoding="utf-8") as f:
         splash_source = f.read()
 
-    splash_formatted = send_format(conn, splash_source, "splash_screen.ttx")
+    splash_formatted = send_format(conn, splash_source, "splash.ttx")
     if splash_formatted is not None:
         if splash_formatted == splash_source:
-            print("  [OK] splash_screen.ttx is unchanged after formatting")
+            print("  [OK] splash.ttx is unchanged after formatting")
         else:
-            print("  [DIFF] splash_screen.ttx changed after formatting:")
+            print("  [DIFF] splash.ttx changed after formatting:")
             src_lines = splash_source.splitlines()
             fmt_lines = splash_formatted.splitlines()
             for i, (a, b) in enumerate(zip(src_lines, fmt_lines), 1):

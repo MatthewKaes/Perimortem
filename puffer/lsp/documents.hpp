@@ -10,7 +10,7 @@
 
 #include "perimortem/memory/dynamic/bytes.hpp"
 
-#include "tetrodotoxin/puffer/lsp/document.hpp"
+#include "puffer/lsp/document.hpp"
 
 namespace Tetrodotoxin::Puffer::Lsp {
 
