@@ -33,7 +33,10 @@ using Argument = Generic::Argument;
 // Nested Generic arguments recurse through the same progressive Type parser,
 // so this file-local declaration closes that implementation cycle without
 // exposing parser machinery in the public header.
-static auto parse_value(Cursor& cursor, const Abstract& context)
+static auto parse_value(
+    Cursor& cursor,
+    const Abstract& context,
+    Generic::Materializations& materializations)
     -> Option<const Ttx::Model::Type&>;
 
 static auto unresolved_segment_error(Cursor& cursor, Token segment) -> void {
@@ -146,6 +149,7 @@ static auto parse_argument(
     const Abstract& context,
     const Generic& generic,
     Generic::Parameters parameter,
+    Generic::Materializations& materializations,
     Managed::Vector<Argument>& arguments) -> Bool {
   if (parameter == Generic::Parameters::Type) {
     if (!cursor.matches(Code::Type::Type)) {
@@ -153,7 +157,8 @@ static auto parse_argument(
       return False;
     }
 
-    Option<const Ttx::Model::Type&> selected = parse_value(cursor, context);
+    Option<const Ttx::Model::Type&> selected =
+        parse_value(cursor, context, materializations);
     return selected.visit(
         [](const None&) { return False; },
         [&arguments](const Ttx::Model::Type& type) {
@@ -256,6 +261,7 @@ static auto parse_generic(
     Cursor& cursor,
     const Abstract& context,
     const Generic& generic,
+    Generic::Materializations& materializations,
     Token start) -> Option<const Ttx::Model::Type&> {
   cursor.consume();
   View::Vector<Generic::Parameters> parameters = generic.get_parameterization();
@@ -266,10 +272,10 @@ static auto parse_generic(
       return none;
     }
 
-    // The parser validates each declared parameter kind before the formula is
-    // asked to find a materialized Type.
-    Bool parsed =
-        parse_argument(cursor, context, generic, parameters[i], arguments);
+    // The parser validates each declared parameter kind before the transaction
+    // is asked to materialize a Type from the immutable formula.
+    Bool parsed = parse_argument(
+        cursor, context, generic, parameters[i], materializations, arguments);
     if (!parsed) {
       return none;
     }
@@ -312,7 +318,8 @@ static auto parse_generic(
     return none;
   }
 
-  Option<Ttx::Model::Type&> materialized = generic.find(arguments.get_view());
+  Option<const Ttx::Model::Type&> materialized =
+      materializations.materialize(generic, arguments.get_view());
   return materialized.visit(
       [&](const None&) -> Option<const Ttx::Model::Type&> {
         Managed::Bytes message(cursor.get_arena());
@@ -322,12 +329,15 @@ static auto parse_generic(
         cursor.create_expression_error(start, end, message);
         return none;
       },
-      [](Ttx::Model::Type& type) -> Option<const Ttx::Model::Type&> {
+      [](const Ttx::Model::Type& type) -> Option<const Ttx::Model::Type&> {
         return type;
       });
 }
 
-static auto parse_value(Cursor& cursor, const Abstract& context)
+static auto parse_value(
+    Cursor& cursor,
+    const Abstract& context,
+    Generic::Materializations& materializations)
     -> Option<const Ttx::Model::Type&> {
   if (!cursor.matches(Code::Type::Type)) {
     Token found = cursor.consume();
@@ -383,7 +393,8 @@ static auto parse_value(Cursor& cursor, const Abstract& context)
       return none;
     }
 
-    return parse_generic(cursor, context, resolved.assume<Generic>(), start);
+    return parse_generic(
+        cursor, context, resolved.assume<Generic>(), materializations, start);
   }
 
   if (resolved.is<Generic>()) {
@@ -401,9 +412,13 @@ static auto parse_value(Cursor& cursor, const Abstract& context)
   return resolved.assume<Ttx::Model::Type>();
 }
 
-auto Type::parse(Cursor& cursor, const Abstract& context)
+auto Type::parse(
+    Cursor& cursor,
+    const Abstract& context,
+    Generic::Materializations& materializations)
     -> Option<const Ttx::Model::Type&> {
-  Option<const Ttx::Model::Type&> parsed = parse_value(cursor, context);
+  Option<const Ttx::Model::Type&> parsed =
+      parse_value(cursor, context, materializations);
   Bool failed = parsed.visit(
       [](const None&) { return True; },
       [](const Ttx::Model::Type&) { return False; });

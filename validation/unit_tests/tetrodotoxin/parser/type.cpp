@@ -83,6 +83,45 @@ class SingleContext final : public Concept::Abstract {
 // observation point for the scalar values delivered by the parser.
 class ValueGeneric final : public Ttx::Model::Types::Generic {
  public:
+  class Type final : public Ttx::Model::Type {
+   public:
+    using ContractOwner = Type;
+    static constexpr Perimortem::System::Uuid contract_id{
+      0x8f2cd080186e4a95,
+      0xaee8d98b3fda7eba,
+    };
+
+    constexpr Type(Unsigned_64 unsigned_value, Bool bool_value)
+        : unsigned_value(unsigned_value), bool_value(bool_value) {}
+
+    constexpr auto implements(Perimortem::System::Uuid requested) const
+        -> Bool override {
+      return requested == contract_id ||
+             Ttx::Model::Type::implements(requested);
+    }
+
+    constexpr auto get_name() const -> View::Bytes override {
+      return "SizedValue"_view;
+    }
+    constexpr auto get_documentation() const
+        -> const Concept::Documentation& override {
+      return Concept::Documentation::get_empty();
+    }
+    constexpr auto resolve_context(View::Bytes) const
+        -> const Concept::Abstract& override {
+      return Concept::Invalid::get_invalid();
+    }
+
+    constexpr auto get_unsigned() const -> Unsigned_64 {
+      return unsigned_value;
+    }
+    constexpr auto get_bool() const -> Bool { return bool_value; }
+
+   private:
+    Unsigned_64 unsigned_value;
+    Bool bool_value;
+  };
+
   constexpr auto get_name() const -> View::Bytes override {
     return "Sized"_view;
   }
@@ -102,8 +141,9 @@ class ValueGeneric final : public Ttx::Model::Types::Generic {
     return parameterization;
   }
 
-  auto find(View::Vector<Argument> arguments) const
-      -> Option<Ttx::Model::Type&> override {
+ private:
+  auto create(View::Vector<Argument> arguments, Allocator::Arena& arena) const
+      -> Option<const Ttx::Model::Type&> override {
     if (arguments.get_size() != 2) {
       return none;
     }
@@ -114,22 +154,13 @@ class ValueGeneric final : public Ttx::Model::Types::Generic {
       return none;
     }
 
-    parsed_unsigned = *unsigned_value;
-    parsed_bool = *bool_value;
-    return materialized;
+    return arena.construct<Type>(*unsigned_value, *bool_value);
   }
 
-  constexpr auto get_unsigned() const -> Unsigned_64 { return parsed_unsigned; }
-  constexpr auto get_bool() const -> Bool { return parsed_bool; }
-
- private:
-  inline static constexpr Static::Vector<Parameters, 2> parameterization = {{
+  static constexpr Static::Vector<Parameters, 2> parameterization = {{
     Parameters::Unsigned_64,
     Parameters::Bool,
   }};
-  mutable NamedType materialized{"SizedValue"_view};
-  mutable Unsigned_64 parsed_unsigned = 0;
-  mutable Bool parsed_bool = False;
 };
 
 static auto is_none(const Option<const Ttx::Model::Type&>& selected) -> Bool {
@@ -174,6 +205,7 @@ static constexpr Static::Vector<BuiltinCase, 12> builtin_cases = {{
 
 PERIMORTEM_UNIT_TEST(ParserTypeTests, resolves_builtin_types_without_context) {
   Allocator::Arena arena;
+  Ttx::Model::Types::Generic::Materializations materializations(arena);
   NamedType widget("Widget"_view);
   SingleContext root("Root"_view, widget);
   for (Count i = 0; i < builtin_cases.get_size(); i++) {
@@ -182,7 +214,8 @@ PERIMORTEM_UNIT_TEST(ParserTypeTests, resolves_builtin_types_without_context) {
         arena, builtin_cases[i].source, "<builtin type>"_view);
     Lexical::Cursor cursor(tokenizer, errors);
 
-    Option<const Ttx::Model::Type&> parsed = Parser::Type::parse(cursor, root);
+    Option<const Ttx::Model::Type&> parsed =
+        Parser::Type::parse(cursor, root, materializations);
     Bool correct_type = parsed.visit(
         [](const None&) { return False; },
         [i](const Ttx::Model::Type& found) {
@@ -197,13 +230,15 @@ PERIMORTEM_UNIT_TEST(ParserTypeTests, resolves_builtin_types_without_context) {
 
 PERIMORTEM_UNIT_TEST(ParserTypeTests, resolves_context_type) {
   Allocator::Arena arena;
+  Ttx::Model::Types::Generic::Materializations materializations(arena);
   Lexical::Errors errors;
   NamedType widget("Widget"_view);
   SingleContext root("Root"_view, widget);
   Lexical::Tokenizer tokenizer(arena, "Widget"_view, "<context type>"_view);
   Lexical::Cursor cursor(tokenizer, errors);
 
-  Option<const Ttx::Model::Type&> parsed = Parser::Type::parse(cursor, root);
+  Option<const Ttx::Model::Type&> parsed =
+      Parser::Type::parse(cursor, root, materializations);
 
   EXPECT(is_selected(parsed, widget));
   EXPECT(errors.is_empty());
@@ -212,6 +247,7 @@ PERIMORTEM_UNIT_TEST(ParserTypeTests, resolves_context_type) {
 
 PERIMORTEM_UNIT_TEST(ParserTypeTests, resolves_nested_context_type) {
   Allocator::Arena arena;
+  Ttx::Model::Types::Generic::Materializations materializations(arena);
   Lexical::Errors errors;
   NamedType widget("Widget"_view);
   SingleContext graphics("Graphics"_view, widget);
@@ -220,7 +256,8 @@ PERIMORTEM_UNIT_TEST(ParserTypeTests, resolves_nested_context_type) {
       arena, "Graphics::Widget"_view, "<nested type>"_view);
   Lexical::Cursor cursor(tokenizer, errors);
 
-  Option<const Ttx::Model::Type&> parsed = Parser::Type::parse(cursor, root);
+  Option<const Ttx::Model::Type&> parsed =
+      Parser::Type::parse(cursor, root, materializations);
 
   EXPECT(is_selected(parsed, widget));
   EXPECT(errors.is_empty());
@@ -229,13 +266,15 @@ PERIMORTEM_UNIT_TEST(ParserTypeTests, resolves_nested_context_type) {
 
 PERIMORTEM_UNIT_TEST(ParserTypeTests, rejects_missing_abstract_segment) {
   Allocator::Arena arena;
+  Ttx::Model::Types::Generic::Materializations materializations(arena);
   Lexical::Errors errors;
   NamedType widget("Widget"_view);
   SingleContext root("Root"_view, widget);
   Lexical::Tokenizer tokenizer(arena, "Missing"_view, "<missing type>"_view);
   Lexical::Cursor cursor(tokenizer, errors);
 
-  Option<const Ttx::Model::Type&> parsed = Parser::Type::parse(cursor, root);
+  Option<const Ttx::Model::Type&> parsed =
+      Parser::Type::parse(cursor, root, materializations);
 
   EXPECT(is_none(parsed));
   EXPECT_EQ(errors.get_size(), 1);
@@ -244,6 +283,7 @@ PERIMORTEM_UNIT_TEST(ParserTypeTests, rejects_missing_abstract_segment) {
 
 PERIMORTEM_UNIT_TEST(ParserTypeTests, rejects_non_type_abstract) {
   Allocator::Arena arena;
+  Ttx::Model::Types::Generic::Materializations materializations(arena);
   Lexical::Errors errors;
   NamedType widget("Widget"_view);
   SingleContext graphics("Graphics"_view, widget);
@@ -251,7 +291,8 @@ PERIMORTEM_UNIT_TEST(ParserTypeTests, rejects_non_type_abstract) {
   Lexical::Tokenizer tokenizer(arena, "Graphics"_view, "<non type>"_view);
   Lexical::Cursor cursor(tokenizer, errors);
 
-  Option<const Ttx::Model::Type&> parsed = Parser::Type::parse(cursor, root);
+  Option<const Ttx::Model::Type&> parsed =
+      Parser::Type::parse(cursor, root, materializations);
 
   EXPECT(is_none(parsed));
   EXPECT_EQ(errors.get_size(), 1);
@@ -260,6 +301,7 @@ PERIMORTEM_UNIT_TEST(ParserTypeTests, rejects_non_type_abstract) {
 
 PERIMORTEM_UNIT_TEST(ParserTypeTests, common_generics_require_environment) {
   Allocator::Arena arena;
+  Ttx::Model::Types::Generic::Materializations materializations(arena);
   Lexical::Errors errors;
   NamedType widget("Widget"_view);
   SingleContext root("Root"_view, widget);
@@ -267,7 +309,8 @@ PERIMORTEM_UNIT_TEST(ParserTypeTests, common_generics_require_environment) {
       arena, "View[Unsigned_8]"_view, "<missing environment>"_view);
   Lexical::Cursor cursor(tokenizer, errors);
 
-  Option<const Ttx::Model::Type&> parsed = Parser::Type::parse(cursor, root);
+  Option<const Ttx::Model::Type&> parsed =
+      Parser::Type::parse(cursor, root, materializations);
 
   EXPECT(is_none(parsed));
   EXPECT_EQ(errors.get_size(), Count(1));
@@ -283,7 +326,8 @@ PERIMORTEM_UNIT_TEST(ParserTypeTests, materializes_environment_generics) {
       arena, "Access[View[Unsigned_8]]"_view, "<generic type>"_view);
   Lexical::Cursor cursor(tokenizer, errors);
 
-  Option<const Ttx::Model::Type&> parsed = Parser::Type::parse(cursor, source);
+  Option<const Ttx::Model::Type&> parsed =
+      Parser::Type::parse(cursor, source, environment.get_materializations());
   Bool correct = parsed.visit(
       [](const None&) { return False; },
       [](const Ttx::Model::Type& selected) {
@@ -317,7 +361,8 @@ PERIMORTEM_UNIT_TEST(ParserTypeTests, materializes_fixed_ranges) {
       arena, "Fixed[Unsigned_8, 4]"_view, "<fixed generic type>"_view);
   Lexical::Cursor cursor(tokenizer, errors);
 
-  Option<const Ttx::Model::Type&> parsed = Parser::Type::parse(cursor, source);
+  Option<const Ttx::Model::Type&> parsed =
+      Parser::Type::parse(cursor, source, environment.get_materializations());
   Bool correct = parsed.visit(
       [](const None&) { return False; },
       [](const Ttx::Model::Type& selected) -> Bool {
@@ -347,7 +392,8 @@ PERIMORTEM_UNIT_TEST(ParserTypeTests, materializes_recursive_fixed_ranges) {
       "<recursive fixed generic type>"_view);
   Lexical::Cursor cursor(tokenizer, errors);
 
-  Option<const Ttx::Model::Type&> parsed = Parser::Type::parse(cursor, source);
+  Option<const Ttx::Model::Type&> parsed =
+      Parser::Type::parse(cursor, source, environment.get_materializations());
   Bool correct = parsed.visit(
       [](const None&) { return False; },
       [](const Ttx::Model::Type& selected) -> Bool {
@@ -401,7 +447,7 @@ PERIMORTEM_UNIT_TEST(
   Lexical::Cursor cursor(tokenizer, errors);
 
   Option<const Ttx::Model::Type&> rejected =
-      Parser::Type::parse(cursor, source);
+      Parser::Type::parse(cursor, source, environment.get_materializations());
   View::Bytes rendered = errors.render_message(render_arena, 0);
 
   EXPECT(is_none(rejected));
@@ -412,7 +458,7 @@ PERIMORTEM_UNIT_TEST(
       cursor.current().caculate_text(cursor.get_source_text()), "Fixed"_view);
 
   Option<const Ttx::Model::Type&> recovered =
-      Parser::Type::parse(cursor, source);
+      Parser::Type::parse(cursor, source, environment.get_materializations());
   Bool correct = recovered.visit(
       [](const None&) { return False; },
       [](const Ttx::Model::Type& selected) -> Bool {
@@ -448,10 +494,10 @@ PERIMORTEM_UNIT_TEST(
   Lexical::Cursor first_cursor(first_tokenizer, first_errors);
   Lexical::Cursor second_cursor(second_tokenizer, second_errors);
 
-  Option<const Ttx::Model::Type&> first =
-      Parser::Type::parse(first_cursor, first_source);
-  Option<const Ttx::Model::Type&> second =
-      Parser::Type::parse(second_cursor, second_source);
+  Option<const Ttx::Model::Type&> first = Parser::Type::parse(
+      first_cursor, first_source, environment.get_materializations());
+  Option<const Ttx::Model::Type&> second = Parser::Type::parse(
+      second_cursor, second_source, environment.get_materializations());
   Bool same = first.visit(
       [](const None&) { return False; },
       [&second](const Ttx::Model::Type& first_type) {
@@ -469,6 +515,7 @@ PERIMORTEM_UNIT_TEST(
 
 PERIMORTEM_UNIT_TEST(ParserTypeTests, parses_value_parameter_kinds) {
   Allocator::Arena arena;
+  Ttx::Model::Types::Generic::Materializations materializations(arena);
   Lexical::Errors decimal_errors;
   Lexical::Errors hex_errors;
   ValueGeneric generic;
@@ -478,21 +525,32 @@ PERIMORTEM_UNIT_TEST(ParserTypeTests, parses_value_parameter_kinds) {
   Lexical::Cursor decimal_cursor(decimal_tokenizer, decimal_errors);
 
   Option<const Ttx::Model::Type&> decimal =
-      Parser::Type::parse(decimal_cursor, root);
+      Parser::Type::parse(decimal_cursor, root, materializations);
+  const auto& decimal_type = decimal.visit(
+      [](const None&) -> const ValueGeneric::Type& { __builtin_unreachable(); },
+      [](const Ttx::Model::Type& type) -> const ValueGeneric::Type& {
+        return type.assume<ValueGeneric::Type>();
+      });
 
   EXPECT(!is_none(decimal));
-  EXPECT_EQ(generic.get_unsigned(), Unsigned_64(42));
-  EXPECT(generic.get_bool());
+  EXPECT_EQ(decimal_type.get_unsigned(), Unsigned_64(42));
+  EXPECT(decimal_type.get_bool());
   EXPECT(decimal_errors.is_empty());
 
   Lexical::Tokenizer hex_tokenizer(
       arena, "Sized[0x2A,false]"_view, "<hex generic>"_view);
   Lexical::Cursor hex_cursor(hex_tokenizer, hex_errors);
-  Option<const Ttx::Model::Type&> hex = Parser::Type::parse(hex_cursor, root);
+  Option<const Ttx::Model::Type&> hex =
+      Parser::Type::parse(hex_cursor, root, materializations);
+  const auto& hex_type = hex.visit(
+      [](const None&) -> const ValueGeneric::Type& { __builtin_unreachable(); },
+      [](const Ttx::Model::Type& type) -> const ValueGeneric::Type& {
+        return type.assume<ValueGeneric::Type>();
+      });
 
   EXPECT(!is_none(hex));
-  EXPECT_EQ(generic.get_unsigned(), Unsigned_64(42));
-  EXPECT_NOT(generic.get_bool());
+  EXPECT_EQ(hex_type.get_unsigned(), Unsigned_64(42));
+  EXPECT_NOT(hex_type.get_bool());
   EXPECT(hex_errors.is_empty());
 }
 
@@ -506,7 +564,8 @@ PERIMORTEM_UNIT_TEST(ParserTypeTests, reports_missing_arguments_and_recovers) {
       arena, "View[]; Bool"_view, "<missing generic argument>"_view);
   Lexical::Cursor cursor(tokenizer, errors);
 
-  Option<const Ttx::Model::Type&> parsed = Parser::Type::parse(cursor, source);
+  Option<const Ttx::Model::Type&> parsed =
+      Parser::Type::parse(cursor, source, environment.get_materializations());
   View::Bytes rendered = errors.render_message(render_arena, 0);
 
   EXPECT(is_none(parsed));
@@ -529,7 +588,8 @@ PERIMORTEM_UNIT_TEST(
       arena, "View[8]; Bool"_view, "<wrong generic argument>"_view);
   Lexical::Cursor cursor(tokenizer, errors);
 
-  Option<const Ttx::Model::Type&> parsed = Parser::Type::parse(cursor, source);
+  Option<const Ttx::Model::Type&> parsed =
+      Parser::Type::parse(cursor, source, environment.get_materializations());
 
   EXPECT(is_none(parsed));
   EXPECT_EQ(errors.get_size(), Count(1));
@@ -540,6 +600,7 @@ PERIMORTEM_UNIT_TEST(
 
 PERIMORTEM_UNIT_TEST(ParserTypeTests, rejects_missing_separator_and_recovers) {
   Allocator::Arena arena;
+  Ttx::Model::Types::Generic::Materializations materializations(arena);
   Lexical::Errors errors;
   ValueGeneric generic;
   SingleContext root("Root"_view, generic);
@@ -547,7 +608,8 @@ PERIMORTEM_UNIT_TEST(ParserTypeTests, rejects_missing_separator_and_recovers) {
       arena, "Sized[42 true]; Bool"_view, "<missing separator>"_view);
   Lexical::Cursor cursor(tokenizer, errors);
 
-  Option<const Ttx::Model::Type&> parsed = Parser::Type::parse(cursor, root);
+  Option<const Ttx::Model::Type&> parsed =
+      Parser::Type::parse(cursor, root, materializations);
 
   EXPECT(is_none(parsed));
   EXPECT_EQ(errors.get_size(), Count(1));
@@ -565,7 +627,8 @@ PERIMORTEM_UNIT_TEST(ParserTypeTests, rejects_extra_argument_and_recovers) {
       arena, "View[Unsigned_8, Bool]; Bool"_view, "<extra argument>"_view);
   Lexical::Cursor cursor(tokenizer, errors);
 
-  Option<const Ttx::Model::Type&> parsed = Parser::Type::parse(cursor, source);
+  Option<const Ttx::Model::Type&> parsed =
+      Parser::Type::parse(cursor, source, environment.get_materializations());
 
   EXPECT(is_none(parsed));
   EXPECT_EQ(errors.get_size(), Count(1));
@@ -576,6 +639,7 @@ PERIMORTEM_UNIT_TEST(ParserTypeTests, rejects_extra_argument_and_recovers) {
 
 PERIMORTEM_UNIT_TEST(ParserTypeTests, rejects_overflow_and_recovers) {
   Allocator::Arena arena;
+  Ttx::Model::Types::Generic::Materializations materializations(arena);
   Allocator::Arena render_arena;
   Lexical::Errors errors;
   ValueGeneric generic;
@@ -585,7 +649,8 @@ PERIMORTEM_UNIT_TEST(ParserTypeTests, rejects_overflow_and_recovers) {
       "<overflow generic argument>"_view);
   Lexical::Cursor cursor(tokenizer, errors);
 
-  Option<const Ttx::Model::Type&> parsed = Parser::Type::parse(cursor, root);
+  Option<const Ttx::Model::Type&> parsed =
+      Parser::Type::parse(cursor, root, materializations);
   View::Bytes rendered = errors.render_message(render_arena, 0);
 
   EXPECT(is_none(parsed));
@@ -607,7 +672,8 @@ PERIMORTEM_UNIT_TEST(
       arena, "Fixed[Unsigned_8,-1]; Bool"_view, "<negative fixed extent>"_view);
   Lexical::Cursor cursor(tokenizer, errors);
 
-  Option<const Ttx::Model::Type&> parsed = Parser::Type::parse(cursor, source);
+  Option<const Ttx::Model::Type&> parsed =
+      Parser::Type::parse(cursor, source, environment.get_materializations());
 
   EXPECT(is_none(parsed));
   EXPECT_EQ(errors.get_size(), Count(1));
@@ -627,7 +693,8 @@ PERIMORTEM_UNIT_TEST(ParserTypeTests, rejects_signed_overflow_and_recovers) {
       "<overflow fixed extent>"_view);
   Lexical::Cursor cursor(tokenizer, errors);
 
-  Option<const Ttx::Model::Type&> parsed = Parser::Type::parse(cursor, source);
+  Option<const Ttx::Model::Type&> parsed =
+      Parser::Type::parse(cursor, source, environment.get_materializations());
   View::Bytes rendered = errors.render_message(render_arena, 0);
 
   EXPECT(is_none(parsed));

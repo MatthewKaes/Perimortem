@@ -5,8 +5,6 @@
 
 #include "perimortem/core/static/vector.hpp"
 
-#include "perimortem/memory/managed/vector.hpp"
-
 #include "ttx/concept/invalid.hpp"
 #include "ttx/model/documentations/comment.hpp"
 #include "ttx/model/types/generics.hpp"
@@ -18,6 +16,8 @@ namespace Ttx::Model::Types::Generics {
 // establishes write capability but does not claim noalias.
 class Access final : public Generic {
  public:
+  static constexpr Perimortem::Core::View::Bytes name = "Access"_view;
+
   class Type final : public Ttx::Model::Type {
    public:
     using ContractOwner = Type;
@@ -65,10 +65,8 @@ class Access final : public Generic {
     Generic::Argument argument;
   };
 
-  Access(Perimortem::Memory::Allocator::Arena& arena) : cache(arena) {}
-
   constexpr auto get_name() const -> Perimortem::Core::View::Bytes override {
-    return "Access"_view;
+    return name;
   }
 
   constexpr auto get_documentation() const
@@ -86,16 +84,15 @@ class Access final : public Generic {
     return parameterization;
   }
 
-  auto find(Perimortem::Core::View::Vector<Argument> arguments) const
-      -> Perimortem::Utility::Option<Ttx::Model::Type&> override;
-
  private:
-  // The owning semantic environment supplies the arena and bounds this cache
-  // to the interpretation transaction shared by its Sources.
-  mutable Perimortem::Memory::Managed::Vector<Type*> cache;
-  inline static constexpr Perimortem::Core::Static::Vector<Parameters, 1>
+  auto create(
+      Perimortem::Core::View::Vector<Argument> arguments,
+      Perimortem::Memory::Allocator::Arena& arena) const
+      -> Perimortem::Utility::Option<const Ttx::Model::Type&> override;
+
+  static constexpr Perimortem::Core::Static::Vector<Parameters, 1>
       parameterization = {{Parameters::Type}};
-  inline static constexpr Documentations::Comment documentation{
+  static constexpr Documentations::Comment documentation{
     "Provides writable access to contiguous values."_view,
   };
 };

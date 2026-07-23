@@ -9,8 +9,10 @@
 
 namespace Ttx::Model::Types::Generics {
 
-auto Fixed::find(Perimortem::Core::View::Vector<Argument> arguments) const
-    -> Perimortem::Utility::Option<Ttx::Model::Type&> {
+auto Fixed::create(
+    Perimortem::Core::View::Vector<Argument> arguments,
+    Perimortem::Memory::Allocator::Arena& arena) const
+    -> Perimortem::Utility::Option<const Ttx::Model::Type&> {
   if (arguments.get_size() != 2) {
     return Perimortem::Utility::none;
   }
@@ -22,25 +24,11 @@ auto Fixed::find(Perimortem::Core::View::Vector<Argument> arguments) const
     return Perimortem::Utility::none;
   }
 
-  // Fixed has one formula contract, so resolved Type identity and scalar value
-  // form its complete cache key. Cache entries are never null.
-  for (Count i = 0; i < cache.get_size(); i++) {
-    Type& cached = *cache[i];
-    if (&cached.get_element_type() == element &&
-        cached.get_extent() == *extent) {
-      return cached;
-    }
-  }
-
-  Perimortem::Memory::Allocator::Arena& arena = cache.get_arena();
   Perimortem::Memory::Managed::Bytes name(arena, get_name());
   Perimortem::Serialization::Stream::Textual<Perimortem::Memory::Managed::Bytes>
       output(name);
   output << "["_view << element->get_name() << ","_view << *extent << "]"_view;
-  Type& materialized =
-      arena.construct<Type>(name.get_view(), *element, *extent);
-  cache.insert(&materialized);
-  return materialized;
+  return arena.construct<Type>(name.get_view(), *element, *extent);
 }
 
 }  // namespace Ttx::Model::Types::Generics

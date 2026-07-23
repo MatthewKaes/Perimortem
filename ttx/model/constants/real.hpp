@@ -12,7 +12,7 @@ namespace Ttx::Model::Constants {
 // a Dialect-owned literal Expression until a receiving Type selects a format,
 // so constructing this contract never silently narrows an exact source literal.
 // NaN values compare as one semantic value so Constant equality remains an
-// equivalence relation suitable for Generic argument caches.
+// equivalence relation suitable for Generic materialization keys.
 class Real : public Constant {
  public:
   using ContractOwner = Real;

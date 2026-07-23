@@ -44,23 +44,64 @@ class EquivalentNameType final : public Model::Type {
   }
 };
 
-static auto is_none(const Option<Model::Type&>& selected) -> Bool {
+class DeferredGeneric final : public Model::Types::Generic {
+ public:
+  constexpr auto get_name() const -> View::Bytes override {
+    return "Deferred"_view;
+  }
+
+  constexpr auto get_documentation() const
+      -> const Concept::Documentation& override {
+    return Concept::Documentation::get_empty();
+  }
+
+  constexpr auto resolve_context(View::Bytes) const
+      -> const Concept::Abstract& override {
+    return Concept::Invalid::get_invalid();
+  }
+
+  constexpr auto get_parameterization() const
+      -> View::Vector<Parameters> override {
+    return parameterization;
+  }
+
+  constexpr auto complete() -> void { ready = True; }
+
+ private:
+  auto create(View::Vector<Argument> arguments, Allocator::Arena& arena) const
+      -> Option<const Model::Type&> override {
+    if (!ready || arguments.get_size() != 1 ||
+        arguments[0].find<const Model::Type&>() == nullptr) {
+      return none;
+    }
+
+    return arena.construct<EquivalentNameType>();
+  }
+
+  Bool ready = False;
+  static constexpr Static::Vector<Parameters, 1> parameterization = {{
+    Parameters::Type,
+  }};
+};
+
+static auto is_none(const Option<const Model::Type&>& selected) -> Bool {
   return selected.visit(
       [](const None&) { return True; },
       [](const Model::Type&) { return False; });
 }
 
-static auto get_type(const Option<Model::Type&>& selected) -> Model::Type& {
+static auto get_type(const Option<const Model::Type&>& selected)
+    -> const Model::Type& {
   return selected.visit(
-      [](const None&) -> Model::Type& { __builtin_unreachable(); },
-      [](Model::Type& type) -> Model::Type& { return type; });
+      [](const None&) -> const Model::Type& { __builtin_unreachable(); },
+      [](const Model::Type& type) -> const Model::Type& { return type; });
 }
 
 PERIMORTEM_UNIT_TEST(TtxGeneric, publishes_parameterization) {
   Allocator::Arena arena;
-  Model::Types::Generics::View view(arena);
-  Model::Types::Generics::Access access(arena);
-  Model::Types::Generics::Fixed fixed(arena);
+  Model::Types::Generics::View view;
+  Model::Types::Generics::Access access;
+  Model::Types::Generics::Fixed fixed;
   auto view_parameters = view.get_parameterization();
   auto access_parameters = access.get_parameterization();
   auto fixed_parameters = fixed.get_parameterization();
@@ -76,19 +117,23 @@ PERIMORTEM_UNIT_TEST(TtxGeneric, publishes_parameterization) {
   EXPECT(fixed_parameters[1] == Model::Types::Generic::Parameters::Signed_64);
 }
 
-PERIMORTEM_UNIT_TEST(TtxGeneric, caches_class_specific_types) {
+PERIMORTEM_UNIT_TEST(TtxGeneric, materializes_class_specific_types) {
   Allocator::Arena arena;
+  Model::Types::Generic::Materializations materializations(arena);
   Model::Types::Unsigned_8 element;
-  Model::Types::Generics::View view(arena);
-  Model::Types::Generics::Access access(arena);
+  Model::Types::Generics::View view;
+  Model::Types::Generics::Access access;
   const Static::Vector<Model::Types::Generic::Argument, 1> arguments = {
     {element}};
 
-  Option<Model::Type&> first_view = view.find(arguments);
-  Option<Model::Type&> second_view = view.find(arguments);
-  Option<Model::Type&> first_access = access.find(arguments);
-  Model::Type& view_type = get_type(first_view);
-  Model::Type& access_type = get_type(first_access);
+  Option<const Model::Type&> first_view =
+      materializations.materialize(view, arguments);
+  Option<const Model::Type&> second_view =
+      materializations.materialize(view, arguments);
+  Option<const Model::Type&> first_access =
+      materializations.materialize(access, arguments);
+  const Model::Type& view_type = get_type(first_view);
+  const Model::Type& access_type = get_type(first_access);
 
   EXPECT(&view_type == &get_type(second_view));
   EXPECT(view_type.is<Model::Types::Generics::View::Type>());
@@ -108,9 +153,10 @@ PERIMORTEM_UNIT_TEST(TtxGeneric, caches_class_specific_types) {
 
 PERIMORTEM_UNIT_TEST(TtxGeneric, materializes_fixed_ranged_layouts) {
   Allocator::Arena arena;
+  Model::Types::Generic::Materializations materializations(arena);
   Model::Types::Unsigned_8 element;
   EquivalentNameType equivalent_name;
-  Model::Types::Generics::Fixed fixed(arena);
+  Model::Types::Generics::Fixed fixed;
   const Static::Vector<Model::Types::Generic::Argument, 2> four_arguments = {{
     element,
     Signed_64(4),
@@ -125,14 +171,18 @@ PERIMORTEM_UNIT_TEST(TtxGeneric, materializes_fixed_ranged_layouts) {
         Signed_64(4),
       }};
 
-  Model::Type& first = get_type(fixed.find(four_arguments));
-  Model::Type& cached = get_type(fixed.find(four_arguments));
-  Model::Type& distinct_extent = get_type(fixed.find(six_arguments));
-  Model::Type& distinct_element = get_type(fixed.find(equivalent_arguments));
+  const Model::Type& first =
+      get_type(materializations.materialize(fixed, four_arguments));
+  const Model::Type& repeated =
+      get_type(materializations.materialize(fixed, four_arguments));
+  const Model::Type& distinct_extent =
+      get_type(materializations.materialize(fixed, six_arguments));
+  const Model::Type& distinct_element =
+      get_type(materializations.materialize(fixed, equivalent_arguments));
   const auto& concrete = first.assume<Model::Types::Generics::Fixed::Type>();
   const Concept::Layout& layout = concrete.get_layout();
 
-  EXPECT(&first == &cached);
+  EXPECT(&first == &repeated);
   EXPECT(&first != &distinct_extent);
   EXPECT(&first != &distinct_element);
   EXPECT_TEXT(first.get_name(), distinct_element.get_name());
@@ -146,18 +196,21 @@ PERIMORTEM_UNIT_TEST(TtxGeneric, materializes_fixed_ranged_layouts) {
   EXPECT(layout.get_abstract(4).is<Concept::Invalid>());
 }
 
-PERIMORTEM_UNIT_TEST(TtxGeneric, cache_uses_semantic_identity) {
+PERIMORTEM_UNIT_TEST(TtxGeneric, materialization_uses_semantic_identity) {
   Allocator::Arena arena;
+  Model::Types::Generic::Materializations materializations(arena);
   Model::Types::Unsigned_8 element;
   EquivalentNameType equivalent_name;
-  Model::Types::Generics::View view(arena);
+  Model::Types::Generics::View view;
   const Static::Vector<Model::Types::Generic::Argument, 1> element_arguments = {
     {element}};
   const Static::Vector<Model::Types::Generic::Argument, 1>
       equivalent_arguments = {{equivalent_name}};
 
-  Model::Type& concrete_element = get_type(view.find(element_arguments));
-  Model::Type& concrete_equivalent = get_type(view.find(equivalent_arguments));
+  const Model::Type& concrete_element =
+      get_type(materializations.materialize(view, element_arguments));
+  const Model::Type& concrete_equivalent =
+      get_type(materializations.materialize(view, equivalent_arguments));
 
   EXPECT(&concrete_element != &concrete_equivalent);
   EXPECT_TEXT(concrete_element.get_name(), concrete_equivalent.get_name());
@@ -165,8 +218,9 @@ PERIMORTEM_UNIT_TEST(TtxGeneric, cache_uses_semantic_identity) {
 
 PERIMORTEM_UNIT_TEST(TtxGeneric, rejects_wrong_argument_shapes) {
   Allocator::Arena arena;
+  Model::Types::Generic::Materializations materializations(arena);
   Model::Types::Unsigned_8 element;
-  Model::Types::Generics::View view(arena);
+  Model::Types::Generics::View view;
   const Static::Vector<Model::Types::Generic::Argument, 1> unsigned_argument = {
     {Unsigned_64(8)}};
   const Static::Vector<Model::Types::Generic::Argument, 1> bool_argument = {
@@ -174,16 +228,18 @@ PERIMORTEM_UNIT_TEST(TtxGeneric, rejects_wrong_argument_shapes) {
   const Static::Vector<Model::Types::Generic::Argument, 2> extra_arguments = {
     {element, element}};
 
-  EXPECT(is_none(view.find({})));
-  EXPECT(is_none(view.find(unsigned_argument)));
-  EXPECT(is_none(view.find(bool_argument)));
-  EXPECT(is_none(view.find(extra_arguments)));
+  EXPECT(is_none(materializations.materialize(view, {})));
+  EXPECT(is_none(materializations.materialize(view, unsigned_argument)));
+  EXPECT(is_none(materializations.materialize(view, bool_argument)));
+  EXPECT(is_none(materializations.materialize(view, extra_arguments)));
+  EXPECT_EQ(materializations.get_size(), Count(0));
 }
 
 PERIMORTEM_UNIT_TEST(TtxGeneric, fixed_rejects_non_ranges) {
   Allocator::Arena arena;
+  Model::Types::Generic::Materializations materializations(arena);
   Model::Types::Unsigned_8 element;
-  Model::Types::Generics::Fixed fixed(arena);
+  Model::Types::Generics::Fixed fixed;
   const Static::Vector<Model::Types::Generic::Argument, 2> negative = {{
     element,
     Signed_64(-1),
@@ -193,21 +249,46 @@ PERIMORTEM_UNIT_TEST(TtxGeneric, fixed_rejects_non_ranges) {
     Unsigned_64(4),
   }};
 
-  EXPECT(is_none(fixed.find(negative)));
-  EXPECT(is_none(fixed.find(unsigned_extent)));
+  EXPECT(is_none(materializations.materialize(fixed, negative)));
+  EXPECT(is_none(materializations.materialize(fixed, unsigned_extent)));
+  EXPECT_EQ(materializations.get_size(), Count(0));
 }
 
-PERIMORTEM_UNIT_TEST(TtxGeneric, caches_are_formula_local) {
+PERIMORTEM_UNIT_TEST(TtxGeneric, materializations_are_transaction_local) {
   Allocator::Arena first_arena;
   Allocator::Arena second_arena;
+  Model::Types::Generic::Materializations first_materializations(first_arena);
+  Model::Types::Generic::Materializations second_materializations(second_arena);
   Model::Types::Unsigned_8 element;
-  Model::Types::Generics::View first(first_arena);
-  Model::Types::Generics::View second(second_arena);
+  Model::Types::Generics::View view;
   const Static::Vector<Model::Types::Generic::Argument, 1> arguments = {
     {element}};
 
-  Model::Type& first_type = get_type(first.find(arguments));
-  Model::Type& second_type = get_type(second.find(arguments));
+  const Model::Type& first_type =
+      get_type(first_materializations.materialize(view, arguments));
+  const Model::Type& second_type =
+      get_type(second_materializations.materialize(view, arguments));
 
   EXPECT(&first_type != &second_type);
+}
+
+PERIMORTEM_UNIT_TEST(TtxGeneric, rejected_keys_can_complete_progressively) {
+  Allocator::Arena arena;
+  Model::Types::Generic::Materializations materializations(arena);
+  Model::Types::Unsigned_8 element;
+  DeferredGeneric generic;
+  const Static::Vector<Model::Types::Generic::Argument, 1> arguments = {
+    {element}};
+
+  Option<const Model::Type&> rejected =
+      materializations.materialize(generic, arguments);
+  generic.complete();
+  Option<const Model::Type&> completed =
+      materializations.materialize(generic, arguments);
+  Option<const Model::Type&> repeated =
+      materializations.materialize(generic, arguments);
+
+  EXPECT(is_none(rejected));
+  EXPECT_EQ(materializations.get_size(), Count(1));
+  EXPECT(&get_type(completed) == &get_type(repeated));
 }

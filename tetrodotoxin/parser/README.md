@@ -41,8 +41,9 @@ runtime execution.
   syntax-only Type graph.
 - A Generic publishes its complete ordered parameter signature. The parser
   validates nested `const Type&`, `Unsigned_64`, `Signed_64`, and `Bool`
-  arguments and passes their compact Union view to the formula's cache.
-  Tetrodotoxin's shared Environment owns the `View`, `Access`, and `Fixed`
+  arguments and passes their compact Union view to an explicit
+  `Generic::Materializations` writer. Tetrodotoxin's shared Environment owns
+  that append-only writer and the immutable `View`, `Access`, and `Fixed`
   formulas; the builtin fast path contains only concrete scalar Types.
 - Parsing is left-to-right and never backtracks.
 
@@ -51,9 +52,10 @@ runtime execution.
 1. Restore progressive non-generic Type-reference parsing and prove direct,
    nested, missing, and wrong-contract behavior.
 2. Restore generic arguments using the Generic's declared parameter signature,
-   compact const-Type/scalar Union values, cache-owned materialized Types, and
-   sequence-point recovery. Environment-owned `View`, `Access`, and `Fixed`
-   establish this slice across every Source in one interpretation transaction.
+   compact const-Type/scalar Union values, transaction-owned materialized
+   Types, and sequence-point recovery. Environment-owned materializations plus
+   `View`, `Access`, and `Fixed` establish this slice across every Source in one
+   interpretation transaction.
 3. Restore definitions, aliases, comments, attributes, and declaration
    recovery onto their real owners.
 4. Restore functions, layouts, packs, expressions, and statements one grammar

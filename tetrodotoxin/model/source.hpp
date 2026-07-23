@@ -21,7 +21,8 @@ namespace Tetrodotoxin::Model {
 // graph edges cannot outlive their backing bytes. The Dialect paired with every
 // rooted result preserves the instruction needed to regenerate equivalent
 // source without retaining incidental whitespace. Every external name comes
-// from the borrowed Environment completed before evaluation.
+// from the borrowed Environment. Environment construction is progressive and
+// append-only across every Source in the same transaction.
 //
 // The Source itself is a durable, anonymous Abstract root. A resolver or cache
 // associates an external name with it. Snippets and anonymous blobs use the
@@ -64,7 +65,7 @@ class Source final : public Ttx::Concept::Abstract {
   };
 
   Source(
-      const Environment& environment,
+      Environment& environment,
       Perimortem::Core::View::Bytes text,
       Perimortem::Core::View::Bytes path = {})
       : environment(environment),
@@ -106,6 +107,8 @@ class Source final : public Ttx::Concept::Abstract {
     return arena;
   }
 
+  constexpr auto get_environment() -> Environment& { return environment; }
+
   constexpr auto get_environment() const -> const Environment& {
     return environment;
   }
@@ -138,7 +141,7 @@ class Source final : public Ttx::Concept::Abstract {
       Perimortem::Core::View::Bytes,
       Ttx::Concept::Reference<Ttx::Concept::Abstract>>;
 
-  const Environment& environment;
+  Environment& environment;
   Perimortem::Memory::Allocator::Arena arena;
   Perimortem::Core::View::Bytes path;
   Perimortem::Core::View::Bytes text;

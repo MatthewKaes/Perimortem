@@ -511,7 +511,7 @@ The core contracts are deliberately narrow:
 | `Signed`        | Terminal signed integer domain                                   |
 | `Real`          | Terminal floating-point domain                                   |
 | `Flag`          | Terminal two-value logical domain                                |
-| `Generic`       | instruction that creates or finds a concrete Type from arguments |
+| `Generic`       | immutable formula that can construct a concrete Type              |
 | `Expression`    | one value with result Type, input Layout, and fitting queries     |
 | `Constant`      | immutable zero-input Expression with value equality              |
 | `Projection`    | Expression selecting an Addressable through a receiver           |
@@ -537,7 +537,8 @@ Callable::get_results()        -> const Concept::Layout&
 Addressable::get_type()        -> const Abstract&
 Writable::get_read_only()      -> const Addressable&
 Generic::get_parameterization() -> View::Vector<Parameters>
-Generic::find(arguments)        -> Option<Type&>
+Generic::Materializations::materialize(generic, arguments)
+                                -> Option<const Type&>
 Expression::get_type()         -> const Abstract&
 Expression::get_inputs()       -> const Concept::Layout&
 Expression::fits(type)         -> Bool
@@ -708,29 +709,35 @@ operators. Numeric size arguments, such as the `4` in
 
 Parameterized types are not templates and do not generate code by themselves.
 Resolution first builds the arguments, proves that the resolved object
-implements `Generic`, then asks it for a concrete Type. `View[Unsigned_8]`,
-`Fixed[Real_32, 4]`, and `List[Graphics::Sprite]` are all the same operation. The
-compiler owns the resulting concrete object and makes it queryable through the
-same Type contract as any authored type.
+implements `Generic`, then asks the active Materializations writer for a
+concrete Type. `View[Unsigned_8]`, `Fixed[Real_32, 4]`, and
+`List[Graphics::Sprite]` are all the same operation. The graph-construction
+transaction owns the resulting concrete object and makes it queryable through
+the same Type contract as any authored type.
 
-Each Generic is a named formula available from the current source context or a
-toolchain's immutable builtin table. `Fixed` owns Fixed materialization and its
-concrete-Type cache. `View` owns the corresponding View rules. There is no
-mutable formula registry and no parser switch on formula names.
+Each Generic is a named immutable formula available from the current source
+context or a toolchain's immutable builtin table. `Fixed` owns Fixed
+construction rules and `View` owns View construction rules. The surrounding
+graph transaction owns one append-only Materializations collection for every
+formula it can resolve. There is no mutable formula registry and no parser
+switch on formula names.
 
 The formula publishes its complete ordered parameter signature up front. Each
 parameter is `Type`, `Unsigned_64`, `Signed_64`, or `Bool`. The parser uses that
 signature to consume and diagnose the authored list in one pass, then supplies
 a compact ordered `Union<const Type&, Unsigned_64, Signed_64, Bool>` view to
-`find()`. The union is a non-semantic call carrier: Type arguments preserve
+`materialize()`. The union is a non-semantic call carrier: Type arguments preserve
 resolved object identity, while scalar arguments are direct compile-time
-values. Unrelated Types with the same local name remain distinct. Names,
-routes, parents, and hashes do not participate in the cache key.
+values. Unrelated Types with the same local name remain distinct. Formula
+identity and ordered arguments form the complete materialization key. Names,
+routes, parents, and hashes do not participate in it.
 
 Malformed source or rejected values produce a parser diagnostic and
-`Utility::None`; parse failure is not an Abstract graph identity. A successful
-formula returns its cache-owned Type. A formula may publish a class-specific
-materialized contract such as `View::Type`, allowing consumers to query
+`Utility::None`; parse failure is not an Abstract graph identity. Rejection
+appends nothing, so a later progressive pass can retry the same key. A
+successful writer returns its transaction-owned Type and never remaps an
+earlier identity. A formula may publish a class-specific materialized contract
+such as `View::Type`, allowing consumers to query
 `is<View::Type>()` without treating the `View` generator as a Type.
 
 Aliases are closed compile-time Abstract redirects. Alias preserves its local

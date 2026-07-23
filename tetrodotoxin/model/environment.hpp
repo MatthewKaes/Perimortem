@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include "perimortem/core/static/vector.hpp"
+
 #include "perimortem/memory/allocator/arena.hpp"
 #include "perimortem/memory/managed/map.hpp"
 #include "perimortem/memory/managed/vector.hpp"
@@ -23,21 +25,23 @@ namespace Tetrodotoxin::Model {
 // lookup can therefore bind a local Alias without searching a repository or
 // rediscovering a transitive package graph.
 //
-// The Environment owns every injected Alias and the common Generic formulas
-// shared by the transaction. Their materializations therefore have one address
-// across every member Source without relying on process-static storage. Package
+// The Environment owns every injected Alias, the common Generic formulas, and
+// the append-only materializations shared by the transaction. Materialized
+// Types therefore have one address across every member Source without relying
+// on process-static storage. A closed compile-time name table selects the
+// immutable formula objects while imported and host bindings remain in the
+// separate dynamic map. Package
 // resolutions additionally retain their exact external identity and
-// deduplicated Package edge. Direct bindings let a container expose
-// already-built local or host objects without pretending that a Source imported
-// them. The Environment and its Sources remain on one worker for the complete
+// deduplicated Package edge. Direct bindings let a container expose already-
+// built local or host objects without pretending that a Source imported them.
+// The Environment and its Sources remain on one worker for the complete
 // transaction because the shared arena is backed by worker-local Bibliotheca
 // storage.
 class Environment {
  public:
   Environment()
-      : view(arena),
-        access(arena),
-        fixed(arena),
+      : materializations(arena),
+        generic_formulas({access, fixed, view}),
         resolutions(arena),
         dependencies(arena),
         packages(arena),
@@ -60,6 +64,11 @@ class Environment {
 
   auto resolve_context(Perimortem::Core::View::Bytes route) const
       -> const Ttx::Concept::Abstract&;
+
+  constexpr auto get_materializations()
+      -> Ttx::Model::Types::Generic::Materializations& {
+    return materializations;
+  }
 
   constexpr auto get_resolutions() const -> Perimortem::Core::View::Vector<
       Ttx::Concept::Reference<Dependencies::Package>> {
@@ -105,11 +114,16 @@ class Environment {
   using Bindings = Perimortem::Memory::Managed::Map<
       Perimortem::Core::View::Bytes,
       Ttx::Concept::Reference<Ttx::Model::Alias>>;
+  using Formula = Ttx::Concept::Reference<Ttx::Concept::Abstract>;
+  using Formulas = Perimortem::Core::Static::Vector<Formula, 3>;
 
   Perimortem::Memory::Allocator::Arena arena;
   Ttx::Model::Types::Generics::View view;
   Ttx::Model::Types::Generics::Access access;
   Ttx::Model::Types::Generics::Fixed fixed;
+  Ttx::Model::Types::Generic::Materializations materializations;
+  // Slot order is Access, Fixed, View and matches the closed lookup table.
+  Formulas generic_formulas;
   Perimortem::Memory::Managed::Vector<
       Ttx::Concept::Reference<Dependencies::Package>>
       resolutions;

@@ -99,10 +99,10 @@ leak through it.
 
 ## Library and common Body
 
-The shared Environment owns the common `View`, `Access`, and `Fixed` formulas
-and caches their materialized Types by exact parameter identity. Every member
-Source therefore observes the same materialized address during one
-interpretation transaction.
+The shared Environment owns the common immutable `View`, `Access`, and `Fixed`
+formulas plus one append-only Materializations writer keyed by formula and exact
+parameter identity. Every member Source therefore observes the same
+materialized address during one interpretation transaction.
 
 Library constructs the real Types used by the vertical:
 
@@ -333,7 +333,7 @@ There is no central extension registry.
 
 Reader decodes and bounds every section before construction, creates final
 nonmoving owner identities where self/member edges require them, reconstructs
-Generic Types through the real materialization cache, validates Layouts,
+Generic Types through the real materialization writer, validates Layouts,
 Bodies, Dialect facts, dependency/Namespace legality, products, and terminals,
 then publishes one `Packages::Precompiled`. Corruption returns `Invalid`; no
 partial Package, dangling buffer, null semantic edge, or Source capability

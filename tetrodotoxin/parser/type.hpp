@@ -8,6 +8,7 @@
 #include "ttx/concept/abstract.hpp"
 #include "ttx/lexical/cursor.hpp"
 #include "ttx/model/type.hpp"
+#include "ttx/model/types/generics.hpp"
 
 namespace Tetrodotoxin::Parser {
 
@@ -20,7 +21,8 @@ class Type {
  public:
   static auto parse(
       Ttx::Lexical::Cursor& cursor,
-      const Ttx::Concept::Abstract& context)
+      const Ttx::Concept::Abstract& context,
+      Ttx::Model::Types::Generic::Materializations& materializations)
       -> Perimortem::Utility::Option<const Ttx::Model::Type&>;
 };
 

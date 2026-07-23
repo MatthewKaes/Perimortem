@@ -290,7 +290,8 @@ Callable::get_results()        -> const Concept::Layout&
 Addressable::get_type()        -> const Abstract&
 Writable::get_read_only()      -> const Addressable&
 Generic::get_parameterization() -> View::Vector<Parameters>
-Generic::find(arguments)        -> Option<Type&>
+Generic::Materializations::materialize(generic, arguments)
+                                -> Option<const Type&>
 Expression::get_type()         -> const Abstract&
 Expression::get_inputs()       -> const Concept::Layout&
 Expression::fits(type)         -> Bool
@@ -1177,30 +1178,35 @@ part of the type query and are checked while proving that query.
 
 Parameterization is Generic dispatch over resolved arguments. A type reference
 such as `View[Unsigned_8]` resolves `View`, proves that it implements `Generic`,
-resolves `[Unsigned_8]`, and asks the Generic to find the concrete Type. An
-Abstract that is not Generic fails at that exact parser step. The parser
-validates the declared argument kinds and proves the returned Type contract.
-Generic is not a placeholder Type and does not have a Layout of its own.
+resolves `[Unsigned_8]`, and asks the active Materializations writer for the
+concrete Type. An Abstract that is not Generic fails at that exact parser step.
+The parser validates the declared argument kinds and proves the returned Type
+contract. Generic is not a placeholder Type and does not have a Layout of its
+own.
 
 Each named Generic is a formula such as `Fixed`, `View`, or `Dict`. The current
 source context owns formula lookup; a toolchain may also expose a closed
 immutable builtin table. The Generic object owns its ordered parameter
-signature, materialization rule, and concrete-Type cache. TTX does not define a
-mutable Generic registry or switch on formula names.
+signature and materialization rule. The graph-construction transaction owns
+one append-only `Generic::Materializations` collection. TTX does not define a
+mutable Generic registry or switch on formula names. The source context keeps
+each resolved formula and every referenced Type argument alive while a retained
+materialization can be queried.
 
 `get_parameterization()` returns the complete ordered signature before any
 argument is consumed. Every entry is `Type`, `Unsigned_64`, `Signed_64`, or
 `Bool`. The parser validates the authored tokens against that signature and
-supplies `find()` a borrowed ordered view of
+supplies `materialize()` a borrowed ordered view of
 `Union<const Type&, Unsigned_64, Signed_64, Bool>`. This union is a compact call
 carrier, not an Abstract or a second semantic graph. A Type alternative
 preserves the resolved semantic identity as a const reference. Numeric and
 boolean alternatives are direct compile-time values.
 
-The formula compares Type arguments by resolved identity and scalar arguments
-by value. Unrelated Types with the same local name remain distinct. The ordered
-argument view is the complete formula-local cache key; it never includes a
-parent pointer, authored route, formatted Type name, or hash.
+Materializations compares formula and Type arguments by resolved identity and
+scalar arguments by value. Unrelated Types with the same local name remain
+distinct. Formula identity plus the ordered argument view is the complete key;
+it never includes a parent pointer, authored route, formatted Type name, or
+hash.
 
 Missing formula lookup returns Invalid at the owning Abstract context. Once
 parsing begins, a wrong contract, malformed list, rejected argument shape, or
@@ -1208,16 +1214,19 @@ rejected value produces a source diagnostic and `Utility::None`; parse failure
 is not inserted into the Abstract graph. The parser can therefore recover at a
 statement or scope sequence point without manufacturing an Invalid Type.
 
-The concrete Type returned by parameterization is compiler-owned. Its stable
-handle is used for local equivalence, member lookup, nested Type lookup,
-Callable lookup, and Layout queries. A host that exports it derives a durable
-name by walking a selected named ownership chain. The compact argument view is
-an input to construction, not another semantic model. The source owner
-retains the authored route for diagnostics. A materialized Type may add a
-formula-specific contract such as `View::Type`, allowing consumers to ask
-`is<View::Type>()` without treating the `View` generator as a Type. A
-publication owner selects and renders a public ownership chain independently of
-local cache identity.
+The concrete Type returned by parameterization is owned by the active graph-
+construction transaction. Existing keys return the same address. A new valid
+key appends one materialization, while rejection appends nothing and cannot
+poison a later progressive pass. Earlier identities are never deleted or
+remapped. Their stable handles support local equivalence, member lookup, nested
+Type lookup, Callable lookup, and Layout queries. A host that exports one
+derives a durable name by walking a selected named ownership chain. The compact
+argument view is an input to construction, not another semantic model. The
+source owner retains the authored route for diagnostics. A materialized Type
+may add a formula-specific contract such as `View::Type`, allowing consumers to
+ask `is<View::Type>()` without treating the `View` generator as a Type. A
+publication owner selects and renders a public ownership chain independently
+of local materialization identity.
 
 `alias` creates an Alias Abstract that preserves the authored local name and
 documentation while redirecting to its resolved target. When that target is a

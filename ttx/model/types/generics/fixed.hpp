@@ -19,6 +19,8 @@ namespace Ttx::Model::Types::Generics {
 // the common Ranged Layout instead of allocating one edge per position.
 class Fixed final : public Generic {
  public:
+  static constexpr Perimortem::Core::View::Bytes name = "Fixed"_view;
+
   class Type final : public Ttx::Model::Type {
    public:
     using ContractOwner = Type;
@@ -79,10 +81,8 @@ class Fixed final : public Generic {
     Layouts::Ranged layout;
   };
 
-  Fixed(Perimortem::Memory::Allocator::Arena& arena) : cache(arena) {}
-
   constexpr auto get_name() const -> Perimortem::Core::View::Bytes override {
-    return "Fixed"_view;
+    return name;
   }
 
   constexpr auto get_documentation() const
@@ -100,16 +100,15 @@ class Fixed final : public Generic {
     return parameterization;
   }
 
-  auto find(Perimortem::Core::View::Vector<Argument> arguments) const
-      -> Perimortem::Utility::Option<Ttx::Model::Type&> override;
-
  private:
-  // The Environment owns both the arena and formula, so every member Source
-  // observes one materialized identity for the same element and extent.
-  mutable Perimortem::Memory::Managed::Vector<Type*> cache;
-  inline static constexpr Perimortem::Core::Static::Vector<Parameters, 2>
+  auto create(
+      Perimortem::Core::View::Vector<Argument> arguments,
+      Perimortem::Memory::Allocator::Arena& arena) const
+      -> Perimortem::Utility::Option<const Ttx::Model::Type&> override;
+
+  static constexpr Perimortem::Core::Static::Vector<Parameters, 2>
       parameterization = {{Parameters::Type, Parameters::Signed_64}};
-  inline static constexpr Documentations::Comment documentation{
+  static constexpr Documentations::Comment documentation{
     "Creates a fixed homogeneous range Type."_view,
   };
 };

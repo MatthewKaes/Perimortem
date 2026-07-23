@@ -3,11 +3,42 @@
 
 #include "tetrodotoxin/model/environment.hpp"
 
+#include "perimortem/core/static/vector.hpp"
+
+#include "perimortem/utility/pair.hpp"
+#include "perimortem/utility/table.hpp"
+
 #include "ttx/concept/invalid.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::System;
+using namespace Perimortem::Utility;
 using namespace Ttx::Concept;
+
+class Generics {
+ public:
+  enum class Slot : Unsigned_8 {
+    Access,
+    Fixed,
+    View,
+    Invalid,
+  };
+
+  // The table stores only stable slots. Formula objects remain owned by each
+  // Environment so lookup identity and materialization lifetime share the same
+  // transaction boundary.
+  static constexpr Static::Vector<Pair<View::Bytes, Slot>, 3>
+      generics_to_slots = {{
+        {Ttx::Model::Types::Generics::Access::name, Slot::Access},
+        {Ttx::Model::Types::Generics::Fixed::name, Slot::Fixed},
+        {Ttx::Model::Types::Generics::View::name, Slot::View},
+      }};
+  using Table = Table<Slot, generics_to_slots>;
+};
+
+static_assert(
+    Unsigned_8(Generics::Slot::Invalid) ==
+    Generics::generics_to_slots.get_size());
 
 auto Tetrodotoxin::Model::Environment::resolve(
     const Dialect& root_dialect,
@@ -68,14 +99,10 @@ auto Tetrodotoxin::Model::Environment::bind(
 
 auto Tetrodotoxin::Model::Environment::resolve_context(View::Bytes route) const
     -> const Abstract& {
-  if (route == view.get_name()) {
-    return view;
-  }
-  if (route == access.get_name()) {
-    return access;
-  }
-  if (route == fixed.get_name()) {
-    return fixed;
+  Generics::Slot formula =
+      Generics::Table::find_or_default(route, Generics::Slot::Invalid);
+  if (formula != Generics::Slot::Invalid) {
+    return generic_formulas[Unsigned_8(formula)].get();
   }
 
   const Bindings::Entry* selected = bindings_by_name.find(route);
