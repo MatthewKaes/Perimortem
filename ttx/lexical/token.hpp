@@ -25,6 +25,8 @@ class Token {
       Code code)
       : offset(offset), line(line), column(column), size(size), code(code) {}
 
+  constexpr operator bool() const { return bool(is_valid()); }
+
   constexpr auto caculate_text(Perimortem::Core::View::Bytes source) const
       -> Perimortem::Core::View::Bytes {
     return source.slice(get_offset(), get_size());

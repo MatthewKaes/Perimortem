@@ -6,6 +6,7 @@
 #include "perimortem/core/view/bytes.hpp"
 #include "perimortem/core/view/vector.hpp"
 #include "perimortem/core/static/vector.hpp"
+#include "perimortem/core/writer/textual.hpp"
 
 #include "perimortem/memory/allocator/arena.hpp"
 
@@ -50,7 +51,13 @@ class Cursor {
       Lexical::Code::Type type,
       Perimortem::Core::View::Bytes message) -> Lexical::Token {
     if (!matches(type)) {
-      create_token_error(message);
+      Lexical::Code code(type);
+      Perimortem::Core::Static::Bytes<128> hint_buffer;
+      Perimortem::Core::Writer::Textual hint_message(hint_buffer);
+      hint_message << "Expected lexical token "_view
+                   << current().get_code().get_semantics() << " but got "_view
+                   << code.get_semantics() << "."_view;
+      create_token_error(message, hint_message);
       return Lexical::Token();
     }
 
