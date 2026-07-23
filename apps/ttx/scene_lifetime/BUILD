@@ -4,19 +4,14 @@ package(default_visibility = ["//visibility:public"])
 
 filegroup(
     name = "sources",
-    srcs = glob(["*.ttx"]),
+    srcs = [
+        "main.ttx",
+        "package.ttx",
+        "resources/logo.png",
+        "scenes/splash.ttx",
+        "scenes/title.ttx",
+    ],
 )
 
-# The Scene evaluator and runtime are not implemented yet. Keep the intended
-# application target visible without pretending that the current App runtime
-# can execute this package.
-#
-# ttx_application(
-#     name = "scene_demo",
-#     srcs = glob(["**/*.ttx"]),
-#     package = "package.ttx",
-#     resources = [
-#         "//:.data/icon.png",
-#         "//:.data/logo.png",
-#     ],
-# )
+# The Scene evaluator and runtime are not implemented yet. This target exposes
+# the complete authored pressure fixture without claiming executable behavior.

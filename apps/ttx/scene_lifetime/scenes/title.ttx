@@ -11,13 +11,14 @@ signal shift_pressed;
 state title_card : Graphics::Sprite = new;
 
 Scene prepare[self] -> Void {
+  state image := Graphics::Image -> decode($[resources/logo.png]);
   self.title_card = (
-    .image = Graphics::Image -> decode($[resources/logo.png]),
-    .size_pixels = self.title_image -> get_size_pixels(),
+    .image = image,
+    .size_pixels = image -> get_size_pixels(),
     .position = (.x = 200, .y = 250),
     .tone = (.r = 1.0, .g = 1.0, .b = 1.0, .a = 1.0),
   );
-  return;
+  return Void;
 }
 
 Scene update[self, .frame : Runtime::Frame] -> Scene::Flow {
@@ -33,5 +34,5 @@ Scene update[self, .frame : Runtime::Frame] -> Scene::Flow {
 }
 
 Scene release[self] -> Void {
-  return;
+  return Void;
 }

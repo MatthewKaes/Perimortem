@@ -65,9 +65,14 @@ cc_binary(
         "unit_tests/tetrodotoxin/**/*.cpp",
     ]) + ["unit_test.cpp"],
     copts = ["-Wreturn-type-c-linkage"],
-    data = glob([
-        "data/**/*.ttx",
-    ]),
+    data = glob(
+        ["data/**/*.ttx"],
+        exclude = ["data/ttx/shader_artifact/**"],
+    ) + [
+        "data/ttx/package_resources/resources/empty.bin",
+        "data/ttx/package_resources/resources/table.bin",
+        "//apps/ttx/scene_lifetime:sources",
+    ],
     includes = ["."],
     deps = [
         ":test_headers",

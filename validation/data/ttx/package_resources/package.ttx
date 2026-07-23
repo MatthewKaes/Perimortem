@@ -1,0 +1,4 @@
+dialect : Package;
+
+source "shared_a.ttx";
+source "shared_b.ttx";
