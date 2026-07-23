@@ -663,6 +663,11 @@ auto Tetrodotoxin::Archiver::Reader::read_package(
         return Invalid::get_invalid();
       }
     }
+
+    Bool sealed = namespace_object.seal();
+    if (!sealed) {
+      return Invalid::get_invalid();
+    }
   }
 
   auto& root_documentation_object =
@@ -675,6 +680,11 @@ auto Tetrodotoxin::Archiver::Reader::read_package(
     if (!published) {
       return Invalid::get_invalid();
     }
+  }
+
+  Bool root_sealed = root.seal();
+  if (!root_sealed) {
+    return Invalid::get_invalid();
   }
 
   Managed::Vector<Reference<Abstract>> definitions(arena);

@@ -21,6 +21,11 @@ auto Tetrodotoxin::Model::Namespace::construct(
     }
   }
 
+  Bool sealed = result.seal();
+  if (!sealed) {
+    return Invalid::get_invalid();
+  }
+
   return result;
 }
 
@@ -33,7 +38,9 @@ Tetrodotoxin::Model::Namespace::Namespace(
       exports(arena),
       documentation(documentation),
       roots_by_name(arena),
-      exports_by_name(arena) {}
+      exports_by_name(arena),
+      statics_by_name(arena),
+      exported_statics_by_name(arena) {}
 
 auto Tetrodotoxin::Model::Namespace::implements(
     Perimortem::System::Uuid requested) const -> Bool {
@@ -75,11 +82,21 @@ auto Tetrodotoxin::Model::Namespace::get_root(Count index) const
   return roots.at(index).get();
 }
 
-auto Tetrodotoxin::Model::Namespace::add_root(const Abstract& definition)
-    -> Bool {
+auto Tetrodotoxin::Model::Namespace::outer_contains(
+    const Abstract& outer_context,
+    View::Bytes name) const -> Bool {
+  return !outer_context.resolve_context(name).is<Invalid>();
+}
+
+auto Tetrodotoxin::Model::Namespace::add_root(
+    const Abstract& definition,
+    const Abstract& outer_context) -> Bool {
   const View::Bytes definition_name = definition.get_name();
-  if (definition_name.is_empty() ||
-      roots_by_name.find(definition_name) != nullptr) {
+  if (sealed || definition_name.is_empty() ||
+      definition.is<Ttx::Model::Callables::Static>() ||
+      definition.is<Ttx::Model::Callables::Self>() ||
+      roots_by_name.find(definition_name) != nullptr ||
+      outer_contains(outer_context, definition_name)) {
     return False;
   }
 
@@ -88,11 +105,15 @@ auto Tetrodotoxin::Model::Namespace::add_root(const Abstract& definition)
   return True;
 }
 
-auto Tetrodotoxin::Model::Namespace::add_export(const Abstract& definition)
-    -> Bool {
+auto Tetrodotoxin::Model::Namespace::add_export(
+    const Abstract& definition,
+    const Abstract& outer_context) -> Bool {
   const View::Bytes definition_name = definition.get_name();
-  if (definition_name.is_empty() ||
-      exports_by_name.find(definition_name) != nullptr) {
+  if (sealed || definition_name.is_empty() ||
+      definition.is<Ttx::Model::Callables::Static>() ||
+      definition.is<Ttx::Model::Callables::Self>() ||
+      exports_by_name.find(definition_name) != nullptr ||
+      outer_contains(outer_context, definition_name)) {
     return False;
   }
 
@@ -112,6 +133,116 @@ auto Tetrodotoxin::Model::Namespace::add_export(const Abstract& definition)
   return True;
 }
 
+auto Tetrodotoxin::Model::Namespace::add_exposed(
+    const Ttx::Model::Addressables::Writable& definition,
+    const Abstract& outer_context) -> Bool {
+  const Ttx::Model::Addressable& read_only = definition.get_read_only();
+  const Abstract& definition_type = definition.get_type().resolve();
+  const Abstract& read_only_type = read_only.get_type().resolve();
+  const View::Bytes definition_name = definition.get_name();
+  if (sealed || definition_name.is_empty() ||
+      read_only.get_name() != definition_name ||
+      &read_only == static_cast<const Ttx::Model::Addressable*>(&definition) ||
+      read_only.is<Ttx::Model::Addressables::Writable>() ||
+      definition_type.is<Invalid>() || &read_only_type != &definition_type ||
+      exports_by_name.find(definition_name) != nullptr ||
+      outer_contains(outer_context, definition_name)) {
+    return False;
+  }
+
+  const RootIndex::Entry* rooted = roots_by_name.find(definition_name);
+  if (rooted != nullptr && &rooted->value.get() != &definition) {
+    return False;
+  }
+
+  if (rooted == nullptr) {
+    roots_by_name.insert(definition_name, Reference<Abstract>(definition));
+    roots.insert(Reference<Abstract>(definition));
+  }
+
+  exports_by_name.insert(definition_name, Reference<Abstract>(read_only));
+  exports.insert(Reference<Abstract>(read_only));
+  return True;
+}
+
+auto Tetrodotoxin::Model::Namespace::add_static(
+    const Ttx::Model::Callables::Static& callable,
+    const Abstract& outer_context) -> Bool {
+  View::Bytes callable_name = callable.get_name();
+  if (sealed || callable_name.is_empty() ||
+      roots_by_name.find(callable_name) != nullptr ||
+      statics_by_name.find(callable_name) != nullptr ||
+      outer_contains(outer_context, callable_name)) {
+    return False;
+  }
+
+  roots_by_name.insert(callable_name, Reference<Abstract>(callable));
+  statics_by_name.insert(callable_name, Reference<Abstract>(callable));
+  roots.insert(Reference<Abstract>(callable));
+  return True;
+}
+
+auto Tetrodotoxin::Model::Namespace::add_exported_static(
+    const Ttx::Model::Callables::Static& callable,
+    const Abstract& outer_context) -> Bool {
+  View::Bytes callable_name = callable.get_name();
+  if (sealed || callable_name.is_empty() ||
+      exports_by_name.find(callable_name) != nullptr ||
+      exported_statics_by_name.find(callable_name) != nullptr ||
+      outer_contains(outer_context, callable_name)) {
+    return False;
+  }
+
+  const RootIndex::Entry* rooted = roots_by_name.find(callable_name);
+  const RootIndex::Entry* rooted_static = statics_by_name.find(callable_name);
+  if ((rooted == nullptr) != (rooted_static == nullptr) ||
+      (rooted != nullptr && &rooted->value.get() != &callable) ||
+      (rooted_static != nullptr && &rooted_static->value.get() != &callable)) {
+    return False;
+  }
+
+  if (rooted == nullptr) {
+    roots_by_name.insert(callable_name, Reference<Abstract>(callable));
+    statics_by_name.insert(callable_name, Reference<Abstract>(callable));
+    roots.insert(Reference<Abstract>(callable));
+  }
+
+  exports_by_name.insert(callable_name, Reference<Abstract>(callable));
+  exported_statics_by_name.insert(callable_name, Reference<Abstract>(callable));
+  exports.insert(Reference<Abstract>(callable));
+  return True;
+}
+
+auto Tetrodotoxin::Model::Namespace::resolve_root(View::Bytes route) const
+    -> const Abstract& {
+  const RootIndex::Entry* selected = roots_by_name.find(route);
+  if (selected != nullptr) {
+    return selected->value.get();
+  }
+
+  return Invalid::get_invalid();
+}
+
+auto Tetrodotoxin::Model::Namespace::resolve_static(View::Bytes route) const
+    -> const Abstract& {
+  const RootIndex::Entry* selected = statics_by_name.find(route);
+  if (selected != nullptr) {
+    return selected->value.get();
+  }
+
+  return Invalid::get_invalid();
+}
+
+auto Tetrodotoxin::Model::Namespace::resolve_exported_static(
+    View::Bytes route) const -> const Abstract& {
+  const RootIndex::Entry* selected = exported_statics_by_name.find(route);
+  if (selected != nullptr) {
+    return selected->value.get();
+  }
+
+  return Invalid::get_invalid();
+}
+
 auto Tetrodotoxin::Model::Namespace::resolve_context(View::Bytes route) const
     -> const Abstract& {
   // Exports is a closed visibility boundary. Retained roots are intentionally
@@ -123,4 +254,13 @@ auto Tetrodotoxin::Model::Namespace::resolve_context(View::Bytes route) const
   }
 
   return Invalid::get_invalid();
+}
+
+auto Tetrodotoxin::Model::Namespace::seal() -> Bool {
+  if (sealed) {
+    return False;
+  }
+
+  sealed = True;
+  return True;
 }

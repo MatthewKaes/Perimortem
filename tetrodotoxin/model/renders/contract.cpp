@@ -51,7 +51,7 @@ Tetrodotoxin::Model::Renders::Contract::Contract(
   this->values.reset(values.get_size());
   layout_values.reset(values.get_size());
   for (Count i = 0; i < values.get_size(); i++) {
-    Bool added = members.add(values[i].get(), True);
+    Bool added = members.add_export(values[i].get());
     if (!added) {
       valid = False;
       return;
@@ -59,30 +59,37 @@ Tetrodotoxin::Model::Renders::Contract::Contract(
     this->values.insert(values[i]);
     layout_values.insert(Reference<Ttx::Model::Addressable>(values[i].get()));
   }
-  Bool constants_added = members.add(constants, True);
+  Bool constants_added = members.add_export(constants);
   if (!constants_added) {
     valid = False;
     return;
   }
-  Bool pushes_added = members.add(pushes, True);
+  Bool pushes_added = members.add_export(pushes);
   if (!pushes_added) {
     valid = False;
     return;
   }
-  Bool resources_added = members.add(resources, True);
+  Bool resources_added = members.add_export(resources);
   if (!resources_added) {
     valid = False;
     return;
   }
   this->stages.reset(stages.get_size());
   for (Count i = 0; i < stages.get_size(); i++) {
-    Bool added = members.add(stages[i].get(), True);
+    Bool added = members.add_export(stages[i].get());
     if (!added) {
       valid = False;
       return;
     }
     this->stages.insert(stages[i]);
   }
+
+  Bool sealed = members.seal();
+  if (!sealed) {
+    valid = False;
+    return;
+  }
+
   layout = Ttx::Model::Layouts::Structured(layout_values.get_view());
 }
 

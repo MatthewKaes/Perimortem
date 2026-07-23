@@ -7,7 +7,11 @@
 #include "perimortem/memory/managed/map.hpp"
 #include "perimortem/memory/managed/vector.hpp"
 
+#include "ttx/concept/invalid.hpp"
 #include "ttx/concept/reference.hpp"
+#include "ttx/model/addressables/writable.hpp"
+#include "ttx/model/callables/self.hpp"
+#include "ttx/model/callables/static.hpp"
 #include "ttx/model/exports.hpp"
 
 namespace Tetrodotoxin::Model {
@@ -26,6 +30,11 @@ namespace Tetrodotoxin::Model {
 // Namespace rather than leaking their internal context through Exports.
 // Lexical parents and Dependencies are passed during interpretation and never
 // become roots or exports here.
+//
+// Static callables remain ordinary Namespace roots and exports while also
+// participating in the invocation-specific lookup surface selected by arrow
+// syntax. A Namespace cannot own Self callables because it has no runtime
+// receiver.
 //
 // Namespace is not a Type, Layout, Pack, or Scope. A query may walk through it
 // and eventually prove one of those narrower contracts on the selected
@@ -72,20 +81,57 @@ class Namespace final : public Ttx::Model::Exports {
 
   // Retains one produced definition for the current owner transaction. Rooting
   // alone never makes that name visible through the Exports context.
-  auto add_root(const Ttx::Concept::Abstract& definition) -> Bool;
+  auto add_root(
+      const Ttx::Concept::Abstract& definition,
+      const Ttx::Concept::Abstract& outer_context =
+          Ttx::Concept::Invalid::get_invalid()) -> Bool;
 
   // Publishes one edge in authored order. An already rooted name must identify
   // the same edge. Construction from an existing public graph may publish and
   // root the edge in one operation.
-  auto add_export(const Ttx::Concept::Abstract& definition) -> Bool;
+  auto add_export(
+      const Ttx::Concept::Abstract& definition,
+      const Ttx::Concept::Abstract& outer_context =
+          Ttx::Concept::Invalid::get_invalid()) -> Bool;
+
+  // Exposed state remains writable in retained lookup while Exports returns
+  // only the stable read-only projection supplied by that real owner.
+  auto add_exposed(
+      const Ttx::Model::Addressables::Writable& definition,
+      const Ttx::Concept::Abstract& outer_context =
+          Ttx::Concept::Invalid::get_invalid()) -> Bool;
+
+  auto add_static(
+      const Ttx::Model::Callables::Static& callable,
+      const Ttx::Concept::Abstract& outer_context =
+          Ttx::Concept::Invalid::get_invalid()) -> Bool;
+  auto add_exported_static(
+      const Ttx::Model::Callables::Static& callable,
+      const Ttx::Concept::Abstract& outer_context =
+          Ttx::Concept::Invalid::get_invalid()) -> Bool;
+
+  auto resolve_root(Perimortem::Core::View::Bytes route) const
+      -> const Ttx::Concept::Abstract&;
+  auto resolve_static(Perimortem::Core::View::Bytes route) const
+      -> const Ttx::Concept::Abstract&;
+  auto resolve_exported_static(Perimortem::Core::View::Bytes route) const
+      -> const Ttx::Concept::Abstract&;
 
   auto resolve_context(Perimortem::Core::View::Bytes route) const
       -> const Ttx::Concept::Abstract& override;
+
+  // Sealing is the Namespace-owned immutable-consumer barrier. It is a
+  // one-time construction transition and every later append is rejected.
+  auto seal() -> Bool;
 
  private:
   using RootIndex = Perimortem::Memory::Managed::Map<
       Perimortem::Core::View::Bytes,
       Ttx::Concept::Reference<Ttx::Concept::Abstract>>;
+
+  auto outer_contains(
+      const Ttx::Concept::Abstract& outer_context,
+      Perimortem::Core::View::Bytes name) const -> Bool;
 
   Perimortem::Core::View::Bytes name;
   Perimortem::Memory::Managed::Vector<
@@ -97,6 +143,9 @@ class Namespace final : public Ttx::Model::Exports {
   const Ttx::Concept::Documentation& documentation;
   RootIndex roots_by_name;
   RootIndex exports_by_name;
+  RootIndex statics_by_name;
+  RootIndex exported_statics_by_name;
+  Bool sealed = False;
 };
 
 }  // namespace Tetrodotoxin::Model
