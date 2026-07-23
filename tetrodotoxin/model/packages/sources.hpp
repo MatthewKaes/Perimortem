@@ -16,9 +16,12 @@ namespace Tetrodotoxin::Model::Packages {
 // Sources is Tetrodotoxin's concrete Package assembled from an explicit list
 // selected by a package container. Source owns no import graph, so membership
 // cannot be inferred or accidentally multiplied. Every member must borrow the
-// same completed Environment. The Package copies that Environment's distinct
-// Package dependencies and builds a canonical definition table for archive
-// linkage without performing repository or locator searches.
+// same progressive Environment and must be complete and sealed before this
+// Package derives definition IDs. The Package copies that Environment's
+// distinct Package dependencies and builds a canonical definition table for
+// archive linkage without performing repository or locator searches. Once
+// construction succeeds, the transaction performs no further graph mutation
+// until every Compiler and Writer consumer backed by Sources has finished.
 //
 // Interpreted remains the capability, so hosts can provide alternative
 // source backed Package implementations without changing Package consumers.

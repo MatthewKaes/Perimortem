@@ -23,11 +23,13 @@ namespace Ttx::Concept {
 // gets its type system by stacking these contexts instead of consulting one
 // global type authority.
 //
-// Parsing and compiling consequently enrich the same semantic objects instead
-// of constructing parallel path, schema, or compiler-owned representations.
-// Types, aliases, packages, callables, reflection, and foreign-language
-// contracts are Abstracts first. Their useful hierarchy emerges from the
-// virtual contracts they implement.
+// Graph construction consequently enriches the same semantic objects instead
+// of constructing parallel path or schema representations. Compilers, for
+// instance, can consume the finalized graph and derive only products local to
+// their target without needing a second semantic representation. Types,
+// aliases, packages, callables, reflection, and foreign language contracts are
+// Abstracts first. Their useful hierarchy emerges from the virtual contracts
+// they implement.
 //
 // A route is only the borrowed source bytes that remain to be resolved. The
 // queried Abstract owns the grammar, lookup structure, and slicing appropriate
@@ -50,7 +52,7 @@ class Abstract {
   // their base contract. These identifiers describe interfaces only. Object
   // identity and durable names continue to come from the Abstract graph. A
   // native implementation may return true only for public C++ base contracts,
-  // this invariant makes the checked reference conversion well-defined.
+  // this invariant makes the checked reference conversion well defined.
   virtual constexpr auto implements(Perimortem::System::Uuid requested) const
       -> Bool {
     return requested == contract_id;

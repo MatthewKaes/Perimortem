@@ -71,9 +71,9 @@ parse descriptor
 -> locate and load every explicit member Source
 -> let every Source own its bytes, Tokenizer, Arena, and roots
 -> verify every member Dialect envelope
--> complete one Environment for external and local bindings
+-> populate one Environment with exact external bindings
 -> evaluate members in descriptor order
--> bind each completed real product for later members
+-> append each completed real product for later members
 -> evaluate the Package export body
 -> compile reachable Shader programs into terminal products
 -> publish one Packages::Sources
@@ -97,12 +97,26 @@ and resolver own external name and exact Version. Public discovery is the final
 Package `Exports` surface; private Source roots and Environment bindings do not
 leak through it.
 
+The package container transaction is the lifetime and finalization owner. It
+keeps Environment, its formulas and Materializations writer, and every member
+Source alive while consumers of Sources can query them. Construction is open
+while bindings and readiness advance monotonically. Before
+`Packages::Sources` derives definition IDs, the Dialect owners complete every
+reachable Type, signature, and Body, call each concrete mutable surface's
+`seal()` operation, and validate the graph. No Compiler or Writer observes the
+graph before that barrier, and no graph mutation occurs afterward. Consumers
+finish, materialization queries stop, member Sources are destroyed, and
+Environment is destroyed last.
+
 ## Library and common Body
 
 The shared Environment owns the common immutable `View`, `Access`, and `Fixed`
 formulas plus one append-only Materializations writer keyed by formula and exact
 parameter identity. Every member Source therefore observes the same
-materialized address during one interpretation transaction.
+materialized address during one interpretation transaction. Type parameters
+and returned Types must already resolve canonically to themselves. `None`, an
+incomplete result, and same key reentrancy publish no key and remain retryable.
+The first successful key is irrevocable in that writer.
 
 Library constructs the real Types used by the vertical:
 
@@ -338,6 +352,13 @@ Bodies, Dialect facts, dependency/Namespace legality, products, and terminals,
 then publishes one `Packages::Precompiled`. Corruption returns `Invalid`; no
 partial Package, dangling buffer, null semantic edge, or Source capability
 escapes.
+
+Prototype format 1 durably supports only the existing `View::Type`,
+`Access::Type`, and `Fixed::Type` result contracts and their ordered arguments.
+Writer rejects another Generic result before publication. Supporting an
+arbitrary formula would require an authored common provenance and formula
+schema. Neither Materializations buckets nor a universal registry substitutes
+for that contract.
 
 Repository owns registered archive bytes and recursively restores exact
 dependencies. The acceptance run archives Math, Runtime, Graphics, and Demo,

@@ -17,7 +17,7 @@
 
 namespace Ttx::Model::Types {
 
-// Generic is the Types model's Abstract contract for a named compile-time
+// Generic is the Types model's Abstract contract for a named compile time
 // formula. It generates Types but is not itself a Type. The formula declares
 // its complete ordered signature so the parser can validate arguments and own
 // diagnostics before asking it for one stable materialized Type identity.
@@ -35,12 +35,15 @@ class Generic : public Concept::Abstract {
   using Argument = Perimortem::Core::Static::
       Union<const Ttx::Model::Type&, ::Unsigned_64, ::Signed_64, ::Bool>;
 
-  // Materializations is the append-only writer for concrete Types generated
-  // during one graph-construction transaction. Formula objects remain
+  // Materializations is the append only writer for concrete Types generated
+  // during one graph construction transaction. Formula objects remain
   // immutable rules. The writer owns the resulting identities and retains the
-  // complete formula-and-argument key needed by progressive passes. Resolved
-  // formulas and Type arguments must outlive every retained materialization
-  // that refers to them.
+  // complete formula and argument key needed by progressive passes.
+  //
+  // Type arguments and created Types must already resolve canonically to
+  // themselves before the key can be published. Resolved formulas and Type
+  // arguments must outlive the writer's last query for every retained
+  // materialization that refers to them.
   class Materializations {
    public:
     Materializations(Perimortem::Memory::Allocator::Arena& arena)
@@ -83,9 +86,23 @@ class Generic : public Concept::Abstract {
       Perimortem::Core::View::Vector<Argument> arguments;
     };
 
+    // Active is transient call stack state. It rejects direct reentrancy and
+    // longer same key cycles without publishing a failure key or introducing
+    // a durable construction epoch into the semantic graph.
+    class Active {
+     public:
+      constexpr Active(const Key& key, Active* previous)
+          : key(key), previous(previous) {}
+
+      Key key;
+      Active* previous;
+      Bool reentered = False;
+    };
+
     Perimortem::Memory::Allocator::Arena& arena;
     Perimortem::Memory::Managed::Map<Key, Concept::Reference<Ttx::Model::Type>>
         entries;
+    Active* active = nullptr;
   };
 
   using ContractOwner = Generic;
@@ -104,8 +121,10 @@ class Generic : public Concept::Abstract {
 
  protected:
   // None means the supplied values do not satisfy this formula. Construction
-  // occurs only after Materializations has missed the complete identity key.
-  // The parser retains the source tokens and owns the resulting diagnostic.
+  // occurs only after Materializations has validated the complete resolved
+  // identity key and missed an existing result. Returning an incomplete or
+  // redirected Type is rejection. The parser retains the source tokens and
+  // owns the resulting diagnostic.
   virtual auto create(
       Perimortem::Core::View::Vector<Argument> arguments,
       Perimortem::Memory::Allocator::Arena& arena) const

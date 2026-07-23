@@ -674,6 +674,15 @@ that dialect. A host may enrich the reserved object, replace an enclosing
 context, or build an immutable snapshot. Abstract, Type, Layout, and Callable
 prescribe none of those mutation, snapshot, or pass-management policies.
 
+A host that publishes a Package completes its reserved owners, invokes each
+mutable lookup surface's own `seal()` operation, validates every signature and
+Body, and then derives definition IDs. Compiler and archive consumers start
+only after this barrier. Sealing is not a universal Abstract state or registry.
+It remains an invariant of each concrete graph owner. Failure may leave
+unreachable arena allocation and earlier successful append only facts in the
+private transaction, but it publishes no completed Source, Package,
+Precompiled result, or terminal.
+
 Abstract determinism applies while the DAG is unchanged. The owner that changes
 or replaces the DAG also owns reference lifetime, cache invalidation, and any
 revision used by its readers. Process addresses can be local identity while
@@ -720,25 +729,32 @@ context or a toolchain's immutable builtin table. `Fixed` owns Fixed
 construction rules and `View` owns View construction rules. The surrounding
 graph transaction owns one append-only Materializations collection for every
 formula it can resolve. There is no mutable formula registry and no parser
-switch on formula names.
+switch on formula names. Referenced graph readiness may advance, but formula
+identity, parameterization, and construction rules do not. A formula rejects a
+key until every referenced fact that could change success is ready.
 
 The formula publishes its complete ordered parameter signature up front. Each
 parameter is `Type`, `Unsigned_64`, `Signed_64`, or `Bool`. The parser uses that
 signature to consume and diagnose the authored list in one pass, then supplies
 a compact ordered `Union<const Type&, Unsigned_64, Signed_64, Bool>` view to
-`materialize()`. The union is a non-semantic call carrier: Type arguments preserve
-resolved object identity, while scalar arguments are direct compile-time
-values. Unrelated Types with the same local name remain distinct. Formula
-identity and ordered arguments form the complete materialization key. Names,
-routes, parents, and hashes do not participate in it.
+`materialize()`. The union is only a call carrier. Type arguments must already
+resolve canonically to themselves and expose total Layouts, while
+scalar arguments are direct compile time values. Unrelated Types with the same
+local name remain distinct. Formula identity and ordered arguments form the
+complete materialization key. Names, routes, parents, and hashes do not
+participate in it.
 
 Malformed source or rejected values produce a parser diagnostic and
 `Utility::None`; parse failure is not an Abstract graph identity. Rejection
 appends nothing, so a later progressive pass can retry the same key. A
-successful writer returns its transaction-owned Type and never remaps an
-earlier identity. A formula may publish a class-specific materialized contract
-such as `View::Type`, allowing consumers to query
-`is<View::Type>()` without treating the `View` generator as a Type.
+successful result must also resolve canonically to itself. The first success is
+irrevocable inside that writer and never remaps an earlier identity. Same key
+reentrancy, including a longer cycle back to an active key, returns `None` and
+publishes no key. The writer retains copied scalar arguments and borrowed
+formula and Type identities. Their owners outlive its last query. A formula may
+publish a concrete materialized contract such as `View::Type`, allowing
+consumers to query `is<View::Type>()` without treating the `View` generator as
+a Type.
 
 Aliases are closed compile-time Abstract redirects. Alias preserves its local
 name while `resolve()` follows the target's represented identity and

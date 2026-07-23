@@ -788,6 +788,20 @@ and Callable prescribe none of those policies. They prescribe only that real
 query results are references and failed or premature queries resolve to
 Invalid.
 
+Construction that will publish a Package is narrower. Its graph owner may
+advance readiness monotonically while the transaction is open, but a successful
+fact is never reinterpreted, deleted, or remapped. The owner completes each
+reserved object, seals each retained and exported lookup surface with that
+surface's own operation, validates every signature and Body, and only then
+derives Package definition IDs. Compiler, Writer, and another immutable
+consumer begin after that barrier. TTX does not add a universal seal, epoch, or
+publication bit to Abstract. The concrete mutable owners enforce the barrier.
+
+A failed attempt may leave unreachable arena allocation and earlier valid
+append only facts inside the still private transaction. It publishes no
+completed Source, Package, Precompiled result, or terminal. Physical arena
+rollback is not a semantic requirement.
+
 The Abstract determinism rule is scoped to an unchanged DAG. The owner that
 changes or replaces a DAG also owns reference lifetime, cache invalidation, and
 any revision or epoch used by its readers. Process addresses may be local
@@ -1191,22 +1205,31 @@ signature and materialization rule. The graph-construction transaction owns
 one append-only `Generic::Materializations` collection. TTX does not define a
 mutable Generic registry or switch on formula names. The source context keeps
 each resolved formula and every referenced Type argument alive while a retained
-materialization can be queried.
+materialization can be queried. Formula identity, parameterization, and the
+construction rule are immutable. A rule may inspect referenced graph facts
+whose readiness advances monotonically, but it must return `None` until every
+fact that could change a successful result is ready.
 
 `get_parameterization()` returns the complete ordered signature before any
 argument is consumed. Every entry is `Type`, `Unsigned_64`, `Signed_64`, or
 `Bool`. The parser validates the authored tokens against that signature and
 supplies `materialize()` a borrowed ordered view of
 `Union<const Type&, Unsigned_64, Signed_64, Bool>`. This union is a compact call
-carrier, not an Abstract or a second semantic graph. A Type alternative
-preserves the resolved semantic identity as a const reference. Numeric and
-boolean alternatives are direct compile-time values.
+carrier, not an Abstract or a second semantic graph. A Type alternative must
+already resolve canonically to itself and supply its total Layout. A reserved
+identity that still resolves to Invalid and a Type that redirects elsewhere are
+both rejected without publishing a key. Numeric and boolean alternatives are
+direct compile time values.
 
 Materializations compares formula and Type arguments by resolved identity and
 scalar arguments by value. Unrelated Types with the same local name remain
 distinct. Formula identity plus the ordered argument view is the complete key;
 it never includes a parent pointer, authored route, formatted Type name, or
-hash.
+hash. The writer copies the compact arguments that form a successful key, but
+borrows every formula and Type identity. The construction transaction keeps
+those owners alive through the writer's last query. Consumers backed by Sources
+finish before member Sources are destroyed. The Environment that owns the
+writer is destroyed last and performs no query during destruction.
 
 Missing formula lookup returns Invalid at the owning Abstract context. Once
 parsing begins, a wrong contract, malformed list, rejected argument shape, or
@@ -1215,11 +1238,14 @@ is not inserted into the Abstract graph. The parser can therefore recover at a
 statement or scope sequence point without manufacturing an Invalid Type.
 
 The concrete Type returned by parameterization is owned by the active graph-
-construction transaction. Existing keys return the same address. A new valid
-key appends one materialization, while rejection appends nothing and cannot
-poison a later progressive pass. Earlier identities are never deleted or
-remapped. Their stable handles support local equivalence, member lookup, nested
-Type lookup, Callable lookup, and Layout queries. A host that exports one
+construction transaction. It must also resolve canonically to itself before
+the key is published. Existing keys return the same address. A new valid key
+appends one materialization, while `None`, an incomplete result, or same key
+reentrancy appends nothing and cannot poison a later progressive pass. Direct
+reentrancy and longer cycles through an active key return `None` without
+invoking that formula again. Earlier identities are never deleted or remapped.
+Their stable handles support local equivalence, member lookup, nested Type
+lookup, Callable lookup, and Layout queries. A host that exports one
 derives a durable name by walking a selected named ownership chain. The compact
 argument view is an input to construction, not another semantic model. The
 source owner retains the authored route for diagnostics. A materialized Type
@@ -2623,8 +2649,8 @@ When changing TTX, preserve these invariants:
 4. Assignment remains a statement, not an expression.
 5. Parentheses always mean pack.
 6. Function parameters, function returns, and `for` bindings all use layouts.
-7. Type parameterization proves the Generic contract over resolved arguments
-   and returns a concrete compiler-owned Type.
+7. Type parameterization proves the Generic contract over completed canonical
+   arguments and returns a concrete Type owned by the graph transaction.
 8. Named packs start with `.field`. Named layouts start with `.field` or
    attributes followed by `.field`.
 9. Named and positional aggregate fields do not mix.

@@ -22,7 +22,11 @@ namespace Tetrodotoxin::Model {
 // rooted result preserves the instruction needed to regenerate equivalent
 // source without retaining incidental whitespace. Every external name comes
 // from the borrowed Environment. Environment construction is progressive and
-// append-only across every Source in the same transaction.
+// append only across every Source in the same transaction.
+//
+// A package container keeps that Environment alive and stops all
+// materialization queries and all consumers backed by Sources before destroying
+// member Sources.
 //
 // The Source itself is a durable, anonymous Abstract root. A resolver or cache
 // associates an external name with it. Snippets and anonymous blobs use the
@@ -91,10 +95,14 @@ class Source final : public Ttx::Concept::Abstract {
   // the complete transaction so a caller cannot pair its graph with objects
   // allocated by another source stream. Dialects only produce facts. They
   // never root an internal substitute into their caller.
+  //
+  // Package publication additionally requires the Dialect owner to complete and
+  // seal every reachable mutable surface before definition IDs or immutable
+  // consumers exist. `evaluate()` alone is not that finalization barrier.
   auto evaluate(const Dialect& dialect, Ttx::Lexical::Errors& errors)
       -> const Ttx::Concept::Abstract&;
 
-  // Envelope and package-container owners can begin Dialect evaluation at the
+  // Envelope and package container owners can begin Dialect evaluation at the
   // first body token they parsed from this exact source stream. Source still
   // constructs the Cursor itself, preserving the invariant that every result
   // retained here was allocated by this Source's arena and tokenizer.
@@ -132,7 +140,7 @@ class Source final : public Ttx::Concept::Abstract {
  private:
   // Publication is the commit point of Source evaluation. Keeping it private
   // prevents callers from injecting an arbitrary Abstract or inventing a
-  // Dialect association outside the Source-owned Cursor transaction.
+  // Dialect association outside the Cursor transaction owned by the Source.
   auto add_root(
       const Ttx::Concept::Abstract& definition,
       const Dialect& dialect) -> Bool;

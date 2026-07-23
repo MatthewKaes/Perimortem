@@ -26,17 +26,26 @@ namespace Tetrodotoxin::Model {
 // rediscovering a transitive package graph.
 //
 // The Environment owns every injected Alias, the common Generic formulas, and
-// the append-only materializations shared by the transaction. Materialized
+// the append only materializations shared by the transaction. Materialized
 // Types therefore have one address across every member Source without relying
-// on process-static storage. A closed compile-time name table selects the
+// on process static storage. A closed compile time name table selects the
 // immutable formula objects while imported and host bindings remain in the
-// separate dynamic map. Package
-// resolutions additionally retain their exact external identity and
-// deduplicated Package edge. Direct bindings let a container expose already-
+// separate dynamic map.
+//
+// Package resolutions additionally retain their exact external identity and
+// deduplicated Package edge. Direct bindings let a container expose already
 // built local or host objects without pretending that a Source imported them.
 // The Environment and its Sources remain on one worker for the complete
-// transaction because the shared arena is backed by worker-local Bibliotheca
+// transaction because the shared arena is backed by worker local Bibliotheca
 // storage.
+//
+// The package container transaction keeps Environment alive while all member
+// Sources exist. Package, Writer, and Compiler queries backed by Sources finish
+// first. Materialization queries then must stop. At that point member Sources
+// may be destroyed with the Environment being the last root. This order keeps
+// every retained formula and every Type argument owned by a Source alive
+// through the writer's last query while letting the Environment delegate arena
+// ownership to individual Sources.
 class Environment {
  public:
   Environment()
