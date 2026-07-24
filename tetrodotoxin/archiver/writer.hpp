@@ -9,20 +9,21 @@
 #include "perimortem/memory/allocator/arena.hpp"
 
 #include "tetrodotoxin/archiver/manifest.hpp"
-#include "tetrodotoxin/model/package/resolved.hpp"
-#include "tetrodotoxin/model/terminal.hpp"
+#include "tetrodotoxin/model/environment/workspace.hpp"
+#include "tetrodotoxin/model/package/terminal.hpp"
 
 namespace Tetrodotoxin::Archiver {
 
-// Traverses one completed current-model Package and its opaque terminal
-// products into one immutable arena-owned Puffer Buffer.
+// Walks a package and encodes it's data along with any required terminals in
+// a stable format which can be loaded into a workspace that satisfies it's
+// constraints stored in it's manifest.
 class Writer {
  public:
   static auto write(
       Perimortem::Memory::Allocator::Arena& arena,
       const Manifest& manifest,
-      const Model::Package::Resolved& package,
-      Perimortem::Core::View::Vector<Model::Terminal> terminals)
+      const Model::Package::Source& package,
+      Perimortem::Core::View::Vector<Model::Package::Terminal> terminals)
       -> Perimortem::Core::View::Bytes;
 };
 

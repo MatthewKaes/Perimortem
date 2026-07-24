@@ -91,9 +91,9 @@ cc_library(
     ]),
     includes = ["."],
     deps = [
+        ":model",
         "//perimortem",
         "//ttx",
-        ":model",
     ],
 )
 
