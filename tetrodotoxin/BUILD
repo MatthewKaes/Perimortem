@@ -7,9 +7,9 @@ load("@rules_cc//cc:cc_library.bzl", "cc_library")
 package(default_visibility = ["//visibility:public"])
 
 cc_library(
-    name = "concept",
+    name = "language",
     hdrs = glob([
-        "concept/**/*.hpp",
+        "ttx/**/*.hpp",
     ]),
     includes = ["."],
     deps = [

@@ -28,7 +28,7 @@ class Bytes : public Constant {
     return requested == contract_id || Constant::implements(requested);
   }
 
-  constexpr auto equals(const Constant& rhs) const -> Bool final {
+  constexpr auto equals(const Constant& rhs) const -> Bool {
     return rhs.is<Bytes>() && has_same_type(rhs) &&
            get_value() == rhs.assume<Bytes>().get_value();
   }

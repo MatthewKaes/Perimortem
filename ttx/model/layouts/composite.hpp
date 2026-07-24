@@ -13,7 +13,7 @@ namespace Ttx::Model::Layouts {
 // to that child's concrete fitting rules. Composite can therefore retain a
 // compact Ranged prefix beside a Fluid suffix and can recursively compose more
 // than two Layouts without flattening them.
-class Composite final : public Concept::Layout {
+class Composite : public Concept::Layout {
  public:
   constexpr Composite(
       const Concept::Layout& first,

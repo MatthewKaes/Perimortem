@@ -25,12 +25,12 @@ class Unsigned : public Constant {
     return requested == contract_id || Constant::implements(requested);
   }
 
-  constexpr auto equals(const Constant& rhs) const -> Bool final {
+  constexpr auto equals(const Constant& rhs) const -> Bool {
     return rhs.is<Unsigned>() && has_same_type(rhs) &&
            get_value() == rhs.assume<Unsigned>().get_value();
   }
 
-  constexpr auto fits(const Type& target) const -> Bool final {
+  constexpr auto fits(const Type& target) const -> Bool {
     if (!get_type().resolve().is<Types::Unsigned>()) {
       return False;
     }

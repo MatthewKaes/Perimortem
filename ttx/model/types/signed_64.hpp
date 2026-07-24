@@ -9,7 +9,7 @@
 namespace Ttx::Model::Types {
 
 // Signed_64 is the standard sixty-four-bit Signed Type.
-class Signed_64 final : public Signed {
+class Signed_64 : public Signed {
  public:
   constexpr auto get_name() const -> Perimortem::Core::View::Bytes override {
     return "Signed_64"_view;

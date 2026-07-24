@@ -14,7 +14,7 @@ namespace Ttx::Model::Layouts {
 // therefore participate in recursive layout and generalized element
 // projection without allocating N duplicate graph edges. An index outside the
 // range returns Invalid.
-class Ranged final : public Concept::Layout {
+class Ranged : public Concept::Layout {
  public:
   constexpr Ranged(const Concept::Abstract& abstract, Count size)
       : abstract(abstract), size(size) {}

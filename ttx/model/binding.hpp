@@ -20,7 +20,7 @@ namespace Ttx::Model {
 // The input Layout borrows the stored Reference below. The graph owner
 // constructs a Binding at its final stable address like every other semantic
 // identity and keeps the underlying Expression alive for the same interval.
-class Binding final : public Expression {
+class Binding : public Expression {
  public:
   using ContractOwner = Binding;
   static constexpr Perimortem::System::Uuid contract_id{

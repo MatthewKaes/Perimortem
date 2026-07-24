@@ -35,9 +35,7 @@ class Constant : public Expression {
     return Concept::Documentation::get_empty();
   }
 
-  constexpr auto get_inputs() const -> const Concept::Layout& final {
-    return inputs;
-  }
+  constexpr auto get_inputs() const -> const Concept::Layout& { return inputs; }
 
   virtual constexpr auto equals(const Constant& rhs) const -> Bool = 0;
 

@@ -12,7 +12,7 @@ namespace Ttx::Model::Documentations {
 // Comments exposes a borrowed ordered sequence of documentation lines.
 // Source evaluators use it when adjacent comment tokens should remain separate
 // for proper document reconstruction.
-class Block final : public Concept::Documentation {
+class Block : public Concept::Documentation {
  public:
   explicit constexpr Block(
       Perimortem::Core::View::Vector<Perimortem::Core::View::Bytes> lines)

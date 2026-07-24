@@ -24,7 +24,7 @@ namespace Ttx::Model {
 //
 // The graph owner must keep the target alive and reject alias cycles before the
 // Alias becomes queryable.
-class Alias final : public Concept::Abstract {
+class Alias : public Concept::Abstract {
  public:
   using ContractOwner = Alias;
   static constexpr Perimortem::System::Uuid contract_id{

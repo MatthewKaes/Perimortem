@@ -14,11 +14,11 @@ namespace Ttx::Model::Types::Generics {
 // View is the read-only contiguous-storage formula. Its materialized Types
 // retain the element identity and prove the nested Type contract so consumers
 // can query View semantics without a registry or Kind.
-class View final : public Generic {
+class View : public Generic {
  public:
   static constexpr Perimortem::Core::View::Bytes name = "View"_view;
 
-  class Type final : public Ttx::Model::Type {
+  class Type : public Ttx::Model::Type {
    public:
     using ContractOwner = Type;
     static constexpr Perimortem::System::Uuid contract_id{

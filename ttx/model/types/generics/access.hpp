@@ -14,11 +14,11 @@ namespace Ttx::Model::Types::Generics {
 // Access is the writable contiguous-storage formula. Its materialized Types
 // retain the element identity and prove the nested Type contract. Access
 // establishes write capability but does not claim noalias.
-class Access final : public Generic {
+class Access : public Generic {
  public:
   static constexpr Perimortem::Core::View::Bytes name = "Access"_view;
 
-  class Type final : public Ttx::Model::Type {
+  class Type : public Ttx::Model::Type {
    public:
     using ContractOwner = Type;
     static constexpr Perimortem::System::Uuid contract_id{

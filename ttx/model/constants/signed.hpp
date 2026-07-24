@@ -25,12 +25,12 @@ class Signed : public Constant {
     return requested == contract_id || Constant::implements(requested);
   }
 
-  constexpr auto equals(const Constant& rhs) const -> Bool final {
+  constexpr auto equals(const Constant& rhs) const -> Bool {
     return rhs.is<Signed>() && has_same_type(rhs) &&
            get_value() == rhs.assume<Signed>().get_value();
   }
 
-  constexpr auto fits(const Type& target) const -> Bool final {
+  constexpr auto fits(const Type& target) const -> Bool {
     if (!get_type().resolve().is<Types::Signed>()) {
       return False;
     }

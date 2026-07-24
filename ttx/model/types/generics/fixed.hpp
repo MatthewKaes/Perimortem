@@ -17,11 +17,11 @@ namespace Ttx::Model::Types::Generics {
 // Fixed is the homogeneous static-range formula. Its materialized Types retain
 // the element identity and non-negative extent, then expose that shape through
 // the common Ranged Layout instead of allocating one edge per position.
-class Fixed final : public Generic {
+class Fixed : public Generic {
  public:
   static constexpr Perimortem::Core::View::Bytes name = "Fixed"_view;
 
-  class Type final : public Ttx::Model::Type {
+  class Type : public Ttx::Model::Type {
    public:
     using ContractOwner = Type;
     static constexpr Perimortem::System::Uuid contract_id{

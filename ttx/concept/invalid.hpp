@@ -21,7 +21,7 @@ namespace Ttx::Concept {
 // queries from manufacturing unrelated semantic results. Invalid is stateless
 // and should gain no further concepts unless the fundamental Abstract contract
 // changes.
-class Invalid final : public Abstract {
+class Invalid : public Abstract {
  public:
   using ContractOwner = Invalid;
   static constexpr Perimortem::System::Uuid contract_id{

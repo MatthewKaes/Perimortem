@@ -24,12 +24,12 @@ class Flag : public Constant {
     return requested == contract_id || Constant::implements(requested);
   }
 
-  constexpr auto equals(const Constant& rhs) const -> Bool final {
+  constexpr auto equals(const Constant& rhs) const -> Bool {
     return rhs.is<Flag>() && has_same_type(rhs) &&
            get_value() == rhs.assume<Flag>().get_value();
   }
 
-  constexpr auto fits(const Type& target) const -> Bool final {
+  constexpr auto fits(const Type& target) const -> Bool {
     return get_type().resolve().is<Types::Flag>() &&
            target.resolve().is<Types::Flag>();
   }

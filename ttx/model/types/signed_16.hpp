@@ -9,7 +9,7 @@
 namespace Ttx::Model::Types {
 
 // Signed_16 is the standard sixteen-bit Signed Type.
-class Signed_16 final : public Signed {
+class Signed_16 : public Signed {
  public:
   constexpr auto get_name() const -> Perimortem::Core::View::Bytes override {
     return "Signed_16"_view;

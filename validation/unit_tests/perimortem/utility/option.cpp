@@ -18,7 +18,7 @@ static Harness UtilityOption = {
 class BorrowedBase {};
 class BorrowedDerived final : public BorrowedBase {};
 
-class StackValue final {
+class StackValue {
  public:
   StackValue(Signed_32 value, Count& destructions)
       : value(value), destructions(destructions) {}

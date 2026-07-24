@@ -20,12 +20,12 @@
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
-using namespace Tetrodotoxin::Model;
+using namespace Tetrodotoxin::Ttx::Model;
 using namespace Ttx::Concept;
 using namespace Validation;
 
 static Harness ModelSurfaces = {
-  .name = "Tetrodotoxin::Model::Surfaces"_view,
+  .name = "Tetrodotoxin::Ttx::Model::Surfaces"_view,
 };
 
 class NamedType final : public Ttx::Model::Type {

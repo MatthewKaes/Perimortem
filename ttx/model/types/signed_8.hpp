@@ -9,7 +9,7 @@
 namespace Ttx::Model::Types {
 
 // Signed_8 is the standard eight-bit Signed Type.
-class Signed_8 final : public Signed {
+class Signed_8 : public Signed {
  public:
   constexpr auto get_name() const -> Perimortem::Core::View::Bytes override {
     return "Signed_8"_view;

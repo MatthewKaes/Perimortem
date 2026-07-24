@@ -9,7 +9,7 @@
 namespace Ttx::Model::Types {
 
 // Signed_32 is the standard thirty-two-bit Signed Type.
-class Signed_32 final : public Signed {
+class Signed_32 : public Signed {
  public:
   constexpr auto get_name() const -> Perimortem::Core::View::Bytes override {
     return "Signed_32"_view;

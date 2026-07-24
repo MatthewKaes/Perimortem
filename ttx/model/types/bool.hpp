@@ -9,7 +9,7 @@
 namespace Ttx::Model::Types {
 
 // Boolean is the standard one-bit Flag Type with byte-addressable storage.
-class Boolean final : public Flag {
+class Boolean : public Flag {
  public:
   constexpr auto get_name() const -> Perimortem::Core::View::Bytes override {
     return "Bool"_view;

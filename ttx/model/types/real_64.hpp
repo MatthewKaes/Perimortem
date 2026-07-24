@@ -10,7 +10,7 @@ namespace Ttx::Model::Types {
 
 // Real_64 is the standard 8 byte floating point representation.
 // For ABI evaluation it can be used to represent C/C++'s `double`.
-class Real_64 final : public Real {
+class Real_64 : public Real {
  public:
   constexpr auto get_name() const -> Perimortem::Core::View::Bytes override {
     return "Real_64"_view;

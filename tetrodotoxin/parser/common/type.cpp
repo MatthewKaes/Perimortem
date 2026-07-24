@@ -350,7 +350,8 @@ static auto parse_value(
   Token start = cursor.current();
   Token end = cursor.consume();
   View::Bytes name = end.caculate_text(cursor.get_source_text());
-  Option<const Ttx::Model::Type&> builtin = Parser::Builtins::find(name);
+  Option<const Ttx::Model::Type&> builtin =
+      Model::Library::Builtins::find(name);
   const Abstract& first = builtin.visit(
       [&context, name](const None&) -> const Abstract& {
         return context.resolve_context(name);

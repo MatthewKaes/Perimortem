@@ -8,7 +8,7 @@
 namespace Perimortem::Utility {
 
 // None is the explicit unit value carried by an Option with no object.
-class None final {};
+class None {};
 
 inline constexpr None none;
 

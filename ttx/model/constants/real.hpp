@@ -27,7 +27,7 @@ class Real : public Constant {
     return requested == contract_id || Constant::implements(requested);
   }
 
-  constexpr auto equals(const Constant& rhs) const -> Bool final {
+  constexpr auto equals(const Constant& rhs) const -> Bool {
     if (!rhs.is<Real>() || !has_same_type(rhs)) {
       return False;
     }
@@ -38,7 +38,7 @@ class Real : public Constant {
            (__builtin_isnan(lhs_value) && __builtin_isnan(rhs_value));
   }
 
-  constexpr auto fits(const Type& target) const -> Bool final {
+  constexpr auto fits(const Type& target) const -> Bool {
     const Concept::Abstract& source_type = get_type().resolve();
     const Concept::Abstract& target_type = target.resolve();
     return source_type.is<Types::Real>() && target_type.is<Types::Real>() &&

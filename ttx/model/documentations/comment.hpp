@@ -12,7 +12,7 @@ namespace Ttx::Model::Documentations {
 // source. The binary-wide empty Comment is the canonical documentation dead
 // end, matching Invalid's canonical access pattern without introducing another
 // namespace-level sentinel.
-class Comment final : public Concept::Documentation {
+class Comment : public Concept::Documentation {
  public:
   static auto get_empty() -> const Comment&;
 

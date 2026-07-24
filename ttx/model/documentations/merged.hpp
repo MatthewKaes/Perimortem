@@ -12,7 +12,7 @@ namespace Ttx::Model::Documentations {
 // Multiple merges can be stacked together to create a documentation chain,
 // however chaining should not be used as a "multi line" comment abstraction.
 // For multi line comments attached to a single source use `Block` instead.
-class Merged final : public Concept::Documentation {
+class Merged : public Concept::Documentation {
  public:
   constexpr Merged(
       const Concept::Documentation& first,

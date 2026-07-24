@@ -19,7 +19,7 @@ namespace Perimortem::Core {
 //
 // For ideal performance threads should have stable allocation and deallocation
 // patterns but this isn't a hard requirement.
-class Bibliotheca final {
+class Bibliotheca {
  public:
   // The legal amount that algorithms are able to underwrite the allocated
   // buffer.

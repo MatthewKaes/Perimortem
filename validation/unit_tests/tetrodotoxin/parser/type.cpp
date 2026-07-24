@@ -320,8 +320,8 @@ PERIMORTEM_UNIT_TEST(ParserTypeTests, common_generics_require_environment) {
 PERIMORTEM_UNIT_TEST(ParserTypeTests, materializes_environment_generics) {
   Allocator::Arena arena;
   Lexical::Errors errors;
-  Tetrodotoxin::Model::Environment environment;
-  Tetrodotoxin::Model::Source source(environment, {});
+  Tetrodotoxin::Ttx::Model::Environment environment;
+  Tetrodotoxin::Ttx::Model::Source source(environment, {});
   Lexical::Tokenizer tokenizer(
       arena, "Access[View[Unsigned_8]]"_view, "<generic type>"_view);
   Lexical::Cursor cursor(tokenizer, errors);
@@ -355,8 +355,8 @@ PERIMORTEM_UNIT_TEST(ParserTypeTests, materializes_environment_generics) {
 PERIMORTEM_UNIT_TEST(ParserTypeTests, materializes_fixed_ranges) {
   Allocator::Arena arena;
   Lexical::Errors errors;
-  Tetrodotoxin::Model::Environment environment;
-  Tetrodotoxin::Model::Source source(environment, {});
+  Tetrodotoxin::Ttx::Model::Environment environment;
+  Tetrodotoxin::Ttx::Model::Source source(environment, {});
   Lexical::Tokenizer tokenizer(
       arena, "Fixed[Unsigned_8, 4]"_view, "<fixed generic type>"_view);
   Lexical::Cursor cursor(tokenizer, errors);
@@ -385,8 +385,8 @@ PERIMORTEM_UNIT_TEST(ParserTypeTests, materializes_fixed_ranges) {
 PERIMORTEM_UNIT_TEST(ParserTypeTests, materializes_recursive_fixed_ranges) {
   Allocator::Arena arena;
   Lexical::Errors errors;
-  Tetrodotoxin::Model::Environment environment;
-  Tetrodotoxin::Model::Source source(environment, {});
+  Tetrodotoxin::Ttx::Model::Environment environment;
+  Tetrodotoxin::Ttx::Model::Source source(environment, {});
   Lexical::Tokenizer tokenizer(
       arena, "Fixed[Fixed[Fixed[Unsigned_8, 2], 3], 4]"_view,
       "<recursive fixed generic type>"_view);
@@ -437,8 +437,8 @@ PERIMORTEM_UNIT_TEST(
   Allocator::Arena arena;
   Allocator::Arena render_arena;
   Lexical::Errors errors;
-  Tetrodotoxin::Model::Environment environment;
-  Tetrodotoxin::Model::Source source(environment, {});
+  Tetrodotoxin::Ttx::Model::Environment environment;
+  Tetrodotoxin::Ttx::Model::Source source(environment, {});
   Lexical::Tokenizer tokenizer(
       arena,
       "Fixed[Fixed[Fixed[Unsigned_8, 2], Unsigned_16], 4]; "
@@ -484,9 +484,9 @@ PERIMORTEM_UNIT_TEST(
   Allocator::Arena arena;
   Lexical::Errors first_errors;
   Lexical::Errors second_errors;
-  Tetrodotoxin::Model::Environment environment;
-  Tetrodotoxin::Model::Source first_source(environment, {});
-  Tetrodotoxin::Model::Source second_source(environment, {});
+  Tetrodotoxin::Ttx::Model::Environment environment;
+  Tetrodotoxin::Ttx::Model::Source first_source(environment, {});
+  Tetrodotoxin::Ttx::Model::Source second_source(environment, {});
   Lexical::Tokenizer first_tokenizer(
       arena, "View[Unsigned_8]"_view, "<first generic type>"_view);
   Lexical::Tokenizer second_tokenizer(
@@ -558,8 +558,8 @@ PERIMORTEM_UNIT_TEST(ParserTypeTests, reports_missing_arguments_and_recovers) {
   Allocator::Arena arena;
   Allocator::Arena render_arena;
   Lexical::Errors errors;
-  Tetrodotoxin::Model::Environment environment;
-  Tetrodotoxin::Model::Source source(environment, {});
+  Tetrodotoxin::Ttx::Model::Environment environment;
+  Tetrodotoxin::Ttx::Model::Source source(environment, {});
   Lexical::Tokenizer tokenizer(
       arena, "View[]; Bool"_view, "<missing generic argument>"_view);
   Lexical::Cursor cursor(tokenizer, errors);
@@ -582,8 +582,8 @@ PERIMORTEM_UNIT_TEST(
     rejects_wrong_argument_kind_and_recovers) {
   Allocator::Arena arena;
   Lexical::Errors errors;
-  Tetrodotoxin::Model::Environment environment;
-  Tetrodotoxin::Model::Source source(environment, {});
+  Tetrodotoxin::Ttx::Model::Environment environment;
+  Tetrodotoxin::Ttx::Model::Source source(environment, {});
   Lexical::Tokenizer tokenizer(
       arena, "View[8]; Bool"_view, "<wrong generic argument>"_view);
   Lexical::Cursor cursor(tokenizer, errors);
@@ -621,8 +621,8 @@ PERIMORTEM_UNIT_TEST(ParserTypeTests, rejects_missing_separator_and_recovers) {
 PERIMORTEM_UNIT_TEST(ParserTypeTests, rejects_extra_argument_and_recovers) {
   Allocator::Arena arena;
   Lexical::Errors errors;
-  Tetrodotoxin::Model::Environment environment;
-  Tetrodotoxin::Model::Source source(environment, {});
+  Tetrodotoxin::Ttx::Model::Environment environment;
+  Tetrodotoxin::Ttx::Model::Source source(environment, {});
   Lexical::Tokenizer tokenizer(
       arena, "View[Unsigned_8, Bool]; Bool"_view, "<extra argument>"_view);
   Lexical::Cursor cursor(tokenizer, errors);
@@ -666,8 +666,8 @@ PERIMORTEM_UNIT_TEST(
     rejects_negative_fixed_extent_and_recovers) {
   Allocator::Arena arena;
   Lexical::Errors errors;
-  Tetrodotoxin::Model::Environment environment;
-  Tetrodotoxin::Model::Source source(environment, {});
+  Tetrodotoxin::Ttx::Model::Environment environment;
+  Tetrodotoxin::Ttx::Model::Source source(environment, {});
   Lexical::Tokenizer tokenizer(
       arena, "Fixed[Unsigned_8,-1]; Bool"_view, "<negative fixed extent>"_view);
   Lexical::Cursor cursor(tokenizer, errors);
@@ -686,8 +686,8 @@ PERIMORTEM_UNIT_TEST(ParserTypeTests, rejects_signed_overflow_and_recovers) {
   Allocator::Arena arena;
   Allocator::Arena render_arena;
   Lexical::Errors errors;
-  Tetrodotoxin::Model::Environment environment;
-  Tetrodotoxin::Model::Source source(environment, {});
+  Tetrodotoxin::Ttx::Model::Environment environment;
+  Tetrodotoxin::Ttx::Model::Source source(environment, {});
   Lexical::Tokenizer tokenizer(
       arena, "Fixed[Unsigned_8,9223372036854775808]; Bool"_view,
       "<overflow fixed extent>"_view);

@@ -10,7 +10,7 @@ namespace Ttx::Model::Types {
 
 // Unsigned_8 is the standard eight-bit Type implementing the Unsigned domain.
 // Its name and representation match the Perimortem primitive exactly.
-class Unsigned_8 final : public Unsigned {
+class Unsigned_8 : public Unsigned {
  public:
   constexpr auto get_name() const -> Perimortem::Core::View::Bytes override {
     return "Unsigned_8"_view;

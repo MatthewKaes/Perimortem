@@ -22,7 +22,7 @@ namespace Ttx::Model {
 // The input Layout borrows the stored receiver Reference. The graph owner
 // constructs a Projection at its final stable address and keeps both borrowed
 // semantic objects alive for the same interval.
-class Projection final : public Expression {
+class Projection : public Expression {
  public:
   using ContractOwner = Projection;
   static constexpr Perimortem::System::Uuid contract_id{

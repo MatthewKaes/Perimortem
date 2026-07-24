@@ -8,8 +8,6 @@
 #include "perimortem/memory/dynamic/map.hpp"
 #include "perimortem/memory/dynamic/vector.hpp"
 
-#include "tetrodotoxin/abi/export.hpp"
-#include "tetrodotoxin/abi/type.hpp"
 #include "tetrodotoxin/compiler/execution/function.hpp"
 
 namespace Tetrodotoxin::Compiler {

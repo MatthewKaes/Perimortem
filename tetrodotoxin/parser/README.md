@@ -10,7 +10,7 @@ formats.
 
 ## Transaction contract
 
-Source lifetime and the Tokenizer belong to `Tetrodotoxin::Model::Source`.
+Source lifetime and the Tokenizer belong to `Tetrodotoxin::Ttx::Model::Source`.
 Parsing borrows its Cursor, source projection, Arena, and Errors.
 
 Every parser follows these rules:
@@ -40,17 +40,17 @@ Tokenizer or replay a Cursor.
 
 The shared parser surface is restored one owner-shaped family at a time:
 
-| Owner | Responsibility | Status |
-| ----- | -------------- | ------ |
-| `Comment` | consume ordered comment Tokens into one valid Documentation value | implemented |
-| `Builtins` | immutable fast lookup for concrete scalar Types | implemented |
-| `Type` | progressive Abstract resolution and Generic argument materialization | implemented |
-| Package document | opening Documentation, exact envelope, resolutions, and member routes | implemented |
-| Definitions | modifier/name/continuation consumption and direct semantic handoff | not implemented |
-| Attributes | key plus optional scalar value | not implemented |
-| Layouts and packs | expected shape and produced value flow | not implemented |
-| Functions | Callable signature and direct body consumption | not implemented |
-| Expressions and statements | one-pass production of semantic values and Body facts | not implemented |
+| Owner                      | Responsibility                                                        | Status          |
+| -------------------------- | --------------------------------------------------------------------- | --------------- |
+| `Comment`                  | consume ordered comment Tokens into one valid Documentation value     | implemented     |
+| `Builtins`                 | immutable fast lookup for concrete scalar Types                       | implemented     |
+| `Type`                     | progressive Abstract resolution and Generic argument materialization  | implemented     |
+| Package document           | opening Documentation, exact envelope, resolutions, and member routes | implemented     |
+| Definitions                | modifier/name/continuation consumption and direct semantic handoff    | not implemented |
+| Attributes                 | key plus optional scalar value                                        | not implemented |
+| Layouts and packs          | expected shape and produced value flow                                | not implemented |
+| Functions                  | Callable signature and direct body consumption                        | not implemented |
+| Expressions and statements | one-pass production of semantic values and Body facts                 | not implemented |
 
 `Type::parse()` first resolves a concrete builtin or queries the caller's real
 Abstract context. Each `::` segment is resolved by the currently selected

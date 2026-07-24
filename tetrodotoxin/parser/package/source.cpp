@@ -6,7 +6,7 @@
 #include "perimortem/memory/managed/bytes.hpp"
 #include "perimortem/memory/managed/vector.hpp"
 
-#include "tetrodotoxin/parser/comment.hpp"
+#include "tetrodotoxin/parser/common/comment.hpp"
 #include "ttx/lexical/token.hpp"
 
 using namespace Perimortem::Core;

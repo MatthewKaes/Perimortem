@@ -10,7 +10,7 @@ namespace Ttx::Model::Types {
 
 // Unsigned_64 is the standard sixty-four-bit Type implementing the Unsigned
 // domain.
-class Unsigned_64 final : public Unsigned {
+class Unsigned_64 : public Unsigned {
  public:
   constexpr auto get_name() const -> Perimortem::Core::View::Bytes override {
     return "Unsigned_64"_view;

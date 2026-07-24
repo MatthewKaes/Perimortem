@@ -10,7 +10,7 @@ namespace Ttx::Model::Types {
 
 // Unsigned_16 is the standard sixteen-bit Type implementing the Unsigned
 // domain.
-class Unsigned_16 final : public Unsigned {
+class Unsigned_16 : public Unsigned {
  public:
   constexpr auto get_name() const -> Perimortem::Core::View::Bytes override {
     return "Unsigned_16"_view;

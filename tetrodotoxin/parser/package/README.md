@@ -5,7 +5,7 @@ root. Its `Source` parser consumes that root's `package.ttx`; its `Workspace`
 pins the root used to load the explicitly declared package members.
 
 The parser does not double as the package data model. Successful parsing
-constructs `Tetrodotoxin::Model::Package::Source` in the Cursor arena, then
+constructs `Tetrodotoxin::Ttx::Model::Package::Source` in the Cursor arena, then
 returns a reference to that model. The `Parser::Package::Source` class retains
 no declarations or transaction state.
 
