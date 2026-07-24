@@ -9,7 +9,7 @@
 namespace Tetrodotoxin::Model::Renderables {
 
 // Push assigns the Render push constant role to one real Addressable.
-class Push final : public Ttx::Model::Addressable {
+class Push : public Ttx::Model::Addressable {
  public:
   using ContractOwner = Push;
   static constexpr Perimortem::System::Uuid contract_id{

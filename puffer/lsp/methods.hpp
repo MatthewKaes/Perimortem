@@ -12,7 +12,7 @@
 #include "puffer/lsp/documents.hpp"
 #include "puffer/lsp/rpc/executor.hpp"
 
-namespace Tetrodotoxin::Puffer::Lsp {
+namespace Puffer::Lsp {
 
 auto initialize(Documents& documents, const Rpc::Message& message)
     -> Rpc::Response;
@@ -42,4 +42,4 @@ static constexpr Count default_executor_count = 4;
 
 using Executor = Rpc::Executor<method_table, default_executor_count>;
 
-}  // namespace Tetrodotoxin::Puffer::Lsp
+}  // namespace Puffer::Lsp

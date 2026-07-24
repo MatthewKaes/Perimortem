@@ -42,9 +42,10 @@ Sources, its Environment and every retained Source remain alive until Compiler
 finishes. A restored Precompiled Package owns the equivalent graph
 independently.
 
-The active toolchain owns its `Dialects` context and targets. Puffer owns source
-loading, dependency resolution, and cache invalidation. TTX owns the shared
-Abstract, Type, Layout, and Callable contracts.
+The active toolchain owns its `Dialects` context and targets.
+`Parser::Package` owns the root transaction and confined loading; the package
+construction walk owns dependency resolution and cache invalidation. TTX owns
+the shared Abstract, Type, Layout, and Callable contracts.
 
 ## Semantic input
 

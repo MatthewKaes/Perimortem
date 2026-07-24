@@ -8,7 +8,7 @@
 #include "perimortem/core/reader/textual.hpp"
 
 using namespace Perimortem::Core;
-using namespace Tetrodotoxin::Puffer;
+using namespace Puffer;
 
 auto Lsp::Rpc::FrameReader::receive(View::Bytes bytes) -> void {
   data_stream.concat(bytes);

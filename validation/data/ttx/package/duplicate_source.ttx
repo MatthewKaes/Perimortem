@@ -1,3 +1,4 @@
+// Rejects duplicate normalized package members.
 dialect : Package;
 
 source "member.ttx";

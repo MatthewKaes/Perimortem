@@ -20,10 +20,10 @@
 namespace Tetrodotoxin::Model {
 
 // Environment is the resolved container supplied to every Source in one
-// interpretation transaction. Puffer selects authored package names and exact
-// versions before evaluation, then records those completed facts here. Source
-// lookup can therefore bind a local Alias without searching a repository or
-// rediscovering a transitive package graph.
+// interpretation transaction. Package construction selects authored names and
+// exact versions before evaluation, then records those completed facts here.
+// Source lookup can therefore bind a local Alias without searching a
+// repository or rediscovering a transitive package graph.
 //
 // The Environment owns every injected Alias, the common Generic formulas, and
 // the append only materializations shared by the transaction. Materialized
@@ -63,7 +63,7 @@ class Environment {
       Perimortem::Core::View::Bytes local_name,
       Perimortem::Core::View::Bytes package_name,
       Perimortem::System::Version version,
-      const Package& package,
+      const Package::Resolved& package,
       const Ttx::Concept::Documentation& documentation) -> Bool;
 
   auto bind(
@@ -86,14 +86,14 @@ class Environment {
 
   // Dependencies and Packages are parallel, deduplicated views in authored
   // first resolution order. Manifest construction consumes the identity edge.
-  // Model::Package consumes the anonymous Package at the same index.
+  // Model::Package::Resolved consumes the anonymous Package at the same index.
   constexpr auto get_dependencies() const -> Perimortem::Core::View::Vector<
       Ttx::Concept::Reference<Dependencies::Package>> {
     return dependencies;
   }
 
-  constexpr auto get_packages() const
-      -> Perimortem::Core::View::Vector<Ttx::Concept::Reference<Package>> {
+  constexpr auto get_packages() const -> Perimortem::Core::View::Vector<
+      Ttx::Concept::Reference<Package::Resolved>> {
     return packages;
   }
 
@@ -139,11 +139,12 @@ class Environment {
   Perimortem::Memory::Managed::Vector<
       Ttx::Concept::Reference<Dependencies::Package>>
       dependencies;
-  Perimortem::Memory::Managed::Vector<Ttx::Concept::Reference<Package>>
+  Perimortem::Memory::Managed::Vector<
+      Ttx::Concept::Reference<Package::Resolved>>
       packages;
   Bindings bindings_by_name;
   Perimortem::Memory::Managed::Map<Identity, Count> dependencies_by_identity;
-  Perimortem::Memory::Managed::Map<const Package*, Count>
+  Perimortem::Memory::Managed::Map<const Package::Resolved*, Count>
       dependencies_by_package;
 };
 

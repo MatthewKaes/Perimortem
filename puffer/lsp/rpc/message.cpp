@@ -7,7 +7,7 @@
 
 #include "perimortem/memory/managed/bytes.hpp"
 
-using namespace Tetrodotoxin::Puffer;
+using namespace Puffer;
 using namespace Perimortem::Memory;
 using namespace Perimortem::Serialization;
 

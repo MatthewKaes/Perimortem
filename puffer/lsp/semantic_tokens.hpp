@@ -9,7 +9,7 @@
 
 #include "perimortem/serialization/json/node.hpp"
 
-namespace Tetrodotoxin::Puffer::Lsp {
+namespace Puffer::Lsp {
 
 auto semantic_legend(Perimortem::Memory::Allocator::Arena& arena)
     -> Perimortem::Serialization::Json::Node;
@@ -18,4 +18,4 @@ auto semantic_tokens_for(
     Perimortem::Core::View::Bytes source)
     -> Perimortem::Serialization::Json::Node;
 
-}  // namespace Tetrodotoxin::Puffer::Lsp
+}  // namespace Puffer::Lsp

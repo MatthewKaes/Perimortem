@@ -90,8 +90,7 @@ cc_binary(
 cc_binary(
     name = "benchmarks",
     srcs = glob([
-        "benchmarks/perimortem/**/*.cpp",
-        "benchmarks/tetrodotoxin/**/*.cpp",
+        "benchmarks/perimortem/**/*.cpp"
     ]) + [
         "benchmark.cpp",
     ],

@@ -1,251 +1,77 @@
 # TTX
 
-TTX is the repository's human-authored source IR, lexical bytecode, and shared
-semantic model. It deliberately stops before package filesystems, execution
-runtimes, and target encoders. Tetrodotoxin supplies those owners.
+TTX is the repository's host-neutral source IR. It owns the authored lexical
+vocabulary, token bytecode, shared semantic identities, identity-free Layouts,
+and the common executable Body representation.
 
-The active core is built by `//ttx:lexical`, `//ttx:concept`, `//ttx:model`,
-and the convenience target `//ttx:ttx`.
+TTX deliberately does not own source-file lifetime, package resolution,
+filesystem access, concrete Dialects, runtime execution, target lowering,
+linking, or archive formats. Those systems consume TTX; they do not extend its
+ownership by being documented here.
 
-## Pipeline
+## Representation
 
 ```text
-owned source bytes
--> Source-owned Tokenizer
--> Dialect-selected evaluation
+authored bytes
+-> Lexical::Tokenizer
+-> ordered Token values with concrete Lexical::Code values
+-> host-selected parsing and evaluation
 -> one graph of real Abstract identities
-   + identity-free Layouts
-   + identity-free executable Bodies
-   + Dialect-owned versioned facts
--> runtime plan or target Representation
--> terminal product
+   + identity-free Layout values
+   + identity-free executable Body values
+-> host-owned runtime, target, tool, or durable product
 ```
 
-The lexer assigns a concrete `Lexical::Code` to every emitted token. A Dialect
-then owns how many tokens form one instruction, which builtins are accepted,
-how those instructions are evaluated, and which extra facts are legal. A
-Dialect may reject or narrow a common construct; it may not reinterpret an
-existing common contract. Merely binding an identity into an Environment does
-not import the producing Dialect's builtins or legality rules.
+The Tokenizer performs the first semantic partition. Casing, fixed keywords,
+operators, delimiters, comments, and literal forms become explicit Codes.
+Payload-bearing Tokens retain the source location required to recover their
+authored bytes. The Code stream is meaningful only with the exact Lexer
+contract that emitted it.
 
-Source text and Cursor state are construction inputs. Evaluated semantic facts
-remain on their real owners. Executable source is consumed into one common
-`Model::Body`; target-specific records are derived only after the semantic
-graph is complete.
+A consumer decides how many Tokens form one instruction and which instructions
+are legal. TTX supplies the common facts that consumer may construct:
 
-## Model map
+- `Abstract` for semantic identity and contextual resolution;
+- `Invalid` for failed semantic queries;
+- `Reference<T>` for non-null semantic edges;
+- `Documentation` for stable ordered comment lines;
+- `Layout` for identity-free ordered shape and directional fitting;
+- `Type` and its narrow Terminal and Generic contracts;
+- `Expression` and immutable `Constant` values;
+- `Addressable`, `Writable`, `Callable`, `Static`, and `Self`;
+- `Exports` for an enumerable public definition surface; and
+- `Body` for immutable executable blocks, values, and operations.
 
-`Ttx::Concept` owns the contracts that every host shares:
+The graph has no universal Kind, class database, mutable Dialect registry,
+copied member records, shadow Type graph, nullable semantic edges, or allocated
+path history.
 
-- `Abstract` owns semantic identity, documentation, resolution, and local
-  contract proof.
-- `Invalid` is semantic failure. Semantic queries return a real reference or
-  `Invalid`, never a nullable semantic pointer.
-- `Reference<T>` is a non-null graph edge.
-- `Layout` is an identity-free ordered shape and directional fitting contract.
-  It owns no offsets, address spaces, pointer widths, target alignment, ABI
-  carriers, register classes, or collector policy.
-- `Documentation` is an identity-free prose view.
+## Ownership boundary
 
-`Ttx::Model` owns common semantic identities and values:
+TTX reserves lexical forms such as the `dialect` marker, definition modifiers,
+attributes, calls, layouts, packs, and literal prefixes. A reserved Code does
+not give TTX ownership of every meaning a host may attach to it.
 
-- `Type` owns value identity and supplies its semantic `Layout`.
-- `Types::Managed` proves that values of a Type are managed object references.
-  It says nothing about tracing, allocation, movement, or target storage.
-- terminal Type families prove numeric or flag meaning and width.
-- `Types::Generic` is an immutable compile-time formula. Its ordered signature
-  selects `const Type&`, `Unsigned_64`, `Signed_64`, or `Bool` arguments. The
-  active graph transaction owns append-only materializations, so a valid key
-  returns one stable real Type identity. The Generic formula is not a Type
-  itself.
-- `Types::Generics::Fixed` materializes `Fixed[T, N]` as a homogeneous
-  `Ranged` Layout. Its signed extent must be non-negative.
-- `Expression` is a value fact distinct from its result Type. `Constant` is an
-  immutable, zero-input Expression.
-- `Addressable` is a named typed storage location. `Writable` is its narrower
-  assignment capability; neither is a runtime pointer.
-- `Callable` owns complete parameter and result Layouts. A `Self` Callable
-  contains its receiver exactly once at parameter zero.
-- `Exports` is the only public discovery surface. Private roots and Environment
-  bindings do not leak through it.
-- `Alias` retains its authored local identity while resolving to its target.
+For example, TTX can identify an envelope shaped like `dialect : Name;` without
+defining the accepted names. It can identify an embedded resource token without
+defining a filesystem root. It can represent a Callable Body without defining
+which runtime executes it. It can expose Type and Layout facts without defining
+SPIR-V, a native ABI, or an archive schema.
 
-The semantic graph has no universal Kind, class database, mutable Dialect
-registry, copied member/function records, shadow Type graph, or allocated path
-history.
-
-## Layout and fitting
-
-The active identity-free Layout implementations are:
-
-- `Fluid`: positional value flow;
-- `Named`: named value flow;
-- `Structured`: ordered real Addressable members;
-- `Ranged`: one real element Type repeated a fixed number of times;
-- `Composite`: concatenated Layouts.
-
-Fitting is directional. A source Layout proves whether it can supply a target
-Layout and which real Abstract supplies each target slot. Structural
-coincidence never creates semantic identity. In particular, four scalar fields
-do not make a vector unless the Type proves the vector contract or supplies an
-explicit representation edge in the owning Dialect.
-
-Target Representation is a consumer-side product. A SPIR-V planner may derive
-physical scalar/vector/aggregate, pointer, storage-class, location, binding,
-and offset records for one compilation. Those records are neither Types nor
-Layouts and are not serialized as semantic truth.
-
-## Executable Body
-
-`Model::Body` is an immutable identity-free value retained by the concrete
-Callable, Shader Stage, or App lifecycle owner that produced it. Compact local
-IDs index:
-
-- parameters and produced values;
-- blocks and their operation ranges;
-- operands and return ranges;
-- constants and aggregate construction;
-- projections and indexing;
-- calls to real Callable identities;
-- typed loads and stores through real Addressables;
-- Dialect-coded unary and binary values, branches, jumps, and returns.
-
-Every graph reference is a non-null edge to the real Type, Constant, Callable,
-or Addressable. A common binary value stores a bytecode and exactly two local
-operand IDs; its Dialect owns the bytecode meaning and proves the operand and
-result Types recorded in the Body value table. Domain operations remain calls
-to domain owners: texture
-sampling is a call to the Image sampling Callable, not a universal shader
-opcode. `Bodies::Builder` is the only mutable construction phase and publishes
-nothing until IDs, ranges, control flow, result Types, and terminators validate.
-
-The host interpreter and SPIR-V target consume this same Body. There is no
-separate host statement tree or shader AST. Consumer profiles may support only
-a validated subset. The current host executor is limited to App control flow,
-while the Shader target consumes the arithmetic, aggregate, projection, load,
-index, call, and conversion operations required by Default2D.
-
-## Embedded Foreign imports
-
-A CPU-executable Dialect may explicitly admit the embedded Foreign Dialect:
-
-```ttx
-foreign "C" {
-  public const library_limit : Unsigned_64;
-  public state library_counter : Unsigned_64;
-  public func library_add[
-    .left : Unsigned_64,
-    .right : Unsigned_64,
-  ] -> Unsigned_64;
-}
-```
-
-`"C"` selects the FFI and ABI identity. It does not select a package or native
-provider. The declarations populate one reserved, private, source-local
-`foreign` import surface; `public` publishes a declaration to that surface,
-not to Package `Exports`. A dot selects declared data, while an arrow invokes
-a declared Callable. Only declared names resolve; an ambient linker symbol
-never makes an undeclared source use valid:
-
-```ttx
-foreign.library_counter = foreign.library_limit;
-return foreign -> library_add(
-  foreign.library_counter,
-  foreign.library_limit
-);
-```
-
-A Foreign `const` is a read-only external `Addressable`, not a TTX
-`Constant`. A Foreign `state` is a writable external `Addressable`, and a
-Foreign `func` is a bodyless external `Callable` with complete parameter and
-result Layouts. Each declaration is therefore a complete semantic import
-promise, never an incomplete TTX owner waiting for a later TTX definition.
-Library, Scene, App, and any other CPU-executable Dialect must opt into this
-grammar explicitly. Package and Shader do not admit it.
-
-This source contract is normative. Tetrodotoxin does not yet implement the
-corresponding Foreign parser, durable import records, archive support, or
-native lowering.
-
-## Scene and App composition
-
-Scene is the reusable managed state boundary beneath App. A Scene owns
-`prepare`, `update`, and `release` Callable edges, render roots, and typed
-signals. The `Scene` prefix on a lifecycle declaration records a direct edge to
-an otherwise ordinary Self Callable.
-It emits an outcome but never names the next Scene. App owns the initial Scene
-and maps `(Scene, signal)` pairs to replace, push, pop, or process exit policy.
-This makes Splash-to-Title-to-Splash a runtime state-machine cycle without a
-cyclic Source dependency or forward proxy.
-
-The complete proposed source is maintained in
-[`../apps/ttx/scene_lifetime`](../apps/ttx/scene_lifetime/). Its Package
-descriptor is parsed through the production descriptor path, but Scene
-evaluation and execution are not implemented yet. The fixture is not counted
-as semantic acceptance until its owners, transitions, runtime transaction, and
-archive records exist.
-
-## Source envelopes and packages
-
-The reference Tetrodotoxin envelope begins with a named Dialect:
-
-```ttx
-dialect : Library;
-```
-
-Package membership and exact external resolution belong to the package
-container, not Source:
-
-```ttx
-dialect : Package;
-
-resolve Graphics : Perimortem.Graphics = "1.0";
-source "main.ttx";
-```
-
-The quoted `Major.Minor` is parsed as two independent unsigned components,
-never through floating point. A member's own envelope selects its Dialect, and
-an application package selects the sole evaluated App root rather than a
-special filename. Every member Source owns its bytes, Tokenizer, Arena, and
-evaluated roots while borrowing one package-owned Environment.
-Source has no package imports or dependency vector. An embedded Foreign import
-is an explicit source-local ABI contract, not a package dependency or provider
-selection. The active Container publishes completed members in descriptor
-order, so declaration synchronization for arbitrary mutually referring members
-is not yet implemented. Public package names come only from the final Package
-`Exports` surface. Manifest and repository own the external name and exact
-Version.
-
-See [ttx_semantics.md](ttx_semantics.md) for normative contracts and
-[ttx_design.md](ttx_design.md) for author-facing syntax and the complete
-Render2D/Default2D/Demo walkthrough plus the canonical Scene composition.
+A concrete consumer owns every omitted policy. Sharing a repository with TTX
+does not make that consumer or its behavior part of the TTX contract.
 
 ## Repository map
 
-- [`lexical`](lexical/) owns Codes, tokens, Tokenizer, Cursor, Lexicon, and
+- [`lexical`](lexical/) owns Codes, Tokens, Tokenizer, Cursor, Lexicon, and
   lexical diagnostics.
 - [`concept`](concept/) owns Abstract, Documentation, Invalid, Layout, and
   non-null Reference.
-- [`model`](model/) owns Type families, Layout implementations, Generics,
-  Expression/Constant, Addressable/Writable, Callable, Alias, Exports, and
-  common Body.
-- [`../tetrodotoxin/model`](../tetrodotoxin/model/) owns Source, Environment,
-  Package, durable Dialect facts, Render/Shader/App owners, and terminals.
-- [`../tetrodotoxin/interpreter`](../tetrodotoxin/interpreter/) owns
-  token-consuming Package, Library, Render, Shader, and App evaluation. Scene
-  evaluation is the next owner-shaped Dialect rather than a retained old ISA.
-- [`../tetrodotoxin/puffer`](../tetrodotoxin/puffer/) owns descriptors,
-  path-confined member loading, exact package resolution, package workspaces,
-  repositories, and terminal materialization.
-- [`../tetrodotoxin/target/spir_v`](../tetrodotoxin/target/spir_v/) owns
-  compilation-local Representation and SPIR-V lowering from real contracts.
-- [`../tetrodotoxin/runtime`](../tetrodotoxin/runtime/) owns worker-local Realm
-  and App execution; [`../tetrodotoxin/graphics`](../tetrodotoxin/graphics/)
-  owns the language-neutral submission boundary.
-- [`../tetrodotoxin/archiver`](../tetrodotoxin/archiver/) owns the version 1
-  durable package buffer.
+- [`model`](model/) owns the shared semantic identities and identity-free values
+  built from those concepts.
 
-The superseded `tetrodotoxin/isa` and private compiler execution trees have
-been removed after their useful algorithms were migrated. The remaining
-whole-compiler and CLI sources are outside active targets and are not current
-semantic authority.
+The active libraries are `//ttx:lexical`, `//ttx:concept`, `//ttx:model`, and
+the convenience target `//ttx:ttx`.
+
+See [ttx_design.md](ttx_design.md) for the representation rationale and
+[ttx_semantics.md](ttx_semantics.md) for the normative shared contracts.

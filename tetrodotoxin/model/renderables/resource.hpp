@@ -9,7 +9,7 @@
 namespace Tetrodotoxin::Model::Renderables {
 
 // Resource assigns a descriptor set and binding to one Render Addressable.
-class Resource final : public Ttx::Model::Addressable {
+class Resource : public Ttx::Model::Addressable {
  public:
   using ContractOwner = Resource;
   static constexpr Perimortem::System::Uuid contract_id{

@@ -5,7 +5,7 @@
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
-using namespace Tetrodotoxin::Puffer;
+using namespace Puffer;
 
 auto Lsp::Documents::find(View::Bytes uri) const -> Count {
   for (Count i = 0; i < records.get_size(); i++) {

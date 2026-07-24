@@ -175,6 +175,11 @@ PERIMORTEM_UNIT_TEST(TtxLexical, require_error) {
   EXPECT_NOT(required.is_valid());
   ASSERT_EQ(errors.get_size(), Count(1));
   EXPECT(Algorithm::search(rendered, "Expected type."_view) != Count(-1));
+  EXPECT(
+      Algorithm::search(
+          rendered,
+          "Expected lexical token Type space name but got Addressable space name."_view) !=
+      Count(-1));
   EXPECT(Algorithm::search(rendered, "test.ttx"_view) != Count(-1));
   EXPECT_TEXT(
       cursor.current().caculate_text(cursor.get_source_text()), "value"_view);

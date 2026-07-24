@@ -13,7 +13,7 @@
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
 using namespace Perimortem::Serialization;
-using namespace Tetrodotoxin::Puffer;
+using namespace Puffer;
 using namespace Ttx::Lexical;
 
 enum SemanticToken : Signed_64 {

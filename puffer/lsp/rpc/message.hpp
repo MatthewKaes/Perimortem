@@ -9,7 +9,7 @@
 
 #include "perimortem/serialization/json/node.hpp"
 
-namespace Tetrodotoxin::Puffer::Lsp::Rpc {
+namespace Puffer::Lsp::Rpc {
 
 using Response = Perimortem::Serialization::Json::Node;
 
@@ -35,4 +35,4 @@ class Message {
   Perimortem::Serialization::Json::Node call_params;
 };
 
-}  // namespace Tetrodotoxin::Puffer::Lsp::Rpc
+}  // namespace Puffer::Lsp::Rpc

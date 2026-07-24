@@ -10,7 +10,7 @@
 namespace Tetrodotoxin::Model::Renderables {
 
 // Value is ordinary mutable per-render state with a complete initializer.
-class Value final : public Ttx::Model::Addressables::Writable {
+class Value : public Ttx::Model::Addressables::Writable {
  public:
   using ContractOwner = Value;
   static constexpr Perimortem::System::Uuid contract_id{
@@ -24,7 +24,7 @@ class Value final : public Ttx::Model::Addressables::Writable {
            Ttx::Model::Addressables::Writable::implements(requested);
   }
 
-  class ReadOnly final : public Ttx::Model::Addressable {
+  class ReadOnly : public Ttx::Model::Addressable {
    public:
     constexpr ReadOnly(const Value& value) : value(value) {}
     constexpr auto get_name() const -> Perimortem::Core::View::Bytes override {

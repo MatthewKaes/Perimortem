@@ -54,9 +54,10 @@ this fixture.
 
 ## Package Source confinement
 
-`source "route.ttx";` is Puffer-owned container syntax. The route is relative
-to the package root, not the descriptor directory, current working directory,
-or a Source-local directory. The future host tests must construct these
+`source "route.ttx";` is consumed by `Parser::Package::Source` into
+`Model::Package::Source`. `Parser::Package::Workspace` resolves the route
+relative to the package root, not the descriptor directory, current working
+directory, or a Source-local directory. Package tests construct these
 independent failures:
 
 | Case | Frozen result |

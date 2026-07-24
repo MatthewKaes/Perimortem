@@ -12,7 +12,7 @@
 #include "puffer/lsp/documents.hpp"
 #include "puffer/lsp/rpc/message.hpp"
 
-namespace Tetrodotoxin::Puffer::Lsp::Rpc {
+namespace Puffer::Lsp::Rpc {
 
 using DispatchFunc = Response (*)(Documents&, const Message&);
 
@@ -65,4 +65,4 @@ class Executor {
   Bool connection_open = False;
 };
 
-}  // namespace Tetrodotoxin::Puffer::Lsp::Rpc
+}  // namespace Puffer::Lsp::Rpc

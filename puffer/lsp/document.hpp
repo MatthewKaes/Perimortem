@@ -5,7 +5,7 @@
 
 #include "perimortem/memory/dynamic/bytes.hpp"
 
-namespace Tetrodotoxin::Puffer::Lsp {
+namespace Puffer::Lsp {
 
 class Document {
  public:
@@ -14,4 +14,4 @@ class Document {
   Perimortem::Memory::Dynamic::Bytes text;
 };
 
-}  // namespace Tetrodotoxin::Puffer::Lsp
+}  // namespace Puffer::Lsp

@@ -54,9 +54,9 @@ class Cursor {
       Lexical::Code code(type);
       Perimortem::Core::Static::Bytes<128> hint_buffer;
       Perimortem::Core::Writer::Textual hint_message(hint_buffer);
-      hint_message << "Expected lexical token "_view
-                   << current().get_code().get_semantics() << " but got "_view
-                   << code.get_semantics() << "."_view;
+      hint_message << "Expected lexical token "_view << code.get_semantics()
+                   << " but got "_view << current().get_code().get_semantics()
+                   << "."_view;
       create_token_error(message, hint_message);
       return Lexical::Token();
     }

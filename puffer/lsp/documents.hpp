@@ -12,7 +12,7 @@
 
 #include "puffer/lsp/document.hpp"
 
-namespace Tetrodotoxin::Puffer::Lsp {
+namespace Puffer::Lsp {
 
 class Documents {
  public:
@@ -30,4 +30,4 @@ class Documents {
   Perimortem::Core::Static::Vector<Document, 64> records;
 };
 
-}  // namespace Tetrodotoxin::Puffer::Lsp
+}  // namespace Puffer::Lsp

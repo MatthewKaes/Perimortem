@@ -1,3 +1,4 @@
+// Exercises ordered package member resource loading.
 dialect : Package;
 
 source "shared_a.ttx";

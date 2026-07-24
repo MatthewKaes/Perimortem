@@ -3,16 +3,16 @@
 
 #pragma once
 
-#include "tetrodotoxin/model/package.hpp"
+#include "tetrodotoxin/model/package/resolved.hpp"
 #include "tetrodotoxin/model/shaders/product.hpp"
 #include "tetrodotoxin/model/terminal.hpp"
 
-namespace Tetrodotoxin::Model::Packages {
+namespace Tetrodotoxin::Model::Package {
 
 // Compiled is the optional Package capability for completed terminal products.
 // It exposes the useful result without leaking Archiver tables, repository
 // identity, or filesystem policy onto the common Package contract.
-class Compiled : public Model::Package {
+class Compiled : public Resolved {
  public:
   using ContractOwner = Compiled;
   static constexpr Perimortem::System::Uuid contract_id{
@@ -21,7 +21,7 @@ class Compiled : public Model::Package {
   };
 
   auto implements(Perimortem::System::Uuid requested) const -> Bool override {
-    return requested == contract_id || Package::implements(requested);
+    return requested == contract_id || Resolved::implements(requested);
   }
 
   virtual auto get_terminals() const
@@ -30,4 +30,4 @@ class Compiled : public Model::Package {
       -> Perimortem::Core::View::Vector<Model::Shaders::Product> = 0;
 };
 
-}  // namespace Tetrodotoxin::Model::Packages
+}  // namespace Tetrodotoxin::Model::Package

@@ -36,7 +36,7 @@ namespace Tetrodotoxin::Model {
 // inventing lookup keys. Cursor remains transient evaluation state over this
 // owned data. Name resolution has exactly two authorities: rooted definitions
 // owned here and bindings injected by Environment.
-class Source final : public Ttx::Concept::Abstract {
+class Source : public Ttx::Concept::Abstract {
  public:
   // Root is one authored top level result and the Dialect that can
   // reproduce it. Keeping the relationship as one value prevents definition
@@ -101,15 +101,6 @@ class Source final : public Ttx::Concept::Abstract {
   // consumers exist. `evaluate()` alone is not that finalization barrier.
   auto evaluate(const Dialect& dialect, Ttx::Lexical::Errors& errors)
       -> const Ttx::Concept::Abstract&;
-
-  // Envelope and package container owners can begin Dialect evaluation at the
-  // first body token they parsed from this exact source stream. Source still
-  // constructs the Cursor itself, preserving the invariant that every result
-  // retained here was allocated by this Source's arena and tokenizer.
-  auto evaluate(
-      const Dialect& dialect,
-      Ttx::Lexical::Errors& errors,
-      Count body_token_index) -> const Ttx::Concept::Abstract&;
 
   constexpr auto get_arena() -> Perimortem::Memory::Allocator::Arena& {
     return arena;

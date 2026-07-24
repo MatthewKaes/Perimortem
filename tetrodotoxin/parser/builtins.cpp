@@ -21,7 +21,7 @@
 #include "ttx/model/types/unsigned_64.hpp"
 #include "ttx/model/types/unsigned_8.hpp"
 
-namespace Tetrodotoxin::Parser {
+using namespace Tetrodotoxin;
 
 using Builtin = Perimortem::Utility::Option<const Ttx::Model::Type&>;
 using Entry = Perimortem::Utility::Pair<Perimortem::Core::View::Bytes, Builtin>;
@@ -60,8 +60,6 @@ static constexpr Perimortem::Core::Static::Vector<Entry, 12> builtin_source = {{
 
 using BuiltinTable = Perimortem::Utility::Table<Builtin, builtin_source>;
 
-auto Builtins::find(Perimortem::Core::View::Bytes name) -> Builtin {
+auto Parser::Builtins::find(Perimortem::Core::View::Bytes name) -> Builtin {
   return BuiltinTable::find_or_default(name, Perimortem::Utility::none);
 }
-
-}  // namespace Tetrodotoxin::Parser

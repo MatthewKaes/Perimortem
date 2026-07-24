@@ -9,7 +9,7 @@
 #include "perimortem/memory/allocator/arena.hpp"
 
 #include "tetrodotoxin/archiver/manifest.hpp"
-#include "tetrodotoxin/model/package.hpp"
+#include "tetrodotoxin/model/package/resolved.hpp"
 #include "tetrodotoxin/model/terminal.hpp"
 
 namespace Tetrodotoxin::Archiver {
@@ -21,7 +21,7 @@ class Writer {
   static auto write(
       Perimortem::Memory::Allocator::Arena& arena,
       const Manifest& manifest,
-      const Model::Package& package,
+      const Model::Package::Resolved& package,
       Perimortem::Core::View::Vector<Model::Terminal> terminals)
       -> Perimortem::Core::View::Bytes;
 };

@@ -8,19 +8,19 @@
 #include "perimortem/memory/managed/vector.hpp"
 
 #include "tetrodotoxin/model/namespace.hpp"
-#include "tetrodotoxin/model/packages/compiled.hpp"
+#include "tetrodotoxin/model/package/compiled.hpp"
 
-namespace Tetrodotoxin::Model::Packages {
+namespace Tetrodotoxin::Model::Package {
 
 // Precompiled is the Package graph reconstructed from a Puffer Buffer. The
 // Archiver owns how records become real Abstract objects. This class exposes
 // the restored public graph without pretending the original Sources survived.
-class Precompiled final : public Compiled {
+class Precompiled : public Compiled {
  public:
   Precompiled(
       Perimortem::Memory::Allocator::Arena& arena,
       const Model::Namespace& exports,
-      Perimortem::Core::View::Vector<Ttx::Concept::Reference<Model::Package>>
+      Perimortem::Core::View::Vector<Ttx::Concept::Reference<Resolved>>
           dependencies = {},
       Perimortem::Core::View::Vector<
           Ttx::Concept::Reference<Ttx::Concept::Abstract>> definitions = {},
@@ -42,7 +42,7 @@ class Precompiled final : public Compiled {
   }
 
   auto get_dependencies() const -> Perimortem::Core::View::Vector<
-      Ttx::Concept::Reference<Model::Package>> override {
+      Ttx::Concept::Reference<Resolved>> override {
     return dependencies;
   }
 
@@ -70,7 +70,7 @@ class Precompiled final : public Compiled {
 
  private:
   const Model::Namespace& exports;
-  Perimortem::Memory::Managed::Vector<Ttx::Concept::Reference<Model::Package>>
+  Perimortem::Memory::Managed::Vector<Ttx::Concept::Reference<Resolved>>
       dependencies;
   Perimortem::Memory::Managed::Vector<
       Ttx::Concept::Reference<Ttx::Concept::Abstract>>
@@ -81,4 +81,4 @@ class Precompiled final : public Compiled {
   Perimortem::Memory::Managed::Vector<Model::Shaders::Product> shader_products;
 };
 
-}  // namespace Tetrodotoxin::Model::Packages
+}  // namespace Tetrodotoxin::Model::Package

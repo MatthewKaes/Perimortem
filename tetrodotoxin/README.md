@@ -1,88 +1,60 @@
 # Tetrodotoxin
 
-Tetrodotoxin is the active host for TTX packages, standard Dialects, target
-products, durable package buffers, and execution. TTX owns the shared language
-contracts; Tetrodotoxin owns the concrete transaction that turns package files
-into one executable and archiveable semantic graph.
+Tetrodotoxin is this repository's concrete host for TTX. It owns source
+lifetime, confined loading, exact package resolution, repositories, package
+construction, the binding graph, concrete semantic products, parser policy,
+compiler inputs, linker integration, materialization, and durable package
+representation that TTX leaves host-defined.
 
-## Package vertical
+TTX remains the authority for Token bytecode and shared Abstract, Type, Layout,
+Expression, Addressable, Callable, Documentation, and Body contracts.
 
-The intended production path is:
+## Component map
+
+- [`concept`](concept/) owns Tetrodotoxin-wide values shared across concrete
+  components, including exact authored Package Resolution.
+- [`parser`](parser/) owns deterministic Cursor consumption. Its README indexes
+  one source contract for every top-level Dialect and the embedded Foreign
+  Dialect.
+- [`parser/package`](parser/package/) owns the root `package.ttx` transaction:
+  its Source parser consumes the Package envelope and its Workspace confines
+  member loading to one pinned package root.
+- [`model`](model/) owns Source lifetime, Environment, concrete Dialect
+  identities, Namespace, the parsed and resolved Package models, Render,
+  Shader, and other semantic products.
+- [`compiler`](compiler/) owns compilation-local target representation and
+  terminal production from a finalized semantic graph.
+- [`linker`](linker/) owns source-independent object and ELF/archive packaging.
+- [`archiver`](archiver/) owns durable package buffers and source-free restored
+  Package state.
+
+## Production direction
 
 ```text
 package directory
--> parse package.ttx Descriptor
--> resolve exact external Manifests and Packages
--> confine and load every explicit member Source
--> tokenize every Source through its owned Tokenizer
--> publish completed external bindings into one package Environment
--> evaluate Library, Render, Shader, and App members in descriptor order
--> publish each completed member into that shared Environment
--> evaluate Package exports
--> compile selected Shader stages to SPIR-V terminals
--> publish one Packages::Sources
+-> Parser::Package Workspace and root package.ttx transaction
+-> Model-owned Package::Source declarations
+-> member Source, Environment, and semantic products
+-> finalized Package graph
+-> Compiler and Linker terminal products
+-> Archiver durable package buffer
 ```
 
-The live checkout does not yet contain `tetrodotoxin/puffer`, a package
-Descriptor, a confined Workspace, or a package Container. The path above is
-the owner contract for the planned host lane, not current execution evidence.
-The active Model can represent part of the resulting graph, but callers
-currently construct its Environment and Sources directly.
+Each arrow crosses an owner boundary:
 
-The canonical acceptance closure is:
+- Parser never opens files or searches repositories.
+- Puffer is a CLI/LSP client of Tetrodotoxin and owns no reusable Package
+  behavior.
+- Model never stores parser bookmarks as unfinished semantics.
+- Compiler never rebuilds the Package as a shadow Type graph.
+- Archiver never owns source loading or runtime objects.
 
-```text
-Perimortem.Math 1.0
-Perimortem.Runtime 1.0
-Perimortem.Graphics 1.0
-Demo 1.0
-```
+## Active targets
 
-Math supplies real geometry Types. Runtime supplies managed Window and inline
-Frame/Time facts plus semantic Input and Key contracts. Graphics supplies real
-Library Types, `Render2D`, and the `Default2D` Shader. Demo supplies one managed
-App with direct lifecycle roles, one Render root, and an explicit
-`Render2D -> Default2D` binding.
-
-No Source imports another Source or stores package dependencies. Package
-membership is container data. Every member Source borrows the same progressive
-Environment. The planned Container publishes each completed member before
-evaluating the next descriptor member. Package publication occurs only after
-member evaluation, export evaluation, target validation, and terminal
-compilation succeed.
-
-## Owner boundaries
-
-- [`model`](model/) owns Source lifetime, Environment, Namespace, anonymous
-  Package, canonical package-local definition IDs, concrete Library facts,
-  Render/Shader/App semantic owners, direct dependencies, terminals, and
-  Shader-to-terminal products.
-- [`interpreter`](interpreter/) consumes TTX token bytecode. Its fixed compile-
-  time Definition composition and concrete Package, Library, Render, Shader,
-  and App evaluators attach facts to the real owners.
-- The planned `puffer/` owner supplies Descriptor parsing, the package
-  Container transaction, the confined source-backed Workspace, exact
-  Catalog/Repository lookup, source-free recursive restore, and terminal
-  Materializer. No live Puffer path or Bazel target exists at this checkpoint.
-- [`target/spir_v`](target/spir_v/) owns compilation-local target
-  Representation, Shader legality, SPIR-V planning, internal validation, and
-  stable terminal metadata.
-- [`runtime`](runtime/) owns worker-local Realm, common Body host execution,
-  App loop, rooting, cleanup, and Package-closure Shader product lookup.
-- [`graphics`](graphics/) owns language-neutral transactions, the Sink
-  contract, and the headless acceptance backend. It includes no TTX frontend
-  contracts.
-- [`archiver`](archiver/) owns versioned durable buffers. It has no source,
-  filesystem, repository-search, or runtime-object authority.
-- [`linker`](linker/) remains the active source-independent ELF/archive
-  packager.
-
-## Active Bazel targets
-
-The current owner-shaped targets are:
+The owner-shaped top-level libraries are:
 
 ```text
-//tetrodotoxin:diagnostics
+//tetrodotoxin:concept
 //tetrodotoxin:model
 //tetrodotoxin:parser
 //tetrodotoxin:compiler
@@ -90,179 +62,10 @@ The current owner-shaped targets are:
 //tetrodotoxin:archiver
 ```
 
-The reusable SPIR-V word emitter is isolated in `spir_v_assembler`; activating
-it does not activate the old compiler execution tree or ISA registry.
+Target existence proves only that the owner builds. It does not prove that a
+documented Dialect parser, semantic evaluator, runtime, target path, or
+source-free restoration path executes.
 
-There is no active Puffer package host, CLI, LSP target, Interpreter target,
-runtime target, graphics target, or general native compiler target in this
-slice. The superseded ISA and private compiler execution trees were
-removed after the common Body and owner-shaped target path replaced them; the
-preserved assembler and allocation utilities consume selected instructions or
-the common Body rather than a second semantic system. The vertical does not
-self-host all standard packages or implement a window/GPU backend. The
-normative embedded Foreign Dialect is also not yet implemented by the parser,
-durable model, Archiver, or native compiler path.
-
-The canonical multi-Scene application under
-[`../apps/ttx/scene_lifetime`](../apps/ttx/scene_lifetime/) is retained as
-the next acceptance target. Its production Package descriptor parses, but no
-Scene evaluator, transition runtime, or durable Scene schema is claimed. The
-fixture deliberately exercises Splash and Title state, semantic input, typed
-signals, a transition loop, resource loading, and multiple coordinated Source
-members so those requirements cannot be hidden by the minimal Demo.
-
-## Shared graph and Dialects
-
-The durable model is one graph of real TTX Abstract identities plus
-identity-free Layout and Body values. Package owns only export composition.
-Environment owns the common immutable `View`, `Access`, and `Fixed` Generic
-formulas and one append-only materialization writer for every Source in one
-interpretation transaction.
-The Library resource lane will give Environment a borrowed capability for one
-Puffer Workspace root, a result-bearing resource cache, and interned byte
-backing. Workspace will pin and confine the filesystem root. Environment will
-normalize logical routes and own successful transaction snapshots. Literal
-parsing will diagnose failed lookups and construct Bytes Constants; only
-reachable folded bytes, never roots or cache state, become durable Package
-facts.
-Library owns reusable inline/managed
-Types, Callables, constants, and host Bodies. Render owns value state,
-constant/push/resource roles, and required stage Callable contracts. Shader
-owns exact Render implementation edges, Stage Bodies, GPU interface facts,
-explicit representation edges, and terminal production. App owns managed
-state, lifecycle Callable edges, render roots, and explicit Render-to-Shader
-binding. Scene is specified as a managed state owner with lifecycle edges,
-render roots, and typed signals. App, not Scene, owns initial-state and
-transition policy so cyclic navigation does not create cyclic Source
-dependencies.
-
-A Dialect controls source presentation, accepted builtins, evaluation,
-legality, and additional versioned facts. It may reject or narrow a common TTX
-construct, but it may not reinterpret a common contract. Environment binding
-exposes identity only; it does not merge Dialect builtins or rules.
-
-Library, Scene, App, and other CPU-executable Dialects may explicitly opt into
-the shared `foreign "C" { ... }` grammar. Package and Shader do not. Every
-Foreign block contributes declarations to one private, source-local `foreign`
-surface: `foreign.name` selects declared `const` or `state` data and
-`foreign -> name(...)` selects a declared `func`. Foreign `const` is a
-read-only external Addressable rather than a Constant, Foreign `state` is a
-writable external Addressable, and Foreign `func` is a bodyless external
-Callable with complete Layouts. These imports are complete semantic promises,
-not TTX forward declarations awaiting later bodies. Only declared names
-resolve; an ambient Linker symbol cannot legalize an undeclared source use.
-
-The durable Foreign facts will be the `"C"` FFI/ABI selector, exact external
-symbol, access capability, real Type or parameter/result Layout edges, authored
-order, documentation, and attributes. The private surface is not Package
-`Exports`. It retains no package/native provider, process address, or
-target-specific relocation. Provider selection belongs to package or link
-configuration; addresses and relocations are derived by the native target and
-Linker.
-
-## Default2D target path
-
-`Render2D` retains the exact Addressables and Callables for its ordinary state,
-constants, push constants, Image resource, and Vertex/Fragment requirements.
-`Default2D` retains that real Render identity, one implementation of every
-required Stage, complete input/result Layouts, one common Body per Stage, and
-the location/builtin/binding facts needed by the planner.
-
-Before emission, Shader construction rejects missing or duplicate required
-stages, unknown stages, directional Layout mismatches, undeclared Render
-access, managed GPU values, unsupported representation, and conflicting
-interface facts. `Color` supplies an explicit representation edge to the real
-`Vec4D` Type; structural coincidence is not used.
-
-SPIR-V lowering derives dense target records from terminal Type facts, concrete
-vector/aggregate contracts, Addressables, stage interfaces, and Body
-operations. It emits vertex and fragment modules plus versioned interface
-sidecars at stable logical paths:
-
-```text
-shader/Default2D/vertex.spv
-shader/Default2D/vertex.spv.interface
-shader/Default2D/pixel.spv
-shader/Default2D/pixel.spv.interface
-```
-
-The internal validator checks module bounds/order, IDs, references,
-entry/function structure, execution models, interface variables, locations,
-builtins, push offsets, descriptor bindings, and promised metadata.
-
-## Runtime path
-
-Realm is worker-local, nonmoving, and stable-address for live managed objects.
-It derives trace slots from real managed Type fields and range element Types,
-marks from explicit App/frame roots, reclaims unreachable cycles, rejects
-cross-worker mutation, and tears down all storage deterministically.
-
-Host executes lifecycle Bodies through direct App edges:
-
-```text
-create Realm
--> allocate and root App state
--> invoke start once
--> provide Runtime Frame and invoke frame
--> submit explicit render roots through explicit Shader bindings
--> consume Continue, Exit, or Failure runtime value
--> invoke stop once on normal and defined failure paths
--> release Graphics
--> unroot, collect, and tear down Realm
-```
-
-The headless Sink observes the neutral transaction and proves the configured
-`Render2D` root selects `Default2D`; it requires no window server or GPU. The
-current transaction carries root/binding coordinates and terminal products,
-not an evaluated `Render2D` field payload.
-
-The host legality profile currently executes Flag constants, branches, jumps,
-and returns. Common aggregate, projection, call, load, store, conversion, and
-arithmetic Body operations are durable and used by Shader lowering, but they
-are not yet realized by the host executor. App state allocation and lifecycle
-ordering are therefore real while general Library and App execution remain the
-next runtime layer.
-
-## Durable execution
-
-Archive format 1 stores real Type/Layout/Generic/Addressable/Callable/Constant/Body,
-Render/Shader/App, dependency, product, and terminal facts. Local edges use
-Package definition IDs; external edges use dependency ordinal plus the
-dependency's definition ID. Render, Shader, and App extension records use
-stable contract UUIDs and explicit Major.Minor schema versions.
-
-The format 1 Writer and Reader do not yet encode Foreign. Its prototype
-extension must encode the source-local surface and complete import facts
-atomically, while continuing to exclude providers, process addresses, and
-target relocations. Native lowering will derive undefined function/object
-symbols, the required load/store capability, and target relocations from those
-restored facts rather than archive target artifacts.
-
-Repository owns archive bytes and recursively restores exact dependencies.
-Reader validates all bounded sections, references, graph legality, Bodies,
-extensions, dependencies, products, and terminals before publishing one
-source-free `Packages::Precompiled`. Restored Demo executes the same lifecycle
-and submits independently owned, byte-identical Default2D modules without
-consulting Source, Tokenizer, or filesystem paths.
-
-See [tetrodotoxin_design.md](tetrodotoxin_design.md) for the full transaction,
-[archiver/README.md](archiver/README.md) for durable formats, and
-[puffer/README.md](puffer/README.md) for package orchestration.
-
-## Implementation conventions
-
-Comments explain ownership, invariants, and the reason an algorithm has its
-shape. A long function names each material stage in full prose before the code
-that performs it. Code comments use complete sentences rather than dash or
-semicolon shorthand. They do not restate individual statements.
-
-Function bodies are arranged as readable paragraphs. A paragraph contains its
-declarations first, then its statements, then at most one control-flow block.
-When another paragraph follows a control-flow block, a blank line separates
-the two. This spacing is reviewed manually because the formatter cannot infer
-the intended algorithmic paragraphs.
-
-C++ files are formatted only through `.vscode/format.sh` with explicit paths.
-The complete unit suite is invoked through
-`bazel run //validation:unit_tests`, which supplies the required runfiles and
-generated products.
+See [tetrodotoxin_design.md](tetrodotoxin_design.md) for the cross-component
+transaction. Each linked owner document is authoritative for its narrower
+contract.

@@ -7,7 +7,7 @@
 
 #include "perimortem/memory/dynamic/bytes.hpp"
 
-namespace Tetrodotoxin::Puffer::Lsp::Rpc {
+namespace Puffer::Lsp::Rpc {
 
 class FrameReader {
  public:
@@ -23,4 +23,4 @@ class FrameReader {
   Bool header_found = False;
 };
 
-}  // namespace Tetrodotoxin::Puffer::Lsp::Rpc
+}  // namespace Puffer::Lsp::Rpc

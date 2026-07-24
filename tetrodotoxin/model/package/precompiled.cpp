@@ -1,17 +1,17 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
-#include "tetrodotoxin/model/packages/precompiled.hpp"
+#include "tetrodotoxin/model/package/precompiled.hpp"
 
 #include "ttx/concept/invalid.hpp"
 
 using namespace Perimortem::Core;
 using namespace Ttx::Concept;
 
-Tetrodotoxin::Model::Packages::Precompiled::Precompiled(
+Tetrodotoxin::Model::Package::Precompiled::Precompiled(
     Perimortem::Memory::Allocator::Arena& arena,
     const Model::Namespace& exports,
-    View::Vector<Reference<Model::Package>> dependencies,
+    View::Vector<Reference<Model::Package::Resolved>> dependencies,
     View::Vector<Reference<Abstract>> definitions,
     View::Vector<Model::Terminal> terminals,
     View::Vector<Model::Shaders::Product> shader_products)
@@ -45,7 +45,7 @@ Tetrodotoxin::Model::Packages::Precompiled::Precompiled(
   }
 }
 
-auto Tetrodotoxin::Model::Packages::Precompiled::get_definition(Count id) const
+auto Tetrodotoxin::Model::Package::Precompiled::get_definition(Count id) const
     -> const Abstract& {
   if (id >= definitions.get_size()) {
     return Invalid::get_invalid();
@@ -54,13 +54,13 @@ auto Tetrodotoxin::Model::Packages::Precompiled::get_definition(Count id) const
   return definitions.get_view()[id].get();
 }
 
-auto Tetrodotoxin::Model::Packages::Precompiled::get_definition_id(
+auto Tetrodotoxin::Model::Package::Precompiled::get_definition_id(
     const Abstract& definition) const -> Count {
   const auto* selected = definition_index.find(&definition);
   return selected == nullptr ? Count(-1) : selected->value;
 }
 
-auto Tetrodotoxin::Model::Packages::Precompiled::resolve_context(
+auto Tetrodotoxin::Model::Package::Precompiled::resolve_context(
     View::Bytes route) const -> const Abstract& {
   return exports.resolve_context(route);
 }

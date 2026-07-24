@@ -20,7 +20,7 @@
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
 using namespace Perimortem::Serialization;
-using namespace Tetrodotoxin::Puffer;
+using namespace Puffer;
 
 static auto hex_value(Unsigned_8 value) -> Signed_32 {
   if (value >= '0' && value <= '9') {
@@ -219,9 +219,8 @@ static auto report_document(
                  }}));
 }
 
-auto Tetrodotoxin::Puffer::Lsp::initialize(
-    Documents&,
-    const Rpc::Message& message) -> Rpc::Response {
+auto Puffer::Lsp::initialize(Documents&, const Rpc::Message& message)
+    -> Rpc::Response {
   auto& arena = message.get_arena();
   return message.report_result(
       Json::Node::construct(
@@ -248,7 +247,7 @@ auto Tetrodotoxin::Puffer::Lsp::initialize(
                  }}));
 }
 
-auto Tetrodotoxin::Puffer::Lsp::format(Documents&, const Rpc::Message& message)
+auto Puffer::Lsp::format(Documents&, const Rpc::Message& message)
     -> Rpc::Response {
   auto& arena = message.get_arena();
   const auto& args = message.get_params();
@@ -274,9 +273,8 @@ auto Tetrodotoxin::Puffer::Lsp::format(Documents&, const Rpc::Message& message)
   return report_document(message, formatted.get_view());
 }
 
-auto Tetrodotoxin::Puffer::Lsp::did_open(
-    Documents& documents,
-    const Rpc::Message& message) -> Rpc::Response {
+auto Puffer::Lsp::did_open(Documents& documents, const Rpc::Message& message)
+    -> Rpc::Response {
   const auto uri =
       message.get_params()["textDocument"_view]["uri"_view].get_string();
   const auto text =
@@ -289,9 +287,8 @@ auto Tetrodotoxin::Puffer::Lsp::did_open(
   return Json::Node();
 }
 
-auto Tetrodotoxin::Puffer::Lsp::did_change(
-    Documents& documents,
-    const Rpc::Message& message) -> Rpc::Response {
+auto Puffer::Lsp::did_change(Documents& documents, const Rpc::Message& message)
+    -> Rpc::Response {
   const auto uri =
       message.get_params()["textDocument"_view]["uri"_view].get_string();
   Json::Array changes = message.get_params()["contentChanges"_view].get_array();
@@ -304,9 +301,8 @@ auto Tetrodotoxin::Puffer::Lsp::did_change(
   return Json::Node();
 }
 
-auto Tetrodotoxin::Puffer::Lsp::did_close(
-    Documents& documents,
-    const Rpc::Message& message) -> Rpc::Response {
+auto Puffer::Lsp::did_close(Documents& documents, const Rpc::Message& message)
+    -> Rpc::Response {
   const auto uri =
       message.get_params()["textDocument"_view]["uri"_view].get_string();
   documents.erase(uri);
@@ -316,7 +312,7 @@ auto Tetrodotoxin::Puffer::Lsp::did_close(
   return Json::Node();
 }
 
-auto Tetrodotoxin::Puffer::Lsp::semantic_tokens(
+auto Puffer::Lsp::semantic_tokens(
     Documents& documents,
     const Rpc::Message& message) -> Rpc::Response {
   const auto uri =

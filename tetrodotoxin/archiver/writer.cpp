@@ -98,10 +98,12 @@ static auto add_external_reference(
 
 static auto index_external_references(
     ExternalIndex& references,
-    View::Vector<Ttx::Concept::Reference<Tetrodotoxin::Model::Package>>
+    View::Vector<
+        Ttx::Concept::Reference<Tetrodotoxin::Model::Package::Resolved>>
         dependencies) -> Bool {
   for (Count i = 0; i < dependencies.get_size(); i++) {
-    const Tetrodotoxin::Model::Package& dependency = dependencies[i].get();
+    const Tetrodotoxin::Model::Package::Resolved& dependency =
+        dependencies[i].get();
     EncodedReference package_reference;
     package_reference.code = Format::ReferenceCode::Dependency;
     package_reference.dependency = i;
@@ -128,7 +130,7 @@ static auto index_external_references(
 
 static auto validate_record(
     const Abstract& record,
-    const Tetrodotoxin::Model::Package& package) -> Bool {
+    const Tetrodotoxin::Model::Package::Resolved& package) -> Bool {
   Bool supported = record.is<Tetrodotoxin::Model::Namespace>() ||
                    record.is<Ttx::Model::Alias>();
   if (!supported || record.get_name().is_empty()) {
@@ -154,7 +156,7 @@ static auto validate_record(
 static auto resolve_reference(
     const Ttx::Model::Alias& alias,
     const ExternalIndex& external_references,
-    const Tetrodotoxin::Model::Package& package,
+    const Tetrodotoxin::Model::Package::Resolved& package,
     EncodedReference& result) -> Bool {
   const Abstract& target = alias.resolve();
   const ExternalIndex::Entry* external = external_references.find(&target);
@@ -227,7 +229,7 @@ static auto collect_reference(
     ReferenceIndex& references,
     const Abstract& definition,
     const ExternalIndex& external_references,
-    const Tetrodotoxin::Model::Package& package) -> Bool {
+    const Tetrodotoxin::Model::Package::Resolved& package) -> Bool {
   if (!definition.is<Ttx::Model::Alias>()) {
     return True;
   }
@@ -245,13 +247,13 @@ static auto collect_reference(
 auto Tetrodotoxin::Archiver::Writer::write(
     Allocator::Arena& arena,
     const Manifest& manifest,
-    const Tetrodotoxin::Model::Package& package,
+    const Tetrodotoxin::Model::Package::Resolved& package,
     View::Vector<Tetrodotoxin::Model::Terminal> terminals) -> View::Bytes {
   if (!manifest.is_valid(arena) || terminals.get_size() > Format::max_count) {
     return {};
   }
 
-  View::Vector<Reference<Tetrodotoxin::Model::Package>> dependencies =
+  View::Vector<Reference<Tetrodotoxin::Model::Package::Resolved>> dependencies =
       package.get_dependencies();
   if (manifest.get_dependencies().get_size() != dependencies.get_size()) {
     return {};

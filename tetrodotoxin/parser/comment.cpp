@@ -7,13 +7,13 @@
 
 #include "ttx/lexical/lexicon.hpp"
 #include "ttx/lexical/token.hpp"
+#include "ttx/model/documentations/block.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
-using namespace Perimortem::Utility;
+using namespace Ttx::Concept;
 using namespace Ttx::Lexical;
-
-namespace Tetrodotoxin::Parser {
+using namespace Tetrodotoxin;
 
 static constexpr auto comment_line(Token comment, View::Bytes source)
     -> View::Bytes {
@@ -28,10 +28,11 @@ static constexpr auto comment_line(Token comment, View::Bytes source)
   return line;
 }
 
-auto Comment::parse(Cursor& cursor)
-    -> Option<const Ttx::Model::Documentations::Block&> {
+auto Parser::Comment::parse(Cursor& cursor) -> const Documentation& {
+  // Absence is valid for nested parser positions. Document parsers enforce
+  // their required opening comment before delegating here.
   if (!cursor.matches(Code::Type::Comment)) {
-    return none;
+    return Documentation::get_empty();
   }
 
   Managed::Vector<View::Bytes> lines(cursor.get_arena());
@@ -44,11 +45,10 @@ auto Comment::parse(Cursor& cursor)
   }
 
   // Block and its line index share the Source arena. Each line still borrows
-  // the tokenizer's source bytes, avoiding a second prose representation.
+  // the tokenizer's source bytes so formatters and other tools can examine the
+  // block just as it was source authored.
   const auto& documentation =
       cursor.get_arena().construct<Ttx::Model::Documentations::Block>(
           lines.get_view());
   return documentation;
 }
-
-}  // namespace Tetrodotoxin::Parser

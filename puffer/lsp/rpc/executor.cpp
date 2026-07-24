@@ -26,7 +26,7 @@
 using namespace Perimortem::Memory;
 using namespace Perimortem::Core;
 using namespace Perimortem::Utility;
-using namespace Tetrodotoxin::Puffer;
+using namespace Puffer;
 
 template <const auto& dispatch_table, Count worker_count>
 auto Lsp::Rpc::Executor<dispatch_table, worker_count>::execute(

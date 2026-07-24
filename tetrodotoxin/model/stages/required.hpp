@@ -16,7 +16,7 @@ namespace Tetrodotoxin::Model::Stages {
 // Required is a Render-owned stage Callable contract. Read edges identify the
 // exact declared constant/push/resource Addressables available to an
 // implementation. Input and result Layouts retain the actual parameters.
-class Required final : public Ttx::Model::Callable {
+class Required : public Ttx::Model::Callable {
  public:
   enum class Execution : Unsigned_8 {
     Vertex,

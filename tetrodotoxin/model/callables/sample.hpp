@@ -10,7 +10,7 @@ namespace Tetrodotoxin::Model::Callables {
 // Sample is the Library-owned intrinsic contract for sampling an opaque Render
 // resource. Shader lowering selects it by contract identity, never by the
 // authored function or Type name.
-class Sample final : public Self {
+class Sample : public Self {
  public:
   using Self::Self;
   using ContractOwner = Sample;

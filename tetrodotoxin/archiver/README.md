@@ -43,7 +43,8 @@ class repository merely to make arbitrary objects serializable.
 
 ## Writing
 
-The replacement writer accepts a complete and validated `Model::Package`. The
+The replacement writer accepts a complete and validated
+`Model::Package::Resolved`. The
 Package already owns its canonical definition table; Writer validates and emits
 those IDs instead of rediscovering object ownership by searching export trees.
 String and physical section compaction remain private to the format version.
@@ -58,16 +59,16 @@ surface.
 The reader validates the header, format version, table bounds, references, and
 every invariant required before publication. It reserves stable local objects
 when the chosen format requires a multi-stage restore, then connects and
-validates the complete graph before exposing a `Model::Packages::Precompiled`.
-That object implements the same `Model::Package` contract used by the writer and
+validates the complete graph before exposing a `Model::Package::Precompiled`.
+That object implements the same `Model::Package::Resolved` contract used by the writer and
 by source-backed packages, but it does not implement
-`Model::Packages::Interpreted`.
+`Model::Package::Interpreted`.
 
 Failure produces Invalid through the package-owning boundary. Consumers never
 observe a partially connected graph or null semantic references.
 
 Restored terminal products are available through the narrow
-`Model::Packages::Compiled` Package capability. The concrete
+`Model::Package::Compiled` Package capability. The concrete
 `Model::Terminal` owns one relative logical output path and opaque bytes;
 neither the capability nor `Precompiled` exposes archive tables or filesystem
 policy.

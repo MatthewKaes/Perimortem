@@ -3,10 +3,10 @@
 
 #pragma once
 
-#include "tetrodotoxin/model/packages/compiled.hpp"
+#include "tetrodotoxin/model/package/compiled.hpp"
 #include "tetrodotoxin/model/source.hpp"
 
-namespace Tetrodotoxin::Model::Packages {
+namespace Tetrodotoxin::Model::Package {
 
 // Interpreted is the optional Package capability for a package whose resolved
 // Sources remain available. Formatters, editors, and incremental compilation
@@ -31,4 +31,4 @@ class Interpreted : public Compiled {
       Ttx::Concept::Reference<Model::Source>> = 0;
 };
 
-}  // namespace Tetrodotoxin::Model::Packages
+}  // namespace Tetrodotoxin::Model::Package

@@ -1,70 +1,112 @@
-# Tetrodotoxin Parser Revival
+# Tetrodotoxin Parser
 
-`tetrodotoxin/parser` restores the parser-first frontend that preceded the ISA
-and interpreter experiments. The historical authority is split across two
-adjacent revisions:
+`tetrodotoxin/parser` owns deterministic consumption of TTX token bytecode for
+the concrete source forms Tetrodotoxin accepts. It turns one forward-only
+`Ttx::Lexical::Cursor` transaction into owner-shaped values and semantic facts.
 
-- `7001442a^` contains the last working recursive Type parser and its focused
-  specialization and recovery tests.
-- `7001442a` introduces the original Abstract-context design: lexical
-  classification permits progressive local resolution, and parsing enriches
-  real Abstract owners instead of constructing a parallel compiler model. Its
-  newly moved `Type::parse` is a stub, so this revision supplies ownership
-  authority rather than an implementation to copy.
+The parser does not own source bytes, filesystem access, repository search,
+package loading, runtime execution, target lowering, linking, or archive
+formats.
 
-The older algorithm is migrated to the current `Ttx::Lexical` and
-`Ttx::Concept::Abstract` contracts. Its obsolete Tokenizer, nullable Abstract
-pointers, handler enum, standard-library registry, and copied Type tree are not
-restored.
+## Transaction contract
 
-## Owner contract
+Source lifetime and the Tokenizer belong to `Tetrodotoxin::Model::Source`.
+Parsing borrows its Cursor, source projection, Arena, and Errors.
 
-The parser owns deterministic consumption of TTX token bytecode and progressive
-resolution against the real Abstract context supplied by its caller. It does
-not own source bytes, semantic identities, package loading, target lowering, or
-runtime execution.
+Every parser follows these rules:
 
-- Source and its Tokenizer own input lifetime.
-- The parser borrows a `Ttx::Lexical::Cursor` and reports through its Errors.
-- Tetrodotoxin owns immutable scalar Type identities indexed by
-  `Perimortem::Utility::Table`. `Bool`, the fixed-width integer and real Types,
-  and the resolved `Count` alias use this fast path.
-- The caller supplies the first real Abstract context for every other name.
-- Each authored segment resolves from the Abstract selected by the preceding
-  segment.
-- Graph queries still fail with the one `Ttx::Concept::Invalid` object. The
-  parser consumes that result, records its diagnostic, and returns
-  `Perimortem::Utility::None` because parse failure is not a semantic graph
-  identity.
-- A Type parser returns `Option<const Ttx::Model::Type&>`, borrowing the real
-  resolved Type identity. It never returns a copied Type description or
-  syntax-only Type graph.
-- A Generic publishes its complete ordered parameter signature. The parser
-  validates nested `const Type&`, `Unsigned_64`, `Signed_64`, and `Bool`
-  arguments and passes their compact Union view to an explicit
-  `Generic::Materializations` writer. Tetrodotoxin's shared Environment owns
-  that append-only writer and the immutable `View`, `Access`, and `Fixed`
-  formulas; the builtin fast path contains only concrete scalar Types.
-- Parsing is left-to-right and never backtracks.
+- consume left to right without backtracking;
+- use Token Codes to choose grammar rather than reclassifying text;
+- report the required class and the actual class when a Token does not match;
+- return `Utility::None` for parser failure;
+- return references or owner-shaped values for success;
+- use `Core::Static::Union` when a result has closed alternatives;
+- never use a pointer as absence, failure, or delayed semantic state;
+- never take an output parameter to smuggle a second result from a transaction;
+- never retain a Cursor position, token index, or token range as unfinished
+  semantic meaning; and
+- recover only at an explicit grammar sequence point.
 
-## Revival slices
+`Cursor::require()` consumes the required Token and returns a Token whose
+validity can be tested directly. A caller that does not need the Token may use
+that result as the condition. Parser code does not reproduce the Cursor's
+validity or diagnostic state.
 
-1. Restore progressive non-generic Type-reference parsing and prove direct,
-   nested, missing, and wrong-contract behavior.
-2. Restore generic arguments using the Generic's declared parameter signature,
-   compact const-Type/scalar Union values, transaction-owned materialized
-   Types, and sequence-point recovery. Environment-owned materializations plus
-   `View`, `Access`, and `Fixed` establish this slice across every Source in one
-   interpretation transaction.
-3. Restore definitions, aliases, comments, attributes, and declaration
-   recovery onto their real owners.
-4. Restore functions, layouts, packs, expressions, and statements one grammar
-   family at a time with focused historical behavior tests.
-5. Restore the Source envelope and package parser, then connect one canonical
-   authored Source to the existing model owners.
-6. Replace each active evaluator consumer only after parser output passes an
-   independent behavior comparison. Delete the superseded path after the last
-   consumer moves.
+An authored form is consumed once. If later completion is required, the next
+phase walks the semantic owners produced by parsing. It does not reopen the
+Tokenizer or replay a Cursor.
 
-Each slice must build `//tetrodotoxin:parser`, add focused behavior coverage,
-and leave later grammar visibly unsupported rather than fabricating success.
+## Shared grammar
+
+The shared parser surface is restored one owner-shaped family at a time:
+
+| Owner | Responsibility | Status |
+| ----- | -------------- | ------ |
+| `Comment` | consume ordered comment Tokens into one valid Documentation value | implemented |
+| `Builtins` | immutable fast lookup for concrete scalar Types | implemented |
+| `Type` | progressive Abstract resolution and Generic argument materialization | implemented |
+| Package document | opening Documentation, exact envelope, resolutions, and member routes | implemented |
+| Definitions | modifier/name/continuation consumption and direct semantic handoff | not implemented |
+| Attributes | key plus optional scalar value | not implemented |
+| Layouts and packs | expected shape and produced value flow | not implemented |
+| Functions | Callable signature and direct body consumption | not implemented |
+| Expressions and statements | one-pass production of semantic values and Body facts | not implemented |
+
+`Type::parse()` first resolves a concrete builtin or queries the caller's real
+Abstract context. Each `::` segment is resolved by the currently selected
+Abstract. Generic arguments are consumed according to the Generic's immutable
+parameterization and supplied to the transaction-owned
+`Generic::Materializations` writer. The result is the real materialized Type
+identity.
+
+Definitions will use compile-time continuation composition. The parent parser
+selects the continuation from the authored Type-shaped name and passes the
+consumed documentation, modifiers, name, attributes, and owning context
+directly to that parser. It does not construct an evaluator object, mutable
+registry record, generic Member wrapper, or transient Abstract.
+
+## Document contract
+
+A complete Tetrodotoxin document begins with an opening Documentation block.
+Its envelope follows immediately:
+
+```text
+Documentation
+dialect : DialectName;
+Dialect-owned body
+```
+
+The envelope parser validates the concrete Dialect expected by its entry point.
+The lowercase `dialect` marker and punctuation are TTX Codes; the accepted
+Dialect name and body grammar are Tetrodotoxin parser policy.
+
+Subtree parsers such as Type parsing do not require a document envelope because
+their caller has already selected the containing grammar.
+
+## Dialect documents
+
+Each concrete top-level Dialect owns its source contract locally:
+
+- [Package](package/)
+- [Library](library/)
+- [Render](render/)
+- [Shader](shader/)
+- [App](app/)
+- [Scene](scene/)
+
+[Foreign](foreign/) is an embedded Dialect rather than a top-level envelope,
+but it has its own parser contract for the same ownership reason.
+
+These documents separate accepted source shape from Package construction,
+Model, Runtime, Target, Archiver, and application behavior that consumes the
+resulting facts.
+
+## Evidence boundary
+
+The active `//tetrodotoxin:parser` target contains Comment, Type, Builtins, and
+Package parsing. Documentation for every other Dialect is a source contract and
+implementation guide, not a claim that its parser or evaluator exists.
+
+Unsupported syntax must fail visibly until its real owner can consume it
+directly. A structural fixture, tokenization result, or README does not count as
+semantic execution.

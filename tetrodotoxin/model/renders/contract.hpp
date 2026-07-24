@@ -18,7 +18,7 @@ namespace Tetrodotoxin::Model::Renders {
 
 // Contract is one complete Render Type. It retains value state, role
 // namespaces, and the exact Stage signatures a Shader must implement.
-class Contract final : public Model::Render {
+class Contract : public Model::Render {
  public:
   static auto construct(
       Perimortem::Memory::Allocator::Arena& arena,

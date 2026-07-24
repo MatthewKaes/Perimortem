@@ -10,7 +10,7 @@
 namespace Tetrodotoxin::Model::Renderables {
 
 // Constant assigns the Render constant role to one real semantic Constant.
-class Constant final : public Ttx::Model::Addressable {
+class Constant : public Ttx::Model::Addressable {
  public:
   using ContractOwner = Constant;
   static constexpr Perimortem::System::Uuid contract_id{

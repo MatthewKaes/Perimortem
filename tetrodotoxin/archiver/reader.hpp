@@ -9,7 +9,7 @@
 #include "perimortem/memory/allocator/arena.hpp"
 
 #include "tetrodotoxin/archiver/manifest.hpp"
-#include "tetrodotoxin/model/package.hpp"
+#include "tetrodotoxin/model/package/resolved.hpp"
 
 namespace Tetrodotoxin::Archiver {
 
@@ -26,8 +26,9 @@ class Reader {
   auto read_package(
       Perimortem::Memory::Allocator::Arena& arena,
       const Manifest& manifest,
-      Perimortem::Core::View::Vector<Ttx::Concept::Reference<Model::Package>>
-          dependencies) const -> const Ttx::Concept::Abstract&;
+      Perimortem::Core::View::Vector<
+          Ttx::Concept::Reference<Model::Package::Resolved>> dependencies) const
+      -> const Ttx::Concept::Abstract&;
 
  private:
   Perimortem::Core::View::Bytes source;

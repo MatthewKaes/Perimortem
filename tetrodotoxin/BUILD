@@ -7,6 +7,18 @@ load("@rules_cc//cc:cc_library.bzl", "cc_library")
 package(default_visibility = ["//visibility:public"])
 
 cc_library(
+    name = "concept",
+    hdrs = glob([
+        "concept/**/*.hpp",
+    ]),
+    includes = ["."],
+    deps = [
+        "//perimortem",
+        "//ttx",
+    ],
+)
+
+cc_library(
     name = "diagnostics",
     srcs = glob([
         "diagnostics/**/*.cpp",
@@ -31,6 +43,7 @@ cc_library(
     ]),
     includes = ["."],
     deps = [
+        ":concept",
         "//perimortem",
         "//ttx",
     ],
@@ -46,6 +59,8 @@ cc_library(
     ]),
     includes = ["."],
     deps = [
+        ":concept",
+        ":model",
         "//perimortem",
         "//ttx",
     ],

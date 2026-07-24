@@ -40,7 +40,7 @@ namespace Tetrodotoxin::Model {
 // and eventually prove one of those narrower contracts on the selected
 // definition. Source is a separate anonymous lifetime root that may contain
 // Namespaces among its definitions.
-class Namespace final : public Ttx::Model::Exports {
+class Namespace : public Ttx::Model::Exports {
  public:
   using ContractOwner = Namespace;
   static constexpr Perimortem::System::Uuid contract_id{

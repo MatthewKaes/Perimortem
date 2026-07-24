@@ -11,7 +11,7 @@
 
 #include "tetrodotoxin/archiver/format.hpp"
 #include "tetrodotoxin/model/namespace.hpp"
-#include "tetrodotoxin/model/packages/precompiled.hpp"
+#include "tetrodotoxin/model/package/precompiled.hpp"
 #include "tetrodotoxin/model/terminal.hpp"
 #include "ttx/concept/invalid.hpp"
 #include "ttx/model/alias.hpp"
@@ -427,8 +427,8 @@ auto Tetrodotoxin::Archiver::Reader::read_manifest(
 auto Tetrodotoxin::Archiver::Reader::read_package(
     Allocator::Arena& arena,
     const Manifest& manifest,
-    View::Vector<Reference<Tetrodotoxin::Model::Package>> dependencies) const
-    -> const Abstract& {
+    View::Vector<Reference<Tetrodotoxin::Model::Package::Resolved>>
+        dependencies) const -> const Abstract& {
   Static::Vector<View::Bytes, Format::section_count> sections;
   if (!read_sections(source, sections)) {
     return Invalid::get_invalid();
@@ -694,6 +694,6 @@ auto Tetrodotoxin::Archiver::Reader::read_package(
         Reference<Abstract>(find_restored(restored.get_view(), i)));
   }
 
-  return arena.construct<Tetrodotoxin::Model::Packages::Precompiled>(
+  return arena.construct<Tetrodotoxin::Model::Package::Precompiled>(
       arena, root, dependencies, definitions.get_view(), terminals.get_view());
 }

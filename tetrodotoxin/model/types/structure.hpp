@@ -18,7 +18,7 @@ namespace Tetrodotoxin::Model::Types {
 // Structure is a Library-owned inline aggregate Type. Construction reserves
 // the final nonmoving Type identity, attaches real Field/function owners, and
 // completes its semantic Layout before the Type is published by its Source.
-class Structure final : public Represented {
+class Structure : public Represented {
  public:
   using ContractOwner = Structure;
   static constexpr Perimortem::System::Uuid contract_id{
@@ -96,8 +96,7 @@ class Structure final : public Represented {
           Ttx::Concept::Invalid::get_invalid()) -> Bool;
   auto add_exported_self(
       const Ttx::Model::Callables::Self& callable,
-      const Ttx::Concept::Abstract& outer_context =
-          Ttx::Concept::Invalid::get_invalid()) -> Bool;
+      const Ttx::Concept::Abstract& outer_context =          Ttx::Concept::Invalid::get_invalid()) -> Bool;
   auto complete() -> Bool;
   auto set_shader_type(const Ttx::Model::Type& type) -> Bool;
 

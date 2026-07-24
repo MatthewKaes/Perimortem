@@ -24,8 +24,7 @@ using namespace Perimortem::Serialization;
 using namespace Perimortem::Utility;
 using namespace Ttx::Concept;
 using namespace Ttx::Lexical;
-
-namespace Tetrodotoxin::Parser {
+using namespace Tetrodotoxin;
 
 using Generic = Ttx::Model::Types::Generic;
 using Argument = Generic::Argument;
@@ -350,7 +349,7 @@ static auto parse_value(
   Token start = cursor.current();
   Token end = cursor.consume();
   View::Bytes name = end.caculate_text(cursor.get_source_text());
-  Option<const Ttx::Model::Type&> builtin = Builtins::find(name);
+  Option<const Ttx::Model::Type&> builtin = Parser::Builtins::find(name);
   const Abstract& first = builtin.visit(
       [&context, name](const None&) -> const Abstract& {
         return context.resolve_context(name);
@@ -412,7 +411,7 @@ static auto parse_value(
   return resolved.assume<Ttx::Model::Type>();
 }
 
-auto Type::parse(
+auto Parser::Type::parse(
     Cursor& cursor,
     const Abstract& context,
     Generic::Materializations& materializations)
@@ -428,5 +427,3 @@ auto Type::parse(
 
   return parsed;
 }
-
-}  // namespace Tetrodotoxin::Parser

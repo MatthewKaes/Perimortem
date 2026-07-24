@@ -45,7 +45,7 @@ auto Tetrodotoxin::Model::Environment::resolve(
     View::Bytes local_name,
     View::Bytes package_name,
     Version version,
-    const Package& package,
+    const Package::Resolved& package,
     const Documentation& documentation) -> Bool {
   if (local_name.is_empty() || package_name.is_empty() || version.is_null() ||
       !resolve_context(local_name).is<Invalid>()) {
@@ -71,7 +71,7 @@ auto Tetrodotoxin::Model::Environment::resolve(
   if (!package_present) {
     Count dependency_index = dependencies.get_size();
     dependencies.insert(Reference<Dependencies::Package>(resolution));
-    packages.insert(Reference<Package>(package));
+    packages.insert(Reference<Package::Resolved>(package));
     dependencies_by_identity.insert(
         Identity(resolution.get_package_name(), resolution.get_version()),
         dependency_index);

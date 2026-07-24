@@ -21,21 +21,7 @@ auto Tetrodotoxin::Model::Source::get_documentation() const
 auto Tetrodotoxin::Model::Source::evaluate(
     const Dialect& dialect,
     Ttx::Lexical::Errors& errors) -> const Abstract& {
-  return evaluate(dialect, errors, 0);
-}
-
-auto Tetrodotoxin::Model::Source::evaluate(
-    const Dialect& dialect,
-    Ttx::Lexical::Errors& errors,
-    Count body_token_index) -> const Abstract& {
   Ttx::Lexical::Cursor cursor(tokenizer, errors);
-  if (body_token_index >= tokenizer.get_tokens().get_size()) {
-    cursor.create_error("The source body token is outside this Source."_view);
-    return Invalid::get_invalid();
-  }
-  for (Count i = 0; i < body_token_index; i++) {
-    cursor.consume();
-  }
 
   // The Dialect produces a complete result before Source mutates its graph.
   // Invalid therefore leaves no partial root or Dialect edge behind.

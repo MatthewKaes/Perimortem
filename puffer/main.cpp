@@ -48,7 +48,7 @@ static auto run_lsp(View::Bytes pipe_name) -> Signed_32 {
   }
 
   Diagnostics::Log::info("puffer: starting LSP server"_view);
-  Tetrodotoxin::Puffer::Lsp::Executor executor;
+  Puffer::Lsp::Executor executor;
   executor.execute(pipe_name);
   return 0;
 }
