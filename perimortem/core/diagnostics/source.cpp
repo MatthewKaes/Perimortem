@@ -8,12 +8,12 @@
 using namespace Perimortem::Core;
 
 auto Diagnostics::Source::is_set() const -> Bool {
-  return impl != nullptr || !explicit_file.is_empty();
+  return impl != nullptr || !file.is_empty();
 }
 
 auto Diagnostics::Source::get_line() const -> Count {
-  if (!explicit_file.is_empty()) {
-    return explicit_line;
+  if (!file.is_empty()) {
+    return line;
   }
 
   if (impl == nullptr) {
@@ -24,8 +24,8 @@ auto Diagnostics::Source::get_line() const -> Count {
 }
 
 auto Diagnostics::Source::get_column() const -> Count {
-  if (!explicit_file.is_empty()) {
-    return explicit_column;
+  if (!file.is_empty()) {
+    return column;
   }
 
   if (impl == nullptr) {
@@ -36,8 +36,8 @@ auto Diagnostics::Source::get_column() const -> Count {
 }
 
 auto Diagnostics::Source::get_file() const -> Core::View::Bytes {
-  if (!explicit_file.is_empty()) {
-    return explicit_file;
+  if (!file.is_empty()) {
+    return file;
   }
 
   if (impl == nullptr) {
@@ -48,8 +48,8 @@ auto Diagnostics::Source::get_file() const -> Core::View::Bytes {
 }
 
 auto Diagnostics::Source::get_function() const -> Core::View::Bytes {
-  if (!explicit_file.is_empty()) {
-    return explicit_function;
+  if (!file.is_empty()) {
+    return function;
   }
 
   if (impl == nullptr) {

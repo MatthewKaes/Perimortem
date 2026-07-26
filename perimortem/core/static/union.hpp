@@ -109,7 +109,7 @@ class Union {
   }
 
   template <typename Type, typename Candidate>
-  auto construct(Candidate&& candidate) -> decltype(auto) {
+  constexpr auto construct(Candidate&& candidate) -> decltype(auto) {
     if constexpr (__is_lvalue_reference(Type)) {
       auto& reference = static_cast<Type>(candidate);
       new (storage) Storage<Type>(&reference);
@@ -123,7 +123,7 @@ class Union {
   }
 
   template <typename Type, typename... Rest, typename Candidate>
-  auto construct_candidate(Candidate&& value) -> void {
+  constexpr auto construct_candidate(Candidate&& value) -> void {
     if constexpr (selects<Candidate, Type>()) {
       construct<Type>(static_cast<Candidate&&>(value));
     } else if constexpr (sizeof...(Rest) != 0) {
@@ -136,7 +136,7 @@ class Union {
   }
 
   template <typename Type>
-  auto active() -> decltype(auto) {
+  constexpr auto active() -> decltype(auto) {
     if constexpr (__is_lvalue_reference(Type)) {
       return **Data::cast<Storage<Type>>(storage);
     } else {
@@ -145,7 +145,7 @@ class Union {
   }
 
   template <typename Type>
-  auto active() const -> decltype(auto) {
+  constexpr auto active() const -> decltype(auto) {
     if constexpr (__is_lvalue_reference(Type)) {
       return **Data::cast<Storage<Type>>(storage);
     } else {
@@ -154,7 +154,7 @@ class Union {
   }
 
   template <typename Type, typename... Rest, typename Source>
-  auto construct_active(Source& source) -> void {
+  constexpr auto construct_active(Source& source) -> void {
     if (source.tag == type_tag<Type>()) {
       if constexpr (
           __is_same(Source, const Union) || __is_lvalue_reference(Type)) {
@@ -221,7 +221,7 @@ class Union {
 
   template <typename Candidate>
     requires(accepts<Candidate>())
-  Union(Candidate&& value) {
+  constexpr Union(Candidate&& value) {
     construct_candidate<Types...>(static_cast<Candidate&&>(value));
   }
 

@@ -24,7 +24,7 @@ class Executor {
  private:
   class JobBlock {
    public:
-    explicit JobBlock(Perimortem::Core::View::Bytes frame) : frame(frame) {}
+    JobBlock(Perimortem::Core::View::Bytes frame) : frame(frame) {}
 
     auto get_frame() const -> Perimortem::Core::View::Bytes { return frame; }
 

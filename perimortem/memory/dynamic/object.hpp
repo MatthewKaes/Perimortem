@@ -22,7 +22,7 @@ template <typename value_type>
 class Object {
  public:
   template <typename... arg_types>
-  explicit Object(arg_types&&... args) {
+  Object(arg_types&&... args) {
     auto allocation = Core::Bibliotheca::check_out(sizeof(value_type));
     value = new (allocation.ptr) value_type(static_cast<arg_types&&>(args)...);
   }
@@ -46,9 +46,9 @@ class Object {
     Core::Bibliotheca::remit(data);
   }
 
-  auto operator=(const Object& rhs) -> Object& {
-    Object copy(rhs);
-    Core::Data::swap(value, copy.value);
+  auto operator=(Object& rhs) -> Object& {
+    value = rhs.value;
+    Core::Bibliotheca::reserve(Core::Data::cast<Unsigned_8>(value));
     return *this;
   }
 

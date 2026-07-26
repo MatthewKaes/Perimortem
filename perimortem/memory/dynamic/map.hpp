@@ -26,8 +26,8 @@ class Map {
  public:
   using Entry = Utility::Pair<key_type, value_type>;
 
-  Map() = default;
-  explicit Map(Count initial_capacity) { ensure_capacity(initial_capacity); }
+  constexpr Map() = default;
+  constexpr Map(Count initial_capacity) { ensure_capacity(initial_capacity); }
 
   template <Count aggregate_size>
   Map(const Entry (&items)[aggregate_size]) {
@@ -150,6 +150,18 @@ class Map {
         Entry(static_cast<key_type&&>(key), static_cast<value_type&&>(value));
     size++;
     return empty;
+  }
+
+  template <typename found_func, typename missing_func>
+  constexpr auto
+      visit(const key_type& key, found_func found, missing_func missing) const
+      -> decltype(auto) {
+    auto element = find(key);
+    if (element) {
+      return found(element->value);
+    } else {
+      return missing();
+    }
   }
 
   auto find(const key_type& key) -> Entry* {

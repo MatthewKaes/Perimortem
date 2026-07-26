@@ -20,7 +20,7 @@ class Path {
   static constexpr Count max_size = 510;
 
   Path() = default;
-  explicit Path(Core::View::Bytes path);
+  Path(Core::View::Bytes path);
   Path(Core::View::Bytes base_file_path, Core::View::Bytes relative_path);
 
   constexpr auto get_view() const -> Core::View::Bytes {

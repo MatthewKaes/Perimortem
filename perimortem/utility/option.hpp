@@ -7,11 +7,6 @@
 
 namespace Perimortem::Utility {
 
-// None is the explicit unit value carried by an Option with no object.
-class None {};
-
-inline constexpr None none;
-
 // Option represents either one owned value or None. The value lives directly
 // inside the Option so a function can safely return an object created on its
 // stack. Construction and destruction follow the selected value's lifetime,
@@ -23,47 +18,39 @@ inline constexpr None none;
 template <typename Type>
 class Option {
  private:
-  // State is the sole authority for the union member's lifetime. It changes to
-  // Value only after construction and returns to None only after destruction.
-  enum class State : Unsigned_8 {
-    None,
-    Value,
-  };
-
   template <typename Candidate>
   constexpr auto construct(Candidate&& candidate) -> void {
     new (&value) Type(static_cast<Candidate&&>(candidate));
-    state = State::Value;
+    set = true;
   }
 
   constexpr auto clear() -> void {
-    if (state == State::Value) {
+    if (set) {
       value.~Type();
-      state = State::None;
+      set = false;
     }
   }
 
   union {
     Type value;
   };
-  State state = State::None;
+  Bool set = false;
 
  public:
   constexpr Option() {}
-  constexpr Option(const None&) {}
 
   constexpr Option(const Type& selected)
     requires(__is_constructible(Type, const Type&))
-      : value(selected), state(State::Value) {}
+      : value(selected), set(true) {}
 
   constexpr Option(Type&& selected)
     requires(__is_constructible(Type, Type &&))
-      : value(static_cast<Type&&>(selected)), state(State::Value) {}
+      : value(static_cast<Type&&>(selected)), set(true) {}
 
   constexpr Option(const Option& source)
     requires(__is_constructible(Type, const Type&))
   {
-    if (source.state == State::Value) {
+    if (source.set) {
       construct(source.value);
     }
   }
@@ -71,7 +58,7 @@ class Option {
   constexpr Option(Option&& source)
     requires(__is_constructible(Type, Type &&))
   {
-    if (source.state == State::Value) {
+    if (source.set) {
       construct(static_cast<Type&&>(source.value));
     }
   }
@@ -86,7 +73,7 @@ class Option {
     }
 
     clear();
-    if (source.state == State::Value) {
+    if (source.set) {
       construct(source.value);
     }
     return *this;
@@ -100,27 +87,31 @@ class Option {
     }
 
     clear();
-    if (source.state == State::Value) {
+    if (source.set) {
       construct(static_cast<Type&&>(source.value));
     }
     return *this;
   }
 
-  template <typename NoneVisitor, typename ValueVisitor>
-  constexpr auto visit(NoneVisitor none_visitor, ValueVisitor value_visitor)
-      -> decltype(auto) {
-    if (state == State::None) {
-      return none_visitor(none);
+  operator bool() const { return bool(set); }
+
+  template <typename RejectCallback, typename ValueVisitor>
+  constexpr auto visit(
+      RejectCallback reject_callback,
+      ValueVisitor value_visitor) -> decltype(auto) {
+    if (set) {
+      return reject_callback();
     }
 
     return value_visitor(value);
   }
 
-  template <typename NoneVisitor, typename ValueVisitor>
-  constexpr auto visit(NoneVisitor none_visitor, ValueVisitor value_visitor)
-      const -> decltype(auto) {
-    if (state == State::None) {
-      return none_visitor(none);
+  template <typename RejectCallback, typename ValueVisitor>
+  constexpr auto visit(
+      RejectCallback reject_callback,
+      ValueVisitor value_visitor) const -> decltype(auto) {
+    if (set) {
+      return reject_callback();
     }
 
     return value_visitor(value);
@@ -134,7 +125,6 @@ template <typename Type>
 class Option<Type&> {
  public:
   constexpr Option() = default;
-  constexpr Option(const None&) {}
   constexpr Option(Type& value) : value(&value) {}
 
   // A const reference can otherwise bind a temporary and leave Option holding
@@ -142,12 +132,14 @@ class Option<Type&> {
   // at construction.
   Option(Type&&) = delete;
 
-  template <typename NoneVisitor, typename ReferenceVisitor>
+  operator bool() const { return value != nullptr; }
+
+  template <typename RejectCallback, typename ReferenceVisitor>
   constexpr auto visit(
-      NoneVisitor none_visitor,
+      RejectCallback reject_callback,
       ReferenceVisitor reference_visitor) const -> decltype(auto) {
     if (value == nullptr) {
-      return none_visitor(none);
+      return reject_callback();
     }
 
     return reference_visitor(*value);

@@ -28,9 +28,9 @@ class Arena {
   static constexpr Unsigned_64 arena_alignment = sizeof(Count);
 
   Arena();
+  Arena(Arena&&);
   ~Arena();
   Arena(const Arena&) = delete;
-  Arena(Arena&&) = delete;
   auto operator=(const Arena&) -> Arena& = delete;
   auto operator=(Arena&&) -> Arena& = delete;
 

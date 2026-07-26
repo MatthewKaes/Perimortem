@@ -64,6 +64,18 @@ class Map {
     return emplace_hashed(get_hash(key), key, value);
   }
 
+  template <typename found_func, typename missing_func>
+  constexpr auto
+      visit(const key_type& key, found_func found, missing_func missing) const
+      -> decltype(auto) {
+    auto element = find(key);
+    if (element) {
+      return found(element->value);
+    } else {
+      return missing();
+    }
+  }
+
   auto find(const key_type& key) -> Entry* {
     return const_cast<Entry*>(static_cast<const Map*>(this)->find(key));
   }

@@ -7,6 +7,7 @@ filegroup(
     srcs = [
         "main.ttx",
         "package.ttx",
+        "resources/icon.png",
         "resources/logo.png",
         "scenes/splash.ttx",
         "scenes/title.ttx",
