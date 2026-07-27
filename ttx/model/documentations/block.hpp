@@ -14,7 +14,7 @@ namespace Ttx::Model::Documentations {
 // for proper document reconstruction.
 class Block : public Concept::Documentation {
  public:
-  explicit constexpr Block(
+  constexpr Block(
       Perimortem::Core::View::Vector<Perimortem::Core::View::Bytes> lines)
       : lines(lines) {}
 

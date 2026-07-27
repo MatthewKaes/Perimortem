@@ -3,7 +3,11 @@
 
 #pragma once
 
-#include "ttx/concept/invalid.hpp"
+#include "perimortem/core/static/union.hpp"
+
+#include "perimortem/utility/option.hpp"
+
+#include "ttx/concept/abstract.hpp"
 
 namespace Ttx::Concept {
 
@@ -14,8 +18,8 @@ namespace Ttx::Concept {
 // Layout does not copy names, Types, documentation, attributes, defaults, or
 // target storage facts out of its entries. A consumer asks only for order, the
 // real Abstract at an index, whether one layout fits another, and the source
-// object that supplies each target slot. Failed queries return Invalid so
-// source owners can diagnose authored shape errors without trapping.
+// object that supplies each target slot. Indexing absence and fitting errors
+// remain ordinary query results rather than semantic Invalid graph edges.
 //
 // Model::Layouts::Fluid, Named, Structured, Ranged, and Composite express
 // different fitting rules through inheritance rather than a tag on one record.
@@ -24,14 +28,20 @@ namespace Ttx::Concept {
 // is available.
 class Layout {
  public:
+  enum class Errors : Unsigned_8 {
+    IndexOutOfBounds,
+    SizeMismatch,
+    IncompatibleFit,
+  };
+
   constexpr virtual ~Layout() = default;
 
   virtual constexpr auto get_size() const -> Count = 0;
 
   // Implementations borrow only real Abstracts through a Reference that can
-  // never be null. An index outside the Layout returns Invalid without
-  // imposing a precondition or storing a nullable pointer.
-  virtual constexpr auto get_abstract(Count index) const -> const Abstract& = 0;
+  // never be null. An index outside the Layout returns None.
+  virtual constexpr auto get_abstract(Count index) const
+      -> Perimortem::Utility::Option<const Abstract&> = 0;
 
   // Fitting is directional and owned by the source Layout contract. Ordinary
   // fitting requires the complete source and target to have the same size.
@@ -45,14 +55,19 @@ class Layout {
   virtual constexpr auto fits_at(const Layout& target, Count target_offset)
       const -> Bool = 0;
 
-  // Returns the source Abstract that supplies one target slot. A failed fit,
-  // invalid target index, or missing mapping returns Invalid. This exposes the
-  // ordering evidence found during fitting without allocating a mapping or
-  // forcing every consumer to repeat Named matching.
+  // Returns the source Abstract that supplies one target slot. Every query
+  // selects either that reference or one Errors value and never returns the
+  // Union's null state. This exposes the ordering evidence found during fitting
+  // without allocating a mapping or forcing every consumer to repeat Named
+  // matching.
   constexpr auto get_fitted(const Layout& target, Count target_index) const
-      -> const Abstract& {
+      -> Perimortem::Core::Static::Union<const Abstract&, Errors> {
+    if (target_index >= get_size()) {
+      return Errors::IndexOutOfBounds;
+    }
+
     if (get_size() != target.get_size()) {
-      return Invalid::get_invalid();
+      return Errors::SizeMismatch;
     }
 
     return get_fitted_at(target, 0, target_index);
@@ -64,7 +79,8 @@ class Layout {
   virtual constexpr auto get_fitted_at(
       const Layout& target,
       Count target_offset,
-      Count target_index) const -> const Abstract& = 0;
+      Count target_index) const
+      -> Perimortem::Core::Static::Union<const Abstract&, Errors> = 0;
 
   constexpr auto is_empty() const -> Bool { return get_size() == 0; }
 

@@ -53,14 +53,26 @@ class Map {
   }
 
   auto insert(const key_type& key, const value_type& value) -> Entry* {
-    ensure_capacity(buffer.size + 1);
-
     Entry* entry = find(key);
     if (entry != nullptr) {
       entry->value = value;
       return entry;
     }
 
+    ensure_capacity(buffer.size + 1);
+    return emplace_hashed(get_hash(key), key, value);
+  }
+
+  // Adds the key only if it's not in the map already, but if it hits a conflict
+  // then it launders the object avoiding constructors and destructors.
+  auto launder(const key_type& key, const value_type& value) -> Entry* {
+    Entry* entry = find(key);
+    if (entry != nullptr) {
+      Core::Data::launder(entry->value, value);
+      return entry;
+    }
+
+    ensure_capacity(buffer.size + 1);
     return emplace_hashed(get_hash(key), key, value);
   }
 

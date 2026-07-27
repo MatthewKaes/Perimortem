@@ -17,7 +17,7 @@ static Harness GraphicsImage = {
   .name = "Graphics::Image"_view,
 };
 
-PERIMORTEM_UNIT_TEST(GraphicsImage, zero_addressing_includes_edge_coordinates) {
+PERIMORTEM_UNIT_TEST(GraphicsImage, zero_addressing_edge) {
   Dynamic::Vector<Pixel> pixels;
   pixels.emplace(Pixel(0x11, 0x22, 0x33, 0x44));
   Image image(Data::take(pixels), 1, 1);
@@ -30,7 +30,7 @@ PERIMORTEM_UNIT_TEST(GraphicsImage, zero_addressing_includes_edge_coordinates) {
   EXPECT_EQ(vertical_edge.alpha, Unsigned_8(0));
 }
 
-PERIMORTEM_UNIT_TEST(GraphicsImage, clamp_addressing_uses_nearest_edge) {
+PERIMORTEM_UNIT_TEST(GraphicsImage, clamp_addressing_edge) {
   Dynamic::Vector<Pixel> pixels;
   pixels.emplace(Pixel(0x11, 0x22, 0x33, 0x44));
   pixels.emplace(Pixel(0x55, 0x66, 0x77, 0x88));
@@ -44,7 +44,7 @@ PERIMORTEM_UNIT_TEST(GraphicsImage, clamp_addressing_uses_nearest_edge) {
   EXPECT_EQ(right.alpha, Unsigned_8(0x88));
 }
 
-PERIMORTEM_UNIT_TEST(GraphicsImage, wrap_addressing_uses_image_domain) {
+PERIMORTEM_UNIT_TEST(GraphicsImage, wrap_addressing_domain) {
   Dynamic::Vector<Pixel> pixels;
   pixels.emplace(Pixel(0x11, 0x22, 0x33, 0x44));
   pixels.emplace(Pixel(0x55, 0x66, 0x77, 0x88));
@@ -58,7 +58,7 @@ PERIMORTEM_UNIT_TEST(GraphicsImage, wrap_addressing_uses_image_domain) {
   EXPECT_EQ(from_right.alpha, Unsigned_8(0x44));
 }
 
-PERIMORTEM_UNIT_TEST(GraphicsImage, empty_addressing_returns_zero) {
+PERIMORTEM_UNIT_TEST(GraphicsImage, empty_returns_zero) {
   Image clamp(0, 0, Image::Addressing::Clamp);
   Image wrap(0, 0, Image::Addressing::Wrap);
 

@@ -2,9 +2,9 @@
 
 These are validation-only inputs and independent observable contracts for the
 Library parser and native-artifact plan. They are not applications, packages,
-or examples of the `apps/` directory layout. Parser, model, archive, compiler,
-and linker implementation slices consume these files unchanged. They do not
-weaken an input or expectation to match an implementation.
+or examples of the `apps/` directory layout. Parser, semantic, archive, Library
+compiler, and Linker implementation slices consume these files unchanged. They
+do not weaken an input or expectation to match an implementation.
 
 `broad.ttx` is the broad grammar and graph fixture. `native.ttx` is the
 smaller scalar native fixture, and `foreign_triad.ttx` isolates the three
@@ -12,9 +12,11 @@ kinds of native import. The other TTX files are one negative contract each.
 Tokenization is executable today; semantic acceptance remains owned by the
 later plan slices.
 
-## Normative grammar map
+## Accepted grammar map
 
-The section names below refer to `ttx/ttx_semantics.md`.
+TTX supplies lexical bytecode and its minimal graph kernel. The table records
+accepted Tetrodotoxin Library grammar pressure; it does not promote these
+Dialect rules into universal TTX semantics.
 
 | Fixture construct | Normative section and frozen meaning |
 | --- | --- |
@@ -141,13 +143,18 @@ emit an undefined Foreign call relocation for `library_foreign_add`.
 Every failure prevents a completed Source/Namespace result. Arena allocation
 from a failed private transaction may remain unreachable.
 
-## Body and Managed gate
+## CPU executable and Managed gates
 
-The normative owner for executable facts is `Ttx::Model::Body`, and the
-normative proof required by `object` is `Ttx::Model::Types::Managed`. At this
-checkpoint neither contract exists in the live `ttx/` headers. This S00 slice
-does not reopen `ttx/`, and no explicit decision reassigns either contract.
-G01 and every Body/Object-dependent implementation slice therefore remain
-blocked. The frozen `object`, initializer, expression, and control-flow source
-above records the required acceptance input without inventing a Tetrodotoxin
-shadow contract.
+Library owns the reusable CPU compilation path, but the exact durable
+representation for completed body facts remains unresolved. Scene lifecycle
+Callables retain their Scene identity. A Static selected by App remains on its
+actual producing Namespace, while App generated entry and lifecycle driver
+facts remain on App. Those selected CPU facts use the same Library compiler
+after Environment finalization. They do not become generated Library Sources
+or shadow graphs.
+
+The proof required by `object` also lacks an approved owner. This fixture does
+not reopen TTX or assign either gap to a shadow Tetrodotoxin contract. The
+frozen `object`, initializer, expression, and control flow source records the
+required acceptance input while implementations that require those missing
+contracts remain blocked.

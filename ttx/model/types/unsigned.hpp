@@ -3,15 +3,15 @@
 
 #pragma once
 
-#include "ttx/model/types/terminal.hpp"
+#include "ttx/model/types/value.hpp"
 
 namespace Ttx::Model::Types {
 
-// Unsigned is the Terminal contract for a non-negative integer domain. Concrete
-// width Types supply their fixed name, representation, and documentation.
-class Unsigned : public Terminal {
+// Signed is the Terminal contract for a value that can store both positive and
+// negative integer values.
+class Unsigned : public Value {
  public:
-  using ContractOwner = Unsigned;
+  using ClassCatagory = Unsigned;
   static constexpr Perimortem::System::Uuid contract_id{
     0x0a8a00d5ed054be1,
     0x9e5d43885c4050b2,
@@ -19,7 +19,7 @@ class Unsigned : public Terminal {
 
   constexpr auto implements(Perimortem::System::Uuid requested) const
       -> Bool override {
-    return requested == contract_id || Terminal::implements(requested);
+    return requested == contract_id || Value::implements(requested);
   }
 };
 

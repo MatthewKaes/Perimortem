@@ -26,7 +26,7 @@ namespace Ttx::Model {
 // Alias becomes queryable.
 class Alias : public Concept::Abstract {
  public:
-  using ContractOwner = Alias;
+  using ClassCatagory = Alias;
   static constexpr Perimortem::System::Uuid contract_id{
     0x58e8b4a115e9461a,
     0x88a5767626d4a21a,

@@ -3,27 +3,23 @@
 
 #pragma once
 
-#include "ttx/concept/abstract.hpp"
+#include "ttx/model/type.hpp"
 
 namespace Ttx::Model {
 
 // Addressable is the narrow contract for a named address to typed data. A
 // structured field, receiver, local, external symbol, interpreted endpoint, or
 // runtime object may all be Addressable while publishing different richer
-// contracts. Write capability is the narrower Addressables::Writable contract,
-// not a boolean or Kind carried directly on Addressable. This distinction is
-// unrelated to a source `const` definition, whose initializer must instead
-// materialize completely at compile time.
+// contracts. Capabilities related to the Addressable are granted by Dialects
+// specific enrichments, so things like `Writability` are a language construct.
 //
-// get_name() supplies the addressable name and get_type() supplies its Type or
-// Invalid. Address identity does not resolve away into that Type. Structured
-// Layouts borrow the actual Addressable objects, so documentation, attributes,
-// defaults, Dialect facts, and target storage remain on their real owners. Core
-// TTX assigns no pointer width, offset, symbol spelling, calling convention, or
-// storage policy.
+// Core TTX needs a flexable enough model to support multiple crossing frontend
+// and backend components but looking at the Verse language and how they work
+// with generalized capabilities we might take a thing or two from thier model:
+// https://verselang.github.io/book/05_mutability/
 class Addressable : public Concept::Abstract {
  public:
-  using ContractOwner = Addressable;
+  using ClassCatagory = Addressable;
   static constexpr Perimortem::System::Uuid contract_id{
     0x3d308ace3cf44051,
     0x9458c12c65d0d615,
@@ -39,7 +35,7 @@ class Addressable : public Concept::Abstract {
     return get_type().resolve().resolve_context(route);
   }
 
-  virtual constexpr auto get_type() const -> const Concept::Abstract& = 0;
+  virtual constexpr auto get_type() const -> const Type& = 0;
 };
 
 }  // namespace Ttx::Model

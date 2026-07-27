@@ -44,18 +44,17 @@ class LayoutType final : public Type {
 /// their names and Types into a parallel member model.
 class LayoutField final : public Addressable {
  public:
-  LayoutField(View::Bytes name, const Abstract& type)
-      : name(name), type(type) {}
+  LayoutField(View::Bytes name, const Type& type) : name(name), type(type) {}
 
   auto get_name() const -> View::Bytes override { return name; }
   auto get_documentation() const -> const Documentation& override {
     return Documentation::get_empty();
   }
-  auto get_type() const -> const Abstract& override { return type; }
+  auto get_type() const -> const Type& override { return type; }
 
  private:
   View::Bytes name;
-  const Abstract& type;
+  const Type& type;
 };
 
 /// A fixed byte sequence is a Type whose complete indexed shape is one compact
@@ -78,8 +77,38 @@ class ByteSequence final : public Type {
 };
 
 static Harness TtxLayout = {
-  .name = "TTX::Layout"_view,
+  .name = "Ttx::Model::Layout"_view,
 };
+
+static auto selects(
+    const Perimortem::Utility::Option<const Abstract&>& result,
+    const Abstract& expected) -> Bool {
+  return result.visit(
+      []() { return False; },
+      [&expected](const Abstract& selected) {
+        return &selected == &expected ? True : False;
+      });
+}
+
+static auto selects(
+    const Static::Union<const Abstract&, Layout::Errors>& result,
+    const Abstract& expected) -> Bool {
+  const Abstract* selected = result.find<const Abstract&>();
+  return selected == &expected ? True : False;
+}
+
+static auto is_none(const Perimortem::Utility::Option<const Abstract&>& result)
+    -> Bool {
+  return result.visit(
+      []() { return True; }, [](const Abstract&) { return False; });
+}
+
+static auto reports(
+    const Static::Union<const Abstract&, Layout::Errors>& result,
+    Layout::Errors expected) -> Bool {
+  const Layout::Errors* selected = result.find<Layout::Errors>();
+  return selected != nullptr && *selected == expected ? True : False;
+}
 
 PERIMORTEM_UNIT_TEST(TtxLayout, fluid_order) {
   LayoutType real("Real_32"_view);
@@ -88,9 +117,9 @@ PERIMORTEM_UNIT_TEST(TtxLayout, fluid_order) {
   Fluid layout(values);
 
   EXPECT_EQ(layout.get_size(), Count(2));
-  EXPECT(&layout.get_abstract(0) == &real);
-  EXPECT(&layout.get_abstract(1).resolve() == &bits);
-  EXPECT(&layout.get_abstract(2) == &Invalid::get_invalid());
+  EXPECT(selects(layout.get_abstract(0), real));
+  EXPECT(selects(layout.get_abstract(1), bits));
+  EXPECT(is_none(layout.get_abstract(2)));
 }
 
 PERIMORTEM_UNIT_TEST(TtxLayout, structured_fields) {
@@ -102,13 +131,13 @@ PERIMORTEM_UNIT_TEST(TtxLayout, structured_fields) {
   Structured layout(fields);
 
   EXPECT_EQ(layout.get_size(), Count(2));
-  EXPECT(&layout.get_abstract(0) == &x);
-  EXPECT_TEXT(layout.get_abstract(0).get_name(), "x"_view);
-  EXPECT(&layout.get_abstract(0).resolve() == &x);
-  EXPECT(&layout.get_abstract(1).resolve() == &y);
+  EXPECT(selects(layout.get_abstract(0), x));
+  EXPECT(selects(layout.get_abstract(1), y));
+  EXPECT_TEXT(x.get_name(), "x"_view);
+  EXPECT(&x.resolve() == &x);
   EXPECT(&x.get_type().resolve() == &real);
   EXPECT(&y.get_type().resolve() == &bits);
-  EXPECT(layout.get_abstract(2).is<Invalid>());
+  EXPECT(is_none(layout.get_abstract(2)));
 }
 
 PERIMORTEM_UNIT_TEST(TtxLayout, ranged_materialization) {
@@ -119,16 +148,22 @@ PERIMORTEM_UNIT_TEST(TtxLayout, ranged_materialization) {
 
   const Layout& layout = bytes.get_layout();
   EXPECT_EQ(layout.get_size(), Count(16));
-  EXPECT(&layout.get_abstract(0) == &byte);
-  EXPECT(&layout.get_abstract(10).resolve() == &byte);
-  EXPECT(layout.get_abstract(16).is<Invalid>());
+  EXPECT(selects(layout.get_abstract(0), byte));
+  EXPECT(selects(layout.get_abstract(10), byte));
+  EXPECT(is_none(layout.get_abstract(16)));
   EXPECT(layout.fits(same));
   EXPECT_NOT(layout.fits(shorter));
-  EXPECT(&layout.get_fitted(same, 10) == &byte);
-  EXPECT(layout.get_fitted(same, 16).is<Invalid>());
+  EXPECT(selects(layout.get_fitted(same, 10), byte));
+  EXPECT(
+      reports(layout.get_fitted(same, 16), Layout::Errors::IndexOutOfBounds));
+  EXPECT(reports(layout.get_fitted(shorter, 0), Layout::Errors::SizeMismatch));
+  EXPECT(reports(
+      layout.get_fitted_at(same, 0, 16), Layout::Errors::IndexOutOfBounds));
+  EXPECT(reports(
+      layout.get_fitted_at(shorter, 0, 0), Layout::Errors::SizeMismatch));
 }
 
-PERIMORTEM_UNIT_TEST(TtxLayout, composite_preserves_components) {
+PERIMORTEM_UNIT_TEST(TtxLayout, composite_components) {
   LayoutType byte("Unsigned_8"_view);
   Alias first("first"_view, byte);
   Alias second("second"_view, byte);
@@ -147,19 +182,22 @@ PERIMORTEM_UNIT_TEST(TtxLayout, composite_preserves_components) {
   Ranged shorter(byte, 35);
 
   EXPECT_EQ(composite.get_size(), Count(36));
-  EXPECT(&composite.get_abstract(31) == &byte);
-  EXPECT(&composite.get_abstract(32) == &first);
-  EXPECT(&composite.get_abstract(35) == &fourth);
-  EXPECT(composite.get_abstract(36).is<Invalid>());
+  EXPECT(selects(composite.get_abstract(31), byte));
+  EXPECT(selects(composite.get_abstract(32), first));
+  EXPECT(selects(composite.get_abstract(35), fourth));
+  EXPECT(is_none(composite.get_abstract(36)));
   EXPECT(composite.fits(target));
   EXPECT_NOT(composite.fits(shorter));
-  EXPECT(&composite.get_fitted(target, 31) == &byte);
-  EXPECT(&composite.get_fitted(target, 32) == &first);
-  EXPECT(&composite.get_fitted(target, 35) == &fourth);
-  EXPECT(composite.get_fitted(target, 36).is<Invalid>());
+  EXPECT(selects(composite.get_fitted(target, 31), byte));
+  EXPECT(selects(composite.get_fitted(target, 32), first));
+  EXPECT(selects(composite.get_fitted(target, 35), fourth));
+  EXPECT(reports(
+      composite.get_fitted(target, 36), Layout::Errors::IndexOutOfBounds));
+  EXPECT(
+      reports(composite.get_fitted(shorter, 0), Layout::Errors::SizeMismatch));
 }
 
-PERIMORTEM_UNIT_TEST(TtxLayout, composite_delegates_fitting) {
+PERIMORTEM_UNIT_TEST(TtxLayout, composite_fitting) {
   LayoutType byte("Unsigned_8"_view);
   LayoutType real("Real_32"_view);
   LayoutType bits("Unsigned_32"_view);
@@ -177,8 +215,8 @@ PERIMORTEM_UNIT_TEST(TtxLayout, composite_delegates_fitting) {
   Composite target(target_prefix, target_suffix);
 
   EXPECT(source.fits(target));
-  EXPECT(&source.get_fitted(target, 2) == &named_x);
-  EXPECT(&source.get_fitted(target, 3) == &named_y);
+  EXPECT(selects(source.get_fitted(target, 2), named_x));
+  EXPECT(selects(source.get_fitted(target, 3), named_y));
 }
 
 PERIMORTEM_UNIT_TEST(TtxLayout, fitting_contracts) {
@@ -198,11 +236,12 @@ PERIMORTEM_UNIT_TEST(TtxLayout, fitting_contracts) {
   EXPECT(fluid.fits(structured));
   EXPECT(named.fits(structured));
   EXPECT(structured.fits(structured));
-  EXPECT(&fluid.get_fitted(structured, 0) == &real);
-  EXPECT(&named.get_fitted(structured, 0) == &named_x);
-  EXPECT(&named.get_fitted(structured, 1) == &named_y);
-  EXPECT(&structured.get_fitted(structured, 1) == &y);
-  EXPECT(fluid.get_fitted(structured, 2).is<Invalid>());
+  EXPECT(selects(fluid.get_fitted(structured, 0), real));
+  EXPECT(selects(named.get_fitted(structured, 0), named_x));
+  EXPECT(selects(named.get_fitted(structured, 1), named_y));
+  EXPECT(selects(structured.get_fitted(structured, 1), y));
+  EXPECT(reports(
+      fluid.get_fitted(structured, 2), Layout::Errors::IndexOutOfBounds));
 }
 
 PERIMORTEM_UNIT_TEST(TtxLayout, named_ambiguity) {
@@ -212,13 +251,20 @@ PERIMORTEM_UNIT_TEST(TtxLayout, named_ambiguity) {
   LayoutField y("y"_view, bits);
   Alias first("x"_view, real);
   Alias duplicate("x"_view, bits);
+  Alias unnamed({}, real);
   const Static::Vector<Reference<Addressable>, 2> fields = {{x, y}};
   const Static::Vector<Reference<Abstract>, 2> values = {{first, duplicate}};
+  const Static::Vector<Reference<Abstract>, 2> empty_names = {{first, unnamed}};
   Structured structured(fields);
   Named named(values);
+  Named nameless(empty_names);
 
   EXPECT_NOT(named.fits(structured));
-  EXPECT(named.get_fitted(structured, 0).is<Invalid>());
+  EXPECT(reports(
+      named.get_fitted(structured, 0), Layout::Errors::IncompatibleFit));
+  EXPECT_NOT(nameless.fits(structured));
+  EXPECT(reports(
+      nameless.get_fitted(structured, 0), Layout::Errors::IncompatibleFit));
 }
 
 PERIMORTEM_UNIT_TEST(TtxLayout, structured_identity) {
@@ -234,5 +280,9 @@ PERIMORTEM_UNIT_TEST(TtxLayout, structured_identity) {
 
   EXPECT(first.fits(same));
   EXPECT_NOT(first.fits(other));
-  EXPECT(first.get_fitted(other, 0).is<Invalid>());
+  EXPECT(reports(first.get_fitted(other, 0), Layout::Errors::IncompatibleFit));
+  EXPECT(reports(
+      first.get_fitted_at(other, 0, 0), Layout::Errors::IncompatibleFit));
+  EXPECT(
+      reports(first.get_fitted_at(same, 1, 0), Layout::Errors::SizeMismatch));
 }

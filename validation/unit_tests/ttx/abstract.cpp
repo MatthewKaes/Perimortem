@@ -14,7 +14,6 @@
 using namespace Perimortem::Core;
 using namespace Ttx::Concept;
 using namespace Ttx::Model;
-using namespace Ttx::Model::Documentations;
 using namespace Validation;
 
 static Harness TtxAbstract = {
@@ -29,6 +28,22 @@ PERIMORTEM_UNIT_TEST(TtxAbstract, invalid_absorbs) {
   EXPECT(&invalid.resolve() == &invalid);
   EXPECT(&invalid.resolve_context("Anything::Else"_view) == &invalid);
   EXPECT(invalid.get_documentation().is_empty());
+}
+
+PERIMORTEM_UNIT_TEST(TtxAbstract, visits_declared_contracts) {
+  const Invalid& invalid = Invalid::get_invalid();
+  Alias alias("Failure"_view, invalid);
+  const Abstract& selected = alias;
+
+  Bool matched = selected.visit<Alias>(
+      [&](const Alias& value) { return &value == &alias ? True : False; },
+      [](const Abstract&) { return False; });
+  Bool rejected = invalid.visit<Alias>(
+      [](const Alias&) { return False; },
+      [&](const Abstract& value) { return &value == &invalid ? True : False; });
+
+  EXPECT(matched);
+  EXPECT(rejected);
 }
 
 PERIMORTEM_UNIT_TEST(TtxAbstract, alias_reroutes) {
@@ -90,9 +105,10 @@ PERIMORTEM_UNIT_TEST(TtxAbstract, alias_reroutes) {
     "Use the palette context."_view,
     "Preserve authored color names."_view,
   }};
-  static constexpr Comment graphics_comment("The graphics context."_view);
-  static constexpr Block palette_comments(lines);
-  static constexpr Merged palette_documentation(
+  static constexpr Documentations::Comment graphics_comment(
+      "The graphics context."_view);
+  static constexpr Documentations::Block palette_comments(lines);
+  static constexpr Documentations::Merged palette_documentation(
       palette_comments, graphics_comment);
   Value color("Color"_view);
   Context graphics("Graphics"_view, "Color"_view, color, graphics_comment);

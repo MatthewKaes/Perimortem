@@ -14,9 +14,7 @@ namespace Ttx::Model::Layouts {
 // empty.
 // Names affect fitting but do not make the values addressable storage. The
 // source owner supplies real Abstract objects whose get_name() and resolve()
-// queries carry the complete fitting facts. After a name matches, an Expression
-// may prove value compatibility against the resolved target Type instead of
-// laundering itself into Type identity.
+// queries carry the complete fitting facts.
 class Named : public Concept::Layout {
  public:
   constexpr Named(
@@ -28,9 +26,9 @@ class Named : public Concept::Layout {
     return abstracts.get_size();
   }
   constexpr auto get_abstract(Count index) const
-      -> const Concept::Abstract& override {
+      -> Perimortem::Utility::Option<const Concept::Abstract&> override {
     if (index >= abstracts.get_size()) {
-      return Concept::Invalid::get_invalid();
+      return {};
     }
 
     return abstracts[index].get();
@@ -41,7 +39,8 @@ class Named : public Concept::Layout {
   auto get_fitted_at(
       const Concept::Layout& target,
       Count target_offset,
-      Count target_index) const -> const Concept::Abstract& override;
+      Count target_index) const -> Perimortem::Core::Static::
+      Union<const Concept::Abstract&, Errors> override;
 
  private:
   auto has_unique_names() const -> Bool;

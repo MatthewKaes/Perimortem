@@ -219,6 +219,39 @@ PERIMORTEM_UNIT_TEST(TtxLexical, source_error) {
   EXPECT(Algorithm::search(rendered, "Try again."_view) != Count(-1));
 }
 
+// TODO: Technically you should never reuse a path for an error context, but for
+// now this supports the use case as the codebase matures. If not required in
+// the long run make sure to prune.
+PERIMORTEM_UNIT_TEST(TtxLexical, errors_with_reused_path) {
+  Allocator::Arena render_arena;
+  Ttx::Lexical::Errors errors;
+
+  {
+    Allocator::Arena source_arena;
+    Ttx::Lexical::Tokenizer tokenizer(
+        source_arena, "first value"_view, "test.ttx"_view);
+    Ttx::Lexical::Cursor cursor(tokenizer, errors);
+    cursor.create_token_error("First failure."_view);
+  }
+
+  {
+    Allocator::Arena source_arena;
+    Ttx::Lexical::Tokenizer tokenizer(
+        source_arena, "second value"_view, "test.ttx"_view);
+    Ttx::Lexical::Cursor cursor(tokenizer, errors);
+    cursor.create_token_error("Second failure."_view);
+  }
+
+  View::Bytes first = errors.render_message(render_arena, 0);
+  View::Bytes second = errors.render_message(render_arena, 1);
+
+  ASSERT_EQ(errors.get_size(), Count(2));
+  EXPECT(Algorithm::search(first, "first value"_view) != Count(-1));
+  EXPECT(Algorithm::search(first, "second value"_view) == Count(-1));
+  EXPECT(Algorithm::search(second, "second value"_view) != Count(-1));
+  EXPECT(Algorithm::search(second, "first value"_view) == Count(-1));
+}
+
 PERIMORTEM_UNIT_TEST(TtxLexical, token_error) {
   Allocator::Arena arena;
   Allocator::Arena render_arena;

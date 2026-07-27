@@ -17,7 +17,7 @@ namespace Ttx::Model {
 // contract. Callability alone does not imply an address to data.
 class Callable : public Concept::Abstract {
  public:
-  using ContractOwner = Callable;
+  using ClassCatagory = Callable;
   static constexpr Perimortem::System::Uuid contract_id{
     0x01cc41c70a414b03,
     0xacf5c601eccfd393,

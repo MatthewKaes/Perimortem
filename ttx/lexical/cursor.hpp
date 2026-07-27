@@ -26,6 +26,8 @@ class Cursor {
         tokenizer.get_source_path(), tokenizer.get_source_text());
   };
 
+  ~Cursor() { errors.clear_source_context(); }
+
   constexpr auto current() const -> Lexical::Token {
     return tokenizer.get_tokens().get_data()[index];
   }
@@ -48,20 +50,47 @@ class Cursor {
   // returns the token. Failure records the provided message on the mismatched
   // token and returns an invalid end of stream token.
   constexpr auto require(
-      Lexical::Code::Type type,
-      Perimortem::Core::View::Bytes message) -> Lexical::Token {
+      Code::Type type,
+      Perimortem::Core::View::Bytes message = {}) -> Lexical::Token {
     if (!matches(type)) {
-      Lexical::Code code(type);
+      Code code(type);
       Perimortem::Core::Static::Bytes<128> hint_buffer;
       Perimortem::Core::Writer::Textual hint_message(hint_buffer);
       hint_message << "Expected lexical token "_view << code.get_semantics()
                    << " but got "_view << current().get_code().get_semantics()
                    << "."_view;
-      create_token_error(message, hint_message);
+
+      // If no message was supplied then upgrade the hint message to the error
+      // message, but if a richer message was supplied then downgrade the info
+      // to the hint message.
+      if (message.is_empty()) {
+        create_token_error(hint_message);
+      } else {
+        create_token_error(message, hint_message);
+      }
+
       return Lexical::Token();
     }
 
     return consume();
+  }
+
+  // If the token isn't of the required type then log a message and give up on
+  // trying to parse the statement as it's most likely in an unrecoverable state
+  // that will just cause a cascade of errors.
+  //
+  // TODO: If it ever comes up that we need to bail on different kinds of
+  // statements we should fold that in but not until we have a real use case.
+  // Recover to balance braces was used in the old parser quite a bit.
+  constexpr auto bail(
+      Code::Type type,
+      Perimortem::Core::View::Bytes message = {}) -> Bool {
+    if (!require(type, message)) {
+      recover_to_statement();
+      return true;
+    }
+
+    return false;
   }
 
   // Creates a source level error message.
@@ -69,7 +98,7 @@ class Cursor {
   // memory space in case the error outlives the source.
   constexpr auto create_error(
       Perimortem::Core::View::Bytes message,
-      Perimortem::Core::View::Bytes hint = ""_view) -> void {
+      Perimortem::Core::View::Bytes hint = {}) -> void {
     errors.create_general_error(message, hint);
   }
 
@@ -78,14 +107,14 @@ class Cursor {
   // memory space in case the error outlives the source.
   auto create_token_error(
       Perimortem::Core::View::Bytes message,
-      Perimortem::Core::View::Bytes hint = ""_view) -> void {
+      Perimortem::Core::View::Bytes hint = {}) -> void {
     errors.create_token_error(current(), message, hint);
   }
 
   auto create_token_error(
       Lexical::Token token,
       Perimortem::Core::View::Bytes message,
-      Perimortem::Core::View::Bytes hint = ""_view) -> void {
+      Perimortem::Core::View::Bytes hint = {}) -> void {
     errors.create_token_error(token, message, hint);
   }
 
@@ -96,7 +125,7 @@ class Cursor {
       Lexical::Token start,
       Lexical::Token end,
       Perimortem::Core::View::Bytes message,
-      Perimortem::Core::View::Bytes hint = ""_view) -> void {
+      Perimortem::Core::View::Bytes hint = {}) -> void {
     errors.create_expression_error(start, end, message, hint);
   }
 
@@ -105,17 +134,15 @@ class Cursor {
   // A malformed statement can skip to the next statement so later syntax still
   // reports errors in the same pass. Broader recovery belongs to the caller
   // because only that layer knows how much grammar is safe to skip.
-  constexpr auto recover_to_statement() -> void {
-    // The source envelope only recovers at statement boundaries. That is enough
-    // to keep independent import errors visible without pretending to
-    // understand the dialect body after a malformed envelope item.
-    constexpr Perimortem::Core::Static::Vector<Lexical::Code::Type, 3>
-        terminals = {{
-          Lexical::Code::Type::Terminal,
-          Lexical::Code::Type::EndStatement,
-          Lexical::Code::Type::ScopeEnd,
-        }};
-
+  //
+  // By default `Terminal`, `EndStatement` and `ScopeEnd` are used as the sync
+  // points but this can very by dialect.
+  constexpr auto recover_to_statement(
+      Perimortem::Core::View::Vector<Code::Type> terminals = {{
+        Code::Type::Terminal,
+        Code::Type::EndStatement,
+        Code::Type::ScopeEnd,
+      }}) -> void {
     auto type = current().get_code();
     while (!type.is_one_of(terminals)) {
       consume();
@@ -133,14 +160,20 @@ class Cursor {
   }
 
   // Checks if the current cursor is exactly one type.
-  constexpr auto matches(Lexical::Code::Type type) const -> Bool {
+  constexpr auto matches(Code::Type type) const -> Bool {
     return current().get_code() == type;
   }
 
   // Checks to see if the Code is an item in a range of possible values.
   constexpr auto is_one_of(
-      Perimortem::Core::View::Vector<Lexical::Code::Type> types) const -> Bool {
+      Perimortem::Core::View::Vector<Code::Type> types) const -> Bool {
     return current().get_code().is_one_of(types);
+  }
+
+  constexpr auto get_code() const -> Code { return current().get_code(); }
+
+  constexpr auto get_text() const -> Perimortem::Core::View::Bytes {
+    return current().caculate_text(get_source_text());
   }
 
   constexpr auto get_arena() const -> Perimortem::Memory::Allocator::Arena& {

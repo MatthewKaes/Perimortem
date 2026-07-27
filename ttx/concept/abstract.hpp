@@ -11,35 +11,30 @@
 
 namespace Ttx::Concept {
 
-// TTX does not begin with a closed type system. It begins with named abstract
-// contexts whose behavior can be extended by the language, a Dialect, a
-// compiler, or a host without teaching a central registry about every possible
-// concept.
+// Abstract is the root of the open TTX semantic graph. Narrower contracts
+// extend its queries through public inheritance without teaching a central
+// registry every possible object kind.
 //
 // The lexer deliberately provides useful name and token distinctions without
-// parser feedback. The parser can therefore resolve progressively inside the
-// most local context available. Additional context may refine an incomplete
+// semantic feedback. Resolution can therefore proceed inside the most local
+// context available. Additional context may refine an incomplete
 // query, but it must not make an earlier correct partial query incorrect. TTX
-// gets its type system by stacking these contexts instead of consulting one
-// global type authority.
+// builds its graph by stacking these contexts instead of consulting one global
+// authority.
 //
 // Graph construction consequently enriches the same semantic objects instead
-// of constructing parallel path or schema representations. Compilers, for
-// instance, can consume the finalized graph and derive only products local to
-// their target without needing a second semantic representation. Types,
-// aliases, packages, callables, reflection, and foreign language contracts are
-// Abstracts first. Their useful hierarchy emerges from the virtual contracts
-// they implement.
+// of constructing parallel path or schema representations. Useful hierarchy
+// emerges from the virtual contracts implemented by each Abstract.
 //
 // A route is only the borrowed source bytes that remain to be resolved. The
 // queried Abstract owns the grammar, lookup structure, and slicing appropriate
-// to its context. This keeps the base independent of allocation, global state,
-// failure policy, package structure, and any particular runtime type system.
-// The surface is restricted rather than closed: additions must be fundamental
-// to every semantic object, not conveniences for one derived contract.
+// to its context. This keeps the base independent of allocation and global
+// state. The surface is restricted rather than closed: additions must be
+// fundamental to every semantic object, not conveniences for one derived
+// contract.
 class Abstract {
  public:
-  using ContractOwner = Abstract;
+  using ClassCatagory = Abstract;
   static constexpr Perimortem::System::Uuid contract_id{
     0x67e0e29bc31340ef,
     0xb8fae3b06a1a7be5,
@@ -52,7 +47,8 @@ class Abstract {
   // their base contract. These identifiers describe interfaces only. Object
   // identity and durable names continue to come from the Abstract graph. A
   // native implementation may return true only for public C++ base contracts,
-  // this invariant makes the checked reference conversion well defined.
+  // each represented by one unique accessible base subobject. This invariant
+  // makes visitor dispatch well defined.
   virtual constexpr auto implements(Perimortem::System::Uuid requested) const
       -> Bool {
     return requested == contract_id;
@@ -61,21 +57,30 @@ class Abstract {
   template <typename Requested>
   constexpr auto is() const -> Bool {
     static_assert(
-        __is_same(Requested, typename Requested::ContractOwner),
+        __is_base_of(Abstract, Requested),
+        "A requested TTX contract must derive from Abstract.");
+    static_assert(
+        __is_same(Requested, typename Requested::ClassCatagory),
         "Only declared TTX contracts can be queried.");
     return implements(Requested::contract_id);
   }
 
-  // Narrows after verifying the contract assumed by the caller. A failed
-  // assumption is a caller invariant violation rather than a nullable semantic
-  // result. Fallible resolution returns Invalid before a narrow contract is
-  // assumed.
-  template <typename Requested>
-  constexpr auto assume() const -> const Requested& {
-    if (!is<Requested>()) {
-      __builtin_trap();
+  // Dispatches one proven public contract without exposing an unchecked
+  // narrowed reference. A successful match receives the real Requested
+  // object. A mismatch receives this exact Abstract so the caller can preserve
+  // identity, report context, or continue through another query.
+  //
+  // The callbacks own the result of the operation. visit() only selects which
+  // callback runs and forwards that callback's result.
+  template <typename Requested, typename MatchVisitor, typename MismatchVisitor>
+  constexpr auto visit(
+      MatchVisitor match_visitor,
+      MismatchVisitor mismatch_visitor) const -> decltype(auto) {
+    if (is<Requested>()) {
+      return match_visitor(static_cast<const Requested&>(*this));
     }
-    return static_cast<const Requested&>(*this);
+
+    return mismatch_visitor(*this);
   }
 
   // Gets the name of this Abstract.
@@ -116,9 +121,7 @@ class Abstract {
   // Returns the documentation visible at this exact Abstract. The concrete
   // object may own authored prose, expose a generated comment, forward another
   // object's documentation, or compose several sources. This query does not
-  // resolve identity implicitly. Alias deliberately combines its local prose
-  // with the target's documentation while Constant deliberately terminates the
-  // query with an empty Comment.
+  // resolve identity implicitly.
   //
   // The returned object and every borrowed line remain valid for the lifetime
   // of this Abstract. Missing documentation is represented by an empty

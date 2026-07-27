@@ -1,13 +1,13 @@
 # TTX Language Semantics
 
-This document is the normative contract for the host-neutral TTX
+This document is the normative catagory for the host-neutral TTX
 representation. It defines lexical token bytecode, the shared semantic graph,
 identity-free Layouts, and the common values consumers may construct.
 
 Concrete parsing policy belongs to the parser that consumes the Tokens.
 Concrete Dialect, package, filesystem, runtime, target, linker, and archive
 policy belongs to those owners. A repository consumer does not become part of
-the TTX specification merely because it uses TTX Codes or model contracts.
+the TTX specification merely because it uses TTX Codes or model catagories.
 
 ## Formal model
 
@@ -18,8 +18,8 @@ TTX has two layers:
 - consumers evaluate those Tokens into shared semantic identities and
   identity-free values.
 
-The Token stream is deterministic for one concrete Lexer contract. Semantic
-validity is contextual because name resolution, contract proof, Generic
+The Token stream is deterministic for one concrete Lexer catagory. Semantic
+validity is contextual because name resolution, catagory proof, Generic
 materialization, Layout fitting, and consumer legality depend on the graph
 supplied by the host.
 
@@ -32,11 +32,11 @@ replaying a Cursor or retaining token bookmarks as unfinished meaning.
 
 A concrete Lexer emits one Token for every recognized source span. Each Token
 carries an eight-bit `Lexical::Code`. `Terminal` reserves `0x00` and `Unknown`
-reserves `0xFF`; every other value belongs to the exact Lexer contract that
+reserves `0xFF`. Every other value belongs to the exact Lexer catagory that
 assigned it.
 
 Code values are not a stable independent serialization. A Token stream can be
-exchanged only with the matching Lexer and Lexicon contract.
+exchanged only with the matching Lexer and Lexicon catagory.
 
 Payload-bearing Tokens retain the source coordinates needed to project their
 authored bytes. The Token does not copy text, allocate a path, or own source
@@ -51,17 +51,17 @@ has already been consumed.
 
 The common categories include:
 
-| Source shape               | Code role                     |
-| -------------------------- | ----------------------------- |
-| `snake_case`               | addressable name              |
-| `PascalCase`               | Type-shaped name              |
-| fixed grammar words        | dedicated keyword Code        |
-| publication and evaluation | dedicated modifier Codes      |
-| `@name`                    | Attribute                     |
-| `0x[...]`                  | byte literal                  |
-| `$[...]`                   | embedded-resource operand     |
-| punctuation and operators  | dedicated delimiter/operator  |
-| comment line               | Comment                       |
+| Source shape               | Code role                    |
+| -------------------------- | ---------------------------- |
+| `snake_case`               | addressable name             |
+| `PascalCase`               | Type-shaped name             |
+| fixed grammar words        | dedicated keyword Code       |
+| publication and evaluation | dedicated modifier Codes     |
+| `@name`                    | Attribute                    |
+| `0x[...]`                  | byte literal                 |
+| `$[...]`                   | embedded-resource operand    |
+| punctuation and operators  | dedicated delimiter/operator |
+| comment line               | Comment                      |
 
 The Lexicon owns fixed spellings. Tokenizers, diagnostics, and source emitters
 reuse that mapping instead of duplicating keyword and operator text.
@@ -76,58 +76,50 @@ The shared semantic model is a directed graph of `Concept::Abstract` objects.
 An object may be reachable through several bindings or Alias edges, so it does
 not store one authoritative parent path.
 
-The contracts are:
+The catagories are:
 
-| Contract        | Required meaning                                                         |
-| --------------- | ------------------------------------------------------------------------ |
-| `Abstract`      | semantic identity, local name, documentation, and contextual resolution |
-| `Alias`         | closed local name, composed documentation, and identity redirection      |
-| `Invalid`       | absorbing failed semantic query                                           |
-| `Exports`       | ordered public edges paired with contextual lookup                       |
-| `Type`          | value identity with a total Layout                                        |
-| `Managed`       | Type proof that values are managed references                            |
-| `Terminal`      | Type leaf with value width, byte size, and alignment                      |
-| `Generic`       | immutable instruction that materializes a concrete Type                  |
-| `Expression`    | evaluatable value with a result Type and input Layout                     |
-| `Constant`      | immutable zero-input Expression with value equality                      |
-| `Projection`    | Expression selecting an Addressable through a receiver                   |
-| `Binding`       | Expression giving another Expression an authored flow name               |
-| `Addressable`   | named address whose Type is queryable                                     |
-| `Writable`      | Addressable assignment proof and stable read-only projection             |
-| `Callable`      | complete parameter and result Layouts                                     |
-| `Static`        | Callable selected without a runtime receiver                             |
-| `Self`          | Callable whose receiver occupies parameter zero                          |
+| Catagory      | Required meaning                                                                                         |
+| ------------- | -------------------------------------------------------------------------------------------------------- |
+| `Abstract`    | semantic identity, local name, documentation, and contextual resolution                                  |
+| `Type`        | a self contained domain that defines zero or more sub domains depending on context                       |
+| `Value`       | a self contained domain that is context free for all resolutions (`resolve()` == `resolve_context(...)`) |
+| `Alias`       | a unit domain that forwards to another domain for all resolutions                                        |
+| `Invalid`     | a unit domain that contains exactly itself as a sub domain for all resolutions                           |
+| `Addressable` | a stable name inside a domain that maps an edge to another `domain` or `layout`                          |
+| `Callable`    | a stable name inside a doamin that maps an edge to a `layout`                                            |
 
-`Layout`, `Documentation`, and `Body` remain identity-free contracts or values.
+`Layout`, `Documentation`, and `Body` remain identity-free catagories or values.
 They do not inherit Abstract to gain discovery.
 
 There is no universal Kind, `Typed` marker, class database, mutable semantic
 registry, copied Type tree, nullable member record, or mandatory reflection
 field.
 
-## Contract proof
+## Catagory proof
 
-Every declared semantic contract owns a stable 128-bit
-`Perimortem::System::Uuid`. An implementation recognizes its declared contract
+Every declared semantic catagory owns a stable 128-bit
+`Perimortem::System::Uuid`. An implementation recognizes its declared catagory
 and delegates unrecognized identifiers through its public base chain.
 
-Contract identifiers identify interfaces only. They are not object identity,
+Catagory identifiers identify interfaces only. They are not object identity,
 export identity, cache keys, path hashes, package versions, or serialized
 handles.
 
 Native consumers use:
 
 ```text
-abstract.is<Contract>()     -> Bool
-abstract.assume<Contract>() -> const Contract&
+abstract.is<Catagory>()                 -> Bool
+abstract.visit<Catagory>(match, mismatch)
 ```
 
-`is()` proves the public contract. `assume()` checks that proof and expresses a
-caller-held invariant. Fallible semantic work returns an Abstract reference,
-checks the required contract, and reports `Invalid` through its own boundary.
-It does not use a nullable cast as semantic state.
+`is()` proves the public catagory. `visit()` calls the match function with the
+real catagory or the mismatch function with the exact `const Abstract&`.
+Fallible narrowing does not trap or expose an unchecked reference. Semantic
+queries report `Invalid` through their own boundary. Parser and construction
+transactions use Option or Union instead of treating a mismatch as graph
+state.
 
-An implementation may report only contracts represented by its public C++
+An implementation may report only catagories represented by its public C++
 inheritance. C++ implementation reuse does not manufacture another semantic
 fact.
 
@@ -147,16 +139,16 @@ resolution cache.
 
 The required rules are:
 
-| Rule                | Contract                                                                    |
-| ------------------- | --------------------------------------------------------------------------- |
-| local name          | `get_name()` names the current Abstract                                     |
-| represented name    | `resolve().get_name()` names represented identity                           |
-| identity            | `resolve()` is idempotent for an unchanged valid graph                      |
-| borrowed route      | `resolve_context()` receives the caller's complete borrowed view            |
-| partitioning        | one combined route and several ordered queries need not be equivalent       |
-| determinism         | the same ordered chain is stable while the graph is unchanged                |
-| termination         | a valid graph cannot redirect forever                                        |
-| failure             | failure returns `Invalid&`, never a nullable pseudo-Abstract                 |
+| Rule             | Catagory                                                              |
+| ---------------- | --------------------------------------------------------------------- |
+| local name       | `get_name()` names the current Abstract                               |
+| represented name | `resolve().get_name()` names represented identity                     |
+| identity         | `resolve()` is idempotent for an unchanged valid graph                |
+| borrowed route   | `resolve_context()` receives the caller's complete borrowed view      |
+| partitioning     | one combined route and several ordered queries need not be equivalent |
+| determinism      | the same ordered chain is stable while the graph is unchanged         |
+| termination      | a valid graph cannot redirect forever                                 |
+| failure          | failure returns `Invalid&`, never a nullable pseudo-Abstract          |
 
 Alias retains its local name, local documentation, and one borrowed target. It
 redirects both resolution operations through the target's represented identity.
@@ -180,13 +172,13 @@ Empty collections use empty views. Semantic absence never uses a null pointer
 or a local sentinel. Narrow operations become reference based after their
 preconditions are proven.
 
-`Concept::Reference<Contract>` is the non-null borrowed edge used by contiguous
+`Concept::Reference<Catagory>` is the non-null borrowed edge used by contiguous
 semantic collections. It preserves the object supplied by its owner; consumers
 call `resolve()` explicitly when represented identity is required.
 
 ## Exported surfaces
 
-`Exports : Abstract` is the optional public-definition contract. It supplies:
+`Exports : Abstract` is the optional public-definition catagory. It supplies:
 
 ```text
 get_export_count()  -> Count
@@ -215,7 +207,7 @@ enumerable.
 returns one total `const Layout&`. Layout has no incomplete alternative.
 
 An empty Layout does not prove that a Type is scalar. A consumer must prove
-`Terminal` or another narrow representation contract before applying scalar
+`Terminal` or another narrow representation catagory before applying scalar
 rules.
 
 `Managed : Type` proves only that values are managed object references.
@@ -239,8 +231,8 @@ generated documentation directly. TTX owns no prelude, supported-width
 registry, or required set of installed instances.
 
 `Unsigned_8` is the common byte element Type. There is no second scalar Byte or
-Bytes Type identity. `Constants::Bytes` instead describes a byte-array value
-domain whose resolved collection Type remains distinct from its element Type.
+Bytes Type identity. A concrete language may define a byte array value domain
+whose resolved collection Type remains distinct from its element Type.
 
 ## Generic materialization
 
@@ -281,17 +273,19 @@ arguments. Their owners outlive its last query.
 
 ## Layout
 
-`Layout` is the directional fitting contract over an ordered group of real
+`Layout` is the directional fitting catagory over an ordered group of real
 Abstracts:
 
 ```text
 get_size()                    -> Count
-get(index)                    -> const Abstract&
+get_abstract(index)           -> Option<const Abstract&>
 fits(target)                  -> Bool
-get_fitted(target, index)     -> const Abstract&
+get_fitted(target, index)     -> Union<const Abstract&, Layout::Errors>
 ```
 
-An invalid index or failed fit returns Invalid.
+The closed errors are `IndexOutOfBounds`, `SizeMismatch`, and
+`IncompatibleFit`. An invalid index has no value. Layout transaction failures
+do not inject Invalid into the semantic graph.
 
 The shared implementations are:
 
@@ -301,10 +295,10 @@ The shared implementations are:
 - `Ranged`: one real Abstract repeated over a fixed interval; and
 - `Composite`: positional composition of two complete Layouts.
 
-Fitting is directional: source fits target. Fluid and Named entries that prove
-Expression may use the Expression's value-to-Type fitting rule. Structured
-preserves real Addressable identity. Ranged returns the same semantic edge for
-every valid position. Composite delegates to the child that owns each segment.
+Fitting is directional: source fits target. Fluid and Named entries fit by
+resolved identity. Structured preserves real Addressable identity. Ranged
+returns the same semantic edge for every valid position. Composite delegates
+to the child that owns each segment.
 
 `get_fitted()` returns the original source edge supplying a target slot. Named
 therefore exposes the permutation it proved without allocating a second
@@ -317,47 +311,11 @@ the real semantic object or a narrower owner.
 Structural coincidence does not create Type identity. A typed aggregate does
 not flatten into Fluid flow without an explicit source operation.
 
-## Expressions and constants
-
-`Expression : Abstract` represents one evaluatable value:
-
-```text
-get_type()    -> const Abstract&
-get_inputs()  -> const Layout&
-fits(type)    -> Bool
-```
-
-Expression identity remains distinct from result Type identity. An ordinary
-Expression fits the exact resolved Type returned by `get_type()`. Narrow value
-domains may prove additional safe contextual fits.
-
-`Projection` retains one receiver Expression and one real Addressable.
-`Binding` retains one authored name and one underlying Expression. Neither is a
-scope, symbol table, declaration, or alternate lookup graph.
-
-`Constant : Expression` is immutable and already in normal form. It has an
-empty input Layout and defines value equality. The shared domains are:
-
-| Contract              | Payload       |
-| --------------------- | ------------- |
-| `Constants::Unsigned` | `Unsigned_64` |
-| `Constants::Signed`   | `Signed_64`   |
-| `Constants::Real`     | `Real_128`    |
-| `Constants::Flag`     | `Bool`        |
-| `Constants::Bytes`    | `View::Bytes` |
-
-Equality requires the same domain, resolved Type, and payload. Real NaNs compare
-as one semantic value so equality remains usable by caches.
-
-Integer and Flag domains may prove narrower contextual fits from their values.
-Real and Bytes require exact Type fitting in the first contract. TTX has no
-native String Constant.
-
 ## Addressable and Callable
 
-`Addressable : Abstract` supplies the Type of data reached through a named
-address. Type failure returns Invalid while the Addressable retains its own
-identity.
+`Addressable : Abstract` supplies the real Type edge of data reached through a
+named address. The Type remains a stable identity while its own `resolve()` may
+return Invalid until graph construction completes.
 
 `Writable : Addressable` proves assignment capability. Its read-only projection
 is a separate stable Addressable with the same name, documentation, and
@@ -374,7 +332,7 @@ that same complete signature.
 
 Owning a Callable beneath a Type does not create another subtype. Linkage,
 machine address, runtime invocation, and target ABI remain on narrower consumer
-contracts.
+catagories.
 
 ## Executable Body
 
@@ -431,6 +389,11 @@ semantic identities and do not become Layout fields.
 Runtime storage is likewise derived. Managed cells, frames, collectors,
 workers, process addresses, and scheduling are not TTX facts.
 
+Evaluation identities such as Expression, Binding, Projection, and Constant
+belong to the concrete language that defines their legality and value domains.
+They may retain real TTX Type, Layout, and Addressable edges without becoming
+part of the core TTX model.
+
 Archives, repositories, source caches, package manifests, filesystem roots,
 and diagnostics remain outside TTX. A durable owner may serialize selected
 semantic facts, but it must not treat target records, process addresses,
@@ -441,7 +404,7 @@ Cursor positions, or source paths as semantic truth.
 Changes to TTX preserve these rules:
 
 1. The Tokenizer assigns one Code to every emitted source span.
-2. A Token stream is interpreted only with its exact Lexer contract.
+2. A Token stream is interpreted only with its exact Lexer catagory.
 3. Token text is projected through Tokenizer-owned source rather than copied
    into every Token or parser object.
 4. A selected consumer consumes authored syntax once. Token indexes and Cursor
@@ -462,10 +425,9 @@ Changes to TTX preserve these rules:
     arguments; the first successful exact key remains stable.
 15. Layout owns order and directional fitting, not copied members or physical
     representation.
-16. Expression identity remains distinct from result Type identity.
-17. Writable is the core write-capability proof for durable Addressables.
-18. Self includes its receiver exactly once at parameter zero.
-19. Body contains compact local IDs and real semantic edges; it is never a
+16. Writable is the core write-capability proof for durable Addressables.
+17. Self includes its receiver exactly once at parameter zero.
+18. Body contains compact local IDs and real semantic edges; it is never a
     replayable parser or a competing semantic graph.
-20. Target, runtime, diagnostic, filesystem, package, linker, and archive facts
+19. Target, runtime, diagnostic, filesystem, package, linker, and archive facts
     stay on their own owners.

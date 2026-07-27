@@ -171,7 +171,7 @@ class Table {
   static constexpr auto find(const Core::View::Bytes key)
       -> Option<value_type> {
     auto value = find_or_null(key);
-    return value == nullptr ? {} : *value;
+    return value == nullptr ? Option<value_type>() : *value;
   }
 
   static consteval auto get_values() -> Core::View::Vector<value_type> {

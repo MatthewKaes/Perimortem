@@ -23,7 +23,7 @@ namespace Ttx::Concept {
 // changes.
 class Invalid : public Abstract {
  public:
-  using ContractOwner = Invalid;
+  using ClassCatagory = Invalid;
   static constexpr Perimortem::System::Uuid contract_id{
     0x61aaefe33f534a6b,
     0x8c39f04bd4a2f525,

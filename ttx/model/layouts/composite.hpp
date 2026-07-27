@@ -25,9 +25,13 @@ class Composite : public Concept::Layout {
   }
 
   constexpr auto get_abstract(Count index) const
-      -> const Concept::Abstract& override {
+      -> Perimortem::Utility::Option<const Concept::Abstract&> override {
     if (index < first.get_size()) {
       return first.get_abstract(index);
+    }
+
+    if (index >= get_size()) {
+      return {};
     }
 
     return second.get_abstract(index - first.get_size());
@@ -38,7 +42,8 @@ class Composite : public Concept::Layout {
   auto get_fitted_at(
       const Concept::Layout& target,
       Count target_offset,
-      Count target_index) const -> const Concept::Abstract& override;
+      Count target_index) const -> Perimortem::Core::Static::
+      Union<const Concept::Abstract&, Errors> override;
 
  private:
   const Concept::Layout& first;

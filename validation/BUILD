@@ -77,12 +77,13 @@ cc_binary(
     deps = [
         ":test_headers",
         "//perimortem",
-        "//tetrodotoxin:archiver",
-        "//tetrodotoxin:compiler",
         "//tetrodotoxin:diagnostics",
+        "//tetrodotoxin:environment",
+        "//tetrodotoxin:language",
+        "//tetrodotoxin:library",
         "//tetrodotoxin:linker",
-        "//tetrodotoxin:model",
-        "//tetrodotoxin:parser",
+        "//tetrodotoxin:package",
+        "//tetrodotoxin:shader",
         "//ttx",
     ],
 )
@@ -102,8 +103,6 @@ cc_binary(
     deps = [
         ":test_headers",
         "//perimortem",
-        "//tetrodotoxin:archiver",
-        "//tetrodotoxin:model",
         "//ttx:concept",
         "//ttx:model",
     ],

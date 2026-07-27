@@ -4,7 +4,6 @@
 #pragma once
 
 #include "ttx/concept/layout.hpp"
-#include "ttx/concept/reference.hpp"
 
 namespace Ttx::Model::Layouts {
 
@@ -13,7 +12,7 @@ namespace Ttx::Model::Layouts {
 // Bytes[N], Static::Vector<T, N>, and other fixed homogeneous Types can
 // therefore participate in recursive layout and generalized element
 // projection without allocating N duplicate graph edges. An index outside the
-// range returns Invalid.
+// range returns None.
 class Ranged : public Concept::Layout {
  public:
   constexpr Ranged(const Concept::Abstract& abstract, Count size)
@@ -22,12 +21,12 @@ class Ranged : public Concept::Layout {
   constexpr auto get_size() const -> Count override { return size; }
 
   constexpr auto get_abstract(Count index) const
-      -> const Concept::Abstract& override {
+      -> Perimortem::Utility::Option<const Concept::Abstract&> override {
     if (index >= size) {
-      return Concept::Invalid::get_invalid();
+      return {};
     }
 
-    return abstract.get();
+    return abstract;
   }
 
   auto fits_at(const Concept::Layout& target, Count target_offset) const
@@ -35,10 +34,11 @@ class Ranged : public Concept::Layout {
   auto get_fitted_at(
       const Concept::Layout& target,
       Count target_offset,
-      Count target_index) const -> const Concept::Abstract& override;
+      Count target_index) const -> Perimortem::Core::Static::
+      Union<const Concept::Abstract&, Errors> override;
 
  private:
-  Concept::Reference<Concept::Abstract> abstract;
+  const Concept::Abstract& abstract;
   Count size;
 };
 

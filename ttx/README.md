@@ -1,77 +1,68 @@
 # TTX
 
-TTX is the repository's host-neutral source IR. It owns the authored lexical
-vocabulary, token bytecode, shared semantic identities, identity-free Layouts,
-and the common executable Body representation.
-
-TTX deliberately does not own source-file lifetime, package resolution,
-filesystem access, concrete Dialects, runtime execution, target lowering,
-linking, or archive formats. Those systems consume TTX; they do not extend its
-ownership by being documented here.
+TTX is a host neutral source IR. It owns the authored lexical vocabulary, token
+semantics, shared semantic identities, identity free Layouts, and the core data
+model for abstract representations.
 
 ## Representation
 
-```text
-authored bytes
--> Lexical::Tokenizer
--> ordered Token values with concrete Lexical::Code values
--> host-selected parsing and evaluation
--> one graph of real Abstract identities
-   + identity-free Layout values
-   + identity-free executable Body values
--> host-owned runtime, target, tool, or durable product
-```
+TTX is a simple format for expressing dynamic abstract representations rather than
+provide a concrete IR model. TTX is composed of various domain layers that can
+provide both frontend and backend extensions.
 
-The Tokenizer performs the first semantic partition. Casing, fixed keywords,
-operators, delimiters, comments, and literal forms become explicit Codes.
-Payload-bearing Tokens retain the source location required to recover their
-authored bytes. The Code stream is meaningful only with the exact Lexer
-contract that emitted it.
+This means TTX does not provide a canonical frontend language, intermediate
+representation, or backend. Instead TTX provides the composability rules that cover
+the creation and interoperability of the systems that generate those layers.
 
-A consumer decides how many Tokens form one instruction and which instructions
-are legal. TTX supplies the common facts that consumer may construct:
+## Specification
 
-- `Abstract` for semantic identity and contextual resolution;
-- `Invalid` for failed semantic queries;
-- `Reference<T>` for non-null semantic edges;
-- `Documentation` for stable ordered comment lines;
-- `Layout` for identity-free ordered shape and directional fitting;
-- `Type` and its narrow Terminal and Generic contracts;
-- `Expression` and immutable `Constant` values;
-- `Addressable`, `Writable`, `Callable`, `Static`, and `Self`;
-- `Exports` for an enumerable public definition surface; and
-- `Body` for immutable executable blocks, values, and operations.
+TTX formally defines two systems: The TTX Bytecode format and the Abstract Data model.
 
-The graph has no universal Kind, class database, mutable Dialect registry,
-copied member records, shadow Type graph, nullable semantic edges, or allocated
-path history.
+TTX is interpreted as a fixed width bytecode stream with the code format
+itself being simple enough:
 
-## Ownership boundary
+* The decoder maps each code token to a Unsigned_8 semantic range (0 to 256)
+* Each code token provides a cannonical source context mapping, this is not required
+  to be source text and can be empty or `Invalid`.
+* Semantic values `0` and `255` are reserved for `Terminal` and `Unknown` respectively.
 
-TTX reserves lexical forms such as the `dialect` marker, definition modifiers,
-attributes, calls, layouts, packs, and literal prefixes. A reserved Code does
-not give TTX ownership of every meaning a host may attach to it.
 
-For example, TTX can identify an envelope shaped like `dialect : Name;` without
-defining the accepted names. It can identify an embedded resource token without
-defining a filesystem root. It can represent a Callable Body without defining
-which runtime executes it. It can expose Type and Layout facts without defining
-SPIR-V, a native ABI, or an archive schema.
+### Lexical format
 
-A concrete consumer owns every omitted policy. Sharing a repository with TTX
-does not make that consumer or its behavior part of the TTX contract.
+To ease progressive bring up of a TTX system a bootstrap `lexer` format is provide.
+It currently uses `72` code points of the total `256`. As a template lexer this balances
+a combination of optimizing semantic packing while leaving ample room for extensions.
 
-## Repository map
+The `Tokenizer` class provides the required semantic partitioning. It provides examples
+of fixed keywords, operators, delimiters, comments, and literal forms as explicit Codes.
+The TTX `Tokenizer` also provides some unique mapings such as variable length byte formats
+and using casing (snake_case and PascalCase) to split text into seperate domains (Addressable
+and Type).
 
-- [`lexical`](lexical/) owns Codes, Tokens, Tokenizer, Cursor, Lexicon, and
-  lexical diagnostics.
-- [`concept`](concept/) owns Abstract, Documentation, Invalid, Layout, and
-  non-null Reference.
-- [`model`](model/) owns the shared semantic identities and identity-free values
-  built from those concepts.
+Payload-bearing Tokens retain the source location required to recover their authored bytes
+as their source context. The Code stream is meaningful only with the exact Lexer contract
+that emitted it.
 
-The active libraries are `//ttx:lexical`, `//ttx:concept`, `//ttx:model`, and
-the convenience target `//ttx:ttx`.
+### Data format
+
+The data model is built out of composable classes that must provide four morphisms:
+* `resolve` - Returns the canonical node that holds the identity class in the current context.
+  * Must always exist, even if it's just the class identity morphism.
+* `resolve_context` - Returns a possibly non-canonical node based on a name in that class.
+  * Must always resolve and be a stable identity as long as the graph has not been mutated.
+* `implements` - Checks if two classes live in the same domain.
+  * This does not represent inheritence as abstracts can exist in multiple domains.
+  * The domain a class lives in can also be contextual.
+
+Both `resolve` functions must terminate which means resolution loops are not support.
+As an example `Alias` is an abstract class that has exactly one edge to another class.
+That means by construction calling `resolve` on an `Alias` always results in a node in
+a non-`Alias` class unless there is a loop in the graph.
+
+The graph has no universal kind, class database, mutable registry, copied member records,
+shadow Type graph, nullable semantic edges, or allocated path history.
+
+## Practical TTX ssage
 
 See [ttx_design.md](ttx_design.md) for the representation rationale and
 [ttx_semantics.md](ttx_semantics.md) for the normative shared contracts.

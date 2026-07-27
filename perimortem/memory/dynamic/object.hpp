@@ -37,16 +37,13 @@ class Object {
 
   Object(Object&& rhs) : Object(rhs) {}
 
-  ~Object() {
-    Unsigned_8* data = Core::Data::cast<Unsigned_8>(value);
-    if (Core::Bibliotheca::reservation_count(data) == 1) {
-      value->~value_type();
+  ~Object() { release(); }
+
+  auto operator=(const Object& rhs) -> Object& {
+    if (rhs.value != value) {
+      release();
     }
 
-    Core::Bibliotheca::remit(data);
-  }
-
-  auto operator=(Object& rhs) -> Object& {
     value = rhs.value;
     Core::Bibliotheca::reserve(Core::Data::cast<Unsigned_8>(value));
     return *this;
@@ -67,6 +64,15 @@ class Object {
   constexpr auto operator*() const -> const value_type& { return *value; }
 
  private:
+  auto release() -> void {
+    Unsigned_8* data = Core::Data::cast<Unsigned_8>(value);
+    if (Core::Bibliotheca::reservation_count(data) == 1) {
+      value->~value_type();
+    }
+
+    Core::Bibliotheca::remit(data);
+  }
+
   value_type* value;
 };
 

@@ -60,6 +60,8 @@ PERIMORTEM_UNIT_TEST(PackageFixtureTokens, resource_runfiles) {
       "validation/data/ttx/package_resources/resources/empty.bin"_view;
   static constexpr View::Bytes logo_path =
       "apps/ttx/scene_lifetime/resources/logo.png"_view;
+  static constexpr View::Bytes icon_path =
+      "apps/ttx/scene_lifetime/resources/icon.png"_view;
   static constexpr View::Bytes expected_header =
       "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz+/"_view;
 
@@ -73,4 +75,6 @@ PERIMORTEM_UNIT_TEST(PackageFixtureTokens, resource_runfiles) {
   EXPECT(File::read(empty_path).is_empty());
   EXPECT(File::exists(logo_path));
   EXPECT_NOT(File::read(logo_path).is_empty());
+  EXPECT(File::exists(icon_path));
+  EXPECT_NOT(File::read(icon_path).is_empty());
 }

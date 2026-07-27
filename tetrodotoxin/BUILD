@@ -8,13 +8,67 @@ package(default_visibility = ["//visibility:public"])
 
 cc_library(
     name = "language",
+    srcs = glob([
+        "language/**/*.cpp",
+    ]),
     hdrs = glob([
-        "ttx/**/*.hpp",
+        "language/**/*.hpp",
     ]),
     includes = ["."],
     deps = [
         "//perimortem",
-        "//ttx",
+        "//ttx:concept",
+        "//ttx:lexical",
+        "//ttx:model",
+    ],
+)
+
+cc_library(
+    name = "package",
+    srcs = glob([
+        "package/**/*.cpp",
+    ]),
+    hdrs = glob([
+        "package/**/*.hpp",
+    ]),
+    includes = ["."],
+    deps = [
+        ":language",
+        "//perimortem",
+        "//ttx:concept",
+        "//ttx:lexical",
+        "//ttx:model",
+    ],
+)
+
+cc_library(
+    name = "library",
+    srcs = glob([
+        "library/**/*.cpp",
+    ]),
+    hdrs = glob([
+        "library/**/*.hpp",
+    ]),
+    includes = ["."],
+    deps = [
+        "//perimortem",
+        "//ttx:concept",
+        "//ttx:lexical",
+        "//ttx:model",
+    ],
+)
+
+cc_library(
+    name = "shader",
+    srcs = glob([
+        "shader/**/*.cpp",
+    ]),
+    hdrs = glob([
+        "shader/**/*.hpp",
+    ]),
+    includes = ["."],
+    deps = [
+        "//perimortem",
     ],
 )
 
@@ -29,40 +83,24 @@ cc_library(
     includes = ["."],
     deps = [
         "//perimortem",
-        "//ttx",
     ],
 )
 
 cc_library(
-    name = "model",
+    name = "environment",
     srcs = glob([
-        "model/**/*.cpp",
+        "environment/**/*.cpp",
     ]),
     hdrs = glob([
-        "model/**/*.hpp",
+        "environment/**/*.hpp",
     ]),
     includes = ["."],
     deps = [
-        ":concept",
+        ":language",
+        ":package",
         "//perimortem",
-        "//ttx",
-    ],
-)
-
-cc_library(
-    name = "parser",
-    srcs = glob([
-        "parser/**/*.cpp",
-    ]),
-    hdrs = glob([
-        "parser/**/*.hpp",
-    ]),
-    includes = ["."],
-    deps = [
-        ":concept",
-        ":model",
-        "//perimortem",
-        "//ttx",
+        "//ttx:concept",
+        "//ttx:model",
     ],
 )
 
@@ -77,37 +115,5 @@ cc_library(
     includes = ["."],
     deps = [
         "//perimortem",
-        "//ttx",
-    ],
-)
-
-cc_library(
-    name = "archiver",
-    srcs = glob([
-        "archiver/**/*.cpp",
-    ]),
-    hdrs = glob([
-        "archiver/**/*.hpp",
-    ]),
-    includes = ["."],
-    deps = [
-        ":model",
-        "//perimortem",
-        "//ttx",
-    ],
-)
-
-cc_library(
-    name = "compiler",
-    srcs = glob([
-        "compiler/assembler/**/*.cpp",
-    ]),
-    hdrs = glob([
-        "compiler/assembler/**/*.hpp",
-    ]),
-    includes = ["."],
-    deps = [
-        "//perimortem",
-        "//ttx",
     ],
 )

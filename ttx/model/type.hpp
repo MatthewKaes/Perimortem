@@ -6,7 +6,7 @@
 #include "ttx/concept/abstract.hpp"
 #include "ttx/concept/invalid.hpp"
 #include "ttx/concept/layout.hpp"
-#include "ttx/model/layouts/structured.hpp"
+#include "ttx/model/layouts/fluid.hpp"
 
 namespace Ttx::Model {
 
@@ -31,7 +31,7 @@ namespace Ttx::Model {
 // Bytes[N], without allocating one semantic node per index.
 class Type : public Concept::Abstract {
  public:
-  using ContractOwner = Type;
+  using ClassCatagory = Type;
   static constexpr Perimortem::System::Uuid contract_id{
     0x94ee892e6e064e3b,
     0x896512640a01b446,
@@ -47,7 +47,7 @@ class Type : public Concept::Abstract {
   }
 
  private:
-  static constexpr Layouts::Structured empty_layout;
+  static constexpr Layouts::Fluid empty_layout;
 };
 
 }  // namespace Ttx::Model

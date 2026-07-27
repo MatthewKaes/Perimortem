@@ -3,7 +3,10 @@
 
 #include "ttx/model/layouts/composite.hpp"
 
-auto Ttx::Model::Layouts::Composite::fits_at(
+using namespace Ttx;
+using namespace Ttx::Model;
+
+auto Layouts::Composite::fits_at(
     const Concept::Layout& target,
     Count target_offset) const -> Bool {
   if (!has_target_segment(target, target_offset)) {
@@ -14,12 +17,21 @@ auto Ttx::Model::Layouts::Composite::fits_at(
          second.fits_at(target, target_offset + first.get_size());
 }
 
-auto Ttx::Model::Layouts::Composite::get_fitted_at(
+auto Layouts::Composite::get_fitted_at(
     const Concept::Layout& target,
     Count target_offset,
-    Count target_index) const -> const Concept::Abstract& {
-  if (target_index >= get_size() || !fits_at(target, target_offset)) {
-    return Concept::Invalid::get_invalid();
+    Count target_index) const
+    -> Perimortem::Core::Static::Union<const Concept::Abstract&, Errors> {
+  if (target_index >= get_size()) {
+    return Errors::IndexOutOfBounds;
+  }
+
+  if (!has_target_segment(target, target_offset)) {
+    return Errors::SizeMismatch;
+  }
+
+  if (!fits_at(target, target_offset)) {
+    return Errors::IncompatibleFit;
   }
 
   if (target_index < first.get_size()) {

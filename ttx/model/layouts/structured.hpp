@@ -27,9 +27,9 @@ class Structured : public Concept::Layout {
     return addressables.get_size();
   }
   constexpr auto get_abstract(Count index) const
-      -> const Concept::Abstract& override {
+      -> Perimortem::Utility::Option<const Concept::Abstract&> override {
     if (index >= addressables.get_size()) {
-      return Concept::Invalid::get_invalid();
+      return {};
     }
 
     return addressables[index].get();
@@ -42,7 +42,14 @@ class Structured : public Concept::Layout {
     }
 
     for (Count i = 0; i < get_size(); i++) {
-      if (&get_abstract(i) != &target.get_abstract(target_offset + i)) {
+      const Addressable& source = addressables[i].get();
+      Bool matches = target.get_abstract(target_offset + i)
+                         .visit(
+                             []() { return False; },
+                             [&source](const Concept::Abstract& candidate) {
+                               return &source == &candidate ? True : False;
+                             });
+      if (!matches) {
         return False;
       }
     }
@@ -53,12 +60,21 @@ class Structured : public Concept::Layout {
   constexpr auto get_fitted_at(
       const Concept::Layout& target,
       Count target_offset,
-      Count target_index) const -> const Concept::Abstract& override {
-    if (target_index >= get_size() || !fits_at(target, target_offset)) {
-      return Concept::Invalid::get_invalid();
+      Count target_index) const -> Perimortem::Core::Static::
+      Union<const Concept::Abstract&, Errors> override {
+    if (target_index >= get_size()) {
+      return Errors::IndexOutOfBounds;
     }
 
-    return get_abstract(target_index);
+    if (!has_target_segment(target, target_offset)) {
+      return Errors::SizeMismatch;
+    }
+
+    if (!fits_at(target, target_offset)) {
+      return Errors::IncompatibleFit;
+    }
+
+    return addressables[target_index].get();
   }
 
  private:

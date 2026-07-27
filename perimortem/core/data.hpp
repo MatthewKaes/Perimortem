@@ -157,4 +157,13 @@ constexpr auto swap(type& a, type& b) -> void {
   }
 }
 
+// Launder gets around the C++ object model and allows us to copy underlying
+// representations when appropriate.
+//
+// Use with _caution_. All usages of launder are tracked during reivew.
+template <typename type>
+auto launder(type& a, const type& b) -> void {
+  memcpy((void*)&a, (void*)&b, sizeof(type));
+}
+
 }  // namespace Perimortem::Core::Data

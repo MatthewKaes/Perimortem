@@ -1,71 +1,111 @@
 # Tetrodotoxin
 
-Tetrodotoxin is this repository's concrete host for TTX. It owns source
-lifetime, confined loading, exact package resolution, repositories, package
-construction, the binding graph, concrete semantic products, parser policy,
-compiler inputs, linker integration, materialization, and durable package
-representation that TTX leaves host-defined.
-
-TTX remains the authority for Token bytecode and shared Abstract, Type, Layout,
-Expression, Addressable, Callable, Documentation, and Body contracts.
+Tetrodotoxin is the concrete host for TTX. TTX supplies lexical bytecode and
+the shared target independent semantic model. Tetrodotoxin owns concrete source
+Dialects, Environment construction, generators, filesystem policy, and durable
+Package products.
 
 ## Component map
 
-- [`concept`](concept/) owns Tetrodotoxin-wide values shared across concrete
-  components, including exact authored Package Resolution.
-- [`parser`](parser/) owns deterministic Cursor consumption. Its README indexes
-  one source contract for every top-level Dialect and the embedded Foreign
-  Dialect.
-- [`parser/package`](parser/package/) owns the root `package.ttx` transaction:
-  its Source parser consumes the Package envelope and its Workspace confines
-  member loading to one pinned package root.
-- [`model`](model/) owns Source lifetime, Environment, concrete Dialect
-  identities, Namespace, the parsed and resolved Package models, Render,
-  Shader, and other semantic products.
-- [`compiler`](compiler/) owns compilation-local target representation and
-  terminal production from a finalized semantic graph.
-- [`linker`](linker/) owns source-independent object and ELF/archive packaging.
-- [`archiver`](archiver/) owns durable package buffers and source-free restored
-  Package state.
+1. [`language`](language/) owns one Source lifetime, the universal source
+   envelope, static parser dispatch, and parser fragments shared by concrete
+   Dialects.
+2. [`environment`](environment/) owns the semantic Workspace, Namespace, and
+   eventual finalized Graph.
+3. [`library`](library/) owns Library grammar and the reusable CPU compiler and
+   assembler.
+4. [`package`](package/) owns authored Package grammar, confined filesystem
+   Workspace, Distribution, Reader, and Writer.
+5. [`app`](app/) owns startup profiles, lifecycle policy, and generated
+   platform entry semantics.
+6. [`scene`](scene/) owns managed state, signals, render facts, and Scene
+   lifecycle roles.
+7. Top level `render`, `shader`, and `foreign` folders own their concrete
+   grammar, legality, and specialized tooling.
+8. [`linker`](linker/) owns source independent objects, symbols, relocations,
+   target encoding, and native archive construction.
 
-## Production direction
+Path, namespace, and Bazel target describe the same owner. Every top level
+target owns the complete `folder/**/*.cpp` and `folder/**/*.hpp` tree.
 
-```text
-package directory
--> Parser::Package Workspace and root package.ttx transaction
--> Model-owned Package::Source declarations
--> member Source, Environment, and semantic products
--> finalized Package graph
--> Compiler and Linker terminal products
--> Archiver durable package buffer
-```
-
-Each arrow crosses an owner boundary:
-
-- Parser never opens files or searches repositories.
-- Puffer is a CLI/LSP client of Tetrodotoxin and owns no reusable Package
-  behavior.
-- Model never stores parser bookmarks as unfinished semantics.
-- Compiler never rebuilds the Package as a shadow Type graph.
-- Archiver never owns source loading or runtime objects.
-
-## Active targets
-
-The owner-shaped top-level libraries are:
+## Source transaction
 
 ```text
-//tetrodotoxin:concept
-//tetrodotoxin:model
-//tetrodotoxin:parser
-//tetrodotoxin:compiler
-//tetrodotoxin:linker
-//tetrodotoxin:archiver
+authored text and diagnostic path
+-> Language::Source::parse
+-> one owned text copy, Tokenizer, Cursor, and Arena
+-> opening Documentation and exact Dialect name
+-> borrowed parser map lookup
+-> selected static body parser
+-> one concrete Abstract root
+-> completed Language::Source owner
 ```
 
-Target existence proves only that the owner builds. It does not prove that a
-documented Dialect parser, semantic evaluator, runtime, target path, or
-source-free restoration path executes.
+`Language::Source` is the lifetime root for everything derived from one
+authored stream. It is not an Abstract. Its selected concrete root is the
+semantic identity.
 
-See [tetrodotoxin_design.md](tetrodotoxin_design.md) for the cross-component
-transaction. Each linked owner document is authoritative for its narrower
-contract.
+The parser map associates exact Dialect names with static function pointers and
+is borrowed only for construction. There is no Dialect base class, Frontend
+object, mutable parser registry, separate Container, second tokenization pass,
+or retained parser bookmark.
+
+A parse succeeds only when the selected parser returns a concrete root,
+consumes the complete source body, and adds no diagnostic. Failure destroys the
+candidate owner, so an incomplete Source cannot escape.
+
+## Semantic construction
+
+```text
+Environment::Workspace
+  supplies stable scalar Types, Generic formulas, materializations, and aliases
+
+Language::Source owners
+  retain each source Arena, Tokens, and concrete semantic root
+
+Environment::Namespace
+  retains roots, publishes exports, and validates sealing
+
+future Environment::Graph
+  connects completed roots and resolved Package inputs
+```
+
+Environment does not replace Source ownership. A living Source always owns the
+Arena that backs its root. Environment supplies cross source semantic identity
+and the immutable consumer boundary.
+
+TTX Type, Layouts, Addressable, Callable, and shared value domains remain common
+catagories. `Library::Language` owns Expression, Binding, Projection, Constant,
+and typed Constant domains while retaining real TTX edges.
+
+Scene, App, Shader, Foreign, and other producers do not clone the TTX model beneath
+a concrete Dialect and can borrow `Library::Language` as a subdialect when required.
+
+## Dependency direction
+
+The foundational direction follows meaning:
+
+```text
+|-----Tetrodotoxin-----||--TTX--||--Runtime--|
+Library  ->  Language  ->  TTX  ->  Perimortem
+```
+
+Other languages should never `dispatch` to `Library` directly. Instead they should
+use `loan words` from the `Library::Language::Dialect` in the contexts that are
+appropriate for them.
+
+## Terminals
+
+Outside of the `Library::Language` dialect Library compilation consumes completed
+CPU facts retained by their real Library, Scene, or App owners and lowers them to
+CPU centeric terminals. It never converts another Dialect into a Library however
+it does support layout negotions with them to ensure "ABI" and calling conventions.
+Key consumers such as `App` use Library layouts to negotiate startup and lifecycle policy
+while consumers like `Shader` use Library to negotiate CPU <-> GPU terminals.
+
+Linker currently owns the unified terminal platform artifacts to centeralize the logic.
+However the Assembler should live in Library long term with the executable formats moving
+to `App` and the archiving logic moving to `Package`.
+
+See [tetrodotoxin_design.md](tetrodotoxin_design.md) for the complete ownership
+and transaction contract.

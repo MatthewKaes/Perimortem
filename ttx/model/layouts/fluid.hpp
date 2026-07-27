@@ -11,10 +11,8 @@
 namespace Ttx::Model::Layouts {
 
 // Fluid is positional value flow. Its entries are the real Abstracts produced
-// by an expression, pack, return, or other reshapeable source. It fits another
-// Layout by ordered resolved identity and carries no field metadata. An
-// Expression entry instead proves that it fits the resolved target Type, which
-// keeps value domain conversion knowledge out of Layout.
+// by a pack, return, or other reshapeable source. It fits another Layout by
+// ordered resolved identity and carries no field metadata.
 class Fluid : public Concept::Layout {
  public:
   constexpr Fluid(
@@ -26,9 +24,9 @@ class Fluid : public Concept::Layout {
     return abstracts.get_size();
   }
   constexpr auto get_abstract(Count index) const
-      -> const Concept::Abstract& override {
+      -> Perimortem::Utility::Option<const Concept::Abstract&> override {
     if (index >= abstracts.get_size()) {
-      return Concept::Invalid::get_invalid();
+      return {};
     }
 
     return abstracts[index].get();
@@ -39,7 +37,8 @@ class Fluid : public Concept::Layout {
   auto get_fitted_at(
       const Concept::Layout& target,
       Count target_offset,
-      Count target_index) const -> const Concept::Abstract& override;
+      Count target_index) const -> Perimortem::Core::Static::
+      Union<const Concept::Abstract&, Errors> override;
 
  private:
   Perimortem::Core::View::Vector<Concept::Reference<Concept::Abstract>>

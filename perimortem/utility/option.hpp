@@ -95,11 +95,14 @@ class Option {
 
   operator bool() const { return bool(set); }
 
+  auto operator*() -> Type& { return value; }
+  auto operator*() const -> const Type& { return value; }
+
   template <typename RejectCallback, typename ValueVisitor>
   constexpr auto visit(
       RejectCallback reject_callback,
       ValueVisitor value_visitor) -> decltype(auto) {
-    if (set) {
+    if (!set) {
       return reject_callback();
     }
 
@@ -110,7 +113,7 @@ class Option {
   constexpr auto visit(
       RejectCallback reject_callback,
       ValueVisitor value_visitor) const -> decltype(auto) {
-    if (set) {
+    if (!set) {
       return reject_callback();
     }
 
@@ -133,6 +136,8 @@ class Option<Type&> {
   Option(Type&&) = delete;
 
   operator bool() const { return value != nullptr; }
+
+  auto operator*() const -> Type& { return *value; }
 
   template <typename RejectCallback, typename ReferenceVisitor>
   constexpr auto visit(

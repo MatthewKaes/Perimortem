@@ -123,12 +123,10 @@ cc_library(
 cc_library(
     name = "graphics",
     srcs = glob([
-        "graphics/formats/*.cpp",
+        "graphics/**/*.cpp",
     ]),
     hdrs = glob([
-        "graphics/*.hpp",
-        "graphics/formats/*.hpp",
-        "graphics/render/*.hpp",
+        "graphics/**/*.hpp",
     ]),
     includes = ["."],
     deps = [

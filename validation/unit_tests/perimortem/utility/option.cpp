@@ -54,8 +54,7 @@ PERIMORTEM_UNIT_TEST(UtilityOption, visits_none) {
   Option<const Signed_32&> selected;
 
   Count branch = selected.visit(
-      [](const None&) { return Count(1); },
-      [](const Signed_32&) { return Count(2); });
+      []() { return Count(1); }, [](const Signed_32&) { return Count(2); });
 
   EXPECT_EQ(branch, 1);
 }
@@ -64,7 +63,7 @@ PERIMORTEM_UNIT_TEST(UtilityOption, visits_reference) {
   Signed_32 value = 41;
   Option<Signed_32&> selected(value);
 
-  selected.visit([](const None&) {}, [](Signed_32& found) -> void { found++; });
+  selected.visit([]() {}, [](Signed_32& found) -> void { found++; });
 
   EXPECT_EQ(value, 42);
 }
@@ -75,7 +74,7 @@ PERIMORTEM_UNIT_TEST(UtilityOption, copies_borrow) {
   Option<const Signed_32&> second(first);
 
   Signed_32 found = second.visit(
-      [](const None&) { return Signed_32(0); },
+      []() { return Signed_32(0); },
       [](const Signed_32& selected) { return selected; });
 
   EXPECT_EQ(found, value);
@@ -85,14 +84,13 @@ PERIMORTEM_UNIT_TEST(UtilityOption, copies_value) {
   Option<Signed_32> first(41);
   Option<Signed_32> second(first);
 
-  second.visit(
-      [](const None&) {}, [](Signed_32& selected) -> void { selected++; });
+  second.visit([]() {}, [](Signed_32& selected) -> void { selected++; });
 
   Signed_32 first_value = first.visit(
-      [](const None&) { return Signed_32(0); },
+      []() { return Signed_32(0); },
       [](Signed_32 selected) { return selected; });
   Signed_32 second_value = second.visit(
-      [](const None&) { return Signed_32(0); },
+      []() { return Signed_32(0); },
       [](Signed_32 selected) { return selected; });
 
   EXPECT_EQ(first_value, 41);
@@ -106,13 +104,11 @@ PERIMORTEM_UNIT_TEST(UtilityOption, owns_stack_value) {
     Option<StackValue> selected = create_stack_value(destructions);
     Option<StackValue> moved(Data::take(selected));
 
-    moved.visit(
-        [](const None&) {},
-        [](StackValue& value) -> void { value.increment(); });
+    moved.visit([]() {}, [](StackValue& value) -> void { value.increment(); });
 
     const Option<StackValue>& observed = moved;
     Signed_32 found = observed.visit(
-        [](const None&) { return Signed_32(0); },
+        []() { return Signed_32(0); },
         [](const StackValue& value) { return value.get(); });
 
     EXPECT_EQ(found, 42);
@@ -121,29 +117,13 @@ PERIMORTEM_UNIT_TEST(UtilityOption, owns_stack_value) {
   EXPECT_EQ(destructions, Count(1));
 }
 
-PERIMORTEM_UNIT_TEST(UtilityOption, moves_empty_value) {
-  Count destructions = 0;
-  Option<StackValue> first;
-  Option<StackValue> second(first);
-
-  Count branch = second.visit(
-      [](const None&) { return Count(1); },
-      [](const StackValue&) { return Count(2); });
-
-  EXPECT_EQ(branch, Count(1));
-  EXPECT_EQ(destructions, Count(0));
-}
-
-PERIMORTEM_UNIT_TEST(UtilityOption, moves_none_into_value) {
+PERIMORTEM_UNIT_TEST(UtilityOption, accepts_empty) {
   Count destructions = 0;
   Option<StackValue> selected = create_stack_value(destructions);
-  None empty;
-
-  selected = Data::take(empty);
+  selected = {};
 
   Count branch = selected.visit(
-      [](const None&) { return Count(1); },
-      [](const StackValue&) { return Count(2); });
+      []() { return Count(1); }, [](const StackValue&) { return Count(2); });
 
   EXPECT_EQ(branch, Count(1));
   EXPECT_EQ(destructions, Count(1));

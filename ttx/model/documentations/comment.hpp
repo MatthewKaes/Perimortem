@@ -16,7 +16,7 @@ class Comment : public Concept::Documentation {
  public:
   static auto get_empty() -> const Comment&;
 
-  explicit constexpr Comment(Perimortem::Core::View::Bytes text) : text(text) {}
+  constexpr Comment(Perimortem::Core::View::Bytes text) : text(text) {}
 
   constexpr auto get_line(Count index) const
       -> Perimortem::Core::View::Bytes override {

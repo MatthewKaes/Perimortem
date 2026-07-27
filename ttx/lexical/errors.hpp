@@ -30,8 +30,16 @@ class Errors {
   constexpr auto set_source_context(
       Perimortem::Core::View::Bytes name,
       Perimortem::Core::View::Bytes text) -> void {
+    proxied_context = false;
     current_context.name = name;
     current_context.text = text;
+  }
+
+  // Ends the active source borrow after a parsing transaction. Diagnostics
+  // already copied their source snapshot and remain valid.
+  constexpr auto clear_source_context() -> void {
+    current_context.name = "<Unknown>"_view;
+    current_context.text = Perimortem::Core::View::Bytes();
   }
 
   // Creates an error that should have a message logged at the source level.
@@ -74,8 +82,9 @@ class Errors {
 
     // Lazily persist the source data and only copy it if an error was
     // generated.
-    if (source_map.is_empty() ||
-        source_map.at(source_map.get_size() - 1).name != current_context.name) {
+    if (!proxied_context) {
+      proxied_context = true;
+
       Info new_mapping;
       new_mapping.name = arena.proxy(current_context.name);
       new_mapping.text = arena.proxy(current_context.text);
@@ -120,6 +129,7 @@ class Errors {
   Perimortem::Memory::Managed::Vector<Info> source_map;
   Perimortem::Memory::Managed::Vector<Error> errors;
   Info current_context = {"<Unknown>"_view, Perimortem::Core::View::Bytes()};
+  Bool proxied_context = false;
 };
 
 }  // namespace Ttx::Lexical

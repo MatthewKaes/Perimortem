@@ -9,7 +9,7 @@ using namespace Perimortem::Core;
 using namespace Validation;
 
 static Harness TtxAttribute = {
-  .name = "TTX::Attribute"_view,
+  .name = "Ttx::Model::Attribute"_view,
 };
 
 PERIMORTEM_UNIT_TEST(TtxAttribute, empty) {

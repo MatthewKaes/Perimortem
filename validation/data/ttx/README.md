@@ -1,6 +1,6 @@
 # TTX validation acceptance inputs
 
-This tree owns parser and package-host acceptance data. It is not an
+This tree owns parser and package host acceptance data. It is not an
 application tree and does not establish semantic behavior merely by
 tokenizing. `apps/ttx/scene_lifetime` remains the real App and Scene pressure
 fixture.
@@ -12,18 +12,14 @@ fixture.
 | Package | Ordered exact `resolve` declarations, confined `source` declarations, optional Package body, and selection of the sole completed App root |
 | Library | Ordinary definitions, functions, initializers, executable Bodies, and explicit opt-in to embedded CPU Foreign |
 | Scene | One path-derived implicit Scene object, signals, members, lifecycle-role declarations, executable Bodies, and explicit opt-in to embedded CPU Foreign |
-| App | One implicit App root, target selection, Scene composition, and explicit opt-in to embedded CPU Foreign |
+| App | One implicit App root, startup profile, direct Static or Scene lifecycle policy, generated platform entry semantics, and explicit opt in to embedded CPU Foreign |
 | Foreign | An embedded FFI block only; never a Source envelope or named Definition |
 | Render | Separate render-package authoring and host contracts; out of scope for the Library plan |
 | Shader | Separate GPU legality and lowering; out of scope for the Library plan and never an implicit CPU Foreign host |
 
 The App Source body is implicit after `dialect : App;`. Package construction
 selects exactly one completed App root, and `main.ttx` is only a filename
-convention. The named `public Demo : App { ... }` and
-`public SceneDemo : App { ... }` examples still present in
-`ttx/ttx_design.md` are stale design examples, not compatibility grammar.
-They must be reconciled when that closed document owner is explicitly
-reopened; an evaluator must not accept both shapes.
+convention.
 
 ## Canonical Scene identities
 
@@ -45,19 +41,23 @@ already owned by another route is a package error; no first-wins behavior,
 case folding, or filename-derived alias is accepted.
 
 `apps/ttx/scene_lifetime/main.ttx` is the implicit App body. It directly names
-the two Scene identities above and owns the Splash-to-Title-to-Splash
-transition cycle. The Scene Sources do not name one another. They use typed
-`= new`, accepted deferred `:=` inference, explicit `return Void;`, and the
-package-root `resources/logo.png`. Scene parsing, runtime transitions,
-graphics, windowing, and execution remain unimplemented and are not claimed by
-this fixture.
+the two Scene identities above and owns the Splash to Title to Splash
+transition cycle. It also selects the Windowed startup profile and embeds the
+package root `$[resources/icon.png]`. The Scene Sources do not name one
+another. They use typed `= new`, accepted deferred `:=` inference, explicit
+`return Void;`, and the package root `$[resources/logo.png]`. App and Scene
+parsing, startup generation, transitions, graphics, windowing, and execution
+remain unimplemented and are not claimed by this fixture.
 
 ## Package Source confinement
 
-`source "route.ttx";` is consumed by `Parser::Package::Source` into
-`Model::Package::Source`. `Parser::Package::Workspace` resolves the route
-relative to the package root, not the descriptor directory, current working
-directory, or a Source-local directory. Package tests construct these
+`source "route.ttx";` is consumed by the owning
+`Language::Source::parse` transaction and static
+`Package::Language::Parser::parse` function into
+`Package::Language::Source`.
+`Package::Workspace` resolves the route relative to the package root, not the
+descriptor directory, current working directory, or a Source local directory.
+Package tests construct these
 independent failures:
 
 | Case | Frozen result |
@@ -81,11 +81,11 @@ type-led Source membership is not current Package grammar.
 ## Package resource oracle
 
 `package_resources/package.ttx` loads two Library Sources in authored order.
-Both request the normalized route `resources/table.bin`, so one Environment
-transaction must read one stable backing snapshot while retaining two distinct
-Constant bindings. `shared_a.ttx` also requests
-`resources/empty.bin`; its zero-byte value is successful and distinct from
-read failure.
+Both request the normalized route `resources/table.bin`, so one future graph
+construction transaction must read one stable backing snapshot while retaining
+two distinct Constant bindings. `shared_a.ttx` also requests
+`resources/empty.bin`; its zero byte value is successful and distinct from read
+failure.
 
 The first 64 bytes of `table.bin` are exactly:
 
@@ -117,16 +117,13 @@ spellings are not current authority, and that directory is deliberately
 excluded from active unit-test runfiles. Replacing it belongs to a separately
 authorized Shader slice.
 
-## Closed contract gates
+## Closed contract blockers
 
-Canonical signatures and empty returns require
-`Ttx::Model::Types::Void`, executable source requires `Ttx::Model::Body`, and
-`object` requires `Ttx::Model::Types::Managed`. None has a live owner in the
-closed `ttx/` tree at this checkpoint. This fixture work does not reopen that
-tree or assign Tetrodotoxin shadow owners.
-
-G01V remains blocked until an explicit decision either reopens `ttx/` for the
-real Void Type or reassigns it to one named owner. G01 remains blocked until
-the same explicit decision exists for Body and Managed. M01 and the
-source-independent Linker proof may proceed without those gates; dependent
-builtin, callable, Object, Body, archive, and compiler slices may not.
+Canonical signatures and empty returns still need one real Void Type owner.
+Executable source still needs one Body owner, and `object` still needs one
+Managed Type owner. None has an approved live owner at this checkpoint. Do not
+reopen TTX or create Tetrodotoxin shadow contracts to bypass those decisions.
+Parser, archive, and Library compiler work that requires them remains blocked
+until their concrete Dialect ownership is approved. Type, Layout, Generic,
+Constant, Addressable, Callable, Namespace, and Workspace now belong to
+`Tetrodotoxin::Library::Language`; they are not candidates for reopening TTX.

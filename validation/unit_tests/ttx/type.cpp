@@ -10,7 +10,7 @@
 #include "ttx/concept/invalid.hpp"
 #include "ttx/concept/reference.hpp"
 #include "ttx/model/addressable.hpp"
-#include "ttx/model/addressables/writable.hpp"
+#include "ttx/model/layouts/structured.hpp"
 
 using namespace Perimortem::Core;
 using namespace Ttx::Concept;
@@ -54,41 +54,21 @@ class ResolvingType final : public Type {
 /// A field is a real Addressable object retained by its owner's layout.
 class TypeField final : public Addressable {
  public:
-  TypeField(View::Bytes name, const Abstract& type) : name(name), type(type) {}
+  TypeField(View::Bytes name, const Type& type) : name(name), type(type) {}
 
   auto get_name() const -> View::Bytes override { return name; }
   auto get_documentation() const -> const Documentation& override {
     return Documentation::get_empty();
   }
-  auto get_type() const -> const Abstract& override { return type; }
+  auto get_type() const -> const Type& override { return type; }
 
  private:
   View::Bytes name;
-  const Abstract& type;
-};
-
-class WritableField final : public Ttx::Model::Addressables::Writable {
- public:
-  WritableField(View::Bytes name, const Abstract& type)
-      : name(name), type(type), read_only(name, type) {}
-
-  auto get_name() const -> View::Bytes override { return name; }
-  auto get_documentation() const -> const Documentation& override {
-    return Documentation::get_empty();
-  }
-  auto get_type() const -> const Abstract& override { return type; }
-  auto get_read_only() const -> const Addressable& override {
-    return read_only;
-  }
-
- private:
-  View::Bytes name;
-  const Abstract& type;
-  TypeField read_only;
+  const Type& type;
 };
 
 static Harness TtxType = {
-  .name = "TTX::Type"_view,
+  .name = "Ttx::Model::Type"_view,
 };
 
 PERIMORTEM_UNIT_TEST(TtxType, incomplete_type) {
@@ -115,26 +95,22 @@ PERIMORTEM_UNIT_TEST(TtxType, type_fields) {
 
   point.complete();
 
-  const Addressable& first =
-      point.get_layout().get_abstract(0).assume<Addressable>();
-  EXPECT(&first == &x);
-  EXPECT(&point.get_layout().get_abstract(1) == &y);
-  EXPECT(&first.resolve() == &first);
-  EXPECT(&first.get_type().resolve() == &real);
-}
-
-PERIMORTEM_UNIT_TEST(TtxType, writable_field) {
-  ResolvingType real("Real_32"_view);
-  real.complete();
-  WritableField field("value"_view, real);
-
-  const Addressable& read_only = field.get_read_only();
-
-  EXPECT(field.is<Addressable>());
-  EXPECT(field.is<Ttx::Model::Addressables::Writable>());
-  EXPECT(read_only.is<Addressable>());
-  EXPECT_NOT(read_only.is<Ttx::Model::Addressables::Writable>());
-  EXPECT_TEXT(read_only.get_name(), field.get_name());
-  EXPECT(&read_only.get_type().resolve() == &field.get_type().resolve());
-  EXPECT(&field.get_read_only() == &read_only);
+  const Addressable* first = point.get_layout().get_abstract(0).visit(
+      []() { return static_cast<const Addressable*>(nullptr); },
+      [](const Abstract& abstract) {
+        return abstract.visit<Addressable>(
+            [](const Addressable& addressable) { return &addressable; },
+            [](const Abstract&) {
+              return static_cast<const Addressable*>(nullptr);
+            });
+      });
+  ASSERT(first != nullptr);
+  EXPECT(first == &x);
+  EXPECT(point.get_layout().get_abstract(1).visit(
+      []() { return False; },
+      [&y](const Abstract& selected) {
+        return &selected == &y ? True : False;
+      }));
+  EXPECT(&first->resolve() == first);
+  EXPECT(&first->get_type().resolve() == &real);
 }
