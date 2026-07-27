@@ -16,12 +16,12 @@ template <
     typename storage_type>
 class Binary {
  public:
-  explicit Binary(storage_type& storage);
+  Binary(storage_type& storage);
 
-  auto operator<<(Bits_8 value) -> Binary&;
-  auto operator<<(Bits_16 value) -> Binary&;
-  auto operator<<(Bits_32 value) -> Binary&;
-  auto operator<<(Bits_64 value) -> Binary&;
+  auto operator<<(Unsigned_8 value) -> Binary&;
+  auto operator<<(Unsigned_16 value) -> Binary&;
+  auto operator<<(Unsigned_32 value) -> Binary&;
+  auto operator<<(Unsigned_64 value) -> Binary&;
   auto operator<<(Signed_8 value) -> Binary&;
   auto operator<<(Signed_16 value) -> Binary&;
   auto operator<<(Signed_32 value) -> Binary&;
@@ -29,10 +29,10 @@ class Binary {
   auto operator<<(Real_32 value) -> Binary&;
   auto operator<<(Real_64 value) -> Binary&;
   auto operator<<(Perimortem::Core::View::Bytes blob) -> Binary&;
-  auto operator<<(Perimortem::Core::View::Vector<Bits_8> blob) -> Binary&;
-  auto operator<<(Perimortem::Core::View::Vector<Bits_16> blob) -> Binary&;
-  auto operator<<(Perimortem::Core::View::Vector<Bits_32> blob) -> Binary&;
-  auto operator<<(Perimortem::Core::View::Vector<Bits_64> blob) -> Binary&;
+  auto operator<<(Perimortem::Core::View::Vector<Unsigned_8> blob) -> Binary&;
+  auto operator<<(Perimortem::Core::View::Vector<Unsigned_16> blob) -> Binary&;
+  auto operator<<(Perimortem::Core::View::Vector<Unsigned_32> blob) -> Binary&;
+  auto operator<<(Perimortem::Core::View::Vector<Unsigned_64> blob) -> Binary&;
   auto operator<<(Perimortem::Core::View::Vector<Signed_8> blob) -> Binary&;
   auto operator<<(Perimortem::Core::View::Vector<Signed_16> blob) -> Binary&;
   auto operator<<(Perimortem::Core::View::Vector<Signed_32> blob) -> Binary&;

@@ -16,10 +16,10 @@ class Time {
   // Allows for centralized conversion into actual time units for measurement.
   class Duration {
    public:
-    Duration(Bits_64 delta) : nanosecond_delta(delta) {};
+    Duration(Unsigned_64 delta) : nanosecond_delta(delta) {};
 
     // Converts a delta time into nanoseconds.
-    constexpr auto convert_to_nanoseconds() -> Bits_64 {
+    constexpr auto convert_to_nanoseconds() -> Unsigned_64 {
       return nanosecond_delta;
     }
 
@@ -40,12 +40,12 @@ class Time {
     }
 
    private:
-    Bits_64 nanosecond_delta;
+    Unsigned_64 nanosecond_delta;
   };
 
   Time() : timestamp(0) {};
-  Time(Bits_64 stamp) : timestamp(stamp) {};
-  Time(Bits_64 seconds, Bits_64 nanoseconds)
+  Time(Unsigned_64 stamp) : timestamp(stamp) {};
+  Time(Unsigned_64 seconds, Unsigned_64 nanoseconds)
       : timestamp(seconds * 1'000'000'000 + nanoseconds) {};
 
   // Returns a time object capturing the delta time from UNIX epoch.
@@ -67,7 +67,7 @@ class Time {
   };
 
   // Gets the raw 64 bit time stamp in nanoseconds.
-  constexpr auto get_stamp() const -> Bits_64 { return timestamp; }
+  constexpr auto get_stamp() const -> Unsigned_64 { return timestamp; }
 
   // Calculation the time between two time points.
   // If none is provided then `Time::now()` is used as the end point.
@@ -83,7 +83,7 @@ class Time {
   auto calculate_clock() const -> Static::Bytes<12>;
 
  private:
-  Bits_64 timestamp;
+  Unsigned_64 timestamp;
 };
 
 }  // namespace Perimortem::Core

@@ -21,7 +21,7 @@ static Harness SystemRandom = {
 };
 
 PERIMORTEM_UNIT_TEST(SystemRandom, entropy_check) {
-  Static::Vector<Bits_64, 8> values;
+  Static::Vector<Unsigned_64, 8> values;
   for (Count i = 0; i < values.get_size(); i++) {
     values[i] = Random::read_entropy();
   }
@@ -43,9 +43,9 @@ PERIMORTEM_UNIT_TEST(SystemRandom, entropy_check) {
 
 PERIMORTEM_UNIT_TEST(SystemRandom, stress_test) {
 #ifdef PERI_DEBUG
-  Static::Vector<Bits_64, 10'000> values;
+  Static::Vector<Unsigned_64, 10'000> values;
 #else
-  Static::Vector<Bits_64, 1'000'000> values;
+  Static::Vector<Unsigned_64, 1'000'000> values;
 #endif
 
   for (Count i = 0; i < values.get_size(); i++) {

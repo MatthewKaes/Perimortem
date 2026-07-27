@@ -18,12 +18,12 @@ namespace Tetrodotoxin::Linker::Object {
 // object-module concept is earned by more than one owner.
 class Symbol {
  public:
-  enum class Visibility : Bits_8 {
+  enum class Visibility : Unsigned_8 {
     Local = 0,
     Global = 1,
   };
 
-  enum class Type : Bits_8 {
+  enum class Type : Unsigned_8 {
     None = 0,
     Object = 1,
     Function = 2,
@@ -31,7 +31,7 @@ class Symbol {
 
   static constexpr auto create_string(
       Perimortem::Core::View::Bytes name,
-      Bits_16 section_index,
+      Unsigned_16 section_index,
       Perimortem::Utility::Range range) -> Symbol {
     Symbol symbol;
     symbol.name = name;
@@ -44,7 +44,7 @@ class Symbol {
 
   static constexpr auto create_function(
       Perimortem::Core::View::Bytes name,
-      Bits_16 section_index,
+      Unsigned_16 section_index,
       Visibility visibility) -> Symbol {
     Symbol symbol;
     symbol.name = name;
@@ -57,7 +57,7 @@ class Symbol {
 
   static constexpr auto create_read_only(
       Perimortem::Core::View::Bytes name,
-      Bits_16 section_index,
+      Unsigned_16 section_index,
       Perimortem::Utility::Range range,
       Visibility visibility = Visibility::Global) -> Symbol {
     Symbol symbol;
@@ -85,7 +85,9 @@ class Symbol {
     return name;
   }
 
-  constexpr auto get_section_index() const -> Bits_16 { return section_index; }
+  constexpr auto get_section_index() const -> Unsigned_16 {
+    return section_index;
+  }
   constexpr auto get_range() const -> Perimortem::Utility::Range {
     return range;
   }
@@ -102,7 +104,7 @@ class Symbol {
   constexpr Symbol() = default;
 
   Perimortem::Core::View::Bytes name;
-  Bits_16 section_index = 0;
+  Unsigned_16 section_index = 0;
   Perimortem::Utility::Range range;
   Visibility visibility = Visibility::Local;
   Type type = Type::None;

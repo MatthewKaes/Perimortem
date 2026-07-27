@@ -44,25 +44,25 @@ auto Stream::Textual<storage_type>::operator<<(Bool flag) -> Textual& {
 }
 
 template <typename storage_type>
-auto Stream::Textual<storage_type>::operator<<(Bits_8 value) -> Textual& {
+auto Stream::Textual<storage_type>::operator<<(Unsigned_8 value) -> Textual& {
   write(storage, value);
   return *this;
 }
 
 template <typename storage_type>
-auto Stream::Textual<storage_type>::operator<<(Bits_16 value) -> Textual& {
+auto Stream::Textual<storage_type>::operator<<(Unsigned_16 value) -> Textual& {
   write(storage, value);
   return *this;
 }
 
 template <typename storage_type>
-auto Stream::Textual<storage_type>::operator<<(Bits_32 value) -> Textual& {
+auto Stream::Textual<storage_type>::operator<<(Unsigned_32 value) -> Textual& {
   write(storage, value);
   return *this;
 }
 
 template <typename storage_type>
-auto Stream::Textual<storage_type>::operator<<(Bits_64 value) -> Textual& {
+auto Stream::Textual<storage_type>::operator<<(Unsigned_64 value) -> Textual& {
   write(storage, value);
   return *this;
 }

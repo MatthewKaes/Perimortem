@@ -40,7 +40,7 @@ class Hashable {
   }
 
   ~Hashable() { destruct_count++; }
-  auto hash() const -> Bits_64 {
+  auto hash() const -> Unsigned_64 {
     return Perimortem::Core::Hash(id).get_value();
   }
 

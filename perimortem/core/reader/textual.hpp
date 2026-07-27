@@ -28,9 +28,9 @@ class Textual {
   constexpr auto set_location(Count location) -> void { cursor = location; }
   constexpr auto get_location() const -> Count { return cursor; }
 
-  auto read_byte() -> Bits_8;
+  auto read_byte() -> Unsigned_8;
   auto read_flag() -> Bool;
-  auto read_unsigned() -> Bits_64;
+  auto read_unsigned() -> Unsigned_64;
   auto read_signed() -> Signed_64;
   auto read_real_32() -> Real_32;
   auto read_real_64() -> Real_64;

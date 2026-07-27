@@ -31,16 +31,16 @@ class Bytes {
   auto resize(Count new_size) -> void;
   auto ensure_capacity(Count required_bytes) -> void;
 
-  auto append(Bits_8 byte) -> void;
-  auto append(Bits_8 byte, Count amount) -> void;
+  auto append(Unsigned_8 byte) -> void;
+  auto append(Unsigned_8 byte, Count amount) -> void;
   auto concat(Core::View::Bytes view) -> void;
   // Copies a Core::View::Bytes which may be in a different allocator
   // (dynamic or another arena) into the Arena used by this object.
   auto proxy(Core::View::Bytes view) -> void;
 
-  auto convert(Bits_8 source, Bits_8 target) -> void;
+  auto convert(Unsigned_8 source, Unsigned_8 target) -> void;
 
-  constexpr auto operator[](Count index) const -> Bits_8 {
+  constexpr auto operator[](Count index) const -> Unsigned_8 {
     if (index >= size) {
       return 0;
     }
@@ -48,7 +48,7 @@ class Bytes {
     return source_block[index];
   }
 
-  constexpr auto at(Count index) const -> Bits_8 {
+  constexpr auto at(Count index) const -> Unsigned_8 {
     if (index >= size) {
       return 0;
     }
@@ -62,20 +62,20 @@ class Bytes {
     return Core::View::Bytes(source_block, size);
   }
 
-  constexpr auto get_data() const -> const Bits_8* { return source_block; }
+  constexpr auto get_data() const -> const Unsigned_8* { return source_block; }
   constexpr auto get_access() -> Core::Access::Bytes {
     return Core::Access::Bytes(source_block, size);
   }
 
   constexpr auto get_arena() const -> Allocator::Arena& { return arena; }
 
-  constexpr auto hash() const -> Bits_64 {
+  constexpr auto hash() const -> Unsigned_64 {
     return Core::Hash(get_view()).get_value();
   }
 
  private:
   Allocator::Arena& arena;
-  Bits_8* source_block;
+  Unsigned_8* source_block;
   Count size;
   Count capacity;
 };

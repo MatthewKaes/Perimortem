@@ -12,8 +12,8 @@ using namespace Perimortem;
 Vulkan::Renderer::Renderer(
     wl_display* display,
     wl_surface* surface,
-    Bits_32 width,
-    Bits_32 height)
+    Unsigned_32 width,
+    Unsigned_32 height)
     : context(Vulkan::Context::create(display, surface)),
       swapchain(Vulkan::Swapchain::create(context, width, height)) {
   allocate_frames();
@@ -29,7 +29,7 @@ auto Vulkan::Renderer::begin_frame(Frame& frame) -> Bool {
   FrameState& state = frames[current_frame];
   vkWaitForFences(context.get_device(), 1, &state.fence, VK_TRUE, UINT64_MAX);
 
-  const Bits_32 image_index =
+  const Unsigned_32 image_index =
       swapchain.acquire_next_image(state.image_available);
   if (image_index == UINT32_MAX) {
     return False;
@@ -89,11 +89,11 @@ auto Vulkan::Renderer::wait_idle() -> void {
   }
 }
 
-auto Vulkan::Renderer::get_width() const -> Bits_32 {
+auto Vulkan::Renderer::get_width() const -> Unsigned_32 {
   return swapchain.get_extent().width;
 }
 
-auto Vulkan::Renderer::get_height() const -> Bits_32 {
+auto Vulkan::Renderer::get_height() const -> Unsigned_32 {
   return swapchain.get_extent().height;
 }
 
@@ -112,7 +112,7 @@ auto Vulkan::Renderer::require_success(VkResult result, View::Bytes message)
   }
 }
 
-auto Vulkan::Renderer::resize(Bits_32 width, Bits_32 height) -> Bool {
+auto Vulkan::Renderer::resize(Unsigned_32 width, Unsigned_32 height) -> Bool {
   wait_idle();
   const VkFormat old_format = swapchain.get_format();
   swapchain.recreate(context, width, height);
@@ -175,7 +175,7 @@ auto Vulkan::Renderer::destroy_frames() -> void {
 }
 
 auto Vulkan::Renderer::refresh_swapchain_images() -> void {
-  for (Bits_32 i = 0; i < swapchain.get_image_count(); i++) {
+  for (Unsigned_32 i = 0; i < swapchain.get_image_count(); i++) {
     swapchain_images[i] = swapchain.get_image(i);
   }
 }

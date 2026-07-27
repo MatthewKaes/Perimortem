@@ -1,13 +1,16 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
-#include "ttx/documentation.hpp"
-
 #include "validation/unit_test.hpp"
 
 #include "perimortem/core/static/vector.hpp"
 
+#include "ttx/model/documentations/block.hpp"
+#include "ttx/model/documentations/comment.hpp"
+
 using namespace Perimortem::Core;
+using namespace Ttx::Concept;
+using namespace Ttx::Model;
 using namespace Validation;
 
 static Harness TtxDocumentation = {
@@ -15,11 +18,13 @@ static Harness TtxDocumentation = {
 };
 
 PERIMORTEM_UNIT_TEST(TtxDocumentation, empty) {
-  Ttx::Documentation documentation;
+  const Documentations::Comment& empty = Documentations::Comment::get_empty();
+  const Documentation& documentation = empty;
 
+  EXPECT(&empty == &Documentations::Comment::get_empty());
   EXPECT(documentation.is_empty());
-  EXPECT_EQ(documentation.get_line_count(), Count(0));
-  EXPECT(documentation.line_at(0).is_empty());
+  EXPECT_EQ(documentation.line_count(), Count(0));
+  EXPECT(documentation.get_line(0).is_empty());
 }
 
 PERIMORTEM_UNIT_TEST(TtxDocumentation, lines) {
@@ -28,13 +33,13 @@ PERIMORTEM_UNIT_TEST(TtxDocumentation, lines) {
     "Second"_view,
   }};
 
-  Ttx::Documentation documentation(lines);
+  Documentations::Block documentation(lines);
 
   EXPECT_NOT(documentation.is_empty());
-  EXPECT_EQ(documentation.get_line_count(), Count(2));
-  EXPECT_TEXT(documentation.line_at(0), "First"_view);
-  EXPECT_TEXT(documentation.line_at(1), "Second"_view);
-  EXPECT(documentation.line_at(2).is_empty());
+  EXPECT_EQ(documentation.line_count(), Count(2));
+  EXPECT_TEXT(documentation.get_line(0), "First"_view);
+  EXPECT_TEXT(documentation.get_line(1), "Second"_view);
+  EXPECT(documentation.get_line(2).is_empty());
 }
 
 PERIMORTEM_UNIT_TEST(TtxDocumentation, empty_line) {
@@ -43,22 +48,19 @@ PERIMORTEM_UNIT_TEST(TtxDocumentation, empty_line) {
     "Second"_view,
   }};
 
-  Ttx::Documentation documentation(lines);
+  Documentations::Block documentation(lines);
 
   EXPECT_NOT(documentation.is_empty());
-  EXPECT(documentation.line_at(0).is_empty());
-  EXPECT_TEXT(documentation.line_at(1), "Second"_view);
+  EXPECT(documentation.get_line(0).is_empty());
+  EXPECT_TEXT(documentation.get_line(1), "Second"_view);
 }
 
-PERIMORTEM_UNIT_TEST(TtxDocumentation, view_identity) {
-  static constexpr Static::Vector<View::Bytes, 1> lines = {{
-    "Stable"_view,
-  }};
+PERIMORTEM_UNIT_TEST(TtxDocumentation, comment) {
+  Documentations::Comment documentation("Stable"_view);
 
-  Ttx::Documentation documentation(lines);
-
-  EXPECT(documentation.get_lines().get_data() == lines.get_data());
-  EXPECT_EQ(documentation.get_lines().get_size(), Count(1));
+  EXPECT_EQ(documentation.line_count(), Count(1));
+  EXPECT_TEXT(documentation.get_line(0), "Stable"_view);
+  EXPECT(documentation.get_line(1).is_empty());
 }
 
 PERIMORTEM_UNIT_TEST(TtxDocumentation, late_bound) {
@@ -67,9 +69,9 @@ PERIMORTEM_UNIT_TEST(TtxDocumentation, late_bound) {
     "Second"_view,
   }};
 
-  Ttx::Documentation documentation(lines);
+  Documentations::Block documentation(lines);
   lines[0] = "Updated"_view;
 
-  EXPECT_TEXT(documentation.line_at(0), "Updated"_view);
-  EXPECT_TEXT(documentation.line_at(1), "Second"_view);
+  EXPECT_TEXT(documentation.get_line(0), "Updated"_view);
+  EXPECT_TEXT(documentation.get_line(1), "Second"_view);
 }

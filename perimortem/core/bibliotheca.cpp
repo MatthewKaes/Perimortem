@@ -15,15 +15,16 @@ using namespace Perimortem;
 using namespace Perimortem::Core;
 
 // Gives the number of bits to shift to get the minimum containing size.
-constexpr auto log2_pre_shift(Bits_64 value) -> Bits_64 {
-  return 64 - __builtin_clzg(value - 1, Signed_32(sizeof(Bits_64) * 8));
+constexpr auto log2_pre_shift(Unsigned_64 value) -> Unsigned_64 {
+  return 64 - __builtin_clzg(value - 1, Signed_32(sizeof(Unsigned_64) * 8));
 }
 
 // If Count is 64 bits then limit us to some level below the 256 TB limits.
 // 64 GB blocks is the current upper limit.
-static constexpr Bits_8 max_radix = sizeof(Count) * 8 > 32 ? 36
-                                                           : sizeof(Count) * 8;
-static constexpr Bits_8 min_radix = log2_pre_shift(64);
+static constexpr Unsigned_8 max_radix = sizeof(Count) * 8 > 32
+                                            ? 36
+                                            : sizeof(Count) * 8;
+static constexpr Unsigned_8 min_radix = log2_pre_shift(64);
 static constexpr Count min_size = (1 << min_radix);
 static constexpr Count radix_range = max_radix - min_radix;
 
@@ -110,8 +111,8 @@ class alignas(64) Slab {
   // Note that all slabs from the Bibliotheca are `2 ^ N + 64` size where N is
   // at minimum 6 so allocs are always 64 byte aligned which is sufficient for
   // all resonable types so we never have to pay for caculating alignment.
-  auto alloc(Count bytes) -> Bits_8* {
-    auto location = Data::cast<Bits_8>(this) + bump_ptr;
+  auto alloc(Count bytes) -> Unsigned_8* {
+    auto location = Data::cast<Unsigned_8>(this) + bump_ptr;
     bump_ptr += bytes;
     return location;
   }
@@ -136,24 +137,24 @@ class Preface {
  private:
   // The number of objects in this thread that have a reservation on
   // this block.
-  Bits_64 reservations;
+  Unsigned_64 reservations;
   // The size of usable bytes in the block.
-  Bits_64 block_size;
+  Unsigned_64 block_size;
   // Used for storing the next free block when stored in archives.
   Preface* next;
   // The archive index is an invariant of the block so store it in the header.
-  Bits_64 archive_index;
+  Unsigned_64 archive_index;
 #if PERI_DEBUG
-  Bits_64 block_stamp;
-  [[maybe_unused]] Bits_64 __reserved[1];
+  Unsigned_64 block_stamp;
+  [[maybe_unused]] Unsigned_64 __reserved[1];
 #else
-  [[maybe_unused]] Bits_64 __reserved[2];
+  [[maybe_unused]] Unsigned_64 __reserved[2];
 #endif
 
   // Bibliotheca allocations reserve 16 bytes of "under_write" buffer.
   // This underwrite buffer is useful for optimizing certain system algorithms
   // that require a bit of underwriting (typically AVX).
-  [[maybe_unused]] Bits_8
+  [[maybe_unused]] Unsigned_8
       __under_write_buffer[Bibliotheca::legal_underwrite_size];
 };
 
@@ -165,8 +166,8 @@ class Archive {
   class Collection {
    public:
     Preface* initial_entry = nullptr;
-    Bits_32 reserved_blocks = 0;
-    Bits_32 free_blocks = 0;
+    Unsigned_32 reserved_blocks = 0;
+    Unsigned_32 free_blocks = 0;
   };
 
   Collection collections[radix_range];
@@ -268,22 +269,22 @@ class Librarian {
   }
 };
 
-constexpr auto calculate_archive_bucket(Count bytes) -> Bits_8 {
+constexpr auto calculate_archive_bucket(Count bytes) -> Unsigned_8 {
   return log2_pre_shift(bytes > min_size ? bytes : min_size);
 }
 
-constexpr auto archive_page_width(Bits_8 index) -> Count {
+constexpr auto archive_page_width(Unsigned_8 index) -> Count {
   return Count(1) << index;
 }
 
 // The preface is stored 16 bytes before the corpus block.
-auto corpus_to_preface(Bits_8* entry) -> Preface* {
+auto corpus_to_preface(Unsigned_8* entry) -> Preface* {
   return Data::cast<Preface>(entry) - 1;
 }
 
 // The preface is stored 16 bytes before the corpus block.
-auto preface_to_corpus(Preface* entry) -> Bits_8* {
-  return Data::cast<Bits_8>(entry + 1);
+auto preface_to_corpus(Preface* entry) -> Unsigned_8* {
+  return Data::cast<Unsigned_8>(entry + 1);
 }
 
 auto Bibliotheca::check_out(Count requested_bytes) -> Allocation {
@@ -335,17 +336,17 @@ auto Bibliotheca::check_out(Count requested_bytes) -> Allocation {
     .ptr = preface_to_corpus(entry), .capacity = entry->get_usable_bytes()};
 }
 
-auto Bibliotheca::reserve(Bits_8* data) -> Count {
+auto Bibliotheca::reserve(Unsigned_8* data) -> Count {
   auto entry = corpus_to_preface(data);
   return entry->reservations++;
 }
 
-auto Bibliotheca::reservation_count(Bits_8* data) -> Count {
+auto Bibliotheca::reservation_count(Unsigned_8* data) -> Count {
   auto entry = corpus_to_preface(data);
   return entry->reservations;
 }
 
-auto Bibliotheca::remit(Bits_8* data) -> Count {
+auto Bibliotheca::remit(Unsigned_8* data) -> Count {
   auto entry = corpus_to_preface(data);
   entry->reservations--;
 

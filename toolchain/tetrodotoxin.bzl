@@ -11,27 +11,32 @@ Usage in a BUILD file:
 
     ttx_library(
         name = "my_lib",
-        srcs = ["png.ttx"],
+        library_name = "Example.MyLib",
+        srcs = ["library.ttx"],
     )
 
     ttx_package_folder(
         name = "my_package",
         root = "perimortem/graphics",
         package_name = "Perimortem.Graphics",
+        major = 1,
+        minor = 0,
         deps = [":my_dependency"],
     )
 
-A generated header is automatically available to dependents:
+A generated header is automatically available to dependents. The authored
+unit name owns the module directory, so its logical include is independent of
+the Bazel package or repository that built it:
 
-    #include "ttx_generated/my_lib.hpp"
+    #include "Example.MyLib/cpp_abi.hpp"
 
 The default compiler executable is `//tetrodotoxin:puffer`, the Tetrodotoxin
 CLI that resolves sources with the standard toolchain and emits archives plus
 Puffer Buffers for Bazel.
 
-Executable application targets should come back after dialect parsing and
-lowering can produce real declarations. This file intentionally does not
-generate host bridge code that guesses at TTX runtime types.
+Executable application targets belong here once App lowering produces real
+declarations. Until then, these rules do not generate host bridge code that
+guesses at TTX runtime types.
 """
 
 load(
@@ -61,31 +66,46 @@ def _collect_puffer_buffers(deps):
     ])
 
 def _ttx_compile_impl(ctx, package):
-    output_root = ""
+    unit_name = ctx.attr.package_name if package else ctx.attr.library_name
     if package:
-        output_root = ctx.attr.package_name + "/"
+        if ctx.attr.major < 0 or ctx.attr.major > 65535:
+            fail("ttx_package major must fit in Unsigned_16")
+        if ctx.attr.minor < 0 or ctx.attr.minor > 65535:
+            fail("ttx_package minor must fit in Unsigned_16")
+        if ctx.attr.major == 0 and ctx.attr.minor == 0:
+            fail("ttx_package version 0.0 is reserved for an unset version")
+        artifact_root = "%s/%d.%d/" % (
+            unit_name,
+            ctx.attr.major,
+            ctx.attr.minor,
+        )
+    else:
+        artifact_root = unit_name + "/"
+    archive = ctx.actions.declare_file(artifact_root + "x86_64.a")
+    header = ctx.actions.declare_file(artifact_root + "cpp_abi.hpp")
+    puffer_buffer = None
+    outputs = [archive, header]
+    if package:
+        puffer_buffer = ctx.actions.declare_file(
+            artifact_root + "binary_archive.puffer",
+        )
+        outputs.append(puffer_buffer)
 
-    archive = ctx.actions.declare_file(output_root + ctx.attr.name + ".a")
-    header = ctx.actions.declare_file(
-        output_root + "ttx_generated/" + ctx.attr.name + ".hpp"
-    )
-    puffer_buffer = ctx.actions.declare_file(
-        output_root + ctx.attr.name + ".puffer"
-    )
     include_root = ctx.bin_dir.path
     if ctx.label.package:
-        include_root = include_root + "/" + ctx.label.package
-    if package:
-        include_root = include_root + "/" + ctx.attr.package_name
+        include_root += "/" + ctx.label.package
 
     args = [
         "-package" if package else "-library",
         "-output=%s" % archive.path,
         "-header=%s" % header.path,
-        "-puffer=%s" % puffer_buffer.path,
     ]
     if package:
-        args.append("-name=%s" % ctx.attr.package_name)
+        args.append("-puffer=%s" % puffer_buffer.path)
+        args.append("-major=%d" % ctx.attr.major)
+        args.append("-minor=%d" % ctx.attr.minor)
+
+    args.append("-name=%s" % unit_name)
 
     dependency_puffer_buffers = _collect_puffer_buffers(ctx.attr.deps)
     for dep_buffer in dependency_puffer_buffers.to_list():
@@ -94,17 +114,17 @@ def _ttx_compile_impl(ctx, package):
     for src in ctx.files.srcs:
         args.append("-source=%s" % src.path)
 
-    mode = "package" if package else "library"
+    kind = "package" if package else "library"
     ctx.actions.run(
         inputs = depset(
             direct = ctx.files.srcs,
             transitive = [dependency_puffer_buffers],
         ),
-        outputs = [archive, header, puffer_buffer],
+        outputs = outputs,
         executable = ctx.executable._compiler,
         arguments = args,
         mnemonic = "TtxCompile",
-        progress_message = "Compiling TTX %s %s" % (mode, ctx.label),
+        progress_message = "Compiling TTX %s %s" % (kind, ctx.label),
     )
 
     # Wrap the generated archive in CcInfo so cc_binary can depend on this
@@ -133,8 +153,9 @@ def _ttx_compile_impl(ctx, package):
         ]),
     )
 
-    # Make the generated header available so consumers can write:
-    #include "ttx_generated/<name>.hpp"
+    # Each authored unit is a module directory. Exposing the Bazel package's
+    # output root keeps the logical include stable when the target moves to a
+    # different Bazel package or an external repository.
     compilation_context = cc_common.create_compilation_context(
         headers = depset([header]),
         system_includes = depset([include_root]),
@@ -143,6 +164,10 @@ def _ttx_compile_impl(ctx, package):
     package_buffers = []
     if package:
         package_buffers.append(puffer_buffer)
+
+    output_files = [archive, header]
+    if package:
+        output_files.append(puffer_buffer)
 
     return [
         CcInfo(
@@ -155,7 +180,7 @@ def _ttx_compile_impl(ctx, package):
                 transitive = [dependency_puffer_buffers],
             ),
         ),
-        DefaultInfo(files = depset([archive, header, puffer_buffer])),
+        DefaultInfo(files = depset(output_files)),
     ]
 
 def _ttx_library_impl(ctx):
@@ -177,6 +202,13 @@ ttx_library = rule(
             doc = (
                 "TTX package dependencies whose Puffer Buffers must be " +
                 "visible during package loading."
+            ),
+        ),
+        library_name = attr.string(
+            mandatory = True,
+            doc = (
+                "Stable dot-separated ABI identity and generated C++ " +
+                "namespace for this standalone TTX library."
             ),
         ),
         _compiler = attr.label(
@@ -214,9 +246,17 @@ ttx_package = rule(
         package_name = attr.string(
             mandatory = True,
             doc = (
-                "Resolved TTX package identity. Package terminals are emitted " +
-                "under this folder."
+                "Authored TTX package name. Package terminals are emitted " +
+                "beneath its explicit version directory."
             ),
+        ),
+        major = attr.int(
+            mandatory = True,
+            doc = "Authored package Major version; zero is valid with a nonzero Minor.",
+        ),
+        minor = attr.int(
+            mandatory = True,
+            doc = "Authored package Minor version; 0.0 is reserved as unset.",
         ),
         _compiler = attr.label(
             default = "//tetrodotoxin:puffer",
@@ -233,7 +273,14 @@ ttx_package = rule(
     ),
 )
 
-def ttx_package_folder(name, root, package_name, deps = None, **kwargs):
+def ttx_package_folder(
+        name,
+        root,
+        package_name,
+        major,
+        minor,
+        deps = None,
+        **kwargs):
     """Compiles a TTX package folder rooted at a package.ttx file.
 
     Bazel still sees the concrete .ttx files through native.glob, but BUILD
@@ -245,5 +292,7 @@ def ttx_package_folder(name, root, package_name, deps = None, **kwargs):
         srcs = native.glob([root + "/**/*.ttx"]),
         deps = deps or [],
         package_name = package_name,
+        major = major,
+        minor = minor,
         **kwargs
     )

@@ -17,10 +17,10 @@ using namespace Tetrodotoxin::Linker;
 static constexpr auto elf_endian = Data::ByteOrder::Little;
 static constexpr auto ar_endian = Data::ByteOrder::Big;
 
-enum class ObjectType : Bits_16 { Relocatable = 1 };
-enum class Machine : Bits_16 { X86_64 = 62 };
+enum class ObjectType : Unsigned_16 { Relocatable = 1 };
+enum class Machine : Unsigned_16 { X86_64 = 62 };
 
-enum class SectionType : Bits_32 {
+enum class SectionType : Unsigned_32 {
   Null = 0,
   ProgramData = 1,
   SymbolTable = 2,
@@ -28,7 +28,7 @@ enum class SectionType : Bits_32 {
   RelocationAddend = 4,
 };
 
-enum class SectionFlags : Bits_64 {
+enum class SectionFlags : Unsigned_64 {
   Writable = 0x01,
   Allocated = 0x02,
   Executable = 0x04,
@@ -41,35 +41,35 @@ enum class SectionFlags : Bits_64 {
 // to have specific bit widths in order to be wire compatable.
 struct Header {
   Static::Bytes<16> identity;
-  Bits_16 type;
-  Bits_16 machine;
-  Bits_32 version;
-  Bits_64 entry_point;
-  Bits_64 program_header_offset;
-  Bits_64 section_header_offset;
-  Bits_32 flags;
-  Bits_16 header_size;
-  Bits_16 program_header_entry_size;
-  Bits_16 program_header_count;
-  Bits_16 section_entry_size;
-  Bits_16 section_count;
-  Bits_16 string_section_index;
+  Unsigned_16 type;
+  Unsigned_16 machine;
+  Unsigned_32 version;
+  Unsigned_64 entry_point;
+  Unsigned_64 program_header_offset;
+  Unsigned_64 section_header_offset;
+  Unsigned_32 flags;
+  Unsigned_16 header_size;
+  Unsigned_16 program_header_entry_size;
+  Unsigned_16 program_header_count;
+  Unsigned_16 section_entry_size;
+  Unsigned_16 section_count;
+  Unsigned_16 string_section_index;
 };
 static_assert(sizeof(Header) == 64);
 
 // Contains the binary layout for the section headers.
 // The ELF file can contain any number of sections.
 struct SectionHeader {
-  Bits_32 name_offset;
-  Bits_32 type;
-  Bits_64 flags;
-  Bits_64 virtual_address;
-  Bits_64 file_offset;
-  Bits_64 size;
-  Bits_32 link;
-  Bits_32 info;
-  Bits_64 alignment;
-  Bits_64 entry_size;
+  Unsigned_32 name_offset;
+  Unsigned_32 type;
+  Unsigned_64 flags;
+  Unsigned_64 virtual_address;
+  Unsigned_64 file_offset;
+  Unsigned_64 size;
+  Unsigned_32 link;
+  Unsigned_32 info;
+  Unsigned_64 alignment;
+  Unsigned_64 entry_size;
 };
 static_assert(sizeof(SectionHeader) == 64);
 
@@ -77,24 +77,24 @@ static_assert(sizeof(SectionHeader) == 64);
 // The object model uses ELF-compatible values so this wire record can serialize
 // symbols directly without understanding the generator that produced them.
 struct SymbolRecord {
-  Bits_32 name_offset;
-  Bits_8 info;        // (binding << 4) | type
-  Bits_8 visibility;  // STV_DEFAULT = 0
-  Bits_16 section_index;
-  Bits_64 value;
-  Bits_64 size;
+  Unsigned_32 name_offset;
+  Unsigned_8 info;        // (binding << 4) | type
+  Unsigned_8 visibility;  // STV_DEFAULT = 0
+  Unsigned_16 section_index;
+  Unsigned_64 value;
+  Unsigned_64 size;
 };
 static_assert(sizeof(SymbolRecord) == 24);
 
 // Rela represents relative relocations
 struct RelaRecord {
-  Bits_64 offset;
-  Bits_64 info;  // (symbol_index << 32) | reloc_type
+  Unsigned_64 offset;
+  Unsigned_64 info;  // (symbol_index << 32) | reloc_type
   Signed_64 addend;
 };
 static_assert(sizeof(RelaRecord) == 24);
 
-enum class RelocationType : Bits_32 {
+enum class RelocationType : Unsigned_32 {
   PcRelative32 = 2,
   Plt32 = 4,
 };
@@ -104,12 +104,12 @@ enum class RelocationType : Bits_32 {
 struct SectionDesc {
   View::Bytes name;
   SectionType type = SectionType::Null;
-  Bits_64 flags = 0;
-  Bits_64 alignment = 0;
+  Unsigned_64 flags = 0;
+  Unsigned_64 alignment = 0;
   View::Bytes data;
-  Bits_32 link = 0;
-  Bits_32 info = 0;
-  Bits_64 entry_size = 0;
+  Unsigned_32 link = 0;
+  Unsigned_32 info = 0;
+  Unsigned_64 entry_size = 0;
   Count name_offset = 0;
   Count file_offset = 0;
 };
@@ -137,7 +137,7 @@ struct ArHeader {
 };
 static_assert(sizeof(ArHeader) == 60);
 
-static auto fill_ar_header(ArHeader& header, View::Bytes name, Bits_64 size)
+static auto fill_ar_header(ArHeader& header, View::Bytes name, Unsigned_64 size)
     -> void {
   const Count name_length = name.get_size() < 15 ? name.get_size() : 15;
   Data::copy(header.name.get_data(), name.get_data(), name_length);
@@ -155,7 +155,8 @@ static auto to_section_desc(Object::Section section) -> SectionDesc {
     return {
       ".text"_view,
       SectionType::ProgramData,
-      Bits_64(SectionFlags::Allocated) | Bits_64(SectionFlags::Executable),
+      Unsigned_64(SectionFlags::Allocated) |
+          Unsigned_64(SectionFlags::Executable),
       16,
       section.get_data(),
     };
@@ -163,8 +164,9 @@ static auto to_section_desc(Object::Section section) -> SectionDesc {
     return {
       ".rodata.str"_view,
       SectionType::ProgramData,
-      Bits_64(SectionFlags::Allocated) | Bits_64(SectionFlags::Mergeable) |
-          Bits_64(SectionFlags::Strings),
+      Unsigned_64(SectionFlags::Allocated) |
+          Unsigned_64(SectionFlags::Mergeable) |
+          Unsigned_64(SectionFlags::Strings),
       1,
       section.get_data(),
     };
@@ -172,7 +174,7 @@ static auto to_section_desc(Object::Section section) -> SectionDesc {
     return {
       ".rodata"_view,
       SectionType::ProgramData,
-      Bits_64(SectionFlags::Allocated),
+      Unsigned_64(SectionFlags::Allocated),
       8,
       section.get_data(),
     };
@@ -212,11 +214,11 @@ static auto sort_symbols(View::Vector<Object::Symbol> symbols)
 }
 
 static auto build_symbol_slots(View::Vector<SymbolRef> sorted)
-    -> Dynamic::Vector<Bits_32> {
-  Dynamic::Vector<Bits_32> slots;
+    -> Dynamic::Vector<Unsigned_32> {
+  Dynamic::Vector<Unsigned_32> slots;
   slots.resize(sorted.get_size());
   for (Count i = 0; i < sorted.get_size(); i++) {
-    slots[sorted[i].original_index] = Bits_32(1 + i);
+    slots[sorted[i].original_index] = Unsigned_32(1 + i);
   }
 
   return slots;
@@ -246,14 +248,15 @@ static auto build_symbol_table(View::Vector<SymbolRef> sorted)
     const auto& ref = sorted[i];
     const auto& symbol = *ref.symbol;
     auto& entry = entries[1 + i];
-    const Bits_8 binding =
+    const Unsigned_8 binding =
         symbol.get_visibility() == Object::Symbol::Visibility::Global ? 1 : 0;
     Data::write<elf_endian>(
-        &entry.name_offset, Bits_32(ref.string_table_offset));
-    entry.info = Bits_8((binding << 4) | Bits_8(symbol.get_type()));
+        &entry.name_offset, Unsigned_32(ref.string_table_offset));
+    entry.info = Unsigned_8((binding << 4) | Unsigned_8(symbol.get_type()));
     Data::write<elf_endian>(&entry.section_index, symbol.get_section_index());
-    Data::write<elf_endian>(&entry.value, Bits_64(symbol.get_range().start));
-    Data::write<elf_endian>(&entry.size, Bits_64(symbol.get_range().size));
+    Data::write<elf_endian>(
+        &entry.value, Unsigned_64(symbol.get_range().start));
+    Data::write<elf_endian>(&entry.size, Unsigned_64(symbol.get_range().size));
   }
 
   return data;
@@ -262,17 +265,20 @@ static auto build_symbol_table(View::Vector<SymbolRef> sorted)
 static auto write_relocations(
     Access::Bytes data,
     View::Vector<Object::Relocation> relocations,
-    View::Vector<Bits_32> symbol_slots) -> void {
+    View::Vector<Unsigned_32> symbol_slots) -> void {
   auto* entries = Data::cast<RelaRecord>(data.get_data());
   for (Count i = 0; i < relocations.get_size(); i++) {
     const auto& reloc = relocations[i];
-    const Bits_32 rtype = reloc.get_type() == Object::Relocation::Type::Plt32
-                              ? Bits_32(RelocationType::Plt32)
-                              : Bits_32(RelocationType::PcRelative32);
-    Data::write<elf_endian>(&entries[i].offset, Bits_64(reloc.get_offset()));
+    const Unsigned_32 rtype =
+        reloc.get_type() == Object::Relocation::Type::Plt32
+            ? Unsigned_32(RelocationType::Plt32)
+            : Unsigned_32(RelocationType::PcRelative32);
+    Data::write<elf_endian>(
+        &entries[i].offset, Unsigned_64(reloc.get_offset()));
     Data::write<elf_endian>(
         &entries[i].info,
-        (Bits_64(symbol_slots[reloc.get_symbol()]) << 32) | Bits_64(rtype));
+        (Unsigned_64(symbol_slots[reloc.get_symbol()]) << 32) |
+            Unsigned_64(rtype));
     Data::write<elf_endian>(&entries[i].addend, Signed_64(reloc.get_addend()));
   }
 }
@@ -318,8 +324,8 @@ Target::Elf::Elf() {
   reset();
 }
 
-auto Target::Elf::add_section(Object::Section section) -> Bits_16 {
-  const Bits_16 index = Bits_16(sections.get_size());
+auto Target::Elf::add_section(Object::Section section) -> Unsigned_16 {
+  const Unsigned_16 index = Unsigned_16(sections.get_size());
   sections.insert(section);
   relocation_tables.insert(Dynamic::Vector<Object::Relocation>());
   return index;
@@ -350,21 +356,21 @@ auto Target::Elf::reset() -> void {
 
 auto Target::Elf::write_header(
     Access::Bytes buffer,
-    Bits_64 section_offset,
-    Bits_16 section_count,
-    Bits_16 section_string_table_index) -> void {
+    Unsigned_64 section_offset,
+    Unsigned_16 section_count,
+    Unsigned_16 section_string_table_index) -> void {
   Static::Bytes<16> identity = {
     0x7F, 'E', 'L', 'F', 2, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0,
   };
   auto* header = Data::cast<Header>(buffer.get_data());
   header->identity = identity;
-  Data::write<elf_endian>(&header->type, Bits_16(ObjectType::Relocatable));
-  Data::write<elf_endian>(&header->machine, Bits_16(Machine::X86_64));
-  Data::write<elf_endian>(&header->version, Bits_32(1));
+  Data::write<elf_endian>(&header->type, Unsigned_16(ObjectType::Relocatable));
+  Data::write<elf_endian>(&header->machine, Unsigned_16(Machine::X86_64));
+  Data::write<elf_endian>(&header->version, Unsigned_32(1));
   Data::write<elf_endian>(&header->section_header_offset, section_offset);
-  Data::write<elf_endian>(&header->header_size, Bits_16(sizeof(Header)));
+  Data::write<elf_endian>(&header->header_size, Unsigned_16(sizeof(Header)));
   Data::write<elf_endian>(
-      &header->section_entry_size, Bits_16(sizeof(SectionHeader)));
+      &header->section_entry_size, Unsigned_16(sizeof(SectionHeader)));
   Data::write<elf_endian>(&header->section_count, section_count);
   Data::write<elf_endian>(
       &header->string_section_index, section_string_table_index);
@@ -376,15 +382,17 @@ static auto write_section_headers(
   auto* entries = Data::cast<SectionHeader>(buffer.get_data());
   for (Count i = 0; i < section_descriptors.get_size(); i++) {
     const auto& d = section_descriptors[i];
-    Data::write<elf_endian>(&entries[i].name_offset, Bits_32(d.name_offset));
-    Data::write<elf_endian>(&entries[i].type, Bits_32(d.type));
+    Data::write<elf_endian>(
+        &entries[i].name_offset, Unsigned_32(d.name_offset));
+    Data::write<elf_endian>(&entries[i].type, Unsigned_32(d.type));
     Data::write<elf_endian>(&entries[i].flags, d.flags);
-    Data::write<elf_endian>(&entries[i].file_offset, Bits_64(d.file_offset));
-    Data::write<elf_endian>(&entries[i].size, Bits_64(d.data.get_size()));
+    Data::write<elf_endian>(
+        &entries[i].file_offset, Unsigned_64(d.file_offset));
+    Data::write<elf_endian>(&entries[i].size, Unsigned_64(d.data.get_size()));
     Data::write<elf_endian>(&entries[i].link, d.link);
     Data::write<elf_endian>(&entries[i].info, d.info);
     Data::write<elf_endian>(
-        &entries[i].alignment, d.alignment > 0 ? d.alignment : Bits_64(1));
+        &entries[i].alignment, d.alignment > 0 ? d.alignment : Unsigned_64(1));
     Data::write<elf_endian>(&entries[i].entry_size, d.entry_size);
   }
 }
@@ -394,7 +402,7 @@ static auto build_section_descriptors(
     Access::Bytes relocation_data,
     View::Vector<Dynamic::Vector<Object::Relocation>> relocation_tables,
     View::Vector<SymbolRef> sorted_symbols,
-    View::Vector<Bits_32> symbol_slots,
+    View::Vector<Unsigned_32> symbol_slots,
     View::Bytes symbol_table,
     View::Bytes string_table,
     Count symbol_table_index,
@@ -422,8 +430,8 @@ static auto build_section_descriptors(
       0,
       8,
       data,
-      Bits_32(symbol_table_index),
-      Bits_32(i),
+      Unsigned_32(symbol_table_index),
+      Unsigned_32(i),
       sizeof(RelaRecord),
     });
   }
@@ -446,8 +454,8 @@ static auto build_section_descriptors(
     0,
     8,
     symbol_table,
-    Bits_32(string_table_index),
-    Bits_32(first_non_local_symbol),
+    Unsigned_32(string_table_index),
+    Unsigned_32(first_non_local_symbol),
     sizeof(SymbolRecord),
   });
 
@@ -502,8 +510,8 @@ auto Target::Elf::build_object() -> Dynamic::Bytes {
 
   // Write the ELF header
   write_header(
-      output.get_access(), section_headers_offset, Bits_16(total),
-      Bits_16(section_string_table_index));
+      output.get_access(), section_headers_offset, Unsigned_16(total),
+      Unsigned_16(section_string_table_index));
 
   // Write the section headers
   write_section_headers(
@@ -551,7 +559,7 @@ auto Target::Elf::build_library(View::Bytes object_name) -> Dynamic::Bytes {
 
   Dynamic::Bytes output;
   output.forgetful_resize(total);
-  Bits_8* output_bytes = output.get_access().get_data();
+  Unsigned_8* output_bytes = output.get_access().get_data();
   memset(output_bytes, 0, total);
 
   constexpr auto ar_magic = "!<arch>\n"_view;
@@ -563,13 +571,13 @@ auto Target::Elf::build_library(View::Bytes object_name) -> Dynamic::Bytes {
   Data::copy(output_bytes + cursor, &symbol_header, 1);
   cursor += sizeof(ArHeader);
 
-  Bits_8* write_pointer = output_bytes + cursor;
+  Unsigned_8* write_pointer = output_bytes + cursor;
   Data::write<ar_endian>(
-      Data::cast<Bits_32>(write_pointer), Bits_32(exported_count));
+      Data::cast<Unsigned_32>(write_pointer), Unsigned_32(exported_count));
   write_pointer += 4;
   for (Count i = 0; i < exported_count; i++) {
     Data::write<ar_endian>(
-        Data::cast<Bits_32>(write_pointer), Bits_32(object_offset));
+        Data::cast<Unsigned_32>(write_pointer), Unsigned_32(object_offset));
     write_pointer += 4;
   }
 
@@ -590,7 +598,8 @@ auto Target::Elf::build_library(View::Bytes object_name) -> Dynamic::Bytes {
 
   // Write the actual object file into the archive.
   ArHeader object_header;
-  fill_ar_header(object_header, object_name, Bits_64(object_view.get_size()));
+  fill_ar_header(
+      object_header, object_name, Unsigned_64(object_view.get_size()));
   Data::copy(output_bytes + cursor, &object_header, 1);
   cursor += sizeof(ArHeader);
   Data::copy(

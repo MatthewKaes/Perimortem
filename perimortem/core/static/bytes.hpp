@@ -21,10 +21,10 @@ class Bytes {
   // Static::Bytes<3>{0x01, 0x02, 0x03}.
   template <typename... raw_bytes>
     requires(sizeof...(raw_bytes) == literal_size)
-  constexpr Bytes(raw_bytes... values) : source_block{Bits_8(values)...} {}
+  constexpr Bytes(raw_bytes... values) : source_block{Unsigned_8(values)...} {}
 
   // Used for passing bytes directly that are already packed.
-  constexpr Bytes(const Bits_8 (&source)[literal_size]) {
+  constexpr Bytes(const Unsigned_8 (&source)[literal_size]) {
     if consteval {
       for (Count i = 0; i < literal_size; i++) {
         source_block[i] = source[i];
@@ -55,14 +55,14 @@ class Bytes {
   }
 
   // Allows for generating data that would be a pain to manually write out.
-  constexpr Bytes(Bits_8 (*generator)(Count)) {
+  constexpr Bytes(Unsigned_8 (*generator)(Count)) {
     for (Count i = 0; i < literal_size; i++) {
       source_block[i] = generator(i);
     }
   }
 
   // Fast read function that assumes the range is valid.
-  constexpr Bytes(const Bits_8* source) {
+  constexpr Bytes(const Unsigned_8* source) {
     if consteval {
       for (Count i = 0; i < literal_size; i++) {
         source_block[i] = source[i];
@@ -93,11 +93,11 @@ class Bytes {
     return !(*this == rhs);
   }
 
-  constexpr auto operator[](Count index) -> Bits_8& {
+  constexpr auto operator[](Count index) -> Unsigned_8& {
     return source_block[index];
   }
 
-  constexpr auto operator[](Count index) const -> const Bits_8& {
+  constexpr auto operator[](Count index) const -> const Unsigned_8& {
     return source_block[index];
   }
 
@@ -116,18 +116,18 @@ class Bytes {
     return View::Bytes(source_block, literal_size);
   }
 
-  constexpr auto get_data() const -> const Bits_8* { return source_block; }
-  constexpr auto get_data() -> Bits_8* { return source_block; }
+  constexpr auto get_data() const -> const Unsigned_8* { return source_block; }
+  constexpr auto get_data() -> Unsigned_8* { return source_block; }
   constexpr auto get_access() -> Access::Bytes {
     return Access::Bytes(source_block, literal_size);
   }
 
-  constexpr auto hash() const -> Bits_64 {
+  constexpr auto hash() const -> Unsigned_64 {
     return Core::Hash(get_view()).get_value();
   }
 
  private:
-  Bits_8 source_block[literal_size]{};
+  Unsigned_8 source_block[literal_size]{};
 };
 
 }  // namespace Perimortem::Core::Static

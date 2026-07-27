@@ -1,0 +1,6 @@
+dialect : Library;
+
+public const shared_header_a : Fixed[Unsigned_8, 64] =
+  $[resources/table.bin]:[0, 64];
+public const empty_payload : Fixed[Unsigned_8, 0] =
+  $[resources/empty.bin];

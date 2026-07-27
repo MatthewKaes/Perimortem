@@ -1,273 +1,116 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
-#include "ttx/type.hpp"
+#include "ttx/model/type.hpp"
 
 #include "validation/unit_test.hpp"
 
 #include "perimortem/core/static/vector.hpp"
 
+#include "ttx/concept/invalid.hpp"
+#include "ttx/concept/reference.hpp"
+#include "ttx/model/addressable.hpp"
+#include "ttx/model/layouts/structured.hpp"
+
 using namespace Perimortem::Core;
+using namespace Ttx::Concept;
+using namespace Ttx::Model;
+using namespace Ttx::Model::Layouts;
 using namespace Validation;
 
-static Harness TtxType = {
-  .name = "TTX::Type"_view,
+/// Registration may reserve a stable Type object before its facts are ready.
+/// Resolution remains total by returning Invalid until completion.
+class ResolvingType final : public Type {
+ public:
+  ResolvingType(View::Bytes name, Structured layout = Structured())
+      : name(name), layout(layout) {}
+
+  auto get_name() const -> View::Bytes override { return name; }
+  auto get_documentation() const -> const Documentation& override {
+    return Documentation::get_empty();
+  }
+  auto resolve() const -> const Abstract& override {
+    if (complete_state) {
+      return *this;
+    }
+    return Invalid::get_invalid();
+  }
+  auto resolve_context(View::Bytes) const -> const Abstract& override {
+    if (complete_state) {
+      return *this;
+    }
+    return Invalid::get_invalid();
+  }
+  auto get_layout() const -> const Structured& override { return layout; }
+
+  auto complete() -> void { complete_state = True; }
+
+ private:
+  View::Bytes name;
+  Structured layout;
+  Bool complete_state = False;
 };
 
-PERIMORTEM_UNIT_TEST(TtxType, alias_attrs) {
-  static constexpr Static::Vector<Ttx::Attribute, 3> foreign_attributes = {{
-    {"role"_view, "foreign"_view},
-    {"abi"_view, "foreign"_view},
-    {"cpp"_view, "ForeignCpp"_view},
-  }};
-  static constexpr Static::Vector<Ttx::Attribute, 2> alias_attributes = {{
-    {"role"_view, "alias"_view},
-    {"cpp"_view, "AliasCpp"_view},
-  }};
-  static constexpr Static::Vector<Ttx::Attribute, 2> middle_attributes = {{
-    {"abi"_view, "middle"_view},
-    {"cpp"_view, "MiddleCpp"_view},
-  }};
-  static constexpr Static::Vector<Ttx::Attribute, 1> relay_attributes = {{
-    {"role"_view, "alias"_view},
-  }};
+/// A field is a real Addressable object retained by its owner's layout.
+class TypeField final : public Addressable {
+ public:
+  TypeField(View::Bytes name, const Type& type) : name(name), type(type) {}
 
-  Ttx::Type foreign("Console"_view, foreign_attributes);
-  Ttx::Type alias = Ttx::Type::alias(
-      "Log"_view, foreign, Ttx::Documentation(), alias_attributes);
-  Ttx::Type middle = Ttx::Type::alias(
-      "ConsoleLog"_view, foreign, Ttx::Documentation(), middle_attributes);
-  Ttx::Type relay = Ttx::Type::alias(
-      "Relay"_view, middle, Ttx::Documentation(), relay_attributes);
+  auto get_name() const -> View::Bytes override { return name; }
+  auto get_documentation() const -> const Documentation& override {
+    return Documentation::get_empty();
+  }
+  auto get_type() const -> const Type& override { return type; }
 
-  const Ttx::Attribute* role = alias.find_attribute("role"_view);
-  ASSERT(role != nullptr);
-  EXPECT_TEXT(role->get_value(), "alias"_view);
+ private:
+  View::Bytes name;
+  const Type& type;
+};
 
-  EXPECT(alias.attribute_equals("role"_view, "alias"_view));
-  EXPECT(alias.attribute_equals("role"_view, "foreign"_view));
-  EXPECT(alias.attribute_equals("abi"_view, "foreign"_view));
-  EXPECT_NOT(alias.attribute_equals("role"_view, "library"_view));
+static Harness TtxType = {
+  .name = "Ttx::Model::Type"_view,
+};
 
-  const Ttx::Attribute* cpp = alias.resolve_attribute("cpp"_view);
-  ASSERT(cpp != nullptr);
-  EXPECT_TEXT(cpp->get_value(), "AliasCpp"_view);
+PERIMORTEM_UNIT_TEST(TtxType, incomplete_type) {
+  ResolvingType reserved("Reserved"_view);
+  const Type& type = reserved;
 
-  const Ttx::Attribute* abi = alias.resolve_attribute("abi"_view);
-  ASSERT(abi != nullptr);
-  EXPECT_TEXT(abi->get_value(), "foreign"_view);
+  EXPECT(&type.resolve() == &Invalid::get_invalid());
 
-  EXPECT(&relay.canonical() == &foreign);
-  EXPECT(relay.attribute_equals("role"_view, "foreign"_view));
-  EXPECT(relay.attribute_equals("abi"_view, "middle"_view));
-  EXPECT(relay.attribute_equals("abi"_view, "foreign"_view));
+  reserved.complete();
 
-  cpp = relay.resolve_attribute("cpp"_view);
-  ASSERT(cpp != nullptr);
-  EXPECT_TEXT(cpp->get_value(), "MiddleCpp"_view);
+  EXPECT(&type.resolve() == &reserved);
+  EXPECT(type.get_layout().is_empty());
 }
 
-PERIMORTEM_UNIT_TEST(TtxType, describe) {
-  static constexpr Static::Vector<Ttx::Attribute, 1> math_attributes = {{
-    {Ttx::Type::display_name_attribute,
-     "Perimortem.Math::Geometry::Size2D"_view},
-  }};
-  static constexpr Static::Vector<Ttx::Attribute, 1> graphics_attributes = {{
-    {Ttx::Type::display_name_attribute, "Perimortem.Graphics::Size2D"_view},
-  }};
+PERIMORTEM_UNIT_TEST(TtxType, type_fields) {
+  ResolvingType real("Real_32"_view);
+  real.complete();
+  TypeField x("x"_view, real);
+  TypeField y("y"_view, real);
+  const Static::Vector<Reference<Addressable>, 2> fields = {{x, y}};
+  ResolvingType point("Point"_view, Structured(fields));
 
-  Ttx::Type local("Local"_view);
-  EXPECT_TEXT(local.describe().get_view(), "Local"_view);
+  EXPECT(&point.resolve() == &Invalid::get_invalid());
 
-  Ttx::Type math_size("Size2D"_view, math_attributes);
-  Ttx::Type graphics_size = Ttx::Type::alias(
-      "Size2D"_view, math_size, Ttx::Documentation(), graphics_attributes);
-  EXPECT_TEXT(
-      graphics_size.describe().get_view(),
-      "Perimortem.Graphics::Size2D alias of "
-      "Perimortem.Math::Geometry::Size2D"_view);
-}
+  point.complete();
 
-PERIMORTEM_UNIT_TEST(TtxType, alias_lookup) {
-  Ttx::Type bits("Bits_32"_view);
-  Ttx::Type nested("Nested"_view);
-  Static::Vector<Ttx::Member, 1> members = {{
-    {"value"_view, bits},
-  }};
-  Static::Vector<const Ttx::Type*, 1> nested_types = {{
-    &nested,
-  }};
-  Static::Vector<Ttx::Function, 1> functions = {{
-    Ttx::Function("draw"_view, Ttx::Layout(), Ttx::Layout()),
-  }};
-
-  Ttx::Type root("Root"_view, members, nested_types, functions);
-  Ttx::Type alias = Ttx::Type::alias("Alias"_view, root);
-
-  const Ttx::Member* member = alias.find_member("value"_view);
-  ASSERT(member != nullptr);
-  EXPECT(&member->get_type() == &bits);
-  EXPECT(alias.find_type("Nested"_view) == &nested);
-
-  const Ttx::Function* function = alias.find_function("draw"_view);
-  ASSERT(function != nullptr);
-  EXPECT_TEXT(function->get_name(), "draw"_view);
-}
-
-PERIMORTEM_UNIT_TEST(TtxType, alias_docs) {
-  static constexpr Static::Vector<View::Bytes, 1> root_lines = {{
-    "Root docs"_view,
-  }};
-  static constexpr Static::Vector<View::Bytes, 1> alias_lines = {{
-    "Alias docs"_view,
-  }};
-
-  Ttx::Type root("Root"_view, Ttx::Documentation(root_lines));
-  Ttx::Type alias =
-      Ttx::Type::alias("Alias"_view, root, Ttx::Documentation(alias_lines));
-
-  EXPECT(&alias.canonical() == &root);
-  EXPECT_TEXT(alias.get_documentation().line_at(0), "Alias docs"_view);
-  ASSERT(!alias.canonical().is_invalid());
-  EXPECT_TEXT(
-      alias.canonical().get_documentation().line_at(0), "Root docs"_view);
-}
-
-PERIMORTEM_UNIT_TEST(TtxType, invalid) {
-  Ttx::Type invalid(""_view);
-
-  EXPECT(invalid.is_invalid());
-  EXPECT_TEXT(invalid.get_name(), View::Bytes());
-  EXPECT(invalid.canonical().is_invalid());
-  EXPECT_NOT(invalid.equivalent_to(invalid));
-}
-
-PERIMORTEM_UNIT_TEST(TtxType, owned_layout) {
-  Ttx::Type real("Real_32"_view);
-  Static::Vector<Ttx::Member, 2> members = {{
-    {"x"_view, real},
-    {"y"_view, real},
-  }};
-
-  Ttx::Type point("Point"_view, Ttx::Layout(members));
-
-  EXPECT_EQ(point.get_layout().get_member_count(), Count(2));
-  EXPECT(point.get_members().get_data() == members.get_view().get_data());
-  EXPECT(&point.get_layout().member_at(1).get_type() == &real);
-}
-
-PERIMORTEM_UNIT_TEST(TtxType, layout_cast) {
-  Ttx::Type bits("Bits_32"_view);
-  Static::Vector<Ttx::Member, 1> members = {{
-    {"value"_view, bits},
-  }};
-
-  Ttx::Type storage("Storage"_view, Ttx::Layout(members));
-  Ttx::Layout layout = storage;
-
-  EXPECT(layout.equivalent_to(Ttx::Layout(members)));
-}
-
-PERIMORTEM_UNIT_TEST(TtxType, alias_shape) {
-  Ttx::Type bits("Bits_32"_view);
-  Static::Vector<Ttx::Member, 1> members = {{
-    {"value"_view, bits},
-  }};
-
-  Ttx::Type storage("Storage"_view, Ttx::Layout(members));
-  Ttx::Type alias = Ttx::Type::alias("Alias"_view, storage);
-
-  EXPECT(alias.get_members().is_empty());
-  EXPECT(Ttx::Layout(alias).equivalent_to(Ttx::Layout(storage)));
-}
-
-PERIMORTEM_UNIT_TEST(TtxType, alias_member) {
-  Ttx::Type bits("Bits_32"_view);
-  Static::Vector<Ttx::Member, 1> members = {{
-    {"value"_view, bits},
-  }};
-
-  Ttx::Type storage("Storage"_view, Ttx::Layout(members));
-  Ttx::Type alias = Ttx::Type::alias("Alias"_view, storage);
-
-  const Ttx::Member* member = alias.find_member("value"_view);
-  ASSERT(member != nullptr);
-  EXPECT(&member->get_type() == &bits);
-  EXPECT(alias.find_member("missing"_view) == nullptr);
-}
-
-PERIMORTEM_UNIT_TEST(TtxType, local_display) {
-  Ttx::Type type("Local"_view);
-
-  EXPECT_TEXT(type.describe().get_view(), "Local"_view);
-}
-
-PERIMORTEM_UNIT_TEST(TtxType, alias_display) {
-  Ttx::Type root("Root"_view);
-  Ttx::Type alias = Ttx::Type::alias("LocalRoot"_view, root);
-
-  EXPECT_TEXT(alias.describe().get_view(), "LocalRoot alias of Root"_view);
-}
-
-PERIMORTEM_UNIT_TEST(TtxType, invalid_alias) {
-  Ttx::Type invalid(""_view);
-  Ttx::Type alias = Ttx::Type::alias("Broken"_view, invalid);
-
-  EXPECT(alias.canonical().is_invalid());
-  EXPECT_NOT(alias.equivalent_to(invalid));
-  EXPECT(alias.find_member("value"_view) == nullptr);
-  EXPECT(alias.find_type("Nested"_view) == nullptr);
-  EXPECT(alias.find_function("call"_view) == nullptr);
-}
-
-PERIMORTEM_UNIT_TEST(TtxType, attr_override) {
-  static constexpr Static::Vector<Ttx::Attribute, 1> root_attributes = {{
-    {"cpp"_view, "RootCpp"_view},
-  }};
-  static constexpr Static::Vector<Ttx::Attribute, 1> alias_attributes = {{
-    {"cpp"_view, "AliasCpp"_view},
-  }};
-
-  Ttx::Type root("Root"_view, root_attributes);
-  Ttx::Type alias = Ttx::Type::alias(
-      "Alias"_view, root, Ttx::Documentation(), alias_attributes);
-
-  const Ttx::Attribute* attribute = alias.resolve_attribute("cpp"_view);
-  ASSERT(attribute != nullptr);
-  EXPECT_TEXT(attribute->get_value(), "AliasCpp"_view);
-  EXPECT(alias.attribute_equals("cpp"_view, "RootCpp"_view));
-  EXPECT(alias.attribute_equals("cpp"_view, "AliasCpp"_view));
-}
-
-PERIMORTEM_UNIT_TEST(TtxType, nested_missing) {
-  Ttx::Type nested("Nested"_view);
-  Static::Vector<const Ttx::Type*, 1> nested_types = {{
-    &nested,
-  }};
-
-  Ttx::Type root("Root"_view, Ttx::Layout(), nested_types);
-
-  EXPECT(root.find_type("Nested"_view) == &nested);
-  EXPECT(root.find_type("Missing"_view) == nullptr);
-  EXPECT(root.find_function("Missing"_view) == nullptr);
-}
-
-PERIMORTEM_UNIT_TEST(TtxType, layout_is_local) {
-  Ttx::Type bits("Bits_32"_view);
-  Static::Vector<Ttx::Member, 1> members = {{
-    {"value"_view, bits},
-  }};
-  Ttx::Type storage("Storage"_view, Ttx::Layout(members));
-  Ttx::Type alias = Ttx::Type::alias("Alias"_view, storage);
-
-  EXPECT(alias.get_layout().is_empty());
-  EXPECT_NOT(Ttx::Layout(alias).is_empty());
-}
-
-PERIMORTEM_UNIT_TEST(TtxType, attr_missing) {
-  Ttx::Type type("Value"_view);
-
-  EXPECT(type.find_attribute("missing"_view) == nullptr);
-  EXPECT(type.resolve_attribute("missing"_view) == nullptr);
-  EXPECT_NOT(type.attribute_equals("missing"_view, "value"_view));
+  const Addressable* first = point.get_layout().get_abstract(0).visit(
+      []() { return static_cast<const Addressable*>(nullptr); },
+      [](const Abstract& abstract) {
+        return abstract.visit<Addressable>(
+            [](const Addressable& addressable) { return &addressable; },
+            [](const Abstract&) {
+              return static_cast<const Addressable*>(nullptr);
+            });
+      });
+  ASSERT(first != nullptr);
+  EXPECT(first == &x);
+  EXPECT(point.get_layout().get_abstract(1).visit(
+      []() { return False; },
+      [&y](const Abstract& selected) {
+        return &selected == &y ? True : False;
+      }));
+  EXPECT(&first->resolve() == first);
+  EXPECT(&first->get_type().resolve() == &real);
 }

@@ -22,33 +22,30 @@ template <typename value_type>
 class Object {
  public:
   template <typename... arg_types>
-  explicit Object(arg_types&&... args) {
+  Object(arg_types&&... args) {
     auto allocation = Core::Bibliotheca::check_out(sizeof(value_type));
     value = new (allocation.ptr) value_type(static_cast<arg_types&&>(args)...);
   }
 
   Object(Object& rhs) : value(rhs.value) {
-    Core::Bibliotheca::reserve(Core::Data::cast<Bits_8>(value));
+    Core::Bibliotheca::reserve(Core::Data::cast<Unsigned_8>(value));
   }
 
   Object(const Object& rhs) : value(rhs.value) {
-    Core::Bibliotheca::reserve(Core::Data::cast<Bits_8>(value));
+    Core::Bibliotheca::reserve(Core::Data::cast<Unsigned_8>(value));
   }
 
   Object(Object&& rhs) : Object(rhs) {}
 
-  ~Object() {
-    Bits_8* data = Core::Data::cast<Bits_8>(value);
-    if (Core::Bibliotheca::reservation_count(data) == 1) {
-      value->~value_type();
-    }
-
-    Core::Bibliotheca::remit(data);
-  }
+  ~Object() { release(); }
 
   auto operator=(const Object& rhs) -> Object& {
-    Object copy(rhs);
-    Core::Data::swap(value, copy.value);
+    if (rhs.value != value) {
+      release();
+    }
+
+    value = rhs.value;
+    Core::Bibliotheca::reserve(Core::Data::cast<Unsigned_8>(value));
     return *this;
   }
 
@@ -67,6 +64,15 @@ class Object {
   constexpr auto operator*() const -> const value_type& { return *value; }
 
  private:
+  auto release() -> void {
+    Unsigned_8* data = Core::Data::cast<Unsigned_8>(value);
+    if (Core::Bibliotheca::reservation_count(data) == 1) {
+      value->~value_type();
+    }
+
+    Core::Bibliotheca::remit(data);
+  }
+
   value_type* value;
 };
 

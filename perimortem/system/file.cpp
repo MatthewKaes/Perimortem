@@ -14,7 +14,7 @@ using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
 using namespace Perimortem::System;
 
-auto File::create_path(Bits_8* output, View::Bytes path) -> const Signed_8* {
+auto File::create_path(Unsigned_8* output, View::Bytes path) -> const char* {
   if (path.get_size() >= max_path_size) {
     return "";
   }
@@ -24,16 +24,17 @@ auto File::create_path(Bits_8* output, View::Bytes path) -> const Signed_8* {
   }
 
   output[path.get_size()] = '\0';
-  return Data::cast<const Signed_8>(output);
+  return Data::cast<const char>(output);
 }
 
 auto File::read(View::Bytes location) -> Dynamic::Bytes {
-  Bits_8 path_buffer[max_path_size];
+  Unsigned_8 path_buffer[max_path_size];
   const auto path = create_path(path_buffer, location);
 
 #ifdef PERI_LINUX
   struct stat64 status;
-  if (stat64(path, &status) == -1 || !(status.st_mode & S_IFREG)) {
+  auto status_read = stat64(path, &status);
+  if (status_read == -1 || !(status.st_mode & S_IFREG)) {
     return Dynamic::Bytes();
   }
 
@@ -44,11 +45,13 @@ auto File::read(View::Bytes location) -> Dynamic::Bytes {
 
   Dynamic::Bytes data;
   data.forgetful_resize(Count(status.st_size));
-  if (status.st_size != 0 &&
-      fread(data.get_access().get_data(), Count(status.st_size), 1, file) !=
-          1) {
-    fclose(file);
-    return Dynamic::Bytes();
+  if (status.st_size != 0) {
+    Count items_read =
+        fread(data.get_access().get_data(), Count(status.st_size), 1, file);
+    if (items_read != 1) {
+      fclose(file);
+      return Dynamic::Bytes();
+    }
   }
 
   fclose(file);
@@ -59,7 +62,7 @@ auto File::read(View::Bytes location) -> Dynamic::Bytes {
 }
 
 auto File::write(View::Bytes data, View::Bytes location) -> Bool {
-  Bits_8 path_buffer[max_path_size];
+  Unsigned_8 path_buffer[max_path_size];
   const auto path = create_path(path_buffer, location);
 
   FILE* file = fopen(path, "wb");
@@ -67,25 +70,31 @@ auto File::write(View::Bytes data, View::Bytes location) -> Bool {
     return False;
   }
 
-  const Bool written =
-      data.is_empty() || fwrite(data.get_data(), data.get_size(), 1, file) == 1;
+  Bool written = True;
+  if (!data.is_empty()) {
+    Count items_written = fwrite(data.get_data(), data.get_size(), 1, file);
+    written = items_written == 1;
+  }
+
   fclose(file);
   return written;
 }
 
 auto File::remove(View::Bytes location) -> Bool {
-  Bits_8 path_buffer[max_path_size];
+  Unsigned_8 path_buffer[max_path_size];
   const auto path = create_path(path_buffer, location);
-  return ::remove(path) == 0;
+  int removed = ::remove(path);
+  return removed == 0;
 }
 
 auto File::exists(View::Bytes location) -> Bool {
-  Bits_8 path_buffer[max_path_size];
+  Unsigned_8 path_buffer[max_path_size];
   const auto path = create_path(path_buffer, location);
 
 #ifdef PERI_LINUX
   struct stat64 status;
-  return stat64(path, &status) == 0 && Bool(status.st_mode & S_IFREG);
+  int status_read = stat64(path, &status);
+  return status_read == 0 && Bool(status.st_mode & S_IFREG);
 #else
 #error Perimortem does not have a file implementation for this platform.
 #endif

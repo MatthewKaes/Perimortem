@@ -110,21 +110,21 @@ auto Test::expected(View::Bytes value, Bool actual) -> void {
   putchar('\n');
 }
 
-auto Test::expected(Bits_16 value, Bool actual) -> void {
+auto Test::expected(Unsigned_16 value, Bool actual) -> void {
   Static::Bytes<32> buffer;
   Writer::Textual text(buffer.get_access());
   text << (actual ? actual_label : expected_label) << value << "\n"_view;
   fwrite(buffer.get_data(), 1, text.get_location(), stdout);
 }
 
-auto Test::expected(Bits_32 value, Bool actual) -> void {
+auto Test::expected(Unsigned_32 value, Bool actual) -> void {
   Static::Bytes<32> buffer;
   Writer::Textual text(buffer.get_access());
   text << (actual ? actual_label : expected_label) << value << "\n"_view;
   fwrite(buffer.get_data(), 1, text.get_location(), stdout);
 }
 
-auto Test::expected(Bits_64 value, Bool actual) -> void {
+auto Test::expected(Unsigned_64 value, Bool actual) -> void {
   Static::Bytes<32> buffer;
   Writer::Textual text(buffer.get_access());
   text << (actual ? actual_label : expected_label) << value << "\n"_view;
@@ -237,21 +237,13 @@ int main(int argc, const char* argv[]) {
   passed_tests = 0;
   failed_tests = 0;
 
-  View::Bytes filter =
-      argc > 1 ? NullTerminated::to_view(argv[1]) : View::Bytes();
-  Static::Vector<Count, 4096> test_indexes;
-  Count test_count = 0;
-  for (Count i = 0; i < binary_tests_count; i++) {
-    const Instance& test = binary_tests[i];
-    if (!filter.is_empty() &&
-        Algorithm::search(test.harness->name, filter) == Count(-1) &&
-        Algorithm::search(test.name, filter) == Count(-1)) {
-      continue;
-    }
-
-    test_indexes[test_count++] = i;
+  Bool silent = argc == 2 && NullTerminated::to_view(argv[1]) == "silent"_view;
+  if (argc > 2 || (argc == 2 && !silent)) {
+    fprintf(stderr, "Usage: %s [silent]\n", argv[0]);
+    return 1;
   }
 
+  Count test_count = binary_tests_count;
   not_run_tests = test_count;
 
   TestTiming slowest_test;
@@ -259,7 +251,7 @@ int main(int argc, const char* argv[]) {
 
   const Harness* harness = nullptr;
   for (Count i = 0; i < test_count; i++) {
-    const Instance& test = binary_tests[test_indexes[i]];
+    const Instance& test = binary_tests[i];
     Count name_length = test.name.get_size();
     if (name_length > longest_test_name) {
       longest_test_name = name_length;
@@ -273,25 +265,29 @@ int main(int argc, const char* argv[]) {
 
   harness = nullptr;
 
-  output_break();
-  printf(
-      "%s  Executing Perimortem test engine from Validation::Test\n",
-      perimortem_color);
-  printf(
-      "  Tests found:  %s%llu%s (%llu Harness)%s\n", clear_color,
-      (unsigned long long)test_count, system_color,
-      (unsigned long long)test_suites, clear_color);
-  output_break();
+  if (!silent) {
+    output_break();
+    printf(
+        "%s  Executing Perimortem test engine from Validation::Test\n",
+        perimortem_color);
+    printf(
+        "  Tests found:  %s%llu%s (%llu Harness)%s\n", clear_color,
+        (unsigned long long)test_count, system_color,
+        (unsigned long long)test_suites, clear_color);
+    output_break();
+  }
 
   Time start_full = Time::now();
   for (Count i = 0; i < test_count; i++) {
-    Count index = test_indexes[i];
+    Count index = i;
     const Instance& test = binary_tests[index];
     if (test.harness != harness) {
       harness = test.harness;
-      printf(
-          "%s[ START ] %.*s\n%s", dark_color, (int)harness->name.get_size(),
-          harness->name.get_data(), clear_color);
+      if (!silent) {
+        printf(
+            "%s[ START ] %.*s\n%s", dark_color, (int)harness->name.get_size(),
+            harness->name.get_data(), clear_color);
+      }
       harness->init();
     }
 
@@ -326,9 +322,11 @@ int main(int argc, const char* argv[]) {
     switch (result) {
     case Test::TestResult::Pass:
       passed_tests += 1;
-      printf(
-          "%s  [  PASS  ] %-*.*s", pass_color, (int)(longest_test_name + 2),
-          (int)test.name.get_size(), Data::cast<char>(test.name.get_data()));
+      if (!silent) {
+        printf(
+            "%s  [  PASS  ] %-*.*s", pass_color, (int)(longest_test_name + 2),
+            (int)test.name.get_size(), Data::cast<char>(test.name.get_data()));
+      }
       break;
     case Test::TestResult::Failed:
       failed_test_indexes[failed_tests] = index;
@@ -339,18 +337,24 @@ int main(int argc, const char* argv[]) {
       break;
     }
 
-    printf("%s  (%g ms)\n%s", system_color, test_time_ms, clear_color);
+    if (!silent || result == Test::TestResult::Failed) {
+      printf("%s  (%g ms)\n%s", system_color, test_time_ms, clear_color);
+    }
   }
 
   Real_64 full_time_ms = start_full.measure().convert_to_milliseconds();
 
-  output_break();
+  if (!silent) {
+    output_break();
+  }
   output_results(test_count);
   printf(
       "%s\n  Total Time:  %s%g ms\n\n%s", perimortem_color, clear_color,
       full_time_ms, clear_color);
-  output_break();
-  printf("\n");
+  if (!silent) {
+    output_break();
+    printf("\n");
+  }
   fflush(stdout);
   return (int)failed_tests;
 }

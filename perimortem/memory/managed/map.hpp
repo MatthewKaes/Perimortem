@@ -24,8 +24,8 @@ class Map {
  public:
   using Entry = Utility::Pair<key_type, value_type>;
 
-  Map(Allocator::Arena& arena) : arena(arena) {}
-  Map(const Map&) = default;
+  constexpr Map(Allocator::Arena& arena) : arena(arena) {}
+  constexpr Map(const Map&) = default;
 
   auto ensure_capacity(Count items) -> void {
     if (buffer.bucket_buffer && items * 10 <= buffer.bucket_count * 9) {
@@ -53,15 +53,39 @@ class Map {
   }
 
   auto insert(const key_type& key, const value_type& value) -> Entry* {
-    ensure_capacity(buffer.size + 1);
-
     Entry* entry = find(key);
     if (entry != nullptr) {
       entry->value = value;
       return entry;
     }
 
+    ensure_capacity(buffer.size + 1);
     return emplace_hashed(get_hash(key), key, value);
+  }
+
+  // Adds the key only if it's not in the map already, but if it hits a conflict
+  // then it launders the object avoiding constructors and destructors.
+  auto launder(const key_type& key, const value_type& value) -> Entry* {
+    Entry* entry = find(key);
+    if (entry != nullptr) {
+      Core::Data::launder(entry->value, value);
+      return entry;
+    }
+
+    ensure_capacity(buffer.size + 1);
+    return emplace_hashed(get_hash(key), key, value);
+  }
+
+  template <typename found_func, typename missing_func>
+  constexpr auto
+      visit(const key_type& key, found_func found, missing_func missing) const
+      -> decltype(auto) {
+    auto element = find(key);
+    if (element) {
+      return found(element->value);
+    } else {
+      return missing();
+    }
   }
 
   auto find(const key_type& key) -> Entry* {
@@ -119,12 +143,12 @@ class Map {
  private:
   struct Slot {
     Entry entry;
-    Bits_32 hash = 0;
+    Unsigned_32 hash = 0;
   };
 
   class Buffer {
    public:
-    Bits_8* bucket_buffer = nullptr;
+    Unsigned_8* bucket_buffer = nullptr;
     Slot* slots_buffer = nullptr;
     Count bucket_count = 0;
     Count size = 0;
@@ -139,7 +163,7 @@ class Map {
       return nullptr;
     }
 
-    Bits_32 hash = get_hash(key);
+    Unsigned_32 hash = get_hash(key);
     Count bucket = bucket_index(hash);
     while (true) {
       if (buffer.bucket_buffer[bucket] == 0) {
@@ -155,7 +179,7 @@ class Map {
     }
   }
 
-  auto get_empty(Bits_32 hash) -> Slot* {
+  auto get_empty(Unsigned_32 hash) -> Slot* {
     Count bucket = bucket_index(hash);
     while (buffer.bucket_buffer[bucket] != 0) {
       bucket = (bucket + 1) & (buffer.bucket_count - 1);
@@ -166,7 +190,7 @@ class Map {
   }
 
   auto emplace_hashed(
-      Bits_32 hash,
+      Unsigned_32 hash,
       const key_type& key,
       const value_type& value) -> Entry* {
     Slot* slot = get_empty(hash);
@@ -179,6 +203,13 @@ class Map {
   auto rehash(Count bucket_count) -> void {
     Buffer current = buffer;
     buffer = create_buffer(bucket_count);
+
+    // A default buffer has no storage or entries to migrate. Keeping initial
+    // allocation separate also makes the source-storage invariant explicit.
+    if (current.bucket_buffer == nullptr) {
+      return;
+    }
+
     for (Count i = 0; i < current.bucket_count; i++) {
       if (current.bucket_buffer[i] == 0) {
         continue;
@@ -203,11 +234,11 @@ class Map {
     return created;
   }
 
-  auto get_hash(const key_type& key) const -> Bits_32 {
-    return Bits_32(Core::Hash(key).get_value());
+  auto get_hash(const key_type& key) const -> Unsigned_32 {
+    return Unsigned_32(Core::Hash(key).get_value());
   }
 
-  auto bucket_index(Bits_32 hash) const -> Count {
+  auto bucket_index(Unsigned_32 hash) const -> Count {
     return Count(hash & (buffer.bucket_count - 1));
   }
 

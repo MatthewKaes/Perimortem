@@ -12,31 +12,26 @@
 
 namespace Ttx::Lexical {
 
-// Tokenizer allows for preprocessing a raw byte stream into a stream of TTX.
-// The tokens are applied like any other layer and only enrich the TTX IR by
-// precaculating each tokens mapping to the limited TTX representational model
-// which is extremely useful context for parsers.
+// Tokenizer partitions one borrowed byte stream into ordered TTX Tokens. Each
+// Token retains coordinates into the source so text remains owned once.
 //
-// Typically used with ASCII or UTF text, but since any arbitrary byte stream
-// has a canonical TTX representation in the data model this layer produces no
-// real diagnostic information. Dialect layers are typically the first layers to
-// start reasoning about the input.
+// Any byte stream has a token representation. Unrecognized spans receive the
+// Unknown Code rather than requiring semantic feedback during tokenization.
 class Tokenizer {
  public:
   Tokenizer(
       Perimortem::Memory::Allocator::Arena& arena,
       Perimortem::Core::View::Bytes source_text,
-      Perimortem::Core::View::Bytes source_name,
-      Bool strip_disabled = True)
-      : arena(arena), source_text(source_text), source_name(source_name) {
-    parse(strip_disabled);
+      Perimortem::Core::View::Bytes source_path)
+      : arena(arena), source_text(source_text), source_path(source_path) {
+    parse();
   }
 
   constexpr auto get_tokens() const -> Perimortem::Core::View::Vector<Token> {
     return tokens;
   };
 
-  // The tokenizer is empty if it has 0 or 1 (EndOfStream) tokens.
+  // The tokenizer is empty if it has 0 or 1 (Terminal) tokens.
   constexpr auto is_empty() const -> Bool { return tokens.get_size() <= 1; }
 
   constexpr auto get_source_text() const
@@ -44,9 +39,9 @@ class Tokenizer {
     return source_text;
   };
 
-  constexpr auto get_source_name() const
+  constexpr auto get_source_path() const
       -> const Perimortem::Core::View::Bytes {
-    return source_name;
+    return source_path;
   };
 
   constexpr auto get_arena() const -> Perimortem::Memory::Allocator::Arena& {
@@ -54,12 +49,12 @@ class Tokenizer {
   };
 
  private:
-  auto parse(Bool strip_disabled = true) -> void;
+  auto parse() -> void;
 
-  // All light weight objects that represent the structured view over the arena.
+  // Lightweight objects representing the structured view over the arena.
   Perimortem::Memory::Allocator::Arena& arena;
   Perimortem::Core::View::Bytes source_text;
-  Perimortem::Core::View::Bytes source_name;
+  Perimortem::Core::View::Bytes source_path;
   Perimortem::Core::View::Vector<Token> tokens;
 };
 

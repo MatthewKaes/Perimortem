@@ -76,7 +76,7 @@ class Set {
 
     destruct();
     Core::Bibliotheca::remit(
-        Core::Data::cast<Bits_8>(buffer_data.bucket_buffer));
+        Core::Data::cast<Unsigned_8>(buffer_data.bucket_buffer));
     buffer_data = BufferData();
   }
 
@@ -96,7 +96,7 @@ class Set {
   }
 
   auto insert(const key_type& key) -> Bool {
-    Bits_32 hash = get_hash(key);
+    Unsigned_32 hash = get_hash(key);
     if (find_hashed(key, hash) != nullptr) {
       return False;
     }
@@ -125,7 +125,7 @@ class Set {
     // first empty bucket because an entry that is already in its home bucket
     // may be followed by another entry whose probe path still crosses the hole.
     while (buffer_data.bucket_buffer[next_bucket] != 0) {
-      Bits_32 hash = buffer_data.bucket_buffer[next_bucket];
+      Unsigned_32 hash = buffer_data.bucket_buffer[next_bucket];
       Count home_bucket = extract_bucket_index(hash);
 
       // Both distances are measured from the entry's home bucket around the
@@ -203,13 +203,13 @@ class Set {
 
  private:
   struct BufferData {
-    Bits_32* bucket_buffer = nullptr;
+    Unsigned_32* bucket_buffer = nullptr;
     key_type* slots_buffer = nullptr;
-    Bits_32 bucket_count = 0;
-    Bits_32 size = 0;
+    Unsigned_32 bucket_count = 0;
+    Unsigned_32 size = 0;
   };
 
-  auto get_empty(Bits_32 hash) -> key_type* {
+  auto get_empty(Unsigned_32 hash) -> key_type* {
     Count bucket_index = extract_bucket_index(hash);
     while (buffer_data.bucket_buffer[bucket_index] != 0) {
       bucket_index = (bucket_index + 1) & (buffer_data.bucket_count - 1);
@@ -219,16 +219,16 @@ class Set {
     return buffer_data.slots_buffer + bucket_index;
   }
 
-  auto find_bucket(const key_type& key, Bits_32 hash) const -> Count {
+  auto find_bucket(const key_type& key, Unsigned_32 hash) const -> Count {
     if (buffer_data.size == 0) {
       return Count(-1);
     }
 
-    Bits_32 bucket_key = extract_bucket_key(hash);
+    Unsigned_32 bucket_key = extract_bucket_key(hash);
     Count bucket_index = extract_bucket_index(hash);
     for (Count probe_count = 0; probe_count < buffer_data.bucket_count;
          probe_count++) {
-      Bits_32 bucket = buffer_data.bucket_buffer[bucket_index];
+      Unsigned_32 bucket = buffer_data.bucket_buffer[bucket_index];
       if (bucket == bucket_key &&
           buffer_data.slots_buffer[bucket_index] == key) {
         return bucket_index;
@@ -244,7 +244,8 @@ class Set {
     return Count(-1);
   }
 
-  auto find_hashed(const key_type& key, Bits_32 hash) const -> const key_type* {
+  auto find_hashed(const key_type& key, Unsigned_32 hash) const
+      -> const key_type* {
     Count bucket_index = find_bucket(key, hash);
     if (bucket_index == Count(-1)) {
       return nullptr;
@@ -253,7 +254,7 @@ class Set {
     return buffer_data.slots_buffer + bucket_index;
   }
 
-  auto emplace_hashed(key_type* slot, Bits_32 hash) -> void {
+  auto emplace_hashed(key_type* slot, Unsigned_32 hash) -> void {
     key_type* empty_slot = get_empty(hash);
     memcpy(Core::Data::cast<void>(empty_slot), slot, sizeof(key_type));
   }
@@ -290,7 +291,7 @@ class Set {
 
     if (current_buffer.bucket_buffer != nullptr) {
       Core::Bibliotheca::remit(
-          Core::Data::cast<Bits_8>(current_buffer.bucket_buffer));
+          Core::Data::cast<Unsigned_8>(current_buffer.bucket_buffer));
     }
 
     buffer_data.size = current_buffer.size;
@@ -301,7 +302,7 @@ class Set {
     new_buffer.bucket_count = buckets;
     Core::Bibliotheca::Allocation allocation =
         Core::Bibliotheca::check_out(required_buffer_size(buckets));
-    new_buffer.bucket_buffer = Core::Data::cast<Bits_32>(allocation.ptr);
+    new_buffer.bucket_buffer = Core::Data::cast<Unsigned_32>(allocation.ptr);
     new_buffer.slots_buffer =
         Core::Data::cast<key_type>(allocation.ptr + slot_offset(buckets));
     for (Count bucket_index = 0; bucket_index < buckets; bucket_index++) {
@@ -316,19 +317,19 @@ class Set {
   }
 
   static constexpr auto slot_offset(Count buckets) -> Count {
-    return Core::Data::align<alignof(key_type)>(sizeof(Bits_32) * buckets);
+    return Core::Data::align<alignof(key_type)>(sizeof(Unsigned_32) * buckets);
   }
 
-  constexpr auto extract_bucket_index(Bits_32 hash) const -> Count {
+  constexpr auto extract_bucket_index(Unsigned_32 hash) const -> Count {
     return hash & (buffer_data.bucket_count - 1);
   }
 
-  static constexpr auto extract_bucket_key(Bits_32 hash) -> Bits_32 {
-    return hash | Bits_32(0x80000000);
+  static constexpr auto extract_bucket_key(Unsigned_32 hash) -> Unsigned_32 {
+    return hash | Unsigned_32(0x80000000);
   }
 
-  static auto get_hash(const key_type& key) -> Bits_32 {
-    return Bits_32(Core::Hash(key).get_value());
+  static auto get_hash(const key_type& key) -> Unsigned_32 {
+    return Unsigned_32(Core::Hash(key).get_value());
   }
 
   BufferData buffer_data;

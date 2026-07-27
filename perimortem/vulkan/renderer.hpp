@@ -20,18 +20,18 @@ class Renderer {
   // begin_frame() and end_frame().
   struct Frame {
     VkCommandBuffer command_buffer = VK_NULL_HANDLE;
-    Bits_32 width = 0;
-    Bits_32 height = 0;
+    Unsigned_32 width = 0;
+    Unsigned_32 height = 0;
     Count frame_index = 0;
-    Bits_32 image_index = 0;
+    Unsigned_32 image_index = 0;
   };
 
 #ifdef PERI_LINUX
   Renderer(
       wl_display* display,
       wl_surface* surface,
-      Bits_32 width,
-      Bits_32 height);
+      Unsigned_32 width,
+      Unsigned_32 height);
 #endif
   ~Renderer();
   Renderer(const Renderer&) = delete;
@@ -39,13 +39,13 @@ class Renderer {
 
   // Rebuilds the swapchain for a new physical extent and reports whether its
   // color format changed, which requires Graphics pipelines to be rebuilt.
-  auto resize(Bits_32 width, Bits_32 height) -> Bool;
+  auto resize(Unsigned_32 width, Unsigned_32 height) -> Bool;
   auto begin_frame(Frame& frame) -> Bool;
   auto end_frame(const Frame& frame) -> void;
   auto wait_idle() -> void;
 
-  auto get_width() const -> Bits_32;
-  auto get_height() const -> Bits_32;
+  auto get_width() const -> Unsigned_32;
+  auto get_height() const -> Unsigned_32;
   auto get_context() const -> const Context&;
   auto get_swapchain() const -> const Swapchain&;
 

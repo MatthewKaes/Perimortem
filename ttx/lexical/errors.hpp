@@ -9,7 +9,6 @@
 #include "perimortem/memory/allocator/arena.hpp"
 #include "perimortem/memory/managed/vector.hpp"
 
-#include "ttx/lexical/source.hpp"
 #include "ttx/lexical/token.hpp"
 
 namespace Ttx::Lexical {
@@ -23,126 +22,114 @@ namespace Ttx::Lexical {
 // lifetime.
 class Errors {
  public:
-  // An error in some source-related context.
-  class Error {
-   public:
-    Error() = default;
-    // Generates a generic error about the source with no logical position.
-    Error(
-        Perimortem::Core::View::Bytes source_path,
-        Perimortem::Core::View::Bytes source,
-        Perimortem::Core::View::Bytes message,
-        Perimortem::Core::View::Bytes hint = Perimortem::Core::View::Bytes())
-        : source_path(source_path),
-          source(source),
-          message(message),
-          hint(hint),
-          start_token(nullptr),
-          end_token(nullptr) {}
-
-    // Creates an error localized to a singular token.
-    Error(
-        const Lexical::Token& token,
-        Perimortem::Core::View::Bytes source_path,
-        Perimortem::Core::View::Bytes source,
-        Perimortem::Core::View::Bytes message,
-        Perimortem::Core::View::Bytes hint = Perimortem::Core::View::Bytes())
-        : source_path(source_path),
-          source(source),
-          message(message),
-          hint(hint),
-          start_token(&token),
-          end_token(nullptr) {}
-
-    // Creates an error that highlights a range of tokens for issues that cross
-    // multiple tokens such as an expression.
-    Error(
-        const Lexical::Token& start_token,
-        const Lexical::Token& end_token,
-        Perimortem::Core::View::Bytes source_path,
-        Perimortem::Core::View::Bytes source,
-        Perimortem::Core::View::Bytes message,
-        Perimortem::Core::View::Bytes hint = Perimortem::Core::View::Bytes())
-        : source_path(source_path),
-          source(source),
-          message(message),
-          hint(hint),
-          start_token(&start_token),
-          end_token(&end_token) {}
-
-    constexpr auto get_source_path() const -> Perimortem::Core::View::Bytes {
-      return source_path;
-    }
-
-    constexpr auto get_source() const -> Perimortem::Core::View::Bytes {
-      return source;
-    }
-
-    constexpr auto get_start_token() const -> const Lexical::Token* {
-      return start_token;
-    }
-
-    constexpr auto get_end_token() const -> const Lexical::Token* {
-      return end_token;
-    }
-
-    constexpr auto get_message() const -> Perimortem::Core::View::Bytes {
-      return message;
-    }
-
-    constexpr auto get_hint() const -> Perimortem::Core::View::Bytes {
-      return hint;
-    }
-
-    constexpr auto is_empty() const -> Bool { return message.is_empty(); }
-
-   private:
-    Perimortem::Core::View::Bytes source_path;
-    Perimortem::Core::View::Bytes source;
-    Perimortem::Core::View::Bytes message;
-    Perimortem::Core::View::Bytes hint;
-    const Lexical::Token* start_token = nullptr;
-    const Lexical::Token* end_token = nullptr;
-  };
-
-  explicit Errors(Perimortem::Memory::Allocator::Arena& arena)
-      : errors(arena) {}
+  Errors() : source_map(arena), errors(arena) {}
   Errors(const Errors&) = delete;
   Errors(Errors&&) = delete;
 
-  auto insert(const Error& error) -> void;
-  auto insert(
-      Source source,
-      Perimortem::Core::View::Bytes message,
-      Perimortem::Core::View::Bytes hint = Perimortem::Core::View::Bytes())
-      -> void;
-  auto insert(
-      const Token& token,
-      Source source,
-      Perimortem::Core::View::Bytes message,
-      Perimortem::Core::View::Bytes hint = Perimortem::Core::View::Bytes())
-      -> void;
-  auto insert_range(
-      const Token& start,
-      const Token& end,
-      Source source,
-      Perimortem::Core::View::Bytes message,
-      Perimortem::Core::View::Bytes hint = Perimortem::Core::View::Bytes())
-      -> void;
+  // Sets the context for errors
+  constexpr auto set_source_context(
+      Perimortem::Core::View::Bytes name,
+      Perimortem::Core::View::Bytes text) -> void {
+    proxied_context = false;
+    current_context.name = name;
+    current_context.text = text;
+  }
 
-  constexpr auto has_errors() const -> Bool { return errors.get_size() != 0; }
-  constexpr auto is_empty() const -> Bool { return errors.is_empty(); }
+  // Ends the active source borrow after a parsing transaction. Diagnostics
+  // already copied their source snapshot and remain valid.
+  constexpr auto clear_source_context() -> void {
+    current_context.name = "<Unknown>"_view;
+    current_context.text = Perimortem::Core::View::Bytes();
+  }
+
+  // Creates an error that should have a message logged at the source level.
+  constexpr auto create_general_error(
+      Perimortem::Core::View::Bytes message,
+      Perimortem::Core::View::Bytes hint = Perimortem::Core::View::Bytes())
+      -> void {
+    create_token_error(Token(), message, hint);
+  }
+
+  // Creates an error associated with a single token.
+  constexpr auto create_token_error(
+      const Token token,
+      Perimortem::Core::View::Bytes message,
+      Perimortem::Core::View::Bytes hint = Perimortem::Core::View::Bytes())
+      -> void {
+    create_expression_error(token, token, message, hint);
+  }
+
+  // Creates an error associated with an expression which typically crosses
+  // multiple tokens.
+  //
+  // `end` can be set to any arbitrary token, however if it's set before `start`
+  // then it is clamped to start and a simple token error is created.
+  constexpr auto create_expression_error(
+      const Token start,
+      const Token end,
+      Perimortem::Core::View::Bytes message,
+      Perimortem::Core::View::Bytes hint = Perimortem::Core::View::Bytes())
+      -> void {
+    Error error;
+    error.message = arena.proxy(message);
+    error.hint = arena.proxy(hint);
+    error.start_token = start;
+    error.end_token =
+        start.is_valid() &&
+                (!end.is_valid() || end.get_offset() < start.get_offset())
+            ? start
+            : end;
+
+    // Lazily persist the source data and only copy it if an error was
+    // generated.
+    if (!proxied_context) {
+      proxied_context = true;
+
+      Info new_mapping;
+      new_mapping.name = arena.proxy(current_context.name);
+      new_mapping.text = arena.proxy(current_context.text);
+      source_map.insert(new_mapping);
+    }
+
+    // Store the source map index that the error belongs too.
+    error.source_id = source_map.get_size() - 1;
+    errors.insert(error);
+  }
+
+  // Centeralized render logic for rendering error messages.
+  // Eventually can be moved out, but for now this keeps the logic local.
+  auto render_message(Perimortem::Memory::Allocator::Arena& arena, Count index)
+      const -> Perimortem::Core::View::Bytes;
+
+  constexpr auto is_empty() const -> Bool { return get_size() == 0; }
   constexpr auto get_size() const -> Count { return errors.get_size(); }
-  constexpr auto get_view() const -> Perimortem::Core::View::Vector<Error> {
-    return errors;
-  }
-
-  constexpr operator Perimortem::Core::View::Vector<Error>() const {
-    return get_view();
-  }
 
  private:
+  // Container for errors that let's us delay rendering of messages.
+  struct Error {
+    Perimortem::Core::View::Bytes message;
+    Perimortem::Core::View::Bytes hint;
+    Count source_id;
+    Token start_token;
+    Token end_token;
+  };
+
+  // Source info is copied into the error context lazily.
+  struct Info {
+    Perimortem::Core::View::Bytes name;
+    Perimortem::Core::View::Bytes text;
+  };
+
+  // Error generation is inherently the slow path so Errors owns the lifetime of
+  // any errors that it needs to own. While this does snag an entire Arena page
+  // even if not used, arena pages are the most standardized Bibliotheca block
+  // size so it's essentially free as long as a minimum number of Error context
+  // are live at any one time.
+  Perimortem::Memory::Allocator::Arena arena;
+  Perimortem::Memory::Managed::Vector<Info> source_map;
   Perimortem::Memory::Managed::Vector<Error> errors;
+  Info current_context = {"<Unknown>"_view, Perimortem::Core::View::Bytes()};
+  Bool proxied_context = false;
 };
 
 }  // namespace Ttx::Lexical

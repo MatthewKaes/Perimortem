@@ -93,7 +93,7 @@ PERIMORTEM_UNIT_TEST(DynamicSet, remove_collisions) {
    public:
     CollisionKey(Count value) : value(value) {}
 
-    constexpr auto hash() const -> Bits_64 { return 7; }
+    constexpr auto hash() const -> Unsigned_64 { return 7; }
     constexpr auto operator==(const CollisionKey& rhs) const -> Bool {
       return value == rhs.value;
     }
@@ -128,7 +128,7 @@ PERIMORTEM_UNIT_TEST(DynamicSet, remove_displacements) {
 
     // Tests can build exact probe chains because Core::Hash delegates to this
     // hook for custom key types.
-    constexpr auto hash() const -> Bits_64 { return home; }
+    constexpr auto hash() const -> Unsigned_64 { return home; }
     constexpr auto operator==(const ProbeKey& rhs) const -> Bool {
       return home == rhs.home && id == rhs.id;
     }
@@ -238,15 +238,15 @@ PERIMORTEM_UNIT_TEST(DynamicSet, pointer_keys) {
 
    private:
     Count id = 0;
-    Static::Vector<Bits_8, 512> payload;
+    Static::Vector<Unsigned_8, 512> payload;
   };
 
   class StableObjectKey {
    public:
     StableObjectKey(const StableObject* object) : object(object) {}
 
-    auto hash() const -> Bits_64 {
-      return Hash(Bits_64(reinterpret_cast<CppSize>(object))).get_value();
+    auto hash() const -> Unsigned_64 {
+      return Hash(Unsigned_64(reinterpret_cast<CppSize>(object))).get_value();
     }
 
     constexpr auto operator==(const StableObjectKey& rhs) const -> Bool {

@@ -43,8 +43,8 @@ const wl_registry_listener Platform::Wayland::Window::registry_listener = {
 };
 
 Platform::Wayland::Window::Window(
-    Bits_32 width,
-    Bits_32 height,
+    Unsigned_32 width,
+    Unsigned_32 height,
     const char* title) {
   initial_width = width;
   initial_height = height;
@@ -120,29 +120,31 @@ auto Platform::Wayland::Window::poll_events() -> Bool {
   }
 
   if (poll_result > 0 && (display_fd.revents & POLLIN) != 0) {
-    if (wl_display_read_events(display) < 0) {
+    int events_read = wl_display_read_events(display);
+    if (events_read < 0) {
       return False;
     }
   } else {
     wl_display_cancel_read(display);
   }
 
-  if (wl_display_dispatch_pending(display) < 0) {
+  int events_dispatched = wl_display_dispatch_pending(display);
+  if (events_dispatched < 0) {
     return False;
   }
 
   return !close_requested;
 }
 
-auto Platform::Wayland::Window::get_logical_width() const -> Bits_32 {
+auto Platform::Wayland::Window::get_logical_width() const -> Unsigned_32 {
   return logical_width;
 }
 
-auto Platform::Wayland::Window::get_logical_height() const -> Bits_32 {
+auto Platform::Wayland::Window::get_logical_height() const -> Unsigned_32 {
   return logical_height;
 }
 
-auto Platform::Wayland::Window::get_scale() const -> Bits_32 {
+auto Platform::Wayland::Window::get_scale() const -> Unsigned_32 {
   return scale;
 }
 
@@ -223,9 +225,9 @@ auto Platform::Wayland::Window::on_toplevel_configure(
     wl_array*) -> void {
   auto* window = static_cast<Platform::Wayland::Window*>(data);
   auto new_width =
-      width > 0 ? static_cast<Bits_32>(width) : window->initial_width;
+      width > 0 ? static_cast<Unsigned_32>(width) : window->initial_width;
   auto new_height =
-      height > 0 ? static_cast<Bits_32>(height) : window->initial_height;
+      height > 0 ? static_cast<Unsigned_32>(height) : window->initial_height;
   if (new_width != window->logical_width ||
       new_height != window->logical_height) {
     window->logical_width = new_width;
@@ -261,8 +263,8 @@ auto Platform::Wayland::Window::on_surface_preferred_buffer_scale(
     wl_surface*,
     int32_t factor) -> void {
   auto* window = static_cast<Platform::Wayland::Window*>(data);
-  if (static_cast<Bits_32>(factor) != window->scale) {
-    window->scale = static_cast<Bits_32>(factor);
+  if (static_cast<Unsigned_32>(factor) != window->scale) {
+    window->scale = static_cast<Unsigned_32>(factor);
     window->needs_resize = True;
   }
 }

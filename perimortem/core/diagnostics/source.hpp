@@ -47,17 +47,13 @@ struct Source {
   }
 
   constexpr Source() = default;
-  constexpr explicit Source(const std::source_location::__impl* impl)
-      : impl(impl) {}
+  constexpr Source(const std::source_location::__impl* impl) : impl(impl) {}
   constexpr Source(
       Core::View::Bytes file,
       Count line,
       Count column,
       Core::View::Bytes function = Core::View::Bytes())
-      : explicit_file(file),
-        explicit_function(function),
-        explicit_line(line),
-        explicit_column(column) {}
+      : file(file), function(function), line(line), column(column) {}
 
   auto is_set() const -> Bool;
   auto get_line() const -> Count;
@@ -67,10 +63,10 @@ struct Source {
 
  private:
   const std::source_location::__impl* impl = nullptr;
-  Core::View::Bytes explicit_file;
-  Core::View::Bytes explicit_function;
-  Count explicit_line = 0;
-  Count explicit_column = 0;
+  Core::View::Bytes file;
+  Core::View::Bytes function;
+  Count line = 0;
+  Count column = 0;
 };
 
 }  // namespace Perimortem::Core::Diagnostics

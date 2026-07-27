@@ -38,18 +38,18 @@
 
 #pragma once
 
-// Raw Data
-using Bits_8 = unsigned char;
-using Bits_16 = unsigned short int;
+// Unsigned Integers
+using Unsigned_8 = unsigned char;
+using Unsigned_16 = unsigned short int;
 // Legacy support for LP32
 #ifdef __LP32__
-using Bits_32 = unsigned long;
+using Unsigned_32 = unsigned long;
 #else
-using Bits_32 = unsigned int;
+using Unsigned_32 = unsigned int;
 #endif
-using Bits_64 = unsigned long long;
+using Unsigned_64 = unsigned long long;
 
-using Signed_8 = char;
+using Signed_8 = signed char;
 using Signed_16 = signed short int;
 // Legacy support for LP32
 #ifdef __LP32__
@@ -61,10 +61,9 @@ using Signed_64 = signed long long;
 
 using Real_32 = float;
 using Real_64 = double;
-using Real_128 = long double;
 
 // Definition for all used based types.
-using Count = Bits_64;
+using Count = Unsigned_64;
 
 // Cpp interop
 using CppSize = __SIZE_TYPE__;
@@ -74,7 +73,7 @@ using CppSize = __SIZE_TYPE__;
 // The C++ standard leaves it up to the compiler to define size of bool.
 // Make a type that will convert between values.
 //
-// This also specializes boolean operations so they don't alias Bits_8.
+// This also specializes boolean operations so they don't alias Unsigned_8.
 struct Bool {
   constexpr Bool() : value(false) {}
   constexpr Bool(bool value) : value(value) {}
@@ -102,7 +101,7 @@ struct Bool {
   }
 
   constexpr auto sign() const -> Signed_64 { return value ? 1 : -1; }
-  Bits_8 value;
+  Unsigned_8 value;
 };
 
 // True value that prevents implicit conversion to int.
@@ -111,17 +110,17 @@ constexpr Bool True = Bool(true);
 constexpr Bool False = Bool(false);
 
 // Ensure the data model is correct.
-static_assert(sizeof(Bits_8) == 1);
-static_assert(sizeof(Bits_16) == 2);
-static_assert(sizeof(Bits_32) == 4);
-static_assert(sizeof(Bits_64) == 8);
-static_assert(sizeof(Bits_8) == sizeof(Signed_8));
-static_assert(sizeof(Bits_16) == sizeof(Signed_16));
-static_assert(sizeof(Bits_32) == sizeof(Signed_32));
-static_assert(sizeof(Bits_64) == sizeof(Signed_64));
+static_assert(sizeof(Unsigned_8) == 1);
+static_assert(sizeof(Unsigned_16) == 2);
+static_assert(sizeof(Unsigned_32) == 4);
+static_assert(sizeof(Unsigned_64) == 8);
+static_assert(sizeof(Unsigned_8) == sizeof(Signed_8));
+static_assert(__is_same(Signed_8, signed char));
+static_assert(sizeof(Unsigned_16) == sizeof(Signed_16));
+static_assert(sizeof(Unsigned_32) == sizeof(Signed_32));
+static_assert(sizeof(Unsigned_64) == sizeof(Signed_64));
 static_assert(sizeof(Real_32) == 4);
 static_assert(sizeof(Real_64) == 8);
-static_assert(sizeof(Real_128) == 16);
 
 static_assert(sizeof(Bool) == 1);
 

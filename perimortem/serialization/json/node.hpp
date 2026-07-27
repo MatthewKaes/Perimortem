@@ -55,10 +55,10 @@ class Node {
   auto set(Bool value) -> void;
   auto set() -> void;
 
-  auto at(Bits_32 index) const -> const Node;
+  auto at(Unsigned_32 index) const -> const Node;
   auto at(const Core::View::Bytes name) const -> const Node;
 
-  auto operator[](Bits_32 index) const -> const Node;
+  auto operator[](Unsigned_32 index) const -> const Node;
   auto operator[](const Core::View::Bytes name) const -> const Node;
 
   auto contains(const Core::View::Bytes name) const -> Bool;
@@ -108,8 +108,6 @@ class Node {
   auto format(Memory::Allocator::Arena& arena) const -> Core::View::Bytes;
 
  private:
-  auto serialized_size() const -> Count;
-
   // Node deliberately packs its scalar payload, range size, and state into 16
   // bytes. Static::Union would require separate storage for its tag and since
   // C++ can't unpack the struct it will tack it on to the end with padding.
@@ -120,8 +118,8 @@ class Node {
       Real_64 real;
       Bool flag;
     };
-    Bits_32 size;
-    Bits_32 state;
+    Unsigned_32 size;
+    Unsigned_32 state;
   } data;
 };
 

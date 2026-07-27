@@ -8,13 +8,13 @@ using namespace Perimortem::Memory;
 using namespace Tetrodotoxin::Linker;
 
 auto Linker::add_section(Object::Section::Type type, View::Bytes data)
-    -> Bits_16 {
+    -> Unsigned_16 {
   Dynamic::Object<Dynamic::Bytes> owned(data);
   section_data.insert(owned);
   return format.add_section({type, owned->get_view()});
 }
 
-auto Linker::add_section(Object::Section section) -> Bits_16 {
+auto Linker::add_section(Object::Section section) -> Unsigned_16 {
   return add_section(section.get_type(), section.get_data());
 }
 

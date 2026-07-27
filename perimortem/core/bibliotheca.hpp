@@ -19,7 +19,7 @@ namespace Perimortem::Core {
 //
 // For ideal performance threads should have stable allocation and deallocation
 // patterns but this isn't a hard requirement.
-class Bibliotheca final {
+class Bibliotheca {
  public:
   // The legal amount that algorithms are able to underwrite the allocated
   // buffer.
@@ -34,7 +34,7 @@ class Bibliotheca final {
   static constexpr auto legal_underwrite_size = 16;
 
   struct Allocation {
-    Bits_8* ptr;
+    Unsigned_8* ptr;
     Count capacity;
   };
 
@@ -42,15 +42,15 @@ class Bibliotheca final {
   static auto check_out(Count requested_bytes) -> Allocation;
 
   // Adds a reservation to the block.
-  static auto reserve(Bits_8* entry) -> Count;
+  static auto reserve(Unsigned_8* entry) -> Count;
 
   // Returns the number of active reservations on the block.
-  static auto reservation_count(Bits_8* entry) -> Count;
+  static auto reservation_count(Unsigned_8* entry) -> Count;
 
   // Removes a reservation from the block.
   // If the number of reservations is zero then the block is checked in to the
   // Bibliotheca for future use.
-  static auto remit(Bits_8* entry) -> Count;
+  static auto remit(Unsigned_8* entry) -> Count;
 
   // Methods for analyzing the state of the Bibliotheca.
   static auto reserved_memory() -> Count;

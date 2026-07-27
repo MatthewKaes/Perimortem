@@ -10,16 +10,16 @@ using namespace Perimortem::Core;
 using namespace Perimortem;
 
 auto Compression::Huffman::compute_lengths(
-    View::Vector<Bits_32> frequencies,
-    Access::Vector<Bits_8> lengths) -> void {
+    View::Vector<Unsigned_32> frequencies,
+    Access::Vector<Unsigned_8> lengths) -> void {
   const Count symbol_count = frequencies.get_size();
   struct Node {
-    Bits_32 frequency;
-    Bits_16 parent;
-    Bits_16 symbol;
+    Unsigned_32 frequency;
+    Unsigned_16 parent;
+    Unsigned_16 symbol;
   };
 
-  constexpr Bits_16 null_node = 0xFFFF;
+  constexpr Unsigned_16 null_node = 0xFFFF;
   constexpr Count node_max = Compression::Huffman::max_symbol_count * 2;
 
   Static::Vector<Node, node_max> nodes;
@@ -28,7 +28,7 @@ auto Compression::Huffman::compute_lengths(
   for (Count s = 0; s < symbol_count; s++) {
     lengths[s] = 0;
     if (frequencies[s] > 0) {
-      nodes[node_count++] = {frequencies[s], null_node, Bits_16(s)};
+      nodes[node_count++] = {frequencies[s], null_node, Unsigned_16(s)};
       leaf_count++;
     }
   }
@@ -76,8 +76,8 @@ auto Compression::Huffman::compute_lengths(
     nodes[new_node] = {
       nodes[left_child].frequency + nodes[right_child].frequency, null_node,
       null_node};
-    nodes[left_child].parent = Bits_16(new_node);
-    nodes[right_child].parent = Bits_16(new_node);
+    nodes[left_child].parent = Unsigned_16(new_node);
+    nodes[right_child].parent = Unsigned_16(new_node);
   }
 
   // Phase 1: compute depths, clamp to max_code_bits, and build length counts.
@@ -100,7 +100,7 @@ auto Compression::Huffman::compute_lengths(
     }
 
     codes_per_length[depth]++;
-    lengths[nodes[i].symbol] = Bits_8(depth);
+    lengths[nodes[i].symbol] = Unsigned_8(depth);
   }
 
   // Phase 2: restore Kraft equality if clamping over-committed the prefix code.
@@ -138,7 +138,7 @@ auto Compression::Huffman::compute_lengths(
     Count assign_index = leaf_count;
     for (Count bits = 1; bits <= max_code_bits; bits++) {
       for (Count i = 0; i < codes_per_length[bits]; i++) {
-        lengths[nodes[--assign_index].symbol] = Bits_8(bits);
+        lengths[nodes[--assign_index].symbol] = Unsigned_8(bits);
       }
     }
   }

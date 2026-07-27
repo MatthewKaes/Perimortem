@@ -89,7 +89,7 @@ class Vector {
   auto reset() -> void {
     if (source_block) {
       destruct();
-      Core::Bibliotheca::remit((Bits_8*)source_block);
+      Core::Bibliotheca::remit((Unsigned_8*)source_block);
     }
 
     size = 0;
@@ -171,7 +171,7 @@ class Vector {
     }
 
     if (source_block) {
-      Core::Bibliotheca::remit((Bits_8*)source_block);
+      Core::Bibliotheca::remit((Unsigned_8*)source_block);
     }
 
     auto alloc = Core::Bibliotheca::check_out(required_size * sizeof(type));
@@ -247,7 +247,7 @@ class Vector {
         destruct();
       }
 
-      Core::Bibliotheca::remit((Bits_8*)source_block);
+      Core::Bibliotheca::remit((Unsigned_8*)source_block);
     }
 
     // Update block and get the new capacity.

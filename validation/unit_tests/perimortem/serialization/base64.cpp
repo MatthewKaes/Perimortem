@@ -47,17 +47,20 @@ PERIMORTEM_UNIT_TEST(SerializationBase64, decode_simple) {
   EXPECT_EQ(Bibliotheca::check_out_requests(), start_requests + 1);
 }
 
-PERIMORTEM_UNIT_TEST(SerializationBase64, decode_vectorized) {
+PERIMORTEM_UNIT_TEST(SerializationBase64, decode_vectorized_image) {
   auto start_requests = Bibliotheca::check_out_requests();
-  auto source = File::read("validation/data/ttx/png.ttx"_view);
-  auto base64 = File::read("validation/data/base64/png.base64"_view);
+  auto source = File::read("validation/data/pngs/perimortem_icon.png"_view);
+  auto base64 =
+      File::read("validation/data/base64/perimortem_icon.base64"_view);
   ASSERT(!source.is_empty());
   ASSERT(!base64.is_empty());
+  ASSERT(base64.get_view()[base64.get_size() - 1] == '\n');
+  const View::Bytes encoded = base64.get_view().slice(0, base64.get_size() - 1);
 
-  // If you touch the source input, regenerate its base64 output or this test
-  // will fail.
-  const auto decoded_bytes = Base64::decode(base64);
-  EXPECT_TEXT(decoded_bytes.get_view(), source.get_view());
+  // This binary fixture is independent of the evolving TTX source grammar.
+  // Regenerate the golden encoding only when intentionally replacing the PNG.
+  const auto decoded_bytes = Base64::decode(encoded);
+  EXPECT(decoded_bytes.get_view() == source.get_view());
 
   // Should only perform 3 allocations:
   // 2 file reads + 1 decode
@@ -84,23 +87,26 @@ PERIMORTEM_UNIT_TEST(SerializationBase64, encode_simple) {
   EXPECT_TEXT(encoded_bytes.get_view(), encoded);
 
   // Should only perform 1 allocations:
-  // 1 decode
+  // 1 encode
   EXPECT_EQ(Bibliotheca::check_out_requests(), start_requests + 1);
 }
 
-PERIMORTEM_UNIT_TEST(SerializationBase64, encode_vectorized) {
+PERIMORTEM_UNIT_TEST(SerializationBase64, encode_vectorized_image) {
   auto start_requests = Bibliotheca::check_out_requests();
-  auto source = File::read("validation/data/ttx/png.ttx"_view);
-  auto base64 = File::read("validation/data/base64/png.base64"_view);
+  auto source = File::read("validation/data/pngs/perimortem_icon.png"_view);
+  auto base64 =
+      File::read("validation/data/base64/perimortem_icon.base64"_view);
   ASSERT(!source.is_empty());
   ASSERT(!base64.is_empty());
+  ASSERT(base64.get_view()[base64.get_size() - 1] == '\n');
+  const View::Bytes encoded = base64.get_view().slice(0, base64.get_size() - 1);
 
-  // If you touch the source input, regenerate its base64 output or this test
-  // will fail.
+  // This binary fixture is independent of the evolving TTX source grammar.
+  // Regenerate the golden encoding only when intentionally replacing the PNG.
   const auto encoded_bytes = Base64::encode(source.get_view());
-  EXPECT_TEXT(encoded_bytes.get_view(), base64.get_view());
+  EXPECT_TEXT(encoded_bytes.get_view(), encoded);
 
   // Should only perform 3 allocations:
-  // 2 file reads + 1 decode
+  // 2 file reads + 1 encode
   EXPECT_EQ(Bibliotheca::check_out_requests(), start_requests + 3);
 }

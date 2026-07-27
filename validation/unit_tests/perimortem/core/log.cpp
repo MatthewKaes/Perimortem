@@ -65,7 +65,7 @@ auto has_valid_header(View::Bytes entry) -> Bool {
   }
 
   // Validate all number values
-  const Bits_8* b = entry.get_data() + 2;
+  const Unsigned_8* b = entry.get_data() + 2;
   if (b[2] != ':' || b[5] != ':' || b[8] != '.') {
     return false;
   }
@@ -119,7 +119,7 @@ PERIMORTEM_UNIT_TEST(DiagnosticsLog, newline_terminator) {
   Diagnostics::Log::info("newline test"_view);
   View::Bytes entry = last_entry();
   ASSERT(entry.get_size() > 0);
-  EXPECT_EQ(entry[entry.get_size() - 1], Bits_8('\n'));
+  EXPECT_EQ(entry[entry.get_size() - 1], Unsigned_8('\n'));
 }
 
 PERIMORTEM_UNIT_TEST(DiagnosticsLog, source_location) {
@@ -152,7 +152,7 @@ PERIMORTEM_UNIT_TEST(DiagnosticsLog, message_raii_guard) {
 
   {
     Diagnostics::Log::Message<64> message(Diagnostics::Log::Level::Info);
-    message << "builder emitted value="_view << Bits_32(42);
+    message << "builder emitted value="_view << Unsigned_32(42);
     EXPECT_EQ(total_events, events_before);
   }
 

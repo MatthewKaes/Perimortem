@@ -1,0 +1,5 @@
+dialect : Library;
+
+Library legacy[] -> Void {
+  return Void;
+}

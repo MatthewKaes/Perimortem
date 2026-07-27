@@ -13,13 +13,13 @@ namespace Tetrodotoxin::Linker::Object {
 // reference.
 class Relocation {
  public:
-  enum class Type : Bits_8 {
+  enum class Type : Unsigned_8 {
     Pc32,
     Plt32,
   };
 
   static constexpr auto create_pc32(
-      Bits_16 section_index,
+      Unsigned_16 section_index,
       Count symbol_index,
       Count code_offset) -> Relocation {
     return Relocation(
@@ -27,14 +27,16 @@ class Relocation {
   }
 
   static constexpr auto create_plt32(
-      Bits_16 section_index,
+      Unsigned_16 section_index,
       Count symbol_index,
       Count code_offset) -> Relocation {
     return Relocation(
         section_index, symbol_index, code_offset - 4, Type::Plt32, -4);
   }
 
-  constexpr auto get_section_index() const -> Bits_16 { return section_index; }
+  constexpr auto get_section_index() const -> Unsigned_16 {
+    return section_index;
+  }
   constexpr auto get_symbol() const -> Count { return symbol; }
   constexpr auto get_offset() const -> Count { return offset; }
   constexpr auto get_type() const -> Type { return type; }
@@ -42,7 +44,7 @@ class Relocation {
 
  private:
   constexpr Relocation(
-      Bits_16 section_index,
+      Unsigned_16 section_index,
       Count symbol,
       Count offset,
       Type type,
@@ -53,7 +55,7 @@ class Relocation {
         type(type),
         addend(addend) {}
 
-  Bits_16 section_index = 0;
+  Unsigned_16 section_index = 0;
   Count symbol = 0;
   Count offset = 0;
   Type type = Type::Pc32;

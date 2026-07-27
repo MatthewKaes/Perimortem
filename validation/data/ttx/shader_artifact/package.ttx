@@ -1,0 +1,6 @@
+// Perimortem Engine
+// Copyright © Matt Kaes
+dialect : Package;
+
+source Formats = "render.ttx";
+source "shader.ttx";

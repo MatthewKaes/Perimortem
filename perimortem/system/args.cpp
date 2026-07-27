@@ -32,7 +32,7 @@ static auto basename(View::Bytes path) -> View::Bytes {
 
 static auto process_name() -> View::Bytes {
 #ifdef PERI_LINUX
-  static Bits_8 path_buffer[512];
+  static Unsigned_8 path_buffer[512];
   Signed_64 size = readlink(
       "/proc/self/exe", Data::cast<char>(path_buffer), sizeof(path_buffer));
   if (size > 0) {
@@ -90,13 +90,13 @@ static auto format_help(
 
     output.concat("  -"_view);
     output.concat(variable->key);
-    output.append(Bits_8(' '), label_width - variable->key.get_size() - 1);
+    output.append(Unsigned_8(' '), label_width - variable->key.get_size() - 1);
     output.concat(variable->value);
     output.append('\n');
   }
 
   output.concat("  -help"_view);
-  output.append(Bits_8(' '), label_width - "-help"_view.get_size());
+  output.append(Unsigned_8(' '), label_width - "-help"_view.get_size());
   output.concat("Show this help.\n"_view);
   return output;
 }

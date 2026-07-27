@@ -1,7 +1,7 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
-// Should only be included in cpp files — including this in a header would
+// This should only be included in cpp files. Including it in a header would
 // pull source location machinery into every translation unit that includes it.
 
 #include "perimortem/core/view/bytes.hpp"
@@ -15,7 +15,7 @@ namespace Perimortem::Core::Diagnostics {
 
 class Log {
  public:
-  enum class Level : Bits_8 {
+  enum class Level : Unsigned_8 {
     Debug,
     Info,
     Warning,

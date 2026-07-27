@@ -76,8 +76,8 @@ auto Vulkan::Texture::create(
   Vulkan::Texture texture;
   texture.device = ctx.get_device();
 
-  const Bits_32 width = source.get_width();
-  const Bits_32 height = source.get_height();
+  const Unsigned_32 width = source.get_width();
+  const Unsigned_32 height = source.get_height();
   const VkDeviceSize image_size =
       VkDeviceSize(width) * height * Graphics::Pixel::get_byte_count();
 
@@ -116,7 +116,7 @@ auto Vulkan::Texture::create(
   // VK_FORMAT_R8G8B8A8_SRGB, so upload does not need a channel shuffle.
   const auto source_bytes = pixels.get_bytes();
   Core::Access::Bytes destination_bytes(
-      Core::Data::cast<Bits_8>(mapped), Count(image_size));
+      Core::Data::cast<Unsigned_8>(mapped), Count(image_size));
   for (Count i = 0; i < source_bytes.get_size(); i++) {
     destination_bytes[i] = source_bytes[i];
   }

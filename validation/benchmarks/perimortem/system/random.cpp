@@ -24,7 +24,7 @@ static Harness SystemRandom = {
 
 PERIMORTEM_BENCHMARK(SystemRandom, generate_1024) {
   // Throughput benchmark: 1024 Philox-derived 64-bit values.
-  Bits_64 accumulator = 0;
+  Unsigned_64 accumulator = 0;
   for (Count batch_index = 0; batch_index < random_batch; batch_index++) {
     accumulator ^= Random::generate();
   }
@@ -34,7 +34,7 @@ PERIMORTEM_BENCHMARK(SystemRandom, generate_1024) {
 
 PERIMORTEM_BENCHMARK(SystemRandom, read_entropy) {
   // Single OS entropy read to measure the syscall overhead vs Philox.
-  Bits_64 accumulator = 0;
+  Unsigned_64 accumulator = 0;
   for (Count batch_index = 0; batch_index < random_batch; batch_index++) {
     accumulator ^= Random::read_entropy();
   }
@@ -46,9 +46,9 @@ PERIMORTEM_BENCHMARK(SystemRandom, read_entropy) {
 
 auto cpp_mt19937_generate() -> void {
   thread_local static std::mt19937_64 rng(std::random_device{}());
-  Bits_64 accumulator = 0;
+  Unsigned_64 accumulator = 0;
   for (Count batch_index = 0; batch_index < random_batch; batch_index++) {
-    accumulator ^= Bits_64(rng());
+    accumulator ^= Unsigned_64(rng());
   }
 
   Benchmark::prevent_optimization(accumulator);
@@ -59,9 +59,9 @@ auto cpp_random_device_read() -> void {
   // iteration to match the entropy we generate from Philox. Over the 1024 calls
   // we still get the same relative throughput measurement.
   static std::random_device rd;
-  Bits_64 accumulator = 0;
+  Unsigned_64 accumulator = 0;
   for (Count batch_index = 0; batch_index < random_batch; batch_index++) {
-    accumulator ^= Bits_64(rd()) << 32 | Bits_64(rd());
+    accumulator ^= Unsigned_64(rd()) << 32 | Unsigned_64(rd());
   }
 
   Benchmark::prevent_optimization(accumulator);

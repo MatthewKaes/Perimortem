@@ -1,0 +1,9 @@
+dialect : Library;
+
+public func reveal[] -> Hidden {
+  return (.value = 0);
+}
+
+private Hidden : struct {
+  public value : Unsigned_64 = 0;
+}

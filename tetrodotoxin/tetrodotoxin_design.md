@@ -1,177 +1,364 @@
 # Tetrodotoxin Design
 
-Tetrodotoxin is the VM and toolchain host for TTX source IR. TTX supplies the
-human-authored source format, token bytecode, and shared Type and Layout model.
-Tetrodotoxin decides which instruction sets execute that bytecode and which
-terminal artifacts are emitted. Puffer, as Tetrodotoxin's command-line host,
-owns complete source-file preambles, source loading, package resolution, and the
-source cache.
+Tetrodotoxin is the concrete host for TTX. This document connects its owner
+boundaries without copying the shared TTX graph into one model per source
+Dialect.
 
-TTX does not have a canonical ISA or canonical ISA set. A host can install
-whatever ISAs it understands. Puffer's standard composition installs the body
-ISAs used by Perimortem: Package, Library, Shader, Render, and future authoring
-spaces as they become real. Puffer owns Boot as its source-file preamble ISA.
+TTX owns lexical bytecode and the target independent semantic contracts
+specified by `ttx/ttx_semantics.md`. Tetrodotoxin owns Source lifetime,
+Environment construction, concrete grammar, filesystem policy, generators,
+runtime policy, and durable products.
 
-## Boot
+## Owner graph
 
-Boot is Puffer's preamble ISA for complete TTX source files. It is called
-directly by systems that know they are starting from a full source file. It is
-not a selectable body ISA in the regular `Isa::Registry`.
+The foundational dependencies are:
 
-Boot has an intentionally small instruction set:
+```text
+Language ----\
+Environment ---> TTX -> Perimortem
+Library -----/
 
-- read source documentation
-- execute the `dialect : Name;` instruction
-- collect imports
-- validate that requested ISA names exist in the active body ISA registry
+Package -> Language
+```
 
-That is the minimum preamble Puffer needs to attach source bytes to the VM
-model. Boot does not own package loading, type binding, lowering, or backend
-output. It leaves the cursor positioned at the body bytecode so resolution and
-the selected body ISA can continue the execution.
+Language knows no concrete Dialect. It owns source lifetime and universal
+envelope parsing only.
 
-## ISA Registry
+Environment owns the semantic Workspace and Namespace used while completed
+Sources are connected. Its eventual Graph will finalize those roots, resolved
+Packages, and selected product roots.
 
-An ISA is an executable semantic instruction set for a TTX token stream. The
-lexer has already assigned each token a bytecode class, but the ISA decides how
-many tokens to fetch, what instruction shape those tokens form, and which TTX
-facts to publish.
+Package owns one authored Package root, confined package reads, and durable
+Package products. It supplies inputs to Environment without owning the semantic
+Graph.
 
-The registry is contextual. A CLI, LSP, test harness, embedded runtime, or
-package-local resolver can each install the ISAs it intends to support. The name
-in the source `dialect` instruction is therefore not a global enum. It is a
-lookup in the active `Isa::Registry`.
+Library owns Library grammar and the reusable CPU compilation path. It consumes
+shared TTX identities and completed Environment facts rather than owning a
+second Type model.
 
-## Puffer Resolution
+The first concrete Library Source parser adds `Library -> Language`. A direct
+Environment dependency is added when Library construction or compilation
+consumes that owner.
 
-The resolver is not an ISA. It is the source loading and cache-validity layer
-between Puffer Boot and the selected body ISA.
+The intended product direction is:
 
-After Puffer Boot evaluates the preamble, resolution loads the requested import
-closure, resolves packages, checks imported source files declare the expected
-ISA, and binds each import to the local name written in source. Once imports are
-available, the resolver dispatches the remaining bytecode to the selected body
-ISA with those imports in context.
+```text
+Package::Workspace confined bytes
+        |
+        v
+Language::Source owners
+        |
+        v
+concrete Package, Library, App, Scene, Render, and Shader roots
+        |
+        v
+Environment Namespace and future Graph finalization
+        |
+        v
+App planning + Library compiler + Linker + Shader + other generators
+        |
+        v
+opaque graph and terminal entries + Package::Manifest
+        |
+        v
+Package::Distribution -> Package::Writer -> format 1 archive
+                                              |
+                                              v
+                                  Package::Reader
+                                              |
+                                              v
+                               validated Distribution
+                                              |
+                                              v
+                           future source free graph restoration
+```
 
-Boot's authored ISA name is resolved once to an installed `Isa::Dialect`.
-Unpublished source records progressively build their arena-backed facts, then
-attach that semantic dialect, imports, and root Type before entering the cache.
-The cache rejects incomplete records. File imports are limited by the
-resolver's compact project-root table; compiled packages use the separate
-package repository rather than carrying filesystem roots on every record.
+No component reconciles competing semantic models. A concrete parser
+constructs its real root. Environment connects those roots through real TTX
+identities. Generators consume the finalized result. Package validates and
+transports Manifest and Entry values without learning the representation
+inside opaque entries.
 
-The resolver also owns cache safety. TTX facts use address identity. If a
-producer source is removed or republished, every consumer that may point into
-the producer's arena must leave the cache or execute again. That dependency
-graph is a Tetrodotoxin concern, not a TTX language feature.
+The finalized graph, graph codec, Distribution construction, archive codec,
+and functional Reader and Writer are not implemented.
 
-## Packages
+## Universal Source transaction
 
-Packages are Tetrodotoxin's module boundary. A package source is evaluated by
-the Package ISA and can expose package exports as TTX facts. Private files under
-the package subtree are not imported directly by outside source. Outside source
-imports the package by name, then queries exported types through the package
-surface.
+`Language::Source` is one immutable source lifetime owner. It is not a TTX
+Abstract and does not imitate semantic resolution.
 
-Built-in standard package sources live under `tetrodotoxin/standard`. They are
-resolved by public package name, not by asking user source to import their
-private files. This keeps the standard TTX ABI layer distinct from the current
-C++ engine implementation while the graphics/runtime stack is not fully
-self-hosted.
+Source owns, in destruction safe order:
 
-Package-local resolution can use its own resolver graph. That keeps private
-package files, package imports, and cache invalidation local to the package
-while still allowing package dependencies to become explicit edges in the outer
-source graph.
+1. one Arena;
+2. one copy of the diagnostic path;
+3. one copy of the authored text;
+4. one Tokenizer over that owned text;
+5. one concrete Abstract root produced in its Arena.
 
-## Body ISAs
+Construction is one static transaction:
 
-After Puffer Boot and resolution, the selected body ISA executes the rest of the
-token bytecode. A Package ISA can publish package exports. A Library ISA can
-publish types, functions, and host-code facts. Shader and Render ISAs can publish
-stage, layout, binding, and lowering facts.
+```text
+Language::Source::parse(
+  text,
+  path,
+  borrowed map<exact Dialect name, static parse function>,
+  errors)
+```
 
-Those ISAs are sometimes dialect-like authoring spaces, but their job is more
-specific than parsing. They are executable state machines over TTX token
-bytecode that enrich the shared TTX model with facts owned by that authoring
-space.
+The transaction consumes:
 
-`Isa::Base` is the composable instruction layer used by those body ISAs. It
-owns shared authored forms such as documentation, attributes, declarations,
-layouts, expressions, and the typed publication context. Base is not a
-registry-selectable body dialect and does not define a generic block or
-statement. Library, Shader, Scene, App, and future ISAs own those bodies and
-publish their concrete data against stable TTX identities.
+```text
+zero or more opening comment lines
+dialect : Type;
+concrete Dialect body
+end of document
+```
 
-## Outputs
+It greedily creates opening Documentation, looks up the exact Dialect name,
+calls the selected static parser with the same forward Cursor, and accepts the
+result only when:
 
-An ISA owns the meaning of its bodies and lowers that meaning into a compiler
-execution interface. Library emits typed operands, calls, returns, and ordered
-operations into `Compiler::Execution::Program`; it never names a register or
-assembler. The backend supplied to the Puffer compilation transaction assigns
-physical locations, implements the ABI, encodes instructions, and publishes
-linker facts. Puffer currently selects x86-64 System V for host compilation.
+1. the parser returns one real Abstract root;
+2. the parser consumes the complete body;
+3. the transaction adds no diagnostic.
 
-Foreign is a child dialect invoked by Library at the foreign declaration
-boundary. It publishes concrete `Compiler::Linkage` values for the functions it
-produces. Library consumes the same linkage shape for Foreign functions,
-another Library module, or a restored package without branching on the
-producer dialect.
+Source copies caller text before tokenization. The Cursor, parser map, token
+position, and diagnostic borrow do not survive construction. The completed
+Source keeps the Tokenizer because Tokens and source projections borrow its
+owned stream.
 
-Shader still owns stage and render-contract meaning. Its SPIR-V state machine
-is the next backend boundary to project through a typed graphics execution
-interface. The produced modules already cross into `Compiler::Engine` as named
-read-only data ranges, so Shader no longer sees linker sections or object
-symbols; direct SPIR-V assembly inside Shader remains the temporary boundary.
+There is no Dialect base class, Frontend object, parser inheritance, separate
+Container, second tokenization pass, callback registry, generic definition
+index, or parser bookmark. The compiled toolchain constructs the parser map and
+keeps it alive only for the call.
 
-## Application runtime boundary
+The current static parser signature supplies the Cursor and opening
+Documentation. No generic context object is approved. A future concrete parser
+that proves it needs another capability must first place that capability on its
+real owner without moving Library or Package policy into Language.
 
-App and Scene are host-execution ISAs. Puffer resolves and compiles their
-sources, but the resulting application runtime is not a Puffer-owned graphics
-model. The runtime owns scene storage and lifecycle, receives a Graphics
-presentation target, and submits Render-typed scene values through the
-language-neutral Graphics interface.
+## Concrete Source roots
 
-Render and Shader contribute different facts to that interface. Render owns the
-value layout, constants, push constants, resources, and stage contracts. Shader
-owns an implementation of those stages and may contribute GPU modules such as
-SPIR-V. Terminal lowering must preserve their TTX identities and emit compiled
-layout projections so runtime code can bind value storage by offsets and ranges
-rather than rediscovering fields by name.
+Each selected parser constructs one concrete Abstract root in the Source Arena.
+That root owns its Dialect semantics and resolution behavior.
 
-Scene lowering can then identify members whose canonical types are Render
-contracts and publish where those values live in scene storage. A compiled C++
-application, a Puffer-hosted application, or another language host can feed the
-same frame transaction to Graphics because the transaction contains data,
-resource handles, and compiled program identity rather than C++ scene or sprite
-objects.
+Package currently provides:
 
-A Shader implementing a Render contract does not by itself select that Shader
-for every value of the contract. That selection must be an explicit package or
-application fact before executable App lowering is complete. Export names such
-as `Default2D` are discoverable names, not runtime binding policy.
+```text
+Package::Language::Dependency
+Package::Language::Source
+Package::Language::Parser::parse
+```
 
-Graphics owns resource lifetime and frame scheduling. Vulkan consumes the
-compiled Graphics transaction and owns only Vulkan devices, swapchains,
-pipelines, images, commands, and synchronization. Vulkan must not depend on TTX
-or introduce frontend concepts such as Scene, Render2D, or Sprite.
+The Package root retains opening Documentation, exact dependency requests, and
+normalized member routes. It retains no filesystem handle, parser state,
+opened member Source, resolved graph, or archive record.
 
-`Puffer::Compiler` dispatches only lowerers installed by the active registry.
-`Isa::Lowering::Input` borrows the selected source facts, while
-`Isa::Lowering::Context` exposes the compiler and terminal-product sinks for
-that transaction. `Compiler::Engine` owns the Program, selected backend, and
-linker transaction. Archive and header builds return their products to the
-caller; Engine does not cache derived outputs. A lowerer can also publish an
-arbitrary group/path terminal whose bytes the Puffer transaction retains, so
-adding a backend output does not add another concrete compiler or orchestration
-layer.
-Package lowering is an explicit registry capability so an incomplete backend
-is not mistaken for a durable package producer.
+Future Library, App, Scene, Render, and Shader roots follow the same lifetime
+rule without inheriting from a common Source concept. Their shared identity
+surface is already `Ttx::Concept::Abstract`.
 
-Puffer Buffers use a fixed header and table directory so manifest, reference,
-package, and linkage reads can seek independently. The reader retains no
-decoded object or continuation state. A restored Package owns its Manifest as
-identity and dependency surface; the filesystem path used to register the
-buffer remains resolver diagnostic context. The complete durable object model,
-table grammar, and validation rules are documented in
-[`puffer/README.md`](puffer/README.md).
+## Library
+
+Library grammar constructs real TTX Type, Layout, Generic, Addressable, and
+Callable identities required by CPU source. `Library::Language` owns
+Expression, Binding, Projection, Constant, and typed Constant domains because
+Library defines their legality and value rules. Those contracts retain real
+TTX edges instead of copying the Type or Layout graph.
+
+The current Type parser consumes a real TTX resolution context and the
+Environment owned Generic materialization transaction. A complete Library
+Source root will retain its declarations and Bodies while publishing completed
+edges through Environment Namespace.
+
+Library compilation may lower completed CPU facts retained by a Library, App,
+or Scene owner without converting that owner into a Library Source, copied
+Namespace, or shadow Type graph.
+
+A complete Library Source root, declaration discovery transaction, Body model,
+and full Library parser remain unimplemented.
+
+## Package transaction
+
+The production authored entry is `package.ttx` beneath one confined package
+root. `main.ttx` is a filename convention only. A completed Package selects
+the sole App root.
+
+The implemented authored transaction is:
+
+```text
+Language::Source::parse
+-> Package::Language::Parser::parse
+-> Package::Language::Source
+```
+
+Dependency is a request for later exact package resolution, not the resolution
+itself. Member routes are normalized package relative values.
+
+The future assembly transaction is:
+
+```text
+pin one Package::Workspace
+-> read package.ttx through the pinned root
+-> parse one Language::Source with the Package parser map
+-> require a Package::Language::Source root
+-> resolve every exact Dependency
+-> read each declared member beneath its package root
+-> parse each member through the compiled parser map
+-> finalize every reachable concrete owner
+-> select the sole completed App root
+-> publish one Environment graph
+```
+
+Package Workspace owns filesystem confinement. Language Source owns text,
+tokens, allocation, and root lifetime. Environment coordinates completed
+roots. No separate source Container is inserted between those owners.
+
+## Finalization
+
+Mutable construction is private to each concrete semantic owner. Before
+compilation, graph encoding, or another immutable consumer begins, every owner
+must:
+
+1. complete each reachable required fact;
+2. seal every mutable lookup surface;
+3. validate public signatures and cross owner edges;
+4. reject Invalid from committed graph edges;
+5. derive durable coordinates only after semantic identity is stable.
+
+Failure may leave unreachable Arena allocation inside a private transaction,
+but it publishes no partial Source, graph, Distribution, or terminal product.
+Finalization walks semantic owners and never replays source Tokens.
+
+Source success commits only its complete local root. Cross Source binding and
+Package resolution occur after both participating roots exist, so a failed
+parse never requires rollback of another owner.
+
+## Embedded resources
+
+Every authored Source and embedded resource lives beneath one Package root.
+Another location is reachable only through an exact Package Dependency.
+
+The accepted spelling is Package root relative:
+
+```ttx
+const file_header : Fixed[Unsigned_8, 64] =
+  $[resources/table.bin]:[0, 64];
+```
+
+The eventual implementation must preserve these boundaries:
+
+1. the concrete Dialect recognizes the embedded operand and owns its source
+   diagnostic;
+2. Package Workspace performs the confined read against the same opened
+   package root;
+3. successful logical routes are deduplicated for the graph construction
+   transaction;
+4. empty files are valid byte values;
+5. read failure is an error and never becomes empty bytes;
+6. constant folding may retain only a reachable slice in terminal artifacts;
+7. no layer falls back to the process working directory or the containing
+   Source directory.
+
+The static parser interface currently has no resource capability input.
+Resource loading therefore remains unimplemented rather than being hidden
+behind a global, filesystem access in Language, or a generic context wrapper.
+
+## Concrete Dialects
+
+Tetrodotoxin source contracts live with their concrete owners:
+
+1. Package owns Dependency requests and member routes.
+2. Library owns reusable CPU Types, values, Callables, and compilation.
+3. Render owns render values, resources, and required Stage contracts.
+4. Shader owns exact Render implementation and Stage Bodies.
+5. App owns startup profile, platform entry, lifecycle, and transition policy.
+6. Scene owns reusable managed state, typed signals, and lifecycle roles.
+
+Foreign is embedded source syntax for CPU like Dialects. It is not a top level
+envelope and does not become a Package Dependency. `const`, `state`, and
+`func` distinguish imported read only symbols, addressable storage, and
+callables.
+
+Source order does not determine binding. A concrete Dialect may discover names
+before it completes definitions, initializers, and Bodies. Mutable objects keep
+stable identity during that transaction. Cursor positions and parser replay
+never stand in for unresolved semantic facts.
+
+## Compiler, Linker, and Package products
+
+Library owns the reusable CPU compilation path. It derives target records from
+completed TTX semantic and Library representation contracts. Target records may
+contain sizes, offsets, alignments, pointer forms, storage classes, interface
+coordinates, register classes, and ABI carriers. They are not semantic graph
+identities.
+
+Shader owns SPIR V representation and module emission. Shader generation and
+SPIR V compilation remain outside the current Library parser effort.
+
+Linker owns source independent objects, symbols, relocations, target formats,
+and System V archive construction. A stale caller does not make that machinery
+legacy.
+
+Package Distribution owns Manifest and Entry values. Writer encodes a
+Distribution. Reader validates a complete bounded Package format before
+publishing a Distribution. Package Reader and Writer never search source
+repositories, execute runtime objects, or retain a live semantic graph.
+
+The prototype has one mutable format numbered `1`. It requires no backwards
+compatibility before a released boundary.
+
+## App and Scene execution
+
+App owns one startup profile and one lifecycle policy. `Windowed`, `Terminal`,
+and `Headless` are App owned profiles rather than Runtime Package exports.
+Each selects support libraries, generated platform entry facts, and package
+configuration.
+
+Managed and Unmanaged lifecycle policies retain direct
+`Ttx::Model::Callables::Static` edges. The declaration name is irrelevant.
+
+Scene owns prepare, pause, resume, update, and release roles. App owns replace,
+push, pop, and exit transitions:
+
+```text
+push     pause current, prepare pushed
+pop      release current, resume prior
+replace  release current, prepare replacement
+exit     release current without resume
+```
+
+The Scene file is its Scene object. A Scene role such as
+`Scene prepare[self]` is a Self Callable assigned to that role.
+
+There is no Runtime Package. Linked support libraries, generated platform entry
+semantics, package configuration, and lifecycle code form process runtime
+behavior. Input is eventually queried through the graph resolved
+`Perimortem.System` edge. Scalar delta time is the only planned explicit
+nonreceiver update parameter.
+
+The canonical pressure fixture is
+[`../apps/ttx/scene_lifetime`](../apps/ttx/scene_lifetime/). A smaller Terminal
+App may establish generated entry, Library lowering, and Linker behavior first,
+but it does not replace the Scene lifecycle goal.
+
+## Evidence boundary
+
+Current code establishes the shared Comment parser, owning Source transaction,
+static Package parser, Package Source values, confined Package Workspace,
+shared TTX semantic contracts, Environment Namespace and Workspace, CPU and
+Shader instruction emitters, and source independent Linker machinery.
+
+That inventory does not prove:
+
+1. complete Library, Render, Shader, App, Scene, or Foreign parsing;
+2. a finalized Environment graph;
+3. Package assembly, Distribution, or archive orchestration;
+4. embedded resource loading, caching, or folding;
+5. CPU or Shader lowering from semantic facts;
+6. runtime or Graphics execution;
+7. source free restoration.
+
+Each component reports its own build and behavioral evidence. A fixture,
+tokenization result, README, target build, or test created beside an
+implementation is not an independent semantic oracle.

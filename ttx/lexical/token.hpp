@@ -6,41 +6,50 @@
 #include "perimortem/core/view/bytes.hpp"
 #include "perimortem/core/null_terminated.hpp"
 
-#include "ttx/lexical/class.hpp"
+#include "ttx/lexical/code.hpp"
 
 namespace Ttx::Lexical {
 
-// Wrapper for tokenizing a stream.
+// A compact representation of a token that is optimized for TTX's format sizes.
+// Can be expanded to 16 bytes if later it turns out we need to support larger
+// text values, but given the TTX formating spec all valid TTX should fix inside
+// these limits.
 class Token {
  public:
   Token() = default;
   Token(
-      Perimortem::Core::View::Bytes data,
-      Class klass,
-      Bits_32 source_line,
-      Bits_32 source_column)
-      : data(data), klass(klass), line(source_line), column(source_column) {}
+      Unsigned_16 offset,
+      Unsigned_16 line,
+      Unsigned_16 column,
+      Unsigned_8 size,
+      Code code)
+      : offset(offset), line(line), column(column), size(size), code(code) {}
 
-  constexpr auto matches(const Perimortem::Core::View::Bytes view) const
-      -> Bool {
-    return data == view;
+  constexpr operator bool() const { return bool(is_valid()); }
+
+  constexpr auto caculate_text(Perimortem::Core::View::Bytes source) const
+      -> Perimortem::Core::View::Bytes {
+    return source.slice(get_offset(), get_size());
   }
 
-  constexpr auto get_class() const -> Class { return klass; }
-  constexpr auto get_text() const -> Perimortem::Core::View::Bytes {
-    return data;
+  constexpr auto is_valid() const -> Bool {
+    return code != Code::Type::Terminal;
   }
 
-  constexpr auto get_line() const -> Bits_32 { return line; }
-  constexpr auto get_column() const -> Bits_32 { return column; }
+  constexpr auto get_offset() const -> Unsigned_16 { return offset; }
+  constexpr auto get_line() const -> Unsigned_16 { return line; }
+  constexpr auto get_column() const -> Unsigned_16 { return column; }
+  constexpr auto get_size() const -> Unsigned_8 { return size; }
+  constexpr auto get_code() const -> Code { return code; }
 
  private:
-  const Perimortem::Core::View::Bytes data;
-  Class klass;
-  Bits_32 line = 1;
-  Bits_32 column = 1;
+  Unsigned_16 offset;
+  Unsigned_16 line;
+  Unsigned_16 column;
+  Unsigned_8 size;
+  Code code = Code::Type::Terminal;
 };
 
-static_assert(sizeof(Token) == 32);
+static_assert(sizeof(Token) == 8);
 
 }  // namespace Ttx::Lexical

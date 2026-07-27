@@ -7,130 +7,113 @@ load("@rules_cc//cc:cc_library.bzl", "cc_library")
 package(default_visibility = ["//visibility:public"])
 
 cc_library(
-    name = "diagnostics",
-    srcs = [
-        "diagnostics/suggestions.cpp",
-    ],
-    hdrs = [
-        "diagnostics/suggestions.hpp",
-    ],
+    name = "language",
+    srcs = glob([
+        "language/**/*.cpp",
+    ]),
+    hdrs = glob([
+        "language/**/*.hpp",
+    ]),
     includes = ["."],
     deps = [
-        "//perimortem:core",
-        "//perimortem:memory",
+        "//perimortem",
+        "//ttx:concept",
+        "//ttx:lexical",
         "//ttx:model",
     ],
 )
 
 cc_library(
-    name = "isa",
+    name = "package",
     srcs = glob([
-        "isa/**/*.cpp",
-    ], exclude = [
-        "isa/library/lowering.cpp",
-        "isa/shader/lowering.cpp",
+        "package/**/*.cpp",
     ]),
-    hdrs = glob(["isa/**/*.hpp"]),
+    hdrs = glob([
+        "package/**/*.hpp",
+    ]),
     includes = ["."],
     deps = [
-        ":compiler",
-        ":diagnostics",
-        "//perimortem:core",
-        "//perimortem:memory",
-        "//perimortem:serialization",
-        "//perimortem:utility",
-        "//tetrodotoxin/archiver",
-        "//tetrodotoxin/standard:types",
-        "//ttx",
-    ],
-)
-
-alias(
-    name = "puffer",
-    actual = "//tetrodotoxin/puffer:puffer",
-)
-
-cc_library(
-    name = "compiler",
-    srcs = [
-        "compiler/assembler/spir_v.cpp",
-        "compiler/assembler/x86_64.cpp",
-        "compiler/allocation/registers.cpp",
-        "compiler/engine.cpp",
-        "compiler/execution/builder.cpp",
-        "compiler/execution/program.cpp",
-        "compiler/linkage.cpp",
-        "compiler/target/cpp.cpp",
-        "compiler/target/system_v.cpp",
-    ],
-    hdrs = [
-        "compiler/allocation/registers.hpp",
-        "compiler/assembler/spir_v.hpp",
-        "compiler/assembler/x86_64.hpp",
-        "compiler/backend.hpp",
-        "compiler/engine.hpp",
-        "compiler/execution/addressable.hpp",
-        "compiler/execution/binary.hpp",
-        "compiler/execution/binding.hpp",
-        "compiler/execution/block.hpp",
-        "compiler/execution/body.hpp",
-        "compiler/execution/builder.hpp",
-        "compiler/execution/call.hpp",
-        "compiler/execution/constant.hpp",
-        "compiler/execution/function.hpp",
-        "compiler/execution/operand.hpp",
-        "compiler/execution/operation.hpp",
-        "compiler/execution/program.hpp",
-        "compiler/execution/return.hpp",
-        "compiler/linkage.hpp",
-        "compiler/symbol.hpp",
-        "compiler/target/cpp.hpp",
-        "compiler/target/system_v.hpp",
-    ],
-    includes = ["."],
-    deps = [
-        ":linker",
-        "//perimortem:core",
-        "//perimortem:memory",
-        "//perimortem:serialization",
-        "//perimortem:utility",
-        "//ttx",
+        ":language",
+        "//perimortem",
+        "//ttx:concept",
+        "//ttx:lexical",
+        "//ttx:model",
     ],
 )
 
 cc_library(
-    name = "isa_lowerers",
-    srcs = [
-        "isa/library/lowering.cpp",
-        "isa/shader/lowering.cpp",
-    ],
+    name = "library",
+    srcs = glob([
+        "library/**/*.cpp",
+    ]),
+    hdrs = glob([
+        "library/**/*.hpp",
+    ]),
     includes = ["."],
     deps = [
-        ":compiler",
-        ":isa",
-        "//perimortem:core",
-        "//ttx",
+        "//perimortem",
+        "//ttx:concept",
+        "//ttx:lexical",
+        "//ttx:model",
+    ],
+)
+
+cc_library(
+    name = "shader",
+    srcs = glob([
+        "shader/**/*.cpp",
+    ]),
+    hdrs = glob([
+        "shader/**/*.hpp",
+    ]),
+    includes = ["."],
+    deps = [
+        "//perimortem",
+    ],
+)
+
+cc_library(
+    name = "diagnostics",
+    srcs = glob([
+        "diagnostics/**/*.cpp",
+    ]),
+    hdrs = glob([
+        "diagnostics/**/*.hpp",
+    ]),
+    includes = ["."],
+    deps = [
+        "//perimortem",
+    ],
+)
+
+cc_library(
+    name = "environment",
+    srcs = glob([
+        "environment/**/*.cpp",
+    ]),
+    hdrs = glob([
+        "environment/**/*.hpp",
+    ]),
+    includes = ["."],
+    deps = [
+        ":language",
+        ":package",
+        "//perimortem",
+        "//ttx:concept",
+        "//ttx:model",
     ],
 )
 
 cc_library(
     name = "linker",
-    srcs = [
-        "linker/linker.cpp",
-        "linker/target/elf.cpp",
-    ],
-    hdrs = [
-        "linker/linker.hpp",
-        "linker/object/relocation.hpp",
-        "linker/object/section.hpp",
-        "linker/object/symbol.hpp",
-        "linker/target/elf.hpp",
-        "linker/target/format.hpp",
-    ],
+    srcs = glob([
+        "linker/**/*.cpp",
+    ]),
+    hdrs = glob([
+        "linker/**/*.hpp",
+    ]),
     includes = ["."],
     deps = [
-        "//perimortem:core",
-        "//perimortem:memory",
-        "//perimortem:utility",
+        "//perimortem",
     ],
 )

@@ -27,10 +27,10 @@ PERIMORTEM_UNIT_TEST(CoreBinaryReader, little_unsigned) {
   );
   Reader reader(source);
 
-  EXPECT_EQ(reader.read_bits_8(), Bits_8(0xAB));
-  EXPECT_EQ(reader.read_bits_32(), Bits_32('PERI'));
-  EXPECT_EQ(reader.read_bits_16(), Bits_16(0x1234));
-  EXPECT_EQ(reader.read_bits_64(), Bits_64(0x0123456789ABCDEF));
+  EXPECT_EQ(reader.read_unsigned_8(), Unsigned_8(0xAB));
+  EXPECT_EQ(reader.read_unsigned_32(), Unsigned_32('PERI'));
+  EXPECT_EQ(reader.read_unsigned_16(), Unsigned_16(0x1234));
+  EXPECT_EQ(reader.read_unsigned_64(), Unsigned_64(0x0123456789ABCDEF));
   EXPECT_EQ(reader.get_location(), reader.get_size());
 }
 
@@ -43,10 +43,10 @@ PERIMORTEM_UNIT_TEST(CoreBinaryReader, little_endian_signed) {
       "\x00\x36\x65\xC4\xFF\xFF\xFF\xFF"_view);
   Reader reader(source);
 
-  EXPECT_EQ(reader.read_signed_bits_8(), Signed_8(-42));
-  EXPECT_EQ(reader.read_signed_bits_16(), Signed_16(-1000));
-  EXPECT_EQ(reader.read_signed_bits_32(), Signed_32(-100000));
-  EXPECT_EQ(reader.read_signed_bits_64(), Signed_64(-1000000000LL));
+  EXPECT_EQ(reader.read_signed_8(), Signed_8(-42));
+  EXPECT_EQ(reader.read_signed_16(), Signed_16(-1000));
+  EXPECT_EQ(reader.read_signed_32(), Signed_32(-100000));
+  EXPECT_EQ(reader.read_signed_64(), Signed_64(-1000000000LL));
   EXPECT_EQ(reader.get_location(), reader.get_size());
 }
 
@@ -73,10 +73,10 @@ PERIMORTEM_UNIT_TEST(CoreBinaryReader, big_endian_unsigned) {
   );
   Reader reader(source);
 
-  EXPECT_EQ(reader.read_bits_8(), Bits_8(0xAB));
-  EXPECT_EQ(reader.read_bits_32(), Bits_32('PERI'));
-  EXPECT_EQ(reader.read_bits_16(), Bits_16(0x1234));
-  EXPECT_EQ(reader.read_bits_64(), Bits_64(0x0123456789ABCDEF));
+  EXPECT_EQ(reader.read_unsigned_8(), Unsigned_8(0xAB));
+  EXPECT_EQ(reader.read_unsigned_32(), Unsigned_32('PERI'));
+  EXPECT_EQ(reader.read_unsigned_16(), Unsigned_16(0x1234));
+  EXPECT_EQ(reader.read_unsigned_64(), Unsigned_64(0x0123456789ABCDEF));
   EXPECT_EQ(reader.get_location(), reader.get_size());
 }
 
@@ -89,10 +89,10 @@ PERIMORTEM_UNIT_TEST(CoreBinaryReader, big_endian_signed) {
       "\xFF\xFF\xFF\xFF\xC4\x65\x36\x00"_view);
   Reader reader(source);
 
-  EXPECT_EQ(reader.read_signed_bits_8(), Signed_8(-42));
-  EXPECT_EQ(reader.read_signed_bits_16(), Signed_16(-1000));
-  EXPECT_EQ(reader.read_signed_bits_32(), Signed_32(-100000));
-  EXPECT_EQ(reader.read_signed_bits_64(), Signed_64(-1000000000LL));
+  EXPECT_EQ(reader.read_signed_8(), Signed_8(-42));
+  EXPECT_EQ(reader.read_signed_16(), Signed_16(-1000));
+  EXPECT_EQ(reader.read_signed_32(), Signed_32(-100000));
+  EXPECT_EQ(reader.read_signed_64(), Signed_64(-1000000000LL));
   EXPECT_EQ(reader.get_location(), reader.get_size());
 }
 
@@ -127,7 +127,7 @@ PERIMORTEM_UNIT_TEST(CoreBinaryReader, overflow_read) {
   auto scope_attribution = Diagnostics::Log::set_attribution();
 
   // Out of bounds read should return null and set the reader to invalid.
-  EXPECT_EQ(reader.read_bits_32(), Bits_32(0));
+  EXPECT_EQ(reader.read_unsigned_32(), Unsigned_32(0));
   EXPECT_EQ(reader.get_location(), Count(-1));
 
   // Make sure message was logged.
@@ -141,11 +141,11 @@ PERIMORTEM_UNIT_TEST(CoreBinaryReader, set_location) {
   Static::Bytes<6> source("\x0A\x00\x14\x00\x1E\x00"_view);
   Reader reader(source);
 
-  EXPECT_EQ(reader.read_bits_16(), Bits_16(0x0A));
+  EXPECT_EQ(reader.read_unsigned_16(), Unsigned_16(0x0A));
 
   // Read from an arbitrary byte offset. Binary readers do not realign.
   reader.set_location(1);
-  EXPECT_EQ(reader.read_bits_16(), Bits_16(0x1400));
+  EXPECT_EQ(reader.read_unsigned_16(), Unsigned_16(0x1400));
 }
 
 PERIMORTEM_UNIT_TEST(CoreBinaryReader, invalid_pointer) {
@@ -154,7 +154,7 @@ PERIMORTEM_UNIT_TEST(CoreBinaryReader, invalid_pointer) {
 
   reader.set_location(Count(-1));
   EXPECT_EQ(reader.get_location(), Count(-1));
-  EXPECT_EQ(reader.read_bits_16(), Bits_16());
+  EXPECT_EQ(reader.read_unsigned_16(), Unsigned_16());
   EXPECT_EQ(reader.get_location(), Count(-1));
 }
 
@@ -163,11 +163,11 @@ PERIMORTEM_UNIT_TEST(CoreBinaryReader, multiple_readers) {
   Static::Bytes<6> source("\x01\x00\x02\x00\x03\x00"_view);
   Reader readers[] = {Reader(source), Reader(source)};
 
-  EXPECT_EQ(readers[0].read_bits_16(), readers[1].read_bits_16());
+  EXPECT_EQ(readers[0].read_unsigned_16(), readers[1].read_unsigned_16());
   EXPECT_EQ(readers[0].get_location(), Count(2));
   EXPECT_EQ(readers[1].get_location(), Count(2));
 
-  EXPECT_EQ(readers[0].read_bits_16(), Bits_16(0x02));
+  EXPECT_EQ(readers[0].read_unsigned_16(), Unsigned_16(0x02));
   EXPECT_EQ(readers[0].get_location(), Count(4));
   EXPECT_EQ(readers[1].get_location(), Count(2));
 }
@@ -181,8 +181,8 @@ PERIMORTEM_UNIT_TEST(CoreBinaryWriter, little_unsigned) {
   Static::Bytes<15> buffer;
   Writer writer(buffer);
 
-  writer << Bits_8(0xAB) << Bits_16(0x1234) << Bits_32('PERI')
-         << Bits_64(0x0123456789ABCDEF);
+  writer << Unsigned_8(0xAB) << Unsigned_16(0x1234) << Unsigned_32('PERI')
+         << Unsigned_64(0x0123456789ABCDEF);
 
   EXPECT(writer.is_valid());
   EXPECT_EQ(writer.get_location(), Count(15));
@@ -231,8 +231,8 @@ PERIMORTEM_UNIT_TEST(CoreBinaryWriter, big_endian_unsigned) {
   Static::Bytes<15> buffer;
   Writer writer(buffer);
 
-  writer << Bits_8(0xAB) << Bits_16(0x1234) << Bits_32('PERI')
-         << Bits_64(0x0123456789ABCDEF);
+  writer << Unsigned_8(0xAB) << Unsigned_16(0x1234) << Unsigned_32('PERI')
+         << Unsigned_64(0x0123456789ABCDEF);
 
   EXPECT(writer.is_valid());
   EXPECT_EQ(writer.get_location(), Count(15));
@@ -278,10 +278,10 @@ PERIMORTEM_UNIT_TEST(CoreBinaryWriter, big_endian_reals) {
 
 PERIMORTEM_UNIT_TEST(CoreBinaryWriter, big_endian_vector) {
   using Writer = Writer::Binary<Data::ByteOrder::Big>;
-  Static::Vector<Bits_16, 3> values = {{
-    Bits_16(0x0102),
-    Bits_16(0x0304),
-    Bits_16(0x0506),
+  Static::Vector<Unsigned_16, 3> values = {{
+    Unsigned_16(0x0102),
+    Unsigned_16(0x0304),
+    Unsigned_16(0x0506),
   }};
   Static::Bytes<6> buffer;
   Writer writer(buffer);
@@ -308,7 +308,7 @@ PERIMORTEM_UNIT_TEST(CoreBinaryWriter, overflow) {
   Static::Bytes<3> buffer;
   Writer writer(buffer);
 
-  writer << Bits_32('PERI');
+  writer << Unsigned_32('PERI');
 
   EXPECT_NOT(writer.is_valid());
 }
@@ -318,11 +318,11 @@ PERIMORTEM_UNIT_TEST(CoreBinaryWriter, set_pointer) {
   Static::Bytes<6> buffer;
   Writer writer(buffer);
 
-  writer << Bits_16(0x0A0B) << Bits_16(0x0C0D);
+  writer << Unsigned_16(0x0A0B) << Unsigned_16(0x0C0D);
   EXPECT_EQ(writer.get_location(), Count(4));
 
   writer.set_pointer(0);
-  writer << Bits_16(0x1234);
+  writer << Unsigned_16(0x1234);
 
   EXPECT(writer.is_valid());
   EXPECT_HEX(
@@ -339,9 +339,9 @@ PERIMORTEM_UNIT_TEST(CoreBinaryWriter, multiple_writers) {
     Writer(buffer),
   };
 
-  writers[0] << Bits_16(0xAAAA);
-  writers[1] << Bits_16(0xBBBB);  // overwrites writers[0] at position 0
-  writers[0] << Bits_16(0xCCCC);  // writers[0] is now at position 2
+  writers[0] << Unsigned_16(0xAAAA);
+  writers[1] << Unsigned_16(0xBBBB);  // overwrites writers[0] at position 0
+  writers[0] << Unsigned_16(0xCCCC);  // writers[0] is now at position 2
 
   EXPECT(writers[0].is_valid());
   EXPECT(writers[1].is_valid());

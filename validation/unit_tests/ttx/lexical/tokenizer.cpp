@@ -5,9 +5,12 @@
 
 #include "validation/unit_test.hpp"
 
+#include "perimortem/core/algorithm/search.hpp"
+
 #include "perimortem/memory/allocator/arena.hpp"
 
 #include "ttx/lexical/cursor.hpp"
+#include "ttx/lexical/lexicon.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -26,22 +29,23 @@ PERIMORTEM_UNIT_TEST(TtxLexical, access_operators) {
       "Test.Package"_view);
 
   View::Vector<Ttx::Lexical::Token> tokens = tokenizer.get_tokens();
+  View::Bytes source = tokenizer.get_source_text();
   ASSERT_EQ(tokens.get_size(), Count(23));
 
-  EXPECT(tokens[0].get_class() == Ttx::Lexical::Class::Type::Type);
-  EXPECT(tokens[1].get_class() == Ttx::Lexical::Class::Type::AddressOp);
-  EXPECT_TEXT(tokens[1].get_text(), "."_view);
-  EXPECT(tokens[2].get_class() == Ttx::Lexical::Class::Type::Type);
+  EXPECT(tokens[0].get_code() == Ttx::Lexical::Code::Type::Type);
+  EXPECT(tokens[1].get_code() == Ttx::Lexical::Code::Type::AddressOp);
+  EXPECT_TEXT(tokens[1].caculate_text(source), "."_view);
+  EXPECT(tokens[2].get_code() == Ttx::Lexical::Code::Type::Type);
 
-  EXPECT_TEXT(tokens[4].get_text(), ".["_view);
-  EXPECT(tokens[4].get_class() == Ttx::Lexical::Class::Type::SwizzleOp);
-  EXPECT_TEXT(tokens[10].get_text(), ":["_view);
-  EXPECT(tokens[10].get_class() == Ttx::Lexical::Class::Type::SliceOp);
+  EXPECT_TEXT(tokens[4].caculate_text(source), ".["_view);
+  EXPECT(tokens[4].get_code() == Ttx::Lexical::Code::Type::SwizzleOp);
+  EXPECT_TEXT(tokens[10].caculate_text(source), ":["_view);
+  EXPECT(tokens[10].get_code() == Ttx::Lexical::Code::Type::SliceOp);
 
-  EXPECT_TEXT(tokens[16].get_text(), "["_view);
-  EXPECT(tokens[16].get_class() == Ttx::Lexical::Class::Type::IndexStart);
-  EXPECT_TEXT(tokens[20].get_text(), "."_view);
-  EXPECT(tokens[20].get_class() == Ttx::Lexical::Class::Type::AddressOp);
+  EXPECT_TEXT(tokens[16].caculate_text(source), "["_view);
+  EXPECT(tokens[16].get_code() == Ttx::Lexical::Code::Type::LayoutStart);
+  EXPECT_TEXT(tokens[20].caculate_text(source), "."_view);
+  EXPECT(tokens[20].get_code() == Ttx::Lexical::Code::Type::AddressOp);
 }
 
 PERIMORTEM_UNIT_TEST(TtxLexical, modifiers) {
@@ -51,167 +55,240 @@ PERIMORTEM_UNIT_TEST(TtxLexical, modifiers) {
       "Test.Package"_view);
 
   View::Vector<Ttx::Lexical::Token> tokens = tokenizer.get_tokens();
+  View::Bytes source = tokenizer.get_source_text();
   ASSERT_EQ(tokens.get_size(), Count(8));
 
-  EXPECT(tokens[0].get_class() == Ttx::Lexical::Class::Type::Public);
-  EXPECT(tokens[1].get_class() == Ttx::Lexical::Class::Type::Private);
-  EXPECT(tokens[2].get_class() == Ttx::Lexical::Class::Type::Expose);
-  EXPECT(tokens[3].get_class() == Ttx::Lexical::Class::Type::State);
-  EXPECT(tokens[4].get_class() == Ttx::Lexical::Class::Type::Const);
-  EXPECT(tokens[5].get_class() == Ttx::Lexical::Class::Type::Attribute);
-  EXPECT_TEXT(tokens[5].get_text(), "@package_name"_view);
-  EXPECT(tokens[6].get_class() == Ttx::Lexical::Class::Type::Attribute);
-  EXPECT_TEXT(tokens[6].get_text(), "@public"_view);
-  EXPECT(tokens[7].get_class() == Ttx::Lexical::Class::Type::EndOfStream);
+  EXPECT(tokens[0].get_code() == Ttx::Lexical::Code::Type::Public);
+  EXPECT(tokens[1].get_code() == Ttx::Lexical::Code::Type::Private);
+  EXPECT(tokens[2].get_code() == Ttx::Lexical::Code::Type::Expose);
+  EXPECT(tokens[3].get_code() == Ttx::Lexical::Code::Type::State);
+  EXPECT(tokens[4].get_code() == Ttx::Lexical::Code::Type::Const);
+  EXPECT(tokens[5].get_code() == Ttx::Lexical::Code::Type::Attribute);
+  EXPECT_TEXT(tokens[5].caculate_text(source), "package_name"_view);
+  EXPECT(tokens[6].get_code() == Ttx::Lexical::Code::Type::Attribute);
+  EXPECT_TEXT(tokens[6].caculate_text(source), "public"_view);
+  EXPECT(tokens[7].get_code() == Ttx::Lexical::Code::Type::Terminal);
 }
 
-PERIMORTEM_UNIT_TEST(TtxLexical, fixed_text) {
-  using Token = Ttx::Lexical::Class::Type;
+PERIMORTEM_UNIT_TEST(TtxLexical, lexicon) {
+  using Token = Ttx::Lexical::Code::Type;
 
   EXPECT_TEXT(
-      Ttx::Lexical::Class::get_source_text(Token::TypeAccessOp), "::"_view);
+      Ttx::Lexical::Lexicon::get_spelling(Token::TypeAccessOp), "::"_view);
+  EXPECT_TEXT(Ttx::Lexical::Lexicon::get_spelling(Token::SwizzleOp), ".["_view);
+  EXPECT_TEXT(Ttx::Lexical::Lexicon::get_spelling(Token::SliceOp), ":["_view);
+  EXPECT_TEXT(Ttx::Lexical::Lexicon::get_spelling(Token::CallOp), "->"_view);
   EXPECT_TEXT(
-      Ttx::Lexical::Class::get_source_text(Token::SwizzleOp), ".["_view);
-  EXPECT_TEXT(Ttx::Lexical::Class::get_source_text(Token::SliceOp), ":["_view);
-  EXPECT_TEXT(Ttx::Lexical::Class::get_source_text(Token::CallOp), "->"_view);
+      Ttx::Lexical::Lexicon::get_spelling(Token::Dialect), "dialect"_view);
   EXPECT_TEXT(
-      Ttx::Lexical::Class::get_source_text(Token::Dialect), "dialect"_view);
+      Ttx::Lexical::Lexicon::get_spelling(Token::Resolve), "resolve"_view);
   EXPECT_TEXT(
-      Ttx::Lexical::Class::get_source_text(Token::Expose), "expose"_view);
+      Ttx::Lexical::Lexicon::get_spelling(Token::Source), "source"_view);
+  EXPECT_TEXT(
+      Ttx::Lexical::Lexicon::get_spelling(Token::Expose), "expose"_view);
+  EXPECT(Ttx::Lexical::Lexicon::get_spelling(Token::Addressable).is_empty());
+  EXPECT(Ttx::Lexical::Lexicon::get_spelling(Token::Numeric).is_empty());
+  EXPECT(
+      Ttx::Lexical::Lexicon::get_keyword("public"_view, Token::Addressable) ==
+      Token::Public);
+  EXPECT(
+      Ttx::Lexical::Lexicon::get_keyword("value"_view, Token::Addressable) ==
+      Token::Addressable);
+}
+
+PERIMORTEM_UNIT_TEST(TtxLexical, code_semantics) {
+  using Code = Ttx::Lexical::Code;
+
+  EXPECT_EQ(static_cast<Unsigned_8>(Code::Type::Terminal), Unsigned_8(0x00));
+  EXPECT_EQ(static_cast<Unsigned_8>(Code::Type::Unknown), Unsigned_8(0xFF));
+  EXPECT_TEXT(
+      Code(Code::Type::Public).get_semantics(),
+      "public publication modifier"_view);
+  EXPECT_TEXT(
+      Code(Code::Type::Assign).get_semantics(), "assignment operator"_view);
+  EXPECT_TEXT(
+      Code(Code::Type::Addressable).get_semantics(),
+      "Addressable space name"_view);
+  EXPECT_TEXT(
+      Code(Code::Type::Hex).get_semantics(),
+      "Unsigned_64 hexadecimal literal"_view);
+  EXPECT_TEXT(Code(Code::Type::Terminal).get_semantics(), "terminal Code"_view);
+  EXPECT_TEXT(
+      Code(Code::Type::Unknown).get_semantics(), "unknown source Code"_view);
+  EXPECT_NEQ(
+      Code(Code::Type::Public).get_semantics(),
+      Code(Code::Type::Private).get_semantics());
+}
+
+PERIMORTEM_UNIT_TEST(TtxLexical, hexadecimal_code) {
+  Allocator::Arena arena;
+  Ttx::Lexical::Tokenizer tokenizer(arena, "0xAB"_view, "test.ttx"_view);
+
+  View::Vector<Ttx::Lexical::Token> tokens = tokenizer.get_tokens();
+  ASSERT_EQ(tokens.get_size(), Count(2));
+  EXPECT(tokens[0].get_code() == Ttx::Lexical::Code::Type::Hex);
+  EXPECT_TEXT(
+      tokens[0].caculate_text(tokenizer.get_source_text()), "0xAB"_view);
+  EXPECT(tokens[1].get_code() == Ttx::Lexical::Code::Type::Terminal);
 }
 
 PERIMORTEM_UNIT_TEST(TtxLexical, cursor_consume) {
   Allocator::Arena arena;
-  Allocator::Arena error_arena;
+  Ttx::Lexical::Errors errors;
   Ttx::Lexical::Tokenizer tokenizer(arena, "value"_view, "test.ttx"_view);
-  Ttx::Lexical::Cursor cursor(tokenizer, error_arena);
+  Ttx::Lexical::Cursor cursor(tokenizer, errors);
 
-  EXPECT_TEXT(cursor.current().get_text(), "value"_view);
+  EXPECT_TEXT(
+      cursor.current().caculate_text(cursor.get_source_text()), "value"_view);
   cursor.consume();
-  EXPECT(cursor.matches(Ttx::Lexical::Class::Type::EndOfStream));
+  EXPECT(cursor.matches(Ttx::Lexical::Code::Type::Terminal));
   cursor.consume();
-  EXPECT(cursor.matches(Ttx::Lexical::Class::Type::EndOfStream));
-}
-
-PERIMORTEM_UNIT_TEST(TtxLexical, cursor_seek) {
-  Allocator::Arena arena;
-  Allocator::Arena error_arena;
-  Ttx::Lexical::Tokenizer tokenizer(
-      arena, "one two three"_view, "test.ttx"_view);
-  Ttx::Lexical::Cursor cursor(tokenizer, error_arena);
-
-  cursor.seek_token(1);
-  EXPECT_TEXT(cursor.current().get_text(), "two"_view);
-  cursor.seek_token(99);
-  EXPECT(cursor.matches(Ttx::Lexical::Class::Type::EndOfStream));
+  EXPECT(cursor.matches(Ttx::Lexical::Code::Type::Terminal));
 }
 
 PERIMORTEM_UNIT_TEST(TtxLexical, require_success) {
   Allocator::Arena arena;
-  Allocator::Arena error_arena;
+  Ttx::Lexical::Errors errors;
   Ttx::Lexical::Tokenizer tokenizer(arena, "value"_view, "test.ttx"_view);
-  Ttx::Lexical::Cursor cursor(tokenizer, error_arena);
+  Ttx::Lexical::Cursor cursor(tokenizer, errors);
 
-  const Ttx::Lexical::Token* token = cursor.require(
-      Ttx::Lexical::Class::Type::Addressable, "Expected address."_view);
+  Ttx::Lexical::Token token = cursor.require(
+      Ttx::Lexical::Code::Type::Addressable, "Expected address."_view);
 
-  ASSERT(token != nullptr);
-  EXPECT_TEXT(token->get_text(), "value"_view);
-  EXPECT_NOT(cursor.get_errors().has_errors());
-  EXPECT(cursor.matches(Ttx::Lexical::Class::Type::EndOfStream));
+  ASSERT(token.is_valid());
+  EXPECT_TEXT(token.caculate_text(cursor.get_source_text()), "value"_view);
+  EXPECT(errors.is_empty());
+  EXPECT(cursor.matches(Ttx::Lexical::Code::Type::Terminal));
 }
 
 PERIMORTEM_UNIT_TEST(TtxLexical, require_error) {
   Allocator::Arena arena;
-  Allocator::Arena error_arena;
+  Allocator::Arena render_arena;
+  Ttx::Lexical::Errors errors;
   Ttx::Lexical::Tokenizer tokenizer(arena, "value"_view, "test.ttx"_view);
-  Ttx::Lexical::Cursor cursor(tokenizer, error_arena);
+  Ttx::Lexical::Cursor cursor(tokenizer, errors);
 
+  Ttx::Lexical::Token required =
+      cursor.require(Ttx::Lexical::Code::Type::Type, "Expected type."_view);
+  View::Bytes rendered = errors.render_message(render_arena, 0);
+
+  EXPECT_NOT(required.is_valid());
+  ASSERT_EQ(errors.get_size(), Count(1));
+  EXPECT(Algorithm::search(rendered, "Expected type."_view) != Count(-1));
   EXPECT(
-      cursor.require(Ttx::Lexical::Class::Type::Type, "Expected type."_view) ==
-      nullptr);
-
-  ASSERT(cursor.get_errors().has_errors());
+      Algorithm::search(
+          rendered,
+          "Expected lexical token Type space name but got Addressable space name."_view) !=
+      Count(-1));
+  EXPECT(Algorithm::search(rendered, "test.ttx"_view) != Count(-1));
   EXPECT_TEXT(
-      cursor.get_errors().get_view()[0].get_message(), "Expected type."_view);
-  EXPECT_TEXT(
-      cursor.get_errors().get_view()[0].get_source_path(), "test.ttx"_view);
-  EXPECT_TEXT(cursor.current().get_text(), "value"_view);
+      cursor.current().caculate_text(cursor.get_source_text()), "value"_view);
 }
 
 PERIMORTEM_UNIT_TEST(TtxLexical, range_error) {
   Allocator::Arena arena;
-  Allocator::Arena error_arena;
+  Allocator::Arena render_arena;
+  Ttx::Lexical::Errors errors;
   Ttx::Lexical::Tokenizer tokenizer(arena, "value = 1"_view, "test.ttx"_view);
-  Ttx::Lexical::Cursor cursor(tokenizer, error_arena);
+  Ttx::Lexical::Cursor cursor(tokenizer, errors);
 
-  const Ttx::Lexical::Token& start = cursor.current();
-  cursor.seek_token(2);
-  const Ttx::Lexical::Token& end = cursor.current();
-  cursor.range_error(start, end, "Bad expression."_view, "Use a value."_view);
+  Ttx::Lexical::Token start = cursor.current();
+  cursor.consume();
+  cursor.consume();
+  Ttx::Lexical::Token end = cursor.current();
+  cursor.create_expression_error(
+      start, end, "Bad expression."_view, "Use a value."_view);
+  View::Bytes rendered = errors.render_message(render_arena, 0);
 
-  ASSERT(cursor.get_errors().has_errors());
-  const Ttx::Lexical::Errors::Error& error = cursor.get_errors().get_view()[0];
-  EXPECT(error.get_start_token() == &start);
-  EXPECT(error.get_end_token() == &end);
-  EXPECT_TEXT(error.get_hint(), "Use a value."_view);
+  ASSERT_EQ(errors.get_size(), Count(1));
+  EXPECT(Algorithm::search(rendered, "Bad expression."_view) != Count(-1));
+  EXPECT(Algorithm::search(rendered, "Use a value."_view) != Count(-1));
 }
 
 PERIMORTEM_UNIT_TEST(TtxLexical, source_error) {
-  Allocator::Arena arena;
-  Ttx::Lexical::Errors errors(arena);
+  Allocator::Arena render_arena;
+  Ttx::Lexical::Errors errors;
 
-  errors.insert(
-      Ttx::Lexical::Source("test.ttx"_view, "source"_view), "Bad source."_view,
-      "Try again."_view);
+  errors.set_source_context("test.ttx"_view, "source"_view);
+  errors.create_general_error("Bad source."_view, "Try again."_view);
+  View::Bytes rendered = errors.render_message(render_arena, 0);
 
-  ASSERT(errors.has_errors());
-  EXPECT_TEXT(errors.get_view()[0].get_source_path(), "test.ttx"_view);
-  EXPECT_TEXT(errors.get_view()[0].get_source(), "source"_view);
-  EXPECT_TEXT(errors.get_view()[0].get_message(), "Bad source."_view);
-  EXPECT_TEXT(errors.get_view()[0].get_hint(), "Try again."_view);
+  ASSERT_EQ(errors.get_size(), Count(1));
+  EXPECT(Algorithm::search(rendered, "test.ttx"_view) != Count(-1));
+  EXPECT(Algorithm::search(rendered, "Bad source."_view) != Count(-1));
+  EXPECT(Algorithm::search(rendered, "Try again."_view) != Count(-1));
+}
+
+// TODO: Technically you should never reuse a path for an error context, but for
+// now this supports the use case as the codebase matures. If not required in
+// the long run make sure to prune.
+PERIMORTEM_UNIT_TEST(TtxLexical, errors_with_reused_path) {
+  Allocator::Arena render_arena;
+  Ttx::Lexical::Errors errors;
+
+  {
+    Allocator::Arena source_arena;
+    Ttx::Lexical::Tokenizer tokenizer(
+        source_arena, "first value"_view, "test.ttx"_view);
+    Ttx::Lexical::Cursor cursor(tokenizer, errors);
+    cursor.create_token_error("First failure."_view);
+  }
+
+  {
+    Allocator::Arena source_arena;
+    Ttx::Lexical::Tokenizer tokenizer(
+        source_arena, "second value"_view, "test.ttx"_view);
+    Ttx::Lexical::Cursor cursor(tokenizer, errors);
+    cursor.create_token_error("Second failure."_view);
+  }
+
+  View::Bytes first = errors.render_message(render_arena, 0);
+  View::Bytes second = errors.render_message(render_arena, 1);
+
+  ASSERT_EQ(errors.get_size(), Count(2));
+  EXPECT(Algorithm::search(first, "first value"_view) != Count(-1));
+  EXPECT(Algorithm::search(first, "second value"_view) == Count(-1));
+  EXPECT(Algorithm::search(second, "second value"_view) != Count(-1));
+  EXPECT(Algorithm::search(second, "first value"_view) == Count(-1));
 }
 
 PERIMORTEM_UNIT_TEST(TtxLexical, token_error) {
   Allocator::Arena arena;
-  Ttx::Lexical::Errors errors(arena);
-  Ttx::Lexical::Token token(
-      "value"_view, Ttx::Lexical::Class::Type::Addressable, 4, 7);
+  Allocator::Arena render_arena;
+  Ttx::Lexical::Errors errors;
+  Ttx::Lexical::Tokenizer tokenizer(
+      arena, "one\ntwo\nthree value"_view, "test.ttx"_view);
+  Ttx::Lexical::Token token = tokenizer.get_tokens()[3];
 
-  errors.insert(
-      token, Ttx::Lexical::Source("test.ttx"_view, "value"_view),
-      "Bad token."_view);
+  errors.set_source_context(
+      tokenizer.get_source_path(), tokenizer.get_source_text());
+  errors.create_token_error(token, "Bad token."_view);
+  View::Bytes rendered = errors.render_message(render_arena, 0);
 
-  ASSERT(errors.has_errors());
-  EXPECT(errors.get_view()[0].get_start_token() == &token);
-  EXPECT(errors.get_view()[0].get_end_token() == nullptr);
-  EXPECT_EQ(errors.get_view()[0].get_start_token()->get_line(), Bits_32(4));
-  EXPECT_EQ(errors.get_view()[0].get_start_token()->get_column(), Bits_32(7));
+  ASSERT_EQ(errors.get_size(), Count(1));
+  EXPECT(Algorithm::search(rendered, "test.ttx:3:7"_view) != Count(-1));
+  EXPECT(Algorithm::search(rendered, "Bad token."_view) != Count(-1));
 }
 
 PERIMORTEM_UNIT_TEST(TtxLexical, recover_stmt) {
   Allocator::Arena arena;
-  Allocator::Arena error_arena;
+  Ttx::Lexical::Errors errors;
   Ttx::Lexical::Tokenizer tokenizer(
       arena, "bad tokens ; next"_view, "test.ttx"_view);
-  Ttx::Lexical::Cursor cursor(tokenizer, error_arena);
+  Ttx::Lexical::Cursor cursor(tokenizer, errors);
 
   cursor.recover_to_statement();
 
-  EXPECT_TEXT(cursor.current().get_text(), "next"_view);
+  EXPECT_TEXT(
+      cursor.current().caculate_text(cursor.get_source_text()), "next"_view);
 }
 
-PERIMORTEM_UNIT_TEST(TtxLexical, token_span) {
+PERIMORTEM_UNIT_TEST(TtxLexical, token_projection) {
   Allocator::Arena arena;
-  Allocator::Arena error_arena;
   Ttx::Lexical::Tokenizer tokenizer(
       arena, "one two three"_view, "test.ttx"_view);
-  Ttx::Lexical::Cursor cursor(tokenizer, error_arena);
+  Ttx::Lexical::Token token = tokenizer.get_tokens()[1];
 
-  View::Vector<Ttx::Lexical::Token> span = cursor.get_token_span(1, 3);
-
-  ASSERT_EQ(span.get_size(), Count(2));
-  EXPECT_TEXT(span[0].get_text(), "two"_view);
-  EXPECT_TEXT(span[1].get_text(), "three"_view);
-  EXPECT(cursor.get_token_span(3, 1).is_empty());
+  EXPECT_TEXT(token.caculate_text(tokenizer.get_source_text()), "two"_view);
+  EXPECT_TEXT(token.caculate_text("red sky green"_view), "sky"_view);
 }

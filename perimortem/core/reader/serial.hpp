@@ -60,9 +60,9 @@ class Serial {
     // Value keeps its blob/value discriminator in type_info so the complete
     // schemaless read remains 16 bytes. Static::Union would require a separate
     // tag and grow this hot return type to 24 bytes.
-    Bits_64 type_info;
+    Unsigned_64 type_info;
     union {
-      const Bits_8* blob;
+      const Unsigned_8* blob;
       Signed_64 value;
     };
   };

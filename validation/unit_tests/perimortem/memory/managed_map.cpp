@@ -52,6 +52,23 @@ PERIMORTEM_UNIT_TEST(ManagedMap, duplicate_keys) {
   EXPECT_EQ(values[2], 8);
 }
 
+PERIMORTEM_UNIT_TEST(ManagedMap, visit) {
+  Allocator::Arena arena;
+  Managed::Map<Signed_32, Signed_32> values(arena);
+
+  values.insert(1, 2);
+
+  Signed_32 found = values.visit(
+      1, [](const Signed_32& selected) { return selected; },
+      []() -> Signed_32 { return -1; });
+  Signed_32 missing = values.visit(
+      4, [](const Signed_32& selected) { return selected; },
+      []() -> Signed_32 { return -1; });
+
+  EXPECT_EQ(found, 2);
+  EXPECT_EQ(missing, -1);
+}
+
 PERIMORTEM_UNIT_TEST(ManagedMap, text_keys) {
   Allocator::Arena arena;
   Managed::Map<Perimortem::Core::View::Bytes, Signed_32> values(arena);

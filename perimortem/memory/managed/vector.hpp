@@ -18,22 +18,22 @@ class Vector {
   static constexpr Count growth_factor = 2;
 
   Vector(const Vector&) = default;
-  Vector(Allocator::Arena& arena) : arena(arena) { reset(); }
+  constexpr Vector(Allocator::Arena& arena) : arena(arena) { reset(); }
 
   constexpr operator Core::View::Vector<value_type>() const {
     return Core::View::Vector<value_type>(rented_block, size);
   }
 
-  auto clear() -> void { size = 0; }
+  constexpr auto clear() -> void { size = 0; }
 
-  auto reset() -> void {
+  constexpr auto reset() -> void {
     size = 0;
     capacity = start_capacity;
     rented_block = Core::Data::cast<value_type>(
         arena.allocate(sizeof(value_type) * start_capacity));
   }
 
-  auto reset(Count reserve_capacity) -> void {
+  constexpr auto reset(Count reserve_capacity) -> void {
     if (reserve_capacity <= start_capacity) {
       reserve_capacity = start_capacity;
     }
@@ -116,7 +116,7 @@ class Vector {
         arena.allocate(sizeof(value_type) * capacity));
 
     Core::Data::copy(
-        Core::Data::cast<Bits_8>(new_block), rented_block,
+        Core::Data::cast<Unsigned_8>(new_block), rented_block,
         sizeof(value_type) * size);
     rented_block = new_block;
   }

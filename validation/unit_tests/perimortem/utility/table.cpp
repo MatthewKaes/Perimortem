@@ -13,7 +13,7 @@ using namespace Perimortem::Utility;
 
 using namespace Validation;
 
-using KeywordEntry = Pair<View::Bytes, Bits_8>;
+using KeywordEntry = Pair<View::Bytes, Unsigned_8>;
 constexpr Static::Vector<KeywordEntry, 23> keyword_source = {{
   {"as"_view, 1},       {"if"_view, 2},       {"for"_view, 3},
   {"new"_view, 4},      {"else"_view, 5},     {"func"_view, 6},
@@ -25,9 +25,7 @@ constexpr Static::Vector<KeywordEntry, 23> keyword_source = {{
   {"package"_view, 22}, {"warning"_view, 23},
 }};
 
-using keyword_table = Table<Bits_32, keyword_source>;
-using aligned_keywords =
-    Table<Bits_32, keyword_source, (Count)Data::CacheAware::Enabled>;
+using keyword_table = Table<Unsigned_32, keyword_source>;
 
 using WordEntry = Pair<View::Bytes, View::Bytes>;
 constexpr Static::Vector<WordEntry, 8> word_source = {{
@@ -42,8 +40,6 @@ constexpr Static::Vector<WordEntry, 8> word_source = {{
 }};
 
 using word_table = Table<View::Bytes, word_source>;
-using word_table_aligned =
-    Table<View::Bytes, word_source, (Count)Data::CacheAware::Enabled>;
 
 struct Fact {
   View::Bytes name;
@@ -59,8 +55,7 @@ constexpr Static::Vector<FactEntry, 3> fact_source = {{
 }};
 
 using fact_table = Table<Fact, fact_source>;
-using fact_table_aligned =
-    Table<Fact, fact_source, (Count)Data::CacheAware::Enabled>;
+using fact_table_aligned = Table<Fact, fact_source>;
 
 static Harness StaticTable = {
   .name = "Utility::Table"_view,
@@ -82,23 +77,6 @@ PERIMORTEM_UNIT_TEST(StaticTable, keyword_table) {
   EXPECT_EQ(keyword_table::find_or_default("errrr"_view, invalid), invalid);
 }
 
-PERIMORTEM_UNIT_TEST(StaticTable, aligned_keywords) {
-  constexpr auto invalid = -1;
-  for (Count i = 0; i < keyword_source.get_size(); i++) {
-    EXPECT_EQ(
-        aligned_keywords::find_or_default(keyword_source[i].key, invalid),
-        keyword_source[i].value);
-  }
-
-  EXPECT_EQ(
-      aligned_keywords::find_or_default("unknown"_view, invalid), invalid);
-  EXPECT_EQ(aligned_keywords::find_or_default("a"_view, invalid), invalid);
-  EXPECT_EQ(aligned_keywords::find_or_default("As"_view, invalid), invalid);
-  EXPECT_EQ(aligned_keywords::find_or_default(""_view, invalid), invalid);
-  EXPECT_EQ(aligned_keywords::find_or_default("rutern"_view, invalid), invalid);
-  EXPECT_EQ(aligned_keywords::find_or_default("errrr"_view, invalid), invalid);
-}
-
 PERIMORTEM_UNIT_TEST(StaticTable, word_table) {
   constexpr auto invalid = "nope"_view;
   for (Count i = 0; i < word_source.get_size(); i++) {
@@ -115,25 +93,6 @@ PERIMORTEM_UNIT_TEST(StaticTable, word_table) {
   EXPECT_TEXT(word_table::find_or_default("errrr"_view, invalid), invalid);
 }
 
-PERIMORTEM_UNIT_TEST(StaticTable, word_table_aligned) {
-  constexpr auto invalid = "nope"_view;
-  for (Count i = 0; i < word_source.get_size(); i++) {
-    EXPECT_TEXT(
-        word_table_aligned::find_or_default(word_source[i].key, invalid),
-        word_source[i].value);
-  }
-
-  EXPECT_TEXT(
-      word_table_aligned::find_or_default("unknown"_view, invalid), invalid);
-  EXPECT_TEXT(word_table_aligned::find_or_default("c"_view, invalid), invalid);
-  EXPECT_TEXT(word_table_aligned::find_or_default("As"_view, invalid), invalid);
-  EXPECT_TEXT(word_table_aligned::find_or_default(""_view, invalid), invalid);
-  EXPECT_TEXT(
-      word_table_aligned::find_or_default("rutern"_view, invalid), invalid);
-  EXPECT_TEXT(
-      word_table_aligned::find_or_default("errrr"_view, invalid), invalid);
-}
-
 PERIMORTEM_UNIT_TEST(StaticTable, find_or_null) {
   const Fact* vec = fact_table::find_or_null("Vec3D"_view);
   EXPECT(vec != nullptr);
@@ -143,15 +102,4 @@ PERIMORTEM_UNIT_TEST(StaticTable, find_or_null) {
 
   EXPECT(fact_table::find_or_null("Missing"_view) == nullptr);
   EXPECT(fact_table::find_or_null(""_view) == nullptr);
-}
-
-PERIMORTEM_UNIT_TEST(StaticTable, find_or_null_aligned) {
-  const Fact* sampler = fact_table_aligned::find_or_null("Sampler2D"_view);
-  EXPECT(sampler != nullptr);
-  EXPECT_TEXT(sampler->name, "Sampler2D"_view);
-  EXPECT_EQ(sampler->byte_size, 0);
-  EXPECT_NOT(sampler->exposed);
-
-  EXPECT(fact_table_aligned::find_or_null("Vec4D"_view) == nullptr);
-  EXPECT(fact_table_aligned::find_or_null(""_view) == nullptr);
 }

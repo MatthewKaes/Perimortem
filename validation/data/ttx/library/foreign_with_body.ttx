@@ -1,0 +1,7 @@
+dialect : Library;
+
+foreign "C" {
+  public func illegal_definition[] -> [] {
+    return Void;
+  }
+}

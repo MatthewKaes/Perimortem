@@ -1,0 +1,15 @@
+// Perimortem Engine
+// Copyright © Matt Kaes
+//
+// Records exact external Package requests and member Source routes.
+// Environment construction later resolves those requests and supplies shared
+// bindings to every member Source.
+dialect : Package;
+
+resolve Math : Perimortem.Math = "1.0";
+resolve Graphics : Perimortem.Graphics = "1.0";
+resolve Runtime : Perimortem.Runtime = "1.0";
+
+source "scenes/splash.ttx";
+source "scenes/title.ttx";
+source "main.ttx";
