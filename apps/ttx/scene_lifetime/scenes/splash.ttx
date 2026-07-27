@@ -10,6 +10,7 @@ signal finished;
 
 state top_icon : Graphics::Sprite = new;
 state bottom_icon : Graphics::Sprite = new;
+state elapsed : Real_64 = 0.0;
 
 const fade_time : Real_64 = 1.0;
 const hold_time : Real_64 = 1.5;
@@ -30,27 +31,32 @@ Scene prepare[self] -> Void {
   state image := Graphics::Image -> decode($[resources/logo.png]);
   self.top_icon = self -> create_icon(image, (.x = 200, .y = 100));
   self.bottom_icon = self -> create_icon(image, (.x = 200, .y = 400));
+  self.elapsed = 0.0;
   return Void;
 }
 
-Scene update[self, .frame : Runtime::Frame] -> Scene::Flow {
-  const elapsed : Real_64 = frame.scene_time -> get_seconds();
+Scene update[self, .delta_time : Real_64] -> Scene::Flow {
+  self.elapsed = self.elapsed + delta_time;
+
   const duration : Real_64 = fade_time * 2.0 + hold_time;
   state alpha : Real_64 = 0.0;
 
-  if (elapsed < fade_time) {
-    alpha = elapsed / fade_time;
+  if (self.elapsed < fade_time) {
+    alpha = self.elapsed / fade_time;
   }
-  if (elapsed >= fade_time and elapsed < fade_time + hold_time) {
+
+  if (self.elapsed >= fade_time and self.elapsed < fade_time + hold_time) {
     alpha = 1.0;
   }
-  if (elapsed >= fade_time + hold_time and elapsed < duration) {
-    alpha = (duration - elapsed) / fade_time;
+
+  if (self.elapsed >= fade_time + hold_time and self.elapsed < duration) {
+    alpha = (duration - self.elapsed) / fade_time;
   }
 
   self.top_icon.tone.a = alpha;
   self.bottom_icon.tone.a = alpha;
-  if (elapsed >= duration) {
+
+  if (self.elapsed >= duration) {
     return Scene::Flow -> emit(self.finished);
   }
 

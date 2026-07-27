@@ -16,11 +16,11 @@ using namespace Tetrodotoxin::Package;
 
 // resolve Math : Perimortem.Math = "1.0";
 // resolve Graphics : Perimortem.Graphics = "1.0";
-// resolve Runtime : Perimortem.Runtime = "1.0";
+// resolve System : Perimortem.System = "1.0";
 
-// source "scenes/splash.ttx";
-// source "scenes/title.ttx";
-// source "main.ttx";
+// source Splash from "scenes/splash.ttx";
+// source Title from "scenes/title.ttx";
+// source Main from "main.ttx";
 
 auto Tetrodotoxin::Package::Dialect::interpret(
     Allocator::Arena& domain,
@@ -34,40 +34,31 @@ auto Tetrodotoxin::Package::Dialect::interpret(
   while (cursor.get_code() == Code::Type::Addressable &&
          cursor.get_text() == "resolve"_view) {
     auto dependency = Language::Dependency::parse(cursor);
-    if (!dependency) {
-      bad_generation = true;
-    }
-
+    bad_generation = bad_generation || !dependency;
     if (!bad_generation) {
       dependencies.insert(*dependency);
     }
   }
 
   // The rest of the file is just an ordered list of sources to include.
-  Managed::Vector<View::Bytes> sources(domain);
+  Managed::Vector<Language::Source> sources(domain);
   while (cursor.current().get_code() != Code::Type::Terminal) {
-    if (cursor.get_code() != Code::Type::Addressable ||
-        cursor.get_text() != "source"_view) {
-      cursor.create_token_error(
-          "Expected `source` followed by a source path."_view,
-          "After the `resolve` block package expects only a list of source "
-          "includes."_view);
-    }
-
-    // Expect a string and end statement.
-    auto path = cursor.require(Code::Type::String);
-    if (!path || !cursor.require(Code::Type::EndStatement)) {
-      bad_generation = true;
-      cursor.recover_to_statement();
-    }
-
+    auto source = Language::Source::parse(cursor);
+    bad_generation = bad_generation || !source;
     if (!bad_generation) {
-      sources.insert(path.caculate_text(cursor.get_source_text()));
+      sources.insert(*source);
     }
   }
 
   // Now that we've parsed as much as we can we can now bail.
+  if (sources.is_empty()) {
+    cursor.create_error(
+        "Package doesn't contain any source files. At least one `source` is "
+        "required."_view);
+    bad_generation = true;
+  }
 
+  // Now that we've parsed as much as we can we can now bail.
   if (!bad_generation) {
     return {};
   }

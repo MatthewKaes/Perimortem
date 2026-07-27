@@ -21,12 +21,14 @@ Scene prepare[self] -> Void {
   return Void;
 }
 
-Scene update[self, .frame : Runtime::Frame] -> Scene::Flow {
-  if (frame.input -> pressed(.key = Runtime::Key -> space())) {
+Scene update[self, .delta_time : Real_64] -> Scene::Flow {
+  const input := System -> get_input();
+
+  if (input -> pressed(.key = System::Key -> space())) {
     return Scene::Flow -> emit(self.space_pressed);
   }
 
-  if (frame.input -> pressed(.key = Runtime::Key -> shift())) {
+  if (input -> pressed(.key = System::Key -> shift())) {
     return Scene::Flow -> emit(self.shift_pressed);
   }
 

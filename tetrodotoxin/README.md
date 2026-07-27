@@ -1,111 +1,110 @@
 # Tetrodotoxin
 
-Tetrodotoxin is the concrete host for TTX. TTX supplies lexical bytecode and
-the shared target independent semantic model. Tetrodotoxin owns concrete source
-Dialects, Environment construction, generators, filesystem policy, and durable
-Package products.
+Tetrodotoxin is the concrete host for TTX. TTX supplies lexical bytecode and a
+closed target independent semantic substrate. Tetrodotoxin owns the concrete
+source Dialects that interpret that substrate, the Environment that hosts them,
+and the tooling boundaries for runtime and package artifacts.
 
 ## Component map
 
-1. [`language`](language/) owns one Source lifetime, the universal source
-   envelope, static parser dispatch, and parser fragments shared by concrete
-   Dialects.
-2. [`environment`](environment/) owns the semantic Workspace, Namespace, and
-   eventual finalized Graph.
-3. [`library`](library/) owns Library grammar and the reusable CPU compiler and
-   assembler.
-4. [`package`](package/) owns authored Package grammar, confined filesystem
-   Workspace, Distribution, Reader, and Writer.
-5. [`app`](app/) owns startup profiles, lifecycle policy, and generated
-   platform entry semantics.
+1. [`language`](language/) defines the stateful Dialect interface, its Monograph
+   root, and syntax fragments shared by concrete Dialects.
+2. [`environment`](environment/) owns the Workspace that installs Dialects,
+   imports authored source, retains graph allocation, and resolves imported
+   Monographs by authored source name.
+3. [`package`](package/) owns the authored Package Dialect shape, exact
+   Dependency requests, exact Source name to path bindings, and the Package
+   Monograph model. Its interpreter remains incomplete.
+4. [`library`](library/) owns Library language semantics, built in CPU Types,
+   native CPU assembly, and the future reusable CPU compiler.
+5. [`app`](app/) owns startup profiles, lifecycle policy, and generated platform
+   entry semantics.
 6. [`scene`](scene/) owns managed state, signals, render facts, and Scene
    lifecycle roles.
-7. Top level `render`, `shader`, and `foreign` folders own their concrete
-   grammar, legality, and specialized tooling.
+7. Top level `render` and `shader` folders own their future concrete Dialects.
+   `foreign` owns embedded FFI grammar admitted by CPU capable parent Dialects.
 8. [`linker`](linker/) owns source independent objects, symbols, relocations,
    target encoding, and native archive construction.
 
 Path, namespace, and Bazel target describe the same owner. Every top level
 target owns the complete `folder/**/*.cpp` and `folder/**/*.hpp` tree.
 
-## Source transaction
+## Source import
+
+Environment owns the intended source transaction:
 
 ```text
-authored text and diagnostic path
--> Language::Source::parse
--> one owned text copy, Tokenizer, Cursor, and Arena
--> opening Documentation and exact Dialect name
--> borrowed parser map lookup
--> selected static body parser
--> one concrete Abstract root
--> completed Language::Source owner
+authored source name, diagnostic path, and borrowed authored bytes
+-> Environment::Workspace::import_source
+-> one Tokenizer and forward Cursor
+-> required opening Documentation
+-> Language::Parser::Dialect
+-> exact installed Dialect instance
+-> Dialect::interpret
+-> concrete Dialect::Monograph
+-> Workspace source name lookup
 ```
 
-`Language::Source` is the lifetime root for everything derived from one
-authored stream. It is not an Abstract. Its selected concrete root is the
-semantic identity.
+`Language::Dialect` is intentionally stateful. Environment constructs each
+installed Dialect in its graph Arena, supplies the Workspace as its shared TTX
+registry, and keeps the Dialect alive while any of its Monographs remain
+queryable.
 
-The parser map associates exact Dialect names with static function pointers and
-is borrowed only for construction. There is no Dialect base class, Frontend
-object, mutable parser registry, separate Container, second tokenization pass,
-or retained parser bookmark.
+`Language::Dialect::Monograph` is the common Abstract root for one interpreted
+source island. A concrete Monograph owns its Dialect semantics and borrows the
+Arena, opening Documentation, and host Dialect retained by Environment.
 
-A parse succeeds only when the selected parser returns a concrete root,
-consumes the complete source body, and adds no diagnostic. Failure destroys the
-candidate owner, so an incomplete Source cannot escape.
+There is no separate Source lifetime object, static parser function map,
+Frontend, Container, or Environment Namespace. Environment owns the transaction
+because it already owns the Dialect state, graph allocation, and retained
+Monographs that give interpretation its lifetime.
 
-## Semantic construction
+The API shape above is present, but the current Package interpreter cannot yet
+complete a valid import. It is an ownership contract, not current behavioral
+evidence. The current Workspace import parameter still combines its semantic
+lookup key with the Tokenizer diagnostic path. Package integration must keep
+those two inputs distinct now that Source names are authored explicitly.
 
-```text
-Environment::Workspace
-  supplies stable scalar Types, Generic formulas, materializations, and aliases
+## Semantic ownership
 
-Language::Source owners
-  retain each source Arena, Tokens, and concrete semantic root
+TTX remains the shared vocabulary for Abstract, Type, Value, Addressable,
+Callable, Layout, Documentation, Attribute, Alias, Invalid, and their common
+supporting models.
 
-Environment::Namespace
-  retains roots, publishes exports, and validates sealing
+`Library::Language` owns the semantics that are not universal across Dialects:
+Expression, Binding, Projection, Constant and its value domains, Generic and its
+materializations, concrete scalar Types, and Static and Self invocation
+distinctions. These owners retain real TTX edges rather than copying the TTX
+model.
 
-future Environment::Graph
-  connects completed roots and resolved Package inputs
-```
-
-Environment does not replace Source ownership. A living Source always owns the
-Arena that backs its root. Environment supplies cross source semantic identity
-and the immutable consumer boundary.
-
-TTX Type, Layouts, Addressable, Callable, and shared value domains remain common
-catagories. `Library::Language` owns Expression, Binding, Projection, Constant,
-and typed Constant domains while retaining real TTX edges.
-
-Scene, App, Shader, Foreign, and other producers do not clone the TTX model beneath
-a concrete Dialect and can borrow `Library::Language` as a subdialect when required.
+App, Scene, and other CPU capable Dialects may use Library language contracts
+where their authored semantics require them. They do not become Library
+Monographs, and Library never builds a shadow graph for them.
 
 ## Dependency direction
 
-The foundational direction follows meaning:
+The active host direction is:
 
 ```text
-|-----Tetrodotoxin-----||--TTX--||--Runtime--|
-Library  ->  Language  ->  TTX  ->  Perimortem
+Environment -> Package -> Language -> TTX -> Perimortem
+Library -> TTX -> Perimortem
 ```
 
-Other languages should never `dispatch` to `Library` directly. Instead they should
-use `loan words` from the `Library::Language::Dialect` in the contexts that are
-appropriate for them.
+Package supplies the first concrete Language Dialect shape for Environment,
+although its current import path remains incomplete. Library acquires a
+Language dependency when its concrete top level Dialect is exposed. Its current
+semantic and assembler surface depends directly on TTX.
 
-## Terminals
+## Terminal tools
 
-Outside of the `Library::Language` dialect Library compilation consumes completed
-CPU facts retained by their real Library, Scene, or App owners and lowers them to
-CPU centeric terminals. It never converts another Dialect into a Library however
-it does support layout negotions with them to ensure "ABI" and calling conventions.
-Key consumers such as `App` use Library layouts to negotiate startup and lifecycle policy
-while consumers like `Shader` use Library to negotiate CPU <-> GPU terminals.
+Library assembly and future compilation consume completed CPU facts retained by
+their real Dialect owners. Shader owns SPIR V assembly. Linker owns
+source independent object, relocation, target format, and native archive
+machinery.
 
-Linker currently owns the unified terminal platform artifacts to centeralize the logic.
-However the Assembler should live in Library long term with the executable formats moving
-to `App` and the archiving logic moving to `Package`.
+Package will eventually own confined package input and durable package
+distribution. Those products are not part of the current Package target and are
+not implied by a successfully interpreted Package Monograph.
 
-See [tetrodotoxin_design.md](tetrodotoxin_design.md) for the complete ownership
+See [tetrodotoxin_design.md](tetrodotoxin_design.md) for the detailed ownership
 and transaction contract.

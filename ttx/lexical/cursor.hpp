@@ -93,6 +93,34 @@ class Cursor {
     return false;
   }
 
+  // Checks if the token is a required semantic keyword instead of a token.
+  //
+  // TODO: If it ever comes up that we need to bail on different kinds of
+  // statements we should fold that in but not until we have a real use case.
+  // Recover to balance braces was used in the old parser quite a bit.
+  constexpr auto bail(
+      Perimortem::Core::View::Bytes keyword,
+      Perimortem::Core::View::Bytes message = {}) -> Bool {
+    auto candidate = require(Code::Type::Addressable, message);
+    if (!candidate) {
+      recover_to_statement();
+      return true;
+    }
+
+    auto text = candidate.caculate_text(get_source_text());
+    if (candidate.caculate_text(get_source_text()) != keyword) {
+      Perimortem::Core::Static::Bytes<128> hint_buffer;
+      Perimortem::Core::Writer::Textual hint_message(hint_buffer);
+      hint_message << "Expected `"_view << keyword << "` but got `"_view << text
+                   << "`."_view;
+      create_token_error(message);
+      recover_to_statement();
+      return true;
+    }
+
+    return false;
+  }
+
   // Creates a source level error message.
   // Views can be temporary as the error context copies the data into its local
   // memory space in case the error outlives the source.
@@ -157,6 +185,11 @@ class Cursor {
     if (type.is_one_of(terminals)) {
       consume();
     }
+  }
+
+  constexpr auto caculate_text(Token token) const
+      -> Perimortem::Core::View::Bytes {
+    return token.caculate_text(get_source_text());
   }
 
   // Checks if the current cursor is exactly one type.

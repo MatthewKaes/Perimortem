@@ -1,93 +1,99 @@
 # Environment
 
-`tetrodotoxin/environment` owns the semantic construction environment shared
-by completed Tetrodotoxin Sources. The complete folder builds as
+`tetrodotoxin/environment` owns the host that assembles interpreted source into
+one queryable TTX environment. The complete folder builds as
 `//tetrodotoxin:environment`.
 
-Environment is not a source parser or another source lifetime wrapper.
-`Tetrodotoxin::Language::Source` remains the root of one authored stream, its
-Tokenizer, its Arena, and its concrete Abstract root.
+The current owner is `Environment::Workspace`. There is no separate Source,
+Container, Namespace, or finalized Graph object.
 
-## Workspace
+## Workspace lifetime
 
-`Environment::Workspace` owns identities that must remain stable across one
-graph construction transaction:
+Workspace owns one Arena containing installed Dialect instances, parser
+products, and retained Monographs. It retains those Dialect instances in order,
+binds exact authored names to them, and binds imported semantic source names to
+their Monographs.
 
-1. the common scalar Type identities;
-2. the immutable Generic formulas;
-3. the append only Generic materializations; and
-4. local Alias bindings used by source resolution.
+Installed Dialects may retain state across interpretations. Workspace explicitly
+destroys every Dialect before releasing the Arena, so a Monograph never loses
+the host context that created it while the Workspace remains alive.
 
-Binding returns either the real committed Alias or an exact Workspace error.
-An invalid name, Invalid target, or duplicate binding never becomes a durable
-graph edge.
+Authored source names, diagnostic paths, and content bytes are borrowed inputs.
+The source provider owns their backing storage for as long as retained semantic
+values borrow those views. Environment owns graph allocation and interpretation
+lifetime, not filesystem acquisition.
 
-Workspace does not own confined filesystem access. That remains
-`Package::Workspace`. It also does not own source text, Tokens, parser
-dispatch, or a Library specific semantic mirror.
+## Dialect installation
 
-## Namespace
-
-`Environment::Namespace` is the durable named resolution context for retained
-definitions. It keeps the complete root surface separate from the deliberately
-published export surface.
-
-Namespace construction and mutation return either the same Namespace or an
-exact error. Publication is atomic. Private roots do not leak through
-`resolve_context()`, exposed writable state publishes its real read only edge,
-and Static Callables retain their invocation lookup surface.
-
-`seal()` is the immutable consumer boundary. It validates every retained and
-published edge before committing. A failed seal leaves the transaction mutable
-so later bindings may complete and validation may be retried. Invalid or
-unresolved edges cannot enter a sealed Namespace.
-
-## Source ownership
-
-The owner chain is:
+The intended toolchain contract installs concrete Dialects through the type
+system:
 
 ```text
-Environment::Workspace
-  coordinates shared semantic identities and bindings
-
-Language::Source
-  owns one Arena, path, text, Tokenizer, and concrete root
-
-concrete Dialect root
-  owns declarations, definitions, and Dialect resolution policy
-
-Environment::Namespace
-  retains and publishes completed semantic edges
+workspace.install_dialect<Package::Dialect>("Package")
 ```
 
-There is no separate Environment Container. Splitting the Arena from Source
-would allow a live root to outlive the memory that backs it.
+Workspace must reject a duplicate name, construct one concrete Dialect with
+itself as the TTX registry, and retain the resulting instance. Installing the
+same concrete C++ Dialect under another name creates another distinct stateful
+instance.
 
-## Future Graph
+The name map is a real Environment dispatch surface. It is not a TTX class
+registry or a copied semantic model.
 
-The eventual `Environment::Graph` will finalize completed Source roots,
-resolved Package inputs, and selected product roots into one immutable query
-surface. It must reuse Namespace and Workspace identities rather than copy
-them into a shadow model.
+The installation template and owner containers are present, but the current
+Dialect construction and destruction contracts are incomplete. No successful
+Package installation is established yet.
 
-Graph publication will require every reachable owner to seal its mutable
-surfaces, validate public signatures and cross owner edges, and reject Invalid
-from committed data. Graph encoding and source free restoration remain
-unimplemented.
+## Source import
 
-## Dependency direction
+`Workspace::import_source` receives a route, authored contents, Documentation
+context, and lexical Errors owner. Its intended forward transaction is:
 
 ```text
-Environment -> TTX
-Library ----> Environment
-Package ----> Language -> TTX
+reject duplicate semantic source name
+-> create Tokenizer and Cursor
+-> require opening comment Documentation
+-> parse `dialect : Type;`
+-> select the exact installed Dialect
+-> call its interpret operation with the same Cursor and Arena
+-> retain the resulting Monograph by authored source name
 ```
 
-Language never sees Environment. Package supplies source bytes and durable
-entries without reconstructing the Environment graph. Concrete Dialects
-consume Environment only when their implementation needs the shared
-transaction.
+Environment owns the universal source envelope because it already owns the
+Dialect family and every lifetime produced by dispatch. A concrete Dialect owns
+only its body grammar and concrete Monograph.
 
-Environment owns no parser map, Cursor bookmark, package repository search,
-archive Manifest, target record, linker object, runtime cell, or compatibility
-format.
+Unknown Dialects and malformed envelopes are source errors. A failed
+interpretation publishes no source name binding.
+
+The Workspace API and ownership shape are present. The current Package
+interpreter cannot yet complete a successful import. The current `route`
+parameter also supplies both the semantic lookup key and Tokenizer diagnostic
+path. Package integration must split those inputs because an authored Source
+name is independent of its package path. This transaction is not behavioral
+evidence.
+
+## Registry query
+
+Workspace is the shared Abstract registry supplied to every installed Dialect.
+Its contextual resolution looks up an imported semantic source name:
+
+```text
+workspace.resolve_context(source_name)
+-> retained Dialect::Monograph
+-> Ttx::Concept::Invalid when absent
+```
+
+The returned edge is a real retained Abstract. Missing names use TTX Invalid so
+semantic queries remain total and chainable.
+
+## Boundary
+
+Environment owns no concrete Package or Library declarations, target records,
+runtime values, linker objects, archive format, or package repository search.
+
+Package or another source provider will eventually perform confined reads. It
+must feed each member's authored local name, actual diagnostic path, and bytes
+into Workspace while retaining every borrowed buffer. Concrete Dialects may
+retain their own lookup and completion structures inside their Monographs
+without adding a generic Environment Namespace.

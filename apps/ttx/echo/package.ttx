@@ -6,10 +6,11 @@
 // bindings to every member Source.
 dialect : Package;
 
-resolve Math : Perimortem.Math = "1.0";
-resolve Graphics : Perimortem.Graphics = "1.0";
+// Core and Memory are always included for Tetrodotoxin and are upgraded to the
+// global namespaces.
+resolve Core : Perimortem.Core = "1.0";
+resolve Memory : Perimortem.Memory = "1.0";
 resolve System : Perimortem.System = "1.0";
 
-source Scenes::Splash from "scenes/splash.ttx";
-source Scenes::Title from "scenes/title.ttx";
+source App from "app.ttx";
 source Main from "main.ttx";

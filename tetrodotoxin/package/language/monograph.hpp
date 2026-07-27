@@ -5,6 +5,7 @@
 
 #include "tetrodotoxin/language/dialect.hpp"
 #include "tetrodotoxin/package/language/dependency.hpp"
+#include "tetrodotoxin/package/language/source.hpp"
 #include "ttx/concept/invalid.hpp"
 
 namespace Tetrodotoxin::Package::Language {
@@ -29,7 +30,7 @@ class Monograph : public Tetrodotoxin::Language::Dialect::Monograph {
       const Ttx::Concept::Documentation& documentation,
       Tetrodotoxin::Language::Dialect& host,
       Perimortem::Core::View::Vector<Dependency> dependencies,
-      Perimortem::Core::View::Vector<Perimortem::Core::View::Bytes> sources)
+      Perimortem::Core::View::Vector<Source> sources)
       : Tetrodotoxin::Language::Dialect::Monograph(domain, documentation, host),
         dependencies(dependencies),
         sources(sources) {}
@@ -45,10 +46,19 @@ class Monograph : public Tetrodotoxin::Language::Dialect::Monograph {
     return "Package"_view;
   };
 
+  constexpr auto get_dependencies() const
+      -> Perimortem::Core::View::Vector<Dependency> {
+    return dependencies;
+  }
+
+  constexpr auto get_sources() const -> Perimortem::Core::View::Vector<Source> {
+    return sources;
+  }
+
  private:
   // The package monograph is fully formed on parse so we only have to expose
   // views to the client which can manage mutable import state if any.
   Perimortem::Core::View::Vector<Dependency> dependencies;
-  Perimortem::Core::View::Vector<Perimortem::Core::View::Bytes> sources;
+  Perimortem::Core::View::Vector<Source> sources;
 };
 }  // namespace Tetrodotoxin::Package::Language
