@@ -1,0 +1,3 @@
+stderr empty
+exit 0
+timeout_ns 1000000000

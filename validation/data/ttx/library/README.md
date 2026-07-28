@@ -36,7 +36,7 @@ Dialect rules into universal TTX semantics.
 | empty, positional, named, and indexed parentheses | These forms preserve the selected mode. Nested slices and swizzles produce positional flow, while named and indexed designators never mix. |
 | `0...limit`, logical, comparison, arithmetic, unary, and postfix forms | These forms apply the accepted precedence ladder once and retain the selected Static, Self, field, index, slice, and swizzle operations. |
 | `=`, `+=`, and `-=` | These assignments require the decoded left chain to prove write capability. Assignment never becomes an expression. |
-| `return`, `if`, `while`, `for`, `match`, `break`, and `continue` | These statements produce explicit Body blocks and terminators. Empty results use `return Void;`, conditions fit Bool, and `for` reuses Layout grammar. |
+| `return`, `if`, `while`, `for`, `match`, `break`, and `continue` | These statements produce explicit Body blocks and terminators. A bare `return;` is valid only for a Callable whose declared result is the concrete `Void` Type. Conditions fit Bool, and `for` reuses Layout grammar. |
 | decimal, hexadecimal, real, Bool, quoted bytes, and byte arrays | These literals preserve the value domain without implicit String or NUL semantics. The fixture uses each domain either as an attribute or a semantic value. |
 
 ## Broad graph oracle
@@ -72,9 +72,9 @@ The frozen Type and Layout expectations are:
 5. `signature`, `dense_defaults`, both slice results, and `decode_table` use
    supported concrete `Fixed` materializations with their ordered arguments.
 6. `broad_entry` has a named two parameter Layout and a direct `Unsigned_64`
-   result. `reset` has empty parameter and result Layouts. `unnamed_layout`
-   preserves two unnamed parameters and results. `classify` has one named
-   parameter and named results ordered `accepted`, `adjusted`.
+   result. `reset` has empty parameters and a direct `Void` result.
+   `unnamed_layout` preserves two unnamed parameters and results. `classify`
+   has one named parameter and named results ordered `accepted`, `adjusted`.
 7. `foreign -> library_observe` resolves a complete bodyless Foreign Callable
    whose external C symbol is `library_observe`. No defined Callable is
    bodyless.
@@ -138,7 +138,7 @@ emit an undefined Foreign call relocation for `library_foreign_add`.
 | `foreign_undeclared_symbol.ttx` | `foreign -> missing()` cannot fall back to ambient linker search. Every consumed external symbol must be declared in the source local Foreign block. |
 | `duplicate_name.ttx` | The second `duplicate` collides on the same root surface and publishes no edge. |
 | `new_without_expected_type.ttx` | `new` cannot supply the Type required by an inferred `:=` declaration. The rejection is not a rejection of inference itself. |
-| `bare_return.ttx` | Empty results require `return Void;`. Bare `return;` is invalid. |
+| `bare_return.ttx` | The declared result is `[]`, not the concrete `Void` Type, so bare `return;` is invalid for this independent reason. |
 | `dialect_led_callable.ttx` | A Library source cannot use a Dialect name led lifecycle declaration. Scene owns that role marking continuation. |
 
 Every failure prevents a completed Library Monograph. Arena allocation from a

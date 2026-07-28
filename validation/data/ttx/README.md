@@ -48,8 +48,8 @@ Path normalization has no effect on the authored semantic name.
 the two Scene identities above and owns the Splash to Title to Splash
 transition cycle. It also selects the Windowed startup profile and embeds the
 package root `$[resources/icon.png]`. The Scene Sources do not name one
-another. They use typed `= new`, accepted deferred `:=` inference, explicit
-`return Void;`, and the package root `$[resources/logo.png]`. App and Scene
+another. They use typed `= new`, accepted deferred `:=` inference, bare
+`return;` for Void, and the package root `$[resources/logo.png]`. App and Scene
 parsing, startup generation, transitions, graphics, windowing, and execution
 remain unimplemented and are not claimed by this fixture.
 
@@ -72,26 +72,27 @@ construct these independent failures:
 | `missing.ttx` | A missing member is rejected. |
 | A route naming a directory or another non file | A non file member is rejected. |
 | Two declarations of the same semantic source name | The second declaration is rejected without loading or publishing it. |
+| Two distinct semantic names whose logical paths both normalize to `member.ttx` | The second declaration is rejected without deriving either identity from its path. |
 
 Content outside the package root is reachable only through an exact resolved
 Package. Symlink cases are created inside a temporary test root so this
 repository does not contain an intentionally escaping path.
-`package/duplicate_source.ttx` still uses the retired anonymous Source spelling
-and must be migrated before it can freeze duplicate name or path behavior.
+`package/duplicate_semantic_name.ttx` and
+`package/duplicate_normalized_path.ttx` freeze those two rejections
+independently. The first uses distinct paths with one repeated authored name.
+The second uses distinct authored names with `./member.ttx` and `member.ttx`,
+which normalize to one logical path.
 `package/float_version.ttx` and `package/noncanonical_version.ttx` remain
-independent invalid version inputs. Whether two different names may bind the
-same normalized path remains an open Package policy decision rather than a
-frozen oracle.
+independent invalid version inputs.
 
 ## Package resource oracle
 
-`package_resources/package.ttx` still uses the retired anonymous Source
-spelling and must be migrated before it becomes a current Package acceptance
-input. Its two intended Library Sources request the same normalized resource
-path `resources/table.bin`, so one future graph construction transaction must
-read one stable backing snapshot while retaining two distinct Constant
-bindings. `shared_a.ttx` also requests `resources/empty.bin`. Its zero byte
-value is successful and distinct from read failure.
+`package_resources/package.ttx` binds `SharedA` and `SharedB` explicitly. Both
+Library Sources request the same normalized resource path
+`resources/table.bin`, so one future graph construction transaction must read
+one stable backing snapshot while retaining two distinct Constant bindings.
+`shared_a.ttx` also requests `resources/empty.bin`. Its zero byte value is
+successful and distinct from read failure.
 
 The first 64 bytes of `table.bin` are exactly:
 
@@ -116,16 +117,39 @@ presence and the exact table prefix are structural fixture evidence only.
 
 `library/` owns the frozen Library and native oracle corpus. `package/` owns
 descriptor failure inputs, and `package_resources/` owns resource success and
-sharing inputs. Their anonymous Source membership fixtures require migration
-to the explicit name to path grammar. Every TTX Source in those directories is
-an explicit unit test runfile, but runfile inclusion alone does not make a
-retired spelling current authority.
+sharing inputs. Every active Package Source uses the explicit
+`source Name from "path.ttx";` grammar. Every TTX Source in those directories
+is an explicit unit test runfile, but runfile inclusion alone does not prove
+semantic acceptance.
 
 `shader_artifact/` is preserved as legacy Shader migration evidence. Its
-type led `source Formats = ...`, `dialect : Gpu`, and `ShaderFormat`
-spellings are not current authority, and that directory is deliberately
-excluded from active unit test runfiles. Replacing it requires a separately
-authorized Shader change.
+Package Source bindings use the current explicit grammar, while its
+`dialect : Gpu` and `ShaderFormat` spellings are not current authority. The
+directory is deliberately excluded from active unit test runfiles. Replacing
+those Shader owned spellings requires a separately authorized Shader change.
+
+## Process oracle contracts
+
+`oracles/echo.stdin`, `oracles/echo.stdout`, and `oracles/echo.contract`
+freeze the future Echo process observation. Standard input is exactly
+`hello\nquit\n`, standard output is exactly `Echo: hello\n`, standard error is
+empty, the process exits with status zero, and the direct child timeout is one
+billion nanoseconds. Empty standard error is the frozen absence of an error
+level diagnostic.
+
+`oracles/scene_lifetime.golden` freezes the deterministic Scene observer
+contract. Every delta is an integer nanosecond value. Each Splash activation
+uses `500000000`, `500000000`, `1000000000`, `1000000000`, and `500000000`.
+Shift and Space are each pressed for one Title frame. Stable instance ordinals
+prove fresh construction without recording an address. Attachment, prepare,
+ordered child submission, signal, user release, reverse subtree destruction,
+no remaining live Scene, and process exit zero are exact ordered events.
+
+The Validation process runner executes a child binary directly. Bazel starts
+the oracle parent only, so launcher text cannot enter the child standard output
+pipe. The V00 self test uses canned child modes for passing, missing,
+reordered, duplicate, unexpected, timed out, wrong stream, and wrong exit
+observations. It does not invoke an application target.
 
 ## Closed contract blockers
 

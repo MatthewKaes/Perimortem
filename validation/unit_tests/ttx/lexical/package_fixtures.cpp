@@ -22,12 +22,13 @@ static Harness PackageFixtureTokens = {
 };
 
 PERIMORTEM_UNIT_TEST(PackageFixtureTokens, tokenize_completely) {
-  static constexpr Static::Vector<View::Bytes, 10> paths = {{
+  static constexpr Static::Vector<View::Bytes, 11> paths = {{
     "apps/ttx/scene_lifetime/package.ttx"_view,
     "apps/ttx/scene_lifetime/main.ttx"_view,
     "apps/ttx/scene_lifetime/scenes/splash.ttx"_view,
     "apps/ttx/scene_lifetime/scenes/title.ttx"_view,
-    "validation/data/ttx/package/duplicate_source.ttx"_view,
+    "validation/data/ttx/package/duplicate_semantic_name.ttx"_view,
+    "validation/data/ttx/package/duplicate_normalized_path.ttx"_view,
     "validation/data/ttx/package/float_version.ttx"_view,
     "validation/data/ttx/package/noncanonical_version.ttx"_view,
     "validation/data/ttx/package_resources/package.ttx"_view,
