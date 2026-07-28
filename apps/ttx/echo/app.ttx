@@ -10,12 +10,9 @@ dialect : App;
 //   1. `Windowed`: Native window startup with System::Window and Vulkan support.
 //   2. `Terminal`: Native terminal startup with standard input and output.
 //   3. `Headless`: Background startup without a presentation surface.
-runtime = Terminal {
-  .title = "Scene Lifetime",
-  .icon = $[resources/icon.png],
-}
+runtime = Terminal {}
 
-// Program lifecycle just wraps a callable static entry point. 
+// Program lifecycle just wraps a callable static entry point.
 // The declaration may have any authored name but it must take no arguments and have
 // a return type of `Void`.
 //
