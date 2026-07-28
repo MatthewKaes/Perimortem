@@ -44,6 +44,37 @@ source Scenes::Title from "scenes/title.ttx";
 The paths select confined inputs only. Package never derives a Scene name from
 a directory or filename.
 
+## Retained declared children
+
+A Scene instance is the root of one owned child tree. Authored `child`
+declarations create nonnull values with stable identity for the complete Scene
+lifetime:
+
+```ttx
+child top_icon : Sprite;
+child bottom_icon : Sprite;
+```
+
+Declared children construct and attach in authored order before `prepare`.
+`prepare` configures those existing values field by field. It never replaces
+their identity. A default constructed Sprite is valid but submits no draw until
+it has drawable content.
+
+After `update`, visible attached graphics children are collected automatically
+in retained tree order. Authored Scene code mutates child properties and does
+not call a render, draw, or submission operation. Equal z order follows sibling
+tree order, higher z order draws in front, and visibility and transforms
+propagate through graphics parents.
+
+App applies a Scene transition only after update and submission facts for the
+frame are stable. Scene `release` runs before automatic reverse order
+destruction of the complete child subtree. Replace and exit therefore release
+every declared child without authored cleanup calls.
+
+Dynamic attachment, detach, reparenting, and queued individual release require
+their own owning and generational identity contract. They are not implicit in
+the declared child model.
+
 ## Time and input
 
 Delta time is the only explicit argument after `self`. It is scheduler input,
@@ -84,12 +115,14 @@ The canonical fixtures are
 and
 [`../../apps/ttx/scene_lifetime/scenes/title.ttx`](../../apps/ttx/scene_lifetime/scenes/title.ttx).
 They record state, embedded resources, required lifecycle roles, the intended
-System input query, signals, and an App owned transition cycle. They do not yet
-record `pause` or `resume`.
+System input query, signals, and an App owned transition cycle. Their Sprite
+state still requires the planned fixture migration to declared children. They
+do not yet record `pause` or `resume`.
 
 ## Status
 
-The Scene Dialect, Scene Monograph, confined resource input, lifecycle executor,
-System input API, and durable Scene schema are not implemented. The canonical
-sources record the accepted grammar and provide future acceptance fixtures.
-Parsing their universal envelopes alone does not establish Scene behavior.
+The Scene Dialect, Scene Monograph, retained child runtime, automatic submission
+path, confined resource input, lifecycle executor, System input API, and durable
+Scene schema are not implemented. The canonical sources provide implementation
+pressure, but parsing their universal envelopes alone does not establish Scene
+behavior.

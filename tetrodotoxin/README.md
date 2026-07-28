@@ -19,30 +19,38 @@ and the tooling boundaries for runtime and package artifacts.
    native CPU assembly, and the future reusable CPU compiler.
 5. [`app`](app/) owns startup profiles, lifecycle policy, and generated platform
    entry semantics.
-6. [`scene`](scene/) owns managed state, signals, render facts, and Scene
-   lifecycle roles.
+6. [`scene`](scene/) owns state, signals, retained declared children, render
+   submission facts, and Scene lifecycle roles.
 7. Top level `render` and `shader` folders own their future concrete Dialects.
    `foreign` owns embedded FFI grammar admitted by CPU capable parent Dialects.
 8. [`linker`](linker/) owns source independent objects, symbols, relocations,
    target encoding, and native archive construction.
+9. A future `graphics` folder owns language neutral retained graphics children
+   and ordered submission facts. No current folder or target implements that
+   contract.
 
 Path, namespace, and Bazel target describe the same owner. Every top level
 target owns the complete `folder/**/*.cpp` and `folder/**/*.hpp` tree.
 
-## Source import
+## Production transaction
 
-Environment owns the intended source transaction:
+The accepted production transaction composes the owners without merging them:
 
 ```text
-authored source name, diagnostic path, and borrowed authored bytes
--> Environment::Workspace::import_source
--> one Tokenizer and forward Cursor
--> required opening Documentation
--> Language::Parser::Dialect
--> exact installed Dialect instance
--> Dialect::interpret
--> concrete Dialect::Monograph
--> Workspace source name lookup
+Bazel declares exact inputs and terminal outputs
+-> Puffer selects a compile mode and constructs one Workspace
+-> Workspace installs the selected concrete Dialects
+-> Workspace stages the explicit root name and path
+-> Package input performs each confined read
+-> Workspace retains bytes and parses the universal source envelope
+-> the exact installed Dialect constructs its real Monograph
+-> Workspace retains the Monograph under the authored semantic name
+-> Package stages members and restores dependencies from Package Archives
+-> Workspace invokes one ordered post pass after staging drains
+-> Puffer stops terminal work when diagnostics exist
+-> concrete owners provide typed Package Archive and Linker Object Module data
+-> Linker emits the requested native product
+-> Puffer writes only declared outputs
 ```
 
 `Language::Dialect` is intentionally stateful. Environment constructs each
@@ -52,18 +60,21 @@ queryable.
 
 `Language::Dialect::Monograph` is the common Abstract root for one interpreted
 source island. A concrete Monograph owns its Dialect semantics and borrows the
-Arena, opening Documentation, and host Dialect retained by Environment.
+Arena, opening Documentation, and host Dialect retained by Environment. The
+planned lifecycle gives every retained Monograph one ordered post pass and lets
+its concrete Dialect encode and restore only its own opaque durable payload.
 
 There is no separate Source lifetime object, static parser function map,
 Frontend, Container, or Environment Namespace. Environment owns the transaction
 because it already owns the Dialect state, graph allocation, and retained
 Monographs that give interpretation its lifetime.
 
-The API shape above is present, but the current Package interpreter cannot yet
-complete a valid import. It is an ownership contract, not current behavioral
-evidence. The current Workspace import parameter still combines its semantic
-lookup key with the Tokenizer diagnostic path. Package integration must keep
-those two inputs distinct now that Source names are authored explicitly.
+Only the direct envelope dispatch shape is present. The current Package
+interpreter cannot complete a valid import, and Workspace has no staging queue,
+owned byte lifetime, dependency restoration, or ordered post pass. The current
+Workspace import parameter also combines its semantic lookup key with the
+Tokenizer diagnostic path. The transaction above is an ownership contract, not
+current behavioral evidence.
 
 ## Semantic ownership
 
@@ -95,16 +106,31 @@ although its current import path remains incomplete. Library acquires a
 Language dependency when its concrete top level Dialect is exposed. Its current
 semantic and assembler surface depends directly on TTX.
 
-## Terminal tools
+## Terminal products
 
 Library assembly and future compilation consume completed CPU facts retained by
 their real Dialect owners. Shader owns SPIR V assembly. Linker owns
 source independent object, relocation, target format, and native archive
 machinery.
 
-Package will eventually own confined package input and durable package
-distribution. Those products are not part of the current Package target and are
-not implied by a successfully interpreted Package Monograph.
+`Linker::Object::Module` is the accepted native typed terminal. It owns one
+coherent set of sections, symbols, and relocations. `Package::Archive` is the
+separate durable semantic terminal used for source free restoration and native
+artifact and symbol location. Package Archive never owns Linker object bytes.
+
+Package owns planned confined input, Archive encoding and restoration, and
+exact repository selection. Library owns CPU lowering. App and Scene retain
+their own completed facts. Linker owns static archives, shared libraries, and
+complete executable production. Puffer orchestrates these owners but does not
+replace any of them with a generic product registry.
+
+Final ELF linkage remains in repository code. A host linker is only an
+independent consumer for a static archive checkpoint, never the production
+implementation of a Tetrodotoxin executable.
+
+None of the complete terminal transaction, Package Archive, source free restore,
+Puffer compile orchestration, shared library output, or executable output is
+implemented by the current targets.
 
 See [tetrodotoxin_design.md](tetrodotoxin_design.md) for the detailed ownership
 and transaction contract.

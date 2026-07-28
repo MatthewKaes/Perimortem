@@ -57,9 +57,10 @@ Package Monograph. These are the result invariants it must establish.
 
 ## Package root policy
 
-The intended package contract confines every source and embedded resource to
-one opened package root. Future Package input opens a Source path beneath that
-root, then imports its bytes into Environment under the Source local name.
+The accepted package contract confines every source and embedded resource to
+one opened package root. Planned Package input opens a Source path beneath that
+root, then gives Workspace its bytes, diagnostic path, and exact authored local
+name for staging.
 Absolute paths and `..` escapes are invalid. Content outside that root is
 available only through an exact resolved Dependency.
 
@@ -72,12 +73,33 @@ their local names, deduplicates resources, or selects an App.
 sole completed App Monograph regardless of its local Source name or member
 filename.
 
-## Future durable products
+## Archive and repository
 
-Package will eventually own generated Distribution values and their Reader and
-Writer. The prototype archive format remains `1` and has no backwards
-compatibility requirement before release.
+Package owns the planned `Package::Archive` envelope, reader, writer, and exact
+repository selection. The Archive is the durable semantic terminal for source
+free restoration. It is distinct from every Linker native product.
 
-No Distribution, Manifest, Entry, Reader, Writer, archive codec, repository
-client, or source free restoration owner exists in the current Package target.
-A Package Monograph proves only that the authored manifest was interpreted.
+An Archive contains:
+
+1. exact Package identity and pinned version;
+2. exact semantic member names and concrete Dialect names;
+3. opaque versioned payloads encoded and restored by each concrete Dialect;
+4. dependency requests needed to rebuild the imported Package root;
+5. exported semantic routes and their native artifact and symbol locators.
+
+It contains no source bytes, source path as semantic identity, process address,
+parser state, filesystem handle, target cache, or Linker object bytes.
+
+Restoration validates the envelope, then asks the installed concrete Dialect to
+allocate and restore its real Monograph in the importing Workspace Arena.
+Package never depends on a concrete payload schema.
+
+The exact Repository selects only explicitly supplied products by Package
+identity and pinned version. It provides semantic Archives to Workspace and
+native product paths to Puffer as separate values. It does not scan the current
+directory, fetch a latest version, or load native bytes during semantic
+restoration.
+
+No Archive codec, exact Repository, publication path, or source free
+restoration exists in the current Package target. A Package Monograph currently
+proves only the intended authored manifest result shape.

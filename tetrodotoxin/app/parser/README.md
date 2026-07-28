@@ -29,27 +29,18 @@ runtime = Windowed {
 terminal input and output. `Headless` provides no presentation surface. These
 are App profiles, not Runtime Package exports.
 
+`Windowed` owns exactly title, icon, width, height, and resizable fields.
+`Terminal` and `Headless` are fieldless.
+
 Package assembly selects the sole completed App Monograph regardless of its
 authored Source name or member filename. `main.ttx` is only a convention.
 
 Embedded paths resolve from the Package root. Future Package construction must
 supply the confined bytes to source interpretation.
 
-## Callable lifecycle
+## Program lifecycle
 
-`Managed` and `Unmanaged` retain a direct typed edge to a completed Library
-Static Callable:
-
-```ttx
-lifecycle = Managed {
-  run Some::File -> launch,
-}
-```
-
-The declaration can have any authored name. App validates its required Layout.
-Execution never searches for `main`.
-
-Echo introduces a one shot `Program` lifecycle:
+`Program` is the callable App lifecycle:
 
 ```ttx
 lifecycle = Program {
@@ -60,9 +51,10 @@ lifecycle = Program {
 `Program` retains one Static Callable that takes no parameters and returns
 Void. Generated platform entry code invokes it once. Command line arguments are
 not injected into that Layout, so authored code queries process state through
-the linked System surface when needed. The intended relationship between
-`Program`, `Managed`, and `Unmanaged` still needs one explicit inventory
-decision before all three can become accepted grammar.
+the linked System surface when needed.
+
+The declaration can have any authored name. App validates its required Layout,
+and execution never searches for a function named `main`.
 
 ## Scene lifecycle
 
@@ -84,9 +76,12 @@ destination. `pop` releases the active instance and resumes the retained
 instance below it. `exit` releases the complete stack from top to bottom
 without resuming it.
 
-Transitions occur after the active Scene update returns. App owns the live
-Scene stack and transition policy. Scene owns its state, signals, and lifecycle
+Transitions occur after the active Scene update and retained child submission
+facts for the frame are stable. App owns the live Scene stack and transition
+policy. Scene owns its state, signals, children, submission facts, and lifecycle
 roles.
+
+Program and Scene are the complete accepted App lifecycle inventory.
 
 The intended acceptance order uses two application fixtures:
 
@@ -101,9 +96,6 @@ The intended acceptance order uses two application fixtures:
 ## Status
 
 The App Dialect, App Monograph, confined resource input, platform entry planner,
-and lifecycle executor are not implemented. Echo is not yet a frozen acceptance
-oracle because its Source bindings, visibility, and Terminal profile are
-internally unresolved. The callable contract for `Program` is recorded above,
-while its relationship to the older callable policy names remains open. The
-Scene Lifetime sources record the broader accepted grammar, but parsing their
-universal envelopes alone does not establish App behavior.
+and lifecycle executor are not implemented. Echo and Scene Lifetime are
+canonical implementation inputs, but parsing their universal envelopes alone
+does not establish App behavior.

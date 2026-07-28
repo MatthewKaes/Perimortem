@@ -11,7 +11,7 @@ grammar or acceptance data already exists.
 
 ## Owner graph
 
-The active dependency direction is:
+The active build dependency direction is:
 
 ```text
 Environment -> Package -> Language -> TTX -> Perimortem
@@ -19,6 +19,24 @@ Library -> TTX -> Perimortem
 Shader -> Perimortem
 Linker -> Perimortem
 ```
+
+The accepted production ownership flow is broader than the current build
+graph:
+
+```text
+Bazel request
+-> Puffer orchestration
+-> Environment Workspace
+-> installed Package and concrete source Dialects
+-> completed owner Monographs
+-> Package Archive and Linker Object Modules
+-> Linker native product
+-> declared Bazel outputs
+```
+
+This flow is a staged implementation contract. Puffer does not acquire
+language, package, compiler, or linker policy by coordinating their owners.
+The current Puffer target exposes only its LSP process.
 
 Language defines no concrete source grammar. It provides the stateful Dialect
 interface, its common Monograph root, and deterministic parser fragments.
@@ -29,12 +47,19 @@ into a Package Monograph, but the current interpreter is incomplete.
 
 Environment owns the Workspace that installs concrete Dialects and hosts their
 interpretation. It owns graph allocation, Dialect lifetime, imported Monograph
-lifetime, exact authored source name lookup, and the TTX registry supplied to
+lifetime, exact authored source name lookup, staged source order, retained
+source bytes, ordered semantic completion, and the TTX registry supplied to
 each Dialect.
 
 Library owns CPU language semantics that are not universal TTX facts. Its
 current target also owns native x86_64 instruction assembly. A future Library
 Dialect and compiler extend this owner without copying the TTX graph.
+
+App owns startup and lifecycle policy. Scene owns retained Scene declarations,
+live Scene instances, declared child identity, and render submission facts.
+The future `tetrodotoxin/graphics` owner supplies language neutral retained
+graphics child and submission contracts. Render and Shader remain concrete
+Dialect owners rather than substitutes for that runtime boundary.
 
 No component reconciles competing semantic models. A concrete Dialect creates
 its real Monograph using TTX identities and its own narrower contracts.
@@ -70,6 +95,18 @@ Language owns two shared parser fragments today:
 Concrete body grammar remains on the concrete Dialect. Shared spelling alone
 does not justify moving a semantic parser into Language.
 
+The accepted lifecycle adds two owner neutral operations to the common
+Monograph and Dialect boundary:
+
+1. Workspace invokes one ordered Monograph post pass after local staging and
+   dependency restoration drain.
+2. A concrete Dialect encodes and restores its own opaque precompiled Monograph
+   payload through the importing Workspace Arena.
+
+Language owns only that dispatch shape. It does not define a Package Archive,
+terminal registry, concrete payload schema, or cross owner product variant.
+These operations are planned and are not present in the current interface.
+
 ## Environment transaction
 
 `Environment::Workspace` is the lifetime and dispatch owner for one semantic
@@ -88,17 +125,20 @@ installation. It destroys those instances before releasing their shared Arena.
 That ordering keeps Dialect state alive while retained Monographs can refer to
 their host.
 
-The intended source import is one forward transaction:
+The accepted production transaction is staged:
 
 ```text
-Workspace::import_source(name, path, contents, documentation, errors)
--> reject a duplicate imported semantic name
--> tokenize the borrowed contents
--> require an opening comment
--> parse `dialect : Type;`
--> select the installed Dialect with that exact name
--> call Dialect::interpret with the same Cursor
--> retain the returned Monograph under the authored source name
+Workspace stages an explicit root semantic name and source path
+-> Package input reads one confined, same opened object
+-> Workspace retains the bytes
+-> Workspace parses Documentation and `dialect : Type;`
+-> Workspace dispatches the remaining Cursor to the exact installed Dialect
+-> the Dialect constructs its real Monograph in the Workspace Arena
+-> Workspace retains it under the authored semantic name
+-> Package resolves exact dependency Archives
+-> Package Source bindings stage more inputs in authored order
+-> after all staging and restoration drain, Workspace runs post pass in
+   retained order
 ```
 
 `Workspace::resolve_context(name)` returns the retained Monograph or the TTX
@@ -110,7 +150,8 @@ Environment does not own concrete Package or Library grammar. It also does not
 own filesystem confinement, target lowering, runtime state, archive encoding,
 or an additional Namespace model. Its current import API still combines the
 semantic name and diagnostic path in one `route` parameter, so this intended
-separation remains unfinished.
+separation remains unfinished. It also has no staging queue, retained byte
+store, dependency restoration, or ordered post pass.
 
 ## Package Dialect
 
@@ -130,9 +171,9 @@ local name, package name, and pinned version. It is not the resolved external
 package.
 
 `Package::Language::Source` is an exact authored binding from one semantic name
-to one package path. Future Package input opens the path beneath the package
-root and imports the member under the local name. No path segment, filename, or
-file order derives semantic identity.
+to one package path. Planned Package input opens the path beneath the package
+root and asks Workspace to stage the member under the local name. No path
+segment, filename, or file order derives semantic identity.
 
 `Package::Language::Monograph` retains opening Documentation, ordered
 Dependency requests, and ordered Source bindings. It retains no filesystem
@@ -142,8 +183,8 @@ record.
 The current Package target contains only the model and interpreter scaffold for
 this authored manifest. The scaffold does not yet complete a valid
 interpretation. Confined filesystem reads, dependency acquisition, application
-selection, Distribution, Reader, Writer, and durable format `1` are later
-Package work.
+selection, Package Archive encoding and restoration, and exact repository
+selection are planned Package work.
 
 `main.ttx` remains a filename convention. Future package assembly selects the
 sole completed App Monograph rather than granting its filename or local Source
@@ -191,18 +232,60 @@ Linker owns source independent objects, symbols, relocations, target formats,
 and native archive construction. Library does not absorb Linker merely because
 it supplies object input.
 
+The accepted native terminal is `Linker::Object::Module`, a coherent owner of
+sections, symbols, and relocations. Library, App, and Scene may each submit
+completed CPU facts to the Library compiler, which lowers them into Object
+Modules without converting their Monographs into Library source.
+
+Package Archive is the separate durable semantic terminal. It never contains
+Linker object bytes. Linker input and product policy never become Package
+semantic state.
+
+## Puffer and terminal production
+
+Bazel supplies exact source and resource inputs, root semantic name, Package
+identity and pinned version, dependency products, and declared output paths.
+Puffer selects one statically compiled toolchain composition and constructs one
+Workspace.
+
+Library mode installs Package and Library. Binary mode additionally installs
+App, and installs Scene or other concrete Dialects only when their real compile
+path is part of that selected toolchain. An uninstalled authored Dialect
+receives the ordinary unknown Dialect diagnostic.
+
+After Workspace completion, Puffer renders accumulated diagnostics and exits
+nonzero before terminal work when any error exists. On success it asks the
+concrete Monograph owners for their typed products. It does not introduce a
+universal terminal base, opaque product registry, or cross owner variant.
+
+Package facts encode a Package Archive. Completed CPU facts lower to Linker
+Object Modules. Puffer loads dependency native products only for the link
+phase, asks Linker for the requested native product, and writes only the
+declared outputs.
+
+The accepted Linker products are System V static binary archives, ELF shared
+libraries, and complete ELF executables. Final ELF linkage is performed in
+repository code. A host linker may independently consume a generated static
+archive as acceptance evidence, but it is not the production implementation of
+an executable product.
+
+The current Puffer target does not implement this compile transaction. It
+remains the planned application orchestration boundary.
+
 ## Concrete Dialect responsibilities
 
-Future top level Dialects follow the same Environment installed Dialect and
+Planned top level Dialects follow the same Environment installed Dialect and
 Monograph lifecycle:
 
 1. Library owns ordinary CPU definitions, values, Callables, and bodies.
 2. Render owns render values, resources, and required Stage contracts.
 3. Shader owns exact Render implementation and Shader Stage bodies.
-4. App owns startup profiles, generated platform entry semantics, lifecycle
-   policy, and Scene transition policy.
-5. Scene owns managed state, signals, render roots, and prepare, pause, resume,
-   update, and release roles.
+4. App owns startup profiles, generated platform entry semantics, Program and
+   Scene lifecycle policy, and Scene transitions.
+5. Scene owns state, signals, retained declared children, render submission
+   facts, and prepare, pause, resume, update, and release roles.
+6. Graphics owns language neutral retained graphics children and ordered
+   submission facts without becoming a top level source Dialect by default.
 
 Foreign remains embedded syntax for CPU capable parent Dialects. It is not an
 installed top level Dialect and does not create an independent Monograph.
@@ -211,17 +294,12 @@ App owns `Windowed`, `Terminal`, and `Headless` startup profiles. There is no
 Runtime Package. Linked support libraries, generated entry code, package
 configuration, and lifecycle policy together produce runtime behavior.
 
-Managed and Unmanaged App lifecycles retain a direct
-`Library::Language::Callables::Static` edge. Scene lifecycles retain direct
-`Library::Language::Callables::Self` role edges. No lifecycle depends on a
-function named `main`.
-
-The Echo fixture introduces a Program lifecycle with one Static Callable that
-takes no parameters and returns Void. Generated platform entry code calls it
-once. Command line arguments remain queryable process state rather than
-injected Callable parameters. The final lifecycle inventory still must decide
-whether Program coexists with Managed and Unmanaged or supersedes one of those
-older names.
+The accepted App lifecycle inventory is Program and Scene. Program retains one
+direct `Library::Language::Callables::Static` edge that takes no parameters and
+returns Void. Generated platform entry code calls it once. Command line
+arguments remain queryable process state rather than injected Callable
+parameters. Scene retains direct Self role edges and App owned transition
+policy. Neither lifecycle depends on a function named `main`.
 
 App owns Scene transitions:
 
@@ -231,6 +309,17 @@ pop      release current, resume prior
 replace  release current, prepare replacement
 exit     release current without resume
 ```
+
+Each live Scene constructs and attaches its declared children in authored order
+before `prepare`. After `update`, visible attached graphics children are
+collected automatically in retained tree order. Authored Scene update code
+mutates state and never performs render submission. App applies transitions
+only after the update and submission facts for that frame are stable.
+
+Scene `release` runs before automatic reverse order destruction of the retained
+child subtree. Declared children are nonnull and retain their identity for the
+complete Scene lifetime. Dynamic attachment and queued individual release are
+separate planned work.
 
 ## Embedded resources
 
@@ -261,16 +350,20 @@ implemented.
 
 ## Durable package products
 
-Package will eventually own a generated Distribution and its Reader and Writer.
-The development format remains `1` and has no backwards compatibility
-requirement before release.
+Package owns the planned `Package::Archive` envelope, reader, writer, and exact
+repository selection. An Archive contains exact Package identity and version,
+semantic member and Dialect names, concrete Dialect payload framing, dependency
+requests, exported semantic routes, and native artifact and symbol locators.
 
-A future durable product may retain selected semantic and terminal entries, but
-it must not serialize process addresses, parser Cursors, borrowed filesystem
-handles, or target caches as semantic truth.
+Each installed concrete Dialect owns the versioned payload it encodes and
+restores. Restored Monographs are allocated in the importing Workspace Arena.
+Package validates the envelope without depending on Library, App, Scene,
+Render, or Shader payload schemas.
 
-No Distribution, archive codec, package loader, package writer, or source free
-semantic restoration exists in the current Package target.
+An Archive contains no source bytes, source path as semantic identity, process
+address, parser Cursor, filesystem handle, target cache, or Linker object bytes.
+No Package Archive codec, exact repository, or source free restoration exists
+in the current Package target.
 
 ## Current evidence boundary
 
@@ -286,11 +379,13 @@ The current tree provides the following implemented surfaces.
 6. Library provides language contracts and scalar Types.
 7. Library and Shader provide CPU and SPIR V instruction assemblers.
 8. Linker provides source independent linking machinery.
+9. Puffer provides an LSP process but no compile orchestration.
 
 That inventory does not prove complete parsing for Library, App, Scene, Render,
 Shader, or Foreign. It also does not prove CPU semantic lowering, package
 filesystem confinement, resource folding, durable package encoding, runtime
-execution, or source free restoration.
+execution, Puffer compile orchestration, typed Object Module production, final
+native executable emission, or source free restoration.
 
 A fixture, README, target build, or test written beside an implementation is not
 an independent semantic oracle.

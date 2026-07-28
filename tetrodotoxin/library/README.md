@@ -83,6 +83,11 @@ relocations, and diagnoses target decisions.
 It does not own package acquisition, Environment lifetime, App or Scene policy,
 Shader lowering, final object encoding, or archive assembly.
 
+The accepted native output of compilation is one or more
+`Linker::Object::Module` values. Each Module owns a coherent set of sections,
+symbols, and relocations. The compiler does not place semantic facts or source
+identity in that native terminal.
+
 ## Assembler and Linker boundary
 
 The active `Library::Assembler::x86_64` encodes source independent instruction
@@ -95,6 +100,20 @@ decisions.
 Linker owns source independent objects, symbols, relocations, ELF encoding, and
 native archive construction. Library produces Linker input but does not absorb
 that terminal artifact owner.
+
+## Source free payload
+
+Library owns the opaque payload needed to restore its durable declarations,
+Types, values, Callables, Bodies, publication facts, and native symbol locators.
+It implements the shared Language persistence dispatch without introducing a
+second restored model.
+
+Package owns Archive framing and never learns the Library schema. A fresh
+Workspace asks the installed Library Dialect to restore real Library and TTX
+identities into its Arena. Source bytes, Cursors, process addresses, compiler
+caches, and machine code are excluded.
+
+No Library payload encoder or restorer exists in the current target.
 
 ## Current boundary
 

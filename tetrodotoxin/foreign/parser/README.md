@@ -62,5 +62,5 @@ grammar only through their CPU language portion.
 ## Status
 
 Foreign grammar and acceptance fixtures exist, but no active Foreign parser,
-semantic import owner, Library compiler, or Package distribution integration is
+semantic import owner, Library compiler, or Package Archive persistence is
 implemented.
