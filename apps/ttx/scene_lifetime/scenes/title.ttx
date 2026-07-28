@@ -18,7 +18,7 @@ Scene prepare[self] -> Void {
     .position = (.x = 200, .y = 250),
     .tone = (.r = 1.0, .g = 1.0, .b = 1.0, .a = 1.0),
   );
-  return Void;
+  return;
 }
 
 Scene update[self, .delta_time : Real_64] -> Scene::Flow {
@@ -36,5 +36,5 @@ Scene update[self, .delta_time : Real_64] -> Scene::Flow {
 }
 
 Scene release[self] -> Void {
-  return Void;
+  return;
 }

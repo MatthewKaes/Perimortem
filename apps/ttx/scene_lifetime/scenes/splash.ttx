@@ -32,7 +32,7 @@ Scene prepare[self] -> Void {
   self.top_icon = self -> create_icon(image, (.x = 200, .y = 100));
   self.bottom_icon = self -> create_icon(image, (.x = 200, .y = 400));
   self.elapsed = 0.0;
-  return Void;
+  return;
 }
 
 Scene update[self, .delta_time : Real_64] -> Scene::Flow {
@@ -64,5 +64,5 @@ Scene update[self, .delta_time : Real_64] -> Scene::Flow {
 }
 
 Scene release[self] -> Void {
-  return Void;
+  return;
 }

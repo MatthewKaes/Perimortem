@@ -12,5 +12,5 @@ resolve Core : Perimortem.Core = "1.0";
 resolve Memory : Perimortem.Memory = "1.0";
 resolve System : Perimortem.System = "1.0";
 
-source App from "app.ttx";
 source Main from "main.ttx";
+source App from "app.ttx";
