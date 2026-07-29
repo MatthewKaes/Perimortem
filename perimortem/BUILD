@@ -96,7 +96,6 @@ cc_library(
     deps = [
         ":core",
         ":memory",
-        ":utility",
     ],
 )
 
@@ -118,6 +117,7 @@ cc_library(
     deps = [
         ":core",
         ":memory",
+        ":utility",
     ],
 )
 
