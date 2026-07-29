@@ -39,10 +39,11 @@ PERIMORTEM_UNIT_TEST(PackageFixtureTokens, tokenize_completely) {
   for (Count path_index = 0; path_index < paths.get_size(); path_index++) {
     View::Bytes path = paths[path_index];
     auto source = File::read(path);
-    ASSERT(!source.is_empty());
+    ASSERT(source);
+    ASSERT_NOT((*source).is_empty());
 
     Allocator::Arena arena;
-    Tokenizer tokenizer(arena, source, path);
+    Tokenizer tokenizer(arena, *source, path);
     View::Vector<Token> tokens = tokenizer.get_tokens();
     ASSERT(tokens.get_size() > 1);
     EXPECT(tokens[tokens.get_size() - 1].get_code() == Code::Type::Terminal);
@@ -67,15 +68,21 @@ PERIMORTEM_UNIT_TEST(PackageFixtureTokens, resource_runfiles) {
       "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz+/"_view;
 
   auto table = File::read(table_path);
-  ASSERT(File::exists(table_path));
-  ASSERT(table.get_size() >= expected_header.get_size());
+  ASSERT(table);
+  ASSERT((*table).get_size() >= expected_header.get_size());
   EXPECT(
-      table.get_view().slice(0, expected_header.get_size()) == expected_header);
+      (*table).get_view().slice(0, expected_header.get_size()) ==
+      expected_header);
 
-  EXPECT(File::exists(empty_path));
-  EXPECT(File::read(empty_path).is_empty());
-  EXPECT(File::exists(logo_path));
-  EXPECT_NOT(File::read(logo_path).is_empty());
-  EXPECT(File::exists(icon_path));
-  EXPECT_NOT(File::read(icon_path).is_empty());
+  auto empty = File::read(empty_path);
+  ASSERT(empty);
+  EXPECT((*empty).is_empty());
+
+  auto logo = File::read(logo_path);
+  ASSERT(logo);
+  EXPECT_NOT((*logo).is_empty());
+
+  auto icon = File::read(icon_path);
+  ASSERT(icon);
+  EXPECT_NOT((*icon).is_empty());
 }

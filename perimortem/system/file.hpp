@@ -7,21 +7,18 @@
 
 #include "perimortem/memory/dynamic/bytes.hpp"
 
+#include "perimortem/utility/option.hpp"
+
 namespace Perimortem::System {
 
-// Stateless filesystem transactions. read returns an empty buffer for both an
-// empty file and a failed read. Use exists when that distinction matters.
+// Stateless filesystem transactions.
 class File {
  public:
-  static auto read(Core::View::Bytes location) -> Memory::Dynamic::Bytes;
+  static auto read(Core::View::Bytes location)
+      -> Utility::Option<Memory::Dynamic::Bytes>;
   static auto write(Core::View::Bytes data, Core::View::Bytes location) -> Bool;
   static auto remove(Core::View::Bytes location) -> Bool;
   static auto exists(Core::View::Bytes location) -> Bool;
-
- private:
-  static constexpr Count max_path_size = 512;
-  static auto create_path(Unsigned_8* output, Core::View::Bytes path) -> const
-      char*;
 };
 
 }  // namespace Perimortem::System

@@ -172,25 +172,28 @@ auto main(Signed_32 argc, char** argv) -> Signed_32 {
 
   Signed_32 passed = 0;
   Signed_32 total = 0;
-  Dynamic::Bytes echo_input =
-      File::read("validation/data/ttx/oracles/echo.stdin"_view);
-  Dynamic::Bytes echo_output =
-      File::read("validation/data/ttx/oracles/echo.stdout"_view);
-  Dynamic::Bytes echo_contract =
+  auto echo_input = File::read("validation/data/ttx/oracles/echo.stdin"_view);
+  auto echo_output = File::read("validation/data/ttx/oracles/echo.stdout"_view);
+  auto echo_contract =
       File::read("validation/data/ttx/oracles/echo.contract"_view);
+  auto scene =
+      File::read("validation/data/ttx/oracles/scene_lifetime.golden"_view);
+  if (!echo_input || !echo_output || !echo_contract || !scene) {
+    fprintf(stderr, "unable to load process oracle data\n");
+    return 1;
+  }
+
   Process::Expectation echo_expectation = {
-    .standard_input = echo_input,
-    .standard_output = echo_output,
+    .standard_input = *echo_input,
+    .standard_output = *echo_output,
   };
-  Process::Observation echo = observe(executable, "echo"_view, echo_input);
+  Process::Observation echo = observe(executable, "echo"_view, *echo_input);
   record(
       "echo exact streams and exit",
-      echo_contract == "stderr empty\nexit 0\ntimeout_ns 1000000000\n"_view &&
+      *echo_contract == "stderr empty\nexit 0\ntimeout_ns 1000000000\n"_view &&
           Process::compare(echo, echo_expectation) == Process::Difference::None,
       passed, total);
 
-  Dynamic::Bytes scene =
-      File::read("validation/data/ttx/oracles/scene_lifetime.golden"_view);
   constexpr View::Bytes scene_prefix =
       "clock_unit ns\nsplash_steps 500000000 500000000 "_view;
   constexpr View::Bytes shift_event =
@@ -207,13 +210,14 @@ auto main(Signed_32 argc, char** argv) -> Signed_32 {
       "destroy Scenes::Title[2]\n"
       "live_scene none\nexit 0\n"_view;
   Bool scene_contract =
-      scene.get_size() >= scene_prefix.get_size() + scene_suffix.get_size() &&
-      scene.slice(0, scene_prefix.get_size()) == scene_prefix &&
-      Algorithm::search(scene, shift_event) != Count(-1) &&
-      Algorithm::search(scene, prepare_event) != Count(-1) &&
-      Algorithm::search(scene, release_event) != Count(-1) &&
-      scene.slice(
-          scene.get_size() - scene_suffix.get_size(),
+      (*scene).get_size() >=
+          scene_prefix.get_size() + scene_suffix.get_size() &&
+      (*scene).slice(0, scene_prefix.get_size()) == scene_prefix &&
+      Algorithm::search(*scene, shift_event) != Count(-1) &&
+      Algorithm::search(*scene, prepare_event) != Count(-1) &&
+      Algorithm::search(*scene, release_event) != Count(-1) &&
+      (*scene).slice(
+          (*scene).get_size() - scene_suffix.get_size(),
           scene_suffix.get_size()) == scene_suffix;
   record("scene deterministic golden", scene_contract, passed, total);
 

@@ -41,10 +41,11 @@ PERIMORTEM_UNIT_TEST(LibraryFixtureTokens, tokenize_completely) {
   for (Count path_index = 0; path_index < paths.get_size(); path_index++) {
     View::Bytes path = paths[path_index];
     auto source = File::read(path);
-    ASSERT(!source.is_empty());
+    ASSERT(source);
+    ASSERT_NOT((*source).is_empty());
 
     Allocator::Arena arena;
-    Tokenizer tokenizer(arena, source, path);
+    Tokenizer tokenizer(arena, *source, path);
     View::Vector<Token> tokens = tokenizer.get_tokens();
     ASSERT(tokens.get_size() > 1);
     EXPECT(tokens[tokens.get_size() - 1].get_code() == Code::Type::Terminal);

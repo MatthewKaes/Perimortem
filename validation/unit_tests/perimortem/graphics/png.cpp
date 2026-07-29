@@ -25,9 +25,10 @@ static Harness GraphicsPng = {
 PERIMORTEM_UNIT_TEST(GraphicsPng, red_1x1_dimensions) {
   auto start_requests = Bibliotheca::check_out_requests();
   auto source = File::read("validation/data/pngs/red_1x1.png"_view);
-  ASSERT(!source.is_empty());
+  ASSERT(source);
+  ASSERT_NOT((*source).is_empty());
 
-  auto image = Formats::Png::decode(source);
+  auto image = Formats::Png::decode(*source);
 
   EXPECT_EQ(image.get_width(), Unsigned_32(1));
   EXPECT_EQ(image.get_height(), Unsigned_32(1));
@@ -44,9 +45,10 @@ PERIMORTEM_UNIT_TEST(GraphicsPng, red_1x1_dimensions) {
 
 PERIMORTEM_UNIT_TEST(GraphicsPng, checkerboard_2x2) {
   auto source = File::read("validation/data/pngs/checkerboard_2x2.png"_view);
-  ASSERT(!source.is_empty());
+  ASSERT(source);
+  ASSERT_NOT((*source).is_empty());
 
-  auto image = Formats::Png::decode(source);
+  auto image = Formats::Png::decode(*source);
   auto pixels = image.get_pixels();
 
   ASSERT_EQ(pixels.get_size(), Count(4));
@@ -70,9 +72,10 @@ PERIMORTEM_UNIT_TEST(GraphicsPng, checkerboard_2x2) {
 
 PERIMORTEM_UNIT_TEST(GraphicsPng, decode_rgb_to_rgba) {
   auto source = File::read("validation/data/pngs/rgb_3x1.png"_view);
-  ASSERT(!source.is_empty());
+  ASSERT(source);
+  ASSERT_NOT((*source).is_empty());
 
-  auto image = Formats::Png::decode(source);
+  auto image = Formats::Png::decode(*source);
   auto pixels = image.get_pixels();
 
   // RGB source: alpha must be synthesized as fully opaque.
@@ -87,9 +90,10 @@ PERIMORTEM_UNIT_TEST(GraphicsPng, decode_rgb_to_rgba) {
 
 PERIMORTEM_UNIT_TEST(GraphicsPng, gray_to_rgba) {
   auto source = File::read("validation/data/pngs/gray_2x2.png"_view);
-  ASSERT(!source.is_empty());
+  ASSERT(source);
+  ASSERT_NOT((*source).is_empty());
 
-  auto image = Formats::Png::decode(source);
+  auto image = Formats::Png::decode(*source);
   auto pixels = image.get_pixels();
 
   // Greyscale source: gray value replicates to all three color channels.
@@ -117,9 +121,10 @@ PERIMORTEM_UNIT_TEST(GraphicsPng, gray_to_rgba) {
 
 PERIMORTEM_UNIT_TEST(GraphicsPng, decode_gradient_4x4) {
   auto source = File::read("validation/data/pngs/gradient_4x4.png"_view);
-  ASSERT(!source.is_empty());
+  ASSERT(source);
+  ASSERT_NOT((*source).is_empty());
 
-  auto image = Formats::Png::decode(source);
+  auto image = Formats::Png::decode(*source);
   auto pixels = image.get_pixels();
 
   ASSERT_EQ(pixels.get_size(), Count(16));
@@ -133,9 +138,10 @@ PERIMORTEM_UNIT_TEST(GraphicsPng, decode_gradient_4x4) {
 
 PERIMORTEM_UNIT_TEST(GraphicsPng, decode_pattern_8x1) {
   auto source = File::read("validation/data/pngs/pattern_8x1.png"_view);
-  ASSERT(!source.is_empty());
+  ASSERT(source);
+  ASSERT_NOT((*source).is_empty());
 
-  auto image = Formats::Png::decode(source);
+  auto image = Formats::Png::decode(*source);
   auto pixels = image.get_pixels();
 
   ASSERT_EQ(pixels.get_size(), Count(8));
@@ -254,9 +260,10 @@ PERIMORTEM_UNIT_TEST(GraphicsPng, chunk_header_trunc) {
   // PNG with a valid IHDR that's shorter than the valid size.
   auto source =
       File::read("validation/data/pngs/error_truncated_header.png"_view);
-  ASSERT(!source.is_empty());
+  ASSERT(source);
+  ASSERT_NOT((*source).is_empty());
 
-  auto image = Formats::Png::decode(source);
+  auto image = Formats::Png::decode(*source);
 
   EXPECT_EQ(image.get_width(), 0);
   EXPECT(
@@ -267,9 +274,10 @@ PERIMORTEM_UNIT_TEST(GraphicsPng, chunk_header_trunc) {
 PERIMORTEM_UNIT_TEST(GraphicsPng, chunk_length_overrun) {
   // PNG with a chunk that claims a length of 4294967295 bytes.
   auto source = File::read("validation/data/pngs/error_overrun.png"_view);
-  ASSERT(!source.is_empty());
+  ASSERT(source);
+  ASSERT_NOT((*source).is_empty());
 
-  auto image = Formats::Png::decode(source);
+  auto image = Formats::Png::decode(*source);
 
   EXPECT_EQ(image.get_width(), 0);
   EXPECT(
@@ -279,9 +287,10 @@ PERIMORTEM_UNIT_TEST(GraphicsPng, chunk_length_overrun) {
 
 PERIMORTEM_UNIT_TEST(GraphicsPng, roundtrip_icon) {
   auto source = File::read("validation/data/pngs/perimortem_icon.png"_view);
-  ASSERT(!source.is_empty());
+  ASSERT(source);
+  ASSERT_NOT((*source).is_empty());
 
-  auto original = Formats::Png::decode(source);
+  auto original = Formats::Png::decode(*source);
   ASSERT_EQ(original.get_width(), 128);
   ASSERT_EQ(original.get_height(), 128);
 
@@ -310,9 +319,10 @@ PERIMORTEM_UNIT_TEST(GraphicsPng, crc_mismatch) {
   // PNG with corrupted chunk CRC should log the chunk type and offset so the
   // caller can identify which chunk was damaged.
   auto source = File::read("validation/data/pngs/error_crc_mismatch.png"_view);
-  ASSERT(!source.is_empty());
+  ASSERT(source);
+  ASSERT_NOT((*source).is_empty());
 
-  auto image = Formats::Png::decode(source);
+  auto image = Formats::Png::decode(*source);
 
   EXPECT_EQ(image.get_width(), 0);
   EXPECT(
@@ -323,9 +333,10 @@ PERIMORTEM_UNIT_TEST(GraphicsPng, crc_mismatch) {
 
 PERIMORTEM_UNIT_TEST(GraphicsPng, roundtrip_bloat) {
   auto source = File::read("validation/data/pngs/perimortem_icon.png"_view);
-  ASSERT(!source.is_empty());
+  ASSERT(source);
+  ASSERT_NOT((*source).is_empty());
 
-  auto icon = Formats::Png::decode(source);
+  auto icon = Formats::Png::decode(*source);
   ASSERT_EQ(icon.get_width(), 128);
   ASSERT_EQ(icon.get_height(), 128);
 
@@ -334,5 +345,5 @@ PERIMORTEM_UNIT_TEST(GraphicsPng, roundtrip_bloat) {
   // round-trip so we just guard against catastrophic regressions.
   auto encoded = Formats::Png::encode(icon);
   ASSERT(encoded.get_size() > 0);
-  EXPECT(encoded.get_size() < Count(source.get_size() * 1.15));
+  EXPECT(encoded.get_size() < Count((*source).get_size() * 1.15));
 }

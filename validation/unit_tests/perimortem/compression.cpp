@@ -268,14 +268,15 @@ PERIMORTEM_UNIT_TEST(CompressionTests, size_source_file) {
   // data that is known to be compressible.
   // Ordering must hold: None > Default >= Best.
   auto source = File::read("perimortem/compression/deflate.cpp"_view);
-  ASSERT(!source.is_empty());
+  ASSERT(source);
+  ASSERT_NOT((*source).is_empty());
 
   auto no_compression =
-      Compression::Deflate::deflate(source, Compression::Deflate::Level::None);
+      Compression::Deflate::deflate(*source, Compression::Deflate::Level::None);
   auto default_compression = Compression::Deflate::deflate(
-      source, Compression::Deflate::Level::Default);
+      *source, Compression::Deflate::Level::Default);
   auto best_compression =
-      Compression::Deflate::deflate(source, Compression::Deflate::Level::Best);
+      Compression::Deflate::deflate(*source, Compression::Deflate::Level::Best);
 
   ASSERT(best_compression.get_size() > 0);
 
@@ -288,8 +289,8 @@ PERIMORTEM_UNIT_TEST(CompressionTests, size_source_file) {
   EXPECT(default_compression.get_size() <= no_compression.get_size() / 2);
 
   auto recovered = Compression::Deflate::inflate(best_compression);
-  ASSERT_EQ(recovered.get_size(), source.get_size());
-  EXPECT_HEX(recovered, source);
+  ASSERT_EQ(recovered.get_size(), (*source).get_size());
+  EXPECT_HEX(recovered, *source);
 }
 
 PERIMORTEM_UNIT_TEST(CompressionTests, skewed_frequencies) {

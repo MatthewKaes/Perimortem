@@ -96,6 +96,7 @@ cc_library(
     deps = [
         ":core",
         ":memory",
+        ":utility",
     ],
 )
 
