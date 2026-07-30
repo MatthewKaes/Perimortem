@@ -118,9 +118,9 @@ public func broad_entry[
   return observed_total;
 }
 
-public func reset[] -> [] {
+public func reset[] -> Void {
   observed_total = 0;
-  return Void;
+  return;
 }
 
 public func unnamed_layout[Unsigned_64, Bool] -> [Unsigned_64, Bool] {

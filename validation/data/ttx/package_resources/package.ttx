@@ -1,5 +1,5 @@
 // Exercises ordered package member resource loading.
 dialect : Package;
 
-source "shared_a.ttx";
-source "shared_b.ttx";
+source SharedA from "shared_a.ttx";
+source SharedB from "shared_b.ttx";

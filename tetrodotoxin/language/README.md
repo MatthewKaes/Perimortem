@@ -1,112 +1,113 @@
 # Tetrodotoxin Language
 
-`tetrodotoxin/language` defines the source transaction and the syntax shared by
-every top level Tetrodotoxin source dialect. The complete folder builds as
+`tetrodotoxin/language` defines the common extension boundary for top level
+Tetrodotoxin source Dialects. The complete folder builds as
 `//tetrodotoxin:language`.
 
-Language depends only on TTX and Perimortem. It owns source lifetime and
-dispatch, but no concrete dialect semantics, filesystem capability, compiler
-target, finalized graph, or durable package.
+Language depends on TTX and Perimortem. It owns no concrete Package, Library,
+App, Scene, Render, or Shader semantics and no filesystem, compiler, runtime, or
+durable product policy.
 
-## Source
+## Dialect
 
-`Language::Source` is one concrete lifetime transaction for one source
-document. It is not a TTX Abstract, Type, Namespace, or generic semantic root.
-It owns:
+`Language::Dialect` is a stateful interpreter installed by
+`Environment::Workspace` under an exact authored name. Environment supplies the
+shared TTX registry at construction and keeps the Dialect alive for every
+Monograph it creates.
 
-1. an arena copy of the diagnostic path and source text;
-2. one Tokenizer over that owned text;
-3. the Arena used by Tokens, Documentation, and every source local result; and
-4. the selected concrete TTX Abstract root produced by the source dialect.
-
-The selected Abstract may be a Package Source, Library Source, Scene Source, or
-another concrete owner. That object owns its definitions, resolution rules,
-state, and policy. Language assigns none of those facts a universal shape.
-
-Destroying `Language::Source` destroys the complete downstream memory domain.
-The selected root cannot outlive or independently invalidate its Arena.
-
-## Static parser dispatch
-
-`Language::Source::parse` takes a borrowed
-`Perimortem::Memory::Dynamic::Map` from exact dialect names to static parser
-function pointers. The compiled toolchain owns that map and keeps it stable for
-the call. Source uses it for one lookup and never retains it.
-
-Parser entry points are static functions. They do not inherit a common parser
-class, construct parser objects, register through TTX Abstract resolution, or
-carry state between calls. A selected function receives the same forward only
-Cursor and opening Documentation, then constructs its concrete Abstract root in
-the Source Arena.
-
-The map is the complete parser family supplied by the toolchain. An unknown
-dialect name produces a source diagnostic. Language contains no parser object
-hierarchy and no forwarding dispatch owner.
-
-## Universal Source parser
-
-`Language::Source::parse` owns the universal source envelope:
+The interpretation boundary is:
 
 ```text
-zero or more opening comment lines
-dialect : Type;
-concrete dialect body
-end of document
+interpret(
+  Environment owned Arena,
+  forward TTX Cursor,
+  opening Documentation,
+  shared Abstract registry)
+-> Option<Dialect::Monograph&>
 ```
 
-It performs one forward only transaction:
+A concrete Dialect consumes only its body because Environment has already
+parsed the opening comment and `dialect : Type;` instruction. It constructs its
+concrete Monograph directly in the supplied Arena and returns no partially
+owned parser object.
 
-```text
-parse opening Documentation greedily
--> parse the exact dialect name
--> find its static parser function
--> give the same Cursor and Documentation to that function
--> require one complete concrete Abstract root
--> commit the owning Language::Source
-```
+Dialect state may cache or retain facts required across its Monographs. It does
+not own the Environment Arena or the authored source provider.
 
-Missing opening comments produce the shared empty Documentation. A concrete
-dialect may reject empty Documentation when its own source contract requires an
-authored document comment.
+## Monograph
 
-The transaction copies text before tokenization and never tokenizes again. It
-stores no body bookmark and builds no intermediate syntax tree. A parser that
-returns no root without a diagnostic receives a source diagnostic. A parser
-that emits any diagnostic cannot commit its candidate Source.
+`Language::Dialect::Monograph` is the shared Abstract root for one interpreted
+source island. Its concrete derived class owns the source Dialect semantics and
+resolution rules.
 
-Only a completed owning Source handle leaves `Source::parse`. The active
-diagnostic borrow ends before a failed candidate is destroyed.
+The common base retains the Arena domain supplied by Environment, the opening
+Documentation, and the host Dialect that interpreted it.
+
+The host Dialect and Arena outlive every retained Monograph. This makes the
+Monograph the stable semantic root without introducing a second Source wrapper
+or copying its graph.
+
+## Completion and persistence dispatch
+
+The accepted shared lifecycle adds two owner neutral operations.
+
+1. Workspace invokes one ordered post pass on each retained Monograph after
+   local staging and dependency restoration drain.
+2. Each concrete Dialect encodes and restores the opaque precompiled payload
+   for its own Monograph kind.
+
+The post pass may complete the same semantic objects reserved during
+interpretation and may query the retained Workspace host. It never turns a
+Cursor, Token index, source route, or declaration mirror into unfinished
+semantic state.
+
+The persistence hooks name no Package envelope, concrete Dialect value, native
+object, or universal terminal. Package owns Archive framing. The concrete
+Dialect owns payload schema and restoration into the importing Workspace Arena.
+Language owns only the common dispatch.
+
+Neither operation exists in the current C++ interface. They are the explicit
+input for the Language lifecycle implementation slice.
 
 ## Shared parser fragments
 
-Shared parsers consume one forward only `Ttx::Lexical::Cursor` transaction.
-They use Token Codes for grammar, construct complete owner shaped results in
-the supplied arena, and return an explicit optional result when parser control
-flow may fail.
+Shared parsers consume the same forward `Ttx::Lexical::Cursor` used by the
+selected Dialect. They retain no declaration inventory, token bookmark, or
+transaction state.
 
-The current reusable fragment is `Parser::Comment`. It consumes consecutive
-comment lines into one compact Documentation value while preserving empty
-authored lines. It returns None without advancing when no comment begins at the
-current Cursor.
+`Parser::Comment` greedily consumes consecutive comment Tokens. It strips the
+comment marker and one canonical separating space, preserves all remaining text
+and empty authored lines, and constructs one compact Documentation Block in the
+Cursor Arena. When no comment begins at the Cursor it returns the shared empty
+Documentation without advancing.
 
-Type, Layout, Callable, and Generic are shared TTX semantic contracts rather
-than Language Source mechanics. Namespace and Workspace belong to
-Tetrodotoxin Environment. Concrete Type and executable grammar belongs to its
-Dialect owner, including the Library Type parser in `//tetrodotoxin:library`.
+`Parser::Dialect` consumes:
+
+```ttx
+dialect : Package;
+```
+
+It returns the exact authored Type shaped name. Environment owns lookup,
+unknown Dialect diagnostics, and dispatch to the installed instance.
 
 ## Ownership boundary
 
-Concrete grammar belongs with its concrete dialect owner. That owner may depend
-on Language without moving semantic policy into this common layer.
+Language contains no static parser map, parser inheritance hierarchy, Frontend,
+Source lifetime object, Container, semantic Namespace, filesystem capability,
+concrete definition model, terminal registry, or cross owner product variant.
 
-A shared parser belongs here only when at least two concrete dialects share
-both its grammar and its result contract. Similar spelling alone is
-insufficient.
+A parser fragment belongs here only when several real Dialects share both its
+grammar and its returned contract. Type, Generic, Constant, expression, body,
+and publication rules remain with the concrete language that defines them.
 
-## Current surface
+Package demonstrates the intended extension:
 
-The owning Source transaction, exact static parser lookup, universal source
-envelope, and Comment parser form the common surface. Concrete dialect
-evaluation remains outside this layer. A parser map entry proves only that the
-compiled toolchain supplied that static function; it does not prove the
-concrete dialect semantics or any terminal product.
+```text
+Environment installs Package::Dialect as "Package"
+-> Environment parses the universal envelope
+-> Package::Dialect::interpret consumes the Package body
+-> Package::Language::Monograph becomes the imported root
+```
+
+The current Package implementation does not yet complete this flow. The example
+defines the Language boundary rather than claiming a working import.

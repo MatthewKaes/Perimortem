@@ -1,0 +1,35 @@
+// Perimortem Engine
+// Copyright © Matt Kaes
+//
+// A mock title screen that responds to simple inputs.
+//
+dialect : Library;
+
+// `using` looks at the host context and tries to resolve the name in its context.
+// If the name isn't found then an error is emitted, and if it is found then it is
+// treated as being directly part of this context.
+// Any resulting name conflicts are then emitted as name duplication errors.
+// Using `Core::View` and `Memory::View` for instance would cause at minimum
+// a conflict on `Bytes`.
+using Core;
+using Memory;
+
+public func run[] -> Void {
+  // Create a static byte array (does not include null terminator).
+  const prefix := "Echo: "; // Static[Bytes, 6]
+
+  // Read input until we get a `quit` message.
+  while true {
+    // Do a blocking read from the Terminal that gathers an entire line of input.
+    state input : Dynamic::Bytes = System::Terminal -> read_line();
+
+    // If "quit" or "exit" was recieved then exit.
+    if (input == "quit" or input == "exit") {
+      return;
+    }
+
+    // Log the message back out to the terminal with the included prefix.
+    state message : Dynamic::Bytes = prefix + input;
+    System::Terminal -> write_line(message);
+  }
+}

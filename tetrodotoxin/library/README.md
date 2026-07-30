@@ -1,125 +1,126 @@
 # Library
 
-Library owns the Library source Dialect and the reusable native CPU compilation
+Library owns CPU language semantics and the reusable native CPU compilation
 path. The complete folder builds as `//tetrodotoxin:library`.
 
-Library consumes shared TTX Type, Layout, Generic, Addressable, and Callable
-contracts. `Library::Language` owns Expression, Binding, Projection, Constant,
-and the typed Constant domains required by Library grammar. These objects
-retain real TTX edges and do not create a second Type or Layout graph.
-Environment continues to own Namespace and Workspace.
+TTX provides the shared Abstract, Type, Value, Layout, Addressable, Callable,
+Attribute, and Documentation contracts. Library adds only the capabilities and
+value domains required by CPU executable languages.
 
-## Language boundary
+## Library language
 
-The Library parser owns:
+`Tetrodotoxin::Library::Language` currently declares the following contracts.
 
-1. Library declarations and definition grammar;
-2. source order independent name discovery;
-3. Library legality for Types, values, variables, Callables, and Bodies;
-4. embedded Foreign CPU syntax; and
-5. construction of the concrete Library Source root.
+1. Expression, Binding, and Projection provide Library value identities.
+2. Constant provides bytes, flag, real, signed, and unsigned value domains.
+3. Generic provides Access, View, and Fixed materializations.
+4. Concrete Bool, signed, unsigned, and real Types provide scalar identities.
+5. Static and Self distinguish Callable invocation.
 
-The parser constructs real TTX and `Library::Language` identities in the
-Source Arena. It uses `Environment::Workspace` for stable scalar Types, Generic
-formulas, materializations, and cross source Alias bindings. Completed
-definitions are retained and published through `Environment::Namespace`.
+These classes retain and expose real TTX Type, Layout, Addressable, and Callable
+edges. They do not copy those shared contracts into a Library model.
 
-The Type parser is Library grammar even though it returns a shared
-`Ttx::Model::Type`. Another Dialect may earn a common parser only after both
-grammar and result contract are proven identical.
+Generic is Library language semantics rather than a universal TTX category.
+The formula and concrete Access, View, and Fixed Type shapes are present. The
+shared Materializations implementation is not active, so materialization is not
+yet an executable Library contract.
 
-Library language contracts compose TTX Type, Layout, Addressable, and Callable
-identities directly. There is no copied TTX model and no conversion step
-between competing Type graphs.
+Static identifies a Callable selected without a receiver. Self identifies a
+Callable selected through an addressable value and reserves parameter zero for
+that receiver. Those invocation distinctions are not required by Package,
+Render, or every other TTX host.
+
+The concrete scalar Types live here because their names and native
+representations are Library language policy. TTX retains only the common Value,
+Flag, Real, Signed, and Unsigned domain contracts.
+
+## Future Library Dialect
+
+A complete top level Library Dialect will be installed into
+`Environment::Workspace` through the common `Language::Dialect` interface. Its
+concrete Monograph will own Library declaration and definition grammar. It will
+also own source order independent name discovery, Library legality for Types,
+values, variables, Callables, and executable bodies, embedded Foreign CPU
+syntax, and all completion and resolution state required by those definitions.
+
+The parser will construct real TTX and Library Language identities in the
+Environment Arena. It will not retain Cursor bookmarks as unresolved meaning or
+publish a second Namespace object.
+
+The exact executable body representation and complete Library Dialect are not
+implemented. The current target has no active Library body parser or semantic
+compiler transaction.
+
+The intended first application pressure target is
+[`../../apps/ttx/echo`](../../apps/ttx/echo/). Its Library source requires
+authored `using` expansion with duplicate detection, inferred byte Constants,
+dynamic terminal byte input and output, byte comparison and concatenation,
+loop and conditional Bodies, and one Static Callable selected by App. These
+requirements belong to the future Library Dialect and compiler. The fixture's
+remaining syntax contradictions must be settled before it becomes an
+acceptance oracle.
 
 ## Shared CPU compilation
 
-Library Sources provide CPU executable inputs directly. Scene lifecycle
-Callables remain on their Scene owners. App generated entry and lifecycle
-driver facts remain on the App owner. The Library compiler lowers all selected
-CPU executable facts after Environment Graph finalization.
+Library compilation may consume completed CPU executable facts retained by
+Library, App, or Scene Monographs:
 
 ```text
-Library Callables and selected Static ----\
-Scene lifecycle and helper Callables ------> Library compiler -> Linker inputs
-App entry and lifecycle driver facts -----/
+Library Callables -> Library compiler
+Scene lifecycle and helper Callables -> Library compiler
+App entry and lifecycle driver facts -> Library compiler
+Library compiler -> Linker input
 ```
 
-App and Scene are never converted into a Library Source, Namespace, or shadow
-executable graph. Their parsers do not emit generated Library text, and the
-compiler never reopens their Tokens.
+App and Scene remain their own semantic owners. Library does not convert them
+into Library source, reopen their Tokens, or clone their Type graph.
 
-The exact durable Body representation remains unresolved. This compiler
-placement does not authorize a placeholder IR or copied Type graph.
+Compilation owns CPU target and ABI planning. It derives sizes, alignments,
+offsets, and carriers, makes calling convention and register allocation
+decisions, lowers completed executable facts, emits native instructions and
+relocations, and diagnoses target decisions.
 
-## Compiler boundary
+It does not own package acquisition, Environment lifetime, App or Scene policy,
+Shader lowering, final object encoding, or archive assembly.
 
-Library compilation begins only after Environment has finalized and sealed
-every selected Callable, signature, Body fact, Type, Layout, and dependency
-edge. It owns:
+The accepted native output of compilation is one or more
+`Linker::Object::Module` values. Each Module owns a coherent set of sections,
+symbols, and relocations. The compiler does not place semantic facts or source
+identity in that native terminal.
 
-1. CPU target and ABI planning;
-2. representation sizes, alignments, offsets, and carriers;
-3. calling convention and register allocation decisions;
-4. lowering selected completed executable facts;
-5. native instruction and relocation emission; and
-6. diagnostics for target decisions.
+## Assembler and Linker boundary
 
-It does not own the Environment graph, Package construction, source loading,
-runtime objects, App or Scene policy, Shader lowering, or final object and
-archive assembly.
+The active `Library::Assembler::x86_64` encodes source independent instruction
+decisions. Its tests cover instruction bytes and relocation slot shape.
 
-Library compiler output is source independent Linker input. Linker owns
-objects, symbols, relocations, ELF encoding, and System V archive construction.
+The assembler does not decide Type identity, aggregate shape, calling
+convention, lifecycle policy, or publication. A future compiler supplies those
+decisions.
 
-## Semantic input
+Linker owns source independent objects, symbols, relocations, ELF encoding, and
+native archive construction. Library produces Linker input but does not absorb
+that terminal artifact owner.
 
-Compilation selects real semantic identities from a finalized Environment
-Graph. Aliases resolve through `Abstract::resolve()`. Consumers use
-`visit<Catagory>()` to prove the required Type, Callable, Layout, or producing
-Dialect contract.
+## Source free payload
 
-The compiler does not infer meaning from C++ type names, formatted TTX names,
-structural coincidence, a central Kind, or a pointer keyed implementation
-table. It does not build an ABI shadow Type graph.
+Library owns the opaque payload needed to restore its durable declarations,
+Types, values, Callables, Bodies, publication facts, and native symbol locators.
+It implements the shared Language persistence dispatch without introducing a
+second restored model.
 
-A source backed Graph keeps every owning `Tetrodotoxin::Language::Source`
-alive for the complete compile. A source free Graph restored by Environment
-owns equivalent facts without parser state. Both routes must produce the same
-target decisions.
+Package owns Archive framing and never learns the Library schema. A fresh
+Workspace asks the installed Library Dialect to restore real Library and TTX
+identities into its Arena. Source bytes, Cursors, process addresses, compiler
+caches, and machine code are excluded.
 
-## Target lowering
+No Library payload encoder or restorer exists in the current target.
 
-```text
-resolve Abstract
--> prove the required semantic contract
--> derive scalar or aggregate representation
--> plan ABI placement
--> emit native instructions and Linker records
-```
+## Current boundary
 
-The target derives storage size and alignment. Aggregate offsets, register
-carriers, stack placement, and wire policy remain target decisions.
+The current Library target contains the declared language contracts and
+concrete scalar Types above, a file local scalar lookup prototype, and the
+x86_64 assembler.
 
-Callable publishes complete parameter and result Layouts. Static invocation
-has no receiver. Self invocation includes its receiver as parameter zero.
-Caller, callee, generated interfaces, register allocation, and object emission
-must share one call plan.
-
-Assemblers encode decisions already made by semantic and target owners. They
-do not decide Type identity, aggregate shape, calling convention, App policy,
-or Scene lifecycle roles.
-
-## Current surface
-
-The Library target currently owns `Library::Assembler::x86_64` and the Library
-Type parser. The assembler unit tests prove instruction byte encodings and
-relocation slot shape.
-
-The complete Library Source parser, semantic compiler transaction, finalized
-Environment Graph, CPU target planner, Graph to Linker lowering, and App or
-Scene delegation do not exist yet.
-
-Future code enters through the complete `library/**/*.cpp` and
-`library/**/*.hpp` target. Do not recreate a top level Compiler target, split
-the assembler into another artifact, or retain forwarding model headers.
+It does not yet contain the complete Library Dialect, declaration discovery,
+executable body owner, CPU target planner, semantic lowering, or App and Scene
+integration.

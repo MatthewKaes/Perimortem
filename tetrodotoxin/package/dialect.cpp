@@ -5,73 +5,140 @@
 
 #include "tetrodotoxin/package/language/dependency.hpp"
 #include "tetrodotoxin/package/language/monograph.hpp"
+#include "tetrodotoxin/package/language/source.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
 using namespace Perimortem::Utility;
 using namespace Ttx::Concept;
 using namespace Ttx::Lexical;
-using namespace Tetrodotoxin::Language;
-using namespace Tetrodotoxin::Package;
+using namespace Tetrodotoxin;
 
-// resolve Math : Perimortem.Math = "1.0";
-// resolve Graphics : Perimortem.Graphics = "1.0";
-// resolve Runtime : Perimortem.Runtime = "1.0";
+static auto has_dependency_alias(
+    View::Vector<Package::Language::Dependency> dependencies,
+    View::Bytes local_name) -> Bool {
+  for (Count i = 0; i < dependencies.get_size(); i++) {
+    if (dependencies[i].get_local_name() == local_name) {
+      return True;
+    }
+  }
 
-// source "scenes/splash.ttx";
-// source "scenes/title.ttx";
-// source "main.ttx";
+  return False;
+}
 
-auto Tetrodotoxin::Package::Dialect::interpret(
+static auto has_source_name(
+    View::Vector<Package::Language::Source> sources,
+    View::Bytes local_name) -> Bool {
+  for (Count i = 0; i < sources.get_size(); i++) {
+    if (sources[i].get_local_name() == local_name) {
+      return True;
+    }
+  }
+
+  return False;
+}
+
+static auto has_source_path(
+    View::Vector<Package::Language::Source> sources,
+    View::Bytes source_path) -> Bool {
+  for (Count i = 0; i < sources.get_size(); i++) {
+    if (sources[i].get_source_path() == source_path) {
+      return True;
+    }
+  }
+
+  return False;
+}
+
+auto Package::Dialect::interpret(
     Allocator::Arena& domain,
-    Ttx::Lexical::Cursor& cursor,
-    const Ttx::Concept::Documentation& doc,
-    Abstract& registry) -> Option<Dialect::Monograph&> {
-  // Delay early exit so we can gather multiple errors in a single pass.
-  Bool bad_generation = false;
-
+    Cursor& cursor,
+    const Documentation& documentation,
+    Abstract&) -> Option<Dialect::Monograph&> {
   Managed::Vector<Language::Dependency> dependencies(domain);
-  while (cursor.get_code() == Code::Type::Addressable &&
-         cursor.get_text() == "resolve"_view) {
-    auto dependency = Language::Dependency::parse(cursor);
-    if (!dependency) {
-      bad_generation = true;
-    }
+  Managed::Vector<Language::Source> sources(domain);
+  Bool failed = False;
+  Bool source_region = False;
 
-    if (!bad_generation) {
+  // Consume complete statements until Terminal. Each failed statement reaches
+  // a synchronizing terminator before the loop continues, so later independent
+  // diagnostics remain observable without risking a stalled Cursor.
+  while (!cursor.matches(Code::Type::Terminal)) {
+    Token statement = cursor.current();
+    switch (cursor.get_code().get_type()) {
+    case Code::Type::Resolve: {
+      auto dependency = Language::Dependency::parse(cursor);
+      if (!dependency) {
+        failed = True;
+        continue;
+      }
+
+      if (source_region) {
+        cursor.create_token_error(
+            statement,
+            "Resolve statements must precede every Source statement."_view);
+        failed = True;
+        continue;
+      }
+
+      if (has_dependency_alias(dependencies, (*dependency).get_local_name())) {
+        cursor.create_token_error(
+            statement,
+            "Duplicate Dependency local alias in this Package."_view);
+        failed = True;
+      }
+
       dependencies.insert(*dependency);
+      continue;
     }
-  }
 
-  // The rest of the file is just an ordered list of sources to include.
-  Managed::Vector<View::Bytes> sources(domain);
-  while (cursor.current().get_code() != Code::Type::Terminal) {
-    if (cursor.get_code() != Code::Type::Addressable ||
-        cursor.get_text() != "source"_view) {
+    case Code::Type::Source: {
+      source_region = True;
+      auto source = Language::Source::parse(domain, cursor);
+      if (!source) {
+        failed = True;
+        continue;
+      }
+
+      if (has_source_name(sources, (*source).get_local_name())) {
+        cursor.create_token_error(
+            statement, "Duplicate Source semantic name in this Package."_view);
+        failed = True;
+      }
+
+      if (has_source_path(sources, (*source).get_source_path())) {
+        cursor.create_token_error(
+            statement,
+            "Duplicate normalized Source path in this Package."_view);
+        failed = True;
+      }
+
+      sources.insert(*source);
+      continue;
+    }
+
+    default:
       cursor.create_token_error(
-          "Expected `source` followed by a source path."_view,
-          "After the `resolve` block package expects only a list of source "
-          "includes."_view);
-    }
-
-    // Expect a string and end statement.
-    auto path = cursor.require(Code::Type::String);
-    if (!path || !cursor.require(Code::Type::EndStatement)) {
-      bad_generation = true;
+          statement,
+          "Package bodies contain only `resolve` and `source` statements."_view);
       cursor.recover_to_statement();
-    }
-
-    if (!bad_generation) {
-      sources.insert(path.caculate_text(cursor.get_source_text()));
+      failed = True;
+      break;
     }
   }
 
-  // Now that we've parsed as much as we can we can now bail.
+  // A Package without one complete Source has no semantic member inventory.
+  if (sources.is_empty()) {
+    cursor.create_error(
+        "Package requires at least one complete Source statement."_view);
+    failed = True;
+  }
 
-  if (!bad_generation) {
+  // Publish no graph identity until the complete Package transaction is valid.
+  if (failed) {
     return {};
   }
 
   return domain.construct<Language::Monograph>(
-      domain, doc, *this, dependencies, sources);
+      domain, documentation, *this, dependencies, sources);
 }

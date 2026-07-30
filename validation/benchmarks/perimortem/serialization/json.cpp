@@ -3,6 +3,7 @@
 
 #include "validation/benchmark.hpp"
 
+#include "perimortem/core/diagnostics/log.hpp"
 #include "perimortem/core/null_terminated.hpp"
 #include "perimortem/core/perimortem.hpp"
 #include "perimortem/core/writer/textual.hpp"
@@ -24,9 +25,12 @@ static constexpr Count batch_count = 1024;
 
 auto load_json(View::Bytes source_path) -> void {
   auto source = File::read(source_path);
+  if (!source) {
+    Diagnostics::Log::fatal("Unable to load JSON benchmark source."_view);
+  }
 
   json_text.set_pointer(0);
-  json_text << source;
+  json_text << *source;
 }
 
 static Harness JsonBlueprint = {

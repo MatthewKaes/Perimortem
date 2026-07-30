@@ -68,8 +68,9 @@ auto Test::captured_message() -> View::Bytes {
   return captured_log_message.slice(0, captured_log_message_size);
 }
 
-auto Test::error_contains(View::Bytes message) -> Bool {
-  if (captured_log_level != Diagnostics::Log::Level::Error) {
+auto Test::error_contains(View::Bytes message, Diagnostics::Log::Level level)
+    -> Bool {
+  if (captured_log_level != level) {
     return false;
   }
 

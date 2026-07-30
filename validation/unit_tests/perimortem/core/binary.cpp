@@ -124,6 +124,10 @@ PERIMORTEM_UNIT_TEST(CoreBinaryReader, raw_bytes) {
 PERIMORTEM_UNIT_TEST(CoreBinaryReader, overflow_read) {
   using Reader = Reader::Binary<Data::ByteOrder::Little>;
   Reader reader("\xAB\xCD"_view);
+
+  // Set the logging level to catch the Debug level error
+  auto current_level = Diagnostics::Log::get_level();
+  Diagnostics::Log::set_level(Diagnostics::Log::Level::Debug);
   auto scope_attribution = Diagnostics::Log::set_attribution();
 
   // Out of bounds read should return null and set the reader to invalid.
@@ -133,7 +137,10 @@ PERIMORTEM_UNIT_TEST(CoreBinaryReader, overflow_read) {
   // Make sure message was logged.
   constexpr auto error_message =
       "Binary read over ran buffer at read location 0. source_size=2, read_size=4"_view;
-  EXPECT(Test::error_contains(error_message));
+  EXPECT(Test::error_contains(error_message, Diagnostics::Log::Level::Debug));
+
+  // Restore the error level
+  Diagnostics::Log::set_level(current_level);
 }
 
 PERIMORTEM_UNIT_TEST(CoreBinaryReader, set_location) {

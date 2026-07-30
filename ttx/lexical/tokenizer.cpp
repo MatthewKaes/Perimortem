@@ -13,24 +13,6 @@ using namespace Perimortem::Memory;
 using namespace Perimortem::Core;
 using namespace Ttx::Lexical;
 
-static constexpr auto is_type_name_character(Unsigned_8 c) -> Bool {
-  return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
-         (c >= '0' && c <= '9') || c == '_';
-}
-
-static constexpr auto is_identifier(Unsigned_8 c) -> Bool {
-  return (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '_';
-}
-
-static constexpr auto is_numeric(Unsigned_8 c) -> Bool {
-  return (c >= '0' && c <= '9') || c == '.';
-}
-
-static constexpr auto is_hex(Unsigned_8 c) -> Bool {
-  return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') ||
-         (c >= 'A' && c <= 'F');
-}
-
 // Context is the tokenizer cursor for one source view and one token stream.
 // It owns the mutable scan coordinates because token helpers walk different
 // shapes before they know the final Code, but all of them emit tokens with the
@@ -168,7 +150,7 @@ static auto parse_attribute(Context& ctx) -> void {
   // tokenization but should be rejected by parsers.
   ctx.strip_source_prefix(Code::Type::Attribute);
   ctx.begin_token();
-  while (is_identifier(ctx.peek_ahead(1))) {
+  while (Lexicon::is_identifier(ctx.peek_ahead(1))) {
     ctx.advance_parse();
   }
 
@@ -192,7 +174,7 @@ static auto parse_number(Context& ctx) -> void {
     case 'a' ... 'f':
     case 'A' ... 'F': {
       ctx.strip_source_prefix(Code::Type::Hex);
-      while (ctx.can_parse() && is_hex(ctx.current())) {
+      while (ctx.can_parse() && Lexicon::is_hex(ctx.current())) {
         ctx.advance_parse();
       }
 
@@ -211,7 +193,7 @@ static auto parse_number(Context& ctx) -> void {
   Code::Type type = Code::Type::Numeric;
 
   char numeric_char = ctx.peek_ahead(1);
-  while (is_numeric(numeric_char)) {
+  while (Lexicon::is_numeric(numeric_char)) {
     ctx.advance_parse();
     if (numeric_char == '.') {
       // Don't consume a '.' that starts a RangeOp '...'.
@@ -238,7 +220,7 @@ static auto parse_number(Context& ctx) -> void {
 }
 
 static auto parse_type(Context& ctx) -> void {
-  while (is_type_name_character(ctx.peek_ahead(1))) {
+  while (Lexicon::is_type(ctx.peek_ahead(1))) {
     ctx.advance_parse();
   }
 
@@ -254,12 +236,12 @@ static auto parse_unknown(Context& ctx) -> void {
 }
 
 static auto parse_identifier(Context& ctx) -> void {
-  if (!is_identifier(ctx.peek_ahead(0))) {
+  if (!Lexicon::is_identifier(ctx.peek_ahead(0))) {
     parse_unknown(ctx);
     return;
   }
 
-  while (is_identifier(ctx.peek_ahead(1))) {
+  while (Lexicon::is_identifier(ctx.peek_ahead(1))) {
     ctx.advance_parse();
   }
 

@@ -1,24 +1,20 @@
-# Shader Parser
+# Shader Dialect
 
-`Tetrodotoxin::Shader::Parser` owns the body grammar that
-implements one exact Render contract with Stage Callables and Shader owned
-Stage Bodies.
+The future `Tetrodotoxin::Shader::Dialect` owns the grammar that implements one
+exact Render contract using Stage Callables and Shader owned Stage bodies.
 
-It constructs one concrete Shader Abstract root in the Arena owned by
-`Tetrodotoxin::Language::Source`. The Shader root owns its definitions,
-resolution rules, Stage identities, and completed semantic facts.
+Environment will install the concrete Shader Dialect and retain each resulting
+Shader Monograph. After the universal envelope is parsed, Shader interpretation
+consumes the remaining forward Cursor and constructs its semantic identities in
+the Environment Arena.
 
-The parser does not own SPIR V module emission, target validation, package
-terminal paths, or archive storage. `Tetrodotoxin::Shader::Assembler::SpirV`
-owns source independent SPIR V word emission within the Shader subsystem.
+The Shader Monograph owns its definitions, resolution rules, Stage identities,
+and completed semantic facts.
 
 ## Source contract
 
-`Language::Source::parse` consumes the leading Documentation and
-`dialect : Shader;` envelope once. A future toolchain map may bind the exact
-name to static `Tetrodotoxin::Shader::Parser::parse`, then pass it the same
-Cursor. The Shader parser consumes only the remaining body. A Shader definition
-selects one exact Render identity and implements its required Stages:
+A Shader definition selects one exact Render identity and implements its
+required Stages:
 
 ```ttx
 shader TestShader : Formats::Simple {
@@ -29,37 +25,41 @@ shader TestShader : Formats::Simple {
 }
 ```
 
-The concrete Shader grammar owns:
+Shader grammar owns the Shader name and exact Render query, one implementation
+for each required Stage, the Stage parameter and result Layouts, and Shader
+Stage body construction. It also defines declared constant, push, and resource
+access. It retains locations, builtins, sets, slots, address space facts, and
+explicit representation edges where semantic and target Types differ.
 
-1. Shader name and exact Render query;
-2. one implementation for each required Stage;
-3. Stage parameter and result Layouts;
-4. Shader Stage Body construction;
-5. declared constant, push, and resource access;
-6. locations, builtins, sets, slots, and address space facts; and
-7. explicit representation edges where semantic and target Types differ.
-
-Managed Types are not admitted into GPU values merely because they are
+Managed CPU Types are not admitted into GPU values merely because they are
 available through a binding context. A matching Structured Layout does not
 create vector or ABI identity.
 
 ## Single consumption
 
-Every Stage body is consumed once into its semantic Stage owner. Shader does
-not assume the eventual CPU executable representation accepted by Library
-compilation. A smaller shared value or control component may be extracted only
-after both real implementations prove the same requirements. The parser does
-not retain source ranges for Shader lowering, and Shader lowering does not
-reopen the Tokenizer. Library's CPU compiler does not participate in this
-path.
+Every Stage body is consumed once into its Shader semantic owner. Shader does
+not assume the future CPU executable representation accepted by Library.
 
-The outer `Language::Source` owns source bytes, Tokens, Arena, and the Shader
-root lifetime. The future Environment Graph may retain completed Shader edges,
-but it does not own or mirror Shader declarations.
+A shared value or control component may be extracted only after real Library
+and Shader implementations prove identical requirements. Shader does not retain
+source ranges for lowering, and lowering does not recreate a Cursor over
+authored source.
+
+Library's CPU compiler does not participate in Shader lowering.
+
+## Assembler boundary
+
+`Tetrodotoxin::Shader::Assembler::SpirV` owns source independent SPIR V word
+emission within the Shader subsystem. It does not own Shader grammar, semantic
+validation, package terminal paths, or archive storage.
+
+The future Shader lowering path supplies decisions already proven against the
+selected Render contract. Environment retains the source Monograph but does not
+mirror Shader declarations.
 
 ## Status
 
 The current structural fixture is
-[`../../../validation/data/ttx/shader_artifact/shader.ttx`](../../../validation/data/ttx/shader_artifact/shader.ttx).
-There is no active Shader parser or semantic evaluator in the current
-`//tetrodotoxin:shader` target.
+[`../../validation/data/ttx/shader_artifact/shader.ttx`](../../validation/data/ttx/shader_artifact/shader.ttx).
+There is no active Shader Dialect, Monograph, parser, semantic validator, or
+lowering transaction. The current target contains only the SPIR V assembler.

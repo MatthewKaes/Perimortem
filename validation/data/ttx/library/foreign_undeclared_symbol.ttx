@@ -6,5 +6,5 @@ foreign "C" {
 
 public func consume[] -> Void {
   foreign -> missing();
-  return Void;
+  return;
 }

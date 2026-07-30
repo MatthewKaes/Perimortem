@@ -1,7 +1,8 @@
 dialect : Library;
 
+// Foreign declerations are just FFIs and should not contain a definition.
 foreign "C" {
-  public func illegal_definition[] -> [] {
-    return Void;
+  public func illegal_definition[] -> Void {
+    return;
   }
 }

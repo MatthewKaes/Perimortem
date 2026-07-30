@@ -41,6 +41,22 @@ cc_library(
     includes = ["."],
 )
 
+# Validation executes children directly so Bazel launcher output stays outside
+# the captured child streams.
+cc_library(
+    name = "process_oracle",
+    srcs = ["process/child.cpp"],
+    hdrs = ["process/child.hpp"],
+    deps = ["//perimortem"],
+)
+
+cc_binary(
+    name = "process_oracle_self_tests",
+    srcs = ["process/oracle_self_tests.cpp"],
+    data = glob(["data/ttx/oracles/**"]),
+    deps = [":process_oracle"],
+)
+
 # This target compiles the independent C-side native oracle without attempting
 # to link the intentionally unresolved TTX entry point.
 cc_library(

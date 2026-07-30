@@ -1,94 +1,128 @@
-# Scene Parser
+# Scene
 
-`Tetrodotoxin::Scene::Parser` owns reusable Scene body grammar: managed state,
-typed signals, lifecycle roles, and render roots.
+Scene grammar describes one retained Scene object. Environment Workspace owns
+the graph lifetime, parses the universal source envelope, and routes the
+remaining cursor to the installed Scene Dialect. The Dialect creates one Scene
+Monograph in the Workspace arena.
 
-It constructs one concrete Scene Abstract root in the Arena owned by
-`Tetrodotoxin::Language::Source`. The Scene root owns its definitions,
-resolution rules, and semantic facts. App owns transitions and the generated
-lifecycle code that applies them. Graphics remains unaware of Scene.
+The Monograph owns Scene state, signals, render facts, completed Library
+Callables, and direct edges assigning those Callables to lifecycle roles. App
+owns transitions between Scene identities and the live Scene stack.
 
-## Source contract
+## Lifecycle
 
-`Language::Source::parse` consumes the leading Documentation and
-`dialect : Scene;` envelope once, finds the future static
-`Scene::Parser::parse` function in the borrowed toolchain map, and passes it the
-same Cursor. The Scene parser consumes only the remaining body. The authored
-shape includes:
-
-1. Scene owned state Addressables;
-2. signal declarations with complete payload Layouts;
-3. required `prepare`, `update`, and `release` lifecycle roles;
-4. optional `pause` and `resume` lifecycle roles;
-5. a real Callable and CPU Body for each role; and
-6. explicit render roots.
-
-The lifecycle prefix records a direct role edge to an ordinary
-`Library::Language::Callable` whose receiver is parameter zero. Generated
-lifecycle code follows those edges and does not discover roles by searching
-conventional names.
-
-`prepare` and `release` bracket one live Scene instance. They are analogous to
-entering and leaving a retained scene tree. `pause` and `resume` preserve that
-same instance while controlling whether it is active:
+A Scene provides `prepare`, `update`, and `release`. It may also provide
+`pause` and `resume`:
 
 ```ttx
-Scene pause[self] -> Void {
-  return Void;
-}
-
-Scene resume[self] -> Void {
-  return Void;
-}
+Scene prepare[self] -> Void
+Scene pause[self] -> Void
+Scene resume[self] -> Void
+Scene update[self, .delta_time : Real_64] -> Scene::Flow
+Scene release[self] -> Void
 ```
 
-App `push` calls optional `pause` before retaining the current instance. App
-`pop` releases the active instance and calls optional `resume` on the retained
-instance below it. `replace` releases without pausing, and `exit` releases the
-entire stack without resuming it. A missing optional role performs no
-operation. A paused Scene receives no `update` calls.
+`prepare` and `release` bracket one live instance. App `push` calls `pause`
+before retaining an instance. App `pop` releases the active instance and calls
+`resume` on the instance below it. A paused Scene receives no `update` calls.
 
-Scene retains those Library Language Callables, their completed body facts, and
-the lifecycle role edges. After Graph finalization, the Library compiler lowers the
-selected CPU executable facts without converting the Scene into a Library
-Source or moving its state, signals, roles, or render roots into Library.
+The role prefix creates a direct edge to an ordinary Library Self Callable.
+Generated lifecycle code follows that edge rather than searching for a
+conventional function name.
 
-A Scene update returns `Scene::Flow::stay` or emits one of that Scene's signals.
-It never names another Scene and never decides process exit. App connects the
-emitting Scene and signal to transition policy after all Scene owners exist.
+An update returns `Scene::Flow -> stay()` or emits one of its own signals. A
+Scene never selects another Scene or terminates the process directly. App maps
+the emitted identity to transition policy.
 
-Input is live retained state exposed by linked `Perimortem.System` support
-rather than a Scene parameter aggregate. The future Environment Graph retains
-the selected System query identity, never the mutable singleton state. Update
-receives one explicit nonreceiver parameter:
+Scene identity comes from the exact local name in its Package Source binding:
+
+```ttx
+source Scenes::Splash from "scenes/splash.ttx";
+source Scenes::Title from "scenes/title.ttx";
+```
+
+The paths select confined inputs only. Package never derives a Scene name from
+a directory or filename.
+
+## Retained declared children
+
+A Scene instance is the root of one owned child tree. Authored `child`
+declarations create nonnull values with stable identity for the complete Scene
+lifetime:
+
+```ttx
+child top_icon : Sprite;
+child bottom_icon : Sprite;
+```
+
+Declared children construct and attach in authored order before `prepare`.
+`prepare` configures those existing values field by field. It never replaces
+their identity. A default constructed Sprite is valid but submits no draw until
+it has drawable content.
+
+After `update`, visible attached graphics children are collected automatically
+in retained tree order. Authored Scene code mutates child properties and does
+not call a render, draw, or submission operation. Equal z order follows sibling
+tree order, higher z order draws in front, and visibility and transforms
+propagate through graphics parents.
+
+App applies a Scene transition only after update and submission facts for the
+frame are stable. Scene `release` runs before automatic reverse order
+destruction of the complete child subtree. Replace and exit therefore release
+every declared child without authored cleanup calls.
+
+Dynamic attachment, detach, reparenting, and queued individual release require
+their own owning and generational identity contract. They are not implicit in
+the declared child model.
+
+## Time and input
+
+Delta time is the only explicit argument after `self`. It is scheduler input,
+so Terminal and Headless Apps need no Graphics dependency:
 
 ```ttx
 Scene update[self, .delta_time : Real_64] -> Scene::Flow
 ```
 
-Delta time is invocation specific scheduler input. Keeping it explicit is
-deterministic and allows Headless execution without a Graphics dependency.
-Putting scheduling time on Graphics would couple lifecycle execution to a
-presentation subsystem.
+Elapsed Scene time is retained state and accumulated from that argument:
 
-Embedded resources use the package resource contract. The outer
-`Language::Source` owns source bytes, Tokens, Arena, and the Scene root
-lifetime. The package construction owner supplies a confined resource snapshot
-through `Package::Workspace`. The Scene parser does not open files.
+```ttx
+state elapsed : Real_64 = 0.0;
 
-## Canonical pressure fixture
+self.elapsed = self.elapsed + delta_time;
+```
 
-[`../../../apps/ttx/scene_lifetime/scenes/splash.ttx`](../../../apps/ttx/scene_lifetime/scenes/splash.ttx)
+Input remains global retained state. A Package requests
+`Perimortem.System` under an authored alias, and Scene code queries that alias:
+
+```ttx
+resolve System : Perimortem.System = "1.0";
+
+const input := System -> get_input();
+```
+
+The exact System input API is a dependency contract rather than part of the
+Scene update ABI.
+
+## Resources
+
+Embedded paths resolve from the Package root. Future Package construction must
+supply the confined bytes to source interpretation and may share retained bytes
+for repeated reads before constant folding.
+
+The canonical fixtures are
+[`../../apps/ttx/scene_lifetime/scenes/splash.ttx`](../../apps/ttx/scene_lifetime/scenes/splash.ttx)
 and
-[`../../../apps/ttx/scene_lifetime/scenes/title.ttx`](../../../apps/ttx/scene_lifetime/scenes/title.ttx)
-exercise resource loading, state, required lifecycle roles, typed input,
-signals, and a cycle connected by the App owner. They do not yet exercise the
-optional pause and resume roles.
+[`../../apps/ttx/scene_lifetime/scenes/title.ttx`](../../apps/ttx/scene_lifetime/scenes/title.ttx).
+They record state, embedded resources, required lifecycle roles, the intended
+System input query, signals, and an App owned transition cycle. Their Sprite
+state still requires the planned fixture migration to declared children. They
+do not yet record `pause` or `resume`.
 
 ## Status
 
-No Scene parser, evaluator, lifecycle executor, System input owner, or durable
-Scene schema is implemented. Tokenization and Package membership do not
-establish those behaviors. The canonical Scene bodies still use the rejected
-`Runtime::Frame`; they must move to scalar delta time and a real System input
-query before semantic acceptance.
+The Scene Dialect, Scene Monograph, retained child runtime, automatic submission
+path, confined resource input, lifecycle executor, System input API, and durable
+Scene schema are not implemented. The canonical sources provide implementation
+pressure, but parsing their universal envelopes alone does not establish Scene
+behavior.

@@ -8,8 +8,8 @@ dialect : Package;
 
 resolve Math : Perimortem.Math = "1.0";
 resolve Graphics : Perimortem.Graphics = "1.0";
-resolve Runtime : Perimortem.Runtime = "1.0";
+resolve System : Perimortem.System = "1.0";
 
-source "scenes/splash.ttx";
-source "scenes/title.ttx";
-source "main.ttx";
+source Scenes::Splash from "scenes/splash.ttx";
+source Scenes::Title from "scenes/title.ttx";
+source Main from "main.ttx";

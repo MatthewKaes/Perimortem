@@ -18,20 +18,9 @@ runtime = Windowed {
   .resizable = true,
 }
 
-// Managed and Unmanaged lifecycle each retain a graph resolved
-// Library::Language::Callables::Static. The declaration may have any authored
-// name and `main` is not a language convention.
-//
-// The selected lifecycle determines how the generated platform entry controls
-// execution around that Callable.
-//
-// lifecycle = Managed {
-//   run Some::File -> launch,
-// }
-
 // Scene lifecycle hooks together a set of Scene objects with managed startup
 // and transition logic. `update` receives only scalar delta time and input is
-// queried from retained `Perimortem.System` state rather than a Runtime Frame.
+// queried from retained `Perimortem.System` state.
 //
 // The flow graph links Scenes and manages transitions based on signals.
 // `initial` is the Scene prepared after startup finishes. `on` indicates signal

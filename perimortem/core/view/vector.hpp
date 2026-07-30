@@ -37,6 +37,19 @@ class Vector {
     return false;
   }
 
+  // Tests each value in order and stops when the predicate accepts one.
+  template <typename predicate_type>
+  constexpr auto contains(predicate_type predicate) const
+      -> decltype(Bool(predicate(*static_cast<const data_type*>(nullptr)))) {
+    for (Count i = 0; i < size; i++) {
+      if (predicate(source_block[i])) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
   constexpr auto operator==(const Vector& rhs) const -> Bool {
     if (rhs.size != size) {
       return false;

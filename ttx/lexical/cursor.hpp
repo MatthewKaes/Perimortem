@@ -21,12 +21,7 @@ namespace Ttx::Lexical {
 class Cursor {
  public:
   Cursor(const Lexical::Tokenizer& tokenizer, Lexical::Errors& errors)
-      : tokenizer(tokenizer), errors(errors) {
-    errors.set_source_context(
-        tokenizer.get_source_path(), tokenizer.get_source_text());
-  };
-
-  ~Cursor() { errors.clear_source_context(); }
+      : tokenizer(tokenizer), errors(errors) {}
 
   constexpr auto current() const -> Lexical::Token {
     return tokenizer.get_tokens().get_data()[index];
@@ -93,13 +88,46 @@ class Cursor {
     return false;
   }
 
+  // Checks if the token is a required semantic keyword instead of a token.
+  //
+  // TODO: If it ever comes up that we need to bail on different kinds of
+  // statements we should fold that in but not until we have a real use case.
+  // Recover to balance braces was used in the old parser quite a bit.
+  constexpr auto bail(
+      Perimortem::Core::View::Bytes keyword,
+      Perimortem::Core::View::Bytes message = {}) -> Bool {
+    auto candidate = require(Code::Type::Addressable, message);
+    if (!candidate) {
+      recover_to_statement();
+      return true;
+    }
+
+    auto text = candidate.caculate_text(get_source_text());
+    if (text != keyword) {
+      Perimortem::Core::Static::Bytes<128> hint_buffer;
+      Perimortem::Core::Writer::Textual hint_message(hint_buffer);
+      hint_message << "Expected `"_view << keyword << "` but got `"_view << text
+                   << "`."_view;
+      if (message.is_empty()) {
+        create_token_error(candidate, hint_message);
+      } else {
+        create_token_error(candidate, message, hint_message);
+      }
+
+      recover_to_statement();
+      return true;
+    }
+
+    return false;
+  }
+
   // Creates a source level error message.
   // Views can be temporary as the error context copies the data into its local
   // memory space in case the error outlives the source.
-  constexpr auto create_error(
+  auto create_error(
       Perimortem::Core::View::Bytes message,
       Perimortem::Core::View::Bytes hint = {}) -> void {
-    errors.create_general_error(message, hint);
+    create_expression_error(Token(), Token(), message, hint);
   }
 
   // Creates an error at the current token.
@@ -108,14 +136,14 @@ class Cursor {
   auto create_token_error(
       Perimortem::Core::View::Bytes message,
       Perimortem::Core::View::Bytes hint = {}) -> void {
-    errors.create_token_error(current(), message, hint);
+    create_token_error(current(), message, hint);
   }
 
   auto create_token_error(
       Lexical::Token token,
       Perimortem::Core::View::Bytes message,
       Perimortem::Core::View::Bytes hint = {}) -> void {
-    errors.create_token_error(token, message, hint);
+    create_expression_error(token, token, message, hint);
   }
 
   // Emits an error over an existing token range.
@@ -126,7 +154,11 @@ class Cursor {
       Lexical::Token end,
       Perimortem::Core::View::Bytes message,
       Perimortem::Core::View::Bytes hint = {}) -> void {
-    errors.create_expression_error(start, end, message, hint);
+    Errors::Report report(
+        errors, tokenizer.get_source_path(), tokenizer.get_source_text(), start,
+        end);
+    report << message;
+    report.get_hint() << hint;
   }
 
   // Statement recovery is intentionally small.
@@ -157,6 +189,11 @@ class Cursor {
     if (type.is_one_of(terminals)) {
       consume();
     }
+  }
+
+  constexpr auto caculate_text(Token token) const
+      -> Perimortem::Core::View::Bytes {
+    return token.caculate_text(get_source_text());
   }
 
   // Checks if the current cursor is exactly one type.

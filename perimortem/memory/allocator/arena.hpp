@@ -4,6 +4,7 @@
 #pragma once
 
 #include "perimortem/core/view/bytes.hpp"
+#include "perimortem/core/access/vector.hpp"
 #include "perimortem/core/data.hpp"
 
 namespace Perimortem::Memory::Allocator {
@@ -34,7 +35,7 @@ class Arena {
   auto operator=(const Arena&) -> Arena& = delete;
   auto operator=(Arena&&) -> Arena& = delete;
 
-  inline auto allocate(Count bytes_requested) -> Unsigned_8* {
+  inline auto allocate(Count bytes_requested) -> Core::Access::Bytes {
     // Fetch a new page if we are full due to either running out of our current
     // page, or needing to allocate an object larger than our page size.
     //
@@ -48,26 +49,32 @@ class Arena {
     // Align the bump pointer to keep produced data aligned.
     Unsigned_8* root = rented_block + usage;
     usage = Core::Data::align<arena_alignment>(usage + bytes_requested);
-    return root;
+    return Core::Access::Bytes(root, bytes_requested);
   }
 
   // Reserves storage for one object without beginning its lifetime.
-  //
-  // The returned pointer may be retained as the future object's stable address,
-  // but it must not be dereferenced until placement construction has completed.
-  // Recursive immutable graphs use this to establish address identity before
-  // constructing their edges. Ordinary objects should use construct().
   template <typename type>
-  auto reserve() -> type* {
+  auto reserve() -> type& {
     static_assert(alignof(type) <= arena_alignment);
-    return Core::Data::cast<type>(allocate(sizeof(type)));
+    return *Core::Data::cast<type>(allocate(sizeof(type)).get_data());
+  }
+
+  // Reserves storage for a range of object without beginning their lifetime.
+  //
+  // Useful for allocating a range of POD types that will immediately be
+  // assigned.
+  template <typename type>
+  auto reserve(Count size) -> Core::Access::Vector<type> {
+    static_assert(alignof(type) <= arena_alignment);
+    auto ptr = allocate(sizeof(type) * size).get_data();
+    return Core::Access::Vector<type>(Core::Data::cast<type>(ptr), size);
   }
 
   // Allocates and constructs one object whose lifetime is owned by the arena.
   template <typename type, typename... arg_types>
   auto construct(arg_types&&... args) -> type& {
     static_assert(alignof(type) <= arena_alignment);
-    Unsigned_8* ptr = allocate(sizeof(type));
+    Unsigned_8* ptr = allocate(sizeof(type)).get_data();
     return *new (ptr) type(static_cast<arg_types&&>(args)...);
   }
 
@@ -78,9 +85,9 @@ class Arena {
       return Perimortem::Core::View::Bytes();
     }
 
-    Unsigned_8* ptr = allocate(source.get_size());
-    Core::Data::copy(ptr, source.get_data(), source.get_size());
-    return Core::View::Bytes(ptr, source.get_size());
+    auto access = allocate(source.get_size());
+    Core::Data::copy(access.get_data(), source.get_data(), source.get_size());
+    return access;
   }
 
   auto reset() -> void;

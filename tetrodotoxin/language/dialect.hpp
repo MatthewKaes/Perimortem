@@ -6,6 +6,7 @@
 #include "perimortem/core/view/bytes.hpp"
 
 #include "perimortem/memory/allocator/arena.hpp"
+#include "perimortem/memory/dynamic/bytes.hpp"
 #include "perimortem/memory/dynamic/object.hpp"
 
 #include "perimortem/utility/option.hpp"
@@ -13,6 +14,7 @@
 #include "ttx/concept/abstract.hpp"
 #include "ttx/concept/documentation.hpp"
 #include "ttx/lexical/cursor.hpp"
+#include "ttx/lexical/errors.hpp"
 
 namespace Tetrodotoxin::Language {
 
@@ -45,6 +47,10 @@ class Dialect {
       return documentation;
     };
 
+    // Complete durable semantic facts after every source and restored
+    // dependency has joined the shared graph.
+    virtual auto post_pass(Ttx::Lexical::Errors& errors) -> void;
+
    protected:
     // The arena space which contains the sub portion of the
     Perimortem::Memory::Allocator::Arena& domain;
@@ -71,6 +77,20 @@ class Dialect {
       const Ttx::Concept::Documentation& doc,
       Ttx::Concept::Abstract& registry)
       -> Perimortem::Utility::Option<Monograph&> = 0;
+
+  // Encode only the durable facts owned by this Dialect. An engaged empty byte
+  // value is a successful empty payload while no value reports unsupported or
+  // failed encoding.
+  virtual auto encode(const Monograph& monograph) const
+      -> Perimortem::Utility::Option<Perimortem::Memory::Dynamic::Bytes>;
+
+  // Restore one opaque payload into the importing Workspace Arena. A
+  // successful result and every durable fact it exposes must outlive the input
+  // byte view.
+  virtual auto restore(
+      Perimortem::Memory::Allocator::Arena& domain,
+      Perimortem::Core::View::Bytes payload)
+      -> Perimortem::Utility::Option<Monograph&>;
 
  protected:
   // The registry that was provide to resolve cross dialect queries.

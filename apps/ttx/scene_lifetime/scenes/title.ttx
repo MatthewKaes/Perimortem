@@ -18,15 +18,17 @@ Scene prepare[self] -> Void {
     .position = (.x = 200, .y = 250),
     .tone = (.r = 1.0, .g = 1.0, .b = 1.0, .a = 1.0),
   );
-  return Void;
+  return;
 }
 
-Scene update[self, .frame : Runtime::Frame] -> Scene::Flow {
-  if (frame.input -> pressed(.key = Runtime::Key -> space())) {
+Scene update[self, .delta_time : Real_64] -> Scene::Flow {
+  const input := System -> get_input();
+
+  if (input -> pressed(.key = System::Key -> space())) {
     return Scene::Flow -> emit(self.space_pressed);
   }
 
-  if (frame.input -> pressed(.key = Runtime::Key -> shift())) {
+  if (input -> pressed(.key = System::Key -> shift())) {
     return Scene::Flow -> emit(self.shift_pressed);
   }
 
@@ -34,5 +36,5 @@ Scene update[self, .frame : Runtime::Frame] -> Scene::Flow {
 }
 
 Scene release[self] -> Void {
-  return Void;
+  return;
 }

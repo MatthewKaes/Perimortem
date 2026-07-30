@@ -36,7 +36,7 @@ Managed::Bytes::Bytes(Allocator::Arena& arena, View::Bytes view)
 auto Managed::Bytes::reset(Count reserved_capacity) -> void {
   size = 0;
   capacity = reserved_capacity;
-  source_block = Data::cast<Unsigned_8>(arena.allocate(reserved_capacity));
+  source_block = arena.allocate(reserved_capacity).get_data();
 }
 
 auto Managed::Bytes::resize(Count new_size) -> void {
@@ -86,7 +86,7 @@ auto Managed::Bytes::ensure_capacity(Count required_bytes) -> void {
   const auto new_capacity = Math::max(capacity * 2, required_bytes);
 
   // Fetch and transfer to new block.
-  auto new_block = Data::cast<Unsigned_8>(arena.allocate(new_capacity));
+  auto new_block = arena.allocate(new_capacity).get_data();
 
   // Update block and get the new capacity.
   memcpy(new_block, source_block, size);

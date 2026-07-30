@@ -31,9 +31,11 @@ class Vector {
   constexpr Vector(data_type (&source)[N]) : source_block(source), size(N) {}
 
   constexpr auto at(Count index) -> data_type& {
-    if (index > size) [[unlikely]] {
-      static data_type oob;
-      return oob;
+    if (index >= size) [[unlikely]] {
+      // Aligned storage keeps escaped access independent of the element's
+      // constructors while providing one stable mutable fallback.
+      alignas(alignof(data_type)) static Unsigned_8 oob[sizeof(data_type)]{};
+      return *Data::cast<data_type>(oob);
     }
 
     return source_block[index];
