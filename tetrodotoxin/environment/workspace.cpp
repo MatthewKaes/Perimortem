@@ -50,9 +50,9 @@ auto Environment::Workspace::import_source(
   // Stage 1: Retain every byte view needed by tokenization or later semantic
   // facts before either parser object begins borrowing it.
   //
-  // TODO: W01 should let confined Package input read source bytes directly into
-  // this Arena and enter the retained import path without proxying them again.
-  // Direct caller owned View input must continue to be copied here.
+  // TODO: W01 should supply this Arena to confined Package Storage and enter
+  // its retained Content without proxying the path or contents again. Direct
+  // caller owned View input must continue to be copied here.
   View::Bytes owned_diagnostic_path = arena.proxy(diagnostic_path);
   View::Bytes owned_contents = arena.proxy(contents);
 
