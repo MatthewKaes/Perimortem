@@ -219,10 +219,59 @@ PERIMORTEM_UNIT_TEST(TtxLexical, source_error) {
   EXPECT(Algorithm::search(rendered, "Try again."_view) != Count(-1));
 }
 
-// TODO: Technically you should never reuse a path for an error context, but for
-// now this supports the use case as the codebase matures. If not required in
-// the long run make sure to prune.
-PERIMORTEM_UNIT_TEST(TtxLexical, errors_with_reused_path) {
+PERIMORTEM_UNIT_TEST(TtxLexical, scoped_report) {
+  Allocator::Arena render_arena;
+  Ttx::Lexical::Errors errors;
+  errors.set_source_context("outer.ttx"_view, "outer source"_view);
+
+  {
+    Ttx::Lexical::Errors::Report empty(errors, "empty.ttx"_view);
+  }
+  EXPECT(errors.is_empty());
+
+  {
+    Allocator::Arena source_arena;
+    Ttx::Lexical::Tokenizer tokenizer(
+        source_arena, "report source"_view, "report.ttx"_view);
+    Ttx::Lexical::Token token = tokenizer.get_tokens()[0];
+    Ttx::Lexical::Errors::Report report(
+        errors, tokenizer.get_source_path(), tokenizer.get_source_text(),
+        token);
+
+    report << "Scoped report "_view << Count(7) << "."_view;
+    report.get_hint() << "Use the retained message."_view;
+  }
+
+  {
+    Allocator::Arena replacement_arena;
+    Ttx::Lexical::Tokenizer replacement(
+        replacement_arena, "replacement source"_view, "report.ttx"_view);
+    Ttx::Lexical::Errors::Report report(
+        errors, replacement.get_source_path(), replacement.get_source_text(),
+        replacement.get_tokens()[0]);
+    report << "Repeated report."_view;
+  }
+
+  errors.create_general_error("Outer report."_view);
+  View::Bytes scoped = errors.render_message(render_arena, 0);
+  View::Bytes repeated = errors.render_message(render_arena, 1);
+  View::Bytes outer = errors.render_message(render_arena, 2);
+
+  ASSERT_EQ(errors.get_size(), Count(3));
+  EXPECT(Algorithm::search(scoped, "report.ttx:1:1"_view) != Count(-1));
+  EXPECT(Algorithm::search(scoped, "report source"_view) != Count(-1));
+  EXPECT(Algorithm::search(scoped, "Scoped report 7."_view) != Count(-1));
+  EXPECT(
+      Algorithm::search(scoped, "Use the retained message."_view) != Count(-1));
+  EXPECT(Algorithm::search(repeated, "report source"_view) != Count(-1));
+  EXPECT(Algorithm::search(repeated, "replacement source"_view) == Count(-1));
+  EXPECT(Algorithm::search(repeated, "Repeated report."_view) != Count(-1));
+  EXPECT(Algorithm::search(outer, "outer.ttx:"_view) != Count(-1));
+  EXPECT(Algorithm::search(outer, "Outer report."_view) != Count(-1));
+  EXPECT(Algorithm::search(outer, "report.ttx"_view) == Count(-1));
+}
+
+PERIMORTEM_UNIT_TEST(TtxLexical, retained_source_name) {
   Allocator::Arena render_arena;
   Ttx::Lexical::Errors errors;
 
@@ -248,8 +297,8 @@ PERIMORTEM_UNIT_TEST(TtxLexical, errors_with_reused_path) {
   ASSERT_EQ(errors.get_size(), Count(2));
   EXPECT(Algorithm::search(first, "first value"_view) != Count(-1));
   EXPECT(Algorithm::search(first, "second value"_view) == Count(-1));
-  EXPECT(Algorithm::search(second, "second value"_view) != Count(-1));
-  EXPECT(Algorithm::search(second, "first value"_view) == Count(-1));
+  EXPECT(Algorithm::search(second, "first value"_view) != Count(-1));
+  EXPECT(Algorithm::search(second, "second value"_view) == Count(-1));
 }
 
 PERIMORTEM_UNIT_TEST(TtxLexical, token_error) {

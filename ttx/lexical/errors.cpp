@@ -24,6 +24,68 @@ static constexpr View::Bytes error_tertiary = "\x1b[38;2;245;147;85m"_view;
 static constexpr View::Bytes error_highlight = "\x1b[38;2;255;201;107m"_view;
 static constexpr View::Bytes source_color = "\x1b[38;2;255;102;102m"_view;
 
+Errors::Report::Report(
+    Errors& errors,
+    View::Bytes source_name,
+    View::Bytes source_text,
+    Token start_token,
+    Token end_token)
+    : errors(errors),
+      source_name(source_name),
+      source_text(source_text),
+      start_token(start_token),
+      end_token(end_token),
+      message_storage(errors.arena),
+      hint_storage(errors.arena),
+      message(message_storage),
+      hint(hint_storage) {}
+
+Errors::Report::~Report() {
+  if (message_storage.get_size() == 0) {
+    return;
+  }
+
+  errors.publish_report(
+      source_name, source_text, message_storage, hint_storage, start_token,
+      end_token);
+}
+
+auto Errors::retain_source(View::Bytes source_name, View::Bytes source_text)
+    -> View::Bytes {
+  auto* retained = source_map.find(source_name);
+  if (retained != nullptr) {
+    return retained->key;
+  }
+
+  View::Bytes retained_name = arena.proxy(source_name);
+  View::Bytes retained_text = arena.proxy(source_text);
+  source_map.insert(retained_name, retained_text);
+  return retained_name;
+}
+
+auto Errors::publish_report(
+    View::Bytes source_name,
+    View::Bytes source_text,
+    View::Bytes message,
+    View::Bytes hint,
+    Token start_token,
+    Token end_token) -> void {
+  // Report message storage already belongs to this Arena. Retain or recover the
+  // canonical source name without copying a previously retained source body.
+  Error error = {
+    .message = message,
+    .hint = hint,
+    .source_name = retain_source(source_name, source_text),
+    .start_token = start_token,
+    .end_token = start_token.is_valid() &&
+                         (!end_token.is_valid() ||
+                          end_token.get_offset() < start_token.get_offset())
+                     ? start_token
+                     : end_token,
+  };
+  errors.insert(error);
+}
+
 // Tokens store byte offsets rather than owning source lines. Expand the token
 // range to the surrounding line boundaries so every affected line can be
 // rendered with its own gutter while still borrowing the stored source text.
@@ -100,14 +162,20 @@ auto Errors::render_message(
   }
 
   const Error& error = errors.at(index);
-  const Info& source = source_map.at(error.source_id);
+  const auto* source = source_map.find(error.source_name);
+  if (source == nullptr) {
+    return View::Bytes();
+  }
+
+  View::Bytes source_name = source->key;
+  View::Bytes source_text = source->value;
   const Bool has_token = error.start_token.is_valid();
 
   // Stage 1: recover the complete source excerpt and its raw byte span. The
   // underline deliberately covers the same byte range, including any line
   // breaks between the first and last token, as the original renderer did.
   View::Bytes range =
-      has_token ? source_range(source.text, error.start_token, error.end_token)
+      has_token ? source_range(source_text, error.start_token, error.end_token)
                 : View::Bytes();
   Count underline_width = 0;
   Count source_lines = 0;
@@ -127,14 +195,14 @@ auto Errors::render_message(
   // Stage 2: reserve once before streaming. The fixed per-line allowance
   // covers gutters and color escapes; the remaining terms are emitted bytes.
   message.reset(
-      source.name.get_size() + error.message.get_size() +
+      source_name.get_size() + error.message.get_size() +
       error.hint.get_size() + range.get_size() + underline_width +
       (source_lines * 48) + 256);
 
   // Stage 3: identify the diagnostic and its source location. A general error
   // still names its source, but omits line and column coordinates.
   render << error_primary << bold << "[ERROR] "_view << error_secondary
-         << italic << source_color << source.name << ":"_view;
+         << italic << source_color << source_name << ":"_view;
   if (has_token) {
     render << error.start_token.get_line() << ":"_view
            << error.start_token.get_column() << ":"_view;
