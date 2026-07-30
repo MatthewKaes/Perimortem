@@ -1,8 +1,8 @@
 # Package
 
 `tetrodotoxin/package` owns the authored Package Dialect. The current target
-contains the concrete Dialect scaffold, exact Dependency request value, exact
-Source binding value, and Package Monograph model.
+contains the concrete Package body transaction, stateless statement parsers on
+the exact Dependency and Source values, and the Package Monograph.
 
 Package depends on Language, TTX, and Perimortem. Environment is intended to
 install `Package::Dialect` and retain each interpreted Package Monograph.
@@ -25,8 +25,14 @@ source Main from "main.ttx";
 Each `resolve` declaration records the local Type shaped name used by this
 package, the exact external package name, and the pinned version.
 
+Local semantic names use exact contiguous `Type (:: Type)*` grammar. External
+Package names use exact contiguous `Type (. Type)*` grammar. Spacing inside
+either qualified name is invalid and is never projected out of semantic text.
+The pinned version must be a closed quoted canonical `Major.Minor` value.
+
 `Package::Language::Dependency` is that request, not the fetched package or a
-semantic resolution.
+semantic resolution. Its stateless `parse` factory consumes one complete
+Resolve statement and returns only a complete Dependency.
 
 After the dependency region, each `source` declaration binds an exact authored
 Type shaped semantic name to one package path. The left side is the name used
@@ -34,8 +40,16 @@ for cross Source resolution. The right side is only the location opened beneath
 the package root. A filename never creates a semantic name implicitly.
 
 `Package::Language::Source` retains that exact pair, and the Package Monograph
-retains the Source values in authored order. Package interpretation does not
-open their paths.
+retains the Source values in authored order. Its path is delimiter free and
+lexically normalized through `System::Path`. Package interpretation copies the
+normalized bytes into the graph Arena and does not open the path.
+
+The stateless Source `parse` factory owns that one complete statement. It
+retains no Cursor, Token, bookmark, or partial declaration.
+
+Dependencies are optional and must precede Sources. At least one Source is
+required. Duplicate Dependency local aliases, duplicate Source semantic names,
+and duplicate normalized Source paths are independent Package errors.
 
 ## Dialect and Monograph
 
@@ -44,7 +58,12 @@ stateful instance after parsing `dialect : Package;` and passes the same forward
 Cursor, opening Documentation, graph Arena, and shared registry to
 `interpret`.
 
-The interpretation contract constructs one
+Dialect selects the Resolve or Source parser, enforces the Dependency before
+Source body region, checks duplicates across completed values, requires at
+least one Source, and constructs the final Monograph only after the complete
+body transaction succeeds.
+
+The implemented interpretation contract constructs one
 `Package::Language::Monograph` in the Environment Arena after a successful
 transaction. The Monograph retains its opening Documentation, its host Package
 Dialect, ordered exact Dependency requests, and ordered Source bindings.
@@ -52,8 +71,10 @@ Dialect, ordered exact Dependency requests, and ordered Source bindings.
 It retains no filesystem handle, downloaded dependency, opened member
 Monograph, compiler product, or archive entry.
 
-The current parser path is incomplete and does not yet produce a successful
-Package Monograph. These are the result invariants it must establish.
+Any failed Package transaction constructs and publishes no Package Monograph.
+Interpretation continues across recoverable statement failures so independent
+diagnostics remain visible. Existing diagnostics from another source do not
+decide the Package transaction.
 
 ## Package root policy
 

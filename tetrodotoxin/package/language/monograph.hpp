@@ -22,7 +22,8 @@ class Monograph : public Tetrodotoxin::Language::Dialect::Monograph {
 
   constexpr auto implements(Perimortem::System::Uuid requested) const
       -> Bool override {
-    return requested == contract_id;
+    return requested == contract_id ||
+           Tetrodotoxin::Language::Dialect::Monograph::implements(requested);
   }
 
   Monograph(
@@ -37,14 +38,14 @@ class Monograph : public Tetrodotoxin::Language::Dialect::Monograph {
 
   // The package monograph requires the caller to know the contract directly.
   // It doesn't resolve any routes to any subtree context.
-  constexpr auto resolve_context(Perimortem::Core::View::Bytes route) const
+  constexpr auto resolve_context(Perimortem::Core::View::Bytes) const
       -> const Ttx::Concept::Abstract& override {
     return Ttx::Concept::Invalid::get_invalid();
-  };
+  }
 
   constexpr auto get_name() const -> Perimortem::Core::View::Bytes override {
     return "Package"_view;
-  };
+  }
 
   constexpr auto get_dependencies() const
       -> Perimortem::Core::View::Vector<Dependency> {
@@ -56,8 +57,8 @@ class Monograph : public Tetrodotoxin::Language::Dialect::Monograph {
   }
 
  private:
-  // The package monograph is fully formed on parse so we only have to expose
-  // views to the client which can manage mutable import state if any.
+  // The Package Monograph is fully formed by interpretation and only exposes
+  // ordered views over its Arena backed durable values.
   Perimortem::Core::View::Vector<Dependency> dependencies;
   Perimortem::Core::View::Vector<Source> sources;
 };

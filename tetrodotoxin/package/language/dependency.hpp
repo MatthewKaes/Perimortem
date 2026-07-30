@@ -25,6 +25,8 @@ class Dependency {
       Perimortem::System::Version version)
       : local_name(local_name), package_name(package_name), version(version) {}
 
+  // Consumes one complete Resolve statement or returns no value after
+  // recovering the Cursor to the next statement boundary.
   static auto parse(Ttx::Lexical::Cursor& cursor)
       -> Perimortem::Utility::Option<Dependency>;
 
