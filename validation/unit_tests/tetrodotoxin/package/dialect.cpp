@@ -95,7 +95,7 @@ static Harness PackageDialect = {
   .name = "Tetrodotoxin::Package::Dialect"_view,
 };
 
-PERIMORTEM_UNIT_TEST(PackageDialect, direct_dependency_statement) {
+PERIMORTEM_UNIT_TEST(PackageDialect, dependency_statement) {
   static constexpr View::Bytes source =
       "resolve Runtime::Math : Perimortem.Graphics.Math = \"12.34\";\n"
       "source Main from \"main.ttx\";"_view;
@@ -114,7 +114,7 @@ PERIMORTEM_UNIT_TEST(PackageDialect, direct_dependency_statement) {
   EXPECT(errors.is_empty());
 }
 
-PERIMORTEM_UNIT_TEST(PackageDialect, direct_source_statement) {
+PERIMORTEM_UNIT_TEST(PackageDialect, source_statement) {
   static constexpr View::Bytes source =
       "source Scenes::Splash from \"scenes/./splash.ttx\";\n"
       "resolve Runtime : Example.Runtime = \"1.0\";"_view;
@@ -132,7 +132,7 @@ PERIMORTEM_UNIT_TEST(PackageDialect, direct_source_statement) {
   EXPECT(errors.is_empty());
 }
 
-PERIMORTEM_UNIT_TEST(PackageDialect, qualified_ordered_monograph) {
+PERIMORTEM_UNIT_TEST(PackageDialect, ordered_monograph) {
   Dynamic::Bytes source(
       "// Synthetic Package\n"
       "dialect : Package;\n"
@@ -181,7 +181,7 @@ PERIMORTEM_UNIT_TEST(PackageDialect, qualified_ordered_monograph) {
   EXPECT(errors.is_empty());
 }
 
-PERIMORTEM_UNIT_TEST(PackageDialect, canonical_scene_lifetime_inventory) {
+PERIMORTEM_UNIT_TEST(PackageDialect, canonical_inventory) {
   static constexpr View::Bytes path =
       "apps/ttx/scene_lifetime/package.ttx"_view;
   auto source = File::read(path);
@@ -221,7 +221,7 @@ PERIMORTEM_UNIT_TEST(PackageDialect, canonical_scene_lifetime_inventory) {
   EXPECT(errors.is_empty());
 }
 
-PERIMORTEM_UNIT_TEST(PackageDialect, source_only_ignores_prior_diagnostics) {
+PERIMORTEM_UNIT_TEST(PackageDialect, prior_diagnostics) {
   Environment::Workspace workspace;
   Errors errors;
   errors.create_general_error("Earlier independent diagnostic."_view);
@@ -258,7 +258,7 @@ PERIMORTEM_UNIT_TEST(PackageDialect, frozen_negative_fixtures) {
       "Duplicate normalized Source path in this Package."_view));
 }
 
-PERIMORTEM_UNIT_TEST(PackageDialect, independent_duplicate_dimensions) {
+PERIMORTEM_UNIT_TEST(PackageDialect, duplicate_dimensions) {
   static constexpr View::Bytes shared_source =
       "// Duplicate dimensions\n"
       "dialect : Package;\n"
@@ -289,7 +289,7 @@ PERIMORTEM_UNIT_TEST(PackageDialect, independent_duplicate_dimensions) {
       "Duplicate Dependency local alias in this Package."_view));
 }
 
-PERIMORTEM_UNIT_TEST(PackageDialect, ordering_and_required_source) {
+PERIMORTEM_UNIT_TEST(PackageDialect, body_constraints) {
   EXPECT(rejects_package(
       "dependencies_only.ttx"_view,
       "// Dependencies only\n"

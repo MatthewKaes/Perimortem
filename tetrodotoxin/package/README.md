@@ -1,8 +1,9 @@
 # Package
 
-`tetrodotoxin/package` owns the authored Package Dialect. The current target
-contains the concrete Package body transaction, stateless statement parsers on
-the exact Dependency and Source values, and the Package Monograph.
+`tetrodotoxin/package` owns the authored Package Dialect and confined Package
+storage. The current target contains the concrete Package body transaction,
+stateless statement parsers on the exact Dependency and Source values, the
+Package Monograph, and one opened root input owner.
 
 Package depends on Language, TTX, and Perimortem. Environment is intended to
 install `Package::Dialect` and retain each interpreted Package Monograph.
@@ -78,17 +79,39 @@ decide the Package transaction.
 
 ## Package root policy
 
-The accepted package contract confines every source and embedded resource to
-one opened package root. Planned Package input opens a Source path beneath that
-root, then gives Workspace its bytes, diagnostic path, and exact authored local
-name for staging.
-Absolute paths and `..` escapes are invalid. Content outside that root is
-available only through an exact resolved Dependency.
+`Package::Storage` is the physical companion to the authored Package model. A
+`Package::Language::Source` retains one semantic name and normalized logical
+route. Storage resolves only that route into a diagnostic path and content
+bytes. It never interprets the bytes or derives semantic identity from a
+filesystem name.
 
-That filesystem capability is not implemented in the current Package target.
-The current Monograph model retains authored Source bindings only. No current
-Package path proves confinement, loads member contents, imports them under
-their local names, deduplicates resources, or selects an App.
+Storage borrows the Workspace Arena and owns exactly one opened
+`System::File::Root`. Its generic read operation serves Sources and embedded
+resources. Each logical route is normalized once at the Package boundary. The
+canonical relative form is then the cache key, diagnostic path, and confined
+read route. Absolute, rooted, escaping, empty, and NUL bearing routes are
+rejected.
+
+Only successful reads enter the managed cache. Each canonical route constructs
+one public `Storage::Content` value in the supplied Arena. Content contains
+only the retained diagnostic path and byte views. Equivalent normalized routes
+return the same Content reference. Distinct routes remain distinct even when
+their contents or filesystem object are equal. Empty bytes remain a successful
+retained value. Later file mutation, replacement, removal, root pathname
+movement, caller route mutation, cache growth, and Storage movement do not
+change existing Content.
+
+Storage lives while one physical Package can still be read. It may close after
+Workspace staging because every returned Content belongs to the Workspace
+Arena and remains valid for that semantic island lifetime. Workspace pairs the
+Source semantic name with Content when it imports the Source. Storage does not
+search the process working directory or resolve relative to a containing
+Source. Content outside the opened root is available only through an exact
+resolved Dependency.
+
+The current Monograph model still retains authored Source bindings only.
+Package Storage does not import members, construct Library Constants,
+interpret semantic facts, resolve dependencies, or select an App.
 
 `main.ttx` is only a filename convention. Future package assembly selects the
 sole completed App Monograph regardless of its local Source name or member

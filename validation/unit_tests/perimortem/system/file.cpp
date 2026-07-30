@@ -21,9 +21,12 @@
 #include "perimortem/core/algorithm/search.hpp"
 #include "perimortem/core/null_terminated.hpp"
 
+#include "perimortem/memory/allocator/arena.hpp"
+
 #include "perimortem/system/path.hpp"
 
 using namespace Perimortem::Core;
+using namespace Perimortem::Memory;
 using namespace Perimortem::System;
 using namespace Perimortem::Utility;
 using namespace Validation;
@@ -88,7 +91,8 @@ static auto traced_child(
     View::Bytes expected,
     Bool expected_present,
     const char* root_path,
-    const char* read_path) -> void {
+    const char* read_path,
+    Bool arena_read) -> void {
   Option<File::Root> root;
   if (root_path) {
     root = File::Root::open(NullTerminated::to_view(root_path));
@@ -105,6 +109,17 @@ static auto traced_child(
 
   View::Bytes requested_path =
       NullTerminated::to_view(read_path ? read_path : path);
+  if (arena_read) {
+    Allocator::Arena arena;
+    auto source = root ? (*root).read(arena, requested_path)
+                       : File::read(arena, requested_path);
+    if (!expected_present) {
+      _exit(source ? 1 : 0);
+    }
+
+    _exit(source && *source == expected ? 0 : 1);
+  }
+
   auto source =
       root ? (*root).read(requested_path) : File::read(requested_path);
   if (!expected_present) {
@@ -134,10 +149,12 @@ static auto trace_read(
     TraceMutation mutation,
     const char* replacement = nullptr,
     const char* root_path = nullptr,
-    const char* read_path = nullptr) -> Bool {
+    const char* read_path = nullptr,
+    Bool arena_read = False) -> Bool {
   pid_t child = fork();
   if (child == 0) {
-    traced_child(path, expected, expected_present, root_path, read_path);
+    traced_child(
+        path, expected, expected_present, root_path, read_path, arena_read);
   }
 
   if (child < 0) {
@@ -449,6 +466,29 @@ PERIMORTEM_UNIT_TEST(SystemFile, read) {
   EXPECT_TEXT(*source, test_contents);
 }
 
+PERIMORTEM_UNIT_TEST(SystemFile, arena_read) {
+  Allocator::Arena arena;
+  Bool written = File::write(test_contents, test_output);
+  ASSERT(written);
+
+  auto source = File::read(arena, test_output);
+  ASSERT(source);
+
+  Bool replaced = File::write(replacement_contents, test_output);
+  ASSERT(replaced);
+  auto replacement = File::read(arena, test_output);
+  ASSERT(replacement);
+
+  Bool emptied = File::write(View::Bytes(), test_output);
+  ASSERT(emptied);
+  auto empty = File::read(arena, test_output);
+  ASSERT(empty);
+
+  EXPECT_TEXT(*source, test_contents);
+  EXPECT_TEXT(*replacement, replacement_contents);
+  EXPECT((*empty).is_empty());
+}
+
 PERIMORTEM_UNIT_TEST(SystemFile, write) {
   Bool written = File::write(test_contents, test_output);
   ASSERT(written);
@@ -530,6 +570,12 @@ PERIMORTEM_UNIT_TEST(SystemFile, short_read) {
   EXPECT(trace_read(
       test_output_path, View::Bytes(), False,
       TraceMutation::TruncateAfterMetadata));
+
+  written = File::write(test_contents, test_output);
+  ASSERT(written);
+  EXPECT(trace_read(
+      test_output_path, View::Bytes(), False,
+      TraceMutation::TruncateAfterMetadata, nullptr, nullptr, nullptr, True));
 }
 
 PERIMORTEM_UNIT_TEST(SystemFile, same_opened_object) {
@@ -543,6 +589,14 @@ PERIMORTEM_UNIT_TEST(SystemFile, same_opened_object) {
   EXPECT(trace_read(
       test_output_path, test_contents, True, TraceMutation::ReplacePath,
       test_replacement_path));
+
+  original_written = File::write(test_contents, test_output);
+  replacement_written = File::write(replacement_contents, test_replacement);
+  ASSERT(original_written);
+  ASSERT(replacement_written);
+  EXPECT(trace_read(
+      test_output_path, test_contents, True, TraceMutation::ReplacePath,
+      test_replacement_path, nullptr, nullptr, True));
 }
 
 PERIMORTEM_UNIT_TEST(SystemFile, exists) {
@@ -614,6 +668,35 @@ PERIMORTEM_UNIT_TEST(SystemFileRoot, relative_regular_file) {
   auto source = (*root).read("file"_view);
   ASSERT(source);
   EXPECT_TEXT(*source, test_contents);
+}
+
+PERIMORTEM_UNIT_TEST(SystemFileRoot, arena_read) {
+  TemporaryRoot temporary;
+  ASSERT(temporary);
+
+  Bool written = temporary.write_member("file", test_contents);
+  ASSERT(written);
+
+  auto root = File::Root::open(temporary.get_location());
+  ASSERT(root);
+
+  Allocator::Arena arena;
+  auto source = (*root).read(arena, "file"_view);
+  ASSERT(source);
+
+  Bool replaced = (*root).write(replacement_contents, "file"_view);
+  ASSERT(replaced);
+  auto replacement = (*root).read(arena, "file"_view);
+  ASSERT(replacement);
+
+  Bool empty_written = (*root).write(View::Bytes(), "empty"_view);
+  ASSERT(empty_written);
+  auto empty = (*root).read(arena, "empty"_view);
+  ASSERT(empty);
+
+  EXPECT_TEXT(*source, test_contents);
+  EXPECT_TEXT(*replacement, replacement_contents);
+  EXPECT((*empty).is_empty());
 }
 
 PERIMORTEM_UNIT_TEST(SystemFileRoot, relative_write) {
@@ -984,6 +1067,15 @@ PERIMORTEM_UNIT_TEST(SystemFileRoot, same_opened_member) {
   EXPECT(trace_read(
       path, test_contents, True, TraceMutation::ReplacePath, replacement,
       temporary.get_path(), "file"));
+
+  original_written = temporary.write_member("file", test_contents);
+  replacement_written =
+      temporary.write_member("replacement", replacement_contents);
+  ASSERT(original_written);
+  ASSERT(replacement_written);
+  EXPECT(trace_read(
+      path, test_contents, True, TraceMutation::ReplacePath, replacement,
+      temporary.get_path(), "file", True));
 }
 
 PERIMORTEM_UNIT_TEST(SystemFileRoot, move_ownership) {
