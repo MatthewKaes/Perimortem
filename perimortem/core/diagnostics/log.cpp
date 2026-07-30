@@ -228,6 +228,10 @@ auto Diagnostics::Log::set_level(Level level) -> void {
   thread_log_level = level;
 }
 
+auto Diagnostics::Log::get_level() -> Diagnostics::Log::Level {
+  return thread_log_level;
+}
+
 auto Diagnostics::Log::set_attribution(const Source& location) -> Attribution {
   // If we have someone already claiming attribution higher on the stack then
   // ignore the request.

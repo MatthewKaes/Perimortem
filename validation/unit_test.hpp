@@ -22,7 +22,10 @@ auto capture_sink(
     Perimortem::Core::View::Bytes message,
     const Perimortem::Core::Diagnostics::Source& location) -> void;
 auto captured_message() -> Perimortem::Core::View::Bytes;
-auto error_contains(Perimortem::Core::View::Bytes message) -> Bool;
+auto error_contains(
+    Perimortem::Core::View::Bytes message,
+    Perimortem::Core::Diagnostics::Log::Level level =
+        Perimortem::Core::Diagnostics::Log::Level::Error) -> Bool;
 
 auto expected(Bool value, Bool actual) -> void;
 auto expected(Perimortem::Core::View::Bytes value, Bool actual) -> void;

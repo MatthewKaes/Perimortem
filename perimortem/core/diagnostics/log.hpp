@@ -148,6 +148,7 @@ class Log {
   // Sets the minimum level that will be forwarded to the sink on this thread.
   // Messages below this level are dropped before formatting.
   static auto set_level(Level level) -> void;
+  static auto get_level() -> Diagnostics::Log::Level;
 
   // Sets logs in the current scope
   static auto set_attribution(const Source& location = Source::current())

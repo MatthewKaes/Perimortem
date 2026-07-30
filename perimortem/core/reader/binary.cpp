@@ -13,7 +13,7 @@ auto check_buffer_overruns(Count cursor, Count source_size, Count read_size)
     -> Bool {
   if (cursor > source_size || read_size > source_size - cursor) [[unlikely]] {
     Diagnostics::Log::Message<128> error_message(
-        Diagnostics::Log::Level::Error);
+        Diagnostics::Log::Level::Debug);
     error_message << "Binary read over ran buffer at read location "_view
                   << cursor << ". source_size="_view << source_size
                   << ", read_size="_view << read_size;
