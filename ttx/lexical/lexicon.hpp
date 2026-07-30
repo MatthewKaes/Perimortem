@@ -4,6 +4,7 @@
 #pragma once
 
 #include "perimortem/core/view/bytes.hpp"
+#include "perimortem/core/view/vector.hpp"
 #include "perimortem/core/static/vector.hpp"
 #include "perimortem/core/null_terminated.hpp"
 
@@ -14,13 +15,47 @@
 
 namespace Ttx::Lexical {
 
-// Lexicon owns the fixed source spellings in one concrete Lexer contract.
-// Code owns the prescribed semantic grouping while Lexicon owns how that
-// grouping appears in source text. Codes whose spelling comes from an authored
-// token payload return an empty view.
+// Lexicon owns the source spelling rules in one concrete Lexer contract. Code
+// owns the prescribed semantic grouping while Lexicon owns the fixed and
+// variable spellings that produce those groupings. It can also validate a
+// complete spelling composed from one Code shape and explicit separator Codes.
+// Codes whose spelling comes from an authored token payload return an empty
+// view.
 class Lexicon {
  public:
   Lexicon() = delete;
+
+  // Accepts one continuation byte after the uppercase opening byte of a Type
+  // name.
+  static constexpr auto is_type(Unsigned_8 byte) -> Bool {
+    return (byte >= 'a' && byte <= 'z') || (byte >= 'A' && byte <= 'Z') ||
+           (byte >= '0' && byte <= '9') || byte == '_';
+  }
+
+  // Accepts one byte from the lowercase identifier character set.
+  static constexpr auto is_identifier(Unsigned_8 byte) -> Bool {
+    return (byte >= 'a' && byte <= 'z') || (byte >= '0' && byte <= '9') ||
+           byte == '_';
+  }
+
+  // Accepts one byte from the decimal scanner character set.
+  static constexpr auto is_numeric(Unsigned_8 byte) -> Bool {
+    return (byte >= '0' && byte <= '9') || byte == '.';
+  }
+
+  // Accepts one byte from the hexadecimal digit character set.
+  static constexpr auto is_hex(Unsigned_8 byte) -> Bool {
+    return (byte >= '0' && byte <= '9') || (byte >= 'a' && byte <= 'f') ||
+           (byte >= 'A' && byte <= 'F');
+  }
+
+  // Proves that one complete authored byte span has the requested Code shape.
+  // When separators are supplied the span contains one or more values joined
+  // by any listed separator Code.
+  static auto validate(
+      Code::Type type,
+      Perimortem::Core::View::Bytes value,
+      Perimortem::Core::View::Vector<Code::Type> separators = {}) -> Bool;
 
   static constexpr auto get_spelling(Code::Type type)
       -> Perimortem::Core::View::Bytes {

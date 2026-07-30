@@ -5,6 +5,7 @@
 
 #include "validation/unit_test.hpp"
 
+#include "perimortem/core/static/vector.hpp"
 #include "perimortem/core/algorithm/search.hpp"
 
 #include "perimortem/memory/allocator/arena.hpp"
@@ -94,6 +95,79 @@ PERIMORTEM_UNIT_TEST(TtxLexical, lexicon) {
   EXPECT(
       Ttx::Lexical::Lexicon::get_keyword("value"_view, Token::Addressable) ==
       Token::Addressable);
+}
+
+PERIMORTEM_UNIT_TEST(TtxLexical, spelling_validation) {
+  using Token = Ttx::Lexical::Code::Type;
+
+  static constexpr Static::Vector<Token, 1> type_access = {{
+    Token::TypeAccessOp,
+  }};
+  static constexpr Static::Vector<Token, 1> address = {{
+    Token::AddressOp,
+  }};
+  static constexpr Static::Vector<Token, 2> qualified = {{
+    Token::TypeAccessOp,
+    Token::AddressOp,
+  }};
+
+  EXPECT(Ttx::Lexical::Lexicon::validate(Token::Type, "Type"_view));
+  EXPECT(Ttx::Lexical::Lexicon::validate(Token::Type, "Type_Name2"_view));
+  EXPECT_NOT(Ttx::Lexical::Lexicon::validate(Token::Type, View::Bytes()));
+  EXPECT_NOT(Ttx::Lexical::Lexicon::validate(Token::Type, "type"_view));
+  EXPECT_NOT(Ttx::Lexical::Lexicon::validate(Token::Type, "Type.Name"_view));
+
+  EXPECT(
+      Ttx::Lexical::Lexicon::validate(
+          Token::Type, "Scenes::Splash"_view, type_access));
+  EXPECT(
+      Ttx::Lexical::Lexicon::validate(
+          Token::Type, "Perimortem.Graphics"_view, address));
+  EXPECT(
+      Ttx::Lexical::Lexicon::validate(
+          Token::Type, "Root::Child.Leaf"_view, qualified));
+  EXPECT_NOT(
+      Ttx::Lexical::Lexicon::validate(
+          Token::Type, "::Splash"_view, type_access));
+  EXPECT_NOT(
+      Ttx::Lexical::Lexicon::validate(
+          Token::Type, "Scenes::"_view, type_access));
+  EXPECT_NOT(
+      Ttx::Lexical::Lexicon::validate(
+          Token::Type, "Scenes::::Splash"_view, type_access));
+  EXPECT_NOT(
+      Ttx::Lexical::Lexicon::validate(
+          Token::Type, "Scenes :: Splash"_view, type_access));
+
+  EXPECT(
+      Ttx::Lexical::Lexicon::validate(Token::Addressable, "local_name"_view));
+  EXPECT_NOT(
+      Ttx::Lexical::Lexicon::validate(Token::Addressable, "public"_view));
+  EXPECT(Ttx::Lexical::Lexicon::validate(Token::Public, "public"_view));
+  EXPECT(Ttx::Lexical::Lexicon::validate(Token::Numeric, "123"_view));
+  EXPECT_NOT(Ttx::Lexical::Lexicon::validate(Token::Numeric, "1.2"_view));
+  EXPECT(Ttx::Lexical::Lexicon::validate(Token::Float, "1.25"_view));
+  EXPECT_NOT(Ttx::Lexical::Lexicon::validate(Token::Float, "1.2.5"_view));
+  EXPECT(Ttx::Lexical::Lexicon::validate(Token::Hex, "0xAB"_view));
+  EXPECT_NOT(Ttx::Lexical::Lexicon::validate(Token::Hex, "0x"_view));
+
+  EXPECT(Ttx::Lexical::Lexicon::validate(Token::String, "\"1.0\""_view));
+  EXPECT(
+      Ttx::Lexical::Lexicon::validate(
+          Token::String, "\"escaped \\\" quote\""_view));
+  EXPECT_NOT(
+      Ttx::Lexical::Lexicon::validate(Token::String, "\"unterminated"_view));
+  EXPECT_NOT(
+      Ttx::Lexical::Lexicon::validate(
+          Token::String, "\"escaped terminal\\\""_view));
+  EXPECT(Ttx::Lexical::Lexicon::validate(Token::Bytes, "0x[]"_view));
+  EXPECT(
+      Ttx::Lexical::Lexicon::validate(
+          Token::Embedded, "$[resources/table.bin]"_view));
+  EXPECT(Ttx::Lexical::Lexicon::validate(Token::Comment, "// text"_view));
+  EXPECT_NOT(Ttx::Lexical::Lexicon::validate(Token::Comment, "// line\n"_view));
+  EXPECT(Ttx::Lexical::Lexicon::validate(Token::TypeAccessOp, "::"_view));
+  EXPECT_NOT(Ttx::Lexical::Lexicon::validate(Token::Unknown, "?"_view));
 }
 
 PERIMORTEM_UNIT_TEST(TtxLexical, code_semantics) {

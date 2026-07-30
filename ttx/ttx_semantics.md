@@ -44,8 +44,11 @@ Codes. An Attribute uses `@name`. A byte literal uses `0x[...]`, and an
 embedded resource operand uses `$[...]`. Punctuation and operators have
 dedicated delimiter or operator Codes. Comment lines form their own category.
 
-The Lexicon owns fixed spellings. Payload bearing Tokens retain coordinates
-into the source view borrowed by the Tokenizer rather than copying their text.
+The Lexicon owns fixed spellings and the exact variable spelling of every
+common lexical category. It validates one complete authored spelling against a
+Code and can admit explicit separator Codes between repeated category values.
+Payload bearing Tokens retain coordinates into the source view borrowed by the
+Tokenizer rather than copying their text.
 
 TTX defines the category of an embedded resource operand, but not how its bytes
 are loaded. It defines the category of a Dialect marker, but not which names a
