@@ -3,75 +3,66 @@
 
 #pragma once
 
-#include "perimortem/core/static/union.hpp"
-#include "perimortem/core/static/vector.hpp"
-
 #include "perimortem/memory/allocator/arena.hpp"
 #include "perimortem/memory/managed/map.hpp"
+#include "perimortem/memory/managed/vector.hpp"
 
 #include "tetrodotoxin/language/dialect.hpp"
 
 namespace Tetrodotoxin::Environment {
 
-// Workspace is the host for managing collections of sources typically in a
-// package context.
-//
-// Dialects must be added to the work space for it to be able to interpret
-// different sources. By default it only parses the Tetrodotoxin source header
-// which includes the source document comment and a single `dialect : Type`
-// directive.
-class Workspace : Ttx::Concept::Abstract {
+// Workspace owns one semantic island, including installed Dialect state,
+// imported source bytes, and the Monographs published by successful imports.
+class Workspace : public Ttx::Concept::Abstract {
  public:
-  Workspace()
-      : arena(),
-        installed_routes(arena),
-        installed_dialects(arena),
-        dialects(arena),
-        source_monographs(arena) {}
-
-  // Installed dialects are allowed to own actual localized graph state so they
-  // all need to be destructed to avoid thread memory leaks.
-  constexpr ~Workspace() override {
-    for (Count i = 0; i < installed_dialects.get_size(); i++) {
-      installed_dialects[i]->~Dialect();
-    }
-  }
+  Workspace();
+  ~Workspace() override;
 
   // Installs a Dialect under a name for interpreting source.
   //
   // The same Dialect can be installed under multiple names, however each
-  // instance is strictly unique and has it's own graph context.
-  template <typename target_dialect>
+  // instance is distinct and retains its own graph context.
+  template <typename TargetDialect>
   constexpr auto install_dialect(Perimortem::Core::View::Bytes name) -> Bool {
-    // Can't alias an already included dialect mapping.
+    // Reject the exact authored duplicate before constructing owner state.
     if (dialects.contains(name)) {
       return false;
     }
 
-    // Add the dialect for use directly.
-    auto new_dialect = arena.construct<target_dialect>(*this);
+    Perimortem::Core::View::Bytes installed_name = arena.proxy(name);
+    auto& new_dialect = arena.construct<TargetDialect>(*this);
+
+    installed_names.insert(installed_name);
     installed_dialects.insert(&new_dialect);
-    installed_routes.insert(name);
-    dialects.insert({name, new_dialect});
+
+    // Managed::Map::insert requires assignable values even when the key is new.
+    // Dialect references are nonassignable owner state, so launder constructs
+    // the new binding. The duplicate guard guarantees it never replaces one.
+    dialects.launder(installed_name, new_dialect);
+    return true;
   }
 
-  // Imports a source into the workplace. If it's a package then it's
-  // proccessed further.
+  // Imports one direct source under an exact semantic name. The diagnostic
+  // path identifies parser errors and never becomes semantic identity.
   auto import_source(
-      Perimortem::Core::View::Bytes route,
+      Perimortem::Core::View::Bytes semantic_name,
+      Perimortem::Core::View::Bytes diagnostic_path,
       Perimortem::Core::View::Bytes contents,
-      const Ttx::Concept::Documentation& documentation,
       Ttx::Lexical::Errors& errors) -> Bool;
 
-  // TODO: Actually route cross source look ups / name resolution.
+  auto get_name() const -> Perimortem::Core::View::Bytes override;
+  auto get_documentation() const -> const Ttx::Concept::Documentation& override;
+  auto resolve() const -> const Ttx::Concept::Abstract& override;
   auto resolve_context(Perimortem::Core::View::Bytes route) const
       -> const Ttx::Concept::Abstract& override;
 
  private:
   Perimortem::Memory::Allocator::Arena arena;
   Perimortem::Memory::Managed::Vector<Perimortem::Core::View::Bytes>
-      installed_routes;
+      installed_names;
   Perimortem::Memory::Managed::Vector<Language::Dialect*> installed_dialects;
+  Perimortem::Memory::Managed::Vector<Language::Dialect::Monograph*>
+      retained_monographs;
   Perimortem::Memory::Managed::
       Map<Perimortem::Core::View::Bytes, Language::Dialect&>
           dialects;

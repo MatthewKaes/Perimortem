@@ -3,54 +3,81 @@
 
 #include "tetrodotoxin/environment/workspace.hpp"
 
-#include "perimortem/core/static/vector.hpp"
+#include "perimortem/memory/dynamic/bytes.hpp"
+#include "perimortem/memory/managed/bytes.hpp"
+
+#include "perimortem/serialization/stream/textual.hpp"
 
 #include "tetrodotoxin/language/parser/comment.hpp"
 #include "tetrodotoxin/language/parser/dialect.hpp"
-#include "tetrodotoxin/package/language/monograph.hpp"
 #include "ttx/concept/invalid.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
+using namespace Perimortem::Serialization;
 using namespace Perimortem::Utility;
 using namespace Ttx::Concept;
 using namespace Ttx::Lexical;
-using namespace Tetrodotoxin::Environment;
-using namespace Tetrodotoxin::Language;
+using namespace Tetrodotoxin;
 
-auto Workspace::import_source(
-    View::Bytes route,
+Environment::Workspace::Workspace()
+    : arena(),
+      installed_names(arena),
+      installed_dialects(arena),
+      retained_monographs(arena),
+      dialects(arena),
+      source_monographs(arena) {}
+
+Environment::Workspace::~Workspace() {
+  // Monographs may retain both their host Dialect and Arena backed semantic
+  // facts, so finish their complete destruction phase first.
+  for (Count i = 0; i < retained_monographs.get_size(); i++) {
+    retained_monographs[i]->~Monograph();
+  }
+
+  // Dialect state remains usable until every hosted Monograph is gone. The
+  // Arena is the first member and therefore releases its pages last.
+  for (Count i = 0; i < installed_dialects.get_size(); i++) {
+    installed_dialects[i]->~Dialect();
+  }
+}
+
+auto Environment::Workspace::import_source(
+    View::Bytes semantic_name,
+    View::Bytes diagnostic_path,
     View::Bytes contents,
-    const Documentation& documentation,
     Ttx::Lexical::Errors& errors) -> Bool {
-  // Temporarily set the error context to the workspace.
-  errors.set_source_context("<Tetrodotoxin Workspace>"_view, View::Bytes());
+  // Stage 1: Retain every byte view needed by tokenization or later semantic
+  // facts before either parser object begins borrowing it.
+  //
+  // TODO: W01 should let confined Package input read source bytes directly into
+  // this Arena and enter the retained import path without proxying them again.
+  // Direct caller owned View input must continue to be copied here.
+  View::Bytes owned_diagnostic_path = arena.proxy(diagnostic_path);
+  View::Bytes owned_contents = arena.proxy(contents);
 
-  // Report errors if we try to import a source that already exists.
-  if (source_monographs.contains(route)) {
-    Static::Bytes<256> message_stroage;
-    Writer::Textual error(message_stroage);
+  // An existing semantic identity is never reparsed or overwritten. Errors
+  // snapshots the retained direct input before this transaction ends.
+  if (source_monographs.contains(semantic_name)) {
+    Dynamic::Bytes message_storage;
+    Stream::Textual<Dynamic::Bytes> message(message_storage);
 
-    error << "The source route "_view << route
-          << " is already imported into the workspace."_view;
+    message << "Semantic source "_view << semantic_name
+            << " is already imported into the Workspace."_view;
 
-    errors.create_general_error(error);
+    errors.set_source_context(owned_diagnostic_path, owned_contents);
+    errors.create_general_error(message_storage);
+    errors.clear_source_context();
     return false;
   }
 
-  // TODO: For now just create all sources in the same arena.
-  // Resolution caching might require either multiple workspaces or separate
-  // arenas in order to support retained mode but for now everything is a
-  // oneshot immediate mode.
-  Allocator::Arena& graph_arena = arena;
-  // TODO: The tokenizer just uses the `route` but we should root that in
-  // Perimortem::System::Path using the root directory so emitted errors
-  // actually point to real source relative to the workspace's invocation.
-  Tokenizer tokenizer(graph_arena, contents, route);
+  // Stage 2: Parse the universal source envelope using only Workspace owned
+  // bytes. Cursor installs the exact diagnostic identity on Errors.
+  Tokenizer tokenizer(arena, owned_contents, owned_diagnostic_path);
   Cursor cursor(tokenizer, errors);
 
-  // All source documents _require_ a doc comment to start by the Tetrodotoxin
-  // spec so make sure it's the first token in the stream.
+  // Every source begins with authored Documentation. Absence is a parse
+  // failure and creates no semantic publication.
   if (cursor.get_code() != Code::Type::Comment) {
     cursor.require(
         Code::Type::Comment,
@@ -59,71 +86,93 @@ auto Workspace::import_source(
     return false;
   }
 
-  // Fetch the comment and then parse the dialect.
-  // If we get an empty dialect then the Dialect parser emitted a proper context
-  // aware error and we can just exit early.
-  auto comment = Parser::Comment::parse(cursor);
-  auto starting_token = cursor.current();
-  auto dialect = Parser::Dialect::parse(cursor);
-  if (dialect.is_empty()) {
+  // Stage 3: Parse the top level Documentation and dispatch the exact authored
+  // Dialect name from the same retained source. If the Dialect is empty then
+  // the Dialect parser already produced a context appropriate error so don't
+  // log a second layer of diagnostics.
+  const Documentation& documentation = Language::Parser::Comment::parse(cursor);
+  Token dialect_instruction = cursor.current();
+  View::Bytes dialect_name = Language::Parser::Dialect::parse(cursor);
+  if (dialect_name.is_empty()) {
     return false;
   }
 
-  // Now see if we have the dialect actually registered to interpret the rest of
-  // the actual source.
-  //
-  // We don't do a `visit` + return pattern here since we need to do futher
-  // processing if the source ends up being a `Package`. We don't check against
-  // the string `Package` directly since dialects are installed under toolchain
-  // names and multiple `Package` dialects can be supported for a toolchain.
-  if (!dialects.contains(dialect)) {
-    Static::Bytes<256> message_stroage;
-    Writer::Textual error(message_stroage);
+  // Stage 4: Locate the Dialect in the installed group. If it isn't installed
+  // then log an error message that informs the user both what was the invalid
+  // Dialect provided along with what is currently installed as a hint.
+  auto* dialect_entry = dialects.find(dialect_name);
+  if (dialect_entry == nullptr) {
+    Managed::Bytes message_storage(arena);
+    Managed::Bytes hint_storage(arena);
+    Stream::Textual<Managed::Bytes> message(message_storage);
+    Stream::Textual<Managed::Bytes> hint(hint_storage);
+    const Count installed_count = installed_names.get_size();
 
-    error << "Unknown dialect "_view << dialect
-          << " can't be used to interpret this source."_view;
-    auto hint_location = error.get_location();
-    error << "Installed dialects include "_view;
-    for (Count i = 0; i < installed_dialects.get_size(); i++) {
-      // Slightly better readability
-      if (i == installed_dialects.get_size() - 1) {
-        error << "and "_view;
+    message << "Unknown dialect "_view << dialect_name
+            << " can't be used to interpret this source."_view;
+
+    if (installed_count == 0) {
+      hint << "No dialects are installed."_view;
+    } else if (installed_count == 1) {
+      hint << "Installed dialect: "_view << installed_names[0] << "."_view;
+    } else {
+      hint << "Installed dialects: "_view;
+      for (Count i = 0; i < installed_count; i++) {
+        if (i != 0) {
+          hint << ", "_view;
+        }
+
+        hint << installed_names[i];
       }
 
-      error << installed_dialects[i];
-      if (i != installed_dialects.get_size() - 1) {
-        error << ", "_view;
-      }
+      hint << "."_view;
     }
 
-    View::Bytes full_message = error;
-    cursor.create_expression_error(
-        starting_token, cursor.current(), full_message.slice(0, hint_location),
-        full_message.slice(hint_location, 0));
+    cursor.create_token_error(
+        dialect_instruction, message_storage, hint_storage);
     return false;
   }
 
-  // Already validated that the key must exist so this is safe but still a
-  // sketchy access pattern.
-  auto entry = dialects.find(dialect);
-  auto monograph = entry->value.interpret(graph_arena, cursor, comment, *this);
-  if (!monograph) {
+  // Stage 5: Dialect interpretation constructs the output Monograph in this
+  // Arena. For now all sources imported into the Workspace have a unified
+  // lifetime.
+  Option<Language::Dialect::Monograph&> interpreted =
+      dialect_entry->value.interpret(arena, cursor, documentation, *this);
+  if (!interpreted) {
     return false;
   }
 
-  // Side step the object model since we manage monograph space.
-  source_monographs.launder(route, *monograph);
-  auto& raw_monograph = *monograph;
-  if (!raw_monograph.is<Tetrodotoxin::Package::Language::Monograph>()) {
+  // Stage 6: Retain the completed Monograph exactly once, then copy and publish
+  // its semantic name. Only successful interpretation reaches publication, so
+  // a failed semantic name remains reusable.
+  Language::Dialect::Monograph& monograph = *interpreted;
+  View::Bytes owned_semantic_name = arena.proxy(semantic_name);
+
+  if (!retained_monographs.contains(&monograph)) {
+    retained_monographs.insert(&monograph);
   }
 
+  source_monographs.launder(owned_semantic_name, monograph);
   return true;
 }
 
-auto Workspace::resolve_context(View::Bytes route) const -> const Abstract& {
+auto Environment::Workspace::get_name() const -> View::Bytes {
+  return "Workspace"_view;
+}
+
+auto Environment::Workspace::get_documentation() const -> const Documentation& {
+  return Documentation::get_empty();
+}
+
+auto Environment::Workspace::resolve() const -> const Abstract& {
+  return *this;
+}
+
+auto Environment::Workspace::resolve_context(View::Bytes route) const
+    -> const Abstract& {
   return source_monographs.visit(
       route,
-      [](const Dialect::Monograph& selected) -> const Abstract& {
+      [](const Language::Dialect::Monograph& selected) -> const Abstract& {
         return selected;
       },
       []() -> const Abstract& { return Invalid::get_invalid(); });
