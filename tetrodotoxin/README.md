@@ -14,7 +14,7 @@ and the tooling boundaries for runtime and package artifacts.
    Monographs by authored source name.
 3. [`package`](package/) owns the authored Package Dialect shape, exact
    Dependency requests, exact Source name to path bindings, and the Package
-   Monograph model. Its interpreter remains incomplete.
+   Monograph model. It also owns confined Package Storage.
 4. [`library`](library/) owns Library language semantics, built in CPU Types,
    native CPU assembly, and the future reusable CPU compiler.
 5. [`app`](app/) owns startup profiles, lifecycle policy, and generated platform
@@ -41,7 +41,7 @@ Bazel declares exact inputs and terminal outputs
 -> Puffer selects a compile mode and constructs one Workspace
 -> Workspace installs the selected concrete Dialects
 -> Workspace stages the explicit root name and path
--> Package input performs each confined read
+-> Package Storage performs each confined read
 -> Workspace retains bytes and parses the universal source envelope
 -> the exact installed Dialect constructs its real Monograph
 -> Workspace retains the Monograph under the authored semantic name
@@ -69,12 +69,11 @@ Frontend, Container, or Environment Namespace. Environment owns the transaction
 because it already owns the Dialect state, graph allocation, and retained
 Monographs that give interpretation its lifetime.
 
-Only the direct envelope dispatch shape is present. The current Package
-interpreter cannot complete a valid import, and Workspace has no staging queue,
-owned byte lifetime, dependency restoration, or ordered post pass. The current
-Workspace import parameter also combines its semantic lookup key with the
-Tokenizer diagnostic path. The transaction above is an ownership contract, not
-current behavioral evidence.
+Workspace implements direct envelope dispatch and the confined local Package
+stage. It drains exact Source names and logical routes in FIFO order, retains
+successful Monographs, and continues after independent failures. Dependency
+restoration and ordered post pass remain absent, so the transaction above is
+not yet complete.
 
 ## Semantic ownership
 
@@ -101,10 +100,10 @@ Environment -> Package -> Language -> TTX -> Perimortem
 Library -> TTX -> Perimortem
 ```
 
-Package supplies the first concrete Language Dialect shape for Environment,
-although its current import path remains incomplete. Library acquires a
-Language dependency when its concrete top level Dialect is exposed. Its current
-semantic and assembler surface depends directly on TTX.
+Package supplies the first concrete Language Dialect shape and confined local
+source path for Environment. Library acquires a Language dependency when its
+concrete top level Dialect is exposed. Its current semantic and assembler
+surface depends directly on TTX.
 
 ## Terminal products
 
@@ -118,7 +117,7 @@ coherent set of sections, symbols, and relocations. `Package::Archive` is the
 separate durable semantic terminal used for source free restoration and native
 artifact and symbol location. Package Archive never owns Linker object bytes.
 
-Package owns planned confined input, Archive encoding and restoration, and
+Package owns confined Storage plus planned Archive encoding, restoration, and
 exact repository selection. Library owns CPU lowering. App and Scene retain
 their own completed facts. Linker owns static archives, shared libraries, and
 complete executable production. Puffer orchestrates these owners but does not

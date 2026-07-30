@@ -41,9 +41,9 @@ The current Puffer target exposes only its LSP process.
 Language defines no concrete source grammar. It provides the stateful Dialect
 interface, its common Monograph root, and deterministic parser fragments.
 
-Package supplies the first concrete Dialect and Monograph shape. Its intended
-contract interprets dependency requests and exact Source name to path bindings
-into a Package Monograph, but the current interpreter is incomplete.
+Package supplies the first concrete Dialect and Monograph shape. Its
+implemented contract interprets dependency requests and exact Source name to
+path bindings into a Package Monograph.
 
 Environment owns the Workspace that installs concrete Dialects and hosts their
 interpretation. It owns graph allocation, Dialect lifetime, imported Monograph
@@ -129,7 +129,7 @@ The accepted production transaction is staged:
 
 ```text
 Workspace stages an explicit root semantic name and source path
--> Package input reads one confined, same opened object
+-> Package Storage reads one confined, same opened object
 -> Workspace retains the bytes
 -> Workspace parses Documentation and `dialect : Type;`
 -> Workspace dispatches the remaining Cursor to the exact installed Dialect
@@ -148,10 +148,13 @@ diagnostics but never becomes a semantic name implicitly.
 
 Environment does not own concrete Package or Library grammar. It also does not
 own filesystem confinement, target lowering, runtime state, archive encoding,
-or an additional Namespace model. Its current import API still combines the
-semantic name and diagnostic path in one `route` parameter, so this intended
-separation remains unfinished. It also has no staging queue, retained byte
-store, dependency restoration, or ordered post pass.
+or an additional Namespace model. Direct import accepts separate semantic name,
+diagnostic path, and content views and copies them into the Workspace Arena.
+Local Package import drains an Arena backed FIFO of separate semantic names and
+logical routes. Package Storage content enters the same semantic import
+transaction directly because Storage and its views already belong to that
+Arena. Both public operations return the imported Monograph Option. Dependency
+restoration and ordered post pass remain absent.
 
 ## Package Dialect
 
@@ -171,20 +174,19 @@ local name, package name, and pinned version. It is not the resolved external
 package.
 
 `Package::Language::Source` is an exact authored binding from one semantic name
-to one package path. Planned Package input opens the path beneath the package
-root and asks Workspace to stage the member under the local name. No path
-segment, filename, or file order derives semantic identity.
+to one package path. Package Storage opens the path beneath the package root
+and Workspace stages the member under the local name. No path segment,
+filename, or file order derives semantic identity.
 
 `Package::Language::Monograph` retains opening Documentation, ordered
 Dependency requests, and ordered Source bindings. It retains no filesystem
 handle, fetched package, opened member source, target artifact, or archive
 record.
 
-The current Package target contains only the model and interpreter scaffold for
-this authored manifest. The scaffold does not yet complete a valid
-interpretation. Confined filesystem reads, dependency acquisition, application
+The current Package target contains the complete authored manifest
+interpretation and confined Storage. Dependency acquisition, application
 selection, Package Archive encoding and restoration, and exact repository
-selection are planned Package work.
+selection remain planned Package work.
 
 `main.ttx` remains a filename convention. Future package assembly selects the
 sole completed App Monograph rather than granting its filename or local Source
@@ -334,7 +336,7 @@ const file_header : Fixed[Unsigned_8, 64] =
   $[resources/table.bin]:[0, 64];
 ```
 
-Future Package input work has six requirements.
+Package Storage and future resource consumers follow six requirements.
 
 1. Reads remain confined to one opened package root.
 2. Absolute and escaping routes are rejected.
@@ -344,9 +346,9 @@ Future Package input work has six requirements.
 6. Resolution never falls back to the process working directory or the
    containing source directory.
 
-The current Dialect interface has no filesystem capability and the current
-Package target has no confined Workspace. Resource loading is therefore not
-implemented.
+Package Storage implements confined root reads, route rejection, empty success,
+successful read caching, and fallback absence. No current concrete Dialect
+interprets an embedded resource operand or folds reachable byte slices.
 
 ## Durable package products
 
@@ -372,20 +374,20 @@ The current tree provides the following implemented surfaces.
 1. TTX provides lexical and closed semantic targets.
 2. Language provides shared Comment and Dialect parsers.
 3. Language provides the stateful Dialect and Monograph interfaces.
-4. Environment provides Workspace installation, dispatch, retention, and
-   authored source name lookup.
-5. Package provides Dependency, Source, and Monograph models with an incomplete
-   interpreter scaffold.
+4. Environment provides Workspace installation, direct dispatch, confined
+   local Package staging, retention, and authored source name lookup.
+5. Package provides Dependency, Source, Monograph, complete manifest
+   interpretation, and confined Storage.
 6. Library provides language contracts and scalar Types.
 7. Library and Shader provide CPU and SPIR V instruction assemblers.
 8. Linker provides source independent linking machinery.
 9. Puffer provides an LSP process but no compile orchestration.
 
 That inventory does not prove complete parsing for Library, App, Scene, Render,
-Shader, or Foreign. It also does not prove CPU semantic lowering, package
-filesystem confinement, resource folding, durable package encoding, runtime
-execution, Puffer compile orchestration, typed Object Module production, final
-native executable emission, or source free restoration.
+Shader, or Foreign. It also does not prove CPU semantic lowering, embedded
+resource folding, durable package encoding, runtime execution, Puffer compile
+orchestration, typed Object Module production, final native executable
+emission, or source free restoration.
 
 A fixture, README, target build, or test written beside an implementation is not
 an independent semantic oracle.

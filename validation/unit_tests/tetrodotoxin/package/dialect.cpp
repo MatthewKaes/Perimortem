@@ -72,7 +72,7 @@ static auto rejects_package(
   Errors errors;
   const Bool installed =
       workspace.install_dialect<Package::Dialect>("Package"_view);
-  const Bool imported =
+  const auto imported =
       workspace.import_source("Rejected"_view, path, source, errors);
   const Bool unpublished =
       &workspace.resolve_context("Rejected"_view) == &Invalid::get_invalid();

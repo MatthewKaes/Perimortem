@@ -42,13 +42,24 @@ class Workspace : public Ttx::Concept::Abstract {
     return true;
   }
 
-  // Imports one direct source under an exact semantic name. The diagnostic
-  // path identifies parser errors and never becomes semantic identity.
+  // Imports one source from caller owned bytes and returns its published
+  // Monograph. Failure returns an empty Option, may accumulate multiple
+  // diagnostics in Errors, and publishes no semantic name.
   auto import_source(
       Perimortem::Core::View::Bytes semantic_name,
       Perimortem::Core::View::Bytes diagnostic_path,
       Perimortem::Core::View::Bytes contents,
-      Ttx::Lexical::Errors& errors) -> Bool;
+      Ttx::Lexical::Errors& errors)
+      -> Perimortem::Utility::Option<Language::Dialect::Monograph&>;
+
+  // Reads only the explicit root route from one Package Storage. Success
+  // returns the root Monograph after every staged Source has succeeded.
+  auto import_package(
+      Perimortem::Core::View::Bytes package_root,
+      Perimortem::Core::View::Bytes root_semantic_name,
+      Perimortem::Core::View::Bytes root_logical_route,
+      Ttx::Lexical::Errors& errors)
+      -> Perimortem::Utility::Option<Language::Dialect::Monograph&>;
 
   auto get_name() const -> Perimortem::Core::View::Bytes override;
   auto get_documentation() const -> const Ttx::Concept::Documentation& override;
@@ -57,6 +68,18 @@ class Workspace : public Ttx::Concept::Abstract {
       -> const Ttx::Concept::Abstract& override;
 
  private:
+  // Interprets source views already retained by this Workspace Arena. A raw
+  // View does not identify its owner, so public import_source copies arbitrary
+  // caller input before entering this transaction. Package Storage and Package
+  // Monographs use the same Arena and may enter directly, avoiding a second
+  // copy of every staged source body.
+  auto import_retained_source(
+      Perimortem::Core::View::Bytes semantic_name,
+      Perimortem::Core::View::Bytes diagnostic_path,
+      Perimortem::Core::View::Bytes contents,
+      Ttx::Lexical::Errors& errors)
+      -> Perimortem::Utility::Option<Language::Dialect::Monograph&>;
+
   Perimortem::Memory::Allocator::Arena arena;
   Perimortem::Memory::Managed::Vector<Perimortem::Core::View::Bytes>
       installed_names;
