@@ -1,0 +1,67 @@
+// Perimortem Engine
+// Copyright © Matt Kaes
+
+#include "tetrodotoxin/package/language/parser/name.hpp"
+
+using namespace Perimortem::Core;
+using namespace Ttx::Lexical;
+using namespace Tetrodotoxin::Package::Language;
+
+// Retains one contiguous authored source span while consuming the selected
+// separator and every required Type segment.
+static auto parse_qualified_name(
+    Cursor& cursor,
+    Code::Type separator,
+    View::Bytes initial_message,
+    View::Bytes segment_message,
+    View::Bytes whitespace_message) -> View::Bytes {
+  Token first = cursor.require(Code::Type::Type, initial_message);
+  if (!first) {
+    return {};
+  }
+
+  Token last = first;
+  while (cursor.matches(separator)) {
+    Token operator_token = cursor.current();
+    Count previous_end = Count(last.get_offset()) + Count(last.get_size());
+    if (operator_token.get_offset() != previous_end) {
+      cursor.create_expression_error(first, operator_token, whitespace_message);
+      return {};
+    }
+
+    cursor.consume();
+    Token segment = cursor.require(Code::Type::Type, segment_message);
+    if (!segment) {
+      return {};
+    }
+
+    Count operator_end =
+        Count(operator_token.get_offset()) + Count(operator_token.get_size());
+    if (segment.get_offset() != operator_end) {
+      cursor.create_expression_error(first, segment, whitespace_message);
+      return {};
+    }
+
+    last = segment;
+  }
+
+  Count name_start = first.get_offset();
+  Count name_end = Count(last.get_offset()) + Count(last.get_size());
+  return cursor.get_source_text().slice(name_start, name_end - name_start);
+}
+
+auto Parser::Name::parse_semantic(Cursor& cursor) -> View::Bytes {
+  return parse_qualified_name(
+      cursor, Code::Type::TypeAccessOp,
+      "Expected an authored Type shaped semantic name."_view,
+      "Semantic name qualification requires a Type segment after `::`."_view,
+      "Semantic names cannot contain whitespace around `::`."_view);
+}
+
+auto Parser::Name::parse_package(Cursor& cursor) -> View::Bytes {
+  return parse_qualified_name(
+      cursor, Code::Type::AddressOp,
+      "Expected an external Type shaped Package name."_view,
+      "External Package qualification requires a Type segment after `.`."_view,
+      "External Package names cannot contain whitespace around `.`."_view);
+}
