@@ -596,9 +596,9 @@ auto Base64::decode(Allocator::Arena& arena, View::Bytes source)
   Count size = (source.get_size() / 4) * 3;
 
   // Pre-pad by decode_underwrite_bytes so the vectorized loop can underwrite.
-  Unsigned_8* text =
-      arena.allocate(decode_underwrite_bytes + size + decode_extra_bytes) +
-      decode_underwrite_bytes;
+  auto storage =
+      arena.allocate(decode_underwrite_bytes + size + decode_extra_bytes);
+  Unsigned_8* text = storage.get_data() + decode_underwrite_bytes;
   Count actual_size = vectorized_decode(text, source);
   return View::Bytes(text, actual_size);
 }
@@ -624,7 +624,7 @@ auto Base64::encode(Allocator::Arena& arena, View::Bytes source)
 
   const Count left_over = source.get_size() % 3;
   const Count output_size = (source.get_size() / 3) * 4 + (left_over ? 4 : 0);
-  Unsigned_8* output = arena.allocate(output_size);
-  vectorize_encode(Access::Bytes(output, output_size), source);
-  return View::Bytes(output, output_size);
+  Access::Bytes output = arena.allocate(output_size);
+  vectorize_encode(output, source);
+  return output;
 }

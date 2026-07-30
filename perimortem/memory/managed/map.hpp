@@ -224,9 +224,8 @@ class Map {
   auto create_buffer(Count bucket_count) -> Buffer {
     Buffer created;
     created.bucket_count = bucket_count;
-    created.bucket_buffer = arena.allocate(bucket_count);
-    created.slots_buffer =
-        Core::Data::cast<Slot>(arena.allocate(sizeof(Slot) * bucket_count));
+    created.bucket_buffer = arena.allocate(bucket_count).get_data();
+    created.slots_buffer = arena.reserve<Slot>(bucket_count).get_data();
     for (Count i = 0; i < bucket_count; i++) {
       created.bucket_buffer[i] = 0;
     }
