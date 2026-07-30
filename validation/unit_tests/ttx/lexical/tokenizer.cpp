@@ -209,8 +209,12 @@ PERIMORTEM_UNIT_TEST(TtxLexical, source_error) {
   Allocator::Arena render_arena;
   Ttx::Lexical::Errors errors;
 
-  errors.set_source_context("test.ttx"_view, "source"_view);
-  errors.create_general_error("Bad source."_view, "Try again."_view);
+  {
+    Ttx::Lexical::Errors::Report report(errors, "test.ttx"_view, "source"_view);
+    report << "Bad source."_view;
+    report.get_hint() << "Try again."_view;
+  }
+
   View::Bytes rendered = errors.render_message(render_arena, 0);
 
   ASSERT_EQ(errors.get_size(), Count(1));
@@ -222,10 +226,9 @@ PERIMORTEM_UNIT_TEST(TtxLexical, source_error) {
 PERIMORTEM_UNIT_TEST(TtxLexical, scoped_report) {
   Allocator::Arena render_arena;
   Ttx::Lexical::Errors errors;
-  errors.set_source_context("outer.ttx"_view, "outer source"_view);
 
   {
-    Ttx::Lexical::Errors::Report empty(errors, "empty.ttx"_view);
+    Ttx::Lexical::Errors::Report empty(errors, "empty.ttx"_view, View::Bytes());
   }
   EXPECT(errors.is_empty());
 
@@ -252,7 +255,12 @@ PERIMORTEM_UNIT_TEST(TtxLexical, scoped_report) {
     report << "Repeated report."_view;
   }
 
-  errors.create_general_error("Outer report."_view);
+  {
+    Ttx::Lexical::Errors::Report report(
+        errors, "outer.ttx"_view, "outer source"_view);
+    report << "Outer report."_view;
+  }
+
   View::Bytes scoped = errors.render_message(render_arena, 0);
   View::Bytes repeated = errors.render_message(render_arena, 1);
   View::Bytes outer = errors.render_message(render_arena, 2);
@@ -269,6 +277,157 @@ PERIMORTEM_UNIT_TEST(TtxLexical, scoped_report) {
   EXPECT(Algorithm::search(outer, "outer.ttx:"_view) != Count(-1));
   EXPECT(Algorithm::search(outer, "Outer report."_view) != Count(-1));
   EXPECT(Algorithm::search(outer, "report.ttx"_view) == Count(-1));
+}
+
+PERIMORTEM_UNIT_TEST(TtxLexical, overlapping_cursors) {
+  Allocator::Arena render_arena;
+  Ttx::Lexical::Errors errors;
+
+  {
+    Allocator::Arena outer_arena;
+    Ttx::Lexical::Tokenizer outer_tokenizer(
+        outer_arena, "outer start finish"_view, "outer.ttx"_view);
+    Ttx::Lexical::Cursor outer(outer_tokenizer, errors);
+
+    {
+      Allocator::Arena inner_arena;
+      Ttx::Lexical::Tokenizer inner_tokenizer(
+          inner_arena, "inner source"_view, "inner.ttx"_view);
+      Ttx::Lexical::Cursor inner(inner_tokenizer, errors);
+
+      outer.create_token_error(
+          "Outer while inner is live."_view, "Outer token hint."_view);
+      inner.create_token_error(
+          "Inner while nested."_view, "Inner token hint."_view);
+    }
+
+    Ttx::Lexical::Token start = outer.current();
+    outer.consume();
+    outer.consume();
+    Ttx::Lexical::Token end = outer.current();
+    outer.create_expression_error(
+        start, end, "Outer after inner."_view, "Outer range hint."_view);
+  }
+
+  View::Bytes first = errors.render_message(render_arena, 0);
+  View::Bytes second = errors.render_message(render_arena, 1);
+  View::Bytes third = errors.render_message(render_arena, 2);
+
+  ASSERT_EQ(errors.get_size(), Count(3));
+  EXPECT(Algorithm::search(first, "outer.ttx:1:1"_view) != Count(-1));
+  EXPECT(Algorithm::search(first, "outer start finish"_view) != Count(-1));
+  EXPECT(
+      Algorithm::search(first, "Outer while inner is live."_view) != Count(-1));
+  EXPECT(Algorithm::search(first, "Outer token hint."_view) != Count(-1));
+  EXPECT(Algorithm::search(first, "^-----\n"_view) != Count(-1));
+  EXPECT(Algorithm::search(first, "inner.ttx"_view) == Count(-1));
+
+  EXPECT(Algorithm::search(second, "inner.ttx:1:1"_view) != Count(-1));
+  EXPECT(Algorithm::search(second, "inner source"_view) != Count(-1));
+  EXPECT(Algorithm::search(second, "Inner while nested."_view) != Count(-1));
+  EXPECT(Algorithm::search(second, "Inner token hint."_view) != Count(-1));
+  EXPECT(Algorithm::search(second, "^-----\n"_view) != Count(-1));
+  EXPECT(Algorithm::search(second, "outer.ttx"_view) == Count(-1));
+
+  EXPECT(Algorithm::search(third, "outer.ttx:1:1"_view) != Count(-1));
+  EXPECT(Algorithm::search(third, "outer start finish"_view) != Count(-1));
+  EXPECT(Algorithm::search(third, "Outer after inner."_view) != Count(-1));
+  EXPECT(Algorithm::search(third, "Outer range hint."_view) != Count(-1));
+  EXPECT(Algorithm::search(third, "^------------------\n"_view) != Count(-1));
+  EXPECT(Algorithm::search(third, "inner.ttx"_view) == Count(-1));
+}
+
+PERIMORTEM_UNIT_TEST(TtxLexical, wrapper_messages) {
+  Allocator::Arena arena;
+  Allocator::Arena render_arena;
+  Ttx::Lexical::Errors errors;
+  Ttx::Lexical::Tokenizer tokenizer(
+      arena, "first second third"_view, "wrappers.ttx"_view);
+  Ttx::Lexical::Cursor cursor(tokenizer, errors);
+
+  cursor.create_error("General wrapper."_view, "General hint."_view);
+  cursor.create_token_error("Token wrapper."_view, "Token hint."_view);
+  Ttx::Lexical::Token start = cursor.current();
+  cursor.consume();
+  Ttx::Lexical::Token end = cursor.current();
+  cursor.create_expression_error(
+      start, end, "Expression wrapper."_view, "Expression hint."_view);
+
+  View::Bytes general = errors.render_message(render_arena, 0);
+  View::Bytes token = errors.render_message(render_arena, 1);
+  View::Bytes expression = errors.render_message(render_arena, 2);
+
+  ASSERT_EQ(errors.get_size(), Count(3));
+  EXPECT(Algorithm::search(general, "wrappers.ttx:"_view) != Count(-1));
+  EXPECT(Algorithm::search(general, "General wrapper."_view) != Count(-1));
+  EXPECT(Algorithm::search(general, "General hint."_view) != Count(-1));
+  EXPECT(Algorithm::search(token, "wrappers.ttx:1:1"_view) != Count(-1));
+  EXPECT(Algorithm::search(token, "Token wrapper."_view) != Count(-1));
+  EXPECT(Algorithm::search(token, "Token hint."_view) != Count(-1));
+  EXPECT(Algorithm::search(expression, "wrappers.ttx:1:1"_view) != Count(-1));
+  EXPECT(
+      Algorithm::search(expression, "Expression wrapper."_view) != Count(-1));
+  EXPECT(Algorithm::search(expression, "Expression hint."_view) != Count(-1));
+}
+
+PERIMORTEM_UNIT_TEST(TtxLexical, reversed_range) {
+  Allocator::Arena arena;
+  Allocator::Arena render_arena;
+  Ttx::Lexical::Errors errors;
+  Ttx::Lexical::Tokenizer tokenizer(
+      arena, "one two three"_view, "reversed.ttx"_view);
+  Ttx::Lexical::Cursor cursor(tokenizer, errors);
+
+  Ttx::Lexical::Token end = cursor.current();
+  cursor.consume();
+  cursor.consume();
+  Ttx::Lexical::Token start = cursor.current();
+  cursor.create_expression_error(
+      start, end, "Reversed range."_view, "Clamp to start."_view);
+  View::Bytes rendered = errors.render_message(render_arena, 0);
+
+  ASSERT_EQ(errors.get_size(), Count(1));
+  EXPECT(Algorithm::search(rendered, "reversed.ttx:1:9"_view) != Count(-1));
+  EXPECT(Algorithm::search(rendered, "Reversed range."_view) != Count(-1));
+  EXPECT(Algorithm::search(rendered, "Clamp to start."_view) != Count(-1));
+  EXPECT(Algorithm::search(rendered, "^-----\n"_view) != Count(-1));
+}
+
+PERIMORTEM_UNIT_TEST(TtxLexical, keyword_bail) {
+  static constexpr View::Bytes generated =
+      "Expected `expected` but got `actual`."_view;
+  Allocator::Arena render_arena;
+  Ttx::Lexical::Errors errors;
+
+  {
+    Allocator::Arena arena;
+    Ttx::Lexical::Tokenizer tokenizer(
+        arena, "actual;"_view, "default.ttx"_view);
+    Ttx::Lexical::Cursor cursor(tokenizer, errors);
+    EXPECT(cursor.bail("expected"_view));
+  }
+
+  {
+    Allocator::Arena arena;
+    Ttx::Lexical::Tokenizer tokenizer(arena, "actual;"_view, "custom.ttx"_view);
+    Ttx::Lexical::Cursor cursor(tokenizer, errors);
+    EXPECT(cursor.bail("expected"_view, "Custom keyword failure."_view));
+  }
+
+  View::Bytes default_message = errors.render_message(render_arena, 0);
+  View::Bytes custom_message = errors.render_message(render_arena, 1);
+
+  ASSERT_EQ(errors.get_size(), Count(2));
+  EXPECT(
+      Algorithm::search(default_message, "default.ttx:1:1"_view) != Count(-1));
+  EXPECT(Algorithm::search(default_message, generated) != Count(-1));
+  EXPECT(Algorithm::search(default_message, "Note: "_view) == Count(-1));
+  EXPECT(Algorithm::search(custom_message, "custom.ttx:1:1"_view) != Count(-1));
+  EXPECT(
+      Algorithm::search(custom_message, "Custom keyword failure."_view) !=
+      Count(-1));
+  EXPECT(Algorithm::search(custom_message, "Note: "_view) != Count(-1));
+  EXPECT(Algorithm::search(custom_message, generated) != Count(-1));
 }
 
 PERIMORTEM_UNIT_TEST(TtxLexical, retained_source_name) {
@@ -309,9 +468,13 @@ PERIMORTEM_UNIT_TEST(TtxLexical, token_error) {
       arena, "one\ntwo\nthree value"_view, "test.ttx"_view);
   Ttx::Lexical::Token token = tokenizer.get_tokens()[3];
 
-  errors.set_source_context(
-      tokenizer.get_source_path(), tokenizer.get_source_text());
-  errors.create_token_error(token, "Bad token."_view);
+  {
+    Ttx::Lexical::Errors::Report report(
+        errors, tokenizer.get_source_path(), tokenizer.get_source_text(), token,
+        token);
+    report << "Bad token."_view;
+  }
+
   View::Bytes rendered = errors.render_message(render_arena, 0);
 
   ASSERT_EQ(errors.get_size(), Count(1));

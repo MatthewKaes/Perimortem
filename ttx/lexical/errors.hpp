@@ -73,64 +73,6 @@ class Errors {
   Errors(const Errors&) = delete;
   Errors(Errors&&) = delete;
 
-  // Sets the context for errors
-  constexpr auto set_source_context(
-      Perimortem::Core::View::Bytes name,
-      Perimortem::Core::View::Bytes text) -> void {
-    current_context.name = name;
-    current_context.text = text;
-  }
-
-  // Ends the active source borrow after a parsing transaction. Diagnostics
-  // already copied their source snapshot and remain valid.
-  constexpr auto clear_source_context() -> void {
-    current_context.name = "<Unknown>"_view;
-    current_context.text = Perimortem::Core::View::Bytes();
-  }
-
-  // Creates an error that should have a message logged at the source level.
-  constexpr auto create_general_error(
-      Perimortem::Core::View::Bytes message,
-      Perimortem::Core::View::Bytes hint = Perimortem::Core::View::Bytes())
-      -> void {
-    create_token_error(Token(), message, hint);
-  }
-
-  // Creates an error associated with a single token.
-  constexpr auto create_token_error(
-      const Token token,
-      Perimortem::Core::View::Bytes message,
-      Perimortem::Core::View::Bytes hint = Perimortem::Core::View::Bytes())
-      -> void {
-    create_expression_error(token, token, message, hint);
-  }
-
-  // Creates an error associated with an expression which typically crosses
-  // multiple tokens.
-  //
-  // `end` can be set to any arbitrary token, however if it's set before `start`
-  // then it is clamped to start and a simple token error is created.
-  constexpr auto create_expression_error(
-      const Token start,
-      const Token end,
-      Perimortem::Core::View::Bytes message,
-      Perimortem::Core::View::Bytes hint = Perimortem::Core::View::Bytes())
-      -> void {
-    Error error;
-    error.message = arena.proxy(message);
-    error.hint = arena.proxy(hint);
-    error.source_name =
-        retain_source(current_context.name, current_context.text);
-    error.start_token = start;
-    error.end_token =
-        start.is_valid() &&
-                (!end.is_valid() || end.get_offset() < start.get_offset())
-            ? start
-            : end;
-
-    errors.insert(error);
-  }
-
   // Centeralized render logic for rendering error messages.
   // Eventually can be moved out, but for now this keeps the logic local.
   auto render_message(Perimortem::Memory::Allocator::Arena& arena, Count index)
@@ -147,11 +89,6 @@ class Errors {
     Perimortem::Core::View::Bytes source_name;
     Token start_token;
     Token end_token;
-  };
-
-  struct SourceContext {
-    Perimortem::Core::View::Bytes name;
-    Perimortem::Core::View::Bytes text;
   };
 
   auto retain_source(
@@ -177,10 +114,6 @@ class Errors {
       Map<Perimortem::Core::View::Bytes, Perimortem::Core::View::Bytes>
           source_map;
   Perimortem::Memory::Managed::Vector<Error> errors;
-  SourceContext current_context = {
-    "<Unknown>"_view,
-    Perimortem::Core::View::Bytes(),
-  };
 };
 
 }  // namespace Ttx::Lexical

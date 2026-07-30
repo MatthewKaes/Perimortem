@@ -224,7 +224,10 @@ PERIMORTEM_UNIT_TEST(PackageDialect, canonical_inventory) {
 PERIMORTEM_UNIT_TEST(PackageDialect, prior_diagnostics) {
   Environment::Workspace workspace;
   Errors errors;
-  errors.create_general_error("Earlier independent diagnostic."_view);
+  {
+    Errors::Report report(errors, "prior-package.ttx"_view, View::Bytes());
+    report << "Earlier independent diagnostic."_view;
+  }
 
   ASSERT(workspace.install_dialect<Package::Dialect>("Package"_view));
   ASSERT(workspace.import_source(

@@ -529,7 +529,10 @@ PERIMORTEM_UNIT_TEST(EnvironmentWorkspace, staged_fifo_retention) {
   active_trace = &trace;
   Environment::Workspace workspace;
   Errors errors;
-  errors.create_general_error("Earlier independent diagnostic."_view);
+  {
+    Errors::Report report(errors, "prior-workspace.ttx"_view, View::Bytes());
+    report << "Earlier independent diagnostic."_view;
+  }
 
   ASSERT(workspace.install_dialect<Package::Dialect>("Package"_view));
   ASSERT(workspace.install_dialect<WorkspaceDialect>("Alpha"_view));

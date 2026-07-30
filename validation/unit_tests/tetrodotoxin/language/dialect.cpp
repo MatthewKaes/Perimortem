@@ -94,7 +94,8 @@ class LifecycleMonograph : public Language::Dialect::Monograph {
     trace.post_count++;
 
     static_cast<LifecycleDialect&>(host).observe_host_use();
-    errors.create_general_error("post pass diagnostic"_view);
+    Errors::Report report(errors, "lifecycle-post-pass"_view, View::Bytes());
+    report << "post pass diagnostic"_view;
   }
 
  private:

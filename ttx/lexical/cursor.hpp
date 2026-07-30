@@ -21,12 +21,7 @@ namespace Ttx::Lexical {
 class Cursor {
  public:
   Cursor(const Lexical::Tokenizer& tokenizer, Lexical::Errors& errors)
-      : tokenizer(tokenizer), errors(errors) {
-    errors.set_source_context(
-        tokenizer.get_source_path(), tokenizer.get_source_text());
-  };
-
-  ~Cursor() { errors.clear_source_context(); }
+      : tokenizer(tokenizer), errors(errors) {}
 
   constexpr auto current() const -> Lexical::Token {
     return tokenizer.get_tokens().get_data()[index];
@@ -108,12 +103,17 @@ class Cursor {
     }
 
     auto text = candidate.caculate_text(get_source_text());
-    if (candidate.caculate_text(get_source_text()) != keyword) {
+    if (text != keyword) {
       Perimortem::Core::Static::Bytes<128> hint_buffer;
       Perimortem::Core::Writer::Textual hint_message(hint_buffer);
       hint_message << "Expected `"_view << keyword << "` but got `"_view << text
                    << "`."_view;
-      create_token_error(message);
+      if (message.is_empty()) {
+        create_token_error(candidate, hint_message);
+      } else {
+        create_token_error(candidate, message, hint_message);
+      }
+
       recover_to_statement();
       return true;
     }
@@ -124,10 +124,10 @@ class Cursor {
   // Creates a source level error message.
   // Views can be temporary as the error context copies the data into its local
   // memory space in case the error outlives the source.
-  constexpr auto create_error(
+  auto create_error(
       Perimortem::Core::View::Bytes message,
       Perimortem::Core::View::Bytes hint = {}) -> void {
-    errors.create_general_error(message, hint);
+    create_expression_error(Token(), Token(), message, hint);
   }
 
   // Creates an error at the current token.
@@ -136,14 +136,14 @@ class Cursor {
   auto create_token_error(
       Perimortem::Core::View::Bytes message,
       Perimortem::Core::View::Bytes hint = {}) -> void {
-    errors.create_token_error(current(), message, hint);
+    create_token_error(current(), message, hint);
   }
 
   auto create_token_error(
       Lexical::Token token,
       Perimortem::Core::View::Bytes message,
       Perimortem::Core::View::Bytes hint = {}) -> void {
-    errors.create_token_error(token, message, hint);
+    create_expression_error(token, token, message, hint);
   }
 
   // Emits an error over an existing token range.
@@ -154,7 +154,11 @@ class Cursor {
       Lexical::Token end,
       Perimortem::Core::View::Bytes message,
       Perimortem::Core::View::Bytes hint = {}) -> void {
-    errors.create_expression_error(start, end, message, hint);
+    Errors::Report report(
+        errors, tokenizer.get_source_path(), tokenizer.get_source_text(), start,
+        end);
+    report << message;
+    report.get_hint() << hint;
   }
 
   // Statement recovery is intentionally small.
