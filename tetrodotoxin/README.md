@@ -113,23 +113,28 @@ source independent object, relocation, target format, and native archive
 machinery.
 
 `Linker::Object::Module` is the accepted native typed terminal. It owns one
-coherent set of sections, symbols, and relocations. `Package::Archive` is the
-separate durable semantic terminal used for source free restoration and native
-artifact and symbol location. Package Archive never owns Linker object bytes.
+coherent set of sections, symbols, and relocations.
+`Package::Archive::Archive` is the separate durable semantic terminal used for
+source free restoration and native artifact and symbol location. Package
+Archive never owns Linker object bytes.
 
-Package owns confined Storage plus planned Archive encoding, restoration, and
-exact repository selection. Library owns CPU lowering. App and Scene retain
-their own completed facts. Linker owns static archives, shared libraries, and
-complete executable production. Puffer orchestrates these owners but does not
-replace any of them with a generic product registry.
+Package owns confined Storage. Namespace `Package::Archive` owns the completed
+value on `Archive`, validated Format 1 decoding through `Reader`, and canonical
+encoding through `Writer`. Archive restoration and exact repository selection
+remain planned. Library owns CPU lowering. App and Scene retain their own
+completed facts. Linker owns static archives, shared libraries, and complete
+executable production. Puffer orchestrates these owners but does not replace
+any of them with a generic product registry.
 
 Final ELF linkage remains in repository code. A host linker is only an
 independent consumer for a static archive checkpoint, never the production
 implementation of a Tetrodotoxin executable.
 
-None of the complete terminal transaction, Package Archive, source free restore,
-Puffer compile orchestration, shared library output, or executable output is
-implemented by the current targets.
+Package Archive Format 1 can now be constructed, read, and written
+independently.
+None of the complete terminal transaction, source free restore, Puffer compile
+orchestration, shared library output, or executable output is implemented by
+the current targets.
 
 See [tetrodotoxin_design.md](tetrodotoxin_design.md) for the detailed ownership
 and transaction contract.

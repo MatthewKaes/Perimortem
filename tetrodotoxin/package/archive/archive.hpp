@@ -1,0 +1,93 @@
+// Perimortem Engine
+// Copyright © Matt Kaes
+
+#pragma once
+
+#include "perimortem/core/view/bytes.hpp"
+#include "perimortem/core/view/vector.hpp"
+
+#include "perimortem/system/version.hpp"
+
+#include "tetrodotoxin/package/archive/export.hpp"
+#include "tetrodotoxin/package/archive/member.hpp"
+#include "tetrodotoxin/package/language/dependency.hpp"
+
+namespace Tetrodotoxin::Package::Archive {
+
+// The source free Package terminal is a value over stable views. Archive owns
+// no backing storage and applies no Format 1 policy. Reader retains decoded
+// record ranges in its caller Arena while the input owner retains their byte
+// views. Other producers keep every supplied view valid for the complete use
+// of the Archive.
+class Archive {
+ public:
+  // Defines the complete Format 1 section vocabulary shared by Reader and
+  // Writer. The closed set fits in one byte and is widened into the existing
+  // unsigned 16 bit tag when encoded.
+  enum class Sections : Unsigned_8 {
+    Identity = 1,
+    Version,
+    Dependencies,
+    Members,
+    ArtifactIds,
+    Exports,
+  };
+
+  // Counts the fixed magic, format, flags, and body size prefix. Reader
+  // requires the first section to begin here and Writer adds the same prefix
+  // to its measured body.
+  static constexpr Count header_size = 12;
+
+  // Creates one complete Package from views retained by its producer.
+  // Construction copies only the views and preserves their supplied order.
+  constexpr Archive(
+      Perimortem::Core::View::Bytes identity,
+      Perimortem::System::Version version,
+      Perimortem::Core::View::Vector<Language::Dependency> dependencies,
+      Perimortem::Core::View::Vector<Member> members,
+      Perimortem::Core::View::Vector<Perimortem::Core::View::Bytes>
+          artifact_ids,
+      Perimortem::Core::View::Vector<Export> exports)
+      : identity(identity),
+        version(version),
+        dependencies(dependencies),
+        members(members),
+        artifact_ids(artifact_ids),
+        exports(exports) {};
+
+  constexpr auto get_identity() const -> Perimortem::Core::View::Bytes {
+    return identity;
+  }
+
+  constexpr auto get_version() const -> Perimortem::System::Version {
+    return version;
+  }
+
+  constexpr auto get_dependencies() const
+      -> Perimortem::Core::View::Vector<Language::Dependency> {
+    return dependencies;
+  }
+
+  constexpr auto get_members() const -> Perimortem::Core::View::Vector<Member> {
+    return members;
+  }
+
+  constexpr auto get_artifact_ids() const
+      -> Perimortem::Core::View::Vector<Perimortem::Core::View::Bytes> {
+    return artifact_ids;
+  }
+
+  constexpr auto get_exports() const -> Perimortem::Core::View::Vector<Export> {
+    return exports;
+  }
+
+ private:
+  Perimortem::Core::View::Bytes identity;
+  Perimortem::System::Version version;
+  Perimortem::Core::View::Vector<Language::Dependency> dependencies;
+  Perimortem::Core::View::Vector<Member> members;
+  Perimortem::Core::View::Vector<Perimortem::Core::View::Bytes> artifact_ids;
+  Perimortem::Core::View::Vector<Export> exports;
+};
+
+}  // namespace Tetrodotoxin::Package::Archive

@@ -29,6 +29,9 @@ package, the exact external package name, and the pinned version.
 Local semantic names use exact contiguous `Type (:: Type)*` grammar. External
 Package names use exact contiguous `Type (. Type)*` grammar. Spacing inside
 either qualified name is invalid and is never projected out of semantic text.
+`Package::Language::Parser::Name` owns both authored qualified name entry
+points while the TTX Lexicon validates every Type segment and the exact
+separator Code between segments.
 The pinned version must be a closed quoted canonical `Major.Minor` value.
 
 `Package::Language::Dependency` is that request, not the fetched package or a
@@ -119,24 +122,115 @@ filename.
 
 ## Archive and repository
 
-Package owns the planned `Package::Archive` envelope, reader, writer, and exact
-repository selection. The Archive is the durable semantic terminal for source
-free restoration. It is distinct from every Linker native product.
+Namespace `Package::Archive` owns the durable `Archive` value, Format 1
+`Reader`, and canonical `Writer`. `Package::Archive::Archive` is the semantic
+terminal for later source free restoration and is distinct from every Linker
+native product.
 
 An Archive contains:
 
 1. exact Package identity and pinned version;
-2. exact semantic member names and concrete Dialect names;
-3. opaque versioned payloads encoded and restored by each concrete Dialect;
-4. dependency requests needed to rebuild the imported Package root;
-5. exported semantic routes and their native artifact and symbol locators.
+2. ordered exact dependency requests;
+3. ordered semantic member names, concrete Dialect names, and opaque payloads;
+4. ordered logical native artifact IDs;
+5. ordered exported semantic routes and their artifact and symbol locators.
 
 It contains no source bytes, source path as semantic identity, process address,
 parser state, filesystem handle, target cache, or Linker object bytes.
 
-Restoration validates the envelope, then asks the installed concrete Dialect to
-allocate and restore its real Monograph in the importing Workspace Arena.
-Package never depends on a concrete payload schema.
+Archive is a regular value over stable views supplied by its producer. Its
+constructor preserves those views and their order without copying storage or
+applying Format 1 validation. A direct producer obtains each opaque member
+payload through its concrete `Language::Dialect::encode` operation and keeps
+the described storage alive. Archive does not enumerate a Workspace, accept a
+Package Monograph or Source, interpret a payload, or depend on a concrete
+Dialect. An engaged empty payload remains a valid member payload.
+
+The reader validates and materializes only. Its accepted input remains borrowed
+while the typed record ranges live in the caller Arena. The caller keeps that
+input valid until the Arena is reset or destroyed and keeps the Arena alive
+while it holds the returned Archive value. A caller with shorter lived input
+copies it into the Arena once before reading, while an Arena backed file read
+passes its existing view directly. Reader reports each rejected input through
+one explicit `Ttx::Lexical::Errors::Report` with the supplied diagnostic
+identity and exact input bytes. A later Workspace restoration transaction will
+select the installed Dialect and call its `restore` operation.
+
+### Format 1
+
+All unsigned integers are fixed width and little endian. The file starts with
+this twelve byte header:
+
+| Offset | Width | Value |
+| --- | ---: | --- |
+| 0 | 4 | ASCII `TTXA` |
+| 4 | 2 | format value `1` |
+| 6 | 2 | reserved flags `0` |
+| 8 | 4 | complete body size |
+
+The body is a tagged singleton field envelope. Every field starts with an
+unsigned 16 bit tag, unsigned 16 bit flags, and unsigned 32 bit payload size.
+Flag bit 0 marks a required field and every other bit is reserved.
+
+The six known fields are required, occur exactly once, and occur in this
+canonical order:
+
+`Package::Archive::Archive::Sections` is the public source for these tags. Its
+closed values use `Unsigned_8` in memory and are widened to the existing
+unsigned 16 bit tag field on the wire. `Archive::header_size` publishes the
+twelve byte fixed header size used by both Reader and Writer.
+
+| Tag | Payload |
+| ---: | --- |
+| 1 | Package identity string |
+| 2 | unsigned 16 bit major and unsigned 16 bit minor Package version |
+| 3 | dependency list |
+| 4 | member list |
+| 5 | native artifact list |
+| 6 | export list |
+
+A missing, repeated, reordered, or incorrectly flagged known field rejects the
+Archive. An unknown field with the required bit rejects. An unknown optional
+field is skipped only when its complete declared payload remains inside the
+body. The writer emits no unknown fields.
+
+Strings and opaque member payloads start with an unsigned 32 bit byte size.
+Every list starts with an unsigned 32 bit count. Each list entry then starts
+with an unsigned 32 bit record size. A dependency record contains its local
+alias string, external Package identity string, unsigned 16 bit major, and
+unsigned 16 bit minor. A member record contains its semantic name string,
+Dialect name string, and opaque payload bytes. An artifact record contains one
+logical artifact ID string. An export record contains its semantic route
+string, artifact ID string, and symbol locator string.
+
+Every declared field, record, string, and payload is consumed exactly. The
+header body size must describe the complete remaining input, so trailing bytes
+reject. Counts, record sizes, string sizes, and payload sizes use unsigned 32
+bit framing. Every addition, multiplication, allocation, and slice is checked
+against that framing and the remaining input before it occurs.
+
+Package identities use dot separated Type segments. Dependency aliases and
+member semantic names use `::` separated Type segments. Dialect names contain
+one Type segment. Each Type segment has the exact
+`[A-Z][A-Za-z0-9_]*` byte shape. Export semantic routes remain opaque to
+Package; their deeper legality belongs to their later semantic owner. Package
+and dependency versions reject the reserved `0.0` value.
+
+Dependencies may be empty. Native artifact and export inventories may be
+empty. Members must not be empty. Dependency aliases, member semantic names,
+artifact IDs, and export semantic routes are each unique in their inventory.
+Every artifact ID, export semantic route, export artifact ID, and symbol
+locator is nonempty and contains no NUL byte. Every export references an
+artifact ID declared in the same Archive. Equal member payload bytes remain
+independent member facts.
+
+The writer accepts only a validated Archive. It preserves every supplied list
+order, preserves zero length member payloads, checks the complete encoded size
+before allocation, and always emits the header and six known fields above.
+Equivalent facts therefore produce byte identical output regardless of their
+original backing allocations.
+
+### Future repository and restoration
 
 The exact Repository selects only explicitly supplied products by Package
 identity and pinned version. It provides semantic Archives to Workspace and
@@ -144,6 +238,8 @@ native product paths to Puffer as separate values. It does not scan the current
 directory, fetch a latest version, or load native bytes during semantic
 restoration.
 
-No Archive codec, exact Repository, publication path, or source free
-restoration exists in the current Package target. A Package Monograph currently
-proves only the intended authored manifest result shape.
+No exact Repository, Archive restoration path, or source free Workspace
+transaction exists in the current Package target. `Package::Dialect`
+encode and restore also remain future work because the Package root will be
+reconstructed from Archive envelope metadata rather than stored as a member
+payload.

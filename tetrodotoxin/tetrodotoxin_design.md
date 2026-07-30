@@ -178,15 +178,21 @@ to one package path. Package Storage opens the path beneath the package root
 and Workspace stages the member under the local name. No path segment,
 filename, or file order derives semantic identity.
 
+`Package::Language::Parser::Name` consumes the shared contiguous qualified name
+grammar used by Dependency and Source statements. TTX Lexicon remains the sole
+owner of each Type segment and exact separator Code spelling.
+
 `Package::Language::Monograph` retains opening Documentation, ordered
 Dependency requests, and ordered Source bindings. It retains no filesystem
 handle, fetched package, opened member source, target artifact, or archive
 record.
 
 The current Package target contains the complete authored manifest
-interpretation and confined Storage. Dependency acquisition, application
-selection, Package Archive encoding and restoration, and exact repository
-selection remain planned Package work.
+interpretation and confined Storage. Namespace `Package::Archive` owns Format 1
+facts on the value class `Archive`, validation and materialization on `Reader`,
+and deterministic encoding on `Writer`. Dependency acquisition, application
+selection, Archive restoration, and exact repository selection remain planned
+Package work.
 
 `main.ttx` remains a filename convention. Future package assembly selects the
 sole completed App Monograph rather than granting its filename or local Source
@@ -352,10 +358,15 @@ interprets an embedded resource operand or folds reachable byte slices.
 
 ## Durable package products
 
-Package owns the planned `Package::Archive` envelope, reader, writer, and exact
+Namespace `Package::Archive` owns the implemented Format 1 contracts:
+`Package::Archive::Archive` retains the completed facts,
+`Package::Archive::Reader` validates and materializes the envelope, and
+`Package::Archive::Writer` emits it canonically. Package also owns future exact
 repository selection. An Archive contains exact Package identity and version,
 semantic member and Dialect names, concrete Dialect payload framing, dependency
 requests, exported semantic routes, and native artifact and symbol locators.
+`Archive::Sections` and `Archive::header_size` are the shared public section
+vocabulary and fixed header size consumed by Reader and Writer.
 
 Each installed concrete Dialect owns the versioned payload it encodes and
 restores. Restored Monographs are allocated in the importing Workspace Arena.
@@ -364,7 +375,11 @@ Render, or Shader payload schemas.
 
 An Archive contains no source bytes, source path as semantic identity, process
 address, parser Cursor, filesystem handle, target cache, or Linker object bytes.
-No Package Archive codec, exact repository, or source free restoration exists
+The current codec validates complete envelopes before retaining typed record
+ranges in the caller Arena and emits one deterministic canonical encoding. The
+input bytes remain borrowed for that Arena lifetime, so an Arena backed file
+read reaches Archive without another copy. Archive itself remains a regular
+value over stable views. No exact repository or source free restoration exists
 in the current Package target.
 
 ## Current evidence boundary
