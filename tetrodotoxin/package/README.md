@@ -254,17 +254,28 @@ Duplicate exact input keys reject construction.
 
 Exact Archive selection reads only the matching declaration into the caller
 Arena and passes those stable bytes to `Archive::Reader`. Repository verifies
-the decoded identity and Version and requires exactly one declared native path
-for every ordered Archive artifact ID before caching the successful Archive.
-Missing keys remain ordinary absence. A missing, empty, corrupt, or mismatched
-selected input logs its exact Package key, Archive location, and failure stage,
-while every unselected declaration remains inert. Native mapping failures name
-the missing, duplicate, or unknown artifact ID and every available filesystem
-location. Native lookup validates the semantic Archive and then returns only
-the borrowed exact path. It never reads native bytes. An empty selected file is
-a successful filesystem read whose bytes reach Reader and select
-`ReadError::InvalidFormat`; Repository retains its existing optional public
-selection result until the typed Repository correction.
+the decoded identity and Version before caching the successful Archive. It
+returns the retained Archive or `SelectionError`, distinguishing undeclared,
+unreadable, invalid format, unsupported format, and Package key mismatch
+outcomes plus an unknown Reader fallback without using the Union null state. A
+valid semantic Archive requires no native declaration and remains cached after
+a later native failure. `SelectionError` uses `Unsigned_8` storage, reserves
+the all ones value for `Unknown`, and starts ordinary recovery categories at
+zero.
+
+Native selection first consumes that typed semantic result, then requires
+exactly one declared native path for every ordered Archive artifact ID. Missing,
+duplicate, or unknown mappings select `ArtifactMismatch`; an undeclared
+requested artifact in an otherwise complete inventory selects
+`ArtifactNotDeclared`. Native selection returns only the borrowed exact path and
+never reads native bytes.
+
+Reader retains exact format and semantic detail in Debug evidence. Repository
+emits one Info record for each selected error with the requested key, selected
+Archive location, and every relevant artifact declaration fact available at
+that boundary. Propagating a semantic failure through native selection retains
+its category and record without another diagnostic. Every unselected declared
+file remains inert.
 
 Archive and native inventories use the same Output value and exact Package
 identity, Version, and artifact ID key while retaining separate lookup

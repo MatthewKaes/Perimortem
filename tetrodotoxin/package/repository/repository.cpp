@@ -216,6 +216,49 @@ static auto write_input_key(
   message << " archive_location="_view << input.get_archive_location();
 }
 
+template <Count capacity>
+static auto write_requested_key(
+    Diagnostics::Log::Message<capacity>& message,
+    View::Bytes identity,
+    Version version) -> void {
+  message << " requested_identity="_view << identity
+          << " requested_version="_view;
+  write_version(message, version);
+}
+
+static constexpr auto selection_error_name(
+    Package::Repository::SelectionError error) -> View::Bytes {
+  switch (error) {
+  case Package::Repository::SelectionError::NotDeclared:
+    return "NotDeclared"_view;
+  case Package::Repository::SelectionError::Unreadable:
+    return "Unreadable"_view;
+  case Package::Repository::SelectionError::InvalidFormat:
+    return "InvalidFormat"_view;
+  case Package::Repository::SelectionError::UnsupportedFormat:
+    return "UnsupportedFormat"_view;
+  case Package::Repository::SelectionError::PackageKeyMismatch:
+    return "PackageKeyMismatch"_view;
+  case Package::Repository::SelectionError::ArtifactMismatch:
+    return "ArtifactMismatch"_view;
+  case Package::Repository::SelectionError::ArtifactNotDeclared:
+    return "ArtifactNotDeclared"_view;
+  default:
+    return "Unknown"_view;
+  }
+}
+
+template <Count capacity>
+static auto write_selection_failure(
+    Diagnostics::Log::Message<capacity>& message,
+    Package::Repository::SelectionError error,
+    View::Bytes identity,
+    Version version) -> void {
+  message << repository_select_operation << " failed. selection_error="_view
+          << selection_error_name(error);
+  write_requested_key(message, identity, version);
+}
+
 static auto log_duplicate_input(
     const Package::Repository::Input& first,
     const Package::Repository::Input& second) -> void {
@@ -229,9 +272,13 @@ static auto log_duplicate_input(
 
 static auto log_selection_failure(
     const Package::Repository::Input& input,
+    Package::Repository::SelectionError error,
+    View::Bytes identity,
+    Version version,
     View::Bytes reason) -> void {
-  Diagnostics::Log::Message<640> message(Diagnostics::Log::Level::Info);
-  message << repository_select_operation << " failed. reason="_view << reason;
+  Diagnostics::Log::Message<768> message(Diagnostics::Log::Level::Info);
+  write_selection_failure(message, error, identity, version);
+  message << " reason="_view << reason;
   write_input_key(message, input);
 }
 
@@ -240,7 +287,10 @@ static auto log_selection_failure(
 // create a false mismatch.
 static auto validate_artifacts(
     const Package::Repository::Input& input,
-    const Package::Archive::Archive& archive) -> Bool {
+    const Package::Archive::Archive& archive,
+    View::Bytes requested_identity,
+    Version requested_version,
+    View::Bytes requested_artifact) -> Bool {
   auto expected = archive.get_artifact_ids();
   auto declared = input.get_artifacts();
 
@@ -251,9 +301,12 @@ static auto validate_artifacts(
     View::Bytes artifact_id = declared[i].get_id();
     for (Count earlier = 0; earlier < i; earlier++) {
       if (declared[earlier].get_id() == artifact_id) {
-        Diagnostics::Log::Message<768> message(Diagnostics::Log::Level::Info);
-        message << repository_select_operation
-                << " failed. reason=duplicate native artifact mapping"_view;
+        Diagnostics::Log::Message<1024> message(Diagnostics::Log::Level::Info);
+        write_selection_failure(
+            message, Package::Repository::SelectionError::ArtifactMismatch,
+            requested_identity, requested_version);
+        message << " requested_artifact="_view << requested_artifact
+                << " reason=duplicate native artifact mapping"_view;
         write_input_key(message, input);
         message << " artifact_id="_view << artifact_id
                 << " first_location="_view
@@ -265,9 +318,12 @@ static auto validate_artifacts(
     }
 
     if (!expected.contains(artifact_id)) {
-      Diagnostics::Log::Message<640> message(Diagnostics::Log::Level::Info);
-      message << repository_select_operation
-              << " failed. reason=unknown native artifact mapping"_view;
+      Diagnostics::Log::Message<896> message(Diagnostics::Log::Level::Info);
+      write_selection_failure(
+          message, Package::Repository::SelectionError::ArtifactMismatch,
+          requested_identity, requested_version);
+      message << " requested_artifact="_view << requested_artifact
+              << " reason=unknown native artifact mapping"_view;
       write_input_key(message, input);
       message << " artifact_id="_view << artifact_id << " native_location="_view
               << declared[i].get_filesystem_location();
@@ -287,9 +343,12 @@ static auto validate_artifacts(
     }
 
     if (!found) {
-      Diagnostics::Log::Message<512> message(Diagnostics::Log::Level::Info);
-      message << repository_select_operation
-              << " failed. reason=missing native artifact mapping"_view;
+      Diagnostics::Log::Message<768> message(Diagnostics::Log::Level::Info);
+      write_selection_failure(
+          message, Package::Repository::SelectionError::ArtifactMismatch,
+          requested_identity, requested_version);
+      message << " requested_artifact="_view << requested_artifact
+              << " reason=missing native artifact mapping"_view;
       write_input_key(message, input);
       message << " artifact_id="_view << artifact_id;
       return False;
@@ -343,7 +402,8 @@ auto Package::Repository::Repository::create(
 
 auto Package::Repository::Repository::select_archive(
     View::Bytes identity,
-    Version version) -> Option<const Archive::Archive&> {
+    Version version) -> Static::
+    Union<const Archive::Archive&, Package::Repository::SelectionError> {
   // Archive byte views borrow the same Arena as Repository. Reusing the
   // retained value avoids another file read and keeps later file replacement
   // or removal from changing already selected facts.
@@ -355,11 +415,17 @@ auto Package::Repository::Repository::select_archive(
     }
   }
 
-  // Missing keys are expected during optional lookup. Only a selected
-  // declaration produces a low level validation trace.
+  // A missing declaration is a stable dependency decision rather than a null
+  // lookup. Repository records the requested key because no selected Input can
+  // carry that evidence for a later textual diagnostic.
   auto selected = find_input(inputs, identity, version);
   if (!selected) {
-    return {};
+    Diagnostics::Log::Message<512> message(Diagnostics::Log::Level::Info);
+    write_selection_failure(
+        message, SelectionError::NotDeclared, identity, version);
+    message << " reason=no Package input declaration matches the requested "
+               "key."_view;
+    return SelectionError::NotDeclared;
   }
 
   // Lazy reading keeps an invalid unused declaration inert and avoids touching
@@ -367,8 +433,9 @@ auto Package::Repository::Repository::select_archive(
   auto bytes = File::read(arena, (*selected).get_archive_location());
   if (!bytes) {
     log_selection_failure(
-        *selected, "the Archive file could not be read."_view);
-    return {};
+        *selected, SelectionError::Unreadable, identity, version,
+        "the Archive file could not be read."_view);
+    return SelectionError::Unreadable;
   }
 
   // File keeps an empty read distinct from storage failure. Reader classifies
@@ -377,34 +444,44 @@ auto Package::Repository::Repository::select_archive(
   auto read = Archive::Reader::read(arena, *bytes);
   auto archive = read.find<Archive::Archive>();
   if (archive == nullptr) {
-    log_selection_failure(
-        *selected, "the Archive failed Format 1 validation."_view);
-    return {};
+    const auto& read_error = *read.find<Archive::ReadError>();
+    switch (read_error) {
+    case Archive::ReadError::InvalidFormat:
+      log_selection_failure(
+          *selected, SelectionError::InvalidFormat, identity, version,
+          "the Archive failed Format 1 validation."_view);
+      return SelectionError::InvalidFormat;
+    case Archive::ReadError::UnsupportedFormat:
+      log_selection_failure(
+          *selected, SelectionError::UnsupportedFormat, identity, version,
+          "the Archive format revision is unsupported."_view);
+      return SelectionError::UnsupportedFormat;
+    default:
+      log_selection_failure(
+          *selected, SelectionError::Unknown, identity, version,
+          "the Archive reader returned an unknown error."_view);
+      return SelectionError::Unknown;
+    }
   }
 
   // A valid Archive can still be attached to the wrong Bazel key. Reader cannot
   // check that external declaration, so Repository compares it after decode.
   if (archive->get_identity() != (*selected).get_identity() ||
       archive->get_version() != (*selected).get_version()) {
-    Diagnostics::Log::Message<768> message(Diagnostics::Log::Level::Info);
-    message << repository_select_operation
-            << " failed. reason=decoded Package key mismatch expected"_view;
+    Diagnostics::Log::Message<1024> message(Diagnostics::Log::Level::Info);
+    write_selection_failure(
+        message, SelectionError::PackageKeyMismatch, identity, version);
+    message << " reason=decoded Package key mismatch expected"_view;
     write_input_key(message, *selected);
     message << " actual_identity="_view << archive->get_identity()
             << " actual_version="_view;
     write_version(message, archive->get_version());
-    return {};
+    return SelectionError::PackageKeyMismatch;
   }
 
-  // Returning native paths not named by the Archive would let physical inputs
-  // disagree with restored semantic data. Require the exact decoded inventory
-  // before either product becomes observable.
-  if (!validate_artifacts(*selected, *archive)) {
-    return {};
-  }
-
-  // Caching before declaration checks would make a failed first selection pass
-  // on retry. Publish the retained value only after the whole transaction.
+  // The semantic cache has no native declaration dependency. Workspace can
+  // therefore restore a valid Archive from an action that declares no native
+  // inputs, and a later native mismatch cannot poison these retained facts.
   const Archive::Archive& retained =
       archive_cache.emplace(Archive::Archive(*archive));
   return retained;
@@ -413,22 +490,32 @@ auto Package::Repository::Repository::select_archive(
 auto Package::Repository::Repository::select_native(
     View::Bytes identity,
     Version version,
-    View::Bytes artifact_id) -> Option<View::Bytes> {
-  // Native paths are meaningful only in the artifact inventory of a valid
-  // Archive. Reusing semantic selection also shares its cache and validation
-  // trace.
-  auto archive = select_archive(identity, version);
-  if (!archive) {
-    return {};
+    View::Bytes artifact_id)
+    -> Static::Union<View::Bytes, Package::Repository::SelectionError> {
+  // Semantic failures already have one exact Repository record. Propagating
+  // the selected category keeps native control flow typed without manufacturing
+  // a second explanation for the same failed Archive.
+  auto archive_selection = select_archive(identity, version);
+  auto selection_error = archive_selection.find<SelectionError>();
+  if (selection_error != nullptr) {
+    return *selection_error;
   }
 
-  // The declaration list is already proven to match the Archive, so this lookup
-  // can return the borrowed path without reading or copying native bytes.
+  const auto& archive =
+      *archive_selection.find<const Package::Archive::Archive&>();
   auto selected = find_input(inputs, identity, version);
-  if (!selected) {
-    return {};
+
+  // Native declarations are a complete physical projection of the Archive
+  // artifact inventory. Validation stays here so semantic cache publication
+  // remains useful even when that projection is absent or malformed.
+  Bool artifacts_match =
+      validate_artifacts(*selected, archive, identity, version, artifact_id);
+  if (!artifacts_match) {
+    return SelectionError::ArtifactMismatch;
   }
 
+  // Once the inventories agree, the requested ID can expose its borrowed path
+  // without a native read or another retained representation.
   auto artifacts = (*selected).get_artifacts();
   for (Count i = 0; i < artifacts.get_size(); i++) {
     if (artifacts[i].get_id() == artifact_id) {
@@ -436,12 +523,14 @@ auto Package::Repository::Repository::select_native(
     }
   }
 
-  Diagnostics::Log::Message<640> message(Diagnostics::Log::Level::Info);
-  message << repository_select_operation
-          << " failed. reason=requested native artifact is not declared"_view;
+  Diagnostics::Log::Message<896> message(Diagnostics::Log::Level::Info);
+  write_selection_failure(
+      message, SelectionError::ArtifactNotDeclared, identity, version);
+  message << " requested_artifact="_view << artifact_id
+          << " reason=requested native artifact is not declared"_view;
   write_input_key(message, *selected);
   message << " artifact_id="_view << artifact_id;
-  return {};
+  return SelectionError::ArtifactNotDeclared;
 }
 
 auto Package::Repository::Repository::get_archive_output_path(

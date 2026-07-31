@@ -5,6 +5,7 @@
 
 #include "perimortem/core/view/bytes.hpp"
 #include "perimortem/core/view/vector.hpp"
+#include "perimortem/core/static/union.hpp"
 
 #include "perimortem/memory/allocator/arena.hpp"
 #include "perimortem/memory/managed/vector.hpp"
@@ -16,6 +17,7 @@
 #include "tetrodotoxin/package/archive/archive.hpp"
 #include "tetrodotoxin/package/repository/input.hpp"
 #include "tetrodotoxin/package/repository/output.hpp"
+#include "tetrodotoxin/package/repository/selection_error.hpp"
 
 namespace Tetrodotoxin::Package::Repository {
 
@@ -35,23 +37,22 @@ class Repository {
       Perimortem::Core::View::Vector<Output> native_outputs)
       -> Perimortem::Utility::Option<Repository>;
 
-  // Missing keys are normal lookup absence. Once a declaration is selected,
-  // file and declaration failures belong to Repository while Format failures
-  // remain Archive Reader logs. A caller with authored request context turns
-  // selection failure into a textual diagnostic.
+  // Selects the exact declared semantic Archive and preserves it in the
+  // Repository cache. Every call chooses the Archive or a stable caller error,
+  // while Reader retains the format detail that only it can explain.
   auto select_archive(
       Perimortem::Core::View::Bytes identity,
-      Perimortem::System::Version version)
-      -> Perimortem::Utility::Option<const Archive::Archive&>;
+      Perimortem::System::Version version) -> Perimortem::Core::Static::
+      Union<const Archive::Archive&, SelectionError>;
 
-  // Decode the semantic Archive before exposing a native path so an undeclared
-  // or stale artifact mapping cannot bypass Archive validation. The native
-  // bytes remain untouched because their consumer owns that format.
+  // Semantic selection succeeds without native declarations. This operation
+  // adds the complete native inventory check before exposing one borrowed
+  // path, keeping native bytes with their eventual format consumer.
   auto select_native(
       Perimortem::Core::View::Bytes identity,
       Perimortem::System::Version version,
-      Perimortem::Core::View::Bytes artifact_id)
-      -> Perimortem::Utility::Option<Perimortem::Core::View::Bytes>;
+      Perimortem::Core::View::Bytes artifact_id) -> Perimortem::Core::Static::
+      Union<Perimortem::Core::View::Bytes, SelectionError>;
 
   // The shared Output value does not erase product kind. Archive lookup stays
   // on its own inventory and cannot fall through to a native declaration.

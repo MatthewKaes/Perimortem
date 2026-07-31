@@ -24,6 +24,13 @@ using namespace Perimortem::System;
 using namespace Tetrodotoxin;
 using namespace Validation;
 
+static_assert(
+    static_cast<Unsigned_8>(Package::Repository::SelectionError::Unknown) ==
+    Unsigned_8(-1));
+static_assert(
+    static_cast<Unsigned_8>(Package::Repository::SelectionError::NotDeclared) ==
+    Unsigned_8(0));
+
 // This manually encoded Format 1 value is independent of Archive Writer. The
 // Repository tests write only this literal or direct byte mutations of it, so
 // the selected file oracle cannot reproduce a Writer defect.
@@ -54,6 +61,32 @@ static constexpr Unsigned_8 format_one_archive[] = {
 static constexpr Count archive_identity_offset = 24;
 static constexpr Count archive_version_offset = 40;
 static constexpr Count temporary_path_capacity = 192;
+
+// The unit harness retains only the newest log message. Selection rejection
+// emits Reader detail before Repository context, so this sink observes both
+// owners while still forwarding the newest record to the ordinary assertions.
+static View::Bytes expected_selection_info;
+static View::Bytes expected_selection_debug;
+static Bool selection_info_seen;
+static Bool selection_debug_seen;
+static Count selection_log_count;
+
+static auto capture_selection_logs(
+    Diagnostics::Log::Level level,
+    View::Bytes message,
+    const Diagnostics::Source& location) -> void {
+  Test::capture_sink(level, message, location);
+  selection_log_count++;
+
+  if (level == Diagnostics::Log::Level::Info &&
+      Test::error_contains(expected_selection_info, level)) {
+    selection_info_seen = True;
+  } else if (
+      level == Diagnostics::Log::Level::Debug &&
+      Test::error_contains(expected_selection_debug, level)) {
+    selection_debug_seen = True;
+  }
+}
 
 static auto literal_archive() -> View::Bytes {
   return View::Bytes(format_one_archive);
@@ -172,7 +205,9 @@ static auto rejects_selected_input(
     Bool write_input,
     View::Bytes identity,
     Version version,
-    View::Bytes expected_log) -> Bool {
+    Package::Repository::SelectionError expected_error,
+    View::Bytes expected_info,
+    View::Bytes expected_debug = View::Bytes()) -> Bool {
   if (write_input) {
     Bool written = files.write(member, bytes);
     if (!written) {
@@ -197,9 +232,19 @@ static auto rejects_selected_input(
     return False;
   }
 
+  expected_selection_info = expected_info;
+  expected_selection_debug = expected_debug;
+  selection_info_seen = False;
+  selection_debug_seen = expected_debug.is_empty();
+  selection_log_count = 0;
+  Diagnostics::Log::set_sink(capture_selection_logs);
+
   auto selected = (*repository).select_archive(identity, version);
-  return !selected &&
-         Test::error_contains(expected_log, Diagnostics::Log::Level::Info);
+
+  Diagnostics::Log::set_sink(Test::capture_sink);
+  auto error = selected.find<Package::Repository::SelectionError>();
+  return !selected.is_null() && error != nullptr && *error == expected_error &&
+         selection_info_seen && selection_debug_seen;
 }
 
 static auto rejects_mapping(
@@ -217,8 +262,16 @@ static auto rejects_mapping(
     return False;
   }
 
-  auto selected = (*repository).select_archive("Pkg.Core"_view, Version(1, 2));
-  return !selected &&
+  auto selected =
+      (*repository).select_native("Pkg.Core"_view, Version(1, 2), "cpu"_view);
+  auto error = selected.find<Package::Repository::SelectionError>();
+  return !selected.is_null() && error != nullptr &&
+         *error == Package::Repository::SelectionError::ArtifactMismatch &&
+         Test::error_contains(
+             "selection_error=ArtifactMismatch "
+             "requested_identity=Pkg.Core requested_version=1.2 "
+             "requested_artifact=cpu"_view,
+             Diagnostics::Log::Level::Info) &&
          Test::error_contains(expected_log, Diagnostics::Log::Level::Info);
 }
 
@@ -247,6 +300,10 @@ static auto rejects_outputs(
 
 static Harness PackageRepository = {
   .name = "Tetrodotoxin::Package::Repository"_view,
+  .setup =
+      []() { Diagnostics::Log::set_level(Diagnostics::Log::Level::Debug); },
+  .teardown =
+      []() { Diagnostics::Log::set_level(Diagnostics::Log::Level::Info); },
 };
 
 PERIMORTEM_UNIT_TEST(PackageRepository, exact_lazy_selection) {
@@ -301,33 +358,117 @@ PERIMORTEM_UNIT_TEST(PackageRepository, exact_lazy_selection) {
       View::Vector<Package::Repository::Output>());
   ASSERT(repository);
 
+  // Several exact keys share one transaction while malformed unselected
+  // declarations remain inert. Successful results must select Archive rather
+  // than merely avoiding an error alternative.
   auto core_12 = (*repository).select_archive("Pkg.Core"_view, Version(1, 2));
   auto core_20_selected =
       (*repository).select_archive("Pkg.Core"_view, Version(2, 0));
   auto other_selected =
       (*repository).select_archive("Pkg.More"_view, Version(1, 0));
-  ASSERT(core_12);
-  ASSERT(core_20_selected);
-  ASSERT(other_selected);
-  EXPECT((*core_12).get_version() == Version(1, 2));
-  EXPECT((*core_20_selected).get_version() == Version(2, 0));
-  EXPECT_TEXT((*other_selected).get_identity(), "Pkg.More"_view);
+  ASSERT_NOT(core_12.is_null());
+  ASSERT_NOT(core_20_selected.is_null());
+  ASSERT_NOT(other_selected.is_null());
+  auto core_12_archive = core_12.find<const Package::Archive::Archive&>();
+  auto core_20_archive =
+      core_20_selected.find<const Package::Archive::Archive&>();
+  auto other_archive = other_selected.find<const Package::Archive::Archive&>();
+  ASSERT(core_12_archive);
+  ASSERT(core_20_archive);
+  ASSERT(other_archive);
+  EXPECT(core_12_archive->get_version() == Version(1, 2));
+  EXPECT(core_20_archive->get_version() == Version(2, 0));
+  EXPECT_TEXT(other_archive->get_identity(), "Pkg.More"_view);
 
+  // Identity and Version are one exact key. Each kind of absent match chooses
+  // the same stable category but records the complete request that missed.
   auto missing_identity =
       (*repository).select_archive("Pkg.None"_view, Version(1, 2));
+  ASSERT_NOT(missing_identity.is_null());
+  auto missing_identity_error =
+      missing_identity.find<Package::Repository::SelectionError>();
+  ASSERT(missing_identity_error);
+  EXPECT(
+      *missing_identity_error ==
+      Package::Repository::SelectionError::NotDeclared);
+  EXPECT(
+      Test::error_contains(
+          "selection_error=NotDeclared requested_identity=Pkg.None "
+          "requested_version=1.2 reason=no Package input declaration matches "
+          "the requested key."_view,
+          Diagnostics::Log::Level::Info));
+
   auto missing_version =
       (*repository).select_archive("Pkg.Core"_view, Version(9, 9));
-  EXPECT_NOT(missing_identity);
-  EXPECT_NOT(missing_version);
+  ASSERT_NOT(missing_version.is_null());
+  auto missing_version_error =
+      missing_version.find<Package::Repository::SelectionError>();
+  ASSERT(missing_version_error);
+  EXPECT(
+      *missing_version_error ==
+      Package::Repository::SelectionError::NotDeclared);
+  EXPECT(
+      Test::error_contains(
+          "selection_error=NotDeclared requested_identity=Pkg.Core "
+          "requested_version=9.9 reason=no Package input declaration matches "
+          "the requested key."_view,
+          Diagnostics::Log::Level::Info));
 
+  // Native selection must return the semantic category without adding its own
+  // conflicting record. Counting the custom sink makes that absence
+  // observable instead of relying on the last message alone.
+  expected_selection_info =
+      "selection_error=NotDeclared requested_identity=Pkg.None "
+      "requested_version=1.2"_view;
+  expected_selection_debug = View::Bytes();
+  selection_info_seen = False;
+  selection_debug_seen = True;
+  selection_log_count = 0;
+  Diagnostics::Log::set_sink(capture_selection_logs);
+
+  auto propagated =
+      (*repository).select_native("Pkg.None"_view, Version(1, 2), "cpu"_view);
+
+  Diagnostics::Log::set_sink(Test::capture_sink);
+  ASSERT_NOT(propagated.is_null());
+  auto propagated_error =
+      propagated.find<Package::Repository::SelectionError>();
+  ASSERT(propagated_error);
+  EXPECT(*propagated_error == Package::Repository::SelectionError::NotDeclared);
+  EXPECT(selection_info_seen);
+  EXPECT_EQ(selection_log_count, Count(1));
+  EXPECT_TEXT(
+      Test::captured_message(),
+      "Package::Repository exact input selection failed. "
+      "selection_error=NotDeclared requested_identity=Pkg.None "
+      "requested_version=1.2 reason=no Package input declaration matches the "
+      "requested key."_view);
+
+  // A complete native inventory exposes only its borrowed path. Once that
+  // inventory agrees, a different requested ID is an artifact lookup failure
+  // rather than an inventory mismatch.
   auto native =
       (*repository).select_native("Pkg.Core"_view, Version(1, 2), "cpu"_view);
   auto missing_native =
       (*repository)
           .select_native("Pkg.Core"_view, Version(1, 2), "unknown"_view);
-  ASSERT(native);
-  EXPECT_TEXT(*native, "missing/native-cpu.a"_view);
-  EXPECT_NOT(missing_native);
+  ASSERT_NOT(native.is_null());
+  ASSERT_NOT(missing_native.is_null());
+  auto native_path = native.find<View::Bytes>();
+  auto missing_native_error =
+      missing_native.find<Package::Repository::SelectionError>();
+  ASSERT(native_path);
+  ASSERT(missing_native_error);
+  EXPECT_TEXT(*native_path, "missing/native-cpu.a"_view);
+  EXPECT(
+      *missing_native_error ==
+      Package::Repository::SelectionError::ArtifactNotDeclared);
+  EXPECT(
+      Test::error_contains(
+          "selection_error=ArtifactNotDeclared "
+          "requested_identity=Pkg.Core requested_version=1.2 "
+          "requested_artifact=unknown"_view,
+          Diagnostics::Log::Level::Info));
   EXPECT(
       Test::error_contains(
           "reason=requested native artifact is not declared "
@@ -346,36 +487,88 @@ PERIMORTEM_UNIT_TEST(PackageRepository, selected_failures) {
   truncated.resize(truncated.get_size() - 1);
   Dynamic::Bytes corrupt(literal_archive());
   corrupt.get_access()[0] = 'X';
+  Dynamic::Bytes future(literal_archive());
+  set_u16(future, 4, 2);
 
+  // Reader and Repository emit consecutive records with different owner
+  // detail. The helper observes both before checking the typed caller category.
   EXPECT(rejects_selected_input(
       files, "absent.ttxa"_view, View::Bytes(), False, "Pkg.Core"_view,
-      Version(1, 2),
-      "reason=the Archive file could not be read. identity=Pkg.Core "
-      "version=1.2"_view));
+      Version(1, 2), Package::Repository::SelectionError::Unreadable,
+      "selection_error=Unreadable requested_identity=Pkg.Core "
+      "requested_version=1.2"_view));
+  EXPECT(
+      Test::error_contains(
+          "reason=the Archive file could not be read. identity=Pkg.Core "
+          "version=1.2"_view,
+          Diagnostics::Log::Level::Info));
   EXPECT(rejects_selected_input(
       files, "empty.ttxa"_view, View::Bytes(), True, "Pkg.Core"_view,
-      Version(1, 2),
-      "reason=the Archive failed Format 1 validation. identity=Pkg.Core "
-      "version=1.2"_view));
+      Version(1, 2), Package::Repository::SelectionError::InvalidFormat,
+      "selection_error=InvalidFormat requested_identity=Pkg.Core "
+      "requested_version=1.2"_view,
+      "Package::Archive::Reader Format 1 read failed. stage=header "
+      "byte_offset=0 reason=the fixed header extends beyond the input "
+      "bytes."_view));
+  EXPECT(
+      Test::error_contains(
+          "reason=the Archive failed Format 1 validation. identity=Pkg.Core "
+          "version=1.2"_view,
+          Diagnostics::Log::Level::Info));
   EXPECT(rejects_selected_input(
       files, "truncated.ttxa"_view, truncated, True, "Pkg.Core"_view,
-      Version(1, 2),
-      "reason=the Archive failed Format 1 validation. identity=Pkg.Core "
-      "version=1.2"_view));
+      Version(1, 2), Package::Repository::SelectionError::InvalidFormat,
+      "selection_error=InvalidFormat requested_identity=Pkg.Core "
+      "requested_version=1.2"_view,
+      "Package::Archive::Reader Format 1 read failed"_view));
+  EXPECT(
+      Test::error_contains(
+          "reason=the Archive failed Format 1 validation. identity=Pkg.Core "
+          "version=1.2"_view,
+          Diagnostics::Log::Level::Info));
   EXPECT(rejects_selected_input(
       files, "corrupt.ttxa"_view, corrupt, True, "Pkg.Core"_view, Version(1, 2),
-      "reason=the Archive failed Format 1 validation. identity=Pkg.Core "
-      "version=1.2"_view));
+      Package::Repository::SelectionError::InvalidFormat,
+      "selection_error=InvalidFormat requested_identity=Pkg.Core "
+      "requested_version=1.2"_view,
+      "stage=header byte_offset=0 expected_magic=TTXA "
+      "actual_magic=XTXA"_view));
+  EXPECT(
+      Test::error_contains(
+          "reason=the Archive failed Format 1 validation. identity=Pkg.Core "
+          "version=1.2"_view,
+          Diagnostics::Log::Level::Info));
+  EXPECT(rejects_selected_input(
+      files, "replacement.ttxa"_view, future, True, "Pkg.Core"_view,
+      Version(1, 2), Package::Repository::SelectionError::UnsupportedFormat,
+      "selection_error=UnsupportedFormat requested_identity=Pkg.Core "
+      "requested_version=1.2"_view,
+      "stage=header byte_offset=4 expected_format=1 actual_format=2"_view));
+  EXPECT(
+      Test::error_contains(
+          "reason=the Archive format revision is unsupported. "
+          "identity=Pkg.Core version=1.2"_view,
+          Diagnostics::Log::Level::Info));
   EXPECT(rejects_selected_input(
       files, "identity.ttxa"_view, literal_archive(), True, "Pkg.More"_view,
-      Version(1, 2),
-      "reason=decoded Package key mismatch expected identity=Pkg.More "
-      "version=1.2"_view));
+      Version(1, 2), Package::Repository::SelectionError::PackageKeyMismatch,
+      "selection_error=PackageKeyMismatch requested_identity=Pkg.More "
+      "requested_version=1.2"_view));
+  EXPECT(
+      Test::error_contains(
+          "reason=decoded Package key mismatch expected identity=Pkg.More "
+          "version=1.2"_view,
+          Diagnostics::Log::Level::Info));
   EXPECT(rejects_selected_input(
       files, "version.ttxa"_view, literal_archive(), True, "Pkg.Core"_view,
-      Version(2, 0),
-      "reason=decoded Package key mismatch expected identity=Pkg.Core "
-      "version=2.0"_view));
+      Version(2, 0), Package::Repository::SelectionError::PackageKeyMismatch,
+      "selection_error=PackageKeyMismatch requested_identity=Pkg.Core "
+      "requested_version=2.0"_view));
+  EXPECT(
+      Test::error_contains(
+          "reason=decoded Package key mismatch expected identity=Pkg.Core "
+          "version=2.0"_view,
+          Diagnostics::Log::Level::Info));
 }
 
 PERIMORTEM_UNIT_TEST(PackageRepository, caller_arena_and_retained_cache) {
@@ -406,16 +599,25 @@ PERIMORTEM_UNIT_TEST(PackageRepository, caller_arena_and_retained_cache) {
       View::Vector<Package::Repository::Output>());
   ASSERT(repository);
 
+  // The caller supplied views already satisfy the Arena lifetime contract.
+  // Destroying their mutable path builders must not change Repository inputs.
   archive_location.set('x');
   native_location.set('x');
 
   auto first = (*repository).select_archive("Pkg.Core"_view, Version(1, 2));
-  ASSERT(first);
+  ASSERT_NOT(first.is_null());
+  auto first_archive = first.find<const Package::Archive::Archive&>();
+  ASSERT(first_archive);
   auto native =
       (*repository).select_native("Pkg.Core"_view, Version(1, 2), "cpu"_view);
-  ASSERT(native);
-  EXPECT_TEXT(*native, retained_native_location);
+  ASSERT_NOT(native.is_null());
+  auto native_path = native.find<View::Bytes>();
+  ASSERT(native_path);
+  EXPECT_TEXT(*native_path, retained_native_location);
 
+  // Replacement and removal happen after the first semantic selection. Both
+  // later calls must return the exact retained Archive rather than touching the
+  // backing file again.
   Dynamic::Bytes replacement(literal_archive());
   replacement.get_access()[0] = 'X';
   Bool replacement_written = files.write("cache.ttxa"_view, replacement);
@@ -423,19 +625,72 @@ PERIMORTEM_UNIT_TEST(PackageRepository, caller_arena_and_retained_cache) {
 
   auto after_replacement =
       (*repository).select_archive("Pkg.Core"_view, Version(1, 2));
-  ASSERT(after_replacement);
-  EXPECT(&*first == &*after_replacement);
+  ASSERT_NOT(after_replacement.is_null());
+  auto replacement_archive =
+      after_replacement.find<const Package::Archive::Archive&>();
+  ASSERT(replacement_archive);
+  EXPECT(first_archive == replacement_archive);
 
   Bool archive_removed = files.remove("cache.ttxa"_view);
   ASSERT(archive_removed);
 
   auto after_removal =
       (*repository).select_archive("Pkg.Core"_view, Version(1, 2));
-  ASSERT(after_removal);
-  EXPECT(&*first == &*after_removal);
-  EXPECT_TEXT((*after_removal).get_identity(), "Pkg.Core"_view);
-  ASSERT_EQ((*after_removal).get_artifact_ids().get_size(), Count(2));
-  EXPECT_TEXT((*after_removal).get_artifact_ids()[0], "cpu"_view);
+  ASSERT_NOT(after_removal.is_null());
+  auto removal_archive = after_removal.find<const Package::Archive::Archive&>();
+  ASSERT(removal_archive);
+  EXPECT(first_archive == removal_archive);
+  EXPECT_TEXT(removal_archive->get_identity(), "Pkg.Core"_view);
+  ASSERT_EQ(removal_archive->get_artifact_ids().get_size(), Count(2));
+  EXPECT_TEXT(removal_archive->get_artifact_ids()[0], "cpu"_view);
+}
+
+PERIMORTEM_UNIT_TEST(PackageRepository, semantic_cache_without_native_inputs) {
+  TemporaryRepositoryFiles files;
+  ASSERT(files);
+  Bool archive_written = files.write("mapping.ttxa"_view, literal_archive());
+  ASSERT(archive_written);
+
+  Dynamic::Bytes archive_location = files.get_path("mapping.ttxa"_view);
+  Package::Repository::Input input(
+      "Pkg.Core"_view, Version(1, 2), archive_location,
+      View::Vector<Package::Repository::Artifact>());
+  Allocator::Arena arena;
+  auto repository = Package::Repository::Repository::create(
+      arena, View::Vector<Package::Repository::Input>(&input, 1),
+      View::Vector<Package::Repository::Output>(),
+      View::Vector<Package::Repository::Output>());
+  ASSERT(repository);
+
+  auto first = (*repository).select_archive("Pkg.Core"_view, Version(1, 2));
+  ASSERT_NOT(first.is_null());
+  auto first_archive = first.find<const Package::Archive::Archive&>();
+  ASSERT(first_archive);
+
+  // Semantic cache publication precedes native inventory policy. The absent
+  // mapping therefore rejects only native selection and cannot remove or
+  // replace the already retained Archive.
+  auto native =
+      (*repository).select_native("Pkg.Core"_view, Version(1, 2), "cpu"_view);
+  ASSERT_NOT(native.is_null());
+  auto native_error = native.find<Package::Repository::SelectionError>();
+  ASSERT(native_error);
+  EXPECT(
+      *native_error == Package::Repository::SelectionError::ArtifactMismatch);
+  EXPECT(
+      Test::error_contains(
+          "selection_error=ArtifactMismatch "
+          "requested_identity=Pkg.Core requested_version=1.2 "
+          "requested_artifact=cpu reason=missing native artifact mapping "
+          "identity=Pkg.Core version=1.2"_view,
+          Diagnostics::Log::Level::Info));
+
+  auto after_failure =
+      (*repository).select_archive("Pkg.Core"_view, Version(1, 2));
+  ASSERT_NOT(after_failure.is_null());
+  auto retained = after_failure.find<const Package::Archive::Archive&>();
+  ASSERT(retained);
+  EXPECT(first_archive == retained);
 }
 
 PERIMORTEM_UNIT_TEST(PackageRepository, exact_artifact_inventory) {
