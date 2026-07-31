@@ -9,7 +9,6 @@
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
 
-Dynamic::Bytes::Bytes() {}
 Dynamic::Bytes::Bytes(Count reserved_capacity) {
   auto alloc = Bibliotheca::check_out(reserved_capacity);
   source_block = alloc.ptr;

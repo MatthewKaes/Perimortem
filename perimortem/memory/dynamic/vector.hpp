@@ -104,11 +104,11 @@ class Vector {
     return *new (source_block + (size++)) type(data);
   }
 
-  constexpr auto emplace(const type&& data) -> type& {
+  constexpr auto emplace(type&& data) -> type& {
     ensure_capacity(size + 1);
 
     // Construct using the move constructor.
-    return *new (source_block + (size++)) type(data);
+    return *new (source_block + (size++)) type(Core::Data::take(data));
   }
 
   auto remove(Count index) -> Bool {
