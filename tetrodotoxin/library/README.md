@@ -34,6 +34,21 @@ The concrete scalar Types live here because their names and native
 representations are Library language policy. TTX retains only the common Value,
 Flag, Real, Signed, and Unsigned domain contracts.
 
+`Language::Function` is the concrete Library defined Static Callable. Its
+Arena stable identity is reserved from the authored visibility, `func`, and
+name prefix. Until its signature is complete it resolves to the shared TTX
+Invalid object. One successful completion installs real parameter and result
+Layouts on that same Function and consumes the required balanced definition
+body without retaining a Cursor, Token range, source replay record, or
+executable Body.
+
+`Language::Parser::Layout` owns the reusable signature grammar. Empty, direct,
+unnamed, and named shapes construct real TTX Layouts in authored order. Direct
+and unnamed entries retain resolved Type identities. Named entries retain real
+Arena owned Alias edges whose resolution reaches those same Types. Qualified
+Type routes are resolved by the source local Abstract context supplied by the
+future Monograph transaction.
+
 ## Future Library Dialect
 
 A complete top level Library Dialect will be installed into
@@ -48,8 +63,9 @@ Environment Arena. It will not retain Cursor bookmarks as unresolved meaning or
 publish a second Namespace object.
 
 The exact executable body representation and complete Library Dialect are not
-implemented. The current target has no active Library body parser or semantic
-compiler transaction.
+implemented. Function body consumption proves only that one structurally
+balanced definition exists. The current target has no active executable Body
+parser or semantic compiler transaction.
 
 The intended first application pressure target is
 [`../../apps/ttx/echo`](../../apps/ttx/echo/). Its Library source requires
@@ -117,10 +133,10 @@ No Library payload encoder or restorer exists in the current target.
 
 ## Current boundary
 
-The current Library target contains the declared language contracts and
-concrete scalar Types above, a file local scalar lookup prototype, and the
-x86_64 assembler.
+The current Library target contains the declared language contracts, concrete
+scalar Types, Function signature construction, reusable Layout grammar, a file
+local scalar lookup prototype, and the x86_64 assembler.
 
-It does not yet contain the complete Library Dialect, declaration discovery,
-executable body owner, CPU target planner, semantic lowering, or App and Scene
-integration.
+It does not yet contain the complete Library Dialect or Monograph, declaration
+discovery and publication, authored imports, executable body owner, CPU target
+planner, semantic lowering, or App and Scene integration.
