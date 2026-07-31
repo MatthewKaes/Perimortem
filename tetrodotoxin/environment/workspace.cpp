@@ -51,7 +51,7 @@ auto Environment::Workspace::import_source(
 
   return import_retained_source(
       errors, retained_semantic_name, retained_diagnostic_path,
-      retained_contents, True);
+      retained_contents, *this, True);
 }
 
 auto Environment::Workspace::import_retained_source(
@@ -59,6 +59,7 @@ auto Environment::Workspace::import_retained_source(
     View::Bytes semantic_name,
     View::Bytes diagnostic_path,
     View::Bytes contents,
+    Abstract& interpretation_context,
     Bool publish_globally) -> Option<Language::Dialect::Monograph&> {
   // Public import copies arbitrary caller views. Package Storage already lives
   // in the same Arena and enters here directly, avoiding a duplicate body for
@@ -114,8 +115,10 @@ auto Environment::Workspace::import_retained_source(
     return {};
   }
 
-  Option<Language::Dialect::Monograph&> interpreted =
-      (*dialect).interpret(arena, cursor, documentation, *this);
+  // The installed Dialect keeps Workspace as its shared registry. This
+  // argument instead selects the exact source scope the body is entering.
+  Option<Language::Dialect::Monograph&> interpreted = (*dialect).interpret(
+      arena, cursor, documentation, interpretation_context);
   if (!interpreted) {
     return {};
   }
@@ -195,10 +198,14 @@ auto Environment::Workspace::import_package(
     }
 
     // Storage path and body already meet the retained source contract because
-    // Storage was opened with this Workspace Arena.
+    // Storage was opened with this Workspace Arena. The existing owner is the
+    // complete Package scope, while an ownerless root enters Workspace.
+    Abstract& interpretation_context =
+        staged.owner ? static_cast<Abstract&>(*staged.owner) : *this;
     Option<Language::Dialect::Monograph&> imported = import_retained_source(
         errors, staged.semantic_name, (*content).get_diagnostic_path(),
-        (*content).get_contents(), staged.publish_globally);
+        (*content).get_contents(), interpretation_context,
+        staged.publish_globally);
     if (!imported) {
       failed = True;
       continue;
@@ -208,8 +215,9 @@ auto Environment::Workspace::import_package(
       root_monograph = imported;
     }
 
-    // Only the root lacks an owning Package. Every member binds through its
-    // actual Package scope instead of competing in Workspace global lookup.
+    // Only the root lacks an owning Package. Reusing the same owner for
+    // interpretation and binding keeps nested scope exact without a second
+    // lookup or copied context.
     Language::Dialect::Monograph& monograph = *imported;
     if (staged.owner) {
       Package::Language::Monograph& owner = *staged.owner;

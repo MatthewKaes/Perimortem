@@ -43,6 +43,12 @@ order destroys Resolution, then Retention and its Monographs, then Dialects and
 its concrete instances. Every phase finishes before Arena release, so
 Monograph and Dialect destructors may still use their Arena backed state.
 
+Each installed Dialect retains Workspace as its shared registry. Interpretation
+also receives one source local Abstract context: Workspace for direct sources
+and an ownerless root Package, or the exact owning Package Monograph for a
+staged member. The two references serve different lookup scopes and neither is
+copied into another context model.
+
 Package Storage owns filesystem acquisition, confinement, logical route
 normalization, and successful read caching. Workspace keeps each authored
 semantic name separate and supplies its Arena so every successful Content path
@@ -91,7 +97,8 @@ retain the semantic name, diagnostic path, and source bytes
 -> require opening comment Documentation
 -> parse the universal Dialect declaration
 -> select the exact installed Dialect
--> call its interpret operation with the same Cursor and Arena
+-> call its interpret operation with the same Cursor, Arena, and Workspace
+   interpretation context
 -> publish the semantic name only for an engaged Monograph
 ```
 
@@ -112,7 +119,8 @@ stage exact semantic name and package path
 -> require opening comment Documentation
 -> parse the universal Dialect declaration
 -> select the exact installed Dialect
--> call its interpret operation with the same Cursor and Arena
+-> call its interpret operation with the same Cursor and Arena, using Workspace
+   for the root or the exact owning Package as interpretation context
 -> retain only the root by its Workspace global semantic name
 -> bind every staged member through its actual owning Package
 -> stage nested Package Source bindings in authored FIFO order
@@ -158,7 +166,9 @@ retained diagnostic origin and do not stop later Monographs.
 ## Registry query
 
 Workspace is the shared Abstract registry supplied to every installed Dialect.
-Its contextual resolution looks up an imported semantic source name:
+That retained registry is independent from the source local Abstract passed to
+each interpretation. Workspace contextual resolution looks up an imported
+semantic source name:
 
 ```text
 workspace.resolve_context(source_name)

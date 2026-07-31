@@ -65,14 +65,14 @@ class Dialect {
   virtual ~Dialect() = 0;
 
   // The caller chooses the Arena that defines the returned graph lifetime.
-  // Interpret borrows Cursor input under that same lifetime contract and does
-  // not copy it automatically, leaving a Workspace free to reuse already
-  // stable source storage.
+  // Interpret borrows Cursor input under that same lifetime contract and
+  // receives the exact source local scope separately from the Workspace wide
+  // registry retained by this Dialect.
   virtual auto interpret(
       Perimortem::Memory::Allocator::Arena& domain,
       Ttx::Lexical::Cursor& cursor,
       const Ttx::Concept::Documentation& doc,
-      Ttx::Concept::Abstract& registry)
+      Ttx::Concept::Abstract& interpretation_context)
       -> Perimortem::Utility::Option<Monograph&> = 0;
 
   // Encode only the durable facts owned by this Dialect. An engaged empty byte

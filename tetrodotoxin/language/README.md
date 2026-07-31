@@ -12,8 +12,9 @@ durable product policy.
 
 `Language::Dialect` is a stateful interpreter installed by
 `Environment::Workspace` under an exact authored name. Environment supplies the
-shared TTX registry at construction and keeps the Dialect alive for every
-Monograph it creates.
+Workspace wide TTX registry at construction and keeps the Dialect alive for
+every Monograph it creates. Each interpretation separately receives the exact
+source local Abstract context used while constructing that Monograph.
 
 The interpretation boundary is:
 
@@ -22,14 +23,15 @@ interpret(
   Environment owned Arena,
   forward TTX Cursor,
   opening Documentation,
-  shared Abstract registry)
+  source local Abstract interpretation context)
 -> Option<Dialect::Monograph&>
 ```
 
 A concrete Dialect consumes only its body because Environment has already
 parsed the opening comment and `dialect : Type;` instruction. It constructs its
 concrete Monograph directly in the supplied Arena and returns no partially
-owned parser object.
+owned parser object. The fourth argument does not replace the Workspace wide
+registry retained by the installed Dialect.
 
 Dialect state may cache or retain facts required across its Monographs. It does
 not own the Environment Arena or the authored source provider.

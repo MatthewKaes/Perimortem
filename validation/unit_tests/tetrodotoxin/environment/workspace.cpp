@@ -39,6 +39,10 @@ using namespace Validation;
 
 struct WorkspaceTrace {
   const Language::Dialect* instances[4]{};
+  const Abstract* installed_registries[4]{};
+  const Abstract* interpretation_contexts[16]{};
+  const Abstract* package_registry = nullptr;
+  const Abstract* package_interpretation_contexts[4]{};
   View::Bytes expected_facts[4]{};
   View::Bytes expected_documentation[4]{};
   View::Bytes interpreted_facts[16]{};
@@ -52,6 +56,7 @@ struct WorkspaceTrace {
   Count interpretation_count = 0;
   Count restoration_count = 0;
   Count post_passes = 0;
+  Count package_interpretation_count = 0;
   Unsigned_8 destruction_phases[8]{};
   Count destruction_count = 0;
   Bool inspect_arena_state = false;
@@ -69,6 +74,7 @@ class WorkspaceDialect : public Language::Dialect {
         trace(*active_trace),
         identity(trace.dialect_constructions) {
     trace.instances[identity] = this;
+    trace.installed_registries[identity] = &registry;
     trace.dialect_constructions++;
   }
 
@@ -88,7 +94,7 @@ class WorkspaceDialect : public Language::Dialect {
       Allocator::Arena& domain,
       Cursor& cursor,
       const Documentation& documentation,
-      Abstract& registry) -> Option<Monograph&> override;
+      Abstract& interpretation_context) -> Option<Monograph&> override;
 
   auto restore(Allocator::Arena& domain, View::Bytes payload)
       -> Option<Monograph&> override;
@@ -120,6 +126,30 @@ class SourceFreePackageDialect : public Language::Dialect {
     return Package::Language::Monograph::create_source_free(
         domain, documentation, *this, dependencies);
   }
+};
+
+class TracedPackageDialect : public Package::Dialect {
+ public:
+  TracedPackageDialect(Abstract& registry)
+      : Package::Dialect(registry), trace(*active_trace) {
+    trace.package_registry = &registry;
+  }
+
+  auto interpret(
+      Allocator::Arena& domain,
+      Cursor& cursor,
+      const Documentation& documentation,
+      Abstract& interpretation_context)
+      -> Option<Language::Dialect::Monograph&> override {
+    trace.package_interpretation_contexts[trace.package_interpretation_count] =
+        &interpretation_context;
+    trace.package_interpretation_count++;
+    return Package::Dialect::interpret(
+        domain, cursor, documentation, interpretation_context);
+  }
+
+ private:
+  WorkspaceTrace& trace;
 };
 
 class WorkspaceMonograph : public Language::Dialect::Monograph {
@@ -187,9 +217,11 @@ auto WorkspaceDialect::interpret(
     Allocator::Arena& domain,
     Cursor& cursor,
     const Documentation& documentation,
-    Abstract& registry) -> Option<Monograph&> {
+    Abstract& interpretation_context) -> Option<Monograph&> {
   View::Bytes fact = cursor.get_text();
   View::Bytes diagnostic_path = cursor.get_source_path();
+  trace.interpretation_contexts[trace.interpretation_count] =
+      &interpretation_context;
   trace.interpreted_facts[trace.interpretation_count] = fact;
   trace.interpreted_paths[trace.interpretation_count] = diagnostic_path;
   trace.interpretation_count++;
@@ -312,6 +344,8 @@ static auto cleanup_package_tree(View::Bytes root) -> void {
   remove_package_member(root, "nested/package.ttx"_view);
   remove_package_member(root, "nested/deep.ttx"_view);
   remove_package_member(root, "nested/failures.ttx"_view);
+  remove_package_member(root, "sibling.ttx"_view);
+  remove_package_member(root, "sibling_member.ttx"_view);
   remove_package_member(root, "dependency.ttxa"_view);
   remove_package_member(root, "first.ttxa"_view);
   remove_package_member(root, "second.ttxa"_view);
@@ -635,6 +669,8 @@ PERIMORTEM_UNIT_TEST(EnvironmentWorkspace, owned_direct_import) {
   auto imported_result =
       workspace.import_source(errors, semantic_name, diagnostic_path, contents);
   ASSERT(imported_result);
+  EXPECT(trace.installed_registries[0] == &workspace);
+  EXPECT(trace.interpretation_contexts[0] == &workspace);
 
   semantic_name.set('x');
   diagnostic_path.set('x');
@@ -714,7 +750,7 @@ PERIMORTEM_UNIT_TEST(EnvironmentWorkspace, staged_fifo_retention) {
     report << "Earlier independent diagnostic."_view;
   }
 
-  ASSERT(workspace.install_dialect<Package::Dialect>("Package"_view));
+  ASSERT(workspace.install_dialect<TracedPackageDialect>("Package"_view));
   ASSERT(workspace.install_dialect<WorkspaceDialect>("Alpha"_view));
   ASSERT(repository);
 
@@ -728,12 +764,18 @@ PERIMORTEM_UNIT_TEST(EnvironmentWorkspace, staged_fifo_retention) {
         "dialect : Package;\n"
         "source First from \"first.ttx\";\n"
         "source Nested from \"nested/./package.ttx\";\n"
-        "source Group::Second from \"./second.ttx\";\n"_view));
+        "source Group::Second from \"./second.ttx\";\n"
+        "source Sibling from \"sibling.ttx\";\n"_view));
     ASSERT(package.write(
         "nested/package.ttx"_view,
         "// Nested Package\n"
         "dialect : Package;\n"
         "source Deep from \"nested/deep.ttx\";\n"_view));
+    ASSERT(package.write(
+        "sibling.ttx"_view,
+        "// Sibling Package\n"
+        "dialect : Package;\n"
+        "source Peer from \"sibling_member.ttx\";\n"_view));
     ASSERT(package.write(
         "first.ttx"_view,
         "// First documentation\n"
@@ -749,6 +791,11 @@ PERIMORTEM_UNIT_TEST(EnvironmentWorkspace, staged_fifo_retention) {
         "// Deep documentation\n"
         "dialect : Alpha;\n"
         "Deep"_view));
+    ASSERT(package.write(
+        "sibling_member.ttx"_view,
+        "// Peer documentation\n"
+        "dialect : Alpha;\n"
+        "Peer"_view));
 
     Dynamic::Bytes package_root(package.get_root());
     Dynamic::Bytes root_name("Root"_view);
@@ -775,19 +822,21 @@ PERIMORTEM_UNIT_TEST(EnvironmentWorkspace, staged_fifo_retention) {
     EXPECT(package.remove("second.ttx"_view));
   }
 
-  ASSERT_EQ(trace.interpretation_count, 3);
+  ASSERT_EQ(trace.interpretation_count, 4);
   EXPECT_TEXT(trace.interpreted_facts[0], "First"_view);
   EXPECT_TEXT(trace.interpreted_facts[1], "Second"_view);
   EXPECT_TEXT(trace.interpreted_facts[2], "Deep"_view);
+  EXPECT_TEXT(trace.interpreted_facts[3], "Peer"_view);
   EXPECT_TEXT(trace.interpreted_paths[0], "first.ttx"_view);
   EXPECT_TEXT(trace.interpreted_paths[1], "second.ttx"_view);
   EXPECT_TEXT(trace.interpreted_paths[2], "nested/deep.ttx"_view);
+  EXPECT_TEXT(trace.interpreted_paths[3], "sibling_member.ttx"_view);
 
   const Abstract& root = workspace.resolve_context("Root"_view);
   ASSERT(root.is<Package::Language::Monograph>());
   const auto& root_package =
       static_cast<const Package::Language::Monograph&>(root);
-  EXPECT_EQ(root_package.get_sources().get_size(), 3);
+  EXPECT_EQ(root_package.get_sources().get_size(), 4);
 
   const Abstract& first = root_package.resolve_context("First"_view).resolve();
   const Abstract& second =
@@ -798,19 +847,48 @@ PERIMORTEM_UNIT_TEST(EnvironmentWorkspace, staged_fifo_retention) {
   const auto& nested_package =
       static_cast<const Package::Language::Monograph&>(nested);
   const Abstract& deep = nested_package.resolve_context("Deep"_view).resolve();
+  const Abstract& sibling =
+      root_package.resolve_context("Sibling"_view).resolve();
+  ASSERT(sibling.is<Package::Language::Monograph>());
+  const auto& sibling_package =
+      static_cast<const Package::Language::Monograph&>(sibling);
+  const Abstract& peer = sibling_package.resolve_context("Peer"_view).resolve();
   ASSERT(&first != &Invalid::get_invalid());
   ASSERT(&second != &Invalid::get_invalid());
   ASSERT(&deep != &Invalid::get_invalid());
+  ASSERT(&peer != &Invalid::get_invalid());
+
+  // Parsing success cannot reveal which Abstract reached a Dialect. Compare
+  // the borrowed identities so each nested member proves its exact owner.
+  ASSERT_EQ(trace.package_interpretation_count, 3);
+  EXPECT(trace.package_registry == &workspace);
+  EXPECT(trace.installed_registries[0] == &workspace);
+  EXPECT(trace.package_interpretation_contexts[0] == &workspace);
+  EXPECT(trace.package_interpretation_contexts[1] == &root_package);
+  EXPECT(trace.package_interpretation_contexts[2] == &root_package);
+  EXPECT(trace.interpretation_contexts[0] == &root_package);
+  EXPECT(trace.interpretation_contexts[1] == &root_package);
+  EXPECT(trace.interpretation_contexts[2] == &nested_package);
+  EXPECT(trace.interpretation_contexts[3] == &sibling_package);
+  EXPECT(trace.interpretation_contexts[0] != &workspace);
+  EXPECT(trace.interpretation_contexts[1] != &workspace);
+  EXPECT(trace.interpretation_contexts[2] != &workspace);
+  EXPECT(trace.interpretation_contexts[3] != &workspace);
+  EXPECT(trace.interpretation_contexts[2] != &sibling_package);
+  EXPECT(trace.interpretation_contexts[3] != &nested_package);
 
   const auto& first_monograph = static_cast<const WorkspaceMonograph&>(first);
   const auto& second_monograph = static_cast<const WorkspaceMonograph&>(second);
   const auto& deep_monograph = static_cast<const WorkspaceMonograph&>(deep);
+  const auto& peer_monograph = static_cast<const WorkspaceMonograph&>(peer);
   EXPECT_TEXT(first_monograph.get_fact(), "First"_view);
   EXPECT_TEXT(second_monograph.get_fact(), "Second"_view);
   EXPECT_TEXT(deep_monograph.get_fact(), "Deep"_view);
+  EXPECT_TEXT(peer_monograph.get_fact(), "Peer"_view);
   EXPECT_TEXT(first_monograph.get_diagnostic_path(), "first.ttx"_view);
   EXPECT_TEXT(second_monograph.get_diagnostic_path(), "second.ttx"_view);
   EXPECT_TEXT(deep_monograph.get_diagnostic_path(), "nested/deep.ttx"_view);
+  EXPECT_TEXT(peer_monograph.get_diagnostic_path(), "sibling_member.ttx"_view);
 
   EXPECT(&workspace.resolve_context("Second"_view) == &Invalid::get_invalid());
   EXPECT(
@@ -829,8 +907,10 @@ PERIMORTEM_UNIT_TEST(EnvironmentWorkspace, staged_fifo_retention) {
       &workspace.resolve_context("Group::Second"_view) ==
       &Invalid::get_invalid());
   EXPECT(&workspace.resolve_context("Nested"_view) == &Invalid::get_invalid());
+  EXPECT(&workspace.resolve_context("Sibling"_view) == &Invalid::get_invalid());
   EXPECT(&workspace.resolve_context("Deep"_view) == &Invalid::get_invalid());
-  EXPECT_EQ(trace.post_passes, 3);
+  EXPECT(&workspace.resolve_context("Peer"_view) == &Invalid::get_invalid());
+  EXPECT_EQ(trace.post_passes, 4);
   active_trace = nullptr;
 }
 

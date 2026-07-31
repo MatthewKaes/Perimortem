@@ -67,6 +67,7 @@ class Workspace : public Ttx::Concept::Abstract {
       Perimortem::Core::View::Bytes semantic_name,
       Perimortem::Core::View::Bytes diagnostic_path,
       Perimortem::Core::View::Bytes contents,
+      Ttx::Concept::Abstract& interpretation_context,
       Bool publish_globally)
       -> Perimortem::Utility::Option<Language::Dialect::Monograph&>;
 

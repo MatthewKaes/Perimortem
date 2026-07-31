@@ -77,13 +77,17 @@ Its interpretation entry point receives:
 Environment owned Arena
 forward TTX Cursor
 opening Documentation
-shared Abstract registry
+source local Abstract interpretation context
 ```
 
 Interpretation returns either no result or one
 `Language::Dialect::Monograph&`. The concrete Monograph is an Abstract and is
 constructed in the supplied Arena. It retains the opening Documentation and its
 host Dialect so later queries use the same semantic context that created it.
+The installed Dialect continues to retain the Workspace wide registry supplied
+at construction. The fourth interpretation argument instead selects Workspace
+for direct sources and an ownerless root, or the exact owning Package Monograph
+for a staged member.
 
 Language owns two shared parser fragments today:
 
@@ -141,6 +145,7 @@ Workspace stages an explicit root semantic name and source path
 -> Workspace retains the bytes
 -> Workspace parses Documentation and the universal Dialect declaration
 -> Workspace dispatches the remaining Cursor to the exact installed Dialect
+   with Workspace or the exact owning Package as interpretation context
 -> the Dialect constructs its real Monograph in the Workspace Arena
 -> Retention keeps it and Workspace publishes the authored semantic name
 -> Environment Resolution resolves exact dependency Archives
