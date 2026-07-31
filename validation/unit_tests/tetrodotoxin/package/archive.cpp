@@ -305,7 +305,7 @@ PERIMORTEM_UNIT_TEST(PackageArchive, authored_provenance_is_not_encoded) {
   // parser. A synthetic Dependency alone could not prove spans were excluded.
   ASSERT(workspace.install_dialect<Package::Dialect>("Package"_view));
   ASSERT(workspace.import_source(
-      "Authored"_view, "package.ttx"_view, source, errors));
+      errors, "Authored"_view, "package.ttx"_view, source));
   const auto& imported = workspace.resolve_context("Authored"_view);
   ASSERT(imported.is<Package::Language::Monograph>());
   const auto& authored =

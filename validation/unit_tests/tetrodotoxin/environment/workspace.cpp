@@ -10,6 +10,7 @@
 #include <sys/stat.h>
 
 #include "perimortem/core/static/bytes.hpp"
+#include "perimortem/core/static/vector.hpp"
 #include "perimortem/core/data.hpp"
 #include "perimortem/core/null_terminated.hpp"
 
@@ -17,8 +18,13 @@
 
 #include "perimortem/system/file.hpp"
 
+#include "tetrodotoxin/package/archive/archive.hpp"
+#include "tetrodotoxin/package/archive/member.hpp"
+#include "tetrodotoxin/package/archive/writer.hpp"
 #include "tetrodotoxin/package/dialect.hpp"
 #include "tetrodotoxin/package/language/monograph.hpp"
+#include "tetrodotoxin/package/repository/input.hpp"
+#include "tetrodotoxin/package/repository/repository.hpp"
 #include "ttx/concept/invalid.hpp"
 #include "ttx/lexical/span.hpp"
 
@@ -37,11 +43,14 @@ struct WorkspaceTrace {
   View::Bytes expected_documentation[4]{};
   View::Bytes interpreted_facts[16]{};
   View::Bytes interpreted_paths[16]{};
+  View::Bytes restored_facts[16]{};
+  View::Bytes post_pass_facts[32]{};
   Count dialect_constructions = 0;
   Count monograph_constructions[4]{};
   Count dialect_destructions[4]{};
   Count monograph_destructions[4]{};
   Count interpretation_count = 0;
+  Count restoration_count = 0;
   Count post_passes = 0;
   Unsigned_8 destruction_phases[8]{};
   Count destruction_count = 0;
@@ -81,6 +90,9 @@ class WorkspaceDialect : public Language::Dialect {
       const Documentation& documentation,
       Abstract& registry) -> Option<Monograph&> override;
 
+  auto restore(Allocator::Arena& domain, View::Bytes payload)
+      -> Option<Monograph&> override;
+
   auto get_identity() const -> Count { return identity; }
   auto get_alive() -> Bool& { return alive; }
 
@@ -89,6 +101,25 @@ class WorkspaceDialect : public Language::Dialect {
   Count identity;
   View::Bytes retained_state;
   Bool alive = true;
+};
+
+class SourceFreePackageDialect : public Language::Dialect {
+ public:
+  constexpr SourceFreePackageDialect(Abstract& registry) : Dialect(registry) {}
+
+  auto interpret(
+      Allocator::Arena& domain,
+      Cursor&,
+      const Documentation& documentation,
+      Abstract&) -> Option<Monograph&> override {
+    Managed::Vector<Package::Language::Dependency> dependencies(domain);
+    dependencies.insert(
+        Package::Language::Dependency(
+            domain.proxy("Dependency"_view), domain.proxy("Pkg.Missing"_view),
+            Version(1, 0)));
+    return Package::Language::Monograph::create_source_free(
+        domain, documentation, *this, dependencies);
+  }
 };
 
 class WorkspaceMonograph : public Language::Dialect::Monograph {
@@ -136,8 +167,9 @@ class WorkspaceMonograph : public Language::Dialect::Monograph {
   }
 
   auto post_pass() -> Bool override {
+    trace.post_pass_facts[trace.post_passes] = fact;
     trace.post_passes++;
-    return True;
+    return fact != "post_fail"_view;
   }
 
   auto get_fact() const -> View::Bytes { return fact; }
@@ -169,6 +201,22 @@ auto WorkspaceDialect::interpret(
   retained_state = fact;
   auto& monograph = domain.construct<WorkspaceMonograph>(
       domain, documentation, *this, trace, fact, diagnostic_path, identity);
+  trace.monograph_constructions[identity]++;
+  return monograph;
+}
+
+auto WorkspaceDialect::restore(Allocator::Arena& domain, View::Bytes payload)
+    -> Option<Monograph&> {
+  trace.restored_facts[trace.restoration_count] = payload;
+  trace.restoration_count++;
+  if (payload == "restore_fail"_view) {
+    return {};
+  }
+
+  View::Bytes retained_fact = domain.proxy(payload);
+  auto& monograph = domain.construct<WorkspaceMonograph>(
+      domain, Documentation::get_empty(), *this, trace, retained_fact,
+      View::Bytes(), identity);
   trace.monograph_constructions[identity]++;
   return monograph;
 }
@@ -208,7 +256,7 @@ static auto render_unknown(Environment::Workspace& workspace)
   Dynamic::Bytes contents("// Unknown\ndialect : Missing;\nignored"_view);
   Errors errors;
   const auto imported =
-      workspace.import_source("Unknown"_view, path, contents, errors);
+      workspace.import_source(errors, "Unknown"_view, path, contents);
 
   path.set('x');
   contents.set('x');
@@ -250,6 +298,7 @@ static auto cleanup_package_tree(View::Bytes root) -> void {
   }
 
   remove_package_member(root, "package.ttx"_view);
+  remove_package_member(root, "main.ttx"_view);
   remove_package_member(root, "first.ttx"_view);
   remove_package_member(root, "second.ttx"_view);
   remove_package_member(root, "replacement.ttx"_view);
@@ -263,6 +312,14 @@ static auto cleanup_package_tree(View::Bytes root) -> void {
   remove_package_member(root, "nested/package.ttx"_view);
   remove_package_member(root, "nested/deep.ttx"_view);
   remove_package_member(root, "nested/failures.ttx"_view);
+  remove_package_member(root, "dependency.ttxa"_view);
+  remove_package_member(root, "first.ttxa"_view);
+  remove_package_member(root, "second.ttxa"_view);
+  remove_package_member(root, "cycle.ttxa"_view);
+  remove_package_member(root, "transitive.ttxa"_view);
+  remove_package_member(root, "unsupported.ttxa"_view);
+  remove_package_member(root, "mismatch.ttxa"_view);
+  remove_package_member(root, "invalid.ttxa"_view);
   remove_package_member(root, "nested"_view);
   File::remove(root);
 }
@@ -367,6 +424,120 @@ static auto has_diagnostic(const Errors& errors, View::Bytes fragment) -> Bool {
   return False;
 }
 
+static auto write_archive(
+    const TemporaryWorkspacePackage& package,
+    View::Bytes route,
+    View::Bytes identity,
+    Version version,
+    View::Vector<Package::Language::Dependency> dependencies,
+    View::Vector<Package::Archive::Member> members) -> Bool {
+  Package::Archive::Archive archive(
+      identity, version, dependencies, members, View::Vector<View::Bytes>(),
+      View::Vector<Package::Archive::Export>());
+  auto encoded = Package::Archive::Writer::write(archive);
+  if (!encoded) {
+    return False;
+  }
+
+  return package.write(route, *encoded);
+}
+
+static auto returns_selection_error(
+    const Static::Union<
+        Language::Dialect::Monograph&,
+        Package::Repository::SelectionError>& result,
+    Package::Repository::SelectionError expected) -> Bool {
+  return result.visit(
+      []() { return False; },
+      [](const Language::Dialect::Monograph&) { return False; },
+      [&](Package::Repository::SelectionError actual) {
+        return actual == expected ? True : False;
+      });
+}
+
+static auto rejects_selection_failure(
+    Count scenario,
+    Package::Repository::SelectionError expected,
+    View::Bytes expected_name) -> Bool {
+  WorkspaceTrace trace;
+  active_trace = &trace;
+  Environment::Workspace workspace;
+  TemporaryWorkspacePackage package;
+  if (!package ||
+      !package.write(
+          "package.ttx"_view,
+          "// Selection Package\n"
+          "dialect : Package;\n"
+          "resolve Dependency : Pkg.Expected = \"1.0\";\n"
+          "source Main from \"main.ttx\";\n"_view) ||
+      !package.write(
+          "main.ttx"_view, "// Main\ndialect : Alpha;\nMainFact"_view)) {
+    active_trace = nullptr;
+    return False;
+  }
+
+  Dynamic::Bytes archive_location =
+      join_package_path(package.get_root(), "dependency.ttxa"_view);
+  if (scenario == 2) {
+    if (!package.write("dependency.ttxa"_view, "invalid"_view)) {
+      active_trace = nullptr;
+      return False;
+    }
+  } else if (scenario == 3 || scenario == 4) {
+    Static::Vector<Package::Archive::Member, 1> members = {{
+      Package::Archive::Member("Value"_view, "Alpha"_view, "Fact"_view),
+    }};
+    View::Bytes identity =
+        scenario == 4 ? "Pkg.Actual"_view : "Pkg.Expected"_view;
+    Package::Archive::Archive archive(
+        identity, Version(1, 0), View::Vector<Package::Language::Dependency>(),
+        members, View::Vector<View::Bytes>(),
+        View::Vector<Package::Archive::Export>());
+    auto encoded = Package::Archive::Writer::write(archive);
+    if (!encoded) {
+      active_trace = nullptr;
+      return False;
+    }
+
+    if (scenario == 3) {
+      (*encoded).get_access()[4] = 2;
+    }
+
+    if (!package.write("dependency.ttxa"_view, *encoded)) {
+      active_trace = nullptr;
+      return False;
+    }
+  }
+
+  Package::Repository::Input input(
+      "Pkg.Expected"_view, Version(1, 0), archive_location,
+      View::Vector<Package::Repository::Artifact>());
+  View::Vector<Package::Repository::Input> inputs =
+      scenario == 0 ? View::Vector<Package::Repository::Input>()
+                    : View::Vector<Package::Repository::Input>(&input, 1);
+  Allocator::Arena repository_arena;
+  auto repository = Package::Repository::Repository::create(
+      repository_arena, inputs, View::Vector<Package::Repository::Output>(),
+      View::Vector<Package::Repository::Output>());
+  if (!repository ||
+      !workspace.install_dialect<Package::Dialect>("Package"_view) ||
+      !workspace.install_dialect<WorkspaceDialect>("Alpha"_view)) {
+    active_trace = nullptr;
+    return False;
+  }
+
+  Errors errors;
+  auto imported = workspace.import_package(
+      errors, package.get_root(), "Root"_view, "package.ttx"_view,
+      "Pkg.Root"_view, Version(1, 0), *repository);
+  Bool rejected = returns_selection_error(imported, expected) &&
+                  errors.get_size() == 1 &&
+                  has_diagnostic(errors, expected_name) &&
+                  expected != Package::Repository::SelectionError::Unknown;
+  active_trace = nullptr;
+  return rejected;
+}
+
 static Harness EnvironmentWorkspace = {
   .name = "Tetrodotoxin::Environment::Workspace"_view,
 };
@@ -462,7 +633,7 @@ PERIMORTEM_UNIT_TEST(EnvironmentWorkspace, owned_direct_import) {
   Dynamic::Bytes contents("// Main documentation\ndialect : Alpha;\nFact"_view);
   Errors errors;
   auto imported_result =
-      workspace.import_source(semantic_name, diagnostic_path, contents, errors);
+      workspace.import_source(errors, semantic_name, diagnostic_path, contents);
   ASSERT(imported_result);
 
   semantic_name.set('x');
@@ -485,9 +656,8 @@ PERIMORTEM_UNIT_TEST(EnvironmentWorkspace, owned_direct_import) {
 
   Errors shared_path_errors;
   EXPECT(workspace.import_source(
-      "Other"_view, "sources/main.ttx"_view,
-      "// Other documentation\ndialect : Alpha;\nOther"_view,
-      shared_path_errors));
+      shared_path_errors, "Other"_view, "sources/main.ttx"_view,
+      "// Other documentation\ndialect : Alpha;\nOther"_view));
   EXPECT_TEXT(workspace.resolve_context("Other"_view).get_name(), "Other"_view);
   EXPECT(shared_path_errors.is_empty());
 }
@@ -500,28 +670,28 @@ PERIMORTEM_UNIT_TEST(EnvironmentWorkspace, failed_import_nonpublication) {
 
   Errors parse_errors;
   EXPECT_NOT(workspace.import_source(
-      "Malformed"_view, "malformed.ttx"_view, "dialect : Alpha;\nBad"_view,
-      parse_errors));
+      parse_errors, "Malformed"_view, "malformed.ttx"_view,
+      "dialect : Alpha;\nBad"_view));
   EXPECT(
       &workspace.resolve_context("Malformed"_view) == &Invalid::get_invalid());
 
   Errors rejected_errors;
   EXPECT_NOT(workspace.import_source(
-      "Retry"_view, "retry.ttx"_view,
-      "// Rejected\ndialect : Alpha;\nreject"_view, rejected_errors));
+      rejected_errors, "Retry"_view, "retry.ttx"_view,
+      "// Rejected\ndialect : Alpha;\nreject"_view));
   EXPECT(&workspace.resolve_context("Retry"_view) == &Invalid::get_invalid());
 
   Errors retry_errors;
   EXPECT(workspace.import_source(
-      "Retry"_view, "retry.ttx"_view,
-      "// Accepted\ndialect : Alpha;\nAccepted"_view, retry_errors));
+      retry_errors, "Retry"_view, "retry.ttx"_view,
+      "// Accepted\ndialect : Alpha;\nAccepted"_view));
   const Abstract& retained = workspace.resolve_context("Retry"_view);
   const Count constructed = trace.monograph_constructions[0];
 
   Errors duplicate_errors;
   EXPECT_NOT(workspace.import_source(
-      "Retry"_view, "other.ttx"_view, "// Other\ndialect : Alpha;\nOther"_view,
-      duplicate_errors));
+      duplicate_errors, "Retry"_view, "other.ttx"_view,
+      "// Other\ndialect : Alpha;\nOther"_view));
   EXPECT(&workspace.resolve_context("Retry"_view) == &retained);
   EXPECT_TEXT(retained.get_name(), "Accepted"_view);
   EXPECT_EQ(trace.monograph_constructions[0], constructed);
@@ -532,6 +702,11 @@ PERIMORTEM_UNIT_TEST(EnvironmentWorkspace, staged_fifo_retention) {
   WorkspaceTrace trace;
   active_trace = &trace;
   Environment::Workspace workspace;
+  Allocator::Arena repository_arena;
+  auto repository = Package::Repository::Repository::create(
+      repository_arena, View::Vector<Package::Repository::Input>(),
+      View::Vector<Package::Repository::Output>(),
+      View::Vector<Package::Repository::Output>());
   Errors errors;
   {
     Errors::Report report(
@@ -541,6 +716,7 @@ PERIMORTEM_UNIT_TEST(EnvironmentWorkspace, staged_fifo_retention) {
 
   ASSERT(workspace.install_dialect<Package::Dialect>("Package"_view));
   ASSERT(workspace.install_dialect<WorkspaceDialect>("Alpha"_view));
+  ASSERT(repository);
 
   {
     TemporaryWorkspacePackage package;
@@ -577,11 +753,13 @@ PERIMORTEM_UNIT_TEST(EnvironmentWorkspace, staged_fifo_retention) {
     Dynamic::Bytes package_root(package.get_root());
     Dynamic::Bytes root_name("Root"_view);
     Dynamic::Bytes root_route("./package.ttx"_view);
-    auto imported_root =
-        workspace.import_package(package_root, root_name, root_route, errors);
+    auto imported = workspace.import_package(
+        errors, package_root, root_name, root_route, "Pkg.Root"_view,
+        Version(1, 0), *repository);
+    auto imported_root = imported.find<Language::Dialect::Monograph&>();
     ASSERT(imported_root);
-    EXPECT((*imported_root).is<Package::Language::Monograph>());
-    EXPECT(&*imported_root == &workspace.resolve_context("Root"_view));
+    EXPECT(imported_root->is<Package::Language::Monograph>());
+    EXPECT(imported_root == &workspace.resolve_context("Root"_view));
     EXPECT_EQ(errors.get_size(), 1);
 
     package_root.set('x');
@@ -611,9 +789,15 @@ PERIMORTEM_UNIT_TEST(EnvironmentWorkspace, staged_fifo_retention) {
       static_cast<const Package::Language::Monograph&>(root);
   EXPECT_EQ(root_package.get_sources().get_size(), 3);
 
-  const Abstract& first = workspace.resolve_context("First"_view);
-  const Abstract& second = workspace.resolve_context("Group::Second"_view);
-  const Abstract& deep = workspace.resolve_context("Deep"_view);
+  const Abstract& first = root_package.resolve_context("First"_view).resolve();
+  const Abstract& second =
+      root_package.resolve_context("Group::Second"_view).resolve();
+  const Abstract& nested =
+      root_package.resolve_context("Nested"_view).resolve();
+  ASSERT(nested.is<Package::Language::Monograph>());
+  const auto& nested_package =
+      static_cast<const Package::Language::Monograph&>(nested);
+  const Abstract& deep = nested_package.resolve_context("Deep"_view).resolve();
   ASSERT(&first != &Invalid::get_invalid());
   ASSERT(&second != &Invalid::get_invalid());
   ASSERT(&deep != &Invalid::get_invalid());
@@ -640,7 +824,13 @@ PERIMORTEM_UNIT_TEST(EnvironmentWorkspace, staged_fifo_retention) {
   EXPECT(
       &workspace.resolve_context("nested/deep.ttx"_view) ==
       &Invalid::get_invalid());
-  EXPECT_EQ(trace.post_passes, 0);
+  EXPECT(&workspace.resolve_context("First"_view) == &Invalid::get_invalid());
+  EXPECT(
+      &workspace.resolve_context("Group::Second"_view) ==
+      &Invalid::get_invalid());
+  EXPECT(&workspace.resolve_context("Nested"_view) == &Invalid::get_invalid());
+  EXPECT(&workspace.resolve_context("Deep"_view) == &Invalid::get_invalid());
+  EXPECT_EQ(trace.post_passes, 3);
   active_trace = nullptr;
 }
 
@@ -648,10 +838,16 @@ PERIMORTEM_UNIT_TEST(EnvironmentWorkspace, staged_failures) {
   WorkspaceTrace trace;
   active_trace = &trace;
   Environment::Workspace workspace;
+  Allocator::Arena repository_arena;
+  auto repository = Package::Repository::Repository::create(
+      repository_arena, View::Vector<Package::Repository::Input>(),
+      View::Vector<Package::Repository::Output>(),
+      View::Vector<Package::Repository::Output>());
   Errors errors;
 
   ASSERT(workspace.install_dialect<Package::Dialect>("Package"_view));
   ASSERT(workspace.install_dialect<WorkspaceDialect>("Alpha"_view));
+  ASSERT(repository);
 
   {
     TemporaryWorkspacePackage package;
@@ -692,23 +888,40 @@ PERIMORTEM_UNIT_TEST(EnvironmentWorkspace, staged_failures) {
     ASSERT(package.write(
         "after.ttx"_view, "// After\ndialect : Alpha;\nAfter"_view));
 
-    EXPECT_NOT(workspace.import_package(
-        package.get_root(), "Root"_view, "package.ttx"_view, errors));
+    auto imported = workspace.import_package(
+        errors, package.get_root(), "Root"_view, "package.ttx"_view,
+        "Pkg.Root"_view, Version(1, 0), *repository);
+    EXPECT(imported.is_null());
   }
 
-  ASSERT_EQ(trace.interpretation_count, 4);
+  ASSERT_EQ(trace.interpretation_count, 5);
   EXPECT_TEXT(trace.interpreted_facts[0], "Keep"_view);
   EXPECT_TEXT(trace.interpreted_facts[1], "reject"_view);
   EXPECT_TEXT(trace.interpreted_facts[2], "Later"_view);
-  EXPECT_TEXT(trace.interpreted_facts[3], "After"_view);
+  EXPECT_TEXT(trace.interpreted_facts[3], "Duplicate"_view);
+  EXPECT_TEXT(trace.interpreted_facts[4], "After"_view);
 
-  EXPECT(workspace.resolve_context("Root"_view)
-             .is<Package::Language::Monograph>());
-  EXPECT(workspace.resolve_context("Nested"_view)
-             .is<Package::Language::Monograph>());
-  EXPECT_TEXT(workspace.resolve_context("Keep"_view).get_name(), "Keep"_view);
-  EXPECT_TEXT(workspace.resolve_context("Later"_view).get_name(), "Later"_view);
-  EXPECT_TEXT(workspace.resolve_context("After"_view).get_name(), "After"_view);
+  const Abstract& root = workspace.resolve_context("Root"_view);
+  ASSERT(root.is<Package::Language::Monograph>());
+  const auto& root_package =
+      static_cast<const Package::Language::Monograph&>(root);
+  const Abstract& nested =
+      root_package.resolve_context("Nested"_view).resolve();
+  ASSERT(nested.is<Package::Language::Monograph>());
+  const auto& nested_package =
+      static_cast<const Package::Language::Monograph&>(nested);
+  EXPECT_TEXT(
+      root_package.resolve_context("Keep"_view).resolve().get_name(),
+      "Keep"_view);
+  EXPECT_TEXT(
+      root_package.resolve_context("Later"_view).resolve().get_name(),
+      "Later"_view);
+  EXPECT_TEXT(
+      nested_package.resolve_context("Keep"_view).resolve().get_name(),
+      "Duplicate"_view);
+  EXPECT_TEXT(
+      nested_package.resolve_context("After"_view).resolve().get_name(),
+      "After"_view);
 
   EXPECT(&workspace.resolve_context("Unknown"_view) == &Invalid::get_invalid());
   EXPECT(
@@ -719,21 +932,563 @@ PERIMORTEM_UNIT_TEST(EnvironmentWorkspace, staged_failures) {
   EXPECT(
       &workspace.resolve_context("duplicate.ttx"_view) ==
       &Invalid::get_invalid());
+  EXPECT(&workspace.resolve_context("Keep"_view) == &Invalid::get_invalid());
+  EXPECT(&workspace.resolve_context("Later"_view) == &Invalid::get_invalid());
+  EXPECT(&workspace.resolve_context("After"_view) == &Invalid::get_invalid());
+  EXPECT(&workspace.resolve_context("Nested"_view) == &Invalid::get_invalid());
 
-  EXPECT_EQ(errors.get_size(), 3);
+  EXPECT_EQ(errors.get_size(), 2);
   EXPECT(has_diagnostic(errors, "Unknown dialect Missing"_view));
   EXPECT(has_diagnostic(
       errors, "Source is missing required documentation comment."_view));
-  EXPECT(has_diagnostic(
-      errors,
-      "Semantic source Keep is already imported into the Workspace."_view));
   EXPECT(
       Test::error_contains(
           "Environment::Workspace Package import failed. reason=the staged "
           "semantic source could not be read semantic_name=Missing "
           "logical_route=missing.ttx"_view,
           Diagnostics::Log::Level::Info));
-  EXPECT_EQ(trace.post_passes, 0);
+  EXPECT_EQ(trace.post_passes, 4);
+  active_trace = nullptr;
+}
+
+PERIMORTEM_UNIT_TEST(EnvironmentWorkspace, source_free_archive_consumer) {
+  WorkspaceTrace trace;
+  active_trace = &trace;
+  TemporaryWorkspacePackage package;
+  ASSERT(package);
+  ASSERT(package.write(
+      "package.ttx"_view,
+      "// Consumer Package\n"
+      "dialect : Package;\n"
+      "resolve Dependency : Pkg.Dependency = \"1.0\";\n"
+      "source Main from \"main.ttx\";\n"_view));
+  ASSERT(package.write(
+      "main.ttx"_view,
+      "// Consumer Main\n"
+      "dialect : Alpha;\n"
+      "AuthoredFact"_view));
+
+  // The producer owns every semantic input and the encoded product only until
+  // the physical Archive is written. Destroying that storage before the
+  // consumer exists catches any accidental same object round trip.
+  {
+    Allocator::Arena producer_arena;
+    Managed::Vector<Package::Archive::Member> members(producer_arena);
+    members.insert(
+        Package::Archive::Member(
+            producer_arena.proxy("First"_view),
+            producer_arena.proxy("Alpha"_view),
+            producer_arena.proxy("RestoredFirst"_view)));
+    members.insert(
+        Package::Archive::Member(
+            producer_arena.proxy("Second"_view),
+            producer_arena.proxy("Alpha"_view),
+            producer_arena.proxy("RestoredSecond"_view)));
+    Package::Archive::Archive archive(
+        producer_arena.proxy("Pkg.Dependency"_view), Version(1, 0),
+        View::Vector<Package::Language::Dependency>(), members,
+        View::Vector<View::Bytes>(), View::Vector<Package::Archive::Export>());
+    auto encoded = Package::Archive::Writer::write(archive);
+    ASSERT(encoded);
+    ASSERT(package.write("dependency.ttxa"_view, *encoded));
+  }
+
+  Environment::Workspace workspace;
+  Errors errors;
+  const Package::Language::Monograph* retained_dependency = nullptr;
+  // Repository owns the decoded Archive for this transaction and declares no
+  // source or native product. The fresh Workspace must copy every retained
+  // identity and payload result before the Repository Arena disappears.
+  {
+    Allocator::Arena repository_arena;
+    Dynamic::Bytes archive_location =
+        join_package_path(package.get_root(), "dependency.ttxa"_view);
+    Package::Repository::Input input(
+        "Pkg.Dependency"_view, Version(1, 0), archive_location,
+        View::Vector<Package::Repository::Artifact>());
+    auto repository = Package::Repository::Repository::create(
+        repository_arena, View::Vector<Package::Repository::Input>(&input, 1),
+        View::Vector<Package::Repository::Output>(),
+        View::Vector<Package::Repository::Output>());
+    ASSERT(repository);
+    ASSERT(workspace.install_dialect<Package::Dialect>("Package"_view));
+    ASSERT(workspace.install_dialect<WorkspaceDialect>("Alpha"_view));
+
+    auto imported = workspace.import_package(
+        errors, package.get_root(), "Root"_view, "package.ttx"_view,
+        "Pkg.Root"_view, Version(1, 0), *repository);
+    auto imported_root = imported.find<Language::Dialect::Monograph&>();
+    ASSERT(imported_root);
+    ASSERT(imported_root->is<Package::Language::Monograph>());
+    const auto& root =
+        static_cast<const Package::Language::Monograph&>(*imported_root);
+    const Abstract& authored = root.resolve_context("Main"_view).resolve();
+    const Abstract& dependency =
+        root.resolve_context("Dependency"_view).resolve();
+    ASSERT(dependency.is<Package::Language::Monograph>());
+    retained_dependency =
+        &static_cast<const Package::Language::Monograph&>(dependency);
+
+    EXPECT_TEXT(authored.get_name(), "AuthoredFact"_view);
+    EXPECT_TEXT(
+        retained_dependency->resolve_context("First"_view).resolve().get_name(),
+        "RestoredFirst"_view);
+    EXPECT_TEXT(
+        retained_dependency->resolve_context("Second"_view)
+            .resolve()
+            .get_name(),
+        "RestoredSecond"_view);
+    EXPECT(&workspace.resolve_context("Main"_view) == &Invalid::get_invalid());
+    EXPECT(&workspace.resolve_context("First"_view) == &Invalid::get_invalid());
+    EXPECT(
+        &workspace.resolve_context("Second"_view) == &Invalid::get_invalid());
+    EXPECT(
+        &workspace.resolve_context("Dependency"_view) ==
+        &Invalid::get_invalid());
+    EXPECT(errors.is_empty());
+  }
+
+  // Only Workspace storage survives this point, so both Alias traversals prove
+  // the consumer did not retain producer or Repository views.
+  ASSERT(retained_dependency);
+  EXPECT_TEXT(
+      retained_dependency->resolve_context("First"_view).resolve().get_name(),
+      "RestoredFirst"_view);
+  EXPECT_TEXT(
+      retained_dependency->resolve_context("Second"_view).resolve().get_name(),
+      "RestoredSecond"_view);
+  ASSERT_EQ(trace.restoration_count, 2);
+  EXPECT_TEXT(trace.restored_facts[0], "RestoredFirst"_view);
+  EXPECT_TEXT(trace.restored_facts[1], "RestoredSecond"_view);
+  ASSERT_EQ(trace.post_passes, 3);
+  EXPECT_TEXT(trace.post_pass_facts[0], "AuthoredFact"_view);
+  EXPECT_TEXT(trace.post_pass_facts[1], "RestoredFirst"_view);
+  EXPECT_TEXT(trace.post_pass_facts[2], "RestoredSecond"_view);
+  active_trace = nullptr;
+}
+
+PERIMORTEM_UNIT_TEST(EnvironmentWorkspace, exact_key_reuse_and_conflict) {
+  WorkspaceTrace trace;
+  active_trace = &trace;
+  Environment::Workspace workspace;
+  TemporaryWorkspacePackage package;
+  ASSERT(package);
+  ASSERT(package.write(
+      "package.ttx"_view,
+      "// Reuse Package\n"
+      "dialect : Package;\n"
+      "resolve First : Pkg.Shared = \"1.0\";\n"
+      "resolve Again : Pkg.Shared = \"1.0\";\n"
+      "resolve Conflict : Pkg.Shared = \"2.0\";\n"
+      "source Main from \"main.ttx\";\n"_view));
+  ASSERT(package.write(
+      "main.ttx"_view, "// Main\ndialect : Alpha;\nMainFact"_view));
+
+  Static::Vector<Package::Archive::Member, 1> first_members = {{
+    Package::Archive::Member("Value"_view, "Alpha"_view, "SharedOne"_view),
+  }};
+  Static::Vector<Package::Archive::Member, 1> second_members = {{
+    Package::Archive::Member("Value"_view, "Alpha"_view, "SharedTwo"_view),
+  }};
+  ASSERT(write_archive(
+      package, "first.ttxa"_view, "Pkg.Shared"_view, Version(1, 0),
+      View::Vector<Package::Language::Dependency>(), first_members));
+  ASSERT(write_archive(
+      package, "second.ttxa"_view, "Pkg.Shared"_view, Version(2, 0),
+      View::Vector<Package::Language::Dependency>(), second_members));
+
+  Allocator::Arena repository_arena;
+  Dynamic::Bytes first_location =
+      join_package_path(package.get_root(), "first.ttxa"_view);
+  Dynamic::Bytes second_location =
+      join_package_path(package.get_root(), "second.ttxa"_view);
+  Static::Vector<Package::Repository::Input, 2> inputs = {{
+    Package::Repository::Input(
+        "Pkg.Shared"_view, Version(1, 0), first_location,
+        View::Vector<Package::Repository::Artifact>()),
+    Package::Repository::Input(
+        "Pkg.Shared"_view, Version(2, 0), second_location,
+        View::Vector<Package::Repository::Artifact>()),
+  }};
+  auto repository = Package::Repository::Repository::create(
+      repository_arena, inputs, View::Vector<Package::Repository::Output>(),
+      View::Vector<Package::Repository::Output>());
+  ASSERT(repository);
+  ASSERT(workspace.install_dialect<Package::Dialect>("Package"_view));
+  ASSERT(workspace.install_dialect<WorkspaceDialect>("Alpha"_view));
+  Errors errors;
+
+  auto imported = workspace.import_package(
+      errors, package.get_root(), "Root"_view, "package.ttx"_view,
+      "Pkg.Root"_view, Version(1, 0), *repository);
+  EXPECT(returns_selection_error(
+      imported, Package::Repository::SelectionError::Unknown));
+  const Abstract& root = workspace.resolve_context("Root"_view);
+  ASSERT(root.is<Package::Language::Monograph>());
+  const auto& root_package =
+      static_cast<const Package::Language::Monograph&>(root);
+  const Abstract& first = root_package.resolve_context("First"_view).resolve();
+  const Abstract& again = root_package.resolve_context("Again"_view).resolve();
+  EXPECT(&first == &again);
+  EXPECT(first.is<Package::Language::Monograph>());
+  EXPECT(
+      &root_package.resolve_context("Conflict"_view) ==
+      &Invalid::get_invalid());
+  EXPECT_EQ(trace.restoration_count, 1);
+  EXPECT_TEXT(trace.restored_facts[0], "SharedOne"_view);
+  EXPECT_EQ(errors.get_size(), 1);
+  EXPECT(has_diagnostic(errors, "Conflict resolves Pkg.Shared"_view));
+  EXPECT(has_diagnostic(
+      errors,
+      "the Package identity is already retained with another Version"_view));
+  EXPECT(
+      has_diagnostic(errors, "resolve Conflict : Pkg.Shared = \"2.0\";"_view));
+  active_trace = nullptr;
+}
+
+PERIMORTEM_UNIT_TEST(EnvironmentWorkspace, active_cycle_inherited_chain) {
+  WorkspaceTrace trace;
+  active_trace = &trace;
+  Environment::Workspace workspace;
+  TemporaryWorkspacePackage package;
+  ASSERT(package);
+  ASSERT(package.write(
+      "package.ttx"_view,
+      "// Cycle Package\n"
+      "dialect : Package;\n"
+      "resolve Cycle : Pkg.Cycle = \"1.0\";\n"
+      "source Main from \"main.ttx\";\n"_view));
+  ASSERT(package.write(
+      "main.ttx"_view, "// Main\ndialect : Alpha;\nMainFact"_view));
+
+  Static::Vector<Package::Language::Dependency, 1> cycle_dependencies = {{
+    Package::Language::Dependency("Self"_view, "Pkg.Cycle"_view, Version(1, 0)),
+  }};
+  Static::Vector<Package::Archive::Member, 1> cycle_members = {{
+    Package::Archive::Member("Value"_view, "Alpha"_view, "CycleFact"_view),
+  }};
+  ASSERT(write_archive(
+      package, "cycle.ttxa"_view, "Pkg.Cycle"_view, Version(1, 0),
+      cycle_dependencies, cycle_members));
+
+  Allocator::Arena repository_arena;
+  Dynamic::Bytes archive_location =
+      join_package_path(package.get_root(), "cycle.ttxa"_view);
+  Package::Repository::Input input(
+      "Pkg.Cycle"_view, Version(1, 0), archive_location,
+      View::Vector<Package::Repository::Artifact>());
+  auto repository = Package::Repository::Repository::create(
+      repository_arena, View::Vector<Package::Repository::Input>(&input, 1),
+      View::Vector<Package::Repository::Output>(),
+      View::Vector<Package::Repository::Output>());
+  ASSERT(repository);
+  ASSERT(workspace.install_dialect<Package::Dialect>("Package"_view));
+  ASSERT(workspace.install_dialect<WorkspaceDialect>("Alpha"_view));
+  Errors errors;
+
+  auto imported = workspace.import_package(
+      errors, package.get_root(), "Root"_view, "package.ttx"_view,
+      "Pkg.Root"_view, Version(1, 0), *repository);
+  EXPECT(returns_selection_error(
+      imported, Package::Repository::SelectionError::Unknown));
+  const Abstract& root = workspace.resolve_context("Root"_view);
+  ASSERT(root.is<Package::Language::Monograph>());
+  const auto& root_package =
+      static_cast<const Package::Language::Monograph&>(root);
+  EXPECT(
+      &root_package.resolve_context("Cycle"_view) == &Invalid::get_invalid());
+  EXPECT_EQ(trace.restoration_count, 1);
+  EXPECT_TEXT(trace.restored_facts[0], "CycleFact"_view);
+  EXPECT_EQ(errors.get_size(), 1);
+  EXPECT(has_diagnostic(errors, "Cycle resolves Pkg.Cycle"_view));
+  EXPECT(has_diagnostic(errors, "Self resolves Pkg.Cycle"_view));
+  EXPECT(
+      has_diagnostic(errors, "the exact Package key is already active"_view));
+  EXPECT(has_diagnostic(errors, "resolve Cycle : Pkg.Cycle = \"1.0\";"_view));
+  active_trace = nullptr;
+}
+
+PERIMORTEM_UNIT_TEST(EnvironmentWorkspace, transitive_typed_failure_chain) {
+  WorkspaceTrace trace;
+  active_trace = &trace;
+  Environment::Workspace workspace;
+  TemporaryWorkspacePackage package;
+  ASSERT(package);
+  ASSERT(package.write(
+      "package.ttx"_view,
+      "// Transitive Package\n"
+      "dialect : Package;\n"
+      "resolve Middle : Pkg.Middle = \"1.0\";\n"
+      "source Main from \"main.ttx\";\n"_view));
+  ASSERT(package.write(
+      "main.ttx"_view, "// Main\ndialect : Alpha;\nMainFact"_view));
+
+  Static::Vector<Package::Language::Dependency, 1> dependencies = {{
+    Package::Language::Dependency(
+        "Missing"_view, "Pkg.Missing"_view, Version(1, 0)),
+  }};
+  Static::Vector<Package::Archive::Member, 1> members = {{
+    Package::Archive::Member("Value"_view, "Alpha"_view, "MiddleFact"_view),
+  }};
+  ASSERT(write_archive(
+      package, "transitive.ttxa"_view, "Pkg.Middle"_view, Version(1, 0),
+      dependencies, members));
+
+  Allocator::Arena repository_arena;
+  Dynamic::Bytes archive_location =
+      join_package_path(package.get_root(), "transitive.ttxa"_view);
+  Package::Repository::Input input(
+      "Pkg.Middle"_view, Version(1, 0), archive_location,
+      View::Vector<Package::Repository::Artifact>());
+  auto repository = Package::Repository::Repository::create(
+      repository_arena, View::Vector<Package::Repository::Input>(&input, 1),
+      View::Vector<Package::Repository::Output>(),
+      View::Vector<Package::Repository::Output>());
+  ASSERT(repository);
+  ASSERT(workspace.install_dialect<Package::Dialect>("Package"_view));
+  ASSERT(workspace.install_dialect<WorkspaceDialect>("Alpha"_view));
+  Errors errors;
+
+  auto imported = workspace.import_package(
+      errors, package.get_root(), "Root"_view, "package.ttx"_view,
+      "Pkg.Root"_view, Version(1, 0), *repository);
+  EXPECT(returns_selection_error(
+      imported, Package::Repository::SelectionError::NotDeclared));
+  EXPECT_EQ(errors.get_size(), 1);
+  EXPECT(has_diagnostic(errors, "Middle resolves Pkg.Middle"_view));
+  EXPECT(has_diagnostic(errors, "Missing resolves Pkg.Missing"_view));
+  EXPECT(has_diagnostic(errors, "NotDeclared"_view));
+  EXPECT(has_diagnostic(errors, "resolve Middle : Pkg.Middle = \"1.0\";"_view));
+  EXPECT(
+      Test::error_contains(
+          "selection_error=NotDeclared requested_identity=Pkg.Missing "
+          "requested_version=1.0"_view,
+          Diagnostics::Log::Level::Info));
+  active_trace = nullptr;
+}
+
+PERIMORTEM_UNIT_TEST(EnvironmentWorkspace, independent_dependency_reports) {
+  WorkspaceTrace trace;
+  active_trace = &trace;
+  Environment::Workspace workspace;
+  TemporaryWorkspacePackage package;
+  ASSERT(package);
+  ASSERT(package.write(
+      "package.ttx"_view,
+      "// Independent Package\n"
+      "dialect : Package;\n"
+      "resolve First : Pkg.First = \"1.0\";\n"
+      "resolve Second : Pkg.Second = \"1.0\";\n"
+      "source Main from \"main.ttx\";\n"_view));
+  ASSERT(package.write(
+      "main.ttx"_view, "// Main\ndialect : Alpha;\nMainFact"_view));
+
+  Allocator::Arena repository_arena;
+  auto repository = Package::Repository::Repository::create(
+      repository_arena, View::Vector<Package::Repository::Input>(),
+      View::Vector<Package::Repository::Output>(),
+      View::Vector<Package::Repository::Output>());
+  ASSERT(repository);
+  ASSERT(workspace.install_dialect<Package::Dialect>("Package"_view));
+  ASSERT(workspace.install_dialect<WorkspaceDialect>("Alpha"_view));
+  Errors errors;
+
+  auto imported = workspace.import_package(
+      errors, package.get_root(), "Root"_view, "package.ttx"_view,
+      "Pkg.Root"_view, Version(1, 0), *repository);
+  EXPECT(returns_selection_error(
+      imported, Package::Repository::SelectionError::NotDeclared));
+  EXPECT_EQ(errors.get_size(), 2);
+  EXPECT(has_diagnostic(errors, "First resolves Pkg.First"_view));
+  EXPECT(has_diagnostic(errors, "Second resolves Pkg.Second"_view));
+  active_trace = nullptr;
+}
+
+PERIMORTEM_UNIT_TEST(EnvironmentWorkspace, typed_selection_failures) {
+  EXPECT(rejects_selection_failure(
+      0, Package::Repository::SelectionError::NotDeclared, "NotDeclared"_view));
+  EXPECT(rejects_selection_failure(
+      1, Package::Repository::SelectionError::Unreadable, "Unreadable"_view));
+  EXPECT(rejects_selection_failure(
+      2, Package::Repository::SelectionError::InvalidFormat,
+      "InvalidFormat"_view));
+  EXPECT(rejects_selection_failure(
+      3, Package::Repository::SelectionError::UnsupportedFormat,
+      "UnsupportedFormat"_view));
+  EXPECT(rejects_selection_failure(
+      4, Package::Repository::SelectionError::PackageKeyMismatch,
+      "PackageKeyMismatch"_view));
+}
+
+PERIMORTEM_UNIT_TEST(EnvironmentWorkspace, context_free_typed_failure) {
+  Environment::Workspace workspace;
+  TemporaryWorkspacePackage package;
+  ASSERT(package);
+  ASSERT(package.write(
+      "package.ttx"_view,
+      "// Source Free Root\n"
+      "dialect : Package;\n"_view));
+  Allocator::Arena repository_arena;
+  auto repository = Package::Repository::Repository::create(
+      repository_arena, View::Vector<Package::Repository::Input>(),
+      View::Vector<Package::Repository::Output>(),
+      View::Vector<Package::Repository::Output>());
+  ASSERT(repository);
+  ASSERT(workspace.install_dialect<SourceFreePackageDialect>("Package"_view));
+  Errors errors;
+
+  auto imported = workspace.import_package(
+      errors, package.get_root(), "Root"_view, "package.ttx"_view,
+      "Pkg.Root"_view, Version(1, 0), *repository);
+  EXPECT(returns_selection_error(
+      imported, Package::Repository::SelectionError::NotDeclared));
+  EXPECT(errors.is_empty());
+}
+
+PERIMORTEM_UNIT_TEST(EnvironmentWorkspace, member_restoration_failures) {
+  WorkspaceTrace trace;
+  active_trace = &trace;
+  Environment::Workspace workspace;
+  TemporaryWorkspacePackage package;
+  ASSERT(package);
+  ASSERT(package.write(
+      "package.ttx"_view,
+      "// Member Failure Package\n"
+      "dialect : Package;\n"
+      "resolve MissingDialect : Pkg.MissingDialect = \"1.0\";\n"
+      "resolve RestoreFailure : Pkg.RestoreFailure = \"1.0\";\n"
+      "resolve FailedAgain : Pkg.RestoreFailure = \"1.0\";\n"
+      "source Main from \"main.ttx\";\n"_view));
+  ASSERT(package.write(
+      "main.ttx"_view, "// Main\ndialect : Alpha;\nMainFact"_view));
+
+  Static::Vector<Package::Archive::Member, 1> missing_members = {{
+    Package::Archive::Member("Value"_view, "Missing"_view, "Ignored"_view),
+  }};
+  Static::Vector<Package::Archive::Member, 1> failed_members = {{
+    Package::Archive::Member("Value"_view, "Alpha"_view, "restore_fail"_view),
+  }};
+  ASSERT(write_archive(
+      package, "first.ttxa"_view, "Pkg.MissingDialect"_view, Version(1, 0),
+      View::Vector<Package::Language::Dependency>(), missing_members));
+  ASSERT(write_archive(
+      package, "second.ttxa"_view, "Pkg.RestoreFailure"_view, Version(1, 0),
+      View::Vector<Package::Language::Dependency>(), failed_members));
+
+  Allocator::Arena repository_arena;
+  Dynamic::Bytes first_location =
+      join_package_path(package.get_root(), "first.ttxa"_view);
+  Dynamic::Bytes second_location =
+      join_package_path(package.get_root(), "second.ttxa"_view);
+  Static::Vector<Package::Repository::Input, 2> inputs = {{
+    Package::Repository::Input(
+        "Pkg.MissingDialect"_view, Version(1, 0), first_location,
+        View::Vector<Package::Repository::Artifact>()),
+    Package::Repository::Input(
+        "Pkg.RestoreFailure"_view, Version(1, 0), second_location,
+        View::Vector<Package::Repository::Artifact>()),
+  }};
+  auto repository = Package::Repository::Repository::create(
+      repository_arena, inputs, View::Vector<Package::Repository::Output>(),
+      View::Vector<Package::Repository::Output>());
+  ASSERT(repository);
+  ASSERT(workspace.install_dialect<Package::Dialect>("Package"_view));
+  ASSERT(workspace.install_dialect<WorkspaceDialect>("Alpha"_view));
+  Errors errors;
+
+  auto imported = workspace.import_package(
+      errors, package.get_root(), "Root"_view, "package.ttx"_view,
+      "Pkg.Root"_view, Version(1, 0), *repository);
+  EXPECT(returns_selection_error(
+      imported, Package::Repository::SelectionError::Unknown));
+  const Abstract& root = workspace.resolve_context("Root"_view);
+  ASSERT(root.is<Package::Language::Monograph>());
+  const auto& root_package =
+      static_cast<const Package::Language::Monograph&>(root);
+  EXPECT(
+      &root_package.resolve_context("MissingDialect"_view) ==
+      &Invalid::get_invalid());
+  EXPECT(
+      &root_package.resolve_context("RestoreFailure"_view) ==
+      &Invalid::get_invalid());
+  EXPECT(
+      &root_package.resolve_context("FailedAgain"_view) ==
+      &Invalid::get_invalid());
+  EXPECT_EQ(trace.restoration_count, 1);
+  EXPECT_TEXT(trace.restored_facts[0], "restore_fail"_view);
+  EXPECT_EQ(errors.get_size(), 3);
+  EXPECT(has_diagnostic(
+      errors, "an Archive member names a Dialect that is not installed"_view));
+  EXPECT(has_diagnostic(
+      errors, "an Archive member payload could not be restored"_view));
+  EXPECT(has_diagnostic(
+      errors,
+      "the exact Package key was already restored but did not complete"_view));
+  EXPECT(has_diagnostic(errors, "resolve MissingDialect"_view));
+  EXPECT(has_diagnostic(errors, "resolve RestoreFailure"_view));
+  EXPECT(has_diagnostic(errors, "resolve FailedAgain"_view));
+  active_trace = nullptr;
+}
+
+PERIMORTEM_UNIT_TEST(EnvironmentWorkspace, post_pass_order_and_reuse) {
+  WorkspaceTrace trace;
+  active_trace = &trace;
+  Environment::Workspace workspace;
+  TemporaryWorkspacePackage package;
+  ASSERT(package);
+  ASSERT(package.write(
+      "package.ttx"_view,
+      "// First Package\n"
+      "dialect : Package;\n"
+      "source First from \"first.ttx\";\n"
+      "source Second from \"second.ttx\";\n"_view));
+  ASSERT(package.write(
+      "first.ttx"_view, "// First\ndialect : Alpha;\npost_fail"_view));
+  ASSERT(package.write(
+      "second.ttx"_view, "// Second\ndialect : Alpha;\nGood"_view));
+
+  Allocator::Arena repository_arena;
+  auto repository = Package::Repository::Repository::create(
+      repository_arena, View::Vector<Package::Repository::Input>(),
+      View::Vector<Package::Repository::Output>(),
+      View::Vector<Package::Repository::Output>());
+  ASSERT(repository);
+  ASSERT(workspace.install_dialect<Package::Dialect>("Package"_view));
+  ASSERT(workspace.install_dialect<WorkspaceDialect>("Alpha"_view));
+  Errors errors;
+
+  auto first_import = workspace.import_package(
+      errors, package.get_root(), "Root"_view, "package.ttx"_view,
+      "Pkg.First"_view, Version(1, 0), *repository);
+  EXPECT(returns_selection_error(
+      first_import, Package::Repository::SelectionError::Unknown));
+  ASSERT_EQ(trace.post_passes, 2);
+  EXPECT_TEXT(trace.post_pass_facts[0], "post_fail"_view);
+  EXPECT_TEXT(trace.post_pass_facts[1], "Good"_view);
+  EXPECT_EQ(errors.get_size(), 1);
+  EXPECT(
+      has_diagnostic(errors, "Semantic completion failed for post_fail"_view));
+
+  ASSERT(workspace.import_source(
+      errors, "Direct"_view, "direct.ttx"_view,
+      "// Direct\ndialect : Alpha;\nDirectFact"_view));
+  EXPECT_EQ(trace.post_passes, 2);
+  ASSERT(package.write(
+      "package.ttx"_view,
+      "// Second Package\n"
+      "dialect : Package;\n"
+      "source Later from \"main.ttx\";\n"_view));
+  ASSERT(package.write(
+      "main.ttx"_view, "// Later\ndialect : Alpha;\nLaterFact"_view));
+
+  auto second_import = workspace.import_package(
+      errors, package.get_root(), "OtherRoot"_view, "package.ttx"_view,
+      "Pkg.Second"_view, Version(1, 0), *repository);
+  EXPECT(second_import.find<Language::Dialect::Monograph&>() != nullptr);
+  ASSERT_EQ(trace.post_passes, 4);
+  EXPECT_TEXT(trace.post_pass_facts[2], "DirectFact"_view);
+  EXPECT_TEXT(trace.post_pass_facts[3], "LaterFact"_view);
+  EXPECT_EQ(errors.get_size(), 1);
   active_trace = nullptr;
 }
 
@@ -752,11 +1507,11 @@ PERIMORTEM_UNIT_TEST(EnvironmentWorkspace, destruction_phases) {
     EXPECT(workspace.install_dialect<WorkspaceDialect>("Alpha"_view));
     EXPECT(workspace.install_dialect<WorkspaceDialect>("Beta"_view));
     EXPECT(workspace.import_source(
-        "First"_view, "first.ttx"_view,
-        "// First documentation\ndialect : Alpha;\nFirst"_view, errors));
+        errors, "First"_view, "first.ttx"_view,
+        "// First documentation\ndialect : Alpha;\nFirst"_view));
     EXPECT(workspace.import_source(
-        "Second"_view, "second.ttx"_view,
-        "// Second documentation\ndialect : Beta;\nSecond"_view, errors));
+        errors, "Second"_view, "second.ttx"_view,
+        "// Second documentation\ndialect : Beta;\nSecond"_view));
   }
 
   EXPECT_EQ(trace.monograph_constructions[0], 1);

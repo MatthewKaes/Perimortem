@@ -9,9 +9,9 @@ and the tooling boundaries for runtime and package artifacts.
 
 1. [`language`](language/) defines the stateful Dialect interface, its Monograph
    root, and syntax fragments shared by concrete Dialects.
-2. [`environment`](environment/) owns the Workspace that installs Dialects,
-   imports authored source, retains graph allocation, and resolves imported
-   Monographs by authored source name.
+2. [`environment`](environment/) owns Workspace orchestration, installed
+   Dialects, Monograph Retention, Package Resolution, graph allocation, and
+   exact authored source lookup.
 3. [`package`](package/) owns the authored Package Dialect shape, exact
    Dependency requests, exact Source name to path bindings, and the Package
    Monograph's exact Alias backed local scope. It also owns confined Package
@@ -45,9 +45,9 @@ Bazel declares exact inputs and terminal outputs
 -> Package Storage performs each confined read
 -> Workspace retains bytes and parses the universal source envelope
 -> the exact installed Dialect constructs its real Monograph
--> Workspace retains the Monograph under the authored semantic name
+-> Retention keeps the Monograph and Workspace publishes its authored name
 -> Package stages members and restores dependencies from Package Archives
--> Workspace invokes one ordered post pass after staging drains
+-> Retention invokes one ordered post pass after staging drains
 -> Puffer stops terminal work when diagnostics exist
 -> concrete owners provide typed Package Archive and Linker Object Module data
 -> Linker emits the requested native product
@@ -63,30 +63,32 @@ source, or compile request context to publish the user facing error. A low
 level log does not substitute for that source diagnostic, and a source
 diagnostic does not discard the detailed validation trace.
 
-`Language::Dialect` is intentionally stateful. Environment constructs each
-installed Dialect in its graph Arena, supplies the Workspace as its shared TTX
-registry, and keeps the Dialect alive while any of its Monographs remain
-queryable.
+`Language::Dialect` is intentionally stateful. `Environment::Dialects`
+constructs each installed Dialect in the Workspace graph Arena, supplies the
+Workspace as its shared TTX registry, and keeps the Dialect alive while any of
+its Monographs remain queryable.
 
 `Language::Dialect::Monograph` is the common Abstract root for one interpreted
-source island. A concrete Monograph owns its Dialect semantics and borrows the
-Arena, opening Documentation, and host Dialect retained by Environment. The
-planned lifecycle gives every retained Monograph one ordered post pass and lets
-its concrete Dialect encode and restore only its own opaque durable payload.
-Post pass returns failure without receiving `Lexical::Errors`. The concrete
-owner logs graph details that would otherwise be lost, and Workspace retains
-the authored source identity needed for an actionable diagnostic.
+or restored source island. A concrete Monograph owns its Dialect semantics and
+borrows the Arena, opening Documentation, and host Dialect retained by
+Environment. `Environment::Retention` gives every retained Monograph one
+ordered post pass, while `Environment::Resolution` asks each concrete Dialect
+to restore only its own opaque durable payload. Post pass returns failure
+without receiving `Lexical::Errors`. The concrete owner logs graph details
+that would otherwise be lost, and Retention keeps the authored source identity
+needed for an actionable diagnostic.
 
 There is no separate Source lifetime object, static parser function map,
-Frontend, Container, or Environment Namespace. Environment owns the transaction
-because it already owns the Dialect state, graph allocation, and retained
-Monographs that give interpretation its lifetime.
+Frontend, Container, or Environment Namespace. Environment composes the
+transaction from Workspace, Dialects, Retention, and Resolution because those
+objects share the graph allocation and retained lifetime that interpretation
+requires.
 
 Workspace implements direct envelope dispatch and the confined local Package
-stage. It drains exact Source names and logical routes in FIFO order, retains
-successful Monographs, and continues after independent failures. Dependency
-restoration and ordered post pass remain absent, so the transaction above is
-not yet complete.
+stage. It drains exact Source names and logical routes in FIFO order and binds
+members through their owning Package. Resolution restores exact source free
+dependencies and Retention completes Monographs in first discovery order.
+Package internal names remain outside the Workspace global source map.
 
 Package Monograph already owns the local binding operations needed by that
 successor. Completed authored or restored members and restored Package roots
@@ -103,7 +105,7 @@ supporting models.
 `Library::Language` owns the semantics that are not universal across Dialects:
 Expression, Binding, Projection, Constant and its value domains, Generic and its
 materializations, concrete scalar Types, and Static and Self invocation
-distinctions. These owners retain real TTX edges rather than copying the TTX
+distinctions. Library owners retain real TTX edges rather than copying the TTX
 model.
 
 App, Scene, and other CPU capable Dialects may use Library language contracts
@@ -144,22 +146,23 @@ Repository transaction and its `Input`, `Artifact`, and `Output` declaration
 values. It provides exact declared Archive selection, separate native artifact
 path lookup, and normalized declared-only publication routes keyed by Package
 identity, Version, and artifact ID.
-Archive restoration remains planned. Library owns CPU lowering. App and Scene
-retain their own completed facts. Linker owns static archives, shared
-libraries, and complete executable production. Puffer orchestrates these
+Environment Resolution consumes exact Archive selection for source free
+restoration without requesting native artifacts. Library owns CPU lowering.
+App and Scene retain their own completed facts. Linker owns static archives,
+shared libraries, and complete executable production. Puffer orchestrates the
 owners but does not replace any of them with a generic product registry.
 
 Final ELF linkage remains in repository code. A host linker is only an
 independent consumer for a static archive checkpoint, never the production
 implementation of a Tetrodotoxin executable.
 
-Package Archive Format 1 can now be constructed, read, and written
-independently. Exact Repository selection can retain a successful Archive from
+Package Archive Format 1 supports independent construction, reading, and
+writing. Exact Repository selection can retain a successful Archive from
 caller-Arena file bytes while leaving native byte loading and output writing to
 their later consumers.
-None of the complete terminal transaction, source free restore, Puffer compile
-orchestration, shared library output, or executable output is implemented by
-the current targets.
+The complete terminal transaction, concrete Library and App payloads, Puffer
+compile orchestration, shared library output, and executable output remain
+unimplemented by the current targets.
 
 See [tetrodotoxin_design.md](tetrodotoxin_design.md) for the detailed ownership
 and transaction contract.

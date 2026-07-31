@@ -85,7 +85,7 @@ static auto rejects_package(
   const Bool installed =
       workspace.install_dialect<Package::Dialect>("Package"_view);
   const auto imported =
-      workspace.import_source("Rejected"_view, path, source, errors);
+      workspace.import_source(errors, "Rejected"_view, path, source);
   const Bool unpublished =
       &workspace.resolve_context("Rejected"_view) == &Invalid::get_invalid();
 
@@ -223,7 +223,7 @@ PERIMORTEM_UNIT_TEST(PackageDialect, ordered_monograph) {
 
   ASSERT(workspace.install_dialect<Package::Dialect>("Package"_view));
   ASSERT(workspace.import_source(
-      "Synthetic"_view, "synthetic/package.ttx"_view, source, errors));
+      errors, "Synthetic"_view, "synthetic/package.ttx"_view, source));
   source.set('x');
 
   const Abstract& imported = workspace.resolve_context("Synthetic"_view);
@@ -275,7 +275,7 @@ PERIMORTEM_UNIT_TEST(PackageDialect, canonical_inventory) {
   Environment::Workspace workspace;
   Errors errors;
   ASSERT(workspace.install_dialect<Package::Dialect>("Package"_view));
-  ASSERT(workspace.import_source("Root"_view, path, *source, errors));
+  ASSERT(workspace.import_source(errors, "Root"_view, path, *source));
 
   const Abstract& imported = workspace.resolve_context("Root"_view);
   ASSERT(imported.is<Package::Language::Monograph>());
@@ -317,9 +317,8 @@ PERIMORTEM_UNIT_TEST(PackageDialect, prior_diagnostics) {
 
   ASSERT(workspace.install_dialect<Package::Dialect>("Package"_view));
   ASSERT(workspace.import_source(
-      "Minimal"_view, "minimal.ttx"_view,
-      "// Minimal\ndialect : Package;\nsource Main from \"./main.ttx\";\n"_view,
-      errors));
+      errors, "Minimal"_view, "minimal.ttx"_view,
+      "// Minimal\ndialect : Package;\nsource Main from \"./main.ttx\";\n"_view));
 
   const Abstract& imported = workspace.resolve_context("Minimal"_view);
   ASSERT(imported.is<Package::Language::Monograph>());
@@ -498,7 +497,7 @@ PERIMORTEM_UNIT_TEST(PackageDialect, cross_inventory_collision) {
 
   ASSERT(workspace.install_dialect<Package::Dialect>("Package"_view));
   EXPECT_NOT(workspace.import_source(
-      "Collision"_view, "collision.ttx"_view, source, errors));
+      errors, "Collision"_view, "collision.ttx"_view, source));
   EXPECT(
       &workspace.resolve_context("Collision"_view) == &Invalid::get_invalid());
   EXPECT_EQ(errors.get_size(), Count(1));
@@ -535,7 +534,7 @@ PERIMORTEM_UNIT_TEST(PackageDialect, duplicate_dimensions) {
 
   ASSERT(workspace.install_dialect<Package::Dialect>("Package"_view));
   EXPECT_NOT(workspace.import_source(
-      "Duplicate"_view, "duplicate.ttx"_view, shared_source, errors));
+      errors, "Duplicate"_view, "duplicate.ttx"_view, shared_source));
   EXPECT(
       &workspace.resolve_context("Duplicate"_view) == &Invalid::get_invalid());
   EXPECT(has_diagnostic(

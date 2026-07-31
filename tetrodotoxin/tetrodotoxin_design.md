@@ -5,9 +5,8 @@ closed target independent semantic substrate. Tetrodotoxin defines the source
 Dialects, construction Environment, generators, runtime policy, and package
 policy that use it.
 
-This document describes the live owner boundaries first. Planned products are
-called out explicitly and do not become current contracts merely because their
-grammar or acceptance data already exists.
+Live owner boundaries appear before planned products. Grammar and acceptance
+data do not make a planned product part of the current contract.
 
 ## Owner graph
 
@@ -34,7 +33,7 @@ Bazel request
 -> declared Bazel outputs
 ```
 
-This flow is a staged implementation contract. Puffer does not acquire
+The flow is a staged implementation contract. Puffer does not acquire
 language, package, compiler, or linker policy by coordinating their owners.
 The current Puffer target exposes only its LSP process.
 
@@ -45,15 +44,16 @@ Package supplies the first concrete Dialect and Monograph shape. Its
 implemented contract interprets dependency requests and exact Source name to
 path bindings into a Package Monograph.
 
-Environment owns the Workspace that installs concrete Dialects and hosts their
-interpretation. It owns graph allocation, Dialect lifetime, imported Monograph
-lifetime, exact authored source name lookup, staged source order, retained
-source bytes, ordered semantic completion, and the TTX registry supplied to
+Environment owns Workspace orchestration and the composed Dialects, Retention,
+and Resolution objects that host interpretation. Together they own graph
+allocation, Dialect lifetime, imported Monograph lifetime, exact authored
+source name lookup, staged source order, retained source bytes, ordered
+semantic completion, dependency restoration, and the TTX registry supplied to
 each Dialect.
 
 Library owns CPU language semantics that are not universal TTX facts. Its
 current target also owns native x86_64 instruction assembly. A future Library
-Dialect and compiler extend this owner without copying the TTX graph.
+Dialect and compiler extend Library without copying the TTX graph.
 
 App owns startup and lifecycle policy. Scene owns retained Scene declarations,
 live Scene instances, declared child identity, and render submission facts.
@@ -89,8 +89,8 @@ Language owns two shared parser fragments today:
 
 1. `Parser::Comment` greedily consumes adjacent comment lines and preserves
    empty authored lines in one Documentation Block.
-2. `Parser::Dialect` consumes the universal `dialect : Type;` instruction and
-   returns the exact authored Dialect name.
+2. `Parser::Dialect` consumes the universal Dialect instruction and returns the
+   exact authored Dialect name.
 
 Concrete body grammar remains on the concrete Dialect. Shared spelling alone
 does not justify moving a semantic parser into Language.
@@ -98,25 +98,28 @@ does not justify moving a semantic parser into Language.
 The accepted lifecycle adds two owner neutral operations to the common
 Monograph and Dialect boundary:
 
-1. Workspace invokes one ordered Monograph post pass after local staging and
-   dependency restoration drain. The operation returns failure without
-   receiving a textual error sink.
+1. Environment Retention invokes one ordered Monograph post pass after local
+   staging and dependency restoration drain. The operation returns failure
+   without receiving a textual error sink.
 2. A concrete Dialect encodes and restores its own opaque precompiled Monograph
    payload through the importing Workspace Arena.
 
 Language owns only that dispatch shape. It does not define a Package Archive,
 terminal registry, concrete payload schema, or cross owner product variant.
 Concrete post pass owners log graph details that would be lost on return.
-Workspace retains the authored input identity needed to turn a returned failure
-into a user facing diagnostic. The shared operations are present in the current
-interface, while Workspace coordination remains planned.
+Retention keeps the authored input identity needed to turn a returned failure
+into a user facing diagnostic. Workspace stages source and Resolution drains
+dependencies before Retention begins completion.
 
 ## Environment transaction
 
-`Environment::Workspace` is the lifetime and dispatch owner for one semantic
-construction environment. It owns one Arena for installed Dialects and
-interpreted graph values. It retains installed Dialect instances, binds exact
-authored names to those Dialects, and binds imported routes to Monographs.
+`Environment::Workspace` is the public lifetime and dispatch owner for one
+semantic construction environment. It owns one Arena, exact global authored
+source lookup, and import orchestration. `Environment::Dialects` owns installed
+names, concrete Dialect instances, and exact dispatch. `Environment::Retention`
+owns Monograph lifetime, authored origin, discovery order, and completion.
+`Environment::Resolution` owns exact dependency traversal and restored Package
+cache state while borrowing the other Environment owners explicitly.
 
 Dialect installation is typed:
 
@@ -124,10 +127,11 @@ Dialect installation is typed:
 workspace.install_dialect<Package::Dialect>("Package")
 ```
 
-Environment constructs a distinct Dialect instance for each successful
-installation. It destroys those instances before releasing their shared Arena.
-That ordering keeps Dialect state alive while retained Monographs can refer to
-their host.
+Dialects constructs a distinct instance for each successful installation.
+Workspace declaration order destroys Resolution, then Retention and its
+Monographs, then Dialects and its instances before releasing their shared
+Arena. That ordering keeps Dialect state alive while retained Monographs can
+refer to their host.
 
 The accepted production transaction is staged:
 
@@ -135,13 +139,13 @@ The accepted production transaction is staged:
 Workspace stages an explicit root semantic name and source path
 -> Package Storage reads one confined, same opened object
 -> Workspace retains the bytes
--> Workspace parses Documentation and `dialect : Type;`
+-> Workspace parses Documentation and the universal Dialect declaration
 -> Workspace dispatches the remaining Cursor to the exact installed Dialect
 -> the Dialect constructs its real Monograph in the Workspace Arena
--> Workspace retains it under the authored semantic name
--> Package resolves exact dependency Archives
+-> Retention keeps it and Workspace publishes the authored semantic name
+-> Environment Resolution resolves exact dependency Archives
 -> Package Source bindings stage more inputs in authored order
--> after all staging and restoration drain, Workspace runs post pass in
+-> after all staging and restoration drain, Retention runs post pass in
    retained order
 ```
 
@@ -157,30 +161,30 @@ diagnostic path, and content views and copies them into the Workspace Arena.
 Local Package import drains an Arena backed FIFO of separate semantic names and
 logical routes. Package Storage content enters the same semantic import
 transaction directly because Storage and its views already belong to that
-Arena. Both public operations return the imported Monograph Option. Dependency
-restoration and ordered post pass remain absent.
+Arena. Direct import returns the published Monograph Option. Package import
+additionally receives the explicit root identity, Version, and Repository.
+Source staging failure completes the retained prefix and returns no result
+before Resolution begins. Resolution returns either the root Monograph or a
+populated Repository `SelectionError`. It preserves an exact selection category
+and uses `Unknown` when another diagnosed resolution or post pass failure has
+no Repository category. Package local members are not published in the
+Workspace source map. Exact Archive dependencies restore into the Workspace
+Arena before every retained Monograph runs post pass once in discovery order.
 
 Textual errors require authored text. `Ttx::Lexical::Errors::Report` receives
 an explicit source name, source body, and `Ttx::Lexical::Span` from the owner
 of that text. Context free filesystem, Archive, and Repository validation
 instead logs its exact local names, values, offsets, and transaction stage
-through `Diagnostics::Log`, then returns failure. Workspace or Puffer owns the
+through `Diagnostics::Log`, then returns failure. Resolution or Puffer owns the
 later user facing error because only that layer can attach the failure to an
 authored Dependency, Source, or compile request. Neither channel replaces the
 other.
 
 ## Package Dialect
 
-The Package body has two ordered regions:
-
-```ttx
-resolve Math : Perimortem.Math = "1.0";
-resolve Graphics : Perimortem.Graphics = "1.0";
-
-source Scenes::Splash from "scenes/splash.ttx";
-source Scenes::Title from "scenes/title.ttx";
-source Main from "main.ttx";
-```
+The Package body has two ordered regions. Dependency declarations such as Math
+and Graphics precede Source bindings such as Scenes::Splash, Scenes::Title, and
+Main.
 
 `Package::Language::Dependency` is an exact authored request containing its
 local name, package name, and pinned version. It is not the resolved external
@@ -223,8 +227,9 @@ facts on the value class `Archive`, validation and materialization on `Reader`,
 and deterministic encoding on `Writer`. Namespace `Package::Repository` owns
 the concrete `Repository` transaction, its exact Input and Artifact
 declarations, separately borrowed native artifact paths, and normalized
-declared-only Archive and native output declarations. Dependency acquisition,
-application selection, and Archive restoration remain planned Package work.
+declared-only Archive and native output declarations. Environment Resolution
+consumes those existing owners for dependency restoration. Application selection
+remains future Package assembly work.
 
 `main.ttx` remains a filename convention. Future package assembly selects the
 sole completed App Monograph rather than granting its filename or local Source
@@ -242,8 +247,8 @@ Dialect needs.
 4. Concrete Bool, integer, and real Types provide Library scalar identities.
 5. Static and Self distinguish Library Callable invocation.
 
-These contracts retain real TTX Type, Layout, Addressable, and Callable edges.
-They do not redeclare those shared owners.
+Library contracts retain real TTX Type, Layout, Addressable, and Callable
+edges. They do not redeclare those shared owners.
 
 Library source order will not determine binding. Its future Dialect may reserve
 stable semantic identities before definitions, initializers, and executable
@@ -269,8 +274,8 @@ The current executable Library surface is the source independent
 before asking that assembler to encode instructions.
 
 Linker owns source independent objects, symbols, relocations, target formats,
-and native archive construction. Library does not absorb Linker merely because
-it supplies object input.
+and native archive construction. Supplying object input does not transfer that
+ownership to Library.
 
 The accepted native terminal is `Linker::Object::Module`, a coherent owner of
 sections, symbols, and relocations. Library, App, and Scene may each submit
@@ -311,7 +316,7 @@ repository code. A host linker may independently consume a generated static
 archive as acceptance evidence, but it is not the production implementation of
 an executable product.
 
-The current Puffer target does not implement this compile transaction. It
+The current Puffer target does not implement the compile transaction. Puffer
 remains the planned application orchestration boundary.
 
 ## Concrete Dialect responsibilities
@@ -372,8 +377,7 @@ Dependency.
 The accepted operand is package root relative:
 
 ```ttx
-const file_header : Fixed[Unsigned_8, 64] =
-  $[resources/table.bin]:[0, 64];
+$[resources/table.bin]:[0, 64]
 ```
 
 Package Storage and future resource consumers follow six requirements.
@@ -424,7 +428,9 @@ without constructing a textual error for binary input. Repository caches only
 successfully decoded Archives, exposes native filesystem paths without reading
 them, and normalizes declared-only publication routes without materializing
 output. Its logs preserve both declarations for duplicate keys and route
-collisions. No source free restoration exists in the current Package target.
+collisions. Package does not coordinate restoration. Environment Resolution
+reconstructs each Package root from the Archive envelope and calls the
+installed concrete Dialect for every opaque member payload.
 
 ## Current evidence boundary
 
@@ -433,8 +439,9 @@ The current tree provides the following implemented surfaces.
 1. TTX provides lexical and closed semantic targets.
 2. Language provides shared Comment and Dialect parsers.
 3. Language provides the stateful Dialect and Monograph interfaces.
-4. Environment provides Workspace installation, direct dispatch, confined
-   local Package staging, retention, and authored source name lookup.
+4. Environment provides Workspace import orchestration, Dialect installation
+   and dispatch, Monograph Retention, source free Package Resolution, Package
+   local binding, ordered completion, and authored root name lookup.
 5. Package provides Dependency, Source, Monograph, complete manifest
    interpretation, one exact Alias backed Package scope, confined Storage,
    Archive Format 1, and exact Repository selection.
@@ -447,7 +454,7 @@ That inventory does not prove complete parsing for Library, App, Scene, Render,
 Shader, or Foreign. It also does not prove CPU semantic lowering, embedded
 resource folding, runtime execution, Puffer compile orchestration or physical
 publication, typed Object Module production, final native executable emission,
-or source free restoration.
+or Library, App, Scene, Render, Shader, or Foreign payload restoration.
 
 A fixture, README, target build, or test written beside an implementation is not
 an independent semantic oracle.

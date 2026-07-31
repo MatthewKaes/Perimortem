@@ -4,22 +4,44 @@
 one queryable TTX environment. The complete folder builds as
 `//tetrodotoxin:environment`.
 
-The current owner is `Environment::Workspace`. There is no separate Source,
-Container, Namespace, or finalized Graph object.
+`Environment::Workspace` is the public semantic island and import owner. It
+composes `Dialects`, `Retention`, and `Resolution` as narrower Environment
+state owners. There is no separate Source, Container, Namespace, or finalized
+Graph object.
 
 ## Workspace lifetime
 
-Workspace owns one Arena containing installed Dialect instances, retained
-source bytes, parser products, and retained Monographs. It retains Dialect
-instances in installation order, binds exact authored names to them, and binds
-successful direct and staged semantic source names to their Monographs. The
-accepted production transaction later adds restored dependency Monographs and
-ordered post pass.
+Workspace owns one Arena, direct source orchestration, confined Package FIFO
+orchestration, and the exact global authored name map. Its composed objects
+divide the remaining Environment state by lifetime and policy:
 
-Installed Dialects may retain state across interpretations. Workspace explicitly
-destroys every retained Monograph before destroying every installed Dialect.
-Both phases finish before Arena release, so Monograph and Dialect destructors
-may still use their Arena backed state.
+* `Dialects` owns installed names, exact lookup, concrete Dialect instances,
+  and host destruction order
+* `Retention` owns retained Monograph references, authored diagnostic origins,
+  first discovery order, the monotonic post pass prefix, and Monograph
+  destruction
+* `Resolution` owns exact Package key traversal, source free Archive restore,
+  Package root caching, Alias binding, and dependency failure attribution
+
+Each object's declarations live in its matching header and its behavior lives
+in its matching implementation. `workspace.cpp` contains only Workspace
+construction, source and Package import orchestration, and Abstract behavior.
+Resolution borrows the Workspace Arena, Dialects, and Retention explicitly. It
+does not retain Workspace or Repository and is not an adapter around another
+restoration owner.
+
+Resolution exposes only its durable restored Package cache in its private
+representation. Traversal keys, diagnostic hops, completed roots, and their
+operations live only in `resolution.cpp`. One transaction Arena backs those
+temporary vectors, so recursive restoration rents and releases one page chain
+instead of repeatedly allocating small dynamic buffers. `Option<T&>` appears
+only where absence is meaningful, such as the root stage having no owning
+Package.
+
+Installed Dialects may retain state across interpretations. Workspace member
+order destroys Resolution, then Retention and its Monographs, then Dialects and
+its concrete instances. Every phase finishes before Arena release, so
+Monograph and Dialect destructors may still use their Arena backed state.
 
 Package Storage owns filesystem acquisition, confinement, logical route
 normalization, and successful read caching. Workspace keeps each authored
@@ -30,7 +52,7 @@ and byte view remains valid for the semantic island lifetime.
 into the Workspace Arena before interpretation. It returns the published
 Monograph reference on success. The staged Package operation opens Storage
 with that Arena and enters its retained Content views directly into the same
-semantic transaction. This private retained input path exists because a raw
+semantic transaction. The private retained input path exists because a raw
 View does not identify its allocator. It avoids copying every Package source a
 second time while keeping direct caller input safe.
 
@@ -43,18 +65,19 @@ system:
 workspace.install_dialect<Package::Dialect>("Package")
 ```
 
-Workspace rejects an exact duplicate before construction, copies the authored
-name into its Arena, constructs one concrete Dialect with itself as the TTX
-registry, and retains the resulting instance. Installation reports true only
-for that successful publication. Installing the same concrete C++ Dialect
-under another name creates another distinct stateful instance.
+Workspace delegates installation to Dialects. Dialects rejects an exact
+duplicate before construction, copies the authored name into the shared Arena,
+constructs one concrete Dialect with Workspace as the TTX registry, and retains
+the resulting instance. Installation reports true only for that successful
+publication. Installing the same concrete C++ Dialect under another name
+creates another distinct stateful instance.
 
 The name map is a real Environment dispatch surface. It is not a TTX class
 registry or a copied semantic model.
 
 Unknown Dialect diagnostics enumerate the retained authored names in
 installation order. No concrete Package installation or interpretation is
-established by this Environment contract.
+established by the Environment contract.
 
 ## Source import
 
@@ -66,7 +89,7 @@ retain the semantic name, diagnostic path, and source bytes
 -> reject an already published exact semantic name
 -> create Tokenizer and Cursor with the diagnostic path
 -> require opening comment Documentation
--> parse `dialect : Type;`
+-> parse the universal Dialect declaration
 -> select the exact installed Dialect
 -> call its interpret operation with the same Cursor and Arena
 -> publish the semantic name only for an engaged Monograph
@@ -76,8 +99,9 @@ Failed envelope parsing, unknown Dialect dispatch, and failed interpretation
 publish no semantic name. Duplicate semantic imports leave the first Monograph
 unchanged, and a failed name may be retried.
 
-The implemented local Package path receives the package root, root semantic
-name, root logical route, and accumulated Errors. Its transaction is:
+The local Package path receives the physical root, root semantic name, root
+logical route, exact Package identity and Version, explicit Repository, and
+accumulated Errors. Its transaction is:
 
 ```text
 stage exact semantic name and package path
@@ -86,11 +110,17 @@ stage exact semantic name and package path
 -> reject a duplicate semantic source name
 -> create Tokenizer and Cursor with the diagnostic path
 -> require opening comment Documentation
--> parse `dialect : Type;`
+-> parse the universal Dialect declaration
 -> select the exact installed Dialect
 -> call its interpret operation with the same Cursor and Arena
--> retain the resulting Monograph by authored semantic name
--> stage Package Source bindings in authored order
+-> retain only the root by its Workspace global semantic name
+-> bind every staged member through its actual owning Package
+-> stage nested Package Source bindings in authored FIFO order
+-> select each exact dependency Archive without native inputs
+-> reconstruct the source free Package root from envelope facts
+-> restore members through their installed Dialects in Archive order
+-> bind completed dependency and member Alias edges through that Package root
+-> run each retained Monograph post pass once in first discovery order
 ```
 
 Environment owns the universal source envelope because it already owns the
@@ -101,14 +131,29 @@ Unknown Dialects and malformed envelopes are source errors. A failed
 interpretation publishes no source name binding. Staged acquisition failures
 log the exact semantic name and logical route because the retained Package
 model does not carry the original Source statement token. Envelope, dispatch,
-and interpretation failures with retained text remain source errors. None of
-these failures stop later FIFO entries. The operation reports failure only for
+and interpretation failures with retained text remain source errors. Those
+failures do not stop later FIFO entries. The operation reports failure only for
 failures encountered during that call, so preexisting diagnostics do not
-reject an otherwise successful Package. A complete staged transaction returns
-its retained root Monograph.
+reject an otherwise successful Package. A failed staging transaction completes
+its retained Monograph prefix but never enters dependency traversal. Resolution
+therefore receives only complete staged input.
 
-Workspace does not yet restore dependency Archives or invoke a Monograph post
-pass. Those completion steps remain W02 work.
+Resolution diagnoses exact active Package keys before selection. A completed
+exact key reuses its retained root, while another Version for the same identity
+is a conflict. Repository views may belong to another Arena, so Resolution
+copies only durable Package identities, Dependencies and nested names, and
+member Alias names. Opaque payloads remain borrowed for the concrete Dialect
+restore call, which owns every durable fact it returns in the Workspace Arena.
+
+An authored Dependency failure uses its aligned Span. Source free descendants
+inherit that same source path, body, and Span while extending the exact Alias,
+identity, and Version chain. One chain publishes at most one lowest Report and
+independent authored Dependencies continue. A typed Repository failure without
+an authored Span creates no source Report. Resolution returns either the root
+Monograph or a populated `SelectionError`. It preserves the first exact
+Repository category and uses `Unknown` when cycle, binding, restore, or post
+pass rejection has no Repository category. Post pass failures use the first
+retained diagnostic origin and do not stop later Monographs.
 
 ## Registry query
 
@@ -131,6 +176,8 @@ runtime values, linker objects, Archive envelope, or package repository search.
 
 Package Storage performs confined reads and supplies each retained diagnostic
 path and byte view. Package Source retains the separate authored local name and
-logical route. Workspace owns staging; Package owns path and repository policy.
+logical route. Repository performs exact selection and Archive owns its
+validated envelope. Workspace owns staging, Resolution owns restoration, and
+Retention owns completion without retaining either Package transaction owner.
 Concrete Dialects may retain their own lookup and completion structures inside
 their Monographs without adding a generic Environment Namespace.
