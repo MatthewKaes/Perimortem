@@ -355,7 +355,8 @@ PERIMORTEM_UNIT_TEST(PackageRepository, selected_failures) {
   EXPECT(rejects_selected_input(
       files, "empty.ttxa"_view, View::Bytes(), True, "Pkg.Core"_view,
       Version(1, 2),
-      "reason=the Archive file is empty. identity=Pkg.Core version=1.2"_view));
+      "reason=the Archive failed Format 1 validation. identity=Pkg.Core "
+      "version=1.2"_view));
   EXPECT(rejects_selected_input(
       files, "truncated.ttxa"_view, truncated, True, "Pkg.Core"_view,
       Version(1, 2),

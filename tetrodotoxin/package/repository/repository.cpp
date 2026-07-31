@@ -371,19 +371,12 @@ auto Package::Repository::Repository::select_archive(
     return {};
   }
 
-  // File correctly reports an empty regular file as successful bytes.
-  // Repository distinguishes that configured product failure from an unreadable
-  // path so the Reader never has to infer filesystem state from an empty view.
-  if ((*bytes).is_empty()) {
-    log_selection_failure(*selected, "the Archive file is empty."_view);
-    return {};
-  }
-
-  // Reader logs its exact Format 1 rejection before absence reaches this
-  // selection boundary. Repository adds the declaration key and location that
-  // Reader cannot know.
-  auto archive = Archive::Reader::read(arena, *bytes);
-  if (!archive) {
+  // File keeps an empty read distinct from storage failure. Reader classifies
+  // those bytes with every other invalid envelope, while Repository adds the
+  // declaration key and location that Reader cannot know.
+  auto read = Archive::Reader::read(arena, *bytes);
+  auto archive = read.find<Archive::Archive>();
+  if (archive == nullptr) {
     log_selection_failure(
         *selected, "the Archive failed Format 1 validation."_view);
     return {};
@@ -391,15 +384,15 @@ auto Package::Repository::Repository::select_archive(
 
   // A valid Archive can still be attached to the wrong Bazel key. Reader cannot
   // check that external declaration, so Repository compares it after decode.
-  if ((*archive).get_identity() != (*selected).get_identity() ||
-      (*archive).get_version() != (*selected).get_version()) {
+  if (archive->get_identity() != (*selected).get_identity() ||
+      archive->get_version() != (*selected).get_version()) {
     Diagnostics::Log::Message<768> message(Diagnostics::Log::Level::Info);
     message << repository_select_operation
             << " failed. reason=decoded Package key mismatch expected"_view;
     write_input_key(message, *selected);
-    message << " actual_identity="_view << (*archive).get_identity()
+    message << " actual_identity="_view << archive->get_identity()
             << " actual_version="_view;
-    write_version(message, (*archive).get_version());
+    write_version(message, archive->get_version());
     return {};
   }
 

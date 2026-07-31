@@ -10,6 +10,7 @@
 
 #include "tetrodotoxin/package/archive/export.hpp"
 #include "tetrodotoxin/package/archive/member.hpp"
+#include "tetrodotoxin/package/archive/read_error.hpp"
 #include "tetrodotoxin/package/archive/reader.hpp"
 #include "tetrodotoxin/package/archive/writer.hpp"
 
@@ -122,18 +123,24 @@ static auto body_splice(
   return result;
 }
 
-static auto rejects(View::Bytes input) -> Bool {
+static auto rejects(
+    View::Bytes input,
+    Package::Archive::ReadError expected =
+        Package::Archive::ReadError::InvalidFormat) -> Bool {
   Allocator::Arena arena;
 
   auto rejected = Package::Archive::Reader::read(arena, input);
-  if (rejected || !Test::error_contains(
-                      "Package::Archive::Reader Format 1 read failed"_view,
-                      Diagnostics::Log::Level::Debug)) {
+  auto error = rejected.find<Package::Archive::ReadError>();
+  if (rejected.is_null() || error == nullptr || *error != expected ||
+      !Test::error_contains(
+          "Package::Archive::Reader Format 1 read failed"_view,
+          Diagnostics::Log::Level::Debug)) {
     return False;
   }
 
   auto accepted = Package::Archive::Reader::read(arena, golden());
-  return bool(accepted);
+  return !accepted.is_null() &&
+         accepted.find<Package::Archive::Archive>() != nullptr;
 }
 
 static Harness PackageArchive = {
@@ -143,6 +150,40 @@ static Harness PackageArchive = {
   .teardown =
       []() { Diagnostics::Log::set_level(Diagnostics::Log::Level::Info); },
 };
+
+PERIMORTEM_UNIT_TEST(PackageArchive, typed_read_outcomes) {
+  Allocator::Arena arena;
+
+  auto empty = Package::Archive::Reader::read(arena, View::Bytes());
+  ASSERT_NOT(empty.is_null());
+  auto empty_error = empty.find<Package::Archive::ReadError>();
+  ASSERT(empty_error);
+  EXPECT(*empty_error == Package::Archive::ReadError::InvalidFormat);
+  EXPECT(
+      Test::error_contains(
+          "Package::Archive::Reader Format 1 read failed. stage=header "
+          "byte_offset=0 reason=the fixed header extends beyond the input "
+          "bytes."_view,
+          Diagnostics::Log::Level::Debug));
+
+  Dynamic::Bytes future(golden());
+  set_u16(future, 4, 2);
+  auto unsupported = Package::Archive::Reader::read(arena, future);
+  ASSERT_NOT(unsupported.is_null());
+  auto unsupported_error = unsupported.find<Package::Archive::ReadError>();
+  ASSERT(unsupported_error);
+  EXPECT(*unsupported_error == Package::Archive::ReadError::UnsupportedFormat);
+  EXPECT(
+      Test::error_contains(
+          "Package::Archive::Reader Format 1 read failed. stage=header "
+          "byte_offset=4 expected_format=1 actual_format=2"_view,
+          Diagnostics::Log::Level::Debug));
+
+  auto accepted = Package::Archive::Reader::read(arena, golden());
+  ASSERT_NOT(accepted.is_null());
+  EXPECT(accepted.find<Package::Archive::Archive>() != nullptr);
+  EXPECT(accepted.find<Package::Archive::ReadError>() == nullptr);
+}
 
 PERIMORTEM_UNIT_TEST(PackageArchive, literal_format_one) {
   using Sections = Package::Archive::Archive::Sections;
@@ -159,20 +200,21 @@ PERIMORTEM_UNIT_TEST(PackageArchive, literal_format_one) {
   Allocator::Arena arena;
   auto decoded = Package::Archive::Reader::read(arena, golden());
 
-  ASSERT(decoded);
-  auto& archive = *decoded;
-  EXPECT_TEXT(archive.get_identity(), "Pkg.Core"_view);
-  EXPECT_EQ(archive.get_version().get_major(), Unsigned_16(1));
-  EXPECT_EQ(archive.get_version().get_minor(), Unsigned_16(2));
+  ASSERT_NOT(decoded.is_null());
+  auto archive = decoded.find<Package::Archive::Archive>();
+  ASSERT(archive);
+  EXPECT_TEXT(archive->get_identity(), "Pkg.Core"_view);
+  EXPECT_EQ(archive->get_version().get_major(), Unsigned_16(1));
+  EXPECT_EQ(archive->get_version().get_minor(), Unsigned_16(2));
 
-  auto dependencies = archive.get_dependencies();
+  auto dependencies = archive->get_dependencies();
   ASSERT_EQ(dependencies.get_size(), Count(1));
   EXPECT_TEXT(dependencies[0].get_local_name(), "Core"_view);
   EXPECT_TEXT(dependencies[0].get_package_name(), "Pkg.Base"_view);
   EXPECT_EQ(dependencies[0].get_version().get_major(), Unsigned_16(3));
   EXPECT_EQ(dependencies[0].get_version().get_minor(), Unsigned_16(4));
 
-  auto members = archive.get_members();
+  auto members = archive->get_members();
   ASSERT_EQ(members.get_size(), Count(2));
   EXPECT_TEXT(members[0].get_semantic_name(), "Main"_view);
   EXPECT_TEXT(members[0].get_dialect_name(), "Lib"_view);
@@ -184,12 +226,12 @@ PERIMORTEM_UNIT_TEST(PackageArchive, literal_format_one) {
   EXPECT_EQ(members[1].get_payload()[1], Unsigned_8(0x00));
   EXPECT_EQ(members[1].get_payload()[2], Unsigned_8(0x55));
 
-  auto artifact_ids = archive.get_artifact_ids();
+  auto artifact_ids = archive->get_artifact_ids();
   ASSERT_EQ(artifact_ids.get_size(), Count(2));
   EXPECT_TEXT(artifact_ids[0], "cpu"_view);
   EXPECT_TEXT(artifact_ids[1], "res"_view);
 
-  auto exports = archive.get_exports();
+  auto exports = archive->get_exports();
   ASSERT_EQ(exports.get_size(), Count(2));
   EXPECT_TEXT(exports[0].get_semantic_route(), "Main::Run"_view);
   EXPECT_TEXT(exports[0].get_artifact_id(), "cpu"_view);
@@ -198,8 +240,8 @@ PERIMORTEM_UNIT_TEST(PackageArchive, literal_format_one) {
   EXPECT_TEXT(exports[1].get_artifact_id(), "res"_view);
   EXPECT_TEXT(exports[1].get_symbol_locator(), "asset"_view);
 
-  auto encoded_once = Package::Archive::Writer::write(archive);
-  auto encoded_twice = Package::Archive::Writer::write(archive);
+  auto encoded_once = Package::Archive::Writer::write(*archive);
+  auto encoded_twice = Package::Archive::Writer::write(*archive);
   ASSERT(encoded_once);
   ASSERT(encoded_twice);
   EXPECT((*encoded_once).get_view() == golden());
@@ -207,8 +249,11 @@ PERIMORTEM_UNIT_TEST(PackageArchive, literal_format_one) {
 
   Allocator::Arena second_arena;
   auto round_trip = Package::Archive::Reader::read(second_arena, *encoded_once);
-  ASSERT(round_trip);
-  auto encoded_round_trip = Package::Archive::Writer::write(*round_trip);
+  ASSERT_NOT(round_trip.is_null());
+  auto round_trip_archive = round_trip.find<Package::Archive::Archive>();
+  ASSERT(round_trip_archive);
+  auto encoded_round_trip =
+      Package::Archive::Writer::write(*round_trip_archive);
   ASSERT(encoded_round_trip);
   EXPECT((*encoded_round_trip).get_view() == golden());
 }
@@ -261,8 +306,10 @@ PERIMORTEM_UNIT_TEST(PackageArchive, empty_inventories) {
 
   Allocator::Arena decoded_arena;
   auto decoded = Package::Archive::Reader::read(decoded_arena, *encoded);
-  ASSERT(decoded);
-  EXPECT((*decoded).get_members()[0].get_payload().is_empty());
+  ASSERT_NOT(decoded.is_null());
+  auto decoded_archive = decoded.find<Package::Archive::Archive>();
+  ASSERT(decoded_archive);
+  EXPECT(decoded_archive->get_members()[0].get_payload().is_empty());
 }
 
 PERIMORTEM_UNIT_TEST(PackageArchive, equal_member_payloads) {
@@ -283,8 +330,10 @@ PERIMORTEM_UNIT_TEST(PackageArchive, equal_member_payloads) {
 
   Allocator::Arena arena;
   auto decoded = Package::Archive::Reader::read(arena, *encoded);
-  ASSERT(decoded);
-  auto retained = (*decoded).get_members();
+  ASSERT_NOT(decoded.is_null());
+  auto decoded_archive = decoded.find<Package::Archive::Archive>();
+  ASSERT(decoded_archive);
+  auto retained = decoded_archive->get_members();
   ASSERT_EQ(retained.get_size(), Count(2));
   EXPECT(retained[0].get_payload() == payload);
   EXPECT(retained[1].get_payload() == payload);
@@ -313,12 +362,14 @@ PERIMORTEM_UNIT_TEST(PackageArchive, opaque_export_locators) {
   ASSERT(encoded);
   Allocator::Arena decoded_arena;
   auto decoded = Package::Archive::Reader::read(decoded_arena, *encoded);
-  ASSERT(decoded);
+  ASSERT_NOT(decoded.is_null());
+  auto decoded_archive = decoded.find<Package::Archive::Archive>();
+  ASSERT(decoded_archive);
   EXPECT_TEXT(
-      (*decoded).get_exports()[0].get_semantic_route(),
+      decoded_archive->get_exports()[0].get_semantic_route(),
       "lower.case#route"_view);
   EXPECT_TEXT(
-      (*decoded).get_exports()[0].get_symbol_locator(), "symbol@v1"_view);
+      decoded_archive->get_exports()[0].get_symbol_locator(), "symbol@v1"_view);
 }
 
 PERIMORTEM_UNIT_TEST(PackageArchive, format_size_limits) {
@@ -354,14 +405,16 @@ PERIMORTEM_UNIT_TEST(PackageArchive, format_size_limits) {
 PERIMORTEM_UNIT_TEST(PackageArchive, borrowed_input) {
   Dynamic::Bytes input(golden());
   Allocator::Arena arena;
-  auto archive = Package::Archive::Reader::read(arena, input);
+  auto read = Package::Archive::Reader::read(arena, input);
+  ASSERT_NOT(read.is_null());
+  auto archive = read.find<Package::Archive::Archive>();
   ASSERT(archive);
 
   EXPECT_EQ(
-      (*archive).get_identity().get_data(),
+      archive->get_identity().get_data(),
       input.get_view().slice(identity_field + 12).get_data());
   EXPECT_EQ(
-      (*archive).get_dependencies()[0].get_local_name().get_data(),
+      archive->get_dependencies()[0].get_local_name().get_data(),
       input.get_view().slice(dependency_field + 20).get_data());
 
   auto encoded = Package::Archive::Writer::write(*archive);
@@ -373,15 +426,18 @@ PERIMORTEM_UNIT_TEST(PackageArchive, borrowed_input) {
   View::Bytes stable_input = temporary_arena.proxy(temporary_input);
   auto temporary =
       Package::Archive::Reader::read(temporary_arena, stable_input);
-  ASSERT(temporary);
+  ASSERT_NOT(temporary.is_null());
+  auto temporary_archive = temporary.find<Package::Archive::Archive>();
+  ASSERT(temporary_archive);
   temporary_input.set(0xFF);
-  auto temporary_bytes = Package::Archive::Writer::write(*temporary);
+  auto temporary_bytes = Package::Archive::Writer::write(*temporary_archive);
   ASSERT(temporary_bytes);
   EXPECT((*temporary_bytes).get_view() == golden());
 
   Allocator::Arena later_arena;
   auto later = Package::Archive::Reader::read(later_arena, golden());
-  EXPECT(later);
+  EXPECT_NOT(later.is_null());
+  EXPECT(later.find<Package::Archive::Archive>() != nullptr);
 }
 
 PERIMORTEM_UNIT_TEST(PackageArchive, every_truncation_boundary) {
@@ -394,10 +450,15 @@ PERIMORTEM_UNIT_TEST(PackageArchive, envelope_boundaries) {
   Dynamic::Bytes bad_magic(golden());
   bad_magic.get_access()[0] = 'X';
   EXPECT(rejects(bad_magic));
+  EXPECT(
+      Test::error_contains(
+          "stage=header byte_offset=0 expected_magic=TTXA "
+          "actual_magic=XTXA"_view,
+          Diagnostics::Log::Level::Debug));
 
   Dynamic::Bytes bad_format(golden());
   set_u16(bad_format, 4, 2);
-  EXPECT(rejects(bad_format));
+  EXPECT(rejects(bad_format, Package::Archive::ReadError::UnsupportedFormat));
 
   Dynamic::Bytes header_flags(golden());
   set_u16(header_flags, 6, 1);
@@ -426,6 +487,10 @@ PERIMORTEM_UNIT_TEST(PackageArchive, envelope_boundaries) {
   Dynamic::Bytes unknown_required(golden());
   set_u16(unknown_required, identity_field, 7);
   EXPECT(rejects(unknown_required));
+  EXPECT(
+      Test::error_contains(
+          "stage=field tag byte_offset=12 unknown_required_tag=7"_view,
+          Diagnostics::Log::Level::Debug));
 
   const Unsigned_8 malformed_optional[] = {
     0x07, 0x00, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0xAA,
@@ -442,8 +507,10 @@ PERIMORTEM_UNIT_TEST(PackageArchive, envelope_boundaries) {
   Allocator::Arena optional_arena;
   auto decoded =
       Package::Archive::Reader::read(optional_arena, accepted_optional);
-  ASSERT(decoded);
-  auto canonical = Package::Archive::Writer::write(*decoded);
+  ASSERT_NOT(decoded.is_null());
+  auto decoded_archive = decoded.find<Package::Archive::Archive>();
+  ASSERT(decoded_archive);
+  auto canonical = Package::Archive::Writer::write(*decoded_archive);
   ASSERT(canonical);
   EXPECT((*canonical).get_view() == golden());
 }
@@ -472,6 +539,12 @@ PERIMORTEM_UNIT_TEST(PackageArchive, singleton_fields) {
   Dynamic::Bytes field_escape(golden());
   set_u32(field_escape, export_field + 4, 71);
   EXPECT(rejects(field_escape));
+  EXPECT(
+      Test::error_contains(
+          "stage=field framing byte_offset=187 section_tag=6 "
+          "payload_size=71 reason=the field extends beyond the declared "
+          "body."_view,
+          Diagnostics::Log::Level::Debug));
 
   const Unsigned_8 extra_payload[] = {0xAA};
   Dynamic::Bytes unconsumed_field =
@@ -529,6 +602,11 @@ PERIMORTEM_UNIT_TEST(PackageArchive, malformed_names_and_locators) {
   Dynamic::Bytes package_name(golden());
   package_name.get_access()[identity_field + 12] = 'p';
   EXPECT(rejects(package_name));
+  EXPECT(
+      Test::error_contains(
+          "inventory=Package identity value=pkg.Core size=8 "
+          "reason=the value is not a qualified Package Type name."_view,
+          Diagnostics::Log::Level::Debug));
 
   Dynamic::Bytes dependency_alias(golden());
   dependency_alias.get_access()[dependency_field + 20] = 'c';
@@ -596,6 +674,19 @@ PERIMORTEM_UNIT_TEST(PackageArchive, malformed_names_and_locators) {
 }
 
 PERIMORTEM_UNIT_TEST(PackageArchive, uniqueness_and_references) {
+  Dynamic::Bytes scope_collision(golden());
+  auto scope_bytes = scope_collision.get_access();
+  scope_bytes[dependency_field + 20] = 'M';
+  scope_bytes[dependency_field + 21] = 'a';
+  scope_bytes[dependency_field + 22] = 'i';
+  scope_bytes[dependency_field + 23] = 'n';
+  EXPECT(rejects(scope_collision));
+  EXPECT(
+      Test::error_contains(
+          "duplicate_inventory=Package scope names value=Main "
+          "dependency_index=0 member_index=0"_view,
+          Diagnostics::Log::Level::Debug));
+
   View::Bytes dependency_record = golden().slice(dependency_field + 12, 28);
   Dynamic::Bytes duplicate_dependency =
       body_splice(golden(), member_field, 0, dependency_record);

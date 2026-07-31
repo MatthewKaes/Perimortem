@@ -123,9 +123,9 @@ filename.
 ## Archive and repository
 
 Namespace `Package::Archive` owns the durable `Archive` value, Format 1
-`Reader`, and canonical `Writer`. `Package::Archive::Archive` is the semantic
-terminal for later source free restoration and is distinct from every Linker
-native product.
+`Reader`, its stable `ReadError`, and canonical `Writer`.
+`Package::Archive::Archive` is the semantic terminal for later source free
+restoration and is distinct from every Linker native product.
 
 An Archive contains:
 
@@ -153,11 +153,17 @@ while it holds the returned Archive value. A caller with shorter lived input
 copies it into the Arena once before reading, while an Arena backed file read
 passes its existing view directly. Reader logs the exact failing Format stage,
 byte offset, section tag, invalid value, duplicate name, or unknown reference
-through `Diagnostics::Log` and returns absence. It does not construct a textual
-source error because binary Archive bytes provide no authored token context. A
-later Workspace restoration transaction will attach that failure to the
-authored Dependency request before selecting the installed Dialect and calling
-its `restore` operation.
+through `Diagnostics::Log` and returns
+`Static::Union<Archive, ReadError>`. Every result selects one alternative.
+`ReadError::UnsupportedFormat` identifies a readable envelope header with a
+format revision other than 1. Empty input and every other malformed or
+semantically invalid Format 1 input select `ReadError::InvalidFormat`. The
+error contains no offset, tag, value, or inventory detail because those facts
+remain in the Debug record. Reader does not construct a textual source error
+because binary Archive bytes provide no authored token context. A later
+Workspace restoration transaction will attach that failure to the authored
+Dependency request before selecting the installed Dialect and calling its
+`restore` operation.
 
 ### Format 1
 
@@ -221,11 +227,12 @@ and dependency versions reject the reserved `0.0` value.
 
 Dependencies may be empty. Native artifact and export inventories may be
 empty. Members must not be empty. Dependency aliases, member semantic names,
-artifact IDs, and export semantic routes are each unique in their inventory.
-Every artifact ID, export semantic route, export artifact ID, and symbol
-locator is nonempty and contains no NUL byte. Every export references an
-artifact ID declared in the same Archive. Equal member payload bytes remain
-independent member facts.
+artifact IDs, and export semantic routes are each unique in their inventory. A
+Dependency alias must not equal a member semantic name because both names
+occupy the same Package scope. Every artifact ID, export semantic route, export
+artifact ID, and symbol locator is nonempty and contains no NUL byte. Every
+export references an artifact ID declared in the same Archive. Equal member
+payload bytes remain independent member facts.
 
 The writer accepts only a validated Archive. It preserves every supplied list
 order, preserves zero length member payloads, checks the complete encoded size
@@ -254,7 +261,10 @@ selected input logs its exact Package key, Archive location, and failure stage,
 while every unselected declaration remains inert. Native mapping failures name
 the missing, duplicate, or unknown artifact ID and every available filesystem
 location. Native lookup validates the semantic Archive and then returns only
-the borrowed exact path. It never reads native bytes.
+the borrowed exact path. It never reads native bytes. An empty selected file is
+a successful filesystem read whose bytes reach Reader and select
+`ReadError::InvalidFormat`; Repository retains its existing optional public
+selection result until the typed Repository correction.
 
 Archive and native inventories use the same Output value and exact Package
 identity, Version, and artifact ID key while retaining separate lookup

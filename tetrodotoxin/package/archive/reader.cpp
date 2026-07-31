@@ -14,7 +14,6 @@
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
 using namespace Perimortem::System;
-using namespace Perimortem::Utility;
 using namespace Ttx::Lexical;
 using namespace Tetrodotoxin;
 
@@ -191,6 +190,22 @@ static auto validate(
       if (members[earlier].get_semantic_name() == semantic_name) {
         return log_duplicate_value(
             "Member semantic names"_view, semantic_name, earlier, i);
+      }
+    }
+
+    // Dependencies and members are restored into one Package scope. Reject
+    // the cross inventory collision here so a source free Package cannot
+    // expose two meanings for the same authored name.
+    for (Count dependency_index = 0; dependency_index < dependencies.get_size();
+         dependency_index++) {
+      if (dependencies[dependency_index].get_local_name() == semantic_name) {
+        Diagnostics::Log::Message<384> message(Diagnostics::Log::Level::Debug);
+        message << archive_read_operation
+                << " failed validation. duplicate_inventory=Package scope "
+                   "names value="_view
+                << semantic_name << " dependency_index="_view
+                << dependency_index << " member_index="_view << i;
+        return False;
       }
     }
   }
@@ -479,11 +494,11 @@ static auto parse_exports(
 // stage and byte position in the debug trace, then let the requesting owner
 // decide how the failed dependency or compile request should be reported.
 static auto reject_archive(View::Bytes stage, Count offset, View::Bytes reason)
-    -> Option<Package::Archive::Archive> {
+    -> Static::Union<Package::Archive::Archive, Package::Archive::ReadError> {
   Diagnostics::Log::Message<384> message(Diagnostics::Log::Level::Debug);
   message << archive_read_operation << " failed. stage="_view << stage
           << " byte_offset="_view << offset << " reason="_view << reason;
-  return {};
+  return Package::Archive::ReadError::InvalidFormat;
 }
 
 // Copies one decoded inventory into Arena storage without copying any nested
@@ -522,7 +537,7 @@ static auto retain_archive(
 }
 
 auto Package::Archive::Reader::read(Allocator::Arena& arena, View::Bytes input)
-    -> Option<Archive> {
+    -> Static::Union<Archive, ReadError> {
   // Decode the complete fixed header first. Accepted input must carry the
   // Format 1 magic and version while leaving every reserved flag clear.
   LittleReader reader(input);
@@ -542,18 +557,19 @@ auto Package::Archive::Reader::read(Allocator::Arena& arena, View::Bytes input)
             << " failed. stage=header byte_offset=0 expected_magic=TTXA "
                "actual_magic="_view
             << magic;
-    return {};
+    return ReadError::InvalidFormat;
   }
 
-  // Currently we only accept a single format. In the future we can explore
-  // having upgrade paths for older packages.
+  // A readable revision is the only rejection that gives callers a recovery
+  // decision beyond invalid Format 1 bytes. Keep the exact revision in the
+  // Debug record while the returned category stays small.
   if (format != 1) {
     Diagnostics::Log::Message<384> message(Diagnostics::Log::Level::Debug);
     message << archive_read_operation
             << " failed. stage=header byte_offset=4 expected_format=1 "
                "actual_format="_view
             << format;
-    return {};
+    return ReadError::UnsupportedFormat;
   }
 
   if (header_flags != 0) {
@@ -562,7 +578,7 @@ auto Package::Archive::Reader::read(Allocator::Arena& arena, View::Bytes input)
             << " failed. stage=header byte_offset=6 expected_flags=0 "
                "actual_flags="_view
             << header_flags;
-    return {};
+    return ReadError::InvalidFormat;
   }
 
   // Require the declared body to consume every remaining input byte. Every
@@ -574,7 +590,7 @@ auto Package::Archive::Reader::read(Allocator::Arena& arena, View::Bytes input)
             << " failed. stage=body size declared_size="_view << body_size
             << " available_size="_view
             << (reader.get_size() - reader.get_location());
-    return {};
+    return ReadError::InvalidFormat;
   }
 
   // Hold decoded views in transaction storage until all six sections and their
@@ -604,7 +620,7 @@ auto Package::Archive::Reader::read(Allocator::Arena& arena, View::Bytes input)
               << section_offset << " section_tag="_view << section_tag
               << " payload_size="_view << payload_size
               << " reason=the field extends beyond the declared body."_view;
-      return {};
+      return ReadError::InvalidFormat;
     }
 
     // Bit zero is the only Format 1 section flag. Any other bit would assign
@@ -616,7 +632,7 @@ auto Package::Archive::Reader::read(Allocator::Arena& arena, View::Bytes input)
               << section_offset << " section_tag="_view << section_tag
               << " actual_flags="_view << flags << " allowed_flags="_view
               << required_field;
-      return {};
+      return ReadError::InvalidFormat;
     }
 
     const Bool known =
@@ -631,7 +647,7 @@ auto Package::Archive::Reader::read(Allocator::Arena& arena, View::Bytes input)
                 << " failed. stage=field tag byte_offset="_view
                 << section_offset << " unknown_required_tag="_view
                 << section_tag;
-        return {};
+        return ReadError::InvalidFormat;
       }
 
       continue;
@@ -645,7 +661,7 @@ auto Package::Archive::Reader::read(Allocator::Arena& arena, View::Bytes input)
               << section_offset << " expected_tag="_view << expected_section
               << " actual_tag="_view << section_tag << " expected_flags="_view
               << required_field << " actual_flags="_view << flags;
-      return {};
+      return ReadError::InvalidFormat;
     }
 
     // Dispatch the current section through the shared public vocabulary. Each
@@ -681,7 +697,7 @@ auto Package::Archive::Reader::read(Allocator::Arena& arena, View::Bytes input)
               << " failed. stage=known field payload byte_offset="_view
               << section_offset << " section_tag="_view << section_tag
               << " payload_size="_view << payload_size;
-      return {};
+      return ReadError::InvalidFormat;
     }
 
     expected_section++;
@@ -695,14 +711,14 @@ auto Package::Archive::Reader::read(Allocator::Arena& arena, View::Bytes input)
             << " failed. stage=required field completion byte_offset="_view
             << reader.get_location() << " first_missing_tag="_view
             << expected_section;
-    return {};
+    return ReadError::InvalidFormat;
   }
 
   // Validate Package names, versions, uniqueness, and Export references after
   // every section is structurally complete.
   if (!validate(
           identity, version, dependencies, members, artifact_ids, exports)) {
-    return {};
+    return ReadError::InvalidFormat;
   }
 
   // Retain the typed record ranges in the caller Arena without copying input
