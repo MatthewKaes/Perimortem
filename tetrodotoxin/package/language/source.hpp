@@ -10,6 +10,7 @@
 #include "perimortem/utility/option.hpp"
 
 #include "ttx/lexical/cursor.hpp"
+#include "ttx/lexical/span.hpp"
 
 namespace Tetrodotoxin::Package::Language {
 
@@ -22,11 +23,12 @@ class Source {
       Perimortem::Core::View::Bytes source_path)
       : local_name(local_name), source_path(source_path) {}
 
-  // Consumes one complete Source statement or returns no value after
-  // recovering the Cursor to the next statement boundary.
+  // Consumes one complete Source statement and publishes its bounds beside the
+  // durable Source. Failure recovers the Cursor and leaves the Span invalid.
   static auto parse(
       Perimortem::Memory::Allocator::Arena& domain,
-      Ttx::Lexical::Cursor& cursor) -> Perimortem::Utility::Option<Source>;
+      Ttx::Lexical::Cursor& cursor,
+      Ttx::Lexical::Span& span) -> Perimortem::Utility::Option<Source>;
 
   constexpr auto get_local_name() const -> Perimortem::Core::View::Bytes {
     return local_name;

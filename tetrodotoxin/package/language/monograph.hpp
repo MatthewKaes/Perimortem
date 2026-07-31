@@ -3,11 +3,13 @@
 
 #pragma once
 
+#include "perimortem/memory/managed/map.hpp"
+
 #include "tetrodotoxin/language/dialect.hpp"
 #include "tetrodotoxin/package/language/dependency.hpp"
 #include "tetrodotoxin/package/language/source.hpp"
-#include "ttx/concept/invalid.hpp"
 #include "ttx/lexical/span.hpp"
+#include "ttx/model/alias.hpp"
 
 namespace Tetrodotoxin::Package::Language {
 
@@ -30,8 +32,8 @@ class Monograph : public Tetrodotoxin::Language::Dialect::Monograph {
            Tetrodotoxin::Language::Dialect::Monograph::implements(requested);
   }
 
-  // Authored construction rejects a partial provenance inventory before any
-  // graph identity enters the Arena.
+  // Authored construction rejects an empty Source inventory or partial
+  // provenance before any graph identity enters the Arena.
   static auto create_authored(
       Perimortem::Memory::Allocator::Arena& domain,
       const Ttx::Concept::Documentation& documentation,
@@ -39,15 +41,7 @@ class Monograph : public Tetrodotoxin::Language::Dialect::Monograph {
       Perimortem::Core::View::Vector<Dependency> dependencies,
       Perimortem::Core::View::Vector<Ttx::Lexical::Span> dependency_spans,
       Perimortem::Core::View::Vector<Source> sources)
-      -> Perimortem::Utility::Option<Monograph&> {
-    if (dependencies.get_size() != dependency_spans.get_size()) {
-      return {};
-    }
-
-    return domain.construct<Monograph>(
-        Construction(), domain, documentation, host, dependencies,
-        dependency_spans, sources);
-  }
+      -> Perimortem::Utility::Option<Monograph&>;
 
   // Archive restoration has no authored Tokens or Source paths. Selecting
   // this operation records that absence directly instead of asking callers to
@@ -56,12 +50,7 @@ class Monograph : public Tetrodotoxin::Language::Dialect::Monograph {
       Perimortem::Memory::Allocator::Arena& domain,
       const Ttx::Concept::Documentation& documentation,
       Tetrodotoxin::Language::Dialect& host,
-      Perimortem::Core::View::Vector<Dependency> dependencies) -> Monograph& {
-    return domain.construct<Monograph>(
-        Construction(), domain, documentation, host, dependencies,
-        Perimortem::Core::View::Vector<Ttx::Lexical::Span>(),
-        Perimortem::Core::View::Vector<Source>());
-  }
+      Perimortem::Core::View::Vector<Dependency> dependencies) -> Monograph&;
 
   Monograph(
       Construction,
@@ -70,36 +59,31 @@ class Monograph : public Tetrodotoxin::Language::Dialect::Monograph {
       Tetrodotoxin::Language::Dialect& host,
       Perimortem::Core::View::Vector<Dependency> dependencies,
       Perimortem::Core::View::Vector<Ttx::Lexical::Span> dependency_spans,
-      Perimortem::Core::View::Vector<Source> sources)
-      : Tetrodotoxin::Language::Dialect::Monograph(domain, documentation, host),
-        dependencies(dependencies),
-        dependency_spans(dependency_spans),
-        sources(sources) {}
+      Perimortem::Core::View::Vector<Source> sources);
 
-  // The package monograph requires the caller to know the contract directly.
-  // It doesn't resolve any routes to any subtree context.
-  constexpr auto resolve_context(Perimortem::Core::View::Bytes) const
-      -> const Ttx::Concept::Abstract& override {
-    return Ttx::Concept::Invalid::get_invalid();
-  }
+  // Member names and targets must already belong to the Monograph Arena.
+  // Authored Packages accept their declared Source names while source free
+  // Packages accept the member inventory validated by Archive Reader.
+  auto bind_member(
+      Perimortem::Core::View::Bytes local_name,
+      const Tetrodotoxin::Language::Dialect::Monograph& member) -> Bool;
 
-  constexpr auto get_name() const -> Perimortem::Core::View::Bytes override {
-    return "Package"_view;
-  }
+  // The request must belong to this Monograph and the completed Package root
+  // must already share its Arena lifetime.
+  auto bind_dependency(const Dependency& dependency, const Monograph& package)
+      -> Bool;
 
-  constexpr auto get_dependencies() const
-      -> Perimortem::Core::View::Vector<Dependency> {
-    return dependencies;
-  }
+  auto resolve_context(Perimortem::Core::View::Bytes route) const
+      -> const Ttx::Concept::Abstract& override;
 
-  constexpr auto get_dependency_spans() const
-      -> Perimortem::Core::View::Vector<Ttx::Lexical::Span> {
-    return dependency_spans;
-  }
+  auto get_name() const -> Perimortem::Core::View::Bytes override;
 
-  constexpr auto get_sources() const -> Perimortem::Core::View::Vector<Source> {
-    return sources;
-  }
+  auto get_dependencies() const -> Perimortem::Core::View::Vector<Dependency>;
+
+  auto get_dependency_spans() const
+      -> Perimortem::Core::View::Vector<Ttx::Lexical::Span>;
+
+  auto get_sources() const -> Perimortem::Core::View::Vector<Source>;
 
  private:
   // The Package Monograph is fully formed by interpretation and only exposes
@@ -107,5 +91,8 @@ class Monograph : public Tetrodotoxin::Language::Dialect::Monograph {
   Perimortem::Core::View::Vector<Dependency> dependencies;
   Perimortem::Core::View::Vector<Ttx::Lexical::Span> dependency_spans;
   Perimortem::Core::View::Vector<Source> sources;
+  Perimortem::Memory::Managed::
+      Map<Perimortem::Core::View::Bytes, Ttx::Model::Alias&>
+          bindings;
 };
 }  // namespace Tetrodotoxin::Package::Language

@@ -14,7 +14,8 @@ and the tooling boundaries for runtime and package artifacts.
    Monographs by authored source name.
 3. [`package`](package/) owns the authored Package Dialect shape, exact
    Dependency requests, exact Source name to path bindings, and the Package
-   Monograph model. It also owns confined Package Storage.
+   Monograph's exact Alias backed local scope. It also owns confined Package
+   Storage.
 4. [`library`](library/) owns Library language semantics, built in CPU Types,
    native CPU assembly, and the future reusable CPU compiler.
 5. [`app`](app/) owns startup profiles, lifecycle policy, and generated platform
@@ -86,6 +87,12 @@ stage. It drains exact Source names and logical routes in FIFO order, retains
 successful Monographs, and continues after independent failures. Dependency
 restoration and ordered post pass remain absent, so the transaction above is
 not yet complete.
+
+Package Monograph already owns the local binding operations needed by that
+successor. Completed authored or restored members and restored Package roots
+enter one exact name map as real TTX Alias edges. Lookup returns the stored edge
+or shared Invalid without splitting qualified names or publishing Package local
+members in Workspace's independent source map.
 
 ## Semantic ownership
 

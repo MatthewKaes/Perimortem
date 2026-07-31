@@ -36,10 +36,15 @@ static auto parse_quoted_path(Cursor& cursor, Token& token)
   return text.slice(1, text.get_size() - 2);
 }
 
-auto Package::Language::Source::parse(Allocator::Arena& domain, Cursor& cursor)
-    -> Option<Source> {
-  if (!cursor.require(
-          Code::Type::Source, "Expected a Package `source` statement."_view)) {
+auto Package::Language::Source::parse(
+    Allocator::Arena& domain,
+    Cursor& cursor,
+    Span& span) -> Option<Source> {
+  span = Span();
+
+  Token source = cursor.require(
+      Code::Type::Source, "Expected a Package `source` statement."_view);
+  if (!source) {
     cursor.recover_to_statement();
     return {};
   }
@@ -80,13 +85,18 @@ auto Package::Language::Source::parse(Allocator::Arena& domain, Cursor& cursor)
     return {};
   }
 
-  if (!cursor.require(
-          Code::Type::EndStatement,
-          "Source statements require a terminating `;`."_view)) {
+  // Keep the range invalid until the normalized path and terminating Token are
+  // both complete. Recovery can then consume a boundary without publishing a
+  // plausible but incomplete Source statement.
+  Token consumed_end_statement = cursor.require(
+      Code::Type::EndStatement,
+      "Source statements require a terminating `;`."_view);
+  if (!consumed_end_statement) {
     cursor.recover_to_statement();
     return {};
   }
 
   View::Bytes durable_path = domain.proxy(normalized_path.get_view());
+  span = Span(source, consumed_end_statement);
   return Source(local_name, durable_path);
 }

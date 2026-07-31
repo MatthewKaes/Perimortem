@@ -50,12 +50,17 @@ retains the Source values in authored order. Its path is delimiter free and
 lexically normalized through `System::Path`. Package interpretation copies the
 normalized bytes into the graph Arena and does not open the path.
 
-The stateless Source `parse` factory owns that one complete statement. It
-retains no Cursor, Token, bookmark, or partial declaration.
+The stateless Source `parse` factory owns that one complete statement and
+returns only a complete Source. A separate output `Ttx::Lexical::Span` covers
+the successfully consumed Source through its EndStatement Token and remains
+invalid on failure. That range is used for transaction diagnostics and is not
+retained on Source or Monograph.
 
 Dependencies are optional and must precede Sources. At least one Source is
 required. Duplicate Dependency local aliases, duplicate Source semantic names,
-and duplicate normalized Source paths are independent Package errors.
+and duplicate normalized Source paths are independent Package errors. A
+Dependency local alias colliding with a Source semantic name rejects the
+complete transaction over the full offending Source statement.
 
 ## Dialect and Monograph
 
@@ -73,15 +78,30 @@ The implemented interpretation contract constructs one
 `Package::Language::Monograph` in the Environment Arena after a successful
 transaction. The Monograph retains its opening Documentation, its host Package
 Dialect, ordered exact Dependency requests, one aligned lexical Span per
-request, and ordered Source bindings.
+request, and ordered Source bindings. Its exact Package local scope binds
+completed source Monographs and restored Package roots through real
+`Ttx::Model::Alias` objects allocated in that same Arena.
 
 Authored construction rejects a Dependency and span count mismatch before
 publishing a Monograph. The explicit source free construction path accepts no
 spans or Source bindings and therefore exposes an empty span inventory without
 asking Workspace to infer provenance from its size.
 
-It retains no filesystem handle, downloaded dependency, opened member
-Monograph, compiler product, or archive entry.
+`bind_member` accepts an authored Source name or one source free Archive member
+name and its completed Monograph. `bind_dependency` accepts one retained
+Dependency request and its completed Package root. Both operations reject empty
+names, duplicates, direct cycles, undeclared authored member names, undeclared
+Dependency requests, and cross-kind collisions before allocating another
+Alias. The first valid edge therefore remains stable.
+
+`resolve_context` performs one exact byte lookup and returns the stored Alias
+edge itself. Missing, partial, differently qualified, and alternate spelling
+queries return the shared TTX Invalid identity. It does not split `::`, infer a
+hierarchy, normalize a name, or copy a target into another semantic model.
+
+The Monograph retains no filesystem handle, downloaded dependency product,
+Archive bytes, Repository state, source text, path, Token, diagnostic state,
+compiler product, or archive entry.
 
 Any failed Package transaction constructs and publishes no Package Monograph.
 Interpretation continues across recoverable statement failures so independent
@@ -120,9 +140,11 @@ search the process working directory or resolve relative to a containing
 Source. Content outside the opened root is available only through an exact
 resolved Dependency.
 
-The current Monograph model still retains authored Source bindings only.
 Package Storage does not import members, construct Library Constants,
-interpret semantic facts, resolve dependencies, or select an App.
+interpret semantic facts, resolve dependencies, or select an App. Workspace
+will bind staged members and restored dependency roots through the Package
+Monograph operations. Those Package local edges require no publication in
+Workspace's independent source map.
 
 `main.ttx` is only a filename convention. Future package assembly selects the
 sole completed App Monograph regardless of its local Source name or member

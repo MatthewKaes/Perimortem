@@ -18,6 +18,7 @@
 #include "tetrodotoxin/package/language/source.hpp"
 #include "ttx/concept/invalid.hpp"
 #include "ttx/lexical/span.hpp"
+#include "ttx/model/alias.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -65,6 +66,16 @@ static auto has_diagnostic(const Errors& errors, View::Bytes fragment) -> Bool {
   return False;
 }
 
+static auto has_diagnostic_marker(const Errors& errors, Count width) -> Bool {
+  Dynamic::Bytes marker("^"_view);
+  for (Count i = 1; i < width; i++) {
+    marker.concat("-"_view);
+  }
+
+  marker.concat("\n"_view);
+  return has_diagnostic(errors, marker);
+}
+
 static auto rejects_package(
     View::Bytes path,
     View::Bytes source,
@@ -94,6 +105,25 @@ static auto rejects_package_file(View::Bytes path, View::Bytes diagnostic)
 
 static Harness PackageDialect = {
   .name = "Tetrodotoxin::Package::Dialect"_view,
+};
+
+class ScopeMember : public Language::Dialect::Monograph {
+ public:
+  ScopeMember(
+      Allocator::Arena& domain,
+      const Documentation& documentation,
+      Language::Dialect& host,
+      View::Bytes name)
+      : Monograph(domain, documentation, host), name(name) {}
+
+  auto get_name() const -> View::Bytes override { return name; }
+
+  auto resolve_context(View::Bytes) const -> const Abstract& override {
+    return Invalid::get_invalid();
+  }
+
+ private:
+  View::Bytes name;
 };
 
 PERIMORTEM_UNIT_TEST(PackageDialect, dependency_statement) {
@@ -149,13 +179,34 @@ PERIMORTEM_UNIT_TEST(PackageDialect, source_statement) {
   Tokenizer tokenizer(arena, source, "source.ttx"_view);
   Cursor cursor(tokenizer, errors);
 
-  auto parsed = Package::Language::Source::parse(arena, cursor);
+  Span span;
+  auto parsed = Package::Language::Source::parse(arena, cursor, span);
 
   ASSERT(parsed);
   EXPECT_TEXT((*parsed).get_local_name(), "Scenes::Splash"_view);
   EXPECT_TEXT((*parsed).get_source_path(), "scenes/splash.ttx"_view);
+  EXPECT(span.get_start().get_code() == Code::Type::Source);
+  EXPECT(span.get_end().get_code() == Code::Type::EndStatement);
+  EXPECT_TEXT(
+      span.caculate_text(source),
+      "source Scenes::Splash from \"scenes/./splash.ttx\";"_view);
   EXPECT(cursor.matches(Code::Type::Resolve));
   EXPECT(errors.is_empty());
+
+  static constexpr View::Bytes invalid_source =
+      "source Main from \"main.ttx\""_view;
+  Allocator::Arena invalid_arena;
+  Errors invalid_errors;
+  Tokenizer invalid_tokenizer(
+      invalid_arena, invalid_source, "invalid-source.ttx"_view);
+  Cursor invalid_cursor(invalid_tokenizer, invalid_errors);
+  Span invalid_span(Token(0, 1, 1, 6, Code::Type::Source));
+
+  auto rejected = Package::Language::Source::parse(
+      invalid_arena, invalid_cursor, invalid_span);
+  EXPECT_NOT(rejected);
+  EXPECT_NOT(invalid_span);
+  EXPECT_NOT(invalid_errors.is_empty());
 }
 
 PERIMORTEM_UNIT_TEST(PackageDialect, ordered_monograph) {
@@ -301,18 +352,161 @@ PERIMORTEM_UNIT_TEST(PackageDialect, construction_provenance) {
   Package::Dialect host(registry);
   Allocator::Arena arena;
 
-  // The authored factory owns the only invalid inventory shape. The separate
-  // source free operation has no span input that a caller could misclassify.
+  // Authored construction owns its required Source and aligned provenance.
+  // The source free operation has no span input a caller could misclassify.
   auto partial = Package::Language::Monograph::create_authored(
       arena, Documentation::get_empty(), host, dependencies, partial_spans,
       sources);
   EXPECT_NOT(partial);
+
+  auto empty_authored = Package::Language::Monograph::create_authored(
+      arena, Documentation::get_empty(), host, {}, {}, {});
+  EXPECT_NOT(empty_authored);
 
   auto& source_free = Package::Language::Monograph::create_source_free(
       arena, Documentation::get_empty(), host, dependencies);
   ASSERT_EQ(source_free.get_dependencies().get_size(), Count(2));
   EXPECT(source_free.get_dependency_spans().is_empty());
   EXPECT(source_free.get_sources().is_empty());
+}
+
+PERIMORTEM_UNIT_TEST(PackageDialect, exact_scope) {
+  Package::Language::Dependency dependencies[] = {
+    Package::Language::Dependency(
+        "Runtime::Core"_view, "Example.Core"_view, Version(1, 0)),
+  };
+  Span dependency_spans[] = {
+    Span(
+        Token(0, 1, 1, 7, Code::Type::Resolve),
+        Token(44, 1, 45, 1, Code::Type::EndStatement)),
+  };
+  Package::Language::Source sources[] = {
+    Package::Language::Source("Qualified::Member"_view, "member.ttx"_view),
+  };
+  Environment::Workspace workspace;
+  Package::Dialect host(workspace);
+  Allocator::Arena arena;
+  auto root_result = Package::Language::Monograph::create_authored(
+      arena, Documentation::get_empty(), host, dependencies, dependency_spans,
+      sources);
+  ASSERT(root_result);
+  auto& root = *root_result;
+  auto& member = arena.construct<ScopeMember>(
+      arena, Documentation::get_empty(), host, "Original member"_view);
+  auto& replacement = arena.construct<ScopeMember>(
+      arena, Documentation::get_empty(), host, "Replacement member"_view);
+  auto& dependency_root = Package::Language::Monograph::create_source_free(
+      arena, Documentation::get_empty(), host, {});
+  auto& replacement_dependency =
+      Package::Language::Monograph::create_source_free(
+          arena, Documentation::get_empty(), host, {});
+
+  ASSERT(root.bind_member("Qualified::Member"_view, member));
+  const Abstract& member_edge = root.resolve_context("Qualified::Member"_view);
+  ASSERT(member_edge.is<Ttx::Model::Alias>());
+  EXPECT_TEXT(member_edge.get_name(), "Qualified::Member"_view);
+  EXPECT(&member_edge.resolve() == &member);
+  EXPECT_NOT(root.bind_member("Qualified::Member"_view, replacement));
+  EXPECT(&root.resolve_context("Qualified::Member"_view) == &member_edge);
+  EXPECT(&member_edge.resolve() == &member);
+
+  Package::Language::Dependency forged_dependency(
+      "Runtime::Core"_view, "Example.Core"_view, Version(1, 0));
+  EXPECT_NOT(root.bind_dependency(forged_dependency, dependency_root));
+  EXPECT(
+      &root.resolve_context("Runtime::Core"_view) == &Invalid::get_invalid());
+
+  ASSERT(root.bind_dependency(dependencies[0], dependency_root));
+  const Abstract& dependency_edge = root.resolve_context("Runtime::Core"_view);
+  ASSERT(dependency_edge.is<Ttx::Model::Alias>());
+  EXPECT_TEXT(dependency_edge.get_name(), "Runtime::Core"_view);
+  EXPECT(&dependency_edge.resolve() == &dependency_root);
+  EXPECT_NOT(root.bind_dependency(dependencies[0], replacement_dependency));
+  EXPECT(&root.resolve_context("Runtime::Core"_view) == &dependency_edge);
+  EXPECT(&dependency_edge.resolve() == &dependency_root);
+
+  EXPECT(&root.resolve_context("Qualified"_view) == &Invalid::get_invalid());
+  EXPECT(&root.resolve_context("Member"_view) == &Invalid::get_invalid());
+  EXPECT(
+      &root.resolve_context("qualified::Member"_view) ==
+      &Invalid::get_invalid());
+  EXPECT(
+      &root.resolve_context("Qualified::Member::Tail"_view) ==
+      &Invalid::get_invalid());
+  EXPECT(
+      &root.resolve_context("Qualified.Member"_view) ==
+      &Invalid::get_invalid());
+  EXPECT(
+      &workspace.resolve_context("Qualified::Member"_view) ==
+      &Invalid::get_invalid());
+
+  EXPECT_NOT(root.bind_member("Runtime::Core"_view, replacement));
+  Package::Language::Dependency undeclared(
+      "Qualified::Member"_view, "Example.Other"_view, Version(1, 0));
+  EXPECT_NOT(root.bind_dependency(undeclared, replacement_dependency));
+  EXPECT_NOT(root.bind_member(View::Bytes(), replacement));
+}
+
+PERIMORTEM_UNIT_TEST(PackageDialect, source_free_scope) {
+  Package::Language::Dependency dependencies[] = {
+    Package::Language::Dependency(
+        "External"_view, "Example.External"_view, Version(2, 4)),
+    Package::Language::Dependency(
+        "Later"_view, "Example.Later"_view, Version(3, 1)),
+  };
+  Environment::Workspace workspace;
+  Package::Dialect host(workspace);
+  Allocator::Arena arena;
+  auto& root = Package::Language::Monograph::create_source_free(
+      arena, Documentation::get_empty(), host, dependencies);
+  auto& member = arena.construct<ScopeMember>(
+      arena, Documentation::get_empty(), host, "Restored identity"_view);
+  auto& dependency_root = Package::Language::Monograph::create_source_free(
+      arena, Documentation::get_empty(), host, {});
+
+  ASSERT_EQ(root.get_dependencies().get_size(), Count(2));
+  EXPECT_TEXT(root.get_dependencies()[0].get_local_name(), "External"_view);
+  EXPECT_TEXT(root.get_dependencies()[1].get_local_name(), "Later"_view);
+  EXPECT(root.get_dependency_spans().is_empty());
+  EXPECT(root.get_sources().is_empty());
+  ASSERT(root.bind_member("Restored::Member"_view, member));
+  ASSERT(root.bind_dependency(dependencies[0], dependency_root));
+
+  const Abstract& member_edge = root.resolve_context("Restored::Member"_view);
+  const Abstract& dependency_edge = root.resolve_context("External"_view);
+  ASSERT(member_edge.is<Ttx::Model::Alias>());
+  ASSERT(dependency_edge.is<Ttx::Model::Alias>());
+  EXPECT(&member_edge.resolve() == &member);
+  EXPECT(&dependency_edge.resolve() == &dependency_root);
+  EXPECT_NOT(root.bind_member("External"_view, member));
+  EXPECT(
+      &workspace.resolve_context("Restored::Member"_view) ==
+      &Invalid::get_invalid());
+}
+
+PERIMORTEM_UNIT_TEST(PackageDialect, cross_inventory_collision) {
+  static constexpr View::Bytes statement =
+      "source Runtime from \"runtime.ttx\";"_view;
+  static constexpr View::Bytes source =
+      "// Scope collision\n"
+      "dialect : Package;\n"
+      "resolve Runtime : Example.Runtime = \"1.0\";\n"
+      "source Runtime from \"runtime.ttx\";\n"
+      "source Main from \"main.ttx\";\n"_view;
+  Environment::Workspace workspace;
+  Errors errors;
+
+  ASSERT(workspace.install_dialect<Package::Dialect>("Package"_view));
+  EXPECT_NOT(workspace.import_source(
+      "Collision"_view, "collision.ttx"_view, source, errors));
+  EXPECT(
+      &workspace.resolve_context("Collision"_view) == &Invalid::get_invalid());
+  EXPECT_EQ(errors.get_size(), Count(1));
+  EXPECT(has_diagnostic(
+      errors,
+      "Source semantic name collides with a Dependency local alias in this "
+      "Package."_view));
+  EXPECT(has_diagnostic_marker(errors, statement.get_size()));
 }
 
 PERIMORTEM_UNIT_TEST(PackageDialect, frozen_negative_fixtures) {

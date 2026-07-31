@@ -196,9 +196,26 @@ grammar used by Dependency and Source statements. TTX Lexicon remains the sole
 owner of each Type segment and exact separator Code spelling.
 
 `Package::Language::Monograph` retains opening Documentation, ordered
-Dependency requests, and ordered Source bindings. It retains no filesystem
-handle, fetched package, opened member source, target artifact, or archive
-record.
+Dependency requests, aligned authored statement Spans, and ordered Source
+bindings. It owns one exact Package local scope whose real
+`Ttx::Model::Alias` edges target completed source Monographs and restored
+Package roots in the same Workspace Arena. Exact lookup returns the Alias edge
+itself or shared Invalid. Qualified names remain one opaque key, and Package
+does not split a route or derive it from a source path.
+
+Source parsing returns only Source while exposing its complete successful
+statement Span as separate transaction output. Package Dialect uses that Span
+to diagnose a Source semantic name colliding with a Dependency alias. Failed
+parsing leaves the output invalid, and no Source range becomes durable
+Monograph state.
+
+Authored Source and Dependency inventories reserve one shared name scope.
+Source free roots retain ordered Dependencies with no authored Spans or Source
+paths and accept validated Archive member names during restoration. Duplicate,
+undeclared, direct cycle, and cross kind binding attempts fail before another
+Alias is allocated, preserving the first edge. The Monograph retains no
+filesystem handle, fetched product, Archive bytes, Repository state, source
+text, path, Token, diagnostic state, target artifact, or archive record.
 
 The current Package target contains the complete authored manifest
 interpretation and confined Storage. Namespace `Package::Archive` owns Format 1
@@ -419,8 +436,8 @@ The current tree provides the following implemented surfaces.
 4. Environment provides Workspace installation, direct dispatch, confined
    local Package staging, retention, and authored source name lookup.
 5. Package provides Dependency, Source, Monograph, complete manifest
-   interpretation, confined Storage, Archive Format 1, and exact Repository
-   selection.
+   interpretation, one exact Alias backed Package scope, confined Storage,
+   Archive Format 1, and exact Repository selection.
 6. Library provides language contracts and scalar Types.
 7. Library and Shader provide CPU and SPIR V instruction assemblers.
 8. Linker provides source independent linking machinery.

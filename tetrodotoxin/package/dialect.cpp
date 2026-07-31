@@ -100,10 +100,22 @@ auto Package::Dialect::interpret(
 
     case Code::Type::Source: {
       source_region = True;
-      auto source = Language::Source::parse(domain, cursor);
+      Span source_span;
+      auto source = Language::Source::parse(domain, cursor, source_span);
       if (!source) {
         failed = True;
         continue;
+      }
+
+      // Source owns complete statement consumption, so this range includes the
+      // terminating Token. The collision belongs to the whole binding rather
+      // than only its opening keyword or semantic name.
+      if (has_dependency_alias(dependencies, (*source).get_local_name())) {
+        cursor.create_expression_error(
+            source_span,
+            "Source semantic name collides with a Dependency local alias in "
+            "this Package."_view);
+        failed = True;
       }
 
       if (has_source_name(sources, (*source).get_local_name())) {
