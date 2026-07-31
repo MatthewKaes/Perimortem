@@ -6,15 +6,17 @@
 #include "perimortem/core/view/bytes.hpp"
 #include "perimortem/core/static/bytes.hpp"
 
+#include "perimortem/memory/allocator/arena.hpp"
+
+#include "perimortem/utility/option.hpp"
+
 namespace Perimortem::System {
 
-// A lexical path value with stable slash-normalized storage.
+// Stores one lexical path with normalized separators.
 //
-// Path deliberately does not touch the filesystem. It only owns the cheap path
-// work that every system layer needs: separator normalization, `.` removal,
-// `..` collapse, and relative resolution from a file path. Callers that care
-// about mounts, roots, source trees, archives, or OS canonicalization apply
-// those policies after Path has produced a compact normalized value.
+// Filesystem canonicalization requires an opened root and can race with later
+// path use. Path stays lexical so callers can normalize stable cache keys
+// before a capability owner performs any physical lookup.
 class Path {
  public:
   static constexpr Count max_size = 510;
@@ -22,6 +24,13 @@ class Path {
   Path() = default;
   Path(Core::View::Bytes path);
   Path(Core::View::Bytes base_file_path, Core::View::Bytes relative_path);
+
+  // The Arena overload writes the accepted spelling directly into its final
+  // lifetime domain so retaining owners do not proxy a temporary Path. It uses
+  // `/` for one platform independent cache identity and rejects input whose
+  // lexical meaning cannot be preserved exactly.
+  static auto normalize(Memory::Allocator::Arena& arena, Core::View::Bytes path)
+      -> Utility::Option<Core::View::Bytes>;
 
   constexpr auto get_view() const -> Core::View::Bytes {
     return text.slice(0, size);
@@ -73,10 +82,6 @@ class Path {
   }
 
  private:
-  auto append_path(Core::View::Bytes path) -> Bool;
-  auto append_segment(Core::View::Bytes segment) -> Bool;
-  auto pop_segment() -> Bool;
-
   Core::Static::Bytes<max_size> text;
   Count size = 0;
 };
