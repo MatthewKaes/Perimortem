@@ -14,6 +14,7 @@
 
 #include "ttx/lexical/cursor.hpp"
 #include "ttx/lexical/lexicon.hpp"
+#include "ttx/lexical/span.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -235,6 +236,20 @@ PERIMORTEM_UNIT_TEST(TtxLexical, require_error) {
       cursor.current().caculate_text(cursor.get_source_text()), "value"_view);
 }
 
+PERIMORTEM_UNIT_TEST(TtxLexical, span_ordering) {
+  Token early(4, 2, 3, 2, Code::Type::Type);
+  Token late(304, 8, 12, 4, Code::Type::Type);
+  Span span(late, early);
+  Span invalid;
+
+  EXPECT_NOT(invalid);
+  EXPECT(span);
+  EXPECT(span.get_start().get_offset() == early.get_offset());
+  EXPECT(span.get_end().get_offset() == late.get_offset());
+  EXPECT_EQ(span.get_line_count(), Unsigned_16(7));
+  EXPECT_EQ(span.get_size(), Count(304));
+}
+
 PERIMORTEM_UNIT_TEST(TtxLexical, range_error) {
   Allocator::Arena arena;
   Allocator::Arena render_arena;
@@ -247,7 +262,7 @@ PERIMORTEM_UNIT_TEST(TtxLexical, range_error) {
   cursor.consume();
   Token end = cursor.current();
   cursor.create_expression_error(
-      start, end, "Bad expression."_view, "Use a value."_view);
+      Span(start, end), "Bad expression."_view, "Use a value."_view);
   View::Bytes rendered = errors.render_message(render_arena, 0);
 
   ASSERT_EQ(errors.get_size(), Count(1));
@@ -260,8 +275,7 @@ PERIMORTEM_UNIT_TEST(TtxLexical, source_error) {
   Errors errors;
 
   {
-    Errors::Report report(
-        errors, "test.ttx"_view, "source"_view, Token(), Token());
+    Errors::Report report(errors, "test.ttx"_view, "source"_view, Span());
     report << "Bad source."_view;
     report.get_hint() << "Try again."_view;
   }
@@ -279,8 +293,7 @@ PERIMORTEM_UNIT_TEST(TtxLexical, scoped_report) {
   Errors errors;
 
   {
-    Errors::Report empty(
-        errors, "empty.ttx"_view, View::Bytes(), Token(), Token());
+    Errors::Report empty(errors, "empty.ttx"_view, View::Bytes(), Span());
   }
   EXPECT(errors.is_empty());
 
@@ -289,8 +302,8 @@ PERIMORTEM_UNIT_TEST(TtxLexical, scoped_report) {
     Tokenizer tokenizer(source_arena, "report source"_view, "report.ttx"_view);
     Token token = tokenizer.get_tokens()[0];
     Errors::Report report(
-        errors, tokenizer.get_source_path(), tokenizer.get_source_text(), token,
-        token);
+        errors, tokenizer.get_source_path(), tokenizer.get_source_text(),
+        Span(token));
 
     report << "Scoped report "_view << Count(7) << "."_view;
     report.get_hint() << "Use the retained message."_view;
@@ -302,13 +315,13 @@ PERIMORTEM_UNIT_TEST(TtxLexical, scoped_report) {
         replacement_arena, "replacement source"_view, "report.ttx"_view);
     Errors::Report report(
         errors, replacement.get_source_path(), replacement.get_source_text(),
-        replacement.get_tokens()[0], replacement.get_tokens()[0]);
+        Span(replacement.get_tokens()[0]));
     report << "Repeated report."_view;
   }
 
   {
     Errors::Report report(
-        errors, "outer.ttx"_view, "outer source"_view, Token(), Token());
+        errors, "outer.ttx"_view, "outer source"_view, Span());
     report << "Outer report."_view;
   }
 
@@ -357,7 +370,7 @@ PERIMORTEM_UNIT_TEST(TtxLexical, overlapping_cursors) {
     outer.consume();
     Token end = outer.current();
     outer.create_expression_error(
-        start, end, "Outer after inner."_view, "Outer range hint."_view);
+        Span(start, end), "Outer after inner."_view, "Outer range hint."_view);
   }
 
   View::Bytes first = errors.render_message(render_arena, 0);
@@ -370,21 +383,21 @@ PERIMORTEM_UNIT_TEST(TtxLexical, overlapping_cursors) {
   EXPECT(
       Algorithm::search(first, "Outer while inner is live."_view) != Count(-1));
   EXPECT(Algorithm::search(first, "Outer token hint."_view) != Count(-1));
-  EXPECT(Algorithm::search(first, "^-----\n"_view) != Count(-1));
+  EXPECT(Algorithm::search(first, "^----\n"_view) != Count(-1));
   EXPECT(Algorithm::search(first, "inner.ttx"_view) == Count(-1));
 
   EXPECT(Algorithm::search(second, "inner.ttx:1:1"_view) != Count(-1));
   EXPECT(Algorithm::search(second, "inner source"_view) != Count(-1));
   EXPECT(Algorithm::search(second, "Inner while nested."_view) != Count(-1));
   EXPECT(Algorithm::search(second, "Inner token hint."_view) != Count(-1));
-  EXPECT(Algorithm::search(second, "^-----\n"_view) != Count(-1));
+  EXPECT(Algorithm::search(second, "^----\n"_view) != Count(-1));
   EXPECT(Algorithm::search(second, "outer.ttx"_view) == Count(-1));
 
   EXPECT(Algorithm::search(third, "outer.ttx:1:1"_view) != Count(-1));
   EXPECT(Algorithm::search(third, "outer start finish"_view) != Count(-1));
   EXPECT(Algorithm::search(third, "Outer after inner."_view) != Count(-1));
   EXPECT(Algorithm::search(third, "Outer range hint."_view) != Count(-1));
-  EXPECT(Algorithm::search(third, "^------------------\n"_view) != Count(-1));
+  EXPECT(Algorithm::search(third, "^-----------------\n"_view) != Count(-1));
   EXPECT(Algorithm::search(third, "inner.ttx"_view) == Count(-1));
 }
 
@@ -401,7 +414,7 @@ PERIMORTEM_UNIT_TEST(TtxLexical, wrapper_messages) {
   cursor.consume();
   Token end = cursor.current();
   cursor.create_expression_error(
-      start, end, "Expression wrapper."_view, "Expression hint."_view);
+      Span(start, end), "Expression wrapper."_view, "Expression hint."_view);
 
   View::Bytes general = errors.render_message(render_arena, 0);
   View::Bytes token = errors.render_message(render_arena, 1);
@@ -427,19 +440,22 @@ PERIMORTEM_UNIT_TEST(TtxLexical, reversed_range) {
   Tokenizer tokenizer(arena, "one two three"_view, "reversed.ttx"_view);
   Cursor cursor(tokenizer, errors);
 
-  Token end = cursor.current();
+  Token early = cursor.current();
   cursor.consume();
   cursor.consume();
-  Token start = cursor.current();
+  Token late = cursor.current();
+  Span span(late, early);
   cursor.create_expression_error(
-      start, end, "Reversed range."_view, "Clamp to start."_view);
+      span, "Reversed range."_view, "Order the range."_view);
   View::Bytes rendered = errors.render_message(render_arena, 0);
 
   ASSERT_EQ(errors.get_size(), Count(1));
-  EXPECT(Algorithm::search(rendered, "reversed.ttx:1:9"_view) != Count(-1));
+  EXPECT(span.get_start().get_offset() == early.get_offset());
+  EXPECT(span.get_end().get_offset() == late.get_offset());
+  EXPECT(Algorithm::search(rendered, "reversed.ttx:1:1"_view) != Count(-1));
   EXPECT(Algorithm::search(rendered, "Reversed range."_view) != Count(-1));
-  EXPECT(Algorithm::search(rendered, "Clamp to start."_view) != Count(-1));
-  EXPECT(Algorithm::search(rendered, "^-----\n"_view) != Count(-1));
+  EXPECT(Algorithm::search(rendered, "Order the range."_view) != Count(-1));
+  EXPECT(Algorithm::search(rendered, "^------------\n"_view) != Count(-1));
 }
 
 PERIMORTEM_UNIT_TEST(TtxLexical, keyword_bail) {
@@ -515,8 +531,8 @@ PERIMORTEM_UNIT_TEST(TtxLexical, token_error) {
 
   {
     Errors::Report report(
-        errors, tokenizer.get_source_path(), tokenizer.get_source_text(), token,
-        token);
+        errors, tokenizer.get_source_path(), tokenizer.get_source_text(),
+        Span(token));
     report << "Bad token."_view;
   }
 

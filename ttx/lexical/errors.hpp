@@ -13,14 +13,14 @@
 
 #include "perimortem/serialization/stream/textual.hpp"
 
-#include "ttx/lexical/token.hpp"
+#include "ttx/lexical/span.hpp"
 
 namespace Ttx::Lexical {
 
 // One Errors value is the publication boundary for diagnostics tied to authored
 // text. Rendering happens after parsing, so the first report for an exact
 // source name retains both the name and body needed to interpret every later
-// Token range. Reusing that snapshot prevents a repeated name from silently
+// Span. Reusing that snapshot prevents a repeated name from silently
 // changing the text beneath an earlier diagnostic.
 class Errors {
  public:
@@ -35,8 +35,7 @@ class Errors {
         Errors& errors,
         Perimortem::Core::View::Bytes source_name,
         Perimortem::Core::View::Bytes source_text,
-        Token start_token,
-        Token end_token);
+        Span span);
     ~Report();
     Report(const Report&) = delete;
     Report(Report&&) = delete;
@@ -58,8 +57,7 @@ class Errors {
     Errors& errors;
     Perimortem::Core::View::Bytes source_name;
     Perimortem::Core::View::Bytes source_text;
-    Token start_token;
-    Token end_token;
+    Span span;
     Perimortem::Memory::Managed::Bytes message_storage;
     Perimortem::Memory::Managed::Bytes hint_storage;
     Perimortem::Serialization::Stream::Textual<
@@ -84,14 +82,13 @@ class Errors {
   constexpr auto get_size() const -> Count { return errors.get_size(); }
 
  private:
-  // Error stores Token ranges against the canonical source snapshot rather than
+  // Error stores Spans against the canonical source snapshot rather than
   // retaining rendered lines that would duplicate the source for every report.
   struct Error {
     Perimortem::Core::View::Bytes message;
     Perimortem::Core::View::Bytes hint;
     Perimortem::Core::View::Bytes source_name;
-    Token start_token;
-    Token end_token;
+    Span span;
   };
 
   auto retain_source(
@@ -104,8 +101,7 @@ class Errors {
       Perimortem::Core::View::Bytes source_text,
       Perimortem::Core::View::Bytes message,
       Perimortem::Core::View::Bytes hint,
-      Token start_token,
-      Token end_token) -> void;
+      Span span) -> void;
 
   // Diagnostics are already the failure path, so one Arena favors stable views
   // and bulk release over reclaiming each message independently. The source map

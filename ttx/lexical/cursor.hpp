@@ -11,6 +11,7 @@
 #include "perimortem/memory/allocator/arena.hpp"
 
 #include "ttx/lexical/errors.hpp"
+#include "ttx/lexical/span.hpp"
 #include "ttx/lexical/tokenizer.hpp"
 
 namespace Ttx::Lexical {
@@ -127,7 +128,7 @@ class Cursor {
   auto create_error(
       Perimortem::Core::View::Bytes message,
       Perimortem::Core::View::Bytes hint = {}) -> void {
-    create_expression_error(Token(), Token(), message, hint);
+    create_expression_error(Span(), message, hint);
   }
 
   // Creates an error at the current token.
@@ -136,27 +137,25 @@ class Cursor {
   auto create_token_error(
       Perimortem::Core::View::Bytes message,
       Perimortem::Core::View::Bytes hint = {}) -> void {
-    create_token_error(current(), message, hint);
+    create_expression_error(Span(current()), message, hint);
   }
 
   auto create_token_error(
       Lexical::Token token,
       Perimortem::Core::View::Bytes message,
       Perimortem::Core::View::Bytes hint = {}) -> void {
-    create_expression_error(token, token, message, hint);
+    create_expression_error(Span(token), message, hint);
   }
 
-  // Emits an error over an existing token range.
+  // Emits an error over an existing Span.
   // Views can be temporary as the error context copies the data into its local
   // memory space in case the error outlives the source.
   auto create_expression_error(
-      Lexical::Token start,
-      Lexical::Token end,
+      Lexical::Span span,
       Perimortem::Core::View::Bytes message,
       Perimortem::Core::View::Bytes hint = {}) -> void {
     Errors::Report report(
-        errors, tokenizer.get_source_path(), tokenizer.get_source_text(), start,
-        end);
+        errors, tokenizer.get_source_path(), tokenizer.get_source_text(), span);
     report << message;
     report.get_hint() << hint;
   }
@@ -191,9 +190,9 @@ class Cursor {
     }
   }
 
-  constexpr auto caculate_text(Token token) const
+  constexpr auto caculate_text(Span span) const
       -> Perimortem::Core::View::Bytes {
-    return token.caculate_text(get_source_text());
+    return span.caculate_text(get_source_text());
   }
 
   // Checks if the current cursor is exactly one type.
