@@ -99,13 +99,17 @@ The accepted lifecycle adds two owner neutral operations to the common
 Monograph and Dialect boundary:
 
 1. Workspace invokes one ordered Monograph post pass after local staging and
-   dependency restoration drain.
+   dependency restoration drain. The operation returns failure without
+   receiving a textual error sink.
 2. A concrete Dialect encodes and restores its own opaque precompiled Monograph
    payload through the importing Workspace Arena.
 
 Language owns only that dispatch shape. It does not define a Package Archive,
 terminal registry, concrete payload schema, or cross owner product variant.
-These operations are planned and are not present in the current interface.
+Concrete post pass owners log graph details that would be lost on return.
+Workspace retains the authored input identity needed to turn a returned failure
+into a user facing diagnostic. The shared operations are present in the current
+interface, while Workspace coordination remains planned.
 
 ## Environment transaction
 
@@ -156,6 +160,14 @@ transaction directly because Storage and its views already belong to that
 Arena. Both public operations return the imported Monograph Option. Dependency
 restoration and ordered post pass remain absent.
 
+Textual errors require authored text. `Ttx::Lexical::Errors::Report` receives
+an explicit source name, source body, and token range from the owner of that
+text. Context free filesystem, Archive, and Repository validation instead logs
+its exact local names, values, offsets, and transaction stage through
+`Diagnostics::Log`, then returns failure. Workspace or Puffer owns the later
+user facing error because only that layer can attach the failure to an authored
+Dependency, Source, or compile request. Neither channel replaces the other.
+
 ## Package Dialect
 
 The Package body has two ordered regions:
@@ -190,9 +202,11 @@ record.
 The current Package target contains the complete authored manifest
 interpretation and confined Storage. Namespace `Package::Archive` owns Format 1
 facts on the value class `Archive`, validation and materialization on `Reader`,
-and deterministic encoding on `Writer`. Dependency acquisition, application
-selection, Archive restoration, and exact repository selection remain planned
-Package work.
+and deterministic encoding on `Writer`. Namespace `Package::Repository` owns
+the concrete `Repository` transaction, its exact Input and Artifact
+declarations, separately borrowed native artifact paths, and normalized
+declared-only Archive and native output declarations. Dependency acquisition,
+application selection, and Archive restoration remain planned Package work.
 
 `main.ttx` remains a filename convention. Future package assembly selects the
 sole completed App Monograph rather than granting its filename or local Source
@@ -269,7 +283,9 @@ universal terminal base, opaque product registry, or cross owner variant.
 Package facts encode a Package Archive. Completed CPU facts lower to Linker
 Object Modules. Puffer loads dependency native products only for the link
 phase, asks Linker for the requested native product, and writes only the
-declared outputs.
+declared outputs. Package Repository validates those exact semantic, native,
+and publication declarations without scanning for inputs, loading native
+bytes, or writing outputs itself.
 
 The accepted Linker products are System V static binary archives, ELF shared
 libraries, and complete ELF executables. Final ELF linkage is performed in
@@ -361,8 +377,14 @@ interprets an embedded resource operand or folds reachable byte slices.
 Namespace `Package::Archive` owns the implemented Format 1 contracts:
 `Package::Archive::Archive` retains the completed facts,
 `Package::Archive::Reader` validates and materializes the envelope, and
-`Package::Archive::Writer` emits it canonically. Package also owns future exact
-repository selection. An Archive contains exact Package identity and version,
+`Package::Archive::Writer` emits it canonically. Namespace
+`Package::Repository` owns the `Repository`, `Input`, `Artifact`, and `Output`
+classes. Repository borrows explicit input declarations under its caller Arena
+lifetime, asks `System::Path` to construct its derived normalized output routes
+directly in that Arena, and selects Archives by exact identity and pinned
+Version. Archive and native output inventories use the same identity, Version,
+and artifact ID key while remaining separate operations. An Archive contains
+exact Package identity and version,
 semantic member and Dialect names, concrete Dialect payload framing, dependency
 requests, exported semantic routes, and native artifact and symbol locators.
 `Archive::Sections` and `Archive::header_size` are the shared public section
@@ -379,8 +401,12 @@ The current codec validates complete envelopes before retaining typed record
 ranges in the caller Arena and emits one deterministic canonical encoding. The
 input bytes remain borrowed for that Arena lifetime, so an Arena backed file
 read reaches Archive without another copy. Archive itself remains a regular
-value over stable views. No exact repository or source free restoration exists
-in the current Package target.
+value over stable views. Reader logs exact framing and relationship failures
+without constructing a textual error for binary input. Repository caches only
+successfully decoded Archives, exposes native filesystem paths without reading
+them, and normalizes declared-only publication routes without materializing
+output. Its logs preserve both declarations for duplicate keys and route
+collisions. No source free restoration exists in the current Package target.
 
 ## Current evidence boundary
 
@@ -392,7 +418,8 @@ The current tree provides the following implemented surfaces.
 4. Environment provides Workspace installation, direct dispatch, confined
    local Package staging, retention, and authored source name lookup.
 5. Package provides Dependency, Source, Monograph, complete manifest
-   interpretation, and confined Storage.
+   interpretation, confined Storage, Archive Format 1, and exact Repository
+   selection.
 6. Library provides language contracts and scalar Types.
 7. Library and Shader provide CPU and SPIR V instruction assemblers.
 8. Linker provides source independent linking machinery.
@@ -400,9 +427,9 @@ The current tree provides the following implemented surfaces.
 
 That inventory does not prove complete parsing for Library, App, Scene, Render,
 Shader, or Foreign. It also does not prove CPU semantic lowering, embedded
-resource folding, durable package encoding, runtime execution, Puffer compile
-orchestration, typed Object Module production, final native executable
-emission, or source free restoration.
+resource folding, runtime execution, Puffer compile orchestration or physical
+publication, typed Object Module production, final native executable emission,
+or source free restoration.
 
 A fixture, README, target build, or test written beside an implementation is not
 an independent semantic oracle.

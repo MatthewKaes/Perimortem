@@ -98,11 +98,14 @@ Dialect family and every lifetime produced by dispatch. A concrete Dialect owns
 only its body grammar and concrete Monograph.
 
 Unknown Dialects and malformed envelopes are source errors. A failed
-interpretation publishes no source name binding. Staged acquisition, envelope,
-dispatch, and interpretation failures do not stop later FIFO entries. The
-operation reports failure only for failures encountered during that call, so
-preexisting diagnostics do not reject an otherwise successful Package. A
-complete staged transaction returns its retained root Monograph.
+interpretation publishes no source name binding. Staged acquisition failures
+log the exact semantic name and logical route because the retained Package
+model does not carry the original Source statement token. Envelope, dispatch,
+and interpretation failures with retained text remain source errors. None of
+these failures stop later FIFO entries. The operation reports failure only for
+failures encountered during that call, so preexisting diagnostics do not
+reject an otherwise successful Package. A complete staged transaction returns
+its retained root Monograph.
 
 Workspace does not yet restore dependency Archives or invoke a Monograph post
 pass. Those completion steps remain W02 work.

@@ -59,15 +59,17 @@ The accepted shared lifecycle adds two owner neutral operations.
 The post pass may complete the same semantic objects reserved during
 interpretation and may query the retained Workspace host. It never turns a
 Cursor, Token index, source route, or declaration mirror into unfinished
-semantic state.
+semantic state. It returns failure instead of receiving a textual error sink.
+The concrete Dialect logs details known only while completing its graph, while
+Workspace retains the authored input identity needed to publish a user facing
+diagnostic.
 
 The persistence hooks name no Package envelope, concrete Dialect value, native
 object, or universal terminal. Package owns Archive framing. The concrete
 Dialect owns payload schema and restoration into the importing Workspace Arena.
-Language owns only the common dispatch.
-
-Neither operation exists in the current C++ interface. They are the explicit
-input for the Language lifecycle implementation slice.
+Language owns only the common dispatch. The operations are present on the
+shared C++ interface. Workspace coordination remains a separate transaction
+slice.
 
 ## Shared parser fragments
 

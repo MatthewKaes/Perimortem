@@ -225,7 +225,8 @@ PERIMORTEM_UNIT_TEST(PackageDialect, prior_diagnostics) {
   Environment::Workspace workspace;
   Errors errors;
   {
-    Errors::Report report(errors, "prior-package.ttx"_view, View::Bytes());
+    Errors::Report report(
+        errors, "prior-package.ttx"_view, View::Bytes(), Token(), Token());
     report << "Earlier independent diagnostic."_view;
   }
 

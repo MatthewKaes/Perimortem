@@ -17,7 +17,6 @@ using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
 using namespace Perimortem::System;
 using namespace Tetrodotoxin;
-using namespace Ttx::Lexical;
 using namespace Validation;
 
 // This literal is the independent Format 1 oracle. Keeping it separate from
@@ -123,34 +122,26 @@ static auto body_splice(
   return result;
 }
 
-static auto has_archive_diagnostic(const Errors& errors) -> Bool {
-  Allocator::Arena render_arena;
-  if (errors.get_size() != 1) {
-    return False;
-  }
-
-  View::Bytes message = errors.render_message(render_arena, 0);
-  return contains(message, "invalid.package-archive"_view) &&
-         contains(message, "Package::Archive::Reader Format 1 read"_view);
-}
-
 static auto rejects(View::Bytes input) -> Bool {
   Allocator::Arena arena;
-  Errors errors;
 
-  auto rejected = Package::Archive::Reader::read(
-      arena, errors, "invalid.package-archive"_view, input);
-  if (rejected || !has_archive_diagnostic(errors)) {
+  auto rejected = Package::Archive::Reader::read(arena, input);
+  if (rejected || !Test::error_contains(
+                      "Package::Archive::Reader Format 1 read failed"_view,
+                      Diagnostics::Log::Level::Debug)) {
     return False;
   }
 
-  auto accepted = Package::Archive::Reader::read(
-      arena, errors, "valid.package-archive"_view, golden());
-  return accepted && errors.get_size() == 1;
+  auto accepted = Package::Archive::Reader::read(arena, golden());
+  return bool(accepted);
 }
 
 static Harness PackageArchive = {
   .name = "Tetrodotoxin::Package::Archive"_view,
+  .setup =
+      []() { Diagnostics::Log::set_level(Diagnostics::Log::Level::Debug); },
+  .teardown =
+      []() { Diagnostics::Log::set_level(Diagnostics::Log::Level::Info); },
 };
 
 PERIMORTEM_UNIT_TEST(PackageArchive, literal_format_one) {
@@ -166,12 +157,9 @@ PERIMORTEM_UNIT_TEST(PackageArchive, literal_format_one) {
   EXPECT_EQ(Unsigned_16(Sections::Exports), Unsigned_16(6));
 
   Allocator::Arena arena;
-  Errors errors;
-  auto decoded = Package::Archive::Reader::read(
-      arena, errors, "golden.package-archive"_view, golden());
+  auto decoded = Package::Archive::Reader::read(arena, golden());
 
   ASSERT(decoded);
-  ASSERT(errors.is_empty());
   auto& archive = *decoded;
   EXPECT_TEXT(archive.get_identity(), "Pkg.Core"_view);
   EXPECT_EQ(archive.get_version().get_major(), Unsigned_16(1));
@@ -218,10 +206,7 @@ PERIMORTEM_UNIT_TEST(PackageArchive, literal_format_one) {
   EXPECT((*encoded_twice).get_view() == golden());
 
   Allocator::Arena second_arena;
-  Errors second_errors;
-  auto round_trip = Package::Archive::Reader::read(
-      second_arena, second_errors, "round-trip.package-archive"_view,
-      *encoded_once);
+  auto round_trip = Package::Archive::Reader::read(second_arena, *encoded_once);
   ASSERT(round_trip);
   auto encoded_round_trip = Package::Archive::Writer::write(*round_trip);
   ASSERT(encoded_round_trip);
@@ -275,12 +260,8 @@ PERIMORTEM_UNIT_TEST(PackageArchive, empty_inventories) {
   ASSERT(encoded);
 
   Allocator::Arena decoded_arena;
-  Errors errors;
-  auto decoded = Package::Archive::Reader::read(
-      decoded_arena, errors, "empty-inventories.package-archive"_view,
-      *encoded);
+  auto decoded = Package::Archive::Reader::read(decoded_arena, *encoded);
   ASSERT(decoded);
-  EXPECT(errors.is_empty());
   EXPECT((*decoded).get_members()[0].get_payload().is_empty());
 }
 
@@ -301,9 +282,7 @@ PERIMORTEM_UNIT_TEST(PackageArchive, equal_member_payloads) {
   ASSERT(encoded);
 
   Allocator::Arena arena;
-  Errors errors;
-  auto decoded = Package::Archive::Reader::read(
-      arena, errors, "equal-payloads.package-archive"_view, *encoded);
+  auto decoded = Package::Archive::Reader::read(arena, *encoded);
   ASSERT(decoded);
   auto retained = (*decoded).get_members();
   ASSERT_EQ(retained.get_size(), Count(2));
@@ -333,9 +312,7 @@ PERIMORTEM_UNIT_TEST(PackageArchive, opaque_export_locators) {
   auto encoded = Package::Archive::Writer::write(archive);
   ASSERT(encoded);
   Allocator::Arena decoded_arena;
-  Errors errors;
-  auto decoded = Package::Archive::Reader::read(
-      decoded_arena, errors, "opaque-exports.package-archive"_view, *encoded);
+  auto decoded = Package::Archive::Reader::read(decoded_arena, *encoded);
   ASSERT(decoded);
   EXPECT_TEXT(
       (*decoded).get_exports()[0].get_semantic_route(),
@@ -377,9 +354,7 @@ PERIMORTEM_UNIT_TEST(PackageArchive, format_size_limits) {
 PERIMORTEM_UNIT_TEST(PackageArchive, borrowed_input) {
   Dynamic::Bytes input(golden());
   Allocator::Arena arena;
-  Errors errors;
-  auto archive = Package::Archive::Reader::read(
-      arena, errors, "borrowed.package-archive"_view, input);
+  auto archive = Package::Archive::Reader::read(arena, input);
   ASSERT(archive);
 
   EXPECT_EQ(
@@ -396,28 +371,17 @@ PERIMORTEM_UNIT_TEST(PackageArchive, borrowed_input) {
   Dynamic::Bytes temporary_input(golden());
   Allocator::Arena temporary_arena;
   View::Bytes stable_input = temporary_arena.proxy(temporary_input);
-  Errors temporary_errors;
-  auto temporary = Package::Archive::Reader::read(
-      temporary_arena, temporary_errors, "proxied.package-archive"_view,
-      stable_input);
+  auto temporary =
+      Package::Archive::Reader::read(temporary_arena, stable_input);
   ASSERT(temporary);
   temporary_input.set(0xFF);
   auto temporary_bytes = Package::Archive::Writer::write(*temporary);
   ASSERT(temporary_bytes);
   EXPECT((*temporary_bytes).get_view() == golden());
-  EXPECT(temporary_errors.is_empty());
-
-  {
-    Errors::Report prior(
-        errors, "unrelated.package-archive"_view, "prior"_view);
-    prior << "Unrelated failure."_view;
-  }
 
   Allocator::Arena later_arena;
-  auto later = Package::Archive::Reader::read(
-      later_arena, errors, "later.package-archive"_view, golden());
+  auto later = Package::Archive::Reader::read(later_arena, golden());
   EXPECT(later);
-  EXPECT_EQ(errors.get_size(), Count(1));
 }
 
 PERIMORTEM_UNIT_TEST(PackageArchive, every_truncation_boundary) {
@@ -476,10 +440,8 @@ PERIMORTEM_UNIT_TEST(PackageArchive, envelope_boundaries) {
   Dynamic::Bytes accepted_optional =
       body_splice(golden(), version_field, 0, View::Bytes(optional));
   Allocator::Arena optional_arena;
-  Errors optional_errors;
-  auto decoded = Package::Archive::Reader::read(
-      optional_arena, optional_errors, "optional.package-archive"_view,
-      accepted_optional);
+  auto decoded =
+      Package::Archive::Reader::read(optional_arena, accepted_optional);
   ASSERT(decoded);
   auto canonical = Package::Archive::Writer::write(*decoded);
   ASSERT(canonical);
@@ -640,6 +602,11 @@ PERIMORTEM_UNIT_TEST(PackageArchive, uniqueness_and_references) {
   set_u32(duplicate_dependency, dependency_field + 4, 60);
   set_u32(duplicate_dependency, dependency_field + 8, 2);
   EXPECT(rejects(duplicate_dependency));
+  EXPECT(
+      Test::error_contains(
+          "duplicate_inventory=Dependency local names value=Core "
+          "first_index=0 second_index=1"_view,
+          Diagnostics::Log::Level::Debug));
 
   View::Bytes member_record = golden().slice(member_field + 12, 23);
   Dynamic::Bytes duplicate_member =
@@ -647,12 +614,22 @@ PERIMORTEM_UNIT_TEST(PackageArchive, uniqueness_and_references) {
   set_u32(duplicate_member, member_field + 4, 84);
   set_u32(duplicate_member, member_field + 8, 3);
   EXPECT(rejects(duplicate_member));
+  EXPECT(
+      Test::error_contains(
+          "duplicate_inventory=Member semantic names value=Main "
+          "first_index=0 second_index=1"_view,
+          Diagnostics::Log::Level::Debug));
 
   Dynamic::Bytes duplicate_artifact(golden());
   duplicate_artifact.get_access()[artifact_field + 31] = 'c';
   duplicate_artifact.get_access()[artifact_field + 32] = 'p';
   duplicate_artifact.get_access()[artifact_field + 33] = 'u';
   EXPECT(rejects(duplicate_artifact));
+  EXPECT(
+      Test::error_contains(
+          "duplicate_inventory=Artifact IDs value=cpu first_index=0 "
+          "second_index=1"_view,
+          Diagnostics::Log::Level::Debug));
 
   View::Bytes export_record = golden().slice(export_field + 12, 32);
   Dynamic::Bytes duplicate_export =
@@ -660,10 +637,19 @@ PERIMORTEM_UNIT_TEST(PackageArchive, uniqueness_and_references) {
   set_u32(duplicate_export, export_field + 4, 102);
   set_u32(duplicate_export, export_field + 8, 3);
   EXPECT(rejects(duplicate_export));
+  EXPECT(
+      Test::error_contains(
+          "duplicate_inventory=Export semantic routes value=Main::Run "
+          "first_index=0 second_index=1"_view,
+          Diagnostics::Log::Level::Debug));
 
   Dynamic::Bytes undeclared_artifact(golden());
   undeclared_artifact.get_access()[export_field + 33] = 'b';
   undeclared_artifact.get_access()[export_field + 34] = 'a';
   undeclared_artifact.get_access()[export_field + 35] = 'd';
   EXPECT(rejects(undeclared_artifact));
+  EXPECT(
+      Test::error_contains(
+          "export_index=0 semantic_route=Main::Run unknown_artifact_id=bad"_view,
+          Diagnostics::Log::Level::Debug));
 }

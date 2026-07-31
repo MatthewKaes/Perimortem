@@ -34,8 +34,6 @@ struct LifecycleTrace {
   Unsigned_8 destruction_order[3]{};
   Unsigned_8 post_order[3]{};
   Count post_calls[3]{};
-  const Errors* error_objects[3]{};
-  Count observed_error_counts[3]{};
   Count destruction_count = 0;
   Count post_count = 0;
   Count host_uses = 0;
@@ -84,18 +82,15 @@ class LifecycleMonograph : public Language::Dialect::Monograph {
     return Invalid::get_invalid();
   }
 
-  auto post_pass(Errors& errors) -> void override {
+  auto post_pass() -> Bool override {
     const Count index = trace.post_count;
 
     trace.post_order[index] = identity;
     trace.post_calls[identity]++;
-    trace.error_objects[index] = &errors;
-    trace.observed_error_counts[index] = errors.get_size();
     trace.post_count++;
 
     static_cast<LifecycleDialect&>(host).observe_host_use();
-    Errors::Report report(errors, "lifecycle-post-pass"_view, View::Bytes());
-    report << "post pass diagnostic"_view;
+    return identity == 1 ? False : True;
   }
 
  private:
@@ -240,17 +235,17 @@ PERIMORTEM_UNIT_TEST(LanguageDialect, ordered_post_pass) {
   TestGraph registry;
   LifecycleTrace trace;
   Allocator::Arena arena;
-  Errors errors;
   LifecycleDialect host(registry, trace);
   LifecycleMonograph first(arena, host, trace, 0);
   LifecycleMonograph second(arena, host, trace, 1);
   LifecycleMonograph third(arena, host, trace, 2);
+  Bool results[3]{};
   Static::Vector<Language::Dialect::Monograph*, 3> retained = {
     {&first, &second, &third},
   };
 
   for (Count i = 0; i < retained.get_size(); i++) {
-    retained[i]->post_pass(errors);
+    results[i] = retained[i]->post_pass();
   }
 
   EXPECT_EQ(trace.post_count, 3);
@@ -260,14 +255,10 @@ PERIMORTEM_UNIT_TEST(LanguageDialect, ordered_post_pass) {
   EXPECT_EQ(trace.post_calls[0], 1);
   EXPECT_EQ(trace.post_calls[1], 1);
   EXPECT_EQ(trace.post_calls[2], 1);
-  EXPECT(trace.error_objects[0] == &errors);
-  EXPECT(trace.error_objects[1] == &errors);
-  EXPECT(trace.error_objects[2] == &errors);
-  EXPECT_EQ(trace.observed_error_counts[0], 0);
-  EXPECT_EQ(trace.observed_error_counts[1], 1);
-  EXPECT_EQ(trace.observed_error_counts[2], 2);
+  EXPECT(results[0]);
+  EXPECT_NOT(results[1]);
+  EXPECT(results[2]);
   EXPECT_EQ(trace.host_uses, 3);
-  EXPECT_EQ(errors.get_size(), 3);
 }
 
 PERIMORTEM_UNIT_TEST(LanguageDialect, payload_round_trip) {
@@ -330,13 +321,12 @@ PERIMORTEM_UNIT_TEST(LanguageDialect, rejects_invalid_payloads) {
 PERIMORTEM_UNIT_TEST(LanguageDialect, explicit_default_persistence) {
   TestGraph registry;
   Allocator::Arena arena;
-  Errors errors;
   DefaultDialect dialect(registry);
   DefaultMonograph monograph(arena, dialect);
   EmptyEncodingDialect empty_dialect(registry);
   DefaultMonograph empty_monograph(arena, empty_dialect);
 
-  monograph.post_pass(errors);
+  const Bool post_passed = monograph.post_pass();
   auto unsupported = dialect.encode(monograph);
   auto missing = dialect.restore(arena, "unsupported"_view);
   auto empty = empty_dialect.encode(empty_monograph);
@@ -346,7 +336,7 @@ PERIMORTEM_UNIT_TEST(LanguageDialect, explicit_default_persistence) {
         return payload.is_empty() ? True : False;
       });
 
-  EXPECT(errors.is_empty());
+  EXPECT(post_passed);
   EXPECT_NOT(unsupported);
   EXPECT_NOT(missing);
   EXPECT(successful_empty);

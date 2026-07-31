@@ -21,6 +21,13 @@ instructions, and their Codes are not an independent serialized format. A
 consumer must use the same Lexer contract and source bytes that produced the
 stream.
 
+`Lexical::Errors` is the retained rendering format for errors in authored
+text. Every `Errors::Report` receives an explicit source name, source body, and
+token range. It is not the status channel for filesystem, archive, repository,
+compiler, or runtime validation. Context free owners log their local failure
+facts through `Diagnostics::Log` and return failure. The caller that owns an
+authored request decides whether that failure becomes a source diagnostic.
+
 ## Semantic layer
 
 The identity bearing graph consists of `Abstract`, `Invalid`, `Alias`, `Type`,

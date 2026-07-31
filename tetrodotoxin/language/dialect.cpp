@@ -7,7 +7,9 @@ using namespace Tetrodotoxin;
 
 Language::Dialect::Monograph::~Monograph() {}
 
-auto Language::Dialect::Monograph::post_pass(Ttx::Lexical::Errors&) -> void {}
+auto Language::Dialect::Monograph::post_pass() -> Bool {
+  return True;
+}
 
 Language::Dialect::~Dialect() {}
 

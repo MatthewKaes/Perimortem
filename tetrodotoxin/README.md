@@ -53,6 +53,15 @@ Bazel declares exact inputs and terminal outputs
 -> Puffer writes only declared outputs
 ```
 
+Textual source diagnostics and lower level validation traces remain separate.
+`Ttx::Lexical::Errors::Report` is created only by an owner with an explicit
+source name, source body, and token range. Filesystem, Archive, and Repository
+owners log the exact local failure facts through `Diagnostics::Log` and return
+failure. Workspace or Puffer then uses the authored dependency, source, or
+compile request context to publish the user facing error. A low level log does
+not substitute for that source diagnostic, and a source diagnostic does not
+discard the detailed validation trace.
+
 `Language::Dialect` is intentionally stateful. Environment constructs each
 installed Dialect in its graph Arena, supplies the Workspace as its shared TTX
 registry, and keeps the Dialect alive while any of its Monographs remain
@@ -63,6 +72,9 @@ source island. A concrete Monograph owns its Dialect semantics and borrows the
 Arena, opening Documentation, and host Dialect retained by Environment. The
 planned lifecycle gives every retained Monograph one ordered post pass and lets
 its concrete Dialect encode and restore only its own opaque durable payload.
+Post pass returns failure without receiving `Lexical::Errors`. The concrete
+owner logs graph details that would otherwise be lost, and Workspace retains
+the authored source identity needed for an actionable diagnostic.
 
 There is no separate Source lifetime object, static parser function map,
 Frontend, Container, or Environment Namespace. Environment owns the transaction
@@ -120,18 +132,24 @@ Archive never owns Linker object bytes.
 
 Package owns confined Storage. Namespace `Package::Archive` owns the completed
 value on `Archive`, validated Format 1 decoding through `Reader`, and canonical
-encoding through `Writer`. Archive restoration and exact repository selection
-remain planned. Library owns CPU lowering. App and Scene retain their own
-completed facts. Linker owns static archives, shared libraries, and complete
-executable production. Puffer orchestrates these owners but does not replace
-any of them with a generic product registry.
+encoding through `Writer`. Namespace `Package::Repository` owns the concrete
+Repository transaction and its `Input`, `Artifact`, and `Output` declaration
+values. It provides exact declared Archive selection, separate native artifact
+path lookup, and normalized declared-only publication routes keyed by Package
+identity, Version, and artifact ID.
+Archive restoration remains planned. Library owns CPU lowering. App and Scene
+retain their own completed facts. Linker owns static archives, shared
+libraries, and complete executable production. Puffer orchestrates these
+owners but does not replace any of them with a generic product registry.
 
 Final ELF linkage remains in repository code. A host linker is only an
 independent consumer for a static archive checkpoint, never the production
 implementation of a Tetrodotoxin executable.
 
 Package Archive Format 1 can now be constructed, read, and written
-independently.
+independently. Exact Repository selection can retain a successful Archive from
+caller-Arena file bytes while leaving native byte loading and output writing to
+their later consumers.
 None of the complete terminal transaction, source free restore, Puffer compile
 orchestration, shared library output, or executable output is implemented by
 the current targets.

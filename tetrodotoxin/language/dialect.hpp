@@ -14,24 +14,17 @@
 #include "ttx/concept/abstract.hpp"
 #include "ttx/concept/documentation.hpp"
 #include "ttx/lexical/cursor.hpp"
-#include "ttx/lexical/errors.hpp"
 
 namespace Tetrodotoxin::Language {
 
-// Dialects are used to interpret TTX lexical streams in order to convert them
-// into a usable TTX graph.
-//
-// A Tetrodotoxin toolchain consist of multiple dialects in order to construct
-// it's full language support. After the initial Tetrodotoxin header is parsed
-// the rest of the stream is passed to the target dialect if registered.
-//
-// Dialects are stateful for the duration
+// One Dialect instance remains installed for the Workspace lifetime so sources
+// of the same language can share real semantic state. The universal header
+// selects that instance before the remaining Cursor is handed to its grammar.
 class Dialect {
  public:
-  // Monograph is an independent subgraph of the larger TTX data graph that owns
-  // its memory domain for its entire subtree context.
-  //
-  // Each custom Tetrodotoxin Dialect requires a distinct format.
+  // A Monograph is the retained semantic root produced by one source or
+  // restored payload. Keeping the host and Arena explicit lets concrete graphs
+  // share Workspace state without introducing a second source model.
   class Monograph : public Ttx::Concept::Abstract {
    public:
     virtual ~Monograph() = 0;
@@ -47,30 +40,34 @@ class Dialect {
       return documentation;
     };
 
-    // Complete durable semantic facts after every source and restored
-    // dependency has joined the shared graph.
-    virtual auto post_pass(Ttx::Lexical::Errors& errors) -> void;
+    // Completion waits until every source and restored dependency has joined
+    // the graph because earlier execution could reject a valid forward edge. A
+    // failure returns to the Workspace that knows which retained input was
+    // being completed. Concrete owners log any graph context that would
+    // otherwise be lost before returning.
+    virtual auto post_pass() -> Bool;
 
    protected:
-    // The arena space which contains the sub portion of the
+    // Concrete facts remain in the same lifetime domain as their Monograph so
+    // graph edges never outlive their storage.
     Perimortem::Memory::Allocator::Arena& domain;
 
-    // Documentation is provided by the wrapping dialect context as required by
-    // the language spec, but individual dialects may choose to extend or alter
-    // source provided information.
+    // The opening Documentation remains attached to the semantic root because
+    // later owners may need it after the parser transaction has ended.
     const Ttx::Concept::Documentation& documentation;
 
-    // Source formats can perform operations on their parent.
+    // The installed host outlives every Monograph and carries shared Dialect
+    // state needed during completion and persistence.
     Dialect& host;
   };
 
   constexpr Dialect(Ttx::Concept::Abstract& registry) : registry(registry) {}
   virtual ~Dialect() = 0;
 
-  // Interpret takes in the domain arean where it will create the subgraph.
-  // For caching it's useful to pass in a subgraph specific arena, but for one
-  // shots its usually more performant to just reuse the parent arena since the
-  // source tree is processed in immediate mode rather than retained mode.
+  // The caller chooses the Arena that defines the returned graph lifetime.
+  // Interpret borrows Cursor input under that same lifetime contract and does
+  // not copy it automatically, leaving a Workspace free to reuse already
+  // stable source storage.
   virtual auto interpret(
       Perimortem::Memory::Allocator::Arena& domain,
       Ttx::Lexical::Cursor& cursor,
@@ -93,7 +90,8 @@ class Dialect {
       -> Perimortem::Utility::Option<Monograph&>;
 
  protected:
-  // The registry that was provide to resolve cross dialect queries.
+  // The Workspace registry is shared so concrete Dialects resolve cross
+  // language edges against the same semantic island.
   Ttx::Concept::Abstract& registry;
 };
 

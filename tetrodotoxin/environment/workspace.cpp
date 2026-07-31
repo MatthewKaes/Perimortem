@@ -3,6 +3,8 @@
 
 #include "tetrodotoxin/environment/workspace.hpp"
 
+#include "perimortem/core/diagnostics/log.hpp"
+
 #include "tetrodotoxin/language/parser/comment.hpp"
 #include "tetrodotoxin/language/parser/dialect.hpp"
 #include "tetrodotoxin/package/language/monograph.hpp"
@@ -57,7 +59,7 @@ auto Environment::Workspace::import_retained_source(
   // An existing semantic identity is never reparsed or overwritten. Errors
   // snapshots the retained input before this transaction ends.
   if (source_monographs.contains(semantic_name)) {
-    Errors::Report report(errors, diagnostic_path, contents);
+    Errors::Report report(errors, diagnostic_path, contents, Token(), Token());
     report << "Semantic source "_view << semantic_name
            << " is already imported into the Workspace."_view;
     return {};
@@ -93,7 +95,8 @@ auto Environment::Workspace::import_retained_source(
   auto* dialect_entry = dialects.find(dialect_name);
   if (dialect_entry == nullptr) {
     Errors::Report report(
-        errors, diagnostic_path, contents, dialect_instruction);
+        errors, diagnostic_path, contents, dialect_instruction,
+        dialect_instruction);
     auto& hint = report.get_hint();
     const Count installed_count = installed_names.get_size();
 
@@ -165,9 +168,12 @@ auto Environment::Workspace::import_package(
     Ttx::Lexical::Errors& errors) -> Option<Language::Dialect::Monograph&> {
   auto storage = Package::Storage::open(arena, package_root);
   if (!storage) {
-    Errors::Report report(errors, package_root);
-    report << package_import_operation
-           << " could not open the supplied Package root."_view;
+    Diagnostics::Log::Message<512> message(Diagnostics::Log::Level::Info);
+    message << package_import_operation
+            << " failed. reason=the Package root could not be opened "
+               "package_root="_view
+            << package_root << " root_semantic_name="_view << root_semantic_name
+            << " root_logical_route="_view << root_logical_route;
     return {};
   }
 
@@ -194,10 +200,12 @@ auto Environment::Workspace::import_package(
     Option<Package::Storage::Content&> content =
         package_storage.read(staged.logical_route);
     if (!content) {
-      Errors::Report report(errors, staged.logical_route);
-      report << package_import_operation
-             << " could not read semantic source "_view << staged.semantic_name
-             << " from logical route "_view << staged.logical_route << "."_view;
+      Diagnostics::Log::Message<512> message(Diagnostics::Log::Level::Info);
+      message << package_import_operation
+              << " failed. reason=the staged semantic source could not be read "
+                 "semantic_name="_view
+              << staged.semantic_name << " logical_route="_view
+              << staged.logical_route;
       failed = True;
       continue;
     }

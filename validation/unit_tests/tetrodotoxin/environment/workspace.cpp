@@ -134,7 +134,10 @@ class WorkspaceMonograph : public Language::Dialect::Monograph {
     return Invalid::get_invalid();
   }
 
-  auto post_pass(Errors&) -> void override { trace.post_passes++; }
+  auto post_pass() -> Bool override {
+    trace.post_passes++;
+    return True;
+  }
 
   auto get_fact() const -> View::Bytes { return fact; }
   auto get_diagnostic_path() const -> View::Bytes { return diagnostic_path; }
@@ -530,7 +533,8 @@ PERIMORTEM_UNIT_TEST(EnvironmentWorkspace, staged_fifo_retention) {
   Environment::Workspace workspace;
   Errors errors;
   {
-    Errors::Report report(errors, "prior-workspace.ttx"_view, View::Bytes());
+    Errors::Report report(
+        errors, "prior-workspace.ttx"_view, View::Bytes(), Token(), Token());
     report << "Earlier independent diagnostic."_view;
   }
 
@@ -715,18 +719,19 @@ PERIMORTEM_UNIT_TEST(EnvironmentWorkspace, staged_failures) {
       &workspace.resolve_context("duplicate.ttx"_view) ==
       &Invalid::get_invalid());
 
-  EXPECT_EQ(errors.get_size(), 4);
+  EXPECT_EQ(errors.get_size(), 3);
   EXPECT(has_diagnostic(errors, "Unknown dialect Missing"_view));
   EXPECT(has_diagnostic(
       errors, "Source is missing required documentation comment."_view));
   EXPECT(has_diagnostic(
       errors,
-      "Environment::Workspace Package import could not read semantic source "
-      "Missing from logical route missing.ttx."_view));
-  EXPECT(has_diagnostic(
-      errors,
       "Semantic source Keep is already imported into the Workspace."_view));
-  EXPECT(has_diagnostic(errors, "missing.ttx"_view));
+  EXPECT(
+      Test::error_contains(
+          "Environment::Workspace Package import failed. reason=the staged "
+          "semantic source could not be read semantic_name=Missing "
+          "logical_route=missing.ttx"_view,
+          Diagnostics::Log::Level::Info));
   EXPECT_EQ(trace.post_passes, 0);
   active_trace = nullptr;
 }

@@ -90,19 +90,19 @@ filesystem name.
 
 Storage borrows the Workspace Arena and owns exactly one opened
 `System::File::Root`. Its generic read operation serves Sources and embedded
-resources. Each logical route is normalized once at the Package boundary. The
-canonical relative form is then the cache key, diagnostic path, and confined
-read route. Absolute, rooted, escaping, empty, and NUL bearing routes are
-rejected.
+resources. `System::Path` owns lexical normalization. Storage uses the
+canonical relative form as the cache key, diagnostic path, and confined read
+route. Absolute, rooted, escaping, empty, and NUL bearing routes are rejected.
 
-Only successful reads enter the managed cache. Each canonical route constructs
-one public `Storage::Content` value in the supplied Arena. Content contains
-only the retained diagnostic path and byte views. Equivalent normalized routes
-return the same Content reference. Distinct routes remain distinct even when
-their contents or filesystem object are equal. Empty bytes remain a successful
-retained value. Later file mutation, replacement, removal, root pathname
-movement, caller route mutation, cache growth, and Storage movement do not
-change existing Content.
+Only successful reads enter the managed cache. After a cache miss succeeds,
+`Path::normalize` constructs the stable canonical route directly in the
+supplied Arena and Storage constructs one public `Storage::Content` over that
+route and the read bytes. Cache hits and failed reads consume no additional
+path storage. Equivalent normalized routes return the same Content reference.
+Distinct routes remain distinct even when their contents or filesystem object
+are equal. Empty bytes remain a successful retained value. Later file
+mutation, replacement, removal, root pathname movement, caller route mutation,
+cache growth, and Storage movement do not change existing Content.
 
 Storage lives while one physical Package can still be read. It may close after
 Workspace staging because every returned Content belongs to the Workspace
@@ -151,10 +151,13 @@ while the typed record ranges live in the caller Arena. The caller keeps that
 input valid until the Arena is reset or destroyed and keeps the Arena alive
 while it holds the returned Archive value. A caller with shorter lived input
 copies it into the Arena once before reading, while an Arena backed file read
-passes its existing view directly. Reader reports each rejected input through
-one explicit `Ttx::Lexical::Errors::Report` with the supplied diagnostic
-identity and exact input bytes. A later Workspace restoration transaction will
-select the installed Dialect and call its `restore` operation.
+passes its existing view directly. Reader logs the exact failing Format stage,
+byte offset, section tag, invalid value, duplicate name, or unknown reference
+through `Diagnostics::Log` and returns absence. It does not construct a textual
+source error because binary Archive bytes provide no authored token context. A
+later Workspace restoration transaction will attach that failure to the
+authored Dependency request before selecting the installed Dialect and calling
+its `restore` operation.
 
 ### Format 1
 
@@ -230,16 +233,41 @@ before allocation, and always emits the header and six known fields above.
 Equivalent facts therefore produce byte identical output regardless of their
 original backing allocations.
 
-### Future repository and restoration
+### Repository and future restoration
 
-The exact Repository selects only explicitly supplied products by Package
-identity and pinned version. It provides semantic Archives to Workspace and
-native product paths to Puffer as separate values. It does not scan the current
-directory, fetch a latest version, or load native bytes during semantic
-restoration.
+Namespace `Package::Repository` owns the `Repository` transaction and its
+`Input`, `Artifact`, and `Output` declaration values. One Repository borrows
+explicit Bazel-supplied declarations whose lifetime maps to its caller Arena.
+A caller with shorter-lived storage proxies those declarations into the Arena
+before construction. Each Input declares an expected Package identity, pinned
+Version, Archive filesystem location, and exact Artifact mappings from ID to
+native filesystem location. Identity and Version are the Input lookup key;
+input paths remain opaque locations and never supply semantic identity.
+Duplicate exact input keys reject construction.
 
-No exact Repository, Archive restoration path, or source free Workspace
-transaction exists in the current Package target. `Package::Dialect`
-encode and restore also remain future work because the Package root will be
-reconstructed from Archive envelope metadata rather than stored as a member
-payload.
+Exact Archive selection reads only the matching declaration into the caller
+Arena and passes those stable bytes to `Archive::Reader`. Repository verifies
+the decoded identity and Version and requires exactly one declared native path
+for every ordered Archive artifact ID before caching the successful Archive.
+Missing keys remain ordinary absence. A missing, empty, corrupt, or mismatched
+selected input logs its exact Package key, Archive location, and failure stage,
+while every unselected declaration remains inert. Native mapping failures name
+the missing, duplicate, or unknown artifact ID and every available filesystem
+location. Native lookup validates the semantic Archive and then returns only
+the borrowed exact path. It never reads native bytes.
+
+Archive and native inventories use the same Output value and exact Package
+identity, Version, and artifact ID key while retaining separate lookup
+operations. Repository rejects empty, rooted, escaping, NUL-bearing,
+backslash-bearing, or oversized routes. `System::Path` constructs each accepted
+slash-normalized relative route directly in the caller Arena. Repository
+applies one key and route collision domain across both output kinds. Duplicate
+and collision logs name both product keys, both authored routes, and the shared
+normalized destination. Repository creates no directory and writes no product.
+Puffer remains the future owner of physical publication and the future source
+diagnostic for an invalid compile request.
+
+Archive restoration and the source free Workspace transaction do not yet
+exist. `Package::Dialect` encode and restore also remain future work because
+the Package root will be reconstructed from Archive envelope metadata rather
+than stored as a member payload.
