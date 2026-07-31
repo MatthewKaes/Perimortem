@@ -49,20 +49,6 @@ static auto has_source_name(
   return False;
 }
 
-static auto bind_alias(
-    Allocator::Arena& domain,
-    Managed::Map<View::Bytes, Alias&>& bindings,
-    View::Bytes local_name,
-    const Abstract& target) -> Bool {
-  if (local_name.is_empty() || bindings.contains(local_name)) {
-    return False;
-  }
-
-  Alias& alias = domain.construct<Alias>(local_name, target);
-  bindings.launder(local_name, alias);
-  return True;
-}
-
 auto Package::Language::Monograph::create_authored(
     Allocator::Arena& domain,
     const Documentation& documentation,
@@ -102,21 +88,24 @@ Package::Language::Monograph::Monograph(
       dependencies(dependencies),
       dependency_spans(dependency_spans),
       sources(sources),
+      members(domain),
       bindings(domain) {}
 
 auto Package::Language::Monograph::bind_member(
     View::Bytes local_name,
     const Tetrodotoxin::Language::Dialect::Monograph& member) -> Bool {
-  // Authored Source names and every Dependency alias reserve one scope before
-  // staging begins. Source free members arrive without Source values, so their
-  // validated Archive names enter through this same exact key operation.
-  if (has_dependency_name(dependencies, local_name) ||
+  // Every rejection happens before either inventory changes, so exact lookup
+  // and member order preserve the first completed edge.
+  if (local_name.is_empty() || has_dependency_name(dependencies, local_name) ||
       (!sources.is_empty() && !has_source_name(sources, local_name)) ||
-      &member == this) {
+      &member == this || bindings.contains(local_name)) {
     return False;
   }
 
-  return bind_alias(domain, bindings, local_name, member);
+  Alias& alias = domain.construct<Alias>(local_name, member);
+  bindings.launder(local_name, alias);
+  members.insert(alias);
+  return True;
 }
 
 auto Package::Language::Monograph::bind_dependency(
@@ -127,12 +116,15 @@ auto Package::Language::Monograph::bind_dependency(
   // A caller cannot manufacture another alias spelling for a retained request.
   // Source inventory checks happen before construction so staging order never
   // decides which cross kind meaning survives.
-  if (!has_dependency(dependencies, dependency) ||
-      has_source_name(sources, local_name) || &package == this) {
+  if (local_name.is_empty() || !has_dependency(dependencies, dependency) ||
+      has_source_name(sources, local_name) || &package == this ||
+      bindings.contains(local_name)) {
     return False;
   }
 
-  return bind_alias(domain, bindings, local_name, package);
+  Alias& alias = domain.construct<Alias>(local_name, package);
+  bindings.launder(local_name, alias);
+  return True;
 }
 
 auto Package::Language::Monograph::resolve_context(View::Bytes route) const
@@ -158,4 +150,9 @@ auto Package::Language::Monograph::get_dependency_spans() const
 
 auto Package::Language::Monograph::get_sources() const -> View::Vector<Source> {
   return sources;
+}
+
+auto Package::Language::Monograph::get_members() const
+    -> View::Vector<Reference<Alias>> {
+  return members;
 }

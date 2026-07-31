@@ -94,6 +94,13 @@ names, duplicates, direct cycles, undeclared authored member names, undeclared
 Dependency requests, and cross-kind collisions before allocating another
 Alias. The first valid edge therefore remains stable.
 
+`get_members` exposes successful member bindings in authored staging or source
+free Archive restoration order. Each nonnull Reference borrows the exact
+Arena-owned Alias also returned by `resolve_context`. Dependency Aliases remain
+queryable through that exact lookup but do not enter the member view. The view
+contains no declaration flattening, transitive dependency import, or
+publication policy.
+
 `resolve_context` performs one exact byte lookup and returns the stored Alias
 edge itself. Missing, partial, differently qualified, and alternate spelling
 queries return the shared TTX Invalid identity. It does not split `::`, infer a

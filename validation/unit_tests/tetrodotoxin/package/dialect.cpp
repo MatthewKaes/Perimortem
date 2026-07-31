@@ -381,6 +381,8 @@ PERIMORTEM_UNIT_TEST(PackageDialect, exact_scope) {
   };
   Package::Language::Source sources[] = {
     Package::Language::Source("Qualified::Member"_view, "member.ttx"_view),
+    Package::Language::Source("Second::Member"_view, "second.ttx"_view),
+    Package::Language::Source("Self::Member"_view, "self.ttx"_view),
   };
   Environment::Workspace workspace;
   Package::Dialect host(workspace);
@@ -392,6 +394,8 @@ PERIMORTEM_UNIT_TEST(PackageDialect, exact_scope) {
   auto& root = *root_result;
   auto& member = arena.construct<ScopeMember>(
       arena, Documentation::get_empty(), host, "Original member"_view);
+  auto& second_member = arena.construct<ScopeMember>(
+      arena, Documentation::get_empty(), host, "Second member"_view);
   auto& replacement = arena.construct<ScopeMember>(
       arena, Documentation::get_empty(), host, "Replacement member"_view);
   auto& dependency_root = Package::Language::Monograph::create_source_free(
@@ -401,13 +405,43 @@ PERIMORTEM_UNIT_TEST(PackageDialect, exact_scope) {
           arena, Documentation::get_empty(), host, {});
 
   ASSERT(root.bind_member("Qualified::Member"_view, member));
-  const Abstract& member_edge = root.resolve_context("Qualified::Member"_view);
-  ASSERT(member_edge.is<Ttx::Model::Alias>());
+  ASSERT(root.bind_member("Second::Member"_view, second_member));
+
+  auto members = root.get_members();
+  ASSERT_EQ(members.get_size(), Count(2));
+
+  const auto& member_edge = members[0].get();
+  const auto& second_member_edge = members[1].get();
+  EXPECT(&root.resolve_context("Qualified::Member"_view) == &member_edge);
+  EXPECT(&root.resolve_context("Second::Member"_view) == &second_member_edge);
   EXPECT_TEXT(member_edge.get_name(), "Qualified::Member"_view);
+  EXPECT_TEXT(second_member_edge.get_name(), "Second::Member"_view);
   EXPECT(&member_edge.resolve() == &member);
+  EXPECT(&second_member_edge.resolve() == &second_member);
+
+  EXPECT_NOT(root.bind_member("Qualified::Member"_view, member));
+  EXPECT_EQ(root.get_members().get_size(), Count(2));
+  EXPECT(&root.get_members()[0].get() == &member_edge);
+
   EXPECT_NOT(root.bind_member("Qualified::Member"_view, replacement));
+  EXPECT_EQ(root.get_members().get_size(), Count(2));
+  EXPECT(&root.get_members()[0].get() == &member_edge);
   EXPECT(&root.resolve_context("Qualified::Member"_view) == &member_edge);
   EXPECT(&member_edge.resolve() == &member);
+
+  EXPECT_NOT(root.bind_member(View::Bytes(), replacement));
+  EXPECT_EQ(root.get_members().get_size(), Count(2));
+  EXPECT(&root.resolve_context(View::Bytes()) == &Invalid::get_invalid());
+
+  EXPECT_NOT(root.bind_member("Undeclared::Member"_view, replacement));
+  EXPECT_EQ(root.get_members().get_size(), Count(2));
+  EXPECT(
+      &root.resolve_context("Undeclared::Member"_view) ==
+      &Invalid::get_invalid());
+
+  EXPECT_NOT(root.bind_member("Self::Member"_view, root));
+  EXPECT_EQ(root.get_members().get_size(), Count(2));
+  EXPECT(&root.resolve_context("Self::Member"_view) == &Invalid::get_invalid());
 
   Package::Language::Dependency forged_dependency(
       "Runtime::Core"_view, "Example.Core"_view, Version(1, 0));
@@ -416,6 +450,7 @@ PERIMORTEM_UNIT_TEST(PackageDialect, exact_scope) {
       &root.resolve_context("Runtime::Core"_view) == &Invalid::get_invalid());
 
   ASSERT(root.bind_dependency(dependencies[0], dependency_root));
+
   const Abstract& dependency_edge = root.resolve_context("Runtime::Core"_view);
   ASSERT(dependency_edge.is<Ttx::Model::Alias>());
   EXPECT_TEXT(dependency_edge.get_name(), "Runtime::Core"_view);
@@ -423,6 +458,7 @@ PERIMORTEM_UNIT_TEST(PackageDialect, exact_scope) {
   EXPECT_NOT(root.bind_dependency(dependencies[0], replacement_dependency));
   EXPECT(&root.resolve_context("Runtime::Core"_view) == &dependency_edge);
   EXPECT(&dependency_edge.resolve() == &dependency_root);
+  EXPECT_EQ(root.get_members().get_size(), Count(2));
 
   EXPECT(&root.resolve_context("Qualified"_view) == &Invalid::get_invalid());
   EXPECT(&root.resolve_context("Member"_view) == &Invalid::get_invalid());
@@ -440,10 +476,13 @@ PERIMORTEM_UNIT_TEST(PackageDialect, exact_scope) {
       &Invalid::get_invalid());
 
   EXPECT_NOT(root.bind_member("Runtime::Core"_view, replacement));
+  EXPECT_EQ(root.get_members().get_size(), Count(2));
+  EXPECT(&root.resolve_context("Runtime::Core"_view) == &dependency_edge);
+
   Package::Language::Dependency undeclared(
       "Qualified::Member"_view, "Example.Other"_view, Version(1, 0));
   EXPECT_NOT(root.bind_dependency(undeclared, replacement_dependency));
-  EXPECT_NOT(root.bind_member(View::Bytes(), replacement));
+  EXPECT_EQ(root.get_members().get_size(), Count(2));
 }
 
 PERIMORTEM_UNIT_TEST(PackageDialect, source_free_scope) {
@@ -458,8 +497,11 @@ PERIMORTEM_UNIT_TEST(PackageDialect, source_free_scope) {
   Allocator::Arena arena;
   auto& root = Package::Language::Monograph::create_source_free(
       arena, Documentation::get_empty(), host, dependencies);
-  auto& member = arena.construct<ScopeMember>(
-      arena, Documentation::get_empty(), host, "Restored identity"_view);
+  auto& later_member = arena.construct<ScopeMember>(
+      arena, Documentation::get_empty(), host, "Later restored identity"_view);
+  auto& earlier_member = arena.construct<ScopeMember>(
+      arena, Documentation::get_empty(), host,
+      "Earlier restored identity"_view);
   auto& dependency_root = Package::Language::Monograph::create_source_free(
       arena, Documentation::get_empty(), host, {});
 
@@ -468,18 +510,31 @@ PERIMORTEM_UNIT_TEST(PackageDialect, source_free_scope) {
   EXPECT_TEXT(root.get_dependencies()[1].get_local_name(), "Later"_view);
   EXPECT(root.get_dependency_spans().is_empty());
   EXPECT(root.get_sources().is_empty());
-  ASSERT(root.bind_member("Restored::Member"_view, member));
+  ASSERT(root.bind_member("Restored::Later"_view, later_member));
+  ASSERT(root.bind_member("Restored::Earlier"_view, earlier_member));
   ASSERT(root.bind_dependency(dependencies[0], dependency_root));
 
-  const Abstract& member_edge = root.resolve_context("Restored::Member"_view);
+  auto members = root.get_members();
+  ASSERT_EQ(members.get_size(), Count(2));
+
+  const auto& later_member_edge = members[0].get();
+  const auto& earlier_member_edge = members[1].get();
   const Abstract& dependency_edge = root.resolve_context("External"_view);
-  ASSERT(member_edge.is<Ttx::Model::Alias>());
   ASSERT(dependency_edge.is<Ttx::Model::Alias>());
-  EXPECT(&member_edge.resolve() == &member);
-  EXPECT(&dependency_edge.resolve() == &dependency_root);
-  EXPECT_NOT(root.bind_member("External"_view, member));
+  EXPECT_TEXT(later_member_edge.get_name(), "Restored::Later"_view);
+  EXPECT_TEXT(earlier_member_edge.get_name(), "Restored::Earlier"_view);
+  EXPECT(&root.resolve_context("Restored::Later"_view) == &later_member_edge);
   EXPECT(
-      &workspace.resolve_context("Restored::Member"_view) ==
+      &root.resolve_context("Restored::Earlier"_view) == &earlier_member_edge);
+  EXPECT(&later_member_edge.resolve() == &later_member);
+  EXPECT(&earlier_member_edge.resolve() == &earlier_member);
+  EXPECT(&dependency_edge.resolve() == &dependency_root);
+  EXPECT_EQ(root.get_members().get_size(), Count(2));
+  EXPECT_NOT(root.bind_member("External"_view, later_member));
+  EXPECT_EQ(root.get_members().get_size(), Count(2));
+  EXPECT(&root.resolve_context("External"_view) == &dependency_edge);
+  EXPECT(
+      &workspace.resolve_context("Restored::Later"_view) ==
       &Invalid::get_invalid());
 }
 

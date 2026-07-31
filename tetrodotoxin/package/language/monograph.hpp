@@ -4,17 +4,20 @@
 #pragma once
 
 #include "perimortem/memory/managed/map.hpp"
+#include "perimortem/memory/managed/vector.hpp"
 
 #include "tetrodotoxin/language/dialect.hpp"
 #include "tetrodotoxin/package/language/dependency.hpp"
 #include "tetrodotoxin/package/language/source.hpp"
+#include "ttx/concept/reference.hpp"
 #include "ttx/lexical/span.hpp"
 #include "ttx/model/alias.hpp"
 
 namespace Tetrodotoxin::Package::Language {
 
-// Contains the dependency and source manifest of a `package.ttx`.
-// Used by Environment and other systems to bootstrap a valid TTX island.
+// Owns the exact Package local Alias scope after manifest interpretation or
+// Archive restoration. Member lookup and ordered enumeration borrow the same
+// Arena identities.
 class Monograph : public Tetrodotoxin::Language::Dialect::Monograph {
  private:
   struct Construction {};
@@ -85,14 +88,21 @@ class Monograph : public Tetrodotoxin::Language::Dialect::Monograph {
 
   auto get_sources() const -> Perimortem::Core::View::Vector<Source>;
 
+  auto get_members() const -> Perimortem::Core::View::Vector<
+      Ttx::Concept::Reference<Ttx::Model::Alias>>;
+
  private:
-  // The Package Monograph is fully formed by interpretation and only exposes
-  // ordered views over its Arena backed durable values.
+  // The Map selects every exact local edge while the Vector preserves only
+  // successful member order. Both borrow the same Arena identities.
   Perimortem::Core::View::Vector<Dependency> dependencies;
   Perimortem::Core::View::Vector<Ttx::Lexical::Span> dependency_spans;
   Perimortem::Core::View::Vector<Source> sources;
+  Perimortem::Memory::Managed::Vector<
+      Ttx::Concept::Reference<Ttx::Model::Alias>>
+      members;
   Perimortem::Memory::Managed::
       Map<Perimortem::Core::View::Bytes, Ttx::Model::Alias&>
           bindings;
 };
+
 }  // namespace Tetrodotoxin::Package::Language
