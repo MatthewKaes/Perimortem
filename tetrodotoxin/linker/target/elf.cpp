@@ -13,7 +13,9 @@ using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
 using namespace Tetrodotoxin::Linker;
 
-// Elf is a little endian format, however the ar format has
+// ELF fields use little endian encoding while System V archive indices use big
+// endian encoding. Keeping both orders named at the wire boundary makes every
+// write below state which container owns it.
 static constexpr auto elf_endian = Data::ByteOrder::Little;
 static constexpr auto ar_endian = Data::ByteOrder::Big;
 
@@ -36,9 +38,8 @@ enum class SectionFlags : Unsigned_64 {
   Strings = 0x20,
 };
 
-// The ELF header block which contains core info of the binary.
-// Should always be exactly 64 bits so a lot of the offsets need
-// to have specific bit widths in order to be wire compatable.
+// The ELF header uses fixed width fields so its in memory record remains the
+// exact 64 byte wire shape required by the format.
 struct Header {
   Static::Bytes<16> identity;
   Unsigned_16 type;
@@ -57,8 +58,9 @@ struct Header {
 };
 static_assert(sizeof(Header) == 64);
 
-// Contains the binary layout for the section headers.
-// The ELF file can contain any number of sections.
+// Each section header uses the fixed 64 byte ELF wire shape. Object inventory
+// counts remain outside this record until one encoding transaction assigns the
+// final offsets and links.
 struct SectionHeader {
   Unsigned_32 name_offset;
   Unsigned_32 type;
@@ -73,23 +75,23 @@ struct SectionHeader {
 };
 static_assert(sizeof(SectionHeader) == 64);
 
-// The binary layout for symbol records.
-// The object model uses ELF-compatible values so this wire record can serialize
-// symbols directly without understanding the generator that produced them.
+// Symbol records contain only ELF wire values. Object vocabulary is translated
+// explicitly before reaching this record so its enum ordinals remain private
+// to the Module owner.
 struct SymbolRecord {
   Unsigned_32 name_offset;
-  Unsigned_8 info;        // (binding << 4) | type
-  Unsigned_8 visibility;  // STV_DEFAULT = 0
+  Unsigned_8 info;
+  Unsigned_8 visibility;
   Unsigned_16 section_index;
   Unsigned_64 value;
   Unsigned_64 size;
 };
 static_assert(sizeof(SymbolRecord) == 24);
 
-// Rela represents relative relocations
+// Rela keeps the explicit addend used by each relative relocation.
 struct RelaRecord {
   Unsigned_64 offset;
-  Unsigned_64 info;  // (symbol_index << 32) | reloc_type
+  Unsigned_64 info;
   Signed_64 addend;
 };
 static_assert(sizeof(RelaRecord) == 24);
@@ -99,9 +101,9 @@ enum class RelocationType : Unsigned_32 {
   Plt32 = 4,
 };
 
-// Carries every field needed to write a section header. name_offset and
-// file_offset are filled in during the build pipeline.
-struct SectionDesc {
+// SectionDescriptor retains one transaction's section header inputs. Name and
+// file offsets stay local because they depend on the final encoded inventory.
+struct SectionDescriptor {
   View::Bytes name;
   SectionType type = SectionType::Null;
   Unsigned_64 flags = 0;
@@ -114,25 +116,22 @@ struct SectionDesc {
   Count file_offset = 0;
 };
 
-struct SymbolRef {
+struct SymbolReference {
   const Object::Symbol* symbol;
   Count original_index;
   Count string_table_offset;
 };
 
-// The AR header is fairly janky and uses left aligned, space padded, human
-// readable values for describing the archive.
+// System V archive headers use left aligned textual fields padded with spaces.
+// The awkward representation stays here so Module values never absorb archive
+// publication details.
 struct ArHeader {
-  // Filled in with the actual name.
   Static::Bytes<16> name = "                "_bytes;
-  // Unused for now.
   Static::Bytes<12> timestamp = "0           "_bytes;
   Static::Bytes<6> owner_id = "0     "_bytes;
   Static::Bytes<6> group_id = "0     "_bytes;
   Static::Bytes<8> file_mode = "644     "_bytes;
-  // Stores the number of bytes of data in a textual format.
   Static::Bytes<10> data_size = "          "_bytes;
-  // must be "`\n"
   Static::Bytes<2> terminator = "`\n"_bytes;
 };
 static_assert(sizeof(ArHeader) == 60);
@@ -143,11 +142,11 @@ static auto fill_ar_header(ArHeader& header, View::Bytes name, Unsigned_64 size)
   Data::copy(header.name.get_data(), name.get_data(), name_length);
   header.name[name_length] = '/';
 
-  // Write only the data size, the rest of the fields are default initialized.
   Writer::Textual(header.data_size.get_access()) << size;
 }
 
-static auto to_section_desc(Object::Section section) -> SectionDesc {
+static auto to_section_descriptor(const Object::Section& section)
+    -> SectionDescriptor {
   switch (section.get_type()) {
   case Object::Section::Type::Undefined:
     return {};
@@ -183,6 +182,42 @@ static auto to_section_desc(Object::Section section) -> SectionDesc {
   }
 }
 
+static auto to_symbol_binding(Object::Symbol::Visibility visibility)
+    -> Unsigned_8 {
+  switch (visibility) {
+  case Object::Symbol::Visibility::Local:
+    return 0;
+  case Object::Symbol::Visibility::Global:
+    return 1;
+  default:
+    return 0;
+  }
+}
+
+static auto to_symbol_type(Object::Symbol::Type type) -> Unsigned_8 {
+  switch (type) {
+  case Object::Symbol::Type::None:
+    return 0;
+  case Object::Symbol::Type::Object:
+    return 1;
+  case Object::Symbol::Type::Function:
+    return 2;
+  default:
+    return 0;
+  }
+}
+
+static auto to_relocation_type(Object::Relocation::Type type) -> Unsigned_32 {
+  switch (type) {
+  case Object::Relocation::Type::Pc32:
+    return Unsigned_32(RelocationType::PcRelative32);
+  case Object::Relocation::Type::Plt32:
+    return Unsigned_32(RelocationType::Plt32);
+  default:
+    return 0;
+  }
+}
+
 static auto relocation_name_for(Object::Section::Type type) -> View::Bytes {
   switch (type) {
   case Object::Section::Type::Program:
@@ -196,35 +231,37 @@ static auto relocation_name_for(Object::Section::Type type) -> View::Bytes {
   }
 }
 
-static auto sort_symbols(View::Vector<Object::Symbol> symbols)
-    -> Dynamic::Vector<SymbolRef> {
-  Dynamic::Vector<SymbolRef> sorted;
-  for (Count pass = 0; pass <= Count(Object::Symbol::Visibility::Global);
-       pass++) {
-    for (Count i = 0; i < symbols.get_size(); i++) {
-      if (Count(symbols[i].get_visibility()) != pass) {
-        continue;
-      }
-
-      sorted.insert({symbols.get_data() + i, i, 0});
+static auto append_symbols(
+    Dynamic::Vector<SymbolReference>& sorted_symbols,
+    View::Vector<Object::Symbol> symbols,
+    Object::Symbol::Visibility visibility) -> void {
+  for (Count i = 0; i < symbols.get_size(); i++) {
+    if (symbols[i].get_visibility() == visibility) {
+      sorted_symbols.insert({symbols.get_data() + i, i, 0});
     }
   }
-
-  return sorted;
 }
 
-static auto build_symbol_slots(View::Vector<SymbolRef> sorted)
+static auto sort_symbols(View::Vector<Object::Symbol> symbols)
+    -> Dynamic::Vector<SymbolReference> {
+  Dynamic::Vector<SymbolReference> sorted_symbols;
+  append_symbols(sorted_symbols, symbols, Object::Symbol::Visibility::Local);
+  append_symbols(sorted_symbols, symbols, Object::Symbol::Visibility::Global);
+  return sorted_symbols;
+}
+
+static auto build_symbol_slots(View::Vector<SymbolReference> sorted_symbols)
     -> Dynamic::Vector<Unsigned_32> {
-  Dynamic::Vector<Unsigned_32> slots;
-  slots.resize(sorted.get_size());
-  for (Count i = 0; i < sorted.get_size(); i++) {
-    slots[sorted[i].original_index] = Unsigned_32(1 + i);
+  Dynamic::Vector<Unsigned_32> symbol_slots;
+  symbol_slots.resize(sorted_symbols.get_size());
+  for (Count i = 0; i < sorted_symbols.get_size(); i++) {
+    symbol_slots[sorted_symbols[i].original_index] = Unsigned_32(1 + i);
   }
 
-  return slots;
+  return symbol_slots;
 }
 
-static auto build_string_table(Access::Vector<SymbolRef> symbols)
+static auto build_string_table(Access::Vector<SymbolReference> symbols)
     -> Dynamic::Bytes {
   Dynamic::Bytes string_table;
   string_table.append('\0');
@@ -237,22 +274,22 @@ static auto build_string_table(Access::Vector<SymbolRef> symbols)
   return string_table;
 }
 
-static auto build_symbol_table(View::Vector<SymbolRef> sorted)
+static auto build_symbol_table(View::Vector<SymbolReference> sorted_symbols)
     -> Dynamic::Bytes {
-  const Count entry_count = 1 + sorted.get_size();
+  const Count entry_count = 1 + sorted_symbols.get_size();
   Dynamic::Bytes data;
   data.forgetful_resize(sizeof(SymbolRecord) * entry_count);
   memset(data.get_access().get_data(), 0, sizeof(SymbolRecord) * entry_count);
   auto* entries = Data::cast<SymbolRecord>(data.get_access().get_data());
-  for (Count i = 0; i < sorted.get_size(); i++) {
-    const auto& ref = sorted[i];
-    const auto& symbol = *ref.symbol;
+  for (Count i = 0; i < sorted_symbols.get_size(); i++) {
+    const auto& reference = sorted_symbols[i];
+    const auto& symbol = *reference.symbol;
     auto& entry = entries[1 + i];
-    const Unsigned_8 binding =
-        symbol.get_visibility() == Object::Symbol::Visibility::Global ? 1 : 0;
+    const Unsigned_8 binding = to_symbol_binding(symbol.get_visibility());
+    const Unsigned_8 type = to_symbol_type(symbol.get_type());
     Data::write<elf_endian>(
-        &entry.name_offset, Unsigned_32(ref.string_table_offset));
-    entry.info = Unsigned_8((binding << 4) | Unsigned_8(symbol.get_type()));
+        &entry.name_offset, Unsigned_32(reference.string_table_offset));
+    entry.info = Unsigned_8((binding << 4) | type);
     Data::write<elf_endian>(&entry.section_index, symbol.get_section_index());
     Data::write<elf_endian>(
         &entry.value, Unsigned_64(symbol.get_range().start));
@@ -268,40 +305,40 @@ static auto write_relocations(
     View::Vector<Unsigned_32> symbol_slots) -> void {
   auto* entries = Data::cast<RelaRecord>(data.get_data());
   for (Count i = 0; i < relocations.get_size(); i++) {
-    const auto& reloc = relocations[i];
-    const Unsigned_32 rtype =
-        reloc.get_type() == Object::Relocation::Type::Plt32
-            ? Unsigned_32(RelocationType::Plt32)
-            : Unsigned_32(RelocationType::PcRelative32);
+    const auto& relocation = relocations[i];
+    const Unsigned_32 relocation_type =
+        to_relocation_type(relocation.get_type());
     Data::write<elf_endian>(
-        &entries[i].offset, Unsigned_64(reloc.get_offset()));
+        &entries[i].offset, Unsigned_64(relocation.get_offset()));
     Data::write<elf_endian>(
         &entries[i].info,
-        (Unsigned_64(symbol_slots[reloc.get_symbol()]) << 32) |
-            Unsigned_64(rtype));
-    Data::write<elf_endian>(&entries[i].addend, Signed_64(reloc.get_addend()));
+        (Unsigned_64(symbol_slots[relocation.get_symbol()]) << 32) |
+            Unsigned_64(relocation_type));
+    Data::write<elf_endian>(
+        &entries[i].addend, Signed_64(relocation.get_addend()));
   }
 }
 
-static auto build_section_string_table(Access::Vector<SectionDesc> sections)
-    -> Dynamic::Bytes {
-  Dynamic::Bytes shstrtab;
-  shstrtab.append('\0');
+static auto build_section_string_table(
+    Access::Vector<SectionDescriptor> sections) -> Dynamic::Bytes {
+  Dynamic::Bytes section_string_table;
+  section_string_table.append('\0');
   for (Count i = 0; i < sections.get_size(); i++) {
     if (sections[i].name.get_size() == 0) {
       sections[i].name_offset = 0;
       continue;
     }
 
-    sections[i].name_offset = shstrtab.get_size();
-    shstrtab.concat(sections[i].name);
-    shstrtab.append('\0');
+    sections[i].name_offset = section_string_table.get_size();
+    section_string_table.concat(sections[i].name);
+    section_string_table.append('\0');
   }
 
-  return shstrtab;
+  return section_string_table;
 }
 
-static auto assign_offsets(Access::Vector<SectionDesc> sections) -> Count {
+static auto assign_offsets(Access::Vector<SectionDescriptor> sections)
+    -> Count {
   Count offset = sizeof(Header);
   for (Count i = 0; i < sections.get_size(); i++) {
     if (sections[i].data.get_size() == 0) {
@@ -309,52 +346,17 @@ static auto assign_offsets(Access::Vector<SectionDesc> sections) -> Count {
       continue;
     }
 
-    const Count align =
+    const Count alignment =
         sections[i].alignment > 0 ? Count(sections[i].alignment) : 1;
-    offset = (offset + align - 1) & ~(align - 1);
+    offset = (offset + alignment - 1) & ~(alignment - 1);
     sections[i].file_offset = offset;
     offset += sections[i].data.get_size();
   }
 
-  // Align the final offset to an 8 byte boundary.
   return Data::align<8>(offset);
 }
 
-Target::Elf::Elf() {
-  reset();
-}
-
-auto Target::Elf::add_section(Object::Section section) -> Unsigned_16 {
-  const Unsigned_16 index = Unsigned_16(sections.get_size());
-  sections.insert(section);
-  relocation_tables.insert(Dynamic::Vector<Object::Relocation>());
-  return index;
-}
-
-auto Target::Elf::add_symbol(Object::Symbol symbol) -> void {
-  symbols.insert(symbol);
-}
-
-auto Target::Elf::add_relocation(Object::Relocation relocation) -> void {
-  if (relocation_tables[relocation.get_section_index()].get_size() == 0) {
-    relocation_section_count++;
-  }
-
-  relocation_tables[relocation.get_section_index()].insert(relocation);
-  relocation_count++;
-}
-
-auto Target::Elf::reset() -> void {
-  sections.clear();
-  relocation_tables.clear();
-  sections.insert(Object::Section::undefined());
-  relocation_tables.insert(Dynamic::Vector<Object::Relocation>());
-  symbols.clear();
-  relocation_count = 0;
-  relocation_section_count = 0;
-}
-
-auto Target::Elf::write_header(
+static auto write_header(
     Access::Bytes buffer,
     Unsigned_64 section_offset,
     Unsigned_16 section_count,
@@ -376,24 +378,43 @@ auto Target::Elf::write_header(
       &header->string_section_index, section_string_table_index);
 }
 
+static auto group_relocations(
+    Count section_count,
+    View::Vector<Object::Relocation> relocations)
+    -> Dynamic::Vector<Dynamic::Vector<Object::Relocation>> {
+  Dynamic::Vector<Dynamic::Vector<Object::Relocation>> relocation_tables;
+  for (Count i = 0; i < section_count; i++) {
+    relocation_tables.insert(Dynamic::Vector<Object::Relocation>());
+  }
+
+  for (Count i = 0; i < relocations.get_size(); i++) {
+    const auto& relocation = relocations[i];
+    relocation_tables[relocation.get_section_index()].insert(relocation);
+  }
+
+  return relocation_tables;
+}
+
 static auto write_section_headers(
     Access::Bytes buffer,
-    View::Vector<SectionDesc> section_descriptors) -> void {
+    View::Vector<SectionDescriptor> section_descriptors) -> void {
   auto* entries = Data::cast<SectionHeader>(buffer.get_data());
   for (Count i = 0; i < section_descriptors.get_size(); i++) {
-    const auto& d = section_descriptors[i];
+    const auto& descriptor = section_descriptors[i];
     Data::write<elf_endian>(
-        &entries[i].name_offset, Unsigned_32(d.name_offset));
-    Data::write<elf_endian>(&entries[i].type, Unsigned_32(d.type));
-    Data::write<elf_endian>(&entries[i].flags, d.flags);
+        &entries[i].name_offset, Unsigned_32(descriptor.name_offset));
+    Data::write<elf_endian>(&entries[i].type, Unsigned_32(descriptor.type));
+    Data::write<elf_endian>(&entries[i].flags, descriptor.flags);
     Data::write<elf_endian>(
-        &entries[i].file_offset, Unsigned_64(d.file_offset));
-    Data::write<elf_endian>(&entries[i].size, Unsigned_64(d.data.get_size()));
-    Data::write<elf_endian>(&entries[i].link, d.link);
-    Data::write<elf_endian>(&entries[i].info, d.info);
+        &entries[i].file_offset, Unsigned_64(descriptor.file_offset));
     Data::write<elf_endian>(
-        &entries[i].alignment, d.alignment > 0 ? d.alignment : Unsigned_64(1));
-    Data::write<elf_endian>(&entries[i].entry_size, d.entry_size);
+        &entries[i].size, Unsigned_64(descriptor.data.get_size()));
+    Data::write<elf_endian>(&entries[i].link, descriptor.link);
+    Data::write<elf_endian>(&entries[i].info, descriptor.info);
+    Data::write<elf_endian>(
+        &entries[i].alignment,
+        descriptor.alignment > 0 ? descriptor.alignment : Unsigned_64(1));
+    Data::write<elf_endian>(&entries[i].entry_size, descriptor.entry_size);
   }
 }
 
@@ -401,15 +422,15 @@ static auto build_section_descriptors(
     View::Vector<Object::Section> sections,
     Access::Bytes relocation_data,
     View::Vector<Dynamic::Vector<Object::Relocation>> relocation_tables,
-    View::Vector<SymbolRef> sorted_symbols,
+    View::Vector<SymbolReference> sorted_symbols,
     View::Vector<Unsigned_32> symbol_slots,
     View::Bytes symbol_table,
     View::Bytes string_table,
     Count symbol_table_index,
-    Count string_table_index) -> Dynamic::Vector<SectionDesc> {
-  Dynamic::Vector<SectionDesc> descriptors;
+    Count string_table_index) -> Dynamic::Vector<SectionDescriptor> {
+  Dynamic::Vector<SectionDescriptor> descriptors;
   for (Count i = 0; i < sections.get_size(); i++) {
-    descriptors.insert(to_section_desc(sections[i]));
+    descriptors.insert(to_section_descriptor(sections[i]));
   }
 
   Count relocation_offset = 0;
@@ -436,8 +457,9 @@ static auto build_section_descriptors(
     });
   }
 
-  // SHT_SYMTAB stores the first non-local symbol slot in sh_info. Slot zero is
-  // the null symbol, and sort_symbols already places local symbols first.
+  // ELF stores the first global symbol slot in sh_info. Slot zero remains the
+  // null record and the explicit sort above places every local Symbol before
+  // this boundary.
   Count first_non_local_symbol = 1;
   for (Count i = 0; i < sorted_symbols.get_size(); i++) {
     if (sorted_symbols[i].symbol->get_visibility() !=
@@ -465,61 +487,71 @@ static auto build_section_descriptors(
   return descriptors;
 }
 
-auto Target::Elf::build_object() -> Dynamic::Bytes {
-  auto sorted = sort_symbols(symbols.get_view());
-  auto symbol_slots = build_symbol_slots(sorted.get_view());
-  auto string_table = build_string_table(sorted.get_access());
-  auto symbol_table = build_symbol_table(sorted.get_view());
+static auto build_object(const Object::Module& module) -> Dynamic::Bytes {
+  const auto sections = module.get_sections();
+  const auto symbols = module.get_symbols();
+  const auto relocations = module.get_relocations();
+  auto relocation_tables = group_relocations(sections.get_size(), relocations);
+  Count relocation_section_count = 0;
+  for (Count i = 0; i < relocation_tables.get_size(); i++) {
+    if (relocation_tables[i].get_size() != 0) {
+      relocation_section_count++;
+    }
+  }
+
+  auto sorted_symbols = sort_symbols(symbols);
+  auto symbol_slots = build_symbol_slots(sorted_symbols.get_view());
+  auto string_table = build_string_table(sorted_symbols.get_access());
+  auto symbol_table = build_symbol_table(sorted_symbols.get_view());
 
   Dynamic::Bytes relocation_data;
-  relocation_data.forgetful_resize(sizeof(RelaRecord) * relocation_count);
+  relocation_data.forgetful_resize(sizeof(RelaRecord) * relocations.get_size());
 
-  // Get the indexs of the additional sections we need to add.
+  // Relocation sections are inserted after Module sections. The three shared
+  // tables follow them, so every index can be frozen before any file offset is
+  // assigned.
   const Count symbol_table_index =
       sections.get_size() + relocation_section_count;
   const Count string_table_index = symbol_table_index + 1;
   const Count section_string_table_index = string_table_index + 1;
   const Count total = section_string_table_index + 1;
 
-  // Build the final section descriptor set.
   auto section_descriptors = build_section_descriptors(
-      sections.get_view(), relocation_data.get_access(),
-      relocation_tables.get_view(), sorted.get_view(), symbol_slots.get_view(),
-      symbol_table, string_table, symbol_table_index, string_table_index);
+      sections, relocation_data.get_access(), relocation_tables.get_view(),
+      sorted_symbols.get_view(), symbol_slots.get_view(), symbol_table,
+      string_table, symbol_table_index, string_table_index);
 
-  // The string table can now be populated as it requires all of the section
-  // descriptor names.
+  // Section names depend on the complete descriptor inventory. Build that
+  // string table after descriptors exist and retain its bytes for the rest of
+  // this transaction.
   auto section_string_table =
       build_section_string_table(section_descriptors.get_access());
   section_descriptors.get_access()[section_string_table_index].data =
       section_string_table.get_view();
 
-  // Allocates offsets for each header so it has a valid location to write it's
-  // data that also meets it's alignment requirements.
+  // Payload offsets are assigned only after every descriptor exists. The
+  // section header block can then follow the last aligned payload without
+  // requiring retained target state.
   const Count section_headers_offset =
       assign_offsets(section_descriptors.get_access());
   const Count file_size =
       section_headers_offset + sizeof(SectionHeader) * total;
 
-  // Allocate a valid buffer and make sure it's clear of any junk data.
   Dynamic::Bytes output(file_size);
   output.forgetful_resize(file_size);
   output.set(0);
   auto output_bytes = output.get_access().get_data();
   memset(output_bytes, 0, file_size);
 
-  // Write the ELF header
   write_header(
       output.get_access(), section_headers_offset, Unsigned_16(total),
       Unsigned_16(section_string_table_index));
 
-  // Write the section headers
   write_section_headers(
       output.get_access().slice(
           section_headers_offset, sizeof(SectionHeader) * total),
       section_descriptors.get_view());
 
-  // Write the actual section data
   for (Count i = 0; i < total; i++) {
     const auto& descriptor = section_descriptors.get_view()[i];
     if (descriptor.data.get_size() > 0) {
@@ -532,24 +564,27 @@ auto Target::Elf::build_object() -> Dynamic::Bytes {
   return output;
 }
 
-auto Target::Elf::build_library(View::Bytes object_name) -> Dynamic::Bytes {
-  Dynamic::Bytes object = build_object();
+auto Target::Elf::build_library(
+    const Object::Module& module,
+    View::Bytes object_name) const -> Dynamic::Bytes {
+  const auto symbols = module.get_symbols();
+  Dynamic::Bytes object = build_object(module);
   const View::Bytes object_view = object.get_view();
 
-  // Add symbol entries into the AR for all globally exported symbols.
+  // The archive index publishes only defined global Symbols. Undefined names
+  // remain in the ELF member so a later native consumer can resolve them.
   Count exported_count = 0;
   Count exported_names_bytes = 0;
   for (Count i = 0; i < symbols.get_size(); i++) {
-    if (symbols.get_view()[i].get_visibility() ==
-            Object::Symbol::Visibility::Global &&
-        !symbols.get_view()[i].is_external()) {
+    if (symbols[i].get_visibility() == Object::Symbol::Visibility::Global &&
+        symbols[i].is_defined()) {
       exported_count++;
-      exported_names_bytes += symbols.get_view()[i].get_name().get_size() + 1;
+      exported_names_bytes += symbols[i].get_name().get_size() + 1;
     }
   }
 
-  // ar(1) SYSV symtab: 4-byte BE count, 4-byte BE offsets, null-terminated
-  // names.
+  // The System V index begins with a big endian count and member offsets, then
+  // stores each exported name with a trailing zero byte.
   const Count symbol_table_size = 4 + 4 * exported_count + exported_names_bytes;
   const Count symbol_table_padded = symbol_table_size + (symbol_table_size & 1);
   const Count object_offset = 8 + sizeof(ArHeader) + symbol_table_padded;
@@ -582,9 +617,9 @@ auto Target::Elf::build_library(View::Bytes object_name) -> Dynamic::Bytes {
   }
 
   for (Count i = 0; i < symbols.get_size(); i++) {
-    const auto& symbol = symbols.get_view()[i];
+    const auto& symbol = symbols[i];
     if (symbol.get_visibility() != Object::Symbol::Visibility::Global ||
-        symbol.is_external()) {
+        symbol.is_undefined()) {
       continue;
     }
 
@@ -596,7 +631,9 @@ auto Target::Elf::build_library(View::Bytes object_name) -> Dynamic::Bytes {
 
   cursor += symbol_table_padded;
 
-  // Write the actual object file into the archive.
+  // The retained smoke contract carries one ELF member. K01 owns multiple
+  // members and full archive compliance, so this transaction stays deliberately
+  // narrow.
   ArHeader object_header;
   fill_ar_header(
       object_header, object_name, Unsigned_64(object_view.get_size()));
