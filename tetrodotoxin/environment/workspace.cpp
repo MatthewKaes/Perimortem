@@ -10,6 +10,7 @@
 #include "tetrodotoxin/package/language/monograph.hpp"
 #include "tetrodotoxin/package/storage.hpp"
 #include "ttx/concept/invalid.hpp"
+#include "ttx/lexical/span.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -59,7 +60,7 @@ auto Environment::Workspace::import_retained_source(
   // An existing semantic identity is never reparsed or overwritten. Errors
   // snapshots the retained input before this transaction ends.
   if (source_monographs.contains(semantic_name)) {
-    Errors::Report report(errors, diagnostic_path, contents, Token(), Token());
+    Errors::Report report(errors, diagnostic_path, contents, Span());
     report << "Semantic source "_view << semantic_name
            << " is already imported into the Workspace."_view;
     return {};
@@ -95,8 +96,7 @@ auto Environment::Workspace::import_retained_source(
   auto* dialect_entry = dialects.find(dialect_name);
   if (dialect_entry == nullptr) {
     Errors::Report report(
-        errors, diagnostic_path, contents, dialect_instruction,
-        dialect_instruction);
+        errors, diagnostic_path, contents, Span(dialect_instruction));
     auto& hint = report.get_hint();
     const Count installed_count = installed_names.get_size();
 
@@ -210,12 +210,12 @@ auto Environment::Workspace::import_package(
       continue;
     }
 
-    // Every argument now has proven Workspace lifetime. Staged names are
-    // either the retained root name or a view held by a Package Monograph.
-    // Storage was opened with this same Arena, so Content retains both its
-    // normalized diagnostic path and its file bytes here. Entering the semantic
-    // transaction directly avoids allocating and copying the complete source a
-    // second time.
+    // Every argument has proven Workspace lifetime. Staged names are either the
+    // retained root name or a view held by a Package Monograph. Storage was
+    // opened with this same Arena, so Content retains both its normalized
+    // diagnostic path and its file bytes here. Entering the semantic
+    // transaction directly avoids allocating and copying the complete source
+    // a second time.
     Option<Language::Dialect::Monograph&> imported = import_retained_source(
         staged.semantic_name, (*content).get_diagnostic_path(),
         (*content).get_contents(), errors);

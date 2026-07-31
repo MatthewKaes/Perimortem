@@ -20,6 +20,7 @@
 #include "tetrodotoxin/package/dialect.hpp"
 #include "tetrodotoxin/package/language/monograph.hpp"
 #include "ttx/concept/invalid.hpp"
+#include "ttx/lexical/span.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -192,7 +193,7 @@ static auto expected_unknown_diagnostic(View::Bytes hint) -> Dynamic::Bytes {
       "\x1b[38;2;245;147;85m"
       "      | "
       "\x1b[38;2;255;201;107m"
-      "^-------\n"
+      "^------\n"
       "\x1b[38;2;245;147;85m"
       "Note: "
       "\x1b[38;2;255;201;107m"_view);
@@ -534,7 +535,7 @@ PERIMORTEM_UNIT_TEST(EnvironmentWorkspace, staged_fifo_retention) {
   Errors errors;
   {
     Errors::Report report(
-        errors, "prior-workspace.ttx"_view, View::Bytes(), Token(), Token());
+        errors, "prior-workspace.ttx"_view, View::Bytes(), Span());
     report << "Earlier independent diagnostic."_view;
   }
 

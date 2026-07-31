@@ -161,12 +161,13 @@ Arena. Both public operations return the imported Monograph Option. Dependency
 restoration and ordered post pass remain absent.
 
 Textual errors require authored text. `Ttx::Lexical::Errors::Report` receives
-an explicit source name, source body, and token range from the owner of that
-text. Context free filesystem, Archive, and Repository validation instead logs
-its exact local names, values, offsets, and transaction stage through
-`Diagnostics::Log`, then returns failure. Workspace or Puffer owns the later
-user facing error because only that layer can attach the failure to an authored
-Dependency, Source, or compile request. Neither channel replaces the other.
+an explicit source name, source body, and `Ttx::Lexical::Span` from the owner
+of that text. Context free filesystem, Archive, and Repository validation
+instead logs its exact local names, values, offsets, and transaction stage
+through `Diagnostics::Log`, then returns failure. Workspace or Puffer owns the
+later user facing error because only that layer can attach the failure to an
+authored Dependency, Source, or compile request. Neither channel replaces the
+other.
 
 ## Package Dialect
 

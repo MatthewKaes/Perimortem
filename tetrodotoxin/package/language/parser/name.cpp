@@ -3,6 +3,8 @@
 
 #include "tetrodotoxin/package/language/parser/name.hpp"
 
+#include "ttx/lexical/span.hpp"
+
 using namespace Perimortem::Core;
 using namespace Ttx::Lexical;
 using namespace Tetrodotoxin::Package::Language;
@@ -25,7 +27,8 @@ static auto parse_qualified_name(
     Token operator_token = cursor.current();
     Count previous_end = Count(last.get_offset()) + Count(last.get_size());
     if (operator_token.get_offset() != previous_end) {
-      cursor.create_expression_error(first, operator_token, whitespace_message);
+      cursor.create_expression_error(
+          Span(first, operator_token), whitespace_message);
       return {};
     }
 
@@ -38,7 +41,7 @@ static auto parse_qualified_name(
     Count operator_end =
         Count(operator_token.get_offset()) + Count(operator_token.get_size());
     if (segment.get_offset() != operator_end) {
-      cursor.create_expression_error(first, segment, whitespace_message);
+      cursor.create_expression_error(Span(first, segment), whitespace_message);
       return {};
     }
 

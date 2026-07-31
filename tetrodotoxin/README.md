@@ -55,12 +55,12 @@ Bazel declares exact inputs and terminal outputs
 
 Textual source diagnostics and lower level validation traces remain separate.
 `Ttx::Lexical::Errors::Report` is created only by an owner with an explicit
-source name, source body, and token range. Filesystem, Archive, and Repository
-owners log the exact local failure facts through `Diagnostics::Log` and return
-failure. Workspace or Puffer then uses the authored dependency, source, or
-compile request context to publish the user facing error. A low level log does
-not substitute for that source diagnostic, and a source diagnostic does not
-discard the detailed validation trace.
+source name, source body, and `Ttx::Lexical::Span`. Filesystem, Archive, and
+Repository owners log the exact local failure facts through `Diagnostics::Log`
+and return failure. Workspace or Puffer then uses the authored dependency,
+source, or compile request context to publish the user facing error. A low
+level log does not substitute for that source diagnostic, and a source
+diagnostic does not discard the detailed validation trace.
 
 `Language::Dialect` is intentionally stateful. Environment constructs each
 installed Dialect in its graph Arena, supplies the Workspace as its shared TTX

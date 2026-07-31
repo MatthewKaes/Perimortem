@@ -56,6 +56,7 @@ auto Package::Dialect::interpret(
     const Documentation& documentation,
     Abstract&) -> Option<Dialect::Monograph&> {
   Managed::Vector<Language::Dependency> dependencies(domain);
+  Managed::Vector<Span> dependency_spans(domain);
   Managed::Vector<Language::Source> sources(domain);
   Bool failed = False;
   Bool source_region = False;
@@ -67,7 +68,8 @@ auto Package::Dialect::interpret(
     Token statement = cursor.current();
     switch (cursor.get_code().get_type()) {
     case Code::Type::Resolve: {
-      auto dependency = Language::Dependency::parse(cursor);
+      Span dependency_span;
+      auto dependency = Language::Dependency::parse(cursor, dependency_span);
       if (!dependency) {
         failed = True;
         continue;
@@ -88,7 +90,11 @@ auto Package::Dialect::interpret(
         failed = True;
       }
 
+      // Dependency owns complete statement consumption and exposes only its
+      // lexical bounds beside the durable request. Pair them after parsing so
+      // recovery cannot leave provenance behind.
       dependencies.insert(*dependency);
+      dependency_spans.insert(dependency_span);
       continue;
     }
 
@@ -139,6 +145,13 @@ auto Package::Dialect::interpret(
     return {};
   }
 
-  return domain.construct<Language::Monograph>(
-      domain, documentation, *this, dependencies, sources);
+  // Both inventories grow in the same statement branch, but Monograph owns
+  // the invariant so another authored producer cannot publish a partial pair.
+  auto monograph = Language::Monograph::create_authored(
+      domain, documentation, *this, dependencies, dependency_spans, sources);
+  if (!monograph) {
+    return {};
+  }
+
+  return *monograph;
 }

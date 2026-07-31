@@ -8,11 +8,14 @@
 #include "perimortem/memory/allocator/arena.hpp"
 #include "perimortem/memory/dynamic/bytes.hpp"
 
+#include "tetrodotoxin/environment/workspace.hpp"
 #include "tetrodotoxin/package/archive/export.hpp"
 #include "tetrodotoxin/package/archive/member.hpp"
 #include "tetrodotoxin/package/archive/read_error.hpp"
 #include "tetrodotoxin/package/archive/reader.hpp"
 #include "tetrodotoxin/package/archive/writer.hpp"
+#include "tetrodotoxin/package/dialect.hpp"
+#include "tetrodotoxin/package/language/monograph.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -287,6 +290,70 @@ PERIMORTEM_UNIT_TEST(PackageArchive, value_mechanics) {
   auto encoded = Package::Archive::Writer::write(assigned);
   ASSERT(encoded);
   EXPECT((*encoded).get_view() == golden());
+}
+
+PERIMORTEM_UNIT_TEST(PackageArchive, authored_provenance_is_not_encoded) {
+  static constexpr View::Bytes source =
+      "// Authored Package\n"
+      "dialect : Package;\n"
+      "resolve Core : Pkg.Base = \"3.4\";\n"
+      "source Main from \"main.ttx\";"_view;
+  Environment::Workspace workspace;
+  Ttx::Lexical::Errors errors;
+
+  // Workspace supplies real authored provenance through the production
+  // parser. A synthetic Dependency alone could not prove spans were excluded.
+  ASSERT(workspace.install_dialect<Package::Dialect>("Package"_view));
+  ASSERT(workspace.import_source(
+      "Authored"_view, "package.ttx"_view, source, errors));
+  const auto& imported = workspace.resolve_context("Authored"_view);
+  ASSERT(imported.is<Package::Language::Monograph>());
+  const auto& authored =
+      static_cast<const Package::Language::Monograph&>(imported);
+  ASSERT_EQ(authored.get_dependency_spans().get_size(), Count(1));
+  EXPECT(errors.is_empty());
+
+  Environment::Workspace registry;
+  Package::Dialect host(registry);
+  Allocator::Arena arena;
+  auto& source_free = Package::Language::Monograph::create_source_free(
+      arena, Ttx::Concept::Documentation::get_empty(), host,
+      authored.get_dependencies());
+  Package::Archive::Member members[] = {
+    Package::Archive::Member("Main"_view, "Lib"_view, View::Bytes()),
+  };
+  Package::Archive::Archive authored_archive(
+      "Pkg.Core"_view, Version(1, 2), authored.get_dependencies(), members,
+      View::Vector<View::Bytes>(), View::Vector<Package::Archive::Export>());
+  Package::Archive::Archive source_free_archive(
+      "Pkg.Core"_view, Version(1, 2), source_free.get_dependencies(), members,
+      View::Vector<View::Bytes>(), View::Vector<Package::Archive::Export>());
+
+  // Archive receives the same durable Dependency facts from both construction
+  // paths. Equal output proves the extra authored coordinates are not input.
+  auto authored_bytes = Package::Archive::Writer::write(authored_archive);
+  auto source_free_bytes = Package::Archive::Writer::write(source_free_archive);
+  ASSERT(authored_bytes);
+  ASSERT(source_free_bytes);
+  EXPECT((*authored_bytes).get_view() == (*source_free_bytes).get_view());
+
+  // Reader rebuilds only the three Dependency identity fields. Encoding that
+  // source free result must reproduce the authored Archive bytes exactly.
+  Allocator::Arena restored_arena;
+  auto restored_result =
+      Package::Archive::Reader::read(restored_arena, *authored_bytes);
+  ASSERT_NOT(restored_result.is_null());
+  auto restored = restored_result.find<Package::Archive::Archive>();
+  ASSERT(restored);
+  ASSERT_EQ(restored->get_dependencies().get_size(), Count(1));
+  EXPECT_TEXT(restored->get_dependencies()[0].get_local_name(), "Core"_view);
+  EXPECT_TEXT(
+      restored->get_dependencies()[0].get_package_name(), "Pkg.Base"_view);
+  EXPECT(restored->get_dependencies()[0].get_version() == Version(3, 4));
+
+  auto restored_bytes = Package::Archive::Writer::write(*restored);
+  ASSERT(restored_bytes);
+  EXPECT((*restored_bytes).get_view() == (*authored_bytes).get_view());
 }
 
 PERIMORTEM_UNIT_TEST(PackageArchive, empty_inventories) {

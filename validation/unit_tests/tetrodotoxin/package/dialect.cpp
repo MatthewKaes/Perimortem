@@ -17,6 +17,7 @@
 #include "tetrodotoxin/package/language/monograph.hpp"
 #include "tetrodotoxin/package/language/source.hpp"
 #include "ttx/concept/invalid.hpp"
+#include "ttx/lexical/span.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -104,14 +105,39 @@ PERIMORTEM_UNIT_TEST(PackageDialect, dependency_statement) {
   Tokenizer tokenizer(arena, source, "dependency.ttx"_view);
   Cursor cursor(tokenizer, errors);
 
-  auto parsed = Package::Language::Dependency::parse(cursor);
+  Span span;
+  auto parsed = Package::Language::Dependency::parse(cursor, span);
 
   ASSERT(parsed);
   EXPECT_TEXT((*parsed).get_local_name(), "Runtime::Math"_view);
   EXPECT_TEXT((*parsed).get_package_name(), "Perimortem.Graphics.Math"_view);
   EXPECT((*parsed).get_version() == Version(12, 34));
+  EXPECT(span.get_start().get_code() == Code::Type::Resolve);
+  EXPECT_EQ(span.get_start().get_offset(), Unsigned_16(0));
+  EXPECT_TEXT(span.get_start().caculate_text(source), "resolve"_view);
+  EXPECT(span.get_end().get_code() == Code::Type::EndStatement);
+  EXPECT_EQ(span.get_end().get_offset(), Unsigned_16(58));
+  EXPECT_TEXT(span.get_end().caculate_text(source), ";"_view);
+  EXPECT_TEXT(
+      span.caculate_text(source),
+      "resolve Runtime::Math : Perimortem.Graphics.Math = \"12.34\";"_view);
   EXPECT(cursor.matches(Code::Type::Source));
   EXPECT(errors.is_empty());
+
+  static constexpr View::Bytes invalid_source =
+      "resolve Runtime : Example.Runtime = \"1.0\""_view;
+  Allocator::Arena invalid_arena;
+  Errors invalid_errors;
+  Tokenizer invalid_tokenizer(
+      invalid_arena, invalid_source, "invalid-dependency.ttx"_view);
+  Cursor invalid_cursor(invalid_tokenizer, invalid_errors);
+  Span invalid_span(Token(0, 1, 1, 7, Code::Type::Resolve));
+
+  auto rejected =
+      Package::Language::Dependency::parse(invalid_cursor, invalid_span);
+  EXPECT_NOT(rejected);
+  EXPECT_NOT(invalid_span);
+  EXPECT_NOT(invalid_errors.is_empty());
 }
 
 PERIMORTEM_UNIT_TEST(PackageDialect, source_statement) {
@@ -155,9 +181,11 @@ PERIMORTEM_UNIT_TEST(PackageDialect, ordered_monograph) {
       static_cast<const Package::Language::Monograph&>(imported);
   View::Vector<Package::Language::Dependency> dependencies =
       monograph.get_dependencies();
+  View::Vector<Span> dependency_spans = monograph.get_dependency_spans();
   View::Vector<Package::Language::Source> sources = monograph.get_sources();
 
   ASSERT_EQ(dependencies.get_size(), 2);
+  ASSERT_EQ(dependency_spans.get_size(), dependencies.get_size());
   EXPECT_TEXT(dependencies[0].get_local_name(), "Runtime::Math"_view);
   EXPECT_TEXT(
       dependencies[0].get_package_name(), "Perimortem.Graphics.Math"_view);
@@ -165,6 +193,12 @@ PERIMORTEM_UNIT_TEST(PackageDialect, ordered_monograph) {
   EXPECT_TEXT(dependencies[1].get_local_name(), "Assets"_view);
   EXPECT_TEXT(dependencies[1].get_package_name(), "Example.Assets"_view);
   EXPECT(dependencies[1].get_version() == Version(2, 7));
+  EXPECT_EQ(dependency_spans[0].get_start().get_line(), Unsigned_16(4));
+  EXPECT_EQ(dependency_spans[1].get_start().get_line(), Unsigned_16(5));
+  EXPECT(dependency_spans[0].get_start().get_code() == Code::Type::Resolve);
+  EXPECT(dependency_spans[0].get_end().get_code() == Code::Type::EndStatement);
+  EXPECT(dependency_spans[1].get_start().get_code() == Code::Type::Resolve);
+  EXPECT(dependency_spans[1].get_end().get_code() == Code::Type::EndStatement);
 
   ASSERT_EQ(sources.get_size(), 2);
   EXPECT_TEXT(sources[0].get_local_name(), "Scenes::Splash"_view);
@@ -226,7 +260,7 @@ PERIMORTEM_UNIT_TEST(PackageDialect, prior_diagnostics) {
   Errors errors;
   {
     Errors::Report report(
-        errors, "prior-package.ttx"_view, View::Bytes(), Token(), Token());
+        errors, "prior-package.ttx"_view, View::Bytes(), Span());
     report << "Earlier independent diagnostic."_view;
   }
 
@@ -241,10 +275,44 @@ PERIMORTEM_UNIT_TEST(PackageDialect, prior_diagnostics) {
   const auto& monograph =
       static_cast<const Package::Language::Monograph&>(imported);
   EXPECT(monograph.get_dependencies().is_empty());
+  EXPECT(monograph.get_dependency_spans().is_empty());
   ASSERT_EQ(monograph.get_sources().get_size(), 1);
   EXPECT_TEXT(monograph.get_sources()[0].get_local_name(), "Main"_view);
   EXPECT_TEXT(monograph.get_sources()[0].get_source_path(), "main.ttx"_view);
   EXPECT_EQ(errors.get_size(), 1);
+}
+
+PERIMORTEM_UNIT_TEST(PackageDialect, construction_provenance) {
+  Package::Language::Dependency dependencies[] = {
+    Package::Language::Dependency(
+        "Core"_view, "Perimortem.Core"_view, Version(1, 0)),
+    Package::Language::Dependency(
+        "Memory"_view, "Perimortem.Memory"_view, Version(1, 0)),
+  };
+  Span partial_spans[] = {
+    Span(
+        Token(0, 1, 1, 7, Code::Type::Resolve),
+        Token(40, 1, 41, 1, Code::Type::EndStatement)),
+  };
+  Package::Language::Source sources[] = {
+    Package::Language::Source("Main"_view, "main.ttx"_view),
+  };
+  Environment::Workspace registry;
+  Package::Dialect host(registry);
+  Allocator::Arena arena;
+
+  // The authored factory owns the only invalid inventory shape. The separate
+  // source free operation has no span input that a caller could misclassify.
+  auto partial = Package::Language::Monograph::create_authored(
+      arena, Documentation::get_empty(), host, dependencies, partial_spans,
+      sources);
+  EXPECT_NOT(partial);
+
+  auto& source_free = Package::Language::Monograph::create_source_free(
+      arena, Documentation::get_empty(), host, dependencies);
+  ASSERT_EQ(source_free.get_dependencies().get_size(), Count(2));
+  EXPECT(source_free.get_dependency_spans().is_empty());
+  EXPECT(source_free.get_sources().is_empty());
 }
 
 PERIMORTEM_UNIT_TEST(PackageDialect, frozen_negative_fixtures) {
@@ -436,4 +504,12 @@ PERIMORTEM_UNIT_TEST(PackageDialect, statement_terminator) {
       "dialect : Package;\n"
       "source Main from \"main.ttx\""_view,
       "Source statements require a terminating `;`."_view));
+
+  EXPECT(rejects_package(
+      "resolve_terminator.ttx"_view,
+      "// Missing Resolve terminator\n"
+      "dialect : Package;\n"
+      "resolve Runtime : Example.Runtime = \"1.0\"\n"
+      "source Main from \"main.ttx\";"_view,
+      "Resolve statements require a terminating `;`."_view));
 }

@@ -10,6 +10,7 @@
 #include "perimortem/utility/option.hpp"
 
 #include "ttx/lexical/cursor.hpp"
+#include "ttx/lexical/span.hpp"
 
 namespace Tetrodotoxin::Package::Language {
 
@@ -25,9 +26,10 @@ class Dependency {
       Perimortem::System::Version version)
       : local_name(local_name), package_name(package_name), version(version) {}
 
-  // Consumes one complete Resolve statement or returns no value after
-  // recovering the Cursor to the next statement boundary.
-  static auto parse(Ttx::Lexical::Cursor& cursor)
+  // Consumes one complete Resolve statement and returns its lexical Span
+  // separately from the durable request. Failure recovers the Cursor and
+  // leaves the supplied Span invalid.
+  static auto parse(Ttx::Lexical::Cursor& cursor, Ttx::Lexical::Span& span)
       -> Perimortem::Utility::Option<Dependency>;
 
   constexpr auto get_local_name() const -> Perimortem::Core::View::Bytes {

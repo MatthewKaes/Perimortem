@@ -36,7 +36,9 @@ The pinned version must be a closed quoted canonical `Major.Minor` value.
 
 `Package::Language::Dependency` is that request, not the fetched package or a
 semantic resolution. Its stateless `parse` factory consumes one complete
-Resolve statement and returns only a complete Dependency.
+Resolve statement and returns only a complete Dependency. The parser also
+exposes the exact successfully consumed `Ttx::Lexical::Span` to Package
+Dialect. Dependency retains no Token, Span, or source provenance.
 
 After the dependency region, each `source` declaration binds an exact authored
 Type shaped semantic name to one package path. The left side is the name used
@@ -70,7 +72,13 @@ body transaction succeeds.
 The implemented interpretation contract constructs one
 `Package::Language::Monograph` in the Environment Arena after a successful
 transaction. The Monograph retains its opening Documentation, its host Package
-Dialect, ordered exact Dependency requests, and ordered Source bindings.
+Dialect, ordered exact Dependency requests, one aligned lexical Span per
+request, and ordered Source bindings.
+
+Authored construction rejects a Dependency and span count mismatch before
+publishing a Monograph. The explicit source free construction path accepts no
+spans or Source bindings and therefore exposes an empty span inventory without
+asking Workspace to infer provenance from its size.
 
 It retains no filesystem handle, downloaded dependency, opened member
 Monograph, compiler product, or archive entry.
@@ -136,7 +144,8 @@ An Archive contains:
 5. ordered exported semantic routes and their artifact and symbol locators.
 
 It contains no source bytes, source path as semantic identity, process address,
-parser state, filesystem handle, target cache, or Linker object bytes.
+parser state, lexical Span, filesystem handle, target cache, or Linker object
+bytes.
 
 Archive is a regular value over stable views supplied by its producer. Its
 constructor preserves those views and their order without copying storage or
