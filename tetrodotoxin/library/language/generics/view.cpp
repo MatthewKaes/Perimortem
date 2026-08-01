@@ -5,9 +5,11 @@
 
 #include "perimortem/memory/managed/bytes.hpp"
 
-namespace Tetrodotoxin::Library::Language::Generics {
+#include "tetrodotoxin/library/language/types/view.hpp"
 
-auto View::create(
+using namespace Tetrodotoxin::Library::Language;
+
+auto Generics::View::create(
     Perimortem::Core::View::Vector<Argument> arguments,
     Perimortem::Memory::Allocator::Arena& arena) const
     -> Perimortem::Utility::Option<const Ttx::Model::Type&> {
@@ -25,7 +27,5 @@ auto View::create(
   name.concat("["_view);
   name.concat(element->get_name());
   name.concat("]"_view);
-  return arena.construct<Type>(name.get_view(), *element);
+  return arena.construct<Types::View>(name.get_view(), *element);
 }
-
-}  // namespace Tetrodotoxin::Library::Language::Generics
