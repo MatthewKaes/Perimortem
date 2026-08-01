@@ -7,9 +7,11 @@
 
 #include "perimortem/serialization/stream/textual.hpp"
 
-namespace Tetrodotoxin::Library::Language::Generics {
+#include "tetrodotoxin/library/language/types/fixed.hpp"
 
-auto Fixed::create(
+using namespace Tetrodotoxin::Library::Language;
+
+auto Generics::Fixed::create(
     Perimortem::Core::View::Vector<Argument> arguments,
     Perimortem::Memory::Allocator::Arena& arena) const
     -> Perimortem::Utility::Option<const Ttx::Model::Type&> {
@@ -28,7 +30,5 @@ auto Fixed::create(
   Perimortem::Serialization::Stream::Textual<Perimortem::Memory::Managed::Bytes>
       output(name);
   output << "["_view << element->get_name() << ","_view << *extent << "]"_view;
-  return arena.construct<Type>(name.get_view(), *element, *extent);
+  return arena.construct<Types::Fixed>(name.get_view(), *element, *extent);
 }
-
-}  // namespace Tetrodotoxin::Library::Language::Generics
