@@ -8,6 +8,7 @@
 
 #include "tetrodotoxin/library/dialect.hpp"
 #include "tetrodotoxin/library/language/function.hpp"
+#include "tetrodotoxin/library/language/import.hpp"
 #include "ttx/concept/reference.hpp"
 
 namespace Tetrodotoxin::Library::Language {
@@ -26,7 +27,8 @@ class Monograph : public Tetrodotoxin::Language::Dialect::Monograph {
   Monograph(
       Perimortem::Memory::Allocator::Arena& domain,
       const Ttx::Concept::Documentation& documentation,
-      Tetrodotoxin::Library::Dialect& host);
+      Tetrodotoxin::Library::Dialect& host,
+      const Ttx::Concept::Abstract& interpretation_context);
 
   constexpr auto implements(Perimortem::System::Uuid requested) const
       -> Bool override {
@@ -38,6 +40,12 @@ class Monograph : public Tetrodotoxin::Language::Dialect::Monograph {
   // lifetime. Duplicate names leave lookup and publication unchanged.
   auto bind_function(Function& function) -> Bool;
 
+  // Imports remain in authored order until the post pass can see every
+  // Package member. Retaining the value adds no parser state to the graph.
+  auto retain_import(const Import& import) -> void;
+
+  auto post_pass() -> Bool override;
+
   auto get_name() const -> Perimortem::Core::View::Bytes override;
 
   auto resolve_context(Perimortem::Core::View::Bytes route) const
@@ -47,8 +55,11 @@ class Monograph : public Tetrodotoxin::Language::Dialect::Monograph {
       -> Perimortem::Core::View::Vector<Ttx::Concept::Reference<Function>>;
 
  private:
-  Perimortem::Memory::Managed::Map<Perimortem::Core::View::Bytes, Function&>
-      functions;
+  const Ttx::Concept::Abstract& interpretation_context;
+  Perimortem::Memory::Managed::Vector<Import> imports;
+  Perimortem::Memory::Managed::
+      Map<Perimortem::Core::View::Bytes, Ttx::Concept::Reference<Function>>
+          functions;
   Perimortem::Memory::Managed::Vector<Ttx::Concept::Reference<Function>>
       public_functions;
 };

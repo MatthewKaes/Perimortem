@@ -52,6 +52,7 @@ cc_library(
     includes = ["."],
     deps = [
         ":language",
+        ":package",
         "//perimortem",
         "//ttx:concept",
         "//ttx:lexical",

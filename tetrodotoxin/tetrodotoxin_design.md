@@ -267,9 +267,22 @@ same identities. Reordered valid declarations remain legal while each public
 view preserves its own authored order. The transaction retains no Cursor
 positions or second declaration graph.
 
-The exact durable executable body contract and authored Library imports are not
-implemented. Their absence does not reopen TTX or justify a placeholder
-intermediate representation.
+`Library::Language::Import` consumes one complete `using` statement and retains
+its exact Package local Type shaped route. The Library Monograph borrows W03's
+source local Abstract context and resolves each Import during ordered post pass.
+The selected target must be a real Package Monograph. Expansion traverses only
+its P04 direct member Alias view and only each direct Library member's complete
+public Function view.
+
+All candidates are collected and checked against local Functions and earlier
+imports before lookup changes. Successful bindings borrow the exact provider
+Function identities without entering the importing public view. Private,
+Dependency, nested Package, non Library, recursively imported, incomplete,
+unresolved, duplicate, and colliding candidates therefore cannot become local
+or transitive publication state.
+
+The exact durable executable body contract is not implemented. Its absence does
+not reopen TTX or justify a placeholder intermediate representation.
 
 ## CPU compilation
 
@@ -458,8 +471,9 @@ The current tree provides the following implemented surfaces.
    interpretation, one exact Alias backed Package scope, confined Storage,
    Archive Format 1, and exact Repository selection.
 6. Library provides the installed Dialect, declaration Monograph, scalar and
-   Void intrinsics, completed Function signatures, and authored public Function
-   publication.
+   Void intrinsics, completed Function signatures, authored public Function
+   publication, exact Package local Imports, and atomic ordered import
+   completion.
 7. Library and Shader provide CPU and SPIR V instruction assemblers.
 8. Linker provides source independent linking machinery.
 9. Puffer provides an LSP process but no compile orchestration.

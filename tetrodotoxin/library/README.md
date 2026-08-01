@@ -49,6 +49,11 @@ Arena owned Alias edges whose resolution reaches those same Types. Qualified
 Type routes are resolved by the source local Abstract context supplied by the
 Monograph transaction.
 
+`Language::Import` owns one complete `using Package::Route;` statement. It
+retains the exact contiguous Type shaped Package local route and no Token,
+Span, Cursor, bookmark, or replay state. Package remains the owner of that
+route's lookup grammar and semantic edge.
+
 ## Library Dialect and Monograph
 
 The top level Library Dialect installs into `Environment::Workspace` through the
@@ -64,6 +69,21 @@ signature completes, so completion never replaces the identity already visible
 through the Monograph. Duplicate declarations fail before either view changes.
 Missing names resolve to the shared TTX Invalid identity.
 
+Each Monograph also borrows the exact source local interpretation context and
+retains authored Imports in order. Its post pass requires that context and each
+selected target to resolve to real Package Monographs. It traverses only the
+target Package's ordered direct member Alias view and consumes only complete
+public Functions from direct Library member Monographs. Private Functions,
+Dependency Aliases, nested Packages, other Dialect members, and declarations
+that a provider imported remain excluded.
+
+The complete candidate sequence is staged before lookup changes. Duplicate
+Imports, unresolved targets, incomplete provider Functions, and exact local or
+imported collisions reject with no imported entry installed. Successful
+imports add borrowed provider Function references only to local lookup. The
+public Function view remains the source's own authored publication surface, so
+imports cannot become transitive exports.
+
 Interpretation admits ordinary public and private Function definitions. It
 constructs real TTX and Library Language identities in the Environment Arena
 and retains no Cursor, Token range, declaration mirror, signature snapshot, or
@@ -72,17 +92,16 @@ bodyless, duplicate, or trailing syntax reject the complete transaction.
 
 The exact executable body representation is not implemented. Function body
 consumption proves only that one structurally balanced definition exists. The
-current target has no authored imports, active executable Body parser, or
-semantic compiler transaction.
+current target has no active executable Body parser or semantic compiler
+transaction.
 
 The intended first application pressure target is
-[`../../apps/ttx/echo`](../../apps/ttx/echo/). Its Library source requires
-authored `using` expansion with duplicate detection, inferred byte Constants,
-dynamic terminal byte input and output, byte comparison and concatenation,
-loop and conditional Bodies, and one Static Callable selected by App. These
-requirements belong to the future Library Dialect and compiler. The fixture's
-remaining syntax contradictions must be settled before it becomes an
-acceptance oracle.
+[`../../apps/ttx/echo`](../../apps/ttx/echo/). Its remaining Library pressure
+requires inferred byte Constants, dynamic terminal byte input and output, byte
+comparison and concatenation, loop and conditional Bodies, and one Static
+Callable selected by App. These requirements belong to later Library and App
+slices. The fixture's remaining syntax contradictions must be settled before it
+becomes an acceptance oracle.
 
 ## Shared CPU compilation
 
@@ -143,7 +162,8 @@ No Library payload encoder or restorer exists in the current target.
 
 The current Library target contains the installed Dialect, declaration
 Monograph, binary wide scalar and Void Types, Function signature construction,
-reusable Layout grammar, and the x86_64 assembler.
+reusable Layout grammar, exact authored Package imports, atomic post pass
+expansion, and the x86_64 assembler.
 
-It does not yet contain authored imports, executable body ownership, CPU target
-planning, semantic lowering, or App and Scene integration.
+It does not yet contain executable body ownership, CPU target planning,
+semantic lowering, or App and Scene integration.

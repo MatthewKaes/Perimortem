@@ -253,7 +253,7 @@ PERIMORTEM_UNIT_TEST(DialectTests, duplicate_preserves_first) {
   EmptyRegistry registry;
   Dialect dialect(registry);
   auto& monograph = arena.construct<Language::Monograph>(
-      arena, Documentation::get_empty(), dialect);
+      arena, Documentation::get_empty(), dialect, registry);
   Errors first_errors;
   Tokenizer first_tokenizer(arena, first_source, "first.ttx"_view);
   Cursor first_cursor(first_tokenizer, first_errors);
@@ -299,13 +299,10 @@ PERIMORTEM_UNIT_TEST(DialectTests, duplicate_preserves_first) {
 }
 
 PERIMORTEM_UNIT_TEST(DialectTests, rejected_sources_publish_nothing) {
-  static constexpr Static::Vector<View::Bytes, 5> rejected = {{
+  static constexpr Static::Vector<View::Bytes, 4> rejected = {{
     "// Malformed prefix.\n"
     "dialect : Library;\n"
     "public broken[] -> Void {}"_view,
-    "// Unsupported declaration.\n"
-    "dialect : Library;\n"
-    "using Core;"_view,
     "// Incomplete signature.\n"
     "dialect : Library;\n"
     "public func broken[Bool] ->"_view,

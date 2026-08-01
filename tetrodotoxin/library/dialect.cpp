@@ -10,6 +10,7 @@
 
 #include "tetrodotoxin/language/parser/comment.hpp"
 #include "tetrodotoxin/library/language/function.hpp"
+#include "tetrodotoxin/library/language/import.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
 #include "tetrodotoxin/library/language/types/bool.hpp"
 #include "tetrodotoxin/library/language/types/real_32.hpp"
@@ -67,18 +68,34 @@ auto Library::Dialect::interpret(
     Allocator::Arena& domain,
     Cursor& cursor,
     const Documentation& documentation,
-    Abstract&) -> Option<Tetrodotoxin::Language::Dialect::Monograph&> {
+    Abstract& interpretation_context)
+    -> Option<Tetrodotoxin::Language::Dialect::Monograph&> {
   auto& monograph = domain.construct<Library::Language::Monograph>(
-      domain, documentation, *this);
+      domain, documentation, *this, interpretation_context);
 
   // A Function must be reachable at its final address while its signature
-  // builds. Signatures only resolve Dialect Types here, so one pass preserves
-  // authored order without retaining discovery state for later declarations.
+  // builds. Imports need only their exact durable route, so one forward pass
+  // preserves authored order without retaining discovery state for either
+  // declaration kind.
   while (!cursor.matches(Code::Type::Terminal)) {
-    const Documentation& function_documentation =
+    const Documentation& declaration_documentation =
         Tetrodotoxin::Language::Parser::Comment::parse(cursor);
+
+    // TTX keeps using in the ordinary Addressable space. Exact text dispatch
+    // makes this Library grammar without adding another shared lexical Code.
+    if (cursor.matches(Code::Type::Addressable) &&
+        cursor.get_text() == "using"_view) {
+      auto import = Library::Language::Import::parse(cursor);
+      if (!import) {
+        return {};
+      }
+
+      monograph.retain_import(*import);
+      continue;
+    }
+
     auto function = Library::Language::Function::reserve(
-        domain, cursor, function_documentation);
+        domain, cursor, declaration_documentation);
     if (!function) {
       return {};
     }
