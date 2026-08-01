@@ -100,6 +100,21 @@ Language owns two shared parser fragments today:
 Concrete body grammar remains on the concrete Dialect. Shared spelling alone
 does not justify moving a semantic parser into Language.
 
+Language also owns two cross-Dialect Abstract contracts used by contextual
+resolution. `Language::Resource` is one retained byte result acquired by
+another owner. It exposes only Arena-stable bytes and carries no filesystem
+handle, route grammar, diagnostic path, Type, Constant policy, or consumer
+semantics. `Language::Error` proves that a recognized contextual instruction
+resolved to an owner-specific failure identity. It is not one universal error
+enum, message record, or provenance model; the concrete owner retains the
+cause while the source consumer retains the authored Span.
+
+Resource and Error are open Tetrodotoxin contracts over TTX Abstract. They add
+no TTX v1 category. An ordinary missing semantic lookup still returns the
+shared TTX Invalid identity. Returning Error means the receiver recognized the
+instruction and resolved it to a stable error object rather than missing the
+route.
+
 The accepted lifecycle adds two owner neutral operations to the common
 Monograph and Dialect boundary:
 
@@ -209,9 +224,12 @@ owner of each Type segment and exact separator Code spelling.
 Dependency requests, aligned authored statement Spans, and ordered Source
 bindings. It owns one exact Package local scope whose real
 `Ttx::Model::Alias` edges target completed source Monographs and restored
-Package roots in the same Workspace Arena. Exact lookup returns the Alias edge
-itself or shared Invalid. Qualified names remain one opaque key, and Package
-does not split a route or derive it from a source path.
+Package roots in the same Workspace Arena. Ordinary exact lookup returns the
+Alias edge itself or shared Invalid. Qualified semantic names remain one
+opaque key, and Package does not split them or derive them from a source path.
+The reserved complete `$[...]` spelling is a separate contextual instruction,
+not a semantic member name. Package recognizes that branch before ordinary
+binding lookup and gives its payload to the Package-owned resource transaction.
 
 Source parsing returns only Source while exposing its complete successful
 statement Span as separate transaction output. Package Dialect uses that Span
@@ -415,9 +433,45 @@ Package Storage and future resource consumers follow six requirements.
 6. Resolution never falls back to the process working directory or the
    containing source directory.
 
+During semantic literal parsing, the concrete consumer gives the complete
+Embedded Token spelling to its exact source Package context:
+
+```text
+source Package resolve_context("$[resources/table.bin]")
+-> Package recognizes the reserved instruction
+-> Package resource transaction asks Storage for the confined logical route
+-> success resolves to one stable Language Resource
+-> recognized acquisition failure resolves to one stable owner-specific
+   Language Error
+```
+
+Storage returns either retained Content or one `Package::StorageReadFailure`
+with a `Package::StorageReadError` category and allocation-free normalized Path
+context when one can be formed. The resource
+transaction caches the Resource or Error identity in the Workspace Arena so
+repeated equivalent owner-normalized requests return the same Abstract for the
+semantic island. Invalid input with no normalized route uses the exact complete
+instruction as its failure key rather than inventing a path. The route remains
+confined input, cache, and diagnostic data. It never becomes a Source name,
+Package member name, or global semantic identity. Malformed Embedded grammar
+is rejected by the consuming parser before contextual resolution. Ordinary
+Package name misses continue to return Invalid.
+
+Library proves Resource, applies the authored slice, and constructs its own
+`Library::Language::Constants::Bytes`. Shader and other concrete consumers may
+use the same retained bytes without taking Library Constant semantics or
+accessing Storage. When resolution returns Error, the consumer combines its
+current Token Span with the concrete owner's retained failure context to
+publish the textual diagnostic.
+
 Package Storage implements confined root reads, route rejection, empty success,
-successful read caching, and fallback absence. No current concrete Dialect
-interprets an embedded resource operand or folds reachable byte slices.
+successful read caching, and fallback absence. The resource transaction must
+establish a narrow Package-owned connection to the Storage that remains live
+during authored graph construction; Package Monograph itself retains no
+filesystem handle. Consumers persist only their reachable semantic facts.
+Package Archive never retains the root, route cache, unused input bytes, or
+Resource acquisition machinery, so source-free restoration needs no
+filesystem capability.
 
 ## Durable package products
 

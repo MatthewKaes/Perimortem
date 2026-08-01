@@ -21,9 +21,11 @@ These classes retain and expose real TTX Type, Layout, Addressable, and Callable
 edges. They do not copy those shared contracts into a Library model.
 
 Generic is Library language semantics rather than a universal TTX category.
-The formula and concrete Access, View, and Fixed Type shapes are present. The
-shared Materializations implementation is not active, so materialization is not
-yet an executable Library contract.
+It owns an immutable formula contract and its inseparable parameter and
+argument vocabulary. The independent Materializations transaction owns the
+declared construction state for concrete Access, View, and Fixed Type shapes.
+Its implementation is not active, so materialization is not yet an executable
+Library contract.
 
 Static identifies a Callable selected without a receiver. Self identifies a
 Callable selected through an addressable value and reserves parameter zero for
@@ -53,6 +55,19 @@ Monograph transaction.
 retains the exact contiguous Type shaped Package local route and no Token,
 Span, Cursor, bookmark, or replay state. Package remains the owner of that
 route's lookup grammar and semantic edge.
+
+An Embedded operand gives its complete `$[...]` Token spelling to the exact
+source Package context. Library never opens or retains Package Storage. A
+resolved `Tetrodotoxin::Language::Resource` supplies only stable bytes;
+Library validates the authored slice and constructs its own concrete
+`Language::Constants::Bytes` over the reachable result. A resolved
+`Tetrodotoxin::Language::Error` contributes its owner-specific failure context
+while Library supplies the current Token Span to the textual Report. Invalid
+or another Abstract category remains an ordinary expression mismatch.
+
+Resource route, full unused backing, Storage, and Package diagnostics do not
+enter the Library graph. Source-free Library payloads retain only reachable
+Library-owned Constants, so restoration performs no resource read.
 
 ## Library Dialect and Monograph
 

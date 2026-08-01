@@ -93,14 +93,22 @@ Package internal names remain outside the Workspace global source map.
 Package Monograph already owns the local binding operations needed by that
 successor. Completed authored or restored members and restored Package roots
 enter one exact name map as real TTX Alias edges. Lookup returns the stored edge
-or shared Invalid without splitting qualified names or publishing Package local
-members in Workspace's independent source map.
+or shared Invalid without splitting qualified semantic names or publishing
+Package local members in Workspace's independent source map. The reserved
+complete `$[...]` instruction is not a semantic name. Package recognizes it
+before ordinary lookup and resolves it through its confined resource owner.
 
 ## Semantic ownership
 
 TTX remains the shared vocabulary for Abstract, Type, Value, Addressable,
 Callable, Layout, Documentation, Attribute, Alias, Invalid, and their common
 supporting models.
+
+`Tetrodotoxin::Language` owns the cross-Dialect Resource and Error Abstract
+contracts. Resource exposes only retained bytes acquired by a concrete owner.
+Error marks a recognized contextual request whose concrete owner retains the
+failure cause. Neither contract extends the closed TTX v1 vocabulary or creates
+one shared compiler error model.
 
 `Library::Language` owns the semantics that are not universal across Dialects:
 Expression, Binding, Projection, Constant and its value domains, Generic and its
@@ -118,13 +126,13 @@ The active host direction is:
 
 ```text
 Environment -> Package -> Language -> TTX -> Perimortem
-Library -> TTX -> Perimortem
+Library -> Package -> Language -> TTX -> Perimortem
 ```
 
 Package supplies the first concrete Language Dialect shape and confined local
-source path for Environment. Library acquires a Language dependency when its
-concrete top level Dialect is exposed. Its current semantic and assembler
-surface depends directly on TTX.
+source path for Environment. Library uses Package scope for authored imports
+and resource lookup while constructing only Library-owned Constants and other
+semantic facts. It never accesses Storage directly.
 
 ## Terminal products
 

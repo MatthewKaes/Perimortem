@@ -49,6 +49,25 @@ The host Dialect and Arena outlive every retained Monograph. This makes the
 Monograph the stable semantic root without introducing a second Source wrapper
 or copying its graph.
 
+## Contextual resolution values
+
+Language owns two cross Dialect Abstract contracts for values returned by a
+concrete semantic context. `Language::Resource` carries only Arena stable bytes
+acquired by that context's real owner. It has no filesystem handle, route
+grammar, diagnostic path, Type, Constant policy, or consumer semantics. Empty
+bytes remain a successful Resource.
+
+`Language::Error` proves that the context recognized an instruction and
+resolved it to a stable owner-specific failure identity. The concrete owner
+retains the cause while the consuming parser retains the authored Span. Error
+is not one shared enum, message record, provenance model, or textual Report.
+
+Both contracts extend TTX Abstract without adding a TTX v1 category. An
+ordinary missing semantic lookup still returns shared TTX Invalid. Resource and
+Error exist so Package, Library, Shader, and later concrete Dialects can share
+one contextual resolution boundary without sharing filesystem or value-domain
+policy.
+
 ## Completion and persistence dispatch
 
 The accepted shared lifecycle adds two owner neutral operations.
@@ -69,9 +88,9 @@ diagnostic.
 The persistence hooks name no Package envelope, concrete Dialect value, native
 object, or universal terminal. Package owns Archive framing. The concrete
 Dialect owns payload schema and restoration into the importing Workspace Arena.
-Language owns only the common dispatch. The operations are present on the
-shared C++ interface. Workspace coordination remains a separate transaction
-slice.
+Language owns only the common dispatch. Workspace uses those operations during
+source-free dependency restoration and invokes post pass after its complete
+staging queue drains.
 
 ## Shared parser fragments
 
@@ -113,5 +132,7 @@ Environment installs Package::Dialect as "Package"
 -> Package::Language::Monograph becomes the imported root
 ```
 
-The current Package implementation does not yet complete this flow. The example
-defines the Language boundary rather than claiming a working import.
+The production Workspace completes this flow for authored and source-free
+Package roots. Package local members remain within that exact root context, and
+installed concrete Dialects restore their own member payloads before the
+ordered post pass.

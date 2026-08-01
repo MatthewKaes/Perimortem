@@ -101,10 +101,18 @@ queryable through that exact lookup but do not enter the member view. The view
 contains no declaration flattening, transitive dependency import, or
 publication policy.
 
-`resolve_context` performs one exact byte lookup and returns the stored Alias
-edge itself. Missing, partial, differently qualified, and alternate spelling
-queries return the shared TTX Invalid identity. It does not split `::`, infer a
-hierarchy, normalize a name, or copy a target into another semantic model.
+For an ordinary semantic name, `resolve_context` performs one exact byte lookup
+and returns the stored Alias edge itself. Missing, partial, differently
+qualified, and alternate spelling queries return the shared TTX Invalid
+identity. It does not split `::`, infer a hierarchy, normalize a name, or copy
+a target into another semantic model.
+
+The complete `$[...]` spelling is reserved before that ordinary map lookup. It
+is a contextual resource instruction rather than a Package member name.
+Package gives its interior logical route to the Package-owned resource
+transaction and returns the stable `Tetrodotoxin::Language::Resource` or
+owner-specific `Tetrodotoxin::Language::Error` Abstract selected by that
+transaction. Malformed Embedded syntax never reaches Package resolution.
 
 The Monograph retains no filesystem handle, downloaded dependency product,
 Archive bytes, Repository state, source text, path, Token, diagnostic state,
@@ -129,9 +137,21 @@ resources. `System::Path` owns lexical normalization. Storage uses the
 canonical relative form as the cache key, diagnostic path, and confined read
 route. Absolute, rooted, escaping, empty, and NUL bearing routes are rejected.
 
+The approved read boundary selects either the stable Content reference or one
+owner-specific `Package::StorageReadFailure`. StorageReadFailure owns one
+allocation-free `System::Path` value when lexical normalization could establish
+a route and one typed `Package::StorageReadError`. It never retains a view into
+a temporary Path. Input with no valid normalized route remains an explicit
+invalid-route failure rather than receiving an invented path. The union's null
+state is never a third outcome, and failed reads remain retryable rather than
+entering the successful Content cache. StorageReadError distinguishes
+InvalidRoute from Unreadable. The current Root capability exposes no narrower
+physical cause, so Storage does not manufacture missing, directory, or symlink
+categories.
+
 Only successful reads enter the managed cache. After a cache miss succeeds,
 `Path::normalize` constructs the stable canonical route directly in the
-supplied Arena and Storage constructs one public `Storage::Content` over that
+supplied Arena and Storage constructs one public `Package::Content` over that
 route and the read bytes. Cache hits and failed reads consume no additional
 path storage. Equivalent normalized routes return the same Content reference.
 Distinct routes remain distinct even when their contents or filesystem object
@@ -140,18 +160,44 @@ mutation, replacement, removal, root pathname movement, caller route mutation,
 cache growth, and Storage movement do not change existing Content.
 
 Storage lives while one physical Package can still be read. It may close after
-Workspace staging because every returned Content belongs to the Workspace
-Arena and remains valid for that semantic island lifetime. Workspace pairs the
-Source semantic name with Content when it imports the Source. Storage does not
-search the process working directory or resolve relative to a containing
-Source. Content outside the opened root is available only through an exact
-resolved Dependency.
+Workspace completes authored source interpretation and resource resolution
+because every returned Content belongs to the Workspace Arena and remains
+valid for that semantic island lifetime. Workspace pairs the Source semantic
+name with Content when it imports the Source. Storage does not search the
+process working directory or resolve relative to a containing Source. Content
+outside the opened root is available only through an exact resolved
+Dependency.
 
 Package Storage does not import members, construct Library Constants,
 interpret semantic facts, resolve dependencies, or select an App. Workspace
 will bind staged members and restored dependency roots through the Package
 Monograph operations. Those Package local edges require no publication in
 Workspace's independent source map.
+
+## Contextual resources
+
+The Package resource transaction connects one authored Package context to the
+Storage that is live during graph construction. It recognizes only a complete
+`$[...]` request, gives the interior route to Storage, and caches one stable
+Abstract identity per equivalent owner-normalized request in the Workspace
+Arena. A successful read, including zero bytes, constructs Language Resource.
+A recognized confinement or acquisition failure constructs a Package-owned
+error identity implementing Language Error. When invalid input has no
+normalized route, its exact complete instruction is the failure key. Repeating
+the same query returns that Resource or Error rather than reopening the file or
+allocating another semantic result.
+
+The logical route is cache, confined input, and diagnostic data. It never
+becomes a Source or Package member semantic name, and equal bytes reached
+through distinct routes do not collapse their Resource identities. Package
+Monograph retains no filesystem handle. The implementation must establish a
+narrow Package-owned lifetime connection while Storage is live and leave no
+dangling capability after graph construction.
+
+Concrete consumers own the meaning of Resource bytes. Library may apply a
+slice and construct a Bytes Constant. Shader may construct a shader-specific
+fact. Package constructs neither and persists no root, route cache, unused
+bytes, or resource acquisition machinery into Archive.
 
 `main.ttx` is only a filename convention. Future package assembly selects the
 sole completed App Monograph regardless of its local Source name or member
@@ -160,7 +206,7 @@ filename.
 ## Archive and repository
 
 Namespace `Package::Archive` owns the durable `Archive` value, Format 1
-`Reader`, its stable `ReadError`, and canonical `Writer`.
+`Reader`, its stable `Archive::ReadError`, and canonical `Writer`.
 `Package::Archive::Archive` is the semantic terminal for later source free
 restoration and is distinct from every Linker native product.
 
@@ -192,13 +238,14 @@ copies it into the Arena once before reading, while an Arena backed file read
 passes its existing view directly. Reader logs the exact failing Format stage,
 byte offset, section tag, invalid value, duplicate name, or unknown reference
 through `Diagnostics::Log` and returns
-`Static::Union<Archive, ReadError>`. Every result selects one alternative.
-`ReadError::UnsupportedFormat` identifies a readable envelope header with a
-format revision other than 1. Empty input and every other malformed or
-semantically invalid Format 1 input select `ReadError::InvalidFormat`. The
-error contains no offset, tag, value, or inventory detail because those facts
-remain in the Debug record. Reader does not construct a textual source error
-because binary Archive bytes provide no authored token context. A later
+`Static::Union<Archive, Archive::ReadError>`. Every result selects one
+alternative. `Archive::ReadError::UnsupportedFormat` identifies a readable
+envelope header with a format revision other than 1. Empty input and every
+other malformed or semantically invalid Format 1 input select
+`Archive::ReadError::InvalidFormat`. The error contains no offset, tag, value,
+or inventory detail because those facts remain in the Debug record. Reader
+does not construct a textual source error because binary Archive bytes provide
+no authored token context. A later
 Workspace restoration transaction will attach that failure to the authored
 Dependency request before selecting the installed Dialect and calling its
 `restore` operation.
