@@ -14,7 +14,7 @@ The active build dependency direction is:
 
 ```text
 Environment -> Package -> Language -> TTX -> Perimortem
-Library -> TTX -> Perimortem
+Library -> Language -> TTX -> Perimortem
 Shader -> Perimortem
 Linker -> Perimortem
 ```
@@ -52,8 +52,9 @@ semantic completion, dependency restoration, and the TTX registry supplied to
 each Dialect.
 
 Library owns CPU language semantics that are not universal TTX facts. Its
-current target also owns native x86_64 instruction assembly. A future Library
-Dialect and compiler extend Library without copying the TTX graph.
+installed Dialect constructs concrete declaration Monographs with real TTX and
+Library identities. Its current target also owns native x86_64 instruction
+assembly. A future compiler extends Library without copying the TTX graph.
 
 App owns startup and lifecycle policy. Scene owns retained Scene declarations,
 live Scene instances, declared child identity, and render submission facts.
@@ -255,13 +256,19 @@ Dialect needs.
 Library contracts retain real TTX Type, Layout, Addressable, and Callable
 edges. They do not redeclare those shared owners.
 
-Library source order will not determine binding. Its future Dialect may reserve
-stable semantic identities before definitions, initializers, and executable
-bodies are completed. It must finish those same objects rather than retain
-Cursor positions or build a second declaration graph.
+Bool, integer, real, and Void are immutable binary wide Library identities.
+Distinct installed Dialects share their exact addresses while retaining any
+stateful source and completion policy within their Workspace lifetime.
 
-The exact durable executable body contract and the complete Library Dialect are
-not implemented. Their absence does not reopen TTX or justify a placeholder
+The Library Dialect reserves and binds every Function at its final Arena address
+before completing that declaration's signature. Its Monograph exposes exact
+local lookup and a separate authored order view of public Functions over those
+same identities. Reordered valid declarations remain legal while each public
+view preserves its own authored order. The transaction retains no Cursor
+positions or second declaration graph.
+
+The exact durable executable body contract and authored Library imports are not
+implemented. Their absence does not reopen TTX or justify a placeholder
 intermediate representation.
 
 ## CPU compilation
@@ -450,7 +457,9 @@ The current tree provides the following implemented surfaces.
 5. Package provides Dependency, Source, Monograph, complete manifest
    interpretation, one exact Alias backed Package scope, confined Storage,
    Archive Format 1, and exact Repository selection.
-6. Library provides language contracts and scalar Types.
+6. Library provides the installed Dialect, declaration Monograph, scalar and
+   Void intrinsics, completed Function signatures, and authored public Function
+   publication.
 7. Library and Shader provide CPU and SPIR V instruction assemblers.
 8. Linker provides source independent linking machinery.
 9. Puffer provides an LSP process but no compile orchestration.

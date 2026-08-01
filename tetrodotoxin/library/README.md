@@ -47,25 +47,33 @@ unnamed, and named shapes construct real TTX Layouts in authored order. Direct
 and unnamed entries retain resolved Type identities. Named entries retain real
 Arena owned Alias edges whose resolution reaches those same Types. Qualified
 Type routes are resolved by the source local Abstract context supplied by the
-future Monograph transaction.
+Monograph transaction.
 
-## Future Library Dialect
+## Library Dialect and Monograph
 
-A complete top level Library Dialect will be installed into
-`Environment::Workspace` through the common `Language::Dialect` interface. Its
-concrete Monograph will own Library declaration and definition grammar. It will
-also own source order independent name discovery, Library legality for Types,
-values, variables, Callables, and executable bodies, embedded Foreign CPU
-syntax, and all completion and resolution state required by those definitions.
+The top level Library Dialect installs into `Environment::Workspace` through the
+common `Language::Dialect` interface. Each Workspace owns a distinct stateful
+Dialect while Bool, integer, real, and Void remain immutable binary wide
+identities. Every Library Monograph resolves those same identities through the
+Dialect without publishing them as authored declarations.
 
-The parser will construct real TTX and Library Language identities in the
-Environment Arena. It will not retain Cursor bookmarks as unresolved meaning or
-publish a second Namespace object.
+The concrete Library Monograph owns exact local Function lookup and an authored
+order view of its public Functions. Local lookup also admits private Functions.
+Each declaration is reserved and bound at its final Arena address before its
+signature completes, so completion never replaces the identity already visible
+through the Monograph. Duplicate declarations fail before either view changes.
+Missing names resolve to the shared TTX Invalid identity.
 
-The exact executable body representation and complete Library Dialect are not
-implemented. Function body consumption proves only that one structurally
-balanced definition exists. The current target has no active executable Body
-parser or semantic compiler transaction.
+Interpretation admits ordinary public and private Function definitions. It
+constructs real TTX and Library Language identities in the Environment Arena
+and retains no Cursor, Token range, declaration mirror, signature snapshot, or
+source replay state. Unsupported declarations and malformed, incomplete,
+bodyless, duplicate, or trailing syntax reject the complete transaction.
+
+The exact executable body representation is not implemented. Function body
+consumption proves only that one structurally balanced definition exists. The
+current target has no authored imports, active executable Body parser, or
+semantic compiler transaction.
 
 The intended first application pressure target is
 [`../../apps/ttx/echo`](../../apps/ttx/echo/). Its Library source requires
@@ -133,10 +141,9 @@ No Library payload encoder or restorer exists in the current target.
 
 ## Current boundary
 
-The current Library target contains the declared language contracts, concrete
-scalar Types, Function signature construction, reusable Layout grammar, a file
-local scalar lookup prototype, and the x86_64 assembler.
+The current Library target contains the installed Dialect, declaration
+Monograph, binary wide scalar and Void Types, Function signature construction,
+reusable Layout grammar, and the x86_64 assembler.
 
-It does not yet contain the complete Library Dialect or Monograph, declaration
-discovery and publication, authored imports, executable body owner, CPU target
-planner, semantic lowering, or App and Scene integration.
+It does not yet contain authored imports, executable body ownership, CPU target
+planning, semantic lowering, or App and Scene integration.
