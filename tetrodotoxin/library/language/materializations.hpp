@@ -11,6 +11,7 @@
 #include "perimortem/utility/option.hpp"
 
 #include "tetrodotoxin/library/language/generic.hpp"
+#include "ttx/concept/reference.hpp"
 #include "ttx/model/type.hpp"
 
 namespace Tetrodotoxin::Library::Language {
@@ -77,7 +78,9 @@ class Materializations {
   };
 
   Perimortem::Memory::Allocator::Arena& arena;
-  Perimortem::Memory::Managed::Map<Key, Ttx::Model::Type&> entries;
+  Perimortem::Memory::Managed::
+      Map<Key, Ttx::Concept::Reference<Ttx::Model::Type>>
+          entries;
   Active* active = nullptr;
 };
 

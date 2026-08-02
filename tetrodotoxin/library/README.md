@@ -24,8 +24,9 @@ Generic is Library language semantics rather than a universal TTX category.
 It owns an immutable formula contract and its inseparable parameter and
 argument vocabulary. The independent Materializations transaction owns the
 declared construction state for concrete Access, View, and Fixed Type shapes.
-Its implementation is not active, so materialization is not yet an executable
-Library contract.
+It validates canonical formulas and ordered semantic arguments, retains only
+successful exact keys, and rejects nested cycles without giving formulas a
+mutable cache.
 
 Static identifies a Callable selected without a receiver. Self identifies a
 Callable selected through an addressable value and reserves parameter zero for
