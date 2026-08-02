@@ -8,6 +8,7 @@
 
 #include "perimortem/memory/allocator/arena.hpp"
 
+#include "perimortem/utility/option.hpp"
 #include "perimortem/utility/pair.hpp"
 
 namespace Perimortem::Memory::Managed {
@@ -53,10 +54,10 @@ class Map {
   }
 
   auto insert(const key_type& key, const value_type& value) -> Entry* {
-    Entry* entry = find(key);
-    if (entry != nullptr) {
-      entry->value = value;
-      return entry;
+    auto entry = find(key);
+    if (entry) {
+      (*entry).value = value;
+      return &*entry;
     }
 
     ensure_capacity(buffer.size + 1);
@@ -66,10 +67,10 @@ class Map {
   // Adds the key only if it's not in the map already, but if it hits a conflict
   // then it launders the object avoiding constructors and destructors.
   auto launder(const key_type& key, const value_type& value) -> Entry* {
-    Entry* entry = find(key);
-    if (entry != nullptr) {
-      Core::Data::launder(entry->value, value);
-      return entry;
+    auto entry = find(key);
+    if (entry) {
+      Core::Data::launder((*entry).value, value);
+      return &*entry;
     }
 
     ensure_capacity(buffer.size + 1);
@@ -82,24 +83,31 @@ class Map {
       -> decltype(auto) {
     auto element = find(key);
     if (element) {
-      return found(element->value);
+      return found((*element).value);
     } else {
       return missing();
     }
   }
 
-  auto find(const key_type& key) -> Entry* {
-    return const_cast<Entry*>(static_cast<const Map*>(this)->find(key));
+  auto find(const key_type& key) -> Utility::Option<Entry&> {
+    Slot* slot = find_slot(key);
+    if (slot == nullptr) {
+      return {};
+    }
+
+    return slot->entry;
   }
 
-  auto find(const key_type& key) const -> const Entry* {
+  auto find(const key_type& key) const -> Utility::Option<const Entry&> {
     const Slot* slot = find_slot(key);
-    return slot == nullptr ? nullptr : &slot->entry;
+    if (slot == nullptr) {
+      return {};
+    }
+
+    return slot->entry;
   }
 
-  auto contains(const key_type& key) const -> Bool {
-    return find(key) != nullptr;
-  }
+  auto contains(const key_type& key) const -> Bool { return bool(find(key)); }
 
   auto get_entry(Count index) -> Entry* {
     return const_cast<Entry*>(static_cast<const Map*>(this)->get_entry(index));
@@ -126,12 +134,12 @@ class Map {
   }
 
   auto at(const key_type& key) -> value_type& {
-    Entry* entry = find(key);
-    if (entry == nullptr) {
-      entry = insert(key, value_type());
+    auto entry = find(key);
+    if (entry) {
+      return (*entry).value;
     }
 
-    return entry->value;
+    return insert(key, value_type())->value;
   }
 
   auto operator[](const key_type& key) -> value_type& { return at(key); }

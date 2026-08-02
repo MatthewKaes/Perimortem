@@ -7,15 +7,17 @@
 #include "perimortem/core/data.hpp"
 #include "perimortem/core/hash.hpp"
 
+#include "perimortem/utility/option.hpp"
+
 namespace Perimortem::Memory::Dynamic {
 
 // Unordered scalar hash set that owns keys by value.
 //
 // Keys live inline in the table and may be relocated by insert, remove, clear,
-// or ensure_capacity. Pointers returned from find are short-lived inspection
-// handles; do not keep them across any mutating call. For large objects or
-// objects that need stable addresses, keep the object owned elsewhere and use a
-// small pointer key object in the set.
+// or ensure_capacity. References selected by find are short lived inspection
+// handles. Do not keep them across any mutating call. For large objects or
+// objects that need stable addresses, keep the object owned elsewhere and use
+// a small pointer key object in the set.
 template <typename key_type>
 class Set {
  public:
@@ -156,18 +158,26 @@ class Set {
     buffer_data.size = 0;
   }
 
-  // The returned pointer is only valid until the next mutating call.
-  auto find(const key_type& key) -> key_type* {
-    return const_cast<key_type*>(static_cast<const Set*>(this)->find(key));
+  // The selected reference is only valid until the next mutating call.
+  auto find(const key_type& key) -> Utility::Option<key_type&> {
+    auto* found = const_cast<key_type*>(find_hashed(key, get_hash(key)));
+    if (found == nullptr) {
+      return {};
+    }
+
+    return *found;
   }
 
-  auto find(const key_type& key) const -> const key_type* {
-    return find_hashed(key, get_hash(key));
+  auto find(const key_type& key) const -> Utility::Option<const key_type&> {
+    const key_type* found = find_hashed(key, get_hash(key));
+    if (found == nullptr) {
+      return {};
+    }
+
+    return *found;
   }
 
-  auto contains(const key_type& key) const -> Bool {
-    return find(key) != nullptr;
-  }
+  auto contains(const key_type& key) const -> Bool { return bool(find(key)); }
 
   template <typename visit_type>
   auto visit(visit_type visit_function) -> void {

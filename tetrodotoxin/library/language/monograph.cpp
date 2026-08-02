@@ -175,8 +175,9 @@ auto Library::Language::Monograph::post_pass() -> Bool {
     const ImportCandidate& candidate = candidates[candidate_index];
     const Function& function = candidate.function.get();
     View::Bytes name = function.get_name();
-    if (functions.contains(name)) {
-      const Function& local = functions.find(name)->value.get();
+    auto local_entry = functions.find(name);
+    if (local_entry) {
+      const Function& local = (*local_entry).value.get();
       Diagnostics::Log::Message<1152> message(Diagnostics::Log::Level::Info);
       message << import_operation
               << " failed. reason=an imported Function collides with a local "

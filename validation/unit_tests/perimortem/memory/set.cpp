@@ -48,10 +48,16 @@ PERIMORTEM_UNIT_TEST(DynamicSet, find) {
   values.insert(2);
   values.insert(4);
 
-  auto* found = values.find(2);
-  ASSERT(found != nullptr);
+  auto found = values.find(2);
+  ASSERT(found);
   EXPECT_EQ(*found, 2);
-  EXPECT(values.find(8) == nullptr);
+  EXPECT(!values.find(8));
+
+  const auto& const_values = values;
+  auto const_found = const_values.find(4);
+  ASSERT(const_found);
+  EXPECT_EQ(*const_found, 4);
+  EXPECT(!const_values.find(8));
 }
 
 PERIMORTEM_UNIT_TEST(DynamicSet, visit) {
@@ -269,11 +275,11 @@ PERIMORTEM_UNIT_TEST(DynamicSet, pointer_keys) {
   EXPECT(values.insert(&third));
   EXPECT(!values.insert(&second));
 
-  const StableObjectKey* found = values.find(&second);
-  ASSERT(found != nullptr);
-  EXPECT(found->get_object() == &second);
-  EXPECT_EQ(found->get_object()->get_id(), 2);
-  EXPECT_EQ(found->get_object()->get_payload_size(), 512);
+  auto found = values.find(&second);
+  ASSERT(found);
+  EXPECT((*found).get_object() == &second);
+  EXPECT_EQ((*found).get_object()->get_id(), 2);
+  EXPECT_EQ((*found).get_object()->get_payload_size(), 512);
 
   EXPECT(values.remove(&second));
   EXPECT(!values.contains(&second));

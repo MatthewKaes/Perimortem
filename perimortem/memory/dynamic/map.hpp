@@ -7,6 +7,7 @@
 #include "perimortem/core/data.hpp"
 #include "perimortem/core/hash.hpp"
 
+#include "perimortem/utility/option.hpp"
 #include "perimortem/utility/pair.hpp"
 
 namespace Perimortem::Memory::Dynamic {
@@ -14,8 +15,9 @@ namespace Perimortem::Memory::Dynamic {
 // Unordered scalar hash map that owns keys and values by association.
 //
 // Entries live inline in one allocation beside their control hashes. Insert,
-// remove, clear, and ensure_capacity may relocate entries, so pointers returned
-// from find and get_entry remain valid only until the next mutating call.
+// remove, clear, and ensure_capacity may relocate entries, so references
+// selected by find and pointers returned by get_entry remain valid only until
+// the next mutating call.
 //
 // The table uses linear probing because compiler maps are normally small and
 // benefit more from compact storage and a cheap header than from a second
@@ -158,24 +160,31 @@ class Map {
       -> decltype(auto) {
     auto element = find(key);
     if (element) {
-      return found(element->value);
+      return found((*element).value);
     } else {
       return missing();
     }
   }
 
-  auto find(const key_type& key) -> Entry* {
-    return const_cast<Entry*>(static_cast<const Map*>(this)->find(key));
-  }
-
-  auto find(const key_type& key) const -> const Entry* {
+  auto find(const key_type& key) -> Utility::Option<Entry&> {
     Count bucket = find_bucket(key, get_hash(key));
-    return bucket == Count(-1) ? nullptr : entries + bucket;
+    if (bucket == Count(-1)) {
+      return {};
+    }
+
+    return entries[bucket];
   }
 
-  auto contains(const key_type& key) const -> Bool {
-    return find(key) != nullptr;
+  auto find(const key_type& key) const -> Utility::Option<const Entry&> {
+    Count bucket = find_bucket(key, get_hash(key));
+    if (bucket == Count(-1)) {
+      return {};
+    }
+
+    return entries[bucket];
   }
+
+  auto contains(const key_type& key) const -> Bool { return bool(find(key)); }
 
   auto remove(const key_type& key) -> Bool {
     Count bucket = find_bucket(key, get_hash(key));
@@ -253,8 +262,8 @@ class Map {
 
   auto find_or_default(const key_type& key, const value_type& value) const
       -> const value_type& {
-    const Entry* entry = find(key);
-    return entry == nullptr ? value : entry->value;
+    auto entry = find(key);
+    return entry ? (*entry).value : value;
   }
 
   constexpr auto get_size() const -> Count { return size; }

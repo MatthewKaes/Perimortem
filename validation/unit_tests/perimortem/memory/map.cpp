@@ -29,9 +29,16 @@ static Harness DynamicMap = {
 PERIMORTEM_UNIT_TEST(DynamicMap, find_and_get_entry) {
   Dynamic::Map<Signed_32, Signed_32> int_map = {{{1, 2}, {2, 3}, {4, 5}}};
 
-  auto* found = int_map.find(2);
-  ASSERT(found != nullptr);
-  EXPECT_EQ(found->value, 3);
+  auto found = int_map.find(2);
+  ASSERT(found);
+  EXPECT_EQ((*found).value, 3);
+  EXPECT(!int_map.find(8));
+
+  const auto& const_map = int_map;
+  auto const_found = const_map.find(4);
+  ASSERT(const_found);
+  EXPECT_EQ((*const_found).value, 5);
+  EXPECT(!const_map.find(8));
 
   Count count = 0;
   Signed_32 key_sum = 0;

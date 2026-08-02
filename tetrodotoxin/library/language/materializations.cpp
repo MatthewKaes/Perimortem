@@ -80,9 +80,9 @@ auto Language::Materializations::materialize(
   }
 
   Key key(generic, arguments);
-  const auto* existing = entries.find(key);
-  if (existing != nullptr) {
-    return existing->value.get();
+  auto existing = entries.find(key);
+  if (existing) {
+    return (*existing).value.get();
   }
 
   // Every active frame belongs to the same nested construction transaction.

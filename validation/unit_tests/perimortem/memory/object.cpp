@@ -113,7 +113,9 @@ PERIMORTEM_UNIT_TEST(DynamicObject, map_owner) {
   }
 
   EXPECT_EQ(destructor_count, Count(0));
-  EXPECT_EQ(values.find(0)->value->get_value(), Count(7));
+  auto found = values.find(0);
+  ASSERT(found);
+  EXPECT_EQ((*found).value->get_value(), Count(7));
 
   values.remove(0);
   EXPECT_EQ(destructor_count, Count(1));
@@ -129,7 +131,9 @@ PERIMORTEM_UNIT_TEST(DynamicObject, map_rehash) {
 
   EXPECT_EQ(destructor_count, Count(0));
   for (Count i = 0; i < 16; i++) {
-    EXPECT_EQ(values.find(i)->value->get_value(), i);
+    auto found = values.find(i);
+    ASSERT(found);
+    EXPECT_EQ((*found).value->get_value(), i);
   }
 
   values.clear();

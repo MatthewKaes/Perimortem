@@ -36,7 +36,7 @@ auto Package::Storage::read(View::Bytes logical_route) -> Option<Content&> {
   View::Bytes diagnostic_path = normalized.get_view();
   auto cached = cache.find(diagnostic_path);
   if (cached) {
-    return cached->value;
+    return (*cached).value;
   }
 
   // Reading directly into the shared Arena gives Content stable bytes without

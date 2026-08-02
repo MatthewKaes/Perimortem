@@ -48,12 +48,12 @@ static auto parse(Allocator::Arena& arena, View::Vector<View::Bytes> arguments)
 
 static auto values_for(const Args::Values& args, View::Bytes name)
     -> View::Vector<View::Bytes> {
-  const auto* entry = args.find(name);
-  if (entry == nullptr) {
+  auto entry = args.find(name);
+  if (!entry) {
     return View::Vector<View::Bytes>();
   }
 
-  return entry->value->get_view();
+  return (*entry).value->get_view();
 }
 
 static auto value_count(const Args::Values& args, View::Bytes name) -> Count {

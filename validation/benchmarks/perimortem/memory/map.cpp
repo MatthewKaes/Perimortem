@@ -117,8 +117,8 @@ auto pointer_lookup_test() -> void {
   Benchmark::start_time();
   for (Count i = 0; i < values; i++) {
     const Signed_32* key = pointer_key(i, misses);
-    const auto* entry = map.find(key);
-    accumulator += entry == nullptr ? 1 : entry->value;
+    auto entry = map.find(key);
+    accumulator += entry ? (*entry).value : 1;
   }
 
   Benchmark::end_time();

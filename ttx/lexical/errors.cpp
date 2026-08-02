@@ -49,9 +49,9 @@ Errors::Report::~Report() {
 
 auto Errors::retain_source(View::Bytes source_name, View::Bytes source_text)
     -> View::Bytes {
-  auto* retained = source_map.find(source_name);
-  if (retained != nullptr) {
-    return retained->key;
+  auto retained = source_map.find(source_name);
+  if (retained) {
+    return (*retained).key;
   }
 
   View::Bytes retained_name = arena.proxy(source_name);
@@ -162,13 +162,13 @@ auto Errors::render_message(
   }
 
   const Error& error = errors.at(index);
-  const auto* source = source_map.find(error.source_name);
-  if (source == nullptr) {
+  auto source = source_map.find(error.source_name);
+  if (!source) {
     return View::Bytes();
   }
 
-  View::Bytes source_name = source->key;
-  View::Bytes source_text = source->value;
+  View::Bytes source_name = (*source).key;
+  View::Bytes source_text = (*source).value;
   const Span token_span = error.span;
   const Count span_size = token_span ? token_span.get_size() : 0;
   const Count span_line_count = token_span ? token_span.get_line_count() : 0;
