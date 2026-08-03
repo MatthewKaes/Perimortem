@@ -9,8 +9,10 @@
 #include "perimortem/memory/managed/map.hpp"
 
 #include "perimortem/system/file.hpp"
+#include "perimortem/system/path.hpp"
 
 #include "perimortem/utility/option.hpp"
+#include "perimortem/utility/result.hpp"
 
 #include "tetrodotoxin/package/content.hpp"
 
@@ -29,6 +31,38 @@ namespace Tetrodotoxin::Package {
 // interprets content or derives semantic identity from a route.
 class Storage {
  public:
+  // A failed read keeps only the normalized Path that Storage could establish
+  // and the caller decision supported by File Root. Error stays nested because
+  // it has no identity or use outside this one result.
+  class Failure {
+   public:
+    enum class Error : Unsigned_8 {
+      Unknown = Unsigned_8(-1),
+      InvalidRoute = 0,
+      Unreadable,
+    };
+
+    constexpr Failure(Error error) : error(error) {}
+
+    constexpr Failure(Perimortem::System::Path path, Error error)
+        : path(path), error(error) {}
+
+    constexpr auto get_path() const
+        -> Perimortem::Utility::Option<const Perimortem::System::Path&> {
+      if (path.get_view().is_empty()) {
+        return {};
+      }
+
+      return path;
+    }
+
+    constexpr auto get_error() const -> Error { return error; }
+
+   private:
+    Perimortem::System::Path path;
+    Error error;
+  };
+
   Storage(const Storage&) = delete;
   auto operator=(const Storage&) -> Storage& = delete;
   Storage(Storage&&) = default;
@@ -40,7 +74,7 @@ class Storage {
       -> Perimortem::Utility::Option<Storage>;
 
   auto read(Perimortem::Core::View::Bytes logical_route)
-      -> Perimortem::Utility::Option<Content&>;
+      -> Perimortem::Utility::Result<Content&, Failure>;
 
  private:
   Storage(

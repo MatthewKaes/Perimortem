@@ -22,13 +22,18 @@ auto Package::Storage::open(Allocator::Arena& arena, View::Bytes location)
       });
 }
 
-auto Package::Storage::read(View::Bytes logical_route) -> Option<Content&> {
+auto Package::Storage::read(View::Bytes logical_route)
+    -> Result<Content&, Failure> {
   // Storage accepts logical children only. Letting an absolute or escaping
   // route reach File would reintroduce ambient filesystem selection above the
   // opened root capability.
   Path normalized(logical_route);
-  if (normalized.get_view().is_empty() || normalized.is_rooted()) {
-    return {};
+  if (normalized.get_view().is_empty()) {
+    return Failure(Failure::Error::InvalidRoute);
+  }
+
+  if (normalized.is_rooted()) {
+    return Failure(normalized, Failure::Error::InvalidRoute);
   }
 
   // The normalized spelling is the only stable cache identity. Raw spellings
@@ -36,14 +41,14 @@ auto Package::Storage::read(View::Bytes logical_route) -> Option<Content&> {
   View::Bytes diagnostic_path = normalized.get_view();
   auto cached = cache.find(diagnostic_path);
   if (cached) {
-    return (*cached).value;
+    return cached->value;
   }
 
   // Reading directly into the shared Arena gives Content stable bytes without
   // a Dynamic allocation and a second copy.
   auto contents = root.read(arena, diagnostic_path);
   if (!contents) {
-    return {};
+    return Failure(normalized, Failure::Error::Unreadable);
   }
 
   // Arena allocation cannot be reclaimed individually. Delay the retained Path
@@ -51,7 +56,7 @@ auto Package::Storage::read(View::Bytes logical_route) -> Option<Content&> {
   // Workspace Arena.
   auto retained_path = Path::normalize(arena, logical_route);
   if (!retained_path) {
-    return {};
+    return Failure(normalized, Failure::Error::InvalidRoute);
   }
 
   // Launder only a fully stable Content into the reference map. Publishing

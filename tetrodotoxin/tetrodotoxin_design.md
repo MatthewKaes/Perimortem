@@ -445,9 +445,9 @@ source Package resolve_context("$[resources/table.bin]")
    Language Error
 ```
 
-Storage returns either retained Content or one `Package::StorageReadFailure`
-with a `Package::StorageReadError` category and allocation-free normalized Path
-context when one can be formed. The resource
+Storage returns `Utility::Result<Content&, Package::Storage::Failure>`. The
+Failure carries a nested `Failure::Error` category and allocation-free
+normalized Path context when one can be formed. The resource
 transaction caches the Resource or Error identity in the Workspace Arena so
 repeated equivalent owner-normalized requests return the same Abstract for the
 semantic island. Invalid input with no normalized route uses the exact complete
@@ -465,13 +465,16 @@ current Token Span with the concrete owner's retained failure context to
 publish the textual diagnostic.
 
 Package Storage implements confined root reads, route rejection, empty success,
-successful read caching, and fallback absence. The resource transaction must
-establish a narrow Package-owned connection to the Storage that remains live
-during authored graph construction; Package Monograph itself retains no
-filesystem handle. Consumers persist only their reachable semantic facts.
-Package Archive never retains the root, route cache, unused input bytes, or
-Resource acquisition machinery, so source-free restoration needs no
-filesystem capability.
+successful read caching, and fallback absence. An authored resource transaction
+starts pending, connects once to the Package Storage owned by Workspace, and
+serves member interpretation during graph discovery. Workspace seals every
+transaction before post pass or dependency resolution. The sealed transaction
+retains cached Resource and Error identities but cannot reconnect or acquire a
+new route. Source-free restoration publishes its Package resource transaction
+already sealed. Package Monograph itself retains no filesystem handle.
+Consumers persist only their reachable semantic facts. Package Archive never
+retains the root, route cache, unused input bytes, or Resource acquisition
+machinery, so source-free restoration needs no filesystem capability.
 
 ## Durable package products
 

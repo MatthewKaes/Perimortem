@@ -24,8 +24,20 @@
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
 using namespace Perimortem::System;
+using namespace Perimortem::Utility;
 using namespace Tetrodotoxin;
 using namespace Validation;
+
+static_assert(
+    static_cast<Unsigned_8>(Package::Storage::Failure::Error::Unknown) ==
+    Unsigned_8(-1));
+static_assert(
+    static_cast<Unsigned_8>(Package::Storage::Failure::Error::InvalidRoute) ==
+    Unsigned_8(0));
+static_assert(
+    static_cast<Unsigned_8>(Package::Storage::Failure::Error::Unreadable) ==
+    Unsigned_8(1));
+static_assert(__is_trivially_destructible(Package::Storage::Failure));
 
 static constexpr Count temporary_path_capacity = 160;
 static constexpr Count cache_growth_count = 48;
@@ -267,6 +279,53 @@ struct TestConsumer {
   View::Bytes contents;
 };
 
+static auto select_content(
+    const Result<Package::Content&, Package::Storage::Failure>& result)
+    -> Package::Content* {
+  return result.visit(
+      [](Package::Content& content) { return &content; },
+      [](const Package::Storage::Failure&) -> Package::Content* {
+        return nullptr;
+      });
+}
+
+static auto select_failure(
+    const Result<Package::Content&, Package::Storage::Failure>& result)
+    -> Option<const Package::Storage::Failure&> {
+  return result.visit(
+      [](Package::Content&) {
+        return Option<const Package::Storage::Failure&>();
+      },
+      [](const Package::Storage::Failure& failure) {
+        return Option<const Package::Storage::Failure&>(failure);
+      });
+}
+
+static auto rejects_read(
+    Package::Storage& storage,
+    View::Bytes route,
+    Package::Storage::Failure::Error expected_error,
+    View::Bytes expected_path) -> Bool {
+  auto result = storage.read(route);
+  return result.visit(
+      [](Package::Content&) { return False; },
+      [&](const Package::Storage::Failure& failure) {
+        if (failure.get_error() != expected_error) {
+          return False;
+        }
+
+        auto path = failure.get_path();
+        return path.visit(
+            [&]() { return expected_path.is_empty() ? True : False; },
+            [&](const Path& selected) {
+              return !expected_path.is_empty() &&
+                             selected.get_view() == expected_path
+                         ? True
+                         : False;
+            });
+      });
+}
+
 static Harness PackageStorage = {
   .name = "Tetrodotoxin::Package::Storage"_view,
 };
@@ -281,36 +340,40 @@ PERIMORTEM_UNIT_TEST(PackageStorage, source_and_resources) {
   auto storage = Package::Storage::open(arena, root);
   ASSERT(storage);
 
-  auto source = (*storage).read("./shared_a.ttx"_view);
-  auto first_resource = (*storage).read(caller_route);
-  ASSERT(source);
-  ASSERT(first_resource);
+  auto source_read = (*storage).read("./shared_a.ttx"_view);
+  auto first_resource_read = (*storage).read(caller_route);
+  Package::Content* source = select_content(source_read);
+  Package::Content* first_resource = select_content(first_resource_read);
+  ASSERT(source != nullptr);
+  ASSERT(first_resource != nullptr);
 
   caller_route.set('x');
-  auto second_resource = (*storage).read("resources/./table.bin"_view);
-  auto empty = (*storage).read("resources/empty.bin"_view);
-  ASSERT(second_resource);
-  ASSERT(empty);
+  auto second_resource_read = (*storage).read("resources/./table.bin"_view);
+  auto empty_read = (*storage).read("resources/empty.bin"_view);
+  Package::Content* second_resource = select_content(second_resource_read);
+  Package::Content* empty = select_content(empty_read);
+  ASSERT(second_resource != nullptr);
+  ASSERT(empty != nullptr);
 
-  EXPECT_TEXT((*source).get_diagnostic_path(), "shared_a.ttx"_view);
-  EXPECT_NOT((*source).get_contents().is_empty());
+  EXPECT_TEXT(source->get_diagnostic_path(), "shared_a.ttx"_view);
+  EXPECT_NOT(source->get_contents().is_empty());
   EXPECT_TEXT(
-      (*first_resource).get_diagnostic_path(), "resources/table.bin"_view);
+      first_resource->get_diagnostic_path(), "resources/table.bin"_view);
   EXPECT(
-      (*first_resource).get_contents().slice(0, expected_header.get_size()) ==
+      first_resource->get_contents().slice(0, expected_header.get_size()) ==
       expected_header);
   EXPECT(
-      (*first_resource).get_contents().get_data() ==
-      (*second_resource).get_contents().get_data());
+      first_resource->get_contents().get_data() ==
+      second_resource->get_contents().get_data());
   EXPECT(
-      (*first_resource).get_diagnostic_path().get_data() ==
-      (*second_resource).get_diagnostic_path().get_data());
-  EXPECT(&*first_resource == &*second_resource);
-  EXPECT_TEXT((*empty).get_diagnostic_path(), "resources/empty.bin"_view);
-  EXPECT((*empty).get_contents().is_empty());
+      first_resource->get_diagnostic_path().get_data() ==
+      second_resource->get_diagnostic_path().get_data());
+  EXPECT(first_resource == second_resource);
+  EXPECT_TEXT(empty->get_diagnostic_path(), "resources/empty.bin"_view);
+  EXPECT(empty->get_contents().is_empty());
 
-  TestConsumer first_consumer{(*first_resource).get_contents()};
-  TestConsumer second_consumer{(*second_resource).get_contents()};
+  TestConsumer first_consumer{first_resource->get_contents()};
+  TestConsumer second_consumer{second_resource->get_contents()};
   EXPECT(&first_consumer != &second_consumer);
   EXPECT(
       first_consumer.contents.get_data() ==
@@ -330,28 +393,32 @@ PERIMORTEM_UNIT_TEST(PackageStorage, content_stability) {
   auto storage = Package::Storage::open(arena, temporary.get_root());
   ASSERT(storage);
 
-  auto original = (*storage).read("stable.bin"_view);
-  ASSERT(original);
-  const Unsigned_8* original_identity = (*original).get_contents().get_data();
+  auto original_read = (*storage).read("stable.bin"_view);
+  Package::Content* original = select_content(original_read);
+  ASSERT(original != nullptr);
+  const Unsigned_8* original_identity = original->get_contents().get_data();
 
   ASSERT(temporary.write("stable.bin"_view, "mutated"_view));
-  auto after_mutation = (*storage).read("./stable.bin"_view);
-  ASSERT(after_mutation);
-  EXPECT_TEXT((*after_mutation).get_contents(), (*frozen).get_view());
-  EXPECT((*after_mutation).get_contents().get_data() == original_identity);
+  auto mutation_read = (*storage).read("./stable.bin"_view);
+  Package::Content* after_mutation = select_content(mutation_read);
+  ASSERT(after_mutation != nullptr);
+  EXPECT_TEXT(after_mutation->get_contents(), (*frozen).get_view());
+  EXPECT(after_mutation->get_contents().get_data() == original_identity);
 
   ASSERT(temporary.write("replacement.bin"_view, "replacement"_view));
   ASSERT(temporary.replace("replacement.bin"_view, "stable.bin"_view));
-  auto after_replacement = (*storage).read("stable.bin"_view);
-  ASSERT(after_replacement);
-  EXPECT_TEXT((*after_replacement).get_contents(), (*frozen).get_view());
-  EXPECT((*after_replacement).get_contents().get_data() == original_identity);
+  auto replacement_read = (*storage).read("stable.bin"_view);
+  Package::Content* after_replacement = select_content(replacement_read);
+  ASSERT(after_replacement != nullptr);
+  EXPECT_TEXT(after_replacement->get_contents(), (*frozen).get_view());
+  EXPECT(after_replacement->get_contents().get_data() == original_identity);
 
   ASSERT(temporary.remove("stable.bin"_view));
-  auto after_removal = (*storage).read("stable.bin"_view);
-  ASSERT(after_removal);
-  EXPECT_TEXT((*after_removal).get_contents(), (*frozen).get_view());
-  EXPECT((*after_removal).get_contents().get_data() == original_identity);
+  auto removal_read = (*storage).read("stable.bin"_view);
+  Package::Content* after_removal = select_content(removal_read);
+  ASSERT(after_removal != nullptr);
+  EXPECT_TEXT(after_removal->get_contents(), (*frozen).get_view());
+  EXPECT(after_removal->get_contents().get_data() == original_identity);
 }
 
 PERIMORTEM_UNIT_TEST(PackageStorage, retry_after_failure) {
@@ -361,12 +428,16 @@ PERIMORTEM_UNIT_TEST(PackageStorage, retry_after_failure) {
   Allocator::Arena arena;
   auto storage = Package::Storage::open(arena, temporary.get_root());
   ASSERT(storage);
-  EXPECT_NOT((*storage).read("later.bin"_view));
+  EXPECT(rejects_read(
+      *storage, "cache/../later.bin"_view,
+      Package::Storage::Failure::Error::Unreadable, "later.bin"_view));
 
   ASSERT(temporary.write("later.bin"_view, "available"_view));
-  auto available = (*storage).read("later.bin"_view);
-  ASSERT(available);
-  EXPECT_TEXT((*available).get_contents(), "available"_view);
+  auto available_read = (*storage).read("cache/../later.bin"_view);
+  Package::Content* available = select_content(available_read);
+  ASSERT(available != nullptr);
+  EXPECT_TEXT(available->get_diagnostic_path(), "later.bin"_view);
+  EXPECT_TEXT(available->get_contents(), "available"_view);
 }
 
 PERIMORTEM_UNIT_TEST(PackageStorage, cache_growth_and_move) {
@@ -378,11 +449,11 @@ PERIMORTEM_UNIT_TEST(PackageStorage, cache_growth_and_move) {
   auto opened = Package::Storage::open(arena, temporary.get_root());
   ASSERT(opened);
 
-  auto stable = (*opened).read("stable.bin"_view);
-  ASSERT(stable);
-  Package::Content* stable_content = &*stable;
-  View::Bytes stable_path = (*stable).get_diagnostic_path();
-  View::Bytes stable_contents = (*stable).get_contents();
+  auto stable_read = (*opened).read("stable.bin"_view);
+  Package::Content* stable_content = select_content(stable_read);
+  ASSERT(stable_content != nullptr);
+  View::Bytes stable_path = stable_content->get_diagnostic_path();
+  View::Bytes stable_contents = stable_content->get_contents();
 
   for (Count i = 0; i < cache_growth_count; i++) {
     Static::Bytes<32> member;
@@ -393,22 +464,23 @@ PERIMORTEM_UNIT_TEST(PackageStorage, cache_growth_and_move) {
 
     View::Bytes route = member.slice(0, Count(written));
     ASSERT(temporary.write(route, route));
-    auto cached = (*opened).read(route);
-    ASSERT(cached);
-    EXPECT_TEXT((*cached).get_diagnostic_path(), route);
-    EXPECT_TEXT((*cached).get_contents(), route);
+    auto cache_read = (*opened).read(route);
+    Package::Content* cached = select_content(cache_read);
+    ASSERT(cached != nullptr);
+    EXPECT_TEXT(cached->get_diagnostic_path(), route);
+    EXPECT_TEXT(cached->get_contents(), route);
   }
 
   EXPECT_TEXT(stable_path, "stable.bin"_view);
   EXPECT_TEXT(stable_contents, "stable"_view);
 
   Package::Storage moved(static_cast<Package::Storage&&>(*opened));
-  auto repeated = moved.read("./stable.bin"_view);
-  ASSERT(repeated);
-  EXPECT(&*repeated == stable_content);
-  EXPECT(
-      (*repeated).get_diagnostic_path().get_data() == stable_path.get_data());
-  EXPECT((*repeated).get_contents().get_data() == stable_contents.get_data());
+  auto repeated_read = moved.read("./stable.bin"_view);
+  Package::Content* repeated = select_content(repeated_read);
+  ASSERT(repeated != nullptr);
+  EXPECT(repeated == stable_content);
+  EXPECT(repeated->get_diagnostic_path().get_data() == stable_path.get_data());
+  EXPECT(repeated->get_contents().get_data() == stable_contents.get_data());
 }
 
 PERIMORTEM_UNIT_TEST(PackageStorage, opened_root_identity) {
@@ -423,9 +495,10 @@ PERIMORTEM_UNIT_TEST(PackageStorage, opened_root_identity) {
   ASSERT(temporary.create_replacement_root());
   ASSERT(temporary.write("identity.bin"_view, "replacement root"_view));
 
-  auto identity = (*storage).read("identity.bin"_view);
-  ASSERT(identity);
-  EXPECT_TEXT((*identity).get_contents(), "original root"_view);
+  auto identity_read = (*storage).read("identity.bin"_view);
+  Package::Content* identity = select_content(identity_read);
+  ASSERT(identity != nullptr);
+  EXPECT_TEXT(identity->get_contents(), "original root"_view);
 }
 
 PERIMORTEM_UNIT_TEST(PackageStorage, route_rejections) {
@@ -443,29 +516,78 @@ PERIMORTEM_UNIT_TEST(PackageStorage, route_rejections) {
   auto storage = Package::Storage::open(arena, temporary.get_root());
   ASSERT(storage);
 
-  EXPECT_NOT((*storage).read(View::Bytes()));
-  EXPECT_NOT((*storage).read("."_view));
-  EXPECT_NOT((*storage).read("inside/.."_view));
-  EXPECT_NOT((*storage).read("/absolute.bin"_view));
-  EXPECT_NOT((*storage).read("\\rooted.bin"_view));
-  EXPECT_NOT((*storage).read("../outside.bin"_view));
-  EXPECT_NOT((*storage).read("inside/../../outside.bin"_view));
-  EXPECT_NOT((*storage).read("missing.bin"_view));
-  EXPECT_NOT((*storage).read("directory"_view));
-  EXPECT_NOT((*storage).read("escape.bin"_view));
+  Dynamic::Bytes caller_failure_route("cache/../missing.bin"_view);
+  auto owned_failure_read = (*storage).read(caller_failure_route);
+  caller_failure_route.set('x');
+  auto owned_failure = select_failure(owned_failure_read);
+  ASSERT(owned_failure);
+  EXPECT(
+      owned_failure->get_error() ==
+      Package::Storage::Failure::Error::Unreadable);
+  auto owned_failure_path = owned_failure->get_path();
+  EXPECT(owned_failure_path.visit(
+      []() { return False; },
+      [](const Path& selected) {
+        return selected.get_view() == "missing.bin"_view;
+      }));
+
+  EXPECT(rejects_read(
+      *storage, View::Bytes(), Package::Storage::Failure::Error::InvalidRoute,
+      View::Bytes()));
+  EXPECT(rejects_read(
+      *storage, "."_view, Package::Storage::Failure::Error::InvalidRoute,
+      View::Bytes()));
+  EXPECT(rejects_read(
+      *storage, "inside/.."_view,
+      Package::Storage::Failure::Error::InvalidRoute, View::Bytes()));
+  EXPECT(rejects_read(
+      *storage, "/absolute.bin"_view,
+      Package::Storage::Failure::Error::InvalidRoute, "/absolute.bin"_view));
+  EXPECT(rejects_read(
+      *storage, "\\rooted.bin"_view,
+      Package::Storage::Failure::Error::InvalidRoute, "/rooted.bin"_view));
+  EXPECT(rejects_read(
+      *storage, "../outside.bin"_view,
+      Package::Storage::Failure::Error::InvalidRoute, View::Bytes()));
+  EXPECT(rejects_read(
+      *storage, "inside/../../outside.bin"_view,
+      Package::Storage::Failure::Error::InvalidRoute, View::Bytes()));
+  EXPECT(rejects_read(
+      *storage, "missing.bin"_view,
+      Package::Storage::Failure::Error::Unreadable, "missing.bin"_view));
+  EXPECT(rejects_read(
+      *storage, "directory"_view, Package::Storage::Failure::Error::Unreadable,
+      "directory"_view));
+  EXPECT(rejects_read(
+      *storage, "escape.bin"_view, Package::Storage::Failure::Error::Unreadable,
+      "escape.bin"_view));
 
   Static::Bytes<9> nul_route{'n', 'u', 'l', 'l', '\0', '.', 'b', 'i', 'n'};
-  EXPECT_NOT((*storage).read(nul_route));
+  EXPECT(rejects_read(
+      *storage, nul_route, Package::Storage::Failure::Error::InvalidRoute,
+      View::Bytes()));
 
-  auto source = (*storage).read("sources/main.ttx"_view);
-  ASSERT(source);
-  EXPECT_NOT((*storage).read("local.bin"_view));
+  auto source_read = (*storage).read("sources/main.ttx"_view);
+  Package::Content* source = select_content(source_read);
+  ASSERT(source != nullptr);
+  EXPECT(rejects_read(
+      *storage, "local.bin"_view, Package::Storage::Failure::Error::Unreadable,
+      "local.bin"_view));
 
   WorkingDirectory outside(temporary.get_outside_root());
   ASSERT(outside);
   auto cwd_fallback = (*storage).read("cwd_only.bin"_view);
   Bool restored = outside.restore();
-  EXPECT_NOT(cwd_fallback);
+  auto cwd_failure = select_failure(cwd_fallback);
+  ASSERT(cwd_failure);
+  EXPECT(
+      cwd_failure->get_error() == Package::Storage::Failure::Error::Unreadable);
+  auto cwd_path = cwd_failure->get_path();
+  EXPECT(cwd_path.visit(
+      []() { return False; },
+      [](const Path& selected) {
+        return selected.get_view() == "cwd_only.bin"_view;
+      }));
   EXPECT(restored);
 }
 
@@ -479,24 +601,24 @@ PERIMORTEM_UNIT_TEST(PackageStorage, hard_link_routes) {
   auto storage = Package::Storage::open(arena, temporary.get_root());
   ASSERT(storage);
 
-  auto first = (*storage).read("hard_a.bin"_view);
-  auto second = (*storage).read("hard_b.bin"_view);
-  ASSERT(first);
-  ASSERT(second);
+  auto first_read = (*storage).read("hard_a.bin"_view);
+  auto second_read = (*storage).read("hard_b.bin"_view);
+  Package::Content* first = select_content(first_read);
+  Package::Content* second = select_content(second_read);
+  ASSERT(first != nullptr);
+  ASSERT(second != nullptr);
 
-  EXPECT_TEXT((*first).get_contents(), (*second).get_contents());
+  EXPECT_TEXT(first->get_contents(), second->get_contents());
+  EXPECT(first->get_contents().get_data() != second->get_contents().get_data());
   EXPECT(
-      (*first).get_contents().get_data() !=
-      (*second).get_contents().get_data());
-  EXPECT(
-      (*first).get_diagnostic_path().get_data() !=
-      (*second).get_diagnostic_path().get_data());
+      first->get_diagnostic_path().get_data() !=
+      second->get_diagnostic_path().get_data());
 
-  auto repeated = (*storage).read("./hard_a.bin"_view);
-  ASSERT(repeated);
-  EXPECT(&*first != &*second);
-  EXPECT(&*first == &*repeated);
+  auto repeated_read = (*storage).read("./hard_a.bin"_view);
+  Package::Content* repeated = select_content(repeated_read);
+  ASSERT(repeated != nullptr);
+  EXPECT(first != second);
+  EXPECT(first == repeated);
   EXPECT(
-      (*first).get_contents().get_data() ==
-      (*repeated).get_contents().get_data());
+      first->get_contents().get_data() == repeated->get_contents().get_data());
 }

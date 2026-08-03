@@ -49,6 +49,11 @@ static auto has_source_name(
   return False;
 }
 
+static auto is_resource_instruction(View::Bytes route) -> Bool {
+  return route.get_size() >= 3 && route[0] == '$' && route[1] == '[' &&
+         route[route.get_size() - 1] == ']';
+}
+
 auto Package::Language::Monograph::create_authored(
     Allocator::Arena& domain,
     const Documentation& documentation,
@@ -71,9 +76,14 @@ auto Package::Language::Monograph::create_source_free(
     const Documentation& documentation,
     Tetrodotoxin::Language::Dialect& host,
     View::Vector<Dependency> dependencies) -> Monograph& {
-  return domain.construct<Monograph>(
+  Monograph& monograph = domain.construct<Monograph>(
       Construction(), domain, documentation, host, dependencies,
       View::Vector<Span>(), View::Vector<Source>());
+
+  // Restored Packages have no authored route acquisition phase. Seal before
+  // publishing the Monograph so later owners cannot attach physical Storage.
+  monograph.resources.seal();
+  return monograph;
 }
 
 Package::Language::Monograph::Monograph(
@@ -88,6 +98,7 @@ Package::Language::Monograph::Monograph(
       dependencies(dependencies),
       dependency_spans(dependency_spans),
       sources(sources),
+      resources(domain),
       members(domain),
       bindings(domain) {}
 
@@ -129,6 +140,13 @@ auto Package::Language::Monograph::bind_dependency(
 
 auto Package::Language::Monograph::resolve_context(View::Bytes route) const
     -> const Abstract& {
+  // The delimiters reserve one complete contextual instruction. Malformed or
+  // partial spellings continue through exact Package lookup so this branch
+  // never becomes a second Embedded parser.
+  if (is_resource_instruction(route)) {
+    return resources.resolve(route.slice(2, route.get_size() - 3));
+  }
+
   return bindings.visit(
       route, [](const Alias& selected) -> const Abstract& { return selected; },
       []() -> const Abstract& { return Invalid::get_invalid(); });
@@ -155,4 +173,13 @@ auto Package::Language::Monograph::get_sources() const -> View::Vector<Source> {
 auto Package::Language::Monograph::get_members() const
     -> View::Vector<Reference<Alias>> {
   return members;
+}
+
+auto Package::Language::Monograph::get_resources() -> Package::Resources& {
+  return resources;
+}
+
+auto Package::Language::Monograph::get_resources() const
+    -> const Package::Resources& {
+  return resources;
 }

@@ -137,14 +137,14 @@ resources. `System::Path` owns lexical normalization. Storage uses the
 canonical relative form as the cache key, diagnostic path, and confined read
 route. Absolute, rooted, escaping, empty, and NUL bearing routes are rejected.
 
-The approved read boundary selects either the stable Content reference or one
-owner-specific `Package::StorageReadFailure`. StorageReadFailure owns one
-allocation-free `System::Path` value when lexical normalization could establish
-a route and one typed `Package::StorageReadError`. It never retains a view into
-a temporary Path. Input with no valid normalized route remains an explicit
-invalid-route failure rather than receiving an invented path. The union's null
-state is never a third outcome, and failed reads remain retryable rather than
-entering the successful Content cache. StorageReadError distinguishes
+The approved read boundary returns
+`Utility::Result<Content&, Storage::Failure>`. Failure owns one allocation-free
+`System::Path` value when lexical normalization could establish a route and one
+nested `Failure::Error`. It never retains a view into a temporary Path. Input
+with no valid normalized route remains an explicit invalid-route failure rather
+than receiving an invented path. Result exposes exactly the stable Content
+reference or one owner-specific Failure, and failed reads remain retryable
+rather than entering the successful Content cache. Failure::Error distinguishes
 InvalidRoute from Unreadable. The current Root capability exposes no narrower
 physical cause, so Storage does not manufacture missing, directory, or symlink
 categories.
@@ -176,23 +176,26 @@ Workspace's independent source map.
 
 ## Contextual resources
 
-The Package resource transaction connects one authored Package context to the
-Storage that is live during graph construction. It recognizes only a complete
-`$[...]` request, gives the interior route to Storage, and caches one stable
-Abstract identity per equivalent owner-normalized request in the Workspace
-Arena. A successful read, including zero bytes, constructs Language Resource.
-A recognized confinement or acquisition failure constructs a Package-owned
-error identity implementing Language Error. When invalid input has no
-normalized route, its exact complete instruction is the failure key. Repeating
-the same query returns that Resource or Error rather than reopening the file or
-allocating another semantic result.
+An authored Package resource transaction starts pending because its Monograph
+is constructed by the Package Dialect while Workspace owns the physical
+Storage. Workspace connects the transaction once after manifest interpretation
+and keeps that borrow active while it interprets the Package member Sources. A
+complete `$[...]` request gives its interior route to Storage and caches one
+stable Abstract identity per equivalent owner-normalized request in the
+Workspace Arena. A successful read, including zero bytes, constructs Language
+Resource. A recognized confinement or acquisition failure constructs a
+Package-owned error identity implementing Language Error. When invalid input
+has no normalized route, its exact complete instruction is the failure key.
+Repeating the same query returns that Resource or Error rather than reopening
+the file or allocating another semantic result.
 
 The logical route is cache, confined input, and diagnostic data. It never
 becomes a Source or Package member semantic name, and equal bytes reached
-through distinct routes do not collapse their Resource identities. Package
-Monograph retains no filesystem handle. The implementation must establish a
-narrow Package-owned lifetime connection while Storage is live and leave no
-dangling capability after graph construction.
+through distinct routes do not collapse their Resource identities. Workspace
+seals every transaction before post pass or dependency resolution. Sealing
+permanently removes the Storage borrow while cached identities remain valid and
+new requests return Invalid. Source-free Package restoration publishes an
+already sealed transaction. Package Monograph retains no filesystem handle.
 
 Concrete consumers own the meaning of Resource bytes. Library may apply a
 slice and construct a Bytes Constant. Shader may construct a shader-specific

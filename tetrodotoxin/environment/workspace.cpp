@@ -22,6 +22,26 @@ using namespace Tetrodotoxin;
 static constexpr View::Bytes package_import_operation =
     "Environment::Workspace Package import"_view;
 
+static constexpr auto storage_failure_error_name(
+    Package::Storage::Failure::Error error) -> View::Bytes {
+  switch (error) {
+  case Package::Storage::Failure::Error::InvalidRoute:
+    return "InvalidRoute"_view;
+  case Package::Storage::Failure::Error::Unreadable:
+    return "Unreadable"_view;
+  default:
+    return "Unknown"_view;
+  }
+}
+
+static_assert(
+    storage_failure_error_name(Package::Storage::Failure::Error::Unknown) ==
+    "Unknown"_view);
+static_assert(
+    storage_failure_error_name(
+        static_cast<Package::Storage::Failure::Error>(Unsigned_8(-2))) ==
+    "Unknown"_view);
+
 struct StagedSource {
   View::Bytes semantic_name;
   View::Bytes logical_route;
@@ -118,8 +138,8 @@ auto Environment::Workspace::import_retained_source(
 
   // The installed Dialect keeps Workspace as its shared registry. This
   // argument instead selects the exact source scope the body is entering.
-  Option<Language::Dialect::Monograph&> interpreted = (*dialect).interpret(
-      arena, cursor, documentation, interpretation_context);
+  Option<Language::Dialect::Monograph&> interpreted =
+      dialect->interpret(arena, cursor, documentation, interpretation_context);
   if (!interpreted) {
     return {};
   }
@@ -185,16 +205,27 @@ auto Environment::Workspace::import_package(
     StagedSource staged = staged_sources[next_source];
     next_source++;
 
-    Option<Package::Content&> content =
-        package_storage.read(staged.logical_route);
-    if (!content) {
+    auto reject_read = [&](Package::Storage::Failure::Error error)
+        -> Option<Package::Content&> {
       Diagnostics::Log::Message<512> message(Diagnostics::Log::Level::Info);
       message << package_import_operation
               << " failed. reason=the staged semantic source could not be read "
                  "semantic_name="_view
               << staged.semantic_name << " logical_route="_view
-              << staged.logical_route;
+              << staged.logical_route << " storage_error="_view
+              << storage_failure_error_name(error);
       failed = True;
+      return {};
+    };
+    auto read = package_storage.read(staged.logical_route);
+    Option<Package::Content&> content = read.visit(
+        [](Package::Content& selected) {
+          return Option<Package::Content&>(selected);
+        },
+        [&](const Package::Storage::Failure& failure) {
+          return reject_read(failure.get_error());
+        });
+    if (!content) {
       continue;
     }
 
@@ -204,8 +235,8 @@ auto Environment::Workspace::import_package(
     Abstract& interpretation_context =
         staged.owner ? static_cast<Abstract&>(*staged.owner) : *this;
     Option<Language::Dialect::Monograph&> imported = import_retained_source(
-        errors, staged.semantic_name, (*content).get_diagnostic_path(),
-        (*content).get_contents(), interpretation_context,
+        errors, staged.semantic_name, content->get_diagnostic_path(),
+        content->get_contents(), interpretation_context,
         staged.publish_globally);
     if (!imported) {
       failed = True;
@@ -242,6 +273,17 @@ auto Environment::Workspace::import_package(
     }
 
     auto& package = static_cast<Package::Language::Monograph&>(monograph);
+    Bool resources_connected = package.get_resources().connect(package_storage);
+    if (!resources_connected) {
+      Diagnostics::Log::Message<512> message(Diagnostics::Log::Level::Info);
+      message << package_import_operation
+              << " failed. reason=Package resources could not connect "
+                 "semantic_name="_view
+              << staged.semantic_name;
+      failed = True;
+      continue;
+    }
+
     View::Vector<Package::Language::Source> sources = package.get_sources();
     for (Count i = 0; i < sources.get_size(); i++) {
       StagedSource member = {
@@ -254,8 +296,21 @@ auto Environment::Workspace::import_package(
     }
   }
 
+  // Every authored Package is retained in this discovery range before its
+  // Sources enter the queue. Sealing the exact range here removes Storage from
+  // every semantic owner before failure completion or dependency resolution.
+  for (Count i = first_monograph; i < retention.get_size(); i++) {
+    Language::Dialect::Monograph& retained = retention.get_monograph(i);
+    if (!retained.is<Package::Language::Monograph>()) {
+      continue;
+    }
+
+    auto& package = static_cast<Package::Language::Monograph&>(retained);
+    package.get_resources().seal();
+  }
+
   if (failed || !root_monograph ||
-      !(*root_monograph).is<Package::Language::Monograph>()) {
+      !root_monograph->is<Package::Language::Monograph>()) {
     retention.complete(errors);
     return {};
   }

@@ -43,6 +43,8 @@ struct WorkspaceTrace {
   const Abstract* interpretation_contexts[16]{};
   const Abstract* package_registry = nullptr;
   const Abstract* package_interpretation_contexts[4]{};
+  const Abstract* resource_results[8]{};
+  const Package::Resources* resources_owner = nullptr;
   View::Bytes expected_facts[4]{};
   View::Bytes expected_documentation[4]{};
   View::Bytes interpreted_facts[16]{};
@@ -63,6 +65,8 @@ struct WorkspaceTrace {
   Bool monograph_hosts_alive = true;
   Bool monograph_arena_state_valid = true;
   Bool dialect_arena_state_valid = true;
+  Bool resources_sealed_during_post_pass = false;
+  Bool resource_post_pass_seen = false;
 };
 
 static WorkspaceTrace* active_trace = nullptr;
@@ -109,25 +113,6 @@ class WorkspaceDialect : public Language::Dialect {
   Bool alive = true;
 };
 
-class SourceFreePackageDialect : public Language::Dialect {
- public:
-  constexpr SourceFreePackageDialect(Abstract& registry) : Dialect(registry) {}
-
-  auto interpret(
-      Allocator::Arena& domain,
-      Cursor&,
-      const Documentation& documentation,
-      Abstract&) -> Option<Monograph&> override {
-    Managed::Vector<Package::Language::Dependency> dependencies(domain);
-    dependencies.insert(
-        Package::Language::Dependency(
-            domain.proxy("Dependency"_view), domain.proxy("Pkg.Missing"_view),
-            Version(1, 0)));
-    return Package::Language::Monograph::create_source_free(
-        domain, documentation, *this, dependencies);
-  }
-};
-
 class TracedPackageDialect : public Package::Dialect {
  public:
   TracedPackageDialect(Abstract& registry)
@@ -146,6 +131,81 @@ class TracedPackageDialect : public Package::Dialect {
     trace.package_interpretation_count++;
     return Package::Dialect::interpret(
         domain, cursor, documentation, interpretation_context);
+  }
+
+ private:
+  WorkspaceTrace& trace;
+};
+
+class ResourceMonograph : public Language::Dialect::Monograph {
+ public:
+  ResourceMonograph(
+      Allocator::Arena& domain,
+      const Documentation& documentation,
+      Language::Dialect& host,
+      WorkspaceTrace& trace,
+      const Package::Language::Monograph& package)
+      : Monograph(domain, documentation, host),
+        trace(trace),
+        package(package) {}
+
+  auto get_name() const -> View::Bytes override {
+    return "ResourceConsumer"_view;
+  }
+
+  auto resolve_context(View::Bytes) const -> const Abstract& override {
+    return Invalid::get_invalid();
+  }
+
+  auto post_pass() -> Bool override {
+    const Abstract& uncached =
+        package.resolve_context("$[resources/later.bin]"_view);
+    trace.resources_sealed_during_post_pass =
+        &uncached == &Invalid::get_invalid();
+    trace.resource_post_pass_seen = true;
+    return True;
+  }
+
+ private:
+  WorkspaceTrace& trace;
+  const Package::Language::Monograph& package;
+};
+
+class ResourceDialect : public Language::Dialect {
+ public:
+  ResourceDialect(Abstract& registry)
+      : Dialect(registry), trace(*active_trace) {}
+
+  auto interpret(
+      Allocator::Arena& domain,
+      Cursor&,
+      const Documentation& documentation,
+      Abstract& interpretation_context) -> Option<Monograph&> override {
+    if (!interpretation_context.is<Package::Language::Monograph>()) {
+      return {};
+    }
+
+    auto& package =
+        static_cast<Package::Language::Monograph&>(interpretation_context);
+    Package::Resources& resources = package.get_resources();
+    trace.resources_owner = &resources;
+    trace.resource_results[0] =
+        &package.resolve_context("$[resources/cache/../table.bin]"_view);
+    trace.resource_results[1] =
+        &package.resolve_context("$[resources/./table.bin]"_view);
+    trace.resource_results[2] =
+        &package.resolve_context("$[resources/empty.bin]"_view);
+    trace.resource_results[3] =
+        &package.resolve_context("$[resources/cache/../missing.bin]"_view);
+    trace.resource_results[4] =
+        &package.resolve_context("$[resources/missing.bin]"_view);
+    trace.resource_results[5] = &package.resolve_context("$[]"_view);
+    trace.resource_results[6] =
+        &package.resolve_context("$[../outside.bin]"_view);
+    trace.resource_results[7] = &package.resolve_context("Member"_view);
+
+    return domain.construct<ResourceMonograph>(
+        domain, documentation, *this, trace, package);
   }
 
  private:
@@ -354,6 +414,12 @@ static auto cleanup_package_tree(View::Bytes root) -> void {
   remove_package_member(root, "unsupported.ttxa"_view);
   remove_package_member(root, "mismatch.ttxa"_view);
   remove_package_member(root, "invalid.ttxa"_view);
+  remove_package_member(root, "source_free.bin"_view);
+  remove_package_member(root, "consumer.ttx"_view);
+  remove_package_member(root, "resources/table.bin"_view);
+  remove_package_member(root, "resources/empty.bin"_view);
+  remove_package_member(root, "resources/later.bin"_view);
+  remove_package_member(root, "resources"_view);
   remove_package_member(root, "nested"_view);
   File::remove(root);
 }
@@ -1025,9 +1091,99 @@ PERIMORTEM_UNIT_TEST(EnvironmentWorkspace, staged_failures) {
       Test::error_contains(
           "Environment::Workspace Package import failed. reason=the staged "
           "semantic source could not be read semantic_name=Missing "
-          "logical_route=missing.ttx"_view,
+          "logical_route=missing.ttx storage_error=Unreadable"_view,
           Diagnostics::Log::Level::Info));
   EXPECT_EQ(trace.post_passes, 4);
+  active_trace = nullptr;
+}
+
+PERIMORTEM_UNIT_TEST(EnvironmentWorkspace, resource_lifecycle) {
+  WorkspaceTrace trace;
+  active_trace = &trace;
+  Environment::Workspace workspace;
+  Allocator::Arena repository_arena;
+  auto repository = Package::Repository::Repository::create(
+      repository_arena, View::Vector<Package::Repository::Input>(),
+      View::Vector<Package::Repository::Output>(),
+      View::Vector<Package::Repository::Output>());
+  Errors errors;
+
+  ASSERT(workspace.install_dialect<Package::Dialect>("Package"_view));
+  ASSERT(workspace.install_dialect<WorkspaceDialect>("Alpha"_view));
+  ASSERT(workspace.install_dialect<ResourceDialect>("Resource"_view));
+  ASSERT(repository);
+
+  {
+    TemporaryWorkspacePackage package;
+    ASSERT(package);
+    ASSERT(package.create_directory("resources"_view));
+    ASSERT(package.write(
+        "package.ttx"_view,
+        "// Resource Package\n"
+        "dialect : Package;\n"
+        "source Member from \"main.ttx\";\n"
+        "source Consumer from \"consumer.ttx\";\n"_view));
+    ASSERT(package.write(
+        "main.ttx"_view, "// Member\ndialect : Alpha;\nMemberFact"_view));
+    ASSERT(package.write(
+        "consumer.ttx"_view,
+        "// Consumer\n"
+        "dialect : Resource;\n"
+        "ignored"_view));
+    ASSERT(package.write("resources/table.bin"_view, "table bytes"_view));
+    ASSERT(package.write("resources/empty.bin"_view, View::Bytes()));
+    ASSERT(package.write("resources/later.bin"_view, "later bytes"_view));
+
+    auto imported = workspace.import_package(
+        errors, package.get_root(), "Root"_view, "package.ttx"_view,
+        "Pkg.Root"_view, Version(1, 0), *repository);
+    ASSERT(imported.find<Language::Dialect::Monograph&>() != nullptr);
+  }
+
+  for (Count i = 0; i < 8; i++) {
+    ASSERT(trace.resource_results[i] != nullptr);
+  }
+
+  EXPECT(trace.resource_post_pass_seen);
+  EXPECT(trace.resources_sealed_during_post_pass);
+  EXPECT(trace.resource_results[0]->is<Tetrodotoxin::Language::Resource>());
+  EXPECT(trace.resource_results[2]->is<Tetrodotoxin::Language::Resource>());
+  EXPECT(trace.resource_results[3]->is<Tetrodotoxin::Language::Error>());
+  EXPECT(trace.resource_results[5]->is<Tetrodotoxin::Language::Error>());
+  EXPECT(trace.resource_results[6]->is<Tetrodotoxin::Language::Error>());
+  EXPECT(trace.resource_results[0] == trace.resource_results[1]);
+  EXPECT(trace.resource_results[3] == trace.resource_results[4]);
+  EXPECT(trace.resource_results[5] != trace.resource_results[6]);
+
+  const auto& table = static_cast<const Tetrodotoxin::Language::Resource&>(
+      *trace.resource_results[0]);
+  const auto& empty = static_cast<const Tetrodotoxin::Language::Resource&>(
+      *trace.resource_results[2]);
+  EXPECT_TEXT(table.get_value(), "table bytes"_view);
+  EXPECT(empty.get_value().is_empty());
+  EXPECT_TEXT(
+      trace.resource_results[7]->resolve().get_name(), "MemberFact"_view);
+
+  const Abstract& root = workspace.resolve_context("Root"_view);
+  ASSERT(root.is<Package::Language::Monograph>());
+  const auto& root_package =
+      static_cast<const Package::Language::Monograph&>(root);
+  ASSERT(trace.resources_owner != nullptr);
+  EXPECT(trace.resources_owner == &root_package.get_resources());
+  EXPECT(
+      &root_package.resolve_context("$[resources/table.bin]"_view) ==
+      trace.resource_results[0]);
+  EXPECT(
+      &root_package.resolve_context("$[resources/missing.bin]"_view) ==
+      trace.resource_results[3]);
+  EXPECT(
+      &root_package.resolve_context("$[resources/later.bin]"_view) ==
+      &Invalid::get_invalid());
+  EXPECT(
+      &root_package.resolve_context("Member"_view) ==
+      trace.resource_results[7]);
+  EXPECT(&workspace.resolve_context("Member"_view) == &Invalid::get_invalid());
+  EXPECT(errors.is_empty());
   active_trace = nullptr;
 }
 
@@ -1047,6 +1203,7 @@ PERIMORTEM_UNIT_TEST(EnvironmentWorkspace, source_free_archive_consumer) {
       "// Consumer Main\n"
       "dialect : Alpha;\n"
       "AuthoredFact"_view));
+  ASSERT(package.write("source_free.bin"_view, "must not be read"_view));
 
   // The producer owns every semantic input and the encoded product only until
   // the physical Archive is written. Destroying that storage before the
@@ -1137,6 +1294,9 @@ PERIMORTEM_UNIT_TEST(EnvironmentWorkspace, source_free_archive_consumer) {
   EXPECT_TEXT(
       retained_dependency->resolve_context("Second"_view).resolve().get_name(),
       "RestoredSecond"_view);
+  EXPECT(
+      &retained_dependency->resolve_context("$[source_free.bin]"_view) ==
+      &Invalid::get_invalid());
   ASSERT_EQ(trace.restoration_count, 2);
   EXPECT_TEXT(trace.restored_facts[0], "RestoredFirst"_view);
   EXPECT_TEXT(trace.restored_facts[1], "RestoredSecond"_view);
@@ -1401,25 +1561,30 @@ PERIMORTEM_UNIT_TEST(EnvironmentWorkspace, typed_selection_failures) {
 }
 
 PERIMORTEM_UNIT_TEST(EnvironmentWorkspace, context_free_typed_failure) {
-  Environment::Workspace workspace;
-  TemporaryWorkspacePackage package;
-  ASSERT(package);
-  ASSERT(package.write(
-      "package.ttx"_view,
-      "// Source Free Root\n"
-      "dialect : Package;\n"_view));
+  Package::Language::Dependency dependencies[] = {
+    Package::Language::Dependency(
+        "Dependency"_view, "Pkg.Missing"_view, Version(1, 0)),
+  };
+  Environment::Workspace registry;
+  Allocator::Arena arena;
+  Environment::Dialects dialects(arena, registry);
+  Package::Dialect host(registry);
+  Environment::Retention retention(arena);
+  Environment::Resolution resolution(arena, dialects, retention);
+  auto& root = Package::Language::Monograph::create_source_free(
+      arena, Documentation::get_empty(), host, dependencies);
+  retention.retain(root, {});
+
   Allocator::Arena repository_arena;
   auto repository = Package::Repository::Repository::create(
       repository_arena, View::Vector<Package::Repository::Input>(),
       View::Vector<Package::Repository::Output>(),
       View::Vector<Package::Repository::Output>());
   ASSERT(repository);
-  ASSERT(workspace.install_dialect<SourceFreePackageDialect>("Package"_view));
   Errors errors;
 
-  auto imported = workspace.import_package(
-      errors, package.get_root(), "Root"_view, "package.ttx"_view,
-      "Pkg.Root"_view, Version(1, 0), *repository);
+  auto imported = resolution.resolve(
+      errors, 0, "Pkg.Root"_view, Version(1, 0), root, *repository);
   EXPECT(returns_selection_error(
       imported, Package::Repository::SelectionError::NotDeclared));
   EXPECT(errors.is_empty());

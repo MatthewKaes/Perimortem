@@ -9,6 +9,7 @@
 #include "tetrodotoxin/language/dialect.hpp"
 #include "tetrodotoxin/package/language/dependency.hpp"
 #include "tetrodotoxin/package/language/source.hpp"
+#include "tetrodotoxin/package/resources.hpp"
 #include "ttx/concept/reference.hpp"
 #include "ttx/lexical/span.hpp"
 #include "ttx/model/alias.hpp"
@@ -91,12 +92,16 @@ class Monograph : public Tetrodotoxin::Language::Dialect::Monograph {
   auto get_members() const -> Perimortem::Core::View::Vector<
       Ttx::Concept::Reference<Ttx::Model::Alias>>;
 
+  auto get_resources() -> Tetrodotoxin::Package::Resources&;
+  auto get_resources() const -> const Tetrodotoxin::Package::Resources&;
+
  private:
   // The Map selects every exact local edge while the Vector preserves only
   // successful member order. Both borrow the same Arena identities.
   Perimortem::Core::View::Vector<Dependency> dependencies;
   Perimortem::Core::View::Vector<Ttx::Lexical::Span> dependency_spans;
   Perimortem::Core::View::Vector<Source> sources;
+  mutable Tetrodotoxin::Package::Resources resources;
   Perimortem::Memory::Managed::Vector<
       Ttx::Concept::Reference<Ttx::Model::Alias>>
       members;
