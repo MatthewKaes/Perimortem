@@ -19,6 +19,8 @@
 
 #include "perimortem/system/file.hpp"
 
+#include "tetrodotoxin/package/content.hpp"
+
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
 using namespace Perimortem::System;
@@ -378,7 +380,7 @@ PERIMORTEM_UNIT_TEST(PackageStorage, cache_growth_and_move) {
 
   auto stable = (*opened).read("stable.bin"_view);
   ASSERT(stable);
-  Package::Storage::Content* stable_content = &*stable;
+  Package::Content* stable_content = &*stable;
   View::Bytes stable_path = (*stable).get_diagnostic_path();
   View::Bytes stable_contents = (*stable).get_contents();
 

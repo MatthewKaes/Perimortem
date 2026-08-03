@@ -12,6 +12,8 @@
 
 #include "perimortem/utility/option.hpp"
 
+#include "tetrodotoxin/package/content.hpp"
+
 namespace Tetrodotoxin::Package {
 
 // Opens the physical root for one Package and caches every successful Source
@@ -27,28 +29,6 @@ namespace Tetrodotoxin::Package {
 // interprets content or derives semantic identity from a route.
 class Storage {
  public:
-  // Binds one canonical diagnostic path to its retained content bytes.
-  class Content {
-   public:
-    constexpr Content(
-        Perimortem::Core::View::Bytes diagnostic_path,
-        Perimortem::Core::View::Bytes contents)
-        : diagnostic_path(diagnostic_path), contents(contents) {}
-
-    constexpr auto get_diagnostic_path() const
-        -> Perimortem::Core::View::Bytes {
-      return diagnostic_path;
-    }
-
-    constexpr auto get_contents() const -> Perimortem::Core::View::Bytes {
-      return contents;
-    }
-
-   private:
-    Perimortem::Core::View::Bytes diagnostic_path;
-    Perimortem::Core::View::Bytes contents;
-  };
-
   Storage(const Storage&) = delete;
   auto operator=(const Storage&) -> Storage& = delete;
   Storage(Storage&&) = default;

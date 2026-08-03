@@ -7,6 +7,7 @@
 
 #include "tetrodotoxin/language/parser/comment.hpp"
 #include "tetrodotoxin/language/parser/dialect.hpp"
+#include "tetrodotoxin/package/content.hpp"
 #include "tetrodotoxin/package/storage.hpp"
 #include "ttx/concept/invalid.hpp"
 
@@ -184,7 +185,7 @@ auto Environment::Workspace::import_package(
     StagedSource staged = staged_sources[next_source];
     next_source++;
 
-    Option<Package::Storage::Content&> content =
+    Option<Package::Content&> content =
         package_storage.read(staged.logical_route);
     if (!content) {
       Diagnostics::Log::Message<512> message(Diagnostics::Log::Level::Info);
