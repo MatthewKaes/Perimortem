@@ -117,6 +117,24 @@ PERIMORTEM_UNIT_TEST(UtilityOption, owns_stack_value) {
   EXPECT_EQ(destructions, Count(1));
 }
 
+PERIMORTEM_UNIT_TEST(UtilityOption, arrow_access) {
+  Count owned_destructions = 0;
+  Option<StackValue> owned = create_stack_value(owned_destructions);
+  owned->increment();
+
+  const Option<StackValue>& const_owned = owned;
+  EXPECT_EQ(const_owned->get(), 42);
+
+  Count borrowed_destructions = 0;
+  StackValue value(40, borrowed_destructions);
+  Option<StackValue&> borrowed(value);
+  borrowed->increment();
+
+  const Option<StackValue&>& const_borrowed = borrowed;
+  const_borrowed->increment();
+  EXPECT_EQ(value.get(), 42);
+}
+
 PERIMORTEM_UNIT_TEST(UtilityOption, accepts_empty) {
   Count destructions = 0;
   Option<StackValue> selected = create_stack_value(destructions);

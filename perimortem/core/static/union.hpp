@@ -293,11 +293,24 @@ class Union {
   }
 
   template <typename value_type>
+  constexpr auto find() {
+    static_assert(
+        type_count<value_type>() == 1,
+        "Requested value type is not a Union alternative.");
+    return is<value_type>() ? &active<value_type>() : nullptr;
+  }
+
+  template <typename value_type>
   constexpr auto find() const {
     static_assert(
         type_count<value_type>() == 1,
         "Requested value type is not a Union alternative.");
     return is<value_type>() ? &active<value_type>() : nullptr;
+  }
+
+  template <typename... Cases>
+  constexpr auto visit(Cases... cases) -> decltype(auto) {
+    return dispatch(*this, static_cast<Cases&&>(cases)...);
   }
 
   template <typename... Cases>

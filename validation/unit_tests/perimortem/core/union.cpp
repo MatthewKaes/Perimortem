@@ -45,6 +45,11 @@ PERIMORTEM_UNIT_TEST(CoreUnion, visit) {
   EXPECT_EQ(read(empty), Count(1));
   EXPECT_EQ(read(bits), Count(42));
   EXPECT_EQ(read(text), Count(5));
+
+  bits.visit(
+      []() {}, [](Unsigned_32& selected) -> void { selected++; },
+      [](View::Bytes&) {});
+  EXPECT_EQ(*bits.find<Unsigned_32>(), Unsigned_32(43));
 }
 
 PERIMORTEM_UNIT_TEST(CoreUnion, copy_move) {

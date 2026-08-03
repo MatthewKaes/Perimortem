@@ -10,45 +10,45 @@ namespace Perimortem::Utility {
 // Option represents either one owned value or None. The value lives directly
 // inside the Option so a function can safely return an object created on its
 // stack. Construction and destruction follow the selected value's lifetime,
-// including for move-only and non-default-constructible types.
+// including for types that can only move or lack default construction.
 //
-// Observation is deliberately restricted to visit(). Option does not expose a
-// pointer, boolean test, fallback object, or unchecked accessor that could turn
-// absence back into nullable control flow.
-template <typename Type>
+// A boolean check establishes the selected state before pointer shaped access.
+// Visit remains available when both outcomes need their own behavior and return
+// one common value.
+template <typename value_type>
 class Option {
  private:
-  template <typename Candidate>
-  constexpr auto construct(Candidate&& candidate) -> void {
-    new (&value) Type(static_cast<Candidate&&>(candidate));
+  template <typename candidate_type>
+  constexpr auto construct(candidate_type&& candidate) -> void {
+    new (&value) value_type(static_cast<candidate_type&&>(candidate));
     set = true;
   }
 
   constexpr auto clear() -> void {
     if (set) {
-      value.~Type();
+      value.~value_type();
       set = false;
     }
   }
 
   union {
-    Type value;
+    value_type value;
   };
   Bool set = false;
 
  public:
   constexpr Option() {}
 
-  constexpr Option(const Type& selected)
-    requires(__is_constructible(Type, const Type&))
+  constexpr Option(const value_type& selected)
+    requires(__is_constructible(value_type, const value_type&))
       : value(selected), set(true) {}
 
-  constexpr Option(Type&& selected)
-    requires(__is_constructible(Type, Type &&))
-      : value(static_cast<Type&&>(selected)), set(true) {}
+  constexpr Option(value_type&& selected)
+    requires(__is_constructible(value_type, value_type &&))
+      : value(static_cast<value_type&&>(selected)), set(true) {}
 
   constexpr Option(const Option& source)
-    requires(__is_constructible(Type, const Type&))
+    requires(__is_constructible(value_type, const value_type&))
   {
     if (source.set) {
       construct(source.value);
@@ -56,17 +56,17 @@ class Option {
   }
 
   constexpr Option(Option&& source)
-    requires(__is_constructible(Type, Type &&))
+    requires(__is_constructible(value_type, value_type &&))
   {
     if (source.set) {
-      construct(static_cast<Type&&>(source.value));
+      construct(static_cast<value_type&&>(source.value));
     }
   }
 
   constexpr ~Option() { clear(); }
 
   constexpr auto operator=(const Option& source) -> Option&
-    requires(__is_constructible(Type, const Type&))
+    requires(__is_constructible(value_type, const value_type&))
   {
     if (this == &source) {
       return *this;
@@ -80,7 +80,7 @@ class Option {
   }
 
   constexpr auto operator=(Option&& source) -> Option&
-    requires(__is_constructible(Type, Type &&))
+    requires(__is_constructible(value_type, value_type &&))
   {
     if (this == &source) {
       return *this;
@@ -88,15 +88,17 @@ class Option {
 
     clear();
     if (source.set) {
-      construct(static_cast<Type&&>(source.value));
+      construct(static_cast<value_type&&>(source.value));
     }
     return *this;
   }
 
-  operator bool() const { return bool(set); }
+  constexpr operator bool() const { return bool(set); }
 
-  auto operator*() -> Type& { return value; }
-  auto operator*() const -> const Type& { return value; }
+  constexpr auto operator*() -> value_type& { return value; }
+  constexpr auto operator*() const -> const value_type& { return value; }
+  constexpr auto operator->() -> value_type* { return &value; }
+  constexpr auto operator->() const -> const value_type* { return &value; }
 
   template <typename RejectCallback, typename ValueVisitor>
   constexpr auto visit(
@@ -121,23 +123,24 @@ class Option {
   }
 };
 
-// A reference Option borrows its selected object and remains pointer-sized. A
+// A reference Option borrows its selected object and remains pointer sized. A
 // const Option does not change the referent's type because constness belongs to
 // the reference declared at the API boundary.
-template <typename Type>
-class Option<Type&> {
+template <typename value_type>
+class Option<value_type&> {
  public:
   constexpr Option() = default;
-  constexpr Option(Type& value) : value(&value) {}
+  constexpr Option(value_type& value) : value(&value) {}
 
   // A const reference can otherwise bind a temporary and leave Option holding
   // a dangling borrow. Requiring an lvalue makes the lifetime decision visible
   // at construction.
-  Option(Type&&) = delete;
+  Option(value_type&&) = delete;
 
-  operator bool() const { return value != nullptr; }
+  constexpr operator bool() const { return value != nullptr; }
 
-  auto operator*() const -> Type& { return *value; }
+  constexpr auto operator*() const -> value_type& { return *value; }
+  constexpr auto operator->() const -> value_type* { return value; }
 
   template <typename RejectCallback, typename ReferenceVisitor>
   constexpr auto visit(
@@ -151,7 +154,7 @@ class Option<Type&> {
   }
 
  private:
-  Type* value = nullptr;
+  value_type* value = nullptr;
 };
 
 }  // namespace Perimortem::Utility
