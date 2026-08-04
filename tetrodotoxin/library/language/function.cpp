@@ -16,12 +16,6 @@ using namespace Tetrodotoxin::Library;
 
 static const Ttx::Model::Layouts::Fluid incomplete_layout;
 
-static auto commit_cursor(Cursor& destination, const Cursor& source) -> void {
-  while (destination.get_token_index() < source.get_token_index()) {
-    destination.consume();
-  }
-}
-
 static auto consume_body(Cursor& cursor) -> Bool {
   if (cursor.matches(Code::Type::EndStatement)) {
     cursor.create_token_error(
@@ -93,7 +87,7 @@ auto Language::Function::reserve(
   View::Bytes name = name_token.caculate_text(transaction.get_source_text());
   Function& function = domain.construct<Function>(
       Construction{}, domain, name, documentation, visibility);
-  commit_cursor(cursor, transaction);
+  cursor.sync(transaction);
   return function;
 }
 
@@ -148,7 +142,7 @@ auto Language::Function::complete(Cursor& cursor, const Abstract& context)
 
   parameters = *parsed_parameters;
   results = *parsed_results;
-  commit_cursor(cursor, transaction);
+  cursor.sync(transaction);
   return True;
 }
 

@@ -102,12 +102,14 @@ does not justify moving a semantic parser into Language.
 
 Language also owns two cross-Dialect Abstract contracts used by contextual
 resolution. `Language::Resource` is one retained byte result acquired by
-another owner. It exposes only Arena-stable bytes and carries no filesystem
-handle, route grammar, diagnostic path, Type, Constant policy, or consumer
-semantics. `Language::Error` proves that a recognized contextual instruction
-resolved to an owner-specific failure identity. It is not one universal error
-enum, message record, or provenance model; the concrete owner retains the
-cause while the source consumer retains the authored Span.
+another owner. It exposes only Arena-stable bytes. A consuming domain may
+borrow those bytes only when it cannot outlive the Resource dependency domain;
+sharing one Arena satisfies the contract without another allocation. Resource
+carries no filesystem handle, route grammar, diagnostic path, Type, Constant
+policy, or consumer semantics. `Language::Error` proves that a recognized
+contextual instruction resolved to an owner-specific failure identity. It is
+not one universal error enum, message record, or provenance model; the concrete
+owner retains the cause while the source consumer retains the authored Span.
 
 Resource and Error are open Tetrodotoxin contracts over TTX Abstract. They add
 no TTX v1 category. An ordinary missing semantic lookup still returns the
@@ -430,7 +432,7 @@ Package Storage and future resource consumers follow six requirements.
 2. Absolute and escaping routes are rejected.
 3. An empty file remains distinct from a read failure.
 4. Repeated logical resource reads are deduplicated.
-5. Constant folding may retain only reachable byte slices.
+5. Expression constant folding retains only reachable byte slices.
 6. Resolution never falls back to the process working directory or the
    containing source directory.
 
@@ -454,16 +456,33 @@ repeated equivalent owner-normalized requests return the same Abstract for the
 semantic island. Invalid input with no normalized route uses the exact complete
 instruction as its failure key rather than inventing a path. The route remains
 confined input, cache, and diagnostic data. It never becomes a Source name,
-Package member name, or global semantic identity. Malformed Embedded grammar
-is rejected by the consuming parser before contextual resolution. Ordinary
-Package name misses continue to return Invalid.
+Package member name, or global semantic identity. Malformed Embedded Token
+grammar is rejected by Literal before contextual resolution. A malformed
+postfix slice is rejected by Expression without asking Package to interpret
+that expression grammar. Ordinary Package name misses continue to return
+Invalid.
 
-Library proves Resource, applies the authored slice, and constructs its own
-`Library::Language::Constants::Bytes`. Shader and other concrete consumers may
-use the same retained bytes without taking Library Constant semantics or
-accessing Storage. When resolution returns Error, the consumer combines its
-current Token Span with the concrete owner's retained failure context to
-publish the textual diagnostic.
+Library Literal proves Resource and constructs its complete base
+`Library::Language::Constants::Bytes` with its inferred Fixed Type by borrowing
+the Resource backing. Its domain must be the same domain or shorter lived than
+every dependency domain supplying those bytes. A Package root relative
+resource route never crosses a Dependency export. Cross Package publication
+uses Abstract semantic identities, so Literal never receives another Package's
+raw Resource through an exported member. Scalar Literal spellings likewise
+construct their canonical binary wide Library Type and accept no expected
+Type. Library Expression owns a following `:[start, size]` operation for
+Embedded, quoted Bytes, hexadecimal Bytes, and later byte-valued expressions.
+Constant receivers and Constant indices fold before publication so only the
+reachable result enters the semantic graph. The receiving typed operation
+applies fitting only after the complete Expression has synthesized that result
+Type.
+Invalid operand categories, negative values, arithmetic overflow, and bounds
+failures report the actual values or Types and the accepted range at the
+postfix Span. Shader and other concrete consumers may use the same Resource
+without taking Library Constant semantics or accessing Storage. When
+resolution returns Error, the consumer combines its current Token Span with
+the concrete owner's retained failure context to publish the textual
+diagnostic.
 
 Package Storage implements confined root reads, route rejection, empty success,
 successful read caching, and fallback absence. An authored resource transaction

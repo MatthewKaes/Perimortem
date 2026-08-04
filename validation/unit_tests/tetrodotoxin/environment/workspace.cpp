@@ -18,6 +18,9 @@
 
 #include "perimortem/system/file.hpp"
 
+#include "tetrodotoxin/library/language/constants/bytes.hpp"
+#include "tetrodotoxin/library/language/materializations.hpp"
+#include "tetrodotoxin/library/language/parser/literal.hpp"
 #include "tetrodotoxin/package/archive/archive.hpp"
 #include "tetrodotoxin/package/archive/member.hpp"
 #include "tetrodotoxin/package/archive/writer.hpp"
@@ -44,6 +47,7 @@ struct WorkspaceTrace {
   const Abstract* package_registry = nullptr;
   const Abstract* package_interpretation_contexts[4]{};
   const Abstract* resource_results[8]{};
+  const Library::Language::Constant* literal_results[2]{};
   const Package::Resources* resources_owner = nullptr;
   View::Bytes expected_facts[4]{};
   View::Bytes expected_documentation[4]{};
@@ -178,7 +182,7 @@ class ResourceDialect : public Language::Dialect {
 
   auto interpret(
       Allocator::Arena& domain,
-      Cursor&,
+      Cursor& cursor,
       const Documentation& documentation,
       Abstract& interpretation_context) -> Option<Monograph&> override {
     if (!interpretation_context.is<Package::Language::Monograph>()) {
@@ -188,6 +192,20 @@ class ResourceDialect : public Language::Dialect {
     auto& package =
         static_cast<Package::Language::Monograph&>(interpretation_context);
     Package::Resources& resources = package.get_resources();
+
+    // Literal parsing asks Package directly for Resource bytes. No installed
+    // Library Dialect is needed just to recover its binary wide scalar Types.
+    Library::Language::Materializations materializations(domain);
+    auto table = Library::Language::Parser::Literal::parse(
+        domain, materializations, cursor, package);
+    auto empty = Library::Language::Parser::Literal::parse(
+        domain, materializations, cursor, package);
+    if (!table || !empty || !cursor.matches(Code::Type::Terminal)) {
+      return {};
+    }
+
+    trace.literal_results[0] = &*table;
+    trace.literal_results[1] = &*empty;
     trace.resources_owner = &resources;
     trace.resource_results[0] =
         &package.resolve_context("$[resources/cache/../table.bin]"_view);
@@ -1133,7 +1151,7 @@ PERIMORTEM_UNIT_TEST(EnvironmentWorkspace, resource_lifecycle) {
         "consumer.ttx"_view,
         "// Consumer\n"
         "dialect : Resource;\n"
-        "ignored"_view));
+        "$[resources/table.bin] $[resources/empty.bin]"_view));
     ASSERT(package.write("resources/table.bin"_view, "table bytes"_view));
     ASSERT(package.write("resources/empty.bin"_view, View::Bytes()));
     ASSERT(package.write("resources/later.bin"_view, "later bytes"_view));
@@ -1150,6 +1168,8 @@ PERIMORTEM_UNIT_TEST(EnvironmentWorkspace, resource_lifecycle) {
   for (Count i = 0; i < 8; i++) {
     ASSERT(trace.resource_results[i] != nullptr);
   }
+  ASSERT(trace.literal_results[0] != nullptr);
+  ASSERT(trace.literal_results[1] != nullptr);
 
   EXPECT(trace.resource_post_pass_seen);
   EXPECT(trace.resources_sealed_during_post_pass);
@@ -1168,6 +1188,14 @@ PERIMORTEM_UNIT_TEST(EnvironmentWorkspace, resource_lifecycle) {
       *trace.resource_results[2]);
   EXPECT_TEXT(table.get_value(), "table bytes"_view);
   EXPECT(empty.get_value().is_empty());
+  const auto& table_literal =
+      static_cast<const Library::Language::Constants::Bytes&>(
+          *trace.literal_results[0]);
+  const auto& empty_literal =
+      static_cast<const Library::Language::Constants::Bytes&>(
+          *trace.literal_results[1]);
+  EXPECT_TEXT(table_literal.get_value(), "table bytes"_view);
+  EXPECT(empty_literal.get_value().is_empty());
   EXPECT_TEXT(
       trace.resource_results[7]->resolve().get_name(), "MemberFact"_view);
 

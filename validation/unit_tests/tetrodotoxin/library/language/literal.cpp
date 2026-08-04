@@ -1,0 +1,389 @@
+// Perimortem Engine
+// Copyright © Matt Kaes
+
+#include "tetrodotoxin/library/language/parser/literal.hpp"
+
+#include "validation/unit_test.hpp"
+
+#include "perimortem/core/algorithm/search.hpp"
+
+#include "perimortem/memory/dynamic/bytes.hpp"
+
+#include "tetrodotoxin/language/error.hpp"
+#include "tetrodotoxin/language/resource.hpp"
+#include "tetrodotoxin/library/dialect.hpp"
+#include "tetrodotoxin/library/language/constants/bytes.hpp"
+#include "tetrodotoxin/library/language/constants/false.hpp"
+#include "tetrodotoxin/library/language/constants/flag.hpp"
+#include "tetrodotoxin/library/language/constants/real.hpp"
+#include "tetrodotoxin/library/language/constants/signed.hpp"
+#include "tetrodotoxin/library/language/constants/true.hpp"
+#include "tetrodotoxin/library/language/constants/unsigned.hpp"
+#include "tetrodotoxin/library/language/types/fixed.hpp"
+#include "ttx/concept/invalid.hpp"
+#include "ttx/lexical/errors.hpp"
+#include "ttx/lexical/tokenizer.hpp"
+
+using namespace Perimortem::Core;
+using namespace Perimortem::Memory;
+using namespace Perimortem::Utility;
+using namespace Tetrodotoxin;
+using namespace Ttx::Concept;
+using namespace Ttx::Lexical;
+using namespace Ttx::Model;
+using namespace Validation;
+
+static Harness LiteralTests = {
+  .name = "Tetrodotoxin::Library::Language::Literal"_view,
+};
+
+class LiteralResource : public Tetrodotoxin::Language::Resource {
+ public:
+  LiteralResource(Allocator::Arena& domain, View::Bytes value)
+      : value(domain.proxy(value)) {}
+  auto get_value() const -> View::Bytes override { return value; }
+
+ private:
+  View::Bytes value;
+};
+
+class LiteralError : public Tetrodotoxin::Language::Error {
+ public:
+  auto describe(Errors::Report& report) const -> void override {
+    report << "Package supplied literal failure."_view;
+  }
+};
+
+class LiteralContext : public Abstract {
+ public:
+  LiteralContext(Allocator::Arena& domain)
+      : table(domain, "0123456789"_view), empty(domain, View::Bytes()) {}
+
+  auto get_name() const -> View::Bytes override { return "Context"_view; }
+  auto get_documentation() const -> const Documentation& override {
+    return Documentation::get_empty();
+  }
+  auto resolve_context(View::Bytes route) const -> const Abstract& override {
+    if (route == "$[table]"_view) {
+      table_seen = true;
+      return table;
+    }
+
+    if (route == "$[empty]"_view) {
+      empty_seen = true;
+      return empty;
+    }
+
+    if (route == "$[error]"_view) {
+      error_seen = true;
+      return error;
+    }
+
+    if (route == "$[other]"_view) {
+      return *this;
+    }
+
+    return Invalid::get_invalid();
+  }
+
+  mutable Bool table_seen = False;
+  mutable Bool empty_seen = False;
+  mutable Bool error_seen = False;
+  LiteralResource table;
+  LiteralResource empty;
+  LiteralError error;
+};
+
+static auto matches_token(const Cursor& cursor, Token expected) -> Bool {
+  Token current = cursor.current();
+  return current.get_offset() == expected.get_offset() &&
+         current.get_code() == expected.get_code();
+}
+
+static auto parse_one(
+    Allocator::Arena& domain,
+    Library::Language::Materializations& materializations,
+    const Abstract& context,
+    View::Bytes source,
+    Errors& errors) -> Option<const Library::Language::Constant&> {
+  Tokenizer tokenizer(domain, source, "literal.ttx"_view);
+  Cursor cursor(tokenizer, errors);
+  auto parsed = Library::Language::Parser::Literal::parse(
+      domain, materializations, cursor, context);
+  if (parsed && !cursor.matches(Code::Type::Terminal)) {
+    return {};
+  }
+
+  return parsed;
+}
+
+static auto rejects(
+    Allocator::Arena& domain,
+    Library::Language::Materializations& materializations,
+    const Abstract& context,
+    View::Bytes source) -> Bool {
+  Errors errors;
+  Tokenizer tokenizer(domain, source, "rejected-literal.ttx"_view);
+  Cursor cursor(tokenizer, errors);
+  Token start = cursor.current();
+  auto parsed = Library::Language::Parser::Literal::parse(
+      domain, materializations, cursor, context);
+  return !parsed && matches_token(cursor, start) && !errors.is_empty();
+}
+
+static auto render_rejection(
+    Allocator::Arena& domain,
+    Library::Language::Materializations& materializations,
+    const Abstract& context,
+    View::Bytes source) -> Dynamic::Bytes {
+  Errors errors;
+  Tokenizer tokenizer(domain, source, "diagnostic-literal.ttx"_view);
+  Cursor cursor(tokenizer, errors);
+  Token start = cursor.current();
+  auto parsed = Library::Language::Parser::Literal::parse(
+      domain, materializations, cursor, context);
+  if (parsed || !matches_token(cursor, start) || errors.get_size() != 1) {
+    return Dynamic::Bytes("unexpected literal diagnostic state"_view);
+  }
+
+  Allocator::Arena render_arena;
+  return Dynamic::Bytes(errors.render_message(render_arena, 0));
+}
+
+static auto contains(View::Bytes text, View::Bytes fragment) -> Bool {
+  return Algorithm::search(text, fragment) != Count(-1);
+}
+
+PERIMORTEM_UNIT_TEST(LiteralTests, scalar_inference) {
+  Allocator::Arena domain;
+  Library::Language::Materializations materializations(domain);
+  LiteralContext context(domain);
+  Errors errors;
+  Tokenizer tokenizer(
+      domain, "true false 42 0x2A -7 1.5"_view, "scalars.ttx"_view);
+  Cursor cursor(tokenizer, errors);
+
+  auto true_value = Library::Language::Parser::Literal::parse(
+      domain, materializations, cursor, context);
+  auto false_value = Library::Language::Parser::Literal::parse(
+      domain, materializations, cursor, context);
+  auto decimal = Library::Language::Parser::Literal::parse(
+      domain, materializations, cursor, context);
+  auto hexadecimal = Library::Language::Parser::Literal::parse(
+      domain, materializations, cursor, context);
+  auto signed_value = Library::Language::Parser::Literal::parse(
+      domain, materializations, cursor, context);
+  auto real = Library::Language::Parser::Literal::parse(
+      domain, materializations, cursor, context);
+
+  ASSERT(
+      true_value && false_value && decimal && hexadecimal && signed_value &&
+      real);
+  EXPECT(true_value->is<Library::Language::Constants::Flag>());
+  EXPECT(true_value->is<Library::Language::Constants::True>());
+  EXPECT_NOT(true_value->is<Library::Language::Constants::False>());
+  EXPECT(false_value->is<Library::Language::Constants::Flag>());
+  EXPECT(false_value->is<Library::Language::Constants::False>());
+  EXPECT_NOT(false_value->is<Library::Language::Constants::True>());
+  EXPECT(
+      static_cast<const Library::Language::Constants::Flag&>(*true_value)
+          .get_value());
+  EXPECT_NOT(
+      static_cast<const Library::Language::Constants::Flag&>(*false_value)
+          .get_value());
+  EXPECT(&true_value->get_type() == &Library::Dialect::get_bool());
+  EXPECT(
+      static_cast<const Library::Language::Constants::Unsigned&>(*decimal)
+          .get_value() == 42);
+  EXPECT(
+      static_cast<const Library::Language::Constants::Unsigned&>(*hexadecimal)
+          .get_value() == 42);
+  EXPECT(&decimal->get_type() == &Library::Dialect::get_unsigned_64());
+  EXPECT(&hexadecimal->get_type() == &Library::Dialect::get_unsigned_64());
+  EXPECT(
+      static_cast<const Library::Language::Constants::Signed&>(*signed_value)
+          .get_value() == -7);
+  EXPECT(&signed_value->get_type() == &Library::Dialect::get_signed_64());
+  EXPECT(
+      static_cast<const Library::Language::Constants::Real&>(*real)
+          .get_value() == Real_64(1.5));
+  EXPECT(&real->get_type() == &Library::Dialect::get_real_64());
+  EXPECT(cursor.matches(Code::Type::Terminal));
+  EXPECT(errors.is_empty());
+}
+
+PERIMORTEM_UNIT_TEST(LiteralTests, byte_domains) {
+  Allocator::Arena domain;
+  Library::Language::Materializations materializations(domain);
+  LiteralContext context(domain);
+  Errors errors;
+  Dynamic::Bytes source("\"a\\\"b\" 0x[54\t54\n58\r31] \"\""_view);
+  Tokenizer tokenizer(domain, source, "bytes.ttx"_view);
+  Cursor cursor(tokenizer, errors);
+
+  auto quoted = Library::Language::Parser::Literal::parse(
+      domain, materializations, cursor, context);
+  auto hexadecimal = Library::Language::Parser::Literal::parse(
+      domain, materializations, cursor, context);
+  auto empty = Library::Language::Parser::Literal::parse(
+      domain, materializations, cursor, context);
+
+  ASSERT(quoted && hexadecimal && empty);
+  source.set('x');
+  const auto& quoted_bytes =
+      static_cast<const Library::Language::Constants::Bytes&>(*quoted);
+  const auto& hexadecimal_bytes =
+      static_cast<const Library::Language::Constants::Bytes&>(*hexadecimal);
+  const auto& empty_bytes =
+      static_cast<const Library::Language::Constants::Bytes&>(*empty);
+  EXPECT_TEXT(quoted_bytes.get_value(), "a\"b"_view);
+  EXPECT_TEXT(hexadecimal_bytes.get_value(), "TTX1"_view);
+  EXPECT(empty_bytes.get_value().is_empty());
+  const auto& quoted_type =
+      static_cast<const Library::Language::Types::Fixed&>(quoted->get_type());
+  EXPECT(quoted_type.get_extent() == 3);
+  EXPECT(
+      &quoted_type.get_element_type() == &Library::Dialect::get_unsigned_8());
+  EXPECT(cursor.matches(Code::Type::Terminal));
+  EXPECT(errors.is_empty());
+}
+
+PERIMORTEM_UNIT_TEST(LiteralTests, real_64_domain) {
+  Allocator::Arena domain;
+  Library::Language::Materializations materializations(domain);
+  LiteralContext context(domain);
+  Errors tiny_errors;
+  Errors wide_errors;
+
+  auto tiny = parse_one(
+      domain, materializations, context,
+      "0.000000000000000000000000000000000000000000000000001"_view,
+      tiny_errors);
+  auto wide = parse_one(
+      domain, materializations, context,
+      "999999999999999999999999999999999999999.0"_view, wide_errors);
+
+  ASSERT(tiny && wide);
+  EXPECT(&tiny->get_type() == &Library::Dialect::get_real_64());
+  EXPECT(&wide->get_type() == &Library::Dialect::get_real_64());
+  EXPECT(
+      static_cast<const Library::Language::Constants::Real&>(*tiny)
+          .get_value() > Real_64(0));
+  EXPECT(
+      static_cast<const Library::Language::Constants::Real&>(*wide)
+          .get_value() > Real_64(1e38));
+  EXPECT(tiny_errors.is_empty());
+  EXPECT(wide_errors.is_empty());
+}
+
+PERIMORTEM_UNIT_TEST(LiteralTests, diagnostic_feedback) {
+  Allocator::Arena domain;
+  Library::Language::Materializations materializations(domain);
+  LiteralContext context(domain);
+
+  Dynamic::Bytes integer = render_rejection(
+      domain, materializations, context, "18446744073709551616"_view);
+  Dynamic::Bytes negative = render_rejection(
+      domain, materializations, context, "-9223372036854775809"_view);
+  Dynamic::Bytes bytes =
+      render_rejection(domain, materializations, context, "0x[F]"_view);
+  Dynamic::Bytes operand =
+      render_rejection(domain, materializations, context, "value"_view);
+
+  EXPECT(contains(
+      integer, "Integer literal exceeds Library's 64 bit literal domain"_view));
+  EXPECT(contains(integer, "Reduce the magnitude"_view));
+  EXPECT(contains(
+      negative,
+      "Negative integer literal is outside Library Signed_64 range"_view));
+  EXPECT(
+      contains(negative, "magnitude no greater than 9223372036854775808"_view));
+  EXPECT(contains(bytes, "incomplete hexadecimal byte"_view));
+  EXPECT(contains(bytes, "every byte has two digits"_view));
+  EXPECT(contains(operand, "requires a supported literal operand"_view));
+  EXPECT(contains(operand, "Use a string, byte array"_view));
+}
+
+PERIMORTEM_UNIT_TEST(LiteralTests, malformed_ranges) {
+  Allocator::Arena domain;
+  Library::Language::Materializations materializations(domain);
+  LiteralContext context(domain);
+
+  EXPECT(
+      rejects(domain, materializations, context, "18446744073709551616"_view));
+  EXPECT(
+      rejects(domain, materializations, context, "-9223372036854775809"_view));
+  EXPECT(
+      rejects(domain, materializations, context, "0x10000000000000000"_view));
+  EXPECT(rejects(domain, materializations, context, "0x[F]"_view));
+  EXPECT(rejects(domain, materializations, context, "0x[GG]"_view));
+  EXPECT(rejects(domain, materializations, context, "value"_view));
+}
+
+PERIMORTEM_UNIT_TEST(LiteralTests, embedded_resolution) {
+  Allocator::Arena domain;
+  Library::Language::Materializations materializations(domain);
+  LiteralContext context(domain);
+  View::Bytes table_backing = context.table.get_value();
+  Errors errors;
+  Tokenizer tokenizer(domain, "$[table] $[empty]"_view, "embedded.ttx"_view);
+  Cursor cursor(tokenizer, errors);
+
+  auto table = Library::Language::Parser::Literal::parse(
+      domain, materializations, cursor, context);
+  EXPECT(context.table_seen);
+  auto empty = Library::Language::Parser::Literal::parse(
+      domain, materializations, cursor, context);
+  EXPECT(context.empty_seen);
+
+  Errors postfix_errors;
+  Tokenizer postfix_tokenizer(
+      domain, "$[table]:[2, 4]"_view, "postfix-slice.ttx"_view);
+  Cursor postfix_cursor(postfix_tokenizer, postfix_errors);
+  auto postfix_base = Library::Language::Parser::Literal::parse(
+      domain, materializations, postfix_cursor, context);
+
+  ASSERT(table && empty && postfix_base);
+  const auto& table_bytes =
+      static_cast<const Library::Language::Constants::Bytes&>(*table);
+  const auto& postfix_bytes =
+      static_cast<const Library::Language::Constants::Bytes&>(*postfix_base);
+  EXPECT(table_bytes.get_value().get_data() == table_backing.get_data());
+  EXPECT(postfix_bytes.get_value().get_data() == table_backing.get_data());
+  EXPECT_TEXT(table_bytes.get_value(), "0123456789"_view);
+  EXPECT(
+      static_cast<const Library::Language::Constants::Bytes&>(*empty)
+          .get_value()
+          .is_empty());
+  EXPECT_TEXT(postfix_bytes.get_value(), "0123456789"_view);
+  EXPECT(cursor.matches(Code::Type::Terminal));
+  EXPECT(postfix_cursor.matches(Code::Type::SliceOp));
+  EXPECT(errors.is_empty());
+  EXPECT(postfix_errors.is_empty());
+  EXPECT(rejects(domain, materializations, context, "$[missing]"_view));
+  EXPECT(rejects(domain, materializations, context, "$[other]"_view));
+}
+
+PERIMORTEM_UNIT_TEST(LiteralTests, contextual_error) {
+  Allocator::Arena domain;
+  Allocator::Arena render_arena;
+  Library::Language::Materializations materializations(domain);
+  LiteralContext context(domain);
+  Errors errors;
+  Tokenizer tokenizer(domain, "\n$[error]"_view, "resource-error.ttx"_view);
+  Cursor cursor(tokenizer, errors);
+
+  auto parsed = Library::Language::Parser::Literal::parse(
+      domain, materializations, cursor, context);
+  View::Bytes rendered = errors.render_message(render_arena, 0);
+
+  EXPECT_NOT(parsed);
+  EXPECT(context.error_seen);
+  ASSERT_EQ(errors.get_size(), Count(1));
+  EXPECT(
+      Algorithm::search(rendered, "resource-error.ttx:2:1"_view) != Count(-1));
+  EXPECT(
+      Algorithm::search(rendered, "Package supplied literal failure."_view) !=
+      Count(-1));
+  EXPECT(Algorithm::search(rendered, "^-------"_view) != Count(-1));
+}

@@ -197,10 +197,12 @@ permanently removes the Storage borrow while cached identities remain valid and
 new requests return Invalid. Source-free Package restoration publishes an
 already sealed transaction. Package Monograph retains no filesystem handle.
 
-Concrete consumers own the meaning of Resource bytes. Library may apply a
-slice and construct a Bytes Constant. Shader may construct a shader-specific
-fact. Package constructs neither and persists no root, route cache, unused
-bytes, or resource acquisition machinery into Archive.
+Concrete consumers own the meaning of Resource bytes. Library Literal
+constructs the complete base Bytes Constant. Library Expression may fold a
+following slice into a Constant containing only the reachable result. Shader
+may construct a shader-specific fact. Package constructs neither and persists
+no root, route cache, unused bytes, or resource acquisition machinery into
+Archive.
 
 `main.ttx` is only a filename convention. Future package assembly selects the
 sole completed App Monograph regardless of its local Source name or member

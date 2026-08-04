@@ -75,6 +75,36 @@ static constexpr Static::Vector<View::Bytes, 12> intrinsic_names = {{
   "Void"_view,
 }};
 
+PERIMORTEM_UNIT_TEST(DialectTests, canonical_intrinsic_addresses) {
+  EmptyRegistry registry;
+  Dialect dialect(registry);
+  Static::Vector<const Abstract*, 12> addresses = {{
+    &Dialect::get_bool(),
+    &Dialect::get_unsigned_8(),
+    &Dialect::get_unsigned_16(),
+    &Dialect::get_unsigned_32(),
+    &Dialect::get_unsigned_64(),
+    &Dialect::get_signed_8(),
+    &Dialect::get_signed_16(),
+    &Dialect::get_signed_32(),
+    &Dialect::get_signed_64(),
+    &Dialect::get_real_32(),
+    &Dialect::get_real_64(),
+    &Dialect::get_void(),
+  }};
+
+  for (Count i = 0; i < intrinsic_names.get_size(); i++) {
+    EXPECT(
+        &dialect.resolve_intrinsic(intrinsic_names[i]).resolve() ==
+        addresses[i]);
+  }
+  EXPECT(Dialect::get_bool().is<Ttx::Model::Types::Flag>());
+  EXPECT(Dialect::get_unsigned_8().is<Ttx::Model::Types::Unsigned>());
+  EXPECT(Dialect::get_signed_8().is<Ttx::Model::Types::Signed>());
+  EXPECT(Dialect::get_real_32().is<Ttx::Model::Types::Real>());
+  EXPECT(Dialect::get_void().is<Type>());
+}
+
 PERIMORTEM_UNIT_TEST(DialectTests, declaration_graph) {
   static constexpr View::Bytes first_source =
       "// First Library source.\n"

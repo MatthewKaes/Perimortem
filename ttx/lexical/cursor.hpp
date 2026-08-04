@@ -24,11 +24,20 @@ class Cursor {
   Cursor(const Lexical::Tokenizer& tokenizer, Lexical::Errors& errors)
       : tokenizer(tokenizer), errors(errors) {}
 
+  // Gets the token from the tokenizer at the current location.
+  // If the current index is out of bounds then an empty token is returned.
   constexpr auto current() const -> Lexical::Token {
-    return tokenizer.get_tokens().get_data()[index];
+    const auto tokens = tokenizer.get_tokens();
+    if (index >= tokens.get_size()) {
+      return Lexical::Token();
+    }
+
+    return tokens.get_data()[index];
   }
 
-  constexpr auto get_token_index() const -> Count { return index; }
+  // Sets this cursor's index to another cursor's index.
+  // The two cursors aren't required to point to the same tokenizer.
+  constexpr auto sync(const Cursor& target) -> void { index = target.index; }
 
   // Advances at most to the tokenizer's terminal token and returns the
   // token that was current before advancing.
@@ -158,6 +167,13 @@ class Cursor {
         errors, tokenizer.get_source_path(), tokenizer.get_source_text(), span);
     report << message;
     report.get_hint() << hint;
+  }
+
+  // Some semantic errors contribute directly to a Report. Cursor supplies the
+  // authored source facts without exposing its Errors owner to the consumer.
+  auto create_report(Lexical::Span span) -> Errors::Report {
+    return Errors::Report(
+        errors, tokenizer.get_source_path(), tokenizer.get_source_text(), span);
   }
 
   // Statement recovery is intentionally small.

@@ -19,19 +19,28 @@ class Flag : public Constant {
     0x897a36a658c2486a,
   };
 
+  constexpr Flag(const Ttx::Model::Types::Flag& type, Value value)
+      : type(type), value(value) {}
+
   constexpr auto implements(Perimortem::System::Uuid requested) const
       -> Bool override {
     return requested == contract_id || Constant::implements(requested);
   }
 
+  constexpr auto get_type() const -> const Ttx::Model::Types::Flag& override {
+    return type;
+  }
+
+  virtual constexpr auto get_value() const -> Value { return value; }
+
   constexpr auto equals(const Constant& rhs) const -> Bool override {
     return rhs.visit<Flag>(
         [this, &rhs](const Flag& selected) {
           return has_same_type(rhs) && get_value() == selected.get_value()
-                     ? True
-                     : False;
+                     ? ::True
+                     : ::False;
         },
-        [](const Ttx::Concept::Abstract&) { return False; });
+        [](const Ttx::Concept::Abstract&) { return ::False; });
   }
 
   constexpr auto fits(const Ttx::Model::Type& target) const -> Bool override {
@@ -39,7 +48,9 @@ class Flag : public Constant {
            target.resolve().is<Ttx::Model::Types::Flag>();
   }
 
-  virtual constexpr auto get_value() const -> Value = 0;
+ private:
+  const Ttx::Model::Types::Flag& type;
+  Value value;
 };
 
 }  // namespace Tetrodotoxin::Library::Language::Constants

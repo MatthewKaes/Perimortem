@@ -23,22 +23,33 @@ class Bytes : public Constant {
     0xb723464db6c29666,
   };
 
+  constexpr Bytes(const Ttx::Model::Type& type, Value value)
+      : type(type), value(value) {}
+
   constexpr auto implements(Perimortem::System::Uuid requested) const
       -> Bool override {
     return requested == contract_id || Constant::implements(requested);
   }
 
+  constexpr auto get_type() const -> const Ttx::Model::Type& override {
+    return type;
+  }
+
+  virtual constexpr auto get_value() const -> Value { return value; }
+
   constexpr auto equals(const Constant& rhs) const -> Bool override {
     return rhs.visit<Bytes>(
         [this, &rhs](const Bytes& selected) {
           return has_same_type(rhs) && get_value() == selected.get_value()
-                     ? True
-                     : False;
+                     ? ::True
+                     : ::False;
         },
-        [](const Ttx::Concept::Abstract&) { return False; });
+        [](const Ttx::Concept::Abstract&) { return ::False; });
   }
 
-  virtual constexpr auto get_value() const -> Value = 0;
+ private:
+  const Ttx::Model::Type& type;
+  Value value;
 };
 
 }  // namespace Tetrodotoxin::Library::Language::Constants

@@ -8,9 +8,10 @@
 
 namespace Tetrodotoxin::Language {
 
-// Resource exposes bytes retained by a concrete owner. The base borrows that
-// storage so cross Dialect resolution can share one graph contract while the
-// concrete owner keeps byte lifetime and interpretation outside it.
+// Resource exposes bytes retained by a concrete owner. The concrete owner
+// keeps both contents and lifetime stable. A consumer may borrow get_value only
+// when its domain cannot outlive that dependency domain. A shared domain
+// satisfies that contract without another allocation.
 class Resource : public Ttx::Concept::Abstract {
  public:
   using ClassCatagory = Resource;

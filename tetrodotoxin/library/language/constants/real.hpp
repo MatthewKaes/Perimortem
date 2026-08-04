@@ -22,26 +22,35 @@ class Real : public Constant {
     0xb9669826f970ad9b,
   };
 
+  constexpr Real(const Ttx::Model::Types::Real& type, Value value)
+      : type(type), value(value) {}
+
   constexpr auto implements(Perimortem::System::Uuid requested) const
       -> Bool override {
     return requested == contract_id || Constant::implements(requested);
   }
 
+  constexpr auto get_type() const -> const Ttx::Model::Types::Real& override {
+    return type;
+  }
+
+  virtual constexpr auto get_value() const -> Value { return value; }
+
   constexpr auto equals(const Constant& rhs) const -> Bool override {
     return rhs.visit<Real>(
         [this, &rhs](const Real& selected) {
           if (!has_same_type(rhs)) {
-            return False;
+            return ::False;
           }
 
           Value lhs_value = get_value();
           Value rhs_value = selected.get_value();
           return lhs_value == rhs_value || (__builtin_isnan(lhs_value) &&
                                             __builtin_isnan(rhs_value))
-                     ? True
-                     : False;
+                     ? ::True
+                     : ::False;
         },
-        [](const Ttx::Concept::Abstract&) { return False; });
+        [](const Ttx::Concept::Abstract&) { return ::False; });
   }
 
   constexpr auto fits(const Ttx::Model::Type& target) const -> Bool override {
@@ -52,7 +61,9 @@ class Real : public Constant {
            &source_type == &target_type;
   }
 
-  virtual constexpr auto get_value() const -> Value = 0;
+ private:
+  const Ttx::Model::Types::Real& type;
+  Value value;
 };
 
 }  // namespace Tetrodotoxin::Library::Language::Constants

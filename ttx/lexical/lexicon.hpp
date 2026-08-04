@@ -49,6 +49,22 @@ class Lexicon {
            (byte >= 'A' && byte <= 'F');
   }
 
+  // Accepts one byte ignored between authored lexical values.
+  static constexpr auto is_whitespace(Unsigned_8 byte) -> Bool {
+    return byte == ' ' || byte == '\n' || byte == '\r' || byte == '\t';
+  }
+
+  // Converts one byte already proven by is_hex into its numeric value.
+  static constexpr auto get_hex_value(Unsigned_8 byte) -> Unsigned_8 {
+    if (byte <= '9') {
+      return byte - '0';
+    }
+    if (byte <= 'F') {
+      return byte - 'A' + 10;
+    }
+    return byte - 'a' + 10;
+  }
+
   // Proves that one complete authored byte span has the requested Code shape.
   // When separators are supplied the span contains one or more values joined
   // by any listed separator Code.

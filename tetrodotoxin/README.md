@@ -105,10 +105,11 @@ Callable, Layout, Documentation, Attribute, Alias, Invalid, and their common
 supporting models.
 
 `Tetrodotoxin::Language` owns the cross-Dialect Resource and Error Abstract
-contracts. Resource exposes only retained bytes acquired by a concrete owner.
-Error marks a recognized contextual request whose concrete owner retains the
-failure cause. Neither contract extends the closed TTX v1 vocabulary or creates
-one shared compiler error model.
+contracts. Resource exposes only stable retained bytes acquired by a concrete
+owner. A consuming domain may borrow them only when it cannot outlive the
+owner's dependency domain. Error marks a recognized contextual request whose
+concrete owner retains the failure cause. Neither contract extends the closed
+TTX v1 vocabulary or creates one shared compiler error model.
 
 `Library::Language` owns the semantics that are not universal across Dialects:
 Expression, Binding, Projection, Constant and its value domains, Generic and its

@@ -67,6 +67,12 @@ static constexpr Documentations::Comment function_documentation{
   "Retains authored Function documentation."_view,
 };
 
+static auto matches_token(const Cursor& cursor, Token expected) -> Bool {
+  Token current = cursor.current();
+  return current.get_offset() == expected.get_offset() &&
+         current.get_code() == expected.get_code();
+}
+
 static auto rejects_completion(View::Bytes source, const SignatureTypes& types)
     -> Bool {
   Allocator::Arena arena;
@@ -79,11 +85,11 @@ static auto rejects_completion(View::Bytes source, const SignatureTypes& types)
     return False;
   }
 
-  Count signature_start = cursor.get_token_index();
+  Token signature_start = cursor.current();
   Bool completed = reserved->complete(cursor, types);
   return !completed && !reserved->is_complete() &&
          &reserved->resolve() == &Invalid::get_invalid() &&
-         cursor.get_token_index() == signature_start && !errors.is_empty();
+         matches_token(cursor, signature_start) && !errors.is_empty();
 }
 
 static Harness FunctionTests = {

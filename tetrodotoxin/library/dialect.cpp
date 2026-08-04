@@ -121,3 +121,51 @@ auto Library::Dialect::resolve_intrinsic(View::Bytes name) const
   // installed Dialect allowing the compiler to optimize a lot of the lookup.
   return *Intrinsics::find_or_default(name, &Invalid::get_invalid());
 }
+
+auto Library::Dialect::get_bool() -> const Ttx::Model::Types::Flag& {
+  return boolean;
+}
+
+auto Library::Dialect::get_unsigned_8() -> const Ttx::Model::Types::Unsigned& {
+  return unsigned_8;
+}
+
+auto Library::Dialect::get_unsigned_16() -> const Ttx::Model::Types::Unsigned& {
+  return unsigned_16;
+}
+
+auto Library::Dialect::get_unsigned_32() -> const Ttx::Model::Types::Unsigned& {
+  return unsigned_32;
+}
+
+auto Library::Dialect::get_unsigned_64() -> const Ttx::Model::Types::Unsigned& {
+  return unsigned_64;
+}
+
+auto Library::Dialect::get_signed_8() -> const Ttx::Model::Types::Signed& {
+  return signed_8;
+}
+
+auto Library::Dialect::get_signed_16() -> const Ttx::Model::Types::Signed& {
+  return signed_16;
+}
+
+auto Library::Dialect::get_signed_32() -> const Ttx::Model::Types::Signed& {
+  return signed_32;
+}
+
+auto Library::Dialect::get_signed_64() -> const Ttx::Model::Types::Signed& {
+  return signed_64;
+}
+
+auto Library::Dialect::get_real_32() -> const Ttx::Model::Types::Real& {
+  return real_32;
+}
+
+auto Library::Dialect::get_real_64() -> const Ttx::Model::Types::Real& {
+  return real_64;
+}
+
+auto Library::Dialect::get_void() -> const Ttx::Model::Type& {
+  return void_type;
+}

@@ -26,6 +26,47 @@ PERIMORTEM_UNIT_TEST(CoreTextualReader, integers) {
   EXPECT_EQ(reader.read_signed(), Signed_64(100000));
   EXPECT_EQ(reader.read_signed(), Signed_64(-1234567890123LL));
   EXPECT_EQ(reader.read_signed(), Signed_64(9876543210ULL));
+  EXPECT(reader.is_valid());
+  EXPECT_EQ(reader.get_location(), reader.get_size());
+}
+
+PERIMORTEM_UNIT_TEST(CoreTextualReader, integer_limits_and_radix) {
+  Reader::Textual unsigned_maximum("18446744073709551615"_view);
+  EXPECT_EQ(unsigned_maximum.read_unsigned(), Unsigned_64(-1));
+  EXPECT(unsigned_maximum.is_valid());
+  EXPECT_EQ(unsigned_maximum.get_location(), unsigned_maximum.get_size());
+
+  Reader::Textual signed_limits(
+      "-9223372036854775808 9223372036854775807"_view);
+  EXPECT_EQ(signed_limits.read_signed(), Signed_64(-9223372036854775807LL - 1));
+  EXPECT_EQ(signed_limits.read_signed(), Signed_64(9223372036854775807LL));
+  EXPECT(signed_limits.is_valid());
+  EXPECT_EQ(signed_limits.get_location(), signed_limits.get_size());
+
+  Reader::Textual hexadecimal("FFFFFFFFFFFFFFFF"_view);
+  EXPECT_EQ(hexadecimal.read_unsigned(16), Unsigned_64(-1));
+  EXPECT(hexadecimal.is_valid());
+  EXPECT_EQ(hexadecimal.get_location(), hexadecimal.get_size());
+
+  Reader::Textual unsigned_overflow("18446744073709551616"_view);
+  EXPECT_EQ(unsigned_overflow.read_unsigned(), Unsigned_64(0));
+  EXPECT_NOT(unsigned_overflow.is_valid());
+
+  Reader::Textual positive_overflow("9223372036854775808"_view);
+  EXPECT_EQ(positive_overflow.read_signed(), Signed_64(0));
+  EXPECT_NOT(positive_overflow.is_valid());
+
+  Reader::Textual negative_overflow("-9223372036854775809"_view);
+  EXPECT_EQ(negative_overflow.read_signed(), Signed_64(0));
+  EXPECT_NOT(negative_overflow.is_valid());
+
+  Reader::Textual hexadecimal_overflow("10000000000000000"_view);
+  EXPECT_EQ(hexadecimal_overflow.read_unsigned(16), Unsigned_64(0));
+  EXPECT_NOT(hexadecimal_overflow.is_valid());
+
+  Reader::Textual invalid_radix("10"_view);
+  EXPECT_EQ(invalid_radix.read_unsigned(1), Unsigned_64(0));
+  EXPECT_NOT(invalid_radix.is_valid());
 }
 
 PERIMORTEM_UNIT_TEST(CoreTextualReader, integers_and_text) {
@@ -63,7 +104,41 @@ PERIMORTEM_UNIT_TEST(CoreTextualReader, floats) {
   EXPECT_EQ(reader.read_real_32(), Real_32(2.512f));
   EXPECT_EQ(reader.read_real_64(), Real_64(0.0));
   EXPECT_EQ(reader.read_real_64(), Real_64(-0.5));
+  EXPECT(reader.is_valid());
+  EXPECT_EQ(reader.get_location(), reader.get_size());
   EXPECT_NOT(reader.has_content());
+}
+
+PERIMORTEM_UNIT_TEST(CoreTextualReader, real_limits) {
+  constexpr auto wide_text = "999999999999999999999999999999999999999.0"_view;
+  Reader::Textual wide(wide_text);
+  EXPECT(wide.read_real_64() > Real_64(1e38));
+  EXPECT(wide.is_valid());
+  EXPECT_EQ(wide.get_location(), wide.get_size());
+
+  Reader::Textual wide_32(wide_text);
+  EXPECT_EQ(wide_32.read_real_32(), Real_32(0));
+  EXPECT_NOT(wide_32.is_valid());
+
+  constexpr auto tiny_text =
+      "0.000000000000000000000000000000000000000000000000001"_view;
+  Reader::Textual tiny(tiny_text);
+  EXPECT(tiny.read_real_64() > Real_64(0));
+  EXPECT(tiny.is_valid());
+  EXPECT_EQ(tiny.get_location(), tiny.get_size());
+
+  Reader::Textual tiny_32(tiny_text);
+  EXPECT_EQ(tiny_32.read_real_32(), Real_32(0));
+  EXPECT_NOT(tiny_32.is_valid());
+
+  Reader::Textual overflow(
+      "9999999999999999999999999999999999999999999999999999999999999999"
+      "9999999999999999999999999999999999999999999999999999999999999999"
+      "9999999999999999999999999999999999999999999999999999999999999999"
+      "9999999999999999999999999999999999999999999999999999999999999999"
+      "9999999999999999999999999999999999999999999999999999999999999999.0"_view);
+  EXPECT_EQ(overflow.read_real_64(), Real_64(0));
+  EXPECT_NOT(overflow.is_valid());
 }
 
 PERIMORTEM_UNIT_TEST(CoreTextualReader, prevent_overflow) {
@@ -117,6 +192,9 @@ PERIMORTEM_UNIT_TEST(CoreTextualReader, set_location) {
   EXPECT(reader.has_content());
   EXPECT_EQ(reader.read_signed(), 99);
   EXPECT_NOT(reader.has_content());
+
+  reader.set_location(reader.get_size() + 1);
+  EXPECT_NOT(reader.is_valid());
 }
 
 PERIMORTEM_UNIT_TEST(CoreTextualReader, multiple_readers) {

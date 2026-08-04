@@ -29,6 +29,12 @@ class Constant : public Expression {
     return requested == contract_id || Expression::implements(requested);
   }
 
+  // Constants retain no authored spelling. Their exact Type supplies the
+  // useful semantic name while Binding remains the owner of authored names.
+  constexpr auto get_name() const -> Perimortem::Core::View::Bytes override {
+    return get_type().get_name();
+  }
+
   // A Constant is a value rather than an authored declaration. When it is
   // stored under a documented name, that prose belongs to the Addressable.
   auto get_documentation() const

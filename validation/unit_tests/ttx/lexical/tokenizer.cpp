@@ -94,6 +94,17 @@ PERIMORTEM_UNIT_TEST(TtxLexical, lexicon) {
   EXPECT(
       Lexicon::get_keyword("value"_view, Token::Addressable) ==
       Token::Addressable);
+  EXPECT(Lexicon::is_whitespace(' '));
+  EXPECT(Lexicon::is_whitespace('\n'));
+  EXPECT(Lexicon::is_whitespace('\r'));
+  EXPECT(Lexicon::is_whitespace('\t'));
+  EXPECT_NOT(Lexicon::is_whitespace('\0'));
+  EXPECT_EQ(Lexicon::get_hex_value('0'), Unsigned_8(0));
+  EXPECT_EQ(Lexicon::get_hex_value('9'), Unsigned_8(9));
+  EXPECT_EQ(Lexicon::get_hex_value('A'), Unsigned_8(10));
+  EXPECT_EQ(Lexicon::get_hex_value('F'), Unsigned_8(15));
+  EXPECT_EQ(Lexicon::get_hex_value('a'), Unsigned_8(10));
+  EXPECT_EQ(Lexicon::get_hex_value('f'), Unsigned_8(15));
 }
 
 PERIMORTEM_UNIT_TEST(TtxLexical, spelling_validation) {
@@ -196,6 +207,28 @@ PERIMORTEM_UNIT_TEST(TtxLexical, cursor_consume) {
   EXPECT(cursor.matches(Code::Type::Terminal));
   cursor.consume();
   EXPECT(cursor.matches(Code::Type::Terminal));
+}
+
+PERIMORTEM_UNIT_TEST(TtxLexical, cursor_sync) {
+  Allocator::Arena arena;
+  Errors errors;
+  Tokenizer source(arena, "first second"_view, "source.ttx"_view);
+  Tokenizer destination(arena, "only"_view, "destination.ttx"_view);
+  Cursor beginning(source, errors);
+  Cursor target(source, errors);
+  Cursor cursor(destination, errors);
+
+  target.consume();
+  cursor.sync(target);
+  EXPECT(cursor.matches(Code::Type::Terminal));
+
+  target.consume();
+  cursor.sync(target);
+  EXPECT_NOT(cursor.current().is_valid());
+
+  cursor.sync(beginning);
+  EXPECT_TEXT(
+      cursor.current().caculate_text(cursor.get_source_text()), "only"_view);
 }
 
 PERIMORTEM_UNIT_TEST(TtxLexical, require_success) {
@@ -431,6 +464,30 @@ PERIMORTEM_UNIT_TEST(TtxLexical, wrapper_messages) {
   EXPECT(
       Algorithm::search(expression, "Expression wrapper."_view) != Count(-1));
   EXPECT(Algorithm::search(expression, "Expression hint."_view) != Count(-1));
+}
+
+PERIMORTEM_UNIT_TEST(TtxLexical, cursor_report) {
+  Allocator::Arena arena;
+  Allocator::Arena render_arena;
+  Errors errors;
+  Tokenizer tokenizer(arena, "first second"_view, "cursor-report.ttx"_view);
+  Cursor cursor(tokenizer, errors);
+
+  Token first = cursor.consume();
+  Token second = cursor.current();
+  {
+    auto report = cursor.create_report(Span(first, second));
+    report << "Semantic report."_view;
+  }
+
+  View::Bytes rendered = errors.render_message(render_arena, 0);
+
+  ASSERT_EQ(errors.get_size(), Count(1));
+  EXPECT(
+      Algorithm::search(rendered, "cursor-report.ttx:1:1"_view) != Count(-1));
+  EXPECT(Algorithm::search(rendered, "first second"_view) != Count(-1));
+  EXPECT(Algorithm::search(rendered, "Semantic report."_view) != Count(-1));
+  EXPECT(Algorithm::search(rendered, "^-----------"_view) != Count(-1));
 }
 
 PERIMORTEM_UNIT_TEST(TtxLexical, reversed_range) {

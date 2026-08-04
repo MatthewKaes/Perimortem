@@ -20,24 +20,34 @@ class Unsigned : public Constant {
     0xb2b28b158d5034d8,
   };
 
+  constexpr Unsigned(const Ttx::Model::Types::Unsigned& type, Value value)
+      : type(type), value(value) {}
+
   constexpr auto implements(Perimortem::System::Uuid requested) const
       -> Bool override {
     return requested == contract_id || Constant::implements(requested);
   }
 
+  constexpr auto get_type() const
+      -> const Ttx::Model::Types::Unsigned& override {
+    return type;
+  }
+
+  virtual constexpr auto get_value() const -> Value { return value; }
+
   constexpr auto equals(const Constant& rhs) const -> Bool override {
     return rhs.visit<Unsigned>(
         [this, &rhs](const Unsigned& selected) {
           return has_same_type(rhs) && get_value() == selected.get_value()
-                     ? True
-                     : False;
+                     ? ::True
+                     : ::False;
         },
-        [](const Ttx::Concept::Abstract&) { return False; });
+        [](const Ttx::Concept::Abstract&) { return ::False; });
   }
 
   constexpr auto fits(const Ttx::Model::Type& target) const -> Bool override {
     if (!get_type().resolve().is<Ttx::Model::Types::Unsigned>()) {
-      return False;
+      return ::False;
     }
 
     const Ttx::Concept::Abstract& target_type = target.resolve();
@@ -45,19 +55,22 @@ class Unsigned : public Constant {
         [this](const Ttx::Model::Types::Unsigned& selected) {
           Count size = selected.get_size();
           if (size == 0) {
-            return False;
+            return ::False;
           }
 
           if (size >= sizeof(Unsigned_64)) {
-            return True;
+            return ::True;
           }
 
-          return get_value() < (Unsigned_64(1) << (size * 8)) ? True : False;
+          return get_value() < (Unsigned_64(1) << (size * 8)) ? ::True
+                                                              : ::False;
         },
-        [](const Ttx::Concept::Abstract&) { return False; });
+        [](const Ttx::Concept::Abstract&) { return ::False; });
   }
 
-  virtual constexpr auto get_value() const -> Value = 0;
+ private:
+  const Ttx::Model::Types::Unsigned& type;
+  Value value;
 };
 
 }  // namespace Tetrodotoxin::Library::Language::Constants

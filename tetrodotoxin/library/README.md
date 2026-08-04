@@ -13,6 +13,8 @@ value domains required by CPU executable languages.
 
 1. Expression, Binding, and Projection provide Library value identities.
 2. Constant provides bytes, flag, real, signed, and unsigned value domains.
+   True and False refine Flag so consumers can select either the shared domain
+   or one exact logical value without decoding its storage.
 3. Generic provides Access, View, and Fixed materializations.
 4. Concrete Bool, signed, unsigned, and real Types provide scalar identities.
 5. Static and Self distinguish Callable invocation.
@@ -60,15 +62,35 @@ route's lookup grammar and semantic edge.
 An Embedded operand gives its complete `$[...]` Token spelling to the exact
 source Package context. Library never opens or retains Package Storage. A
 resolved `Tetrodotoxin::Language::Resource` supplies only stable bytes;
-Library validates the authored slice and constructs its own concrete
-`Language::Constants::Bytes` over the reachable result. A resolved
+`Language::Parser::Literal` constructs its own concrete
+`Language::Constants::Bytes` by borrowing the complete value and infers
+`Fixed[Unsigned_8, byte count]`. The Literal domain must not outlive the
+Resource dependency domain. Ordinary Package interpretation places both in the
+same Workspace Arena, so the complete base needs no second byte allocation.
+Scalar spellings construct the canonical binary wide Library Type for their
+domain. Literal accepts no expected Type; the complete Expression supplies its
+resulting Type to the receiving owner. A resolved
 `Tetrodotoxin::Language::Error` contributes its owner-specific failure context
-while Library supplies the current Token Span to the textual Report. Invalid
-or another Abstract category remains an ordinary expression mismatch.
+while Library supplies the current Token Span to the textual Report. Invalid or
+another Abstract category remains an ordinary expression mismatch. Contextual
+resolution has already completed Package acquisition before Literal receives
+the Resource, so Literal-local slicing could not avoid the Storage read.
 
-Resource route, full unused backing, Storage, and Package diagnostics do not
-enter the Library graph. Source-free Library payloads retain only reachable
-Library-owned Constants, so restoration performs no resource read.
+`Language::Parser::Expression` owns the `:[start, size]` postfix shared by
+Embedded, quoted Bytes, hexadecimal Bytes, and later byte-valued expressions.
+When the receiver, start, and size are Constants, Expression must validate the
+operand categories and bounds and publish only the reachable Bytes Constant.
+The complete base must not survive as a second semantic value merely because
+Literal parsed first. A receiving declaration, assignment, invocation, or
+other typed operation applies fitting only after the complete Expression has
+synthesized its result Type.
+Failures name the actual operand Type, valid range, and corrective spelling at
+the postfix Span.
+
+Resource route, Storage, and Package diagnostics do not enter the Library
+graph. An unsliced base Constant owns its complete value. A folded slice owns
+only the reachable Library bytes, so source-free restoration performs no
+resource read and retains no unused base Constant.
 
 ## Library Dialect and Monograph
 
@@ -76,7 +98,10 @@ The top level Library Dialect installs into `Environment::Workspace` through the
 common `Language::Dialect` interface. Each Workspace owns a distinct stateful
 Dialect while Bool, integer, real, and Void remain immutable binary wide
 identities. Every Library Monograph resolves those same identities through the
-Dialect without publishing them as authored declarations.
+Dialect without publishing them as authored declarations. Typed static Dialect
+accessors expose their universal addresses to Library machinery and package
+consumers that require exact identity while authored name lookup retains its
+packed intrinsic table.
 
 The concrete Library Monograph owns exact local Function lookup and an authored
 order view of its public Functions. Local lookup also admits private Functions.
