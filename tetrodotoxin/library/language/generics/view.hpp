@@ -18,6 +18,13 @@ class View : public Generic {
  public:
   static constexpr Perimortem::Core::View::Bytes name = "View"_view;
 
+  // Separate parser stages materialize one Fixed family. Sharing this formula
+  // identity keeps equal arguments on one Materializations key.
+  static auto get_formula() -> const View& {
+    static constexpr View formula;
+    return formula;
+  }
+
   constexpr auto get_name() const -> Perimortem::Core::View::Bytes override {
     return name;
   }

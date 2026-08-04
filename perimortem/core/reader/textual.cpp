@@ -139,6 +139,7 @@ auto Reader::Textual::read_signed() -> Signed_64 {
   if (!is_valid()) {
     return 0;
   }
+
   if (magnitude == signed_minimum_magnitude) {
     return signed_minimum;
   }

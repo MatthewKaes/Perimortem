@@ -27,42 +27,17 @@ using namespace Ttx::Concept;
 using namespace Ttx::Lexical;
 using namespace Ttx::Model;
 
-static constexpr Library::Language::Generics::Fixed fixed_formula;
-static constexpr Unsigned_64 signed_maximum = (Unsigned_64(-1) >> 1);
-static constexpr Unsigned_64 signed_minimum_magnitude = signed_maximum + 1;
-static constexpr Signed_64 signed_minimum =
-    Signed_64(-9223372036854775807LL - 1);
-
-static auto parse_unsigned_text(View::Bytes text, Unsigned_8 base)
-    -> Option<Unsigned_64> {
-  Reader::Textual reader(text);
-  Unsigned_64 value = reader.read_unsigned(base);
-  if (!reader.is_valid() || reader.get_location() != reader.get_size()) {
-    return {};
-  }
-
-  return value;
-}
-
-static auto parse_real_text(View::Bytes text) -> Option<Real_64> {
-  Reader::Textual reader(text);
-  Real_64 value = reader.read_real_64();
-  if (!reader.is_valid() || reader.get_location() != reader.get_size()) {
-    return {};
-  }
-
-  return value;
-}
-
 static auto materialize_bytes_type(
     Library::Language::Materializations& materializations,
     Cursor& cursor,
     Span span,
     Count size) -> Option<const Type&> {
-  if (size > Count(signed_maximum)) {
+  // Keep the max array length the same as what the Bibliotheca can manage.
+  constexpr Unsigned_64 max_extent = Unsigned_64(1) << 36;
+  if (size > Count(max_extent)) {
     cursor.create_expression_error(
         span, "Bytes literal exceeds Library's Fixed extent range."_view,
-        "Reduce the byte count below the Signed_64 extent limit."_view);
+        "Reduce the byte count below the 68,719,476,736 extent limit."_view);
     return {};
   }
 
@@ -70,8 +45,8 @@ static auto materialize_bytes_type(
     Library::Language::Generic::Argument(Library::Dialect::get_unsigned_8()),
     Library::Language::Generic::Argument(Signed_64(size)),
   }};
-  auto materialized =
-      materializations.materialize(fixed_formula, arguments.get_view());
+  auto materialized = materializations.materialize(
+      Library::Language::Generics::Fixed::get_formula(), arguments.get_view());
   if (!materialized) {
     auto report = cursor.create_report(span);
     report << "Library could not materialize `Fixed[Unsigned_8, "_view
@@ -91,20 +66,22 @@ static auto construct_retained_bytes(
     View::Bytes value) -> Option<const Library::Language::Constant&> {
   auto type =
       materialize_bytes_type(materializations, cursor, span, value.get_size());
-  if (!type) {
-    return {};
-  }
-
-  return domain.construct<Library::Language::Constants::Bytes>(*type, value);
+  return type.visit(
+      []() -> Option<const Library::Language::Constant&> { return {}; },
+      [&](const Ttx::Model::Type& type)
+          -> Option<const Library::Language::Constant&> {
+        cursor.consume();
+        return domain.construct<Library::Language::Constants::Bytes>(
+            type, value);
+      });
 }
 
 static auto parse_quoted(
     Allocator::Arena& domain,
     Library::Language::Materializations& materializations,
     Cursor& cursor) -> Option<const Library::Language::Constant&> {
-  Token token = cursor.consume();
-  Span span(token);
-  View::Bytes text = token.caculate_text(cursor.get_source_text());
+  Span literal_span(cursor.current());
+  View::Bytes text = literal_span.caculate_text(cursor.get_source_text());
   View::Bytes payload = text.slice(1, text.get_size() - 2);
   Count decoded_size = payload.get_size();
 
@@ -129,7 +106,7 @@ static auto parse_quoted(
   }
 
   return construct_retained_bytes(
-      domain, materializations, cursor, span,
+      domain, materializations, cursor, literal_span,
       View::Bytes(decoded.get_data(), decoded.get_size()));
 }
 
@@ -137,9 +114,8 @@ static auto parse_byte_array(
     Allocator::Arena& domain,
     Library::Language::Materializations& materializations,
     Cursor& cursor) -> Option<const Library::Language::Constant&> {
-  Token token = cursor.consume();
-  Span span(token);
-  View::Bytes text = token.caculate_text(cursor.get_source_text());
+  Span literal_span(cursor.current());
+  View::Bytes text = literal_span.caculate_text(cursor.get_source_text());
   View::Bytes payload = text.slice(3, text.get_size() - 4);
   Count digits = 0;
 
@@ -150,7 +126,7 @@ static auto parse_byte_array(
     Bool hexadecimal = Lexicon::is_hex(value);
     if (!hexadecimal && !Lexicon::is_whitespace(value)) {
       cursor.create_expression_error(
-          span, "Bytes literal contains a non hexadecimal digit."_view,
+          literal_span, "Bytes literal contains a non hexadecimal digit."_view,
           "Use hexadecimal pairs containing only 0 through 9 and A through "
           "F."_view);
       return {};
@@ -161,7 +137,8 @@ static auto parse_byte_array(
 
   if (digits % 2 != 0) {
     cursor.create_expression_error(
-        span, "Bytes literal ends with an incomplete hexadecimal byte."_view,
+        literal_span,
+        "Bytes literal ends with an incomplete hexadecimal byte."_view,
         "Add or remove one hexadecimal digit so every byte has two digits."_view);
     return {};
   }
@@ -184,85 +161,8 @@ static auto parse_byte_array(
   }
 
   return construct_retained_bytes(
-      domain, materializations, cursor, span,
+      domain, materializations, cursor, literal_span,
       View::Bytes(decoded.get_data(), decoded.get_size()));
-}
-
-static auto parse_flag(Allocator::Arena& domain, Cursor& cursor)
-    -> Option<const Library::Language::Constant&> {
-  Token token = cursor.consume();
-  const auto& type = Library::Dialect::get_bool();
-  if (token.get_code() == Code::Type::True) {
-    return domain.construct<Library::Language::Constants::True>(type);
-  }
-
-  return domain.construct<Library::Language::Constants::False>(type);
-}
-
-static auto parse_integer(
-    Allocator::Arena& domain,
-    Cursor& cursor,
-    Bool negative) -> Option<const Library::Language::Constant&> {
-  Token sign = negative ? cursor.consume() : cursor.current();
-  Token token = cursor.consume();
-  Span span = negative ? Span(sign, token) : Span(token);
-  View::Bytes text = token.caculate_text(cursor.get_source_text());
-  Unsigned_8 base = token.get_code() == Code::Type::Hex ? 16 : 10;
-  if (base == 16) {
-    text = text.slice(2, text.get_size() - 2);
-  }
-
-  auto magnitude = parse_unsigned_text(text, base);
-  if (!magnitude) {
-    cursor.create_expression_error(
-        span, "Integer literal exceeds Library's 64 bit literal domain."_view,
-        "Reduce the magnitude or use a value supplied by another owner."_view);
-    return {};
-  }
-
-  if (negative) {
-    if (*magnitude > signed_minimum_magnitude) {
-      cursor.create_expression_error(
-          span,
-          "Negative integer literal is outside Library Signed_64 range."_view,
-          "Use a magnitude no greater than 9223372036854775808 or construct "
-          "a wider value through another owner."_view);
-      return {};
-    }
-
-    Signed_64 value = *magnitude == signed_minimum_magnitude
-                          ? signed_minimum
-                          : Signed_64(*magnitude);
-    if (value != signed_minimum) {
-      value = -value;
-    }
-
-    return domain.construct<Library::Language::Constants::Signed>(
-        Library::Dialect::get_signed_64(), value);
-  }
-
-  return domain.construct<Library::Language::Constants::Unsigned>(
-      Library::Dialect::get_unsigned_64(), *magnitude);
-}
-
-static auto parse_real(Allocator::Arena& domain, Cursor& cursor, Bool negative)
-    -> Option<const Library::Language::Constant&> {
-  Token sign = negative ? cursor.consume() : cursor.current();
-  Token token = cursor.consume();
-  Span span = negative ? Span(sign, token) : Span(token);
-  View::Bytes text = token.caculate_text(cursor.get_source_text());
-  auto parsed = parse_real_text(text);
-  if (!parsed) {
-    cursor.create_expression_error(
-        span, "Real literal is outside Library Real_64's finite range."_view,
-        "Use a finite value within Real_64's range or construct it through "
-        "another owner."_view);
-    return {};
-  }
-
-  Real_64 value = negative ? -*parsed : *parsed;
-  return domain.construct<Library::Language::Constants::Real>(
-      Library::Dialect::get_real_64(), value);
 }
 
 static auto parse_embedded(
@@ -271,9 +171,9 @@ static auto parse_embedded(
     Cursor& cursor,
     const Abstract& source_context)
     -> Option<const Library::Language::Constant&> {
-  Token token = cursor.consume();
-  Span literal_span(token);
-  View::Bytes instruction = token.caculate_text(cursor.get_source_text());
+  Span literal_span(cursor.current());
+  View::Bytes instruction =
+      literal_span.caculate_text(cursor.get_source_text());
 
   const Abstract& selected =
       source_context.resolve_context(instruction).resolve();
@@ -302,66 +202,127 @@ static auto parse_embedded(
       domain, materializations, cursor, literal_span, retained);
 }
 
+// Flag is always parsable as we key off the Code::Type and not the actual text.
+static auto parse_flag(Allocator::Arena& domain, Cursor& cursor)
+    -> Option<const Library::Language::Constant&> {
+  Token token = cursor.consume();
+  const auto& type = Library::Dialect::get_bool();
+  if (token.get_code() == Code::Type::True) {
+    return domain.construct<Library::Language::Constants::True>(type);
+  }
+
+  return domain.construct<Library::Language::Constants::False>(type);
+}
+
+template <Count radix>
+static auto parse_unsigned(Allocator::Arena& domain, Cursor& cursor)
+    -> Option<const Library::Language::Constant&> {
+  Span literal_text(cursor.current());
+  Reader::Textual reader(literal_text.caculate_text(cursor.get_source_text())
+                             .slice(radix == 16 ? 2 : 0));
+
+  // Check if there are any space or other issues in the literal text range.
+  Unsigned_64 value = reader.read_unsigned(radix);
+  if (!reader.is_valid() || reader.get_location() != reader.get_size()) {
+    cursor.create_expression_error(
+        literal_text, "Unable to parse unsigned literal value."_view);
+    return {};
+  }
+
+  // If we parsed successfully syncronize the cursor and construct the value.
+  cursor.consume();
+  return domain.construct<Library::Language::Constants::Unsigned>(
+      Library::Dialect::get_unsigned_64(), value);
+}
+
+static auto parse_signed(Allocator::Arena& domain, Cursor& cursor)
+    -> Option<const Library::Language::Constant&> {
+  Span literal_text(cursor.current(), cursor.peek(1));
+  Reader::Textual reader(literal_text.caculate_text(cursor.get_source_text()));
+
+  // Check if there are any space or other issues in the literal text range.
+  Signed_64 value = reader.read_signed();
+  if (!reader.is_valid() || reader.get_location() != reader.get_size()) {
+    cursor.create_expression_error(
+        literal_text, "Unable to parse signed literal value."_view);
+    return {};
+  }
+
+  // If we parsed successfully syncronize the cursor and construct the value.
+  cursor.consume();
+  cursor.consume();
+  return domain.construct<Library::Language::Constants::Signed>(
+      Library::Dialect::get_signed_64(), value);
+}
+
+template <Count token_width>
+static auto parse_real(Allocator::Arena& domain, Cursor& cursor)
+    -> Option<const Library::Language::Constant&> {
+  Span literal_text(cursor.current(), cursor.peek(token_width));
+  Reader::Textual reader(literal_text.caculate_text(cursor.get_source_text()));
+
+  // Check if there are any space or other issues in the literal text range.
+  Real_64 value = reader.read_real_64();
+  if (!reader.is_valid() || reader.get_location() != reader.get_size()) {
+    cursor.create_expression_error(
+        literal_text, "Unable to parse real literal value."_view);
+    return {};
+  }
+
+  // Floats could be one or two tokens depending on if it has a negative or not.
+  for (Count i = 0; i < token_width; i++) {
+    cursor.consume();
+  }
+
+  return domain.construct<Library::Language::Constants::Real>(
+      Library::Dialect::get_real_64(), value);
+}
+
 auto Library::Language::Parser::Literal::parse(
     Allocator::Arena& domain,
     Materializations& materializations,
     Cursor& cursor,
     const Abstract& source_context) -> Option<const Constant&> {
-  Cursor transaction = cursor;
-  Bool negative = transaction.matches(Code::Type::SubOp);
-  Code code = transaction.get_code();
-  if (negative) {
-    Cursor probe = transaction;
-    probe.consume();
-    code = probe.get_code();
+  // If a leading `-` is provide then only a subset of numeric literals are
+  // supported. If no leading `-` is provide then use the regular parser.
+  if (cursor.matches(Code::Type::SubOp)) {
+    switch (cursor.peek(1).get_code().get_type()) {
+    case Code::Type::Numeric:
+      return parse_signed(domain, cursor);
+    case Code::Type::Float:
+      return parse_real<2>(domain, cursor);
+    default:
+      cursor.create_expression_error(
+          Span(cursor.current(), cursor.peek(1)),
+          "A negative literal requires a decimal integer or real."_view,
+          "Use decimal spelling after `-` or remove the negative sign."_view);
+      return {};
+    }
   }
 
   // The probe changes no caller state or durable parser fact. The helpers keep
   // the original transaction so a signed value retains its complete Span.
-  Option<const Constant&> parsed;
-  if (negative && code == Code::Type::Numeric) {
-    parsed = parse_integer(domain, transaction, True);
-  } else if (negative && code == Code::Type::Float) {
-    parsed = parse_real(domain, transaction, True);
-  } else if (negative) {
-    transaction.create_token_error(
-        "A negative Library literal requires a decimal integer or real."_view,
-        "Use decimal spelling after `-` or remove the negative sign."_view);
-  } else {
-    switch (code.get_type()) {
-    case Code::Type::String:
-      parsed = parse_quoted(domain, materializations, transaction);
-      break;
-    case Code::Type::Bytes:
-      parsed = parse_byte_array(domain, materializations, transaction);
-      break;
-    case Code::Type::True:
-    case Code::Type::False:
-      parsed = parse_flag(domain, transaction);
-      break;
-    case Code::Type::Numeric:
-    case Code::Type::Hex:
-      parsed = parse_integer(domain, transaction, False);
-      break;
-    case Code::Type::Float:
-      parsed = parse_real(domain, transaction, False);
-      break;
-    case Code::Type::Embedded:
-      parsed =
-          parse_embedded(domain, materializations, transaction, source_context);
-      break;
-    default:
-      transaction.create_token_error(
-          "Library literal parser requires a supported literal operand."_view,
-          "Use a string, byte array, flag, integer, real, or embedded "
-          "Resource literal."_view);
-      break;
-    }
+  switch (cursor.get_code().get_type()) {
+  case Code::Type::String:
+    return parse_quoted(domain, materializations, cursor);
+  case Code::Type::Bytes:
+    return parse_byte_array(domain, materializations, cursor);
+  case Code::Type::True:
+  case Code::Type::False:
+    return parse_flag(domain, cursor);
+  case Code::Type::Numeric:
+    return parse_unsigned<10>(domain, cursor);
+  case Code::Type::Hex:
+    return parse_unsigned<16>(domain, cursor);
+  case Code::Type::Float:
+    return parse_real<1>(domain, cursor);
+  case Code::Type::Embedded:
+    return parse_embedded(domain, materializations, cursor, source_context);
+  default:
+    cursor.create_token_error(
+        "Library literal parser requires a supported literal operand."_view,
+        "Use a string, byte array, flag, integer, real, or embedded "
+        "Resource literal."_view);
+    return {};
   }
-
-  if (parsed) {
-    cursor.sync(transaction);
-  }
-
-  return parsed;
 }
