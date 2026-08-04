@@ -87,7 +87,7 @@ auto Layouts::Named::get_fitted_at(
     const Concept::Layout& target,
     Count target_offset,
     Count target_index) const
-    -> Perimortem::Core::Static::Union<const Concept::Abstract&, Errors> {
+    -> Perimortem::Utility::Result<const Concept::Abstract&, Errors> {
   if (target_index >= get_size()) {
     return Errors::IndexOutOfBounds;
   }
@@ -102,13 +102,12 @@ auto Layouts::Named::get_fitted_at(
 
   return target.get_abstract(target_offset + target_index)
       .visit(
-          []() -> Perimortem::Core::Static::Union<
-                   const Concept::Abstract&, Errors> {
+          []()
+              -> Perimortem::Utility::Result<const Concept::Abstract&, Errors> {
             return Errors::IncompatibleFit;
           },
           [this](const Concept::Abstract& requested)
-              -> Perimortem::Core::Static::Union<
-                  const Concept::Abstract&, Errors> {
+              -> Perimortem::Utility::Result<const Concept::Abstract&, Errors> {
             for (Count i = 0; i < get_size(); i++) {
               const Concept::Abstract& source = abstracts[i].get();
               if (source.get_name() != requested.get_name()) {

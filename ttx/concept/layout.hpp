@@ -3,9 +3,8 @@
 
 #pragma once
 
-#include "perimortem/core/static/union.hpp"
-
 #include "perimortem/utility/option.hpp"
+#include "perimortem/utility/result.hpp"
 
 #include "ttx/concept/abstract.hpp"
 
@@ -61,7 +60,7 @@ class Layout {
   // without allocating a mapping or forcing every consumer to repeat Named
   // matching.
   constexpr auto get_fitted(const Layout& target, Count target_index) const
-      -> Perimortem::Core::Static::Union<const Abstract&, Errors> {
+      -> Perimortem::Utility::Result<const Abstract&, Errors> {
     if (target_index >= get_size()) {
       return Errors::IndexOutOfBounds;
     }
@@ -80,7 +79,7 @@ class Layout {
       const Layout& target,
       Count target_offset,
       Count target_index) const
-      -> Perimortem::Core::Static::Union<const Abstract&, Errors> = 0;
+      -> Perimortem::Utility::Result<const Abstract&, Errors> = 0;
 
   constexpr auto is_empty() const -> Bool { return get_size() == 0; }
 

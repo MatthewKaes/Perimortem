@@ -21,7 +21,7 @@ auto Layouts::Composite::get_fitted_at(
     const Concept::Layout& target,
     Count target_offset,
     Count target_index) const
-    -> Perimortem::Core::Static::Union<const Concept::Abstract&, Errors> {
+    -> Perimortem::Utility::Result<const Concept::Abstract&, Errors> {
   if (target_index >= get_size()) {
     return Errors::IndexOutOfBounds;
   }

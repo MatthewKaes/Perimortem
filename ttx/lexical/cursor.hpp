@@ -35,6 +35,18 @@ class Cursor {
     return tokens.get_data()[index];
   }
 
+  // Looks at a token that is ahead of the current token by `offset`.
+  // Passing zero returns `current` and any value that would but the cursor out
+  // of range returns an empty token.
+  constexpr auto peek(Count offset) const -> Lexical::Token {
+    const auto tokens = tokenizer.get_tokens();
+    if (index + offset >= tokens.get_size()) {
+      return Lexical::Token();
+    }
+
+    return tokens.get_data()[index + offset];
+  }
+
   // Sets this cursor's index to another cursor's index.
   // The two cursors aren't required to point to the same tokenizer.
   constexpr auto sync(const Cursor& target) -> void { index = target.index; }

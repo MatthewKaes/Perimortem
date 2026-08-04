@@ -42,8 +42,8 @@ class Composite : public Concept::Layout {
   auto get_fitted_at(
       const Concept::Layout& target,
       Count target_offset,
-      Count target_index) const -> Perimortem::Core::Static::
-      Union<const Concept::Abstract&, Errors> override;
+      Count target_index) const
+      -> Perimortem::Utility::Result<const Concept::Abstract&, Errors> override;
 
  private:
   const Concept::Layout& first;

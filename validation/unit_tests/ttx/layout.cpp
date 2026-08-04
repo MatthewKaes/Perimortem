@@ -15,6 +15,7 @@
 #include "ttx/model/type.hpp"
 
 using namespace Perimortem::Core;
+using namespace Perimortem::Utility;
 using namespace Ttx::Concept;
 using namespace Ttx::Model;
 using namespace Ttx::Model::Layouts;
@@ -91,10 +92,11 @@ static auto selects(
 }
 
 static auto selects(
-    const Static::Union<const Abstract&, Layout::Errors>& result,
+    const Result<const Abstract&, Layout::Errors>& result,
     const Abstract& expected) -> Bool {
-  const Abstract* selected = result.find<const Abstract&>();
-  return selected == &expected ? True : False;
+  return result.visit(
+      [&](const Abstract& selected) { return &selected == &expected; },
+      [](Layout::Errors) { return false; });
 }
 
 static auto is_none(const Perimortem::Utility::Option<const Abstract&>& result)
@@ -104,10 +106,11 @@ static auto is_none(const Perimortem::Utility::Option<const Abstract&>& result)
 }
 
 static auto reports(
-    const Static::Union<const Abstract&, Layout::Errors>& result,
+    const Result<const Abstract&, Layout::Errors>& result,
     Layout::Errors expected) -> Bool {
-  const Layout::Errors* selected = result.find<Layout::Errors>();
-  return selected != nullptr && *selected == expected ? True : False;
+  return result.visit(
+      [](const Abstract&) { return false; },
+      [&](Layout::Errors error) { return error == expected; });
 }
 
 PERIMORTEM_UNIT_TEST(TtxLayout, fluid_order) {
