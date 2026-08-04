@@ -80,9 +80,9 @@ static auto rejects_completion(View::Bytes source, const SignatureTypes& types)
   }
 
   Count signature_start = cursor.get_token_index();
-  Bool completed = (*reserved).complete(cursor, types);
-  return !completed && !(*reserved).is_complete() &&
-         &(*reserved).resolve() == &Invalid::get_invalid() &&
+  Bool completed = reserved->complete(cursor, types);
+  return !completed && !reserved->is_complete() &&
+         &reserved->resolve() == &Invalid::get_invalid() &&
          cursor.get_token_index() == signature_start && !errors.is_empty();
 }
 
@@ -159,25 +159,25 @@ PERIMORTEM_UNIT_TEST(FunctionTests, real_layout_shapes) {
   auto qualified = Language::Parser::Layout::parse(arena, cursor, types);
   ASSERT(empty && direct && unnamed && named && qualified);
 
-  EXPECT((*empty).is_empty());
-  EXPECT((*direct).get_abstract(0).visit(
+  EXPECT(empty->is_empty());
+  EXPECT(direct->get_abstract(0).visit(
       []() { return False; },
       [&types](const Abstract& edge) {
         return &edge == &types.boolean ? True : False;
       }));
-  ASSERT_EQ((*unnamed).get_size(), Count(2));
-  EXPECT((*unnamed).get_abstract(0).visit(
+  ASSERT_EQ(unnamed->get_size(), Count(2));
+  EXPECT(unnamed->get_abstract(0).visit(
       []() { return False; },
       [&types](const Abstract& edge) {
         return &edge == &types.boolean ? True : False;
       }));
-  EXPECT((*unnamed).get_abstract(1).visit(
+  EXPECT(unnamed->get_abstract(1).visit(
       []() { return False; },
       [&types](const Abstract& edge) {
         return &edge == &types.unsigned_64 ? True : False;
       }));
-  ASSERT_EQ((*named).get_size(), Count(2));
-  EXPECT((*named).get_abstract(0).visit(
+  ASSERT_EQ(named->get_size(), Count(2));
+  EXPECT(named->get_abstract(0).visit(
       []() { return False; },
       [&types](const Abstract& edge) {
         return edge.is<Alias>() && edge.get_name() == "value"_view &&
@@ -185,7 +185,7 @@ PERIMORTEM_UNIT_TEST(FunctionTests, real_layout_shapes) {
                    ? True
                    : False;
       }));
-  EXPECT((*named).get_abstract(1).visit(
+  EXPECT(named->get_abstract(1).visit(
       []() { return False; },
       [&types](const Abstract& edge) {
         return edge.is<Alias>() && edge.get_name() == "ready"_view &&
@@ -193,13 +193,11 @@ PERIMORTEM_UNIT_TEST(FunctionTests, real_layout_shapes) {
                    ? True
                    : False;
       }));
-  EXPECT((*qualified)
-             .get_abstract(0)
-             .visit(
-                 []() { return False; },
-                 [&types](const Abstract& edge) {
-                   return &edge == &types.boolean ? True : False;
-                 }));
+  EXPECT(qualified->get_abstract(0).visit(
+      []() { return False; },
+      [&types](const Abstract& edge) {
+        return &edge == &types.boolean ? True : False;
+      }));
   EXPECT(cursor.matches(Code::Type::Terminal));
   EXPECT(errors.is_empty());
 }
@@ -232,9 +230,9 @@ PERIMORTEM_UNIT_TEST(FunctionTests, completion_occurs_once) {
   auto reserved =
       Language::Function::reserve(arena, cursor, function_documentation);
   ASSERT(reserved);
-  ASSERT((*reserved).complete(cursor, types));
-  const Layout& parameters = (*reserved).get_parameters();
-  const Layout& results = (*reserved).get_results();
+  ASSERT(reserved->complete(cursor, types));
+  const Layout& parameters = reserved->get_parameters();
+  const Layout& results = reserved->get_results();
 
   Errors repeated_errors;
   Tokenizer repeated_tokenizer(arena, source, "repeated-completion.ttx"_view);
@@ -242,9 +240,9 @@ PERIMORTEM_UNIT_TEST(FunctionTests, completion_occurs_once) {
   repeated.consume();
   repeated.consume();
   repeated.consume();
-  EXPECT_NOT((*reserved).complete(repeated, types));
-  EXPECT(&(*reserved).get_parameters() == &parameters);
-  EXPECT(&(*reserved).get_results() == &results);
-  EXPECT(&(*reserved).resolve() == &*reserved);
+  EXPECT_NOT(reserved->complete(repeated, types));
+  EXPECT(&reserved->get_parameters() == &parameters);
+  EXPECT(&reserved->get_results() == &results);
+  EXPECT(&reserved->resolve() == &*reserved);
   EXPECT_NOT(repeated_errors.is_empty());
 }

@@ -5,7 +5,6 @@
 
 #include "perimortem/core/view/bytes.hpp"
 #include "perimortem/core/view/vector.hpp"
-#include "perimortem/core/static/union.hpp"
 
 #include "perimortem/memory/allocator/arena.hpp"
 #include "perimortem/memory/managed/vector.hpp"
@@ -13,6 +12,7 @@
 #include "perimortem/system/version.hpp"
 
 #include "perimortem/utility/option.hpp"
+#include "perimortem/utility/result.hpp"
 
 #include "tetrodotoxin/package/archive/archive.hpp"
 #include "tetrodotoxin/package/repository/input.hpp"
@@ -42,8 +42,8 @@ class Repository {
   // while Reader retains the format detail that only it can explain.
   auto select_archive(
       Perimortem::Core::View::Bytes identity,
-      Perimortem::System::Version version) -> Perimortem::Core::Static::
-      Union<const Archive::Archive&, SelectionError>;
+      Perimortem::System::Version version)
+      -> Perimortem::Utility::Result<const Archive::Archive&, SelectionError>;
 
   // Semantic selection succeeds without native declarations. This operation
   // adds the complete native inventory check before exposing one borrowed
@@ -51,8 +51,8 @@ class Repository {
   auto select_native(
       Perimortem::Core::View::Bytes identity,
       Perimortem::System::Version version,
-      Perimortem::Core::View::Bytes artifact_id) -> Perimortem::Core::Static::
-      Union<Perimortem::Core::View::Bytes, SelectionError>;
+      Perimortem::Core::View::Bytes artifact_id) -> Perimortem::Utility::
+      Result<Perimortem::Core::View::Bytes, SelectionError>;
 
   // The shared Output value does not erase product kind. Archive lookup stays
   // on its own inventory and cannot fall through to a native declaration.

@@ -82,7 +82,7 @@ auto Language::Materializations::materialize(
   Key key(generic, arguments);
   auto existing = entries.find(key);
   if (existing) {
-    return (*existing).value.get();
+    return existing->value.get();
   }
 
   // Every active frame belongs to the same nested construction transaction.

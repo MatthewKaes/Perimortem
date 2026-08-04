@@ -64,7 +64,7 @@ static auto interpret_library(
       dialect.interpret(arena, cursor, Documentation::get_empty(), context);
   if (!interpreted || !errors.is_empty() ||
       !cursor.matches(Code::Type::Terminal) ||
-      !(*interpreted).is<Library::Language::Monograph>()) {
+      !interpreted->is<Library::Language::Monograph>()) {
     return {};
   }
 
@@ -125,7 +125,7 @@ PERIMORTEM_UNIT_TEST(LibraryImports, exact_statement_grammar) {
     Cursor cursor(tokenizer, errors);
     auto import = Library::Language::Import::parse(cursor);
     ASSERT(import);
-    EXPECT_TEXT((*import).get_route(), routes[i]);
+    EXPECT_TEXT(import->get_route(), routes[i]);
     EXPECT(cursor.matches(Code::Type::Terminal));
     EXPECT(errors.is_empty());
   }
@@ -213,37 +213,34 @@ PERIMORTEM_UNIT_TEST(LibraryImports, exact_identity_and_exclusions) {
       arena, library_dialect, source_package, importer_source);
   ASSERT(importer);
 
-  const Abstract& first_identity = (*first).resolve_context("first"_view);
-  const Abstract& second_identity = (*second).resolve_context("second"_view);
-  const Abstract& public_local =
-      (*importer).resolve_context("local_public"_view);
+  const Abstract& first_identity = first->resolve_context("first"_view);
+  const Abstract& second_identity = second->resolve_context("second"_view);
+  const Abstract& public_local = importer->resolve_context("local_public"_view);
   const Abstract& private_local =
-      (*importer).resolve_context("local_private"_view);
+      importer->resolve_context("local_private"_view);
   ASSERT(&first_identity != &Invalid::get_invalid());
   ASSERT(&second_identity != &Invalid::get_invalid());
   ASSERT(&public_local != &Invalid::get_invalid());
   ASSERT(&private_local != &Invalid::get_invalid());
-  ASSERT_EQ((*importer).get_public_functions().get_size(), 1);
-  EXPECT(&(*importer).get_public_functions()[0].get() == &public_local);
+  ASSERT_EQ(importer->get_public_functions().get_size(), 1);
+  EXPECT(&importer->get_public_functions()[0].get() == &public_local);
 
-  Bool import_completed = (*importer).post_pass();
+  Bool import_completed = importer->post_pass();
   ASSERT(import_completed);
-  EXPECT(&(*importer).resolve_context("first"_view) == &first_identity);
-  EXPECT(&(*importer).resolve_context("second"_view) == &second_identity);
+  EXPECT(&importer->resolve_context("first"_view) == &first_identity);
+  EXPECT(&importer->resolve_context("second"_view) == &second_identity);
+  EXPECT(&importer->resolve_context("hidden"_view) == &Invalid::get_invalid());
   EXPECT(
-      &(*importer).resolve_context("hidden"_view) == &Invalid::get_invalid());
-  EXPECT(
-      &(*importer).resolve_context("dependency_only"_view) ==
+      &importer->resolve_context("dependency_only"_view) ==
       &Invalid::get_invalid());
+  EXPECT(&importer->resolve_context("Nested"_view) == &Invalid::get_invalid());
+  EXPECT(&importer->resolve_context("local_public"_view) == &public_local);
+  EXPECT(&importer->resolve_context("local_private"_view) == &private_local);
   EXPECT(
-      &(*importer).resolve_context("Nested"_view) == &Invalid::get_invalid());
-  EXPECT(&(*importer).resolve_context("local_public"_view) == &public_local);
-  EXPECT(&(*importer).resolve_context("local_private"_view) == &private_local);
-  EXPECT(
-      &(*importer).resolve_context("Bool"_view) ==
+      &importer->resolve_context("Bool"_view) ==
       &library_dialect.resolve_intrinsic("Bool"_view));
-  EXPECT_EQ((*importer).get_public_functions().get_size(), 1);
-  EXPECT(&(*importer).get_public_functions()[0].get() == &public_local);
+  EXPECT_EQ(importer->get_public_functions().get_size(), 1);
+  EXPECT(&importer->get_public_functions()[0].get() == &public_local);
 }
 
 PERIMORTEM_UNIT_TEST(LibraryImports, provider_import_is_not_reexported) {
@@ -270,12 +267,12 @@ PERIMORTEM_UNIT_TEST(LibraryImports, provider_import_is_not_reexported) {
       arena, library_dialect, provider_context,
       "using Upstream;\npublic func direct[] -> Void {}"_view);
   ASSERT(provider);
-  Bool provider_completed = (*provider).post_pass();
+  Bool provider_completed = provider->post_pass();
   ASSERT(provider_completed);
   ASSERT(
-      &(*provider).resolve_context("upstream"_view) ==
-      &(*upstream).resolve_context("upstream"_view));
-  ASSERT_EQ((*provider).get_public_functions().get_size(), 1);
+      &provider->resolve_context("upstream"_view) ==
+      &upstream->resolve_context("upstream"_view));
+  ASSERT_EQ(provider->get_public_functions().get_size(), 1);
 
   // The provider can use its upstream Function locally, but its public view
   // retains only its authored declaration. A downstream Import consumes that
@@ -293,15 +290,15 @@ PERIMORTEM_UNIT_TEST(LibraryImports, provider_import_is_not_reexported) {
   auto importer = interpret_library(
       arena, library_dialect, importer_context, "using Provider;"_view);
   ASSERT(importer);
-  Bool importer_completed = (*importer).post_pass();
+  Bool importer_completed = importer->post_pass();
   ASSERT(importer_completed);
 
   EXPECT(
-      &(*importer).resolve_context("direct"_view) ==
-      &(*provider).resolve_context("direct"_view));
+      &importer->resolve_context("direct"_view) ==
+      &provider->resolve_context("direct"_view));
   EXPECT(
-      &(*importer).resolve_context("upstream"_view) == &Invalid::get_invalid());
-  EXPECT((*importer).get_public_functions().is_empty());
+      &importer->resolve_context("upstream"_view) == &Invalid::get_invalid());
+  EXPECT(importer->get_public_functions().is_empty());
 }
 
 PERIMORTEM_UNIT_TEST(LibraryImports, collisions_are_atomic) {
@@ -334,12 +331,12 @@ PERIMORTEM_UNIT_TEST(LibraryImports, collisions_are_atomic) {
         arena, library_dialect, context,
         "using Core;\npublic func clash[] -> Void {}"_view);
     ASSERT(importer);
-    const Abstract& local = (*importer).resolve_context("clash"_view);
-    Bool completed = (*importer).post_pass();
+    const Abstract& local = importer->resolve_context("clash"_view);
+    Bool completed = importer->post_pass();
     ASSERT_NOT(completed);
     EXPECT(
-        &(*importer).resolve_context("unique"_view) == &Invalid::get_invalid());
-    EXPECT(&(*importer).resolve_context("clash"_view) == &local);
+        &importer->resolve_context("unique"_view) == &Invalid::get_invalid());
+    EXPECT(&importer->resolve_context("clash"_view) == &local);
     EXPECT(
         Test::error_contains(
             "provider_member=Second candidate_function=clash"_view,
@@ -376,13 +373,12 @@ PERIMORTEM_UNIT_TEST(LibraryImports, collisions_are_atomic) {
     auto importer =
         interpret_library(arena, library_dialect, context, "using Core;"_view);
     ASSERT(importer);
-    Bool completed = (*importer).post_pass();
+    Bool completed = importer->post_pass();
     ASSERT_NOT(completed);
     EXPECT(
-        &(*importer).resolve_context("unique"_view) == &Invalid::get_invalid());
+        &importer->resolve_context("unique"_view) == &Invalid::get_invalid());
     EXPECT(
-        &(*importer).resolve_context("repeated"_view) ==
-        &Invalid::get_invalid());
+        &importer->resolve_context("repeated"_view) == &Invalid::get_invalid());
     EXPECT(
         Test::error_contains(
             "provider_member=SecondProvider candidate_function=repeated"_view,
@@ -412,10 +408,9 @@ PERIMORTEM_UNIT_TEST(LibraryImports, collisions_are_atomic) {
     auto importer = interpret_library(
         arena, library_dialect, context, "using Core;\nusing Core;"_view);
     ASSERT(importer);
-    Bool completed = (*importer).post_pass();
+    Bool completed = importer->post_pass();
     ASSERT_NOT(completed);
-    EXPECT(
-        &(*importer).resolve_context("only"_view) == &Invalid::get_invalid());
+    EXPECT(&importer->resolve_context("only"_view) == &Invalid::get_invalid());
     EXPECT(
         Test::error_contains(
             "reason=duplicate Import route import_route=Core"_view,
@@ -432,13 +427,13 @@ PERIMORTEM_UNIT_TEST(LibraryImports, invalid_targets_are_atomic) {
         arena, library_dialect, registry,
         "using Core;\npublic func local[] -> Void {}"_view);
     ASSERT(importer);
-    const Abstract& local = (*importer).resolve_context("local"_view);
+    const Abstract& local = importer->resolve_context("local"_view);
 
     // An Import needs its source Package even when its route could miss in any
     // Abstract. Rejection leaves the local declaration as the only lookup edge.
-    Bool completed = (*importer).post_pass();
+    Bool completed = importer->post_pass();
     ASSERT_NOT(completed);
-    EXPECT(&(*importer).resolve_context("local"_view) == &local);
+    EXPECT(&importer->resolve_context("local"_view) == &local);
     EXPECT(
         Test::error_contains(
             "source context is not a Package Monograph import_route=Core"_view,
@@ -467,10 +462,10 @@ PERIMORTEM_UNIT_TEST(LibraryImports, invalid_targets_are_atomic) {
     auto importer = interpret_library(
         arena, library_dialect, context, "using Core;\nusing Missing;"_view);
     ASSERT(importer);
-    Bool completed = (*importer).post_pass();
+    Bool completed = importer->post_pass();
     ASSERT_NOT(completed);
     EXPECT(
-        &(*importer).resolve_context("staged"_view) == &Invalid::get_invalid());
+        &importer->resolve_context("staged"_view) == &Invalid::get_invalid());
     EXPECT(
         Test::error_contains(
             "import_route=Missing"_view, Diagnostics::Log::Level::Info));
@@ -498,10 +493,10 @@ PERIMORTEM_UNIT_TEST(LibraryImports, invalid_targets_are_atomic) {
     auto importer = interpret_library(
         arena, library_dialect, context, "using Core;\nusing Direct;"_view);
     ASSERT(importer);
-    Bool completed = (*importer).post_pass();
+    Bool completed = importer->post_pass();
     ASSERT_NOT(completed);
     EXPECT(
-        &(*importer).resolve_context("staged"_view) == &Invalid::get_invalid());
+        &importer->resolve_context("staged"_view) == &Invalid::get_invalid());
     EXPECT(
         Test::error_contains(
             "selected_target=Library"_view, Diagnostics::Log::Level::Info));
@@ -543,12 +538,12 @@ PERIMORTEM_UNIT_TEST(LibraryImports, invalid_targets_are_atomic) {
     auto importer =
         interpret_library(arena, library_dialect, context, "using Core;"_view);
     ASSERT(importer);
-    Bool completed = (*importer).post_pass();
+    Bool completed = importer->post_pass();
     ASSERT_NOT(completed);
     EXPECT(
-        &(*importer).resolve_context("staged"_view) == &Invalid::get_invalid());
+        &importer->resolve_context("staged"_view) == &Invalid::get_invalid());
     EXPECT(
-        &(*importer).resolve_context("incomplete"_view) ==
+        &importer->resolve_context("incomplete"_view) ==
         &Invalid::get_invalid());
     EXPECT(
         Test::error_contains(
@@ -678,7 +673,11 @@ PERIMORTEM_UNIT_TEST(LibraryImports, workspace_runs_post_pass_after_staging) {
   auto imported = workspace.import_package(
       errors, package.get_root(), "Root"_view, "package.ttx"_view,
       "Pkg.Root"_view, Version(1, 0), *repository);
-  auto root_result = imported.find<Language::Dialect::Monograph&>();
+  auto root_result = imported.visit(
+      [](Language::Dialect::Monograph& root) { return &root; },
+      [](Package::Repository::SelectionError) {
+        return static_cast<Language::Dialect::Monograph*>(nullptr);
+      });
   ASSERT(root_result);
   ASSERT(root_result->is<Package::Language::Monograph>());
   const auto& root =

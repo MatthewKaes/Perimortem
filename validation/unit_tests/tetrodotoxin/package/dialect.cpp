@@ -139,9 +139,9 @@ PERIMORTEM_UNIT_TEST(PackageDialect, dependency_statement) {
   auto parsed = Package::Language::Dependency::parse(cursor, span);
 
   ASSERT(parsed);
-  EXPECT_TEXT((*parsed).get_local_name(), "Runtime::Math"_view);
-  EXPECT_TEXT((*parsed).get_package_name(), "Perimortem.Graphics.Math"_view);
-  EXPECT((*parsed).get_version() == Version(12, 34));
+  EXPECT_TEXT(parsed->get_local_name(), "Runtime::Math"_view);
+  EXPECT_TEXT(parsed->get_package_name(), "Perimortem.Graphics.Math"_view);
+  EXPECT(parsed->get_version() == Version(12, 34));
   EXPECT(span.get_start().get_code() == Code::Type::Resolve);
   EXPECT_EQ(span.get_start().get_offset(), Unsigned_16(0));
   EXPECT_TEXT(span.get_start().caculate_text(source), "resolve"_view);
@@ -183,8 +183,8 @@ PERIMORTEM_UNIT_TEST(PackageDialect, source_statement) {
   auto parsed = Package::Language::Source::parse(arena, cursor, span);
 
   ASSERT(parsed);
-  EXPECT_TEXT((*parsed).get_local_name(), "Scenes::Splash"_view);
-  EXPECT_TEXT((*parsed).get_source_path(), "scenes/splash.ttx"_view);
+  EXPECT_TEXT(parsed->get_local_name(), "Scenes::Splash"_view);
+  EXPECT_TEXT(parsed->get_source_path(), "scenes/splash.ttx"_view);
   EXPECT(span.get_start().get_code() == Code::Type::Source);
   EXPECT(span.get_end().get_code() == Code::Type::EndStatement);
   EXPECT_TEXT(

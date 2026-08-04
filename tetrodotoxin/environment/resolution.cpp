@@ -51,11 +51,11 @@ enum class CacheMiss : Unsigned_8 {
   VersionConflict,
 };
 
-using CacheSelection = Static::Union<Package::Language::Monograph&, CacheMiss>;
-using TransactionResult = Static::
-    Union<Package::Language::Monograph&, Package::Repository::SelectionError>;
-using ResolutionResult = Static::
-    Union<Language::Dialect::Monograph&, Package::Repository::SelectionError>;
+using CacheSelection = Result<Package::Language::Monograph&, CacheMiss>;
+using TransactionResult =
+    Result<Package::Language::Monograph&, Package::Repository::SelectionError>;
+using ResolutionResult =
+    Result<Language::Dialect::Monograph&, Package::Repository::SelectionError>;
 
 struct PackageKey {
   View::Bytes identity;
@@ -272,7 +272,6 @@ class ResolutionState {
         dependency.get_package_name(), dependency.get_version());
     Bool incomplete_cache_entry = False;
     Option<Bool> cache_result = cached.visit(
-        []() -> Option<Bool> { return False; },
         [&](Package::Language::Monograph& retained) -> Option<Bool> {
           Bool bound = owner.bind_dependency(dependency, retained);
           if (!bound) {
@@ -336,17 +335,11 @@ class ResolutionState {
       return False;
     }
 
-    // Repository owns selection detail and its typed result. Visiting the union
+    // Repository owns selection detail and its typed result. Visiting Result
     // preserves that category without parsing supplemental owner log text.
     auto selected = repository.select_archive(
         dependency.get_package_name(), dependency.get_version());
     return selected.visit(
-        [&]() {
-          publish_dependency_failure(
-              origin, report_published,
-              "the Repository returned no typed selection"_view);
-          return False;
-        },
         [&](const Package::Archive::Archive& archive) {
           return restore_archive(
               owner, dependency, origin, report_published, archive);
@@ -423,7 +416,7 @@ class ResolutionState {
       // Payload stays borrowed for this call. The concrete Dialect receives
       // the destination domain and owns every byte retained from its payload.
       Option<Language::Dialect::Monograph&> restored_member =
-          (*member_dialect).restore(domain, members[i].get_payload());
+          member_dialect->restore(domain, members[i].get_payload());
       if (!restored_member) {
         publish_dependency_failure(
             origin, report_published,
@@ -551,9 +544,6 @@ auto Environment::Resolution::resolve(
   Bool completed = retention.complete(errors);
 
   return restoration.visit(
-      []() -> ResolutionResult {
-        return Package::Repository::SelectionError::Unknown;
-      },
       [&](Package::Language::Monograph& restored) -> ResolutionResult {
         if (!completed) {
           return Package::Repository::SelectionError::Unknown;

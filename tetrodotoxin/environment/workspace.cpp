@@ -165,8 +165,10 @@ auto Environment::Workspace::import_package(
     View::Bytes root_logical_route,
     View::Bytes root_package_identity,
     Version root_package_version,
-    Package::Repository::Repository& repository) -> Static::
-    Union<Language::Dialect::Monograph&, Package::Repository::SelectionError> {
+    Package::Repository::Repository& repository)
+    -> Result<
+        Language::Dialect::Monograph&,
+        Package::Repository::SelectionError> {
   auto storage = Package::Storage::open(arena, package_root);
   if (!storage) {
     Diagnostics::Log::Message<512> message(Diagnostics::Log::Level::Info);
@@ -178,7 +180,7 @@ auto Environment::Workspace::import_package(
             << " root_package_identity="_view << root_package_identity
             << " root_package_version="_view << root_package_version.get_major()
             << '.' << root_package_version.get_minor();
-    return {};
+    return Package::Repository::SelectionError::Unknown;
   }
 
   // Root caller values cross into Workspace lifetime once. Repository may use
@@ -312,7 +314,7 @@ auto Environment::Workspace::import_package(
   if (failed || !root_monograph ||
       !root_monograph->is<Package::Language::Monograph>()) {
     retention.complete(errors);
-    return {};
+    return Package::Repository::SelectionError::Unknown;
   }
 
   // Resolution receives only a complete staged discovery range. Earlier source

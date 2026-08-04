@@ -49,7 +49,7 @@ static auto import_library(
     View::Bytes source) -> Option<Language::Monograph&> {
   auto imported =
       workspace.import_source(errors, semantic_name, semantic_name, source);
-  if (!imported || !(*imported).is<Language::Monograph>()) {
+  if (!imported || !imported->is<Language::Monograph>()) {
     return {};
   }
 
@@ -99,18 +99,18 @@ PERIMORTEM_UNIT_TEST(DialectTests, declaration_graph) {
   auto second = import_library(workspace, errors, "Second"_view, second_source);
   ASSERT(first && second);
   EXPECT(errors.is_empty());
-  EXPECT_TEXT((*first).get_name(), "Library"_view);
+  EXPECT_TEXT(first->get_name(), "Library"_view);
   EXPECT_TEXT(
-      (*first).get_documentation().get_line(0), "First Library source."_view);
+      first->get_documentation().get_line(0), "First Library source."_view);
 
   // Local lookup and public publication borrow the same completed Functions.
   // Reversing declarations changes only each Monograph's authored public order.
-  const Abstract& first_alpha = (*first).resolve_context("alpha"_view);
-  const Abstract& first_hidden = (*first).resolve_context("hidden"_view);
-  const Abstract& first_beta = (*first).resolve_context("beta"_view);
-  const Abstract& second_alpha = (*second).resolve_context("alpha"_view);
-  const Abstract& second_hidden = (*second).resolve_context("hidden"_view);
-  const Abstract& second_beta = (*second).resolve_context("beta"_view);
+  const Abstract& first_alpha = first->resolve_context("alpha"_view);
+  const Abstract& first_hidden = first->resolve_context("hidden"_view);
+  const Abstract& first_beta = first->resolve_context("beta"_view);
+  const Abstract& second_alpha = second->resolve_context("alpha"_view);
+  const Abstract& second_hidden = second->resolve_context("hidden"_view);
+  const Abstract& second_beta = second->resolve_context("beta"_view);
   ASSERT(
       first_alpha.is<Language::Function>() &&
       first_hidden.is<Language::Function>() &&
@@ -119,8 +119,8 @@ PERIMORTEM_UNIT_TEST(DialectTests, declaration_graph) {
       second_hidden.is<Language::Function>() &&
       second_beta.is<Language::Function>());
 
-  auto first_public = (*first).get_public_functions();
-  auto second_public = (*second).get_public_functions();
+  auto first_public = first->get_public_functions();
+  auto second_public = second->get_public_functions();
   ASSERT_EQ(first_public.get_size(), Count(2));
   ASSERT_EQ(second_public.get_size(), Count(2));
   EXPECT(&first_public[0].get() == &first_alpha);
@@ -147,18 +147,18 @@ PERIMORTEM_UNIT_TEST(DialectTests, declaration_graph) {
   // still owns separate Function identities and its own public order.
   for (Count i = 0; i < intrinsic_names.get_size(); i++) {
     const Abstract& first_intrinsic =
-        (*first).resolve_context(intrinsic_names[i]);
+        first->resolve_context(intrinsic_names[i]);
     const Abstract& second_intrinsic =
-        (*second).resolve_context(intrinsic_names[i]);
+        second->resolve_context(intrinsic_names[i]);
     EXPECT(&first_intrinsic != &Invalid::get_invalid());
     EXPECT(&first_intrinsic == &second_intrinsic);
     EXPECT(first_intrinsic.is<Type>());
     EXPECT_TEXT(first_intrinsic.get_name(), intrinsic_names[i]);
   }
 
-  const Abstract& boolean = (*first).resolve_context("Bool"_view);
-  const Abstract& unsigned_16 = (*first).resolve_context("Unsigned_16"_view);
-  const Abstract& void_type = (*first).resolve_context("Void"_view);
+  const Abstract& boolean = first->resolve_context("Bool"_view);
+  const Abstract& unsigned_16 = first->resolve_context("Unsigned_16"_view);
+  const Abstract& void_type = first->resolve_context("Void"_view);
   ASSERT(void_type.is<Type>());
   EXPECT_NOT(void_type.is<Types::Value>());
   EXPECT(static_cast<const Type&>(void_type).get_layout().is_empty());
@@ -211,7 +211,7 @@ PERIMORTEM_UNIT_TEST(DialectTests, declaration_graph) {
     "Package"_view,
   }};
   for (Count i = 0; i < absent.get_size(); i++) {
-    EXPECT(&(*first).resolve_context(absent[i]) == &Invalid::get_invalid());
+    EXPECT(&first->resolve_context(absent[i]) == &Invalid::get_invalid());
   }
 }
 
@@ -237,8 +237,8 @@ PERIMORTEM_UNIT_TEST(DialectTests, workspace_intrinsic_sharing) {
   // Types retain one binary wide identity across every semantic island.
   for (Count i = 0; i < intrinsic_names.get_size(); i++) {
     EXPECT(
-        &(*first).resolve_context(intrinsic_names[i]) ==
-        &(*second).resolve_context(intrinsic_names[i]));
+        &first->resolve_context(intrinsic_names[i]) ==
+        &second->resolve_context(intrinsic_names[i]));
   }
   EXPECT(first_errors.is_empty());
   EXPECT(second_errors.is_empty());
@@ -264,7 +264,7 @@ PERIMORTEM_UNIT_TEST(DialectTests, duplicate_preserves_first) {
   // Direct binding isolates the mutation contract from Workspace transaction
   // discard. The rejected identity must not disturb either retained view.
   ASSERT(monograph.bind_function(*first));
-  ASSERT((*first).complete(first_cursor, monograph));
+  ASSERT(first->complete(first_cursor, monograph));
   const Abstract* first_identity = &*first;
   const Count public_size = monograph.get_public_functions().get_size();
 
@@ -278,7 +278,7 @@ PERIMORTEM_UNIT_TEST(DialectTests, duplicate_preserves_first) {
   EXPECT(&monograph.resolve_context("repeated"_view) == first_identity);
   EXPECT_EQ(monograph.get_public_functions().get_size(), public_size);
   EXPECT(&monograph.get_public_functions()[0].get() == first_identity);
-  EXPECT_NOT((*duplicate).is_complete());
+  EXPECT_NOT(duplicate->is_complete());
 
   // Workspace rejection proves that the partially constructed transaction is
   // never published even though its Arena allocation remains safe to discard.

@@ -293,32 +293,27 @@ PERIMORTEM_UNIT_TEST(LibraryMaterializations, concrete_formulas) {
   ASSERT(access_type);
   ASSERT(view_type);
   ASSERT(fixed_type);
-  EXPECT((*access_type).is<Types::Access>());
-  EXPECT((*view_type).is<Types::View>());
-  EXPECT((*fixed_type).is<Types::Fixed>());
-  EXPECT((*access_type)
-             .visit<Types::Access>(
-                 [&element](const Types::Access& selected) {
-                   return &selected.get_element_type() == &element ? True
-                                                                   : False;
-                 },
-                 [](const Abstract&) { return False; }));
-  EXPECT((*view_type)
-             .visit<Types::View>(
-                 [&element](const Types::View& selected) {
-                   return &selected.get_element_type() == &element ? True
-                                                                   : False;
-                 },
-                 [](const Abstract&) { return False; }));
-  EXPECT((*fixed_type)
-             .visit<Types::Fixed>(
-                 [&element](const Types::Fixed& selected) {
-                   return &selected.get_element_type() == &element &&
-                                  selected.get_extent() == ::Signed_64(4)
-                              ? True
-                              : False;
-                 },
-                 [](const Abstract&) { return False; }));
+  EXPECT(access_type->is<Types::Access>());
+  EXPECT(view_type->is<Types::View>());
+  EXPECT(fixed_type->is<Types::Fixed>());
+  EXPECT(access_type->visit<Types::Access>(
+      [&element](const Types::Access& selected) {
+        return &selected.get_element_type() == &element ? True : False;
+      },
+      [](const Abstract&) { return False; }));
+  EXPECT(view_type->visit<Types::View>(
+      [&element](const Types::View& selected) {
+        return &selected.get_element_type() == &element ? True : False;
+      },
+      [](const Abstract&) { return False; }));
+  EXPECT(fixed_type->visit<Types::Fixed>(
+      [&element](const Types::Fixed& selected) {
+        return &selected.get_element_type() == &element &&
+                       selected.get_extent() == ::Signed_64(4)
+                   ? True
+                   : False;
+      },
+      [](const Abstract&) { return False; }));
   EXPECT_EQ(materializations.get_size(), Count(3));
 }
 

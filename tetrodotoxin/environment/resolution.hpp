@@ -4,12 +4,13 @@
 #pragma once
 
 #include "perimortem/core/view/bytes.hpp"
-#include "perimortem/core/static/union.hpp"
 
 #include "perimortem/memory/allocator/arena.hpp"
 #include "perimortem/memory/managed/vector.hpp"
 
 #include "perimortem/system/version.hpp"
+
+#include "perimortem/utility/result.hpp"
 
 #include "tetrodotoxin/environment/dialects.hpp"
 #include "tetrodotoxin/environment/retention.hpp"
@@ -29,16 +30,18 @@ class Resolution {
       Retention& retention);
 
   // Resolves one fully staged Package import. Every return selects either the
-  // completed root or a failure category, so callers never infer transaction
-  // state from an empty Union.
+  // completed root or a failure category, so the public transaction has no
+  // untyped empty state.
   auto resolve(
       Ttx::Lexical::Errors& errors,
       Count first_monograph,
       Perimortem::Core::View::Bytes root_package_identity,
       Perimortem::System::Version root_package_version,
       Package::Language::Monograph& root_package,
-      Package::Repository::Repository& repository) -> Perimortem::Core::Static::
-      Union<Language::Dialect::Monograph&, Package::Repository::SelectionError>;
+      Package::Repository::Repository& repository)
+      -> Perimortem::Utility::Result<
+          Language::Dialect::Monograph&,
+          Package::Repository::SelectionError>;
 
  private:
   struct RestoredPackage {

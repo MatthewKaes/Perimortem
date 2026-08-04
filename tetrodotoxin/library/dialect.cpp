@@ -106,7 +106,7 @@ auto Library::Dialect::interpret(
       return {};
     }
 
-    if (!(*function).complete(cursor, monograph)) {
+    if (!function->complete(cursor, monograph)) {
       return {};
     }
   }

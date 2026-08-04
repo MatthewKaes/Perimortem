@@ -59,9 +59,9 @@ PERIMORTEM_UNIT_TEST(LibraryView, formula_construction) {
 
   auto created = formula.create(accepted, arena);
   ASSERT(created);
-  EXPECT((*created).is<Types::View>());
-  EXPECT_TEXT((*created).get_name(), "View[Unsigned_8]"_view);
-  EXPECT((*created).visit<Types::View>(
+  EXPECT(created->is<Types::View>());
+  EXPECT_TEXT(created->get_name(), "View[Unsigned_8]"_view);
+  EXPECT(created->visit<Types::View>(
       [&element](const Types::View& selected) {
         return &selected.get_element_type() == &element ? True : False;
       },

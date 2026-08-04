@@ -184,13 +184,14 @@ logical routes. Package Storage content enters the same semantic import
 transaction directly because Storage and its views already belong to that
 Arena. Direct import returns the published Monograph Option. Package import
 additionally receives the explicit root identity, Version, and Repository.
-Source staging failure completes the retained prefix and returns no result
-before Resolution begins. Resolution returns either the root Monograph or a
-populated Repository `SelectionError`. It preserves an exact selection category
-and uses `Unknown` when another diagnosed resolution or post pass failure has
-no Repository category. Package local members are not published in the
-Workspace source map. Exact Archive dependencies restore into the Workspace
-Arena before every retained Monograph runs post pass once in discovery order.
+Source staging failure completes the retained prefix and returns
+`SelectionError::Unknown` before Resolution begins. The Workspace Result
+therefore selects either the root Monograph or one failure category. Resolution
+preserves an exact Repository category and uses `Unknown` when another
+diagnosed staging, restoration, or post pass failure has no Repository
+category. Package local members are not published in the Workspace source map.
+Exact Archive dependencies restore into the Workspace Arena before every
+retained Monograph runs post pass once in discovery order.
 
 Textual errors require authored text. `Ttx::Lexical::Errors::Report` receives
 an explicit source name, source body, and `Ttx::Lexical::Span` from the owner
@@ -506,13 +507,16 @@ ranges in the caller Arena and emits one deterministic canonical encoding. The
 input bytes remain borrowed for that Arena lifetime, so an Arena backed file
 read reaches Archive without another copy. Archive itself remains a regular
 value over stable views. Reader logs exact framing and relationship failures
-without constructing a textual error for binary input. Repository caches only
-successfully decoded Archives, exposes native filesystem paths without reading
-them, and normalizes declared-only publication routes without materializing
-output. Its logs preserve both declarations for duplicate keys and route
-collisions. Package does not coordinate restoration. Environment Resolution
-reconstructs each Package root from the Archive envelope and calls the
-installed concrete Dialect for every opaque member payload.
+without constructing a textual error for binary input and returns exactly
+`Utility::Result<Archive, ReadError>`. Repository archive and native selection
+also return Result with their existing `SelectionError`, so propagation has no
+untyped null state. Repository caches only successfully decoded Archives,
+exposes native filesystem paths without reading them, and normalizes declared
+only publication routes without materializing output. Its logs preserve both
+declarations for duplicate keys and route collisions. Package does not
+coordinate restoration. Environment Resolution reconstructs each Package root
+from the Archive envelope and calls the installed concrete Dialect for every
+opaque member payload.
 
 ## Current evidence boundary
 

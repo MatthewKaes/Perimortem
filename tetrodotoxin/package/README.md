@@ -241,14 +241,14 @@ copies it into the Arena once before reading, while an Arena backed file read
 passes its existing view directly. Reader logs the exact failing Format stage,
 byte offset, section tag, invalid value, duplicate name, or unknown reference
 through `Diagnostics::Log` and returns
-`Static::Union<Archive, Archive::ReadError>`. Every result selects one
-alternative. `Archive::ReadError::UnsupportedFormat` identifies a readable
-envelope header with a format revision other than 1. Empty input and every
-other malformed or semantically invalid Format 1 input select
-`Archive::ReadError::InvalidFormat`. The error contains no offset, tag, value,
-or inventory detail because those facts remain in the Debug record. Reader
-does not construct a textual source error because binary Archive bytes provide
-no authored token context. A later
+`Utility::Result<Archive, Archive::ReadError>`. Result exposes exactly the
+Archive or its typed rejection. `Archive::ReadError::UnsupportedFormat`
+identifies a readable envelope header with a format revision other than 1.
+Empty input and every other malformed or semantically invalid Format 1 input
+select `Archive::ReadError::InvalidFormat`. The error contains no offset, tag,
+value, or inventory detail because those facts remain in the Debug record.
+Reader does not construct a textual source error because binary Archive bytes
+provide no authored token context. A later
 Workspace restoration transaction will attach that failure to the authored
 Dependency request before selecting the installed Dialect and calling its
 `restore` operation.
@@ -343,20 +343,19 @@ Duplicate exact input keys reject construction.
 Exact Archive selection reads only the matching declaration into the caller
 Arena and passes those stable bytes to `Archive::Reader`. Repository verifies
 the decoded identity and Version before caching the successful Archive. It
-returns the retained Archive or `SelectionError`, distinguishing undeclared,
-unreadable, invalid format, unsupported format, and Package key mismatch
-outcomes plus an unknown Reader fallback without using the Union null state. A
-valid semantic Archive requires no native declaration and remains cached after
-a later native failure. `SelectionError` uses `Unsigned_8` storage, reserves
-the all ones value for `Unknown`, and starts ordinary recovery categories at
-zero.
+returns `Utility::Result<const Archive&, SelectionError>`, distinguishing
+undeclared, unreadable, invalid format, unsupported format, and Package key
+mismatch outcomes plus an unknown Reader fallback. A valid semantic Archive
+requires no native declaration and remains cached after a later native failure.
+`SelectionError` uses `Unsigned_8` storage, reserves the all ones value for
+`Unknown`, and starts ordinary recovery categories at zero.
 
 Native selection first consumes that typed semantic result, then requires
 exactly one declared native path for every ordered Archive artifact ID. Missing,
 duplicate, or unknown mappings select `ArtifactMismatch`; an undeclared
 requested artifact in an otherwise complete inventory selects
-`ArtifactNotDeclared`. Native selection returns only the borrowed exact path and
-never reads native bytes.
+`ArtifactNotDeclared`. Native selection returns
+`Utility::Result<View::Bytes, SelectionError>` and never reads native bytes.
 
 Reader retains exact format and semantic detail in Debug evidence. Repository
 emits one Info record for each selected error with the requested key, selected

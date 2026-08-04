@@ -340,16 +340,16 @@ PERIMORTEM_UNIT_TEST(PackageStorage, source_and_resources) {
   auto storage = Package::Storage::open(arena, root);
   ASSERT(storage);
 
-  auto source_read = (*storage).read("./shared_a.ttx"_view);
-  auto first_resource_read = (*storage).read(caller_route);
+  auto source_read = storage->read("./shared_a.ttx"_view);
+  auto first_resource_read = storage->read(caller_route);
   Package::Content* source = select_content(source_read);
   Package::Content* first_resource = select_content(first_resource_read);
   ASSERT(source != nullptr);
   ASSERT(first_resource != nullptr);
 
   caller_route.set('x');
-  auto second_resource_read = (*storage).read("resources/./table.bin"_view);
-  auto empty_read = (*storage).read("resources/empty.bin"_view);
+  auto second_resource_read = storage->read("resources/./table.bin"_view);
+  auto empty_read = storage->read("resources/empty.bin"_view);
   Package::Content* second_resource = select_content(second_resource_read);
   Package::Content* empty = select_content(empty_read);
   ASSERT(second_resource != nullptr);
@@ -393,31 +393,31 @@ PERIMORTEM_UNIT_TEST(PackageStorage, content_stability) {
   auto storage = Package::Storage::open(arena, temporary.get_root());
   ASSERT(storage);
 
-  auto original_read = (*storage).read("stable.bin"_view);
+  auto original_read = storage->read("stable.bin"_view);
   Package::Content* original = select_content(original_read);
   ASSERT(original != nullptr);
   const Unsigned_8* original_identity = original->get_contents().get_data();
 
   ASSERT(temporary.write("stable.bin"_view, "mutated"_view));
-  auto mutation_read = (*storage).read("./stable.bin"_view);
+  auto mutation_read = storage->read("./stable.bin"_view);
   Package::Content* after_mutation = select_content(mutation_read);
   ASSERT(after_mutation != nullptr);
-  EXPECT_TEXT(after_mutation->get_contents(), (*frozen).get_view());
+  EXPECT_TEXT(after_mutation->get_contents(), frozen->get_view());
   EXPECT(after_mutation->get_contents().get_data() == original_identity);
 
   ASSERT(temporary.write("replacement.bin"_view, "replacement"_view));
   ASSERT(temporary.replace("replacement.bin"_view, "stable.bin"_view));
-  auto replacement_read = (*storage).read("stable.bin"_view);
+  auto replacement_read = storage->read("stable.bin"_view);
   Package::Content* after_replacement = select_content(replacement_read);
   ASSERT(after_replacement != nullptr);
-  EXPECT_TEXT(after_replacement->get_contents(), (*frozen).get_view());
+  EXPECT_TEXT(after_replacement->get_contents(), frozen->get_view());
   EXPECT(after_replacement->get_contents().get_data() == original_identity);
 
   ASSERT(temporary.remove("stable.bin"_view));
-  auto removal_read = (*storage).read("stable.bin"_view);
+  auto removal_read = storage->read("stable.bin"_view);
   Package::Content* after_removal = select_content(removal_read);
   ASSERT(after_removal != nullptr);
-  EXPECT_TEXT(after_removal->get_contents(), (*frozen).get_view());
+  EXPECT_TEXT(after_removal->get_contents(), frozen->get_view());
   EXPECT(after_removal->get_contents().get_data() == original_identity);
 }
 
@@ -433,7 +433,7 @@ PERIMORTEM_UNIT_TEST(PackageStorage, retry_after_failure) {
       Package::Storage::Failure::Error::Unreadable, "later.bin"_view));
 
   ASSERT(temporary.write("later.bin"_view, "available"_view));
-  auto available_read = (*storage).read("cache/../later.bin"_view);
+  auto available_read = storage->read("cache/../later.bin"_view);
   Package::Content* available = select_content(available_read);
   ASSERT(available != nullptr);
   EXPECT_TEXT(available->get_diagnostic_path(), "later.bin"_view);
@@ -449,7 +449,7 @@ PERIMORTEM_UNIT_TEST(PackageStorage, cache_growth_and_move) {
   auto opened = Package::Storage::open(arena, temporary.get_root());
   ASSERT(opened);
 
-  auto stable_read = (*opened).read("stable.bin"_view);
+  auto stable_read = opened->read("stable.bin"_view);
   Package::Content* stable_content = select_content(stable_read);
   ASSERT(stable_content != nullptr);
   View::Bytes stable_path = stable_content->get_diagnostic_path();
@@ -464,7 +464,7 @@ PERIMORTEM_UNIT_TEST(PackageStorage, cache_growth_and_move) {
 
     View::Bytes route = member.slice(0, Count(written));
     ASSERT(temporary.write(route, route));
-    auto cache_read = (*opened).read(route);
+    auto cache_read = opened->read(route);
     Package::Content* cached = select_content(cache_read);
     ASSERT(cached != nullptr);
     EXPECT_TEXT(cached->get_diagnostic_path(), route);
@@ -495,7 +495,7 @@ PERIMORTEM_UNIT_TEST(PackageStorage, opened_root_identity) {
   ASSERT(temporary.create_replacement_root());
   ASSERT(temporary.write("identity.bin"_view, "replacement root"_view));
 
-  auto identity_read = (*storage).read("identity.bin"_view);
+  auto identity_read = storage->read("identity.bin"_view);
   Package::Content* identity = select_content(identity_read);
   ASSERT(identity != nullptr);
   EXPECT_TEXT(identity->get_contents(), "original root"_view);
@@ -517,7 +517,7 @@ PERIMORTEM_UNIT_TEST(PackageStorage, route_rejections) {
   ASSERT(storage);
 
   Dynamic::Bytes caller_failure_route("cache/../missing.bin"_view);
-  auto owned_failure_read = (*storage).read(caller_failure_route);
+  auto owned_failure_read = storage->read(caller_failure_route);
   caller_failure_route.set('x');
   auto owned_failure = select_failure(owned_failure_read);
   ASSERT(owned_failure);
@@ -567,7 +567,7 @@ PERIMORTEM_UNIT_TEST(PackageStorage, route_rejections) {
       *storage, nul_route, Package::Storage::Failure::Error::InvalidRoute,
       View::Bytes()));
 
-  auto source_read = (*storage).read("sources/main.ttx"_view);
+  auto source_read = storage->read("sources/main.ttx"_view);
   Package::Content* source = select_content(source_read);
   ASSERT(source != nullptr);
   EXPECT(rejects_read(
@@ -576,7 +576,7 @@ PERIMORTEM_UNIT_TEST(PackageStorage, route_rejections) {
 
   WorkingDirectory outside(temporary.get_outside_root());
   ASSERT(outside);
-  auto cwd_fallback = (*storage).read("cwd_only.bin"_view);
+  auto cwd_fallback = storage->read("cwd_only.bin"_view);
   Bool restored = outside.restore();
   auto cwd_failure = select_failure(cwd_fallback);
   ASSERT(cwd_failure);
@@ -601,8 +601,8 @@ PERIMORTEM_UNIT_TEST(PackageStorage, hard_link_routes) {
   auto storage = Package::Storage::open(arena, temporary.get_root());
   ASSERT(storage);
 
-  auto first_read = (*storage).read("hard_a.bin"_view);
-  auto second_read = (*storage).read("hard_b.bin"_view);
+  auto first_read = storage->read("hard_a.bin"_view);
+  auto second_read = storage->read("hard_b.bin"_view);
   Package::Content* first = select_content(first_read);
   Package::Content* second = select_content(second_read);
   ASSERT(first != nullptr);
@@ -614,7 +614,7 @@ PERIMORTEM_UNIT_TEST(PackageStorage, hard_link_routes) {
       first->get_diagnostic_path().get_data() !=
       second->get_diagnostic_path().get_data());
 
-  auto repeated_read = (*storage).read("./hard_a.bin"_view);
+  auto repeated_read = storage->read("./hard_a.bin"_view);
   Package::Content* repeated = select_content(repeated_read);
   ASSERT(repeated != nullptr);
   EXPECT(first != second);

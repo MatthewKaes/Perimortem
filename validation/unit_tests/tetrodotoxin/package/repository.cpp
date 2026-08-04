@@ -21,6 +21,7 @@
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
 using namespace Perimortem::System;
+using namespace Perimortem::Utility;
 using namespace Tetrodotoxin;
 using namespace Validation;
 
@@ -30,6 +31,39 @@ static_assert(
 static_assert(
     static_cast<Unsigned_8>(Package::Repository::SelectionError::NotDeclared) ==
     Unsigned_8(0));
+
+template <typename value_type>
+static auto returns_selection_error(
+    const Result<value_type, Package::Repository::SelectionError>& result,
+    Package::Repository::SelectionError expected) -> Bool {
+  return result.visit(
+      [](const auto&) { return False; },
+      [&](Package::Repository::SelectionError error) {
+        return error == expected ? True : False;
+      });
+}
+
+static auto selected_archive(
+    const Result<
+        const Package::Archive::Archive&,
+        Package::Repository::SelectionError>& result)
+    -> const Package::Archive::Archive* {
+  return result.visit(
+      [](const Package::Archive::Archive& archive) { return &archive; },
+      [](Package::Repository::SelectionError) {
+        return static_cast<const Package::Archive::Archive*>(nullptr);
+      });
+}
+
+static auto selected_native(
+    const Result<View::Bytes, Package::Repository::SelectionError>& result)
+    -> const View::Bytes* {
+  return result.visit(
+      [](const View::Bytes& path) { return &path; },
+      [](Package::Repository::SelectionError) {
+        return static_cast<const View::Bytes*>(nullptr);
+      });
+}
 
 // This manually encoded Format 1 value is independent of Archive Writer. The
 // Repository tests write only this literal or direct byte mutations of it, so
@@ -239,11 +273,10 @@ static auto rejects_selected_input(
   selection_log_count = 0;
   Diagnostics::Log::set_sink(capture_selection_logs);
 
-  auto selected = (*repository).select_archive(identity, version);
+  auto selected = repository->select_archive(identity, version);
 
   Diagnostics::Log::set_sink(Test::capture_sink);
-  auto error = selected.find<Package::Repository::SelectionError>();
-  return !selected.is_null() && error != nullptr && *error == expected_error &&
+  return returns_selection_error(selected, expected_error) &&
          selection_info_seen && selection_debug_seen;
 }
 
@@ -263,10 +296,9 @@ static auto rejects_mapping(
   }
 
   auto selected =
-      (*repository).select_native("Pkg.Core"_view, Version(1, 2), "cpu"_view);
-  auto error = selected.find<Package::Repository::SelectionError>();
-  return !selected.is_null() && error != nullptr &&
-         *error == Package::Repository::SelectionError::ArtifactMismatch &&
+      repository->select_native("Pkg.Core"_view, Version(1, 2), "cpu"_view);
+  return returns_selection_error(
+             selected, Package::Repository::SelectionError::ArtifactMismatch) &&
          Test::error_contains(
              "selection_error=ArtifactMismatch "
              "requested_identity=Pkg.Core requested_version=1.2 "
@@ -361,18 +393,14 @@ PERIMORTEM_UNIT_TEST(PackageRepository, exact_lazy_selection) {
   // Several exact keys share one transaction while malformed unselected
   // declarations remain inert. Successful results must select Archive rather
   // than merely avoiding an error alternative.
-  auto core_12 = (*repository).select_archive("Pkg.Core"_view, Version(1, 2));
+  auto core_12 = repository->select_archive("Pkg.Core"_view, Version(1, 2));
   auto core_20_selected =
-      (*repository).select_archive("Pkg.Core"_view, Version(2, 0));
+      repository->select_archive("Pkg.Core"_view, Version(2, 0));
   auto other_selected =
-      (*repository).select_archive("Pkg.More"_view, Version(1, 0));
-  ASSERT_NOT(core_12.is_null());
-  ASSERT_NOT(core_20_selected.is_null());
-  ASSERT_NOT(other_selected.is_null());
-  auto core_12_archive = core_12.find<const Package::Archive::Archive&>();
-  auto core_20_archive =
-      core_20_selected.find<const Package::Archive::Archive&>();
-  auto other_archive = other_selected.find<const Package::Archive::Archive&>();
+      repository->select_archive("Pkg.More"_view, Version(1, 0));
+  auto core_12_archive = selected_archive(core_12);
+  auto core_20_archive = selected_archive(core_20_selected);
+  auto other_archive = selected_archive(other_selected);
   ASSERT(core_12_archive);
   ASSERT(core_20_archive);
   ASSERT(other_archive);
@@ -383,14 +411,9 @@ PERIMORTEM_UNIT_TEST(PackageRepository, exact_lazy_selection) {
   // Identity and Version are one exact key. Each kind of absent match chooses
   // the same stable category but records the complete request that missed.
   auto missing_identity =
-      (*repository).select_archive("Pkg.None"_view, Version(1, 2));
-  ASSERT_NOT(missing_identity.is_null());
-  auto missing_identity_error =
-      missing_identity.find<Package::Repository::SelectionError>();
-  ASSERT(missing_identity_error);
-  EXPECT(
-      *missing_identity_error ==
-      Package::Repository::SelectionError::NotDeclared);
+      repository->select_archive("Pkg.None"_view, Version(1, 2));
+  EXPECT(returns_selection_error(
+      missing_identity, Package::Repository::SelectionError::NotDeclared));
   EXPECT(
       Test::error_contains(
           "selection_error=NotDeclared requested_identity=Pkg.None "
@@ -399,14 +422,9 @@ PERIMORTEM_UNIT_TEST(PackageRepository, exact_lazy_selection) {
           Diagnostics::Log::Level::Info));
 
   auto missing_version =
-      (*repository).select_archive("Pkg.Core"_view, Version(9, 9));
-  ASSERT_NOT(missing_version.is_null());
-  auto missing_version_error =
-      missing_version.find<Package::Repository::SelectionError>();
-  ASSERT(missing_version_error);
-  EXPECT(
-      *missing_version_error ==
-      Package::Repository::SelectionError::NotDeclared);
+      repository->select_archive("Pkg.Core"_view, Version(9, 9));
+  EXPECT(returns_selection_error(
+      missing_version, Package::Repository::SelectionError::NotDeclared));
   EXPECT(
       Test::error_contains(
           "selection_error=NotDeclared requested_identity=Pkg.Core "
@@ -427,14 +445,11 @@ PERIMORTEM_UNIT_TEST(PackageRepository, exact_lazy_selection) {
   Diagnostics::Log::set_sink(capture_selection_logs);
 
   auto propagated =
-      (*repository).select_native("Pkg.None"_view, Version(1, 2), "cpu"_view);
+      repository->select_native("Pkg.None"_view, Version(1, 2), "cpu"_view);
 
   Diagnostics::Log::set_sink(Test::capture_sink);
-  ASSERT_NOT(propagated.is_null());
-  auto propagated_error =
-      propagated.find<Package::Repository::SelectionError>();
-  ASSERT(propagated_error);
-  EXPECT(*propagated_error == Package::Repository::SelectionError::NotDeclared);
+  EXPECT(returns_selection_error(
+      propagated, Package::Repository::SelectionError::NotDeclared));
   EXPECT(selection_info_seen);
   EXPECT_EQ(selection_log_count, Count(1));
   EXPECT_TEXT(
@@ -448,21 +463,15 @@ PERIMORTEM_UNIT_TEST(PackageRepository, exact_lazy_selection) {
   // inventory agrees, a different requested ID is an artifact lookup failure
   // rather than an inventory mismatch.
   auto native =
-      (*repository).select_native("Pkg.Core"_view, Version(1, 2), "cpu"_view);
+      repository->select_native("Pkg.Core"_view, Version(1, 2), "cpu"_view);
   auto missing_native =
-      (*repository)
-          .select_native("Pkg.Core"_view, Version(1, 2), "unknown"_view);
-  ASSERT_NOT(native.is_null());
-  ASSERT_NOT(missing_native.is_null());
-  auto native_path = native.find<View::Bytes>();
-  auto missing_native_error =
-      missing_native.find<Package::Repository::SelectionError>();
+      repository->select_native("Pkg.Core"_view, Version(1, 2), "unknown"_view);
+  auto native_path = selected_native(native);
   ASSERT(native_path);
-  ASSERT(missing_native_error);
   EXPECT_TEXT(*native_path, "missing/native-cpu.a"_view);
-  EXPECT(
-      *missing_native_error ==
-      Package::Repository::SelectionError::ArtifactNotDeclared);
+  EXPECT(returns_selection_error(
+      missing_native,
+      Package::Repository::SelectionError::ArtifactNotDeclared));
   EXPECT(
       Test::error_contains(
           "selection_error=ArtifactNotDeclared "
@@ -604,14 +613,12 @@ PERIMORTEM_UNIT_TEST(PackageRepository, caller_arena_and_retained_cache) {
   archive_location.set('x');
   native_location.set('x');
 
-  auto first = (*repository).select_archive("Pkg.Core"_view, Version(1, 2));
-  ASSERT_NOT(first.is_null());
-  auto first_archive = first.find<const Package::Archive::Archive&>();
+  auto first = repository->select_archive("Pkg.Core"_view, Version(1, 2));
+  auto first_archive = selected_archive(first);
   ASSERT(first_archive);
   auto native =
-      (*repository).select_native("Pkg.Core"_view, Version(1, 2), "cpu"_view);
-  ASSERT_NOT(native.is_null());
-  auto native_path = native.find<View::Bytes>();
+      repository->select_native("Pkg.Core"_view, Version(1, 2), "cpu"_view);
+  auto native_path = selected_native(native);
   ASSERT(native_path);
   EXPECT_TEXT(*native_path, retained_native_location);
 
@@ -624,10 +631,8 @@ PERIMORTEM_UNIT_TEST(PackageRepository, caller_arena_and_retained_cache) {
   ASSERT(replacement_written);
 
   auto after_replacement =
-      (*repository).select_archive("Pkg.Core"_view, Version(1, 2));
-  ASSERT_NOT(after_replacement.is_null());
-  auto replacement_archive =
-      after_replacement.find<const Package::Archive::Archive&>();
+      repository->select_archive("Pkg.Core"_view, Version(1, 2));
+  auto replacement_archive = selected_archive(after_replacement);
   ASSERT(replacement_archive);
   EXPECT(first_archive == replacement_archive);
 
@@ -635,9 +640,8 @@ PERIMORTEM_UNIT_TEST(PackageRepository, caller_arena_and_retained_cache) {
   ASSERT(archive_removed);
 
   auto after_removal =
-      (*repository).select_archive("Pkg.Core"_view, Version(1, 2));
-  ASSERT_NOT(after_removal.is_null());
-  auto removal_archive = after_removal.find<const Package::Archive::Archive&>();
+      repository->select_archive("Pkg.Core"_view, Version(1, 2));
+  auto removal_archive = selected_archive(after_removal);
   ASSERT(removal_archive);
   EXPECT(first_archive == removal_archive);
   EXPECT_TEXT(removal_archive->get_identity(), "Pkg.Core"_view);
@@ -662,21 +666,17 @@ PERIMORTEM_UNIT_TEST(PackageRepository, semantic_cache_without_native_inputs) {
       View::Vector<Package::Repository::Output>());
   ASSERT(repository);
 
-  auto first = (*repository).select_archive("Pkg.Core"_view, Version(1, 2));
-  ASSERT_NOT(first.is_null());
-  auto first_archive = first.find<const Package::Archive::Archive&>();
+  auto first = repository->select_archive("Pkg.Core"_view, Version(1, 2));
+  auto first_archive = selected_archive(first);
   ASSERT(first_archive);
 
   // Semantic cache publication precedes native inventory policy. The absent
   // mapping therefore rejects only native selection and cannot remove or
   // replace the already retained Archive.
   auto native =
-      (*repository).select_native("Pkg.Core"_view, Version(1, 2), "cpu"_view);
-  ASSERT_NOT(native.is_null());
-  auto native_error = native.find<Package::Repository::SelectionError>();
-  ASSERT(native_error);
-  EXPECT(
-      *native_error == Package::Repository::SelectionError::ArtifactMismatch);
+      repository->select_native("Pkg.Core"_view, Version(1, 2), "cpu"_view);
+  EXPECT(returns_selection_error(
+      native, Package::Repository::SelectionError::ArtifactMismatch));
   EXPECT(
       Test::error_contains(
           "selection_error=ArtifactMismatch "
@@ -686,9 +686,8 @@ PERIMORTEM_UNIT_TEST(PackageRepository, semantic_cache_without_native_inputs) {
           Diagnostics::Log::Level::Info));
 
   auto after_failure =
-      (*repository).select_archive("Pkg.Core"_view, Version(1, 2));
-  ASSERT_NOT(after_failure.is_null());
-  auto retained = after_failure.find<const Package::Archive::Archive&>();
+      repository->select_archive("Pkg.Core"_view, Version(1, 2));
+  auto retained = selected_archive(after_failure);
   ASSERT(retained);
   EXPECT(first_archive == retained);
 }
@@ -781,13 +780,13 @@ PERIMORTEM_UNIT_TEST(PackageRepository, declared_publication_paths) {
       reversed_archives, reversed_natives);
   ASSERT(second);
 
-  auto first_archive = (*first).get_archive_output_path(
+  auto first_archive = first->get_archive_output_path(
       "Pkg.Core"_view, Version(1, 2), "archive"_view);
-  auto second_archive = (*second).get_archive_output_path(
+  auto second_archive = second->get_archive_output_path(
       "Pkg.Core"_view, Version(1, 2), "archive"_view);
-  auto first_native = (*first).get_native_output_path(
-      "Pkg.Core"_view, Version(1, 2), "cpu"_view);
-  auto second_native = (*second).get_native_output_path(
+  auto first_native =
+      first->get_native_output_path("Pkg.Core"_view, Version(1, 2), "cpu"_view);
+  auto second_native = second->get_native_output_path(
       "Pkg.Core"_view, Version(1, 2), "cpu"_view);
   ASSERT(first_archive);
   ASSERT(second_archive);
@@ -802,11 +801,11 @@ PERIMORTEM_UNIT_TEST(PackageRepository, declared_publication_paths) {
       "r00_repository_publication_side_effect_probe_7349/native/cpu.a"_view);
   EXPECT(*first_native == *second_native);
 
-  EXPECT_NOT((*first).get_archive_output_path(
+  EXPECT_NOT(first->get_archive_output_path(
       "Pkg.Core"_view, Version(9, 9), "archive"_view));
-  EXPECT_NOT((*first).get_archive_output_path(
+  EXPECT_NOT(first->get_archive_output_path(
       "Pkg.Core"_view, Version(1, 2), "unknown"_view));
-  EXPECT_NOT((*first).get_native_output_path(
+  EXPECT_NOT(first->get_native_output_path(
       "Pkg.Core"_view, Version(1, 2), "res"_view));
   EXPECT_NOT(File::exists(output_root));
 }

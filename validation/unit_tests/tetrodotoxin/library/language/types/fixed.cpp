@@ -88,31 +88,29 @@ PERIMORTEM_UNIT_TEST(LibraryFixed, formula_construction) {
 
   auto positive_type = formula.create(positive, arena);
   ASSERT(positive_type);
-  EXPECT((*positive_type).is<Types::Fixed>());
-  EXPECT_TEXT((*positive_type).get_name(), "Fixed[Unsigned_8,4]"_view);
-  EXPECT((*positive_type)
-             .visit<Types::Fixed>(
-                 [&element](const Types::Fixed& selected) {
-                   return &selected.get_element_type() == &element &&
-                                  selected.get_extent() == ::Signed_64(4)
-                              ? True
-                              : False;
-                 },
-                 [](const Abstract&) { return False; }));
+  EXPECT(positive_type->is<Types::Fixed>());
+  EXPECT_TEXT(positive_type->get_name(), "Fixed[Unsigned_8,4]"_view);
+  EXPECT(positive_type->visit<Types::Fixed>(
+      [&element](const Types::Fixed& selected) {
+        return &selected.get_element_type() == &element &&
+                       selected.get_extent() == ::Signed_64(4)
+                   ? True
+                   : False;
+      },
+      [](const Abstract&) { return False; }));
 
   auto zero_type = formula.create(zero, arena);
   ASSERT(zero_type);
-  EXPECT((*zero_type).is<Types::Fixed>());
-  EXPECT_TEXT((*zero_type).get_name(), "Fixed[Unsigned_8,0]"_view);
-  EXPECT((*zero_type)
-             .visit<Types::Fixed>(
-                 [](const Types::Fixed& selected) {
-                   return selected.get_extent() == ::Signed_64(0) &&
-                                  selected.get_layout().get_size() == Count(0)
-                              ? True
-                              : False;
-                 },
-                 [](const Abstract&) { return False; }));
+  EXPECT(zero_type->is<Types::Fixed>());
+  EXPECT_TEXT(zero_type->get_name(), "Fixed[Unsigned_8,0]"_view);
+  EXPECT(zero_type->visit<Types::Fixed>(
+      [](const Types::Fixed& selected) {
+        return selected.get_extent() == ::Signed_64(0) &&
+                       selected.get_layout().get_size() == Count(0)
+                   ? True
+                   : False;
+      },
+      [](const Abstract&) { return False; }));
 
   EXPECT_NOT(formula.create(negative, arena));
   EXPECT_NOT(formula.create(wrong_element, arena));

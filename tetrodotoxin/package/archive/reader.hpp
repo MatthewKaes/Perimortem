@@ -3,9 +3,9 @@
 
 #pragma once
 
-#include "perimortem/core/static/union.hpp"
-
 #include "perimortem/memory/allocator/arena.hpp"
+
+#include "perimortem/utility/result.hpp"
 
 #include "tetrodotoxin/package/archive/archive.hpp"
 #include "tetrodotoxin/package/archive/read_error.hpp"
@@ -19,17 +19,17 @@ class Reader {
  public:
   Reader() = delete;
 
-  // Reads one complete Format 1 envelope. Every call selects Archive or
-  // ReadError, leaving the Union null state unused. Rejection logs the exact
-  // validation stage and retains nothing. The caller that knows why this
-  // Archive was requested decides whether failure becomes a textual source
-  // diagnostic. Success borrows the input and retains its record ranges in the
-  // caller Arena. The caller keeps the input valid until that Arena is reset or
-  // destroyed and keeps the Arena alive while it holds the returned value.
+  // Reads one complete Format 1 envelope. Result exposes exactly Archive or
+  // ReadError. Rejection logs the exact validation stage and retains nothing.
+  // The caller that knows why this Archive was requested decides whether
+  // failure becomes a textual source diagnostic. Success borrows the input and
+  // retains its record ranges in the caller Arena. The caller keeps the input
+  // valid until that Arena is reset or destroyed and keeps the Arena alive
+  // while it holds the returned value.
   static auto read(
       Perimortem::Memory::Allocator::Arena& arena,
       Perimortem::Core::View::Bytes input)
-      -> Perimortem::Core::Static::Union<Archive, ReadError>;
+      -> Perimortem::Utility::Result<Archive, ReadError>;
 };
 
 }  // namespace Tetrodotoxin::Package::Archive

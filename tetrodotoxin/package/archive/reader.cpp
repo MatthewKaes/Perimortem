@@ -14,6 +14,7 @@
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
 using namespace Perimortem::System;
+using namespace Perimortem::Utility;
 using namespace Ttx::Lexical;
 using namespace Tetrodotoxin;
 
@@ -494,7 +495,7 @@ static auto parse_exports(
 // stage and byte position in the debug trace, then let the requesting owner
 // decide how the failed dependency or compile request should be reported.
 static auto reject_archive(View::Bytes stage, Count offset, View::Bytes reason)
-    -> Static::Union<Package::Archive::Archive, Package::Archive::ReadError> {
+    -> Result<Package::Archive::Archive, Package::Archive::ReadError> {
   Diagnostics::Log::Message<384> message(Diagnostics::Log::Level::Debug);
   message << archive_read_operation << " failed. stage="_view << stage
           << " byte_offset="_view << offset << " reason="_view << reason;
@@ -537,7 +538,7 @@ static auto retain_archive(
 }
 
 auto Package::Archive::Reader::read(Allocator::Arena& arena, View::Bytes input)
-    -> Static::Union<Archive, ReadError> {
+    -> Result<Archive, ReadError> {
   // Decode the complete fixed header first. Accepted input must carry the
   // Format 1 magic and version while leaving every reserved flag clear.
   LittleReader reader(input);

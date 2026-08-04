@@ -59,9 +59,9 @@ PERIMORTEM_UNIT_TEST(LibraryAccess, formula_construction) {
 
   auto created = formula.create(accepted, arena);
   ASSERT(created);
-  EXPECT((*created).is<Types::Access>());
-  EXPECT_TEXT((*created).get_name(), "Access[Unsigned_8]"_view);
-  EXPECT((*created).visit<Types::Access>(
+  EXPECT(created->is<Types::Access>());
+  EXPECT_TEXT(created->get_name(), "Access[Unsigned_8]"_view);
+  EXPECT(created->visit<Types::Access>(
       [&element](const Types::Access& selected) {
         return &selected.get_element_type() == &element ? True : False;
       },

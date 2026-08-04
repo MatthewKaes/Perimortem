@@ -543,12 +543,11 @@ static auto write_archive(
 }
 
 static auto returns_selection_error(
-    const Static::Union<
+    const Result<
         Language::Dialect::Monograph&,
         Package::Repository::SelectionError>& result,
     Package::Repository::SelectionError expected) -> Bool {
   return result.visit(
-      []() { return False; },
       [](const Language::Dialect::Monograph&) { return False; },
       [&](Package::Repository::SelectionError actual) {
         return actual == expected ? True : False;
@@ -600,7 +599,7 @@ static auto rejects_selection_failure(
     }
 
     if (scenario == 3) {
-      (*encoded).get_access()[4] = 2;
+      encoded->get_access()[4] = 2;
     }
 
     if (!package.write("dependency.ttxa"_view, *encoded)) {
@@ -869,7 +868,11 @@ PERIMORTEM_UNIT_TEST(EnvironmentWorkspace, staged_fifo_retention) {
     auto imported = workspace.import_package(
         errors, package_root, root_name, root_route, "Pkg.Root"_view,
         Version(1, 0), *repository);
-    auto imported_root = imported.find<Language::Dialect::Monograph&>();
+    auto imported_root = imported.visit(
+        [](Language::Dialect::Monograph& root) { return &root; },
+        [](Package::Repository::SelectionError) {
+          return static_cast<Language::Dialect::Monograph*>(nullptr);
+        });
     ASSERT(imported_root);
     EXPECT(imported_root->is<Package::Language::Monograph>());
     EXPECT(imported_root == &workspace.resolve_context("Root"_view));
@@ -1037,7 +1040,8 @@ PERIMORTEM_UNIT_TEST(EnvironmentWorkspace, staged_failures) {
     auto imported = workspace.import_package(
         errors, package.get_root(), "Root"_view, "package.ttx"_view,
         "Pkg.Root"_view, Version(1, 0), *repository);
-    EXPECT(imported.is_null());
+    EXPECT(returns_selection_error(
+        imported, Package::Repository::SelectionError::Unknown));
   }
 
   ASSERT_EQ(trace.interpretation_count, 5);
@@ -1137,7 +1141,10 @@ PERIMORTEM_UNIT_TEST(EnvironmentWorkspace, resource_lifecycle) {
     auto imported = workspace.import_package(
         errors, package.get_root(), "Root"_view, "package.ttx"_view,
         "Pkg.Root"_view, Version(1, 0), *repository);
-    ASSERT(imported.find<Language::Dialect::Monograph&>() != nullptr);
+    Bool selected = imported.visit(
+        [](Language::Dialect::Monograph&) { return True; },
+        [](Package::Repository::SelectionError) { return False; });
+    ASSERT(selected);
   }
 
   for (Count i = 0; i < 8; i++) {
@@ -1254,7 +1261,11 @@ PERIMORTEM_UNIT_TEST(EnvironmentWorkspace, source_free_archive_consumer) {
     auto imported = workspace.import_package(
         errors, package.get_root(), "Root"_view, "package.ttx"_view,
         "Pkg.Root"_view, Version(1, 0), *repository);
-    auto imported_root = imported.find<Language::Dialect::Monograph&>();
+    auto imported_root = imported.visit(
+        [](Language::Dialect::Monograph& root) { return &root; },
+        [](Package::Repository::SelectionError) {
+          return static_cast<Language::Dialect::Monograph*>(nullptr);
+        });
     ASSERT(imported_root);
     ASSERT(imported_root->is<Package::Language::Monograph>());
     const auto& root =
@@ -1729,7 +1740,10 @@ PERIMORTEM_UNIT_TEST(EnvironmentWorkspace, post_pass_order_and_reuse) {
   auto second_import = workspace.import_package(
       errors, package.get_root(), "OtherRoot"_view, "package.ttx"_view,
       "Pkg.Second"_view, Version(1, 0), *repository);
-  EXPECT(second_import.find<Language::Dialect::Monograph&>() != nullptr);
+  Bool second_selected = second_import.visit(
+      [](Language::Dialect::Monograph&) { return True; },
+      [](Package::Repository::SelectionError) { return False; });
+  EXPECT(second_selected);
   ASSERT_EQ(trace.post_passes, 4);
   EXPECT_TEXT(trace.post_pass_facts[2], "DirectFact"_view);
   EXPECT_TEXT(trace.post_pass_facts[3], "LaterFact"_view);

@@ -83,7 +83,7 @@ auto Package::Dialect::interpret(
         continue;
       }
 
-      if (has_dependency_alias(dependencies, (*dependency).get_local_name())) {
+      if (has_dependency_alias(dependencies, dependency->get_local_name())) {
         cursor.create_token_error(
             statement,
             "Duplicate Dependency local alias in this Package."_view);
@@ -110,7 +110,7 @@ auto Package::Dialect::interpret(
       // Source owns complete statement consumption, so this range includes the
       // terminating Token. The collision belongs to the whole binding rather
       // than only its opening keyword or semantic name.
-      if (has_dependency_alias(dependencies, (*source).get_local_name())) {
+      if (has_dependency_alias(dependencies, source->get_local_name())) {
         cursor.create_expression_error(
             source_span,
             "Source semantic name collides with a Dependency local alias in "
@@ -118,13 +118,13 @@ auto Package::Dialect::interpret(
         failed = True;
       }
 
-      if (has_source_name(sources, (*source).get_local_name())) {
+      if (has_source_name(sources, source->get_local_name())) {
         cursor.create_token_error(
             statement, "Duplicate Source semantic name in this Package."_view);
         failed = True;
       }
 
-      if (has_source_path(sources, (*source).get_source_path())) {
+      if (has_source_path(sources, source->get_source_path())) {
         cursor.create_token_error(
             statement,
             "Duplicate normalized Source path in this Package."_view);

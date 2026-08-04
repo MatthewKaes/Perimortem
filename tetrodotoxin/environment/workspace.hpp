@@ -9,6 +9,7 @@
 #include "perimortem/system/version.hpp"
 
 #include "perimortem/utility/option.hpp"
+#include "perimortem/utility/result.hpp"
 
 #include "tetrodotoxin/environment/dialects.hpp"
 #include "tetrodotoxin/environment/resolution.hpp"
@@ -41,8 +42,9 @@ class Workspace : public Ttx::Concept::Abstract {
       -> Perimortem::Utility::Option<Language::Dialect::Monograph&>;
 
   // Imports one confined Package island and resolves exact semantic Archives
-  // from the explicit Repository. Source staging failure returns no result,
-  // while Resolution returns either the completed root or a failure category.
+  // from the explicit Repository. Result returns the completed root or one
+  // failure category. Unknown covers diagnosed staging, restoration, and post
+  // pass failures that have no narrower Repository selection category.
   auto import_package(
       Ttx::Lexical::Errors& errors,
       Perimortem::Core::View::Bytes package_root,
@@ -50,8 +52,10 @@ class Workspace : public Ttx::Concept::Abstract {
       Perimortem::Core::View::Bytes root_logical_route,
       Perimortem::Core::View::Bytes root_package_identity,
       Perimortem::System::Version root_package_version,
-      Package::Repository::Repository& repository) -> Perimortem::Core::Static::
-      Union<Language::Dialect::Monograph&, Package::Repository::SelectionError>;
+      Package::Repository::Repository& repository)
+      -> Perimortem::Utility::Result<
+          Language::Dialect::Monograph&,
+          Package::Repository::SelectionError>;
 
   auto get_name() const -> Perimortem::Core::View::Bytes override;
   auto get_documentation() const -> const Ttx::Concept::Documentation& override;

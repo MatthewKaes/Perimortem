@@ -20,6 +20,7 @@
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
 using namespace Perimortem::System;
+using namespace Perimortem::Utility;
 using namespace Tetrodotoxin;
 using namespace Validation;
 
@@ -126,6 +127,27 @@ static auto body_splice(
   return result;
 }
 
+static auto selected_archive(
+    Result<Package::Archive::Archive, Package::Archive::ReadError>& result)
+    -> Package::Archive::Archive* {
+  return result.visit(
+      [](Package::Archive::Archive& archive) { return &archive; },
+      [](Package::Archive::ReadError) {
+        return static_cast<Package::Archive::Archive*>(nullptr);
+      });
+}
+
+static auto returns_read_error(
+    const Result<Package::Archive::Archive, Package::Archive::ReadError>&
+        result,
+    Package::Archive::ReadError expected) -> Bool {
+  return result.visit(
+      [](const Package::Archive::Archive&) { return False; },
+      [&](Package::Archive::ReadError error) {
+        return error == expected ? True : False;
+      });
+}
+
 static auto rejects(
     View::Bytes input,
     Package::Archive::ReadError expected =
@@ -133,8 +155,7 @@ static auto rejects(
   Allocator::Arena arena;
 
   auto rejected = Package::Archive::Reader::read(arena, input);
-  auto error = rejected.find<Package::Archive::ReadError>();
-  if (rejected.is_null() || error == nullptr || *error != expected ||
+  if (!returns_read_error(rejected, expected) ||
       !Test::error_contains(
           "Package::Archive::Reader Format 1 read failed"_view,
           Diagnostics::Log::Level::Debug)) {
@@ -142,8 +163,7 @@ static auto rejects(
   }
 
   auto accepted = Package::Archive::Reader::read(arena, golden());
-  return !accepted.is_null() &&
-         accepted.find<Package::Archive::Archive>() != nullptr;
+  return selected_archive(accepted) != nullptr;
 }
 
 static Harness PackageArchive = {
@@ -158,10 +178,7 @@ PERIMORTEM_UNIT_TEST(PackageArchive, typed_read_outcomes) {
   Allocator::Arena arena;
 
   auto empty = Package::Archive::Reader::read(arena, View::Bytes());
-  ASSERT_NOT(empty.is_null());
-  auto empty_error = empty.find<Package::Archive::ReadError>();
-  ASSERT(empty_error);
-  EXPECT(*empty_error == Package::Archive::ReadError::InvalidFormat);
+  EXPECT(returns_read_error(empty, Package::Archive::ReadError::InvalidFormat));
   EXPECT(
       Test::error_contains(
           "Package::Archive::Reader Format 1 read failed. stage=header "
@@ -172,10 +189,8 @@ PERIMORTEM_UNIT_TEST(PackageArchive, typed_read_outcomes) {
   Dynamic::Bytes future(golden());
   set_u16(future, 4, 2);
   auto unsupported = Package::Archive::Reader::read(arena, future);
-  ASSERT_NOT(unsupported.is_null());
-  auto unsupported_error = unsupported.find<Package::Archive::ReadError>();
-  ASSERT(unsupported_error);
-  EXPECT(*unsupported_error == Package::Archive::ReadError::UnsupportedFormat);
+  EXPECT(returns_read_error(
+      unsupported, Package::Archive::ReadError::UnsupportedFormat));
   EXPECT(
       Test::error_contains(
           "Package::Archive::Reader Format 1 read failed. stage=header "
@@ -183,9 +198,7 @@ PERIMORTEM_UNIT_TEST(PackageArchive, typed_read_outcomes) {
           Diagnostics::Log::Level::Debug));
 
   auto accepted = Package::Archive::Reader::read(arena, golden());
-  ASSERT_NOT(accepted.is_null());
-  EXPECT(accepted.find<Package::Archive::Archive>() != nullptr);
-  EXPECT(accepted.find<Package::Archive::ReadError>() == nullptr);
+  EXPECT(selected_archive(accepted) != nullptr);
 }
 
 PERIMORTEM_UNIT_TEST(PackageArchive, literal_format_one) {
@@ -203,8 +216,7 @@ PERIMORTEM_UNIT_TEST(PackageArchive, literal_format_one) {
   Allocator::Arena arena;
   auto decoded = Package::Archive::Reader::read(arena, golden());
 
-  ASSERT_NOT(decoded.is_null());
-  auto archive = decoded.find<Package::Archive::Archive>();
+  auto archive = selected_archive(decoded);
   ASSERT(archive);
   EXPECT_TEXT(archive->get_identity(), "Pkg.Core"_view);
   EXPECT_EQ(archive->get_version().get_major(), Unsigned_16(1));
@@ -247,18 +259,17 @@ PERIMORTEM_UNIT_TEST(PackageArchive, literal_format_one) {
   auto encoded_twice = Package::Archive::Writer::write(*archive);
   ASSERT(encoded_once);
   ASSERT(encoded_twice);
-  EXPECT((*encoded_once).get_view() == golden());
-  EXPECT((*encoded_twice).get_view() == golden());
+  EXPECT(encoded_once->get_view() == golden());
+  EXPECT(encoded_twice->get_view() == golden());
 
   Allocator::Arena second_arena;
   auto round_trip = Package::Archive::Reader::read(second_arena, *encoded_once);
-  ASSERT_NOT(round_trip.is_null());
-  auto round_trip_archive = round_trip.find<Package::Archive::Archive>();
+  auto round_trip_archive = selected_archive(round_trip);
   ASSERT(round_trip_archive);
   auto encoded_round_trip =
       Package::Archive::Writer::write(*round_trip_archive);
   ASSERT(encoded_round_trip);
-  EXPECT((*encoded_round_trip).get_view() == golden());
+  EXPECT(encoded_round_trip->get_view() == golden());
 }
 
 PERIMORTEM_UNIT_TEST(PackageArchive, value_mechanics) {
@@ -289,7 +300,7 @@ PERIMORTEM_UNIT_TEST(PackageArchive, value_mechanics) {
 
   auto encoded = Package::Archive::Writer::write(assigned);
   ASSERT(encoded);
-  EXPECT((*encoded).get_view() == golden());
+  EXPECT(encoded->get_view() == golden());
 }
 
 PERIMORTEM_UNIT_TEST(PackageArchive, authored_provenance_is_not_encoded) {
@@ -335,15 +346,14 @@ PERIMORTEM_UNIT_TEST(PackageArchive, authored_provenance_is_not_encoded) {
   auto source_free_bytes = Package::Archive::Writer::write(source_free_archive);
   ASSERT(authored_bytes);
   ASSERT(source_free_bytes);
-  EXPECT((*authored_bytes).get_view() == (*source_free_bytes).get_view());
+  EXPECT(authored_bytes->get_view() == source_free_bytes->get_view());
 
   // Reader rebuilds only the three Dependency identity fields. Encoding that
   // source free result must reproduce the authored Archive bytes exactly.
   Allocator::Arena restored_arena;
   auto restored_result =
       Package::Archive::Reader::read(restored_arena, *authored_bytes);
-  ASSERT_NOT(restored_result.is_null());
-  auto restored = restored_result.find<Package::Archive::Archive>();
+  auto restored = selected_archive(restored_result);
   ASSERT(restored);
   ASSERT_EQ(restored->get_dependencies().get_size(), Count(1));
   EXPECT_TEXT(restored->get_dependencies()[0].get_local_name(), "Core"_view);
@@ -353,7 +363,7 @@ PERIMORTEM_UNIT_TEST(PackageArchive, authored_provenance_is_not_encoded) {
 
   auto restored_bytes = Package::Archive::Writer::write(*restored);
   ASSERT(restored_bytes);
-  EXPECT((*restored_bytes).get_view() == (*authored_bytes).get_view());
+  EXPECT(restored_bytes->get_view() == authored_bytes->get_view());
 }
 
 PERIMORTEM_UNIT_TEST(PackageArchive, empty_inventories) {
@@ -373,8 +383,7 @@ PERIMORTEM_UNIT_TEST(PackageArchive, empty_inventories) {
 
   Allocator::Arena decoded_arena;
   auto decoded = Package::Archive::Reader::read(decoded_arena, *encoded);
-  ASSERT_NOT(decoded.is_null());
-  auto decoded_archive = decoded.find<Package::Archive::Archive>();
+  auto decoded_archive = selected_archive(decoded);
   ASSERT(decoded_archive);
   EXPECT(decoded_archive->get_members()[0].get_payload().is_empty());
 }
@@ -397,8 +406,7 @@ PERIMORTEM_UNIT_TEST(PackageArchive, equal_member_payloads) {
 
   Allocator::Arena arena;
   auto decoded = Package::Archive::Reader::read(arena, *encoded);
-  ASSERT_NOT(decoded.is_null());
-  auto decoded_archive = decoded.find<Package::Archive::Archive>();
+  auto decoded_archive = selected_archive(decoded);
   ASSERT(decoded_archive);
   auto retained = decoded_archive->get_members();
   ASSERT_EQ(retained.get_size(), Count(2));
@@ -429,8 +437,7 @@ PERIMORTEM_UNIT_TEST(PackageArchive, opaque_export_locators) {
   ASSERT(encoded);
   Allocator::Arena decoded_arena;
   auto decoded = Package::Archive::Reader::read(decoded_arena, *encoded);
-  ASSERT_NOT(decoded.is_null());
-  auto decoded_archive = decoded.find<Package::Archive::Archive>();
+  auto decoded_archive = selected_archive(decoded);
   ASSERT(decoded_archive);
   EXPECT_TEXT(
       decoded_archive->get_exports()[0].get_semantic_route(),
@@ -473,8 +480,7 @@ PERIMORTEM_UNIT_TEST(PackageArchive, borrowed_input) {
   Dynamic::Bytes input(golden());
   Allocator::Arena arena;
   auto read = Package::Archive::Reader::read(arena, input);
-  ASSERT_NOT(read.is_null());
-  auto archive = read.find<Package::Archive::Archive>();
+  auto archive = selected_archive(read);
   ASSERT(archive);
 
   EXPECT_EQ(
@@ -486,25 +492,23 @@ PERIMORTEM_UNIT_TEST(PackageArchive, borrowed_input) {
 
   auto encoded = Package::Archive::Writer::write(*archive);
   ASSERT(encoded);
-  EXPECT((*encoded).get_view() == golden());
+  EXPECT(encoded->get_view() == golden());
 
   Dynamic::Bytes temporary_input(golden());
   Allocator::Arena temporary_arena;
   View::Bytes stable_input = temporary_arena.proxy(temporary_input);
   auto temporary =
       Package::Archive::Reader::read(temporary_arena, stable_input);
-  ASSERT_NOT(temporary.is_null());
-  auto temporary_archive = temporary.find<Package::Archive::Archive>();
+  auto temporary_archive = selected_archive(temporary);
   ASSERT(temporary_archive);
   temporary_input.set(0xFF);
   auto temporary_bytes = Package::Archive::Writer::write(*temporary_archive);
   ASSERT(temporary_bytes);
-  EXPECT((*temporary_bytes).get_view() == golden());
+  EXPECT(temporary_bytes->get_view() == golden());
 
   Allocator::Arena later_arena;
   auto later = Package::Archive::Reader::read(later_arena, golden());
-  EXPECT_NOT(later.is_null());
-  EXPECT(later.find<Package::Archive::Archive>() != nullptr);
+  EXPECT(selected_archive(later) != nullptr);
 }
 
 PERIMORTEM_UNIT_TEST(PackageArchive, every_truncation_boundary) {
@@ -574,12 +578,11 @@ PERIMORTEM_UNIT_TEST(PackageArchive, envelope_boundaries) {
   Allocator::Arena optional_arena;
   auto decoded =
       Package::Archive::Reader::read(optional_arena, accepted_optional);
-  ASSERT_NOT(decoded.is_null());
-  auto decoded_archive = decoded.find<Package::Archive::Archive>();
+  auto decoded_archive = selected_archive(decoded);
   ASSERT(decoded_archive);
   auto canonical = Package::Archive::Writer::write(*decoded_archive);
   ASSERT(canonical);
-  EXPECT((*canonical).get_view() == golden());
+  EXPECT(canonical->get_view() == golden());
 }
 
 PERIMORTEM_UNIT_TEST(PackageArchive, singleton_fields) {
