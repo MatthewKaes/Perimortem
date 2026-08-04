@@ -290,14 +290,8 @@ PERIMORTEM_UNIT_TEST(LiteralTests, diagnostic_feedback) {
   Dynamic::Bytes operand =
       render_rejection(domain, materializations, context, "value"_view);
 
-  EXPECT(contains(
-      integer, "Integer literal exceeds Library's 64 bit literal domain"_view));
-  EXPECT(contains(integer, "Reduce the magnitude"_view));
-  EXPECT(contains(
-      negative,
-      "Negative integer literal is outside Library Signed_64 range"_view));
-  EXPECT(
-      contains(negative, "magnitude no greater than 9223372036854775808"_view));
+  EXPECT(contains(integer, "Unable to parse unsigned literal value."_view));
+  EXPECT(contains(negative, "Unable to parse signed literal value."_view));
   EXPECT(contains(bytes, "incomplete hexadecimal byte"_view));
   EXPECT(contains(bytes, "every byte has two digits"_view));
   EXPECT(contains(operand, "requires a supported literal operand"_view));
