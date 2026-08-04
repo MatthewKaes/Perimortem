@@ -269,13 +269,22 @@ Callable contracts. Library adds the CPU language semantics that not every
 Dialect needs.
 
 1. Expression, Binding, and Projection represent Library value semantics.
-2. Constant and its concrete domains represent retained Library values.
-3. Generic, Access, View, and Fixed represent Library materialization.
-4. Concrete Bool, integer, and real Types provide Library scalar identities.
-5. Static and Self distinguish Library Callable invocation.
+2. Operation owns recursive folding for executable value operations.
+3. Constant and its concrete domains represent retained Library values.
+4. Generic, Access, View, and Fixed represent Library materialization.
+5. Concrete Bool, integer, and real Types provide Library scalar identities.
+6. Static and Self distinguish Library Callable invocation.
 
 Library contracts retain real TTX Type, Layout, Addressable, and Callable
 edges. They do not redeclare those shared owners.
+
+Operation retains real replaceable Expression edges and recursively folds child
+Operations. Partial folding preserves the parent identity. A concrete operation
+evaluates only after every input is Constant, and a durable FoldError selects
+the caller's recovery category without retaining source context. Parser
+construction may invoke the transaction eagerly. A later Library Monograph post
+pass will traverse replaceable graph roots through the same contract rather
+than introduce a second evaluator or expression model.
 
 Bool, integer, real, and Void are immutable binary wide Library identities.
 Distinct installed Dialects share their exact addresses while retaining any
@@ -470,12 +479,25 @@ resource route never crosses a Dependency export. Cross Package publication
 uses Abstract semantic identities, so Literal never receives another Package's
 raw Resource through an exported member. Scalar Literal spellings likewise
 construct their canonical binary wide Library Type and accept no expected
-Type. Library Expression owns a following `:[start, size]` operation for
-Embedded, quoted Bytes, hexadecimal Bytes, and later byte-valued expressions.
-Constant receivers and Constant indices fold before publication so only the
-reachable result enters the semantic graph. The receiving typed operation
-applies fitting only after the complete Expression has synthesized that result
-Type.
+Type. Library `Operations::Slice` owns a following `:[index]` or
+`:[start, size]` operation for Embedded, quoted Bytes, hexadecimal Bytes, and
+later ranged expressions. It retains only real Expression edges. Fixed, View,
+and Access receivers supply their retained element Type directly. A Constant
+size yields canonical Fixed identity, while a dynamic size yields View unless
+the receiver already proves writable contiguous Access. Bytes is the current
+Constant ranged payload domain rather than evidence for a universal Constant
+payload interface.
+
+Expression delegates primary parsing to Literal and selects following
+operators in precedence order. Each concrete operation owns its complete
+grammar builder. Slice recursively asks the Expression dispatcher for operands,
+associates its postfixes left to right, and eagerly invokes Operation folding so
+completed Bytes results enter the graph without their unused base Constants.
+A later Swizzle or named operator adds its own grammar builder and one explicit
+Expression dispatch case instead of extending Slice or duplicating parser
+transactions. A future Library post pass traverses replaceable graph roots
+through the same operation. The receiving typed operation applies fitting only
+after the complete Expression has synthesized that result Type.
 Invalid operand categories, negative values, arithmetic overflow, and bounds
 failures report the actual values or Types and the accepted range at the
 postfix Span. Shader and other concrete consumers may use the same Resource
