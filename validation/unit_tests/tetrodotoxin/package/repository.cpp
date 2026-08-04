@@ -811,7 +811,7 @@ PERIMORTEM_UNIT_TEST(PackageRepository, declared_publication_paths) {
 }
 
 PERIMORTEM_UNIT_TEST(PackageRepository, invalid_publication_routes) {
-  Static::Bytes<3> embedded_nul{'a', '\0', 'b'};
+  Static::Bytes<3> embedded_nul = {{'a', '\0', 'b'}};
   Static::Bytes<Path::max_size + 1> oversized;
   for (Count i = 0; i < oversized.get_size(); i++) {
     oversized[i] = 'a';

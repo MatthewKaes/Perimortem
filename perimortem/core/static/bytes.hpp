@@ -14,25 +14,20 @@ namespace Perimortem::Core::Static {
 // Used to convert string literals into non-null terminated bytes.
 template <Count literal_size>
 class Bytes {
+ private:
+  struct Storage {
+    Unsigned_8 source_block[literal_size];
+  };
+
+  Storage storage{};
+
  public:
   constexpr Bytes() {}
 
-  // This awful syntax allows cpp to enable direct value initialization:
-  // Static::Bytes<3>{0x01, 0x02, 0x03}.
-  template <typename... raw_bytes>
-    requires(sizeof...(raw_bytes) == literal_size)
-  constexpr Bytes(raw_bytes... values) : source_block{Unsigned_8(values)...} {}
-
-  // Used for passing bytes directly that are already packed.
-  constexpr Bytes(const Unsigned_8 (&source)[literal_size]) {
-    if consteval {
-      for (Count i = 0; i < literal_size; i++) {
-        source_block[i] = source[i];
-      }
-    } else {
-      Data::copy(source_block, source, literal_size);
-    }
-  }
+  // Static bytes initialize their complete storage from one aggregate source.
+  // Call sites use an extra pair of braces, as in
+  // `Static::Bytes<3> bytes = {{1, 2, 3}}`.
+  constexpr Bytes(const Storage& source) : storage(source) {}
 
   // Initializes a buffer from a source view, either taking a slice of the data
   // or zero extending the ouput if the buffer is larger than the input.
@@ -41,23 +36,23 @@ class Bytes {
     if consteval {
       Count i = 0;
       for (; i < size; i++) {
-        source_block[i] = source.get_data()[i];
+        storage.source_block[i] = source.get_data()[i];
       }
 
       // Zero out the rest of the array so we don't expose junk data.
       for (; i < literal_size; i++) {
-        source_block[i] = 0;
+        storage.source_block[i] = 0;
       }
     } else {
-      Data::copy(source_block, source.get_data(), size);
-      Data::set(source_block + size, 0, literal_size - size);
+      Data::copy(storage.source_block, source.get_data(), size);
+      Data::set(storage.source_block + size, 0, literal_size - size);
     }
   }
 
   // Allows for generating data that would be a pain to manually write out.
   constexpr Bytes(Unsigned_8 (*generator)(Count)) {
     for (Count i = 0; i < literal_size; i++) {
-      source_block[i] = generator(i);
+      storage.source_block[i] = generator(i);
     }
   }
 
@@ -65,15 +60,15 @@ class Bytes {
   constexpr Bytes(const Unsigned_8* source) {
     if consteval {
       for (Count i = 0; i < literal_size; i++) {
-        source_block[i] = source[i];
+        storage.source_block[i] = source[i];
       }
     } else {
       if constexpr (literal_size < 16) {
         for (Count i = 0; i < literal_size; i++) {
-          source_block[i] = source[i];
+          storage.source_block[i] = source[i];
         }
       } else {
-        Data::copy(source_block, source, literal_size);
+        Data::copy(storage.source_block, source, literal_size);
       }
     }
   }
@@ -86,7 +81,7 @@ class Bytes {
       return False;
     }
 
-    return Data::compare(source_block, rhs.get_data(), literal_size);
+    return Data::compare(storage.source_block, rhs.get_data(), literal_size);
   }
 
   constexpr auto operator!=(const View::Bytes& rhs) -> Bool {
@@ -94,11 +89,11 @@ class Bytes {
   }
 
   constexpr auto operator[](Count index) -> Unsigned_8& {
-    return source_block[index];
+    return storage.source_block[index];
   }
 
   constexpr auto operator[](Count index) const -> const Unsigned_8& {
-    return source_block[index];
+    return storage.source_block[index];
   }
 
   constexpr auto slice(Count start, Count size) const -> View::Bytes {
@@ -107,27 +102,26 @@ class Bytes {
     }
 
     return View::Bytes(
-        source_block + start, Math::min(size, get_size() - start));
+        storage.source_block + start, Math::min(size, get_size() - start));
   }
 
   constexpr auto get_size() const -> Count { return literal_size; }
   constexpr auto get_capacity() const -> Count { return literal_size; }
   constexpr auto get_view() const -> const View::Bytes {
-    return View::Bytes(source_block, literal_size);
+    return View::Bytes(storage.source_block, literal_size);
   }
 
-  constexpr auto get_data() const -> const Unsigned_8* { return source_block; }
-  constexpr auto get_data() -> Unsigned_8* { return source_block; }
+  constexpr auto get_data() const -> const Unsigned_8* {
+    return storage.source_block;
+  }
+  constexpr auto get_data() -> Unsigned_8* { return storage.source_block; }
   constexpr auto get_access() -> Access::Bytes {
-    return Access::Bytes(source_block, literal_size);
+    return Access::Bytes(storage.source_block, literal_size);
   }
 
   constexpr auto hash() const -> Unsigned_64 {
     return Core::Hash(get_view()).get_value();
   }
-
- private:
-  Unsigned_8 source_block[literal_size]{};
 };
 
 }  // namespace Perimortem::Core::Static

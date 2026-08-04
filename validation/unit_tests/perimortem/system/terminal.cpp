@@ -146,8 +146,8 @@ PERIMORTEM_UNIT_TEST(SystemTerminal, immediate_eof) {
 }
 
 PERIMORTEM_UNIT_TEST(SystemTerminal, crlf_and_zero_bytes) {
-  constexpr Static::Bytes<5> source = {'a', 0, 'b', '\r', '\n'};
-  constexpr Static::Bytes<3> expected = {'a', 0, 'b'};
+  constexpr Static::Bytes<5> source = {{'a', 0, 'b', '\r', '\n'}};
+  constexpr Static::Bytes<3> expected = {{'a', 0, 'b'}};
   FILE* input = open_stream(source);
   FILE* output = open_stream();
   EXPECT(input != nullptr);
@@ -263,8 +263,8 @@ PERIMORTEM_UNIT_TEST(SystemTerminal, read_failure) {
 }
 
 PERIMORTEM_UNIT_TEST(SystemTerminal, exact_output) {
-  constexpr Static::Bytes<3> source = {'a', 0, 'b'};
-  constexpr Static::Bytes<4> expected = {'a', 0, 'b', '\n'};
+  constexpr Static::Bytes<3> source = {{'a', 0, 'b'}};
+  constexpr Static::Bytes<4> expected = {{'a', 0, 'b', '\n'}};
   FILE* input = open_stream();
   FILE* output = open_stream();
   EXPECT(input != nullptr);

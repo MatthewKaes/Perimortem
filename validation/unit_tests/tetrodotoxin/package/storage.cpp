@@ -562,7 +562,17 @@ PERIMORTEM_UNIT_TEST(PackageStorage, route_rejections) {
       *storage, "escape.bin"_view, Package::Storage::Failure::Error::Unreadable,
       "escape.bin"_view));
 
-  Static::Bytes<9> nul_route{'n', 'u', 'l', 'l', '\0', '.', 'b', 'i', 'n'};
+  Static::Bytes<9> nul_route = {{
+    'n',
+    'u',
+    'l',
+    'l',
+    '\0',
+    '.',
+    'b',
+    'i',
+    'n',
+  }};
   EXPECT(rejects_read(
       *storage, nul_route, Package::Storage::Failure::Error::InvalidRoute,
       View::Bytes()));

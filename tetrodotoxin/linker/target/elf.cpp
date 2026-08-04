@@ -362,8 +362,7 @@ static auto write_header(
     Unsigned_16 section_count,
     Unsigned_16 section_string_table_index) -> void {
   Static::Bytes<16> identity = {
-    0x7F, 'E', 'L', 'F', 2, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-  };
+    {0x7F, 'E', 'L', 'F', 2, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0}};
   auto* header = Data::cast<Header>(buffer.get_data());
   header->identity = identity;
   Data::write<elf_endian>(&header->type, Unsigned_16(ObjectType::Relocatable));

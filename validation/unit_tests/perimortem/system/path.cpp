@@ -44,7 +44,7 @@ PERIMORTEM_UNIT_TEST(SystemPath, normalize_in_arena) {
 
 PERIMORTEM_UNIT_TEST(SystemPath, normalize_in_arena_rejects_invalid) {
   Allocator::Arena arena;
-  Static::Bytes<3> embedded_nul{'a', '\0', 'b'};
+  Static::Bytes<3> embedded_nul = {{'a', '\0', 'b'}};
   Static::Bytes<Path::max_size + 1> oversized;
   for (Count i = 0; i < oversized.get_size(); i++) {
     oversized[i] = 'a';

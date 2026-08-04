@@ -223,7 +223,7 @@ class Lexicon {
         Perimortem::Utility::Pair<Perimortem::Core::View::Bytes, Code::Type>;
 
     static constexpr Perimortem::Core::Static::Vector<Entry, 25> keywords = {{
-      {get_spelling(Code::Type::And), Code::Type::And},
+      Entry{get_spelling(Code::Type::And), Code::Type::And},
       {get_spelling(Code::Type::Or), Code::Type::Or},
       {get_spelling(Code::Type::If), Code::Type::If},
       {get_spelling(Code::Type::In), Code::Type::In},

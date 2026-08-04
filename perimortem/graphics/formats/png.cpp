@@ -28,7 +28,7 @@ enum class ColorType : Unsigned_8 {
   Rgba = 6,
 };
 
-// Per-row prediction applied before DEFLATE. Each value matches the filter
+// Prediction applied to each row before DEFLATE. Each value matches the filter
 // byte written at the start of the filtered row per the PNG specification.
 enum class FilterType : Unsigned_8 {
   None = 0,
@@ -80,7 +80,7 @@ struct ImageInfo {
 };
 
 // A parsed PNG chunk. PNG files are made of sequential chunks, each with a
-// type tag, a payload, and a CRC-32 checksum for integrity verification.
+// type tag, a payload, and a CRC32 checksum for integrity verification.
 class Chunk {
  public:
   constexpr Chunk() = default;
@@ -99,11 +99,11 @@ class Chunk {
   Bool valid = False;
 };
 
-// The 8-byte magic signature that begins every valid PNG file.
-constexpr Static::Bytes<8> png_signature = {0x89, 0x50, 0x4E, 0x47,
-                                            0x0D, 0x0A, 0x1A, 0x0A};
+// The eight byte magic signature that begins every valid PNG file.
+constexpr Static::Bytes<8> png_signature = {
+  {0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}};
 
-// Each chunk: 4 bytes length + 4 bytes type + data + 4 bytes CRC-32.
+// Each chunk: 4 bytes length + 4 bytes type + data + 4 bytes CRC32.
 constexpr Count chunk_metadata_size = 12;
 
 constexpr auto number_of_color_channels(ColorType color_type) -> Count {
@@ -123,9 +123,9 @@ constexpr auto number_of_color_channels(ColorType color_type) -> Count {
 }
 
 constexpr auto populate_crc_table() -> Static::Vector<Unsigned_32, 256> {
-  // CRC-32 (Cyclic Redundancy Check): a 32-bit error-detection hash used by the
+  // CRC32 (Cyclic Redundancy Check): a 32 bit error detection hash used by the
   // PNG specification to verify each chunk has not been corrupted in transit.
-  // The IEEE 802.3 polynomial (0xEDB88320) is the standard choice for CRC-32.
+  // The IEEE 802.3 polynomial (0xEDB88320) is the standard choice for CRC32.
   constexpr Unsigned_32 ieee_crc32_polynomial = 0xEDB88320;
 
   Static::Vector<Unsigned_32, 256> table;
@@ -143,7 +143,7 @@ constexpr auto populate_crc_table() -> Static::Vector<Unsigned_32, 256> {
 }
 
 constexpr auto calculate_crc32(View::Bytes data) -> Unsigned_32 {
-  // The 256 CRC-32 look up table is prepopulated at compile time.
+  // The 256 entry CRC32 look up table is prepopulated at compile time.
   constexpr Static::Vector<Unsigned_32, 256> crc_table = populate_crc_table();
 
   // CRC computation starts with all bit set.
@@ -315,7 +315,7 @@ auto score_row(View::Bytes current_row, View::Bytes previous_row)
 // first row.
 //
 // If previous_row isn't valid then the function will corrupt memory, so keep
-// the row-size precondition explicit at the call site.
+// the row size precondition explicit at the call site.
 constexpr auto apply_row_filter(
     FilterType filter_type,
     Access::Bytes output_row,
@@ -416,7 +416,7 @@ constexpr auto apply_row_filter(
 }
 
 // Applies adaptive PNG filtering to the source pixels, scoring all five filter
-// types per row and selecting the lowest-residual option.
+// types per row and selecting the option with the lowest residual.
 constexpr auto apply_adaptive_filtering(const Image& image) -> Dynamic::Bytes {
   const auto row_stride = Count(image.get_width()) * Pixel::get_byte_count();
   const auto output_size = Count(image.get_height()) * (1 + row_stride);
@@ -798,7 +798,7 @@ auto Formats::Png::decode(const View::Bytes source) -> Image {
   View::Bytes palette;
 
   // Walk the chunk sequence collecting all IDAT payloads plus the optional
-  // PLTE (palette) chunk needed for indexed-color images.
+  // PLTE (palette) chunk needed for indexed color images.
   Count chunk_offset = png_signature.get_size();
   while (chunk_offset < source.get_size()) {
     Chunk chunk = read_chunk(source, chunk_offset);

@@ -167,8 +167,8 @@ PERIMORTEM_UNIT_TEST(SerializationJson, escaped_frames) {
   EXPECT_TEXT(value["text"_view].get_string(), "C:\\\\"_view);
   EXPECT_EQ(value["next"_view].get_number(), 1);
 
-  Static::Bytes<6> escaped_quote_path('"', 'C', ':', '\\', '"', '"');
-  Static::Bytes<4> escaped_quote_payload('C', ':', '\\', '"');
+  Static::Bytes<6> escaped_quote_path = {{'"', 'C', ':', '\\', '"', '"'}};
+  Static::Bytes<4> escaped_quote_payload = {{'C', ':', '\\', '"'}};
   value.parse(arena, escaped_quote_path);
   EXPECT_TEXT(value.get_string(), escaped_quote_payload);
 }
@@ -310,7 +310,7 @@ PERIMORTEM_UNIT_TEST(SerializationJson, parse_null) {
   Allocator::Arena arena;
   Json::Node value;
 
-  // Top-level null literal parses to a null node.
+  // A root null literal parses to a null node.
   value.parse(arena, "null"_view);
   EXPECT(value.is_null());
 
@@ -475,11 +475,11 @@ PERIMORTEM_UNIT_TEST(SerializationJson, format_null) {
   Allocator::Arena arena;
   Json::Node value;
 
-  // Top-level null serializes to "null".
+  // A root null serializes to "null".
   value.parse(arena, "null"_view);
   ASSERT_TEXT(value.format(arena), "null"_view);
 
-  // Object with a null member round-trips exactly.
+  // An object with a null member reproduces its exact text.
   value.parse(arena, "{\"a\":1,\"b\":null,\"c\":3}"_view);
   ASSERT_TEXT(value.format(arena), "{\"a\":1,\"b\":null,\"c\":3}"_view);
 }

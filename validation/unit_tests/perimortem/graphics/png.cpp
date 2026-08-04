@@ -155,8 +155,7 @@ PERIMORTEM_UNIT_TEST(GraphicsPng, decode_pattern_8x1) {
 
 PERIMORTEM_UNIT_TEST(GraphicsPng, decode_invalid) {
   constexpr Static::Bytes<8> garbage = {
-    0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
-  };
+    {0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07}};
   auto image = Formats::Png::decode(garbage);
   EXPECT_EQ(image.get_width(), Unsigned_32(0));
   EXPECT_EQ(image.get_height(), Unsigned_32(0));
@@ -340,9 +339,9 @@ PERIMORTEM_UNIT_TEST(GraphicsPng, roundtrip_bloat) {
   ASSERT_EQ(icon.get_width(), 128);
   ASSERT_EQ(icon.get_height(), 128);
 
-  // Dynamic Huffman at depth=8 brings us close to the original, but flat-color
+  // Dynamic Huffman at depth=8 brings us close to the original, but flat color
   // images compressed the other way by libpng can still expand slightly on
-  // round-trip so we just guard against catastrophic regressions.
+  // write and read so we just guard against catastrophic regressions.
   auto encoded = Formats::Png::encode(icon);
   ASSERT(encoded.get_size() > 0);
   EXPECT(encoded.get_size() < Count((*source).get_size() * 1.15));

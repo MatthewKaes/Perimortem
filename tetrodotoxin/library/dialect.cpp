@@ -48,7 +48,7 @@ static constexpr Library::Language::Types::Void void_type;
 
 static constexpr Static::Vector<Pair<View::Bytes, const Abstract*>, 12>
     intrinsic_source = {{
-      {boolean.get_name(), &boolean},
+      Pair<View::Bytes, const Abstract*>{boolean.get_name(), &boolean},
       {unsigned_8.get_name(), &unsigned_8},
       {unsigned_16.get_name(), &unsigned_16},
       {unsigned_32.get_name(), &unsigned_32},
