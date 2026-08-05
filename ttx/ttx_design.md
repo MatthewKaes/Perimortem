@@ -65,6 +65,10 @@ Cursor owns forward parse position and bounded signed relative Token lookup.
 Span remains the compact range value, so a grammar pairs its retained opening
 Token with `peek(-1)` after consuming the range. Concrete grammars do not
 manufacture Tokens or read a Cursor index to approximate that boundary.
+Cursor branches share the immutable Token stream and isolate speculative
+position. Only an explicit join after complete success publishes that position
+to the parent Cursor. A branch may use a private Errors owner when rejected
+grammar must not publish provisional diagnostics.
 
 ## Layout fitting
 

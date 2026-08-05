@@ -22,6 +22,11 @@ either stream boundary would be crossed. A consumer can pair its opening Token
 with `peek(-1)` to describe an operation that ended immediately before the
 current Token without synthesizing a boundary Token.
 
+`Cursor::branch` starts a speculative transaction at the current position over
+the same immutable Token stream. Its explicit Errors overload keeps provisional
+diagnostics private. Only `Cursor::join` publishes the branch position, and a
+consumer joins only after its complete parse transaction succeeds.
+
 Tokens represent decoded source spans. They are not fixed width language
 instructions, and their Codes are not an independent serialized format. A
 consumer must use the same Lexer contract and source bytes that produced the

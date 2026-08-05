@@ -28,6 +28,7 @@ class FoldError {
     RangeStartOutOfBounds,
     RangeSizeOutOfBounds,
     ArithmeticOverflow,
+    DivisionByZero,
   };
 
   FoldError(Type type, const Expression& expression);

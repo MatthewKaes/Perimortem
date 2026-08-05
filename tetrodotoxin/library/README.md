@@ -133,6 +133,9 @@ receive no implicit widening, narrowing, fitting, or retagging inside these
 operations. Scalar literals currently use their canonical binary wide Type, so
 a narrower receiving owner must construct an explicitly typed Constant before
 forming one of these operations.
+Signed and Unsigned operations reject host arithmetic overflow first, then use
+`Core::Math::is_representable` to prove the result fits the selected byte width.
+Concrete operations do not reproduce that representation arithmetic locally.
 
 Every Slice failure maps to one diagnostic over the complete postfix, while
 the caller Cursor joins only once after the complete chain succeeds. A

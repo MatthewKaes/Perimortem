@@ -3,6 +3,7 @@
 
 #include "tetrodotoxin/library/language/parser/expression.hpp"
 
+#include "tetrodotoxin/library/language/operations/divide.hpp"
 #include "tetrodotoxin/library/language/operations/less.hpp"
 #include "tetrodotoxin/library/language/operations/multiply.hpp"
 #include "tetrodotoxin/library/language/operations/slice.hpp"
@@ -20,6 +21,7 @@ static auto get_precedence(Code::Type operation) -> Count {
   switch (operation) {
   case Code::Type::SliceOp:
     return 40;
+  case Code::Type::DivOp:
   case Code::Type::MulOp:
     return 30;
   case Code::Type::SubOp:
@@ -71,6 +73,16 @@ static auto parse_expression(
       }
 
       expression = *multiply;
+      break;
+    }
+    case Code::Type::DivOp: {
+      auto divide = Library::Language::Operations::Divide::parse(
+          domain, materializations, cursor, source_context, expression.get());
+      if (!divide) {
+        return {};
+      }
+
+      expression = *divide;
       break;
     }
     case Code::Type::SubOp: {

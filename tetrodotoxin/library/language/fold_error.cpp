@@ -39,6 +39,8 @@ auto Language::FoldError::get_name() const -> View::Bytes {
     return "range size outside the receiver"_view;
   case Type::ArithmeticOverflow:
     return "arithmetic overflow"_view;
+  case Type::DivisionByZero:
+    return "division by zero"_view;
   case Type::Unknown:
     return "unknown fold failure"_view;
   }

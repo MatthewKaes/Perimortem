@@ -510,6 +510,9 @@ Bool result and follows ordinary Type legality.
 Multiply, Subtract, and Less require exact resolved Signed, Unsigned, or Real
 Type identity on both operands. Constants retain their declared Type, and these
 operations perform no implicit widening, narrowing, fitting, or retagging.
+Signed and Unsigned operations reject host arithmetic overflow first, then use
+`Core::Math::is_representable` to prove the result fits the selected byte width
+rather than reproducing representation arithmetic in each operation.
 A later Swizzle or named operator adds its own grammar builder and one explicit
 Expression dispatch case instead of extending Slice or duplicating parser
 transactions. A future Library post pass traverses replaceable graph roots

@@ -444,6 +444,71 @@ PERIMORTEM_UNIT_TEST(ExpressionParserTests, multiply_precedence_and_failure) {
       "*"_view));
 }
 
+PERIMORTEM_UNIT_TEST(ExpressionParserTests, divide_precedence_and_failure) {
+  Allocator::Arena domain;
+  Allocator::Arena rendering;
+  Library::Language::Materializations materializations(domain);
+  ExpressionParserContext context(domain);
+  Errors association_errors;
+  Errors divide_multiply_errors;
+  Errors multiply_divide_errors;
+  Errors slice_errors;
+
+  auto association = parse_one(
+      domain, materializations, context, "24 / 4 / 2"_view, association_errors);
+  auto divide_multiply = parse_one(
+      domain, materializations, context, "24 / 4 * 2"_view,
+      divide_multiply_errors);
+  auto multiply_divide = parse_one(
+      domain, materializations, context, "24 * 4 / 2"_view,
+      multiply_divide_errors);
+  auto sliced = parse_one(
+      domain, materializations, context, "0x[18]:[0] / 0x[04]:[0]"_view,
+      slice_errors);
+  View::Bytes mismatch = render_rejection(
+      domain, materializations, context, "24 / true"_view, rendering);
+  View::Bytes zero = render_rejection(
+      domain, materializations, context, "24 / 0"_view, rendering);
+  auto association_value =
+      association ? select_abstract<Library::Language::Constants::Unsigned>(
+                        *association)
+                  : Option<const Library::Language::Constants::Unsigned&>();
+  auto divide_multiply_value =
+      divide_multiply ? select_abstract<Library::Language::Constants::Unsigned>(
+                            *divide_multiply)
+                      : Option<const Library::Language::Constants::Unsigned&>();
+  auto multiply_divide_value =
+      multiply_divide ? select_abstract<Library::Language::Constants::Unsigned>(
+                            *multiply_divide)
+                      : Option<const Library::Language::Constants::Unsigned&>();
+  auto sliced_value =
+      sliced ? select_abstract<Library::Language::Constants::Unsigned>(*sliced)
+             : Option<const Library::Language::Constants::Unsigned&>();
+
+  ASSERT(association && divide_multiply && multiply_divide && sliced);
+  ASSERT(
+      association_value && divide_multiply_value && multiply_divide_value &&
+      sliced_value);
+  EXPECT(association_value->get_value() == 3);
+  EXPECT(divide_multiply_value->get_value() == 12);
+  EXPECT(multiply_divide_value->get_value() == 48);
+  EXPECT(sliced_value->get_value() == 6);
+  EXPECT(&association->get_type() == &Library::Dialect::get_unsigned_64());
+  EXPECT(&sliced->get_type() == &Library::Dialect::get_unsigned_8());
+  EXPECT(contains(mismatch, "left Type `Unsigned_64`"_view));
+  EXPECT(contains(mismatch, "right Type `Bool`"_view));
+  EXPECT(contains(zero, "zero as an integer divisor"_view));
+  EXPECT(contains(zero, "selected Type `Unsigned_64`"_view));
+  EXPECT(rejects(domain, materializations, context, "24 /"_view, "/"_view));
+  EXPECT(
+      rejects(domain, materializations, context, "24 / true"_view, "/"_view));
+  EXPECT(rejects(domain, materializations, context, "24 / 0"_view, "/"_view));
+  EXPECT(association_errors.is_empty());
+  EXPECT(divide_multiply_errors.is_empty());
+  EXPECT(multiply_divide_errors.is_empty());
+  EXPECT(slice_errors.is_empty());
+}
+
 PERIMORTEM_UNIT_TEST(ExpressionParserTests, subtract_precedence_and_failure) {
   Allocator::Arena domain;
   Allocator::Arena rendering;

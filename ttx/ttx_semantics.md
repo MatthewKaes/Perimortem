@@ -33,6 +33,12 @@ crossed. A consumer may construct a completed range from its retained opening
 Token through `peek(-1)`, so it never fabricates a Token merely to recover the
 current source boundary.
 
+`Cursor::branch` creates a speculative position over the same immutable Token
+stream. A branch may retain its own Errors owner so provisional diagnostics do
+not enter the parent transaction. Only `Cursor::join` publishes a branch
+position, and consumers join only after the complete parse transaction
+succeeds.
+
 A Code stream is not an independent stable serialization. It can be
 interpreted only with the matching Lexer contract and the source bytes needed
 to project payload text.
@@ -349,3 +355,5 @@ durable formats remain outside TTX.
     diagnostic policy remain outside TTX.
 16. Terminal Tokens have zero length, and Cursor provides bounded signed
     relative Token lookup without moving its parse position.
+17. Cursor branches share their exact immutable Token stream, and only an
+    explicit join after successful interpretation publishes branch position.
