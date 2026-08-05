@@ -498,18 +498,24 @@ associates its postfixes left to right, and eagerly invokes Operation folding so
 completed Bytes results enter the graph without their unused base Constants.
 Slice binds before Multiply. Multiply owns selected Type legality, checked
 integer and IEEE folding, construction, and diagnostics after asking the
-dispatcher only for an operand above its own precedence. Multiply binds before
-Subtract. Subtract owns binary `-`, locked scalar Type selection, checked
+dispatcher only for an operand above its own precedence. Divide and Modulo
+share that multiplicative precedence. Divide owns selected Type quotient
+evaluation and integer zero handling. Modulo accepts only exact Signed or
+Unsigned Types and owns remainder sign, zero, selected width, and signed
+endpoint failures. The multiplicative level binds before Subtract. Subtract
+owns binary `-`, locked scalar Type selection, checked
 selected width overflow and underflow, IEEE Real evaluation, construction,
 diagnostics, and folding. Literal keeps leading negative numeric grammar and a
 future unary Negate remains a separate operation owner.
-Subtract binds before Less. Less owns `<`, locked scalar operand Type selection,
-canonical Bool result identity, ordered IEEE comparison, construction,
-diagnostics, and True or False folding. Chained comparison receives the prior
-Bool result and follows ordinary Type legality.
-Multiply, Subtract, and Less require exact resolved Signed, Unsigned, or Real
-Type identity on both operands. Constants retain their declared Type, and these
-operations perform no implicit widening, narrowing, fitting, or retagging.
+Subtract binds before the comparison level. Less owns `<`, Greater owns `>`, and
+LessEqual owns `<=`. Each owns locked scalar operand Type selection, canonical
+Bool result identity, ordered IEEE comparison, construction, diagnostics, and
+True or False folding. A chained comparison receives the prior Bool result and
+follows ordinary Type legality. Multiply, Divide, Subtract, Less, Greater, and
+LessEqual require exact resolved Signed, Unsigned, or Real Type identity on both
+operands. Modulo applies the same exact Type rule to Signed and Unsigned only.
+Constants retain their declared Type, and these operations perform no implicit
+widening, narrowing, fitting, or retagging.
 Signed and Unsigned operations reject host arithmetic overflow first, then use
 `Core::Math::is_representable` to prove the result fits the selected byte width
 rather than reproducing representation arithmetic in each operation.

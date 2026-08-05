@@ -4,7 +4,10 @@
 #include "tetrodotoxin/library/language/parser/expression.hpp"
 
 #include "tetrodotoxin/library/language/operations/divide.hpp"
+#include "tetrodotoxin/library/language/operations/greater.hpp"
 #include "tetrodotoxin/library/language/operations/less.hpp"
+#include "tetrodotoxin/library/language/operations/less_equal.hpp"
+#include "tetrodotoxin/library/language/operations/modulo.hpp"
 #include "tetrodotoxin/library/language/operations/multiply.hpp"
 #include "tetrodotoxin/library/language/operations/slice.hpp"
 #include "tetrodotoxin/library/language/operations/subtract.hpp"
@@ -22,11 +25,14 @@ static auto get_precedence(Code::Type operation) -> Count {
   case Code::Type::SliceOp:
     return 40;
   case Code::Type::DivOp:
+  case Code::Type::ModOp:
   case Code::Type::MulOp:
     return 30;
   case Code::Type::SubOp:
     return 20;
   case Code::Type::LessOp:
+  case Code::Type::GreaterOp:
+  case Code::Type::LessEqOp:
     return 10;
   default:
     return 0;
@@ -85,6 +91,16 @@ static auto parse_expression(
       expression = *divide;
       break;
     }
+    case Code::Type::ModOp: {
+      auto modulo = Library::Language::Operations::Modulo::parse(
+          domain, materializations, cursor, source_context, expression.get());
+      if (!modulo) {
+        return {};
+      }
+
+      expression = *modulo;
+      break;
+    }
     case Code::Type::SubOp: {
       auto subtract = Library::Language::Operations::Subtract::parse(
           domain, materializations, cursor, source_context, expression.get());
@@ -103,6 +119,26 @@ static auto parse_expression(
       }
 
       expression = *less;
+      break;
+    }
+    case Code::Type::GreaterOp: {
+      auto greater = Library::Language::Operations::Greater::parse(
+          domain, materializations, cursor, source_context, expression.get());
+      if (!greater) {
+        return {};
+      }
+
+      expression = *greater;
+      break;
+    }
+    case Code::Type::LessEqOp: {
+      auto less_equal = Library::Language::Operations::LessEqual::parse(
+          domain, materializations, cursor, source_context, expression.get());
+      if (!less_equal) {
+        return {};
+      }
+
+      expression = *less_equal;
       break;
     }
     default:

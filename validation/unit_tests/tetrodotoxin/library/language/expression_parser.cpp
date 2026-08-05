@@ -509,6 +509,79 @@ PERIMORTEM_UNIT_TEST(ExpressionParserTests, divide_precedence_and_failure) {
   EXPECT(slice_errors.is_empty());
 }
 
+PERIMORTEM_UNIT_TEST(ExpressionParserTests, modulo_precedence_and_failure) {
+  Allocator::Arena domain;
+  Allocator::Arena rendering;
+  Library::Language::Materializations materializations(domain);
+  ExpressionParserContext context(domain);
+  Errors association_errors;
+  Errors divide_errors;
+  Errors multiply_errors;
+  Errors sliced_errors;
+  Errors signed_errors;
+
+  auto association = parse_one(
+      domain, materializations, context, "25 % 6 % 4"_view, association_errors);
+  auto divided = parse_one(
+      domain, materializations, context, "25 / 6 % 3"_view, divide_errors);
+  auto multiplied = parse_one(
+      domain, materializations, context, "25 % 6 * 3"_view, multiply_errors);
+  auto sliced = parse_one(
+      domain, materializations, context, "0x[19]:[0] % 0x[06]:[0]"_view,
+      sliced_errors);
+  auto signed_value = parse_one(
+      domain, materializations, context, "-7 % -3"_view, signed_errors);
+  View::Bytes mismatch = render_rejection(
+      domain, materializations, context, "25 % true"_view, rendering);
+  View::Bytes zero = render_rejection(
+      domain, materializations, context, "25 % 0"_view, rendering);
+  auto association_value =
+      association ? select_abstract<Library::Language::Constants::Unsigned>(
+                        *association)
+                  : Option<const Library::Language::Constants::Unsigned&>();
+  auto divided_value =
+      divided
+          ? select_abstract<Library::Language::Constants::Unsigned>(*divided)
+          : Option<const Library::Language::Constants::Unsigned&>();
+  auto multiplied_value =
+      multiplied
+          ? select_abstract<Library::Language::Constants::Unsigned>(*multiplied)
+          : Option<const Library::Language::Constants::Unsigned&>();
+  auto sliced_value =
+      sliced ? select_abstract<Library::Language::Constants::Unsigned>(*sliced)
+             : Option<const Library::Language::Constants::Unsigned&>();
+  auto signed_result =
+      signed_value
+          ? select_abstract<Library::Language::Constants::Signed>(*signed_value)
+          : Option<const Library::Language::Constants::Signed&>();
+
+  ASSERT(
+      association && divided && multiplied && sliced && signed_value &&
+      association_value && divided_value && multiplied_value && sliced_value &&
+      signed_result);
+  EXPECT(association_value->get_value() == 1);
+  EXPECT(divided_value->get_value() == 1);
+  EXPECT(multiplied_value->get_value() == 3);
+  EXPECT(sliced_value->get_value() == 1);
+  EXPECT(signed_result->get_value() == -1);
+  EXPECT(&association->get_type() == &Library::Dialect::get_unsigned_64());
+  EXPECT(&sliced->get_type() == &Library::Dialect::get_unsigned_8());
+  EXPECT(&signed_value->get_type() == &Library::Dialect::get_signed_64());
+  EXPECT(contains(mismatch, "left Type `Unsigned_64`"_view));
+  EXPECT(contains(mismatch, "right Type `Bool`"_view));
+  EXPECT(contains(zero, "zero as a divisor"_view));
+  EXPECT(contains(zero, "selected Type `Unsigned_64`"_view));
+  EXPECT(rejects(domain, materializations, context, "25 %"_view, "%"_view));
+  EXPECT(
+      rejects(domain, materializations, context, "25 % true"_view, "%"_view));
+  EXPECT(rejects(domain, materializations, context, "25 % 0"_view, "%"_view));
+  EXPECT(association_errors.is_empty());
+  EXPECT(divide_errors.is_empty());
+  EXPECT(multiply_errors.is_empty());
+  EXPECT(sliced_errors.is_empty());
+  EXPECT(signed_errors.is_empty());
+}
+
 PERIMORTEM_UNIT_TEST(ExpressionParserTests, subtract_precedence_and_failure) {
   Allocator::Arena domain;
   Allocator::Arena rendering;
@@ -609,5 +682,113 @@ PERIMORTEM_UNIT_TEST(ExpressionParserTests, less_precedence_and_failure) {
   EXPECT(rejects(domain, materializations, context, "1 < true"_view, "<"_view));
   EXPECT(precedence_errors.is_empty());
   EXPECT(false_errors.is_empty());
+  EXPECT(slice_errors.is_empty());
+}
+
+PERIMORTEM_UNIT_TEST(ExpressionParserTests, greater_precedence_and_failure) {
+  Allocator::Arena domain;
+  Allocator::Arena rendering;
+  Library::Language::Materializations materializations(domain);
+  ExpressionParserContext context(domain);
+  Errors precedence_errors;
+  Errors equal_errors;
+  Errors arithmetic_errors;
+  Errors slice_errors;
+
+  auto precedence = parse_one(
+      domain, materializations, context, "10 - 2 * 3 > 3"_view,
+      precedence_errors);
+  auto equal =
+      parse_one(domain, materializations, context, "5 > 5"_view, equal_errors);
+  auto arithmetic = parse_one(
+      domain, materializations, context, "5 > 2 * 3"_view, arithmetic_errors);
+  auto sliced = parse_one(
+      domain, materializations, context, "0x[02]:[0] > 0x[01]:[0]"_view,
+      slice_errors);
+  View::Bytes mismatch = render_rejection(
+      domain, materializations, context, "1 > true"_view, rendering);
+  View::Bytes chained = render_rejection(
+      domain, materializations, context, "3 > 2 > 1"_view, rendering);
+  View::Bytes greater_less = render_rejection(
+      domain, materializations, context, "3 > 2 < 4"_view, rendering);
+  View::Bytes less_greater = render_rejection(
+      domain, materializations, context, "1 < 2 > 0"_view, rendering);
+
+  ASSERT(precedence && equal && arithmetic && sliced);
+  EXPECT(precedence->is<Library::Language::Constants::True>());
+  EXPECT(equal->is<Library::Language::Constants::False>());
+  EXPECT(arithmetic->is<Library::Language::Constants::False>());
+  EXPECT(sliced->is<Library::Language::Constants::True>());
+  EXPECT(&precedence->get_type() == &Library::Dialect::get_bool());
+  EXPECT(&equal->get_type() == &Library::Dialect::get_bool());
+  EXPECT(&sliced->get_type() == &Library::Dialect::get_bool());
+  EXPECT(contains(mismatch, "left Type `Unsigned_64`"_view));
+  EXPECT(contains(mismatch, "right Type `Bool`"_view));
+  EXPECT(contains(chained, "left Type `Bool`"_view));
+  EXPECT(contains(chained, "right Type `Unsigned_64`"_view));
+  EXPECT(contains(greater_less, "left Type `Bool`"_view));
+  EXPECT(contains(less_greater, "left Type `Bool`"_view));
+  EXPECT(rejects(domain, materializations, context, "1 >"_view, ">"_view));
+  EXPECT(rejects(domain, materializations, context, "1 > true"_view, ">"_view));
+  EXPECT(precedence_errors.is_empty());
+  EXPECT(equal_errors.is_empty());
+  EXPECT(arithmetic_errors.is_empty());
+  EXPECT(slice_errors.is_empty());
+}
+
+PERIMORTEM_UNIT_TEST(ExpressionParserTests, less_equal_precedence_and_failure) {
+  Allocator::Arena domain;
+  Allocator::Arena rendering;
+  Library::Language::Materializations materializations(domain);
+  ExpressionParserContext context(domain);
+  Errors precedence_errors;
+  Errors false_errors;
+  Errors arithmetic_errors;
+  Errors slice_errors;
+
+  auto precedence = parse_one(
+      domain, materializations, context, "10 - 2 * 3 <= 4"_view,
+      precedence_errors);
+  auto false_value =
+      parse_one(domain, materializations, context, "5 <= 4"_view, false_errors);
+  auto arithmetic = parse_one(
+      domain, materializations, context, "5 <= 2 * 3"_view, arithmetic_errors);
+  auto sliced = parse_one(
+      domain, materializations, context, "0x[01]:[0] <= 0x[01]:[0]"_view,
+      slice_errors);
+  View::Bytes mismatch = render_rejection(
+      domain, materializations, context, "1 <= true"_view, rendering);
+  View::Bytes chained = render_rejection(
+      domain, materializations, context, "1 <= 2 <= 3"_view, rendering);
+  View::Bytes less_chain = render_rejection(
+      domain, materializations, context, "1 < 2 <= 3"_view, rendering);
+  View::Bytes greater_chain = render_rejection(
+      domain, materializations, context, "3 > 2 <= 3"_view, rendering);
+  View::Bytes then_less = render_rejection(
+      domain, materializations, context, "1 <= 2 < 3"_view, rendering);
+  View::Bytes then_greater = render_rejection(
+      domain, materializations, context, "1 <= 2 > 0"_view, rendering);
+
+  ASSERT(precedence && false_value && arithmetic && sliced);
+  EXPECT(precedence->is<Library::Language::Constants::True>());
+  EXPECT(false_value->is<Library::Language::Constants::False>());
+  EXPECT(arithmetic->is<Library::Language::Constants::True>());
+  EXPECT(sliced->is<Library::Language::Constants::True>());
+  EXPECT(&precedence->get_type() == &Library::Dialect::get_bool());
+  EXPECT(&false_value->get_type() == &Library::Dialect::get_bool());
+  EXPECT(&sliced->get_type() == &Library::Dialect::get_bool());
+  EXPECT(contains(mismatch, "left Type `Unsigned_64`"_view));
+  EXPECT(contains(mismatch, "right Type `Bool`"_view));
+  EXPECT(contains(chained, "left Type `Bool`"_view));
+  EXPECT(contains(less_chain, "left Type `Bool`"_view));
+  EXPECT(contains(greater_chain, "left Type `Bool`"_view));
+  EXPECT(contains(then_less, "left Type `Bool`"_view));
+  EXPECT(contains(then_greater, "left Type `Bool`"_view));
+  EXPECT(rejects(domain, materializations, context, "1 <="_view, "<="_view));
+  EXPECT(
+      rejects(domain, materializations, context, "1 <= true"_view, "<="_view));
+  EXPECT(precedence_errors.is_empty());
+  EXPECT(false_errors.is_empty());
+  EXPECT(arithmetic_errors.is_empty());
   EXPECT(slice_errors.is_empty());
 }

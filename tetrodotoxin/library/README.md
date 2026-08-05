@@ -114,25 +114,31 @@ eagerly attempts folding. Slice binds before Multiply. Multiply owns binary
 Signed, Unsigned, and Real grammar, selected Type legality, checked integer and
 IEEE Constant folding, and diagnostics after asking the dispatcher only for a
 tighter operand. This keeps later operations on their own owners while
-Expression gains only one explicit dispatch case.
+Expression gains only one explicit dispatch case. Divide and Modulo share that
+multiplicative precedence. Divide owns selected Type quotient evaluation and
+integer zero handling. Modulo accepts only exact Signed or Unsigned Types and
+owns remainder sign, zero, selected width, and signed endpoint failures.
 
-Multiply binds before Subtract. Subtract owns only binary subtraction grammar,
-locked scalar Type selection, selected width overflow and underflow checks,
-IEEE Real evaluation, diagnostics, and folding. Literal remains the owner of a
-leading negative numeric spelling, while unary Negate remains a separate
-pending operation.
+The multiplicative level binds before Subtract. Subtract owns only binary
+subtraction grammar, locked scalar Type selection, selected width overflow and
+underflow checks, IEEE Real evaluation, diagnostics, and folding. Literal
+remains the owner of a leading negative numeric spelling, while unary Negate
+remains a separate pending operation.
 
-Subtract binds before Less. Less owns `<` grammar, the locked scalar operand
+Subtract binds before the comparison level. Less owns `<` grammar, Greater owns
+`>` grammar, and LessEqual owns `<=` grammar. Each owns locked scalar operand
 Type selection, canonical Bool result identity, ordered IEEE comparison,
-diagnostics, and True or False folding. A following `<` receives that Bool like
-any other left operand, so ordinary Type legality rejects comparison chaining.
+diagnostics, and True or False folding. A following comparison receives that
+Bool like any other left operand, so ordinary Type legality rejects comparison
+chaining.
 
-Multiply, Subtract, and Less require both operands to resolve to the same
-Signed, Unsigned, or Real Type identity. Constants keep their declared Type and
-receive no implicit widening, narrowing, fitting, or retagging inside these
-operations. Scalar literals currently use their canonical binary wide Type, so
-a narrower receiving owner must construct an explicitly typed Constant before
-forming one of these operations.
+Multiply, Divide, Subtract, Less, Greater, and LessEqual require both operands
+to resolve to the same Signed, Unsigned, or Real Type identity. Modulo applies
+the same exact Type rule to Signed and Unsigned only. Constants keep their
+declared Type and receive no implicit widening, narrowing, fitting, or
+retagging inside these operations. Scalar literals currently use their
+canonical binary wide Type, so a narrower receiving owner must construct an
+explicitly typed Constant before forming one of these operations.
 Signed and Unsigned operations reject host arithmetic overflow first, then use
 `Core::Math::is_representable` to prove the result fits the selected byte width.
 Concrete operations do not reproduce that representation arithmetic locally.
@@ -141,7 +147,8 @@ Every Slice failure maps to one diagnostic over the complete postfix, while
 the caller Cursor joins only once after the complete chain succeeds. A
 receiving declaration, assignment, invocation, or other typed operation applies
 fitting only after the complete Expression has synthesized its result Type.
-Remaining comparisons and Projection remain outside the current parser.
+GreaterEqual and later comparisons plus Projection remain outside the current
+parser.
 
 Resource route, Storage, and Package diagnostics do not enter the Library
 graph. An unsliced base Constant owns its complete value. A folded slice owns
