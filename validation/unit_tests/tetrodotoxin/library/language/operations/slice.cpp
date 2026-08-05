@@ -91,15 +91,21 @@ static auto selects(
       [&](const Expression& selected) {
         return &selected == &expected ? True : False;
       },
-      [](FoldError) { return False; });
+      [](const FoldError&) { return False; });
 }
 
 static auto reports(
     const Result<const Expression&, FoldError>& result,
-    FoldError expected) -> Bool {
+    FoldError::Type expected,
+    const Expression& origin) -> Bool {
   return result.visit(
       [](const Expression&) { return False; },
-      [&](FoldError selected) { return selected == expected ? True : False; });
+      [&](const FoldError& selected) {
+        return selected.get_type() == expected &&
+                       &selected.get_expression() == &origin
+                   ? True
+                   : False;
+      });
 }
 
 static auto input_is(
@@ -119,7 +125,47 @@ static auto selected(const Result<const Expression&, FoldError>& result)
       [](const Expression& expression) -> Option<const Expression&> {
         return expression;
       },
-      [](FoldError) -> Option<const Expression&> { return {}; });
+      [](const FoldError&) -> Option<const Expression&> { return {}; });
+}
+
+static auto get_fixed(const Abstract& type) -> Option<const Types::Fixed&> {
+  return type.visit<Types::Fixed>(
+      [](const Types::Fixed& selected) -> Option<const Types::Fixed&> {
+        return selected;
+      },
+      [](const Abstract&) -> Option<const Types::Fixed&> { return {}; });
+}
+
+static auto get_view(const Abstract& type) -> Option<const Types::View&> {
+  return type.visit<Types::View>(
+      [](const Types::View& selected) -> Option<const Types::View&> {
+        return selected;
+      },
+      [](const Abstract&) -> Option<const Types::View&> { return {}; });
+}
+
+static auto get_access(const Abstract& type) -> Option<const Types::Access&> {
+  return type.visit<Types::Access>(
+      [](const Types::Access& selected) -> Option<const Types::Access&> {
+        return selected;
+      },
+      [](const Abstract&) -> Option<const Types::Access&> { return {}; });
+}
+
+static auto get_unsigned(const Expression& expression) -> Option<Unsigned_64> {
+  return expression.visit<Constants::Unsigned>(
+      [](const Constants::Unsigned& selected) -> Option<Unsigned_64> {
+        return selected.get_value();
+      },
+      [](const Abstract&) -> Option<Unsigned_64> { return {}; });
+}
+
+static auto get_bytes(const Expression& expression) -> Option<View::Bytes> {
+  return expression.visit<Constants::Bytes>(
+      [](const Constants::Bytes& selected) -> Option<View::Bytes> {
+        return selected.get_value();
+      },
+      [](const Abstract&) -> Option<View::Bytes> { return {}; });
 }
 
 PERIMORTEM_UNIT_TEST(LibrarySlice, receiver_type_selection) {
@@ -182,27 +228,26 @@ PERIMORTEM_UNIT_TEST(LibrarySlice, range_type_selection) {
       domain, materializations, fixed_receiver, start, fixed_size);
   Operations::Slice folded_size(
       domain, materializations, fixed_receiver, start, size_operation);
+  auto fixed_result = get_fixed(constant_size.get_type());
+  auto fixed_view = get_view(fixed_dynamic.get_type());
+  auto access_view = get_access(access_dynamic.get_type());
+  const Abstract& folded_type = folded_size.get_type();
+  auto folded_result = folded_size.attempt_fold(domain, materializations);
 
   ASSERT(fixed_dynamic.get_type().is<Types::View>());
   ASSERT(view_dynamic.get_type().is<Types::View>());
   ASSERT(access_dynamic.get_type().is<Types::Access>());
   ASSERT(constant_size.get_type().is<Types::Fixed>());
-  ASSERT(folded_size.get_type().is<Types::View>());
-  EXPECT(
-      selects(folded_size.attempt_fold(domain, materializations), folded_size));
-  ASSERT(folded_size.get_type().is<Types::Fixed>());
-  const auto& fixed_result =
-      static_cast<const Types::Fixed&>(constant_size.get_type());
-  EXPECT(&fixed_result.get_element_type() == &element);
-  EXPECT(fixed_result.get_extent() == 4);
+  ASSERT(folded_type.is<Types::View>());
+  EXPECT(selects(folded_result, folded_size));
+  EXPECT(&folded_size.get_type() == &folded_type);
+  ASSERT(fixed_result && fixed_view && access_view);
+  EXPECT(&fixed_result->get_element_type() == &element);
+  EXPECT(fixed_result->get_extent() == 4);
   EXPECT(input_is(folded_size, 2, fixed_size));
   EXPECT(&fixed_dynamic.get_type() == &view_dynamic.get_type());
-  EXPECT(
-      &static_cast<const Types::View&>(fixed_dynamic.get_type())
-           .get_element_type() == &element);
-  EXPECT(
-      &static_cast<const Types::Access&>(access_dynamic.get_type())
-           .get_element_type() == &element);
+  EXPECT(&fixed_view->get_element_type() == &element);
+  EXPECT(&access_view->get_element_type() == &element);
   EXPECT(input_is(constant_size, 0, fixed_receiver));
   EXPECT(input_is(constant_size, 1, start));
   EXPECT(input_is(constant_size, 2, fixed_size));
@@ -233,27 +278,24 @@ PERIMORTEM_UNIT_TEST(LibrarySlice, constant_byte_payloads) {
   auto empty_value = selected(empty.attempt_fold(domain, materializations));
   auto terminal_value =
       selected(terminal_empty.attempt_fold(domain, materializations));
+  auto indexed_byte = indexed ? get_unsigned(*indexed) : Option<Unsigned_64>();
+  auto full_bytes = full_value ? get_bytes(*full_value) : Option<View::Bytes>();
+  auto interior_bytes =
+      interior_value ? get_bytes(*interior_value) : Option<View::Bytes>();
+  auto empty_bytes =
+      empty_value ? get_bytes(*empty_value) : Option<View::Bytes>();
+  auto terminal_bytes =
+      terminal_value ? get_bytes(*terminal_value) : Option<View::Bytes>();
 
   ASSERT(
       indexed && full_value && interior_value && empty_value && terminal_value);
   EXPECT(indexed->is<Constants::Unsigned>());
-  EXPECT(
-      static_cast<const Constants::Unsigned&>(*indexed).get_value() ==
-      Unsigned_64('b'));
-  EXPECT_TEXT(
-      static_cast<const Constants::Bytes&>(*full_value).get_value(),
-      "abcdef"_view);
-  EXPECT_TEXT(
-      static_cast<const Constants::Bytes&>(*interior_value).get_value(),
-      "bcde"_view);
-  EXPECT(
-      static_cast<const Constants::Bytes&>(*empty_value)
-          .get_value()
-          .is_empty());
-  EXPECT(
-      static_cast<const Constants::Bytes&>(*terminal_value)
-          .get_value()
-          .is_empty());
+  EXPECT(indexed_byte && *indexed_byte == Unsigned_64('b'));
+  ASSERT(full_bytes && interior_bytes && empty_bytes && terminal_bytes);
+  EXPECT_TEXT(*full_bytes, "abcdef"_view);
+  EXPECT_TEXT(*interior_bytes, "bcde"_view);
+  EXPECT(empty_bytes->is_empty());
+  EXPECT(terminal_bytes->is_empty());
   EXPECT(&indexed->get_type() == &element);
   EXPECT(full_value->get_type().is<Types::Fixed>());
   EXPECT(interior_value->get_type().is<Types::Fixed>());
@@ -263,10 +305,11 @@ PERIMORTEM_UNIT_TEST(LibrarySlice, constant_byte_payloads) {
   Operations::Slice chained(
       domain, materializations, *interior_value, one, two);
   auto chained_value = selected(chained.attempt_fold(domain, materializations));
+  auto chained_bytes =
+      chained_value ? get_bytes(*chained_value) : Option<View::Bytes>();
   ASSERT(chained_value);
-  EXPECT_TEXT(
-      static_cast<const Constants::Bytes&>(*chained_value).get_value(),
-      "cd"_view);
+  ASSERT(chained_bytes);
+  EXPECT_TEXT(*chained_bytes, "cd"_view);
 }
 
 PERIMORTEM_UNIT_TEST(LibrarySlice, partial_folding) {
@@ -333,25 +376,25 @@ PERIMORTEM_UNIT_TEST(LibrarySlice, rejected_inputs) {
 
   EXPECT(reports(
       invalid_receiver.attempt_fold(domain, materializations),
-      FoldError::InvalidReceiverType));
+      FoldError::Type::InvalidOperationType, invalid_receiver));
   EXPECT(reports(
       invalid_operand.attempt_fold(domain, materializations),
-      FoldError::InvalidOperandType));
+      FoldError::Type::InvalidOperationType, invalid_operand));
   EXPECT(reports(
       negative_operand.attempt_fold(domain, materializations),
-      FoldError::NegativeOperand));
+      FoldError::Type::NegativeOperand, negative));
   EXPECT(reports(
       overflow.attempt_fold(domain, materializations),
-      FoldError::CountOverflow));
+      FoldError::Type::InvalidOperationType, overflow));
   EXPECT(reports(
       index_bounds.attempt_fold(domain, materializations),
-      FoldError::IndexOutOfBounds));
+      FoldError::Type::IndexOutOfBounds, three));
   EXPECT(reports(
       start_bounds.attempt_fold(domain, materializations),
-      FoldError::RangeStartOutOfBounds));
+      FoldError::Type::RangeStartOutOfBounds, four));
   EXPECT(reports(
       size_bounds.attempt_fold(domain, materializations),
-      FoldError::RangeSizeOutOfBounds));
+      FoldError::Type::RangeSizeOutOfBounds, two));
   EXPECT(&invalid_receiver.get_type() == &Invalid::get_invalid());
   EXPECT(&invalid_operand.get_type() == &Invalid::get_invalid());
 }

@@ -3,7 +3,10 @@
 
 #include "tetrodotoxin/library/language/parser/expression.hpp"
 
+#include "tetrodotoxin/library/language/operations/less.hpp"
+#include "tetrodotoxin/library/language/operations/multiply.hpp"
 #include "tetrodotoxin/library/language/operations/slice.hpp"
+#include "tetrodotoxin/library/language/operations/subtract.hpp"
 #include "tetrodotoxin/library/language/parser/literal.hpp"
 #include "ttx/concept/reference.hpp"
 
@@ -13,12 +16,27 @@ using namespace Tetrodotoxin;
 using namespace Ttx::Concept;
 using namespace Ttx::Lexical;
 
+static auto get_precedence(Code::Type operation) -> Count {
+  switch (operation) {
+  case Code::Type::SliceOp:
+    return 40;
+  case Code::Type::MulOp:
+    return 30;
+  case Code::Type::SubOp:
+    return 20;
+  case Code::Type::LessOp:
+    return 10;
+  default:
+    return 0;
+  }
+}
+
 static auto parse_expression(
     Allocator::Arena& domain,
     Library::Language::Materializations& materializations,
     Cursor& cursor,
-    const Abstract& source_context)
-    -> Option<const Library::Language::Expression&> {
+    const Abstract& source_context,
+    Count minimum_precedence) -> Option<const Library::Language::Expression&> {
   auto primary = Library::Language::Parser::Literal::parse(
       domain, materializations, cursor, source_context);
   if (!primary) {
@@ -29,6 +47,11 @@ static auto parse_expression(
   while (True) {
     // Expression owns only precedence and operator selection. Each selected
     // operator consumes its complete grammar and returns one semantic edge.
+    Count precedence = get_precedence(cursor.get_code().get_type());
+    if (precedence < minimum_precedence) {
+      return expression.get();
+    }
+
     switch (cursor.get_code().get_type()) {
     case Code::Type::SliceOp: {
       auto slice = Library::Language::Operations::Slice::parse(
@@ -38,6 +61,36 @@ static auto parse_expression(
       }
 
       expression = *slice;
+      break;
+    }
+    case Code::Type::MulOp: {
+      auto multiply = Library::Language::Operations::Multiply::parse(
+          domain, materializations, cursor, source_context, expression.get());
+      if (!multiply) {
+        return {};
+      }
+
+      expression = *multiply;
+      break;
+    }
+    case Code::Type::SubOp: {
+      auto subtract = Library::Language::Operations::Subtract::parse(
+          domain, materializations, cursor, source_context, expression.get());
+      if (!subtract) {
+        return {};
+      }
+
+      expression = *subtract;
+      break;
+    }
+    case Code::Type::LessOp: {
+      auto less = Library::Language::Operations::Less::parse(
+          domain, materializations, cursor, source_context, expression.get());
+      if (!less) {
+        return {};
+      }
+
+      expression = *less;
       break;
     }
     default:
@@ -51,15 +104,38 @@ auto Library::Language::Parser::Expression::parse(
     Materializations& materializations,
     Cursor& cursor,
     const Abstract& source_context) -> Option<const Language::Expression&> {
-  Cursor transaction = cursor;
-  auto parsed =
-      parse_expression(domain, materializations, transaction, source_context);
+  auto transaction = cursor.branch();
+  auto parsed = parse_expression(
+      domain, materializations, transaction, source_context, 0);
   if (!parsed) {
     return {};
   }
 
-  // Only this final synchronization changes caller position. Nested operands
-  // and partial postfix chains remain private to the transaction Cursor.
-  cursor.sync(transaction);
+  // Only this final join changes caller position. Nested operands and partial
+  // postfix chains remain private to the transaction Cursor.
+  cursor.join(transaction);
+  return *parsed;
+}
+
+auto Library::Language::Parser::Expression::parse_operand(
+    Allocator::Arena& domain,
+    Materializations& materializations,
+    Cursor& cursor,
+    const Abstract& source_context,
+    Code::Type operation) -> Option<const Language::Expression&> {
+  Count precedence = get_precedence(operation);
+  if (precedence == 0) {
+    return {};
+  }
+
+  Errors operand_errors;
+  auto transaction = cursor.branch(operand_errors);
+  auto parsed = parse_expression(
+      domain, materializations, transaction, source_context, precedence + 1);
+  if (!parsed) {
+    return {};
+  }
+
+  cursor.join(transaction);
   return *parsed;
 }

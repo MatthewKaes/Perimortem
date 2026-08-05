@@ -257,26 +257,44 @@ PERIMORTEM_UNIT_TEST(TtxLexical, cursor_completed_span) {
   EXPECT(!cursor.peek(1));
 }
 
-PERIMORTEM_UNIT_TEST(TtxLexical, cursor_sync) {
+PERIMORTEM_UNIT_TEST(TtxLexical, cursor_join) {
   Allocator::Arena arena;
   Errors errors;
-  Tokenizer source(arena, "first second"_view, "source.ttx"_view);
-  Tokenizer destination(arena, "only"_view, "destination.ttx"_view);
-  Cursor beginning(source, errors);
-  Cursor target(source, errors);
-  Cursor cursor(destination, errors);
+  Tokenizer tokenizer(arena, "first second"_view, "source.ttx"_view);
+  Cursor cursor(tokenizer, errors);
+  auto branch = cursor.branch();
 
-  target.consume();
-  cursor.sync(target);
-  EXPECT(cursor.matches(Code::Type::Terminal));
-
-  target.consume();
-  cursor.sync(target);
-  EXPECT_NOT(cursor.current().is_valid());
-
-  cursor.sync(beginning);
+  branch.consume();
   EXPECT_TEXT(
-      cursor.current().caculate_text(cursor.get_source_text()), "only"_view);
+      cursor.current().caculate_text(cursor.get_source_text()), "first"_view);
+  EXPECT_TEXT(
+      branch.current().caculate_text(branch.get_source_text()), "second"_view);
+
+  cursor.join(branch);
+  EXPECT_TEXT(
+      cursor.current().caculate_text(cursor.get_source_text()), "second"_view);
+}
+
+PERIMORTEM_UNIT_TEST(TtxLexical, cursor_diagnostic_branch) {
+  Allocator::Arena arena;
+  Errors published_errors;
+  Errors branch_errors;
+  Tokenizer tokenizer(arena, "first second"_view, "test.ttx"_view);
+  Cursor cursor(tokenizer, published_errors);
+
+  cursor.consume();
+  auto branch = cursor.branch(branch_errors);
+  branch.create_token_error("Provisional failure."_view);
+  branch.consume();
+
+  EXPECT(published_errors.is_empty());
+  EXPECT_EQ(branch_errors.get_size(), Count(1));
+  EXPECT_TEXT(
+      cursor.current().caculate_text(cursor.get_source_text()), "second"_view);
+  EXPECT(branch.matches(Code::Type::Terminal));
+
+  cursor.join(branch);
+  EXPECT(cursor.matches(Code::Type::Terminal));
 }
 
 PERIMORTEM_UNIT_TEST(TtxLexical, require_success) {

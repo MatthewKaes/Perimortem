@@ -135,7 +135,7 @@ a narrower receiving owner must construct an explicitly typed Constant before
 forming one of these operations.
 
 Every Slice failure maps to one diagnostic over the complete postfix, while
-the caller Cursor synchronizes only once after the complete chain succeeds. A
+the caller Cursor joins only once after the complete chain succeeds. A
 receiving declaration, assignment, invocation, or other typed operation applies
 fitting only after the complete Expression has synthesized its result Type.
 Remaining comparisons and Projection remain outside the current parser.

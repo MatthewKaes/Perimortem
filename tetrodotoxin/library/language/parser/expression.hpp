@@ -29,6 +29,16 @@ class Expression {
       Ttx::Lexical::Cursor& cursor,
       const Ttx::Concept::Abstract& source_context)
       -> Perimortem::Utility::Option<const Language::Expression&>;
+
+  // Parses one tighter operand with private diagnostics. The caller position
+  // advances only when the complete operand succeeds.
+  static auto parse_operand(
+      Perimortem::Memory::Allocator::Arena& domain,
+      Materializations& materializations,
+      Ttx::Lexical::Cursor& cursor,
+      const Ttx::Concept::Abstract& source_context,
+      Ttx::Lexical::Code::Type operation)
+      -> Perimortem::Utility::Option<const Language::Expression&>;
 };
 
 }  // namespace Tetrodotoxin::Library::Language::Parser

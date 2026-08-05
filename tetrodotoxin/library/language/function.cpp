@@ -57,7 +57,7 @@ auto Language::Function::reserve(
     Allocator::Arena& domain,
     Cursor& cursor,
     const Documentation& documentation) -> Option<Function&> {
-  Cursor transaction = cursor;
+  auto transaction = cursor.branch();
   Visibility visibility;
   if (transaction.matches(Code::Type::Public)) {
     transaction.consume();
@@ -87,7 +87,7 @@ auto Language::Function::reserve(
   View::Bytes name = name_token.caculate_text(transaction.get_source_text());
   Function& function = domain.construct<Function>(
       Construction{}, domain, name, documentation, visibility);
-  cursor.sync(transaction);
+  cursor.join(transaction);
   return function;
 }
 
@@ -110,10 +110,9 @@ auto Language::Function::complete(Cursor& cursor, const Abstract& context)
     return False;
   }
 
-  // A copied Cursor keeps every parse allocation and diagnostic inside this
-  // attempt while the caller remains at the signature opening. Only a complete
-  // signature and body advance the caller to the next declaration.
-  Cursor transaction = cursor;
+  // A Cursor branch keeps the caller at the signature opening. Only a complete
+  // signature and body join its final position into the caller.
+  auto transaction = cursor.branch();
   Option<const Layout&> parsed_parameters =
       Parser::Layout::parse(domain, transaction, context);
   if (!parsed_parameters) {
@@ -142,7 +141,7 @@ auto Language::Function::complete(Cursor& cursor, const Abstract& context)
 
   parameters = *parsed_parameters;
   results = *parsed_results;
-  cursor.sync(transaction);
+  cursor.join(transaction);
   return True;
 }
 

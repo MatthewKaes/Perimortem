@@ -23,6 +23,26 @@ class Cursor {
  public:
   Cursor(const Lexical::Tokenizer& tokenizer, Lexical::Errors& errors)
       : tokenizer(tokenizer), errors(errors) {}
+  Cursor(const Cursor&) = delete;
+
+  // A branch shares immutable Tokens and starts at this exact position. The
+  // no argument form publishes diagnostics with its parent while the explicit
+  // Errors form keeps provisional diagnostics private.
+  constexpr auto branch() const -> Cursor {
+    return Cursor(tokenizer, errors, index);
+  }
+
+  constexpr auto branch(Lexical::Errors& branch_errors) const -> Cursor {
+    return Cursor(tokenizer, branch_errors, index);
+  }
+
+  // Only a branch over the same Token stream can commit its position. Joining
+  // an unrelated Cursor is ignored rather than importing a meaningless index.
+  constexpr auto join(const Cursor& branch) -> void {
+    if (&tokenizer == &branch.tokenizer) {
+      index = branch.index;
+    }
+  }
 
   // Gets the token from the tokenizer at the current location.
   // If the current index is out of bounds then an empty token is returned.
@@ -36,10 +56,6 @@ class Cursor {
   constexpr auto peek(Signed_64 offset) const -> Lexical::Token {
     return tokenizer.get_tokens()[index + offset];
   }
-
-  // Sets this cursor's index to another cursor's index.
-  // The two cursors aren't required to point to the same tokenizer.
-  constexpr auto sync(const Cursor& target) -> void { index = target.index; }
 
   // Advances at most to the tokenizer's terminal token and returns the
   // token that was current before advancing.
@@ -242,6 +258,12 @@ class Cursor {
   }
 
  private:
+  constexpr Cursor(
+      const Lexical::Tokenizer& tokenizer,
+      Lexical::Errors& errors,
+      Count index)
+      : tokenizer(tokenizer), errors(errors), index(index) {}
+
   const Lexical::Tokenizer& tokenizer;
   Lexical::Errors& errors;
   Count index = 0;

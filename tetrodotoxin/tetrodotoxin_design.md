@@ -280,11 +280,13 @@ edges. They do not redeclare those shared owners.
 
 Operation retains real replaceable Expression edges and recursively folds child
 Operations. Partial folding preserves the parent identity. A concrete operation
-evaluates only after every input is Constant, and a durable FoldError selects
-the caller's recovery category without retaining source context. Parser
-construction may invoke the transaction eagerly. A later Library Monograph post
-pass will traverse replaceable graph roots through the same contract rather
-than introduce a second evaluator or expression model.
+evaluates only after every input is Constant. A durable FoldError carries its
+category and the exact failing Expression without retaining source context.
+Every completed replacement and result preserves its construction time Type,
+so folding cannot double as semantic Type resolution. Parser construction may
+invoke the transaction eagerly. A later Library Monograph post pass will
+traverse replaceable graph roots through the same contract rather than
+introduce a second evaluator or expression model.
 
 Bool, integer, real, and Void are immutable binary wide Library identities.
 Distinct installed Dialects share their exact addresses while retaining any
@@ -483,16 +485,31 @@ Type. Library `Operations::Slice` owns a following `:[index]` or
 `:[start, size]` operation for Embedded, quoted Bytes, hexadecimal Bytes, and
 later ranged expressions. It retains only real Expression edges. Fixed, View,
 and Access receivers supply their retained element Type directly. A Constant
-size yields canonical Fixed identity, while a dynamic size yields View unless
-the receiver already proves writable contiguous Access. Bytes is the current
-Constant ranged payload domain rather than evidence for a universal Constant
-payload interface.
+size yields canonical Fixed identity during construction, while a dynamic size
+yields View unless the receiver already proves writable contiguous Access. A
+size Operation that later folds does not change the retained Slice result Type.
+Bytes is the current Constant ranged payload domain rather than evidence for a
+universal Constant payload interface.
 
 Expression delegates primary parsing to Literal and selects following
 operators in precedence order. Each concrete operation owns its complete
 grammar builder. Slice recursively asks the Expression dispatcher for operands,
 associates its postfixes left to right, and eagerly invokes Operation folding so
 completed Bytes results enter the graph without their unused base Constants.
+Slice binds before Multiply. Multiply owns selected Type legality, checked
+integer and IEEE folding, construction, and diagnostics after asking the
+dispatcher only for an operand above its own precedence. Multiply binds before
+Subtract. Subtract owns binary `-`, locked scalar Type selection, checked
+selected width overflow and underflow, IEEE Real evaluation, construction,
+diagnostics, and folding. Literal keeps leading negative numeric grammar and a
+future unary Negate remains a separate operation owner.
+Subtract binds before Less. Less owns `<`, locked scalar operand Type selection,
+canonical Bool result identity, ordered IEEE comparison, construction,
+diagnostics, and True or False folding. Chained comparison receives the prior
+Bool result and follows ordinary Type legality.
+Multiply, Subtract, and Less require exact resolved Signed, Unsigned, or Real
+Type identity on both operands. Constants retain their declared Type, and these
+operations perform no implicit widening, narrowing, fitting, or retagging.
 A later Swizzle or named operator adds its own grammar builder and one explicit
 Expression dispatch case instead of extending Slice or duplicating parser
 transactions. A future Library post pass traverses replaceable graph roots

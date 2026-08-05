@@ -10,41 +10,28 @@
 
 namespace Tetrodotoxin::Library::Language::Operations {
 
-// Slice is the semantic index or contiguous range operation. It retains two
-// inputs for receiver and index, or three inputs for receiver, start, and size.
-// Operation owns replacement and authored ordering. Slice retains the result
-// Type chosen from those original inputs and evaluates the live Constant Bytes
-// payload domain without changing that graph contract during folding.
-class Slice : public Operation {
+// Multiply owns one binary scalar product. It retains the exact left and right
+// Expression edges and the result Type selected during construction. Recursive
+// folding may replace an input but cannot retag the completed product.
+class Multiply : public Operation {
  public:
-  using ClassCatagory = Slice;
+  using ClassCatagory = Multiply;
   static constexpr Perimortem::System::Uuid contract_id{
-    0x6beea0412c0b4d4e,
-    0x958a39337c8ced0f,
+    0x5c072da344144a09,
+    0x8b5fc8dd12d91e3a,
   };
 
-  // Consumes one complete Slice postfix for the supplied receiver. Recursive
-  // operands use the Expression dispatcher while Slice keeps its own recovery,
-  // diagnostics, construction, and eager folding transaction.
   static auto parse(
       Perimortem::Memory::Allocator::Arena& domain,
       Materializations& materializations,
       Ttx::Lexical::Cursor& cursor,
       const Ttx::Concept::Abstract& source_context,
-      const Expression& receiver)
-      -> Perimortem::Utility::Option<const Expression&>;
+      const Expression& left) -> Perimortem::Utility::Option<const Expression&>;
 
-  Slice(
+  Multiply(
       Perimortem::Memory::Allocator::Arena& domain,
-      Materializations& materializations,
-      const Expression& receiver,
-      const Expression& index);
-  Slice(
-      Perimortem::Memory::Allocator::Arena& domain,
-      Materializations& materializations,
-      const Expression& receiver,
-      const Expression& start,
-      const Expression& size);
+      const Expression& left,
+      const Expression& right);
 
   constexpr auto implements(Perimortem::System::Uuid requested) const
       -> Bool override {
@@ -52,12 +39,10 @@ class Slice : public Operation {
   }
 
   constexpr auto get_name() const -> Perimortem::Core::View::Bytes override {
-    return "Slice"_view;
+    return "Multiply"_view;
   }
   auto get_documentation() const -> const Ttx::Concept::Documentation& override;
   auto get_type() const -> const Ttx::Concept::Abstract& override;
-
-  constexpr auto is_range() const -> Bool { return range; }
 
  protected:
   auto evaluate_constants(
@@ -67,7 +52,6 @@ class Slice : public Operation {
 
  private:
   const Ttx::Concept::Abstract& result_type;
-  Bool range;
 };
 
 }  // namespace Tetrodotoxin::Library::Language::Operations
