@@ -27,24 +27,14 @@ class Cursor {
   // Gets the token from the tokenizer at the current location.
   // If the current index is out of bounds then an empty token is returned.
   constexpr auto current() const -> Lexical::Token {
-    const auto tokens = tokenizer.get_tokens();
-    if (index >= tokens.get_size()) {
-      return Lexical::Token();
-    }
-
-    return tokens.get_data()[index];
+    return tokenizer.get_tokens()[index];
   }
 
-  // Looks at a token that is ahead of the current token by `offset`.
-  // Passing zero returns `current` and any value that would but the cursor out
-  // of range returns an empty token.
-  constexpr auto peek(Count offset) const -> Lexical::Token {
-    const auto tokens = tokenizer.get_tokens();
-    if (index + offset >= tokens.get_size()) {
-      return Lexical::Token();
-    }
-
-    return tokens.get_data()[index + offset];
+  // Looks at a Token relative to the current position. Positive offsets look
+  // forward and negative offsets look backward. Passing zero returns current,
+  // while either stream boundary returns an empty Token.
+  constexpr auto peek(Signed_64 offset) const -> Lexical::Token {
+    return tokenizer.get_tokens()[index + offset];
   }
 
   // Sets this cursor's index to another cursor's index.
@@ -54,9 +44,8 @@ class Cursor {
   // Advances at most to the tokenizer's terminal token and returns the
   // token that was current before advancing.
   constexpr auto consume() -> Lexical::Token {
-    const auto tokens = tokenizer.get_tokens();
     Lexical::Token consumed = current();
-    if (index + 1 < tokens.get_size()) {
+    if (index + 1 < tokenizer.get_tokens().get_size()) {
       index++;
     }
 

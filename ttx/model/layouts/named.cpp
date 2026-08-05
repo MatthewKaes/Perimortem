@@ -27,13 +27,14 @@ static auto fits_entry(
 
 auto Layouts::Named::has_unique_names() const -> Bool {
   for (Count i = 0; i < get_size(); i++) {
-    Perimortem::Core::View::Bytes name = abstracts[i].get().get_name();
+    Perimortem::Core::View::Bytes name =
+        abstracts.get_data()[i].get().get_name();
     if (name.is_empty()) {
       return False;
     }
 
     for (Count other = i + 1; other < get_size(); other++) {
-      if (name == abstracts[other].get().get_name()) {
+      if (name == abstracts.get_data()[other].get().get_name()) {
         return False;
       }
     }
@@ -49,7 +50,7 @@ auto Layouts::Named::fits_at(const Concept::Layout& target, Count target_offset)
   }
 
   for (Count i = 0; i < get_size(); i++) {
-    const Concept::Abstract& source = abstracts[i].get();
+    const Concept::Abstract& source = abstracts.get_data()[i].get();
     Count matches = 0;
     for (Count target_index = 0; target_index < get_size(); target_index++) {
       Bool candidate_fits =
@@ -109,7 +110,7 @@ auto Layouts::Named::get_fitted_at(
           [this](const Concept::Abstract& requested)
               -> Perimortem::Utility::Result<const Concept::Abstract&, Errors> {
             for (Count i = 0; i < get_size(); i++) {
-              const Concept::Abstract& source = abstracts[i].get();
+              const Concept::Abstract& source = abstracts.get_data()[i].get();
               if (source.get_name() != requested.get_name()) {
                 continue;
               }

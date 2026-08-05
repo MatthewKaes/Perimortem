@@ -224,36 +224,38 @@ PERIMORTEM_UNIT_TEST(PackageArchive, literal_format_one) {
 
   auto dependencies = archive->get_dependencies();
   ASSERT_EQ(dependencies.get_size(), Count(1));
-  EXPECT_TEXT(dependencies[0].get_local_name(), "Core"_view);
-  EXPECT_TEXT(dependencies[0].get_package_name(), "Pkg.Base"_view);
-  EXPECT_EQ(dependencies[0].get_version().get_major(), Unsigned_16(3));
-  EXPECT_EQ(dependencies[0].get_version().get_minor(), Unsigned_16(4));
+  EXPECT_TEXT(dependencies.get_data()[0].get_local_name(), "Core"_view);
+  EXPECT_TEXT(dependencies.get_data()[0].get_package_name(), "Pkg.Base"_view);
+  EXPECT_EQ(
+      dependencies.get_data()[0].get_version().get_major(), Unsigned_16(3));
+  EXPECT_EQ(
+      dependencies.get_data()[0].get_version().get_minor(), Unsigned_16(4));
 
   auto members = archive->get_members();
   ASSERT_EQ(members.get_size(), Count(2));
-  EXPECT_TEXT(members[0].get_semantic_name(), "Main"_view);
-  EXPECT_TEXT(members[0].get_dialect_name(), "Lib"_view);
-  EXPECT(members[0].get_payload().is_empty());
-  EXPECT_TEXT(members[1].get_semantic_name(), "Scene::One"_view);
-  EXPECT_TEXT(members[1].get_dialect_name(), "Scene"_view);
-  ASSERT_EQ(members[1].get_payload().get_size(), Count(3));
-  EXPECT_EQ(members[1].get_payload()[0], Unsigned_8(0xAA));
-  EXPECT_EQ(members[1].get_payload()[1], Unsigned_8(0x00));
-  EXPECT_EQ(members[1].get_payload()[2], Unsigned_8(0x55));
+  EXPECT_TEXT(members.get_data()[0].get_semantic_name(), "Main"_view);
+  EXPECT_TEXT(members.get_data()[0].get_dialect_name(), "Lib"_view);
+  EXPECT(members.get_data()[0].get_payload().is_empty());
+  EXPECT_TEXT(members.get_data()[1].get_semantic_name(), "Scene::One"_view);
+  EXPECT_TEXT(members.get_data()[1].get_dialect_name(), "Scene"_view);
+  ASSERT_EQ(members.get_data()[1].get_payload().get_size(), Count(3));
+  EXPECT_EQ(members.get_data()[1].get_payload()[0], Unsigned_8(0xAA));
+  EXPECT_EQ(members.get_data()[1].get_payload()[1], Unsigned_8(0x00));
+  EXPECT_EQ(members.get_data()[1].get_payload()[2], Unsigned_8(0x55));
 
   auto artifact_ids = archive->get_artifact_ids();
   ASSERT_EQ(artifact_ids.get_size(), Count(2));
-  EXPECT_TEXT(artifact_ids[0], "cpu"_view);
-  EXPECT_TEXT(artifact_ids[1], "res"_view);
+  EXPECT_TEXT(artifact_ids.get_data()[0], "cpu"_view);
+  EXPECT_TEXT(artifact_ids.get_data()[1], "res"_view);
 
   auto exports = archive->get_exports();
   ASSERT_EQ(exports.get_size(), Count(2));
-  EXPECT_TEXT(exports[0].get_semantic_route(), "Main::Run"_view);
-  EXPECT_TEXT(exports[0].get_artifact_id(), "cpu"_view);
-  EXPECT_TEXT(exports[0].get_symbol_locator(), "main"_view);
-  EXPECT_TEXT(exports[1].get_semantic_route(), "Scene::One"_view);
-  EXPECT_TEXT(exports[1].get_artifact_id(), "res"_view);
-  EXPECT_TEXT(exports[1].get_symbol_locator(), "asset"_view);
+  EXPECT_TEXT(exports.get_data()[0].get_semantic_route(), "Main::Run"_view);
+  EXPECT_TEXT(exports.get_data()[0].get_artifact_id(), "cpu"_view);
+  EXPECT_TEXT(exports.get_data()[0].get_symbol_locator(), "main"_view);
+  EXPECT_TEXT(exports.get_data()[1].get_semantic_route(), "Scene::One"_view);
+  EXPECT_TEXT(exports.get_data()[1].get_artifact_id(), "res"_view);
+  EXPECT_TEXT(exports.get_data()[1].get_symbol_locator(), "asset"_view);
 
   auto encoded_once = Package::Archive::Writer::write(*archive);
   auto encoded_twice = Package::Archive::Writer::write(*archive);
@@ -356,10 +358,14 @@ PERIMORTEM_UNIT_TEST(PackageArchive, authored_provenance_is_not_encoded) {
   auto restored = selected_archive(restored_result);
   ASSERT(restored);
   ASSERT_EQ(restored->get_dependencies().get_size(), Count(1));
-  EXPECT_TEXT(restored->get_dependencies()[0].get_local_name(), "Core"_view);
   EXPECT_TEXT(
-      restored->get_dependencies()[0].get_package_name(), "Pkg.Base"_view);
-  EXPECT(restored->get_dependencies()[0].get_version() == Version(3, 4));
+      restored->get_dependencies().get_data()[0].get_local_name(), "Core"_view);
+  EXPECT_TEXT(
+      restored->get_dependencies().get_data()[0].get_package_name(),
+      "Pkg.Base"_view);
+  EXPECT(
+      restored->get_dependencies().get_data()[0].get_version() ==
+      Version(3, 4));
 
   auto restored_bytes = Package::Archive::Writer::write(*restored);
   ASSERT(restored_bytes);
@@ -385,7 +391,7 @@ PERIMORTEM_UNIT_TEST(PackageArchive, empty_inventories) {
   auto decoded = Package::Archive::Reader::read(decoded_arena, *encoded);
   auto decoded_archive = selected_archive(decoded);
   ASSERT(decoded_archive);
-  EXPECT(decoded_archive->get_members()[0].get_payload().is_empty());
+  EXPECT(decoded_archive->get_members().get_data()[0].get_payload().is_empty());
 }
 
 PERIMORTEM_UNIT_TEST(PackageArchive, equal_member_payloads) {
@@ -410,11 +416,11 @@ PERIMORTEM_UNIT_TEST(PackageArchive, equal_member_payloads) {
   ASSERT(decoded_archive);
   auto retained = decoded_archive->get_members();
   ASSERT_EQ(retained.get_size(), Count(2));
-  EXPECT(retained[0].get_payload() == payload);
-  EXPECT(retained[1].get_payload() == payload);
+  EXPECT(retained.get_data()[0].get_payload() == payload);
+  EXPECT(retained.get_data()[1].get_payload() == payload);
   EXPECT(
-      retained[0].get_payload().get_data() !=
-      retained[1].get_payload().get_data());
+      retained.get_data()[0].get_payload().get_data() !=
+      retained.get_data()[1].get_payload().get_data());
 }
 
 PERIMORTEM_UNIT_TEST(PackageArchive, opaque_export_locators) {
@@ -440,10 +446,11 @@ PERIMORTEM_UNIT_TEST(PackageArchive, opaque_export_locators) {
   auto decoded_archive = selected_archive(decoded);
   ASSERT(decoded_archive);
   EXPECT_TEXT(
-      decoded_archive->get_exports()[0].get_semantic_route(),
+      decoded_archive->get_exports().get_data()[0].get_semantic_route(),
       "lower.case#route"_view);
   EXPECT_TEXT(
-      decoded_archive->get_exports()[0].get_symbol_locator(), "symbol@v1"_view);
+      decoded_archive->get_exports().get_data()[0].get_symbol_locator(),
+      "symbol@v1"_view);
 }
 
 PERIMORTEM_UNIT_TEST(PackageArchive, format_size_limits) {
@@ -487,7 +494,7 @@ PERIMORTEM_UNIT_TEST(PackageArchive, borrowed_input) {
       archive->get_identity().get_data(),
       input.get_view().slice(identity_field + 12).get_data());
   EXPECT_EQ(
-      archive->get_dependencies()[0].get_local_name().get_data(),
+      archive->get_dependencies().get_data()[0].get_local_name().get_data(),
       input.get_view().slice(dependency_field + 20).get_data());
 
   auto encoded = Package::Archive::Writer::write(*archive);

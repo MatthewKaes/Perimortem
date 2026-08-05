@@ -98,7 +98,7 @@ static auto bind_only_dependency(
     return False;
   }
 
-  Bool bound = source.bind_dependency(dependencies[0], target);
+  Bool bound = source.bind_dependency(dependencies.get_data()[0], target);
   return bound;
 }
 
@@ -193,7 +193,7 @@ PERIMORTEM_UNIT_TEST(LibraryImports, exact_identity_and_exclusions) {
   Package::Language::Monograph& target_package =
       create_package_with_dependency(arena, package_dialect, "Dependency"_view);
   Bool dependency_bound = target_package.bind_dependency(
-      target_package.get_dependencies()[0], dependency_package);
+      target_package.get_dependencies().get_data()[0], dependency_package);
   Bool first_member_bound = target_package.bind_member("FirstApi"_view, *first);
   Bool nested_member_bound =
       target_package.bind_member("Nested"_view, nested_package);
@@ -223,7 +223,8 @@ PERIMORTEM_UNIT_TEST(LibraryImports, exact_identity_and_exclusions) {
   ASSERT(&public_local != &Invalid::get_invalid());
   ASSERT(&private_local != &Invalid::get_invalid());
   ASSERT_EQ(importer->get_public_functions().get_size(), 1);
-  EXPECT(&importer->get_public_functions()[0].get() == &public_local);
+  EXPECT(
+      &importer->get_public_functions().get_data()[0].get() == &public_local);
 
   Bool import_completed = importer->post_pass();
   ASSERT(import_completed);
@@ -240,7 +241,8 @@ PERIMORTEM_UNIT_TEST(LibraryImports, exact_identity_and_exclusions) {
       &importer->resolve_context("Bool"_view) ==
       &library_dialect.resolve_intrinsic("Bool"_view));
   EXPECT_EQ(importer->get_public_functions().get_size(), 1);
-  EXPECT(&importer->get_public_functions()[0].get() == &public_local);
+  EXPECT(
+      &importer->get_public_functions().get_data()[0].get() == &public_local);
 }
 
 PERIMORTEM_UNIT_TEST(LibraryImports, provider_import_is_not_reexported) {
@@ -700,6 +702,7 @@ PERIMORTEM_UNIT_TEST(LibraryImports, workspace_runs_post_pass_after_staging) {
       &api.resolve_context("provided"_view));
   EXPECT(&main.resolve_context("local"_view) != &Invalid::get_invalid());
   ASSERT_EQ(main.get_public_functions().get_size(), 1);
-  EXPECT_TEXT(main.get_public_functions()[0].get().get_name(), "local"_view);
+  EXPECT_TEXT(
+      main.get_public_functions().get_data()[0].get().get_name(), "local"_view);
   EXPECT(errors.is_empty());
 }

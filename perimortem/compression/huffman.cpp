@@ -23,12 +23,13 @@ auto Compression::Huffman::compute_lengths(
   constexpr Count node_max = Compression::Huffman::max_symbol_count * 2;
 
   Static::Vector<Node, node_max> nodes;
+  const auto* frequency_data = frequencies.get_data();
   Count node_count = 0;
   Count leaf_count = 0;
   for (Count s = 0; s < symbol_count; s++) {
     lengths[s] = 0;
-    if (frequencies[s] > 0) {
-      nodes[node_count++] = {frequencies[s], null_node, Unsigned_16(s)};
+    if (frequency_data[s] > 0) {
+      nodes[node_count++] = {frequency_data[s], null_node, Unsigned_16(s)};
       leaf_count++;
     }
   }
@@ -103,15 +104,16 @@ auto Compression::Huffman::compute_lengths(
     lengths[nodes[i].symbol] = Unsigned_8(depth);
   }
 
-  // Phase 2: restore Kraft equality if clamping over-committed the prefix code.
+  // Clamping can overcommit the prefix code. Restore Kraft equality before the
+  // completed lengths become a table.
   // Clamping a symbol from depth d > max_code_bits to max_code_bits can make
   // the Kraft sum exceed 2 ^ max_code_bits which would produce an ambiguous
   // prefix code that stricter decoders reject.
   //
   // We compute the actual integer Kraft excess directly and reduce it by
   // exactly that many iterations. Each iteration removes one code from the
-  // deepest available sub-max level, replaces it with two codes at the next
-  // level, and removes one code at max_code_bits.
+  // deepest available level below the maximum, replaces it with two codes at
+  // the next level, and removes one code at max_code_bits.
   Count kraft_sum = 0;
   for (Count j = 1; j <= max_code_bits; j++) {
     kraft_sum += codes_per_length[j] * (Count(1) << (max_code_bits - j));

@@ -133,10 +133,15 @@ static auto validate(
     return False;
   }
 
+  const auto* dependency_data = dependencies.get_data();
+  const auto* member_data = members.get_data();
+  const auto* artifact_id_data = artifact_ids.get_data();
+  const auto* export_data = exports.get_data();
+
   // Dependencies retain authored order but require unique local aliases and
   // exact Package identities and pinned versions.
   for (Count i = 0; i < dependencies.get_size(); i++) {
-    const auto& dependency = dependencies[i];
+    const auto& dependency = dependency_data[i];
     View::Bytes local_name = dependency.get_local_name();
     View::Bytes package_name = dependency.get_package_name();
     Version dependency_version = dependency.get_version();
@@ -161,7 +166,7 @@ static auto validate(
     }
 
     for (Count earlier = 0; earlier < i; earlier++) {
-      if (dependencies[earlier].get_local_name() == local_name) {
+      if (dependency_data[earlier].get_local_name() == local_name) {
         return log_duplicate_value(
             "Dependency local names"_view, local_name, earlier, i);
       }
@@ -171,7 +176,7 @@ static auto validate(
   // Members require unique semantic names and one concrete Dialect name.
   // Payload contents remain opaque, including engaged empty bytes.
   for (Count i = 0; i < members.get_size(); i++) {
-    const auto& member = members[i];
+    const auto& member = member_data[i];
     View::Bytes semantic_name = member.get_semantic_name();
     View::Bytes dialect_name = member.get_dialect_name();
     if (!Lexicon::validate(
@@ -188,7 +193,7 @@ static auto validate(
     }
 
     for (Count earlier = 0; earlier < i; earlier++) {
-      if (members[earlier].get_semantic_name() == semantic_name) {
+      if (member_data[earlier].get_semantic_name() == semantic_name) {
         return log_duplicate_value(
             "Member semantic names"_view, semantic_name, earlier, i);
       }
@@ -199,7 +204,7 @@ static auto validate(
     // expose two meanings for the same authored name.
     for (Count dependency_index = 0; dependency_index < dependencies.get_size();
          dependency_index++) {
-      if (dependencies[dependency_index].get_local_name() == semantic_name) {
+      if (dependency_data[dependency_index].get_local_name() == semantic_name) {
         Diagnostics::Log::Message<384> message(Diagnostics::Log::Level::Debug);
         message << archive_read_operation
                 << " failed validation. duplicate_inventory=Package scope "
@@ -214,7 +219,7 @@ static auto validate(
   // Artifact IDs remain direct opaque byte values. Package proves only their
   // presence and uniqueness before an Export can refer to one.
   for (Count i = 0; i < artifact_ids.get_size(); i++) {
-    View::Bytes id = artifact_ids[i];
+    View::Bytes id = artifact_id_data[i];
     if (!is_opaque_identifier(id)) {
       return log_invalid_value(
           "Artifact IDs"_view, i, id,
@@ -222,7 +227,7 @@ static auto validate(
     }
 
     for (Count earlier = 0; earlier < i; earlier++) {
-      if (artifact_ids[earlier] == id) {
+      if (artifact_id_data[earlier] == id) {
         return log_duplicate_value("Artifact IDs"_view, id, earlier, i);
       }
     }
@@ -231,7 +236,7 @@ static auto validate(
   // Export spellings stay opaque here. Package proves only their presence,
   // uniqueness, NUL freedom, and reference to a declared artifact.
   for (Count i = 0; i < exports.get_size(); i++) {
-    const auto& entry = exports[i];
+    const auto& entry = export_data[i];
     View::Bytes semantic_route = entry.get_semantic_route();
     View::Bytes artifact_id = entry.get_artifact_id();
     View::Bytes symbol_locator = entry.get_symbol_locator();
@@ -254,7 +259,7 @@ static auto validate(
     }
 
     for (Count earlier = 0; earlier < i; earlier++) {
-      if (exports[earlier].get_semantic_route() == semantic_route) {
+      if (export_data[earlier].get_semantic_route() == semantic_route) {
         return log_duplicate_value(
             "Export semantic routes"_view, semantic_route, earlier, i);
       }
@@ -510,7 +515,7 @@ static auto retain_records(
     View::Vector<value_type> values) -> View::Vector<value_type> {
   auto retained = arena.reserve<value_type>(values.get_size());
   for (Count i = 0; i < values.get_size(); i++) {
-    retained[i] = values[i];
+    retained[i] = values.get_data()[i];
   }
 
   return retained.get_view();

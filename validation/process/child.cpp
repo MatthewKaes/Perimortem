@@ -171,8 +171,9 @@ static auto prepare_arguments(
   encoded[0] = request.executable;
   encoded[0].append(0);
   arguments[0] = Data::cast<char>(encoded[0].get_access().get_data());
+  const auto* request_argument_data = request.arguments.get_data();
   for (Count index = 0; index < request.arguments.get_size(); index++) {
-    encoded[index + 1] = request.arguments[index];
+    encoded[index + 1] = request_argument_data[index];
     encoded[index + 1].append(0);
     arguments[index + 1] =
         Data::cast<char>(encoded[index + 1].get_access().get_data());

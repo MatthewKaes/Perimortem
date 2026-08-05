@@ -295,15 +295,15 @@ PERIMORTEM_UNIT_TEST(SerializationJson, parse_object) {
 
   auto members = value.get_object();
   EXPECT_EQ(members.get_size(), 4);
-  EXPECT_TEXT(members[0].name, "number"_view);
-  EXPECT_TEXT(members[1].name, "flag"_view);
-  EXPECT_TEXT(members[2].name, "test"_view);
-  EXPECT_TEXT(members[3].name, "number"_view);
+  EXPECT_TEXT(members.get_data()[0].name, "number"_view);
+  EXPECT_TEXT(members.get_data()[1].name, "flag"_view);
+  EXPECT_TEXT(members.get_data()[2].name, "test"_view);
+  EXPECT_TEXT(members.get_data()[3].name, "number"_view);
 
-  EXPECT_EQ(members[0].node.get_number(), 1);
-  EXPECT(members[1].node.get_flag());
-  EXPECT_TEXT(members[2].node.get_string(), "test"_view);
-  EXPECT_EQ(members[3].node.get_number(), -1);
+  EXPECT_EQ(members.get_data()[0].node.get_number(), 1);
+  EXPECT(members.get_data()[1].node.get_flag());
+  EXPECT_TEXT(members.get_data()[2].node.get_string(), "test"_view);
+  EXPECT_EQ(members.get_data()[3].node.get_number(), -1);
 }
 
 PERIMORTEM_UNIT_TEST(SerializationJson, parse_null) {

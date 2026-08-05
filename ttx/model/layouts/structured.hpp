@@ -26,13 +26,14 @@ class Structured : public Concept::Layout {
   constexpr auto get_size() const -> Count override {
     return addressables.get_size();
   }
+
   constexpr auto get_abstract(Count index) const
       -> Perimortem::Utility::Option<const Concept::Abstract&> override {
     if (index >= addressables.get_size()) {
       return {};
     }
 
-    return addressables[index].get();
+    return addressables.get_data()[index].get();
   }
 
   constexpr auto fits_at(const Concept::Layout& target, Count target_offset)
@@ -42,7 +43,7 @@ class Structured : public Concept::Layout {
     }
 
     for (Count i = 0; i < get_size(); i++) {
-      const Addressable& source = addressables[i].get();
+      const Addressable& source = addressables.get_data()[i].get();
       Bool matches = target.get_abstract(target_offset + i)
                          .visit(
                              []() { return False; },
@@ -74,7 +75,7 @@ class Structured : public Concept::Layout {
       return Errors::IncompatibleFit;
     }
 
-    return addressables[target_index].get();
+    return addressables.get_data()[target_index].get();
   }
 
  private:

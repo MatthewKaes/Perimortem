@@ -36,8 +36,9 @@ static auto matches_parameter(
 auto Language::Materializations::Key::hash() const -> Unsigned_64 {
   Unsigned_64 value = Core::Hash(&formula).get_value();
   value = Core::Hash(arguments.get_size()).Rehash(value);
+  const auto* argument_data = arguments.get_data();
   for (Count i = 0; i < arguments.get_size(); i++) {
-    value = arguments[i].visit(
+    value = argument_data[i].visit(
         [&value]() { return combine_hash(value, 0, 0); },
         [&value](const Ttx::Model::Type& type) {
           return combine_hash(value, 1, Core::Hash(&type).get_value());
@@ -68,12 +69,15 @@ auto Language::Materializations::materialize(
 
   // A published key contains only complete semantic facts. Formula code never
   // sees a mismatched value and an incomplete Type cannot become cache state.
+  const auto* parameter_data = parameters.get_data();
+  const auto* argument_data = arguments.get_data();
   for (Count i = 0; i < arguments.get_size(); i++) {
-    if (!matches_parameter(parameters[i], arguments[i])) {
+    if (!matches_parameter(parameter_data[i], argument_data[i])) {
       return {};
     }
 
-    const Ttx::Model::Type* type = arguments[i].find<const Ttx::Model::Type&>();
+    const Ttx::Model::Type* type =
+        argument_data[i].find<const Ttx::Model::Type&>();
     if (type != nullptr && &type->resolve() != type) {
       return {};
     }
@@ -117,7 +121,7 @@ auto Language::Materializations::materialize(
 
   auto retained = arena.reserve<Generic::Argument>(arguments.get_size());
   for (Count i = 0; i < arguments.get_size(); i++) {
-    new (&retained[i]) Generic::Argument(arguments[i]);
+    new (&retained[i]) Generic::Argument(argument_data[i]);
   }
 
   Key retained_key(generic, retained.get_view());

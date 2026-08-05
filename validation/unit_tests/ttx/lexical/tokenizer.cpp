@@ -36,22 +36,23 @@ PERIMORTEM_UNIT_TEST(TtxLexical, access_operators) {
 
   View::Vector<Token> tokens = tokenizer.get_tokens();
   View::Bytes source = tokenizer.get_source_text();
+  const auto* token_data = tokens.get_data();
   ASSERT_EQ(tokens.get_size(), Count(23));
 
-  EXPECT(tokens[0].get_code() == Code::Type::Type);
-  EXPECT(tokens[1].get_code() == Code::Type::AddressOp);
-  EXPECT_TEXT(tokens[1].caculate_text(source), "."_view);
-  EXPECT(tokens[2].get_code() == Code::Type::Type);
+  EXPECT(token_data[0].get_code() == Code::Type::Type);
+  EXPECT(token_data[1].get_code() == Code::Type::AddressOp);
+  EXPECT_TEXT(token_data[1].caculate_text(source), "."_view);
+  EXPECT(token_data[2].get_code() == Code::Type::Type);
 
-  EXPECT_TEXT(tokens[4].caculate_text(source), ".["_view);
-  EXPECT(tokens[4].get_code() == Code::Type::SwizzleOp);
-  EXPECT_TEXT(tokens[10].caculate_text(source), ":["_view);
-  EXPECT(tokens[10].get_code() == Code::Type::SliceOp);
+  EXPECT_TEXT(token_data[4].caculate_text(source), ".["_view);
+  EXPECT(token_data[4].get_code() == Code::Type::SwizzleOp);
+  EXPECT_TEXT(token_data[10].caculate_text(source), ":["_view);
+  EXPECT(token_data[10].get_code() == Code::Type::SliceOp);
 
-  EXPECT_TEXT(tokens[16].caculate_text(source), "["_view);
-  EXPECT(tokens[16].get_code() == Code::Type::LayoutStart);
-  EXPECT_TEXT(tokens[20].caculate_text(source), "."_view);
-  EXPECT(tokens[20].get_code() == Code::Type::AddressOp);
+  EXPECT_TEXT(token_data[16].caculate_text(source), "["_view);
+  EXPECT(token_data[16].get_code() == Code::Type::LayoutStart);
+  EXPECT_TEXT(token_data[20].caculate_text(source), "."_view);
+  EXPECT(token_data[20].get_code() == Code::Type::AddressOp);
 }
 
 PERIMORTEM_UNIT_TEST(TtxLexical, modifiers) {
@@ -62,18 +63,19 @@ PERIMORTEM_UNIT_TEST(TtxLexical, modifiers) {
 
   View::Vector<Token> tokens = tokenizer.get_tokens();
   View::Bytes source = tokenizer.get_source_text();
+  const auto* token_data = tokens.get_data();
   ASSERT_EQ(tokens.get_size(), Count(8));
 
-  EXPECT(tokens[0].get_code() == Code::Type::Public);
-  EXPECT(tokens[1].get_code() == Code::Type::Private);
-  EXPECT(tokens[2].get_code() == Code::Type::Expose);
-  EXPECT(tokens[3].get_code() == Code::Type::State);
-  EXPECT(tokens[4].get_code() == Code::Type::Const);
-  EXPECT(tokens[5].get_code() == Code::Type::Attribute);
-  EXPECT_TEXT(tokens[5].caculate_text(source), "package_name"_view);
-  EXPECT(tokens[6].get_code() == Code::Type::Attribute);
-  EXPECT_TEXT(tokens[6].caculate_text(source), "public"_view);
-  EXPECT(tokens[7].get_code() == Code::Type::Terminal);
+  EXPECT(token_data[0].get_code() == Code::Type::Public);
+  EXPECT(token_data[1].get_code() == Code::Type::Private);
+  EXPECT(token_data[2].get_code() == Code::Type::Expose);
+  EXPECT(token_data[3].get_code() == Code::Type::State);
+  EXPECT(token_data[4].get_code() == Code::Type::Const);
+  EXPECT(token_data[5].get_code() == Code::Type::Attribute);
+  EXPECT_TEXT(token_data[5].caculate_text(source), "package_name"_view);
+  EXPECT(token_data[6].get_code() == Code::Type::Attribute);
+  EXPECT_TEXT(token_data[6].caculate_text(source), "public"_view);
+  EXPECT(token_data[7].get_code() == Code::Type::Terminal);
 }
 
 PERIMORTEM_UNIT_TEST(TtxLexical, lexicon) {
@@ -189,10 +191,28 @@ PERIMORTEM_UNIT_TEST(TtxLexical, hexadecimal_code) {
 
   View::Vector<Token> tokens = tokenizer.get_tokens();
   ASSERT_EQ(tokens.get_size(), Count(2));
-  EXPECT(tokens[0].get_code() == Code::Type::Hex);
+  EXPECT(tokens.get_data()[0].get_code() == Code::Type::Hex);
   EXPECT_TEXT(
-      tokens[0].caculate_text(tokenizer.get_source_text()), "0xAB"_view);
-  EXPECT(tokens[1].get_code() == Code::Type::Terminal);
+      tokens.get_data()[0].caculate_text(tokenizer.get_source_text()),
+      "0xAB"_view);
+  EXPECT(tokens.get_data()[1].get_code() == Code::Type::Terminal);
+}
+
+PERIMORTEM_UNIT_TEST(TtxLexical, terminal_boundary) {
+  Allocator::Arena arena;
+  Token empty;
+  Tokenizer tokenizer(arena, "one two"_view, "test.ttx"_view);
+  View::Vector<Token> tokens = tokenizer.get_tokens();
+  Token terminal = tokens.get_data()[tokens.get_size() - 1];
+
+  EXPECT(empty.get_code() == Code::Type::Terminal);
+  EXPECT(empty.get_offset() == 0);
+  EXPECT(empty.get_line() == 0);
+  EXPECT(empty.get_column() == 0);
+  EXPECT(empty.get_size() == 0);
+  EXPECT(terminal.get_code() == Code::Type::Terminal);
+  EXPECT(terminal.get_offset() == tokenizer.get_source_text().get_size());
+  EXPECT(terminal.get_size() == 0);
 }
 
 PERIMORTEM_UNIT_TEST(TtxLexical, cursor_consume) {
@@ -207,6 +227,34 @@ PERIMORTEM_UNIT_TEST(TtxLexical, cursor_consume) {
   EXPECT(cursor.matches(Code::Type::Terminal));
   cursor.consume();
   EXPECT(cursor.matches(Code::Type::Terminal));
+}
+
+PERIMORTEM_UNIT_TEST(TtxLexical, cursor_completed_span) {
+  Allocator::Arena arena;
+  Errors errors;
+  Tokenizer tokenizer(arena, "one two"_view, "test.ttx"_view);
+  Cursor cursor(tokenizer, errors);
+
+  EXPECT(!cursor.peek(-1));
+  EXPECT_TEXT(
+      cursor.peek(1).caculate_text(cursor.get_source_text()), "two"_view);
+  EXPECT(!cursor.peek(3));
+
+  Token opening = cursor.consume();
+  Span first(opening, cursor.peek(-1));
+  cursor.consume();
+  Span complete(opening, cursor.peek(-1));
+  cursor.consume();
+  Span at_terminal(opening, cursor.peek(-1));
+
+  EXPECT_TEXT(first.caculate_text(cursor.get_source_text()), "one"_view);
+  EXPECT_TEXT(complete.caculate_text(cursor.get_source_text()), "one two"_view);
+  EXPECT_TEXT(
+      at_terminal.caculate_text(cursor.get_source_text()), "one two"_view);
+  EXPECT(complete.get_end().get_code() == Code::Type::Addressable);
+  EXPECT(at_terminal.get_end().get_code() == Code::Type::Addressable);
+  EXPECT(!cursor.peek(-3));
+  EXPECT(!cursor.peek(1));
 }
 
 PERIMORTEM_UNIT_TEST(TtxLexical, cursor_sync) {
@@ -333,7 +381,7 @@ PERIMORTEM_UNIT_TEST(TtxLexical, scoped_report) {
   {
     Allocator::Arena source_arena;
     Tokenizer tokenizer(source_arena, "report source"_view, "report.ttx"_view);
-    Token token = tokenizer.get_tokens()[0];
+    Token token = tokenizer.get_tokens().get_data()[0];
     Errors::Report report(
         errors, tokenizer.get_source_path(), tokenizer.get_source_text(),
         Span(token));
@@ -348,7 +396,7 @@ PERIMORTEM_UNIT_TEST(TtxLexical, scoped_report) {
         replacement_arena, "replacement source"_view, "report.ttx"_view);
     Errors::Report report(
         errors, replacement.get_source_path(), replacement.get_source_text(),
-        Span(replacement.get_tokens()[0]));
+        Span(replacement.get_tokens().get_data()[0]));
     report << "Repeated report."_view;
   }
 
@@ -584,7 +632,7 @@ PERIMORTEM_UNIT_TEST(TtxLexical, token_error) {
   Allocator::Arena render_arena;
   Errors errors;
   Tokenizer tokenizer(arena, "one\ntwo\nthree value"_view, "test.ttx"_view);
-  Token token = tokenizer.get_tokens()[3];
+  Token token = tokenizer.get_tokens().get_data()[3];
 
   {
     Errors::Report report(
@@ -615,7 +663,7 @@ PERIMORTEM_UNIT_TEST(TtxLexical, recover_stmt) {
 PERIMORTEM_UNIT_TEST(TtxLexical, token_projection) {
   Allocator::Arena arena;
   Tokenizer tokenizer(arena, "one two three"_view, "test.ttx"_view);
-  Token token = tokenizer.get_tokens()[1];
+  Token token = tokenizer.get_tokens().get_data()[1];
 
   EXPECT_TEXT(token.caculate_text(tokenizer.get_source_text()), "two"_view);
   EXPECT_TEXT(token.caculate_text("red sky green"_view), "sky"_view);
@@ -647,12 +695,14 @@ PERIMORTEM_UNIT_TEST(TtxLexical, tokenize_library) {
     Allocator::Arena arena;
     Tokenizer tokenizer(arena, *source, path);
     View::Vector<Token> tokens = tokenizer.get_tokens();
+    const auto* token_data = tokens.get_data();
     ASSERT(tokens.get_size() > 1);
-    EXPECT(tokens[tokens.get_size() - 1].get_code() == Code::Type::Terminal);
+    EXPECT(
+        token_data[tokens.get_size() - 1].get_code() == Code::Type::Terminal);
 
     for (Count index = 0; index + 1 < tokens.get_size(); index++) {
-      EXPECT(tokens[index].get_code() != Code::Type::Terminal);
-      EXPECT(tokens[index].get_code() != Code::Type::Unknown);
+      EXPECT(token_data[index].get_code() != Code::Type::Terminal);
+      EXPECT(token_data[index].get_code() != Code::Type::Unknown);
     }
   }
 }
@@ -681,12 +731,14 @@ PERIMORTEM_UNIT_TEST(TtxLexical, tokenize_package) {
     Allocator::Arena arena;
     Tokenizer tokenizer(arena, *source, path);
     View::Vector<Token> tokens = tokenizer.get_tokens();
+    const auto* token_data = tokens.get_data();
     ASSERT(tokens.get_size() > 1);
-    EXPECT(tokens[tokens.get_size() - 1].get_code() == Code::Type::Terminal);
+    EXPECT(
+        token_data[tokens.get_size() - 1].get_code() == Code::Type::Terminal);
 
     for (Count index = 0; index + 1 < tokens.get_size(); index++) {
-      EXPECT(tokens[index].get_code() != Code::Type::Terminal);
-      EXPECT(tokens[index].get_code() != Code::Type::Unknown);
+      EXPECT(token_data[index].get_code() != Code::Type::Terminal);
+      EXPECT(token_data[index].get_code() != Code::Type::Unknown);
     }
   }
 }

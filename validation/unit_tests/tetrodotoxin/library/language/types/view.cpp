@@ -36,7 +36,7 @@ PERIMORTEM_UNIT_TEST(LibraryView, direct_contract) {
   EXPECT_TEXT(view.get_name(), "View[Unsigned_8]"_view);
   EXPECT(&view.get_element_type() == &element);
   ASSERT_EQ(arguments.get_size(), Count(1));
-  EXPECT(arguments[0].find<const Ttx::Model::Type&>() == &element);
+  EXPECT(arguments.get_data()[0].find<const Ttx::Model::Type&>() == &element);
   ASSERT_EQ(documentation.line_count(), Count(1));
   EXPECT_TEXT(
       documentation.get_line(0),

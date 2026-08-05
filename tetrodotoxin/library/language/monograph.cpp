@@ -6,7 +6,6 @@
 #include "perimortem/core/diagnostics/log.hpp"
 
 #include "tetrodotoxin/package/language/monograph.hpp"
-#include "ttx/concept/invalid.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -22,6 +21,19 @@ struct ImportCandidate {
   View::Bytes provider_member;
   Reference<Library::Language::Function> function;
 };
+
+template <typename selected_type>
+static auto select_abstract(const Abstract& value)
+    -> Perimortem::Utility::Option<const selected_type&> {
+  return value.visit<selected_type>(
+      [](const selected_type& selected)
+          -> Perimortem::Utility::Option<const selected_type&> {
+        return selected;
+      },
+      [](const Abstract&) -> Perimortem::Utility::Option<const selected_type&> {
+        return {};
+      });
+}
 
 static auto visibility_text(Library::Language::Visibility visibility)
     -> View::Bytes {
@@ -41,6 +53,7 @@ Library::Language::Monograph::Monograph(
     Library::Dialect& host,
     const Abstract& interpretation_context)
     : Tetrodotoxin::Language::Dialect::Monograph(domain, documentation, host),
+      library_host(host),
       interpretation_context(interpretation_context),
       imports(domain),
       functions(domain),
@@ -74,7 +87,9 @@ auto Library::Language::Monograph::post_pass() -> Bool {
   }
 
   const Abstract& source_context = interpretation_context.resolve();
-  if (!source_context.is<Package::Language::Monograph>()) {
+  auto source_package =
+      select_abstract<Package::Language::Monograph>(source_context);
+  if (!source_package) {
     for (Count i = 0; i < imports.get_size(); i++) {
       Diagnostics::Log::Message<768> message(Diagnostics::Log::Level::Info);
       message << import_operation
@@ -87,8 +102,6 @@ auto Library::Language::Monograph::post_pass() -> Bool {
     return False;
   }
 
-  const auto& source_package =
-      static_cast<const Package::Language::Monograph&>(source_context);
   Managed::Vector<ImportCandidate> candidates(domain);
   Bool failed = False;
 
@@ -108,41 +121,41 @@ auto Library::Language::Monograph::post_pass() -> Bool {
       Diagnostics::Log::Message<768> message(Diagnostics::Log::Level::Info);
       message << import_operation
               << " failed. reason=duplicate Import route import_route="_view
-              << route << " source_package="_view << source_package.get_name();
+              << route << " source_package="_view << source_package->get_name();
       failed = True;
       continue;
     }
 
-    const Abstract& selected = source_package.resolve_context(route).resolve();
-    if (!selected.is<Package::Language::Monograph>()) {
+    const Abstract& selected = source_package->resolve_context(route).resolve();
+    auto target_package =
+        select_abstract<Package::Language::Monograph>(selected);
+    if (!target_package) {
       Diagnostics::Log::Message<896> message(Diagnostics::Log::Level::Info);
       message << import_operation
               << " failed. reason=the Import target is not a Package "
                  "Monograph import_route="_view
-              << route << " source_package="_view << source_package.get_name()
+              << route << " source_package="_view << source_package->get_name()
               << " selected_target="_view << selected.get_name();
       failed = True;
       continue;
     }
 
-    const auto& target_package =
-        static_cast<const Package::Language::Monograph&>(selected);
-    View::Vector<Reference<Alias>> members = target_package.get_members();
+    View::Vector<Reference<Alias>> members = target_package->get_members();
     for (Count member_index = 0; member_index < members.get_size();
          member_index++) {
-      const Alias& member = members[member_index].get();
+      const Alias& member = members.get_data()[member_index].get();
       const Abstract& provider = member.resolve();
-      if (!provider.is<Library::Language::Monograph>()) {
+      auto library = select_abstract<Library::Language::Monograph>(provider);
+      if (!library) {
         continue;
       }
 
-      const auto& library =
-          static_cast<const Library::Language::Monograph&>(provider);
       View::Vector<Reference<Function>> public_functions =
-          library.get_public_functions();
+          library->get_public_functions();
       for (Count function_index = 0;
            function_index < public_functions.get_size(); function_index++) {
-        const Function& function = public_functions[function_index].get();
+        const Function& function =
+            public_functions.get_data()[function_index].get();
         if (!function.is_complete()) {
           Diagnostics::Log::Message<1024> message(
               Diagnostics::Log::Level::Info);
@@ -241,8 +254,7 @@ auto Library::Language::Monograph::resolve_context(View::Bytes route) const
         return function.get();
       },
       [&]() -> const Abstract& {
-        const auto& library = static_cast<const Library::Dialect&>(host);
-        return library.resolve_intrinsic(route);
+        return library_host.resolve_intrinsic(route);
       });
 }
 

@@ -25,6 +25,14 @@ carries an eight bit `Lexical::Code`, an offset, a line, a column, and a source
 span size. `Terminal` reserves `0x00`. `Unknown` reserves `0xFF`. Every other
 Code belongs to the exact Lexer and Lexicon contract that assigned it.
 
+The Tokenizer appends one zero length `Terminal` at the source end boundary.
+Its offset equals the source byte count. A default `Token()` is the same empty
+terminal shape at zero coordinates. `Cursor::peek` accepts a signed relative
+offset and returns that empty Token when either stream boundary would be
+crossed. A consumer may construct a completed range from its retained opening
+Token through `peek(-1)`, so it never fabricates a Token merely to recover the
+current source boundary.
+
 A Code stream is not an independent stable serialization. It can be
 interpreted only with the matching Lexer contract and the source bytes needed
 to project payload text.
@@ -339,3 +347,5 @@ durable formats remain outside TTX.
     records.
 15. Concrete language, source, package, target, runtime, linker, archive, and
     diagnostic policy remain outside TTX.
+16. Terminal Tokens have zero length, and Cursor provides bounded signed
+    relative Token lookup without moving its parse position.

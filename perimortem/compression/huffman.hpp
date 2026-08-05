@@ -35,12 +35,13 @@ class Huffman {
   static constexpr Count max_symbol_count = 320;
 
   constexpr Huffman(Core::View::Vector<Unsigned_8> code_lengths) {
+    const auto* lengths = code_lengths.get_data();
     Core::Static::Vector<Count, max_code_bits + 2> bit_length_count;
     for (Count symbol = 0; symbol < code_lengths.get_size(); symbol++) {
-      if (code_lengths[symbol] > 0) {
-        bit_length_count[code_lengths[symbol]]++;
-        if (code_lengths[symbol] > max_bits) {
-          max_bits = code_lengths[symbol];
+      if (lengths[symbol] > 0) {
+        bit_length_count[lengths[symbol]]++;
+        if (lengths[symbol] > max_bits) {
+          max_bits = lengths[symbol];
         }
       }
     }
@@ -63,7 +64,7 @@ class Huffman {
     }
 
     for (Count i = 0; i < code_lengths.get_size(); i++) {
-      Count length = code_lengths[i];
+      Count length = lengths[i];
       if (length > 0) {
         Count position = fill_offset[length]++;
         symbol_map[position] = Unsigned_16(i);
@@ -85,7 +86,7 @@ class Huffman {
     // Populate 9-bit fast decode table. encode_codes already holds bit-reversed
     // codes, so each entry's stream_bits is just the stored value directly.
     for (Count symbol = 0; symbol < code_lengths.get_size(); symbol++) {
-      Count length = code_lengths[symbol];
+      Count length = lengths[symbol];
       if (length == 0 || length > fast_bits) {
         continue;
       }

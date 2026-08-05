@@ -43,10 +43,10 @@ class Token {
   constexpr auto get_code() const -> Code { return code; }
 
  private:
-  Unsigned_16 offset;
-  Unsigned_16 line;
-  Unsigned_16 column;
-  Unsigned_8 size;
+  Unsigned_16 offset = 0;
+  Unsigned_16 line = 0;
+  Unsigned_16 column = 0;
+  Unsigned_8 size = 0;
   Code code = Code::Type::Terminal;
 };
 

@@ -9,6 +9,8 @@
 #include "tetrodotoxin/library/dialect.hpp"
 #include "tetrodotoxin/library/language/constant.hpp"
 #include "tetrodotoxin/library/language/constants/bytes.hpp"
+#include "tetrodotoxin/library/language/constants/false.hpp"
+#include "tetrodotoxin/library/language/constants/signed.hpp"
 #include "tetrodotoxin/library/language/constants/true.hpp"
 #include "tetrodotoxin/library/language/constants/unsigned.hpp"
 #include "tetrodotoxin/library/language/parser/expression.hpp"
@@ -91,7 +93,8 @@ static auto rejects(
     Allocator::Arena& domain,
     Library::Language::Materializations& materializations,
     const Abstract& context,
-    View::Bytes source) -> Bool {
+    View::Bytes source,
+    View::Bytes operation = ":["_view) -> Bool {
   Errors errors;
   Tokenizer tokenizer(domain, source, "rejected-expression.ttx"_view);
   Cursor cursor(tokenizer, errors);
@@ -102,7 +105,7 @@ static auto rejects(
     return False;
   }
 
-  Count postfix = Algorithm::search(source, ":["_view);
+  Count postfix = Algorithm::search(source, operation);
   if (postfix == Count(-1)) {
     return False;
   }
@@ -146,6 +149,16 @@ static auto contains(View::Bytes value, View::Bytes expected) -> Bool {
   return Algorithm::search(value, expected) != Count(-1);
 }
 
+template <typename selected_type>
+static auto select_abstract(const Abstract& value)
+    -> Option<const selected_type&> {
+  return value.visit<selected_type>(
+      [](const selected_type& selected) -> Option<const selected_type&> {
+        return selected;
+      },
+      [](const Abstract&) -> Option<const selected_type&> { return {}; });
+}
+
 PERIMORTEM_UNIT_TEST(ExpressionParserTests, delegation_and_index) {
   Allocator::Arena domain;
   Library::Language::Materializations materializations(domain);
@@ -168,25 +181,30 @@ PERIMORTEM_UNIT_TEST(ExpressionParserTests, delegation_and_index) {
   auto signed_zero = parse_one(
       domain, materializations, context, "0x[7F]:[-0]"_view,
       signed_zero_errors);
+  auto unsliced_bytes =
+      unsliced ? select_abstract<Library::Language::Constants::Bytes>(*unsliced)
+               : Option<const Library::Language::Constants::Bytes&>();
+  auto first_value =
+      first ? select_abstract<Library::Language::Constants::Unsigned>(*first)
+            : Option<const Library::Language::Constants::Unsigned&>();
+  auto last_value =
+      last ? select_abstract<Library::Language::Constants::Unsigned>(*last)
+           : Option<const Library::Language::Constants::Unsigned&>();
+  auto signed_zero_value =
+      signed_zero ? select_abstract<Library::Language::Constants::Unsigned>(
+                        *signed_zero)
+                  : Option<const Library::Language::Constants::Unsigned&>();
 
   ASSERT(unsliced && same_type && first && last && signed_zero);
+  ASSERT(unsliced_bytes && first_value && last_value && signed_zero_value);
   EXPECT(unsliced->is<Library::Language::Constant>());
   EXPECT(unsliced->is<Library::Language::Constants::Bytes>());
   EXPECT(unsliced->get_inputs().is_empty());
   EXPECT(&unsliced->get_type() == &same_type->get_type());
-  EXPECT_TEXT(
-      static_cast<const Library::Language::Constants::Bytes&>(*unsliced)
-          .get_value(),
-      "abcd"_view);
-  EXPECT(
-      static_cast<const Library::Language::Constants::Unsigned&>(*first)
-          .get_value() == Unsigned_64('A'));
-  EXPECT(
-      static_cast<const Library::Language::Constants::Unsigned&>(*last)
-          .get_value() == Unsigned_64(255));
-  EXPECT(
-      static_cast<const Library::Language::Constants::Unsigned&>(*signed_zero)
-          .get_value() == Unsigned_64(0x7F));
+  EXPECT_TEXT(unsliced_bytes->get_value(), "abcd"_view);
+  EXPECT(first_value->get_value() == Unsigned_64('A'));
+  EXPECT(last_value->get_value() == Unsigned_64(255));
+  EXPECT(signed_zero_value->get_value() == Unsigned_64(0x7F));
   EXPECT(&first->get_type() == &Library::Dialect::get_unsigned_8());
   EXPECT(&last->get_type() == &Library::Dialect::get_unsigned_8());
   EXPECT(&signed_zero->get_type() == &Library::Dialect::get_unsigned_8());
@@ -224,54 +242,66 @@ PERIMORTEM_UNIT_TEST(ExpressionParserTests, slice_shapes) {
   auto recursive = parse_one(
       domain, materializations, context,
       "\"abcdef\":[0x[01]:[0], 0x[02]:[0]]"_view, recursive_errors);
+  auto full_bytes =
+      full ? select_abstract<Library::Language::Constants::Bytes>(*full)
+           : Option<const Library::Language::Constants::Bytes&>();
+  auto interior_bytes =
+      interior ? select_abstract<Library::Language::Constants::Bytes>(*interior)
+               : Option<const Library::Language::Constants::Bytes&>();
+  auto empty_bytes =
+      empty ? select_abstract<Library::Language::Constants::Bytes>(*empty)
+            : Option<const Library::Language::Constants::Bytes&>();
+  auto chained_bytes =
+      chained ? select_abstract<Library::Language::Constants::Bytes>(*chained)
+              : Option<const Library::Language::Constants::Bytes&>();
+  auto embedded_bytes =
+      embedded ? select_abstract<Library::Language::Constants::Bytes>(*embedded)
+               : Option<const Library::Language::Constants::Bytes&>();
+  auto recursive_bytes =
+      recursive
+          ? select_abstract<Library::Language::Constants::Bytes>(*recursive)
+          : Option<const Library::Language::Constants::Bytes&>();
+  auto full_type =
+      full ? select_abstract<Library::Language::Types::Fixed>(full->get_type())
+           : Option<const Library::Language::Types::Fixed&>();
+  auto empty_type =
+      empty
+          ? select_abstract<Library::Language::Types::Fixed>(empty->get_type())
+          : Option<const Library::Language::Types::Fixed&>();
+  auto chained_type = chained
+                          ? select_abstract<Library::Language::Types::Fixed>(
+                                chained->get_type())
+                          : Option<const Library::Language::Types::Fixed&>();
+  View::Bytes interior_value =
+      interior_bytes ? interior_bytes->get_value() : View::Bytes();
+  View::Bytes embedded_value =
+      embedded_bytes ? embedded_bytes->get_value() : View::Bytes();
 
   ASSERT(full && interior && empty && chained && embedded && recursive);
-  EXPECT_TEXT(
-      static_cast<const Library::Language::Constants::Bytes&>(*full)
-          .get_value(),
-      "abcd"_view);
-  View::Bytes interior_value =
-      static_cast<const Library::Language::Constants::Bytes&>(*interior)
-          .get_value();
+  ASSERT(
+      full_bytes && interior_bytes && empty_bytes && chained_bytes &&
+      embedded_bytes && recursive_bytes && full_type && empty_type &&
+      chained_type);
+  EXPECT_TEXT(full_bytes->get_value(), "abcd"_view);
   ASSERT_EQ(interior_value.get_size(), Count(2));
   EXPECT(interior_value[0] == 1);
   EXPECT(interior_value[1] == 2);
-  EXPECT(
-      static_cast<const Library::Language::Constants::Bytes&>(*empty)
-          .get_value()
-          .is_empty());
-  EXPECT_TEXT(
-      static_cast<const Library::Language::Constants::Bytes&>(*chained)
-          .get_value(),
-      "cd"_view);
-  EXPECT_TEXT(
-      static_cast<const Library::Language::Constants::Bytes&>(*embedded)
-          .get_value(),
-      "2345"_view);
-  EXPECT_TEXT(
-      static_cast<const Library::Language::Constants::Bytes&>(*recursive)
-          .get_value(),
-      "bc"_view);
+  EXPECT(empty_bytes->get_value().is_empty());
+  EXPECT_TEXT(chained_bytes->get_value(), "cd"_view);
+  EXPECT_TEXT(embedded_bytes->get_value(), "2345"_view);
+  EXPECT_TEXT(recursive_bytes->get_value(), "bc"_view);
   EXPECT(context.table_seen);
-  View::Bytes embedded_value =
-      static_cast<const Library::Language::Constants::Bytes&>(*embedded)
-          .get_value();
   EXPECT(embedded_value.get_data() == context.get_table_value().get_data() + 2);
   EXPECT(embedded->get_inputs().is_empty());
 
-  const auto& full_type =
-      static_cast<const Library::Language::Types::Fixed&>(full->get_type());
-  const auto& empty_type =
-      static_cast<const Library::Language::Types::Fixed&>(empty->get_type());
-  const auto& chained_type =
-      static_cast<const Library::Language::Types::Fixed&>(chained->get_type());
-  EXPECT(full_type.get_extent() == 4);
-  EXPECT(empty_type.get_extent() == 0);
-  EXPECT(chained_type.get_extent() == 2);
-  EXPECT(&full_type.get_element_type() == &Library::Dialect::get_unsigned_8());
-  EXPECT(&empty_type.get_element_type() == &Library::Dialect::get_unsigned_8());
+  EXPECT(full_type->get_extent() == 4);
+  EXPECT(empty_type->get_extent() == 0);
+  EXPECT(chained_type->get_extent() == 2);
+  EXPECT(&full_type->get_element_type() == &Library::Dialect::get_unsigned_8());
   EXPECT(
-      &chained_type.get_element_type() == &Library::Dialect::get_unsigned_8());
+      &empty_type->get_element_type() == &Library::Dialect::get_unsigned_8());
+  EXPECT(
+      &chained_type->get_element_type() == &Library::Dialect::get_unsigned_8());
   EXPECT(full_errors.is_empty());
   EXPECT(interior_errors.is_empty());
   EXPECT(empty_errors.is_empty());
@@ -294,6 +324,9 @@ PERIMORTEM_UNIT_TEST(ExpressionParserTests, failure_atomicity) {
   EXPECT(rejects(
       domain, materializations, context,
       "\"abc\":[18446744073709551616]"_view));
+  EXPECT(rejects(
+      domain, materializations, context,
+      "\"abc\":[0, 18446744073709551615]"_view));
   EXPECT(rejects(domain, materializations, context, "\"abc\":[3]"_view));
   EXPECT(rejects(domain, materializations, context, "\"abc\":[4, 0]"_view));
   EXPECT(rejects(domain, materializations, context, "\"abc\":[2, 2]"_view));
@@ -320,6 +353,9 @@ PERIMORTEM_UNIT_TEST(ExpressionParserTests, diagnostic_facts) {
   View::Bytes overflow = render_rejection(
       domain, materializations, context, "\"abc\":[18446744073709551616]"_view,
       rendering);
+  View::Bytes extent = render_rejection(
+      domain, materializations, context,
+      "\"abc\":[0, 18446744073709551615]"_view, rendering);
   View::Bytes index = render_rejection(
       domain, materializations, context, "\"abc\":[3]"_view, rendering);
   View::Bytes start = render_rejection(
@@ -338,6 +374,8 @@ PERIMORTEM_UNIT_TEST(ExpressionParserTests, diagnostic_facts) {
   EXPECT(contains(negative, "index value -1 is negative"_view));
   EXPECT(contains(overflow, "18446744073709551616"_view));
   EXPECT(contains(overflow, "integer or Count range"_view));
+  EXPECT(contains(extent, "size value 18446744073709551615"_view));
+  EXPECT(contains(extent, "Count or Fixed extent range"_view));
   EXPECT(contains(index, "index 3"_view));
   EXPECT(contains(index, "containing 3 bytes"_view));
   EXPECT(contains(start, "start 4"_view));
@@ -352,9 +390,159 @@ PERIMORTEM_UNIT_TEST(ExpressionParserTests, diagnostic_facts) {
   EXPECT(rejects(
       domain, materializations, context,
       "\"abc\":[18446744073709551616]"_view));
+  EXPECT(rejects(
+      domain, materializations, context,
+      "\"abc\":[0, 18446744073709551615]"_view));
   EXPECT(rejects(domain, materializations, context, "\"abc\":[3]"_view));
   EXPECT(rejects(domain, materializations, context, "\"abc\":[4, 0]"_view));
   EXPECT(rejects(domain, materializations, context, "\"abc\":[2, 2]"_view));
   EXPECT(rejects(domain, materializations, context, "\"abc\":[1,]"_view));
   EXPECT(rejects(domain, materializations, context, "\"abc\":[1.0]"_view));
+}
+
+PERIMORTEM_UNIT_TEST(ExpressionParserTests, multiply_precedence_and_failure) {
+  Allocator::Arena domain;
+  Allocator::Arena rendering;
+  Library::Language::Materializations materializations(domain);
+  ExpressionParserContext context(domain);
+  Errors product_errors;
+  Errors slice_errors;
+
+  auto product = parse_one(
+      domain, materializations, context, "2 * 3"_view, product_errors);
+  auto sliced = parse_one(
+      domain, materializations, context, "0x[02 03]:[0] * 0x[04]:[0]"_view,
+      slice_errors);
+  View::Bytes mismatch = render_rejection(
+      domain, materializations, context, "2 * true"_view, rendering);
+  View::Bytes overflow = render_rejection(
+      domain, materializations, context, "18446744073709551615 * 2"_view,
+      rendering);
+  auto product_value =
+      product
+          ? select_abstract<Library::Language::Constants::Unsigned>(*product)
+          : Option<const Library::Language::Constants::Unsigned&>();
+  auto sliced_value =
+      sliced ? select_abstract<Library::Language::Constants::Unsigned>(*sliced)
+             : Option<const Library::Language::Constants::Unsigned&>();
+
+  ASSERT(product && sliced);
+  ASSERT(product_value && sliced_value);
+  EXPECT(product->is<Library::Language::Constants::Unsigned>());
+  EXPECT(product_value->get_value() == 6);
+  EXPECT(sliced_value->get_value() == 8);
+  EXPECT(&product->get_type() == &Library::Dialect::get_unsigned_64());
+  EXPECT(&sliced->get_type() == &Library::Dialect::get_unsigned_8());
+  EXPECT(contains(mismatch, "left Type `Unsigned_64`"_view));
+  EXPECT(contains(mismatch, "right Type `Bool`"_view));
+  EXPECT(contains(overflow, "overflows selected Type `Unsigned_64`"_view));
+  EXPECT(contains(overflow, "18446744073709551615 and 2"_view));
+  EXPECT(rejects(domain, materializations, context, "2 *"_view, "*"_view));
+  EXPECT(rejects(domain, materializations, context, "2 * true"_view, "*"_view));
+  EXPECT(rejects(
+      domain, materializations, context, "18446744073709551615 * 2"_view,
+      "*"_view));
+}
+
+PERIMORTEM_UNIT_TEST(ExpressionParserTests, subtract_precedence_and_failure) {
+  Allocator::Arena domain;
+  Allocator::Arena rendering;
+  Library::Language::Materializations materializations(domain);
+  ExpressionParserContext context(domain);
+  Errors precedence_errors;
+  Errors association_errors;
+  Errors slice_errors;
+  Errors negative_errors;
+
+  auto precedence = parse_one(
+      domain, materializations, context, "10 - 2 * 3"_view, precedence_errors);
+  auto association = parse_one(
+      domain, materializations, context, "10 - 2 - 3"_view, association_errors);
+  auto sliced = parse_one(
+      domain, materializations, context,
+      "0x[0A]:[0] - 0x[02]:[0] * 0x[03]:[0]"_view, slice_errors);
+  auto negative = parse_one(
+      domain, materializations, context, "-10 - -2"_view, negative_errors);
+  View::Bytes mismatch = render_rejection(
+      domain, materializations, context, "10 - true"_view, rendering);
+  View::Bytes underflow = render_rejection(
+      domain, materializations, context, "0 - 1"_view, rendering);
+  auto precedence_value =
+      precedence
+          ? select_abstract<Library::Language::Constants::Unsigned>(*precedence)
+          : Option<const Library::Language::Constants::Unsigned&>();
+  auto association_value =
+      association ? select_abstract<Library::Language::Constants::Unsigned>(
+                        *association)
+                  : Option<const Library::Language::Constants::Unsigned&>();
+  auto sliced_value =
+      sliced ? select_abstract<Library::Language::Constants::Unsigned>(*sliced)
+             : Option<const Library::Language::Constants::Unsigned&>();
+  auto negative_value =
+      negative
+          ? select_abstract<Library::Language::Constants::Signed>(*negative)
+          : Option<const Library::Language::Constants::Signed&>();
+
+  ASSERT(precedence && association && sliced && negative);
+  ASSERT(
+      precedence_value && association_value && sliced_value && negative_value);
+  EXPECT(precedence_value->get_value() == 4);
+  EXPECT(association_value->get_value() == 5);
+  EXPECT(sliced_value->get_value() == 4);
+  EXPECT(negative_value->get_value() == -8);
+  EXPECT(&precedence->get_type() == &Library::Dialect::get_unsigned_64());
+  EXPECT(&association->get_type() == &Library::Dialect::get_unsigned_64());
+  EXPECT(&sliced->get_type() == &Library::Dialect::get_unsigned_8());
+  EXPECT(contains(mismatch, "left Type `Unsigned_64`"_view));
+  EXPECT(contains(mismatch, "right Type `Bool`"_view));
+  EXPECT(contains(underflow, "cannot represent 0 minus 1"_view));
+  EXPECT(contains(underflow, "selected Type `Unsigned_64`"_view));
+  EXPECT(rejects(domain, materializations, context, "10 -"_view, "-"_view));
+  EXPECT(
+      rejects(domain, materializations, context, "10 - true"_view, "-"_view));
+  EXPECT(rejects(domain, materializations, context, "0 - 1"_view, "-"_view));
+  EXPECT(precedence_errors.is_empty());
+  EXPECT(association_errors.is_empty());
+  EXPECT(slice_errors.is_empty());
+  EXPECT(negative_errors.is_empty());
+}
+
+PERIMORTEM_UNIT_TEST(ExpressionParserTests, less_precedence_and_failure) {
+  Allocator::Arena domain;
+  Allocator::Arena rendering;
+  Library::Language::Materializations materializations(domain);
+  ExpressionParserContext context(domain);
+  Errors precedence_errors;
+  Errors false_errors;
+  Errors slice_errors;
+
+  auto precedence = parse_one(
+      domain, materializations, context, "10 - 2 * 3 < 5"_view,
+      precedence_errors);
+  auto equal =
+      parse_one(domain, materializations, context, "5 < 5"_view, false_errors);
+  auto sliced = parse_one(
+      domain, materializations, context, "0x[01]:[0] < 0x[02]:[0]"_view,
+      slice_errors);
+  View::Bytes mismatch = render_rejection(
+      domain, materializations, context, "1 < true"_view, rendering);
+  View::Bytes chained = render_rejection(
+      domain, materializations, context, "1 < 2 < 3"_view, rendering);
+
+  ASSERT(precedence && equal && sliced);
+  EXPECT(precedence->is<Library::Language::Constants::True>());
+  EXPECT(equal->is<Library::Language::Constants::False>());
+  EXPECT(sliced->is<Library::Language::Constants::True>());
+  EXPECT(&precedence->get_type() == &Library::Dialect::get_bool());
+  EXPECT(&equal->get_type() == &Library::Dialect::get_bool());
+  EXPECT(&sliced->get_type() == &Library::Dialect::get_bool());
+  EXPECT(contains(mismatch, "left Type `Unsigned_64`"_view));
+  EXPECT(contains(mismatch, "right Type `Bool`"_view));
+  EXPECT(contains(chained, "left Type `Bool`"_view));
+  EXPECT(contains(chained, "right Type `Unsigned_64`"_view));
+  EXPECT(rejects(domain, materializations, context, "1 <"_view, "<"_view));
+  EXPECT(rejects(domain, materializations, context, "1 < true"_view, "<"_view));
+  EXPECT(precedence_errors.is_empty());
+  EXPECT(false_errors.is_empty());
+  EXPECT(slice_errors.is_empty());
 }

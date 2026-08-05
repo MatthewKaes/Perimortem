@@ -15,8 +15,8 @@ static auto retain_inputs(
       domain.reserve<Ttx::Concept::Reference<Ttx::Concept::Abstract>>(
           expressions.get_size());
   for (Count i = 0; i < expressions.get_size(); i++) {
-    new (&retained[i])
-        Ttx::Concept::Reference<Ttx::Concept::Abstract>(expressions[i].get());
+    new (&retained[i]) Ttx::Concept::Reference<Ttx::Concept::Abstract>(
+        expressions.get_data()[i].get());
   }
 
   return retained;
@@ -36,36 +36,58 @@ auto Language::Operation::attempt_fold(
     return folded->get();
   }
 
+  const Ttx::Concept::Abstract& operation_type = get_type().resolve();
+  if (!operation_type.is<Ttx::Model::Type>()) {
+    return FoldError(FoldError::Type::InvalidOperationType, *this);
+  }
+
   // Child Operations fold before the parent decides readiness. Each completed
-  // replacement keeps its authored position while failure remains explicit.
+  // replacement must preserve its exposed Type so folding cannot rewrite a
+  // graph edge into a value the already checked parent did not accept.
   Bool all_constants = True;
   for (Count i = 0; i < inputs.get_size(); i++) {
-    const Ttx::Concept::Abstract& input = inputs[i].get();
-    FoldError child_error = FoldError::Unknown;
-    Bool child_failed = input.visit<Operation>(
-        [&](const Operation& child) {
-          auto child_result = child.attempt_fold(domain, materializations);
-          return child_result.visit(
-              [&](const Expression& result) {
-                inputs[i] =
-                    Ttx::Concept::Reference<Ttx::Concept::Abstract>(result);
-                return False;
-              },
-              [&](FoldError error) {
-                child_error = error;
-                return True;
-              });
-        },
-        [](const Ttx::Concept::Abstract&) { return False; });
-    if (child_failed) {
-      return child_error;
+    auto input = get_input(i);
+    if (!input) {
+      return FoldError(FoldError::Type::InvalidInput, *this);
     }
 
-    all_constants &= inputs[i].get().is<Constant>();
+    Utility::Option<FoldError> child_error;
+    const Ttx::Concept::Abstract& input_type = input->get_type().resolve();
+    input->visit<Operation>(
+        [&](const Operation& child) {
+          auto child_result = child.attempt_fold(domain, materializations);
+          child_result.visit(
+              [&](const Expression& result) {
+                const Ttx::Concept::Abstract& result_type =
+                    result.get_type().resolve();
+                if (!input_type.is<Ttx::Model::Type>() ||
+                    !result_type.is<Ttx::Model::Type>() ||
+                    &input_type != &result_type) {
+                  child_error =
+                      FoldError(FoldError::Type::ResultTypeMismatch, child);
+                  return;
+                }
+
+                inputs[i] =
+                    Ttx::Concept::Reference<Ttx::Concept::Abstract>(result);
+              },
+              [&](const FoldError& error) { child_error = error; });
+        },
+        [](const Ttx::Concept::Abstract&) {});
+    if (child_error) {
+      return *child_error;
+    }
+
+    auto replacement = get_input(i);
+    if (!replacement) {
+      return FoldError(FoldError::Type::InvalidInput, *this);
+    }
+
+    all_constants &= replacement->is<Constant>();
   }
 
   if (!all_constants) {
-    return static_cast<const Expression&>(*this);
+    return *this;
   }
 
   // The concrete owner sees only completed Constant inputs. Retaining a
@@ -74,13 +96,31 @@ auto Language::Operation::attempt_fold(
   return evaluated.visit(
       [&](const Expression& result)
           -> Utility::Result<const Expression&, FoldError> {
+        const Ttx::Concept::Abstract& result_type = result.get_type().resolve();
+        if (!result_type.is<Ttx::Model::Type>() ||
+            &operation_type != &result_type) {
+          return FoldError(FoldError::Type::ResultTypeMismatch, *this);
+        }
+
         if (&result != this) {
           folded = Ttx::Concept::Reference<Expression>(result);
         }
 
         return result;
       },
-      [](FoldError error) -> Utility::Result<const Expression&, FoldError> {
-        return error;
+      [](const FoldError& error)
+          -> Utility::Result<const Expression&, FoldError> { return error; });
+}
+
+auto Language::Operation::get_input(Count index) const
+    -> Utility::Option<const Expression&> {
+  return input_layout.get_abstract(index).visit(
+      []() -> Utility::Option<const Expression&> { return {}; },
+      [](const Ttx::Concept::Abstract& input) {
+        return input.visit<Expression>(
+            [](const Expression& expression)
+                -> Utility::Option<const Expression&> { return expression; },
+            [](const Ttx::Concept::Abstract&)
+                -> Utility::Option<const Expression&> { return {}; });
       });
 }

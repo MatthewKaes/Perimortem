@@ -93,23 +93,24 @@ static auto retain_outputs(
     Dynamic::Vector<View::Bytes>& normalized_routes)
     -> Option<View::Vector<Package::Repository::Output>> {
   Managed::Vector<Package::Repository::Output> retained(arena);
+  const auto* prior_output_data = prior_outputs.get_data();
 
   for (Count i = 0; i < outputs.get_size(); i++) {
-    const auto& output = outputs[i];
+    const auto& output = outputs.get_data()[i];
     // Archive and native inventories use the same logical key space. Checking
     // both prevents product kind from becoming an accidental fourth key field.
     for (Count earlier = 0; earlier < i; earlier++) {
-      if (outputs[earlier] == output) {
+      if (outputs.get_data()[earlier] == output) {
         log_duplicate_output(
-            output_kind, outputs[earlier], output_kind, output);
+            output_kind, outputs.get_data()[earlier], output_kind, output);
         return {};
       }
     }
 
     for (Count earlier = 0; earlier < prior_outputs.get_size(); earlier++) {
-      if (prior_outputs[earlier] == output) {
+      if (prior_output_data[earlier] == output) {
         log_duplicate_output(
-            prior_kind, prior_outputs[earlier], output_kind, output);
+            prior_kind, prior_output_data[earlier], output_kind, output);
         return {};
       }
     }
@@ -168,9 +169,10 @@ static auto retain_outputs(
     for (Count earlier = 0; earlier < normalized_routes.get_size(); earlier++) {
       if (normalized_routes[earlier] == *normalized) {
         const Bool belongs_to_prior = earlier < prior_outputs.get_size();
-        const auto& first = belongs_to_prior
-                                ? prior_outputs[earlier]
-                                : outputs[earlier - prior_outputs.get_size()];
+        const auto& first =
+            belongs_to_prior
+                ? prior_output_data[earlier]
+                : outputs.get_data()[earlier - prior_outputs.get_size()];
         log_route_collision(
             belongs_to_prior ? prior_kind : output_kind, first, output_kind,
             output, *normalized);
@@ -197,8 +199,9 @@ static auto find_input(
     View::Vector<Package::Repository::Input> inputs,
     View::Bytes identity,
     Version version) -> Option<const Package::Repository::Input&> {
+  const auto* input_data = inputs.get_data();
   for (Count i = 0; i < inputs.get_size(); i++) {
-    const auto& input = inputs[i];
+    const auto& input = input_data[i];
     if (input.get_identity() == identity && input.get_version() == version) {
       return input;
     }
@@ -293,14 +296,16 @@ static auto validate_artifacts(
     View::Bytes requested_artifact) -> Bool {
   auto expected = archive.get_artifact_ids();
   auto declared = input.get_artifacts();
+  const auto* expected_data = expected.get_data();
+  const auto* declared_data = declared.get_data();
 
   // The declaration owns physical locations while Archive owns the semantic
   // ID inventory. Report the exact side that introduced each disagreement
   // without building a second merged representation.
   for (Count i = 0; i < declared.get_size(); i++) {
-    View::Bytes artifact_id = declared[i].get_id();
+    View::Bytes artifact_id = declared_data[i].get_id();
     for (Count earlier = 0; earlier < i; earlier++) {
-      if (declared[earlier].get_id() == artifact_id) {
+      if (declared_data[earlier].get_id() == artifact_id) {
         Diagnostics::Log::Message<1024> message(Diagnostics::Log::Level::Info);
         write_selection_failure(
             message, Package::Repository::SelectionError::ArtifactMismatch,
@@ -310,9 +315,9 @@ static auto validate_artifacts(
         write_input_key(message, input);
         message << " artifact_id="_view << artifact_id
                 << " first_location="_view
-                << declared[earlier].get_filesystem_location()
+                << declared_data[earlier].get_filesystem_location()
                 << " second_location="_view
-                << declared[i].get_filesystem_location();
+                << declared_data[i].get_filesystem_location();
         return False;
       }
     }
@@ -326,17 +331,17 @@ static auto validate_artifacts(
               << " reason=unknown native artifact mapping"_view;
       write_input_key(message, input);
       message << " artifact_id="_view << artifact_id << " native_location="_view
-              << declared[i].get_filesystem_location();
+              << declared_data[i].get_filesystem_location();
       return False;
     }
   }
 
   for (Count i = 0; i < expected.get_size(); i++) {
-    View::Bytes artifact_id = expected[i];
+    View::Bytes artifact_id = expected_data[i];
     Bool found = False;
     for (Count declared_index = 0; declared_index < declared.get_size();
          declared_index++) {
-      if (declared[declared_index].get_id() == artifact_id) {
+      if (declared_data[declared_index].get_id() == artifact_id) {
         found = True;
         break;
       }
@@ -366,10 +371,11 @@ auto Package::Repository::Repository::create(
   // Two locations for one Package key would make selection depend on
   // declaration order. Input equality intentionally ignores those locations so
   // the ambiguity is rejected here.
+  const auto* input_data = inputs.get_data();
   for (Count i = 0; i < inputs.get_size(); i++) {
     for (Count earlier = 0; earlier < i; earlier++) {
-      if (inputs[earlier] == inputs[i]) {
-        log_duplicate_input(inputs[earlier], inputs[i]);
+      if (input_data[earlier] == input_data[i]) {
+        log_duplicate_input(input_data[earlier], input_data[i]);
         return {};
       }
     }
@@ -409,11 +415,12 @@ auto Package::Repository::Repository::select_archive(
   // Archive byte views borrow the same Arena as Repository. Reusing the
   // retained value avoids another file read and keeps later file replacement
   // or removal from changing already selected facts.
-  View::Vector<Archive::Archive> cached = archive_cache.get_view();
+  auto cached = archive_cache.get_view();
+  auto cached_data = cached.get_data();
   for (Count i = 0; i < cached.get_size(); i++) {
-    if (cached[i].get_identity() == identity &&
-        cached[i].get_version() == version) {
-      return cached[i];
+    if (cached_data[i].get_identity() == identity &&
+        cached_data[i].get_version() == version) {
+      return cached_data[i];
     }
   }
 
@@ -518,9 +525,10 @@ auto Package::Repository::Repository::select_native(
         // Once the inventories agree, the requested ID can expose its borrowed
         // path without a native read or another retained representation.
         auto artifacts = selected->get_artifacts();
+        const auto* artifact_data = artifacts.get_data();
         for (Count i = 0; i < artifacts.get_size(); i++) {
-          if (artifacts[i].get_id() == artifact_id) {
-            return artifacts[i].get_filesystem_location();
+          if (artifact_data[i].get_id() == artifact_id) {
+            return artifact_data[i].get_filesystem_location();
           }
         }
 
@@ -540,8 +548,9 @@ auto Package::Repository::Repository::get_archive_output_path(
     View::Bytes identity,
     Version version,
     View::Bytes artifact_id) const -> Option<View::Bytes> {
+  const auto* output_data = archive_outputs.get_data();
   for (Count i = 0; i < archive_outputs.get_size(); i++) {
-    const auto& output = archive_outputs[i];
+    const auto& output = output_data[i];
     if (output.get_identity() == identity && output.get_version() == version &&
         output.get_artifact_id() == artifact_id) {
       return output.get_route();
@@ -555,8 +564,9 @@ auto Package::Repository::Repository::get_native_output_path(
     View::Bytes identity,
     Version version,
     View::Bytes artifact_id) const -> Option<View::Bytes> {
+  const auto* output_data = native_outputs.get_data();
   for (Count i = 0; i < native_outputs.get_size(); i++) {
-    const auto& output = native_outputs[i];
+    const auto& output = output_data[i];
     if (output.get_identity() == identity && output.get_version() == version &&
         output.get_artifact_id() == artifact_id) {
       return output.get_route();

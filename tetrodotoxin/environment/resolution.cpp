@@ -140,12 +140,13 @@ class ResolutionState {
 
                   origin = Environment::Origin(
                       authored.get_path(), authored.get_body(),
-                      spans[dependency_index]);
+                      spans.get_data()[dependency_index]);
                 });
 
         Bool report_published = False;
         Bool restored = restore_dependency(
-            package, dependencies[dependency_index], origin, report_published);
+            package, dependencies.get_data()[dependency_index], origin,
+            report_published);
         if (!restored) {
           reject();
         }
@@ -367,11 +368,12 @@ class ResolutionState {
     Managed::Vector<Package::Language::Dependency> dependencies(domain);
     View::Vector<Package::Language::Dependency> archive_dependencies =
         archive.get_dependencies();
+    const auto* archive_dependency_data = archive_dependencies.get_data();
     for (Count i = 0; i < archive_dependencies.get_size(); i++) {
       Package::Language::Dependency retained_dependency(
-          domain.proxy(archive_dependencies[i].get_local_name()),
-          domain.proxy(archive_dependencies[i].get_package_name()),
-          archive_dependencies[i].get_version());
+          domain.proxy(archive_dependency_data[i].get_local_name()),
+          domain.proxy(archive_dependency_data[i].get_package_name()),
+          archive_dependency_data[i].get_version());
       dependencies.insert(retained_dependency);
     }
 
@@ -404,7 +406,7 @@ class ResolutionState {
     View::Vector<Package::Archive::Member> members = archive.get_members();
     for (Count i = 0; i < members.get_size(); i++) {
       Option<Language::Dialect&> member_dialect =
-          dialects.find(members[i].get_dialect_name());
+          dialects.find(members.get_data()[i].get_dialect_name());
       if (!member_dialect) {
         publish_dependency_failure(
             origin, report_published,
@@ -416,7 +418,7 @@ class ResolutionState {
       // Payload stays borrowed for this call. The concrete Dialect receives
       // the destination domain and owns every byte retained from its payload.
       Option<Language::Dialect::Monograph&> restored_member =
-          member_dialect->restore(domain, members[i].get_payload());
+          member_dialect->restore(domain, members.get_data()[i].get_payload());
       if (!restored_member) {
         publish_dependency_failure(
             origin, report_published,
@@ -426,7 +428,8 @@ class ResolutionState {
       }
 
       retention.retain(*restored_member, origin);
-      View::Bytes member_name = domain.proxy(members[i].get_semantic_name());
+      View::Bytes member_name =
+          domain.proxy(members.get_data()[i].get_semantic_name());
       Bool member_bound =
           restored_package.bind_member(member_name, *restored_member);
       if (!member_bound) {
@@ -441,9 +444,11 @@ class ResolutionState {
     // the nearest authored Origin and one publication flag through every child.
     View::Vector<Package::Language::Dependency> retained_dependencies =
         restored_package.get_dependencies();
+    const auto* retained_dependency_data = retained_dependencies.get_data();
     for (Count i = 0; i < retained_dependencies.get_size(); i++) {
       rejected |= !restore_dependency(
-          restored_package, retained_dependencies[i], origin, report_published);
+          restored_package, retained_dependency_data[i], origin,
+          report_published);
     }
 
     pop_package();

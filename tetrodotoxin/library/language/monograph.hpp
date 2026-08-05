@@ -55,6 +55,7 @@ class Monograph : public Tetrodotoxin::Language::Dialect::Monograph {
       -> Perimortem::Core::View::Vector<Ttx::Concept::Reference<Function>>;
 
  private:
+  Tetrodotoxin::Library::Dialect& library_host;
   const Ttx::Concept::Abstract& interpretation_context;
   Perimortem::Memory::Managed::Vector<Import> imports;
   Perimortem::Memory::Managed::

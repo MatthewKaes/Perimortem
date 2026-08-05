@@ -18,7 +18,7 @@ auto Generics::View::create(
   }
 
   const Ttx::Model::Type* element =
-      arguments[0].find<const Ttx::Model::Type&>();
+      arguments.get_data()[0].find<const Ttx::Model::Type&>();
   if (element == nullptr) {
     return {};
   }

@@ -124,12 +124,13 @@ auto Environment::Workspace::import_retained_source(
     if (installed_names.is_empty()) {
       hint << "<None>"_view;
     } else {
+      const auto* installed_name_data = installed_names.get_data();
       for (Count i = 0; i < installed_names.get_size(); i++) {
         if (i != 0) {
           hint << ", "_view;
         }
 
-        hint << installed_names[i];
+        hint << installed_name_data[i];
       }
     }
     hint << "."_view;
@@ -289,8 +290,8 @@ auto Environment::Workspace::import_package(
     View::Vector<Package::Language::Source> sources = package.get_sources();
     for (Count i = 0; i < sources.get_size(); i++) {
       StagedSource member = {
-        .semantic_name = sources[i].get_local_name(),
-        .logical_route = sources[i].get_source_path(),
+        .semantic_name = sources.get_data()[i].get_local_name(),
+        .logical_route = sources.get_data()[i].get_source_path(),
         .owner = package,
         .publish_globally = False,
       };

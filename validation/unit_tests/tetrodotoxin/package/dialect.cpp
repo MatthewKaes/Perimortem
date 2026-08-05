@@ -235,27 +235,32 @@ PERIMORTEM_UNIT_TEST(PackageDialect, ordered_monograph) {
   View::Vector<Span> dependency_spans = monograph.get_dependency_spans();
   View::Vector<Package::Language::Source> sources = monograph.get_sources();
 
+  const auto* dependency_data = dependencies.get_data();
+  const auto* dependency_span_data = dependency_spans.get_data();
+  const auto* source_data = sources.get_data();
   ASSERT_EQ(dependencies.get_size(), 2);
   ASSERT_EQ(dependency_spans.get_size(), dependencies.get_size());
-  EXPECT_TEXT(dependencies[0].get_local_name(), "Runtime::Math"_view);
+  EXPECT_TEXT(dependency_data[0].get_local_name(), "Runtime::Math"_view);
   EXPECT_TEXT(
-      dependencies[0].get_package_name(), "Perimortem.Graphics.Math"_view);
-  EXPECT(dependencies[0].get_version() == Version(12, 34));
-  EXPECT_TEXT(dependencies[1].get_local_name(), "Assets"_view);
-  EXPECT_TEXT(dependencies[1].get_package_name(), "Example.Assets"_view);
-  EXPECT(dependencies[1].get_version() == Version(2, 7));
-  EXPECT_EQ(dependency_spans[0].get_start().get_line(), Unsigned_16(4));
-  EXPECT_EQ(dependency_spans[1].get_start().get_line(), Unsigned_16(5));
-  EXPECT(dependency_spans[0].get_start().get_code() == Code::Type::Resolve);
-  EXPECT(dependency_spans[0].get_end().get_code() == Code::Type::EndStatement);
-  EXPECT(dependency_spans[1].get_start().get_code() == Code::Type::Resolve);
-  EXPECT(dependency_spans[1].get_end().get_code() == Code::Type::EndStatement);
+      dependency_data[0].get_package_name(), "Perimortem.Graphics.Math"_view);
+  EXPECT(dependency_data[0].get_version() == Version(12, 34));
+  EXPECT_TEXT(dependency_data[1].get_local_name(), "Assets"_view);
+  EXPECT_TEXT(dependency_data[1].get_package_name(), "Example.Assets"_view);
+  EXPECT(dependency_data[1].get_version() == Version(2, 7));
+  EXPECT_EQ(dependency_span_data[0].get_start().get_line(), Unsigned_16(4));
+  EXPECT_EQ(dependency_span_data[1].get_start().get_line(), Unsigned_16(5));
+  EXPECT(dependency_span_data[0].get_start().get_code() == Code::Type::Resolve);
+  EXPECT(
+      dependency_span_data[0].get_end().get_code() == Code::Type::EndStatement);
+  EXPECT(dependency_span_data[1].get_start().get_code() == Code::Type::Resolve);
+  EXPECT(
+      dependency_span_data[1].get_end().get_code() == Code::Type::EndStatement);
 
   ASSERT_EQ(sources.get_size(), 2);
-  EXPECT_TEXT(sources[0].get_local_name(), "Scenes::Splash"_view);
-  EXPECT_TEXT(sources[0].get_source_path(), "scenes/splash.ttx"_view);
-  EXPECT_TEXT(sources[1].get_local_name(), "Main"_view);
-  EXPECT_TEXT(sources[1].get_source_path(), "main.ttx"_view);
+  EXPECT_TEXT(source_data[0].get_local_name(), "Scenes::Splash"_view);
+  EXPECT_TEXT(source_data[0].get_source_path(), "scenes/splash.ttx"_view);
+  EXPECT_TEXT(source_data[1].get_local_name(), "Main"_view);
+  EXPECT_TEXT(source_data[1].get_source_path(), "main.ttx"_view);
 
   ASSERT_EQ(monograph.get_documentation().line_count(), 1);
   EXPECT_TEXT(
@@ -285,24 +290,27 @@ PERIMORTEM_UNIT_TEST(PackageDialect, canonical_inventory) {
       monograph.get_dependencies();
   View::Vector<Package::Language::Source> sources = monograph.get_sources();
 
+  const auto* dependency_data = dependencies.get_data();
+  const auto* source_data = sources.get_data();
   ASSERT_EQ(dependencies.get_size(), 3);
-  EXPECT_TEXT(dependencies[0].get_local_name(), "Math"_view);
-  EXPECT_TEXT(dependencies[0].get_package_name(), "Perimortem.Math"_view);
-  EXPECT(dependencies[0].get_version() == Version(1, 0));
-  EXPECT_TEXT(dependencies[1].get_local_name(), "Graphics"_view);
-  EXPECT_TEXT(dependencies[1].get_package_name(), "Perimortem.Graphics"_view);
-  EXPECT(dependencies[1].get_version() == Version(1, 0));
-  EXPECT_TEXT(dependencies[2].get_local_name(), "System"_view);
-  EXPECT_TEXT(dependencies[2].get_package_name(), "Perimortem.System"_view);
-  EXPECT(dependencies[2].get_version() == Version(1, 0));
+  EXPECT_TEXT(dependency_data[0].get_local_name(), "Math"_view);
+  EXPECT_TEXT(dependency_data[0].get_package_name(), "Perimortem.Math"_view);
+  EXPECT(dependency_data[0].get_version() == Version(1, 0));
+  EXPECT_TEXT(dependency_data[1].get_local_name(), "Graphics"_view);
+  EXPECT_TEXT(
+      dependency_data[1].get_package_name(), "Perimortem.Graphics"_view);
+  EXPECT(dependency_data[1].get_version() == Version(1, 0));
+  EXPECT_TEXT(dependency_data[2].get_local_name(), "System"_view);
+  EXPECT_TEXT(dependency_data[2].get_package_name(), "Perimortem.System"_view);
+  EXPECT(dependency_data[2].get_version() == Version(1, 0));
 
   ASSERT_EQ(sources.get_size(), 3);
-  EXPECT_TEXT(sources[0].get_local_name(), "Scenes::Splash"_view);
-  EXPECT_TEXT(sources[0].get_source_path(), "scenes/splash.ttx"_view);
-  EXPECT_TEXT(sources[1].get_local_name(), "Scenes::Title"_view);
-  EXPECT_TEXT(sources[1].get_source_path(), "scenes/title.ttx"_view);
-  EXPECT_TEXT(sources[2].get_local_name(), "Main"_view);
-  EXPECT_TEXT(sources[2].get_source_path(), "main.ttx"_view);
+  EXPECT_TEXT(source_data[0].get_local_name(), "Scenes::Splash"_view);
+  EXPECT_TEXT(source_data[0].get_source_path(), "scenes/splash.ttx"_view);
+  EXPECT_TEXT(source_data[1].get_local_name(), "Scenes::Title"_view);
+  EXPECT_TEXT(source_data[1].get_source_path(), "scenes/title.ttx"_view);
+  EXPECT_TEXT(source_data[2].get_local_name(), "Main"_view);
+  EXPECT_TEXT(source_data[2].get_source_path(), "main.ttx"_view);
   EXPECT(errors.is_empty());
 }
 
@@ -327,8 +335,10 @@ PERIMORTEM_UNIT_TEST(PackageDialect, prior_diagnostics) {
   EXPECT(monograph.get_dependencies().is_empty());
   EXPECT(monograph.get_dependency_spans().is_empty());
   ASSERT_EQ(monograph.get_sources().get_size(), 1);
-  EXPECT_TEXT(monograph.get_sources()[0].get_local_name(), "Main"_view);
-  EXPECT_TEXT(monograph.get_sources()[0].get_source_path(), "main.ttx"_view);
+  EXPECT_TEXT(
+      monograph.get_sources().get_data()[0].get_local_name(), "Main"_view);
+  EXPECT_TEXT(
+      monograph.get_sources().get_data()[0].get_source_path(), "main.ttx"_view);
   EXPECT_EQ(errors.get_size(), 1);
 }
 
@@ -410,8 +420,8 @@ PERIMORTEM_UNIT_TEST(PackageDialect, exact_scope) {
   auto members = root.get_members();
   ASSERT_EQ(members.get_size(), Count(2));
 
-  const auto& member_edge = members[0].get();
-  const auto& second_member_edge = members[1].get();
+  const auto& member_edge = members.get_data()[0].get();
+  const auto& second_member_edge = members.get_data()[1].get();
   EXPECT(&root.resolve_context("Qualified::Member"_view) == &member_edge);
   EXPECT(&root.resolve_context("Second::Member"_view) == &second_member_edge);
   EXPECT_TEXT(member_edge.get_name(), "Qualified::Member"_view);
@@ -421,11 +431,11 @@ PERIMORTEM_UNIT_TEST(PackageDialect, exact_scope) {
 
   EXPECT_NOT(root.bind_member("Qualified::Member"_view, member));
   EXPECT_EQ(root.get_members().get_size(), Count(2));
-  EXPECT(&root.get_members()[0].get() == &member_edge);
+  EXPECT(&root.get_members().get_data()[0].get() == &member_edge);
 
   EXPECT_NOT(root.bind_member("Qualified::Member"_view, replacement));
   EXPECT_EQ(root.get_members().get_size(), Count(2));
-  EXPECT(&root.get_members()[0].get() == &member_edge);
+  EXPECT(&root.get_members().get_data()[0].get() == &member_edge);
   EXPECT(&root.resolve_context("Qualified::Member"_view) == &member_edge);
   EXPECT(&member_edge.resolve() == &member);
 
@@ -506,8 +516,10 @@ PERIMORTEM_UNIT_TEST(PackageDialect, source_free_scope) {
       arena, Documentation::get_empty(), host, {});
 
   ASSERT_EQ(root.get_dependencies().get_size(), Count(2));
-  EXPECT_TEXT(root.get_dependencies()[0].get_local_name(), "External"_view);
-  EXPECT_TEXT(root.get_dependencies()[1].get_local_name(), "Later"_view);
+  EXPECT_TEXT(
+      root.get_dependencies().get_data()[0].get_local_name(), "External"_view);
+  EXPECT_TEXT(
+      root.get_dependencies().get_data()[1].get_local_name(), "Later"_view);
   EXPECT(root.get_dependency_spans().is_empty());
   EXPECT(root.get_sources().is_empty());
   ASSERT(root.bind_member("Restored::Later"_view, later_member));
@@ -517,8 +529,8 @@ PERIMORTEM_UNIT_TEST(PackageDialect, source_free_scope) {
   auto members = root.get_members();
   ASSERT_EQ(members.get_size(), Count(2));
 
-  const auto& later_member_edge = members[0].get();
-  const auto& earlier_member_edge = members[1].get();
+  const auto& later_member_edge = members.get_data()[0].get();
+  const auto& earlier_member_edge = members.get_data()[1].get();
   const Abstract& dependency_edge = root.resolve_context("External"_view);
   ASSERT(dependency_edge.is<Ttx::Model::Alias>());
   EXPECT_TEXT(later_member_edge.get_name(), "Restored::Later"_view);

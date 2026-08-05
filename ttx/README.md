@@ -16,6 +16,12 @@ source view borrowed by its Tokenizer. `Terminal` is `0x00`, `Unknown` is
 `0xFF`, and the remaining values belong to the exact Lexer and Lexicon
 contract that assigned them.
 
+The Tokenizer appends one zero length Terminal at the source end boundary.
+`Cursor::peek` accepts a signed relative offset and returns an empty Token when
+either stream boundary would be crossed. A consumer can pair its opening Token
+with `peek(-1)` to describe an operation that ended immediately before the
+current Token without synthesizing a boundary Token.
+
 Tokens represent decoded source spans. They are not fixed width language
 instructions, and their Codes are not an independent serialized format. A
 consumer must use the same Lexer contract and source bytes that produced the

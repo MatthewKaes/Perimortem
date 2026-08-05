@@ -106,7 +106,7 @@ class Image {
       break;
     }
 
-    return pixels.get_view()[Count(y) * Count(width) + Count(x)];
+    return pixels.get_view().get_data()[Count(y) * Count(width) + Count(x)];
   }
 
   // Returns the number of bits that are used to represent a single value of any

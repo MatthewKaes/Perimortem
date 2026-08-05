@@ -38,11 +38,11 @@ PERIMORTEM_UNIT_TEST(LibraryFixed, direct_contract) {
   EXPECT(&fixed.get_element_type() == &element);
   EXPECT_EQ(fixed.get_extent(), ::Signed_64(4));
   ASSERT_EQ(arguments.get_size(), Count(2));
-  EXPECT(arguments[0].find<const Ttx::Model::Type&>() == &element);
-  EXPECT(arguments[0].find<::Signed_64>() == nullptr);
-  EXPECT(arguments[1].find<const Ttx::Model::Type&>() == nullptr);
-  ASSERT(arguments[1].find<::Signed_64>() != nullptr);
-  EXPECT_EQ(*arguments[1].find<::Signed_64>(), ::Signed_64(4));
+  EXPECT(arguments.get_data()[0].find<const Ttx::Model::Type&>() == &element);
+  EXPECT(arguments.get_data()[0].find<::Signed_64>() == nullptr);
+  EXPECT(arguments.get_data()[1].find<const Ttx::Model::Type&>() == nullptr);
+  ASSERT(arguments.get_data()[1].find<::Signed_64>() != nullptr);
+  EXPECT_EQ(*arguments.get_data()[1].find<::Signed_64>(), ::Signed_64(4));
   EXPECT_EQ(layout.get_size(), Count(4));
   EXPECT(layout.get_abstract(0).visit(
       []() { return False; },

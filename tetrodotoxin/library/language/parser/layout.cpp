@@ -67,21 +67,22 @@ static auto parse_type(Cursor& cursor, const Abstract& context)
   View::Bytes route =
       cursor.get_source_text().slice(route_start, route_end - route_start);
   const Abstract& resolved = context.resolve_context(route).resolve();
-  if (!resolved.is<Type>()) {
-    cursor.create_expression_error(
-        Span(first, last),
-        "Library Layout Type route did not resolve to a complete Type."_view);
-    return {};
-  }
-
-  return static_cast<const Type&>(resolved);
+  return resolved.visit<Type>(
+      [](const Type& type) -> Option<const Type&> { return type; },
+      [&](const Abstract&) -> Option<const Type&> {
+        cursor.create_expression_error(
+            Span(first, last),
+            "Library Layout Type route did not resolve to a complete "
+            "Type."_view);
+        return {};
+      });
 }
 
 static auto contains_name(
     View::Vector<View::Bytes> names,
     View::Bytes candidate) -> Bool {
   for (Count i = 0; i < names.get_size(); i++) {
-    if (names[i] == candidate) {
+    if (names.get_data()[i] == candidate) {
       return True;
     }
   }

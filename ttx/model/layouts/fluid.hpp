@@ -29,7 +29,7 @@ class Fluid : public Concept::Layout {
       return {};
     }
 
-    return abstracts[index].get();
+    return abstracts.get_data()[index].get();
   }
 
   auto fits_at(const Concept::Layout& target, Count target_offset) const

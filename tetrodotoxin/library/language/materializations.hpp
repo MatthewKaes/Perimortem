@@ -49,8 +49,10 @@ class Materializations {
         return False;
       }
 
+      const auto* arguments_data = arguments.get_data();
+      const auto* candidate_data = candidate.arguments.get_data();
       for (Count i = 0; i < arguments.get_size(); i++) {
-        if (arguments[i] != candidate.arguments[i]) {
+        if (arguments_data[i] != candidate_data[i]) {
           return False;
         }
       }

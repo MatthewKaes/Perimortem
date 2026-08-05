@@ -6,7 +6,7 @@
 using namespace Perimortem::Core;
 using namespace Tetrodotoxin::Shader;
 
-// Validation reads the same little-endian word stream the writer produces. This
+// Validation reads the same little endian word stream the writer produces. This
 // stays local because it is only a structural sanity check, not a public
 // reader.
 static auto read_word(View::Bytes words, Count word_index) -> Unsigned_32 {
@@ -26,7 +26,7 @@ auto Assembler::SpirV::begin_module(
     Version version,
     Unsigned_32 generator) -> void {
   // The fifth header word is the reserved schema field. It must be zero for the
-  // current SPIR-V versions.
+  // current SPIR V versions.
   word(magic);
   word(Unsigned_32(version));
   word(generator);
@@ -35,8 +35,8 @@ auto Assembler::SpirV::begin_module(
 }
 
 auto Assembler::SpirV::word(Unsigned_32 value) -> void {
-  // SPIR-V binary modules are little-endian 32-bit words. Keeping this
-  // primitive explicit makes every higher-level helper a direct spelling of the
+  // SPIR V binary modules are little endian 32 bit words. Keeping this
+  // primitive explicit makes every higher level helper a direct spelling of the
   // wire form.
   words.append(Unsigned_8(value & 0xFF));
   words.append(Unsigned_8((value >> 8) & 0xFF));
@@ -114,14 +114,14 @@ auto Assembler::SpirV::entry_point(
   word(function_id);
   literal_string(name);
   for (Count i = 0; i < interface_ids.get_size(); i++) {
-    word(interface_ids[i]);
+    word(interface_ids.get_data()[i]);
   }
 }
 
 auto Assembler::SpirV::execution_mode(
     Unsigned_32 entry_point_id,
     ExecutionMode mode) -> void {
-  // OpExecutionMode adds stage-specific facts. Fragment shaders commonly need
+  // OpExecutionMode adds stage specific facts. Fragment shaders commonly need
   // OriginUpperLeft so coordinates match the Vulkan framebuffer convention.
   instruction(Op::ExecutionMode, 3);
   word(entry_point_id);
@@ -140,8 +140,8 @@ auto Assembler::SpirV::member_name(
     Unsigned_32 target_id,
     Unsigned_32 member_index,
     View::Bytes name) -> void {
-  // OpMemberName is the struct-member version of OpName. The member is
-  // addressed by index because struct fields are positional in SPIR-V.
+  // OpMemberName is the struct member version of OpName. The member is
+  // addressed by index because struct fields are positional in SPIR V.
   instruction(Op::MemberName, 3 + literal_string_word_count(name));
   word(target_id);
   word(member_index);
@@ -269,7 +269,7 @@ auto Assembler::SpirV::type_struct(
   instruction(Op::TypeStruct, 2 + member_type_ids.get_size());
   word(result_id);
   for (Count i = 0; i < member_type_ids.get_size(); i++) {
-    word(member_type_ids[i]);
+    word(member_type_ids.get_data()[i]);
   }
 }
 
@@ -278,7 +278,7 @@ auto Assembler::SpirV::type_pointer(
     StorageClass storage_class,
     Unsigned_32 type_id) -> void {
   // Pointer types include their storage class, so "pointer to Vec2 input" and
-  // "pointer to Vec2 output" are distinct SPIR-V types.
+  // "pointer to Vec2 output" are distinct SPIR V types.
   instruction(Op::TypePointer, 4);
   word(result_id);
   word(Unsigned_32(storage_class));
@@ -311,7 +311,7 @@ auto Assembler::SpirV::constant_composite(
   word(result_type_id);
   word(result_id);
   for (Count i = 0; i < constituents.get_size(); i++) {
-    word(constituents[i]);
+    word(constituents.get_data()[i]);
   }
 }
 
@@ -320,7 +320,7 @@ auto Assembler::SpirV::variable(
     Unsigned_32 result_id,
     StorageClass storage_class) -> void {
   // Variables are storage declarations. For shader inputs/outputs/resources
-  // they are module-scope globals. Function-local variables will use Function
+  // they are module scope globals. Function storage variables will use Function
   // storage.
   instruction(Op::Variable, 4);
   word(result_type_id);
@@ -333,7 +333,7 @@ auto Assembler::SpirV::load(
     Unsigned_32 result_id,
     Unsigned_32 pointer_id) -> void {
   // OpLoad turns a pointer id into an SSA value id. The result type is the
-  // pointed-to value type, not the pointer type.
+  // pointee value type, not the pointer type.
   instruction(Op::Load, 4);
   word(result_type_id);
   word(result_id);
@@ -360,7 +360,7 @@ auto Assembler::SpirV::access_chain(
   word(result_id);
   word(base_id);
   for (Count i = 0; i < index_ids.get_size(); i++) {
-    word(index_ids[i]);
+    word(index_ids.get_data()[i]);
   }
 }
 
@@ -378,7 +378,7 @@ auto Assembler::SpirV::vector_shuffle(
   word(vector_1_id);
   word(vector_2_id);
   for (Count i = 0; i < components.get_size(); i++) {
-    word(components[i]);
+    word(components.get_data()[i]);
   }
 }
 
@@ -392,7 +392,7 @@ auto Assembler::SpirV::composite_construct(
   word(result_type_id);
   word(result_id);
   for (Count i = 0; i < constituents.get_size(); i++) {
-    word(constituents[i]);
+    word(constituents.get_data()[i]);
   }
 }
 
@@ -408,7 +408,7 @@ auto Assembler::SpirV::composite_extract(
   word(result_id);
   word(composite_id);
   for (Count i = 0; i < indexes.get_size(); i++) {
-    word(indexes[i]);
+    word(indexes.get_data()[i]);
   }
 }
 
@@ -499,7 +499,7 @@ auto Assembler::SpirV::literal_string_word_count(View::Bytes text) -> Count {
 
 auto Assembler::SpirV::is_valid_module(View::Bytes words) -> Bool {
   // This is intentionally shallow. It catches broken writers and truncated
-  // modules without pretending to be a SPIR-V semantic validator.
+  // modules without pretending to be a SPIR V semantic validator.
   if (words.get_size() < 20 || words.get_size() % 4 != 0) {
     return False;
   }

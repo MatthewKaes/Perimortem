@@ -212,8 +212,9 @@ static auto separator_size(
     Count cursor,
     View::Vector<Code::Type> separators) -> Count {
   Count matched = 0;
+  const auto* separator_data = separators.get_data();
   for (Count i = 0; i < separators.get_size(); i++) {
-    View::Bytes spelling = Lexicon::get_spelling(separators[i]);
+    View::Bytes spelling = Lexicon::get_spelling(separator_data[i]);
     if (spelling.get_size() <= matched ||
         cursor + spelling.get_size() > value.get_size()) {
       continue;
@@ -236,8 +237,9 @@ auto Lexicon::validate(
   }
 
   // Every separator must have one exact fixed spelling before parsing begins.
+  const auto* separator_data = separators.get_data();
   for (Count i = 0; i < separators.get_size(); i++) {
-    if (get_spelling(separators[i]).is_empty()) {
+    if (get_spelling(separator_data[i]).is_empty()) {
       return False;
     }
   }

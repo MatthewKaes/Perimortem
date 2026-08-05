@@ -153,10 +153,10 @@ PERIMORTEM_UNIT_TEST(DialectTests, declaration_graph) {
   auto second_public = second->get_public_functions();
   ASSERT_EQ(first_public.get_size(), Count(2));
   ASSERT_EQ(second_public.get_size(), Count(2));
-  EXPECT(&first_public[0].get() == &first_alpha);
-  EXPECT(&first_public[1].get() == &first_beta);
-  EXPECT(&second_public[0].get() == &second_beta);
-  EXPECT(&second_public[1].get() == &second_alpha);
+  EXPECT(&first_public.get_data()[0].get() == &first_alpha);
+  EXPECT(&first_public.get_data()[1].get() == &first_beta);
+  EXPECT(&second_public.get_data()[0].get() == &second_beta);
+  EXPECT(&second_public.get_data()[1].get() == &second_alpha);
   EXPECT(first_hidden.get_name() == "hidden"_view);
   EXPECT(second_hidden.get_name() == "hidden"_view);
   EXPECT(
@@ -307,7 +307,8 @@ PERIMORTEM_UNIT_TEST(DialectTests, duplicate_preserves_first) {
   EXPECT_NOT(monograph.bind_function(*duplicate));
   EXPECT(&monograph.resolve_context("repeated"_view) == first_identity);
   EXPECT_EQ(monograph.get_public_functions().get_size(), public_size);
-  EXPECT(&monograph.get_public_functions()[0].get() == first_identity);
+  EXPECT(
+      &monograph.get_public_functions().get_data()[0].get() == first_identity);
   EXPECT_NOT(duplicate->is_complete());
 
   // Workspace rejection proves that the partially constructed transaction is

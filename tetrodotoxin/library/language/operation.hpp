@@ -55,6 +55,12 @@ class Operation : public Expression {
       Perimortem::Core::View::Vector<Ttx::Concept::Reference<Expression>>
           inputs);
 
+  // Operation stores erased Abstract edges only to expose their shared Layout.
+  // Concrete owners recover an input through this checked query so index
+  // absence and an invalid private edge cannot become an unchecked reference.
+  auto get_input(Count index) const
+      -> Perimortem::Utility::Option<const Expression&>;
+
   virtual auto evaluate_constants(
       Perimortem::Memory::Allocator::Arena& domain,
       Materializations& materializations) const

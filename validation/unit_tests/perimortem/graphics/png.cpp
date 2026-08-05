@@ -36,10 +36,10 @@ PERIMORTEM_UNIT_TEST(GraphicsPng, red_1x1_dimensions) {
 
   auto pixels = image.get_pixels();
   ASSERT_EQ(pixels.get_size(), Count(1));
-  EXPECT_EQ(pixels[0].red, Unsigned_8(0xFF));
-  EXPECT_EQ(pixels[0].green, Unsigned_8(0x00));
-  EXPECT_EQ(pixels[0].blue, Unsigned_8(0x00));
-  EXPECT_EQ(pixels[0].alpha, Unsigned_8(0xFF));
+  EXPECT_EQ(pixels.get_data()[0].red, Unsigned_8(0xFF));
+  EXPECT_EQ(pixels.get_data()[0].green, Unsigned_8(0x00));
+  EXPECT_EQ(pixels.get_data()[0].blue, Unsigned_8(0x00));
+  EXPECT_EQ(pixels.get_data()[0].alpha, Unsigned_8(0xFF));
   EXPECT(Bibliotheca::check_out_requests() - start_requests <= 6);
 }
 
@@ -52,22 +52,22 @@ PERIMORTEM_UNIT_TEST(GraphicsPng, checkerboard_2x2) {
   auto pixels = image.get_pixels();
 
   ASSERT_EQ(pixels.get_size(), Count(4));
-  EXPECT_EQ(pixels[0].red, Unsigned_8(0xFF));
-  EXPECT_EQ(pixels[0].green, Unsigned_8(0x00));
-  EXPECT_EQ(pixels[0].blue, Unsigned_8(0x00));
-  EXPECT_EQ(pixels[0].alpha, Unsigned_8(0xFF));
-  EXPECT_EQ(pixels[1].red, Unsigned_8(0x00));
-  EXPECT_EQ(pixels[1].green, Unsigned_8(0xFF));
-  EXPECT_EQ(pixels[1].blue, Unsigned_8(0x00));
-  EXPECT_EQ(pixels[1].alpha, Unsigned_8(0xFF));
-  EXPECT_EQ(pixels[2].red, Unsigned_8(0x00));
-  EXPECT_EQ(pixels[2].green, Unsigned_8(0x00));
-  EXPECT_EQ(pixels[2].blue, Unsigned_8(0xFF));
-  EXPECT_EQ(pixels[2].alpha, Unsigned_8(0xFF));
-  EXPECT_EQ(pixels[3].red, Unsigned_8(0xFF));
-  EXPECT_EQ(pixels[3].green, Unsigned_8(0xFF));
-  EXPECT_EQ(pixels[3].blue, Unsigned_8(0xFF));
-  EXPECT_EQ(pixels[3].alpha, Unsigned_8(0xFF));
+  EXPECT_EQ(pixels.get_data()[0].red, Unsigned_8(0xFF));
+  EXPECT_EQ(pixels.get_data()[0].green, Unsigned_8(0x00));
+  EXPECT_EQ(pixels.get_data()[0].blue, Unsigned_8(0x00));
+  EXPECT_EQ(pixels.get_data()[0].alpha, Unsigned_8(0xFF));
+  EXPECT_EQ(pixels.get_data()[1].red, Unsigned_8(0x00));
+  EXPECT_EQ(pixels.get_data()[1].green, Unsigned_8(0xFF));
+  EXPECT_EQ(pixels.get_data()[1].blue, Unsigned_8(0x00));
+  EXPECT_EQ(pixels.get_data()[1].alpha, Unsigned_8(0xFF));
+  EXPECT_EQ(pixels.get_data()[2].red, Unsigned_8(0x00));
+  EXPECT_EQ(pixels.get_data()[2].green, Unsigned_8(0x00));
+  EXPECT_EQ(pixels.get_data()[2].blue, Unsigned_8(0xFF));
+  EXPECT_EQ(pixels.get_data()[2].alpha, Unsigned_8(0xFF));
+  EXPECT_EQ(pixels.get_data()[3].red, Unsigned_8(0xFF));
+  EXPECT_EQ(pixels.get_data()[3].green, Unsigned_8(0xFF));
+  EXPECT_EQ(pixels.get_data()[3].blue, Unsigned_8(0xFF));
+  EXPECT_EQ(pixels.get_data()[3].alpha, Unsigned_8(0xFF));
 }
 
 PERIMORTEM_UNIT_TEST(GraphicsPng, decode_rgb_to_rgba) {
@@ -80,12 +80,12 @@ PERIMORTEM_UNIT_TEST(GraphicsPng, decode_rgb_to_rgba) {
 
   // RGB source: alpha must be synthesized as fully opaque.
   ASSERT_EQ(pixels.get_size(), Count(3));
-  EXPECT_EQ(pixels[0].red, Unsigned_8(0xFF));
-  EXPECT_EQ(pixels[0].alpha, Unsigned_8(0xFF));
-  EXPECT_EQ(pixels[1].green, Unsigned_8(0xFF));
-  EXPECT_EQ(pixels[1].alpha, Unsigned_8(0xFF));
-  EXPECT_EQ(pixels[2].blue, Unsigned_8(0xFF));
-  EXPECT_EQ(pixels[2].alpha, Unsigned_8(0xFF));
+  EXPECT_EQ(pixels.get_data()[0].red, Unsigned_8(0xFF));
+  EXPECT_EQ(pixels.get_data()[0].alpha, Unsigned_8(0xFF));
+  EXPECT_EQ(pixels.get_data()[1].green, Unsigned_8(0xFF));
+  EXPECT_EQ(pixels.get_data()[1].alpha, Unsigned_8(0xFF));
+  EXPECT_EQ(pixels.get_data()[2].blue, Unsigned_8(0xFF));
+  EXPECT_EQ(pixels.get_data()[2].alpha, Unsigned_8(0xFF));
 }
 
 PERIMORTEM_UNIT_TEST(GraphicsPng, gray_to_rgba) {
@@ -98,25 +98,25 @@ PERIMORTEM_UNIT_TEST(GraphicsPng, gray_to_rgba) {
 
   // Greyscale source: gray value replicates to all three color channels.
   ASSERT_EQ(pixels.get_size(), Count(4));
-  EXPECT_EQ(pixels[0].red, Unsigned_8(0x00));
-  EXPECT_EQ(pixels[0].green, Unsigned_8(0x00));
-  EXPECT_EQ(pixels[0].blue, Unsigned_8(0x00));
-  EXPECT_EQ(pixels[0].alpha, Unsigned_8(0xFF));
+  EXPECT_EQ(pixels.get_data()[0].red, Unsigned_8(0x00));
+  EXPECT_EQ(pixels.get_data()[0].green, Unsigned_8(0x00));
+  EXPECT_EQ(pixels.get_data()[0].blue, Unsigned_8(0x00));
+  EXPECT_EQ(pixels.get_data()[0].alpha, Unsigned_8(0xFF));
 
-  EXPECT_EQ(pixels[1].red, Unsigned_8(0x40));
-  EXPECT_EQ(pixels[1].green, Unsigned_8(0x40));
-  EXPECT_EQ(pixels[1].blue, Unsigned_8(0x40));
-  EXPECT_EQ(pixels[1].alpha, Unsigned_8(0xFF));
+  EXPECT_EQ(pixels.get_data()[1].red, Unsigned_8(0x40));
+  EXPECT_EQ(pixels.get_data()[1].green, Unsigned_8(0x40));
+  EXPECT_EQ(pixels.get_data()[1].blue, Unsigned_8(0x40));
+  EXPECT_EQ(pixels.get_data()[1].alpha, Unsigned_8(0xFF));
 
-  EXPECT_EQ(pixels[2].red, Unsigned_8(0x80));
-  EXPECT_EQ(pixels[2].green, Unsigned_8(0x80));
-  EXPECT_EQ(pixels[2].blue, Unsigned_8(0x80));
-  EXPECT_EQ(pixels[2].alpha, Unsigned_8(0xFF));
+  EXPECT_EQ(pixels.get_data()[2].red, Unsigned_8(0x80));
+  EXPECT_EQ(pixels.get_data()[2].green, Unsigned_8(0x80));
+  EXPECT_EQ(pixels.get_data()[2].blue, Unsigned_8(0x80));
+  EXPECT_EQ(pixels.get_data()[2].alpha, Unsigned_8(0xFF));
 
-  EXPECT_EQ(pixels[3].red, Unsigned_8(0xFF));
-  EXPECT_EQ(pixels[3].green, Unsigned_8(0xFF));
-  EXPECT_EQ(pixels[3].blue, Unsigned_8(0xFF));
-  EXPECT_EQ(pixels[3].alpha, Unsigned_8(0xFF));
+  EXPECT_EQ(pixels.get_data()[3].red, Unsigned_8(0xFF));
+  EXPECT_EQ(pixels.get_data()[3].green, Unsigned_8(0xFF));
+  EXPECT_EQ(pixels.get_data()[3].blue, Unsigned_8(0xFF));
+  EXPECT_EQ(pixels.get_data()[3].alpha, Unsigned_8(0xFF));
 }
 
 PERIMORTEM_UNIT_TEST(GraphicsPng, decode_gradient_4x4) {
@@ -128,12 +128,12 @@ PERIMORTEM_UNIT_TEST(GraphicsPng, decode_gradient_4x4) {
   auto pixels = image.get_pixels();
 
   ASSERT_EQ(pixels.get_size(), Count(16));
-  EXPECT_EQ(pixels[0].red, Unsigned_8(0));
-  EXPECT_EQ(pixels[0].green, Unsigned_8(0));
-  EXPECT_EQ(pixels[0].blue, Unsigned_8(128));
-  EXPECT_EQ(pixels[15].red, Unsigned_8(255));
-  EXPECT_EQ(pixels[15].green, Unsigned_8(255));
-  EXPECT_EQ(pixels[15].blue, Unsigned_8(128));
+  EXPECT_EQ(pixels.get_data()[0].red, Unsigned_8(0));
+  EXPECT_EQ(pixels.get_data()[0].green, Unsigned_8(0));
+  EXPECT_EQ(pixels.get_data()[0].blue, Unsigned_8(128));
+  EXPECT_EQ(pixels.get_data()[15].red, Unsigned_8(255));
+  EXPECT_EQ(pixels.get_data()[15].green, Unsigned_8(255));
+  EXPECT_EQ(pixels.get_data()[15].blue, Unsigned_8(128));
 }
 
 PERIMORTEM_UNIT_TEST(GraphicsPng, decode_pattern_8x1) {
@@ -145,12 +145,12 @@ PERIMORTEM_UNIT_TEST(GraphicsPng, decode_pattern_8x1) {
   auto pixels = image.get_pixels();
 
   ASSERT_EQ(pixels.get_size(), Count(8));
-  EXPECT_EQ(pixels[0].red, Unsigned_8(100));
-  EXPECT_EQ(pixels[0].green, Unsigned_8(200));
-  EXPECT_EQ(pixels[0].blue, Unsigned_8(50));
-  EXPECT_EQ(pixels[0].alpha, Unsigned_8(255));
-  EXPECT_EQ(pixels[4].red, Unsigned_8(100));
-  EXPECT_EQ(pixels[4].green, Unsigned_8(200));
+  EXPECT_EQ(pixels.get_data()[0].red, Unsigned_8(100));
+  EXPECT_EQ(pixels.get_data()[0].green, Unsigned_8(200));
+  EXPECT_EQ(pixels.get_data()[0].blue, Unsigned_8(50));
+  EXPECT_EQ(pixels.get_data()[0].alpha, Unsigned_8(255));
+  EXPECT_EQ(pixels.get_data()[4].red, Unsigned_8(100));
+  EXPECT_EQ(pixels.get_data()[4].green, Unsigned_8(200));
 }
 
 PERIMORTEM_UNIT_TEST(GraphicsPng, decode_invalid) {
@@ -175,10 +175,10 @@ PERIMORTEM_UNIT_TEST(GraphicsPng, roundtrip_1x1) {
 
   auto decoded_pixels = decoded.get_pixels();
   ASSERT_EQ(decoded_pixels.get_size(), Count(1));
-  EXPECT_EQ(decoded_pixels[0].red, Unsigned_8(0x12));
-  EXPECT_EQ(decoded_pixels[0].green, Unsigned_8(0x34));
-  EXPECT_EQ(decoded_pixels[0].blue, Unsigned_8(0x56));
-  EXPECT_EQ(decoded_pixels[0].alpha, Unsigned_8(0x78));
+  EXPECT_EQ(decoded_pixels.get_data()[0].red, Unsigned_8(0x12));
+  EXPECT_EQ(decoded_pixels.get_data()[0].green, Unsigned_8(0x34));
+  EXPECT_EQ(decoded_pixels.get_data()[0].blue, Unsigned_8(0x56));
+  EXPECT_EQ(decoded_pixels.get_data()[0].alpha, Unsigned_8(0x78));
 }
 
 PERIMORTEM_UNIT_TEST(GraphicsPng, roundtrip_checker) {
@@ -198,10 +198,10 @@ PERIMORTEM_UNIT_TEST(GraphicsPng, roundtrip_checker) {
 
   auto decoded_pixels = decoded.get_pixels();
   ASSERT_EQ(decoded_pixels.get_size(), Count(4));
-  EXPECT_EQ(decoded_pixels[0].red, Unsigned_8(0xFF));
-  EXPECT_EQ(decoded_pixels[1].green, Unsigned_8(0xFF));
-  EXPECT_EQ(decoded_pixels[2].blue, Unsigned_8(0xFF));
-  EXPECT_EQ(decoded_pixels[3].red, Unsigned_8(0xFF));
+  EXPECT_EQ(decoded_pixels.get_data()[0].red, Unsigned_8(0xFF));
+  EXPECT_EQ(decoded_pixels.get_data()[1].green, Unsigned_8(0xFF));
+  EXPECT_EQ(decoded_pixels.get_data()[2].blue, Unsigned_8(0xFF));
+  EXPECT_EQ(decoded_pixels.get_data()[3].red, Unsigned_8(0xFF));
 }
 
 PERIMORTEM_UNIT_TEST(GraphicsPng, roundtrip_64x64) {
@@ -225,14 +225,14 @@ PERIMORTEM_UNIT_TEST(GraphicsPng, roundtrip_64x64) {
   auto decoded = Formats::Png::decode(encoded.get_view());
   auto source_view = source_image.get_pixels();
   auto decoded_pixels = decoded.get_pixels();
+  const auto* source_data = source_view.get_data();
+  const auto* decoded_data = decoded_pixels.get_data();
   ASSERT_EQ(decoded_pixels.get_size(), Count(width * height));
   for (Count pixel_index = 0; pixel_index < width * height; pixel_index++) {
-    EXPECT_EQ(decoded_pixels[pixel_index].red, source_view[pixel_index].red);
-    EXPECT_EQ(
-        decoded_pixels[pixel_index].green, source_view[pixel_index].green);
-    EXPECT_EQ(decoded_pixels[pixel_index].blue, source_view[pixel_index].blue);
-    EXPECT_EQ(
-        decoded_pixels[pixel_index].alpha, source_view[pixel_index].alpha);
+    EXPECT_EQ(decoded_data[pixel_index].red, source_data[pixel_index].red);
+    EXPECT_EQ(decoded_data[pixel_index].green, source_data[pixel_index].green);
+    EXPECT_EQ(decoded_data[pixel_index].blue, source_data[pixel_index].blue);
+    EXPECT_EQ(decoded_data[pixel_index].alpha, source_data[pixel_index].alpha);
   }
 }
 
@@ -304,12 +304,14 @@ PERIMORTEM_UNIT_TEST(GraphicsPng, roundtrip_icon) {
   ASSERT_EQ(decoded.get_height(), 128);
 
   auto decoded_pixels = decoded.get_pixels();
+  const auto* decoded_data = decoded_pixels.get_data();
+  const auto* original_data = original_pixels.get_data();
   ASSERT_EQ(decoded_pixels.get_size(), Count(128 * 128));
   for (Count i = 0; i < decoded_pixels.get_size(); i++) {
-    EXPECT_EQ(decoded_pixels[i].red, original_pixels[i].red);
-    EXPECT_EQ(decoded_pixels[i].green, original_pixels[i].green);
-    EXPECT_EQ(decoded_pixels[i].blue, original_pixels[i].blue);
-    EXPECT_EQ(decoded_pixels[i].alpha, original_pixels[i].alpha);
+    EXPECT_EQ(decoded_data[i].red, original_data[i].red);
+    EXPECT_EQ(decoded_data[i].green, original_data[i].green);
+    EXPECT_EQ(decoded_data[i].blue, original_data[i].blue);
+    EXPECT_EQ(decoded_data[i].alpha, original_data[i].alpha);
   }
 }
 

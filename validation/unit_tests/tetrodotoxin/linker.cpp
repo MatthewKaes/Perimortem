@@ -59,7 +59,8 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinLinker, section_indices) {
   EXPECT_EQ(*first, Unsigned_16(1));
   EXPECT_EQ(*second, Unsigned_16(2));
   EXPECT(
-      module.get_sections()[0].get_type() == Object::Section::Type::Undefined);
+      module.get_sections().get_data()[0].get_type() ==
+      Object::Section::Type::Undefined);
 }
 
 PERIMORTEM_UNIT_TEST(TetrodotoxinLinker, section_storage) {
@@ -71,12 +72,14 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinLinker, section_storage) {
   ASSERT(retained);
   caller_data.set('x');
   EXPECT_TEXT(
-      module.get_sections()[*retained].get_data(), "caller section"_view);
+      module.get_sections().get_data()[*retained].get_data(),
+      "caller section"_view);
 
   auto temporary = add_temporary_section(module);
   ASSERT(temporary);
   EXPECT_TEXT(
-      module.get_sections()[*temporary].get_data(), "temporary section"_view);
+      module.get_sections().get_data()[*temporary].get_data(),
+      "temporary section"_view);
 }
 
 PERIMORTEM_UNIT_TEST(TetrodotoxinLinker, symbol_storage) {
@@ -92,12 +95,15 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinLinker, symbol_storage) {
 
   ASSERT(retained);
   caller_name.set('x');
-  EXPECT_TEXT(module.get_symbols()[*retained].get_name(), "caller_symbol"_view);
+  EXPECT_TEXT(
+      module.get_symbols().get_data()[*retained].get_name(),
+      "caller_symbol"_view);
 
   auto temporary = add_temporary_symbol(module, *section);
   ASSERT(temporary);
   EXPECT_TEXT(
-      module.get_symbols()[*temporary].get_name(), "temporary_symbol"_view);
+      module.get_symbols().get_data()[*temporary].get_name(),
+      "temporary_symbol"_view);
 }
 
 PERIMORTEM_UNIT_TEST(TetrodotoxinLinker, symbol_definitions) {
@@ -115,11 +121,13 @@ PERIMORTEM_UNIT_TEST(TetrodotoxinLinker, symbol_definitions) {
 
   ASSERT(defined_index);
   ASSERT(undefined_index);
-  EXPECT(module.get_symbols()[*defined_index].is_defined());
-  EXPECT_EQ(module.get_symbols()[*defined_index].get_section_index(), *section);
-  EXPECT(module.get_symbols()[*undefined_index].is_undefined());
+  EXPECT(module.get_symbols().get_data()[*defined_index].is_defined());
   EXPECT_EQ(
-      module.get_symbols()[*undefined_index].get_section_index(),
+      module.get_symbols().get_data()[*defined_index].get_section_index(),
+      *section);
+  EXPECT(module.get_symbols().get_data()[*undefined_index].is_undefined());
+  EXPECT_EQ(
+      module.get_symbols().get_data()[*undefined_index].get_section_index(),
       Unsigned_16(0));
 }
 

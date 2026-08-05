@@ -96,7 +96,7 @@ auto Json::Node::at(Unsigned_32 index) const -> const Json::Node {
       return Json::Node();
     }
 
-    return array[index];
+    return array.get_data()[index];
   }
 
   return Json::Node();
@@ -106,8 +106,8 @@ auto Json::Node::at(const View::Bytes name) const -> const Json::Node {
   if (data.state == (Unsigned_32)NodeState::Object) {
     View::Vector<Member> members((const Member*)data.ptr, data.size);
     for (Count i = 0; i < members.get_size(); i++) {
-      if (members[i].name == name) {
-        return members[i].node;
+      if (members.get_data()[i].name == name) {
+        return members.get_data()[i].node;
       }
     }
   }
@@ -127,7 +127,7 @@ auto Json::Node::contains(const View::Bytes name) const -> Bool {
   if (data.state == (Unsigned_32)NodeState::Object) {
     View::Vector<Member> members((const Member*)data.ptr, data.size);
     for (Count i = 0; i < members.get_size(); i++) {
-      if (members[i].name == name) {
+      if (members.get_data()[i].name == name) {
         return true;
       }
     }
@@ -230,7 +230,7 @@ auto Json::Node::construct(
     Allocator::Arena& arena,
     const Json::Blueprint* entries,
     Count count) -> Node {
-  // Named children become objects; unnamed children become arrays.
+  // Named children become objects while unnamed children become arrays.
   const Bool is_object = count != 0 && !entries[0].get_name().is_empty();
   if (is_object) {
     Managed::Vector<Json::Node::Member> members(arena);
@@ -472,7 +472,7 @@ auto Json::Node::format(Allocator::Arena& arena) const -> View::Bytes {
 
       View::Vector<Json::Node> array = node.get_array();
       for (Unsigned_32 i = 0; i < array.get_size(); i++) {
-        self(stream, array[i]);
+        self(stream, array.get_data()[i]);
         if (i != array.get_size() - 1) {
           stream << ","_view;
         }
@@ -487,7 +487,7 @@ auto Json::Node::format(Allocator::Arena& arena) const -> View::Bytes {
 
       View::Vector<Member> members = node.get_object();
       for (Unsigned_32 i = 0; i < members.get_size(); i++) {
-        const auto& member = members[i];
+        const auto& member = members.get_data()[i];
         stream << "\""_view << member.name << "\":"_view;
 
         self(stream, member.node);

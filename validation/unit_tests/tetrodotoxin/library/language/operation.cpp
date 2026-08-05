@@ -11,6 +11,7 @@
 
 #include "tetrodotoxin/library/language/constants/unsigned.hpp"
 #include "tetrodotoxin/library/language/types/unsigned_64.hpp"
+#include "tetrodotoxin/library/language/types/unsigned_8.hpp"
 #include "ttx/concept/invalid.hpp"
 #include "ttx/model/layouts/fluid.hpp"
 
@@ -64,13 +65,21 @@ class TestOperation : public Operation {
   }
   auto get_type() const -> const Ttx::Model::Type& override { return type; }
   auto get_evaluations() const -> Count { return evaluations; }
+  auto input_is(Count index, const Expression& expected) const -> Bool {
+    return get_input(index).visit(
+        []() { return False; },
+        [&](const Expression& selected) {
+          return &selected == &expected ? True : False;
+        });
+  }
+  auto input_missing(Count index) const -> Bool { return !get_input(index); }
 
  protected:
   auto evaluate_constants(Allocator::Arena&, Materializations&) const
       -> Result<const Expression&, FoldError> override {
     evaluations++;
     if (fails) {
-      return FoldError::InvalidOperandType;
+      return FoldError(FoldError::Type::InvalidConstant, *this);
     }
 
     return result;
@@ -91,15 +100,21 @@ static auto selects(
       [&](const Expression& selected) {
         return &selected == &expected ? True : False;
       },
-      [](FoldError) { return False; });
+      [](const FoldError&) { return False; });
 }
 
 static auto reports(
     const Result<const Expression&, FoldError>& result,
-    FoldError expected) -> Bool {
+    FoldError::Type expected,
+    const Expression& expression) -> Bool {
   return result.visit(
       [](const Expression&) { return False; },
-      [&](FoldError selected) { return selected == expected ? True : False; });
+      [&](const FoldError& selected) {
+        return selected.get_type() == expected &&
+                       &selected.get_expression() == &expression
+                   ? True
+                   : False;
+      });
 }
 
 static auto input_is(
@@ -129,6 +144,9 @@ PERIMORTEM_UNIT_TEST(LibraryOperation, retains_nonconstant_inputs) {
   EXPECT(selects(second, operation));
   EXPECT(input_is(operation, 0, ordinary));
   EXPECT(input_is(operation, 1, constant));
+  EXPECT(operation.input_is(0, ordinary));
+  EXPECT(operation.input_is(1, constant));
+  EXPECT(operation.input_missing(2));
   EXPECT(operation.get_evaluations() == 0);
 }
 
@@ -192,10 +210,27 @@ PERIMORTEM_UNIT_TEST(LibraryOperation, child_failure_propagates) {
   auto direct = child.attempt_fold(domain, materializations);
   auto folding = parent.attempt_fold(domain, materializations);
 
-  EXPECT(reports(direct, FoldError::InvalidOperandType));
-  EXPECT(reports(folding, FoldError::InvalidOperandType));
+  EXPECT(reports(direct, FoldError::Type::InvalidConstant, child));
+  EXPECT(reports(folding, FoldError::Type::InvalidConstant, child));
   EXPECT(input_is(parent, 0, child));
   EXPECT(input_is(parent, 1, ordinary));
   EXPECT(child.get_evaluations() == 2);
   EXPECT(parent.get_evaluations() == 0);
+}
+
+PERIMORTEM_UNIT_TEST(LibraryOperation, changed_result_type_rejects) {
+  Allocator::Arena domain;
+  Materializations materializations(domain);
+  Types::Unsigned_64 expected_type;
+  Types::Unsigned_8 changed_type;
+  Constants::Unsigned input(expected_type, 1);
+  Constants::Unsigned changed(changed_type, 1);
+  Static::Vector<Reference<Expression>, 1> inputs = {{input}};
+  TestOperation operation(
+      domain, "changed"_view, expected_type, inputs, changed);
+
+  auto folded = operation.attempt_fold(domain, materializations);
+
+  EXPECT(reports(folded, FoldError::Type::ResultTypeMismatch, operation));
+  EXPECT(operation.get_evaluations() == 1);
 }

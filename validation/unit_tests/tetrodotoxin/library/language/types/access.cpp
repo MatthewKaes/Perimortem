@@ -36,7 +36,7 @@ PERIMORTEM_UNIT_TEST(LibraryAccess, direct_contract) {
   EXPECT_TEXT(access.get_name(), "Access[Unsigned_8]"_view);
   EXPECT(&access.get_element_type() == &element);
   ASSERT_EQ(arguments.get_size(), Count(1));
-  EXPECT(arguments[0].find<const Ttx::Model::Type&>() == &element);
+  EXPECT(arguments.get_data()[0].find<const Ttx::Model::Type&>() == &element);
   ASSERT_EQ(documentation.line_count(), Count(1));
   EXPECT_TEXT(
       documentation.get_line(0),

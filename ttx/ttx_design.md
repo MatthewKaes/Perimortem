@@ -58,6 +58,14 @@ narrowed reference.
 There is no universal Kind, class database, semantic registry, copied member
 record, nullable graph edge, or allocated path history.
 
+## Completed lexical ranges
+
+Tokenizer owns the source end boundary as one zero length Terminal Token.
+Cursor owns forward parse position and bounded signed relative Token lookup.
+Span remains the compact range value, so a grammar pairs its retained opening
+Token with `peek(-1)` after consuming the range. Concrete grammars do not
+manufacture Tokens or read a Cursor index to approximate that boundary.
+
 ## Layout fitting
 
 Layout is an identity free, directional fitting contract over an ordered group

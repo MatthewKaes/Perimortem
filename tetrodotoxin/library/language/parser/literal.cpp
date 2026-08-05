@@ -177,14 +177,27 @@ static auto parse_embedded(
 
   const Abstract& selected =
       source_context.resolve_context(instruction).resolve();
-  if (selected.is<Tetrodotoxin::Language::Error>()) {
+  auto error = selected.visit<Tetrodotoxin::Language::Error>(
+      [](const Tetrodotoxin::Language::Error& selected)
+          -> Option<const Tetrodotoxin::Language::Error&> { return selected; },
+      [](const Abstract&) -> Option<const Tetrodotoxin::Language::Error&> {
+        return {};
+      });
+  if (error) {
     auto report = cursor.create_report(literal_span);
-    static_cast<const Tetrodotoxin::Language::Error&>(selected).describe(
-        report);
+    error->describe(report);
     return {};
   }
 
-  if (!selected.is<Tetrodotoxin::Language::Resource>()) {
+  auto resource = selected.visit<Tetrodotoxin::Language::Resource>(
+      [](const Tetrodotoxin::Language::Resource& selected)
+          -> Option<const Tetrodotoxin::Language::Resource&> {
+        return selected;
+      },
+      [](const Abstract&) -> Option<const Tetrodotoxin::Language::Resource&> {
+        return {};
+      });
+  if (!resource) {
     cursor.create_expression_error(
         literal_span,
         "Embedded literal did not resolve to a Package Resource."_view,
@@ -192,9 +205,7 @@ static auto parse_embedded(
     return {};
   }
 
-  View::Bytes retained =
-      static_cast<const Tetrodotoxin::Language::Resource&>(selected)
-          .get_value();
+  View::Bytes retained = resource->get_value();
 
   // Resource keeps its backing stable for the caller domain. Borrow it directly
   // so same domain imports retain one allocation for the semantic island.
@@ -202,7 +213,8 @@ static auto parse_embedded(
       domain, materializations, cursor, literal_span, retained);
 }
 
-// Flag is always parsable as we key off the Code::Type and not the actual text.
+// Tokenization has already selected the Flag domain. Literal therefore uses
+// the Code directly and introduces no second truth spelling policy.
 static auto parse_flag(Allocator::Arena& domain, Cursor& cursor)
     -> Option<const Library::Language::Constant&> {
   Token token = cursor.consume();
@@ -221,7 +233,8 @@ static auto parse_unsigned(Allocator::Arena& domain, Cursor& cursor)
   Reader::Textual reader(literal_text.caculate_text(cursor.get_source_text())
                              .slice(radix == 16 ? 2 : 0));
 
-  // Check if there are any space or other issues in the literal text range.
+  // Textual must consume the complete Token payload. Accepting a valid prefix
+  // would publish a different value for malformed authored bytes.
   Unsigned_64 value = reader.read_unsigned(radix);
   if (!reader.is_valid() || reader.get_location() != reader.get_size()) {
     cursor.create_expression_error(
@@ -229,7 +242,8 @@ static auto parse_unsigned(Allocator::Arena& domain, Cursor& cursor)
     return {};
   }
 
-  // If we parsed successfully syncronize the cursor and construct the value.
+  // Consumption follows complete validation so failure leaves the transaction
+  // at the literal that needs the diagnostic.
   cursor.consume();
   return domain.construct<Library::Language::Constants::Unsigned>(
       Library::Dialect::get_unsigned_64(), value);
@@ -240,7 +254,8 @@ static auto parse_signed(Allocator::Arena& domain, Cursor& cursor)
   Span literal_text(cursor.current(), cursor.peek(1));
   Reader::Textual reader(literal_text.caculate_text(cursor.get_source_text()));
 
-  // Check if there are any space or other issues in the literal text range.
+  // The leading sign and digits form one semantic value even though the Lexer
+  // exposes two Tokens. Textual must reject any unconsumed authored bytes.
   Signed_64 value = reader.read_signed();
   if (!reader.is_valid() || reader.get_location() != reader.get_size()) {
     cursor.create_expression_error(
@@ -248,20 +263,21 @@ static auto parse_signed(Allocator::Arena& domain, Cursor& cursor)
     return {};
   }
 
-  // If we parsed successfully syncronize the cursor and construct the value.
+  // Both Tokens become durable progress only after the complete value parses.
   cursor.consume();
   cursor.consume();
   return domain.construct<Library::Language::Constants::Signed>(
       Library::Dialect::get_signed_64(), value);
 }
 
-template <Count token_width>
+template <Signed_64 token_width>
 static auto parse_real(Allocator::Arena& domain, Cursor& cursor)
     -> Option<const Library::Language::Constant&> {
   Span literal_text(cursor.current(), cursor.peek(token_width));
   Reader::Textual reader(literal_text.caculate_text(cursor.get_source_text()));
 
-  // Check if there are any space or other issues in the literal text range.
+  // Textual sees the complete signed or unsigned spelling so partial numeric
+  // acceptance cannot change the Constant represented by the source.
   Real_64 value = reader.read_real_64();
   if (!reader.is_valid() || reader.get_location() != reader.get_size()) {
     cursor.create_expression_error(
@@ -269,8 +285,9 @@ static auto parse_real(Allocator::Arena& domain, Cursor& cursor)
     return {};
   }
 
-  // Floats could be one or two tokens depending on if it has a negative or not.
-  for (Count i = 0; i < token_width; i++) {
+  // A negative Real owns its sign Token too. Consume the exact lexical width
+  // only after validation preserves one atomic literal transaction.
+  for (Signed_64 i = 0; i < token_width; i++) {
     cursor.consume();
   }
 
@@ -283,8 +300,8 @@ auto Library::Language::Parser::Literal::parse(
     Materializations& materializations,
     Cursor& cursor,
     const Abstract& source_context) -> Option<const Constant&> {
-  // If a leading `-` is provide then only a subset of numeric literals are
-  // supported. If no leading `-` is provide then use the regular parser.
+  // A leading subtraction spelling admits only signed decimal and Real
+  // literals. Without it the ordinary unsigned parser keeps its full domain.
   if (cursor.matches(Code::Type::SubOp)) {
     switch (cursor.peek(1).get_code().get_type()) {
     case Code::Type::Numeric:

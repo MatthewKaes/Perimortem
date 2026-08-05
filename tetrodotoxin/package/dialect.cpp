@@ -18,7 +18,7 @@ static auto has_dependency_alias(
     View::Vector<Package::Language::Dependency> dependencies,
     View::Bytes local_name) -> Bool {
   for (Count i = 0; i < dependencies.get_size(); i++) {
-    if (dependencies[i].get_local_name() == local_name) {
+    if (dependencies.get_data()[i].get_local_name() == local_name) {
       return True;
     }
   }
@@ -30,7 +30,7 @@ static auto has_source_name(
     View::Vector<Package::Language::Source> sources,
     View::Bytes local_name) -> Bool {
   for (Count i = 0; i < sources.get_size(); i++) {
-    if (sources[i].get_local_name() == local_name) {
+    if (sources.get_data()[i].get_local_name() == local_name) {
       return True;
     }
   }
@@ -42,7 +42,7 @@ static auto has_source_path(
     View::Vector<Package::Language::Source> sources,
     View::Bytes source_path) -> Bool {
   for (Count i = 0; i < sources.get_size(); i++) {
-    if (sources[i].get_source_path() == source_path) {
+    if (sources.get_data()[i].get_source_path() == source_path) {
       return True;
     }
   }

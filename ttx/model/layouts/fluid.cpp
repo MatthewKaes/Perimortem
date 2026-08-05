@@ -32,7 +32,7 @@ auto Layouts::Fluid::fits_at(const Concept::Layout& target, Count target_offset)
   }
 
   for (Count i = 0; i < get_size(); i++) {
-    const Concept::Abstract& source = abstracts[i].get();
+    const Concept::Abstract& source = abstracts.get_data()[i].get();
     Bool entry_fits = target.get_abstract(target_offset + i)
                           .visit(
                               []() { return False; },
@@ -66,5 +66,5 @@ auto Layouts::Fluid::get_fitted_at(
     return Errors::IncompatibleFit;
   }
 
-  return abstracts[target_index].get();
+  return abstracts.get_data()[target_index].get();
 }

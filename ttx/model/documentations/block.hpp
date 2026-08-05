@@ -20,7 +20,7 @@ class Block : public Concept::Documentation {
 
   constexpr auto get_line(Count index) const
       -> Perimortem::Core::View::Bytes override {
-    return index < lines.get_size() ? lines[index]
+    return index < lines.get_size() ? lines.get_data()[index]
                                     : Perimortem::Core::View::Bytes();
   }
 

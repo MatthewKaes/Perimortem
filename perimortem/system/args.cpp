@@ -106,12 +106,14 @@ auto Args::parse(
     const Managed::Map<View::Bytes, View::Bytes>& variables,
     View::Vector<View::Bytes> arguments) -> Values {
   Values values(arena);
+  const auto* argument_data = arguments.get_data();
   for (Count i = 1; i < arguments.get_size(); i++) {
-    auto argument = parse_argument(arguments[i]);
+    auto argument = parse_argument(argument_data[i]);
     if (argument.key != "help"_view && !variables.contains(argument.key)) {
       Diagnostics::Log::Message<256> error_message(
           Diagnostics::Log::Level::Error, Diagnostics::Source());
-      error_message << "unrecognized arg"_view << ' ' << arguments[i] << '\n';
+      error_message << "unrecognized arg"_view << ' ' << argument_data[i]
+                    << '\n';
       return Values(arena);
     }
 
@@ -132,8 +134,8 @@ auto Args::log_help(
     const Managed::Map<View::Bytes, View::Bytes>& variables,
     View::Vector<View::Bytes> arguments) -> void {
   View::Bytes command;
-  if (!arguments.is_empty() && !arguments[0].is_empty()) {
-    command = basename(arguments[0]);
+  if (!arguments.is_empty() && !arguments.get_data()[0].is_empty()) {
+    command = basename(arguments.get_data()[0]);
   } else {
     command = process_name();
   }

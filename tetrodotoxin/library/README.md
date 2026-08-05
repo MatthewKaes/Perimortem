@@ -28,10 +28,11 @@ recursive `attempt_fold` transaction. Ordinary Expressions and Constants remain
 successful inputs. A partial fold replaces only completed child edges and
 retains the parent Operation. Once every input is Constant, only the concrete
 operation evaluates its domain. Successful completed results are retained for
-idempotent repeated attempts, while FoldError carries only the caller decision
-and no source provenance. Parser construction may eagerly attempt folding. A
-later Monograph post pass will traverse replaceable graph roots and invoke the
-same transaction.
+idempotent repeated attempts. FoldError carries the failure category and exact
+failing Expression identity without retaining parser Tokens or Spans. Every
+completed child and operation result must preserve its already selected Type.
+Parser construction may eagerly attempt folding. A later Monograph post pass
+will traverse replaceable graph roots and invoke the same transaction.
 
 Generic is Library language semantics rather than a universal TTX category.
 It owns an immutable formula contract and its inseparable parameter and
@@ -92,10 +93,12 @@ the Resource, so Literal-local slicing could not avoid the Storage read.
 and later ranged expressions. It retains only the two or three authored
 Expression edges. Fixed, View, and Access receivers supply their retained
 element Type directly. Indexing yields that exact element. A Constant size
-yields canonical Fixed element and count identity even while another input is
-dynamic. A dynamic size yields canonical View unless the receiver already
-proves writable contiguous Access. Slice never manufactures write capability
-from Fixed, View, Bytes, or Constant identity.
+yields canonical Fixed element and count identity during construction even
+while another input is dynamic. A dynamic size yields canonical View unless
+the receiver already proves writable contiguous Access. If that size is an
+Operation which later folds to a Constant, Slice retains the original result
+Type rather than performing Type resolution during folding. Slice never
+manufactures write capability from Fixed, View, Bytes, or Constant identity.
 
 Bytes is the current Constant ranged payload domain. Fully Constant Bytes index
 and range operations evaluate to canonical Unsigned_8 or exact Fixed Bytes
@@ -107,14 +110,35 @@ interface.
 selects following operators in precedence order. Each concrete operation owns
 its complete grammar builder. `Operations::Slice::parse` recursively asks the
 Expression dispatcher for its operands, constructs the semantic Slice, and
-eagerly attempts folding. This keeps a later Swizzle or named operator on its
-own owner while Expression gains only one explicit dispatch case.
+eagerly attempts folding. Slice binds before Multiply. Multiply owns binary
+Signed, Unsigned, and Real grammar, selected Type legality, checked integer and
+IEEE Constant folding, and diagnostics after asking the dispatcher only for a
+tighter operand. This keeps later operations on their own owners while
+Expression gains only one explicit dispatch case.
+
+Multiply binds before Subtract. Subtract owns only binary subtraction grammar,
+locked scalar Type selection, selected width overflow and underflow checks,
+IEEE Real evaluation, diagnostics, and folding. Literal remains the owner of a
+leading negative numeric spelling, while unary Negate remains a separate
+pending operation.
+
+Subtract binds before Less. Less owns `<` grammar, the locked scalar operand
+Type selection, canonical Bool result identity, ordered IEEE comparison,
+diagnostics, and True or False folding. A following `<` receives that Bool like
+any other left operand, so ordinary Type legality rejects comparison chaining.
+
+Multiply, Subtract, and Less require both operands to resolve to the same
+Signed, Unsigned, or Real Type identity. Constants keep their declared Type and
+receive no implicit widening, narrowing, fitting, or retagging inside these
+operations. Scalar literals currently use their canonical binary wide Type, so
+a narrower receiving owner must construct an explicitly typed Constant before
+forming one of these operations.
 
 Every Slice failure maps to one diagnostic over the complete postfix, while
 the caller Cursor synchronizes only once after the complete chain succeeds. A
 receiving declaration, assignment, invocation, or other typed operation applies
 fitting only after the complete Expression has synthesized its result Type.
-Nonconstant operators and Projection remain outside the current parser.
+Remaining comparisons and Projection remain outside the current parser.
 
 Resource route, Storage, and Package diagnostics do not enter the Library
 graph. An unsliced base Constant owns its complete value. A folded slice owns

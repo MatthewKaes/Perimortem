@@ -12,6 +12,15 @@ static Harness CoreViewVector = {
   .name = "Core::View::Vector"_view,
 };
 
+PERIMORTEM_UNIT_TEST(CoreViewVector, value_access) {
+  Unsigned_64 numbers[] = {7, 9};
+  View::Vector<Unsigned_64> values(numbers);
+
+  EXPECT_EQ(values[0], Unsigned_64(7));
+  EXPECT_EQ(values[2], Unsigned_64(0));
+  EXPECT_EQ(View::Vector<Unsigned_64>()[0], Unsigned_64(0));
+}
+
 PERIMORTEM_UNIT_TEST(CoreViewVector, contains) {
   struct NamedValue {
     View::Bytes name;

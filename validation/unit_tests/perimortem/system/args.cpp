@@ -69,7 +69,7 @@ static auto value_at(
     return View::Bytes();
   }
 
-  return values[index];
+  return values.get_data()[index];
 }
 
 static constexpr View::Bytes expected_help =

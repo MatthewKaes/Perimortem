@@ -236,7 +236,7 @@ static auto append_symbols(
     View::Vector<Object::Symbol> symbols,
     Object::Symbol::Visibility visibility) -> void {
   for (Count i = 0; i < symbols.get_size(); i++) {
-    if (symbols[i].get_visibility() == visibility) {
+    if (symbols.get_data()[i].get_visibility() == visibility) {
       sorted_symbols.insert({symbols.get_data() + i, i, 0});
     }
   }
@@ -254,8 +254,9 @@ static auto build_symbol_slots(View::Vector<SymbolReference> sorted_symbols)
     -> Dynamic::Vector<Unsigned_32> {
   Dynamic::Vector<Unsigned_32> symbol_slots;
   symbol_slots.resize(sorted_symbols.get_size());
+  const auto* sorted_symbol_data = sorted_symbols.get_data();
   for (Count i = 0; i < sorted_symbols.get_size(); i++) {
-    symbol_slots[sorted_symbols[i].original_index] = Unsigned_32(1 + i);
+    symbol_slots[sorted_symbol_data[i].original_index] = Unsigned_32(1 + i);
   }
 
   return symbol_slots;
@@ -281,8 +282,9 @@ static auto build_symbol_table(View::Vector<SymbolReference> sorted_symbols)
   data.forgetful_resize(sizeof(SymbolRecord) * entry_count);
   memset(data.get_access().get_data(), 0, sizeof(SymbolRecord) * entry_count);
   auto* entries = Data::cast<SymbolRecord>(data.get_access().get_data());
+  const auto* sorted_symbol_data = sorted_symbols.get_data();
   for (Count i = 0; i < sorted_symbols.get_size(); i++) {
-    const auto& reference = sorted_symbols[i];
+    const auto& reference = sorted_symbol_data[i];
     const auto& symbol = *reference.symbol;
     auto& entry = entries[1 + i];
     const Unsigned_8 binding = to_symbol_binding(symbol.get_visibility());
@@ -304,15 +306,16 @@ static auto write_relocations(
     View::Vector<Object::Relocation> relocations,
     View::Vector<Unsigned_32> symbol_slots) -> void {
   auto* entries = Data::cast<RelaRecord>(data.get_data());
+  const auto* symbol_slot_data = symbol_slots.get_data();
   for (Count i = 0; i < relocations.get_size(); i++) {
-    const auto& relocation = relocations[i];
+    const auto& relocation = relocations.get_data()[i];
     const Unsigned_32 relocation_type =
         to_relocation_type(relocation.get_type());
     Data::write<elf_endian>(
         &entries[i].offset, Unsigned_64(relocation.get_offset()));
     Data::write<elf_endian>(
         &entries[i].info,
-        (Unsigned_64(symbol_slots[relocation.get_symbol()]) << 32) |
+        (Unsigned_64(symbol_slot_data[relocation.get_symbol()]) << 32) |
             Unsigned_64(relocation_type));
     Data::write<elf_endian>(
         &entries[i].addend, Signed_64(relocation.get_addend()));
@@ -387,7 +390,7 @@ static auto group_relocations(
   }
 
   for (Count i = 0; i < relocations.get_size(); i++) {
-    const auto& relocation = relocations[i];
+    const auto& relocation = relocations.get_data()[i];
     relocation_tables[relocation.get_section_index()].insert(relocation);
   }
 
@@ -398,8 +401,9 @@ static auto write_section_headers(
     Access::Bytes buffer,
     View::Vector<SectionDescriptor> section_descriptors) -> void {
   auto* entries = Data::cast<SectionHeader>(buffer.get_data());
+  const auto* descriptor_data = section_descriptors.get_data();
   for (Count i = 0; i < section_descriptors.get_size(); i++) {
-    const auto& descriptor = section_descriptors[i];
+    const auto& descriptor = descriptor_data[i];
     Data::write<elf_endian>(
         &entries[i].name_offset, Unsigned_32(descriptor.name_offset));
     Data::write<elf_endian>(&entries[i].type, Unsigned_32(descriptor.type));
@@ -428,13 +432,16 @@ static auto build_section_descriptors(
     Count symbol_table_index,
     Count string_table_index) -> Dynamic::Vector<SectionDescriptor> {
   Dynamic::Vector<SectionDescriptor> descriptors;
+  const auto* section_data = sections.get_data();
+  const auto* relocation_table_data = relocation_tables.get_data();
+  const auto* sorted_symbol_data = sorted_symbols.get_data();
   for (Count i = 0; i < sections.get_size(); i++) {
-    descriptors.insert(to_section_descriptor(sections[i]));
+    descriptors.insert(to_section_descriptor(section_data[i]));
   }
 
   Count relocation_offset = 0;
   for (Count i = 1; i < sections.get_size(); i++) {
-    View::Vector<Object::Relocation> relocations = relocation_tables[i];
+    View::Vector<Object::Relocation> relocations = relocation_table_data[i];
     if (relocations.get_size() == 0) {
       continue;
     }
@@ -445,7 +452,7 @@ static auto build_section_descriptors(
     relocation_offset += data_size;
 
     descriptors.insert({
-      relocation_name_for(sections[i].get_type()),
+      relocation_name_for(section_data[i].get_type()),
       SectionType::RelocationAddend,
       0,
       8,
@@ -461,7 +468,7 @@ static auto build_section_descriptors(
   // this boundary.
   Count first_non_local_symbol = 1;
   for (Count i = 0; i < sorted_symbols.get_size(); i++) {
-    if (sorted_symbols[i].symbol->get_visibility() !=
+    if (sorted_symbol_data[i].symbol->get_visibility() !=
         Object::Symbol::Visibility::Local) {
       break;
     }
@@ -551,8 +558,9 @@ static auto build_object(const Object::Module& module) -> Dynamic::Bytes {
           section_headers_offset, sizeof(SectionHeader) * total),
       section_descriptors.get_view());
 
+  const auto* descriptor_data = section_descriptors.get_view().get_data();
   for (Count i = 0; i < total; i++) {
-    const auto& descriptor = section_descriptors.get_view()[i];
+    const auto& descriptor = descriptor_data[i];
     if (descriptor.data.get_size() > 0) {
       Data::copy(
           output.get_access().get_data() + descriptor.file_offset,
@@ -575,10 +583,11 @@ auto Target::Elf::build_library(
   Count exported_count = 0;
   Count exported_names_bytes = 0;
   for (Count i = 0; i < symbols.get_size(); i++) {
-    if (symbols[i].get_visibility() == Object::Symbol::Visibility::Global &&
-        symbols[i].is_defined()) {
+    if (symbols.get_data()[i].get_visibility() ==
+            Object::Symbol::Visibility::Global &&
+        symbols.get_data()[i].is_defined()) {
       exported_count++;
-      exported_names_bytes += symbols[i].get_name().get_size() + 1;
+      exported_names_bytes += symbols.get_data()[i].get_name().get_size() + 1;
     }
   }
 
@@ -616,7 +625,7 @@ auto Target::Elf::build_library(
   }
 
   for (Count i = 0; i < symbols.get_size(); i++) {
-    const auto& symbol = symbols[i];
+    const auto& symbol = symbols.get_data()[i];
     if (symbol.get_visibility() != Object::Symbol::Visibility::Global ||
         symbol.is_undefined()) {
       continue;

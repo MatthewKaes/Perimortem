@@ -37,8 +37,9 @@ static auto to_vk_stage(Render::Stage stage) -> VkShaderStageFlagBits {
 static auto to_vk_stage_flags(View::Vector<Render::Stage> stages)
     -> VkShaderStageFlags {
   VkShaderStageFlags flags = 0;
+  const auto* stage_data = stages.get_data();
   for (Count i = 0; i < stages.get_size(); i++) {
-    flags |= to_vk_stage(stages[i]);
+    flags |= to_vk_stage(stage_data[i]);
   }
 
   if (flags == 0) {
@@ -86,8 +87,9 @@ auto Vulkan::ShaderProgram::create(
   program.device = device;
   program.push_constant_count = source_host_input_ranges.get_size();
   program.descriptor_set_count = descriptor_set_layouts.get_size();
+  const auto* host_input_data = source_host_input_ranges.get_data();
   for (Count i = 0; i < program.push_constant_count; i++) {
-    const auto& source_range = source_host_input_ranges[i];
+    const auto& source_range = host_input_data[i];
     if (source_range.size == 0 || source_range.offset > Unsigned_32(-1) ||
         source_range.size > Unsigned_32(-1) ||
         ((source_range.offset | source_range.size) & 3) != 0) {
@@ -103,8 +105,9 @@ auto Vulkan::ShaderProgram::create(
   Static::Vector<VkShaderModule, max_shader_modules> shader_modules;
   Static::Vector<VkPipelineShaderStageCreateInfo, max_shader_modules> stages;
   Static::Vector<Dynamic::Bytes, max_shader_modules> entry_names;
+  const auto* module_data = source_modules.get_data();
   for (Count i = 0; i < source_modules.get_size(); i++) {
-    const auto& module = source_modules[i];
+    const auto& module = module_data[i];
     shader_modules[i] = make_shader_module(device, module);
 
     stages[i].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;

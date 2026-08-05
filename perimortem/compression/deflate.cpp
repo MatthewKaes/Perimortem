@@ -19,7 +19,7 @@ using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
 using namespace Perimortem;
 
-// Distance codes 0-29: base distances and extra bits.
+// Distance codes zero through twenty nine use base distances and extra bits.
 constexpr Static::Vector<Unsigned_16, 30> distance_base = {{
   1,    2,    3,    4,    5,    7,    9,    13,    17,    25,
   33,   49,   65,   97,   129,  193,  257,  385,   513,   769,
@@ -27,7 +27,7 @@ constexpr Static::Vector<Unsigned_16, 30> distance_base = {{
 }};
 
 // Maps indexes to the correct code length alphabet ordering.
-// The order puts the most commonly non-zero lengths first so the transmitted
+// The order puts the most commonly nonzero lengths first so the transmitted
 // sequence can be truncated as soon as all trailing entries are zero.
 constexpr Static::Vector<Unsigned_8, 19> code_length_order = {{
   16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15,
@@ -51,7 +51,7 @@ enum class Encodings : Unsigned_16 {
 
 // A length or distance value mapped to its DEFLATE back reference encoding.
 // Uses a base symbol index into the literal/length or distance alphabet plus
-// an extra-bits field that encodes the remainder.
+// an extra bits field that encodes the remainder.
 class BackReferenceEncoding {
  public:
   constexpr BackReferenceEncoding()
@@ -66,7 +66,7 @@ class BackReferenceEncoding {
   auto get_extra_value() const -> Unsigned_32 { return extra_value; }
   auto get_extra_bits() const -> Count { return extra_bits; }
 
-  // Length codes 257-285: base lengths and extra bits.
+  // Length codes 257 through 285 use base lengths and extra bits.
   static constexpr Static::Vector<Unsigned_16, 29> length_base = {{
     3,  4,  5,  6,  7,  8,  9,  10, 11,  13,  15,  17,  19,  23,  27,
     31, 35, 43, 51, 59, 67, 83, 99, 115, 131, 163, 195, 227, 258,
@@ -78,7 +78,7 @@ class BackReferenceEncoding {
   }};
 
   // Precomputed O(1) encoding for every valid match length (3..258). Avoids the
-  // per-match backward linear scan over 29 entries in encode_back_reference.
+  // backward linear scan over 29 entries for every encoded match.
   static constexpr auto build_length_encoding_table()
       -> Static::Vector<BackReferenceEncoding, 256> {
     constexpr Count length_symbol_offset = 257;
@@ -114,7 +114,7 @@ constexpr Static::Vector<BackReferenceEncoding, 256> length_encoding_table =
 // Caching the token stream lets deflate_dynamic run Lz77 once and build optimal
 // Huffman codes from the cached frequencies before emitting.
 //
-// Match tokens store the pre-computed distance encoding so `emit_lz77_tokens`
+// Match tokens store the distance encoding in advance so `emit_lz77_tokens`
 // never calls encode_distance a second time.
 class Token {
  public:
@@ -152,7 +152,7 @@ class Token {
   Unsigned_8 literal;
 };
 
-// A single entry in a run-length encoded code-length sequence.
+// A single entry in a run length encoded code length sequence.
 class RleEntry {
  public:
   RleEntry() : extra_value(0), symbol(0), extra_bits(0) {}
@@ -211,7 +211,7 @@ constexpr auto write_header(Dynamic::Bytes& output) -> void {
   output.concat("\x78\x9c"_view);
 }
 
-// Adler-32 caculation for checksum operations.
+// Adler 32 calculation for checksum operations.
 constexpr auto calculate_checksum(View::Bytes data) -> Unsigned_32 {
   constexpr Unsigned_64 adler_modulus = 65521;
   constexpr Count batch_size = 5552;
@@ -241,7 +241,7 @@ constexpr auto calculate_checksum(View::Bytes data) -> Unsigned_32 {
   return Unsigned_32((s2 << 16) | s1);
 }
 
-// O(1) distance encoding via bit-width arithmetic.
+// O(1) distance encoding through bit width arithmetic.
 constexpr auto encode_distance(Count d) -> BackReferenceEncoding {
   if (d <= 2) {
     return BackReferenceEncoding(d - 1, 0, 0);
@@ -315,13 +315,13 @@ constexpr auto inflate_symbols(
     output.resize(output.get_size() + match_length);
     auto bytes = output.get_access().get_data();
 
-    // If Non-overlapping: single bulk copy.
+    // Ranges that do not overlap permit one bulk copy.
     if (match_offset >= match_length) {
       Data::copy(bytes + write_start, bytes + copy_start, match_length);
       continue;
     }
 
-    // For overlapping run-length copies we have to copy the stride forward in
+    // For overlapping repeated copies we have to copy the stride forward in
     // match_offset chunks.
     for (Count i = 0; i < match_length; i += match_offset) {
       Data::copy(
@@ -441,16 +441,17 @@ constexpr auto inflate_dynamic(
   const auto distance_symbols =
       actual_literal_len_lengths.get_view().slice(literal_code_count);
 
-  // Reject over-committed prefix codes: kraft_sum > 2^max_length means at least
+  // Reject overcommitted prefix codes. A sum above the maximum means at least
   // two codes share a prefix, making decoding ambiguous and the stream invalid
   // per RFC 1951. This strict check ensures Perimortem inflate agrees with
   // every conformant DEFLATE decoder rather than silently tolerating bad
   // tables.
   auto is_valid_kraft = [](View::Vector<Unsigned_8> lengths) -> Bool {
+    const auto* length_data = lengths.get_data();
     Count max_length = 0;
     for (Count i = 0; i < lengths.get_size(); i++) {
-      if (Count(lengths[i]) > max_length) {
-        max_length = Count(lengths[i]);
+      if (Count(length_data[i]) > max_length) {
+        max_length = Count(length_data[i]);
       }
     }
 
@@ -460,8 +461,8 @@ constexpr auto inflate_dynamic(
 
     Count kraft = 0;
     for (Count i = 0; i < lengths.get_size(); i++) {
-      if (lengths[i] > 0) {
-        kraft += Count(1) << (max_length - Count(lengths[i]));
+      if (length_data[i] > 0) {
+        kraft += Count(1) << (max_length - Count(length_data[i]));
       }
     }
 
@@ -567,10 +568,12 @@ constexpr auto rle_encode_code_lengths(
     View::Vector<Unsigned_8> distance_lengths,
     Static::Vector<RleEntry, 320>& output) -> Count {
   const Count literal_length_count = literal_len_lengths.get_size();
+  const auto* literal_data = literal_len_lengths.get_data();
+  const auto* distance_data = distance_lengths.get_data();
   auto lengths_at = [&](Count index) -> Unsigned_8 {
     return index < literal_length_count
-               ? literal_len_lengths[index]
-               : distance_lengths[index - literal_length_count];
+               ? literal_data[index]
+               : distance_data[index - literal_length_count];
   };
 
   const Count total = literal_length_count + distance_lengths.get_size();
@@ -645,7 +648,7 @@ constexpr auto write_dynamic_block_header(
       meta_freq.get_view(), meta_lengths.get_access());
   const Compression::Huffman meta_table(meta_lengths.get_view());
 
-  // Trim trailing zero-length entries from the meta table.
+  // Trim trailing zero length entries from the meta table.
   // The minimum allowed is 4, so we stop at index 3.
   Count code_length = code_length_order.get_size() - 1;
   while (code_length > 3 && meta_lengths[code_length_order[code_length]] == 0) {
@@ -773,8 +776,9 @@ constexpr auto collect_lz77_tokens(
       distance_frequencies[distance_encoding.get_symbol()]++;
 
       // Insert the last position of the match so the next block has a
-      // distance-1 candidate. Without this, long matches skip intermediate
-      // positions and the next block's nearest chain entry is match_length
+      // previous distance candidate. Without this, long matches skip
+      // intermediate positions and the next block's nearest chain entry is
+      // match_length
       // bytes back, which costs extra bits on the distance code for every
       // subsequent match in a run (e.g., gradient rows after Up filtering).
       const Count last_position = position + match.get_length() - 1;
@@ -796,8 +800,9 @@ constexpr auto emit_lz77_tokens(
     Compression::BitStream::Writer& writer,
     const Compression::Huffman& literal_table,
     const Compression::Huffman& distance_table) -> void {
+  const auto* token_data = tokens.get_data();
   for (Count i = 0; i < tokens.get_size(); i++) {
-    const Token& token = tokens[i];
+    const Token& token = token_data[i];
     if (token.is_match()) {
       const auto& length_encoding = length_encoding_table
           [token.get_length() - Compression::Lz77::min_match];

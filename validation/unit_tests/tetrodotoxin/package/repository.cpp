@@ -646,7 +646,7 @@ PERIMORTEM_UNIT_TEST(PackageRepository, caller_arena_and_retained_cache) {
   EXPECT(first_archive == removal_archive);
   EXPECT_TEXT(removal_archive->get_identity(), "Pkg.Core"_view);
   ASSERT_EQ(removal_archive->get_artifact_ids().get_size(), Count(2));
-  EXPECT_TEXT(removal_archive->get_artifact_ids()[0], "cpu"_view);
+  EXPECT_TEXT(removal_archive->get_artifact_ids().get_data()[0], "cpu"_view);
 }
 
 PERIMORTEM_UNIT_TEST(PackageRepository, semantic_cache_without_native_inputs) {

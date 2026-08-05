@@ -48,12 +48,13 @@ PERIMORTEM_UNIT_TEST(GraphicsRender, pipeline_layout) {
     .host_fields = host_fields,
   };
   EXPECT_EQ(program.modules.get_size(), Count(1));
-  EXPECT_EQ(program.modules[0].words.get_size(), Count(4));
-  EXPECT_EQ(program.modules[0].entry, "main"_view);
-  EXPECT_EQ(program.host_input_ranges[0].offset, Count(16));
-  EXPECT_EQ(program.host_input_ranges[0].stages.get_size(), Count(2));
-  EXPECT_EQ(program.descriptors[0].name, "texture"_view);
-  EXPECT_EQ(program.descriptors[0].set, Count(1));
-  EXPECT_EQ(program.descriptors[0].slot, Count(2));
-  EXPECT_EQ(program.host_fields[0].name, "transform"_view);
+  EXPECT_EQ(program.modules.get_data()[0].words.get_size(), Count(4));
+  EXPECT_EQ(program.modules.get_data()[0].entry, "main"_view);
+  EXPECT_EQ(program.host_input_ranges.get_data()[0].offset, Count(16));
+  EXPECT_EQ(
+      program.host_input_ranges.get_data()[0].stages.get_size(), Count(2));
+  EXPECT_EQ(program.descriptors.get_data()[0].name, "texture"_view);
+  EXPECT_EQ(program.descriptors.get_data()[0].set, Count(1));
+  EXPECT_EQ(program.descriptors.get_data()[0].slot, Count(2));
+  EXPECT_EQ(program.host_fields.get_data()[0].name, "transform"_view);
 }

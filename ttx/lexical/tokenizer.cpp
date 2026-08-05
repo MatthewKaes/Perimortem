@@ -132,7 +132,10 @@ class Context {
   }
 
   constexpr auto add_terminal() -> void {
-    token_start = ++parse_index;
+    // Terminal occupies no source bytes and begins at the authored boundary.
+    // Parsers can therefore use it as an exact end position without repairing
+    // an offset beyond the source.
+    token_start = parse_index;
     add_token(Code::Type::Terminal);
   }
 

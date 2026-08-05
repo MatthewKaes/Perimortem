@@ -20,9 +20,10 @@ auto search(View::Bytes src, Unsigned_8 value) -> Count;
 // If multiple elements are the smallest then the lowest index is used.
 template <typename element_type>
 constexpr auto min_element(View::Vector<element_type> src) -> Count {
+  const auto* data = src.get_data();
   Count target_index = 0;
   for (Count i = 1; i < src.get_size(); i++) {
-    if (src[i] < src[target_index]) {
+    if (data[i] < data[target_index]) {
       target_index = i;
     }
   }
@@ -34,9 +35,10 @@ constexpr auto min_element(View::Vector<element_type> src) -> Count {
 // If multiple elements are the largest then the lowest index is used.
 template <typename element_type>
 constexpr auto max_element(View::Vector<element_type> src) -> Count {
+  const auto* data = src.get_data();
   Count target_index = 0;
   for (Count i = 1; i < src.get_size(); i++) {
-    if (src[i] > src[target_index]) {
+    if (data[i] > data[target_index]) {
       target_index = i;
     }
   }
