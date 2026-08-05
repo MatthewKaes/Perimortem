@@ -126,17 +126,31 @@ remains the owner of a leading negative numeric spelling, while unary Negate
 remains a separate pending operation.
 
 Subtract binds before the comparison level. Less owns `<` grammar, Greater owns
-`>` grammar, and LessEqual owns `<=` grammar. Each owns locked scalar operand
-Type selection, canonical Bool result identity, ordered IEEE comparison,
-diagnostics, and True or False folding. A following comparison receives that
-Bool like any other left operand, so ordinary Type legality rejects comparison
-chaining.
+`>` grammar, LessEqual owns `<=` grammar, and GreaterEqual owns `>=` grammar.
+Each owns locked scalar operand Type selection, canonical Bool result identity,
+ordered IEEE comparison, diagnostics, and True or False folding. A following
+comparison receives that Bool like any other left operand, so ordinary Type
+legality rejects comparison chaining.
 
-Multiply, Divide, Subtract, Less, Greater, and LessEqual require both operands
-to resolve to the same Signed, Unsigned, or Real Type identity. Modulo applies
-the same exact Type rule to Signed and Unsigned only. Constants keep their
-declared Type and receive no implicit widening, narrowing, fitting, or
-retagging inside these operations. Scalar literals currently use their
+Equal owns `==` below the ordered comparison level. Exact identical resolved
+Signed, Unsigned, Real, or Flag Types admit scalar equality, while complete
+Bytes Constants admit their existing exact Type and payload equality. Each
+Constant domain owns its payload comparison, including Real NaN equivalence,
+so Equal introduces no tagged value or fitting exception. Complete inputs fold
+to canonical Bool. A legal dynamic scalar comparison retains its two real
+Expression edges.
+
+NotEqual owns `!=` at the same equality level and accepts exactly Equal's
+domains. It delegates the inverse comparison to those Constant domains, so the
+NaN, signed zero, and Bytes rules remain one semantic value contract. Complete
+inputs fold to canonical Bool while legal dynamic scalar operands retain
+NotEqual.
+
+Multiply, Divide, Subtract, Less, Greater, LessEqual, and GreaterEqual require
+both operands to resolve to the same Signed, Unsigned, or Real Type identity.
+Modulo applies the same exact Type rule to Signed and Unsigned only. Constants
+keep their declared Type and receive no implicit widening, narrowing, fitting,
+or retagging inside these operations. Scalar literals currently use their
 canonical binary wide Type, so a narrower receiving owner must construct an
 explicitly typed Constant before forming one of these operations.
 Signed and Unsigned operations reject host arithmetic overflow first, then use
@@ -147,8 +161,7 @@ Every Slice failure maps to one diagnostic over the complete postfix, while
 the caller Cursor joins only once after the complete chain succeeds. A
 receiving declaration, assignment, invocation, or other typed operation applies
 fitting only after the complete Expression has synthesized its result Type.
-GreaterEqual and later comparisons plus Projection remain outside the current
-parser.
+Later operations plus Projection remain outside the current parser.
 
 Resource route, Storage, and Package diagnostics do not enter the Library
 graph. An unsliced base Constant owns its complete value. A folded slice owns

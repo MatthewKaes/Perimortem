@@ -4,11 +4,14 @@
 #include "tetrodotoxin/library/language/parser/expression.hpp"
 
 #include "tetrodotoxin/library/language/operations/divide.hpp"
+#include "tetrodotoxin/library/language/operations/equal.hpp"
 #include "tetrodotoxin/library/language/operations/greater.hpp"
+#include "tetrodotoxin/library/language/operations/greater_equal.hpp"
 #include "tetrodotoxin/library/language/operations/less.hpp"
 #include "tetrodotoxin/library/language/operations/less_equal.hpp"
 #include "tetrodotoxin/library/language/operations/modulo.hpp"
 #include "tetrodotoxin/library/language/operations/multiply.hpp"
+#include "tetrodotoxin/library/language/operations/not_equal.hpp"
 #include "tetrodotoxin/library/language/operations/slice.hpp"
 #include "tetrodotoxin/library/language/operations/subtract.hpp"
 #include "tetrodotoxin/library/language/parser/literal.hpp"
@@ -32,8 +35,12 @@ static auto get_precedence(Code::Type operation) -> Count {
     return 20;
   case Code::Type::LessOp:
   case Code::Type::GreaterOp:
+  case Code::Type::GreaterEqOp:
   case Code::Type::LessEqOp:
     return 10;
+  case Code::Type::CmpOp:
+  case Code::Type::NotEqOp:
+    return 5;
   default:
     return 0;
   }
@@ -131,6 +138,16 @@ static auto parse_expression(
       expression = *greater;
       break;
     }
+    case Code::Type::GreaterEqOp: {
+      auto greater_equal = Library::Language::Operations::GreaterEqual::parse(
+          domain, materializations, cursor, source_context, expression.get());
+      if (!greater_equal) {
+        return {};
+      }
+
+      expression = *greater_equal;
+      break;
+    }
     case Code::Type::LessEqOp: {
       auto less_equal = Library::Language::Operations::LessEqual::parse(
           domain, materializations, cursor, source_context, expression.get());
@@ -139,6 +156,26 @@ static auto parse_expression(
       }
 
       expression = *less_equal;
+      break;
+    }
+    case Code::Type::CmpOp: {
+      auto equal = Library::Language::Operations::Equal::parse(
+          domain, materializations, cursor, source_context, expression.get());
+      if (!equal) {
+        return {};
+      }
+
+      expression = *equal;
+      break;
+    }
+    case Code::Type::NotEqOp: {
+      auto not_equal = Library::Language::Operations::NotEqual::parse(
+          domain, materializations, cursor, source_context, expression.get());
+      if (!not_equal) {
+        return {};
+      }
+
+      expression = *not_equal;
       break;
     }
     default:

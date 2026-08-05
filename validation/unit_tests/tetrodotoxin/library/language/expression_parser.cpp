@@ -383,7 +383,8 @@ PERIMORTEM_UNIT_TEST(ExpressionParserTests, diagnostic_facts) {
   EXPECT(contains(size, "size 2"_view));
   EXPECT(contains(size, "remaining 1 bytes after start 2"_view));
   EXPECT(contains(syntax, "malformed index or range operands"_view));
-  EXPECT(contains(real, "operand `1.0` has Real_64 Type"_view));
+  EXPECT(contains(real, "Slice index Type `Real_64`"_view));
+  EXPECT(contains(real, "not a signed or unsigned integer Type"_view));
   EXPECT(rejects(domain, materializations, context, "true:[0]"_view));
   EXPECT(rejects(domain, materializations, context, "\"abc\":[true]"_view));
   EXPECT(rejects(domain, materializations, context, "\"abc\":[-1]"_view));
@@ -736,6 +737,180 @@ PERIMORTEM_UNIT_TEST(ExpressionParserTests, greater_precedence_and_failure) {
   EXPECT(slice_errors.is_empty());
 }
 
+PERIMORTEM_UNIT_TEST(ExpressionParserTests, equal_domains_and_precedence) {
+  Allocator::Arena domain;
+  Allocator::Arena rendering;
+  Library::Language::Materializations materializations(domain);
+  ExpressionParserContext context(domain);
+  Errors unsigned_errors;
+  Errors signed_errors;
+  Errors real_errors;
+  Errors flag_errors;
+  Errors bytes_errors;
+  Errors bytes_difference_errors;
+  Errors left_precedence_errors;
+  Errors right_precedence_errors;
+  Errors association_errors;
+
+  auto unsigned_value = parse_one(
+      domain, materializations, context, "8 == 8"_view, unsigned_errors);
+  auto signed_value = parse_one(
+      domain, materializations, context, "-8 == -8"_view, signed_errors);
+  auto real_value = parse_one(
+      domain, materializations, context, "0.5 == 0.5"_view, real_errors);
+  auto flag_value = parse_one(
+      domain, materializations, context, "true == true"_view, flag_errors);
+  auto bytes_value = parse_one(
+      domain, materializations, context, "\"ab\" == \"ab\""_view, bytes_errors);
+  auto bytes_difference = parse_one(
+      domain, materializations, context, "\"ab\" == \"ac\""_view,
+      bytes_difference_errors);
+  auto left_precedence = parse_one(
+      domain, materializations, context, "1 < 2 == true"_view,
+      left_precedence_errors);
+  auto right_precedence = parse_one(
+      domain, materializations, context, "true == 1 < 2"_view,
+      right_precedence_errors);
+  auto association = parse_one(
+      domain, materializations, context, "1 == 1 == true"_view,
+      association_errors);
+  View::Bytes mismatch = render_rejection(
+      domain, materializations, context, "1 == true"_view, rendering);
+  View::Bytes bytes_mismatch = render_rejection(
+      domain, materializations, context, "\"a\" == \"aa\""_view, rendering);
+  View::Bytes ordered_result_mismatch = render_rejection(
+      domain, materializations, context, "1 == 1 < 2"_view, rendering);
+
+  ASSERT(unsigned_value);
+  ASSERT(signed_value);
+  ASSERT(real_value);
+  ASSERT(flag_value);
+  ASSERT(bytes_value);
+  ASSERT(bytes_difference);
+  ASSERT(left_precedence);
+  ASSERT(right_precedence);
+  ASSERT(association);
+  EXPECT(unsigned_value->is<Library::Language::Constants::True>());
+  EXPECT(signed_value->is<Library::Language::Constants::True>());
+  EXPECT(real_value->is<Library::Language::Constants::True>());
+  EXPECT(flag_value->is<Library::Language::Constants::True>());
+  EXPECT(bytes_value->is<Library::Language::Constants::True>());
+  EXPECT(bytes_difference->is<Library::Language::Constants::False>());
+  EXPECT(left_precedence->is<Library::Language::Constants::True>());
+  EXPECT(right_precedence->is<Library::Language::Constants::True>());
+  EXPECT(association->is<Library::Language::Constants::True>());
+  EXPECT(&unsigned_value->get_type() == &Library::Dialect::get_bool());
+  EXPECT(&bytes_value->get_type() == &Library::Dialect::get_bool());
+  EXPECT(contains(mismatch, "left Type `Unsigned_64`"_view));
+  EXPECT(contains(mismatch, "right Type `Bool`"_view));
+  EXPECT(contains(bytes_mismatch, "left Type `Fixed[Unsigned_8,1]`"_view));
+  EXPECT(contains(bytes_mismatch, "right Type `Fixed[Unsigned_8,2]`"_view));
+  EXPECT(contains(ordered_result_mismatch, "left Type `Unsigned_64`"_view));
+  EXPECT(contains(ordered_result_mismatch, "right Type `Bool`"_view));
+  EXPECT(rejects(domain, materializations, context, "1 =="_view, "=="_view));
+  EXPECT(
+      rejects(domain, materializations, context, "1 == true"_view, "=="_view));
+  EXPECT(unsigned_errors.is_empty());
+  EXPECT(signed_errors.is_empty());
+  EXPECT(real_errors.is_empty());
+  EXPECT(flag_errors.is_empty());
+  EXPECT(bytes_errors.is_empty());
+  EXPECT(bytes_difference_errors.is_empty());
+  EXPECT(left_precedence_errors.is_empty());
+  EXPECT(right_precedence_errors.is_empty());
+  EXPECT(association_errors.is_empty());
+}
+
+PERIMORTEM_UNIT_TEST(ExpressionParserTests, not_equal_domains_and_precedence) {
+  Allocator::Arena domain;
+  Allocator::Arena rendering;
+  Library::Language::Materializations materializations(domain);
+  ExpressionParserContext context(domain);
+  Errors unsigned_errors;
+  Errors signed_errors;
+  Errors real_errors;
+  Errors flag_errors;
+  Errors bytes_errors;
+  Errors bytes_difference_errors;
+  Errors left_precedence_errors;
+  Errors right_precedence_errors;
+  Errors association_errors;
+  Errors mixed_errors;
+
+  auto unsigned_value = parse_one(
+      domain, materializations, context, "8 != 9"_view, unsigned_errors);
+  auto signed_value = parse_one(
+      domain, materializations, context, "-8 != -8"_view, signed_errors);
+  auto real_value = parse_one(
+      domain, materializations, context, "0.5 != 1.0"_view, real_errors);
+  auto flag_value = parse_one(
+      domain, materializations, context, "true != false"_view, flag_errors);
+  auto bytes_value = parse_one(
+      domain, materializations, context, "\"ab\" != \"ab\""_view, bytes_errors);
+  auto bytes_difference = parse_one(
+      domain, materializations, context, "\"ab\" != \"ac\""_view,
+      bytes_difference_errors);
+  auto left_precedence = parse_one(
+      domain, materializations, context, "1 < 2 != false"_view,
+      left_precedence_errors);
+  auto right_precedence = parse_one(
+      domain, materializations, context, "false != 1 < 2"_view,
+      right_precedence_errors);
+  auto association = parse_one(
+      domain, materializations, context, "1 != 2 != false"_view,
+      association_errors);
+  auto mixed = parse_one(
+      domain, materializations, context, "1 == 1 != false"_view, mixed_errors);
+  View::Bytes mismatch = render_rejection(
+      domain, materializations, context, "1 != true"_view, rendering);
+  View::Bytes bytes_mismatch = render_rejection(
+      domain, materializations, context, "\"a\" != \"aa\""_view, rendering);
+  View::Bytes ordered_result_mismatch = render_rejection(
+      domain, materializations, context, "1 != 2 < 3"_view, rendering);
+
+  ASSERT(unsigned_value);
+  ASSERT(signed_value);
+  ASSERT(real_value);
+  ASSERT(flag_value);
+  ASSERT(bytes_value);
+  ASSERT(bytes_difference);
+  ASSERT(left_precedence);
+  ASSERT(right_precedence);
+  ASSERT(association);
+  ASSERT(mixed);
+  EXPECT(unsigned_value->is<Library::Language::Constants::True>());
+  EXPECT(signed_value->is<Library::Language::Constants::False>());
+  EXPECT(real_value->is<Library::Language::Constants::True>());
+  EXPECT(flag_value->is<Library::Language::Constants::True>());
+  EXPECT(bytes_value->is<Library::Language::Constants::False>());
+  EXPECT(bytes_difference->is<Library::Language::Constants::True>());
+  EXPECT(left_precedence->is<Library::Language::Constants::True>());
+  EXPECT(right_precedence->is<Library::Language::Constants::True>());
+  EXPECT(association->is<Library::Language::Constants::True>());
+  EXPECT(mixed->is<Library::Language::Constants::True>());
+  EXPECT(&unsigned_value->get_type() == &Library::Dialect::get_bool());
+  EXPECT(&bytes_value->get_type() == &Library::Dialect::get_bool());
+  EXPECT(contains(mismatch, "left Type `Unsigned_64`"_view));
+  EXPECT(contains(mismatch, "right Type `Bool`"_view));
+  EXPECT(contains(bytes_mismatch, "left Type `Fixed[Unsigned_8,1]`"_view));
+  EXPECT(contains(bytes_mismatch, "right Type `Fixed[Unsigned_8,2]`"_view));
+  EXPECT(contains(ordered_result_mismatch, "left Type `Unsigned_64`"_view));
+  EXPECT(contains(ordered_result_mismatch, "right Type `Bool`"_view));
+  EXPECT(rejects(domain, materializations, context, "1 !="_view, "!="_view));
+  EXPECT(
+      rejects(domain, materializations, context, "1 != true"_view, "!="_view));
+  EXPECT(unsigned_errors.is_empty());
+  EXPECT(signed_errors.is_empty());
+  EXPECT(real_errors.is_empty());
+  EXPECT(flag_errors.is_empty());
+  EXPECT(bytes_errors.is_empty());
+  EXPECT(bytes_difference_errors.is_empty());
+  EXPECT(left_precedence_errors.is_empty());
+  EXPECT(right_precedence_errors.is_empty());
+  EXPECT(association_errors.is_empty());
+  EXPECT(mixed_errors.is_empty());
+}
+
 PERIMORTEM_UNIT_TEST(ExpressionParserTests, less_equal_precedence_and_failure) {
   Allocator::Arena domain;
   Allocator::Arena rendering;
@@ -787,6 +962,71 @@ PERIMORTEM_UNIT_TEST(ExpressionParserTests, less_equal_precedence_and_failure) {
   EXPECT(rejects(domain, materializations, context, "1 <="_view, "<="_view));
   EXPECT(
       rejects(domain, materializations, context, "1 <= true"_view, "<="_view));
+  EXPECT(precedence_errors.is_empty());
+  EXPECT(false_errors.is_empty());
+  EXPECT(arithmetic_errors.is_empty());
+  EXPECT(slice_errors.is_empty());
+}
+
+PERIMORTEM_UNIT_TEST(
+    ExpressionParserTests,
+    greater_equal_precedence_and_failure) {
+  Allocator::Arena domain;
+  Allocator::Arena rendering;
+  Library::Language::Materializations materializations(domain);
+  ExpressionParserContext context(domain);
+  Errors precedence_errors;
+  Errors false_errors;
+  Errors arithmetic_errors;
+  Errors slice_errors;
+
+  auto precedence = parse_one(
+      domain, materializations, context, "10 - 2 * 3 >= 4"_view,
+      precedence_errors);
+  auto false_value =
+      parse_one(domain, materializations, context, "4 >= 5"_view, false_errors);
+  auto arithmetic = parse_one(
+      domain, materializations, context, "6 >= 2 * 3"_view, arithmetic_errors);
+  auto sliced = parse_one(
+      domain, materializations, context, "0x[01]:[0] >= 0x[01]:[0]"_view,
+      slice_errors);
+  View::Bytes mismatch = render_rejection(
+      domain, materializations, context, "1 >= true"_view, rendering);
+  View::Bytes chained = render_rejection(
+      domain, materializations, context, "2 >= 1 >= 0"_view, rendering);
+  View::Bytes less_chain = render_rejection(
+      domain, materializations, context, "1 < 2 >= 1"_view, rendering);
+  View::Bytes greater_chain = render_rejection(
+      domain, materializations, context, "3 > 2 >= 1"_view, rendering);
+  View::Bytes less_equal_chain = render_rejection(
+      domain, materializations, context, "1 <= 2 >= 1"_view, rendering);
+  View::Bytes then_less = render_rejection(
+      domain, materializations, context, "2 >= 1 < 3"_view, rendering);
+  View::Bytes then_greater = render_rejection(
+      domain, materializations, context, "2 >= 1 > 0"_view, rendering);
+  View::Bytes then_less_equal = render_rejection(
+      domain, materializations, context, "2 >= 1 <= 3"_view, rendering);
+
+  ASSERT(precedence && false_value && arithmetic && sliced);
+  EXPECT(precedence->is<Library::Language::Constants::True>());
+  EXPECT(false_value->is<Library::Language::Constants::False>());
+  EXPECT(arithmetic->is<Library::Language::Constants::True>());
+  EXPECT(sliced->is<Library::Language::Constants::True>());
+  EXPECT(&precedence->get_type() == &Library::Dialect::get_bool());
+  EXPECT(&false_value->get_type() == &Library::Dialect::get_bool());
+  EXPECT(&sliced->get_type() == &Library::Dialect::get_bool());
+  EXPECT(contains(mismatch, "left Type `Unsigned_64`"_view));
+  EXPECT(contains(mismatch, "right Type `Bool`"_view));
+  EXPECT(contains(chained, "left Type `Bool`"_view));
+  EXPECT(contains(less_chain, "left Type `Bool`"_view));
+  EXPECT(contains(greater_chain, "left Type `Bool`"_view));
+  EXPECT(contains(less_equal_chain, "left Type `Bool`"_view));
+  EXPECT(contains(then_less, "left Type `Bool`"_view));
+  EXPECT(contains(then_greater, "left Type `Bool`"_view));
+  EXPECT(contains(then_less_equal, "left Type `Bool`"_view));
+  EXPECT(rejects(domain, materializations, context, "1 >="_view, ">="_view));
+  EXPECT(
+      rejects(domain, materializations, context, "1 >= true"_view, ">="_view));
   EXPECT(precedence_errors.is_empty());
   EXPECT(false_errors.is_empty());
   EXPECT(arithmetic_errors.is_empty());

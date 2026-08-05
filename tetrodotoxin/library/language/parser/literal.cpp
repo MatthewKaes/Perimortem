@@ -273,7 +273,7 @@ static auto parse_signed(Allocator::Arena& domain, Cursor& cursor)
 template <Signed_64 token_width>
 static auto parse_real(Allocator::Arena& domain, Cursor& cursor)
     -> Option<const Library::Language::Constant&> {
-  Span literal_text(cursor.current(), cursor.peek(token_width));
+  Span literal_text(cursor.current(), cursor.peek(token_width - 1));
   Reader::Textual reader(literal_text.caculate_text(cursor.get_source_text()));
 
   // Textual sees the complete signed or unsigned spelling so partial numeric

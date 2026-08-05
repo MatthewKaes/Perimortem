@@ -507,15 +507,27 @@ owns binary `-`, locked scalar Type selection, checked
 selected width overflow and underflow, IEEE Real evaluation, construction,
 diagnostics, and folding. Literal keeps leading negative numeric grammar and a
 future unary Negate remains a separate operation owner.
-Subtract binds before the comparison level. Less owns `<`, Greater owns `>`, and
-LessEqual owns `<=`. Each owns locked scalar operand Type selection, canonical
-Bool result identity, ordered IEEE comparison, construction, diagnostics, and
-True or False folding. A chained comparison receives the prior Bool result and
-follows ordinary Type legality. Multiply, Divide, Subtract, Less, Greater, and
-LessEqual require exact resolved Signed, Unsigned, or Real Type identity on both
-operands. Modulo applies the same exact Type rule to Signed and Unsigned only.
-Constants retain their declared Type, and these operations perform no implicit
-widening, narrowing, fitting, or retagging.
+Subtract binds before the comparison level. Less owns `<`, Greater owns `>`,
+LessEqual owns `<=`, and GreaterEqual owns `>=`. Each owns locked scalar operand
+Type selection, canonical Bool result identity, ordered IEEE comparison,
+construction, diagnostics, and True or False folding. A chained comparison
+receives the prior Bool result and follows ordinary Type legality. Multiply,
+Divide, Subtract, Less, Greater, LessEqual, and GreaterEqual require exact
+resolved Signed, Unsigned, or Real Type identity on both operands. Modulo
+applies the same exact Type rule to Signed and Unsigned only. Constants retain
+their declared Type, and these operations perform no implicit widening,
+narrowing, fitting, or retagging.
+Equal owns `==` below the ordered comparison level. Exact identical resolved
+Signed, Unsigned, Real, or Flag Types admit scalar equality, while complete
+Bytes Constants admit their existing exact Type and payload equality. The five
+Constant domains own their payload comparisons, including Real NaN equivalence,
+so Equal adds neither a tagged value nor a Constant fitting exception. Complete
+inputs fold to canonical Bool while legal dynamic scalar operands retain Equal.
+NotEqual owns `!=` at the same level over exactly those domains. It delegates
+the inverse payload comparison to each Constant domain, preserving the same
+NaN, signed zero, and Bytes semantics without another semantic value model.
+Complete inputs fold to canonical Bool while legal dynamic scalar operands
+retain NotEqual.
 Signed and Unsigned operations reject host arithmetic overflow first, then use
 `Core::Math::is_representable` to prove the result fits the selected byte width
 rather than reproducing representation arithmetic in each operation.
