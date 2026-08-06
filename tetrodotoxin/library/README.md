@@ -122,8 +122,16 @@ owns remainder sign, zero, selected width, and signed endpoint failures.
 The multiplicative level binds before Subtract. Subtract owns only binary
 subtraction grammar, locked scalar Type selection, selected width overflow and
 underflow checks, IEEE Real evaluation, diagnostics, and folding. Literal
-remains the owner of a leading negative numeric spelling, while unary Negate
-remains a separate pending operation.
+remains the owner of a leading negative numeric spelling. Negate owns general
+prefix unary `-` for an exact Signed or Real Type. It rejects Unsigned, checks
+the selected Signed minimum, and folds complete IEEE Real values while a legal
+dynamic operand retains one Negate operation. Slice binds before Negate, and
+Negate binds before the multiplicative level.
+
+Not owns prefix unary `!` at that same prefix level. It accepts only the exact
+canonical Bool Type. Complete True and False inputs fold to the canonical
+opposite Constant, while a legal incomplete Bool retains one Not operation.
+Not performs no truthiness conversion or bitwise interpretation.
 
 Subtract binds before the comparison level. Less owns `<` grammar, Greater owns
 `>` grammar, LessEqual owns `<=` grammar, and GreaterEqual owns `>=` grammar.

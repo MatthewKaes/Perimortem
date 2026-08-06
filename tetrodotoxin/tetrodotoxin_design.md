@@ -505,8 +505,15 @@ Unsigned Types and owns remainder sign, zero, selected width, and signed
 endpoint failures. The multiplicative level binds before Subtract. Subtract
 owns binary `-`, locked scalar Type selection, checked
 selected width overflow and underflow, IEEE Real evaluation, construction,
-diagnostics, and folding. Literal keeps leading negative numeric grammar and a
-future unary Negate remains a separate operation owner.
+diagnostics, and folding. Literal keeps leading negative numeric grammar.
+Negate owns general prefix unary `-` for exact Signed and Real Types, selected
+Signed minimum rejection, IEEE Real evaluation, construction, diagnostics, and
+folding. Slice binds before Negate, and Negate binds before the multiplicative
+level. A legal incomplete operand retains one real Negate edge.
+Not owns prefix unary `!` at the same level for only the exact canonical Bool
+Type. Complete True and False inputs fold to the canonical opposite Constant,
+while a legal incomplete Bool retains one real Not edge. Not introduces no
+truthiness conversion or bitwise interpretation.
 Subtract binds before the comparison level. Less owns `<`, Greater owns `>`,
 LessEqual owns `<=`, and GreaterEqual owns `>=`. Each owns locked scalar operand
 Type selection, canonical Bool result identity, ordered IEEE comparison,

@@ -11,6 +11,8 @@
 #include "tetrodotoxin/library/language/operations/less_equal.hpp"
 #include "tetrodotoxin/library/language/operations/modulo.hpp"
 #include "tetrodotoxin/library/language/operations/multiply.hpp"
+#include "tetrodotoxin/library/language/operations/negate.hpp"
+#include "tetrodotoxin/library/language/operations/not.hpp"
 #include "tetrodotoxin/library/language/operations/not_equal.hpp"
 #include "tetrodotoxin/library/language/operations/slice.hpp"
 #include "tetrodotoxin/library/language/operations/subtract.hpp"
@@ -22,6 +24,10 @@ using namespace Perimortem::Utility;
 using namespace Tetrodotoxin;
 using namespace Ttx::Concept;
 using namespace Ttx::Lexical;
+
+// Prefix operators keep Slice inside their operand and stop before
+// multiplicative grammar, so concrete unary owners never replay either level.
+static constexpr Count prefix_precedence = 31;
 
 static auto get_precedence(Code::Type operation) -> Count {
   switch (operation) {
@@ -46,14 +52,47 @@ static auto get_precedence(Code::Type operation) -> Count {
   }
 }
 
+static auto parse_primary(
+    Allocator::Arena& domain,
+    Library::Language::Materializations& materializations,
+    Cursor& cursor,
+    const Abstract& source_context)
+    -> Option<const Library::Language::Expression&> {
+  if (cursor.matches(Code::Type::NotOp)) {
+    return Library::Language::Operations::Not::parse(
+        domain, materializations, cursor, source_context);
+  }
+
+  if (cursor.matches(Code::Type::SubOp)) {
+    // Literal keeps the sign for decimal and Real spellings. Every other
+    // leading subtraction Token enters the general Negate grammar.
+    switch (cursor.peek(1).get_code().get_type()) {
+    case Code::Type::Numeric:
+    case Code::Type::Float:
+      break;
+    default:
+      return Library::Language::Operations::Negate::parse(
+          domain, materializations, cursor, source_context);
+    }
+  }
+
+  auto literal = Library::Language::Parser::Literal::parse(
+      domain, materializations, cursor, source_context);
+  if (!literal) {
+    return {};
+  }
+
+  return *literal;
+}
+
 static auto parse_expression(
     Allocator::Arena& domain,
     Library::Language::Materializations& materializations,
     Cursor& cursor,
     const Abstract& source_context,
     Count minimum_precedence) -> Option<const Library::Language::Expression&> {
-  auto primary = Library::Language::Parser::Literal::parse(
-      domain, materializations, cursor, source_context);
+  auto primary =
+      parse_primary(domain, materializations, cursor, source_context);
   if (!primary) {
     return {};
   }
@@ -217,6 +256,23 @@ auto Library::Language::Parser::Expression::parse_operand(
   auto transaction = cursor.branch(operand_errors);
   auto parsed = parse_expression(
       domain, materializations, transaction, source_context, precedence + 1);
+  if (!parsed) {
+    return {};
+  }
+
+  cursor.join(transaction);
+  return *parsed;
+}
+
+auto Library::Language::Parser::Expression::parse_prefix_operand(
+    Allocator::Arena& domain,
+    Materializations& materializations,
+    Cursor& cursor,
+    const Abstract& source_context) -> Option<const Language::Expression&> {
+  Errors operand_errors;
+  auto transaction = cursor.branch(operand_errors);
+  auto parsed = parse_expression(
+      domain, materializations, transaction, source_context, prefix_precedence);
   if (!parsed) {
     return {};
   }

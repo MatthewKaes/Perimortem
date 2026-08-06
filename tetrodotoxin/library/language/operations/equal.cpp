@@ -26,13 +26,6 @@ using namespace Ttx::Concept;
 using namespace Ttx::Lexical;
 using namespace Ttx::Model;
 
-static auto is_scalar_type(const Abstract& selected) -> Bool {
-  return selected.is<Ttx::Model::Types::Signed>() ||
-         selected.is<Ttx::Model::Types::Unsigned>() ||
-         selected.is<Ttx::Model::Types::Real>() ||
-         selected.is<Ttx::Model::Types::Flag>();
-}
-
 static auto select_operand_type(
     const Language::Expression& left,
     const Language::Expression& right) -> const Abstract& {
@@ -42,7 +35,7 @@ static auto select_operand_type(
     return Invalid::get_invalid();
   }
 
-  if (is_scalar_type(left_resolved) ||
+  if (left_resolved.is<Ttx::Model::Types::Value>() ||
       (left.is<Language::Constants::Bytes>() &&
        right.is<Language::Constants::Bytes>())) {
     return left_resolved;

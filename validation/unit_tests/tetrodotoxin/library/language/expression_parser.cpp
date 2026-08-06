@@ -10,6 +10,7 @@
 #include "tetrodotoxin/library/language/constant.hpp"
 #include "tetrodotoxin/library/language/constants/bytes.hpp"
 #include "tetrodotoxin/library/language/constants/false.hpp"
+#include "tetrodotoxin/library/language/constants/real.hpp"
 #include "tetrodotoxin/library/language/constants/signed.hpp"
 #include "tetrodotoxin/library/language/constants/true.hpp"
 #include "tetrodotoxin/library/language/constants/unsigned.hpp"
@@ -644,6 +645,116 @@ PERIMORTEM_UNIT_TEST(ExpressionParserTests, subtract_precedence_and_failure) {
   EXPECT(association_errors.is_empty());
   EXPECT(slice_errors.is_empty());
   EXPECT(negative_errors.is_empty());
+}
+
+PERIMORTEM_UNIT_TEST(ExpressionParserTests, negate_precedence_and_failure) {
+  Allocator::Arena domain;
+  Allocator::Arena rendering;
+  Library::Language::Materializations materializations(domain);
+  ExpressionParserContext context(domain);
+  Errors literal_errors;
+  Errors real_errors;
+  Errors nested_errors;
+  Errors precedence_errors;
+
+  auto literal =
+      parse_one(domain, materializations, context, "-8"_view, literal_errors);
+  auto real =
+      parse_one(domain, materializations, context, "-0.5"_view, real_errors);
+  auto nested =
+      parse_one(domain, materializations, context, "--8"_view, nested_errors);
+  auto precedence = parse_one(
+      domain, materializations, context, "--10 - -3"_view, precedence_errors);
+  View::Bytes unsigned_value = render_rejection(
+      domain, materializations, context, "-0x[01]:[0]"_view, rendering);
+  View::Bytes flag_value = render_rejection(
+      domain, materializations, context, "-true"_view, rendering);
+  View::Bytes minimum = render_rejection(
+      domain, materializations, context, "--9223372036854775808"_view,
+      rendering);
+  auto literal_value =
+      literal ? select_abstract<Library::Language::Constants::Signed>(*literal)
+              : Option<const Library::Language::Constants::Signed&>();
+  auto real_value =
+      real ? select_abstract<Library::Language::Constants::Real>(*real)
+           : Option<const Library::Language::Constants::Real&>();
+  auto nested_value =
+      nested ? select_abstract<Library::Language::Constants::Signed>(*nested)
+             : Option<const Library::Language::Constants::Signed&>();
+  auto precedence_value =
+      precedence
+          ? select_abstract<Library::Language::Constants::Signed>(*precedence)
+          : Option<const Library::Language::Constants::Signed&>();
+
+  ASSERT(literal_value && real_value && nested_value && precedence_value);
+  EXPECT(literal_value->get_value() == -8);
+  EXPECT(real_value->get_value() == -0.5);
+  EXPECT(nested_value->get_value() == 8);
+  EXPECT(precedence_value->get_value() == 13);
+  EXPECT(contains(unsigned_value, "Type `Unsigned_8`"_view));
+  EXPECT(contains(flag_value, "Type `Bool`"_view));
+  EXPECT(contains(minimum, "inverse of -9223372036854775808"_view));
+  EXPECT(contains(minimum, "selected Type `Signed_64`"_view));
+  EXPECT(
+      rejects(domain, materializations, context, "-0x[01]:[0]"_view, "-"_view));
+  EXPECT(rejects(domain, materializations, context, "-true"_view, "-"_view));
+  EXPECT(rejects(domain, materializations, context, "-"_view, "-"_view));
+  EXPECT(rejects(
+      domain, materializations, context, "--9223372036854775808"_view,
+      "-"_view));
+  EXPECT(literal_errors.is_empty());
+  EXPECT(real_errors.is_empty());
+  EXPECT(nested_errors.is_empty());
+  EXPECT(precedence_errors.is_empty());
+}
+
+PERIMORTEM_UNIT_TEST(ExpressionParserTests, not_precedence_and_failure) {
+  Allocator::Arena domain;
+  Allocator::Arena rendering;
+  Library::Language::Materializations materializations(domain);
+  ExpressionParserContext context(domain);
+  Errors true_errors;
+  Errors false_errors;
+  Errors nested_errors;
+  Errors equality_errors;
+  Errors inequality_errors;
+
+  auto true_result =
+      parse_one(domain, materializations, context, "!true"_view, true_errors);
+  auto false_result =
+      parse_one(domain, materializations, context, "!false"_view, false_errors);
+  auto nested = parse_one(
+      domain, materializations, context, "!!true"_view, nested_errors);
+  auto equality = parse_one(
+      domain, materializations, context, "!true == false"_view,
+      equality_errors);
+  auto inequality = parse_one(
+      domain, materializations, context, "!false != false"_view,
+      inequality_errors);
+  View::Bytes sliced = render_rejection(
+      domain, materializations, context, "!0x[01]:[0]"_view, rendering);
+  View::Bytes signed_value = render_rejection(
+      domain, materializations, context, "!-1"_view, rendering);
+
+  ASSERT(true_result && false_result && nested && equality && inequality);
+  EXPECT(true_result->is<Library::Language::Constants::False>());
+  EXPECT(false_result->is<Library::Language::Constants::True>());
+  EXPECT(nested->is<Library::Language::Constants::True>());
+  EXPECT(equality->is<Library::Language::Constants::True>());
+  EXPECT(inequality->is<Library::Language::Constants::True>());
+  EXPECT(&true_result->get_type() == &Library::Dialect::get_bool());
+  EXPECT(&false_result->get_type() == &Library::Dialect::get_bool());
+  EXPECT(contains(sliced, "Type `Unsigned_8`"_view));
+  EXPECT(contains(signed_value, "Type `Signed_64`"_view));
+  EXPECT(
+      rejects(domain, materializations, context, "!0x[01]:[0]"_view, "!"_view));
+  EXPECT(rejects(domain, materializations, context, "!-1"_view, "!"_view));
+  EXPECT(rejects(domain, materializations, context, "!"_view, "!"_view));
+  EXPECT(true_errors.is_empty());
+  EXPECT(false_errors.is_empty());
+  EXPECT(nested_errors.is_empty());
+  EXPECT(equality_errors.is_empty());
+  EXPECT(inequality_errors.is_empty());
 }
 
 PERIMORTEM_UNIT_TEST(ExpressionParserTests, less_precedence_and_failure) {

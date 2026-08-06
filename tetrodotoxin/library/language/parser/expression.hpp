@@ -39,6 +39,15 @@ class Expression {
       const Ttx::Concept::Abstract& source_context,
       Ttx::Lexical::Code::Type operation)
       -> Perimortem::Utility::Option<const Language::Expression&>;
+
+  // Parses one prefix operand with private diagnostics. Postfix operations
+  // remain inside the operand while binary operations remain outside it.
+  static auto parse_prefix_operand(
+      Perimortem::Memory::Allocator::Arena& domain,
+      Materializations& materializations,
+      Ttx::Lexical::Cursor& cursor,
+      const Ttx::Concept::Abstract& source_context)
+      -> Perimortem::Utility::Option<const Language::Expression&>;
 };
 
 }  // namespace Tetrodotoxin::Library::Language::Parser
