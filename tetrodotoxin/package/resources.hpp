@@ -21,8 +21,9 @@ namespace Tetrodotoxin::Package {
 //
 // While connected, complete resource instructions read through that one
 // Storage and cache one Arena stable Resource or Error identity. Workspace
-// seals every Resources in the discovery range before post pass and dependency
-// resolution. Sealing clears only the borrowed Storage pointer, so
+// seals every Resources in the discovery range before dependency resolution
+// can link or finalize that range. Sealing clears only the borrowed Storage
+// pointer, so
 // cached identities remain valid for the Workspace lifetime while a new route
 // resolves to Invalid.
 //

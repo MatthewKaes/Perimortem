@@ -30,7 +30,8 @@ Abstract
 
 `Documentation`, `Layout`, `Reference`, and `Attribute` do not inherit
 `Abstract`. They support identities without acquiring identity or resolution
-of their own.
+of their own. Reference preserves the cv qualification of its exact borrowed
+identity so an enriching owner does not recover mutation from a const edge.
 
 ## Progressive construction
 
@@ -65,6 +66,12 @@ Cursor owns forward parse position and bounded signed relative Token lookup.
 Span remains the compact range value, so a grammar pairs its retained opening
 Token with `peek(-1)` after consuming the range. Concrete grammars do not
 manufacture Tokens or read a Cursor index to approximate that boundary.
+Anchor combines a fact's complete Span with the independent Token a diagnostic
+should emphasize. A Span only factory focuses its opening Token. The Token may
+be empty or outside the Span. Errors renders the available source context but
+emits carets only when the complete Token lies inside both the Span and retained
+source. Consumers use optional absence for a synthetic semantic fact because
+TTX has no source coordinates to invent for it.
 Cursor branches share the immutable Token stream and isolate speculative
 position. Only an explicit join after complete success publishes that position
 to the parent Cursor. A branch may use a private Errors owner when rejected

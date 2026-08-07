@@ -22,6 +22,13 @@ either stream boundary would be crossed. A consumer can pair its opening Token
 with `peek(-1)` to describe an operation that ended immediately before the
 current Token without synthesizing a boundary Token.
 
+`Lexical::Anchor` pairs the complete Span relevant to a fact with the
+independent Token a diagnostic should emphasize. Construction from a Span
+defaults that focus to its opening Token. An empty or external Token remains a
+valid request for source context. Errors emits carets only when the complete
+Token lies inside both the Span and retained source. A synthetic semantic fact
+omits the Anchor instead of fabricating source coordinates.
+
 `Cursor::branch` starts a speculative transaction at the current position over
 the same immutable Token stream. Its explicit Errors overload keeps provisional
 diagnostics private. Only `Cursor::join` publishes the branch position, and a
@@ -34,7 +41,10 @@ stream.
 
 `Lexical::Errors` is the retained rendering format for errors in authored
 text. Every `Errors::Report` receives an explicit source name, source body, and
-`Lexical::Span`. It is not the status channel for filesystem, archive,
+`Lexical::Anchor`. Its Span selects the excerpt. When the complete Token lies
+inside both that Span and the retained source, it selects the diagnostic
+coordinate and complete caret width. It is not the status channel for
+filesystem, archive,
 repository, compiler, or runtime validation. Context free owners log their
 local failure facts through `Diagnostics::Log` and return failure. The caller
 that owns an authored request decides whether that failure becomes a source

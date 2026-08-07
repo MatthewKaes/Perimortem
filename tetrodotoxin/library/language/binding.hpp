@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include "perimortem/memory/allocator/arena.hpp"
+
 #include "tetrodotoxin/library/language/expression.hpp"
 #include "ttx/concept/reference.hpp"
 #include "ttx/model/layouts/fluid.hpp"
@@ -28,13 +30,26 @@ class Binding : public Expression {
     0xbabe4b64c2c7b77c,
   };
 
-  constexpr Binding(
+  static auto create_synthetic(
+      Perimortem::Memory::Allocator::Arena& domain,
       Perimortem::Core::View::Bytes name,
-      const Expression& expression)
-      : name(name),
-        expression(expression),
-        input(expression),
-        inputs({&this->input, 1}) {}
+      Expression& expression) -> Binding& {
+    return Expression::create_synthetic<Binding>(
+        domain, [&](auto source) -> Binding {
+          return Binding(name, expression, source);
+        });
+  }
+
+  auto link(
+      Tetrodotoxin::Language::Monograph& source,
+      const Ttx::Concept::Abstract& context,
+      Materializations& materializations) -> Bool override {
+    if (!expression.link(source, context, materializations)) {
+      return False;
+    }
+
+    return Expression::link(source, context, materializations);
+  }
 
   constexpr auto implements(Perimortem::System::Uuid requested) const
       -> Bool override {
@@ -62,9 +77,19 @@ class Binding : public Expression {
   }
 
  private:
+  constexpr Binding(
+      Perimortem::Core::View::Bytes name,
+      Expression& expression,
+      Perimortem::Utility::Option<Ttx::Lexical::Anchor> anchor)
+      : Expression(anchor),
+        name(name),
+        expression(expression),
+        input(expression),
+        inputs({&this->input, 1}) {}
+
   Perimortem::Core::View::Bytes name;
-  const Expression& expression;
-  Ttx::Concept::Reference<Ttx::Concept::Abstract> input;
+  Expression& expression;
+  Ttx::Concept::Reference<const Ttx::Concept::Abstract> input;
   Ttx::Model::Layouts::Fluid inputs;
 };
 

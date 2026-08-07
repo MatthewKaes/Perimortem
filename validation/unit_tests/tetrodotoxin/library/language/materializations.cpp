@@ -61,8 +61,8 @@ class RedirectedType : public MaterializedType {
 
 class Formula : public Generic {
  public:
-  constexpr Formula(View::Vector<Parameters> parameters)
-      : parameters(parameters) {}
+  constexpr Formula(View::Vector<Parameters> parameters, Count& constructions)
+      : parameters(parameters), constructions(constructions) {}
 
   constexpr auto get_name() const -> View::Bytes override {
     return "Formula"_view;
@@ -82,52 +82,48 @@ class Formula : public Generic {
     return parameters;
   }
 
+  constexpr auto get_constructions() const -> Count { return constructions; }
+
  protected:
   View::Vector<Parameters> parameters;
+  Count& constructions;
 };
 
 class ProducingFormula : public Formula {
  public:
-  constexpr ProducingFormula(View::Vector<Parameters> parameters)
-      : Formula(parameters) {}
-
-  constexpr auto get_constructions() const -> Count { return constructions; }
+  constexpr ProducingFormula(
+      View::Vector<Parameters> parameters,
+      Count& constructions)
+      : Formula(parameters, constructions) {}
 
   auto create(View::Vector<Argument>, Allocator::Arena& arena) const
       -> Perimortem::Utility::Option<const Ttx::Model::Type&> override {
     constructions++;
     return arena.construct<MaterializedType>();
   }
-
- private:
-  mutable Count constructions = 0;
 };
 
 class RejectingFormula : public Formula {
  public:
-  constexpr RejectingFormula(View::Vector<Parameters> parameters)
-      : Formula(parameters) {}
-
-  constexpr auto get_constructions() const -> Count { return constructions; }
+  constexpr RejectingFormula(
+      View::Vector<Parameters> parameters,
+      Count& constructions)
+      : Formula(parameters, constructions) {}
 
   auto create(View::Vector<Argument>, Allocator::Arena&) const
       -> Perimortem::Utility::Option<const Ttx::Model::Type&> override {
     constructions++;
     return {};
   }
-
- private:
-  mutable Count constructions = 0;
 };
 
 class ReturningFormula : public Formula {
  public:
   constexpr ReturningFormula(
       View::Vector<Parameters> parameters,
-      const Ttx::Model::Type& result)
-      : Formula(parameters), result(result) {}
-
-  constexpr auto get_constructions() const -> Count { return constructions; }
+      const Ttx::Model::Type& result,
+      Count& constructions)
+      : Formula(parameters, constructions), result(result) {}
 
   auto create(View::Vector<Argument>, Allocator::Arena&) const
       -> Perimortem::Utility::Option<const Ttx::Model::Type&> override {
@@ -137,14 +133,12 @@ class ReturningFormula : public Formula {
 
  private:
   const Ttx::Model::Type& result;
-  mutable Count constructions = 0;
 };
 
 class RetryingFormula : public Formula {
  public:
-  constexpr RetryingFormula() : Formula({}) {}
-
-  constexpr auto get_constructions() const -> Count { return constructions; }
+  constexpr RetryingFormula(Count& constructions)
+      : Formula({}, constructions) {}
 
   auto create(View::Vector<Argument>, Allocator::Arena& arena) const
       -> Perimortem::Utility::Option<const Ttx::Model::Type&> override {
@@ -155,15 +149,12 @@ class RetryingFormula : public Formula {
 
     return arena.construct<MaterializedType>();
   }
-
- private:
-  mutable Count constructions = 0;
 };
 
 class RedirectedFormula : public ProducingFormula {
  public:
-  constexpr RedirectedFormula(const Generic& target)
-      : ProducingFormula({}), target(target) {}
+  constexpr RedirectedFormula(const Generic& target, Count& constructions)
+      : ProducingFormula({}, constructions), target(target) {}
 
   constexpr auto resolve() const -> const Abstract& override { return target; }
 
@@ -173,7 +164,8 @@ class RedirectedFormula : public ProducingFormula {
 
 class ChangingFormula : public ProducingFormula {
  public:
-  constexpr ChangingFormula() : ProducingFormula(unsigned_parameterization) {}
+  constexpr ChangingFormula(Count& constructions)
+      : ProducingFormula(unsigned_parameterization, constructions) {}
 
   auto select_signed() -> void { parameters = signed_parameterization; }
 
@@ -188,8 +180,10 @@ class ChangingFormula : public ProducingFormula {
 
 class RecursiveFormula : public Formula {
  public:
-  constexpr RecursiveFormula(Materializations& materializations)
-      : Formula({}), materializations(materializations) {}
+  constexpr RecursiveFormula(
+      Materializations& materializations,
+      Count& constructions)
+      : Formula({}, constructions), materializations(materializations) {}
 
   auto create(View::Vector<Argument> arguments, Allocator::Arena& arena) const
       -> Perimortem::Utility::Option<const Ttx::Model::Type&> override {
@@ -198,11 +192,8 @@ class RecursiveFormula : public Formula {
     return arena.construct<MaterializedType>();
   }
 
-  constexpr auto get_constructions() const -> Count { return constructions; }
-
  private:
   Materializations& materializations;
-  mutable Count constructions = 0;
 };
 
 class IndirectFormula : public Formula {
@@ -211,8 +202,11 @@ class IndirectFormula : public Formula {
    public:
     constexpr Partner(
         Materializations& materializations,
-        const IndirectFormula& first)
-        : Formula({}), materializations(materializations), first(first) {}
+        const IndirectFormula& first,
+        Count& constructions)
+        : Formula({}, constructions),
+          materializations(materializations),
+          first(first) {}
 
     auto create(View::Vector<Argument> arguments, Allocator::Arena& arena) const
         -> Perimortem::Utility::Option<const Ttx::Model::Type&> override {
@@ -221,19 +215,19 @@ class IndirectFormula : public Formula {
       return arena.construct<MaterializedType>();
     }
 
-    constexpr auto get_constructions() const -> Count { return constructions; }
-
    private:
     Materializations& materializations;
     const IndirectFormula& first;
-    mutable Count constructions = 0;
   };
 
  public:
-  constexpr IndirectFormula(Materializations& materializations)
-      : Formula({}),
+  constexpr IndirectFormula(
+      Materializations& materializations,
+      Count& constructions,
+      Count& partner_constructions)
+      : Formula({}, constructions),
         materializations(materializations),
-        partner(materializations, *this) {}
+        partner(materializations, *this, partner_constructions) {}
 
   auto create(View::Vector<Argument> arguments, Allocator::Arena& arena) const
       -> Perimortem::Utility::Option<const Ttx::Model::Type&> override {
@@ -242,7 +236,6 @@ class IndirectFormula : public Formula {
     return arena.construct<MaterializedType>();
   }
 
-  constexpr auto get_constructions() const -> Count { return constructions; }
   constexpr auto get_partner_constructions() const -> Count {
     return partner.get_constructions();
   }
@@ -250,7 +243,6 @@ class IndirectFormula : public Formula {
  private:
   Materializations& materializations;
   Partner partner;
-  mutable Count constructions = 0;
 };
 
 static constexpr Static::Vector<Generic::Parameters, 1> type_parameters = {
@@ -320,7 +312,8 @@ PERIMORTEM_UNIT_TEST(LibraryMaterializations, concrete_formulas) {
 PERIMORTEM_UNIT_TEST(LibraryMaterializations, exact_key) {
   Allocator::Arena arena;
   Materializations materializations(arena);
-  ProducingFormula formula({});
+  Count constructions = 0;
+  ProducingFormula formula({}, constructions);
   View::Vector<Generic::Argument> arguments;
 
   auto first = materializations.materialize(formula, arguments);
@@ -336,8 +329,10 @@ PERIMORTEM_UNIT_TEST(LibraryMaterializations, exact_key) {
 PERIMORTEM_UNIT_TEST(LibraryMaterializations, formula_identity) {
   Allocator::Arena arena;
   Materializations materializations(arena);
-  ProducingFormula first_formula({});
-  ProducingFormula second_formula({});
+  Count first_constructions = 0;
+  Count second_constructions = 0;
+  ProducingFormula first_formula({}, first_constructions);
+  ProducingFormula second_formula({}, second_constructions);
   View::Vector<Generic::Argument> arguments;
 
   auto first = materializations.materialize(first_formula, arguments);
@@ -354,9 +349,12 @@ PERIMORTEM_UNIT_TEST(LibraryMaterializations, formula_identity) {
 PERIMORTEM_UNIT_TEST(LibraryMaterializations, argument_identity) {
   Allocator::Arena arena;
   Materializations materializations(arena);
-  ProducingFormula ordered(signed_pair_parameters);
-  ProducingFormula scalar(unsigned_parameters);
-  ProducingFormula typed(type_parameters);
+  Count ordered_constructions = 0;
+  Count scalar_constructions = 0;
+  Count typed_constructions = 0;
+  ProducingFormula ordered(signed_pair_parameters, ordered_constructions);
+  ProducingFormula scalar(unsigned_parameters, scalar_constructions);
+  ProducingFormula typed(type_parameters, typed_constructions);
   Tetrodotoxin::Library::Language::Types::Unsigned_8 first_type;
   Tetrodotoxin::Library::Language::Types::Unsigned_8 second_type;
   const Static::Vector<Generic::Argument, 2> first_order = {{
@@ -407,7 +405,8 @@ PERIMORTEM_UNIT_TEST(LibraryMaterializations, argument_identity) {
 PERIMORTEM_UNIT_TEST(LibraryMaterializations, alternative_identity) {
   Allocator::Arena arena;
   Materializations materializations(arena);
-  ChangingFormula formula;
+  Count constructions = 0;
+  ChangingFormula formula(constructions);
   const Static::Vector<Generic::Argument, 1> unsigned_argument = {
     {Generic::Argument(::Unsigned_64(7))},
   };
@@ -429,7 +428,8 @@ PERIMORTEM_UNIT_TEST(LibraryMaterializations, alternative_identity) {
 PERIMORTEM_UNIT_TEST(LibraryMaterializations, parameter_kinds) {
   Allocator::Arena arena;
   Materializations materializations(arena);
-  ProducingFormula formula(all_parameters);
+  Count constructions = 0;
+  ProducingFormula formula(all_parameters, constructions);
   Tetrodotoxin::Library::Language::Types::Unsigned_8 type;
   const Static::Vector<Generic::Argument, 4> arguments = {{
     Generic::Argument(type),
@@ -446,7 +446,8 @@ PERIMORTEM_UNIT_TEST(LibraryMaterializations, parameter_kinds) {
 PERIMORTEM_UNIT_TEST(LibraryMaterializations, argument_rejection) {
   Allocator::Arena arena;
   Materializations materializations(arena);
-  ProducingFormula formula(type_parameters);
+  Count constructions = 0;
+  ProducingFormula formula(type_parameters, constructions);
   View::Vector<Generic::Argument> wrong_arity;
   const Static::Vector<Generic::Argument, 1> wrong_kind = {
     {Generic::Argument(::Unsigned_64(8))},
@@ -465,8 +466,10 @@ PERIMORTEM_UNIT_TEST(LibraryMaterializations, argument_rejection) {
 PERIMORTEM_UNIT_TEST(LibraryMaterializations, formula_resolution) {
   Allocator::Arena arena;
   Materializations materializations(arena);
-  ProducingFormula target({});
-  RedirectedFormula redirected(target);
+  Count target_constructions = 0;
+  Count redirected_constructions = 0;
+  ProducingFormula target({}, target_constructions);
+  RedirectedFormula redirected(target, redirected_constructions);
   View::Vector<Generic::Argument> arguments;
 
   EXPECT_NOT(materializations.materialize(redirected, arguments));
@@ -477,7 +480,8 @@ PERIMORTEM_UNIT_TEST(LibraryMaterializations, formula_resolution) {
 PERIMORTEM_UNIT_TEST(LibraryMaterializations, type_resolution) {
   Allocator::Arena arena;
   Materializations materializations(arena);
-  ProducingFormula formula(type_parameters);
+  Count constructions = 0;
+  ProducingFormula formula(type_parameters, constructions);
   MaterializedType canonical;
   IncompleteType incomplete;
   RedirectedType redirected(canonical);
@@ -498,12 +502,15 @@ PERIMORTEM_UNIT_TEST(LibraryMaterializations, type_resolution) {
 PERIMORTEM_UNIT_TEST(LibraryMaterializations, result_rejection) {
   Allocator::Arena arena;
   Materializations materializations(arena);
-  RejectingFormula absent({});
+  Count absent_constructions = 0;
+  Count incomplete_constructions = 0;
+  Count redirected_constructions = 0;
+  RejectingFormula absent({}, absent_constructions);
   IncompleteType incomplete;
   MaterializedType canonical;
   RedirectedType redirected(canonical);
-  ReturningFormula incomplete_result({}, incomplete);
-  ReturningFormula redirected_result({}, redirected);
+  ReturningFormula incomplete_result({}, incomplete, incomplete_constructions);
+  ReturningFormula redirected_result({}, redirected, redirected_constructions);
   View::Vector<Generic::Argument> arguments;
 
   EXPECT_NOT(materializations.materialize(absent, arguments));
@@ -520,7 +527,8 @@ PERIMORTEM_UNIT_TEST(LibraryMaterializations, result_rejection) {
 PERIMORTEM_UNIT_TEST(LibraryMaterializations, retry) {
   Allocator::Arena arena;
   Materializations materializations(arena);
-  RetryingFormula formula;
+  Count constructions = 0;
+  RetryingFormula formula(constructions);
   View::Vector<Generic::Argument> arguments;
 
   EXPECT_NOT(materializations.materialize(formula, arguments));
@@ -538,7 +546,8 @@ PERIMORTEM_UNIT_TEST(LibraryMaterializations, retry) {
 PERIMORTEM_UNIT_TEST(LibraryMaterializations, direct_cycle) {
   Allocator::Arena arena;
   Materializations materializations(arena);
-  RecursiveFormula formula(materializations);
+  Count constructions = 0;
+  RecursiveFormula formula(materializations, constructions);
   View::Vector<Generic::Argument> arguments;
 
   EXPECT_NOT(materializations.materialize(formula, arguments));
@@ -549,7 +558,10 @@ PERIMORTEM_UNIT_TEST(LibraryMaterializations, direct_cycle) {
 PERIMORTEM_UNIT_TEST(LibraryMaterializations, indirect_cycle) {
   Allocator::Arena arena;
   Materializations materializations(arena);
-  IndirectFormula formula(materializations);
+  Count constructions = 0;
+  Count partner_constructions = 0;
+  IndirectFormula formula(
+      materializations, constructions, partner_constructions);
   View::Vector<Generic::Argument> arguments;
 
   EXPECT_NOT(materializations.materialize(formula, arguments));

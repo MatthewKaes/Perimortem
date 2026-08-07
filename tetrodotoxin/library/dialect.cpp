@@ -69,9 +69,15 @@ auto Library::Dialect::interpret(
     Cursor& cursor,
     const Documentation& documentation,
     Abstract& interpretation_context)
-    -> Option<Tetrodotoxin::Language::Dialect::Monograph&> {
-  auto& monograph = domain.construct<Library::Language::Monograph>(
-      domain, documentation, *this, interpretation_context);
+    -> Option<Tetrodotoxin::Language::Monograph&> {
+  auto shared_materializations = materializations_for(domain, cursor);
+  if (!shared_materializations) {
+    return {};
+  }
+
+  auto& monograph = Library::Language::Monograph::create_authored(
+      domain, documentation, *this, interpretation_context,
+      *shared_materializations);
 
   // A Function must be reachable at its final address while its signature
   // builds. Imports need only their exact durable route, so one forward pass
@@ -95,7 +101,8 @@ auto Library::Dialect::interpret(
     }
 
     auto function = Library::Language::Function::reserve(
-        domain, cursor, declaration_documentation);
+        domain, cursor, declaration_documentation, monograph,
+        *shared_materializations);
     if (!function) {
       return {};
     }
@@ -106,12 +113,33 @@ auto Library::Dialect::interpret(
       return {};
     }
 
-    if (!function->complete(cursor, monograph)) {
+    if (!function->complete(cursor)) {
       return {};
     }
   }
 
   return monograph;
+}
+
+auto Library::Dialect::materializations_for(
+    Allocator::Arena& domain,
+    Cursor& cursor) -> Option<Language::Materializations&> {
+  // One installed Dialect belongs to one Workspace Arena. Reusing its writer
+  // keeps equal generated Types exact across every Monograph in that island.
+  if (materializations) {
+    if (&*materialization_domain != &domain) {
+      cursor.create_token_error(
+          "One installed Library Dialect cannot span two graph Arenas."_view);
+      return {};
+    }
+
+    return *materializations;
+  }
+
+  auto& created = domain.construct<Language::Materializations>(domain);
+  materialization_domain = domain;
+  materializations = created;
+  return created;
 }
 
 auto Library::Dialect::resolve_intrinsic(View::Bytes name) const

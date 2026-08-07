@@ -3,22 +3,40 @@
 
 #pragma once
 
+#include "perimortem/core/view/vector.hpp"
+
 #include "perimortem/memory/allocator/arena.hpp"
+#include "perimortem/memory/managed/vector.hpp"
 
 #include "perimortem/utility/option.hpp"
 
+#include "tetrodotoxin/language/monograph.hpp"
 #include "tetrodotoxin/library/language/callables/static.hpp"
+#include "tetrodotoxin/library/language/expression.hpp"
+#include "tetrodotoxin/library/language/materializations.hpp"
+#include "tetrodotoxin/library/language/signature.hpp"
 #include "tetrodotoxin/library/language/visibility.hpp"
+#include "ttx/concept/reference.hpp"
 #include "ttx/lexical/cursor.hpp"
+#include "ttx/lexical/span.hpp"
 
 namespace Tetrodotoxin::Library::Language {
 
 // Function is one Library defined Static Callable. Reservation fixes its graph
-// identity while completion installs the signature and consumes the authored
-// definition without retaining parser state or an executable body.
+// identity and parent context before completion installs the signature and
+// authored Expression roots from one complete definition.
 class Function : public Callables::Static {
  private:
-  struct Construction {};
+  Function(
+      Perimortem::Memory::Allocator::Arena& domain,
+      Perimortem::Core::View::Bytes name,
+      const Ttx::Concept::Documentation& documentation,
+      Visibility visibility,
+      Tetrodotoxin::Language::Monograph& parent,
+      Materializations& materializations,
+      Ttx::Lexical::Token opening,
+      Ttx::Lexical::Token token,
+      Ttx::Lexical::Token name_token);
 
  public:
   using ClassCatagory = Function;
@@ -30,19 +48,25 @@ class Function : public Callables::Static {
   static auto reserve(
       Perimortem::Memory::Allocator::Arena& domain,
       Ttx::Lexical::Cursor& cursor,
-      const Ttx::Concept::Documentation& documentation)
+      const Ttx::Concept::Documentation& documentation,
+      Tetrodotoxin::Language::Monograph& parent,
+      Materializations& materializations)
       -> Perimortem::Utility::Option<Function&>;
 
-  Function(
-      Construction,
-      Perimortem::Memory::Allocator::Arena& domain,
-      Perimortem::Core::View::Bytes name,
-      const Ttx::Concept::Documentation& documentation,
-      Visibility visibility);
+  Function(const Function&) = delete;
+  Function(Function&&) = delete;
+  auto operator=(const Function&) -> Function& = delete;
+  auto operator=(Function&&) -> Function& = delete;
 
-  auto complete(
-      Ttx::Lexical::Cursor& cursor,
-      const Ttx::Concept::Abstract& context) -> Bool;
+  auto complete(Ttx::Lexical::Cursor& cursor) -> Bool;
+
+  auto link_signature() -> Bool;
+
+  auto link_body() -> Bool;
+
+  auto link() -> Bool;
+
+  auto finalize() -> Bool;
 
   constexpr auto implements(Perimortem::System::Uuid requested) const
       -> Bool override {
@@ -69,15 +93,61 @@ class Function : public Callables::Static {
 
   constexpr auto get_visibility() const -> Visibility { return visibility; }
 
-  constexpr auto is_complete() const -> Bool { return parameters && results; }
+  constexpr auto get_parent() const
+      -> const Tetrodotoxin::Language::Monograph& {
+    return parent;
+  }
+
+  constexpr auto get_token() const -> Ttx::Lexical::Token { return token; }
+
+  constexpr auto get_name_token() const -> Ttx::Lexical::Token {
+    return name_token;
+  }
+
+  constexpr auto get_span() const -> Ttx::Lexical::Span { return span; }
+
+  auto get_signature() const -> Perimortem::Utility::Option<const Signature&>;
+
+  auto get_expressions() const
+      -> Perimortem::Core::View::Vector<Ttx::Concept::Reference<Expression>>;
+
+  constexpr auto get_return_token() const -> Ttx::Lexical::Token {
+    return return_token;
+  }
+
+  constexpr auto get_return_span() const -> Ttx::Lexical::Span {
+    return return_span;
+  }
+
+  auto get_return_expression() const
+      -> Perimortem::Utility::Option<const Expression&>;
+
+  constexpr auto is_complete() const -> Bool { return completed; }
+
+  auto is_signature_linked() const -> Bool;
+
+  constexpr auto is_linked() const -> Bool { return linked; }
 
  private:
   Perimortem::Memory::Allocator::Arena& domain;
   Perimortem::Core::View::Bytes name;
   const Ttx::Concept::Documentation& documentation;
   Visibility visibility;
-  Perimortem::Utility::Option<const Ttx::Concept::Layout&> parameters;
-  Perimortem::Utility::Option<const Ttx::Concept::Layout&> results;
+  Tetrodotoxin::Language::Monograph& parent;
+  Materializations& materializations;
+  Ttx::Lexical::Token opening;
+  Ttx::Lexical::Token token;
+  Ttx::Lexical::Token name_token;
+  Ttx::Lexical::Span span;
+  Perimortem::Utility::Option<Signature&> signature;
+  Perimortem::Memory::Managed::Vector<Ttx::Concept::Reference<Expression>>
+      expressions;
+  Ttx::Lexical::Token return_token;
+  Ttx::Lexical::Span return_span;
+  Perimortem::Utility::Option<Ttx::Concept::Reference<Expression>>
+      return_expression;
+  Bool completed = False;
+  Bool linked = False;
 };
 
 }  // namespace Tetrodotoxin::Library::Language

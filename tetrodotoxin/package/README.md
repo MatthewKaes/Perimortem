@@ -192,10 +192,11 @@ the file or allocating another semantic result.
 The logical route is cache, confined input, and diagnostic data. It never
 becomes a Source or Package member semantic name, and equal bytes reached
 through distinct routes do not collapse their Resource identities. Workspace
-seals every transaction before post pass or dependency resolution. Sealing
-permanently removes the Storage borrow while cached identities remain valid and
-new requests return Invalid. Source-free Package restoration publishes an
-already sealed transaction. Package Monograph retains no filesystem handle.
+seals every transaction before dependency resolution can link or finalize the
+retained range. Sealing permanently removes the Storage borrow while cached
+identities remain valid and new requests return Invalid. Source-free Package
+restoration publishes an already sealed transaction. Package Monograph retains
+no filesystem handle.
 
 Concrete consumers own the meaning of Resource bytes. Library Literal
 constructs the complete base Bytes Constant. Library Expression may fold a

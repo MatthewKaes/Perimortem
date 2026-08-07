@@ -45,9 +45,11 @@ Bazel declares exact inputs and terminal outputs
 -> Package Storage performs each confined read
 -> Workspace retains bytes and parses the universal source envelope
 -> the exact installed Dialect constructs its real Monograph
--> Retention keeps the Monograph and Workspace publishes its authored name
+-> Retention keeps the Monograph and Workspace stages its authored name
 -> Package stages members and restores dependencies from Package Archives
--> Retention invokes one ordered post pass after staging drains
+-> Retention links the complete frozen range in discovery order
+-> Retention finalizes that range only when every link succeeds
+-> Workspace publishes staged names only after successful finalization
 -> Puffer stops terminal work when diagnostics exist
 -> concrete owners provide typed Package Archive and Linker Object Module data
 -> Linker emits the requested native product
@@ -56,7 +58,7 @@ Bazel declares exact inputs and terminal outputs
 
 Textual source diagnostics and lower level validation traces remain separate.
 `Ttx::Lexical::Errors::Report` is created only by an owner with an explicit
-source name, source body, and `Ttx::Lexical::Span`. Filesystem, Archive, and
+source name, source body, and `Ttx::Lexical::Anchor`. Filesystem, Archive, and
 Repository owners log the exact local failure facts through `Diagnostics::Log`
 and return failure. Workspace or Puffer then uses the authored dependency,
 source, or compile request context to publish the user facing error. A low
@@ -68,15 +70,15 @@ constructs each installed Dialect in the Workspace graph Arena, supplies the
 Workspace as its shared TTX registry, and keeps the Dialect alive while any of
 its Monographs remain queryable.
 
-`Language::Dialect::Monograph` is the common Abstract root for one interpreted
-or restored source island. A concrete Monograph owns its Dialect semantics and
-borrows the Arena, opening Documentation, and host Dialect retained by
-Environment. `Environment::Retention` gives every retained Monograph one
-ordered post pass, while `Environment::Resolution` asks each concrete Dialect
-to restore only its own opaque durable payload. Post pass returns failure
-without receiving `Lexical::Errors`. The concrete owner logs graph details
-that would otherwise be lost, and Retention keeps the authored source identity
-needed for an actionable diagnostic.
+`Language::Monograph` is the common Abstract root for one interpreted or
+restored source island. A concrete Monograph owns its Dialect semantics and
+shares the Environment Arena lifetime. The common base retains opening
+Documentation and ordered source independent `Language::Diagnostic` facts.
+It does not retain its parser or installed Dialect. `Environment::Retention`
+freezes each discovered range, runs every `link()` before any `finalize()`, and
+attaches its retained `Origin` only while rendering diagnostics.
+`Environment::Resolution` asks each concrete Dialect to restore only its own
+opaque durable payload.
 
 There is no separate Source lifetime object, static parser function map,
 Frontend, Container, or Environment Namespace. Environment composes the
@@ -85,10 +87,12 @@ objects share the graph allocation and retained lifetime that interpretation
 requires.
 
 Workspace implements direct envelope dispatch and the confined local Package
-stage. It drains exact Source names and logical routes in FIFO order and binds
-members through their owning Package. Resolution restores exact source free
-dependencies and Retention completes Monographs in first discovery order.
-Package internal names remain outside the Workspace global source map.
+stage. A direct caller performs `interpret_source`, `link`, and `finalize` as
+three explicit transactions. Raw lookup may observe a staged identity, but a
+failed link or finalizer prevents terminal publication. Package import drains
+exact Source names and logical routes in FIFO order, restores dependencies,
+then performs those same barriers internally over the complete batch. Package
+internal names remain outside the Workspace global source map.
 
 Package Monograph already owns the local binding operations needed by that
 successor. Completed authored or restored members and restored Package roots
@@ -105,11 +109,17 @@ Callable, Layout, Documentation, Attribute, Alias, Invalid, and their common
 supporting models.
 
 `Tetrodotoxin::Language` owns the cross-Dialect Resource and Error Abstract
-contracts. Resource exposes only stable retained bytes acquired by a concrete
-owner. A consuming domain may borrow them only when it cannot outlive the
-owner's dependency domain. Error marks a recognized contextual request whose
-concrete owner retains the failure cause. Neither contract extends the closed
-TTX v1 vocabulary or creates one shared compiler error model.
+contracts plus the source independent Diagnostic fact. Resource exposes only
+stable retained bytes acquired by a concrete owner. A consuming domain may
+borrow them only when it cannot outlive the owner's dependency domain. Error
+marks a recognized contextual request whose concrete owner retains the failure
+cause. Diagnostic carries an optional exact Anchor plus owner produced message
+and hint. An authored failure supplies that Anchor while a synthetic or
+restored failure leaves it absent. Environment supplies path and source bytes
+from its separate Origin and uses the Origin boundary for an absent Anchor.
+None of these
+contracts extends the closed TTX v1 vocabulary or creates one shared compiler
+error model.
 
 `Library::Language` owns the semantics that are not universal across Dialects:
 Expression, Binding, Projection, Constant and its value domains, Generic and its

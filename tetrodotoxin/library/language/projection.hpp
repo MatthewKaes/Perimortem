@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include "perimortem/memory/allocator/arena.hpp"
+
 #include "tetrodotoxin/library/language/expression.hpp"
 #include "ttx/concept/reference.hpp"
 #include "ttx/model/addressable.hpp"
@@ -30,13 +32,26 @@ class Projection : public Expression {
     0xb38fc893710f519e,
   };
 
-  constexpr Projection(
-      const Expression& receiver,
-      const Ttx::Model::Addressable& addressable)
-      : receiver(receiver),
-        addressable(addressable),
-        input(receiver),
-        inputs({&this->input, 1}) {}
+  static auto create_synthetic(
+      Perimortem::Memory::Allocator::Arena& domain,
+      Expression& receiver,
+      const Ttx::Model::Addressable& addressable) -> Projection& {
+    return Expression::create_synthetic<Projection>(
+        domain, [&](auto source) -> Projection {
+          return Projection(receiver, addressable, source);
+        });
+  }
+
+  auto link(
+      Tetrodotoxin::Language::Monograph& source,
+      const Ttx::Concept::Abstract& context,
+      Materializations& materializations) -> Bool override {
+    if (!receiver.link(source, context, materializations)) {
+      return False;
+    }
+
+    return Expression::link(source, context, materializations);
+  }
 
   using Expression::fits;
 
@@ -64,9 +79,19 @@ class Projection : public Expression {
   }
 
  private:
-  const Expression& receiver;
+  constexpr Projection(
+      Expression& receiver,
+      const Ttx::Model::Addressable& addressable,
+      Perimortem::Utility::Option<Ttx::Lexical::Anchor> anchor)
+      : Expression(anchor),
+        receiver(receiver),
+        addressable(addressable),
+        input(receiver),
+        inputs({&this->input, 1}) {}
+
+  Expression& receiver;
   const Ttx::Model::Addressable& addressable;
-  Ttx::Concept::Reference<Ttx::Concept::Abstract> input;
+  Ttx::Concept::Reference<const Ttx::Concept::Abstract> input;
   Ttx::Model::Layouts::Fluid inputs;
 };
 

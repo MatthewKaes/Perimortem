@@ -32,10 +32,13 @@ class TestGraph : public Abstract {
 
 struct LifecycleTrace {
   Unsigned_8 destruction_order[3]{};
-  Unsigned_8 post_order[3]{};
-  Count post_calls[3]{};
+  Unsigned_8 link_order[3]{};
+  Unsigned_8 finalize_order[3]{};
+  Count link_calls[3]{};
+  Count finalize_calls[3]{};
   Count destruction_count = 0;
-  Count post_count = 0;
+  Count link_count = 0;
+  Count finalize_count = 0;
   Count host_uses = 0;
 };
 
@@ -50,7 +53,7 @@ class LifecycleDialect : public Language::Dialect {
   }
 
   auto interpret(Allocator::Arena&, Cursor&, const Documentation&, Abstract&)
-      -> Option<Monograph&> override {
+      -> Option<Language::Monograph&> override {
     return {};
   }
 
@@ -60,14 +63,15 @@ class LifecycleDialect : public Language::Dialect {
   LifecycleTrace& trace;
 };
 
-class LifecycleMonograph : public Language::Dialect::Monograph {
+class LifecycleMonograph : public Language::Monograph {
  public:
   LifecycleMonograph(
       Allocator::Arena& domain,
       LifecycleDialect& host,
       LifecycleTrace& trace,
       Unsigned_8 identity)
-      : Monograph(domain, Documentation::get_empty(), host),
+      : Monograph(domain, Documentation::get_empty()),
+        lifecycle_host(host),
         trace(trace),
         identity(identity) {}
 
@@ -82,18 +86,30 @@ class LifecycleMonograph : public Language::Dialect::Monograph {
     return Invalid::get_invalid();
   }
 
-  auto post_pass() -> Bool override {
-    const Count index = trace.post_count;
+  auto link() -> Bool override {
+    const Count index = trace.link_count;
 
-    trace.post_order[index] = identity;
-    trace.post_calls[identity]++;
-    trace.post_count++;
+    trace.link_order[index] = identity;
+    trace.link_calls[identity]++;
+    trace.link_count++;
 
-    static_cast<LifecycleDialect&>(host).observe_host_use();
+    lifecycle_host.observe_host_use();
     return identity == 1 ? False : True;
   }
 
+  auto finalize() -> Bool override {
+    const Count index = trace.finalize_count;
+
+    trace.finalize_order[index] = identity;
+    trace.finalize_calls[identity]++;
+    trace.finalize_count++;
+
+    lifecycle_host.observe_host_use();
+    return identity == 2 ? False : True;
+  }
+
  private:
+  LifecycleDialect& lifecycle_host;
   LifecycleTrace& trace;
   Unsigned_8 identity;
 };
@@ -102,13 +118,10 @@ struct PersistenceTrace {
   Count restored = 0;
 };
 
-class PersistedMonograph : public Language::Dialect::Monograph {
+class PersistedMonograph : public Language::Monograph {
  public:
-  PersistedMonograph(
-      Allocator::Arena& domain,
-      Language::Dialect& host,
-      View::Bytes fact)
-      : Monograph(domain, Documentation::get_empty(), host), fact(fact) {}
+  PersistedMonograph(Allocator::Arena& domain, View::Bytes fact)
+      : Monograph(domain, Documentation::get_empty()), fact(fact) {}
 
   auto get_name() const -> View::Bytes override { return "Persisted"_view; }
 
@@ -129,11 +142,11 @@ class PersistingDialect : public Language::Dialect {
       : Dialect(registry), trace(trace) {}
 
   auto interpret(Allocator::Arena&, Cursor&, const Documentation&, Abstract&)
-      -> Option<Monograph&> override {
+      -> Option<Language::Monograph&> override {
     return {};
   }
 
-  auto encode(const Monograph& monograph) const
+  auto encode(const Language::Monograph& monograph) const
       -> Option<Dynamic::Bytes> override {
     const auto& selected = static_cast<const PersistedMonograph&>(monograph);
     const View::Bytes fact = selected.get_fact();
@@ -150,7 +163,7 @@ class PersistingDialect : public Language::Dialect {
   }
 
   auto restore(Allocator::Arena& domain, View::Bytes payload)
-      -> Option<Monograph&> override {
+      -> Option<Language::Monograph&> override {
     if (payload.get_size() < 2) {
       return {};
     }
@@ -166,7 +179,7 @@ class PersistingDialect : public Language::Dialect {
 
     const View::Bytes durable_fact = domain.proxy(payload.slice(2, fact_size));
     auto& monograph =
-        domain.construct<PersistedMonograph>(domain, *this, durable_fact);
+        domain.construct<PersistedMonograph>(domain, durable_fact);
     trace.restored++;
     return monograph;
   }
@@ -180,15 +193,15 @@ class DefaultDialect : public Language::Dialect {
   DefaultDialect(Abstract& registry) : Dialect(registry) {}
 
   auto interpret(Allocator::Arena&, Cursor&, const Documentation&, Abstract&)
-      -> Option<Monograph&> override {
+      -> Option<Language::Monograph&> override {
     return {};
   }
 };
 
-class DefaultMonograph : public Language::Dialect::Monograph {
+class DefaultMonograph : public Language::Monograph {
  public:
-  DefaultMonograph(Allocator::Arena& domain, Language::Dialect& host)
-      : Monograph(domain, Documentation::get_empty(), host) {}
+  DefaultMonograph(Allocator::Arena& domain)
+      : Monograph(domain, Documentation::get_empty()) {}
 
   auto get_name() const -> View::Bytes override { return "Default"_view; }
 
@@ -201,7 +214,8 @@ class EmptyEncodingDialect : public DefaultDialect {
  public:
   EmptyEncodingDialect(Abstract& registry) : DefaultDialect(registry) {}
 
-  auto encode(const Monograph&) const -> Option<Dynamic::Bytes> override {
+  auto encode(const Language::Monograph&) const
+      -> Option<Dynamic::Bytes> override {
     return Dynamic::Bytes();
   }
 };
@@ -217,8 +231,8 @@ PERIMORTEM_UNIT_TEST(LanguageDialect, base_destruction_order) {
   auto& host = arena.construct<LifecycleDialect>(registry, trace);
   auto& first = arena.construct<LifecycleMonograph>(arena, host, trace, 0);
   auto& second = arena.construct<LifecycleMonograph>(arena, host, trace, 1);
-  Language::Dialect::Monograph* first_base = &first;
-  Language::Dialect::Monograph* second_base = &second;
+  Language::Monograph* first_base = &first;
+  Language::Monograph* second_base = &second;
   Language::Dialect* host_base = &host;
 
   first_base->~Monograph();
@@ -231,7 +245,7 @@ PERIMORTEM_UNIT_TEST(LanguageDialect, base_destruction_order) {
   EXPECT_EQ(trace.destruction_order[2], 3);
 }
 
-PERIMORTEM_UNIT_TEST(LanguageDialect, ordered_post_pass) {
+PERIMORTEM_UNIT_TEST(LanguageDialect, ordered_completion_hooks) {
   TestGraph registry;
   LifecycleTrace trace;
   Allocator::Arena arena;
@@ -239,26 +253,74 @@ PERIMORTEM_UNIT_TEST(LanguageDialect, ordered_post_pass) {
   LifecycleMonograph first(arena, host, trace, 0);
   LifecycleMonograph second(arena, host, trace, 1);
   LifecycleMonograph third(arena, host, trace, 2);
-  Bool results[3]{};
-  Static::Vector<Language::Dialect::Monograph*, 3> retained = {
+  Bool link_results[3]{};
+  Bool finalize_results[3]{};
+  Static::Vector<Language::Monograph*, 3> retained = {
     {&first, &second, &third},
   };
 
   for (Count i = 0; i < retained.get_size(); i++) {
-    results[i] = retained[i]->post_pass();
+    link_results[i] = retained[i]->link();
   }
 
-  EXPECT_EQ(trace.post_count, 3);
-  EXPECT_EQ(trace.post_order[0], 0);
-  EXPECT_EQ(trace.post_order[1], 1);
-  EXPECT_EQ(trace.post_order[2], 2);
-  EXPECT_EQ(trace.post_calls[0], 1);
-  EXPECT_EQ(trace.post_calls[1], 1);
-  EXPECT_EQ(trace.post_calls[2], 1);
-  EXPECT(results[0]);
-  EXPECT_NOT(results[1]);
-  EXPECT(results[2]);
-  EXPECT_EQ(trace.host_uses, 3);
+  for (Count i = 0; i < retained.get_size(); i++) {
+    finalize_results[i] = retained[i]->finalize();
+  }
+
+  EXPECT_EQ(trace.link_count, 3);
+  EXPECT_EQ(trace.link_order[0], 0);
+  EXPECT_EQ(trace.link_order[1], 1);
+  EXPECT_EQ(trace.link_order[2], 2);
+  EXPECT_EQ(trace.link_calls[0], 1);
+  EXPECT_EQ(trace.link_calls[1], 1);
+  EXPECT_EQ(trace.link_calls[2], 1);
+  EXPECT(link_results[0]);
+  EXPECT_NOT(link_results[1]);
+  EXPECT(link_results[2]);
+  EXPECT_EQ(trace.finalize_count, 3);
+  EXPECT_EQ(trace.finalize_order[0], 0);
+  EXPECT_EQ(trace.finalize_order[1], 1);
+  EXPECT_EQ(trace.finalize_order[2], 2);
+  EXPECT_EQ(trace.finalize_calls[0], 1);
+  EXPECT_EQ(trace.finalize_calls[1], 1);
+  EXPECT_EQ(trace.finalize_calls[2], 1);
+  EXPECT(finalize_results[0]);
+  EXPECT(finalize_results[1]);
+  EXPECT_NOT(finalize_results[2]);
+  EXPECT_EQ(trace.host_uses, 6);
+}
+
+PERIMORTEM_UNIT_TEST(LanguageDialect, ordered_diagnostics_are_stable) {
+  Unsigned_8 message[] = {'f', 'i', 'r', 's', 't'};
+  Unsigned_8 hint[] = {'h', 'i', 'n', 't'};
+  Allocator::Arena arena;
+  DefaultMonograph monograph(arena);
+  Token opening(2, 1, 2, 1, Code::Type::Addressable);
+  Token closing(8, 1, 8, 1, Code::Type::Addressable);
+  Span span(opening, closing);
+
+  monograph.report(
+      Anchor::create(opening, span), View::Bytes(message), View::Bytes(hint));
+  message[0] = 'x';
+  hint[0] = 'x';
+  monograph.report(Anchor::create(Span(closing)), "second"_view);
+
+  View::Vector<Language::Diagnostic> diagnostics = monograph.get_diagnostics();
+  ASSERT_EQ(diagnostics.get_size(), Count(2));
+  const Language::Diagnostic& first = diagnostics.get_data()[0];
+  const Language::Diagnostic& second = diagnostics.get_data()[1];
+  ASSERT(first.get_anchor());
+  ASSERT(second.get_anchor());
+  EXPECT_EQ(first.get_anchor()->get_token().get_offset(), opening.get_offset());
+  EXPECT_EQ(first.get_anchor()->get_span().get_offset(), span.get_offset());
+  EXPECT_EQ(first.get_anchor()->get_span().get_size(), span.get_size());
+  EXPECT_TEXT(first.get_message(), "first"_view);
+  EXPECT_TEXT(first.get_hint(), "hint"_view);
+  EXPECT_EQ(
+      second.get_anchor()->get_span().get_offset(),
+      Count(closing.get_offset()));
+  EXPECT_TEXT(second.get_message(), "second"_view);
+  EXPECT(second.get_hint().is_empty());
 }
 
 PERIMORTEM_UNIT_TEST(LanguageDialect, payload_round_trip) {
@@ -267,10 +329,10 @@ PERIMORTEM_UNIT_TEST(LanguageDialect, payload_round_trip) {
   Allocator::Arena source_arena;
   Allocator::Arena restored_arena;
   PersistingDialect<0xA1> dialect(registry, trace);
-  PersistedMonograph source(source_arena, dialect, "durable fact"_view);
+  PersistedMonograph source(source_arena, "durable fact"_view);
   auto encoded = dialect.encode(source);
   auto restored = encoded.visit(
-      []() { return Option<Language::Dialect::Monograph&>(); },
+      []() { return Option<Language::Monograph&>(); },
       [&](Dynamic::Bytes& payload) {
         return dialect.restore(restored_arena, payload);
       });
@@ -279,7 +341,7 @@ PERIMORTEM_UNIT_TEST(LanguageDialect, payload_round_trip) {
 
   Bool durable = restored.visit(
       []() { return False; },
-      [](Language::Dialect::Monograph& monograph) {
+      [](Language::Monograph& monograph) {
         const auto& selected =
             static_cast<const PersistedMonograph&>(monograph);
         return selected.get_fact() == "durable fact"_view ? True : False;
@@ -299,15 +361,14 @@ PERIMORTEM_UNIT_TEST(LanguageDialect, rejects_invalid_payloads) {
   Allocator::Arena restored_arena;
   PersistingDialect<0xA1> dialect(registry, trace);
   PersistingDialect<0xB2> other_dialect(registry, other_trace);
-  PersistedMonograph other_source(
-      source_arena, other_dialect, "other dialect"_view);
+  PersistedMonograph other_source(source_arena, "other dialect"_view);
   auto wrong_payload = other_dialect.encode(other_source);
 
   auto truncated =
       dialect.restore(restored_arena, View::Bytes(truncated_bytes));
   auto invalid = dialect.restore(restored_arena, View::Bytes(invalid_bytes));
   auto wrong = wrong_payload.visit(
-      []() { return Option<Language::Dialect::Monograph&>(); },
+      []() { return Option<Language::Monograph&>(); },
       [&](Dynamic::Bytes& payload) {
         return dialect.restore(restored_arena, payload);
       });
@@ -322,11 +383,12 @@ PERIMORTEM_UNIT_TEST(LanguageDialect, explicit_default_persistence) {
   TestGraph registry;
   Allocator::Arena arena;
   DefaultDialect dialect(registry);
-  DefaultMonograph monograph(arena, dialect);
+  DefaultMonograph monograph(arena);
   EmptyEncodingDialect empty_dialect(registry);
-  DefaultMonograph empty_monograph(arena, empty_dialect);
+  DefaultMonograph empty_monograph(arena);
 
-  const Bool post_passed = monograph.post_pass();
+  const Bool linked = monograph.link();
+  const Bool finalized = monograph.finalize();
   auto unsupported = dialect.encode(monograph);
   auto missing = dialect.restore(arena, "unsupported"_view);
   auto empty = empty_dialect.encode(empty_monograph);
@@ -336,7 +398,8 @@ PERIMORTEM_UNIT_TEST(LanguageDialect, explicit_default_persistence) {
         return payload.is_empty() ? True : False;
       });
 
-  EXPECT(post_passed);
+  EXPECT(linked);
+  EXPECT(finalized);
   EXPECT_NOT(unsupported);
   EXPECT_NOT(missing);
   EXPECT(successful_empty);

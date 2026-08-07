@@ -19,7 +19,7 @@ namespace Ttx::Model::Layouts {
 class Structured : public Concept::Layout {
  public:
   constexpr Structured(
-      Perimortem::Core::View::Vector<Concept::Reference<Addressable>>
+      Perimortem::Core::View::Vector<Concept::Reference<const Addressable>>
           addressables = {})
       : addressables(addressables) {}
 
@@ -79,7 +79,8 @@ class Structured : public Concept::Layout {
   }
 
  private:
-  Perimortem::Core::View::Vector<Concept::Reference<Addressable>> addressables;
+  Perimortem::Core::View::Vector<Concept::Reference<const Addressable>>
+      addressables;
 };
 
 }  // namespace Ttx::Model::Layouts

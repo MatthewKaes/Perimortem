@@ -6,8 +6,8 @@
 #include "validation/unit_test.hpp"
 
 #include "perimortem/core/static/vector.hpp"
-#include "perimortem/core/algorithm/search.hpp"
 
+#include "tetrodotoxin/language/monograph.hpp"
 #include "tetrodotoxin/library/dialect.hpp"
 #include "tetrodotoxin/library/language/constants/bytes.hpp"
 #include "tetrodotoxin/library/language/constants/false.hpp"
@@ -38,10 +38,32 @@ static Harness LibraryNotEqual = {
   .name = "Tetrodotoxin::Library::Language::Operations::NotEqual"_view,
 };
 
+class NotEqualMonograph : public Tetrodotoxin::Language::Monograph {
+ public:
+  NotEqualMonograph(Allocator::Arena& domain)
+      : Tetrodotoxin::Language::Monograph(domain, Documentation::get_empty()) {}
+
+  constexpr auto get_name() const -> View::Bytes override {
+    return "NotEqualMonograph"_view;
+  }
+
+  constexpr auto resolve_context(View::Bytes) const
+      -> const Abstract& override {
+    return Invalid::get_invalid();
+  }
+};
+
+static auto link_operation(
+    Operation& operation,
+    NotEqualMonograph& source,
+    Materializations& materializations) -> Bool {
+  return operation.link(source, Invalid::get_invalid(), materializations);
+}
+
 class NotEqualExpression : public Expression {
  public:
   NotEqualExpression(View::Bytes name, const Abstract& type)
-      : name(name), type(type) {}
+      : Expression({}), name(name), type(type) {}
 
   auto get_name() const -> View::Bytes override { return name; }
   auto get_documentation() const -> const Documentation& override {
@@ -74,11 +96,16 @@ class NotEqualFoldInput : public Operation {
  public:
   NotEqualFoldInput(
       Allocator::Arena& domain,
-      const Expression& input,
-      const Expression& result,
+      Materializations& materializations,
+      Expression& input,
+      Constant& result,
       const Ttx::Model::Type& type,
       Bool fails = False)
-      : Operation(domain, Static::Vector<Reference<Expression>, 1>{{input}}),
+      : Operation(
+            domain,
+            materializations,
+            Static::Vector<Reference<Expression>, 1>{{input}},
+            {}),
         result(result),
         type(type),
         fails(fails) {}
@@ -87,43 +114,52 @@ class NotEqualFoldInput : public Operation {
   auto get_documentation() const -> const Documentation& override {
     return Documentation::get_empty();
   }
-  auto get_type() const -> const Ttx::Model::Type& override { return type; }
   auto get_evaluations() const -> Count { return evaluations; }
 
  protected:
-  auto evaluate_constants(Allocator::Arena&, Materializations&) const
-      -> Result<const Expression&, FoldError> override {
+  auto evaluate_constants(Allocator::Arena&, Materializations&)
+      -> Result<Option<Constant&>, Expression::Error> override {
     evaluations++;
     if (fails) {
-      return FoldError(FoldError::Type::InvalidConstant, *this);
+      return Expression::Error(Expression::Error::Type::InvalidConstant, *this);
     }
 
     return result;
   }
 
+  auto select_type(Materializations&) const
+      -> Option<const Ttx::Model::Type&> override {
+    return type;
+  }
+
  private:
-  const Expression& result;
+  Constant& result;
   const Ttx::Model::Type& type;
   Bool fails;
-  mutable Count evaluations = 0;
+  Count evaluations = 0;
 };
 
-static auto selected(const Result<const Expression&, FoldError>& result)
-    -> Option<const Expression&> {
+static auto selected(
+    const Result<Option<Expression&>, Expression::Error>& result)
+    -> Option<Expression&> {
   return result.visit(
-      [](const Expression& expression) -> Option<const Expression&> {
-        return expression;
+      [](const Option<Expression&>& folded) -> Option<Expression&> {
+        return folded.visit(
+            []() -> Option<Expression&> { return {}; },
+            [](Expression& selected) -> Option<Expression&> {
+              return selected;
+            });
       },
-      [](const FoldError&) -> Option<const Expression&> { return {}; });
+      [](const Expression::Error&) -> Option<Expression&> { return {}; });
 }
 
 static auto reports(
-    const Result<const Expression&, FoldError>& result,
-    FoldError::Type expected,
+    const Result<Option<Expression&>, Expression::Error>& result,
+    Expression::Error::Type expected,
     const Expression& origin) -> Bool {
   return result.visit(
-      [](const Expression&) { return False; },
-      [&](const FoldError& error) {
+      [](const Option<Expression&>&) { return False; },
+      [&](const Expression::Error& error) {
         return error.get_type() == expected &&
                        &error.get_expression() == &origin
                    ? True
@@ -142,29 +178,9 @@ static auto input_is(
       });
 }
 
-static auto matches_token(const Cursor& cursor, Token expected) -> Bool {
-  Token current = cursor.current();
-  return current.get_offset() == expected.get_offset() &&
-         current.get_code() == expected.get_code();
-}
-
-static auto span_width(View::Bytes rendered) -> Count {
-  Count caret = Algorithm::search(rendered, "^"_view);
-  if (caret == Count(-1)) {
-    return 0;
-  }
-
-  Count width = 1;
-  while (caret + width < rendered.get_size() &&
-         rendered[caret + width] == '-') {
-    width++;
-  }
-
-  return width;
-}
-
 PERIMORTEM_UNIT_TEST(LibraryNotEqual, type_selection_and_partial) {
   Allocator::Arena domain;
+  NotEqualMonograph source(domain);
   Materializations materializations(domain);
   Types::Signed_8 signed_8;
   Types::Unsigned_8 unsigned_8;
@@ -190,21 +206,47 @@ PERIMORTEM_UNIT_TEST(LibraryNotEqual, type_selection_and_partial) {
   NotEqualExpression unresolved("unresolved"_view, unresolved_type);
   NotEqualExpression invalid("invalid"_view, Invalid::get_invalid());
   NotEqualExpression dynamic_bytes("dynamic bytes"_view, bytes_type);
-  Constants::Bytes bytes(bytes_type, "x"_view);
-  Constants::Bytes same_bytes(bytes_type, "x"_view);
-  Constants::Bytes other_bytes(other_bytes_type, "xx"_view);
-  Operations::NotEqual signed_exact(domain, signed_left, signed_right);
-  Operations::NotEqual unsigned_exact(domain, unsigned_left, unsigned_right);
-  Operations::NotEqual real_exact(domain, real_left, real_right);
-  Operations::NotEqual flag_exact(domain, flag_left, flag_right);
-  Operations::NotEqual byte_values(domain, bytes, same_bytes);
-  Operations::NotEqual mismatch(domain, unsigned_left, other);
-  Operations::NotEqual unresolved_pair(domain, unresolved, unresolved);
-  Operations::NotEqual invalid_pair(domain, invalid, invalid);
-  Operations::NotEqual incomplete_bytes(domain, dynamic_bytes, bytes);
-  Operations::NotEqual byte_mismatch(domain, bytes, other_bytes);
-  auto retained =
-      selected(unsigned_exact.attempt_fold(domain, materializations));
+  auto& bytes =
+      Constants::Bytes::create_synthetic(domain, bytes_type, "x"_view);
+  auto& same_bytes =
+      Constants::Bytes::create_synthetic(domain, bytes_type, "x"_view);
+  auto& other_bytes =
+      Constants::Bytes::create_synthetic(domain, other_bytes_type, "xx"_view);
+  auto& signed_exact = Operations::NotEqual::create_synthetic(
+      domain, materializations, signed_left, signed_right);
+  auto& unsigned_exact = Operations::NotEqual::create_synthetic(
+      domain, materializations, unsigned_left, unsigned_right);
+  auto& real_exact = Operations::NotEqual::create_synthetic(
+      domain, materializations, real_left, real_right);
+  auto& flag_exact = Operations::NotEqual::create_synthetic(
+      domain, materializations, flag_left, flag_right);
+  auto& byte_values = Operations::NotEqual::create_synthetic(
+      domain, materializations, bytes, same_bytes);
+  auto& mismatch = Operations::NotEqual::create_synthetic(
+      domain, materializations, unsigned_left, other);
+  auto& unresolved_pair = Operations::NotEqual::create_synthetic(
+      domain, materializations, unresolved, unresolved);
+  auto& invalid_pair = Operations::NotEqual::create_synthetic(
+      domain, materializations, invalid, invalid);
+  auto& incomplete_bytes = Operations::NotEqual::create_synthetic(
+      domain, materializations, dynamic_bytes, bytes);
+  auto& byte_mismatch = Operations::NotEqual::create_synthetic(
+      domain, materializations, bytes, other_bytes);
+
+  EXPECT(signed_exact.get_type().resolve().is<Invalid>());
+  EXPECT_NOT(signed_exact.get_anchor());
+  EXPECT(link_operation(signed_exact, source, materializations));
+  EXPECT(link_operation(unsigned_exact, source, materializations));
+  EXPECT(link_operation(real_exact, source, materializations));
+  EXPECT(link_operation(flag_exact, source, materializations));
+  EXPECT(link_operation(byte_values, source, materializations));
+  EXPECT(!link_operation(mismatch, source, materializations));
+  EXPECT(!link_operation(unresolved_pair, source, materializations));
+  EXPECT(!link_operation(invalid_pair, source, materializations));
+  EXPECT(!link_operation(incomplete_bytes, source, materializations));
+  EXPECT(!link_operation(byte_mismatch, source, materializations));
+
+  auto retained = selected(unsigned_exact.fold());
 
   EXPECT(
       &signed_exact.get_type() == &Tetrodotoxin::Library::Dialect::get_bool());
@@ -215,7 +257,7 @@ PERIMORTEM_UNIT_TEST(LibraryNotEqual, type_selection_and_partial) {
   EXPECT(&flag_exact.get_type() == &Tetrodotoxin::Library::Dialect::get_bool());
   EXPECT(
       &byte_values.get_type() == &Tetrodotoxin::Library::Dialect::get_bool());
-  EXPECT(retained && &*retained == &unsigned_exact);
+  EXPECT_NOT(retained);
   EXPECT(input_is(unsigned_exact, 0, unsigned_left));
   EXPECT(input_is(unsigned_exact, 1, unsigned_right));
   EXPECT(mismatch.get_type().resolve().is<Invalid>());
@@ -227,6 +269,7 @@ PERIMORTEM_UNIT_TEST(LibraryNotEqual, type_selection_and_partial) {
 
 PERIMORTEM_UNIT_TEST(LibraryNotEqual, complete_constant_domains) {
   Allocator::Arena domain;
+  NotEqualMonograph source(domain);
   Materializations materializations(domain);
   Types::Signed_8 signed_type;
   Types::Unsigned_8 unsigned_type;
@@ -235,48 +278,73 @@ PERIMORTEM_UNIT_TEST(LibraryNotEqual, complete_constant_domains) {
   Types::Fixed bytes_type(
       "Fixed[Unsigned_8,2]"_view,
       Tetrodotoxin::Library::Dialect::get_unsigned_8(), 2);
-  Constants::Signed signed_value(signed_type, -8);
-  Constants::Signed same_signed(signed_type, -8);
-  Constants::Signed other_signed(signed_type, 8);
-  Constants::Unsigned unsigned_value(unsigned_type, 8);
-  Constants::Unsigned same_unsigned(unsigned_type, 8);
-  Constants::Unsigned other_unsigned(unsigned_type, 9);
-  Constants::Real real_value(real_type, 0.5);
-  Constants::Real same_real(real_type, 0.5);
-  Constants::Real other_real(real_type, 1.0);
-  Constants::True truth(boolean);
-  Constants::True same_truth(boolean);
-  Constants::False falsity(boolean);
-  Constants::Bytes bytes(bytes_type, "ab"_view);
-  Constants::Bytes same_bytes(bytes_type, "ab"_view);
-  Constants::Bytes other_bytes(bytes_type, "ac"_view);
-  Operations::NotEqual signed_same(domain, signed_value, same_signed);
-  Operations::NotEqual signed_different(domain, signed_value, other_signed);
-  Operations::NotEqual unsigned_same(domain, unsigned_value, same_unsigned);
-  Operations::NotEqual unsigned_different(
-      domain, unsigned_value, other_unsigned);
-  Operations::NotEqual real_same(domain, real_value, same_real);
-  Operations::NotEqual real_different(domain, real_value, other_real);
-  Operations::NotEqual flag_same(domain, truth, same_truth);
-  Operations::NotEqual flag_different(domain, truth, falsity);
-  Operations::NotEqual bytes_same(domain, bytes, same_bytes);
-  Operations::NotEqual bytes_different(domain, bytes, other_bytes);
-  auto signed_no = selected(signed_same.attempt_fold(domain, materializations));
-  auto signed_yes =
-      selected(signed_different.attempt_fold(domain, materializations));
-  auto unsigned_no =
-      selected(unsigned_same.attempt_fold(domain, materializations));
-  auto unsigned_yes =
-      selected(unsigned_different.attempt_fold(domain, materializations));
-  auto real_no = selected(real_same.attempt_fold(domain, materializations));
-  auto real_yes =
-      selected(real_different.attempt_fold(domain, materializations));
-  auto flag_no = selected(flag_same.attempt_fold(domain, materializations));
-  auto flag_yes =
-      selected(flag_different.attempt_fold(domain, materializations));
-  auto bytes_no = selected(bytes_same.attempt_fold(domain, materializations));
-  auto bytes_yes =
-      selected(bytes_different.attempt_fold(domain, materializations));
+  auto& signed_value =
+      Constants::Signed::create_synthetic(domain, signed_type, -8);
+  auto& same_signed =
+      Constants::Signed::create_synthetic(domain, signed_type, -8);
+  auto& other_signed =
+      Constants::Signed::create_synthetic(domain, signed_type, 8);
+  auto& unsigned_value =
+      Constants::Unsigned::create_synthetic(domain, unsigned_type, 8);
+  auto& same_unsigned =
+      Constants::Unsigned::create_synthetic(domain, unsigned_type, 8);
+  auto& other_unsigned =
+      Constants::Unsigned::create_synthetic(domain, unsigned_type, 9);
+  auto& real_value = Constants::Real::create_synthetic(domain, real_type, 0.5);
+  auto& same_real = Constants::Real::create_synthetic(domain, real_type, 0.5);
+  auto& other_real = Constants::Real::create_synthetic(domain, real_type, 1.0);
+  auto& truth = Constants::True::create_synthetic(domain, boolean);
+  auto& same_truth = Constants::True::create_synthetic(domain, boolean);
+  auto& falsity = Constants::False::create_synthetic(domain, boolean);
+  auto& bytes =
+      Constants::Bytes::create_synthetic(domain, bytes_type, "ab"_view);
+  auto& same_bytes =
+      Constants::Bytes::create_synthetic(domain, bytes_type, "ab"_view);
+  auto& other_bytes =
+      Constants::Bytes::create_synthetic(domain, bytes_type, "ac"_view);
+  auto& signed_same = Operations::NotEqual::create_synthetic(
+      domain, materializations, signed_value, same_signed);
+  auto& signed_different = Operations::NotEqual::create_synthetic(
+      domain, materializations, signed_value, other_signed);
+  auto& unsigned_same = Operations::NotEqual::create_synthetic(
+      domain, materializations, unsigned_value, same_unsigned);
+  auto& unsigned_different = Operations::NotEqual::create_synthetic(
+      domain, materializations, unsigned_value, other_unsigned);
+  auto& real_same = Operations::NotEqual::create_synthetic(
+      domain, materializations, real_value, same_real);
+  auto& real_different = Operations::NotEqual::create_synthetic(
+      domain, materializations, real_value, other_real);
+  auto& flag_same = Operations::NotEqual::create_synthetic(
+      domain, materializations, truth, same_truth);
+  auto& flag_different = Operations::NotEqual::create_synthetic(
+      domain, materializations, truth, falsity);
+  auto& bytes_same = Operations::NotEqual::create_synthetic(
+      domain, materializations, bytes, same_bytes);
+  auto& bytes_different = Operations::NotEqual::create_synthetic(
+      domain, materializations, bytes, other_bytes);
+
+  EXPECT(signed_same.get_type().resolve().is<Invalid>());
+  EXPECT(link_operation(signed_same, source, materializations));
+  EXPECT(link_operation(signed_different, source, materializations));
+  EXPECT(link_operation(unsigned_same, source, materializations));
+  EXPECT(link_operation(unsigned_different, source, materializations));
+  EXPECT(link_operation(real_same, source, materializations));
+  EXPECT(link_operation(real_different, source, materializations));
+  EXPECT(link_operation(flag_same, source, materializations));
+  EXPECT(link_operation(flag_different, source, materializations));
+  EXPECT(link_operation(bytes_same, source, materializations));
+  EXPECT(link_operation(bytes_different, source, materializations));
+
+  auto signed_no = selected(signed_same.fold());
+  auto signed_yes = selected(signed_different.fold());
+  auto unsigned_no = selected(unsigned_same.fold());
+  auto unsigned_yes = selected(unsigned_different.fold());
+  auto real_no = selected(real_same.fold());
+  auto real_yes = selected(real_different.fold());
+  auto flag_no = selected(flag_same.fold());
+  auto flag_yes = selected(flag_different.fold());
+  auto bytes_no = selected(bytes_same.fold());
+  auto bytes_yes = selected(bytes_different.fold());
 
   ASSERT(
       signed_no && signed_yes && unsigned_no && unsigned_yes && real_no &&
@@ -295,19 +363,33 @@ PERIMORTEM_UNIT_TEST(LibraryNotEqual, complete_constant_domains) {
 
 PERIMORTEM_UNIT_TEST(LibraryNotEqual, real_equivalence_inverse) {
   Allocator::Arena domain;
+  NotEqualMonograph source(domain);
   Materializations materializations(domain);
   Types::Real_64 real_type;
-  Constants::Real left_nan(real_type, __builtin_nan("left"));
-  Constants::Real right_nan(real_type, __builtin_nan("right"));
-  Constants::Real finite(real_type, 1.0);
-  Constants::Real positive_zero(real_type, 0.0);
-  Constants::Real negative_zero(real_type, -0.0);
-  Operations::NotEqual nan_pair(domain, left_nan, right_nan);
-  Operations::NotEqual nan_finite(domain, left_nan, finite);
-  Operations::NotEqual signed_zero(domain, positive_zero, negative_zero);
-  auto nan_same = selected(nan_pair.attempt_fold(domain, materializations));
-  auto nan_other = selected(nan_finite.attempt_fold(domain, materializations));
-  auto zeros = selected(signed_zero.attempt_fold(domain, materializations));
+  auto& left_nan = Constants::Real::create_synthetic(
+      domain, real_type, __builtin_nan("left"));
+  auto& right_nan = Constants::Real::create_synthetic(
+      domain, real_type, __builtin_nan("right"));
+  auto& finite = Constants::Real::create_synthetic(domain, real_type, 1.0);
+  auto& positive_zero =
+      Constants::Real::create_synthetic(domain, real_type, 0.0);
+  auto& negative_zero =
+      Constants::Real::create_synthetic(domain, real_type, -0.0);
+  auto& nan_pair = Operations::NotEqual::create_synthetic(
+      domain, materializations, left_nan, right_nan);
+  auto& nan_finite = Operations::NotEqual::create_synthetic(
+      domain, materializations, left_nan, finite);
+  auto& signed_zero = Operations::NotEqual::create_synthetic(
+      domain, materializations, positive_zero, negative_zero);
+
+  EXPECT(nan_pair.get_type().resolve().is<Invalid>());
+  EXPECT(link_operation(nan_pair, source, materializations));
+  EXPECT(link_operation(nan_finite, source, materializations));
+  EXPECT(link_operation(signed_zero, source, materializations));
+
+  auto nan_same = selected(nan_pair.fold());
+  auto nan_other = selected(nan_finite.fold());
+  auto zeros = selected(signed_zero.fold());
 
   ASSERT(nan_same && nan_other && zeros);
   EXPECT(nan_same->is<Constants::False>());
@@ -317,56 +399,99 @@ PERIMORTEM_UNIT_TEST(LibraryNotEqual, real_equivalence_inverse) {
 
 PERIMORTEM_UNIT_TEST(LibraryNotEqual, recursive_provenance_and_atomicity) {
   Allocator::Arena domain;
-  Allocator::Arena rendering;
+  NotEqualMonograph source(domain);
   Materializations materializations(domain);
   Types::Unsigned_8 selected_type;
-  Constants::Unsigned input(selected_type, 1);
-  Constants::Unsigned folded(selected_type, 8);
-  Constants::Unsigned right(selected_type, 7);
-  Constants::Bytes wrong_domain(selected_type, "x"_view);
-  NotEqualFoldInput child(domain, input, folded, selected_type);
-  NotEqualFoldInput failing(domain, input, folded, selected_type, True);
-  NotEqualFoldInput invalid_child(domain, input, wrong_domain, selected_type);
-  Operations::NotEqual not_equal(domain, child, right);
-  Operations::NotEqual failure(domain, failing, right);
-  Operations::NotEqual invalid_constant(domain, invalid_child, right);
-  auto first = selected(not_equal.attempt_fold(domain, materializations));
-  auto second = selected(not_equal.attempt_fold(domain, materializations));
+  auto& input = Constants::Unsigned::create_synthetic(domain, selected_type, 1);
+  auto& folded =
+      Constants::Unsigned::create_synthetic(domain, selected_type, 8);
+  auto& right = Constants::Unsigned::create_synthetic(domain, selected_type, 7);
+  auto& wrong_domain =
+      Constants::Bytes::create_synthetic(domain, selected_type, "x"_view);
+  NotEqualFoldInput child(
+      domain, materializations, input, folded, selected_type);
+  NotEqualFoldInput failing(
+      domain, materializations, input, folded, selected_type, True);
+  NotEqualFoldInput invalid_child(
+      domain, materializations, input, wrong_domain, selected_type);
+  auto& not_equal = Operations::NotEqual::create_synthetic(
+      domain, materializations, child, right);
+  auto& failure = Operations::NotEqual::create_synthetic(
+      domain, materializations, failing, right);
+  auto& invalid_constant = Operations::NotEqual::create_synthetic(
+      domain, materializations, invalid_child, right);
+
+  EXPECT(not_equal.get_type().resolve().is<Invalid>());
+  EXPECT(link_operation(not_equal, source, materializations));
+  EXPECT(link_operation(not_equal, source, materializations));
+  EXPECT(link_operation(failure, source, materializations));
+  EXPECT(link_operation(invalid_constant, source, materializations));
+
+  auto first = selected(not_equal.fold());
+  auto second = selected(not_equal.fold());
 
   ASSERT(first && second);
   EXPECT(&*first == &*second);
   EXPECT(first->is<Constants::True>());
-  EXPECT(input_is(not_equal, 0, folded));
+  EXPECT(input_is(not_equal, 0, child));
   EXPECT(child.get_evaluations() == 1);
   EXPECT(reports(
-      failure.attempt_fold(domain, materializations),
-      FoldError::Type::InvalidConstant, failing));
+      failure.fold(), Expression::Error::Type::InvalidConstant, failing));
   EXPECT(reports(
-      invalid_constant.attempt_fold(domain, materializations),
-      FoldError::Type::InvalidConstant, wrong_domain));
+      invalid_constant.fold(), Expression::Error::Type::InvalidConstant,
+      invalid_child));
 
   const auto& parser_type = Tetrodotoxin::Library::Dialect::get_unsigned_64();
-  Constants::Unsigned left(parser_type, 2);
   Errors success_errors;
-  Tokenizer success_tokens(domain, "!= 2"_view, "not_equal.ttx"_view);
+  Tokenizer success_tokens(domain, "2 != 2"_view, "not_equal.ttx"_view);
   Cursor success_cursor(success_tokens, success_errors);
+  Token success_left_token = success_cursor.consume();
+  auto success_left_anchor =
+      Anchor::create(success_left_token, Span(success_left_token));
+  auto& success_left = Constants::Unsigned::create_authored(
+      domain, parser_type, 2, success_left_anchor);
   auto parsed = Operations::NotEqual::parse(
-      domain, materializations, success_cursor, Invalid::get_invalid(), left);
+      domain, materializations, success_cursor, Invalid::get_invalid(),
+      success_left);
   Errors failure_errors;
-  Tokenizer failure_tokens(domain, "!= true"_view, "not_equal.ttx"_view);
+  Tokenizer failure_tokens(domain, "2 != true"_view, "not_equal.ttx"_view);
   Cursor failure_cursor(failure_tokens, failure_errors);
-  Token opening = failure_cursor.current();
+  Token failure_left_token = failure_cursor.consume();
+  auto failure_left_anchor =
+      Anchor::create(failure_left_token, Span(failure_left_token));
+  auto& failure_left = Constants::Unsigned::create_authored(
+      domain, parser_type, 2, failure_left_anchor);
   auto rejected = Operations::NotEqual::parse(
-      domain, materializations, failure_cursor, Invalid::get_invalid(), left);
+      domain, materializations, failure_cursor, Invalid::get_invalid(),
+      failure_left);
 
   ASSERT(parsed);
-  EXPECT(parsed->is<Constants::False>());
+  EXPECT(parsed->is<Operations::NotEqual>());
+  EXPECT(parsed->get_type().resolve().is<Invalid>());
   EXPECT(success_cursor.matches(Code::Type::Terminal));
   EXPECT(success_errors.is_empty());
-  EXPECT_NOT(rejected);
-  EXPECT(matches_token(failure_cursor, opening));
-  ASSERT(failure_errors.get_size() == 1);
-  View::Bytes rendered = failure_errors.render_message(rendering, 0);
+  EXPECT(parsed->link(source, Invalid::get_invalid(), materializations));
 
-  EXPECT(span_width(rendered) == Count(7));
+  auto parsed_fold = parsed->visit<Operation>(
+      [&](Operation& operation) { return selected(operation.fold()); },
+      [](Abstract&) -> Option<Expression&> { return {}; });
+
+  ASSERT(parsed_fold);
+  EXPECT(parsed_fold->is<Constants::False>());
+  EXPECT(&parsed->get_type() == &Tetrodotoxin::Library::Dialect::get_bool());
+
+  ASSERT(rejected);
+  EXPECT(rejected->is<Operations::NotEqual>());
+  EXPECT(rejected->get_type().resolve().is<Invalid>());
+  EXPECT(failure_cursor.matches(Code::Type::Terminal));
+  EXPECT(failure_errors.is_empty());
+  EXPECT_NOT(rejected->link(source, Invalid::get_invalid(), materializations));
+  EXPECT(rejected->get_type().resolve().is<Invalid>());
+
+  auto diagnostics = source.get_diagnostics();
+  ASSERT(diagnostics.get_size() == 1);
+  ASSERT(diagnostics.get_data()[0].get_anchor());
+  EXPECT(
+      diagnostics.get_data()[0].get_anchor()->get_span().get_size() ==
+      Count(9));
 }

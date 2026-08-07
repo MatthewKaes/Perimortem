@@ -30,7 +30,7 @@ class Literal {
       Materializations& materializations,
       Ttx::Lexical::Cursor& cursor,
       const Ttx::Concept::Abstract& source_context)
-      -> Perimortem::Utility::Option<const Constant&>;
+      -> Perimortem::Utility::Option<Constant&>;
 };
 
 }  // namespace Tetrodotoxin::Library::Language::Parser

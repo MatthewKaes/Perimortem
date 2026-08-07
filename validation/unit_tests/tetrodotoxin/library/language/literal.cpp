@@ -54,10 +54,18 @@ class LiteralError : public Tetrodotoxin::Language::Error {
   }
 };
 
+struct LiteralObservations {
+  Bool table_seen = False;
+  Bool empty_seen = False;
+  Bool error_seen = False;
+};
+
 class LiteralContext : public Abstract {
  public:
-  LiteralContext(Allocator::Arena& domain)
-      : table(domain, "0123456789"_view), empty(domain, View::Bytes()) {}
+  LiteralContext(Allocator::Arena& domain, LiteralObservations& observations)
+      : observations(observations),
+        table(domain, "0123456789"_view),
+        empty(domain, View::Bytes()) {}
 
   auto get_name() const -> View::Bytes override { return "Context"_view; }
   auto get_documentation() const -> const Documentation& override {
@@ -65,17 +73,17 @@ class LiteralContext : public Abstract {
   }
   auto resolve_context(View::Bytes route) const -> const Abstract& override {
     if (route == "$[table]"_view) {
-      table_seen = true;
+      observations.table_seen = True;
       return table;
     }
 
     if (route == "$[empty]"_view) {
-      empty_seen = true;
+      observations.empty_seen = True;
       return empty;
     }
 
     if (route == "$[error]"_view) {
-      error_seen = true;
+      observations.error_seen = True;
       return error;
     }
 
@@ -86,9 +94,7 @@ class LiteralContext : public Abstract {
     return Invalid::get_invalid();
   }
 
-  mutable Bool table_seen = False;
-  mutable Bool empty_seen = False;
-  mutable Bool error_seen = False;
+  LiteralObservations& observations;
   LiteralResource table;
   LiteralResource empty;
   LiteralError error;
@@ -105,7 +111,7 @@ static auto parse_one(
     Library::Language::Materializations& materializations,
     const Abstract& context,
     View::Bytes source,
-    Errors& errors) -> Option<const Library::Language::Constant&> {
+    Errors& errors) -> Option<Library::Language::Constant&> {
   Tokenizer tokenizer(domain, source, "literal.ttx"_view);
   Cursor cursor(tokenizer, errors);
   auto parsed = Library::Language::Parser::Literal::parse(
@@ -157,7 +163,8 @@ static auto contains(View::Bytes text, View::Bytes fragment) -> Bool {
 PERIMORTEM_UNIT_TEST(LiteralTests, scalar_inference) {
   Allocator::Arena domain;
   Library::Language::Materializations materializations(domain);
-  LiteralContext context(domain);
+  LiteralObservations observations;
+  LiteralContext context(domain, observations);
   Errors errors;
   Tokenizer tokenizer(
       domain, "true false 42 0x2A -7 1.5"_view, "scalars.ttx"_view);
@@ -179,12 +186,16 @@ PERIMORTEM_UNIT_TEST(LiteralTests, scalar_inference) {
   ASSERT(
       true_value && false_value && decimal && hexadecimal && signed_value &&
       real);
-  EXPECT(true_value->is<Library::Language::Constants::Flag>());
+  ASSERT(true_value->is<Library::Language::Constants::Flag>());
   EXPECT(true_value->is<Library::Language::Constants::True>());
   EXPECT_NOT(true_value->is<Library::Language::Constants::False>());
-  EXPECT(false_value->is<Library::Language::Constants::Flag>());
+  ASSERT(false_value->is<Library::Language::Constants::Flag>());
   EXPECT(false_value->is<Library::Language::Constants::False>());
   EXPECT_NOT(false_value->is<Library::Language::Constants::True>());
+  ASSERT(decimal->is<Library::Language::Constants::Unsigned>());
+  ASSERT(hexadecimal->is<Library::Language::Constants::Unsigned>());
+  ASSERT(signed_value->is<Library::Language::Constants::Signed>());
+  ASSERT(real->is<Library::Language::Constants::Real>());
   EXPECT(
       static_cast<const Library::Language::Constants::Flag&>(*true_value)
           .get_value());
@@ -215,7 +226,8 @@ PERIMORTEM_UNIT_TEST(LiteralTests, scalar_inference) {
 PERIMORTEM_UNIT_TEST(LiteralTests, byte_domains) {
   Allocator::Arena domain;
   Library::Language::Materializations materializations(domain);
-  LiteralContext context(domain);
+  LiteralObservations observations;
+  LiteralContext context(domain, observations);
   Errors errors;
   Dynamic::Bytes source("\"a\\\"b\" 0x[54\t54\n58\r31] \"\""_view);
   Tokenizer tokenizer(domain, source, "bytes.ttx"_view);
@@ -229,6 +241,9 @@ PERIMORTEM_UNIT_TEST(LiteralTests, byte_domains) {
       domain, materializations, cursor, context);
 
   ASSERT(quoted && hexadecimal && empty);
+  ASSERT(quoted->is<Library::Language::Constants::Bytes>());
+  ASSERT(hexadecimal->is<Library::Language::Constants::Bytes>());
+  ASSERT(empty->is<Library::Language::Constants::Bytes>());
   source.set('x');
   const auto& quoted_bytes =
       static_cast<const Library::Language::Constants::Bytes&>(*quoted);
@@ -239,6 +254,7 @@ PERIMORTEM_UNIT_TEST(LiteralTests, byte_domains) {
   EXPECT_TEXT(quoted_bytes.get_value(), "a\"b"_view);
   EXPECT_TEXT(hexadecimal_bytes.get_value(), "TTX1"_view);
   EXPECT(empty_bytes.get_value().is_empty());
+  ASSERT(quoted->get_type().is<Library::Language::Types::Fixed>());
   const auto& quoted_type =
       static_cast<const Library::Language::Types::Fixed&>(quoted->get_type());
   EXPECT(quoted_type.get_extent() == 3);
@@ -251,7 +267,8 @@ PERIMORTEM_UNIT_TEST(LiteralTests, byte_domains) {
 PERIMORTEM_UNIT_TEST(LiteralTests, real_64_domain) {
   Allocator::Arena domain;
   Library::Language::Materializations materializations(domain);
-  LiteralContext context(domain);
+  LiteralObservations observations;
+  LiteralContext context(domain, observations);
   Errors tiny_errors;
   Errors wide_errors;
 
@@ -264,6 +281,8 @@ PERIMORTEM_UNIT_TEST(LiteralTests, real_64_domain) {
       "999999999999999999999999999999999999999.0"_view, wide_errors);
 
   ASSERT(tiny && wide);
+  ASSERT(tiny->is<Library::Language::Constants::Real>());
+  ASSERT(wide->is<Library::Language::Constants::Real>());
   EXPECT(&tiny->get_type() == &Library::Dialect::get_real_64());
   EXPECT(&wide->get_type() == &Library::Dialect::get_real_64());
   EXPECT(
@@ -279,7 +298,8 @@ PERIMORTEM_UNIT_TEST(LiteralTests, real_64_domain) {
 PERIMORTEM_UNIT_TEST(LiteralTests, diagnostic_feedback) {
   Allocator::Arena domain;
   Library::Language::Materializations materializations(domain);
-  LiteralContext context(domain);
+  LiteralObservations observations;
+  LiteralContext context(domain, observations);
 
   Dynamic::Bytes integer = render_rejection(
       domain, materializations, context, "18446744073709551616"_view);
@@ -301,7 +321,8 @@ PERIMORTEM_UNIT_TEST(LiteralTests, diagnostic_feedback) {
 PERIMORTEM_UNIT_TEST(LiteralTests, malformed_ranges) {
   Allocator::Arena domain;
   Library::Language::Materializations materializations(domain);
-  LiteralContext context(domain);
+  LiteralObservations observations;
+  LiteralContext context(domain, observations);
 
   EXPECT(
       rejects(domain, materializations, context, "18446744073709551616"_view));
@@ -317,7 +338,8 @@ PERIMORTEM_UNIT_TEST(LiteralTests, malformed_ranges) {
 PERIMORTEM_UNIT_TEST(LiteralTests, embedded_resolution) {
   Allocator::Arena domain;
   Library::Language::Materializations materializations(domain);
-  LiteralContext context(domain);
+  LiteralObservations observations;
+  LiteralContext context(domain, observations);
   View::Bytes table_backing = context.table.get_value();
   Errors errors;
   Tokenizer tokenizer(domain, "$[table] $[empty]"_view, "embedded.ttx"_view);
@@ -325,10 +347,10 @@ PERIMORTEM_UNIT_TEST(LiteralTests, embedded_resolution) {
 
   auto table = Library::Language::Parser::Literal::parse(
       domain, materializations, cursor, context);
-  EXPECT(context.table_seen);
+  EXPECT(observations.table_seen);
   auto empty = Library::Language::Parser::Literal::parse(
       domain, materializations, cursor, context);
-  EXPECT(context.empty_seen);
+  EXPECT(observations.empty_seen);
 
   Errors postfix_errors;
   Tokenizer postfix_tokenizer(
@@ -338,6 +360,9 @@ PERIMORTEM_UNIT_TEST(LiteralTests, embedded_resolution) {
       domain, materializations, postfix_cursor, context);
 
   ASSERT(table && empty && postfix_base);
+  ASSERT(table->is<Library::Language::Constants::Bytes>());
+  ASSERT(empty->is<Library::Language::Constants::Bytes>());
+  ASSERT(postfix_base->is<Library::Language::Constants::Bytes>());
   const auto& table_bytes =
       static_cast<const Library::Language::Constants::Bytes&>(*table);
   const auto& postfix_bytes =
@@ -362,7 +387,8 @@ PERIMORTEM_UNIT_TEST(LiteralTests, contextual_error) {
   Allocator::Arena domain;
   Allocator::Arena render_arena;
   Library::Language::Materializations materializations(domain);
-  LiteralContext context(domain);
+  LiteralObservations observations;
+  LiteralContext context(domain, observations);
   Errors errors;
   Tokenizer tokenizer(domain, "\n$[error]"_view, "resource-error.ttx"_view);
   Cursor cursor(tokenizer, errors);
@@ -372,7 +398,7 @@ PERIMORTEM_UNIT_TEST(LiteralTests, contextual_error) {
   View::Bytes rendered = errors.render_message(render_arena, 0);
 
   EXPECT_NOT(parsed);
-  EXPECT(context.error_seen);
+  EXPECT(observations.error_seen);
   ASSERT_EQ(errors.get_size(), Count(1));
   EXPECT(
       Algorithm::search(rendered, "resource-error.ttx:2:1"_view) != Count(-1));

@@ -20,8 +20,24 @@ class Signed : public Constant {
     0x9361ac25cc53d15e,
   };
 
-  constexpr Signed(const Ttx::Model::Types::Signed& type, Value value)
-      : type(type), value(value) {}
+  static auto create_authored(
+      Perimortem::Memory::Allocator::Arena& domain,
+      const Ttx::Model::Types::Signed& type,
+      Value value,
+      Ttx::Lexical::Anchor anchor) -> Signed& {
+    return Expression::create_authored<Signed>(
+        domain, anchor,
+        [&](auto source) -> Signed { return Signed(type, value, source); });
+  }
+
+  static auto create_synthetic(
+      Perimortem::Memory::Allocator::Arena& domain,
+      const Ttx::Model::Types::Signed& type,
+      Value value) -> Signed& {
+    return Expression::create_synthetic<Signed>(
+        domain,
+        [&](auto source) -> Signed { return Signed(type, value, source); });
+  }
 
   constexpr auto implements(Perimortem::System::Uuid requested) const
       -> Bool override {
@@ -69,6 +85,12 @@ class Signed : public Constant {
   }
 
  private:
+  constexpr Signed(
+      const Ttx::Model::Types::Signed& type,
+      Value value,
+      Perimortem::Utility::Option<Ttx::Lexical::Anchor> anchor)
+      : Constant(anchor), type(type), value(value) {}
+
   const Ttx::Model::Types::Signed& type;
   Value value;
 };

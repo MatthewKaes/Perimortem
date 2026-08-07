@@ -9,48 +9,66 @@
 #include "perimortem/utility/option.hpp"
 
 #include "tetrodotoxin/environment/origin.hpp"
-#include "tetrodotoxin/language/dialect.hpp"
+#include "tetrodotoxin/language/monograph.hpp"
+#include "ttx/lexical/errors.hpp"
 
 namespace Tetrodotoxin::Environment {
 
 // Owns retained Monograph lifetime, authored provenance, and discovery order.
-// Completion advances one durable prefix so later Workspace imports cannot run
-// a concrete post pass twice.
+// One staged range freezes before linking so every link precedes every
+// finalizer and no hook can run twice.
 class Retention {
  public:
   explicit Retention(Perimortem::Memory::Allocator::Arena& arena);
   ~Retention();
 
   auto retain(
-      Language::Dialect::Monograph& monograph,
-      Perimortem::Utility::Option<Origin> origin) -> void;
+      Language::Monograph& monograph,
+      Perimortem::Utility::Option<Origin> origin) -> Bool;
   auto get_size() const -> Count;
-  auto get_monograph(Count index) const -> Language::Dialect::Monograph&;
+  auto get_monograph(Count index) const -> Language::Monograph&;
   auto get_origin(Count index) const -> Perimortem::Utility::Option<Origin>;
-  auto find_origin(const Language::Dialect::Monograph& monograph) const
+  auto find_origin(const Language::Monograph& monograph) const
       -> Perimortem::Utility::Option<Origin>;
-  auto complete(Ttx::Lexical::Errors& errors) -> Bool;
+  auto has_staged() const -> Bool;
+  auto awaits_finalize() const -> Bool;
+  auto link(Ttx::Lexical::Errors& errors) -> Bool;
+  auto finalize(Ttx::Lexical::Errors& errors) -> Bool;
+  auto abandon() -> void;
 
  private:
   class Entry {
    public:
     Entry(
-        Language::Dialect::Monograph& monograph,
+        Language::Monograph& monograph,
         Perimortem::Utility::Option<Origin> origin);
 
-    auto get_monograph() const -> Language::Dialect::Monograph&;
+    auto get_monograph() const -> Language::Monograph&;
     auto get_origin() const -> Perimortem::Utility::Option<Origin>;
+    auto get_next_diagnostic() const -> Count;
+    auto consume_diagnostics(Count count) -> void;
 
    private:
-    Language::Dialect::Monograph& monograph;
+    Language::Monograph& monograph;
     Perimortem::Core::View::Bytes origin_path;
     Perimortem::Core::View::Bytes origin_body;
     Ttx::Lexical::Span origin_span;
+    Count next_diagnostic;
     Bool has_origin;
   };
 
+  enum class Stage : Unsigned_8 {
+    Staging,
+    Linked,
+  };
+
+  auto render_diagnostics(Ttx::Lexical::Errors& errors, Entry& entry) -> void;
+  auto consume_range() -> void;
+
   Perimortem::Memory::Managed::Vector<Entry> entries;
-  Count next_to_complete;
+  Count range_start;
+  Count range_end;
+  Stage stage;
 };
 
 }  // namespace Tetrodotoxin::Environment

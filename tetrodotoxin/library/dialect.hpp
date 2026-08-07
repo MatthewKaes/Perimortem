@@ -3,7 +3,10 @@
 
 #pragma once
 
+#include "perimortem/utility/option.hpp"
+
 #include "tetrodotoxin/language/dialect.hpp"
+#include "tetrodotoxin/library/language/materializations.hpp"
 #include "ttx/model/type.hpp"
 #include "ttx/model/types/flag.hpp"
 #include "ttx/model/types/real.hpp"
@@ -12,8 +15,9 @@
 
 namespace Tetrodotoxin::Library {
 
-// Dialect owns Library interpretation and exposes the immutable binary wide
-// intrinsic vocabulary shared by every Monograph it interprets.
+// Dialect owns Library interpretation, one Arena local Materializations
+// inventory, and the immutable binary wide intrinsic vocabulary shared by
+// every Monograph it interprets.
 class Dialect : public Tetrodotoxin::Language::Dialect {
  public:
   constexpr Dialect(Ttx::Concept::Abstract& registry)
@@ -24,7 +28,8 @@ class Dialect : public Tetrodotoxin::Language::Dialect {
       Ttx::Lexical::Cursor& cursor,
       const Ttx::Concept::Documentation& documentation,
       Ttx::Concept::Abstract& interpretation_context)
-      -> Perimortem::Utility::Option<Monograph&> override;
+      -> Perimortem::Utility::Option<
+          Tetrodotoxin::Language::Monograph&> override;
 
   auto resolve_intrinsic(Perimortem::Core::View::Bytes name) const
       -> const Ttx::Concept::Abstract&;
@@ -43,6 +48,16 @@ class Dialect : public Tetrodotoxin::Language::Dialect {
   static auto get_real_32() -> const Ttx::Model::Types::Real&;
   static auto get_real_64() -> const Ttx::Model::Types::Real&;
   static auto get_void() -> const Ttx::Model::Type&;
+
+ private:
+  auto materializations_for(
+      Perimortem::Memory::Allocator::Arena& domain,
+      Ttx::Lexical::Cursor& cursor)
+      -> Perimortem::Utility::Option<Language::Materializations&>;
+
+  Perimortem::Utility::Option<Perimortem::Memory::Allocator::Arena&>
+      materialization_domain;
+  Perimortem::Utility::Option<Language::Materializations&> materializations;
 };
 
 }  // namespace Tetrodotoxin::Library

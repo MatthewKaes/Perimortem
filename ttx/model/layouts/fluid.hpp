@@ -16,8 +16,8 @@ namespace Ttx::Model::Layouts {
 class Fluid : public Concept::Layout {
  public:
   constexpr Fluid(
-      Perimortem::Core::View::Vector<Concept::Reference<Concept::Abstract>>
-          abstracts = {})
+      Perimortem::Core::View::Vector<
+          Concept::Reference<const Concept::Abstract>> abstracts = {})
       : abstracts(abstracts) {}
 
   constexpr auto get_size() const -> Count override {
@@ -41,7 +41,7 @@ class Fluid : public Concept::Layout {
       -> Perimortem::Utility::Result<const Concept::Abstract&, Errors> override;
 
  private:
-  Perimortem::Core::View::Vector<Concept::Reference<Concept::Abstract>>
+  Perimortem::Core::View::Vector<Concept::Reference<const Concept::Abstract>>
       abstracts;
 };
 

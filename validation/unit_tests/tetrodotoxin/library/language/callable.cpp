@@ -92,13 +92,14 @@ PERIMORTEM_UNIT_TEST(TtxCallable, callable_layouts) {
   CallableType count("Count"_view);
   Alias value("value"_view, count);
   Alias receiver("self"_view, counter);
-  const Perimortem::Core::Static::Vector<Reference<Abstract>, 1> static_values =
-      {{value}};
-  const Perimortem::Core::Static::Vector<Reference<Abstract>, 1> self_values = {
-    {receiver},
-  };
-  const Perimortem::Core::Static::Vector<Reference<Abstract>, 1> result_values =
-      {{counter}};
+  const Perimortem::Core::Static::Vector<Reference<const Abstract>, 1>
+      static_values = {{value}};
+  const Perimortem::Core::Static::Vector<Reference<const Abstract>, 1>
+      self_values = {
+        {receiver},
+      };
+  const Perimortem::Core::Static::Vector<Reference<const Abstract>, 1>
+      result_values = {{counter}};
   Layouts::Named static_parameters(static_values);
   Layouts::Named self_parameters(self_values);
   Layouts::Fluid results(result_values);

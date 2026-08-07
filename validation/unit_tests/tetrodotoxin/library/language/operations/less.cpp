@@ -5,6 +5,7 @@
 
 #include "validation/unit_test.hpp"
 
+#include "tetrodotoxin/language/monograph.hpp"
 #include "tetrodotoxin/library/dialect.hpp"
 #include "tetrodotoxin/library/language/constants/bytes.hpp"
 #include "tetrodotoxin/library/language/constants/false.hpp"
@@ -34,10 +35,32 @@ static Harness LibraryLess = {
   .name = "Tetrodotoxin::Library::Language::Operations::Less"_view,
 };
 
+class LessMonograph : public Tetrodotoxin::Language::Monograph {
+ public:
+  LessMonograph(Allocator::Arena& domain)
+      : Tetrodotoxin::Language::Monograph(domain, Documentation::get_empty()) {}
+
+  constexpr auto get_name() const -> View::Bytes override {
+    return "LessMonograph"_view;
+  }
+
+  constexpr auto resolve_context(View::Bytes) const
+      -> const Abstract& override {
+    return Invalid::get_invalid();
+  }
+};
+
+static auto link_operation(
+    Operation& operation,
+    LessMonograph& source,
+    Materializations& materializations) -> Bool {
+  return operation.link(source, Invalid::get_invalid(), materializations);
+}
+
 class LessExpression : public Expression {
  public:
   LessExpression(View::Bytes name, const Abstract& type)
-      : name(name), type(type) {}
+      : Expression({}), name(name), type(type) {}
 
   auto get_name() const -> View::Bytes override { return name; }
   auto get_documentation() const -> const Documentation& override {
@@ -52,13 +75,18 @@ class LessExpression : public Expression {
   Ttx::Model::Layouts::Fluid inputs;
 };
 
-static auto selected(const Result<const Expression&, FoldError>& result)
-    -> Option<const Expression&> {
+static auto selected(
+    const Result<Option<Expression&>, Expression::Error>& result)
+    -> Option<Expression&> {
   return result.visit(
-      [](const Expression& expression) -> Option<const Expression&> {
-        return expression;
+      [](const Option<Expression&>& folded) -> Option<Expression&> {
+        return folded.visit(
+            []() -> Option<Expression&> { return {}; },
+            [](Expression& selected) -> Option<Expression&> {
+              return selected;
+            });
       },
-      [](const FoldError&) -> Option<const Expression&> { return {}; });
+      [](const Expression::Error&) -> Option<Expression&> { return {}; });
 }
 
 static auto input_is(
@@ -74,6 +102,7 @@ static auto input_is(
 
 PERIMORTEM_UNIT_TEST(LibraryLess, type_selection_and_partial) {
   Allocator::Arena domain;
+  LessMonograph source(domain);
   Materializations materializations(domain);
   Types::Unsigned_8 unsigned_8;
   Types::Unsigned_16 unsigned_16;
@@ -91,27 +120,53 @@ PERIMORTEM_UNIT_TEST(LibraryLess, type_selection_and_partial) {
   LessExpression real_left("real"_view, real_32);
   LessExpression real_right("real right"_view, real_32);
   LessExpression unresolved("unresolved"_view, Invalid::get_invalid());
-  Constants::Unsigned wide_constant(unsigned_64, 12);
-  Constants::Unsigned other_constant(unsigned_16, 12);
-  Constants::True truth(Tetrodotoxin::Library::Dialect::get_bool());
-  Constants::Bytes bytes(bytes_type, "x"_view);
-  Operations::Less exact(domain, left, same);
-  Operations::Less mixed_left(domain, wide_constant, left);
-  Operations::Less mismatch(domain, left, other);
-  Operations::Less mixed_constants(domain, wide_constant, other_constant);
-  Operations::Less signed_exact(domain, signed_left, signed_right);
-  Operations::Less real_exact(domain, real_left, real_right);
-  Operations::Less flags(domain, truth, truth);
-  Operations::Less byte_values(domain, bytes, bytes);
-  Operations::Less invalid(domain, unresolved, same);
-  auto exact_result = selected(exact.attempt_fold(domain, materializations));
+  auto& wide_constant =
+      Constants::Unsigned::create_synthetic(domain, unsigned_64, 12);
+  auto& other_constant =
+      Constants::Unsigned::create_synthetic(domain, unsigned_16, 12);
+  auto& truth = Constants::True::create_synthetic(
+      domain, Tetrodotoxin::Library::Dialect::get_bool());
+  auto& bytes =
+      Constants::Bytes::create_synthetic(domain, bytes_type, "x"_view);
+  auto& exact =
+      Operations::Less::create_synthetic(domain, materializations, left, same);
+  auto& mixed_left = Operations::Less::create_synthetic(
+      domain, materializations, wide_constant, left);
+  auto& mismatch =
+      Operations::Less::create_synthetic(domain, materializations, left, other);
+  auto& mixed_constants = Operations::Less::create_synthetic(
+      domain, materializations, wide_constant, other_constant);
+  auto& signed_exact = Operations::Less::create_synthetic(
+      domain, materializations, signed_left, signed_right);
+  auto& real_exact = Operations::Less::create_synthetic(
+      domain, materializations, real_left, real_right);
+  auto& flags = Operations::Less::create_synthetic(
+      domain, materializations, truth, truth);
+  auto& byte_values = Operations::Less::create_synthetic(
+      domain, materializations, bytes, bytes);
+  auto& invalid = Operations::Less::create_synthetic(
+      domain, materializations, unresolved, same);
+
+  EXPECT(exact.get_type().resolve().is<Invalid>());
+  EXPECT_NOT(exact.get_anchor());
+  EXPECT(link_operation(exact, source, materializations));
+  EXPECT(!link_operation(mixed_left, source, materializations));
+  EXPECT(!link_operation(mismatch, source, materializations));
+  EXPECT(!link_operation(mixed_constants, source, materializations));
+  EXPECT(link_operation(signed_exact, source, materializations));
+  EXPECT(link_operation(real_exact, source, materializations));
+  EXPECT(!link_operation(flags, source, materializations));
+  EXPECT(!link_operation(byte_values, source, materializations));
+  EXPECT(!link_operation(invalid, source, materializations));
+
+  auto exact_result = selected(exact.fold());
 
   EXPECT(&exact.get_type() == &Tetrodotoxin::Library::Dialect::get_bool());
   EXPECT(mixed_left.get_type().resolve().is<Invalid>());
   EXPECT(
       &signed_exact.get_type() == &Tetrodotoxin::Library::Dialect::get_bool());
   EXPECT(&real_exact.get_type() == &Tetrodotoxin::Library::Dialect::get_bool());
-  EXPECT(exact_result && &*exact_result == &exact);
+  EXPECT_NOT(exact_result);
   EXPECT(mismatch.get_type().resolve().is<Invalid>());
   EXPECT(mixed_constants.get_type().resolve().is<Invalid>());
   EXPECT(flags.get_type().resolve().is<Invalid>());
@@ -123,25 +178,34 @@ PERIMORTEM_UNIT_TEST(LibraryLess, type_selection_and_partial) {
 
 PERIMORTEM_UNIT_TEST(LibraryLess, integer_ordering) {
   Allocator::Arena domain;
+  LessMonograph source(domain);
   Materializations materializations(domain);
   Types::Unsigned_8 unsigned_type;
   Types::Signed_8 signed_type;
-  Constants::Unsigned zero(unsigned_type, 0);
-  Constants::Unsigned one(unsigned_type, 1);
-  Constants::Signed minimum(signed_type, -128);
-  Constants::Signed maximum(signed_type, 127);
-  Operations::Less unsigned_true(domain, zero, one);
-  Operations::Less unsigned_false(domain, one, zero);
-  Operations::Less signed_true(domain, minimum, maximum);
-  Operations::Less signed_false(domain, maximum, minimum);
-  auto unsigned_yes =
-      selected(unsigned_true.attempt_fold(domain, materializations));
-  auto unsigned_no =
-      selected(unsigned_false.attempt_fold(domain, materializations));
-  auto signed_yes =
-      selected(signed_true.attempt_fold(domain, materializations));
-  auto signed_no =
-      selected(signed_false.attempt_fold(domain, materializations));
+  auto& zero = Constants::Unsigned::create_synthetic(domain, unsigned_type, 0);
+  auto& one = Constants::Unsigned::create_synthetic(domain, unsigned_type, 1);
+  auto& minimum =
+      Constants::Signed::create_synthetic(domain, signed_type, -128);
+  auto& maximum = Constants::Signed::create_synthetic(domain, signed_type, 127);
+  auto& unsigned_true =
+      Operations::Less::create_synthetic(domain, materializations, zero, one);
+  auto& unsigned_false =
+      Operations::Less::create_synthetic(domain, materializations, one, zero);
+  auto& signed_true = Operations::Less::create_synthetic(
+      domain, materializations, minimum, maximum);
+  auto& signed_false = Operations::Less::create_synthetic(
+      domain, materializations, maximum, minimum);
+
+  EXPECT(unsigned_true.get_type().resolve().is<Invalid>());
+  EXPECT(link_operation(unsigned_true, source, materializations));
+  EXPECT(link_operation(unsigned_false, source, materializations));
+  EXPECT(link_operation(signed_true, source, materializations));
+  EXPECT(link_operation(signed_false, source, materializations));
+
+  auto unsigned_yes = selected(unsigned_true.fold());
+  auto unsigned_no = selected(unsigned_false.fold());
+  auto signed_yes = selected(signed_true.fold());
+  auto signed_no = selected(signed_false.fold());
 
   ASSERT(unsigned_yes && unsigned_no && signed_yes && signed_no);
   EXPECT(unsigned_yes->is<Constants::True>());
@@ -155,22 +219,35 @@ PERIMORTEM_UNIT_TEST(LibraryLess, integer_ordering) {
 
 PERIMORTEM_UNIT_TEST(LibraryLess, ieee_ordering) {
   Allocator::Arena domain;
+  LessMonograph source(domain);
   Materializations materializations(domain);
   Types::Real_32 real_32;
   Types::Real_64 real_64;
-  Constants::Real narrow_left(real_32, Real_64(1.1));
-  Constants::Real narrow_right(real_32, Real_64(2.2));
-  Constants::Real finite(real_64, Real_64(4.0));
-  Constants::Real infinity(real_64, __builtin_inf());
-  Constants::Real nan(real_64, __builtin_nan(""));
-  Operations::Less narrow(domain, narrow_left, narrow_right);
-  Operations::Less infinite(domain, infinity, finite);
-  Operations::Less unordered(domain, nan, finite);
-  auto narrow_result = selected(narrow.attempt_fold(domain, materializations));
-  auto infinite_result =
-      selected(infinite.attempt_fold(domain, materializations));
-  auto unordered_result =
-      selected(unordered.attempt_fold(domain, materializations));
+  auto& narrow_left =
+      Constants::Real::create_synthetic(domain, real_32, Real_64(1.1));
+  auto& narrow_right =
+      Constants::Real::create_synthetic(domain, real_32, Real_64(2.2));
+  auto& finite =
+      Constants::Real::create_synthetic(domain, real_64, Real_64(4.0));
+  auto& infinity =
+      Constants::Real::create_synthetic(domain, real_64, __builtin_inf());
+  auto& nan =
+      Constants::Real::create_synthetic(domain, real_64, __builtin_nan(""));
+  auto& narrow = Operations::Less::create_synthetic(
+      domain, materializations, narrow_left, narrow_right);
+  auto& infinite = Operations::Less::create_synthetic(
+      domain, materializations, infinity, finite);
+  auto& unordered =
+      Operations::Less::create_synthetic(domain, materializations, nan, finite);
+
+  EXPECT(narrow.get_type().resolve().is<Invalid>());
+  EXPECT(link_operation(narrow, source, materializations));
+  EXPECT(link_operation(infinite, source, materializations));
+  EXPECT(link_operation(unordered, source, materializations));
+
+  auto narrow_result = selected(narrow.fold());
+  auto infinite_result = selected(infinite.fold());
+  auto unordered_result = selected(unordered.fold());
 
   ASSERT(narrow_result && infinite_result && unordered_result);
   EXPECT(narrow_result->is<Constants::True>());
@@ -180,20 +257,29 @@ PERIMORTEM_UNIT_TEST(LibraryLess, ieee_ordering) {
 
 PERIMORTEM_UNIT_TEST(LibraryLess, recursive_exact_is_idempotent) {
   Allocator::Arena domain;
+  LessMonograph source(domain);
   Materializations materializations(domain);
   Types::Unsigned_8 selected_type;
-  Constants::Unsigned two(selected_type, 2);
-  Constants::Unsigned five(selected_type, 5);
-  Operations::Multiply child(domain, two, two);
-  Operations::Less less(domain, child, five);
-  auto first = selected(less.attempt_fold(domain, materializations));
-  auto second = selected(less.attempt_fold(domain, materializations));
-  auto child_result = selected(child.attempt_fold(domain, materializations));
+  auto& two = Constants::Unsigned::create_synthetic(domain, selected_type, 2);
+  auto& five = Constants::Unsigned::create_synthetic(domain, selected_type, 5);
+  auto& child = Operations::Multiply::create_synthetic(
+      domain, materializations, two, two);
+  auto& less =
+      Operations::Less::create_synthetic(domain, materializations, child, five);
+
+  EXPECT(less.get_type().resolve().is<Invalid>());
+  EXPECT(link_operation(less, source, materializations));
+  EXPECT(link_operation(less, source, materializations));
+  EXPECT(&less.get_type() == &Tetrodotoxin::Library::Dialect::get_bool());
+
+  auto first = selected(less.fold());
+  auto second = selected(less.fold());
+  auto child_result = selected(child.fold());
 
   ASSERT(first && second && child_result);
   EXPECT(&*first == &*second);
   EXPECT(first->is<Constants::True>());
   EXPECT(&first->get_type() == &Tetrodotoxin::Library::Dialect::get_bool());
-  EXPECT(input_is(less, 0, *child_result));
+  EXPECT(input_is(less, 0, child));
   EXPECT(input_is(less, 1, five));
 }

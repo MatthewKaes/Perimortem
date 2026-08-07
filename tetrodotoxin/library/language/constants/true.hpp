@@ -17,12 +17,32 @@ class True : public Flag {
     0x935e114a9c2fc915,
   };
 
-  constexpr True(const Ttx::Model::Types::Flag& type) : Flag(type, ::True) {}
+  static auto create_authored(
+      Perimortem::Memory::Allocator::Arena& domain,
+      const Ttx::Model::Types::Flag& type,
+      Ttx::Lexical::Anchor anchor) -> True& {
+    return Expression::create_authored<True>(
+        domain, anchor,
+        [&](auto source) -> True { return True(type, source); });
+  }
+
+  static auto create_synthetic(
+      Perimortem::Memory::Allocator::Arena& domain,
+      const Ttx::Model::Types::Flag& type) -> True& {
+    return Expression::create_synthetic<True>(
+        domain, [&](auto source) -> True { return True(type, source); });
+  }
 
   constexpr auto implements(Perimortem::System::Uuid requested) const
       -> Bool override {
     return requested == contract_id || Flag::implements(requested);
   }
+
+ private:
+  constexpr True(
+      const Ttx::Model::Types::Flag& type,
+      Perimortem::Utility::Option<Ttx::Lexical::Anchor> anchor)
+      : Flag(type, ::True, anchor) {}
 };
 
 }  // namespace Tetrodotoxin::Library::Language::Constants

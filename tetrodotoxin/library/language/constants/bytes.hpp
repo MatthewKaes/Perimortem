@@ -23,8 +23,24 @@ class Bytes : public Constant {
     0xb723464db6c29666,
   };
 
-  constexpr Bytes(const Ttx::Model::Type& type, Value value)
-      : type(type), value(value) {}
+  static auto create_authored(
+      Perimortem::Memory::Allocator::Arena& domain,
+      const Ttx::Model::Type& type,
+      Value value,
+      Ttx::Lexical::Anchor anchor) -> Bytes& {
+    return Expression::create_authored<Bytes>(
+        domain, anchor,
+        [&](auto source) -> Bytes { return Bytes(type, value, source); });
+  }
+
+  static auto create_synthetic(
+      Perimortem::Memory::Allocator::Arena& domain,
+      const Ttx::Model::Type& type,
+      Value value) -> Bytes& {
+    return Expression::create_synthetic<Bytes>(
+        domain,
+        [&](auto source) -> Bytes { return Bytes(type, value, source); });
+  }
 
   constexpr auto implements(Perimortem::System::Uuid requested) const
       -> Bool override {
@@ -48,6 +64,12 @@ class Bytes : public Constant {
   }
 
  private:
+  constexpr Bytes(
+      const Ttx::Model::Type& type,
+      Value value,
+      Perimortem::Utility::Option<Ttx::Lexical::Anchor> anchor)
+      : Constant(anchor), type(type), value(value) {}
+
   const Ttx::Model::Type& type;
   Value value;
 };

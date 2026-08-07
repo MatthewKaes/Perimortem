@@ -10,12 +10,13 @@ using namespace Ttx::Lexical;
 using namespace Tetrodotoxin;
 
 Environment::Retention::Entry::Entry(
-    Language::Dialect::Monograph& monograph,
+    Language::Monograph& monograph,
     Option<Origin> origin)
     : monograph(monograph),
       origin_path(),
       origin_body(),
       origin_span(),
+      next_diagnostic(0),
       has_origin(False) {
   origin.visit(
       []() {},
@@ -28,7 +29,7 @@ Environment::Retention::Entry::Entry(
 }
 
 auto Environment::Retention::Entry::get_monograph() const
-    -> Language::Dialect::Monograph& {
+    -> Language::Monograph& {
   return monograph;
 }
 
@@ -40,8 +41,16 @@ auto Environment::Retention::Entry::get_origin() const -> Option<Origin> {
   return Origin(origin_path, origin_body, origin_span);
 }
 
+auto Environment::Retention::Entry::get_next_diagnostic() const -> Count {
+  return next_diagnostic;
+}
+
+auto Environment::Retention::Entry::consume_diagnostics(Count count) -> void {
+  next_diagnostic = count;
+}
+
 Environment::Retention::Retention(Allocator::Arena& arena)
-    : entries(arena), next_to_complete(0) {}
+    : entries(arena), range_start(0), range_end(0), stage(Stage::Staging) {}
 
 Environment::Retention::~Retention() {
   for (Count i = 0; i < entries.get_size(); i++) {
@@ -50,11 +59,15 @@ Environment::Retention::~Retention() {
 }
 
 auto Environment::Retention::retain(
-    Language::Dialect::Monograph& monograph,
-    Option<Origin> origin) -> void {
+    Language::Monograph& monograph,
+    Option<Origin> origin) -> Bool {
+  if (stage == Stage::Linked) {
+    return False;
+  }
+
   for (Count i = 0; i < entries.get_size(); i++) {
     if (&entries[i].get_monograph() == &monograph) {
-      return;
+      return True;
     }
   }
 
@@ -62,6 +75,7 @@ auto Environment::Retention::retain(
   // aligned even when a restore attempt retains only part of its graph.
   Entry retained(monograph, origin);
   entries.insert(retained);
+  return True;
 }
 
 auto Environment::Retention::get_size() const -> Count {
@@ -69,7 +83,7 @@ auto Environment::Retention::get_size() const -> Count {
 }
 
 auto Environment::Retention::get_monograph(Count index) const
-    -> Language::Dialect::Monograph& {
+    -> Language::Monograph& {
   return entries.at(index).get_monograph();
 }
 
@@ -78,7 +92,7 @@ auto Environment::Retention::get_origin(Count index) const -> Option<Origin> {
 }
 
 auto Environment::Retention::find_origin(
-    const Language::Dialect::Monograph& monograph) const -> Option<Origin> {
+    const Language::Monograph& monograph) const -> Option<Origin> {
   for (Count i = 0; i < entries.get_size(); i++) {
     const Entry& retained = entries.at(i);
     if (&retained.get_monograph() == &monograph) {
@@ -89,31 +103,90 @@ auto Environment::Retention::find_origin(
   return {};
 }
 
-auto Environment::Retention::complete(Errors& errors) -> Bool {
-  // Advance immediately after every call. A failed concrete hook remains part
-  // of the completed prefix and cannot run again during a later import.
-  Bool completed = True;
-  while (next_to_complete < entries.get_size()) {
-    Entry& retained = entries[next_to_complete];
-    Bool passed = retained.get_monograph().post_pass();
-    next_to_complete++;
-    if (passed) {
-      continue;
-    }
+auto Environment::Retention::has_staged() const -> Bool {
+  return stage == Stage::Staging && range_start < entries.get_size();
+}
 
-    // Binary restored state has no authored Origin. Its concrete owner keeps
-    // graph detail in its own log, while authored state receives a Report from
-    // the exact retained bytes.
-    retained.get_origin().visit(
+auto Environment::Retention::awaits_finalize() const -> Bool {
+  return stage == Stage::Linked;
+}
+
+auto Environment::Retention::render_diagnostics(Errors& errors, Entry& entry)
+    -> void {
+  View::Vector<Language::Diagnostic> diagnostics =
+      entry.get_monograph().get_diagnostics();
+  Count first = entry.get_next_diagnostic();
+  for (Count i = first; i < diagnostics.get_size(); i++) {
+    const Language::Diagnostic& diagnostic = diagnostics.get_data()[i];
+    entry.get_origin().visit(
         []() {},
         [&](const Origin& origin) {
+          // A restored Monograph owns no source coordinate. Its borrowed Origin
+          // inherits the nearest authored dependency boundary for presentation.
+          Anchor anchor = diagnostic.get_anchor().visit(
+              [&]() { return Anchor::create(origin.get_span()); },
+              [](const Anchor& selected) { return selected; });
+
           Errors::Report report(
-              errors, origin.get_path(), origin.get_body(), origin.get_span());
-          report << "Semantic completion failed for "_view
-                 << retained.get_monograph().get_name() << '.';
+              errors, origin.get_path(), origin.get_body(), anchor);
+          report << diagnostic.get_message();
+          if (!diagnostic.get_hint().is_empty()) {
+            report.get_hint() << diagnostic.get_hint();
+          }
         });
-    completed = False;
   }
 
-  return completed;
+  entry.consume_diagnostics(diagnostics.get_size());
+}
+
+auto Environment::Retention::consume_range() -> void {
+  range_start = range_end;
+  stage = Stage::Staging;
+}
+
+auto Environment::Retention::link(Errors& errors) -> Bool {
+  if (stage != Stage::Staging || !has_staged()) {
+    return False;
+  }
+
+  // Freeze before the first hook. A linked Monograph cannot grow this range or
+  // make a later discovery escape the all links before finalization barrier.
+  range_end = entries.get_size();
+  stage = Stage::Linked;
+  Bool failed = False;
+  for (Count i = range_start; i < range_end; i++) {
+    Entry& entry = entries[i];
+    Bool linked = entry.get_monograph().link();
+    render_diagnostics(errors, entry);
+    failed |= !linked;
+  }
+
+  if (failed) {
+    consume_range();
+    return False;
+  }
+
+  return True;
+}
+
+auto Environment::Retention::finalize(Errors& errors) -> Bool {
+  if (stage != Stage::Linked) {
+    return False;
+  }
+
+  Bool failed = False;
+  for (Count i = range_start; i < range_end; i++) {
+    Entry& entry = entries[i];
+    Bool finalized = entry.get_monograph().finalize();
+    render_diagnostics(errors, entry);
+    failed |= !finalized;
+  }
+
+  consume_range();
+  return !failed;
+}
+
+auto Environment::Retention::abandon() -> void {
+  range_end = stage == Stage::Linked ? range_end : entries.get_size();
+  consume_range();
 }

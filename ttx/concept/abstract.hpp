@@ -75,6 +75,17 @@ class Abstract {
   template <typename Requested, typename MatchVisitor, typename MismatchVisitor>
   constexpr auto visit(
       MatchVisitor match_visitor,
+      MismatchVisitor mismatch_visitor) -> decltype(auto) {
+    if (is<Requested>()) {
+      return match_visitor(static_cast<Requested&>(*this));
+    }
+
+    return mismatch_visitor(*this);
+  }
+
+  template <typename Requested, typename MatchVisitor, typename MismatchVisitor>
+  constexpr auto visit(
+      MatchVisitor match_visitor,
       MismatchVisitor mismatch_visitor) const -> decltype(auto) {
     if (is<Requested>()) {
       return match_visitor(static_cast<const Requested&>(*this));

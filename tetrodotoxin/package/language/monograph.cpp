@@ -57,7 +57,6 @@ static auto is_resource_instruction(View::Bytes route) -> Bool {
 auto Package::Language::Monograph::create_authored(
     Allocator::Arena& domain,
     const Documentation& documentation,
-    Tetrodotoxin::Language::Dialect& host,
     View::Vector<Dependency> dependencies,
     View::Vector<Span> dependency_spans,
     View::Vector<Source> sources) -> Option<Monograph&> {
@@ -66,19 +65,21 @@ auto Package::Language::Monograph::create_authored(
     return {};
   }
 
-  return domain.construct<Monograph>(
-      Construction(), domain, documentation, host, dependencies,
-      dependency_spans, sources);
+  return domain.construct_from<Monograph>([&]() -> Monograph {
+    return Monograph(
+        domain, documentation, dependencies, dependency_spans, sources);
+  });
 }
 
-auto Package::Language::Monograph::create_source_free(
+auto Package::Language::Monograph::create_synthetic(
     Allocator::Arena& domain,
     const Documentation& documentation,
-    Tetrodotoxin::Language::Dialect& host,
     View::Vector<Dependency> dependencies) -> Monograph& {
-  Monograph& monograph = domain.construct<Monograph>(
-      Construction(), domain, documentation, host, dependencies,
-      View::Vector<Span>(), View::Vector<Source>());
+  Monograph& monograph = domain.construct_from<Monograph>([&]() -> Monograph {
+    return Monograph(
+        domain, documentation, dependencies, View::Vector<Span>(),
+        View::Vector<Source>());
+  });
 
   // Restored Packages have no authored route acquisition phase. Seal before
   // publishing the Monograph so later owners cannot attach physical Storage.
@@ -87,24 +88,22 @@ auto Package::Language::Monograph::create_source_free(
 }
 
 Package::Language::Monograph::Monograph(
-    Construction,
     Allocator::Arena& domain,
     const Documentation& documentation,
-    Tetrodotoxin::Language::Dialect& host,
     View::Vector<Dependency> dependencies,
     View::Vector<Span> dependency_spans,
     View::Vector<Source> sources)
-    : Tetrodotoxin::Language::Dialect::Monograph(domain, documentation, host),
+    : Tetrodotoxin::Language::Monograph(domain, documentation),
       dependencies(dependencies),
       dependency_spans(dependency_spans),
       sources(sources),
-      resources(domain),
+      resources(domain.construct<Package::Resources>(domain)),
       members(domain),
       bindings(domain) {}
 
 auto Package::Language::Monograph::bind_member(
     View::Bytes local_name,
-    const Tetrodotoxin::Language::Dialect::Monograph& member) -> Bool {
+    const Tetrodotoxin::Language::Monograph& member) -> Bool {
   // Every rejection happens before either inventory changes, so exact lookup
   // and member order preserve the first completed edge.
   if (local_name.is_empty() || has_dependency_name(dependencies, local_name) ||
@@ -171,7 +170,7 @@ auto Package::Language::Monograph::get_sources() const -> View::Vector<Source> {
 }
 
 auto Package::Language::Monograph::get_members() const
-    -> View::Vector<Reference<Alias>> {
+    -> View::Vector<Reference<const Alias>> {
   return members;
 }
 

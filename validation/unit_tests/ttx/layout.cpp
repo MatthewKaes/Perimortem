@@ -116,7 +116,7 @@ static auto reports(
 PERIMORTEM_UNIT_TEST(TtxLayout, fluid_order) {
   LayoutType real("Real_32"_view);
   LayoutType bits("Unsigned_32"_view);
-  const Static::Vector<Reference<Abstract>, 2> values = {{real, bits}};
+  const Static::Vector<Reference<const Abstract>, 2> values = {{real, bits}};
   Fluid layout(values);
 
   EXPECT_EQ(layout.get_size(), Count(2));
@@ -130,7 +130,7 @@ PERIMORTEM_UNIT_TEST(TtxLayout, structured_fields) {
   LayoutType bits("Unsigned_32"_view);
   LayoutField x("x"_view, real);
   LayoutField y("y"_view, bits);
-  const Static::Vector<Reference<Addressable>, 2> fields = {{x, y}};
+  const Static::Vector<Reference<const Addressable>, 2> fields = {{x, y}};
   Structured layout(fields);
 
   EXPECT_EQ(layout.get_size(), Count(2));
@@ -172,7 +172,7 @@ PERIMORTEM_UNIT_TEST(TtxLayout, composite_components) {
   Alias second("second"_view, byte);
   Alias third("third"_view, byte);
   Alias fourth("fourth"_view, byte);
-  const Static::Vector<Reference<Abstract>, 4> values = {{
+  const Static::Vector<Reference<const Abstract>, 4> values = {{
     first,
     second,
     third,
@@ -208,8 +208,9 @@ PERIMORTEM_UNIT_TEST(TtxLayout, composite_fitting) {
   LayoutField y("y"_view, bits);
   Alias named_x("x"_view, real);
   Alias named_y("y"_view, bits);
-  const Static::Vector<Reference<Addressable>, 2> fields = {{x, y}};
-  const Static::Vector<Reference<Abstract>, 2> values = {{named_y, named_x}};
+  const Static::Vector<Reference<const Addressable>, 2> fields = {{x, y}};
+  const Static::Vector<Reference<const Abstract>, 2> values = {
+    {named_y, named_x}};
   Ranged source_prefix(byte, 2);
   Ranged target_prefix(byte, 2);
   Named source_suffix(values);
@@ -229,9 +230,11 @@ PERIMORTEM_UNIT_TEST(TtxLayout, fitting_contracts) {
   LayoutField y("y"_view, bits);
   Alias named_x("x"_view, real);
   Alias named_y("y"_view, bits);
-  const Static::Vector<Reference<Addressable>, 2> fields = {{x, y}};
-  const Static::Vector<Reference<Abstract>, 2> positional = {{real, bits}};
-  const Static::Vector<Reference<Abstract>, 2> reordered = {{named_y, named_x}};
+  const Static::Vector<Reference<const Addressable>, 2> fields = {{x, y}};
+  const Static::Vector<Reference<const Abstract>, 2> positional = {
+    {real, bits}};
+  const Static::Vector<Reference<const Abstract>, 2> reordered = {
+    {named_y, named_x}};
   Structured structured(fields);
   Fluid fluid(positional);
   Named named(reordered);
@@ -255,9 +258,11 @@ PERIMORTEM_UNIT_TEST(TtxLayout, named_ambiguity) {
   Alias first("x"_view, real);
   Alias duplicate("x"_view, bits);
   Alias unnamed({}, real);
-  const Static::Vector<Reference<Addressable>, 2> fields = {{x, y}};
-  const Static::Vector<Reference<Abstract>, 2> values = {{first, duplicate}};
-  const Static::Vector<Reference<Abstract>, 2> empty_names = {{first, unnamed}};
+  const Static::Vector<Reference<const Addressable>, 2> fields = {{x, y}};
+  const Static::Vector<Reference<const Abstract>, 2> values = {
+    {first, duplicate}};
+  const Static::Vector<Reference<const Abstract>, 2> empty_names = {
+    {first, unnamed}};
   Structured structured(fields);
   Named named(values);
   Named nameless(empty_names);
@@ -274,9 +279,12 @@ PERIMORTEM_UNIT_TEST(TtxLayout, structured_identity) {
   LayoutType real("Real_32"_view);
   LayoutField first_x("x"_view, real);
   LayoutField second_x("x"_view, real);
-  const Static::Vector<Reference<Addressable>, 1> first_fields = {{first_x}};
-  const Static::Vector<Reference<Addressable>, 1> same_fields = {{first_x}};
-  const Static::Vector<Reference<Addressable>, 1> other_fields = {{second_x}};
+  const Static::Vector<Reference<const Addressable>, 1> first_fields = {
+    {first_x}};
+  const Static::Vector<Reference<const Addressable>, 1> same_fields = {
+    {first_x}};
+  const Static::Vector<Reference<const Addressable>, 1> other_fields = {
+    {second_x}};
   Structured first(first_fields);
   Structured same(same_fields);
   Structured other(other_fields);

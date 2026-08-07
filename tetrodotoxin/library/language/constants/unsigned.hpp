@@ -20,8 +20,24 @@ class Unsigned : public Constant {
     0xb2b28b158d5034d8,
   };
 
-  constexpr Unsigned(const Ttx::Model::Types::Unsigned& type, Value value)
-      : type(type), value(value) {}
+  static auto create_authored(
+      Perimortem::Memory::Allocator::Arena& domain,
+      const Ttx::Model::Types::Unsigned& type,
+      Value value,
+      Ttx::Lexical::Anchor anchor) -> Unsigned& {
+    return Expression::create_authored<Unsigned>(
+        domain, anchor,
+        [&](auto source) -> Unsigned { return Unsigned(type, value, source); });
+  }
+
+  static auto create_synthetic(
+      Perimortem::Memory::Allocator::Arena& domain,
+      const Ttx::Model::Types::Unsigned& type,
+      Value value) -> Unsigned& {
+    return Expression::create_synthetic<Unsigned>(
+        domain,
+        [&](auto source) -> Unsigned { return Unsigned(type, value, source); });
+  }
 
   constexpr auto implements(Perimortem::System::Uuid requested) const
       -> Bool override {
@@ -69,6 +85,12 @@ class Unsigned : public Constant {
   }
 
  private:
+  constexpr Unsigned(
+      const Ttx::Model::Types::Unsigned& type,
+      Value value,
+      Perimortem::Utility::Option<Ttx::Lexical::Anchor> anchor)
+      : Constant(anchor), type(type), value(value) {}
+
   const Ttx::Model::Types::Unsigned& type;
   Value value;
 };

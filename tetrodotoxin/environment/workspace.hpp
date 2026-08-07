@@ -5,6 +5,7 @@
 
 #include "perimortem/memory/allocator/arena.hpp"
 #include "perimortem/memory/managed/map.hpp"
+#include "perimortem/memory/managed/vector.hpp"
 
 #include "perimortem/system/version.hpp"
 
@@ -32,19 +33,24 @@ class Workspace : public Ttx::Concept::Abstract {
     return dialects.install<TargetDialect>(name);
   }
 
-  // Imports caller owned source bytes and publishes the resulting Monograph
-  // under its exact Workspace global semantic name.
-  auto import_source(
+  // Interprets caller owned source bytes into the current staged range. Raw
+  // lookup exposes staged identity while persistent publication waits for
+  // separate link and finalize barriers.
+  auto interpret_source(
       Ttx::Lexical::Errors& errors,
       Perimortem::Core::View::Bytes semantic_name,
       Perimortem::Core::View::Bytes diagnostic_path,
       Perimortem::Core::View::Bytes contents)
-      -> Perimortem::Utility::Option<Language::Dialect::Monograph&>;
+      -> Perimortem::Utility::Option<Language::Monograph&>;
+
+  auto link(Ttx::Lexical::Errors& errors) -> Bool;
+  auto finalize(Ttx::Lexical::Errors& errors) -> Bool;
+  auto abandon() -> void;
 
   // Imports one confined Package island and resolves exact semantic Archives
   // from the explicit Repository. Result returns the completed root or one
-  // failure category. Unknown covers diagnosed staging, restoration, and post
-  // pass failures that have no narrower Repository selection category.
+  // failure category. Unknown covers diagnosed staging, restoration, linking,
+  // and finalization failures with no narrower Repository selection category.
   auto import_package(
       Ttx::Lexical::Errors& errors,
       Perimortem::Core::View::Bytes package_root,
@@ -52,10 +58,8 @@ class Workspace : public Ttx::Concept::Abstract {
       Perimortem::Core::View::Bytes root_logical_route,
       Perimortem::Core::View::Bytes root_package_identity,
       Perimortem::System::Version root_package_version,
-      Package::Repository::Repository& repository)
-      -> Perimortem::Utility::Result<
-          Language::Dialect::Monograph&,
-          Package::Repository::SelectionError>;
+      Package::Repository::Repository& repository) -> Perimortem::Utility::
+      Result<Language::Monograph&, Package::Repository::SelectionError>;
 
   auto get_name() const -> Perimortem::Core::View::Bytes override;
   auto get_documentation() const -> const Ttx::Concept::Documentation& override;
@@ -64,16 +68,33 @@ class Workspace : public Ttx::Concept::Abstract {
       -> const Ttx::Concept::Abstract& override;
 
  private:
+  class StagedPublication {
+   public:
+    StagedPublication(
+        Perimortem::Core::View::Bytes name,
+        Language::Monograph& monograph);
+
+    auto get_name() const -> Perimortem::Core::View::Bytes;
+    auto get_monograph() const -> Language::Monograph&;
+
+   private:
+    Perimortem::Core::View::Bytes name;
+    Language::Monograph& monograph;
+  };
+
   // Package Storage already uses this Arena. Its retained path and body views
   // can therefore enter the same source transaction without another copy.
-  auto import_retained_source(
+  auto interpret_retained_source(
       Ttx::Lexical::Errors& errors,
       Perimortem::Core::View::Bytes semantic_name,
       Perimortem::Core::View::Bytes diagnostic_path,
       Perimortem::Core::View::Bytes contents,
       Ttx::Concept::Abstract& interpretation_context,
-      Bool publish_globally)
-      -> Perimortem::Utility::Option<Language::Dialect::Monograph&>;
+      Bool stage_globally) -> Perimortem::Utility::Option<Language::Monograph&>;
+
+  auto has_staged_name(Perimortem::Core::View::Bytes name) const -> Bool;
+  auto publish_staged() -> void;
+  auto discard_staged() -> void;
 
   // Declaration order is lifetime order. Reverse destruction releases
   // Resolution first, then Monographs, then their host Dialects, then Arena
@@ -83,8 +104,9 @@ class Workspace : public Ttx::Concept::Abstract {
   Retention retention;
   Resolution resolution;
   Perimortem::Memory::Managed::
-      Map<Perimortem::Core::View::Bytes, Language::Dialect::Monograph&>
+      Map<Perimortem::Core::View::Bytes, Language::Monograph&>
           source_monographs;
+  Perimortem::Memory::Managed::Vector<StagedPublication> staged_publications;
 };
 
 }  // namespace Tetrodotoxin::Environment

@@ -3,6 +3,7 @@
 
 #include "tetrodotoxin/library/language/parser/expression.hpp"
 
+#include "tetrodotoxin/library/language/identifier.hpp"
 #include "tetrodotoxin/library/language/operations/divide.hpp"
 #include "tetrodotoxin/library/language/operations/equal.hpp"
 #include "tetrodotoxin/library/language/operations/greater.hpp"
@@ -56,8 +57,20 @@ static auto parse_primary(
     Allocator::Arena& domain,
     Library::Language::Materializations& materializations,
     Cursor& cursor,
-    const Abstract& source_context)
-    -> Option<const Library::Language::Expression&> {
+    const Abstract& source_context) -> Option<Library::Language::Expression&> {
+  if (cursor.matches(Code::Type::Addressable)) {
+    Token token = cursor.consume();
+    Span span(token);
+    Anchor anchor = Anchor::create(token, span);
+
+    Perimortem::Core::View::Bytes route =
+        token.caculate_text(cursor.get_source_text());
+    auto& identifier =
+        Library::Language::Identifier::create_authored(domain, route, anchor);
+
+    return identifier;
+  }
+
   if (cursor.matches(Code::Type::NotOp)) {
     return Library::Language::Operations::Not::parse(
         domain, materializations, cursor, source_context);
@@ -90,7 +103,7 @@ static auto parse_expression(
     Library::Language::Materializations& materializations,
     Cursor& cursor,
     const Abstract& source_context,
-    Count minimum_precedence) -> Option<const Library::Language::Expression&> {
+    Count minimum_precedence) -> Option<Library::Language::Expression&> {
   auto primary =
       parse_primary(domain, materializations, cursor, source_context);
   if (!primary) {
@@ -227,7 +240,7 @@ auto Library::Language::Parser::Expression::parse(
     Allocator::Arena& domain,
     Materializations& materializations,
     Cursor& cursor,
-    const Abstract& source_context) -> Option<const Language::Expression&> {
+    const Abstract& source_context) -> Option<Language::Expression&> {
   auto transaction = cursor.branch();
   auto parsed = parse_expression(
       domain, materializations, transaction, source_context, 0);
@@ -246,7 +259,7 @@ auto Library::Language::Parser::Expression::parse_operand(
     Materializations& materializations,
     Cursor& cursor,
     const Abstract& source_context,
-    Code::Type operation) -> Option<const Language::Expression&> {
+    Code::Type operation) -> Option<Language::Expression&> {
   Count precedence = get_precedence(operation);
   if (precedence == 0) {
     return {};
@@ -268,7 +281,7 @@ auto Library::Language::Parser::Expression::parse_prefix_operand(
     Allocator::Arena& domain,
     Materializations& materializations,
     Cursor& cursor,
-    const Abstract& source_context) -> Option<const Language::Expression&> {
+    const Abstract& source_context) -> Option<Language::Expression&> {
   Errors operand_errors;
   auto transaction = cursor.branch(operand_errors);
   auto parsed = parse_expression(

@@ -88,7 +88,7 @@ PERIMORTEM_UNIT_TEST(TtxType, type_fields) {
   real.complete();
   TypeField x("x"_view, real);
   TypeField y("y"_view, real);
-  const Static::Vector<Reference<Addressable>, 2> fields = {{x, y}};
+  const Static::Vector<Reference<const Addressable>, 2> fields = {{x, y}};
   ResolvingType point("Point"_view, Structured(fields));
 
   EXPECT(&point.resolve() == &Invalid::get_invalid());

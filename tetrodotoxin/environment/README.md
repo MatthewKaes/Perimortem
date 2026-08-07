@@ -18,7 +18,7 @@ divide the remaining Environment state by lifetime and policy:
 * `Dialects` owns installed names, exact lookup, concrete Dialect instances,
   and host destruction order
 * `Retention` owns retained Monograph references, authored diagnostic origins,
-  first discovery order, the monotonic post pass prefix, and Monograph
+  first discovery order, frozen link and finalize ranges, and Monograph
   destruction
 * `Resolution` owns exact Package key traversal, source free Archive restore,
   Package root caching, Alias binding, and dependency failure attribution
@@ -54,9 +54,11 @@ normalization, and successful read caching. Workspace keeps each authored
 semantic name separate and supplies its Arena so every successful Content path
 and byte view remains valid for the semantic island lifetime.
 
-`import_source` copies each semantic name, diagnostic path, and source body
-into the Workspace Arena before interpretation. It returns the published
-Monograph reference on success. The staged Package operation opens Storage
+`interpret_source` copies each semantic name, diagnostic path, and source body
+into the Workspace Arena before interpretation. It returns the staged
+Monograph reference on success. The caller must separately link and finalize
+that range before its name becomes terminal publication. The staged Package
+operation opens Storage
 with that Arena and enters its retained Content views directly into the same
 semantic transaction. The private retained input path exists because a raw
 View does not identify its allocator. It avoids copying every Package source a
@@ -99,12 +101,15 @@ retain the semantic name, diagnostic path, and source bytes
 -> select the exact installed Dialect
 -> call its interpret operation with the same Cursor, Arena, and Workspace
    interpretation context
--> publish the semantic name only for an engaged Monograph
+-> retain the Monograph and stage its semantic name
+-> return so the caller can invoke the separate link and finalize barriers
 ```
 
 Failed envelope parsing, unknown Dialect dispatch, and failed interpretation
-publish no semantic name. Duplicate semantic imports leave the first Monograph
-unchanged, and a failed name may be retried.
+stage no semantic name. Duplicate semantic imports leave the first Monograph
+unchanged, and a failed name may be retried. Raw lookup can observe a staged
+identity so sources in the same batch can link forward. Link or finalize
+failure discards the staged publication, allowing the exact name to be retried.
 
 The local Package path receives the physical root, root semantic name, root
 logical route, exact Package identity and Version, explicit Repository, and
@@ -128,7 +133,10 @@ stage exact semantic name and package path
 -> reconstruct the source free Package root from envelope facts
 -> restore members through their installed Dialects in Archive order
 -> bind completed dependency and member Alias edges through that Package root
--> run each retained Monograph post pass once in first discovery order
+-> freeze the complete retained range
+-> link every Monograph once in first discovery order
+-> when all links succeed, finalize every Monograph once in that same order
+-> publish staged global names only after the complete range finalizes
 ```
 
 Environment owns the universal source envelope because it already owns the
@@ -142,8 +150,8 @@ model does not carry the original Source statement token. Envelope, dispatch,
 and interpretation failures with retained text remain source errors. Those
 failures do not stop later FIFO entries. The operation reports failure only for
 failures encountered during that call, so preexisting diagnostics do not
-reject an otherwise successful Package. A failed staging transaction completes
-its retained Monograph prefix but never enters dependency traversal. Resolution
+reject an otherwise successful Package. A failed staging transaction abandons
+its retained Monograph prefix and never enters dependency traversal. Resolution
 therefore receives only complete staged input.
 
 Resolution diagnoses exact active Package keys before selection. A completed
@@ -153,15 +161,18 @@ copies only durable Package identities, Dependencies and nested names, and
 member Alias names. Opaque payloads remain borrowed for the concrete Dialect
 restore call, which owns every durable fact it returns in the Workspace Arena.
 
-An authored Dependency failure uses its aligned Span. Source free descendants
-inherit that same source path, body, and Span while extending the exact Alias,
+An authored Dependency failure creates an Anchor from its aligned Span. Source
+free descendants inherit that same source path, body, and default opening
+focus while extending the exact Alias,
 identity, and Version chain. One chain publishes at most one lowest Report and
 independent authored Dependencies continue. A typed Repository failure without
-an authored Span creates no source Report. Resolution returns either the root
+an authored Anchor creates no source Report. Resolution returns either the root
 Monograph or a populated `SelectionError`. It preserves the first exact
-Repository category and uses `Unknown` when cycle, binding, restore, or post
-pass rejection has no Repository category. Post pass failures use the first
-retained diagnostic origin and do not stop later Monographs.
+Repository category and uses `Unknown` when cycle, binding, restore, link, or
+finalize rejection has no Repository category. Every hook in the active stage
+continues after an independent failure so later Monographs can publish their
+own diagnostics. Any link failure suppresses the complete finalize stage. Any
+finalize failure prevents terminal publication of the complete staged range.
 
 ## Registry query
 
@@ -172,7 +183,7 @@ semantic source name:
 
 ```text
 workspace.resolve_context(source_name)
--> retained Dialect::Monograph
+-> retained Language::Monograph
 -> Ttx::Concept::Invalid when absent
 ```
 
@@ -188,6 +199,7 @@ Package Storage performs confined reads and supplies each retained diagnostic
 path and byte view. Package Source retains the separate authored local name and
 logical route. Repository performs exact selection and Archive owns its
 validated envelope. Workspace owns staging, Resolution owns restoration, and
-Retention owns completion without retaining either Package transaction owner.
+Retention owns the separate link and finalize barriers without retaining
+either Package transaction owner.
 Concrete Dialects may retain their own lookup and completion structures inside
 their Monographs without adding a generic Environment Namespace.

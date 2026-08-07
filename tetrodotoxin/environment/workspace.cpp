@@ -46,23 +46,39 @@ struct StagedSource {
   View::Bytes semantic_name;
   View::Bytes logical_route;
   Option<Package::Language::Monograph&> owner;
-  Bool publish_globally;
+  Bool stage_globally;
 };
+
+Environment::Workspace::StagedPublication::StagedPublication(
+    View::Bytes name,
+    Language::Monograph& monograph)
+    : name(name), monograph(monograph) {}
+
+auto Environment::Workspace::StagedPublication::get_name() const
+    -> View::Bytes {
+  return name;
+}
+
+auto Environment::Workspace::StagedPublication::get_monograph() const
+    -> Language::Monograph& {
+  return monograph;
+}
 
 Environment::Workspace::Workspace()
     : arena(),
       dialects(arena, *this),
       retention(arena),
       resolution(arena, dialects, retention),
-      source_monographs(arena) {}
+      source_monographs(arena),
+      staged_publications(arena) {}
 
 Environment::Workspace::~Workspace() = default;
 
-auto Environment::Workspace::import_source(
+auto Environment::Workspace::interpret_source(
     Errors& errors,
     View::Bytes semantic_name,
     View::Bytes diagnostic_path,
-    View::Bytes contents) -> Option<Language::Dialect::Monograph&> {
+    View::Bytes contents) -> Option<Language::Monograph&> {
   // A raw View carries no storage provenance. Direct callers may supply stack,
   // Dynamic, mapped, or another Arena's bytes, while parser products borrow
   // source text for the Workspace lifetime. Copy each view at this boundary.
@@ -70,25 +86,88 @@ auto Environment::Workspace::import_source(
   View::Bytes retained_diagnostic_path = arena.proxy(diagnostic_path);
   View::Bytes retained_contents = arena.proxy(contents);
 
-  return import_retained_source(
+  return interpret_retained_source(
       errors, retained_semantic_name, retained_diagnostic_path,
       retained_contents, *this, True);
 }
 
-auto Environment::Workspace::import_retained_source(
+auto Environment::Workspace::has_staged_name(View::Bytes name) const -> Bool {
+  for (Count i = 0; i < staged_publications.get_size(); i++) {
+    if (staged_publications.at(i).get_name() == name) {
+      return True;
+    }
+  }
+
+  return False;
+}
+
+auto Environment::Workspace::publish_staged() -> void {
+  for (Count i = 0; i < staged_publications.get_size(); i++) {
+    StagedPublication& publication = staged_publications[i];
+    source_monographs.launder(
+        publication.get_name(), publication.get_monograph());
+  }
+}
+
+auto Environment::Workspace::discard_staged() -> void {
+  staged_publications.clear();
+}
+
+auto Environment::Workspace::link(Errors& errors) -> Bool {
+  if (retention.awaits_finalize()) {
+    return False;
+  }
+
+  Bool linked = retention.link(errors);
+  if (!linked) {
+    discard_staged();
+  }
+  return linked;
+}
+
+auto Environment::Workspace::finalize(Errors& errors) -> Bool {
+  if (!retention.awaits_finalize()) {
+    return False;
+  }
+
+  Bool finalized = retention.finalize(errors);
+  if (finalized) {
+    publish_staged();
+  }
+
+  discard_staged();
+  return finalized;
+}
+
+auto Environment::Workspace::abandon() -> void {
+  retention.abandon();
+  discard_staged();
+}
+
+auto Environment::Workspace::interpret_retained_source(
     Errors& errors,
     View::Bytes semantic_name,
     View::Bytes diagnostic_path,
     View::Bytes contents,
     Abstract& interpretation_context,
-    Bool publish_globally) -> Option<Language::Dialect::Monograph&> {
-  // Public import copies arbitrary caller views. Package Storage already lives
+    Bool stage_globally) -> Option<Language::Monograph&> {
+  // Public interpretation copies arbitrary caller views. Package Storage lives
   // in the same Arena and enters here directly, avoiding a duplicate body for
   // every staged member.
-  if (publish_globally && source_monographs.contains(semantic_name)) {
-    Errors::Report report(errors, diagnostic_path, contents, Span());
+  if (retention.awaits_finalize()) {
+    Errors::Report report(
+        errors, diagnostic_path, contents, Anchor::create(Span()));
+    report << "A linked source range must finalize or be abandoned before "
+              "another source is interpreted."_view;
+    return {};
+  }
+
+  if (stage_globally && (source_monographs.contains(semantic_name) ||
+                         has_staged_name(semantic_name))) {
+    Errors::Report report(
+        errors, diagnostic_path, contents, Anchor::create(Span()));
     report << "Semantic source "_view << semantic_name
-           << " is already imported into the Workspace."_view;
+           << " is already published or staged in the Workspace."_view;
     return {};
   }
 
@@ -96,6 +175,7 @@ auto Environment::Workspace::import_retained_source(
   // separate exact authored name supplied by the transaction.
   Tokenizer tokenizer(arena, contents, diagnostic_path);
   Cursor cursor(tokenizer, errors);
+  Token source_opening = cursor.current();
   if (cursor.get_code() != Code::Type::Comment) {
     cursor.require(
         Code::Type::Comment,
@@ -114,7 +194,8 @@ auto Environment::Workspace::import_retained_source(
   Option<Language::Dialect&> dialect = dialects.find(dialect_name);
   if (!dialect) {
     Errors::Report report(
-        errors, diagnostic_path, contents, Span(dialect_instruction));
+        errors, diagnostic_path, contents,
+        Anchor::create(Span(dialect_instruction)));
     auto& hint = report.get_hint();
     View::Vector<View::Bytes> installed_names = dialects.get_names();
 
@@ -139,7 +220,7 @@ auto Environment::Workspace::import_retained_source(
 
   // The installed Dialect keeps Workspace as its shared registry. This
   // argument instead selects the exact source scope the body is entering.
-  Option<Language::Dialect::Monograph&> interpreted =
+  Option<Language::Monograph&> interpreted =
       dialect->interpret(arena, cursor, documentation, interpretation_context);
   if (!interpreted) {
     return {};
@@ -148,12 +229,17 @@ auto Environment::Workspace::import_retained_source(
   // Retention owns lifetime and exact authored provenance. Package local
   // publication stays separate so its real Package can bind the Monograph
   // without adding the same local name to Workspace lookup.
-  Language::Dialect::Monograph& monograph = *interpreted;
-  Origin origin(diagnostic_path, contents, Span());
-  retention.retain(monograph, origin);
+  Language::Monograph& monograph = *interpreted;
+  Origin origin(
+      diagnostic_path, contents, Span(source_opening, cursor.peek(-1)));
+  Bool retained = retention.retain(monograph, origin);
+  if (!retained) {
+    return {};
+  }
 
-  if (publish_globally) {
-    source_monographs.launder(semantic_name, monograph);
+  if (stage_globally) {
+    StagedPublication publication(semantic_name, monograph);
+    staged_publications.insert(publication);
   }
 
   return monograph;
@@ -167,9 +253,14 @@ auto Environment::Workspace::import_package(
     View::Bytes root_package_identity,
     Version root_package_version,
     Package::Repository::Repository& repository)
-    -> Result<
-        Language::Dialect::Monograph&,
-        Package::Repository::SelectionError> {
+    -> Result<Language::Monograph&, Package::Repository::SelectionError> {
+  if (retention.has_staged() || retention.awaits_finalize()) {
+    Diagnostics::Log::Message<512> message(Diagnostics::Log::Level::Info);
+    message << package_import_operation
+            << " failed. reason=another source range is still open"_view;
+    return Package::Repository::SelectionError::Unknown;
+  }
+
   auto storage = Package::Storage::open(arena, package_root);
   if (!storage) {
     Diagnostics::Log::Message<512> message(Diagnostics::Log::Level::Info);
@@ -191,13 +282,13 @@ auto Environment::Workspace::import_package(
     .semantic_name = arena.proxy(root_semantic_name),
     .logical_route = arena.proxy(root_logical_route),
     .owner = {},
-    .publish_globally = True,
+    .stage_globally = True,
   };
   staged_sources.insert(root);
 
   View::Bytes retained_root_identity = arena.proxy(root_package_identity);
   Package::Storage& package_storage = *storage;
-  Option<Language::Dialect::Monograph&> root_monograph;
+  Option<Language::Monograph&> root_monograph;
   const Count first_monograph = retention.get_size();
   Count next_source = 0;
   Bool failed = False;
@@ -237,10 +328,9 @@ auto Environment::Workspace::import_package(
     // complete Package scope, while an ownerless root enters Workspace.
     Abstract& interpretation_context =
         staged.owner ? static_cast<Abstract&>(*staged.owner) : *this;
-    Option<Language::Dialect::Monograph&> imported = import_retained_source(
+    Option<Language::Monograph&> imported = interpret_retained_source(
         errors, staged.semantic_name, content->get_diagnostic_path(),
-        content->get_contents(), interpretation_context,
-        staged.publish_globally);
+        content->get_contents(), interpretation_context, staged.stage_globally);
     if (!imported) {
       failed = True;
       continue;
@@ -253,7 +343,7 @@ auto Environment::Workspace::import_package(
     // Only the root lacks an owning Package. Reusing the same owner for
     // interpretation and binding keeps nested scope exact without a second
     // lookup or copied context.
-    Language::Dialect::Monograph& monograph = *imported;
+    Language::Monograph& monograph = *imported;
     if (staged.owner) {
       Package::Language::Monograph& owner = *staged.owner;
       Bool bound = owner.bind_member(staged.semantic_name, monograph);
@@ -263,7 +353,7 @@ auto Environment::Workspace::import_package(
             [&](const Origin& origin) {
               Errors::Report report(
                   errors, origin.get_path(), origin.get_body(),
-                  origin.get_span());
+                  Anchor::create(origin.get_span()));
               report << "Package member "_view << staged.semantic_name
                      << " could not bind to its owning Package."_view;
             });
@@ -293,7 +383,7 @@ auto Environment::Workspace::import_package(
         .semantic_name = sources.get_data()[i].get_local_name(),
         .logical_route = sources.get_data()[i].get_source_path(),
         .owner = package,
-        .publish_globally = False,
+        .stage_globally = False,
       };
       staged_sources.insert(member);
     }
@@ -301,9 +391,9 @@ auto Environment::Workspace::import_package(
 
   // Every authored Package is retained in this discovery range before its
   // Sources enter the queue. Sealing the exact range here removes Storage from
-  // every semantic owner before failure completion or dependency resolution.
+  // every semantic owner before abandonment or dependency resolution.
   for (Count i = first_monograph; i < retention.get_size(); i++) {
-    Language::Dialect::Monograph& retained = retention.get_monograph(i);
+    Language::Monograph& retained = retention.get_monograph(i);
     if (!retained.is<Package::Language::Monograph>()) {
       continue;
     }
@@ -314,18 +404,30 @@ auto Environment::Workspace::import_package(
 
   if (failed || !root_monograph ||
       !root_monograph->is<Package::Language::Monograph>()) {
-    retention.complete(errors);
+    abandon();
     return Package::Repository::SelectionError::Unknown;
   }
 
   // Resolution receives only a complete staged discovery range. Earlier source
-  // failure has completed its retained prefix and cannot enter Archive
-  // traversal or restored cache promotion.
+  // failure abandons every retained hook and cannot enter Archive traversal or
+  // restored cache promotion.
   auto& root_package =
       static_cast<Package::Language::Monograph&>(*root_monograph);
-  return resolution.resolve(
+  auto resolved = resolution.resolve(
       errors, first_monograph, retained_root_identity, root_package_version,
       root_package, repository);
+  return resolved.visit(
+      [&](Language::Monograph& selected)
+          -> Result<Language::Monograph&, Package::Repository::SelectionError> {
+        publish_staged();
+        discard_staged();
+        return selected;
+      },
+      [&](Package::Repository::SelectionError error)
+          -> Result<Language::Monograph&, Package::Repository::SelectionError> {
+        discard_staged();
+        return error;
+      });
 }
 
 auto Environment::Workspace::get_name() const -> View::Bytes {
@@ -342,9 +444,16 @@ auto Environment::Workspace::resolve() const -> const Abstract& {
 
 auto Environment::Workspace::resolve_context(View::Bytes route) const
     -> const Abstract& {
+  for (Count i = 0; i < staged_publications.get_size(); i++) {
+    const StagedPublication& publication = staged_publications.at(i);
+    if (publication.get_name() == route) {
+      return publication.get_monograph();
+    }
+  }
+
   return source_monographs.visit(
       route,
-      [](const Language::Dialect::Monograph& selected) -> const Abstract& {
+      [](const Language::Monograph& selected) -> const Abstract& {
         return selected;
       },
       []() -> const Abstract& { return Invalid::get_invalid(); });

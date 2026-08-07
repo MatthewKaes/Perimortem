@@ -47,9 +47,9 @@ path bindings into a Package Monograph.
 Environment owns Workspace orchestration and the composed Dialects, Retention,
 and Resolution objects that host interpretation. Together they own graph
 allocation, Dialect lifetime, imported Monograph lifetime, exact authored
-source name lookup, staged source order, retained source bytes, ordered
-semantic completion, dependency restoration, and the TTX registry supplied to
-each Dialect.
+source name lookup, staged source order, retained source bytes, ordered linking
+and finalization, dependency restoration, and the TTX registry supplied to each
+Dialect.
 
 Library owns CPU language semantics that are not universal TTX facts. Its
 installed Dialect constructs concrete declaration Monographs with real TTX and
@@ -81,14 +81,13 @@ opening Documentation
 source local Abstract interpretation context
 ```
 
-Interpretation returns either no result or one
-`Language::Dialect::Monograph&`. The concrete Monograph is an Abstract and is
-constructed in the supplied Arena. It retains the opening Documentation and its
-host Dialect so later queries use the same semantic context that created it.
-The installed Dialect continues to retain the Workspace wide registry supplied
-at construction. The fourth interpretation argument instead selects Workspace
-for direct sources and an ownerless root, or the exact owning Package Monograph
-for a staged member.
+Interpretation returns either no result or one `Language::Monograph&`. The
+concrete Monograph is an Abstract and is constructed in the supplied Arena. It
+retains opening Documentation and source independent Diagnostics, but no parser
+or installed Dialect. The installed Dialect continues to retain the Workspace
+wide registry supplied at construction. The fourth interpretation argument
+instead selects Workspace for direct sources and an ownerless root, or the
+exact owning Package Monograph for a staged member.
 
 Language owns two shared parser fragments today:
 
@@ -109,7 +108,8 @@ carries no filesystem handle, route grammar, diagnostic path, Type, Constant
 policy, or consumer semantics. `Language::Error` proves that a recognized
 contextual instruction resolved to an owner-specific failure identity. It is
 not one universal error enum, message record, or provenance model; the concrete
-owner retains the cause while the source consumer retains the authored Span.
+owner retains the cause while the source consumer constructs the authored
+Anchor and Report.
 
 Resource and Error are open Tetrodotoxin contracts over TTX Abstract. They add
 no TTX v1 category. An ordinary missing semantic lookup still returns the
@@ -117,21 +117,30 @@ shared TTX Invalid identity. Returning Error means the receiver recognized the
 instruction and resolved it to a stable error object rather than missing the
 route.
 
-The accepted lifecycle adds two owner neutral operations to the common
-Monograph and Dialect boundary:
+`Language::Diagnostic` is the separate source independent failure fact. It
+retains an optional exact Anchor plus owner produced message and hint in its
+Monograph Arena. An authored fact supplies its Anchor while a synthetic or
+restored fact leaves that coordinate absent. Diagnostic owns no source path,
+source bytes, semantic identity, or universal error category. Environment uses
+the retained Origin boundary when a diagnostic has no authored Anchor.
 
-1. Environment Retention invokes one ordered Monograph post pass after local
-   staging and dependency restoration drain. The operation returns failure
-   without receiving a textual error sink.
-2. A concrete Dialect encodes and restores its own opaque precompiled Monograph
-   payload through the importing Workspace Arena.
+The accepted lifecycle separates three owner neutral transactions:
 
-Language owns only that dispatch shape. It does not define a Package Archive,
-terminal registry, concrete payload schema, or cross owner product variant.
-Concrete post pass owners log graph details that would be lost on return.
-Retention keeps the authored input identity needed to turn a returned failure
-into a user facing diagnostic. Workspace stages source and Resolution drains
-dependencies before Retention begins completion.
+1. A concrete Dialect interprets grammar into stable source shaped identities.
+   Unknown Type and Addressable routes may remain unresolved.
+2. Environment Retention invokes every Monograph `link()` in one frozen range
+   after local staging and dependency restoration drain.
+3. Only a range whose every link succeeded invokes every Monograph
+   `finalize()`. A failed finalizer does not stop later finalizers and prevents
+   terminal publication of that complete range.
+
+A concrete Dialect separately encodes and restores its own opaque precompiled
+Monograph payload through the importing Workspace Arena. Language owns only
+these dispatch shapes. It does not define a Package Archive, terminal registry,
+concrete payload schema, or cross owner product variant. Link and finalize
+return failure without receiving a textual error sink. Concrete Monographs
+publish their Diagnostic facts while Retention keeps the authored Origin needed
+to render them.
 
 ## Environment transaction
 
@@ -139,7 +148,8 @@ dependencies before Retention begins completion.
 semantic construction environment. It owns one Arena, exact global authored
 source lookup, and import orchestration. `Environment::Dialects` owns installed
 names, concrete Dialect instances, and exact dispatch. `Environment::Retention`
-owns Monograph lifetime, authored origin, discovery order, and completion.
+owns Monograph lifetime, authored origin, discovery order, and the frozen link
+and finalize ranges.
 `Environment::Resolution` owns exact dependency traversal and restored Package
 cache state while borrowing the other Environment owners explicitly.
 
@@ -165,11 +175,13 @@ Workspace stages an explicit root semantic name and source path
 -> Workspace dispatches the remaining Cursor to the exact installed Dialect
    with Workspace or the exact owning Package as interpretation context
 -> the Dialect constructs its real Monograph in the Workspace Arena
--> Retention keeps it and Workspace publishes the authored semantic name
+-> Retention keeps it and Workspace stages the authored semantic name
 -> Environment Resolution resolves exact dependency Archives
 -> Package Source bindings stage more inputs in authored order
--> after all staging and restoration drain, Retention runs post pass in
+-> after all staging and restoration drain, Retention links every Monograph in
    retained order
+-> only a fully linked range finalizes in retained order
+-> Workspace publishes staged names only after successful finalization
 ```
 
 `Workspace::resolve_context(name)` returns the retained Monograph or the TTX
@@ -179,21 +191,24 @@ diagnostics but never becomes a semantic name implicitly.
 
 Environment does not own concrete Package or Library grammar. It also does not
 own filesystem confinement, target lowering, runtime state, archive encoding,
-or an additional Namespace model. Direct import accepts separate semantic name,
-diagnostic path, and content views and copies them into the Workspace Arena.
+or an additional Namespace model. Direct interpretation accepts separate
+semantic name, diagnostic path, and content views and copies them into the
+Workspace Arena.
 Local Package import drains an Arena backed FIFO of separate semantic names and
 logical routes. Package Storage content enters the same semantic import
 transaction directly because Storage and its views already belong to that
-Arena. Direct import returns the published Monograph Option. Package import
+Arena. Direct interpretation returns the staged Monograph Option; publication
+waits for the caller's successful link and finalize barriers. Package import
 additionally receives the explicit root identity, Version, and Repository.
-Source staging failure completes the retained prefix and returns
+Source staging failure abandons the retained prefix and returns
 `SelectionError::Unknown` before Resolution begins. The Workspace Result
 therefore selects either the root Monograph or one failure category. Resolution
 preserves an exact Repository category and uses `Unknown` when another
-diagnosed staging, restoration, or post pass failure has no Repository
-category. Package local members are not published in the Workspace source map.
-Exact Archive dependencies restore into the Workspace Arena before every
-retained Monograph runs post pass once in discovery order.
+diagnosed staging, restoration, linking, or finalization failure has no
+Repository category. Package local members are not published in the Workspace
+source map.
+Exact Archive dependencies restore into the Workspace Arena before the frozen
+range links once and finalizes at most once in discovery order.
 
 Textual errors require authored text. `Ttx::Lexical::Errors::Report` receives
 an explicit source name, source body, and `Ttx::Lexical::Span` from the owner
@@ -278,30 +293,65 @@ Dialect needs.
 Library contracts retain real TTX Type, Layout, Addressable, and Callable
 edges. They do not redeclare those shared owners.
 
-Operation retains real replaceable Expression edges and recursively folds child
-Operations. Partial folding preserves the parent identity. A concrete operation
-evaluates only after every input is Constant. A durable FoldError carries its
-category and the exact failing Expression without retaining source context.
-Every completed replacement and result preserves its construction time Type,
-so folding cannot double as semantic Type resolution. Parser construction may
-invoke the transaction eagerly. A later Library Monograph post pass will
-traverse replaceable graph roots through the same contract rather than
-introduce a second evaluator or expression model.
+Every authored Expression retains one Anchor containing its full Span and the
+independent Token a diagnostic should emphasize. Synthetic Expressions omit
+that value instead of inventing provenance. Binding and Projection currently
+expose only synthetic construction; future authored grammar must supply an
+Anchor from its real source facts.
+
+Expression owns protected `create_authored<T>` and `create_synthetic<T>`
+construction policy. Each concrete Expression keeps its constructor private,
+publishes its typed factory, and supplies the owner local builder used by
+`Arena::construct_from`. The shared policy selects the optional Anchor without
+turning Expression into an operation argument model or letting callers invent
+source provenance.
+
+Expression owns one cached `fold()` query. It returns
+`Result<Option<Expression&>, Expression::Error>`. A successful projection
+retains the selected Constant Expression identity directly, and a failure
+retains the exact Error. The cache stores only either terminal result without
+replacing the Expression, its source facts, or any child edge. Its null state
+represents an unread query or dynamic absence, so an unknown Type and a dynamic
+result remain retryable. Folding therefore remains a semantic layer over the
+source graph rather than a lowering transaction that consumes it.
+
+Operation retains immutable Expression edges in authored order. Every edge is
+reachable by default. Only a protected concrete operation decision made after
+earlier reached inputs fold may skip the next edge. An earlier dynamic result
+keeps later inputs reachable, and an unreachable child is never queried or
+reported. A reached child's exact Error propagates unchanged. Concrete
+evaluation starts only when every reached input supplies a Constant and must
+preserve the exact linked result Type. Parser callbacks construct grammar only;
+Function finalization may populate the root caches without emitting a fold
+diagnostic or rejecting an ordinary optional failure.
 
 Bool, integer, real, and Void are immutable binary wide Library identities.
 Distinct installed Dialects share their exact addresses while retaining any
 stateful source and completion policy within their Workspace lifetime.
 
 The Library Dialect reserves and binds every Function at its final Arena address
-before completing that declaration's signature. Its Monograph exposes exact
-local lookup and a separate authored order view of public Functions over those
-same identities. Reordered valid declarations remain legal while each public
-view preserves its own authored order. The transaction retains no Cursor
-positions or second declaration graph.
+before completing that declaration's source grammar. Each Function retains its
+full extent, one source shaped Signature, and authored order Expression roots.
+The current body grammar accepts comments, ordinary `Expression;` roots,
+and one optional final `return Expression?;`. It does not invent blocks,
+control flow, or lowering. Its Monograph exposes exact local lookup and a
+separate authored order view of public Functions over those same identities.
+Reordered valid declarations remain legal while each public view preserves its
+own authored order. The transaction retains no Cursor positions or second
+declaration graph.
+
+Signature interpretation accepts unresolved Type routes and Identifier parsing
+accepts unresolved Addressable routes. Linking later enriches those exact
+retained routes with stable edges. Function lookup checks linked Parameters before
+the parent Monograph. Monograph lookup checks local and imported Functions,
+then the source interpretation context, then Library intrinsics. An incomplete
+declaration already occupies its name, so collision policy does not depend on
+whether its semantic edge is complete.
 
 `Library::Language::Import` consumes one complete `using` statement and retains
-its exact Package local Type shaped route. The Library Monograph borrows W03's
-source local Abstract context and resolves each Import during ordered post pass.
+its exact Package local Type shaped route, trigger Token, and full statement
+Span. The Library Monograph borrows W03's source local Abstract context and
+resolves each Import during linking.
 The selected target must be a real Package Monograph. Expansion traverses only
 its P04 direct member Alias view and only each direct Library member's complete
 public Function view.
@@ -355,7 +405,7 @@ App, and installs Scene or other concrete Dialects only when their real compile
 path is part of that selected toolchain. An uninstalled authored Dialect
 receives the ordinary unknown Dialect diagnostic.
 
-After Workspace completion, Puffer renders accumulated diagnostics and exits
+After successful Workspace finalization, Puffer renders accumulated diagnostics and exits
 nonzero before terminal work when any error exists. On success it asks the
 concrete Monograph owners for their typed products. It does not introduce a
 universal terminal base, opaque product registry, or cross owner variant.
@@ -443,7 +493,8 @@ Package Storage and future resource consumers follow six requirements.
 2. Absolute and escaping routes are rejected.
 3. An empty file remains distinct from a read failure.
 4. Repeated logical resource reads are deduplicated.
-5. Expression constant folding retains only reachable byte slices.
+5. Expression folding may project a reachable byte slice without erasing the
+   original resource backed source graph.
 6. Resolution never falls back to the process working directory or the
    containing source directory.
 
@@ -484,18 +535,19 @@ construct their canonical binary wide Library Type and accept no expected
 Type. Library `Operations::Slice` owns a following `:[index]` or
 `:[start, size]` operation for Embedded, quoted Bytes, hexadecimal Bytes, and
 later ranged expressions. It retains only real Expression edges. Fixed, View,
-and Access receivers supply their retained element Type directly. A Constant
-size yields canonical Fixed identity during construction, while a dynamic size
-yields View unless the receiver already proves writable contiguous Access. A
-size Operation that later folds does not change the retained Slice result Type.
+and Access receivers supply their retained element Type directly. A directly
+authored Constant size yields canonical Fixed identity during linking, while a
+dynamic size yields View unless the receiver already proves writable contiguous
+Access. A size Operation that folds later retains that already linked View or
+Access result Type.
 Bytes is the current Constant ranged payload domain rather than evidence for a
 universal Constant payload interface.
 
-Expression delegates primary parsing to Literal and selects following
-operators in precedence order. Each concrete operation owns its complete
-grammar builder. Slice recursively asks the Expression dispatcher for operands,
-associates its postfixes left to right, and eagerly invokes Operation folding so
-completed Bytes results enter the graph without their unused base Constants.
+Expression delegates primary parsing to Literal and Identifier and selects
+following operators in precedence order. Each concrete operation owns its
+complete grammar builder. Slice recursively asks the Expression dispatcher for
+operands and associates its postfixes left to right. No parser callback links,
+folds, reports an `Expression::Error`, or replaces an authored node.
 Slice binds before Multiply. Multiply owns selected Type legality, checked
 integer and IEEE folding, construction, and diagnostics after asking the
 dispatcher only for an operand above its own precedence. Divide and Modulo
@@ -540,12 +592,14 @@ Signed and Unsigned operations reject host arithmetic overflow first, then use
 rather than reproducing representation arithmetic in each operation.
 A later Swizzle or named operator adds its own grammar builder and one explicit
 Expression dispatch case instead of extending Slice or duplicating parser
-transactions. A future Library post pass traverses replaceable graph roots
-through the same operation. The receiving typed operation applies fitting only
-after the complete Expression has synthesized that result Type.
-Invalid operand categories, negative values, arithmetic overflow, and bounds
-failures report the actual values or Types and the accepted range at the
-postfix Span. Shader and other concrete consumers may use the same Resource
+transactions. Function finalization may query each retained root in authored
+order, but the source graph remains intact. The receiving typed operation
+applies fitting only after the complete Expression has linked its result Type.
+Invalid operand categories are linking Diagnostics over the complete operation
+Span. Negative values, arithmetic overflow, and bounds discovered only by
+folding remain exact cached `Expression::Error` values until another owner
+requires a Constant.
+Shader and other concrete consumers may use the same Resource
 without taking Library Constant semantics or accessing Storage. When
 resolution returns Error, the consumer combines its current Token Span with
 the concrete owner's retained failure context to publish the textual
@@ -555,7 +609,8 @@ Package Storage implements confined root reads, route rejection, empty success,
 successful read caching, and fallback absence. An authored resource transaction
 starts pending, connects once to the Package Storage owned by Workspace, and
 serves member interpretation during graph discovery. Workspace seals every
-transaction before post pass or dependency resolution. The sealed transaction
+transaction before dependency resolution can link or finalize the retained
+range. The sealed transaction
 retains cached Resource and Error identities but cannot reconnect or acquire a
 new route. Source-free restoration publishes its Package resource transaction
 already sealed. Package Monograph itself retains no filesystem handle.
@@ -613,23 +668,25 @@ The current tree provides the following implemented surfaces.
 3. Language provides the stateful Dialect and Monograph interfaces.
 4. Environment provides Workspace import orchestration, Dialect installation
    and dispatch, Monograph Retention, source free Package Resolution, Package
-   local binding, ordered completion, and authored root name lookup.
+   local binding, frozen link and finalize barriers, and authored root name
+   lookup.
 5. Package provides Dependency, Source, Monograph, complete manifest
    interpretation, one exact Alias backed Package scope, confined Storage,
    Archive Format 1, and exact Repository selection.
 6. Library provides the installed Dialect, declaration Monograph, scalar and
-   Void intrinsics, completed Function signatures, authored public Function
-   publication, exact Package local Imports, and atomic ordered import
-   completion.
+   Void intrinsics, source shaped Function signatures and Expression roots,
+   authored public Function publication, exact Package local Imports, semantic
+   linking, and nondestructive cached folding during finalization.
 7. Library and Shader provide CPU and SPIR V instruction assemblers.
 8. Linker provides source independent linking machinery.
 9. Puffer provides an LSP process but no compile orchestration.
 
-That inventory does not prove complete parsing for Library, App, Scene, Render,
-Shader, or Foreign. It also does not prove CPU semantic lowering, embedded
-resource folding, runtime execution, Puffer compile orchestration or physical
-publication, typed Object Module production, final native executable emission,
-or Library, App, Scene, Render, Shader, or Foreign payload restoration.
+That inventory does not prove control flow parsing for Library or complete
+parsing for App, Scene, Render, Shader, or Foreign. It also does not prove
+required Constant validation, CPU semantic lowering, runtime execution, Puffer
+compile orchestration or physical publication, typed Object Module production,
+final native executable emission, or Library, App, Scene, Render, Shader, or
+Foreign payload restoration.
 
 A fixture, README, target build, or test written beside an implementation is not
 an independent semantic oracle.

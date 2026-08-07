@@ -374,7 +374,8 @@ PERIMORTEM_UNIT_TEST(TtxLexical, source_error) {
   Errors errors;
 
   {
-    Errors::Report report(errors, "test.ttx"_view, "source"_view, Span());
+    Errors::Report report(
+        errors, "test.ttx"_view, "source"_view, Anchor::create(Span()));
     report << "Bad source."_view;
     report.get_hint() << "Try again."_view;
   }
@@ -392,7 +393,8 @@ PERIMORTEM_UNIT_TEST(TtxLexical, scoped_report) {
   Errors errors;
 
   {
-    Errors::Report empty(errors, "empty.ttx"_view, View::Bytes(), Span());
+    Errors::Report empty(
+        errors, "empty.ttx"_view, View::Bytes(), Anchor::create(Span()));
   }
   EXPECT(errors.is_empty());
 
@@ -402,7 +404,7 @@ PERIMORTEM_UNIT_TEST(TtxLexical, scoped_report) {
     Token token = tokenizer.get_tokens().get_data()[0];
     Errors::Report report(
         errors, tokenizer.get_source_path(), tokenizer.get_source_text(),
-        Span(token));
+        Anchor::create(Span(token)));
 
     report << "Scoped report "_view << Count(7) << "."_view;
     report.get_hint() << "Use the retained message."_view;
@@ -414,13 +416,13 @@ PERIMORTEM_UNIT_TEST(TtxLexical, scoped_report) {
         replacement_arena, "replacement source"_view, "report.ttx"_view);
     Errors::Report report(
         errors, replacement.get_source_path(), replacement.get_source_text(),
-        Span(replacement.get_tokens().get_data()[0]));
+        Anchor::create(Span(replacement.get_tokens().get_data()[0])));
     report << "Repeated report."_view;
   }
 
   {
     Errors::Report report(
-        errors, "outer.ttx"_view, "outer source"_view, Span());
+        errors, "outer.ttx"_view, "outer source"_view, Anchor::create(Span()));
     report << "Outer report."_view;
   }
 
@@ -496,7 +498,7 @@ PERIMORTEM_UNIT_TEST(TtxLexical, overlapping_cursors) {
   EXPECT(Algorithm::search(third, "outer start finish"_view) != Count(-1));
   EXPECT(Algorithm::search(third, "Outer after inner."_view) != Count(-1));
   EXPECT(Algorithm::search(third, "Outer range hint."_view) != Count(-1));
-  EXPECT(Algorithm::search(third, "^-----------------\n"_view) != Count(-1));
+  EXPECT(Algorithm::search(third, "^----\n"_view) != Count(-1));
   EXPECT(Algorithm::search(third, "inner.ttx"_view) == Count(-1));
 }
 
@@ -553,7 +555,7 @@ PERIMORTEM_UNIT_TEST(TtxLexical, cursor_report) {
       Algorithm::search(rendered, "cursor-report.ttx:1:1"_view) != Count(-1));
   EXPECT(Algorithm::search(rendered, "first second"_view) != Count(-1));
   EXPECT(Algorithm::search(rendered, "Semantic report."_view) != Count(-1));
-  EXPECT(Algorithm::search(rendered, "^-----------"_view) != Count(-1));
+  EXPECT(Algorithm::search(rendered, "^----\n"_view) != Count(-1));
 }
 
 PERIMORTEM_UNIT_TEST(TtxLexical, reversed_range) {
@@ -578,7 +580,66 @@ PERIMORTEM_UNIT_TEST(TtxLexical, reversed_range) {
   EXPECT(Algorithm::search(rendered, "reversed.ttx:1:1"_view) != Count(-1));
   EXPECT(Algorithm::search(rendered, "Reversed range."_view) != Count(-1));
   EXPECT(Algorithm::search(rendered, "Order the range."_view) != Count(-1));
-  EXPECT(Algorithm::search(rendered, "^------------\n"_view) != Count(-1));
+  EXPECT(Algorithm::search(rendered, "^--\n"_view) != Count(-1));
+}
+
+PERIMORTEM_UNIT_TEST(TtxLexical, anchor_selects_operator_caret) {
+  Allocator::Arena arena;
+  Allocator::Arena render_arena;
+  Errors errors;
+  Tokenizer tokenizer(arena, "5 == true"_view, "anchor.ttx"_view);
+  const Token* tokens = tokenizer.get_tokens().get_data();
+  Span expression(tokens[0], tokens[2]);
+
+  {
+    Errors::Report report(
+        errors, tokenizer.get_source_path(), tokenizer.get_source_text(),
+        Anchor::create(tokens[1], expression));
+    report << "Equal rejects the right operand."_view;
+  }
+
+  View::Bytes rendered = errors.render_message(render_arena, 0);
+
+  ASSERT_EQ(errors.get_size(), Count(1));
+  EXPECT(Algorithm::search(rendered, "anchor.ttx:1:3"_view) != Count(-1));
+  EXPECT(Algorithm::search(rendered, "5 == true"_view) != Count(-1));
+  EXPECT(Algorithm::search(rendered, "^-\n"_view) != Count(-1));
+  EXPECT(Algorithm::search(rendered, "^--------\n"_view) == Count(-1));
+}
+
+PERIMORTEM_UNIT_TEST(TtxLexical, external_anchor_omits_caret) {
+  Allocator::Arena arena;
+  Allocator::Arena render_arena;
+  Errors errors;
+  Tokenizer tokenizer(arena, "5 + true"_view, "anchor.ttx"_view);
+  const Token* tokens = tokenizer.get_tokens().get_data();
+  Span expression(tokens[0], tokens[2]);
+  Token external(40, 7, 4, 1, Code::Type::AddOp);
+
+  {
+    Errors::Report report(
+        errors, tokenizer.get_source_path(), tokenizer.get_source_text(),
+        Anchor::create(Token(), expression));
+    report << "Empty focus."_view;
+  }
+
+  {
+    Errors::Report report(
+        errors, tokenizer.get_source_path(), tokenizer.get_source_text(),
+        Anchor::create(external, expression));
+    report << "External focus."_view;
+  }
+
+  View::Bytes empty = errors.render_message(render_arena, 0);
+  View::Bytes outside = errors.render_message(render_arena, 1);
+
+  ASSERT_EQ(errors.get_size(), Count(2));
+  EXPECT(Algorithm::search(empty, "anchor.ttx:1:1"_view) != Count(-1));
+  EXPECT(Algorithm::search(empty, "5 + true"_view) != Count(-1));
+  EXPECT(Algorithm::search(empty, "^"_view) == Count(-1));
+  EXPECT(Algorithm::search(outside, "anchor.ttx:1:1"_view) != Count(-1));
+  EXPECT(Algorithm::search(outside, "5 + true"_view) != Count(-1));
+  EXPECT(Algorithm::search(outside, "^"_view) == Count(-1));
 }
 
 PERIMORTEM_UNIT_TEST(TtxLexical, keyword_bail) {
@@ -655,7 +716,7 @@ PERIMORTEM_UNIT_TEST(TtxLexical, token_error) {
   {
     Errors::Report report(
         errors, tokenizer.get_source_path(), tokenizer.get_source_text(),
-        Span(token));
+        Anchor::create(Span(token)));
     report << "Bad token."_view;
   }
 

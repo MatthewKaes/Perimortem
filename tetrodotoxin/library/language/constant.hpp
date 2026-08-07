@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include "perimortem/memory/allocator/arena.hpp"
+
 #include "tetrodotoxin/library/language/expression.hpp"
 #include "ttx/model/layouts/fluid.hpp"
 
@@ -29,8 +31,8 @@ class Constant : public Expression {
     return requested == contract_id || Expression::implements(requested);
   }
 
-  // Constants retain no authored spelling. Their exact Type supplies the
-  // useful semantic name while Binding remains the owner of authored names.
+  // Constant semantic names come from their exact Type. An authored literal
+  // may still retain its source anchor while Binding owns declared names.
   constexpr auto get_name() const -> Perimortem::Core::View::Bytes override {
     return get_type().get_name();
   }
@@ -58,11 +60,20 @@ class Constant : public Expression {
   }
 
  protected:
+  constexpr explicit Constant(
+      Perimortem::Utility::Option<Ttx::Lexical::Anchor> anchor)
+      : Expression(anchor) {}
+
   constexpr auto has_same_type(const Constant& rhs) const -> Bool {
     const Ttx::Concept::Abstract& lhs_type = get_type().resolve();
     const Ttx::Concept::Abstract& rhs_type = rhs.get_type().resolve();
     return lhs_type.is<Ttx::Model::Type>() && rhs_type.is<Ttx::Model::Type>() &&
            &lhs_type == &rhs_type;
+  }
+
+  auto fold_uncached() -> Perimortem::Utility::
+      Result<Perimortem::Utility::Option<Expression&>, Error> override {
+    return Perimortem::Utility::Option<Expression&>(*this);
   }
 
  private:

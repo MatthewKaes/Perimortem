@@ -8,6 +8,7 @@
 #include "perimortem/core/reader/binary.hpp"
 
 #include "perimortem/memory/dynamic/vector.hpp"
+#include "perimortem/memory/managed/vector.hpp"
 
 #include "ttx/lexical/lexicon.hpp"
 
@@ -513,9 +514,14 @@ template <typename value_type>
 static auto retain_records(
     Allocator::Arena& arena,
     View::Vector<value_type> values) -> View::Vector<value_type> {
-  auto retained = arena.reserve<value_type>(values.get_size());
+  // Managed Vector begins each record lifetime. Its local handle can end while
+  // the returned View continues to borrow the Arena owned record bytes.
+  Managed::Vector<value_type> retained(arena);
+  if (values.get_size() > retained.get_capacity()) {
+    retained.reset(values.get_size());
+  }
   for (Count i = 0; i < values.get_size(); i++) {
-    retained[i] = values.get_data()[i];
+    retained.insert(values.get_data()[i]);
   }
 
   return retained.get_view();

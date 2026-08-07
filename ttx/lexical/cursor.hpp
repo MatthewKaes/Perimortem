@@ -10,8 +10,8 @@
 
 #include "perimortem/memory/allocator/arena.hpp"
 
+#include "ttx/lexical/anchor.hpp"
 #include "ttx/lexical/errors.hpp"
-#include "ttx/lexical/span.hpp"
 #include "ttx/lexical/tokenizer.hpp"
 
 namespace Ttx::Lexical {
@@ -154,7 +154,7 @@ class Cursor {
   auto create_error(
       Perimortem::Core::View::Bytes message,
       Perimortem::Core::View::Bytes hint = {}) -> void {
-    create_expression_error(Span(), message, hint);
+    create_expression_error(Anchor::create(Span()), message, hint);
   }
 
   // Creates an error at the current token.
@@ -163,25 +163,34 @@ class Cursor {
   auto create_token_error(
       Perimortem::Core::View::Bytes message,
       Perimortem::Core::View::Bytes hint = {}) -> void {
-    create_expression_error(Span(current()), message, hint);
+    create_expression_error(Anchor::create(Span(current())), message, hint);
   }
 
   auto create_token_error(
       Lexical::Token token,
       Perimortem::Core::View::Bytes message,
       Perimortem::Core::View::Bytes hint = {}) -> void {
-    create_expression_error(Span(token), message, hint);
+    create_expression_error(Anchor::create(Span(token)), message, hint);
   }
 
-  // Emits an error over an existing Span.
+  // A Span defaults its diagnostic focus to the opening Token. Callers with a
+  // more precise semantic Token provide the Anchor overload directly.
   // Views can be temporary as the error context copies the data into its local
   // memory space in case the error outlives the source.
   auto create_expression_error(
       Lexical::Span span,
       Perimortem::Core::View::Bytes message,
       Perimortem::Core::View::Bytes hint = {}) -> void {
+    create_expression_error(Anchor::create(span), message, hint);
+  }
+
+  auto create_expression_error(
+      Lexical::Anchor anchor,
+      Perimortem::Core::View::Bytes message,
+      Perimortem::Core::View::Bytes hint = {}) -> void {
     Errors::Report report(
-        errors, tokenizer.get_source_path(), tokenizer.get_source_text(), span);
+        errors, tokenizer.get_source_path(), tokenizer.get_source_text(),
+        anchor);
     report << message;
     report.get_hint() << hint;
   }
@@ -189,8 +198,13 @@ class Cursor {
   // Some semantic errors contribute directly to a Report. Cursor supplies the
   // authored source facts without exposing its Errors owner to the consumer.
   auto create_report(Lexical::Span span) -> Errors::Report {
+    return create_report(Anchor::create(span));
+  }
+
+  auto create_report(Lexical::Anchor anchor) -> Errors::Report {
     return Errors::Report(
-        errors, tokenizer.get_source_path(), tokenizer.get_source_text(), span);
+        errors, tokenizer.get_source_path(), tokenizer.get_source_text(),
+        anchor);
   }
 
   // Statement recovery is intentionally small.

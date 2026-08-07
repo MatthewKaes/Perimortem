@@ -6,8 +6,8 @@
 #include "validation/unit_test.hpp"
 
 #include "perimortem/core/static/vector.hpp"
-#include "perimortem/core/algorithm/search.hpp"
 
+#include "tetrodotoxin/language/monograph.hpp"
 #include "tetrodotoxin/library/dialect.hpp"
 #include "tetrodotoxin/library/language/constants/bytes.hpp"
 #include "tetrodotoxin/library/language/constants/false.hpp"
@@ -39,10 +39,32 @@ static Harness LibraryGreaterEqual = {
   .name = "Tetrodotoxin::Library::Language::Operations::GreaterEqual"_view,
 };
 
+class GreaterEqualMonograph : public Tetrodotoxin::Language::Monograph {
+ public:
+  GreaterEqualMonograph(Allocator::Arena& domain)
+      : Tetrodotoxin::Language::Monograph(domain, Documentation::get_empty()) {}
+
+  constexpr auto get_name() const -> View::Bytes override {
+    return "GreaterEqualMonograph"_view;
+  }
+
+  constexpr auto resolve_context(View::Bytes) const
+      -> const Abstract& override {
+    return Invalid::get_invalid();
+  }
+};
+
+static auto link_operation(
+    Operation& operation,
+    GreaterEqualMonograph& source,
+    Materializations& materializations) -> Bool {
+  return operation.link(source, Invalid::get_invalid(), materializations);
+}
+
 class GreaterEqualExpression : public Expression {
  public:
   GreaterEqualExpression(View::Bytes name, const Abstract& type)
-      : name(name), type(type) {}
+      : Expression({}), name(name), type(type) {}
 
   auto get_name() const -> View::Bytes override { return name; }
   auto get_documentation() const -> const Documentation& override {
@@ -75,11 +97,16 @@ class GreaterEqualFoldInput : public Operation {
  public:
   GreaterEqualFoldInput(
       Allocator::Arena& domain,
-      const Expression& input,
-      const Expression& result,
+      Materializations& materializations,
+      Expression& input,
+      Constant& result,
       const Ttx::Model::Type& type,
       Bool fails = False)
-      : Operation(domain, Static::Vector<Reference<Expression>, 1>{{input}}),
+      : Operation(
+            domain,
+            materializations,
+            Static::Vector<Reference<Expression>, 1>{{input}},
+            {}),
         result(result),
         type(type),
         fails(fails) {}
@@ -88,43 +115,52 @@ class GreaterEqualFoldInput : public Operation {
   auto get_documentation() const -> const Documentation& override {
     return Documentation::get_empty();
   }
-  auto get_type() const -> const Ttx::Model::Type& override { return type; }
   auto get_evaluations() const -> Count { return evaluations; }
 
  protected:
-  auto evaluate_constants(Allocator::Arena&, Materializations&) const
-      -> Result<const Expression&, FoldError> override {
+  auto evaluate_constants(Allocator::Arena&, Materializations&)
+      -> Result<Option<Constant&>, Expression::Error> override {
     evaluations++;
     if (fails) {
-      return FoldError(FoldError::Type::InvalidConstant, *this);
+      return Expression::Error(Expression::Error::Type::InvalidConstant, *this);
     }
 
     return result;
   }
 
+  auto select_type(Materializations&) const
+      -> Option<const Ttx::Model::Type&> override {
+    return type;
+  }
+
  private:
-  const Expression& result;
+  Constant& result;
   const Ttx::Model::Type& type;
   Bool fails;
-  mutable Count evaluations = 0;
+  Count evaluations = 0;
 };
 
-static auto selected(const Result<const Expression&, FoldError>& result)
-    -> Option<const Expression&> {
+static auto selected(
+    const Result<Option<Expression&>, Expression::Error>& result)
+    -> Option<Expression&> {
   return result.visit(
-      [](const Expression& expression) -> Option<const Expression&> {
-        return expression;
+      [](const Option<Expression&>& folded) -> Option<Expression&> {
+        return folded.visit(
+            []() -> Option<Expression&> { return {}; },
+            [](Expression& selected) -> Option<Expression&> {
+              return selected;
+            });
       },
-      [](const FoldError&) -> Option<const Expression&> { return {}; });
+      [](const Expression::Error&) -> Option<Expression&> { return {}; });
 }
 
 static auto reports(
-    const Result<const Expression&, FoldError>& result,
-    FoldError::Type expected,
+    const Result<Option<Expression&>, Expression::Error>& result,
+    Expression::Error::Type expected,
     const Expression& origin) -> Bool {
   return result.visit(
-      [](const Expression&) { return False; },
-      [&](const FoldError& error) {
+      [](const Option<Expression&>&) { return False; },
+      [&](const Expression::Error& error) {
         return error.get_type() == expected &&
                        &error.get_expression() == &origin
                    ? True
@@ -143,29 +179,9 @@ static auto input_is(
       });
 }
 
-static auto matches_token(const Cursor& cursor, Token expected) -> Bool {
-  Token current = cursor.current();
-  return current.get_offset() == expected.get_offset() &&
-         current.get_code() == expected.get_code();
-}
-
-static auto span_width(View::Bytes rendered) -> Count {
-  Count caret = Algorithm::search(rendered, "^"_view);
-  if (caret == Count(-1)) {
-    return 0;
-  }
-
-  Count width = 1;
-  while (caret + width < rendered.get_size() &&
-         rendered[caret + width] == '-') {
-    width++;
-  }
-
-  return width;
-}
-
 PERIMORTEM_UNIT_TEST(LibraryGreaterEqual, type_selection_and_partial) {
   Allocator::Arena domain;
+  GreaterEqualMonograph source(domain);
   Materializations materializations(domain);
   Types::Signed_8 signed_8;
   Types::Unsigned_8 unsigned_8;
@@ -185,19 +201,38 @@ PERIMORTEM_UNIT_TEST(LibraryGreaterEqual, type_selection_and_partial) {
   GreaterEqualExpression other("other"_view, unsigned_16);
   GreaterEqualExpression unresolved("unresolved"_view, unresolved_type);
   GreaterEqualExpression invalid("invalid"_view, Invalid::get_invalid());
-  Constants::True truth(boolean);
-  Constants::Bytes bytes(bytes_type, "x"_view);
-  Operations::GreaterEqual signed_exact(domain, signed_left, signed_right);
-  Operations::GreaterEqual unsigned_exact(
-      domain, unsigned_left, unsigned_right);
-  Operations::GreaterEqual real_exact(domain, real_left, real_right);
-  Operations::GreaterEqual mismatch(domain, unsigned_left, other);
-  Operations::GreaterEqual unresolved_pair(domain, unresolved, unresolved);
-  Operations::GreaterEqual invalid_pair(domain, invalid, invalid);
-  Operations::GreaterEqual flags(domain, truth, truth);
-  Operations::GreaterEqual byte_values(domain, bytes, bytes);
-  auto retained =
-      selected(unsigned_exact.attempt_fold(domain, materializations));
+  auto& truth = Constants::True::create_synthetic(domain, boolean);
+  auto& bytes =
+      Constants::Bytes::create_synthetic(domain, bytes_type, "x"_view);
+  auto& signed_exact = Operations::GreaterEqual::create_synthetic(
+      domain, materializations, signed_left, signed_right);
+  auto& unsigned_exact = Operations::GreaterEqual::create_synthetic(
+      domain, materializations, unsigned_left, unsigned_right);
+  auto& real_exact = Operations::GreaterEqual::create_synthetic(
+      domain, materializations, real_left, real_right);
+  auto& mismatch = Operations::GreaterEqual::create_synthetic(
+      domain, materializations, unsigned_left, other);
+  auto& unresolved_pair = Operations::GreaterEqual::create_synthetic(
+      domain, materializations, unresolved, unresolved);
+  auto& invalid_pair = Operations::GreaterEqual::create_synthetic(
+      domain, materializations, invalid, invalid);
+  auto& flags = Operations::GreaterEqual::create_synthetic(
+      domain, materializations, truth, truth);
+  auto& byte_values = Operations::GreaterEqual::create_synthetic(
+      domain, materializations, bytes, bytes);
+
+  EXPECT(signed_exact.get_type().resolve().is<Invalid>());
+  EXPECT_NOT(signed_exact.get_anchor());
+  EXPECT(link_operation(signed_exact, source, materializations));
+  EXPECT(link_operation(unsigned_exact, source, materializations));
+  EXPECT(link_operation(real_exact, source, materializations));
+  EXPECT(!link_operation(mismatch, source, materializations));
+  EXPECT(!link_operation(unresolved_pair, source, materializations));
+  EXPECT(!link_operation(invalid_pair, source, materializations));
+  EXPECT(!link_operation(flags, source, materializations));
+  EXPECT(!link_operation(byte_values, source, materializations));
+
+  auto retained = selected(unsigned_exact.fold());
 
   EXPECT(
       &signed_exact.get_type() == &Tetrodotoxin::Library::Dialect::get_bool());
@@ -205,7 +240,7 @@ PERIMORTEM_UNIT_TEST(LibraryGreaterEqual, type_selection_and_partial) {
       &unsigned_exact.get_type() ==
       &Tetrodotoxin::Library::Dialect::get_bool());
   EXPECT(&real_exact.get_type() == &Tetrodotoxin::Library::Dialect::get_bool());
-  EXPECT(retained && &*retained == &unsigned_exact);
+  EXPECT_NOT(retained);
   EXPECT(input_is(unsigned_exact, 0, unsigned_left));
   EXPECT(input_is(unsigned_exact, 1, unsigned_right));
   EXPECT(mismatch.get_type().resolve().is<Invalid>());
@@ -217,33 +252,45 @@ PERIMORTEM_UNIT_TEST(LibraryGreaterEqual, type_selection_and_partial) {
 
 PERIMORTEM_UNIT_TEST(LibraryGreaterEqual, integer_endpoints) {
   Allocator::Arena domain;
+  GreaterEqualMonograph source(domain);
   Materializations materializations(domain);
   Types::Signed_8 signed_type;
   Types::Unsigned_8 unsigned_type;
-  Constants::Signed minimum(signed_type, -128);
-  Constants::Signed maximum(signed_type, 127);
-  Constants::Signed equal(signed_type, 127);
-  Constants::Unsigned zero(unsigned_type, 0);
-  Constants::Unsigned top(unsigned_type, 255);
-  Constants::Unsigned same_top(unsigned_type, 255);
-  Operations::GreaterEqual signed_true(domain, maximum, minimum);
-  Operations::GreaterEqual signed_false(domain, minimum, maximum);
-  Operations::GreaterEqual signed_equal(domain, maximum, equal);
-  Operations::GreaterEqual unsigned_true(domain, top, zero);
-  Operations::GreaterEqual unsigned_false(domain, zero, top);
-  Operations::GreaterEqual unsigned_equal(domain, top, same_top);
-  auto signed_yes =
-      selected(signed_true.attempt_fold(domain, materializations));
-  auto signed_no =
-      selected(signed_false.attempt_fold(domain, materializations));
-  auto signed_same =
-      selected(signed_equal.attempt_fold(domain, materializations));
-  auto unsigned_yes =
-      selected(unsigned_true.attempt_fold(domain, materializations));
-  auto unsigned_no =
-      selected(unsigned_false.attempt_fold(domain, materializations));
-  auto unsigned_same =
-      selected(unsigned_equal.attempt_fold(domain, materializations));
+  auto& minimum =
+      Constants::Signed::create_synthetic(domain, signed_type, -128);
+  auto& maximum = Constants::Signed::create_synthetic(domain, signed_type, 127);
+  auto& equal = Constants::Signed::create_synthetic(domain, signed_type, 127);
+  auto& zero = Constants::Unsigned::create_synthetic(domain, unsigned_type, 0);
+  auto& top = Constants::Unsigned::create_synthetic(domain, unsigned_type, 255);
+  auto& same_top =
+      Constants::Unsigned::create_synthetic(domain, unsigned_type, 255);
+  auto& signed_true = Operations::GreaterEqual::create_synthetic(
+      domain, materializations, maximum, minimum);
+  auto& signed_false = Operations::GreaterEqual::create_synthetic(
+      domain, materializations, minimum, maximum);
+  auto& signed_equal = Operations::GreaterEqual::create_synthetic(
+      domain, materializations, maximum, equal);
+  auto& unsigned_true = Operations::GreaterEqual::create_synthetic(
+      domain, materializations, top, zero);
+  auto& unsigned_false = Operations::GreaterEqual::create_synthetic(
+      domain, materializations, zero, top);
+  auto& unsigned_equal = Operations::GreaterEqual::create_synthetic(
+      domain, materializations, top, same_top);
+
+  EXPECT(signed_true.get_type().resolve().is<Invalid>());
+  EXPECT(link_operation(signed_true, source, materializations));
+  EXPECT(link_operation(signed_false, source, materializations));
+  EXPECT(link_operation(signed_equal, source, materializations));
+  EXPECT(link_operation(unsigned_true, source, materializations));
+  EXPECT(link_operation(unsigned_false, source, materializations));
+  EXPECT(link_operation(unsigned_equal, source, materializations));
+
+  auto signed_yes = selected(signed_true.fold());
+  auto signed_no = selected(signed_false.fold());
+  auto signed_same = selected(signed_equal.fold());
+  auto unsigned_yes = selected(unsigned_true.fold());
+  auto unsigned_no = selected(unsigned_false.fold());
+  auto unsigned_same = selected(unsigned_equal.fold());
 
   ASSERT(
       signed_yes && signed_no && signed_same && unsigned_yes && unsigned_no &&
@@ -258,40 +305,59 @@ PERIMORTEM_UNIT_TEST(LibraryGreaterEqual, integer_endpoints) {
 
 PERIMORTEM_UNIT_TEST(LibraryGreaterEqual, ieee_domains) {
   Allocator::Arena domain;
+  GreaterEqualMonograph source(domain);
   Materializations materializations(domain);
   Types::Real_32 real_32;
   Types::Real_64 real_64;
-  Constants::Real narrow_left(real_32, 1.0);
-  Constants::Real narrow_right(real_32, 1.00000001);
-  Constants::Real wide_left(real_64, 4.0);
-  Constants::Real wide_right(real_64, 3.0);
-  Constants::Real positive_infinity(real_64, __builtin_inf());
-  Constants::Real negative_infinity(real_64, -__builtin_inf());
-  Constants::Real nan(real_64, __builtin_nan(""));
-  Constants::Real positive_zero(real_64, 0.0);
-  Constants::Real negative_zero(real_64, -0.0);
-  Operations::GreaterEqual narrow(domain, narrow_left, narrow_right);
-  Operations::GreaterEqual wide(domain, wide_left, wide_right);
-  Operations::GreaterEqual positive_infinite(
-      domain, positive_infinity, wide_left);
-  Operations::GreaterEqual negative_infinite(
-      domain, negative_infinity, wide_left);
-  Operations::GreaterEqual left_unordered(domain, nan, wide_left);
-  Operations::GreaterEqual right_unordered(domain, wide_left, nan);
-  Operations::GreaterEqual zero_forward(domain, positive_zero, negative_zero);
-  Operations::GreaterEqual zero_reverse(domain, negative_zero, positive_zero);
-  auto narrow_result = selected(narrow.attempt_fold(domain, materializations));
-  auto wide_result = selected(wide.attempt_fold(domain, materializations));
-  auto positive_result =
-      selected(positive_infinite.attempt_fold(domain, materializations));
-  auto negative_result =
-      selected(negative_infinite.attempt_fold(domain, materializations));
-  auto left_nan =
-      selected(left_unordered.attempt_fold(domain, materializations));
-  auto right_nan =
-      selected(right_unordered.attempt_fold(domain, materializations));
-  auto forward = selected(zero_forward.attempt_fold(domain, materializations));
-  auto reverse = selected(zero_reverse.attempt_fold(domain, materializations));
+  auto& narrow_left = Constants::Real::create_synthetic(domain, real_32, 1.0);
+  auto& narrow_right =
+      Constants::Real::create_synthetic(domain, real_32, 1.00000001);
+  auto& wide_left = Constants::Real::create_synthetic(domain, real_64, 4.0);
+  auto& wide_right = Constants::Real::create_synthetic(domain, real_64, 3.0);
+  auto& positive_infinity =
+      Constants::Real::create_synthetic(domain, real_64, __builtin_inf());
+  auto& negative_infinity =
+      Constants::Real::create_synthetic(domain, real_64, -__builtin_inf());
+  auto& nan =
+      Constants::Real::create_synthetic(domain, real_64, __builtin_nan(""));
+  auto& positive_zero = Constants::Real::create_synthetic(domain, real_64, 0.0);
+  auto& negative_zero =
+      Constants::Real::create_synthetic(domain, real_64, -0.0);
+  auto& narrow = Operations::GreaterEqual::create_synthetic(
+      domain, materializations, narrow_left, narrow_right);
+  auto& wide = Operations::GreaterEqual::create_synthetic(
+      domain, materializations, wide_left, wide_right);
+  auto& positive_infinite = Operations::GreaterEqual::create_synthetic(
+      domain, materializations, positive_infinity, wide_left);
+  auto& negative_infinite = Operations::GreaterEqual::create_synthetic(
+      domain, materializations, negative_infinity, wide_left);
+  auto& left_unordered = Operations::GreaterEqual::create_synthetic(
+      domain, materializations, nan, wide_left);
+  auto& right_unordered = Operations::GreaterEqual::create_synthetic(
+      domain, materializations, wide_left, nan);
+  auto& zero_forward = Operations::GreaterEqual::create_synthetic(
+      domain, materializations, positive_zero, negative_zero);
+  auto& zero_reverse = Operations::GreaterEqual::create_synthetic(
+      domain, materializations, negative_zero, positive_zero);
+
+  EXPECT(narrow.get_type().resolve().is<Invalid>());
+  EXPECT(link_operation(narrow, source, materializations));
+  EXPECT(link_operation(wide, source, materializations));
+  EXPECT(link_operation(positive_infinite, source, materializations));
+  EXPECT(link_operation(negative_infinite, source, materializations));
+  EXPECT(link_operation(left_unordered, source, materializations));
+  EXPECT(link_operation(right_unordered, source, materializations));
+  EXPECT(link_operation(zero_forward, source, materializations));
+  EXPECT(link_operation(zero_reverse, source, materializations));
+
+  auto narrow_result = selected(narrow.fold());
+  auto wide_result = selected(wide.fold());
+  auto positive_result = selected(positive_infinite.fold());
+  auto negative_result = selected(negative_infinite.fold());
+  auto left_nan = selected(left_unordered.fold());
+  auto right_nan = selected(right_unordered.fold());
+  auto forward = selected(zero_forward.fold());
+  auto reverse = selected(zero_reverse.fold());
 
   ASSERT(
       narrow_result && wide_result && positive_result && negative_result &&
@@ -311,50 +377,89 @@ PERIMORTEM_UNIT_TEST(LibraryGreaterEqual, ieee_domains) {
 
 PERIMORTEM_UNIT_TEST(LibraryGreaterEqual, recursive_provenance_and_atomicity) {
   Allocator::Arena domain;
-  Allocator::Arena rendering;
+  GreaterEqualMonograph source(domain);
   Materializations materializations(domain);
   Types::Unsigned_8 selected_type;
-  Constants::Unsigned input(selected_type, 1);
-  Constants::Unsigned folded(selected_type, 8);
-  Constants::Unsigned right(selected_type, 8);
-  GreaterEqualFoldInput child(domain, input, folded, selected_type);
-  GreaterEqualFoldInput failing(domain, input, folded, selected_type, True);
-  Operations::GreaterEqual greater_equal(domain, child, right);
-  Operations::GreaterEqual failure(domain, failing, right);
-  auto first = selected(greater_equal.attempt_fold(domain, materializations));
-  auto second = selected(greater_equal.attempt_fold(domain, materializations));
+  auto& input = Constants::Unsigned::create_synthetic(domain, selected_type, 1);
+  auto& folded =
+      Constants::Unsigned::create_synthetic(domain, selected_type, 8);
+  auto& right = Constants::Unsigned::create_synthetic(domain, selected_type, 8);
+  GreaterEqualFoldInput child(
+      domain, materializations, input, folded, selected_type);
+  GreaterEqualFoldInput failing(
+      domain, materializations, input, folded, selected_type, True);
+  auto& greater_equal = Operations::GreaterEqual::create_synthetic(
+      domain, materializations, child, right);
+  auto& failure = Operations::GreaterEqual::create_synthetic(
+      domain, materializations, failing, right);
+
+  EXPECT(greater_equal.get_type().resolve().is<Invalid>());
+  EXPECT(link_operation(greater_equal, source, materializations));
+  EXPECT(link_operation(greater_equal, source, materializations));
+  EXPECT(link_operation(failure, source, materializations));
+
+  auto first = selected(greater_equal.fold());
+  auto second = selected(greater_equal.fold());
 
   ASSERT(first && second);
   EXPECT(&*first == &*second);
   EXPECT(first->is<Constants::True>());
-  EXPECT(input_is(greater_equal, 0, folded));
+  EXPECT(input_is(greater_equal, 0, child));
   EXPECT(child.get_evaluations() == 1);
   EXPECT(reports(
-      failure.attempt_fold(domain, materializations),
-      FoldError::Type::InvalidConstant, failing));
+      failure.fold(), Expression::Error::Type::InvalidConstant, failing));
 
   const auto& parser_type = Tetrodotoxin::Library::Dialect::get_unsigned_64();
-  Constants::Unsigned left(parser_type, 2);
   Errors success_errors;
-  Tokenizer success_tokens(domain, ">= 2"_view, "greater-equal.ttx"_view);
+  Tokenizer success_tokens(domain, "2 >= 2"_view, "greater-equal.ttx"_view);
   Cursor success_cursor(success_tokens, success_errors);
+  Token success_left_token = success_cursor.consume();
+  auto success_left_anchor =
+      Anchor::create(success_left_token, Span(success_left_token));
+  auto& success_left = Constants::Unsigned::create_authored(
+      domain, parser_type, 2, success_left_anchor);
   auto parsed = Operations::GreaterEqual::parse(
-      domain, materializations, success_cursor, Invalid::get_invalid(), left);
+      domain, materializations, success_cursor, Invalid::get_invalid(),
+      success_left);
   Errors failure_errors;
-  Tokenizer failure_tokens(domain, ">= true"_view, "greater-equal.ttx"_view);
+  Tokenizer failure_tokens(domain, "2 >= true"_view, "greater-equal.ttx"_view);
   Cursor failure_cursor(failure_tokens, failure_errors);
-  Token opening = failure_cursor.current();
+  Token failure_left_token = failure_cursor.consume();
+  auto failure_left_anchor =
+      Anchor::create(failure_left_token, Span(failure_left_token));
+  auto& failure_left = Constants::Unsigned::create_authored(
+      domain, parser_type, 2, failure_left_anchor);
   auto rejected = Operations::GreaterEqual::parse(
-      domain, materializations, failure_cursor, Invalid::get_invalid(), left);
+      domain, materializations, failure_cursor, Invalid::get_invalid(),
+      failure_left);
 
   ASSERT(parsed);
-  EXPECT(parsed->is<Constants::True>());
+  EXPECT(parsed->is<Operations::GreaterEqual>());
+  EXPECT(parsed->get_type().resolve().is<Invalid>());
   EXPECT(success_cursor.matches(Code::Type::Terminal));
   EXPECT(success_errors.is_empty());
-  EXPECT_NOT(rejected);
-  EXPECT(matches_token(failure_cursor, opening));
-  ASSERT(failure_errors.get_size() == 1);
-  View::Bytes rendered = failure_errors.render_message(rendering, 0);
+  EXPECT(parsed->link(source, Invalid::get_invalid(), materializations));
 
-  EXPECT(span_width(rendered) == Count(7));
+  auto parsed_fold = parsed->visit<Operation>(
+      [&](Operation& operation) { return selected(operation.fold()); },
+      [](Abstract&) -> Option<Expression&> { return {}; });
+
+  ASSERT(parsed_fold);
+  EXPECT(parsed_fold->is<Constants::True>());
+  EXPECT(&parsed->get_type() == &Tetrodotoxin::Library::Dialect::get_bool());
+
+  ASSERT(rejected);
+  EXPECT(rejected->is<Operations::GreaterEqual>());
+  EXPECT(rejected->get_type().resolve().is<Invalid>());
+  EXPECT(failure_cursor.matches(Code::Type::Terminal));
+  EXPECT(failure_errors.is_empty());
+  EXPECT_NOT(rejected->link(source, Invalid::get_invalid(), materializations));
+  EXPECT(rejected->get_type().resolve().is<Invalid>());
+
+  auto diagnostics = source.get_diagnostics();
+  ASSERT(diagnostics.get_size() == 1);
+  ASSERT(diagnostics.get_data()[0].get_anchor());
+  EXPECT(
+      diagnostics.get_data()[0].get_anchor()->get_span().get_size() ==
+      Count(9));
 }

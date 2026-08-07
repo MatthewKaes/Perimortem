@@ -5,6 +5,7 @@
 
 #include "validation/unit_test.hpp"
 
+#include "tetrodotoxin/language/monograph.hpp"
 #include "tetrodotoxin/library/dialect.hpp"
 #include "tetrodotoxin/library/language/constants/bytes.hpp"
 #include "tetrodotoxin/library/language/constants/real.hpp"
@@ -32,10 +33,32 @@ static Harness LibraryNegate = {
   .name = "Tetrodotoxin::Library::Language::Operations::Negate"_view,
 };
 
+class NegateMonograph : public Tetrodotoxin::Language::Monograph {
+ public:
+  NegateMonograph(Allocator::Arena& domain)
+      : Tetrodotoxin::Language::Monograph(domain, Documentation::get_empty()) {}
+
+  constexpr auto get_name() const -> View::Bytes override {
+    return "NegateMonograph"_view;
+  }
+
+  constexpr auto resolve_context(View::Bytes) const
+      -> const Abstract& override {
+    return Invalid::get_invalid();
+  }
+};
+
+static auto link_operation(
+    Operation& operation,
+    NegateMonograph& source,
+    Materializations& materializations) -> Bool {
+  return operation.link(source, Invalid::get_invalid(), materializations);
+}
+
 class NegateExpression : public Expression {
  public:
   NegateExpression(View::Bytes name, const Abstract& type)
-      : name(name), type(type) {}
+      : Expression({}), name(name), type(type) {}
 
   auto get_name() const -> View::Bytes override { return name; }
   auto get_documentation() const -> const Documentation& override {
@@ -50,22 +73,27 @@ class NegateExpression : public Expression {
   Ttx::Model::Layouts::Fluid inputs;
 };
 
-static auto selected(const Result<const Expression&, FoldError>& result)
-    -> Option<const Expression&> {
+static auto selected(
+    const Result<Option<Expression&>, Expression::Error>& result)
+    -> Option<Expression&> {
   return result.visit(
-      [](const Expression& expression) -> Option<const Expression&> {
-        return expression;
+      [](const Option<Expression&>& folded) -> Option<Expression&> {
+        return folded.visit(
+            []() -> Option<Expression&> { return {}; },
+            [](Expression& selected) -> Option<Expression&> {
+              return selected;
+            });
       },
-      [](const FoldError&) -> Option<const Expression&> { return {}; });
+      [](const Expression::Error&) -> Option<Expression&> { return {}; });
 }
 
 static auto reports(
-    const Result<const Expression&, FoldError>& result,
-    FoldError::Type expected,
+    const Result<Option<Expression&>, Expression::Error>& result,
+    Expression::Error::Type expected,
     const Expression& origin) -> Bool {
   return result.visit(
-      [](const Expression&) { return False; },
-      [&](const FoldError& error) {
+      [](const Option<Expression&>&) { return False; },
+      [&](const Expression::Error& error) {
         return error.get_type() == expected &&
                        &error.get_expression() == &origin
                    ? True
@@ -101,6 +129,7 @@ static auto input_is(
 
 PERIMORTEM_UNIT_TEST(LibraryNegate, type_selection_and_partial) {
   Allocator::Arena domain;
+  NegateMonograph source(domain);
   Materializations materializations(domain);
   Types::Signed_8 signed_8;
   Types::Real_32 real_32;
@@ -113,24 +142,38 @@ PERIMORTEM_UNIT_TEST(LibraryNegate, type_selection_and_partial) {
   NegateExpression real_value("real"_view, real_32);
   NegateExpression unsigned_value("unsigned"_view, unsigned_8);
   NegateExpression unresolved("unresolved"_view, Invalid::get_invalid());
-  Constants::True truth(boolean);
-  Constants::Bytes bytes(bytes_type, "x"_view);
-  Operations::Negate signed_negate(domain, signed_value);
-  Operations::Negate real_negate(domain, real_value);
-  Operations::Negate unsigned_negate(domain, unsigned_value);
-  Operations::Negate flag_negate(domain, truth);
-  Operations::Negate bytes_negate(domain, bytes);
-  Operations::Negate invalid_negate(domain, unresolved);
-  auto signed_result =
-      selected(signed_negate.attempt_fold(domain, materializations));
-  auto real_result =
-      selected(real_negate.attempt_fold(domain, materializations));
+  auto& truth = Constants::True::create_synthetic(domain, boolean);
+  auto& bytes =
+      Constants::Bytes::create_synthetic(domain, bytes_type, "x"_view);
+  auto& signed_negate = Operations::Negate::create_synthetic(
+      domain, materializations, signed_value);
+  auto& real_negate = Operations::Negate::create_synthetic(
+      domain, materializations, real_value);
+  auto& unsigned_negate = Operations::Negate::create_synthetic(
+      domain, materializations, unsigned_value);
+  auto& flag_negate =
+      Operations::Negate::create_synthetic(domain, materializations, truth);
+  auto& bytes_negate =
+      Operations::Negate::create_synthetic(domain, materializations, bytes);
+  auto& invalid_negate = Operations::Negate::create_synthetic(
+      domain, materializations, unresolved);
 
-  ASSERT(signed_result && real_result);
+  EXPECT(signed_negate.get_type().resolve().is<Invalid>());
+  EXPECT_NOT(signed_negate.get_anchor());
+  EXPECT(link_operation(signed_negate, source, materializations));
+  EXPECT(link_operation(real_negate, source, materializations));
+  EXPECT(!link_operation(unsigned_negate, source, materializations));
+  EXPECT(!link_operation(flag_negate, source, materializations));
+  EXPECT(!link_operation(bytes_negate, source, materializations));
+  EXPECT(!link_operation(invalid_negate, source, materializations));
+
+  auto signed_result = selected(signed_negate.fold());
+  auto real_result = selected(real_negate.fold());
+
+  EXPECT_NOT(signed_result);
+  EXPECT_NOT(real_result);
   EXPECT(&signed_negate.get_type() == &signed_8);
   EXPECT(&real_negate.get_type() == &real_32);
-  EXPECT(&*signed_result == &signed_negate);
-  EXPECT(&*real_result == &real_negate);
   EXPECT(unsigned_negate.get_type().resolve().is<Invalid>());
   EXPECT(flag_negate.get_type().resolve().is<Invalid>());
   EXPECT(bytes_negate.get_type().resolve().is<Invalid>());
@@ -141,29 +184,39 @@ PERIMORTEM_UNIT_TEST(LibraryNegate, type_selection_and_partial) {
 
 PERIMORTEM_UNIT_TEST(LibraryNegate, checked_signed_widths) {
   Allocator::Arena domain;
+  NegateMonograph source(domain);
   Materializations materializations(domain);
   Types::Signed_8 signed_8;
   Types::Signed_64 signed_64;
-  Constants::Signed positive(signed_8, 127);
-  Constants::Signed negative(signed_8, -127);
-  Constants::Signed zero(signed_8, 0);
-  Constants::Signed minimum(signed_8, -128);
-  Constants::Signed wide_minimum(
-      signed_64, Signed_64(-9223372036854775807) - 1);
-  Operations::Negate positive_negate(domain, positive);
-  Operations::Negate negative_negate(domain, negative);
-  Operations::Negate zero_negate(domain, zero);
-  Operations::Negate minimum_negate(domain, minimum);
-  Operations::Negate wide_minimum_negate(domain, wide_minimum);
-  auto positive_result =
-      selected(positive_negate.attempt_fold(domain, materializations));
-  auto negative_result =
-      selected(negative_negate.attempt_fold(domain, materializations));
-  auto zero_result =
-      selected(zero_negate.attempt_fold(domain, materializations));
-  auto minimum_result = minimum_negate.attempt_fold(domain, materializations);
-  auto wide_minimum_result =
-      wide_minimum_negate.attempt_fold(domain, materializations);
+  auto& positive = Constants::Signed::create_synthetic(domain, signed_8, 127);
+  auto& negative = Constants::Signed::create_synthetic(domain, signed_8, -127);
+  auto& zero = Constants::Signed::create_synthetic(domain, signed_8, 0);
+  auto& minimum = Constants::Signed::create_synthetic(domain, signed_8, -128);
+  auto& wide_minimum = Constants::Signed::create_synthetic(
+      domain, signed_64, Signed_64(-9223372036854775807) - 1);
+  auto& positive_negate =
+      Operations::Negate::create_synthetic(domain, materializations, positive);
+  auto& negative_negate =
+      Operations::Negate::create_synthetic(domain, materializations, negative);
+  auto& zero_negate =
+      Operations::Negate::create_synthetic(domain, materializations, zero);
+  auto& minimum_negate =
+      Operations::Negate::create_synthetic(domain, materializations, minimum);
+  auto& wide_minimum_negate = Operations::Negate::create_synthetic(
+      domain, materializations, wide_minimum);
+
+  EXPECT(positive_negate.get_type().resolve().is<Invalid>());
+  EXPECT(link_operation(positive_negate, source, materializations));
+  EXPECT(link_operation(negative_negate, source, materializations));
+  EXPECT(link_operation(zero_negate, source, materializations));
+  EXPECT(link_operation(minimum_negate, source, materializations));
+  EXPECT(link_operation(wide_minimum_negate, source, materializations));
+
+  auto positive_result = selected(positive_negate.fold());
+  auto negative_result = selected(negative_negate.fold());
+  auto zero_result = selected(zero_negate.fold());
+  auto minimum_result = minimum_negate.fold();
+  auto wide_minimum_result = wide_minimum_negate.fold();
   auto positive_value =
       positive_result ? get_signed(*positive_result) : Option<Signed_64>();
   auto negative_value =
@@ -177,40 +230,55 @@ PERIMORTEM_UNIT_TEST(LibraryNegate, checked_signed_widths) {
   EXPECT(zero_value && *zero_value == 0);
   EXPECT(&positive_result->get_type() == &signed_8);
   EXPECT(reports(
-      minimum_result, FoldError::Type::ArithmeticOverflow, minimum_negate));
+      minimum_result, Expression::Error::Type::ArithmeticOverflow,
+      minimum_negate));
   EXPECT(reports(
-      wide_minimum_result, FoldError::Type::ArithmeticOverflow,
+      wide_minimum_result, Expression::Error::Type::ArithmeticOverflow,
       wide_minimum_negate));
 }
 
 PERIMORTEM_UNIT_TEST(LibraryNegate, ieee_real_domains) {
   Allocator::Arena domain;
+  NegateMonograph source(domain);
   Materializations materializations(domain);
   Types::Real_32 real_32;
   Types::Real_64 real_64;
-  Constants::Real finite_32(real_32, 3.25);
-  Constants::Real finite_64(real_64, -9.5);
-  Constants::Real infinity(real_64, __builtin_inf());
-  Constants::Real nan(real_64, __builtin_nan(""));
-  Constants::Real positive_zero(real_32, 0.0);
-  Constants::Real negative_zero(real_64, -0.0);
-  Operations::Negate finite_32_negate(domain, finite_32);
-  Operations::Negate finite_64_negate(domain, finite_64);
-  Operations::Negate infinity_negate(domain, infinity);
-  Operations::Negate nan_negate(domain, nan);
-  Operations::Negate positive_zero_negate(domain, positive_zero);
-  Operations::Negate negative_zero_negate(domain, negative_zero);
-  auto finite_32_result =
-      selected(finite_32_negate.attempt_fold(domain, materializations));
-  auto finite_64_result =
-      selected(finite_64_negate.attempt_fold(domain, materializations));
-  auto infinity_result =
-      selected(infinity_negate.attempt_fold(domain, materializations));
-  auto nan_result = selected(nan_negate.attempt_fold(domain, materializations));
-  auto positive_zero_result =
-      selected(positive_zero_negate.attempt_fold(domain, materializations));
-  auto negative_zero_result =
-      selected(negative_zero_negate.attempt_fold(domain, materializations));
+  auto& finite_32 = Constants::Real::create_synthetic(domain, real_32, 3.25);
+  auto& finite_64 = Constants::Real::create_synthetic(domain, real_64, -9.5);
+  auto& infinity =
+      Constants::Real::create_synthetic(domain, real_64, __builtin_inf());
+  auto& nan =
+      Constants::Real::create_synthetic(domain, real_64, __builtin_nan(""));
+  auto& positive_zero = Constants::Real::create_synthetic(domain, real_32, 0.0);
+  auto& negative_zero =
+      Constants::Real::create_synthetic(domain, real_64, -0.0);
+  auto& finite_32_negate =
+      Operations::Negate::create_synthetic(domain, materializations, finite_32);
+  auto& finite_64_negate =
+      Operations::Negate::create_synthetic(domain, materializations, finite_64);
+  auto& infinity_negate =
+      Operations::Negate::create_synthetic(domain, materializations, infinity);
+  auto& nan_negate =
+      Operations::Negate::create_synthetic(domain, materializations, nan);
+  auto& positive_zero_negate = Operations::Negate::create_synthetic(
+      domain, materializations, positive_zero);
+  auto& negative_zero_negate = Operations::Negate::create_synthetic(
+      domain, materializations, negative_zero);
+
+  EXPECT(finite_32_negate.get_type().resolve().is<Invalid>());
+  EXPECT(link_operation(finite_32_negate, source, materializations));
+  EXPECT(link_operation(finite_64_negate, source, materializations));
+  EXPECT(link_operation(infinity_negate, source, materializations));
+  EXPECT(link_operation(nan_negate, source, materializations));
+  EXPECT(link_operation(positive_zero_negate, source, materializations));
+  EXPECT(link_operation(negative_zero_negate, source, materializations));
+
+  auto finite_32_result = selected(finite_32_negate.fold());
+  auto finite_64_result = selected(finite_64_negate.fold());
+  auto infinity_result = selected(infinity_negate.fold());
+  auto nan_result = selected(nan_negate.fold());
+  auto positive_zero_result = selected(positive_zero_negate.fold());
+  auto negative_zero_result = selected(negative_zero_negate.fold());
   auto finite_32_value =
       finite_32_result ? get_real(*finite_32_result) : Option<Real_64>();
   auto finite_64_value =
@@ -242,18 +310,27 @@ PERIMORTEM_UNIT_TEST(LibraryNegate, ieee_real_domains) {
 
 PERIMORTEM_UNIT_TEST(LibraryNegate, recursive_fold_and_provenance) {
   Allocator::Arena domain;
+  NegateMonograph source(domain);
   Materializations materializations(domain);
   Types::Signed_8 signed_8;
-  Constants::Signed one(signed_8, 1);
-  Constants::Signed minimum(signed_8, -128);
-  Operations::Negate child(domain, one);
-  Operations::Negate parent(domain, child);
-  Operations::Negate failing_child(domain, minimum);
-  Operations::Negate failing_parent(domain, failing_child);
-  auto parent_result = selected(parent.attempt_fold(domain, materializations));
-  auto repeated_result =
-      selected(parent.attempt_fold(domain, materializations));
-  auto failing_result = failing_parent.attempt_fold(domain, materializations);
+  auto& one = Constants::Signed::create_synthetic(domain, signed_8, 1);
+  auto& minimum = Constants::Signed::create_synthetic(domain, signed_8, -128);
+  auto& child =
+      Operations::Negate::create_synthetic(domain, materializations, one);
+  auto& parent =
+      Operations::Negate::create_synthetic(domain, materializations, child);
+  auto& failing_child =
+      Operations::Negate::create_synthetic(domain, materializations, minimum);
+  auto& failing_parent = Operations::Negate::create_synthetic(
+      domain, materializations, failing_child);
+
+  EXPECT(parent.get_type().resolve().is<Invalid>());
+  EXPECT(link_operation(parent, source, materializations));
+  EXPECT(link_operation(failing_parent, source, materializations));
+
+  auto parent_result = selected(parent.fold());
+  auto repeated_result = selected(parent.fold());
+  auto failing_result = failing_parent.fold();
   auto parent_value =
       parent_result ? get_signed(*parent_result) : Option<Signed_64>();
 
@@ -261,5 +338,6 @@ PERIMORTEM_UNIT_TEST(LibraryNegate, recursive_fold_and_provenance) {
   EXPECT(*parent_value == 1);
   EXPECT(&*parent_result == &*repeated_result);
   EXPECT(reports(
-      failing_result, FoldError::Type::ArithmeticOverflow, failing_child));
+      failing_result, Expression::Error::Type::ArithmeticOverflow,
+      failing_child));
 }

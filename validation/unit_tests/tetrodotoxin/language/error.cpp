@@ -119,13 +119,14 @@ PERIMORTEM_UNIT_TEST(LanguageError, consumer_context) {
   // The consumer chooses each authored range. Error sees only the finished
   // Report so its route facts cannot masquerade as source provenance.
   {
-    Errors::Report report(errors, source_name, source_text, source_span);
+    Errors::Report report(
+        errors, source_name, source_text, Anchor::create(source_span));
     error.describe(report);
   }
 
   {
     Errors::Report report(
-        errors, alternate_name, alternate_text, alternate_span);
+        errors, alternate_name, alternate_text, Anchor::create(alternate_span));
     error.describe(report);
   }
 

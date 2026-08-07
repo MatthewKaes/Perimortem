@@ -16,9 +16,9 @@ namespace Tetrodotoxin::Library::Language::Parser {
 
 // Expression consumes one complete Library value operand. It selects the
 // primary parser and dispatches each following operator in precedence order.
-// The concrete operator owns its complete grammar, construction, diagnostics,
-// and eager folding transaction. Receiving Type fitting begins only after the
-// complete Expression returns.
+// The concrete operator owns its complete grammar and source construction.
+// Semantic Types and Addressables connect only when the retained owner links
+// the complete Expression graph.
 class Expression {
  public:
   Expression() = delete;
@@ -28,7 +28,7 @@ class Expression {
       Materializations& materializations,
       Ttx::Lexical::Cursor& cursor,
       const Ttx::Concept::Abstract& source_context)
-      -> Perimortem::Utility::Option<const Language::Expression&>;
+      -> Perimortem::Utility::Option<Language::Expression&>;
 
   // Parses one tighter operand with private diagnostics. The caller position
   // advances only when the complete operand succeeds.
@@ -38,7 +38,7 @@ class Expression {
       Ttx::Lexical::Cursor& cursor,
       const Ttx::Concept::Abstract& source_context,
       Ttx::Lexical::Code::Type operation)
-      -> Perimortem::Utility::Option<const Language::Expression&>;
+      -> Perimortem::Utility::Option<Language::Expression&>;
 
   // Parses one prefix operand with private diagnostics. Postfix operations
   // remain inside the operand while binary operations remain outside it.
@@ -47,7 +47,7 @@ class Expression {
       Materializations& materializations,
       Ttx::Lexical::Cursor& cursor,
       const Ttx::Concept::Abstract& source_context)
-      -> Perimortem::Utility::Option<const Language::Expression&>;
+      -> Perimortem::Utility::Option<Language::Expression&>;
 };
 
 }  // namespace Tetrodotoxin::Library::Language::Parser

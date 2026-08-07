@@ -22,8 +22,23 @@ class Real : public Constant {
     0xb9669826f970ad9b,
   };
 
-  constexpr Real(const Ttx::Model::Types::Real& type, Value value)
-      : type(type), value(value) {}
+  static auto create_authored(
+      Perimortem::Memory::Allocator::Arena& domain,
+      const Ttx::Model::Types::Real& type,
+      Value value,
+      Ttx::Lexical::Anchor anchor) -> Real& {
+    return Expression::create_authored<Real>(
+        domain, anchor,
+        [&](auto source) -> Real { return Real(type, value, source); });
+  }
+
+  static auto create_synthetic(
+      Perimortem::Memory::Allocator::Arena& domain,
+      const Ttx::Model::Types::Real& type,
+      Value value) -> Real& {
+    return Expression::create_synthetic<Real>(
+        domain, [&](auto source) -> Real { return Real(type, value, source); });
+  }
 
   constexpr auto implements(Perimortem::System::Uuid requested) const
       -> Bool override {
@@ -62,6 +77,12 @@ class Real : public Constant {
   }
 
  private:
+  constexpr Real(
+      const Ttx::Model::Types::Real& type,
+      Value value,
+      Perimortem::Utility::Option<Ttx::Lexical::Anchor> anchor)
+      : Constant(anchor), type(type), value(value) {}
+
   const Ttx::Model::Types::Real& type;
   Value value;
 };

@@ -17,7 +17,13 @@ class Import {
  public:
   constexpr Import(Perimortem::Core::View::Bytes route) : route(route) {}
 
-  // Consumes one complete using statement and keeps only its durable route.
+  constexpr Import(
+      Perimortem::Core::View::Bytes route,
+      Ttx::Lexical::Token token,
+      Ttx::Lexical::Span span)
+      : route(route), token(token), span(span) {}
+
+  // Consumes one complete using statement and retains its route and extent.
   static auto parse(Ttx::Lexical::Cursor& cursor)
       -> Perimortem::Utility::Option<Import>;
 
@@ -25,8 +31,14 @@ class Import {
     return route;
   }
 
+  constexpr auto get_token() const -> Ttx::Lexical::Token { return token; }
+
+  constexpr auto get_span() const -> Ttx::Lexical::Span { return span; }
+
  private:
   Perimortem::Core::View::Bytes route;
+  Ttx::Lexical::Token token;
+  Ttx::Lexical::Span span;
 };
 
 }  // namespace Tetrodotoxin::Library::Language

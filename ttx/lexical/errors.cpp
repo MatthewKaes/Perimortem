@@ -28,11 +28,11 @@ Errors::Report::Report(
     Errors& errors,
     View::Bytes source_name,
     View::Bytes source_text,
-    Span span)
+    Anchor anchor)
     : errors(errors),
       source_name(source_name),
       source_text(source_text),
-      span(span),
+      anchor(anchor),
       message_storage(errors.arena),
       hint_storage(errors.arena),
       message(message_storage),
@@ -44,7 +44,7 @@ Errors::Report::~Report() {
   }
 
   errors.publish_report(
-      source_name, source_text, message_storage, hint_storage, span);
+      source_name, source_text, message_storage, hint_storage, anchor);
 }
 
 auto Errors::retain_source(View::Bytes source_name, View::Bytes source_text)
@@ -65,18 +65,18 @@ auto Errors::publish_report(
     View::Bytes source_text,
     View::Bytes message,
     View::Bytes hint,
-    Span span) -> void {
+    Anchor anchor) -> void {
   // Report message storage already belongs to this Arena. Retain or recover the
   // canonical source name without copying a source body already retained here.
   errors.insert({
     .message = message,
     .hint = hint,
     .source_name = retain_source(source_name, source_text),
-    .span = span,
+    .anchor = anchor,
   });
 }
 
-// Tokens store byte offsets rather than owning source lines. Expand the token
+// Spans store byte offsets rather than owning source lines. Expand the source
 // range to the surrounding line boundaries so every affected line can be
 // rendered with its own gutter while still borrowing the stored source text.
 static auto source_range(View::Bytes source, Span span) -> View::Bytes {
@@ -107,6 +107,30 @@ static auto source_range(View::Bytes source, Span span) -> View::Bytes {
   }
 
   return source.slice(start, end - start);
+}
+
+// Anchor deliberately permits an empty or external Token so semantic owners
+// can forward the best source range they have. Rendering adds a caret only
+// when the complete Token is inside both that Span and the retained source.
+static auto has_visible_caret(View::Bytes source, Anchor anchor) -> Bool {
+  Span span = anchor.get_span();
+  Token token = anchor.get_token();
+  if (!span || !token || token.get_size() == 0) {
+    return False;
+  }
+
+  Count span_start = span.get_offset();
+  Count span_end = span_start + span.get_size();
+  Count token_start = token.get_offset();
+  Count token_end = token_start + token.get_size();
+  if (span_end > source.get_size() || token_start < span_start ||
+      token_end > span_end) {
+    return False;
+  }
+
+  return token.get_line() >= span.get_start().get_line() &&
+         token.get_line() <= span.get_end().get_line() &&
+         token.get_column() != 0;
 }
 
 // Source gutters reserve five columns for the line number aligned on the
@@ -145,8 +169,8 @@ static auto write_caret_gutter(Stream::Textual<Managed::Bytes>& render)
 //   [ERROR] source.ttx:12:5:
 //   Explanation of the error
 //      12 | first affected source line
-//      13 | final affected source line
 //         |     ^ plus its underline
+//      13 | final affected source line
 //   Note: optional recovery hint
 //
 // General errors stop after the explanation because they have no Span.
@@ -169,37 +193,40 @@ auto Errors::render_message(
 
   View::Bytes source_name = (*source).key;
   View::Bytes source_text = (*source).value;
-  const Span token_span = error.span;
-  const Count span_size = token_span ? token_span.get_size() : 0;
-  const Count span_line_count = token_span ? token_span.get_line_count() : 0;
+  const Span span = error.anchor.get_span();
+  const Token token = error.anchor.get_token();
+  const Bool visible_caret = has_visible_caret(source_text, error.anchor);
+  const Count token_size = visible_caret ? token.get_size() : 0;
+  const Count span_line_count = span ? span.get_line_count() : 0;
 
-  // The excerpt expands to full source lines while the underline retains the
-  // exact Span width, including line breaks between its Tokens.
-  View::Bytes range = source_range(source_text, token_span);
+  // Span controls the complete excerpt while Token independently chooses the
+  // diagnostic coordinate and marker width within that source context.
+  View::Bytes range = source_range(source_text, span);
 
   // One reservation covers the borrowed text plus gutters and color escapes.
   // General reports contribute zero Span bytes without reading coordinates.
   message.reset(
       source_name.get_size() + error.message.get_size() +
-      error.hint.get_size() + range.get_size() + span_size +
+      error.hint.get_size() + range.get_size() + token_size +
       (span_line_count * 48) + 256);
 
   // A general report still names its source, but its invalid Span deliberately
   // omits line and column coordinates.
   render << error_primary << bold << "[ERROR] "_view << error_secondary
          << italic << source_color << source_name << ":"_view;
-  if (token_span) {
-    render << token_span.get_line() << ":"_view << token_span.get_column()
-           << ":"_view;
+  if (visible_caret) {
+    render << token.get_line() << ":"_view << token.get_column() << ":"_view;
+  } else if (span) {
+    render << span.get_line() << ":"_view << span.get_column() << ":"_view;
   }
   render << "\n"_view << clear_color;
 
   render << error_secondary << bold << error.message << "\n"_view;
 
-  if (token_span) {
+  if (span) {
     // Span retains coordinates rather than line slices. Splitting the expanded
     // range here keeps empty lines visible and every gutter aligned.
-    Count line_number = token_span.get_line();
+    Count line_number = span.get_line();
     Count line_start = 0;
     for (Count i = 0; i <= range.get_size(); i++) {
       if (i != range.get_size() && range[i] != '\n') {
@@ -210,24 +237,25 @@ auto Errors::render_message(
       // the only reliable way to publish its last character or empty line.
       write_source_gutter(message, render, line_number);
       render << range.slice(line_start, i - line_start) << "\n"_view;
+
+      // Place the marker beside its own source line. A later line in a broad
+      // expression Span must not separate the operator from its diagnostic.
+      if (visible_caret && line_number == token.get_line()) {
+        write_caret_gutter(render);
+        if (token.get_column() > 1) {
+          message.append(' ', token.get_column() - 1);
+        }
+
+        render << "^"_view;
+        if (token_size > 1) {
+          message.append('-', token_size - 1);
+        }
+        render << "\n"_view;
+      }
+
       line_number++;
       line_start = i + 1;
     }
-
-    // The caret begins at the opening Token column. Its fill remains the exact
-    // byte width even when the Span crosses line boundaries.
-    write_caret_gutter(render);
-    if (token_span.get_column() > 1) {
-      message.append(' ', token_span.get_column() - 1);
-    }
-
-    // The caret already marks the first byte. One fewer fill byte makes the
-    // visible marker exactly as wide as the Span.
-    render << "^"_view;
-    if (span_size > 1) {
-      message.append('-', span_size - 1);
-    }
-    render << "\n"_view;
   }
 
   if (!error.hint.is_empty()) {

@@ -12,6 +12,7 @@
 #include "perimortem/utility/option.hpp"
 #include "perimortem/utility/result.hpp"
 
+#include "tetrodotoxin/language/monograph.hpp"
 #include "tetrodotoxin/library/dialect.hpp"
 #include "tetrodotoxin/library/language/constants/bytes.hpp"
 #include "tetrodotoxin/library/language/constants/signed.hpp"
@@ -38,10 +39,32 @@ static Harness LibrarySlice = {
   .name = "Tetrodotoxin::Library::Language::Operations::Slice"_view,
 };
 
+class SliceMonograph : public Tetrodotoxin::Language::Monograph {
+ public:
+  SliceMonograph(Allocator::Arena& domain)
+      : Tetrodotoxin::Language::Monograph(domain, Documentation::get_empty()) {}
+
+  constexpr auto get_name() const -> View::Bytes override {
+    return "SliceMonograph"_view;
+  }
+
+  constexpr auto resolve_context(View::Bytes) const
+      -> const Abstract& override {
+    return Invalid::get_invalid();
+  }
+};
+
+static auto link_operation(
+    Operation& operation,
+    SliceMonograph& source,
+    Materializations& materializations) -> Bool {
+  return operation.link(source, Invalid::get_invalid(), materializations);
+}
+
 class SliceExpression : public Expression {
  public:
   SliceExpression(View::Bytes name, const Ttx::Model::Type& type)
-      : name(name), type(type) {}
+      : Expression({}), name(name), type(type) {}
 
   auto get_name() const -> View::Bytes override { return name; }
   auto get_documentation() const -> const Documentation& override {
@@ -60,10 +83,15 @@ class SliceFoldOperation : public Operation {
  public:
   SliceFoldOperation(
       Allocator::Arena& domain,
-      const Expression& input,
-      const Expression& result,
+      Materializations& materializations,
+      Expression& input,
+      Constant& result,
       const Ttx::Model::Type& type)
-      : Operation(domain, Static::Vector<Reference<Expression>, 1>{{input}}),
+      : Operation(
+            domain,
+            materializations,
+            Static::Vector<Reference<Expression>, 1>{{input}},
+            {}),
         result(result),
         type(type) {}
 
@@ -71,41 +99,44 @@ class SliceFoldOperation : public Operation {
   auto get_documentation() const -> const Documentation& override {
     return Documentation::get_empty();
   }
-  auto get_type() const -> const Ttx::Model::Type& override { return type; }
 
  protected:
-  auto evaluate_constants(Allocator::Arena&, Materializations&) const
-      -> Result<const Expression&, FoldError> override {
+  auto evaluate_constants(Allocator::Arena&, Materializations&)
+      -> Result<Option<Constant&>, Expression::Error> override {
     return result;
   }
 
+  auto select_type(Materializations&) const
+      -> Option<const Ttx::Model::Type&> override {
+    return type;
+  }
+
  private:
-  const Expression& result;
+  Constant& result;
   const Ttx::Model::Type& type;
 };
 
-static auto selects(
-    const Result<const Expression&, FoldError>& result,
-    const Expression& expected) -> Bool {
-  return result.visit(
-      [&](const Expression& selected) {
-        return &selected == &expected ? True : False;
-      },
-      [](const FoldError&) { return False; });
-}
-
 static auto reports(
-    const Result<const Expression&, FoldError>& result,
-    FoldError::Type expected,
+    const Result<Option<Expression&>, Expression::Error>& result,
+    Expression::Error::Type expected,
     const Expression& origin) -> Bool {
   return result.visit(
-      [](const Expression&) { return False; },
-      [&](const FoldError& selected) {
+      [](const Option<Expression&>&) { return False; },
+      [&](const Expression::Error& selected) {
         return selected.get_type() == expected &&
                        &selected.get_expression() == &origin
                    ? True
                    : False;
       });
+}
+
+static auto is_dynamic(
+    const Result<Option<Expression&>, Expression::Error>& result) -> Bool {
+  return result.visit(
+      [](const Option<Expression&>& selected) {
+        return !selected ? True : False;
+      },
+      [](const Expression::Error&) { return False; });
 }
 
 static auto input_is(
@@ -119,13 +150,18 @@ static auto input_is(
       });
 }
 
-static auto selected(const Result<const Expression&, FoldError>& result)
-    -> Option<const Expression&> {
+static auto selected(
+    const Result<Option<Expression&>, Expression::Error>& result)
+    -> Option<Expression&> {
   return result.visit(
-      [](const Expression& expression) -> Option<const Expression&> {
-        return expression;
+      [](const Option<Expression&>& folded) -> Option<Expression&> {
+        return folded.visit(
+            []() -> Option<Expression&> { return {}; },
+            [](Expression& selected) -> Option<Expression&> {
+              return selected;
+            });
       },
-      [](const FoldError&) -> Option<const Expression&> { return {}; });
+      [](const Expression::Error&) -> Option<Expression&> { return {}; });
 }
 
 static auto get_fixed(const Abstract& type) -> Option<const Types::Fixed&> {
@@ -170,6 +206,7 @@ static auto get_bytes(const Expression& expression) -> Option<View::Bytes> {
 
 PERIMORTEM_UNIT_TEST(LibrarySlice, receiver_type_selection) {
   Allocator::Arena domain;
+  SliceMonograph source(domain);
   Materializations materializations(domain);
   const auto& element = Tetrodotoxin::Library::Dialect::get_unsigned_8();
   Types::Signed_64 integer;
@@ -180,21 +217,25 @@ PERIMORTEM_UNIT_TEST(LibrarySlice, receiver_type_selection) {
   SliceExpression view_receiver("view"_view, view);
   SliceExpression access_receiver("access"_view, access);
   SliceExpression index("index"_view, integer);
-  Operations::Slice fixed_index(
+  auto& fixed_index = Operations::Slice::create_synthetic(
       domain, materializations, fixed_receiver, index);
-  Operations::Slice view_index(domain, materializations, view_receiver, index);
-  Operations::Slice access_index(
+  auto& view_index = Operations::Slice::create_synthetic(
+      domain, materializations, view_receiver, index);
+  auto& access_index = Operations::Slice::create_synthetic(
       domain, materializations, access_receiver, index);
+
+  EXPECT(fixed_index.get_type().resolve().is<Invalid>());
+  EXPECT_NOT(fixed_index.get_anchor());
+  EXPECT(link_operation(fixed_index, source, materializations));
+  EXPECT(link_operation(view_index, source, materializations));
+  EXPECT(link_operation(access_index, source, materializations));
 
   EXPECT(&fixed_index.get_type() == &element);
   EXPECT(&view_index.get_type() == &element);
   EXPECT(&access_index.get_type() == &element);
-  EXPECT(
-      selects(fixed_index.attempt_fold(domain, materializations), fixed_index));
-  EXPECT(
-      selects(view_index.attempt_fold(domain, materializations), view_index));
-  EXPECT(selects(
-      access_index.attempt_fold(domain, materializations), access_index));
+  EXPECT(is_dynamic(fixed_index.fold()));
+  EXPECT(is_dynamic(view_index.fold()));
+  EXPECT(is_dynamic(access_index.fold()));
   ASSERT_EQ(fixed_index.get_inputs().get_size(), Count(2));
   EXPECT(input_is(fixed_index, 0, fixed_receiver));
   EXPECT(input_is(fixed_index, 1, index));
@@ -202,6 +243,7 @@ PERIMORTEM_UNIT_TEST(LibrarySlice, receiver_type_selection) {
 
 PERIMORTEM_UNIT_TEST(LibrarySlice, range_type_selection) {
   Allocator::Arena domain;
+  SliceMonograph source(domain);
   Materializations materializations(domain);
   Types::Unsigned_8 element;
   Types::Signed_64 integer;
@@ -214,37 +256,47 @@ PERIMORTEM_UNIT_TEST(LibrarySlice, range_type_selection) {
   SliceExpression access_receiver("access"_view, access);
   SliceExpression start("start"_view, integer);
   SliceExpression dynamic_size("size"_view, integer);
-  Constants::Unsigned fold_input(unsigned_integer, 1);
-  Constants::Unsigned fixed_size(unsigned_integer, 4);
+  auto& fold_input =
+      Constants::Unsigned::create_synthetic(domain, unsigned_integer, 1);
+  auto& fixed_size =
+      Constants::Unsigned::create_synthetic(domain, unsigned_integer, 4);
   SliceFoldOperation size_operation(
-      domain, fold_input, fixed_size, unsigned_integer);
-  Operations::Slice fixed_dynamic(
+      domain, materializations, fold_input, fixed_size, unsigned_integer);
+  auto& fixed_dynamic = Operations::Slice::create_synthetic(
       domain, materializations, fixed_receiver, start, dynamic_size);
-  Operations::Slice view_dynamic(
+  auto& view_dynamic = Operations::Slice::create_synthetic(
       domain, materializations, view_receiver, start, dynamic_size);
-  Operations::Slice access_dynamic(
+  auto& access_dynamic = Operations::Slice::create_synthetic(
       domain, materializations, access_receiver, start, dynamic_size);
-  Operations::Slice constant_size(
+  auto& constant_size = Operations::Slice::create_synthetic(
       domain, materializations, fixed_receiver, start, fixed_size);
-  Operations::Slice folded_size(
+  auto& folded_size = Operations::Slice::create_synthetic(
       domain, materializations, fixed_receiver, start, size_operation);
+
+  EXPECT(fixed_dynamic.get_type().resolve().is<Invalid>());
+  EXPECT(link_operation(fixed_dynamic, source, materializations));
+  EXPECT(link_operation(view_dynamic, source, materializations));
+  EXPECT(link_operation(access_dynamic, source, materializations));
+  EXPECT(link_operation(constant_size, source, materializations));
+  EXPECT(link_operation(folded_size, source, materializations));
+
   auto fixed_result = get_fixed(constant_size.get_type());
   auto fixed_view = get_view(fixed_dynamic.get_type());
   auto access_view = get_access(access_dynamic.get_type());
   const Abstract& folded_type = folded_size.get_type();
-  auto folded_result = folded_size.attempt_fold(domain, materializations);
+  auto folded_result = folded_size.fold();
 
   ASSERT(fixed_dynamic.get_type().is<Types::View>());
   ASSERT(view_dynamic.get_type().is<Types::View>());
   ASSERT(access_dynamic.get_type().is<Types::Access>());
   ASSERT(constant_size.get_type().is<Types::Fixed>());
   ASSERT(folded_type.is<Types::View>());
-  EXPECT(selects(folded_result, folded_size));
+  EXPECT(is_dynamic(folded_result));
   EXPECT(&folded_size.get_type() == &folded_type);
   ASSERT(fixed_result && fixed_view && access_view);
   EXPECT(&fixed_result->get_element_type() == &element);
   EXPECT(fixed_result->get_extent() == 4);
-  EXPECT(input_is(folded_size, 2, fixed_size));
+  EXPECT(input_is(folded_size, 2, size_operation));
   EXPECT(&fixed_dynamic.get_type() == &view_dynamic.get_type());
   EXPECT(&fixed_view->get_element_type() == &element);
   EXPECT(&access_view->get_element_type() == &element);
@@ -255,29 +307,41 @@ PERIMORTEM_UNIT_TEST(LibrarySlice, range_type_selection) {
 
 PERIMORTEM_UNIT_TEST(LibrarySlice, constant_byte_payloads) {
   Allocator::Arena domain;
+  SliceMonograph source(domain);
   Materializations materializations(domain);
   const auto& element = Tetrodotoxin::Library::Dialect::get_unsigned_8();
   Types::Unsigned_64 integer;
   Types::Fixed bytes_type("Fixed[Unsigned_8,6]"_view, element, 6);
-  Constants::Bytes bytes(bytes_type, "abcdef"_view);
-  Constants::Unsigned zero(integer, 0);
-  Constants::Unsigned one(integer, 1);
-  Constants::Unsigned two(integer, 2);
-  Constants::Unsigned four(integer, 4);
-  Constants::Unsigned six(integer, 6);
-  Operations::Slice index(domain, materializations, bytes, one);
-  Operations::Slice full(domain, materializations, bytes, zero, six);
-  Operations::Slice interior(domain, materializations, bytes, one, four);
-  Operations::Slice empty(domain, materializations, bytes, two, zero);
-  Operations::Slice terminal_empty(domain, materializations, bytes, six, zero);
+  auto& bytes =
+      Constants::Bytes::create_synthetic(domain, bytes_type, "abcdef"_view);
+  auto& zero = Constants::Unsigned::create_synthetic(domain, integer, 0);
+  auto& one = Constants::Unsigned::create_synthetic(domain, integer, 1);
+  auto& two = Constants::Unsigned::create_synthetic(domain, integer, 2);
+  auto& four = Constants::Unsigned::create_synthetic(domain, integer, 4);
+  auto& six = Constants::Unsigned::create_synthetic(domain, integer, 6);
+  auto& index =
+      Operations::Slice::create_synthetic(domain, materializations, bytes, one);
+  auto& full = Operations::Slice::create_synthetic(
+      domain, materializations, bytes, zero, six);
+  auto& interior = Operations::Slice::create_synthetic(
+      domain, materializations, bytes, one, four);
+  auto& empty = Operations::Slice::create_synthetic(
+      domain, materializations, bytes, two, zero);
+  auto& terminal_empty = Operations::Slice::create_synthetic(
+      domain, materializations, bytes, six, zero);
 
-  auto indexed = selected(index.attempt_fold(domain, materializations));
-  auto full_value = selected(full.attempt_fold(domain, materializations));
-  auto interior_value =
-      selected(interior.attempt_fold(domain, materializations));
-  auto empty_value = selected(empty.attempt_fold(domain, materializations));
-  auto terminal_value =
-      selected(terminal_empty.attempt_fold(domain, materializations));
+  EXPECT(index.get_type().resolve().is<Invalid>());
+  EXPECT(link_operation(index, source, materializations));
+  EXPECT(link_operation(full, source, materializations));
+  EXPECT(link_operation(interior, source, materializations));
+  EXPECT(link_operation(empty, source, materializations));
+  EXPECT(link_operation(terminal_empty, source, materializations));
+
+  auto indexed = selected(index.fold());
+  auto full_value = selected(full.fold());
+  auto interior_value = selected(interior.fold());
+  auto empty_value = selected(empty.fold());
+  auto terminal_value = selected(terminal_empty.fold());
   auto indexed_byte = indexed ? get_unsigned(*indexed) : Option<Unsigned_64>();
   auto full_bytes = full_value ? get_bytes(*full_value) : Option<View::Bytes>();
   auto interior_bytes =
@@ -302,9 +366,12 @@ PERIMORTEM_UNIT_TEST(LibrarySlice, constant_byte_payloads) {
   EXPECT(empty_value->get_type().is<Types::Fixed>());
   EXPECT(terminal_value->get_type().is<Types::Fixed>());
 
-  Operations::Slice chained(
+  auto& chained = Operations::Slice::create_synthetic(
       domain, materializations, *interior_value, one, two);
-  auto chained_value = selected(chained.attempt_fold(domain, materializations));
+  EXPECT(chained.get_type().resolve().is<Invalid>());
+  EXPECT(link_operation(chained, source, materializations));
+
+  auto chained_value = selected(chained.fold());
   auto chained_bytes =
       chained_value ? get_bytes(*chained_value) : Option<View::Bytes>();
   ASSERT(chained_value);
@@ -314,6 +381,7 @@ PERIMORTEM_UNIT_TEST(LibrarySlice, constant_byte_payloads) {
 
 PERIMORTEM_UNIT_TEST(LibrarySlice, partial_folding) {
   Allocator::Arena domain;
+  SliceMonograph source(domain);
   Materializations materializations(domain);
   Types::Unsigned_8 element;
   Types::Unsigned_64 integer;
@@ -322,27 +390,28 @@ PERIMORTEM_UNIT_TEST(LibrarySlice, partial_folding) {
   SliceExpression dynamic_index("index"_view, integer);
   SliceExpression dynamic_start("start"_view, integer);
   SliceExpression dynamic_size("size"_view, integer);
-  Constants::Bytes bytes(fixed, "abcd"_view);
-  Constants::Unsigned zero(integer, 0);
-  Constants::Unsigned two(integer, 2);
-  Operations::Slice receiver_partial(
+  auto& bytes = Constants::Bytes::create_synthetic(domain, fixed, "abcd"_view);
+  auto& zero = Constants::Unsigned::create_synthetic(domain, integer, 0);
+  auto& two = Constants::Unsigned::create_synthetic(domain, integer, 2);
+  auto& receiver_partial = Operations::Slice::create_synthetic(
       domain, materializations, dynamic_receiver, zero);
-  Operations::Slice index_partial(
+  auto& index_partial = Operations::Slice::create_synthetic(
       domain, materializations, bytes, dynamic_index);
-  Operations::Slice start_partial(
+  auto& start_partial = Operations::Slice::create_synthetic(
       domain, materializations, bytes, dynamic_start, two);
-  Operations::Slice size_partial(
+  auto& size_partial = Operations::Slice::create_synthetic(
       domain, materializations, bytes, zero, dynamic_size);
 
-  EXPECT(selects(
-      receiver_partial.attempt_fold(domain, materializations),
-      receiver_partial));
-  EXPECT(selects(
-      index_partial.attempt_fold(domain, materializations), index_partial));
-  EXPECT(selects(
-      start_partial.attempt_fold(domain, materializations), start_partial));
-  EXPECT(selects(
-      size_partial.attempt_fold(domain, materializations), size_partial));
+  EXPECT(receiver_partial.get_type().resolve().is<Invalid>());
+  EXPECT(link_operation(receiver_partial, source, materializations));
+  EXPECT(link_operation(index_partial, source, materializations));
+  EXPECT(link_operation(start_partial, source, materializations));
+  EXPECT(link_operation(size_partial, source, materializations));
+
+  EXPECT(is_dynamic(receiver_partial.fold()));
+  EXPECT(is_dynamic(index_partial.fold()));
+  EXPECT(is_dynamic(start_partial.fold()));
+  EXPECT(is_dynamic(size_partial.fold()));
   EXPECT(&receiver_partial.get_type() == &element);
   EXPECT(&index_partial.get_type() == &element);
   EXPECT(start_partial.get_type().is<Types::Fixed>());
@@ -351,50 +420,68 @@ PERIMORTEM_UNIT_TEST(LibrarySlice, partial_folding) {
 
 PERIMORTEM_UNIT_TEST(LibrarySlice, rejected_inputs) {
   Allocator::Arena domain;
+  SliceMonograph source(domain);
   Materializations materializations(domain);
   Types::Unsigned_8 element;
   Types::Unsigned_64 integer;
   Types::Signed_64 signed_integer;
   Types::Boolean flag_type;
   Types::Fixed fixed("Fixed[Unsigned_8,3]"_view, element, 3);
-  Constants::Bytes bytes(fixed, "abc"_view);
-  Constants::Unsigned zero(integer, 0);
-  Constants::Unsigned one(integer, 1);
-  Constants::Unsigned two(integer, 2);
-  Constants::Unsigned three(integer, 3);
-  Constants::Unsigned four(integer, 4);
-  Constants::Unsigned maximum(integer, Unsigned_64(-1));
-  Constants::Signed negative(signed_integer, -1);
-  Constants::True flag(flag_type);
-  Operations::Slice invalid_receiver(domain, materializations, flag, zero);
-  Operations::Slice invalid_operand(domain, materializations, bytes, flag);
-  Operations::Slice negative_operand(domain, materializations, bytes, negative);
-  Operations::Slice overflow(domain, materializations, bytes, zero, maximum);
-  Operations::Slice index_bounds(domain, materializations, bytes, three);
-  Operations::Slice start_bounds(domain, materializations, bytes, four, zero);
-  Operations::Slice size_bounds(domain, materializations, bytes, two, two);
+  auto& bytes = Constants::Bytes::create_synthetic(domain, fixed, "abc"_view);
+  auto& zero = Constants::Unsigned::create_synthetic(domain, integer, 0);
+  auto& two = Constants::Unsigned::create_synthetic(domain, integer, 2);
+  auto& three = Constants::Unsigned::create_synthetic(domain, integer, 3);
+  auto& four = Constants::Unsigned::create_synthetic(domain, integer, 4);
+  auto& maximum =
+      Constants::Unsigned::create_synthetic(domain, integer, Unsigned_64(-1));
+  auto& negative =
+      Constants::Signed::create_synthetic(domain, signed_integer, -1);
+  auto& flag = Constants::True::create_synthetic(domain, flag_type);
+  auto& invalid_receiver =
+      Operations::Slice::create_synthetic(domain, materializations, flag, zero);
+  auto& invalid_operand = Operations::Slice::create_synthetic(
+      domain, materializations, bytes, flag);
+  auto& negative_operand = Operations::Slice::create_synthetic(
+      domain, materializations, bytes, negative);
+  auto& overflow = Operations::Slice::create_synthetic(
+      domain, materializations, bytes, zero, maximum);
+  auto& index_bounds = Operations::Slice::create_synthetic(
+      domain, materializations, bytes, three);
+  SliceFoldOperation nested_index(
+      domain, materializations, zero, three, integer);
+  auto& nested_index_bounds = Operations::Slice::create_synthetic(
+      domain, materializations, bytes, nested_index);
+  auto& start_bounds = Operations::Slice::create_synthetic(
+      domain, materializations, bytes, four, zero);
+  auto& size_bounds = Operations::Slice::create_synthetic(
+      domain, materializations, bytes, two, two);
 
+  EXPECT(invalid_receiver.get_type().resolve().is<Invalid>());
+  EXPECT(!link_operation(invalid_receiver, source, materializations));
+  EXPECT(!link_operation(invalid_operand, source, materializations));
+  EXPECT(link_operation(negative_operand, source, materializations));
+  EXPECT(!link_operation(overflow, source, materializations));
+  EXPECT(link_operation(index_bounds, source, materializations));
+  EXPECT(link_operation(nested_index_bounds, source, materializations));
+  EXPECT(link_operation(start_bounds, source, materializations));
+  EXPECT(link_operation(size_bounds, source, materializations));
+
+  EXPECT(is_dynamic(invalid_receiver.fold()));
+  EXPECT(is_dynamic(invalid_operand.fold()));
   EXPECT(reports(
-      invalid_receiver.attempt_fold(domain, materializations),
-      FoldError::Type::InvalidOperationType, invalid_receiver));
+      negative_operand.fold(), Expression::Error::Type::NegativeOperand,
+      negative));
+  EXPECT(is_dynamic(overflow.fold()));
   EXPECT(reports(
-      invalid_operand.attempt_fold(domain, materializations),
-      FoldError::Type::InvalidOperationType, invalid_operand));
+      index_bounds.fold(), Expression::Error::Type::IndexOutOfBounds, three));
   EXPECT(reports(
-      negative_operand.attempt_fold(domain, materializations),
-      FoldError::Type::NegativeOperand, negative));
+      nested_index_bounds.fold(), Expression::Error::Type::IndexOutOfBounds,
+      nested_index));
   EXPECT(reports(
-      overflow.attempt_fold(domain, materializations),
-      FoldError::Type::InvalidOperationType, overflow));
+      start_bounds.fold(), Expression::Error::Type::RangeStartOutOfBounds,
+      four));
   EXPECT(reports(
-      index_bounds.attempt_fold(domain, materializations),
-      FoldError::Type::IndexOutOfBounds, three));
-  EXPECT(reports(
-      start_bounds.attempt_fold(domain, materializations),
-      FoldError::Type::RangeStartOutOfBounds, four));
-  EXPECT(reports(
-      size_bounds.attempt_fold(domain, materializations),
-      FoldError::Type::RangeSizeOutOfBounds, two));
+      size_bounds.fold(), Expression::Error::Type::RangeSizeOutOfBounds, two));
   EXPECT(&invalid_receiver.get_type() == &Invalid::get_invalid());
   EXPECT(&invalid_operand.get_type() == &Invalid::get_invalid());
 }

@@ -77,51 +77,15 @@ static auto select_operand_type(
   return left_resolved;
 }
 
-static auto report_types(
-    Cursor& cursor,
-    Span span,
-    const Language::Expression& left,
-    const Language::Expression& right) -> void {
-  auto report = cursor.create_report(span);
-  report << "GreaterEqual cannot use left Type `"_view
-         << left.get_type().get_name() << "` with right Type `"_view
-         << right.get_type().get_name() << "`."_view;
-  report.get_hint()
-      << "Use two values with the same explicit numeric Type."_view;
-}
-
-static auto report_fold_error(
-    Cursor& cursor,
-    Span span,
-    const Language::Operations::GreaterEqual& greater_equal,
-    const Language::Expression& left,
-    const Language::Expression& right,
-    const Language::FoldError& error) -> void {
-  switch (error.get_type()) {
-  case Language::FoldError::Type::InvalidOperationType:
-    if (&error.get_expression() == &greater_equal) {
-      report_types(cursor, span, left, right);
-      return;
-    }
-    break;
-  default:
-    break;
-  }
-
-  auto report = cursor.create_report(span);
-  report << "GreaterEqual input `"_view << error.get_expression().get_name()
-         << "` failed folding with "_view << error.get_name() << "."_view;
-  report.get_hint()
-      << "Check that input operation and its explicit result Type."_view;
-}
-
 static auto make_result(Memory::Allocator::Arena& domain, Bool value)
-    -> const Language::Expression& {
+    -> Language::Constant& {
   if (value) {
-    return domain.construct<Language::Constants::True>(Dialect::get_bool());
+    return Language::Constants::True::create_synthetic(
+        domain, Dialect::get_bool());
   }
 
-  return domain.construct<Language::Constants::False>(Dialect::get_bool());
+  return Language::Constants::False::create_synthetic(
+      domain, Dialect::get_bool());
 }
 
 auto Language::Operations::GreaterEqual::parse(
@@ -129,7 +93,7 @@ auto Language::Operations::GreaterEqual::parse(
     Materializations& materializations,
     Cursor& cursor,
     const Abstract& source_context,
-    const Expression& left) -> Utility::Option<const Expression&> {
+    Expression& left) -> Utility::Option<Expression&> {
   auto transaction = cursor.branch();
   Token opening = transaction.consume();
   auto right = Language::Parser::Expression::parse_operand(
@@ -143,65 +107,88 @@ auto Language::Operations::GreaterEqual::parse(
     return {};
   }
 
-  const auto& greater_equal =
-      domain.construct<GreaterEqual>(domain, left, *right);
-  if (!greater_equal.get_type().resolve().is<Ttx::Model::Types::Flag>()) {
-    report_types(transaction, span, left, *right);
+  const auto& left_anchor = left.get_anchor();
+  const auto& right_anchor = right->get_anchor();
+  if (!left_anchor || !right_anchor) {
+    transaction.create_expression_error(
+        span, "GreaterEqual requires authored operand Anchors."_view);
     return {};
   }
 
-  auto folded = greater_equal.attempt_fold(domain, materializations);
-  auto parsed = folded.visit(
-      [](const Expression& expression) -> Utility::Option<const Expression&> {
-        return expression;
-      },
-      [&](const FoldError& error) -> Utility::Option<const Expression&> {
-        report_fold_error(
-            transaction, span, greater_equal, left, *right, error);
-        return {};
-      });
-  if (!parsed) {
-    return {};
-  }
-
-  // The branch may publish diagnostics, but caller position changes only after
-  // grammar, numeric legality, and eager folding complete successfully.
+  auto anchor = Anchor::create(
+      opening, left_anchor->get_span(), right_anchor->get_span());
+  auto& greater_equal =
+      create_authored(domain, materializations, left, *right, anchor);
   cursor.join(transaction);
-  return *parsed;
+  return greater_equal;
+}
+
+auto Language::Operations::GreaterEqual::create_authored(
+    Memory::Allocator::Arena& domain,
+    Materializations& materializations,
+    Expression& left,
+    Expression& right,
+    Anchor anchor) -> GreaterEqual& {
+  return Expression::create_authored<GreaterEqual>(
+      domain, anchor, [&](auto source) -> GreaterEqual {
+        return GreaterEqual(domain, materializations, left, right, source);
+      });
+}
+
+auto Language::Operations::GreaterEqual::create_synthetic(
+    Memory::Allocator::Arena& domain,
+    Materializations& materializations,
+    Expression& left,
+    Expression& right) -> GreaterEqual& {
+  return Expression::create_synthetic<GreaterEqual>(
+      domain, [&](auto source) -> GreaterEqual {
+        return GreaterEqual(domain, materializations, left, right, source);
+      });
 }
 
 Language::Operations::GreaterEqual::GreaterEqual(
     Memory::Allocator::Arena& domain,
-    const Expression& left,
-    const Expression& right)
+    Materializations& materializations,
+    Expression& left,
+    Expression& right,
+    Utility::Option<Anchor> anchor)
     : Operation(
           domain,
+          materializations,
           Core::Static::Vector<Ttx::Concept::Reference<Expression>, 2>{
-            {left, right}}),
-      operand_type(select_operand_type(left, right)) {}
+            {left, right}},
+          anchor) {}
 
 auto Language::Operations::GreaterEqual::get_documentation() const
     -> const Documentation& {
   return Documentation::get_empty();
 }
 
-auto Language::Operations::GreaterEqual::get_type() const -> const Abstract& {
-  if (operand_type.resolve().is<Type>()) {
-    return Dialect::get_bool();
+auto Language::Operations::GreaterEqual::select_type(Materializations&) const
+    -> Utility::Option<const Type&> {
+  auto left = get_input(0);
+  auto right = get_input(1);
+  if (!left || !right ||
+      !select_operand_type(*left, *right).resolve().is<Type>()) {
+    return {};
   }
 
-  return Invalid::get_invalid();
+  return Dialect::get_bool();
 }
 
 auto Language::Operations::GreaterEqual::evaluate_constants(
     Memory::Allocator::Arena& domain,
-    Materializations&) const -> Utility::Result<const Expression&, FoldError> {
-  const Abstract& selected = operand_type.resolve();
-  auto left = get_input(0);
-  auto right = get_input(1);
-  if (!left || !right) {
-    return FoldError(FoldError::Type::InvalidInput, *this);
+    Materializations&)
+    -> Utility::Result<Utility::Option<Constant&>, Expression::Error> {
+  auto authored_left = get_input(0);
+  auto authored_right = get_input(1);
+  auto left = get_folded_input(0);
+  auto right = get_folded_input(1);
+  if (!authored_left || !authored_right || !left || !right) {
+    return Expression::Error(Expression::Error::Type::InvalidInput, *this);
   }
+
+  const Abstract& selected = left->get_type().resolve();
 
   // The operand domain was established before folding. These visitors prove
   // matching Constant payloads while every result uses canonical Bool.
@@ -209,11 +196,13 @@ auto Language::Operations::GreaterEqual::evaluate_constants(
     auto left_value = select_constant<Constants::Signed>(*left);
     auto right_value = select_constant<Constants::Signed>(*right);
     if (!left_value) {
-      return FoldError(FoldError::Type::InvalidConstant, *left);
+      return Expression::Error(
+          Expression::Error::Type::InvalidConstant, *authored_left);
     }
 
     if (!right_value) {
-      return FoldError(FoldError::Type::InvalidConstant, *right);
+      return Expression::Error(
+          Expression::Error::Type::InvalidConstant, *authored_right);
     }
 
     return make_result(
@@ -224,11 +213,13 @@ auto Language::Operations::GreaterEqual::evaluate_constants(
     auto left_value = select_constant<Constants::Unsigned>(*left);
     auto right_value = select_constant<Constants::Unsigned>(*right);
     if (!left_value) {
-      return FoldError(FoldError::Type::InvalidConstant, *left);
+      return Expression::Error(
+          Expression::Error::Type::InvalidConstant, *authored_left);
     }
 
     if (!right_value) {
-      return FoldError(FoldError::Type::InvalidConstant, *right);
+      return Expression::Error(
+          Expression::Error::Type::InvalidConstant, *authored_right);
     }
 
     return make_result(
@@ -239,16 +230,18 @@ auto Language::Operations::GreaterEqual::evaluate_constants(
     auto left_value = select_constant<Constants::Real>(*left);
     auto right_value = select_constant<Constants::Real>(*right);
     if (!left_value) {
-      return FoldError(FoldError::Type::InvalidConstant, *left);
+      return Expression::Error(
+          Expression::Error::Type::InvalidConstant, *authored_left);
     }
 
     if (!right_value) {
-      return FoldError(FoldError::Type::InvalidConstant, *right);
+      return Expression::Error(
+          Expression::Error::Type::InvalidConstant, *authored_right);
     }
 
     return selected.visit<Ttx::Model::Types::Real>(
         [&](const Ttx::Model::Types::Real& type)
-            -> Utility::Result<const Expression&, FoldError> {
+            -> Utility::Result<Utility::Option<Constant&>, Expression::Error> {
           if (type.get_size() == sizeof(Real_32)) {
             return make_result(
                 domain, Real_32(left_value->get_value()) >=
@@ -260,12 +253,16 @@ auto Language::Operations::GreaterEqual::evaluate_constants(
                 domain, left_value->get_value() >= right_value->get_value());
           }
 
-          return FoldError(FoldError::Type::InvalidOperationType, *this);
+          return Expression::Error(
+              Expression::Error::Type::InvalidOperationType, *this);
         },
-        [&](const Abstract&) -> Utility::Result<const Expression&, FoldError> {
-          return FoldError(FoldError::Type::InvalidOperationType, *this);
+        [&](const Abstract&)
+            -> Utility::Result<Utility::Option<Constant&>, Expression::Error> {
+          return Expression::Error(
+              Expression::Error::Type::InvalidOperationType, *this);
         });
   }
 
-  return FoldError(FoldError::Type::InvalidOperationType, *this);
+  return Expression::Error(
+      Expression::Error::Type::InvalidOperationType, *this);
 }

@@ -42,5 +42,5 @@ auto Library::Language::Import::parse(Cursor& cursor) -> Option<Import> {
     return {};
   }
 
-  return Import(route);
+  return Import(route, opening, Span(opening, terminator));
 }

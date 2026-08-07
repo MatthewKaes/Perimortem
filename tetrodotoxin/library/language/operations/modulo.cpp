@@ -64,107 +64,12 @@ static auto select_result_type(
   return left_resolved;
 }
 
-static auto report_types(
-    Cursor& cursor,
-    Span span,
-    const Language::Expression& left,
-    const Language::Expression& right) -> void {
-  auto report = cursor.create_report(span);
-  report << "Modulo cannot use left Type `"_view << left.get_type().get_name()
-         << "` with right Type `"_view << right.get_type().get_name()
-         << "`."_view;
-  report.get_hint()
-      << "Use two values with the same explicit integer Type."_view;
-}
-
-static auto report_zero(
-    Cursor& cursor,
-    Span span,
-    const Language::Operations::Modulo& modulo) -> void {
-  auto report = cursor.create_report(span);
-  report << "Modulo cannot use zero as a divisor for selected Type `"_view
-         << modulo.get_type().get_name() << "`."_view;
-  report.get_hint() << "Use a nonzero integer divisor."_view;
-}
-
-static auto report_overflow(
-    Cursor& cursor,
-    Span span,
-    const Language::Operations::Modulo& modulo,
-    const Language::Expression& left,
-    const Language::Expression& right) -> void {
-  auto report = cursor.create_report(span);
-  report << "Modulo cannot represent "_view;
-  left.visit<Language::Constants::Signed>(
-      [&](const Language::Constants::Signed& left_value) {
-        right.visit<Language::Constants::Signed>(
-            [&](const Language::Constants::Signed& right_value) {
-              report << left_value.get_value() << " modulo "_view
-                     << right_value.get_value();
-            },
-            [](const Abstract&) {});
-      },
-      [&](const Abstract& left_expression) {
-        left_expression.visit<Language::Constants::Unsigned>(
-            [&](const Language::Constants::Unsigned& left_value) {
-              right.visit<Language::Constants::Unsigned>(
-                  [&](const Language::Constants::Unsigned& right_value) {
-                    report << left_value.get_value() << " modulo "_view
-                           << right_value.get_value();
-                  },
-                  [](const Abstract&) {});
-            },
-            [](const Abstract&) {});
-      });
-  report << " in selected Type `"_view << modulo.get_type().get_name()
-         << "`."_view;
-  report.get_hint()
-      << "Use values whose remainder fits the selected Type width."_view;
-}
-
-static auto report_fold_error(
-    Cursor& cursor,
-    Span span,
-    const Language::Operations::Modulo& modulo,
-    const Language::Expression& left,
-    const Language::Expression& right,
-    const Language::FoldError& error) -> void {
-  switch (error.get_type()) {
-  case Language::FoldError::Type::InvalidOperationType:
-    if (&error.get_expression() == &modulo) {
-      report_types(cursor, span, left, right);
-      return;
-    }
-    break;
-  case Language::FoldError::Type::DivisionByZero:
-    if (&error.get_expression() == &modulo) {
-      report_zero(cursor, span, modulo);
-      return;
-    }
-    break;
-  case Language::FoldError::Type::ArithmeticOverflow:
-    if (&error.get_expression() == &modulo) {
-      report_overflow(cursor, span, modulo, left, right);
-      return;
-    }
-    break;
-  default:
-    break;
-  }
-
-  auto report = cursor.create_report(span);
-  report << "Modulo input `"_view << error.get_expression().get_name()
-         << "` failed folding with "_view << error.get_name() << "."_view;
-  report.get_hint()
-      << "Check that input operation and its explicit result Type."_view;
-}
-
 auto Language::Operations::Modulo::parse(
     Memory::Allocator::Arena& domain,
     Materializations& materializations,
     Cursor& cursor,
     const Abstract& source_context,
-    const Expression& left) -> Utility::Option<const Expression&> {
+    Expression& left) -> Utility::Option<Expression&> {
   auto transaction = cursor.branch();
   Token opening = transaction.consume();
   auto right = Language::Parser::Expression::parse_operand(
@@ -177,58 +82,88 @@ auto Language::Operations::Modulo::parse(
     return {};
   }
 
-  const auto& modulo = domain.construct<Modulo>(domain, left, *right);
-  if (!modulo.get_type().resolve().is<Type>()) {
-    report_types(transaction, span, left, *right);
+  const auto& left_anchor = left.get_anchor();
+  const auto& right_anchor = right->get_anchor();
+  if (!left_anchor || !right_anchor) {
+    transaction.create_expression_error(
+        span, "Modulo requires authored operand Anchors."_view);
     return {};
   }
 
-  auto folded = modulo.attempt_fold(domain, materializations);
-  auto parsed = folded.visit(
-      [](const Expression& expression) -> Utility::Option<const Expression&> {
-        return expression;
-      },
-      [&](const FoldError& error) -> Utility::Option<const Expression&> {
-        report_fold_error(transaction, span, modulo, left, *right, error);
-        return {};
-      });
-  if (!parsed) {
-    return {};
-  }
-
-  // Grammar diagnostics remain on the branch while caller position changes
-  // only after the complete remainder operation succeeds.
+  auto anchor = Anchor::create(
+      opening, left_anchor->get_span(), right_anchor->get_span());
+  auto& modulo =
+      create_authored(domain, materializations, left, *right, anchor);
   cursor.join(transaction);
-  return *parsed;
+  return modulo;
+}
+
+auto Language::Operations::Modulo::create_authored(
+    Memory::Allocator::Arena& domain,
+    Materializations& materializations,
+    Expression& left,
+    Expression& right,
+    Anchor anchor) -> Modulo& {
+  return Expression::create_authored<Modulo>(
+      domain, anchor, [&](auto source) -> Modulo {
+        return Modulo(domain, materializations, left, right, source);
+      });
+}
+
+auto Language::Operations::Modulo::create_synthetic(
+    Memory::Allocator::Arena& domain,
+    Materializations& materializations,
+    Expression& left,
+    Expression& right) -> Modulo& {
+  return Expression::create_synthetic<Modulo>(
+      domain, [&](auto source) -> Modulo {
+        return Modulo(domain, materializations, left, right, source);
+      });
 }
 
 Language::Operations::Modulo::Modulo(
     Memory::Allocator::Arena& domain,
-    const Expression& left,
-    const Expression& right)
+    Materializations& materializations,
+    Expression& left,
+    Expression& right,
+    Utility::Option<Anchor> anchor)
     : Operation(
           domain,
+          materializations,
           Core::Static::Vector<Ttx::Concept::Reference<Expression>, 2>{
-            {left, right}}),
-      result_type(select_result_type(left, right)) {}
+            {left, right}},
+          anchor) {}
 
 auto Language::Operations::Modulo::get_documentation() const
     -> const Documentation& {
   return Documentation::get_empty();
 }
 
-auto Language::Operations::Modulo::get_type() const -> const Abstract& {
-  return result_type;
+auto Language::Operations::Modulo::select_type(Materializations&) const
+    -> Utility::Option<const Type&> {
+  auto left = get_input(0);
+  auto right = get_input(1);
+  if (!left || !right) {
+    return {};
+  }
+
+  return select_result_type(*left, *right)
+      .visit<Type>(
+          [](const Type& type) -> Utility::Option<const Type&> { return type; },
+          [](const Abstract&) -> Utility::Option<const Type&> { return {}; });
 }
 
 auto Language::Operations::Modulo::evaluate_constants(
     Memory::Allocator::Arena& domain,
-    Materializations&) const -> Utility::Result<const Expression&, FoldError> {
-  const Abstract& selected = result_type.resolve();
-  auto left = get_input(0);
-  auto right = get_input(1);
-  if (!left || !right) {
-    return FoldError(FoldError::Type::InvalidInput, *this);
+    Materializations&)
+    -> Utility::Result<Utility::Option<Constant&>, Expression::Error> {
+  const Abstract& selected = get_type().resolve();
+  auto authored_left = get_input(0);
+  auto authored_right = get_input(1);
+  auto left = get_folded_input(0);
+  auto right = get_folded_input(1);
+  if (!authored_left || !authored_right || !left || !right) {
+    return Expression::Error(Expression::Error::Type::InvalidInput, *this);
   }
 
   // The selected integer domain is fixed before folding. Guards run before
@@ -237,19 +172,22 @@ auto Language::Operations::Modulo::evaluate_constants(
     auto left_value = select_constant<Constants::Signed>(*left);
     auto right_value = select_constant<Constants::Signed>(*right);
     if (!left_value) {
-      return FoldError(FoldError::Type::InvalidConstant, *left);
+      return Expression::Error(
+          Expression::Error::Type::InvalidConstant, *authored_left);
     }
 
     if (!right_value) {
-      return FoldError(FoldError::Type::InvalidConstant, *right);
+      return Expression::Error(
+          Expression::Error::Type::InvalidConstant, *authored_right);
     }
 
     return selected.visit<Ttx::Model::Types::Signed>(
         [&](const Ttx::Model::Types::Signed& type)
-            -> Utility::Result<const Expression&, FoldError> {
+            -> Utility::Result<Utility::Option<Constant&>, Expression::Error> {
           Signed_64 divisor = right_value->get_value();
           if (divisor == 0) {
-            return FoldError(FoldError::Type::DivisionByZero, *this);
+            return Expression::Error(
+                Expression::Error::Type::DivisionByZero, *this);
           }
 
           Signed_64 value = 0;
@@ -259,20 +197,24 @@ auto Language::Operations::Modulo::evaluate_constants(
                 Signed_64(0), left_value->get_value(), &negated);
             if (overflow ||
                 !Core::Math::is_representable(negated, type.get_size())) {
-              return FoldError(FoldError::Type::ArithmeticOverflow, *this);
+              return Expression::Error(
+                  Expression::Error::Type::ArithmeticOverflow, *this);
             }
           } else {
             value = left_value->get_value() % divisor;
           }
 
           if (!Core::Math::is_representable(value, type.get_size())) {
-            return FoldError(FoldError::Type::ArithmeticOverflow, *this);
+            return Expression::Error(
+                Expression::Error::Type::ArithmeticOverflow, *this);
           }
 
-          return domain.construct<Constants::Signed>(type, value);
+          return Constants::Signed::create_synthetic(domain, type, value);
         },
-        [&](const Abstract&) -> Utility::Result<const Expression&, FoldError> {
-          return FoldError(FoldError::Type::InvalidOperationType, *this);
+        [&](const Abstract&)
+            -> Utility::Result<Utility::Option<Constant&>, Expression::Error> {
+          return Expression::Error(
+              Expression::Error::Type::InvalidOperationType, *this);
         });
   }
 
@@ -280,32 +222,39 @@ auto Language::Operations::Modulo::evaluate_constants(
     auto left_value = select_constant<Constants::Unsigned>(*left);
     auto right_value = select_constant<Constants::Unsigned>(*right);
     if (!left_value) {
-      return FoldError(FoldError::Type::InvalidConstant, *left);
+      return Expression::Error(
+          Expression::Error::Type::InvalidConstant, *authored_left);
     }
 
     if (!right_value) {
-      return FoldError(FoldError::Type::InvalidConstant, *right);
+      return Expression::Error(
+          Expression::Error::Type::InvalidConstant, *authored_right);
     }
 
     return selected.visit<Ttx::Model::Types::Unsigned>(
         [&](const Ttx::Model::Types::Unsigned& type)
-            -> Utility::Result<const Expression&, FoldError> {
+            -> Utility::Result<Utility::Option<Constant&>, Expression::Error> {
           Unsigned_64 divisor = right_value->get_value();
           if (divisor == 0) {
-            return FoldError(FoldError::Type::DivisionByZero, *this);
+            return Expression::Error(
+                Expression::Error::Type::DivisionByZero, *this);
           }
 
           Unsigned_64 value = left_value->get_value() % divisor;
           if (!Core::Math::is_representable(value, type.get_size())) {
-            return FoldError(FoldError::Type::ArithmeticOverflow, *this);
+            return Expression::Error(
+                Expression::Error::Type::ArithmeticOverflow, *this);
           }
 
-          return domain.construct<Constants::Unsigned>(type, value);
+          return Constants::Unsigned::create_synthetic(domain, type, value);
         },
-        [&](const Abstract&) -> Utility::Result<const Expression&, FoldError> {
-          return FoldError(FoldError::Type::InvalidOperationType, *this);
+        [&](const Abstract&)
+            -> Utility::Result<Utility::Option<Constant&>, Expression::Error> {
+          return Expression::Error(
+              Expression::Error::Type::InvalidOperationType, *this);
         });
   }
 
-  return FoldError(FoldError::Type::InvalidOperationType, *this);
+  return Expression::Error(
+      Expression::Error::Type::InvalidOperationType, *this);
 }

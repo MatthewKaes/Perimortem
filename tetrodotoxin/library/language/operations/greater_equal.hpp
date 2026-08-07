@@ -11,8 +11,8 @@
 namespace Tetrodotoxin::Library::Language::Operations {
 
 // GreaterEqual owns one ordered scalar comparison. It retains the selected
-// operand Type while its public result remains canonical Bool. Recursive
-// folding may replace an input but cannot change that selected identity.
+// operand Type while its public result remains canonical Bool. Folding leaves
+// those authored input and Type identities intact.
 class GreaterEqual : public Operation {
  public:
   using ClassCatagory = GreaterEqual;
@@ -26,12 +26,19 @@ class GreaterEqual : public Operation {
       Materializations& materializations,
       Ttx::Lexical::Cursor& cursor,
       const Ttx::Concept::Abstract& source_context,
-      const Expression& left) -> Perimortem::Utility::Option<const Expression&>;
+      Expression& left) -> Perimortem::Utility::Option<Expression&>;
 
-  GreaterEqual(
+  static auto create_authored(
       Perimortem::Memory::Allocator::Arena& domain,
-      const Expression& left,
-      const Expression& right);
+      Materializations& materializations,
+      Expression& left,
+      Expression& right,
+      Ttx::Lexical::Anchor anchor) -> GreaterEqual&;
+  static auto create_synthetic(
+      Perimortem::Memory::Allocator::Arena& domain,
+      Materializations& materializations,
+      Expression& left,
+      Expression& right) -> GreaterEqual&;
 
   constexpr auto implements(Perimortem::System::Uuid requested) const
       -> Bool override {
@@ -42,16 +49,24 @@ class GreaterEqual : public Operation {
     return "GreaterEqual"_view;
   }
   auto get_documentation() const -> const Ttx::Concept::Documentation& override;
-  auto get_type() const -> const Ttx::Concept::Abstract& override;
 
  protected:
   auto evaluate_constants(
       Perimortem::Memory::Allocator::Arena& domain,
-      Materializations& materializations) const
-      -> Perimortem::Utility::Result<const Expression&, FoldError> override;
+      Materializations& materializations)
+      -> Perimortem::Utility::Result<
+          Perimortem::Utility::Option<Constant&>,
+          Expression::Error> override;
+  auto select_type(Materializations& materializations) const
+      -> Perimortem::Utility::Option<const Ttx::Model::Type&> override;
 
  private:
-  const Ttx::Concept::Abstract& operand_type;
+  GreaterEqual(
+      Perimortem::Memory::Allocator::Arena& domain,
+      Materializations& materializations,
+      Expression& left,
+      Expression& right,
+      Perimortem::Utility::Option<Ttx::Lexical::Anchor> anchor);
 };
 
 }  // namespace Tetrodotoxin::Library::Language::Operations

@@ -109,13 +109,10 @@ class TemporaryResources {
   Bool valid = False;
 };
 
-class ScopeMember : public Language::Dialect::Monograph {
+class ScopeMember : public Language::Monograph {
  public:
-  ScopeMember(
-      Allocator::Arena& domain,
-      Language::Dialect& host,
-      View::Bytes name)
-      : Monograph(domain, Documentation::get_empty(), host), name(name) {}
+  ScopeMember(Allocator::Arena& domain, View::Bytes name)
+      : Monograph(domain, Documentation::get_empty()), name(name) {}
 
   auto get_name() const -> View::Bytes override { return name; }
 
@@ -162,7 +159,8 @@ static auto describes(const Abstract& abstract, View::Bytes expected) -> Bool {
   Errors errors;
   {
     Errors::Report report(
-        errors, "resource.ttx"_view, "$[resource]"_view, Span());
+        errors, "resource.ttx"_view, "$[resource]"_view,
+        Anchor::create(Span()));
     const auto& error =
         static_cast<const Tetrodotoxin::Language::Error&>(abstract);
     error.describe(report);
@@ -278,19 +276,16 @@ PERIMORTEM_UNIT_TEST(PackageResources, monograph_dispatch) {
     Package::Language::Source(partial, "partial.ttx"_view),
     Package::Language::Source("Qualified::Member"_view, "qualified.ttx"_view),
   };
-  Environment::Workspace workspace;
-  Package::Dialect host(workspace);
   Allocator::Arena arena;
   auto root_result = Package::Language::Monograph::create_authored(
-      arena, Documentation::get_empty(), host, {}, {}, sources);
+      arena, Documentation::get_empty(), {}, {}, sources);
   ASSERT(root_result);
   auto& root = *root_result;
-  auto& member = arena.construct<ScopeMember>(arena, host, "Member value"_view);
-  auto& shadow = arena.construct<ScopeMember>(arena, host, "Shadow value"_view);
+  auto& member = arena.construct<ScopeMember>(arena, "Member value"_view);
+  auto& shadow = arena.construct<ScopeMember>(arena, "Shadow value"_view);
   auto& partial_member =
-      arena.construct<ScopeMember>(arena, host, "Partial value"_view);
-  auto& qualified =
-      arena.construct<ScopeMember>(arena, host, "Qualified value"_view);
+      arena.construct<ScopeMember>(arena, "Partial value"_view);
+  auto& qualified = arena.construct<ScopeMember>(arena, "Qualified value"_view);
   ASSERT(root.bind_member("Member"_view, member));
   ASSERT(root.bind_member(complete, shadow));
   ASSERT(root.bind_member(partial, partial_member));
@@ -322,8 +317,8 @@ PERIMORTEM_UNIT_TEST(PackageResources, monograph_dispatch) {
   EXPECT_NOT(root.get_resources().connect(*storage));
   EXPECT(&root.resolve_context(complete) == &resource);
 
-  auto& source_free = Package::Language::Monograph::create_source_free(
-      arena, Documentation::get_empty(), host, {});
+  auto& source_free = Package::Language::Monograph::create_synthetic(
+      arena, Documentation::get_empty(), {});
   EXPECT_NOT(source_free.get_resources().connect(*storage));
   EXPECT(&source_free.resolve_context(complete) == &Invalid::get_invalid());
 }

@@ -5,6 +5,8 @@
 
 #include "perimortem/core/hash.hpp"
 
+#include "perimortem/memory/managed/vector.hpp"
+
 using namespace Perimortem;
 using namespace Tetrodotoxin::Library;
 
@@ -119,13 +121,15 @@ auto Language::Materializations::materialize(
     return {};
   }
 
-  auto retained = arena.reserve<Generic::Argument>(arguments.get_size());
+  // Managed Vector begins every Argument lifetime while Arena keeps the
+  // resulting bytes alive after this local handle leaves the transaction.
+  Memory::Managed::Vector<Generic::Argument> retained(arena);
   for (Count i = 0; i < arguments.get_size(); i++) {
-    new (&retained[i]) Generic::Argument(argument_data[i]);
+    retained.insert(argument_data[i]);
   }
 
   Key retained_key(generic, retained.get_view());
   entries.insert(
-      retained_key, Ttx::Concept::Reference<Ttx::Model::Type>(result));
+      retained_key, Ttx::Concept::Reference<const Ttx::Model::Type>(result));
   return result;
 }

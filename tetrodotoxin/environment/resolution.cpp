@@ -55,7 +55,7 @@ using CacheSelection = Result<Package::Language::Monograph&, CacheMiss>;
 using TransactionResult =
     Result<Package::Language::Monograph&, Package::Repository::SelectionError>;
 using ResolutionResult =
-    Result<Language::Dialect::Monograph&, Package::Repository::SelectionError>;
+    Result<Language::Monograph&, Package::Repository::SelectionError>;
 
 struct PackageKey {
   View::Bytes identity;
@@ -117,8 +117,7 @@ class ResolutionState {
     const Count authored_monograph_count = retention.get_size();
     for (Count monograph_index = first_monograph;
          monograph_index < authored_monograph_count; monograph_index++) {
-      Language::Dialect::Monograph& retained =
-          retention.get_monograph(monograph_index);
+      Language::Monograph& retained = retention.get_monograph(monograph_index);
       if (!retained.is<Package::Language::Monograph>()) {
         continue;
       }
@@ -212,7 +211,7 @@ class ResolutionState {
         [&](const Environment::Origin& authored) {
           Errors::Report report(
               errors, authored.get_path(), authored.get_body(),
-              authored.get_span());
+              Anchor::create(authored.get_span()));
           report << "Package dependency chain "_view;
           for (Count i = 0; i < active_hop_count; i++) {
             if (i != 0) {
@@ -305,8 +304,8 @@ class ResolutionState {
       return *cache_result;
     }
 
-    // A sibling may reuse a fully restored root before post pass promotes the
-    // complete transaction into the persistent inventory.
+    // A sibling may reuse a fully restored root inside this transaction. The
+    // persistent cache remains unavailable until every finalizer passes.
     for (Count i = 0; i < completed_packages.get_size(); i++) {
       CompletedPackage& completed = completed_packages[i];
       if (completed.identity != dependency.get_package_name()) {
@@ -377,18 +376,16 @@ class ResolutionState {
       dependencies.insert(retained_dependency);
     }
 
-    Option<Language::Dialect&> package_dialect = dialects.find("Package"_view);
-    if (!package_dialect) {
+    Package::Language::Monograph& restored_package =
+        Package::Language::Monograph::create_synthetic(
+            domain, Documentation::get_empty(), dependencies);
+    Bool package_retained = retention.retain(restored_package, origin);
+    if (!package_retained) {
       publish_dependency_failure(
           origin, report_published,
-          "the Package Dialect is not installed"_view);
+          "the restored Package entered a frozen source range"_view);
       return False;
     }
-
-    Package::Language::Monograph& restored_package =
-        Package::Language::Monograph::create_source_free(
-            domain, Documentation::get_empty(), *package_dialect, dependencies);
-    retention.retain(restored_package, origin);
 
     // Reserve the key before the first concrete restore hook. Partial graph
     // mutation is durable and a later request cannot invoke the hook twice.
@@ -417,7 +414,7 @@ class ResolutionState {
 
       // Payload stays borrowed for this call. The concrete Dialect receives
       // the destination domain and owns every byte retained from its payload.
-      Option<Language::Dialect::Monograph&> restored_member =
+      Option<Language::Monograph&> restored_member =
           member_dialect->restore(domain, members.get_data()[i].get_payload());
       if (!restored_member) {
         publish_dependency_failure(
@@ -427,7 +424,14 @@ class ResolutionState {
         continue;
       }
 
-      retention.retain(*restored_member, origin);
+      Bool member_retained = retention.retain(*restored_member, origin);
+      if (!member_retained) {
+        publish_dependency_failure(
+            origin, report_published,
+            "an Archive member entered a frozen source range"_view);
+        rejected = True;
+        continue;
+      }
       View::Bytes member_name =
           domain.proxy(members.get_data()[i].get_semantic_name());
       Bool member_bound =
@@ -546,17 +550,25 @@ auto Environment::Resolution::resolve(
   TransactionResult restoration = state.restore(
       first_monograph, root_package_identity, root_package_version,
       root_package);
-  Bool completed = retention.complete(errors);
 
   return restoration.visit(
       [&](Package::Language::Monograph& restored) -> ResolutionResult {
-        if (!completed) {
+        // Restoration closes the complete discovery set before either barrier.
+        // Every link can therefore observe all authored and restored
+        // identities.
+        Bool linked = retention.link(errors);
+        if (!linked) {
           return Package::Repository::SelectionError::Unknown;
         }
 
-        // Restore hooks reserve failed keys before mutating concrete graph
-        // state. Promotion begins at this call boundary so an older partial
-        // attempt cannot become reusable after an independent import succeeds.
+        Bool finalized = retention.finalize(errors);
+        if (!finalized) {
+          return Package::Repository::SelectionError::Unknown;
+        }
+
+        // Restore hooks reserve keys before mutating concrete graph state. Only
+        // this completed finalization barrier makes the new cache range
+        // reusable.
         for (Count i = first_restored_package; i < restored_packages.get_size();
              i++) {
           restored_packages[i].ready = True;
@@ -571,7 +583,8 @@ auto Environment::Resolution::resolve(
         restored_packages.insert(retained_root);
         return restored;
       },
-      [](Package::Repository::SelectionError error) -> ResolutionResult {
+      [&](Package::Repository::SelectionError error) -> ResolutionResult {
+        retention.abandon();
         return error;
       });
 }

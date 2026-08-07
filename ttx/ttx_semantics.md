@@ -33,6 +33,15 @@ crossed. A consumer may construct a completed range from its retained opening
 Token through `peek(-1)`, so it never fabricates a Token merely to recover the
 current source boundary.
 
+`Lexical::Anchor` is the identity free source selection value. Its Span is the
+complete range relevant to a fact while its Token selects the coordinate and
+marker a diagnostic should emphasize. Construction from only a Span selects
+that Span's opening Token. Anchor does not require its Token to be valid or
+contained by its Span. Errors renders the Span context and emits carets only
+when the complete Token lies inside both it and the retained source. A consumer
+represents a synthetic semantic fact by omitting the Anchor rather than
+fabricating source coordinates.
+
 `Cursor::branch` creates a speculative position over the same immutable Token
 stream. A branch may retain its own Errors owner so provisional diagnostics do
 not enter the parent transaction. Only `Cursor::join` publishes a branch
@@ -294,8 +303,10 @@ identity, Layout identity, or fitting.
 
 `Reference<Category>` is a nonnull borrowed semantic edge suitable for
 contiguous views and tagged unions. It preserves the exact object supplied by
-its owner. Resolution remains an explicit consumer operation, and the graph
-owner guarantees the borrowed lifetime.
+its owner, including its cv qualification. `Reference<Category>` retains and
+returns a mutable Category while `Reference<const Category>` retains and
+returns a const Category. Resolution remains an explicit consumer operation,
+and the graph owner guarantees the borrowed lifetime.
 
 ## Attribute
 
@@ -357,3 +368,9 @@ durable formats remain outside TTX.
     relative Token lookup without moving its parse position.
 17. Cursor branches share their exact immutable Token stream, and only an
     explicit join after successful interpretation publishes branch position.
+18. An Anchor retains one complete Span and an independent focus Token.
+    Construction from a Span focuses its opening Token. Errors emits carets only
+    when the complete focus lies inside both the Span and retained source. An
+    invalid or external focus suppresses carets without discarding a valid Span,
+    while synthetic semantic facts omit the Anchor rather than fabricating
+    source coordinates.

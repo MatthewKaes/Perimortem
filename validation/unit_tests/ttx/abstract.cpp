@@ -6,6 +6,7 @@
 #include "perimortem/core/static/vector.hpp"
 
 #include "ttx/concept/invalid.hpp"
+#include "ttx/concept/reference.hpp"
 #include "ttx/model/alias.hpp"
 #include "ttx/model/documentations/block.hpp"
 #include "ttx/model/documentations/comment.hpp"
@@ -44,6 +45,27 @@ PERIMORTEM_UNIT_TEST(TtxAbstract, visits_declared_contracts) {
 
   EXPECT(matched);
   EXPECT(rejected);
+}
+
+PERIMORTEM_UNIT_TEST(TtxAbstract, preserves_reference_cv) {
+  const Invalid& invalid = Invalid::get_invalid();
+  Alias alias("Failure"_view, invalid);
+  Reference<Alias> mutable_reference(alias);
+  Reference<const Alias> read_reference(alias);
+  Abstract& mutable_selected = alias;
+  const Abstract& read_selected = alias;
+
+  static_assert(__is_same(decltype(mutable_reference.get()), Alias&));
+  static_assert(__is_same(decltype(read_reference.get()), const Alias&));
+
+  EXPECT(&mutable_reference.get() == &alias);
+  EXPECT(&read_reference.get() == &alias);
+  EXPECT(mutable_selected.visit<Alias>(
+      [&](Alias& value) { return &value == &alias ? True : False; },
+      [](Abstract&) { return False; }));
+  EXPECT(read_selected.visit<Alias>(
+      [&](const Alias& value) { return &value == &alias ? True : False; },
+      [](const Abstract&) { return False; }));
 }
 
 PERIMORTEM_UNIT_TEST(TtxAbstract, alias_reroutes) {

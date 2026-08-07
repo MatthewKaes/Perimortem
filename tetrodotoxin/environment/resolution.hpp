@@ -38,10 +38,8 @@ class Resolution {
       Perimortem::Core::View::Bytes root_package_identity,
       Perimortem::System::Version root_package_version,
       Package::Language::Monograph& root_package,
-      Package::Repository::Repository& repository)
-      -> Perimortem::Utility::Result<
-          Language::Dialect::Monograph&,
-          Package::Repository::SelectionError>;
+      Package::Repository::Repository& repository) -> Perimortem::Utility::
+      Result<Language::Monograph&, Package::Repository::SelectionError>;
 
  private:
   struct RestoredPackage {

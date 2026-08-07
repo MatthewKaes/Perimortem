@@ -81,7 +81,7 @@ class Materializations {
 
   Perimortem::Memory::Allocator::Arena& arena;
   Perimortem::Memory::Managed::
-      Map<Key, Ttx::Concept::Reference<Ttx::Model::Type>>
+      Map<Key, Ttx::Concept::Reference<const Ttx::Model::Type>>
           entries;
   Active* active = nullptr;
 };

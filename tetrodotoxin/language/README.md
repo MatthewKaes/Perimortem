@@ -24,7 +24,7 @@ interpret(
   forward TTX Cursor,
   opening Documentation,
   source local Abstract interpretation context)
--> Option<Dialect::Monograph&>
+-> Option<Monograph&>
 ```
 
 A concrete Dialect consumes only its body because Environment has already
@@ -38,16 +38,20 @@ not own the Environment Arena or the authored source provider.
 
 ## Monograph
 
-`Language::Dialect::Monograph` is the shared Abstract root for one interpreted
-source island. Its concrete derived class owns the source Dialect semantics and
-resolution rules.
+`Language::Monograph` is the shared Abstract root for one interpreted or
+restored source island. Its concrete derived class owns the source Dialect
+semantics and resolution rules.
 
-The common base retains the Arena domain supplied by Environment, the opening
-Documentation, and the host Dialect that interpreted it.
+The common base retains the Arena domain supplied by Environment, opening
+Documentation, and ordered `Language::Diagnostic` facts. A Diagnostic carries
+an optional exact Anchor plus owner produced message and hint. Authored
+failures supply that Anchor while synthetic and restored failures leave it
+absent. It owns no path or source bytes. Environment combines it with the
+separately retained source Origin and uses the Origin boundary when no authored
+Anchor exists.
 
-The host Dialect and Arena outlive every retained Monograph. This makes the
-Monograph the stable semantic root without introducing a second Source wrapper
-or copying its graph.
+The Arena outlives every retained Monograph. The common root does not retain
+the installed Dialect, parser, Cursor, or a second Source wrapper.
 
 ## Contextual resolution values
 
@@ -59,7 +63,8 @@ bytes remain a successful Resource.
 
 `Language::Error` proves that the context recognized an instruction and
 resolved it to a stable owner-specific failure identity. The concrete owner
-retains the cause while the consuming parser retains the authored Span. Error
+retains the cause while the consuming parser constructs the authored Anchor
+and Report. Error
 is not one shared enum, message record, provenance model, or textual Report.
 
 Both contracts extend TTX Abstract without adding a TTX v1 category. An
@@ -68,29 +73,32 @@ Error exist so Package, Library, Shader, and later concrete Dialects can share
 one contextual resolution boundary without sharing filesystem or value-domain
 policy.
 
-## Completion and persistence dispatch
+## Linking, finalization, and persistence dispatch
 
-The accepted shared lifecycle adds two owner neutral operations.
+The shared lifecycle separates three graph transactions.
 
-1. Workspace invokes one ordered post pass on each retained Monograph after
-   local staging and dependency restoration drain.
-2. Each concrete Dialect encodes and restores the opaque precompiled payload
-   for its own Monograph kind.
+1. A concrete Dialect interprets grammar into stable source shaped identities.
+   Unknown Type and Addressable routes remain authored facts rather than parse
+   failures.
+2. Workspace invokes `link()` on every Monograph in one frozen discovery range
+   before any finalizer runs. Linking connects exact semantic edges after the
+   complete batch has published its declaration identities.
+3. Only a fully linked range invokes `finalize()` on every Monograph. A failed
+   finalizer does not skip later owners and prevents terminal publication of
+   the complete range.
 
-The post pass may complete the same semantic objects reserved during
-interpretation and may query the retained Workspace host. It never turns a
-Cursor, Token index, source route, or declaration mirror into unfinished
-semantic state. It returns failure instead of receiving a textual error sink.
-The concrete Dialect logs details known only while completing its graph, while
-Workspace retains the authored input identity needed to publish a user facing
-diagnostic.
+Both graph hooks return failure without receiving a textual error sink. A
+concrete Monograph publishes every durable Diagnostic it can establish, and
+Retention combines those facts with its separately retained authored Origin.
+No Cursor, Token index, declaration mirror, or parser transaction substitutes
+for the retained semantic graph.
 
 The persistence hooks name no Package envelope, concrete Dialect value, native
 object, or universal terminal. Package owns Archive framing. The concrete
 Dialect owns payload schema and restoration into the importing Workspace Arena.
-Language owns only the common dispatch. Workspace uses those operations during
-source-free dependency restoration and invokes post pass after its complete
-staging queue drains.
+Language owns only the common dispatch. Workspace uses restoration while
+staging source free dependencies, then applies the same link and finalize
+barriers to the complete range.
 
 ## Shared parser fragments
 
@@ -132,7 +140,7 @@ Environment installs Package::Dialect as "Package"
 -> Package::Language::Monograph becomes the imported root
 ```
 
-The production Workspace completes this flow for authored and source-free
+The production Workspace completes this flow for authored and source free
 Package roots. Package local members remain within that exact root context, and
 installed concrete Dialects restore their own member payloads before the
-ordered post pass.
+ordered link and finalize barriers.

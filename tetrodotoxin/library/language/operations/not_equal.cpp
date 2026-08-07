@@ -46,61 +46,24 @@ static auto select_operand_type(
   return Invalid::get_invalid();
 }
 
-static auto report_types(
-    Cursor& cursor,
-    Span span,
-    const Language::Expression& left,
-    const Language::Expression& right) -> void {
-  auto report = cursor.create_report(span);
-  report << "NotEqual cannot use left Type `"_view << left.get_type().get_name()
-         << "` with right Type `"_view << right.get_type().get_name()
-         << "`."_view;
-  report.get_hint()
-      << "Use exact matching scalar Types or complete Bytes values."_view;
-}
-
-static auto report_fold_error(
-    Cursor& cursor,
-    Span span,
-    const Language::Operations::NotEqual& not_equal,
-    const Language::Expression& left,
-    const Language::Expression& right,
-    const Language::FoldError& error) -> void {
-  switch (error.get_type()) {
-  case Language::FoldError::Type::InvalidOperationType:
-    if (&error.get_expression() == &not_equal) {
-      report_types(cursor, span, left, right);
-      return;
-    }
-    break;
-  default:
-    break;
-  }
-
-  auto report = cursor.create_report(span);
-  report << "NotEqual input `"_view << error.get_expression().get_name()
-         << "` failed folding with "_view << error.get_name() << "."_view;
-  report.get_hint()
-      << "Check that input operation and its explicit result Type."_view;
-}
-
 static auto make_result(Memory::Allocator::Arena& domain, Bool value)
-    -> const Language::Expression& {
+    -> Language::Constant& {
   if (value) {
-    return domain.construct<Language::Constants::True>(Dialect::get_bool());
+    return Language::Constants::True::create_synthetic(
+        domain, Dialect::get_bool());
   }
 
-  return domain.construct<Language::Constants::False>(Dialect::get_bool());
+  return Language::Constants::False::create_synthetic(
+      domain, Dialect::get_bool());
 }
 
-static auto select_constant(const Language::Expression& expression)
-    -> Utility::Option<const Language::Constant&> {
+static auto select_constant(Language::Expression& expression)
+    -> Utility::Option<Language::Constant&> {
   return expression.visit<Language::Constant>(
-      [](const Language::Constant& selected)
-          -> Utility::Option<const Language::Constant&> { return selected; },
-      [](const Abstract&) -> Utility::Option<const Language::Constant&> {
-        return {};
-      });
+      [](Language::Constant& selected) -> Utility::Option<Language::Constant&> {
+        return selected;
+      },
+      [](Abstract&) -> Utility::Option<Language::Constant&> { return {}; });
 }
 
 static auto matches_domain(
@@ -130,7 +93,7 @@ auto Language::Operations::NotEqual::parse(
     Materializations& materializations,
     Cursor& cursor,
     const Abstract& source_context,
-    const Expression& left) -> Utility::Option<const Expression&> {
+    Expression& left) -> Utility::Option<Expression&> {
   auto transaction = cursor.branch();
   Token opening = transaction.consume();
   auto right = Language::Parser::Expression::parse_operand(
@@ -144,74 +107,101 @@ auto Language::Operations::NotEqual::parse(
     return {};
   }
 
-  const auto& not_equal = domain.construct<NotEqual>(domain, left, *right);
-  if (!not_equal.get_type().resolve().is<Ttx::Model::Types::Flag>()) {
-    report_types(transaction, span, left, *right);
+  const auto& left_anchor = left.get_anchor();
+  const auto& right_anchor = right->get_anchor();
+  if (!left_anchor || !right_anchor) {
+    transaction.create_expression_error(
+        span, "NotEqual requires authored operand Anchors."_view);
     return {};
   }
 
-  auto folded = not_equal.attempt_fold(domain, materializations);
-  auto parsed = folded.visit(
-      [](const Expression& expression) -> Utility::Option<const Expression&> {
-        return expression;
-      },
-      [&](const FoldError& error) -> Utility::Option<const Expression&> {
-        report_fold_error(transaction, span, not_equal, left, *right, error);
-        return {};
-      });
-  if (!parsed) {
-    return {};
-  }
-
-  // The branch may publish diagnostics, but caller position changes only after
-  // grammar, domain legality, and eager folding complete successfully.
+  auto anchor = Anchor::create(
+      opening, left_anchor->get_span(), right_anchor->get_span());
+  auto& not_equal =
+      create_authored(domain, materializations, left, *right, anchor);
   cursor.join(transaction);
-  return *parsed;
+  return not_equal;
+}
+
+auto Language::Operations::NotEqual::create_authored(
+    Memory::Allocator::Arena& domain,
+    Materializations& materializations,
+    Expression& left,
+    Expression& right,
+    Anchor anchor) -> NotEqual& {
+  return Expression::create_authored<NotEqual>(
+      domain, anchor, [&](auto source) -> NotEqual {
+        return NotEqual(domain, materializations, left, right, source);
+      });
+}
+
+auto Language::Operations::NotEqual::create_synthetic(
+    Memory::Allocator::Arena& domain,
+    Materializations& materializations,
+    Expression& left,
+    Expression& right) -> NotEqual& {
+  return Expression::create_synthetic<NotEqual>(
+      domain, [&](auto source) -> NotEqual {
+        return NotEqual(domain, materializations, left, right, source);
+      });
 }
 
 Language::Operations::NotEqual::NotEqual(
     Memory::Allocator::Arena& domain,
-    const Expression& left,
-    const Expression& right)
+    Materializations& materializations,
+    Expression& left,
+    Expression& right,
+    Utility::Option<Anchor> anchor)
     : Operation(
           domain,
+          materializations,
           Core::Static::Vector<Ttx::Concept::Reference<Expression>, 2>{
-            {left, right}}),
-      operand_type(select_operand_type(left, right)) {}
+            {left, right}},
+          anchor) {}
 
 auto Language::Operations::NotEqual::get_documentation() const
     -> const Documentation& {
   return Documentation::get_empty();
 }
 
-auto Language::Operations::NotEqual::get_type() const -> const Abstract& {
-  if (operand_type.resolve().is<Type>()) {
-    return Dialect::get_bool();
+auto Language::Operations::NotEqual::select_type(Materializations&) const
+    -> Utility::Option<const Type&> {
+  auto left = get_input(0);
+  auto right = get_input(1);
+  if (!left || !right ||
+      !select_operand_type(*left, *right).resolve().is<Type>()) {
+    return {};
   }
 
-  return Invalid::get_invalid();
+  return Dialect::get_bool();
 }
 
 auto Language::Operations::NotEqual::evaluate_constants(
     Memory::Allocator::Arena& domain,
-    Materializations&) const -> Utility::Result<const Expression&, FoldError> {
-  const Abstract& selected = operand_type.resolve();
-  auto left = get_input(0);
-  auto right = get_input(1);
-  if (!left || !right) {
-    return FoldError(FoldError::Type::InvalidInput, *this);
+    Materializations&)
+    -> Utility::Result<Utility::Option<Constant&>, Expression::Error> {
+  auto authored_left = get_input(0);
+  auto authored_right = get_input(1);
+  auto left = get_folded_input(0);
+  auto right = get_folded_input(1);
+  if (!authored_left || !authored_right || !left || !right) {
+    return Expression::Error(Expression::Error::Type::InvalidInput, *this);
   }
+
+  const Abstract& selected = left->get_type().resolve();
 
   // Constant owns each payload comparison and exact Type identity. NotEqual
   // only proves that completed inputs still belong to the selected domain.
   auto left_value = select_constant(*left);
   auto right_value = select_constant(*right);
   if (!left_value || !matches_domain(*left, selected)) {
-    return FoldError(FoldError::Type::InvalidConstant, *left);
+    return Expression::Error(
+        Expression::Error::Type::InvalidConstant, *authored_left);
   }
 
   if (!right_value || !matches_domain(*right, selected)) {
-    return FoldError(FoldError::Type::InvalidConstant, *right);
+    return Expression::Error(
+        Expression::Error::Type::InvalidConstant, *authored_right);
   }
 
   return make_result(domain, *left_value != *right_value);

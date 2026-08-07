@@ -50,29 +50,9 @@ static auto reject_syntax(Cursor& cursor, Span span) -> void {
       "Use `:[index]` or `:[start, size]` with complete delimiters."_view);
 }
 
-static auto reject_operand(
-    Cursor& cursor,
-    Span postfix_span,
-    Span operand_span,
-    Code code) -> void {
+static auto reject_operand(Cursor& cursor, Span postfix_span, Span operand_span)
+    -> void {
   auto report = cursor.create_report(postfix_span);
-  if (code == Code::Type::Float) {
-    report << "Slice operand `"_view
-           << operand_span.caculate_text(cursor.get_source_text())
-           << "` has Real_64 Type instead of an integer Type."_view;
-    report.get_hint() << "Use a signed or unsigned integer expression."_view;
-    return;
-  }
-
-  if (code == Code::Type::Numeric || code == Code::Type::Hex) {
-    report << "Slice operand `"_view
-           << operand_span.caculate_text(cursor.get_source_text())
-           << "` exceeds the supported integer or Count range."_view;
-    report.get_hint()
-        << "Use a value no greater than 9223372036854775807."_view;
-    return;
-  }
-
   report << "Slice operand `"_view
          << operand_span.caculate_text(cursor.get_source_text())
          << "` could not be parsed as a complete Expression."_view;
@@ -113,219 +93,45 @@ static auto is_integer(const Language::Expression& expression) -> Bool {
 
 // Signed is checked first because conversion to Count would erase the negative
 // distinction. Unsigned then proves the remaining host width before conversion.
-static auto get_count(const Language::Expression& expression)
-    -> Utility::Result<Count, Language::FoldError> {
+static auto get_count(
+    const Language::Expression& expression,
+    const Language::Expression& authored)
+    -> Utility::Result<Count, Language::Expression::Error> {
   return expression.visit<Language::Constants::Signed>(
-      [](const Language::Constants::Signed& value)
-          -> Utility::Result<Count, Language::FoldError> {
+      [&](const Language::Constants::Signed& value)
+          -> Utility::Result<Count, Language::Expression::Error> {
         if (value.get_value() < 0) {
-          return Language::FoldError(
-              Language::FoldError::Type::NegativeOperand, value);
+          return Language::Expression::Error(
+              Language::Expression::Error::Type::NegativeOperand, authored);
         }
 
         return Count(value.get_value());
       },
       [&](const Abstract& selected)
-          -> Utility::Result<Count, Language::FoldError> {
+          -> Utility::Result<Count, Language::Expression::Error> {
         return selected.visit<Language::Constants::Unsigned>(
-            [](const Language::Constants::Unsigned& value)
-                -> Utility::Result<Count, Language::FoldError> {
+            [&](const Language::Constants::Unsigned& value)
+                -> Utility::Result<Count, Language::Expression::Error> {
               if (value.get_value() > Unsigned_64(Count(-1))) {
-                return Language::FoldError(
-                    Language::FoldError::Type::CountOverflow, value);
+                return Language::Expression::Error(
+                    Language::Expression::Error::Type::CountOverflow, authored);
               }
 
               return Count(value.get_value());
             },
             [&](const Abstract&)
-                -> Utility::Result<Count, Language::FoldError> {
-              return Language::FoldError(
-                  Language::FoldError::Type::InvalidConstant, expression);
+                -> Utility::Result<Count, Language::Expression::Error> {
+              return Language::Expression::Error(
+                  Language::Expression::Error::Type::InvalidConstant, authored);
             });
       });
-}
-
-static auto get_integer_value(const Language::Expression& expression)
-    -> Unsigned_64 {
-  return expression.visit<Language::Constants::Signed>(
-      [](const Language::Constants::Signed& value) {
-        return Unsigned_64(value.get_value());
-      },
-      [](const Abstract& expression) {
-        return expression.visit<Language::Constants::Unsigned>(
-            [](const Language::Constants::Unsigned& value) {
-              return value.get_value();
-            },
-            [](const Abstract&) { return Unsigned_64(0); });
-      });
-}
-
-static auto get_operand_name(
-    const Language::Operations::Slice& slice,
-    Count index) -> Core::View::Bytes {
-  if (!slice.is_range()) {
-    return "index"_view;
-  }
-
-  return index == 1 ? "start"_view : "size"_view;
-}
-
-static auto report_fold_error(
-    Cursor& cursor,
-    Span span,
-    const Language::Operations::Slice& slice,
-    const Language::Expression& receiver,
-    const Language::Expression& first,
-    Utility::Option<const Language::Expression&> second,
-    const Language::FoldError& error) -> void {
-  Count rejected = &error.get_expression() == &first ? 1 : 2;
-  switch (error.get_type()) {
-  case Language::FoldError::Type::NegativeOperand: {
-    Signed_64 value = 0;
-    error.get_expression().visit<Language::Constants::Signed>(
-        [&](const Language::Constants::Signed& selected) {
-          value = selected.get_value();
-        },
-        [](const Abstract&) {});
-
-    auto report = cursor.create_report(span);
-    report << "Slice "_view << get_operand_name(slice, rejected)
-           << " value "_view << value << " is negative."_view;
-    report.get_hint() << "Use zero or a positive integer value."_view;
-    return;
-  }
-  case Language::FoldError::Type::CountOverflow: {
-    auto report = cursor.create_report(span);
-    report << "Slice "_view << get_operand_name(slice, rejected)
-           << " value "_view << get_integer_value(error.get_expression())
-           << " exceeds the supported Count or Fixed extent range."_view;
-    report.get_hint()
-        << "Use a value no greater than 9223372036854775807."_view;
-    return;
-  }
-  case Language::FoldError::Type::IndexOutOfBounds: {
-    receiver.visit<Language::Constants::Bytes>(
-        [&](const Language::Constants::Bytes& bytes) {
-          auto report = cursor.create_report(span);
-          report << "Slice index "_view << get_integer_value(first)
-                 << " is outside a value containing "_view
-                 << Unsigned_64(bytes.get_value().get_size()) << " bytes."_view;
-          report.get_hint() << "Use an index below the byte count."_view;
-        },
-        [](const Abstract&) {});
-    return;
-  }
-  case Language::FoldError::Type::RangeStartOutOfBounds: {
-    receiver.visit<Language::Constants::Bytes>(
-        [&](const Language::Constants::Bytes& bytes) {
-          auto report = cursor.create_report(span);
-          report << "Slice start "_view << get_integer_value(first)
-                 << " is beyond a value containing "_view
-                 << Unsigned_64(bytes.get_value().get_size()) << " bytes."_view;
-          report.get_hint()
-              << "Use a start no greater than the byte count."_view;
-        },
-        [](const Abstract&) {});
-    return;
-  }
-  case Language::FoldError::Type::RangeSizeOutOfBounds: {
-    receiver.visit<Language::Constants::Bytes>(
-        [&](const Language::Constants::Bytes& bytes) {
-          Unsigned_64 start = get_integer_value(first);
-          Unsigned_64 size = second ? get_integer_value(*second) : 0;
-          Count available = bytes.get_value().get_size() - Count(start);
-          auto report = cursor.create_report(span);
-          report << "Slice size "_view << size << " exceeds the remaining "_view
-                 << Unsigned_64(available) << " bytes after start "_view
-                 << start << "."_view;
-          report.get_hint()
-              << "Reduce the size to the remaining byte count."_view;
-        },
-        [](const Abstract&) {});
-    return;
-  }
-  default:
-    break;
-  }
-
-  auto report = cursor.create_report(span);
-  report << "Slice input `"_view << error.get_expression().get_name()
-         << "` failed folding with "_view << error.get_name() << "."_view;
-  report.get_hint()
-      << "Check that input operation and its explicit result Type."_view;
-}
-
-static auto report_invalid_type(
-    Cursor& cursor,
-    Span span,
-    const Language::Operations::Slice& slice,
-    const Language::Expression& receiver,
-    const Language::Expression& first,
-    Utility::Option<const Language::Expression&> second) -> void {
-  auto element = get_element_type(receiver);
-  if (!element) {
-    auto report = cursor.create_report(span);
-    report << "Slice receiver Type `"_view << receiver.get_type().get_name()
-           << "` is not a homogeneous Fixed, View, or Access Type."_view;
-    report.get_hint()
-        << "Use an expression with retained contiguous element identity."_view;
-    return;
-  }
-
-  Utility::Option<const Language::Expression&> rejected;
-  Count rejected_index = 1;
-  if (!is_integer(first)) {
-    rejected = first;
-  } else if (second && !is_integer(*second)) {
-    rejected = *second;
-    rejected_index = 2;
-  }
-
-  if (rejected) {
-    auto report = cursor.create_report(span);
-    report << "Slice "_view << get_operand_name(slice, rejected_index)
-           << " Type `"_view << rejected->get_type().get_name()
-           << "` is not a signed or unsigned integer Type."_view;
-    report.get_hint()
-        << "Use an integer expression for every slice operand."_view;
-    return;
-  }
-
-  if (second && second->is<Language::Constant>()) {
-    auto count = get_count(*second);
-    Bool failed = count.visit(
-        [&](Count value) {
-          if (Unsigned_64(value) <= maximum_extent) {
-            return False;
-          }
-
-          report_fold_error(
-              cursor, span, slice, receiver, first, second,
-              Language::FoldError(
-                  Language::FoldError::Type::CountOverflow, *second));
-          return True;
-        },
-        [&](const Language::FoldError& error) {
-          report_fold_error(
-              cursor, span, slice, receiver, first, second, error);
-          return True;
-        });
-    if (failed) {
-      return;
-    }
-  }
-
-  cursor.create_expression_error(
-      span, "Library could not materialize the Slice result Type."_view,
-      "Check the canonical Fixed, View, and Access formulas."_view);
 }
 
 static auto parse_operand(
     Memory::Allocator::Arena& domain,
     Language::Materializations& materializations,
     Cursor& cursor,
-    const Abstract& source_context)
-    -> Utility::Option<const Language::Expression&> {
+    const Abstract& source_context) -> Utility::Option<Language::Expression&> {
   Errors operand_errors;
   auto operand_cursor = cursor.branch(operand_errors);
 
@@ -339,34 +145,6 @@ static auto parse_operand(
   }
 
   return result;
-}
-
-static auto fold_slice(
-    Memory::Allocator::Arena& domain,
-    Language::Materializations& materializations,
-    Cursor& cursor,
-    Span span,
-    const Language::Operations::Slice& slice,
-    const Language::Expression& receiver,
-    const Language::Expression& first,
-    Utility::Option<const Language::Expression&> second)
-    -> Utility::Option<const Language::Expression&> {
-  if (!slice.get_type().resolve().is<Type>()) {
-    report_invalid_type(cursor, span, slice, receiver, first, second);
-    return {};
-  }
-
-  auto folded = slice.attempt_fold(domain, materializations);
-  return folded.visit(
-      [](const Language::Expression& expression)
-          -> Utility::Option<const Language::Expression&> {
-        return expression;
-      },
-      [&](const Language::FoldError& error)
-          -> Utility::Option<const Language::Expression&> {
-        report_fold_error(cursor, span, slice, receiver, first, second, error);
-        return {};
-      });
 }
 
 // Fixed stores its Generic extent as Signed_64 even though Slice accepts Count.
@@ -423,11 +201,11 @@ static auto select_result_type(
     return Invalid::get_invalid();
   }
 
-  // A direct Constant contributes a durable extent during construction. An
-  // Operation may later fold to the same value, but changing View into Fixed
-  // at that point would make folding double as graph Type resolution.
+  // A direct Constant contributes a durable extent during semantic linking.
+  // An Operation may later fold to the same value, but changing View into
+  // Fixed at that point would make folding double as graph Type resolution.
   if (second->is<Language::Constant>()) {
-    auto count = get_count(*second);
+    auto count = get_count(*second, *second);
     return count.visit(
         [&](Count value) -> const Abstract& {
           return materialize_fixed(materializations, *element, value)
@@ -435,7 +213,7 @@ static auto select_result_type(
                   []() -> const Abstract& { return Invalid::get_invalid(); },
                   [](const Type& type) -> const Abstract& { return type; });
         },
-        [](const Language::FoldError&) -> const Abstract& {
+        [](const Language::Expression::Error&) -> const Abstract& {
           return Invalid::get_invalid();
         });
   }
@@ -458,7 +236,7 @@ auto Language::Operations::Slice::parse(
     Materializations& materializations,
     Cursor& cursor,
     const Abstract& source_context,
-    const Expression& receiver) -> Utility::Option<const Expression&> {
+    Expression& receiver) -> Utility::Option<Expression&> {
   // Expression selects Slice only after seeing SliceOp. Consuming it here
   // commits the transaction to this owner's complete postfix grammar.
   Token opening = cursor.consume();
@@ -476,12 +254,10 @@ auto Language::Operations::Slice::parse(
   Token first_start = cursor.current();
   Token first_end =
       cursor.matches(Code::Type::SubOp) ? cursor.peek(1) : first_start;
-  Code first_operand_code = first_end.get_code();
   auto first = parse_operand(domain, materializations, cursor, source_context);
   if (!first) {
     Span span = complete_postfix_span(cursor, opening);
-    reject_operand(
-        cursor, span, Span(first_start, first_end), first_operand_code);
+    reject_operand(cursor, span, Span(first_start, first_end));
     return {};
   }
 
@@ -489,7 +265,7 @@ auto Language::Operations::Slice::parse(
   // slice. A range of 1 element is still different than a single element access
   // at a semantic level so `:[0, 1]` does not fold into `:[0]`.
   Bool range = cursor.matches(Code::Type::PackingOp);
-  Utility::Option<const Expression&> second;
+  Utility::Option<Expression&> second;
   if (range) {
     cursor.consume();
     Code second_code = cursor.get_code();
@@ -506,12 +282,10 @@ auto Language::Operations::Slice::parse(
     Token second_start = cursor.current();
     Token second_end =
         cursor.matches(Code::Type::SubOp) ? cursor.peek(1) : second_start;
-    Code second_operand_code = second_end.get_code();
     second = parse_operand(domain, materializations, cursor, source_context);
     if (!second) {
       Span span = complete_postfix_span(cursor, opening);
-      reject_operand(
-          cursor, span, Span(second_start, second_end), second_operand_code);
+      reject_operand(cursor, span, Span(second_start, second_end));
       return {};
     }
   }
@@ -526,168 +300,257 @@ auto Language::Operations::Slice::parse(
   }
 
   cursor.consume();
-  Span span(opening, cursor.peek(-1));
-  // Construction and folding share the graph transaction. A completed
-  // Constant can replace the operation before its edge reaches the caller.
-  if (range) {
-    const auto& slice = domain.construct<Slice>(
-        domain, materializations, receiver, *first, *second);
-    return fold_slice(
-        domain, materializations, cursor, span, slice, receiver, *first,
-        second);
+  Token closing = cursor.peek(-1);
+  const auto& receiver_anchor = receiver.get_anchor();
+  const auto& first_anchor = first->get_anchor();
+  if (!receiver_anchor || !first_anchor ||
+      (range && (!second || !second->get_anchor()))) {
+    cursor.create_expression_error(
+        Span(opening, closing),
+        "Slice requires authored operand Anchors."_view);
+    return {};
   }
 
-  const auto& slice =
-      domain.construct<Slice>(domain, materializations, receiver, *first);
-  return fold_slice(
-      domain, materializations, cursor, span, slice, receiver, *first, {});
+  auto anchor =
+      Anchor::create(opening, receiver_anchor->get_span(), Span(closing));
+  if (range) {
+    return create_authored(
+        domain, materializations, receiver, *first, *second, anchor);
+  }
+
+  return create_authored(domain, materializations, receiver, *first, anchor);
+}
+
+auto Language::Operations::Slice::create_authored(
+    Memory::Allocator::Arena& domain,
+    Materializations& materializations,
+    Expression& receiver,
+    Expression& index,
+    Anchor anchor) -> Slice& {
+  Core::Static::Vector<Ttx::Concept::Reference<Expression>, 2> inputs = {{
+    receiver,
+    index,
+  }};
+  return Expression::create_authored<Slice>(
+      domain, anchor, [&](auto source) -> Slice {
+        return Slice(domain, materializations, inputs, source);
+      });
+}
+
+auto Language::Operations::Slice::create_synthetic(
+    Memory::Allocator::Arena& domain,
+    Materializations& materializations,
+    Expression& receiver,
+    Expression& index) -> Slice& {
+  Core::Static::Vector<Ttx::Concept::Reference<Expression>, 2> inputs = {{
+    receiver,
+    index,
+  }};
+  return Expression::create_synthetic<Slice>(domain, [&](auto source) -> Slice {
+    return Slice(domain, materializations, inputs, source);
+  });
+}
+
+auto Language::Operations::Slice::create_authored(
+    Memory::Allocator::Arena& domain,
+    Materializations& materializations,
+    Expression& receiver,
+    Expression& start,
+    Expression& size,
+    Anchor anchor) -> Slice& {
+  Core::Static::Vector<Ttx::Concept::Reference<Expression>, 3> inputs = {{
+    receiver,
+    start,
+    size,
+  }};
+  return Expression::create_authored<Slice>(
+      domain, anchor, [&](auto source) -> Slice {
+        return Slice(domain, materializations, inputs, source);
+      });
+}
+
+auto Language::Operations::Slice::create_synthetic(
+    Memory::Allocator::Arena& domain,
+    Materializations& materializations,
+    Expression& receiver,
+    Expression& start,
+    Expression& size) -> Slice& {
+  Core::Static::Vector<Ttx::Concept::Reference<Expression>, 3> inputs = {{
+    receiver,
+    start,
+    size,
+  }};
+  return Expression::create_synthetic<Slice>(domain, [&](auto source) -> Slice {
+    return Slice(domain, materializations, inputs, source);
+  });
 }
 
 Language::Operations::Slice::Slice(
     Memory::Allocator::Arena& domain,
     Materializations& materializations,
-    const Expression& receiver,
-    const Expression& index)
-    : Operation(
-          domain,
-          Core::Static::Vector<Ttx::Concept::Reference<Expression>, 2>{{
-            receiver,
-            index,
-          }}),
-      result_type(select_result_type(materializations, receiver, index, {})),
-      range(False) {}
-
-Language::Operations::Slice::Slice(
-    Memory::Allocator::Arena& domain,
-    Materializations& materializations,
-    const Expression& receiver,
-    const Expression& start,
-    const Expression& size)
-    : Operation(
-          domain,
-          Core::Static::Vector<Ttx::Concept::Reference<Expression>, 3>{{
-            receiver,
-            start,
-            size,
-          }}),
-      result_type(select_result_type(materializations, receiver, start, size)),
-      range(True) {}
+    Core::View::Vector<Ttx::Concept::Reference<Expression>> inputs,
+    Utility::Option<Anchor> anchor)
+    : Operation(domain, materializations, inputs, anchor),
+      range(inputs.get_size() == 3) {}
 
 auto Language::Operations::Slice::get_documentation() const
     -> const Documentation& {
   return Documentation::get_empty();
 }
 
-auto Language::Operations::Slice::get_type() const -> const Abstract& {
-  return result_type;
+auto Language::Operations::Slice::select_type(
+    Materializations& materializations) const -> Utility::Option<const Type&> {
+  auto receiver = get_input(0);
+  auto first = get_input(1);
+  if (!receiver || !first) {
+    return {};
+  }
+
+  Utility::Option<const Expression&> second;
+  if (is_range()) {
+    second = get_input(2);
+    if (!second) {
+      return {};
+    }
+  }
+
+  return select_result_type(materializations, *receiver, *first, second)
+      .visit<Type>(
+          [](const Type& type) -> Utility::Option<const Type&> { return type; },
+          [](const Abstract&) -> Utility::Option<const Type&> { return {}; });
 }
 
 auto Language::Operations::Slice::evaluate_constants(
     Memory::Allocator::Arena& domain,
-    Materializations&) const -> Utility::Result<const Expression&, FoldError> {
-  auto receiver = get_input(0);
-  auto first_expression = get_input(1);
-  if (!receiver || !first_expression) {
-    return FoldError(FoldError::Type::InvalidInput, *this);
+    Materializations&)
+    -> Utility::Result<Utility::Option<Constant&>, Expression::Error> {
+  auto authored_receiver = get_input(0);
+  auto authored_first = get_input(1);
+  auto receiver = get_folded_input(0);
+  auto first_expression = get_folded_input(1);
+  if (!authored_receiver || !authored_first || !receiver || !first_expression) {
+    return Expression::Error(Expression::Error::Type::InvalidInput, *this);
   }
 
   auto element = get_element_type(*receiver);
   if (!element) {
-    return FoldError(FoldError::Type::InvalidOperationType, *this);
+    return Expression::Error(
+        Expression::Error::Type::InvalidOperationType, *this);
   }
 
-  auto first = get_count(*first_expression);
+  auto first = get_count(*first_expression, *authored_first);
   if (!is_range()) {
     return first.visit(
-        [&](Count index) -> Utility::Result<const Expression&, FoldError> {
+        [&](Count index)
+            -> Utility::Result<Utility::Option<Constant&>, Expression::Error> {
           return receiver->visit<Constants::Bytes>(
               [&](const Constants::Bytes& bytes)
-                  -> Utility::Result<const Expression&, FoldError> {
+                  -> Utility::Result<
+                      Utility::Option<Constant&>, Expression::Error> {
                 Core::View::Bytes value = bytes.get_value();
                 if (index >= value.get_size()) {
-                  return FoldError(
-                      FoldError::Type::IndexOutOfBounds, *first_expression);
+                  return Expression::Error(
+                      Expression::Error::Type::IndexOutOfBounds,
+                      *authored_first);
                 }
 
                 if (&*element != &Dialect::get_unsigned_8()) {
-                  return FoldError(FoldError::Type::InvalidConstant, *receiver);
+                  return Expression::Error(
+                      Expression::Error::Type::InvalidConstant,
+                      *authored_receiver);
                 }
 
-                return domain.construct<Constants::Unsigned>(
-                    Dialect::get_unsigned_8(), Unsigned_64(value[index]));
+                return Constants::Unsigned::create_synthetic(
+                    domain, Dialect::get_unsigned_8(),
+                    Unsigned_64(value[index]));
               },
               [&](const Abstract&)
-                  -> Utility::Result<const Expression&, FoldError> {
+                  -> Utility::Result<
+                      Utility::Option<Constant&>, Expression::Error> {
                 // Bytes is the live Constant payload domain. Another legal
                 // ranged Constant stays as Slice until its payload owner
                 // exists.
-                return *this;
+                return Utility::Option<Constant&>{};
               });
         },
-        [](const FoldError& error)
-            -> Utility::Result<const Expression&, FoldError> { return error; });
+        [](const Expression::Error& error)
+            -> Utility::Result<Utility::Option<Constant&>, Expression::Error> {
+          return error;
+        });
   }
 
-  auto size_expression = get_input(2);
-  if (!size_expression) {
-    return FoldError(FoldError::Type::InvalidInput, *this);
+  auto authored_size = get_input(2);
+  auto size_expression = get_folded_input(2);
+  if (!authored_size || !size_expression) {
+    return Expression::Error(Expression::Error::Type::InvalidInput, *this);
   }
 
-  auto size = get_count(*size_expression);
+  auto size = get_count(*size_expression, *authored_size);
   return first.visit(
-      [&](Count start_value) -> Utility::Result<const Expression&, FoldError> {
+      [&](Count start_value)
+          -> Utility::Result<Utility::Option<Constant&>, Expression::Error> {
         return size.visit(
             [&](Count size_value)
-                -> Utility::Result<const Expression&, FoldError> {
+                -> Utility::Result<
+                    Utility::Option<Constant&>, Expression::Error> {
               if (Unsigned_64(size_value) > maximum_extent) {
-                return FoldError(
-                    FoldError::Type::CountOverflow, *size_expression);
+                return Expression::Error(
+                    Expression::Error::Type::CountOverflow, *authored_size);
               }
 
               return receiver->visit<Constants::Bytes>(
                   [&](const Constants::Bytes& bytes)
-                      -> Utility::Result<const Expression&, FoldError> {
+                      -> Utility::Result<
+                          Utility::Option<Constant&>, Expression::Error> {
                     Core::View::Bytes value = bytes.get_value();
                     if (start_value > value.get_size()) {
-                      return FoldError(
-                          FoldError::Type::RangeStartOutOfBounds,
-                          *first_expression);
+                      return Expression::Error(
+                          Expression::Error::Type::RangeStartOutOfBounds,
+                          *authored_first);
                     }
 
                     // Start is established before subtraction, so the accepted
                     // remainder never depends on wrapped addition.
                     Count available = value.get_size() - start_value;
                     if (size_value > available) {
-                      return FoldError(
-                          FoldError::Type::RangeSizeOutOfBounds,
-                          *size_expression);
+                      return Expression::Error(
+                          Expression::Error::Type::RangeSizeOutOfBounds,
+                          *authored_size);
                     }
 
                     const Abstract& result_type = get_type().resolve();
                     return result_type.visit<Type>(
                         [&](const Type& type)
-                            -> Utility::Result<const Expression&, FoldError> {
-                          return domain.construct<Constants::Bytes>(
-                              type, value.slice(start_value, size_value));
+                            -> Utility::Result<
+                                Utility::Option<Constant&>, Expression::Error> {
+                          return Constants::Bytes::create_synthetic(
+                              domain, type,
+                              value.slice(start_value, size_value));
                         },
                         [&](const Abstract&)
-                            -> Utility::Result<const Expression&, FoldError> {
-                          return FoldError(
-                              FoldError::Type::InvalidOperationType, *this);
+                            -> Utility::Result<
+                                Utility::Option<Constant&>, Expression::Error> {
+                          return Expression::Error(
+                              Expression::Error::Type::InvalidOperationType,
+                              *this);
                         });
                   },
                   [&](const Abstract&)
-                      -> Utility::Result<const Expression&, FoldError> {
+                      -> Utility::Result<
+                          Utility::Option<Constant&>, Expression::Error> {
                     // Type legality does not imply a universal Constant payload
                     // interface, so unsupported payload owners remain Slice.
-                    return *this;
+                    return Utility::Option<Constant&>{};
                   });
             },
-            [](const FoldError& error)
-                -> Utility::Result<const Expression&, FoldError> {
+            [](const Expression::Error& error)
+                -> Utility::Result<
+                    Utility::Option<Constant&>, Expression::Error> {
               return error;
             });
       },
-      [](const FoldError& error)
-          -> Utility::Result<const Expression&, FoldError> { return error; });
+      [](const Expression::Error& error)
+          -> Utility::Result<Utility::Option<Constant&>, Expression::Error> {
+        return error;
+      });
 }

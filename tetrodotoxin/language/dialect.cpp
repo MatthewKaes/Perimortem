@@ -5,12 +5,6 @@
 
 using namespace Tetrodotoxin;
 
-Language::Dialect::Monograph::~Monograph() {}
-
-auto Language::Dialect::Monograph::post_pass() -> Bool {
-  return True;
-}
-
 Language::Dialect::~Dialect() {}
 
 auto Language::Dialect::encode(const Monograph&) const

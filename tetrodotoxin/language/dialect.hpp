@@ -11,6 +11,7 @@
 
 #include "perimortem/utility/option.hpp"
 
+#include "tetrodotoxin/language/monograph.hpp"
 #include "ttx/concept/abstract.hpp"
 #include "ttx/concept/documentation.hpp"
 #include "ttx/lexical/cursor.hpp"
@@ -22,45 +23,6 @@ namespace Tetrodotoxin::Language {
 // selects that instance before the remaining Cursor is handed to its grammar.
 class Dialect {
  public:
-  // A Monograph is the retained semantic root produced by one source or
-  // restored payload. Keeping the host and Arena explicit lets concrete graphs
-  // share Workspace state without introducing a second source model.
-  class Monograph : public Ttx::Concept::Abstract {
-   public:
-    virtual ~Monograph() = 0;
-
-    Monograph(
-        Perimortem::Memory::Allocator::Arena& domain,
-        const Ttx::Concept::Documentation& documentation,
-        Dialect& host)
-        : domain(domain), documentation(documentation), host(host) {}
-
-    constexpr auto get_documentation() const
-        -> const Ttx::Concept::Documentation& override {
-      return documentation;
-    };
-
-    // Completion waits until every source and restored dependency has joined
-    // the graph because earlier execution could reject a valid forward edge. A
-    // failure returns to the Workspace that knows which retained input was
-    // being completed. Concrete owners log any graph context that would
-    // otherwise be lost before returning.
-    virtual auto post_pass() -> Bool;
-
-   protected:
-    // Concrete facts remain in the same lifetime domain as their Monograph so
-    // graph edges never outlive their storage.
-    Perimortem::Memory::Allocator::Arena& domain;
-
-    // The opening Documentation remains attached to the semantic root because
-    // later owners may need it after the parser transaction has ended.
-    const Ttx::Concept::Documentation& documentation;
-
-    // The installed host outlives every Monograph and carries shared Dialect
-    // state needed during completion and persistence.
-    Dialect& host;
-  };
-
   constexpr Dialect(Ttx::Concept::Abstract& registry) : registry(registry) {}
   virtual ~Dialect() = 0;
 

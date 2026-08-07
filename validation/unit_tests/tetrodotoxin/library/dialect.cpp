@@ -10,8 +10,10 @@
 #include "perimortem/memory/allocator/arena.hpp"
 
 #include "tetrodotoxin/environment/workspace.hpp"
+#include "tetrodotoxin/library/language/constants/unsigned.hpp"
 #include "tetrodotoxin/library/language/function.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
+#include "tetrodotoxin/library/language/parameter.hpp"
 #include "ttx/concept/invalid.hpp"
 #include "ttx/lexical/errors.hpp"
 #include "ttx/lexical/tokenizer.hpp"
@@ -29,6 +31,10 @@ using namespace Tetrodotoxin::Library;
 using Tetrodotoxin::Environment::Workspace;
 using namespace Validation;
 
+static_assert(
+    !__is_constructible(Language::Monograph, const Language::Monograph&));
+static_assert(!__is_constructible(Language::Monograph, Language::Monograph&&));
+
 class EmptyRegistry : public Abstract {
  public:
   constexpr auto get_name() const -> View::Bytes override {
@@ -42,14 +48,56 @@ class EmptyRegistry : public Abstract {
   }
 };
 
+class OuterFact : public Abstract {
+ public:
+  constexpr auto get_name() const -> View::Bytes override {
+    return "outer"_view;
+  }
+  auto get_documentation() const -> const Documentation& override {
+    return Documentation::get_empty();
+  }
+  auto resolve_context(View::Bytes) const -> const Abstract& override {
+    return Invalid::get_invalid();
+  }
+};
+
+class OuterRegistry : public Abstract {
+ public:
+  constexpr auto get_name() const -> View::Bytes override {
+    return "OuterRegistry"_view;
+  }
+  auto get_documentation() const -> const Documentation& override {
+    return Documentation::get_empty();
+  }
+  auto resolve_context(View::Bytes route) const -> const Abstract& override {
+    if (route == fact.get_name()) {
+      return fact;
+    }
+
+    return Invalid::get_invalid();
+  }
+
+  OuterFact fact;
+};
+
 static auto import_library(
     Workspace& workspace,
     Errors& errors,
     View::Bytes semantic_name,
     View::Bytes source) -> Option<Language::Monograph&> {
   auto imported =
-      workspace.import_source(errors, semantic_name, semantic_name, source);
+      workspace.interpret_source(errors, semantic_name, semantic_name, source);
   if (!imported || !imported->is<Language::Monograph>()) {
+    return {};
+  }
+
+  Bool linked = workspace.link(errors);
+  if (!linked) {
+    return {};
+  }
+
+  Bool finalized = workspace.finalize(errors);
+  if (!finalized) {
     return {};
   }
 
@@ -59,6 +107,25 @@ static auto import_library(
 static Harness DialectTests = {
   .name = "Tetrodotoxin::Library::Dialect"_view,
 };
+
+static auto fold_is_unsigned(
+    const Result<Option<Language::Expression&>, Language::Expression::Error>&
+        result,
+    Unsigned_64 expected) -> Bool {
+  return result.visit(
+      [&](const Option<Language::Expression&>& selected) {
+        if (!selected) {
+          return False;
+        }
+
+        return selected->visit<Language::Constants::Unsigned>(
+            [&](const Language::Constants::Unsigned& value) {
+              return value.get_value() == expected ? True : False;
+            },
+            [](const Abstract&) { return False; });
+      },
+      [](const Language::Expression::Error&) { return False; });
+}
 
 static constexpr Static::Vector<View::Bytes, 12> intrinsic_names = {{
   "Bool"_view,
@@ -151,12 +218,22 @@ PERIMORTEM_UNIT_TEST(DialectTests, declaration_graph) {
 
   auto first_public = first->get_public_functions();
   auto second_public = second->get_public_functions();
+  auto first_functions = first->get_functions();
+  auto second_functions = second->get_functions();
   ASSERT_EQ(first_public.get_size(), Count(2));
   ASSERT_EQ(second_public.get_size(), Count(2));
+  ASSERT_EQ(first_functions.get_size(), Count(3));
+  ASSERT_EQ(second_functions.get_size(), Count(3));
   EXPECT(&first_public.get_data()[0].get() == &first_alpha);
   EXPECT(&first_public.get_data()[1].get() == &first_beta);
   EXPECT(&second_public.get_data()[0].get() == &second_beta);
   EXPECT(&second_public.get_data()[1].get() == &second_alpha);
+  EXPECT(&first_functions.get_data()[0].get() == &first_alpha);
+  EXPECT(&first_functions.get_data()[1].get() == &first_hidden);
+  EXPECT(&first_functions.get_data()[2].get() == &first_beta);
+  EXPECT(&second_functions.get_data()[0].get() == &second_beta);
+  EXPECT(&second_functions.get_data()[1].get() == &second_alpha);
+  EXPECT(&second_functions.get_data()[2].get() == &second_hidden);
   EXPECT(first_hidden.get_name() == "hidden"_view);
   EXPECT(second_hidden.get_name() == "hidden"_view);
   EXPECT(
@@ -196,8 +273,8 @@ PERIMORTEM_UNIT_TEST(DialectTests, declaration_graph) {
   EXPECT(
       &void_type.resolve_context("anything"_view) == &Invalid::get_invalid());
 
-  // Layout edges must reach Dialect identities directly. Named entries add
-  // only their authored Alias edge and never copy the intrinsic Type.
+  // Layout edges reach Dialect identities directly. Named inputs become real
+  // Parameter Addressables while named results retain their passive Alias.
   const auto& alpha = static_cast<const Language::Function&>(first_alpha);
   ASSERT_EQ(alpha.get_parameters().get_size(), Count(1));
   ASSERT_EQ(alpha.get_results().get_size(), Count(1));
@@ -216,8 +293,10 @@ PERIMORTEM_UNIT_TEST(DialectTests, declaration_graph) {
   EXPECT(beta.get_parameters().get_abstract(0).visit(
       []() { return False; },
       [&](const Abstract& edge) {
-        return edge.is<Alias>() && edge.get_name() == "value"_view &&
-                       &edge.resolve() == &unsigned_16
+        return edge.is<Language::Parameter>() &&
+                       edge.get_name() == "value"_view &&
+                       &static_cast<const Language::Parameter&>(edge)
+                               .get_type() == &unsigned_16
                    ? True
                    : False;
       }));
@@ -243,6 +322,89 @@ PERIMORTEM_UNIT_TEST(DialectTests, declaration_graph) {
   for (Count i = 0; i < absent.get_size(); i++) {
     EXPECT(&first->resolve_context(absent[i]) == &Invalid::get_invalid());
   }
+}
+
+PERIMORTEM_UNIT_TEST(DialectTests, finalization_caches_function_roots) {
+  static constexpr View::Bytes source =
+      "// Fold finalization.\n"
+      "dialect : Library;\n"
+      "public func folded[] -> Unsigned_64 { 6 / 2; 1 / 0; }"_view;
+  Workspace workspace;
+  Errors errors;
+
+  ASSERT(workspace.install_dialect<Dialect>("Library"_view));
+  auto monograph = import_library(workspace, errors, "Folded"_view, source);
+  ASSERT(monograph);
+  ASSERT_EQ(monograph->get_functions().get_size(), Count(1));
+  auto& function = monograph->get_functions().get_data()[0].get();
+  auto expressions = function.get_expressions();
+  ASSERT_EQ(expressions.get_size(), Count(2));
+
+  Language::Expression& first = expressions.get_data()[0].get();
+  Language::Expression& second = expressions.get_data()[1].get();
+  EXPECT(fold_is_unsigned(first.fold(), 3));
+  EXPECT(second.fold().visit(
+      [](const Option<Language::Expression&>&) { return False; },
+      [&](const Language::Expression::Error& error) {
+        return error.get_type() ==
+                           Language::Expression::Error::Type::DivisionByZero &&
+                       &error.get_expression() == &second
+                   ? True
+                   : False;
+      }));
+  EXPECT(monograph->get_diagnostics().is_empty());
+  EXPECT(errors.is_empty());
+}
+
+PERIMORTEM_UNIT_TEST(DialectTests, workspace_materializations_follow_graph) {
+  static constexpr View::Bytes first_source =
+      "// First literal source.\n"
+      "dialect : Library;\n"
+      "public func first[] -> Void { \"one\"; }"_view;
+  static constexpr View::Bytes second_source =
+      "// Second literal source.\n"
+      "dialect : Library;\n"
+      "public func second[] -> Void { \"two\"; }"_view;
+  Workspace workspace;
+  Errors errors;
+
+  ASSERT(workspace.install_dialect<Dialect>("Library"_view));
+  auto first =
+      import_library(workspace, errors, "FirstLiteral"_view, first_source);
+  auto second =
+      import_library(workspace, errors, "SecondLiteral"_view, second_source);
+  ASSERT(first && second);
+
+  // One installed Dialect keeps one materialization inventory beside every
+  // Monograph graph in its Workspace Arena. Equal literal formulas therefore
+  // share the exact generated Type without merging their Expression roots.
+  EXPECT(&first->get_materializations() == &second->get_materializations());
+  EXPECT_EQ(first->get_materializations().get_size(), Count(1));
+  auto first_functions = first->get_functions();
+  auto second_functions = second->get_functions();
+  ASSERT_EQ(first_functions.get_size(), Count(1));
+  ASSERT_EQ(second_functions.get_size(), Count(1));
+  auto first_expressions =
+      first_functions.get_data()[0].get().get_expressions();
+  auto second_expressions =
+      second_functions.get_data()[0].get().get_expressions();
+  ASSERT_EQ(first_expressions.get_size(), Count(1));
+  ASSERT_EQ(second_expressions.get_size(), Count(1));
+  const Language::Expression& first_expression =
+      first_expressions.get_data()[0].get();
+  const Language::Expression& second_expression =
+      second_expressions.get_data()[0].get();
+  const auto& first_anchor = first_expression.get_anchor();
+  const auto& second_anchor = second_expression.get_anchor();
+  ASSERT(first_anchor);
+  ASSERT(second_anchor);
+  EXPECT(&first_expression != &second_expression);
+  EXPECT(&first_expression.get_type() == &second_expression.get_type());
+  EXPECT_TEXT(
+      first_anchor->get_span().caculate_text(first_source), "\"one\""_view);
+  EXPECT_TEXT(
+      second_anchor->get_span().caculate_text(second_source), "\"two\""_view);
+  EXPECT(errors.is_empty());
 }
 
 PERIMORTEM_UNIT_TEST(DialectTests, workspace_intrinsic_sharing) {
@@ -274,6 +436,67 @@ PERIMORTEM_UNIT_TEST(DialectTests, workspace_intrinsic_sharing) {
   EXPECT(second_errors.is_empty());
 }
 
+PERIMORTEM_UNIT_TEST(DialectTests, context_fallback_and_shadowing) {
+  Allocator::Arena arena;
+  OuterRegistry registry;
+  Dialect dialect(registry);
+  Language::Materializations materializations(arena);
+  auto& monograph = Language::Monograph::create_authored(
+      arena, Documentation::get_empty(), dialect, registry, materializations);
+
+  // Local declarations lead the outer source context and Library intrinsics.
+  // An occupied outer name remains unavailable to a new Function identity.
+  EXPECT(&monograph.resolve_context("outer"_view) == &registry.fact);
+  EXPECT(&monograph.resolve_context("Bool"_view) == &Dialect::get_bool());
+
+  Errors local_errors;
+  Tokenizer local_tokenizer(
+      arena, "public func local[] -> Void {}"_view, "local.ttx"_view);
+  Cursor local_cursor(local_tokenizer, local_errors);
+  auto local = Language::Function::reserve(
+      arena, local_cursor, Documentation::get_empty(), monograph,
+      materializations);
+  ASSERT(local);
+  ASSERT(monograph.bind_function(*local));
+  EXPECT(&monograph.resolve_context("local"_view) == &*local);
+  ASSERT(local->complete(local_cursor));
+  ASSERT(local->link());
+
+  Errors outer_errors;
+  Tokenizer outer_tokenizer(
+      arena, "public func outer[] -> Void {}"_view, "outer.ttx"_view);
+  Cursor outer_cursor(outer_tokenizer, outer_errors);
+  auto outer = Language::Function::reserve(
+      arena, outer_cursor, Documentation::get_empty(), monograph,
+      materializations);
+  ASSERT(outer);
+  EXPECT_NOT(monograph.bind_function(*outer));
+
+  Errors parameter_errors;
+  Tokenizer parameter_tokenizer(
+      arena, "public func shadow[.outer : Bool] -> Void {}"_view,
+      "parameter-shadow.ttx"_view);
+  Cursor parameter_cursor(parameter_tokenizer, parameter_errors);
+  auto shadow = Language::Function::reserve(
+      arena, parameter_cursor, Documentation::get_empty(), monograph,
+      materializations);
+  ASSERT(shadow);
+  ASSERT(monograph.bind_function(*shadow));
+  ASSERT(shadow->complete(parameter_cursor));
+  EXPECT_NOT(shadow->link());
+  EXPECT(&monograph.resolve_context("shadow"_view) == &*shadow);
+  EXPECT(local_errors.is_empty());
+  EXPECT(outer_errors.is_empty());
+  EXPECT(parameter_errors.is_empty());
+  auto diagnostics = monograph.get_diagnostics();
+  ASSERT_EQ(diagnostics.get_size(), Count(1));
+  ASSERT(diagnostics.get_data()[0].get_anchor());
+  EXPECT_TEXT(
+      diagnostics.get_data()[0].get_anchor()->get_span().caculate_text(
+          "public func shadow[.outer : Bool] -> Void {}"_view),
+      "outer"_view);
+}
+
 PERIMORTEM_UNIT_TEST(DialectTests, duplicate_preserves_first) {
   static constexpr View::Bytes first_source =
       "public func repeated[] -> Void {}"_view;
@@ -282,19 +505,21 @@ PERIMORTEM_UNIT_TEST(DialectTests, duplicate_preserves_first) {
   Allocator::Arena arena;
   EmptyRegistry registry;
   Dialect dialect(registry);
-  auto& monograph = arena.construct<Language::Monograph>(
-      arena, Documentation::get_empty(), dialect, registry);
+  Language::Materializations materializations(arena);
+  auto& monograph = Language::Monograph::create_authored(
+      arena, Documentation::get_empty(), dialect, registry, materializations);
   Errors first_errors;
   Tokenizer first_tokenizer(arena, first_source, "first.ttx"_view);
   Cursor first_cursor(first_tokenizer, first_errors);
   auto first = Language::Function::reserve(
-      arena, first_cursor, Documentation::get_empty());
+      arena, first_cursor, Documentation::get_empty(), monograph,
+      materializations);
   ASSERT(first);
 
   // Direct binding isolates the mutation contract from Workspace transaction
   // discard. The rejected identity must not disturb either retained view.
   ASSERT(monograph.bind_function(*first));
-  ASSERT(first->complete(first_cursor, monograph));
+  ASSERT(first->complete(first_cursor));
   const Abstract* first_identity = &*first;
   const Count public_size = monograph.get_public_functions().get_size();
 
@@ -302,7 +527,8 @@ PERIMORTEM_UNIT_TEST(DialectTests, duplicate_preserves_first) {
   Tokenizer duplicate_tokenizer(arena, duplicate_source, "duplicate.ttx"_view);
   Cursor duplicate_cursor(duplicate_tokenizer, duplicate_errors);
   auto duplicate = Language::Function::reserve(
-      arena, duplicate_cursor, Documentation::get_empty());
+      arena, duplicate_cursor, Documentation::get_empty(), monograph,
+      materializations);
   ASSERT(duplicate);
   EXPECT_NOT(monograph.bind_function(*duplicate));
   EXPECT(&monograph.resolve_context("repeated"_view) == first_identity);
@@ -321,7 +547,7 @@ PERIMORTEM_UNIT_TEST(DialectTests, duplicate_preserves_first) {
   Workspace workspace;
   Errors errors;
   ASSERT(workspace.install_dialect<Dialect>("Library"_view));
-  EXPECT_NOT(workspace.import_source(
+  EXPECT_NOT(workspace.interpret_source(
       errors, "Duplicate"_view, "duplicate-source.ttx"_view,
       authored_duplicate));
   EXPECT(
@@ -351,7 +577,7 @@ PERIMORTEM_UNIT_TEST(DialectTests, rejected_sources_publish_nothing) {
   // name can exercise each independent rejection without replacement state.
   for (Count i = 0; i < rejected.get_size(); i++) {
     Errors errors;
-    EXPECT_NOT(workspace.import_source(
+    EXPECT_NOT(workspace.interpret_source(
         errors, "Rejected"_view, "rejected.ttx"_view, rejected[i]));
     EXPECT(
         &workspace.resolve_context("Rejected"_view) == &Invalid::get_invalid());

@@ -63,23 +63,25 @@ static auto construct_retained_bytes(
     Library::Language::Materializations& materializations,
     Cursor& cursor,
     Span span,
-    View::Bytes value) -> Option<const Library::Language::Constant&> {
+    View::Bytes value) -> Option<Library::Language::Constant&> {
   auto type =
       materialize_bytes_type(materializations, cursor, span, value.get_size());
   return type.visit(
-      []() -> Option<const Library::Language::Constant&> { return {}; },
+      []() -> Option<Library::Language::Constant&> { return {}; },
       [&](const Ttx::Model::Type& type)
-          -> Option<const Library::Language::Constant&> {
+          -> Option<Library::Language::Constant&> {
+        Anchor anchor = Anchor::create(span.get_start(), span);
+
         cursor.consume();
-        return domain.construct<Library::Language::Constants::Bytes>(
-            type, value);
+        return Library::Language::Constants::Bytes::create_authored(
+            domain, type, value, anchor);
       });
 }
 
 static auto parse_quoted(
     Allocator::Arena& domain,
     Library::Language::Materializations& materializations,
-    Cursor& cursor) -> Option<const Library::Language::Constant&> {
+    Cursor& cursor) -> Option<Library::Language::Constant&> {
   Span literal_span(cursor.current());
   View::Bytes text = literal_span.caculate_text(cursor.get_source_text());
   View::Bytes payload = text.slice(1, text.get_size() - 2);
@@ -94,7 +96,7 @@ static auto parse_quoted(
     }
   }
 
-  auto decoded = domain.reserve<Unsigned_8>(decoded_size);
+  auto decoded = domain.allocate(decoded_size);
   Count output = 0;
   for (Count i = 0; i < payload.get_size(); i++) {
     if (payload[i] == '\\') {
@@ -113,7 +115,7 @@ static auto parse_quoted(
 static auto parse_byte_array(
     Allocator::Arena& domain,
     Library::Language::Materializations& materializations,
-    Cursor& cursor) -> Option<const Library::Language::Constant&> {
+    Cursor& cursor) -> Option<Library::Language::Constant&> {
   Span literal_span(cursor.current());
   View::Bytes text = literal_span.caculate_text(cursor.get_source_text());
   View::Bytes payload = text.slice(3, text.get_size() - 4);
@@ -143,7 +145,7 @@ static auto parse_byte_array(
     return {};
   }
 
-  auto decoded = domain.reserve<Unsigned_8>(digits / 2);
+  auto decoded = domain.allocate(digits / 2);
   Count nibble = 0;
   Unsigned_8 byte = 0;
   for (Count i = 0; i < payload.get_size(); i++) {
@@ -169,8 +171,7 @@ static auto parse_embedded(
     Allocator::Arena& domain,
     Library::Language::Materializations& materializations,
     Cursor& cursor,
-    const Abstract& source_context)
-    -> Option<const Library::Language::Constant&> {
+    const Abstract& source_context) -> Option<Library::Language::Constant&> {
   Span literal_span(cursor.current());
   View::Bytes instruction =
       literal_span.caculate_text(cursor.get_source_text());
@@ -216,19 +217,23 @@ static auto parse_embedded(
 // Tokenization has already selected the Flag domain. Literal therefore uses
 // the Code directly and introduces no second truth spelling policy.
 static auto parse_flag(Allocator::Arena& domain, Cursor& cursor)
-    -> Option<const Library::Language::Constant&> {
+    -> Option<Library::Language::Constant&> {
   Token token = cursor.consume();
+  Anchor anchor = Anchor::create(token, Span(token));
+
   const auto& type = Library::Dialect::get_bool();
   if (token.get_code() == Code::Type::True) {
-    return domain.construct<Library::Language::Constants::True>(type);
+    return Library::Language::Constants::True::create_authored(
+        domain, type, anchor);
   }
 
-  return domain.construct<Library::Language::Constants::False>(type);
+  return Library::Language::Constants::False::create_authored(
+      domain, type, anchor);
 }
 
 template <Count radix>
 static auto parse_unsigned(Allocator::Arena& domain, Cursor& cursor)
-    -> Option<const Library::Language::Constant&> {
+    -> Option<Library::Language::Constant&> {
   Span literal_text(cursor.current());
   Reader::Textual reader(literal_text.caculate_text(cursor.get_source_text())
                              .slice(radix == 16 ? 2 : 0));
@@ -244,13 +249,15 @@ static auto parse_unsigned(Allocator::Arena& domain, Cursor& cursor)
 
   // Consumption follows complete validation so failure leaves the transaction
   // at the literal that needs the diagnostic.
+  Anchor anchor = Anchor::create(literal_text.get_start(), literal_text);
+
   cursor.consume();
-  return domain.construct<Library::Language::Constants::Unsigned>(
-      Library::Dialect::get_unsigned_64(), value);
+  return Library::Language::Constants::Unsigned::create_authored(
+      domain, Library::Dialect::get_unsigned_64(), value, anchor);
 }
 
 static auto parse_signed(Allocator::Arena& domain, Cursor& cursor)
-    -> Option<const Library::Language::Constant&> {
+    -> Option<Library::Language::Constant&> {
   Span literal_text(cursor.current(), cursor.peek(1));
   Reader::Textual reader(literal_text.caculate_text(cursor.get_source_text()));
 
@@ -264,15 +271,17 @@ static auto parse_signed(Allocator::Arena& domain, Cursor& cursor)
   }
 
   // Both Tokens become durable progress only after the complete value parses.
+  Anchor anchor = Anchor::create(literal_text.get_start(), literal_text);
+
   cursor.consume();
   cursor.consume();
-  return domain.construct<Library::Language::Constants::Signed>(
-      Library::Dialect::get_signed_64(), value);
+  return Library::Language::Constants::Signed::create_authored(
+      domain, Library::Dialect::get_signed_64(), value, anchor);
 }
 
 template <Signed_64 token_width>
 static auto parse_real(Allocator::Arena& domain, Cursor& cursor)
-    -> Option<const Library::Language::Constant&> {
+    -> Option<Library::Language::Constant&> {
   Span literal_text(cursor.current(), cursor.peek(token_width - 1));
   Reader::Textual reader(literal_text.caculate_text(cursor.get_source_text()));
 
@@ -287,19 +296,21 @@ static auto parse_real(Allocator::Arena& domain, Cursor& cursor)
 
   // A negative Real owns its sign Token too. Consume the exact lexical width
   // only after validation preserves one atomic literal transaction.
+  Anchor anchor = Anchor::create(literal_text.get_start(), literal_text);
+
   for (Signed_64 i = 0; i < token_width; i++) {
     cursor.consume();
   }
 
-  return domain.construct<Library::Language::Constants::Real>(
-      Library::Dialect::get_real_64(), value);
+  return Library::Language::Constants::Real::create_authored(
+      domain, Library::Dialect::get_real_64(), value, anchor);
 }
 
 auto Library::Language::Parser::Literal::parse(
     Allocator::Arena& domain,
     Materializations& materializations,
     Cursor& cursor,
-    const Abstract& source_context) -> Option<const Constant&> {
+    const Abstract& source_context) -> Option<Constant&> {
   // A leading subtraction spelling admits only signed decimal and Real
   // literals. Without it the ordinary unsigned parser keeps its full domain.
   if (cursor.matches(Code::Type::SubOp)) {

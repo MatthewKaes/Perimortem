@@ -317,8 +317,10 @@ PERIMORTEM_UNIT_TEST(PackageArchive, authored_provenance_is_not_encoded) {
   // Workspace supplies real authored provenance through the production
   // parser. A synthetic Dependency alone could not prove spans were excluded.
   ASSERT(workspace.install_dialect<Package::Dialect>("Package"_view));
-  ASSERT(workspace.import_source(
+  ASSERT(workspace.interpret_source(
       errors, "Authored"_view, "package.ttx"_view, source));
+  ASSERT(workspace.link(errors));
+  ASSERT(workspace.finalize(errors));
   const auto& imported = workspace.resolve_context("Authored"_view);
   ASSERT(imported.is<Package::Language::Monograph>());
   const auto& authored =
@@ -326,11 +328,9 @@ PERIMORTEM_UNIT_TEST(PackageArchive, authored_provenance_is_not_encoded) {
   ASSERT_EQ(authored.get_dependency_spans().get_size(), Count(1));
   EXPECT(errors.is_empty());
 
-  Environment::Workspace registry;
-  Package::Dialect host(registry);
   Allocator::Arena arena;
-  auto& source_free = Package::Language::Monograph::create_source_free(
-      arena, Ttx::Concept::Documentation::get_empty(), host,
+  auto& source_free = Package::Language::Monograph::create_synthetic(
+      arena, Ttx::Concept::Documentation::get_empty(),
       authored.get_dependencies());
   Package::Archive::Member members[] = {
     Package::Archive::Member("Main"_view, "Lib"_view, View::Bytes()),

@@ -28,6 +28,13 @@ using namespace Ttx::Concept;
 using namespace Ttx::Lexical;
 using namespace Validation;
 
+static_assert(!__is_constructible(
+    Package::Language::Monograph,
+    const Package::Language::Monograph&));
+static_assert(!__is_constructible(
+    Package::Language::Monograph,
+    Package::Language::Monograph&&));
+
 static auto contains(View::Bytes text, View::Bytes fragment) -> Bool {
   if (fragment.is_empty()) {
     return True;
@@ -85,7 +92,7 @@ static auto rejects_package(
   const Bool installed =
       workspace.install_dialect<Package::Dialect>("Package"_view);
   const auto imported =
-      workspace.import_source(errors, "Rejected"_view, path, source);
+      workspace.interpret_source(errors, "Rejected"_view, path, source);
   const Bool unpublished =
       &workspace.resolve_context("Rejected"_view) == &Invalid::get_invalid();
 
@@ -107,14 +114,13 @@ static Harness PackageDialect = {
   .name = "Tetrodotoxin::Package::Dialect"_view,
 };
 
-class ScopeMember : public Language::Dialect::Monograph {
+class ScopeMember : public Language::Monograph {
  public:
   ScopeMember(
       Allocator::Arena& domain,
       const Documentation& documentation,
-      Language::Dialect& host,
       View::Bytes name)
-      : Monograph(domain, documentation, host), name(name) {}
+      : Monograph(domain, documentation), name(name) {}
 
   auto get_name() const -> View::Bytes override { return name; }
 
@@ -222,8 +228,10 @@ PERIMORTEM_UNIT_TEST(PackageDialect, ordered_monograph) {
   Errors errors;
 
   ASSERT(workspace.install_dialect<Package::Dialect>("Package"_view));
-  ASSERT(workspace.import_source(
+  ASSERT(workspace.interpret_source(
       errors, "Synthetic"_view, "synthetic/package.ttx"_view, source));
+  ASSERT(workspace.link(errors));
+  ASSERT(workspace.finalize(errors));
   source.set('x');
 
   const Abstract& imported = workspace.resolve_context("Synthetic"_view);
@@ -280,7 +288,9 @@ PERIMORTEM_UNIT_TEST(PackageDialect, canonical_inventory) {
   Environment::Workspace workspace;
   Errors errors;
   ASSERT(workspace.install_dialect<Package::Dialect>("Package"_view));
-  ASSERT(workspace.import_source(errors, "Root"_view, path, *source));
+  ASSERT(workspace.interpret_source(errors, "Root"_view, path, *source));
+  ASSERT(workspace.link(errors));
+  ASSERT(workspace.finalize(errors));
 
   const Abstract& imported = workspace.resolve_context("Root"_view);
   ASSERT(imported.is<Package::Language::Monograph>());
@@ -319,14 +329,17 @@ PERIMORTEM_UNIT_TEST(PackageDialect, prior_diagnostics) {
   Errors errors;
   {
     Errors::Report report(
-        errors, "prior-package.ttx"_view, View::Bytes(), Span());
+        errors, "prior-package.ttx"_view, View::Bytes(),
+        Anchor::create(Span()));
     report << "Earlier independent diagnostic."_view;
   }
 
   ASSERT(workspace.install_dialect<Package::Dialect>("Package"_view));
-  ASSERT(workspace.import_source(
+  ASSERT(workspace.interpret_source(
       errors, "Minimal"_view, "minimal.ttx"_view,
       "// Minimal\ndialect : Package;\nsource Main from \"./main.ttx\";\n"_view));
+  ASSERT(workspace.link(errors));
+  ASSERT(workspace.finalize(errors));
 
   const Abstract& imported = workspace.resolve_context("Minimal"_view);
   ASSERT(imported.is<Package::Language::Monograph>());
@@ -357,23 +370,20 @@ PERIMORTEM_UNIT_TEST(PackageDialect, construction_provenance) {
   Package::Language::Source sources[] = {
     Package::Language::Source("Main"_view, "main.ttx"_view),
   };
-  Environment::Workspace registry;
-  Package::Dialect host(registry);
   Allocator::Arena arena;
 
   // Authored construction owns its required Source and aligned provenance.
   // The source free operation has no span input a caller could misclassify.
   auto partial = Package::Language::Monograph::create_authored(
-      arena, Documentation::get_empty(), host, dependencies, partial_spans,
-      sources);
+      arena, Documentation::get_empty(), dependencies, partial_spans, sources);
   EXPECT_NOT(partial);
 
   auto empty_authored = Package::Language::Monograph::create_authored(
-      arena, Documentation::get_empty(), host, {}, {}, {});
+      arena, Documentation::get_empty(), {}, {}, {});
   EXPECT_NOT(empty_authored);
 
-  auto& source_free = Package::Language::Monograph::create_source_free(
-      arena, Documentation::get_empty(), host, dependencies);
+  auto& source_free = Package::Language::Monograph::create_synthetic(
+      arena, Documentation::get_empty(), dependencies);
   ASSERT_EQ(source_free.get_dependencies().get_size(), Count(2));
   EXPECT(source_free.get_dependency_spans().is_empty());
   EXPECT(source_free.get_sources().is_empty());
@@ -395,24 +405,22 @@ PERIMORTEM_UNIT_TEST(PackageDialect, exact_scope) {
     Package::Language::Source("Self::Member"_view, "self.ttx"_view),
   };
   Environment::Workspace workspace;
-  Package::Dialect host(workspace);
   Allocator::Arena arena;
   auto root_result = Package::Language::Monograph::create_authored(
-      arena, Documentation::get_empty(), host, dependencies, dependency_spans,
+      arena, Documentation::get_empty(), dependencies, dependency_spans,
       sources);
   ASSERT(root_result);
   auto& root = *root_result;
   auto& member = arena.construct<ScopeMember>(
-      arena, Documentation::get_empty(), host, "Original member"_view);
+      arena, Documentation::get_empty(), "Original member"_view);
   auto& second_member = arena.construct<ScopeMember>(
-      arena, Documentation::get_empty(), host, "Second member"_view);
+      arena, Documentation::get_empty(), "Second member"_view);
   auto& replacement = arena.construct<ScopeMember>(
-      arena, Documentation::get_empty(), host, "Replacement member"_view);
-  auto& dependency_root = Package::Language::Monograph::create_source_free(
-      arena, Documentation::get_empty(), host, {});
-  auto& replacement_dependency =
-      Package::Language::Monograph::create_source_free(
-          arena, Documentation::get_empty(), host, {});
+      arena, Documentation::get_empty(), "Replacement member"_view);
+  auto& dependency_root = Package::Language::Monograph::create_synthetic(
+      arena, Documentation::get_empty(), {});
+  auto& replacement_dependency = Package::Language::Monograph::create_synthetic(
+      arena, Documentation::get_empty(), {});
 
   ASSERT(root.bind_member("Qualified::Member"_view, member));
   ASSERT(root.bind_member("Second::Member"_view, second_member));
@@ -503,17 +511,15 @@ PERIMORTEM_UNIT_TEST(PackageDialect, source_free_scope) {
         "Later"_view, "Example.Later"_view, Version(3, 1)),
   };
   Environment::Workspace workspace;
-  Package::Dialect host(workspace);
   Allocator::Arena arena;
-  auto& root = Package::Language::Monograph::create_source_free(
-      arena, Documentation::get_empty(), host, dependencies);
+  auto& root = Package::Language::Monograph::create_synthetic(
+      arena, Documentation::get_empty(), dependencies);
   auto& later_member = arena.construct<ScopeMember>(
-      arena, Documentation::get_empty(), host, "Later restored identity"_view);
+      arena, Documentation::get_empty(), "Later restored identity"_view);
   auto& earlier_member = arena.construct<ScopeMember>(
-      arena, Documentation::get_empty(), host,
-      "Earlier restored identity"_view);
-  auto& dependency_root = Package::Language::Monograph::create_source_free(
-      arena, Documentation::get_empty(), host, {});
+      arena, Documentation::get_empty(), "Earlier restored identity"_view);
+  auto& dependency_root = Package::Language::Monograph::create_synthetic(
+      arena, Documentation::get_empty(), {});
 
   ASSERT_EQ(root.get_dependencies().get_size(), Count(2));
   EXPECT_TEXT(
@@ -551,8 +557,6 @@ PERIMORTEM_UNIT_TEST(PackageDialect, source_free_scope) {
 }
 
 PERIMORTEM_UNIT_TEST(PackageDialect, cross_inventory_collision) {
-  static constexpr View::Bytes statement =
-      "source Runtime from \"runtime.ttx\";"_view;
   static constexpr View::Bytes source =
       "// Scope collision\n"
       "dialect : Package;\n"
@@ -563,7 +567,7 @@ PERIMORTEM_UNIT_TEST(PackageDialect, cross_inventory_collision) {
   Errors errors;
 
   ASSERT(workspace.install_dialect<Package::Dialect>("Package"_view));
-  EXPECT_NOT(workspace.import_source(
+  EXPECT_NOT(workspace.interpret_source(
       errors, "Collision"_view, "collision.ttx"_view, source));
   EXPECT(
       &workspace.resolve_context("Collision"_view) == &Invalid::get_invalid());
@@ -572,7 +576,7 @@ PERIMORTEM_UNIT_TEST(PackageDialect, cross_inventory_collision) {
       errors,
       "Source semantic name collides with a Dependency local alias in this "
       "Package."_view));
-  EXPECT(has_diagnostic_marker(errors, statement.get_size()));
+  EXPECT(has_diagnostic_marker(errors, "source"_view.get_size()));
 }
 
 PERIMORTEM_UNIT_TEST(PackageDialect, frozen_negative_fixtures) {
@@ -600,7 +604,7 @@ PERIMORTEM_UNIT_TEST(PackageDialect, duplicate_dimensions) {
   Errors errors;
 
   ASSERT(workspace.install_dialect<Package::Dialect>("Package"_view));
-  EXPECT_NOT(workspace.import_source(
+  EXPECT_NOT(workspace.interpret_source(
       errors, "Duplicate"_view, "duplicate.ttx"_view, shared_source));
   EXPECT(
       &workspace.resolve_context("Duplicate"_view) == &Invalid::get_invalid());

@@ -16,12 +16,12 @@ namespace Ttx::Concept {
 // identity. The graph owner guarantees the borrowed object's lifetime.
 template <typename Catagory>
 class Reference {
-  static_assert(__is_base_of(Abstract, Catagory));
+  static_assert(__is_base_of(Abstract, __remove_cvref(Catagory)));
 
  public:
-  constexpr Reference(const Catagory& abstract) : abstract(&abstract) {}
+  constexpr Reference(Catagory& abstract) : abstract(&abstract) {}
 
-  constexpr auto get() const -> const Catagory& { return *abstract; }
+  constexpr auto get() const -> Catagory& { return *abstract; }
 
   constexpr auto operator==(const Reference& rhs) const -> Bool {
     return abstract == rhs.abstract;
@@ -34,7 +34,7 @@ class Reference {
  private:
   // The pointer is private storage for an assignable non-null reference value.
   // Construction requires a real Catagory and no API exposes nullable state.
-  const Catagory* abstract;
+  Catagory* abstract;
 };
 
 }  // namespace Ttx::Concept

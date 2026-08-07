@@ -6,8 +6,8 @@
 #include "validation/unit_test.hpp"
 
 #include "perimortem/core/static/vector.hpp"
-#include "perimortem/core/algorithm/search.hpp"
 
+#include "tetrodotoxin/language/monograph.hpp"
 #include "tetrodotoxin/library/dialect.hpp"
 #include "tetrodotoxin/library/language/constants/bytes.hpp"
 #include "tetrodotoxin/library/language/constants/real.hpp"
@@ -37,10 +37,32 @@ static Harness LibraryModulo = {
   .name = "Tetrodotoxin::Library::Language::Operations::Modulo"_view,
 };
 
+class ModuloMonograph : public Tetrodotoxin::Language::Monograph {
+ public:
+  ModuloMonograph(Allocator::Arena& domain)
+      : Tetrodotoxin::Language::Monograph(domain, Documentation::get_empty()) {}
+
+  constexpr auto get_name() const -> View::Bytes override {
+    return "ModuloMonograph"_view;
+  }
+
+  constexpr auto resolve_context(View::Bytes) const
+      -> const Abstract& override {
+    return Invalid::get_invalid();
+  }
+};
+
+static auto link_operation(
+    Operation& operation,
+    ModuloMonograph& source,
+    Materializations& materializations) -> Bool {
+  return operation.link(source, Invalid::get_invalid(), materializations);
+}
+
 class ModuloExpression : public Expression {
  public:
   ModuloExpression(View::Bytes name, const Abstract& type)
-      : name(name), type(type) {}
+      : Expression({}), name(name), type(type) {}
 
   auto get_name() const -> View::Bytes override { return name; }
   auto get_documentation() const -> const Documentation& override {
@@ -73,11 +95,16 @@ class ModuloFoldInput : public Operation {
  public:
   ModuloFoldInput(
       Allocator::Arena& domain,
-      const Expression& input,
-      const Expression& result,
+      Materializations& materializations,
+      Expression& input,
+      Constant& result,
       const Ttx::Model::Type& type,
       Bool fails = False)
-      : Operation(domain, Static::Vector<Reference<Expression>, 1>{{input}}),
+      : Operation(
+            domain,
+            materializations,
+            Static::Vector<Reference<Expression>, 1>{{input}},
+            {}),
         result(result),
         type(type),
         fails(fails) {}
@@ -86,43 +113,52 @@ class ModuloFoldInput : public Operation {
   auto get_documentation() const -> const Documentation& override {
     return Documentation::get_empty();
   }
-  auto get_type() const -> const Ttx::Model::Type& override { return type; }
   auto get_evaluations() const -> Count { return evaluations; }
 
  protected:
-  auto evaluate_constants(Allocator::Arena&, Materializations&) const
-      -> Result<const Expression&, FoldError> override {
+  auto evaluate_constants(Allocator::Arena&, Materializations&)
+      -> Result<Option<Constant&>, Expression::Error> override {
     evaluations++;
     if (fails) {
-      return FoldError(FoldError::Type::InvalidConstant, *this);
+      return Expression::Error(Expression::Error::Type::InvalidConstant, *this);
     }
 
     return result;
   }
 
+  auto select_type(Materializations&) const
+      -> Option<const Ttx::Model::Type&> override {
+    return type;
+  }
+
  private:
-  const Expression& result;
+  Constant& result;
   const Ttx::Model::Type& type;
   Bool fails;
-  mutable Count evaluations = 0;
+  Count evaluations = 0;
 };
 
-static auto selected(const Result<const Expression&, FoldError>& result)
-    -> Option<const Expression&> {
+static auto selected(
+    const Result<Option<Expression&>, Expression::Error>& result)
+    -> Option<Expression&> {
   return result.visit(
-      [](const Expression& expression) -> Option<const Expression&> {
-        return expression;
+      [](const Option<Expression&>& folded) -> Option<Expression&> {
+        return folded.visit(
+            []() -> Option<Expression&> { return {}; },
+            [](Expression& selected) -> Option<Expression&> {
+              return selected;
+            });
       },
-      [](const FoldError&) -> Option<const Expression&> { return {}; });
+      [](const Expression::Error&) -> Option<Expression&> { return {}; });
 }
 
 static auto reports(
-    const Result<const Expression&, FoldError>& result,
-    FoldError::Type expected,
+    const Result<Option<Expression&>, Expression::Error>& result,
+    Expression::Error::Type expected,
     const Expression& origin) -> Bool {
   return result.visit(
-      [](const Expression&) { return False; },
-      [&](const FoldError& error) {
+      [](const Option<Expression&>&) { return False; },
+      [&](const Expression::Error& error) {
         return error.get_type() == expected &&
                        &error.get_expression() == &origin
                    ? True
@@ -157,29 +193,9 @@ static auto input_is(
       });
 }
 
-static auto matches_token(const Cursor& cursor, Token expected) -> Bool {
-  Token current = cursor.current();
-  return current.get_offset() == expected.get_offset() &&
-         current.get_code() == expected.get_code();
-}
-
-static auto span_width(View::Bytes rendered) -> Count {
-  Count caret = Algorithm::search(rendered, "^"_view);
-  if (caret == Count(-1)) {
-    return 0;
-  }
-
-  Count width = 1;
-  while (caret + width < rendered.get_size() &&
-         rendered[caret + width] == '-') {
-    width++;
-  }
-
-  return width;
-}
-
 PERIMORTEM_UNIT_TEST(LibraryModulo, type_selection_and_partial) {
   Allocator::Arena domain;
+  ModuloMonograph source(domain);
   Materializations materializations(domain);
   Types::Signed_8 signed_8;
   Types::Unsigned_8 unsigned_8;
@@ -197,23 +213,43 @@ PERIMORTEM_UNIT_TEST(LibraryModulo, type_selection_and_partial) {
   ModuloExpression other("other"_view, unsigned_16);
   ModuloExpression unresolved("unresolved"_view, unresolved_type);
   ModuloExpression invalid("invalid"_view, Invalid::get_invalid());
-  Constants::Real real(real_32, 1.0);
-  Constants::True truth(boolean);
-  Constants::Bytes bytes(bytes_type, "x"_view);
-  Operations::Modulo signed_exact(domain, signed_left, signed_right);
-  Operations::Modulo unsigned_exact(domain, unsigned_left, unsigned_right);
-  Operations::Modulo mismatch(domain, unsigned_left, other);
-  Operations::Modulo unresolved_pair(domain, unresolved, unresolved);
-  Operations::Modulo invalid_pair(domain, invalid, invalid);
-  Operations::Modulo real_values(domain, real, real);
-  Operations::Modulo flags(domain, truth, truth);
-  Operations::Modulo byte_values(domain, bytes, bytes);
-  auto retained =
-      selected(unsigned_exact.attempt_fold(domain, materializations));
+  auto& real = Constants::Real::create_synthetic(domain, real_32, 1.0);
+  auto& truth = Constants::True::create_synthetic(domain, boolean);
+  auto& bytes =
+      Constants::Bytes::create_synthetic(domain, bytes_type, "x"_view);
+  auto& signed_exact = Operations::Modulo::create_synthetic(
+      domain, materializations, signed_left, signed_right);
+  auto& unsigned_exact = Operations::Modulo::create_synthetic(
+      domain, materializations, unsigned_left, unsigned_right);
+  auto& mismatch = Operations::Modulo::create_synthetic(
+      domain, materializations, unsigned_left, other);
+  auto& unresolved_pair = Operations::Modulo::create_synthetic(
+      domain, materializations, unresolved, unresolved);
+  auto& invalid_pair = Operations::Modulo::create_synthetic(
+      domain, materializations, invalid, invalid);
+  auto& real_values = Operations::Modulo::create_synthetic(
+      domain, materializations, real, real);
+  auto& flags = Operations::Modulo::create_synthetic(
+      domain, materializations, truth, truth);
+  auto& byte_values = Operations::Modulo::create_synthetic(
+      domain, materializations, bytes, bytes);
+
+  EXPECT(signed_exact.get_type().resolve().is<Invalid>());
+  EXPECT_NOT(signed_exact.get_anchor());
+  EXPECT(link_operation(signed_exact, source, materializations));
+  EXPECT(link_operation(unsigned_exact, source, materializations));
+  EXPECT(!link_operation(mismatch, source, materializations));
+  EXPECT(!link_operation(unresolved_pair, source, materializations));
+  EXPECT(!link_operation(invalid_pair, source, materializations));
+  EXPECT(!link_operation(real_values, source, materializations));
+  EXPECT(!link_operation(flags, source, materializations));
+  EXPECT(!link_operation(byte_values, source, materializations));
+
+  auto retained = selected(unsigned_exact.fold());
 
   EXPECT(&signed_exact.get_type() == &signed_8);
   EXPECT(&unsigned_exact.get_type() == &unsigned_8);
-  EXPECT(retained && &*retained == &unsigned_exact);
+  EXPECT_NOT(retained);
   EXPECT(input_is(unsigned_exact, 0, unsigned_left));
   EXPECT(input_is(unsigned_exact, 1, unsigned_right));
   EXPECT(mismatch.get_type().resolve().is<Invalid>());
@@ -226,60 +262,96 @@ PERIMORTEM_UNIT_TEST(LibraryModulo, type_selection_and_partial) {
 
 PERIMORTEM_UNIT_TEST(LibraryModulo, integer_remainders) {
   Allocator::Arena domain;
+  ModuloMonograph source(domain);
   Materializations materializations(domain);
   Types::Signed_8 signed_type;
   Types::Unsigned_8 unsigned_type;
-  Constants::Signed positive(signed_type, 7);
-  Constants::Signed negative(signed_type, -7);
-  Constants::Signed three(signed_type, 3);
-  Constants::Signed negative_three(signed_type, -3);
-  Constants::Signed zero(signed_type, 0);
-  Constants::Signed one(signed_type, 1);
-  Constants::Signed negative_one(signed_type, -1);
-  Constants::Signed minimum(signed_type, -128);
-  Constants::Signed invalid_left(signed_type, 255);
-  Constants::Signed invalid_right(signed_type, 256);
-  Constants::Unsigned seven(unsigned_type, 7);
-  Constants::Unsigned unsigned_three(unsigned_type, 3);
-  Constants::Unsigned unsigned_zero(unsigned_type, 0);
-  Constants::Unsigned unsigned_one(unsigned_type, 1);
-  Constants::Unsigned maximum(unsigned_type, 255);
-  Constants::Unsigned invalid_unsigned_left(unsigned_type, 256);
-  Constants::Unsigned invalid_unsigned_right(unsigned_type, 257);
-  Operations::Modulo positive_result(domain, positive, three);
-  Operations::Modulo negative_dividend(domain, negative, three);
-  Operations::Modulo negative_divisor(domain, positive, negative_three);
-  Operations::Modulo both_negative(domain, negative, negative_three);
-  Operations::Modulo zero_result(domain, zero, one);
-  Operations::Modulo one_result(domain, positive, one);
-  Operations::Modulo minimum_result(domain, minimum, three);
-  Operations::Modulo zero_divisor(domain, positive, zero);
-  Operations::Modulo endpoint_overflow(domain, minimum, negative_one);
-  Operations::Modulo signed_width(domain, invalid_left, invalid_right);
-  Operations::Modulo unsigned_result(domain, seven, unsigned_three);
-  Operations::Modulo unsigned_zero_result(domain, unsigned_zero, unsigned_one);
-  Operations::Modulo unsigned_endpoint(domain, maximum, unsigned_three);
-  Operations::Modulo unsigned_zero_divisor(domain, maximum, unsigned_zero);
-  Operations::Modulo unsigned_width(
-      domain, invalid_unsigned_left, invalid_unsigned_right);
-  auto positive_fold =
-      selected(positive_result.attempt_fold(domain, materializations));
-  auto negative_fold =
-      selected(negative_dividend.attempt_fold(domain, materializations));
-  auto negative_divisor_fold =
-      selected(negative_divisor.attempt_fold(domain, materializations));
-  auto both_negative_fold =
-      selected(both_negative.attempt_fold(domain, materializations));
-  auto zero_fold = selected(zero_result.attempt_fold(domain, materializations));
-  auto one_fold = selected(one_result.attempt_fold(domain, materializations));
-  auto minimum_fold =
-      selected(minimum_result.attempt_fold(domain, materializations));
-  auto unsigned_fold =
-      selected(unsigned_result.attempt_fold(domain, materializations));
-  auto unsigned_zero_fold =
-      selected(unsigned_zero_result.attempt_fold(domain, materializations));
-  auto unsigned_endpoint_fold =
-      selected(unsigned_endpoint.attempt_fold(domain, materializations));
+  auto& positive = Constants::Signed::create_synthetic(domain, signed_type, 7);
+  auto& negative = Constants::Signed::create_synthetic(domain, signed_type, -7);
+  auto& three = Constants::Signed::create_synthetic(domain, signed_type, 3);
+  auto& negative_three =
+      Constants::Signed::create_synthetic(domain, signed_type, -3);
+  auto& zero = Constants::Signed::create_synthetic(domain, signed_type, 0);
+  auto& one = Constants::Signed::create_synthetic(domain, signed_type, 1);
+  auto& negative_one =
+      Constants::Signed::create_synthetic(domain, signed_type, -1);
+  auto& minimum =
+      Constants::Signed::create_synthetic(domain, signed_type, -128);
+  auto& invalid_left =
+      Constants::Signed::create_synthetic(domain, signed_type, 255);
+  auto& invalid_right =
+      Constants::Signed::create_synthetic(domain, signed_type, 256);
+  auto& seven = Constants::Unsigned::create_synthetic(domain, unsigned_type, 7);
+  auto& unsigned_three =
+      Constants::Unsigned::create_synthetic(domain, unsigned_type, 3);
+  auto& unsigned_zero =
+      Constants::Unsigned::create_synthetic(domain, unsigned_type, 0);
+  auto& unsigned_one =
+      Constants::Unsigned::create_synthetic(domain, unsigned_type, 1);
+  auto& maximum =
+      Constants::Unsigned::create_synthetic(domain, unsigned_type, 255);
+  auto& invalid_unsigned_left =
+      Constants::Unsigned::create_synthetic(domain, unsigned_type, 256);
+  auto& invalid_unsigned_right =
+      Constants::Unsigned::create_synthetic(domain, unsigned_type, 257);
+  auto& positive_result = Operations::Modulo::create_synthetic(
+      domain, materializations, positive, three);
+  auto& negative_dividend = Operations::Modulo::create_synthetic(
+      domain, materializations, negative, three);
+  auto& negative_divisor = Operations::Modulo::create_synthetic(
+      domain, materializations, positive, negative_three);
+  auto& both_negative = Operations::Modulo::create_synthetic(
+      domain, materializations, negative, negative_three);
+  auto& zero_result =
+      Operations::Modulo::create_synthetic(domain, materializations, zero, one);
+  auto& one_result = Operations::Modulo::create_synthetic(
+      domain, materializations, positive, one);
+  auto& minimum_result = Operations::Modulo::create_synthetic(
+      domain, materializations, minimum, three);
+  auto& zero_divisor = Operations::Modulo::create_synthetic(
+      domain, materializations, positive, zero);
+  auto& endpoint_overflow = Operations::Modulo::create_synthetic(
+      domain, materializations, minimum, negative_one);
+  auto& signed_width = Operations::Modulo::create_synthetic(
+      domain, materializations, invalid_left, invalid_right);
+  auto& unsigned_result = Operations::Modulo::create_synthetic(
+      domain, materializations, seven, unsigned_three);
+  auto& unsigned_zero_result = Operations::Modulo::create_synthetic(
+      domain, materializations, unsigned_zero, unsigned_one);
+  auto& unsigned_endpoint = Operations::Modulo::create_synthetic(
+      domain, materializations, maximum, unsigned_three);
+  auto& unsigned_zero_divisor = Operations::Modulo::create_synthetic(
+      domain, materializations, maximum, unsigned_zero);
+  auto& unsigned_width = Operations::Modulo::create_synthetic(
+      domain, materializations, invalid_unsigned_left, invalid_unsigned_right);
+
+  EXPECT(positive_result.get_type().resolve().is<Invalid>());
+  EXPECT(link_operation(positive_result, source, materializations));
+  EXPECT(link_operation(negative_dividend, source, materializations));
+  EXPECT(link_operation(negative_divisor, source, materializations));
+  EXPECT(link_operation(both_negative, source, materializations));
+  EXPECT(link_operation(zero_result, source, materializations));
+  EXPECT(link_operation(one_result, source, materializations));
+  EXPECT(link_operation(minimum_result, source, materializations));
+  EXPECT(link_operation(zero_divisor, source, materializations));
+  EXPECT(link_operation(endpoint_overflow, source, materializations));
+  EXPECT(link_operation(signed_width, source, materializations));
+  EXPECT(link_operation(unsigned_result, source, materializations));
+  EXPECT(link_operation(unsigned_zero_result, source, materializations));
+  EXPECT(link_operation(unsigned_endpoint, source, materializations));
+  EXPECT(link_operation(unsigned_zero_divisor, source, materializations));
+  EXPECT(link_operation(unsigned_width, source, materializations));
+
+  auto positive_fold = selected(positive_result.fold());
+  auto negative_fold = selected(negative_dividend.fold());
+  auto negative_divisor_fold = selected(negative_divisor.fold());
+  auto both_negative_fold = selected(both_negative.fold());
+  auto zero_fold = selected(zero_result.fold());
+  auto one_fold = selected(one_result.fold());
+  auto minimum_fold = selected(minimum_result.fold());
+  auto unsigned_fold = selected(unsigned_result.fold());
+  auto unsigned_zero_fold = selected(unsigned_zero_result.fold());
+  auto unsigned_endpoint_fold = selected(unsigned_endpoint.fold());
 
   ASSERT(
       positive_fold && negative_fold && negative_divisor_fold &&
@@ -299,70 +371,112 @@ PERIMORTEM_UNIT_TEST(LibraryModulo, integer_remainders) {
   EXPECT(&positive_fold->get_type() == &signed_type);
   EXPECT(&unsigned_fold->get_type() == &unsigned_type);
   EXPECT(reports(
-      zero_divisor.attempt_fold(domain, materializations),
-      FoldError::Type::DivisionByZero, zero_divisor));
+      zero_divisor.fold(), Expression::Error::Type::DivisionByZero,
+      zero_divisor));
   EXPECT(reports(
-      unsigned_zero_divisor.attempt_fold(domain, materializations),
-      FoldError::Type::DivisionByZero, unsigned_zero_divisor));
+      unsigned_zero_divisor.fold(), Expression::Error::Type::DivisionByZero,
+      unsigned_zero_divisor));
   EXPECT(reports(
-      endpoint_overflow.attempt_fold(domain, materializations),
-      FoldError::Type::ArithmeticOverflow, endpoint_overflow));
+      endpoint_overflow.fold(), Expression::Error::Type::ArithmeticOverflow,
+      endpoint_overflow));
   EXPECT(reports(
-      signed_width.attempt_fold(domain, materializations),
-      FoldError::Type::ArithmeticOverflow, signed_width));
+      signed_width.fold(), Expression::Error::Type::ArithmeticOverflow,
+      signed_width));
   EXPECT(reports(
-      unsigned_width.attempt_fold(domain, materializations),
-      FoldError::Type::ArithmeticOverflow, unsigned_width));
+      unsigned_width.fold(), Expression::Error::Type::ArithmeticOverflow,
+      unsigned_width));
 }
 
 PERIMORTEM_UNIT_TEST(LibraryModulo, recursive_provenance_and_atomicity) {
   Allocator::Arena domain;
-  Allocator::Arena rendering;
+  ModuloMonograph source(domain);
   Materializations materializations(domain);
   Types::Unsigned_8 selected_type;
-  Constants::Unsigned input(selected_type, 1);
-  Constants::Unsigned folded(selected_type, 13);
-  Constants::Unsigned divisor(selected_type, 5);
-  ModuloFoldInput child(domain, input, folded, selected_type);
-  ModuloFoldInput failing(domain, input, folded, selected_type, True);
-  Operations::Modulo modulo(domain, child, divisor);
-  Operations::Modulo failure(domain, failing, divisor);
-  auto first = selected(modulo.attempt_fold(domain, materializations));
-  auto second = selected(modulo.attempt_fold(domain, materializations));
+  auto& input = Constants::Unsigned::create_synthetic(domain, selected_type, 1);
+  auto& folded =
+      Constants::Unsigned::create_synthetic(domain, selected_type, 13);
+  auto& divisor =
+      Constants::Unsigned::create_synthetic(domain, selected_type, 5);
+  ModuloFoldInput child(domain, materializations, input, folded, selected_type);
+  ModuloFoldInput failing(
+      domain, materializations, input, folded, selected_type, True);
+  auto& modulo = Operations::Modulo::create_synthetic(
+      domain, materializations, child, divisor);
+  auto& failure = Operations::Modulo::create_synthetic(
+      domain, materializations, failing, divisor);
+
+  EXPECT(modulo.get_type().resolve().is<Invalid>());
+  EXPECT(link_operation(modulo, source, materializations));
+  EXPECT(link_operation(modulo, source, materializations));
+  EXPECT(link_operation(failure, source, materializations));
+
+  auto first = selected(modulo.fold());
+  auto second = selected(modulo.fold());
 
   ASSERT(first && second);
   EXPECT(&*first == &*second);
   EXPECT(value_is<Constants::Unsigned>(*first, Unsigned_64(3)));
-  EXPECT(input_is(modulo, 0, folded));
+  EXPECT(input_is(modulo, 0, child));
   EXPECT(child.get_evaluations() == 1);
   EXPECT(reports(
-      failure.attempt_fold(domain, materializations),
-      FoldError::Type::InvalidConstant, failing));
+      failure.fold(), Expression::Error::Type::InvalidConstant, failing));
 
   const auto& parser_type = Tetrodotoxin::Library::Dialect::get_signed_64();
-  Constants::Signed left(parser_type, -7);
   Errors success_errors;
-  Tokenizer success_tokens(domain, "% -3"_view, "modulo.ttx"_view);
+  Tokenizer success_tokens(domain, "-7 % -3"_view, "modulo.ttx"_view);
   Cursor success_cursor(success_tokens, success_errors);
+  Token success_left_trigger = success_cursor.consume();
+  Token success_left_end = success_cursor.consume();
+  auto success_left_anchor = Anchor::create(
+      success_left_trigger, Span(success_left_trigger, success_left_end));
+  auto& success_left = Constants::Signed::create_authored(
+      domain, parser_type, -7, success_left_anchor);
   auto parsed = Operations::Modulo::parse(
-      domain, materializations, success_cursor, Invalid::get_invalid(), left);
-  auto parsed_value = parsed ? get_value<Constants::Signed, Signed_64>(*parsed)
-                             : Option<Signed_64>();
+      domain, materializations, success_cursor, Invalid::get_invalid(),
+      success_left);
   Errors failure_errors;
-  Tokenizer failure_tokens(domain, "% true"_view, "modulo.ttx"_view);
+  Tokenizer failure_tokens(domain, "-7 % true"_view, "modulo.ttx"_view);
   Cursor failure_cursor(failure_tokens, failure_errors);
-  Token opening = failure_cursor.current();
+  Token failure_left_trigger = failure_cursor.consume();
+  Token failure_left_end = failure_cursor.consume();
+  auto failure_left_anchor = Anchor::create(
+      failure_left_trigger, Span(failure_left_trigger, failure_left_end));
+  auto& failure_left = Constants::Signed::create_authored(
+      domain, parser_type, -7, failure_left_anchor);
   auto rejected = Operations::Modulo::parse(
-      domain, materializations, failure_cursor, Invalid::get_invalid(), left);
+      domain, materializations, failure_cursor, Invalid::get_invalid(),
+      failure_left);
 
-  ASSERT(parsed && parsed_value);
-  EXPECT(*parsed_value == -1);
+  ASSERT(parsed);
+  EXPECT(parsed->is<Operations::Modulo>());
+  EXPECT(parsed->get_type().resolve().is<Invalid>());
   EXPECT(success_cursor.matches(Code::Type::Terminal));
   EXPECT(success_errors.is_empty());
-  EXPECT_NOT(rejected);
-  EXPECT(matches_token(failure_cursor, opening));
-  ASSERT(failure_errors.get_size() == 1);
-  View::Bytes rendered = failure_errors.render_message(rendering, 0);
+  EXPECT(parsed->link(source, Invalid::get_invalid(), materializations));
 
-  EXPECT(span_width(rendered) == Count(6));
+  auto parsed_fold = parsed->visit<Operation>(
+      [&](Operation& operation) { return selected(operation.fold()); },
+      [](Abstract&) -> Option<Expression&> { return {}; });
+  auto parsed_value =
+      parsed_fold ? get_value<Constants::Signed, Signed_64>(*parsed_fold)
+                  : Option<Signed_64>();
+
+  ASSERT(parsed_value);
+  EXPECT(*parsed_value == -1);
+  EXPECT(&parsed->get_type() == &parser_type);
+
+  ASSERT(rejected);
+  EXPECT(rejected->is<Operations::Modulo>());
+  EXPECT(rejected->get_type().resolve().is<Invalid>());
+  EXPECT(failure_cursor.matches(Code::Type::Terminal));
+  EXPECT(failure_errors.is_empty());
+  EXPECT_NOT(rejected->link(source, Invalid::get_invalid(), materializations));
+  EXPECT(rejected->get_type().resolve().is<Invalid>());
+
+  auto diagnostics = source.get_diagnostics();
+  ASSERT(diagnostics.get_size() == 1);
+  ASSERT(diagnostics.get_data()[0].get_anchor());
+  EXPECT(
+      diagnostics.get_data()[0].get_anchor()->get_span().get_size() ==
+      Count(9));
 }

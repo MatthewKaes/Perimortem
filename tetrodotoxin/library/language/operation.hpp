@@ -4,29 +4,23 @@
 #pragma once
 
 #include "perimortem/core/view/vector.hpp"
-#include "perimortem/core/access/vector.hpp"
 
 #include "perimortem/memory/allocator/arena.hpp"
+#include "perimortem/memory/managed/vector.hpp"
 
 #include "perimortem/utility/option.hpp"
 #include "perimortem/utility/result.hpp"
 
 #include "tetrodotoxin/library/language/constant.hpp"
-#include "tetrodotoxin/library/language/fold_error.hpp"
 #include "tetrodotoxin/library/language/materializations.hpp"
 #include "ttx/concept/reference.hpp"
-#include "ttx/model/layouts/fluid.hpp"
 
 namespace Tetrodotoxin::Library::Language {
 
 // Operation is the Expression base for executable value operations. It owns
-// the replaceable ordered input edges and recursively folds child Operations.
-// A concrete operation supplies only its evaluation once every retained input
-// is a Constant.
-//
-// Successful partial folds replace real child edges and keep this Operation.
-// A completed evaluation is retained so repeated attempts return the same
-// Expression identity without constructing duplicate values.
+// authored input order and the one exact result Type selected after every
+// child links. A concrete operation supplies its legality and Constant
+// evaluation without asking Parser to interpret semantic Types.
 class Operation : public Expression {
  public:
   using ClassCatagory = Operation;
@@ -44,35 +38,87 @@ class Operation : public Expression {
     return input_layout;
   }
 
-  auto attempt_fold(
-      Perimortem::Memory::Allocator::Arena& domain,
-      Materializations& materializations) const
-      -> Perimortem::Utility::Result<const Expression&, FoldError>;
+  auto get_type() const -> const Ttx::Concept::Abstract& override;
+
+  auto link(
+      Tetrodotoxin::Language::Monograph& source,
+      const Ttx::Concept::Abstract& context,
+      Materializations& materializations) -> Bool override;
 
  protected:
   Operation(
       Perimortem::Memory::Allocator::Arena& domain,
+      Materializations& materializations,
       Perimortem::Core::View::Vector<Ttx::Concept::Reference<Expression>>
-          inputs);
+          inputs,
+      Perimortem::Utility::Option<Ttx::Lexical::Anchor> anchor);
 
-  // Operation stores erased Abstract edges only to expose their shared Layout.
-  // Concrete owners recover an input through this checked query so index
-  // absence and an invalid private edge cannot become an unchecked reference.
+  // Operation retains one typed edge inventory. Its private Layout exposes
+  // const reflection without erasing the mutation required by link and fold.
+  auto get_input(Count index) -> Perimortem::Utility::Option<Expression&>;
   auto get_input(Count index) const
       -> Perimortem::Utility::Option<const Expression&>;
 
+  auto fold_input(Count index) -> Perimortem::Utility::
+      Result<Perimortem::Utility::Option<Expression&>, Expression::Error>;
+
+  // Concrete evaluation runs only after the ordered traversal completed.
+  // This observation unwraps that cached projection without changing the
+  // authored edge or starting another computation.
+  auto get_folded_input(Count index)
+      -> Perimortem::Utility::Option<Expression&>;
+
   virtual auto evaluate_constants(
       Perimortem::Memory::Allocator::Arena& domain,
-      Materializations& materializations) const
-      -> Perimortem::Utility::Result<const Expression&, FoldError> = 0;
+      Materializations& materializations) -> Perimortem::Utility::
+      Result<Perimortem::Utility::Option<Constant&>, Expression::Error> = 0;
+
+  virtual auto reaches_next_input(
+      Count folded_input,
+      const Expression& projection) const -> Bool;
+
+  virtual auto select_type(Materializations& materializations) const
+      -> Perimortem::Utility::Option<const Ttx::Model::Type&> = 0;
+
+  auto fold_uncached() -> Perimortem::Utility::Result<
+      Perimortem::Utility::Option<Expression&>,
+      Expression::Error> override;
 
  private:
-  mutable Perimortem::Core::Access::Vector<
-      Ttx::Concept::Reference<Ttx::Concept::Abstract>>
+  class InputLayout : public Ttx::Concept::Layout {
+   public:
+    constexpr explicit InputLayout(
+        const Perimortem::Memory::Managed::Vector<
+            Ttx::Concept::Reference<Expression>>& inputs)
+        : inputs(inputs) {}
+
+    constexpr auto get_size() const -> Count override {
+      return inputs.get_size();
+    }
+    constexpr auto get_abstract(Count index) const
+        -> Perimortem::Utility::Option<const Ttx::Concept::Abstract&> override;
+    auto fits_at(const Ttx::Concept::Layout& target, Count target_offset) const
+        -> Bool override;
+    auto get_fitted_at(
+        const Ttx::Concept::Layout& target,
+        Count target_offset,
+        Count target_index) const
+        -> Perimortem::Utility::Result<
+            const Ttx::Concept::Abstract&,
+            Ttx::Concept::Layout::Errors> override;
+
+   private:
+    const Perimortem::Memory::Managed::Vector<
+        Ttx::Concept::Reference<Expression>>& inputs;
+  };
+
+  Perimortem::Memory::Allocator::Arena& domain;
+  Materializations& materializations;
+  Perimortem::Memory::Managed::Vector<Ttx::Concept::Reference<Expression>>
       inputs;
-  Ttx::Model::Layouts::Fluid input_layout;
-  mutable Perimortem::Utility::Option<Ttx::Concept::Reference<Expression>>
-      folded;
+  InputLayout input_layout;
+  Perimortem::Utility::Option<Ttx::Concept::Reference<const Ttx::Model::Type>>
+      result_type;
 };
 
 }  // namespace Tetrodotoxin::Library::Language

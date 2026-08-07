@@ -12,7 +12,11 @@ value domains required by CPU executable languages.
 `Tetrodotoxin::Library::Language` currently declares the following contracts.
 
 1. Expression, Binding, and Projection provide Library value identities.
-2. Operation owns recursive folding for executable value operations.
+   Every authored Expression retains one lexical Anchor containing its full
+   Span and the independent Token a diagnostic should emphasize. A synthetic
+   Expression omits that Anchor.
+2. Operation owns ordered input reachability and Constant evaluation for
+   executable value operations.
 3. Constant provides bytes, flag, real, signed, and unsigned value domains.
    True and False refine Flag so consumers can select either the shared domain
    or one exact logical value without decoding its storage.
@@ -23,16 +27,38 @@ value domains required by CPU executable languages.
 These classes retain and expose real TTX Type, Layout, Addressable, and Callable
 edges. They do not copy those shared contracts into a Library model.
 
-Operation retains replaceable ordered Expression edges and owns the public
-recursive `attempt_fold` transaction. Ordinary Expressions and Constants remain
-successful inputs. A partial fold replaces only completed child edges and
-retains the parent Operation. Once every input is Constant, only the concrete
-operation evaluates its domain. Successful completed results are retained for
-idempotent repeated attempts. FoldError carries the failure category and exact
-failing Expression identity without retaining parser Tokens or Spans. Every
-completed child and operation result must preserve its already selected Type.
-Parser construction may eagerly attempt folding. A later Monograph post pass
-will traverse replaceable graph roots and invoke the same transaction.
+Binding and Projection currently expose synthetic factories for generated
+semantic wrappers only. No production parser constructs an authored Anchor
+of either contract. Future grammar must supply an Anchor from its real source
+facts rather than treating synthetic absence as source provenance.
+
+Expression centralizes those two construction policies with protected
+`create_authored<T>` and `create_synthetic<T>` helpers. Each concrete owner
+still publishes its exact typed factory and supplies the builder that can call
+its private constructor. The shared helper selects the optional Anchor and
+uses `Arena::construct_from` to begin the exact object at its final address, so
+provenance cannot be selected through a public constructor.
+
+Expression owns `fold()` as a cached query over the original source node. Its
+public result is
+`Result<Option<Expression&>, Expression::Error>`. A successful projection is
+the direct identity of the selected Constant Expression, while Error carries
+its category and exact failing Expression identity. The cache stores only a
+settled Constant identity or exact Error without replacing the Expression, its
+source facts, or any child edge. Its null state represents either an unread
+query or dynamic absence, so missing Type information and a dynamic result
+remain retryable.
+
+Operation retains immutable Expression inputs in authored order. It queries
+only reached children and propagates a reached child's exact Error unchanged.
+Every input is reachable by default. A concrete operation may decide whether
+the next edge is reachable only after all earlier reached inputs fold. An
+earlier dynamic input keeps later inputs reachable because no concrete decision
+exists yet. The concrete owner evaluates only after every reached input supplies
+a Constant and must preserve the operation's exact linked result Type.
+Interpretation performs no fold query and no parser callback replaces a node.
+Function finalization may populate each root cache, but an optional fold failure
+does not report a diagnostic or reject an otherwise complete Function.
 
 Generic is Library language semantics rather than a universal TTX category.
 It owns an immutable formula contract and its inseparable parameter and
@@ -53,22 +79,24 @@ Flag, Real, Signed, and Unsigned domain contracts.
 
 `Language::Function` is the concrete Library defined Static Callable. Its
 Arena stable identity is reserved from the authored visibility, `func`, and
-name prefix. Until its signature is complete it resolves to the shared TTX
-Invalid object. One successful completion installs real parameter and result
-Layouts on that same Function and consumes the required balanced definition
-body without retaining a Cursor, Token range, source replay record, or
-executable Body.
+name prefix. Interpretation enriches that same identity with the complete
+Function Span, retained signature source facts, and an authored order View of
+Expression roots. The current body grammar accepts comments, `Expression;`
+roots, and one optional final `return Expression?;`. Blocks, control flow, and
+other statement forms remain unsupported rather than being retained as opaque
+tokens. Until semantic linking succeeds the Function resolves to shared TTX
+Invalid.
 
-`Language::Parser::Layout` owns the reusable signature grammar. Empty, direct,
-unnamed, and named shapes construct real TTX Layouts in authored order. Direct
-and unnamed entries retain resolved Type identities. Named entries retain real
-Arena owned Alias edges whose resolution reaches those same Types. Qualified
-Type routes are resolved by the source local Abstract context supplied by the
-Monograph transaction.
+`Language::Signature` owns the complete authored parameter and result grammar.
+Its private slots retain exact Type routes, entry and Type Anchors, and optional
+authored names without demanding that the Types already exist. Signature
+linking resolves those routes, constructs real Parameter Addressables and TTX
+Layout projections, and publishes every Function signature before Monograph
+body linking begins.
 
 `Language::Import` owns one complete `using Package::Route;` statement. It
-retains the exact contiguous Type shaped Package local route and no Token,
-Span, Cursor, bookmark, or replay state. Package remains the owner of that
+retains the exact contiguous Type shaped Package local route, triggering
+`using` Token, and complete statement Span. Package remains the owner of that
 route's lookup grammar and semantic edge.
 
 An Embedded operand gives its complete `$[...]` Token spelling to the exact
@@ -92,13 +120,13 @@ the Resource, so Literal-local slicing could not avoid the Storage read.
 `:[start, size]` operation shared by Embedded, quoted Bytes, hexadecimal Bytes,
 and later ranged expressions. It retains only the two or three authored
 Expression edges. Fixed, View, and Access receivers supply their retained
-element Type directly. Indexing yields that exact element. A Constant size
-yields canonical Fixed element and count identity during construction even
-while another input is dynamic. A dynamic size yields canonical View unless
-the receiver already proves writable contiguous Access. If that size is an
-Operation which later folds to a Constant, Slice retains the original result
-Type rather than performing Type resolution during folding. Slice never
-manufactures write capability from Fixed, View, Bytes, or Constant identity.
+element Type directly after linking. Indexing yields that exact element. A
+directly authored Constant size selects canonical Fixed element and count
+identity during linking even while another input is dynamic. A dynamic size
+yields canonical View unless the receiver already proves writable contiguous
+Access. An Operation size that folds later retains that already linked View or
+Access result Type. Slice never manufactures write capability from Fixed, View,
+Bytes, or Constant identity.
 
 Bytes is the current Constant ranged payload domain. Fully Constant Bytes index
 and range operations evaluate to canonical Unsigned_8 or exact Fixed Bytes
@@ -106,18 +134,21 @@ Constants, including empty and chained ranges. Other legal ranged operations
 remain Slice identities rather than implying a universal Constant payload
 interface.
 
-`Language::Parser::Expression` delegates primary dispatch to Literal and
-selects following operators in precedence order. Each concrete operation owns
-its complete grammar builder. `Operations::Slice::parse` recursively asks the
-Expression dispatcher for its operands, constructs the semantic Slice, and
-eagerly attempts folding. Slice binds before Multiply. Multiply owns binary
-Signed, Unsigned, and Real grammar, selected Type legality, checked integer and
-IEEE Constant folding, and diagnostics after asking the dispatcher only for a
-tighter operand. This keeps later operations on their own owners while
-Expression gains only one explicit dispatch case. Divide and Modulo share that
-multiplicative precedence. Divide owns selected Type quotient evaluation and
-integer zero handling. Modulo accepts only exact Signed or Unsigned Types and
-owns remainder sign, zero, selected width, and signed endpoint failures.
+`Language::Parser::Expression` constructs one complete source shaped tree. Its
+primary grammar admits Literal and Identifier primaries, then selects prefix,
+postfix, multiplicative, subtraction, comparison, and equality operations in
+the preserved acceptance precedence. Each concrete parser callback consumes
+only its owned grammar and constructs one Operation with immutable child
+identities. No callback links Types, folds a child, reports an
+`Expression::Error`, or replaces the authored tree.
+
+Slice binds before Multiply. Multiply owns binary Signed, Unsigned, and Real
+legality and checked integer and IEEE Constant evaluation. Divide and Modulo
+share that multiplicative precedence. Divide owns selected Type quotient
+evaluation and integer zero handling. Modulo accepts only exact Signed or
+Unsigned Types and owns remainder sign, zero, selected width, and signed
+endpoint failures. Their semantic legality is established during linking and
+their Constant behavior is queried through Expression folding.
 
 The multiplicative level binds before Subtract. Subtract owns only binary
 subtraction grammar, locked scalar Type selection, selected width overflow and
@@ -165,16 +196,20 @@ Signed and Unsigned operations reject host arithmetic overflow first, then use
 `Core::Math::is_representable` to prove the result fits the selected byte width.
 Concrete operations do not reproduce that representation arithmetic locally.
 
-Every Slice failure maps to one diagnostic over the complete postfix, while
-the caller Cursor joins only once after the complete chain succeeds. A
-receiving declaration, assignment, invocation, or other typed operation applies
-fitting only after the complete Expression has synthesized its result Type.
-Later operations plus Projection remain outside the current parser.
+Grammar failure remains a parser diagnostic over the exact authored Tokens.
+Semantic Type failure is published during linking over the complete operation
+Span. An `Expression::Error` remains an exact cached query result and creates no
+textual report until a later owner requires a Constant. That owner can use the
+retained Span of the failing Expression. A receiving declaration, assignment,
+invocation, or other typed operation applies fitting only after the complete
+Expression has linked its result Type. Later operations plus Projection remain
+outside the current parser.
 
 Resource route, Storage, and Package diagnostics do not enter the Library
-graph. An unsliced base Constant owns its complete value. A folded slice owns
-only the reachable Library bytes, so source-free restoration performs no
-resource read and retains no unused base Constant.
+graph. An unsliced base Constant owns its complete value, and a Slice fold does
+not erase that Constant or any authored edge. A future durable consumer may
+choose the cached reachable projection without compiling away the source shaped
+graph. No Library payload encoder or restorer currently makes that choice.
 
 ## Library Dialect and Monograph
 
@@ -194,13 +229,21 @@ signature completes, so completion never replaces the identity already visible
 through the Monograph. Duplicate declarations fail before either view changes.
 Missing names resolve to the shared TTX Invalid identity.
 
+Function context lookup checks its linked Parameter Addressables first. The
+parent Monograph then checks local and imported Functions, delegates to the
+source interpretation context for Package or Workspace names, and finally asks
+the installed Library Dialect for intrinsic Types. Raw incomplete declarations
+occupy their names before linking, so later publication enriches those exact
+identities and shadowing remains a diagnosed collision rather than a second
+scope model.
+
 Each Monograph also borrows the exact source local interpretation context and
-retains authored Imports in order. Its post pass requires that context and each
-selected target to resolve to real Package Monographs. It traverses only the
-target Package's ordered direct member Alias view and consumes only complete
-public Functions from direct Library member Monographs. Private Functions,
-Dependency Aliases, nested Packages, other Dialect members, and declarations
-that a provider imported remain excluded.
+retains authored Imports in order. Its `link()` transaction requires that
+context and each selected target to resolve to real Package Monographs. It
+traverses only the target Package's ordered direct member Alias view and
+consumes only complete public Functions from direct Library member Monographs.
+Private Functions, Dependency Aliases, nested Packages, other Dialect members,
+and declarations that a provider imported remain excluded.
 
 The complete candidate sequence is staged before lookup changes. Duplicate
 Imports, unresolved targets, incomplete provider Functions, and exact local or
@@ -210,15 +253,21 @@ public Function view remains the source's own authored publication surface, so
 imports cannot become transitive exports.
 
 Interpretation admits ordinary public and private Function definitions. It
-constructs real TTX and Library Language identities in the Environment Arena
-and retains no Cursor, Token range, declaration mirror, signature snapshot, or
-source replay state. Unsupported declarations and malformed, incomplete,
-bodyless, duplicate, or trailing syntax reject the complete transaction.
+constructs real TTX and Library Language identities in the Environment Arena.
+Functions retain complete source extents, one Signature source owner, and
+authored Expression roots. Imports retain their own triggering Tokens and
+complete Spans. Each authored Identifier, Literal, and Operation retains one
+Anchor containing its focus Token and full Span, while synthetic Expressions
+omit it. None of these facts is a Cursor bookmark, replay model, or cloned
+semantic graph. Unsupported declarations and malformed, incomplete, bodyless,
+duplicate, or trailing syntax reject the complete interpretation transaction.
 
-The exact executable body representation is not implemented. Function body
-consumption proves only that one structurally balanced definition exists. The
-current target has no active executable Body parser or semantic compiler
-transaction.
+The current Function body representation is deliberately narrow. Comments,
+ordinary Expression statements, and one optional final return are retained.
+Nested blocks, `if`, `for`, and other control flow still lack an executable Body
+contract and remain grammar errors. The retained roots are enough for source
+queries, linking, and optional fold caching without pretending that control
+flow or lowering exists.
 
 The intended first application pressure target is
 [`../../apps/ttx/echo`](../../apps/ttx/echo/). Its remaining Library pressure
@@ -278,8 +327,10 @@ second restored model.
 
 Package owns Archive framing and never learns the Library schema. A fresh
 Workspace asks the installed Library Dialect to restore real Library and TTX
-identities into its Arena. Source bytes, Cursors, process addresses, compiler
-caches, and machine code are excluded.
+identities into its Arena. A restored fact may omit its Anchor when no
+authored source exists, but authored graphs retain those source facts for
+their complete Workspace lifetime. Cursors, process addresses, transient fold
+caches, and machine code are excluded from the durable payload.
 
 No Library payload encoder or restorer exists in the current target.
 
@@ -287,8 +338,10 @@ No Library payload encoder or restorer exists in the current target.
 
 The current Library target contains the installed Dialect, declaration
 Monograph, binary wide scalar and Void Types, Function signature construction,
-reusable Layout grammar, exact authored Package imports, atomic post pass
-expansion, and the x86_64 assembler.
+source shaped Function Expression roots, reusable Layout grammar, exact
+authored Package imports, separate linking and finalization, nondestructive
+cached folding, and the x86_64 assembler.
 
-It does not yet contain executable body ownership, CPU target planning,
-semantic lowering, or App and Scene integration.
+It does not yet contain control flow Body ownership, required Constant
+validation, CPU target planning, semantic lowering, or App and Scene
+integration.

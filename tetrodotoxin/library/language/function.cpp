@@ -3,7 +3,8 @@
 
 #include "tetrodotoxin/library/language/function.hpp"
 
-#include "tetrodotoxin/library/language/parser/layout.hpp"
+#include "tetrodotoxin/language/parser/comment.hpp"
+#include "tetrodotoxin/library/language/parser/expression.hpp"
 #include "ttx/concept/invalid.hpp"
 #include "ttx/model/layouts/fluid.hpp"
 
@@ -12,52 +13,104 @@ using namespace Perimortem::Memory;
 using namespace Perimortem::Utility;
 using namespace Ttx::Concept;
 using namespace Ttx::Lexical;
+using namespace Ttx::Model;
 using namespace Tetrodotoxin::Library;
 
-static const Ttx::Model::Layouts::Fluid incomplete_layout;
+static const Layouts::Fluid incomplete_layout;
 
-static auto consume_body(Cursor& cursor) -> Bool {
-  if (cursor.matches(Code::Type::EndStatement)) {
-    cursor.create_token_error(
-        "Ordinary Library Functions require an authored body."_view);
-    return False;
-  }
-
+static auto parse_body(
+    Allocator::Arena& domain,
+    Language::Materializations& materializations,
+    Cursor& cursor,
+    const Abstract& context,
+    Managed::Vector<Reference<Language::Expression>>& expressions,
+    Token& return_token,
+    Span& return_span,
+    Option<Reference<Language::Expression>>& return_expression,
+    Token& closing) -> Bool {
   if (!cursor.require(
           Code::Type::ScopeStart,
           "Library Function signatures require a body beginning with `{`."_view)) {
     return False;
   }
 
-  // Scope Tokens already exclude braces carried by comments and byte values.
-  // Counting only those structural Tokens proves the complete definition
-  // boundary without interpreting or retaining any statement inside it.
-  Count depth = 1;
-  while (!cursor.matches(Code::Type::Terminal)) {
-    Code code = cursor.consume().get_code();
-    if (code == Code::Type::ScopeStart) {
-      depth++;
-      continue;
+  Tetrodotoxin::Language::Parser::Comment::parse(cursor);
+  while (!cursor.matches(Code::Type::ScopeEnd)) {
+    if (cursor.matches(Code::Type::Terminal)) {
+      cursor.create_token_error(
+          "Library Function body reached the end of source before `}`."_view);
+      return False;
     }
 
-    if (code == Code::Type::ScopeEnd) {
-      depth--;
-      if (depth == 0) {
-        return True;
+    if (cursor.matches(Code::Type::Return)) {
+      // Return is the only retained terminal form. Closing the grammar here
+      // keeps later source from appearing reachable without a statement owner.
+      Token selected_return = cursor.consume();
+      Option<Language::Expression&> selected_expression;
+      if (!cursor.matches(Code::Type::EndStatement)) {
+        selected_expression = Language::Parser::Expression::parse(
+            domain, materializations, cursor, context);
+        if (!selected_expression) {
+          return False;
+        }
       }
+
+      Token terminator = cursor.require(
+          Code::Type::EndStatement,
+          "Library Function returns require one terminating `;`."_view);
+      if (!terminator) {
+        return False;
+      }
+
+      Tetrodotoxin::Language::Parser::Comment::parse(cursor);
+      if (!cursor.matches(Code::Type::ScopeEnd)) {
+        cursor.create_token_error(
+            "A Library Function return must be the final body form."_view);
+        return False;
+      }
+
+      closing = cursor.consume();
+      return_token = selected_return;
+      return_span = Span(selected_return, terminator);
+      if (selected_expression) {
+        expressions.insert(*selected_expression);
+        return_expression =
+            Reference<Language::Expression>(*selected_expression);
+      }
+
+      return True;
     }
+
+    auto expression = Language::Parser::Expression::parse(
+        domain, materializations, cursor, context);
+    if (!expression) {
+      return False;
+    }
+
+    if (!cursor.require(
+            Code::Type::EndStatement,
+            "Library Function expressions require one terminating `;`."_view)) {
+      return False;
+    }
+
+    // The terminator belongs to body grammar rather than the retained root.
+    // Expression Span therefore ends at the last authored value Token.
+    expressions.insert(*expression);
+    Tetrodotoxin::Language::Parser::Comment::parse(cursor);
   }
 
-  cursor.create_token_error(
-      "Library Function body reached the end of source before `}`."_view);
-  return False;
+  closing = cursor.consume();
+  return True;
 }
 
 auto Language::Function::reserve(
     Allocator::Arena& domain,
     Cursor& cursor,
-    const Documentation& documentation) -> Option<Function&> {
+    const Documentation& documentation,
+    Tetrodotoxin::Language::Monograph& parent,
+    Materializations& materializations) -> Option<Function&> {
   auto transaction = cursor.branch();
+  Token opening = transaction.current();
   Visibility visibility;
   if (transaction.matches(Code::Type::Public)) {
     transaction.consume();
@@ -71,9 +124,10 @@ auto Language::Function::reserve(
     return {};
   }
 
-  if (!transaction.require(
-          Code::Type::Func,
-          "Library Function visibility must be followed by `func`."_view)) {
+  Token token = transaction.require(
+      Code::Type::Func,
+      "Library Function visibility must be followed by `func`."_view);
+  if (!token) {
     return {};
   }
 
@@ -85,86 +139,199 @@ auto Language::Function::reserve(
   }
 
   View::Bytes name = name_token.caculate_text(transaction.get_source_text());
-  Function& function = domain.construct<Function>(
-      Construction{}, domain, name, documentation, visibility);
+  Function& function = domain.construct_from<Function>([&]() -> Function {
+    return Function(
+        domain, name, documentation, visibility, parent, materializations,
+        opening, token, name_token);
+  });
   cursor.join(transaction);
   return function;
 }
 
 Language::Function::Function(
-    Construction,
     Allocator::Arena& domain,
     View::Bytes name,
     const Documentation& documentation,
-    Visibility visibility)
+    Visibility visibility,
+    Tetrodotoxin::Language::Monograph& parent,
+    Materializations& materializations,
+    Token opening,
+    Token token,
+    Token name_token)
     : domain(domain),
       name(name),
       documentation(documentation),
-      visibility(visibility) {}
+      visibility(visibility),
+      parent(parent),
+      materializations(materializations),
+      opening(opening),
+      token(token),
+      name_token(name_token),
+      expressions(domain) {}
 
-auto Language::Function::complete(Cursor& cursor, const Abstract& context)
-    -> Bool {
+auto Language::Function::complete(Cursor& cursor) -> Bool {
   if (is_complete()) {
     cursor.create_token_error(
-        "A Library Function signature can be completed only once."_view);
+        "A Library Function can be completed only once."_view);
     return False;
   }
 
-  // A Cursor branch keeps the caller at the signature opening. Only a complete
-  // signature and body join its final position into the caller.
   auto transaction = cursor.branch();
-  Option<const Layout&> parsed_parameters =
-      Parser::Layout::parse(domain, transaction, context);
-  if (!parsed_parameters) {
+  Managed::Vector<Reference<Expression>> parsed_expressions(domain);
+  auto parsed_signature = Signature::interpret(domain, transaction);
+  if (!parsed_signature) {
     return False;
   }
 
-  if (!transaction.require(
-          Code::Type::CallOp,
-          "Library Function parameters require `->` before the result "
-          "Layout."_view)) {
+  Token parsed_return_token;
+  Span parsed_return_span;
+  Option<Reference<Expression>> parsed_return_expression;
+  Token closing;
+  Bool body_complete = parse_body(
+      domain, materializations, transaction, *this, parsed_expressions,
+      parsed_return_token, parsed_return_span, parsed_return_expression,
+      closing);
+  if (!body_complete) {
     return False;
   }
 
-  Option<const Layout&> parsed_results =
-      Parser::Layout::parse(domain, transaction, context);
-  if (!parsed_results) {
-    return False;
+  // Only complete grammar publishes Signature and Expression roots. Failed
+  // Arena values remain unreachable from the reserved Function.
+  signature = *parsed_signature;
+  for (Count i = 0; i < parsed_expressions.get_size(); i++) {
+    expressions.insert(parsed_expressions[i]);
   }
 
-  // Signature edges stay private until the complete body boundary is known.
-  // A malformed body can leave Arena allocations behind, but the stable
-  // Function still resolves to Invalid and exposes no partial signature.
-  if (!consume_body(transaction)) {
-    return False;
-  }
-
-  parameters = *parsed_parameters;
-  results = *parsed_results;
+  span = Span(opening, closing);
+  return_token = parsed_return_token;
+  return_span = parsed_return_span;
+  return_expression = parsed_return_expression;
+  completed = True;
   cursor.join(transaction);
   return True;
 }
 
+auto Language::Function::link_signature() -> Bool {
+  if (is_signature_linked()) {
+    return True;
+  }
+
+  if (!completed || !signature) {
+    parent.report(
+        Anchor::create(token, Span(opening, name_token)),
+        "An incomplete Function cannot enter semantic linking."_view,
+        "Complete its signature and body grammar before linking."_view);
+    return False;
+  }
+
+  return signature->link(parent, parent);
+}
+
+auto Language::Function::link_body() -> Bool {
+  if (linked) {
+    return True;
+  }
+  if (!is_signature_linked()) {
+    return False;
+  }
+
+  // Signature edges publish before body linking so every Identifier can reach
+  // the exact Parameter object created for its authored declaration.
+  Bool failed = False;
+  View::Vector<Reference<Expression>> body = expressions;
+  for (Count i = 0; i < body.get_size(); i++) {
+    failed |= !body.get_data()[i].get().link(parent, *this, materializations);
+  }
+
+  linked = !failed;
+  return linked;
+}
+
+auto Language::Function::link() -> Bool {
+  Bool signature_linked = link_signature();
+  if (!signature_linked) {
+    return False;
+  }
+
+  return link_body();
+}
+
+auto Language::Function::finalize() -> Bool {
+  if (!linked) {
+    return False;
+  }
+
+  // Optional folding records a projection for later consumers. A dynamic
+  // result or failure remains queryable but cannot turn an otherwise complete
+  // Function into a semantic failure without a Constant requirement.
+  View::Vector<Reference<Expression>> body = expressions;
+  for (Count i = 0; i < body.get_size(); i++) {
+    body.get_data()[i].get().fold();
+  }
+
+  return True;
+}
+
 auto Language::Function::resolve() const -> const Abstract& {
-  if (!is_complete()) {
+  if (!is_signature_linked()) {
     return Invalid::get_invalid();
   }
 
   return *this;
 }
 
-auto Language::Function::resolve_context(View::Bytes) const -> const Abstract& {
-  return Invalid::get_invalid();
+auto Language::Function::resolve_context(View::Bytes route) const
+    -> const Abstract& {
+  if (signature) {
+    const Abstract& parameter = signature->resolve_parameter(route);
+    if (&parameter != &Invalid::get_invalid()) {
+      return parameter;
+    }
+  }
+
+  return parent.resolve_context(route);
 }
 
 auto Language::Function::get_parameters() const -> const Layout& {
-  return parameters.visit(
+  return signature.visit(
       []() -> const Layout& { return incomplete_layout; },
-      [](const Layout& selected) -> const Layout& { return selected; });
+      [](const Signature& selected) -> const Layout& {
+        return selected.get_parameters();
+      });
 }
 
 auto Language::Function::get_results() const -> const Layout& {
-  return results.visit(
+  return signature.visit(
       []() -> const Layout& { return incomplete_layout; },
-      [](const Layout& selected) -> const Layout& { return selected; });
+      [](const Signature& selected) -> const Layout& {
+        return selected.get_results();
+      });
+}
+
+auto Language::Function::get_signature() const -> Option<const Signature&> {
+  return signature.visit(
+      []() -> Option<const Signature&> { return {}; },
+      [](const Signature& selected) -> Option<const Signature&> {
+        return selected;
+      });
+}
+
+auto Language::Function::get_expressions() const
+    -> View::Vector<Reference<Expression>> {
+  return expressions;
+}
+
+auto Language::Function::get_return_expression() const
+    -> Option<const Expression&> {
+  return return_expression.visit(
+      []() -> Option<const Expression&> { return {}; },
+      [](const Reference<Expression>& expression) -> Option<const Expression&> {
+        return expression.get();
+      });
+}
+
+auto Language::Function::is_signature_linked() const -> Bool {
+  return signature.visit(
+      []() { return False; },
+      [](const Signature& selected) { return selected.is_linked(); });
 }

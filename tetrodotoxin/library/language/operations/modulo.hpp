@@ -11,8 +11,8 @@
 namespace Tetrodotoxin::Library::Language::Operations {
 
 // Modulo owns one binary integer remainder. It retains the exact left and
-// right Expression edges and the result Type selected during construction.
-// Recursive folding may replace an input but cannot retag the completed value.
+// right Expression edges and selects their shared Type during semantic
+// linking. Folding projects a remainder without changing those authored facts.
 class Modulo : public Operation {
  public:
   using ClassCatagory = Modulo;
@@ -26,12 +26,19 @@ class Modulo : public Operation {
       Materializations& materializations,
       Ttx::Lexical::Cursor& cursor,
       const Ttx::Concept::Abstract& source_context,
-      const Expression& left) -> Perimortem::Utility::Option<const Expression&>;
+      Expression& left) -> Perimortem::Utility::Option<Expression&>;
 
-  Modulo(
+  static auto create_authored(
       Perimortem::Memory::Allocator::Arena& domain,
-      const Expression& left,
-      const Expression& right);
+      Materializations& materializations,
+      Expression& left,
+      Expression& right,
+      Ttx::Lexical::Anchor anchor) -> Modulo&;
+  static auto create_synthetic(
+      Perimortem::Memory::Allocator::Arena& domain,
+      Materializations& materializations,
+      Expression& left,
+      Expression& right) -> Modulo&;
 
   constexpr auto implements(Perimortem::System::Uuid requested) const
       -> Bool override {
@@ -42,16 +49,24 @@ class Modulo : public Operation {
     return "Modulo"_view;
   }
   auto get_documentation() const -> const Ttx::Concept::Documentation& override;
-  auto get_type() const -> const Ttx::Concept::Abstract& override;
 
  protected:
   auto evaluate_constants(
       Perimortem::Memory::Allocator::Arena& domain,
-      Materializations& materializations) const
-      -> Perimortem::Utility::Result<const Expression&, FoldError> override;
+      Materializations& materializations)
+      -> Perimortem::Utility::Result<
+          Perimortem::Utility::Option<Constant&>,
+          Expression::Error> override;
+  auto select_type(Materializations& materializations) const
+      -> Perimortem::Utility::Option<const Ttx::Model::Type&> override;
 
  private:
-  const Ttx::Concept::Abstract& result_type;
+  Modulo(
+      Perimortem::Memory::Allocator::Arena& domain,
+      Materializations& materializations,
+      Expression& left,
+      Expression& right,
+      Perimortem::Utility::Option<Ttx::Lexical::Anchor> anchor);
 };
 
 }  // namespace Tetrodotoxin::Library::Language::Operations

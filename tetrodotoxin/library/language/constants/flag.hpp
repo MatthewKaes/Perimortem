@@ -19,8 +19,23 @@ class Flag : public Constant {
     0x897a36a658c2486a,
   };
 
-  constexpr Flag(const Ttx::Model::Types::Flag& type, Value value)
-      : type(type), value(value) {}
+  static auto create_authored(
+      Perimortem::Memory::Allocator::Arena& domain,
+      const Ttx::Model::Types::Flag& type,
+      Value value,
+      Ttx::Lexical::Anchor anchor) -> Flag& {
+    return Expression::create_authored<Flag>(
+        domain, anchor,
+        [&](auto source) -> Flag { return Flag(type, value, source); });
+  }
+
+  static auto create_synthetic(
+      Perimortem::Memory::Allocator::Arena& domain,
+      const Ttx::Model::Types::Flag& type,
+      Value value) -> Flag& {
+    return Expression::create_synthetic<Flag>(
+        domain, [&](auto source) -> Flag { return Flag(type, value, source); });
+  }
 
   constexpr auto implements(Perimortem::System::Uuid requested) const
       -> Bool override {
@@ -47,6 +62,13 @@ class Flag : public Constant {
     return get_type().resolve().is<Ttx::Model::Types::Flag>() &&
            target.resolve().is<Ttx::Model::Types::Flag>();
   }
+
+ protected:
+  constexpr Flag(
+      const Ttx::Model::Types::Flag& type,
+      Value value,
+      Perimortem::Utility::Option<Ttx::Lexical::Anchor> anchor)
+      : Constant(anchor), type(type), value(value) {}
 
  private:
   const Ttx::Model::Types::Flag& type;

@@ -3,113 +3,248 @@
 
 #include "tetrodotoxin/library/language/operation.hpp"
 
+#include "ttx/concept/invalid.hpp"
+#include "ttx/model/addressable.hpp"
+
 using namespace Perimortem;
 using namespace Tetrodotoxin::Library;
 
-static auto retain_inputs(
-    Memory::Allocator::Arena& domain,
-    Core::View::Vector<Ttx::Concept::Reference<Language::Expression>>
-        expressions)
-    -> Core::Access::Vector<Ttx::Concept::Reference<Ttx::Concept::Abstract>> {
-  auto retained =
-      domain.reserve<Ttx::Concept::Reference<Ttx::Concept::Abstract>>(
-          expressions.get_size());
-  for (Count i = 0; i < expressions.get_size(); i++) {
-    new (&retained[i]) Ttx::Concept::Reference<Ttx::Concept::Abstract>(
-        expressions.get_data()[i].get());
-  }
-
-  return retained;
+static auto select_source_anchor(const Language::Expression& expression)
+    -> Utility::Option<Ttx::Lexical::Anchor> {
+  return expression.get_anchor().visit(
+      []() -> Utility::Option<Ttx::Lexical::Anchor> { return {}; },
+      [](const Ttx::Lexical::Anchor& anchor)
+          -> Perimortem::Utility::Option<Ttx::Lexical::Anchor> {
+        return anchor;
+      });
 }
 
 Language::Operation::Operation(
     Memory::Allocator::Arena& domain,
-    Core::View::Vector<Ttx::Concept::Reference<Expression>> expressions)
-    : inputs(retain_inputs(domain, expressions)),
-      input_layout(inputs.get_view()) {}
+    Materializations& materializations,
+    Core::View::Vector<Ttx::Concept::Reference<Expression>> expressions,
+    Utility::Option<Ttx::Lexical::Anchor> anchor)
+    : Expression(anchor),
+      domain(domain),
+      materializations(materializations),
+      inputs(domain),
+      input_layout(inputs) {
+  inputs.reset(expressions.get_size());
+  for (Count i = 0; i < expressions.get_size(); i++) {
+    inputs.insert(expressions.get_data()[i]);
+  }
+}
 
-auto Language::Operation::attempt_fold(
-    Memory::Allocator::Arena& domain,
-    Materializations& materializations) const
-    -> Utility::Result<const Expression&, FoldError> {
-  if (folded) {
-    return folded->get();
+static auto selects_fitting_type(
+    const Ttx::Concept::Abstract& value,
+    const Language::Expression& expression) -> Bool {
+  const Ttx::Concept::Abstract& selected = value.visit<Ttx::Model::Addressable>(
+      [](const Ttx::Model::Addressable& addressable)
+          -> const Ttx::Concept::Abstract& {
+        return addressable.get_type().resolve();
+      },
+      [](const Ttx::Concept::Abstract& abstract)
+          -> const Ttx::Concept::Abstract& { return abstract.resolve(); });
+  return selected.visit<Ttx::Model::Type>(
+      [&expression](const Ttx::Model::Type& type) {
+        return expression.fits(type);
+      },
+      [](const Ttx::Concept::Abstract&) { return False; });
+}
+
+constexpr auto Language::Operation::InputLayout::get_abstract(Count index) const
+    -> Utility::Option<const Ttx::Concept::Abstract&> {
+  if (index >= inputs.get_size()) {
+    return {};
   }
 
-  const Ttx::Concept::Abstract& operation_type = get_type().resolve();
-  if (!operation_type.is<Ttx::Model::Type>()) {
-    return FoldError(FoldError::Type::InvalidOperationType, *this);
+  return inputs.at(index).get();
+}
+
+auto Language::Operation::InputLayout::fits_at(
+    const Ttx::Concept::Layout& target,
+    Count target_offset) const -> Bool {
+  if (!has_target_segment(target, target_offset)) {
+    return False;
   }
 
-  // Child Operations fold before the parent decides readiness. Each completed
-  // replacement must preserve its exposed Type so folding cannot rewrite a
-  // graph edge into a value the already checked parent did not accept.
-  Bool all_constants = True;
+  for (Count i = 0; i < get_size(); i++) {
+    const Language::Expression& source = inputs.at(i).get();
+    Bool entry_fits = target.get_abstract(target_offset + i)
+                          .visit(
+                              []() { return False; },
+                              [&source](const Ttx::Concept::Abstract& target) {
+                                return selects_fitting_type(target, source);
+                              });
+    if (!entry_fits) {
+      return False;
+    }
+  }
+
+  return True;
+}
+
+auto Language::Operation::InputLayout::get_fitted_at(
+    const Ttx::Concept::Layout& target,
+    Count target_offset,
+    Count target_index) const
+    -> Utility::Result<const Ttx::Concept::Abstract&, Errors> {
+  if (target_index >= get_size()) {
+    return Errors::IndexOutOfBounds;
+  }
+  if (!has_target_segment(target, target_offset)) {
+    return Errors::SizeMismatch;
+  }
+  if (!fits_at(target, target_offset)) {
+    return Errors::IncompatibleFit;
+  }
+
+  return inputs.at(target_index).get();
+}
+
+auto Language::Operation::get_type() const -> const Ttx::Concept::Abstract& {
+  return result_type.visit(
+      []() -> const Ttx::Concept::Abstract& {
+        return Ttx::Concept::Invalid::get_invalid();
+      },
+      [](const Ttx::Concept::Reference<const Ttx::Model::Type>& selected)
+          -> const Ttx::Concept::Abstract& { return selected.get(); });
+}
+
+auto Language::Operation::link(
+    Tetrodotoxin::Language::Monograph& source,
+    const Ttx::Concept::Abstract& context,
+    Materializations& materializations) -> Bool {
+  Bool failed = False;
+  auto source_anchor = select_source_anchor(*this);
+
+  if (&materializations != &this->materializations) {
+    source.report(
+        source_anchor,
+        "Operation cannot link through another Materializations owner."_view,
+        "Reuse the graph inventory retained when this operation was built."_view);
+    return False;
+  }
+
+  // Child order is authored evaluation order. Independent failures continue
+  // so diagnostics retain that same order without making later graph edges
+  // disappear from the source model.
   for (Count i = 0; i < inputs.get_size(); i++) {
     auto input = get_input(i);
     if (!input) {
-      return FoldError(FoldError::Type::InvalidInput, *this);
+      source.report(
+          source_anchor, "Operation contains an invalid Expression edge."_view,
+          "Retain every authored operand as one Expression identity."_view);
+      failed = True;
+      continue;
     }
 
-    Utility::Option<FoldError> child_error;
-    const Ttx::Concept::Abstract& input_type = input->get_type().resolve();
-    input->visit<Operation>(
-        [&](const Operation& child) {
-          auto child_result = child.attempt_fold(domain, materializations);
-          child_result.visit(
-              [&](const Expression& result) {
-                const Ttx::Concept::Abstract& result_type =
-                    result.get_type().resolve();
-                if (!input_type.is<Ttx::Model::Type>() ||
-                    !result_type.is<Ttx::Model::Type>() ||
-                    &input_type != &result_type) {
-                  child_error =
-                      FoldError(FoldError::Type::ResultTypeMismatch, child);
-                  return;
-                }
+    failed |= !input->link(source, context, materializations);
+  }
 
-                inputs[i] =
-                    Ttx::Concept::Reference<Ttx::Concept::Abstract>(result);
-              },
-              [&](const FoldError& error) { child_error = error; });
+  if (failed) {
+    return False;
+  }
+
+  auto selected = select_type(this->materializations);
+  if (!selected) {
+    source.report(
+        source_anchor, "Operation rejects the linked operand Types."_view,
+        "Use operands with the exact Types required by this operation."_view);
+    return False;
+  }
+
+  if (result_type) {
+    if (&result_type->get() == &*selected) {
+      return True;
+    }
+
+    source.report(
+        source_anchor,
+        "Operation result Type cannot change during linking."_view,
+        "Keep one exact result Type on this authored operation."_view);
+    return False;
+  }
+
+  result_type = Ttx::Concept::Reference<const Ttx::Model::Type>(*selected);
+  return True;
+}
+
+auto Language::Operation::fold_uncached()
+    -> Utility::Result<Utility::Option<Expression&>, Expression::Error> {
+  Bool all_reached_folded = True;
+  for (Count i = 0; i < inputs.get_size(); i++) {
+    auto child_result = fold_input(i);
+    Utility::Option<Expression&> child_fold;
+    Utility::Option<Expression::Error> child_error;
+    child_result.visit(
+        [&](const Utility::Option<Expression&>& selected) {
+          child_fold = selected;
         },
-        [](const Ttx::Concept::Abstract&) {});
+        [&](const Expression::Error& error) { child_error = error; });
     if (child_error) {
       return *child_error;
     }
 
-    auto replacement = get_input(i);
-    if (!replacement) {
-      return FoldError(FoldError::Type::InvalidInput, *this);
+    all_reached_folded &= bool(child_fold);
+    if (i + 1 < inputs.get_size() && child_fold &&
+        !reaches_next_input(i, *child_fold)) {
+      break;
     }
-
-    all_constants &= replacement->is<Constant>();
   }
 
-  if (!all_constants) {
-    return *this;
+  if (!all_reached_folded) {
+    return Utility::Option<Expression&>{};
   }
 
-  // The concrete owner sees only completed Constant inputs. Retaining a
-  // replacement here makes repeated attempts observe one semantic result.
   auto evaluated = evaluate_constants(domain, materializations);
   return evaluated.visit(
-      [&](const Expression& result)
-          -> Utility::Result<const Expression&, FoldError> {
-        const Ttx::Concept::Abstract& result_type = result.get_type().resolve();
-        if (!result_type.is<Ttx::Model::Type>() ||
-            &operation_type != &result_type) {
-          return FoldError(FoldError::Type::ResultTypeMismatch, *this);
-        }
-
-        if (&result != this) {
-          folded = Ttx::Concept::Reference<Expression>(result);
-        }
-
-        return result;
+      [](const Utility::Option<Constant&>& selected)
+          -> Utility::Result<Utility::Option<Expression&>, Expression::Error> {
+        return selected.visit(
+            []() -> Utility::Option<Expression&> { return {}; },
+            [](Constant& constant) -> Utility::Option<Expression&> {
+              return constant;
+            });
       },
-      [](const FoldError& error)
-          -> Utility::Result<const Expression&, FoldError> { return error; });
+      [](const Expression::Error& error)
+          -> Utility::Result<Utility::Option<Expression&>, Expression::Error> {
+        return error;
+      });
+}
+
+auto Language::Operation::reaches_next_input(Count, const Expression&) const
+    -> Bool {
+  return True;
+}
+
+auto Language::Operation::fold_input(Count index)
+    -> Utility::Result<Utility::Option<Expression&>, Expression::Error> {
+  auto input = get_input(index);
+  if (!input) {
+    return Expression::Error(Expression::Error::Type::InvalidInput, *this);
+  }
+
+  return input->fold();
+}
+
+auto Language::Operation::get_folded_input(Count index)
+    -> Utility::Option<Expression&> {
+  auto input = get_input(index);
+  if (!input) {
+    return {};
+  }
+
+  return input->get_folded();
+}
+
+auto Language::Operation::get_input(Count index)
+    -> Utility::Option<Expression&> {
+  if (index >= inputs.get_size()) {
+    return {};
+  }
+
+  return inputs[index].get();
 }
 
 auto Language::Operation::get_input(Count index) const

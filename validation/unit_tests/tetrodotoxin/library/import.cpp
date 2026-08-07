@@ -71,23 +71,23 @@ static auto interpret_library(
   return static_cast<Library::Language::Monograph&>(*interpreted);
 }
 
-static auto create_package(Allocator::Arena& arena, Package::Dialect& dialect)
+static auto create_package(Allocator::Arena& arena, Package::Dialect&)
     -> Package::Language::Monograph& {
   Managed::Vector<Package::Language::Dependency> dependencies(arena);
-  return Package::Language::Monograph::create_source_free(
-      arena, Documentation::get_empty(), dialect, dependencies);
+  return Package::Language::Monograph::create_synthetic(
+      arena, Documentation::get_empty(), dependencies);
 }
 
 static auto create_package_with_dependency(
     Allocator::Arena& arena,
-    Package::Dialect& dialect,
+    Package::Dialect&,
     View::Bytes local_name) -> Package::Language::Monograph& {
   Managed::Vector<Package::Language::Dependency> dependencies(arena);
   dependencies.insert(
       Package::Language::Dependency(
           local_name, "Pkg.Target"_view, Version(1, 0)));
-  return Package::Language::Monograph::create_source_free(
-      arena, Documentation::get_empty(), dialect, dependencies);
+  return Package::Language::Monograph::create_synthetic(
+      arena, Documentation::get_empty(), dependencies);
 }
 
 static auto bind_only_dependency(
@@ -100,6 +100,27 @@ static auto bind_only_dependency(
 
   Bool bound = source.bind_dependency(dependencies.get_data()[0], target);
   return bound;
+}
+
+static auto diagnostic_matches(
+    const Library::Language::Monograph& monograph,
+    Count index,
+    View::Bytes source,
+    View::Bytes anchor_text,
+    View::Bytes message) -> Bool {
+  auto diagnostics = monograph.get_diagnostics();
+  if (index >= diagnostics.get_size()) {
+    return False;
+  }
+
+  const auto& diagnostic = diagnostics.get_data()[index];
+  if (!diagnostic.get_anchor()) {
+    return False;
+  }
+
+  return diagnostic.get_anchor()->get_span().caculate_text(source) ==
+             anchor_text &&
+         diagnostic.get_message() == message;
 }
 
 static Harness LibraryImports = {
@@ -226,7 +247,7 @@ PERIMORTEM_UNIT_TEST(LibraryImports, exact_identity_and_exclusions) {
   EXPECT(
       &importer->get_public_functions().get_data()[0].get() == &public_local);
 
-  Bool import_completed = importer->post_pass();
+  Bool import_completed = importer->link();
   ASSERT(import_completed);
   EXPECT(&importer->resolve_context("first"_view) == &first_identity);
   EXPECT(&importer->resolve_context("second"_view) == &second_identity);
@@ -269,7 +290,7 @@ PERIMORTEM_UNIT_TEST(LibraryImports, provider_import_is_not_reexported) {
       arena, library_dialect, provider_context,
       "using Upstream;\npublic func direct[] -> Void {}"_view);
   ASSERT(provider);
-  Bool provider_completed = provider->post_pass();
+  Bool provider_completed = provider->link();
   ASSERT(provider_completed);
   ASSERT(
       &provider->resolve_context("upstream"_view) ==
@@ -278,7 +299,7 @@ PERIMORTEM_UNIT_TEST(LibraryImports, provider_import_is_not_reexported) {
 
   // The provider can use its upstream Function locally, but its public view
   // retains only its authored declaration. A downstream Import consumes that
-  // narrow view instead of repeating the provider post pass result.
+  // narrow view instead of repeating the provider link result.
   Package::Language::Monograph& provider_target =
       create_package(arena, package_dialect);
   Bool provider_member_bound =
@@ -292,7 +313,7 @@ PERIMORTEM_UNIT_TEST(LibraryImports, provider_import_is_not_reexported) {
   auto importer = interpret_library(
       arena, library_dialect, importer_context, "using Provider;"_view);
   ASSERT(importer);
-  Bool importer_completed = importer->post_pass();
+  Bool importer_completed = importer->link();
   ASSERT(importer_completed);
 
   EXPECT(
@@ -334,15 +355,16 @@ PERIMORTEM_UNIT_TEST(LibraryImports, collisions_are_atomic) {
         "using Core;\npublic func clash[] -> Void {}"_view);
     ASSERT(importer);
     const Abstract& local = importer->resolve_context("clash"_view);
-    Bool completed = importer->post_pass();
+    Bool completed = importer->link();
     ASSERT_NOT(completed);
     EXPECT(
         &importer->resolve_context("unique"_view) == &Invalid::get_invalid());
     EXPECT(&importer->resolve_context("clash"_view) == &local);
-    EXPECT(
-        Test::error_contains(
-            "provider_member=Second candidate_function=clash"_view,
-            Diagnostics::Log::Level::Info));
+    ASSERT_EQ(importer->get_diagnostics().get_size(), Count(1));
+    EXPECT(diagnostic_matches(
+        *importer, 0, "using Core;\npublic func clash[] -> Void {}"_view,
+        "using Core;"_view,
+        "Imported Function collides with one local Function name."_view));
   }
 
   {
@@ -359,8 +381,8 @@ PERIMORTEM_UNIT_TEST(LibraryImports, collisions_are_atomic) {
         "public func repeated[] -> Void {}"_view);
     ASSERT(first && second);
 
-    // The diagnostic names the second member as candidate and the first as
-    // conflict, making Package member order an observable failure oracle.
+    // Both providers stage before publication. Their shared Import occurrence
+    // owns the collision diagnostic while failure keeps both Functions absent.
     Package::Language::Monograph& target =
         create_package(arena, package_dialect);
     Bool first_member_bound = target.bind_member("FirstProvider"_view, *first);
@@ -375,20 +397,16 @@ PERIMORTEM_UNIT_TEST(LibraryImports, collisions_are_atomic) {
     auto importer =
         interpret_library(arena, library_dialect, context, "using Core;"_view);
     ASSERT(importer);
-    Bool completed = importer->post_pass();
+    Bool completed = importer->link();
     ASSERT_NOT(completed);
     EXPECT(
         &importer->resolve_context("unique"_view) == &Invalid::get_invalid());
     EXPECT(
         &importer->resolve_context("repeated"_view) == &Invalid::get_invalid());
-    EXPECT(
-        Test::error_contains(
-            "provider_member=SecondProvider candidate_function=repeated"_view,
-            Diagnostics::Log::Level::Info));
-    EXPECT(
-        Test::error_contains(
-            "conflicting_provider_member=FirstProvider"_view,
-            Diagnostics::Log::Level::Info));
+    ASSERT_EQ(importer->get_diagnostics().get_size(), Count(1));
+    EXPECT(diagnostic_matches(
+        *importer, 0, "using Core;"_view, "using Core;"_view,
+        "Two Library Imports publish the same Function name."_view));
   }
 
   {
@@ -410,13 +428,49 @@ PERIMORTEM_UNIT_TEST(LibraryImports, collisions_are_atomic) {
     auto importer = interpret_library(
         arena, library_dialect, context, "using Core;\nusing Core;"_view);
     ASSERT(importer);
-    Bool completed = importer->post_pass();
+    Bool completed = importer->link();
     ASSERT_NOT(completed);
     EXPECT(&importer->resolve_context("only"_view) == &Invalid::get_invalid());
-    EXPECT(
-        Test::error_contains(
-            "reason=duplicate Import route import_route=Core"_view,
-            Diagnostics::Log::Level::Info));
+    ASSERT_EQ(importer->get_diagnostics().get_size(), Count(1));
+    EXPECT(diagnostic_matches(
+        *importer, 0, "using Core;\nusing Core;"_view, "using Core;"_view,
+        "Library source repeats one exact Import route."_view));
+  }
+
+  {
+    Allocator::Arena arena;
+    ImportRegistry registry;
+    Library::Dialect library_dialect(registry);
+    Package::Dialect package_dialect(registry);
+    auto provider = interpret_library(
+        arena, library_dialect, registry,
+        "public func occupied[] -> Void {}"_view);
+    ASSERT(provider);
+
+    Package::Language::Monograph& target =
+        create_package(arena, package_dialect);
+    Bool provider_bound = target.bind_member("Provider"_view, *provider);
+    ASSERT(provider_bound);
+    Package::Language::Monograph& context =
+        create_package_with_dependency(arena, package_dialect, "Core"_view);
+    Bool dependency_bound = bind_only_dependency(context, target);
+    Bool occupied_bound = context.bind_member("occupied"_view, *provider);
+    ASSERT(dependency_bound);
+    ASSERT(occupied_bound);
+
+    // The Package context owns this name before import publication. Rejecting
+    // the candidate keeps parent lookup visible and avoids an imported shadow.
+    auto importer =
+        interpret_library(arena, library_dialect, context, "using Core;"_view);
+    ASSERT(importer);
+    const Abstract& occupied = importer->resolve_context("occupied"_view);
+    Bool completed = importer->link();
+    ASSERT_NOT(completed);
+    EXPECT(&importer->resolve_context("occupied"_view) == &occupied);
+    ASSERT_EQ(importer->get_diagnostics().get_size(), Count(1));
+    EXPECT(diagnostic_matches(
+        *importer, 0, "using Core;"_view, "using Core;"_view,
+        "Imported Function collides with an occupied context name."_view));
   }
 }
 
@@ -433,13 +487,14 @@ PERIMORTEM_UNIT_TEST(LibraryImports, invalid_targets_are_atomic) {
 
     // An Import needs its source Package even when its route could miss in any
     // Abstract. Rejection leaves the local declaration as the only lookup edge.
-    Bool completed = importer->post_pass();
+    Bool completed = importer->link();
     ASSERT_NOT(completed);
     EXPECT(&importer->resolve_context("local"_view) == &local);
-    EXPECT(
-        Test::error_contains(
-            "source context is not a Package Monograph import_route=Core"_view,
-            Diagnostics::Log::Level::Info));
+    ASSERT_EQ(importer->get_diagnostics().get_size(), Count(1));
+    EXPECT(diagnostic_matches(
+        *importer, 0, "using Core;\npublic func local[] -> Void {}"_view,
+        "using Core;"_view,
+        "Library Import source context is not a Package Monograph."_view));
   }
 
   {
@@ -464,13 +519,14 @@ PERIMORTEM_UNIT_TEST(LibraryImports, invalid_targets_are_atomic) {
     auto importer = interpret_library(
         arena, library_dialect, context, "using Core;\nusing Missing;"_view);
     ASSERT(importer);
-    Bool completed = importer->post_pass();
+    Bool completed = importer->link();
     ASSERT_NOT(completed);
     EXPECT(
         &importer->resolve_context("staged"_view) == &Invalid::get_invalid());
-    EXPECT(
-        Test::error_contains(
-            "import_route=Missing"_view, Diagnostics::Log::Level::Info));
+    ASSERT_EQ(importer->get_diagnostics().get_size(), Count(1));
+    EXPECT(diagnostic_matches(
+        *importer, 0, "using Core;\nusing Missing;"_view, "using Missing;"_view,
+        "Library Import route did not resolve to a Package Monograph."_view));
   }
 
   {
@@ -495,13 +551,14 @@ PERIMORTEM_UNIT_TEST(LibraryImports, invalid_targets_are_atomic) {
     auto importer = interpret_library(
         arena, library_dialect, context, "using Core;\nusing Direct;"_view);
     ASSERT(importer);
-    Bool completed = importer->post_pass();
+    Bool completed = importer->link();
     ASSERT_NOT(completed);
     EXPECT(
         &importer->resolve_context("staged"_view) == &Invalid::get_invalid());
-    EXPECT(
-        Test::error_contains(
-            "selected_target=Library"_view, Diagnostics::Log::Level::Info));
+    ASSERT_EQ(importer->get_diagnostics().get_size(), Count(1));
+    EXPECT(diagnostic_matches(
+        *importer, 0, "using Core;\nusing Direct;"_view, "using Direct;"_view,
+        "Library Import route did not resolve to a Package Monograph."_view));
   }
 
   {
@@ -513,15 +570,19 @@ PERIMORTEM_UNIT_TEST(LibraryImports, invalid_targets_are_atomic) {
         arena, library_dialect, registry,
         "public func staged[] -> Void {}"_view);
     ASSERT(complete);
-    auto& incomplete = arena.construct<Library::Language::Monograph>(
-        arena, Documentation::get_empty(), library_dialect, registry);
+    Library::Dialect incomplete_dialect(registry);
+    Library::Language::Materializations materializations(arena);
+    auto& incomplete = Library::Language::Monograph::create_authored(
+        arena, Documentation::get_empty(), incomplete_dialect, registry,
+        materializations);
     Errors errors;
     Tokenizer tokenizer(
         arena, "public func incomplete[] -> Void {}"_view,
         "incomplete-provider.ttx"_view);
     Cursor cursor(tokenizer, errors);
     auto function = Library::Language::Function::reserve(
-        arena, cursor, Documentation::get_empty());
+        arena, cursor, Documentation::get_empty(), incomplete,
+        materializations);
     ASSERT(function);
     Bool incomplete_bound = incomplete.bind_function(*function);
     ASSERT(incomplete_bound);
@@ -540,17 +601,17 @@ PERIMORTEM_UNIT_TEST(LibraryImports, invalid_targets_are_atomic) {
     auto importer =
         interpret_library(arena, library_dialect, context, "using Core;"_view);
     ASSERT(importer);
-    Bool completed = importer->post_pass();
+    Bool completed = importer->link();
     ASSERT_NOT(completed);
     EXPECT(
         &importer->resolve_context("staged"_view) == &Invalid::get_invalid());
     EXPECT(
         &importer->resolve_context("incomplete"_view) ==
         &Invalid::get_invalid());
-    EXPECT(
-        Test::error_contains(
-            "provider_member=Incomplete candidate_function=incomplete"_view,
-            Diagnostics::Log::Level::Info));
+    ASSERT_EQ(importer->get_diagnostics().get_size(), Count(1));
+    EXPECT(diagnostic_matches(
+        *importer, 0, "using Core;"_view, "using Core;"_view,
+        "Library Import exposes an incomplete provider Function."_view));
   }
 }
 
@@ -622,7 +683,9 @@ class TemporaryImportPackage {
   Bool valid = False;
 };
 
-PERIMORTEM_UNIT_TEST(LibraryImports, workspace_runs_post_pass_after_staging) {
+PERIMORTEM_UNIT_TEST(
+    LibraryImports,
+    workspace_links_then_finalizes_complete_staging) {
   TemporaryImportPackage package;
   ASSERT(package);
   Bool nested_created = package.create_nested();
@@ -655,8 +718,8 @@ PERIMORTEM_UNIT_TEST(LibraryImports, workspace_runs_post_pass_after_staging) {
   ASSERT(importer_written);
 
   // Main enters Retention before the nested Api source. Success proves
-  // Workspace drains the complete staging queue before Library post pass and
-  // that Main retained the root Package rather than Workspace as its context.
+  // Workspace drains the complete staging queue before Library linking and
+  // finalization, and that Main retained the root Package as its context.
   Environment::Workspace workspace;
   Bool package_installed =
       workspace.install_dialect<Package::Dialect>("Package"_view);
@@ -676,9 +739,9 @@ PERIMORTEM_UNIT_TEST(LibraryImports, workspace_runs_post_pass_after_staging) {
       errors, package.get_root(), "Root"_view, "package.ttx"_view,
       "Pkg.Root"_view, Version(1, 0), *repository);
   auto root_result = imported.visit(
-      [](Language::Dialect::Monograph& root) { return &root; },
+      [](Language::Monograph& root) { return &root; },
       [](Package::Repository::SelectionError) {
-        return static_cast<Language::Dialect::Monograph*>(nullptr);
+        return static_cast<Language::Monograph*>(nullptr);
       });
   ASSERT(root_result);
   ASSERT(root_result->is<Package::Language::Monograph>());

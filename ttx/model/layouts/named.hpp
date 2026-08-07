@@ -18,8 +18,8 @@ namespace Ttx::Model::Layouts {
 class Named : public Concept::Layout {
  public:
   constexpr Named(
-      Perimortem::Core::View::Vector<Concept::Reference<Concept::Abstract>>
-          abstracts = {})
+      Perimortem::Core::View::Vector<
+          Concept::Reference<const Concept::Abstract>> abstracts = {})
       : abstracts(abstracts) {}
 
   constexpr auto get_size() const -> Count override {
@@ -45,7 +45,7 @@ class Named : public Concept::Layout {
  private:
   auto has_unique_names() const -> Bool;
 
-  Perimortem::Core::View::Vector<Concept::Reference<Concept::Abstract>>
+  Perimortem::Core::View::Vector<Concept::Reference<const Concept::Abstract>>
       abstracts;
 };
 

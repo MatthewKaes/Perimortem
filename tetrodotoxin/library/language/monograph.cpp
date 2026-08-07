@@ -3,9 +3,8 @@
 
 #include "tetrodotoxin/library/language/monograph.hpp"
 
-#include "perimortem/core/diagnostics/log.hpp"
-
 #include "tetrodotoxin/package/language/monograph.hpp"
+#include "ttx/concept/invalid.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -13,13 +12,9 @@ using namespace Ttx::Concept;
 using namespace Ttx::Model;
 using namespace Tetrodotoxin;
 
-static constexpr View::Bytes import_operation =
-    "Library::Language::Monograph Import post pass"_view;
-
 struct ImportCandidate {
-  View::Bytes import_route;
-  View::Bytes provider_member;
-  Reference<Library::Language::Function> function;
+  Ttx::Lexical::Span import_span;
+  Reference<const Library::Language::Function> function;
 };
 
 template <typename selected_type>
@@ -35,29 +30,32 @@ static auto select_abstract(const Abstract& value)
       });
 }
 
-static auto visibility_text(Library::Language::Visibility visibility)
-    -> View::Bytes {
-  switch (visibility) {
-  case Library::Language::Visibility::Public:
-    return "public"_view;
-  case Library::Language::Visibility::Private:
-    return "private"_view;
-  }
-
-  return "unknown"_view;
-}
-
 Library::Language::Monograph::Monograph(
     Allocator::Arena& domain,
     const Documentation& documentation,
     Library::Dialect& host,
-    const Abstract& interpretation_context)
-    : Tetrodotoxin::Language::Dialect::Monograph(domain, documentation, host),
+    const Abstract& interpretation_context,
+    Materializations& materializations)
+    : Tetrodotoxin::Language::Monograph(domain, documentation),
       library_host(host),
       interpretation_context(interpretation_context),
+      materializations(materializations),
       imports(domain),
       functions(domain),
+      authored_functions(domain),
       public_functions(domain) {}
+
+auto Library::Language::Monograph::create_authored(
+    Allocator::Arena& domain,
+    const Documentation& documentation,
+    Library::Dialect& host,
+    const Abstract& interpretation_context,
+    Materializations& materializations) -> Monograph& {
+  return domain.construct_from<Monograph>([&]() -> Monograph {
+    return Monograph(
+        domain, documentation, host, interpretation_context, materializations);
+  });
+}
 
 auto Library::Language::Monograph::bind_function(Function& function) -> Bool {
   const View::Bytes name = function.get_name();
@@ -65,11 +63,16 @@ auto Library::Language::Monograph::bind_function(Function& function) -> Bool {
   // Both mutations happen after the exact duplicate check. A rejected
   // declaration therefore preserves the first edge and its public position
   // while the failed interpretation discards the unreachable transaction.
-  if (name.is_empty() || functions.contains(name)) {
+  const Abstract& outer = interpretation_context.resolve_context(name);
+  const Abstract& intrinsic = library_host.resolve_intrinsic(name);
+  if (name.is_empty() || functions.contains(name) ||
+      &outer != &Invalid::get_invalid() ||
+      &intrinsic != &Invalid::get_invalid()) {
     return False;
   }
 
-  functions.launder(name, Reference<Function>(function));
+  functions.launder(name, Reference<const Function>(function));
+  authored_functions.insert(function);
   if (function.get_visibility() == Visibility::Public) {
     public_functions.insert(function);
   }
@@ -81,7 +84,7 @@ auto Library::Language::Monograph::retain_import(const Import& import) -> void {
   imports.insert(import);
 }
 
-auto Library::Language::Monograph::post_pass() -> Bool {
+auto Library::Language::Monograph::link_imports() -> Bool {
   if (imports.is_empty()) {
     return True;
   }
@@ -91,12 +94,10 @@ auto Library::Language::Monograph::post_pass() -> Bool {
       select_abstract<Package::Language::Monograph>(source_context);
   if (!source_package) {
     for (Count i = 0; i < imports.get_size(); i++) {
-      Diagnostics::Log::Message<768> message(Diagnostics::Log::Level::Info);
-      message << import_operation
-              << " failed. reason=the source context is not a Package "
-                 "Monograph import_route="_view
-              << imports[i].get_route() << " source_context="_view
-              << source_context.get_name();
+      report(
+          Ttx::Lexical::Anchor::create(imports[i].get_span()),
+          "Library Import source context is not a Package Monograph."_view,
+          "Interpret this Library source inside its owning Package."_view);
     }
 
     return False;
@@ -118,10 +119,10 @@ auto Library::Language::Monograph::post_pass() -> Bool {
     }
 
     if (duplicate) {
-      Diagnostics::Log::Message<768> message(Diagnostics::Log::Level::Info);
-      message << import_operation
-              << " failed. reason=duplicate Import route import_route="_view
-              << route << " source_package="_view << source_package->get_name();
+      report(
+          Ttx::Lexical::Anchor::create(import.get_span()),
+          "Library source repeats one exact Import route."_view,
+          "Keep one authored Import for each Package member route."_view);
       failed = True;
       continue;
     }
@@ -130,17 +131,16 @@ auto Library::Language::Monograph::post_pass() -> Bool {
     auto target_package =
         select_abstract<Package::Language::Monograph>(selected);
     if (!target_package) {
-      Diagnostics::Log::Message<896> message(Diagnostics::Log::Level::Info);
-      message << import_operation
-              << " failed. reason=the Import target is not a Package "
-                 "Monograph import_route="_view
-              << route << " source_package="_view << source_package->get_name()
-              << " selected_target="_view << selected.get_name();
+      report(
+          Ttx::Lexical::Anchor::create(import.get_span()),
+          "Library Import route did not resolve to a Package Monograph."_view,
+          "Publish the selected dependency Package before linking."_view);
       failed = True;
       continue;
     }
 
-    View::Vector<Reference<Alias>> members = target_package->get_members();
+    View::Vector<Reference<const Alias>> members =
+        target_package->get_members();
     for (Count member_index = 0; member_index < members.get_size();
          member_index++) {
       const Alias& member = members.get_data()[member_index].get();
@@ -150,29 +150,23 @@ auto Library::Language::Monograph::post_pass() -> Bool {
         continue;
       }
 
-      View::Vector<Reference<Function>> public_functions =
+      View::Vector<Reference<const Function>> public_functions =
           library->get_public_functions();
       for (Count function_index = 0;
            function_index < public_functions.get_size(); function_index++) {
         const Function& function =
             public_functions.get_data()[function_index].get();
         if (!function.is_complete()) {
-          Diagnostics::Log::Message<1024> message(
-              Diagnostics::Log::Level::Info);
-          message << import_operation
-                  << " failed. reason=the provider Function is incomplete "
-                     "import_route="_view
-                  << route << " provider_member="_view << member.get_name()
-                  << " candidate_function="_view << function.get_name()
-                  << " candidate_visibility="_view
-                  << visibility_text(function.get_visibility());
+          report(
+              Ttx::Lexical::Anchor::create(import.get_span()),
+              "Library Import exposes an incomplete provider Function."_view,
+              "Complete provider Function grammar before linking imports."_view);
           failed = True;
           continue;
         }
 
         ImportCandidate candidate = {
-          .import_route = route,
-          .provider_member = member.get_name(),
+          .import_span = import.get_span(),
           .function = function,
         };
         candidates.insert(candidate);
@@ -180,9 +174,10 @@ auto Library::Language::Monograph::post_pass() -> Bool {
     }
   }
 
-  // Local declarations and every earlier candidate participate in one exact
-  // collision domain. The complete scan runs even after a failure so each
-  // rejected edge keeps the provider facts that Retention cannot reconstruct.
+  // Local declarations, parent context, intrinsics, and every earlier
+  // candidate participate in one exact collision domain. The complete scan
+  // runs even after a failure so each rejected edge keeps the provider facts
+  // that Retention cannot reconstruct.
   for (Count candidate_index = 0; candidate_index < candidates.get_size();
        candidate_index++) {
     const ImportCandidate& candidate = candidates[candidate_index];
@@ -190,18 +185,22 @@ auto Library::Language::Monograph::post_pass() -> Bool {
     View::Bytes name = function.get_name();
     auto local_entry = functions.find(name);
     if (local_entry) {
-      const Function& local = local_entry->value.get();
-      Diagnostics::Log::Message<1152> message(Diagnostics::Log::Level::Info);
-      message << import_operation
-              << " failed. reason=an imported Function collides with a local "
-                 "Function import_route="_view
-              << candidate.import_route << " provider_member="_view
-              << candidate.provider_member << " candidate_function="_view
-              << name << " candidate_visibility="_view
-              << visibility_text(function.get_visibility())
-              << " conflicting_provider=local conflicting_function="_view
-              << local.get_name() << " conflicting_visibility="_view
-              << visibility_text(local.get_visibility());
+      report(
+          Ttx::Lexical::Anchor::create(candidate.import_span),
+          "Imported Function collides with one local Function name."_view,
+          "Rename the local declaration or select another dependency."_view);
+      failed = True;
+    }
+
+    const Abstract& outer = interpretation_context.resolve_context(name);
+    const Abstract& intrinsic = library_host.resolve_intrinsic(name);
+    if (&outer != &Invalid::get_invalid() ||
+        &intrinsic != &Invalid::get_invalid()) {
+      report(
+          Ttx::Lexical::Anchor::create(candidate.import_span),
+          "Imported Function collides with an occupied context name."_view,
+          "Choose a dependency whose public names do not shadow this "
+          "Library context."_view);
       failed = True;
     }
 
@@ -212,20 +211,10 @@ auto Library::Language::Monograph::post_pass() -> Bool {
         continue;
       }
 
-      Diagnostics::Log::Message<1280> message(Diagnostics::Log::Level::Info);
-      message << import_operation
-              << " failed. reason=two imported Functions collide "
-                 "import_route="_view
-              << candidate.import_route << " provider_member="_view
-              << candidate.provider_member << " candidate_function="_view
-              << name << " candidate_visibility="_view
-              << visibility_text(function.get_visibility())
-              << " conflicting_import_route="_view << conflict.import_route
-              << " conflicting_provider_member="_view
-              << conflict.provider_member << " conflicting_function="_view
-              << conflicting_function.get_name()
-              << " conflicting_visibility="_view
-              << visibility_text(conflicting_function.get_visibility());
+      report(
+          Ttx::Lexical::Anchor::create(candidate.import_span),
+          "Two Library Imports publish the same Function name."_view,
+          "Import a dependency set with distinct public Function names."_view);
       failed = True;
     }
   }
@@ -242,23 +231,66 @@ auto Library::Language::Monograph::post_pass() -> Bool {
   return True;
 }
 
+auto Library::Language::Monograph::link() -> Bool {
+  Bool failed = !link_imports();
+
+  // Imports publish first so every Signature sees the complete local context.
+  // All local Signatures link before any local body, making authored order
+  // irrelevant without weakening the staged Monograph barrier.
+  for (Count i = 0; i < authored_functions.get_size(); i++) {
+    failed |= !authored_functions[i].get().link_signature();
+  }
+
+  for (Count i = 0; i < authored_functions.get_size(); i++) {
+    failed |= !authored_functions[i].get().link_body();
+  }
+
+  return !failed;
+}
+
+auto Library::Language::Monograph::finalize() -> Bool {
+  Bool failed = False;
+  for (Count i = 0; i < authored_functions.get_size(); i++) {
+    failed |= !authored_functions[i].get().finalize();
+  }
+
+  return !failed;
+}
+
 auto Library::Language::Monograph::get_name() const -> View::Bytes {
   return "Library"_view;
 }
 
 auto Library::Language::Monograph::resolve_context(View::Bytes route) const
     -> const Abstract& {
+  // Raw local identities lead both fallbacks, including Functions that have
+  // reserved their name but have not completed. Lookup never resolves them on
+  // behalf of a consumer that needs to observe that incomplete state.
   return functions.visit(
       route,
-      [](const Reference<Function>& function) -> const Abstract& {
+      [](const Reference<const Function>& function) -> const Abstract& {
         return function.get();
       },
       [&]() -> const Abstract& {
+        const Abstract& outer = interpretation_context.resolve_context(route);
+        if (&outer != &Invalid::get_invalid()) {
+          return outer;
+        }
+
         return library_host.resolve_intrinsic(route);
       });
 }
 
 auto Library::Language::Monograph::get_public_functions() const
-    -> View::Vector<Reference<Function>> {
+    -> View::Vector<Reference<const Function>> {
   return public_functions;
+}
+
+auto Library::Language::Monograph::get_functions() const
+    -> View::Vector<Reference<Function>> {
+  return authored_functions;
+}
+
+auto Library::Language::Monograph::get_imports() const -> View::Vector<Import> {
+  return imports;
 }

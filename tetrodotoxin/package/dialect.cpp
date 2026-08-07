@@ -54,7 +54,7 @@ auto Package::Dialect::interpret(
     Allocator::Arena& domain,
     Cursor& cursor,
     const Documentation& documentation,
-    Abstract&) -> Option<Dialect::Monograph&> {
+    Abstract&) -> Option<Tetrodotoxin::Language::Monograph&> {
   Managed::Vector<Language::Dependency> dependencies(domain);
   Managed::Vector<Span> dependency_spans(domain);
   Managed::Vector<Language::Source> sources(domain);
@@ -160,7 +160,7 @@ auto Package::Dialect::interpret(
   // Both inventories grow in the same statement branch, but Monograph owns
   // the invariant so another authored producer cannot publish a partial pair.
   auto monograph = Language::Monograph::create_authored(
-      domain, documentation, *this, dependencies, dependency_spans, sources);
+      domain, documentation, dependencies, dependency_spans, sources);
   if (!monograph) {
     return {};
   }

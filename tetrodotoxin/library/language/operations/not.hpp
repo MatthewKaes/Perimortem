@@ -11,8 +11,8 @@
 namespace Tetrodotoxin::Library::Language::Operations {
 
 // Not owns one canonical Bool inverse. It retains the exact operand Expression
-// while its result keeps the canonical Bool Type selected during construction.
-// Recursive folding may replace that input but cannot retag the operation.
+// and selects the canonical Bool Type during semantic linking. Folding projects
+// a value without changing that authored input or linked Type.
 class Not : public Operation {
  public:
   using ClassCatagory = Not;
@@ -26,9 +26,17 @@ class Not : public Operation {
       Materializations& materializations,
       Ttx::Lexical::Cursor& cursor,
       const Ttx::Concept::Abstract& source_context)
-      -> Perimortem::Utility::Option<const Expression&>;
+      -> Perimortem::Utility::Option<Expression&>;
 
-  Not(Perimortem::Memory::Allocator::Arena& domain, const Expression& operand);
+  static auto create_authored(
+      Perimortem::Memory::Allocator::Arena& domain,
+      Materializations& materializations,
+      Expression& operand,
+      Ttx::Lexical::Anchor anchor) -> Not&;
+  static auto create_synthetic(
+      Perimortem::Memory::Allocator::Arena& domain,
+      Materializations& materializations,
+      Expression& operand) -> Not&;
 
   constexpr auto implements(Perimortem::System::Uuid requested) const
       -> Bool override {
@@ -39,16 +47,22 @@ class Not : public Operation {
     return "Not"_view;
   }
   auto get_documentation() const -> const Ttx::Concept::Documentation& override;
-  auto get_type() const -> const Ttx::Concept::Abstract& override;
 
  protected:
   auto evaluate_constants(
       Perimortem::Memory::Allocator::Arena& domain,
-      Materializations& materializations) const
-      -> Perimortem::Utility::Result<const Expression&, FoldError> override;
+      Materializations& materializations)
+      -> Perimortem::Utility::Result<
+          Perimortem::Utility::Option<Constant&>,
+          Expression::Error> override;
+  auto select_type(Materializations& materializations) const
+      -> Perimortem::Utility::Option<const Ttx::Model::Type&> override;
 
  private:
-  const Ttx::Concept::Abstract& result_type;
+  Not(Perimortem::Memory::Allocator::Arena& domain,
+      Materializations& materializations,
+      Expression& operand,
+      Perimortem::Utility::Option<Ttx::Lexical::Anchor> anchor);
 };
 
 }  // namespace Tetrodotoxin::Library::Language::Operations

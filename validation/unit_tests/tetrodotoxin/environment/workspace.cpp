@@ -54,14 +54,16 @@ struct WorkspaceTrace {
   View::Bytes interpreted_facts[16]{};
   View::Bytes interpreted_paths[16]{};
   View::Bytes restored_facts[16]{};
-  View::Bytes post_pass_facts[32]{};
+  View::Bytes link_facts[32]{};
+  View::Bytes finalize_facts[32]{};
   Count dialect_constructions = 0;
   Count monograph_constructions[4]{};
   Count dialect_destructions[4]{};
   Count monograph_destructions[4]{};
   Count interpretation_count = 0;
   Count restoration_count = 0;
-  Count post_passes = 0;
+  Count links = 0;
+  Count finalizers = 0;
   Count package_interpretation_count = 0;
   Unsigned_8 destruction_phases[8]{};
   Count destruction_count = 0;
@@ -69,8 +71,8 @@ struct WorkspaceTrace {
   Bool monograph_hosts_alive = true;
   Bool monograph_arena_state_valid = true;
   Bool dialect_arena_state_valid = true;
-  Bool resources_sealed_during_post_pass = false;
-  Bool resource_post_pass_seen = false;
+  Bool resources_sealed_during_link = false;
+  Bool resource_link_seen = false;
 };
 
 static WorkspaceTrace* active_trace = nullptr;
@@ -102,10 +104,11 @@ class WorkspaceDialect : public Language::Dialect {
       Allocator::Arena& domain,
       Cursor& cursor,
       const Documentation& documentation,
-      Abstract& interpretation_context) -> Option<Monograph&> override;
+      Abstract& interpretation_context)
+      -> Option<Language::Monograph&> override;
 
   auto restore(Allocator::Arena& domain, View::Bytes payload)
-      -> Option<Monograph&> override;
+      -> Option<Language::Monograph&> override;
 
   auto get_identity() const -> Count { return identity; }
   auto get_alive() -> Bool& { return alive; }
@@ -129,7 +132,7 @@ class TracedPackageDialect : public Package::Dialect {
       Cursor& cursor,
       const Documentation& documentation,
       Abstract& interpretation_context)
-      -> Option<Language::Dialect::Monograph&> override {
+      -> Option<Language::Monograph&> override {
     trace.package_interpretation_contexts[trace.package_interpretation_count] =
         &interpretation_context;
     trace.package_interpretation_count++;
@@ -141,17 +144,14 @@ class TracedPackageDialect : public Package::Dialect {
   WorkspaceTrace& trace;
 };
 
-class ResourceMonograph : public Language::Dialect::Monograph {
+class ResourceMonograph : public Language::Monograph {
  public:
   ResourceMonograph(
       Allocator::Arena& domain,
       const Documentation& documentation,
-      Language::Dialect& host,
       WorkspaceTrace& trace,
       const Package::Language::Monograph& package)
-      : Monograph(domain, documentation, host),
-        trace(trace),
-        package(package) {}
+      : Monograph(domain, documentation), trace(trace), package(package) {}
 
   auto get_name() const -> View::Bytes override {
     return "ResourceConsumer"_view;
@@ -161,12 +161,11 @@ class ResourceMonograph : public Language::Dialect::Monograph {
     return Invalid::get_invalid();
   }
 
-  auto post_pass() -> Bool override {
+  auto link() -> Bool override {
     const Abstract& uncached =
         package.resolve_context("$[resources/later.bin]"_view);
-    trace.resources_sealed_during_post_pass =
-        &uncached == &Invalid::get_invalid();
-    trace.resource_post_pass_seen = true;
+    trace.resources_sealed_during_link = &uncached == &Invalid::get_invalid();
+    trace.resource_link_seen = true;
     return True;
   }
 
@@ -184,7 +183,8 @@ class ResourceDialect : public Language::Dialect {
       Allocator::Arena& domain,
       Cursor& cursor,
       const Documentation& documentation,
-      Abstract& interpretation_context) -> Option<Monograph&> override {
+      Abstract& interpretation_context)
+      -> Option<Language::Monograph&> override {
     if (!interpretation_context.is<Package::Language::Monograph>()) {
       return {};
     }
@@ -223,14 +223,14 @@ class ResourceDialect : public Language::Dialect {
     trace.resource_results[7] = &package.resolve_context("Member"_view);
 
     return domain.construct<ResourceMonograph>(
-        domain, documentation, *this, trace, package);
+        domain, documentation, trace, package);
   }
 
  private:
   WorkspaceTrace& trace;
 };
 
-class WorkspaceMonograph : public Language::Dialect::Monograph {
+class WorkspaceMonograph : public Language::Monograph {
  public:
   WorkspaceMonograph(
       Allocator::Arena& domain,
@@ -239,11 +239,13 @@ class WorkspaceMonograph : public Language::Dialect::Monograph {
       WorkspaceTrace& trace,
       View::Bytes fact,
       View::Bytes diagnostic_path,
+      Span fact_span,
       Count host_identity)
-      : Monograph(domain, documentation, host),
+      : Monograph(domain, documentation),
         trace(trace),
         fact(fact),
         diagnostic_path(diagnostic_path),
+        fact_span(fact_span),
         host_alive(host.get_alive()),
         host_identity(host_identity) {}
 
@@ -274,10 +276,31 @@ class WorkspaceMonograph : public Language::Dialect::Monograph {
     return Invalid::get_invalid();
   }
 
-  auto post_pass() -> Bool override {
-    trace.post_pass_facts[trace.post_passes] = fact;
-    trace.post_passes++;
-    return fact != "post_fail"_view;
+  auto link() -> Bool override {
+    trace.link_facts[trace.links] = fact;
+    trace.links++;
+    if (fact == "link_fail"_view) {
+      report(
+          Anchor::create(fact_span), "Link rejected the retained fact."_view,
+          "Use a linkable fact."_view);
+      return False;
+    }
+
+    return True;
+  }
+
+  auto finalize() -> Bool override {
+    trace.finalize_facts[trace.finalizers] = fact;
+    trace.finalizers++;
+    if (fact == "finalize_fail"_view) {
+      report(
+          Anchor::create(fact_span),
+          "Finalize rejected the retained fact."_view,
+          "Use a finalizable fact."_view);
+      return False;
+    }
+
+    return True;
   }
 
   auto get_fact() const -> View::Bytes { return fact; }
@@ -287,6 +310,7 @@ class WorkspaceMonograph : public Language::Dialect::Monograph {
   WorkspaceTrace& trace;
   View::Bytes fact;
   View::Bytes diagnostic_path;
+  Span fact_span;
   Bool& host_alive;
   Count host_identity;
 };
@@ -295,8 +319,10 @@ auto WorkspaceDialect::interpret(
     Allocator::Arena& domain,
     Cursor& cursor,
     const Documentation& documentation,
-    Abstract& interpretation_context) -> Option<Monograph&> {
+    Abstract& interpretation_context) -> Option<Language::Monograph&> {
   View::Bytes fact = cursor.get_text();
+  Token fact_token = cursor.current();
+  cursor.consume();
   View::Bytes diagnostic_path = cursor.get_source_path();
   trace.interpretation_contexts[trace.interpretation_count] =
       &interpretation_context;
@@ -310,13 +336,14 @@ auto WorkspaceDialect::interpret(
 
   retained_state = fact;
   auto& monograph = domain.construct<WorkspaceMonograph>(
-      domain, documentation, *this, trace, fact, diagnostic_path, identity);
+      domain, documentation, *this, trace, fact, diagnostic_path,
+      Span(fact_token), identity);
   trace.monograph_constructions[identity]++;
   return monograph;
 }
 
 auto WorkspaceDialect::restore(Allocator::Arena& domain, View::Bytes payload)
-    -> Option<Monograph&> {
+    -> Option<Language::Monograph&> {
   trace.restored_facts[trace.restoration_count] = payload;
   trace.restoration_count++;
   if (payload == "restore_fail"_view) {
@@ -326,7 +353,7 @@ auto WorkspaceDialect::restore(Allocator::Arena& domain, View::Bytes payload)
   View::Bytes retained_fact = domain.proxy(payload);
   auto& monograph = domain.construct<WorkspaceMonograph>(
       domain, Documentation::get_empty(), *this, trace, retained_fact,
-      View::Bytes(), identity);
+      View::Bytes(), Span(), identity);
   trace.monograph_constructions[identity]++;
   return monograph;
 }
@@ -366,7 +393,7 @@ static auto render_unknown(Environment::Workspace& workspace)
   Dynamic::Bytes contents("// Unknown\ndialect : Missing;\nignored"_view);
   Errors errors;
   const auto imported =
-      workspace.import_source(errors, "Unknown"_view, path, contents);
+      workspace.interpret_source(errors, "Unknown"_view, path, contents);
 
   path.set('x');
   contents.set('x');
@@ -561,12 +588,11 @@ static auto write_archive(
 }
 
 static auto returns_selection_error(
-    const Result<
-        Language::Dialect::Monograph&,
-        Package::Repository::SelectionError>& result,
+    const Result<Language::Monograph&, Package::Repository::SelectionError>&
+        result,
     Package::Repository::SelectionError expected) -> Bool {
   return result.visit(
-      [](const Language::Dialect::Monograph&) { return False; },
+      [](const Language::Monograph&) { return False; },
       [&](Package::Repository::SelectionError actual) {
         return actual == expected ? True : False;
       });
@@ -647,10 +673,11 @@ static auto rejects_selection_failure(
   auto imported = workspace.import_package(
       errors, package.get_root(), "Root"_view, "package.ttx"_view,
       "Pkg.Root"_view, Version(1, 0), *repository);
-  Bool rejected = returns_selection_error(imported, expected) &&
-                  errors.get_size() == 1 &&
-                  has_diagnostic(errors, expected_name) &&
-                  expected != Package::Repository::SelectionError::Unknown;
+  Bool rejected =
+      returns_selection_error(imported, expected) && errors.get_size() == 1 &&
+      has_diagnostic(errors, expected_name) &&
+      &workspace.resolve_context("Root"_view) == &Invalid::get_invalid() &&
+      expected != Package::Repository::SelectionError::Unknown;
   active_trace = nullptr;
   return rejected;
 }
@@ -749,8 +776,8 @@ PERIMORTEM_UNIT_TEST(EnvironmentWorkspace, owned_direct_import) {
   Dynamic::Bytes diagnostic_path("sources/main.ttx"_view);
   Dynamic::Bytes contents("// Main documentation\ndialect : Alpha;\nFact"_view);
   Errors errors;
-  auto imported_result =
-      workspace.import_source(errors, semantic_name, diagnostic_path, contents);
+  auto imported_result = workspace.interpret_source(
+      errors, semantic_name, diagnostic_path, contents);
   ASSERT(imported_result);
   EXPECT(trace.installed_registries[0] == &workspace);
   EXPECT(trace.interpretation_contexts[0] == &workspace);
@@ -772,12 +799,20 @@ PERIMORTEM_UNIT_TEST(EnvironmentWorkspace, owned_direct_import) {
       &workspace.resolve_context("sources/main.ttx"_view) ==
       &Invalid::get_invalid());
   EXPECT(errors.is_empty());
+  ASSERT(workspace.link(errors));
+  EXPECT(&workspace.resolve_context("Main"_view) == &imported);
+  ASSERT(workspace.finalize(errors));
+  EXPECT(&workspace.resolve_context("Main"_view) == &imported);
+  EXPECT_EQ(trace.links, Count(1));
+  EXPECT_EQ(trace.finalizers, Count(1));
 
   Errors shared_path_errors;
-  EXPECT(workspace.import_source(
+  EXPECT(workspace.interpret_source(
       shared_path_errors, "Other"_view, "sources/main.ttx"_view,
       "// Other documentation\ndialect : Alpha;\nOther"_view));
   EXPECT_TEXT(workspace.resolve_context("Other"_view).get_name(), "Other"_view);
+  ASSERT(workspace.link(shared_path_errors));
+  ASSERT(workspace.finalize(shared_path_errors));
   EXPECT(shared_path_errors.is_empty());
 }
 
@@ -788,33 +823,102 @@ PERIMORTEM_UNIT_TEST(EnvironmentWorkspace, failed_import_nonpublication) {
   EXPECT(workspace.install_dialect<WorkspaceDialect>("Alpha"_view));
 
   Errors parse_errors;
-  EXPECT_NOT(workspace.import_source(
+  EXPECT_NOT(workspace.interpret_source(
       parse_errors, "Malformed"_view, "malformed.ttx"_view,
       "dialect : Alpha;\nBad"_view));
   EXPECT(
       &workspace.resolve_context("Malformed"_view) == &Invalid::get_invalid());
 
   Errors rejected_errors;
-  EXPECT_NOT(workspace.import_source(
+  EXPECT_NOT(workspace.interpret_source(
       rejected_errors, "Retry"_view, "retry.ttx"_view,
       "// Rejected\ndialect : Alpha;\nreject"_view));
   EXPECT(&workspace.resolve_context("Retry"_view) == &Invalid::get_invalid());
 
   Errors retry_errors;
-  EXPECT(workspace.import_source(
+  EXPECT(workspace.interpret_source(
       retry_errors, "Retry"_view, "retry.ttx"_view,
       "// Accepted\ndialect : Alpha;\nAccepted"_view));
   const Abstract& retained = workspace.resolve_context("Retry"_view);
   const Count constructed = trace.monograph_constructions[0];
 
   Errors duplicate_errors;
-  EXPECT_NOT(workspace.import_source(
+  EXPECT_NOT(workspace.interpret_source(
       duplicate_errors, "Retry"_view, "other.ttx"_view,
       "// Other\ndialect : Alpha;\nOther"_view));
   EXPECT(&workspace.resolve_context("Retry"_view) == &retained);
   EXPECT_TEXT(retained.get_name(), "Accepted"_view);
   EXPECT_EQ(trace.monograph_constructions[0], constructed);
   EXPECT_EQ(duplicate_errors.get_size(), 1);
+  ASSERT(workspace.link(retry_errors));
+  ASSERT(workspace.finalize(retry_errors));
+  EXPECT(&workspace.resolve_context("Retry"_view) == &retained);
+}
+
+PERIMORTEM_UNIT_TEST(EnvironmentWorkspace, explicit_source_closure) {
+  WorkspaceTrace trace;
+  active_trace = &trace;
+  Environment::Workspace workspace;
+  Errors errors;
+  ASSERT(workspace.install_dialect<WorkspaceDialect>("Alpha"_view));
+
+  auto first = workspace.interpret_source(
+      errors, "First"_view, "first.ttx"_view,
+      "// First\ndialect : Alpha;\nFirstFact"_view);
+  ASSERT(first);
+  EXPECT(&workspace.resolve_context("First"_view) == &*first);
+  EXPECT_NOT(workspace.finalize(errors));
+  EXPECT(&workspace.resolve_context("First"_view) == &*first);
+
+  ASSERT(workspace.link(errors));
+  EXPECT_NOT(workspace.link(errors));
+  Count interpretations = trace.interpretation_count;
+  EXPECT_NOT(workspace.interpret_source(
+      errors, "Overlap"_view, "overlap.ttx"_view,
+      "// Overlap\ndialect : Alpha;\nOverlapFact"_view));
+  EXPECT_EQ(trace.interpretation_count, interpretations);
+  ASSERT(workspace.finalize(errors));
+  EXPECT(&workspace.resolve_context("First"_view) == &*first);
+  EXPECT_NOT(workspace.finalize(errors));
+  EXPECT_EQ(trace.links, Count(1));
+  EXPECT_EQ(trace.finalizers, Count(1));
+
+  auto failed = workspace.interpret_source(
+      errors, "Failed"_view, "failed.ttx"_view,
+      "// Failed\ndialect : Alpha;\nfinalize_fail"_view);
+  ASSERT(failed);
+  ASSERT(workspace.link(errors));
+  EXPECT_NOT(workspace.finalize(errors));
+  EXPECT(&workspace.resolve_context("Failed"_view) == &Invalid::get_invalid());
+  EXPECT(has_diagnostic(errors, "Finalize rejected the retained fact."_view));
+
+  auto retried = workspace.interpret_source(
+      errors, "Failed"_view, "retried.ttx"_view,
+      "// Retried\ndialect : Alpha;\nRetriedFact"_view);
+  ASSERT(retried);
+  ASSERT(workspace.link(errors));
+  ASSERT(workspace.finalize(errors));
+  EXPECT(&workspace.resolve_context("Failed"_view) == &*retried);
+
+  auto abandoned = workspace.interpret_source(
+      errors, "Abandoned"_view, "abandoned.ttx"_view,
+      "// Abandoned\ndialect : Alpha;\nAbandonedFact"_view);
+  ASSERT(abandoned);
+  EXPECT(&workspace.resolve_context("Abandoned"_view) == &*abandoned);
+  workspace.abandon();
+  EXPECT(
+      &workspace.resolve_context("Abandoned"_view) == &Invalid::get_invalid());
+
+  auto linked = workspace.interpret_source(
+      errors, "Linked"_view, "linked.ttx"_view,
+      "// Linked\ndialect : Alpha;\nLinkedFact"_view);
+  ASSERT(linked);
+  ASSERT(workspace.link(errors));
+  workspace.abandon();
+  EXPECT(&workspace.resolve_context("Linked"_view) == &Invalid::get_invalid());
+  EXPECT_EQ(trace.links, Count(4));
+  EXPECT_EQ(trace.finalizers, Count(3));
+  active_trace = nullptr;
 }
 
 PERIMORTEM_UNIT_TEST(EnvironmentWorkspace, staged_fifo_retention) {
@@ -829,7 +933,8 @@ PERIMORTEM_UNIT_TEST(EnvironmentWorkspace, staged_fifo_retention) {
   Errors errors;
   {
     Errors::Report report(
-        errors, "prior-workspace.ttx"_view, View::Bytes(), Span());
+        errors, "prior-workspace.ttx"_view, View::Bytes(),
+        Anchor::create(Span()));
     report << "Earlier independent diagnostic."_view;
   }
 
@@ -887,9 +992,9 @@ PERIMORTEM_UNIT_TEST(EnvironmentWorkspace, staged_fifo_retention) {
         errors, package_root, root_name, root_route, "Pkg.Root"_view,
         Version(1, 0), *repository);
     auto imported_root = imported.visit(
-        [](Language::Dialect::Monograph& root) { return &root; },
+        [](Language::Monograph& root) { return &root; },
         [](Package::Repository::SelectionError) {
-          return static_cast<Language::Dialect::Monograph*>(nullptr);
+          return static_cast<Language::Monograph*>(nullptr);
         });
     ASSERT(imported_root);
     EXPECT(imported_root->is<Package::Language::Monograph>());
@@ -997,7 +1102,16 @@ PERIMORTEM_UNIT_TEST(EnvironmentWorkspace, staged_fifo_retention) {
   EXPECT(&workspace.resolve_context("Sibling"_view) == &Invalid::get_invalid());
   EXPECT(&workspace.resolve_context("Deep"_view) == &Invalid::get_invalid());
   EXPECT(&workspace.resolve_context("Peer"_view) == &Invalid::get_invalid());
-  EXPECT_EQ(trace.post_passes, 4);
+  ASSERT_EQ(trace.links, 4);
+  ASSERT_EQ(trace.finalizers, 4);
+  EXPECT_TEXT(trace.link_facts[0], "First"_view);
+  EXPECT_TEXT(trace.link_facts[1], "Second"_view);
+  EXPECT_TEXT(trace.link_facts[2], "Deep"_view);
+  EXPECT_TEXT(trace.link_facts[3], "Peer"_view);
+  EXPECT_TEXT(trace.finalize_facts[0], "First"_view);
+  EXPECT_TEXT(trace.finalize_facts[1], "Second"_view);
+  EXPECT_TEXT(trace.finalize_facts[2], "Deep"_view);
+  EXPECT_TEXT(trace.finalize_facts[3], "Peer"_view);
   active_trace = nullptr;
 }
 
@@ -1069,27 +1183,7 @@ PERIMORTEM_UNIT_TEST(EnvironmentWorkspace, staged_failures) {
   EXPECT_TEXT(trace.interpreted_facts[3], "Duplicate"_view);
   EXPECT_TEXT(trace.interpreted_facts[4], "After"_view);
 
-  const Abstract& root = workspace.resolve_context("Root"_view);
-  ASSERT(root.is<Package::Language::Monograph>());
-  const auto& root_package =
-      static_cast<const Package::Language::Monograph&>(root);
-  const Abstract& nested =
-      root_package.resolve_context("Nested"_view).resolve();
-  ASSERT(nested.is<Package::Language::Monograph>());
-  const auto& nested_package =
-      static_cast<const Package::Language::Monograph&>(nested);
-  EXPECT_TEXT(
-      root_package.resolve_context("Keep"_view).resolve().get_name(),
-      "Keep"_view);
-  EXPECT_TEXT(
-      root_package.resolve_context("Later"_view).resolve().get_name(),
-      "Later"_view);
-  EXPECT_TEXT(
-      nested_package.resolve_context("Keep"_view).resolve().get_name(),
-      "Duplicate"_view);
-  EXPECT_TEXT(
-      nested_package.resolve_context("After"_view).resolve().get_name(),
-      "After"_view);
+  EXPECT(&workspace.resolve_context("Root"_view) == &Invalid::get_invalid());
 
   EXPECT(&workspace.resolve_context("Unknown"_view) == &Invalid::get_invalid());
   EXPECT(
@@ -1115,7 +1209,19 @@ PERIMORTEM_UNIT_TEST(EnvironmentWorkspace, staged_failures) {
           "semantic source could not be read semantic_name=Missing "
           "logical_route=missing.ttx storage_error=Unreadable"_view,
           Diagnostics::Log::Level::Info));
-  EXPECT_EQ(trace.post_passes, 4);
+  EXPECT_EQ(trace.links, Count(0));
+  EXPECT_EQ(trace.finalizers, Count(0));
+
+  Errors later_errors;
+  ASSERT(workspace.interpret_source(
+      later_errors, "Recovered"_view, "recovered.ttx"_view,
+      "// Recovered\ndialect : Alpha;\nRecovered"_view));
+  ASSERT(workspace.link(later_errors));
+  ASSERT(workspace.finalize(later_errors));
+  EXPECT_EQ(trace.links, Count(1));
+  EXPECT_EQ(trace.finalizers, Count(1));
+  EXPECT_TEXT(trace.link_facts[0], "Recovered"_view);
+  EXPECT_TEXT(trace.finalize_facts[0], "Recovered"_view);
   active_trace = nullptr;
 }
 
@@ -1160,7 +1266,7 @@ PERIMORTEM_UNIT_TEST(EnvironmentWorkspace, resource_lifecycle) {
         errors, package.get_root(), "Root"_view, "package.ttx"_view,
         "Pkg.Root"_view, Version(1, 0), *repository);
     Bool selected = imported.visit(
-        [](Language::Dialect::Monograph&) { return True; },
+        [](Language::Monograph&) { return True; },
         [](Package::Repository::SelectionError) { return False; });
     ASSERT(selected);
   }
@@ -1171,8 +1277,8 @@ PERIMORTEM_UNIT_TEST(EnvironmentWorkspace, resource_lifecycle) {
   ASSERT(trace.literal_results[0] != nullptr);
   ASSERT(trace.literal_results[1] != nullptr);
 
-  EXPECT(trace.resource_post_pass_seen);
-  EXPECT(trace.resources_sealed_during_post_pass);
+  EXPECT(trace.resource_link_seen);
+  EXPECT(trace.resources_sealed_during_link);
   EXPECT(trace.resource_results[0]->is<Tetrodotoxin::Language::Resource>());
   EXPECT(trace.resource_results[2]->is<Tetrodotoxin::Language::Resource>());
   EXPECT(trace.resource_results[3]->is<Tetrodotoxin::Language::Error>());
@@ -1290,9 +1396,9 @@ PERIMORTEM_UNIT_TEST(EnvironmentWorkspace, source_free_archive_consumer) {
         errors, package.get_root(), "Root"_view, "package.ttx"_view,
         "Pkg.Root"_view, Version(1, 0), *repository);
     auto imported_root = imported.visit(
-        [](Language::Dialect::Monograph& root) { return &root; },
+        [](Language::Monograph& root) { return &root; },
         [](Package::Repository::SelectionError) {
-          return static_cast<Language::Dialect::Monograph*>(nullptr);
+          return static_cast<Language::Monograph*>(nullptr);
         });
     ASSERT(imported_root);
     ASSERT(imported_root->is<Package::Language::Monograph>());
@@ -1339,10 +1445,14 @@ PERIMORTEM_UNIT_TEST(EnvironmentWorkspace, source_free_archive_consumer) {
   ASSERT_EQ(trace.restoration_count, 2);
   EXPECT_TEXT(trace.restored_facts[0], "RestoredFirst"_view);
   EXPECT_TEXT(trace.restored_facts[1], "RestoredSecond"_view);
-  ASSERT_EQ(trace.post_passes, 3);
-  EXPECT_TEXT(trace.post_pass_facts[0], "AuthoredFact"_view);
-  EXPECT_TEXT(trace.post_pass_facts[1], "RestoredFirst"_view);
-  EXPECT_TEXT(trace.post_pass_facts[2], "RestoredSecond"_view);
+  ASSERT_EQ(trace.links, 3);
+  ASSERT_EQ(trace.finalizers, 3);
+  EXPECT_TEXT(trace.link_facts[0], "AuthoredFact"_view);
+  EXPECT_TEXT(trace.link_facts[1], "RestoredFirst"_view);
+  EXPECT_TEXT(trace.link_facts[2], "RestoredSecond"_view);
+  EXPECT_TEXT(trace.finalize_facts[0], "AuthoredFact"_view);
+  EXPECT_TEXT(trace.finalize_facts[1], "RestoredFirst"_view);
+  EXPECT_TEXT(trace.finalize_facts[2], "RestoredSecond"_view);
   active_trace = nullptr;
 }
 
@@ -1402,17 +1512,7 @@ PERIMORTEM_UNIT_TEST(EnvironmentWorkspace, exact_key_reuse_and_conflict) {
       "Pkg.Root"_view, Version(1, 0), *repository);
   EXPECT(returns_selection_error(
       imported, Package::Repository::SelectionError::Unknown));
-  const Abstract& root = workspace.resolve_context("Root"_view);
-  ASSERT(root.is<Package::Language::Monograph>());
-  const auto& root_package =
-      static_cast<const Package::Language::Monograph&>(root);
-  const Abstract& first = root_package.resolve_context("First"_view).resolve();
-  const Abstract& again = root_package.resolve_context("Again"_view).resolve();
-  EXPECT(&first == &again);
-  EXPECT(first.is<Package::Language::Monograph>());
-  EXPECT(
-      &root_package.resolve_context("Conflict"_view) ==
-      &Invalid::get_invalid());
+  EXPECT(&workspace.resolve_context("Root"_view) == &Invalid::get_invalid());
   EXPECT_EQ(trace.restoration_count, 1);
   EXPECT_TEXT(trace.restored_facts[0], "SharedOne"_view);
   EXPECT_EQ(errors.get_size(), 1);
@@ -1422,6 +1522,95 @@ PERIMORTEM_UNIT_TEST(EnvironmentWorkspace, exact_key_reuse_and_conflict) {
       "the Package identity is already retained with another Version"_view));
   EXPECT(
       has_diagnostic(errors, "resolve Conflict : Pkg.Shared = \"2.0\";"_view));
+  active_trace = nullptr;
+}
+
+PERIMORTEM_UNIT_TEST(
+    EnvironmentWorkspace,
+    failed_finalize_keeps_cache_incomplete) {
+  WorkspaceTrace trace;
+  active_trace = &trace;
+  Environment::Workspace workspace;
+  TemporaryWorkspacePackage package;
+  ASSERT(package);
+  ASSERT(package.write(
+      "package.ttx"_view,
+      "// First Package\n"
+      "dialect : Package;\n"
+      "resolve Shared : Pkg.Shared = \"1.0\";\n"
+      "source Main from \"main.ttx\";\n"_view));
+  ASSERT(package.write(
+      "main.ttx"_view, "// Main\ndialect : Alpha;\nFirstFact"_view));
+
+  Static::Vector<Package::Archive::Member, 1> members = {{
+    Package::Archive::Member("Value"_view, "Alpha"_view, "finalize_fail"_view),
+  }};
+  ASSERT(write_archive(
+      package, "first.ttxa"_view, "Pkg.Shared"_view, Version(1, 0),
+      View::Vector<Package::Language::Dependency>(), members));
+
+  Allocator::Arena repository_arena;
+  Dynamic::Bytes archive_location =
+      join_package_path(package.get_root(), "first.ttxa"_view);
+  Package::Repository::Input input(
+      "Pkg.Shared"_view, Version(1, 0), archive_location,
+      View::Vector<Package::Repository::Artifact>());
+  auto repository = Package::Repository::Repository::create(
+      repository_arena, View::Vector<Package::Repository::Input>(&input, 1),
+      View::Vector<Package::Repository::Output>(),
+      View::Vector<Package::Repository::Output>());
+  ASSERT(repository);
+  ASSERT(workspace.install_dialect<Package::Dialect>("Package"_view));
+  ASSERT(workspace.install_dialect<WorkspaceDialect>("Alpha"_view));
+  Errors first_errors;
+
+  auto first_import = workspace.import_package(
+      first_errors, package.get_root(), "FirstRoot"_view, "package.ttx"_view,
+      "Pkg.First"_view, Version(1, 0), *repository);
+  EXPECT(returns_selection_error(
+      first_import, Package::Repository::SelectionError::Unknown));
+  EXPECT(
+      &workspace.resolve_context("FirstRoot"_view) == &Invalid::get_invalid());
+  ASSERT_EQ(trace.restoration_count, 1);
+  EXPECT_TEXT(trace.restored_facts[0], "finalize_fail"_view);
+  ASSERT_EQ(trace.links, 2);
+  ASSERT_EQ(trace.finalizers, 2);
+  EXPECT_TEXT(trace.link_facts[0], "FirstFact"_view);
+  EXPECT_TEXT(trace.link_facts[1], "finalize_fail"_view);
+  EXPECT_TEXT(trace.finalize_facts[0], "FirstFact"_view);
+  EXPECT_TEXT(trace.finalize_facts[1], "finalize_fail"_view);
+  EXPECT_EQ(first_errors.get_size(), 1);
+  EXPECT(has_diagnostic(
+      first_errors, "Finalize rejected the retained fact."_view));
+  EXPECT(has_diagnostic(
+      first_errors, "resolve Shared : Pkg.Shared = \"1.0\";"_view));
+
+  ASSERT(package.write(
+      "package.ttx"_view,
+      "// Second Package\n"
+      "dialect : Package;\n"
+      "resolve Shared : Pkg.Shared = \"1.0\";\n"
+      "source Main from \"main.ttx\";\n"_view));
+  ASSERT(package.write(
+      "main.ttx"_view, "// Main\ndialect : Alpha;\nSecondFact"_view));
+  Errors second_errors;
+
+  auto second_import = workspace.import_package(
+      second_errors, package.get_root(), "SecondRoot"_view, "package.ttx"_view,
+      "Pkg.Second"_view, Version(1, 0), *repository);
+  EXPECT(returns_selection_error(
+      second_import, Package::Repository::SelectionError::Unknown));
+  EXPECT(
+      &workspace.resolve_context("SecondRoot"_view) == &Invalid::get_invalid());
+  EXPECT_EQ(trace.restoration_count, 1);
+  EXPECT_EQ(trace.links, 2);
+  EXPECT_EQ(trace.finalizers, 2);
+  EXPECT_EQ(second_errors.get_size(), 1);
+  EXPECT(has_diagnostic(
+      second_errors,
+      "the exact Package key was already restored but did not complete"_view));
+  EXPECT(has_diagnostic(
+      second_errors, "resolve Shared : Pkg.Shared = \"1.0\";"_view));
   active_trace = nullptr;
 }
 
@@ -1470,12 +1659,7 @@ PERIMORTEM_UNIT_TEST(EnvironmentWorkspace, active_cycle_inherited_chain) {
       "Pkg.Root"_view, Version(1, 0), *repository);
   EXPECT(returns_selection_error(
       imported, Package::Repository::SelectionError::Unknown));
-  const Abstract& root = workspace.resolve_context("Root"_view);
-  ASSERT(root.is<Package::Language::Monograph>());
-  const auto& root_package =
-      static_cast<const Package::Language::Monograph&>(root);
-  EXPECT(
-      &root_package.resolve_context("Cycle"_view) == &Invalid::get_invalid());
+  EXPECT(&workspace.resolve_context("Root"_view) == &Invalid::get_invalid());
   EXPECT_EQ(trace.restoration_count, 1);
   EXPECT_TEXT(trace.restored_facts[0], "CycleFact"_view);
   EXPECT_EQ(errors.get_size(), 1);
@@ -1533,6 +1717,7 @@ PERIMORTEM_UNIT_TEST(EnvironmentWorkspace, transitive_typed_failure_chain) {
       "Pkg.Root"_view, Version(1, 0), *repository);
   EXPECT(returns_selection_error(
       imported, Package::Repository::SelectionError::NotDeclared));
+  EXPECT(&workspace.resolve_context("Root"_view) == &Invalid::get_invalid());
   EXPECT_EQ(errors.get_size(), 1);
   EXPECT(has_diagnostic(errors, "Middle resolves Pkg.Middle"_view));
   EXPECT(has_diagnostic(errors, "Missing resolves Pkg.Missing"_view));
@@ -1577,6 +1762,7 @@ PERIMORTEM_UNIT_TEST(EnvironmentWorkspace, independent_dependency_reports) {
       "Pkg.Root"_view, Version(1, 0), *repository);
   EXPECT(returns_selection_error(
       imported, Package::Repository::SelectionError::NotDeclared));
+  EXPECT(&workspace.resolve_context("Root"_view) == &Invalid::get_invalid());
   EXPECT_EQ(errors.get_size(), 2);
   EXPECT(has_diagnostic(errors, "First resolves Pkg.First"_view));
   EXPECT(has_diagnostic(errors, "Second resolves Pkg.Second"_view));
@@ -1607,11 +1793,10 @@ PERIMORTEM_UNIT_TEST(EnvironmentWorkspace, context_free_typed_failure) {
   Environment::Workspace registry;
   Allocator::Arena arena;
   Environment::Dialects dialects(arena, registry);
-  Package::Dialect host(registry);
   Environment::Retention retention(arena);
   Environment::Resolution resolution(arena, dialects, retention);
-  auto& root = Package::Language::Monograph::create_source_free(
-      arena, Documentation::get_empty(), host, dependencies);
+  auto& root = Package::Language::Monograph::create_synthetic(
+      arena, Documentation::get_empty(), dependencies);
   retention.retain(root, {});
 
   Allocator::Arena repository_arena;
@@ -1685,19 +1870,7 @@ PERIMORTEM_UNIT_TEST(EnvironmentWorkspace, member_restoration_failures) {
       "Pkg.Root"_view, Version(1, 0), *repository);
   EXPECT(returns_selection_error(
       imported, Package::Repository::SelectionError::Unknown));
-  const Abstract& root = workspace.resolve_context("Root"_view);
-  ASSERT(root.is<Package::Language::Monograph>());
-  const auto& root_package =
-      static_cast<const Package::Language::Monograph&>(root);
-  EXPECT(
-      &root_package.resolve_context("MissingDialect"_view) ==
-      &Invalid::get_invalid());
-  EXPECT(
-      &root_package.resolve_context("RestoreFailure"_view) ==
-      &Invalid::get_invalid());
-  EXPECT(
-      &root_package.resolve_context("FailedAgain"_view) ==
-      &Invalid::get_invalid());
+  EXPECT(&workspace.resolve_context("Root"_view) == &Invalid::get_invalid());
   EXPECT_EQ(trace.restoration_count, 1);
   EXPECT_TEXT(trace.restored_facts[0], "restore_fail"_view);
   EXPECT_EQ(errors.get_size(), 3);
@@ -1714,7 +1887,7 @@ PERIMORTEM_UNIT_TEST(EnvironmentWorkspace, member_restoration_failures) {
   active_trace = nullptr;
 }
 
-PERIMORTEM_UNIT_TEST(EnvironmentWorkspace, post_pass_order_and_reuse) {
+PERIMORTEM_UNIT_TEST(EnvironmentWorkspace, link_finalize_order_and_reuse) {
   WorkspaceTrace trace;
   active_trace = &trace;
   Environment::Workspace workspace;
@@ -1727,7 +1900,7 @@ PERIMORTEM_UNIT_TEST(EnvironmentWorkspace, post_pass_order_and_reuse) {
       "source First from \"first.ttx\";\n"
       "source Second from \"second.ttx\";\n"_view));
   ASSERT(package.write(
-      "first.ttx"_view, "// First\ndialect : Alpha;\npost_fail"_view));
+      "first.ttx"_view, "// First\ndialect : Alpha;\nlink_fail"_view));
   ASSERT(package.write(
       "second.ttx"_view, "// Second\ndialect : Alpha;\nGood"_view));
 
@@ -1746,17 +1919,21 @@ PERIMORTEM_UNIT_TEST(EnvironmentWorkspace, post_pass_order_and_reuse) {
       "Pkg.First"_view, Version(1, 0), *repository);
   EXPECT(returns_selection_error(
       first_import, Package::Repository::SelectionError::Unknown));
-  ASSERT_EQ(trace.post_passes, 2);
-  EXPECT_TEXT(trace.post_pass_facts[0], "post_fail"_view);
-  EXPECT_TEXT(trace.post_pass_facts[1], "Good"_view);
+  ASSERT_EQ(trace.links, 2);
+  EXPECT_EQ(trace.finalizers, Count(0));
+  EXPECT_TEXT(trace.link_facts[0], "link_fail"_view);
+  EXPECT_TEXT(trace.link_facts[1], "Good"_view);
   EXPECT_EQ(errors.get_size(), 1);
-  EXPECT(
-      has_diagnostic(errors, "Semantic completion failed for post_fail"_view));
+  EXPECT(has_diagnostic(errors, "Link rejected the retained fact."_view));
+  EXPECT(&workspace.resolve_context("Root"_view) == &Invalid::get_invalid());
 
-  ASSERT(workspace.import_source(
+  ASSERT(workspace.interpret_source(
       errors, "Direct"_view, "direct.ttx"_view,
       "// Direct\ndialect : Alpha;\nDirectFact"_view));
-  EXPECT_EQ(trace.post_passes, 2);
+  ASSERT(workspace.link(errors));
+  ASSERT(workspace.finalize(errors));
+  EXPECT_EQ(trace.links, Count(3));
+  EXPECT_EQ(trace.finalizers, Count(1));
   ASSERT(package.write(
       "package.ttx"_view,
       "// Second Package\n"
@@ -1769,12 +1946,15 @@ PERIMORTEM_UNIT_TEST(EnvironmentWorkspace, post_pass_order_and_reuse) {
       errors, package.get_root(), "OtherRoot"_view, "package.ttx"_view,
       "Pkg.Second"_view, Version(1, 0), *repository);
   Bool second_selected = second_import.visit(
-      [](Language::Dialect::Monograph&) { return True; },
+      [](Language::Monograph&) { return True; },
       [](Package::Repository::SelectionError) { return False; });
   EXPECT(second_selected);
-  ASSERT_EQ(trace.post_passes, 4);
-  EXPECT_TEXT(trace.post_pass_facts[2], "DirectFact"_view);
-  EXPECT_TEXT(trace.post_pass_facts[3], "LaterFact"_view);
+  ASSERT_EQ(trace.links, 4);
+  ASSERT_EQ(trace.finalizers, 2);
+  EXPECT_TEXT(trace.link_facts[2], "DirectFact"_view);
+  EXPECT_TEXT(trace.link_facts[3], "LaterFact"_view);
+  EXPECT_TEXT(trace.finalize_facts[0], "DirectFact"_view);
+  EXPECT_TEXT(trace.finalize_facts[1], "LaterFact"_view);
   EXPECT_EQ(errors.get_size(), 1);
   active_trace = nullptr;
 }
@@ -1793,12 +1973,14 @@ PERIMORTEM_UNIT_TEST(EnvironmentWorkspace, destruction_phases) {
     Errors errors;
     EXPECT(workspace.install_dialect<WorkspaceDialect>("Alpha"_view));
     EXPECT(workspace.install_dialect<WorkspaceDialect>("Beta"_view));
-    EXPECT(workspace.import_source(
+    EXPECT(workspace.interpret_source(
         errors, "First"_view, "first.ttx"_view,
         "// First documentation\ndialect : Alpha;\nFirst"_view));
-    EXPECT(workspace.import_source(
+    EXPECT(workspace.interpret_source(
         errors, "Second"_view, "second.ttx"_view,
         "// Second documentation\ndialect : Beta;\nSecond"_view));
+    EXPECT(workspace.link(errors));
+    EXPECT(workspace.finalize(errors));
   }
 
   EXPECT_EQ(trace.monograph_constructions[0], 1);

@@ -59,64 +59,6 @@ static auto select_result_type(const Language::Expression& operand)
   return selected;
 }
 
-static auto report_type(
-    Cursor& cursor,
-    Span span,
-    const Language::Expression& operand) -> void {
-  auto report = cursor.create_report(span);
-  report << "Negate cannot use Type `"_view << operand.get_type().get_name()
-         << "`."_view;
-  report.get_hint() << "Use a value with an explicit Signed or Real Type."_view;
-}
-
-static auto report_overflow(
-    Cursor& cursor,
-    Span span,
-    const Language::Operations::Negate& negate,
-    const Language::Expression& operand) -> void {
-  auto report = cursor.create_report(span);
-  report << "Negate cannot represent "_view;
-  operand.visit<Language::Constants::Signed>(
-      [&](const Language::Constants::Signed& value) {
-        report << "the inverse of "_view << value.get_value();
-      },
-      [](const Abstract&) {});
-  report << " in selected Type `"_view << negate.get_type().get_name()
-         << "`."_view;
-  report.get_hint()
-      << "Use a value whose inverse fits the selected Type width."_view;
-}
-
-static auto report_fold_error(
-    Cursor& cursor,
-    Span span,
-    const Language::Operations::Negate& negate,
-    const Language::Expression& operand,
-    const Language::FoldError& error) -> void {
-  switch (error.get_type()) {
-  case Language::FoldError::Type::InvalidOperationType:
-    if (&error.get_expression() == &negate) {
-      report_type(cursor, span, operand);
-      return;
-    }
-    break;
-  case Language::FoldError::Type::ArithmeticOverflow:
-    if (&error.get_expression() == &negate) {
-      report_overflow(cursor, span, negate, operand);
-      return;
-    }
-    break;
-  default:
-    break;
-  }
-
-  auto report = cursor.create_report(span);
-  report << "Negate input `"_view << error.get_expression().get_name()
-         << "` failed folding with "_view << error.get_name() << "."_view;
-  report.get_hint()
-      << "Check that input operation and its explicit result Type."_view;
-}
-
 static auto signed_inverse(
     const Ttx::Model::Types::Signed& type,
     Signed_64 operand,
@@ -132,7 +74,7 @@ auto Language::Operations::Negate::parse(
     Memory::Allocator::Arena& domain,
     Materializations& materializations,
     Cursor& cursor,
-    const Abstract& source_context) -> Utility::Option<const Expression&> {
+    const Abstract& source_context) -> Utility::Option<Expression&> {
   Token opening = cursor.consume();
   auto operand = Language::Parser::Expression::parse_prefix_operand(
       domain, materializations, cursor, source_context);
@@ -144,97 +86,137 @@ auto Language::Operations::Negate::parse(
     return {};
   }
 
-  const auto& negate = domain.construct<Negate>(domain, *operand);
-  if (!negate.get_type().resolve().is<Type>()) {
-    report_type(cursor, span, *operand);
+  const auto& operand_anchor = operand->get_anchor();
+  if (!operand_anchor) {
+    cursor.create_expression_error(
+        span, "Negate requires an authored operand Anchor."_view);
     return {};
   }
 
-  auto folded = negate.attempt_fold(domain, materializations);
-  return folded.visit(
-      [](const Expression& expression) -> Utility::Option<const Expression&> {
-        return expression;
-      },
-      [&](const FoldError& error) -> Utility::Option<const Expression&> {
-        report_fold_error(cursor, span, negate, *operand, error);
-        return {};
+  auto anchor =
+      Anchor::create(opening, Span(opening), operand_anchor->get_span());
+  return create_authored(domain, materializations, *operand, anchor);
+}
+
+auto Language::Operations::Negate::create_authored(
+    Memory::Allocator::Arena& domain,
+    Materializations& materializations,
+    Expression& operand,
+    Anchor anchor) -> Negate& {
+  return Expression::create_authored<Negate>(
+      domain, anchor, [&](auto source) -> Negate {
+        return Negate(domain, materializations, operand, source);
+      });
+}
+
+auto Language::Operations::Negate::create_synthetic(
+    Memory::Allocator::Arena& domain,
+    Materializations& materializations,
+    Expression& operand) -> Negate& {
+  return Expression::create_synthetic<Negate>(
+      domain, [&](auto source) -> Negate {
+        return Negate(domain, materializations, operand, source);
       });
 }
 
 Language::Operations::Negate::Negate(
     Memory::Allocator::Arena& domain,
-    const Expression& operand)
+    Materializations& materializations,
+    Expression& operand,
+    Utility::Option<Anchor> anchor)
     : Operation(
           domain,
+          materializations,
           Core::Static::Vector<Ttx::Concept::Reference<Expression>, 1>{
-            {operand}}),
-      result_type(select_result_type(operand)) {}
+            {operand}},
+          anchor) {}
 
 auto Language::Operations::Negate::get_documentation() const
     -> const Documentation& {
   return Documentation::get_empty();
 }
 
-auto Language::Operations::Negate::get_type() const -> const Abstract& {
-  return result_type;
+auto Language::Operations::Negate::select_type(Materializations&) const
+    -> Utility::Option<const Type&> {
+  auto operand = get_input(0);
+  if (!operand) {
+    return {};
+  }
+
+  return select_result_type(*operand).visit<Type>(
+      [](const Type& type) -> Utility::Option<const Type&> { return type; },
+      [](const Abstract&) -> Utility::Option<const Type&> { return {}; });
 }
 
 auto Language::Operations::Negate::evaluate_constants(
     Memory::Allocator::Arena& domain,
-    Materializations&) const -> Utility::Result<const Expression&, FoldError> {
-  const Abstract& selected = result_type.resolve();
-  auto operand = get_input(0);
-  if (!operand) {
-    return FoldError(FoldError::Type::InvalidInput, *this);
+    Materializations&)
+    -> Utility::Result<Utility::Option<Constant&>, Expression::Error> {
+  const Abstract& selected = get_type().resolve();
+  auto authored_operand = get_input(0);
+  auto operand = get_folded_input(0);
+  if (!authored_operand || !operand) {
+    return Expression::Error(Expression::Error::Type::InvalidInput, *this);
   }
 
-  // Construction fixes the exact result Type before folding. The visitors
-  // prove only the Constant payload needed to calculate its inverse.
+  // Linking fixes the exact result Type before folding. The visitors prove
+  // only the Constant payload needed to calculate its inverse.
   if (selected.is<Ttx::Model::Types::Signed>()) {
     auto value = select_constant<Constants::Signed>(*operand);
     if (!value) {
-      return FoldError(FoldError::Type::InvalidConstant, *operand);
+      return Expression::Error(
+          Expression::Error::Type::InvalidConstant, *authored_operand);
     }
 
     return selected.visit<Ttx::Model::Types::Signed>(
         [&](const Ttx::Model::Types::Signed& type)
-            -> Utility::Result<const Expression&, FoldError> {
+            -> Utility::Result<Utility::Option<Constant&>, Expression::Error> {
           Signed_64 inverse = 0;
           if (!signed_inverse(type, value->get_value(), inverse)) {
-            return FoldError(FoldError::Type::ArithmeticOverflow, *this);
+            return Expression::Error(
+                Expression::Error::Type::ArithmeticOverflow, *this);
           }
 
-          return domain.construct<Constants::Signed>(type, inverse);
+          return Constants::Signed::create_synthetic(domain, type, inverse);
         },
-        [&](const Abstract&) -> Utility::Result<const Expression&, FoldError> {
-          return FoldError(FoldError::Type::InvalidOperationType, *this);
+        [&](const Abstract&)
+            -> Utility::Result<Utility::Option<Constant&>, Expression::Error> {
+          return Expression::Error(
+              Expression::Error::Type::InvalidOperationType, *this);
         });
   }
 
   if (selected.is<Ttx::Model::Types::Real>()) {
     auto value = select_constant<Constants::Real>(*operand);
     if (!value) {
-      return FoldError(FoldError::Type::InvalidConstant, *operand);
+      return Expression::Error(
+          Expression::Error::Type::InvalidConstant, *authored_operand);
     }
 
     return selected.visit<Ttx::Model::Types::Real>(
         [&](const Ttx::Model::Types::Real& type)
-            -> Utility::Result<const Expression&, FoldError> {
+            -> Utility::Result<Utility::Option<Constant&>, Expression::Error> {
           if (type.get_size() == sizeof(Real_32)) {
             Real_32 inverse = -Real_32(value->get_value());
-            return domain.construct<Constants::Real>(type, Real_64(inverse));
+            return Constants::Real::create_synthetic(
+                domain, type, Real_64(inverse));
           }
 
           if (type.get_size() == sizeof(Real_64)) {
-            return domain.construct<Constants::Real>(type, -value->get_value());
+            return Constants::Real::create_synthetic(
+                domain, type, -value->get_value());
           }
 
-          return FoldError(FoldError::Type::InvalidOperationType, *this);
+          return Expression::Error(
+              Expression::Error::Type::InvalidOperationType, *this);
         },
-        [&](const Abstract&) -> Utility::Result<const Expression&, FoldError> {
-          return FoldError(FoldError::Type::InvalidOperationType, *this);
+        [&](const Abstract&)
+            -> Utility::Result<Utility::Option<Constant&>, Expression::Error> {
+          return Expression::Error(
+              Expression::Error::Type::InvalidOperationType, *this);
         });
   }
 
-  return FoldError(FoldError::Type::InvalidOperationType, *this);
+  return Expression::Error(
+      Expression::Error::Type::InvalidOperationType, *this);
 }
