@@ -23,6 +23,8 @@ value domains required by CPU executable languages.
 4. Generic provides Access, View, and Fixed materializations.
 5. Concrete Bool, signed, unsigned, and real Types provide scalar identities.
 6. Static and Self distinguish Callable invocation.
+7. Structure provides authored inline Types with ordered fields and nested
+   Callables.
 
 These classes retain and expose real TTX Type, Layout, Addressable, and Callable
 edges. They do not copy those shared contracts into a Library model.
@@ -93,6 +95,17 @@ authored names without demanding that the Types already exist. Signature
 linking resolves those routes, constructs real Parameter Addressables and TTX
 Layout projections, and publishes every Function signature before Monograph
 body linking begins.
+
+`Language::Field` owns one authored member shared by Library composite Type
+systems. It retains visibility, Documentation, exact Type spelling, and Anchors
+until linking can construct its real TTX Addressable projection with one exact
+Type. `Language::Types::Structure` retains Fields in authored order from
+`public|private TypeName : struct { ... }`, and its TTX Structured Layout borrows
+their Addressable projections without copying field facts. Supported nested
+Callable grammar retains the existing Function objects without copying
+Signature, body, Static, or Callable policy. Structure lookup is exact, private
+Structures remain local, and finalization rejects public fields or Callable
+signatures that expose a private local Structure Type.
 
 `Language::Import` owns one complete `using Package::Route;` statement. It
 retains the exact contiguous Type shaped Package local route, triggering
@@ -222,20 +235,21 @@ accessors expose their universal addresses to Library machinery and package
 consumers that require exact identity while authored name lookup retains its
 packed intrinsic table.
 
-The concrete Library Monograph owns exact local Function lookup and an authored
-order view of its public Functions. Local lookup also admits private Functions.
-Each declaration is reserved and bound at its final Arena address before its
-signature completes, so completion never replaces the identity already visible
-through the Monograph. Duplicate declarations fail before either view changes.
-Missing names resolve to the shared TTX Invalid identity.
+The concrete Library Monograph owns exact local Structure and Function lookup
+with separate authored order public views. Local lookup also admits private
+Structures and Functions. Each declaration occupies its final Arena address,
+so linking enriches the identity already visible through the Monograph.
+Duplicate declarations fail before any view changes. Missing names resolve to
+the shared TTX Invalid identity.
 
 Function context lookup checks its linked Parameter Addressables first. The
-parent Monograph then checks local and imported Functions, delegates to the
+parent Monograph then checks local Structures and Functions, delegates to the
 source interpretation context for Package or Workspace names, and finally asks
-the installed Library Dialect for intrinsic Types. Raw incomplete declarations
-occupy their names before linking, so later publication enriches those exact
-identities and shadowing remains a diagnosed collision rather than a second
-scope model.
+the installed Library Dialect for intrinsic Types. Structure fields link before
+Function signatures, so a signature may name any complete local Structure
+without depending on declaration order. Raw incomplete declarations occupy
+their names before linking, so later publication enriches those exact identities
+and shadowing remains a diagnosed collision rather than a second scope model.
 
 Each Monograph also borrows the exact source local interpretation context and
 retains authored Imports in order. Its `link()` transaction requires that
@@ -337,8 +351,9 @@ No Library payload encoder or restorer exists in the current target.
 ## Current boundary
 
 The current Library target contains the installed Dialect, declaration
-Monograph, binary wide scalar and Void Types, Function signature construction,
-source shaped Function Expression roots, reusable Layout grammar, exact
+Monograph, binary wide scalar and Void Types, authored Structure Types and
+fields, Function signature construction, source shaped Function Expression
+roots, reusable Layout grammar, exact
 authored Package imports, separate linking and finalization, nondestructive
 cached folding, and the x86_64 assembler.
 

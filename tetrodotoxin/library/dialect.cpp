@@ -19,6 +19,7 @@
 #include "tetrodotoxin/library/language/types/signed_32.hpp"
 #include "tetrodotoxin/library/language/types/signed_64.hpp"
 #include "tetrodotoxin/library/language/types/signed_8.hpp"
+#include "tetrodotoxin/library/language/types/structure.hpp"
 #include "tetrodotoxin/library/language/types/unsigned_16.hpp"
 #include "tetrodotoxin/library/language/types/unsigned_32.hpp"
 #include "tetrodotoxin/library/language/types/unsigned_64.hpp"
@@ -79,10 +80,9 @@ auto Library::Dialect::interpret(
       domain, documentation, *this, interpretation_context,
       *shared_materializations);
 
-  // A Function must be reachable at its final address while its signature
-  // builds. Imports need only their exact durable route, so one forward pass
-  // preserves authored order without retaining discovery state for either
-  // declaration kind.
+  // Each admitted declaration occupies its final Arena address and one exact
+  // local name. Structure keeps its outer Cursor private until the closing
+  // brace while the forward pass retains no discovery index or second graph.
   while (!cursor.matches(Code::Type::Terminal)) {
     const Documentation& declaration_documentation =
         Tetrodotoxin::Language::Parser::Comment::parse(cursor);
@@ -97,6 +97,26 @@ auto Library::Dialect::interpret(
       }
 
       monograph.retain_import(*import);
+      continue;
+    }
+
+    if ((cursor.matches(Code::Type::Public) ||
+         cursor.matches(Code::Type::Private)) &&
+        cursor.peek(1).get_code() == Code::Type::Type) {
+      auto structure = Library::Language::Types::Structure::interpret(
+          domain, cursor, declaration_documentation, monograph,
+          *shared_materializations);
+      if (!structure) {
+        return {};
+      }
+
+      if (!monograph.bind_structure(*structure)) {
+        cursor.create_expression_error(
+            structure->get_name_anchor(),
+            "Duplicate Structure or Function name in this Library source."_view);
+        return {};
+      }
+
       continue;
     }
 

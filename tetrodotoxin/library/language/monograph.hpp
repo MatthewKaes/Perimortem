@@ -10,14 +10,15 @@
 #include "tetrodotoxin/library/language/function.hpp"
 #include "tetrodotoxin/library/language/import.hpp"
 #include "tetrodotoxin/library/language/materializations.hpp"
+#include "tetrodotoxin/library/language/types/structure.hpp"
 #include "ttx/concept/reference.hpp"
 
 namespace Tetrodotoxin::Library::Language {
 
-// Monograph owns the exact local Function scope and authored Function order for
-// one Library source. Each Function retains its own ordered Expression roots
-// while one installed Dialect Materializations inventory lives beside every
-// graph it constructs in the Environment Arena.
+// Monograph owns the exact local Structure and Function scope with independent
+// authored public order for one Library source. Each declaration retains its
+// own source facts while one installed Dialect Materializations inventory lives
+// beside every graph it constructs in the Environment Arena.
 class Monograph : public Tetrodotoxin::Language::Monograph {
  private:
   Monograph(
@@ -51,6 +52,10 @@ class Monograph : public Tetrodotoxin::Language::Monograph {
   // lifetime. Duplicate names leave lookup and publication unchanged.
   auto bind_function(Function& function) -> Bool;
 
+  // Structures occupy the same exact local name surface as Functions. Their
+  // private visibility controls publication without hiding local Type lookup.
+  auto bind_structure(Types::Structure& structure) -> Bool;
+
   // Imports remain in authored order until linking can see every
   // Package member. Retaining the value adds no parser state to the graph.
   auto retain_import(const Import& import) -> void;
@@ -70,6 +75,12 @@ class Monograph : public Tetrodotoxin::Language::Monograph {
   auto get_functions() const
       -> Perimortem::Core::View::Vector<Ttx::Concept::Reference<Function>>;
 
+  auto get_public_structures() const -> Perimortem::Core::View::Vector<
+      Ttx::Concept::Reference<const Types::Structure>>;
+
+  auto get_structures() const -> Perimortem::Core::View::Vector<
+      Ttx::Concept::Reference<Types::Structure>>;
+
   auto get_imports() const -> Perimortem::Core::View::Vector<Import>;
 
   constexpr auto get_materializations() const -> const Materializations& {
@@ -87,10 +98,19 @@ class Monograph : public Tetrodotoxin::Language::Monograph {
       Perimortem::Core::View::Bytes,
       Ttx::Concept::Reference<const Function>>
       functions;
+  Perimortem::Memory::Managed::Map<
+      Perimortem::Core::View::Bytes,
+      Ttx::Concept::Reference<const Types::Structure>>
+      structures;
   Perimortem::Memory::Managed::Vector<Ttx::Concept::Reference<Function>>
       authored_functions;
   Perimortem::Memory::Managed::Vector<Ttx::Concept::Reference<const Function>>
       public_functions;
+  Perimortem::Memory::Managed::Vector<Ttx::Concept::Reference<Types::Structure>>
+      authored_structures;
+  Perimortem::Memory::Managed::Vector<
+      Ttx::Concept::Reference<const Types::Structure>>
+      public_structures;
 };
 
 }  // namespace Tetrodotoxin::Library::Language

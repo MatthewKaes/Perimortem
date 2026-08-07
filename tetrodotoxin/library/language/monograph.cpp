@@ -42,8 +42,11 @@ Library::Language::Monograph::Monograph(
       materializations(materializations),
       imports(domain),
       functions(domain),
+      structures(domain),
       authored_functions(domain),
-      public_functions(domain) {}
+      public_functions(domain),
+      authored_structures(domain),
+      public_structures(domain) {}
 
 auto Library::Language::Monograph::create_authored(
     Allocator::Arena& domain,
@@ -66,7 +69,7 @@ auto Library::Language::Monograph::bind_function(Function& function) -> Bool {
   const Abstract& outer = interpretation_context.resolve_context(name);
   const Abstract& intrinsic = library_host.resolve_intrinsic(name);
   if (name.is_empty() || functions.contains(name) ||
-      &outer != &Invalid::get_invalid() ||
+      structures.contains(name) || &outer != &Invalid::get_invalid() ||
       &intrinsic != &Invalid::get_invalid()) {
     return False;
   }
@@ -75,6 +78,26 @@ auto Library::Language::Monograph::bind_function(Function& function) -> Bool {
   authored_functions.insert(function);
   if (function.get_visibility() == Visibility::Public) {
     public_functions.insert(function);
+  }
+
+  return True;
+}
+
+auto Library::Language::Monograph::bind_structure(Types::Structure& structure)
+    -> Bool {
+  const View::Bytes name = structure.get_name();
+  const Abstract& outer = interpretation_context.resolve_context(name);
+  const Abstract& intrinsic = library_host.resolve_intrinsic(name);
+  if (name.is_empty() || structures.contains(name) ||
+      functions.contains(name) || &outer != &Invalid::get_invalid() ||
+      &intrinsic != &Invalid::get_invalid()) {
+    return False;
+  }
+
+  structures.launder(name, Reference<const Types::Structure>(structure));
+  authored_structures.insert(structure);
+  if (structure.get_visibility() == Visibility::Public) {
+    public_structures.insert(structure);
   }
 
   return True;
@@ -184,10 +207,14 @@ auto Library::Language::Monograph::link_imports() -> Bool {
     const Function& function = candidate.function.get();
     View::Bytes name = function.get_name();
     auto local_entry = functions.find(name);
-    if (local_entry) {
+    if (local_entry || structures.contains(name)) {
+      View::Bytes message = local_entry
+                                ? "Imported Function collides with one local "
+                                  "Function name."_view
+                                : "Imported Function collides with one local "
+                                  "Structure name."_view;
       report(
-          Ttx::Lexical::Anchor::create(candidate.import_span),
-          "Imported Function collides with one local Function name."_view,
+          Ttx::Lexical::Anchor::create(candidate.import_span), message,
           "Rename the local declaration or select another dependency."_view);
       failed = True;
     }
@@ -234,11 +261,23 @@ auto Library::Language::Monograph::link_imports() -> Bool {
 auto Library::Language::Monograph::link() -> Bool {
   Bool failed = !link_imports();
 
-  // Imports publish first so every Signature sees the complete local context.
-  // All local Signatures link before any local body, making authored order
-  // irrelevant without weakening the staged Monograph barrier.
+  // Every Structure field settles against the complete reserved Type surface.
+  // Function signatures follow only after those Types can answer resolution,
+  // keeping declaration order irrelevant without a provisional Type graph.
+  for (Count i = 0; i < authored_structures.get_size(); i++) {
+    failed |= !authored_structures[i].get().link_fields();
+  }
+
+  for (Count i = 0; i < authored_structures.get_size(); i++) {
+    failed |= !authored_structures[i].get().link_callable_signatures();
+  }
+
   for (Count i = 0; i < authored_functions.get_size(); i++) {
     failed |= !authored_functions[i].get().link_signature();
+  }
+
+  for (Count i = 0; i < authored_structures.get_size(); i++) {
+    failed |= !authored_structures[i].get().link_callable_bodies();
   }
 
   for (Count i = 0; i < authored_functions.get_size(); i++) {
@@ -250,6 +289,65 @@ auto Library::Language::Monograph::link() -> Bool {
 
 auto Library::Language::Monograph::finalize() -> Bool {
   Bool failed = False;
+
+  // Structure owns member visibility because only that Type knows which field
+  // and nested Callable edges form its public surface.
+  for (Count i = 0; i < authored_structures.get_size(); i++) {
+    failed |= !authored_structures[i].get().finalize();
+  }
+
+  // Root Functions bypass Structure membership, so Monograph applies the same
+  // private Type boundary before Environment can publish this source.
+  for (Count function_index = 0; function_index < public_functions.get_size();
+       function_index++) {
+    const Function& function = public_functions[function_index].get();
+    auto signature = function.get_signature();
+    if (!signature) {
+      report(
+          Ttx::Lexical::Anchor::create(
+              Ttx::Lexical::Span(function.get_name_token())),
+          "Public Function has no complete Signature during finalization."_view,
+          "Link its exact parameter and result Types before publication."_view);
+      failed = True;
+      continue;
+    }
+
+    auto reject_private_structure = [&](Count index, Bool parameter) {
+      auto type = parameter ? signature->get_parameter_type(index)
+                            : signature->get_result_type(index);
+      if (!type) {
+        return;
+      }
+
+      Bool private_structure = type->visit<Types::Structure>(
+          [](const Types::Structure& structure) {
+            return structure.get_visibility() == Visibility::Private ? True
+                                                                     : False;
+          },
+          [](const Abstract&) { return False; });
+      if (!private_structure) {
+        return;
+      }
+
+      auto type_anchor = parameter ? signature->get_parameter_type_anchor(index)
+                                   : signature->get_result_type_anchor(index);
+      report(
+          type_anchor,
+          "Public Function exposes a private local Structure Type."_view,
+          "Keep the Function private or publish its exact Structure Type."_view);
+      failed = True;
+    };
+
+    for (Count i = 0; i < signature->get_parameter_size(); i++) {
+      reject_private_structure(i, True);
+    }
+    for (Count i = 0; i < signature->get_result_size(); i++) {
+      reject_private_structure(i, False);
+    }
+  }
+
+  // Optional fold caching stays on each Function after publication policy has
+  // observed the linked signature identities.
   for (Count i = 0; i < authored_functions.get_size(); i++) {
     failed |= !authored_functions[i].get().finalize();
   }
@@ -263,21 +361,28 @@ auto Library::Language::Monograph::get_name() const -> View::Bytes {
 
 auto Library::Language::Monograph::resolve_context(View::Bytes route) const
     -> const Abstract& {
-  // Raw local identities lead both fallbacks, including Functions that have
-  // reserved their name but have not completed. Lookup never resolves them on
-  // behalf of a consumer that needs to observe that incomplete state.
-  return functions.visit(
+  // Raw local identities lead both fallbacks, including declarations whose
+  // semantic edges remain incomplete. Lookup never resolves them on behalf of
+  // a consumer that needs to observe that state.
+  return structures.visit(
       route,
-      [](const Reference<const Function>& function) -> const Abstract& {
-        return function.get();
-      },
+      [](const Reference<const Types::Structure>& structure)
+          -> const Abstract& { return structure.get(); },
       [&]() -> const Abstract& {
-        const Abstract& outer = interpretation_context.resolve_context(route);
-        if (&outer != &Invalid::get_invalid()) {
-          return outer;
-        }
+        return functions.visit(
+            route,
+            [](const Reference<const Function>& function) -> const Abstract& {
+              return function.get();
+            },
+            [&]() -> const Abstract& {
+              const Abstract& outer =
+                  interpretation_context.resolve_context(route);
+              if (&outer != &Invalid::get_invalid()) {
+                return outer;
+              }
 
-        return library_host.resolve_intrinsic(route);
+              return library_host.resolve_intrinsic(route);
+            });
       });
 }
 
@@ -289,6 +394,16 @@ auto Library::Language::Monograph::get_public_functions() const
 auto Library::Language::Monograph::get_functions() const
     -> View::Vector<Reference<Function>> {
   return authored_functions;
+}
+
+auto Library::Language::Monograph::get_public_structures() const
+    -> View::Vector<Reference<const Types::Structure>> {
+  return public_structures;
+}
+
+auto Library::Language::Monograph::get_structures() const
+    -> View::Vector<Reference<Types::Structure>> {
+  return authored_structures;
 }
 
 auto Library::Language::Monograph::get_imports() const -> View::Vector<Import> {
