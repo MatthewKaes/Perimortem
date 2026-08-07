@@ -79,9 +79,10 @@ The frozen Type and Layout expectations are:
    whose external C symbol is `library_observe`. No defined Callable is
    bodyless.
 
-A successful broad evaluation completes every Library owner before its
-Monograph is retained by Environment. No token range, Cursor, incomplete Type,
-incomplete Callable, or rejected owner is graph reachable.
+A successful broad interpretation retains every source shaped Library owner in
+its Monograph. Environment then links the frozen range, finalizes its complete
+graph, and publishes only that success. No token range, Cursor, incomplete
+Type, incomplete Callable, or rejected owner is graph reachable.
 
 ## Foreign import oracle
 

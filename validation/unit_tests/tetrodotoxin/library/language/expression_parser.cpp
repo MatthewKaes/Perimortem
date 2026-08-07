@@ -10,6 +10,7 @@
 #include "tetrodotoxin/library/dialect.hpp"
 #include "tetrodotoxin/library/language/expression.hpp"
 #include "tetrodotoxin/library/language/materializations.hpp"
+#include "tetrodotoxin/library/language/operations/and.hpp"
 #include "tetrodotoxin/library/language/operations/divide.hpp"
 #include "tetrodotoxin/library/language/operations/equal.hpp"
 #include "tetrodotoxin/library/language/operations/greater.hpp"
@@ -21,6 +22,7 @@
 #include "tetrodotoxin/library/language/operations/negate.hpp"
 #include "tetrodotoxin/library/language/operations/not.hpp"
 #include "tetrodotoxin/library/language/operations/not_equal.hpp"
+#include "tetrodotoxin/library/language/operations/or.hpp"
 #include "tetrodotoxin/library/language/operations/slice.hpp"
 #include "tetrodotoxin/library/language/operations/subtract.hpp"
 #include "tetrodotoxin/library/language/parser/expression.hpp"
@@ -290,6 +292,10 @@ PERIMORTEM_UNIT_TEST(ExpressionParserTests, authored_operation_anchors) {
 
   auto divide =
       parse_one(domain, materializations, context, "8 / 2"_view, errors);
+  auto logical_and =
+      parse_one(domain, materializations, context, "true & false"_view, errors);
+  auto logical_or =
+      parse_one(domain, materializations, context, "false | true"_view, errors);
   auto equal =
       parse_one(domain, materializations, context, "1 == 1"_view, errors);
   auto greater =
@@ -314,10 +320,16 @@ PERIMORTEM_UNIT_TEST(ExpressionParserTests, authored_operation_anchors) {
   auto subtract =
       parse_one(domain, materializations, context, "2 - 1"_view, errors);
 
-  ASSERT(divide && equal && greater && greater_equal && less && less_equal);
+  ASSERT(
+      divide && logical_and && logical_or && equal && greater &&
+      greater_equal && less && less_equal);
   ASSERT(modulo && multiply && negate && logical && not_equal && slice);
   ASSERT(subtract);
   EXPECT(matches_anchor(*divide, "8 / 2"_view, "/"_view, "8 / 2"_view));
+  EXPECT(matches_anchor(
+      *logical_and, "true & false"_view, "&"_view, "true & false"_view));
+  EXPECT(matches_anchor(
+      *logical_or, "false | true"_view, "|"_view, "false | true"_view));
   EXPECT(matches_anchor(*equal, "1 == 1"_view, "=="_view, "1 == 1"_view));
   EXPECT(matches_anchor(*greater, "2 > 1"_view, ">"_view, "2 > 1"_view));
   EXPECT(
@@ -456,6 +468,66 @@ PERIMORTEM_UNIT_TEST(ExpressionParserTests, comparison_before_equality) {
   EXPECT(errors.is_empty());
 }
 
+PERIMORTEM_UNIT_TEST(ExpressionParserTests, equality_before_and) {
+  Allocator::Arena domain;
+  Library::Language::Materializations materializations(domain);
+  ExpressionParserObservations observations;
+  ExpressionParserContext context(domain, observations);
+  Errors errors;
+  auto equality_and = parse_one(
+      domain, materializations, context, "true == true & false"_view, errors);
+  ASSERT(equality_and);
+  EXPECT((has_left_shape<
+          Library::Language::Operations::And,
+          Library::Language::Operations::Equal>(*equality_and)));
+  EXPECT(errors.is_empty());
+}
+
+PERIMORTEM_UNIT_TEST(ExpressionParserTests, and_associativity) {
+  Allocator::Arena domain;
+  Library::Language::Materializations materializations(domain);
+  ExpressionParserObservations observations;
+  ExpressionParserContext context(domain, observations);
+  Errors errors;
+  auto chain = parse_one(
+      domain, materializations, context, "true & true & false"_view, errors);
+  ASSERT(chain);
+  EXPECT((has_left_shape<
+          Library::Language::Operations::And,
+          Library::Language::Operations::And>(*chain)));
+  EXPECT(errors.is_empty());
+}
+
+PERIMORTEM_UNIT_TEST(ExpressionParserTests, and_before_or) {
+  Allocator::Arena domain;
+  Library::Language::Materializations materializations(domain);
+  ExpressionParserObservations observations;
+  ExpressionParserContext context(domain, observations);
+  Errors errors;
+  auto chain = parse_one(
+      domain, materializations, context, "false | true & false"_view, errors);
+  ASSERT(chain);
+  auto right = get_input(*chain, 1);
+  EXPECT(chain->is<Library::Language::Operations::Or>());
+  EXPECT(right && right->is<Library::Language::Operations::And>());
+  EXPECT(errors.is_empty());
+}
+
+PERIMORTEM_UNIT_TEST(ExpressionParserTests, or_associativity) {
+  Allocator::Arena domain;
+  Library::Language::Materializations materializations(domain);
+  ExpressionParserObservations observations;
+  ExpressionParserContext context(domain, observations);
+  Errors errors;
+  auto chain = parse_one(
+      domain, materializations, context, "false | false | true"_view, errors);
+  ASSERT(chain);
+  EXPECT((has_left_shape<
+          Library::Language::Operations::Or, Library::Language::Operations::Or>(
+      *chain)));
+  EXPECT(errors.is_empty());
+}
+
 PERIMORTEM_UNIT_TEST(ExpressionParserTests, nested_precedence_spans) {
   static constexpr View::Bytes source = "2 * 3 - 4 == 2"_view;
   Allocator::Arena domain;
@@ -550,6 +622,8 @@ PERIMORTEM_UNIT_TEST(ExpressionParserTests, malformed_grammar_is_atomic) {
   ExpressionParserContext context(domain, observations);
 
   EXPECT(rejects_grammar(domain, materializations, context, "2 *"_view));
+  EXPECT(rejects_grammar(domain, materializations, context, "true &"_view));
+  EXPECT(rejects_grammar(domain, materializations, context, "false |"_view));
   EXPECT(rejects_grammar(domain, materializations, context, "!"_view));
   EXPECT(rejects_grammar(domain, materializations, context, "\"abc\":[]"_view));
   EXPECT(

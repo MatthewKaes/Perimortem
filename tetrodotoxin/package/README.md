@@ -331,7 +331,7 @@ before allocation, and always emits the header and six known fields above.
 Equivalent facts therefore produce byte identical output regardless of their
 original backing allocations.
 
-### Repository and future restoration
+### Repository and restoration
 
 Namespace `Package::Repository` owns the `Repository` transaction and its
 `Input`, `Artifact`, and `Output` declaration values. One Repository borrows
@@ -378,7 +378,7 @@ normalized destination. Repository creates no directory and writes no product.
 Puffer remains the future owner of physical publication and the future source
 diagnostic for an invalid compile request.
 
-Archive restoration and the source free Workspace transaction do not yet
-exist. `Package::Dialect` encode and restore also remain future work because
-the Package root will be reconstructed from Archive envelope metadata rather
-than stored as a member payload.
+`Environment::Resolution` implements Archive restoration and the source free
+Workspace transaction. `Package::Dialect` encode and restore remain future
+work because the Package root will be reconstructed from Archive envelope
+metadata rather than stored as a member payload.

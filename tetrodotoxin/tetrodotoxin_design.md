@@ -211,7 +211,7 @@ Exact Archive dependencies restore into the Workspace Arena before the frozen
 range links once and finalizes at most once in discovery order.
 
 Textual errors require authored text. `Ttx::Lexical::Errors::Report` receives
-an explicit source name, source body, and `Ttx::Lexical::Span` from the owner
+an explicit source name, source body, and `Ttx::Lexical::Anchor` from the owner
 of that text. Context free filesystem, Archive, and Repository validation
 instead logs its exact local names, values, offsets, and transaction stage
 through `Diagnostics::Log`, then returns failure. Resolution or Puffer owns the

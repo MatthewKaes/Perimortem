@@ -4,6 +4,7 @@
 #include "tetrodotoxin/library/language/parser/expression.hpp"
 
 #include "tetrodotoxin/library/language/identifier.hpp"
+#include "tetrodotoxin/library/language/operations/and.hpp"
 #include "tetrodotoxin/library/language/operations/divide.hpp"
 #include "tetrodotoxin/library/language/operations/equal.hpp"
 #include "tetrodotoxin/library/language/operations/greater.hpp"
@@ -15,6 +16,7 @@
 #include "tetrodotoxin/library/language/operations/negate.hpp"
 #include "tetrodotoxin/library/language/operations/not.hpp"
 #include "tetrodotoxin/library/language/operations/not_equal.hpp"
+#include "tetrodotoxin/library/language/operations/or.hpp"
 #include "tetrodotoxin/library/language/operations/slice.hpp"
 #include "tetrodotoxin/library/language/operations/subtract.hpp"
 #include "tetrodotoxin/library/language/parser/literal.hpp"
@@ -48,6 +50,10 @@ static auto get_precedence(Code::Type operation) -> Count {
   case Code::Type::CmpOp:
   case Code::Type::NotEqOp:
     return 5;
+  case Code::Type::AndOp:
+    return 3;
+  case Code::Type::OrOp:
+    return 2;
   default:
     return 0;
   }
@@ -228,6 +234,26 @@ static auto parse_expression(
       }
 
       expression = *not_equal;
+      break;
+    }
+    case Code::Type::AndOp: {
+      auto logical_and = Library::Language::Operations::And::parse(
+          domain, materializations, cursor, source_context, expression.get());
+      if (!logical_and) {
+        return {};
+      }
+
+      expression = *logical_and;
+      break;
+    }
+    case Code::Type::OrOp: {
+      auto logical_or = Library::Language::Operations::Or::parse(
+          domain, materializations, cursor, source_context, expression.get());
+      if (!logical_or) {
+        return {};
+      }
+
+      expression = *logical_or;
       break;
     }
     default:

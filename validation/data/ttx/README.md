@@ -55,14 +55,14 @@ remain unimplemented and are not claimed by this fixture.
 
 ## Package Source confinement
 
-`Environment::Workspace::import_source` is intended to consume the universal
-envelope, select its installed Package Dialect, and retain the resulting
-`Package::Language::Monograph`. The current interpreter does not yet complete
-that transaction. A future confined package loader opens each Source path
-relative to the package root, then imports its bytes under the Source local
-name. It never resolves paths from the descriptor directory, current working
-directory, or a source local directory. Future confined loader tests must
-construct these independent failures:
+`Environment::Workspace::interpret_source` consumes the universal envelope,
+selects its installed Package Dialect, interprets the source, and retains the
+resulting `Package::Language::Monograph`. A direct caller then links the frozen
+range and finalizes it before Workspace publishes the source. A future confined
+package loader opens each Source path relative to the package root, then imports
+its bytes under the Source local name. It never resolves paths from the
+descriptor directory, current working directory, or a source local directory.
+Future confined loader tests must construct these independent failures:
 
 | Case | Frozen result |
 | --- | --- |
