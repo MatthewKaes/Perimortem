@@ -43,10 +43,13 @@ Library::Language::Monograph::Monograph(
       imports(domain),
       functions(domain),
       structures(domain),
+      enumerations(domain),
       authored_functions(domain),
       public_functions(domain),
       authored_structures(domain),
-      public_structures(domain) {}
+      public_structures(domain),
+      authored_enumerations(domain),
+      public_enumerations(domain) {}
 
 auto Library::Language::Monograph::create_authored(
     Allocator::Arena& domain,
@@ -69,7 +72,8 @@ auto Library::Language::Monograph::bind_function(Function& function) -> Bool {
   const Abstract& outer = interpretation_context.resolve_context(name);
   const Abstract& intrinsic = library_host.resolve_intrinsic(name);
   if (name.is_empty() || functions.contains(name) ||
-      structures.contains(name) || &outer != &Invalid::get_invalid() ||
+      structures.contains(name) || enumerations.contains(name) ||
+      &outer != &Invalid::get_invalid() ||
       &intrinsic != &Invalid::get_invalid()) {
     return False;
   }
@@ -89,7 +93,8 @@ auto Library::Language::Monograph::bind_structure(Types::Structure& structure)
   const Abstract& outer = interpretation_context.resolve_context(name);
   const Abstract& intrinsic = library_host.resolve_intrinsic(name);
   if (name.is_empty() || structures.contains(name) ||
-      functions.contains(name) || &outer != &Invalid::get_invalid() ||
+      functions.contains(name) || enumerations.contains(name) ||
+      &outer != &Invalid::get_invalid() ||
       &intrinsic != &Invalid::get_invalid()) {
     return False;
   }
@@ -98,6 +103,27 @@ auto Library::Language::Monograph::bind_structure(Types::Structure& structure)
   authored_structures.insert(structure);
   if (structure.get_visibility() == Visibility::Public) {
     public_structures.insert(structure);
+  }
+
+  return True;
+}
+
+auto Library::Language::Monograph::bind_enumeration(
+    Types::Enumeration& enumeration) -> Bool {
+  const View::Bytes name = enumeration.get_name();
+  const Abstract& outer = interpretation_context.resolve_context(name);
+  const Abstract& intrinsic = library_host.resolve_intrinsic(name);
+  if (name.is_empty() || enumerations.contains(name) ||
+      structures.contains(name) || functions.contains(name) ||
+      &outer != &Invalid::get_invalid() ||
+      &intrinsic != &Invalid::get_invalid()) {
+    return False;
+  }
+
+  enumerations.launder(name, Reference<const Types::Enumeration>(enumeration));
+  authored_enumerations.insert(enumeration);
+  if (enumeration.get_visibility() == Visibility::Public) {
+    public_enumerations.insert(enumeration);
   }
 
   return True;
@@ -207,12 +233,19 @@ auto Library::Language::Monograph::link_imports() -> Bool {
     const Function& function = candidate.function.get();
     View::Bytes name = function.get_name();
     auto local_entry = functions.find(name);
-    if (local_entry || structures.contains(name)) {
-      View::Bytes message = local_entry
-                                ? "Imported Function collides with one local "
-                                  "Function name."_view
-                                : "Imported Function collides with one local "
-                                  "Structure name."_view;
+    if (local_entry || structures.contains(name) ||
+        enumerations.contains(name)) {
+      View::Bytes message;
+      if (local_entry) {
+        message =
+            "Imported Function collides with one local Function name."_view;
+      } else if (structures.contains(name)) {
+        message =
+            "Imported Function collides with one local Structure name."_view;
+      } else {
+        message =
+            "Imported Function collides with one local Enumeration name."_view;
+      }
       report(
           Ttx::Lexical::Anchor::create(candidate.import_span), message,
           "Rename the local declaration or select another dependency."_view);
@@ -261,9 +294,13 @@ auto Library::Language::Monograph::link_imports() -> Bool {
 auto Library::Language::Monograph::link() -> Bool {
   Bool failed = !link_imports();
 
-  // Every Structure field settles against the complete reserved Type surface.
-  // Function signatures follow only after those Types can answer resolution,
-  // keeping declaration order irrelevant without a provisional Type graph.
+  // Enumeration storage settles before any consumer asks its Type contract.
+  // Structure fields and Function signatures can then name an Enumeration in
+  // either declaration order without a provisional value graph.
+  for (Count i = 0; i < authored_enumerations.get_size(); i++) {
+    failed |= !authored_enumerations[i].get().link_storage();
+  }
+
   for (Count i = 0; i < authored_structures.get_size(); i++) {
     failed |= !authored_structures[i].get().link_fields();
   }
@@ -289,6 +326,12 @@ auto Library::Language::Monograph::link() -> Bool {
 
 auto Library::Language::Monograph::finalize() -> Bool {
   Bool failed = False;
+
+  // Cases become Alias backed Constants before Environment considers this
+  // source complete. A failed value leaves that Enumeration lookup empty.
+  for (Count i = 0; i < authored_enumerations.get_size(); i++) {
+    failed |= !authored_enumerations[i].get().finalize();
+  }
 
   // Structure owns member visibility because only that Type knows which field
   // and nested Callable edges form its public surface.
@@ -369,19 +412,24 @@ auto Library::Language::Monograph::resolve_context(View::Bytes route) const
       [](const Reference<const Types::Structure>& structure)
           -> const Abstract& { return structure.get(); },
       [&]() -> const Abstract& {
-        return functions.visit(
+        return enumerations.visit(
             route,
-            [](const Reference<const Function>& function) -> const Abstract& {
-              return function.get();
-            },
+            [](const Reference<const Types::Enumeration>& enumeration)
+                -> const Abstract& { return enumeration.get(); },
             [&]() -> const Abstract& {
-              const Abstract& outer =
-                  interpretation_context.resolve_context(route);
-              if (&outer != &Invalid::get_invalid()) {
-                return outer;
-              }
+              return functions.visit(
+                  route,
+                  [](const Reference<const Function>& function)
+                      -> const Abstract& { return function.get(); },
+                  [&]() -> const Abstract& {
+                    const Abstract& outer =
+                        interpretation_context.resolve_context(route);
+                    if (&outer != &Invalid::get_invalid()) {
+                      return outer;
+                    }
 
-              return library_host.resolve_intrinsic(route);
+                    return library_host.resolve_intrinsic(route);
+                  });
             });
       });
 }
@@ -404,6 +452,16 @@ auto Library::Language::Monograph::get_public_structures() const
 auto Library::Language::Monograph::get_structures() const
     -> View::Vector<Reference<Types::Structure>> {
   return authored_structures;
+}
+
+auto Library::Language::Monograph::get_public_enumerations() const
+    -> View::Vector<Reference<const Types::Enumeration>> {
+  return public_enumerations;
+}
+
+auto Library::Language::Monograph::get_enumerations() const
+    -> View::Vector<Reference<Types::Enumeration>> {
+  return authored_enumerations;
 }
 
 auto Library::Language::Monograph::get_imports() const -> View::Vector<Import> {

@@ -13,6 +13,7 @@
 #include "tetrodotoxin/library/language/import.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
 #include "tetrodotoxin/library/language/types/bool.hpp"
+#include "tetrodotoxin/library/language/types/enumeration.hpp"
 #include "tetrodotoxin/library/language/types/real_32.hpp"
 #include "tetrodotoxin/library/language/types/real_64.hpp"
 #include "tetrodotoxin/library/language/types/signed_16.hpp"
@@ -103,6 +104,27 @@ auto Library::Dialect::interpret(
     if ((cursor.matches(Code::Type::Public) ||
          cursor.matches(Code::Type::Private)) &&
         cursor.peek(1).get_code() == Code::Type::Type) {
+      Token declaration_kind = cursor.peek(3);
+      if (declaration_kind.get_code() == Code::Type::Addressable &&
+          declaration_kind.caculate_text(cursor.get_source_text()) ==
+              "enum"_view) {
+        auto enumeration = Library::Language::Types::Enumeration::interpret(
+            domain, cursor, declaration_documentation, monograph);
+        if (!enumeration) {
+          return {};
+        }
+
+        if (!monograph.bind_enumeration(*enumeration)) {
+          cursor.create_expression_error(
+              enumeration->get_name_anchor(),
+              "Duplicate Enumeration, Structure, or Function name in this "
+              "Library source."_view);
+          return {};
+        }
+
+        continue;
+      }
+
       auto structure = Library::Language::Types::Structure::interpret(
           domain, cursor, declaration_documentation, monograph,
           *shared_materializations);
@@ -113,7 +135,8 @@ auto Library::Dialect::interpret(
       if (!monograph.bind_structure(*structure)) {
         cursor.create_expression_error(
             structure->get_name_anchor(),
-            "Duplicate Structure or Function name in this Library source."_view);
+            "Duplicate Enumeration, Structure, or Function name in this "
+            "Library source."_view);
         return {};
       }
 
@@ -129,7 +152,8 @@ auto Library::Dialect::interpret(
 
     if (!monograph.bind_function(*function)) {
       cursor.create_token_error(
-          "Duplicate Function name in this Library source."_view);
+          "Duplicate Enumeration, Structure, or Function name in this "
+          "Library source."_view);
       return {};
     }
 

@@ -10,6 +10,7 @@
 #include "tetrodotoxin/library/language/function.hpp"
 #include "tetrodotoxin/library/language/import.hpp"
 #include "tetrodotoxin/library/language/materializations.hpp"
+#include "tetrodotoxin/library/language/types/enumeration.hpp"
 #include "tetrodotoxin/library/language/types/structure.hpp"
 #include "ttx/concept/reference.hpp"
 
@@ -56,6 +57,10 @@ class Monograph : public Tetrodotoxin::Language::Monograph {
   // private visibility controls publication without hiding local Type lookup.
   auto bind_structure(Types::Structure& structure) -> Bool;
 
+  // Enumerations share the local Type surface while finalized case names stay
+  // inside their exact Enumeration identity.
+  auto bind_enumeration(Types::Enumeration& enumeration) -> Bool;
+
   // Imports remain in authored order until linking can see every
   // Package member. Retaining the value adds no parser state to the graph.
   auto retain_import(const Import& import) -> void;
@@ -81,6 +86,12 @@ class Monograph : public Tetrodotoxin::Language::Monograph {
   auto get_structures() const -> Perimortem::Core::View::Vector<
       Ttx::Concept::Reference<Types::Structure>>;
 
+  auto get_public_enumerations() const -> Perimortem::Core::View::Vector<
+      Ttx::Concept::Reference<const Types::Enumeration>>;
+
+  auto get_enumerations() const -> Perimortem::Core::View::Vector<
+      Ttx::Concept::Reference<Types::Enumeration>>;
+
   auto get_imports() const -> Perimortem::Core::View::Vector<Import>;
 
   constexpr auto get_materializations() const -> const Materializations& {
@@ -102,6 +113,10 @@ class Monograph : public Tetrodotoxin::Language::Monograph {
       Perimortem::Core::View::Bytes,
       Ttx::Concept::Reference<const Types::Structure>>
       structures;
+  Perimortem::Memory::Managed::Map<
+      Perimortem::Core::View::Bytes,
+      Ttx::Concept::Reference<const Types::Enumeration>>
+      enumerations;
   Perimortem::Memory::Managed::Vector<Ttx::Concept::Reference<Function>>
       authored_functions;
   Perimortem::Memory::Managed::Vector<Ttx::Concept::Reference<const Function>>
@@ -111,6 +126,12 @@ class Monograph : public Tetrodotoxin::Language::Monograph {
   Perimortem::Memory::Managed::Vector<
       Ttx::Concept::Reference<const Types::Structure>>
       public_structures;
+  Perimortem::Memory::Managed::Vector<
+      Ttx::Concept::Reference<Types::Enumeration>>
+      authored_enumerations;
+  Perimortem::Memory::Managed::Vector<
+      Ttx::Concept::Reference<const Types::Enumeration>>
+      public_enumerations;
 };
 
 }  // namespace Tetrodotoxin::Library::Language

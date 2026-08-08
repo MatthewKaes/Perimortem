@@ -25,6 +25,8 @@ value domains required by CPU executable languages.
 6. Static and Self distinguish Callable invocation.
 7. Structure provides authored inline Types with ordered fields and nested
    Callables.
+8. Enumeration provides authored integer backed Types whose ordered cases are
+   real Constant and Alias identities.
 
 These classes retain and expose real TTX Type, Layout, Addressable, and Callable
 edges. They do not copy those shared contracts into a Library model.
@@ -106,6 +108,16 @@ Callable grammar retains the existing Function objects without copying
 Signature, body, Static, or Callable policy. Structure lookup is exact, private
 Structures remain local, and finalization rejects public fields or Callable
 signatures that expose a private local Structure Type.
+
+`Language::Types::Enumeration` owns one authored
+`public|private TypeName : enum[IntegerType] { ... }` Type. Interpretation
+reserves its stable identity and retains the exact storage route, case
+spellings, Documentation, and Anchors without constructing a second case
+model. Linking selects one exact Signed or Unsigned Type and exposes that
+Type's real Layout. Finalization validates every explicit integer before
+constructing storage typed Constants and ordered TTX Aliases. Case lookup stays
+unavailable until the complete inventory succeeds, while equal values under
+different names remain distinct Alias and Constant identities.
 
 `Language::Import` owns one complete `using Package::Route;` statement. It
 retains the exact contiguous Type shaped Package local route, triggering
@@ -235,21 +247,24 @@ accessors expose their universal addresses to Library machinery and package
 consumers that require exact identity while authored name lookup retains its
 packed intrinsic table.
 
-The concrete Library Monograph owns exact local Structure and Function lookup
-with separate authored order public views. Local lookup also admits private
-Structures and Functions. Each declaration occupies its final Arena address,
-so linking enriches the identity already visible through the Monograph.
-Duplicate declarations fail before any view changes. Missing names resolve to
-the shared TTX Invalid identity.
+The concrete Library Monograph owns exact local Enumeration, Structure, and
+Function lookup with separate authored order public views. Local lookup also
+admits private Enumerations, Structures, and Functions. Each declaration
+occupies its final Arena address, so linking enriches the identity already
+visible through the Monograph. Duplicate declarations fail before any view
+changes. Missing names resolve to the shared TTX Invalid identity.
 
 Function context lookup checks its linked Parameter Addressables first. The
-parent Monograph then checks local Structures and Functions, delegates to the
-source interpretation context for Package or Workspace names, and finally asks
-the installed Library Dialect for intrinsic Types. Structure fields link before
-Function signatures, so a signature may name any complete local Structure
-without depending on declaration order. Raw incomplete declarations occupy
-their names before linking, so later publication enriches those exact identities
-and shadowing remains a diagnosed collision rather than a second scope model.
+parent Monograph then checks local Enumerations, Structures, and Functions,
+delegates to the source interpretation context for Package or Workspace names,
+and finally asks the installed Library Dialect for intrinsic Types. Enumeration
+storage links before Structure fields and Function signatures, so either
+consumer may name a complete local Enumeration without depending on declaration
+order. Structure fields then link before Function signatures, so a signature
+may likewise name any complete local Structure. Raw incomplete declarations
+occupy their names before linking, so later publication enriches those exact
+identities and shadowing remains a diagnosed collision rather than a second
+scope model.
 
 Each Monograph also borrows the exact source local interpretation context and
 retains authored Imports in order. Its `link()` transaction requires that
@@ -351,11 +366,11 @@ No Library payload encoder or restorer exists in the current target.
 ## Current boundary
 
 The current Library target contains the installed Dialect, declaration
-Monograph, binary wide scalar and Void Types, authored Structure Types and
-fields, Function signature construction, source shaped Function Expression
-roots, reusable Layout grammar, exact
-authored Package imports, separate linking and finalization, nondestructive
-cached folding, and the x86_64 assembler.
+Monograph, binary wide scalar and Void Types, authored Enumeration Types with
+integer Constant and Alias cases, authored Structure Types and fields, Function
+signature construction, source shaped Function Expression roots, reusable
+Layout grammar, exact authored Package imports, separate linking and
+finalization, nondestructive cached folding, and the x86_64 assembler.
 
 It does not yet contain control flow Body ownership, required Constant
 validation, CPU target planning, semantic lowering, or App and Scene
