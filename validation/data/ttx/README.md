@@ -58,11 +58,14 @@ remain unimplemented and are not claimed by this fixture.
 `Environment::Workspace::interpret_source` consumes the universal envelope,
 selects its installed Package Dialect, interprets the source, and retains the
 resulting `Package::Language::Monograph`. A direct caller then links the frozen
-range and finalizes it before Workspace publishes the source. A future confined
-package loader opens each Source path relative to the package root, then imports
-its bytes under the Source local name. It never resolves paths from the
-descriptor directory, current working directory, or a source local directory.
-Future confined loader tests must construct these independent failures:
+range and finalizes it before Workspace publishes the source.
+`Environment::Workspace::import_package` drives the confined Package
+transaction. It opens each Source path relative to the package root, interprets
+its bytes under the authored Source local name, freezes the complete discovered
+range, and completes linking, finalization, and publication atomically. It never
+resolves paths from the descriptor directory, current working directory, or a
+source local directory. Confined import coverage constructs these independent
+failures:
 
 | Case | Frozen result |
 | --- | --- |
@@ -110,8 +113,8 @@ state.
 
 The unit test runfiles include `table.bin`, the genuinely empty `empty.bin`,
 and the complete `scene_lifetime` source and resource target explicitly. Echo
-does not yet have a Bazel source target and is not a unit test runfile. File
-presence and the exact table prefix are structural fixture evidence only.
+has the `//apps/ttx/echo:sources` Bazel target but is not a unit test runfile.
+File presence and the exact table prefix are structural fixture evidence only.
 
 ## Active and legacy data
 
