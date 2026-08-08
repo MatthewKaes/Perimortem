@@ -289,9 +289,43 @@ Dialect needs.
 4. Generic, Access, View, and Fixed represent Library materialization.
 5. Concrete Bool, integer, and real Types provide Library scalar identities.
 6. Static and Self distinguish Library Callable invocation.
+7. Struct is the inline value Type, while Object is the exact managed reference
+   Type.
+8. `Language::Layouts::Structured` retains positional, named, or indexed
+   Expression flow and exposes the proper TTX Layout used for fitting.
 
 Library contracts retain real TTX Type, Layout, Addressable, and Callable
 edges. They do not redeclare those shared owners.
+
+Object is a Library Type rather than a new TTX category or shared Managed base.
+Every Object value is a nonnull reference identity. Assignment, parameter
+passing, and return preserve that identity, so mutations through one alias are
+visible through the others. V1 exposes no destructor, finalizer, weak
+reference, explicit release, or observable reclamation timing. Reference
+counting, tracing collection, Arena retention, pointer shape, and collector
+headers remain interchangeable runtime and target choices rather than semantic
+graph facts.
+
+Object retains its real authored Field and Function owners. Its semantic Layout
+describes those members without storing offsets or target representation.
+`expose state` publishes a distinct read only Addressable while the writable
+member remains retained, and private state remains local. An exact Object
+receiver and its selected Field prove member write capability without widening
+the shared TTX Addressable contract. Construction initializes state in authored
+order and publishes no value until every initializer succeeds. `new` requires
+an exact receiving Object Type; an inferred `:= new` declaration remains
+invalid. Construction and runtime allocation are later owners rather than part
+of the Object Type declaration transaction.
+
+`Language::Layouts::Structured` is an identity free Library source fact, not an
+Expression and not an anonymous or transient Type. It retains one unmixed
+positional, named, or indexed Expression flow and stores the corresponding real
+TTX Layout. Receiving declarations, returns, invocations, and constructions use
+directional Layout fitting against their expected Layout after every retained
+Expression links. Packing, slicing, and swizzling transform or select Layout
+flow; they do not manufacture a Composite Expression or absorb fitting into the
+Type system. Projection remains the single selection that retains one real
+Addressable.
 
 Every authored Expression retains one Anchor containing its full Span and the
 independent Token a diagnostic should emphasize. Synthetic Expressions omit
@@ -540,6 +574,11 @@ authored Constant size yields canonical Fixed identity during linking, while a
 dynamic size yields View unless the receiver already proves writable contiguous
 Access. A size Operation that folds later retains that already linked View or
 Access result Type.
+The accepted Slice class retains the authored selection request and its value
+result identity. Its pending Layout boundary audit must prove that range
+selection and fitting are performed through real Layouts rather than absorbed
+into a parallel Type rule. A material mismatch is a Slice correction, not a
+reason to create a transient aggregate Type.
 Bytes is the current Constant ranged payload domain rather than evidence for a
 universal Constant payload interface.
 
@@ -590,11 +629,13 @@ retain NotEqual.
 Signed and Unsigned operations reject host arithmetic overflow first, then use
 `Core::Math::is_representable` to prove the result fits the selected byte width
 rather than reproducing representation arithmetic in each operation.
-A later Swizzle or named operator adds its own grammar builder and one explicit
+A later named scalar operator adds its own grammar builder and one explicit
 Expression dispatch case instead of extending Slice or duplicating parser
-transactions. Function finalization may query each retained root in authored
-order, but the source graph remains intact. The receiving typed operation
-applies fitting only after the complete Expression has linked its result Type.
+transactions. Swizzle instead selects ordered Structured Layout flow and does
+not construct an Operation Expression. Function finalization may query each
+retained root in authored order, but the source graph remains intact. The
+receiving typed operation applies fitting only after the complete Expression
+has linked its result Type.
 Invalid operand categories are linking Diagnostics over the complete operation
 Span. Negative values, arithmetic overflow, and bounds discovered only by
 folding remain exact cached `Expression::Error` values until another owner

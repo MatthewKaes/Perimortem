@@ -23,10 +23,16 @@ value domains required by CPU executable languages.
 4. Generic provides Access, View, and Fixed materializations.
 5. Concrete Bool, signed, unsigned, and real Types provide scalar identities.
 6. Static and Self distinguish Callable invocation.
-7. Structure provides authored inline Types with ordered fields and nested
-   Callables.
+7. Struct provides authored inline value Types with ordered fields and nested
+   Callables. The current C++ owner remains `Language::Types::Structure` until
+   an explicit naming correction changes that accepted implementation.
 8. Enumeration provides authored integer backed Types whose ordered cases are
    real Constant and Alias identities.
+9. Object is the exact managed reference Type. It is never named
+   `ManagedObject` and does not introduce a TTX Managed category.
+10. `Language::Layouts::Structured` retains source shaped positional, named,
+    or indexed Expression flow as a proper Layout rather than an aggregate
+    Expression or transient Type.
 
 These classes retain and expose real TTX Type, Layout, Addressable, and Callable
 edges. They do not copy those shared contracts into a Library model.
@@ -119,6 +125,32 @@ constructing storage typed Constants and ordered TTX Aliases. Case lookup stays
 unavailable until the complete inventory succeeds, while equal values under
 different names remain distinct Alias and Constant identities.
 
+`Language::Types::Object` owns one authored `object` Type. Object values are
+nonnull reference identities, and copying a value preserves that identity so
+aliases observe the same mutations. The Type retains its real Field and
+Function owners and exposes their semantic Layout without target offsets,
+pointer representation, allocator policy, or collector state. `expose state`
+publishes a distinct read only Addressable while the writable member remains
+retained; private state stays local. V1 has no finalizer, weak reference,
+explicit release, or observable reclamation order. Runtime allocation and
+reclamation remain compiler and runtime policy.
+
+`Language::Layouts::Structured` retains one complete positional, named, or
+indexed Expression flow and stores the corresponding real TTX Layout. The
+three source modes never mix. A declaration, return, invocation, construction,
+or another receiving owner fits that Layout directly against its expected
+Layout after the retained Expressions link. No anonymous Type, transient Type,
+or `Language::Composite` Expression stands between those Layouts. Projection
+selects one real Addressable, while packing, slicing, and swizzling remain
+Layout operations.
+
+Object construction requires one exact receiving Object Type. State
+initializers run in authored order and no value is published until they all
+succeed. `state session : Session = new` is valid while `state inferred := new`
+is rejected before constructing an Expression. The later Construction owner
+handles `new`; Object declaration owns neither runtime allocation nor the
+Construction Expression.
+
 `Language::Import` owns one complete `using Package::Route;` statement. It
 retains the exact contiguous Type shaped Package local route, triggering
 `using` Token, and complete statement Span. Package remains the owner of that
@@ -152,6 +184,13 @@ yields canonical View unless the receiver already proves writable contiguous
 Access. An Operation size that folds later retains that already linked View or
 Access result Type. Slice never manufactures write capability from Fixed, View,
 Bytes, or Constant identity.
+
+Slice retains the authored selection request and its value result identity, but
+its pending Layout boundary audit must prove that range selection and fitting
+remain operations on real Layouts. A material conflict corrects Slice rather
+than introducing an anonymous or transient aggregate Type. Swizzle is not a
+parallel Operation Expression; it selects ordered
+`Language::Layouts::Structured` flow.
 
 Bytes is the current Constant ranged payload domain. Fully Constant Bytes index
 and range operations evaluate to canonical Unsigned_8 or exact Fixed Bytes

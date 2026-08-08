@@ -123,9 +123,12 @@ error model.
 
 `Library::Language` owns the semantics that are not universal across Dialects:
 Expression, Binding, Projection, Constant and its value domains, Generic and its
-materializations, concrete scalar Types, and Static and Self invocation
-distinctions. Library owners retain real TTX edges rather than copying the TTX
-model.
+materializations, concrete scalar Types, Struct inline values, Object managed
+reference Types, Structured source Layouts, and Static and Self invocation
+distinctions. Object is the exact Type name rather than `ManagedObject`.
+Structured source flow remains an identity free Layout rather than an
+Expression or anonymous Type. Library owners retain real TTX edges rather than
+copying the TTX model.
 
 App, Scene, and other CPU capable Dialects may use Library language contracts
 where their authored semantics require them. They do not become Library

@@ -155,8 +155,10 @@ observations. It does not invoke an application target.
 
 Canonical signatures and empty returns still need one real Void Type owner.
 Executable source still needs one Library owned executable representation, and
-`object` still needs one Library owned managed object contract. Do not reopen
-TTX or create shadow contracts to bypass those decisions.
+`object` still needs its Library owned Object implementation. The accepted
+Object contract is a nonnull reference identity with alias visible mutation
+and no observable V1 reclamation policy. Do not reopen TTX or create shadow
+contracts to bypass that implementation.
 
 TTX v1 is closed around its neutral Type, Layout, Addressable, and Callable
 vocabulary. Library owns Generic materialization, concrete scalar identities,

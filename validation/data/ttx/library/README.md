@@ -26,13 +26,13 @@ Dialect rules into universal TTX semantics.
 | `public`, `expose state`, `private`, and `const` | These modifiers keep publication separate from evaluation. `observed_total` exports a read only projection while its writable owner stays retained. Inside an embedded Foreign block, `public` publishes an import to the private source local `foreign` surface rather than to package exports. |
 | `PacketAlias : alias = Packet` | The declaration retains the Alias edge and resolves it to the real `Packet` Type. |
 | `struct` and ordinary fields | These constructs create the real inline `Packet` and `PrivateOps` Types with authored field order. |
-| `object` and typed `= new` | These constructs require a real Managed `Session` Type. `new` performs expected Type driven empty construction and cannot infer the missing Type in `:= new`. |
+| `object` and typed `= new` | These constructs require a real `Session` Object Type. `new` performs expected Type driven empty construction and cannot infer the missing Type in `:= new`. |
 | `enum[Unsigned_8]` | The declaration retains the storage Type and the ordered decimal and hexadecimal cases. |
 | `foreign "C" { ... }` | The block selects the C ABI and explicitly declares the external symbols consumed by this source. `const` declares a read only external Addressable, `state` declares a writable external Addressable, and `func` declares a bodyless external Callable. |
 | state, const, field, and ordinary value definitions | These definitions retain distinct writable storage, stable compile time results, fields, and ordinary runtime values. |
 | same name `Packet::identity` functions | The functions retain one Static and one Self Callable on separate lookup surfaces. The bare `self` receiver is parameter zero. |
 | functions referring to later private owners | These functions resolve `Packet::finish`, the source local `foreign` surface, `PrivateOps`, `private_total`, and native `total` only after the declaration graph is complete. |
-| direct, empty, unnamed, and named Layouts | These Layouts preserve every authored parameter and result shape. Layout field attributes stay ordered on their real parameter owners. |
+| direct, empty, unnamed, named, and structured value Layouts | These Layouts preserve every authored parameter, result, and expression-flow shape. Positional, named, and indexed structured flows do not mix, and Layout field attributes stay ordered on their real owners. |
 | empty, positional, named, and indexed parentheses | These forms preserve the selected mode. Nested slices and swizzles produce positional flow, while named and indexed designators never mix. |
 | `0...limit`, logical, comparison, arithmetic, unary, and postfix forms | These forms apply the accepted precedence ladder once and retain the selected Static, Self, field, index, slice, and swizzle operations. |
 | `=`, `+=`, and `-=` | These assignments require the decoded left chain to prove write capability. Assignment never becomes an expression. |
@@ -59,15 +59,15 @@ and Type as the retained writable state.
 
 The frozen Type and Layout expectations are:
 
-1. `Packet` is an inline Structure ordered as `width`, `height`, `ready`, then
+1. `Packet` is an inline Struct value ordered as `width`, `height`, `ready`, then
    private `checksum`. Its Static and Self `identity` Callables are distinct.
    The Self signature includes `.self : Packet` at index zero. Its Body calls
    the later private Static `finish` owner.
 2. `Mode` stores `Unsigned_8` and retains `idle = 0`, `active = 1`, and
    `paused = 2` in that order.
-3. `Session` is a Managed Object. It retains writable `progress` and `token`
-   state, exports only the read only `progress` projection and `advance`, and
-   retains private `token_value`.
+3. `Session` is an Object. Its values are nonnull reference identities. It
+   retains writable `progress` and `token` state, exports only the read only
+   `progress` projection and `advance`, and retains private `token_value`.
 4. `PacketAlias` remains queryable as an Alias and resolves to `Packet`.
 5. `signature`, `dense_defaults`, both slice results, and `decode_table` use
    supported concrete `Fixed` materializations with their ordered arguments.
@@ -145,7 +145,7 @@ emit an undefined Foreign call relocation for `library_foreign_add`.
 Every failure prevents a completed Library Monograph. Arena allocation from a
 failed private transaction may remain unreachable.
 
-## CPU executable and Managed gates
+## CPU executable and Object gates
 
 Library owns the reusable CPU compilation path, but the exact durable
 representation for completed body facts remains unresolved. Scene lifecycle
@@ -155,8 +155,11 @@ facts remain on App. Those selected CPU facts use the same Library compiler
 after their owners are complete. They do not become generated Library
 Monographs or shadow graphs.
 
-Library owns the future managed object contract required by `object`, but its
-model and proof do not yet exist. This fixture does not reopen TTX or assign
-either gap to a shadow Tetrodotoxin contract. The frozen `object`, initializer,
-expression, and control flow source records the required acceptance input while
-implementations that require those missing contracts remain blocked.
+Library owns the accepted Object contract required by `object`. Object is a
+nonnull reference identity with alias visible mutation and no observable V1
+reclamation policy. Runtime allocation remains outside its semantic Type. The
+implementation and proof do not yet exist. This fixture does not reopen TTX or
+assign either gap to a shadow Tetrodotoxin contract. The frozen `object`,
+initializer, expression, and control flow source records the required
+acceptance input while implementations that require those missing contracts
+remain blocked.
