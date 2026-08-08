@@ -13,8 +13,10 @@
 #include "tetrodotoxin/library/dialect.hpp"
 #include "tetrodotoxin/library/language/constants/signed.hpp"
 #include "tetrodotoxin/library/language/constants/unsigned.hpp"
+#include "tetrodotoxin/library/language/function.hpp"
 #include "tetrodotoxin/library/language/materializations.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
+#include "tetrodotoxin/library/language/types/structure.hpp"
 #include "ttx/concept/invalid.hpp"
 #include "ttx/lexical/errors.hpp"
 #include "ttx/lexical/tokenizer.hpp"
@@ -100,13 +102,16 @@ static auto rejects_finalize_without_cases(View::Bytes source) -> Bool {
     return False;
   }
 
-  auto enumerations = monograph->get_enumerations();
-  if (enumerations.is_empty()) {
+  auto bindings = monograph->get_authored_bindings();
+  if (bindings.is_empty() ||
+      !bindings.get_data()[0].get().is<Language::Types::Enumeration>()) {
     return False;
   }
 
   Bool finalized = workspace.finalize(errors);
-  auto cases = enumerations.get_data()[0].get().get_cases();
+  const auto& enumeration = static_cast<const Language::Types::Enumeration&>(
+      bindings.get_data()[0].get());
+  auto cases = enumeration.get_cases();
   return !finalized && cases.is_empty() && !errors.is_empty() &&
          &workspace.resolve_context("EnumerationTest"_view) ==
              &Invalid::get_invalid();
@@ -132,12 +137,17 @@ PERIMORTEM_UNIT_TEST(EnumerationTests, stable_authored_graph) {
   auto monograph = interpret(workspace, errors, source);
   ASSERT(monograph);
 
-  auto enumerations = monograph->get_enumerations();
-  auto public_enumerations = monograph->get_public_enumerations();
-  ASSERT_EQ(enumerations.get_size(), Count(1));
-  ASSERT_EQ(public_enumerations.get_size(), Count(1));
-  auto& mode = enumerations.get_data()[0].get();
-  EXPECT(&public_enumerations.get_data()[0].get() == &mode);
+  auto bindings = monograph->get_authored_bindings();
+  ASSERT_EQ(bindings.get_size(), Count(1));
+  ASSERT(bindings.get_data()[0].get().is<Language::Types::Enumeration>());
+  const auto& mode = static_cast<const Language::Types::Enumeration&>(
+      bindings.get_data()[0].get());
+  const auto& source_structure =
+      static_cast<const Language::Types::Structure&>(monograph->get_source());
+  auto exposed = source_structure.get_external_static_bindings();
+  ASSERT_EQ(exposed.get_size(), Count(1));
+  EXPECT(&exposed.get_data()[0].get() == &mode);
+  EXPECT(&monograph->resolve_context("source"_view) == &source_structure);
   EXPECT(&monograph->resolve_context("Mode"_view) == &mode);
   EXPECT(&mode.resolve() == &Invalid::get_invalid());
   EXPECT_NOT(mode.get_storage_type());
@@ -224,7 +234,11 @@ PERIMORTEM_UNIT_TEST(EnumerationTests, signed_values_and_equal_aliases) {
   ASSERT(workspace.link(errors));
   ASSERT(workspace.finalize(errors));
 
-  auto& offset = monograph->get_enumerations().get_data()[0].get();
+  auto bindings = monograph->get_authored_bindings();
+  ASSERT_EQ(bindings.get_size(), Count(1));
+  ASSERT(bindings.get_data()[0].get().is<Language::Types::Enumeration>());
+  const auto& offset = static_cast<const Language::Types::Enumeration&>(
+      bindings.get_data()[0].get());
   auto cases = offset.get_cases();
   ASSERT_EQ(cases.get_size(), Count(5));
   Static::Vector<Signed_64, 5> expected = {{-128, 0, 127, 127, 127}};
@@ -262,10 +276,16 @@ PERIMORTEM_UNIT_TEST(EnumerationTests, binary_wide_boundaries) {
   ASSERT(workspace.link(errors));
   ASSERT(workspace.finalize(errors));
 
-  auto enumerations = monograph->get_enumerations();
-  ASSERT_EQ(enumerations.get_size(), Count(2));
-  auto unsigned_cases = enumerations.get_data()[0].get().get_cases();
-  auto signed_cases = enumerations.get_data()[1].get().get_cases();
+  auto bindings = monograph->get_authored_bindings();
+  ASSERT_EQ(bindings.get_size(), Count(2));
+  ASSERT(bindings.get_data()[0].get().is<Language::Types::Enumeration>());
+  ASSERT(bindings.get_data()[1].get().is<Language::Types::Enumeration>());
+  const auto& unsigned_edge = static_cast<const Language::Types::Enumeration&>(
+      bindings.get_data()[0].get());
+  const auto& signed_edge = static_cast<const Language::Types::Enumeration&>(
+      bindings.get_data()[1].get());
+  auto unsigned_cases = unsigned_edge.get_cases();
+  auto signed_cases = signed_edge.get_cases();
   ASSERT_EQ(unsigned_cases.get_size(), Count(2));
   ASSERT_EQ(signed_cases.get_size(), Count(2));
   for (Count i = 0; i < unsigned_cases.get_size(); i++) {
@@ -340,21 +360,18 @@ PERIMORTEM_UNIT_TEST(EnumerationTests, visibility_and_authored_order) {
   ASSERT(workspace.link(errors));
   ASSERT(workspace.finalize(errors));
 
-  auto enumerations = monograph->get_enumerations();
-  auto public_enumerations = monograph->get_public_enumerations();
-  ASSERT_EQ(enumerations.get_size(), Count(3));
-  ASSERT_EQ(public_enumerations.get_size(), Count(2));
-  EXPECT_TEXT(enumerations.get_data()[0].get().get_name(), "Hidden"_view);
-  EXPECT_TEXT(enumerations.get_data()[1].get().get_name(), "First"_view);
-  EXPECT_TEXT(enumerations.get_data()[2].get().get_name(), "Second"_view);
-  EXPECT(
-      &public_enumerations.get_data()[0].get() ==
-      &enumerations.get_data()[1].get());
-  EXPECT(
-      &public_enumerations.get_data()[1].get() ==
-      &enumerations.get_data()[2].get());
-  EXPECT(monograph->resolve_context("Hidden"_view)
-             .is<Language::Types::Enumeration>());
+  auto bindings = monograph->get_authored_bindings();
+  ASSERT_EQ(bindings.get_size(), Count(3));
+  EXPECT_TEXT(bindings.get_data()[0].get().get_name(), "Hidden"_view);
+  EXPECT_TEXT(bindings.get_data()[1].get().get_name(), "First"_view);
+  EXPECT_TEXT(bindings.get_data()[2].get().get_name(), "Second"_view);
+  const auto& source_structure =
+      static_cast<const Language::Types::Structure&>(monograph->get_source());
+  auto exposed = source_structure.get_external_static_bindings();
+  ASSERT_EQ(exposed.get_size(), Count(2));
+  EXPECT(&exposed.get_data()[0].get() == &bindings.get_data()[1].get());
+  EXPECT(&exposed.get_data()[1].get() == &bindings.get_data()[2].get());
+  EXPECT(&monograph->resolve_context("Hidden"_view) == &Invalid::get_invalid());
   EXPECT(errors.is_empty());
 }
 
@@ -459,7 +476,11 @@ PERIMORTEM_UNIT_TEST(EnumerationTests, repeat_lifecycle) {
   ASSERT(monograph->link());
   ASSERT(monograph->finalize());
   ASSERT(monograph->finalize());
-  auto& mode = monograph->get_enumerations().get_data()[0].get();
+  auto bindings = monograph->get_authored_bindings();
+  ASSERT_EQ(bindings.get_size(), Count(1));
+  ASSERT(bindings.get_data()[0].get().is<Language::Types::Enumeration>());
+  const auto& mode = static_cast<const Language::Types::Enumeration&>(
+      bindings.get_data()[0].get());
   EXPECT(mode.is_linked());
   EXPECT(mode.is_finalized());
   EXPECT_EQ(mode.get_cases().get_size(), Count(1));

@@ -55,6 +55,10 @@ diagnostic.
 The identity bearing graph consists of `Abstract`, `Invalid`, `Alias`, `Type`,
 `Value`, `Flag`, `Real`, `Signed`, `Unsigned`, `Addressable`, and `Callable`.
 
+Those contracts are a shared vocabulary, not a type system. Concrete languages
+own their Type inventory, scope, visibility, mutation, construction, and
+receiver policy.
+
 `Documentation`, `Layout`, `Reference`, and `Attribute` are identity free
 supporting contracts and values. TTX also supplies common Layout
 implementations.

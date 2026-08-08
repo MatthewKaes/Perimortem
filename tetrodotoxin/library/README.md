@@ -23,13 +23,15 @@ value domains required by CPU executable languages.
 4. Generic provides Access, View, and Fixed materializations.
 5. Concrete Bool, signed, unsigned, and real Types provide scalar identities.
 6. Static and Self distinguish Callable invocation.
-7. Struct provides authored inline value Types with ordered fields and nested
-   Callables. The current C++ owner remains `Language::Types::Structure` until
-   an explicit naming correction changes that accepted implementation.
+7. Structure owns the common Field, Function, visibility, lookup, writability,
+   and inline value Type semantics used by authored `struct` declarations. The
+   current C++ owner remains `Language::Types::Structure` until an explicit
+   naming correction changes that accepted implementation.
 8. Enumeration provides authored integer backed Types whose ordered cases are
    real Constant and Alias identities.
-9. Object is the exact managed reference Type. It is never named
-   `ManagedObject` and does not introduce a TTX Managed category.
+9. Object layers exact managed reference identity and lifetime semantics over
+   Structure. It is never named `ManagedObject` and does not introduce a TTX
+   Managed category or a second composite implementation.
 10. `Language::Layouts::Structured` retains source shaped positional, named,
     or indexed Expression flow as a proper Layout rather than an aggregate
     Expression or transient Type.
@@ -95,7 +97,10 @@ Expression roots. The current body grammar accepts comments, `Expression;`
 roots, and one optional final `return Expression?;`. Blocks, control flow, and
 other statement forms remain unsupported rather than being retained as opaque
 tokens. Until semantic linking succeeds the Function resolves to shared TTX
-Invalid.
+Invalid. A Function retains its source Monograph for source lifetime,
+diagnostics, and completion separately from its exact host Type. A root
+Function is hosted by the Monograph's synthetic source Structure, while a
+member Function is hosted by the exact Structure that declares it.
 
 `Language::Signature` owns the complete authored parameter and result grammar.
 Its private slots retain exact Type routes, entry and Type Anchors, and optional
@@ -105,14 +110,24 @@ Layout projections, and publishes every Function signature before Monograph
 body linking begins.
 
 `Language::Field` owns one authored member shared by Library composite Type
-systems. It retains visibility, Documentation, exact Type spelling, and Anchors
-until linking can construct its real TTX Addressable projection with one exact
-Type. `Language::Types::Structure` retains Fields in authored order from
-`public|private TypeName : struct { ... }`, and its TTX Structured Layout borrows
-their Addressable projections without copying field facts. Supported nested
-Callable grammar retains the existing Function objects without copying
-Signature, body, Static, or Callable policy. Structure lookup is exact, private
-Structures remain local, and finalization rejects public fields or Callable
+systems. It retains exposure, Documentation, exact Type spelling, Anchors, and
+one of the Library owned `Full`, `Internal`, or `Init` writability states until
+linking can construct the real Field Addressable with one exact Type.
+Exposure independently decides whether external lookup can read the Field.
+Writability decides whether mutable access is available to every caller that
+can reach it, only Functions hosted by its Structure, or only the construction
+transaction for the exact value. `Language::Types::Structure` retains Fields in
+authored order from `public|private TypeName : struct { ... }`, and its TTX
+Structured Layout borrows those same Field identities without copying member
+facts. Interpretation parses one transaction-local structured definition
+header, uses its `struct` or `object` discriminator to reserve the exact final
+Type identity, and then applies common member grammar against that identity.
+The Dialect only classifies the declaration family without consuming it.
+Supported nested Callable grammar retains the existing Function objects without
+copying Signature, body, Static, or Callable policy. Each Structure keeps one
+complete member inventory. External lookup sees only exposed members, while a
+Function hosted by that exact Structure receives the complete view. Private
+Structures remain local, and finalization rejects exposed fields or Callable
 signatures that expose a private local Structure Type.
 
 `Language::Types::Enumeration` owns one authored
@@ -125,13 +140,12 @@ constructing storage typed Constants and ordered TTX Aliases. Case lookup stays
 unavailable until the complete inventory succeeds, while equal values under
 different names remain distinct Alias and Constant identities.
 
-`Language::Types::Object` owns one authored `object` Type. Object values are
-nonnull reference identities, and copying a value preserves that identity so
-aliases observe the same mutations. The Type retains its real Field and
-Function owners and exposes their semantic Layout without target offsets,
-pointer representation, allocator policy, or collector state. `expose state`
-publishes a distinct read only Addressable while the writable member remains
-retained; private state stays local. V1 has no finalizer, weak reference,
+`Language::Types::Object` derives its Field, Function, Layout, visibility,
+lookup, and writability semantics from Structure and adds no duplicate member
+inventory. Object values are nonnull reference identities, and copying a value
+preserves that identity so aliases observe the same mutations. Object adds
+Library lifetime semantics without target offsets, pointer representation,
+allocator policy, or collector state. V1 has no finalizer, weak reference,
 explicit release, or observable reclamation order. Runtime allocation and
 reclamation remain compiler and runtime policy.
 
@@ -280,45 +294,52 @@ graph. No Library payload encoder or restorer currently makes that choice.
 The top level Library Dialect installs into `Environment::Workspace` through the
 common `Language::Dialect` interface. Each Workspace owns a distinct stateful
 Dialect while Bool, integer, real, and Void remain immutable binary wide
-identities. Every Library Monograph resolves those same identities through the
-Dialect without publishing them as authored declarations. Typed static Dialect
-accessors expose their universal addresses to Library machinery and package
-consumers that require exact identity while authored name lookup retains its
-packed intrinsic table.
+identities. Hosted Library semantics resolve those identities through the
+synthetic source Structure's complete view without publishing them through the
+Monograph's external view. Typed static Dialect accessors expose their universal
+addresses to Library machinery and package consumers that require exact
+identity while authored name lookup retains its packed intrinsic table.
 
-The concrete Library Monograph owns exact local Enumeration, Structure, and
-Function lookup with separate authored order public views. Local lookup also
-admits private Enumerations, Structures, and Functions. Each declaration
-occupies its final Arena address, so linking enriches the identity already
-visible through the Monograph. Duplicate declarations fail before any view
-changes. Missing names resolve to the shared TTX Invalid identity.
+Each concrete Library Monograph owns one stable synthetic Structure for its
+source scope. That Structure owns the top level declaration inventory and
+admits only Static bindings. It has no Self receiver or instance Fields, so its
+empty instance Layout remains complete. The reserved Library route `source`
+returns that exact Structure, while every other Monograph resolution request is
+forwarded through its external lookup. `source` has no Dialect agnostic meaning
+and does not change the common Monograph contract.
 
-Function context lookup checks its linked Parameter Addressables first. The
-parent Monograph then checks local Enumerations, Structures, and Functions,
+Function context lookup checks linked Parameter Addressables before the exact
+host Structure. The host supplies its complete lookup only to a Function it
+owns; every other caller receives its external view. The synthetic source
+Structure's complete lookup checks local and imported Static bindings,
 delegates to the source interpretation context for Package or Workspace names,
-and finally asks the installed Library Dialect for intrinsic Types. Enumeration
-storage links before Structure fields and Function signatures, so either
-consumer may name a complete local Enumeration without depending on declaration
-order. Structure fields then link before Function signatures, so a signature
-may likewise name any complete local Structure. Raw incomplete declarations
-occupy their names before linking, so later publication enriches those exact
-identities and shadowing remains a diagnosed collision rather than a second
-scope model.
+and finally asks the installed Library Dialect for intrinsic Types. Its
+external lookup returns only exposed source bindings. An authored Structure may
+continue an unresolved lookup through that source scope without making the
+Monograph a Type. Enumeration storage links before Structure fields and
+Function signatures, so either consumer may name a complete local Enumeration
+without depending on declaration order. Structure fields then link before
+Object state initializers and Function signatures. Incomplete declarations
+already occupy their final Arena addresses and Static binding names, so later
+completion enriches those exact identities and collisions fail before either
+lookup view changes.
 
 Each Monograph also borrows the exact source local interpretation context and
 retains authored Imports in order. Its `link()` transaction requires that
-context and each selected target to resolve to real Package Monographs. It
-traverses only the target Package's ordered direct member Alias view and
-consumes only complete public Functions from direct Library member Monographs.
-Private Functions, Dependency Aliases, nested Packages, other Dialect members,
-and declarations that a provider imported remain excluded.
+context and each selected target to resolve to real Package Monographs. Import
+expansion traverses only the target Package's ordered direct member Alias view,
+queries each member's Library specific `source` route, and accepts only the
+exact synthetic Structure of a direct Library Monograph. It consumes only that
+Structure's exposed Static bindings. Dependency Aliases, nested Packages, other
+Dialect members, private bindings, and bindings that a provider imported remain
+excluded.
 
 The complete candidate sequence is staged before lookup changes. Duplicate
-Imports, unresolved targets, incomplete provider Functions, and exact local or
+Imports, unresolved targets, incomplete provider identities, and exact local or
 imported collisions reject with no imported entry installed. Successful
-imports add borrowed provider Function references only to local lookup. The
-public Function view remains the source's own authored publication surface, so
-imports cannot become transitive exports.
+imports create local TTX Alias bindings that retain the exact exposed provider
+Static identities. Those Aliases enter only the importing source Structure's
+complete lookup, so imports cannot become transitive exports.
 
 Interpretation admits ordinary public and private Function definitions. It
 constructs real TTX and Library Language identities in the Environment Arena.
@@ -406,7 +427,8 @@ No Library payload encoder or restorer exists in the current target.
 
 The current Library target contains the installed Dialect, declaration
 Monograph, binary wide scalar and Void Types, authored Enumeration Types with
-integer Constant and Alias cases, authored Structure Types and fields, Function
+integer Constant and Alias cases, authored Structure Types and fields, authored
+Object Types layered over Structure with ordered state initializers, Function
 signature construction, source shaped Function Expression roots, reusable
 Layout grammar, exact authored Package imports, separate linking and
 finalization, nondestructive cached folding, and the x86_64 assembler.

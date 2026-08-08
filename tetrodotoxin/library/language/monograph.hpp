@@ -3,23 +3,22 @@
 
 #pragma once
 
-#include "perimortem/memory/managed/map.hpp"
 #include "perimortem/memory/managed/vector.hpp"
 
+#include "perimortem/utility/option.hpp"
+
 #include "tetrodotoxin/library/dialect.hpp"
-#include "tetrodotoxin/library/language/function.hpp"
 #include "tetrodotoxin/library/language/import.hpp"
 #include "tetrodotoxin/library/language/materializations.hpp"
-#include "tetrodotoxin/library/language/types/enumeration.hpp"
-#include "tetrodotoxin/library/language/types/structure.hpp"
+#include "tetrodotoxin/library/language/visibility.hpp"
 #include "ttx/concept/reference.hpp"
+#include "ttx/model/type.hpp"
 
 namespace Tetrodotoxin::Library::Language {
 
-// Monograph owns the exact local Structure and Function scope with independent
-// authored public order for one Library source. Each declaration retains its
-// own source facts while one installed Dialect Materializations inventory lives
-// beside every graph it constructs in the Environment Arena.
+// Monograph retains one Library source transaction. Its synthetic Structure
+// owns name lookup while Monograph keeps the source facts and ordered barriers
+// that do not belong to a Type.
 class Monograph : public Tetrodotoxin::Language::Monograph {
  private:
   Monograph(
@@ -49,21 +48,14 @@ class Monograph : public Tetrodotoxin::Language::Monograph {
            Tetrodotoxin::Language::Monograph::implements(requested);
   }
 
-  // The Function and every nested view must share this Monograph Arena
-  // lifetime. Duplicate names leave lookup and publication unchanged.
-  auto bind_function(Function& function) -> Bool;
+  // Every authored declaration enters the synthetic source Structure before
+  // its later semantic barriers run. Duplicate names leave both owners intact.
+  auto bind_static(Ttx::Concept::Abstract& binding, Visibility visibility)
+      -> Bool;
 
-  // Structures occupy the same exact local name surface as Functions. Their
-  // private visibility controls publication without hiding local Type lookup.
-  auto bind_structure(Types::Structure& structure) -> Bool;
-
-  // Enumerations share the local Type surface while finalized case names stay
-  // inside their exact Enumeration identity.
-  auto bind_enumeration(Types::Enumeration& enumeration) -> Bool;
-
-  // Imports remain in authored order until linking can see every
-  // Package member. Retaining the value adds no parser state to the graph.
-  auto retain_import(const Import& import) -> void;
+  // Imports remain in authored order until linking can inspect each selected
+  // Package member through its own contextual source route.
+  auto retain_import(const Import& import) -> Bool;
 
   auto link() -> Bool override;
 
@@ -74,28 +66,26 @@ class Monograph : public Tetrodotoxin::Language::Monograph {
   auto resolve_context(Perimortem::Core::View::Bytes route) const
       -> const Ttx::Concept::Abstract& override;
 
-  auto get_public_functions() const -> Perimortem::Core::View::Vector<
-      Ttx::Concept::Reference<const Function>>;
+  auto get_source() -> Ttx::Model::Type&;
 
-  auto get_functions() const
-      -> Perimortem::Core::View::Vector<Ttx::Concept::Reference<Function>>;
+  auto get_source() const -> const Ttx::Model::Type&;
 
-  auto get_public_structures() const -> Perimortem::Core::View::Vector<
-      Ttx::Concept::Reference<const Types::Structure>>;
-
-  auto get_structures() const -> Perimortem::Core::View::Vector<
-      Ttx::Concept::Reference<Types::Structure>>;
-
-  auto get_public_enumerations() const -> Perimortem::Core::View::Vector<
-      Ttx::Concept::Reference<const Types::Enumeration>>;
-
-  auto get_enumerations() const -> Perimortem::Core::View::Vector<
-      Ttx::Concept::Reference<Types::Enumeration>>;
+  auto get_authored_bindings() const -> Perimortem::Core::View::Vector<
+      Ttx::Concept::Reference<const Ttx::Concept::Abstract>>;
 
   auto get_imports() const -> Perimortem::Core::View::Vector<Import>;
 
   constexpr auto get_materializations() const -> const Materializations& {
     return materializations;
+  }
+
+  constexpr auto get_library_host() const -> Tetrodotoxin::Library::Dialect& {
+    return library_host;
+  }
+
+  constexpr auto get_interpretation_context() const
+      -> const Ttx::Concept::Abstract& {
+    return interpretation_context;
   }
 
  private:
@@ -105,33 +95,15 @@ class Monograph : public Tetrodotoxin::Language::Monograph {
   const Ttx::Concept::Abstract& interpretation_context;
   Materializations& materializations;
   Perimortem::Memory::Managed::Vector<Import> imports;
-  Perimortem::Memory::Managed::Map<
-      Perimortem::Core::View::Bytes,
-      Ttx::Concept::Reference<const Function>>
-      functions;
-  Perimortem::Memory::Managed::Map<
-      Perimortem::Core::View::Bytes,
-      Ttx::Concept::Reference<const Types::Structure>>
-      structures;
-  Perimortem::Memory::Managed::Map<
-      Perimortem::Core::View::Bytes,
-      Ttx::Concept::Reference<const Types::Enumeration>>
-      enumerations;
-  Perimortem::Memory::Managed::Vector<Ttx::Concept::Reference<Function>>
-      authored_functions;
-  Perimortem::Memory::Managed::Vector<Ttx::Concept::Reference<const Function>>
-      public_functions;
-  Perimortem::Memory::Managed::Vector<Ttx::Concept::Reference<Types::Structure>>
-      authored_structures;
   Perimortem::Memory::Managed::Vector<
-      Ttx::Concept::Reference<const Types::Structure>>
-      public_structures;
+      Ttx::Concept::Reference<Ttx::Concept::Abstract>>
+      authored_bindings;
   Perimortem::Memory::Managed::Vector<
-      Ttx::Concept::Reference<Types::Enumeration>>
-      authored_enumerations;
-  Perimortem::Memory::Managed::Vector<
-      Ttx::Concept::Reference<const Types::Enumeration>>
-      public_enumerations;
+      Ttx::Concept::Reference<const Ttx::Concept::Abstract>>
+      authored_binding_observations;
+  Perimortem::Utility::Option<Ttx::Concept::Reference<Ttx::Model::Type>>
+      source_structure;
+  Bool imports_linked = False;
 };
 
 }  // namespace Tetrodotoxin::Library::Language

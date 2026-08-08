@@ -3,31 +3,34 @@
 
 #include "tetrodotoxin/library/language/monograph.hpp"
 
+#include "tetrodotoxin/library/language/function.hpp"
+#include "tetrodotoxin/library/language/types/enumeration.hpp"
+#include "tetrodotoxin/library/language/types/structure.hpp"
 #include "tetrodotoxin/package/language/monograph.hpp"
 #include "ttx/concept/invalid.hpp"
+#include "ttx/model/alias.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
+using namespace Perimortem::Utility;
 using namespace Ttx::Concept;
+using namespace Ttx::Lexical;
 using namespace Ttx::Model;
 using namespace Tetrodotoxin;
 
 struct ImportCandidate {
   Ttx::Lexical::Span import_span;
-  Reference<const Library::Language::Function> function;
+  Reference<const Abstract> binding;
 };
 
 template <typename selected_type>
 static auto select_abstract(const Abstract& value)
-    -> Perimortem::Utility::Option<const selected_type&> {
+    -> Option<const selected_type&> {
   return value.visit<selected_type>(
-      [](const selected_type& selected)
-          -> Perimortem::Utility::Option<const selected_type&> {
+      [](const selected_type& selected) -> Option<const selected_type&> {
         return selected;
       },
-      [](const Abstract&) -> Perimortem::Utility::Option<const selected_type&> {
-        return {};
-      });
+      [](const Abstract&) -> Option<const selected_type&> { return {}; });
 }
 
 Library::Language::Monograph::Monograph(
@@ -41,15 +44,8 @@ Library::Language::Monograph::Monograph(
       interpretation_context(interpretation_context),
       materializations(materializations),
       imports(domain),
-      functions(domain),
-      structures(domain),
-      enumerations(domain),
-      authored_functions(domain),
-      public_functions(domain),
-      authored_structures(domain),
-      public_structures(domain),
-      authored_enumerations(domain),
-      public_enumerations(domain) {}
+      authored_bindings(domain),
+      authored_binding_observations(domain) {}
 
 auto Library::Language::Monograph::create_authored(
     Allocator::Arena& domain,
@@ -57,84 +53,49 @@ auto Library::Language::Monograph::create_authored(
     Library::Dialect& host,
     const Abstract& interpretation_context,
     Materializations& materializations) -> Monograph& {
-  return domain.construct_from<Monograph>([&]() -> Monograph {
+  Monograph& monograph = domain.construct_from<Monograph>([&]() -> Monograph {
     return Monograph(
         domain, documentation, host, interpretation_context, materializations);
   });
+  auto& source = Library::Language::Types::Structure::create_synthetic(
+      domain, documentation, monograph, materializations);
+  monograph.source_structure = Reference<Type>(source);
+  return monograph;
 }
 
-auto Library::Language::Monograph::bind_function(Function& function) -> Bool {
-  const View::Bytes name = function.get_name();
-
-  // Both mutations happen after the exact duplicate check. A rejected
-  // declaration therefore preserves the first edge and its public position
-  // while the failed interpretation discards the unreachable transaction.
-  const Abstract& outer = interpretation_context.resolve_context(name);
-  const Abstract& intrinsic = library_host.resolve_intrinsic(name);
-  if (name.is_empty() || functions.contains(name) ||
-      structures.contains(name) || enumerations.contains(name) ||
-      &outer != &Invalid::get_invalid() ||
-      &intrinsic != &Invalid::get_invalid()) {
+auto Library::Language::Monograph::bind_static(
+    Abstract& binding,
+    Visibility visibility) -> Bool {
+  auto source = get_source().visit<Types::Structure>(
+      [](Types::Structure& structure) -> Option<Types::Structure&> {
+        return structure;
+      },
+      [](Abstract&) -> Option<Types::Structure&> { return {}; });
+  if (!source || !source->bind_static(binding, visibility)) {
     return False;
   }
 
-  functions.launder(name, Reference<const Function>(function));
-  authored_functions.insert(function);
-  if (function.get_visibility() == Visibility::Public) {
-    public_functions.insert(function);
-  }
-
+  authored_bindings.insert(binding);
+  authored_binding_observations.insert(binding);
   return True;
 }
 
-auto Library::Language::Monograph::bind_structure(Types::Structure& structure)
-    -> Bool {
-  const View::Bytes name = structure.get_name();
-  const Abstract& outer = interpretation_context.resolve_context(name);
-  const Abstract& intrinsic = library_host.resolve_intrinsic(name);
-  if (name.is_empty() || structures.contains(name) ||
-      functions.contains(name) || enumerations.contains(name) ||
-      &outer != &Invalid::get_invalid() ||
-      &intrinsic != &Invalid::get_invalid()) {
+auto Library::Language::Monograph::retain_import(const Import& import) -> Bool {
+  if (imports_linked) {
     return False;
   }
 
-  structures.launder(name, Reference<const Types::Structure>(structure));
-  authored_structures.insert(structure);
-  if (structure.get_visibility() == Visibility::Public) {
-    public_structures.insert(structure);
-  }
-
-  return True;
-}
-
-auto Library::Language::Monograph::bind_enumeration(
-    Types::Enumeration& enumeration) -> Bool {
-  const View::Bytes name = enumeration.get_name();
-  const Abstract& outer = interpretation_context.resolve_context(name);
-  const Abstract& intrinsic = library_host.resolve_intrinsic(name);
-  if (name.is_empty() || enumerations.contains(name) ||
-      structures.contains(name) || functions.contains(name) ||
-      &outer != &Invalid::get_invalid() ||
-      &intrinsic != &Invalid::get_invalid()) {
-    return False;
-  }
-
-  enumerations.launder(name, Reference<const Types::Enumeration>(enumeration));
-  authored_enumerations.insert(enumeration);
-  if (enumeration.get_visibility() == Visibility::Public) {
-    public_enumerations.insert(enumeration);
-  }
-
-  return True;
-}
-
-auto Library::Language::Monograph::retain_import(const Import& import) -> void {
   imports.insert(import);
+  return True;
 }
 
 auto Library::Language::Monograph::link_imports() -> Bool {
+  if (imports_linked) {
+    return True;
+  }
+
   if (imports.is_empty()) {
+    imports_linked = True;
     return True;
   }
 
@@ -152,12 +113,21 @@ auto Library::Language::Monograph::link_imports() -> Bool {
     return False;
   }
 
+  auto source_structure = get_source().visit<Types::Structure>(
+      [](Types::Structure& structure) -> Option<Types::Structure&> {
+        return structure;
+      },
+      [](Abstract&) -> Option<Types::Structure&> { return {}; });
+  if (!source_structure) {
+    return False;
+  }
+
   Managed::Vector<ImportCandidate> candidates(domain);
   Bool failed = False;
 
-  // Import order leads Package member order and provider publication order.
-  // Staging that complete sequence first keeps visible lookup untouched while
-  // later routes can still expose independent graph failures.
+  // Package order leads member order and each provider source order. Staging
+  // the complete sequence keeps the importing Structure unchanged until every
+  // contextual source and collision has been observed.
   for (Count import_index = 0; import_index < imports.get_size();
        import_index++) {
     const Import& import = imports[import_index];
@@ -190,91 +160,93 @@ auto Library::Language::Monograph::link_imports() -> Bool {
 
     View::Vector<Reference<const Alias>> members =
         target_package->get_members();
+
+    // A Package member Alias only selects its target. Prove the resolved
+    // Library Monograph before consulting that owner's source so an unrelated
+    // Monograph cannot borrow a Library Structure to enter expansion.
     for (Count member_index = 0; member_index < members.get_size();
          member_index++) {
       const Alias& member = members.get_data()[member_index].get();
-      const Abstract& provider = member.resolve();
-      auto library = select_abstract<Library::Language::Monograph>(provider);
-      if (!library) {
+      const Abstract& member_target = member.resolve();
+      auto provider_monograph = select_abstract<Monograph>(member_target);
+      if (!provider_monograph) {
+        const Abstract& claimed_source =
+            member.resolve_context("source"_view).resolve();
+        auto spoofed_source = select_abstract<Types::Structure>(claimed_source);
+        if (spoofed_source && spoofed_source->is_source()) {
+          report(
+              Ttx::Lexical::Anchor::create(import.get_span()),
+              "Non Library Package member claimed a Library source "
+              "Structure."_view,
+              "Bind the member to its exact Library Monograph before "
+              "importing."_view);
+          failed = True;
+        }
+
         continue;
       }
 
-      View::Vector<Reference<const Function>> public_functions =
-          library->get_public_functions();
-      for (Count function_index = 0;
-           function_index < public_functions.get_size(); function_index++) {
-        const Function& function =
-            public_functions.get_data()[function_index].get();
-        if (!function.is_complete()) {
+      const Type& provider_source = provider_monograph->get_source();
+      auto provider = select_abstract<Types::Structure>(provider_source);
+      if (!provider || !provider->is_source()) {
+        report(
+            Ttx::Lexical::Anchor::create(import.get_span()),
+            "Library Package member has no exact source Structure."_view,
+            "Complete the provider Monograph before importing its Static "
+            "bindings."_view);
+        failed = True;
+        continue;
+      }
+
+      auto bindings = provider->get_external_static_bindings();
+      for (Count binding_index = 0; binding_index < bindings.get_size();
+           binding_index++) {
+        const Abstract& binding = bindings.get_data()[binding_index].get();
+        Bool incomplete = binding.visit<Function>(
+            [](const Function& function) { return !function.is_complete(); },
+            [](const Abstract&) { return False; });
+        if (incomplete) {
           report(
               Ttx::Lexical::Anchor::create(import.get_span()),
-              "Library Import exposes an incomplete provider Function."_view,
-              "Complete provider Function grammar before linking imports."_view);
+              "Library Import exposes an incomplete Static binding."_view,
+              "Complete provider grammar before linking imports."_view);
           failed = True;
           continue;
         }
 
-        ImportCandidate candidate = {
-          .import_span = import.get_span(),
-          .function = function,
-        };
-        candidates.insert(candidate);
+        candidates.insert(
+            ImportCandidate{
+              .import_span = import.get_span(),
+              .binding = binding,
+            });
       }
     }
   }
 
-  // Local declarations, parent context, intrinsics, and every earlier
-  // candidate participate in one exact collision domain. The complete scan
-  // runs even after a failure so each rejected edge keeps the provider facts
-  // that Retention cannot reconstruct.
+  // The source Structure owns local and environmental collisions. Candidate
+  // order adds the import set dimension without copying that lookup policy back
+  // onto Monograph.
   for (Count candidate_index = 0; candidate_index < candidates.get_size();
        candidate_index++) {
     const ImportCandidate& candidate = candidates[candidate_index];
-    const Function& function = candidate.function.get();
-    View::Bytes name = function.get_name();
-    auto local_entry = functions.find(name);
-    if (local_entry || structures.contains(name) ||
-        enumerations.contains(name)) {
-      View::Bytes message;
-      if (local_entry) {
-        message =
-            "Imported Function collides with one local Function name."_view;
-      } else if (structures.contains(name)) {
-        message =
-            "Imported Function collides with one local Structure name."_view;
-      } else {
-        message =
-            "Imported Function collides with one local Enumeration name."_view;
-      }
+    View::Bytes name = candidate.binding.get().get_name();
+    if (!source_structure->can_bind_static(name)) {
       report(
-          Ttx::Lexical::Anchor::create(candidate.import_span), message,
+          Ttx::Lexical::Anchor::create(candidate.import_span),
+          "Imported Static binding collides with an occupied source name."_view,
           "Rename the local declaration or select another dependency."_view);
       failed = True;
     }
 
-    const Abstract& outer = interpretation_context.resolve_context(name);
-    const Abstract& intrinsic = library_host.resolve_intrinsic(name);
-    if (&outer != &Invalid::get_invalid() ||
-        &intrinsic != &Invalid::get_invalid()) {
-      report(
-          Ttx::Lexical::Anchor::create(candidate.import_span),
-          "Imported Function collides with an occupied context name."_view,
-          "Choose a dependency whose public names do not shadow this "
-          "Library context."_view);
-      failed = True;
-    }
-
     for (Count earlier = 0; earlier < candidate_index; earlier++) {
-      const ImportCandidate& conflict = candidates[earlier];
-      const Function& conflicting_function = conflict.function.get();
-      if (conflicting_function.get_name() != name) {
+      if (candidates[earlier].binding.get().get_name() != name) {
         continue;
       }
 
       report(
           Ttx::Lexical::Anchor::create(candidate.import_span),
-          "Two Library Imports publish the same Function name."_view,
-          "Import a dependency set with distinct public Function names."_view);
+          "Two Library Imports publish the same Static binding name."_view,
+          "Import a dependency set with distinct exposed names."_view);
       failed = True;
     }
   }
@@ -283,117 +255,134 @@ auto Library::Language::Monograph::link_imports() -> Bool {
     return False;
   }
 
+  Managed::Vector<Reference<Alias>> aliases(domain);
   for (Count i = 0; i < candidates.get_size(); i++) {
-    const Function& function = candidates[i].function.get();
-    functions.launder(function.get_name(), candidates[i].function);
+    const Abstract& target = candidates[i].binding.get();
+    Alias& alias = domain.construct<Alias>(target.get_name(), target);
+    aliases.insert(alias);
   }
 
+  // Alias construction cannot disturb source lookup. The earlier complete
+  // name preflight makes each following bind infallible within this Monograph
+  // transaction, so no candidate can become visible beside a later rejection.
+  for (Count i = 0; i < aliases.get_size(); i++) {
+    if (!source_structure->bind_static(aliases[i].get(), Visibility::Private)) {
+      return False;
+    }
+  }
+
+  imports_linked = True;
   return True;
 }
 
 auto Library::Language::Monograph::link() -> Bool {
-  Bool failed = !link_imports();
-
-  // Enumeration storage settles before any consumer asks its Type contract.
-  // Structure fields and Function signatures can then name an Enumeration in
-  // either declaration order without a provisional value graph.
-  for (Count i = 0; i < authored_enumerations.get_size(); i++) {
-    failed |= !authored_enumerations[i].get().link_storage();
+  if (!link_imports()) {
+    return False;
   }
 
-  for (Count i = 0; i < authored_structures.get_size(); i++) {
-    failed |= !authored_structures[i].get().link_fields();
+  // Storage and Field phases remain global across the source. A later
+  // declaration may therefore supply the exact Type of an earlier Field without
+  // changing identity or introducing a discovery graph.
+  Bool failed = False;
+  for (Count i = 0; i < authored_bindings.get_size(); i++) {
+    failed |= !authored_bindings[i].get().visit<Types::Enumeration>(
+        [](Types::Enumeration& enumeration) {
+          return enumeration.link_storage();
+        },
+        [](Abstract&) { return True; });
+  }
+  if (failed) {
+    return False;
   }
 
-  for (Count i = 0; i < authored_structures.get_size(); i++) {
-    failed |= !authored_structures[i].get().link_callable_signatures();
+  // Fields resolve after every scalar storage identity has settled. Waiting for
+  // the complete phase keeps initializers from observing a partial Addressable
+  // inventory when one Structure fails.
+  for (Count i = 0; i < authored_bindings.get_size(); i++) {
+    failed |= !authored_bindings[i].get().visit<Types::Structure>(
+        [](Types::Structure& structure) { return structure.link_fields(); },
+        [](Abstract&) { return True; });
+  }
+  if (failed) {
+    return False;
   }
 
-  for (Count i = 0; i < authored_functions.get_size(); i++) {
-    failed |= !authored_functions[i].get().link_signature();
+  // Initializers may use linked Fields from any authored Structure. Callable
+  // linking remains closed until every initializer has accepted those edges.
+  for (Count i = 0; i < authored_bindings.get_size(); i++) {
+    failed |= !authored_bindings[i].get().visit<Types::Structure>(
+        [](Types::Structure& structure) {
+          return structure.link_initializers();
+        },
+        [](Abstract&) { return True; });
+  }
+  if (failed) {
+    return False;
   }
 
-  for (Count i = 0; i < authored_structures.get_size(); i++) {
-    failed |= !authored_structures[i].get().link_callable_bodies();
+  // The source Structure owns root Functions, so it joins the same signature
+  // barrier as authored Structures. Its success also seals Static binding and
+  // makes the completed import set permanent across retries.
+  for (Count i = 0; i < authored_bindings.get_size(); i++) {
+    failed |= !authored_bindings[i].get().visit<Types::Structure>(
+        [](Types::Structure& structure) {
+          return structure.link_callable_signatures();
+        },
+        [](Abstract&) { return True; });
+  }
+  failed |= !get_source().visit<Types::Structure>(
+      [](Types::Structure& structure) {
+        return structure.link_callable_signatures();
+      },
+      [](Abstract&) { return False; });
+  if (failed) {
+    return False;
   }
 
-  for (Count i = 0; i < authored_functions.get_size(); i++) {
-    failed |= !authored_functions[i].get().link_body();
+  // Bodies run only after every local signature has published stable Parameter
+  // and result Layouts. The source participates again because root Functions
+  // are ordinary hosted members rather than a second Monograph inventory.
+  for (Count i = 0; i < authored_bindings.get_size(); i++) {
+    failed |= !authored_bindings[i].get().visit<Types::Structure>(
+        [](Types::Structure& structure) {
+          return structure.link_callable_bodies();
+        },
+        [](Abstract&) { return True; });
   }
+  failed |= !get_source().visit<Types::Structure>(
+      [](Types::Structure& structure) {
+        return structure.link_callable_bodies();
+      },
+      [](Abstract&) { return False; });
 
   return !failed;
 }
 
 auto Library::Language::Monograph::finalize() -> Bool {
+  // Enumeration storage reaches its terminal semantic state before composite
+  // owners validate publication. A failed enumeration therefore cannot leave a
+  // later Structure looking finalized beside an incomplete scalar dependency.
   Bool failed = False;
-
-  // Cases become Alias backed Constants before Environment considers this
-  // source complete. A failed value leaves that Enumeration lookup empty.
-  for (Count i = 0; i < authored_enumerations.get_size(); i++) {
-    failed |= !authored_enumerations[i].get().finalize();
+  for (Count i = 0; i < authored_bindings.get_size(); i++) {
+    failed |= !authored_bindings[i].get().visit<Types::Enumeration>(
+        [](Types::Enumeration& enumeration) { return enumeration.finalize(); },
+        [](Abstract&) { return True; });
+  }
+  if (failed) {
+    return False;
   }
 
-  // Structure owns member visibility because only that Type knows which field
-  // and nested Callable edges form its public surface.
-  for (Count i = 0; i < authored_structures.get_size(); i++) {
-    failed |= !authored_structures[i].get().finalize();
+  // Authored Structures and the synthetic source share one publication phase.
+  // Calling the source owner here lets it validate and finalize root Functions
+  // through the same member rules without duplicating them on Monograph.
+  for (Count i = 0; i < authored_bindings.get_size(); i++) {
+    failed |= !authored_bindings[i].get().visit<Types::Structure>(
+        [](Types::Structure& structure) { return structure.finalize(); },
+        [](Abstract&) { return True; });
   }
-
-  // Root Functions bypass Structure membership, so Monograph applies the same
-  // private Type boundary before Environment can publish this source.
-  for (Count function_index = 0; function_index < public_functions.get_size();
-       function_index++) {
-    const Function& function = public_functions[function_index].get();
-    auto signature = function.get_signature();
-    if (!signature) {
-      report(
-          Ttx::Lexical::Anchor::create(
-              Ttx::Lexical::Span(function.get_name_token())),
-          "Public Function has no complete Signature during finalization."_view,
-          "Link its exact parameter and result Types before publication."_view);
-      failed = True;
-      continue;
-    }
-
-    auto reject_private_structure = [&](Count index, Bool parameter) {
-      auto type = parameter ? signature->get_parameter_type(index)
-                            : signature->get_result_type(index);
-      if (!type) {
-        return;
-      }
-
-      Bool private_structure = type->visit<Types::Structure>(
-          [](const Types::Structure& structure) {
-            return structure.get_visibility() == Visibility::Private ? True
-                                                                     : False;
-          },
-          [](const Abstract&) { return False; });
-      if (!private_structure) {
-        return;
-      }
-
-      auto type_anchor = parameter ? signature->get_parameter_type_anchor(index)
-                                   : signature->get_result_type_anchor(index);
-      report(
-          type_anchor,
-          "Public Function exposes a private local Structure Type."_view,
-          "Keep the Function private or publish its exact Structure Type."_view);
-      failed = True;
-    };
-
-    for (Count i = 0; i < signature->get_parameter_size(); i++) {
-      reject_private_structure(i, True);
-    }
-    for (Count i = 0; i < signature->get_result_size(); i++) {
-      reject_private_structure(i, False);
-    }
-  }
-
-  // Optional fold caching stays on each Function after publication policy has
-  // observed the linked signature identities.
-  for (Count i = 0; i < authored_functions.get_size(); i++) {
-    failed |= !authored_functions[i].get().finalize();
-  }
+  failed |= !get_source().visit<Types::Structure>(
+      [](Types::Structure& structure) { return structure.finalize(); },
+      [](Abstract&) { return False; });
 
   return !failed;
 }
@@ -404,64 +393,31 @@ auto Library::Language::Monograph::get_name() const -> View::Bytes {
 
 auto Library::Language::Monograph::resolve_context(View::Bytes route) const
     -> const Abstract& {
-  // Raw local identities lead both fallbacks, including declarations whose
-  // semantic edges remain incomplete. Lookup never resolves them on behalf of
-  // a consumer that needs to observe that state.
-  return structures.visit(
-      route,
-      [](const Reference<const Types::Structure>& structure)
-          -> const Abstract& { return structure.get(); },
-      [&]() -> const Abstract& {
-        return enumerations.visit(
-            route,
-            [](const Reference<const Types::Enumeration>& enumeration)
-                -> const Abstract& { return enumeration.get(); },
-            [&]() -> const Abstract& {
-              return functions.visit(
-                  route,
-                  [](const Reference<const Function>& function)
-                      -> const Abstract& { return function.get(); },
-                  [&]() -> const Abstract& {
-                    const Abstract& outer =
-                        interpretation_context.resolve_context(route);
-                    if (&outer != &Invalid::get_invalid()) {
-                      return outer;
-                    }
+  const Type& source = get_source();
+  if (route == "source"_view) {
+    return source;
+  }
 
-                    return library_host.resolve_intrinsic(route);
-                  });
-            });
+  return source.visit<Types::Structure>(
+      [&](const Types::Structure& structure) -> const Abstract& {
+        return structure.resolve_context(route);
+      },
+      [](const Abstract&) -> const Abstract& {
+        return Invalid::get_invalid();
       });
 }
 
-auto Library::Language::Monograph::get_public_functions() const
-    -> View::Vector<Reference<const Function>> {
-  return public_functions;
+auto Library::Language::Monograph::get_source() -> Type& {
+  return source_structure->get();
 }
 
-auto Library::Language::Monograph::get_functions() const
-    -> View::Vector<Reference<Function>> {
-  return authored_functions;
+auto Library::Language::Monograph::get_source() const -> const Type& {
+  return source_structure->get();
 }
 
-auto Library::Language::Monograph::get_public_structures() const
-    -> View::Vector<Reference<const Types::Structure>> {
-  return public_structures;
-}
-
-auto Library::Language::Monograph::get_structures() const
-    -> View::Vector<Reference<Types::Structure>> {
-  return authored_structures;
-}
-
-auto Library::Language::Monograph::get_public_enumerations() const
-    -> View::Vector<Reference<const Types::Enumeration>> {
-  return public_enumerations;
-}
-
-auto Library::Language::Monograph::get_enumerations() const
-    -> View::Vector<Reference<Types::Enumeration>> {
-  return authored_enumerations;
+auto Library::Language::Monograph::get_authored_bindings() const
+    -> View::Vector<Reference<const Abstract>> {
+  return authored_binding_observations;
 }
 
 auto Library::Language::Monograph::get_imports() const -> View::Vector<Import> {

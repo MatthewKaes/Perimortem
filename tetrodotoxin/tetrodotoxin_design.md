@@ -89,6 +89,14 @@ wide registry supplied at construction. The fourth interpretation argument
 instead selects Workspace for direct sources and an ownerless root, or the
 exact owning Package Monograph for a staged member.
 
+A Monograph is the retained result of one Dialect invocation. It is not
+required to be a Type or to expose one Type shaped context. A concrete Dialect
+may give its Monograph no Types, one Type, several Types, or another arbitrary
+contextual structure through ordinary `resolve_context()` routing. Language
+therefore defines neither a typed Monograph layer nor a reserved Type route.
+App, for example, can expose App owned entry and lifecycle contexts without
+inheriting a type system.
+
 Language owns two shared parser fragments today:
 
 1. `Parser::Comment` greedily consumes adjacent comment lines and preserves
@@ -280,8 +288,8 @@ name semantic authority.
 ## Library language
 
 TTX owns the shared target independent Type, Value, Layout, Addressable, and
-Callable contracts. Library adds the CPU language semantics that not every
-Dialect needs.
+Callable vocabulary. Those interfaces are not a type system. Library adds the
+CPU type system and language semantics that not every Dialect needs.
 
 1. Expression, Binding, and Projection represent Library value semantics.
 2. Operation owns recursive folding for executable value operations.
@@ -289,33 +297,55 @@ Dialect needs.
 4. Generic, Access, View, and Fixed represent Library materialization.
 5. Concrete Bool, integer, and real Types provide Library scalar identities.
 6. Static and Self distinguish Library Callable invocation.
-7. Struct is the inline value Type, while Object is the exact managed reference
-   Type.
-8. `Language::Layouts::Structured` retains positional, named, or indexed
+7. `Types::Structure` owns the common Field, Function, visibility, lookup, and
+   inline value Type semantics used by authored `struct` declarations.
+8. `Types::Object` layers managed reference identity and lifetime semantics
+   over Structure rather than owning a second composite implementation.
+9. `Language::Layouts::Structured` retains positional, named, or indexed
    Expression flow and exposes the proper TTX Layout used for fitting.
 
 Library contracts retain real TTX Type, Layout, Addressable, and Callable
 edges. They do not redeclare those shared owners.
 
-Object is a Library Type rather than a new TTX category or shared Managed base.
-Every Object value is a nonnull reference identity. Assignment, parameter
-passing, and return preserve that identity, so mutations through one alias are
-visible through the others. V1 exposes no destructor, finalizer, weak
-reference, explicit release, or observable reclamation timing. Reference
-counting, tracing collection, Arena retention, pointer shape, and collector
-headers remain interchangeable runtime and target choices rather than semantic
-graph facts.
+The accepted Library source contract gives each Library Monograph exactly one
+stable synthetic Structure for its source scope. That Structure owns the top
+level declaration inventory and admits only Static bindings. It has no Self
+receiver or instance Fields, so its empty instance Layout remains a complete
+TTX Layout while its Static members remain available through contextual
+resolution. The reserved Library route `source` returns that exact Structure.
+Every other Library Monograph resolution request is forwarded through the
+Structure's external lookup. `source` has no Dialect agnostic meaning and does
+not change the common Monograph contract.
 
-Object retains its real authored Field and Function owners. Its semantic Layout
-describes those members without storing offsets or target representation.
-`expose state` publishes a distinct read only Addressable while the writable
-member remains retained, and private state remains local. An exact Object
-receiver and its selected Field prove member write capability without widening
-the shared TTX Addressable contract. Construction initializes state in authored
-order and publishes no value until every initializer succeeds. `new` requires
-an exact receiving Object Type; an inferred `:= new` declaration remains
-invalid. Construction and runtime allocation are later owners rather than part
-of the Object Type declaration transaction.
+Every Library Structure retains one complete member inventory and exposes two
+views over those same identities. External lookup sees only exposed members.
+A Function hosted by that exact Structure uses the complete internal lookup.
+Each Function retains its source Monograph separately for source lifetime,
+diagnostics, and completion, so its host Type does not replace the source
+owner. A root Function is hosted by the synthetic source Structure. A Function
+declared by an authored Structure is hosted by that Structure.
+
+Field exposure and Field writability are independent. Exposure decides whether
+external lookup can read the Field. The Library owned `Full`, `Internal`, and
+`Init` writability states decide whether mutable access is available to all
+callers that can reach it, only Functions hosted by its Structure, or only the
+construction transaction for the exact value. These rules enrich real TTX
+Addressable edges without widening the shared Addressable contract.
+
+Object is a Library Type rather than a new TTX category or shared Managed base.
+It derives its Field, Function, Layout, visibility, lookup, and writability
+semantics from Structure and adds no duplicate member inventory. Every Object
+value is a nonnull reference identity. Assignment, parameter passing, and
+return preserve that identity, so mutations through one alias are visible
+through the others. V1 exposes no destructor, finalizer, weak reference,
+explicit release, or observable reclamation timing. Reference counting,
+tracing collection, Arena retention, pointer shape, and collector headers
+remain interchangeable runtime and target choices rather than semantic graph
+facts. Construction initializes state in authored order and publishes no value
+until every initializer succeeds. `new` requires an exact receiving Object
+Type; an inferred `:= new` declaration remains invalid. Construction and
+runtime allocation are later owners rather than part of the Object Type
+declaration transaction.
 
 `Language::Layouts::Structured` is an identity free Library source fact, not an
 Expression and not an anonymous or transient Type. It retains one unmixed
@@ -363,36 +393,43 @@ Bool, integer, real, and Void are immutable binary wide Library identities.
 Distinct installed Dialects share their exact addresses while retaining any
 stateful source and completion policy within their Workspace lifetime.
 
-The Library Dialect reserves and binds every Function at its final Arena address
-before completing that declaration's source grammar. Each Function retains its
-full extent, one source shaped Signature, and authored order Expression roots.
-The current body grammar accepts comments, ordinary `Expression;` roots,
-and one optional final `return Expression?;`. It does not invent blocks,
-control flow, or lowering. Its Monograph exposes exact local lookup and a
-separate authored order view of public Functions over those same identities.
-Reordered valid declarations remain legal while each public view preserves its
-own authored order. The transaction retains no Cursor positions or second
-declaration graph.
+The accepted declaration transaction constructs the synthetic source Structure
+before interpreting top level declarations. It reserves and binds every
+Function at its final Arena address before completing that declaration's source
+grammar. Each root Function records the synthetic Structure as its exact host
+and retains its source Monograph for completion and diagnostics. Each Function
+retains its full extent, one source shaped Signature, and authored order
+Expression roots. The current body grammar accepts comments, ordinary
+`Expression;` roots, and one optional final `return Expression?;`. It does not
+invent blocks, control flow, or lowering. Reordered valid declarations remain
+legal while each public view preserves its own authored order. The transaction
+retains no Cursor positions or second declaration graph.
 
 Signature interpretation accepts unresolved Type routes and Identifier parsing
 accepts unresolved Addressable routes. Linking later enriches those exact
-retained routes with stable edges. Function lookup checks linked Parameters before
-the parent Monograph. Monograph lookup checks local and imported Functions,
-then the source interpretation context, then Library intrinsics. An incomplete
-declaration already occupies its name, so collision policy does not depend on
-whether its semantic edge is complete.
+retained routes with stable edges. Function lookup checks linked Parameters
+before its host Structure. The host uses its complete view only for a Function
+it owns and otherwise exposes its external view. The synthetic source
+Structure's complete lookup checks local and imported Static bindings, then the
+source interpretation context, then Library intrinsics. Its external lookup
+returns only exposed source bindings. An authored Structure may
+continue an unresolved member lookup through that source scope without making
+the Monograph a Type. An incomplete declaration already occupies its name, so
+collision policy does not depend on whether its semantic edge is complete.
 
 `Library::Language::Import` consumes one complete `using` statement and retains
 its exact Package local Type shaped route, trigger Token, and full statement
 Span. The Library Monograph borrows W03's source local Abstract context and
 resolves each Import during linking.
 The selected target must be a real Package Monograph. Expansion traverses only
-its P04 direct member Alias view and only each direct Library member's complete
-public Function view.
+its P04 direct member Alias view. Each direct Library member resolves its
+Library specific `source` route to the exact synthetic Structure, and expansion
+consumes only that Structure's exposed Static bindings. A non Library Monograph
+has no `source` contract and contributes nothing.
 
-All candidates are collected and checked against local Functions and earlier
-imports before lookup changes. Successful bindings borrow the exact provider
-Function identities without entering the importing public view. Private,
+All candidates are collected and checked against local bindings and earlier
+imports before lookup changes. Successful Alias bindings retain the exact
+provider identities without entering the importing public view. Private,
 Dependency, nested Package, non Library, recursively imported, incomplete,
 unresolved, duplicate, and colliding candidates therefore cannot become local
 or transitive publication state.
@@ -714,20 +751,23 @@ The current tree provides the following implemented surfaces.
 5. Package provides Dependency, Source, Monograph, complete manifest
    interpretation, one exact Alias backed Package scope, confined Storage,
    Archive Format 1, and exact Repository selection.
-6. Library provides the installed Dialect, declaration Monograph, scalar and
-   Void intrinsics, source shaped Function signatures and Expression roots,
-   authored public Function publication, exact Package local Imports, semantic
-   linking, and nondestructive cached folding during finalization.
+6. Library provides the installed Dialect, one synthetic source Structure per
+   Monograph, scalar and Void intrinsics, authored Structure and inherited
+   Object Types, Field writability metadata, exact Function hosts, source shaped
+   signatures and Expression roots, exposed Static publication, Package local
+   Alias Imports, semantic linking, and nondestructive cached folding during
+   finalization.
 7. Library and Shader provide CPU and SPIR V instruction assemblers.
 8. Linker provides source independent linking machinery.
 9. Puffer provides an LSP process but no compile orchestration.
 
-That inventory does not prove control flow parsing for Library or complete
-parsing for App, Scene, Render, Shader, or Foreign. It also does not prove
-required Constant validation, CPU semantic lowering, runtime execution, Puffer
-compile orchestration or physical publication, typed Object Module production,
-final native executable emission, or Library, App, Scene, Render, Shader, or
-Foreign payload restoration.
+That inventory does not prove assignment or construction enforcement of Field
+writability, Static and Self overload parsing, control flow parsing for Library,
+or complete parsing for App, Scene, Render, Shader, or Foreign. It also does not
+prove required Constant validation, CPU semantic lowering, runtime execution,
+Puffer compile orchestration or physical publication, typed Object Module
+production, final native executable emission, or Library, App, Scene, Render,
+Shader, or Foreign payload restoration.
 
 A fixture, README, target build, or test written beside an implementation is not
 an independent semantic oracle.

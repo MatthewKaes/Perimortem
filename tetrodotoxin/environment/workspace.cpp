@@ -219,7 +219,7 @@ auto Environment::Workspace::interpret_retained_source(
   }
 
   // The installed Dialect keeps Workspace as its shared registry. This
-  // argument instead selects the exact source scope the body is entering.
+  // argument instead supplies the exact owner context for this interpretation.
   Option<Language::Monograph&> interpreted =
       dialect->interpret(arena, cursor, documentation, interpretation_context);
   if (!interpreted) {
@@ -325,7 +325,7 @@ auto Environment::Workspace::import_package(
 
     // Storage path and body already meet the retained source contract because
     // Storage was opened with this Workspace Arena. The existing owner is the
-    // complete Package scope, while an ownerless root enters Workspace.
+    // complete Package context, while an ownerless root enters Workspace.
     Abstract& interpretation_context =
         staged.owner ? static_cast<Abstract&>(*staged.owner) : *this;
     Option<Language::Monograph&> imported = interpret_retained_source(
@@ -341,7 +341,7 @@ auto Environment::Workspace::import_package(
     }
 
     // Only the root lacks an owning Package. Reusing the same owner for
-    // interpretation and binding keeps nested scope exact without a second
+    // interpretation and binding keeps nested context exact without a second
     // lookup or copied context.
     Language::Monograph& monograph = *imported;
     if (staged.owner) {

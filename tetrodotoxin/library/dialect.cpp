@@ -97,10 +97,22 @@ auto Library::Dialect::interpret(
         return {};
       }
 
-      monograph.retain_import(*import);
+      // Interpretation owns the open import inventory. A rejection here means
+      // lifecycle work overlapped parsing, so the whole source transaction must
+      // remain unpublished rather than silently dropping the authored route.
+      Bool retained = monograph.retain_import(*import);
+      if (!retained) {
+        cursor.create_expression_error(
+            import->get_span(),
+            "Library Imports cannot enter a source after linking begins."_view);
+        return {};
+      }
+
       continue;
     }
 
+    // This nonconsuming lookahead chooses the declaration family. The selected
+    // owner parses the complete header and body inside one Cursor branch.
     if ((cursor.matches(Code::Type::Public) ||
          cursor.matches(Code::Type::Private)) &&
         cursor.peek(1).get_code() == Code::Type::Type) {
@@ -114,10 +126,12 @@ auto Library::Dialect::interpret(
           return {};
         }
 
-        if (!monograph.bind_enumeration(*enumeration)) {
+        if (!monograph.bind_static(
+                *enumeration, enumeration->get_visibility())) {
           cursor.create_expression_error(
               enumeration->get_name_anchor(),
-              "Duplicate Enumeration, Structure, or Function name in this "
+              "Duplicate Enumeration, Object, Structure, or Function name in "
+              "this "
               "Library source."_view);
           return {};
         }
@@ -125,35 +139,45 @@ auto Library::Dialect::interpret(
         continue;
       }
 
-      auto structure = Library::Language::Types::Structure::interpret(
-          domain, cursor, declaration_documentation, monograph,
-          *shared_materializations);
-      if (!structure) {
-        return {};
-      }
+      if (declaration_kind.get_code() == Code::Type::Addressable) {
+        View::Bytes kind =
+            declaration_kind.caculate_text(cursor.get_source_text());
+        if (kind == "struct"_view || kind == "object"_view) {
+          auto structure = Library::Language::Types::Structure::interpret(
+              domain, cursor, declaration_documentation, monograph,
+              *shared_materializations);
+          if (!structure) {
+            return {};
+          }
 
-      if (!monograph.bind_structure(*structure)) {
-        cursor.create_expression_error(
-            structure->get_name_anchor(),
-            "Duplicate Enumeration, Structure, or Function name in this "
-            "Library source."_view);
-        return {};
-      }
+          if (!monograph.bind_static(*structure, structure->get_visibility())) {
+            auto name_anchor = structure->get_name_anchor();
+            if (name_anchor) {
+              cursor.create_expression_error(
+                  *name_anchor,
+                  "Duplicate Static binding name in this Library source."_view);
+            } else {
+              cursor.create_token_error(
+                  "Duplicate Static binding name in this Library source."_view);
+            }
+            return {};
+          }
 
-      continue;
+          continue;
+        }
+      }
     }
 
     auto function = Library::Language::Function::reserve(
         domain, cursor, declaration_documentation, monograph,
-        *shared_materializations);
+        monograph.get_source(), *shared_materializations);
     if (!function) {
       return {};
     }
 
-    if (!monograph.bind_function(*function)) {
+    if (!monograph.bind_static(*function, function->get_visibility())) {
       cursor.create_token_error(
-          "Duplicate Enumeration, Structure, or Function name in this "
-          "Library source."_view);
+          "Duplicate Static binding name in this Library source."_view);
       return {};
     }
 

@@ -5,6 +5,7 @@
 
 #include "tetrodotoxin/language/parser/comment.hpp"
 #include "tetrodotoxin/library/language/parser/expression.hpp"
+#include "tetrodotoxin/library/language/types/structure.hpp"
 #include "ttx/concept/invalid.hpp"
 #include "ttx/model/layouts/fluid.hpp"
 
@@ -107,7 +108,8 @@ auto Language::Function::reserve(
     Allocator::Arena& domain,
     Cursor& cursor,
     const Documentation& documentation,
-    Tetrodotoxin::Language::Monograph& parent,
+    Tetrodotoxin::Language::Monograph& source,
+    const Type& host,
     Materializations& materializations) -> Option<Function&> {
   auto transaction = cursor.branch();
   Token opening = transaction.current();
@@ -141,7 +143,7 @@ auto Language::Function::reserve(
   View::Bytes name = name_token.caculate_text(transaction.get_source_text());
   Function& function = domain.construct_from<Function>([&]() -> Function {
     return Function(
-        domain, name, documentation, visibility, parent, materializations,
+        domain, name, documentation, visibility, source, host, materializations,
         opening, token, name_token);
   });
   cursor.join(transaction);
@@ -153,7 +155,8 @@ Language::Function::Function(
     View::Bytes name,
     const Documentation& documentation,
     Visibility visibility,
-    Tetrodotoxin::Language::Monograph& parent,
+    Tetrodotoxin::Language::Monograph& source,
+    const Type& host,
     Materializations& materializations,
     Token opening,
     Token token,
@@ -162,12 +165,14 @@ Language::Function::Function(
       name(name),
       documentation(documentation),
       visibility(visibility),
-      parent(parent),
+      source(source),
+      host(host),
       materializations(materializations),
       opening(opening),
       token(token),
       name_token(name_token),
-      expressions(domain) {}
+      expressions(domain),
+      expression_observations(domain) {}
 
 auto Language::Function::complete(Cursor& cursor) -> Bool {
   if (is_complete()) {
@@ -200,6 +205,7 @@ auto Language::Function::complete(Cursor& cursor) -> Bool {
   signature = *parsed_signature;
   for (Count i = 0; i < parsed_expressions.get_size(); i++) {
     expressions.insert(parsed_expressions[i]);
+    expression_observations.insert(parsed_expressions[i].get());
   }
 
   span = Span(opening, closing);
@@ -217,14 +223,14 @@ auto Language::Function::link_signature() -> Bool {
   }
 
   if (!completed || !signature) {
-    parent.report(
+    source.report(
         Anchor::create(token, Span(opening, name_token)),
         "An incomplete Function cannot enter semantic linking."_view,
         "Complete its signature and body grammar before linking."_view);
     return False;
   }
 
-  return signature->link(parent, parent);
+  return signature->link(source, *this);
 }
 
 auto Language::Function::link_body() -> Bool {
@@ -240,7 +246,7 @@ auto Language::Function::link_body() -> Bool {
   Bool failed = False;
   View::Vector<Reference<Expression>> body = expressions;
   for (Count i = 0; i < body.get_size(); i++) {
-    failed |= !body.get_data()[i].get().link(parent, *this, materializations);
+    failed |= !body.get_data()[i].get().link(source, *this, materializations);
   }
 
   linked = !failed;
@@ -289,7 +295,13 @@ auto Language::Function::resolve_context(View::Bytes route) const
     }
   }
 
-  return parent.resolve_context(route);
+  return host.visit<Language::Types::Structure>(
+      [&](const Language::Types::Structure& structure) -> const Abstract& {
+        return structure.resolve_context(route, *this);
+      },
+      [&](const Abstract&) -> const Abstract& {
+        return host.resolve_context(route);
+      });
 }
 
 auto Language::Function::get_parameters() const -> const Layout& {
@@ -316,9 +328,14 @@ auto Language::Function::get_signature() const -> Option<const Signature&> {
       });
 }
 
-auto Language::Function::get_expressions() const
+auto Language::Function::get_expressions()
     -> View::Vector<Reference<Expression>> {
   return expressions;
+}
+
+auto Language::Function::get_expressions() const
+    -> View::Vector<Reference<const Expression>> {
+  return expression_observations;
 }
 
 auto Language::Function::get_return_expression() const

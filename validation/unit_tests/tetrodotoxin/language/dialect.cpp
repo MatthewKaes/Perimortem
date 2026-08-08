@@ -8,6 +8,7 @@
 #include "perimortem/core/static/vector.hpp"
 
 #include "ttx/concept/invalid.hpp"
+#include "ttx/model/type.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -400,6 +401,8 @@ PERIMORTEM_UNIT_TEST(LanguageDialect, explicit_default_persistence) {
 
   EXPECT(linked);
   EXPECT(finalized);
+  EXPECT_NOT(monograph.is<Ttx::Model::Type>());
+  EXPECT(&monograph.resolve_context("source"_view) == &Invalid::get_invalid());
   EXPECT_NOT(unsupported);
   EXPECT_NOT(missing);
   EXPECT(successful_empty);

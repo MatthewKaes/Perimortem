@@ -3,6 +3,9 @@
 
 #include "tetrodotoxin/library/language/field.hpp"
 
+#include "tetrodotoxin/library/language/parser/expression.hpp"
+#include "tetrodotoxin/library/language/types/structure.hpp"
+
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
 using namespace Perimortem::Utility;
@@ -16,19 +19,56 @@ struct ParsedType {
   Anchor anchor;
 };
 
-static auto parse_visibility(Cursor& cursor) -> Option<Language::Visibility> {
+struct ParsedPolicy {
+  Language::Field::Exposure exposure;
+  Language::Field::Writability writability;
+};
+
+static auto parse_policy(Cursor& cursor) -> Option<ParsedPolicy> {
+  Language::Field::Exposure exposure;
   if (cursor.matches(Code::Type::Public)) {
     cursor.consume();
-    return Language::Visibility::Public;
-  }
-  if (cursor.matches(Code::Type::Private)) {
+    exposure = Language::Field::Exposure::Public;
+  } else if (cursor.matches(Code::Type::Private)) {
     cursor.consume();
-    return Language::Visibility::Private;
+    exposure = Language::Field::Exposure::Private;
+  } else if (cursor.matches(Code::Type::Expose)) {
+    cursor.consume();
+    exposure = Language::Field::Exposure::Exposed;
+  } else {
+    cursor.create_token_error(
+        "Library Fields require `public`, `private`, or `expose` "
+        "publication."_view);
+    return {};
   }
 
-  cursor.create_token_error(
-      "Library Fields require `public` or `private` visibility."_view);
-  return {};
+  Language::Field::Writability writability = Language::Field::Writability::Full;
+  Bool state = False;
+  if (cursor.matches(Code::Type::State)) {
+    cursor.consume();
+    writability = Language::Field::Writability::Internal;
+    state = True;
+  } else if (cursor.matches(Code::Type::Const)) {
+    cursor.consume();
+    writability = Language::Field::Writability::Init;
+  }
+
+  if (exposure == Language::Field::Exposure::Exposed && !state) {
+    cursor.create_token_error(
+        "Library `expose` Fields require the `state` evaluation policy."_view);
+    return {};
+  }
+  if (exposure == Language::Field::Exposure::Public && state) {
+    cursor.create_token_error(
+        "Library state Fields require `private` or explicit `expose` "
+        "publication."_view);
+    return {};
+  }
+
+  return ParsedPolicy{
+    .exposure = exposure,
+    .writability = writability,
+  };
 }
 
 static auto parse_type(Cursor& cursor) -> Option<ParsedType> {
@@ -38,8 +78,8 @@ static auto parse_type(Cursor& cursor) -> Option<ParsedType> {
     return {};
   }
 
-  // Field retains the complete authored spelling because its eventual context
-  // owns route grammar. Only the linked Type identity enters the TTX edge.
+  // Field retains the complete spelling because the hosting Structure owns
+  // route grammar. Only the selected exact Type enters the Addressable edge.
   Token last = first;
   while (cursor.matches(Code::Type::TypeAccessOp)) {
     Token separator = cursor.current();
@@ -81,33 +121,16 @@ static auto parse_type(Cursor& cursor) -> Option<ParsedType> {
   };
 }
 
-class LinkedField : public Addressable {
- public:
-  constexpr LinkedField(const Language::Field& field, const Type& type)
-      : field(field), type(type) {}
-
-  constexpr auto get_name() const -> View::Bytes override {
-    return field.get_name();
-  }
-
-  constexpr auto get_documentation() const -> const Documentation& override {
-    return field.get_documentation();
-  }
-
-  constexpr auto get_type() const -> const Type& override { return type; }
-
- private:
-  const Language::Field& field;
-  const Type& type;
-};
-
 auto Language::Field::interpret(
+    Allocator::Arena& domain,
+    Materializations& materializations,
     Cursor& cursor,
-    const Documentation& documentation) -> Option<Field> {
+    const Documentation& documentation,
+    const Abstract& source_context) -> Option<Source> {
   auto transaction = cursor.branch();
   Token opening = transaction.current();
-  auto visibility = parse_visibility(transaction);
-  if (!visibility) {
+  auto policy = parse_policy(transaction);
+  if (!policy) {
     return {};
   }
 
@@ -127,6 +150,21 @@ auto Language::Field::interpret(
   if (!type) {
     return {};
   }
+
+  Option<Expression&> initializer;
+  if (transaction.matches(Code::Type::Assign)) {
+    transaction.consume();
+    initializer = Parser::Expression::parse(
+        domain, materializations, transaction, source_context);
+    if (!initializer) {
+      return {};
+    }
+  } else if (policy->writability != Writability::Full) {
+    transaction.create_token_error(
+        "Library state and const Fields require an initializer."_view);
+    return {};
+  }
+
   Token terminator = transaction.require(
       Code::Type::EndStatement,
       "Library Fields require one terminating `;`."_view);
@@ -135,9 +173,10 @@ auto Language::Field::interpret(
   }
 
   View::Bytes name = name_token.caculate_text(transaction.get_source_text());
-  Field field(
-      name, type->route, documentation, *visibility,
-      Anchor::create(name_token, Span(opening, terminator)), type->anchor);
+  Source field(
+      name, type->route, documentation, policy->exposure, policy->writability,
+      Anchor::create(name_token, Span(opening, terminator)), type->anchor,
+      initializer);
   cursor.join(transaction);
   return field;
 }
@@ -145,8 +184,16 @@ auto Language::Field::interpret(
 auto Language::Field::link(
     Allocator::Arena& domain,
     Tetrodotoxin::Language::Monograph& source,
-    const Abstract& context) -> Bool {
-  const Abstract& selected = context.resolve_context(type_route);
+    const Type& host,
+    Source& field,
+    const Abstract& selected) -> Option<Field&> {
+  if (!host.is<Language::Types::Structure>()) {
+    source.report(
+        field.get_anchor(), "Field host is not one Library Structure."_view,
+        "Construct the Field through its exact containing Type."_view);
+    return {};
+  }
+
   const Abstract& resolved =
       selected.is<Type>() ? selected : selected.resolve();
   auto type = resolved.visit<Type>(
@@ -154,43 +201,68 @@ auto Language::Field::link(
       [](const Abstract&) -> Option<const Type&> { return {}; });
   if (!type) {
     source.report(
-        type_anchor,
+        field.get_type_anchor(),
         "Field Type route did not resolve to one stable Type."_view,
         "Publish the named Type in this Library context before linking."_view);
+    return {};
+  }
+
+  return domain.construct_from<Field>(
+      [&]() -> Field { return Field(field, *type, host); });
+}
+
+auto Language::Field::link_initializer(
+    Tetrodotoxin::Language::Monograph& monograph,
+    Materializations& materializations) -> Bool {
+  if (initializer_linked) {
+    return True;
+  }
+
+  auto initializer = source.get_initializer();
+  if (!initializer) {
+    monograph.report(
+        source.get_anchor(), "Field initializer state is incomplete."_view,
+        "Retain one initializer before linking restricted Field access."_view);
     return False;
   }
 
-  if (stage == Stage::Linked) {
-    if (&addressable->get().get_type() == &*type) {
-      return True;
-    }
-
-    source.report(
-        type_anchor, "Linked Field Type route changed semantic identity."_view,
-        "Keep one exact Type identity for the complete graph lifetime."_view);
+  // Structure retains every Field before this barrier, so the exact Field can
+  // authenticate its host without inventing another initializer context.
+  Bool linked = initializer->link(monograph, *this, materializations);
+  if (!linked) {
     return False;
   }
 
-  // The authored owner reaches a TTX edge only after its exact Type settles.
-  // LinkedField borrows Field for source facts, so the composite owner must
-  // keep its complete Field inventory at a stable address before this call.
-  const auto& linked = domain.construct<LinkedField>(*this, *type);
-  addressable = Reference<const Addressable>(linked);
-  stage = Stage::Linked;
+  initializer_linked = True;
   return True;
 }
 
-auto Language::Field::get_type() const -> Option<const Type&> {
-  return addressable.visit(
-      []() -> Option<const Type&> { return {}; },
-      [](const Reference<const Addressable>& selected) -> Option<const Type&> {
-        return selected.get().get_type();
+auto Language::Field::resolve_context(View::Bytes route) const
+    -> const Abstract& {
+  return host.visit<Language::Types::Structure>(
+      [&](const Language::Types::Structure& structure) -> const Abstract& {
+        return structure.resolve_context(route, *this);
+      },
+      [&](const Abstract&) -> const Abstract& {
+        return host.resolve_context(route);
       });
 }
 
-auto Language::Field::get_addressable() const -> Option<const Addressable&> {
-  return addressable.visit(
-      []() -> Option<const Addressable&> { return {}; },
-      [](const Reference<const Addressable>& selected)
-          -> Option<const Addressable&> { return selected.get(); });
+auto Language::Field::Source::get_initializer() const
+    -> Option<const Expression&> {
+  return initializer.visit(
+      []() -> Option<const Expression&> { return {}; },
+      [](const Expression& selected) -> Option<const Expression&> {
+        return selected;
+      });
+}
+
+auto Language::Field::Source::get_initializer() -> Option<Expression&> {
+  return initializer.visit(
+      []() -> Option<Expression&> { return {}; },
+      [](Expression& selected) -> Option<Expression&> { return selected; });
+}
+
+auto Language::Field::get_initializer() const -> Option<const Expression&> {
+  return static_cast<const Source&>(source).get_initializer();
 }

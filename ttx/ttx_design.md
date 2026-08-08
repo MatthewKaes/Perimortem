@@ -96,11 +96,13 @@ owners.
 
 TTX includes `Type`, `Value`, `Addressable`, and `Callable` because they are the
 shared exchange contracts for domains and signatures. It does not include the
-rules that create or evaluate those facts.
+rules that create or evaluate those facts. Together they form a vocabulary,
+not a type system.
 
 Expressions, bindings, projections, constants, generic formulas, mutability,
-receiver roles, executable bodies, concrete scalar Types, and publication
-policy belong to the concrete language that defines their legality. Reuse by
-several languages does not make such policy universal.
+contextual scopes, visibility, receiver roles, executable bodies, concrete
+scalar Types, and publication policy belong to the concrete language that
+defines their legality. Reuse by several languages does not make such policy
+universal.
 
 The normative contract is [ttx_semantics.md](ttx_semantics.md).

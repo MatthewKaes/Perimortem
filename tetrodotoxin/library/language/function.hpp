@@ -19,12 +19,13 @@
 #include "ttx/concept/reference.hpp"
 #include "ttx/lexical/cursor.hpp"
 #include "ttx/lexical/span.hpp"
+#include "ttx/model/type.hpp"
 
 namespace Tetrodotoxin::Library::Language {
 
 // Function is one Library defined Static Callable. Reservation fixes its graph
-// identity and parent context before completion installs the signature and
-// authored Expression roots from one complete definition.
+// identity, source owner, and exact host Type before completion installs the
+// signature and authored Expression roots from one complete definition.
 class Function : public Callables::Static {
  private:
   Function(
@@ -32,7 +33,8 @@ class Function : public Callables::Static {
       Perimortem::Core::View::Bytes name,
       const Ttx::Concept::Documentation& documentation,
       Visibility visibility,
-      Tetrodotoxin::Language::Monograph& parent,
+      Tetrodotoxin::Language::Monograph& source,
+      const Ttx::Model::Type& host,
       Materializations& materializations,
       Ttx::Lexical::Token opening,
       Ttx::Lexical::Token token,
@@ -49,7 +51,8 @@ class Function : public Callables::Static {
       Perimortem::Memory::Allocator::Arena& domain,
       Ttx::Lexical::Cursor& cursor,
       const Ttx::Concept::Documentation& documentation,
-      Tetrodotoxin::Language::Monograph& parent,
+      Tetrodotoxin::Language::Monograph& source,
+      const Ttx::Model::Type& host,
       Materializations& materializations)
       -> Perimortem::Utility::Option<Function&>;
 
@@ -93,10 +96,12 @@ class Function : public Callables::Static {
 
   constexpr auto get_visibility() const -> Visibility { return visibility; }
 
-  constexpr auto get_parent() const
+  constexpr auto get_source() const
       -> const Tetrodotoxin::Language::Monograph& {
-    return parent;
+    return source;
   }
+
+  constexpr auto get_host() const -> const Ttx::Model::Type& { return host; }
 
   constexpr auto get_token() const -> Ttx::Lexical::Token { return token; }
 
@@ -108,8 +113,11 @@ class Function : public Callables::Static {
 
   auto get_signature() const -> Perimortem::Utility::Option<const Signature&>;
 
-  auto get_expressions() const
+  auto get_expressions()
       -> Perimortem::Core::View::Vector<Ttx::Concept::Reference<Expression>>;
+
+  auto get_expressions() const -> Perimortem::Core::View::Vector<
+      Ttx::Concept::Reference<const Expression>>;
 
   constexpr auto get_return_token() const -> Ttx::Lexical::Token {
     return return_token;
@@ -133,7 +141,8 @@ class Function : public Callables::Static {
   Perimortem::Core::View::Bytes name;
   const Ttx::Concept::Documentation& documentation;
   Visibility visibility;
-  Tetrodotoxin::Language::Monograph& parent;
+  Tetrodotoxin::Language::Monograph& source;
+  const Ttx::Model::Type& host;
   Materializations& materializations;
   Ttx::Lexical::Token opening;
   Ttx::Lexical::Token token;
@@ -142,6 +151,8 @@ class Function : public Callables::Static {
   Perimortem::Utility::Option<Signature&> signature;
   Perimortem::Memory::Managed::Vector<Ttx::Concept::Reference<Expression>>
       expressions;
+  Perimortem::Memory::Managed::Vector<Ttx::Concept::Reference<const Expression>>
+      expression_observations;
   Ttx::Lexical::Token return_token;
   Ttx::Lexical::Span return_span;
   Perimortem::Utility::Option<Ttx::Concept::Reference<Expression>>

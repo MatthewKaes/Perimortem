@@ -399,6 +399,17 @@ auto Language::Signature::get_result_name(Count index) const -> View::Bytes {
   return index < results.get_size() ? results.at(index).name : View::Bytes();
 }
 
+auto Language::Signature::get_parameter_type_route(Count index) const
+    -> View::Bytes {
+  return index < parameters.get_size() ? parameters.at(index).route
+                                       : View::Bytes();
+}
+
+auto Language::Signature::get_result_type_route(Count index) const
+    -> View::Bytes {
+  return index < results.get_size() ? results.at(index).route : View::Bytes();
+}
+
 auto Language::Signature::get_parameter_anchor(Count index) const
     -> Option<Anchor> {
   return index < parameters.get_size()

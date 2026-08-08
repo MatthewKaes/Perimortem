@@ -53,7 +53,7 @@ class SignatureType : public Type {
   View::Bytes name;
 };
 
-class SignatureTypes : public Abstract {
+class SignatureTypes : public Type {
  public:
   constexpr auto get_name() const -> View::Bytes override {
     return "SignatureTypes"_view;
@@ -75,7 +75,7 @@ class SignatureTypes : public Abstract {
   SignatureType unsigned_64{"Unsigned_64"_view};
 };
 
-class LateSignatureTypes : public Abstract {
+class LateSignatureTypes : public Type {
  public:
   constexpr auto get_name() const -> View::Bytes override {
     return "LateSignatureTypes"_view;
@@ -194,7 +194,7 @@ static auto rejects_completion(View::Bytes source, const SignatureTypes& types)
   Tokenizer tokenizer(arena, source, "rejected-function.ttx"_view);
   Cursor cursor(tokenizer, errors);
   auto reserved = Language::Function::reserve(
-      arena, cursor, function_documentation, parent, materializations);
+      arena, cursor, function_documentation, parent, types, materializations);
   if (!reserved) {
     return False;
   }
@@ -227,7 +227,7 @@ PERIMORTEM_UNIT_TEST(FunctionTests, stable_authored_graph) {
   // Completion enriches that same object with signature and body facts while
   // the caller remains positioned at the next declaration.
   auto reserved = Language::Function::reserve(
-      arena, cursor, function_documentation, parent, materializations);
+      arena, cursor, function_documentation, parent, types, materializations);
   ASSERT(reserved);
   Language::Function& function = *reserved;
   const Language::Function* identity = &function;
@@ -236,7 +236,8 @@ PERIMORTEM_UNIT_TEST(FunctionTests, stable_authored_graph) {
   EXPECT_TEXT(function.get_name(), "ready"_view);
   EXPECT(&function.get_documentation() == &function_documentation);
   EXPECT(function.get_visibility() == Language::Visibility::Public);
-  EXPECT(&function.get_parent() == &parent);
+  EXPECT(&function.get_source() == &parent);
+  EXPECT(&function.get_host() == &types);
   EXPECT_TEXT(function.get_token().caculate_text(source), "func"_view);
   EXPECT_TEXT(function.get_name_token().caculate_text(source), "ready"_view);
   EXPECT_NOT(function.get_span());
@@ -342,7 +343,7 @@ PERIMORTEM_UNIT_TEST(FunctionTests, direct_parameter_and_bare_return) {
   SignatureTypes types;
   FunctionParent parent(arena, types);
   auto function = Language::Function::reserve(
-      arena, cursor, function_documentation, parent, materializations);
+      arena, cursor, function_documentation, parent, types, materializations);
   ASSERT(function);
   ASSERT(function->complete(cursor));
   ASSERT(function->link());
@@ -473,7 +474,7 @@ PERIMORTEM_UNIT_TEST(
   SignatureTypes types;
   FunctionParent parent(arena, types);
   auto function = Language::Function::reserve(
-      arena, cursor, function_documentation, parent, materializations);
+      arena, cursor, function_documentation, parent, types, materializations);
   ASSERT(function);
 
   EXPECT_NOT(function->link());
@@ -498,7 +499,7 @@ PERIMORTEM_UNIT_TEST(FunctionTests, unresolved_type_waits_for_link) {
   SignatureTypes types;
   FunctionParent parent(arena, types);
   auto function = Language::Function::reserve(
-      arena, cursor, function_documentation, parent, materializations);
+      arena, cursor, function_documentation, parent, types, materializations);
   ASSERT(function);
   ASSERT(function->complete(cursor));
   EXPECT(errors.is_empty());
@@ -528,7 +529,7 @@ PERIMORTEM_UNIT_TEST(FunctionTests, late_type_enriches_authored_identities) {
   LateSignatureTypes types;
   FunctionParent parent(arena, types);
   auto function = Language::Function::reserve(
-      arena, cursor, function_documentation, parent, materializations);
+      arena, cursor, function_documentation, parent, types, materializations);
   ASSERT(function);
   ASSERT(function->complete(cursor));
   const Language::Function* function_identity = &*function;
@@ -577,7 +578,7 @@ PERIMORTEM_UNIT_TEST(FunctionTests, completion_occurs_once) {
   SignatureTypes types;
   FunctionParent parent(arena, types);
   auto reserved = Language::Function::reserve(
-      arena, cursor, function_documentation, parent, materializations);
+      arena, cursor, function_documentation, parent, types, materializations);
   ASSERT(reserved);
   ASSERT(reserved->complete(cursor));
   ASSERT(reserved->link());
@@ -616,7 +617,7 @@ PERIMORTEM_UNIT_TEST(
   SignatureTypes types;
   FunctionParent parent(arena, types);
   auto function = Language::Function::reserve(
-      arena, cursor, function_documentation, parent, materializations);
+      arena, cursor, function_documentation, parent, types, materializations);
 
   ASSERT(function);
   ASSERT(function->complete(cursor));

@@ -7,6 +7,7 @@
 
 #include "tetrodotoxin/library/dialect.hpp"
 #include "tetrodotoxin/library/language/constants/true.hpp"
+#include "tetrodotoxin/library/language/function.hpp"
 #include "tetrodotoxin/library/language/identifier.hpp"
 #include "tetrodotoxin/library/language/import.hpp"
 #include "tetrodotoxin/library/language/materializations.hpp"
@@ -14,6 +15,7 @@
 #include "tetrodotoxin/library/language/operations/not.hpp"
 #include "tetrodotoxin/library/language/parser/expression.hpp"
 #include "tetrodotoxin/library/language/parser/literal.hpp"
+#include "tetrodotoxin/library/language/types/structure.hpp"
 #include "ttx/concept/invalid.hpp"
 #include "ttx/lexical/errors.hpp"
 #include "ttx/lexical/tokenizer.hpp"
@@ -259,12 +261,13 @@ PERIMORTEM_UNIT_TEST(SourceTests, authored_declaration_order) {
   ASSERT(interpreted && interpreted->is<Language::Monograph>());
   const auto& monograph = static_cast<const Language::Monograph&>(*interpreted);
 
-  // Import and Function inventories retain their own authored sequences. Link
-  // expansion cannot replace either declaration relation with selected edges.
+  // Imports retain their authored sequence beside the shared declaration
+  // inventory. The synthetic source owns lookup without replacing either
+  // source relation with selected edges.
   auto imports = monograph.get_imports();
-  auto functions = monograph.get_functions();
+  auto bindings = monograph.get_authored_bindings();
   ASSERT_EQ(imports.get_size(), Count(2));
-  ASSERT_EQ(functions.get_size(), Count(1));
+  ASSERT_EQ(bindings.get_size(), Count(1));
   EXPECT_TEXT(imports.get_data()[0].get_route(), "First"_view);
   EXPECT_TEXT(imports.get_data()[1].get_route(), "Second"_view);
   EXPECT_TEXT(
@@ -273,7 +276,9 @@ PERIMORTEM_UNIT_TEST(SourceTests, authored_declaration_order) {
   EXPECT_TEXT(
       imports.get_data()[1].get_span().caculate_text(source),
       "using Second;"_view);
-  const Language::Function& function = functions.get_data()[0].get();
+  ASSERT(bindings.get_data()[0].get().is<Language::Function>());
+  const auto& function =
+      static_cast<const Language::Function&>(bindings.get_data()[0].get());
   EXPECT_TEXT(function.get_name(), "body"_view);
   EXPECT_TEXT(
       function.get_span().caculate_text(source),
@@ -284,6 +289,13 @@ PERIMORTEM_UNIT_TEST(SourceTests, authored_declaration_order) {
   ASSERT(expression.get_anchor());
   EXPECT_TEXT(
       expression.get_anchor()->get_span().caculate_text(source), "true"_view);
+  ASSERT(monograph.get_source().is<Language::Types::Structure>());
+  const auto& source_structure =
+      static_cast<const Language::Types::Structure&>(monograph.get_source());
+  EXPECT(source_structure.is_source());
+  EXPECT(&monograph.resolve_context("source"_view) == &source_structure);
+  EXPECT(&function.get_source() == &monograph);
+  EXPECT(&function.get_host() == &source_structure);
   EXPECT(cursor.matches(Code::Type::Terminal));
   EXPECT(errors.is_empty());
 }

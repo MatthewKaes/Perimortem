@@ -14,6 +14,7 @@
 #include "tetrodotoxin/library/language/function.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
 #include "tetrodotoxin/library/language/parameter.hpp"
+#include "tetrodotoxin/library/language/types/structure.hpp"
 #include "ttx/concept/invalid.hpp"
 #include "ttx/lexical/errors.hpp"
 #include "ttx/lexical/tokenizer.hpp"
@@ -108,25 +109,6 @@ static Harness DialectTests = {
   .name = "Tetrodotoxin::Library::Dialect"_view,
 };
 
-static auto fold_is_unsigned(
-    const Result<Option<Language::Expression&>, Language::Expression::Error>&
-        result,
-    Unsigned_64 expected) -> Bool {
-  return result.visit(
-      [&](const Option<Language::Expression&>& selected) {
-        if (!selected) {
-          return False;
-        }
-
-        return selected->visit<Language::Constants::Unsigned>(
-            [&](const Language::Constants::Unsigned& value) {
-              return value.get_value() == expected ? True : False;
-            },
-            [](const Abstract&) { return False; });
-      },
-      [](const Language::Expression::Error&) { return False; });
-}
-
 static constexpr Static::Vector<View::Bytes, 12> intrinsic_names = {{
   "Bool"_view,
   "Unsigned_8"_view,
@@ -200,14 +182,29 @@ PERIMORTEM_UNIT_TEST(DialectTests, declaration_graph) {
   EXPECT_TEXT(
       first->get_documentation().get_line(0), "First Library source."_view);
 
-  // Local lookup and public publication borrow the same completed Functions.
-  // Reversing declarations changes only each Monograph's authored public order.
+  ASSERT(first->get_source().is<Language::Types::Structure>());
+  ASSERT(second->get_source().is<Language::Types::Structure>());
+  const auto& first_scope =
+      static_cast<const Language::Types::Structure&>(first->get_source());
+  const auto& second_scope =
+      static_cast<const Language::Types::Structure&>(second->get_source());
+  EXPECT(first_scope.is_source());
+  EXPECT(second_scope.is_source());
+  EXPECT(&first->resolve_context("source"_view) == &first_scope);
+  EXPECT(&second->resolve_context("source"_view) == &second_scope);
+
+  // External lookup and publication borrow the same public Functions. The
+  // authored inventory keeps private declarations for source lifecycle work.
   const Abstract& first_alpha = first->resolve_context("alpha"_view);
-  const Abstract& first_hidden = first->resolve_context("hidden"_view);
   const Abstract& first_beta = first->resolve_context("beta"_view);
   const Abstract& second_alpha = second->resolve_context("alpha"_view);
-  const Abstract& second_hidden = second->resolve_context("hidden"_view);
   const Abstract& second_beta = second->resolve_context("beta"_view);
+  auto first_bindings = first->get_authored_bindings();
+  auto second_bindings = second->get_authored_bindings();
+  ASSERT_EQ(first_bindings.get_size(), Count(3));
+  ASSERT_EQ(second_bindings.get_size(), Count(3));
+  const Abstract& first_hidden = first_bindings.get_data()[1].get();
+  const Abstract& second_hidden = second_bindings.get_data()[2].get();
   ASSERT(
       first_alpha.is<Language::Function>() &&
       first_hidden.is<Language::Function>() &&
@@ -215,11 +212,13 @@ PERIMORTEM_UNIT_TEST(DialectTests, declaration_graph) {
       second_alpha.is<Language::Function>() &&
       second_hidden.is<Language::Function>() &&
       second_beta.is<Language::Function>());
+  EXPECT(&first->resolve_context("hidden"_view) == &Invalid::get_invalid());
+  EXPECT(&second->resolve_context("hidden"_view) == &Invalid::get_invalid());
 
-  auto first_public = first->get_public_functions();
-  auto second_public = second->get_public_functions();
-  auto first_functions = first->get_functions();
-  auto second_functions = second->get_functions();
+  auto first_public = first_scope.get_external_static_bindings();
+  auto second_public = second_scope.get_external_static_bindings();
+  auto first_functions = first_scope.get_static_bindings();
+  auto second_functions = second_scope.get_static_bindings();
   ASSERT_EQ(first_public.get_size(), Count(2));
   ASSERT_EQ(second_public.get_size(), Count(2));
   ASSERT_EQ(first_functions.get_size(), Count(3));
@@ -249,23 +248,28 @@ PERIMORTEM_UNIT_TEST(DialectTests, declaration_graph) {
       "Hidden documentation."_view);
   EXPECT(&first_alpha.resolve() == &first_alpha);
   EXPECT(&first_beta.resolve() == &first_beta);
+  const auto& alpha = static_cast<const Language::Function&>(first_alpha);
+  EXPECT(&alpha.get_source() == &*first);
+  EXPECT(&alpha.get_host() == &first_scope);
 
-  // Both Monographs use the same installed Dialect Types. The reversed source
-  // still owns separate Function identities and its own public order.
+  // Hosted Functions use the same installed Dialect Types through their source
+  // Structure. The Monograph itself exposes no ambient or intrinsic names.
   for (Count i = 0; i < intrinsic_names.get_size(); i++) {
-    const Abstract& first_intrinsic =
-        first->resolve_context(intrinsic_names[i]);
+    const Abstract& first_intrinsic = alpha.resolve_context(intrinsic_names[i]);
     const Abstract& second_intrinsic =
-        second->resolve_context(intrinsic_names[i]);
+        static_cast<const Language::Function&>(second_alpha)
+            .resolve_context(intrinsic_names[i]);
     EXPECT(&first_intrinsic != &Invalid::get_invalid());
     EXPECT(&first_intrinsic == &second_intrinsic);
     EXPECT(first_intrinsic.is<Type>());
     EXPECT_TEXT(first_intrinsic.get_name(), intrinsic_names[i]);
+    EXPECT(
+        &first->resolve_context(intrinsic_names[i]) == &Invalid::get_invalid());
   }
 
-  const Abstract& boolean = first->resolve_context("Bool"_view);
-  const Abstract& unsigned_16 = first->resolve_context("Unsigned_16"_view);
-  const Abstract& void_type = first->resolve_context("Void"_view);
+  const Abstract& boolean = alpha.resolve_context("Bool"_view);
+  const Abstract& unsigned_16 = alpha.resolve_context("Unsigned_16"_view);
+  const Abstract& void_type = alpha.resolve_context("Void"_view);
   ASSERT(void_type.is<Type>());
   EXPECT_NOT(void_type.is<Types::Value>());
   EXPECT(static_cast<const Type&>(void_type).get_layout().is_empty());
@@ -275,7 +279,6 @@ PERIMORTEM_UNIT_TEST(DialectTests, declaration_graph) {
 
   // Layout edges reach Dialect identities directly. Named inputs become real
   // Parameter Addressables while named results retain their passive Alias.
-  const auto& alpha = static_cast<const Language::Function&>(first_alpha);
   ASSERT_EQ(alpha.get_parameters().get_size(), Count(1));
   ASSERT_EQ(alpha.get_results().get_size(), Count(1));
   EXPECT(alpha.get_parameters().get_abstract(0).visit(
@@ -309,8 +312,8 @@ PERIMORTEM_UNIT_TEST(DialectTests, declaration_graph) {
                    : False;
       }));
 
-  // Standalone Library sources expose only the approved intrinsic vocabulary.
-  // Names from future imports and ambient namespaces remain ordinary misses.
+  // The external source surface admits no ambient namespaces or undeclared
+  // names. Future import spellings remain ordinary misses until linking.
   static constexpr Static::Vector<View::Bytes, 6> absent = {{
     "missing"_view,
     "Count"_view,
@@ -335,23 +338,24 @@ PERIMORTEM_UNIT_TEST(DialectTests, finalization_caches_function_roots) {
   ASSERT(workspace.install_dialect<Dialect>("Library"_view));
   auto monograph = import_library(workspace, errors, "Folded"_view, source);
   ASSERT(monograph);
-  ASSERT_EQ(monograph->get_functions().get_size(), Count(1));
-  auto& function = monograph->get_functions().get_data()[0].get();
+  auto bindings = monograph->get_authored_bindings();
+  ASSERT_EQ(bindings.get_size(), Count(1));
+  ASSERT(bindings.get_data()[0].get().is<Language::Function>());
+  const auto& function =
+      static_cast<const Language::Function&>(bindings.get_data()[0].get());
   auto expressions = function.get_expressions();
   ASSERT_EQ(expressions.get_size(), Count(2));
 
-  Language::Expression& first = expressions.get_data()[0].get();
-  Language::Expression& second = expressions.get_data()[1].get();
-  EXPECT(fold_is_unsigned(first.fold(), 3));
-  EXPECT(second.fold().visit(
-      [](const Option<Language::Expression&>&) { return False; },
-      [&](const Language::Expression::Error& error) {
-        return error.get_type() ==
-                           Language::Expression::Error::Type::DivisionByZero &&
-                       &error.get_expression() == &second
-                   ? True
-                   : False;
-      }));
+  const Language::Expression& first = expressions.get_data()[0].get();
+  const Language::Expression& second = expressions.get_data()[1].get();
+  auto folded = first.get_folded();
+  ASSERT(folded);
+  EXPECT(folded->visit<Language::Constants::Unsigned>(
+      [](const Language::Constants::Unsigned& value) {
+        return value.get_value() == 3 ? True : False;
+      },
+      [](const Abstract&) { return False; }));
+  EXPECT_NOT(second.get_folded());
   EXPECT(monograph->get_diagnostics().is_empty());
   EXPECT(errors.is_empty());
 }
@@ -380,14 +384,18 @@ PERIMORTEM_UNIT_TEST(DialectTests, workspace_materializations_follow_graph) {
   // share the exact generated Type without merging their Expression roots.
   EXPECT(&first->get_materializations() == &second->get_materializations());
   EXPECT_EQ(first->get_materializations().get_size(), Count(1));
-  auto first_functions = first->get_functions();
-  auto second_functions = second->get_functions();
+  auto first_functions = first->get_authored_bindings();
+  auto second_functions = second->get_authored_bindings();
   ASSERT_EQ(first_functions.get_size(), Count(1));
   ASSERT_EQ(second_functions.get_size(), Count(1));
-  auto first_expressions =
-      first_functions.get_data()[0].get().get_expressions();
-  auto second_expressions =
-      second_functions.get_data()[0].get().get_expressions();
+  ASSERT(first_functions.get_data()[0].get().is<Language::Function>());
+  ASSERT(second_functions.get_data()[0].get().is<Language::Function>());
+  auto first_expressions = static_cast<const Language::Function&>(
+                               first_functions.get_data()[0].get())
+                               .get_expressions();
+  auto second_expressions = static_cast<const Language::Function&>(
+                                second_functions.get_data()[0].get())
+                                .get_expressions();
   ASSERT_EQ(first_expressions.get_size(), Count(1));
   ASSERT_EQ(second_expressions.get_size(), Count(1));
   const Language::Expression& first_expression =
@@ -425,12 +433,23 @@ PERIMORTEM_UNIT_TEST(DialectTests, workspace_intrinsic_sharing) {
       import_library(second_workspace, second_errors, "Second"_view, source);
   ASSERT(first && second);
 
-  // Workspaces keep independent stateful Dialects while immutable intrinsic
-  // Types retain one binary wide identity across every semantic island.
+  auto first_bindings = first->get_authored_bindings();
+  auto second_bindings = second->get_authored_bindings();
+  ASSERT_EQ(first_bindings.get_size(), Count(1));
+  ASSERT_EQ(second_bindings.get_size(), Count(1));
+  ASSERT(first_bindings.get_data()[0].get().is<Language::Function>());
+  ASSERT(second_bindings.get_data()[0].get().is<Language::Function>());
+  const auto& first_function = static_cast<const Language::Function&>(
+      first_bindings.get_data()[0].get());
+  const auto& second_function = static_cast<const Language::Function&>(
+      second_bindings.get_data()[0].get());
+
+  // Workspaces keep independent stateful Dialects while hosted Functions see
+  // one immutable intrinsic identity across every semantic island.
   for (Count i = 0; i < intrinsic_names.get_size(); i++) {
     EXPECT(
-        &first->resolve_context(intrinsic_names[i]) ==
-        &second->resolve_context(intrinsic_names[i]));
+        &first_function.resolve_context(intrinsic_names[i]) ==
+        &second_function.resolve_context(intrinsic_names[i]));
   }
   EXPECT(first_errors.is_empty());
   EXPECT(second_errors.is_empty());
@@ -443,22 +462,28 @@ PERIMORTEM_UNIT_TEST(DialectTests, context_fallback_and_shadowing) {
   Language::Materializations materializations(arena);
   auto& monograph = Language::Monograph::create_authored(
       arena, Documentation::get_empty(), dialect, registry, materializations);
+  const Type& source = monograph.get_source();
 
-  // Local declarations lead the outer source context and Library intrinsics.
-  // An occupied outer name remains unavailable to a new Function identity.
-  EXPECT(&monograph.resolve_context("outer"_view) == &registry.fact);
-  EXPECT(&monograph.resolve_context("Bool"_view) == &Dialect::get_bool());
+  // External Monograph lookup stops at the source Structure. Hosted Functions
+  // retain the complete source, outer context, and intrinsic lookup chain.
+  EXPECT(&monograph.resolve_context("source"_view) == &source);
+  EXPECT(&monograph.resolve_context("outer"_view) == &Invalid::get_invalid());
+  EXPECT(&monograph.resolve_context("Bool"_view) == &Invalid::get_invalid());
 
   Errors local_errors;
   Tokenizer local_tokenizer(
       arena, "public func local[] -> Void {}"_view, "local.ttx"_view);
   Cursor local_cursor(local_tokenizer, local_errors);
   auto local = Language::Function::reserve(
-      arena, local_cursor, Documentation::get_empty(), monograph,
+      arena, local_cursor, Documentation::get_empty(), monograph, source,
       materializations);
   ASSERT(local);
-  ASSERT(monograph.bind_function(*local));
+  ASSERT(monograph.bind_static(*local, local->get_visibility()));
   EXPECT(&monograph.resolve_context("local"_view) == &*local);
+  EXPECT(&local->get_source() == &monograph);
+  EXPECT(&local->get_host() == &source);
+  EXPECT(&local->resolve_context("outer"_view) == &registry.fact);
+  EXPECT(&local->resolve_context("Bool"_view) == &Dialect::get_bool());
   ASSERT(local->complete(local_cursor));
   ASSERT(local->link());
 
@@ -467,10 +492,10 @@ PERIMORTEM_UNIT_TEST(DialectTests, context_fallback_and_shadowing) {
       arena, "public func outer[] -> Void {}"_view, "outer.ttx"_view);
   Cursor outer_cursor(outer_tokenizer, outer_errors);
   auto outer = Language::Function::reserve(
-      arena, outer_cursor, Documentation::get_empty(), monograph,
+      arena, outer_cursor, Documentation::get_empty(), monograph, source,
       materializations);
   ASSERT(outer);
-  EXPECT_NOT(monograph.bind_function(*outer));
+  EXPECT_NOT(monograph.bind_static(*outer, outer->get_visibility()));
 
   Errors parameter_errors;
   Tokenizer parameter_tokenizer(
@@ -478,10 +503,10 @@ PERIMORTEM_UNIT_TEST(DialectTests, context_fallback_and_shadowing) {
       "parameter-shadow.ttx"_view);
   Cursor parameter_cursor(parameter_tokenizer, parameter_errors);
   auto shadow = Language::Function::reserve(
-      arena, parameter_cursor, Documentation::get_empty(), monograph,
+      arena, parameter_cursor, Documentation::get_empty(), monograph, source,
       materializations);
   ASSERT(shadow);
-  ASSERT(monograph.bind_function(*shadow));
+  ASSERT(monograph.bind_static(*shadow, shadow->get_visibility()));
   ASSERT(shadow->complete(parameter_cursor));
   EXPECT_NOT(shadow->link());
   EXPECT(&monograph.resolve_context("shadow"_view) == &*shadow);
@@ -508,33 +533,38 @@ PERIMORTEM_UNIT_TEST(DialectTests, duplicate_preserves_first) {
   Language::Materializations materializations(arena);
   auto& monograph = Language::Monograph::create_authored(
       arena, Documentation::get_empty(), dialect, registry, materializations);
+  const Type& source = monograph.get_source();
   Errors first_errors;
   Tokenizer first_tokenizer(arena, first_source, "first.ttx"_view);
   Cursor first_cursor(first_tokenizer, first_errors);
   auto first = Language::Function::reserve(
-      arena, first_cursor, Documentation::get_empty(), monograph,
+      arena, first_cursor, Documentation::get_empty(), monograph, source,
       materializations);
   ASSERT(first);
 
   // Direct binding isolates the mutation contract from Workspace transaction
   // discard. The rejected identity must not disturb either retained view.
-  ASSERT(monograph.bind_function(*first));
+  ASSERT(monograph.bind_static(*first, first->get_visibility()));
   ASSERT(first->complete(first_cursor));
   const Abstract* first_identity = &*first;
-  const Count public_size = monograph.get_public_functions().get_size();
+  ASSERT(source.is<Language::Types::Structure>());
+  const auto& source_structure =
+      static_cast<const Language::Types::Structure&>(source);
+  const Count public_size =
+      source_structure.get_external_static_bindings().get_size();
 
   Errors duplicate_errors;
   Tokenizer duplicate_tokenizer(arena, duplicate_source, "duplicate.ttx"_view);
   Cursor duplicate_cursor(duplicate_tokenizer, duplicate_errors);
   auto duplicate = Language::Function::reserve(
-      arena, duplicate_cursor, Documentation::get_empty(), monograph,
+      arena, duplicate_cursor, Documentation::get_empty(), monograph, source,
       materializations);
   ASSERT(duplicate);
-  EXPECT_NOT(monograph.bind_function(*duplicate));
+  EXPECT_NOT(monograph.bind_static(*duplicate, duplicate->get_visibility()));
   EXPECT(&monograph.resolve_context("repeated"_view) == first_identity);
-  EXPECT_EQ(monograph.get_public_functions().get_size(), public_size);
-  EXPECT(
-      &monograph.get_public_functions().get_data()[0].get() == first_identity);
+  auto public_bindings = source_structure.get_external_static_bindings();
+  EXPECT_EQ(public_bindings.get_size(), public_size);
+  EXPECT(&public_bindings.get_data()[0].get() == first_identity);
   EXPECT_NOT(duplicate->is_complete());
 
   // Workspace rejection proves that the partially constructed transaction is
@@ -553,6 +583,47 @@ PERIMORTEM_UNIT_TEST(DialectTests, duplicate_preserves_first) {
   EXPECT(
       &workspace.resolve_context("Duplicate"_view) == &Invalid::get_invalid());
   EXPECT_NOT(errors.is_empty());
+}
+
+PERIMORTEM_UNIT_TEST(DialectTests, failed_field_phase_stops_root_linking) {
+  static constexpr View::Bytes source =
+      "public Packet : struct { public missing : Missing; }\n"
+      "public func later[] -> Void {}"_view;
+  Allocator::Arena arena;
+  EmptyRegistry registry;
+  Dialect dialect(registry);
+  Errors errors;
+  Tokenizer tokenizer(arena, source, "phase-cascade.ttx"_view);
+  Cursor cursor(tokenizer, errors);
+  auto interpreted =
+      dialect.interpret(arena, cursor, Documentation::get_empty(), registry);
+  ASSERT(interpreted && interpreted->is<Language::Monograph>());
+  auto& monograph = static_cast<Language::Monograph&>(*interpreted);
+  auto bindings = monograph.get_authored_bindings();
+  ASSERT_EQ(bindings.get_size(), Count(2));
+  ASSERT(bindings.get_data()[0].get().is<Language::Types::Structure>());
+  ASSERT(bindings.get_data()[1].get().is<Language::Function>());
+  const auto& later =
+      static_cast<const Language::Function&>(bindings.get_data()[1].get());
+  ASSERT(monograph.get_source().is<Language::Types::Structure>());
+  const auto& source_structure =
+      static_cast<const Language::Types::Structure&>(monograph.get_source());
+
+  // Field linking owns the first failing global phase. Root signatures stay
+  // open so a later phase cannot seal source lookup after that rejection.
+  ASSERT_NOT(monograph.link());
+  EXPECT_NOT(later.is_signature_linked());
+  EXPECT(source_structure.can_bind_static("future"_view));
+  ASSERT_EQ(monograph.get_diagnostics().get_size(), Count(1));
+  ASSERT(monograph.get_diagnostics().get_data()[0].get_anchor());
+  EXPECT_TEXT(
+      monograph.get_diagnostics()
+          .get_data()[0]
+          .get_anchor()
+          ->get_span()
+          .caculate_text(source),
+      "Missing"_view);
+  EXPECT(errors.is_empty());
 }
 
 PERIMORTEM_UNIT_TEST(DialectTests, rejected_sources_publish_nothing) {

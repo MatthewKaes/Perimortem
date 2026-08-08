@@ -14,7 +14,8 @@ durable product policy.
 `Environment::Workspace` under an exact authored name. Environment supplies the
 Workspace wide TTX registry at construction and keeps the Dialect alive for
 every Monograph it creates. Each interpretation separately receives the exact
-source local Abstract context used while constructing that Monograph.
+owner supplied Abstract context used while constructing that Monograph. The
+concrete Dialect decides what contextual instructions that object supports.
 
 The interpretation boundary is:
 
@@ -23,7 +24,7 @@ interpret(
   Environment owned Arena,
   forward TTX Cursor,
   opening Documentation,
-  source local Abstract interpretation context)
+  owner supplied Abstract interpretation context)
 -> Option<Monograph&>
 ```
 
@@ -31,7 +32,8 @@ A concrete Dialect consumes only its body because Environment has already
 parsed the opening comment and `dialect : Type;` instruction. It constructs its
 concrete Monograph directly in the supplied Arena and returns no partially
 owned parser object. The fourth argument does not replace the Workspace wide
-registry retained by the installed Dialect.
+registry retained by the installed Dialect. It is not a universal source scope,
+Type interface, or promise that every Monograph exports the same context.
 
 Dialect state may cache or retain facts required across its Monographs. It does
 not own the Environment Arena or the authored source provider.
@@ -40,7 +42,9 @@ not own the Environment Arena or the authored source provider.
 
 `Language::Monograph` is the shared Abstract root for one interpreted or
 restored source island. Its concrete derived class owns the source Dialect
-semantics and resolution rules.
+semantics and resolution rules. The common root is not a Type or scope base. A
+concrete Monograph may expose one Type, several Types, or another arbitrary
+contextual shape without changing this interface.
 
 The common base retains the Arena domain supplied by Environment, opening
 Documentation, and ordered `Language::Diagnostic` facts. A Diagnostic carries

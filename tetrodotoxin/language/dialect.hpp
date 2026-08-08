@@ -28,8 +28,9 @@ class Dialect {
 
   // The caller chooses the Arena that defines the returned graph lifetime.
   // Interpret borrows Cursor input under that same lifetime contract and
-  // receives the exact source local scope separately from the Workspace wide
-  // registry retained by this Dialect.
+  // receives the exact owner supplied context separately from the Workspace
+  // wide registry retained by this Dialect. Each concrete Dialect decides what
+  // that context means rather than inheriting one universal source scope.
   virtual auto interpret(
       Perimortem::Memory::Allocator::Arena& domain,
       Ttx::Lexical::Cursor& cursor,

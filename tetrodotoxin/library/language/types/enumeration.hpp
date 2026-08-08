@@ -8,7 +8,7 @@
 
 #include "perimortem/utility/option.hpp"
 
-#include "tetrodotoxin/language/monograph.hpp"
+#include "tetrodotoxin/library/language/monograph.hpp"
 #include "tetrodotoxin/library/language/visibility.hpp"
 #include "ttx/concept/reference.hpp"
 #include "ttx/lexical/anchor.hpp"
@@ -38,7 +38,7 @@ class Enumeration : public Ttx::Model::Type {
       Perimortem::Core::View::Bytes storage_route,
       const Ttx::Concept::Documentation& documentation,
       Visibility visibility,
-      Tetrodotoxin::Language::Monograph& parent,
+      Monograph& parent,
       Ttx::Lexical::Anchor anchor,
       Ttx::Lexical::Anchor name_anchor,
       Ttx::Lexical::Anchor storage_anchor);
@@ -54,8 +54,7 @@ class Enumeration : public Ttx::Model::Type {
       Perimortem::Memory::Allocator::Arena& domain,
       Ttx::Lexical::Cursor& cursor,
       const Ttx::Concept::Documentation& documentation,
-      Tetrodotoxin::Language::Monograph& parent)
-      -> Perimortem::Utility::Option<Enumeration&>;
+      Monograph& parent) -> Perimortem::Utility::Option<Enumeration&>;
 
   Enumeration(const Enumeration&) = delete;
   Enumeration(Enumeration&&) = delete;
@@ -137,7 +136,7 @@ class Enumeration : public Ttx::Model::Type {
   Perimortem::Core::View::Bytes storage_route;
   const Ttx::Concept::Documentation& documentation;
   Visibility visibility;
-  Tetrodotoxin::Language::Monograph& parent;
+  Monograph& parent;
   Ttx::Lexical::Anchor anchor;
   Ttx::Lexical::Anchor name_anchor;
   Ttx::Lexical::Anchor storage_anchor;

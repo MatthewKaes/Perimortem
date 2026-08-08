@@ -9,6 +9,7 @@
 #include "tetrodotoxin/language/parser/comment.hpp"
 #include "tetrodotoxin/library/language/constants/signed.hpp"
 #include "tetrodotoxin/library/language/constants/unsigned.hpp"
+#include "tetrodotoxin/library/language/types/structure.hpp"
 #include "ttx/concept/invalid.hpp"
 #include "ttx/model/layouts/fluid.hpp"
 #include "ttx/model/types/signed.hpp"
@@ -243,7 +244,7 @@ Tetrodotoxin::Library::Language::Types::Enumeration::Enumeration(
     View::Bytes storage_route,
     const Documentation& documentation,
     Visibility visibility,
-    Tetrodotoxin::Language::Monograph& parent,
+    Monograph& parent,
     Anchor anchor,
     Anchor name_anchor,
     Anchor storage_anchor)
@@ -263,7 +264,7 @@ auto Tetrodotoxin::Library::Language::Types::Enumeration::interpret(
     Allocator::Arena& domain,
     Cursor& cursor,
     const Documentation& documentation,
-    Tetrodotoxin::Language::Monograph& parent) -> Option<Enumeration&> {
+    Monograph& parent) -> Option<Enumeration&> {
   // The branch owns every spelling and delimiter until the closing brace.
   // A rejected body leaves the caller at the declaration and publishes no
   // partial case inventory.
@@ -384,7 +385,13 @@ auto Tetrodotoxin::Library::Language::Types::Enumeration::link_storage()
     return True;
   }
 
-  const Abstract& selected = parent.resolve_context(storage_route);
+  const Abstract& selected = parent.get_source().visit<Structure>(
+      [&](const Structure& source) -> const Abstract& {
+        return source.resolve_context(storage_route, parent);
+      },
+      [](const Abstract&) -> const Abstract& {
+        return Invalid::get_invalid();
+      });
   const Abstract& resolved =
       selected.is<Type>() ? selected : selected.resolve();
   Bool integer = resolved.is<Ttx::Model::Types::Signed>() ||

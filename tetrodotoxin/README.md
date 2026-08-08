@@ -80,6 +80,11 @@ attaches its retained `Origin` only while rendering diagnostics.
 `Environment::Resolution` asks each concrete Dialect to restore only its own
 opaque durable payload.
 
+A Monograph is not required to be a Type or to expose one common Type context.
+Its concrete Dialect may publish no Types, one Type, several Types, or another
+arbitrary contextual shape through `resolve_context()`. Language defines no
+typed Monograph layer and no reserved Type route.
+
 There is no separate Source lifetime object, static parser function map,
 Frontend, Container, or Environment Namespace. Environment composes the
 transaction from Workspace, Dialects, Retention, and Resolution because those
@@ -106,7 +111,9 @@ before ordinary lookup and resolves it through its confined resource owner.
 
 TTX remains the shared vocabulary for Abstract, Type, Value, Addressable,
 Callable, Layout, Documentation, Attribute, Alias, Invalid, and their common
-supporting models.
+supporting models. That vocabulary is not a type system. Each concrete Dialect
+owns the Type inventory, scopes, visibility, mutation, construction, and
+receiver rules that its language requires.
 
 `Tetrodotoxin::Language` owns the cross-Dialect Resource and Error Abstract
 contracts plus the source independent Diagnostic fact. Resource exposes only
@@ -129,6 +136,21 @@ distinctions. Object is the exact Type name rather than `ManagedObject`.
 Structured source flow remains an identity free Layout rather than an
 Expression or anonymous Type. Library owners retain real TTX edges rather than
 copying the TTX model.
+
+The accepted Library source contract gives each Library Monograph one synthetic
+Structure containing only Static top level bindings. Its Library specific
+`source` route returns that exact Structure, and other Library Monograph
+resolution forwards through the Structure's external view. Root Functions are
+hosted by the synthetic Structure, while authored Structure Functions are
+hosted by their exact Structure. The host selects the complete internal member
+view, including outer context and Library intrinsic fallback; external callers
+receive only exposed members. Field exposure controls readable lookup while
+`Full`, `Internal`, and `Init` independently control writable access.
+
+The accepted Object contract reuses Structure's Fields, Functions, Layout,
+visibility, lookup, and writability. Object adds only nonnull reference identity
+and Library lifetime semantics; allocation, pointer representation, collection,
+and reclamation timing remain runtime and target facts.
 
 App, Scene, and other CPU capable Dialects may use Library language contracts
 where their authored semantics require them. They do not become Library

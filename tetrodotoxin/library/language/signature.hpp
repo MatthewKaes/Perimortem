@@ -58,6 +58,11 @@ class Signature {
   auto get_parameter_name(Count index) const -> Perimortem::Core::View::Bytes;
   auto get_result_name(Count index) const -> Perimortem::Core::View::Bytes;
 
+  auto get_parameter_type_route(Count index) const
+      -> Perimortem::Core::View::Bytes;
+  auto get_result_type_route(Count index) const
+      -> Perimortem::Core::View::Bytes;
+
   auto get_parameter_anchor(Count index) const
       -> Perimortem::Utility::Option<Ttx::Lexical::Anchor>;
   auto get_result_anchor(Count index) const

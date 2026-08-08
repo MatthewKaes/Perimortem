@@ -9,8 +9,9 @@ do not weaken an input or expectation to match an implementation.
 `broad.ttx` is the broad grammar and graph fixture. `native.ttx` is the
 smaller scalar native fixture, and `foreign_triad.ttx` isolates the three
 kinds of native import. The other TTX files are one negative contract each.
-Tokenization is executable today. Semantic acceptance remains owned by the
-future Library implementation.
+Tokenization and the implemented declaration owners are executable today.
+Body, construction, compiler, and runtime acceptance remain future Library
+work.
 
 ## Accepted grammar map
 
@@ -23,7 +24,7 @@ Dialect rules into universal TTX semantics.
 | `dialect : Library;` | The declaration selects the real Library Dialect before body evaluation. |
 | `//`, including the empty comment line | The syntax preserves the ordered lines and the paragraph break on `Packet`. |
 | marker and scalar `@...` forms | These forms preserve the six ordered `Packet` attributes and the ordered parameter attributes. Library accepts the marker, unsigned, signed, real, Bool, and quoted byte scalar forms used here. |
-| `public`, `expose state`, `private`, and `const` | These modifiers keep publication separate from evaluation. `observed_total` exports a read only projection while its writable owner stays retained. Inside an embedded Foreign block, `public` publishes an import to the private source local `foreign` surface rather than to package exports. |
+| `public`, `expose state`, `private`, and `const` | These modifiers keep readable exposure separate from `Full`, `Internal`, and `Init` writability. `observed_total` is one `Exposed` and `Internal` Field identity in both hosted and external lookup. Inside an embedded Foreign block, `public` publishes an import to the private source local `foreign` surface rather than to package exports. |
 | `PacketAlias : alias = Packet` | The declaration retains the Alias edge and resolves it to the real `Packet` Type. |
 | `struct` and ordinary fields | These constructs create the real inline `Packet` and `PrivateOps` Types with authored field order. |
 | `object` and typed `= new` | These constructs require a real `Session` Object Type. `new` performs expected Type driven empty construction and cannot infer the missing Type in `:= new`. |
@@ -41,21 +42,22 @@ Dialect rules into universal TTX semantics.
 
 ## Broad graph oracle
 
-The root export surface contains the following real edges in authored
-publication order within the addressable and function groups:
+The synthetic source Structure's external Static view contains the following
+real edges in authored publication order within the addressable and function
+groups:
 
 1. The first group contains `Packet`, `Mode`, `Session`, and `PacketAlias`.
-2. The second group contains the read only `observed_total` projection,
-   `signature`, `default_packet`, and `dense_defaults`.
+2. The second group contains `observed_total`, `signature`, `default_packet`,
+   and `dense_defaults`.
 3. The third group contains `broad_entry`, `reset`, `unnamed_layout`, and
    `classify`.
 
-The retained root surface additionally owns the writable `observed_total`
-state, `PrivateOps`, `private_total`, `mask`, `decode_table`, and
-`private_packet`. The source also retains its private `foreign` import surface.
-None of those private edges becomes a root export. The read only
-`observed_total` export is a distinct Addressable identity with the same name
-and Type as the retained writable state.
+The source Structure's complete hosted view additionally contains `PrivateOps`,
+`private_total`, `mask`, `decode_table`, and `private_packet`. The source also
+retains its private `foreign` import surface. None of those private edges enters
+external lookup. `observed_total` is the same Field identity in both views: its
+`Exposed` policy permits external reads while its `Internal` policy restricts
+writes to an exact hosted Callable.
 
 The frozen Type and Layout expectations are:
 
@@ -66,8 +68,9 @@ The frozen Type and Layout expectations are:
 2. `Mode` stores `Unsigned_8` and retains `idle = 0`, `active = 1`, and
    `paused = 2` in that order.
 3. `Session` is an Object. Its values are nonnull reference identities. It
-   retains writable `progress` and `token` state, exports only the read only
-   `progress` projection and `advance`, and retains private `token_value`.
+   retains `progress` and `token` state, exposes the same `progress` Field
+   identity for external reads, and retains private `token` and `token_value`.
+   Both state Fields carry `Internal` writability.
 4. `PacketAlias` remains queryable as an Alias and resolves to `Packet`.
 5. `signature`, `dense_defaults`, both slice results, and `decode_table` use
    supported concrete `Fixed` materializations with their ordered arguments.
@@ -79,10 +82,13 @@ The frozen Type and Layout expectations are:
    whose external C symbol is `library_observe`. No defined Callable is
    bodyless.
 
-A successful broad interpretation retains every source shaped Library owner in
-its Monograph. Environment then links the frozen range, finalizes its complete
-graph, and publishes only that success. No token range, Cursor, incomplete
-Type, incomplete Callable, or rejected owner is graph reachable.
+A successful broad interpretation retains every source shaped Library owner and
+binds each top level Static identity into the Monograph's synthetic source
+Structure. The Monograph retains source lifetime, diagnostics, and ordered
+completion barriers rather than a second lookup graph. Environment then links
+the frozen range, finalizes its complete graph, and publishes only that success.
+No token range, Cursor, incomplete Type, incomplete Callable, or rejected owner
+is graph reachable.
 
 ## Foreign import oracle
 
@@ -149,17 +155,19 @@ failed private transaction may remain unreachable.
 
 Library owns the reusable CPU compilation path, but the exact durable
 representation for completed body facts remains unresolved. Scene lifecycle
-Callables retain their Scene identity. A Static selected by App remains on its
-actual producing Monograph, while App generated entry and lifecycle driver
-facts remain on App. Those selected CPU facts use the same Library compiler
-after their owners are complete. They do not become generated Library
-Monographs or shadow graphs.
+Callables retain their Scene identity. A Static selected by App retains its
+source Monograph and exact host Type as separate edges, while App generated
+entry and lifecycle driver facts remain on App. Those selected CPU facts use
+the same Library compiler after their owners are complete. They do not become
+generated Library Monographs or shadow graphs.
 
 Library owns the accepted Object contract required by `object`. Object is a
 nonnull reference identity with alias visible mutation and no observable V1
-reclamation policy. Runtime allocation remains outside its semantic Type. The
-implementation and proof do not yet exist. This fixture does not reopen TTX or
-assign either gap to a shadow Tetrodotoxin contract. The frozen `object`,
-initializer, expression, and control flow source records the required
-acceptance input while implementations that require those missing contracts
-remain blocked.
+reclamation policy. Its semantic declaration owner derives from Structure and
+reuses the same Field, Function, Layout, lookup, and lifecycle mechanics. The
+focused declaration proof exists, including shared Field identity and exact
+Function hosts. Runtime allocation, construction execution, mutation, and
+collection remain unproved and outside the semantic Type. The frozen
+initializer, expression, and control flow source records those later acceptance
+inputs without reopening TTX or assigning them to a shadow Tetrodotoxin
+contract.

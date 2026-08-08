@@ -101,6 +101,10 @@ The closed version 1 identity categories have distinct contracts:
 * `Callable` provides an invocable identity with complete parameter and result
   Layouts.
 
+These contracts are an interchange vocabulary, not a universal type system.
+A concrete language decides which Types exist, how its scopes expose them, and
+what visibility, mutation, construction, and receiver rules apply.
+
 `Documentation`, `Layout`, `Reference`, and `Attribute` are identity free
 supporting contracts and values. They do not inherit `Abstract` merely to gain
 discovery.
@@ -328,11 +332,11 @@ meaning.
 
 ## Derived consumers
 
-Concrete languages may define expressions, bindings, projections, constants,
-generic formulas, mutation capabilities, receiver roles, executable bodies,
-concrete scalar Types, and publication policy. Such objects retain real TTX
-Type, Layout, Addressable, and Callable edges without entering the shared TTX
-model.
+Concrete languages may define their type systems, expressions, bindings,
+projections, constants, generic formulas, mutation capabilities, receiver
+roles, executable bodies, concrete scalar Types, and publication policy. Such
+objects retain real TTX Type, Layout, Addressable, and Callable edges without
+entering the shared TTX model.
 
 Target representations may contain offsets, alignments, pointer forms, address
 spaces, storage classes, register classes, ABI carriers, and executable
