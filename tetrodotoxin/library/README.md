@@ -169,6 +169,12 @@ instance Layout. Top-level declarations enter its Static surface; instance
 Fields cannot. The exact `source` route returns that Structure, while ordinary
 Monograph lookup forwards only its externally visible Static entries.
 
+Top-level Field declarations are Static Addressables owned by that source
+Structure. They retain the ordinary Field exposure, writability, Type, and
+initializer contracts, but never enter the source instance Layout. Root
+Functions may resolve those exact identities as bare source names; private
+Fields remain limited to the authenticated source context.
+
 The Structure retains the exact Documentation that opens the Library source.
 A Package member Alias can therefore route through `source` to one documented
 root Type without copying the prose or becoming a Type itself.

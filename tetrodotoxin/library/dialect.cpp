@@ -9,6 +9,7 @@
 #include "perimortem/utility/table.hpp"
 
 #include "tetrodotoxin/language/parser/comment.hpp"
+#include "tetrodotoxin/library/language/field.hpp"
 #include "tetrodotoxin/library/language/function.hpp"
 #include "tetrodotoxin/library/language/import.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
@@ -164,6 +165,40 @@ auto Library::Dialect::interpret(
           continue;
         }
       }
+    }
+
+    // Field parses the complete policy and initializer transaction. Dialect
+    // only identifies its leading grammar so source keeps no parser record.
+    Bool field_declaration = cursor.matches(Code::Type::Expose) ||
+                             ((cursor.matches(Code::Type::Public) ||
+                               cursor.matches(Code::Type::Private)) &&
+                              cursor.peek(1).get_code() != Code::Type::Func &&
+                              cursor.peek(1).get_code() != Code::Type::Type);
+    if (field_declaration) {
+      auto field = Library::Language::Field::interpret(
+          domain, *shared_materializations, cursor, declaration_documentation,
+          monograph.get_source());
+      if (!field) {
+        return {};
+      }
+
+      auto source =
+          monograph.get_source().visit<Library::Language::Types::Structure>(
+              [](Library::Language::Types::Structure& structure)
+                  -> Option<Library::Language::Types::Structure&> {
+                return structure;
+              },
+              [](Abstract&) -> Option<Library::Language::Types::Structure&> {
+                return {};
+              });
+      if (!source || !source->retain_field(*field)) {
+        cursor.create_expression_error(
+            field->get_anchor(),
+            "Duplicate Field name in this Library source."_view);
+        return {};
+      }
+
+      continue;
     }
 
     auto function = Library::Language::Function::reserve(

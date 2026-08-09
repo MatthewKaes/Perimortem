@@ -41,6 +41,23 @@ static auto bindings_collide(const Abstract& first, const Abstract& second)
       (first_target.is<Addressable>() && second_target.is<Addressable>()));
 }
 
+static auto contains_alias_target(
+    View::Vector<Reference<const Abstract>> bindings,
+    const Abstract& target) -> Bool {
+  for (Count i = 0; i < bindings.get_size(); i++) {
+    Bool selected = bindings.get_data()[i].get().visit<Alias>(
+        [&](const Alias& alias) {
+          return Bool(&alias.get_target() == &target);
+        },
+        [](const Abstract&) { return False; });
+    if (selected) {
+      return True;
+    }
+  }
+
+  return False;
+}
+
 template <typename selected_type>
 static auto select_abstract(const Abstract& value)
     -> Option<const selected_type&> {
@@ -109,10 +126,6 @@ auto Library::Language::Monograph::retain_import(const Import& import) -> Bool {
 }
 
 auto Library::Language::Monograph::link_imports() -> Bool {
-  if (imports_linked) {
-    return True;
-  }
-
   if (imports.is_empty()) {
     imports_linked = True;
     return True;
@@ -143,6 +156,8 @@ auto Library::Language::Monograph::link_imports() -> Bool {
 
   Managed::Vector<ImportCandidate> candidates(domain);
   Managed::Vector<Reference<Monograph>> providers(domain);
+  Managed::Vector<Reference<const Types::Structure>> pending_field_providers(
+      domain);
   Bool failed = False;
 
   // Package order leads member order and each provider source order. Staging
@@ -232,10 +247,94 @@ auto Library::Language::Monograph::link_imports() -> Bool {
         continue;
       }
 
+      if (!provider->is_linked()) {
+        // Exact provider Fields do not exist during closure discovery. Their
+        // owner facts still prove the complete name set before either source
+        // publishes an Addressable, keeping a later collision transactional.
+        auto provider_fields = provider->get_field_sources();
+        auto local_fields = source_structure->get_field_sources();
+        for (Count field_index = 0; field_index < provider_fields.get_size();
+             field_index++) {
+          const Field::Source& field = provider_fields.get_data()[field_index];
+          if (field.get_exposure() == Field::Exposure::Private) {
+            continue;
+          }
+
+          Bool collision = False;
+          for (Count local_index = 0; local_index < local_fields.get_size();
+               local_index++) {
+            collision |= local_fields.get_data()[local_index].get_name() ==
+                         field.get_name();
+          }
+          for (Count candidate_index = 0;
+               candidate_index < candidates.get_size(); candidate_index++) {
+            const Abstract& earlier =
+                get_binding_target(candidates[candidate_index].binding.get());
+            collision |= earlier.is<Addressable>() &&
+                         earlier.get_name() == field.get_name();
+          }
+          for (Count earlier_provider = 0;
+               earlier_provider < pending_field_providers.get_size();
+               earlier_provider++) {
+            auto earlier_fields = pending_field_providers[earlier_provider]
+                                      .get()
+                                      .get_field_sources();
+            for (Count earlier_field = 0;
+                 earlier_field < earlier_fields.get_size(); earlier_field++) {
+              const Field::Source& earlier =
+                  earlier_fields.get_data()[earlier_field];
+              collision |= earlier.get_exposure() != Field::Exposure::Private &&
+                           earlier.get_name() == field.get_name();
+            }
+          }
+
+          if (collision) {
+            report(
+                Ttx::Lexical::Anchor::create(import.get_span()),
+                "Imported source Field collides with an occupied source "
+                "Addressable name."_view,
+                "Rename the local Field or select another dependency."_view);
+            failed = True;
+          }
+        }
+
+        pending_field_providers.insert(*provider);
+      }
+
       auto bindings = provider->get_external_static_bindings();
       for (Count binding_index = 0; binding_index < bindings.get_size();
            binding_index++) {
         const Abstract& binding = bindings.get_data()[binding_index].get();
+        if (contains_alias_target(
+                source_structure->get_static_bindings(), binding)) {
+          continue;
+        }
+
+        const Abstract& target = get_binding_target(binding);
+        if (target.is<Addressable>()) {
+          for (Count pending = 0; pending < pending_field_providers.get_size();
+               pending++) {
+            auto pending_fields =
+                pending_field_providers[pending].get().get_field_sources();
+            for (Count field_index = 0; field_index < pending_fields.get_size();
+                 field_index++) {
+              const Field::Source& field =
+                  pending_fields.get_data()[field_index];
+              if (field.get_exposure() == Field::Exposure::Private ||
+                  field.get_name() != target.get_name()) {
+                continue;
+              }
+
+              report(
+                  Ttx::Lexical::Anchor::create(import.get_span()),
+                  "Imported source Field collides with another imported "
+                  "Addressable name."_view,
+                  "Select dependencies with distinct public Fields."_view);
+              failed = True;
+            }
+          }
+        }
+
         Bool incomplete = binding.visit<Function>(
             [](const Function& function) { return !function.is_complete(); },
             [](const Abstract&) { return False; });
@@ -309,7 +408,14 @@ auto Library::Language::Monograph::link_imports() -> Bool {
   }
 
   for (Count i = 0; i < providers.get_size(); i++) {
-    imported_providers.insert(providers[i]);
+    Bool retained = False;
+    for (Count existing = 0; existing < imported_providers.get_size();
+         existing++) {
+      retained |= &imported_providers[existing].get() == &providers[i].get();
+    }
+    if (!retained) {
+      imported_providers.insert(providers[i]);
+    }
   }
 
   imports_linked = True;
@@ -335,6 +441,9 @@ auto Library::Language::Monograph::link_structure_fields() -> Bool {
         [](Types::Structure& structure) { return structure.link_fields(); },
         [](Abstract&) { return True; });
   }
+  failed |= !get_source().visit<Types::Structure>(
+      [](Types::Structure& structure) { return structure.link_fields(); },
+      [](Abstract&) { return False; });
   return !failed;
 }
 
@@ -347,6 +456,9 @@ auto Library::Language::Monograph::link_field_initializers() -> Bool {
         },
         [](Abstract&) { return True; });
   }
+  failed |= !get_source().visit<Types::Structure>(
+      [](Types::Structure& structure) { return structure.link_initializers(); },
+      [](Abstract&) { return False; });
   return !failed;
 }
 
@@ -426,6 +538,16 @@ auto Library::Language::Monograph::link() -> Bool {
 
   for (Count i = 0; i < closure.get_size(); i++) {
     failed |= !closure[i].get().link_structure_fields();
+  }
+  if (failed) {
+    return False;
+  }
+
+  // Provider Fields become exact only after every imported Type route is
+  // available. Replaying the import transaction here adds those new exact
+  // Addressables before any initializer or Callable may consume them.
+  for (Count i = 0; i < closure.get_size(); i++) {
+    failed |= !closure[i].get().link_imports();
   }
   if (failed) {
     return False;

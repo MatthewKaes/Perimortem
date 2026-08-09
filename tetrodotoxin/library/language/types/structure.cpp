@@ -259,6 +259,8 @@ Types::Structure::Structure(
       fields(domain),
       field_observations(domain),
       public_fields(domain),
+      addressable_bindings(domain),
+      external_addressable_bindings(domain),
       layout_fields(domain),
       callables(domain),
       callable_observations(domain),
@@ -455,7 +457,8 @@ static auto find_field(
 
 auto Types::Structure::can_bind_static(const Abstract& candidate) const
     -> Bool {
-  if (!is_source() || stage != Stage::InitializersLinked) {
+  if (!is_source() ||
+      (stage != Stage::Authored && stage != Stage::InitializersLinked)) {
     return False;
   }
 
@@ -478,8 +481,8 @@ auto Types::Structure::can_bind(const Abstract& binding) const -> Bool {
 
         return True;
       },
-      [&](const Abstract& possible_type) {
-        return possible_type.visit<Type>(
+      [&](const Abstract& possible_type_or_addressable) {
+        return possible_type_or_addressable.visit<Type>(
             [&](const Type&) -> Bool {
               if (contains_binding_name(type_bindings, candidate)) {
                 return False;
@@ -497,14 +500,24 @@ auto Types::Structure::can_bind(const Abstract& binding) const -> Bool {
                   &outer == &Invalid::get_invalid() &&
                   &intrinsic == &Invalid::get_invalid());
             },
-            [](const Abstract&) { return False; });
+            [&](const Abstract& possible_addressable) {
+              return possible_addressable.visit<Ttx::Model::Addressable>(
+                  [&](const Ttx::Model::Addressable&) {
+                    return Bool(
+                        !contains_binding_name(
+                            addressable_bindings, candidate) &&
+                        !contains_field_name(field_sources, candidate));
+                  },
+                  [](const Abstract&) { return False; });
+            });
       });
 }
 
 auto Types::Structure::bind_static(
     Abstract& binding,
     Visibility binding_visibility) -> Bool {
-  if (!is_source() || stage != Stage::InitializersLinked) {
+  if (!is_source() ||
+      (stage != Stage::Authored && stage != Stage::InitializersLinked)) {
     return False;
   }
 
@@ -520,7 +533,8 @@ auto Types::Structure::bind(Abstract& binding, Visibility binding_visibility)
   const Abstract& target = get_binding_target(binding);
   Bool callable = target.is<Callable>();
   Bool type = target.is<Type>();
-  if (!callable && !type) {
+  Bool addressable = target.is<Ttx::Model::Addressable>();
+  if (!callable && !type && !addressable) {
     return False;
   }
 
@@ -530,10 +544,15 @@ auto Types::Structure::bind(Abstract& binding, Visibility binding_visibility)
     if (binding_visibility == Visibility::Public) {
       external_callable_bindings.insert(identity);
     }
-  } else {
+  } else if (type) {
     type_bindings.insert(identity);
     if (binding_visibility == Visibility::Public) {
       external_type_bindings.insert(identity);
+    }
+  } else {
+    addressable_bindings.insert(identity);
+    if (binding_visibility == Visibility::Public) {
+      external_addressable_bindings.insert(identity);
     }
   }
 
@@ -551,6 +570,19 @@ auto Types::Structure::bind(Abstract& binding, Visibility binding_visibility)
         }
       },
       [](Abstract&) {});
+  return True;
+}
+
+auto Types::Structure::retain_field(Field::Source field) -> Bool {
+  if (!is_source() ||
+      (stage != Stage::Authored && stage != Stage::InitializersLinked) ||
+      contains_field_name(field_sources, field.get_name()) ||
+      contains_binding_name(addressable_bindings, field.get_name())) {
+    return False;
+  }
+
+  field_sources.insert(field);
+  stage = Stage::Authored;
   return True;
 }
 
@@ -583,7 +615,7 @@ auto Types::Structure::link_fields() -> Bool {
     Field::Source& field_source = field_sources[i];
     const Tetrodotoxin::Library::Language::Access::Type& access =
         field_source.get_type_access();
-    const Abstract& root = resolve_internal_context(access.get_root());
+    const Abstract& root = resolve_internal_type_context(access.get_root());
     const Abstract& selected = access.resolve_from(root);
     auto field = Field::link(domain, source, *this, field_source, selected);
     if (!field) {
@@ -605,14 +637,26 @@ auto Types::Structure::link_fields() -> Bool {
     Field& field = linked_fields[i].get();
     fields.insert(field);
     field_observations.insert(field);
-    layout_fields.insert(field);
     if (field.is_readable_externally()) {
       public_fields.insert(field);
     }
+
+    if (is_source()) {
+      addressable_bindings.insert(field);
+      static_binding_order.insert(field);
+      if (field.is_readable_externally()) {
+        external_addressable_bindings.insert(field);
+        external_static_binding_order.insert(field);
+      }
+    } else {
+      layout_fields.insert(field);
+    }
   }
 
-  layout =
-      domain.construct<Ttx::Model::Layouts::Named>(layout_fields.get_view());
+  if (!is_source()) {
+    layout =
+        domain.construct<Ttx::Model::Layouts::Named>(layout_fields.get_view());
+  }
   stage = Stage::FieldsLinked;
   return True;
 }
@@ -785,7 +829,11 @@ auto Types::Structure::resolve_context(View::Bytes route) const
     return type;
   }
 
-  if (!is_source() && stage < Stage::FieldsLinked) {
+  if (is_source()) {
+    return find_binding(external_addressable_bindings, route);
+  }
+
+  if (stage < Stage::FieldsLinked) {
     return Invalid::get_invalid();
   }
 
@@ -799,7 +847,22 @@ auto Types::Structure::resolve_context(
     return resolve_context(route);
   }
 
-  return resolve_internal_type_context(route);
+  if (!is_source()) {
+    return resolve_internal_type_context(route);
+  }
+
+  // Root signatures consume Type routes before their linked state becomes
+  // visible. Body Expressions enter afterward and may select source Fields,
+  // preserving category coexistence without another lookup context object.
+  return requester.visit<Function>(
+      [&](const Function& function) -> const Abstract& {
+        return function.is_signature_linked()
+                   ? resolve_internal_context(route)
+                   : resolve_internal_type_context(route);
+      },
+      [&](const Abstract&) -> const Abstract& {
+        return resolve_internal_type_context(route);
+      });
 }
 
 auto Types::Structure::resolve_context(
@@ -880,14 +943,16 @@ auto Types::Structure::get_external_source_context() const -> const Abstract& {
 
 auto Types::Structure::resolve_internal_context(View::Bytes route) const
     -> const Abstract& {
+  const Abstract& member = is_source()
+                               ? find_binding(addressable_bindings, route)
+                               : find_field(field_observations, route);
+  if (&member != &Invalid::get_invalid()) {
+    return member;
+  }
+
   const Abstract& type = find_binding(type_bindings, route);
   if (&type != &Invalid::get_invalid()) {
     return type;
-  }
-
-  const Abstract& member = find_field(field_observations, route);
-  if (&member != &Invalid::get_invalid()) {
-    return member;
   }
 
   if (source_scope) {

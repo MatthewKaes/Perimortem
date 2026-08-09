@@ -21,7 +21,9 @@
 
 #include "tetrodotoxin/environment/workspace.hpp"
 #include "tetrodotoxin/library/dialect.hpp"
+#include "tetrodotoxin/library/language/field.hpp"
 #include "tetrodotoxin/library/language/function.hpp"
+#include "tetrodotoxin/library/language/identifier.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
 #include "tetrodotoxin/library/language/types/enumeration.hpp"
 #include "tetrodotoxin/library/language/types/structure.hpp"
@@ -374,6 +376,137 @@ PERIMORTEM_UNIT_TEST(LibraryImports, exact_identity_and_exclusions) {
       &select_binding(repeated_candidates, "first"_view) ==
       &first_alias_identity);
   EXPECT_EQ(importer_scope.get_static_bindings().get_size(), Count(4));
+}
+
+PERIMORTEM_UNIT_TEST(LibraryImports, source_field_keeps_provider_identity) {
+  static constexpr View::Bytes provider_source =
+      "public provided : Unsigned_8 = 7;\n"
+      "private hidden : Unsigned_8;"_view;
+  static constexpr View::Bytes importer_source =
+      "using Core;\n"
+      "private func consumer[] -> Void { provided; }"_view;
+  Allocator::Arena arena;
+  ImportRegistry registry;
+  Library::Dialect library_dialect;
+  Package::Dialect package_dialect;
+  auto provider =
+      interpret_library(arena, library_dialect, registry, provider_source);
+  ASSERT(provider);
+
+  Package::Language::Monograph& target = create_package(arena, package_dialect);
+  ASSERT(target.bind_member("Provider"_view, *provider));
+  Package::Language::Monograph& context =
+      create_package_with_dependency(arena, package_dialect, "Core"_view);
+  ASSERT(bind_only_dependency(context, target));
+  auto importer =
+      interpret_library(arena, library_dialect, context, importer_source);
+  ASSERT(importer);
+
+  ASSERT(importer->link());
+  ASSERT(provider->finalize());
+  ASSERT(importer->finalize());
+  ASSERT(provider->get_source().is<Library::Language::Types::Structure>());
+  ASSERT(importer->get_source().is<Library::Language::Types::Structure>());
+  const auto& provider_structure =
+      static_cast<const Library::Language::Types::Structure&>(
+          provider->get_source());
+  const auto& importer_structure =
+      static_cast<const Library::Language::Types::Structure&>(
+          importer->get_source());
+  auto provider_fields = provider_structure.get_fields();
+  ASSERT_EQ(provider_fields.get_size(), Count(2));
+  const Library::Language::Field& provided =
+      provider_fields.get_data()[0].get();
+  const Library::Language::Field& hidden = provider_fields.get_data()[1].get();
+
+  // Provider publication exposes only the public Field while preserving the
+  // private Field as a source owned identity with the same host.
+  EXPECT(&provider->resolve_context("provided"_view) == &provided);
+  EXPECT(&provider->resolve_context("hidden"_view) == &Invalid::get_invalid());
+
+  const Abstract& imported =
+      select_binding(importer_structure.get_static_bindings(), "provided"_view);
+  ASSERT(imported.is<Ttx::Model::Alias>());
+  const auto& alias = static_cast<const Ttx::Model::Alias&>(imported);
+
+  // Importer keeps its private Alias but resolution still reaches the exact
+  // provider Field rather than a copied declaration or value.
+  EXPECT(&alias.get_target() == &provided);
+  EXPECT(&alias.resolve() == &provided);
+  EXPECT(
+      &select_binding(
+          importer_structure.get_static_bindings(), "hidden"_view) ==
+      &Invalid::get_invalid());
+  EXPECT(
+      &importer->resolve_context("provided"_view) == &Invalid::get_invalid());
+
+  auto authored = importer->get_authored_bindings();
+  ASSERT_EQ(authored.get_size(), Count(1));
+  ASSERT(authored.get_data()[0].get().is<Library::Language::Function>());
+  const auto& consumer = static_cast<const Library::Language::Function&>(
+      authored.get_data()[0].get());
+
+  // Root linking resolves through the private Alias. The linked Identifier
+  // permanently retains the provider Addressable after Alias resolution.
+  auto expressions = consumer.get_expressions();
+  ASSERT_EQ(expressions.get_size(), Count(1));
+  ASSERT(expressions.get_data()[0].get().is<Library::Language::Identifier>());
+  auto selected = static_cast<const Library::Language::Identifier&>(
+                      expressions.get_data()[0].get())
+                      .get_addressable();
+  ASSERT(selected);
+  EXPECT(&*selected == &provided);
+  EXPECT(&consumer.resolve_context("hidden"_view) == &Invalid::get_invalid());
+  EXPECT(&hidden.get_host() == &provider_structure);
+}
+
+PERIMORTEM_UNIT_TEST(LibraryImports, source_field_collision_is_transactional) {
+  Allocator::Arena arena;
+  ImportRegistry registry;
+  Library::Dialect library_dialect;
+  Package::Dialect package_dialect;
+  auto provider = interpret_library(
+      arena, library_dialect, registry, "public repeated : Bool;"_view);
+  ASSERT(provider);
+
+  Package::Language::Monograph& target = create_package(arena, package_dialect);
+  ASSERT(target.bind_member("Provider"_view, *provider));
+  Package::Language::Monograph& context =
+      create_package_with_dependency(arena, package_dialect, "Core"_view);
+  ASSERT(bind_only_dependency(context, target));
+  auto importer = interpret_library(
+      arena, library_dialect, context,
+      "using Core;\npublic repeated : Bool;\n"
+      "public func later[] -> Void {}"_view);
+  ASSERT(importer);
+
+  // Pending provider facts preflight the Addressable category before either
+  // source publishes Fields or lets a later Callable signature advance.
+  ASSERT_NOT(importer->link());
+  ASSERT(provider->get_source().is<Library::Language::Types::Structure>());
+  ASSERT(importer->get_source().is<Library::Language::Types::Structure>());
+  const auto& provider_structure =
+      static_cast<const Library::Language::Types::Structure&>(
+          provider->get_source());
+  const auto& importer_structure =
+      static_cast<const Library::Language::Types::Structure&>(
+          importer->get_source());
+  EXPECT(provider_structure.get_fields().is_empty());
+  EXPECT(importer_structure.get_fields().is_empty());
+  auto authored = importer->get_authored_bindings();
+  ASSERT_EQ(authored.get_size(), Count(1));
+  ASSERT(authored.get_data()[0].get().is<Library::Language::Function>());
+  EXPECT_NOT(
+      static_cast<const Library::Language::Function&>(
+          authored.get_data()[0].get())
+          .is_signature_linked());
+  EXPECT(diagnostic_matches(
+      *importer, 0,
+      "using Core;\npublic repeated : Bool;\n"
+      "public func later[] -> Void {}"_view,
+      "using Core;"_view,
+      "Imported source Field collides with an occupied source Addressable "
+      "name."_view));
 }
 
 PERIMORTEM_UNIT_TEST(LibraryImports, provider_import_is_not_reexported) {

@@ -72,6 +72,10 @@ class Structure : public Ttx::Model::Type {
 
   auto can_bind_static(const Ttx::Concept::Abstract& binding) const -> Bool;
 
+  // Source retains complete authored facts until its declaration barrier can
+  // construct and publish every exact Field identity together.
+  auto retain_field(Field::Source field) -> Bool;
+
   auto link_fields() -> Bool;
   auto link_initializers() -> Bool;
   auto link_callable_signatures() -> Bool;
@@ -222,6 +226,12 @@ class Structure : public Ttx::Model::Type {
       field_observations;
   Perimortem::Memory::Managed::Vector<Ttx::Concept::Reference<const Field>>
       public_fields;
+  Perimortem::Memory::Managed::Vector<
+      Ttx::Concept::Reference<const Ttx::Concept::Abstract>>
+      addressable_bindings;
+  Perimortem::Memory::Managed::Vector<
+      Ttx::Concept::Reference<const Ttx::Concept::Abstract>>
+      external_addressable_bindings;
   Perimortem::Memory::Managed::Vector<
       Ttx::Concept::Reference<const Ttx::Concept::Abstract>>
       layout_fields;
