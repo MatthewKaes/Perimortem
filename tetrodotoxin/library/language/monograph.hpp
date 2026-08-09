@@ -3,9 +3,9 @@
 
 #pragma once
 
-#include "perimortem/memory/managed/vector.hpp"
+#include "perimortem/core/option.hpp"
 
-#include "perimortem/utility/option.hpp"
+#include "perimortem/memory/managed/vector.hpp"
 
 #include "tetrodotoxin/library/dialect.hpp"
 #include "tetrodotoxin/library/language/import.hpp"
@@ -101,7 +101,7 @@ class Monograph : public Tetrodotoxin::Language::Monograph {
   Perimortem::Memory::Managed::Vector<
       Ttx::Concept::Reference<const Ttx::Concept::Abstract>>
       authored_binding_observations;
-  Perimortem::Utility::Option<Ttx::Concept::Reference<Ttx::Model::Type>>
+  Perimortem::Core::Option<Ttx::Concept::Reference<Ttx::Model::Type>>
       source_structure;
   Bool imports_linked = False;
 };

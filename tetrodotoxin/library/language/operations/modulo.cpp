@@ -21,13 +21,12 @@ using namespace Ttx::Model;
 
 template <typename selected_type>
 static auto select_constant(const Language::Expression& expression)
-    -> Utility::Option<const selected_type&> {
+    -> Core::Option<const selected_type&> {
   return expression.visit<selected_type>(
-      [](const selected_type& selected)
-          -> Utility::Option<const selected_type&> { return selected; },
-      [](const Abstract&) -> Utility::Option<const selected_type&> {
-        return {};
-      });
+      [](const selected_type& selected) -> Core::Option<const selected_type&> {
+        return selected;
+      },
+      [](const Abstract&) -> Core::Option<const selected_type&> { return {}; });
 }
 
 static auto is_integer_type(const Abstract& selected) -> Bool {
@@ -69,7 +68,7 @@ auto Language::Operations::Modulo::parse(
     Materializations& materializations,
     Cursor& cursor,
     const Abstract& source_context,
-    Expression& left) -> Utility::Option<Expression&> {
+    Expression& left) -> Core::Option<Expression&> {
   auto transaction = cursor.branch();
   Token opening = transaction.consume();
   auto right = Language::Parser::Expression::parse_operand(
@@ -126,7 +125,7 @@ Language::Operations::Modulo::Modulo(
     Materializations& materializations,
     Expression& left,
     Expression& right,
-    Utility::Option<Anchor> anchor)
+    Core::Option<Anchor> anchor)
     : Operation(
           domain,
           materializations,
@@ -140,7 +139,7 @@ auto Language::Operations::Modulo::get_documentation() const
 }
 
 auto Language::Operations::Modulo::select_type(Materializations&) const
-    -> Utility::Option<const Type&> {
+    -> Core::Option<const Type&> {
   auto left = get_input(0);
   auto right = get_input(1);
   if (!left || !right) {
@@ -149,14 +148,14 @@ auto Language::Operations::Modulo::select_type(Materializations&) const
 
   return select_result_type(*left, *right)
       .visit<Type>(
-          [](const Type& type) -> Utility::Option<const Type&> { return type; },
-          [](const Abstract&) -> Utility::Option<const Type&> { return {}; });
+          [](const Type& type) -> Core::Option<const Type&> { return type; },
+          [](const Abstract&) -> Core::Option<const Type&> { return {}; });
 }
 
 auto Language::Operations::Modulo::evaluate_constants(
     Memory::Allocator::Arena& domain,
     Materializations&)
-    -> Utility::Result<Utility::Option<Constant&>, Expression::Error> {
+    -> Utility::Result<Core::Option<Constant&>, Expression::Error> {
   const Abstract& selected = get_type().resolve();
   auto authored_left = get_input(0);
   auto authored_right = get_input(1);
@@ -183,7 +182,7 @@ auto Language::Operations::Modulo::evaluate_constants(
 
     return selected.visit<Ttx::Model::Types::Signed>(
         [&](const Ttx::Model::Types::Signed& type)
-            -> Utility::Result<Utility::Option<Constant&>, Expression::Error> {
+            -> Utility::Result<Core::Option<Constant&>, Expression::Error> {
           Signed_64 divisor = right_value->get_value();
           if (divisor == 0) {
             return Expression::Error(
@@ -212,7 +211,7 @@ auto Language::Operations::Modulo::evaluate_constants(
           return Constants::Signed::create_synthetic(domain, type, value);
         },
         [&](const Abstract&)
-            -> Utility::Result<Utility::Option<Constant&>, Expression::Error> {
+            -> Utility::Result<Core::Option<Constant&>, Expression::Error> {
           return Expression::Error(
               Expression::Error::Type::InvalidOperationType, *this);
         });
@@ -233,7 +232,7 @@ auto Language::Operations::Modulo::evaluate_constants(
 
     return selected.visit<Ttx::Model::Types::Unsigned>(
         [&](const Ttx::Model::Types::Unsigned& type)
-            -> Utility::Result<Utility::Option<Constant&>, Expression::Error> {
+            -> Utility::Result<Core::Option<Constant&>, Expression::Error> {
           Unsigned_64 divisor = right_value->get_value();
           if (divisor == 0) {
             return Expression::Error(
@@ -249,7 +248,7 @@ auto Language::Operations::Modulo::evaluate_constants(
           return Constants::Unsigned::create_synthetic(domain, type, value);
         },
         [&](const Abstract&)
-            -> Utility::Result<Utility::Option<Constant&>, Expression::Error> {
+            -> Utility::Result<Core::Option<Constant&>, Expression::Error> {
           return Expression::Error(
               Expression::Error::Type::InvalidOperationType, *this);
         });

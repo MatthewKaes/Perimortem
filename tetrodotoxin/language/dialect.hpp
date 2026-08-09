@@ -4,12 +4,11 @@
 #pragma once
 
 #include "perimortem/core/view/bytes.hpp"
+#include "perimortem/core/option.hpp"
 
 #include "perimortem/memory/allocator/arena.hpp"
 #include "perimortem/memory/dynamic/bytes.hpp"
 #include "perimortem/memory/dynamic/object.hpp"
-
-#include "perimortem/utility/option.hpp"
 
 #include "tetrodotoxin/language/monograph.hpp"
 #include "ttx/concept/abstract.hpp"
@@ -36,13 +35,13 @@ class Dialect {
       Ttx::Lexical::Cursor& cursor,
       const Ttx::Concept::Documentation& doc,
       Ttx::Concept::Abstract& interpretation_context)
-      -> Perimortem::Utility::Option<Monograph&> = 0;
+      -> Perimortem::Core::Option<Monograph&> = 0;
 
   // Encode only the durable facts owned by this Dialect. An engaged empty byte
   // value is a successful empty payload while no value reports unsupported or
   // failed encoding.
   virtual auto encode(const Monograph& monograph) const
-      -> Perimortem::Utility::Option<Perimortem::Memory::Dynamic::Bytes>;
+      -> Perimortem::Core::Option<Perimortem::Memory::Dynamic::Bytes>;
 
   // Restore one opaque payload into the importing Workspace Arena. A
   // successful result and every durable fact it exposes must outlive the input
@@ -50,7 +49,7 @@ class Dialect {
   virtual auto restore(
       Perimortem::Memory::Allocator::Arena& domain,
       Perimortem::Core::View::Bytes payload)
-      -> Perimortem::Utility::Option<Monograph&>;
+      -> Perimortem::Core::Option<Monograph&>;
 };
 
 }  // namespace Tetrodotoxin::Language

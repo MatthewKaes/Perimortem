@@ -15,15 +15,15 @@ using namespace Ttx::Model;
 using namespace Tetrodotoxin::Library;
 
 static auto select_source_anchor(const Language::Expression& expression)
-    -> Utility::Option<Anchor> {
+    -> Core::Option<Anchor> {
   return expression.get_anchor().visit(
-      []() -> Utility::Option<Anchor> { return {}; },
-      [](const Anchor& anchor) -> Utility::Option<Anchor> { return anchor; });
+      []() -> Core::Option<Anchor> { return {}; },
+      [](const Anchor& anchor) -> Core::Option<Anchor> { return anchor; });
 }
 
 static auto select_addressable(const Layout& layout, Core::View::Bytes route)
-    -> Utility::Option<const Addressable&> {
-  Utility::Option<const Abstract&> selected;
+    -> Core::Option<const Addressable&> {
+  Core::Option<const Abstract&> selected;
 
   // Name uniqueness is proven before the category check. A Layout with two
   // matching entries is ambiguous even when only one resolves to Addressable.
@@ -46,11 +46,10 @@ static auto select_addressable(const Layout& layout, Core::View::Bytes route)
 
   const Abstract& resolved = selected->resolve();
   return resolved.visit<Addressable>(
-      [](const Addressable& addressable)
-          -> Utility::Option<const Addressable&> { return addressable; },
-      [](const Abstract&) -> Utility::Option<const Addressable&> {
-        return {};
-      });
+      [](const Addressable& addressable) -> Core::Option<const Addressable&> {
+        return addressable;
+      },
+      [](const Abstract&) -> Core::Option<const Addressable&> { return {}; });
 }
 
 static auto is_readable(const Addressable& selected, const Abstract& requester)
@@ -71,7 +70,7 @@ auto Language::Access::Address::parse(
     Materializations&,
     Cursor& cursor,
     const Abstract&,
-    Expression& receiver) -> Utility::Option<Expression&> {
+    Expression& receiver) -> Core::Option<Expression&> {
   Token operation = cursor.consume();
   Token addressable = cursor.require(
       Code::Type::Addressable,
@@ -109,7 +108,7 @@ auto Language::Access::Address::create_synthetic(
     Memory::Allocator::Arena& domain,
     Expression& receiver,
     const Addressable& selected) -> Address& {
-  Utility::Option<Reference<const Addressable>> addressable{
+  Core::Option<Reference<const Addressable>> addressable{
     Reference<const Addressable>(selected),
   };
   return Expression::create_synthetic<Address>(
@@ -181,9 +180,9 @@ auto Language::Access::Address::get_inputs() const -> const Layout& {
 }
 
 auto Language::Access::Address::get_addressable() const
-    -> Utility::Option<const Addressable&> {
+    -> Core::Option<const Addressable&> {
   return addressable.visit(
-      []() -> Utility::Option<const Addressable&> { return {}; },
+      []() -> Core::Option<const Addressable&> { return {}; },
       [](const Reference<const Addressable>& selected)
-          -> Utility::Option<const Addressable&> { return selected.get(); });
+          -> Core::Option<const Addressable&> { return selected.get(); });
 }

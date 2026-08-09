@@ -21,13 +21,12 @@ using namespace Ttx::Model;
 
 template <typename selected_type>
 static auto select_constant(const Language::Expression& expression)
-    -> Utility::Option<const selected_type&> {
+    -> Core::Option<const selected_type&> {
   return expression.visit<selected_type>(
-      [](const selected_type& selected)
-          -> Utility::Option<const selected_type&> { return selected; },
-      [](const Abstract&) -> Utility::Option<const selected_type&> {
-        return {};
-      });
+      [](const selected_type& selected) -> Core::Option<const selected_type&> {
+        return selected;
+      },
+      [](const Abstract&) -> Core::Option<const selected_type&> { return {}; });
 }
 
 static auto is_negatable_type(const Abstract& selected) -> Bool {
@@ -74,7 +73,7 @@ auto Language::Operations::Negate::parse(
     Memory::Allocator::Arena& domain,
     Materializations& materializations,
     Cursor& cursor,
-    const Abstract& source_context) -> Utility::Option<Expression&> {
+    const Abstract& source_context) -> Core::Option<Expression&> {
   Token opening = cursor.consume();
   auto operand = Language::Parser::Expression::parse_prefix_operand(
       domain, materializations, cursor, source_context);
@@ -123,7 +122,7 @@ Language::Operations::Negate::Negate(
     Memory::Allocator::Arena& domain,
     Materializations& materializations,
     Expression& operand,
-    Utility::Option<Anchor> anchor)
+    Core::Option<Anchor> anchor)
     : Operation(
           domain,
           materializations,
@@ -137,21 +136,21 @@ auto Language::Operations::Negate::get_documentation() const
 }
 
 auto Language::Operations::Negate::select_type(Materializations&) const
-    -> Utility::Option<const Type&> {
+    -> Core::Option<const Type&> {
   auto operand = get_input(0);
   if (!operand) {
     return {};
   }
 
   return select_result_type(*operand).visit<Type>(
-      [](const Type& type) -> Utility::Option<const Type&> { return type; },
-      [](const Abstract&) -> Utility::Option<const Type&> { return {}; });
+      [](const Type& type) -> Core::Option<const Type&> { return type; },
+      [](const Abstract&) -> Core::Option<const Type&> { return {}; });
 }
 
 auto Language::Operations::Negate::evaluate_constants(
     Memory::Allocator::Arena& domain,
     Materializations&)
-    -> Utility::Result<Utility::Option<Constant&>, Expression::Error> {
+    -> Utility::Result<Core::Option<Constant&>, Expression::Error> {
   const Abstract& selected = get_type().resolve();
   auto authored_operand = get_input(0);
   auto operand = get_folded_input(0);
@@ -170,7 +169,7 @@ auto Language::Operations::Negate::evaluate_constants(
 
     return selected.visit<Ttx::Model::Types::Signed>(
         [&](const Ttx::Model::Types::Signed& type)
-            -> Utility::Result<Utility::Option<Constant&>, Expression::Error> {
+            -> Utility::Result<Core::Option<Constant&>, Expression::Error> {
           Signed_64 inverse = 0;
           if (!signed_inverse(type, value->get_value(), inverse)) {
             return Expression::Error(
@@ -180,7 +179,7 @@ auto Language::Operations::Negate::evaluate_constants(
           return Constants::Signed::create_synthetic(domain, type, inverse);
         },
         [&](const Abstract&)
-            -> Utility::Result<Utility::Option<Constant&>, Expression::Error> {
+            -> Utility::Result<Core::Option<Constant&>, Expression::Error> {
           return Expression::Error(
               Expression::Error::Type::InvalidOperationType, *this);
         });
@@ -195,7 +194,7 @@ auto Language::Operations::Negate::evaluate_constants(
 
     return selected.visit<Ttx::Model::Types::Real>(
         [&](const Ttx::Model::Types::Real& type)
-            -> Utility::Result<Utility::Option<Constant&>, Expression::Error> {
+            -> Utility::Result<Core::Option<Constant&>, Expression::Error> {
           if (type.get_size() == sizeof(Real_32)) {
             Real_32 inverse = -Real_32(value->get_value());
             return Constants::Real::create_synthetic(
@@ -211,7 +210,7 @@ auto Language::Operations::Negate::evaluate_constants(
               Expression::Error::Type::InvalidOperationType, *this);
         },
         [&](const Abstract&)
-            -> Utility::Result<Utility::Option<Constant&>, Expression::Error> {
+            -> Utility::Result<Core::Option<Constant&>, Expression::Error> {
           return Expression::Error(
               Expression::Error::Type::InvalidOperationType, *this);
         });

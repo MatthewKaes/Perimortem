@@ -4,10 +4,9 @@
 #pragma once
 
 #include "perimortem/core/view/bytes.hpp"
+#include "perimortem/core/option.hpp"
 
 #include "perimortem/memory/allocator/arena.hpp"
-
-#include "perimortem/utility/option.hpp"
 
 #include "ttx/lexical/cursor.hpp"
 #include "ttx/lexical/span.hpp"
@@ -28,7 +27,7 @@ class Source {
   static auto parse(
       Perimortem::Memory::Allocator::Arena& domain,
       Ttx::Lexical::Cursor& cursor,
-      Ttx::Lexical::Span& span) -> Perimortem::Utility::Option<Source>;
+      Ttx::Lexical::Span& span) -> Perimortem::Core::Option<Source>;
 
   constexpr auto get_local_name() const -> Perimortem::Core::View::Bytes {
     return local_name;

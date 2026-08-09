@@ -5,6 +5,7 @@
 
 #include "perimortem/core/view/bytes.hpp"
 #include "perimortem/core/math.hpp"
+#include "perimortem/core/option.hpp"
 
 namespace Perimortem::Core::Access {
 
@@ -26,16 +27,17 @@ class Bytes {
 
   constexpr operator View::Bytes() const { return get_view(); }
 
-  constexpr auto at(Count index) -> data_type& {
-    if (index > size) [[unlikely]] {
-      static data_type oob;
-      return oob;
+  constexpr auto at(Count index) -> Core::Option<data_type&> {
+    if (index >= size) [[unlikely]] {
+      return {};
     }
 
     return source_block[index];
   }
 
-  constexpr auto operator[](Count index) -> data_type& { return at(index); }
+  constexpr auto operator[](Count index) -> Core::Option<data_type&> {
+    return at(index);
+  }
 
   constexpr auto slice(Count start, Count size = Count(-1)) const
       -> Access::Bytes {

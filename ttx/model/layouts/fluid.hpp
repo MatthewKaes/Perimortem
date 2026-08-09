@@ -24,7 +24,7 @@ class Fluid : public Concept::Layout {
     return abstracts.get_size();
   }
   constexpr auto get_abstract(Count index) const
-      -> Perimortem::Utility::Option<const Concept::Abstract&> override {
+      -> Perimortem::Core::Option<const Concept::Abstract&> override {
     if (index >= abstracts.get_size()) {
       return {};
     }

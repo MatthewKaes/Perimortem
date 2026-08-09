@@ -49,7 +49,7 @@ class Monograph : public Tetrodotoxin::Language::Monograph {
       Perimortem::Core::View::Vector<Dependency> dependencies,
       Perimortem::Core::View::Vector<Ttx::Lexical::Span> dependency_spans,
       Perimortem::Core::View::Vector<Source> sources)
-      -> Perimortem::Utility::Option<Monograph&>;
+      -> Perimortem::Core::Option<Monograph&>;
 
   // Archive restoration has no authored Tokens or Source paths. Selecting
   // this operation records that absence directly instead of asking callers to

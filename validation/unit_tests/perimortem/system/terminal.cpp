@@ -14,7 +14,6 @@
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
 using namespace Perimortem::System;
-using namespace Perimortem::Utility;
 using namespace Validation;
 
 static Harness SystemTerminal = {

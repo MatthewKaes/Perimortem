@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include "perimortem/utility/option.hpp"
+#include "perimortem/core/option.hpp"
 
 #include "ttx/concept/documentation.hpp"
 #include "ttx/lexical/cursor.hpp"

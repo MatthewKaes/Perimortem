@@ -3,9 +3,9 @@
 
 #pragma once
 
-#include "perimortem/memory/allocator/arena.hpp"
+#include "perimortem/core/option.hpp"
 
-#include "perimortem/utility/option.hpp"
+#include "perimortem/memory/allocator/arena.hpp"
 
 #include "tetrodotoxin/library/language/expression.hpp"
 #include "ttx/concept/reference.hpp"
@@ -56,16 +56,16 @@ class Identifier : public Expression {
   auto get_inputs() const -> const Ttx::Concept::Layout& override;
 
   auto get_addressable() const
-      -> Perimortem::Utility::Option<const Ttx::Model::Addressable&>;
+      -> Perimortem::Core::Option<const Ttx::Model::Addressable&>;
 
  private:
   constexpr Identifier(
       Perimortem::Core::View::Bytes route,
-      Perimortem::Utility::Option<Ttx::Lexical::Anchor> anchor)
+      Perimortem::Core::Option<Ttx::Lexical::Anchor> anchor)
       : Expression(anchor), route(route) {}
 
   Perimortem::Core::View::Bytes route;
-  Perimortem::Utility::Option<
+  Perimortem::Core::Option<
       Ttx::Concept::Reference<const Ttx::Model::Addressable>>
       addressable;
 };

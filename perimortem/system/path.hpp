@@ -5,10 +5,9 @@
 
 #include "perimortem/core/view/bytes.hpp"
 #include "perimortem/core/static/bytes.hpp"
+#include "perimortem/core/option.hpp"
 
 #include "perimortem/memory/allocator/arena.hpp"
-
-#include "perimortem/utility/option.hpp"
 
 namespace Perimortem::System {
 
@@ -30,7 +29,7 @@ class Path {
   // `/` for one platform independent cache identity and rejects input whose
   // lexical meaning cannot be preserved exactly.
   static auto normalize(Memory::Allocator::Arena& arena, Core::View::Bytes path)
-      -> Utility::Option<Core::View::Bytes>;
+      -> Core::Option<Core::View::Bytes>;
 
   constexpr auto get_view() const -> Core::View::Bytes {
     return text.slice(0, size);

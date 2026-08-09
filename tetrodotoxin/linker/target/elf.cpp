@@ -266,9 +266,10 @@ static auto build_string_table(Access::Vector<SymbolReference> symbols)
     -> Dynamic::Bytes {
   Dynamic::Bytes string_table;
   string_table.append('\0');
+  auto* symbol_data = symbols.get_data();
   for (Count i = 0; i < symbols.get_size(); i++) {
-    symbols[i].string_table_offset = string_table.get_size();
-    string_table.concat(symbols[i].symbol->get_name());
+    symbol_data[i].string_table_offset = string_table.get_size();
+    string_table.concat(symbol_data[i].symbol->get_name());
     string_table.append('\0');
   }
 
@@ -326,14 +327,15 @@ static auto build_section_string_table(
     Access::Vector<SectionDescriptor> sections) -> Dynamic::Bytes {
   Dynamic::Bytes section_string_table;
   section_string_table.append('\0');
+  auto* section_data = sections.get_data();
   for (Count i = 0; i < sections.get_size(); i++) {
-    if (sections[i].name.get_size() == 0) {
-      sections[i].name_offset = 0;
+    if (section_data[i].name.get_size() == 0) {
+      section_data[i].name_offset = 0;
       continue;
     }
 
-    sections[i].name_offset = section_string_table.get_size();
-    section_string_table.concat(sections[i].name);
+    section_data[i].name_offset = section_string_table.get_size();
+    section_string_table.concat(section_data[i].name);
     section_string_table.append('\0');
   }
 
@@ -343,17 +345,18 @@ static auto build_section_string_table(
 static auto assign_offsets(Access::Vector<SectionDescriptor> sections)
     -> Count {
   Count offset = sizeof(Header);
+  auto* section_data = sections.get_data();
   for (Count i = 0; i < sections.get_size(); i++) {
-    if (sections[i].data.get_size() == 0) {
-      sections[i].file_offset = 0;
+    if (section_data[i].data.get_size() == 0) {
+      section_data[i].file_offset = 0;
       continue;
     }
 
     const Count alignment =
-        sections[i].alignment > 0 ? Count(sections[i].alignment) : 1;
+        section_data[i].alignment > 0 ? Count(section_data[i].alignment) : 1;
     offset = (offset + alignment - 1) & ~(alignment - 1);
-    sections[i].file_offset = offset;
-    offset += sections[i].data.get_size();
+    section_data[i].file_offset = offset;
+    offset += section_data[i].data.get_size();
   }
 
   return Data::align<8>(offset);
@@ -532,7 +535,7 @@ static auto build_object(const Object::Module& module) -> Dynamic::Bytes {
   // this transaction.
   auto section_string_table =
       build_section_string_table(section_descriptors.get_access());
-  section_descriptors.get_access()[section_string_table_index].data =
+  section_descriptors.get_access().get_data()[section_string_table_index].data =
       section_string_table.get_view();
 
   // Payload offsets are assigned only after every descriptor exists. The

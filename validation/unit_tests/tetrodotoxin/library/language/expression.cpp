@@ -137,7 +137,7 @@ static Harness LibraryExpression = {
 };
 
 static auto selects(
-    const Perimortem::Utility::Option<const Abstract&>& result,
+    const Perimortem::Core::Option<const Abstract&>& result,
     const Abstract& expected) -> Bool {
   return result.visit(
       []() { return False; },
@@ -146,7 +146,7 @@ static auto selects(
       });
 }
 
-static auto is_none(const Perimortem::Utility::Option<const Abstract&>& result)
+static auto is_none(const Perimortem::Core::Option<const Abstract&>& result)
     -> Bool {
   return result.visit(
       []() { return True; }, [](const Abstract&) { return False; });
@@ -231,12 +231,12 @@ PERIMORTEM_UNIT_TEST(LibraryExpression, constant_identity) {
   auto first_fold = first.fold();
   auto repeated_fold = first.fold();
   EXPECT(first_fold.visit(
-      [&](const Perimortem::Utility::Option<Expression&>& selected) {
+      [&](const Perimortem::Core::Option<Expression&>& selected) {
         return selected && &*selected == &first ? True : False;
       },
       [](const Expression::Error&) { return False; }));
   EXPECT(repeated_fold.visit(
-      [&](const Perimortem::Utility::Option<Expression&>& selected) {
+      [&](const Perimortem::Core::Option<Expression&>& selected) {
         return selected && &*selected == &first ? True : False;
       },
       [](const Expression::Error&) { return False; }));

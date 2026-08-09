@@ -80,7 +80,7 @@ class Real : public Constant {
   constexpr Real(
       const Ttx::Model::Types::Real& type,
       Value value,
-      Perimortem::Utility::Option<Ttx::Lexical::Anchor> anchor)
+      Perimortem::Core::Option<Ttx::Lexical::Anchor> anchor)
       : Constant(anchor), type(type), value(value) {}
 
   const Ttx::Model::Types::Real& type;

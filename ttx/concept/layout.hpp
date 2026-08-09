@@ -3,7 +3,8 @@
 
 #pragma once
 
-#include "perimortem/utility/option.hpp"
+#include "perimortem/core/option.hpp"
+
 #include "perimortem/utility/result.hpp"
 
 #include "ttx/concept/abstract.hpp"
@@ -39,7 +40,7 @@ class Layout {
   // Implementations borrow only real Abstracts through a Reference that can
   // never be null. An index outside the Layout returns None.
   virtual constexpr auto get_abstract(Count index) const
-      -> Perimortem::Utility::Option<const Abstract&> = 0;
+      -> Perimortem::Core::Option<const Abstract&> = 0;
 
   // Fitting is directional and owned by the source Layout contract. Ordinary
   // fitting requires the complete source and target to have the same size.

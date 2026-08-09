@@ -4,10 +4,10 @@
 #pragma once
 
 #include "perimortem/core/static/union.hpp"
+#include "perimortem/core/option.hpp"
 
 #include "perimortem/memory/allocator/arena.hpp"
 
-#include "perimortem/utility/option.hpp"
 #include "perimortem/utility/result.hpp"
 
 #include "tetrodotoxin/language/monograph.hpp"
@@ -93,13 +93,13 @@ class Expression : public Ttx::Concept::Abstract {
   // and every authored edge remain available regardless of the selected
   // Constant, dynamic result, or failure.
   auto fold() -> Perimortem::Utility::
-      Result<Perimortem::Utility::Option<Expression&>, Error>;
+      Result<Perimortem::Core::Option<Expression&>, Error>;
 
-  auto get_folded() -> Perimortem::Utility::Option<Expression&>;
-  auto get_folded() const -> Perimortem::Utility::Option<const Expression&>;
+  auto get_folded() -> Perimortem::Core::Option<Expression&>;
+  auto get_folded() const -> Perimortem::Core::Option<const Expression&>;
 
   constexpr auto get_anchor() const
-      -> const Perimortem::Utility::Option<Ttx::Lexical::Anchor>& {
+      -> const Perimortem::Core::Option<Ttx::Lexical::Anchor>& {
     return anchor;
   }
 
@@ -122,7 +122,7 @@ class Expression : public Ttx::Concept::Abstract {
       Ttx::Lexical::Anchor anchor,
       builder_type&& builder) -> type& {
     static_assert(__is_base_of(Expression, type));
-    Perimortem::Utility::Option<Ttx::Lexical::Anchor> source(anchor);
+    Perimortem::Core::Option<Ttx::Lexical::Anchor> source(anchor);
     return domain.construct_from<type>([&builder, source]() {
       return static_cast<builder_type&&>(builder)(source);
     });
@@ -133,14 +133,14 @@ class Expression : public Ttx::Concept::Abstract {
       Perimortem::Memory::Allocator::Arena& domain,
       builder_type&& builder) -> type& {
     static_assert(__is_base_of(Expression, type));
-    Perimortem::Utility::Option<Ttx::Lexical::Anchor> source;
+    Perimortem::Core::Option<Ttx::Lexical::Anchor> source;
     return domain.construct_from<type>([&builder, source]() {
       return static_cast<builder_type&&>(builder)(source);
     });
   }
 
   constexpr explicit Expression(
-      Perimortem::Utility::Option<Ttx::Lexical::Anchor> anchor)
+      Perimortem::Core::Option<Ttx::Lexical::Anchor> anchor)
       : anchor(anchor) {}
 
   Expression(const Expression&) = delete;
@@ -149,10 +149,10 @@ class Expression : public Ttx::Concept::Abstract {
   auto operator=(Expression&&) -> Expression& = delete;
 
   virtual auto fold_uncached() -> Perimortem::Utility::
-      Result<Perimortem::Utility::Option<Expression&>, Error>;
+      Result<Perimortem::Core::Option<Expression&>, Error>;
 
  private:
-  Perimortem::Utility::Option<Ttx::Lexical::Anchor> anchor;
+  Perimortem::Core::Option<Ttx::Lexical::Anchor> anchor;
   Perimortem::Core::Static::Union<Expression&, Error> folded;
 };
 

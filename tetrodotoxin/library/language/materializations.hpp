@@ -4,11 +4,10 @@
 #pragma once
 
 #include "perimortem/core/view/vector.hpp"
+#include "perimortem/core/option.hpp"
 
 #include "perimortem/memory/allocator/arena.hpp"
 #include "perimortem/memory/managed/map.hpp"
-
-#include "perimortem/utility/option.hpp"
 
 #include "tetrodotoxin/library/language/generic.hpp"
 #include "ttx/concept/reference.hpp"
@@ -31,7 +30,7 @@ class Materializations {
   auto materialize(
       const Generic& generic,
       Perimortem::Core::View::Vector<Generic::Argument> arguments)
-      -> Perimortem::Utility::Option<const Ttx::Model::Type&>;
+      -> Perimortem::Core::Option<const Ttx::Model::Type&>;
 
   auto get_size() const -> Count { return entries.get_size(); }
 

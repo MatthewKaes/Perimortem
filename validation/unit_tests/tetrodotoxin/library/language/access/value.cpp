@@ -6,10 +6,10 @@
 #include "validation/unit_test.hpp"
 
 #include "perimortem/core/static/vector.hpp"
+#include "perimortem/core/option.hpp"
 
 #include "perimortem/memory/allocator/arena.hpp"
 
-#include "perimortem/utility/option.hpp"
 #include "perimortem/utility/result.hpp"
 
 #include "tetrodotoxin/language/monograph.hpp"

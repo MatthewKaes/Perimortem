@@ -8,19 +8,19 @@
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
 using namespace Perimortem::System;
-using namespace Perimortem::Utility;
 
 // A Path is bounded to a small fixed size, so rescanning the normalized prefix
 // costs less state than retaining a second stack of segment offsets. The root
 // marker is the only prefix that a parent segment may not remove.
 static auto pop_segment(Access::Bytes text, Count& size) -> Bool {
-  if (size == 0 || (size == 1 && text[0] == '/')) {
+  auto* data = text.get_data();
+  if (size == 0 || (size == 1 && data[0] == '/')) {
     return False;
   }
 
-  Count segment_start = text[0] == '/' ? Count(1) : Count(0);
+  Count segment_start = data[0] == '/' ? Count(1) : Count(0);
   for (Count i = segment_start; i < size; i++) {
-    if (text[i] == '/') {
+    if (data[i] == '/') {
       segment_start = i;
     }
   }
@@ -33,7 +33,8 @@ static auto pop_segment(Access::Bytes text, Count& size) -> Bool {
 // path when a segment does not fit instead of publishing a shortened spelling.
 static auto append_segment(Access::Bytes text, Count& size, View::Bytes segment)
     -> Bool {
-  const Bool needs_separator = size != 0 && !(size == 1 && text[0] == '/');
+  auto* data = text.get_data();
+  const Bool needs_separator = size != 0 && !(size == 1 && data[0] == '/');
   const Count required_size =
       segment.get_size() + (needs_separator ? Count(1) : Count(0));
   if (required_size > text.get_size() - size) {
@@ -41,10 +42,10 @@ static auto append_segment(Access::Bytes text, Count& size, View::Bytes segment)
   }
 
   if (needs_separator) {
-    text[size++] = '/';
+    data[size++] = '/';
   }
 
-  Data::copy(text.get_data() + size, segment.get_data(), segment.get_size());
+  Data::copy(data + size, segment.get_data(), segment.get_size());
   size += segment.get_size();
   return True;
 }
@@ -113,8 +114,9 @@ static auto normalize_path(Access::Bytes text, View::Bytes path)
   }
 
   Count size = 0;
+  auto* data = text.get_data();
   if (path[0] == '/' || path[0] == '\\') {
-    text[size++] = '/';
+    data[size++] = '/';
   }
 
   Bool appended = append_path(text, size, path);

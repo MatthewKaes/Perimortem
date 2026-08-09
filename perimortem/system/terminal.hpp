@@ -6,10 +6,9 @@
 #include <stdio.h>
 
 #include "perimortem/core/view/bytes.hpp"
+#include "perimortem/core/option.hpp"
 
 #include "perimortem/memory/dynamic/bytes.hpp"
-
-#include "perimortem/utility/option.hpp"
 
 namespace Perimortem::System {
 
@@ -35,7 +34,7 @@ class Terminal {
   Terminal();
   Terminal(FILE& input, FILE& output);
 
-  auto read_line() -> Utility::Option<Memory::Dynamic::Bytes>;
+  auto read_line() -> Core::Option<Memory::Dynamic::Bytes>;
   auto write_line(Core::View::Bytes data) -> Bool;
 
  private:

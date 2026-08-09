@@ -4,6 +4,7 @@
 #pragma once
 
 #include "perimortem/core/view/bytes.hpp"
+#include "perimortem/core/option.hpp"
 
 #include "perimortem/memory/allocator/arena.hpp"
 #include "perimortem/memory/managed/map.hpp"
@@ -11,7 +12,6 @@
 #include "perimortem/system/file.hpp"
 #include "perimortem/system/path.hpp"
 
-#include "perimortem/utility/option.hpp"
 #include "perimortem/utility/result.hpp"
 
 #include "tetrodotoxin/package/content.hpp"
@@ -48,7 +48,7 @@ class Storage {
         : path(path), error(error) {}
 
     constexpr auto get_path() const
-        -> Perimortem::Utility::Option<const Perimortem::System::Path&> {
+        -> Perimortem::Core::Option<const Perimortem::System::Path&> {
       if (path.get_view().is_empty()) {
         return {};
       }
@@ -70,8 +70,7 @@ class Storage {
 
   static auto open(
       Perimortem::Memory::Allocator::Arena& arena,
-      Perimortem::Core::View::Bytes root)
-      -> Perimortem::Utility::Option<Storage>;
+      Perimortem::Core::View::Bytes root) -> Perimortem::Core::Option<Storage>;
 
   auto read(Perimortem::Core::View::Bytes logical_route)
       -> Perimortem::Utility::Result<Content&, Failure>;

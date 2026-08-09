@@ -177,11 +177,11 @@ static auto get_identifier(const Language::Expression& expression)
 
 static auto fold_is_unsigned(
     const Perimortem::Utility::Result<
-        Perimortem::Utility::Option<Language::Expression&>,
+        Perimortem::Core::Option<Language::Expression&>,
         Language::Expression::Error>& result,
     Unsigned_64 expected) -> Bool {
   return result.visit(
-      [&](const Perimortem::Utility::Option<Language::Expression&>& selected) {
+      [&](const Perimortem::Core::Option<Language::Expression&>& selected) {
         if (!selected) {
           return False;
         }
@@ -197,12 +197,12 @@ static auto fold_is_unsigned(
 
 static auto fold_reports(
     const Perimortem::Utility::Result<
-        Perimortem::Utility::Option<Language::Expression&>,
+        Perimortem::Core::Option<Language::Expression&>,
         Language::Expression::Error>& result,
     Language::Expression::Error::Type expected,
     const Language::Expression& expression) -> Bool {
   return result.visit(
-      [](const Perimortem::Utility::Option<Language::Expression&>&) {
+      [](const Perimortem::Core::Option<Language::Expression&>&) {
         return False;
       },
       [&](const Language::Expression::Error& error) {

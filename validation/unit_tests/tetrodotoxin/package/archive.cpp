@@ -92,17 +92,19 @@ static auto contains(View::Bytes text, View::Bytes fragment) -> Bool {
 static auto set_u16(Dynamic::Bytes& bytes, Count offset, Unsigned_16 value)
     -> void {
   auto target = bytes.get_access();
-  target[offset] = Unsigned_8(value);
-  target[offset + 1] = Unsigned_8(value >> 8);
+  auto* data = target.get_data();
+  data[offset] = Unsigned_8(value);
+  data[offset + 1] = Unsigned_8(value >> 8);
 }
 
 static auto set_u32(Dynamic::Bytes& bytes, Count offset, Unsigned_32 value)
     -> void {
   auto target = bytes.get_access();
-  target[offset] = Unsigned_8(value);
-  target[offset + 1] = Unsigned_8(value >> 8);
-  target[offset + 2] = Unsigned_8(value >> 16);
-  target[offset + 3] = Unsigned_8(value >> 24);
+  auto* data = target.get_data();
+  data[offset] = Unsigned_8(value);
+  data[offset + 1] = Unsigned_8(value >> 8);
+  data[offset + 2] = Unsigned_8(value >> 16);
+  data[offset + 3] = Unsigned_8(value >> 24);
 }
 
 static auto splice(
@@ -526,7 +528,7 @@ PERIMORTEM_UNIT_TEST(PackageArchive, every_truncation_boundary) {
 
 PERIMORTEM_UNIT_TEST(PackageArchive, envelope_boundaries) {
   Dynamic::Bytes bad_magic(golden());
-  bad_magic.get_access()[0] = 'X';
+  bad_magic.get_access().get_data()[0] = 'X';
   EXPECT(rejects(bad_magic));
   EXPECT(
       Test::error_contains(
@@ -677,7 +679,7 @@ PERIMORTEM_UNIT_TEST(PackageArchive, framing_boundaries) {
 
 PERIMORTEM_UNIT_TEST(PackageArchive, malformed_names_and_locators) {
   Dynamic::Bytes package_name(golden());
-  package_name.get_access()[identity_field + 12] = 'p';
+  package_name.get_access().get_data()[identity_field + 12] = 'p';
   EXPECT(rejects(package_name));
   EXPECT(
       Test::error_contains(
@@ -686,39 +688,39 @@ PERIMORTEM_UNIT_TEST(PackageArchive, malformed_names_and_locators) {
           Diagnostics::Log::Level::Debug));
 
   Dynamic::Bytes dependency_alias(golden());
-  dependency_alias.get_access()[dependency_field + 20] = 'c';
+  dependency_alias.get_access().get_data()[dependency_field + 20] = 'c';
   EXPECT(rejects(dependency_alias));
 
   Dynamic::Bytes dependency_identity(golden());
-  dependency_identity.get_access()[dependency_field + 28] = 'p';
+  dependency_identity.get_access().get_data()[dependency_field + 28] = 'p';
   EXPECT(rejects(dependency_identity));
 
   Dynamic::Bytes member_name(golden());
-  member_name.get_access()[member_field + 20] = 'm';
+  member_name.get_access().get_data()[member_field + 20] = 'm';
   EXPECT(rejects(member_name));
 
   Dynamic::Bytes member_route(golden());
-  member_route.get_access()[member_field + 48] = '.';
+  member_route.get_access().get_data()[member_field + 48] = '.';
   EXPECT(rejects(member_route));
 
   Dynamic::Bytes dialect_name(golden());
-  dialect_name.get_access()[member_field + 28] = 'l';
+  dialect_name.get_access().get_data()[member_field + 28] = 'l';
   EXPECT(rejects(dialect_name));
 
   Dynamic::Bytes export_route_nul(golden());
-  export_route_nul.get_access()[export_field + 20] = 0;
+  export_route_nul.get_access().get_data()[export_field + 20] = 0;
   EXPECT(rejects(export_route_nul));
 
   Dynamic::Bytes artifact_nul(golden());
-  artifact_nul.get_access()[artifact_field + 20] = 0;
+  artifact_nul.get_access().get_data()[artifact_field + 20] = 0;
   EXPECT(rejects(artifact_nul));
 
   Dynamic::Bytes export_artifact_nul(golden());
-  export_artifact_nul.get_access()[export_field + 33] = 0;
+  export_artifact_nul.get_access().get_data()[export_field + 33] = 0;
   EXPECT(rejects(export_artifact_nul));
 
   Dynamic::Bytes symbol_nul(golden());
-  symbol_nul.get_access()[export_field + 40] = 0;
+  symbol_nul.get_access().get_data()[export_field + 40] = 0;
   EXPECT(rejects(symbol_nul));
 
   Dynamic::Bytes empty_export_route =
@@ -753,10 +755,11 @@ PERIMORTEM_UNIT_TEST(PackageArchive, malformed_names_and_locators) {
 PERIMORTEM_UNIT_TEST(PackageArchive, uniqueness_and_references) {
   Dynamic::Bytes scope_collision(golden());
   auto scope_bytes = scope_collision.get_access();
-  scope_bytes[dependency_field + 20] = 'M';
-  scope_bytes[dependency_field + 21] = 'a';
-  scope_bytes[dependency_field + 22] = 'i';
-  scope_bytes[dependency_field + 23] = 'n';
+  auto* scope_data = scope_bytes.get_data();
+  scope_data[dependency_field + 20] = 'M';
+  scope_data[dependency_field + 21] = 'a';
+  scope_data[dependency_field + 22] = 'i';
+  scope_data[dependency_field + 23] = 'n';
   EXPECT(rejects(scope_collision));
   EXPECT(
       Test::error_contains(
@@ -789,9 +792,9 @@ PERIMORTEM_UNIT_TEST(PackageArchive, uniqueness_and_references) {
           Diagnostics::Log::Level::Debug));
 
   Dynamic::Bytes duplicate_artifact(golden());
-  duplicate_artifact.get_access()[artifact_field + 31] = 'c';
-  duplicate_artifact.get_access()[artifact_field + 32] = 'p';
-  duplicate_artifact.get_access()[artifact_field + 33] = 'u';
+  duplicate_artifact.get_access().get_data()[artifact_field + 31] = 'c';
+  duplicate_artifact.get_access().get_data()[artifact_field + 32] = 'p';
+  duplicate_artifact.get_access().get_data()[artifact_field + 33] = 'u';
   EXPECT(rejects(duplicate_artifact));
   EXPECT(
       Test::error_contains(
@@ -812,9 +815,9 @@ PERIMORTEM_UNIT_TEST(PackageArchive, uniqueness_and_references) {
           Diagnostics::Log::Level::Debug));
 
   Dynamic::Bytes undeclared_artifact(golden());
-  undeclared_artifact.get_access()[export_field + 33] = 'b';
-  undeclared_artifact.get_access()[export_field + 34] = 'a';
-  undeclared_artifact.get_access()[export_field + 35] = 'd';
+  undeclared_artifact.get_access().get_data()[export_field + 33] = 'b';
+  undeclared_artifact.get_access().get_data()[export_field + 34] = 'a';
+  undeclared_artifact.get_access().get_data()[export_field + 35] = 'd';
   EXPECT(rejects(undeclared_artifact));
   EXPECT(
       Test::error_contains(

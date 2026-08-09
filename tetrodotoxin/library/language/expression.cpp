@@ -11,13 +11,11 @@ using namespace Ttx::Model;
 using namespace Tetrodotoxin::Library;
 
 static auto select_source_anchor(const Language::Expression& expression)
-    -> Perimortem::Utility::Option<Ttx::Lexical::Anchor> {
+    -> Perimortem::Core::Option<Ttx::Lexical::Anchor> {
   return expression.get_anchor().visit(
-      []() -> Perimortem::Utility::Option<Ttx::Lexical::Anchor> { return {}; },
+      []() -> Perimortem::Core::Option<Ttx::Lexical::Anchor> { return {}; },
       [](const Ttx::Lexical::Anchor& anchor)
-          -> Perimortem::Utility::Option<Ttx::Lexical::Anchor> {
-        return anchor;
-      });
+          -> Perimortem::Core::Option<Ttx::Lexical::Anchor> { return anchor; });
 }
 
 auto Language::Expression::link(
@@ -58,37 +56,37 @@ auto Language::Expression::Error::get_name() const -> View::Bytes {
 }
 
 auto Language::Expression::fold() -> Perimortem::Utility::
-    Result<Perimortem::Utility::Option<Expression&>, Error> {
+    Result<Perimortem::Core::Option<Expression&>, Error> {
   if (!folded.is_null()) {
     return folded.visit(
         []() -> Perimortem::Utility::Result<
-                 Perimortem::Utility::Option<Expression&>, Error> {
-          return Perimortem::Utility::Option<Expression&>{};
+                 Perimortem::Core::Option<Expression&>, Error> {
+          return Perimortem::Core::Option<Expression&>{};
         },
         [](Expression& representation)
             -> Perimortem::Utility::Result<
-                Perimortem::Utility::Option<Expression&>, Error> {
+                Perimortem::Core::Option<Expression&>, Error> {
           return representation;
         },
         [](const Error& error)
             -> Perimortem::Utility::Result<
-                Perimortem::Utility::Option<Expression&>, Error> {
+                Perimortem::Core::Option<Expression&>, Error> {
           return error;
         });
   }
 
   const Abstract& expression_type = get_type().resolve();
   if (!expression_type.is<Type>()) {
-    return Perimortem::Utility::Option<Expression&>{};
+    return Perimortem::Core::Option<Expression&>{};
   }
 
   auto result = fold_uncached();
   return result.visit(
-      [&](const Perimortem::Utility::Option<Expression&>& selected)
+      [&](const Perimortem::Core::Option<Expression&>& selected)
           -> Perimortem::Utility::Result<
-              Perimortem::Utility::Option<Expression&>, Error> {
+              Perimortem::Core::Option<Expression&>, Error> {
         if (!selected) {
-          return Perimortem::Utility::Option<Expression&>{};
+          return Perimortem::Core::Option<Expression&>{};
         }
 
         Expression& representation = *selected;
@@ -106,43 +104,40 @@ auto Language::Expression::fold() -> Perimortem::Utility::
         }
 
         folded = representation;
-        return Perimortem::Utility::Option<Expression&>(representation);
+        return Perimortem::Core::Option<Expression&>(representation);
       },
       [&](const Error& error)
           -> Perimortem::Utility::Result<
-              Perimortem::Utility::Option<Expression&>, Error> {
+              Perimortem::Core::Option<Expression&>, Error> {
         folded = error;
         return error;
       });
 }
 
 auto Language::Expression::get_folded()
-    -> Perimortem::Utility::Option<Expression&> {
+    -> Perimortem::Core::Option<Expression&> {
   return folded.visit(
-      []() -> Perimortem::Utility::Option<Expression&> { return {}; },
-      [](Expression& representation)
-          -> Perimortem::Utility::Option<Expression&> {
+      []() -> Perimortem::Core::Option<Expression&> { return {}; },
+      [](Expression& representation) -> Perimortem::Core::Option<Expression&> {
         return representation;
       },
-      [](const Error&) -> Perimortem::Utility::Option<Expression&> {
-        return {};
-      });
+      [](const Error&) -> Perimortem::Core::Option<Expression&> { return {}; });
 }
 
 auto Language::Expression::get_folded() const
-    -> Perimortem::Utility::Option<const Expression&> {
+    -> Perimortem::Core::Option<const Expression&> {
   return folded.visit(
-      []() -> Perimortem::Utility::Option<const Expression&> { return {}; },
+      []() -> Perimortem::Core::Option<const Expression&> { return {}; },
       [](const Expression& representation)
-          -> Perimortem::Utility::Option<const Expression&> {
+          -> Perimortem::Core::Option<const Expression&> {
         return representation;
       },
-      [](const Error&) -> Perimortem::Utility::Option<const Expression&> {
+      [](const Error&) -> Perimortem::Core::Option<const Expression&> {
         return {};
       });
 }
 
 auto Language::Expression::fold_uncached() -> Perimortem::Utility::
-    Result<Perimortem::Utility::Option<Expression&>, Error> {
-  return Perimortem::Utility::Option<Expression&>{};
+    Result<Perimortem::Core::Option<Expression&>, Error> {
+  return Perimortem::Core::Option<Expression&>{};
 }

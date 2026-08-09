@@ -5,7 +5,7 @@
 
 #include "perimortem/core/perimortem.hpp"
 
-namespace Perimortem::Utility {
+namespace Perimortem::Core {
 
 // Option represents either one owned value or None. The value lives directly
 // inside the Option so a function can safely return an object created on its
@@ -157,4 +157,4 @@ class Option<value_type&> {
   value_type* value = nullptr;
 };
 
-}  // namespace Perimortem::Utility
+}  // namespace Perimortem::Core

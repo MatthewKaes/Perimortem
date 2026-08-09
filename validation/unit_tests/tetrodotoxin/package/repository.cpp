@@ -129,8 +129,9 @@ static auto literal_archive() -> View::Bytes {
 static auto set_u16(Dynamic::Bytes& bytes, Count offset, Unsigned_16 value)
     -> void {
   auto target = bytes.get_access();
-  target[offset] = Unsigned_8(value);
-  target[offset + 1] = Unsigned_8(value >> 8);
+  auto* data = target.get_data();
+  data[offset] = Unsigned_8(value);
+  data[offset + 1] = Unsigned_8(value >> 8);
 }
 
 static auto archive_with(View::Bytes identity, Version version)
@@ -141,8 +142,9 @@ static auto archive_with(View::Bytes identity, Version version)
   }
 
   auto target = bytes.get_access();
+  auto* data = target.get_data();
   for (Count i = 0; i < identity.get_size(); i++) {
-    target[archive_identity_offset + i] = identity[i];
+    data[archive_identity_offset + i] = identity[i];
   }
 
   set_u16(bytes, archive_version_offset, version.get_major());
@@ -346,7 +348,7 @@ PERIMORTEM_UNIT_TEST(PackageRepository, exact_lazy_selection) {
   Dynamic::Bytes other = archive_with("Pkg.More"_view, Version(1, 0));
   Dynamic::Bytes decoy = archive_with("Pkg.Core"_view, Version(9, 9));
   Dynamic::Bytes corrupt(literal_archive());
-  corrupt.get_access()[0] = 'X';
+  corrupt.get_access().get_data()[0] = 'X';
   Bool core_12_written = files.write("core-12.ttxa"_view, literal_archive());
   Bool core_20_written = files.write("core-20.ttxa"_view, core_20);
   Bool other_written = files.write("other.ttxa"_view, other);
@@ -495,7 +497,7 @@ PERIMORTEM_UNIT_TEST(PackageRepository, selected_failures) {
   Dynamic::Bytes truncated(literal_archive());
   truncated.resize(truncated.get_size() - 1);
   Dynamic::Bytes corrupt(literal_archive());
-  corrupt.get_access()[0] = 'X';
+  corrupt.get_access().get_data()[0] = 'X';
   Dynamic::Bytes future(literal_archive());
   set_u16(future, 4, 2);
 
@@ -626,7 +628,7 @@ PERIMORTEM_UNIT_TEST(PackageRepository, caller_arena_and_retained_cache) {
   // later calls must return the exact retained Archive rather than touching the
   // backing file again.
   Dynamic::Bytes replacement(literal_archive());
-  replacement.get_access()[0] = 'X';
+  replacement.get_access().get_data()[0] = 'X';
   Bool replacement_written = files.write("cache.ttxa"_view, replacement);
   ASSERT(replacement_written);
 

@@ -634,7 +634,7 @@ static auto rejects_selection_failure(
     }
 
     if (scenario == 3) {
-      encoded->get_access()[4] = 2;
+      encoded->get_access().get_data()[4] = 2;
     }
 
     if (!package.write("dependency.ttxa"_view, *encoded)) {

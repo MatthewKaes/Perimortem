@@ -252,7 +252,7 @@ PERIMORTEM_UNIT_TEST(DynamicMap, dynamic_keys) {
   Dynamic::Bytes text;
   text.append('a');
   for (Unsigned_8 ch = 'A'; ch < 'z'; ch++) {
-    text.get_access()[0] = ch;
+    text.get_access().get_data()[0] = ch;
     text_map[text] = 2 + ch;
   }
 
@@ -262,7 +262,7 @@ PERIMORTEM_UNIT_TEST(DynamicMap, dynamic_keys) {
   ASSERT_EQ(text_map["World"_view], 1);
   ASSERT_EQ(text_map["Longer test string"_view], 2);
   for (Unsigned_8 ch = 'A'; ch < 'z'; ch++) {
-    text.get_access()[0] = ch;
+    text.get_access().get_data()[0] = ch;
     ASSERT_EQ(text_map[text], 2 + ch);
   }
 

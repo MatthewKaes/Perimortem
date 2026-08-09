@@ -3,9 +3,9 @@
 
 #pragma once
 
-#include "perimortem/memory/managed/vector.hpp"
+#include "perimortem/core/option.hpp"
 
-#include "perimortem/utility/option.hpp"
+#include "perimortem/memory/managed/vector.hpp"
 
 #include "tetrodotoxin/library/language/field.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
@@ -31,10 +31,10 @@ class Structure : public Ttx::Model::Type {
       Visibility visibility,
       Monograph& source,
       Materializations& materializations,
-      Perimortem::Utility::Option<
-          Ttx::Concept::Reference<const Ttx::Model::Type>> source_scope,
-      Perimortem::Utility::Option<Ttx::Lexical::Anchor> anchor,
-      Perimortem::Utility::Option<Ttx::Lexical::Anchor> name_anchor);
+      Perimortem::Core::Option<Ttx::Concept::Reference<const Ttx::Model::Type>>
+          source_scope,
+      Perimortem::Core::Option<Ttx::Lexical::Anchor> anchor,
+      Perimortem::Core::Option<Ttx::Lexical::Anchor> name_anchor);
 
   auto complete_declaration(Ttx::Lexical::Anchor complete_anchor) -> void;
 
@@ -57,7 +57,7 @@ class Structure : public Ttx::Model::Type {
       const Ttx::Concept::Documentation& documentation,
       Monograph& source,
       Materializations& materializations)
-      -> Perimortem::Utility::Option<Structure&>;
+      -> Perimortem::Core::Option<Structure&>;
 
   Structure(const Structure&) = delete;
   Structure(Structure&&) = delete;
@@ -125,12 +125,12 @@ class Structure : public Ttx::Model::Type {
   constexpr auto get_visibility() const -> Visibility { return visibility; }
 
   constexpr auto get_anchor() const
-      -> const Perimortem::Utility::Option<Ttx::Lexical::Anchor>& {
+      -> const Perimortem::Core::Option<Ttx::Lexical::Anchor>& {
     return anchor;
   }
 
   constexpr auto get_name_anchor() const
-      -> const Perimortem::Utility::Option<Ttx::Lexical::Anchor>& {
+      -> const Perimortem::Core::Option<Ttx::Lexical::Anchor>& {
     return name_anchor;
   }
 
@@ -212,10 +212,10 @@ class Structure : public Ttx::Model::Type {
   Visibility visibility;
   Monograph& source;
   Materializations& materializations;
-  Perimortem::Utility::Option<Ttx::Concept::Reference<const Ttx::Model::Type>>
+  Perimortem::Core::Option<Ttx::Concept::Reference<const Ttx::Model::Type>>
       source_scope;
-  Perimortem::Utility::Option<Ttx::Lexical::Anchor> anchor;
-  Perimortem::Utility::Option<Ttx::Lexical::Anchor> name_anchor;
+  Perimortem::Core::Option<Ttx::Lexical::Anchor> anchor;
+  Perimortem::Core::Option<Ttx::Lexical::Anchor> name_anchor;
   Perimortem::Memory::Managed::Vector<Field::Source> field_sources;
   Perimortem::Memory::Managed::Vector<Ttx::Concept::Reference<Field>> fields;
   Perimortem::Memory::Managed::Vector<Ttx::Concept::Reference<const Field>>
@@ -252,7 +252,7 @@ class Structure : public Ttx::Model::Type {
   Perimortem::Memory::Managed::Vector<
       Ttx::Concept::Reference<const Ttx::Concept::Abstract>>
       external_static_binding_order;
-  Perimortem::Utility::Option<const Ttx::Model::Layouts::Named&> layout;
+  Perimortem::Core::Option<const Ttx::Model::Layouts::Named&> layout;
   Stage stage = Stage::Authored;
 };
 

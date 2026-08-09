@@ -10,7 +10,6 @@
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
 using namespace Perimortem::System;
-using namespace Perimortem::Utility;
 
 Terminal::Terminal() : Terminal(*stdin, *stdout) {}
 

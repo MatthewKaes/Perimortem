@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include "perimortem/utility/option.hpp"
+#include "perimortem/core/option.hpp"
 
 #include "tetrodotoxin/language/dialect.hpp"
 #include "tetrodotoxin/library/language/materializations.hpp"
@@ -27,8 +27,7 @@ class Dialect : public Tetrodotoxin::Language::Dialect {
       Ttx::Lexical::Cursor& cursor,
       const Ttx::Concept::Documentation& documentation,
       Ttx::Concept::Abstract& interpretation_context)
-      -> Perimortem::Utility::Option<
-          Tetrodotoxin::Language::Monograph&> override;
+      -> Perimortem::Core::Option<Tetrodotoxin::Language::Monograph&> override;
 
   auto resolve_intrinsic(Perimortem::Core::View::Bytes name) const
       -> const Ttx::Concept::Abstract&;
@@ -52,11 +51,11 @@ class Dialect : public Tetrodotoxin::Language::Dialect {
   auto materializations_for(
       Perimortem::Memory::Allocator::Arena& domain,
       Ttx::Lexical::Cursor& cursor)
-      -> Perimortem::Utility::Option<Language::Materializations&>;
+      -> Perimortem::Core::Option<Language::Materializations&>;
 
-  Perimortem::Utility::Option<Perimortem::Memory::Allocator::Arena&>
+  Perimortem::Core::Option<Perimortem::Memory::Allocator::Arena&>
       materialization_domain;
-  Perimortem::Utility::Option<Language::Materializations&> materializations;
+  Perimortem::Core::Option<Language::Materializations&> materializations;
 };
 
 }  // namespace Tetrodotoxin::Library

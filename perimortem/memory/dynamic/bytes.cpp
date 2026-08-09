@@ -161,19 +161,11 @@ auto Dynamic::Bytes::shrink(Count bytes_to_remove) -> void {
 }
 
 auto Dynamic::Bytes::operator[](Count index) const -> Unsigned_8 {
-  if (index > size) {
-    return 0;
-  }
-
-  return source_block[index];
+  return get_view()[index];
 }
 
 auto Dynamic::Bytes::at(Count index) const -> Unsigned_8 {
-  if (index > size) {
-    return 0;
-  }
-
-  return source_block[index];
+  return get_view()[index];
 }
 
 auto Dynamic::Bytes::clear() -> void {

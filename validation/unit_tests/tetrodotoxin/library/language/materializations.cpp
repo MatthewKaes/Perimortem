@@ -97,7 +97,7 @@ class ProducingFormula : public Formula {
       : Formula(parameters, constructions) {}
 
   auto create(View::Vector<Argument>, Allocator::Arena& arena) const
-      -> Perimortem::Utility::Option<const Ttx::Model::Type&> override {
+      -> Perimortem::Core::Option<const Ttx::Model::Type&> override {
     constructions++;
     return arena.construct<MaterializedType>();
   }
@@ -111,7 +111,7 @@ class RejectingFormula : public Formula {
       : Formula(parameters, constructions) {}
 
   auto create(View::Vector<Argument>, Allocator::Arena&) const
-      -> Perimortem::Utility::Option<const Ttx::Model::Type&> override {
+      -> Perimortem::Core::Option<const Ttx::Model::Type&> override {
     constructions++;
     return {};
   }
@@ -126,7 +126,7 @@ class ReturningFormula : public Formula {
       : Formula(parameters, constructions), result(result) {}
 
   auto create(View::Vector<Argument>, Allocator::Arena&) const
-      -> Perimortem::Utility::Option<const Ttx::Model::Type&> override {
+      -> Perimortem::Core::Option<const Ttx::Model::Type&> override {
     constructions++;
     return result;
   }
@@ -141,7 +141,7 @@ class RetryingFormula : public Formula {
       : Formula({}, constructions) {}
 
   auto create(View::Vector<Argument>, Allocator::Arena& arena) const
-      -> Perimortem::Utility::Option<const Ttx::Model::Type&> override {
+      -> Perimortem::Core::Option<const Ttx::Model::Type&> override {
     constructions++;
     if (constructions == 1) {
       return {};
@@ -186,7 +186,7 @@ class RecursiveFormula : public Formula {
       : Formula({}, constructions), materializations(materializations) {}
 
   auto create(View::Vector<Argument> arguments, Allocator::Arena& arena) const
-      -> Perimortem::Utility::Option<const Ttx::Model::Type&> override {
+      -> Perimortem::Core::Option<const Ttx::Model::Type&> override {
     constructions++;
     materializations.materialize(*this, arguments);
     return arena.construct<MaterializedType>();
@@ -209,7 +209,7 @@ class IndirectFormula : public Formula {
           first(first) {}
 
     auto create(View::Vector<Argument> arguments, Allocator::Arena& arena) const
-        -> Perimortem::Utility::Option<const Ttx::Model::Type&> override {
+        -> Perimortem::Core::Option<const Ttx::Model::Type&> override {
       constructions++;
       materializations.materialize(first, arguments);
       return arena.construct<MaterializedType>();
@@ -230,7 +230,7 @@ class IndirectFormula : public Formula {
         partner(materializations, *this, partner_constructions) {}
 
   auto create(View::Vector<Argument> arguments, Allocator::Arena& arena) const
-      -> Perimortem::Utility::Option<const Ttx::Model::Type&> override {
+      -> Perimortem::Core::Option<const Ttx::Model::Type&> override {
     constructions++;
     materializations.materialize(partner, arguments);
     return arena.construct<MaterializedType>();

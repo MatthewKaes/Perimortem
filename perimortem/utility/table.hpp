@@ -7,8 +7,8 @@
 #include "perimortem/core/view/vector.hpp"
 #include "perimortem/core/static/vector.hpp"
 #include "perimortem/core/data.hpp"
+#include "perimortem/core/option.hpp"
 
-#include "perimortem/utility/option.hpp"
 #include "perimortem/utility/pair.hpp"
 
 namespace Perimortem::Utility {
@@ -169,9 +169,9 @@ class Table {
   }
 
   static constexpr auto find(const Core::View::Bytes key)
-      -> Option<value_type> {
+      -> Core::Option<value_type> {
     auto value = find_or_null(key);
-    return value == nullptr ? Option<value_type>() : *value;
+    return value == nullptr ? Core::Option<value_type>() : *value;
   }
 
   static consteval auto get_values() -> Core::View::Vector<value_type> {

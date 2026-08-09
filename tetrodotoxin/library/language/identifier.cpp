@@ -13,13 +13,11 @@ using namespace Tetrodotoxin::Library;
 static const Layouts::Fluid identifier_inputs;
 
 static auto select_source_anchor(const Language::Expression& expression)
-    -> Utility::Option<Ttx::Lexical::Anchor> {
+    -> Core::Option<Ttx::Lexical::Anchor> {
   return expression.get_anchor().visit(
-      []() -> Utility::Option<Ttx::Lexical::Anchor> { return {}; },
+      []() -> Core::Option<Ttx::Lexical::Anchor> { return {}; },
       [](const Ttx::Lexical::Anchor& anchor)
-          -> Perimortem::Utility::Option<Ttx::Lexical::Anchor> {
-        return anchor;
-      });
+          -> Perimortem::Core::Option<Ttx::Lexical::Anchor> { return anchor; });
 }
 
 auto Language::Identifier::link(
@@ -80,9 +78,9 @@ auto Language::Identifier::get_inputs() const -> const Layout& {
 }
 
 auto Language::Identifier::get_addressable() const
-    -> Utility::Option<const Addressable&> {
+    -> Core::Option<const Addressable&> {
   return addressable.visit(
-      []() -> Utility::Option<const Addressable&> { return {}; },
+      []() -> Core::Option<const Addressable&> { return {}; },
       [](const Reference<const Addressable>& selected)
-          -> Utility::Option<const Addressable&> { return selected.get(); });
+          -> Core::Option<const Addressable&> { return selected.get(); });
 }

@@ -4,11 +4,11 @@
 #pragma once
 
 #include "perimortem/core/view/vector.hpp"
+#include "perimortem/core/option.hpp"
 
 #include "perimortem/memory/allocator/arena.hpp"
 #include "perimortem/memory/managed/vector.hpp"
 
-#include "perimortem/utility/option.hpp"
 #include "perimortem/utility/result.hpp"
 
 #include "tetrodotoxin/library/language/constant.hpp"
@@ -51,37 +51,35 @@ class Operation : public Expression {
       Materializations& materializations,
       Perimortem::Core::View::Vector<Ttx::Concept::Reference<Expression>>
           inputs,
-      Perimortem::Utility::Option<Ttx::Lexical::Anchor> anchor);
+      Perimortem::Core::Option<Ttx::Lexical::Anchor> anchor);
 
   // Operation retains one typed edge inventory. Its private Layout exposes
   // const reflection without erasing the mutation required by link and fold.
-  auto get_input(Count index) -> Perimortem::Utility::Option<Expression&>;
+  auto get_input(Count index) -> Perimortem::Core::Option<Expression&>;
   auto get_input(Count index) const
-      -> Perimortem::Utility::Option<const Expression&>;
+      -> Perimortem::Core::Option<const Expression&>;
 
   auto fold_input(Count index) -> Perimortem::Utility::
-      Result<Perimortem::Utility::Option<Expression&>, Expression::Error>;
+      Result<Perimortem::Core::Option<Expression&>, Expression::Error>;
 
   // Concrete evaluation runs only after the ordered traversal completed.
   // This observation unwraps that cached result without changing the
   // authored edge or starting another computation.
-  auto get_folded_input(Count index)
-      -> Perimortem::Utility::Option<Expression&>;
+  auto get_folded_input(Count index) -> Perimortem::Core::Option<Expression&>;
 
   virtual auto evaluate_constants(
       Perimortem::Memory::Allocator::Arena& domain,
       Materializations& materializations) -> Perimortem::Utility::
-      Result<Perimortem::Utility::Option<Constant&>, Expression::Error> = 0;
+      Result<Perimortem::Core::Option<Constant&>, Expression::Error> = 0;
 
   virtual auto reaches_next_input(Count folded_input, const Expression& folded)
       const -> Bool;
 
   virtual auto select_type(Materializations& materializations) const
-      -> Perimortem::Utility::Option<const Ttx::Model::Type&> = 0;
+      -> Perimortem::Core::Option<const Ttx::Model::Type&> = 0;
 
-  auto fold_uncached() -> Perimortem::Utility::Result<
-      Perimortem::Utility::Option<Expression&>,
-      Expression::Error> override;
+  auto fold_uncached() -> Perimortem::Utility::
+      Result<Perimortem::Core::Option<Expression&>, Expression::Error> override;
 
  private:
   class InputLayout : public Ttx::Concept::Layout {
@@ -95,7 +93,7 @@ class Operation : public Expression {
       return inputs.get_size();
     }
     constexpr auto get_abstract(Count index) const
-        -> Perimortem::Utility::Option<const Ttx::Concept::Abstract&> override;
+        -> Perimortem::Core::Option<const Ttx::Concept::Abstract&> override;
     auto fits_at(const Ttx::Concept::Layout& target, Count target_offset) const
         -> Bool override;
     auto get_fitted_at(
@@ -116,7 +114,7 @@ class Operation : public Expression {
   Perimortem::Memory::Managed::Vector<Ttx::Concept::Reference<Expression>>
       inputs;
   InputLayout input_layout;
-  Perimortem::Utility::Option<Ttx::Concept::Reference<const Ttx::Model::Type>>
+  Perimortem::Core::Option<Ttx::Concept::Reference<const Ttx::Model::Type>>
       result_type;
 };
 

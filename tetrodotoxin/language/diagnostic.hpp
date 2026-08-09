@@ -4,8 +4,7 @@
 #pragma once
 
 #include "perimortem/core/view/bytes.hpp"
-
-#include "perimortem/utility/option.hpp"
+#include "perimortem/core/option.hpp"
 
 #include "ttx/lexical/anchor.hpp"
 
@@ -18,7 +17,7 @@ namespace Tetrodotoxin::Language {
 class Diagnostic {
  public:
   constexpr Diagnostic(
-      Perimortem::Utility::Option<Ttx::Lexical::Anchor> anchor,
+      Perimortem::Core::Option<Ttx::Lexical::Anchor> anchor,
       Perimortem::Core::View::Bytes message,
       Perimortem::Core::View::Bytes hint)
       : anchor(anchor), message(message), hint(hint) {
@@ -28,7 +27,7 @@ class Diagnostic {
   }
 
   constexpr auto get_anchor() const
-      -> const Perimortem::Utility::Option<Ttx::Lexical::Anchor>& {
+      -> const Perimortem::Core::Option<Ttx::Lexical::Anchor>& {
     return anchor;
   }
 
@@ -41,7 +40,7 @@ class Diagnostic {
   }
 
  private:
-  Perimortem::Utility::Option<Ttx::Lexical::Anchor> anchor;
+  Perimortem::Core::Option<Ttx::Lexical::Anchor> anchor;
   Perimortem::Core::View::Bytes message;
   Perimortem::Core::View::Bytes hint;
 };

@@ -1,18 +1,17 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
-#include "perimortem/utility/option.hpp"
+#include "perimortem/core/option.hpp"
 
 #include "validation/unit_test.hpp"
 
 #include "perimortem/core/null_terminated.hpp"
 
 using namespace Perimortem::Core;
-using namespace Perimortem::Utility;
 using namespace Validation;
 
-static Harness UtilityOption = {
-  .name = "Utility::Option"_view,
+static Harness CoreOption = {
+  .name = "Core::Option"_view,
 };
 
 class BorrowedBase {};
@@ -50,7 +49,7 @@ static auto create_stack_value(Count& destructions) -> Option<StackValue> {
   return Data::take(value);
 }
 
-PERIMORTEM_UNIT_TEST(UtilityOption, visits_none) {
+PERIMORTEM_UNIT_TEST(CoreOption, visits_none) {
   Option<const Signed_32&> selected;
 
   Count branch = selected.visit(
@@ -59,7 +58,7 @@ PERIMORTEM_UNIT_TEST(UtilityOption, visits_none) {
   EXPECT_EQ(branch, 1);
 }
 
-PERIMORTEM_UNIT_TEST(UtilityOption, visits_reference) {
+PERIMORTEM_UNIT_TEST(CoreOption, visits_reference) {
   Signed_32 value = 41;
   Option<Signed_32&> selected(value);
 
@@ -68,7 +67,7 @@ PERIMORTEM_UNIT_TEST(UtilityOption, visits_reference) {
   EXPECT_EQ(value, 42);
 }
 
-PERIMORTEM_UNIT_TEST(UtilityOption, copies_borrow) {
+PERIMORTEM_UNIT_TEST(CoreOption, copies_borrow) {
   const Signed_32 value = 42;
   Option<const Signed_32&> first(value);
   Option<const Signed_32&> second(first);
@@ -80,7 +79,7 @@ PERIMORTEM_UNIT_TEST(UtilityOption, copies_borrow) {
   EXPECT_EQ(found, value);
 }
 
-PERIMORTEM_UNIT_TEST(UtilityOption, copies_value) {
+PERIMORTEM_UNIT_TEST(CoreOption, copies_value) {
   Option<Signed_32> first(41);
   Option<Signed_32> second(first);
 
@@ -97,7 +96,7 @@ PERIMORTEM_UNIT_TEST(UtilityOption, copies_value) {
   EXPECT_EQ(second_value, 42);
 }
 
-PERIMORTEM_UNIT_TEST(UtilityOption, owns_stack_value) {
+PERIMORTEM_UNIT_TEST(CoreOption, owns_stack_value) {
   Count destructions = 0;
 
   {
@@ -117,7 +116,7 @@ PERIMORTEM_UNIT_TEST(UtilityOption, owns_stack_value) {
   EXPECT_EQ(destructions, Count(1));
 }
 
-PERIMORTEM_UNIT_TEST(UtilityOption, arrow_access) {
+PERIMORTEM_UNIT_TEST(CoreOption, arrow_access) {
   Count owned_destructions = 0;
   Option<StackValue> owned = create_stack_value(owned_destructions);
   owned->increment();
@@ -135,7 +134,7 @@ PERIMORTEM_UNIT_TEST(UtilityOption, arrow_access) {
   EXPECT_EQ(value.get(), 42);
 }
 
-PERIMORTEM_UNIT_TEST(UtilityOption, accepts_empty) {
+PERIMORTEM_UNIT_TEST(CoreOption, accepts_empty) {
   Count destructions = 0;
   Option<StackValue> selected = create_stack_value(destructions);
   selected = {};

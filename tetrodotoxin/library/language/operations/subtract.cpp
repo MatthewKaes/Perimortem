@@ -23,13 +23,12 @@ using namespace Ttx::Model;
 
 template <typename selected_type>
 static auto select_constant(const Language::Expression& expression)
-    -> Utility::Option<const selected_type&> {
+    -> Core::Option<const selected_type&> {
   return expression.visit<selected_type>(
-      [](const selected_type& selected)
-          -> Utility::Option<const selected_type&> { return selected; },
-      [](const Abstract&) -> Utility::Option<const selected_type&> {
-        return {};
-      });
+      [](const selected_type& selected) -> Core::Option<const selected_type&> {
+        return selected;
+      },
+      [](const Abstract&) -> Core::Option<const selected_type&> { return {}; });
 }
 
 static auto is_numeric_type(const Abstract& selected) -> Bool {
@@ -104,7 +103,7 @@ auto Language::Operations::Subtract::parse(
     Materializations& materializations,
     Cursor& cursor,
     const Abstract& source_context,
-    Expression& left) -> Utility::Option<Expression&> {
+    Expression& left) -> Core::Option<Expression&> {
   Token opening = cursor.consume();
   auto right = Language::Parser::Expression::parse_operand(
       domain, materializations, cursor, source_context, Code::Type::SubOp);
@@ -157,7 +156,7 @@ Language::Operations::Subtract::Subtract(
     Materializations& materializations,
     Expression& left,
     Expression& right,
-    Utility::Option<Anchor> anchor)
+    Core::Option<Anchor> anchor)
     : Operation(
           domain,
           materializations,
@@ -171,7 +170,7 @@ auto Language::Operations::Subtract::get_documentation() const
 }
 
 auto Language::Operations::Subtract::select_type(Materializations&) const
-    -> Utility::Option<const Type&> {
+    -> Core::Option<const Type&> {
   auto left = get_input(0);
   auto right = get_input(1);
   if (!left || !right) {
@@ -180,14 +179,14 @@ auto Language::Operations::Subtract::select_type(Materializations&) const
 
   return select_result_type(*left, *right)
       .visit<Type>(
-          [](const Type& type) -> Utility::Option<const Type&> { return type; },
-          [](const Abstract&) -> Utility::Option<const Type&> { return {}; });
+          [](const Type& type) -> Core::Option<const Type&> { return type; },
+          [](const Abstract&) -> Core::Option<const Type&> { return {}; });
 }
 
 auto Language::Operations::Subtract::evaluate_constants(
     Memory::Allocator::Arena& domain,
     Materializations&)
-    -> Utility::Result<Utility::Option<Constant&>, Expression::Error> {
+    -> Utility::Result<Core::Option<Constant&>, Expression::Error> {
   const Abstract& selected = get_type().resolve();
   auto authored_left = get_input(0);
   auto authored_right = get_input(1);
@@ -214,7 +213,7 @@ auto Language::Operations::Subtract::evaluate_constants(
 
     return selected.visit<Ttx::Model::Types::Signed>(
         [&](const Ttx::Model::Types::Signed& type)
-            -> Utility::Result<Utility::Option<Constant&>, Expression::Error> {
+            -> Utility::Result<Core::Option<Constant&>, Expression::Error> {
           Signed_64 value = 0;
           if (!signed_difference(
                   type, left_value->get_value(), right_value->get_value(),
@@ -226,7 +225,7 @@ auto Language::Operations::Subtract::evaluate_constants(
           return Constants::Signed::create_synthetic(domain, type, value);
         },
         [&](const Abstract&)
-            -> Utility::Result<Utility::Option<Constant&>, Expression::Error> {
+            -> Utility::Result<Core::Option<Constant&>, Expression::Error> {
           return Expression::Error(
               Expression::Error::Type::InvalidOperationType, *this);
         });
@@ -247,7 +246,7 @@ auto Language::Operations::Subtract::evaluate_constants(
 
     return selected.visit<Ttx::Model::Types::Unsigned>(
         [&](const Ttx::Model::Types::Unsigned& type)
-            -> Utility::Result<Utility::Option<Constant&>, Expression::Error> {
+            -> Utility::Result<Core::Option<Constant&>, Expression::Error> {
           Unsigned_64 value = 0;
           if (!unsigned_difference(
                   type, left_value->get_value(), right_value->get_value(),
@@ -259,7 +258,7 @@ auto Language::Operations::Subtract::evaluate_constants(
           return Constants::Unsigned::create_synthetic(domain, type, value);
         },
         [&](const Abstract&)
-            -> Utility::Result<Utility::Option<Constant&>, Expression::Error> {
+            -> Utility::Result<Core::Option<Constant&>, Expression::Error> {
           return Expression::Error(
               Expression::Error::Type::InvalidOperationType, *this);
         });
@@ -280,7 +279,7 @@ auto Language::Operations::Subtract::evaluate_constants(
 
     return selected.visit<Ttx::Model::Types::Real>(
         [&](const Ttx::Model::Types::Real& type)
-            -> Utility::Result<Utility::Option<Constant&>, Expression::Error> {
+            -> Utility::Result<Core::Option<Constant&>, Expression::Error> {
           if (type.get_size() == sizeof(Real_32)) {
             Real_32 value = Real_32(left_value->get_value()) -
                             Real_32(right_value->get_value());
@@ -298,7 +297,7 @@ auto Language::Operations::Subtract::evaluate_constants(
               Expression::Error::Type::InvalidOperationType, *this);
         },
         [&](const Abstract&)
-            -> Utility::Result<Utility::Option<Constant&>, Expression::Error> {
+            -> Utility::Result<Core::Option<Constant&>, Expression::Error> {
           return Expression::Error(
               Expression::Error::Type::InvalidOperationType, *this);
         });

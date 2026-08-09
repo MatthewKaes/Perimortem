@@ -3,9 +3,9 @@
 
 #pragma once
 
-#include "perimortem/memory/allocator/arena.hpp"
+#include "perimortem/core/option.hpp"
 
-#include "perimortem/utility/option.hpp"
+#include "perimortem/memory/allocator/arena.hpp"
 
 #include "tetrodotoxin/library/language/expression.hpp"
 #include "tetrodotoxin/library/language/materializations.hpp"
@@ -32,7 +32,7 @@ class Address : public Expression {
       Materializations& materializations,
       Ttx::Lexical::Cursor& cursor,
       const Ttx::Concept::Abstract& source_context,
-      Expression& receiver) -> Perimortem::Utility::Option<Expression&>;
+      Expression& receiver) -> Perimortem::Core::Option<Expression&>;
 
   static auto create_authored(
       Perimortem::Memory::Allocator::Arena& domain,
@@ -66,15 +66,15 @@ class Address : public Expression {
   constexpr auto get_receiver() const -> const Expression& { return receiver; }
 
   auto get_addressable() const
-      -> Perimortem::Utility::Option<const Ttx::Model::Addressable&>;
+      -> Perimortem::Core::Option<const Ttx::Model::Addressable&>;
 
  private:
   constexpr Address(
       Perimortem::Core::View::Bytes route,
       Expression& receiver,
-      Perimortem::Utility::Option<
+      Perimortem::Core::Option<
           Ttx::Concept::Reference<const Ttx::Model::Addressable>> addressable,
-      Perimortem::Utility::Option<Ttx::Lexical::Anchor> anchor)
+      Perimortem::Core::Option<Ttx::Lexical::Anchor> anchor)
       : Expression(anchor),
         route(route),
         receiver(receiver),
@@ -84,7 +84,7 @@ class Address : public Expression {
 
   Perimortem::Core::View::Bytes route;
   Expression& receiver;
-  Perimortem::Utility::Option<
+  Perimortem::Core::Option<
       Ttx::Concept::Reference<const Ttx::Model::Addressable>>
       addressable;
   Ttx::Concept::Reference<const Ttx::Concept::Abstract> input;

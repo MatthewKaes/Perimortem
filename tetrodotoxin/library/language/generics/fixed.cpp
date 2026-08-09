@@ -14,7 +14,7 @@ using namespace Tetrodotoxin::Library::Language;
 auto Generics::Fixed::create(
     Perimortem::Core::View::Vector<Argument> arguments,
     Perimortem::Memory::Allocator::Arena& arena) const
-    -> Perimortem::Utility::Option<const Ttx::Model::Type&> {
+    -> Perimortem::Core::Option<const Ttx::Model::Type&> {
   if (arguments.get_size() != 2) {
     return {};
   }

@@ -3,9 +3,9 @@
 
 #pragma once
 
-#include "perimortem/memory/allocator/arena.hpp"
+#include "perimortem/core/option.hpp"
 
-#include "perimortem/utility/option.hpp"
+#include "perimortem/memory/allocator/arena.hpp"
 
 #include "tetrodotoxin/language/monograph.hpp"
 #include "tetrodotoxin/library/language/access/type.hpp"
@@ -65,10 +65,9 @@ class Field : public Ttx::Model::Addressable {
 
     constexpr auto has_initializer() const -> Bool { return Bool(initializer); }
 
-    auto get_initializer() const
-        -> Perimortem::Utility::Option<const Expression&>;
+    auto get_initializer() const -> Perimortem::Core::Option<const Expression&>;
 
-    auto get_initializer() -> Perimortem::Utility::Option<Expression&>;
+    auto get_initializer() -> Perimortem::Core::Option<Expression&>;
 
     constexpr Source(
         Perimortem::Core::View::Bytes name,
@@ -77,7 +76,7 @@ class Field : public Ttx::Model::Addressable {
         Exposure exposure,
         Writability writability,
         Ttx::Lexical::Anchor anchor,
-        Perimortem::Utility::Option<Expression&> initializer)
+        Perimortem::Core::Option<Expression&> initializer)
         : name(name),
           type_access(type_access),
           documentation(documentation),
@@ -93,7 +92,7 @@ class Field : public Ttx::Model::Addressable {
     Exposure exposure;
     Writability writability;
     Ttx::Lexical::Anchor anchor;
-    Perimortem::Utility::Option<Expression&> initializer;
+    Perimortem::Core::Option<Expression&> initializer;
   };
 
  private:
@@ -119,7 +118,7 @@ class Field : public Ttx::Model::Addressable {
       Ttx::Lexical::Cursor& cursor,
       const Ttx::Concept::Documentation& documentation,
       const Ttx::Concept::Abstract& source_context)
-      -> Perimortem::Utility::Option<Source>;
+      -> Perimortem::Core::Option<Source>;
 
   static auto link(
       Perimortem::Memory::Allocator::Arena& domain,
@@ -127,7 +126,7 @@ class Field : public Ttx::Model::Addressable {
       const Ttx::Model::Type& host,
       Source& field,
       const Ttx::Concept::Abstract& selected)
-      -> Perimortem::Utility::Option<Field&>;
+      -> Perimortem::Core::Option<Field&>;
 
   Field(const Field&) = delete;
   Field(Field&&) = delete;
@@ -186,8 +185,7 @@ class Field : public Ttx::Model::Addressable {
 
   constexpr auto get_host() const -> const Ttx::Model::Type& { return host; }
 
-  auto get_initializer() const
-      -> Perimortem::Utility::Option<const Expression&>;
+  auto get_initializer() const -> Perimortem::Core::Option<const Expression&>;
 
   constexpr auto is_linked() const -> Bool { return initializer_linked; }
 

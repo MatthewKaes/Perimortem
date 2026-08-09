@@ -43,7 +43,7 @@ auto Language::Operations::Not::parse(
     Memory::Allocator::Arena& domain,
     Materializations& materializations,
     Cursor& cursor,
-    const Abstract& source_context) -> Utility::Option<Expression&> {
+    const Abstract& source_context) -> Core::Option<Expression&> {
   Token opening = cursor.consume();
   auto operand = Language::Parser::Expression::parse_prefix_operand(
       domain, materializations, cursor, source_context);
@@ -91,7 +91,7 @@ Language::Operations::Not::Not(
     Memory::Allocator::Arena& domain,
     Materializations& materializations,
     Expression& operand,
-    Utility::Option<Anchor> anchor)
+    Core::Option<Anchor> anchor)
     : Operation(
           domain,
           materializations,
@@ -105,21 +105,21 @@ auto Language::Operations::Not::get_documentation() const
 }
 
 auto Language::Operations::Not::select_type(Materializations&) const
-    -> Utility::Option<const Type&> {
+    -> Core::Option<const Type&> {
   auto operand = get_input(0);
   if (!operand) {
     return {};
   }
 
   return select_result_type(*operand).visit<Type>(
-      [](const Type& type) -> Utility::Option<const Type&> { return type; },
-      [](const Abstract&) -> Utility::Option<const Type&> { return {}; });
+      [](const Type& type) -> Core::Option<const Type&> { return type; },
+      [](const Abstract&) -> Core::Option<const Type&> { return {}; });
 }
 
 auto Language::Operations::Not::evaluate_constants(
     Memory::Allocator::Arena& domain,
     Materializations&)
-    -> Utility::Result<Utility::Option<Constant&>, Expression::Error> {
+    -> Utility::Result<Core::Option<Constant&>, Expression::Error> {
   auto authored_operand = get_input(0);
   auto operand = get_folded_input(0);
   if (!authored_operand || !operand) {
@@ -130,8 +130,8 @@ auto Language::Operations::Not::evaluate_constants(
   // payload while True and False remain the canonical published results.
   auto value = operand->visit<Constants::Flag>(
       [](const Constants::Flag& selected)
-          -> Utility::Option<const Constants::Flag&> { return selected; },
-      [](const Abstract&) -> Utility::Option<const Constants::Flag&> {
+          -> Core::Option<const Constants::Flag&> { return selected; },
+      [](const Abstract&) -> Core::Option<const Constants::Flag&> {
         return {};
       });
   if (!value) {

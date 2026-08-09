@@ -3,10 +3,10 @@
 
 #pragma once
 
+#include "perimortem/core/option.hpp"
+
 #include "perimortem/memory/allocator/arena.hpp"
 #include "perimortem/memory/managed/vector.hpp"
-
-#include "perimortem/utility/option.hpp"
 
 #include "tetrodotoxin/library/language/access/type.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
@@ -54,7 +54,7 @@ class Enumeration : public Ttx::Model::Type {
       Perimortem::Memory::Allocator::Arena& domain,
       Ttx::Lexical::Cursor& cursor,
       const Ttx::Concept::Documentation& documentation,
-      Monograph& parent) -> Perimortem::Utility::Option<Enumeration&>;
+      Monograph& parent) -> Perimortem::Core::Option<Enumeration&>;
 
   Enumeration(const Enumeration&) = delete;
   Enumeration(Enumeration&&) = delete;
@@ -102,7 +102,7 @@ class Enumeration : public Ttx::Model::Type {
   }
 
   auto get_storage_type() const
-      -> Perimortem::Utility::Option<const Ttx::Model::Type&>;
+      -> Perimortem::Core::Option<const Ttx::Model::Type&>;
 
   auto get_cases() const -> Perimortem::Core::View::Vector<
       Ttx::Concept::Reference<const Ttx::Model::Alias>>;
@@ -112,13 +112,13 @@ class Enumeration : public Ttx::Model::Type {
   }
 
   auto get_case_anchor(Count index) const
-      -> Perimortem::Utility::Option<Ttx::Lexical::Anchor>;
+      -> Perimortem::Core::Option<Ttx::Lexical::Anchor>;
 
   auto get_case_name_anchor(Count index) const
-      -> Perimortem::Utility::Option<Ttx::Lexical::Anchor>;
+      -> Perimortem::Core::Option<Ttx::Lexical::Anchor>;
 
   auto get_case_value_anchor(Count index) const
-      -> Perimortem::Utility::Option<Ttx::Lexical::Anchor>;
+      -> Perimortem::Core::Option<Ttx::Lexical::Anchor>;
 
   constexpr auto is_linked() const -> Bool {
     return stage >= Stage::StorageLinked;
@@ -144,7 +144,7 @@ class Enumeration : public Ttx::Model::Type {
   Ttx::Lexical::Anchor anchor;
   Ttx::Lexical::Anchor name_anchor;
   Perimortem::Memory::Managed::Vector<SourceCase> source_cases;
-  Perimortem::Utility::Option<Ttx::Concept::Reference<const Ttx::Model::Type>>
+  Perimortem::Core::Option<Ttx::Concept::Reference<const Ttx::Model::Type>>
       storage_type;
   Perimortem::Memory::Managed::Vector<
       Ttx::Concept::Reference<const Ttx::Model::Alias>>

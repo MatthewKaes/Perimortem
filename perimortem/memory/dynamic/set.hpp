@@ -6,8 +6,7 @@
 #include "perimortem/core/bibliotheca.hpp"
 #include "perimortem/core/data.hpp"
 #include "perimortem/core/hash.hpp"
-
-#include "perimortem/utility/option.hpp"
+#include "perimortem/core/option.hpp"
 
 namespace Perimortem::Memory::Dynamic {
 
@@ -159,7 +158,7 @@ class Set {
   }
 
   // The selected reference is only valid until the next mutating call.
-  auto find(const key_type& key) -> Utility::Option<key_type&> {
+  auto find(const key_type& key) -> Core::Option<key_type&> {
     auto* found = const_cast<key_type*>(find_hashed(key, get_hash(key)));
     if (found == nullptr) {
       return {};
@@ -168,7 +167,7 @@ class Set {
     return *found;
   }
 
-  auto find(const key_type& key) const -> Utility::Option<const key_type&> {
+  auto find(const key_type& key) const -> Core::Option<const key_type&> {
     const key_type* found = find_hashed(key, get_hash(key));
     if (found == nullptr) {
       return {};

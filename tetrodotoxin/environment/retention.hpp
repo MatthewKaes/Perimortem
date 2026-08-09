@@ -3,10 +3,10 @@
 
 #pragma once
 
+#include "perimortem/core/option.hpp"
+
 #include "perimortem/memory/allocator/arena.hpp"
 #include "perimortem/memory/managed/vector.hpp"
-
-#include "perimortem/utility/option.hpp"
 
 #include "tetrodotoxin/environment/origin.hpp"
 #include "tetrodotoxin/language/monograph.hpp"
@@ -24,12 +24,12 @@ class Retention {
 
   auto retain(
       Language::Monograph& monograph,
-      Perimortem::Utility::Option<Origin> origin) -> Bool;
+      Perimortem::Core::Option<Origin> origin) -> Bool;
   auto get_size() const -> Count;
   auto get_monograph(Count index) const -> Language::Monograph&;
-  auto get_origin(Count index) const -> Perimortem::Utility::Option<Origin>;
+  auto get_origin(Count index) const -> Perimortem::Core::Option<Origin>;
   auto find_origin(const Language::Monograph& monograph) const
-      -> Perimortem::Utility::Option<Origin>;
+      -> Perimortem::Core::Option<Origin>;
   auto has_staged() const -> Bool;
   auto awaits_finalize() const -> Bool;
   auto link(Ttx::Lexical::Errors& errors) -> Bool;
@@ -41,10 +41,10 @@ class Retention {
    public:
     Entry(
         Language::Monograph& monograph,
-        Perimortem::Utility::Option<Origin> origin);
+        Perimortem::Core::Option<Origin> origin);
 
     auto get_monograph() const -> Language::Monograph&;
-    auto get_origin() const -> Perimortem::Utility::Option<Origin>;
+    auto get_origin() const -> Perimortem::Core::Option<Origin>;
     auto get_next_diagnostic() const -> Count;
     auto consume_diagnostics(Count count) -> void;
 

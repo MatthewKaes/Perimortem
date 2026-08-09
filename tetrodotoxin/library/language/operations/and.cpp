@@ -32,13 +32,13 @@ static auto select_result_type(
 }
 
 static auto select_flag(Language::Expression& expression)
-    -> Utility::Option<const Language::Constants::Flag&> {
+    -> Core::Option<const Language::Constants::Flag&> {
   return expression.visit<Language::Constants::Flag>(
       [](const Language::Constants::Flag& selected)
-          -> Utility::Option<const Language::Constants::Flag&> {
+          -> Core::Option<const Language::Constants::Flag&> {
         return selected;
       },
-      [](const Abstract&) -> Utility::Option<const Language::Constants::Flag&> {
+      [](const Abstract&) -> Core::Option<const Language::Constants::Flag&> {
         return {};
       });
 }
@@ -59,7 +59,7 @@ auto Language::Operations::And::parse(
     Materializations& materializations,
     Cursor& cursor,
     const Abstract& source_context,
-    Expression& left) -> Utility::Option<Expression&> {
+    Expression& left) -> Core::Option<Expression&> {
   auto transaction = cursor.branch();
   Token opening = transaction.consume();
   auto right = Language::Parser::Expression::parse_operand(
@@ -115,7 +115,7 @@ Language::Operations::And::And(
     Materializations& materializations,
     Expression& left,
     Expression& right,
-    Utility::Option<Anchor> anchor)
+    Core::Option<Anchor> anchor)
     : Operation(
           domain,
           materializations,
@@ -129,7 +129,7 @@ auto Language::Operations::And::get_documentation() const
 }
 
 auto Language::Operations::And::select_type(Materializations&) const
-    -> Utility::Option<const Type&> {
+    -> Core::Option<const Type&> {
   auto left = get_input(0);
   auto right = get_input(1);
   if (!left || !right) {
@@ -138,8 +138,8 @@ auto Language::Operations::And::select_type(Materializations&) const
 
   return select_result_type(*left, *right)
       .visit<Type>(
-          [](const Type& type) -> Utility::Option<const Type&> { return type; },
-          [](const Abstract&) -> Utility::Option<const Type&> { return {}; });
+          [](const Type& type) -> Core::Option<const Type&> { return type; },
+          [](const Abstract&) -> Core::Option<const Type&> { return {}; });
 }
 
 auto Language::Operations::And::reaches_next_input(
@@ -151,8 +151,8 @@ auto Language::Operations::And::reaches_next_input(
 
   auto left = folded.visit<Constants::Flag>(
       [](const Constants::Flag& selected)
-          -> Utility::Option<const Constants::Flag&> { return selected; },
-      [](const Abstract&) -> Utility::Option<const Constants::Flag&> {
+          -> Core::Option<const Constants::Flag&> { return selected; },
+      [](const Abstract&) -> Core::Option<const Constants::Flag&> {
         return {};
       });
   return !left || left->get_value();
@@ -161,7 +161,7 @@ auto Language::Operations::And::reaches_next_input(
 auto Language::Operations::And::evaluate_constants(
     Memory::Allocator::Arena& domain,
     Materializations&)
-    -> Utility::Result<Utility::Option<Constant&>, Expression::Error> {
+    -> Utility::Result<Core::Option<Constant&>, Expression::Error> {
   auto authored_left = get_input(0);
   auto authored_right = get_input(1);
   auto left = get_folded_input(0);

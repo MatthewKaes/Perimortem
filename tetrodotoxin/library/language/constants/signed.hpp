@@ -88,7 +88,7 @@ class Signed : public Constant {
   constexpr Signed(
       const Ttx::Model::Types::Signed& type,
       Value value,
-      Perimortem::Utility::Option<Ttx::Lexical::Anchor> anchor)
+      Perimortem::Core::Option<Ttx::Lexical::Anchor> anchor)
       : Constant(anchor), type(type), value(value) {}
 
   const Ttx::Model::Types::Signed& type;

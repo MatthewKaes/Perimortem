@@ -49,7 +49,7 @@ class Access : public Generic {
   auto create(
       Perimortem::Core::View::Vector<Argument> arguments,
       Perimortem::Memory::Allocator::Arena& arena) const
-      -> Perimortem::Utility::Option<const Ttx::Model::Type&> override;
+      -> Perimortem::Core::Option<const Ttx::Model::Type&> override;
 
   static constexpr Perimortem::Core::Static::Vector<Parameters, 1>
       parameterization = {{Parameters::Type}};

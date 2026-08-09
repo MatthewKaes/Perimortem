@@ -82,7 +82,7 @@ static Harness TtxLayout = {
 };
 
 static auto selects(
-    const Perimortem::Utility::Option<const Abstract&>& result,
+    const Perimortem::Core::Option<const Abstract&>& result,
     const Abstract& expected) -> Bool {
   return result.visit(
       []() { return False; },
@@ -99,7 +99,7 @@ static auto selects(
       [](Layout::Errors) { return false; });
 }
 
-static auto is_none(const Perimortem::Utility::Option<const Abstract&>& result)
+static auto is_none(const Perimortem::Core::Option<const Abstract&>& result)
     -> Bool {
   return result.visit(
       []() { return True; }, [](const Abstract&) { return False; });

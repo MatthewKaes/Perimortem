@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include "perimortem/utility/option.hpp"
+#include "perimortem/core/option.hpp"
 
 #include "tetrodotoxin/library/language/operation.hpp"
 #include "ttx/lexical/cursor.hpp"
@@ -27,7 +27,7 @@ class Divide : public Operation {
       Materializations& materializations,
       Ttx::Lexical::Cursor& cursor,
       const Ttx::Concept::Abstract& source_context,
-      Expression& left) -> Perimortem::Utility::Option<Expression&>;
+      Expression& left) -> Perimortem::Core::Option<Expression&>;
 
   static auto create_authored(
       Perimortem::Memory::Allocator::Arena& domain,
@@ -54,12 +54,10 @@ class Divide : public Operation {
  protected:
   auto evaluate_constants(
       Perimortem::Memory::Allocator::Arena& domain,
-      Materializations& materializations)
-      -> Perimortem::Utility::Result<
-          Perimortem::Utility::Option<Constant&>,
-          Expression::Error> override;
+      Materializations& materializations) -> Perimortem::Utility::
+      Result<Perimortem::Core::Option<Constant&>, Expression::Error> override;
   auto select_type(Materializations& materializations) const
-      -> Perimortem::Utility::Option<const Ttx::Model::Type&> override;
+      -> Perimortem::Core::Option<const Ttx::Model::Type&> override;
 
  private:
   Divide(
@@ -67,7 +65,7 @@ class Divide : public Operation {
       Materializations& materializations,
       Expression& left,
       Expression& right,
-      Perimortem::Utility::Option<Ttx::Lexical::Anchor> anchor);
+      Perimortem::Core::Option<Ttx::Lexical::Anchor> anchor);
 };
 
 }  // namespace Tetrodotoxin::Library::Language::Operations

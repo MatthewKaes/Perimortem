@@ -25,7 +25,6 @@
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
 using namespace Perimortem::System;
-using namespace Perimortem::Utility;
 
 // Bibliotheca can represent byte allocations through the 32 GiB archive.
 // Reject the next radix before it can index beyond that owned range.
@@ -253,12 +252,13 @@ static auto create_path(Access::Bytes output, View::Bytes path)
     return {};
   }
 
+  auto* output_data = output.get_data();
   for (Count i = 0; i < content_size; i++) {
-    output[i] = path[i] == '\\' ? '/' : path[i];
+    output_data[i] = path[i] == '\\' ? '/' : path[i];
   }
 
-  output[content_size] = '\0';
-  return View::Bytes(output.get_data(), content_size);
+  output_data[content_size] = '\0';
+  return View::Bytes(output_data, content_size);
 }
 
 // Converts a root member spelling into the canonical relative form accepted by

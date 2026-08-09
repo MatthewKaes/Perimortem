@@ -10,7 +10,7 @@ auto Language::Parameter::create_authored(
     Perimortem::Memory::Allocator::Arena& domain,
     const Signature& signature,
     Count index,
-    const Ttx::Model::Type& type) -> Perimortem::Utility::Option<Parameter&> {
+    const Ttx::Model::Type& type) -> Perimortem::Core::Option<Parameter&> {
   auto linked_type = signature.get_parameter_type(index);
   auto source = signature.get_parameter_anchor(index);
   if (!linked_type || &*linked_type != &type || !source ||

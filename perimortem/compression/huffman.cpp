@@ -24,10 +24,11 @@ auto Compression::Huffman::compute_lengths(
 
   Static::Vector<Node, node_max> nodes;
   const auto* frequency_data = frequencies.get_data();
+  auto* length_data = lengths.get_data();
   Count node_count = 0;
   Count leaf_count = 0;
   for (Count s = 0; s < symbol_count; s++) {
-    lengths[s] = 0;
+    length_data[s] = 0;
     if (frequency_data[s] > 0) {
       nodes[node_count++] = {frequency_data[s], null_node, Unsigned_16(s)};
       leaf_count++;
@@ -37,7 +38,7 @@ auto Compression::Huffman::compute_lengths(
   if (leaf_count == 0) {
     return;
   } else if (leaf_count == 1) {
-    lengths[nodes[0].symbol] = 1;
+    length_data[nodes[0].symbol] = 1;
     return;
   }
 
@@ -81,7 +82,7 @@ auto Compression::Huffman::compute_lengths(
     nodes[right_child].parent = Unsigned_16(new_node);
   }
 
-  // Phase 1: compute depths, clamp to max_code_bits, and build length counts.
+  // Compute depths, clamp to max_code_bits, and build length counts.
   Static::Vector<Count, max_code_bits + 2> codes_per_length;
   for (Count i = 0; i <= max_code_bits + 1; i++) {
     codes_per_length[i] = 0;
@@ -101,7 +102,7 @@ auto Compression::Huffman::compute_lengths(
     }
 
     codes_per_length[depth]++;
-    lengths[nodes[i].symbol] = Unsigned_8(depth);
+    length_data[nodes[i].symbol] = Unsigned_8(depth);
   }
 
   // Clamping can overcommit the prefix code. Restore Kraft equality before the
@@ -140,7 +141,7 @@ auto Compression::Huffman::compute_lengths(
     Count assign_index = leaf_count;
     for (Count bits = 1; bits <= max_code_bits; bits++) {
       for (Count i = 0; i < codes_per_length[bits]; i++) {
-        lengths[nodes[--assign_index].symbol] = Unsigned_8(bits);
+        length_data[nodes[--assign_index].symbol] = Unsigned_8(bits);
       }
     }
   }

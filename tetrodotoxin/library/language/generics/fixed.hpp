@@ -47,7 +47,7 @@ class Fixed : public Generic {
   auto create(
       Perimortem::Core::View::Vector<Argument> arguments,
       Perimortem::Memory::Allocator::Arena& arena) const
-      -> Perimortem::Utility::Option<const Ttx::Model::Type&> override;
+      -> Perimortem::Core::Option<const Ttx::Model::Type&> override;
 
   static constexpr Perimortem::Core::Static::Vector<Parameters, 2>
       parameterization = {{Parameters::Type, Parameters::Signed_64}};

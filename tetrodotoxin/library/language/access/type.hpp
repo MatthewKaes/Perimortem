@@ -4,8 +4,7 @@
 #pragma once
 
 #include "perimortem/core/view/bytes.hpp"
-
-#include "perimortem/utility/option.hpp"
+#include "perimortem/core/option.hpp"
 
 #include "ttx/concept/abstract.hpp"
 #include "ttx/lexical/anchor.hpp"
@@ -21,7 +20,7 @@ namespace Tetrodotoxin::Library::Language::Access {
 class Type {
  public:
   static auto parse(Ttx::Lexical::Cursor& cursor)
-      -> Perimortem::Utility::Option<Type>;
+      -> Perimortem::Core::Option<Type>;
 
   constexpr auto get_route() const -> Perimortem::Core::View::Bytes {
     return route;

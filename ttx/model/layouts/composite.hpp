@@ -25,7 +25,7 @@ class Composite : public Concept::Layout {
   }
 
   constexpr auto get_abstract(Count index) const
-      -> Perimortem::Utility::Option<const Concept::Abstract&> override {
+      -> Perimortem::Core::Option<const Concept::Abstract&> override {
     if (index < first.get_size()) {
       return first.get_abstract(index);
     }

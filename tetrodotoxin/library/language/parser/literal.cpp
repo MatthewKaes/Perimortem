@@ -97,13 +97,14 @@ static auto parse_quoted(
   }
 
   auto decoded = domain.allocate(decoded_size);
+  auto* decoded_data = decoded.get_data();
   Count output = 0;
   for (Count i = 0; i < payload.get_size(); i++) {
     if (payload[i] == '\\') {
       i++;
     }
 
-    decoded[output] = payload[i];
+    decoded_data[output] = payload[i];
     output++;
   }
 
@@ -146,6 +147,7 @@ static auto parse_byte_array(
   }
 
   auto decoded = domain.allocate(digits / 2);
+  auto* decoded_data = decoded.get_data();
   Count nibble = 0;
   Unsigned_8 byte = 0;
   for (Count i = 0; i < payload.get_size(); i++) {
@@ -156,7 +158,7 @@ static auto parse_byte_array(
     if (nibble % 2 == 0) {
       byte = Unsigned_8(Lexicon::get_hex_value(payload[i]) << 4);
     } else {
-      decoded[nibble / 2] = byte | Lexicon::get_hex_value(payload[i]);
+      decoded_data[nibble / 2] = byte | Lexicon::get_hex_value(payload[i]);
     }
 
     nibble++;

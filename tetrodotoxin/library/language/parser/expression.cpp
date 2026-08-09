@@ -23,8 +23,8 @@
 #include "tetrodotoxin/library/language/parser/literal.hpp"
 #include "ttx/concept/reference.hpp"
 
+using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
-using namespace Perimortem::Utility;
 using namespace Tetrodotoxin;
 using namespace Ttx::Concept;
 using namespace Ttx::Lexical;

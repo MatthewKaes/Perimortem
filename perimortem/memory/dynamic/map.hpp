@@ -6,8 +6,8 @@
 #include "perimortem/core/bibliotheca.hpp"
 #include "perimortem/core/data.hpp"
 #include "perimortem/core/hash.hpp"
+#include "perimortem/core/option.hpp"
 
-#include "perimortem/utility/option.hpp"
 #include "perimortem/utility/pair.hpp"
 
 namespace Perimortem::Memory::Dynamic {
@@ -166,7 +166,7 @@ class Map {
     }
   }
 
-  auto find(const key_type& key) -> Utility::Option<Entry&> {
+  auto find(const key_type& key) -> Core::Option<Entry&> {
     Count bucket = find_bucket(key, get_hash(key));
     if (bucket == Count(-1)) {
       return {};
@@ -175,7 +175,7 @@ class Map {
     return entries[bucket];
   }
 
-  auto find(const key_type& key) const -> Utility::Option<const Entry&> {
+  auto find(const key_type& key) const -> Core::Option<const Entry&> {
     Count bucket = find_bucket(key, get_hash(key));
     if (bucket == Count(-1)) {
       return {};

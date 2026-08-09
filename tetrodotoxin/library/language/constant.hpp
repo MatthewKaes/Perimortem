@@ -62,7 +62,7 @@ class Constant : public Expression {
 
  protected:
   constexpr explicit Constant(
-      Perimortem::Utility::Option<Ttx::Lexical::Anchor> anchor)
+      Perimortem::Core::Option<Ttx::Lexical::Anchor> anchor)
       : Expression(anchor) {}
 
   constexpr auto has_same_type(const Constant& rhs) const -> Bool {
@@ -73,8 +73,8 @@ class Constant : public Expression {
   }
 
   auto fold_uncached() -> Perimortem::Utility::
-      Result<Perimortem::Utility::Option<Expression&>, Error> override {
-    return Perimortem::Utility::Option<Expression&>(*this);
+      Result<Perimortem::Core::Option<Expression&>, Error> override {
+    return Perimortem::Core::Option<Expression&>(*this);
   }
 
  private:

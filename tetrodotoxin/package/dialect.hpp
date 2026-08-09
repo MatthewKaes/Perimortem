@@ -18,8 +18,7 @@ class Dialect : public Tetrodotoxin::Language::Dialect {
       Ttx::Lexical::Cursor& cursor,
       const Ttx::Concept::Documentation& doc,
       Ttx::Concept::Abstract&)
-      -> Perimortem::Utility::Option<
-          Tetrodotoxin::Language::Monograph&> override;
+      -> Perimortem::Core::Option<Tetrodotoxin::Language::Monograph&> override;
 };
 
 }  // namespace Tetrodotoxin::Package

@@ -5,10 +5,9 @@
 
 #include "perimortem/core/view/vector.hpp"
 #include "perimortem/core/static/union.hpp"
+#include "perimortem/core/option.hpp"
 
 #include "perimortem/memory/allocator/arena.hpp"
-
-#include "perimortem/utility/option.hpp"
 
 #include "ttx/concept/abstract.hpp"
 #include "ttx/model/type.hpp"
@@ -55,7 +54,7 @@ class Generic : public Ttx::Concept::Abstract {
   virtual auto create(
       Perimortem::Core::View::Vector<Argument> arguments,
       Perimortem::Memory::Allocator::Arena& arena) const
-      -> Perimortem::Utility::Option<const Ttx::Model::Type&> = 0;
+      -> Perimortem::Core::Option<const Ttx::Model::Type&> = 0;
 };
 
 }  // namespace Tetrodotoxin::Library::Language

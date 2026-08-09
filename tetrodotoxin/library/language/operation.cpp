@@ -10,20 +10,18 @@ using namespace Perimortem;
 using namespace Tetrodotoxin::Library;
 
 static auto select_source_anchor(const Language::Expression& expression)
-    -> Utility::Option<Ttx::Lexical::Anchor> {
+    -> Core::Option<Ttx::Lexical::Anchor> {
   return expression.get_anchor().visit(
-      []() -> Utility::Option<Ttx::Lexical::Anchor> { return {}; },
+      []() -> Core::Option<Ttx::Lexical::Anchor> { return {}; },
       [](const Ttx::Lexical::Anchor& anchor)
-          -> Perimortem::Utility::Option<Ttx::Lexical::Anchor> {
-        return anchor;
-      });
+          -> Perimortem::Core::Option<Ttx::Lexical::Anchor> { return anchor; });
 }
 
 Language::Operation::Operation(
     Memory::Allocator::Arena& domain,
     Materializations& materializations,
     Core::View::Vector<Ttx::Concept::Reference<Expression>> expressions,
-    Utility::Option<Ttx::Lexical::Anchor> anchor)
+    Core::Option<Ttx::Lexical::Anchor> anchor)
     : Expression(anchor),
       domain(domain),
       materializations(materializations),
@@ -53,7 +51,7 @@ static auto selects_fitting_type(
 }
 
 constexpr auto Language::Operation::InputLayout::get_abstract(Count index) const
-    -> Utility::Option<const Ttx::Concept::Abstract&> {
+    -> Core::Option<const Ttx::Concept::Abstract&> {
   if (index >= inputs.get_size()) {
     return {};
   }
@@ -171,14 +169,14 @@ auto Language::Operation::link(
 }
 
 auto Language::Operation::fold_uncached()
-    -> Utility::Result<Utility::Option<Expression&>, Expression::Error> {
+    -> Utility::Result<Core::Option<Expression&>, Expression::Error> {
   Bool all_reached_folded = True;
   for (Count i = 0; i < inputs.get_size(); i++) {
     auto child_result = fold_input(i);
-    Utility::Option<Expression&> child_fold;
-    Utility::Option<Expression::Error> child_error;
+    Core::Option<Expression&> child_fold;
+    Core::Option<Expression::Error> child_error;
     child_result.visit(
-        [&](const Utility::Option<Expression&>& selected) {
+        [&](const Core::Option<Expression&>& selected) {
           child_fold = selected;
         },
         [&](const Expression::Error& error) { child_error = error; });
@@ -194,21 +192,21 @@ auto Language::Operation::fold_uncached()
   }
 
   if (!all_reached_folded) {
-    return Utility::Option<Expression&>{};
+    return Core::Option<Expression&>{};
   }
 
   auto evaluated = evaluate_constants(domain, materializations);
   return evaluated.visit(
-      [](const Utility::Option<Constant&>& selected)
-          -> Utility::Result<Utility::Option<Expression&>, Expression::Error> {
+      [](const Core::Option<Constant&>& selected)
+          -> Utility::Result<Core::Option<Expression&>, Expression::Error> {
         return selected.visit(
-            []() -> Utility::Option<Expression&> { return {}; },
-            [](Constant& constant) -> Utility::Option<Expression&> {
+            []() -> Core::Option<Expression&> { return {}; },
+            [](Constant& constant) -> Core::Option<Expression&> {
               return constant;
             });
       },
       [](const Expression::Error& error)
-          -> Utility::Result<Utility::Option<Expression&>, Expression::Error> {
+          -> Utility::Result<Core::Option<Expression&>, Expression::Error> {
         return error;
       });
 }
@@ -219,7 +217,7 @@ auto Language::Operation::reaches_next_input(Count, const Expression&) const
 }
 
 auto Language::Operation::fold_input(Count index)
-    -> Utility::Result<Utility::Option<Expression&>, Expression::Error> {
+    -> Utility::Result<Core::Option<Expression&>, Expression::Error> {
   auto input = get_input(index);
   if (!input) {
     return Expression::Error(Expression::Error::Type::InvalidInput, *this);
@@ -229,7 +227,7 @@ auto Language::Operation::fold_input(Count index)
 }
 
 auto Language::Operation::get_folded_input(Count index)
-    -> Utility::Option<Expression&> {
+    -> Core::Option<Expression&> {
   auto input = get_input(index);
   if (!input) {
     return {};
@@ -238,8 +236,7 @@ auto Language::Operation::get_folded_input(Count index)
   return input->get_folded();
 }
 
-auto Language::Operation::get_input(Count index)
-    -> Utility::Option<Expression&> {
+auto Language::Operation::get_input(Count index) -> Core::Option<Expression&> {
   if (index >= inputs.get_size()) {
     return {};
   }
@@ -248,14 +245,14 @@ auto Language::Operation::get_input(Count index)
 }
 
 auto Language::Operation::get_input(Count index) const
-    -> Utility::Option<const Expression&> {
+    -> Core::Option<const Expression&> {
   return input_layout.get_abstract(index).visit(
-      []() -> Utility::Option<const Expression&> { return {}; },
+      []() -> Core::Option<const Expression&> { return {}; },
       [](const Ttx::Concept::Abstract& input) {
         return input.visit<Expression>(
             [](const Expression& expression)
-                -> Utility::Option<const Expression&> { return expression; },
+                -> Core::Option<const Expression&> { return expression; },
             [](const Ttx::Concept::Abstract&)
-                -> Utility::Option<const Expression&> { return {}; });
+                -> Core::Option<const Expression&> { return {}; });
       });
 }

@@ -425,6 +425,7 @@ constexpr auto apply_adaptive_filtering(const Image& image) -> Dynamic::Bytes {
   // Create the full output buffer and resize it to the full size.
   Dynamic::Bytes output(output_size);
   output.forgetful_resize(output_size);
+  auto* output_data = output.get_access().get_data();
 
   // For the first row can only use one of two filters so simply score those.
   // We use the current row as the previous row since it's not used.
@@ -435,7 +436,7 @@ constexpr auto apply_adaptive_filtering(const Image& image) -> Dynamic::Bytes {
   apply_row_filter(
       best_filter, output.get_access().slice(1, row_stride),
       View::Bytes(raw_bytes, row_stride), View::Bytes(raw_bytes, row_stride));
-  output.get_access()[0] = Unsigned_8(best_filter);
+  output_data[0] = Unsigned_8(best_filter);
 
   // The rest of the rows after the first are scored against all filters.
   for (Count row = 1; row < image.get_height(); row++) {
@@ -450,7 +451,7 @@ constexpr auto apply_adaptive_filtering(const Image& image) -> Dynamic::Bytes {
     Access::Bytes output_row =
         output.get_access().slice(row * (1 + row_stride) + 1, row_stride);
     apply_row_filter(best_filter, output_row, current_row, previous_row);
-    output.get_access()[row * (1 + row_stride)] = Unsigned_8(best_filter);
+    output_data[row * (1 + row_stride)] = Unsigned_8(best_filter);
   }
 
   return output;

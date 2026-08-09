@@ -4,11 +4,10 @@
 #pragma once
 
 #include "perimortem/core/view/bytes.hpp"
+#include "perimortem/core/option.hpp"
 
 #include "perimortem/memory/allocator/arena.hpp"
 #include "perimortem/memory/managed/vector.hpp"
-
-#include "perimortem/utility/option.hpp"
 
 #include "tetrodotoxin/language/diagnostic.hpp"
 #include "ttx/concept/abstract.hpp"
@@ -50,7 +49,7 @@ class Monograph : public Ttx::Concept::Abstract {
   // preserves a valid Span for presentation without carets. Environment
   // remains responsible for attaching source bytes.
   auto report(
-      Perimortem::Utility::Option<Ttx::Lexical::Anchor> anchor,
+      Perimortem::Core::Option<Ttx::Lexical::Anchor> anchor,
       Perimortem::Core::View::Bytes message,
       Perimortem::Core::View::Bytes hint = {}) -> void;
 

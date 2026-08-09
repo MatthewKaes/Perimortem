@@ -41,7 +41,7 @@ class False : public Flag {
  private:
   constexpr False(
       const Ttx::Model::Types::Flag& type,
-      Perimortem::Utility::Option<Ttx::Lexical::Anchor> anchor)
+      Perimortem::Core::Option<Ttx::Lexical::Anchor> anchor)
       : Flag(type, ::False, anchor) {}
 };
 

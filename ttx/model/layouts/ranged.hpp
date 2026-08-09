@@ -21,7 +21,7 @@ class Ranged : public Concept::Layout {
   constexpr auto get_size() const -> Count override { return size; }
 
   constexpr auto get_abstract(Count index) const
-      -> Perimortem::Utility::Option<const Concept::Abstract&> override {
+      -> Perimortem::Core::Option<const Concept::Abstract&> override {
     if (index >= size) {
       return {};
     }

@@ -25,13 +25,12 @@ using namespace Ttx::Model;
 
 template <typename selected_type>
 static auto select_constant(const Language::Expression& expression)
-    -> Utility::Option<const selected_type&> {
+    -> Core::Option<const selected_type&> {
   return expression.visit<selected_type>(
-      [](const selected_type& selected)
-          -> Utility::Option<const selected_type&> { return selected; },
-      [](const Abstract&) -> Utility::Option<const selected_type&> {
-        return {};
-      });
+      [](const selected_type& selected) -> Core::Option<const selected_type&> {
+        return selected;
+      },
+      [](const Abstract&) -> Core::Option<const selected_type&> { return {}; });
 }
 
 static auto is_numeric_type(const Abstract& selected) -> Bool {
@@ -93,7 +92,7 @@ auto Language::Operations::Greater::parse(
     Materializations& materializations,
     Cursor& cursor,
     const Abstract& source_context,
-    Expression& left) -> Utility::Option<Expression&> {
+    Expression& left) -> Core::Option<Expression&> {
   auto transaction = cursor.branch();
   Token opening = transaction.consume();
   auto right = Language::Parser::Expression::parse_operand(
@@ -151,7 +150,7 @@ Language::Operations::Greater::Greater(
     Materializations& materializations,
     Expression& left,
     Expression& right,
-    Utility::Option<Anchor> anchor)
+    Core::Option<Anchor> anchor)
     : Operation(
           domain,
           materializations,
@@ -165,7 +164,7 @@ auto Language::Operations::Greater::get_documentation() const
 }
 
 auto Language::Operations::Greater::select_type(Materializations&) const
-    -> Utility::Option<const Type&> {
+    -> Core::Option<const Type&> {
   auto left = get_input(0);
   auto right = get_input(1);
   if (!left || !right ||
@@ -179,7 +178,7 @@ auto Language::Operations::Greater::select_type(Materializations&) const
 auto Language::Operations::Greater::evaluate_constants(
     Memory::Allocator::Arena& domain,
     Materializations&)
-    -> Utility::Result<Utility::Option<Constant&>, Expression::Error> {
+    -> Utility::Result<Core::Option<Constant&>, Expression::Error> {
   auto authored_left = get_input(0);
   auto authored_right = get_input(1);
   auto left = get_folded_input(0);
@@ -241,7 +240,7 @@ auto Language::Operations::Greater::evaluate_constants(
 
     return selected.visit<Ttx::Model::Types::Real>(
         [&](const Ttx::Model::Types::Real& type)
-            -> Utility::Result<Utility::Option<Constant&>, Expression::Error> {
+            -> Utility::Result<Core::Option<Constant&>, Expression::Error> {
           if (type.get_size() == sizeof(Real_32)) {
             return make_result(
                 domain, Real_32(left_value->get_value()) >
@@ -257,7 +256,7 @@ auto Language::Operations::Greater::evaluate_constants(
               Expression::Error::Type::InvalidOperationType, *this);
         },
         [&](const Abstract&)
-            -> Utility::Result<Utility::Option<Constant&>, Expression::Error> {
+            -> Utility::Result<Core::Option<Constant&>, Expression::Error> {
           return Expression::Error(
               Expression::Error::Type::InvalidOperationType, *this);
         });

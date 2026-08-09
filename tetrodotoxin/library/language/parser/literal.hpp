@@ -3,9 +3,9 @@
 
 #pragma once
 
-#include "perimortem/memory/allocator/arena.hpp"
+#include "perimortem/core/option.hpp"
 
-#include "perimortem/utility/option.hpp"
+#include "perimortem/memory/allocator/arena.hpp"
 
 #include "tetrodotoxin/library/language/constant.hpp"
 #include "tetrodotoxin/library/language/materializations.hpp"
@@ -30,7 +30,7 @@ class Literal {
       Materializations& materializations,
       Ttx::Lexical::Cursor& cursor,
       const Ttx::Concept::Abstract& source_context)
-      -> Perimortem::Utility::Option<Constant&>;
+      -> Perimortem::Core::Option<Constant&>;
 };
 
 }  // namespace Tetrodotoxin::Library::Language::Parser

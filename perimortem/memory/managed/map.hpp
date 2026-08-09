@@ -5,10 +5,10 @@
 
 #include "perimortem/core/data.hpp"
 #include "perimortem/core/hash.hpp"
+#include "perimortem/core/option.hpp"
 
 #include "perimortem/memory/allocator/arena.hpp"
 
-#include "perimortem/utility/option.hpp"
 #include "perimortem/utility/pair.hpp"
 
 namespace Perimortem::Memory::Managed {
@@ -89,7 +89,7 @@ class Map {
     }
   }
 
-  auto find(const key_type& key) -> Utility::Option<Entry&> {
+  auto find(const key_type& key) -> Core::Option<Entry&> {
     Slot* slot = find_slot(key);
     if (slot == nullptr) {
       return {};
@@ -98,7 +98,7 @@ class Map {
     return slot->entry;
   }
 
-  auto find(const key_type& key) const -> Utility::Option<const Entry&> {
+  auto find(const key_type& key) const -> Core::Option<const Entry&> {
     const Slot* slot = find_slot(key);
     if (slot == nullptr) {
       return {};

@@ -25,7 +25,7 @@ auto Language::Monograph::finalize() -> Bool {
 }
 
 auto Language::Monograph::report(
-    Perimortem::Utility::Option<Anchor> anchor,
+    Perimortem::Core::Option<Anchor> anchor,
     View::Bytes message,
     View::Bytes hint) -> void {
   // A diagnostic can outlive the transaction that built either input view.

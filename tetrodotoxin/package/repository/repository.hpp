@@ -5,13 +5,13 @@
 
 #include "perimortem/core/view/bytes.hpp"
 #include "perimortem/core/view/vector.hpp"
+#include "perimortem/core/option.hpp"
 
 #include "perimortem/memory/allocator/arena.hpp"
 #include "perimortem/memory/managed/vector.hpp"
 
 #include "perimortem/system/version.hpp"
 
-#include "perimortem/utility/option.hpp"
 #include "perimortem/utility/result.hpp"
 
 #include "tetrodotoxin/package/archive/archive.hpp"
@@ -35,7 +35,7 @@ class Repository {
       Perimortem::Core::View::Vector<Input> inputs,
       Perimortem::Core::View::Vector<Output> archive_outputs,
       Perimortem::Core::View::Vector<Output> native_outputs)
-      -> Perimortem::Utility::Option<Repository>;
+      -> Perimortem::Core::Option<Repository>;
 
   // Selects the exact declared semantic Archive and preserves it in the
   // Repository cache. Every call chooses the Archive or a stable caller error,
@@ -60,7 +60,7 @@ class Repository {
       Perimortem::Core::View::Bytes identity,
       Perimortem::System::Version version,
       Perimortem::Core::View::Bytes artifact_id) const
-      -> Perimortem::Utility::Option<Perimortem::Core::View::Bytes>;
+      -> Perimortem::Core::Option<Perimortem::Core::View::Bytes>;
 
   // Native lookup uses the same complete key while remaining on its own
   // inventory. A native route therefore cannot substitute for an Archive.
@@ -68,7 +68,7 @@ class Repository {
       Perimortem::Core::View::Bytes identity,
       Perimortem::System::Version version,
       Perimortem::Core::View::Bytes artifact_id) const
-      -> Perimortem::Utility::Option<Perimortem::Core::View::Bytes>;
+      -> Perimortem::Core::Option<Perimortem::Core::View::Bytes>;
 
  private:
   Repository(

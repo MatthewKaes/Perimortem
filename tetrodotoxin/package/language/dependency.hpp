@@ -4,10 +4,9 @@
 #pragma once
 
 #include "perimortem/core/view/bytes.hpp"
+#include "perimortem/core/option.hpp"
 
 #include "perimortem/system/version.hpp"
-
-#include "perimortem/utility/option.hpp"
 
 #include "ttx/lexical/cursor.hpp"
 #include "ttx/lexical/span.hpp"
@@ -30,7 +29,7 @@ class Dependency {
   // separately from the durable request. Failure recovers the Cursor and
   // leaves the supplied Span invalid.
   static auto parse(Ttx::Lexical::Cursor& cursor, Ttx::Lexical::Span& span)
-      -> Perimortem::Utility::Option<Dependency>;
+      -> Perimortem::Core::Option<Dependency>;
 
   constexpr auto get_local_name() const -> Perimortem::Core::View::Bytes {
     return local_name;

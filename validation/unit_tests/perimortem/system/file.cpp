@@ -28,7 +28,6 @@
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
 using namespace Perimortem::System;
-using namespace Perimortem::Utility;
 using namespace Validation;
 
 constexpr auto test_file = ".bin/bin/validation/system_file_test.json"_view;

@@ -88,7 +88,7 @@ class Unsigned : public Constant {
   constexpr Unsigned(
       const Ttx::Model::Types::Unsigned& type,
       Value value,
-      Perimortem::Utility::Option<Ttx::Lexical::Anchor> anchor)
+      Perimortem::Core::Option<Ttx::Lexical::Anchor> anchor)
       : Constant(anchor), type(type), value(value) {}
 
   const Ttx::Model::Types::Unsigned& type;

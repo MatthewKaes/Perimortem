@@ -67,7 +67,7 @@ class Flag : public Constant {
   constexpr Flag(
       const Ttx::Model::Types::Flag& type,
       Value value,
-      Perimortem::Utility::Option<Ttx::Lexical::Anchor> anchor)
+      Perimortem::Core::Option<Ttx::Lexical::Anchor> anchor)
       : Constant(anchor), type(type), value(value) {}
 
  private:

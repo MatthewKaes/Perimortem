@@ -62,7 +62,7 @@ auto Language::Materializations::Key::hash() const -> Unsigned_64 {
 auto Language::Materializations::materialize(
     const Generic& generic,
     Core::View::Vector<Generic::Argument> arguments)
-    -> Utility::Option<const Ttx::Model::Type&> {
+    -> Core::Option<const Ttx::Model::Type&> {
   auto parameters = generic.get_parameterization();
   if (&generic.resolve() != &generic ||
       parameters.get_size() != arguments.get_size()) {

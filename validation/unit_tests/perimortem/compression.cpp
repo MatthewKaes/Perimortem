@@ -342,7 +342,7 @@ PERIMORTEM_UNIT_TEST(CompressionTests, skewed_frequencies) {
   source.forgetful_resize(size);
   Data::set(source.get_access().get_data(), Unsigned_8(0), size);
   for (Count i = 1; i <= 200; i++) {
-    source.get_access()[i * 249] = Unsigned_8(i);
+    source.get_access().get_data()[i * 249] = Unsigned_8(i);
   }
 
   auto compressed = Compression::Deflate::deflate(source.get_view());

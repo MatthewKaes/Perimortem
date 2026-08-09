@@ -5,12 +5,11 @@
 
 #include "perimortem/core/view/bytes.hpp"
 #include "perimortem/core/view/vector.hpp"
+#include "perimortem/core/option.hpp"
 
 #include "perimortem/memory/allocator/arena.hpp"
 #include "perimortem/memory/managed/map.hpp"
 #include "perimortem/memory/managed/vector.hpp"
-
-#include "perimortem/utility/option.hpp"
 
 #include "tetrodotoxin/language/dialect.hpp"
 
@@ -44,7 +43,7 @@ class Dialects {
   }
 
   auto find(Perimortem::Core::View::Bytes name)
-      -> Perimortem::Utility::Option<Language::Dialect&>;
+      -> Perimortem::Core::Option<Language::Dialect&>;
   auto get_names() const
       -> Perimortem::Core::View::Vector<Perimortem::Core::View::Bytes>;
 

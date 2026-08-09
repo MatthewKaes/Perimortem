@@ -3,13 +3,14 @@
 
 #pragma once
 
+#include "perimortem/core/option.hpp"
+
 #include "perimortem/memory/allocator/arena.hpp"
 #include "perimortem/memory/managed/map.hpp"
 #include "perimortem/memory/managed/vector.hpp"
 
 #include "perimortem/system/version.hpp"
 
-#include "perimortem/utility/option.hpp"
 #include "perimortem/utility/result.hpp"
 
 #include "tetrodotoxin/environment/dialects.hpp"
@@ -41,7 +42,7 @@ class Workspace : public Ttx::Concept::Abstract {
       Perimortem::Core::View::Bytes semantic_name,
       Perimortem::Core::View::Bytes diagnostic_path,
       Perimortem::Core::View::Bytes contents)
-      -> Perimortem::Utility::Option<Language::Monograph&>;
+      -> Perimortem::Core::Option<Language::Monograph&>;
 
   auto link(Ttx::Lexical::Errors& errors) -> Bool;
   auto finalize(Ttx::Lexical::Errors& errors) -> Bool;
@@ -90,7 +91,7 @@ class Workspace : public Ttx::Concept::Abstract {
       Perimortem::Core::View::Bytes diagnostic_path,
       Perimortem::Core::View::Bytes contents,
       Ttx::Concept::Abstract& interpretation_context,
-      Bool stage_globally) -> Perimortem::Utility::Option<Language::Monograph&>;
+      Bool stage_globally) -> Perimortem::Core::Option<Language::Monograph&>;
 
   auto has_staged_name(Perimortem::Core::View::Bytes name) const -> Bool;
   auto publish_staged() -> void;

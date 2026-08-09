@@ -4,11 +4,10 @@
 #pragma once
 
 #include "perimortem/core/view/vector.hpp"
+#include "perimortem/core/option.hpp"
 
 #include "perimortem/memory/allocator/arena.hpp"
 #include "perimortem/memory/managed/vector.hpp"
-
-#include "perimortem/utility/option.hpp"
 
 #include "tetrodotoxin/language/monograph.hpp"
 #include "tetrodotoxin/library/language/expression.hpp"
@@ -56,7 +55,7 @@ class Function : public Ttx::Model::Callable {
       Tetrodotoxin::Language::Monograph& source,
       const Ttx::Model::Type& host,
       Materializations& materializations)
-      -> Perimortem::Utility::Option<Function&>;
+      -> Perimortem::Core::Option<Function&>;
 
   Function(const Function&) = delete;
   Function(Function&&) = delete;
@@ -114,7 +113,7 @@ class Function : public Ttx::Model::Callable {
 
   constexpr auto get_span() const -> Ttx::Lexical::Span { return span; }
 
-  auto get_signature() const -> Perimortem::Utility::Option<const Signature&>;
+  auto get_signature() const -> Perimortem::Core::Option<const Signature&>;
 
   auto get_expressions()
       -> Perimortem::Core::View::Vector<Ttx::Concept::Reference<Expression>>;
@@ -131,7 +130,7 @@ class Function : public Ttx::Model::Callable {
   }
 
   auto get_return_expression() const
-      -> Perimortem::Utility::Option<const Expression&>;
+      -> Perimortem::Core::Option<const Expression&>;
 
   constexpr auto is_complete() const -> Bool { return completed; }
 
@@ -151,14 +150,14 @@ class Function : public Ttx::Model::Callable {
   Ttx::Lexical::Token token;
   Ttx::Lexical::Token name_token;
   Ttx::Lexical::Span span;
-  Perimortem::Utility::Option<Signature&> signature;
+  Perimortem::Core::Option<Signature&> signature;
   Perimortem::Memory::Managed::Vector<Ttx::Concept::Reference<Expression>>
       expressions;
   Perimortem::Memory::Managed::Vector<Ttx::Concept::Reference<const Expression>>
       expression_observations;
   Ttx::Lexical::Token return_token;
   Ttx::Lexical::Span return_span;
-  Perimortem::Utility::Option<Ttx::Concept::Reference<Expression>>
+  Perimortem::Core::Option<Ttx::Concept::Reference<Expression>>
       return_expression;
   Bool completed = False;
   Bool linked = False;

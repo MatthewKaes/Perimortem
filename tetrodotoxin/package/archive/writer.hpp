@@ -3,9 +3,9 @@
 
 #pragma once
 
-#include "perimortem/memory/dynamic/bytes.hpp"
+#include "perimortem/core/option.hpp"
 
-#include "perimortem/utility/option.hpp"
+#include "perimortem/memory/dynamic/bytes.hpp"
 
 #include "tetrodotoxin/package/archive/archive.hpp"
 
@@ -22,7 +22,7 @@ class Writer {
   // the Format 1 limit logs a warning. Failure to reach the measured boundary
   // logs an error.
   static auto write(const Archive& archive)
-      -> Perimortem::Utility::Option<Perimortem::Memory::Dynamic::Bytes>;
+      -> Perimortem::Core::Option<Perimortem::Memory::Dynamic::Bytes>;
 };
 
 }  // namespace Tetrodotoxin::Package::Archive

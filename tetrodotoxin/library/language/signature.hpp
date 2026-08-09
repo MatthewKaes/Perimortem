@@ -4,11 +4,10 @@
 #pragma once
 
 #include "perimortem/core/view/bytes.hpp"
+#include "perimortem/core/option.hpp"
 
 #include "perimortem/memory/allocator/arena.hpp"
 #include "perimortem/memory/managed/vector.hpp"
-
-#include "perimortem/utility/option.hpp"
 
 #include "tetrodotoxin/language/monograph.hpp"
 #include "tetrodotoxin/library/language/access/type.hpp"
@@ -28,7 +27,7 @@ class Signature {
  public:
   static auto interpret(
       Perimortem::Memory::Allocator::Arena& domain,
-      Ttx::Lexical::Cursor& cursor) -> Perimortem::Utility::Option<Signature&>;
+      Ttx::Lexical::Cursor& cursor) -> Perimortem::Core::Option<Signature&>;
 
   Signature(const Signature&) = delete;
   Signature(Signature&&) = delete;
@@ -38,8 +37,7 @@ class Signature {
   auto link(
       Tetrodotoxin::Language::Monograph& source,
       const Ttx::Concept::Abstract& context,
-      Perimortem::Utility::Option<const Ttx::Model::Type&> self_type = {})
-      -> Bool;
+      Perimortem::Core::Option<const Ttx::Model::Type&> self_type = {}) -> Bool;
 
   auto get_parameters() const -> const Ttx::Concept::Layout&;
   auto get_results() const -> const Ttx::Concept::Layout&;
@@ -48,7 +46,7 @@ class Signature {
       -> const Ttx::Concept::Abstract&;
 
   constexpr auto get_anchor() const
-      -> const Perimortem::Utility::Option<Ttx::Lexical::Anchor>& {
+      -> const Perimortem::Core::Option<Ttx::Lexical::Anchor>& {
     return anchor;
   }
 
@@ -62,24 +60,24 @@ class Signature {
   auto get_result_name(Count index) const -> Perimortem::Core::View::Bytes;
 
   auto get_parameter_type_access(Count index) const
-      -> Perimortem::Utility::Option<const Access::Type&>;
+      -> Perimortem::Core::Option<const Access::Type&>;
   auto get_result_type_access(Count index) const
-      -> Perimortem::Utility::Option<const Access::Type&>;
+      -> Perimortem::Core::Option<const Access::Type&>;
 
   auto get_parameter_anchor(Count index) const
-      -> Perimortem::Utility::Option<Ttx::Lexical::Anchor>;
+      -> Perimortem::Core::Option<Ttx::Lexical::Anchor>;
   auto get_result_anchor(Count index) const
-      -> Perimortem::Utility::Option<Ttx::Lexical::Anchor>;
+      -> Perimortem::Core::Option<Ttx::Lexical::Anchor>;
 
   auto get_parameter_type_anchor(Count index) const
-      -> Perimortem::Utility::Option<Ttx::Lexical::Anchor>;
+      -> Perimortem::Core::Option<Ttx::Lexical::Anchor>;
   auto get_result_type_anchor(Count index) const
-      -> Perimortem::Utility::Option<Ttx::Lexical::Anchor>;
+      -> Perimortem::Core::Option<Ttx::Lexical::Anchor>;
 
   auto get_parameter_type(Count index) const
-      -> Perimortem::Utility::Option<const Ttx::Model::Type&>;
+      -> Perimortem::Core::Option<const Ttx::Model::Type&>;
   auto get_result_type(Count index) const
-      -> Perimortem::Utility::Option<const Ttx::Model::Type&>;
+      -> Perimortem::Core::Option<const Ttx::Model::Type&>;
 
   constexpr auto is_linked() const -> Bool { return linked; }
 
@@ -87,10 +85,10 @@ class Signature {
   class Slot {
    public:
     constexpr Slot(
-        Perimortem::Utility::Option<Access::Type> type_access,
+        Perimortem::Core::Option<Access::Type> type_access,
         Ttx::Lexical::Anchor anchor,
         Perimortem::Core::View::Bytes name,
-        Perimortem::Utility::Option<Ttx::Lexical::Anchor> name_anchor)
+        Perimortem::Core::Option<Ttx::Lexical::Anchor> name_anchor)
         : type_access(type_access),
           anchor(anchor),
           name(name),
@@ -98,11 +96,11 @@ class Signature {
 
     constexpr auto is_named() const -> Bool { return Bool(name_anchor); }
 
-    Perimortem::Utility::Option<Access::Type> type_access;
+    Perimortem::Core::Option<Access::Type> type_access;
     Ttx::Lexical::Anchor anchor;
     Perimortem::Core::View::Bytes name;
-    Perimortem::Utility::Option<Ttx::Lexical::Anchor> name_anchor;
-    Perimortem::Utility::Option<Ttx::Concept::Reference<const Ttx::Model::Type>>
+    Perimortem::Core::Option<Ttx::Lexical::Anchor> name_anchor;
+    Perimortem::Core::Option<Ttx::Concept::Reference<const Ttx::Model::Type>>
         type;
   };
 
@@ -111,9 +109,9 @@ class Signature {
   Perimortem::Memory::Allocator::Arena& domain;
   Perimortem::Memory::Managed::Vector<Slot> parameters;
   Perimortem::Memory::Managed::Vector<Slot> results;
-  Perimortem::Utility::Option<Ttx::Lexical::Anchor> anchor;
-  Perimortem::Utility::Option<const Ttx::Concept::Layout&> parameter_layout;
-  Perimortem::Utility::Option<const Ttx::Concept::Layout&> result_layout;
+  Perimortem::Core::Option<Ttx::Lexical::Anchor> anchor;
+  Perimortem::Core::Option<const Ttx::Concept::Layout&> parameter_layout;
+  Perimortem::Core::Option<const Ttx::Concept::Layout&> result_layout;
   Bool linked = False;
 };
 

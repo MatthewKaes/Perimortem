@@ -3,9 +3,9 @@
 
 #pragma once
 
-#include "perimortem/memory/allocator/arena.hpp"
+#include "perimortem/core/option.hpp"
 
-#include "perimortem/utility/option.hpp"
+#include "perimortem/memory/allocator/arena.hpp"
 
 #include "tetrodotoxin/library/language/expression.hpp"
 #include "tetrodotoxin/library/language/materializations.hpp"
@@ -28,7 +28,7 @@ class Expression {
       Materializations& materializations,
       Ttx::Lexical::Cursor& cursor,
       const Ttx::Concept::Abstract& source_context)
-      -> Perimortem::Utility::Option<Language::Expression&>;
+      -> Perimortem::Core::Option<Language::Expression&>;
 
   // Parses one tighter operand with private diagnostics. The caller position
   // advances only when the complete operand succeeds.
@@ -38,7 +38,7 @@ class Expression {
       Ttx::Lexical::Cursor& cursor,
       const Ttx::Concept::Abstract& source_context,
       Ttx::Lexical::Code::Type operation)
-      -> Perimortem::Utility::Option<Language::Expression&>;
+      -> Perimortem::Core::Option<Language::Expression&>;
 
   // Parses one prefix operand with private diagnostics. Postfix operations
   // remain inside the operand while binary operations remain outside it.
@@ -47,7 +47,7 @@ class Expression {
       Materializations& materializations,
       Ttx::Lexical::Cursor& cursor,
       const Ttx::Concept::Abstract& source_context)
-      -> Perimortem::Utility::Option<Language::Expression&>;
+      -> Perimortem::Core::Option<Language::Expression&>;
 };
 
 }  // namespace Tetrodotoxin::Library::Language::Parser

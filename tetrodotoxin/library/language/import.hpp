@@ -4,8 +4,7 @@
 #pragma once
 
 #include "perimortem/core/view/bytes.hpp"
-
-#include "perimortem/utility/option.hpp"
+#include "perimortem/core/option.hpp"
 
 #include "tetrodotoxin/library/language/access/type.hpp"
 #include "ttx/lexical/cursor.hpp"
@@ -24,7 +23,7 @@ class Import {
 
   // Consumes one complete using statement and retains its route and extent.
   static auto parse(Ttx::Lexical::Cursor& cursor)
-      -> Perimortem::Utility::Option<Import>;
+      -> Perimortem::Core::Option<Import>;
 
   constexpr auto get_route() const -> Perimortem::Core::View::Bytes {
     return type_access.get_route();

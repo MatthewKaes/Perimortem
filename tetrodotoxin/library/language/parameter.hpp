@@ -3,9 +3,9 @@
 
 #pragma once
 
-#include "perimortem/memory/allocator/arena.hpp"
+#include "perimortem/core/option.hpp"
 
-#include "perimortem/utility/option.hpp"
+#include "perimortem/memory/allocator/arena.hpp"
 
 #include "tetrodotoxin/library/language/signature.hpp"
 #include "ttx/model/addressable.hpp"
@@ -27,7 +27,7 @@ class Parameter : public Ttx::Model::Addressable {
       Perimortem::Memory::Allocator::Arena& domain,
       const Signature& signature,
       Count index,
-      const Ttx::Model::Type& type) -> Perimortem::Utility::Option<Parameter&>;
+      const Ttx::Model::Type& type) -> Perimortem::Core::Option<Parameter&>;
 
   Parameter(const Parameter&) = delete;
   Parameter(Parameter&&) = delete;

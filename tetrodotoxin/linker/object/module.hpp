@@ -5,11 +5,10 @@
 
 #include "perimortem/core/view/bytes.hpp"
 #include "perimortem/core/view/vector.hpp"
+#include "perimortem/core/option.hpp"
 #include "perimortem/core/perimortem.hpp"
 
 #include "perimortem/memory/dynamic/vector.hpp"
-
-#include "perimortem/utility/option.hpp"
 
 #include "tetrodotoxin/linker/object/relocation.hpp"
 #include "tetrodotoxin/linker/object/section.hpp"
@@ -25,9 +24,9 @@ class Module {
   Module();
 
   auto add_section(Section::Type type, Perimortem::Core::View::Bytes data)
-      -> Perimortem::Utility::Option<Unsigned_16>;
-  auto add_section(Section section) -> Perimortem::Utility::Option<Unsigned_16>;
-  auto add_symbol(Symbol symbol) -> Perimortem::Utility::Option<Count>;
+      -> Perimortem::Core::Option<Unsigned_16>;
+  auto add_section(Section section) -> Perimortem::Core::Option<Unsigned_16>;
+  auto add_symbol(Symbol symbol) -> Perimortem::Core::Option<Count>;
   auto add_relocation(Relocation relocation) -> Bool;
 
   constexpr auto get_sections() const
