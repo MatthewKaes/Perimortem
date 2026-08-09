@@ -63,7 +63,7 @@ class Operation : public Expression {
       Result<Perimortem::Utility::Option<Expression&>, Expression::Error>;
 
   // Concrete evaluation runs only after the ordered traversal completed.
-  // This observation unwraps that cached projection without changing the
+  // This observation unwraps that cached result without changing the
   // authored edge or starting another computation.
   auto get_folded_input(Count index)
       -> Perimortem::Utility::Option<Expression&>;
@@ -73,9 +73,8 @@ class Operation : public Expression {
       Materializations& materializations) -> Perimortem::Utility::
       Result<Perimortem::Utility::Option<Constant&>, Expression::Error> = 0;
 
-  virtual auto reaches_next_input(
-      Count folded_input,
-      const Expression& projection) const -> Bool;
+  virtual auto reaches_next_input(Count folded_input, const Expression& folded)
+      const -> Bool;
 
   virtual auto select_type(Materializations& materializations) const
       -> Perimortem::Utility::Option<const Ttx::Model::Type&> = 0;

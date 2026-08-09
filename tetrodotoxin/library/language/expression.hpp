@@ -42,11 +42,6 @@ class Expression : public Ttx::Concept::Abstract {
       InvalidInput,
       InvalidConstant,
       ResultTypeMismatch,
-      NegativeOperand,
-      CountOverflow,
-      IndexOutOfBounds,
-      RangeStartOutOfBounds,
-      RangeSizeOutOfBounds,
       ArithmeticOverflow,
       DivisionByZero,
     };
@@ -94,7 +89,7 @@ class Expression : public Ttx::Concept::Abstract {
       const Ttx::Concept::Abstract& context,
       Materializations& materializations) -> Bool;
 
-  // Folding is a cached projection of this exact Expression. The source node
+  // Folding is a cached result of this exact Expression. The source node
   // and every authored edge remain available regardless of the selected
   // Constant, dynamic result, or failure.
   auto fold() -> Perimortem::Utility::

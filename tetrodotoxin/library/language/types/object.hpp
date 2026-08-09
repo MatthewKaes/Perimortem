@@ -30,7 +30,7 @@ class Object : public Structure {
     0xa13f79099ea383ab,
   };
 
-  static auto create(
+  static auto create_authored(
       Perimortem::Memory::Allocator::Arena& domain,
       Perimortem::Core::View::Bytes name,
       const Ttx::Concept::Documentation& documentation,

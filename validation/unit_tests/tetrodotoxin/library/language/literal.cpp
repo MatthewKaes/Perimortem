@@ -376,7 +376,7 @@ PERIMORTEM_UNIT_TEST(LiteralTests, embedded_resolution) {
           .is_empty());
   EXPECT_TEXT(postfix_bytes.get_value(), "0123456789"_view);
   EXPECT(cursor.matches(Code::Type::Terminal));
-  EXPECT(postfix_cursor.matches(Code::Type::SliceOp));
+  EXPECT(postfix_cursor.matches(Code::Type::ValueAccessOp));
   EXPECT(errors.is_empty());
   EXPECT(postfix_errors.is_empty());
   EXPECT(rejects(domain, materializations, context, "$[missing]"_view));

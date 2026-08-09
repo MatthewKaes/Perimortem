@@ -147,6 +147,8 @@ PERIMORTEM_UNIT_TEST(TtxAbstract, alias_reroutes) {
   EXPECT_TEXT(
       colors.get_documentation().get_line(2), "The graphics context."_view);
   EXPECT_TEXT(palette.resolve().get_name(), "Graphics"_view);
+  EXPECT(&palette.get_target() == &graphics);
+  EXPECT(&colors.get_target() == &palette);
   EXPECT(&palette.resolve() == &graphics);
   EXPECT(&colors.resolve() == &colors.resolve().resolve());
   EXPECT(&palette.resolve_context("Color"_view) == &color);

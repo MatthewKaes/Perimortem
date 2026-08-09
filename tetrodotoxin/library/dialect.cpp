@@ -130,9 +130,7 @@ auto Library::Dialect::interpret(
                 *enumeration, enumeration->get_visibility())) {
           cursor.create_expression_error(
               enumeration->get_name_anchor(),
-              "Duplicate Enumeration, Object, Structure, or Function name in "
-              "this "
-              "Library source."_view);
+              "Duplicate Type name in this Library source."_view);
           return {};
         }
 
@@ -175,13 +173,13 @@ auto Library::Dialect::interpret(
       return {};
     }
 
-    if (!monograph.bind_static(*function, function->get_visibility())) {
-      cursor.create_token_error(
-          "Duplicate Static binding name in this Library source."_view);
+    if (!function->complete(cursor)) {
       return {};
     }
 
-    if (!function->complete(cursor)) {
+    if (!monograph.bind_static(*function, function->get_visibility())) {
+      cursor.create_token_error(
+          "Duplicate Static binding name in this Library source."_view);
       return {};
     }
   }

@@ -11,9 +11,9 @@
 namespace Tetrodotoxin::Library::Language {
 
 // Constant is an immutable Expression already in normal form. It defines no
-// parser, operator set, evaluator, or lowering representation. Concrete value
-// domains expose their payload through derived contracts without extending a
-// central tag.
+// parser, operator set, evaluation engine, or lowering representation. Concrete
+// value domains expose their payload through derived contracts without
+// extending a central tag.
 //
 // Constants have no evaluation inputs. Equality includes resolved Type identity
 // as well as the derived value, preserving the distinction between equal bits
@@ -31,8 +31,9 @@ class Constant : public Expression {
     return requested == contract_id || Expression::implements(requested);
   }
 
-  // Constant semantic names come from their exact Type. An authored literal
-  // may still retain its source anchor while Binding owns declared names.
+  // Constant semantic names come from their exact Type. A receiving owner may
+  // retain the value through a real Alias or Addressable without renaming this
+  // immutable identity.
   constexpr auto get_name() const -> Perimortem::Core::View::Bytes override {
     return get_type().get_name();
   }

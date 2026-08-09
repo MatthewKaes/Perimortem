@@ -66,7 +66,7 @@ auto Environment::Workspace::StagedPublication::get_monograph() const
 
 Environment::Workspace::Workspace()
     : arena(),
-      dialects(arena, *this),
+      dialects(arena),
       retention(arena),
       resolution(arena, dialects, retention),
       source_monographs(arena),
@@ -185,7 +185,7 @@ auto Environment::Workspace::interpret_retained_source(
   }
 
   const Documentation& documentation = Language::Parser::Comment::parse(cursor);
-  Token dialect_instruction = cursor.current();
+  Token dialect_declaration = cursor.current();
   View::Bytes dialect_name = Language::Parser::Dialect::parse(cursor);
   if (dialect_name.is_empty()) {
     return {};
@@ -195,7 +195,7 @@ auto Environment::Workspace::interpret_retained_source(
   if (!dialect) {
     Errors::Report report(
         errors, diagnostic_path, contents,
-        Anchor::create(Span(dialect_instruction)));
+        Anchor::create(Span(dialect_declaration)));
     auto& hint = report.get_hint();
     View::Vector<View::Bytes> installed_names = dialects.get_names();
 
@@ -218,8 +218,9 @@ auto Environment::Workspace::interpret_retained_source(
     return {};
   }
 
-  // The installed Dialect keeps Workspace as its shared registry. This
-  // argument instead supplies the exact owner context for this interpretation.
+  // Package members and direct sources can expose different contextual roots.
+  // Pass that exact owner into this interpretation instead of making every
+  // installed Dialect retain one universal source scope.
   Option<Language::Monograph&> interpreted =
       dialect->interpret(arena, cursor, documentation, interpretation_context);
   if (!interpreted) {

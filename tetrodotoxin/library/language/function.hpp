@@ -11,7 +11,6 @@
 #include "perimortem/utility/option.hpp"
 
 #include "tetrodotoxin/language/monograph.hpp"
-#include "tetrodotoxin/library/language/callables/static.hpp"
 #include "tetrodotoxin/library/language/expression.hpp"
 #include "tetrodotoxin/library/language/materializations.hpp"
 #include "tetrodotoxin/library/language/signature.hpp"
@@ -19,14 +18,17 @@
 #include "ttx/concept/reference.hpp"
 #include "ttx/lexical/cursor.hpp"
 #include "ttx/lexical/span.hpp"
+#include "ttx/model/callable.hpp"
 #include "ttx/model/type.hpp"
 
 namespace Tetrodotoxin::Library::Language {
 
-// Function is one Library defined Static Callable. Reservation fixes its graph
+// Function is one Library defined Callable. Reservation fixes its graph
 // identity, source owner, and exact host Type before completion installs the
-// signature and authored Expression roots from one complete definition.
-class Function : public Callables::Static {
+// signature and authored Expression roots from one complete definition. A
+// reserved self Addressable at parameter entry zero records receiver
+// invocation and has that exact host Type.
+class Function : public Ttx::Model::Callable {
  private:
   Function(
       Perimortem::Memory::Allocator::Arena& domain,
@@ -73,7 +75,8 @@ class Function : public Callables::Static {
 
   constexpr auto implements(Perimortem::System::Uuid requested) const
       -> Bool override {
-    return requested == contract_id || Callables::Static::implements(requested);
+    return requested == contract_id ||
+           Ttx::Model::Callable::implements(requested);
   }
 
   constexpr auto get_name() const -> Perimortem::Core::View::Bytes override {

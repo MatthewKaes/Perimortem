@@ -46,16 +46,6 @@ auto Language::Expression::Error::get_name() const -> View::Bytes {
     return "invalid Constant domain"_view;
   case Type::ResultTypeMismatch:
     return "changed result Type"_view;
-  case Type::NegativeOperand:
-    return "negative operand"_view;
-  case Type::CountOverflow:
-    return "Count or Fixed extent overflow"_view;
-  case Type::IndexOutOfBounds:
-    return "index outside the receiver"_view;
-  case Type::RangeStartOutOfBounds:
-    return "range start outside the receiver"_view;
-  case Type::RangeSizeOutOfBounds:
-    return "range size outside the receiver"_view;
   case Type::ArithmeticOverflow:
     return "arithmetic overflow"_view;
   case Type::DivisionByZero:

@@ -1,52 +1,47 @@
-# Render Dialect
+# Render
 
-The future `Tetrodotoxin::Render::Dialect` owns authoring for render value state,
-constants, push values, resources, and the Stage Callable contracts that a
-Shader must implement.
+The Render Dialect declares the semantic interface between authored render data
+and Shader implementations. It describes what a render format requires without
+choosing a GPU instruction set, runtime submission system, or platform API.
 
-Environment will install the concrete Dialect under its selected exact name.
-After Environment parses the universal source envelope, Render interpretation
-will consume the remaining Cursor and construct one concrete Render Monograph in
-the Environment Arena.
+```ttx
+dialect : Render;
+```
 
-The Render Monograph owns its definitions, resolution rules, and semantic
-identities. Shader owns SPIR V representation and assembly. Runtime submission
-and Graphics transactions remain separate owners.
+## Render contracts
 
-## Body contract
+A Render contract can declare:
 
-Render grammar must make every render facing role explicit. It defines ordinary
-value Addressables, distinguishes constant data and push values, and retains
-resources with their binding facts. It identifies every required Stage,
-defines each Stage input and result Layout, retains builtin and location
-Attributes, and declares read sets.
+- ordinary value Addressables;
+- constant and push data;
+- resources and their binding Attributes;
+- required Shader Stages;
+- parameter and result Layouts for each Stage;
+- built-in values, locations, sets, slots, and read capabilities.
 
-Attributes are distinct scalar facts. A binding that needs a set and slot uses
-separate Attributes. Structural Layout coincidence does not establish a Shader
-representation or Stage interface.
+Each fact retains its own semantic identity. A resource binding that needs both
+a set and a slot uses two Attributes rather than packing them into one opaque
+record.
 
-## Name conflict
+## Layout and representation
 
-The current design calls this top level Dialect `Render`, while the preserved
-structural fixture
-[`../../validation/data/ttx/shader_artifact/render.ttx`](../../validation/data/ttx/shader_artifact/render.ttx)
-uses `dialect : Gpu;` and constructs a `ShaderFormat`.
+Stage parameters and results use real TTX Layouts. Matching Layout shape is
+necessary for fitting but does not alone establish vector, resource, address
+space, or ABI identity. Render Types and Attributes state the additional
+semantic requirements explicitly.
 
-No Render parser is implemented, so this conflict is deliberately unresolved.
-Implementation must select one canonical name and source contract rather than
-accepting both as compatibility aliases.
+Fields, Types, and Stage Callables use their corresponding access domains:
 
-## Semantic handoff
+- named value Addressables are selected with `.`;
+- nested Types are selected with `::`;
+- Stage Callables are selected and invoked with `->` where the consuming
+  language permits invocation.
 
-A successful Render Dialect will construct complete declarations directly in
-its Monograph. It will not retain Stage token ranges, copy Addressable records,
-or construct target specific field descriptions.
+## Shader relationship
 
-Shader validation consumes the real Render identities after their semantic
-owners are complete. Environment retains the Monograph and its host Dialect but
-does not interpret or mirror Render declarations.
+Render owns the interface. [Shader](../shader/README.md) selects one exact
+Render contract, provides the required Stage bodies, proves their Types and
+Layouts, and lowers the completed result for a GPU target.
 
-## Status
-
-There is no active Render Dialect, Monograph, or parser. The existing fixture
-proves tokenizable historical source shape only.
+Runtime graphics submission is a separate consumer of completed render facts.
+It does not redefine Render grammar or Shader identity.

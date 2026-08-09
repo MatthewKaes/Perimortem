@@ -1,438 +1,361 @@
 # Library
 
-Library owns CPU language semantics and the reusable native CPU compilation
-path. The complete folder builds as `//tetrodotoxin:library`.
+Library is Tetrodotoxin's reusable CPU language. It defines concrete scalar
+Types, values, expressions, functions, Structs, Objects, Enumerations, and
+Generic containers while retaining the shared TTX Type, Layout, Addressable,
+and Callable contracts.
 
-TTX provides the shared Abstract, Type, Value, Layout, Addressable, Callable,
-Attribute, and Documentation contracts. Library adds only the capabilities and
-value domains required by CPU executable languages.
+```ttx
+// A reusable Library source.
+dialect : Library;
 
-## Library language
-
-`Tetrodotoxin::Library::Language` currently declares the following contracts.
-
-1. Expression, Binding, and Projection provide Library value identities.
-   Every authored Expression retains one lexical Anchor containing its full
-   Span and the independent Token a diagnostic should emphasize. A synthetic
-   Expression omits that Anchor.
-2. Operation owns ordered input reachability and Constant evaluation for
-   executable value operations.
-3. Constant provides bytes, flag, real, signed, and unsigned value domains.
-   True and False refine Flag so consumers can select either the shared domain
-   or one exact logical value without decoding its storage.
-4. Generic provides Access, View, and Fixed materializations.
-5. Concrete Bool, signed, unsigned, and real Types provide scalar identities.
-6. Static and Self distinguish Callable invocation.
-7. Structure owns the common Field, Function, visibility, lookup, writability,
-   and inline value Type semantics used by authored `struct` declarations. The
-   current C++ owner remains `Language::Types::Structure` until an explicit
-   naming correction changes that accepted implementation.
-8. Enumeration provides authored integer backed Types whose ordered cases are
-   real Constant and Alias identities.
-9. Object layers exact managed reference identity and lifetime semantics over
-   Structure. It is never named `ManagedObject` and does not introduce a TTX
-   Managed category or a second composite implementation.
-10. `Language::Layouts::Structured` retains source shaped positional, named,
-    or indexed Expression flow as a proper Layout rather than an aggregate
-    Expression or transient Type.
-
-These classes retain and expose real TTX Type, Layout, Addressable, and Callable
-edges. They do not copy those shared contracts into a Library model.
-
-Binding and Projection currently expose synthetic factories for generated
-semantic wrappers only. No production parser constructs an authored Anchor
-of either contract. Future grammar must supply an Anchor from its real source
-facts rather than treating synthetic absence as source provenance.
-
-Expression centralizes those two construction policies with protected
-`create_authored<T>` and `create_synthetic<T>` helpers. Each concrete owner
-still publishes its exact typed factory and supplies the builder that can call
-its private constructor. The shared helper selects the optional Anchor and
-uses `Arena::construct_from` to begin the exact object at its final address, so
-provenance cannot be selected through a public constructor.
-
-Expression owns `fold()` as a cached query over the original source node. Its
-public result is
-`Result<Option<Expression&>, Expression::Error>`. A successful projection is
-the direct identity of the selected Constant Expression, while Error carries
-its category and exact failing Expression identity. The cache stores only a
-settled Constant identity or exact Error without replacing the Expression, its
-source facts, or any child edge. Its null state represents either an unread
-query or dynamic absence, so missing Type information and a dynamic result
-remain retryable.
-
-Operation retains immutable Expression inputs in authored order. It queries
-only reached children and propagates a reached child's exact Error unchanged.
-Every input is reachable by default. A concrete operation may decide whether
-the next edge is reachable only after all earlier reached inputs fold. An
-earlier dynamic input keeps later inputs reachable because no concrete decision
-exists yet. The concrete owner evaluates only after every reached input supplies
-a Constant and must preserve the operation's exact linked result Type.
-Interpretation performs no fold query and no parser callback replaces a node.
-Function finalization may populate each root cache, but an optional fold failure
-does not report a diagnostic or reject an otherwise complete Function.
-
-Generic is Library language semantics rather than a universal TTX category.
-It owns an immutable formula contract and its inseparable parameter and
-argument vocabulary. The independent Materializations transaction owns the
-declared construction state for concrete Access, View, and Fixed Type shapes.
-It validates canonical formulas and ordered semantic arguments, retains only
-successful exact keys, and rejects nested cycles without giving formulas a
-mutable cache.
-
-Static identifies a Callable selected without a receiver. Self identifies a
-Callable selected through an addressable value and reserves parameter zero for
-that receiver. Those invocation distinctions are not required by Package,
-Render, or every other TTX host.
-
-The concrete scalar Types live here because their names and native
-representations are Library language policy. TTX retains only the common Value,
-Flag, Real, Signed, and Unsigned domain contracts.
-
-`Language::Function` is the concrete Library defined Static Callable. Its
-Arena stable identity is reserved from the authored visibility, `func`, and
-name prefix. Interpretation enriches that same identity with the complete
-Function Span, retained signature source facts, and an authored order View of
-Expression roots. The current body grammar accepts comments, `Expression;`
-roots, and one optional final `return Expression?;`. Blocks, control flow, and
-other statement forms remain unsupported rather than being retained as opaque
-tokens. Until semantic linking succeeds the Function resolves to shared TTX
-Invalid. A Function retains its source Monograph for source lifetime,
-diagnostics, and completion separately from its exact host Type. A root
-Function is hosted by the Monograph's synthetic source Structure, while a
-member Function is hosted by the exact Structure that declares it.
-
-`Language::Signature` owns the complete authored parameter and result grammar.
-Its private slots retain exact Type routes, entry and Type Anchors, and optional
-authored names without demanding that the Types already exist. Signature
-linking resolves those routes, constructs real Parameter Addressables and TTX
-Layout projections, and publishes every Function signature before Monograph
-body linking begins.
-
-`Language::Field` owns one authored member shared by Library composite Type
-systems. It retains exposure, Documentation, exact Type spelling, Anchors, and
-one of the Library owned `Full`, `Internal`, or `Init` writability states until
-linking can construct the real Field Addressable with one exact Type.
-Exposure independently decides whether external lookup can read the Field.
-Writability decides whether mutable access is available to every caller that
-can reach it, only Functions hosted by its Structure, or only the construction
-transaction for the exact value. `Language::Types::Structure` retains Fields in
-authored order from `public|private TypeName : struct { ... }`, and its TTX
-Structured Layout borrows those same Field identities without copying member
-facts. Interpretation parses one transaction-local structured definition
-header, uses its `struct` or `object` discriminator to reserve the exact final
-Type identity, and then applies common member grammar against that identity.
-The Dialect only classifies the declaration family without consuming it.
-Supported nested Callable grammar retains the existing Function objects without
-copying Signature, body, Static, or Callable policy. Each Structure keeps one
-complete member inventory. External lookup sees only exposed members, while a
-Function hosted by that exact Structure receives the complete view. Private
-Structures remain local, and finalization rejects exposed fields or Callable
-signatures that expose a private local Structure Type.
-
-`Language::Types::Enumeration` owns one authored
-`public|private TypeName : enum[IntegerType] { ... }` Type. Interpretation
-reserves its stable identity and retains the exact storage route, case
-spellings, Documentation, and Anchors without constructing a second case
-model. Linking selects one exact Signed or Unsigned Type and exposes that
-Type's real Layout. Finalization validates every explicit integer before
-constructing storage typed Constants and ordered TTX Aliases. Case lookup stays
-unavailable until the complete inventory succeeds, while equal values under
-different names remain distinct Alias and Constant identities.
-
-`Language::Types::Object` derives its Field, Function, Layout, visibility,
-lookup, and writability semantics from Structure and adds no duplicate member
-inventory. Object values are nonnull reference identities, and copying a value
-preserves that identity so aliases observe the same mutations. Object adds
-Library lifetime semantics without target offsets, pointer representation,
-allocator policy, or collector state. V1 has no finalizer, weak reference,
-explicit release, or observable reclamation order. Runtime allocation and
-reclamation remain compiler and runtime policy.
-
-`Language::Layouts::Structured` retains one complete positional, named, or
-indexed Expression flow and stores the corresponding real TTX Layout. The
-three source modes never mix. A declaration, return, invocation, construction,
-or another receiving owner fits that Layout directly against its expected
-Layout after the retained Expressions link. No anonymous Type, transient Type,
-or `Language::Composite` Expression stands between those Layouts. Projection
-selects one real Addressable, while packing, slicing, and swizzling remain
-Layout operations.
-
-Object construction requires one exact receiving Object Type. State
-initializers run in authored order and no value is published until they all
-succeed. `state session : Session = new` is valid while `state inferred := new`
-is rejected before constructing an Expression. The later Construction owner
-handles `new`; Object declaration owns neither runtime allocation nor the
-Construction Expression.
-
-`Language::Import` owns one complete `using Package::Route;` statement. It
-retains the exact contiguous Type shaped Package local route, triggering
-`using` Token, and complete statement Span. Package remains the owner of that
-route's lookup grammar and semantic edge.
-
-An Embedded operand gives its complete `$[...]` Token spelling to the exact
-source Package context. Library never opens or retains Package Storage. A
-resolved `Tetrodotoxin::Language::Resource` supplies only stable bytes;
-`Language::Parser::Literal` constructs its own concrete
-`Language::Constants::Bytes` by borrowing the complete value and infers
-`Fixed[Unsigned_8, byte count]`. The Literal domain must not outlive the
-Resource dependency domain. Ordinary Package interpretation places both in the
-same Workspace Arena, so the complete base needs no second byte allocation.
-Scalar spellings construct the canonical binary wide Library Type for their
-domain. Literal accepts no expected Type; the complete Expression supplies its
-resulting Type to the receiving owner. A resolved
-`Tetrodotoxin::Language::Error` contributes its owner-specific failure context
-while Library supplies the current Token Span to the textual Report. Invalid or
-another Abstract category remains an ordinary expression mismatch. Contextual
-resolution has already completed Package acquisition before Literal receives
-the Resource, so Literal-local slicing could not avoid the Storage read.
-
-`Language::Operations::Slice` owns the semantic `:[index]` and
-`:[start, size]` operation shared by Embedded, quoted Bytes, hexadecimal Bytes,
-and later ranged expressions. It retains only the two or three authored
-Expression edges. Fixed, View, and Access receivers supply their retained
-element Type directly after linking. Indexing yields that exact element. A
-directly authored Constant size selects canonical Fixed element and count
-identity during linking even while another input is dynamic. A dynamic size
-yields canonical View unless the receiver already proves writable contiguous
-Access. An Operation size that folds later retains that already linked View or
-Access result Type. Slice never manufactures write capability from Fixed, View,
-Bytes, or Constant identity.
-
-Slice retains the authored selection request and its value result identity, but
-its pending Layout boundary audit must prove that range selection and fitting
-remain operations on real Layouts. A material conflict corrects Slice rather
-than introducing an anonymous or transient aggregate Type. Swizzle is not a
-parallel Operation Expression; it selects ordered
-`Language::Layouts::Structured` flow.
-
-Bytes is the current Constant ranged payload domain. Fully Constant Bytes index
-and range operations evaluate to canonical Unsigned_8 or exact Fixed Bytes
-Constants, including empty and chained ranges. Other legal ranged operations
-remain Slice identities rather than implying a universal Constant payload
-interface.
-
-`Language::Parser::Expression` constructs one complete source shaped tree. Its
-primary grammar admits Literal and Identifier primaries, then selects prefix,
-postfix, multiplicative, subtraction, comparison, and equality operations in
-the preserved acceptance precedence. Each concrete parser callback consumes
-only its owned grammar and constructs one Operation with immutable child
-identities. No callback links Types, folds a child, reports an
-`Expression::Error`, or replaces the authored tree.
-
-Slice binds before Multiply. Multiply owns binary Signed, Unsigned, and Real
-legality and checked integer and IEEE Constant evaluation. Divide and Modulo
-share that multiplicative precedence. Divide owns selected Type quotient
-evaluation and integer zero handling. Modulo accepts only exact Signed or
-Unsigned Types and owns remainder sign, zero, selected width, and signed
-endpoint failures. Their semantic legality is established during linking and
-their Constant behavior is queried through Expression folding.
-
-The multiplicative level binds before Subtract. Subtract owns only binary
-subtraction grammar, locked scalar Type selection, selected width overflow and
-underflow checks, IEEE Real evaluation, diagnostics, and folding. Literal
-remains the owner of a leading negative numeric spelling. Negate owns general
-prefix unary `-` for an exact Signed or Real Type. It rejects Unsigned, checks
-the selected Signed minimum, and folds complete IEEE Real values while a legal
-dynamic operand retains one Negate operation. Slice binds before Negate, and
-Negate binds before the multiplicative level.
-
-Not owns prefix unary `!` at that same prefix level. It accepts only the exact
-canonical Bool Type. Complete True and False inputs fold to the canonical
-opposite Constant, while a legal incomplete Bool retains one Not operation.
-Not performs no truthiness conversion or bitwise interpretation.
-
-Subtract binds before the comparison level. Less owns `<` grammar, Greater owns
-`>` grammar, LessEqual owns `<=` grammar, and GreaterEqual owns `>=` grammar.
-Each owns locked scalar operand Type selection, canonical Bool result identity,
-ordered IEEE comparison, diagnostics, and True or False folding. A following
-comparison receives that Bool like any other left operand, so ordinary Type
-legality rejects comparison chaining.
-
-Equal owns `==` below the ordered comparison level. Exact identical resolved
-Signed, Unsigned, Real, or Flag Types admit scalar equality, while complete
-Bytes Constants admit their existing exact Type and payload equality. Each
-Constant domain owns its payload comparison, including Real NaN equivalence,
-so Equal introduces no tagged value or fitting exception. Complete inputs fold
-to canonical Bool. A legal dynamic scalar comparison retains its two real
-Expression edges.
-
-NotEqual owns `!=` at the same equality level and accepts exactly Equal's
-domains. It delegates the inverse comparison to those Constant domains, so the
-NaN, signed zero, and Bytes rules remain one semantic value contract. Complete
-inputs fold to canonical Bool while legal dynamic scalar operands retain
-NotEqual.
-
-Multiply, Divide, Subtract, Less, Greater, LessEqual, and GreaterEqual require
-both operands to resolve to the same Signed, Unsigned, or Real Type identity.
-Modulo applies the same exact Type rule to Signed and Unsigned only. Constants
-keep their declared Type and receive no implicit widening, narrowing, fitting,
-or retagging inside these operations. Scalar literals currently use their
-canonical binary wide Type, so a narrower receiving owner must construct an
-explicitly typed Constant before forming one of these operations.
-Signed and Unsigned operations reject host arithmetic overflow first, then use
-`Core::Math::is_representable` to prove the result fits the selected byte width.
-Concrete operations do not reproduce that representation arithmetic locally.
-
-Grammar failure remains a parser diagnostic over the exact authored Tokens.
-Semantic Type failure is published during linking over the complete operation
-Span. An `Expression::Error` remains an exact cached query result and creates no
-textual report until a later owner requires a Constant. That owner can use the
-retained Span of the failing Expression. A receiving declaration, assignment,
-invocation, or other typed operation applies fitting only after the complete
-Expression has linked its result Type. Later operations plus Projection remain
-outside the current parser.
-
-Resource route, Storage, and Package diagnostics do not enter the Library
-graph. An unsliced base Constant owns its complete value, and a Slice fold does
-not erase that Constant or any authored edge. A future durable consumer may
-choose the cached reachable projection without compiling away the source shaped
-graph. No Library payload encoder or restorer currently makes that choice.
-
-## Library Dialect and Monograph
-
-The top level Library Dialect installs into `Environment::Workspace` through the
-common `Language::Dialect` interface. Each Workspace owns a distinct stateful
-Dialect while Bool, integer, real, and Void remain immutable binary wide
-identities. Hosted Library semantics resolve those identities through the
-synthetic source Structure's complete view without publishing them through the
-Monograph's external view. Typed static Dialect accessors expose their universal
-addresses to Library machinery and package consumers that require exact
-identity while authored name lookup retains its packed intrinsic table.
-
-Each concrete Library Monograph owns one stable synthetic Structure for its
-source scope. That Structure owns the top level declaration inventory and
-admits only Static bindings. It has no Self receiver or instance Fields, so its
-empty instance Layout remains complete. The reserved Library route `source`
-returns that exact Structure, while every other Monograph resolution request is
-forwarded through its external lookup. `source` has no Dialect agnostic meaning
-and does not change the common Monograph contract.
-
-Function context lookup checks linked Parameter Addressables before the exact
-host Structure. The host supplies its complete lookup only to a Function it
-owns; every other caller receives its external view. The synthetic source
-Structure's complete lookup checks local and imported Static bindings,
-delegates to the source interpretation context for Package or Workspace names,
-and finally asks the installed Library Dialect for intrinsic Types. Its
-external lookup returns only exposed source bindings. An authored Structure may
-continue an unresolved lookup through that source scope without making the
-Monograph a Type. Enumeration storage links before Structure fields and
-Function signatures, so either consumer may name a complete local Enumeration
-without depending on declaration order. Structure fields then link before
-Object state initializers and Function signatures. Incomplete declarations
-already occupy their final Arena addresses and Static binding names, so later
-completion enriches those exact identities and collisions fail before either
-lookup view changes.
-
-Each Monograph also borrows the exact source local interpretation context and
-retains authored Imports in order. Its `link()` transaction requires that
-context and each selected target to resolve to real Package Monographs. Import
-expansion traverses only the target Package's ordered direct member Alias view,
-queries each member's Library specific `source` route, and accepts only the
-exact synthetic Structure of a direct Library Monograph. It consumes only that
-Structure's exposed Static bindings. Dependency Aliases, nested Packages, other
-Dialect members, private bindings, and bindings that a provider imported remain
-excluded.
-
-The complete candidate sequence is staged before lookup changes. Duplicate
-Imports, unresolved targets, incomplete provider identities, and exact local or
-imported collisions reject with no imported entry installed. Successful
-imports create local TTX Alias bindings that retain the exact exposed provider
-Static identities. Those Aliases enter only the importing source Structure's
-complete lookup, so imports cannot become transitive exports.
-
-Interpretation admits ordinary public and private Function definitions. It
-constructs real TTX and Library Language identities in the Environment Arena.
-Functions retain complete source extents, one Signature source owner, and
-authored Expression roots. Imports retain their own triggering Tokens and
-complete Spans. Each authored Identifier, Literal, and Operation retains one
-Anchor containing its focus Token and full Span, while synthetic Expressions
-omit it. None of these facts is a Cursor bookmark, replay model, or cloned
-semantic graph. Unsupported declarations and malformed, incomplete, bodyless,
-duplicate, or trailing syntax reject the complete interpretation transaction.
-
-The current Function body representation is deliberately narrow. Comments,
-ordinary Expression statements, and one optional final return are retained.
-Nested blocks, `if`, `for`, and other control flow still lack an executable Body
-contract and remain grammar errors. The retained roots are enough for source
-queries, linking, and optional fold caching without pretending that control
-flow or lowering exists.
-
-The intended first application pressure target is
-[`../../apps/ttx/echo`](../../apps/ttx/echo/). Its remaining Library pressure
-requires inferred byte Constants, dynamic terminal byte input and output, byte
-comparison and concatenation, loop and conditional Bodies, and one Static
-Callable selected by App. These requirements belong to later Library and App
-slices. The fixture's remaining syntax contradictions must be settled before it
-becomes an acceptance oracle.
-
-## Shared CPU compilation
-
-Library compilation may consume completed CPU executable facts retained by
-Library, App, or Scene Monographs:
-
-```text
-Library Callables -> Library compiler
-Scene lifecycle and helper Callables -> Library compiler
-App entry and lifecycle driver facts -> Library compiler
-Library compiler -> Linker input
+public func twice[.value : Unsigned_64] -> Unsigned_64 {
+  return value * 2;
+}
 ```
 
-App and Scene remain their own semantic owners. Library does not convert them
-into Library source, reopen their Tokens, or clone their Type graph.
+## Names and access
 
-Compilation owns CPU target and ABI planning. It derives sizes, alignments,
-offsets, and carriers, makes calling convention and register allocation
-decisions, lowers completed executable facts, emits native instructions and
-relocations, and diagnoses target decisions.
+Library uses punctuation to select separate semantic domains:
 
-It does not own package acquisition, Environment lifetime, App or Scene policy,
-Shader lowering, final object encoding, or archive assembly.
+| Syntax                               | Meaning                                                       |
+| ------------------------------------ | ------------------------------------------------------------- |
+| `value.name`                         | select one Addressable from an applicable named Layout        |
+| `context::Type`                      | traverse a Type-shaped route through an Abstract context      |
+| `receiver -> callable(arguments...)` | select and invoke one Callable                                |
+| `value.[names...]`                   | select and reorder named Layout entries                       |
+| `access[index]`                      | try indexed reference access and return an optional reference |
+| `value:[index]`                      | return an element value or its default                        |
+| `value:[start, count]`               | return a safe read-only ranged value                          |
 
-The accepted native output of compilation is one or more
-`Linker::Object::Module` values. Each Module owns a coherent set of sections,
-symbols, and relocations. The compiler does not place semantic facts or source
-identity in that native terminal.
+These domains never fall through to one another. A Field, Callable, and nested
+Type may share a spelling because the operator already states which category is
+being requested.
 
-## Assembler and Linker boundary
+### Address access
 
-The active `Library::Assembler::x86_64` encodes source independent instruction
-decisions. Its tests cover instruction bytes and relocation slot shape.
+`.` selects a real TTX Addressable from any applicable named Layout. It is not
+limited to Struct or Object declarations; a named value flow may expose the same
+kind of entry.
 
-The assembler does not decide Type identity, aggregate shape, calling
-convention, lifecycle policy, or publication. A future compiler supplies those
-decisions.
+```ttx
+packet.width
+self.progress
+foreign.external_counter
+```
 
-Linker owns source independent objects, symbols, relocations, ELF encoding, and
-native archive construction. Library produces Linker input but does not absorb
-that terminal artifact owner.
+The selected Addressable identifies one semantic address and its Type. A
+compiler may realize it as a stack location, an offset from an inline Struct,
+an offset from an Object reference, or a folded value. Those choices do not
+change the source-level selection.
 
-## Source free payload
+Hosting grants access authority, not an implicit receiver. A hosted Function
+still writes `self.field` or selects the Field through another explicit value;
+a Static Function cannot read a host Field as a bare identifier.
 
-Library owns the opaque payload needed to restore its durable declarations,
-Types, values, Callables, Bodies, publication facts, and native symbol locators.
-It implements the shared Language persistence dispatch without introducing a
-second restored model.
+### Type access
 
-Package owns Archive framing and never learns the Library schema. A fresh
-Workspace asks the installed Library Dialect to restore real Library and TTX
-identities into its Arena. A restored fact may omit its Anchor when no
-authored source exists, but authored graphs retain those source facts for
-their complete Workspace lifetime. Cursors, process addresses, transient fold
-caches, and machine code are excluded from the durable payload.
+`::` follows contextual Type resolution:
 
-No Library payload encoder or restorer exists in the current target.
+```ttx
+Graphics::Image
+System::Terminal
+Scene::Flow
+```
 
-## Current boundary
+Alias, Package, Monograph, Library source, and Type objects may all serve as
+intermediate contexts. Only the result used in a Type position must prove Type;
+the chain does not manufacture Type-valued Expressions for its intermediate
+steps.
 
-The current Library target contains the installed Dialect, declaration
-Monograph, binary wide scalar and Void Types, authored Enumeration Types with
-integer Constant and Alias cases, authored Structure Types and fields, authored
-Object Types layered over Structure with ordered state initializers, Function
-signature construction, source shaped Function Expression roots, reusable
-Layout grammar, exact authored Package imports, separate linking and
-finalization, nondestructive cached folding, and the x86_64 assembler.
+### Callable access
 
-It does not yet contain control flow Body ownership, required Constant
-validation, CPU target planning, semantic lowering, or App and Scene
-integration.
+`->` is the Callable access and invocation operator:
+
+```ttx
+Packet -> create(width, height)
+packet -> resize(width, height)
+System::Terminal -> write_line(message)
+```
+
+A Callable is not an Addressable and never appears in a value Layout. Argument
+and result compatibility are established through their real TTX Layouts.
+
+## Layouts and value flow
+
+A Layout describes the ordered values supplied or required by an expression,
+declaration, Function, or Type. Library reuses TTX Layouts directly.
+
+Function parameters and results may be positional or named:
+
+```ttx
+public func pair[Unsigned_64, Bool] -> [Unsigned_64, Bool]
+
+public func classify[.value : Unsigned_64] -> [
+  .accepted : Bool,
+  .adjusted : Unsigned_64,
+] {
+  return (.accepted = value > 0, .adjusted = value + 1);
+}
+```
+
+The leading `.accepted` and `.adjusted` spellings name Layout entries. They are
+not postfix Address access because they have no receiver. A named value retains
+its underlying expression and participates in fitting through that expression's
+Type.
+
+Receiving owners fit source Layouts directionally against the Layout they
+require. Producing several values creates value flow, not an anonymous aggregate
+Type.
+
+Swizzle selects and reorders named entries:
+
+```ttx
+state dimensions : Fixed[Unsigned_64, 2] = packet.[width, height];
+```
+
+Plain brackets are reference access on `Access[T]`. They never substitute a
+default address:
+
+```ttx
+access[index]                 // optional element reference
+```
+
+Colon bracket value access selects values. A missing element yields its Type
+default. A ranged selection with a start outside the receiver yields the
+default empty View, while a count beyond the remaining values stops at the
+receiver boundary. Neither form preserves writable `Access` in its result:
+
+```ttx
+bytes:[4]
+bytes:[4, 16]
+```
+
+The operands must still have integer Types. A value that cannot represent a
+valid index or extent selects the same safe default; another operand Type is a
+semantic error.
+
+## Built-in Types
+
+Library provides these scalar families:
+
+- `Bool`
+- `Signed_8`, `Signed_16`, `Signed_32`, and `Signed_64`
+- `Unsigned_8`, `Unsigned_16`, `Unsigned_32`, and `Unsigned_64`
+- `Real_32` and `Real_64`
+- `Void`
+
+Scalar operations require the exact resolved Type identity expected by that
+operation. Library does not silently widen, narrow, retag, or reinterpret a
+Constant to make an operation legal.
+
+Generic Types describe contiguous element flow:
+
+```ttx
+Fixed[Unsigned_8, 64]
+View[Unsigned_8]
+Access[Unsigned_8]
+```
+
+`Fixed` has a compile-time element count. `View` is a borrowed contiguous view.
+`Access` additionally carries the language's writable contiguous capability.
+Materializing the same Generic with the same semantic arguments returns the
+same Type identity.
+
+## Source Structure
+
+Each Library Monograph owns one synthetic `source` Structure with an empty
+instance Layout. Top-level declarations enter its Static surface; instance
+Fields cannot. The exact `source` route returns that Structure, while ordinary
+Monograph lookup forwards only its externally visible Static entries.
+
+The Structure retains the exact Documentation that opens the Library source.
+A Package member Alias can therefore route through `source` to one documented
+root Type without copying the prose or becoming a Type itself.
+
+A root Function is hosted by the source Structure but still retains its
+Monograph as the source of diagnostics and imports. Hosting and source identity
+are separate edges.
+
+## Fields
+
+A Field is a TTX Addressable owned by one Struct or Object. Its visibility and
+writability are independent.
+
+```ttx
+public width : Unsigned_64 = 0;
+private checksum : Unsigned_64 = 0;
+public const signature : Unsigned_64 = 1;
+private state updates : Unsigned_64 = 0;
+expose state progress : Unsigned_64 = 0;
+```
+
+Visibility controls selection:
+
+- `private` is visible only to code hosted by the containing Type.
+- `public` is visible outside the containing Type.
+- `expose state` makes state readable externally while retaining internal write
+  authority.
+
+Writability has three states:
+
+- an ordinary Field is fully writable by callers that can select it;
+- `state` is writable only by code hosted by the containing Type;
+- `const` is writable only during initialization.
+
+Every view exposes the same Field identity. Visibility does not create a public
+copy, and writability does not change the underlying TTX Addressable.
+
+## Structs
+
+`struct` declares an inline value Type:
+
+```ttx
+public Packet : struct {
+  public width : Unsigned_64 = 0;
+  public height : Unsigned_64 = 0;
+  private checksum : Unsigned_64 = 0;
+
+  public func area[self] -> Unsigned_64 {
+    return self.width * self.height;
+  }
+}
+```
+
+The Struct's instance Layout is a named Layout over its real Fields in authored
+order. Copying a Struct value copies its inline value semantics. Target offsets
+and padding are derived later by the compiler.
+
+The containing Type supplies complete access to its hosted Functions and an
+external view to other callers. Nested Types, Callables, and Fields remain
+separate query domains.
+
+## Objects
+
+`object` uses the same declaration and access model as `struct` while changing
+value identity and lifetime:
+
+```ttx
+public Session : object {
+  expose state progress : Unsigned_64 = 0;
+  private state token : Unsigned_64 = 7;
+
+  public func advance[self, .amount : Unsigned_64] -> Unsigned_64 {
+    self.progress = self.progress + amount;
+    return self.progress;
+  }
+}
+```
+
+An Object value is a nonnull managed reference identity. Assignment, parameter
+passing, and return preserve that identity, so aliases observe the same
+mutations. Object reuses Struct Fields, Functions, Layouts, visibility, and
+writability rather than defining a parallel member model.
+
+Library owns the lifetime semantics. Allocation strategy, pointer shape,
+collector policy, and reclamation timing belong to the compiler and runtime.
+Version 1 exposes no finalizer, weak reference, explicit release, or observable
+reclamation order.
+
+## Enumerations
+
+An Enumeration selects an exact signed or unsigned storage Type and declares
+named integer cases:
+
+```ttx
+public Mode : enum[Unsigned_8] {
+  Idle = 0,
+  Running = 1,
+  Stopped = 2,
+}
+```
+
+Each case has its own Alias and Constant identity. Two case names may carry the
+same integer value without becoming the same semantic identity.
+
+## Functions and invocation roles
+
+A Function declares parameter and result Layouts followed by a body:
+
+```ttx
+public func add[
+  .left : Unsigned_64,
+  .right : Unsigned_64,
+] -> Unsigned_64 {
+  return left + right;
+}
+```
+
+A Function without `self` is Static. Static means there is no implicit Self
+value; source still selects it through a Type or source context:
+
+```ttx
+Math -> add(2, 3)
+```
+
+A Function whose parameter entry zero is the reserved `self` Addressable is
+Self. That entry has the selected receiver's exact Type, and every following
+parameter is named. The Function is selected through an addressable value:
+
+```ttx
+packet -> area()
+```
+
+Static and Self Callables may share a name because their receiver roles and
+signatures distinguish the invocation. Both remain Callables reached only
+through `->`; the real parameter Layout carries the role without a second
+Callable category.
+
+## Expressions and Constants
+
+Library expressions retain authored value dependencies and resolve one result
+Type. Constants cover Bytes, Bool, signed integers, unsigned integers, and real
+values.
+
+Arithmetic and comparison operate on exact compatible scalar Types. `and` and
+`or` preserve short-circuit reachability. Unary `!` accepts Bool; unary `-`
+accepts signed integer and real domains. Integer overflow and division by zero
+are semantic failures in their owning operation. Safe `:[` selection
+uses a default value instead of publishing a bounds failure.
+
+Constant evaluation is ***nondestructive***. A compiler may fold a complete
+expression, address selection, or indexed byte value, but the authored graph
+and its real edges remain available to tools.
+
+## Imports and resources
+
+`using` imports the exposed Static surface selected through a Package context:
+
+```ttx
+using Core;
+using Graphics::Utilities;
+```
+
+The route follows ordinary `::` contextual access. Package supplies its real
+member contexts; Library imports eligible public declarations without creating
+a second Package path model.
+
+An embedded operand asks the exact source Package for retained bytes:
+
+```ttx
+public const signature : Fixed[Unsigned_8, 4] = 0x[54 54 58 31];
+public const table := $[resources/table.bin];
+public const header := $[resources/table.bin]:[0, 64];
+```
+
+Library interprets a successful Resource as a Bytes Constant. Package retains
+path confinement and acquisition policy; Library never opens Package storage
+directly.
+
+## Compilation boundary
+
+Library lowering consumes completed CPU facts owned by Library, App, or Scene.
+It derives target Layouts, calling convention carriers, registers, instructions,
+and relocations without changing their semantic identities.
+
+Linker owns object modules and final native products. Package Archive owns
+durable semantic payloads. Runtime allocation and execution remain separate
+from both.
+
+See [TTX semantics](../../ttx/ttx_semantics.md) for the shared contracts and
+[Package](../package/README.md) for `using` and resource contexts.

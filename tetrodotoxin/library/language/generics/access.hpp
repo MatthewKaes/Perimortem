@@ -19,7 +19,7 @@ class Access : public Generic {
  public:
   static constexpr Perimortem::Core::View::Bytes name = "Access"_view;
 
-  // Separate parser stages materialize one Fixed family. Sharing this formula
+  // Separate parser stages materialize one Access family. Sharing this formula
   // identity keeps equal arguments on one Materializations key.
   static auto get_formula() -> const Access& {
     static constexpr Access formula;

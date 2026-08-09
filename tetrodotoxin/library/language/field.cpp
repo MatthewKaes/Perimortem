@@ -14,11 +14,6 @@ using namespace Ttx::Lexical;
 using namespace Ttx::Model;
 using namespace Tetrodotoxin::Library;
 
-struct ParsedType {
-  View::Bytes route;
-  Anchor anchor;
-};
-
 struct ParsedPolicy {
   Language::Field::Exposure exposure;
   Language::Field::Writability writability;
@@ -71,56 +66,6 @@ static auto parse_policy(Cursor& cursor) -> Option<ParsedPolicy> {
   };
 }
 
-static auto parse_type(Cursor& cursor) -> Option<ParsedType> {
-  Token first = cursor.require(
-      Code::Type::Type, "Library Fields require a Type name."_view);
-  if (!first) {
-    return {};
-  }
-
-  // Field retains the complete spelling because the hosting Structure owns
-  // route grammar. Only the selected exact Type enters the Addressable edge.
-  Token last = first;
-  while (cursor.matches(Code::Type::TypeAccessOp)) {
-    Token separator = cursor.current();
-    Count previous_end = Count(last.get_offset()) + Count(last.get_size());
-    if (separator.get_offset() != previous_end) {
-      cursor.create_expression_error(
-          Span(first, separator),
-          "Qualified Field Types cannot contain whitespace around `::`."_view);
-      return {};
-    }
-
-    cursor.consume();
-    Token segment = cursor.require(
-        Code::Type::Type,
-        "Qualified Field Types require a Type after `::`."_view);
-    if (!segment) {
-      return {};
-    }
-
-    Count separator_end =
-        Count(separator.get_offset()) + Count(separator.get_size());
-    if (segment.get_offset() != separator_end) {
-      cursor.create_expression_error(
-          Span(first, segment),
-          "Qualified Field Types cannot contain whitespace around `::`."_view);
-      return {};
-    }
-
-    last = segment;
-  }
-
-  Count route_start = first.get_offset();
-  Count route_end = Count(last.get_offset()) + Count(last.get_size());
-  View::Bytes route =
-      cursor.get_source_text().slice(route_start, route_end - route_start);
-  return ParsedType{
-    .route = route,
-    .anchor = Anchor::create(first, Span(first, last)),
-  };
-}
-
 auto Language::Field::interpret(
     Allocator::Arena& domain,
     Materializations& materializations,
@@ -146,7 +91,7 @@ auto Language::Field::interpret(
     return {};
   }
 
-  auto type = parse_type(transaction);
+  auto type = Access::Type::parse(transaction);
   if (!type) {
     return {};
   }
@@ -174,9 +119,8 @@ auto Language::Field::interpret(
 
   View::Bytes name = name_token.caculate_text(transaction.get_source_text());
   Source field(
-      name, type->route, documentation, policy->exposure, policy->writability,
-      Anchor::create(name_token, Span(opening, terminator)), type->anchor,
-      initializer);
+      name, *type, documentation, policy->exposure, policy->writability,
+      Anchor::create(name_token, Span(opening, terminator)), initializer);
   cursor.join(transaction);
   return field;
 }

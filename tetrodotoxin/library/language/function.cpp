@@ -230,7 +230,7 @@ auto Language::Function::link_signature() -> Bool {
     return False;
   }
 
-  return signature->link(source, *this);
+  return signature->link(source, *this, host);
 }
 
 auto Language::Function::link_body() -> Bool {
@@ -267,7 +267,7 @@ auto Language::Function::finalize() -> Bool {
     return False;
   }
 
-  // Optional folding records a projection for later consumers. A dynamic
+  // Optional folding records a cached Constant for later consumers. A dynamic
   // result or failure remains queryable but cannot turn an otherwise complete
   // Function into a semantic failure without a Constant requirement.
   View::Vector<Reference<Expression>> body = expressions;

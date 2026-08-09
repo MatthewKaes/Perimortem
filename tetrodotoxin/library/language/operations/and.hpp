@@ -57,8 +57,8 @@ class And : public Operation {
       -> Perimortem::Utility::Result<
           Perimortem::Utility::Option<Constant&>,
           Expression::Error> override;
-  auto reaches_next_input(Count folded_input, const Expression& projection)
-      const -> Bool override;
+  auto reaches_next_input(Count folded_input, const Expression& folded) const
+      -> Bool override;
   auto select_type(Materializations& materializations) const
       -> Perimortem::Utility::Option<const Ttx::Model::Type&> override;
 

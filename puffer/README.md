@@ -1,42 +1,43 @@
 # Puffer
 
-Puffer is a command-line and language-server application for Tetrodotoxin. It
-owns process startup, protocol transport, editor document sessions, request
-selection, and presentation of Tetrodotoxin results.
+Puffer is the command-line and language-server application for Tetrodotoxin. It
+connects editor or terminal requests to the reusable Tetrodotoxin libraries and
+presents their results.
 
-Reusable language and package behavior remains in the Tetrodotoxin library.
-Puffer does not own source loading, filesystem confinement, package resolution,
-repositories, workspaces, package construction, semantic materialization,
-compilation, linking, or archival.
+## Language server
 
-## Application boundary
+Run Puffer over a local socket:
 
 ```text
-command line or editor request
--> Puffer process and session state
--> Tetrodotoxin package and language APIs
--> Tetrodotoxin diagnostics or completed products
--> Puffer protocol or terminal presentation
+puffer --pipe=<socket-path>
 ```
 
-Puffer may retain unsaved editor bytes and protocol identifiers because those
-facts belong to an editor session. It passes the selected input to
-Tetrodotoxin, but it does not reinterpret Token streams, assemble an
-Environment, search a repository, or create a second Package model.
+The language server supports:
 
-The dependency direction is one way: Puffer depends on Tetrodotoxin.
-Tetrodotoxin never borrows a Puffer capability and never names a Puffer type in
-a reusable library contract.
+- initialization using UTF-16 document positions;
+- opening, replacing, and closing complete document text;
+- full-document semantic tokens for TTX lexical categories;
+- clean shutdown and exit handling.
 
-## Active application surface
+The [Tetrodotoxin TTX extension](../extension/README.md) packages and launches
+this server for `.ttx` documents.
 
-The application targets are:
+## Application role
+
+Puffer owns the process and editor-facing parts of a request:
 
 ```text
-//puffer:lsp
-//puffer:puffer
+editor or command-line request
+-> Puffer session
+-> Tetrodotoxin language and package APIs
+-> diagnostics or completed products
+-> editor or terminal response
 ```
 
-Target existence establishes only that the application surface builds. It does
-not prove Package construction, semantic evaluation, terminal production, or
-source-free restoration.
+Open editor documents may contain unsaved bytes, so Puffer retains their text
+and protocol identity for the session. Reusable source interpretation, Package
+resolution, Workspace lifetime, compilation, linking, and Archive behavior stay
+in Tetrodotoxin and can be used by another application.
+
+See [Tetrodotoxin](../tetrodotoxin/README.md) for the host architecture and
+[TTX](../ttx/README.md) for the lexical and semantic vocabulary.

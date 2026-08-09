@@ -144,12 +144,12 @@ auto Language::Operations::And::select_type(Materializations&) const
 
 auto Language::Operations::And::reaches_next_input(
     Count folded_input,
-    const Expression& projection) const -> Bool {
+    const Expression& folded) const -> Bool {
   if (folded_input != 0) {
     return True;
   }
 
-  auto left = projection.visit<Constants::Flag>(
+  auto left = folded.visit<Constants::Flag>(
       [](const Constants::Flag& selected)
           -> Utility::Option<const Constants::Flag&> { return selected; },
       [](const Abstract&) -> Utility::Option<const Constants::Flag&> {
@@ -170,7 +170,7 @@ auto Language::Operations::And::evaluate_constants(
   }
 
   // False closes conjunction before the right edge matters. True reaches the
-  // right projection and keeps any failure attached to that authored input.
+  // right input and keeps any failure attached to that authored Expression.
   auto left_value = select_flag(*left);
   if (!left_value) {
     return Expression::Error(

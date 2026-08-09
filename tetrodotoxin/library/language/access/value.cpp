@@ -1,16 +1,13 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
-#include "tetrodotoxin/library/language/operations/slice.hpp"
+#include "tetrodotoxin/library/language/access/value.hpp"
 
 #include "perimortem/core/static/vector.hpp"
 
-#include "tetrodotoxin/library/dialect.hpp"
 #include "tetrodotoxin/library/language/constants/bytes.hpp"
 #include "tetrodotoxin/library/language/constants/signed.hpp"
 #include "tetrodotoxin/library/language/constants/unsigned.hpp"
-#include "tetrodotoxin/library/language/generics/access.hpp"
-#include "tetrodotoxin/library/language/generics/fixed.hpp"
 #include "tetrodotoxin/library/language/generics/view.hpp"
 #include "tetrodotoxin/library/language/parser/expression.hpp"
 #include "tetrodotoxin/library/language/types/access.hpp"
@@ -27,17 +24,15 @@ using namespace Ttx::Concept;
 using namespace Ttx::Lexical;
 using namespace Ttx::Model;
 
-static constexpr Unsigned_64 maximum_extent = Unsigned_64(-1) >> 1;
-
 static auto complete_postfix_span(Cursor& cursor, Token opening) -> Span {
-  // A malformed tail still belongs to one Slice. Consume only its local
+  // A malformed tail still belongs to one Value access. Consume only its local
   // closing bracket so the diagnostic covers the authored operation.
   while (!cursor.matches(Code::Type::Terminal) &&
-         !cursor.matches(Code::Type::LayoutEnd)) {
+         !cursor.matches(Code::Type::BracketEnd)) {
     cursor.consume();
   }
 
-  if (cursor.matches(Code::Type::LayoutEnd)) {
+  if (cursor.matches(Code::Type::BracketEnd)) {
     cursor.consume();
   }
 
@@ -46,14 +41,14 @@ static auto complete_postfix_span(Cursor& cursor, Token opening) -> Span {
 
 static auto reject_syntax(Cursor& cursor, Span span) -> void {
   cursor.create_expression_error(
-      span, "Slice has malformed index or range operands."_view,
-      "Use `:[index]` or `:[start, size]` with complete delimiters."_view);
+      span, "Value access has malformed index or range operands."_view,
+      "Use `:[index]` or `:[start, count]` with complete delimiters."_view);
 }
 
 static auto reject_operand(Cursor& cursor, Span postfix_span, Span operand_span)
     -> void {
   auto report = cursor.create_report(postfix_span);
-  report << "Slice operand `"_view
+  report << "Value access operand `"_view
          << operand_span.caculate_text(cursor.get_source_text())
          << "` could not be parsed as a complete Expression."_view;
   report.get_hint() << "Use a complete scalar or byte Expression."_view;
@@ -85,42 +80,66 @@ static auto get_element_type(const Language::Expression& receiver)
       });
 }
 
+static auto get_byte_type(const Type& type)
+    -> Utility::Option<const Ttx::Model::Types::Unsigned&> {
+  return type.visit<Ttx::Model::Types::Unsigned>(
+      [](const Ttx::Model::Types::Unsigned& selected)
+          -> Utility::Option<const Ttx::Model::Types::Unsigned&> {
+        if (selected.get_width() != 8 || selected.get_size() != 1) {
+          return {};
+        }
+
+        return selected;
+      },
+      [](const Abstract&)
+          -> Utility::Option<const Ttx::Model::Types::Unsigned&> {
+        return {};
+      });
+}
+
 static auto is_integer(const Language::Expression& expression) -> Bool {
   const Abstract& type = expression.get_type().resolve();
   return type.is<Ttx::Model::Types::Signed>() ||
          type.is<Ttx::Model::Types::Unsigned>();
 }
 
-// Signed is checked first because conversion to Count would erase the negative
-// distinction. Unsigned then proves the remaining host width before conversion.
+// Option is the safe miss produced by an integer outside Count. Error remains
+// reserved for a Constant that does not expose its promised integer domain.
 static auto get_count(
     const Language::Expression& expression,
     const Language::Expression& authored)
-    -> Utility::Result<Count, Language::Expression::Error> {
+    -> Utility::Result<Utility::Option<Count>, Language::Expression::Error> {
   return expression.visit<Language::Constants::Signed>(
       [&](const Language::Constants::Signed& value)
-          -> Utility::Result<Count, Language::Expression::Error> {
+          -> Utility::Result<
+              Utility::Option<Count>, Language::Expression::Error> {
         if (value.get_value() < 0) {
-          return Language::Expression::Error(
-              Language::Expression::Error::Type::NegativeOperand, authored);
+          return Utility::Option<Count>{};
         }
 
-        return Count(value.get_value());
+        Unsigned_64 selected = Unsigned_64(value.get_value());
+        if (selected > Unsigned_64(Count(-1))) {
+          return Utility::Option<Count>{};
+        }
+
+        return Utility::Option<Count>(Count(selected));
       },
       [&](const Abstract& selected)
-          -> Utility::Result<Count, Language::Expression::Error> {
+          -> Utility::Result<
+              Utility::Option<Count>, Language::Expression::Error> {
         return selected.visit<Language::Constants::Unsigned>(
             [&](const Language::Constants::Unsigned& value)
-                -> Utility::Result<Count, Language::Expression::Error> {
+                -> Utility::Result<
+                    Utility::Option<Count>, Language::Expression::Error> {
               if (value.get_value() > Unsigned_64(Count(-1))) {
-                return Language::Expression::Error(
-                    Language::Expression::Error::Type::CountOverflow, authored);
+                return Utility::Option<Count>{};
               }
 
-              return Count(value.get_value());
+              return Utility::Option<Count>(Count(value.get_value()));
             },
             [&](const Abstract&)
-                -> Utility::Result<Count, Language::Expression::Error> {
+                -> Utility::Result<
+                    Utility::Option<Count>, Language::Expression::Error> {
               return Language::Expression::Error(
                   Language::Expression::Error::Type::InvalidConstant, authored);
             });
@@ -135,9 +154,9 @@ static auto parse_operand(
   Errors operand_errors;
   auto operand_cursor = cursor.branch(operand_errors);
 
-  // Operand recursion uses the same primary and postfix dispatch exactly
-  // once. Its provisional diagnostics stay local until the enclosing Slice
-  // can attribute failure to the complete postfix.
+  // The complete operand grammar stays inside this private Cursor. Its
+  // provisional diagnostics remain local until Value can attribute failure to
+  // the complete postfix.
   auto result = Language::Parser::Expression::parse(
       domain, materializations, operand_cursor, source_context);
   if (result) {
@@ -147,38 +166,15 @@ static auto parse_operand(
   return result;
 }
 
-// Fixed stores its Generic extent as Signed_64 even though Slice accepts Count.
-// Reject the wider host values instead of wrapping the materialized argument.
-static auto materialize_fixed(
+// Value returns a view even when its receiver supplies writable access.
+// The separate bracket access form owns optional references, so retaining
+// Access here would let safe value selection manufacture write capability.
+static auto materialize_view(
     Language::Materializations& materializations,
-    const Type& element,
-    Count size) -> Utility::Option<const Type&> {
-  if (Unsigned_64(size) > maximum_extent) {
-    return {};
-  }
-
-  Core::Static::Vector<Language::Generic::Argument, 2> arguments = {{
-    Language::Generic::Argument(element),
-    Language::Generic::Argument(Signed_64(size)),
-  }};
-  return materializations.materialize(
-      Language::Generics::Fixed::get_formula(), arguments.get_view());
-}
-
-// Only an Access receiver proves write capability. Fixed and View have the same
-// ranged element shape but materialize View so Slice never invents mutation.
-static auto materialize_dynamic(
-    Language::Materializations& materializations,
-    const Type& receiver,
     const Type& element) -> Utility::Option<const Type&> {
   Core::Static::Vector<Language::Generic::Argument, 1> arguments = {{
     Language::Generic::Argument(element),
   }};
-  if (receiver.resolve().is<Language::Types::Access>()) {
-    return materializations.materialize(
-        Language::Generics::Access::get_formula(), arguments.get_view());
-  }
-
   return materializations.materialize(
       Language::Generics::View::get_formula(), arguments.get_view());
 }
@@ -201,50 +197,26 @@ static auto select_result_type(
     return Invalid::get_invalid();
   }
 
-  // A direct Constant contributes a durable extent during semantic linking.
-  // An Operation may later fold to the same value, but changing View into
-  // Fixed at that point would make folding double as graph Type resolution.
-  if (second->is<Language::Constant>()) {
-    auto count = get_count(*second, *second);
-    return count.visit(
-        [&](Count value) -> const Abstract& {
-          return materialize_fixed(materializations, *element, value)
-              .visit(
-                  []() -> const Abstract& { return Invalid::get_invalid(); },
-                  [](const Type& type) -> const Abstract& { return type; });
-        },
-        [](const Language::Expression::Error&) -> const Abstract& {
-          return Invalid::get_invalid();
-        });
-  }
-
-  const Abstract& receiver_type = receiver.get_type().resolve();
-  return receiver_type.visit<Type>(
-      [&](const Type& type) -> const Abstract& {
-        return materialize_dynamic(materializations, type, *element)
-            .visit(
-                []() -> const Abstract& { return Invalid::get_invalid(); },
-                [](const Type& result) -> const Abstract& { return result; });
-      },
-      [](const Abstract&) -> const Abstract& {
-        return Invalid::get_invalid();
-      });
+  return materialize_view(materializations, *element)
+      .visit(
+          []() -> const Abstract& { return Invalid::get_invalid(); },
+          [](const Type& result) -> const Abstract& { return result; });
 }
 
-auto Language::Operations::Slice::parse(
+auto Language::Access::Value::parse(
     Memory::Allocator::Arena& domain,
     Materializations& materializations,
     Cursor& cursor,
     const Abstract& source_context,
     Expression& receiver) -> Utility::Option<Expression&> {
-  // Expression selects Slice only after seeing SliceOp. Consuming it here
+  // Expression selects Value only after seeing ValueAccessOp. Consuming it here
   // commits the transaction to this owner's complete postfix grammar.
   Token opening = cursor.consume();
   Code first_code = cursor.get_code();
   if (first_code.is_one_of({{
         Code::Type::Terminal,
         Code::Type::PackingOp,
-        Code::Type::LayoutEnd,
+        Code::Type::BracketEnd,
       }})) {
     Span span = complete_postfix_span(cursor, opening);
     reject_syntax(cursor, span);
@@ -261,9 +233,8 @@ auto Language::Operations::Slice::parse(
     return {};
   }
 
-  // A comma (PackingOp) upgrades to a full span instead of an element level
-  // slice. A range of 1 element is still different than a single element access
-  // at a semantic level so `:[0, 1]` does not fold into `:[0]`.
+  // A comma changes element selection into a ranged value. A range containing
+  // one element still has View Type, so `:[0, 1]` does not become `:[0]`.
   Bool range = cursor.matches(Code::Type::PackingOp);
   Utility::Option<Expression&> second;
   if (range) {
@@ -272,7 +243,7 @@ auto Language::Operations::Slice::parse(
     if (second_code.is_one_of({{
           Code::Type::Terminal,
           Code::Type::PackingOp,
-          Code::Type::LayoutEnd,
+          Code::Type::BracketEnd,
         }})) {
       Span span = complete_postfix_span(cursor, opening);
       reject_syntax(cursor, span);
@@ -290,9 +261,9 @@ auto Language::Operations::Slice::parse(
     }
   }
 
-  if (!cursor.matches(Code::Type::LayoutEnd)) {
+  if (!cursor.matches(Code::Type::BracketEnd)) {
     // No semantic operation exists until the closing token proves the complete
-    // authored Slice. Recovery can therefore reject the tail without leaving a
+    // authored Value. Recovery can therefore reject the tail without leaving a
     // partial graph owner.
     Span span = complete_postfix_span(cursor, opening);
     reject_syntax(cursor, span);
@@ -307,7 +278,7 @@ auto Language::Operations::Slice::parse(
       (range && (!second || !second->get_anchor()))) {
     cursor.create_expression_error(
         Span(opening, closing),
-        "Slice requires authored operand Anchors."_view);
+        "Value access requires authored operand Anchors."_view);
     return {};
   }
 
@@ -321,84 +292,83 @@ auto Language::Operations::Slice::parse(
   return create_authored(domain, materializations, receiver, *first, anchor);
 }
 
-auto Language::Operations::Slice::create_authored(
+auto Language::Access::Value::create_authored(
     Memory::Allocator::Arena& domain,
     Materializations& materializations,
     Expression& receiver,
     Expression& index,
-    Anchor anchor) -> Slice& {
+    Anchor anchor) -> Value& {
   Core::Static::Vector<Ttx::Concept::Reference<Expression>, 2> inputs = {{
     receiver,
     index,
   }};
-  return Expression::create_authored<Slice>(
-      domain, anchor, [&](auto source) -> Slice {
-        return Slice(domain, materializations, inputs, source);
+  return Expression::create_authored<Value>(
+      domain, anchor, [&](auto source) -> Value {
+        return Value(domain, materializations, inputs, source);
       });
 }
 
-auto Language::Operations::Slice::create_synthetic(
+auto Language::Access::Value::create_synthetic(
     Memory::Allocator::Arena& domain,
     Materializations& materializations,
     Expression& receiver,
-    Expression& index) -> Slice& {
+    Expression& index) -> Value& {
   Core::Static::Vector<Ttx::Concept::Reference<Expression>, 2> inputs = {{
     receiver,
     index,
   }};
-  return Expression::create_synthetic<Slice>(domain, [&](auto source) -> Slice {
-    return Slice(domain, materializations, inputs, source);
+  return Expression::create_synthetic<Value>(domain, [&](auto source) -> Value {
+    return Value(domain, materializations, inputs, source);
   });
 }
 
-auto Language::Operations::Slice::create_authored(
+auto Language::Access::Value::create_authored(
     Memory::Allocator::Arena& domain,
     Materializations& materializations,
     Expression& receiver,
     Expression& start,
-    Expression& size,
-    Anchor anchor) -> Slice& {
+    Expression& count,
+    Anchor anchor) -> Value& {
   Core::Static::Vector<Ttx::Concept::Reference<Expression>, 3> inputs = {{
     receiver,
     start,
-    size,
+    count,
   }};
-  return Expression::create_authored<Slice>(
-      domain, anchor, [&](auto source) -> Slice {
-        return Slice(domain, materializations, inputs, source);
+  return Expression::create_authored<Value>(
+      domain, anchor, [&](auto source) -> Value {
+        return Value(domain, materializations, inputs, source);
       });
 }
 
-auto Language::Operations::Slice::create_synthetic(
+auto Language::Access::Value::create_synthetic(
     Memory::Allocator::Arena& domain,
     Materializations& materializations,
     Expression& receiver,
     Expression& start,
-    Expression& size) -> Slice& {
+    Expression& count) -> Value& {
   Core::Static::Vector<Ttx::Concept::Reference<Expression>, 3> inputs = {{
     receiver,
     start,
-    size,
+    count,
   }};
-  return Expression::create_synthetic<Slice>(domain, [&](auto source) -> Slice {
-    return Slice(domain, materializations, inputs, source);
+  return Expression::create_synthetic<Value>(domain, [&](auto source) -> Value {
+    return Value(domain, materializations, inputs, source);
   });
 }
 
-Language::Operations::Slice::Slice(
+Language::Access::Value::Value(
     Memory::Allocator::Arena& domain,
     Materializations& materializations,
     Core::View::Vector<Ttx::Concept::Reference<Expression>> inputs,
     Utility::Option<Anchor> anchor)
-    : Operation(domain, materializations, inputs, anchor),
-      range(inputs.get_size() == 3) {}
+    : Operation(domain, materializations, inputs, anchor) {}
 
-auto Language::Operations::Slice::get_documentation() const
+auto Language::Access::Value::get_documentation() const
     -> const Documentation& {
   return Documentation::get_empty();
 }
 
-auto Language::Operations::Slice::select_type(
+auto Language::Access::Value::select_type(
     Materializations& materializations) const -> Utility::Option<const Type&> {
   auto receiver = get_input(0);
   auto first = get_input(1);
@@ -406,21 +376,19 @@ auto Language::Operations::Slice::select_type(
     return {};
   }
 
-  Utility::Option<const Expression&> second;
-  if (is_range()) {
-    second = get_input(2);
-    if (!second) {
-      return {};
-    }
+  Utility::Option<const Expression&> count;
+  auto authored_count = get_input(2);
+  if (authored_count) {
+    count = *authored_count;
   }
 
-  return select_result_type(materializations, *receiver, *first, second)
+  return select_result_type(materializations, *receiver, *first, count)
       .visit<Type>(
           [](const Type& type) -> Utility::Option<const Type&> { return type; },
           [](const Abstract&) -> Utility::Option<const Type&> { return {}; });
 }
 
-auto Language::Operations::Slice::evaluate_constants(
+auto Language::Access::Value::evaluate_constants(
     Memory::Allocator::Arena& domain,
     Materializations&)
     -> Utility::Result<Utility::Option<Constant&>, Expression::Error> {
@@ -439,36 +407,41 @@ auto Language::Operations::Slice::evaluate_constants(
   }
 
   auto first = get_count(*first_expression, *authored_first);
-  if (!is_range()) {
+  auto authored_count = get_input(2);
+  if (!authored_count) {
     return first.visit(
-        [&](Count index)
+        [&](const Utility::Option<Count>& index)
             -> Utility::Result<Utility::Option<Constant&>, Expression::Error> {
           return receiver->visit<Constants::Bytes>(
               [&](const Constants::Bytes& bytes)
                   -> Utility::Result<
                       Utility::Option<Constant&>, Expression::Error> {
                 Core::View::Bytes value = bytes.get_value();
-                if (index >= value.get_size()) {
-                  return Expression::Error(
-                      Expression::Error::Type::IndexOutOfBounds,
-                      *authored_first);
-                }
-
-                if (&*element != &Dialect::get_unsigned_8()) {
+                // Bytes exposes raw elements, but the result still carries the
+                // exact eight bit Unsigned Type selected during linking.
+                auto byte_type = get_byte_type(*element);
+                if (!byte_type) {
                   return Expression::Error(
                       Expression::Error::Type::InvalidConstant,
                       *authored_receiver);
                 }
 
+                // Bounds misses need the element Type's real default owner.
+                // Until that owner exists the semantic access remains valid
+                // but folding stays dynamic instead of inventing zero here.
+                if (!index || *index >= value.get_size()) {
+                  return Utility::Option<Constant&>{};
+                }
+
+                Unsigned_64 selected = Unsigned_64(value.get_data()[*index]);
                 return Constants::Unsigned::create_synthetic(
-                    domain, Dialect::get_unsigned_8(),
-                    Unsigned_64(value[index]));
+                    domain, *byte_type, selected);
               },
               [&](const Abstract&)
                   -> Utility::Result<
                       Utility::Option<Constant&>, Expression::Error> {
                 // Bytes is the live Constant payload domain. Another legal
-                // ranged Constant stays as Slice until its payload owner
+                // ranged Constant stays as Value until its payload owner
                 // exists.
                 return Utility::Option<Constant&>{};
               });
@@ -479,53 +452,39 @@ auto Language::Operations::Slice::evaluate_constants(
         });
   }
 
-  auto authored_size = get_input(2);
-  auto size_expression = get_folded_input(2);
-  if (!authored_size || !size_expression) {
+  auto count_expression = get_folded_input(2);
+  if (!count_expression) {
     return Expression::Error(Expression::Error::Type::InvalidInput, *this);
   }
 
-  auto size = get_count(*size_expression, *authored_size);
+  auto count = get_count(*count_expression, *authored_count);
   return first.visit(
-      [&](Count start_value)
+      [&](const Utility::Option<Count>& start)
           -> Utility::Result<Utility::Option<Constant&>, Expression::Error> {
-        return size.visit(
-            [&](Count size_value)
+        return count.visit(
+            [&](const Utility::Option<Count>& count)
                 -> Utility::Result<
                     Utility::Option<Constant&>, Expression::Error> {
-              if (Unsigned_64(size_value) > maximum_extent) {
-                return Expression::Error(
-                    Expression::Error::Type::CountOverflow, *authored_size);
-              }
-
               return receiver->visit<Constants::Bytes>(
                   [&](const Constants::Bytes& bytes)
                       -> Utility::Result<
                           Utility::Option<Constant&>, Expression::Error> {
-                    Core::View::Bytes value = bytes.get_value();
-                    if (start_value > value.get_size()) {
-                      return Expression::Error(
-                          Expression::Error::Type::RangeStartOutOfBounds,
-                          *authored_first);
+                    // A value that cannot become an extent needs the real
+                    // default owner. Valid extents delegate empty and clipped
+                    // results to the same View contract used elsewhere.
+                    if (!start || !count) {
+                      return Utility::Option<Constant&>{};
                     }
 
-                    // Start is established before subtraction, so the accepted
-                    // remainder never depends on wrapped addition.
-                    Count available = value.get_size() - start_value;
-                    if (size_value > available) {
-                      return Expression::Error(
-                          Expression::Error::Type::RangeSizeOutOfBounds,
-                          *authored_size);
-                    }
-
+                    Core::View::Bytes selected =
+                        bytes.get_value().slice(*start, *count);
                     const Abstract& result_type = get_type().resolve();
                     return result_type.visit<Type>(
                         [&](const Type& type)
                             -> Utility::Result<
                                 Utility::Option<Constant&>, Expression::Error> {
                           return Constants::Bytes::create_synthetic(
-                              domain, type,
-                              value.slice(start_value, size_value));
+                              domain, type, selected);
                         },
                         [&](const Abstract&)
                             -> Utility::Result<
@@ -539,7 +498,7 @@ auto Language::Operations::Slice::evaluate_constants(
                       -> Utility::Result<
                           Utility::Option<Constant&>, Expression::Error> {
                     // Type legality does not imply a universal Constant payload
-                    // interface, so unsupported payload owners remain Slice.
+                    // interface, so unsupported payload owners remain Value.
                     return Utility::Option<Constant&>{};
                   });
             },

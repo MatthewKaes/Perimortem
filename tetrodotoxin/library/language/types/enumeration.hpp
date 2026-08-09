@@ -8,6 +8,7 @@
 
 #include "perimortem/utility/option.hpp"
 
+#include "tetrodotoxin/library/language/access/type.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
 #include "tetrodotoxin/library/language/visibility.hpp"
 #include "ttx/concept/reference.hpp"
@@ -35,13 +36,12 @@ class Enumeration : public Ttx::Model::Type {
   Enumeration(
       Perimortem::Memory::Allocator::Arena& domain,
       Perimortem::Core::View::Bytes name,
-      Perimortem::Core::View::Bytes storage_route,
+      Access::Type storage_access,
       const Ttx::Concept::Documentation& documentation,
       Visibility visibility,
       Monograph& parent,
       Ttx::Lexical::Anchor anchor,
-      Ttx::Lexical::Anchor name_anchor,
-      Ttx::Lexical::Anchor storage_anchor);
+      Ttx::Lexical::Anchor name_anchor);
 
  public:
   using ClassCatagory = Enumeration;
@@ -94,7 +94,11 @@ class Enumeration : public Ttx::Model::Type {
   }
 
   constexpr auto get_storage_anchor() const -> Ttx::Lexical::Anchor {
-    return storage_anchor;
+    return storage_access.get_anchor();
+  }
+
+  constexpr auto get_storage_type_access() const -> const Access::Type& {
+    return storage_access;
   }
 
   auto get_storage_type() const
@@ -133,13 +137,12 @@ class Enumeration : public Ttx::Model::Type {
 
   Perimortem::Memory::Allocator::Arena& domain;
   Perimortem::Core::View::Bytes name;
-  Perimortem::Core::View::Bytes storage_route;
+  Access::Type storage_access;
   const Ttx::Concept::Documentation& documentation;
   Visibility visibility;
   Monograph& parent;
   Ttx::Lexical::Anchor anchor;
   Ttx::Lexical::Anchor name_anchor;
-  Ttx::Lexical::Anchor storage_anchor;
   Perimortem::Memory::Managed::Vector<SourceCase> source_cases;
   Perimortem::Utility::Option<Ttx::Concept::Reference<const Ttx::Model::Type>>
       storage_type;

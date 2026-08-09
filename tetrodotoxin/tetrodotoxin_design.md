@@ -1,773 +1,200 @@
 # Tetrodotoxin Design
 
-Tetrodotoxin is the concrete host for TTX. TTX defines lexical bytecode and the
-closed target independent semantic substrate. Tetrodotoxin defines the source
-Dialects, construction Environment, generators, runtime policy, and package
-policy that use it.
+Tetrodotoxin turns TTX source into concrete language objects. Its architecture
+keeps four kinds of fact separate:
 
-Live owner boundaries appear before planned products. Grammar and acceptance
-data do not make a planned product part of the current contract.
+- TTX owns shared lexical and semantic contracts.
+- A Dialect owns the meaning of one source body.
+- Environment owns the Workspace that retains and connects those bodies.
+- Package, compiler, linker, and runtime owners handle their own external
+  products and policies.
 
-## Owner graph
+## Dialects and Monographs
 
-The active build dependency direction is:
+A source begins with required Documentation and one Dialect declaration:
 
-```text
-Environment -> Package -> Language -> TTX -> Perimortem
-Library -> Language -> TTX -> Perimortem
-Shader -> Perimortem
-Linker -> Perimortem
+```ttx
+// Reusable image helpers.
+dialect : Library;
 ```
 
-The accepted production ownership flow is broader than the current build
-graph:
+Environment selects the installed Dialect named by that declaration. The
+Dialect interprets the remaining body and returns one Monograph: the durable
+semantic result of that particular source invocation.
 
-```text
-Bazel request
--> Puffer orchestration
--> Environment Workspace
--> installed Package and concrete source Dialects
--> completed owner Monographs
--> Package Archive and Linker Object Modules
--> Linker native product
--> declared Bazel outputs
+An explicit empty comment represents intentionally empty source Documentation;
+omitting the opening comment is a malformed source envelope. Environment passes
+the exact Documentation to the selected Dialect and its Monograph.
+
+A Monograph is an Abstract context, not a universal Type or scope. A concrete
+Dialect may expose no Types, one Type, several Types, Callables, package members,
+or another contextual shape. Its `resolve_context()` behavior is part of that
+Dialect's language contract.
+
+This lets App expose startup and lifecycle facts without inheriting Library's
+type system, while Library can expose its synthetic source context and Package
+can expose its member bindings through the same TTX query boundary.
+
+## Workspace
+
+A Workspace is one semantic island. It installs the concrete Dialects available
+to a tool, retains every resulting Monograph, and gives them a common lifetime
+for borrowed TTX edges.
+
+Source construction has three semantic stages:
+
+1. Interpretation reserves source-shaped identities and records unresolved
+   authored routes.
+2. Linking connects those routes after the complete source group is known.
+3. Finalization performs language work that requires linked declarations.
+
+Every Monograph in a retained group links before any Monograph finalizes. The
+group becomes publicly queryable as completed input only after both barriers
+succeed.
+
+Diagnostics remain attached to the language fact that discovered them.
+Environment combines those facts with the retained source origin when it
+presents an authored error.
+
+## Contexts and access
+
+Tetrodotoxin uses TTX contextual resolution rather than one universal member
+model. Syntax selects the requested category:
+
+| Syntax | Semantic result |
+| --- | --- |
+| `value.name` | one Addressable selected from an applicable named Layout |
+| `context::Name` | one Type-shaped route traversed through contextual resolution |
+| `receiver -> name(arguments)` | one Callable invocation |
+
+An intermediate `::` context may be an Alias, Package, Monograph, source root,
+Type, or another Abstract. The consuming grammar proves the terminal category
+it requires; only a Type position requires Type. This same rule carries package
+names, `using` routes, and nested Types without a Package-shaped Type or a
+Type-shaped Monograph.
+
+A Structure can expose all three categories, but each remains independent. A
+Field, Callable, and nested Type may share one spelling because the authored
+operator already identifies the query domain.
+
+Address access identifies one semantic Addressable and its Type. It does not
+decide whether the terminal uses a stack slot, an inline base plus offset, an
+Object reference plus offset, or a folded value.
+
+A Function host grants access authority but does not supply a receiver.
+Functions select Fields through an explicit value and `.`, including private
+Fields admitted by that host. A Static Function therefore cannot resolve a host
+Field as a bare identifier.
+
+## Package language
+
+A Package source binds two kinds of authored facts:
+
+```ttx
+resolve Graphics : Perimortem.Graphics = "1.0";
+source Scenes::Splash from "scenes/splash.ttx";
 ```
 
-The flow is a staged implementation contract. Puffer does not acquire
-language, package, compiler, or linker policy by coordinating their owners.
-The current Puffer target exposes only its LSP process.
+`resolve` gives an external Package identity a local Alias. `source` gives one
+confined input a semantic route. Package paths locate bytes; semantic routes
+identify Monographs and are traversed through TypeAccess syntax.
 
-Language defines no concrete source grammar. It provides the stateful Dialect
-interface, its common Monograph root, and deterministic parser fragments.
+An embedded resource operand asks the exact source Package for bytes:
 
-Package supplies the first concrete Dialect and Monograph shape. Its
-implemented contract interprets dependency requests and exact Source name to
-path bindings into a Package Monograph.
-
-Environment owns Workspace orchestration and the composed Dialects, Retention,
-and Resolution objects that host interpretation. Together they own graph
-allocation, Dialect lifetime, imported Monograph lifetime, exact authored
-source name lookup, staged source order, retained source bytes, ordered linking
-and finalization, dependency restoration, and the TTX registry supplied to each
-Dialect.
-
-Library owns CPU language semantics that are not universal TTX facts. Its
-installed Dialect constructs concrete declaration Monographs with real TTX and
-Library identities. Its current target also owns native x86_64 instruction
-assembly. A future compiler extends Library without copying the TTX graph.
-
-App owns startup and lifecycle policy. Scene owns retained Scene declarations,
-live Scene instances, declared child identity, and render submission facts.
-The future `tetrodotoxin/graphics` owner supplies language neutral retained
-graphics child and submission contracts. Render and Shader remain concrete
-Dialect owners rather than substitutes for that runtime boundary.
-
-No component reconciles competing semantic models. A concrete Dialect creates
-its real Monograph using TTX identities and its own narrower contracts.
-
-## Language contracts
-
-`Language::Dialect` is the C++ extension point for one source grammar. A
-compiled toolchain installs concrete Dialect types into an Environment
-Workspace under exact authored names.
-
-Each Dialect receives the shared TTX registry when Environment constructs it.
-Its interpretation entry point receives:
-
-```text
-Environment owned Arena
-forward TTX Cursor
-opening Documentation
-source local Abstract interpretation context
+```ttx
+$[resources/logo.png]
 ```
 
-Interpretation returns either no result or one `Language::Monograph&`. The
-concrete Monograph is an Abstract and is constructed in the supplied Arena. It
-retains opening Documentation and source independent Diagnostics, but no parser
-or installed Dialect. The installed Dialect continues to retain the Workspace
-wide registry supplied at construction. The fourth interpretation argument
-instead selects Workspace for direct sources and an ownerless root, or the
-exact owning Package Monograph for a staged member.
+Package owns confinement and stable resource identity. Library may interpret
+the bytes as a Constant, Shader may interpret them as shader data, and another
+Dialect may define another meaning.
 
-A Monograph is the retained result of one Dialect invocation. It is not
-required to be a Type or to expose one Type shaped context. A concrete Dialect
-may give its Monograph no Types, one Type, several Types, or another arbitrary
-contextual structure through ordinary `resolve_context()` routing. Language
-therefore defines neither a typed Monograph layer nor a reserved Type route.
-App, for example, can expose App owned entry and lifecycle contexts without
-inheriting a type system.
-
-Language owns two shared parser fragments today:
-
-1. `Parser::Comment` greedily consumes adjacent comment lines and preserves
-   empty authored lines in one Documentation Block.
-2. `Parser::Dialect` consumes the universal Dialect instruction and returns the
-   exact authored Dialect name.
-
-Concrete body grammar remains on the concrete Dialect. Shared spelling alone
-does not justify moving a semantic parser into Language.
-
-Language also owns two cross-Dialect Abstract contracts used by contextual
-resolution. `Language::Resource` is one retained byte result acquired by
-another owner. It exposes only Arena-stable bytes. A consuming domain may
-borrow those bytes only when it cannot outlive the Resource dependency domain;
-sharing one Arena satisfies the contract without another allocation. Resource
-carries no filesystem handle, route grammar, diagnostic path, Type, Constant
-policy, or consumer semantics. `Language::Error` proves that a recognized
-contextual instruction resolved to an owner-specific failure identity. It is
-not one universal error enum, message record, or provenance model; the concrete
-owner retains the cause while the source consumer constructs the authored
-Anchor and Report.
-
-Resource and Error are open Tetrodotoxin contracts over TTX Abstract. They add
-no TTX v1 category. An ordinary missing semantic lookup still returns the
-shared TTX Invalid identity. Returning Error means the receiver recognized the
-instruction and resolved it to a stable error object rather than missing the
-route.
-
-`Language::Diagnostic` is the separate source independent failure fact. It
-retains an optional exact Anchor plus owner produced message and hint in its
-Monograph Arena. An authored fact supplies its Anchor while a synthetic or
-restored fact leaves that coordinate absent. Diagnostic owns no source path,
-source bytes, semantic identity, or universal error category. Environment uses
-the retained Origin boundary when a diagnostic has no authored Anchor.
-
-The accepted lifecycle separates three owner neutral transactions:
-
-1. A concrete Dialect interprets grammar into stable source shaped identities.
-   Unknown Type and Addressable routes may remain unresolved.
-2. Environment Retention invokes every Monograph `link()` in one frozen range
-   after local staging and dependency restoration drain.
-3. Only a range whose every link succeeded invokes every Monograph
-   `finalize()`. A failed finalizer does not stop later finalizers and prevents
-   terminal publication of that complete range.
-
-A concrete Dialect separately encodes and restores its own opaque precompiled
-Monograph payload through the importing Workspace Arena. Language owns only
-these dispatch shapes. It does not define a Package Archive, terminal registry,
-concrete payload schema, or cross owner product variant. Link and finalize
-return failure without receiving a textual error sink. Concrete Monographs
-publish their Diagnostic facts while Retention keeps the authored Origin needed
-to render them.
-
-## Environment transaction
-
-`Environment::Workspace` is the public lifetime and dispatch owner for one
-semantic construction environment. It owns one Arena, exact global authored
-source lookup, and import orchestration. `Environment::Dialects` owns installed
-names, concrete Dialect instances, and exact dispatch. `Environment::Retention`
-owns Monograph lifetime, authored origin, discovery order, and the frozen link
-and finalize ranges.
-`Environment::Resolution` owns exact dependency traversal and restored Package
-cache state while borrowing the other Environment owners explicitly.
-
-Dialect installation is typed:
-
-```text
-workspace.install_dialect<Package::Dialect>("Package")
-```
-
-Dialects constructs a distinct instance for each successful installation.
-Workspace declaration order destroys Resolution, then Retention and its
-Monographs, then Dialects and its instances before releasing their shared
-Arena. That ordering keeps Dialect state alive while retained Monographs can
-refer to their host.
-
-The accepted production transaction is staged:
-
-```text
-Workspace stages an explicit root semantic name and source path
--> Package Storage reads one confined, same opened object
--> Workspace retains the bytes
--> Workspace parses Documentation and the universal Dialect declaration
--> Workspace dispatches the remaining Cursor to the exact installed Dialect
-   with Workspace or the exact owning Package as interpretation context
--> the Dialect constructs its real Monograph in the Workspace Arena
--> Retention keeps it and Workspace stages the authored semantic name
--> Environment Resolution resolves exact dependency Archives
--> Package Source bindings stage more inputs in authored order
--> after all staging and restoration drain, Retention links every Monograph in
-   retained order
--> only a fully linked range finalizes in retained order
--> Workspace publishes staged names only after successful finalization
-```
-
-`Workspace::resolve_context(name)` returns the retained Monograph or the TTX
-Invalid object. The Workspace therefore supplies a total graph query without
-introducing a nullable semantic edge. The path remains available for source
-diagnostics but never becomes a semantic name implicitly.
-
-Environment does not own concrete Package or Library grammar. It also does not
-own filesystem confinement, target lowering, runtime state, archive encoding,
-or an additional Namespace model. Direct interpretation accepts separate
-semantic name, diagnostic path, and content views and copies them into the
-Workspace Arena.
-Local Package import drains an Arena backed FIFO of separate semantic names and
-logical routes. Package Storage content enters the same semantic import
-transaction directly because Storage and its views already belong to that
-Arena. Direct interpretation returns the staged Monograph Option; publication
-waits for the caller's successful link and finalize barriers. Package import
-additionally receives the explicit root identity, Version, and Repository.
-Source staging failure abandons the retained prefix and returns
-`SelectionError::Unknown` before Resolution begins. The Workspace Result
-therefore selects either the root Monograph or one failure category. Resolution
-preserves an exact Repository category and uses `Unknown` when another
-diagnosed staging, restoration, linking, or finalization failure has no
-Repository category. Package local members are not published in the Workspace
-source map.
-Exact Archive dependencies restore into the Workspace Arena before the frozen
-range links once and finalizes at most once in discovery order.
-
-Textual errors require authored text. `Ttx::Lexical::Errors::Report` receives
-an explicit source name, source body, and `Ttx::Lexical::Anchor` from the owner
-of that text. Context free filesystem, Archive, and Repository validation
-instead logs its exact local names, values, offsets, and transaction stage
-through `Diagnostics::Log`, then returns failure. Resolution or Puffer owns the
-later user facing error because only that layer can attach the failure to an
-authored Dependency, Source, or compile request. Neither channel replaces the
-other.
-
-## Package Dialect
-
-The Package body has two ordered regions. Dependency declarations such as Math
-and Graphics precede Source bindings such as Scenes::Splash, Scenes::Title, and
-Main.
-
-`Package::Language::Dependency` is an exact authored request containing its
-local name, package name, and pinned version. It is not the resolved external
-package.
-
-`Package::Language::Source` is an exact authored binding from one semantic name
-to one package path. Package Storage opens the path beneath the package root
-and Workspace stages the member under the local name. No path segment,
-filename, or file order derives semantic identity.
-
-`Package::Language::Parser::Name` consumes the shared contiguous qualified name
-grammar used by Dependency and Source statements. TTX Lexicon remains the sole
-owner of each Type segment and exact separator Code spelling.
-
-`Package::Language::Monograph` retains opening Documentation, ordered
-Dependency requests, aligned authored statement Spans, and ordered Source
-bindings. It owns one exact Package local scope whose real
-`Ttx::Model::Alias` edges target completed source Monographs and restored
-Package roots in the same Workspace Arena. Ordinary exact lookup returns the
-Alias edge itself or shared Invalid. Qualified semantic names remain one
-opaque key, and Package does not split them or derive them from a source path.
-The reserved complete `$[...]` spelling is a separate contextual instruction,
-not a semantic member name. Package recognizes that branch before ordinary
-binding lookup and gives its payload to the Package-owned resource transaction.
-
-Source parsing returns only Source while exposing its complete successful
-statement Span as separate transaction output. Package Dialect uses that Span
-to diagnose a Source semantic name colliding with a Dependency alias. Failed
-parsing leaves the output invalid, and no Source range becomes durable
-Monograph state.
-
-Authored Source and Dependency inventories reserve one shared name scope.
-Source free roots retain ordered Dependencies with no authored Spans or Source
-paths and accept validated Archive member names during restoration. Duplicate,
-undeclared, direct cycle, and cross kind binding attempts fail before another
-Alias is allocated, preserving the first edge. The Monograph retains no
-filesystem handle, fetched product, Archive bytes, Repository state, source
-text, path, Token, diagnostic state, target artifact, or archive record.
-
-The current Package target contains the complete authored manifest
-interpretation and confined Storage. Namespace `Package::Archive` owns Format 1
-facts on the value class `Archive`, validation and materialization on `Reader`,
-and deterministic encoding on `Writer`. Namespace `Package::Repository` owns
-the concrete `Repository` transaction, its exact Input and Artifact
-declarations, separately borrowed native artifact paths, and normalized
-declared-only Archive and native output declarations. Environment Resolution
-consumes those existing owners for dependency restoration. Application selection
-remains future Package assembly work.
-
-`main.ttx` remains a filename convention. Future package assembly selects the
-sole completed App Monograph rather than granting its filename or local Source
-name semantic authority.
+Package Archive is the durable semantic product. It contains Package identity,
+version, dependencies, named members, Dialect payloads, and native artifact
+locators. Each Dialect encodes and restores its own payload, so Package does not
+learn Library, App, Scene, Render, or Shader semantics.
 
 ## Library language
 
-TTX owns the shared target independent Type, Value, Layout, Addressable, and
-Callable vocabulary. Those interfaces are not a type system. Library adds the
-CPU type system and language semantics that not every Dialect needs.
+Library supplies the CPU-oriented language model shared by reusable libraries
+and executable Dialects. Its public concepts include concrete scalar Types,
+Generic materialization, Constants, Expressions, Functions, Structs, Objects,
+Enumerations, and Field access policy.
 
-1. Expression, Binding, and Projection represent Library value semantics.
-2. Operation owns recursive folding for executable value operations.
-3. Constant and its concrete domains represent retained Library values.
-4. Generic, Access, View, and Fixed represent Library materialization.
-5. Concrete Bool, integer, and real Types provide Library scalar identities.
-6. Static and Self distinguish Library Callable invocation.
-7. `Types::Structure` owns the common Field, Function, visibility, lookup, and
-   inline value Type semantics used by authored `struct` declarations.
-8. `Types::Object` layers managed reference identity and lifetime semantics
-   over Structure rather than owning a second composite implementation.
-9. `Language::Layouts::Structured` retains positional, named, or indexed
-   Expression flow and exposes the proper TTX Layout used for fitting.
+Each Library Monograph owns one synthetic source Structure with an empty
+instance Layout. Its exact `source` route exposes that Structure, top-level
+declarations enter its Static surface, and ordinary Monograph lookup forwards
+only the external part of that surface. The Structure retains the source
+Documentation, so a Package member Alias can reach one documented root Type
+without owning a Package-shaped Type or copying the prose.
 
-Library contracts retain real TTX Type, Layout, Addressable, and Callable
-edges. They do not redeclare those shared owners.
+An authored Struct is an inline value Type with a named Layout of real Field
+Addressables. An Object uses the same Structure model while adding nonnull
+managed reference identity and language lifetime semantics.
 
-The accepted Library source contract gives each Library Monograph exactly one
-stable synthetic Structure for its source scope. That Structure owns the top
-level declaration inventory and admits only Static bindings. It has no Self
-receiver or instance Fields, so its empty instance Layout remains a complete
-TTX Layout while its Static members remain available through contextual
-resolution. The reserved Library route `source` returns that exact Structure.
-Every other Library Monograph resolution request is forwarded through the
-Structure's external lookup. `source` has no Dialect agnostic meaning and does
-not change the common Monograph contract.
+Field visibility and writability are independent. Visibility determines who can
+select a Field. Writability determines whether mutation is available generally,
+only to code hosted by the Structure, or only during initialization.
 
-Every Library Structure retains one complete member inventory and exposes two
-views over those same identities. External lookup sees only exposed members.
-A Function hosted by that exact Structure uses the complete internal lookup.
-Each Function retains its source Monograph separately for source lifetime,
-diagnostics, and completion, so its host Type does not replace the source
-owner. A root Function is hosted by the synthetic source Structure. A Function
-declared by an authored Structure is hosted by that Structure.
+Functions distinguish two invocation roles:
 
-Field exposure and Field writability are independent. Exposure decides whether
-external lookup can read the Field. The Library owned `Full`, `Internal`, and
-`Init` writability states decide whether mutable access is available to all
-callers that can reach it, only Functions hosted by its Structure, or only the
-construction transaction for the exact value. These rules enrich real TTX
-Addressable edges without widening the shared Addressable contract.
+- Static has no implicit Self value and is invoked through a Type or source
+  context.
+- Self has the reserved `self` Addressable as parameter entry zero. Its Type is
+  the selected receiver's exact Type.
 
-Object is a Library Type rather than a new TTX category or shared Managed base.
-It derives its Field, Function, Layout, visibility, lookup, and writability
-semantics from Structure and adds no duplicate member inventory. Every Object
-value is a nonnull reference identity. Assignment, parameter passing, and
-return preserve that identity, so mutations through one alias are visible
-through the others. V1 exposes no destructor, finalizer, weak reference,
-explicit release, or observable reclamation timing. Reference counting,
-tracing collection, Arena retention, pointer shape, and collector headers
-remain interchangeable runtime and target choices rather than semantic graph
-facts. Construction initializes state in authored order and publishes no value
-until every initializer succeeds. `new` requires an exact receiving Object
-Type; an inferred `:= new` declaration remains invalid. Construction and
-runtime allocation are later owners rather than part of the Object Type
-declaration transaction.
+Both are reached through `->`; the parameter Layout itself carries the role,
+and neither Callable enters a value Layout.
 
-`Language::Layouts::Structured` is an identity free Library source fact, not an
-Expression and not an anonymous or transient Type. It retains one unmixed
-positional, named, or indexed Expression flow and stores the corresponding real
-TTX Layout. Receiving declarations, returns, invocations, and constructions use
-directional Layout fitting against their expected Layout after every retained
-Expression links. Packing, slicing, and swizzling transform or select Layout
-flow; they do not manufacture a Composite Expression or absorb fitting into the
-Type system. Projection remains the single selection that retains one real
-Addressable.
+Library uses TTX Layouts for parameters, results, named value packs, fields,
+indexed value access, and swizzles. A Layout never becomes an anonymous Type
+merely because a source expression produces several values.
 
-Every authored Expression retains one Anchor containing its full Span and the
-independent Token a diagnostic should emphasize. Synthetic Expressions omit
-that value instead of inventing provenance. Binding and Projection currently
-expose only synthetic construction; future authored grammar must supply an
-Anchor from its real source facts.
+Library keeps indexed reference and value selection separate. An
+`Access[T]` value uses `access[index]` to try to produce an optional reference.
+`value:[index]` returns an element by value and `value:[start, count]` returns a
+read-only ranged value. Colon bracket selection is safe: an unavailable
+element or range produces its result Type's default rather than a bounds
+failure.
 
-Expression owns protected `create_authored<T>` and `create_synthetic<T>`
-construction policy. Each concrete Expression keeps its constructor private,
-publishes its typed factory, and supplies the owner local builder used by
-`Arena::construct_from`. The shared policy selects the optional Anchor without
-turning Expression into an operation argument model or letting callers invent
-source provenance.
+## Application Dialects
 
-Expression owns one cached `fold()` query. It returns
-`Result<Option<Expression&>, Expression::Error>`. A successful projection
-retains the selected Constant Expression identity directly, and a failure
-retains the exact Error. The cache stores only either terminal result without
-replacing the Expression, its source facts, or any child edge. Its null state
-represents an unread query or dynamic absence, so an unknown Type and a dynamic
-result remain retryable. Folding therefore remains a semantic layer over the
-source graph rather than a lowering transaction that consumes it.
+App owns startup profiles and application lifecycle. Program lifecycle selects
+one Static Callable for generated entry. Scene lifecycle owns the live Scene
+stack and transitions between Scene identities.
 
-Operation retains immutable Expression edges in authored order. Every edge is
-reachable by default. Only a protected concrete operation decision made after
-earlier reached inputs fold may skip the next edge. An earlier dynamic result
-keeps later inputs reachable, and an unreachable child is never queried or
-reported. A reached child's exact Error propagates unchanged. Concrete
-evaluation starts only when every reached input supplies a Constant and must
-preserve the exact linked result Type. Parser callbacks construct grammar only;
-Function finalization may populate the root caches without emitting a fold
-diagnostic or rejecting an ordinary optional failure.
+Scene owns its state, signals, declared child identities, render submission
+facts, and `prepare`, `pause`, `resume`, `update`, and `release` roles. App owns
+the transition that follows a Scene signal.
 
-Bool, integer, real, and Void are immutable binary wide Library identities.
-Distinct installed Dialects share their exact addresses while retaining any
-stateful source and completion policy within their Workspace lifetime.
+Render declares render-facing data and Stage interfaces. Shader implements one
+Render contract and owns GPU Stage bodies and lowering facts. Foreign embeds an
+external ABI surface inside a CPU-capable parent rather than creating a top
+level source island.
 
-The accepted declaration transaction constructs the synthetic source Structure
-before interpreting top level declarations. It reserves and binds every
-Function at its final Arena address before completing that declaration's source
-grammar. Each root Function records the synthetic Structure as its exact host
-and retains its source Monograph for completion and diagnostics. Each Function
-retains its full extent, one source shaped Signature, and authored order
-Expression roots. The current body grammar accepts comments, ordinary
-`Expression;` roots, and one optional final `return Expression?;`. It does not
-invent blocks, control flow, or lowering. Reordered valid declarations remain
-legal while each public view preserves its own authored order. The transaction
-retains no Cursor positions or second declaration graph.
+## Compilation and runtime
 
-Signature interpretation accepts unresolved Type routes and Identifier parsing
-accepts unresolved Addressable routes. Linking later enriches those exact
-retained routes with stable edges. Function lookup checks linked Parameters
-before its host Structure. The host uses its complete view only for a Function
-it owns and otherwise exposes its external view. The synthetic source
-Structure's complete lookup checks local and imported Static bindings, then the
-source interpretation context, then Library intrinsics. Its external lookup
-returns only exposed source bindings. An authored Structure may
-continue an unresolved member lookup through that source scope without making
-the Monograph a Type. An incomplete declaration already occupies its name, so
-collision policy does not depend on whether its semantic edge is complete.
+Semantic Layouts describe language shape. A compiler derives target sizes,
+alignments, offsets, pointer forms, calling convention carriers, registers, and
+relocations from completed facts.
 
-`Library::Language::Import` consumes one complete `using` statement and retains
-its exact Package local Type shaped route, trigger Token, and full statement
-Span. The Library Monograph borrows W03's source local Abstract context and
-resolves each Import during linking.
-The selected target must be a real Package Monograph. Expansion traverses only
-its P04 direct member Alias view. Each direct Library member resolves its
-Library specific `source` route to the exact synthetic Structure, and expansion
-consumes only that Structure's exposed Static bindings. A non Library Monograph
-has no `source` contract and contributes nothing.
+Library lowering consumes completed CPU facts owned by Library, App, or Scene
+without converting those Monographs into Library source. Shader lowering
+consumes Shader facts independently. Linker owns object modules, symbols,
+relocations, target encoding, and final native products.
 
-All candidates are collected and checked against local bindings and earlier
-imports before lookup changes. Successful Alias bindings retain the exact
-provider identities without entering the importing public view. Private,
-Dependency, nested Package, non Library, recursively imported, incomplete,
-unresolved, duplicate, and colliding candidates therefore cannot become local
-or transitive publication state.
+Object lifetime is a Library semantic promise; allocation strategy, collector
+policy, pointer representation, and reclamation timing are runtime choices.
+Likewise, a Package Archive contains durable semantics and native locators but
+does not contain live semantic identities or runtime addresses.
 
-The exact durable executable body contract is not implemented. Its absence does
-not reopen TTX or justify a placeholder intermediate representation.
+## Documentation map
 
-## CPU compilation
-
-Library owns the reusable CPU compilation path. It may lower completed CPU facts
-retained by Library, App, or Scene Monographs without converting those owners
-into Library source.
-
-Target lowering may derive sizes, alignments, offsets, pointer forms, register
-classes, calling convention carriers, and relocations. Those are target facts,
-not TTX semantic identities.
-
-The current executable Library surface is the source independent
-`Library::Assembler::x86_64`. Future compiler work must make target decisions
-before asking that assembler to encode instructions.
-
-Linker owns source independent objects, symbols, relocations, target formats,
-and native archive construction. Supplying object input does not transfer that
-ownership to Library.
-
-The accepted native terminal is `Linker::Object::Module`, a coherent owner of
-sections, symbols, and relocations. Library, App, and Scene may each submit
-completed CPU facts to the Library compiler, which lowers them into Object
-Modules without converting their Monographs into Library source.
-
-Package Archive is the separate durable semantic terminal. It never contains
-Linker object bytes. Linker input and product policy never become Package
-semantic state.
-
-## Puffer and terminal production
-
-Bazel supplies exact source and resource inputs, root semantic name, Package
-identity and pinned version, dependency products, and declared output paths.
-Puffer selects one statically compiled toolchain composition and constructs one
-Workspace.
-
-Library mode installs Package and Library. Binary mode additionally installs
-App, and installs Scene or other concrete Dialects only when their real compile
-path is part of that selected toolchain. An uninstalled authored Dialect
-receives the ordinary unknown Dialect diagnostic.
-
-After successful Workspace finalization, Puffer renders accumulated diagnostics and exits
-nonzero before terminal work when any error exists. On success it asks the
-concrete Monograph owners for their typed products. It does not introduce a
-universal terminal base, opaque product registry, or cross owner variant.
-
-Package facts encode a Package Archive. Completed CPU facts lower to Linker
-Object Modules. Puffer loads dependency native products only for the link
-phase, asks Linker for the requested native product, and writes only the
-declared outputs. Package Repository validates those exact semantic, native,
-and publication declarations without scanning for inputs, loading native
-bytes, or writing outputs itself.
-
-The accepted Linker products are System V static binary archives, ELF shared
-libraries, and complete ELF executables. Final ELF linkage is performed in
-repository code. A host linker may independently consume a generated static
-archive as acceptance evidence, but it is not the production implementation of
-an executable product.
-
-The current Puffer target does not implement the compile transaction. Puffer
-remains the planned application orchestration boundary.
-
-## Concrete Dialect responsibilities
-
-Planned top level Dialects follow the same Environment installed Dialect and
-Monograph lifecycle:
-
-1. Library owns ordinary CPU definitions, values, Callables, and bodies.
-2. Render owns render values, resources, and required Stage contracts.
-3. Shader owns exact Render implementation and Shader Stage bodies.
-4. App owns startup profiles, generated platform entry semantics, Program and
-   Scene lifecycle policy, and Scene transitions.
-5. Scene owns state, signals, retained declared children, render submission
-   facts, and prepare, pause, resume, update, and release roles.
-6. Graphics owns language neutral retained graphics children and ordered
-   submission facts without becoming a top level source Dialect by default.
-
-Foreign remains embedded syntax for CPU capable parent Dialects. It is not an
-installed top level Dialect and does not create an independent Monograph.
-
-App owns `Windowed`, `Terminal`, and `Headless` startup profiles. There is no
-Runtime Package. Linked support libraries, generated entry code, package
-configuration, and lifecycle policy together produce runtime behavior.
-
-The accepted App lifecycle inventory is Program and Scene. Program retains one
-direct `Library::Language::Callables::Static` edge that takes no parameters and
-returns Void. Generated platform entry code calls it once. Command line
-arguments remain queryable process state rather than injected Callable
-parameters. Scene retains direct Self role edges and App owned transition
-policy. Neither lifecycle depends on a function named `main`.
-
-App owns Scene transitions:
-
-```text
-push     pause current, prepare pushed
-pop      release current, resume prior
-replace  release current, prepare replacement
-exit     release current without resume
-```
-
-Each live Scene constructs and attaches its declared children in authored order
-before `prepare`. After `update`, visible attached graphics children are
-collected automatically in retained tree order. Authored Scene update code
-mutates state and never performs render submission. App applies transitions
-only after the update and submission facts for that frame are stable.
-
-Scene `release` runs before automatic reverse order destruction of the retained
-child subtree. Declared children are nonnull and retain their identity for the
-complete Scene lifetime. Dynamic attachment and queued individual release are
-separate planned work.
-
-## Embedded resources
-
-Every authored source and embedded resource is intended to live beneath one
-package root. Another location is reached only through an exact Package
-Dependency.
-
-The accepted operand is package root relative:
-
-```ttx
-$[resources/table.bin]:[0, 64]
-```
-
-Package Storage and future resource consumers follow six requirements.
-
-1. Reads remain confined to one opened package root.
-2. Absolute and escaping routes are rejected.
-3. An empty file remains distinct from a read failure.
-4. Repeated logical resource reads are deduplicated.
-5. Expression folding may project a reachable byte slice without erasing the
-   original resource backed source graph.
-6. Resolution never falls back to the process working directory or the
-   containing source directory.
-
-During semantic literal parsing, the concrete consumer gives the complete
-Embedded Token spelling to its exact source Package context:
-
-```text
-source Package resolve_context("$[resources/table.bin]")
--> Package recognizes the reserved instruction
--> Package resource transaction asks Storage for the confined logical route
--> success resolves to one stable Language Resource
--> recognized acquisition failure resolves to one stable owner-specific
-   Language Error
-```
-
-Storage returns `Utility::Result<Content&, Package::Storage::Failure>`. The
-Failure carries a nested `Failure::Error` category and allocation-free
-normalized Path context when one can be formed. The resource
-transaction caches the Resource or Error identity in the Workspace Arena so
-repeated equivalent owner-normalized requests return the same Abstract for the
-semantic island. Invalid input with no normalized route uses the exact complete
-instruction as its failure key rather than inventing a path. The route remains
-confined input, cache, and diagnostic data. It never becomes a Source name,
-Package member name, or global semantic identity. Malformed Embedded Token
-grammar is rejected by Literal before contextual resolution. A malformed
-postfix slice is rejected by Expression without asking Package to interpret
-that expression grammar. Ordinary Package name misses continue to return
-Invalid.
-
-Library Literal proves Resource and constructs its complete base
-`Library::Language::Constants::Bytes` with its inferred Fixed Type by borrowing
-the Resource backing. Its domain must be the same domain or shorter lived than
-every dependency domain supplying those bytes. A Package root relative
-resource route never crosses a Dependency export. Cross Package publication
-uses Abstract semantic identities, so Literal never receives another Package's
-raw Resource through an exported member. Scalar Literal spellings likewise
-construct their canonical binary wide Library Type and accept no expected
-Type. Library `Operations::Slice` owns a following `:[index]` or
-`:[start, size]` operation for Embedded, quoted Bytes, hexadecimal Bytes, and
-later ranged expressions. It retains only real Expression edges. Fixed, View,
-and Access receivers supply their retained element Type directly. A directly
-authored Constant size yields canonical Fixed identity during linking, while a
-dynamic size yields View unless the receiver already proves writable contiguous
-Access. A size Operation that folds later retains that already linked View or
-Access result Type.
-The accepted Slice class retains the authored selection request and its value
-result identity. Its pending Layout boundary audit must prove that range
-selection and fitting are performed through real Layouts rather than absorbed
-into a parallel Type rule. A material mismatch is a Slice correction, not a
-reason to create a transient aggregate Type.
-Bytes is the current Constant ranged payload domain rather than evidence for a
-universal Constant payload interface.
-
-Expression delegates primary parsing to Literal and Identifier and selects
-following operators in precedence order. Each concrete operation owns its
-complete grammar builder. Slice recursively asks the Expression dispatcher for
-operands and associates its postfixes left to right. No parser callback links,
-folds, reports an `Expression::Error`, or replaces an authored node.
-Slice binds before Multiply. Multiply owns selected Type legality, checked
-integer and IEEE folding, construction, and diagnostics after asking the
-dispatcher only for an operand above its own precedence. Divide and Modulo
-share that multiplicative precedence. Divide owns selected Type quotient
-evaluation and integer zero handling. Modulo accepts only exact Signed or
-Unsigned Types and owns remainder sign, zero, selected width, and signed
-endpoint failures. The multiplicative level binds before Subtract. Subtract
-owns binary `-`, locked scalar Type selection, checked
-selected width overflow and underflow, IEEE Real evaluation, construction,
-diagnostics, and folding. Literal keeps leading negative numeric grammar.
-Negate owns general prefix unary `-` for exact Signed and Real Types, selected
-Signed minimum rejection, IEEE Real evaluation, construction, diagnostics, and
-folding. Slice binds before Negate, and Negate binds before the multiplicative
-level. A legal incomplete operand retains one real Negate edge.
-Not owns prefix unary `!` at the same level for only the exact canonical Bool
-Type. Complete True and False inputs fold to the canonical opposite Constant,
-while a legal incomplete Bool retains one real Not edge. Not introduces no
-truthiness conversion or bitwise interpretation.
-Subtract binds before the comparison level. Less owns `<`, Greater owns `>`,
-LessEqual owns `<=`, and GreaterEqual owns `>=`. Each owns locked scalar operand
-Type selection, canonical Bool result identity, ordered IEEE comparison,
-construction, diagnostics, and True or False folding. A chained comparison
-receives the prior Bool result and follows ordinary Type legality. Multiply,
-Divide, Subtract, Less, Greater, LessEqual, and GreaterEqual require exact
-resolved Signed, Unsigned, or Real Type identity on both operands. Modulo
-applies the same exact Type rule to Signed and Unsigned only. Constants retain
-their declared Type, and these operations perform no implicit widening,
-narrowing, fitting, or retagging.
-Equal owns `==` below the ordered comparison level. Exact identical resolved
-Signed, Unsigned, Real, or Flag Types admit scalar equality, while complete
-Bytes Constants admit their existing exact Type and payload equality. The five
-Constant domains own their payload comparisons, including Real NaN equivalence,
-so Equal adds neither a tagged value nor a Constant fitting exception. Complete
-inputs fold to canonical Bool while legal dynamic scalar operands retain Equal.
-NotEqual owns `!=` at the same level over exactly those domains. It delegates
-the inverse payload comparison to each Constant domain, preserving the same
-NaN, signed zero, and Bytes semantics without another semantic value model.
-Complete inputs fold to canonical Bool while legal dynamic scalar operands
-retain NotEqual.
-Signed and Unsigned operations reject host arithmetic overflow first, then use
-`Core::Math::is_representable` to prove the result fits the selected byte width
-rather than reproducing representation arithmetic in each operation.
-A later named scalar operator adds its own grammar builder and one explicit
-Expression dispatch case instead of extending Slice or duplicating parser
-transactions. Swizzle instead selects ordered Structured Layout flow and does
-not construct an Operation Expression. Function finalization may query each
-retained root in authored order, but the source graph remains intact. The
-receiving typed operation applies fitting only after the complete Expression
-has linked its result Type.
-Invalid operand categories are linking Diagnostics over the complete operation
-Span. Negative values, arithmetic overflow, and bounds discovered only by
-folding remain exact cached `Expression::Error` values until another owner
-requires a Constant.
-Shader and other concrete consumers may use the same Resource
-without taking Library Constant semantics or accessing Storage. When
-resolution returns Error, the consumer combines its current Token Span with
-the concrete owner's retained failure context to publish the textual
-diagnostic.
-
-Package Storage implements confined root reads, route rejection, empty success,
-successful read caching, and fallback absence. An authored resource transaction
-starts pending, connects once to the Package Storage owned by Workspace, and
-serves member interpretation during graph discovery. Workspace seals every
-transaction before dependency resolution can link or finalize the retained
-range. The sealed transaction
-retains cached Resource and Error identities but cannot reconnect or acquire a
-new route. Source-free restoration publishes its Package resource transaction
-already sealed. Package Monograph itself retains no filesystem handle.
-Consumers persist only their reachable semantic facts. Package Archive never
-retains the root, route cache, unused input bytes, or Resource acquisition
-machinery, so source-free restoration needs no filesystem capability.
-
-## Durable package products
-
-Namespace `Package::Archive` owns the implemented Format 1 contracts:
-`Package::Archive::Archive` retains the completed facts,
-`Package::Archive::Reader` validates and materializes the envelope, and
-`Package::Archive::Writer` emits it canonically. Namespace
-`Package::Repository` owns the `Repository`, `Input`, `Artifact`, and `Output`
-classes. Repository borrows explicit input declarations under its caller Arena
-lifetime, asks `System::Path` to construct its derived normalized output routes
-directly in that Arena, and selects Archives by exact identity and pinned
-Version. Archive and native output inventories use the same identity, Version,
-and artifact ID key while remaining separate operations. An Archive contains
-exact Package identity and version,
-semantic member and Dialect names, concrete Dialect payload framing, dependency
-requests, exported semantic routes, and native artifact and symbol locators.
-`Archive::Sections` and `Archive::header_size` are the shared public section
-vocabulary and fixed header size consumed by Reader and Writer.
-
-Each installed concrete Dialect owns the versioned payload it encodes and
-restores. Restored Monographs are allocated in the importing Workspace Arena.
-Package validates the envelope without depending on Library, App, Scene,
-Render, or Shader payload schemas.
-
-An Archive contains no source bytes, source path as semantic identity, process
-address, parser Cursor, filesystem handle, target cache, or Linker object bytes.
-The current codec validates complete envelopes before retaining typed record
-ranges in the caller Arena and emits one deterministic canonical encoding. The
-input bytes remain borrowed for that Arena lifetime, so an Arena backed file
-read reaches Archive without another copy. Archive itself remains a regular
-value over stable views. Reader logs exact framing and relationship failures
-without constructing a textual error for binary input and returns exactly
-`Utility::Result<Archive, ReadError>`. Repository archive and native selection
-also return Result with their existing `SelectionError`, so propagation has no
-untyped null state. Repository caches only successfully decoded Archives,
-exposes native filesystem paths without reading them, and normalizes declared
-only publication routes without materializing output. Its logs preserve both
-declarations for duplicate keys and route collisions. Package does not
-coordinate restoration. Environment Resolution reconstructs each Package root
-from the Archive envelope and calls the installed concrete Dialect for every
-opaque member payload.
-
-## Current evidence boundary
-
-The current tree provides the following implemented surfaces.
-
-1. TTX provides lexical and closed semantic targets.
-2. Language provides shared Comment and Dialect parsers.
-3. Language provides the stateful Dialect and Monograph interfaces.
-4. Environment provides Workspace import orchestration, Dialect installation
-   and dispatch, Monograph Retention, source free Package Resolution, Package
-   local binding, frozen link and finalize barriers, and authored root name
-   lookup.
-5. Package provides Dependency, Source, Monograph, complete manifest
-   interpretation, one exact Alias backed Package scope, confined Storage,
-   Archive Format 1, and exact Repository selection.
-6. Library provides the installed Dialect, one synthetic source Structure per
-   Monograph, scalar and Void intrinsics, authored Structure and inherited
-   Object Types, Field writability metadata, exact Function hosts, source shaped
-   signatures and Expression roots, exposed Static publication, Package local
-   Alias Imports, semantic linking, and nondestructive cached folding during
-   finalization.
-7. Library and Shader provide CPU and SPIR V instruction assemblers.
-8. Linker provides source independent linking machinery.
-9. Puffer provides an LSP process but no compile orchestration.
-
-That inventory does not prove assignment or construction enforcement of Field
-writability, Static and Self overload parsing, control flow parsing for Library,
-or complete parsing for App, Scene, Render, Shader, or Foreign. It also does not
-prove required Constant validation, CPU semantic lowering, runtime execution,
-Puffer compile orchestration or physical publication, typed Object Module
-production, final native executable emission, or Library, App, Scene, Render,
-Shader, or Foreign payload restoration.
-
-A fixture, README, target build, or test written beside an implementation is not
-an independent semantic oracle.
+- [TTX semantics](../ttx/ttx_semantics.md)
+- [Language extension model](language/README.md)
+- [Environment and Workspace](environment/README.md)
+- [Package language](package/README.md)
+- [Library language](library/README.md)
+- [App](app/README.md), [Scene](scene/README.md),
+  [Render](render/README.md), [Shader](shader/README.md), and
+  [Foreign](foreign/README.md)

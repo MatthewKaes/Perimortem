@@ -171,9 +171,9 @@ class Lexicon {
       return "("_view;
     case Code::Type::PackingEnd:
       return ")"_view;
-    case Code::Type::LayoutStart:
+    case Code::Type::BracketStart:
       return "["_view;
-    case Code::Type::LayoutEnd:
+    case Code::Type::BracketEnd:
       return "]"_view;
     case Code::Type::Define:
       return ":"_view;
@@ -187,7 +187,7 @@ class Lexicon {
       return "."_view;
     case Code::Type::SwizzleOp:
       return ".["_view;
-    case Code::Type::SliceOp:
+    case Code::Type::ValueAccessOp:
       return ":["_view;
     case Code::Type::PackingOp:
       return ","_view;

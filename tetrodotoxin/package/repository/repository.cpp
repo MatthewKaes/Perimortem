@@ -513,9 +513,9 @@ auto Package::Repository::Repository::select_native(
       [&](const Package::Archive::Archive& archive) -> Selection {
         auto selected = find_input(inputs, identity, version);
 
-        // Native declarations are a complete physical projection of the
+        // Native declarations are one complete physical representation of the
         // Archive artifact inventory. Validation stays here so semantic cache
-        // publication remains useful when that projection is absent or bad.
+        // publication remains useful when that representation is absent or bad.
         Bool artifacts_match = validate_artifacts(
             *selected, archive, identity, version, artifact_id);
         if (!artifacts_match) {

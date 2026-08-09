@@ -1,72 +1,74 @@
 # TTX
 
-TTX is a host neutral lexical and semantic substrate. It defines a compact
-Token stream and the closed shared contracts used to exchange semantic
-identities without copying them into private models.
+TTX is a compact, host neutral vocabulary for source and semantic facts. It
+defines lexical token codes, stable semantic identities, and Layouts that
+describe how values fit together. A language host can interpret those facts,
+inspect them, or lower them without first copying them into another model.
 
-TTX does not define a source transaction, concrete language, package,
-filesystem, compiler, linker, runtime, or archive format. Those systems may
-construct and consume TTX objects, but their policy remains outside this
-project.
+Tetrodotoxin is the reference host in this repository. It supplies concrete
+languages, packages, workspaces, compilers, and runtime policy while TTX remains
+independent of all of them.
 
-## Lexical layer
+## Source vocabulary
 
-Every Token carries an eight bit `Lexical::Code` and coordinates into the
-source view borrowed by its Tokenizer. `Terminal` is `0x00`, `Unknown` is
-`0xFF`, and the remaining values belong to the exact Lexer and Lexicon
-contract that assigned them.
+The TTX lexer turns authored bytes into an ordered Token stream. Tokens retain
+their source coordinates and a `Lexical::Code`; payload text continues to come
+from the original source view. Fixed words, names, literals, delimiters, and
+operators therefore remain distinct without forming a universal syntax tree.
 
-The Tokenizer appends one zero length Terminal at the source end boundary.
-`Cursor::peek` accepts a signed relative offset and returns an empty Token when
-either stream boundary would be crossed. A consumer can pair its opening Token
-with `peek(-1)` to describe an operation that ended immediately before the
-current Token without synthesizing a boundary Token.
+Distinct operator and delimiter spellings receive distinct lexical Codes. TTX
+preserves those Codes without assigning them one universal expression grammar
+or result policy. A concrete language assigns grammar and result contracts while
+consuming the exact semantic interfaces it requires.
 
-`Lexical::Anchor` pairs the complete Span relevant to a fact with the
-independent Token a diagnostic should emphasize. Construction from a Span
-defaults that focus to its opening Token. An empty or external Token remains a
-valid request for source context. Errors emits carets only when the complete
-Token lies inside both the Span and retained source. A synthetic semantic fact
-omits the Anchor instead of fabricating source coordinates.
+Type, Addressable, Callable, and the supporting Layout contract remain
+independent semantic interfaces. Sharing a name or appearing in one concrete
+language construct does not merge them into a common member model.
 
-`Cursor::branch` starts a speculative transaction at the current position over
-the same immutable Token stream. Its explicit Errors overload keeps provisional
-diagnostics private. Only `Cursor::join` publishes the branch position, and a
-consumer joins only after its complete parse transaction succeeds.
+## Semantic vocabulary
 
-Tokens represent decoded source spans. They are not fixed width language
-instructions, and their Codes are not an independent serialized format. A
-consumer must use the same Lexer contract and source bytes that produced the
-stream.
+Every queryable semantic identity implements `Abstract`. The closed TTX version
+1 categories are:
 
-`Lexical::Errors` is the retained rendering format for errors in authored
-text. Every `Errors::Report` receives an explicit source name, source body, and
-`Lexical::Anchor`. Its Span selects the excerpt. When the complete Token lies
-inside both that Span and the retained source, it selects the diagnostic
-coordinate and complete caret width. It is not the status channel for
-filesystem, archive,
-repository, compiler, or runtime validation. Context free owners log their
-local failure facts through `Diagnostics::Log` and return failure. The caller
-that owns an authored request decides whether that failure becomes a source
-diagnostic.
+```text
+Abstract
+├── Invalid
+├── Alias
+├── Type
+│   └── Value
+│       ├── Flag
+│       ├── Real
+│       ├── Signed
+│       └── Unsigned
+├── Addressable
+└── Callable
+```
 
-## Semantic layer
+`Layout`, `Documentation`, `Reference`, and `Attribute` support those identities
+without becoming identities themselves.
 
-The identity bearing graph consists of `Abstract`, `Invalid`, `Alias`, `Type`,
-`Value`, `Flag`, `Real`, `Signed`, `Unsigned`, `Addressable`, and `Callable`.
+A `Type` exposes one complete Layout. An `Addressable` names typed data. A
+`Callable` exposes parameter and result Layouts. An `Alias` keeps its own local
+name and documentation while resolving to another identity. `Invalid` is the
+total result of a semantic query that cannot be answered.
 
-Those contracts are a shared vocabulary, not a type system. Concrete languages
-own their Type inventory, scope, visibility, mutation, construction, and
-receiver policy.
+## Layouts
 
-`Documentation`, `Layout`, `Reference`, and `Attribute` are identity free
-supporting contracts and values. TTX also supplies common Layout
-implementations.
+A Layout is an ordered view of real semantic facts and a directional fitting
+contract. TTX supplies four common forms:
 
-Concrete languages may define expressions, constants, generic formulas,
-mutability, invocation roles, executable bodies, and concrete scalar Types.
-Those additions retain real TTX edges without becoming part of the shared TTX
-model.
+- `Fluid` fits ordered values.
+- `Named` retains uniquely named entries and fits them by name.
+- `Ranged` repeats one entry over a fixed interval.
+- `Composite` joins complete Layouts without flattening them.
 
-See [ttx_design.md](ttx_design.md) for the ownership rationale and
-[ttx_semantics.md](ttx_semantics.md) for the normative contracts.
+Layouts describe semantic shape. Target size, field offsets, registers, pointer
+forms, and runtime storage belong to the terminal that lowers a completed graph.
+
+## Further reading
+
+- [TTX semantics](ttx_semantics.md) is the normative lexical and semantic
+  contract.
+- [TTX design](ttx_design.md) explains the graph, resolution, and Layout model.
+- [Tetrodotoxin](../tetrodotoxin/README.md) documents the reference host and its
+  languages.

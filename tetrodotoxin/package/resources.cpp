@@ -100,16 +100,16 @@ auto Package::Resources::resolve(View::Bytes logical_route) -> const Abstract& {
   // supplies the durable key for the first request, so Resources never grows a
   // second confinement policy.
   Path normalized(logical_route);
-  Dynamic::Bytes complete_instruction;
+  Dynamic::Bytes complete_route;
   View::Bytes request_key = normalized.get_view();
   if (request_key.is_empty()) {
-    // A complete contextual instruction has fixed delimiters. Rebuilding them
-    // here keeps invalid spellings exact while Monograph delegates only the
-    // interior logical route.
-    complete_instruction.concat("$["_view);
-    complete_instruction.concat(logical_route);
-    complete_instruction.append(']');
-    request_key = complete_instruction;
+    // A complete resource route has fixed delimiters. Rebuilding them here
+    // keeps invalid spellings exact while Monograph delegates only the interior
+    // logical route.
+    complete_route.concat("$["_view);
+    complete_route.concat(logical_route);
+    complete_route.append(']');
+    request_key = complete_route;
   }
 
   auto cached_resource = resource_cache.find(request_key);

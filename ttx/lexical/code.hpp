@@ -57,35 +57,35 @@ class Code {
     ScopeEnd,      // }
     PackingStart,  // (
     PackingEnd,    // )
-    LayoutStart,   // [ type args or layout
-    LayoutEnd,     // ]
+    BracketStart,  // [
+    BracketEnd,    // ]
 
     // ========================================================================
     //                               Operators
     // ========================================================================
-    AddOp,         // +
-    SubOp,         // -
-    DivOp,         // /
-    MulOp,         // *
-    ModOp,         // %
-    LessOp,        // <
-    GreaterOp,     // >
-    LessEqOp,      // <=
-    GreaterEqOp,   // >=
-    CmpOp,         // ==
-    NotEqOp,       // !=
-    Assign,        // =
-    AddAssign,     // +=
-    SubAssign,     // -=
-    CallOp,        // ->
-    AddressOp,     // .
-    SwizzleOp,     // .[
-    SliceOp,       // :[
-    PackingOp,     // ,
-    NotOp,         // !
-    RangeOp,       // ...
-    Define,        // :
-    TypeAccessOp,  // ::
+    AddOp,          // +
+    SubOp,          // -
+    DivOp,          // /
+    MulOp,          // *
+    ModOp,          // %
+    LessOp,         // <
+    GreaterOp,      // >
+    LessEqOp,       // <=
+    GreaterEqOp,    // >=
+    CmpOp,          // ==
+    NotEqOp,        // !=
+    Assign,         // =
+    AddAssign,      // +=
+    SubAssign,      // -=
+    CallOp,         // ->
+    AddressOp,      // .
+    SwizzleOp,      // .[
+    ValueAccessOp,  // :[
+    PackingOp,      // ,
+    NotOp,          // !
+    RangeOp,        // ...
+    Define,         // :
+    TypeAccessOp,   // ::
     // These Codes reserve the bitwise operator groupings without prescribing
     // how a consumer evaluates them.
     AndOp,  // & reserved

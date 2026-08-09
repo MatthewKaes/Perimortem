@@ -17,13 +17,11 @@
 namespace Tetrodotoxin::Environment {
 
 // Owns the installed Dialect inventory for one Workspace. Every instance uses
-// the shared graph Arena and registry, then remains alive until Retention has
-// destroyed each Monograph hosted by that Dialect.
+// the shared graph Arena, then remains alive until Retention has destroyed each
+// Monograph hosted by that Dialect.
 class Dialects {
  public:
-  Dialects(
-      Perimortem::Memory::Allocator::Arena& arena,
-      Ttx::Concept::Abstract& registry);
+  explicit Dialects(Perimortem::Memory::Allocator::Arena& arena);
   ~Dialects();
 
   template <typename TargetDialect>
@@ -33,7 +31,7 @@ class Dialects {
     }
 
     Perimortem::Core::View::Bytes retained_name = arena.proxy(name);
-    auto& dialect = arena.construct<TargetDialect>(registry);
+    auto& dialect = arena.construct<TargetDialect>();
     Installed retained(dialect);
 
     names.insert(retained_name);
@@ -61,7 +59,6 @@ class Dialects {
   };
 
   Perimortem::Memory::Allocator::Arena& arena;
-  Ttx::Concept::Abstract& registry;
   Perimortem::Memory::Managed::Vector<Perimortem::Core::View::Bytes> names;
   Perimortem::Memory::Managed::Vector<Installed> values;
   Perimortem::Memory::Managed::

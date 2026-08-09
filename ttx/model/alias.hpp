@@ -16,10 +16,10 @@ namespace Ttx::Model {
 // and then gives it the complete borrowed route, so the target owns all
 // parsing, indexing, slicing, and further redirection.
 //
-// When constructing an Alias `Documentations::Merged` is the prefered model as
+// When constructing an Alias `Documentations::Merged` is the preferred model as
 // it enables forwarding of the target documentation, however for optimization
 // if the Alias provides no wrapping documentation then the target's
-// documentation can be passed to the Alias directly with out a `Merged`
+// documentation can be passed to the Alias directly without a `Merged`
 // wrapper.
 //
 // The graph owner must keep the target alive and reject alias cycles before the
@@ -63,6 +63,11 @@ class Alias : public Concept::Abstract {
   constexpr auto resolve() const -> const Abstract& override {
     return target.resolve();
   }
+
+  // The immediate target is the exact borrowed graph edge. Unlike resolve this
+  // observation neither follows another Alias nor asks whether the target has
+  // completed its own semantic contract.
+  constexpr auto get_target() const -> const Abstract& { return target; }
 
   constexpr auto resolve_context(Perimortem::Core::View::Bytes route) const
       -> const Abstract& override {

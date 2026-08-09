@@ -21,7 +21,7 @@ auto Parser::Dialect::parse(Cursor& cursor) -> View::Bytes {
 
   if (!cursor.require(
           Code::Type::Define,
-          "Expected `:` after the source Dialect instruction."_view)) {
+          "Expected `:` after the source Dialect declaration."_view)) {
     return View::Bytes();
   }
 
@@ -36,7 +36,7 @@ auto Parser::Dialect::parse(Cursor& cursor) -> View::Bytes {
       dialect_token.caculate_text(cursor.get_source_text());
   if (!cursor.require(
           Code::Type::EndStatement,
-          "Expected `;` after the source Dialect instruction."_view)) {
+          "Expected `;` after the source Dialect declaration."_view)) {
     return View::Bytes();
   }
 

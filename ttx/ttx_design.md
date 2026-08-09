@@ -1,18 +1,13 @@
 # TTX Design
 
-TTX is the narrow interchange boundary between lexical producers, semantic
-domains, and downstream consumers. It owns only facts that remain meaningful
-without knowing the concrete language, source transaction, package, target, or
-runtime.
+TTX is the shared boundary between lexical producers, concrete languages, and
+semantic consumers. It owns facts that remain meaningful without knowing which
+package, compiler, target, or runtime will eventually consume them.
 
-## One semantic graph
+## One graph
 
-`Abstract` is the root of every semantic identity. Narrow contracts add only
-the queries needed to exchange a fact across domains. A consumer retains the
-real identity through `Reference` or another borrowed edge rather than copying
-names and members into a shadow Type graph.
-
-This boundary is deliberately closed for version 1:
+Every semantic identity begins with `Abstract`. Narrower categories add only the
+queries needed to exchange that identity with another domain:
 
 ```text
 Abstract
@@ -28,81 +23,84 @@ Abstract
 └── Callable
 ```
 
-`Documentation`, `Layout`, `Reference`, and `Attribute` do not inherit
-`Abstract`. They support identities without acquiring identity or resolution
-of their own. Reference preserves the cv qualification of its exact borrowed
-identity so an enriching owner does not recover mutation from a const edge.
+An owner retains the real identity through a borrowed `Reference`. Names,
+documentation, and category-specific edges remain on their semantic owners, so
+tooling and lowering observe the same graph rather than synchronized copies.
+Alias exposes its immediate borrowed target when graph construction needs that
+exact edge; ordinary `resolve()` still follows represented identity.
+
+`Documentation`, `Layout`, `Reference`, and `Attribute` are supporting values.
+They describe or connect identities without acquiring independent semantic
+identity.
+
+## Contextual resolution
+
+`resolve()` follows represented identity. `resolve_context(route)` asks the
+receiving Abstract to interpret a borrowed route in its own domain. A result may
+itself answer another contextual query, so traversal can cross any sequence of
+Abstract identities without requiring the intermediate and terminal categories
+to match.
+
+The caller owns the expected contract. It proves the returned identity through
+`is<Category>()` or `visit<Category>()`; contextual resolution does not infer a
+Type, Addressable, Callable, or another category from route spelling. Likewise,
+a Layout exposes real Abstract entries without assigning them one universal
+member or access meaning.
+
+TTX therefore defines no shared member table, collision domain, or source
+operator semantics. A concrete language assigns grammar and result contracts to
+lexical Codes while using the TTX queries and categories it requires. Target
+realization of a selected identity remains a later consumer decision.
 
 ## Progressive construction
 
-A graph owner may reserve stable objects before every edge is ready. An
-incomplete semantic query returns the shared `Invalid` object. Once a query
-returns a valid identity, later enrichment may refine incomplete queries but
-must not invalidate that earlier correct answer.
+A graph owner may reserve a stable identity before all of its edges are ready.
+An incomplete total query returns the shared `Invalid` object. Later work may
+make an unanswered query valid, but an identity that was already returned does
+not change.
 
-Construction failures, parser errors, invalid indexes, and failed Layout fits
-are not graph identities. They use ordinary `Option` or `Union` results.
-`Invalid` remains reserved for total semantic queries that must return an
-`Abstract`.
+Parser rejection, a failed Layout fit, and other operation failures use their
+owners' result contracts rather than becoming semantic identities. `Invalid` is
+reserved for queries whose contract always returns an Abstract.
 
-## Resolution and category proof
+## Layouts as value shape
 
-`resolve()` returns the represented identity. `resolve_context(route)` asks the
-receiving identity to interpret borrowed route bytes. TTX defines neither a
-path grammar nor a central resolver.
+A Layout retains an ordered view of real Abstracts and answers whether one view
+fits another. Fitting is directional: a source Layout supplies the values
+required by a target Layout.
 
-`implements()` proves a public semantic category through its stable contract
-identifier. `is<Category>()` performs a Boolean proof, while
-`visit<Category>(match, mismatch)` dispatches without exposing an unchecked
-narrowed reference.
+- `Fluid` compares entries in order.
+- `Named` compares uniquely named entries by name and represented identity.
+- `Ranged` repeats one entry across a fixed interval.
+- `Composite` preserves two complete child Layouts.
 
-There is no universal Kind, class database, semantic registry, copied member
-record, nullable graph edge, or allocated path history.
+A consumer may select a real entry from a Layout and then prove whichever TTX
+category its own operation requires. `Named` supplies name based fitting without
+becoming a universal lookup, member, or access interface.
 
-## Completed lexical ranges
+Layouts do not contain target offsets, alignments, registers, address spaces, or
+calling convention carriers. A lowering terminal derives those facts after the
+semantic Layout is known.
 
-Tokenizer owns the source end boundary as one zero length Terminal Token.
-Cursor owns forward parse position and bounded signed relative Token lookup.
-Span remains the compact range value, so a grammar pairs its retained opening
-Token with `peek(-1)` after consuming the range. Concrete grammars do not
-manufacture Tokens or read a Cursor index to approximate that boundary.
-Anchor combines a fact's complete Span with the independent Token a diagnostic
-should emphasize. A Span only factory focuses its opening Token. The Token may
-be empty or outside the Span. Errors renders the available source context but
-emits carets only when the complete Token lies inside both the Span and retained
-source. Consumers use optional absence for a synthetic semantic fact because
-TTX has no source coordinates to invent for it.
-Cursor branches share the immutable Token stream and isolate speculative
-position. Only an explicit join after complete success publishes that position
-to the parent Cursor. A branch may use a private Errors owner when rejected
-grammar must not publish provisional diagnostics.
+## Lexical ranges
 
-## Layout fitting
+Tokens describe decoded source spans. A Tokenizer terminates its stream with one
+zero length `Terminal` Token. A Cursor provides bounded relative observation and
+speculative branches; a branch changes its parent position only when joined.
 
-Layout is an identity free, directional fitting contract over an ordered group
-of real Abstracts. TTX supplies five common implementations:
+An `Anchor` combines the complete Span relevant to a fact with the Token a
+diagnostic should emphasize. Synthetic facts omit the Anchor because they have
+no authored coordinate.
 
-* `Fluid` fits ordered values by represented identity.
-* `Named` fits uniquely named values by name and represented identity.
-* `Structured` retains the actual Addressable entries of a Type.
-* `Ranged` repeats one real Abstract over a fixed interval.
-* `Composite` combines two complete Layouts without flattening them.
+## Concrete language boundary
 
-Layouts retain no copied Type names, fields, documentation, physical offsets,
-ABI rules, or target storage. Those facts remain on their semantic or target
-owners.
+TTX supplies the vocabulary shared by languages. A concrete language decides
+which Types exist, how names are published, which writes are legal, how
+Callables are selected and invoked, and how expressions evaluate.
 
-## Language boundary
+Target lowering may add offsets, pointer representations, ABI carriers, and
+machine symbols. Runtime systems may add frames, managed cells, collectors, and
+scheduling state. Those facts consume the TTX graph without becoming TTX
+semantic categories.
 
-TTX includes `Type`, `Value`, `Addressable`, and `Callable` because they are the
-shared exchange contracts for domains and signatures. It does not include the
-rules that create or evaluate those facts. Together they form a vocabulary,
-not a type system.
-
-Expressions, bindings, projections, constants, generic formulas, mutability,
-contextual scopes, visibility, receiver roles, executable bodies, concrete
-scalar Types, and publication policy belong to the concrete language that
-defines their legality. Reuse by several languages does not make such policy
-universal.
-
-The normative contract is [ttx_semantics.md](ttx_semantics.md).
+The normative contracts are defined in [ttx_semantics.md](ttx_semantics.md).

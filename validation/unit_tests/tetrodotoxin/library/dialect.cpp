@@ -49,6 +49,19 @@ class EmptyRegistry : public Abstract {
   }
 };
 
+class FutureType : public Type {
+ public:
+  constexpr auto get_name() const -> View::Bytes override {
+    return "Future"_view;
+  }
+  auto get_documentation() const -> const Documentation& override {
+    return Documentation::get_empty();
+  }
+  auto resolve_context(View::Bytes) const -> const Abstract& override {
+    return Invalid::get_invalid();
+  }
+};
+
 class OuterFact : public Abstract {
  public:
   constexpr auto get_name() const -> View::Bytes override {
@@ -126,7 +139,7 @@ static constexpr Static::Vector<View::Bytes, 12> intrinsic_names = {{
 
 PERIMORTEM_UNIT_TEST(DialectTests, canonical_intrinsic_addresses) {
   EmptyRegistry registry;
-  Dialect dialect(registry);
+  Dialect dialect;
   Static::Vector<const Abstract*, 12> addresses = {{
     &Dialect::get_bool(),
     &Dialect::get_unsigned_8(),
@@ -190,20 +203,26 @@ PERIMORTEM_UNIT_TEST(DialectTests, declaration_graph) {
       static_cast<const Language::Types::Structure&>(second->get_source());
   EXPECT(first_scope.is_source());
   EXPECT(second_scope.is_source());
+  EXPECT(&first_scope.get_documentation() == &first->get_documentation());
+  EXPECT(&second_scope.get_documentation() == &second->get_documentation());
+  EXPECT_TEXT(
+      first_scope.get_documentation().get_line(0),
+      "First Library source."_view);
   EXPECT(&first->resolve_context("source"_view) == &first_scope);
   EXPECT(&second->resolve_context("source"_view) == &second_scope);
 
-  // External lookup and publication borrow the same public Functions. The
-  // authored inventory keeps private declarations for source lifecycle work.
-  const Abstract& first_alpha = first->resolve_context("alpha"_view);
-  const Abstract& first_beta = first->resolve_context("beta"_view);
-  const Abstract& second_alpha = second->resolve_context("alpha"_view);
-  const Abstract& second_beta = second->resolve_context("beta"_view);
+  // Context lookup excludes Callables because only invocation can select one.
+  // The source candidate views preserve authored order and visibility without
+  // changing any Function identity.
   auto first_bindings = first->get_authored_bindings();
   auto second_bindings = second->get_authored_bindings();
   ASSERT_EQ(first_bindings.get_size(), Count(3));
   ASSERT_EQ(second_bindings.get_size(), Count(3));
+  const Abstract& first_alpha = first_bindings.get_data()[0].get();
   const Abstract& first_hidden = first_bindings.get_data()[1].get();
+  const Abstract& first_beta = first_bindings.get_data()[2].get();
+  const Abstract& second_beta = second_bindings.get_data()[0].get();
+  const Abstract& second_alpha = second_bindings.get_data()[1].get();
   const Abstract& second_hidden = second_bindings.get_data()[2].get();
   ASSERT(
       first_alpha.is<Language::Function>() &&
@@ -212,13 +231,17 @@ PERIMORTEM_UNIT_TEST(DialectTests, declaration_graph) {
       second_alpha.is<Language::Function>() &&
       second_hidden.is<Language::Function>() &&
       second_beta.is<Language::Function>());
+  EXPECT(&first->resolve_context("alpha"_view) == &Invalid::get_invalid());
+  EXPECT(&first->resolve_context("beta"_view) == &Invalid::get_invalid());
   EXPECT(&first->resolve_context("hidden"_view) == &Invalid::get_invalid());
+  EXPECT(&second->resolve_context("alpha"_view) == &Invalid::get_invalid());
+  EXPECT(&second->resolve_context("beta"_view) == &Invalid::get_invalid());
   EXPECT(&second->resolve_context("hidden"_view) == &Invalid::get_invalid());
 
-  auto first_public = first_scope.get_external_static_bindings();
-  auto second_public = second_scope.get_external_static_bindings();
-  auto first_functions = first_scope.get_static_bindings();
-  auto second_functions = second_scope.get_static_bindings();
+  auto first_public = first_scope.get_callable_bindings();
+  auto second_public = second_scope.get_callable_bindings();
+  auto first_functions = first_scope.get_callable_bindings(*first);
+  auto second_functions = second_scope.get_callable_bindings(*second);
   ASSERT_EQ(first_public.get_size(), Count(2));
   ASSERT_EQ(second_public.get_size(), Count(2));
   ASSERT_EQ(first_functions.get_size(), Count(3));
@@ -458,7 +481,7 @@ PERIMORTEM_UNIT_TEST(DialectTests, workspace_intrinsic_sharing) {
 PERIMORTEM_UNIT_TEST(DialectTests, context_fallback_and_shadowing) {
   Allocator::Arena arena;
   OuterRegistry registry;
-  Dialect dialect(registry);
+  Dialect dialect;
   Language::Materializations materializations(arena);
   auto& monograph = Language::Monograph::create_authored(
       arena, Documentation::get_empty(), dialect, registry, materializations);
@@ -479,7 +502,13 @@ PERIMORTEM_UNIT_TEST(DialectTests, context_fallback_and_shadowing) {
       materializations);
   ASSERT(local);
   ASSERT(monograph.bind_static(*local, local->get_visibility()));
-  EXPECT(&monograph.resolve_context("local"_view) == &*local);
+  EXPECT(&monograph.resolve_context("local"_view) == &Invalid::get_invalid());
+  ASSERT(source.is<Language::Types::Structure>());
+  const auto& source_structure =
+      static_cast<const Language::Types::Structure&>(source);
+  auto local_candidates = source_structure.get_callable_bindings();
+  ASSERT_EQ(local_candidates.get_size(), Count(1));
+  EXPECT(&local_candidates.get_data()[0].get() == &*local);
   EXPECT(&local->get_source() == &monograph);
   EXPECT(&local->get_host() == &source);
   EXPECT(&local->resolve_context("outer"_view) == &registry.fact);
@@ -495,7 +524,9 @@ PERIMORTEM_UNIT_TEST(DialectTests, context_fallback_and_shadowing) {
       arena, outer_cursor, Documentation::get_empty(), monograph, source,
       materializations);
   ASSERT(outer);
-  EXPECT_NOT(monograph.bind_static(*outer, outer->get_visibility()));
+  ASSERT(monograph.bind_static(*outer, outer->get_visibility()));
+  ASSERT(outer->complete(outer_cursor));
+  ASSERT(outer->link());
 
   Errors parameter_errors;
   Tokenizer parameter_tokenizer(
@@ -508,28 +539,34 @@ PERIMORTEM_UNIT_TEST(DialectTests, context_fallback_and_shadowing) {
   ASSERT(shadow);
   ASSERT(monograph.bind_static(*shadow, shadow->get_visibility()));
   ASSERT(shadow->complete(parameter_cursor));
-  EXPECT_NOT(shadow->link());
-  EXPECT(&monograph.resolve_context("shadow"_view) == &*shadow);
+  ASSERT(shadow->link());
+  const Abstract& shadowed = shadow->resolve_context("outer"_view);
+  ASSERT(shadowed.is<Language::Parameter>());
+  EXPECT(
+      &static_cast<const Language::Parameter&>(shadowed).get_type() ==
+      &Dialect::get_bool());
+  EXPECT(&shadowed != &registry.fact);
+  EXPECT(&monograph.resolve_context("outer"_view) == &Invalid::get_invalid());
+  EXPECT(&monograph.resolve_context("shadow"_view) == &Invalid::get_invalid());
+  auto candidates = source_structure.get_callable_bindings(monograph);
+  ASSERT_EQ(candidates.get_size(), Count(3));
+  EXPECT(&candidates.get_data()[0].get() == &*local);
+  EXPECT(&candidates.get_data()[1].get() == &*outer);
+  EXPECT(&candidates.get_data()[2].get() == &*shadow);
   EXPECT(local_errors.is_empty());
   EXPECT(outer_errors.is_empty());
   EXPECT(parameter_errors.is_empty());
-  auto diagnostics = monograph.get_diagnostics();
-  ASSERT_EQ(diagnostics.get_size(), Count(1));
-  ASSERT(diagnostics.get_data()[0].get_anchor());
-  EXPECT_TEXT(
-      diagnostics.get_data()[0].get_anchor()->get_span().caculate_text(
-          "public func shadow[.outer : Bool] -> Void {}"_view),
-      "outer"_view);
+  EXPECT(monograph.get_diagnostics().is_empty());
 }
 
-PERIMORTEM_UNIT_TEST(DialectTests, duplicate_preserves_first) {
+PERIMORTEM_UNIT_TEST(DialectTests, callable_candidates_preserve_order) {
   static constexpr View::Bytes first_source =
       "public func repeated[] -> Void {}"_view;
   static constexpr View::Bytes duplicate_source =
       "public func repeated[Bool] -> Void {}"_view;
   Allocator::Arena arena;
   EmptyRegistry registry;
-  Dialect dialect(registry);
+  Dialect dialect;
   Language::Materializations materializations(arena);
   auto& monograph = Language::Monograph::create_authored(
       arena, Documentation::get_empty(), dialect, registry, materializations);
@@ -542,16 +579,13 @@ PERIMORTEM_UNIT_TEST(DialectTests, duplicate_preserves_first) {
       materializations);
   ASSERT(first);
 
-  // Direct binding isolates the mutation contract from Workspace transaction
-  // discard. The rejected identity must not disturb either retained view.
-  ASSERT(monograph.bind_static(*first, first->get_visibility()));
+  // A shared name is not enough to select a Callable. The candidate view keeps
+  // both exact Functions in authored order for the invocation owner to fit.
   ASSERT(first->complete(first_cursor));
-  const Abstract* first_identity = &*first;
+  ASSERT(monograph.bind_static(*first, first->get_visibility()));
   ASSERT(source.is<Language::Types::Structure>());
   const auto& source_structure =
       static_cast<const Language::Types::Structure&>(source);
-  const Count public_size =
-      source_structure.get_external_static_bindings().get_size();
 
   Errors duplicate_errors;
   Tokenizer duplicate_tokenizer(arena, duplicate_source, "duplicate.ttx"_view);
@@ -560,29 +594,44 @@ PERIMORTEM_UNIT_TEST(DialectTests, duplicate_preserves_first) {
       arena, duplicate_cursor, Documentation::get_empty(), monograph, source,
       materializations);
   ASSERT(duplicate);
-  EXPECT_NOT(monograph.bind_static(*duplicate, duplicate->get_visibility()));
-  EXPECT(&monograph.resolve_context("repeated"_view) == first_identity);
-  auto public_bindings = source_structure.get_external_static_bindings();
-  EXPECT_EQ(public_bindings.get_size(), public_size);
-  EXPECT(&public_bindings.get_data()[0].get() == first_identity);
-  EXPECT_NOT(duplicate->is_complete());
+  ASSERT(duplicate->complete(duplicate_cursor));
+  ASSERT(monograph.bind_static(*duplicate, duplicate->get_visibility()));
+  EXPECT(
+      &monograph.resolve_context("repeated"_view) == &Invalid::get_invalid());
+  auto public_candidates = source_structure.get_callable_bindings();
+  ASSERT_EQ(public_candidates.get_size(), Count(2));
+  EXPECT(&public_candidates.get_data()[0].get() == &*first);
+  EXPECT(&public_candidates.get_data()[1].get() == &*duplicate);
 
-  // Workspace rejection proves that the partially constructed transaction is
-  // never published even though its Arena allocation remains safe to discard.
+  // Workspace completion preserves the same candidate ordering after all
+  // source barriers settle.
   static constexpr View::Bytes authored_duplicate =
-      "// Duplicate Library source.\n"
+      "// Overloaded Library source.\n"
       "dialect : Library;\n"
       "public func repeated[] -> Void {}\n"
       "public func repeated[Bool] -> Void {}"_view;
   Workspace workspace;
   Errors errors;
   ASSERT(workspace.install_dialect<Dialect>("Library"_view));
-  EXPECT_NOT(workspace.interpret_source(
-      errors, "Duplicate"_view, "duplicate-source.ttx"_view,
-      authored_duplicate));
+  auto overloaded =
+      import_library(workspace, errors, "Overloaded"_view, authored_duplicate);
+  ASSERT(overloaded);
+  ASSERT(overloaded->get_source().is<Language::Types::Structure>());
+  const auto& overloaded_source =
+      static_cast<const Language::Types::Structure&>(overloaded->get_source());
+  auto overloaded_authored = overloaded->get_authored_bindings();
+  auto overloaded_candidates = overloaded_source.get_callable_bindings();
+  ASSERT_EQ(overloaded_authored.get_size(), Count(2));
+  ASSERT_EQ(overloaded_candidates.get_size(), Count(2));
   EXPECT(
-      &workspace.resolve_context("Duplicate"_view) == &Invalid::get_invalid());
-  EXPECT_NOT(errors.is_empty());
+      &overloaded_candidates.get_data()[0].get() ==
+      &overloaded_authored.get_data()[0].get());
+  EXPECT(
+      &overloaded_candidates.get_data()[1].get() ==
+      &overloaded_authored.get_data()[1].get());
+  EXPECT(
+      &overloaded->resolve_context("repeated"_view) == &Invalid::get_invalid());
+  EXPECT(errors.is_empty());
 }
 
 PERIMORTEM_UNIT_TEST(DialectTests, failed_field_phase_stops_root_linking) {
@@ -591,7 +640,7 @@ PERIMORTEM_UNIT_TEST(DialectTests, failed_field_phase_stops_root_linking) {
       "public func later[] -> Void {}"_view;
   Allocator::Arena arena;
   EmptyRegistry registry;
-  Dialect dialect(registry);
+  Dialect dialect;
   Errors errors;
   Tokenizer tokenizer(arena, source, "phase-cascade.ttx"_view);
   Cursor cursor(tokenizer, errors);
@@ -613,7 +662,8 @@ PERIMORTEM_UNIT_TEST(DialectTests, failed_field_phase_stops_root_linking) {
   // open so a later phase cannot seal source lookup after that rejection.
   ASSERT_NOT(monograph.link());
   EXPECT_NOT(later.is_signature_linked());
-  EXPECT(source_structure.can_bind_static("future"_view));
+  FutureType future;
+  EXPECT(source_structure.can_bind_static(future));
   ASSERT_EQ(monograph.get_diagnostics().get_size(), Count(1));
   ASSERT(monograph.get_diagnostics().get_data()[0].get_anchor());
   EXPECT_TEXT(
@@ -624,6 +674,49 @@ PERIMORTEM_UNIT_TEST(DialectTests, failed_field_phase_stops_root_linking) {
           .caculate_text(source),
       "Missing"_view);
   EXPECT(errors.is_empty());
+}
+
+PERIMORTEM_UNIT_TEST(DialectTests, top_level_self_fails_signature_linking) {
+  static constexpr View::Bytes source =
+      "public func invalid[self] -> Void {}"_view;
+  Allocator::Arena arena;
+  EmptyRegistry registry;
+  Dialect dialect;
+  Errors errors;
+  Tokenizer tokenizer(arena, source, "top-level-self.ttx"_view);
+  Cursor cursor(tokenizer, errors);
+  auto interpreted =
+      dialect.interpret(arena, cursor, Documentation::get_empty(), registry);
+  ASSERT(interpreted && interpreted->is<Language::Monograph>());
+  auto& monograph = static_cast<Language::Monograph&>(*interpreted);
+  auto bindings = monograph.get_authored_bindings();
+  ASSERT_EQ(bindings.get_size(), Count(1));
+  ASSERT(bindings.get_data()[0].get().is<Language::Function>());
+  const auto& function =
+      static_cast<const Language::Function&>(bindings.get_data()[0].get());
+  EXPECT_NOT(function.is_signature_linked());
+  EXPECT(errors.is_empty());
+
+  ASSERT_NOT(monograph.link());
+  EXPECT(function.is_signature_linked());
+  auto receiver = function.get_parameters().get_abstract(0);
+  ASSERT(receiver);
+  EXPECT(receiver->visit<Addressable>(
+      [&](const Addressable& parameter) {
+        return Bool(
+            parameter.get_name() == "self"_view &&
+            &parameter.get_type() == &monograph.get_source());
+      },
+      [](const Abstract&) { return False; }));
+  ASSERT_EQ(monograph.get_diagnostics().get_size(), Count(1));
+  ASSERT(monograph.get_diagnostics().get_data()[0].get_anchor());
+  EXPECT_TEXT(
+      monograph.get_diagnostics()
+          .get_data()[0]
+          .get_anchor()
+          ->get_span()
+          .caculate_text(source),
+      "invalid"_view);
 }
 
 PERIMORTEM_UNIT_TEST(DialectTests, rejected_sources_publish_nothing) {

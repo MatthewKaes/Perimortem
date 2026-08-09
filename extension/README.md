@@ -1,27 +1,26 @@
 # Tetrodotoxin TTX
 
-Language support for TTX, Perimortem's Tetrodotoxin source IR.
+Tetrodotoxin TTX adds editor support for `.ttx` source files.
 
-![Synthetic TTX highlighting preview](media/ttx-preview.png)
+![TTX highlighting preview](media/ttx-preview.png)
 
-This preview is a static package asset built from TTX source text and the
-extension color rules.
+## Features
 
-## Current feature set
+- `.ttx` file association and a Tetrodotoxin file icon
+- TextMate syntax highlighting for comments, modifiers, attributes, Types,
+  Addressables, Callables, literals, operators, and punctuation
+- optional semantic highlighting from the bundled language server
+- full-document synchronization for open files
+- format requests that preserve the authored source
 
-- `.ttx` file association with the Tetrodotoxin language id.
-- Bundled TTX TextMate grammar for syntax highlighting.
-- Bundled red TTX color defaults for comments, modifiers, attributes, types,
-  members, functions, constants, strings, numbers, operators, and punctuation.
-- A format request that currently preserves the authored source unchanged.
-- Full-document synchronization with the language server for open `.ttx` files.
-- Optional LSP semantic tokens for users who want editor semantic highlighting.
-- Tetrodotoxin file icon for `.ttx` documents.
+The bundled color theme gives TTX categories distinct defaults while respecting
+editor customization.
 
 ## Semantic highlighting
 
-Semantic tokens are disabled by default and can be turned on to override the
-bundled TTX TextMate color scheme.
+Semantic highlighting is disabled by default so the TextMate colors remain
+predictable. Enable it in VS Code settings when the language server should
+provide token categories:
 
 ```json
 {
@@ -29,15 +28,16 @@ bundled TTX TextMate color scheme.
 }
 ```
 
-## Bundled TTX language server
+Semantic tokens follow TTX's separate source categories. In particular,
+Addressables selected with `.`, Types selected through `::`, and Callables
+invoked with `->` remain distinct.
 
-The extension packages the current Linux `puffer` binary and starts it in LSP
-mode. The server currently supplies transport, document synchronization, and
-lexical semantic tokens. Dialect-aware formatting and diagnostics will use the
-same resolver and evaluator path as package compilation when that integration
-lands.
+## Language server
 
-## Not yet included
+The Linux extension package includes the `puffer` language-server binary and
+starts it for Tetrodotoxin documents. Puffer tracks open document text and
+provides full semantic-token responses over the Language Server Protocol.
 
-The current extension does not advertise completions, hover, go-to-definition,
-references, or published diagnostics.
+See [Puffer](../puffer/README.md) for its command-line interface,
+[TTX](../ttx/README.md) for the shared language model, and
+[Tetrodotoxin](../tetrodotoxin/README.md) for the concrete Dialects.

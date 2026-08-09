@@ -23,14 +23,14 @@ namespace Tetrodotoxin::Language {
 // selects that instance before the remaining Cursor is handed to its grammar.
 class Dialect {
  public:
-  constexpr Dialect(Ttx::Concept::Abstract& registry) : registry(registry) {}
+  constexpr Dialect() = default;
   virtual ~Dialect() = 0;
 
   // The caller chooses the Arena that defines the returned graph lifetime.
   // Interpret borrows Cursor input under that same lifetime contract and
-  // receives the exact owner supplied context separately from the Workspace
-  // wide registry retained by this Dialect. Each concrete Dialect decides what
-  // that context means rather than inheriting one universal source scope.
+  // receives the exact owner supplied context separately. Each concrete
+  // Dialect decides what that context means rather than inheriting one
+  // universal source scope.
   virtual auto interpret(
       Perimortem::Memory::Allocator::Arena& domain,
       Ttx::Lexical::Cursor& cursor,
@@ -51,11 +51,6 @@ class Dialect {
       Perimortem::Memory::Allocator::Arena& domain,
       Perimortem::Core::View::Bytes payload)
       -> Perimortem::Utility::Option<Monograph&>;
-
- protected:
-  // The Workspace registry is shared so concrete Dialects resolve cross
-  // language edges against the same semantic island.
-  Ttx::Concept::Abstract& registry;
 };
 
 }  // namespace Tetrodotoxin::Language

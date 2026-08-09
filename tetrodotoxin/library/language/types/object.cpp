@@ -30,7 +30,7 @@ Types::Object::Object(
           anchor,
           name_anchor) {}
 
-auto Types::Object::create(
+auto Types::Object::create_authored(
     Allocator::Arena& domain,
     View::Bytes name,
     const Documentation& documentation,

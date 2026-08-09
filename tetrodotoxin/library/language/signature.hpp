@@ -11,6 +11,7 @@
 #include "perimortem/utility/option.hpp"
 
 #include "tetrodotoxin/language/monograph.hpp"
+#include "tetrodotoxin/library/language/access/type.hpp"
 #include "ttx/concept/layout.hpp"
 #include "ttx/concept/reference.hpp"
 #include "ttx/lexical/anchor.hpp"
@@ -21,7 +22,7 @@ namespace Tetrodotoxin::Library::Language {
 
 // Signature owns the authored parameter and result syntax for one Function.
 // Its private slots retain unresolved Type routes and exact Anchors until link
-// can construct the real TTX Layout projections without replacing the source
+// can construct the real TTX Layouts without replacing the source
 // representation.
 class Signature {
  public:
@@ -36,7 +37,9 @@ class Signature {
 
   auto link(
       Tetrodotoxin::Language::Monograph& source,
-      const Ttx::Concept::Abstract& context) -> Bool;
+      const Ttx::Concept::Abstract& context,
+      Perimortem::Utility::Option<const Ttx::Model::Type&> self_type = {})
+      -> Bool;
 
   auto get_parameters() const -> const Ttx::Concept::Layout&;
   auto get_results() const -> const Ttx::Concept::Layout&;
@@ -58,10 +61,10 @@ class Signature {
   auto get_parameter_name(Count index) const -> Perimortem::Core::View::Bytes;
   auto get_result_name(Count index) const -> Perimortem::Core::View::Bytes;
 
-  auto get_parameter_type_route(Count index) const
-      -> Perimortem::Core::View::Bytes;
-  auto get_result_type_route(Count index) const
-      -> Perimortem::Core::View::Bytes;
+  auto get_parameter_type_access(Count index) const
+      -> Perimortem::Utility::Option<const Access::Type&>;
+  auto get_result_type_access(Count index) const
+      -> Perimortem::Utility::Option<const Access::Type&>;
 
   auto get_parameter_anchor(Count index) const
       -> Perimortem::Utility::Option<Ttx::Lexical::Anchor>;
@@ -84,22 +87,19 @@ class Signature {
   class Slot {
    public:
     constexpr Slot(
-        Perimortem::Core::View::Bytes route,
+        Perimortem::Utility::Option<Access::Type> type_access,
         Ttx::Lexical::Anchor anchor,
-        Ttx::Lexical::Anchor type_anchor,
         Perimortem::Core::View::Bytes name,
         Perimortem::Utility::Option<Ttx::Lexical::Anchor> name_anchor)
-        : route(route),
+        : type_access(type_access),
           anchor(anchor),
-          type_anchor(type_anchor),
           name(name),
           name_anchor(name_anchor) {}
 
     constexpr auto is_named() const -> Bool { return Bool(name_anchor); }
 
-    Perimortem::Core::View::Bytes route;
+    Perimortem::Utility::Option<Access::Type> type_access;
     Ttx::Lexical::Anchor anchor;
-    Ttx::Lexical::Anchor type_anchor;
     Perimortem::Core::View::Bytes name;
     Perimortem::Utility::Option<Ttx::Lexical::Anchor> name_anchor;
     Perimortem::Utility::Option<Ttx::Concept::Reference<const Ttx::Model::Type>>

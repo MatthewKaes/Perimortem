@@ -8,23 +8,24 @@
 #include "tetrodotoxin/library/language/operation.hpp"
 #include "ttx/lexical/cursor.hpp"
 
-namespace Tetrodotoxin::Library::Language::Operations {
+namespace Tetrodotoxin::Library::Language::Access {
 
-// Slice is the semantic index or contiguous range operation. It retains two
-// inputs for receiver and index, or three inputs for receiver, start, and size.
-// Operation owns authored ordering and immutable edges. Slice retains the
-// result Type chosen from those inputs and evaluates the live Constant Bytes
-// payload domain without changing that graph contract during folding.
-class Slice : public Operation {
+// Value is the safe indexed element or contiguous range access. It retains two
+// inputs for receiver and index, or three inputs for receiver, start, and
+// count. A missing element produces its Type default, while a missing range
+// produces the default empty View and an oversized range stops at the receiver
+// boundary. Writable reference selection belongs to the separate bracket access
+// form.
+class Value : public Operation {
  public:
-  using ClassCatagory = Slice;
+  using ClassCatagory = Value;
   static constexpr Perimortem::System::Uuid contract_id{
     0x6beea0412c0b4d4e,
     0x958a39337c8ced0f,
   };
 
-  // Consumes one complete Slice postfix for the supplied receiver. Recursive
-  // operands use the Expression dispatcher while Slice owns the postfix
+  // Consumes one complete value postfix for the supplied receiver. Recursive
+  // operands use the Expression dispatcher while Value owns the postfix
   // grammar recovery and construction of one authored operation.
   static auto parse(
       Perimortem::Memory::Allocator::Arena& domain,
@@ -38,25 +39,25 @@ class Slice : public Operation {
       Materializations& materializations,
       Expression& receiver,
       Expression& index,
-      Ttx::Lexical::Anchor anchor) -> Slice&;
+      Ttx::Lexical::Anchor anchor) -> Value&;
   static auto create_synthetic(
       Perimortem::Memory::Allocator::Arena& domain,
       Materializations& materializations,
       Expression& receiver,
-      Expression& index) -> Slice&;
+      Expression& index) -> Value&;
   static auto create_authored(
       Perimortem::Memory::Allocator::Arena& domain,
       Materializations& materializations,
       Expression& receiver,
       Expression& start,
-      Expression& size,
-      Ttx::Lexical::Anchor anchor) -> Slice&;
+      Expression& count,
+      Ttx::Lexical::Anchor anchor) -> Value&;
   static auto create_synthetic(
       Perimortem::Memory::Allocator::Arena& domain,
       Materializations& materializations,
       Expression& receiver,
       Expression& start,
-      Expression& size) -> Slice&;
+      Expression& count) -> Value&;
 
   constexpr auto implements(Perimortem::System::Uuid requested) const
       -> Bool override {
@@ -64,11 +65,9 @@ class Slice : public Operation {
   }
 
   constexpr auto get_name() const -> Perimortem::Core::View::Bytes override {
-    return "Slice"_view;
+    return "Value"_view;
   }
   auto get_documentation() const -> const Ttx::Concept::Documentation& override;
-
-  constexpr auto is_range() const -> Bool { return range; }
 
  protected:
   auto evaluate_constants(
@@ -81,14 +80,12 @@ class Slice : public Operation {
       -> Perimortem::Utility::Option<const Ttx::Model::Type&> override;
 
  private:
-  Slice(
+  Value(
       Perimortem::Memory::Allocator::Arena& domain,
       Materializations& materializations,
       Perimortem::Core::View::Vector<Ttx::Concept::Reference<Expression>>
           inputs,
       Perimortem::Utility::Option<Ttx::Lexical::Anchor> anchor);
-
-  Bool range;
 };
 
-}  // namespace Tetrodotoxin::Library::Language::Operations
+}  // namespace Tetrodotoxin::Library::Language::Access

@@ -42,9 +42,7 @@ using namespace Validation;
 
 struct WorkspaceTrace {
   const Language::Dialect* instances[4]{};
-  const Abstract* installed_registries[4]{};
   const Abstract* interpretation_contexts[16]{};
-  const Abstract* package_registry = nullptr;
   const Abstract* package_interpretation_contexts[4]{};
   const Abstract* resource_results[8]{};
   const Library::Language::Constant* literal_results[2]{};
@@ -79,12 +77,9 @@ static WorkspaceTrace* active_trace = nullptr;
 
 class WorkspaceDialect : public Language::Dialect {
  public:
-  WorkspaceDialect(Abstract& registry)
-      : Dialect(registry),
-        trace(*active_trace),
-        identity(trace.dialect_constructions) {
+  WorkspaceDialect()
+      : trace(*active_trace), identity(trace.dialect_constructions) {
     trace.instances[identity] = this;
-    trace.installed_registries[identity] = &registry;
     trace.dialect_constructions++;
   }
 
@@ -122,10 +117,7 @@ class WorkspaceDialect : public Language::Dialect {
 
 class TracedPackageDialect : public Package::Dialect {
  public:
-  TracedPackageDialect(Abstract& registry)
-      : Package::Dialect(registry), trace(*active_trace) {
-    trace.package_registry = &registry;
-  }
+  TracedPackageDialect() : trace(*active_trace) {}
 
   auto interpret(
       Allocator::Arena& domain,
@@ -176,8 +168,7 @@ class ResourceMonograph : public Language::Monograph {
 
 class ResourceDialect : public Language::Dialect {
  public:
-  ResourceDialect(Abstract& registry)
-      : Dialect(registry), trace(*active_trace) {}
+  ResourceDialect() : trace(*active_trace) {}
 
   auto interpret(
       Allocator::Arena& domain,
@@ -779,7 +770,6 @@ PERIMORTEM_UNIT_TEST(EnvironmentWorkspace, owned_direct_import) {
   auto imported_result = workspace.interpret_source(
       errors, semantic_name, diagnostic_path, contents);
   ASSERT(imported_result);
-  EXPECT(trace.installed_registries[0] == &workspace);
   EXPECT(trace.interpretation_contexts[0] == &workspace);
 
   semantic_name.set('x');
@@ -1053,8 +1043,6 @@ PERIMORTEM_UNIT_TEST(EnvironmentWorkspace, staged_fifo_retention) {
   // Parsing success cannot reveal which Abstract reached a Dialect. Compare
   // the borrowed identities so each nested member proves its exact owner.
   ASSERT_EQ(trace.package_interpretation_count, 3);
-  EXPECT(trace.package_registry == &workspace);
-  EXPECT(trace.installed_registries[0] == &workspace);
   EXPECT(trace.package_interpretation_contexts[0] == &workspace);
   EXPECT(trace.package_interpretation_contexts[1] == &root_package);
   EXPECT(trace.package_interpretation_contexts[2] == &root_package);
@@ -1790,9 +1778,8 @@ PERIMORTEM_UNIT_TEST(EnvironmentWorkspace, context_free_typed_failure) {
     Package::Language::Dependency(
         "Dependency"_view, "Pkg.Missing"_view, Version(1, 0)),
   };
-  Environment::Workspace registry;
   Allocator::Arena arena;
-  Environment::Dialects dialects(arena, registry);
+  Environment::Dialects dialects(arena);
   Environment::Retention retention(arena);
   Environment::Resolution resolution(arena, dialects, retention);
   auto& root = Package::Language::Monograph::create_synthetic(

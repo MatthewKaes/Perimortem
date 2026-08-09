@@ -3,8 +3,6 @@
 
 #include "tetrodotoxin/library/language/import.hpp"
 
-#include "tetrodotoxin/package/language/parser/name.hpp"
-
 using namespace Perimortem::Core;
 using namespace Perimortem::Utility;
 using namespace Ttx::Lexical;
@@ -26,8 +24,8 @@ auto Library::Language::Import::parse(Cursor& cursor) -> Option<Import> {
     return {};
   }
 
-  View::Bytes route = Package::Language::Parser::Name::parse_semantic(cursor);
-  if (route.is_empty()) {
+  auto type_access = Access::Type::parse(cursor);
+  if (!type_access) {
     cursor.recover_to_statement();
     return {};
   }
@@ -42,5 +40,5 @@ auto Library::Language::Import::parse(Cursor& cursor) -> Option<Import> {
     return {};
   }
 
-  return Import(route, opening, Span(opening, terminator));
+  return Import(*type_access, opening, Span(opening, terminator));
 }

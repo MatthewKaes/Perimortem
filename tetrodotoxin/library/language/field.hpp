@@ -8,6 +8,7 @@
 #include "perimortem/utility/option.hpp"
 
 #include "tetrodotoxin/language/monograph.hpp"
+#include "tetrodotoxin/library/language/access/type.hpp"
 #include "tetrodotoxin/library/language/expression.hpp"
 #include "tetrodotoxin/library/language/materializations.hpp"
 #include "ttx/lexical/anchor.hpp"
@@ -41,8 +42,8 @@ class Field : public Ttx::Model::Addressable {
       return name;
     }
 
-    constexpr auto get_type_route() const -> Perimortem::Core::View::Bytes {
-      return type_route;
+    constexpr auto get_type_access() const -> const Access::Type& {
+      return type_access;
     }
 
     constexpr auto get_documentation() const
@@ -59,15 +60,7 @@ class Field : public Ttx::Model::Addressable {
     constexpr auto get_anchor() const -> Ttx::Lexical::Anchor { return anchor; }
 
     constexpr auto get_type_anchor() const -> Ttx::Lexical::Anchor {
-      return type_anchor;
-    }
-
-    constexpr auto is_state() const -> Bool {
-      return writability == Writability::Internal;
-    }
-
-    constexpr auto is_exposed() const -> Bool {
-      return exposure == Exposure::Exposed;
+      return type_access.get_anchor();
     }
 
     constexpr auto has_initializer() const -> Bool { return Bool(initializer); }
@@ -79,30 +72,27 @@ class Field : public Ttx::Model::Addressable {
 
     constexpr Source(
         Perimortem::Core::View::Bytes name,
-        Perimortem::Core::View::Bytes type_route,
+        Access::Type type_access,
         const Ttx::Concept::Documentation& documentation,
         Exposure exposure,
         Writability writability,
         Ttx::Lexical::Anchor anchor,
-        Ttx::Lexical::Anchor type_anchor,
         Perimortem::Utility::Option<Expression&> initializer)
         : name(name),
-          type_route(type_route),
+          type_access(type_access),
           documentation(documentation),
           exposure(exposure),
           writability(writability),
           anchor(anchor),
-          type_anchor(type_anchor),
           initializer(initializer) {}
 
    private:
     Perimortem::Core::View::Bytes name;
-    Perimortem::Core::View::Bytes type_route;
+    Access::Type type_access;
     const Ttx::Concept::Documentation& documentation;
     Exposure exposure;
     Writability writability;
     Ttx::Lexical::Anchor anchor;
-    Ttx::Lexical::Anchor type_anchor;
     Perimortem::Utility::Option<Expression&> initializer;
   };
 
@@ -170,8 +160,8 @@ class Field : public Ttx::Model::Addressable {
   auto resolve_context(Perimortem::Core::View::Bytes route) const
       -> const Ttx::Concept::Abstract& override;
 
-  constexpr auto get_type_route() const -> Perimortem::Core::View::Bytes {
-    return source.get_type_route();
+  constexpr auto get_type_access() const -> const Access::Type& {
+    return source.get_type_access();
   }
 
   constexpr auto get_exposure() const -> Exposure {
@@ -189,10 +179,6 @@ class Field : public Ttx::Model::Addressable {
   constexpr auto get_type_anchor() const -> Ttx::Lexical::Anchor {
     return source.get_type_anchor();
   }
-
-  constexpr auto is_state() const -> Bool { return source.is_state(); }
-
-  constexpr auto is_exposed() const -> Bool { return source.is_exposed(); }
 
   constexpr auto is_readable_externally() const -> Bool {
     return get_exposure() != Exposure::Private;

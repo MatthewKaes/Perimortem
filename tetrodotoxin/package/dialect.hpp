@@ -11,14 +11,13 @@ namespace Tetrodotoxin::Package {
 // Package Monograph from complete Dependency and Source values.
 class Dialect : public Tetrodotoxin::Language::Dialect {
  public:
-  constexpr Dialect(Ttx::Concept::Abstract& registry)
-      : Tetrodotoxin::Language::Dialect(registry) {}
+  constexpr Dialect() = default;
 
   auto interpret(
       Perimortem::Memory::Allocator::Arena& domain,
       Ttx::Lexical::Cursor& cursor,
       const Ttx::Concept::Documentation& doc,
-      Ttx::Concept::Abstract& registry)
+      Ttx::Concept::Abstract&)
       -> Perimortem::Utility::Option<
           Tetrodotoxin::Language::Monograph&> override;
 };

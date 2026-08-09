@@ -18,19 +18,6 @@ using namespace Ttx::Concept;
 using namespace Ttx::Lexical;
 using namespace Validation;
 
-class TestGraph : public Abstract {
- public:
-  auto get_name() const -> View::Bytes override { return "Graph"_view; }
-
-  auto get_documentation() const -> const Documentation& override {
-    return Documentation::get_empty();
-  }
-
-  auto resolve_context(View::Bytes) const -> const Abstract& override {
-    return Invalid::get_invalid();
-  }
-};
-
 struct LifecycleTrace {
   Unsigned_8 destruction_order[3]{};
   Unsigned_8 link_order[3]{};
@@ -45,8 +32,7 @@ struct LifecycleTrace {
 
 class LifecycleDialect : public Language::Dialect {
  public:
-  LifecycleDialect(Abstract& registry, LifecycleTrace& trace)
-      : Dialect(registry), trace(trace) {}
+  explicit LifecycleDialect(LifecycleTrace& trace) : trace(trace) {}
 
   ~LifecycleDialect() override {
     trace.destruction_order[trace.destruction_count] = 3;
@@ -139,8 +125,7 @@ class PersistedMonograph : public Language::Monograph {
 template <Unsigned_8 marker>
 class PersistingDialect : public Language::Dialect {
  public:
-  PersistingDialect(Abstract& registry, PersistenceTrace& trace)
-      : Dialect(registry), trace(trace) {}
+  explicit PersistingDialect(PersistenceTrace& trace) : trace(trace) {}
 
   auto interpret(Allocator::Arena&, Cursor&, const Documentation&, Abstract&)
       -> Option<Language::Monograph&> override {
@@ -191,7 +176,7 @@ class PersistingDialect : public Language::Dialect {
 
 class DefaultDialect : public Language::Dialect {
  public:
-  DefaultDialect(Abstract& registry) : Dialect(registry) {}
+  DefaultDialect() = default;
 
   auto interpret(Allocator::Arena&, Cursor&, const Documentation&, Abstract&)
       -> Option<Language::Monograph&> override {
@@ -213,7 +198,7 @@ class DefaultMonograph : public Language::Monograph {
 
 class EmptyEncodingDialect : public DefaultDialect {
  public:
-  EmptyEncodingDialect(Abstract& registry) : DefaultDialect(registry) {}
+  EmptyEncodingDialect() = default;
 
   auto encode(const Language::Monograph&) const
       -> Option<Dynamic::Bytes> override {
@@ -226,10 +211,9 @@ static Harness LanguageDialect = {
 };
 
 PERIMORTEM_UNIT_TEST(LanguageDialect, base_destruction_order) {
-  TestGraph registry;
   LifecycleTrace trace;
   Allocator::Arena arena;
-  auto& host = arena.construct<LifecycleDialect>(registry, trace);
+  auto& host = arena.construct<LifecycleDialect>(trace);
   auto& first = arena.construct<LifecycleMonograph>(arena, host, trace, 0);
   auto& second = arena.construct<LifecycleMonograph>(arena, host, trace, 1);
   Language::Monograph* first_base = &first;
@@ -247,10 +231,9 @@ PERIMORTEM_UNIT_TEST(LanguageDialect, base_destruction_order) {
 }
 
 PERIMORTEM_UNIT_TEST(LanguageDialect, ordered_completion_hooks) {
-  TestGraph registry;
   LifecycleTrace trace;
   Allocator::Arena arena;
-  LifecycleDialect host(registry, trace);
+  LifecycleDialect host(trace);
   LifecycleMonograph first(arena, host, trace, 0);
   LifecycleMonograph second(arena, host, trace, 1);
   LifecycleMonograph third(arena, host, trace, 2);
@@ -325,11 +308,10 @@ PERIMORTEM_UNIT_TEST(LanguageDialect, ordered_diagnostics_are_stable) {
 }
 
 PERIMORTEM_UNIT_TEST(LanguageDialect, payload_round_trip) {
-  TestGraph registry;
   PersistenceTrace trace;
   Allocator::Arena source_arena;
   Allocator::Arena restored_arena;
-  PersistingDialect<0xA1> dialect(registry, trace);
+  PersistingDialect<0xA1> dialect(trace);
   PersistedMonograph source(source_arena, "durable fact"_view);
   auto encoded = dialect.encode(source);
   auto restored = encoded.visit(
@@ -355,13 +337,12 @@ PERIMORTEM_UNIT_TEST(LanguageDialect, payload_round_trip) {
 PERIMORTEM_UNIT_TEST(LanguageDialect, rejects_invalid_payloads) {
   const Unsigned_8 truncated_bytes[] = {0xA1};
   const Unsigned_8 invalid_bytes[] = {0xA1, 3, 'x'};
-  TestGraph registry;
   PersistenceTrace trace;
   PersistenceTrace other_trace;
   Allocator::Arena source_arena;
   Allocator::Arena restored_arena;
-  PersistingDialect<0xA1> dialect(registry, trace);
-  PersistingDialect<0xB2> other_dialect(registry, other_trace);
+  PersistingDialect<0xA1> dialect(trace);
+  PersistingDialect<0xB2> other_dialect(other_trace);
   PersistedMonograph other_source(source_arena, "other dialect"_view);
   auto wrong_payload = other_dialect.encode(other_source);
 
@@ -381,11 +362,10 @@ PERIMORTEM_UNIT_TEST(LanguageDialect, rejects_invalid_payloads) {
 }
 
 PERIMORTEM_UNIT_TEST(LanguageDialect, explicit_default_persistence) {
-  TestGraph registry;
   Allocator::Arena arena;
-  DefaultDialect dialect(registry);
+  DefaultDialect dialect;
   DefaultMonograph monograph(arena);
-  EmptyEncodingDialect empty_dialect(registry);
+  EmptyEncodingDialect empty_dialect;
   DefaultMonograph empty_monograph(arena);
 
   const Bool linked = monograph.link();

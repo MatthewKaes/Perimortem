@@ -49,7 +49,7 @@ static auto has_source_name(
   return False;
 }
 
-static auto is_resource_instruction(View::Bytes route) -> Bool {
+static auto is_resource_route(View::Bytes route) -> Bool {
   return route.get_size() >= 3 && route[0] == '$' && route[1] == '[' &&
          route[route.get_size() - 1] == ']';
 }
@@ -139,10 +139,10 @@ auto Package::Language::Monograph::bind_dependency(
 
 auto Package::Language::Monograph::resolve_context(View::Bytes route) const
     -> const Abstract& {
-  // The delimiters reserve one complete contextual instruction. Malformed or
-  // partial spellings continue through exact Package lookup so this branch
-  // never becomes a second Embedded parser.
-  if (is_resource_instruction(route)) {
+  // The delimiters reserve one complete resource route. Malformed or partial
+  // spellings continue through exact Package lookup so this branch never
+  // becomes a second Embedded parser.
+  if (is_resource_route(route)) {
     return resources.resolve(route.slice(2, route.get_size() - 3));
   }
 

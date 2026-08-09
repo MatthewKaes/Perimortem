@@ -20,7 +20,6 @@
 #include "ttx/lexical/errors.hpp"
 #include "ttx/lexical/tokenizer.hpp"
 #include "ttx/model/addressable.hpp"
-#include "ttx/model/layouts/structured.hpp"
 #include "ttx/model/type.hpp"
 
 using namespace Perimortem::Core;
@@ -179,15 +178,11 @@ PERIMORTEM_UNIT_TEST(ObjectTests, stable_authored_graph) {
   ASSERT_EQ(authored_fields.get_size(), Count(2));
   const Language::Field::Source& progress = authored_fields.get_data()[0];
   const Language::Field::Source& token = authored_fields.get_data()[1];
-  EXPECT(progress.is_state());
-  EXPECT(progress.is_exposed());
   EXPECT(progress.get_exposure() == Language::Field::Exposure::Exposed);
   EXPECT(progress.get_writability() == Language::Field::Writability::Internal);
   EXPECT_NOT(progress.get_documentation().is_empty());
   EXPECT_TEXT(progress.get_name(), "progress"_view);
-  EXPECT_TEXT(progress.get_type_route(), "Unsigned_64"_view);
-  EXPECT(token.is_state());
-  EXPECT_NOT(token.is_exposed());
+  EXPECT_TEXT(progress.get_type_access().get_route(), "Unsigned_64"_view);
   EXPECT(token.get_exposure() == Language::Field::Exposure::Private);
   EXPECT(token.get_writability() == Language::Field::Writability::Internal);
   ASSERT(progress.get_initializer());
@@ -235,11 +230,9 @@ PERIMORTEM_UNIT_TEST(ObjectTests, stable_authored_graph) {
       static_cast<const Language::Function&>(callables.get_data()[1].get());
   EXPECT(&advance.get_host() == &session);
   EXPECT(&token_value.get_host() == &session);
-  EXPECT(
-      &token_value.resolve_context("token"_view) ==
-      &fields.get_data()[1].get());
+  EXPECT(&token_value.resolve_context("token"_view) == &Invalid::get_invalid());
 
-  const Layout& layout = session.get_layout();
+  const Layouts::Named& layout = session.get_layout();
   ASSERT_EQ(layout.get_size(), Count(2));
   ASSERT(layout.get_abstract(0));
   ASSERT(layout.get_abstract(1));
@@ -304,14 +297,7 @@ PERIMORTEM_UNIT_TEST(ObjectTests, exposure_and_writability) {
       hidden_state.get_writability() == Language::Field::Writability::Internal);
   EXPECT(fixed.get_writability() == Language::Field::Writability::Init);
   EXPECT(hidden_const.get_writability() == Language::Field::Writability::Init);
-  EXPECT_NOT(open.is_exposed());
-  EXPECT_NOT(closed.is_exposed());
-  EXPECT(observed.is_exposed());
-  EXPECT_NOT(hidden_state.is_exposed());
-  EXPECT_NOT(fixed.is_exposed());
-  EXPECT_NOT(hidden_const.is_exposed());
-
-  // Address comparison catches a projection even if it copied the same Type
+  // Address comparison catches a copied member even if it kept the same Type
   // and spelling. Both views must return the Field retained by Structure.
   EXPECT(&public_fields.get_data()[0].get() == &open);
   EXPECT(&public_fields.get_data()[1].get() == &observed);
@@ -325,17 +311,22 @@ PERIMORTEM_UNIT_TEST(ObjectTests, exposure_and_writability) {
   EXPECT(
       &object.resolve_context("hidden_const"_view) == &Invalid::get_invalid());
 
-  // The exact host authenticates private lookup without widening the external
-  // view or giving Object another inventory.
+  // The exact host authenticates private Address access without supplying an
+  // implicit receiver or giving Object another inventory.
   auto callables = object.get_callables();
   ASSERT_EQ(callables.get_size(), Count(1));
   ASSERT(callables.get_data()[0].get().is<Language::Function>());
   const auto& inspect =
       static_cast<const Language::Function&>(callables.get_data()[0].get());
   EXPECT(&inspect.get_host() == &object);
-  EXPECT(&inspect.resolve_context("closed"_view) == &closed);
-  EXPECT(&inspect.resolve_context("hidden_state"_view) == &hidden_state);
-  EXPECT(&inspect.resolve_context("hidden_const"_view) == &hidden_const);
+  EXPECT(&inspect.resolve_context("closed"_view) == &Invalid::get_invalid());
+  EXPECT(
+      &inspect.resolve_context("hidden_state"_view) == &Invalid::get_invalid());
+  EXPECT(
+      &inspect.resolve_context("hidden_const"_view) == &Invalid::get_invalid());
+  EXPECT(object.is_readable(closed, inspect));
+  EXPECT(object.is_readable(hidden_state, inspect));
+  EXPECT(object.is_readable(hidden_const, inspect));
   for (Count i = 0; i < fields.get_size(); i++) {
     EXPECT(&fields.get_data()[i].get().get_host() == &object);
   }
@@ -383,19 +374,31 @@ PERIMORTEM_UNIT_TEST(ObjectTests, declaration_reorder) {
 }
 
 PERIMORTEM_UNIT_TEST(ObjectTests, exact_collision_domain) {
-  static constexpr Static::Vector<View::Bytes, 8> sources = {{
-    "// Object test.\ndialect : Library; public Session : object { expose state value : Bool = false; private state value : Bool = false; }"_view,
+  static constexpr Static::Vector<View::Bytes, 3> accepted = {{
     "// Object test.\ndialect : Library; public Session : object { public func value[] -> [] {} private state value : Bool = false; }"_view,
     "// Object test.\ndialect : Library; public Session : object { private state value : Bool = false; public func value[] -> [] {} }"_view,
     "// Object test.\ndialect : Library; public Session : object { public func value[] -> [] {} private func value[] -> [] {} }"_view,
+  }};
+  for (Count i = 0; i < accepted.get_size(); i++) {
+    Workspace workspace;
+    Errors errors;
+    auto monograph = interpret(workspace, errors, accepted[i]);
+    ASSERT(monograph);
+    ASSERT(workspace.link(errors));
+    ASSERT(workspace.finalize(errors));
+    EXPECT(errors.is_empty());
+  }
+
+  static constexpr Static::Vector<View::Bytes, 5> rejected = {{
+    "// Object test.\ndialect : Library; public Session : object { expose state value : Bool = false; private state value : Bool = false; }"_view,
     "// Object test.\ndialect : Library; public Same : object {} private Same : object {}"_view,
     "// Object test.\ndialect : Library; public Same : object {} private Same : struct {}"_view,
     "// Object test.\ndialect : Library; public Same : object {} private Same : enum[Unsigned_8] {}"_view,
     "// Object test.\ndialect : Library; public Same : object {} private func Same[] -> [] {}"_view,
   }};
 
-  for (Count i = 0; i < sources.get_size(); i++) {
-    EXPECT(rejects_interpretation(sources[i]));
+  for (Count i = 0; i < rejected.get_size(); i++) {
+    EXPECT(rejects_interpretation(rejected[i]));
   }
 }
 
@@ -477,11 +480,16 @@ PERIMORTEM_UNIT_TEST(ObjectTests, private_surface_retained_locally) {
   EXPECT(source_structure.get_fields().is_empty());
   EXPECT_EQ(source_structure.get_layout().get_size(), Count(0));
   EXPECT(&reveal.get_host() == &holder_object);
-  EXPECT(&reveal.resolve_context("hidden"_view) == &fields.get_data()[0].get());
+  EXPECT(&reveal.resolve_context("hidden"_view) == &Invalid::get_invalid());
   EXPECT(&reveal.resolve_context("Hidden"_view) == &hidden);
   EXPECT(&root.get_source() == &*monograph);
   EXPECT(&root.get_host() == &source_structure);
-  EXPECT(&source_structure.resolve_context("root"_view, *monograph) == &root);
+  EXPECT(
+      &source_structure.resolve_context("root"_view, *monograph) ==
+      &Invalid::get_invalid());
+  auto source_callables = source_structure.get_callable_bindings(*monograph);
+  ASSERT_EQ(source_callables.get_size(), Count(1));
+  EXPECT(&source_callables.get_data()[0].get() == &root);
   EXPECT(&root.resolve_context("Hidden"_view) == &hidden);
   EXPECT(errors.is_empty());
 }
@@ -545,7 +553,7 @@ PERIMORTEM_UNIT_TEST(ObjectTests, lifecycle_order_rejected) {
       "public Session : object { expose state value : Bool = false; }"_view;
   EmptyContext context;
   Allocator::Arena arena;
-  Dialect dialect(context);
+  Dialect dialect;
   Language::Materializations materializations(arena);
   auto& monograph = Language::Monograph::create_authored(
       arena, Documentation::get_empty(), dialect, context, materializations);
@@ -595,8 +603,6 @@ PERIMORTEM_UNIT_TEST(ObjectTests, state_cursor_atomicity) {
       context);
   ASSERT(field);
   EXPECT_TEXT(field->get_name(), "value"_view);
-  EXPECT(field->is_state());
-  EXPECT_NOT(field->is_exposed());
   EXPECT(field->get_writability() == Language::Field::Writability::Internal);
   ASSERT(field->get_initializer());
   EXPECT(complete_cursor.matches(Code::Type::Terminal));
@@ -610,7 +616,7 @@ PERIMORTEM_UNIT_TEST(ObjectTests, cursor_atomicity) {
       "public Session : object { expose state value : Bool = false; }"_view;
   EmptyContext context;
   Allocator::Arena arena;
-  Dialect dialect(context);
+  Dialect dialect;
   Language::Materializations materializations(arena);
   auto& monograph = Language::Monograph::create_authored(
       arena, Documentation::get_empty(), dialect, context, materializations);

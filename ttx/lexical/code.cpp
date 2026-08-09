@@ -102,10 +102,10 @@ auto Ttx::Lexical::Code::get_semantics() const
     return "packing start"_view;
   case Type::PackingEnd:
     return "packing end"_view;
-  case Type::LayoutStart:
-    return "layout start"_view;
-  case Type::LayoutEnd:
-    return "layout end"_view;
+  case Type::BracketStart:
+    return "bracket start"_view;
+  case Type::BracketEnd:
+    return "bracket end"_view;
   case Type::Define:
     return "definition separator"_view;
   case Type::TypeAccessOp:
@@ -122,8 +122,8 @@ auto Ttx::Lexical::Code::get_semantics() const
     return "Addressable access operator"_view;
   case Type::SwizzleOp:
     return "swizzle access operator"_view;
-  case Type::SliceOp:
-    return "index or slice access operator"_view;
+  case Type::ValueAccessOp:
+    return "safe value access operator"_view;
   case Type::NotOp:
     return "logical negation operator"_view;
   case Type::Discard:

@@ -10,7 +10,7 @@
 #include "ttx/concept/invalid.hpp"
 #include "ttx/concept/reference.hpp"
 #include "ttx/model/addressable.hpp"
-#include "ttx/model/layouts/structured.hpp"
+#include "ttx/model/layouts/named.hpp"
 
 using namespace Perimortem::Core;
 using namespace Ttx::Concept;
@@ -22,7 +22,7 @@ using namespace Validation;
 /// Resolution remains total by returning Invalid until completion.
 class ResolvingType final : public Type {
  public:
-  ResolvingType(View::Bytes name, Structured layout = Structured())
+  ResolvingType(View::Bytes name, Named layout = Named())
       : name(name), layout(layout) {}
 
   auto get_name() const -> View::Bytes override { return name; }
@@ -41,13 +41,13 @@ class ResolvingType final : public Type {
     }
     return Invalid::get_invalid();
   }
-  auto get_layout() const -> const Structured& override { return layout; }
+  auto get_layout() const -> const Named& override { return layout; }
 
   auto complete() -> void { complete_state = True; }
 
  private:
   View::Bytes name;
-  Structured layout;
+  Named layout;
   Bool complete_state = False;
 };
 
@@ -88,8 +88,8 @@ PERIMORTEM_UNIT_TEST(TtxType, type_fields) {
   real.complete();
   TypeField x("x"_view, real);
   TypeField y("y"_view, real);
-  const Static::Vector<Reference<const Addressable>, 2> fields = {{x, y}};
-  ResolvingType point("Point"_view, Structured(fields));
+  const Static::Vector<Reference<const Abstract>, 2> fields = {{x, y}};
+  ResolvingType point("Point"_view, Named(fields));
 
   EXPECT(&point.resolve() == &Invalid::get_invalid());
 

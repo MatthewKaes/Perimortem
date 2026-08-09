@@ -397,7 +397,12 @@ PERIMORTEM_UNIT_TEST(EnumerationTests, consumer_declaration_reorder) {
 
     const Abstract& mode = monograph->resolve_context("Mode"_view);
     const Abstract& packet = monograph->resolve_context("Packet"_view);
-    const Abstract& function = monograph->resolve_context("select"_view);
+    const auto& source_structure =
+        static_cast<const Language::Types::Structure&>(monograph->get_source());
+    auto callable_candidates =
+        source_structure.get_callable_bindings(*monograph);
+    ASSERT_EQ(callable_candidates.get_size(), Count(1));
+    const Abstract& function = callable_candidates.get_data()[0].get();
     ASSERT(mode.is<Language::Types::Enumeration>());
     ASSERT(packet.is<Language::Types::Structure>());
     ASSERT(function.is<Language::Function>());
@@ -495,7 +500,7 @@ PERIMORTEM_UNIT_TEST(EnumerationTests, cursor_atomicity) {
       "private Mode : enum[Signed_8] { ready = -1; }"_view;
   EmptyContext context;
   Allocator::Arena arena;
-  Dialect dialect(context);
+  Dialect dialect;
   Language::Materializations materializations(arena);
   auto& monograph = Language::Monograph::create_authored(
       arena, Documentation::get_empty(), dialect, context, materializations);

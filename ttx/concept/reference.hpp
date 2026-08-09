@@ -14,14 +14,14 @@ namespace Ttx::Concept {
 // Reference preserves the object it receives. Alias and expression resolution
 // remain explicit operations owned by the consumer that needs canonical
 // identity. The graph owner guarantees the borrowed object's lifetime.
-template <typename Catagory>
+template <typename Category>
 class Reference {
-  static_assert(__is_base_of(Abstract, __remove_cvref(Catagory)));
+  static_assert(__is_base_of(Abstract, __remove_cvref(Category)));
 
  public:
-  constexpr Reference(Catagory& abstract) : abstract(&abstract) {}
+  constexpr Reference(Category& abstract) : abstract(&abstract) {}
 
-  constexpr auto get() const -> Catagory& { return *abstract; }
+  constexpr auto get() const -> Category& { return *abstract; }
 
   constexpr auto operator==(const Reference& rhs) const -> Bool {
     return abstract == rhs.abstract;
@@ -33,8 +33,8 @@ class Reference {
 
  private:
   // The pointer is private storage for an assignable non-null reference value.
-  // Construction requires a real Catagory and no API exposes nullable state.
-  Catagory* abstract;
+  // Construction requires a real Category and no API exposes nullable state.
+  Category* abstract;
 };
 
 }  // namespace Ttx::Concept

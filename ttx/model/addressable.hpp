@@ -13,10 +13,6 @@ namespace Ttx::Model {
 // contracts. Capabilities related to the Addressable are granted by Dialects
 // specific enrichments, so things like `Writability` are a language construct.
 //
-// Core TTX needs a flexable enough model to support multiple crossing frontend
-// and backend components but looking at the Verse language and how they work
-// with generalized capabilities we might take a thing or two from thier model:
-// https://verselang.github.io/book/05_mutability/
 class Addressable : public Concept::Abstract {
  public:
   using ClassCatagory = Addressable;

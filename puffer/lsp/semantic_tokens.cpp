@@ -95,7 +95,7 @@ static auto classify_semantic_token(Code code) -> Signed_64 {
   case Code::Type::CallOp:
   case Code::Type::AddressOp:
   case Code::Type::SwizzleOp:
-  case Code::Type::SliceOp:
+  case Code::Type::ValueAccessOp:
   case Code::Type::PackingOp:
   case Code::Type::NotOp:
   case Code::Type::RangeOp:
@@ -108,8 +108,8 @@ static auto classify_semantic_token(Code code) -> Signed_64 {
   case Code::Type::ScopeEnd:
   case Code::Type::PackingStart:
   case Code::Type::PackingEnd:
-  case Code::Type::LayoutStart:
-  case Code::Type::LayoutEnd:
+  case Code::Type::BracketStart:
+  case Code::Type::BracketEnd:
   case Code::Type::Define:
   case Code::Type::TypeAccessOp:
   case Code::Type::EndStatement:

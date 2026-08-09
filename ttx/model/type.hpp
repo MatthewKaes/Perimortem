@@ -25,10 +25,11 @@ namespace Ttx::Model {
 // later enrich the same nonmoving object, replace its enclosing system, or use
 // another resolution policy without changing this interface.
 //
-// Once Type resolution succeeds, get_layout() returns its Layout shape. A
-// Structured layout contains real Addressable fields. A homogeneous Ranged
-// layout can instead expose one repeated Type across a compact interval, as in
-// Bytes[N], without allocating one semantic node per index.
+// Once Type resolution succeeds, get_layout() returns its Layout shape. A leaf
+// uses the empty Fluid shape while a concrete aggregate or range overrides it
+// with the real value flow. A homogeneous Ranged layout can expose one repeated
+// Type across a compact interval, as in Bytes[N], without allocating one
+// semantic node per index.
 class Type : public Concept::Abstract {
  public:
   using ClassCatagory = Type;

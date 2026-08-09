@@ -3,11 +3,13 @@
 
 #include "validation/unit_test.hpp"
 
+#include "perimortem/core/static/vector.hpp"
+
 #include "perimortem/memory/allocator/arena.hpp"
 #include "perimortem/memory/dynamic/bytes.hpp"
 
 #include "tetrodotoxin/language/monograph.hpp"
-#include "tetrodotoxin/library/language/binding.hpp"
+#include "tetrodotoxin/library/language/access/address.hpp"
 #include "tetrodotoxin/library/language/constants/bytes.hpp"
 #include "tetrodotoxin/library/language/constants/false.hpp"
 #include "tetrodotoxin/library/language/constants/flag.hpp"
@@ -17,7 +19,6 @@
 #include "tetrodotoxin/library/language/constants/unsigned.hpp"
 #include "tetrodotoxin/library/language/identifier.hpp"
 #include "tetrodotoxin/library/language/materializations.hpp"
-#include "tetrodotoxin/library/language/projection.hpp"
 #include "tetrodotoxin/library/language/types/bool.hpp"
 #include "tetrodotoxin/library/language/types/real_64.hpp"
 #include "tetrodotoxin/library/language/types/signed_64.hpp"
@@ -27,7 +28,7 @@
 #include "tetrodotoxin/library/language/types/unsigned_8.hpp"
 #include "ttx/concept/invalid.hpp"
 #include "ttx/model/addressable.hpp"
-#include "ttx/model/layouts/structured.hpp"
+#include "ttx/model/layouts/named.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -38,7 +39,7 @@ using namespace Validation;
 
 class ExpressionType : public Ttx::Model::Type {
  public:
-  ExpressionType(View::Bytes name, Ttx::Model::Layouts::Structured layout = {})
+  ExpressionType(View::Bytes name, Ttx::Model::Layouts::Named layout = {})
       : name(name), layout(layout) {}
 
   auto get_name() const -> View::Bytes override { return name; }
@@ -48,13 +49,13 @@ class ExpressionType : public Ttx::Model::Type {
   auto resolve_context(View::Bytes) const -> const Abstract& override {
     return Invalid::get_invalid();
   }
-  auto get_layout() const -> const Ttx::Model::Layouts::Structured& override {
+  auto get_layout() const -> const Ttx::Model::Layouts::Named& override {
     return layout;
   }
 
  private:
   View::Bytes name;
-  Ttx::Model::Layouts::Structured layout;
+  Ttx::Model::Layouts::Named layout;
 };
 
 class ExpressionField : public Ttx::Model::Addressable {
@@ -151,60 +152,50 @@ static auto is_none(const Perimortem::Utility::Option<const Abstract&>& result)
       []() { return True; }, [](const Abstract&) { return False; });
 }
 
-PERIMORTEM_UNIT_TEST(LibraryExpression, binding_and_projection) {
+PERIMORTEM_UNIT_TEST(LibraryExpression, address_identity) {
   Allocator::Arena arena;
   ExpressionType scalar("Scalar"_view);
   ExpressionField field("value"_view, scalar);
   ExpressionValue receiver("receiver"_view, scalar);
-  auto& binding = Binding::create_synthetic(arena, "bound"_view, receiver);
-  auto& projection = Projection::create_synthetic(arena, receiver, field);
+  auto& address =
+      Tetrodotoxin::Library::Language::Access::Address::create_synthetic(
+          arena, receiver, field);
 
-  EXPECT(binding.is<Expression>());
-  EXPECT(binding.is<Binding>());
-  EXPECT_TEXT(binding.get_name(), "bound"_view);
-  EXPECT(&binding.get_type() == &scalar);
-  EXPECT(&binding.get_expression() == &receiver);
-  EXPECT(selects(binding.get_inputs().get_abstract(0), receiver));
-  EXPECT(is_none(binding.get_inputs().get_abstract(1)));
-  EXPECT(binding.fits(scalar));
-
-  EXPECT(projection.is<Expression>());
-  EXPECT(projection.is<Projection>());
-  EXPECT_TEXT(projection.get_name(), "value"_view);
-  EXPECT(&projection.get_type() == &scalar);
-  EXPECT(&projection.get_receiver() == &receiver);
-  EXPECT(&projection.get_addressable() == &field);
-  EXPECT(selects(projection.get_inputs().get_abstract(0), receiver));
-  EXPECT(is_none(projection.get_inputs().get_abstract(1)));
-  EXPECT(projection.fits(scalar));
+  EXPECT(address.is<Expression>());
+  EXPECT(address.is<Tetrodotoxin::Library::Language::Access::Address>());
+  EXPECT_TEXT(address.get_name(), "value"_view);
+  EXPECT(&address.get_type() == &scalar);
+  EXPECT(&address.get_receiver() == &receiver);
+  ASSERT(address.get_addressable());
+  EXPECT(&*address.get_addressable() == &field);
+  EXPECT(selects(address.get_inputs().get_abstract(0), receiver));
+  EXPECT(is_none(address.get_inputs().get_abstract(1)));
+  EXPECT(address.fits(scalar));
 }
 
-PERIMORTEM_UNIT_TEST(LibraryExpression, wrappers_link_retained_inputs) {
+PERIMORTEM_UNIT_TEST(LibraryExpression, address_links_retained_input) {
   Allocator::Arena arena;
   Materializations materializations(arena);
   ExpressionType scalar("Scalar"_view);
-  ExpressionField field("value"_view, scalar);
-  ExpressionContext context(field);
+  ExpressionField member("value"_view, scalar);
+  const Static::Vector<Reference<const Abstract>, 1> members = {{member}};
+  ExpressionType container(
+      "Container"_view, Ttx::Model::Layouts::Named(members));
+  ExpressionField receiver("receiver"_view, container);
+  ExpressionContext context(receiver);
   ExpressionMonograph graph(arena);
-  Token binding_token(0, 1, 1, 5, Code::Type::Addressable);
-  Token projection_token(6, 1, 7, 5, Code::Type::Addressable);
-  auto binding_anchor = Anchor::create(binding_token, Span(binding_token));
-  auto projection_anchor =
-      Anchor::create(projection_token, Span(projection_token));
-  auto& binding_input =
-      Identifier::create_authored(arena, "value"_view, binding_anchor);
-  auto& projection_input =
-      Identifier::create_authored(arena, "value"_view, projection_anchor);
-  auto& binding = Binding::create_synthetic(arena, "bound"_view, binding_input);
-  auto& projection =
-      Projection::create_synthetic(arena, projection_input, field);
+  Token address_token(0, 1, 1, 5, Code::Type::Addressable);
+  auto address_anchor = Anchor::create(address_token, Span(address_token));
+  auto& address_input =
+      Identifier::create_authored(arena, "receiver"_view, address_anchor);
+  auto& address =
+      Tetrodotoxin::Library::Language::Access::Address::create_synthetic(
+          arena, address_input, member);
 
-  EXPECT_NOT(binding_input.get_addressable());
-  EXPECT_NOT(projection_input.get_addressable());
-  ASSERT(binding.link(graph, context, materializations));
-  ASSERT(projection.link(graph, context, materializations));
-  EXPECT(&*binding_input.get_addressable() == &field);
-  EXPECT(&*projection_input.get_addressable() == &field);
+  EXPECT_NOT(address_input.get_addressable());
+  ASSERT(address.link(graph, context, materializations));
+  EXPECT(&*address_input.get_addressable() == &receiver);
+  EXPECT(&*address.get_addressable() == &member);
   EXPECT(graph.get_diagnostics().is_empty());
 }
 

@@ -8,6 +8,7 @@
 #include "tetrodotoxin/library/language/types/structure.hpp"
 #include "tetrodotoxin/package/language/monograph.hpp"
 #include "ttx/concept/invalid.hpp"
+#include "ttx/model/addressable.hpp"
 #include "ttx/model/alias.hpp"
 
 using namespace Perimortem::Core;
@@ -22,6 +23,23 @@ struct ImportCandidate {
   Ttx::Lexical::Span import_span;
   Reference<const Abstract> binding;
 };
+
+static auto get_binding_target(const Abstract& binding) -> const Abstract& {
+  return binding.visit<Alias>(
+      [](const Alias& alias) -> const Abstract& {
+        return get_binding_target(alias.get_target());
+      },
+      [](const Abstract& direct) -> const Abstract& { return direct; });
+}
+
+static auto bindings_collide(const Abstract& first, const Abstract& second)
+    -> Bool {
+  const Abstract& first_target = get_binding_target(first);
+  const Abstract& second_target = get_binding_target(second);
+  return Bool(
+      (first_target.is<Type>() && second_target.is<Type>()) ||
+      (first_target.is<Addressable>() && second_target.is<Addressable>()));
+}
 
 template <typename selected_type>
 static auto select_abstract(const Abstract& value)
@@ -146,7 +164,8 @@ auto Library::Language::Monograph::link_imports() -> Bool {
       continue;
     }
 
-    const Abstract& selected = source_package->resolve_context(route).resolve();
+    const Abstract& selected =
+        import.get_type_access().resolve(*source_package);
     auto target_package =
         select_abstract<Package::Language::Monograph>(selected);
     if (!target_package) {
@@ -223,14 +242,23 @@ auto Library::Language::Monograph::link_imports() -> Bool {
     }
   }
 
-  // The source Structure owns local and environmental collisions. Candidate
-  // order adds the import set dimension without copying that lookup policy back
-  // onto Monograph.
+  Managed::Vector<Reference<Alias>> aliases(domain);
+  for (Count i = 0; i < candidates.get_size(); i++) {
+    const Abstract& target = candidates[i].binding.get();
+    Alias& alias = domain.construct<Alias>(target.get_name(), target);
+    aliases.insert(alias);
+  }
+
+  // The importer owned Alias is the identity that enters source lookup. Arena
+  // construction publishes nothing, so the complete candidate set can prove
+  // host and collision policy before one Alias becomes observable.
   for (Count candidate_index = 0; candidate_index < candidates.get_size();
        candidate_index++) {
     const ImportCandidate& candidate = candidates[candidate_index];
-    View::Bytes name = candidate.binding.get().get_name();
-    if (!source_structure->can_bind_static(name)) {
+    const Abstract& binding = candidate.binding.get();
+    const Alias& alias = aliases[candidate_index].get();
+    View::Bytes name = binding.get_name();
+    if (!source_structure->can_bind_static(alias)) {
       report(
           Ttx::Lexical::Anchor::create(candidate.import_span),
           "Imported Static binding collides with an occupied source name."_view,
@@ -239,7 +267,8 @@ auto Library::Language::Monograph::link_imports() -> Bool {
     }
 
     for (Count earlier = 0; earlier < candidate_index; earlier++) {
-      if (candidates[earlier].binding.get().get_name() != name) {
+      const Abstract& previous = candidates[earlier].binding.get();
+      if (previous.get_name() != name || !bindings_collide(previous, binding)) {
         continue;
       }
 
@@ -255,16 +284,9 @@ auto Library::Language::Monograph::link_imports() -> Bool {
     return False;
   }
 
-  Managed::Vector<Reference<Alias>> aliases(domain);
-  for (Count i = 0; i < candidates.get_size(); i++) {
-    const Abstract& target = candidates[i].binding.get();
-    Alias& alias = domain.construct<Alias>(target.get_name(), target);
-    aliases.insert(alias);
-  }
-
-  // Alias construction cannot disturb source lookup. The earlier complete
-  // name preflight makes each following bind infallible within this Monograph
-  // transaction, so no candidate can become visible beside a later rejection.
+  // The earlier complete preflight makes each bind infallible within this
+  // Monograph transaction, so no candidate becomes visible beside a later
+  // rejection.
   for (Count i = 0; i < aliases.get_size(); i++) {
     if (!source_structure->bind_static(aliases[i].get(), Visibility::Private)) {
       return False;

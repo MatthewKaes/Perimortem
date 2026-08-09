@@ -47,10 +47,10 @@ PERIMORTEM_UNIT_TEST(TtxLexical, access_operators) {
   EXPECT_TEXT(token_data[4].caculate_text(source), ".["_view);
   EXPECT(token_data[4].get_code() == Code::Type::SwizzleOp);
   EXPECT_TEXT(token_data[10].caculate_text(source), ":["_view);
-  EXPECT(token_data[10].get_code() == Code::Type::SliceOp);
+  EXPECT(token_data[10].get_code() == Code::Type::ValueAccessOp);
 
   EXPECT_TEXT(token_data[16].caculate_text(source), "["_view);
-  EXPECT(token_data[16].get_code() == Code::Type::LayoutStart);
+  EXPECT(token_data[16].get_code() == Code::Type::BracketStart);
   EXPECT_TEXT(token_data[20].caculate_text(source), "."_view);
   EXPECT(token_data[20].get_code() == Code::Type::AddressOp);
 }
@@ -83,7 +83,7 @@ PERIMORTEM_UNIT_TEST(TtxLexical, lexicon) {
 
   EXPECT_TEXT(Lexicon::get_spelling(Token::TypeAccessOp), "::"_view);
   EXPECT_TEXT(Lexicon::get_spelling(Token::SwizzleOp), ".["_view);
-  EXPECT_TEXT(Lexicon::get_spelling(Token::SliceOp), ":["_view);
+  EXPECT_TEXT(Lexicon::get_spelling(Token::ValueAccessOp), ":["_view);
   EXPECT_TEXT(Lexicon::get_spelling(Token::CallOp), "->"_view);
   EXPECT_TEXT(Lexicon::get_spelling(Token::Dialect), "dialect"_view);
   EXPECT_TEXT(Lexicon::get_spelling(Token::Resolve), "resolve"_view);

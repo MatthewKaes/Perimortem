@@ -20,8 +20,7 @@ namespace Tetrodotoxin::Library {
 // every Monograph it interprets.
 class Dialect : public Tetrodotoxin::Language::Dialect {
  public:
-  constexpr Dialect(Ttx::Concept::Abstract& registry)
-      : Tetrodotoxin::Language::Dialect(registry) {}
+  constexpr Dialect() = default;
 
   auto interpret(
       Perimortem::Memory::Allocator::Arena& domain,

@@ -239,10 +239,6 @@ PERIMORTEM_UNIT_TEST(SourceTests, import_extent) {
       import->get_span().caculate_text(source), "using Core::Math;"_view);
   EXPECT_TEXT(cursor.current().caculate_text(source), "trailing"_view);
   EXPECT(errors.is_empty());
-
-  Language::Import generated("Core::Math"_view);
-  EXPECT_NOT(generated.get_token());
-  EXPECT_NOT(generated.get_span());
 }
 
 PERIMORTEM_UNIT_TEST(SourceTests, authored_declaration_order) {
@@ -252,7 +248,7 @@ PERIMORTEM_UNIT_TEST(SourceTests, authored_declaration_order) {
       "using Second;"_view;
   Allocator::Arena arena;
   SourceContext context(Invalid::get_invalid());
-  Dialect dialect(context);
+  Dialect dialect;
   Errors errors;
   Tokenizer tokenizer(arena, source, "declaration-order.ttx"_view);
   Cursor cursor(tokenizer, errors);

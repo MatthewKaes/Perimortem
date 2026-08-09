@@ -173,11 +173,9 @@ static auto parse_embedded(
     Cursor& cursor,
     const Abstract& source_context) -> Option<Library::Language::Constant&> {
   Span literal_span(cursor.current());
-  View::Bytes instruction =
-      literal_span.caculate_text(cursor.get_source_text());
+  View::Bytes route = literal_span.caculate_text(cursor.get_source_text());
 
-  const Abstract& selected =
-      source_context.resolve_context(instruction).resolve();
+  const Abstract& selected = source_context.resolve_context(route).resolve();
   auto error = selected.visit<Tetrodotoxin::Language::Error>(
       [](const Tetrodotoxin::Language::Error& selected)
           -> Option<const Tetrodotoxin::Language::Error&> { return selected; },

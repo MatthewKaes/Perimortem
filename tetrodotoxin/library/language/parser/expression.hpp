@@ -14,11 +14,11 @@
 
 namespace Tetrodotoxin::Library::Language::Parser {
 
-// Expression consumes one complete Library value operand. It selects the
-// primary parser and dispatches each following operator in precedence order.
-// The concrete operator owns its complete grammar and source construction.
-// Semantic Types and Addressables connect only when the retained owner links
-// the complete Expression graph.
+// Expression consumes one complete Library value operand. Postfix Access owns
+// its receiver chain before mathematical Operations participate in precedence.
+// Each concrete owner parses its complete grammar and constructs its source
+// identity. Semantic Types and Addressables connect only when the retained
+// owner links the complete Expression graph.
 class Expression {
  public:
   Expression() = delete;

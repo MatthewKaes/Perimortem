@@ -3,7 +3,6 @@
 
 #pragma once
 
-#include "perimortem/memory/managed/map.hpp"
 #include "perimortem/memory/managed/vector.hpp"
 
 #include "perimortem/utility/option.hpp"
@@ -15,14 +14,14 @@
 #include "ttx/lexical/anchor.hpp"
 #include "ttx/lexical/cursor.hpp"
 #include "ttx/model/callable.hpp"
-#include "ttx/model/layouts/structured.hpp"
+#include "ttx/model/layouts/named.hpp"
 #include "ttx/model/type.hpp"
 
 namespace Tetrodotoxin::Library::Language::Types {
 
-// Structure owns Library static and instance lookup, real Field edges, hosted
-// Callables, and one Structured instance Layout. Synthetic source and Object
-// specialize this same anatomy instead of reproducing it.
+// Structure owns Library Type, Callable, and member lookup, real Field edges,
+// and one Named instance Layout. Synthetic source and Object specialize this
+// same anatomy instead of reproducing it.
 class Structure : public Ttx::Model::Type {
  protected:
   Structure(
@@ -71,7 +70,7 @@ class Structure : public Ttx::Model::Type {
       Ttx::Concept::Abstract& binding,
       Visibility binding_visibility) -> Bool;
 
-  auto can_bind_static(Perimortem::Core::View::Bytes name) const -> Bool;
+  auto can_bind_static(const Ttx::Concept::Abstract& binding) const -> Bool;
 
   auto link_fields() -> Bool;
   auto link_initializers() -> Bool;
@@ -95,8 +94,9 @@ class Structure : public Ttx::Model::Type {
 
   auto resolve() const -> const Ttx::Concept::Abstract& override;
 
-  // Contextless lookup exposes only externally readable identities. A hosted
-  // Callable receives the complete view after exact identity authentication.
+  // Contextless lookup exposes only externally readable Types and Fields. An
+  // authenticated Callable receives private Type context, while Address access
+  // selects Fields through the instance Layout and applies hosted readability.
   auto resolve_context(Perimortem::Core::View::Bytes route) const
       -> const Ttx::Concept::Abstract& override;
 
@@ -109,13 +109,18 @@ class Structure : public Ttx::Model::Type {
       Perimortem::Core::View::Bytes route,
       const Field& requester) const -> const Ttx::Concept::Abstract&;
 
-  // The exact source Monograph uses the same complete lookup during semantic
-  // link barriers that run before a hosted Callable can ask for context.
+  // The exact source Monograph receives private contextual Type access during
+  // link barriers without admitting source Fields into bare lookup.
   auto resolve_context(
       Perimortem::Core::View::Bytes route,
       const Monograph& requester) const -> const Ttx::Concept::Abstract&;
 
-  auto get_layout() const -> const Ttx::Concept::Layout& override;
+  auto get_layout() const -> const Ttx::Model::Layouts::Named& override;
+
+  // Layout selection supplies the exact Field. Structure contributes only the
+  // Library access policy that cannot live on the shared TTX Addressable.
+  auto is_readable(const Field& field, const Ttx::Concept::Abstract& requester)
+      const -> Bool;
 
   constexpr auto get_visibility() const -> Visibility { return visibility; }
 
@@ -145,6 +150,13 @@ class Structure : public Ttx::Model::Type {
 
   auto get_public_callables() const -> Perimortem::Core::View::Vector<
       Ttx::Concept::Reference<const Ttx::Model::Callable>>;
+
+  auto get_callable_bindings() const -> Perimortem::Core::View::Vector<
+      Ttx::Concept::Reference<const Ttx::Concept::Abstract>>;
+
+  auto get_callable_bindings(const Ttx::Concept::Abstract& requester) const
+      -> Perimortem::Core::View::Vector<
+          Ttx::Concept::Reference<const Ttx::Concept::Abstract>>;
 
   auto get_static_bindings() const -> Perimortem::Core::View::Vector<
       Ttx::Concept::Reference<const Ttx::Concept::Abstract>>;
@@ -177,21 +189,21 @@ class Structure : public Ttx::Model::Type {
   auto bind(Ttx::Concept::Abstract& binding, Visibility binding_visibility)
       -> Bool;
 
-  auto can_bind(Perimortem::Core::View::Bytes name) const -> Bool;
+  auto can_bind(const Ttx::Concept::Abstract& binding) const -> Bool;
 
   auto owns(const Ttx::Model::Callable& requester) const -> Bool;
 
   auto owns(const Field& requester) const -> Bool;
 
+  auto grants_complete_access(const Ttx::Concept::Abstract& requester) const
+      -> Bool;
+
   auto get_external_source_context() const -> const Ttx::Concept::Abstract&;
 
-  auto resolve_external_static_context(Perimortem::Core::View::Bytes route)
-      const -> const Ttx::Concept::Abstract&;
-
-  auto resolve_external_member_context(Perimortem::Core::View::Bytes route)
-      const -> const Ttx::Concept::Abstract&;
-
   auto resolve_internal_context(Perimortem::Core::View::Bytes route) const
+      -> const Ttx::Concept::Abstract&;
+
+  auto resolve_internal_type_context(Perimortem::Core::View::Bytes route) const
       -> const Ttx::Concept::Abstract&;
 
   Perimortem::Memory::Allocator::Arena& domain;
@@ -211,7 +223,7 @@ class Structure : public Ttx::Model::Type {
   Perimortem::Memory::Managed::Vector<Ttx::Concept::Reference<const Field>>
       public_fields;
   Perimortem::Memory::Managed::Vector<
-      Ttx::Concept::Reference<const Ttx::Model::Addressable>>
+      Ttx::Concept::Reference<const Ttx::Concept::Abstract>>
       layout_fields;
   Perimortem::Memory::Managed::Vector<
       Ttx::Concept::Reference<Ttx::Model::Callable>>
@@ -222,29 +234,25 @@ class Structure : public Ttx::Model::Type {
   Perimortem::Memory::Managed::Vector<
       Ttx::Concept::Reference<const Ttx::Model::Callable>>
       public_callables;
-  Perimortem::Memory::Managed::Map<
-      Perimortem::Core::View::Bytes,
+  Perimortem::Memory::Managed::Vector<
       Ttx::Concept::Reference<const Ttx::Concept::Abstract>>
-      static_bindings;
-  Perimortem::Memory::Managed::Map<
-      Perimortem::Core::View::Bytes,
+      callable_bindings;
+  Perimortem::Memory::Managed::Vector<
       Ttx::Concept::Reference<const Ttx::Concept::Abstract>>
-      external_static_bindings;
-  Perimortem::Memory::Managed::Map<
-      Perimortem::Core::View::Bytes,
+      external_callable_bindings;
+  Perimortem::Memory::Managed::Vector<
       Ttx::Concept::Reference<const Ttx::Concept::Abstract>>
-      member_bindings;
-  Perimortem::Memory::Managed::Map<
-      Perimortem::Core::View::Bytes,
+      type_bindings;
+  Perimortem::Memory::Managed::Vector<
       Ttx::Concept::Reference<const Ttx::Concept::Abstract>>
-      external_member_bindings;
+      external_type_bindings;
   Perimortem::Memory::Managed::Vector<
       Ttx::Concept::Reference<const Ttx::Concept::Abstract>>
       static_binding_order;
   Perimortem::Memory::Managed::Vector<
       Ttx::Concept::Reference<const Ttx::Concept::Abstract>>
       external_static_binding_order;
-  Perimortem::Utility::Option<const Ttx::Model::Layouts::Structured&> layout;
+  Perimortem::Utility::Option<const Ttx::Model::Layouts::Named&> layout;
   Stage stage = Stage::Authored;
 };
 

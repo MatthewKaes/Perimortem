@@ -10,19 +10,20 @@ using namespace Ttx::Model;
 
 static auto resolves_for_fitting(const Concept::Abstract& value)
     -> const Concept::Abstract& {
-  return value.visit<Addressable>(
+  const Concept::Abstract& represented = value.resolve();
+  return represented.visit<Addressable>(
       [](const Addressable& addressable) -> const Concept::Abstract& {
         return addressable.get_type().resolve();
       },
       [](const Concept::Abstract& abstract) -> const Concept::Abstract& {
-        return abstract.resolve();
+        return abstract;
       });
 }
 
 static auto fits_entry(
     const Concept::Abstract& source,
     const Concept::Abstract& target) -> Bool {
-  return &source.resolve() == &target ? True : False;
+  return &resolves_for_fitting(source) == &target ? True : False;
 }
 
 auto Layouts::Fluid::fits_at(const Concept::Layout& target, Count target_offset)

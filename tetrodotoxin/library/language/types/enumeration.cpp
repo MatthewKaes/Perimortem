@@ -25,11 +25,6 @@ using namespace Tetrodotoxin::Library::Language;
 
 static const Layouts::Fluid incomplete_layout;
 
-struct ParsedType {
-  View::Bytes route;
-  Anchor anchor;
-};
-
 struct ParsedCase {
   View::Bytes name;
   View::Bytes value;
@@ -60,57 +55,6 @@ static auto parse_visibility(Cursor& cursor, Visibility& visibility) -> Bool {
       "Library Enumeration declarations require `public` or `private` "
       "visibility."_view);
   return False;
-}
-
-static auto parse_type(Cursor& cursor) -> Option<ParsedType> {
-  Token first = cursor.require(
-      Code::Type::Type,
-      "Library Enumeration storage requires one Type name."_view);
-  if (!first) {
-    return {};
-  }
-
-  Token last = first;
-  while (cursor.matches(Code::Type::TypeAccessOp)) {
-    Token separator = cursor.current();
-    Count previous_end = Count(last.get_offset()) + Count(last.get_size());
-    if (separator.get_offset() != previous_end) {
-      cursor.create_expression_error(
-          Span(first, separator),
-          "Qualified Enumeration storage cannot contain whitespace around "
-          "`::`."_view);
-      return {};
-    }
-
-    cursor.consume();
-    Token segment = cursor.require(
-        Code::Type::Type,
-        "Qualified Enumeration storage requires a Type after `::`."_view);
-    if (!segment) {
-      return {};
-    }
-
-    Count separator_end =
-        Count(separator.get_offset()) + Count(separator.get_size());
-    if (segment.get_offset() != separator_end) {
-      cursor.create_expression_error(
-          Span(first, segment),
-          "Qualified Enumeration storage cannot contain whitespace around "
-          "`::`."_view);
-      return {};
-    }
-
-    last = segment;
-  }
-
-  Count route_start = first.get_offset();
-  Count route_end = Count(last.get_offset()) + Count(last.get_size());
-  View::Bytes route =
-      cursor.get_source_text().slice(route_start, route_end - route_start);
-  return ParsedType{
-    .route = route,
-    .anchor = Anchor::create(first, Span(first, last)),
-  };
 }
 
 static auto parse_case(Cursor& cursor, const Documentation& documentation)
@@ -241,22 +185,20 @@ static auto read_signed(
 Tetrodotoxin::Library::Language::Types::Enumeration::Enumeration(
     Allocator::Arena& domain,
     View::Bytes name,
-    View::Bytes storage_route,
+    Access::Type storage_access,
     const Documentation& documentation,
     Visibility visibility,
     Monograph& parent,
     Anchor anchor,
-    Anchor name_anchor,
-    Anchor storage_anchor)
+    Anchor name_anchor)
     : domain(domain),
       name(name),
-      storage_route(storage_route),
+      storage_access(storage_access),
       documentation(documentation),
       visibility(visibility),
       parent(parent),
       anchor(anchor),
       name_anchor(name_anchor),
-      storage_anchor(storage_anchor),
       source_cases(domain),
       cases(domain) {}
 
@@ -301,17 +243,17 @@ auto Tetrodotoxin::Library::Language::Types::Enumeration::interpret(
     return {};
   }
   if (!transaction.require(
-          Code::Type::LayoutStart,
+          Code::Type::BracketStart,
           "Library Enumeration storage requires an opening `[`."_view)) {
     return {};
   }
 
-  auto storage = parse_type(transaction);
+  auto storage = Access::Type::parse(transaction);
   if (!storage) {
     return {};
   }
   if (!transaction.require(
-          Code::Type::LayoutEnd,
+          Code::Type::BracketEnd,
           "Library Enumeration storage requires a closing `]`."_view)) {
     return {};
   }
@@ -357,9 +299,8 @@ auto Tetrodotoxin::Library::Language::Types::Enumeration::interpret(
   Enumeration& enumeration =
       domain.construct_from<Enumeration>([&]() -> Enumeration {
         return Enumeration(
-            domain, name, storage->route, documentation, visibility, parent,
-            enumeration_anchor, Anchor::create(Span(name_token)),
-            storage->anchor);
+            domain, name, *storage, documentation, visibility, parent,
+            enumeration_anchor, Anchor::create(Span(name_token)));
       });
   enumeration.source_cases.reset(parsed_cases.get_size());
   for (Count i = 0; i < parsed_cases.get_size(); i++) {
@@ -387,7 +328,9 @@ auto Tetrodotoxin::Library::Language::Types::Enumeration::link_storage()
 
   const Abstract& selected = parent.get_source().visit<Structure>(
       [&](const Structure& source) -> const Abstract& {
-        return source.resolve_context(storage_route, parent);
+        const Abstract& root =
+            source.resolve_context(storage_access.get_root(), parent);
+        return storage_access.resolve_from(root);
       },
       [](const Abstract&) -> const Abstract& {
         return Invalid::get_invalid();
@@ -398,7 +341,7 @@ auto Tetrodotoxin::Library::Language::Types::Enumeration::link_storage()
                  resolved.is<Ttx::Model::Types::Unsigned>();
   if (!integer) {
     parent.report(
-        storage_anchor,
+        storage_access.get_anchor(),
         "Enumeration storage did not resolve to an exact integer Type."_view,
         "Select one concrete Library Signed or Unsigned Type."_view);
     return False;

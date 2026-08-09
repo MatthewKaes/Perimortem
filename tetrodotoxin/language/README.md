@@ -1,150 +1,123 @@
 # Tetrodotoxin Language
 
-`tetrodotoxin/language` defines the common extension boundary for top level
-Tetrodotoxin source Dialects. The complete folder builds as
-`//tetrodotoxin:language`.
+`Tetrodotoxin::Language` is the extension boundary shared by concrete source
+Dialects. It defines how a Dialect receives a source body, how its result remains
+queryable, and how diagnostics and durable payloads cross language boundaries.
 
-Language depends on TTX and Perimortem. It owns no concrete Package, Library,
-App, Scene, Render, or Shader semantics and no filesystem, compiler, runtime, or
-durable product policy.
+It does not define one common source body or type system. Package, Library, App,
+Scene, Render, and Shader each own the grammar and semantic rules they add.
 
 ## Dialect
 
-`Language::Dialect` is a stateful interpreter installed by
-`Environment::Workspace` under an exact authored name. Environment supplies the
-Workspace wide TTX registry at construction and keeps the Dialect alive for
-every Monograph it creates. Each interpretation separately receives the exact
-owner supplied Abstract context used while constructing that Monograph. The
-concrete Dialect decides what contextual instructions that object supports.
+A Dialect interprets one kind of source body. Environment installs each concrete
+Dialect under the exact name accepted by the source envelope:
 
-The interpretation boundary is:
-
-```text
-interpret(
-  Environment owned Arena,
-  forward TTX Cursor,
-  opening Documentation,
-  owner supplied Abstract interpretation context)
--> Option<Monograph&>
+```ttx
+dialect : Library;
 ```
 
-A concrete Dialect consumes only its body because Environment has already
-parsed the opening comment and `dialect : Type;` instruction. It constructs its
-concrete Monograph directly in the supplied Arena and returns no partially
-owned parser object. The fourth argument does not replace the Workspace wide
-registry retained by the installed Dialect. It is not a universal source scope,
-Type interface, or promise that every Monograph exports the same context.
+Environment consumes the envelope and gives the remaining Token stream to the
+selected Dialect. The Dialect constructs one concrete Monograph and may retain
+language state shared by other Monographs in the same Workspace.
 
-Dialect state may cache or retain facts required across its Monographs. It does
-not own the Environment Arena or the authored source provider.
+The source-local context supplied during interpretation is an ordinary TTX
+Abstract. A direct source may receive the Workspace; a Package member may
+receive its Package Monograph. The concrete Dialect decides which contextual
+queries that object supports.
 
 ## Monograph
 
-`Language::Monograph` is the shared Abstract root for one interpreted or
-restored source island. Its concrete derived class owns the source Dialect
-semantics and resolution rules. The common root is not a Type or scope base. A
-concrete Monograph may expose one Type, several Types, or another arbitrary
-contextual shape without changing this interface.
+A Monograph is the retained result of one Dialect invocation. It provides:
 
-The common base retains the Arena domain supplied by Environment, opening
-Documentation, and ordered `Language::Diagnostic` facts. A Diagnostic carries
-an optional exact Anchor plus owner produced message and hint. Authored
-failures supply that Anchor while synthetic and restored failures leave it
-absent. It owns no path or source bytes. Environment combines it with the
-separately retained source Origin and uses the Origin boundary when no authored
-Anchor exists.
+- stable Abstract identity;
+- opening Documentation;
+- contextual resolution defined by its concrete Dialect;
+- ordered diagnostics;
+- link and finalize lifecycle hooks.
 
-The Arena outlives every retained Monograph. The common root does not retain
-the installed Dialect, parser, Cursor, or a second Source wrapper.
+A Monograph is not required to be a Type. It may expose no Types, one global
+Type, several independent Types, package members, entry policy, or another
+semantic context.
 
-## Contextual resolution values
+The Monograph remains queryable for the lifetime of its Workspace. It retains
+semantic facts rather than parser positions or source traversal state.
 
-Language owns two cross Dialect Abstract contracts for values returned by a
-concrete semantic context. `Language::Resource` carries only Arena stable bytes
-acquired by that context's real owner. It has no filesystem handle, route
-grammar, diagnostic path, Type, Constant policy, or consumer semantics. Empty
-bytes remain a successful Resource.
+## Contextual values
 
-`Language::Error` proves that the context recognized an instruction and
-resolved it to a stable owner-specific failure identity. The concrete owner
-retains the cause while the consuming parser constructs the authored Anchor
-and Report. Error
-is not one shared enum, message record, provenance model, or textual Report.
+Two cross-Dialect Abstract contracts let a semantic context answer requests
+without sharing its private policy.
 
-Both contracts extend TTX Abstract without adding a TTX v1 category. An
-ordinary missing semantic lookup still returns shared TTX Invalid. Resource and
-Error exist so Package, Library, Shader, and later concrete Dialects can share
-one contextual resolution boundary without sharing filesystem or value-domain
-policy.
+### Resource
 
-## Linking, finalization, and persistence dispatch
+`Language::Resource` exposes stable retained bytes acquired by another owner.
+It does not assign those bytes a Type or interpretation. Empty bytes are a
+successful Resource.
 
-The shared lifecycle separates three graph transactions.
+For example, Package can resolve `$[resources/icon.png]` to a Resource while
+Library constructs a Bytes Constant and Shader constructs a shader-specific
+fact from the same result.
 
-1. A concrete Dialect interprets grammar into stable source shaped identities.
-   Unknown Type and Addressable routes remain authored facts rather than parse
-   failures.
-2. Workspace invokes `link()` on every Monograph in one frozen discovery range
-   before any finalizer runs. Linking connects exact semantic edges after the
-   complete batch has published its declaration identities.
-3. Only a fully linked range invokes `finalize()` on every Monograph. A failed
-   finalizer does not skip later owners and prevents terminal publication of
-   the complete range.
+### Error
 
-Both graph hooks return failure without receiving a textual error sink. A
-concrete Monograph publishes every durable Diagnostic it can establish, and
-Retention combines those facts with its separately retained authored Origin.
-No Cursor, Token index, declaration mirror, or parser transaction substitutes
-for the retained semantic graph.
+`Language::Error` represents a contextual request that was recognized but
+failed in the receiving domain. The concrete owner retains the cause; the
+source consumer supplies the authored location and presentation.
 
-The persistence hooks name no Package envelope, concrete Dialect value, native
-object, or universal terminal. Package owns Archive framing. The concrete
-Dialect owns payload schema and restoration into the importing Workspace Arena.
-Language owns only the common dispatch. Workspace uses restoration while
-staging source free dependencies, then applies the same link and finalize
-barriers to the complete range.
+An unrecognized semantic name still resolves to TTX `Invalid`. Resource and
+Error therefore distinguish successful data, recognized failure, and ordinary
+absence without introducing a universal error enum.
 
-## Shared parser fragments
+## Diagnostics
 
-Shared parsers consume the same forward `Ttx::Lexical::Cursor` used by the
-selected Dialect. They retain no declaration inventory, token bookmark, or
-transaction state.
+`Language::Diagnostic` is a source-independent failure fact retained by a
+Monograph. An authored diagnostic can name an exact TTX Anchor. A restored or
+synthetic diagnostic can omit source coordinates while retaining its message
+and hint.
 
-`Parser::Comment` greedily consumes consecutive comment Tokens. It strips the
-comment marker and one canonical separating space, preserves all remaining text
-and empty authored lines, and constructs one compact Documentation Block in the
-Cursor Arena. When no comment begins at the Cursor it returns the shared empty
-Documentation without advancing.
+Environment combines the Diagnostic with the source origin it retained for the
+Monograph. Binary Archive validation and other context-free operations report
+their own domain details rather than inventing authored Tokens.
 
-`Parser::Dialect` consumes:
+## Semantic lifecycle
+
+Concrete languages participate in three stages:
+
+1. Interpretation creates stable source-shaped identities and records authored
+   routes that may not resolve yet.
+2. Linking connects those routes after the complete source group is available.
+3. Finalization performs language work that depends on every linked declaration.
+
+Environment links every Monograph in a retained group before finalizing any of
+them. A concrete Monograph may organize its own internal dependencies while
+presenting the same link and finalize boundary to Environment.
+
+## Persistence
+
+A concrete Dialect owns the payload required to recreate its source-free
+Monograph. Package Archive frames the payload and records the Dialect name;
+Language provides the dispatch between that name and the installed Dialect.
+
+Restoration creates the same public semantic identities and applies the same
+link and finalize lifecycle as authored source. Package remains independent of
+the payload schema.
+
+## Shared source envelope
+
+The shared envelope contains required opening Documentation and one Dialect
+declaration:
 
 ```ttx
+// Package source documentation.
 dialect : Package;
 ```
 
-It returns the exact authored Type shaped name. Environment owns lookup,
-unknown Dialect diagnostics, and dispatch to the installed instance.
+An explicit empty comment represents intentionally empty Documentation;
+absence is a malformed source envelope. Environment passes the exact
+Documentation to the selected Dialect, and the resulting Monograph retains it.
 
-## Ownership boundary
+Concrete body grammar starts immediately afterward. A parser fragment belongs
+to the shared Language layer only when several real Dialects use both its source
+shape and its returned semantic contract.
 
-Language contains no static parser map, parser inheritance hierarchy, Frontend,
-Source lifetime object, Container, semantic Namespace, filesystem capability,
-concrete definition model, terminal registry, or cross owner product variant.
-
-A parser fragment belongs here only when several real Dialects share both its
-grammar and its returned contract. Type, Generic, Constant, expression, body,
-and publication rules remain with the concrete language that defines them.
-
-Package demonstrates the intended extension:
-
-```text
-Environment installs Package::Dialect as "Package"
--> Environment parses the universal envelope
--> Package::Dialect::interpret consumes the Package body
--> Package::Language::Monograph becomes the imported root
-```
-
-The production Workspace completes this flow for authored and source free
-Package roots. Package local members remain within that exact root context, and
-installed concrete Dialects restore their own member payloads before the
-ordered link and finalize barriers.
+See [Environment](../environment/README.md) for Workspace lifetime and
+[TTX semantics](../../ttx/ttx_semantics.md) for the Abstract query model.

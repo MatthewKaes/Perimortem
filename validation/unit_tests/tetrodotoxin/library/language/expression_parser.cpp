@@ -8,7 +8,10 @@
 #include "tetrodotoxin/language/monograph.hpp"
 #include "tetrodotoxin/language/resource.hpp"
 #include "tetrodotoxin/library/dialect.hpp"
+#include "tetrodotoxin/library/language/access/address.hpp"
+#include "tetrodotoxin/library/language/access/value.hpp"
 #include "tetrodotoxin/library/language/expression.hpp"
+#include "tetrodotoxin/library/language/identifier.hpp"
 #include "tetrodotoxin/library/language/materializations.hpp"
 #include "tetrodotoxin/library/language/operations/and.hpp"
 #include "tetrodotoxin/library/language/operations/divide.hpp"
@@ -23,7 +26,6 @@
 #include "tetrodotoxin/library/language/operations/not.hpp"
 #include "tetrodotoxin/library/language/operations/not_equal.hpp"
 #include "tetrodotoxin/library/language/operations/or.hpp"
-#include "tetrodotoxin/library/language/operations/slice.hpp"
 #include "tetrodotoxin/library/language/operations/subtract.hpp"
 #include "tetrodotoxin/library/language/parser/expression.hpp"
 #include "ttx/concept/invalid.hpp"
@@ -225,7 +227,9 @@ PERIMORTEM_UNIT_TEST(ExpressionParserTests, type_mismatch_waits_for_link) {
   EXPECT(mismatch_errors.is_empty());
 }
 
-PERIMORTEM_UNIT_TEST(ExpressionParserTests, slice_legality_waits_for_link) {
+PERIMORTEM_UNIT_TEST(
+    ExpressionParserTests,
+    value_access_legality_waits_for_link) {
   Allocator::Arena domain;
   Library::Language::Materializations materializations(domain);
   ExpressionParserObservations observations;
@@ -239,8 +243,8 @@ PERIMORTEM_UNIT_TEST(ExpressionParserTests, slice_legality_waits_for_link) {
   auto real = parse_one(
       domain, materializations, context, "\"abc\":[1.0]"_view, real_errors);
   ASSERT(bounds && real);
-  EXPECT(bounds->is<Library::Language::Operations::Slice>());
-  EXPECT(real->is<Library::Language::Operations::Slice>());
+  EXPECT(bounds->is<Library::Language::Access::Value>());
+  EXPECT(real->is<Library::Language::Access::Value>());
   EXPECT(bounds->link(bounds_graph, context, materializations));
   EXPECT_NOT(real->link(real_graph, context, materializations));
   ASSERT_EQ(real_graph.get_diagnostics().get_size(), Count(1));
@@ -254,12 +258,12 @@ PERIMORTEM_UNIT_TEST(ExpressionParserTests, postfix_span) {
   ExpressionParserObservations observations;
   ExpressionParserContext context(domain, observations);
   Errors slice_errors;
-  auto slice = parse_one(
+  auto value = parse_one(
       domain, materializations, context, "\"abcd\":[1, 2]"_view, slice_errors);
-  ASSERT(slice);
-  EXPECT(slice->is<Library::Language::Operations::Slice>());
+  ASSERT(value);
+  EXPECT(value->is<Library::Language::Access::Value>());
   EXPECT(matches_anchor(
-      *slice, "\"abcd\":[1, 2]"_view, ":["_view, "\"abcd\":[1, 2]"_view));
+      *value, "\"abcd\":[1, 2]"_view, ":["_view, "\"abcd\":[1, 2]"_view));
   EXPECT(slice_errors.is_empty());
 }
 
@@ -315,7 +319,7 @@ PERIMORTEM_UNIT_TEST(ExpressionParserTests, authored_operation_anchors) {
       parse_one(domain, materializations, context, "!true"_view, errors);
   auto not_equal =
       parse_one(domain, materializations, context, "1 != 2"_view, errors);
-  auto slice =
+  auto value =
       parse_one(domain, materializations, context, "\"a\":[0]"_view, errors);
   auto subtract =
       parse_one(domain, materializations, context, "2 - 1"_view, errors);
@@ -323,7 +327,7 @@ PERIMORTEM_UNIT_TEST(ExpressionParserTests, authored_operation_anchors) {
   ASSERT(
       divide && logical_and && logical_or && equal && greater &&
       greater_equal && less && less_equal);
-  ASSERT(modulo && multiply && negate && logical && not_equal && slice);
+  ASSERT(modulo && multiply && negate && logical && not_equal && value);
   ASSERT(subtract);
   EXPECT(matches_anchor(*divide, "8 / 2"_view, "/"_view, "8 / 2"_view));
   EXPECT(matches_anchor(
@@ -341,12 +345,12 @@ PERIMORTEM_UNIT_TEST(ExpressionParserTests, authored_operation_anchors) {
   EXPECT(matches_anchor(*negate, "-8"_view, "-"_view, "-8"_view));
   EXPECT(matches_anchor(*logical, "!true"_view, "!"_view, "!true"_view));
   EXPECT(matches_anchor(*not_equal, "1 != 2"_view, "!="_view, "1 != 2"_view));
-  EXPECT(matches_anchor(*slice, "\"a\":[0]"_view, ":["_view, "\"a\":[0]"_view));
+  EXPECT(matches_anchor(*value, "\"a\":[0]"_view, ":["_view, "\"a\":[0]"_view));
   EXPECT(matches_anchor(*subtract, "2 - 1"_view, "-"_view, "2 - 1"_view));
   EXPECT(errors.is_empty());
 }
 
-PERIMORTEM_UNIT_TEST(ExpressionParserTests, slice_and_multiply_precedence) {
+PERIMORTEM_UNIT_TEST(ExpressionParserTests, value_access_precedence) {
   Allocator::Arena domain;
   Library::Language::Materializations materializations(domain);
   ExpressionParserObservations observations;
@@ -358,7 +362,7 @@ PERIMORTEM_UNIT_TEST(ExpressionParserTests, slice_and_multiply_precedence) {
   ASSERT(subtract);
   EXPECT((has_left_shape<
           Library::Language::Operations::Subtract,
-          Library::Language::Operations::Slice>(*subtract)));
+          Library::Language::Access::Value>(*subtract)));
   auto right = get_input(*subtract, 1);
   EXPECT(right && right->is<Library::Language::Operations::Multiply>());
   EXPECT(errors.is_empty());
@@ -607,11 +611,64 @@ PERIMORTEM_UNIT_TEST(ExpressionParserTests, embedded_source_stays_operation) {
   Errors errors;
   auto parsed = parse_one(
       domain, materializations, context, "$[table]:[2, 4]"_view, errors);
-  ASSERT(parsed && parsed->is<Library::Language::Operations::Slice>());
+  ASSERT(parsed && parsed->is<Library::Language::Access::Value>());
   EXPECT(observations.table_seen);
   EXPECT(matches_anchor(
       *parsed, "$[table]:[2, 4]"_view, ":["_view, "$[table]:[2, 4]"_view));
   EXPECT(parsed->link(monograph, context, materializations));
+  EXPECT(errors.is_empty());
+}
+
+PERIMORTEM_UNIT_TEST(ExpressionParserTests, address_chain_and_anchor) {
+  static constexpr View::Bytes source = "receiver.member.tail"_view;
+  Allocator::Arena domain;
+  Library::Language::Materializations materializations(domain);
+  ExpressionParserObservations observations;
+  ExpressionParserContext context(domain, observations);
+  Errors errors;
+  auto parsed = parse_one(domain, materializations, context, source, errors);
+  ASSERT(parsed);
+  auto outer = select<Library::Language::Access::Address>(*parsed);
+  ASSERT(outer);
+  auto inner =
+      select<Library::Language::Access::Address>(outer->get_receiver());
+  ASSERT(inner);
+
+  EXPECT_TEXT(outer->get_name(), "tail"_view);
+  EXPECT_TEXT(inner->get_name(), "member"_view);
+  EXPECT(matches_anchor(*outer, source, "tail"_view, source));
+  EXPECT(matches_anchor(*inner, source, "member"_view, "receiver.member"_view));
+  EXPECT(inner->get_receiver().is<Library::Language::Identifier>());
+  EXPECT_NOT(outer->get_addressable());
+  EXPECT_NOT(inner->get_addressable());
+  EXPECT(errors.is_empty());
+}
+
+PERIMORTEM_UNIT_TEST(ExpressionParserTests, address_postfix_precedence) {
+  static constexpr View::Bytes source =
+      "receiver.member:[0].value * receiver.other"_view;
+  Allocator::Arena domain;
+  Library::Language::Materializations materializations(domain);
+  ExpressionParserObservations observations;
+  ExpressionParserContext context(domain, observations);
+  Errors errors;
+  auto parsed = parse_one(domain, materializations, context, source, errors);
+  ASSERT(parsed);
+  auto multiply = select<Library::Language::Operations::Multiply>(*parsed);
+  ASSERT(multiply);
+  auto left = get_input(*multiply, 0);
+  auto right = get_input(*multiply, 1);
+  ASSERT(left && right);
+  auto outer = select<Library::Language::Access::Address>(*left);
+  auto other = select<Library::Language::Access::Address>(*right);
+  ASSERT(outer && other);
+  auto value = select<Library::Language::Access::Value>(outer->get_receiver());
+  ASSERT(value);
+  auto selected = get_input(*value, 0);
+
+  EXPECT(selected && selected->is<Library::Language::Access::Address>());
+  EXPECT_TEXT(outer->get_name(), "value"_view);
+  EXPECT_TEXT(other->get_name(), "other"_view);
   EXPECT(errors.is_empty());
 }
 
@@ -625,6 +682,7 @@ PERIMORTEM_UNIT_TEST(ExpressionParserTests, malformed_grammar_is_atomic) {
   EXPECT(rejects_grammar(domain, materializations, context, "true &"_view));
   EXPECT(rejects_grammar(domain, materializations, context, "false |"_view));
   EXPECT(rejects_grammar(domain, materializations, context, "!"_view));
+  EXPECT(rejects_grammar(domain, materializations, context, "receiver."_view));
   EXPECT(rejects_grammar(domain, materializations, context, "\"abc\":[]"_view));
   EXPECT(
       rejects_grammar(domain, materializations, context, "\"abc\":[1,]"_view));

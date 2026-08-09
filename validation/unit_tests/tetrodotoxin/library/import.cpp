@@ -141,6 +141,25 @@ static auto diagnostic_matches(
          diagnostic.get_message() == message;
 }
 
+static auto select_binding(
+    View::Vector<Reference<const Abstract>> bindings,
+    View::Bytes name,
+    Count occurrence = 0) -> const Abstract& {
+  for (Count i = 0; i < bindings.get_size(); i++) {
+    const Abstract& binding = bindings.get_data()[i].get();
+    if (binding.get_name() != name) {
+      continue;
+    }
+    if (occurrence == 0) {
+      return binding;
+    }
+
+    occurrence--;
+  }
+
+  return Invalid::get_invalid();
+}
+
 static Harness LibraryImports = {
   .name = "Tetrodotoxin::Library::Language::Import"_view,
 };
@@ -208,8 +227,8 @@ PERIMORTEM_UNIT_TEST(LibraryImports, exact_identity_and_exclusions) {
 
   Allocator::Arena arena;
   ImportRegistry registry;
-  Library::Dialect library_dialect(registry);
-  Package::Dialect package_dialect(registry);
+  Library::Dialect library_dialect;
+  Package::Dialect package_dialect;
   auto first =
       interpret_library(arena, library_dialect, registry, first_source);
   auto second =
@@ -248,28 +267,36 @@ PERIMORTEM_UNIT_TEST(LibraryImports, exact_identity_and_exclusions) {
   ASSERT(nested_member_bound);
   ASSERT(second_member_bound);
 
-  Package::Language::Monograph& source_package = create_package_with_dependency(
-      arena, package_dialect, "Runtime::Core"_view);
+  Package::Language::Monograph& runtime_package =
+      create_package(arena, package_dialect);
+  ASSERT(runtime_package.bind_member("Core"_view, target_package));
+  Package::Language::Monograph& source_package =
+      create_package_with_dependency(arena, package_dialect, "Runtime"_view);
   Bool source_dependency_bound =
-      bind_only_dependency(source_package, target_package);
+      bind_only_dependency(source_package, runtime_package);
   ASSERT(source_dependency_bound);
   auto importer = interpret_library(
       arena, library_dialect, source_package, importer_source);
   ASSERT(importer);
 
-  const Abstract& first_identity = first->resolve_context("first"_view);
-  const Abstract& second_identity = second->resolve_context("second"_view);
-  const Abstract& public_local = importer->resolve_context("local_public"_view);
-  ASSERT(&first_identity != &Invalid::get_invalid());
-  ASSERT(&second_identity != &Invalid::get_invalid());
-  ASSERT(&public_local != &Invalid::get_invalid());
-  EXPECT(
-      &importer->resolve_context("local_private"_view) ==
-      &Invalid::get_invalid());
+  ASSERT(first->get_source().is<Library::Language::Types::Structure>());
+  ASSERT(second->get_source().is<Library::Language::Types::Structure>());
   ASSERT(importer->get_source().is<Library::Language::Types::Structure>());
+  const auto& first_scope =
+      static_cast<const Library::Language::Types::Structure&>(
+          first->get_source());
+  const auto& second_scope =
+      static_cast<const Library::Language::Types::Structure&>(
+          second->get_source());
   const auto& importer_scope =
       static_cast<const Library::Language::Types::Structure&>(
           importer->get_source());
+  const Abstract& first_identity =
+      select_binding(first_scope.get_callable_bindings(), "first"_view);
+  const Abstract& second_identity =
+      select_binding(second_scope.get_callable_bindings(), "second"_view);
+  ASSERT(&first_identity != &Invalid::get_invalid());
+  ASSERT(&second_identity != &Invalid::get_invalid());
   auto authored = importer->get_authored_bindings();
   ASSERT_EQ(authored.get_size(), Count(2));
   ASSERT(authored.get_data()[0].get().is<Library::Language::Function>());
@@ -278,15 +305,24 @@ PERIMORTEM_UNIT_TEST(LibraryImports, exact_identity_and_exclusions) {
       authored.get_data()[0].get());
   const auto& local_host = static_cast<const Library::Language::Function&>(
       authored.get_data()[1].get());
-  ASSERT_EQ(importer_scope.get_external_static_bindings().get_size(), Count(1));
+  const Abstract& public_local = local_host;
   EXPECT(
-      &importer_scope.get_external_static_bindings().get_data()[0].get() ==
+      &importer->resolve_context("local_public"_view) ==
+      &Invalid::get_invalid());
+  EXPECT(
+      &importer->resolve_context("local_private"_view) ==
+      &Invalid::get_invalid());
+  ASSERT_EQ(importer_scope.get_callable_bindings().get_size(), Count(1));
+  EXPECT(
+      &importer_scope.get_callable_bindings().get_data()[0].get() ==
       &public_local);
 
   Bool import_completed = importer->link();
   ASSERT(import_completed);
-  const Abstract& first_alias = local_host.resolve_context("first"_view);
-  const Abstract& second_alias = local_host.resolve_context("second"_view);
+  auto local_candidates = importer_scope.get_callable_bindings(local_host);
+  const Abstract& first_alias = select_binding(local_candidates, "first"_view);
+  const Abstract& second_alias =
+      select_binding(local_candidates, "second"_view);
   ASSERT(first_alias.is<Ttx::Model::Alias>());
   ASSERT(second_alias.is<Ttx::Model::Alias>());
   EXPECT(&first_alias != &first_identity);
@@ -304,34 +340,46 @@ PERIMORTEM_UNIT_TEST(LibraryImports, exact_identity_and_exclusions) {
   EXPECT(&importer->resolve_context("first"_view) == &Invalid::get_invalid());
   EXPECT(&importer->resolve_context("second"_view) == &Invalid::get_invalid());
   EXPECT(&importer->resolve_context("hidden"_view) == &Invalid::get_invalid());
+  EXPECT(&local_host.resolve_context("first"_view) == &Invalid::get_invalid());
+  EXPECT(&local_host.resolve_context("second"_view) == &Invalid::get_invalid());
   EXPECT(&local_host.resolve_context("hidden"_view) == &Invalid::get_invalid());
   EXPECT(
       &local_host.resolve_context("dependency_only"_view) ==
       &Invalid::get_invalid());
   EXPECT(&local_host.resolve_context("Nested"_view) == &Invalid::get_invalid());
-  EXPECT(&importer->resolve_context("local_public"_view) == &public_local);
-  EXPECT(&local_host.resolve_context("local_private"_view) == &private_local);
+  EXPECT(
+      &importer->resolve_context("local_public"_view) ==
+      &Invalid::get_invalid());
+  EXPECT(
+      &local_host.resolve_context("local_private"_view) ==
+      &Invalid::get_invalid());
+  EXPECT(
+      &select_binding(local_candidates, "local_private"_view) ==
+      &private_local);
   EXPECT(
       &local_host.resolve_context("Bool"_view) ==
       &library_dialect.resolve_intrinsic("Bool"_view));
   EXPECT(&importer->resolve_context("Bool"_view) == &Invalid::get_invalid());
   EXPECT_EQ(importer_scope.get_static_bindings().get_size(), Count(4));
-  EXPECT_EQ(importer_scope.get_external_static_bindings().get_size(), Count(1));
+  EXPECT_EQ(importer_scope.get_callable_bindings().get_size(), Count(1));
   EXPECT(
-      &importer_scope.get_external_static_bindings().get_data()[0].get() ==
+      &importer_scope.get_callable_bindings().get_data()[0].get() ==
       &public_local);
 
-  const Abstract* first_alias_identity = &first_alias;
+  const Abstract& first_alias_identity = first_alias;
   ASSERT(importer->link());
-  EXPECT(&local_host.resolve_context("first"_view) == first_alias_identity);
+  auto repeated_candidates = importer_scope.get_callable_bindings(local_host);
+  EXPECT(
+      &select_binding(repeated_candidates, "first"_view) ==
+      &first_alias_identity);
   EXPECT_EQ(importer_scope.get_static_bindings().get_size(), Count(4));
 }
 
 PERIMORTEM_UNIT_TEST(LibraryImports, provider_import_is_not_reexported) {
   Allocator::Arena arena;
   ImportRegistry registry;
-  Library::Dialect library_dialect(registry);
-  Package::Dialect package_dialect(registry);
+  Library::Dialect library_dialect;
+  Package::Dialect package_dialect;
   auto upstream = interpret_library(
       arena, library_dialect, registry,
       "public func upstream[] -> Void {}"_view);
@@ -363,22 +411,29 @@ PERIMORTEM_UNIT_TEST(LibraryImports, provider_import_is_not_reexported) {
       provider_bindings.get_data()[0].get().is<Library::Language::Function>());
   const auto& provider_host = static_cast<const Library::Language::Function&>(
       provider_bindings.get_data()[0].get());
-  const Abstract& upstream_alias =
-      provider_host.resolve_context("upstream"_view);
-  ASSERT(upstream_alias.is<Ttx::Model::Alias>());
-  EXPECT(
-      &upstream_alias.resolve() == &upstream->resolve_context("upstream"_view));
   EXPECT(
       &provider->resolve_context("upstream"_view) == &Invalid::get_invalid());
+  EXPECT(
+      &provider_host.resolve_context("upstream"_view) ==
+      &Invalid::get_invalid());
   ASSERT(provider->get_source().is<Library::Language::Types::Structure>());
   const auto& provider_source =
       static_cast<const Library::Language::Types::Structure&>(
           provider->get_source());
-  ASSERT_EQ(
-      provider_source.get_external_static_bindings().get_size(), Count(1));
+  const Abstract& upstream_alias = select_binding(
+      provider_source.get_callable_bindings(provider_host), "upstream"_view);
+  ASSERT(upstream_alias.is<Ttx::Model::Alias>());
+  ASSERT(upstream->get_source().is<Library::Language::Types::Structure>());
+  const auto& upstream_source =
+      static_cast<const Library::Language::Types::Structure&>(
+          upstream->get_source());
+  const Abstract& upstream_identity =
+      select_binding(upstream_source.get_callable_bindings(), "upstream"_view);
+  EXPECT(&upstream_alias.resolve() == &upstream_identity);
+  ASSERT_EQ(provider_source.get_callable_bindings().get_size(), Count(1));
 
-  // The provider can use its upstream Function locally, but its public view
-  // retains only its authored declaration. A downstream Import consumes that
+  // The provider retains its upstream candidate locally, but its public view
+  // contains only the authored declaration. A downstream Import consumes that
   // narrow view instead of repeating the provider link result.
   Package::Language::Monograph& provider_target =
       create_package(arena, package_dialect);
@@ -403,32 +458,37 @@ PERIMORTEM_UNIT_TEST(LibraryImports, provider_import_is_not_reexported) {
       importer_bindings.get_data()[0].get().is<Library::Language::Function>());
   const auto& importer_host = static_cast<const Library::Language::Function&>(
       importer_bindings.get_data()[0].get());
-  const Abstract& direct_alias = importer_host.resolve_context("direct"_view);
-  ASSERT(direct_alias.is<Ttx::Model::Alias>());
-  EXPECT(&direct_alias.resolve() == &provider->resolve_context("direct"_view));
   EXPECT(&importer->resolve_context("direct"_view) == &Invalid::get_invalid());
   EXPECT(
-      &importer_host.resolve_context("upstream"_view) ==
-      &Invalid::get_invalid());
+      &importer_host.resolve_context("direct"_view) == &Invalid::get_invalid());
   ASSERT(importer->get_source().is<Library::Language::Types::Structure>());
   const auto& importer_source =
       static_cast<const Library::Language::Types::Structure&>(
           importer->get_source());
-  EXPECT(importer_source.get_external_static_bindings().is_empty());
+  auto importer_candidates =
+      importer_source.get_callable_bindings(importer_host);
+  const Abstract& direct_alias =
+      select_binding(importer_candidates, "direct"_view);
+  ASSERT(direct_alias.is<Ttx::Model::Alias>());
+  const Abstract& direct_identity =
+      select_binding(provider_source.get_callable_bindings(), "direct"_view);
+  EXPECT(&direct_alias.resolve() == &direct_identity);
+  EXPECT(
+      &select_binding(importer_candidates, "upstream"_view) ==
+      &Invalid::get_invalid());
+  EXPECT(importer_source.get_callable_bindings().is_empty());
 }
 
-PERIMORTEM_UNIT_TEST(LibraryImports, collisions_are_atomic) {
+PERIMORTEM_UNIT_TEST(LibraryImports, category_collisions_are_atomic) {
   {
     Allocator::Arena arena;
     ImportRegistry registry;
-    Library::Dialect library_dialect(registry);
-    Package::Dialect package_dialect(registry);
+    Library::Dialect library_dialect;
+    Package::Dialect package_dialect;
     auto unique = interpret_library(
-        arena, library_dialect, registry,
-        "public func unique[] -> Void {}"_view);
+        arena, library_dialect, registry, "public Unique : struct {}"_view);
     auto colliding = interpret_library(
-        arena, library_dialect, registry,
-        "public func clash[] -> Void {}"_view);
+        arena, library_dialect, registry, "public Clash : struct {}"_view);
     ASSERT(unique && colliding);
 
     // Member order encounters unique before the later local collision. Its
@@ -445,17 +505,17 @@ PERIMORTEM_UNIT_TEST(LibraryImports, collisions_are_atomic) {
     ASSERT(dependency_bound);
     auto importer = interpret_library(
         arena, library_dialect, context,
-        "using Core;\npublic func clash[] -> Void {}"_view);
+        "using Core;\npublic Clash : struct {}"_view);
     ASSERT(importer);
-    const Abstract& local = importer->resolve_context("clash"_view);
+    const Abstract& local = importer->resolve_context("Clash"_view);
     Bool completed = importer->link();
     ASSERT_NOT(completed);
     EXPECT(
-        &importer->resolve_context("unique"_view) == &Invalid::get_invalid());
-    EXPECT(&importer->resolve_context("clash"_view) == &local);
+        &importer->resolve_context("Unique"_view) == &Invalid::get_invalid());
+    EXPECT(&importer->resolve_context("Clash"_view) == &local);
     ASSERT_EQ(importer->get_diagnostics().get_size(), Count(1));
     EXPECT(diagnostic_matches(
-        *importer, 0, "using Core;\npublic func clash[] -> Void {}"_view,
+        *importer, 0, "using Core;\npublic Clash : struct {}"_view,
         "using Core;"_view,
         "Imported Static binding collides with an occupied source name."_view));
   }
@@ -463,8 +523,8 @@ PERIMORTEM_UNIT_TEST(LibraryImports, collisions_are_atomic) {
   {
     Allocator::Arena arena;
     ImportRegistry registry;
-    Library::Dialect library_dialect(registry);
-    Package::Dialect package_dialect(registry);
+    Library::Dialect library_dialect;
+    Package::Dialect package_dialect;
     auto first = interpret_library(
         arena, library_dialect, registry,
         "public func unique[] -> Void {}\n"
@@ -473,9 +533,11 @@ PERIMORTEM_UNIT_TEST(LibraryImports, collisions_are_atomic) {
         arena, library_dialect, registry,
         "public func repeated[] -> Void {}"_view);
     ASSERT(first && second);
+    ASSERT(first->link());
+    ASSERT(second->link());
 
-    // Both providers stage before publication. Their shared Import occurrence
-    // owns the collision diagnostic while failure keeps both Functions absent.
+    // Both providers contribute exact Alias identities. A repeated Callable
+    // name remains an ordered candidate set for the future invocation owner.
     Package::Language::Monograph& target =
         create_package(arena, package_dialect);
     Bool first_member_bound = target.bind_member("FirstProvider"_view, *first);
@@ -491,22 +553,52 @@ PERIMORTEM_UNIT_TEST(LibraryImports, collisions_are_atomic) {
         interpret_library(arena, library_dialect, context, "using Core;"_view);
     ASSERT(importer);
     Bool completed = importer->link();
-    ASSERT_NOT(completed);
+    ASSERT(completed);
     EXPECT(
         &importer->resolve_context("unique"_view) == &Invalid::get_invalid());
     EXPECT(
         &importer->resolve_context("repeated"_view) == &Invalid::get_invalid());
-    ASSERT_EQ(importer->get_diagnostics().get_size(), Count(1));
-    EXPECT(diagnostic_matches(
-        *importer, 0, "using Core;"_view, "using Core;"_view,
-        "Two Library Imports publish the same Static binding name."_view));
+    ASSERT(importer->get_source().is<Library::Language::Types::Structure>());
+    const auto& importer_source =
+        static_cast<const Library::Language::Types::Structure&>(
+            importer->get_source());
+    auto candidates = importer_source.get_callable_bindings(*importer);
+    ASSERT_EQ(candidates.get_size(), Count(3));
+    const Abstract& unique_alias = candidates.get_data()[0].get();
+    const Abstract& first_repeated_alias = candidates.get_data()[1].get();
+    const Abstract& second_repeated_alias = candidates.get_data()[2].get();
+    ASSERT(unique_alias.is<Ttx::Model::Alias>());
+    ASSERT(first_repeated_alias.is<Ttx::Model::Alias>());
+    ASSERT(second_repeated_alias.is<Ttx::Model::Alias>());
+    EXPECT_TEXT(unique_alias.get_name(), "unique"_view);
+    EXPECT_TEXT(first_repeated_alias.get_name(), "repeated"_view);
+    EXPECT_TEXT(second_repeated_alias.get_name(), "repeated"_view);
+    ASSERT(first->get_source().is<Library::Language::Types::Structure>());
+    ASSERT(second->get_source().is<Library::Language::Types::Structure>());
+    const auto& first_source =
+        static_cast<const Library::Language::Types::Structure&>(
+            first->get_source());
+    const auto& second_source =
+        static_cast<const Library::Language::Types::Structure&>(
+            second->get_source());
+    EXPECT(
+        &unique_alias.resolve() ==
+        &select_binding(first_source.get_callable_bindings(), "unique"_view));
+    EXPECT(
+        &first_repeated_alias.resolve() ==
+        &select_binding(first_source.get_callable_bindings(), "repeated"_view));
+    EXPECT(
+        &second_repeated_alias.resolve() ==
+        &select_binding(
+            second_source.get_callable_bindings(), "repeated"_view));
+    EXPECT(importer->get_diagnostics().is_empty());
   }
 
   {
     Allocator::Arena arena;
     ImportRegistry registry;
-    Library::Dialect library_dialect(registry);
-    Package::Dialect package_dialect(registry);
+    Library::Dialect library_dialect;
+    Package::Dialect package_dialect;
     auto provider = interpret_library(
         arena, library_dialect, registry, "public func only[] -> Void {}"_view);
     ASSERT(provider);
@@ -524,6 +616,11 @@ PERIMORTEM_UNIT_TEST(LibraryImports, collisions_are_atomic) {
     Bool completed = importer->link();
     ASSERT_NOT(completed);
     EXPECT(&importer->resolve_context("only"_view) == &Invalid::get_invalid());
+    ASSERT(importer->get_source().is<Library::Language::Types::Structure>());
+    const auto& importer_source =
+        static_cast<const Library::Language::Types::Structure&>(
+            importer->get_source());
+    EXPECT(importer_source.get_callable_bindings(*importer).is_empty());
     ASSERT_EQ(importer->get_diagnostics().get_size(), Count(1));
     EXPECT(diagnostic_matches(
         *importer, 0, "using Core;\nusing Core;"_view, "using Core;"_view,
@@ -533,11 +630,10 @@ PERIMORTEM_UNIT_TEST(LibraryImports, collisions_are_atomic) {
   {
     Allocator::Arena arena;
     ImportRegistry registry;
-    Library::Dialect library_dialect(registry);
-    Package::Dialect package_dialect(registry);
+    Library::Dialect library_dialect;
+    Package::Dialect package_dialect;
     auto provider = interpret_library(
-        arena, library_dialect, registry,
-        "public func occupied[] -> Void {}"_view);
+        arena, library_dialect, registry, "public Occupied : struct {}"_view);
     ASSERT(provider);
 
     Package::Language::Monograph& target =
@@ -547,7 +643,7 @@ PERIMORTEM_UNIT_TEST(LibraryImports, collisions_are_atomic) {
     Package::Language::Monograph& context =
         create_package_with_dependency(arena, package_dialect, "Core"_view);
     Bool dependency_bound = bind_only_dependency(context, target);
-    Bool occupied_bound = context.bind_member("occupied"_view, *provider);
+    Bool occupied_bound = context.bind_member("Occupied"_view, *provider);
     ASSERT(dependency_bound);
     ASSERT(occupied_bound);
 
@@ -557,11 +653,11 @@ PERIMORTEM_UNIT_TEST(LibraryImports, collisions_are_atomic) {
         interpret_library(arena, library_dialect, context, "using Core;"_view);
     ASSERT(importer);
     EXPECT(
-        &importer->resolve_context("occupied"_view) == &Invalid::get_invalid());
+        &importer->resolve_context("Occupied"_view) == &Invalid::get_invalid());
     Bool completed = importer->link();
     ASSERT_NOT(completed);
     EXPECT(
-        &importer->resolve_context("occupied"_view) == &Invalid::get_invalid());
+        &importer->resolve_context("Occupied"_view) == &Invalid::get_invalid());
     ASSERT_EQ(importer->get_diagnostics().get_size(), Count(1));
     EXPECT(diagnostic_matches(
         *importer, 0, "using Core;"_view, "using Core;"_view,
@@ -573,18 +669,27 @@ PERIMORTEM_UNIT_TEST(LibraryImports, invalid_targets_are_atomic) {
   {
     Allocator::Arena arena;
     ImportRegistry registry;
-    Library::Dialect library_dialect(registry);
+    Library::Dialect library_dialect;
     auto importer = interpret_library(
         arena, library_dialect, registry,
         "using Core;\npublic func local[] -> Void {}"_view);
     ASSERT(importer);
-    const Abstract& local = importer->resolve_context("local"_view);
+    auto authored = importer->get_authored_bindings();
+    ASSERT_EQ(authored.get_size(), Count(1));
+    const Abstract& local = authored.get_data()[0].get();
+    ASSERT(importer->get_source().is<Library::Language::Types::Structure>());
+    const auto& importer_source =
+        static_cast<const Library::Language::Types::Structure&>(
+            importer->get_source());
 
     // An Import needs its source Package even when its route could miss in any
-    // Abstract. Rejection leaves the local declaration as the only lookup edge.
+    // Abstract. Rejection leaves the local declaration as the only candidate.
     Bool completed = importer->link();
     ASSERT_NOT(completed);
-    EXPECT(&importer->resolve_context("local"_view) == &local);
+    EXPECT(&importer->resolve_context("local"_view) == &Invalid::get_invalid());
+    auto candidates = importer_source.get_callable_bindings(*importer);
+    ASSERT_EQ(candidates.get_size(), Count(1));
+    EXPECT(&candidates.get_data()[0].get() == &local);
     ASSERT_EQ(importer->get_diagnostics().get_size(), Count(1));
     EXPECT(diagnostic_matches(
         *importer, 0, "using Core;\npublic func local[] -> Void {}"_view,
@@ -595,8 +700,8 @@ PERIMORTEM_UNIT_TEST(LibraryImports, invalid_targets_are_atomic) {
   {
     Allocator::Arena arena;
     ImportRegistry registry;
-    Library::Dialect library_dialect(registry);
-    Package::Dialect package_dialect(registry);
+    Library::Dialect library_dialect;
+    Package::Dialect package_dialect;
     auto provider = interpret_library(
         arena, library_dialect, registry,
         "public func staged[] -> Void {}"_view);
@@ -616,8 +721,11 @@ PERIMORTEM_UNIT_TEST(LibraryImports, invalid_targets_are_atomic) {
     ASSERT(importer);
     Bool completed = importer->link();
     ASSERT_NOT(completed);
-    EXPECT(
-        &importer->resolve_context("staged"_view) == &Invalid::get_invalid());
+    ASSERT(importer->get_source().is<Library::Language::Types::Structure>());
+    const auto& importer_source =
+        static_cast<const Library::Language::Types::Structure&>(
+            importer->get_source());
+    EXPECT(importer_source.get_callable_bindings(*importer).is_empty());
     ASSERT_EQ(importer->get_diagnostics().get_size(), Count(1));
     EXPECT(diagnostic_matches(
         *importer, 0, "using Core;\nusing Missing;"_view, "using Missing;"_view,
@@ -627,8 +735,8 @@ PERIMORTEM_UNIT_TEST(LibraryImports, invalid_targets_are_atomic) {
   {
     Allocator::Arena arena;
     ImportRegistry registry;
-    Library::Dialect library_dialect(registry);
-    Package::Dialect package_dialect(registry);
+    Library::Dialect library_dialect;
+    Package::Dialect package_dialect;
     auto provider = interpret_library(
         arena, library_dialect, registry,
         "public func staged[] -> Void {}"_view);
@@ -648,8 +756,11 @@ PERIMORTEM_UNIT_TEST(LibraryImports, invalid_targets_are_atomic) {
     ASSERT(importer);
     Bool completed = importer->link();
     ASSERT_NOT(completed);
-    EXPECT(
-        &importer->resolve_context("staged"_view) == &Invalid::get_invalid());
+    ASSERT(importer->get_source().is<Library::Language::Types::Structure>());
+    const auto& importer_source =
+        static_cast<const Library::Language::Types::Structure&>(
+            importer->get_source());
+    EXPECT(importer_source.get_callable_bindings(*importer).is_empty());
     ASSERT_EQ(importer->get_diagnostics().get_size(), Count(1));
     EXPECT(diagnostic_matches(
         *importer, 0, "using Core;\nusing Direct;"_view, "using Direct;"_view,
@@ -659,13 +770,13 @@ PERIMORTEM_UNIT_TEST(LibraryImports, invalid_targets_are_atomic) {
   {
     Allocator::Arena arena;
     ImportRegistry registry;
-    Library::Dialect library_dialect(registry);
-    Package::Dialect package_dialect(registry);
+    Library::Dialect library_dialect;
+    Package::Dialect package_dialect;
     auto complete = interpret_library(
         arena, library_dialect, registry,
         "public func staged[] -> Void {}"_view);
     ASSERT(complete);
-    Library::Dialect incomplete_dialect(registry);
+    Library::Dialect incomplete_dialect;
     Library::Language::Materializations materializations(arena);
     auto& incomplete = Library::Language::Monograph::create_authored(
         arena, Documentation::get_empty(), incomplete_dialect, registry,
@@ -699,11 +810,11 @@ PERIMORTEM_UNIT_TEST(LibraryImports, invalid_targets_are_atomic) {
     ASSERT(importer);
     Bool completed = importer->link();
     ASSERT_NOT(completed);
-    EXPECT(
-        &importer->resolve_context("staged"_view) == &Invalid::get_invalid());
-    EXPECT(
-        &importer->resolve_context("incomplete"_view) ==
-        &Invalid::get_invalid());
+    ASSERT(importer->get_source().is<Library::Language::Types::Structure>());
+    const auto& importer_source =
+        static_cast<const Library::Language::Types::Structure&>(
+            importer->get_source());
+    EXPECT(importer_source.get_callable_bindings(*importer).is_empty());
     ASSERT_EQ(importer->get_diagnostics().get_size(), Count(1));
     EXPECT(diagnostic_matches(
         *importer, 0, "using Core;"_view, "using Core;"_view,
@@ -716,8 +827,8 @@ PERIMORTEM_UNIT_TEST(LibraryImports, source_spoof_is_rejected) {
       "using Core;\npublic func local[] -> Void {}"_view;
   Allocator::Arena arena;
   ImportRegistry registry;
-  Library::Dialect library_dialect(registry);
-  Package::Dialect package_dialect(registry);
+  Library::Dialect library_dialect;
+  Package::Dialect package_dialect;
   auto library = interpret_library(
       arena, library_dialect, registry,
       "public func provider[] -> Void {}"_view);
@@ -732,15 +843,19 @@ PERIMORTEM_UNIT_TEST(LibraryImports, source_spoof_is_rejected) {
   auto importer = interpret_library(arena, library_dialect, context, source);
   ASSERT(importer);
 
-  const Abstract& local = importer->resolve_context("local"_view);
-  ASSERT(&local != &Invalid::get_invalid());
+  auto authored = importer->get_authored_bindings();
+  ASSERT_EQ(authored.get_size(), Count(1));
+  const Abstract& local = authored.get_data()[0].get();
   ASSERT_NOT(importer->link());
-  EXPECT(&importer->resolve_context("local"_view) == &local);
+  EXPECT(&importer->resolve_context("local"_view) == &Invalid::get_invalid());
   ASSERT(importer->get_source().is<Library::Language::Types::Structure>());
   const auto& importer_source =
       static_cast<const Library::Language::Types::Structure&>(
           importer->get_source());
   EXPECT_EQ(importer_source.get_static_bindings().get_size(), Count(1));
+  auto candidates = importer_source.get_callable_bindings(*importer);
+  ASSERT_EQ(candidates.get_size(), Count(1));
+  EXPECT(&candidates.get_data()[0].get() == &local);
   ASSERT_EQ(importer->get_diagnostics().get_size(), Count(1));
   EXPECT(diagnostic_matches(
       *importer, 0, source, "using Core;"_view,
@@ -752,8 +867,8 @@ PERIMORTEM_UNIT_TEST(LibraryImports, retry_preserves_local_alias) {
       "using Core;\nprivate func consumer[] -> Void {}"_view;
   Allocator::Arena arena;
   ImportRegistry registry;
-  Library::Dialect library_dialect(registry);
-  Package::Dialect package_dialect(registry);
+  Library::Dialect library_dialect;
+  Package::Dialect package_dialect;
   auto provider = interpret_library(
       arena, library_dialect, registry, "public func ready[] -> Void {}"_view);
   ASSERT(provider);
@@ -774,24 +889,43 @@ PERIMORTEM_UNIT_TEST(LibraryImports, retry_preserves_local_alias) {
   // The missing dependency fails before the source signature barrier, leaving
   // the import transaction open for the exact Package edge to arrive later.
   ASSERT_NOT(importer->link());
-  EXPECT(&consumer.resolve_context("ready"_view) == &Invalid::get_invalid());
-  ASSERT(bind_only_dependency(context, target));
-  ASSERT(importer->link());
-  const Abstract& alias = consumer.resolve_context("ready"_view);
-  ASSERT(alias.is<Ttx::Model::Alias>());
-  EXPECT(&alias.resolve() == &provider->resolve_context("ready"_view));
-  const Abstract* alias_identity = &alias;
-  ASSERT(importer->link());
-  EXPECT(&consumer.resolve_context("ready"_view) == alias_identity);
   ASSERT(importer->get_source().is<Library::Language::Types::Structure>());
   const auto& importer_source =
       static_cast<const Library::Language::Types::Structure&>(
           importer->get_source());
+  EXPECT(
+      &select_binding(
+          importer_source.get_callable_bindings(consumer), "ready"_view) ==
+      &Invalid::get_invalid());
+  ASSERT(bind_only_dependency(context, target));
+  ASSERT(importer->link());
+  const Abstract& alias = select_binding(
+      importer_source.get_callable_bindings(consumer), "ready"_view);
+  ASSERT(alias.is<Ttx::Model::Alias>());
+  ASSERT(provider->get_source().is<Library::Language::Types::Structure>());
+  const auto& provider_source =
+      static_cast<const Library::Language::Types::Structure&>(
+          provider->get_source());
+  EXPECT(
+      &alias.resolve() ==
+      &select_binding(provider_source.get_callable_bindings(), "ready"_view));
+  const Abstract& alias_identity = alias;
+  ASSERT(importer->link());
+  EXPECT(
+      &select_binding(
+          importer_source.get_callable_bindings(consumer), "ready"_view) ==
+      &alias_identity);
   EXPECT_EQ(importer_source.get_static_bindings().get_size(), Count(2));
   Count import_size = importer->get_imports().get_size();
-  Library::Language::Import late("Late"_view);
-  EXPECT_NOT(importer->retain_import(late));
+  static constexpr View::Bytes late_source = "using Late;"_view;
+  Errors errors;
+  Tokenizer tokenizer(arena, late_source, "late-import.ttx"_view);
+  Cursor cursor(tokenizer, errors);
+  auto late = Library::Language::Import::parse(cursor);
+  ASSERT(late);
+  EXPECT_NOT(importer->retain_import(*late));
   EXPECT_EQ(importer->get_imports().get_size(), import_size);
+  EXPECT(errors.is_empty());
 }
 
 PERIMORTEM_UNIT_TEST(LibraryImports, private_type_alias_cannot_escape) {
@@ -799,8 +933,8 @@ PERIMORTEM_UNIT_TEST(LibraryImports, private_type_alias_cannot_escape) {
       "using Core;\npublic func publish[Shared] -> Void {}"_view;
   Allocator::Arena arena;
   ImportRegistry registry;
-  Library::Dialect library_dialect(registry);
-  Package::Dialect package_dialect(registry);
+  Library::Dialect library_dialect;
+  Package::Dialect package_dialect;
   auto provider = interpret_library(
       arena, library_dialect, registry, "public Shared : struct {}"_view);
   ASSERT(provider);
@@ -986,19 +1120,25 @@ PERIMORTEM_UNIT_TEST(
   ASSERT(main_bindings.get_data()[0].get().is<Library::Language::Function>());
   const auto& local = static_cast<const Library::Language::Function&>(
       main_bindings.get_data()[0].get());
-  const Abstract& provided_alias = local.resolve_context("provided"_view);
-  ASSERT(provided_alias.is<Ttx::Model::Alias>());
-  EXPECT(&provided_alias.resolve() == &api.resolve_context("provided"_view));
-  EXPECT(&main.resolve_context("provided"_view) == &Invalid::get_invalid());
-  EXPECT(&main.resolve_context("local"_view) != &Invalid::get_invalid());
   ASSERT(main.get_source().is<Library::Language::Types::Structure>());
   const auto& main_source =
       static_cast<const Library::Language::Types::Structure&>(
           main.get_source());
+  const Abstract& provided_alias =
+      select_binding(main_source.get_callable_bindings(local), "provided"_view);
+  ASSERT(provided_alias.is<Ttx::Model::Alias>());
+  ASSERT(api.get_source().is<Library::Language::Types::Structure>());
+  const auto& api_source =
+      static_cast<const Library::Language::Types::Structure&>(api.get_source());
+  EXPECT(
+      &provided_alias.resolve() ==
+      &select_binding(api_source.get_callable_bindings(), "provided"_view));
+  EXPECT(&main.resolve_context("provided"_view) == &Invalid::get_invalid());
+  EXPECT(&main.resolve_context("local"_view) == &Invalid::get_invalid());
   EXPECT(&main.resolve_context("source"_view) == &main_source);
-  ASSERT_EQ(main_source.get_external_static_bindings().get_size(), Count(1));
+  ASSERT_EQ(main_source.get_callable_bindings().get_size(), Count(1));
   EXPECT_TEXT(
-      main_source.get_external_static_bindings().get_data()[0].get().get_name(),
+      main_source.get_callable_bindings().get_data()[0].get().get_name(),
       "local"_view);
   EXPECT(errors.is_empty());
 }

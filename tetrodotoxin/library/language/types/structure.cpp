@@ -4,10 +4,12 @@
 #include "tetrodotoxin/library/language/types/structure.hpp"
 
 #include "tetrodotoxin/language/parser/comment.hpp"
+#include "tetrodotoxin/library/language/access/type.hpp"
 #include "tetrodotoxin/library/language/function.hpp"
 #include "tetrodotoxin/library/language/types/object.hpp"
 #include "ttx/concept/invalid.hpp"
-#include "ttx/model/layouts/fluid.hpp"
+#include "ttx/model/addressable.hpp"
+#include "ttx/model/alias.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -16,12 +18,10 @@ using namespace Ttx::Concept;
 using namespace Ttx::Lexical;
 using namespace Tetrodotoxin::Library::Language;
 
-using Ttx::Model::Addressable;
 using Ttx::Model::Callable;
 using Ttx::Model::Type;
-namespace Layouts = Ttx::Model::Layouts;
 
-static const Layouts::Fluid incomplete_layout;
+static constexpr Ttx::Model::Layouts::Named incomplete_layout;
 
 enum class DefinitionKind : Unsigned_8 {
   Structure,
@@ -128,16 +128,41 @@ static auto callable_has_host(
       [](const Abstract&) { return False; });
 }
 
+static auto callable_receives_self(
+    const Callable& callable,
+    Option<const Type&> receiver = {}) -> Bool {
+  auto first = callable.get_parameters().get_abstract(0);
+  if (!first) {
+    return False;
+  }
+
+  return first->visit<Ttx::Model::Addressable>(
+      [&](const Ttx::Model::Addressable& parameter) {
+        if (parameter.get_name() != "self"_view) {
+          return False;
+        }
+
+        return receiver.visit(
+            []() { return True; },
+            [&](const Type& expected) {
+              return Bool(&parameter.get_type() == &expected);
+            });
+      },
+      [](const Abstract&) { return False; });
+}
+
 static auto resolve_externally_reachable_type(
-    View::Bytes route,
+    const Tetrodotoxin::Library::Language::Access::Type& access,
     const Abstract& external_context,
     const Monograph& source) -> const Abstract& {
-  const Abstract& external = external_context.resolve_context(route).resolve();
+  const Abstract& external = access.resolve(external_context);
   if (&external != &Invalid::get_invalid()) {
     return external;
   }
 
-  return source.get_library_host().resolve_intrinsic(route).resolve();
+  const Abstract& intrinsic =
+      source.get_library_host().resolve_intrinsic(access.get_root());
+  return access.resolve_from(intrinsic);
 }
 
 static auto callable_exposes_unreachable_type(
@@ -154,19 +179,36 @@ static auto callable_exposes_unreachable_type(
                      : Option<Anchor>();
         }
 
+        Bool receives_self =
+            callable_receives_self(callable, function.get_host());
+
         for (Count i = 0; i < signature->get_parameter_size(); i++) {
+          if (i == 0 && receives_self) {
+            continue;
+          }
+
           auto type = signature->get_parameter_type(i);
+          auto access = signature->get_parameter_type_access(i);
+          if (!type || !access) {
+            return signature->get_parameter_type_anchor(i);
+          }
+
           const Abstract& reachable = resolve_externally_reachable_type(
-              signature->get_parameter_type_route(i), external_context, source);
-          if (!type || &reachable != &*type) {
+              *access, external_context, source);
+          if (&reachable != &*type) {
             return signature->get_parameter_type_anchor(i);
           }
         }
         for (Count i = 0; i < signature->get_result_size(); i++) {
           auto type = signature->get_result_type(i);
+          auto access = signature->get_result_type_access(i);
+          if (!type || !access) {
+            return signature->get_result_type_anchor(i);
+          }
+
           const Abstract& reachable = resolve_externally_reachable_type(
-              signature->get_result_type_route(i), external_context, source);
-          if (!type || &reachable != &*type) {
+              *access, external_context, source);
+          if (&reachable != &*type) {
             return signature->get_result_type_anchor(i);
           }
         }
@@ -221,10 +263,10 @@ Types::Structure::Structure(
       callables(domain),
       callable_observations(domain),
       public_callables(domain),
-      static_bindings(domain),
-      external_static_bindings(domain),
-      member_bindings(domain),
-      external_member_bindings(domain),
+      callable_bindings(domain),
+      external_callable_bindings(domain),
+      type_bindings(domain),
+      external_type_bindings(domain),
       static_binding_order(domain),
       external_static_binding_order(domain) {}
 
@@ -242,7 +284,7 @@ auto Types::Structure::create_synthetic(
   // Source has no instance state, so its complete empty Layout exists before
   // any declaration receives it as a host. Static bindings may then accumulate
   // without creating a second scope or changing the Type identity.
-  structure.layout = domain.construct<Layouts::Structured>();
+  structure.layout = domain.construct<Ttx::Model::Layouts::Named>();
   structure.stage = Stage::InitializersLinked;
   return structure;
 }
@@ -273,7 +315,7 @@ auto Types::Structure::interpret(
       Span(definition->opening, definition->kind_token));
   auto reserve_exact_type = [&]() -> Structure& {
     if (definition->kind == DefinitionKind::Object) {
-      return Object::create(
+      return Object::create_authored(
           domain, definition->name, documentation, definition->visibility,
           source, materializations, *source_scope, preliminary,
           definition->name_anchor);
@@ -324,8 +366,7 @@ auto Types::Structure::interpret(
     if (!field) {
       return {};
     }
-    if (contains_field_name(structure.field_sources, field->get_name()) ||
-        structure.static_bindings.contains(field->get_name())) {
+    if (contains_field_name(structure.field_sources, field->get_name())) {
       transaction.create_token_error(
           field->get_anchor().get_token(),
           "Duplicate member name in one Library Structure."_view);
@@ -347,7 +388,73 @@ auto Types::Structure::complete_declaration(Anchor complete_anchor) -> void {
   anchor = complete_anchor;
 }
 
-auto Types::Structure::can_bind_static(View::Bytes candidate) const -> Bool {
+static auto get_binding_target(const Abstract& binding) -> const Abstract& {
+  return binding.visit<Ttx::Model::Alias>(
+      [](const Ttx::Model::Alias& alias) -> const Abstract& {
+        return get_binding_target(alias.get_target());
+      },
+      [](const Abstract& direct) -> const Abstract& { return direct; });
+}
+
+static auto contains_binding_name(
+    View::Vector<Reference<const Abstract>> bindings,
+    View::Bytes name) -> Bool {
+  for (Count i = 0; i < bindings.get_size(); i++) {
+    if (bindings.get_data()[i].get().get_name() == name) {
+      return True;
+    }
+  }
+
+  return False;
+}
+
+static auto contains_binding(
+    View::Vector<Reference<const Abstract>> bindings,
+    const Abstract& binding) -> Bool {
+  for (Count i = 0; i < bindings.get_size(); i++) {
+    if (&bindings.get_data()[i].get() == &binding) {
+      return True;
+    }
+  }
+
+  return False;
+}
+
+static auto find_binding(
+    View::Vector<Reference<const Abstract>> bindings,
+    View::Bytes name) -> const Abstract& {
+  Count selected = bindings.get_size();
+  for (Count i = 0; i < bindings.get_size(); i++) {
+    const Abstract& candidate = bindings.get_data()[i].get();
+    if (candidate.get_name() != name) {
+      continue;
+    }
+    if (selected != bindings.get_size()) {
+      return Invalid::get_invalid();
+    }
+
+    selected = i;
+  }
+
+  return selected == bindings.get_size() ? Invalid::get_invalid()
+                                         : bindings.get_data()[selected].get();
+}
+
+static auto find_field(
+    View::Vector<Reference<const Field>> fields,
+    View::Bytes name) -> const Abstract& {
+  for (Count i = 0; i < fields.get_size(); i++) {
+    const Field& field = fields.get_data()[i].get();
+    if (field.get_name() == name) {
+      return field;
+    }
+  }
+
+  return Invalid::get_invalid();
+}
+
+auto Types::Structure::can_bind_static(const Abstract& candidate) const
+    -> Bool {
   if (!is_source() || stage != Stage::InitializersLinked) {
     return False;
   }
@@ -355,23 +462,43 @@ auto Types::Structure::can_bind_static(View::Bytes candidate) const -> Bool {
   return can_bind(candidate);
 }
 
-auto Types::Structure::can_bind(View::Bytes candidate) const -> Bool {
+auto Types::Structure::can_bind(const Abstract& binding) const -> Bool {
+  View::Bytes candidate = binding.get_name();
   if (candidate.is_empty() || candidate == "source"_view ||
-      static_bindings.contains(candidate) ||
-      contains_field_name(field_sources, candidate)) {
+      contains_binding(static_binding_order, binding)) {
     return False;
   }
 
-  if (!is_source()) {
-    return True;
-  }
+  const Abstract& target = get_binding_target(binding);
+  return target.visit<Callable>(
+      [&](const Callable& callable) {
+        if (&target == &binding && !callable_has_host(callable, *this)) {
+          return False;
+        }
 
-  const Abstract& outer =
-      source.get_interpretation_context().resolve_context(candidate);
-  const Abstract& intrinsic =
-      source.get_library_host().resolve_intrinsic(candidate);
-  return &outer == &Invalid::get_invalid() &&
-         &intrinsic == &Invalid::get_invalid();
+        return True;
+      },
+      [&](const Abstract& possible_type) {
+        return possible_type.visit<Type>(
+            [&](const Type&) -> Bool {
+              if (contains_binding_name(type_bindings, candidate)) {
+                return False;
+              }
+              if (!is_source()) {
+                return True;
+              }
+
+              const Abstract& outer =
+                  source.get_interpretation_context().resolve_context(
+                      candidate);
+              const Abstract& intrinsic =
+                  source.get_library_host().resolve_intrinsic(candidate);
+              return Bool(
+                  &outer == &Invalid::get_invalid() &&
+                  &intrinsic == &Invalid::get_invalid());
+            },
+            [](const Abstract&) { return False; });
+      });
 }
 
 auto Types::Structure::bind_static(
@@ -386,23 +513,32 @@ auto Types::Structure::bind_static(
 
 auto Types::Structure::bind(Abstract& binding, Visibility binding_visibility)
     -> Bool {
-  View::Bytes binding_name = binding.get_name();
-  Bool host_authenticated = binding.visit<Callable>(
-      [&](const Callable& callable) {
-        return callable_has_host(callable, *this);
-      },
-      [](const Abstract&) { return True; });
-  if (!host_authenticated || !can_bind(binding_name)) {
+  if (!can_bind(binding)) {
     return False;
   }
 
-  // Host authentication and collision checks finish before either view moves.
-  // Both views can therefore retain the same identity without partial binding.
-  static_bindings.launder(binding_name, Reference<const Abstract>(binding));
+  const Abstract& target = get_binding_target(binding);
+  Bool callable = target.is<Callable>();
+  Bool type = target.is<Type>();
+  if (!callable && !type) {
+    return False;
+  }
+
+  Reference<const Abstract> identity(binding);
+  if (callable) {
+    callable_bindings.insert(identity);
+    if (binding_visibility == Visibility::Public) {
+      external_callable_bindings.insert(identity);
+    }
+  } else {
+    type_bindings.insert(identity);
+    if (binding_visibility == Visibility::Public) {
+      external_type_bindings.insert(identity);
+    }
+  }
+
   static_binding_order.insert(binding);
   if (binding_visibility == Visibility::Public) {
-    external_static_bindings.launder(
-        binding_name, Reference<const Abstract>(binding));
     external_static_binding_order.insert(binding);
   }
 
@@ -445,8 +581,10 @@ auto Types::Structure::link_fields() -> Bool {
   Bool failed = False;
   for (Count i = 0; i < field_sources.get_size(); i++) {
     Field::Source& field_source = field_sources[i];
-    const Abstract& selected =
-        resolve_internal_context(field_source.get_type_route());
+    const Tetrodotoxin::Library::Language::Access::Type& access =
+        field_source.get_type_access();
+    const Abstract& root = resolve_internal_context(access.get_root());
+    const Abstract& selected = access.resolve_from(root);
     auto field = Field::link(domain, source, *this, field_source, selected);
     if (!field) {
       failed = True;
@@ -460,23 +598,21 @@ auto Types::Structure::link_fields() -> Bool {
     return False;
   }
 
-  // Every exact Type settles before the Structure publishes a Field. Layout
-  // and both lookup views can then borrow the same Field identities without a
-  // partial graph surviving one rejected route.
+  // Every exact Type settles before the Structure publishes a Field. The
+  // Layout and external observation borrow those same identities, so a failed
+  // route cannot leave a second member model behind.
   for (Count i = 0; i < linked_fields.get_size(); i++) {
     Field& field = linked_fields[i].get();
     fields.insert(field);
     field_observations.insert(field);
     layout_fields.insert(field);
-    member_bindings.launder(field.get_name(), Reference<const Abstract>(field));
     if (field.is_readable_externally()) {
       public_fields.insert(field);
-      external_member_bindings.launder(
-          field.get_name(), Reference<const Abstract>(field));
     }
   }
 
-  layout = domain.construct<Layouts::Structured>(layout_fields.get_view());
+  layout =
+      domain.construct<Ttx::Model::Layouts::Named>(layout_fields.get_view());
   stage = Stage::FieldsLinked;
   return True;
 }
@@ -519,7 +655,25 @@ auto Types::Structure::link_callable_signatures() -> Bool {
 
   Bool failed = False;
   for (Count i = 0; i < callables.get_size(); i++) {
-    failed |= !link_signature(callables[i].get());
+    Callable& callable = callables[i].get();
+    Bool linked = link_signature(callable);
+    failed |= !linked;
+    if (!linked || !is_source() || !callable_receives_self(callable, *this)) {
+      continue;
+    }
+
+    auto callable_anchor = callable.visit<Function>(
+        [](const Function& function) -> Option<Anchor> {
+          Token name = function.get_name_token();
+          return name ? Option<Anchor>(Anchor::create(Span(name)))
+                      : Option<Anchor>();
+        },
+        [](const Abstract&) -> Option<Anchor> { return {}; });
+    source.report(
+        callable_anchor,
+        "A top level Library Function cannot receive `self`."_view,
+        "Remove `self` from the top level Function signature."_view);
+    failed = True;
   }
 
   if (failed) {
@@ -574,7 +728,7 @@ auto Types::Structure::finalize() -> Bool {
   for (Count i = 0; i < public_fields.get_size(); i++) {
     const Field& field = public_fields[i].get();
     const Abstract& reachable = resolve_externally_reachable_type(
-        field.get_type_route(), external_source, source);
+        field.get_type_access(), external_source, source);
     if (&reachable == &field.get_type()) {
       continue;
     }
@@ -624,38 +778,18 @@ auto Types::Structure::resolve() const -> const Abstract& {
   return *this;
 }
 
-auto Types::Structure::resolve_external_static_context(View::Bytes route) const
+auto Types::Structure::resolve_context(View::Bytes route) const
     -> const Abstract& {
-  return external_static_bindings.visit(
-      route,
-      [](const Reference<const Abstract>& binding) -> const Abstract& {
-        return binding.get();
-      },
-      []() -> const Abstract& { return Invalid::get_invalid(); });
-}
+  const Abstract& type = find_binding(external_type_bindings, route);
+  if (&type != &Invalid::get_invalid()) {
+    return type;
+  }
 
-auto Types::Structure::resolve_external_member_context(View::Bytes route) const
-    -> const Abstract& {
   if (!is_source() && stage < Stage::FieldsLinked) {
     return Invalid::get_invalid();
   }
 
-  return external_member_bindings.visit(
-      route,
-      [](const Reference<const Abstract>& binding) -> const Abstract& {
-        return binding.get();
-      },
-      []() -> const Abstract& { return Invalid::get_invalid(); });
-}
-
-auto Types::Structure::resolve_context(View::Bytes route) const
-    -> const Abstract& {
-  const Abstract& static_binding = resolve_external_static_context(route);
-  if (&static_binding != &Invalid::get_invalid()) {
-    return static_binding;
-  }
-
-  return resolve_external_member_context(route);
+  return find_field(public_fields, route);
 }
 
 auto Types::Structure::resolve_context(
@@ -665,7 +799,7 @@ auto Types::Structure::resolve_context(
     return resolve_context(route);
   }
 
-  return resolve_internal_context(route);
+  return resolve_internal_type_context(route);
 }
 
 auto Types::Structure::resolve_context(
@@ -685,7 +819,7 @@ auto Types::Structure::resolve_context(
     return resolve_context(route);
   }
 
-  return resolve_internal_context(route);
+  return resolve_internal_type_context(route);
 }
 
 auto Types::Structure::owns(const Callable& requester) const -> Bool {
@@ -719,6 +853,23 @@ auto Types::Structure::owns(const Field& requester) const -> Bool {
   return False;
 }
 
+auto Types::Structure::grants_complete_access(const Abstract& requester) const
+    -> Bool {
+  return requester.visit<Callable>(
+      [&](const Callable& callable) { return owns(callable); },
+      [&](const Abstract& possible_field_or_source) {
+        return possible_field_or_source.visit<Field>(
+            [&](const Field& field) { return owns(field); },
+            [&](const Abstract& possible_source) {
+              return possible_source.visit<Monograph>(
+                  [&](const Monograph& selected) {
+                    return Bool(is_source() && &selected == &source);
+                  },
+                  [](const Abstract&) { return False; });
+            });
+      });
+}
+
 auto Types::Structure::get_external_source_context() const -> const Abstract& {
   return source_scope.visit(
       [&]() -> const Abstract& { return *this; },
@@ -729,30 +880,20 @@ auto Types::Structure::get_external_source_context() const -> const Abstract& {
 
 auto Types::Structure::resolve_internal_context(View::Bytes route) const
     -> const Abstract& {
-  const Abstract& static_binding = static_bindings.visit(
-      route,
-      [](const Reference<const Abstract>& binding) -> const Abstract& {
-        return binding.get();
-      },
-      []() -> const Abstract& { return Invalid::get_invalid(); });
-  if (&static_binding != &Invalid::get_invalid()) {
-    return static_binding;
+  const Abstract& type = find_binding(type_bindings, route);
+  if (&type != &Invalid::get_invalid()) {
+    return type;
   }
 
-  const Abstract& member_binding = member_bindings.visit(
-      route,
-      [](const Reference<const Abstract>& binding) -> const Abstract& {
-        return binding.get();
-      },
-      []() -> const Abstract& { return Invalid::get_invalid(); });
-  if (&member_binding != &Invalid::get_invalid()) {
-    return member_binding;
+  const Abstract& member = find_field(field_observations, route);
+  if (&member != &Invalid::get_invalid()) {
+    return member;
   }
 
   if (source_scope) {
     return source_scope->get().visit<Structure>(
         [&](const Structure& structure) -> const Abstract& {
-          return structure.resolve_internal_context(route);
+          return structure.resolve_internal_type_context(route);
         },
         [](const Abstract&) -> const Abstract& {
           return Invalid::get_invalid();
@@ -768,12 +909,46 @@ auto Types::Structure::resolve_internal_context(View::Bytes route) const
   return source.get_library_host().resolve_intrinsic(route);
 }
 
-auto Types::Structure::get_layout() const -> const Layout& {
+auto Types::Structure::resolve_internal_type_context(View::Bytes route) const
+    -> const Abstract& {
+  const Abstract& type = find_binding(type_bindings, route);
+  if (&type != &Invalid::get_invalid()) {
+    return type;
+  }
+
+  if (source_scope) {
+    return source_scope->get().visit<Structure>(
+        [&](const Structure& structure) -> const Abstract& {
+          return structure.resolve_internal_type_context(route);
+        },
+        [](const Abstract&) -> const Abstract& {
+          return Invalid::get_invalid();
+        });
+  }
+
+  const Abstract& outer =
+      source.get_interpretation_context().resolve_context(route);
+  if (&outer != &Invalid::get_invalid()) {
+    return outer;
+  }
+
+  return source.get_library_host().resolve_intrinsic(route);
+}
+auto Types::Structure::get_layout() const -> const Ttx::Model::Layouts::Named& {
   return layout.visit(
-      []() -> const Layout& { return incomplete_layout; },
-      [](const Layouts::Structured& selected) -> const Layout& {
-        return selected;
-      });
+      []() -> const Ttx::Model::Layouts::Named& { return incomplete_layout; },
+      [](const Ttx::Model::Layouts::Named& selected)
+          -> const Ttx::Model::Layouts::Named& { return selected; });
+}
+
+auto Types::Structure::is_readable(
+    const Field& field,
+    const Abstract& requester) const -> Bool {
+  if (!owns(field)) {
+    return False;
+  }
+
+  return grants_complete_access(requester) || field.is_readable_externally();
 }
 
 auto Types::Structure::get_fields() const
@@ -799,6 +974,20 @@ auto Types::Structure::get_callables() const
 auto Types::Structure::get_public_callables() const
     -> View::Vector<Reference<const Callable>> {
   return public_callables;
+}
+
+auto Types::Structure::get_callable_bindings() const
+    -> View::Vector<Reference<const Abstract>> {
+  return external_callable_bindings;
+}
+
+auto Types::Structure::get_callable_bindings(const Abstract& requester) const
+    -> View::Vector<Reference<const Abstract>> {
+  if (grants_complete_access(requester)) {
+    return callable_bindings;
+  }
+
+  return external_callable_bindings;
 }
 
 auto Types::Structure::get_static_bindings() const

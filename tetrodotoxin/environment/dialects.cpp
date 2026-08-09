@@ -15,14 +15,8 @@ auto Environment::Dialects::Installed::get() const -> Language::Dialect& {
   return value;
 }
 
-Environment::Dialects::Dialects(
-    Allocator::Arena& arena,
-    Ttx::Concept::Abstract& registry)
-    : arena(arena),
-      registry(registry),
-      names(arena),
-      values(arena),
-      installed(arena) {}
+Environment::Dialects::Dialects(Allocator::Arena& arena)
+    : arena(arena), names(arena), values(arena), installed(arena) {}
 
 Environment::Dialects::~Dialects() {
   // Workspace member order destroys Retention before this inventory. Hosted

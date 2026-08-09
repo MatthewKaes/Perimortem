@@ -19,7 +19,7 @@ namespace Tetrodotoxin::Package {
 // so Workspace connects this owner to the Storage for its current authored
 // Package import after interpreting the manifest.
 //
-// While connected, complete resource instructions read through that one
+// While connected, complete resource routes read through that one
 // Storage and cache one Arena stable Resource or Error identity. Workspace
 // seals every Resources in the discovery range before dependency resolution
 // can link or finalize that range. Sealing clears only the borrowed Storage

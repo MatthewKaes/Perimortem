@@ -1,22 +1,11 @@
-# Shader Dialect
+# Shader
 
-The future `Tetrodotoxin::Shader::Dialect` owns the grammar that implements one
-exact Render contract using Stage Callables and Shader owned Stage bodies.
-
-Environment will install the concrete Shader Dialect and retain each resulting
-Shader Monograph. After the universal envelope is parsed, Shader interpretation
-consumes the remaining forward Cursor and constructs its semantic identities in
-the Environment Arena.
-
-The Shader Monograph owns its definitions, resolution rules, Stage identities,
-and completed semantic facts.
-
-## Source contract
-
-A Shader definition selects one exact Render identity and implements its
-required Stages:
+The Shader Dialect implements one exact Render contract. It owns Shader Types,
+Stage bodies, resource access, and the semantic facts required for GPU lowering.
 
 ```ttx
+dialect : Shader;
+
 shader TestShader : Formats::Simple {
   func Fragment[.color : Vec4D] -> [.color : Vec4D] {
     state copied : Vec4D = color;
@@ -25,41 +14,51 @@ shader TestShader : Formats::Simple {
 }
 ```
 
-Shader grammar owns the Shader name and exact Render query, one implementation
-for each required Stage, the Stage parameter and result Layouts, and Shader
-Stage body construction. It also defines declared constant, push, and resource
-access. It retains locations, builtins, sets, slots, address space facts, and
-explicit representation edges where semantic and target Types differ.
+`Formats::Simple` is contextual Type access. `.color` names entries in the Stage
+parameter and result Layouts; it is not postfix Address access.
 
-Managed CPU Types are not admitted into GPU values merely because they are
-available through a binding context. A matching Structured Layout does not
-create vector or ABI identity.
+## Render implementation
 
-## Single consumption
+A Shader definition selects one Render identity and supplies every Stage that
+contract requires. Each Stage must fit the declared parameter and result
+Layouts and satisfy the required resource, built-in, location, and address-space
+facts.
 
-Every Stage body is consumed once into its Shader semantic owner. Shader does
-not assume the future CPU executable representation accepted by Library.
+Structural Layout coincidence does not create Shader Type or ABI identity. A
+managed CPU Type is not admitted into a GPU value merely because both expose a
+similar Layout.
 
-A shared value or control component may be extracted only after real Library
-and Shader implementations prove identical requirements. Shader does not retain
-source ranges for lowering, and lowering does not recreate a Cursor over
-authored source.
+## Stage bodies
 
-Library's CPU compiler does not participate in Shader lowering.
+Shader owns the grammar and semantics of Stage bodies. Constants, push values,
+resources, and local state become Shader facts directly. They do not pass
+through Library's CPU expression or executable-body model.
 
-## Assembler boundary
+When a Type has distinct semantic and target representations, Shader retains an
+explicit edge between those identities. Lowering consumes that completed edge
+rather than reconstructing meaning from source Tokens.
 
-`Tetrodotoxin::Shader::Assembler::SpirV` owns source independent SPIR V word
-emission within the Shader subsystem. It does not own Shader grammar, semantic
-validation, package terminal paths, or archive storage.
+## Access
 
-The future Shader lowering path supplies decisions already proven against the
-selected Render contract. Environment retains the source Monograph but does not
-mirror Shader declarations.
+Shader follows the shared TTX access domains:
 
-## Status
+- `value.name` selects an Addressable from a named Layout;
+- `context::Type` resolves a Type through contextual access;
+- `receiver -> callable(arguments...)` selects and invokes a Callable admitted by
+  Shader grammar;
+- `.[...]` selects named Layout flow;
+- `[...]` requests indexed reference access from writable `Access[T]`, while
+  `:[...]` selects a safe indexed value.
 
-The current structural fixture is
-[`../../validation/data/ttx/shader_artifact/shader.ttx`](../../validation/data/ttx/shader_artifact/shader.ttx).
-There is no active Shader Dialect, Monograph, parser, semantic validator, or
-lowering transaction. The current target contains only the SPIR V assembler.
+## Lowering boundary
+
+Shader lowering chooses GPU representation, storage classes, bindings, and
+instructions after semantic validation. The Shader assembler emits
+source-independent SPIR-V words from those completed decisions.
+
+Package owns durable payload framing and artifact identity. Runtime graphics
+owns submission. Neither one reinterprets Shader source grammar.
+
+See [Render](../render/README.md) for the interface being implemented and
+[TTX semantics](../../ttx/ttx_semantics.md) for the shared Type and Layout
+contracts.

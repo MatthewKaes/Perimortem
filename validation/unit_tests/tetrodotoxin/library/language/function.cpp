@@ -53,8 +53,32 @@ class SignatureType : public Type {
   View::Bytes name;
 };
 
+class SignatureContext : public Abstract {
+ public:
+  constexpr SignatureContext(View::Bytes name, const Type& boolean)
+      : name(name), boolean(boolean) {}
+
+  constexpr auto get_name() const -> View::Bytes override { return name; }
+  auto get_documentation() const -> const Documentation& override {
+    return Documentation::get_empty();
+  }
+  auto resolve_context(View::Bytes route) const -> const Abstract& override {
+    if (route == "Bool"_view) {
+      return boolean;
+    }
+
+    return Invalid::get_invalid();
+  }
+
+ private:
+  View::Bytes name;
+  const Type& boolean;
+};
+
 class SignatureTypes : public Type {
  public:
+  SignatureTypes() : core("Core"_view, boolean) {}
+
   constexpr auto get_name() const -> View::Bytes override {
     return "SignatureTypes"_view;
   }
@@ -62,8 +86,11 @@ class SignatureTypes : public Type {
     return Documentation::get_empty();
   }
   auto resolve_context(View::Bytes route) const -> const Abstract& override {
-    if (route == "Bool"_view || route == "Core::Bool"_view) {
+    if (route == "Bool"_view) {
       return boolean;
+    }
+    if (route == "Core"_view) {
+      return core;
     }
     if (route == "Unsigned_64"_view) {
       return unsigned_64;
@@ -73,6 +100,7 @@ class SignatureTypes : public Type {
 
   SignatureType boolean{"Bool"_view};
   SignatureType unsigned_64{"Unsigned_64"_view};
+  SignatureContext core;
 };
 
 class LateSignatureTypes : public Type {
@@ -241,7 +269,7 @@ PERIMORTEM_UNIT_TEST(FunctionTests, stable_authored_graph) {
   EXPECT_TEXT(function.get_token().caculate_text(source), "func"_view);
   EXPECT_TEXT(function.get_name_token().caculate_text(source), "ready"_view);
   EXPECT_NOT(function.get_span());
-  EXPECT(cursor.matches(Code::Type::LayoutStart));
+  EXPECT(cursor.matches(Code::Type::BracketStart));
 
   ASSERT(function.complete(cursor));
   EXPECT(&function == identity);
@@ -276,7 +304,7 @@ PERIMORTEM_UNIT_TEST(FunctionTests, stable_authored_graph) {
   EXPECT(&function.resolve() == identity);
   EXPECT(&*function.get_signature() == signature_identity);
   EXPECT(function.is<Language::Function>());
-  EXPECT(function.is<Language::Callables::Static>());
+  EXPECT(function.is<Callable>());
   EXPECT_TEXT(
       function.get_span().caculate_text(source),
       "public func ready[.value : Bool] -> Unsigned_64 { value; return value; }"_view);
@@ -372,6 +400,44 @@ PERIMORTEM_UNIT_TEST(FunctionTests, direct_parameter_and_bare_return) {
   EXPECT(errors.is_empty());
 }
 
+PERIMORTEM_UNIT_TEST(FunctionTests, self_is_exact_host_parameter) {
+  static constexpr View::Bytes source =
+      "public func inspect[self, .value : Bool] -> Bool { return value; }"_view;
+  Allocator::Arena arena;
+  Language::Materializations materializations(arena);
+  Errors errors;
+  Tokenizer tokenizer(arena, source, "self-function.ttx"_view);
+  Cursor cursor(tokenizer, errors);
+  SignatureTypes types;
+  FunctionParent parent(arena, types);
+  auto function = Language::Function::reserve(
+      arena, cursor, function_documentation, parent, types, materializations);
+  ASSERT(function);
+  ASSERT(function->complete(cursor));
+
+  auto signature = function->get_signature();
+  ASSERT(signature);
+  EXPECT_TEXT(signature->get_parameter_name(0), "self"_view);
+  EXPECT_NOT(signature->get_parameter_type_access(0));
+  ASSERT(signature->get_parameter_type_anchor(0));
+  EXPECT_TEXT(
+      signature->get_parameter_type_anchor(0)->get_span().caculate_text(source),
+      "self"_view);
+
+  ASSERT(function->link());
+  const Callable& callable = *function;
+  ASSERT_EQ(callable.get_parameters().get_size(), Count(2));
+  const Language::Parameter* self = get_parameter(callable.get_parameters(), 0);
+  const Language::Parameter* value =
+      get_parameter(callable.get_parameters(), 1);
+  ASSERT(self && value);
+  EXPECT_TEXT(self->get_name(), "self"_view);
+  EXPECT(&self->get_type() == &types);
+  EXPECT_TEXT(value->get_name(), "value"_view);
+  EXPECT(&value->get_type() == &types.boolean);
+  EXPECT(errors.is_empty());
+}
+
 PERIMORTEM_UNIT_TEST(FunctionTests, authored_signature_shapes) {
   static constexpr View::Bytes source =
       "[] -> Bool "
@@ -444,7 +510,7 @@ PERIMORTEM_UNIT_TEST(FunctionTests, parameter_requires_linked_signature) {
 
 PERIMORTEM_UNIT_TEST(FunctionTests, rejected_completion_is_atomic) {
   SignatureTypes types;
-  static constexpr Static::Vector<View::Bytes, 8> rejected = {{
+  static constexpr Static::Vector<View::Bytes, 11> rejected = {{
     "private func bad[.value : Bool, .value : Bool] -> [] {}"_view,
     "private func bad[Bool, .value : Bool] -> [] {}"_view,
     "private func bad[.Bool : Bool] -> [] {}"_view,
@@ -453,6 +519,9 @@ PERIMORTEM_UNIT_TEST(FunctionTests, rejected_completion_is_atomic) {
     "private func bad[Bool Bool] -> [] {}"_view,
     "private func bad[] -> Bool { return true; false; }"_view,
     "private func bad[] -> Bool { return; return; }"_view,
+    "private func bad[.value : Bool, self] -> [] {}"_view,
+    "private func bad[self, Bool] -> [] {}"_view,
+    "private func bad[] -> [self] {}"_view,
   }};
 
   // Each rejected transaction allocates independently and leaves its Function

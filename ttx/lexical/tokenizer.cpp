@@ -373,11 +373,11 @@ auto Tokenizer::parse() -> void {
       break;
 
     case '[':
-      parse_simple<Code::Type::LayoutStart>(ctx);
+      parse_simple<Code::Type::BracketStart>(ctx);
       break;
 
     case ']':
-      parse_simple<Code::Type::LayoutEnd>(ctx);
+      parse_simple<Code::Type::BracketEnd>(ctx);
       break;
 
     case ')':
@@ -407,7 +407,7 @@ auto Tokenizer::parse() -> void {
 
     case ':':
       if (ctx.peek_ahead(1) == '[') {
-        parse_simple<Code::Type::SliceOp>(ctx);
+        parse_simple<Code::Type::ValueAccessOp>(ctx);
       } else if (ctx.peek_ahead(1) == ':') {
         parse_simple<Code::Type::TypeAccessOp>(ctx);
       } else {

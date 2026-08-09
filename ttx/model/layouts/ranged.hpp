@@ -11,7 +11,7 @@ namespace Ttx::Model::Layouts {
 // count, then materializes the same semantic answer for every valid index.
 // Bytes[N], Static::Vector<T, N>, and other fixed homogeneous Types can
 // therefore participate in recursive layout and generalized element
-// projection without allocating N duplicate graph edges. An index outside the
+// selection without allocating N duplicate graph edges. An index outside the
 // range returns None.
 class Ranged : public Concept::Layout {
  public:
