@@ -623,6 +623,99 @@ PERIMORTEM_UNIT_TEST(StructureTests, authenticated_host_access) {
   EXPECT(errors.is_empty());
 }
 
+PERIMORTEM_UNIT_TEST(StructureTests, initializer_fitting) {
+  static constexpr View::Bytes source =
+      "// Structure initializer test.\n"
+      "dialect : Library;\n"
+      "public Packet : struct {\n"
+      "  private exact : Bool = false;\n"
+      "  private copy : Bool = exact;\n"
+      "  private narrow : Unsigned_8 = 255;\n"
+      "}"_view;
+  Workspace workspace;
+  Errors errors;
+  auto monograph = interpret(workspace, errors, source);
+  ASSERT(monograph);
+  auto bindings = monograph->get_authored_bindings();
+  ASSERT_EQ(bindings.get_size(), Count(1));
+  ASSERT(bindings.get_data()[0].get().is<Language::Types::Structure>());
+  const auto& packet = static_cast<const Language::Types::Structure&>(
+      bindings.get_data()[0].get());
+  auto authored_fields = packet.get_field_sources();
+  ASSERT_EQ(authored_fields.get_size(), Count(3));
+  auto exact_initializer = authored_fields.get_data()[0].get_initializer();
+  auto copy_initializer = authored_fields.get_data()[1].get_initializer();
+  auto narrow_initializer = authored_fields.get_data()[2].get_initializer();
+  ASSERT(exact_initializer);
+  ASSERT(copy_initializer);
+  ASSERT(narrow_initializer);
+
+  ASSERT(workspace.link(errors));
+  ASSERT(workspace.finalize(errors));
+
+  auto fields = packet.get_fields();
+  ASSERT_EQ(fields.get_size(), Count(3));
+  ASSERT(fields.get_data()[0].get().get_initializer());
+  ASSERT(fields.get_data()[1].get().get_initializer());
+  ASSERT(fields.get_data()[2].get().get_initializer());
+  EXPECT(&*fields.get_data()[0].get().get_initializer() == &*exact_initializer);
+  EXPECT(&*fields.get_data()[1].get().get_initializer() == &*copy_initializer);
+  EXPECT(
+      &*fields.get_data()[2].get().get_initializer() == &*narrow_initializer);
+  ASSERT(copy_initializer->is<Language::Identifier>());
+  const auto& identifier =
+      static_cast<const Language::Identifier&>(*copy_initializer);
+  ASSERT(identifier.get_addressable());
+  EXPECT(&*identifier.get_addressable() == &fields.get_data()[0].get());
+  EXPECT(errors.is_empty());
+}
+
+PERIMORTEM_UNIT_TEST(StructureTests, initializer_mismatch_rejected) {
+  static constexpr Static::Vector<View::Bytes, 2> sources = {{
+    "// Structure initializer test.\ndialect : Library; public Packet : struct { private value : Unsigned_8 = false; }"_view,
+    "// Structure initializer test.\ndialect : Library; public Packet : struct { private value : Unsigned_8 = 256; }"_view,
+  }};
+
+  for (Count i = 0; i < sources.get_size(); i++) {
+    Workspace workspace;
+    Errors errors;
+    auto monograph = interpret(workspace, errors, sources[i]);
+    ASSERT(monograph);
+    auto bindings = monograph->get_authored_bindings();
+    ASSERT_EQ(bindings.get_size(), Count(1));
+    ASSERT(bindings.get_data()[0].get().is<Language::Types::Structure>());
+    const auto& packet = static_cast<const Language::Types::Structure&>(
+        bindings.get_data()[0].get());
+    auto authored_fields = packet.get_field_sources();
+    ASSERT_EQ(authored_fields.get_size(), Count(1));
+    auto authored_initializer = authored_fields.get_data()[0].get_initializer();
+    ASSERT(authored_initializer);
+
+    EXPECT_NOT(workspace.link(errors));
+    auto fields = packet.get_fields();
+    ASSERT_EQ(fields.get_size(), Count(1));
+    const Language::Field& field = fields.get_data()[0].get();
+    ASSERT(field.get_initializer());
+    EXPECT(&*field.get_initializer() == &*authored_initializer);
+    EXPECT_NOT(field.is_linked());
+    EXPECT_NOT(packet.is_finalized());
+    auto diagnostics = monograph->get_diagnostics();
+    ASSERT_EQ(diagnostics.get_size(), Count(1));
+    ASSERT(diagnostics.get_data()[0].get_anchor());
+    EXPECT(
+        diagnostics.get_data()[0].get_anchor()->get_span().caculate_text(
+            sources[i]) == (i == 0 ? "false"_view : "256"_view));
+    EXPECT_TEXT(
+        diagnostics.get_data()[0].get_message(),
+        "Field initializer does not fit the declared Field Type's semantic "
+        "domain."_view);
+    EXPECT_TEXT(
+        diagnostics.get_data()[0].get_hint(),
+        "Supply one value accepted by the declared Field Type."_view);
+    EXPECT_NOT(errors.is_empty());
+  }
+}
+
 PERIMORTEM_UNIT_TEST(StructureTests, repeat_lifecycle) {
   static constexpr View::Bytes source =
       "// Structure test.\n"

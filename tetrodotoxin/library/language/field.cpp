@@ -14,13 +14,10 @@ using namespace Ttx::Lexical;
 using namespace Ttx::Model;
 using namespace Tetrodotoxin::Library;
 
-struct ParsedPolicy {
-  Language::Field::Exposure exposure;
-  Language::Field::Writability writability;
-};
-
-static auto parse_policy(Cursor& cursor) -> Option<ParsedPolicy> {
-  Language::Field::Exposure exposure;
+static auto parse_policy(
+    Cursor& cursor,
+    Language::Field::Exposure& exposure,
+    Language::Field::Writability& writability) -> Bool {
   if (cursor.matches(Code::Type::Public)) {
     cursor.consume();
     exposure = Language::Field::Exposure::Public;
@@ -34,10 +31,9 @@ static auto parse_policy(Cursor& cursor) -> Option<ParsedPolicy> {
     cursor.create_token_error(
         "Library Fields require `public`, `private`, or `expose` "
         "publication."_view);
-    return {};
+    return False;
   }
 
-  Language::Field::Writability writability = Language::Field::Writability::Full;
   Bool state = False;
   if (cursor.matches(Code::Type::State)) {
     cursor.consume();
@@ -51,19 +47,16 @@ static auto parse_policy(Cursor& cursor) -> Option<ParsedPolicy> {
   if (exposure == Language::Field::Exposure::Exposed && !state) {
     cursor.create_token_error(
         "Library `expose` Fields require the `state` evaluation policy."_view);
-    return {};
+    return False;
   }
   if (exposure == Language::Field::Exposure::Public && state) {
     cursor.create_token_error(
         "Library state Fields require `private` or explicit `expose` "
         "publication."_view);
-    return {};
+    return False;
   }
 
-  return ParsedPolicy{
-    .exposure = exposure,
-    .writability = writability,
-  };
+  return True;
 }
 
 auto Language::Field::interpret(
@@ -74,8 +67,10 @@ auto Language::Field::interpret(
     const Abstract& source_context) -> Option<Source> {
   auto transaction = cursor.branch();
   Token opening = transaction.current();
-  auto policy = parse_policy(transaction);
-  if (!policy) {
+  Exposure exposure = Exposure::Private;
+  Writability writability = Writability::Full;
+  Bool parsed_policy = parse_policy(transaction, exposure, writability);
+  if (!parsed_policy) {
     return {};
   }
 
@@ -104,7 +99,7 @@ auto Language::Field::interpret(
     if (!initializer) {
       return {};
     }
-  } else if (policy->writability != Writability::Full) {
+  } else if (writability != Writability::Full) {
     transaction.create_token_error(
         "Library state and const Fields require an initializer."_view);
     return {};
@@ -119,7 +114,7 @@ auto Language::Field::interpret(
 
   View::Bytes name = name_token.caculate_text(transaction.get_source_text());
   Source field(
-      name, *type, documentation, policy->exposure, policy->writability,
+      name, *type, documentation, exposure, writability,
       Anchor::create(name_token, Span(opening, terminator)), initializer);
   cursor.join(transaction);
   return field;
@@ -174,6 +169,15 @@ auto Language::Field::link_initializer(
   // authenticate its host without inventing another initializer context.
   Bool linked = initializer->link(monograph, *this, materializations);
   if (!linked) {
+    return False;
+  }
+
+  if (!initializer->fits(get_type())) {
+    monograph.report(
+        initializer->get_anchor(),
+        "Field initializer does not fit the declared Field Type's semantic "
+        "domain."_view,
+        "Supply one value accepted by the declared Field Type."_view);
     return False;
   }
 

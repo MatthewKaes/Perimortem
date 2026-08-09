@@ -206,6 +206,10 @@ Writability has three states:
 Every view exposes the same Field identity. Visibility does not create a public
 copy, and writability does not change the underlying TTX Addressable.
 
+A present initializer links through the Field in its containing Type's
+authenticated context and must fit the declared Field Type. It remains one
+exact Expression supplying one value rather than a general value Flow.
+
 ## Structs
 
 `struct` declares an inline value Type:

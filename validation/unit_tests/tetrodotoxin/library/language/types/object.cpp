@@ -338,12 +338,12 @@ PERIMORTEM_UNIT_TEST(ObjectTests, declaration_reorder) {
     "// Object test.\n"
     "dialect : Library;\n"
     "public Packet : struct { public session : Session; }\n"
-    "public Session : object { private state packet : Packet = false; }\n"
+    "public Session : object { private packet : Packet; }\n"
     "public func open[Session] -> Packet {}"_view,
     "// Object test.\n"
     "dialect : Library;\n"
     "public func open[Session] -> Packet {}\n"
-    "public Session : object { private state packet : Packet = false; }\n"
+    "public Session : object { private packet : Packet; }\n"
     "public Packet : struct { public session : Session; }"_view,
   }};
 
@@ -425,7 +425,7 @@ PERIMORTEM_UNIT_TEST(ObjectTests, private_exposure_rejected) {
   static constexpr Static::Vector<View::Bytes, 4> sources = {{
     "// Object test.\ndialect : Library; private Hidden : object {} public func reveal[Hidden] -> [] {}"_view,
     "// Object test.\ndialect : Library; private Hidden : object {} public Holder : struct { public hidden : Hidden; }"_view,
-    "// Object test.\ndialect : Library; private Hidden : object {} public Holder : object { expose state hidden : Hidden = false; }"_view,
+    "// Object test.\ndialect : Library; private Hidden : object {} public Holder : object { public hidden : Hidden; }"_view,
     "// Object test.\ndialect : Library; private Hidden : object {} public Holder : object { public func reveal[] -> Hidden {} }"_view,
   }};
 
@@ -440,7 +440,7 @@ PERIMORTEM_UNIT_TEST(ObjectTests, private_surface_retained_locally) {
       "dialect : Library;\n"
       "private Hidden : object {}\n"
       "public Holder : object {\n"
-      "  private state hidden : Hidden = false;\n"
+      "  private hidden : Hidden;\n"
       "  private func reveal[Hidden] -> Hidden {}\n"
       "}\n"
       "private func root[Hidden] -> Hidden {}"_view;
@@ -492,6 +492,42 @@ PERIMORTEM_UNIT_TEST(ObjectTests, private_surface_retained_locally) {
   EXPECT(&source_callables.get_data()[0].get() == &root);
   EXPECT(&root.resolve_context("Hidden"_view) == &hidden);
   EXPECT(errors.is_empty());
+}
+
+PERIMORTEM_UNIT_TEST(ObjectTests, inherited_initializer_mismatch) {
+  static constexpr View::Bytes source =
+      "// Object initializer test.\n"
+      "dialect : Library;\n"
+      "public Session : object { private state value : Unsigned_8 = false; }"_view;
+  Workspace workspace;
+  Errors errors;
+  auto monograph = interpret(workspace, errors, source);
+  ASSERT(monograph);
+  auto bindings = monograph->get_authored_bindings();
+  ASSERT_EQ(bindings.get_size(), Count(1));
+  ASSERT(bindings.get_data()[0].get().is<Language::Types::Object>());
+  const auto& object =
+      static_cast<const Language::Types::Object&>(bindings.get_data()[0].get());
+  auto authored_fields = object.get_field_sources();
+  ASSERT_EQ(authored_fields.get_size(), Count(1));
+  auto authored_initializer = authored_fields.get_data()[0].get_initializer();
+  ASSERT(authored_initializer);
+
+  EXPECT_NOT(workspace.link(errors));
+  auto fields = object.get_fields();
+  ASSERT_EQ(fields.get_size(), Count(1));
+  const Language::Field& field = fields.get_data()[0].get();
+  ASSERT(field.get_initializer());
+  EXPECT(&*field.get_initializer() == &*authored_initializer);
+  EXPECT_NOT(field.is_linked());
+  EXPECT_NOT(object.is_finalized());
+  auto diagnostics = monograph->get_diagnostics();
+  ASSERT_EQ(diagnostics.get_size(), Count(1));
+  ASSERT(diagnostics.get_data()[0].get_anchor());
+  EXPECT_TEXT(
+      diagnostics.get_data()[0].get_anchor()->get_span().caculate_text(source),
+      "false"_view);
+  EXPECT_NOT(errors.is_empty());
 }
 
 PERIMORTEM_UNIT_TEST(ObjectTests, link_failure_keeps_publication_empty) {
