@@ -10,19 +10,11 @@ using namespace Ttx::Concept;
 using namespace Ttx::Model;
 using namespace Tetrodotoxin::Library;
 
-static auto select_source_anchor(const Language::Expression& expression)
-    -> Perimortem::Core::Option<Ttx::Lexical::Anchor> {
-  return expression.get_anchor().visit(
-      []() -> Perimortem::Core::Option<Ttx::Lexical::Anchor> { return {}; },
-      [](const Ttx::Lexical::Anchor& anchor)
-          -> Perimortem::Core::Option<Ttx::Lexical::Anchor> { return anchor; });
-}
-
 auto Language::Expression::link(
     Tetrodotoxin::Language::Monograph& source,
     const Abstract&,
     Materializations&) -> Bool {
-  auto source_anchor = select_source_anchor(*this);
+  auto source_anchor = get_anchor();
 
   if (get_type().resolve().is<Type>()) {
     return True;

@@ -68,9 +68,25 @@ converting those contexts into Types or Expressions.
 - [Foreign](foreign/README.md) embeds an external ABI surface inside a
   CPU-capable source.
 
-The shared [Language](language/README.md) contract explains how a Dialect
-produces a Monograph. [Environment](environment/README.md) explains how a
-Workspace installs Dialects and retains their results.
+### Grammar prototypes
+
+Each Dialect provides a ANTLR4 grammer as a prototype source reference for custom parser:
+
+- [Package](package/grammar/Package.g4)
+- [Library](library/grammar/Library.g4)
+- [App](app/grammar/App.g4)
+- [Scene](scene/grammar/Scene.g4)
+- [Render](render/grammar/Render.g4)
+  [Shader](shader/grammar/Shader.g4)
+- [Foreign](foreign/grammar/Foreign.g4)
+- [Tetrodotoxin](language/grammar/Tetrodotoxin.g4)
+
+[TTX lexer prototype](../ttx/grammar/TTXLexer.g4) records their common spellings used across the grammer family.
+
+For a formal implementation the shared [Language](language/README.md) explains how a Dialect
+produces a Monograph while [Environment](environment/README.md) explains how a
+Workspace installs Dialects and retains their results. The rest of the
+Tetrodotoxin grammer is build off of those two TTX Abstract Machines.
 
 ## Semantic lifecycle
 

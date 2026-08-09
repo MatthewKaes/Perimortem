@@ -9,14 +9,6 @@
 using namespace Perimortem;
 using namespace Tetrodotoxin::Library;
 
-static auto select_source_anchor(const Language::Expression& expression)
-    -> Core::Option<Ttx::Lexical::Anchor> {
-  return expression.get_anchor().visit(
-      []() -> Core::Option<Ttx::Lexical::Anchor> { return {}; },
-      [](const Ttx::Lexical::Anchor& anchor)
-          -> Perimortem::Core::Option<Ttx::Lexical::Anchor> { return anchor; });
-}
-
 Language::Operation::Operation(
     Memory::Allocator::Arena& domain,
     Materializations& materializations,
@@ -114,7 +106,7 @@ auto Language::Operation::link(
     const Ttx::Concept::Abstract& context,
     Materializations& materializations) -> Bool {
   Bool failed = False;
-  auto source_anchor = select_source_anchor(*this);
+  auto source_anchor = get_anchor();
 
   if (&materializations != &this->materializations) {
     source.report(
@@ -249,10 +241,6 @@ auto Language::Operation::get_input(Count index) const
   return input_layout.get_abstract(index).visit(
       []() -> Core::Option<const Expression&> { return {}; },
       [](const Ttx::Concept::Abstract& input) {
-        return input.visit<Expression>(
-            [](const Expression& expression)
-                -> Core::Option<const Expression&> { return expression; },
-            [](const Ttx::Concept::Abstract&)
-                -> Core::Option<const Expression&> { return {}; });
+        return input.select<Expression>();
       });
 }

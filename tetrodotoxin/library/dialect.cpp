@@ -8,20 +8,15 @@
 #include "perimortem/utility/pair.hpp"
 #include "perimortem/utility/table.hpp"
 
-#include "tetrodotoxin/language/parser/comment.hpp"
-#include "tetrodotoxin/library/language/field.hpp"
-#include "tetrodotoxin/library/language/function.hpp"
-#include "tetrodotoxin/library/language/import.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
 #include "tetrodotoxin/library/language/types/bool.hpp"
-#include "tetrodotoxin/library/language/types/enumeration.hpp"
 #include "tetrodotoxin/library/language/types/real_32.hpp"
 #include "tetrodotoxin/library/language/types/real_64.hpp"
 #include "tetrodotoxin/library/language/types/signed_16.hpp"
 #include "tetrodotoxin/library/language/types/signed_32.hpp"
 #include "tetrodotoxin/library/language/types/signed_64.hpp"
 #include "tetrodotoxin/library/language/types/signed_8.hpp"
-#include "tetrodotoxin/library/language/types/structure.hpp"
+#include "tetrodotoxin/library/language/types/source.hpp"
 #include "tetrodotoxin/library/language/types/unsigned_16.hpp"
 #include "tetrodotoxin/library/language/types/unsigned_32.hpp"
 #include "tetrodotoxin/library/language/types/unsigned_64.hpp"
@@ -81,142 +76,18 @@ auto Library::Dialect::interpret(
   auto& monograph = Library::Language::Monograph::create_authored(
       domain, documentation, *this, interpretation_context,
       *shared_materializations);
+  auto source =
+      monograph.get_source().select<Library::Language::Types::Source>();
+  if (!source) {
+    cursor.create_token_error(
+        "Library sources require one exact synthetic Source Type."_view);
+    return {};
+  }
 
-  // Each admitted declaration occupies its final Arena address and one exact
-  // local name. Structure keeps its outer Cursor private until the closing
-  // brace while the forward pass retains no discovery index or second graph.
-  while (!cursor.matches(Code::Type::Terminal)) {
-    const Documentation& declaration_documentation =
-        Tetrodotoxin::Language::Parser::Comment::parse(cursor);
-
-    // TTX keeps using in the ordinary Addressable space. Exact text dispatch
-    // makes this Library grammar without adding another shared lexical Code.
-    if (cursor.matches(Code::Type::Addressable) &&
-        cursor.get_text() == "using"_view) {
-      auto import = Library::Language::Import::parse(cursor);
-      if (!import) {
-        return {};
-      }
-
-      // Interpretation owns the open import inventory. A rejection here means
-      // lifecycle work overlapped parsing, so the whole source transaction must
-      // remain unpublished rather than silently dropping the authored route.
-      Bool retained = monograph.retain_import(*import);
-      if (!retained) {
-        cursor.create_expression_error(
-            import->get_span(),
-            "Library Imports cannot enter a source after linking begins."_view);
-        return {};
-      }
-
-      continue;
-    }
-
-    // This nonconsuming lookahead chooses the declaration family. The selected
-    // owner parses the complete header and body inside one Cursor branch.
-    if ((cursor.matches(Code::Type::Public) ||
-         cursor.matches(Code::Type::Private)) &&
-        cursor.peek(1).get_code() == Code::Type::Type) {
-      Token declaration_kind = cursor.peek(3);
-      if (declaration_kind.get_code() == Code::Type::Addressable &&
-          declaration_kind.caculate_text(cursor.get_source_text()) ==
-              "enum"_view) {
-        auto enumeration = Library::Language::Types::Enumeration::interpret(
-            domain, cursor, declaration_documentation, monograph);
-        if (!enumeration) {
-          return {};
-        }
-
-        if (!monograph.bind_static(
-                *enumeration, enumeration->get_visibility())) {
-          cursor.create_expression_error(
-              enumeration->get_name_anchor(),
-              "Duplicate Type name in this Library source."_view);
-          return {};
-        }
-
-        continue;
-      }
-
-      if (declaration_kind.get_code() == Code::Type::Addressable) {
-        View::Bytes kind =
-            declaration_kind.caculate_text(cursor.get_source_text());
-        if (kind == "struct"_view || kind == "object"_view) {
-          auto structure = Library::Language::Types::Structure::interpret(
-              domain, cursor, declaration_documentation, monograph,
-              *shared_materializations);
-          if (!structure) {
-            return {};
-          }
-
-          if (!monograph.bind_static(*structure, structure->get_visibility())) {
-            auto name_anchor = structure->get_name_anchor();
-            if (name_anchor) {
-              cursor.create_expression_error(
-                  *name_anchor,
-                  "Duplicate Static binding name in this Library source."_view);
-            } else {
-              cursor.create_token_error(
-                  "Duplicate Static binding name in this Library source."_view);
-            }
-            return {};
-          }
-
-          continue;
-        }
-      }
-    }
-
-    // Field parses the complete policy and initializer transaction. Dialect
-    // only identifies its leading grammar so source keeps no parser record.
-    Bool field_declaration = cursor.matches(Code::Type::Expose) ||
-                             ((cursor.matches(Code::Type::Public) ||
-                               cursor.matches(Code::Type::Private)) &&
-                              cursor.peek(1).get_code() != Code::Type::Func &&
-                              cursor.peek(1).get_code() != Code::Type::Type);
-    if (field_declaration) {
-      auto field = Library::Language::Field::interpret(
-          domain, *shared_materializations, cursor, declaration_documentation,
-          monograph.get_source());
-      if (!field) {
-        return {};
-      }
-
-      auto source =
-          monograph.get_source().visit<Library::Language::Types::Structure>(
-              [](Library::Language::Types::Structure& structure)
-                  -> Option<Library::Language::Types::Structure&> {
-                return structure;
-              },
-              [](Abstract&) -> Option<Library::Language::Types::Structure&> {
-                return {};
-              });
-      if (!source || !source->retain_field(*field)) {
-        cursor.create_expression_error(
-            field->get_anchor(),
-            "Duplicate Field name in this Library source."_view);
-        return {};
-      }
-
-      continue;
-    }
-
-    auto function = Library::Language::Function::reserve(
-        domain, cursor, declaration_documentation, monograph,
-        monograph.get_source(), *shared_materializations);
-    if (!function) {
-      return {};
-    }
-
-    if (!function->complete(cursor)) {
-      return {};
-    }
-
-    if (!monograph.bind_static(*function, function->get_visibility())) {
-      cursor.create_token_error(
-          "Duplicate Static binding name in this Library source."_view);
-      return {};
-    }
+  Bool parsed =
+      source->parse(domain, *shared_materializations, cursor, monograph);
+  if (!parsed) {
+    return {};
   }
 
   return monograph;

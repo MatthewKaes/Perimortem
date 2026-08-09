@@ -4,8 +4,7 @@
 #include "tetrodotoxin/library/language/monograph.hpp"
 
 #include "tetrodotoxin/library/language/function.hpp"
-#include "tetrodotoxin/library/language/types/enumeration.hpp"
-#include "tetrodotoxin/library/language/types/structure.hpp"
+#include "tetrodotoxin/library/language/types/source.hpp"
 #include "tetrodotoxin/package/language/monograph.hpp"
 #include "ttx/concept/invalid.hpp"
 #include "ttx/model/addressable.hpp"
@@ -41,33 +40,6 @@ static auto bindings_collide(const Abstract& first, const Abstract& second)
       (first_target.is<Addressable>() && second_target.is<Addressable>()));
 }
 
-static auto contains_alias_target(
-    View::Vector<Reference<const Abstract>> bindings,
-    const Abstract& target) -> Bool {
-  for (Count i = 0; i < bindings.get_size(); i++) {
-    Bool selected = bindings.get_data()[i].get().visit<Alias>(
-        [&](const Alias& alias) {
-          return Bool(&alias.get_target() == &target);
-        },
-        [](const Abstract&) { return False; });
-    if (selected) {
-      return True;
-    }
-  }
-
-  return False;
-}
-
-template <typename selected_type>
-static auto select_abstract(const Abstract& value)
-    -> Option<const selected_type&> {
-  return value.visit<selected_type>(
-      [](const selected_type& selected) -> Option<const selected_type&> {
-        return selected;
-      },
-      [](const Abstract&) -> Option<const selected_type&> { return {}; });
-}
-
 Library::Language::Monograph::Monograph(
     Allocator::Arena& domain,
     const Documentation& documentation,
@@ -93,20 +65,16 @@ auto Library::Language::Monograph::create_authored(
     return Monograph(
         domain, documentation, host, interpretation_context, materializations);
   });
-  auto& source = Library::Language::Types::Structure::create_synthetic(
+  auto& source = Library::Language::Types::Source::create_synthetic(
       domain, documentation, monograph, materializations);
-  monograph.source_structure = Reference<Type>(source);
+  monograph.source_type = Reference<Type>(source);
   return monograph;
 }
 
 auto Library::Language::Monograph::bind_static(
     Abstract& binding,
     Visibility visibility) -> Bool {
-  auto source = get_source().visit<Types::Structure>(
-      [](Types::Structure& structure) -> Option<Types::Structure&> {
-        return structure;
-      },
-      [](Abstract&) -> Option<Types::Structure&> { return {}; });
+  auto source = get_source().select<Types::Source>();
   if (!source || !source->bind_static(binding, visibility)) {
     return False;
   }
@@ -132,8 +100,7 @@ auto Library::Language::Monograph::link_imports() -> Bool {
   }
 
   const Abstract& source_context = interpretation_context.resolve();
-  auto source_package =
-      select_abstract<Package::Language::Monograph>(source_context);
+  auto source_package = source_context.select<Package::Language::Monograph>();
   if (!source_package) {
     for (Count i = 0; i < imports.get_size(); i++) {
       report(
@@ -145,18 +112,14 @@ auto Library::Language::Monograph::link_imports() -> Bool {
     return False;
   }
 
-  auto source_structure = get_source().visit<Types::Structure>(
-      [](Types::Structure& structure) -> Option<Types::Structure&> {
-        return structure;
-      },
-      [](Abstract&) -> Option<Types::Structure&> { return {}; });
+  auto source_structure = get_source().select<Types::Source>();
   if (!source_structure) {
     return False;
   }
 
   Managed::Vector<ImportCandidate> candidates(domain);
   Managed::Vector<Reference<Monograph>> providers(domain);
-  Managed::Vector<Reference<const Types::Structure>> pending_field_providers(
+  Managed::Vector<Reference<const Types::Source>> pending_field_providers(
       domain);
   Bool failed = False;
 
@@ -167,10 +130,11 @@ auto Library::Language::Monograph::link_imports() -> Bool {
        import_index++) {
     const Import& import = imports[import_index];
     View::Bytes route = import.get_route();
-    Bool duplicate = False;
-    for (Count earlier = 0; earlier < import_index; earlier++) {
-      duplicate |= imports[earlier].get_route() == route;
-    }
+    Bool duplicate = imports.get_view()
+                         .slice(0, import_index)
+                         .contains([&](const Import& earlier) {
+                           return earlier.get_route() == route;
+                         });
 
     if (duplicate) {
       report(
@@ -183,8 +147,7 @@ auto Library::Language::Monograph::link_imports() -> Bool {
 
     const Abstract& selected =
         import.get_type_access().resolve(*source_package);
-    auto target_package =
-        select_abstract<Package::Language::Monograph>(selected);
+    auto target_package = selected.select<Package::Language::Monograph>();
     if (!target_package) {
       report(
           Ttx::Lexical::Anchor::create(import.get_span()),
@@ -204,16 +167,15 @@ auto Library::Language::Monograph::link_imports() -> Bool {
          member_index++) {
       const Alias& member = members.get_data()[member_index].get();
       const Abstract& member_target = member.resolve();
-      auto provider_monograph = select_abstract<Monograph>(member_target);
+      auto provider_monograph = member_target.select<Monograph>();
       if (!provider_monograph) {
         const Abstract& claimed_source =
             member.resolve_context("source"_view).resolve();
-        auto spoofed_source = select_abstract<Types::Structure>(claimed_source);
-        if (spoofed_source && spoofed_source->is_source()) {
+        auto spoofed_source = claimed_source.select<Types::Source>();
+        if (spoofed_source) {
           report(
               Ttx::Lexical::Anchor::create(import.get_span()),
-              "Non Library Package member claimed a Library source "
-              "Structure."_view,
+              "Non Library Package member claimed a Library Source Type."_view,
               "Bind the member to its exact Library Monograph before "
               "importing."_view);
           failed = True;
@@ -227,20 +189,20 @@ auto Library::Language::Monograph::link_imports() -> Bool {
       // here lets closure linking advance the real owner without widening the
       // Package contract into a mutable semantic route.
       Monograph& mutable_provider = const_cast<Monograph&>(*provider_monograph);
-      Bool known_provider = False;
-      for (Count i = 0; i < providers.get_size(); i++) {
-        known_provider |= &providers[i].get() == &mutable_provider;
-      }
+      Bool known_provider =
+          providers.get_view().contains([&](const Reference<Monograph>& known) {
+            return &known.get() == &mutable_provider;
+          });
       if (!known_provider) {
         providers.insert(mutable_provider);
       }
 
       const Type& provider_source = provider_monograph->get_source();
-      auto provider = select_abstract<Types::Structure>(provider_source);
-      if (!provider || !provider->is_source()) {
+      auto provider = provider_source.select<Types::Source>();
+      if (!provider) {
         report(
             Ttx::Lexical::Anchor::create(import.get_span()),
-            "Library Package member has no exact source Structure."_view,
+            "Library Package member has no exact Source Type."_view,
             "Complete the provider Monograph before importing its Static "
             "bindings."_view);
         failed = True;
@@ -260,33 +222,26 @@ auto Library::Language::Monograph::link_imports() -> Bool {
             continue;
           }
 
-          Bool collision = False;
-          for (Count local_index = 0; local_index < local_fields.get_size();
-               local_index++) {
-            collision |= local_fields.get_data()[local_index].get_name() ==
-                         field.get_name();
-          }
-          for (Count candidate_index = 0;
-               candidate_index < candidates.get_size(); candidate_index++) {
-            const Abstract& earlier =
-                get_binding_target(candidates[candidate_index].binding.get());
-            collision |= earlier.is<Addressable>() &&
-                         earlier.get_name() == field.get_name();
-          }
-          for (Count earlier_provider = 0;
-               earlier_provider < pending_field_providers.get_size();
-               earlier_provider++) {
-            auto earlier_fields = pending_field_providers[earlier_provider]
-                                      .get()
-                                      .get_field_sources();
-            for (Count earlier_field = 0;
-                 earlier_field < earlier_fields.get_size(); earlier_field++) {
-              const Field::Source& earlier =
-                  earlier_fields.get_data()[earlier_field];
-              collision |= earlier.get_exposure() != Field::Exposure::Private &&
+          Bool collision =
+              local_fields.contains([&](const Field::Source& local) {
+                return local.get_name() == field.get_name();
+              }) ||
+              candidates.get_view().contains(
+                  [&](const ImportCandidate& candidate) {
+                    const Abstract& earlier =
+                        get_binding_target(candidate.binding.get());
+                    return earlier.is<Addressable>() &&
                            earlier.get_name() == field.get_name();
-            }
-          }
+                  }) ||
+              pending_field_providers.get_view().contains(
+                  [&](const Reference<const Types::Source>& earlier_provider) {
+                    return earlier_provider.get().get_field_sources().contains(
+                        [&](const Field::Source& earlier) {
+                          return earlier.get_exposure() !=
+                                     Field::Exposure::Private &&
+                                 earlier.get_name() == field.get_name();
+                        });
+                  });
 
           if (collision) {
             report(
@@ -305,8 +260,14 @@ auto Library::Language::Monograph::link_imports() -> Bool {
       for (Count binding_index = 0; binding_index < bindings.get_size();
            binding_index++) {
         const Abstract& binding = bindings.get_data()[binding_index].get();
-        if (contains_alias_target(
-                source_structure->get_static_bindings(), binding)) {
+        if (source_structure->get_static_bindings().contains(
+                [&](const Reference<const Abstract>& existing) {
+                  return existing.get().visit<Alias>(
+                      [&](const Alias& alias) {
+                        return Bool(&alias.get_target() == &binding);
+                      },
+                      [](const Abstract&) { return False; });
+                })) {
           continue;
         }
 
@@ -408,11 +369,10 @@ auto Library::Language::Monograph::link_imports() -> Bool {
   }
 
   for (Count i = 0; i < providers.get_size(); i++) {
-    Bool retained = False;
-    for (Count existing = 0; existing < imported_providers.get_size();
-         existing++) {
-      retained |= &imported_providers[existing].get() == &providers[i].get();
-    }
+    Bool retained = imported_providers.get_view().contains(
+        [&](const Reference<Monograph>& existing) {
+          return &existing.get() == &providers[i].get();
+        });
     if (!retained) {
       imported_providers.insert(providers[i]);
     }
@@ -422,79 +382,34 @@ auto Library::Language::Monograph::link_imports() -> Bool {
   return True;
 }
 
-auto Library::Language::Monograph::link_enumeration_storage() -> Bool {
-  Bool failed = False;
-  for (Count i = 0; i < authored_bindings.get_size(); i++) {
-    failed |= !authored_bindings[i].get().visit<Types::Enumeration>(
-        [](Types::Enumeration& enumeration) {
-          return enumeration.link_storage();
-        },
-        [](Abstract&) { return True; });
-  }
-  return !failed;
+auto Library::Language::Monograph::link_declaration_types() -> Bool {
+  return get_source().visit<Types::Source>(
+      [](Types::Source& source) { return source.link_types(); },
+      [](Abstract&) { return False; });
 }
 
-auto Library::Language::Monograph::link_structure_fields() -> Bool {
-  Bool failed = False;
-  for (Count i = 0; i < authored_bindings.get_size(); i++) {
-    failed |= !authored_bindings[i].get().visit<Types::Structure>(
-        [](Types::Structure& structure) { return structure.link_fields(); },
-        [](Abstract&) { return True; });
-  }
-  failed |= !get_source().visit<Types::Structure>(
-      [](Types::Structure& structure) { return structure.link_fields(); },
+auto Library::Language::Monograph::link_fields() -> Bool {
+  return get_source().visit<Types::Source>(
+      [](Types::Source& source) { return source.link_fields(); },
       [](Abstract&) { return False; });
-  return !failed;
 }
 
-auto Library::Language::Monograph::link_field_initializers() -> Bool {
-  Bool failed = False;
-  for (Count i = 0; i < authored_bindings.get_size(); i++) {
-    failed |= !authored_bindings[i].get().visit<Types::Structure>(
-        [](Types::Structure& structure) {
-          return structure.link_initializers();
-        },
-        [](Abstract&) { return True; });
-  }
-  failed |= !get_source().visit<Types::Structure>(
-      [](Types::Structure& structure) { return structure.link_initializers(); },
+auto Library::Language::Monograph::link_initializers() -> Bool {
+  return get_source().visit<Types::Source>(
+      [](Types::Source& source) { return source.link_initializers(); },
       [](Abstract&) { return False; });
-  return !failed;
 }
 
 auto Library::Language::Monograph::link_callable_signatures() -> Bool {
-  Bool failed = False;
-  for (Count i = 0; i < authored_bindings.get_size(); i++) {
-    failed |= !authored_bindings[i].get().visit<Types::Structure>(
-        [](Types::Structure& structure) {
-          return structure.link_callable_signatures();
-        },
-        [](Abstract&) { return True; });
-  }
-  failed |= !get_source().visit<Types::Structure>(
-      [](Types::Structure& structure) {
-        return structure.link_callable_signatures();
-      },
+  return get_source().visit<Types::Source>(
+      [](Types::Source& source) { return source.link_callable_signatures(); },
       [](Abstract&) { return False; });
-  return !failed;
 }
 
 auto Library::Language::Monograph::link_callable_bodies() -> Bool {
-  Bool failed = False;
-  for (Count i = 0; i < authored_bindings.get_size(); i++) {
-    failed |= !authored_bindings[i].get().visit<Types::Structure>(
-        [](Types::Structure& structure) {
-          return structure.link_callable_bodies();
-        },
-        [](Abstract&) { return True; });
-  }
-  failed |= !get_source().visit<Types::Structure>(
-      [](Types::Structure& structure) {
-        return structure.link_callable_bodies();
-      },
+  return get_source().visit<Types::Source>(
+      [](Types::Source& source) { return source.link_callable_bodies(); },
       [](Abstract&) { return False; });
-
-  return !failed;
 }
 
 auto Library::Language::Monograph::link() -> Bool {
@@ -515,29 +430,30 @@ auto Library::Language::Monograph::link() -> Bool {
          provider_index < monograph.imported_providers.get_size();
          provider_index++) {
       Monograph& provider = monograph.imported_providers[provider_index].get();
-      Bool discovered = False;
-      for (Count earlier = 0; earlier < closure.get_size(); earlier++) {
-        discovered |= &closure[earlier].get() == &provider;
-      }
+      Bool discovered =
+          closure.get_view().contains([&](const Reference<Monograph>& earlier) {
+            return &earlier.get() == &provider;
+          });
       if (!discovered) {
         closure.insert(provider);
       }
     }
   }
 
-  // Each complete closure phase settles before the next one starts. This keeps
-  // discovery order from deciding whether a consumer observes provider storage,
-  // Fields, initializers, or Callable signatures before its own body begins.
+  // Each complete closure phase settles before the next one starts. Recursive
+  // Type linking reaches nested Enumeration storage first, so discovery order
+  // cannot decide whether a consumer sees provider Types, Fields, initializers,
+  // or Callable signatures before its own body begins.
   Bool failed = False;
   for (Count i = 0; i < closure.get_size(); i++) {
-    failed |= !closure[i].get().link_enumeration_storage();
+    failed |= !closure[i].get().link_declaration_types();
   }
   if (failed) {
     return False;
   }
 
   for (Count i = 0; i < closure.get_size(); i++) {
-    failed |= !closure[i].get().link_structure_fields();
+    failed |= !closure[i].get().link_fields();
   }
   if (failed) {
     return False;
@@ -554,7 +470,7 @@ auto Library::Language::Monograph::link() -> Bool {
   }
 
   for (Count i = 0; i < closure.get_size(); i++) {
-    failed |= !closure[i].get().link_field_initializers();
+    failed |= !closure[i].get().link_initializers();
   }
   if (failed) {
     return False;
@@ -575,32 +491,12 @@ auto Library::Language::Monograph::link() -> Bool {
 }
 
 auto Library::Language::Monograph::finalize() -> Bool {
-  // Enumeration storage reaches its terminal semantic state before composite
-  // owners validate publication. A failed enumeration therefore cannot leave a
-  // later Structure looking finalized beside an incomplete scalar dependency.
-  Bool failed = False;
-  for (Count i = 0; i < authored_bindings.get_size(); i++) {
-    failed |= !authored_bindings[i].get().visit<Types::Enumeration>(
-        [](Types::Enumeration& enumeration) { return enumeration.finalize(); },
-        [](Abstract&) { return True; });
-  }
-  if (failed) {
-    return False;
-  }
-
-  // Authored Structures and the synthetic source share one publication phase.
-  // Calling the source owner here lets it validate and finalize root Functions
-  // through the same member rules without duplicating them on Monograph.
-  for (Count i = 0; i < authored_bindings.get_size(); i++) {
-    failed |= !authored_bindings[i].get().visit<Types::Structure>(
-        [](Types::Structure& structure) { return structure.finalize(); },
-        [](Abstract&) { return True; });
-  }
-  failed |= !get_source().visit<Types::Structure>(
-      [](Types::Structure& structure) { return structure.finalize(); },
+  // Source is the one root of the declaration tree, so its recursive
+  // finalization reaches the same identities that linking prepared without a
+  // second Monograph inventory walk.
+  return get_source().visit<Types::Source>(
+      [](Types::Source& source) { return source.finalize(); },
       [](Abstract&) { return False; });
-
-  return !failed;
 }
 
 auto Library::Language::Monograph::get_name() const -> View::Bytes {
@@ -614,9 +510,9 @@ auto Library::Language::Monograph::resolve_context(View::Bytes route) const
     return source;
   }
 
-  return source.visit<Types::Structure>(
-      [&](const Types::Structure& structure) -> const Abstract& {
-        return structure.resolve_context(route);
+  return source.visit<Types::Source>(
+      [&](const Types::Source& source_root) -> const Abstract& {
+        return source_root.resolve_context(route);
       },
       [](const Abstract&) -> const Abstract& {
         return Invalid::get_invalid();
@@ -624,11 +520,11 @@ auto Library::Language::Monograph::resolve_context(View::Bytes route) const
 }
 
 auto Library::Language::Monograph::get_source() -> Type& {
-  return source_structure->get();
+  return source_type->get();
 }
 
 auto Library::Language::Monograph::get_source() const -> const Type& {
-  return source_structure->get();
+  return source_type->get();
 }
 
 auto Library::Language::Monograph::get_authored_bindings() const

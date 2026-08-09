@@ -92,13 +92,10 @@ auto Environment::Workspace::interpret_source(
 }
 
 auto Environment::Workspace::has_staged_name(View::Bytes name) const -> Bool {
-  for (Count i = 0; i < staged_publications.get_size(); i++) {
-    if (staged_publications.at(i).get_name() == name) {
-      return True;
-    }
-  }
-
-  return False;
+  return staged_publications.get_view().contains(
+      [&](const StagedPublication& publication) {
+        return publication.get_name() == name;
+      });
 }
 
 auto Environment::Workspace::publish_staged() -> void {

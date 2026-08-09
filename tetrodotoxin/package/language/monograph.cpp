@@ -13,42 +13,6 @@ using namespace Ttx::Lexical;
 using namespace Ttx::Model;
 using namespace Tetrodotoxin;
 
-static auto has_dependency(
-    View::Vector<Package::Language::Dependency> dependencies,
-    const Package::Language::Dependency& candidate) -> Bool {
-  for (Count i = 0; i < dependencies.get_size(); i++) {
-    if (&dependencies.get_data()[i] == &candidate) {
-      return True;
-    }
-  }
-
-  return False;
-}
-
-static auto has_dependency_name(
-    View::Vector<Package::Language::Dependency> dependencies,
-    View::Bytes local_name) -> Bool {
-  for (Count i = 0; i < dependencies.get_size(); i++) {
-    if (dependencies.get_data()[i].get_local_name() == local_name) {
-      return True;
-    }
-  }
-
-  return False;
-}
-
-static auto has_source_name(
-    View::Vector<Package::Language::Source> sources,
-    View::Bytes local_name) -> Bool {
-  for (Count i = 0; i < sources.get_size(); i++) {
-    if (sources.get_data()[i].get_local_name() == local_name) {
-      return True;
-    }
-  }
-
-  return False;
-}
-
 static auto is_resource_route(View::Bytes route) -> Bool {
   return route.get_size() >= 3 && route[0] == '$' && route[1] == '[' &&
          route[route.get_size() - 1] == ']';
@@ -106,8 +70,13 @@ auto Package::Language::Monograph::bind_member(
     const Tetrodotoxin::Language::Monograph& member) -> Bool {
   // Every rejection happens before either inventory changes, so exact lookup
   // and member order preserve the first completed edge.
-  if (local_name.is_empty() || has_dependency_name(dependencies, local_name) ||
-      (!sources.is_empty() && !has_source_name(sources, local_name)) ||
+  if (local_name.is_empty() ||
+      dependencies.contains([&](const Dependency& dependency) {
+        return dependency.get_local_name() == local_name;
+      }) ||
+      (!sources.is_empty() && !sources.contains([&](const Source& source) {
+        return source.get_local_name() == local_name;
+      })) ||
       &member == this || bindings.contains(local_name)) {
     return False;
   }
@@ -126,9 +95,14 @@ auto Package::Language::Monograph::bind_dependency(
   // A caller cannot manufacture another alias spelling for a retained request.
   // Source inventory checks happen before construction so staging order never
   // decides which cross kind meaning survives.
-  if (local_name.is_empty() || !has_dependency(dependencies, dependency) ||
-      has_source_name(sources, local_name) || &package == this ||
-      bindings.contains(local_name)) {
+  if (local_name.is_empty() ||
+      !dependencies.contains([&](const Dependency& retained) {
+        return &retained == &dependency;
+      }) ||
+      sources.contains([&](const Source& source) {
+        return source.get_local_name() == local_name;
+      }) ||
+      &package == this || bindings.contains(local_name)) {
     return False;
   }
 

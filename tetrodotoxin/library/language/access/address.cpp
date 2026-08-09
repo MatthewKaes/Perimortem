@@ -14,13 +14,6 @@ using namespace Ttx::Lexical;
 using namespace Ttx::Model;
 using namespace Tetrodotoxin::Library;
 
-static auto select_source_anchor(const Language::Expression& expression)
-    -> Core::Option<Anchor> {
-  return expression.get_anchor().visit(
-      []() -> Core::Option<Anchor> { return {}; },
-      [](const Anchor& anchor) -> Core::Option<Anchor> { return anchor; });
-}
-
 static auto select_addressable(const Layout& layout, Core::View::Bytes route)
     -> Core::Option<const Addressable&> {
   Core::Option<const Abstract&> selected;
@@ -45,11 +38,7 @@ static auto select_addressable(const Layout& layout, Core::View::Bytes route)
   }
 
   const Abstract& resolved = selected->resolve();
-  return resolved.visit<Addressable>(
-      [](const Addressable& addressable) -> Core::Option<const Addressable&> {
-        return addressable;
-      },
-      [](const Abstract&) -> Core::Option<const Addressable&> { return {}; });
+  return resolved.select<Addressable>();
 }
 
 static auto is_readable(const Addressable& selected, const Abstract& requester)
@@ -125,7 +114,7 @@ auto Language::Access::Address::link(
     return False;
   }
 
-  auto source_anchor = select_source_anchor(*this);
+  auto source_anchor = get_anchor();
   const Abstract& receiver_type = receiver.get_type().resolve();
   return receiver_type.visit<Ttx::Model::Type>(
       [&](const Ttx::Model::Type& type) {

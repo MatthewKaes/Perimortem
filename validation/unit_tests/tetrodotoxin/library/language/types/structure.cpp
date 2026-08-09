@@ -17,10 +17,14 @@
 #include "tetrodotoxin/library/language/identifier.hpp"
 #include "tetrodotoxin/library/language/materializations.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
+#include "tetrodotoxin/library/language/types/enumeration.hpp"
+#include "tetrodotoxin/library/language/types/object.hpp"
+#include "tetrodotoxin/library/language/types/source.hpp"
 #include "ttx/concept/invalid.hpp"
 #include "ttx/lexical/errors.hpp"
 #include "ttx/lexical/tokenizer.hpp"
 #include "ttx/model/addressable.hpp"
+#include "ttx/model/alias.hpp"
 #include "ttx/model/type.hpp"
 
 using namespace Perimortem::Core;
@@ -229,6 +233,183 @@ PERIMORTEM_UNIT_TEST(StructureTests, stable_authored_graph) {
   EXPECT(errors.is_empty());
 }
 
+PERIMORTEM_UNIT_TEST(StructureTests, nested_type_aliases) {
+  static constexpr View::Bytes source =
+      "// Nested Alias source.\n"
+      "dialect : Library;\n"
+      "// Hidden Type documentation.\n"
+      "private Hidden : struct {}\n"
+      "public Packet : struct {\n"
+      "  // Visible Alias documentation.\n"
+      "  public Visible : alias = Hidden;\n"
+      "  private Flag : alias = Bool;\n"
+      "  public value : Visible;\n"
+      "  private flag : Flag;\n"
+      "}\n"
+      "public Selected : alias = Packet::Visible;"_view;
+  Workspace workspace;
+  Errors errors;
+  auto monograph = interpret(workspace, errors, source);
+  ASSERT(monograph);
+  auto authored = monograph->get_authored_bindings();
+  ASSERT_EQ(authored.get_size(), Count(3));
+  const Abstract& hidden = authored.get_data()[0].get();
+  const Abstract& packet_identity = authored.get_data()[1].get();
+  const Abstract& selected_identity = authored.get_data()[2].get();
+  ASSERT(hidden.is<Language::Types::Structure>());
+  ASSERT(packet_identity.is<Language::Types::Structure>());
+  ASSERT(selected_identity.is<Alias>());
+  const auto& packet =
+      static_cast<const Language::Types::Structure&>(packet_identity);
+  const Abstract& visible_identity = packet.resolve_context("Visible"_view);
+  ASSERT(visible_identity.is<Alias>());
+  const auto& visible = static_cast<const Alias&>(visible_identity);
+  EXPECT(&visible.get_target() == &hidden);
+  EXPECT_EQ(visible.get_documentation().line_count(), Count(2));
+  EXPECT_TEXT(
+      visible.get_documentation().get_line(0),
+      "Visible Alias documentation."_view);
+  EXPECT_TEXT(
+      visible.get_documentation().get_line(1),
+      "Hidden Type documentation."_view);
+  EXPECT(&packet.resolve_context("Flag"_view) == &Invalid::get_invalid());
+  auto type_bindings = packet.get_static_bindings();
+  ASSERT_EQ(type_bindings.get_size(), Count(2));
+  EXPECT(&type_bindings.get_data()[0].get() == &visible_identity);
+  ASSERT(type_bindings.get_data()[1].get().is<Alias>());
+  EXPECT(&type_bindings.get_data()[1].get().resolve() == &Dialect::get_bool());
+
+  ASSERT(workspace.link(errors));
+  ASSERT(workspace.finalize(errors));
+  EXPECT(&selected_identity.resolve() == &hidden);
+  auto fields = packet.get_fields();
+  ASSERT_EQ(fields.get_size(), Count(2));
+  EXPECT(&fields.get_data()[0].get().get_type() == &hidden);
+  EXPECT(&fields.get_data()[1].get().get_type() == &Dialect::get_bool());
+  EXPECT_EQ(packet.get_layout().get_size(), Count(2));
+  EXPECT(errors.is_empty());
+}
+
+PERIMORTEM_UNIT_TEST(StructureTests, nested_declaration_lifecycle) {
+  static constexpr View::Bytes source =
+      "// Nested declaration source.\n"
+      "dialect : Library;\n"
+      "public Container : struct {\n"
+      "  public State : enum[Unsigned_8] { ready = 1; }\n"
+      "  public Child : struct {\n"
+      "    public Copy : alias = State;\n"
+      "    public value : Copy;\n"
+      "  }\n"
+      "  public child : Child;\n"
+      "}\n"
+      "public Entity : object {\n"
+      "  public StateCopy : alias = Container::State;\n"
+      "  public value : StateCopy;\n"
+      "}"_view;
+  Workspace workspace;
+  Errors errors;
+  auto monograph = interpret(workspace, errors, source);
+  ASSERT(monograph);
+  ASSERT(workspace.link(errors));
+  ASSERT(workspace.finalize(errors));
+
+  const Abstract& container_identity =
+      monograph->resolve_context("Container"_view);
+  ASSERT(container_identity.is<Language::Types::Structure>());
+  const auto& container =
+      static_cast<const Language::Types::Structure&>(container_identity);
+  const Abstract& state = container.resolve_context("State"_view);
+  const Abstract& child_identity = container.resolve_context("Child"_view);
+  ASSERT(state.is<Language::Types::Enumeration>());
+  ASSERT(child_identity.is<Language::Types::Structure>());
+  const auto& child =
+      static_cast<const Language::Types::Structure&>(child_identity);
+  const Abstract& copy = child.resolve_context("Copy"_view);
+  ASSERT(copy.is<Alias>());
+  EXPECT(&copy.resolve() == &state);
+
+  auto child_fields = child.get_fields();
+  ASSERT_EQ(child_fields.get_size(), Count(1));
+  EXPECT(&child_fields.get_data()[0].get().get_type() == &state);
+  EXPECT_EQ(child.get_layout().get_size(), Count(1));
+  auto container_fields = container.get_fields();
+  ASSERT_EQ(container_fields.get_size(), Count(1));
+  EXPECT(&container_fields.get_data()[0].get().get_type() == &child);
+  EXPECT_EQ(container.get_layout().get_size(), Count(1));
+
+  const Abstract& entity_identity = monograph->resolve_context("Entity"_view);
+  ASSERT(entity_identity.is<Language::Types::Object>());
+  const auto& entity =
+      static_cast<const Language::Types::Object&>(entity_identity);
+  const Abstract& state_copy = entity.resolve_context("StateCopy"_view);
+  ASSERT(state_copy.is<Alias>());
+  EXPECT(&state_copy.resolve() == &state);
+  auto entity_fields = entity.get_fields();
+  ASSERT_EQ(entity_fields.get_size(), Count(1));
+  EXPECT(&entity_fields.get_data()[0].get().get_type() == &state);
+  EXPECT_EQ(entity.get_layout().get_size(), Count(1));
+  EXPECT(errors.is_empty());
+}
+
+PERIMORTEM_UNIT_TEST(
+    StructureTests,
+    recursive_types_settle_before_reversed_sibling_fields) {
+  static constexpr View::Bytes source =
+      "// Reversed sibling source.\n"
+      "dialect : Library;\n"
+      "public Consumer : struct { public selected : Provider::State; }\n"
+      "public Provider : struct {\n"
+      "  public State : enum[Unsigned_8] { ready = 1; }\n"
+      "}"_view;
+  Workspace workspace;
+  Errors errors;
+  auto monograph = interpret(workspace, errors, source);
+  ASSERT(monograph);
+  ASSERT(monograph->get_source().is<Language::Types::Source>());
+  auto& source_root =
+      static_cast<Language::Types::Source&>(monograph->get_source());
+  const Layouts::Named& source_layout = source_root.get_layout();
+  EXPECT(source_layout.is_empty());
+
+  const Abstract& consumer_identity =
+      monograph->resolve_context("Consumer"_view);
+  const Abstract& provider_identity =
+      monograph->resolve_context("Provider"_view);
+  ASSERT(consumer_identity.is<Language::Types::Structure>());
+  ASSERT(provider_identity.is<Language::Types::Structure>());
+  const auto& consumer =
+      static_cast<const Language::Types::Structure&>(consumer_identity);
+  const auto& provider =
+      static_cast<const Language::Types::Structure&>(provider_identity);
+  const Abstract& state = provider.resolve_context("State"_view);
+  ASSERT(state.is<Language::Types::Enumeration>());
+  EXPECT(&state.resolve() == &Invalid::get_invalid());
+  EXPECT(consumer.get_fields().is_empty());
+
+  // This is the barrier Monograph repeats across its whole import closure. The
+  // later sibling's nested Enumeration becomes complete while the earlier
+  // sibling still has no published Field identity.
+  ASSERT(source_root.link_types());
+  EXPECT(&state.resolve() == &state);
+  EXPECT(consumer.get_fields().is_empty());
+  EXPECT_NOT(source_root.is_linked());
+
+  ASSERT(source_root.link_fields());
+  auto fields = consumer.get_fields();
+  ASSERT_EQ(fields.get_size(), Count(1));
+  const Language::Field& exact_field = fields.get_data()[0].get();
+  EXPECT(&exact_field.get_type() == &state);
+  EXPECT(&source_root.get_layout() == &source_layout);
+  EXPECT(source_root.get_layout().is_empty());
+
+  ASSERT(monograph->link());
+  auto repeated_fields = consumer.get_fields();
+  ASSERT_EQ(repeated_fields.get_size(), Count(1));
+  EXPECT(&repeated_fields.get_data()[0].get() == &exact_field);
+  ASSERT(monograph->finalize());
+  EXPECT(errors.is_empty());
+}
+
 PERIMORTEM_UNIT_TEST(StructureTests, independent_access_axes) {
   static constexpr View::Bytes source =
       "// Structure access test.\n"
@@ -429,7 +610,7 @@ PERIMORTEM_UNIT_TEST(StructureTests, explicit_self_field_access) {
 }
 
 PERIMORTEM_UNIT_TEST(StructureTests, malformed_grammar) {
-  static constexpr Static::Vector<View::Bytes, 10> sources = {{
+  static constexpr Static::Vector<View::Bytes, 11> sources = {{
     "// Structure test.\ndialect : Library; public Packet struct {}"_view,
     "// Structure test.\ndialect : Library; public Packet : wrong {}"_view,
     "// Structure test.\ndialect : Library; public Packet : struct { value : Bool; }"_view,
@@ -440,6 +621,7 @@ PERIMORTEM_UNIT_TEST(StructureTests, malformed_grammar) {
     "// Structure test.\ndialect : Library; public Packet : struct { public value : Core ::Bool; }"_view,
     "// Structure test.\ndialect : Library; public Packet : struct { public value : Core:: Bool; }"_view,
     "// Structure test.\ndialect : Library; public Packet : struct { public state value : Bool = false; }"_view,
+    "// Structure test.\ndialect : Library; public Packet : struct { using Core; }"_view,
   }};
 
   for (Count i = 0; i < sources.get_size(); i++) {
@@ -559,7 +741,7 @@ PERIMORTEM_UNIT_TEST(StructureTests, authenticated_host_access) {
   const auto& root =
       static_cast<const Language::Function&>(bindings.get_data()[2].get());
   auto& source_structure =
-      static_cast<Language::Types::Structure&>(monograph->get_source());
+      static_cast<Language::Types::Source&>(monograph->get_source());
   auto packet_callables = packet.get_callables();
   ASSERT_EQ(packet_callables.get_size(), Count(1));
   ASSERT(packet_callables.get_data()[0].get().is<Language::Function>());
@@ -597,9 +779,7 @@ PERIMORTEM_UNIT_TEST(StructureTests, authenticated_host_access) {
   EXPECT(
       &packet.resolve_context("seed"_view, inspect) == &Invalid::get_invalid());
   EXPECT(&packet.resolve_context("seed"_view, root) == &Invalid::get_invalid());
-  EXPECT(
-      &packet.resolve_context("seed"_view, *monograph) ==
-      &Invalid::get_invalid());
+  EXPECT(&packet.resolve_context("seed"_view) == &Invalid::get_invalid());
   EXPECT(
       &source_structure.resolve_context("root"_view, *monograph) ==
       &Invalid::get_invalid());
@@ -742,16 +922,20 @@ PERIMORTEM_UNIT_TEST(StructureTests, lifecycle_order_rejected) {
   Language::Materializations materializations(arena);
   auto& monograph = Language::Monograph::create_authored(
       arena, Documentation::get_empty(), dialect, context, materializations);
+  ASSERT(monograph.get_source().is<Language::Types::Source>());
+  const auto& source_scope =
+      static_cast<const Language::Types::Source&>(monograph.get_source());
   Errors errors;
   Tokenizer tokenizer(arena, source, "structure-stage.ttx"_view);
   Cursor cursor(tokenizer, errors);
   auto structure = Language::Types::Structure::interpret(
-      arena, cursor, Documentation::get_empty(), monograph, materializations);
+      arena, cursor, Documentation::get_empty(), monograph, materializations,
+      source_scope);
   ASSERT(structure);
 
   EmptyContext extra;
-  EXPECT_NOT(structure->can_bind_static(extra));
-  EXPECT_NOT(structure->bind_static(extra, Language::Visibility::Private));
+  EXPECT_NOT(structure->can_bind_member(extra));
+  EXPECT_NOT(structure->bind_member(extra, Language::Visibility::Private));
   EXPECT(structure->get_static_bindings().is_empty());
   EXPECT_NOT(structure->link_callable_signatures());
   EXPECT_NOT(structure->link_callable_bodies());
@@ -809,6 +993,9 @@ PERIMORTEM_UNIT_TEST(StructureTests, cursor_atomicity) {
   Language::Materializations materializations(arena);
   auto& monograph = Language::Monograph::create_authored(
       arena, Documentation::get_empty(), dialect, context, materializations);
+  ASSERT(monograph.get_source().is<Language::Types::Source>());
+  const auto& source_scope =
+      static_cast<const Language::Types::Source&>(monograph.get_source());
 
   Errors malformed_errors;
   Tokenizer malformed_tokenizer(
@@ -817,7 +1004,7 @@ PERIMORTEM_UNIT_TEST(StructureTests, cursor_atomicity) {
   Token opening = malformed_cursor.current();
   auto rejected = Language::Types::Structure::interpret(
       arena, malformed_cursor, Documentation::get_empty(), monograph,
-      materializations);
+      materializations, source_scope);
   EXPECT_NOT(rejected);
   EXPECT_EQ(malformed_cursor.current().get_offset(), opening.get_offset());
   EXPECT(malformed_cursor.current().get_code() == opening.get_code());
@@ -828,7 +1015,7 @@ PERIMORTEM_UNIT_TEST(StructureTests, cursor_atomicity) {
   Cursor complete_cursor(complete_tokenizer, complete_errors);
   auto parsed = Language::Types::Structure::interpret(
       arena, complete_cursor, Documentation::get_empty(), monograph,
-      materializations);
+      materializations, source_scope);
   ASSERT(parsed);
   EXPECT(complete_cursor.matches(Code::Type::Terminal));
   EXPECT(complete_errors.is_empty());

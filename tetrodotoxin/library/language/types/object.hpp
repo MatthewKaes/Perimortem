@@ -19,7 +19,7 @@ class Object : public Structure {
       Visibility visibility,
       Monograph& source,
       Materializations& materializations,
-      const Structure& source_scope,
+      const Structure& enclosing_scope,
       Ttx::Lexical::Anchor anchor,
       Ttx::Lexical::Anchor name_anchor);
 
@@ -37,7 +37,7 @@ class Object : public Structure {
       Visibility visibility,
       Monograph& source,
       Materializations& materializations,
-      const Structure& source_scope,
+      const Structure& enclosing_scope,
       Ttx::Lexical::Anchor anchor,
       Ttx::Lexical::Anchor name_anchor) -> Object&;
 

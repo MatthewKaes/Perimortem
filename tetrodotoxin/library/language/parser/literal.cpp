@@ -178,26 +178,14 @@ static auto parse_embedded(
   View::Bytes route = literal_span.caculate_text(cursor.get_source_text());
 
   const Abstract& selected = source_context.resolve_context(route).resolve();
-  auto error = selected.visit<Tetrodotoxin::Language::Error>(
-      [](const Tetrodotoxin::Language::Error& selected)
-          -> Option<const Tetrodotoxin::Language::Error&> { return selected; },
-      [](const Abstract&) -> Option<const Tetrodotoxin::Language::Error&> {
-        return {};
-      });
+  auto error = selected.select<Tetrodotoxin::Language::Error>();
   if (error) {
     auto report = cursor.create_report(literal_span);
     error->describe(report);
     return {};
   }
 
-  auto resource = selected.visit<Tetrodotoxin::Language::Resource>(
-      [](const Tetrodotoxin::Language::Resource& selected)
-          -> Option<const Tetrodotoxin::Language::Resource&> {
-        return selected;
-      },
-      [](const Abstract&) -> Option<const Tetrodotoxin::Language::Resource&> {
-        return {};
-      });
+  auto resource = selected.select<Tetrodotoxin::Language::Resource>();
   if (!resource) {
     cursor.create_expression_error(
         literal_span,

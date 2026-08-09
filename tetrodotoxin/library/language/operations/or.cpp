@@ -31,18 +31,6 @@ static auto select_result_type(
   return selected_left;
 }
 
-static auto select_flag(Language::Expression& expression)
-    -> Core::Option<const Language::Constants::Flag&> {
-  return expression.visit<Language::Constants::Flag>(
-      [](const Language::Constants::Flag& selected)
-          -> Core::Option<const Language::Constants::Flag&> {
-        return selected;
-      },
-      [](const Abstract&) -> Core::Option<const Language::Constants::Flag&> {
-        return {};
-      });
-}
-
 static auto make_result(Memory::Allocator::Arena& domain, Bool value)
     -> Language::Constant& {
   if (value) {
@@ -136,10 +124,7 @@ auto Language::Operations::Or::select_type(Materializations&) const
     return {};
   }
 
-  return select_result_type(*left, *right)
-      .visit<Type>(
-          [](const Type& type) -> Core::Option<const Type&> { return type; },
-          [](const Abstract&) -> Core::Option<const Type&> { return {}; });
+  return select_result_type(*left, *right).select<Type>();
 }
 
 auto Language::Operations::Or::reaches_next_input(
@@ -149,12 +134,7 @@ auto Language::Operations::Or::reaches_next_input(
     return True;
   }
 
-  auto left = folded.visit<Constants::Flag>(
-      [](const Constants::Flag& selected)
-          -> Core::Option<const Constants::Flag&> { return selected; },
-      [](const Abstract&) -> Core::Option<const Constants::Flag&> {
-        return {};
-      });
+  auto left = folded.select<Constants::Flag>();
   return !left || !left->get_value();
 }
 
@@ -171,7 +151,7 @@ auto Language::Operations::Or::evaluate_constants(
 
   // True closes disjunction before the right edge matters. False reaches the
   // right input and keeps any failure attached to that authored Expression.
-  auto left_value = select_flag(*left);
+  auto left_value = left->select<Constants::Flag>();
   if (!left_value) {
     return Expression::Error(
         Expression::Error::Type::InvalidConstant, *authored_left);
@@ -186,7 +166,7 @@ auto Language::Operations::Or::evaluate_constants(
     return Expression::Error(Expression::Error::Type::InvalidInput, *this);
   }
 
-  auto right_value = select_flag(*right);
+  auto right_value = right->select<Constants::Flag>();
   if (!right_value) {
     return Expression::Error(
         Expression::Error::Type::InvalidConstant, *authored_right);

@@ -338,14 +338,10 @@ static auto validate_artifacts(
 
   for (Count i = 0; i < expected.get_size(); i++) {
     View::Bytes artifact_id = expected_data[i];
-    Bool found = False;
-    for (Count declared_index = 0; declared_index < declared.get_size();
-         declared_index++) {
-      if (declared_data[declared_index].get_id() == artifact_id) {
-        found = True;
-        break;
-      }
-    }
+    Bool found =
+        declared.contains([&](const Package::Repository::Artifact& artifact) {
+          return artifact.get_id() == artifact_id;
+        });
 
     if (!found) {
       Diagnostics::Log::Message<768> message(Diagnostics::Log::Level::Info);

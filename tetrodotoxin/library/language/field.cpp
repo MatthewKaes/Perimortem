@@ -135,9 +135,7 @@ auto Language::Field::link(
 
   const Abstract& resolved =
       selected.is<Type>() ? selected : selected.resolve();
-  auto type = resolved.visit<Type>(
-      [](const Type& selected) -> Option<const Type&> { return selected; },
-      [](const Abstract&) -> Option<const Type&> { return {}; });
+  auto type = resolved.select<Type>();
   if (!type) {
     source.report(
         field.get_type_anchor(),

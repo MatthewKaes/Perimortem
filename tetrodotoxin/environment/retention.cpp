@@ -65,10 +65,10 @@ auto Environment::Retention::retain(
     return False;
   }
 
-  for (Count i = 0; i < entries.get_size(); i++) {
-    if (&entries[i].get_monograph() == &monograph) {
-      return True;
-    }
+  Bool already_retained = entries.get_view().contains(
+      [&](const Entry& entry) { return &entry.get_monograph() == &monograph; });
+  if (already_retained) {
+    return True;
   }
 
   // One entry keeps identity, discovery order, and optional source provenance

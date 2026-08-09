@@ -5,6 +5,8 @@ Types, values, expressions, functions, Structs, Objects, Enumerations, and
 Generic containers while retaining the shared TTX Type, Layout, Addressable,
 and Callable contracts.
 
+Grammar prototype: [Library.g4](grammar/Library.g4).
+
 ```ttx
 // A reusable Library source.
 dialect : Library;
@@ -162,24 +164,52 @@ Access[Unsigned_8]
 Materializing the same Generic with the same semantic arguments returns the
 same Type identity.
 
-## Source Structure
+## Source Type
 
-Each Library Monograph owns one synthetic `source` Structure with an empty
-instance Layout. Top-level declarations enter its Static surface; instance
-Fields cannot. The exact `source` route returns that Structure, while ordinary
-Monograph lookup forwards only its externally visible Static entries.
+Each Library Monograph owns one synthetic `Types::Source`, a Structure
+specialization with an empty instance Layout. Top-level declarations enter its
+Static surface; instance Fields cannot. The exact `source` route returns that
+Source, while ordinary Monograph lookup forwards only its externally visible
+Static entries.
 
-Top-level Field declarations are Static Addressables owned by that source
-Structure. They retain the ordinary Field exposure, writability, Type, and
-initializer contracts, but never enter the source instance Layout. Root
+Top-level Field declarations are Static Addressables owned by that Source. They
+retain the ordinary Field exposure, writability, Type, and initializer
+contracts, but never enter the source instance Layout. Root
 Functions may resolve those exact identities as bare source names; private
 Fields remain limited to the authenticated source context.
+
+Type aliases use the exact declaration
+`public|private TypeName : alias = TypeRoute;` in the synthetic source or an
+authored Structure. The receiving Structure retains one real TTX Alias in its
+Type category and authored order. Its target is the Type selected through that
+Structure's authenticated local and enclosing source context, so an Alias may
+name a private Type without making that target independently public. Public
+Type lookup exposes the same Alias identity while private aliases remain local
+to their containing Structure.
+
+Authored alias documentation leads the target documentation. An alias without
+local prose borrows the target documentation directly, avoiding an empty
+wrapper while preserving the visible documentation chain.
+
+Source and authored Structure bodies enter the same recursive declaration
+parser. Each concrete Field, Function, Struct, Object, Enumeration, or Alias
+parser still owns its complete form, and the receiving Structure routes the
+resulting identity by its real TTX category. Monograph enters that declaration
+tree only through Source. One recursive Type phase settles every Enumeration's
+storage before any Structure constructs Fields; the later Field, initializer,
+Callable, and finalization phases descend through the same owned tree.
+
+`Types::Source` owns the grammar wrapped around those common declarations.
+`using` is its current source-only extension: it selects Package members
+through the Monograph and installs importer-owned Aliases in the Source without
+adding another declaration model. Future source-only extensions belong on that
+same semantic Type rather than on Structure or a C++ parse-mode flag.
 
 The Structure retains the exact Documentation that opens the Library source.
 A Package member Alias can therefore route through `source` to one documented
 root Type without copying the prose or becoming a Type itself.
 
-A root Function is hosted by the source Structure but still retains its
+A root Function is hosted by the Source but still retains its
 Monograph as the source of diagnostics and imports. Hosting and source identity
 are separate edges.
 
@@ -358,9 +388,11 @@ path confinement and acquisition policy; Library never opens Package storage
 directly.
 
 A Library Monograph completes the exact closure of Library providers reached
-through its authenticated imports. Every reachable declaration and Callable
-signature settles before any Function body in that closure begins, so source
-discovery order does not change the completed graph.
+through its authenticated imports. Every reachable declaration Type settles
+before any Field is constructed, every Field and initializer settles before
+Callable signatures, and every signature settles before any Function body in
+that closure begins. Source discovery order therefore cannot change the
+completed graph.
 
 ## Compilation boundary
 

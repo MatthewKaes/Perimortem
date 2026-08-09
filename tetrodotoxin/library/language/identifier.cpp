@@ -12,20 +12,12 @@ using namespace Tetrodotoxin::Library;
 
 static const Layouts::Fluid identifier_inputs;
 
-static auto select_source_anchor(const Language::Expression& expression)
-    -> Core::Option<Ttx::Lexical::Anchor> {
-  return expression.get_anchor().visit(
-      []() -> Core::Option<Ttx::Lexical::Anchor> { return {}; },
-      [](const Ttx::Lexical::Anchor& anchor)
-          -> Perimortem::Core::Option<Ttx::Lexical::Anchor> { return anchor; });
-}
-
 auto Language::Identifier::link(
     Tetrodotoxin::Language::Monograph& source,
     const Abstract& context,
     Materializations&) -> Bool {
   const Abstract& selected = context.resolve_context(route).resolve();
-  auto source_anchor = select_source_anchor(*this);
+  auto source_anchor = get_anchor();
 
   // A later context may fill an unresolved route, but a successful edge
   // is permanent. Repeating the same exact link remains harmless.

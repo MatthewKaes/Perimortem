@@ -9,6 +9,7 @@
 #include "tetrodotoxin/language/parser/comment.hpp"
 #include "tetrodotoxin/library/language/constants/signed.hpp"
 #include "tetrodotoxin/library/language/constants/unsigned.hpp"
+#include "tetrodotoxin/library/language/parser/declaration.hpp"
 #include "tetrodotoxin/library/language/types/structure.hpp"
 #include "ttx/concept/invalid.hpp"
 #include "ttx/model/layouts/fluid.hpp"
@@ -38,24 +39,6 @@ struct ParsedValue {
   Signed_64 signed_value;
   Unsigned_64 unsigned_value;
 };
-
-static auto parse_visibility(Cursor& cursor, Visibility& visibility) -> Bool {
-  if (cursor.matches(Code::Type::Public)) {
-    cursor.consume();
-    visibility = Visibility::Public;
-    return True;
-  }
-  if (cursor.matches(Code::Type::Private)) {
-    cursor.consume();
-    visibility = Visibility::Private;
-    return True;
-  }
-
-  cursor.create_token_error(
-      "Library Enumeration declarations require `public` or `private` "
-      "visibility."_view);
-  return False;
-}
 
 static auto parse_case(Cursor& cursor, const Documentation& documentation)
     -> Option<ParsedCase> {
@@ -114,17 +97,6 @@ static auto parse_case(Cursor& cursor, const Documentation& documentation)
     .name_anchor = Anchor::create(Span(name_token)),
     .value_anchor = Anchor::create(value_token, value_span),
   };
-}
-
-static auto contains_name(View::Vector<ParsedCase> cases, View::Bytes name)
-    -> Bool {
-  for (Count i = 0; i < cases.get_size(); i++) {
-    if (cases.get_data()[i].name == name) {
-      return True;
-    }
-  }
-
-  return False;
 }
 
 static auto read_unsigned(
@@ -189,6 +161,7 @@ Tetrodotoxin::Library::Language::Types::Enumeration::Enumeration(
     const Documentation& documentation,
     Visibility visibility,
     Monograph& parent,
+    const Structure& host,
     Anchor anchor,
     Anchor name_anchor)
     : domain(domain),
@@ -197,6 +170,7 @@ Tetrodotoxin::Library::Language::Types::Enumeration::Enumeration(
       documentation(documentation),
       visibility(visibility),
       parent(parent),
+      host(host),
       anchor(anchor),
       name_anchor(name_anchor),
       source_cases(domain),
@@ -206,15 +180,15 @@ auto Tetrodotoxin::Library::Language::Types::Enumeration::interpret(
     Allocator::Arena& domain,
     Cursor& cursor,
     const Documentation& documentation,
-    Monograph& parent) -> Option<Enumeration&> {
+    Monograph& parent,
+    const Structure& host) -> Option<Enumeration&> {
   // The branch owns every spelling and delimiter until the closing brace.
   // A rejected body leaves the caller at the declaration and publishes no
   // partial case inventory.
   auto transaction = cursor.branch();
   Token opening = transaction.current();
-  Visibility visibility = Visibility::Private;
-  Bool parsed_visibility = parse_visibility(transaction, visibility);
-  if (!parsed_visibility) {
+  auto visibility = Parser::Declaration::parse_visibility(transaction);
+  if (!visibility) {
     return {};
   }
 
@@ -278,7 +252,9 @@ auto Tetrodotoxin::Library::Language::Types::Enumeration::interpret(
     if (!parsed) {
       return {};
     }
-    if (contains_name(parsed_cases, parsed->name)) {
+    if (parsed_cases.get_view().contains([&](const ParsedCase& existing) {
+          return existing.name == parsed->name;
+        })) {
       transaction.create_expression_error(
           parsed->name_anchor,
           "Duplicate case name in one Library Enumeration."_view);
@@ -299,7 +275,7 @@ auto Tetrodotoxin::Library::Language::Types::Enumeration::interpret(
   Enumeration& enumeration =
       domain.construct_from<Enumeration>([&]() -> Enumeration {
         return Enumeration(
-            domain, name, *storage, documentation, visibility, parent,
+            domain, name, *storage, documentation, *visibility, parent, host,
             enumeration_anchor, Anchor::create(Span(name_token)));
       });
   enumeration.source_cases.reset(parsed_cases.get_size());
@@ -326,15 +302,7 @@ auto Tetrodotoxin::Library::Language::Types::Enumeration::link_storage()
     return True;
   }
 
-  const Abstract& selected = parent.get_source().visit<Structure>(
-      [&](const Structure& source) -> const Abstract& {
-        const Abstract& root =
-            source.resolve_context(storage_access.get_root(), parent);
-        return storage_access.resolve_from(root);
-      },
-      [](const Abstract&) -> const Abstract& {
-        return Invalid::get_invalid();
-      });
+  const Abstract& selected = host.resolve_type(storage_access);
   const Abstract& resolved =
       selected.is<Type>() ? selected : selected.resolve();
   Bool integer = resolved.is<Ttx::Model::Types::Signed>() ||

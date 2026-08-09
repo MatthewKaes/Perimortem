@@ -4,6 +4,8 @@ The App Dialect describes how a completed program starts, which presentation
 surface it requires, and who controls its lifetime. App owns entry and lifecycle
 policy; Library owns CPU lowering and Linker owns the final platform artifact.
 
+Grammar prototype: [App.g4](grammar/App.g4).
+
 ```ttx
 dialect : App;
 ```

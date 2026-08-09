@@ -10,6 +10,7 @@
 
 #include "tetrodotoxin/library/language/access/type.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
+#include "tetrodotoxin/library/language/types/structure.hpp"
 #include "tetrodotoxin/library/language/visibility.hpp"
 #include "ttx/concept/reference.hpp"
 #include "ttx/lexical/anchor.hpp"
@@ -40,6 +41,7 @@ class Enumeration : public Ttx::Model::Type {
       const Ttx::Concept::Documentation& documentation,
       Visibility visibility,
       Monograph& parent,
+      const Structure& host,
       Ttx::Lexical::Anchor anchor,
       Ttx::Lexical::Anchor name_anchor);
 
@@ -54,7 +56,8 @@ class Enumeration : public Ttx::Model::Type {
       Perimortem::Memory::Allocator::Arena& domain,
       Ttx::Lexical::Cursor& cursor,
       const Ttx::Concept::Documentation& documentation,
-      Monograph& parent) -> Perimortem::Core::Option<Enumeration&>;
+      Monograph& parent,
+      const Structure& host) -> Perimortem::Core::Option<Enumeration&>;
 
   Enumeration(const Enumeration&) = delete;
   Enumeration(Enumeration&&) = delete;
@@ -141,6 +144,7 @@ class Enumeration : public Ttx::Model::Type {
   const Ttx::Concept::Documentation& documentation;
   Visibility visibility;
   Monograph& parent;
+  const Structure& host;
   Ttx::Lexical::Anchor anchor;
   Ttx::Lexical::Anchor name_anchor;
   Perimortem::Memory::Managed::Vector<SourceCase> source_cases;

@@ -16,10 +16,12 @@
 #include "tetrodotoxin/library/language/identifier.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
 #include "tetrodotoxin/library/language/parameter.hpp"
+#include "tetrodotoxin/library/language/types/source.hpp"
 #include "tetrodotoxin/library/language/types/structure.hpp"
 #include "ttx/concept/invalid.hpp"
 #include "ttx/lexical/errors.hpp"
 #include "ttx/lexical/tokenizer.hpp"
+#include "ttx/model/addressable.hpp"
 #include "ttx/model/alias.hpp"
 #include "ttx/model/type.hpp"
 #include "ttx/model/types/value.hpp"
@@ -97,6 +99,86 @@ class OuterRegistry : public Abstract {
   }
 
   OuterFact fact;
+};
+
+class QualifiedContext : public Abstract {
+ public:
+  constexpr auto get_name() const -> View::Bytes override {
+    return "Types"_view;
+  }
+  auto get_documentation() const -> const Documentation& override {
+    return Documentation::get_empty();
+  }
+  auto resolve_context(View::Bytes route) const -> const Abstract& override {
+    if (route == qualified.get_name()) {
+      return qualified;
+    }
+
+    return Invalid::get_invalid();
+  }
+
+ private:
+  FutureType qualified{"Qualified"_view};
+};
+
+class NonTypeFact : public Abstract {
+ public:
+  constexpr auto get_name() const -> View::Bytes override {
+    return "Fact"_view;
+  }
+  auto get_documentation() const -> const Documentation& override {
+    return Documentation::get_empty();
+  }
+  auto resolve_context(View::Bytes) const -> const Abstract& override {
+    return Invalid::get_invalid();
+  }
+};
+
+class AliasContext : public Abstract {
+ public:
+  constexpr auto get_name() const -> View::Bytes override {
+    return "AliasContext"_view;
+  }
+  auto get_documentation() const -> const Documentation& override {
+    return Documentation::get_empty();
+  }
+  auto resolve_context(View::Bytes route) const -> const Abstract& override {
+    if (route == types.get_name()) {
+      return types;
+    }
+    if (route == outer.get_name()) {
+      return outer;
+    }
+    if (route == fact.get_name()) {
+      return fact;
+    }
+
+    return Invalid::get_invalid();
+  }
+
+ private:
+  QualifiedContext types;
+  FutureType outer{"Outer"_view};
+  NonTypeFact fact;
+};
+
+class AliasAddressable : public Addressable {
+ public:
+  constexpr AliasAddressable(View::Bytes name, const Type& type)
+      : name(name), type(type) {}
+
+  constexpr auto get_name() const -> View::Bytes override { return name; }
+  auto get_documentation() const -> const Documentation& override {
+    return Documentation::get_empty();
+  }
+  auto resolve_context(View::Bytes) const -> const Abstract& override {
+    return Invalid::get_invalid();
+  }
+  constexpr auto get_type() const -> const Type& override { return type; }
+
+ private:
+  View::Bytes name;
+  const Type& type;
 };
 
 static auto import_library(
@@ -200,14 +282,12 @@ PERIMORTEM_UNIT_TEST(DialectTests, declaration_graph) {
   EXPECT_TEXT(
       first->get_documentation().get_line(0), "First Library source."_view);
 
-  ASSERT(first->get_source().is<Language::Types::Structure>());
-  ASSERT(second->get_source().is<Language::Types::Structure>());
+  ASSERT(first->get_source().is<Language::Types::Source>());
+  ASSERT(second->get_source().is<Language::Types::Source>());
   const auto& first_scope =
-      static_cast<const Language::Types::Structure&>(first->get_source());
+      static_cast<const Language::Types::Source&>(first->get_source());
   const auto& second_scope =
-      static_cast<const Language::Types::Structure&>(second->get_source());
-  EXPECT(first_scope.is_source());
-  EXPECT(second_scope.is_source());
+      static_cast<const Language::Types::Source&>(second->get_source());
   EXPECT(&first_scope.get_documentation() == &first->get_documentation());
   EXPECT(&second_scope.get_documentation() == &second->get_documentation());
   EXPECT_TEXT(
@@ -492,7 +572,7 @@ PERIMORTEM_UNIT_TEST(DialectTests, context_fallback_and_shadowing) {
       arena, Documentation::get_empty(), dialect, registry, materializations);
   const Type& source = monograph.get_source();
 
-  // External Monograph lookup stops at the source Structure. Hosted Functions
+  // External Monograph lookup stops at the Source. Hosted Functions
   // retain the complete source, outer context, and intrinsic lookup chain.
   EXPECT(&monograph.resolve_context("source"_view) == &source);
   EXPECT(&monograph.resolve_context("outer"_view) == &Invalid::get_invalid());
@@ -659,9 +739,9 @@ PERIMORTEM_UNIT_TEST(DialectTests, failed_field_phase_stops_root_linking) {
   ASSERT(bindings.get_data()[1].get().is<Language::Function>());
   const auto& later =
       static_cast<const Language::Function&>(bindings.get_data()[1].get());
-  ASSERT(monograph.get_source().is<Language::Types::Structure>());
+  ASSERT(monograph.get_source().is<Language::Types::Source>());
   const auto& source_structure =
-      static_cast<const Language::Types::Structure&>(monograph.get_source());
+      static_cast<const Language::Types::Source&>(monograph.get_source());
 
   // Field linking owns the first failing global phase. Root signatures stay
   // open so a later phase cannot seal source lookup after that rejection.
@@ -878,9 +958,9 @@ PERIMORTEM_UNIT_TEST(DialectTests, source_categories_share_one_spelling) {
   ASSERT(monograph.bind_static(shared_type, Language::Visibility::Public));
   ASSERT(monograph.link());
   ASSERT(monograph.finalize());
-  ASSERT(monograph.get_source().is<Language::Types::Structure>());
+  ASSERT(monograph.get_source().is<Language::Types::Source>());
   const auto& source_structure =
-      static_cast<const Language::Types::Structure&>(monograph.get_source());
+      static_cast<const Language::Types::Source&>(monograph.get_source());
   auto fields = source_structure.get_fields();
   auto callables = source_structure.get_callable_bindings();
   ASSERT_EQ(fields.get_size(), Count(1));
@@ -957,6 +1037,136 @@ PERIMORTEM_UNIT_TEST(DialectTests, top_level_self_fails_signature_linking) {
           ->get_span()
           .caculate_text(source),
       "invalid"_view);
+}
+
+PERIMORTEM_UNIT_TEST(DialectTests, source_alias_identity_and_visibility) {
+  static constexpr View::Bytes source =
+      "// Hidden documentation.\n"
+      "private Hidden : struct {}\n"
+      "// Local documentation.\n"
+      "public PublicAlias : alias = Hidden;\n"
+      "private PrivateAlias : alias = PublicAlias;"_view;
+  Allocator::Arena arena;
+  EmptyRegistry registry;
+  Dialect dialect;
+  Errors errors;
+  Tokenizer tokenizer(arena, source, "source-alias.ttx"_view);
+  Cursor cursor(tokenizer, errors);
+  auto interpreted =
+      dialect.interpret(arena, cursor, Documentation::get_empty(), registry);
+  ASSERT(interpreted && interpreted->is<Language::Monograph>());
+  auto& monograph = static_cast<Language::Monograph&>(*interpreted);
+  auto authored = monograph.get_authored_bindings();
+  ASSERT_EQ(authored.get_size(), Count(3));
+  const Abstract& hidden = authored.get_data()[0].get();
+  const Abstract& public_identity = authored.get_data()[1].get();
+  const Abstract& private_identity = authored.get_data()[2].get();
+  ASSERT(hidden.is<Language::Types::Structure>());
+  ASSERT(public_identity.is<Alias>());
+  ASSERT(private_identity.is<Alias>());
+  const auto& public_alias = static_cast<const Alias&>(public_identity);
+  const auto& private_alias = static_cast<const Alias&>(private_identity);
+  EXPECT(&public_alias.get_target() == &hidden);
+  EXPECT(&private_alias.get_target() == &hidden);
+  EXPECT_EQ(public_alias.get_documentation().line_count(), Count(2));
+  EXPECT_TEXT(
+      public_alias.get_documentation().get_line(0),
+      "Local documentation."_view);
+  EXPECT_TEXT(
+      public_alias.get_documentation().get_line(1),
+      "Hidden documentation."_view);
+  EXPECT(&private_alias.get_documentation() == &hidden.get_documentation());
+  EXPECT(&monograph.resolve_context("PublicAlias"_view) == &public_identity);
+  EXPECT(
+      &monograph.resolve_context("PrivateAlias"_view) ==
+      &Invalid::get_invalid());
+
+  ASSERT(monograph.get_source().is<Language::Types::Source>());
+  const auto& source_structure =
+      static_cast<const Language::Types::Source&>(monograph.get_source());
+  EXPECT(
+      &source_structure.resolve_context("PrivateAlias"_view, monograph) ==
+      &private_identity);
+  auto bindings = source_structure.get_static_bindings();
+  ASSERT_EQ(bindings.get_size(), Count(3));
+  EXPECT(&bindings.get_data()[0].get() == &hidden);
+  EXPECT(&bindings.get_data()[1].get() == &public_identity);
+  EXPECT(&bindings.get_data()[2].get() == &private_identity);
+
+  ASSERT(monograph.link());
+  ASSERT(monograph.finalize());
+  EXPECT(&public_alias.resolve() == &hidden);
+  EXPECT(&private_alias.resolve() == &hidden);
+  ASSERT(monograph.link());
+  ASSERT(monograph.finalize());
+  EXPECT(&monograph.resolve_context("PublicAlias"_view) == &public_identity);
+  EXPECT(errors.is_empty());
+  EXPECT(cursor.matches(Code::Type::Terminal));
+}
+
+PERIMORTEM_UNIT_TEST(DialectTests, source_alias_routes_and_categories) {
+  static constexpr View::Bytes source =
+      "public QualifiedAlias : alias = Types::Qualified;\n"
+      "public Shared : alias = Bool;"_view;
+  Allocator::Arena arena;
+  AliasContext registry;
+  Dialect dialect;
+  Errors errors;
+  Tokenizer tokenizer(arena, source, "source-alias-routes.ttx"_view);
+  Cursor cursor(tokenizer, errors);
+  auto interpreted =
+      dialect.interpret(arena, cursor, Documentation::get_empty(), registry);
+  ASSERT(interpreted && interpreted->is<Language::Monograph>());
+  auto& monograph = static_cast<Language::Monograph&>(*interpreted);
+  auto authored = monograph.get_authored_bindings();
+  ASSERT_EQ(authored.get_size(), Count(2));
+  const Abstract& qualified_identity = authored.get_data()[0].get();
+  const Abstract& shared_identity = authored.get_data()[1].get();
+  ASSERT(qualified_identity.is<Alias>());
+  ASSERT(shared_identity.is<Alias>());
+  const auto& qualified_alias = static_cast<const Alias&>(qualified_identity);
+  EXPECT_TEXT(qualified_alias.get_target().get_name(), "Qualified"_view);
+  EXPECT(&qualified_alias.resolve() == &qualified_alias.get_target());
+  EXPECT(&shared_identity.resolve() == &Dialect::get_bool());
+
+  AliasAddressable shared_address("Shared"_view, Dialect::get_bool());
+  ASSERT(monograph.bind_static(shared_address, Language::Visibility::Public));
+  ASSERT(monograph.get_source().is<Language::Types::Structure>());
+  const auto& source_structure =
+      static_cast<const Language::Types::Structure&>(monograph.get_source());
+  EXPECT(&source_structure.resolve_context("Shared"_view) == &shared_identity);
+  auto static_bindings = source_structure.get_static_bindings();
+  ASSERT_EQ(static_bindings.get_size(), Count(3));
+  EXPECT(&static_bindings.get_data()[1].get() == &shared_identity);
+  EXPECT(&static_bindings.get_data()[2].get() == &shared_address);
+  EXPECT(errors.is_empty());
+}
+
+PERIMORTEM_UNIT_TEST(DialectTests, rejected_source_alias_is_atomic) {
+  static constexpr Static::Vector<View::Bytes, 8> rejected = {{
+    "// Rejected documentation.\npublic Broken : alias Bool;"_view,
+    "public Broken : alias = Missing;"_view,
+    "public Broken : alias = Fact;"_view,
+    "public Bool : alias = Unsigned_8;"_view,
+    "public Outer : alias = Unsigned_8;"_view,
+    "public Self : alias = Self;"_view,
+    "public Broken : alias = Bool"_view,
+    "public First : alias = Bool; public First : alias = Unsigned_8;"_view,
+  }};
+
+  for (Count i = 0; i < rejected.get_size(); i++) {
+    Allocator::Arena arena;
+    AliasContext registry;
+    Dialect dialect;
+    Errors errors;
+    Tokenizer tokenizer(arena, rejected[i], "rejected-source-alias.ttx"_view);
+    Cursor cursor(tokenizer, errors);
+    auto interpreted =
+        dialect.interpret(arena, cursor, Documentation::get_empty(), registry);
+    EXPECT_NOT(interpreted);
+    EXPECT(cursor.matches(i == 0 ? Code::Type::Comment : Code::Type::Public));
+    EXPECT_NOT(errors.is_empty());
+  }
 }
 
 PERIMORTEM_UNIT_TEST(DialectTests, rejected_sources_publish_nothing) {

@@ -23,42 +23,10 @@ using namespace Ttx::Concept;
 using namespace Ttx::Lexical;
 using namespace Ttx::Model;
 
-template <typename selected_type>
-static auto select_constant(const Language::Expression& expression)
-    -> Core::Option<const selected_type&> {
-  return expression.visit<selected_type>(
-      [](const selected_type& selected) -> Core::Option<const selected_type&> {
-        return selected;
-      },
-      [](const Abstract&) -> Core::Option<const selected_type&> { return {}; });
-}
-
 static auto is_numeric_type(const Abstract& selected) -> Bool {
-  return selected.visit<Ttx::Model::Types::Signed>(
-      [](const Ttx::Model::Types::Signed& type) {
-        return type.get_size() > 0 && type.get_size() <= sizeof(Signed_64)
-                   ? True
-                   : False;
-      },
-      [](const Abstract& selected) {
-        return selected.visit<Ttx::Model::Types::Unsigned>(
-            [](const Ttx::Model::Types::Unsigned& type) {
-              return type.get_size() > 0 &&
-                             type.get_size() <= sizeof(Unsigned_64)
-                         ? True
-                         : False;
-            },
-            [](const Abstract& selected) {
-              return selected.visit<Ttx::Model::Types::Real>(
-                  [](const Ttx::Model::Types::Real& type) {
-                    return type.get_size() == sizeof(Real_32) ||
-                                   type.get_size() == sizeof(Real_64)
-                               ? True
-                               : False;
-                  },
-                  [](const Abstract&) { return False; });
-            });
-      });
+  return selected.is<Ttx::Model::Types::Unsigned>() ||
+         selected.is<Ttx::Model::Types::Signed>() ||
+         selected.is<Ttx::Model::Types::Real>();
 }
 
 static auto select_operand_type(
@@ -187,8 +155,8 @@ auto Language::Operations::Less::evaluate_constants(
   // the matching Constant payload while every comparison publishes canonical
   // Bool identity regardless of that numeric domain.
   if (selected.is<Ttx::Model::Types::Signed>()) {
-    auto left_value = select_constant<Constants::Signed>(*left);
-    auto right_value = select_constant<Constants::Signed>(*right);
+    auto left_value = left->select<Constants::Signed>();
+    auto right_value = right->select<Constants::Signed>();
     if (!left_value) {
       return Expression::Error(
           Expression::Error::Type::InvalidConstant, *authored_left);
@@ -204,8 +172,8 @@ auto Language::Operations::Less::evaluate_constants(
   }
 
   if (selected.is<Ttx::Model::Types::Unsigned>()) {
-    auto left_value = select_constant<Constants::Unsigned>(*left);
-    auto right_value = select_constant<Constants::Unsigned>(*right);
+    auto left_value = left->select<Constants::Unsigned>();
+    auto right_value = right->select<Constants::Unsigned>();
     if (!left_value) {
       return Expression::Error(
           Expression::Error::Type::InvalidConstant, *authored_left);
@@ -221,8 +189,8 @@ auto Language::Operations::Less::evaluate_constants(
   }
 
   if (selected.is<Ttx::Model::Types::Real>()) {
-    auto left_value = select_constant<Constants::Real>(*left);
-    auto right_value = select_constant<Constants::Real>(*right);
+    auto left_value = left->select<Constants::Real>();
+    auto right_value = right->select<Constants::Real>();
     if (!left_value) {
       return Expression::Error(
           Expression::Error::Type::InvalidConstant, *authored_left);

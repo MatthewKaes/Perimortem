@@ -19,16 +19,6 @@ using namespace Ttx::Concept;
 using namespace Ttx::Lexical;
 using namespace Ttx::Model;
 
-template <typename selected_type>
-static auto select_constant(const Language::Expression& expression)
-    -> Core::Option<const selected_type&> {
-  return expression.visit<selected_type>(
-      [](const selected_type& selected) -> Core::Option<const selected_type&> {
-        return selected;
-      },
-      [](const Abstract&) -> Core::Option<const selected_type&> { return {}; });
-}
-
 static auto is_negatable_type(const Abstract& selected) -> Bool {
   return selected.visit<Ttx::Model::Types::Signed>(
       [](const Ttx::Model::Types::Signed& type) {
@@ -142,9 +132,7 @@ auto Language::Operations::Negate::select_type(Materializations&) const
     return {};
   }
 
-  return select_result_type(*operand).visit<Type>(
-      [](const Type& type) -> Core::Option<const Type&> { return type; },
-      [](const Abstract&) -> Core::Option<const Type&> { return {}; });
+  return select_result_type(*operand).select<Type>();
 }
 
 auto Language::Operations::Negate::evaluate_constants(
@@ -161,7 +149,7 @@ auto Language::Operations::Negate::evaluate_constants(
   // Linking fixes the exact result Type before folding. The visitors prove
   // only the Constant payload needed to calculate its inverse.
   if (selected.is<Ttx::Model::Types::Signed>()) {
-    auto value = select_constant<Constants::Signed>(*operand);
+    auto value = operand->select<Constants::Signed>();
     if (!value) {
       return Expression::Error(
           Expression::Error::Type::InvalidConstant, *authored_operand);
@@ -186,7 +174,7 @@ auto Language::Operations::Negate::evaluate_constants(
   }
 
   if (selected.is<Ttx::Model::Types::Real>()) {
-    auto value = select_constant<Constants::Real>(*operand);
+    auto value = operand->select<Constants::Real>();
     if (!value) {
       return Expression::Error(
           Expression::Error::Type::InvalidConstant, *authored_operand);

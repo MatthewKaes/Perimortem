@@ -4,6 +4,8 @@ The Render Dialect declares the semantic interface between authored render data
 and Shader implementations. It describes what a render format requires without
 choosing a GPU instruction set, runtime submission system, or platform API.
 
+Grammar prototype: [Render.g4](grammar/Render.g4).
+
 ```ttx
 dialect : Render;
 ```

@@ -993,7 +993,7 @@ PERIMORTEM_UNIT_TEST(LibraryImports, source_spoof_is_rejected) {
   ASSERT_EQ(importer->get_diagnostics().get_size(), Count(1));
   EXPECT(diagnostic_matches(
       *importer, 0, source, "using Core;"_view,
-      "Non Library Package member claimed a Library source Structure."_view));
+      "Non Library Package member claimed a Library Source Type."_view));
 }
 
 PERIMORTEM_UNIT_TEST(LibraryImports, retry_preserves_local_alias) {
@@ -1102,6 +1102,61 @@ PERIMORTEM_UNIT_TEST(LibraryImports, private_type_alias_cannot_escape) {
   EXPECT_TEXT(
       diagnostics.get_data()[0].get_anchor()->get_span().caculate_text(source),
       "Shared"_view);
+}
+
+PERIMORTEM_UNIT_TEST(LibraryImports, provider_alias_identity_is_retained) {
+  static constexpr View::Bytes provider_source =
+      "public Shared : struct {}\n"
+      "public Exported : alias = Shared;\n"
+      "private Hidden : alias = Shared;"_view;
+  Allocator::Arena arena;
+  ImportRegistry registry;
+  Library::Dialect library_dialect;
+  Package::Dialect package_dialect;
+  auto provider =
+      interpret_library(arena, library_dialect, registry, provider_source);
+  ASSERT(provider);
+  ASSERT(provider->link());
+  auto provider_bindings = provider->get_authored_bindings();
+  ASSERT_EQ(provider_bindings.get_size(), Count(3));
+  const Abstract& shared = provider_bindings.get_data()[0].get();
+  const Abstract& exported = provider_bindings.get_data()[1].get();
+  const Abstract& hidden = provider_bindings.get_data()[2].get();
+  ASSERT(shared.is<Library::Language::Types::Structure>());
+  ASSERT(exported.is<Ttx::Model::Alias>());
+  ASSERT(hidden.is<Ttx::Model::Alias>());
+  EXPECT(&exported.resolve() == &shared);
+  EXPECT(&hidden.resolve() == &shared);
+
+  Package::Language::Monograph& target = create_package(arena, package_dialect);
+  ASSERT(target.bind_member("Provider"_view, *provider));
+  Package::Language::Monograph& context =
+      create_package_with_dependency(arena, package_dialect, "Core"_view);
+  ASSERT(bind_only_dependency(context, target));
+  auto importer =
+      interpret_library(arena, library_dialect, context, "using Core;"_view);
+  ASSERT(importer);
+  ASSERT(importer->link());
+  ASSERT(importer->get_source().is<Library::Language::Types::Structure>());
+  const auto& importer_source =
+      static_cast<const Library::Language::Types::Structure&>(
+          importer->get_source());
+  const Abstract& imported =
+      select_binding(importer_source.get_static_bindings(), "Exported"_view);
+  ASSERT(imported.is<Ttx::Model::Alias>());
+  const auto& imported_alias = static_cast<const Ttx::Model::Alias&>(imported);
+  EXPECT(&imported_alias.get_target() == &exported);
+  EXPECT(&imported_alias.resolve() == &shared);
+  EXPECT(
+      &select_binding(importer_source.get_static_bindings(), "Hidden"_view) ==
+      &Invalid::get_invalid());
+  EXPECT(
+      &importer->resolve_context("Exported"_view) == &Invalid::get_invalid());
+  const Abstract& imported_identity = imported;
+  ASSERT(importer->link());
+  EXPECT(
+      &select_binding(importer_source.get_static_bindings(), "Exported"_view) ==
+      &imported_identity);
 }
 
 PERIMORTEM_UNIT_TEST(
@@ -1358,7 +1413,9 @@ PERIMORTEM_UNIT_TEST(
       "// Provider Library\n"
       "dialect : Library;\n"
       "public Shared : struct {}\n"
-      "public Mode : enum[Unsigned_8] { ready = 1; }\n"
+      "public Domain : struct {\n"
+      "  public Mode : enum[Unsigned_8] { ready = 1; }\n"
+      "}\n"
       "public func provided[] -> Void {}\n"_view);
   Bool importer_written = package.write(
       "main.ttx"_view,
@@ -1367,9 +1424,9 @@ PERIMORTEM_UNIT_TEST(
       "using Core;\n"
       "private Holder : struct {\n"
       "  private shared : Shared;\n"
-      "  private mode : Mode;\n"
+      "  private mode : Domain::Mode;\n"
       "}\n"
-      "private func local[Shared, Mode] -> Shared {}\n"_view);
+      "private func local[Shared, Domain::Mode] -> Shared {}\n"_view);
   ASSERT(nested_created);
   ASSERT(root_written);
   ASSERT(nested_written);
@@ -1440,8 +1497,10 @@ PERIMORTEM_UNIT_TEST(
   const auto& api_source =
       static_cast<const Library::Language::Types::Structure&>(api.get_source());
   const Abstract& shared = api.resolve_context("Shared"_view);
-  const Abstract& mode = api.resolve_context("Mode"_view);
+  const Abstract& domain = api.resolve_context("Domain"_view);
   ASSERT(shared.is<Library::Language::Types::Structure>());
+  ASSERT(domain.is<Library::Language::Types::Structure>());
+  const Abstract& mode = domain.resolve_context("Mode"_view);
   ASSERT(mode.is<Library::Language::Types::Enumeration>());
   auto holder_fields = holder.get_fields();
   ASSERT_EQ(holder_fields.get_size(), Count(2));

@@ -379,9 +379,7 @@ auto Language::Access::Value::select_type(
   }
 
   return select_result_type(materializations, *receiver, *first, count)
-      .visit<Type>(
-          [](const Type& type) -> Core::Option<const Type&> { return type; },
-          [](const Abstract&) -> Core::Option<const Type&> { return {}; });
+      .select<Type>();
 }
 
 auto Language::Access::Value::evaluate_constants(

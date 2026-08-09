@@ -5,6 +5,8 @@ pins dependencies, assigns semantic names to source files, confines resource
 paths, and describes the semantic and native products that can be restored
 without source.
 
+Grammar prototype: [Package.g4](grammar/Package.g4).
+
 ## Manifest
 
 A Package source begins with the common Dialect envelope and contains

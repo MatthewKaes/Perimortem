@@ -16,7 +16,7 @@ Types::Object::Object(
     Visibility visibility,
     Monograph& source,
     Materializations& materializations,
-    const Structure& source_scope,
+    const Structure& enclosing_scope,
     Anchor anchor,
     Anchor name_anchor)
     : Structure(
@@ -26,7 +26,7 @@ Types::Object::Object(
           visibility,
           source,
           materializations,
-          Ttx::Concept::Reference<const Ttx::Model::Type>(source_scope),
+          Ttx::Concept::Reference<const Ttx::Model::Type>(enclosing_scope),
           anchor,
           name_anchor) {}
 
@@ -37,12 +37,12 @@ auto Types::Object::create_authored(
     Visibility visibility,
     Monograph& source,
     Materializations& materializations,
-    const Structure& source_scope,
+    const Structure& enclosing_scope,
     Anchor anchor,
     Anchor name_anchor) -> Object& {
   return domain.construct_from<Object>([&]() -> Object {
     return Object(
         domain, name, documentation, visibility, source, materializations,
-        source_scope, anchor, name_anchor);
+        enclosing_scope, anchor, name_anchor);
   });
 }

@@ -4,6 +4,7 @@
 #include "tetrodotoxin/library/language/function.hpp"
 
 #include "tetrodotoxin/language/parser/comment.hpp"
+#include "tetrodotoxin/library/language/parser/declaration.hpp"
 #include "tetrodotoxin/library/language/parser/expression.hpp"
 #include "tetrodotoxin/library/language/types/structure.hpp"
 #include "ttx/concept/invalid.hpp"
@@ -113,16 +114,9 @@ auto Language::Function::reserve(
     Materializations& materializations) -> Option<Function&> {
   auto transaction = cursor.branch();
   Token opening = transaction.current();
-  Visibility visibility;
-  if (transaction.matches(Code::Type::Public)) {
-    transaction.consume();
-    visibility = Visibility::Public;
-  } else if (transaction.matches(Code::Type::Private)) {
-    transaction.consume();
-    visibility = Visibility::Private;
-  } else {
-    transaction.create_token_error(
-        "Library Functions require `public` or `private` visibility."_view);
+  auto visibility =
+      Language::Parser::Declaration::parse_visibility(transaction);
+  if (!visibility) {
     return {};
   }
 
@@ -143,8 +137,8 @@ auto Language::Function::reserve(
   View::Bytes name = name_token.caculate_text(transaction.get_source_text());
   Function& function = domain.construct_from<Function>([&]() -> Function {
     return Function(
-        domain, name, documentation, visibility, source, host, materializations,
-        opening, token, name_token);
+        domain, name, documentation, *visibility, source, host,
+        materializations, opening, token, name_token);
   });
   cursor.join(transaction);
   return function;

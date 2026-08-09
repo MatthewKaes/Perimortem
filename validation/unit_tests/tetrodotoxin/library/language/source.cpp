@@ -1,6 +1,8 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
+#include "tetrodotoxin/library/language/types/source.hpp"
+
 #include "validation/unit_test.hpp"
 
 #include "perimortem/memory/allocator/arena.hpp"
@@ -285,10 +287,9 @@ PERIMORTEM_UNIT_TEST(SourceTests, authored_declaration_order) {
   ASSERT(expression.get_anchor());
   EXPECT_TEXT(
       expression.get_anchor()->get_span().caculate_text(source), "true"_view);
-  ASSERT(monograph.get_source().is<Language::Types::Structure>());
+  ASSERT(monograph.get_source().is<Language::Types::Source>());
   const auto& source_structure =
-      static_cast<const Language::Types::Structure&>(monograph.get_source());
-  EXPECT(source_structure.is_source());
+      static_cast<const Language::Types::Source&>(monograph.get_source());
   EXPECT(&monograph.resolve_context("source"_view) == &source_structure);
   EXPECT(&function.get_source() == &monograph);
   EXPECT(&function.get_host() == &source_structure);

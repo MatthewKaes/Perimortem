@@ -57,15 +57,6 @@ static auto make_result(Memory::Allocator::Arena& domain, Bool value)
       domain, Dialect::get_bool());
 }
 
-static auto select_constant(Language::Expression& expression)
-    -> Core::Option<Language::Constant&> {
-  return expression.visit<Language::Constant>(
-      [](Language::Constant& selected) -> Core::Option<Language::Constant&> {
-        return selected;
-      },
-      [](Abstract&) -> Core::Option<Language::Constant&> { return {}; });
-}
-
 static auto matches_domain(
     const Language::Expression& expression,
     const Abstract& selected) -> Bool {
@@ -189,8 +180,8 @@ auto Language::Operations::Equal::evaluate_constants(
 
   // Constant owns each payload comparison and exact Type identity. Equal only
   // proves that the completed inputs still belong to the selected domain.
-  auto left_value = select_constant(*left);
-  auto right_value = select_constant(*right);
+  auto left_value = left->select<Constant>();
+  auto right_value = right->select<Constant>();
   if (!left_value || !matches_domain(*left, selected)) {
     return Expression::Error(
         Expression::Error::Type::InvalidConstant, *authored_left);

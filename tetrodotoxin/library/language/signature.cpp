@@ -27,17 +27,6 @@ struct ParsedSlot {
   Option<Anchor> name_anchor;
 };
 
-static auto contains_name(View::Vector<ParsedSlot> slots, View::Bytes candidate)
-    -> Bool {
-  for (Count i = 0; i < slots.get_size(); i++) {
-    if (slots.get_data()[i].name == candidate) {
-      return True;
-    }
-  }
-
-  return False;
-}
-
 static auto parse_shape(
     Cursor& cursor,
     Managed::Vector<ParsedSlot>& slots,
@@ -125,7 +114,8 @@ static auto parse_shape(
       }
 
       name = name_token.caculate_text(cursor.get_source_text());
-      if (contains_name(slots, name)) {
+      if (slots.get_view().contains(
+              [&](const ParsedSlot& slot) { return slot.name == name; })) {
         cursor.create_token_error(
             name_token, "Duplicate name in one Library Signature."_view);
         return False;
@@ -358,11 +348,7 @@ auto Language::Signature::resolve_parameter(View::Bytes route) const
       continue;
     }
 
-    auto parameter = selected->visit<Addressable>(
-        [](const Addressable& addressable) -> Option<const Addressable&> {
-          return addressable;
-        },
-        [](const Abstract&) -> Option<const Addressable&> { return {}; });
+    auto parameter = selected->select<Addressable>();
     if (parameter && parameter->get_name() == route) {
       return *parameter;
     }

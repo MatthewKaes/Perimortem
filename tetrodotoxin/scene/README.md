@@ -4,6 +4,8 @@ The Scene Dialect describes one retained Scene identity: its state, signals,
 declared children, render submission facts, and lifecycle Callables. App owns
 the live Scene stack and transitions between Scene identities.
 
+Grammar prototype: [Scene.g4](grammar/Scene.g4).
+
 ```ttx
 dialect : Scene;
 ```

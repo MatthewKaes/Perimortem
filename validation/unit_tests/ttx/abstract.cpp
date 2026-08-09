@@ -54,12 +54,20 @@ PERIMORTEM_UNIT_TEST(TtxAbstract, preserves_reference_cv) {
   Reference<const Alias> read_reference(alias);
   Abstract& mutable_selected = alias;
   const Abstract& read_selected = alias;
+  auto mutable_alias = mutable_selected.select<Alias>();
+  auto read_alias = read_selected.select<Alias>();
+  auto rejected_alias = invalid.select<Alias>();
 
   static_assert(__is_same(decltype(mutable_reference.get()), Alias&));
   static_assert(__is_same(decltype(read_reference.get()), const Alias&));
+  static_assert(__is_same(decltype(mutable_alias), Option<Alias&>));
+  static_assert(__is_same(decltype(read_alias), Option<const Alias&>));
 
   EXPECT(&mutable_reference.get() == &alias);
   EXPECT(&read_reference.get() == &alias);
+  EXPECT(mutable_alias && &*mutable_alias == &alias);
+  EXPECT(read_alias && &*read_alias == &alias);
+  EXPECT_NOT(rejected_alias);
   EXPECT(mutable_selected.visit<Alias>(
       [&](Alias& value) { return &value == &alias ? True : False; },
       [](Abstract&) { return False; }));

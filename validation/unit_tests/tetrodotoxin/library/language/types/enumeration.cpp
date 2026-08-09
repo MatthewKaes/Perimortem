@@ -16,6 +16,7 @@
 #include "tetrodotoxin/library/language/function.hpp"
 #include "tetrodotoxin/library/language/materializations.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
+#include "tetrodotoxin/library/language/types/source.hpp"
 #include "tetrodotoxin/library/language/types/structure.hpp"
 #include "ttx/concept/invalid.hpp"
 #include "ttx/lexical/errors.hpp"
@@ -504,6 +505,9 @@ PERIMORTEM_UNIT_TEST(EnumerationTests, cursor_atomicity) {
   Language::Materializations materializations(arena);
   auto& monograph = Language::Monograph::create_authored(
       arena, Documentation::get_empty(), dialect, context, materializations);
+  ASSERT(monograph.get_source().is<Language::Types::Source>());
+  const auto& source =
+      static_cast<const Language::Types::Source&>(monograph.get_source());
 
   Errors malformed_errors;
   Tokenizer malformed_tokenizer(
@@ -511,7 +515,7 @@ PERIMORTEM_UNIT_TEST(EnumerationTests, cursor_atomicity) {
   Cursor malformed_cursor(malformed_tokenizer, malformed_errors);
   Token opening = malformed_cursor.current();
   auto rejected = Language::Types::Enumeration::interpret(
-      arena, malformed_cursor, Documentation::get_empty(), monograph);
+      arena, malformed_cursor, Documentation::get_empty(), monograph, source);
   EXPECT_NOT(rejected);
   EXPECT_EQ(malformed_cursor.current().get_offset(), opening.get_offset());
   EXPECT(malformed_cursor.current().get_code() == opening.get_code());
@@ -522,7 +526,7 @@ PERIMORTEM_UNIT_TEST(EnumerationTests, cursor_atomicity) {
       arena, complete, "complete-enumeration.ttx"_view);
   Cursor complete_cursor(complete_tokenizer, complete_errors);
   auto parsed = Language::Types::Enumeration::interpret(
-      arena, complete_cursor, Documentation::get_empty(), monograph);
+      arena, complete_cursor, Documentation::get_empty(), monograph, source);
   ASSERT(parsed);
   EXPECT(complete_cursor.matches(Code::Type::Terminal));
   EXPECT(complete_errors.is_empty());

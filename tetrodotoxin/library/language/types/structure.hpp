@@ -20,8 +20,8 @@
 namespace Tetrodotoxin::Library::Language::Types {
 
 // Structure owns Library Type, Callable, and member lookup, real Field edges,
-// and one Named instance Layout. Synthetic source and Object specialize this
-// same anatomy instead of reproducing it.
+// and one Named instance Layout. Source and Object specialize this same anatomy
+// without reproducing its inventories.
 class Structure : public Ttx::Model::Type {
  protected:
   Structure(
@@ -32,11 +32,63 @@ class Structure : public Ttx::Model::Type {
       Monograph& source,
       Materializations& materializations,
       Perimortem::Core::Option<Ttx::Concept::Reference<const Ttx::Model::Type>>
-          source_scope,
+          enclosing_scope,
       Perimortem::Core::Option<Ttx::Lexical::Anchor> anchor,
       Perimortem::Core::Option<Ttx::Lexical::Anchor> name_anchor);
 
-  auto complete_declaration(Ttx::Lexical::Anchor complete_anchor) -> void;
+  auto can_accept_declaration() const -> Bool;
+
+  auto can_bind_declaration(const Ttx::Concept::Abstract& binding) const
+      -> Bool;
+
+  auto publish_binding(
+      Ttx::Concept::Abstract& binding,
+      Visibility binding_visibility) -> void;
+
+  auto retain_declaration_field(Field::Source field) -> Bool;
+
+  virtual auto publish_linked_field(Field& field) -> void;
+
+  virtual auto complete_field_layout() -> void;
+
+  virtual auto validate_linked_callable(const Ttx::Model::Callable& callable)
+      -> Bool;
+
+  virtual auto grants_complete_access(
+      const Ttx::Concept::Abstract& requester) const -> Bool;
+
+  virtual auto resolve_internal_context(Perimortem::Core::View::Bytes route)
+      const -> const Ttx::Concept::Abstract&;
+
+  virtual auto resolve_internal_type_context(
+      Perimortem::Core::View::Bytes route) const
+      -> const Ttx::Concept::Abstract&;
+
+  virtual auto resolve_external_type_context(
+      Perimortem::Core::View::Bytes route) const
+      -> const Ttx::Concept::Abstract&;
+
+  auto resolve_internal_addressable_binding(Perimortem::Core::View::Bytes route)
+      const -> const Ttx::Concept::Abstract&;
+
+  auto resolve_external_addressable_binding(Perimortem::Core::View::Bytes route)
+      const -> const Ttx::Concept::Abstract&;
+
+  auto resolve_internal_type_binding(Perimortem::Core::View::Bytes route) const
+      -> const Ttx::Concept::Abstract&;
+
+  auto resolve_external_type_binding(Perimortem::Core::View::Bytes route) const
+      -> const Ttx::Concept::Abstract&;
+
+  auto owns(const Ttx::Model::Callable& requester) const -> Bool;
+
+  auto owns(const Field& requester) const -> Bool;
+
+  constexpr auto get_source_monograph() const -> const Monograph& {
+    return source;
+  }
+
+  constexpr auto get_source_monograph() -> Monograph& { return source; }
 
  public:
   using ClassCatagory = Structure;
@@ -45,37 +97,44 @@ class Structure : public Ttx::Model::Type {
     0xaeb9a3131139c16f,
   };
 
-  static auto create_synthetic(
-      Perimortem::Memory::Allocator::Arena& domain,
-      const Ttx::Concept::Documentation& documentation,
-      Monograph& source,
-      Materializations& materializations) -> Structure&;
-
   static auto interpret(
       Perimortem::Memory::Allocator::Arena& domain,
       Ttx::Lexical::Cursor& cursor,
       const Ttx::Concept::Documentation& documentation,
       Monograph& source,
-      Materializations& materializations)
-      -> Perimortem::Core::Option<Structure&>;
+      Materializations& materializations,
+      const Structure& enclosing_scope) -> Perimortem::Core::Option<Structure&>;
 
   Structure(const Structure&) = delete;
   Structure(Structure&&) = delete;
   auto operator=(const Structure&) -> Structure& = delete;
   auto operator=(Structure&&) -> Structure& = delete;
 
-  // Static bindings never enter the instance Layout. Only the synthetic source
-  // admits this mutation while its authored binding phase remains open.
-  auto bind_static(
+  // Type and Callable declarations remain outside the instance Layout. Fields
+  // enter it only after their exact Types settle.
+  auto bind_member(
       Ttx::Concept::Abstract& binding,
       Visibility binding_visibility) -> Bool;
 
-  auto can_bind_static(const Ttx::Concept::Abstract& binding) const -> Bool;
+  auto can_bind_member(const Ttx::Concept::Abstract& binding) const -> Bool;
 
-  // Source retains complete authored facts until its declaration barrier can
-  // construct and publish every exact Field identity together.
+  // Structure retains complete authored facts until its declaration barrier
+  // can construct and publish every exact Field identity together.
   auto retain_field(Field::Source field) -> Bool;
 
+  // Type access receives the authenticated local and enclosing Structure
+  // chain without exposing a general purpose internal lookup surface.
+  auto resolve_type(const Access::Type& access) const
+      -> const Ttx::Concept::Abstract&;
+
+  // Publication checks begin with this Structure's exported Types and then
+  // walk its enclosing exported Type chain before consulting intrinsics.
+  auto resolve_exported_type(const Access::Type& access) const
+      -> const Ttx::Concept::Abstract&;
+
+  // Declaration Types settle recursively before any Structure in the same
+  // closure may construct Fields.
+  auto link_types() -> Bool;
   auto link_fields() -> Bool;
   auto link_initializers() -> Bool;
   auto link_callable_signatures() -> Bool;
@@ -104,20 +163,14 @@ class Structure : public Ttx::Model::Type {
   auto resolve_context(Perimortem::Core::View::Bytes route) const
       -> const Ttx::Concept::Abstract& override;
 
-  auto resolve_context(
+  virtual auto resolve_context(
       Perimortem::Core::View::Bytes route,
       const Ttx::Model::Callable& requester) const
       -> const Ttx::Concept::Abstract&;
 
-  auto resolve_context(
+  virtual auto resolve_context(
       Perimortem::Core::View::Bytes route,
       const Field& requester) const -> const Ttx::Concept::Abstract&;
-
-  // The exact source Monograph receives private contextual Type access during
-  // link barriers without admitting source Fields into bare lookup.
-  auto resolve_context(
-      Perimortem::Core::View::Bytes route,
-      const Monograph& requester) const -> const Ttx::Concept::Abstract&;
 
   auto get_layout() const -> const Ttx::Model::Layouts::Named& override;
 
@@ -137,8 +190,6 @@ class Structure : public Ttx::Model::Type {
       -> const Perimortem::Core::Option<Ttx::Lexical::Anchor>& {
     return name_anchor;
   }
-
-  constexpr auto is_source() const -> Bool { return !source_scope; }
 
   auto get_fields() const
       -> Perimortem::Core::View::Vector<Ttx::Concept::Reference<const Field>>;
@@ -179,6 +230,7 @@ class Structure : public Ttx::Model::Type {
  private:
   enum class Stage : Unsigned_8 {
     Authored,
+    TypesLinked,
     FieldsLinked,
     InitializersLinked,
     CallableSignaturesLinked,
@@ -186,29 +238,11 @@ class Structure : public Ttx::Model::Type {
     Finalized,
   };
 
-  auto bind_callable(
-      Ttx::Model::Callable& callable,
-      Visibility callable_visibility) -> Bool;
+  auto complete_declaration(Ttx::Lexical::Anchor complete_anchor) -> void;
 
-  auto bind(Ttx::Concept::Abstract& binding, Visibility binding_visibility)
-      -> Bool;
-
-  auto can_bind(const Ttx::Concept::Abstract& binding) const -> Bool;
-
-  auto owns(const Ttx::Model::Callable& requester) const -> Bool;
-
-  auto owns(const Field& requester) const -> Bool;
-
-  auto grants_complete_access(const Ttx::Concept::Abstract& requester) const
-      -> Bool;
-
-  auto get_external_source_context() const -> const Ttx::Concept::Abstract&;
-
-  auto resolve_internal_context(Perimortem::Core::View::Bytes route) const
-      -> const Ttx::Concept::Abstract&;
-
-  auto resolve_internal_type_context(Perimortem::Core::View::Bytes route) const
-      -> const Ttx::Concept::Abstract&;
+  auto bind_declaration(
+      Ttx::Concept::Abstract& binding,
+      Visibility binding_visibility) -> Bool;
 
   Perimortem::Memory::Allocator::Arena& domain;
   Perimortem::Core::View::Bytes name;
@@ -217,7 +251,7 @@ class Structure : public Ttx::Model::Type {
   Monograph& source;
   Materializations& materializations;
   Perimortem::Core::Option<Ttx::Concept::Reference<const Ttx::Model::Type>>
-      source_scope;
+      enclosing_scope;
   Perimortem::Core::Option<Ttx::Lexical::Anchor> anchor;
   Perimortem::Core::Option<Ttx::Lexical::Anchor> name_anchor;
   Perimortem::Memory::Managed::Vector<Field::Source> field_sources;
@@ -251,7 +285,7 @@ class Structure : public Ttx::Model::Type {
       Ttx::Concept::Reference<const Ttx::Concept::Abstract>>
       external_callable_bindings;
   Perimortem::Memory::Managed::Vector<
-      Ttx::Concept::Reference<const Ttx::Concept::Abstract>>
+      Ttx::Concept::Reference<Ttx::Concept::Abstract>>
       type_bindings;
   Perimortem::Memory::Managed::Vector<
       Ttx::Concept::Reference<const Ttx::Concept::Abstract>>

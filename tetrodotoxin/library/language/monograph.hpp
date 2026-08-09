@@ -16,9 +16,9 @@
 
 namespace Tetrodotoxin::Library::Language {
 
-// Monograph retains one Library source transaction. Its synthetic Structure
-// owns name lookup while Monograph keeps the source facts and ordered barriers
-// that do not belong to a Type.
+// Monograph retains one Library source transaction. Its synthetic Source owns
+// name lookup while Monograph keeps the source facts and ordered barriers that
+// do not belong to a Type.
 class Monograph : public Tetrodotoxin::Language::Monograph {
  private:
   Monograph(
@@ -48,8 +48,8 @@ class Monograph : public Tetrodotoxin::Language::Monograph {
            Tetrodotoxin::Language::Monograph::implements(requested);
   }
 
-  // Every authored declaration enters the synthetic source Structure before
-  // its later semantic barriers run. Duplicate names leave both owners intact.
+  // Every authored declaration enters the synthetic Source before its later
+  // semantic barriers run. Duplicate names leave both owners intact.
   auto bind_static(Ttx::Concept::Abstract& binding, Visibility visibility)
       -> Bool;
 
@@ -90,9 +90,9 @@ class Monograph : public Tetrodotoxin::Language::Monograph {
 
  private:
   auto link_imports() -> Bool;
-  auto link_enumeration_storage() -> Bool;
-  auto link_structure_fields() -> Bool;
-  auto link_field_initializers() -> Bool;
+  auto link_declaration_types() -> Bool;
+  auto link_fields() -> Bool;
+  auto link_initializers() -> Bool;
   auto link_callable_signatures() -> Bool;
   auto link_callable_bodies() -> Bool;
 
@@ -109,7 +109,7 @@ class Monograph : public Tetrodotoxin::Language::Monograph {
       Ttx::Concept::Reference<const Ttx::Concept::Abstract>>
       authored_binding_observations;
   Perimortem::Core::Option<Ttx::Concept::Reference<Ttx::Model::Type>>
-      source_structure;
+      source_type;
   Bool imports_linked = False;
 };
 

@@ -3,6 +3,8 @@
 The Shader Dialect implements one exact Render contract. It owns Shader Types,
 Stage bodies, resource access, and the semantic facts required for GPU lowering.
 
+Grammar prototype: [Shader.g4](grammar/Shader.g4).
+
 ```ttx
 dialect : Shader;
 

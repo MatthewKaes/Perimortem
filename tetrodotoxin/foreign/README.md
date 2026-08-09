@@ -4,6 +4,8 @@ Foreign embeds an external ABI surface inside a CPU-capable parent Dialect. It
 does not create an independent source Dialect or Monograph; its declarations
 become semantic facts owned by the surrounding source.
 
+Grammar prototype: [Foreign.g4](grammar/Foreign.g4).
+
 ## Foreign block
 
 ```ttx

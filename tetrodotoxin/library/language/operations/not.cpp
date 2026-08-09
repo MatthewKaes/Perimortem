@@ -111,9 +111,7 @@ auto Language::Operations::Not::select_type(Materializations&) const
     return {};
   }
 
-  return select_result_type(*operand).visit<Type>(
-      [](const Type& type) -> Core::Option<const Type&> { return type; },
-      [](const Abstract&) -> Core::Option<const Type&> { return {}; });
+  return select_result_type(*operand).select<Type>();
 }
 
 auto Language::Operations::Not::evaluate_constants(
@@ -128,12 +126,7 @@ auto Language::Operations::Not::evaluate_constants(
 
   // Exact Bool identity was fixed before folding. Flag proves the completed
   // payload while True and False remain the canonical published results.
-  auto value = operand->visit<Constants::Flag>(
-      [](const Constants::Flag& selected)
-          -> Core::Option<const Constants::Flag&> { return selected; },
-      [](const Abstract&) -> Core::Option<const Constants::Flag&> {
-        return {};
-      });
+  auto value = operand->select<Constants::Flag>();
   if (!value) {
     return Expression::Error(
         Expression::Error::Type::InvalidConstant, *authored_operand);

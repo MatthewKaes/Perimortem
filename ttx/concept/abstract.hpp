@@ -4,6 +4,7 @@
 #pragma once
 
 #include "perimortem/core/view/bytes.hpp"
+#include "perimortem/core/option.hpp"
 
 #include "perimortem/system/uuid.hpp"
 
@@ -63,6 +64,27 @@ class Abstract {
         __is_same(Requested, typename Requested::ClassCatagory),
         "Only declared TTX contracts can be queried.");
     return implements(Requested::contract_id);
+  }
+
+  // Returns the proven contract as one borrowed reference. Absence preserves
+  // the same mismatch result as is() without making every caller rebuild the
+  // identical visit pair merely to retain the selected object.
+  template <typename Requested>
+  constexpr auto select() -> Perimortem::Core::Option<Requested&> {
+    if (!is<Requested>()) {
+      return {};
+    }
+
+    return static_cast<Requested&>(*this);
+  }
+
+  template <typename Requested>
+  constexpr auto select() const -> Perimortem::Core::Option<const Requested&> {
+    if (!is<Requested>()) {
+      return {};
+    }
+
+    return static_cast<const Requested&>(*this);
   }
 
   // Dispatches one proven public contract without exposing an unchecked

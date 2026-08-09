@@ -117,6 +117,8 @@ replace an identity that was already returned successfully.
 Category proof establishes a public semantic interface on the real object.
 `is<Category>()` answers the Boolean proof and `visit<Category>(match,
 mismatch)` dispatches to the proven category or the original Abstract.
+`select<Category>()` returns an optional borrowed reference to that same proven
+contract when the caller only needs the selected object.
 
 ## Invalid
 

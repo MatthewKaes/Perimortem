@@ -15,6 +15,7 @@
 #include "tetrodotoxin/library/language/identifier.hpp"
 #include "tetrodotoxin/library/language/materializations.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
+#include "tetrodotoxin/library/language/types/source.hpp"
 #include "tetrodotoxin/library/language/types/structure.hpp"
 #include "ttx/concept/invalid.hpp"
 #include "ttx/lexical/errors.hpp"
@@ -475,8 +476,8 @@ PERIMORTEM_UNIT_TEST(ObjectTests, private_surface_retained_locally) {
   const auto& root =
       static_cast<const Language::Function&>(bindings.get_data()[2].get());
   const auto& source_structure =
-      static_cast<const Language::Types::Structure&>(monograph->get_source());
-  EXPECT(source_structure.is_source());
+      static_cast<const Language::Types::Source&>(monograph->get_source());
+  EXPECT(source_structure.is<Language::Types::Source>());
   EXPECT(source_structure.get_fields().is_empty());
   EXPECT_EQ(source_structure.get_layout().get_size(), Count(0));
   EXPECT(&reveal.get_host() == &holder_object);
@@ -593,11 +594,15 @@ PERIMORTEM_UNIT_TEST(ObjectTests, lifecycle_order_rejected) {
   Language::Materializations materializations(arena);
   auto& monograph = Language::Monograph::create_authored(
       arena, Documentation::get_empty(), dialect, context, materializations);
+  ASSERT(monograph.get_source().is<Language::Types::Source>());
+  const auto& source_scope =
+      static_cast<const Language::Types::Source&>(monograph.get_source());
   Errors errors;
   Tokenizer tokenizer(arena, source, "object-stage.ttx"_view);
   Cursor cursor(tokenizer, errors);
   auto object = Language::Types::Structure::interpret(
-      arena, cursor, Documentation::get_empty(), monograph, materializations);
+      arena, cursor, Documentation::get_empty(), monograph, materializations,
+      source_scope);
   ASSERT(object);
   ASSERT(object->is<Language::Types::Object>());
 
@@ -656,6 +661,9 @@ PERIMORTEM_UNIT_TEST(ObjectTests, cursor_atomicity) {
   Language::Materializations materializations(arena);
   auto& monograph = Language::Monograph::create_authored(
       arena, Documentation::get_empty(), dialect, context, materializations);
+  ASSERT(monograph.get_source().is<Language::Types::Source>());
+  const auto& source_scope =
+      static_cast<const Language::Types::Source&>(monograph.get_source());
 
   Errors malformed_errors;
   Tokenizer malformed_tokenizer(arena, malformed, "malformed-object.ttx"_view);
@@ -663,7 +671,7 @@ PERIMORTEM_UNIT_TEST(ObjectTests, cursor_atomicity) {
   Token opening = malformed_cursor.current();
   auto rejected = Language::Types::Structure::interpret(
       arena, malformed_cursor, Documentation::get_empty(), monograph,
-      materializations);
+      materializations, source_scope);
   EXPECT_NOT(rejected);
   EXPECT_EQ(malformed_cursor.current().get_offset(), opening.get_offset());
   EXPECT(malformed_cursor.current().get_code() == opening.get_code());
@@ -674,7 +682,7 @@ PERIMORTEM_UNIT_TEST(ObjectTests, cursor_atomicity) {
   Cursor complete_cursor(complete_tokenizer, complete_errors);
   auto parsed = Language::Types::Structure::interpret(
       arena, complete_cursor, Documentation::get_empty(), monograph,
-      materializations);
+      materializations, source_scope);
   ASSERT(parsed);
   EXPECT(parsed->is<Language::Types::Object>());
   EXPECT(complete_cursor.matches(Code::Type::Terminal));
