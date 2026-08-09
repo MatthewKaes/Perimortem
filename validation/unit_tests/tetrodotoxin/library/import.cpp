@@ -23,6 +23,7 @@
 #include "tetrodotoxin/library/dialect.hpp"
 #include "tetrodotoxin/library/language/function.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
+#include "tetrodotoxin/library/language/types/enumeration.hpp"
 #include "tetrodotoxin/library/language/types/structure.hpp"
 #include "tetrodotoxin/package/dialect.hpp"
 #include "tetrodotoxin/package/language/monograph.hpp"
@@ -970,6 +971,170 @@ PERIMORTEM_UNIT_TEST(LibraryImports, private_type_alias_cannot_escape) {
       "Shared"_view);
 }
 
+PERIMORTEM_UNIT_TEST(
+    LibraryImports,
+    reachable_closure_links_transitively_and_ignores_unrelated) {
+  Allocator::Arena arena;
+  ImportRegistry registry;
+  Library::Dialect library_dialect;
+  Package::Dialect package_dialect;
+  auto leaf = interpret_library(
+      arena, library_dialect, registry, "public func leaf[] -> Void {}"_view);
+  auto unrelated = interpret_library(
+      arena, library_dialect, registry,
+      "public func unrelated[] -> Void {}"_view);
+  ASSERT(leaf && unrelated);
+
+  Package::Language::Monograph& leaf_target =
+      create_package(arena, package_dialect);
+  ASSERT(leaf_target.bind_member("LeafApi"_view, *leaf));
+  Package::Language::Monograph& middle_context =
+      create_package_with_dependency(arena, package_dialect, "Leaf"_view);
+  ASSERT(bind_only_dependency(middle_context, leaf_target));
+  auto middle = interpret_library(
+      arena, library_dialect, middle_context,
+      "using Leaf;\npublic func middle[] -> Void {}"_view);
+  ASSERT(middle);
+
+  Package::Language::Monograph& middle_target =
+      create_package(arena, package_dialect);
+  ASSERT(middle_target.bind_member("MiddleApi"_view, *middle));
+  Package::Language::Monograph& root_context =
+      create_package_with_dependency(arena, package_dialect, "Middle"_view);
+  ASSERT(bind_only_dependency(root_context, middle_target));
+  auto root = interpret_library(
+      arena, library_dialect, root_context,
+      "using Middle;\npublic func root[] -> Void {}"_view);
+  ASSERT(root);
+
+  const auto& leaf_function = static_cast<const Library::Language::Function&>(
+      leaf->get_authored_bindings().get_data()[0].get());
+  const auto& middle_function = static_cast<const Library::Language::Function&>(
+      middle->get_authored_bindings().get_data()[0].get());
+  const auto& root_function = static_cast<const Library::Language::Function&>(
+      root->get_authored_bindings().get_data()[0].get());
+  const auto& unrelated_function =
+      static_cast<const Library::Language::Function&>(
+          unrelated->get_authored_bindings().get_data()[0].get());
+  EXPECT_NOT(leaf_function.is_signature_linked());
+  EXPECT_NOT(middle_function.is_signature_linked());
+  EXPECT_NOT(root_function.is_signature_linked());
+  EXPECT_NOT(unrelated_function.is_signature_linked());
+
+  ASSERT(root->link());
+  EXPECT(leaf_function.is_signature_linked());
+  EXPECT(middle_function.is_signature_linked());
+  EXPECT(root_function.is_signature_linked());
+  EXPECT(leaf_function.is_linked());
+  EXPECT(middle_function.is_linked());
+  EXPECT(root_function.is_linked());
+  EXPECT_NOT(unrelated_function.is_signature_linked());
+  EXPECT_NOT(unrelated_function.is_linked());
+  EXPECT(leaf->get_diagnostics().is_empty());
+  EXPECT(middle->get_diagnostics().is_empty());
+  EXPECT(root->get_diagnostics().is_empty());
+  EXPECT(unrelated->get_diagnostics().is_empty());
+}
+
+PERIMORTEM_UNIT_TEST(
+    LibraryImports,
+    reachable_signature_failure_stops_every_body) {
+  Allocator::Arena arena;
+  ImportRegistry registry;
+  Library::Dialect library_dialect;
+  Package::Dialect package_dialect;
+  auto blocked = interpret_library(
+      arena, library_dialect, registry,
+      "public func blocked[Missing] -> Void {}"_view);
+  auto ready = interpret_library(
+      arena, library_dialect, registry, "public func ready[] -> Void {}"_view);
+  ASSERT(blocked && ready);
+
+  Package::Language::Monograph& target = create_package(arena, package_dialect);
+  ASSERT(target.bind_member("BlockedApi"_view, *blocked));
+  ASSERT(target.bind_member("ReadyApi"_view, *ready));
+  Package::Language::Monograph& root_context =
+      create_package_with_dependency(arena, package_dialect, "Providers"_view);
+  ASSERT(bind_only_dependency(root_context, target));
+  auto root = interpret_library(
+      arena, library_dialect, root_context,
+      "using Providers;\npublic func root[] -> Void {}"_view);
+  ASSERT(root);
+
+  const auto& blocked_function =
+      static_cast<const Library::Language::Function&>(
+          blocked->get_authored_bindings().get_data()[0].get());
+  const auto& ready_function = static_cast<const Library::Language::Function&>(
+      ready->get_authored_bindings().get_data()[0].get());
+  const auto& root_function = static_cast<const Library::Language::Function&>(
+      root->get_authored_bindings().get_data()[0].get());
+  ASSERT_NOT(root->link());
+  EXPECT_NOT(blocked_function.is_signature_linked());
+  EXPECT(ready_function.is_signature_linked());
+  EXPECT(root_function.is_signature_linked());
+  EXPECT_NOT(blocked_function.is_linked());
+  EXPECT_NOT(ready_function.is_linked());
+  EXPECT_NOT(root_function.is_linked());
+  EXPECT_EQ(blocked->get_diagnostics().get_size(), Count(1));
+  EXPECT(ready->get_diagnostics().is_empty());
+  EXPECT(root->get_diagnostics().is_empty());
+}
+
+PERIMORTEM_UNIT_TEST(
+    LibraryImports,
+    reachable_cycle_preserves_exact_identities) {
+  Allocator::Arena arena;
+  Library::Dialect library_dialect;
+  Package::Dialect package_dialect;
+  Package::Language::Monograph& first_context =
+      create_package_with_dependency(arena, package_dialect, "Second"_view);
+  Package::Language::Monograph& second_context =
+      create_package_with_dependency(arena, package_dialect, "First"_view);
+  auto first = interpret_library(
+      arena, library_dialect, first_context,
+      "using Second;\npublic func first[] -> Void {}"_view);
+  auto second = interpret_library(
+      arena, library_dialect, second_context,
+      "using First;\npublic func second[] -> Void {}"_view);
+  ASSERT(first && second);
+
+  Package::Language::Monograph& first_target =
+      create_package(arena, package_dialect);
+  Package::Language::Monograph& second_target =
+      create_package(arena, package_dialect);
+  ASSERT(first_target.bind_member("FirstApi"_view, *first));
+  ASSERT(second_target.bind_member("SecondApi"_view, *second));
+  ASSERT(bind_only_dependency(first_context, second_target));
+  ASSERT(bind_only_dependency(second_context, first_target));
+  ASSERT(first->link());
+
+  const auto& first_function = static_cast<const Library::Language::Function&>(
+      first->get_authored_bindings().get_data()[0].get());
+  const auto& second_function = static_cast<const Library::Language::Function&>(
+      second->get_authored_bindings().get_data()[0].get());
+  ASSERT(first->get_source().is<Library::Language::Types::Structure>());
+  ASSERT(second->get_source().is<Library::Language::Types::Structure>());
+  const auto& first_source =
+      static_cast<const Library::Language::Types::Structure&>(
+          first->get_source());
+  const auto& second_source =
+      static_cast<const Library::Language::Types::Structure&>(
+          second->get_source());
+  const Abstract& second_alias = select_binding(
+      first_source.get_callable_bindings(first_function), "second"_view);
+  const Abstract& first_alias = select_binding(
+      second_source.get_callable_bindings(second_function), "first"_view);
+  ASSERT(second_alias.is<Ttx::Model::Alias>());
+  ASSERT(first_alias.is<Ttx::Model::Alias>());
+  EXPECT(&second_alias.resolve() == &second_function);
+  EXPECT(&first_alias.resolve() == &first_function);
+  EXPECT(first_function.is_linked());
+  EXPECT(second_function.is_linked());
+  ASSERT(second->link());
+  EXPECT(&second_alias.resolve() == &second_function);
+  EXPECT(&first_alias.resolve() == &first_function);
+}
+
 static constexpr Count temporary_path_capacity = 160;
 
 static auto join_path(View::Bytes root, View::Bytes member) -> Dynamic::Bytes {
@@ -1059,13 +1224,19 @@ PERIMORTEM_UNIT_TEST(
       "nested/api.ttx"_view,
       "// Provider Library\n"
       "dialect : Library;\n"
+      "public Shared : struct {}\n"
+      "public Mode : enum[Unsigned_8] { ready = 1; }\n"
       "public func provided[] -> Void {}\n"_view);
   Bool importer_written = package.write(
       "main.ttx"_view,
       "// Importing Library\n"
       "dialect : Library;\n"
       "using Core;\n"
-      "public func local[] -> Void {}\n"_view);
+      "private Holder : struct {\n"
+      "  private shared : Shared;\n"
+      "  private mode : Mode;\n"
+      "}\n"
+      "private func local[Shared, Mode] -> Shared {}\n"_view);
   ASSERT(nested_created);
   ASSERT(root_written);
   ASSERT(nested_written);
@@ -1116,10 +1287,15 @@ PERIMORTEM_UNIT_TEST(
       static_cast<const Library::Language::Monograph&>(api_abstract);
 
   auto main_bindings = main.get_authored_bindings();
-  ASSERT_EQ(main_bindings.get_size(), Count(1));
-  ASSERT(main_bindings.get_data()[0].get().is<Library::Language::Function>());
-  const auto& local = static_cast<const Library::Language::Function&>(
+  ASSERT_EQ(main_bindings.get_size(), Count(2));
+  ASSERT(main_bindings.get_data()[0]
+             .get()
+             .is<Library::Language::Types::Structure>());
+  ASSERT(main_bindings.get_data()[1].get().is<Library::Language::Function>());
+  const auto& holder = static_cast<const Library::Language::Types::Structure&>(
       main_bindings.get_data()[0].get());
+  const auto& local = static_cast<const Library::Language::Function&>(
+      main_bindings.get_data()[1].get());
   ASSERT(main.get_source().is<Library::Language::Types::Structure>());
   const auto& main_source =
       static_cast<const Library::Language::Types::Structure&>(
@@ -1130,15 +1306,28 @@ PERIMORTEM_UNIT_TEST(
   ASSERT(api.get_source().is<Library::Language::Types::Structure>());
   const auto& api_source =
       static_cast<const Library::Language::Types::Structure&>(api.get_source());
+  const Abstract& shared = api.resolve_context("Shared"_view);
+  const Abstract& mode = api.resolve_context("Mode"_view);
+  ASSERT(shared.is<Library::Language::Types::Structure>());
+  ASSERT(mode.is<Library::Language::Types::Enumeration>());
+  auto holder_fields = holder.get_fields();
+  ASSERT_EQ(holder_fields.get_size(), Count(2));
+  EXPECT(&holder_fields.get_data()[0].get().get_type() == &shared);
+  EXPECT(&holder_fields.get_data()[1].get().get_type() == &mode);
+  auto local_signature = local.get_signature();
+  ASSERT(local_signature);
+  ASSERT(local_signature->get_parameter_type(0));
+  ASSERT(local_signature->get_parameter_type(1));
+  ASSERT(local_signature->get_result_type(0));
+  EXPECT(&*local_signature->get_parameter_type(0) == &shared);
+  EXPECT(&*local_signature->get_parameter_type(1) == &mode);
+  EXPECT(&*local_signature->get_result_type(0) == &shared);
   EXPECT(
       &provided_alias.resolve() ==
       &select_binding(api_source.get_callable_bindings(), "provided"_view));
   EXPECT(&main.resolve_context("provided"_view) == &Invalid::get_invalid());
   EXPECT(&main.resolve_context("local"_view) == &Invalid::get_invalid());
   EXPECT(&main.resolve_context("source"_view) == &main_source);
-  ASSERT_EQ(main_source.get_callable_bindings().get_size(), Count(1));
-  EXPECT_TEXT(
-      main_source.get_callable_bindings().get_data()[0].get().get_name(),
-      "local"_view);
+  EXPECT(main_source.get_callable_bindings().is_empty());
   EXPECT(errors.is_empty());
 }

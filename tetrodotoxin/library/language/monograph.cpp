@@ -62,6 +62,7 @@ Library::Language::Monograph::Monograph(
       interpretation_context(interpretation_context),
       materializations(materializations),
       imports(domain),
+      imported_providers(domain),
       authored_bindings(domain),
       authored_binding_observations(domain) {}
 
@@ -141,6 +142,7 @@ auto Library::Language::Monograph::link_imports() -> Bool {
   }
 
   Managed::Vector<ImportCandidate> candidates(domain);
+  Managed::Vector<Reference<Monograph>> providers(domain);
   Bool failed = False;
 
   // Package order leads member order and each provider source order. Staging
@@ -203,6 +205,19 @@ auto Library::Language::Monograph::link_imports() -> Bool {
         }
 
         continue;
+      }
+
+      // Package lookup exposes a read only graph edge, while Library owns the
+      // lifecycle of the exact Monograph proven above. Retaining that identity
+      // here lets closure linking advance the real owner without widening the
+      // Package contract into a mutable semantic route.
+      Monograph& mutable_provider = const_cast<Monograph&>(*provider_monograph);
+      Bool known_provider = False;
+      for (Count i = 0; i < providers.get_size(); i++) {
+        known_provider |= &providers[i].get() == &mutable_provider;
+      }
+      if (!known_provider) {
+        providers.insert(mutable_provider);
       }
 
       const Type& provider_source = provider_monograph->get_source();
@@ -293,18 +308,15 @@ auto Library::Language::Monograph::link_imports() -> Bool {
     }
   }
 
+  for (Count i = 0; i < providers.get_size(); i++) {
+    imported_providers.insert(providers[i]);
+  }
+
   imports_linked = True;
   return True;
 }
 
-auto Library::Language::Monograph::link() -> Bool {
-  if (!link_imports()) {
-    return False;
-  }
-
-  // Storage and Field phases remain global across the source. A later
-  // declaration may therefore supply the exact Type of an earlier Field without
-  // changing identity or introducing a discovery graph.
+auto Library::Language::Monograph::link_enumeration_storage() -> Bool {
   Bool failed = False;
   for (Count i = 0; i < authored_bindings.get_size(); i++) {
     failed |= !authored_bindings[i].get().visit<Types::Enumeration>(
@@ -313,24 +325,21 @@ auto Library::Language::Monograph::link() -> Bool {
         },
         [](Abstract&) { return True; });
   }
-  if (failed) {
-    return False;
-  }
+  return !failed;
+}
 
-  // Fields resolve after every scalar storage identity has settled. Waiting for
-  // the complete phase keeps initializers from observing a partial Addressable
-  // inventory when one Structure fails.
+auto Library::Language::Monograph::link_structure_fields() -> Bool {
+  Bool failed = False;
   for (Count i = 0; i < authored_bindings.get_size(); i++) {
     failed |= !authored_bindings[i].get().visit<Types::Structure>(
         [](Types::Structure& structure) { return structure.link_fields(); },
         [](Abstract&) { return True; });
   }
-  if (failed) {
-    return False;
-  }
+  return !failed;
+}
 
-  // Initializers may use linked Fields from any authored Structure. Callable
-  // linking remains closed until every initializer has accepted those edges.
+auto Library::Language::Monograph::link_field_initializers() -> Bool {
+  Bool failed = False;
   for (Count i = 0; i < authored_bindings.get_size(); i++) {
     failed |= !authored_bindings[i].get().visit<Types::Structure>(
         [](Types::Structure& structure) {
@@ -338,13 +347,11 @@ auto Library::Language::Monograph::link() -> Bool {
         },
         [](Abstract&) { return True; });
   }
-  if (failed) {
-    return False;
-  }
+  return !failed;
+}
 
-  // The source Structure owns root Functions, so it joins the same signature
-  // barrier as authored Structures. Its success also seals Static binding and
-  // makes the completed import set permanent across retries.
+auto Library::Language::Monograph::link_callable_signatures() -> Bool {
+  Bool failed = False;
   for (Count i = 0; i < authored_bindings.get_size(); i++) {
     failed |= !authored_bindings[i].get().visit<Types::Structure>(
         [](Types::Structure& structure) {
@@ -357,13 +364,11 @@ auto Library::Language::Monograph::link() -> Bool {
         return structure.link_callable_signatures();
       },
       [](Abstract&) { return False; });
-  if (failed) {
-    return False;
-  }
+  return !failed;
+}
 
-  // Bodies run only after every local signature has published stable Parameter
-  // and result Layouts. The source participates again because root Functions
-  // are ordinary hosted members rather than a second Monograph inventory.
+auto Library::Language::Monograph::link_callable_bodies() -> Bool {
+  Bool failed = False;
   for (Count i = 0; i < authored_bindings.get_size(); i++) {
     failed |= !authored_bindings[i].get().visit<Types::Structure>(
         [](Types::Structure& structure) {
@@ -376,6 +381,73 @@ auto Library::Language::Monograph::link() -> Bool {
         return structure.link_callable_bodies();
       },
       [](Abstract&) { return False; });
+
+  return !failed;
+}
+
+auto Library::Language::Monograph::link() -> Bool {
+  Managed::Vector<Reference<Monograph>> closure(domain);
+  closure.insert(*this);
+
+  // Every authenticated provider enters the queue in authored discovery order.
+  // Scanning exact identities before insertion lets cycles terminate while the
+  // growing queue still expands every provider Import before semantics begin.
+  for (Count monograph_index = 0; monograph_index < closure.get_size();
+       monograph_index++) {
+    Monograph& monograph = closure[monograph_index].get();
+    if (!monograph.link_imports()) {
+      return False;
+    }
+
+    for (Count provider_index = 0;
+         provider_index < monograph.imported_providers.get_size();
+         provider_index++) {
+      Monograph& provider = monograph.imported_providers[provider_index].get();
+      Bool discovered = False;
+      for (Count earlier = 0; earlier < closure.get_size(); earlier++) {
+        discovered |= &closure[earlier].get() == &provider;
+      }
+      if (!discovered) {
+        closure.insert(provider);
+      }
+    }
+  }
+
+  // Each complete closure phase settles before the next one starts. This keeps
+  // discovery order from deciding whether a consumer observes provider storage,
+  // Fields, initializers, or Callable signatures before its own body begins.
+  Bool failed = False;
+  for (Count i = 0; i < closure.get_size(); i++) {
+    failed |= !closure[i].get().link_enumeration_storage();
+  }
+  if (failed) {
+    return False;
+  }
+
+  for (Count i = 0; i < closure.get_size(); i++) {
+    failed |= !closure[i].get().link_structure_fields();
+  }
+  if (failed) {
+    return False;
+  }
+
+  for (Count i = 0; i < closure.get_size(); i++) {
+    failed |= !closure[i].get().link_field_initializers();
+  }
+  if (failed) {
+    return False;
+  }
+
+  for (Count i = 0; i < closure.get_size(); i++) {
+    failed |= !closure[i].get().link_callable_signatures();
+  }
+  if (failed) {
+    return False;
+  }
+
+  for (Count i = 0; i < closure.get_size(); i++) {
+    failed |= !closure[i].get().link_callable_bodies();
+  }
 
   return !failed;
 }

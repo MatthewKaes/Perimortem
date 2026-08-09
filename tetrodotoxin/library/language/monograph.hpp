@@ -90,11 +90,18 @@ class Monograph : public Tetrodotoxin::Language::Monograph {
 
  private:
   auto link_imports() -> Bool;
+  auto link_enumeration_storage() -> Bool;
+  auto link_structure_fields() -> Bool;
+  auto link_field_initializers() -> Bool;
+  auto link_callable_signatures() -> Bool;
+  auto link_callable_bodies() -> Bool;
 
   Tetrodotoxin::Library::Dialect& library_host;
   const Ttx::Concept::Abstract& interpretation_context;
   Materializations& materializations;
   Perimortem::Memory::Managed::Vector<Import> imports;
+  Perimortem::Memory::Managed::Vector<Ttx::Concept::Reference<Monograph>>
+      imported_providers;
   Perimortem::Memory::Managed::Vector<
       Ttx::Concept::Reference<Ttx::Concept::Abstract>>
       authored_bindings;

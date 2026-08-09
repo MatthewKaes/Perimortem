@@ -347,6 +347,11 @@ Library interprets a successful Resource as a Bytes Constant. Package retains
 path confinement and acquisition policy; Library never opens Package storage
 directly.
 
+A Library Monograph completes the exact closure of Library providers reached
+through its authenticated imports. Every reachable declaration and Callable
+signature settles before any Function body in that closure begins, so source
+discovery order does not change the completed graph.
+
 ## Compilation boundary
 
 Library lowering consumes completed CPU facts owned by Library, App, or Scene.
