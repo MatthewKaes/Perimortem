@@ -32,7 +32,6 @@ class Code {
     //                              TTX Data Model
     // ========================================================================
     Comment,       // //
-    Disabled,      // />
     Attribute,     // @
     Addressable,   // Any symbol that starts with a lowercase ASCII letter
     Type,          // Any symbol that starts with an uppercase ASCII letter

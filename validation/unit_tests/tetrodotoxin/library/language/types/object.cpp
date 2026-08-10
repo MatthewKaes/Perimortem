@@ -183,7 +183,8 @@ PERIMORTEM_UNIT_TEST(ObjectTests, stable_authored_graph) {
   EXPECT(progress.get_writability() == Language::Field::Writability::Internal);
   EXPECT_NOT(progress.get_documentation().is_empty());
   EXPECT_TEXT(progress.get_name(), "progress"_view);
-  EXPECT_TEXT(progress.get_type_access().get_route(), "Unsigned_64"_view);
+  ASSERT(progress.get_type_access());
+  EXPECT_TEXT(progress.get_type_access()->get_route(), "Unsigned_64"_view);
   EXPECT(token.get_exposure() == Language::Field::Exposure::Private);
   EXPECT(token.get_writability() == Language::Field::Writability::Internal);
   ASSERT(progress.get_initializer());
@@ -613,6 +614,46 @@ PERIMORTEM_UNIT_TEST(ObjectTests, lifecycle_order_rejected) {
   EXPECT_EQ(monograph.get_diagnostics().get_size(), Count(4));
   EXPECT_NOT(object->is_linked());
   EXPECT_NOT(object->is_finalized());
+  EXPECT(errors.is_empty());
+}
+
+PERIMORTEM_UNIT_TEST(ObjectTests, inferred_object_identity) {
+  static constexpr View::Bytes source =
+      "// Object inference test.\n"
+      "dialect : Library;\n"
+      "public Child : object {}\n"
+      "public Holder : object {\n"
+      "  private child : Child;\n"
+      "  private copy := child;\n"
+      "}"_view;
+  Workspace workspace;
+  Errors errors;
+  auto monograph = interpret(workspace, errors, source);
+  ASSERT(monograph);
+  auto bindings = monograph->get_authored_bindings();
+  ASSERT_EQ(bindings.get_size(), Count(2));
+  ASSERT(bindings.get_data()[0].get().is<Language::Types::Object>());
+  ASSERT(bindings.get_data()[1].get().is<Language::Types::Object>());
+  const auto& child =
+      static_cast<const Language::Types::Object&>(bindings.get_data()[0].get());
+  const auto& holder =
+      static_cast<const Language::Types::Object&>(bindings.get_data()[1].get());
+
+  ASSERT(workspace.link(errors));
+  ASSERT(workspace.finalize(errors));
+  auto fields = holder.get_fields();
+  ASSERT_EQ(fields.get_size(), Count(2));
+  const Language::Field& child_field = fields.get_data()[0].get();
+  const Language::Field& copy_field = fields.get_data()[1].get();
+  EXPECT(&child_field.get_type() == &child);
+  EXPECT(&copy_field.get_type() == &child);
+  EXPECT_NOT(copy_field.get_type_access());
+  ASSERT(copy_field.get_initializer());
+  ASSERT(copy_field.get_initializer()->is<Language::Identifier>());
+  const auto& identifier =
+      static_cast<const Language::Identifier&>(*copy_field.get_initializer());
+  ASSERT(identifier.get_addressable());
+  EXPECT(&*identifier.get_addressable() == &child_field);
   EXPECT(errors.is_empty());
 }
 

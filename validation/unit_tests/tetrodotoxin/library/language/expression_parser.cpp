@@ -27,6 +27,7 @@
 #include "tetrodotoxin/library/language/operations/not.hpp"
 #include "tetrodotoxin/library/language/operations/not_equal.hpp"
 #include "tetrodotoxin/library/language/operations/or.hpp"
+#include "tetrodotoxin/library/language/operations/range.hpp"
 #include "tetrodotoxin/library/language/operations/subtract.hpp"
 #include "tetrodotoxin/library/language/parser/expression.hpp"
 #include "ttx/concept/invalid.hpp"
@@ -325,12 +326,14 @@ PERIMORTEM_UNIT_TEST(ExpressionParserTests, authored_operation_anchors) {
       parse_one(domain, materializations, context, "\"a\":[0]"_view, errors);
   auto subtract =
       parse_one(domain, materializations, context, "2 - 1"_view, errors);
+  auto range =
+      parse_one(domain, materializations, context, "1...4"_view, errors);
 
   ASSERT(
       divide && add && logical_and && logical_or && equal && greater &&
       greater_equal && less && less_equal);
   ASSERT(modulo && multiply && negate && logical && not_equal && value);
-  ASSERT(subtract);
+  ASSERT(subtract && range);
   EXPECT(matches_anchor(*divide, "8 / 2"_view, "/"_view, "8 / 2"_view));
   EXPECT(matches_anchor(*add, "1 + 2"_view, "+"_view, "1 + 2"_view));
   EXPECT(matches_anchor(
@@ -350,7 +353,47 @@ PERIMORTEM_UNIT_TEST(ExpressionParserTests, authored_operation_anchors) {
   EXPECT(matches_anchor(*not_equal, "1 != 2"_view, "!="_view, "1 != 2"_view));
   EXPECT(matches_anchor(*value, "\"a\":[0]"_view, ":["_view, "\"a\":[0]"_view));
   EXPECT(matches_anchor(*subtract, "2 - 1"_view, "-"_view, "2 - 1"_view));
+  EXPECT(matches_anchor(*range, "1...4"_view, "..."_view, "1...4"_view));
   EXPECT(errors.is_empty());
+}
+
+PERIMORTEM_UNIT_TEST(ExpressionParserTests, range_precedence) {
+  Allocator::Arena domain;
+  Library::Language::Materializations materializations(domain);
+  ExpressionParserObservations observations;
+  ExpressionParserContext context(domain, observations);
+  Errors errors;
+  auto left = parse_one(
+      domain, materializations, context, "false | true...2"_view, errors);
+  auto right = parse_one(
+      domain, materializations, context, "1...false | true"_view, errors);
+  auto arithmetic = parse_one(
+      domain, materializations, context, "1 + 2...3 * 4"_view, errors);
+
+  ASSERT(left && right && arithmetic);
+  EXPECT((has_left_shape<
+          Library::Language::Operations::Range,
+          Library::Language::Operations::Or>(*left)));
+  auto right_input = get_input(*right, 1);
+  EXPECT(right_input && right_input->is<Library::Language::Operations::Or>());
+  EXPECT((has_left_shape<
+          Library::Language::Operations::Range,
+          Library::Language::Operations::Add>(*arithmetic)));
+  auto arithmetic_right = get_input(*arithmetic, 1);
+  EXPECT(
+      arithmetic_right &&
+      arithmetic_right->is<Library::Language::Operations::Multiply>());
+  EXPECT(errors.is_empty());
+}
+
+PERIMORTEM_UNIT_TEST(ExpressionParserTests, range_rhs_rollback) {
+  Allocator::Arena domain;
+  Library::Language::Materializations materializations(domain);
+  ExpressionParserObservations observations;
+  ExpressionParserContext context(domain, observations);
+
+  EXPECT(rejects_grammar(domain, materializations, context, "1..."_view));
+  EXPECT(rejects_grammar(domain, materializations, context, "1...2...3"_view));
 }
 
 PERIMORTEM_UNIT_TEST(ExpressionParserTests, value_access_precedence) {

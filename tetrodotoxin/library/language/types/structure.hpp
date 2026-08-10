@@ -84,6 +84,8 @@ class Structure : public Ttx::Model::Type {
 
   auto owns(const Field& requester) const -> Bool;
 
+  auto is_externally_reachable(const Ttx::Model::Type& type) const -> Bool;
+
   constexpr auto get_source_monograph() const -> const Monograph& {
     return source;
   }
@@ -297,6 +299,8 @@ class Structure : public Ttx::Model::Type {
       Ttx::Concept::Reference<const Ttx::Concept::Abstract>>
       external_static_binding_order;
   Perimortem::Core::Option<const Ttx::Model::Layouts::Named&> layout;
+  Perimortem::Core::View::Vector<Ttx::Concept::Reference<Field>> linking_fields;
+  Perimortem::Core::Option<const Field::Source&> linking_source;
   Stage stage = Stage::Authored;
 };
 

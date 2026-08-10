@@ -148,8 +148,6 @@ auto Ttx::Lexical::Code::get_semantics() const
     return "Attribute name"_view;
   case Type::Comment:
     return "source comment"_view;
-  case Type::Disabled:
-    return "disabled source marker"_view;
 
   // Source carried groupings
   case Type::String:

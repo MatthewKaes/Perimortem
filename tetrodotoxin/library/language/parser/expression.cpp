@@ -20,6 +20,7 @@
 #include "tetrodotoxin/library/language/operations/not.hpp"
 #include "tetrodotoxin/library/language/operations/not_equal.hpp"
 #include "tetrodotoxin/library/language/operations/or.hpp"
+#include "tetrodotoxin/library/language/operations/range.hpp"
 #include "tetrodotoxin/library/language/operations/subtract.hpp"
 #include "tetrodotoxin/library/language/parser/literal.hpp"
 #include "ttx/concept/reference.hpp"
@@ -85,6 +86,8 @@ static auto find_binary(Code::Type code) -> Option<BinaryRule> {
     return BinaryRule{3, &Library::Language::Operations::And::parse};
   case Code::Type::OrOp:
     return BinaryRule{2, &Library::Language::Operations::Or::parse};
+  case Code::Type::RangeOp:
+    return BinaryRule{1, &Library::Language::Operations::Range::parse};
   default:
     return {};
   }

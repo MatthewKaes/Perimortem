@@ -594,24 +594,81 @@ auto Types::Structure::link_fields() -> Bool {
     return False;
   }
 
-  Managed::Vector<Reference<Field>> linked_fields(domain);
-  linked_fields.reset(field_sources.get_size());
+  Managed::Vector<Reference<Field>> available_fields(domain);
+  available_fields.reset(field_sources.get_size());
+
+  // Authored Type routes settle without evaluating initializers. Completing
+  // those Fields first gives inference every exact declaration Type while the
+  // candidate inventory remains private to this transaction.
   for (Count i = 0; i < field_sources.get_size(); i++) {
     Field::Source& field_source = field_sources[i];
-    const Tetrodotoxin::Library::Language::Access::Type& access =
-        field_source.get_type_access();
-    const Abstract& root = resolve_internal_type_context(access.get_root());
-    const Abstract& selected = access.resolve_from(root);
+    auto access = field_source.get_type_access();
+    if (!access) {
+      continue;
+    }
+
+    const Abstract& root = resolve_internal_type_context(access->get_root());
+    const Abstract& selected = access->resolve_from(root);
     auto field = Field::link(domain, source, *this, field_source, selected);
     if (!field) {
       failed = True;
       continue;
     }
 
-    linked_fields.insert(*field);
+    available_fields.insert(*field);
   }
 
+  // Explicit Fields are already safe lookup targets. Each inferred candidate
+  // then authenticates the same private context it will own after publication,
+  // while only completed candidates become visible to later inference.
+  linking_fields = available_fields.get_view();
+  for (Count i = 0; i < field_sources.get_size(); i++) {
+    Field::Source& field_source = field_sources[i];
+    if (!field_source.is_inferred()) {
+      continue;
+    }
+
+    linking_source = field_source;
+    auto field = Field::link_inferred(
+        domain, source, materializations, *this, field_source);
+    linking_source = {};
+    if (!field) {
+      failed = True;
+      continue;
+    }
+
+    available_fields.insert(*field);
+    linking_fields = available_fields.get_view();
+  }
+  linking_fields = {};
+  linking_source = {};
+
   if (failed) {
+    return False;
+  }
+
+  Managed::Vector<Reference<Field>> linked_fields(domain);
+  linked_fields.reset(field_sources.get_size());
+
+  // Completion order puts explicit Fields before inferred dependencies. The
+  // published Layout still follows authored order, so rebuild that order from
+  // the unique Field names before exposing any identity.
+  for (Count source_index = 0; source_index < field_sources.get_size();
+       source_index++) {
+    View::Bytes name = field_sources[source_index].get_name();
+    for (Count field_index = 0; field_index < available_fields.get_size();
+         field_index++) {
+      Field& field = available_fields[field_index].get();
+      if (field.get_name() == name) {
+        linked_fields.insert(field);
+        break;
+      }
+    }
+  }
+  if (linked_fields.get_size() != field_sources.get_size()) {
+    source.report(
+        anchor, "Structure Field completion lost one authored identity."_view,
+        "Retain every completed Field in its authored order."_view);
     return False;
   }
 
@@ -750,22 +807,29 @@ auto Types::Structure::finalize() -> Bool {
   failed |= !visit_each<Structure>(
       type_bindings, [](Structure& structure) { return structure.finalize(); });
 
-  // Publication follows the authored route rather than eventual Type
-  // visibility. A private import may reach a public provider internally while
-  // only direct public bindings and Library intrinsics remain externally legal.
+  // Explicit publication follows its authored route rather than eventual Type
+  // visibility. Inference has no route, so it proves the exact Type through a
+  // public binding or Library intrinsic before exposing that same identity.
   for (Count i = 0; i < public_fields.get_size(); i++) {
     const Field& field = public_fields[i].get();
-    const Abstract& reachable =
-        resolve_externally_reachable_type(field.get_type_access(), *this);
-    if (&reachable == &field.get_type()) {
+    auto access = field.get_type_access();
+    Bool reachable = access.visit(
+        [&]() { return is_externally_reachable(field.get_type()); },
+        [&](const Access::Type& selected) {
+          return Bool(
+              &resolve_externally_reachable_type(selected, *this) ==
+              &field.get_type());
+        });
+    if (reachable) {
       continue;
     }
 
     source.report(
-        field.get_type_anchor(),
-        "Externally readable Structure Field publishes an unreachable Type "
-        "route."_view,
-        "Keep the Field private or publish its authored Type route."_view);
+        field.get_type_anchor().visit(
+            [&]() -> Option<Anchor> { return field.get_anchor(); },
+            [](Anchor selected) -> Option<Anchor> { return selected; }),
+        "Externally readable Structure Field publishes an unreachable Type."_view,
+        "Keep the Field private or publish its exact Type."_view);
     failed = True;
   }
   for (Count i = 0; i < public_callables.get_size(); i++) {
@@ -856,10 +920,49 @@ auto Types::Structure::owns(const Field& requester) const -> Bool {
     return False;
   }
 
+  if (linking_source && requester.get_name() == linking_source->get_name() &&
+      !requester.get_type_access()) {
+    return True;
+  }
+
   return field_observations.get_view().contains(
       [&](const Reference<const Field>& existing) {
         return &existing.get() == &requester;
       });
+}
+
+auto Types::Structure::is_externally_reachable(const Type& type) const -> Bool {
+  for (Count i = 0; i < external_type_bindings.get_size(); i++) {
+    const Abstract& target =
+        get_binding_target(external_type_bindings.at(i).get()).resolve();
+    if (&target == &type) {
+      return True;
+    }
+  }
+
+  if (enclosing_scope) {
+    Bool reachable = enclosing_scope->get().visit<Structure>(
+        [&](const Structure& structure) {
+          return structure.is_externally_reachable(type);
+        },
+        [&](const Abstract& context) {
+          return Bool(
+              &context.resolve_context(type.get_name()).resolve() == &type);
+        });
+    if (reachable) {
+      return True;
+    }
+  }
+
+  const Abstract& outer =
+      source.get_interpretation_context().resolve_context(type.get_name());
+  if (&outer.resolve() == &type) {
+    return True;
+  }
+
+  const Abstract& intrinsic =
+      source.get_library_host().resolve_intrinsic(type.get_name());
+  return &intrinsic.resolve() == &type;
 }
 
 auto Types::Structure::grants_complete_access(const Abstract& requester) const
@@ -875,6 +978,13 @@ auto Types::Structure::grants_complete_access(const Abstract& requester) const
 
 auto Types::Structure::resolve_internal_addressable_binding(
     View::Bytes route) const -> const Abstract& {
+  for (Count i = 0; i < linking_fields.get_size(); i++) {
+    const Field& field = linking_fields.get_data()[i].get();
+    if (field.get_name() == route) {
+      return field;
+    }
+  }
+
   return find_binding(addressable_bindings, route);
 }
 
@@ -895,6 +1005,13 @@ auto Types::Structure::resolve_external_type_binding(View::Bytes route) const
 
 auto Types::Structure::resolve_internal_context(View::Bytes route) const
     -> const Abstract& {
+  for (Count i = 0; i < linking_fields.get_size(); i++) {
+    const Field& field = linking_fields.get_data()[i].get();
+    if (field.get_name() == route) {
+      return field;
+    }
+  }
+
   const Abstract& member = find_field(field_observations, route);
   if (&member != &Invalid::get_invalid()) {
     return member;

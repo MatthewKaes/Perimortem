@@ -80,29 +80,50 @@ auto Language::Field::interpret(
   if (!name_token) {
     return {};
   }
+
   if (!transaction.require(
           Code::Type::Define,
           "Library Fields require `:` before their Type."_view)) {
     return {};
   }
 
-  auto type = Access::Type::parse(transaction);
-  if (!type) {
-    return {};
-  }
-
+  Option<Access::Type> type;
   Option<Expression&> initializer;
   if (transaction.matches(Code::Type::Assign)) {
     transaction.consume();
+    if (transaction.matches(Code::Type::Addressable) &&
+        transaction.current().caculate_text(transaction.get_source_text()) ==
+            "new"_view) {
+      transaction.create_token_error(
+          "An inferred Library Field cannot use `new`."_view,
+          "Name one exact Object Type before construction begins."_view);
+      return {};
+    }
+
     initializer = Parser::Expression::parse(
         domain, materializations, transaction, source_context);
     if (!initializer) {
       return {};
     }
-  } else if (writability != Writability::Full) {
-    transaction.create_token_error(
-        "Library state and const Fields require an initializer."_view);
-    return {};
+  } else {
+    auto authored_type = Access::Type::parse(transaction);
+    if (!authored_type) {
+      return {};
+    }
+    type = *authored_type;
+
+    if (transaction.matches(Code::Type::Assign)) {
+      transaction.consume();
+      initializer = Parser::Expression::parse(
+          domain, materializations, transaction, source_context);
+      if (!initializer) {
+        return {};
+      }
+    } else if (writability != Writability::Full) {
+      transaction.create_token_error(
+          "Library state and const Fields require an initializer."_view);
+      return {};
+    }
   }
 
   Token terminator = transaction.require(
@@ -114,7 +135,7 @@ auto Language::Field::interpret(
 
   View::Bytes name = name_token.caculate_text(transaction.get_source_text());
   Source field(
-      name, *type, documentation, exposure, writability,
+      name, type, documentation, exposure, writability,
       Anchor::create(name_token, Span(opening, terminator)), initializer);
   cursor.join(transaction);
   return field;
@@ -126,10 +147,11 @@ auto Language::Field::link(
     const Type& host,
     Source& field,
     const Abstract& selected) -> Option<Field&> {
-  if (!host.is<Language::Types::Structure>()) {
+  if (!host.is<Language::Types::Structure>() || field.is_inferred()) {
     source.report(
-        field.get_anchor(), "Field host is not one Library Structure."_view,
-        "Construct the Field through its exact containing Type."_view);
+        field.get_anchor(),
+        "Explicit Field linking requires one Structure host and Type route."_view,
+        "Use the authored Field provenance with its exact completion path."_view);
     return {};
   }
 
@@ -144,8 +166,34 @@ auto Language::Field::link(
     return {};
   }
 
-  return domain.construct_from<Field>(
-      [&]() -> Field { return Field(field, *type, host); });
+  return domain.construct_from<Field>([&]() -> Field {
+    return Field(field, Reference<const Type>(*type), host);
+  });
+}
+
+auto Language::Field::link_inferred(
+    Allocator::Arena& domain,
+    Tetrodotoxin::Language::Monograph& source,
+    Materializations& materializations,
+    const Type& host,
+    Source& field) -> Option<Field&> {
+  if (!host.is<Language::Types::Structure>() || !field.is_inferred() ||
+      !field.has_initializer()) {
+    source.report(
+        field.get_anchor(),
+        "Inferred Field construction requires one Structure host and "
+        "initializer."_view,
+        "Retain the authored inference on its exact containing Type."_view);
+    return {};
+  }
+
+  Field& inferred = domain.construct_from<Field>(
+      [&]() -> Field { return Field(field, {}, host); });
+  if (!inferred.link_initializer(source, materializations)) {
+    return {};
+  }
+
+  return inferred;
 }
 
 auto Language::Field::link_initializer(
@@ -163,14 +211,32 @@ auto Language::Field::link_initializer(
     return False;
   }
 
-  // Structure retains every Field before this barrier, so the exact Field can
-  // authenticate its host without inventing another initializer context.
+  // Structure either published the complete Field set or admitted this exact
+  // inferred candidate inside its private transaction. Both paths authenticate
+  // the real host without inventing another initializer context.
   Bool linked = initializer->link(monograph, *this, materializations);
   if (!linked) {
     return False;
   }
 
-  if (!initializer->fits(get_type())) {
+  if (!type) {
+    const Abstract& resolved_type = initializer->get_type().resolve();
+    auto initializer_type = resolved_type.select<Type>();
+    if (!initializer_type) {
+      monograph.report(
+          initializer->get_anchor(),
+          "Inferred Field initializer did not complete one stable Type."_view,
+          "Use an initializer whose exact Type settles before Field "
+          "publication."_view);
+      return False;
+    }
+
+    type = Reference<const Type>(*initializer_type);
+    initializer_linked = True;
+    return True;
+  }
+
+  if (!initializer->fits(type->get())) {
     monograph.report(
         initializer->get_anchor(),
         "Field initializer does not fit the declared Field Type's semantic "

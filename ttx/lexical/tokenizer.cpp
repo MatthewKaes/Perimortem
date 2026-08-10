@@ -282,9 +282,6 @@ auto Tokenizer::parse() -> void {
       if (ctx.peek_ahead(1) == '/') {
         ctx.parse_range<false, false>(Code::Type::Comment, '\n');
         break;
-      } else if (ctx.peek_ahead(1) == '>') {
-        parse_simple<Code::Type::Disabled>(ctx);
-        break;
       } else {
         parse_simple<Code::Type::DivOp>(ctx);
         break;

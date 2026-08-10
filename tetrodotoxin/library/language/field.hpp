@@ -11,6 +11,7 @@
 #include "tetrodotoxin/library/language/access/type.hpp"
 #include "tetrodotoxin/library/language/expression.hpp"
 #include "tetrodotoxin/library/language/materializations.hpp"
+#include "ttx/concept/reference.hpp"
 #include "ttx/lexical/anchor.hpp"
 #include "ttx/lexical/cursor.hpp"
 #include "ttx/model/addressable.hpp"
@@ -42,8 +43,14 @@ class Field : public Ttx::Model::Addressable {
       return name;
     }
 
-    constexpr auto get_type_access() const -> const Access::Type& {
-      return type_access;
+    auto get_type_access() const
+        -> Perimortem::Core::Option<const Access::Type&> {
+      return type_access.visit(
+          []() -> Perimortem::Core::Option<const Access::Type&> { return {}; },
+          [](const Access::Type& selected)
+              -> Perimortem::Core::Option<const Access::Type&> {
+            return selected;
+          });
     }
 
     constexpr auto get_documentation() const
@@ -59,11 +66,19 @@ class Field : public Ttx::Model::Addressable {
 
     constexpr auto get_anchor() const -> Ttx::Lexical::Anchor { return anchor; }
 
-    constexpr auto get_type_anchor() const -> Ttx::Lexical::Anchor {
-      return type_access.get_anchor();
+    auto get_type_anchor() const
+        -> Perimortem::Core::Option<Ttx::Lexical::Anchor> {
+      return type_access.visit(
+          []() -> Perimortem::Core::Option<Ttx::Lexical::Anchor> { return {}; },
+          [](const Access::Type& selected)
+              -> Perimortem::Core::Option<Ttx::Lexical::Anchor> {
+            return selected.get_anchor();
+          });
     }
 
     constexpr auto has_initializer() const -> Bool { return Bool(initializer); }
+
+    constexpr auto is_inferred() const -> Bool { return !type_access; }
 
     auto get_initializer() const -> Perimortem::Core::Option<const Expression&>;
 
@@ -71,7 +86,7 @@ class Field : public Ttx::Model::Addressable {
 
     constexpr Source(
         Perimortem::Core::View::Bytes name,
-        Access::Type type_access,
+        Perimortem::Core::Option<Access::Type> type_access,
         const Ttx::Concept::Documentation& documentation,
         Exposure exposure,
         Writability writability,
@@ -87,7 +102,7 @@ class Field : public Ttx::Model::Addressable {
 
    private:
     Perimortem::Core::View::Bytes name;
-    Access::Type type_access;
+    Perimortem::Core::Option<Access::Type> type_access;
     const Ttx::Concept::Documentation& documentation;
     Exposure exposure;
     Writability writability;
@@ -98,7 +113,8 @@ class Field : public Ttx::Model::Addressable {
  private:
   constexpr Field(
       Source& source,
-      const Ttx::Model::Type& type,
+      Perimortem::Core::Option<Ttx::Concept::Reference<const Ttx::Model::Type>>
+          type,
       const Ttx::Model::Type& host)
       : source(source),
         type(type),
@@ -128,6 +144,13 @@ class Field : public Ttx::Model::Addressable {
       const Ttx::Concept::Abstract& selected)
       -> Perimortem::Core::Option<Field&>;
 
+  static auto link_inferred(
+      Perimortem::Memory::Allocator::Arena& domain,
+      Tetrodotoxin::Language::Monograph& source,
+      Materializations& materializations,
+      const Ttx::Model::Type& host,
+      Source& field) -> Perimortem::Core::Option<Field&>;
+
   Field(const Field&) = delete;
   Field(Field&&) = delete;
   auto operator=(const Field&) -> Field& = delete;
@@ -153,13 +176,14 @@ class Field : public Ttx::Model::Addressable {
   }
 
   constexpr auto get_type() const -> const Ttx::Model::Type& override {
-    return type;
+    return type->get();
   }
 
   auto resolve_context(Perimortem::Core::View::Bytes route) const
       -> const Ttx::Concept::Abstract& override;
 
-  constexpr auto get_type_access() const -> const Access::Type& {
+  auto get_type_access() const
+      -> Perimortem::Core::Option<const Access::Type&> {
     return source.get_type_access();
   }
 
@@ -175,7 +199,8 @@ class Field : public Ttx::Model::Addressable {
     return source.get_anchor();
   }
 
-  constexpr auto get_type_anchor() const -> Ttx::Lexical::Anchor {
+  auto get_type_anchor() const
+      -> Perimortem::Core::Option<Ttx::Lexical::Anchor> {
     return source.get_type_anchor();
   }
 
@@ -191,7 +216,8 @@ class Field : public Ttx::Model::Addressable {
 
  private:
   Source& source;
-  const Ttx::Model::Type& type;
+  Perimortem::Core::Option<Ttx::Concept::Reference<const Ttx::Model::Type>>
+      type;
   const Ttx::Model::Type& host;
   Bool initializer_linked;
 };

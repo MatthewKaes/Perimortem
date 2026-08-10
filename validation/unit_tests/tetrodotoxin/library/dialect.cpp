@@ -1170,7 +1170,7 @@ PERIMORTEM_UNIT_TEST(DialectTests, rejected_source_alias_is_atomic) {
 }
 
 PERIMORTEM_UNIT_TEST(DialectTests, rejected_sources_publish_nothing) {
-  static constexpr Static::Vector<View::Bytes, 4> rejected = {{
+  static constexpr Static::Vector<View::Bytes, 5> rejected = {{
     "// Malformed prefix.\n"
     "dialect : Library;\n"
     "public broken[] -> Void {}"_view,
@@ -1183,6 +1183,9 @@ PERIMORTEM_UNIT_TEST(DialectTests, rejected_sources_publish_nothing) {
     "// Trailing invalid syntax.\n"
     "dialect : Library;\n"
     "public func valid[] -> Void {} trailing;"_view,
+    "// Inferred construction.\n"
+    "dialect : Library;\n"
+    "private value := new;"_view,
   }};
   Workspace workspace;
   ASSERT(workspace.install_dialect<Dialect>("Library"_view));
