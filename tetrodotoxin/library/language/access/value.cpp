@@ -5,6 +5,7 @@
 
 #include "perimortem/core/static/vector.hpp"
 
+#include "tetrodotoxin/library/dialect.hpp"
 #include "tetrodotoxin/library/language/constants/bytes.hpp"
 #include "tetrodotoxin/library/language/constants/signed.hpp"
 #include "tetrodotoxin/library/language/constants/unsigned.hpp"
@@ -411,6 +412,19 @@ auto Language::Access::Value::evaluate_constants(
                   -> Utility::Result<
                       Core::Option<Constant&>, Expression::Error> {
                 Core::View::Bytes value = bytes.get_value();
+                if (!index || *index >= value.get_size()) {
+                  // No payload element exists, so the exact element Type
+                  // decides whether safe selection has a value or a failure.
+                  auto fallback =
+                      Library::Dialect::create_default(domain, *element);
+                  if (!fallback) {
+                    return Expression::Error(
+                        Expression::Error::Type::InvalidConstant, *this);
+                  }
+
+                  return *fallback;
+                }
+
                 // Bytes exposes raw elements, but the result still carries the
                 // exact eight bit Unsigned Type selected during linking.
                 auto byte_type = get_byte_type(*element);
@@ -418,13 +432,6 @@ auto Language::Access::Value::evaluate_constants(
                   return Expression::Error(
                       Expression::Error::Type::InvalidConstant,
                       *authored_receiver);
-                }
-
-                // Bounds misses need the element Type's real default owner.
-                // Until that owner exists the semantic access remains valid
-                // but folding stays dynamic instead of inventing zero here.
-                if (!index || *index >= value.get_size()) {
-                  return Core::Option<Constant&>{};
                 }
 
                 Unsigned_64 selected = Unsigned_64(value.get_data()[*index]);
@@ -435,8 +442,7 @@ auto Language::Access::Value::evaluate_constants(
                   -> Utility::Result<
                       Core::Option<Constant&>, Expression::Error> {
                 // Bytes is the live Constant payload domain. Another legal
-                // ranged Constant stays as Value until its payload owner
-                // exists.
+                // Constant stays as Value until its payload owner exists.
                 return Core::Option<Constant&>{};
               });
         },
@@ -458,17 +464,31 @@ auto Language::Access::Value::evaluate_constants(
         return count.visit(
             [&](const Core::Option<Count>& count)
                 -> Utility::Result<Core::Option<Constant&>, Expression::Error> {
+              if (!start || !count) {
+                const Abstract& selected_type = get_type().resolve();
+                auto result_type = selected_type.select<Type>();
+                if (!result_type) {
+                  return Expression::Error(
+                      Expression::Error::Type::InvalidOperationType, *this);
+                }
+
+                // Conversion misses select the real View default before
+                // payload slicing. This keeps every safe range result on the
+                // same exact materialized Type as an ordinary slice.
+                auto fallback =
+                    Library::Dialect::create_default(domain, *result_type);
+                if (!fallback) {
+                  return Expression::Error(
+                      Expression::Error::Type::InvalidConstant, *this);
+                }
+
+                return *fallback;
+              }
+
               return receiver->visit<Constants::Bytes>(
                   [&](const Constants::Bytes& bytes)
                       -> Utility::Result<
                           Core::Option<Constant&>, Expression::Error> {
-                    // A value that cannot become an extent needs the real
-                    // default owner. Valid extents delegate empty and clipped
-                    // results to the same View contract used elsewhere.
-                    if (!start || !count) {
-                      return Core::Option<Constant&>{};
-                    }
-
                     Core::View::Bytes selected =
                         bytes.get_value().slice(*start, *count);
                     const Abstract& result_type = get_type().resolve();

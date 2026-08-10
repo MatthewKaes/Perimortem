@@ -15,6 +15,8 @@
 #include "tetrodotoxin/language/monograph.hpp"
 #include "tetrodotoxin/library/dialect.hpp"
 #include "tetrodotoxin/library/language/constants/bytes.hpp"
+#include "tetrodotoxin/library/language/constants/false.hpp"
+#include "tetrodotoxin/library/language/constants/real.hpp"
 #include "tetrodotoxin/library/language/constants/signed.hpp"
 #include "tetrodotoxin/library/language/constants/true.hpp"
 #include "tetrodotoxin/library/language/constants/unsigned.hpp"
@@ -80,6 +82,22 @@ class ValueExpression : public Expression {
   Ttx::Model::Layouts::Fluid inputs;
 };
 
+class ValueConstant : public Constant {
+ public:
+  explicit ValueConstant(const Ttx::Model::Type& type)
+      : Constant({}), type(type) {}
+
+  constexpr auto get_type() const -> const Ttx::Model::Type& override {
+    return type;
+  }
+  constexpr auto equals(const Constant& rhs) const -> Bool override {
+    return has_same_type(rhs);
+  }
+
+ private:
+  const Ttx::Model::Type& type;
+};
+
 class ValueFoldOperation : public Operation {
  public:
   ValueFoldOperation(
@@ -87,14 +105,16 @@ class ValueFoldOperation : public Operation {
       Materializations& materializations,
       Expression& input,
       Constant& result,
-      const Ttx::Model::Type& type)
+      const Ttx::Model::Type& type,
+      Bool fails = False)
       : Operation(
             domain,
             materializations,
             Static::Vector<Reference<Expression>, 1>{{input}},
             {}),
         result(result),
-        type(type) {}
+        type(type),
+        fails(fails) {}
 
   auto get_name() const -> View::Bytes override { return "Fold size"_view; }
   auto get_documentation() const -> const Documentation& override {
@@ -104,6 +124,10 @@ class ValueFoldOperation : public Operation {
  protected:
   auto evaluate_constants(Allocator::Arena&, Materializations&)
       -> Result<Option<Constant&>, Expression::Error> override {
+    if (fails) {
+      return Expression::Error(Expression::Error::Type::InvalidConstant, *this);
+    }
+
     return result;
   }
 
@@ -115,6 +139,7 @@ class ValueFoldOperation : public Operation {
  private:
   Constant& result;
   const Ttx::Model::Type& type;
+  Bool fails;
 };
 
 static auto is_dynamic(
@@ -151,6 +176,20 @@ static auto selected(
       [](const Expression::Error&) -> Option<Expression&> { return {}; });
 }
 
+static auto reports(
+    const Result<Option<Expression&>, Expression::Error>& result,
+    Expression::Error::Type expected,
+    const Expression& origin) -> Bool {
+  return result.visit(
+      [](const Option<Expression&>&) { return False; },
+      [&](const Expression::Error& error) {
+        return error.get_type() == expected &&
+                       &error.get_expression() == &origin
+                   ? True
+                   : False;
+      });
+}
+
 static auto get_view(const Abstract& type) -> Option<const Types::View&> {
   return type.visit<Types::View>(
       [](const Types::View& selected) -> Option<const Types::View&> {
@@ -165,6 +204,22 @@ static auto get_unsigned(const Expression& expression) -> Option<Unsigned_64> {
         return selected.get_value();
       },
       [](const Abstract&) -> Option<Unsigned_64> { return {}; });
+}
+
+static auto get_signed(const Expression& expression) -> Option<Signed_64> {
+  return expression.visit<Constants::Signed>(
+      [](const Constants::Signed& selected) -> Option<Signed_64> {
+        return selected.get_value();
+      },
+      [](const Abstract&) -> Option<Signed_64> { return {}; });
+}
+
+static auto get_real(const Expression& expression) -> Option<Real_64> {
+  return expression.visit<Constants::Real>(
+      [](const Constants::Real& selected) -> Option<Real_64> {
+        return selected.get_value();
+      },
+      [](const Abstract&) -> Option<Real_64> { return {}; });
 }
 
 static auto get_bytes(const Expression& expression) -> Option<View::Bytes> {
@@ -399,7 +454,7 @@ PERIMORTEM_UNIT_TEST(LibraryValue, operand_rejection_and_safe_bounds) {
   Allocator::Arena domain;
   ValueMonograph source(domain);
   Materializations materializations(domain);
-  Types::Unsigned_8 element;
+  const auto& element = Tetrodotoxin::Library::Dialect::get_unsigned_8();
   Types::Unsigned_64 integer;
   Types::Signed_64 signed_integer;
   Types::Boolean flag_type;
@@ -422,6 +477,8 @@ PERIMORTEM_UNIT_TEST(LibraryValue, operand_rejection_and_safe_bounds) {
       Value::create_synthetic(domain, materializations, bytes, zero, flag);
   auto& negative_index =
       Value::create_synthetic(domain, materializations, bytes, negative);
+  auto& maximum_index =
+      Value::create_synthetic(domain, materializations, bytes, maximum);
   auto& maximum_range =
       Value::create_synthetic(domain, materializations, bytes, zero, maximum);
   auto& negative_start =
@@ -444,6 +501,7 @@ PERIMORTEM_UNIT_TEST(LibraryValue, operand_rejection_and_safe_bounds) {
   EXPECT(!link_operation(invalid_operand, source, materializations));
   EXPECT(!link_operation(invalid_count, source, materializations));
   EXPECT(link_operation(negative_index, source, materializations));
+  EXPECT(link_operation(maximum_index, source, materializations));
   EXPECT(link_operation(maximum_range, source, materializations));
   EXPECT(link_operation(negative_start, source, materializations));
   EXPECT(link_operation(negative_size, source, materializations));
@@ -455,14 +513,33 @@ PERIMORTEM_UNIT_TEST(LibraryValue, operand_rejection_and_safe_bounds) {
   EXPECT(is_dynamic(invalid_receiver.fold()));
   EXPECT(is_dynamic(invalid_operand.fold()));
   EXPECT(is_dynamic(invalid_count.fold()));
-  EXPECT(is_dynamic(negative_index.fold()));
-  EXPECT(is_dynamic(negative_start.fold()));
-  EXPECT(is_dynamic(negative_size.fold()));
-  EXPECT(is_dynamic(index_bounds.fold()));
-  EXPECT(is_dynamic(nested_index_bounds.fold()));
+  auto negative_index_value = selected(negative_index.fold());
+  auto maximum_index_value = selected(maximum_index.fold());
+  auto negative_start_value = selected(negative_start.fold());
+  auto negative_size_value = selected(negative_size.fold());
+  auto index_bounds_value = selected(index_bounds.fold());
+  auto nested_index_value = selected(nested_index_bounds.fold());
   auto maximum_range_value = selected(maximum_range.fold());
   auto start_value = selected(start_bounds.fold());
   auto size_value = selected(size_bounds.fold());
+  auto negative_index_default = negative_index_value
+                                    ? get_unsigned(*negative_index_value)
+                                    : Option<Unsigned_64>();
+  auto maximum_index_default = maximum_index_value
+                                   ? get_unsigned(*maximum_index_value)
+                                   : Option<Unsigned_64>();
+  auto index_bounds_default = index_bounds_value
+                                  ? get_unsigned(*index_bounds_value)
+                                  : Option<Unsigned_64>();
+  auto nested_index_default = nested_index_value
+                                  ? get_unsigned(*nested_index_value)
+                                  : Option<Unsigned_64>();
+  auto negative_start_bytes = negative_start_value
+                                  ? get_bytes(*negative_start_value)
+                                  : Option<View::Bytes>();
+  auto negative_size_bytes = negative_size_value
+                                 ? get_bytes(*negative_size_value)
+                                 : Option<View::Bytes>();
   auto maximum_range_bytes = maximum_range_value
                                  ? get_bytes(*maximum_range_value)
                                  : Option<View::Bytes>();
@@ -470,13 +547,137 @@ PERIMORTEM_UNIT_TEST(LibraryValue, operand_rejection_and_safe_bounds) {
       start_value ? get_bytes(*start_value) : Option<View::Bytes>();
   auto size_bytes = size_value ? get_bytes(*size_value) : Option<View::Bytes>();
 
-  ASSERT(maximum_range_bytes);
+  ASSERT(
+      negative_index_default && maximum_index_default && index_bounds_default &&
+      nested_index_default && negative_start_bytes && negative_size_bytes &&
+      maximum_range_bytes);
   ASSERT(start_bytes);
   ASSERT(size_bytes);
+  EXPECT(*negative_index_default == 0);
+  EXPECT(*maximum_index_default == 0);
+  EXPECT(*index_bounds_default == 0);
+  EXPECT(*nested_index_default == 0);
+  EXPECT(&negative_index_value->get_type() == &element);
+  EXPECT(&maximum_index_value->get_type() == &element);
+  EXPECT(&index_bounds_value->get_type() == &element);
+  EXPECT(&nested_index_value->get_type() == &element);
+  EXPECT(negative_start_bytes->is_empty());
+  EXPECT(negative_size_bytes->is_empty());
+  EXPECT(&negative_start_value->get_type() == &negative_start.get_type());
+  EXPECT(&negative_size_value->get_type() == &negative_size.get_type());
   EXPECT_TEXT(*maximum_range_bytes, "abc"_view);
   EXPECT(start_bytes->is_empty());
   EXPECT_TEXT(*size_bytes, "c"_view);
   EXPECT(&invalid_receiver.get_type() == &Invalid::get_invalid());
   EXPECT(&invalid_operand.get_type() == &Invalid::get_invalid());
   EXPECT(&invalid_count.get_type() == &Invalid::get_invalid());
+}
+
+PERIMORTEM_UNIT_TEST(LibraryValue, scalar_defaults) {
+  Allocator::Arena domain;
+  ValueMonograph source(domain);
+  Materializations materializations(domain);
+  const auto& boolean = Tetrodotoxin::Library::Dialect::get_bool();
+  const auto& signed_integer = Tetrodotoxin::Library::Dialect::get_signed_64();
+  const auto& real = Tetrodotoxin::Library::Dialect::get_real_64();
+  const auto& index_type = Tetrodotoxin::Library::Dialect::get_unsigned_64();
+  Types::Fixed booleans("Fixed[Bool,0]"_view, boolean, 0);
+  Types::Fixed signed_values("Fixed[Signed_64,0]"_view, signed_integer, 0);
+  Types::Fixed real_values("Fixed[Real_64,0]"_view, real, 0);
+  auto& boolean_bytes =
+      Constants::Bytes::create_synthetic(domain, booleans, {});
+  auto& signed_bytes =
+      Constants::Bytes::create_synthetic(domain, signed_values, {});
+  auto& real_bytes =
+      Constants::Bytes::create_synthetic(domain, real_values, {});
+  auto& zero = Constants::Unsigned::create_synthetic(domain, index_type, 0);
+  auto& boolean_default =
+      Value::create_synthetic(domain, materializations, boolean_bytes, zero);
+  auto& signed_default =
+      Value::create_synthetic(domain, materializations, signed_bytes, zero);
+  auto& real_default =
+      Value::create_synthetic(domain, materializations, real_bytes, zero);
+
+  EXPECT(link_operation(boolean_default, source, materializations));
+  EXPECT(link_operation(signed_default, source, materializations));
+  EXPECT(link_operation(real_default, source, materializations));
+
+  auto boolean_value = selected(boolean_default.fold());
+  auto signed_value = selected(signed_default.fold());
+  auto real_value = selected(real_default.fold());
+  auto signed_payload =
+      signed_value ? get_signed(*signed_value) : Option<Signed_64>();
+  auto real_payload = real_value ? get_real(*real_value) : Option<Real_64>();
+
+  ASSERT(boolean_value && signed_payload && real_payload);
+  EXPECT(boolean_value->is<Constants::False>());
+  EXPECT(*signed_payload == 0);
+  EXPECT(*real_payload == 0.0);
+  EXPECT(&boolean_value->get_type() == &boolean);
+  EXPECT(&signed_value->get_type() == &signed_integer);
+  EXPECT(&real_value->get_type() == &real);
+}
+
+PERIMORTEM_UNIT_TEST(LibraryValue, unsupported_default_and_payload) {
+  Allocator::Arena domain;
+  ValueMonograph source(domain);
+  Materializations materializations(domain);
+  Types::Unsigned_8 unsupported_element;
+  const auto& integer = Tetrodotoxin::Library::Dialect::get_unsigned_64();
+  const auto& signed_integer = Tetrodotoxin::Library::Dialect::get_signed_64();
+  Types::Fixed fixed("Fixed[Unsigned_8,1]"_view, unsupported_element, 1);
+  auto& bytes = Constants::Bytes::create_synthetic(domain, fixed, "a"_view);
+  ValueConstant opaque(fixed);
+  auto& zero = Constants::Unsigned::create_synthetic(domain, integer, 0);
+  auto& one = Constants::Unsigned::create_synthetic(domain, integer, 1);
+  auto& negative =
+      Constants::Signed::create_synthetic(domain, signed_integer, -1);
+  auto& missing = Value::create_synthetic(domain, materializations, bytes, one);
+  auto& unsupported =
+      Value::create_synthetic(domain, materializations, opaque, zero);
+  auto& safe_range =
+      Value::create_synthetic(domain, materializations, opaque, negative, one);
+
+  EXPECT(link_operation(missing, source, materializations));
+  EXPECT(link_operation(unsupported, source, materializations));
+  EXPECT(link_operation(safe_range, source, materializations));
+
+  EXPECT(reports(
+      missing.fold(), Expression::Error::Type::InvalidConstant, missing));
+  EXPECT(is_dynamic(unsupported.fold()));
+  auto range_value = selected(safe_range.fold());
+  auto range_bytes =
+      range_value ? get_bytes(*range_value) : Option<View::Bytes>();
+  ASSERT(range_bytes);
+  EXPECT(range_bytes->is_empty());
+  EXPECT(&range_value->get_type() == &safe_range.get_type());
+  EXPECT(&missing.get_type() == &unsupported_element);
+  EXPECT(&unsupported.get_type() == &unsupported_element);
+}
+
+PERIMORTEM_UNIT_TEST(LibraryValue, child_failure_propagates) {
+  Allocator::Arena domain;
+  ValueMonograph source(domain);
+  Materializations materializations(domain);
+  const auto& element = Tetrodotoxin::Library::Dialect::get_unsigned_8();
+  const auto& integer = Tetrodotoxin::Library::Dialect::get_unsigned_64();
+  Types::Fixed fixed("Fixed[Unsigned_8,1]"_view, element, 1);
+  auto& bytes = Constants::Bytes::create_synthetic(domain, fixed, "a"_view);
+  auto& zero = Constants::Unsigned::create_synthetic(domain, integer, 0);
+  auto& one = Constants::Unsigned::create_synthetic(domain, integer, 1);
+  ValueFoldOperation failing(
+      domain, materializations, zero, one, integer, True);
+  auto& access =
+      Value::create_synthetic(domain, materializations, bytes, failing);
+
+  EXPECT(link_operation(access, source, materializations));
+
+  auto direct = failing.fold();
+  auto propagated = access.fold();
+  auto repeated = access.fold();
+
+  EXPECT(reports(direct, Expression::Error::Type::InvalidConstant, failing));
+  EXPECT(
+      reports(propagated, Expression::Error::Type::InvalidConstant, failing));
+  EXPECT(reports(repeated, Expression::Error::Type::InvalidConstant, failing));
 }
