@@ -15,7 +15,7 @@ class Void : public Ttx::Model::Type {
  public:
   TTX_NAME("Void"_view);
 
-  TTX_CONSTEXPR_DOCUMENTATION(documentation);
+  TTX_DOCUMENTATION(documentation);
 
   TTX_INVALID_CONTEXT;
 

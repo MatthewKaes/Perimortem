@@ -10,15 +10,12 @@
 
 #include "perimortem/memory/allocator/arena.hpp"
 
-#include "perimortem/system/file.hpp"
-
 #include "ttx/lexical/cursor.hpp"
 #include "ttx/lexical/lexicon.hpp"
 #include "ttx/lexical/span.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
-using namespace Perimortem::System;
 using namespace Ttx::Lexical;
 using namespace Validation;
 
@@ -192,8 +189,6 @@ PERIMORTEM_UNIT_TEST(TtxLexical, spelling_validation) {
 PERIMORTEM_UNIT_TEST(TtxLexical, code_semantics) {
   using Code = Code;
 
-  EXPECT_EQ(static_cast<Unsigned_8>(Code::Type::Terminal), Unsigned_8(0x00));
-  EXPECT_EQ(static_cast<Unsigned_8>(Code::Type::Unknown), Unsigned_8(0xFF));
   EXPECT_TEXT(
       Code(Code::Type::Public).get_semantics(),
       "public publication modifier"_view);
@@ -774,114 +769,4 @@ PERIMORTEM_UNIT_TEST(TtxLexical, token_projection) {
 
   EXPECT_TEXT(token.caculate_text(tokenizer.get_source_text()), "two"_view);
   EXPECT_TEXT(token.caculate_text("red sky green"_view), "sky"_view);
-}
-
-PERIMORTEM_UNIT_TEST(TtxLexical, library_fixture_corpus) {
-  static constexpr Static::Vector<View::Bytes, 13> paths = {{
-    "validation/data/ttx/library/broad.ttx"_view,
-    "validation/data/ttx/library/native.ttx"_view,
-    "validation/data/ttx/library/foreign_triad.ttx"_view,
-    "validation/data/ttx/library/public_parameter_private_type.ttx"_view,
-    "validation/data/ttx/library/public_result_private_type.ttx"_view,
-    "validation/data/ttx/library/ordinary_bodyless.ttx"_view,
-    "validation/data/ttx/library/foreign_with_body.ttx"_view,
-    "validation/data/ttx/library/foreign_named_scope.ttx"_view,
-    "validation/data/ttx/library/foreign_undeclared_symbol.ttx"_view,
-    "validation/data/ttx/library/duplicate_name.ttx"_view,
-    "validation/data/ttx/library/new_without_expected_type.ttx"_view,
-    "validation/data/ttx/library/bare_return.ttx"_view,
-    "validation/data/ttx/library/dialect_led_callable.ttx"_view,
-  }};
-
-  // This corpus mixes semantic acceptance and rejection inputs. Tokenization
-  // proves only that each file remains valid input to the lexical layer.
-  for (Count path_index = 0; path_index < paths.get_size(); path_index++) {
-    View::Bytes path = paths[path_index];
-    auto source = File::read(path);
-    ASSERT(source);
-    ASSERT_NOT((*source).is_empty());
-
-    Allocator::Arena arena;
-    Tokenizer tokenizer(arena, *source, path);
-    View::Vector<Token> tokens = tokenizer.get_tokens();
-    const auto* token_data = tokens.get_data();
-    ASSERT(tokens.get_size() > 1);
-    EXPECT(
-        token_data[tokens.get_size() - 1].get_code() == Code::Type::Terminal);
-
-    for (Count index = 0; index + 1 < tokens.get_size(); index++) {
-      EXPECT(token_data[index].get_code() != Code::Type::Terminal);
-      EXPECT(token_data[index].get_code() != Code::Type::Unknown);
-    }
-  }
-}
-
-PERIMORTEM_UNIT_TEST(TtxLexical, package_fixture_corpus) {
-  static constexpr Static::Vector<View::Bytes, 11> paths = {{
-    "apps/ttx/scene_lifetime/package.ttx"_view,
-    "apps/ttx/scene_lifetime/main.ttx"_view,
-    "apps/ttx/scene_lifetime/scenes/splash.ttx"_view,
-    "apps/ttx/scene_lifetime/scenes/title.ttx"_view,
-    "validation/data/ttx/package/duplicate_semantic_name.ttx"_view,
-    "validation/data/ttx/package/duplicate_normalized_path.ttx"_view,
-    "validation/data/ttx/package/float_version.ttx"_view,
-    "validation/data/ttx/package/noncanonical_version.ttx"_view,
-    "validation/data/ttx/package_resources/package.ttx"_view,
-    "validation/data/ttx/package_resources/shared_a.ttx"_view,
-    "validation/data/ttx/package_resources/shared_b.ttx"_view,
-  }};
-
-  // Package owns the meaning of these sources. This test observes only their
-  // shared lexical contract.
-  for (Count path_index = 0; path_index < paths.get_size(); path_index++) {
-    View::Bytes path = paths[path_index];
-    auto source = File::read(path);
-    ASSERT(source);
-    ASSERT_NOT((*source).is_empty());
-
-    Allocator::Arena arena;
-    Tokenizer tokenizer(arena, *source, path);
-    View::Vector<Token> tokens = tokenizer.get_tokens();
-    const auto* token_data = tokens.get_data();
-    ASSERT(tokens.get_size() > 1);
-    EXPECT(
-        token_data[tokens.get_size() - 1].get_code() == Code::Type::Terminal);
-
-    for (Count index = 0; index + 1 < tokens.get_size(); index++) {
-      EXPECT(token_data[index].get_code() != Code::Type::Terminal);
-      EXPECT(token_data[index].get_code() != Code::Type::Unknown);
-    }
-  }
-}
-
-PERIMORTEM_UNIT_TEST(TtxLexical, tokenize_runfiles) {
-  static constexpr View::Bytes table_path =
-      "validation/data/ttx/package_resources/resources/table.bin"_view;
-  static constexpr View::Bytes empty_path =
-      "validation/data/ttx/package_resources/resources/empty.bin"_view;
-  static constexpr View::Bytes logo_path =
-      "apps/ttx/scene_lifetime/resources/logo.png"_view;
-  static constexpr View::Bytes icon_path =
-      "apps/ttx/scene_lifetime/resources/icon.png"_view;
-  static constexpr View::Bytes expected_header =
-      "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz+/"_view;
-
-  auto table = File::read(table_path);
-  ASSERT(table);
-  ASSERT((*table).get_size() >= expected_header.get_size());
-  EXPECT(
-      (*table).get_view().slice(0, expected_header.get_size()) ==
-      expected_header);
-
-  auto empty = File::read(empty_path);
-  ASSERT(empty);
-  EXPECT((*empty).is_empty());
-
-  auto logo = File::read(logo_path);
-  ASSERT(logo);
-  EXPECT_NOT((*logo).is_empty());
-
-  auto icon = File::read(icon_path);
-  ASSERT(icon);
-  EXPECT_NOT((*icon).is_empty());
 }

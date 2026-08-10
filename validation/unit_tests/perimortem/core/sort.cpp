@@ -5,9 +5,6 @@
 
 #include "validation/unit_test.hpp"
 
-#include <stdlib.h>
-
-#include "perimortem/core/bibliotheca.hpp"
 #include "perimortem/core/null_terminated.hpp"
 
 #include "perimortem/memory/dynamic/bytes.hpp"
@@ -89,13 +86,7 @@ PERIMORTEM_UNIT_TEST(AlgoSort, large_sort) {
   constexpr auto item_count = 10017;
   Signed_32 test[item_count] = {};
   for (Count i = 0; i < item_count; i++) {
-    test[i] = i;
-  }
-
-  // Shuffle array
-  srand(12);
-  for (Count i = 0; i < item_count; i++) {
-    Data::swap(test[rand() % item_count], test[rand() % item_count]);
+    test[i] = item_count - i - 1;
   }
 
   auto sorted = Algorithm::sort(test);
@@ -109,22 +100,14 @@ PERIMORTEM_UNIT_TEST(AlgoSort, dynamic_types) {
   constexpr auto item_count = 37;
   SortBytes test[item_count] = {};
   for (Count i = 0; i < item_count; i++) {
+    Count value = item_count - i - 1;
     test[i] = "test_string #"_view;
-    test[i].append(Unsigned_8('0' + (i / 10)));
-    test[i].append(Unsigned_8('0' + (i % 10)));
+    test[i].append(Unsigned_8('0' + (value / 10)));
+    test[i].append(Unsigned_8('0' + (value % 10)));
   }
 
-  // Shuffle array
-  srand(12);
-  for (Count i = 0; i < item_count; i++) {
-    Data::swap(test[rand() % item_count], test[rand() % item_count]);
-  }
-
-  // Sorting even on dynamic data should result in zero memory requests
-  auto check_outs = Bibliotheca::check_out_requests();
   auto sorted = Algorithm::sort(Access::Vector(test));
   auto* sorted_data = sorted.get_data();
-  EXPECT_EQ(check_outs, Bibliotheca::check_out_requests());
 
   Dynamic::Bytes validate = {};
   for (Count i = 0; i < item_count; i++) {

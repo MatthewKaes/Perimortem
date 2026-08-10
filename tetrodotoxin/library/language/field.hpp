@@ -162,7 +162,7 @@ class Field : public Ttx::Model::Addressable {
 
   TTX_NAME(source.get_name());
 
-  TTX_CONSTEXPR_DOCUMENTATION(source.get_documentation());
+  TTX_DOCUMENTATION(source.get_documentation());
 
   constexpr auto get_type() const -> const Ttx::Model::Type& override {
     return type->get();

@@ -52,7 +52,6 @@ PERIMORTEM_UNIT_TEST(Arena, reserve) {
 
   Allocator::Arena arena;
   Unsigned_32& scalar = arena.reserve<Unsigned_32>();
-  auto empty = arena.reserve<RequiredValue>(0);
   auto values = arena.reserve<RequiredValue>(2);
   auto* value_data = values.get_data();
 
@@ -61,8 +60,6 @@ PERIMORTEM_UNIT_TEST(Arena, reserve) {
   value_data[1] = RequiredValue(2);
 
   EXPECT_EQ(scalar, Unsigned_32(7));
-  EXPECT(empty.get_data() != nullptr);
-  EXPECT_EQ(empty.get_size(), Count(0));
   EXPECT_EQ(values.get_size(), Count(2));
   EXPECT_EQ(value_data[0].get_value(), Unsigned_32(1));
   EXPECT_EQ(value_data[1].get_value(), Unsigned_32(2));

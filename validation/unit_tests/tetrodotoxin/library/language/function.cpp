@@ -360,46 +360,6 @@ PERIMORTEM_UNIT_TEST(FunctionTests, stable_authored_graph) {
   EXPECT(&*return_expression == &expressions.get_data()[1].get());
 }
 
-PERIMORTEM_UNIT_TEST(FunctionTests, direct_parameter_and_bare_return) {
-  static constexpr View::Bytes source =
-      "private func stop Bool -> [] { return; }"_view;
-  Allocator::Arena arena;
-  Language::Materializations materializations(arena);
-  Errors errors;
-  Tokenizer tokenizer(arena, source, "bare-return.ttx"_view);
-  Cursor cursor(tokenizer, errors);
-  SignatureTypes types;
-  FunctionParent parent(arena, types);
-  auto function = Language::Function::reserve(
-      arena, cursor, function_documentation, parent, types, materializations);
-  ASSERT(function);
-  ASSERT(function->complete(cursor));
-  ASSERT(function->link());
-
-  ASSERT_EQ(function->get_parameters().get_size(), Count(1));
-  EXPECT(function->get_parameters().get_abstract(0).visit(
-      []() { return False; },
-      [&types](const Abstract& edge) {
-        return &edge == &types.boolean ? True : False;
-      }));
-  auto signature = function->get_signature();
-  ASSERT(signature);
-  ASSERT_EQ(signature->get_parameter_size(), Count(1));
-  ASSERT(signature->get_parameter_anchor(0));
-  EXPECT_TEXT(
-      signature->get_parameter_anchor(0)->get_span().caculate_text(source),
-      "Bool"_view);
-  EXPECT(signature->get_result_size() == 0);
-  EXPECT(function->get_expressions().is_empty());
-  EXPECT_TEXT(
-      function->get_return_token().caculate_text(source), "return"_view);
-  EXPECT_TEXT(
-      function->get_return_span().caculate_text(source), "return;"_view);
-  EXPECT_NOT(function->get_return_expression());
-  EXPECT(cursor.matches(Code::Type::Terminal));
-  EXPECT(errors.is_empty());
-}
-
 PERIMORTEM_UNIT_TEST(FunctionTests, self_is_exact_host_parameter) {
   static constexpr View::Bytes source =
       "public func inspect[self, .value : Bool] -> Bool { return value; }"_view;

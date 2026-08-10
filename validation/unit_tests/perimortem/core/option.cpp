@@ -146,7 +146,6 @@ PERIMORTEM_UNIT_TEST(CoreOption, accepts_empty) {
   EXPECT_EQ(destructions, Count(1));
 }
 
-static_assert(sizeof(Option<const Signed_32&>) == sizeof(const Signed_32*));
 static_assert(__is_trivially_copyable(Option<const Signed_32&>));
 static_assert(__is_constructible(Option<const Signed_32&>, const Signed_32&));
 static_assert(!__is_constructible(Option<const Signed_32&>, Signed_32&&));

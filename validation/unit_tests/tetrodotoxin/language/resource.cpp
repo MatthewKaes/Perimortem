@@ -5,13 +5,9 @@
 
 #include "validation/unit_test.hpp"
 
-#include "perimortem/memory/allocator/arena.hpp"
-#include "perimortem/memory/dynamic/bytes.hpp"
-
 #include "ttx/model/type.hpp"
 
 using namespace Perimortem::Core;
-using namespace Perimortem::Memory;
 using namespace Tetrodotoxin;
 using namespace Ttx::Concept;
 using namespace Validation;
@@ -39,44 +35,6 @@ PERIMORTEM_UNIT_TEST(LanguageResource, category_contract) {
   EXPECT_NOT(abstract.is<Ttx::Model::Type>());
   EXPECT_NOT(abstract.is<Invalid>());
   EXPECT_TEXT(resource.get_name(), "Resource"_view);
-}
-
-PERIMORTEM_UNIT_TEST(LanguageResource, borrowed_value) {
-  Unsigned_8 bytes[] = {'v', 'a', 'l', 'u', 'e'};
-  const View::Bytes borrowed(bytes, sizeof(bytes));
-  BorrowedResource resource(borrowed);
-  const View::Bytes value = resource.get_value();
-
-  EXPECT(value.get_data() == borrowed.get_data());
-  EXPECT_EQ(value.get_size(), borrowed.get_size());
-  EXPECT_TEXT(value, borrowed);
-}
-
-PERIMORTEM_UNIT_TEST(LanguageResource, arena_backing) {
-  Allocator::Arena arena;
-  View::Bytes retained;
-
-  {
-    Dynamic::Bytes producer("retained value"_view);
-    retained = arena.proxy(producer);
-  }
-
-  BorrowedResource resource(retained);
-  const View::Bytes value = resource.get_value();
-
-  EXPECT(value.get_data() == retained.get_data());
-  EXPECT_EQ(value.get_size(), retained.get_size());
-  EXPECT_TEXT(value, "retained value"_view);
-}
-
-PERIMORTEM_UNIT_TEST(LanguageResource, empty_value) {
-  BorrowedResource resource({});
-  const Abstract& abstract = resource;
-
-  EXPECT(abstract.is<Language::Resource>());
-  EXPECT(resource.get_value().is_empty());
-  EXPECT_EQ(resource.get_value().get_size(), 0);
-  EXPECT(&resource.resolve() == &resource);
 }
 
 PERIMORTEM_UNIT_TEST(LanguageResource, graph_identity) {

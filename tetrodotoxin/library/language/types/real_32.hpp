@@ -14,7 +14,7 @@ class Real_32 : public Ttx::Model::Types::Real {
  public:
   TTX_NAME("Real_32"_view);
 
-  TTX_CONSTEXPR_DOCUMENTATION(documentation);
+  TTX_DOCUMENTATION(documentation);
 
   constexpr auto get_width() const -> Count override { return 32; }
   constexpr auto get_size() const -> Count override {

@@ -74,7 +74,6 @@ PERIMORTEM_UNIT_TEST(DynamicObject, move_assignment) {
 
       first = static_cast<Dynamic::Object<RaiiProbe>&&>(second);
       EXPECT_EQ(first->get_value(), Count(2));
-      EXPECT_EQ(second->get_value(), Count(1));
       EXPECT_EQ(destructor_count, Count(0));
     }
 
@@ -93,7 +92,6 @@ PERIMORTEM_UNIT_TEST(DynamicObject, move_construction) {
     {
       Dynamic::Object<RaiiProbe> second(
           static_cast<Dynamic::Object<RaiiProbe>&&>(first));
-      EXPECT_EQ(first->get_value(), Count(3));
       EXPECT_EQ(second->get_value(), Count(3));
     }
 

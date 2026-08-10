@@ -12,7 +12,7 @@ program.
 | [`library/`](library/) | Library source examples, focused rejection inputs, Foreign declarations, and a native C harness |
 | [`package/`](package/) | Focused invalid Package manifests |
 | [`package_resources/`](package_resources/) | A Package with two Library members that share retained resource input |
-| [`oracles/`](oracles/) | Exact standard-stream and Scene-lifecycle observations |
+| [`oracles/`](oracles/) | Exact Scene-lifecycle observations |
 | [`shader_artifact/`](shader_artifact/) | Preserved Shader and render-format source used for lexical and migration coverage |
 
 ## Access syntax in fixtures
@@ -73,12 +73,10 @@ These files distinguish several resource facts:
 
 ## Process observations
 
-The Echo files define one exact stream interaction:
-
-- [`echo.stdin`](oracles/echo.stdin) contains `hello` and `quit` lines;
-- [`echo.stdout`](oracles/echo.stdout) contains `Echo: hello`;
-- [`echo.contract`](oracles/echo.contract) requires empty standard error, exit
-  status zero, and a one-second timeout.
+Unit validation runs a reserved self-process fixture to prove exact standard
+input, standard output, standard error, exit status, and timeout observation.
+That fixture validates the process observer itself; it is not evidence for a
+generated TTX Terminal.
 
 [`scene_lifetime.golden`](oracles/scene_lifetime.golden) records deterministic
 Scene clock steps, hosted state and submission order, signals, releases,

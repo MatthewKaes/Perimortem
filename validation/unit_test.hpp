@@ -5,11 +5,10 @@
 // against Perimortem, the framework uses Perimortem types throughout rather
 // than raw C equivalents.
 //
-// The framework still targets a single compilation unit (unit_test.cpp) to keep
-// each test TU as lean as possible.
+// One runner owns registration and reporting while each test translation unit
+// contributes only its cases and Harness.
 
-/* Explicitly don't protect the include to catch multiple includes */
-// #pragma once
+#pragma once
 
 #include "validation/harness.hpp"
 
@@ -268,11 +267,13 @@ class TestEntry {
 
 }  // namespace Validation::Test
 
-#define PERIMORTEM_UNIT_TEST(harness, name)                                 \
-  auto __##harness##__##name(Validation::Test::TestResult& result) -> void; \
-  namespace {                                                               \
-  Validation::Test::TestEntry _reg_##harness##_##name = {                   \
-    harness, #name##_view, __##harness##__##name,                           \
-    Perimortem::Core::NullTerminated::to_view(__FILE__), __LINE__};         \
-  }                                                                         \
-  auto __##harness##__##name(Validation::Test::TestResult& result) -> void
+#define PERIMORTEM_UNIT_TEST(harness, name)                                  \
+  static auto validation_test_##harness##_##name(                            \
+      Validation::Test::TestResult& result) -> void;                         \
+  namespace {                                                                \
+  Validation::Test::TestEntry validation_registration_##harness##_##name = { \
+    harness, #name##_view, validation_test_##harness##_##name,               \
+    Perimortem::Core::NullTerminated::to_view(__FILE__), __LINE__};          \
+  }                                                                          \
+  static auto validation_test_##harness##_##name(                            \
+      Validation::Test::TestResult& result) -> void

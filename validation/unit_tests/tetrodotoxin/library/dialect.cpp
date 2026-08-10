@@ -6,8 +6,11 @@
 #include "validation/unit_test.hpp"
 
 #include "perimortem/core/static/vector.hpp"
+#include "perimortem/core/algorithm/search.hpp"
 
 #include "perimortem/memory/allocator/arena.hpp"
+
+#include "perimortem/system/file.hpp"
 
 #include "tetrodotoxin/environment/workspace.hpp"
 #include "tetrodotoxin/library/language/constants/unsigned.hpp"
@@ -28,6 +31,7 @@
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
+using namespace Perimortem::System;
 using namespace Perimortem::Utility;
 using namespace Ttx::Concept;
 using namespace Ttx::Lexical;
@@ -981,21 +985,6 @@ PERIMORTEM_UNIT_TEST(DialectTests, source_categories_share_one_spelling) {
   EXPECT(errors.is_empty());
 }
 
-PERIMORTEM_UNIT_TEST(DialectTests, duplicate_source_field_is_atomic) {
-  static constexpr View::Bytes source =
-      "public repeated : Bool;\nprivate repeated : Bool;"_view;
-  Allocator::Arena arena;
-  EmptyRegistry registry;
-  Dialect dialect;
-  Errors errors;
-  Tokenizer tokenizer(arena, source, "duplicate-source-field.ttx"_view);
-  Cursor cursor(tokenizer, errors);
-  auto interpreted =
-      dialect.interpret(arena, cursor, Documentation::get_empty(), registry);
-  EXPECT_NOT(interpreted);
-  EXPECT_NOT(errors.is_empty());
-}
-
 PERIMORTEM_UNIT_TEST(DialectTests, top_level_self_fails_signature_linking) {
   static constexpr View::Bytes source =
       "public func invalid[self] -> Void {}"_view;
@@ -1169,35 +1158,106 @@ PERIMORTEM_UNIT_TEST(DialectTests, rejected_source_alias_is_atomic) {
   }
 }
 
-PERIMORTEM_UNIT_TEST(DialectTests, rejected_sources_publish_nothing) {
-  static constexpr Static::Vector<View::Bytes, 5> rejected = {{
-    "// Malformed prefix.\n"
-    "dialect : Library;\n"
-    "public broken[] -> Void {}"_view,
-    "// Incomplete signature.\n"
-    "dialect : Library;\n"
-    "public func broken[Bool] ->"_view,
-    "// Bodyless definition.\n"
-    "dialect : Library;\n"
-    "public func broken[] -> Void;"_view,
-    "// Trailing invalid syntax.\n"
-    "dialect : Library;\n"
-    "public func valid[] -> Void {} trailing;"_view,
-    "// Inferred construction.\n"
-    "dialect : Library;\n"
-    "private value := new;"_view,
+PERIMORTEM_UNIT_TEST(DialectTests, focused_fixture_rejections) {
+  struct Rejection {
+    View::Bytes path;
+    View::Bytes message;
+    View::Bytes source_line;
+  };
+  static constexpr Static::Vector<Rejection, 5> rejections = {{
+    Rejection{
+      "validation/data/ttx/library/dialect_led_callable.ttx"_view,
+      "Library Fields require `public`, `private`, or `expose` publication."_view,
+      "Library legacy[] -> Void {"_view,
+    },
+    {
+      "validation/data/ttx/library/duplicate_name.ttx"_view,
+      "Duplicate Field name in this Library Structure."_view,
+      "public duplicate : Unsigned_64 = 2;"_view,
+    },
+    {
+      "validation/data/ttx/library/foreign_named_scope.ttx"_view,
+      "Library Type declarations require `alias`, `enum`, `struct`, or `object`."_view,
+      "private C : foreign {"_view,
+    },
+    {
+      "validation/data/ttx/library/new_without_expected_type.ttx"_view,
+      "An inferred Library Field cannot use `new`."_view,
+      "private state inferred := new;"_view,
+    },
+    {
+      "validation/data/ttx/library/ordinary_bodyless.ttx"_view,
+      "Library Function signatures require a body beginning with `{`."_view,
+      "public func missing_body[] -> Unsigned_64;"_view,
+    },
   }};
-  Workspace workspace;
-  ASSERT(workspace.install_dialect<Dialect>("Library"_view));
 
-  // A failed source never enters Workspace lookup, so the same exact semantic
-  // name can exercise each independent rejection without replacement state.
-  for (Count i = 0; i < rejected.get_size(); i++) {
+  for (Count i = 0; i < rejections.get_size(); i++) {
+    const Rejection& rejection = rejections[i];
+    auto source = File::read(rejection.path);
+    ASSERT(source);
+
+    Workspace workspace;
     Errors errors;
-    EXPECT_NOT(workspace.interpret_source(
-        errors, "Rejected"_view, "rejected.ttx"_view, rejected[i]));
+    ASSERT(workspace.install_dialect<Dialect>("Library"_view));
+
+    auto interpreted = workspace.interpret_source(
+        errors, "Rejected"_view, rejection.path, *source);
+
+    EXPECT_NOT(interpreted);
+    EXPECT_EQ(errors.get_size(), Count(1));
     EXPECT(
         &workspace.resolve_context("Rejected"_view) == &Invalid::get_invalid());
-    EXPECT_NOT(errors.is_empty());
+
+    Allocator::Arena rendered_domain;
+    View::Bytes rendered = errors.render_message(rendered_domain, 0);
+    EXPECT(Algorithm::search(rendered, rejection.message) != Count(-1));
+    EXPECT(Algorithm::search(rendered, rejection.source_line) != Count(-1));
   }
+}
+
+PERIMORTEM_UNIT_TEST(
+    DialectTests,
+    private_parameter_fixture_fails_publication) {
+  static constexpr View::Bytes path =
+      "validation/data/ttx/library/public_parameter_private_type.ttx"_view;
+  auto source = File::read(path);
+  ASSERT(source);
+
+  Workspace workspace;
+  Errors errors;
+  ASSERT(workspace.install_dialect<Dialect>("Library"_view));
+  auto interpreted = workspace.interpret_source(
+      errors, "PrivateParameter"_view, path, *source);
+  ASSERT(interpreted && interpreted->is<Language::Monograph>());
+
+  auto& monograph = static_cast<Language::Monograph&>(*interpreted);
+  EXPECT(&workspace.resolve_context("PrivateParameter"_view) == &monograph);
+  EXPECT(errors.is_empty());
+  EXPECT(monograph.get_diagnostics().is_empty());
+
+  ASSERT(workspace.link(errors));
+  EXPECT(errors.is_empty());
+  EXPECT(monograph.get_diagnostics().is_empty());
+
+  EXPECT_NOT(workspace.finalize(errors));
+  EXPECT(
+      &workspace.resolve_context("PrivateParameter"_view) ==
+      &Invalid::get_invalid());
+  ASSERT_EQ(errors.get_size(), Count(1));
+
+  auto diagnostics = monograph.get_diagnostics();
+  ASSERT_EQ(diagnostics.get_size(), Count(1));
+  const auto& diagnostic = diagnostics.get_data()[0];
+  ASSERT(diagnostic.get_anchor());
+  EXPECT_TEXT(
+      diagnostic.get_anchor()->get_span().caculate_text(*source),
+      "Hidden"_view);
+  EXPECT_TEXT(
+      diagnostic.get_message(),
+      "Externally readable Structure Callable publishes an unreachable Type "
+      "route."_view);
+  EXPECT_TEXT(
+      diagnostic.get_hint(),
+      "Keep the Callable private or publish its authored Type route."_view);
 }

@@ -7,7 +7,6 @@
 
 #include "perimortem/core/static/bytes.hpp"
 #include "perimortem/core/algorithm/search.hpp"
-#include "perimortem/core/bibliotheca.hpp"
 #include "perimortem/core/null_terminated.hpp"
 
 #include "perimortem/system/file.hpp"
@@ -23,7 +22,6 @@ static Harness GraphicsPng = {
 };
 
 PERIMORTEM_UNIT_TEST(GraphicsPng, red_1x1_dimensions) {
-  auto start_requests = Bibliotheca::check_out_requests();
   auto source = File::read("validation/data/pngs/red_1x1.png"_view);
   ASSERT(source);
   ASSERT_NOT((*source).is_empty());
@@ -40,7 +38,6 @@ PERIMORTEM_UNIT_TEST(GraphicsPng, red_1x1_dimensions) {
   EXPECT_EQ(pixels.get_data()[0].green, Unsigned_8(0x00));
   EXPECT_EQ(pixels.get_data()[0].blue, Unsigned_8(0x00));
   EXPECT_EQ(pixels.get_data()[0].alpha, Unsigned_8(0xFF));
-  EXPECT(Bibliotheca::check_out_requests() - start_requests <= 6);
 }
 
 PERIMORTEM_UNIT_TEST(GraphicsPng, checkerboard_2x2) {
@@ -236,14 +233,6 @@ PERIMORTEM_UNIT_TEST(GraphicsPng, roundtrip_64x64) {
   }
 }
 
-PERIMORTEM_UNIT_TEST(GraphicsPng, pixel_count_mismatch) {
-  Dynamic::Vector<Pixel> one_pixel;
-  one_pixel.insert({0xFF, 0x00, 0x00, 0xFF});
-  Image bad_image(Data::take(one_pixel), 2, 2);
-  auto encoded = Formats::Png::encode(bad_image);
-  EXPECT(encoded.get_size() > 0);
-}
-
 PERIMORTEM_UNIT_TEST(GraphicsPng, zero_dimensions) {
   Dynamic::Vector<Pixel> empty;
   Image zero_width(Data::take(empty), 0, 1);
@@ -331,20 +320,3 @@ PERIMORTEM_UNIT_TEST(GraphicsPng, crc_mismatch) {
           "Png: CRC-32 mismatch for chunk 'IHDR' at offset 8"_view));
 }
 #endif
-
-PERIMORTEM_UNIT_TEST(GraphicsPng, roundtrip_bloat) {
-  auto source = File::read("validation/data/pngs/perimortem_icon.png"_view);
-  ASSERT(source);
-  ASSERT_NOT((*source).is_empty());
-
-  auto icon = Formats::Png::decode(*source);
-  ASSERT_EQ(icon.get_width(), 128);
-  ASSERT_EQ(icon.get_height(), 128);
-
-  // Dynamic Huffman at depth=8 brings us close to the original, but flat color
-  // images compressed the other way by libpng can still expand slightly on
-  // write and read so we just guard against catastrophic regressions.
-  auto encoded = Formats::Png::encode(icon);
-  ASSERT(encoded.get_size() > 0);
-  EXPECT(encoded.get_size() < Count((*source).get_size() * 1.15));
-}

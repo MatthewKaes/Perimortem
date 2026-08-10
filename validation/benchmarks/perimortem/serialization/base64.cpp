@@ -46,15 +46,15 @@ static constexpr auto source_1kb =
     "1234567890!@#$%^&*()-="
     "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZz"_view;
 
-static constexpr Count batch_count = 1024;
+static constexpr Count base64_batch = 1024;
 
 static Harness Base64Bench = {
   .name = "Base64"_view,
 };
 
-PERIMORTEM_BENCHMARK(Base64Bench, decode_1k_bytes) {
+PERIMORTEM_BENCHMARK(Base64Bench, decode_1k_x1024) {
   Count size = 0;
-  for (Count i = 0; i < batch_count; i++) {
+  for (Count i = 0; i < base64_batch; i++) {
     auto decoded = Base64::decode(base64_1kb);
     size += decoded.get_size();
   }
@@ -62,11 +62,11 @@ PERIMORTEM_BENCHMARK(Base64Bench, decode_1k_bytes) {
   Benchmark::prevent_optimization(size);
 }
 
-PERIMORTEM_BENCHMARK(Base64Bench, encode_1k_bytes) {
+PERIMORTEM_BENCHMARK(Base64Bench, encode_1k_x1024) {
   Count size = 0;
-  for (Count i = 0; i < batch_count; i++) {
-    auto encode = Base64::decode(source_1kb);
-    size += encode.get_size();
+  for (Count i = 0; i < base64_batch; i++) {
+    auto encoded = Base64::encode(source_1kb);
+    size += encoded.get_size();
   }
 
   Benchmark::prevent_optimization(size);

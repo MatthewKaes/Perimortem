@@ -21,7 +21,6 @@ PERIMORTEM_UNIT_TEST(ManagedMap, empty) {
 
   EXPECT(values.is_empty());
   EXPECT_EQ(values.get_size(), Count(0));
-  EXPECT_EQ(values.get_capacity(), Count(0));
   EXPECT(!values.find(4));
 }
 

@@ -145,7 +145,7 @@ class Structure : public Ttx::Model::Type {
 
   TTX_NAME(name);
 
-  TTX_CONSTEXPR_DOCUMENTATION(documentation);
+  TTX_DOCUMENTATION(documentation);
 
   auto resolve() const -> const Ttx::Concept::Abstract& override;
 

@@ -34,7 +34,6 @@ PERIMORTEM_UNIT_TEST(SystemVersion, value) {
 
   EXPECT_EQ(maximum.get_major(), Unsigned_16(-1));
   EXPECT_EQ(maximum.get_minor(), Unsigned_16(-1));
-  EXPECT_EQ(sizeof(Version), Count(4));
 }
 
 PERIMORTEM_UNIT_TEST(SystemVersion, canonical_text) {

@@ -13,7 +13,7 @@ class Boolean : public Ttx::Model::Types::Flag {
  public:
   TTX_NAME("Bool"_view);
 
-  TTX_CONSTEXPR_DOCUMENTATION(documentation);
+  TTX_DOCUMENTATION(documentation);
 
   constexpr auto get_width() const -> Count override { return 1; }
   constexpr auto get_size() const -> Count override { return sizeof(::Bool); }

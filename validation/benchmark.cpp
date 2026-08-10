@@ -30,73 +30,38 @@ constexpr const char* system_color = "\x1b[38;5;246m";
 constexpr const char* fast_color = "\x1b[38;5;34m";
 constexpr const char* slow_color = "\x1b[38;5;160m";
 
-struct Instance {
+struct BenchmarkInstance {
   const Harness* harness;
   Perimortem::Core::View::Bytes name;
   Benchmark::BenchmarkFunc func;
-  Perimortem::Core::View::Bytes file;
-  Count line;
 };
 
 struct SampleStats {
   Unsigned_64 bottom_avg_ns;
   Unsigned_64 middle_avg_ns;
   Unsigned_64 top_avg_ns;
-  Unsigned_64 min_ns;
-  Unsigned_64 max_ns;
-  Count sample_count;
-  Unsigned_64 alloc_requests_per_iter;
+  Unsigned_64 allocation_requests;
 };
 
 static constexpr Count max_benchmark_count = 1024;
 static constexpr Count max_sample_count = 4096;
 static constexpr Real_64 time_cap_sec = 1.5;
 
-static Static::Vector<Instance, max_benchmark_count> binary_benchmarks;
+static Static::Vector<BenchmarkInstance, max_benchmark_count> benchmarks;
 static Static::Vector<Unsigned_64, max_sample_count> time_samples;
 static Count benchmark_count = 0;
 static View::Bytes benchmark_filter = {};
 
-#ifdef PERI_BENCH_CPP
-struct ComparisonInstance {
-  const Benchmark::Comparison* comparison;
-  Benchmark::BenchmarkFunc func;
-};
-
-static Static::Vector<ComparisonInstance, max_benchmark_count> comparisons;
-static Static::Vector<SampleStats, max_benchmark_count> stored_stats;
-static Count comparison_count = 0;
-
-auto count_variants(const Benchmark::Comparison& comparison) -> Count {
-  Count count = 0;
-  while (count < Benchmark::max_comparison_variants &&
-         comparison.variants[count].header.get_size() > 0) {
-    count++;
-  }
-
-  return count;
-}
-#endif
-
 auto Benchmark::create(
     const Harness& harness,
     Perimortem::Core::View::Bytes name,
-    Benchmark::BenchmarkFunc func,
-    Perimortem::Core::View::Bytes file,
-    Count line) -> void {
-  binary_benchmarks[benchmark_count++] = {&harness, name, func, file, line};
+    Benchmark::BenchmarkFunc func) -> void {
+  benchmarks[benchmark_count++] = {&harness, name, func};
 }
-
-#ifdef PERI_BENCH_CPP
-auto Benchmark::create_comparison(
-    const Comparison& comparison,
-    BenchmarkFunc func) -> void {
-  comparisons[comparison_count++] = {&comparison, func};
-}
-#endif
 
 // Returns a View::Bytes into buffer with the formatted time string.
-auto format_time(Static::Bytes<16>& buffer, Unsigned_64 ns) -> View::Bytes {
+static auto format_time(Static::Bytes<16>& buffer, Unsigned_64 ns)
+    -> View::Bytes {
   auto* character_buffer = Data::cast<char>(buffer.get_data());
   int written = 0;
   if (ns < 1'000ULL) {
@@ -114,7 +79,7 @@ auto format_time(Static::Bytes<16>& buffer, Unsigned_64 ns) -> View::Bytes {
   return View::Bytes(buffer.get_data(), Count(written > 0 ? written : 0));
 }
 
-auto bucket_avg(Count start, Count end_index) -> Unsigned_64 {
+static auto bucket_avg(Count start, Count end_index) -> Unsigned_64 {
   if (start >= end_index) {
     return time_samples[end_index > 0 ? end_index - 1 : 0];
   }
@@ -127,13 +92,10 @@ auto bucket_avg(Count start, Count end_index) -> Unsigned_64 {
   return total / (end_index - start);
 }
 
-auto compute_stats(Count sample_count, Unsigned_64 alloc_requests)
+static auto compute_stats(Count sample_count, Unsigned_64 alloc_requests)
     -> SampleStats {
   SampleStats stats = {};
-  stats.sample_count = sample_count;
-  stats.min_ns = time_samples[0];
-  stats.max_ns = time_samples[sample_count - 1];
-  stats.alloc_requests_per_iter = alloc_requests;
+  stats.allocation_requests = alloc_requests;
 
   Count tenth = sample_count / 10;
   if (tenth < 1) {
@@ -146,8 +108,10 @@ auto compute_stats(Count sample_count, Unsigned_64 alloc_requests)
   return stats;
 }
 
-auto print_stats(View::Bytes name, Count col_width, const SampleStats& stats)
-    -> void {
+static auto print_stats(
+    View::Bytes name,
+    Count col_width,
+    const SampleStats& stats) -> void {
   Static::Bytes<16> bottom_buffer, middle_buffer, top_buffer;
   View::Bytes bottom = format_time(bottom_buffer, stats.bottom_avg_ns);
   View::Bytes middle = format_time(middle_buffer, stats.middle_avg_ns);
@@ -159,25 +123,25 @@ auto print_stats(View::Bytes name, Count col_width, const SampleStats& stats)
       (int)bottom.get_size(), Data::cast<char>(bottom.get_data()), clear_color,
       (int)middle.get_size(), Data::cast<char>(middle.get_data()), slow_color,
       (int)top.get_size(), Data::cast<char>(top.get_data()), clear_color);
-  if (stats.alloc_requests_per_iter > 0) {
+  if (stats.allocation_requests > 0) {
     printf(
-        "  | %s%lld alloc/iter%s", system_color,
-        (long long)stats.alloc_requests_per_iter, clear_color);
+        "  | %s%lld alloc/run%s", system_color,
+        (long long)stats.allocation_requests, clear_color);
   }
 
   printf("\n");
 }
 
-auto output_break() -> void {
+static auto output_break() -> void {
   printf(
       "%s[==============================================================]\n%s",
       dark_color, clear_color);
 }
 
 // Timing blocks
-Time total_start;
-Time sample_start;
-Time sample_end;
+static Time total_start;
+static Time sample_start;
+static Time sample_end;
 
 auto Benchmark::start_time() -> void {
   sample_end = Time::never();
@@ -188,7 +152,7 @@ auto Benchmark::end_time() -> void {
   sample_end = Time::now();
 }
 
-auto run_samples(const Harness& harness, Benchmark::BenchmarkFunc func)
+static auto run_samples(const Harness& harness, Benchmark::BenchmarkFunc func)
     -> SampleStats {
   // Perform one run as a warm up.
   harness.setup();
@@ -203,10 +167,10 @@ auto run_samples(const Harness& harness, Benchmark::BenchmarkFunc func)
     Count allocs_before = Bibliotheca::check_out_requests();
     Benchmark::start_time();
 
-    // Run the actual func,
+    // Run the benchmark body.
     func();
 
-    // If the func recorded it's own end time then don't override it.
+    // Preserve an end time recorded by the benchmark body.
     if (sample_end == Time::never()) {
       Benchmark::end_time();
     }
@@ -215,16 +179,12 @@ auto run_samples(const Harness& harness, Benchmark::BenchmarkFunc func)
     Count allocs_after = Bibliotheca::check_out_requests();
     harness.teardown();
 
-    // Scale the sample data based on the number of batches.
-    // By default batch_count is set to 1, but this allows for tests to do their
-    // own batching to provide a more accurate hotloop measurement.
     time_samples[sample_count++] =
-        sample_start.measure(sample_end).convert_to_nanoseconds() /
-        harness.batch_count;
+        sample_start.measure(sample_end).convert_to_nanoseconds();
     total_alloc_delta += Unsigned_64(allocs_after - allocs_before);
 
-    // Check every 16 samples if we are over our time budget, if we are then
-    // early terminate.
+    // Check the time budget every 16 samples so the clock check does not
+    // dominate small workloads.
     if ((sample_count & 0xF) == 0) {
       if (total_start.measure().convert_to_seconds() >= time_cap_sec) {
         break;
@@ -238,36 +198,7 @@ auto run_samples(const Harness& harness, Benchmark::BenchmarkFunc func)
       sample_count, total_alloc_delta / Unsigned_64(sample_count));
 }
 
-#ifdef PERI_BENCH_CPP
-
-auto print_time(const char* color, int width, Unsigned_64 ns) -> void {
-  Static::Bytes<16> buffer;
-  View::Bytes time_text = format_time(buffer, ns);
-  printf(
-      "  %s%*.*s%s", color, width, (int)time_text.get_size(),
-      Data::cast<char>(time_text.get_data()), clear_color);
-}
-
-auto print_view(const char* color, int width, View::Bytes text) -> void {
-  printf(
-      "  %s%*.*s%s", color, width, (int)text.get_size(),
-      Data::cast<char>(text.get_data()), clear_color);
-}
-
-auto find_stored_time(View::Bytes harness_name, View::Bytes bench_name)
-    -> Unsigned_64 {
-  for (Count bi = 0; bi < benchmark_count; bi++) {
-    if (binary_benchmarks[bi].harness->name == harness_name &&
-        binary_benchmarks[bi].name == bench_name) {
-      return stored_stats[bi].middle_avg_ns;
-    }
-  }
-
-  return Unsigned_64(-1);
-}
-#endif
-
-auto harness_matches(View::Bytes name) -> Bool {
+static auto harness_matches(View::Bytes name) -> Bool {
   if (benchmark_filter.get_size() == 0) {
     return True;
   }
@@ -291,33 +222,33 @@ struct Layout {
   Count harness_count;
 };
 
-auto compute_layout() -> Layout {
+static auto compute_layout() -> Layout {
   Count col_width = 16;
   Count harness_count = 0;
   const Harness* prev_harness = nullptr;
   for (Count index = 0; index < benchmark_count; index++) {
-    if (!harness_matches(binary_benchmarks[index].harness->name)) {
+    if (!harness_matches(benchmarks[index].harness->name)) {
       continue;
     }
 
-    Count name_length = binary_benchmarks[index].name.get_size();
+    Count name_length = benchmarks[index].name.get_size();
     if (name_length > col_width) {
       col_width = name_length;
     }
 
-    if (binary_benchmarks[index].harness != prev_harness) {
+    if (benchmarks[index].harness != prev_harness) {
       harness_count++;
-      prev_harness = binary_benchmarks[index].harness;
+      prev_harness = benchmarks[index].harness;
     }
   }
 
   return {col_width + 2, harness_count};
 }
 
-auto print_run_header(const Layout& layout) -> void {
+static auto print_run_header(const Layout& layout) -> void {
   output_break();
   printf(
-      "%s  Perimortem benchmark Engine\n"
+      "%s  Perimortem Benchmark Runner\n"
       "  benchmarks: %s%llu%s   Harnesses: %s%llu%s\n",
       perimortem_color, clear_color, (unsigned long long)benchmark_count,
       system_color, clear_color, (unsigned long long)layout.harness_count,
@@ -333,206 +264,37 @@ auto print_run_header(const Layout& layout) -> void {
       clear_color);
 }
 
-auto run_benchmark_pass(const Layout& layout) -> void {
-  const Harness* harness = nullptr;
+static auto run_benchmark_pass(const Layout& layout) -> void {
+  const Harness* active_harness = nullptr;
+  const Harness* output_harness = nullptr;
   for (Count benchmark_index = 0; benchmark_index < benchmark_count;
        benchmark_index++) {
-    const Instance& benchmark = binary_benchmarks[benchmark_index];
+    const BenchmarkInstance& benchmark = benchmarks[benchmark_index];
     if (benchmark.harness == nullptr) {
       continue;
     }
 
-    if (!harness_matches(benchmark.harness->name)) {
+    const Harness& harness = *benchmark.harness;
+    if (!harness_matches(harness.name)) {
       continue;
     }
 
-    if (harness == nullptr || benchmark.harness->name != harness->name) {
-      harness = benchmark.harness;
+    if (active_harness != benchmark.harness) {
+      active_harness = benchmark.harness;
+      active_harness->init();
+    }
+
+    if (output_harness == nullptr || harness.name != output_harness->name) {
+      output_harness = benchmark.harness;
       printf(
-          "%s[ START ] %.*s\n%s", dark_color, (int)harness->name.get_size(),
-          harness->name.get_data(), clear_color);
-      harness->init();
+          "%s[ START ] %.*s\n%s", dark_color, (int)harness.name.get_size(),
+          Data::cast<char>(harness.name.get_data()), clear_color);
     }
 
-    if (harness == nullptr) {
-      continue;
-    }
-
-    SampleStats stats = run_samples(*harness, benchmark.func);
+    SampleStats stats = run_samples(harness, benchmark.func);
     print_stats(benchmark.name, layout.col_width, stats);
-#ifdef PERI_BENCH_CPP
-    stored_stats[benchmark_index] = stats;
-#endif
   }
 }
-
-#ifdef PERI_BENCH_CPP
-
-struct SectionLayout {
-  Count label_column;
-  Count max_variant_count;
-  Static::Vector<Count, Benchmark::max_comparison_variants> variant_columns;
-};
-
-auto compute_section_layout(Count comparison_index, Count section_end)
-    -> SectionLayout {
-  SectionLayout layout = {};
-  layout.label_column = 8;
-  for (Count i = comparison_index; i < section_end; i++) {
-    const Benchmark::Comparison& comparison = *comparisons[i].comparison;
-    Count label_length = comparison.label.get_size();
-    if (label_length > layout.label_column) {
-      layout.label_column = label_length;
-    }
-
-    Count variant_count = count_variants(comparison);
-    if (variant_count > layout.max_variant_count) {
-      layout.max_variant_count = variant_count;
-    }
-
-    for (Count v = 0; v < variant_count; v++) {
-      Count header_length = comparison.variants[v].header.get_size();
-      Count column_width = header_length > 10 ? header_length : 10;
-      if (column_width > layout.variant_columns[v]) {
-        layout.variant_columns[v] = column_width;
-      }
-    }
-  }
-
-  layout.label_column += 2;
-  return layout;
-}
-
-auto print_section_header(
-    const Harness& section_harness,
-    Count comparison_index,
-    Count section_end,
-    const SectionLayout& layout) -> void {
-  output_break();
-  section_harness.init();
-  printf(
-      "%s[ C++ ] %.*s\n", perimortem_color,
-      (int)section_harness.name.get_size(),
-      Data::cast<char>(section_harness.name.get_data()));
-
-  printf("%s  %-*s", dark_color, (int)layout.label_column, "");
-  for (Count v = 0; v < layout.max_variant_count; v++) {
-    View::Bytes header = {};
-    for (Count i = comparison_index; i < section_end; i++) {
-      if (v < count_variants(*comparisons[i].comparison)) {
-        header = comparisons[i].comparison->variants[v].header;
-        break;
-      }
-    }
-
-    printf(
-        "  %*.*s", (int)layout.variant_columns[v], (int)header.get_size(),
-        Data::cast<char>(header.get_data()));
-  }
-
-  printf("  %10s  %10s  %7s%s\n", "C++", "Best", "Delta", clear_color);
-}
-
-auto run_comparison_row(Count comparison_index, const SectionLayout& layout)
-    -> void {
-  const ComparisonInstance& comparison_instance = comparisons[comparison_index];
-  const Benchmark::Comparison& comparison = *comparison_instance.comparison;
-  Count variant_count = count_variants(comparison);
-
-  Unsigned_64 cpp_time =
-      run_samples(*comparison.harness, comparison_instance.func).middle_avg_ns;
-  print_view(dark_color, -(int)layout.label_column, comparison.label);
-
-  Static::Vector<Unsigned_64, Benchmark::max_comparison_variants> variant_times;
-  for (Count v = 0; v < Benchmark::max_comparison_variants; v++) {
-    variant_times[v] = Unsigned_64(-1);
-  }
-
-  Unsigned_64 fastest_time = Unsigned_64(-1);
-  Unsigned_64 slowest_time = 0;
-  Count fastest_variant = Benchmark::max_comparison_variants;
-  for (Count v = 0; v < variant_count; v++) {
-    Unsigned_64 variant_time = find_stored_time(
-        comparison.harness->name, comparison.variants[v].benchmark_name);
-    variant_times[v] = variant_time;
-    if (variant_time != Unsigned_64(-1)) {
-      if (variant_time < fastest_time) {
-        fastest_time = variant_time;
-        fastest_variant = v;
-      }
-
-      if (variant_time > slowest_time) {
-        slowest_time = variant_time;
-      }
-    }
-  }
-
-  for (Count v = 0; v < layout.max_variant_count; v++) {
-    if (v < variant_count && variant_times[v] != Unsigned_64(-1)) {
-      Unsigned_64 variant_time = variant_times[v];
-      const char* color = clear_color;
-      if (variant_time == fastest_time) {
-        color = fast_color;
-      } else if (variant_time == slowest_time) {
-        color = slow_color;
-      }
-
-      print_time(color, (int)layout.variant_columns[v], variant_time);
-    } else if (v < variant_count) {
-      printf("  %*s", (int)layout.variant_columns[v], "---");
-    } else {
-      printf("  %*s", (int)layout.variant_columns[v], "");
-    }
-  }
-
-  print_time(system_color, 10, cpp_time);
-  if (fastest_time != Unsigned_64(-1)) {
-    Real_64 delta = (fastest_time > 0)
-                        ? (Real_64(cpp_time) - Real_64(fastest_time)) /
-                              Real_64(fastest_time) * 100.0
-                        : 0.0;
-    const char* delta_color = (delta >= 0.0) ? fast_color : slow_color;
-    View::Bytes best_name = (cpp_time < fastest_time)
-                                ? "C++"_view
-                                : comparison.variants[fastest_variant].header;
-    print_view(delta_color, 10, best_name);
-    printf("  %s%+7.1f%%%s", delta_color, delta, clear_color);
-  }
-
-  printf("\n");
-}
-
-auto run_comparison_pass() -> void {
-  if (comparison_count == 0) {
-    return;
-  }
-
-  Count comparison_index = 0;
-  while (comparison_index < comparison_count) {
-    const Harness* section_harness =
-        comparisons[comparison_index].comparison->harness;
-
-    Count section_end = comparison_index;
-    while (section_end < comparison_count &&
-           comparisons[section_end].comparison->harness == section_harness) {
-      section_end++;
-    }
-
-    if (harness_matches(section_harness->name)) {
-      SectionLayout layout =
-          compute_section_layout(comparison_index, section_end);
-      print_section_header(
-          *section_harness, comparison_index, section_end, layout);
-      for (Count i = comparison_index; i < section_end; i++) {
-        run_comparison_row(i, layout);
-      }
-    }
-
-    comparison_index = section_end;
-  }
-}
-
-#endif  // PERI_BENCH_CPP
 
 int main(int argc, const char* argv[]) {
   if (argc > 1) {
@@ -542,9 +304,6 @@ int main(int argc, const char* argv[]) {
   Layout layout = compute_layout();
   print_run_header(layout);
   run_benchmark_pass(layout);
-#ifdef PERI_BENCH_CPP
-  run_comparison_pass();
-#endif
   output_break();
   printf("\n");
   fflush(stdout);

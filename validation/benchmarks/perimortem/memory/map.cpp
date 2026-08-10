@@ -1,11 +1,7 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
-#ifdef PERI_BENCH_CPP
-#include <string_view>
-#include <unordered_map>
-#define PERI_SLOW_BENCH
-#endif
+#include "perimortem/memory/dynamic/map.hpp"
 
 #include "validation/benchmark.hpp"
 
@@ -15,8 +11,6 @@
 #include "perimortem/core/data.hpp"
 #include "perimortem/core/null_terminated.hpp"
 #include "perimortem/core/perimortem.hpp"
-
-#include "perimortem/memory/dynamic/map.hpp"
 
 #include "perimortem/system/random.hpp"
 
@@ -31,8 +25,9 @@ using namespace Validation;
 
 constexpr Count max_key_count = 1 << 16;
 static Static::Vector<Signed_32, max_key_count> lookup_keys;
+static Static::Vector<Signed_32, max_key_count> missing_lookup_keys;
 
-auto populate_lookup_keys() -> void {
+static auto populate_lookup_keys() -> void {
   static Bool populated = False;
   if (populated) {
     return;
@@ -40,6 +35,7 @@ auto populate_lookup_keys() -> void {
 
   for (Count i = 0; i < max_key_count; i++) {
     lookup_keys[i] = Signed_32(i);
+    missing_lookup_keys[i] = Signed_32(i);
   }
 
   populated = True;
@@ -51,7 +47,7 @@ static Harness MapSigned_32s = {
 };
 
 template <Count values, Bool lookup>
-auto map_test() -> void {
+static auto map_test() -> void {
   Dynamic::Map<Signed_32, Signed_32> local_map(values);
   for (Count i = 0; i < values; i++) {
     local_map.insert(lookup_keys[i], Signed_32(i));
@@ -80,34 +76,25 @@ constexpr auto insert = False;
 
 MAP_INT_TEST(256, lookup);
 MAP_INT_TEST(1024, lookup);
-#ifdef PERI_SLOW_BENCH
-MAP_INT_TEST(4096, lookup);
-MAP_INT_TEST(16384, lookup);
-MAP_INT_TEST(65536, lookup);
-#endif
 
 MAP_INT_TEST(256, insert);
 MAP_INT_TEST(1024, insert);
-#ifdef PERI_SLOW_BENCH
-MAP_INT_TEST(4096, insert);
-MAP_INT_TEST(16384, insert);
-MAP_INT_TEST(65536, insert);
-#endif
 
 static Harness MapWorkloads = {
   .name = "Map Workloads"_view,
   .init = populate_lookup_keys,
 };
 
-auto pointer_key(Count index, Bool missing = False) -> const Signed_32* {
-  constexpr CppSize hit_base = 0x100000000;
-  constexpr CppSize miss_base = 0x200000000;
-  return reinterpret_cast<const Signed_32*>(
-      (missing ? miss_base : hit_base) + index * 64);
+static auto pointer_key(Count index, Bool missing = False) -> const Signed_32* {
+  if (missing) {
+    return missing_lookup_keys.get_data() + index;
+  }
+
+  return lookup_keys.get_data() + index;
 }
 
 template <Count values, Bool misses>
-auto pointer_lookup_test() -> void {
+static auto pointer_lookup_test() -> void {
   Dynamic::Map<const Signed_32*, Count> map(values);
   for (Count i = 0; i < values; i++) {
     map.insert(pointer_key(i), i);
@@ -126,7 +113,7 @@ auto pointer_lookup_test() -> void {
 }
 
 template <Count values, Bool reserve, Bool duplicate>
-auto pointer_insert_test() -> void {
+static auto pointer_insert_test() -> void {
   Dynamic::Map<const Signed_32*, Count> map;
   if constexpr (reserve) {
     map.ensure_capacity(values);
@@ -191,7 +178,7 @@ static constexpr Pair<View::Bytes, Count> keyword_source[] = {
   {"false"_view, 12},     {"using"_view, 13},      {"while"_view, 14},
   {"entity"_view, 15},    {"object"_view, 16},     {"return"_view, 17},
   {"struct"_view, 18},    {"library"_view, 19},    {"on_load"_view, 20},
-  {"package"_view, 21},   {"warning"_view, 22},    {"testing"_view, 24},
+  {"package"_view, 21},   {"warning"_view, 22},    {"testing"_view, 23},
   {"insert_x"_view, 24},  {"deletion"_view, 25},   {"removals"_view, 26},
   {"log_print"_view, 27}, {"log_print2"_view, 28}, {"x"_view, 29},
   {"y"_view, 30},         {"main"_view, 31},
@@ -205,7 +192,7 @@ static constexpr Pair<View::Bytes, Count> non_keyword_source[] = {
   {"aalse"_view, 12},     {"us0ng"_view, 13},      {"wzile"_view, 14},
   {"entnty"_view, 15},    {"ofjfct"_view, 16},     {"ret9rn"_view, 17},
   {"strzct"_view, 18},    {"lixrary"_view, 19},    {"on_doad"_view, 20},
-  {"pa!kag!"_view, 21},   {"war_ing"_view, 22},    {"testi1g"_view, 24},
+  {"pa!kag!"_view, 21},   {"war_ing"_view, 22},    {"testi1g"_view, 23},
   {"in3ert_x"_view, 24},  {"de-_tion"_view, 25},   {"remova3s"_view, 26},
   {"log  rint"_view, 27}, {"log_print3"_view, 28}, {"z"_view, 29},
   {"a"_view, 30},         {"nain"_view, 31},
@@ -214,24 +201,23 @@ static constexpr Count keyword_count = Data::array_size(keyword_source);
 
 using KeywordTable = Table<Count, keyword_source>;
 
-static Static::Vector<const View::Bytes*, max_key_count> loopup_scramble;
-auto create_scramble(Count mask) -> void {
-  // Try to create a chaotic lookup order with a percentage of bad values
-  // Added to the mix.
+static Static::Vector<const View::Bytes*, max_key_count> lookup_scramble;
+static auto create_scramble(Count mask) -> void {
+  // Create a chaotic lookup order with a controlled percentage of misses.
   for (Count i = 0; i < max_key_count; i++) {
     auto index = Random::generate();
     if (index & mask) {
       // Miss
-      loopup_scramble[i] = &non_keyword_source[index % keyword_count].key;
+      lookup_scramble[i] = &non_keyword_source[index % keyword_count].key;
     } else {
       // Hit
-      loopup_scramble[i] = &keyword_source[index % keyword_count].key;
+      lookup_scramble[i] = &keyword_source[index % keyword_count].key;
     }
   }
 }
 
 template <Count values, Count mask>
-auto keyword_test() -> void {
+static auto keyword_test() -> void {
   Dynamic::Map<View::Bytes, Signed_32> local_map(keyword_count);
   for (Count i = 0; i < keyword_count; i++) {
     local_map.insert(keyword_source[i].key, keyword_source[i].value);
@@ -242,7 +228,7 @@ auto keyword_test() -> void {
 
   Benchmark::start_time();
   for (Count i = 0; i < values; i++) {
-    accumulator += local_map.find_or_default(*loopup_scramble[i], -1);
+    accumulator += local_map.find_or_default(*lookup_scramble[i], -1);
   }
 
   Benchmark::prevent_optimization(accumulator);
@@ -250,15 +236,13 @@ auto keyword_test() -> void {
 }
 
 template <Count values, Count mask>
-auto keyword_table() -> void {
-  // Try to create a chaotic lookup order with a percentage of bad values
-  // Added to the mix.
+static auto keyword_table() -> void {
   create_scramble(mask);
   Signed_32 accumulator = 0;
 
   Benchmark::start_time();
   for (Count i = 0; i < values; i++) {
-    accumulator += KeywordTable::find_or_default(*loopup_scramble[i], -1);
+    accumulator += KeywordTable::find_or_default(*lookup_scramble[i], -1);
   }
 
   Benchmark::prevent_optimization(accumulator);
@@ -283,10 +267,10 @@ static Harness MapKeywords = {
   MAP_KEYWORD_TEST(count, mask);            \
   MAP_TABLE_TEST(count, mask);
 
-// Hit ranges in 1 / 1000 chance of keys appearing in the table since table
-// behavior changes based on hit rate.
-// hit_1000 equal 100.0% source keys
-// hit_0016 equal   1.6% source keys
+// Compare complete hits with roughly one hit per 1024 source keys because
+// table behavior changes with hit rate.
+// hit_1000 equals 100.0% source keys.
+// hit_0001 equals about 0.1% source keys.
 constexpr auto hit_1000 = Count(0b00000000'00000000);
 constexpr auto hit_0001 = Count(0b00000011'11111111);
 
@@ -294,104 +278,3 @@ MAP_KEYWORD_TEST_RANGE(4096, hit_1000);
 MAP_KEYWORD_TEST_RANGE(4096, hit_0001);
 MAP_KEYWORD_TEST_RANGE(16384, hit_1000);
 MAP_KEYWORD_TEST_RANGE(16384, hit_0001);
-
-#ifdef PERI_BENCH_CPP
-
-template <Count values, Bool is_lookup>
-auto cpp_int_map_test() -> void {
-  std::unordered_map<int, int> cpp_map;
-  cpp_map.reserve(values);
-  for (Count i = 0; i < values; i++) {
-    cpp_map.emplace(int(lookup_keys[i]), int(i));
-  }
-
-  int accumulator = int(cpp_map.size());
-  if constexpr (is_lookup) {
-    Benchmark::start_time();
-    accumulator = 0;
-    for (Count i = 0; i < values; i++) {
-      auto it = cpp_map.find(int(lookup_keys[i % values]));
-      if (it != cpp_map.end()) {
-        accumulator += it->second;
-      }
-    }
-  }
-
-  Benchmark::end_time();
-  Benchmark::prevent_optimization(accumulator);
-}
-
-template <Count values, Count mask>
-auto cpp_keyword_test() -> void {
-  std::unordered_map<std::string_view, int> cpp_map;
-  for (Count i = 0; i < keyword_count; i++) {
-    auto& kv = keyword_source[i];
-    cpp_map.emplace(
-        std::string_view(
-            Data::cast<char>(kv.key.get_data()), kv.key.get_size()),
-        kv.value);
-  }
-
-  create_scramble(mask);
-  int accumulator = int(cpp_map.size());
-
-  Benchmark::start_time();
-  for (Count i = 0; i < values; i++) {
-    auto& key = *loopup_scramble[i];
-    auto it = cpp_map.find(
-        std::string_view(Data::cast<char>(key.get_data()), key.get_size()));
-    accumulator += (it != cpp_map.end()) ? it->second : -1;
-  }
-
-  Benchmark::prevent_optimization(accumulator);
-  Benchmark::end_time();
-}
-
-#define INT_MAP_COMPARISON(count, var)                        \
-  static Benchmark::Comparison int_map_##var##_##count = {    \
-    .harness = &MapSigned_32s,                                \
-    .label = #var " " #count " ints"_view,                    \
-    .variants =                                               \
-        {                                                     \
-          Benchmark::ComparisonVariant{                       \
-            "Perimortem"_view, #var "_" #count "_ints"_view}, \
-        },                                                    \
-  };                                                          \
-  PERIMORTEM_COMPARISON(int_map_##var##_##count) {            \
-    cpp_int_map_test<count, var>();                           \
-  }
-
-INT_MAP_COMPARISON(256, lookup)
-INT_MAP_COMPARISON(1024, lookup)
-INT_MAP_COMPARISON(4096, lookup)
-INT_MAP_COMPARISON(16384, lookup)
-INT_MAP_COMPARISON(65536, lookup)
-
-INT_MAP_COMPARISON(256, insert)
-INT_MAP_COMPARISON(1024, insert)
-INT_MAP_COMPARISON(4096, insert)
-INT_MAP_COMPARISON(16384, insert)
-INT_MAP_COMPARISON(65536, insert)
-
-#define KEYWORD_COMPARISON(count, mask)                       \
-  static Benchmark::Comparison kw_##count##_##mask##_comp = { \
-    .harness = &MapKeywords,                                  \
-    .label = #count " " #mask ""_view,                        \
-    .variants =                                               \
-        {                                                     \
-          Benchmark::ComparisonVariant{                       \
-            "Map"_view, #count "_" #mask "_map"_view},        \
-          Benchmark::ComparisonVariant{                       \
-            "Table"_view, #count "_" #mask "_table"_view},    \
-        },                                                    \
-  };                                                          \
-  PERIMORTEM_COMPARISON(kw_##count##_##mask##_comp) {         \
-    cpp_keyword_test<count, mask>();                          \
-  }
-
-KEYWORD_COMPARISON(4096, hit_1000)
-KEYWORD_COMPARISON(4096, hit_0001)
-KEYWORD_COMPARISON(16384, hit_1000)
-KEYWORD_COMPARISON(16384, hit_0001)
-
-#endif  // PERI_BENCH_CPP

@@ -13,7 +13,7 @@ class Signed_16 : public Ttx::Model::Types::Signed {
  public:
   TTX_NAME("Signed_16"_view);
 
-  TTX_CONSTEXPR_DOCUMENTATION(documentation);
+  TTX_DOCUMENTATION(documentation);
 
   constexpr auto get_width() const -> Count override { return 16; }
   constexpr auto get_size() const -> Count override {

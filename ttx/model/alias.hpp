@@ -44,7 +44,7 @@ class Alias : public Concept::Abstract {
   // Local prose leads the target's visible documentation. Because the target
   // may itself be an Alias, this naturally accumulates the complete authored
   // chain without changing identity resolution.
-  TTX_CONSTEXPR_DOCUMENTATION(documentation);
+  TTX_DOCUMENTATION(documentation);
 
   constexpr auto resolve() const -> const Abstract& override {
     return target.resolve();

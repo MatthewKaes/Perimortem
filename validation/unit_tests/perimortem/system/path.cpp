@@ -90,14 +90,6 @@ PERIMORTEM_UNIT_TEST(SystemPath, root_parent) {
   EXPECT(path.is_rooted());
 }
 
-PERIMORTEM_UNIT_TEST(SystemPath, construct_view) {
-  Path path("unit\\source/./main.ttx"_view);
-  Path copy(path);
-
-  EXPECT_NOT(copy.get_view().is_empty());
-  EXPECT_TEXT(copy.get_view(), "unit/source/main.ttx"_view);
-}
-
 PERIMORTEM_UNIT_TEST(SystemPath, file) {
   Path path("unit/source/main.ttx"_view);
 

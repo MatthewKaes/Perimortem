@@ -24,7 +24,7 @@ class Range : public Generic {
 
   TTX_NAME(name);
 
-  TTX_CONSTEXPR_DOCUMENTATION(documentation);
+  TTX_DOCUMENTATION(documentation);
 
   TTX_CONSTEXPR_INVALID_CONTEXT;
 

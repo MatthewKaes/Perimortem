@@ -20,7 +20,7 @@ using namespace Perimortem::Memory;
 using namespace Validation;
 
 static constexpr Count max_arguments = 32;
-static constexpr Signed_32 drain_poll_milliseconds = 10;
+static constexpr Signed_32 poll_interval_milliseconds = 10;
 static constexpr Unsigned_64 nanoseconds_per_millisecond = 1'000'000;
 
 struct Pipe {
@@ -140,7 +140,7 @@ static auto terminate_child(pid_t child, Signed_32& status) -> Bool {
 static auto calculate_poll_timeout(Bool child_finished, Unsigned_64 deadline)
     -> Signed_32 {
   if (child_finished) {
-    return drain_poll_milliseconds;
+    return poll_interval_milliseconds;
   }
 
   Unsigned_64 now = Time::now().get_stamp();
@@ -151,9 +151,8 @@ static auto calculate_poll_timeout(Bool child_finished, Unsigned_64 deadline)
   Unsigned_64 remaining = deadline - now;
   Unsigned_64 milliseconds = (remaining + nanoseconds_per_millisecond - 1) /
                              nanoseconds_per_millisecond;
-  constexpr Unsigned_64 signed_maximum = 2'147'483'647;
-  if (milliseconds > signed_maximum) {
-    return Signed_32(signed_maximum);
+  if (milliseconds > Unsigned_64(poll_interval_milliseconds)) {
+    return poll_interval_milliseconds;
   }
 
   return Signed_32(milliseconds);

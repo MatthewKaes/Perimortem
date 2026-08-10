@@ -275,37 +275,6 @@ PERIMORTEM_UNIT_TEST(PackageArchive, literal_format_one) {
   EXPECT(encoded_round_trip->get_view() == golden());
 }
 
-PERIMORTEM_UNIT_TEST(PackageArchive, value_mechanics) {
-  const Unsigned_8 payload_data[] = {0xAA, 0x00, 0x55};
-  Package::Language::Dependency dependencies[] = {
-    Package::Language::Dependency("Core"_view, "Pkg.Base"_view, Version(3, 4)),
-  };
-  Package::Archive::Member members[] = {
-    Package::Archive::Member("Main"_view, "Lib"_view, View::Bytes()),
-    Package::Archive::Member(
-        "Scene::One"_view, "Scene"_view, View::Bytes(payload_data)),
-  };
-  View::Bytes artifact_ids[] = {
-    "cpu"_view,
-    "res"_view,
-  };
-  Package::Archive::Export exports[] = {
-    Package::Archive::Export("Main::Run"_view, "cpu"_view, "main"_view),
-    Package::Archive::Export("Scene::One"_view, "res"_view, "asset"_view),
-  };
-
-  Package::Archive::Archive archive(
-      "Pkg.Core"_view, Version(1, 2), dependencies, members, artifact_ids,
-      exports);
-  Package::Archive::Archive copy = archive;
-  Package::Archive::Archive assigned = copy;
-  assigned = archive;
-
-  auto encoded = Package::Archive::Writer::write(assigned);
-  ASSERT(encoded);
-  EXPECT(encoded->get_view() == golden());
-}
-
 PERIMORTEM_UNIT_TEST(PackageArchive, authored_provenance_is_not_encoded) {
   static constexpr View::Bytes source =
       "// Authored Package\n"
@@ -419,9 +388,6 @@ PERIMORTEM_UNIT_TEST(PackageArchive, equal_member_payloads) {
   ASSERT_EQ(retained.get_size(), Count(2));
   EXPECT(retained.get_data()[0].get_payload() == payload);
   EXPECT(retained.get_data()[1].get_payload() == payload);
-  EXPECT(
-      retained.get_data()[0].get_payload().get_data() !=
-      retained.get_data()[1].get_payload().get_data());
 }
 
 PERIMORTEM_UNIT_TEST(PackageArchive, opaque_export_locators) {

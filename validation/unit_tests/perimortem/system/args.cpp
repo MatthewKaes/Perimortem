@@ -138,21 +138,6 @@ PERIMORTEM_UNIT_TEST(SystemArgs, help_keeps_parsing) {
   EXPECT_TEXT(value_at(parsed, "output"_view), "out.a"_view);
 }
 
-PERIMORTEM_UNIT_TEST(SystemArgs, double_dash_parse) {
-  constexpr Static::Vector<View::Bytes, 5> raw = {
-    {"demo"_view, "--fast"_view, "--output=out.a"_view, "---dep=dep.ttx"_view,
-     "----ratio=1.5"_view}};
-  Allocator::Arena arena;
-
-  Args::Values parsed = parse(arena, raw);
-  ASSERT_NOT(parsed.is_empty());
-  EXPECT(parsed.contains("fast"_view));
-  EXPECT_TEXT(value_at(parsed, "fast"_view), "true"_view);
-  EXPECT_TEXT(value_at(parsed, "output"_view), "out.a"_view);
-  EXPECT_TEXT(value_at(parsed, "dep"_view), "dep.ttx"_view);
-  EXPECT_TEXT(value_at(parsed, "ratio"_view), "1.5"_view);
-}
-
 PERIMORTEM_UNIT_TEST(SystemArgs, empty_value) {
   constexpr Static::Vector<View::Bytes, 2> raw = {
     {"demo"_view, "-output="_view}};

@@ -31,7 +31,7 @@ class Monograph : public Ttx::Concept::Abstract {
   auto operator=(const Monograph&) -> Monograph& = delete;
   auto operator=(Monograph&&) -> Monograph& = delete;
 
-  TTX_CONSTEXPR_DOCUMENTATION(documentation);
+  TTX_DOCUMENTATION(documentation);
 
   // Linking may connect declarations only after every source has established
   // its stable graph identities. Finalization then validates those completed

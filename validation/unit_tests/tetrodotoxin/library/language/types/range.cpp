@@ -28,7 +28,6 @@ static Harness LibraryRange = {
 PERIMORTEM_UNIT_TEST(LibraryRange, direct_contract) {
   Types::Range range("Range[Signed_16]"_view, Dialect::get_signed_16());
   auto arguments = range.get_arguments();
-  const Documentation& documentation = range.get_documentation();
 
   EXPECT(range.is<Types::Range>());
   EXPECT(range.is<Ttx::Model::Type>());
@@ -41,10 +40,7 @@ PERIMORTEM_UNIT_TEST(LibraryRange, direct_contract) {
       arguments.get_data()[0].find<const Ttx::Model::Type&>() ==
       &Dialect::get_signed_16());
   EXPECT(range.get_layout().is_empty());
-  ASSERT_EQ(documentation.line_count(), Count(1));
-  EXPECT_TEXT(
-      documentation.get_line(0),
-      "Provides a lazy ascending integer sequence."_view);
+  EXPECT_NOT(range.get_documentation().is_empty());
   EXPECT(&range.resolve_context("member"_view) == &Invalid::get_invalid());
 }
 

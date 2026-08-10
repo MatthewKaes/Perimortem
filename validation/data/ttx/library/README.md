@@ -1,8 +1,8 @@
 # Library fixture reference
 
-These source files exercise Library lexical shapes and provide focused semantic
-inputs for validation. They are fixtures rather than applications; a test that
-opens one file defines the exact behavior it observes.
+These source files provide Library acceptance inputs and focused semantic
+rejections. They are fixtures rather than applications; a test that opens one
+file defines the exact production behavior it observes.
 
 ## Source files
 
@@ -14,9 +14,8 @@ opens one file defines the exact behavior it observes.
 | [`native_harness.c`](native_harness.c) | C definitions and observation point for the native fixture |
 
 `broad.ttx` intentionally contains more language surface than any one narrow
-test needs. It is useful for lexical coverage and for inspecting how the source
-concepts compose without asserting that every construct is executable in one
-validation path.
+test needs. It enters acceptance only when a production Workspace can complete
+the represented capabilities; tokenization alone is not acceptance evidence.
 
 ## Access model
 

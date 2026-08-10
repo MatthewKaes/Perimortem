@@ -57,7 +57,6 @@ static auto has_newline(View::Bytes text) -> Bool {
 static auto classify_semantic_token(Code code) -> Signed_64 {
   switch (code.get_type()) {
   case Code::Type::Comment:
-  case Code::Type::Disabled:
     return SemanticComment;
 
   case Code::Type::String:

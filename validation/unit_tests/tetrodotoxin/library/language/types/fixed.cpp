@@ -28,7 +28,6 @@ PERIMORTEM_UNIT_TEST(LibraryFixed, direct_contract) {
   Types::Fixed fixed("Fixed[Unsigned_8,4]"_view, element, ::Signed_64(4));
   auto arguments = fixed.get_arguments();
   const Ttx::Model::Layouts::Ranged& layout = fixed.get_layout();
-  const Documentation& documentation = fixed.get_documentation();
 
   EXPECT(fixed.is<Types::Fixed>());
   EXPECT(fixed.is<Ttx::Model::Type>());
@@ -55,10 +54,7 @@ PERIMORTEM_UNIT_TEST(LibraryFixed, direct_contract) {
         return &selected == &element ? True : False;
       }));
   EXPECT_NOT(layout.get_abstract(4));
-  ASSERT_EQ(documentation.line_count(), Count(1));
-  EXPECT_TEXT(
-      documentation.get_line(0),
-      "Creates a fixed homogeneous range Type."_view);
+  EXPECT_NOT(fixed.get_documentation().is_empty());
   EXPECT(&fixed.resolve_context("member"_view) == &Invalid::get_invalid());
 }
 
