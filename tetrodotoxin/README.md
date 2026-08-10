@@ -1,17 +1,63 @@
 # Tetrodotoxin
 
-Tetrodotoxin is the reference host for TTX. It combines a small shared semantic
-vocabulary with concrete source Dialects for packages, reusable CPU code,
-applications, scenes, rendering, shaders, and foreign interfaces.
+Tetrodotoxin is the reference host and compiler framework for TTX. It is
+designed for source trees that contain several purpose specific languages.
+Package manifests, reusable CPU libraries, applications, scenes, render
+interfaces, shaders, and foreign declarations can refer to one another while
+keeping the semantic model appropriate to each language.
 
-TTX describes identities and Layouts. Tetrodotoxin gives those facts language
-meaning, keeps them alive in a Workspace, resolves packages, and passes
-completed programs to compilers and linkers.
+This is useful when the languages in one product share identities and value
+shape but do not share one useful AST. Generic tools can use their common TTX
+contracts, while language specific tools continue through the concrete
+language. The tradeoff is that each language must define the semantics,
+completion rules, and Diagnostics that only it understands. A persistent
+language must also define its durable reconstruction facts.
 
-## A source family
+Five terms describe the architecture:
 
-Every source begins with required Documentation and selects the Dialect that
-owns its body:
+* **TTX** is the shared vocabulary for semantic identity and queries.
+* A **Dialect** gives one source language its grammar and meaning.
+* A **Monograph** is the retained semantic result of one source.
+* A **Workspace** gives related Monographs and their borrowed edges one
+  lifetime.
+* A **Terminal product** has left that lifetime, such as LLVM IR, SPIR-V, an
+  object module, editor data, or a Package Archive.
+
+TTX remains independent of the host. Tetrodotoxin supplies the concrete
+languages, Workspace lifetime, package transactions, compilers, linkers, and
+application policy that turn its small vocabulary into a toolchain.
+
+## Is Tetrodotoxin a fit for my project?
+
+Tetrodotoxin is aimed at projects where several language shaped domains must
+compose in one program and several consumers need to agree on their live
+meaning. Compiler research, integrated application toolchains, editor services,
+and systems that need source independent semantic restoration are natural use
+cases.
+
+The design is most useful when preserving each domain's model matters more than
+providing one generic declaration tree. A Package member, a Library Type, an
+App lifecycle, a Scene signal, and a Shader Stage can meet through TTX without
+becoming variants of the same record.
+
+That choice has costs. Adding a Dialect requires more than adding syntax. The
+Dialect must construct its semantic objects, participate in Workspace
+completion, expose useful queries, and report Diagnostics. When it participates
+in Package Archive persistence, it must also define the payload from which it
+can reconstruct its Monograph. Generic tools see the common TTX surface and use
+the concrete Dialect for richer language details.
+
+A conventional frontend is usually simpler when one language owns the entire
+program. **LLVM is the stronger starting point** when the project begins with
+lowered computation, optimization, and code generation. **MLIR is the stronger
+fit** when extensible operation rewriting is the central abstraction. **Clang
+is the stronger fit** when C or C++ compatibility and mature language tooling
+are the product.
+
+## A family of sources
+
+Every top level source begins with authored Documentation and selects the
+Dialect that owns its body:
 
 ```ttx
 // A reusable Library source.
@@ -34,97 +80,182 @@ source Main from "main.ttx";
 ```
 
 The filename locates input beneath the package root. `Utilities` and `Main` are
-the identities other sources query.
+the names other sources query. Moving a file does not silently change the
+semantic route used by the program.
 
-## Access is explicit
+## Languages meet through explicit queries
 
-TTX punctuation selects separate semantic domains throughout Tetrodotoxin:
+Three semantic questions recur when Tetrodotoxin languages meet:
+
+1. Which Addressable does an applicable Layout expose?
+2. Which identity does an owner directed contextual route reach, and does it
+   satisfy the category required by the consuming language?
+3. Which Callable does a concrete language select, and how do values fit its
+   parameter and result Layouts?
+
+These questions use existing TTX contracts. Tetrodotoxin does not add another
+Type, Addressable, or Callable category. Each concrete language assigns the
+grammar and meaning that turns a shared contract into one of its operations.
+
+Together the concrete objects form Tetrodotoxin's live multi domain semantic
+IR. A Workspace owns one semantic island while each Dialect contributes objects
+from its localized domain. Linking and finalization can connect those objects
+and answer unresolved queries, but they never replace an identity that was
+already returned successfully.
+
+Library, for instance, expresses the three questions through Access operators:
 
 ```ttx
-packet.width                   // Addressable in a named Layout
-Graphics::Image                // Type through contextual resolution
-packet -> resize(new_width)    // Callable invocation
-packet.[width, height]         // named selection and repacking
-access[index]                  // optional reference access
-bytes:[index]                  // safe element value
-bytes:[0, 64]                  // safe ranged value
+packet.width                   // select an Addressable from a Layout
+Graphics::Image                // resolve a Type through context
+packet -> resize(new_width)    // select and invoke a Callable
 ```
 
-The distinction remains visible across packages and `using` declarations.
-`::` can cross Alias, Package, Monograph, source, and Type contexts without
-converting those contexts into Types or Expressions.
+Keeping each complete type system with its Dialect lets every language use the
+strongest semantic model for its domain.
+These operators share TTX contracts while each Dialect keeps its own lookup,
+visibility, overload, mutation, and evaluation rules. That is the practical
+boundary between composition and a universal type system.
 
 ## Dialects
 
-- [Package](package/README.md) declares dependencies, names source members,
+Tetrodotoxin provides several top level Dialects and one embedded language
+fragment as building blocks for richer domain specific solutions:
+
+* [Package](package/README.md) declares dependencies, names source members,
   provides confined resources, and defines durable Archives.
-- [Library](library/README.md) defines reusable CPU Types, values, functions,
+* [Library](library/README.md) defines reusable CPU Types, values, functions,
   expressions, Structs, Objects, and Enumerations.
-- [App](app/README.md) describes startup and application lifecycle.
-- [Scene](scene/README.md) describes scene state, signals, children, and
+* [App](app/README.md) describes startup and application lifecycle.
+* [Scene](scene/README.md) describes scene state, signals, children, and
   lifecycle roles.
-- [Render](render/README.md) declares render-facing value and stage contracts.
-- [Shader](shader/README.md) implements Render contracts for GPU stages.
-- [Foreign](foreign/README.md) embeds an external ABI surface inside a
-  CPU-capable source.
+* [Render](render/README.md) declares contracts for values and stages consumed
+  by rendering.
+* [Shader](shader/README.md) defines how GPU stages implement Render contracts.
+* [Foreign](foreign/README.md) embeds an external ABI surface inside a source
+  that supports CPU execution.
 
-### Grammar prototypes
+Each top level Dialect owns its source grammar and constructs concrete
+Monographs directly. Foreign is an embedded language fragment rather than an
+installed top level Dialect.
 
-Each Dialect provides a ANTLR4 grammer as a prototype source reference for custom parser:
+The repository publishes canonical grammar references for authored language
+shape and parse order. The complete source entries are
+[Package](package/grammar/Package.g4),
+[Library](library/grammar/Library.g4), [App](app/grammar/App.g4),
+[Scene](scene/grammar/Scene.g4), [Render](render/grammar/Render.g4), and
+[Shader](shader/grammar/Shader.g4).
+[Foreign](foreign/grammar/Foreign.g4) defines an embedded fragment.
+[Tetrodotoxin](language/grammar/Tetrodotoxin.g4) contains grammar fragments
+shared by several Dialects, and the
+[TTX lexical grammar](../ttx/grammar/TTXLexer.g4) records their common
+spellings.
 
-- [Package](package/grammar/Package.g4)
-- [Library](library/grammar/Library.g4)
-- [App](app/grammar/App.g4)
-- [Scene](scene/grammar/Scene.g4)
-- [Render](render/grammar/Render.g4)
-  [Shader](shader/grammar/Shader.g4)
-- [Foreign](foreign/grammar/Foreign.g4)
-- [Tetrodotoxin](language/grammar/Tetrodotoxin.g4)
+These files are descriptive references. The toolchain does not generate or run
+its parsers from them.
 
-[TTX lexer prototype](../ttx/grammar/TTXLexer.g4) records their common spellings used across the grammer family.
+## One Workspace lifetime
 
-For a formal implementation the shared [Language](language/README.md) explains how a Dialect
-produces a Monograph while [Environment](environment/README.md) explains how a
-Workspace installs Dialects and retains their results. The rest of the
-Tetrodotoxin grammer is build off of those two TTX Abstract Machines.
-
-## Semantic lifecycle
-
-A Workspace interprets a group of sources as one semantic island:
+Tetrodotoxin's Workspace manages several source languages in one shared
+lifetime. It interprets a related group of authored sources and invokes their
+Dialects through the same completion contract:
 
 ```text
 source bytes
 -> TTX Tokens
 -> selected Dialect
--> retained Monograph
--> contextual resolution
--> link the complete source group
+-> interpret and retain authored identities
+-> link contextual routes across the complete source group
 -> finalize completed language facts
 -> compilation, tooling, or durable output
 ```
 
-Interpretation preserves authored identities even when their Type routes are
-not complete yet. Linking connects those routes after the source group is
+Interpretation preserves authored identities even while some routes remain
+unanswered. Linking connects those routes after the complete source group is
 known. Finalization performs work that requires every linked declaration to be
-available. A failed group is not published as a completed program.
+available. Publication makes the group visible only after the complete
+transaction succeeds.
+
+Once the live graph is completed, tools can ask dynamic semantic questions and
+Terminal producers can consume the same facts without translating the program
+into another language's model. Library can lower completed CPU facts while
+Shader lowers completed GPU facts. The queries remain live graph operations.
+Only the independently consumable output crosses the Terminal boundary.
+
+## Leaving the graph
+
+When a compiler or tool produces an output that no longer needs the live
+Workspace, Tetrodotoxin calls that output a Terminal product. Linker, for
+example, owns native objects and executables. Shader owns GPU modules. Package
+owns the semantic Archive.
+
+Puffer is the user facing compiler driver and LSP application shell. It
+coordinates each requested product and presents the result while Library,
+Shader, Linker, and Package retain ownership of their formats and semantics.
+
+Target Terminal products preserve the facts needed by their next consumer.
+LLVM IR, SPIR-V, debug data, and native objects are not complete records of the
+language graph that produced them. Package Archive serves a different purpose.
+It keeps Package and Dialect reconstruction facts that let Environment
+construct a fresh Workspace without source and run the ordinary link, finalize,
+and publication barriers.
+
+### Semantic reconstruction in durable formats
+
+TTX semantic queries operate on a live graph, but plenty of useful workflows do
+not fit in one process. Incremental builds, distribution, and debugging may all
+need source independent semantic input later without retaining the original
+Workspace.
+
+Package Archive is Tetrodotoxin's canonical semantic reconstruction format. It
+records sufficient Package and Dialect facts to construct a fresh graph. Its
+records contain no live graph identities or runtime state.
+
+Two graphs do not need the same memory representation to be equivalent. The
+restored graph must reproduce every public observation promised by the format,
+including names, categories, represented identity relationships, semantic
+edges, order, Layout behavior, completion, and concrete Dialect facts. The
+supporting graph shape remains opaque.
+
+A reconstruction payload can be much smaller than a memory image because it
+records only the owner defined facts needed to reproduce those observations.
+Compactness is a format benefit rather than a semantic requirement. A
+persistent Dialect participates by defining and validating a complete
+reconstruction payload. Other Dialects do not have to be persistent.
+
+The [Tetrodotoxin design](tetrodotoxin_design.md) explains the Terminal and
+reconstruction contract in detail.
 
 ## Packages and resources
 
+The Tetrodotoxin toolchain always includes Package support. A Workspace that
+interprets one standalone source does not need to install or use the Package
+Dialect. Package enters a Workspace when a request composes a Package, acquires
+its resources, or restores an Archive.
+
+Package owns reproducible dependency selection, semantic source names,
+confined Storage, resource acquisition, Archives, and Repository selection. It
+keeps host paths and acquisition policy outside the consuming language.
+
 Package paths are confined to one opened package root. An embedded operand such
-as `$[resources/table.bin]` asks the source Package for retained bytes; the
-consuming Dialect decides what those bytes mean. Empty content remains a valid
-resource, and paths never become semantic source names implicitly.
+as `$[resources/table.bin]` asks the source Package for retained bytes. The
+consuming Dialect decides what those bytes mean, and empty content remains a
+valid resource. A complete request resolves to a retained Resource or an owner
+specific Error. It is a contextual transaction rather than Layout fitting.
 
-Packages may also be stored as source-free Archives. Package owns the envelope
-and dependency inventory while each concrete Dialect owns the payload needed to
-restore its own Monographs.
+Packages may also be distributed as Archives used without source. Package owns
+the envelope and dependency inventory while each persistent Dialect owns the
+payload needed to construct new Monographs.
 
-## Tooling boundary
+## Where to go next
 
-Concrete semantic owners provide completed facts to their consumers. Library
-lowering handles CPU code, Shader lowering handles GPU code, and Linker handles
-object formats and final native products. Package identity and source semantics
-remain separate from target addresses, relocations, and runtime storage.
-
-See [Tetrodotoxin design](tetrodotoxin_design.md) for the host architecture and
-[TTX semantics](../ttx/ttx_semantics.md) for the normative shared model.
+| I want to                                        | Start with                                                                      |
+| ------------------------------------------------ | ------------------------------------------------------------------------------- |
+| Understand the shared graph precisely            | [TTX design](../ttx/ttx_design.md) and [TTX semantics](../ttx/ttx_semantics.md) |
+| Understand the host architecture and tradeoffs   | [Tetrodotoxin design](tetrodotoxin_design.md)                                   |
+| Add another source language                      | [Language](language/README.md)                                                  |
+| Embed source interpretation and graph lifetime   | [Environment](environment/README.md)                                            |
+| Package or restore semantic programs             | [Package](package/README.md)                                                    |
+| Define reusable CPU code                         | [Library](library/README.md)                                                    |
+| Work with GPU stages                             | [Render](render/README.md) and [Shader](shader/README.md)                       |
+| Use the command line or editor application shell | [Puffer](../puffer/README.md)                                                   |

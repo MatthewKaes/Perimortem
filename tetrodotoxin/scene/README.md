@@ -1,10 +1,16 @@
 # Scene
 
-The Scene Dialect describes one retained Scene identity: its state, signals,
-declared children, render submission facts, and lifecycle Callables. App owns
-the live Scene stack and transitions between Scene identities.
+Scene is Tetrodotoxin's language for one retained unit of interactive state. It
+combines the ideas of a scene definition and a lifecycle contract. A Scene owns
+its state, signals, declared children, render submission facts, and lifecycle
+Callables.
 
-Grammar prototype: [Scene.g4](grammar/Scene.g4).
+Use Scene when an application needs authored state with explicit prepare,
+update, pause, resume, and release behavior. App owns the live stack and the
+policy that moves between Scene identities, so one Scene describes itself
+without choosing its successor or global application flow.
+
+Canonical grammar reference: [Scene.g4](grammar/Scene.g4).
 
 ```ttx
 dialect : Scene;
@@ -71,14 +77,11 @@ self.top_icon.image = image;
 self.top_icon.position = (.x = 200, .y = 100);
 ```
 
-After update, visible attached graphics children are collected in retained tree
-order. Scene code mutates child state; it does not issue an imperative draw call.
-Equal depth follows sibling order, and visibility and transforms propagate
-through graphics parents.
+Scene retains declared child order and publishes render submission facts after
+update. Runtime submission lies outside Scene semantics and does not change the
+semantic identity of a declared child.
 
-`release` runs before reverse-order destruction of the declared child subtree.
-Dynamic attachment, detachment, and reparenting require explicit runtime
-operations and do not change declared child identity.
+`release` runs before reverse order destruction of the declared child subtree.
 
 ## Time and input
 
@@ -92,7 +95,7 @@ Scene update[self, .delta_time : Real_64] -> Scene::Flow {
 ```
 
 Elapsed time is ordinary Scene state. Terminal and Headless applications can use
-the same lifecycle because the update Signature has no graphics-specific
+the same lifecycle because the update Signature has no graphics specific
 argument.
 
 Process input is queried through a linked dependency rather than added to the

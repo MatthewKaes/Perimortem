@@ -1,11 +1,24 @@
 # Package
 
-Package gives a group of Tetrodotoxin sources one durable identity. Its manifest
-pins dependencies, assigns semantic names to source files, confines resource
-paths, and describes the semantic and native products that can be restored
-without source.
+Package is the reproducible unit that connects Tetrodotoxin source names, pinned
+dependencies, confined resources, semantic Archives, and native artifacts. It
+combines a concrete top level Dialect with the services that acquire and retain
+the inputs named by that Dialect. It overlaps with a package manifest and a
+compiled module cache, but its identity comes from explicit semantic
+coordinates rather than a directory convention.
 
-Grammar prototype: [Package.g4](grammar/Package.g4).
+Use Package when source files need stable names across moves, dependency and
+artifact selection must be deterministic, or a completed semantic program must
+be restored without source. This explicit model asks authors to declare routes
+and versions rather than relying on directory discovery. A persistent Dialect
+must also define the payload that reconstructs its own semantic facts.
+
+Package support is part of the Tetrodotoxin toolchain. A Workspace interpreting
+one standalone source does not need to install or use the Package Dialect. A
+package compilation, resource request, or Archive restoration installs Package
+with the concrete Dialects named by that transaction.
+
+Canonical grammar reference: [Package.g4](grammar/Package.g4).
 
 ## Manifest
 
@@ -37,13 +50,13 @@ so each authored route must be unique.
 resolve LocalName : External.Package.Identity = "Major.Minor";
 ```
 
-- `LocalName` is the Type-shaped Alias used inside this Package.
-- `External.Package.Identity` is the durable Package coordinate.
-- `Major.Minor` is the exact pinned version.
+* `LocalName` is the Alias used inside this Package and follows Type spelling.
+* `External.Package.Identity` is the durable Package coordinate.
+* `Major.Minor` is the exact pinned version.
 
 Dots inside the external Package identity are manifest coordinate syntax, not
 Library Address access. Package selection uses the complete identity and pinned
-version; it does not infer a dependency from a filesystem location.
+version. It does not infer a dependency from a filesystem location.
 
 The local Alias participates in ordinary contextual access:
 
@@ -53,9 +66,9 @@ System::Terminal
 ```
 
 Each `::` step asks the selected Abstract context for the next identity. A Type
-position proves the terminal Type, while Package and `using` grammar prove the
-terminal context they require. Package, Monograph, Alias, source, and Type
-contexts remain their real categories rather than being converted into a common
+position proves the final Type, while Package and `using` grammar prove the
+final context they require. Package, Monograph, Alias, source, and Type
+contexts remain their exact categories rather than being converted into a common
 Package Type.
 
 ## Sources
@@ -66,12 +79,14 @@ Package Type.
 source Scenes::Splash from "scenes/splash.ttx";
 ```
 
-`Scenes::Splash` is the identity used by other source. The quoted path only
-locates bytes. A filename, directory name, or manifest order never creates a
-semantic name implicitly.
+`Scenes::Splash` is the semantic route queried by other sources. It resolves
+through the Package context to the retained source binding. The quoted path
+only locates bytes. A filename, directory name, or manifest order never creates
+a semantic name implicitly.
 
-Source routes use Type-shaped segments joined by `::`. They participate in the
-same contextual TypeAccess model used by Library Types and `using` routes.
+Source routes use segments with Type spelling joined by `::`. They participate
+in the same owner directed contextual resolution used by Library Type positions
+and `using` routes. Each consumer proves the category it requires.
 
 Paths are normalized relative to the opened Package root. Empty, rooted,
 escaping, or invalid paths are rejected. Two authored paths that normalize to
@@ -79,15 +94,15 @@ the same route identify the same input and therefore cannot declare two Sources.
 
 ## Package context
 
-The Package Monograph exposes dependency and Source bindings as real TTX Alias
+The Package Monograph exposes dependency and Source bindings as exact TTX Alias
 edges. A successful Source Alias targets the Monograph produced by that source's
-own Dialect; a dependency Alias targets the restored Package context.
+own Dialect. A dependency Alias targets the restored Package context.
 
 Contextual lookup returns those retained identities. It does not copy Library
 Types, App lifecycle facts, or Shader declarations into a separate Package
 model.
 
-Package-local members remain inside their Package unless another language
+Members local to a Package remain there unless another language
 explicitly imports or publishes them.
 
 ## Embedded resources
@@ -108,73 +123,66 @@ Resource acquisition follows these rules:
 5. Resolution never falls back to the process working directory or the
    containing source directory.
 
-Package returns a language-neutral Resource containing stable bytes. The
-consumer assigns meaning: Library may construct a Bytes Constant, Shader may
-construct shader data, and another Dialect may define another interpretation.
+Package returns a Resource containing stable bytes without assigning them
+language meaning. The consumer assigns meaning. Library may construct a Bytes
+Constant, Shader may construct shader data, and another Dialect may define
+another interpretation.
+
+A recognized request resolves to either one retained Resource or one owner
+specific Error identity. This is an owner directed contextual transaction, not
+Layout fitting. The result says whether Package acquired the requested bytes.
+It does not decide how a consuming language represents or uses them.
 
 The logical path remains confinement and diagnostic data. It never becomes a
 Source name or exported semantic identity.
 
 ## Archive
 
-A Package Archive is the durable semantic product used to restore a Package
-without authored source. It contains:
+A Package Archive contains enough Package and Dialect reconstruction facts to
+rebuild a Package's semantic graph in a fresh Workspace without reparsing
+source. It is a reconstruction format rather than a memory image.
 
-1. exact Package identity and version;
-2. ordered dependency requests;
-3. ordered semantic member names, Dialect names, and opaque Dialect payloads;
-4. ordered native artifact identifiers;
-5. exported semantic routes with artifact and symbol locators.
+The Archive avoids source acquisition, lexing, and parsing during restoration.
+It still requires complete format validation and the ordinary Workspace
+completion barriers before the reconstructed graph can be published.
 
-Each concrete Dialect owns the payload needed to restore its Monograph. Package
-owns the envelope and relationships between records without interpreting those
-payloads.
+Archive is the canonical semantic Terminal product for Tetrodotoxin use without
+source. Its Terminal role places it outside the live TTX graph. Package owns
+this format because it already knows the Package identity, dependencies,
+members, Dialect names, and native locators that bind the transaction together.
+Linker continues to own native object bytes.
 
-An Archive contains no live process address, parser position, filesystem
-handle, source path as semantic identity, target cache, or Linker object bytes.
+Live semantic identity depends on a Workspace and its concrete language owners.
+The Archive records the stable Package and Dialect facts that a new Workspace
+needs to construct a graph with the observable relationships defined by those
+owners. It carries reconstruction facts rather than live graph identities or
+runtime state.
 
-## Archive Format 1
+It contains:
 
-Format 1 uses fixed-width little-endian integers. The file begins with a twelve
-byte header:
+1. exact Package identity and version
+2. ordered dependency requests
+3. ordered semantic member names, Dialect names, and opaque Dialect payloads
+4. ordered native artifact identifiers
+5. exported semantic routes with artifact and symbol locators
 
-| Offset | Width | Value |
-| --- | ---: | --- |
-| 0 | 4 | ASCII `TTXA` |
-| 4 | 2 | format value `1` |
-| 6 | 2 | reserved flags `0` |
-| 8 | 4 | complete body size |
+Each concrete Dialect owns the payload needed to construct a new Monograph.
+Package owns the envelope and relationships between records without
+interpreting those payloads.
 
-The body is a tagged field envelope. Each field begins with a 16-bit tag,
-16-bit flags, and 32-bit payload size. Flag bit zero marks a required field;
-other bits are reserved.
+Persistence is optional for a Dialect. A persistent Dialect defines and
+validates a complete reconstruction payload. A Dialect that is always
+interpreted from source does not need an Archive payload.
 
-Six fields are required once each in this order:
+A payload may be much smaller than a memory image because it records only the
+owner facts needed to reproduce the observations promised by the format.
+Compactness is a useful property of the format, not the persistence contract.
 
-| Tag | Payload |
-| ---: | --- |
-| 1 | Package identity string |
-| 2 | 16-bit major and 16-bit minor version |
-| 3 | dependency list |
-| 4 | member list |
-| 5 | native artifact list |
-| 6 | export list |
-
-Strings and opaque payloads begin with a 32-bit byte count. Lists begin with a
-32-bit entry count, and each entry begins with a 32-bit record size. Every field
-and record is consumed exactly; missing, repeated, reordered, truncated, or
-trailing data is invalid.
-
-Known fields carry the required bit. An unknown required field is invalid. An
-unknown optional field may be skipped when its complete payload lies within the
-declared body.
-
-Package identities use dot-separated Type-shaped segments. Member routes and
-dependency aliases use `::`-separated Type-shaped segments. Dialect names use
-one Type-shaped segment. Package and dependency version `0.0` is reserved.
-
-Canonical encoding preserves declared list order and produces identical bytes
-for equivalent Archive facts.
+The Archive bytes are not themselves semantic identities. A caller cannot ask
+them to resolve a name, prove a Type, or fit a Layout. Those operations become
+available only after Package validates the envelope. Environment then selects
+each installed Dialect, asks it to construct a new Monograph from the member
+payload, and completes the new Workspace.
 
 ## Repository selection
 
@@ -194,9 +202,22 @@ different product kinds.
 ## Restoration
 
 Environment restores the Package root from Archive metadata, selects each
-installed Dialect named by a member record, and asks that Dialect to recreate
-its semantic payload. Restored Monographs then pass through the same link and
-finalize lifecycle as authored source.
+installed Dialect named by a member record, and asks that Dialect to construct a
+new Monograph from its payload. Restored Monographs then pass through the same
+link and finalize lifecycle as authored source.
+
+Restoration creates fresh process objects. Equivalent restoration reproduces
+every public observation promised by the Archive. Those observations include
+exact names, categories, represented identity relations, semantic edges,
+ordering, Layout behavior, completion, and concrete Dialect facts. Internal
+graph shape and process addresses may differ. An old Reference is never
+recovered.
+
+LLVM IR, an object module, and an executable are separate target Terminal
+products. They cannot replace a Dialect payload because target lowering has
+discarded language semantic facts. The Archive may retain native artifact and
+symbol locators, but the native bytes remain products of Linker and the selected
+compiler path.
 
 See [Environment](../environment/README.md) for Workspace import and
 [Library](../library/README.md) for `using` and Resource consumption.

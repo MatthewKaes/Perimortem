@@ -8,7 +8,6 @@
 #include <unistd.h>
 
 #include "perimortem/core/static/vector.hpp"
-#include "perimortem/core/algorithm/search.hpp"
 #include "perimortem/core/data.hpp"
 #include "perimortem/core/null_terminated.hpp"
 
@@ -176,9 +175,7 @@ auto main(Signed_32 argc, char** argv) -> Signed_32 {
   auto echo_output = File::read("validation/data/ttx/oracles/echo.stdout"_view);
   auto echo_contract =
       File::read("validation/data/ttx/oracles/echo.contract"_view);
-  auto scene =
-      File::read("validation/data/ttx/oracles/scene_lifetime.golden"_view);
-  if (!echo_input || !echo_output || !echo_contract || !scene) {
+  if (!echo_input || !echo_output || !echo_contract) {
     fprintf(stderr, "unable to load process oracle data\n");
     return 1;
   }
@@ -193,33 +190,6 @@ auto main(Signed_32 argc, char** argv) -> Signed_32 {
       *echo_contract == "stderr empty\nexit 0\ntimeout_ns 1000000000\n"_view &&
           Process::compare(echo, echo_expectation) == Process::Difference::None,
       passed, total);
-
-  constexpr View::Bytes scene_prefix =
-      "clock_unit ns\nsplash_steps 500000000 500000000 "_view;
-  constexpr View::Bytes shift_event =
-      "press Shift\nemit Scenes::Title[1].shift_pressed\n"_view;
-  constexpr View::Bytes prepare_event =
-      "prepare Scenes::Splash[2] elapsed_ns=0\n"_view;
-  constexpr View::Bytes release_event =
-      "destroy Scenes::Splash[2].bottom_icon\n"
-      "destroy Scenes::Splash[2].top_icon\n"_view;
-  constexpr View::Bytes scene_suffix =
-      "press Space\nemit Scenes::Title[2].space_pressed\n"
-      "release Scenes::Title[2]\n"
-      "destroy Scenes::Title[2].title_card\n"
-      "destroy Scenes::Title[2]\n"
-      "live_scene none\nexit 0\n"_view;
-  Bool scene_contract =
-      (*scene).get_size() >=
-          scene_prefix.get_size() + scene_suffix.get_size() &&
-      (*scene).slice(0, scene_prefix.get_size()) == scene_prefix &&
-      Algorithm::search(*scene, shift_event) != Count(-1) &&
-      Algorithm::search(*scene, prepare_event) != Count(-1) &&
-      Algorithm::search(*scene, release_event) != Count(-1) &&
-      (*scene).slice(
-          (*scene).get_size() - scene_suffix.get_size(),
-          scene_suffix.get_size()) == scene_suffix;
-  record("scene deterministic golden", scene_contract, passed, total);
 
   Process::Expectation events = {
     .standard_output = event_output,

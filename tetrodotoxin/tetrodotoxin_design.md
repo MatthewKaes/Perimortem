@@ -1,17 +1,111 @@
 # Tetrodotoxin Design
 
-Tetrodotoxin turns TTX source into concrete language objects. Its architecture
-keeps four kinds of fact separate:
+Tetrodotoxin is a host for programs made from several purpose specific source
+languages. It lets those languages share semantic identity and value shape
+without requiring them to share one declaration hierarchy, type system, or
+lowered representation. Together their concrete objects form one live multi
+domain semantic IR inside a Workspace.
 
-- TTX owns shared lexical and semantic contracts.
-- A Dialect owns the meaning of one source body.
-- Environment owns the Workspace that retains and connects those bodies.
-- Package, compiler, linker, and runtime owners handle their own external
-  products and policies.
+The architecture divides the work by owner:
+
+* TTX defines the lexical and semantic contracts that can be shared without
+  knowing a language.
+* A Dialect gives one source body grammar and semantic meaning.
+* Environment gives related Monographs one Workspace lifetime and drives their
+  completion.
+* Package supplies the required toolchain services for reproducible composition
+  and semantic Archives.
+* Compiler, linker, runtime, and application components own their products and
+  policies outside the live graph.
+
+This division is useful when a Package declaration, Library Function, App
+lifecycle, Scene signal, and Shader Stage need to refer to one another but do
+not benefit from becoming subclasses of the same declaration record. They meet
+through the TTX contracts they genuinely share and retain richer behavior in
+their own languages.
+
+The [Tetrodotoxin overview](README.md) introduces the source family and helps a
+reader decide whether this architecture fits a project. This document explains
+the choices and costs behind it. The precise shared contracts live in
+[TTX semantics](../ttx/ttx_semantics.md).
+
+## What Tetrodotoxin takes from LLVM
+
+Tetrodotoxin draws from LLVM IR's successful separation between source language
+semantics and a compact representation built for optimization and code
+generation. Completed CPU facts can lower to LLVM IR without asking LLVM to
+remain the Package model, editor model, or durable source type system.
+
+The same modular instinct applies earlier in the toolchain. Each Tetrodotoxin
+Dialect uses a model suited to its own source questions, while TTX carries the
+smaller set of facts that other languages and tools can use directly. A
+consumer reaches the language object that owns a fact until it deliberately
+derives a product for another system.
+
+There has been continuing work across LLVM, including LLDB, to improve this kind
+of subsystem ownership and to build compatibility representations only where a
+consumer requires them. Tetrodotoxin explores the other logical extreme. It was
+designed without inheriting a C frontend or debugger compatibility surface, so
+independent language ownership and one composable source tree are foundational
+rather than retrofitted boundaries.
+
+LLVM IR remains an important destination in this architecture. Once IR leaves
+the compilation request, it is a Terminal product containing the target facts
+needed by LLVM and its downstream consumers. The live Tetrodotoxin graph keeps
+the richer language meaning that lowering was allowed to discard.
+
+The detailed comparison with LLVM IR is in
+[TTX design](../ttx/ttx_design.md#lessons-from-llvm-ir).
+
+## The choices and their costs
+
+None of these choices is universally better than the familiar alternative.
+They move complexity to the component that has enough information to own it.
+
+| Design choice | What it makes possible | What the project must provide |
+| --- | --- | --- |
+| Concrete semantic objects instead of one shared AST | A Dialect preserves the distinctions its language and tools actually use | Rich tooling must use that Dialect because the common TTX view is deliberately smaller |
+| Workspace local borrowed identity | Languages and consumers share one unambiguous object without copying or merging it | References end with their Workspace and cannot become persistent handles |
+| Interpretation, linking, and finalization barriers | Forward references and recursive groups retain stable identity while they become complete | Consumers must respect publication and treat unanswered queries observed during construction as provisional |
+| Semantic Layout | One language shape can feed CPU, GPU, interpreter, editor, and archive consumers | Every backend must derive and validate its own physical layout |
+| Typed Terminal products | Each output preserves the facts and validation contract its next consumer needs | There is no generic product registry or common output object |
+| Dialect owned Archive payloads | Source independent restoration can reconstruct equivalent observable language meaning | A persistent Dialect must maintain and validate its reconstruction schema, while a Dialect used only from source needs no Archive payload |
+
+The architecture earns its complexity when several domains would otherwise
+maintain shadow graphs or repeatedly import semantic facts between models. A
+single language compiler with one AST, one typed intermediate representation,
+and one backend may not need these boundaries.
+
+## Direct semantic construction
+
+A common AST is effective when all participating languages share a useful
+declaration and Type model. Tetrodotoxin's Package, Library, App, Scene, Render,
+and Shader languages do not. Their source forms have different invariants,
+lifecycles, and consumers.
+
+The selected Dialect therefore constructs the semantic objects defined by its
+source directly. No temporary source representation survives as a second
+declaration graph.
+
+Those concrete objects collectively form the shared semantic IR. The common
+part is TTX identity, category, resolution, and Layout rather than a universal
+node model. Each Dialect keeps the richer facts needed by its own language and
+tools.
+
+This removes a translation layer and gives a compiler or editor one stable
+subject to query. Library lowering consumes the exact Library Function. Package
+retains the Alias that names another source. Shader lowering consumes the exact
+Stage body. None of those consumers has to synchronize a generic declaration
+node with the object that carries the language behavior.
+
+The common view is consequently modest. A generic TTX tool can follow identity,
+prove a shared category, inspect a Layout, and ask contextual questions. Source
+rewriting, language specific completion, overload policy, and rich declaration
+inspection belong to the concrete Dialect.
 
 ## Dialects and Monographs
 
-A source begins with required Documentation and one Dialect declaration:
+A source begins with authored Documentation and one Dialect declaration:
 
 ```ttx
 // Reusable image helpers.
@@ -19,32 +113,41 @@ dialect : Library;
 ```
 
 Environment selects the installed Dialect named by that declaration. The
-Dialect interprets the remaining body and returns one Monograph: the durable
-semantic result of that particular source invocation.
+Dialect interprets the remaining body and returns one Monograph, the retained
+semantic result of that source invocation.
 
-An explicit empty comment represents intentionally empty source Documentation;
-omitting the opening comment is a malformed source envelope. Environment passes
-the exact Documentation to the selected Dialect and its Monograph.
+An explicit empty comment represents intentionally empty Documentation.
+Omitting the opening comment makes the source envelope malformed. Environment
+passes the exact Documentation to the selected Dialect and Monograph, which
+keeps authored prose attached to the semantic source it describes.
 
-A Monograph is an Abstract context, not a universal Type or scope. A concrete
-Dialect may expose no Types, one Type, several Types, Callables, package members,
-or another contextual shape. Its `resolve_context()` behavior is part of that
-Dialect's language contract.
+A Monograph is an Abstract context rather than a universal Type or scope. One
+Dialect may expose no Types, another may expose a source root Type, and another
+may expose package members or lifecycle facts. Its `resolve_context()` behavior
+is part of the concrete language contract.
 
-This lets App expose startup and lifecycle facts without inheriting Library's
-type system, while Library can expose its synthetic source context and Package
-can expose its member bindings through the same TTX query boundary.
+The common Monograph surface provides stable identity, Documentation,
+Diagnostics, and the link and finalize hooks required by Environment. That is
+enough for a Workspace to retain heterogeneous sources without flattening them
+into one member inventory.
 
-## Workspace
+Adding a Dialect is therefore closest to adding a compiler frontend, not adding
+an enum case to a parser. The [Language extension model](language/README.md)
+describes the contract and responsibilities in detail.
+
+## Workspace identity and completion
 
 A Workspace is one semantic island. It installs the concrete Dialects available
-to a tool, retains every resulting Monograph, and gives them a common lifetime
-for borrowed TTX edges.
+to a tool, retains every resulting Monograph, and gives their borrowed TTX edges
+a common lifetime.
+
+A Dialect may keep localized graph state, but every borrowed edge and cross
+language query remains inside the one Workspace lifetime.
 
 Source construction has three semantic stages:
 
-1. Interpretation reserves source-shaped identities and records unresolved
-   authored routes.
+1. Interpretation reserves identities derived from source and records authored
+   routes that may still be unanswered.
 2. Linking connects those routes after the complete source group is known.
 3. Finalization performs language work that requires linked declarations.
 
@@ -52,43 +155,86 @@ Every Monograph in a retained group links before any Monograph finalizes. The
 group becomes publicly queryable as completed input only after both barriers
 succeed.
 
-Diagnostics remain attached to the language fact that discovered them.
-Environment combines those facts with the retained source origin when it
-presents an authored error.
+These barriers let recursive and mutually dependent sources keep stable
+identity. A route may be unanswered during interpretation and become valid
+after linking. Once a query returns an identity successfully, later work cannot
+redirect it to another object.
 
-## Contexts and access
+This model gives immutable consumers a clear starting point. A compiler,
+Archive writer, or other Terminal producer begins after completion. A
+tool that chooses to inspect the graph earlier accepts that negative answers
+are provisional.
 
-Tetrodotoxin uses TTX contextual resolution rather than one universal member
-model. Syntax selects the requested category:
+A Monograph retains the ordered Diagnostics produced during interpretation and
+completion. Environment combines each retained Diagnostic with the source
+Origin only when it presents the authored error.
+
+The [Environment guide](environment/README.md) explains Workspace integration
+and lifecycle in more detail.
+
+## Contextual queries instead of a universal member model
+
+Tetrodotoxin syntax identifies the semantic question being asked:
 
 | Syntax | Semantic result |
 | --- | --- |
-| `value.name` | one Addressable selected from an applicable named Layout |
-| `context::Name` | one Type-shaped route traversed through contextual resolution |
-| `receiver -> name(arguments)` | one Callable invocation |
+| `value.name` | One Addressable selected from an applicable named Layout |
+| `context::Name` | One route whose segments use Type spelling and contextual resolution |
+| `receiver -> name(arguments)` | One Callable invocation with argument fitting |
 
 An intermediate `::` context may be an Alias, Package, Monograph, source root,
-Type, or another Abstract. The consuming grammar proves the terminal category
-it requires; only a Type position requires Type. This same rule carries package
-names, `using` routes, and nested Types without a Package-shaped Type or a
-Type-shaped Monograph.
+Type, or another Abstract. The consuming grammar proves the final category it
+requires. A Type position requires a Type, while a package route or `using`
+declaration can cross other contexts without pretending those contexts are
+Types.
 
-A Structure can expose all three categories, but each remains independent. A
-Field, Callable, and nested Type may share one spelling because the authored
-operator already identifies the query domain.
+A Structure may expose a Field, Callable, and nested Type with the same
+spelling because the authored operator already identifies the query domain.
+The concrete language retains control over visibility, overload selection, and
+mutation rules inside that domain.
 
-Address access identifies one semantic Addressable and its Type. It does not
-decide whether the terminal uses a stack slot, an inline base plus offset, an
-Object reference plus offset, or a folded value.
+Address access identifies one semantic Addressable and its Type. A backend may
+materialize or eliminate its physical address without changing that semantic
+identity. Likewise, a Function host grants access authority while an explicit
+receiver supplies the value used for Field selection.
 
-A Function host grants access authority but does not supply a receiver.
-Functions select Fields through an explicit value and `.`, including private
-Fields admitted by that host. A Static Function therefore cannot resolve a host
-Field as a bare identifier.
+The benefit is that unrelated contexts can compose without one universal
+member record. The cost is that a tool must know which semantic question it
+wants to ask. Spelling alone cannot infer the category.
 
-## Package language
+## Semantic shape and physical representation
 
-A Package source binds two kinds of authored facts:
+TTX Layouts express order and applicability among exact semantic identities.
+Library uses them for parameters, results, fields, named value packs, indexed
+values, and swizzles. Render and Shader use them to agree on Stage interfaces.
+An empty or multi value Layout remains a shape and does not become an anonymous
+Type.
+
+A compiler maps scalar abstract machine storage facts and derives target object
+layouts, ABI alignments, offsets, pointer forms, calling convention carriers,
+registers, and relocations only after the semantic graph is complete.
+Library lowering can consume completed CPU facts owned by Library, App, or Scene
+without converting those Monographs into Library source. Shader lowering
+consumes Shader facts independently. Linker owns object modules, symbols,
+relocations, target encoding, and final native products.
+
+This separation lets several targets consume the same language meaning. It also
+means Tetrodotoxin cannot answer target layout questions by consulting the
+semantic Layout alone. Each backend must perform and verify that mapping.
+
+Runtime policy follows the same boundary. Library defines Object identity and
+language lifetime. Allocation strategy, collector policy, pointer
+representation, and reclamation timing belong to the runtime that realizes
+those promises.
+
+## Package as a composition example
+
+Package support is part of the Tetrodotoxin toolchain. A request that composes
+a Package, acquires a Package resource, or restores an Archive installs the
+Package Dialect and enters its contextual model. A Workspace interpreting one
+standalone source can omit Package entirely.
+
+A Package source binds external dependencies and authored source members:
 
 ```ttx
 resolve Graphics : Perimortem.Graphics = "1.0";
@@ -96,105 +242,140 @@ source Scenes::Splash from "scenes/splash.ttx";
 ```
 
 `resolve` gives an external Package identity a local Alias. `source` gives one
-confined input a semantic route. Package paths locate bytes; semantic routes
-identify Monographs and are traversed through TypeAccess syntax.
+confined input a semantic route. Package paths locate bytes, while semantic
+routes identify Monographs and participate in contextual resolution.
 
-An embedded resource operand asks the exact source Package for bytes:
+An embedded resource operand asks the source Package for retained bytes:
 
 ```ttx
 $[resources/logo.png]
 ```
 
-Package owns confinement and stable resource identity. Library may interpret
+Package defines confinement and stable resource identity. Library may interpret
 the bytes as a Constant, Shader may interpret them as shader data, and another
-Dialect may define another meaning.
+Dialect may assign another meaning. Package transports the Resource without
+acquiring the consumer's semantics.
 
-Package Archive is the durable semantic product. It contains Package identity,
-version, dependencies, named members, Dialect payloads, and native artifact
-locators. Each Dialect encodes and restores its own payload, so Package does not
-learn Library, App, Scene, Render, or Shader semantics.
+The [Package guide](package/README.md) covers dependencies, resources, Archives,
+Repositories, and restoration.
 
-## Library language
+## Concrete language building blocks
 
-Library supplies the CPU-oriented language model shared by reusable libraries
-and executable Dialects. Its public concepts include concrete scalar Types,
-Generic materialization, Constants, Expressions, Functions, Structs, Objects,
-Enumerations, and Field access policy.
+The repository provides several concrete languages that can be composed as
+building blocks. Library supplies the language model for CPU execution. It
+defines concrete scalar Types, Generic materialization, Constants, Expressions,
+Functions, Structs, Objects, Enumerations, and Field policy while reusing TTX
+identity and Layout. Its [language guide](library/README.md) explains those
+semantics.
 
-Each Library Monograph owns one synthetic source Structure with an empty
-instance Layout. Its exact `source` route exposes that Structure, top-level
-declarations enter its Static surface, and ordinary Monograph lookup forwards
-only the external part of that surface. The Structure retains the source
-Documentation, so a Package member Alias can reach one documented root Type
-without owning a Package-shaped Type or copying the prose.
+App owns startup profiles and application lifecycle. Scene owns live Scene
+state, signals, children, render submission facts, and lifecycle roles. App
+owns transitions between Scene identities rather than asking Library to turn
+those concepts into ordinary source declarations.
 
-An authored Struct is an inline value Type with a named Layout of real Field
-Addressables. An Object uses the same Structure model while adding nonnull
-managed reference identity and language lifetime semantics.
+Render declares the semantic interfaces used by rendering. Shader implements a
+Render contract, owns GPU Stage bodies, and lowers completed facts into a GPU
+Terminal product. Foreign embeds an external ABI declaration surface inside a
+parent Dialect that already supports CPU execution.
 
-Field visibility and writability are independent. Visibility determines who can
-select a Field. Writability determines whether mutation is available generally,
-only to code hosted by the Structure, or only during initialization.
+These languages share only the TTX facts needed at their boundaries. Their
+differences remain visible to the consumers that understand them.
 
-Functions distinguish two invocation roles:
+## Terminal production and reconstruction
 
-- Static has no implicit Self value and is invoked through a Type or source
-  context.
-- Self has the reserved `self` Addressable as parameter entry zero. Its Type is
-  the selected receiver's exact Type.
+A Terminal product is the point where a consumer leaves the live TTX graph.
+Tetrodotoxin has several typed Terminal products because their formats,
+validation rules, and next consumers differ.
 
-Both are reached through `->`; the parameter Layout itself carries the role,
-and neither Callable enters a value Layout.
+A Linker object module is a native Terminal product owned by Linker. LLVM IR
+is a target Terminal product limited to the compilation request that emits it.
+SPIR-V words are a Shader Terminal product. Each product preserves the target
+facts its next consumer needs, which makes it useful precisely because it can
+leave unrelated language meaning behind.
 
-Library uses TTX Layouts for parameters, results, named value packs, fields,
-indexed value access, and swizzles. A Layout never becomes an anonymous Type
-merely because a source expression produces several values.
+The Package Archive is the canonical semantic Terminal product for
+Tetrodotoxin use without source. Package defines the envelope, Package identity,
+pinned dependencies, member routes, Dialect names, and native artifact
+locators. Each persistent Dialect defines the payload and
+reconstruction procedure needed to create a new Monograph.
 
-Library keeps indexed reference and value selection separate. An
-`Access[T]` value uses `access[index]` to try to produce an optional reference.
-`value:[index]` returns an element by value and `value:[start, count]` returns a
-read-only ranged value. Colon bracket selection is safe: an unavailable
-element or range produces its result Type's default rather than a bounds
-failure.
+Replaying declaration text in a later Workspace would not provide the same
+continuity. The same spelling can select a different Type or Layout after a
+dependency or language context changes. The Archive records the reconstruction
+facts selected by the original Package transaction instead of asking a later
+parser to rediscover meaning from names alone.
 
-## Application Dialects
+The Archive remains outside the semantic graph. It contains sufficient Package
+and Dialect reconstruction facts rather than a serialized memory image, live
+graph identities, or runtime state.
 
-App owns startup profiles and application lifecycle. Program lifecycle selects
-one Static Callable for generated entry. Scene lifecycle owns the live Scene
-stack and transitions between Scene identities.
+Restoration follows the ordinary ownership path:
 
-Scene owns its state, signals, declared child identities, render submission
-facts, and `prepare`, `pause`, `resume`, `update`, and `release` roles. App owns
-the transition that follows a Scene signal.
+```text
+validated Package Archive
+-> a fresh Environment Workspace
+-> installed concrete Dialects
+-> each Dialect constructs a new Monograph in the model it owns
+-> Environment retains the complete group
+-> every Monograph links
+-> every Monograph finalizes
+-> completed root names become visible
+```
 
-Render declares render-facing data and Stage interfaces. Shader implements one
-Render contract and owns GPU Stage bodies and lowering facts. Foreign embeds an
-external ABI surface inside a CPU-capable parent rather than creating a top
-level source island.
+The restored Workspace contains new process objects that reproduce every public
+observation promised by the Archive. Names, categories, represented identity
+relations, semantic edges, order, Layout behavior, completion, and concrete
+Dialect facts provide continuity. Internal graph shape and process addresses
+do not.
 
-## Compilation and runtime
+A Dialect payload may be much smaller than a memory image because it records
+only sufficient reconstruction facts. Compactness is a useful format property,
+not the persistence contract. A persistent Dialect is one that defines and
+validates a complete reconstruction payload. Other Dialects do not have to be
+persistent.
 
-Semantic Layouts describe language shape. A compiler derives target sizes,
-alignments, offsets, pointer forms, calling convention carriers, registers, and
-relocations from completed facts.
+Puffer is the user facing compiler driver and LSP application shell. Its caller
+or build integration supplies declared inputs and outputs. Puffer constructs
+the Workspace, stops before Terminal production when Diagnostics exist,
+requests each typed product from its defining component, and writes the
+declared outputs. It coordinates the transaction without becoming another
+semantic model or product owner.
 
-Library lowering consumes completed CPU facts owned by Library, App, or Scene
-without converting those Monographs into Library source. Shader lowering
-consumes Shader facts independently. Linker owns object modules, symbols,
-relocations, target encoding, and final native products.
+## Observable boundaries
 
-Object lifetime is a Library semantic promise; allocation strategy, collector
-policy, pointer representation, and reclamation timing are runtime choices.
-Likewise, a Package Archive contains durable semantics and native locators but
-does not contain live semantic identities or runtime addresses.
+The public evidence follows the same boundaries. Semantic graph queries expose
+resolution, identity, fitting, ordering, and completion. An independent LLVM,
+SPIR-V, object, or Archive reader validates a Terminal product. A fresh
+Workspace restored from an Archive demonstrates reconstruction.
+
+## When this architecture is worthwhile
+
+Tetrodotoxin is a strong fit when one source tree contains several languages
+that must retain their own models, when exact identity crosses those language
+boundaries, and when the same completed program feeds compilers, editors,
+packages, and runtimes.
+
+It is a weaker fit when a project needs one established language frontend, one
+generic rewrite IR, or immediate access to a mature optimizer and debugger
+ecosystem. Those projects can use Clang, MLIR, or LLVM directly with less host
+machinery. When Tetrodotoxin is used with a downstream IR system, completed
+facts can lower into a suitable representation such as LLVM IR.
+
+Persistence is a deliberate commitment rather than a requirement for every
+Dialect. A persistent Dialect owns its source semantics, completion rules,
+Archive schema, payload validation, and reconstruction procedure. The reward is
+that no other subsystem has to guess those facts from a representation built
+for a different job.
 
 ## Documentation map
 
-- [TTX semantics](../ttx/ttx_semantics.md)
-- [Language extension model](language/README.md)
-- [Environment and Workspace](environment/README.md)
-- [Package language](package/README.md)
-- [Library language](library/README.md)
-- [App](app/README.md), [Scene](scene/README.md),
+* [TTX overview](../ttx/README.md)
+* [TTX design](../ttx/ttx_design.md)
+* [TTX semantics](../ttx/ttx_semantics.md)
+* [Language extension model](language/README.md)
+* [Environment and Workspace](environment/README.md)
+* [Package language](package/README.md)
+* [Library language](library/README.md)
+* [App](app/README.md), [Scene](scene/README.md),
   [Render](render/README.md), [Shader](shader/README.md), and
   [Foreign](foreign/README.md)

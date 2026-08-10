@@ -1,10 +1,16 @@
 # Foreign
 
-Foreign embeds an external ABI surface inside a CPU-capable parent Dialect. It
-does not create an independent source Dialect or Monograph; its declarations
-become semantic facts owned by the surrounding source.
+Foreign is an embedded FFI declaration block, similar to an `extern` block in a
+systems language. It adds external variables and functions to the semantic
+context of a parent Dialect that supports CPU execution.
 
-Grammar prototype: [Foreign.g4](grammar/Foreign.g4).
+Use Foreign when Library or another CPU capable parent Dialect needs a
+statically declared external ABI surface. The surrounding source owns the
+resulting semantic facts. Provider selection and native linking happen later,
+which keeps one declaration meaningful across targets without turning Foreign
+into another top level source Dialect or Monograph.
+
+Canonical grammar fragment: [Foreign.g4](grammar/Foreign.g4).
 
 ## Foreign block
 
@@ -24,11 +30,11 @@ select a Package dependency or native provider.
 
 Every declaration names an external semantic contract:
 
-- `const` is a read-only external Addressable. It is not a compile-time
-  Constant.
-- `state` is an external Addressable with the write capability defined by the
+* `const` is an external Addressable that cannot be written. It is not a
+  Constant evaluated at compile time.
+* `state` is an external Addressable with the write capability defined by the
   parent CPU language.
-- `func` is a bodyless external Callable with complete parameter and result
+* `func` is a bodyless external Callable with complete parameter and result
   Layouts.
 
 ## Access
@@ -46,9 +52,9 @@ cannot make an authored access legal.
 
 ## Visibility
 
-Publication inside the block controls visibility on the source-local `foreign`
-context. It does not automatically republish an external symbol through the
-containing Monograph or Package.
+Publication inside the block controls which declarations are visible through
+the `foreign` context in that source. It does not automatically republish an
+external symbol through the containing Monograph or Package.
 
 The parent language supplies Documentation, Attributes, Type identity,
 writability, and invocation semantics. Foreign retains the ABI selector and
@@ -57,9 +63,9 @@ external symbol facts without copying those parent contracts.
 ## Linking boundary
 
 Provider selection, object files, dynamic libraries, process addresses,
-relocations, and native lowering are terminal concerns. They satisfy the
-declared Foreign identities after semantic analysis; they do not define source
-legality.
+relocations, and native lowering are target facts used to produce and consume
+native Terminal products. They satisfy the declared Foreign identities after
+semantic analysis. They do not define source legality.
 
-See [Library](../library/README.md) for the first CPU language host and
+See [Library](../library/README.md) for a CPU language host and
 [TTX semantics](../../ttx/ttx_semantics.md) for Addressable and Callable.

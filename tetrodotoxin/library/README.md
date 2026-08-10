@@ -5,7 +5,13 @@ Types, values, expressions, functions, Structs, Objects, Enumerations, and
 Generic containers while retaining the shared TTX Type, Layout, Addressable,
 and Callable contracts.
 
-Grammar prototype: [Library.g4](grammar/Library.g4).
+Use Library when reusable CPU logic must share exact semantic identities with
+packages, applications, scenes, tools, and native compilation. A conventional
+language frontend is a simpler fit when one language owns the whole program or
+compatibility with an established language and tooling ecosystem matters more
+than cross language composition.
+
+Canonical grammar reference: [Library.g4](grammar/Library.g4).
 
 ```ttx
 // A reusable Library source.
@@ -23,12 +29,12 @@ Library uses punctuation to select separate semantic domains:
 | Syntax                               | Meaning                                                       |
 | ------------------------------------ | ------------------------------------------------------------- |
 | `value.name`                         | select one Addressable from an applicable named Layout        |
-| `context::Type`                      | traverse a Type-shaped route through an Abstract context      |
+| `context::Type`                      | traverse an Abstract context to one Type                      |
 | `receiver -> callable(arguments...)` | select and invoke one Callable                                |
 | `value.[names...]`                   | select and reorder named Layout entries                       |
 | `access[index]`                      | try indexed reference access and return an optional reference |
 | `value:[index]`                      | return an element value or its default                        |
-| `value:[start, count]`               | return a safe read-only ranged value                          |
+| `value:[start, count]`               | return a safe read only ranged value                          |
 
 These domains never fall through to one another. A Field, Callable, and nested
 Type may share a spelling because the operator already states which category is
@@ -36,9 +42,9 @@ being requested.
 
 ### Address access
 
-`.` selects a real TTX Addressable from any applicable named Layout. It is not
-limited to Struct or Object declarations; a named value flow may expose the same
-kind of entry.
+`.` selects one exact TTX Addressable from any applicable named Layout. It is
+not limited to Struct or Object declarations. A named value flow may expose the
+same kind of entry.
 
 ```ttx
 packet.width
@@ -49,11 +55,11 @@ foreign.external_counter
 The selected Addressable identifies one semantic address and its Type. A
 compiler may realize it as a stack location, an offset from an inline Struct,
 an offset from an Object reference, or a folded value. Those choices do not
-change the source-level selection.
+change the source level selection.
 
 Hosting grants access authority, not an implicit receiver. A hosted Function
-still writes `self.field` or selects the Field through another explicit value;
-a Static Function cannot read a host Field as a bare identifier.
+still writes `self.field` or selects the Field through another explicit value.
+A Static Function cannot read a host Field as a bare identifier.
 
 ### Type access
 
@@ -66,8 +72,8 @@ Scene::Flow
 ```
 
 Alias, Package, Monograph, Library source, and Type objects may all serve as
-intermediate contexts. Only the result used in a Type position must prove Type;
-the chain does not manufacture Type-valued Expressions for its intermediate
+intermediate contexts. Only the result used in a Type position must prove Type.
+The chain does not manufacture Type valued Expressions for its intermediate
 steps.
 
 ### Callable access
@@ -81,7 +87,8 @@ System::Terminal -> write_line(message)
 ```
 
 A Callable is not an Addressable and never appears in a value Layout. Argument
-and result compatibility are established through their real TTX Layouts.
+and result compatibility are established through their parameter and result
+Layouts.
 
 ## Layouts and value flow
 
@@ -106,9 +113,9 @@ not postfix Address access because they have no receiver. A named value retains
 its underlying expression and participates in fitting through that expression's
 Type.
 
-Receiving owners fit source Layouts directionally against the Layout they
-require. Producing several values creates value flow, not an anonymous aggregate
-Type.
+The consuming declaration or expression fits a source Layout directionally
+against the Layout it requires. Producing several values creates value flow,
+not an anonymous aggregate Type.
 
 Swizzle selects and reorders named entries:
 
@@ -134,18 +141,18 @@ bytes:[4, 16]
 ```
 
 The operands must still have integer Types. A value that cannot represent a
-valid index or extent selects the same safe default; another operand Type is a
+valid index or extent selects the same safe default. Another operand Type is a
 semantic error.
 
-## Built-in Types
+## Built in Types
 
 Library provides these scalar families:
 
-- `Bool`
-- `Signed_8`, `Signed_16`, `Signed_32`, and `Signed_64`
-- `Unsigned_8`, `Unsigned_16`, `Unsigned_32`, and `Unsigned_64`
-- `Real_32` and `Real_64`
-- `Void`
+* `Bool`
+* `Signed_8`, `Signed_16`, `Signed_32`, and `Signed_64`
+* `Unsigned_8`, `Unsigned_16`, `Unsigned_32`, and `Unsigned_64`
+* `Real_32` and `Real_64`
+* `Void`
 
 Scalar operations require the exact resolved Type identity expected by that
 operation. Library does not silently widen, narrow, retag, or reinterpret a
@@ -159,30 +166,29 @@ View[Unsigned_8]
 Access[Unsigned_8]
 ```
 
-`Fixed` has a compile-time element count. `View` is a borrowed contiguous view.
+`Fixed` has a compile time element count. `View` is a borrowed contiguous view.
 `Access` additionally carries the language's writable contiguous capability.
 Materializing the same Generic with the same semantic arguments returns the
 same Type identity.
 
-## Source Type
+## Source Structure
 
-Each Library Monograph owns one synthetic `Types::Source`, a Structure
-specialization with an empty instance Layout. Top-level declarations enter its
-Static surface; instance Fields cannot. The exact `source` route returns that
-Source, while ordinary Monograph lookup forwards only its externally visible
-Static entries.
+Each Library Monograph owns one synthetic source Structure with an empty
+instance Layout. Top level declarations enter its Static surface. Instance
+Fields cannot. The exact `source` route returns that Structure, while
+ordinary Monograph lookup forwards only its externally visible Static entries.
 
-Top-level Field declarations are Static Addressables owned by that Source. They
-retain the ordinary Field exposure, writability, Type, and initializer
-contracts, but never enter the source instance Layout. Root
-Functions may resolve those exact identities as bare source names; private
-Fields remain limited to the authenticated source context.
+Top level Field declarations are Static Addressables owned by that source
+Structure. They retain the ordinary Field exposure, writability, Type, and
+initializer contracts, but never enter the source instance Layout. Root
+Functions may resolve those exact identities as bare source names. Private
+Fields remain limited to their owning source context.
 
 Type aliases use the exact declaration
 `public|private TypeName : alias = TypeRoute;` in the synthetic source or an
-authored Structure. The receiving Structure retains one real TTX Alias in its
+authored Structure. The receiving Structure retains one exact TTX Alias in its
 Type category and authored order. Its target is the Type selected through that
-Structure's authenticated local and enclosing source context, so an Alias may
+Structure's private local and enclosing source context, so an Alias may
 name a private Type without making that target independently public. Public
 Type lookup exposes the same Alias identity while private aliases remain local
 to their containing Structure.
@@ -191,31 +197,32 @@ Authored alias documentation leads the target documentation. An alias without
 local prose borrows the target documentation directly, avoiding an empty
 wrapper while preserving the visible documentation chain.
 
-Source and authored Structure bodies enter the same recursive declaration
-parser. Each concrete Field, Function, Struct, Object, Enumeration, or Alias
-parser still owns its complete form, and the receiving Structure routes the
-resulting identity by its real TTX category. Monograph enters that declaration
-tree only through Source. One recursive Type phase settles every Enumeration's
-storage before any Structure constructs Fields; the later Field, initializer,
-Callable, and finalization phases descend through the same owned tree.
+Source and authored Structure bodies use the same declaration language. Each
+Field, Function, Struct, Object, Enumeration, or Alias becomes its exact
+semantic identity, and the receiving Structure routes that identity by its TTX
+category. The Monograph reaches those declarations only through the Source, so
+there is no parallel declaration tree.
 
-`Types::Source` owns the grammar wrapped around those common declarations.
-`using` is its current source-only extension: it selects Package members
-through the Monograph and installs importer-owned Aliases in the Source without
-adding another declaration model. Future source-only extensions belong on that
-same semantic Type rather than on Structure or a C++ parse-mode flag.
+Completion follows the relationships in that tree. Enumeration storage settles
+before a Structure constructs Fields. Fields and initializers settle before
+Callable signatures, and signatures settle before Function bodies.
 
-The Structure retains the exact Documentation that opens the Library source.
+Library owns the grammar that applies to a complete source. `using` selects
+Package members through the Monograph and installs Aliases owned by the
+importer in the source Structure without adding another declaration model.
+
+The source Structure retains the exact Documentation that opens the Library
+source.
 A Package member Alias can therefore route through `source` to one documented
 root Type without copying the prose or becoming a Type itself.
 
-A root Function is hosted by the Source but still retains its
+A root Function is hosted by the source Structure but still retains its
 Monograph as the source of diagnostics and imports. Hosting and source identity
 are separate edges.
 
 ## Fields
 
-A Field is a TTX Addressable owned by one Struct or Object. Its visibility and
+A Field is a TTX Addressable owned by one Struct or Object. Its exposure and
 writability are independent.
 
 ```ttx
@@ -226,24 +233,24 @@ private state updates : Unsigned_64 = 0;
 expose state progress : Unsigned_64 = 0;
 ```
 
-Visibility controls selection:
+Exposure controls selection:
 
-- `private` is visible only to code hosted by the containing Type.
-- `public` is visible outside the containing Type.
-- `expose state` makes state readable externally while retaining internal write
+* `private` is visible only to code hosted by the containing Type.
+* `public` is visible outside the containing Type.
+* `expose state` makes state readable externally while retaining internal write
   authority.
 
 Writability has three states:
 
-- an ordinary Field is fully writable by callers that can select it;
-- `state` is writable only by code hosted by the containing Type;
-- `const` is writable only during initialization.
+* an ordinary Field is fully writable by callers that can select it
+* `state` is writable only by code hosted by the containing Type
+* `const` is writable only during initialization
 
-Every view exposes the same Field identity. Visibility does not create a public
+Every view exposes the same Field identity. Exposure does not create a public
 copy, and writability does not change the underlying TTX Addressable.
 
-A present initializer links through the Field in its containing Type's
-authenticated context and must fit the declared Field Type. It remains one
+A present initializer links through the Field in its containing Type's private
+context and must fit the declared Field Type. It remains one
 exact Expression supplying one value rather than a general value Flow.
 
 ## Structs
@@ -262,7 +269,7 @@ public Packet : struct {
 }
 ```
 
-The Struct's instance Layout is a named Layout over its real Fields in authored
+The Struct's instance Layout is a named Layout over its exact Fields in authored
 order. Copying a Struct value copies its inline value semantics. Target offsets
 and padding are derived later by the compiler.
 
@@ -289,12 +296,12 @@ public Session : object {
 
 An Object value is a nonnull managed reference identity. Assignment, parameter
 passing, and return preserve that identity, so aliases observe the same
-mutations. Object reuses Struct Fields, Functions, Layouts, visibility, and
-writability rather than defining a parallel member model.
+mutations. Object reuses the Structure model's Fields, Functions, Layout,
+Exposure, and Writability rather than defining a parallel member model.
 
 Library owns the lifetime semantics. Allocation strategy, pointer shape,
 collector policy, and reclamation timing belong to the compiler and runtime.
-Version 1 exposes no finalizer, weak reference, explicit release, or observable
+Object exposes no finalizer, weak reference, explicit release, or observable
 reclamation order.
 
 ## Enumerations
@@ -327,7 +334,7 @@ public func add[
 ```
 
 A Function without `self` is Static. Static means there is no implicit Self
-value; source still selects it through a Type or source context:
+value. Source still selects it through a Type or source context:
 
 ```ttx
 Math -> add(2, 3)
@@ -343,7 +350,7 @@ packet -> area()
 
 Static and Self Callables may share a name because their receiver roles and
 signatures distinguish the invocation. Both remain Callables reached only
-through `->`; the real parameter Layout carries the role without a second
+through `->`. The parameter Layout carries the role without a second
 Callable category.
 
 ## Expressions and Constants
@@ -353,14 +360,15 @@ Type. Constants cover Bytes, Bool, signed integers, unsigned integers, and real
 values.
 
 Arithmetic and comparison operate on exact compatible scalar Types. `and` and
-`or` preserve short-circuit reachability. Unary `!` accepts Bool; unary `-`
+`or` preserve short circuit reachability. Unary `!` accepts Bool. Unary `-`
 accepts signed integer and real domains. Integer overflow and division by zero
-are semantic failures in their owning operation. Safe `:[` selection
+are semantic failures in their owning operation. Safe `:[...]` selection
 uses a default value instead of publishing a bounds failure.
 
-Constant evaluation is ***nondestructive***. A compiler may fold a complete
-expression, address selection, or indexed byte value, but the authored graph
-and its real edges remain available to tools.
+Constant evaluation may cache a result, but it never replaces the authored
+expression or its exact edges. A compiler may fold a complete expression,
+address selection, or indexed byte value while the authored graph remains
+available to tools.
 
 ## Imports and resources
 
@@ -371,8 +379,8 @@ using Core;
 using Graphics::Utilities;
 ```
 
-The route follows ordinary `::` contextual access. Package supplies its real
-member contexts; Library imports eligible public declarations without creating
+The route follows ordinary `::` contextual access. Package supplies its exact
+member contexts. Library imports eligible public declarations without creating
 a second Package path model.
 
 An embedded operand asks the exact source Package for retained bytes:
@@ -384,11 +392,11 @@ public const header := $[resources/table.bin]:[0, 64];
 ```
 
 Library interprets a successful Resource as a Bytes Constant. Package retains
-path confinement and acquisition policy; Library never opens Package storage
+path confinement and acquisition policy. Library never opens Package storage
 directly.
 
 A Library Monograph completes the exact closure of Library providers reached
-through its authenticated imports. Every reachable declaration Type settles
+through its admitted imports. Every reachable declaration Type settles
 before any Field is constructed, every Field and initializer settles before
 Callable signatures, and every signature settles before any Function body in
 that closure begins. Source discovery order therefore cannot change the
@@ -397,12 +405,12 @@ completed graph.
 ## Compilation boundary
 
 Library lowering consumes completed CPU facts owned by Library, App, or Scene.
-It derives target Layouts, calling convention carriers, registers, instructions,
-and relocations without changing their semantic identities.
+It derives target object layouts, calling convention carriers, registers,
+instructions, and relocations without changing their semantic identities.
 
-Linker owns object modules and final native products. Package Archive owns
-durable semantic payloads. Runtime allocation and execution remain separate
-from both.
+Linker owns object modules and final native products. Package owns the Archive
+envelope while each persistent Dialect owns its reconstruction payload. Runtime
+allocation and execution remain separate from both.
 
 See [TTX semantics](../../ttx/ttx_semantics.md) for the shared contracts and
 [Package](../package/README.md) for `using` and resource contexts.

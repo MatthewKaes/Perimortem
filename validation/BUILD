@@ -42,7 +42,8 @@ cc_library(
 )
 
 # Validation executes children directly so Bazel launcher output stays outside
-# the captured child streams.
+# the captured child streams. These self tests prove the observer itself and
+# never count as evidence for a generated TTX Terminal.
 cc_library(
     name = "process_oracle",
     srcs = ["process/child.cpp"],
@@ -53,14 +54,18 @@ cc_library(
 cc_binary(
     name = "process_oracle_self_tests",
     srcs = ["process/oracle_self_tests.cpp"],
-    data = glob(["data/ttx/oracles/**"]),
+    data = [
+        "data/ttx/oracles/echo.contract",
+        "data/ttx/oracles/echo.stdin",
+        "data/ttx/oracles/echo.stdout",
+    ],
     deps = [":process_oracle"],
 )
 
-# This target compiles the independent C-side native oracle without attempting
-# to link the intentionally unresolved TTX entry point.
+# This check proves that the independent C harness compiles. Output evidence
+# begins only when a generated TTX Terminal is linked with it and executed.
 cc_library(
-    name = "library_native_oracle",
+    name = "library_native_harness_compile_check",
     srcs = ["data/ttx/library/native_harness.c"],
     copts = [
         "-std=c17",

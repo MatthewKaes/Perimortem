@@ -748,7 +748,7 @@ PERIMORTEM_UNIT_TEST(TtxLexical, token_projection) {
   EXPECT_TEXT(token.caculate_text("red sky green"_view), "sky"_view);
 }
 
-PERIMORTEM_UNIT_TEST(TtxLexical, tokenize_library) {
+PERIMORTEM_UNIT_TEST(TtxLexical, library_fixture_corpus) {
   static constexpr Static::Vector<View::Bytes, 13> paths = {{
     "validation/data/ttx/library/broad.ttx"_view,
     "validation/data/ttx/library/native.ttx"_view,
@@ -765,6 +765,8 @@ PERIMORTEM_UNIT_TEST(TtxLexical, tokenize_library) {
     "validation/data/ttx/library/dialect_led_callable.ttx"_view,
   }};
 
+  // This corpus mixes semantic acceptance and rejection inputs. Tokenization
+  // proves only that each file remains valid input to the lexical layer.
   for (Count path_index = 0; path_index < paths.get_size(); path_index++) {
     View::Bytes path = paths[path_index];
     auto source = File::read(path);
@@ -786,7 +788,7 @@ PERIMORTEM_UNIT_TEST(TtxLexical, tokenize_library) {
   }
 }
 
-PERIMORTEM_UNIT_TEST(TtxLexical, tokenize_package) {
+PERIMORTEM_UNIT_TEST(TtxLexical, package_fixture_corpus) {
   static constexpr Static::Vector<View::Bytes, 11> paths = {{
     "apps/ttx/scene_lifetime/package.ttx"_view,
     "apps/ttx/scene_lifetime/main.ttx"_view,
@@ -801,6 +803,8 @@ PERIMORTEM_UNIT_TEST(TtxLexical, tokenize_package) {
     "validation/data/ttx/package_resources/shared_b.ttx"_view,
   }};
 
+  // Package owns the meaning of these sources. This test observes only their
+  // shared lexical contract.
   for (Count path_index = 0; path_index < paths.get_size(); path_index++) {
     View::Bytes path = paths[path_index];
     auto source = File::read(path);

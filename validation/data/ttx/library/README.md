@@ -108,6 +108,11 @@ After both calls, the imported state is 40. `library_native` is the exported TTX
 entry; `PrivateOps`, local state, and helper calls remain source-local, while the
 three Foreign names are supplied by the C file.
 
+The standalone Bazel target for `native_harness.c` proves only that the C side
+of this contract compiles. Native output evidence links an emitted TTX Terminal
+with this harness, executes it, and observes the exit status and exact text. A
+source fixture or harness build is not a substitute for that round trip.
+
 ## Focused rejection inputs
 
 Each remaining TTX file isolates one source condition:

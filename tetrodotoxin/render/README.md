@@ -1,10 +1,17 @@
 # Render
 
-The Render Dialect declares the semantic interface between authored render data
-and Shader implementations. It describes what a render format requires without
-choosing a GPU instruction set, runtime submission system, or platform API.
+Render is Tetrodotoxin's interface language for rendering. It is comparable to a
+typed pipeline interface or shader schema. A Render source declares the values,
+resources, and Stages a format requires, while a Shader supplies one concrete
+implementation.
 
-Grammar prototype: [Render.g4](grammar/Render.g4).
+Use Render when application and Shader code need to agree on a semantic
+interface before a GPU representation is chosen. This supports cross language
+checking and leaves another backend free to derive its own representation. The
+corresponding cost is that a project must define the Render contract instead of
+relying on one backend's reflection records as the interface.
+
+Canonical grammar reference: [Render.g4](grammar/Render.g4).
 
 ```ttx
 dialect : Render;
@@ -14,12 +21,12 @@ dialect : Render;
 
 A Render contract can declare:
 
-- ordinary value Addressables;
-- constant and push data;
-- resources and their binding Attributes;
-- required Shader Stages;
-- parameter and result Layouts for each Stage;
-- built-in values, locations, sets, slots, and read capabilities.
+* ordinary value Addressables
+* constant and push data
+* resources and their binding Attributes
+* required Shader Stages
+* parameter and result Layouts for each Stage
+* built in values, locations, sets, slots, and read capabilities
 
 Each fact retains its own semantic identity. A resource binding that needs both
 a set and a slot uses two Attributes rather than packing them into one opaque
@@ -27,16 +34,16 @@ record.
 
 ## Layout and representation
 
-Stage parameters and results use real TTX Layouts. Matching Layout shape is
+Stage parameters and results use exact TTX Layouts. Matching Layout shape is
 necessary for fitting but does not alone establish vector, resource, address
 space, or ABI identity. Render Types and Attributes state the additional
 semantic requirements explicitly.
 
 Fields, Types, and Stage Callables use their corresponding access domains:
 
-- named value Addressables are selected with `.`;
-- nested Types are selected with `::`;
-- Stage Callables are selected and invoked with `->` where the consuming
+* named value Addressables are selected with `.`
+* nested Types are selected with `::`
+* Stage Callables are selected and invoked with `->` where the consuming
   language permits invocation.
 
 ## Shader relationship

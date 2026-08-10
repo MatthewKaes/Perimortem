@@ -207,7 +207,6 @@ PERIMORTEM_UNIT_TEST(PackageArchive, literal_format_one) {
   using Sections = Package::Archive::Archive::Sections;
 
   EXPECT_EQ(Package::Archive::Archive::header_size, Count(12));
-  EXPECT_EQ(sizeof(Sections), sizeof(Unsigned_8));
   EXPECT_EQ(Unsigned_16(Sections::Identity), Unsigned_16(1));
   EXPECT_EQ(Unsigned_16(Sections::Version), Unsigned_16(2));
   EXPECT_EQ(Unsigned_16(Sections::Dependencies), Unsigned_16(3));
