@@ -500,30 +500,20 @@ auto Assembler::SpirV::literal_string_word_count(View::Bytes text) -> Count {
 auto Assembler::SpirV::is_valid_module(View::Bytes words) -> Bool {
   // This is intentionally shallow. It catches broken writers and truncated
   // modules without pretending to be a SPIR V semantic validator.
-  if (words.get_size() < 20 || words.get_size() % 4 != 0) {
-    return False;
-  }
+  BAIL_IF(words.get_size() < 20 || words.get_size() % 4 != 0);
 
-  if (read_word(words, 0) != magic) {
-    return False;
-  }
+  BAIL_IF(read_word(words, 0) != magic);
 
   Unsigned_32 version = read_word(words, 1);
-  if ((version & 0x00FF0000) == 0) {
-    return False;
-  }
+  BAIL_IF((version & 0x00FF0000) == 0);
 
-  if (read_word(words, 3) == 0 || read_word(words, 4) != 0) {
-    return False;
-  }
+  BAIL_IF(read_word(words, 3) == 0 || read_word(words, 4) != 0);
 
   Count word_count = words.get_size() / 4;
   for (Count offset = 5; offset < word_count;) {
     Unsigned_32 header = read_word(words, offset);
     Count instruction_words = Count(header >> 16);
-    if (instruction_words == 0 || offset + instruction_words > word_count) {
-      return False;
-    }
+    BAIL_IF(instruction_words == 0 || offset + instruction_words > word_count);
 
     offset += instruction_words;
   }

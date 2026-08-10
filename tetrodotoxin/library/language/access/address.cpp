@@ -26,16 +26,12 @@ static auto select_addressable(const Layout& layout, Core::View::Bytes route)
       continue;
     }
 
-    if (selected) {
-      return {};
-    }
+    BAIL_IF(selected);
 
     selected = *entry;
   }
 
-  if (!selected || route.is_empty()) {
-    return {};
-  }
+  BAIL_IF(!selected || route.is_empty());
 
   const Abstract& resolved = selected->resolve();
   return resolved.select<Addressable>();
@@ -64,9 +60,7 @@ auto Language::Access::Address::parse(
   Token addressable = cursor.require(
       Code::Type::Addressable,
       "Address requires one addressable name after `.`."_view);
-  if (!addressable) {
-    return {};
-  }
+  BAIL_IF(!addressable);
 
   const auto& receiver_anchor = receiver.get_anchor();
   if (!receiver_anchor) {
@@ -110,9 +104,7 @@ auto Language::Access::Address::link(
     Tetrodotoxin::Language::Monograph& source,
     const Abstract& context,
     Materializations& materializations) -> Bool {
-  if (!receiver.link(source, context, materializations)) {
-    return False;
-  }
+  BAIL_IF(!receiver.link(source, context, materializations));
 
   auto source_anchor = get_anchor();
   const Abstract& receiver_type = receiver.get_type().resolve();

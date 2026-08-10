@@ -34,9 +34,7 @@ auto Environment::Retention::Entry::get_monograph() const
 }
 
 auto Environment::Retention::Entry::get_origin() const -> Option<Origin> {
-  if (!has_origin) {
-    return {};
-  }
+  BAIL_IF(!has_origin);
 
   return Origin(origin_path, origin_body, origin_span);
 }
@@ -61,9 +59,7 @@ Environment::Retention::~Retention() {
 auto Environment::Retention::retain(
     Language::Monograph& monograph,
     Option<Origin> origin) -> Bool {
-  if (stage == Stage::Linked) {
-    return False;
-  }
+  BAIL_IF(stage == Stage::Linked);
 
   Bool already_retained = entries.get_view().contains(
       [&](const Entry& entry) { return &entry.get_monograph() == &monograph; });
@@ -145,9 +141,7 @@ auto Environment::Retention::consume_range() -> void {
 }
 
 auto Environment::Retention::link(Errors& errors) -> Bool {
-  if (stage != Stage::Staging || !has_staged()) {
-    return False;
-  }
+  BAIL_IF(stage != Stage::Staging || !has_staged());
 
   // Freeze before the first hook. A linked Monograph cannot grow this range or
   // make a later discovery escape the all links before finalization barrier.
@@ -170,9 +164,7 @@ auto Environment::Retention::link(Errors& errors) -> Bool {
 }
 
 auto Environment::Retention::finalize(Errors& errors) -> Bool {
-  if (stage != Stage::Linked) {
-    return False;
-  }
+  BAIL_IF(stage != Stage::Linked);
 
   Bool failed = False;
   for (Count i = range_start; i < range_end; i++) {

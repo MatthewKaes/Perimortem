@@ -138,9 +138,7 @@ static auto parse_primary(
 
   auto literal = Library::Language::Parser::Literal::parse(
       domain, materializations, cursor, source_context);
-  if (!literal) {
-    return {};
-  }
+  BAIL_IF(!literal);
 
   return *literal;
 }
@@ -153,9 +151,7 @@ static auto parse_expression(
     Count minimum_precedence) -> Option<Library::Language::Expression&> {
   auto primary =
       parse_primary(domain, materializations, cursor, source_context);
-  if (!primary) {
-    return {};
-  }
+  BAIL_IF(!primary);
 
   Reference<Library::Language::Expression> expression(*primary);
 
@@ -175,9 +171,7 @@ static auto parse_expression(
               domain, materializations, cursor, source_context,
               expression.get());
         });
-    if (!parsed) {
-      return {};
-    }
+    BAIL_IF(!parsed);
 
     expression = *parsed;
   }
@@ -200,9 +194,7 @@ static auto parse_expression(
               domain, materializations, cursor, source_context,
               expression.get());
         });
-    if (!parsed) {
-      return {};
-    }
+    BAIL_IF(!parsed);
 
     expression = *parsed;
   }
@@ -216,9 +208,7 @@ auto Library::Language::Parser::Expression::parse(
   auto transaction = cursor.branch();
   auto parsed = parse_expression(
       domain, materializations, transaction, source_context, 0);
-  if (!parsed) {
-    return {};
-  }
+  BAIL_IF(!parsed);
 
   // Only this final join changes caller position. Nested operands and partial
   // postfix chains remain private to the transaction Cursor.
@@ -233,17 +223,13 @@ auto Library::Language::Parser::Expression::parse_operand(
     const Abstract& source_context,
     Code::Type operation) -> Option<Language::Expression&> {
   Count precedence = get_precedence(operation);
-  if (precedence == 0) {
-    return {};
-  }
+  BAIL_IF(precedence == 0);
 
   Errors operand_errors;
   auto transaction = cursor.branch(operand_errors);
   auto parsed = parse_expression(
       domain, materializations, transaction, source_context, precedence + 1);
-  if (!parsed) {
-    return {};
-  }
+  BAIL_IF(!parsed);
 
   cursor.join(transaction);
   return *parsed;
@@ -258,9 +244,7 @@ auto Library::Language::Parser::Expression::parse_prefix_operand(
   auto transaction = cursor.branch(operand_errors);
   auto parsed = parse_expression(
       domain, materializations, transaction, source_context, prefix_precedence);
-  if (!parsed) {
-    return {};
-  }
+  BAIL_IF(!parsed);
 
   cursor.join(transaction);
   return *parsed;

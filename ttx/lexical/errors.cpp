@@ -82,15 +82,11 @@ auto Errors::publish_report(
 static auto source_range(View::Bytes source, Span span) -> View::Bytes {
   // A general report carries no authored coordinates. Keep its excerpt empty
   // instead of reading the unspecified coordinates of an invalid Span.
-  if (!span) {
-    return View::Bytes();
-  }
+  BAIL_IF(!span);
 
   Count span_start = span.get_offset();
   Count span_end = span_start + span.get_size();
-  if (span_start > source.get_size() || span_end > source.get_size()) {
-    return View::Bytes();
-  }
+  BAIL_IF(span_start > source.get_size() || span_end > source.get_size());
 
   // The opening Token may sit in the middle of a line. Recover the preceding
   // bytes so the first gutter still presents the complete authored line.
@@ -115,18 +111,15 @@ static auto source_range(View::Bytes source, Span span) -> View::Bytes {
 static auto has_visible_caret(View::Bytes source, Anchor anchor) -> Bool {
   Span span = anchor.get_span();
   Token token = anchor.get_token();
-  if (!span || !token || token.get_size() == 0) {
-    return False;
-  }
+  BAIL_IF(!span || !token || token.get_size() == 0);
 
   Count span_start = span.get_offset();
   Count span_end = span_start + span.get_size();
   Count token_start = token.get_offset();
   Count token_end = token_start + token.get_size();
-  if (span_end > source.get_size() || token_start < span_start ||
-      token_end > span_end) {
-    return False;
-  }
+  BAIL_IF(
+      span_end > source.get_size() || token_start < span_start ||
+      token_end > span_end);
 
   return token.get_line() >= span.get_start().get_line() &&
          token.get_line() <= span.get_end().get_line() &&
@@ -181,15 +174,11 @@ auto Errors::render_message(
   Managed::Bytes message(arena);
   Stream::Textual<Managed::Bytes> render(message);
 
-  if (index >= errors.get_size()) {
-    return View::Bytes();
-  }
+  BAIL_IF(index >= errors.get_size());
 
   const Error& error = errors.at(index);
   auto source = source_map.find(error.source_name);
-  if (!source) {
-    return View::Bytes();
-  }
+  BAIL_IF(!source);
 
   View::Bytes source_name = (*source).key;
   View::Bytes source_text = (*source).value;

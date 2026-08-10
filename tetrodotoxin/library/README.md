@@ -536,11 +536,17 @@ public func library_native[] -> Unsigned_64 {
 }
 ```
 
-`@abi("C")` is legal only on a public Static Function whose parameter and result
-Types have a complete C carrier. `@symbol` supplies the exact external symbol
-and is legal only with `@abi`. Duplicate external symbols fail before a native
-product is emitted. Library rejects unknown Attributes and Attributes attached
-to another declaration kind.
+`@abi("C")` is legal only on a public Static Function. `@symbol` supplies its
+exact requested external spelling and is legal only with `@abi`. Function
+retains those authored requests and rejects unknown Attributes, duplicate local
+Attributes, unsupported ABI names, and Attributes attached to another
+declaration kind. It does not decide whether another Function requests the same
+global name.
+
+Library lowering proves that every parameter and result Type has a complete C
+carrier for the selected target. Linker validates global symbol uniqueness over
+the complete target product before emitting native bytes. Function owns neither
+target carrier policy nor that product-wide symbol set.
 
 A public Callable without `@abi` still participates in semantic lookup. The
 compiler gives any native carrier it needs a deterministic internal symbol

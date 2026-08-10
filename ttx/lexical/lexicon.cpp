@@ -14,28 +14,20 @@ static auto begins_with(View::Bytes value, View::Bytes prefix) -> Bool {
 // Type and Addressable values apply their distinct opening byte before the
 // shared continuation character checks.
 static auto validate_type(View::Bytes value) -> Bool {
-  if (value.is_empty() || value[0] < 'A' || value[0] > 'Z') {
-    return False;
-  }
+  BAIL_IF(value.is_empty() || value[0] < 'A' || value[0] > 'Z');
 
   for (Count i = 1; i < value.get_size(); i++) {
-    if (!Lexicon::is_type(value[i])) {
-      return False;
-    }
+    BAIL_IF(!Lexicon::is_type(value[i]));
   }
 
   return True;
 }
 
 static auto validate_addressable(View::Bytes value) -> Bool {
-  if (value.is_empty() || value[0] < 'a' || value[0] > 'z') {
-    return False;
-  }
+  BAIL_IF(value.is_empty() || value[0] < 'a' || value[0] > 'z');
 
   for (Count i = 1; i < value.get_size(); i++) {
-    if (!Lexicon::is_identifier(value[i])) {
-      return False;
-    }
+    BAIL_IF(!Lexicon::is_identifier(value[i]));
   }
 
   return Lexicon::get_keyword(value, Code::Type::Addressable) ==
@@ -45,29 +37,21 @@ static auto validate_addressable(View::Bytes value) -> Bool {
 // Numeric values contain only decimal digits while Float values contain one
 // decimal point after an opening digit.
 static auto validate_numeric(View::Bytes value) -> Bool {
-  if (value.is_empty()) {
-    return False;
-  }
+  BAIL_IF(value.is_empty());
 
   for (Count i = 0; i < value.get_size(); i++) {
-    if (!Lexicon::is_numeric(value[i]) || value[i] == '.') {
-      return False;
-    }
+    BAIL_IF(!Lexicon::is_numeric(value[i]) || value[i] == '.');
   }
 
   return True;
 }
 
 static auto validate_float(View::Bytes value) -> Bool {
-  if (value.is_empty() || value[0] < '0' || value[0] > '9') {
-    return False;
-  }
+  BAIL_IF(value.is_empty() || value[0] < '0' || value[0] > '9');
 
   Count points = 0;
   for (Count i = 0; i < value.get_size(); i++) {
-    if (!Lexicon::is_numeric(value[i])) {
-      return False;
-    }
+    BAIL_IF(!Lexicon::is_numeric(value[i]));
 
     if (value[i] == '.') {
       points++;
@@ -80,14 +64,10 @@ static auto validate_float(View::Bytes value) -> Bool {
 // Hex values include their fixed prefix and require at least one payload byte.
 static auto validate_hex(View::Bytes value) -> Bool {
   View::Bytes prefix = Lexicon::get_spelling(Code::Type::Hex);
-  if (!begins_with(value, prefix) || value.get_size() == prefix.get_size()) {
-    return False;
-  }
+  BAIL_IF(!begins_with(value, prefix) || value.get_size() == prefix.get_size());
 
   for (Count i = prefix.get_size(); i < value.get_size(); i++) {
-    if (!Lexicon::is_hex(value[i])) {
-      return False;
-    }
+    BAIL_IF(!Lexicon::is_hex(value[i]));
   }
 
   return True;
@@ -100,15 +80,12 @@ static auto validate_range(
     Code::Type type,
     Unsigned_8 terminal) -> Bool {
   View::Bytes prefix = Lexicon::get_spelling(type);
-  if (!begins_with(value, prefix) || value.get_size() <= prefix.get_size() ||
-      value[value.get_size() - 1] != terminal) {
-    return False;
-  }
+  BAIL_IF(
+      !begins_with(value, prefix) || value.get_size() <= prefix.get_size() ||
+      value[value.get_size() - 1] != terminal);
 
   for (Count i = prefix.get_size(); i + 1 < value.get_size(); i++) {
-    if (value[i] == terminal) {
-      return False;
-    }
+    BAIL_IF(value[i] == terminal);
   }
 
   return True;
@@ -118,23 +95,18 @@ static auto validate_range(
 // The final quote must remain unescaped so it closes the complete value.
 static auto validate_string(View::Bytes value) -> Bool {
   View::Bytes prefix = Lexicon::get_spelling(Code::Type::String);
-  if (!begins_with(value, prefix) || value.get_size() < 2 ||
-      value[value.get_size() - 1] != '"') {
-    return False;
-  }
+  BAIL_IF(
+      !begins_with(value, prefix) || value.get_size() < 2 ||
+      value[value.get_size() - 1] != '"');
 
   for (Count i = prefix.get_size(); i + 1 < value.get_size(); i++) {
     if (value[i] == '\\') {
       i++;
-      if (i + 1 >= value.get_size()) {
-        return False;
-      }
+      BAIL_IF(i + 1 >= value.get_size());
       continue;
     }
 
-    if (value[i] == '"') {
-      return False;
-    }
+    BAIL_IF(value[i] == '"');
   }
 
   return True;
@@ -142,14 +114,10 @@ static auto validate_string(View::Bytes value) -> Bool {
 
 static auto validate_attribute(View::Bytes value) -> Bool {
   View::Bytes prefix = Lexicon::get_spelling(Code::Type::Attribute);
-  if (!begins_with(value, prefix)) {
-    return False;
-  }
+  BAIL_IF(!begins_with(value, prefix));
 
   for (Count i = prefix.get_size(); i < value.get_size(); i++) {
-    if (!Lexicon::is_identifier(value[i])) {
-      return False;
-    }
+    BAIL_IF(!Lexicon::is_identifier(value[i]));
   }
 
   return True;
@@ -157,14 +125,10 @@ static auto validate_attribute(View::Bytes value) -> Bool {
 
 static auto validate_comment(View::Bytes value) -> Bool {
   View::Bytes prefix = Lexicon::get_spelling(Code::Type::Comment);
-  if (!begins_with(value, prefix)) {
-    return False;
-  }
+  BAIL_IF(!begins_with(value, prefix));
 
   for (Count i = prefix.get_size(); i < value.get_size(); i++) {
-    if (value[i] == '\n') {
-      return False;
-    }
+    BAIL_IF(value[i] == '\n');
   }
 
   return True;
@@ -239,9 +203,7 @@ auto Lexicon::validate(
   // Every separator must have one exact fixed spelling before parsing begins.
   const auto* separator_data = separators.get_data();
   for (Count i = 0; i < separators.get_size(); i++) {
-    if (get_spelling(separator_data[i]).is_empty()) {
-      return False;
-    }
+    BAIL_IF(get_spelling(separator_data[i]).is_empty());
   }
 
   Count segment_start = 0;
@@ -253,10 +215,8 @@ auto Lexicon::validate(
       continue;
     }
 
-    if (!validate_code(
-            type, value.slice(segment_start, cursor - segment_start))) {
-      return False;
-    }
+    BAIL_IF(!validate_code(
+        type, value.slice(segment_start, cursor - segment_start)));
 
     cursor += matched;
     segment_start = cursor;

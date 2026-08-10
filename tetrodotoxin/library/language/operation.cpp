@@ -44,9 +44,7 @@ static auto selects_fitting_type(
 
 constexpr auto Language::Operation::InputLayout::get_abstract(Count index) const
     -> Core::Option<const Ttx::Concept::Abstract&> {
-  if (index >= inputs.get_size()) {
-    return {};
-  }
+  BAIL_IF(index >= inputs.get_size());
 
   return inputs.at(index).get();
 }
@@ -54,9 +52,7 @@ constexpr auto Language::Operation::InputLayout::get_abstract(Count index) const
 auto Language::Operation::InputLayout::fits_at(
     const Ttx::Concept::Layout& target,
     Count target_offset) const -> Bool {
-  if (!has_target_segment(target, target_offset)) {
-    return False;
-  }
+  BAIL_IF(!has_target_segment(target, target_offset));
 
   for (Count i = 0; i < get_size(); i++) {
     const Language::Expression& source = inputs.at(i).get();
@@ -66,9 +62,7 @@ auto Language::Operation::InputLayout::fits_at(
                               [&source](const Ttx::Concept::Abstract& target) {
                                 return selects_fitting_type(target, source);
                               });
-    if (!entry_fits) {
-      return False;
-    }
+    BAIL_IF(!entry_fits);
   }
 
   return True;
@@ -132,9 +126,7 @@ auto Language::Operation::link(
     failed |= !input->link(source, context, materializations);
   }
 
-  if (failed) {
-    return False;
-  }
+  BAIL_IF(failed);
 
   auto selected = select_type(this->materializations);
   if (!selected) {
@@ -221,17 +213,13 @@ auto Language::Operation::fold_input(Count index)
 auto Language::Operation::get_folded_input(Count index)
     -> Core::Option<Expression&> {
   auto input = get_input(index);
-  if (!input) {
-    return {};
-  }
+  BAIL_IF(!input);
 
   return input->get_folded();
 }
 
 auto Language::Operation::get_input(Count index) -> Core::Option<Expression&> {
-  if (index >= inputs.get_size()) {
-    return {};
-  }
+  BAIL_IF(index >= inputs.get_size());
 
   return inputs[index].get();
 }

@@ -38,6 +38,17 @@
 
 #pragma once
 
+// Since Perimortem is exception free the header provides a macro to propagate
+// failures up the stack with a slightly less verbose syntax. It's mostly used
+// with `Option` but it can be used anywhere a default constructed object is the
+// representative failure state.
+#define BAIL_IF(...)   \
+  do {                 \
+    if (__VA_ARGS__) { \
+      return {};       \
+    }                  \
+  } while (false)
+
 // Unsigned Integers
 using Unsigned_8 = unsigned char;
 using Unsigned_16 = unsigned short int;

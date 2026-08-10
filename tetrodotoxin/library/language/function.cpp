@@ -30,11 +30,9 @@ static auto parse_body(
     Span& return_span,
     Option<Reference<Language::Expression>>& return_expression,
     Token& closing) -> Bool {
-  if (!cursor.require(
-          Code::Type::ScopeStart,
-          "Library Function signatures require a body beginning with `{`."_view)) {
-    return False;
-  }
+  BAIL_IF(!cursor.require(
+      Code::Type::ScopeStart,
+      "Library Function signatures require a body beginning with `{`."_view));
 
   Tetrodotoxin::Language::Parser::Comment::parse(cursor);
   while (!cursor.matches(Code::Type::ScopeEnd)) {
@@ -52,17 +50,13 @@ static auto parse_body(
       if (!cursor.matches(Code::Type::EndStatement)) {
         selected_expression = Language::Parser::Expression::parse(
             domain, materializations, cursor, context);
-        if (!selected_expression) {
-          return False;
-        }
+        BAIL_IF(!selected_expression);
       }
 
       Token terminator = cursor.require(
           Code::Type::EndStatement,
           "Library Function returns require one terminating `;`."_view);
-      if (!terminator) {
-        return False;
-      }
+      BAIL_IF(!terminator);
 
       Tetrodotoxin::Language::Parser::Comment::parse(cursor);
       if (!cursor.matches(Code::Type::ScopeEnd)) {
@@ -85,15 +79,11 @@ static auto parse_body(
 
     auto expression = Language::Parser::Expression::parse(
         domain, materializations, cursor, context);
-    if (!expression) {
-      return False;
-    }
+    BAIL_IF(!expression);
 
-    if (!cursor.require(
-            Code::Type::EndStatement,
-            "Library Function expressions require one terminating `;`."_view)) {
-      return False;
-    }
+    BAIL_IF(!cursor.require(
+        Code::Type::EndStatement,
+        "Library Function expressions require one terminating `;`."_view));
 
     // The terminator belongs to body grammar rather than the retained root.
     // Expression Span therefore ends at the last authored value Token.
@@ -116,23 +106,17 @@ auto Language::Function::reserve(
   Token opening = transaction.current();
   auto visibility =
       Language::Parser::Declaration::parse_visibility(transaction);
-  if (!visibility) {
-    return {};
-  }
+  BAIL_IF(!visibility);
 
   Token token = transaction.require(
       Code::Type::Func,
       "Library Function visibility must be followed by `func`."_view);
-  if (!token) {
-    return {};
-  }
+  BAIL_IF(!token);
 
   Token name_token = transaction.require(
       Code::Type::Addressable,
       "Library Functions require an authored addressable name."_view);
-  if (!name_token) {
-    return {};
-  }
+  BAIL_IF(!name_token);
 
   View::Bytes name = name_token.caculate_text(transaction.get_source_text());
   Function& function = domain.construct_from<Function>([&]() -> Function {
@@ -178,9 +162,7 @@ auto Language::Function::complete(Cursor& cursor) -> Bool {
   auto transaction = cursor.branch();
   Managed::Vector<Reference<Expression>> parsed_expressions(domain);
   auto parsed_signature = Signature::interpret(domain, transaction);
-  if (!parsed_signature) {
-    return False;
-  }
+  BAIL_IF(!parsed_signature);
 
   Token parsed_return_token;
   Span parsed_return_span;
@@ -190,9 +172,7 @@ auto Language::Function::complete(Cursor& cursor) -> Bool {
       domain, materializations, transaction, *this, parsed_expressions,
       parsed_return_token, parsed_return_span, parsed_return_expression,
       closing);
-  if (!body_complete) {
-    return False;
-  }
+  BAIL_IF(!body_complete);
 
   // Only complete grammar publishes Signature and Expression roots. Failed
   // Arena values remain unreachable from the reserved Function.
@@ -231,9 +211,7 @@ auto Language::Function::link_body() -> Bool {
   if (linked) {
     return True;
   }
-  if (!is_signature_linked()) {
-    return False;
-  }
+  BAIL_IF(!is_signature_linked());
 
   // Signature edges publish before body linking so every Identifier can reach
   // the exact Parameter object created for its authored declaration.
@@ -249,17 +227,13 @@ auto Language::Function::link_body() -> Bool {
 
 auto Language::Function::link() -> Bool {
   Bool signature_linked = link_signature();
-  if (!signature_linked) {
-    return False;
-  }
+  BAIL_IF(!signature_linked);
 
   return link_body();
 }
 
 auto Language::Function::finalize() -> Bool {
-  if (!linked) {
-    return False;
-  }
+  BAIL_IF(!linked);
 
   // Optional folding records a cached Constant for later consumers. A dynamic
   // result or failure remains queryable but cannot turn an otherwise complete

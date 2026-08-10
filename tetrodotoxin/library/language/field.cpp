@@ -70,22 +70,16 @@ auto Language::Field::interpret(
   Exposure exposure = Exposure::Private;
   Writability writability = Writability::Full;
   Bool parsed_policy = parse_policy(transaction, exposure, writability);
-  if (!parsed_policy) {
-    return {};
-  }
+  BAIL_IF(!parsed_policy);
 
   Token name_token = transaction.require(
       Code::Type::Addressable,
       "Library Fields require an addressable name."_view);
-  if (!name_token) {
-    return {};
-  }
+  BAIL_IF(!name_token);
 
-  if (!transaction.require(
-          Code::Type::Define,
-          "Library Fields require `:` before their Type."_view)) {
-    return {};
-  }
+  BAIL_IF(!transaction.require(
+      Code::Type::Define,
+      "Library Fields require `:` before their Type."_view));
 
   Option<Access::Type> type;
   Option<Expression&> initializer;
@@ -102,23 +96,17 @@ auto Language::Field::interpret(
 
     initializer = Parser::Expression::parse(
         domain, materializations, transaction, source_context);
-    if (!initializer) {
-      return {};
-    }
+    BAIL_IF(!initializer);
   } else {
     auto authored_type = Access::Type::parse(transaction);
-    if (!authored_type) {
-      return {};
-    }
+    BAIL_IF(!authored_type);
     type = *authored_type;
 
     if (transaction.matches(Code::Type::Assign)) {
       transaction.consume();
       initializer = Parser::Expression::parse(
           domain, materializations, transaction, source_context);
-      if (!initializer) {
-        return {};
-      }
+      BAIL_IF(!initializer);
     } else if (writability != Writability::Full) {
       transaction.create_token_error(
           "Library state and const Fields require an initializer."_view);
@@ -129,9 +117,7 @@ auto Language::Field::interpret(
   Token terminator = transaction.require(
       Code::Type::EndStatement,
       "Library Fields require one terminating `;`."_view);
-  if (!terminator) {
-    return {};
-  }
+  BAIL_IF(!terminator);
 
   View::Bytes name = name_token.caculate_text(transaction.get_source_text());
   Source field(
@@ -189,9 +175,7 @@ auto Language::Field::link_inferred(
 
   Field& inferred = domain.construct_from<Field>(
       [&]() -> Field { return Field(field, {}, host); });
-  if (!inferred.link_initializer(source, materializations)) {
-    return {};
-  }
+  BAIL_IF(!inferred.link_initializer(source, materializations));
 
   return inferred;
 }
@@ -215,9 +199,7 @@ auto Language::Field::link_initializer(
   // inferred candidate inside its private transaction. Both paths authenticate
   // the real host without inventing another initializer context.
   Bool linked = initializer->link(monograph, *this, materializations);
-  if (!linked) {
-    return False;
-  }
+  BAIL_IF(!linked);
 
   if (!type) {
     const Abstract& resolved_type = initializer->get_type().resolve();

@@ -33,9 +33,7 @@ static auto get_binding_target(const Abstract& binding) -> const Abstract& {
 static auto receives_self(const Callable& callable, const Type& source)
     -> Bool {
   auto first = callable.get_parameters().get_abstract(0);
-  if (!first) {
-    return False;
-  }
+  BAIL_IF(!first);
 
   return first->visit<Addressable>(
       [&](const Addressable& parameter) {
@@ -102,9 +100,7 @@ auto Types::Source::parse(
 
     Bool parsed = Parser::Declaration::parse(
         domain, materializations, cursor, monograph, *this);
-    if (!parsed) {
-      return False;
-    }
+    BAIL_IF(!parsed);
   }
 
   return True;
@@ -115,17 +111,13 @@ auto Types::Source::can_bind_static(const Abstract& binding) const -> Bool {
   // Import replay similarly adds provider Fields after every local Field is
   // exact. Source owns both late Static cases without reopening an incomplete
   // declaration or changing its empty instance Layout.
-  if (is_finalized() || !can_bind_declaration(binding)) {
-    return False;
-  }
+  BAIL_IF(is_finalized() || !can_bind_declaration(binding));
 
   const Abstract& target = get_binding_target(binding);
   Bool complete_type =
       target.is<Type>() && &target.resolve() != &Invalid::get_invalid();
   Bool imported_addressable = is_linked() && target.is<Addressable>();
-  if (!can_accept_declaration() && !complete_type && !imported_addressable) {
-    return False;
-  }
+  BAIL_IF(!can_accept_declaration() && !complete_type && !imported_addressable);
   if (!target.is<Type>()) {
     return True;
   }
@@ -144,18 +136,14 @@ auto Types::Source::can_bind_static(const Abstract& binding) const -> Bool {
 auto Types::Source::bind_static(
     Abstract& binding,
     Visibility binding_visibility) -> Bool {
-  if (!can_bind_static(binding)) {
-    return False;
-  }
+  BAIL_IF(!can_bind_static(binding));
 
   publish_binding(binding, binding_visibility);
   return True;
 }
 
 auto Types::Source::retain_static_field(Field::Source field) -> Bool {
-  if (!can_accept_declaration()) {
-    return False;
-  }
+  BAIL_IF(!can_accept_declaration());
 
   return retain_declaration_field(field);
 }

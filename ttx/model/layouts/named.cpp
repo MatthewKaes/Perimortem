@@ -30,14 +30,10 @@ auto Layouts::Named::has_unique_names() const -> Bool {
   for (Count i = 0; i < get_size(); i++) {
     Perimortem::Core::View::Bytes name =
         abstracts.get_data()[i].get().get_name();
-    if (name.is_empty()) {
-      return False;
-    }
+    BAIL_IF(name.is_empty());
 
     for (Count other = i + 1; other < get_size(); other++) {
-      if (name == abstracts.get_data()[other].get().get_name()) {
-        return False;
-      }
+      BAIL_IF(name == abstracts.get_data()[other].get().get_name());
     }
   }
 
@@ -46,9 +42,7 @@ auto Layouts::Named::has_unique_names() const -> Bool {
 
 auto Layouts::Named::fits_at(const Concept::Layout& target, Count target_offset)
     const -> Bool {
-  if (!has_target_segment(target, target_offset) || !has_unique_names()) {
-    return False;
-  }
+  BAIL_IF(!has_target_segment(target, target_offset) || !has_unique_names());
 
   for (Count i = 0; i < get_size(); i++) {
     const Concept::Abstract& source = abstracts.get_data()[i].get();
@@ -72,14 +66,10 @@ auto Layouts::Named::fits_at(const Concept::Layout& target, Count target_offset)
                     matches++;
                     return True;
                   });
-      if (!candidate_fits) {
-        return False;
-      }
+      BAIL_IF(!candidate_fits);
     }
 
-    if (matches != 1) {
-      return False;
-    }
+    BAIL_IF(matches != 1);
   }
 
   return True;

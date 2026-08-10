@@ -75,9 +75,7 @@ auto Library::Language::Monograph::bind_static(
     Abstract& binding,
     Visibility visibility) -> Bool {
   auto source = get_source().select<Types::Source>();
-  if (!source || !source->bind_static(binding, visibility)) {
-    return False;
-  }
+  BAIL_IF(!source || !source->bind_static(binding, visibility));
 
   authored_bindings.insert(binding);
   authored_binding_observations.insert(binding);
@@ -85,9 +83,7 @@ auto Library::Language::Monograph::bind_static(
 }
 
 auto Library::Language::Monograph::retain_import(const Import& import) -> Bool {
-  if (imports_linked) {
-    return False;
-  }
+  BAIL_IF(imports_linked);
 
   imports.insert(import);
   return True;
@@ -113,9 +109,7 @@ auto Library::Language::Monograph::link_imports() -> Bool {
   }
 
   auto source_structure = get_source().select<Types::Source>();
-  if (!source_structure) {
-    return False;
-  }
+  BAIL_IF(!source_structure);
 
   Managed::Vector<ImportCandidate> candidates(domain);
   Managed::Vector<Reference<Monograph>> providers(domain);
@@ -355,17 +349,14 @@ auto Library::Language::Monograph::link_imports() -> Bool {
     }
   }
 
-  if (failed) {
-    return False;
-  }
+  BAIL_IF(failed);
 
   // The earlier complete preflight makes each bind infallible within this
   // Monograph transaction, so no candidate becomes visible beside a later
   // rejection.
   for (Count i = 0; i < aliases.get_size(); i++) {
-    if (!source_structure->bind_static(aliases[i].get(), Visibility::Private)) {
-      return False;
-    }
+    BAIL_IF(
+        !source_structure->bind_static(aliases[i].get(), Visibility::Private));
   }
 
   for (Count i = 0; i < providers.get_size(); i++) {
@@ -422,9 +413,7 @@ auto Library::Language::Monograph::link() -> Bool {
   for (Count monograph_index = 0; monograph_index < closure.get_size();
        monograph_index++) {
     Monograph& monograph = closure[monograph_index].get();
-    if (!monograph.link_imports()) {
-      return False;
-    }
+    BAIL_IF(!monograph.link_imports());
 
     for (Count provider_index = 0;
          provider_index < monograph.imported_providers.get_size();
@@ -448,16 +437,12 @@ auto Library::Language::Monograph::link() -> Bool {
   for (Count i = 0; i < closure.get_size(); i++) {
     failed |= !closure[i].get().link_declaration_types();
   }
-  if (failed) {
-    return False;
-  }
+  BAIL_IF(failed);
 
   for (Count i = 0; i < closure.get_size(); i++) {
     failed |= !closure[i].get().link_fields();
   }
-  if (failed) {
-    return False;
-  }
+  BAIL_IF(failed);
 
   // Provider Fields become exact only after every imported Type route is
   // available. Replaying the import transaction here adds those new exact
@@ -465,23 +450,17 @@ auto Library::Language::Monograph::link() -> Bool {
   for (Count i = 0; i < closure.get_size(); i++) {
     failed |= !closure[i].get().link_imports();
   }
-  if (failed) {
-    return False;
-  }
+  BAIL_IF(failed);
 
   for (Count i = 0; i < closure.get_size(); i++) {
     failed |= !closure[i].get().link_initializers();
   }
-  if (failed) {
-    return False;
-  }
+  BAIL_IF(failed);
 
   for (Count i = 0; i < closure.get_size(); i++) {
     failed |= !closure[i].get().link_callable_signatures();
   }
-  if (failed) {
-    return False;
-  }
+  BAIL_IF(failed);
 
   for (Count i = 0; i < closure.get_size(); i++) {
     failed |= !closure[i].get().link_callable_bodies();

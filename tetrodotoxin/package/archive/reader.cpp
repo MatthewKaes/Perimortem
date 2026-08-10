@@ -44,14 +44,10 @@ static constexpr Static::Vector<Code::Type, 1> package_identity_separators = {{
 // freedom. Their later semantic or native owners decide whether each spelling
 // is meaningful.
 static auto is_opaque_identifier(View::Bytes value) -> Bool {
-  if (value.is_empty()) {
-    return False;
-  }
+  BAIL_IF(value.is_empty());
 
   for (Count i = 0; i < value.get_size(); i++) {
-    if (value[i] == '\0') {
-      return False;
-    }
+    BAIL_IF(value[i] == '\0');
   }
 
   return True;
@@ -291,9 +287,7 @@ static auto is_valid(const LittleReader& reader) -> Bool {
 // failure.
 static auto read_sized_bytes(LittleReader& reader, View::Bytes& value) -> Bool {
   Unsigned_32 size = reader.read_unsigned_32();
-  if (!is_valid(reader)) {
-    return False;
-  }
+  BAIL_IF(!is_valid(reader));
 
   value = reader.read_bytes(size);
   return is_valid(reader);
@@ -308,9 +302,7 @@ static auto can_allocate_records(
     View::Bytes payload,
     Count offset,
     Count minimum_record_size) -> Bool {
-  if (offset > payload.get_size() || minimum_record_size == 0) {
-    return False;
-  }
+  BAIL_IF(offset > payload.get_size() || minimum_record_size == 0);
 
   Count remaining = payload.get_size() - offset;
   return Count(count) <= remaining / minimum_record_size &&
@@ -331,9 +323,7 @@ static auto parse_version(View::Bytes payload, Version& version) -> Bool {
   LittleReader reader(payload);
   Unsigned_16 major = reader.read_unsigned_16();
   Unsigned_16 minor = reader.read_unsigned_16();
-  if (!is_valid(reader) || reader.get_location() != reader.get_size()) {
-    return False;
-  }
+  BAIL_IF(!is_valid(reader) || reader.get_location() != reader.get_size());
 
   version = Version(major, minor);
   return True;
@@ -347,10 +337,9 @@ static auto parse_dependencies(
     Dynamic::Vector<Package::Language::Dependency>& dependencies) -> Bool {
   LittleReader reader(payload);
   Unsigned_32 count = reader.read_unsigned_32();
-  if (!is_valid(reader) || !can_allocate_records<Package::Language::Dependency>(
-                               count, payload, reader.get_location(), 18)) {
-    return False;
-  }
+  BAIL_IF(
+      !is_valid(reader) || !can_allocate_records<Package::Language::Dependency>(
+                               count, payload, reader.get_location(), 18));
 
   dependencies = Dynamic::Vector<Package::Language::Dependency>(count);
   for (Unsigned_32 i = 0; i < count; i++) {
@@ -358,9 +347,7 @@ static auto parse_dependencies(
     // fixed version must consume that record exactly before it is retained.
     Unsigned_32 record_size = reader.read_unsigned_32();
     View::Bytes record = reader.read_bytes(record_size);
-    if (!is_valid(reader)) {
-      return False;
-    }
+    BAIL_IF(!is_valid(reader));
 
     LittleReader record_reader(record);
     View::Bytes local_name;
@@ -369,10 +356,9 @@ static auto parse_dependencies(
     Bool package_name_read = read_sized_bytes(record_reader, package_name);
     Unsigned_16 major = record_reader.read_unsigned_16();
     Unsigned_16 minor = record_reader.read_unsigned_16();
-    if (!local_name_read || !package_name_read || !is_valid(record_reader) ||
-        record_reader.get_location() != record_reader.get_size()) {
-      return False;
-    }
+    BAIL_IF(
+        !local_name_read || !package_name_read || !is_valid(record_reader) ||
+        record_reader.get_location() != record_reader.get_size());
 
     dependencies.emplace(
         Package::Language::Dependency(
@@ -389,10 +375,9 @@ static auto parse_members(
     Dynamic::Vector<Package::Archive::Member>& members) -> Bool {
   LittleReader reader(payload);
   Unsigned_32 count = reader.read_unsigned_32();
-  if (!is_valid(reader) || !can_allocate_records<Package::Archive::Member>(
-                               count, payload, reader.get_location(), 18)) {
-    return False;
-  }
+  BAIL_IF(
+      !is_valid(reader) || !can_allocate_records<Package::Archive::Member>(
+                               count, payload, reader.get_location(), 18));
 
   members = Dynamic::Vector<Package::Archive::Member>(count);
   for (Unsigned_32 i = 0; i < count; i++) {
@@ -400,9 +385,7 @@ static auto parse_members(
     // payload size therefore cannot consume the next record.
     Unsigned_32 record_size = reader.read_unsigned_32();
     View::Bytes record = reader.read_bytes(record_size);
-    if (!is_valid(reader)) {
-      return False;
-    }
+    BAIL_IF(!is_valid(reader));
 
     LittleReader record_reader(record);
     View::Bytes semantic_name;
@@ -411,10 +394,9 @@ static auto parse_members(
     Bool semantic_name_read = read_sized_bytes(record_reader, semantic_name);
     Bool dialect_name_read = read_sized_bytes(record_reader, dialect_name);
     Bool payload_read = read_sized_bytes(record_reader, member_payload);
-    if (!semantic_name_read || !dialect_name_read || !payload_read ||
-        record_reader.get_location() != record_reader.get_size()) {
-      return False;
-    }
+    BAIL_IF(
+        !semantic_name_read || !dialect_name_read || !payload_read ||
+        record_reader.get_location() != record_reader.get_size());
 
     members.emplace(
         Package::Archive::Member(semantic_name, dialect_name, member_payload));
@@ -429,25 +411,21 @@ static auto parse_artifact_ids(
     Dynamic::Vector<View::Bytes>& artifact_ids) -> Bool {
   LittleReader reader(payload);
   Unsigned_32 count = reader.read_unsigned_32();
-  if (!is_valid(reader) || !can_allocate_records<View::Bytes>(
-                               count, payload, reader.get_location(), 9)) {
-    return False;
-  }
+  BAIL_IF(
+      !is_valid(reader) || !can_allocate_records<View::Bytes>(
+                               count, payload, reader.get_location(), 9));
 
   artifact_ids = Dynamic::Vector<View::Bytes>(count);
   for (Unsigned_32 i = 0; i < count; i++) {
     Unsigned_32 record_size = reader.read_unsigned_32();
     View::Bytes record = reader.read_bytes(record_size);
-    if (!is_valid(reader)) {
-      return False;
-    }
+    BAIL_IF(!is_valid(reader));
 
     LittleReader record_reader(record);
     View::Bytes id;
     Bool id_read = read_sized_bytes(record_reader, id);
-    if (!id_read || record_reader.get_location() != record_reader.get_size()) {
-      return False;
-    }
+    BAIL_IF(
+        !id_read || record_reader.get_location() != record_reader.get_size());
 
     artifact_ids.emplace(View::Bytes(id));
   }
@@ -463,10 +441,9 @@ static auto parse_exports(
     Dynamic::Vector<Package::Archive::Export>& exports) -> Bool {
   LittleReader reader(payload);
   Unsigned_32 count = reader.read_unsigned_32();
-  if (!is_valid(reader) || !can_allocate_records<Package::Archive::Export>(
-                               count, payload, reader.get_location(), 19)) {
-    return False;
-  }
+  BAIL_IF(
+      !is_valid(reader) || !can_allocate_records<Package::Archive::Export>(
+                               count, payload, reader.get_location(), 19));
 
   exports = Dynamic::Vector<Package::Archive::Export>(count);
   for (Unsigned_32 i = 0; i < count; i++) {
@@ -474,9 +451,7 @@ static auto parse_exports(
     // record so each Export is either complete or rejected.
     Unsigned_32 record_size = reader.read_unsigned_32();
     View::Bytes record = reader.read_bytes(record_size);
-    if (!is_valid(reader)) {
-      return False;
-    }
+    BAIL_IF(!is_valid(reader));
 
     LittleReader record_reader(record);
     View::Bytes semantic_route;
@@ -485,10 +460,9 @@ static auto parse_exports(
     Bool semantic_route_read = read_sized_bytes(record_reader, semantic_route);
     Bool artifact_id_read = read_sized_bytes(record_reader, artifact_id);
     Bool symbol_locator_read = read_sized_bytes(record_reader, symbol_locator);
-    if (!semantic_route_read || !artifact_id_read || !symbol_locator_read ||
-        record_reader.get_location() != record_reader.get_size()) {
-      return False;
-    }
+    BAIL_IF(
+        !semantic_route_read || !artifact_id_read || !symbol_locator_read ||
+        record_reader.get_location() != record_reader.get_size());
 
     exports.emplace(
         Package::Archive::Export(semantic_route, artifact_id, symbol_locator));

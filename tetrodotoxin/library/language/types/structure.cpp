@@ -57,28 +57,20 @@ static auto parse_structured_definition(Cursor& cursor)
     -> Option<ParsedStructuredDefinition> {
   Token opening = cursor.current();
   auto visibility = Parser::Declaration::parse_visibility(cursor);
-  if (!visibility) {
-    return {};
-  }
+  BAIL_IF(!visibility);
 
   Token name_token = cursor.require(
       Code::Type::Type,
       "Library Structures require an authored Type shaped name."_view);
-  if (!name_token) {
-    return {};
-  }
-  if (!cursor.require(
-          Code::Type::Define,
-          "Library Structure names require `:` before their kind."_view)) {
-    return {};
-  }
+  BAIL_IF(!name_token);
+  BAIL_IF(!cursor.require(
+      Code::Type::Define,
+      "Library Structure names require `:` before their kind."_view));
 
   Token kind_token = cursor.require(
       Code::Type::Addressable,
       "Library Structure declarations require `struct` or `object`."_view);
-  if (!kind_token) {
-    return {};
-  }
+  BAIL_IF(!kind_token);
 
   View::Bytes kind_text = kind_token.caculate_text(cursor.get_source_text());
   DefinitionKind kind = DefinitionKind::Structure;
@@ -90,11 +82,9 @@ static auto parse_structured_definition(Cursor& cursor)
         "Library Structure declarations require `struct` or `object`."_view);
     return {};
   }
-  if (!cursor.require(
-          Code::Type::ScopeStart,
-          "Library Structure bodies require an opening `{`."_view)) {
-    return {};
-  }
+  BAIL_IF(!cursor.require(
+      Code::Type::ScopeStart,
+      "Library Structure bodies require an opening `{`."_view));
 
   return ParsedStructuredDefinition{
     .visibility = *visibility,
@@ -120,9 +110,7 @@ static auto callable_receives_self(
     const Callable& callable,
     Option<const Type&> receiver = {}) -> Bool {
   auto first = callable.get_parameters().get_abstract(0);
-  if (!first) {
-    return False;
-  }
+  BAIL_IF(!first);
 
   return first->visit<Ttx::Model::Addressable>(
       [&](const Ttx::Model::Addressable& parameter) {
@@ -260,9 +248,7 @@ auto Types::Structure::interpret(
     const Structure& enclosing_scope) -> Option<Structure&> {
   auto transaction = cursor.branch();
   auto definition = parse_structured_definition(transaction);
-  if (!definition) {
-    return {};
-  }
+  BAIL_IF(!definition);
 
   Anchor preliminary = Anchor::create(
       definition->kind_token,
@@ -296,9 +282,7 @@ auto Types::Structure::interpret(
 
     Bool parsed = Parser::Declaration::parse(
         domain, materializations, transaction, source, structure);
-    if (!parsed) {
-      return {};
-    }
+    BAIL_IF(!parsed);
   }
 
   Token closing = transaction.consume();
@@ -382,9 +366,7 @@ static auto find_field(
 
 auto Types::Structure::can_bind_member(const Abstract& candidate) const
     -> Bool {
-  if (!can_accept_declaration()) {
-    return False;
-  }
+  BAIL_IF(!can_accept_declaration());
 
   return can_bind_declaration(candidate);
 }
@@ -442,9 +424,7 @@ auto Types::Structure::can_bind_declaration(const Abstract& binding) const
 auto Types::Structure::bind_member(
     Abstract& binding,
     Visibility binding_visibility) -> Bool {
-  if (!can_accept_declaration()) {
-    return False;
-  }
+  BAIL_IF(!can_accept_declaration());
 
   return bind_declaration(binding, binding_visibility);
 }
@@ -452,9 +432,7 @@ auto Types::Structure::bind_member(
 auto Types::Structure::bind_declaration(
     Abstract& binding,
     Visibility binding_visibility) -> Bool {
-  if (!can_bind_declaration(binding)) {
-    return False;
-  }
+  BAIL_IF(!can_bind_declaration(binding));
 
   publish_binding(binding, binding_visibility);
   return True;
@@ -506,9 +484,7 @@ auto Types::Structure::publish_binding(
 }
 
 auto Types::Structure::retain_field(Field::Source field) -> Bool {
-  if (!can_accept_declaration()) {
-    return False;
-  }
+  BAIL_IF(!can_accept_declaration());
 
   return retain_declaration_field(field);
 }
@@ -568,9 +544,7 @@ auto Types::Structure::link_types() -> Bool {
     return structure.link_types();
   });
 
-  if (failed) {
-    return False;
-  }
+  BAIL_IF(failed);
 
   stage = Stage::TypesLinked;
   return True;
@@ -590,9 +564,7 @@ auto Types::Structure::link_fields() -> Bool {
   Bool failed = !visit_each<Structure>(type_bindings, [](Structure& structure) {
     return structure.link_fields();
   });
-  if (failed) {
-    return False;
-  }
+  BAIL_IF(failed);
 
   Managed::Vector<Reference<Field>> available_fields(domain);
   available_fields.reset(field_sources.get_size());
@@ -643,9 +615,7 @@ auto Types::Structure::link_fields() -> Bool {
   linking_fields = {};
   linking_source = {};
 
-  if (failed) {
-    return False;
-  }
+  BAIL_IF(failed);
 
   Managed::Vector<Reference<Field>> linked_fields(domain);
   linked_fields.reset(field_sources.get_size());
@@ -718,9 +688,7 @@ auto Types::Structure::link_initializers() -> Bool {
     failed |= !fields[i].get().link_initializer(source, materializations);
   }
 
-  if (failed) {
-    return False;
-  }
+  BAIL_IF(failed);
 
   stage = Stage::InitializersLinked;
   return True;
@@ -752,9 +720,7 @@ auto Types::Structure::link_callable_signatures() -> Bool {
     failed |= !validate_linked_callable(callable);
   }
 
-  if (failed) {
-    return False;
-  }
+  BAIL_IF(failed);
 
   stage = Stage::CallableSignaturesLinked;
   return True;
@@ -782,9 +748,7 @@ auto Types::Structure::link_callable_bodies() -> Bool {
     failed |= !link_body(callables[i].get());
   }
 
-  if (failed) {
-    return False;
-  }
+  BAIL_IF(failed);
 
   stage = Stage::CallablesLinked;
   return True;
@@ -853,9 +817,7 @@ auto Types::Structure::finalize() -> Bool {
     failed |= !finalize_callable(callables[i].get());
   }
 
-  if (failed) {
-    return False;
-  }
+  BAIL_IF(failed);
 
   stage = Stage::Finalized;
   return True;
@@ -904,9 +866,7 @@ auto Types::Structure::resolve_context(
 }
 
 auto Types::Structure::owns(const Callable& requester) const -> Bool {
-  if (!callable_has_host(requester, *this)) {
-    return False;
-  }
+  BAIL_IF(!callable_has_host(requester, *this));
 
   return callable_observations.get_view().contains(
       [&](const Reference<const Callable>& existing) {
@@ -916,9 +876,7 @@ auto Types::Structure::owns(const Callable& requester) const -> Bool {
 
 auto Types::Structure::owns(const Field& requester) const -> Bool {
   const Type& expected_host = *this;
-  if (&requester.get_host() != &expected_host) {
-    return False;
-  }
+  BAIL_IF(&requester.get_host() != &expected_host);
 
   if (linking_source && requester.get_name() == linking_source->get_name() &&
       !requester.get_type_access()) {
@@ -1097,9 +1055,7 @@ auto Types::Structure::get_layout() const -> const Ttx::Model::Layouts::Named& {
 auto Types::Structure::is_readable(
     const Field& field,
     const Abstract& requester) const -> Bool {
-  if (!owns(field)) {
-    return False;
-  }
+  BAIL_IF(!owns(field));
 
   return grants_complete_access(requester) || field.is_readable_externally();
 }

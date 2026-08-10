@@ -45,17 +45,13 @@ static auto parse_case(Cursor& cursor, const Documentation& documentation)
   Token name_token = cursor.require(
       Code::Type::Addressable,
       "Library Enumeration cases require an addressable name."_view);
-  if (!name_token) {
-    return {};
-  }
+  BAIL_IF(!name_token);
 
   // TODO: Allow Enumeration cases to infer the next value when no assignment
   // is present.
-  if (!cursor.require(
-          Code::Type::Assign,
-          "Library Enumeration cases require an explicit `=` value."_view)) {
-    return {};
-  }
+  BAIL_IF(!cursor.require(
+      Code::Type::Assign,
+      "Library Enumeration cases require an explicit `=` value."_view));
 
   // TODO: Admit case expressions once complete folding can supply one
   // Constant.
@@ -76,16 +72,12 @@ static auto parse_case(Cursor& cursor, const Documentation& documentation)
     return {};
   }
 
-  if (!value_token) {
-    return {};
-  }
+  BAIL_IF(!value_token);
 
   Token terminator = cursor.require(
       Code::Type::EndStatement,
       "Library Enumeration cases require one terminating `;`."_view);
-  if (!terminator) {
-    return {};
-  }
+  BAIL_IF(!terminator);
 
   Span value_span(value_opening, value_token);
   View::Bytes source = cursor.get_source_text();
@@ -126,9 +118,7 @@ static auto read_signed(
   if (text.slice(0, 2) == "0x"_view) {
     Unsigned_64 unsigned_value = 0;
     Bool parsed = read_unsigned(text, anchor, source, unsigned_value);
-    if (!parsed) {
-      return False;
-    }
+    BAIL_IF(!parsed);
     if (unsigned_value > Unsigned_64(__INT64_MAX__)) {
       source.report(
           anchor,
@@ -188,21 +178,15 @@ auto Tetrodotoxin::Library::Language::Types::Enumeration::interpret(
   auto transaction = cursor.branch();
   Token opening = transaction.current();
   auto visibility = Parser::Declaration::parse_visibility(transaction);
-  if (!visibility) {
-    return {};
-  }
+  BAIL_IF(!visibility);
 
   Token name_token = transaction.require(
       Code::Type::Type,
       "Library Enumerations require an authored Type shaped name."_view);
-  if (!name_token) {
-    return {};
-  }
-  if (!transaction.require(
-          Code::Type::Define,
-          "Library Enumeration names require `:` before `enum`."_view)) {
-    return {};
-  }
+  BAIL_IF(!name_token);
+  BAIL_IF(!transaction.require(
+      Code::Type::Define,
+      "Library Enumeration names require `:` before `enum`."_view));
 
   Token enumeration_token = transaction.require(
       Code::Type::Addressable,
@@ -216,26 +200,18 @@ auto Tetrodotoxin::Library::Language::Types::Enumeration::interpret(
     }
     return {};
   }
-  if (!transaction.require(
-          Code::Type::BracketStart,
-          "Library Enumeration storage requires an opening `[`."_view)) {
-    return {};
-  }
+  BAIL_IF(!transaction.require(
+      Code::Type::BracketStart,
+      "Library Enumeration storage requires an opening `[`."_view));
 
   auto storage = Access::Type::parse(transaction);
-  if (!storage) {
-    return {};
-  }
-  if (!transaction.require(
-          Code::Type::BracketEnd,
-          "Library Enumeration storage requires a closing `]`."_view)) {
-    return {};
-  }
-  if (!transaction.require(
-          Code::Type::ScopeStart,
-          "Library Enumeration bodies require an opening `{`."_view)) {
-    return {};
-  }
+  BAIL_IF(!storage);
+  BAIL_IF(!transaction.require(
+      Code::Type::BracketEnd,
+      "Library Enumeration storage requires a closing `]`."_view));
+  BAIL_IF(!transaction.require(
+      Code::Type::ScopeStart,
+      "Library Enumeration bodies require an opening `{`."_view));
 
   Managed::Vector<ParsedCase> parsed_cases(domain);
   while (!transaction.matches(Code::Type::ScopeEnd)) {
@@ -249,9 +225,7 @@ auto Tetrodotoxin::Library::Language::Types::Enumeration::interpret(
     const Documentation& case_documentation =
         Tetrodotoxin::Language::Parser::Comment::parse(transaction);
     auto parsed = parse_case(transaction, case_documentation);
-    if (!parsed) {
-      return {};
-    }
+    BAIL_IF(!parsed);
     if (parsed_cases.get_view().contains([&](const ParsedCase& existing) {
           return existing.name == parsed->name;
         })) {
@@ -411,9 +385,7 @@ auto Tetrodotoxin::Library::Language::Types::Enumeration::finalize() -> Bool {
     }
   }
 
-  if (failed) {
-    return False;
-  }
+  BAIL_IF(failed);
 
   cases.reset(source_cases.get_size());
   for (Count i = 0; i < source_cases.get_size(); i++) {
@@ -492,27 +464,21 @@ auto Tetrodotoxin::Library::Language::Types::Enumeration::get_cases() const
 
 auto Tetrodotoxin::Library::Language::Types::Enumeration::get_case_anchor(
     Count index) const -> Option<Anchor> {
-  if (index >= source_cases.get_size()) {
-    return {};
-  }
+  BAIL_IF(index >= source_cases.get_size());
 
   return source_cases.get_view().get_data()[index].anchor;
 }
 
 auto Tetrodotoxin::Library::Language::Types::Enumeration::get_case_name_anchor(
     Count index) const -> Option<Anchor> {
-  if (index >= source_cases.get_size()) {
-    return {};
-  }
+  BAIL_IF(index >= source_cases.get_size());
 
   return source_cases.get_view().get_data()[index].name_anchor;
 }
 
 auto Tetrodotoxin::Library::Language::Types::Enumeration::get_case_value_anchor(
     Count index) const -> Option<Anchor> {
-  if (index >= source_cases.get_size()) {
-    return {};
-  }
+  BAIL_IF(index >= source_cases.get_size());
 
   return source_cases.get_view().get_data()[index].value_anchor;
 }

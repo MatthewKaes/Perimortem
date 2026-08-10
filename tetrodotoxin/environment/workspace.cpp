@@ -111,9 +111,7 @@ auto Environment::Workspace::discard_staged() -> void {
 }
 
 auto Environment::Workspace::link(Errors& errors) -> Bool {
-  if (retention.awaits_finalize()) {
-    return False;
-  }
+  BAIL_IF(retention.awaits_finalize());
 
   Bool linked = retention.link(errors);
   if (!linked) {
@@ -123,9 +121,7 @@ auto Environment::Workspace::link(Errors& errors) -> Bool {
 }
 
 auto Environment::Workspace::finalize(Errors& errors) -> Bool {
-  if (!retention.awaits_finalize()) {
-    return False;
-  }
+  BAIL_IF(!retention.awaits_finalize());
 
   Bool finalized = retention.finalize(errors);
   if (finalized) {
@@ -184,9 +180,7 @@ auto Environment::Workspace::interpret_retained_source(
   const Documentation& documentation = Language::Parser::Comment::parse(cursor);
   Token dialect_declaration = cursor.current();
   View::Bytes dialect_name = Language::Parser::Dialect::parse(cursor);
-  if (dialect_name.is_empty()) {
-    return {};
-  }
+  BAIL_IF(dialect_name.is_empty());
 
   Option<Language::Dialect&> dialect = dialects.find(dialect_name);
   if (!dialect) {
@@ -220,9 +214,7 @@ auto Environment::Workspace::interpret_retained_source(
   // installed Dialect retain one universal source scope.
   Option<Language::Monograph&> interpreted =
       dialect->interpret(arena, cursor, documentation, interpretation_context);
-  if (!interpreted) {
-    return {};
-  }
+  BAIL_IF(!interpreted);
 
   // Retention owns lifetime and exact authored provenance. Package local
   // publication stays separate so its real Package can bind the Monograph
@@ -231,9 +223,7 @@ auto Environment::Workspace::interpret_retained_source(
   Origin origin(
       diagnostic_path, contents, Span(source_opening, cursor.peek(-1)));
   Bool retained = retention.retain(monograph, origin);
-  if (!retained) {
-    return {};
-  }
+  BAIL_IF(!retained);
 
   if (stage_globally) {
     StagedPublication publication(semantic_name, monograph);

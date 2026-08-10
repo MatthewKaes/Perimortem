@@ -33,9 +33,7 @@ static auto parse_shape(
     Bool admits_self) -> Bool {
   if (!cursor.matches(Code::Type::BracketStart)) {
     auto type = Language::Access::Type::parse(cursor);
-    if (!type) {
-      return False;
-    }
+    BAIL_IF(!type);
 
     slots.insert(
         ParsedSlot{
@@ -87,11 +85,9 @@ static auto parse_shape(
         if (cursor.matches(Code::Type::BracketEnd)) {
           break;
         }
-        if (!cursor.require(
-                Code::Type::PackingOp,
-                "Library Signature slots require `,` or the closing `]`."_view)) {
-          return False;
-        }
+        BAIL_IF(!cursor.require(
+            Code::Type::PackingOp,
+            "Library Signature slots require `,` or the closing `]`."_view));
         if (cursor.matches(Code::Type::BracketEnd)) {
           break;
         }
@@ -109,9 +105,7 @@ static auto parse_shape(
       name_token = cursor.require(
           Code::Type::Addressable,
           "Named Library Signature slots require a name after `.`."_view);
-      if (!name_token) {
-        return False;
-      }
+      BAIL_IF(!name_token);
 
       name = name_token.caculate_text(cursor.get_source_text());
       if (slots.get_view().contains(
@@ -122,12 +116,10 @@ static auto parse_shape(
       }
 
       name_anchor = Anchor::create(Span(name_token));
-      if (!cursor.require(
-              Code::Type::Define,
-              "Named Library Signature slots require `:` before the "
-              "Type."_view)) {
-        return False;
-      }
+      BAIL_IF(!cursor.require(
+          Code::Type::Define,
+          "Named Library Signature slots require `:` before the "
+          "Type."_view));
     } else if (cursor.matches(Code::Type::AddressOp)) {
       cursor.create_token_error(
           "Named and unnamed slots cannot share one Library Signature."_view);
@@ -135,9 +127,7 @@ static auto parse_shape(
     }
 
     auto type = Language::Access::Type::parse(cursor);
-    if (!type) {
-      return False;
-    }
+    BAIL_IF(!type);
 
     Anchor slot_anchor = type->get_anchor();
     if (name_anchor) {
@@ -155,11 +145,9 @@ static auto parse_shape(
       break;
     }
 
-    if (!cursor.require(
-            Code::Type::PackingOp,
-            "Library Signature slots require `,` or the closing `]`."_view)) {
-      return False;
-    }
+    BAIL_IF(!cursor.require(
+        Code::Type::PackingOp,
+        "Library Signature slots require `,` or the closing `]`."_view));
 
     if (cursor.matches(Code::Type::BracketEnd)) {
       break;
@@ -180,17 +168,13 @@ auto Language::Signature::interpret(Allocator::Arena& domain, Cursor& cursor)
   Token opening = transaction.current();
   Managed::Vector<ParsedSlot> parsed_parameters(domain);
   Managed::Vector<ParsedSlot> parsed_results(domain);
-  if (!parse_shape(transaction, parsed_parameters, True)) {
-    return {};
-  }
+  BAIL_IF(!parse_shape(transaction, parsed_parameters, True));
 
   Token arrow = transaction.require(
       Code::Type::CallOp,
       "Library Function parameters require `->` before the result "
       "Signature."_view);
-  if (!arrow || !parse_shape(transaction, parsed_results, False)) {
-    return {};
-  }
+  BAIL_IF(!arrow || !parse_shape(transaction, parsed_results, False));
 
   Signature& signature = domain.construct_from<Signature>(
       [&]() -> Signature { return Signature(domain); });
@@ -268,9 +252,7 @@ auto Language::Signature::link(
 
   link_slots(parameters, True);
   link_slots(results, False);
-  if (failed) {
-    return False;
-  }
+  BAIL_IF(failed);
 
   auto construct_layout = [&](Managed::Vector<Slot>& slots,
                               Bool parameters) -> Option<const Layout&> {
@@ -278,9 +260,7 @@ auto Language::Signature::link(
     Managed::Vector<Reference<const Abstract>> edges(domain);
     for (Count i = 0; i < slots.get_size(); i++) {
       Slot& slot = slots[i];
-      if (!slot.type) {
-        return {};
-      }
+      BAIL_IF(!slot.type);
 
       const Type& type = slot.type->get();
       named |= slot.is_named();
@@ -293,9 +273,7 @@ auto Language::Signature::link(
       // an Alias because their authored name does not introduce an address.
       if (parameters) {
         auto parameter = Parameter::create_authored(domain, *this, i, type);
-        if (!parameter) {
-          return {};
-        }
+        BAIL_IF(!parameter);
 
         edges.insert(*parameter);
       } else {
@@ -368,9 +346,7 @@ auto Language::Signature::get_result_name(Count index) const -> View::Bytes {
 
 auto Language::Signature::get_parameter_type_access(Count index) const
     -> Option<const Access::Type&> {
-  if (index >= parameters.get_size()) {
-    return {};
-  }
+  BAIL_IF(index >= parameters.get_size());
 
   return parameters.at(index).type_access.visit(
       []() -> Option<const Access::Type&> { return {}; },
@@ -381,9 +357,7 @@ auto Language::Signature::get_parameter_type_access(Count index) const
 
 auto Language::Signature::get_result_type_access(Count index) const
     -> Option<const Access::Type&> {
-  if (index >= results.get_size()) {
-    return {};
-  }
+  BAIL_IF(index >= results.get_size());
 
   return results.at(index).type_access.visit(
       []() -> Option<const Access::Type&> { return {}; },
@@ -407,9 +381,7 @@ auto Language::Signature::get_result_anchor(Count index) const
 
 auto Language::Signature::get_parameter_type_anchor(Count index) const
     -> Option<Anchor> {
-  if (index >= parameters.get_size()) {
-    return {};
-  }
+  BAIL_IF(index >= parameters.get_size());
 
   const Slot& slot = parameters.at(index);
   return slot.type_access.visit(
@@ -421,9 +393,7 @@ auto Language::Signature::get_parameter_type_anchor(Count index) const
 
 auto Language::Signature::get_result_type_anchor(Count index) const
     -> Option<Anchor> {
-  if (index >= results.get_size()) {
-    return {};
-  }
+  BAIL_IF(index >= results.get_size());
 
   const Slot& slot = results.at(index);
   return slot.type_access.visit(
@@ -435,9 +405,7 @@ auto Language::Signature::get_result_type_anchor(Count index) const
 
 auto Language::Signature::get_parameter_type(Count index) const
     -> Option<const Type&> {
-  if (index >= parameters.get_size()) {
-    return {};
-  }
+  BAIL_IF(index >= parameters.get_size());
 
   return parameters.at(index).type.visit(
       []() -> Option<const Type&> { return {}; },
@@ -448,9 +416,7 @@ auto Language::Signature::get_parameter_type(Count index) const
 
 auto Language::Signature::get_result_type(Count index) const
     -> Option<const Type&> {
-  if (index >= results.get_size()) {
-    return {};
-  }
+  BAIL_IF(index >= results.get_size());
 
   return results.at(index).type.visit(
       []() -> Option<const Type&> { return {}; },

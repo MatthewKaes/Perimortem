@@ -64,25 +64,20 @@ auto Language::Materializations::materialize(
     Core::View::Vector<Generic::Argument> arguments)
     -> Core::Option<const Ttx::Model::Type&> {
   auto parameters = generic.get_parameterization();
-  if (&generic.resolve() != &generic ||
-      parameters.get_size() != arguments.get_size()) {
-    return {};
-  }
+  BAIL_IF(
+      &generic.resolve() != &generic ||
+      parameters.get_size() != arguments.get_size());
 
   // A published key contains only complete semantic facts. Formula code never
   // sees a mismatched value and an incomplete Type cannot become cache state.
   const auto* parameter_data = parameters.get_data();
   const auto* argument_data = arguments.get_data();
   for (Count i = 0; i < arguments.get_size(); i++) {
-    if (!matches_parameter(parameter_data[i], argument_data[i])) {
-      return {};
-    }
+    BAIL_IF(!matches_parameter(parameter_data[i], argument_data[i]));
 
     const Ttx::Model::Type* type =
         argument_data[i].find<const Ttx::Model::Type&>();
-    if (type != nullptr && &type->resolve() != type) {
-      return {};
-    }
+    BAIL_IF(type != nullptr && &type->resolve() != type);
   }
 
   Key key(generic, arguments);
@@ -112,14 +107,10 @@ auto Language::Materializations::materialize(
 
   // The stack is restored before a formula result can publish anything. A
   // nested rejection therefore cannot leak transient state into later retries.
-  if (transaction.reentered || !created) {
-    return {};
-  }
+  BAIL_IF(transaction.reentered || !created);
 
   const Ttx::Model::Type& result = *created;
-  if (&result.resolve() != &result) {
-    return {};
-  }
+  BAIL_IF(&result.resolve() != &result);
 
   // Managed Vector begins every Argument lifetime while Arena keeps the
   // resulting bytes alive after this local handle leaves the transaction.

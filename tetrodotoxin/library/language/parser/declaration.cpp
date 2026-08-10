@@ -69,43 +69,28 @@ static auto parse_alias(
     Monograph& source,
     Types::Structure& host) -> Bool {
   auto visibility = Parser::Declaration::parse_visibility(cursor);
-  if (!visibility) {
-    return False;
-  }
+  BAIL_IF(!visibility);
 
   Token name_token = cursor.require(
       Code::Type::Type,
       "Library Aliases require an authored Type shaped name."_view);
-  if (!name_token) {
-    return False;
-  }
-  if (!cursor.require(
-          Code::Type::Define,
-          "Library Alias names require `:` before `alias`."_view)) {
-    return False;
-  }
-  if (!cursor.require(
-          Code::Type::Alias,
-          "Library Alias declarations require `alias`."_view)) {
-    return False;
-  }
-  if (!cursor.require(
-          Code::Type::Assign,
-          "Library Alias declarations require `=` before their Type route."_view)) {
-    return False;
-  }
+  BAIL_IF(!name_token);
+  BAIL_IF(!cursor.require(
+      Code::Type::Define,
+      "Library Alias names require `:` before `alias`."_view));
+  BAIL_IF(!cursor.require(
+      Code::Type::Alias, "Library Alias declarations require `alias`."_view));
+  BAIL_IF(!cursor.require(
+      Code::Type::Assign,
+      "Library Alias declarations require `=` before their Type route."_view));
 
   auto route = Tetrodotoxin::Library::Language::Access::Type::parse(cursor);
-  if (!route) {
-    return False;
-  }
+  BAIL_IF(!route);
 
   Token terminator = cursor.require(
       Code::Type::EndStatement,
       "Library Alias declarations require one terminating `;`."_view);
-  if (!terminator) {
-    return False;
-  }
+  BAIL_IF(!terminator);
 
   // Structure owns authenticated Type lookup for both its local declarations
   // and its enclosing source chain. The parser only proves the terminal Type,
@@ -162,9 +147,7 @@ static auto parse_type(
       declaration_kind.caculate_text(cursor.get_source_text()) == "enum"_view) {
     auto enumeration = Types::Enumeration::interpret(
         domain, cursor, documentation, source, host);
-    if (!enumeration) {
-      return False;
-    }
+    BAIL_IF(!enumeration);
     if (!bind(host, source, *enumeration, enumeration->get_visibility())) {
       cursor.create_expression_error(
           enumeration->get_name_anchor(),
@@ -180,9 +163,7 @@ static auto parse_type(
     if (kind == "struct"_view || kind == "object"_view) {
       auto structure = Types::Structure::interpret(
           domain, cursor, documentation, source, materializations, host);
-      if (!structure) {
-        return False;
-      }
+      BAIL_IF(!structure);
       if (!bind(host, source, *structure, structure->get_visibility())) {
         auto name_anchor = structure->get_name_anchor();
         if (name_anchor) {
@@ -221,11 +202,8 @@ auto Parser::Declaration::parse(
       transaction.matches(Code::Type::Private)) {
     Code::Type declaration = transaction.peek(1).get_code().get_type();
     if (declaration == Code::Type::Type) {
-      if (!parse_type(
-              domain, materializations, transaction, documentation, source,
-              host)) {
-        return False;
-      }
+      BAIL_IF(!parse_type(
+          domain, materializations, transaction, documentation, source, host));
 
       cursor.join(transaction);
       return True;
@@ -234,9 +212,7 @@ auto Parser::Declaration::parse(
     if (declaration == Code::Type::Func) {
       auto function = Function::reserve(
           domain, transaction, documentation, source, host, materializations);
-      if (!function || !function->complete(transaction)) {
-        return False;
-      }
+      BAIL_IF(!function || !function->complete(transaction));
       if (!bind(host, source, *function, function->get_visibility())) {
         transaction.create_token_error(
             function->get_name_token(),
@@ -251,9 +227,7 @@ auto Parser::Declaration::parse(
 
   auto field = Field::interpret(
       domain, materializations, transaction, documentation, host);
-  if (!field) {
-    return False;
-  }
+  BAIL_IF(!field);
   if (!retain_field(host, *field)) {
     transaction.create_expression_error(
         field->get_anchor(),
