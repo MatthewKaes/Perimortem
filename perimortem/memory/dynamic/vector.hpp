@@ -180,13 +180,7 @@ class Vector {
   }
 
   constexpr auto contains(const type& data) const -> Bool {
-    for (Count i = 0; i < size; i++) {
-      if (source_block[i] == data) {
-        return true;
-      }
-    }
-
-    return false;
+    return get_view().contains(data);
   }
 
   constexpr auto at(Count index) const -> const type& {

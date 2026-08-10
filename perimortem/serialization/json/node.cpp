@@ -126,13 +126,8 @@ auto Json::Node::operator[](const View::Bytes name) const -> const Json::Node {
 auto Json::Node::contains(const View::Bytes name) const -> Bool {
   if (data.state == (Unsigned_32)NodeState::Object) {
     View::Vector<Member> members((const Member*)data.ptr, data.size);
-    for (Count i = 0; i < members.get_size(); i++) {
-      if (members.get_data()[i].name == name) {
-        return true;
-      }
-    }
-
-    return false;
+    return members.contains(
+        [name](const Member& member) { return member.name == name; });
   }
 
   return false;

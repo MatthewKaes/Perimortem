@@ -60,13 +60,11 @@ static auto instance_layer_available(View::Bytes layer_name) -> Bool {
     return False;
   }
 
-  for (Unsigned_32 i = 0; i < read_layer_count; i++) {
-    if (NullTerminated::to_view(layers[i].layerName) == layer_name) {
-      return True;
-    }
-  }
-
-  return False;
+  return layers.get_view()
+      .slice(0, read_layer_count)
+      .contains([layer_name](const VkLayerProperties& layer) {
+        return NullTerminated::to_view(layer.layerName) == layer_name;
+      });
 }
 #endif
 
