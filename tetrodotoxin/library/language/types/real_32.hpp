@@ -12,14 +12,9 @@ namespace Tetrodotoxin::Library::Language::Types {
 // For ABI evaluation it can be used to represent C/C++'s `float`.
 class Real_32 : public Ttx::Model::Types::Real {
  public:
-  constexpr auto get_name() const -> Perimortem::Core::View::Bytes override {
-    return "Real_32"_view;
-  }
+  TTX_NAME("Real_32"_view);
 
-  constexpr auto get_documentation() const
-      -> const Ttx::Concept::Documentation& override {
-    return documentation;
-  }
+  TTX_CONSTEXPR_DOCUMENTATION(documentation);
 
   constexpr auto get_width() const -> Count override { return 32; }
   constexpr auto get_size() const -> Count override {

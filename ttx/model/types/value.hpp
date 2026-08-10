@@ -16,10 +16,7 @@ class Value : public Type {
  public:
   TTX_CONTRACT(Value, Type, 0x0904f828ec2a489f, 0x978eb1f113cb771f);
 
-  auto resolve_context(Perimortem::Core::View::Bytes) const
-      -> const Concept::Abstract& override {
-    return Concept::Invalid::get_invalid();
-  }
+  TTX_INVALID_CONTEXT;
 
   virtual constexpr auto get_width() const -> Count = 0;
   virtual constexpr auto get_size() const -> Count = 0;

@@ -22,19 +22,11 @@ class View : public Ttx::Model::Type {
       const Ttx::Model::Type& element)
       : name(name), argument(element) {}
 
-  constexpr auto get_name() const -> Perimortem::Core::View::Bytes override {
-    return name;
-  }
+  TTX_NAME(name);
 
-  constexpr auto get_documentation() const
-      -> const Ttx::Concept::Documentation& override {
-    return documentation;
-  }
+  TTX_CONSTEXPR_DOCUMENTATION(documentation);
 
-  constexpr auto resolve_context(Perimortem::Core::View::Bytes) const
-      -> const Ttx::Concept::Abstract& override {
-    return Ttx::Concept::Invalid::get_invalid();
-  }
+  TTX_CONSTEXPR_INVALID_CONTEXT;
 
   constexpr auto get_arguments() const
       -> Perimortem::Core::View::Vector<Generic::Argument> {

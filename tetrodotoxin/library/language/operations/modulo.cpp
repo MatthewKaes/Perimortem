@@ -52,46 +52,14 @@ static auto select_result_type(
   return left_resolved;
 }
 
-auto Language::Operations::Modulo::parse(
-    Memory::Allocator::Arena& domain,
-    Materializations& materializations,
-    Cursor& cursor,
-    const Abstract& source_context,
-    Expression& left) -> Core::Option<Expression&> {
-  auto transaction = cursor.branch();
-  Token opening = transaction.consume();
-  auto right = Language::Parser::Expression::parse_operand(
-      domain, materializations, transaction, source_context, Code::Type::ModOp);
-  Span span(opening, transaction.peek(-1));
-  if (!right) {
-    transaction.create_expression_error(
-        span, "Modulo has a malformed right operand."_view,
-        "Use a complete integer Expression after `%`."_view);
-    return {};
-  }
-
-  const auto& left_anchor = left.get_anchor();
-  const auto& right_anchor = right->get_anchor();
-  if (!left_anchor || !right_anchor) {
-    transaction.create_expression_error(
-        span, "Modulo requires authored operand Anchors."_view);
-    return {};
-  }
-
-  auto anchor = Anchor::create(
-      opening, left_anchor->get_span(), right_anchor->get_span());
-  auto& modulo =
-      create_authored(domain, materializations, left, *right, anchor);
-  cursor.join(transaction);
-  return modulo;
-}
+TTX_TRANSACTIONAL_BINARY_PARSE(
+    Modulo,
+    ModOp,
+    "Modulo has a malformed right operand."_view,
+    "Use a complete integer Expression after `%`."_view,
+    "Modulo requires authored operand Anchors."_view);
 
 TTX_BINARY_OP(Modulo);
-
-auto Language::Operations::Modulo::get_documentation() const
-    -> const Documentation& {
-  return Documentation::get_empty();
-}
 
 auto Language::Operations::Modulo::select_type(Materializations&) const
     -> Core::Option<const Type&> {

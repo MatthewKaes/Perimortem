@@ -77,47 +77,14 @@ static auto matches_domain(
   return expression.is<Language::Constants::Bytes>();
 }
 
-auto Language::Operations::NotEqual::parse(
-    Memory::Allocator::Arena& domain,
-    Materializations& materializations,
-    Cursor& cursor,
-    const Abstract& source_context,
-    Expression& left) -> Core::Option<Expression&> {
-  auto transaction = cursor.branch();
-  Token opening = transaction.consume();
-  auto right = Language::Parser::Expression::parse_operand(
-      domain, materializations, transaction, source_context,
-      Code::Type::NotEqOp);
-  Span span(opening, transaction.peek(-1));
-  if (!right) {
-    transaction.create_expression_error(
-        span, "NotEqual has a malformed right operand."_view,
-        "Use a complete scalar or Bytes Expression after `!=`."_view);
-    return {};
-  }
-
-  const auto& left_anchor = left.get_anchor();
-  const auto& right_anchor = right->get_anchor();
-  if (!left_anchor || !right_anchor) {
-    transaction.create_expression_error(
-        span, "NotEqual requires authored operand Anchors."_view);
-    return {};
-  }
-
-  auto anchor = Anchor::create(
-      opening, left_anchor->get_span(), right_anchor->get_span());
-  auto& not_equal =
-      create_authored(domain, materializations, left, *right, anchor);
-  cursor.join(transaction);
-  return not_equal;
-}
+TTX_TRANSACTIONAL_BINARY_PARSE(
+    NotEqual,
+    NotEqOp,
+    "NotEqual has a malformed right operand."_view,
+    "Use a complete scalar or Bytes Expression after `!=`."_view,
+    "NotEqual requires authored operand Anchors."_view);
 
 TTX_BINARY_OP(NotEqual);
-
-auto Language::Operations::NotEqual::get_documentation() const
-    -> const Documentation& {
-  return Documentation::get_empty();
-}
 
 auto Language::Operations::NotEqual::select_type(Materializations&) const
     -> Core::Option<const Type&> {

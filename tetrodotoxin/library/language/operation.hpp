@@ -32,6 +32,11 @@ class Operation : public Expression {
 
   auto get_type() const -> const Ttx::Concept::Abstract& override;
 
+  auto get_documentation() const
+      -> const Ttx::Concept::Documentation& override {
+    return Ttx::Concept::Documentation::get_empty();
+  }
+
   auto link(
       Tetrodotoxin::Language::Monograph& source,
       const Ttx::Concept::Abstract& context,

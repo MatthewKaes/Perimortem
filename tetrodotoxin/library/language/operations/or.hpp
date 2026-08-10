@@ -24,8 +24,6 @@ class Or : public Operation {
       const Ttx::Concept::Abstract& source_context,
       Expression& left) -> Perimortem::Core::Option<Expression&>;
 
-  auto get_documentation() const -> const Ttx::Concept::Documentation& override;
-
  protected:
   auto evaluate_constants(
       Perimortem::Memory::Allocator::Arena& domain,

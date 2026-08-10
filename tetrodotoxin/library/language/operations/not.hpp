@@ -34,10 +34,7 @@ class Not : public Operation {
       Materializations& materializations,
       Expression& operand) -> Not&;
 
-  constexpr auto get_name() const -> Perimortem::Core::View::Bytes override {
-    return "Not"_view;
-  }
-  auto get_documentation() const -> const Ttx::Concept::Documentation& override;
+  TTX_NAME("Not"_view);
 
  protected:
   auto evaluate_constants(

@@ -305,32 +305,11 @@ static auto get_binding_target(const Abstract& binding) -> const Abstract& {
       [](const Abstract& direct) -> const Abstract& { return direct; });
 }
 
+template <typename abstract_type>
 static auto find_binding(
-    View::Vector<Reference<const Abstract>> bindings,
+    const Perimortem::Memory::Managed::Vector<Reference<abstract_type>>& source,
     View::Bytes name) -> const Abstract& {
-  Count selected = bindings.get_size();
-  for (Count i = 0; i < bindings.get_size(); i++) {
-    const Abstract& candidate = bindings.get_data()[i].get();
-    if (candidate.get_name() != name) {
-      continue;
-    }
-    if (selected != bindings.get_size()) {
-      return Invalid::get_invalid();
-    }
-
-    selected = i;
-  }
-
-  if (selected == bindings.get_size()) {
-    return Invalid::get_invalid();
-  }
-
-  return bindings.get_data()[selected].get();
-}
-
-static auto find_binding(
-    View::Vector<Reference<Abstract>> bindings,
-    View::Bytes name) -> const Abstract& {
+  auto bindings = source.get_view();
   Count selected = bindings.get_size();
   for (Count i = 0; i < bindings.get_size(); i++) {
     const Abstract& candidate = bindings.get_data()[i].get();

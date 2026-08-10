@@ -36,9 +36,7 @@ class Identifier : public Expression {
       const Ttx::Concept::Abstract& context,
       Materializations& materializations) -> Bool override;
 
-  constexpr auto get_name() const -> Perimortem::Core::View::Bytes override {
-    return route;
-  }
+  TTX_NAME(route);
 
   auto get_documentation() const -> const Ttx::Concept::Documentation& override;
 

@@ -21,19 +21,15 @@ using namespace Ttx::Concept;
 using namespace Ttx::Lexical;
 using namespace Ttx::Model;
 
-static auto is_numeric_type(const Abstract& selected) -> Bool {
-  return selected.is<Ttx::Model::Types::Unsigned>() ||
-         selected.is<Ttx::Model::Types::Signed>() ||
-         selected.is<Ttx::Model::Types::Real>();
-}
-
 static auto select_operand_type(
     const Language::Expression& left,
     const Language::Expression& right) -> const Abstract& {
   const Abstract& left_resolved = left.get_type().resolve();
   const Abstract& right_resolved = right.get_type().resolve();
   if (!left_resolved.is<Type>() || &left_resolved != &right_resolved ||
-      !is_numeric_type(left_resolved)) {
+      (!left_resolved.is<Types::Unsigned>() &&
+       !left_resolved.is<Types::Signed>() &&
+       !left_resolved.is<Types::Real>())) {
     return Invalid::get_invalid();
   }
 
@@ -53,47 +49,14 @@ static auto make_result(Memory::Allocator::Arena& domain, Bool value)
       domain, Dialect::get_bool());
 }
 
-auto Language::Operations::GreaterEqual::parse(
-    Memory::Allocator::Arena& domain,
-    Materializations& materializations,
-    Cursor& cursor,
-    const Abstract& source_context,
-    Expression& left) -> Core::Option<Expression&> {
-  auto transaction = cursor.branch();
-  Token opening = transaction.consume();
-  auto right = Language::Parser::Expression::parse_operand(
-      domain, materializations, transaction, source_context,
-      Code::Type::GreaterEqOp);
-  Span span(opening, transaction.peek(-1));
-  if (!right) {
-    transaction.create_expression_error(
-        span, "GreaterEqual has a malformed right operand."_view,
-        "Use a complete scalar Expression after `>=`."_view);
-    return {};
-  }
-
-  const auto& left_anchor = left.get_anchor();
-  const auto& right_anchor = right->get_anchor();
-  if (!left_anchor || !right_anchor) {
-    transaction.create_expression_error(
-        span, "GreaterEqual requires authored operand Anchors."_view);
-    return {};
-  }
-
-  auto anchor = Anchor::create(
-      opening, left_anchor->get_span(), right_anchor->get_span());
-  auto& greater_equal =
-      create_authored(domain, materializations, left, *right, anchor);
-  cursor.join(transaction);
-  return greater_equal;
-}
+TTX_TRANSACTIONAL_BINARY_PARSE(
+    GreaterEqual,
+    GreaterEqOp,
+    "GreaterEqual has a malformed right operand."_view,
+    "Use a complete scalar Expression after `>=`."_view,
+    "GreaterEqual requires authored operand Anchors."_view);
 
 TTX_BINARY_OP(GreaterEqual);
-
-auto Language::Operations::GreaterEqual::get_documentation() const
-    -> const Documentation& {
-  return Documentation::get_empty();
-}
 
 auto Language::Operations::GreaterEqual::select_type(Materializations&) const
     -> Core::Option<const Type&> {

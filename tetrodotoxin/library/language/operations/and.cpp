@@ -40,46 +40,14 @@ static auto make_result(Memory::Allocator::Arena& domain, Bool value)
       domain, Dialect::get_bool());
 }
 
-auto Language::Operations::And::parse(
-    Memory::Allocator::Arena& domain,
-    Materializations& materializations,
-    Cursor& cursor,
-    const Abstract& source_context,
-    Expression& left) -> Core::Option<Expression&> {
-  auto transaction = cursor.branch();
-  Token opening = transaction.consume();
-  auto right = Language::Parser::Expression::parse_operand(
-      domain, materializations, transaction, source_context, Code::Type::AndOp);
-  Span span(opening, transaction.peek(-1));
-  if (!right) {
-    transaction.create_expression_error(
-        span, "And has a malformed right operand."_view,
-        "Use a complete Bool Expression after `&`."_view);
-    return {};
-  }
-
-  const auto& left_anchor = left.get_anchor();
-  const auto& right_anchor = right->get_anchor();
-  if (!left_anchor || !right_anchor) {
-    transaction.create_expression_error(
-        span, "And requires authored operand Anchors."_view);
-    return {};
-  }
-
-  auto anchor = Anchor::create(
-      opening, left_anchor->get_span(), right_anchor->get_span());
-  auto& operation =
-      create_authored(domain, materializations, left, *right, anchor);
-  cursor.join(transaction);
-  return operation;
-}
+TTX_TRANSACTIONAL_BINARY_PARSE(
+    And,
+    AndOp,
+    "And has a malformed right operand."_view,
+    "Use a complete Bool Expression after `&`."_view,
+    "And requires authored operand Anchors."_view);
 
 TTX_BINARY_OP(And);
-
-auto Language::Operations::And::get_documentation() const
-    -> const Documentation& {
-  return Documentation::get_empty();
-}
 
 auto Language::Operations::And::select_type(Materializations&) const
     -> Core::Option<const Type&> {

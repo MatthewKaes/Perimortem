@@ -34,10 +34,7 @@ class Negate : public Operation {
       Materializations& materializations,
       Expression& operand) -> Negate&;
 
-  constexpr auto get_name() const -> Perimortem::Core::View::Bytes override {
-    return "Negate"_view;
-  }
-  auto get_documentation() const -> const Ttx::Concept::Documentation& override;
+  TTX_NAME("Negate"_view);
 
  protected:
   auto evaluate_constants(

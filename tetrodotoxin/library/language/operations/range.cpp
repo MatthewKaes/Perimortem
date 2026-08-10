@@ -59,11 +59,6 @@ auto Language::Operations::Range::parse(
 
 TTX_BINARY_OP(Range);
 
-auto Language::Operations::Range::get_documentation() const
-    -> const Documentation& {
-  return Documentation::get_empty();
-}
-
 auto Language::Operations::Range::select_type(
     Materializations& materializations) const -> Core::Option<const Type&> {
   auto left = get_input(0);

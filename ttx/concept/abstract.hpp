@@ -174,3 +174,9 @@ class Abstract {
       -> Bool override {                                              \
     return requested == contract_id || base::implements(requested);   \
   }
+
+// Compact exact implementations of Abstract's universal presentation slots.
+#define TTX_NAME(expression)                                                  \
+  constexpr auto get_name() const -> Perimortem::Core::View::Bytes override { \
+    return expression;                                                        \
+  }

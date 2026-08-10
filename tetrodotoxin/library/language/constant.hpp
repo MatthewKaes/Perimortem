@@ -25,16 +25,11 @@ class Constant : public Expression {
   // Constant semantic names come from their exact Type. A receiving owner may
   // retain the value through a real Alias or Addressable without renaming this
   // immutable identity.
-  constexpr auto get_name() const -> Perimortem::Core::View::Bytes override {
-    return get_type().get_name();
-  }
+  TTX_NAME(get_type().get_name());
 
   // A Constant is a value rather than an authored declaration. When it is
   // stored under a documented name, that prose belongs to the Addressable.
-  auto get_documentation() const
-      -> const Ttx::Concept::Documentation& override {
-    return Ttx::Concept::Documentation::get_empty();
-  }
+  TTX_EMPTY_DOCUMENTATION();
 
   constexpr auto get_inputs() const -> const Ttx::Concept::Layout& override {
     return inputs;

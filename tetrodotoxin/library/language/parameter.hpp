@@ -34,9 +34,7 @@ class Parameter : public Ttx::Model::Addressable {
   auto operator=(const Parameter&) -> Parameter& = delete;
   auto operator=(Parameter&&) -> Parameter& = delete;
 
-  constexpr auto get_name() const -> Perimortem::Core::View::Bytes override {
-    return signature.get_parameter_name(index);
-  }
+  TTX_NAME(signature.get_parameter_name(index));
 
   auto get_documentation() const -> const Ttx::Concept::Documentation& override;
 

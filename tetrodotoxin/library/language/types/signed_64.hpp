@@ -11,14 +11,9 @@ namespace Tetrodotoxin::Library::Language::Types {
 // Signed_64 is the standard sixty-four-bit Signed Type.
 class Signed_64 : public Ttx::Model::Types::Signed {
  public:
-  constexpr auto get_name() const -> Perimortem::Core::View::Bytes override {
-    return "Signed_64"_view;
-  }
+  TTX_NAME("Signed_64"_view);
 
-  constexpr auto get_documentation() const
-      -> const Ttx::Concept::Documentation& override {
-    return documentation;
-  }
+  TTX_CONSTEXPR_DOCUMENTATION(documentation);
 
   constexpr auto get_width() const -> Count override { return 64; }
   constexpr auto get_size() const -> Count override {

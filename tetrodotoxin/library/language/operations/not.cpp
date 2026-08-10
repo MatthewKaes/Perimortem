@@ -37,40 +37,13 @@ static auto make_result(Memory::Allocator::Arena& domain, Bool value)
       domain, Dialect::get_bool());
 }
 
-auto Language::Operations::Not::parse(
-    Memory::Allocator::Arena& domain,
-    Materializations& materializations,
-    Cursor& cursor,
-    const Abstract& source_context) -> Core::Option<Expression&> {
-  Token opening = cursor.consume();
-  auto operand = Language::Parser::Expression::parse_prefix_operand(
-      domain, materializations, cursor, source_context);
-  Span span(opening, cursor.peek(-1));
-  if (!operand) {
-    cursor.create_expression_error(
-        span, "Not has a malformed operand."_view,
-        "Use a complete Expression after unary `!`."_view);
-    return {};
-  }
-
-  const auto& operand_anchor = operand->get_anchor();
-  if (!operand_anchor) {
-    cursor.create_expression_error(
-        span, "Not requires an authored operand Anchor."_view);
-    return {};
-  }
-
-  auto anchor =
-      Anchor::create(opening, Span(opening), operand_anchor->get_span());
-  return create_authored(domain, materializations, *operand, anchor);
-}
+TTX_DIRECT_UNARY_PARSE(
+    Not,
+    "Not has a malformed operand."_view,
+    "Use a complete Expression after unary `!`."_view,
+    "Not requires an authored operand Anchor."_view);
 
 TTX_UNARY_OP(Not);
-
-auto Language::Operations::Not::get_documentation() const
-    -> const Documentation& {
-  return Documentation::get_empty();
-}
 
 auto Language::Operations::Not::select_type(Materializations&) const
     -> Core::Option<const Type&> {

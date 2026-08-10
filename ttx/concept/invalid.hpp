@@ -32,13 +32,9 @@ class Invalid : public Abstract {
   Invalid(const Invalid&) = delete;
   auto operator=(const Invalid&) -> Invalid& = delete;
 
-  constexpr auto get_name() const -> Perimortem::Core::View::Bytes override {
-    return "Invalid"_view;
-  }
+  TTX_NAME("Invalid"_view);
 
-  auto get_documentation() const -> const Documentation& override {
-    return Documentation::get_empty();
-  }
+  TTX_EMPTY_DOCUMENTATION();
 
   constexpr auto resolve() const -> const Abstract& override { return *this; }
 
@@ -52,3 +48,17 @@ class Invalid : public Abstract {
 };
 
 }  // namespace Ttx::Concept
+
+// Abstracts with no contextual surface resolve every route to Invalid while
+// preserving whether their virtual slot is constexpr.
+#define TTX_CONSTEXPR_INVALID_CONTEXT                                 \
+  constexpr auto resolve_context(Perimortem::Core::View::Bytes) const \
+      -> const Ttx::Concept::Abstract& override {                     \
+    return Ttx::Concept::Invalid::get_invalid();                      \
+  }
+
+#define TTX_INVALID_CONTEXT                                 \
+  auto resolve_context(Perimortem::Core::View::Bytes) const \
+      -> const Ttx::Concept::Abstract& override {           \
+    return Ttx::Concept::Invalid::get_invalid();            \
+  }

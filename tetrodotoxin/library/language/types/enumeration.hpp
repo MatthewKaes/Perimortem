@@ -67,14 +67,9 @@ class Enumeration : public Ttx::Model::Type {
   auto link_storage() -> Bool;
   auto finalize() -> Bool;
 
-  constexpr auto get_name() const -> Perimortem::Core::View::Bytes override {
-    return name;
-  }
+  TTX_NAME(name);
 
-  constexpr auto get_documentation() const
-      -> const Ttx::Concept::Documentation& override {
-    return documentation;
-  }
+  TTX_CONSTEXPR_DOCUMENTATION(documentation);
 
   auto resolve() const -> const Ttx::Concept::Abstract& override;
 

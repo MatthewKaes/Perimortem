@@ -11,14 +11,9 @@ namespace Tetrodotoxin::Library::Language::Types {
 // Boolean is the standard one-bit Flag Type with byte-addressable storage.
 class Boolean : public Ttx::Model::Types::Flag {
  public:
-  constexpr auto get_name() const -> Perimortem::Core::View::Bytes override {
-    return "Bool"_view;
-  }
+  TTX_NAME("Bool"_view);
 
-  constexpr auto get_documentation() const
-      -> const Ttx::Concept::Documentation& override {
-    return documentation;
-  }
+  TTX_CONSTEXPR_DOCUMENTATION(documentation);
 
   constexpr auto get_width() const -> Count override { return 1; }
   constexpr auto get_size() const -> Count override { return sizeof(::Bool); }

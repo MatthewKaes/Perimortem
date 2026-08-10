@@ -21,19 +21,11 @@ class Error : public Ttx::Concept::Abstract {
       0xf29c0b68bd8648e1,
       0x917717c7a0bf3622);
 
-  constexpr auto get_name() const -> Perimortem::Core::View::Bytes override {
-    return "Error"_view;
-  }
+  TTX_NAME("Error"_view);
 
-  auto get_documentation() const
-      -> const Ttx::Concept::Documentation& override {
-    return Ttx::Concept::Documentation::get_empty();
-  }
+  TTX_EMPTY_DOCUMENTATION();
 
-  constexpr auto resolve_context(Perimortem::Core::View::Bytes) const
-      -> const Ttx::Concept::Abstract& override {
-    return Ttx::Concept::Invalid::get_invalid();
-  }
+  TTX_CONSTEXPR_INVALID_CONTEXT;
 
   virtual auto describe(Ttx::Lexical::Errors::Report& report) const -> void = 0;
 };

@@ -360,11 +360,6 @@ Language::Access::Value::Value(
     Core::Option<Anchor> anchor)
     : Operation(domain, materializations, inputs, anchor) {}
 
-auto Language::Access::Value::get_documentation() const
-    -> const Documentation& {
-  return Documentation::get_empty();
-}
-
 auto Language::Access::Value::select_type(
     Materializations& materializations) const -> Core::Option<const Type&> {
   auto receiver = get_input(0);

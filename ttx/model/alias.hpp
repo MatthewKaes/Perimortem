@@ -39,17 +39,12 @@ class Alias : public Concept::Abstract {
       const Concept::Documentation& documentation)
       : name(name), target(target), documentation(documentation) {}
 
-  constexpr auto get_name() const -> Perimortem::Core::View::Bytes override {
-    return name;
-  }
+  TTX_NAME(name);
 
   // Local prose leads the target's visible documentation. Because the target
   // may itself be an Alias, this naturally accumulates the complete authored
   // chain without changing identity resolution.
-  constexpr auto get_documentation() const
-      -> const Concept::Documentation& override {
-    return documentation;
-  }
+  TTX_CONSTEXPR_DOCUMENTATION(documentation);
 
   constexpr auto resolve() const -> const Abstract& override {
     return target.resolve();

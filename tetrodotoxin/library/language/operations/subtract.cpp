@@ -20,19 +20,15 @@ using namespace Ttx::Concept;
 using namespace Ttx::Lexical;
 using namespace Ttx::Model;
 
-static auto is_numeric_type(const Abstract& selected) -> Bool {
-  return selected.is<Ttx::Model::Types::Unsigned>() ||
-         selected.is<Ttx::Model::Types::Signed>() ||
-         selected.is<Ttx::Model::Types::Real>();
-}
-
 static auto select_result_type(
     const Language::Expression& left,
     const Language::Expression& right) -> const Abstract& {
   const Abstract& left_resolved = left.get_type().resolve();
   const Abstract& right_resolved = right.get_type().resolve();
   if (!left_resolved.is<Type>() || &left_resolved != &right_resolved ||
-      !is_numeric_type(left_resolved)) {
+      (!left_resolved.is<Types::Unsigned>() &&
+       !left_resolved.is<Types::Signed>() &&
+       !left_resolved.is<Types::Real>())) {
     return Invalid::get_invalid();
   }
 
@@ -65,42 +61,14 @@ static auto unsigned_difference(
   return Core::Math::is_representable(result, type.get_size());
 }
 
-auto Language::Operations::Subtract::parse(
-    Memory::Allocator::Arena& domain,
-    Materializations& materializations,
-    Cursor& cursor,
-    const Abstract& source_context,
-    Expression& left) -> Core::Option<Expression&> {
-  Token opening = cursor.consume();
-  auto right = Language::Parser::Expression::parse_operand(
-      domain, materializations, cursor, source_context, Code::Type::SubOp);
-  Span span(opening, cursor.peek(-1));
-  if (!right) {
-    cursor.create_expression_error(
-        span, "Subtract has a malformed right operand."_view,
-        "Use a complete scalar Expression after binary `-`."_view);
-    return {};
-  }
-
-  const auto& left_anchor = left.get_anchor();
-  const auto& right_anchor = right->get_anchor();
-  if (!left_anchor || !right_anchor) {
-    cursor.create_expression_error(
-        span, "Subtract requires authored operand Anchors."_view);
-    return {};
-  }
-
-  auto anchor = Anchor::create(
-      opening, left_anchor->get_span(), right_anchor->get_span());
-  return create_authored(domain, materializations, left, *right, anchor);
-}
+TTX_DIRECT_BINARY_PARSE(
+    Subtract,
+    SubOp,
+    "Subtract has a malformed right operand."_view,
+    "Use a complete scalar Expression after binary `-`."_view,
+    "Subtract requires authored operand Anchors."_view);
 
 TTX_BINARY_OP(Subtract);
-
-auto Language::Operations::Subtract::get_documentation() const
-    -> const Documentation& {
-  return Documentation::get_empty();
-}
 
 auto Language::Operations::Subtract::select_type(Materializations&) const
     -> Core::Option<const Type&> {

@@ -13,19 +13,11 @@ namespace Tetrodotoxin::Library::Language::Types {
 // complete semantic shape without inventing Value width, size, or alignment.
 class Void : public Ttx::Model::Type {
  public:
-  constexpr auto get_name() const -> Perimortem::Core::View::Bytes override {
-    return "Void"_view;
-  }
+  TTX_NAME("Void"_view);
 
-  constexpr auto get_documentation() const
-      -> const Ttx::Concept::Documentation& override {
-    return documentation;
-  }
+  TTX_CONSTEXPR_DOCUMENTATION(documentation);
 
-  auto resolve_context(Perimortem::Core::View::Bytes) const
-      -> const Ttx::Concept::Abstract& override {
-    return Ttx::Concept::Invalid::get_invalid();
-  }
+  TTX_INVALID_CONTEXT;
 
  private:
   static constexpr Ttx::Model::Documentations::Comment documentation{

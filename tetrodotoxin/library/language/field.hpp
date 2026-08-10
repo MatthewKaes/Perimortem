@@ -160,14 +160,9 @@ class Field : public Ttx::Model::Addressable {
       Tetrodotoxin::Language::Monograph& source,
       Materializations& materializations) -> Bool;
 
-  constexpr auto get_name() const -> Perimortem::Core::View::Bytes override {
-    return source.get_name();
-  }
+  TTX_NAME(source.get_name());
 
-  constexpr auto get_documentation() const
-      -> const Ttx::Concept::Documentation& override {
-    return source.get_documentation();
-  }
+  TTX_CONSTEXPR_DOCUMENTATION(source.get_documentation());
 
   constexpr auto get_type() const -> const Ttx::Model::Type& override {
     return type->get();

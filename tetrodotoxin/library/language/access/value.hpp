@@ -55,10 +55,7 @@ class Value : public Operation {
       Expression& start,
       Expression& count) -> Value&;
 
-  constexpr auto get_name() const -> Perimortem::Core::View::Bytes override {
-    return "Value"_view;
-  }
-  auto get_documentation() const -> const Ttx::Concept::Documentation& override;
+  TTX_NAME("Value"_view);
 
  protected:
   auto evaluate_constants(

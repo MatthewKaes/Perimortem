@@ -149,14 +149,7 @@ class Code {
 
   constexpr auto is_one_of(Perimortem::Core::View::Vector<Type> values) const
       -> Bool {
-    const auto* value_data = values.get_data();
-    for (Count i = 0; i < values.get_size(); i++) {
-      if (get_type() == value_data[i]) {
-        return True;
-      }
-    }
-
-    return False;
+    return values.contains(get_type());
   }
 
   constexpr auto is_publication_modifier() const -> Bool {
