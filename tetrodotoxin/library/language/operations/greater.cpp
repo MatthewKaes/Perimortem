@@ -3,8 +3,6 @@
 
 #include "tetrodotoxin/library/language/operations/greater.hpp"
 
-#include "perimortem/core/static/vector.hpp"
-
 #include "tetrodotoxin/library/dialect.hpp"
 #include "tetrodotoxin/library/language/constants/false.hpp"
 #include "tetrodotoxin/library/language/constants/real.hpp"
@@ -90,41 +88,7 @@ auto Language::Operations::Greater::parse(
   return greater;
 }
 
-auto Language::Operations::Greater::create_authored(
-    Memory::Allocator::Arena& domain,
-    Materializations& materializations,
-    Expression& left,
-    Expression& right,
-    Anchor anchor) -> Greater& {
-  return Expression::create_authored<Greater>(
-      domain, anchor, [&](auto source) -> Greater {
-        return Greater(domain, materializations, left, right, source);
-      });
-}
-
-auto Language::Operations::Greater::create_synthetic(
-    Memory::Allocator::Arena& domain,
-    Materializations& materializations,
-    Expression& left,
-    Expression& right) -> Greater& {
-  return Expression::create_synthetic<Greater>(
-      domain, [&](auto source) -> Greater {
-        return Greater(domain, materializations, left, right, source);
-      });
-}
-
-Language::Operations::Greater::Greater(
-    Memory::Allocator::Arena& domain,
-    Materializations& materializations,
-    Expression& left,
-    Expression& right,
-    Core::Option<Anchor> anchor)
-    : Operation(
-          domain,
-          materializations,
-          Core::Static::Vector<Ttx::Concept::Reference<Expression>, 2>{
-            {left, right}},
-          anchor) {}
+TTX_BINARY_OP(Greater);
 
 auto Language::Operations::Greater::get_documentation() const
     -> const Documentation& {

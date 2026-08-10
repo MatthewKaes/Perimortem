@@ -20,16 +20,7 @@ namespace Tetrodotoxin::Library::Language {
 // interpreted by different Types.
 class Constant : public Expression {
  public:
-  using ClassCatagory = Constant;
-  static constexpr Perimortem::System::Uuid contract_id{
-    0xba0cda6e761646bc,
-    0x99c434aed9d840fa,
-  };
-
-  constexpr auto implements(Perimortem::System::Uuid requested) const
-      -> Bool override {
-    return requested == contract_id || Expression::implements(requested);
-  }
+  TTX_CONTRACT(Constant, Expression, 0xba0cda6e761646bc, 0x99c434aed9d840fa);
 
   // Constant semantic names come from their exact Type. A receiving owner may
   // retain the value through a real Alias or Addressable without renaming this

@@ -18,11 +18,7 @@ namespace Tetrodotoxin::Library::Language::Access {
 // form.
 class Value : public Operation {
  public:
-  using ClassCatagory = Value;
-  static constexpr Perimortem::System::Uuid contract_id{
-    0x6beea0412c0b4d4e,
-    0x958a39337c8ced0f,
-  };
+  TTX_CONTRACT(Value, Operation, 0x6beea0412c0b4d4e, 0x958a39337c8ced0f);
 
   // Consumes one complete value postfix for the supplied receiver. Recursive
   // operands use the Expression dispatcher while Value owns the postfix
@@ -58,11 +54,6 @@ class Value : public Operation {
       Expression& receiver,
       Expression& start,
       Expression& count) -> Value&;
-
-  constexpr auto implements(Perimortem::System::Uuid requested) const
-      -> Bool override {
-    return requested == contract_id || Operation::implements(requested);
-  }
 
   constexpr auto get_name() const -> Perimortem::Core::View::Bytes override {
     return "Value"_view;

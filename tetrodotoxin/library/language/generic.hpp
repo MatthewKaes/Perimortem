@@ -32,17 +32,11 @@ class Generic : public Ttx::Concept::Abstract {
   using Argument = Perimortem::Core::Static::
       Union<const Ttx::Model::Type&, ::Unsigned_64, ::Signed_64, ::Bool>;
 
-  using ClassCatagory = Generic;
-  static constexpr Perimortem::System::Uuid contract_id{
-    0x8fe47e7b2c394bd7,
-    0x9b3824546cc3bb50,
-  };
-
-  constexpr auto implements(Perimortem::System::Uuid requested) const
-      -> Bool override {
-    return requested == contract_id ||
-           Ttx::Concept::Abstract::implements(requested);
-  }
+  TTX_CONTRACT(
+      Generic,
+      Ttx::Concept::Abstract,
+      0x8fe47e7b2c394bd7,
+      0x9b3824546cc3bb50);
 
   virtual constexpr auto get_parameterization() const
       -> Perimortem::Core::View::Vector<Parameters> = 0;

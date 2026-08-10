@@ -15,11 +15,7 @@ namespace Tetrodotoxin::Library::Language::Operations {
 // linking. Folding projects a difference without changing those authored facts.
 class Subtract : public Operation {
  public:
-  using ClassCatagory = Subtract;
-  static constexpr Perimortem::System::Uuid contract_id{
-    0x44dabb02f2ff410c,
-    0x801b55602cc8e997,
-  };
+  BINARY_OP_CONTRACT(Subtract, 0x44dabb02f2ff410c, 0x801b55602cc8e997);
 
   static auto parse(
       Perimortem::Memory::Allocator::Arena& domain,
@@ -28,26 +24,6 @@ class Subtract : public Operation {
       const Ttx::Concept::Abstract& source_context,
       Expression& left) -> Perimortem::Core::Option<Expression&>;
 
-  static auto create_authored(
-      Perimortem::Memory::Allocator::Arena& domain,
-      Materializations& materializations,
-      Expression& left,
-      Expression& right,
-      Ttx::Lexical::Anchor anchor) -> Subtract&;
-  static auto create_synthetic(
-      Perimortem::Memory::Allocator::Arena& domain,
-      Materializations& materializations,
-      Expression& left,
-      Expression& right) -> Subtract&;
-
-  constexpr auto implements(Perimortem::System::Uuid requested) const
-      -> Bool override {
-    return requested == contract_id || Operation::implements(requested);
-  }
-
-  constexpr auto get_name() const -> Perimortem::Core::View::Bytes override {
-    return "Subtract"_view;
-  }
   auto get_documentation() const -> const Ttx::Concept::Documentation& override;
 
  protected:

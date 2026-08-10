@@ -122,11 +122,11 @@ class Field : public Ttx::Model::Addressable {
         initializer_linked(!source.has_initializer()) {}
 
  public:
-  using ClassCatagory = Field;
-  static constexpr Perimortem::System::Uuid contract_id{
-    0xc6fc7cb2676b4bac,
-    0xa205fab02169b1ca,
-  };
+  TTX_CONTRACT(
+      Field,
+      Ttx::Model::Addressable,
+      0xc6fc7cb2676b4bac,
+      0xa205fab02169b1ca);
 
   static auto interpret(
       Perimortem::Memory::Allocator::Arena& domain,
@@ -159,12 +159,6 @@ class Field : public Ttx::Model::Addressable {
   auto link_initializer(
       Tetrodotoxin::Language::Monograph& source,
       Materializations& materializations) -> Bool;
-
-  constexpr auto implements(Perimortem::System::Uuid requested) const
-      -> Bool override {
-    return requested == contract_id ||
-           Ttx::Model::Addressable::implements(requested);
-  }
 
   constexpr auto get_name() const -> Perimortem::Core::View::Bytes override {
     return source.get_name();

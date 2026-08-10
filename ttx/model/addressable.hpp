@@ -15,16 +15,7 @@ namespace Ttx::Model {
 //
 class Addressable : public Concept::Abstract {
  public:
-  using ClassCatagory = Addressable;
-  static constexpr Perimortem::System::Uuid contract_id{
-    0x3d308ace3cf44051,
-    0x9458c12c65d0d615,
-  };
-
-  constexpr auto implements(Perimortem::System::Uuid requested) const
-      -> Bool override {
-    return requested == contract_id || Abstract::implements(requested);
-  }
+  TTX_CONTRACT(Addressable, Abstract, 0x3d308ace3cf44051, 0x9458c12c65d0d615);
 
   constexpr auto resolve_context(Perimortem::Core::View::Bytes route) const
       -> const Concept::Abstract& override {

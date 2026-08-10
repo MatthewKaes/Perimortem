@@ -3,8 +3,6 @@
 
 #include "tetrodotoxin/library/language/operations/or.hpp"
 
-#include "perimortem/core/static/vector.hpp"
-
 #include "tetrodotoxin/library/dialect.hpp"
 #include "tetrodotoxin/library/language/constants/false.hpp"
 #include "tetrodotoxin/library/language/constants/flag.hpp"
@@ -76,40 +74,7 @@ auto Language::Operations::Or::parse(
   return operation;
 }
 
-auto Language::Operations::Or::create_authored(
-    Memory::Allocator::Arena& domain,
-    Materializations& materializations,
-    Expression& left,
-    Expression& right,
-    Anchor anchor) -> Or& {
-  return Expression::create_authored<Or>(
-      domain, anchor, [&](auto source) -> Or {
-        return Or(domain, materializations, left, right, source);
-      });
-}
-
-auto Language::Operations::Or::create_synthetic(
-    Memory::Allocator::Arena& domain,
-    Materializations& materializations,
-    Expression& left,
-    Expression& right) -> Or& {
-  return Expression::create_synthetic<Or>(domain, [&](auto source) -> Or {
-    return Or(domain, materializations, left, right, source);
-  });
-}
-
-Language::Operations::Or::Or(
-    Memory::Allocator::Arena& domain,
-    Materializations& materializations,
-    Expression& left,
-    Expression& right,
-    Core::Option<Anchor> anchor)
-    : Operation(
-          domain,
-          materializations,
-          Core::Static::Vector<Ttx::Concept::Reference<Expression>, 2>{
-            {left, right}},
-          anchor) {}
+TTX_BINARY_OP(Or);
 
 auto Language::Operations::Or::get_documentation() const
     -> const Documentation& {

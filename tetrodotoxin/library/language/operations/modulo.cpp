@@ -3,7 +3,6 @@
 
 #include "tetrodotoxin/library/language/operations/modulo.hpp"
 
-#include "perimortem/core/static/vector.hpp"
 #include "perimortem/core/math.hpp"
 
 #include "tetrodotoxin/library/language/constants/signed.hpp"
@@ -87,41 +86,7 @@ auto Language::Operations::Modulo::parse(
   return modulo;
 }
 
-auto Language::Operations::Modulo::create_authored(
-    Memory::Allocator::Arena& domain,
-    Materializations& materializations,
-    Expression& left,
-    Expression& right,
-    Anchor anchor) -> Modulo& {
-  return Expression::create_authored<Modulo>(
-      domain, anchor, [&](auto source) -> Modulo {
-        return Modulo(domain, materializations, left, right, source);
-      });
-}
-
-auto Language::Operations::Modulo::create_synthetic(
-    Memory::Allocator::Arena& domain,
-    Materializations& materializations,
-    Expression& left,
-    Expression& right) -> Modulo& {
-  return Expression::create_synthetic<Modulo>(
-      domain, [&](auto source) -> Modulo {
-        return Modulo(domain, materializations, left, right, source);
-      });
-}
-
-Language::Operations::Modulo::Modulo(
-    Memory::Allocator::Arena& domain,
-    Materializations& materializations,
-    Expression& left,
-    Expression& right,
-    Core::Option<Anchor> anchor)
-    : Operation(
-          domain,
-          materializations,
-          Core::Static::Vector<Ttx::Concept::Reference<Expression>, 2>{
-            {left, right}},
-          anchor) {}
+TTX_BINARY_OP(Modulo);
 
 auto Language::Operations::Modulo::get_documentation() const
     -> const Documentation& {

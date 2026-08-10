@@ -29,17 +29,11 @@ class Monograph : public Tetrodotoxin::Language::Monograph {
       Perimortem::Core::View::Vector<Source> sources);
 
  public:
-  using ClassCatagory = Monograph;
-  static constexpr Perimortem::System::Uuid contract_id{
-    0x5f23a554d3745ebd,
-    0xe899f24ef18c3a52,
-  };
-
-  constexpr auto implements(Perimortem::System::Uuid requested) const
-      -> Bool override {
-    return requested == contract_id ||
-           Tetrodotoxin::Language::Monograph::implements(requested);
-  }
+  TTX_CONTRACT(
+      Monograph,
+      Tetrodotoxin::Language::Monograph,
+      0x5f23a554d3745ebd,
+      0xe899f24ef18c3a52);
 
   // Authored construction rejects an empty Source inventory or partial
   // provenance before any graph identity enters the Arena.

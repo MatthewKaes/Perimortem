@@ -3,8 +3,6 @@
 
 #include "tetrodotoxin/library/language/operations/greater_equal.hpp"
 
-#include "perimortem/core/static/vector.hpp"
-
 #include "tetrodotoxin/library/dialect.hpp"
 #include "tetrodotoxin/library/language/constants/false.hpp"
 #include "tetrodotoxin/library/language/constants/real.hpp"
@@ -90,41 +88,7 @@ auto Language::Operations::GreaterEqual::parse(
   return greater_equal;
 }
 
-auto Language::Operations::GreaterEqual::create_authored(
-    Memory::Allocator::Arena& domain,
-    Materializations& materializations,
-    Expression& left,
-    Expression& right,
-    Anchor anchor) -> GreaterEqual& {
-  return Expression::create_authored<GreaterEqual>(
-      domain, anchor, [&](auto source) -> GreaterEqual {
-        return GreaterEqual(domain, materializations, left, right, source);
-      });
-}
-
-auto Language::Operations::GreaterEqual::create_synthetic(
-    Memory::Allocator::Arena& domain,
-    Materializations& materializations,
-    Expression& left,
-    Expression& right) -> GreaterEqual& {
-  return Expression::create_synthetic<GreaterEqual>(
-      domain, [&](auto source) -> GreaterEqual {
-        return GreaterEqual(domain, materializations, left, right, source);
-      });
-}
-
-Language::Operations::GreaterEqual::GreaterEqual(
-    Memory::Allocator::Arena& domain,
-    Materializations& materializations,
-    Expression& left,
-    Expression& right,
-    Core::Option<Anchor> anchor)
-    : Operation(
-          domain,
-          materializations,
-          Core::Static::Vector<Ttx::Concept::Reference<Expression>, 2>{
-            {left, right}},
-          anchor) {}
+TTX_BINARY_OP(GreaterEqual);
 
 auto Language::Operations::GreaterEqual::get_documentation() const
     -> const Documentation& {

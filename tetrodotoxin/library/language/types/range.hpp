@@ -14,21 +14,12 @@ namespace Tetrodotoxin::Library::Language::Types {
 // and original Generic argument without claiming contiguous storage or state.
 class Range : public Ttx::Model::Type {
  public:
-  using ClassCatagory = Range;
-  static constexpr Perimortem::System::Uuid contract_id{
-    0x824db901761e4b83,
-    0xa54b4be20f4144b7,
-  };
+  TTX_CONTRACT(Range, Ttx::Model::Type, 0x824db901761e4b83, 0xa54b4be20f4144b7);
 
   constexpr Range(
       Perimortem::Core::View::Bytes name,
       const Ttx::Model::Type& element)
       : name(name), argument(element) {}
-
-  constexpr auto implements(Perimortem::System::Uuid requested) const
-      -> Bool override {
-    return requested == contract_id || Ttx::Model::Type::implements(requested);
-  }
 
   constexpr auto get_name() const -> Perimortem::Core::View::Bytes override {
     return name;

@@ -3,7 +3,6 @@
 
 #include "tetrodotoxin/library/language/operations/multiply.hpp"
 
-#include "perimortem/core/static/vector.hpp"
 #include "perimortem/core/math.hpp"
 
 #include "tetrodotoxin/library/language/constants/real.hpp"
@@ -97,41 +96,7 @@ auto Language::Operations::Multiply::parse(
   return create_authored(domain, materializations, left, *right, anchor);
 }
 
-auto Language::Operations::Multiply::create_authored(
-    Memory::Allocator::Arena& domain,
-    Materializations& materializations,
-    Expression& left,
-    Expression& right,
-    Anchor anchor) -> Multiply& {
-  return Expression::create_authored<Multiply>(
-      domain, anchor, [&](auto source) -> Multiply {
-        return Multiply(domain, materializations, left, right, source);
-      });
-}
-
-auto Language::Operations::Multiply::create_synthetic(
-    Memory::Allocator::Arena& domain,
-    Materializations& materializations,
-    Expression& left,
-    Expression& right) -> Multiply& {
-  return Expression::create_synthetic<Multiply>(
-      domain, [&](auto source) -> Multiply {
-        return Multiply(domain, materializations, left, right, source);
-      });
-}
-
-Language::Operations::Multiply::Multiply(
-    Memory::Allocator::Arena& domain,
-    Materializations& materializations,
-    Expression& left,
-    Expression& right,
-    Core::Option<Anchor> anchor)
-    : Operation(
-          domain,
-          materializations,
-          Core::Static::Vector<Ttx::Concept::Reference<Expression>, 2>{
-            {left, right}},
-          anchor) {}
+TTX_BINARY_OP(Multiply);
 
 auto Language::Operations::Multiply::get_documentation() const
     -> const Documentation& {

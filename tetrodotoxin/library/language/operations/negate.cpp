@@ -3,7 +3,6 @@
 
 #include "tetrodotoxin/library/language/operations/negate.hpp"
 
-#include "perimortem/core/static/vector.hpp"
 #include "perimortem/core/math.hpp"
 
 #include "tetrodotoxin/library/language/constants/real.hpp"
@@ -87,38 +86,7 @@ auto Language::Operations::Negate::parse(
   return create_authored(domain, materializations, *operand, anchor);
 }
 
-auto Language::Operations::Negate::create_authored(
-    Memory::Allocator::Arena& domain,
-    Materializations& materializations,
-    Expression& operand,
-    Anchor anchor) -> Negate& {
-  return Expression::create_authored<Negate>(
-      domain, anchor, [&](auto source) -> Negate {
-        return Negate(domain, materializations, operand, source);
-      });
-}
-
-auto Language::Operations::Negate::create_synthetic(
-    Memory::Allocator::Arena& domain,
-    Materializations& materializations,
-    Expression& operand) -> Negate& {
-  return Expression::create_synthetic<Negate>(
-      domain, [&](auto source) -> Negate {
-        return Negate(domain, materializations, operand, source);
-      });
-}
-
-Language::Operations::Negate::Negate(
-    Memory::Allocator::Arena& domain,
-    Materializations& materializations,
-    Expression& operand,
-    Core::Option<Anchor> anchor)
-    : Operation(
-          domain,
-          materializations,
-          Core::Static::Vector<Ttx::Concept::Reference<Expression>, 1>{
-            {operand}},
-          anchor) {}
+TTX_UNARY_OP(Negate);
 
 auto Language::Operations::Negate::get_documentation() const
     -> const Documentation& {

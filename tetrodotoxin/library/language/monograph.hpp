@@ -29,11 +29,11 @@ class Monograph : public Tetrodotoxin::Language::Monograph {
       Materializations& materializations);
 
  public:
-  using ClassCatagory = Monograph;
-  static constexpr Perimortem::System::Uuid contract_id{
-    0x4f5524bd23e84c30,
-    0x8d7a8798bf1a25d2,
-  };
+  TTX_CONTRACT(
+      Monograph,
+      Tetrodotoxin::Language::Monograph,
+      0x4f5524bd23e84c30,
+      0x8d7a8798bf1a25d2);
 
   static auto create_authored(
       Perimortem::Memory::Allocator::Arena& domain,
@@ -41,12 +41,6 @@ class Monograph : public Tetrodotoxin::Language::Monograph {
       Tetrodotoxin::Library::Dialect& host,
       const Ttx::Concept::Abstract& interpretation_context,
       Materializations& materializations) -> Monograph&;
-
-  constexpr auto implements(Perimortem::System::Uuid requested) const
-      -> Bool override {
-    return requested == contract_id ||
-           Tetrodotoxin::Language::Monograph::implements(requested);
-  }
 
   // Every authored declaration enters the synthetic Source before its later
   // semantic barriers run. Duplicate names leave both owners intact.

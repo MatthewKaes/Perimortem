@@ -15,11 +15,7 @@ namespace Tetrodotoxin::Library::Language::Operations {
 // Folding projects a sum without changing those authored facts.
 class Add : public Operation {
  public:
-  using ClassCatagory = Add;
-  static constexpr Perimortem::System::Uuid contract_id{
-    0x50ca487a954a45d4,
-    0xb9881ccf9dd76813,
-  };
+  BINARY_OP_CONTRACT(Add, 0x50ca487a954a45d4, 0xb9881ccf9dd76813);
 
   static auto parse(
       Perimortem::Memory::Allocator::Arena& domain,
@@ -28,26 +24,6 @@ class Add : public Operation {
       const Ttx::Concept::Abstract& source_context,
       Expression& left) -> Perimortem::Core::Option<Expression&>;
 
-  static auto create_authored(
-      Perimortem::Memory::Allocator::Arena& domain,
-      Materializations& materializations,
-      Expression& left,
-      Expression& right,
-      Ttx::Lexical::Anchor anchor) -> Add&;
-  static auto create_synthetic(
-      Perimortem::Memory::Allocator::Arena& domain,
-      Materializations& materializations,
-      Expression& left,
-      Expression& right) -> Add&;
-
-  constexpr auto implements(Perimortem::System::Uuid requested) const
-      -> Bool override {
-    return requested == contract_id || Operation::implements(requested);
-  }
-
-  constexpr auto get_name() const -> Perimortem::Core::View::Bytes override {
-    return "Add"_view;
-  }
   auto get_documentation() const -> const Ttx::Concept::Documentation& override;
 
  protected:

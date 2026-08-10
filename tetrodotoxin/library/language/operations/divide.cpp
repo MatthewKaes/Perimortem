@@ -3,7 +3,6 @@
 
 #include "tetrodotoxin/library/language/operations/divide.hpp"
 
-#include "perimortem/core/static/vector.hpp"
 #include "perimortem/core/math.hpp"
 
 #include "tetrodotoxin/library/language/constants/real.hpp"
@@ -76,41 +75,7 @@ auto Language::Operations::Divide::parse(
   return divide;
 }
 
-auto Language::Operations::Divide::create_authored(
-    Memory::Allocator::Arena& domain,
-    Materializations& materializations,
-    Expression& left,
-    Expression& right,
-    Anchor anchor) -> Divide& {
-  return Expression::create_authored<Divide>(
-      domain, anchor, [&](auto source) -> Divide {
-        return Divide(domain, materializations, left, right, source);
-      });
-}
-
-auto Language::Operations::Divide::create_synthetic(
-    Memory::Allocator::Arena& domain,
-    Materializations& materializations,
-    Expression& left,
-    Expression& right) -> Divide& {
-  return Expression::create_synthetic<Divide>(
-      domain, [&](auto source) -> Divide {
-        return Divide(domain, materializations, left, right, source);
-      });
-}
-
-Language::Operations::Divide::Divide(
-    Memory::Allocator::Arena& domain,
-    Materializations& materializations,
-    Expression& left,
-    Expression& right,
-    Core::Option<Anchor> anchor)
-    : Operation(
-          domain,
-          materializations,
-          Core::Static::Vector<Ttx::Concept::Reference<Expression>, 2>{
-            {left, right}},
-          anchor) {}
+TTX_BINARY_OP(Divide);
 
 auto Language::Operations::Divide::get_documentation() const
     -> const Documentation& {

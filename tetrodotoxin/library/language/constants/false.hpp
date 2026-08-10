@@ -11,11 +11,7 @@ namespace Tetrodotoxin::Library::Language::Constants {
 // fitting while category proof can still select the exact logical value.
 class False : public Flag {
  public:
-  using ClassCatagory = False;
-  static constexpr Perimortem::System::Uuid contract_id{
-    0x07c1acb57a07401a,
-    0x803ffb29898ccb31,
-  };
+  TTX_CONTRACT(False, Flag, 0x07c1acb57a07401a, 0x803ffb29898ccb31);
 
   static auto create_authored(
       Perimortem::Memory::Allocator::Arena& domain,
@@ -31,11 +27,6 @@ class False : public Flag {
       const Ttx::Model::Types::Flag& type) -> False& {
     return Expression::create_synthetic<False>(
         domain, [&](auto source) -> False { return False(type, source); });
-  }
-
-  constexpr auto implements(Perimortem::System::Uuid requested) const
-      -> Bool override {
-    return requested == contract_id || Flag::implements(requested);
   }
 
  private:

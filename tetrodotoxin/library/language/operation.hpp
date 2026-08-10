@@ -4,6 +4,7 @@
 #pragma once
 
 #include "perimortem/core/view/vector.hpp"
+#include "perimortem/core/static/vector.hpp"
 #include "perimortem/core/option.hpp"
 
 #include "perimortem/memory/allocator/arena.hpp"
@@ -23,16 +24,7 @@ namespace Tetrodotoxin::Library::Language {
 // evaluation without asking Parser to interpret semantic Types.
 class Operation : public Expression {
  public:
-  using ClassCatagory = Operation;
-  static constexpr Perimortem::System::Uuid contract_id{
-    0x7b99d8819ace4f54,
-    0x84d44c33d0c23202,
-  };
-
-  constexpr auto implements(Perimortem::System::Uuid requested) const
-      -> Bool override {
-    return requested == contract_id || Expression::implements(requested);
-  }
+  TTX_CONTRACT(Operation, Expression, 0x7b99d8819ace4f54, 0x84d44c33d0c23202);
 
   constexpr auto get_inputs() const -> const Ttx::Concept::Layout& override {
     return input_layout;
@@ -119,3 +111,78 @@ class Operation : public Expression {
 };
 
 }  // namespace Tetrodotoxin::Library::Language
+
+// Binary Operations share their category proof, construction surface, and
+// canonical semantic name while keeping parsing and evaluation visible.
+#define BINARY_OP_CONTRACT(type, high, low)                                    \
+  TTX_CONTRACT(type, Operation, high, low);                                    \
+  static auto create_authored(                                                 \
+      Perimortem::Memory::Allocator::Arena& domain,                            \
+      Materializations& materializations, Expression& left, Expression& right, \
+      Ttx::Lexical::Anchor anchor) -> type&;                                   \
+  static auto create_synthetic(                                                \
+      Perimortem::Memory::Allocator::Arena& domain,                            \
+      Materializations& materializations, Expression& left, Expression& right) \
+      -> type&;                                                                \
+  constexpr auto get_name() const -> Perimortem::Core::View::Bytes override {  \
+    return #type##_view;                                                       \
+  }
+
+// Concrete Operations own distinct semantics while sharing the same authored
+// and synthetic construction path over one retained operand inventory.
+#define TTX_BINARY_OP(type)                                                    \
+  auto Tetrodotoxin::Library::Language::Operations::type::create_authored(     \
+      Perimortem::Memory::Allocator::Arena& domain,                            \
+      Materializations& materializations, Expression& left, Expression& right, \
+      Ttx::Lexical::Anchor anchor) -> type& {                                  \
+    return Expression::create_authored<type>(                                  \
+        domain, anchor, [&](auto source) -> type {                             \
+          return type(domain, materializations, left, right, source);          \
+        });                                                                    \
+  }                                                                            \
+  auto Tetrodotoxin::Library::Language::Operations::type::create_synthetic(    \
+      Perimortem::Memory::Allocator::Arena& domain,                            \
+      Materializations& materializations, Expression& left, Expression& right) \
+      -> type& {                                                               \
+    return Expression::create_synthetic<type>(                                 \
+        domain, [&](auto source) -> type {                                     \
+          return type(domain, materializations, left, right, source);          \
+        });                                                                    \
+  }                                                                            \
+  Tetrodotoxin::Library::Language::Operations::type::type(                     \
+      Perimortem::Memory::Allocator::Arena& domain,                            \
+      Materializations& materializations, Expression& left, Expression& right, \
+      Perimortem::Core::Option<Ttx::Lexical::Anchor> anchor)                   \
+      : Operation(                                                             \
+            domain, materializations,                                          \
+            Perimortem::Core::Static::Vector<                                  \
+                Ttx::Concept::Reference<Expression>, 2>{{left, right}},        \
+            anchor) {}
+
+#define TTX_UNARY_OP(type)                                                  \
+  auto Tetrodotoxin::Library::Language::Operations::type::create_authored(  \
+      Perimortem::Memory::Allocator::Arena& domain,                         \
+      Materializations& materializations, Expression& operand,              \
+      Ttx::Lexical::Anchor anchor) -> type& {                               \
+    return Expression::create_authored<type>(                               \
+        domain, anchor, [&](auto source) -> type {                          \
+          return type(domain, materializations, operand, source);           \
+        });                                                                 \
+  }                                                                         \
+  auto Tetrodotoxin::Library::Language::Operations::type::create_synthetic( \
+      Perimortem::Memory::Allocator::Arena& domain,                         \
+      Materializations& materializations, Expression& operand) -> type& {   \
+    return Expression::create_synthetic<type>(                              \
+        domain, [&](auto source) -> type {                                  \
+          return type(domain, materializations, operand, source);           \
+        });                                                                 \
+  }                                                                         \
+  Tetrodotoxin::Library::Language::Operations::type::type(                  \
+      Perimortem::Memory::Allocator::Arena& domain,                         \
+      Materializations& materializations, Expression& operand,              \
+      Perimortem::Core::Option<Ttx::Lexical::Anchor> anchor)                \
+      : Operation(                                                          \
+            domain, materializations,                                       \
+            Perimortem::Core::Static::Vector<                               \
+                Ttx::Concept::Reference<Expression>, 1>{{operand}},         \
+            anchor) {}

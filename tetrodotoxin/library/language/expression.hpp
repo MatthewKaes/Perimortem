@@ -60,17 +60,11 @@ class Expression : public Ttx::Concept::Abstract {
     const Expression& expression;
   };
 
-  using ClassCatagory = Expression;
-  static constexpr Perimortem::System::Uuid contract_id{
-    0xb9716e09506c45e3,
-    0x9537c9b4b327e108,
-  };
-
-  constexpr auto implements(Perimortem::System::Uuid requested) const
-      -> Bool override {
-    return requested == contract_id ||
-           Ttx::Concept::Abstract::implements(requested);
-  }
+  TTX_CONTRACT(
+      Expression,
+      Ttx::Concept::Abstract,
+      0xb9716e09506c45e3,
+      0x9537c9b4b327e108);
 
   constexpr auto resolve_context(Perimortem::Core::View::Bytes route) const
       -> const Ttx::Concept::Abstract& override {

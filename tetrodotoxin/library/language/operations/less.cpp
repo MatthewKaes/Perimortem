@@ -3,8 +3,6 @@
 
 #include "tetrodotoxin/library/language/operations/less.hpp"
 
-#include "perimortem/core/static/vector.hpp"
-
 #include "tetrodotoxin/library/dialect.hpp"
 #include "tetrodotoxin/library/language/constants/false.hpp"
 #include "tetrodotoxin/library/language/constants/real.hpp"
@@ -85,40 +83,7 @@ auto Language::Operations::Less::parse(
   return create_authored(domain, materializations, left, *right, anchor);
 }
 
-auto Language::Operations::Less::create_authored(
-    Memory::Allocator::Arena& domain,
-    Materializations& materializations,
-    Expression& left,
-    Expression& right,
-    Anchor anchor) -> Less& {
-  return Expression::create_authored<Less>(
-      domain, anchor, [&](auto source) -> Less {
-        return Less(domain, materializations, left, right, source);
-      });
-}
-
-auto Language::Operations::Less::create_synthetic(
-    Memory::Allocator::Arena& domain,
-    Materializations& materializations,
-    Expression& left,
-    Expression& right) -> Less& {
-  return Expression::create_synthetic<Less>(domain, [&](auto source) -> Less {
-    return Less(domain, materializations, left, right, source);
-  });
-}
-
-Language::Operations::Less::Less(
-    Memory::Allocator::Arena& domain,
-    Materializations& materializations,
-    Expression& left,
-    Expression& right,
-    Core::Option<Anchor> anchor)
-    : Operation(
-          domain,
-          materializations,
-          Core::Static::Vector<Ttx::Concept::Reference<Expression>, 2>{
-            {left, right}},
-          anchor) {}
+TTX_BINARY_OP(Less);
 
 auto Language::Operations::Less::get_documentation() const
     -> const Documentation& {

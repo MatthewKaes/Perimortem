@@ -3,7 +3,6 @@
 
 #include "tetrodotoxin/library/language/operations/subtract.hpp"
 
-#include "perimortem/core/static/vector.hpp"
 #include "perimortem/core/math.hpp"
 
 #include "tetrodotoxin/library/language/constants/real.hpp"
@@ -96,41 +95,7 @@ auto Language::Operations::Subtract::parse(
   return create_authored(domain, materializations, left, *right, anchor);
 }
 
-auto Language::Operations::Subtract::create_authored(
-    Memory::Allocator::Arena& domain,
-    Materializations& materializations,
-    Expression& left,
-    Expression& right,
-    Anchor anchor) -> Subtract& {
-  return Expression::create_authored<Subtract>(
-      domain, anchor, [&](auto source) -> Subtract {
-        return Subtract(domain, materializations, left, right, source);
-      });
-}
-
-auto Language::Operations::Subtract::create_synthetic(
-    Memory::Allocator::Arena& domain,
-    Materializations& materializations,
-    Expression& left,
-    Expression& right) -> Subtract& {
-  return Expression::create_synthetic<Subtract>(
-      domain, [&](auto source) -> Subtract {
-        return Subtract(domain, materializations, left, right, source);
-      });
-}
-
-Language::Operations::Subtract::Subtract(
-    Memory::Allocator::Arena& domain,
-    Materializations& materializations,
-    Expression& left,
-    Expression& right,
-    Core::Option<Anchor> anchor)
-    : Operation(
-          domain,
-          materializations,
-          Core::Static::Vector<Ttx::Concept::Reference<Expression>, 2>{
-            {left, right}},
-          anchor) {}
+TTX_BINARY_OP(Subtract);
 
 auto Language::Operations::Subtract::get_documentation() const
     -> const Documentation& {

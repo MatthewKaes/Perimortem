@@ -3,8 +3,6 @@
 
 #include "tetrodotoxin/library/language/operations/less_equal.hpp"
 
-#include "perimortem/core/static/vector.hpp"
-
 #include "tetrodotoxin/library/dialect.hpp"
 #include "tetrodotoxin/library/language/constants/false.hpp"
 #include "tetrodotoxin/library/language/constants/real.hpp"
@@ -90,41 +88,7 @@ auto Language::Operations::LessEqual::parse(
   return less_equal;
 }
 
-auto Language::Operations::LessEqual::create_authored(
-    Memory::Allocator::Arena& domain,
-    Materializations& materializations,
-    Expression& left,
-    Expression& right,
-    Anchor anchor) -> LessEqual& {
-  return Expression::create_authored<LessEqual>(
-      domain, anchor, [&](auto source) -> LessEqual {
-        return LessEqual(domain, materializations, left, right, source);
-      });
-}
-
-auto Language::Operations::LessEqual::create_synthetic(
-    Memory::Allocator::Arena& domain,
-    Materializations& materializations,
-    Expression& left,
-    Expression& right) -> LessEqual& {
-  return Expression::create_synthetic<LessEqual>(
-      domain, [&](auto source) -> LessEqual {
-        return LessEqual(domain, materializations, left, right, source);
-      });
-}
-
-Language::Operations::LessEqual::LessEqual(
-    Memory::Allocator::Arena& domain,
-    Materializations& materializations,
-    Expression& left,
-    Expression& right,
-    Core::Option<Anchor> anchor)
-    : Operation(
-          domain,
-          materializations,
-          Core::Static::Vector<Ttx::Concept::Reference<Expression>, 2>{
-            {left, right}},
-          anchor) {}
+TTX_BINARY_OP(LessEqual);
 
 auto Language::Operations::LessEqual::get_documentation() const
     -> const Documentation& {

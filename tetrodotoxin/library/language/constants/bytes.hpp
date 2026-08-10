@@ -16,12 +16,8 @@ namespace Tetrodotoxin::Library::Language::Constants {
 // owner keeps the immutable backing storage alive for the Constant.
 class Bytes : public Constant {
  public:
-  using ClassCatagory = Bytes;
+  TTX_CONTRACT(Bytes, Constant, 0x7ca3807fea7d4c28, 0xb723464db6c29666);
   using Value = Perimortem::Core::View::Bytes;
-  static constexpr Perimortem::System::Uuid contract_id{
-    0x7ca3807fea7d4c28,
-    0xb723464db6c29666,
-  };
 
   static auto create_authored(
       Perimortem::Memory::Allocator::Arena& domain,
@@ -40,11 +36,6 @@ class Bytes : public Constant {
     return Expression::create_synthetic<Bytes>(
         domain,
         [&](auto source) -> Bytes { return Bytes(type, value, source); });
-  }
-
-  constexpr auto implements(Perimortem::System::Uuid requested) const
-      -> Bool override {
-    return requested == contract_id || Constant::implements(requested);
   }
 
   constexpr auto get_type() const -> const Ttx::Model::Type& override {

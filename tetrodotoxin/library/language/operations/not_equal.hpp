@@ -15,11 +15,7 @@ namespace Tetrodotoxin::Library::Language::Operations {
 // operand edges, their selected Type identity, and the canonical Bool result.
 class NotEqual : public Operation {
  public:
-  using ClassCatagory = NotEqual;
-  static constexpr Perimortem::System::Uuid contract_id{
-    0xa2c035278af343f7,
-    0xa088f67899453ad2,
-  };
+  BINARY_OP_CONTRACT(NotEqual, 0xa2c035278af343f7, 0xa088f67899453ad2);
 
   static auto parse(
       Perimortem::Memory::Allocator::Arena& domain,
@@ -28,26 +24,6 @@ class NotEqual : public Operation {
       const Ttx::Concept::Abstract& source_context,
       Expression& left) -> Perimortem::Core::Option<Expression&>;
 
-  static auto create_authored(
-      Perimortem::Memory::Allocator::Arena& domain,
-      Materializations& materializations,
-      Expression& left,
-      Expression& right,
-      Ttx::Lexical::Anchor anchor) -> NotEqual&;
-  static auto create_synthetic(
-      Perimortem::Memory::Allocator::Arena& domain,
-      Materializations& materializations,
-      Expression& left,
-      Expression& right) -> NotEqual&;
-
-  constexpr auto implements(Perimortem::System::Uuid requested) const
-      -> Bool override {
-    return requested == contract_id || Operation::implements(requested);
-  }
-
-  constexpr auto get_name() const -> Perimortem::Core::View::Bytes override {
-    return "NotEqual"_view;
-  }
   auto get_documentation() const -> const Ttx::Concept::Documentation& override;
 
  protected:

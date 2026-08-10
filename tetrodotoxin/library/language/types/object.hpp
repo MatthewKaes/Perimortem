@@ -24,11 +24,7 @@ class Object : public Structure {
       Ttx::Lexical::Anchor name_anchor);
 
  public:
-  using ClassCatagory = Object;
-  static constexpr Perimortem::System::Uuid contract_id{
-    0xed4871dfefaa4aee,
-    0xa13f79099ea383ab,
-  };
+  TTX_CONTRACT(Object, Structure, 0xed4871dfefaa4aee, 0xa13f79099ea383ab);
 
   static auto create_authored(
       Perimortem::Memory::Allocator::Arena& domain,
@@ -40,11 +36,6 @@ class Object : public Structure {
       const Structure& enclosing_scope,
       Ttx::Lexical::Anchor anchor,
       Ttx::Lexical::Anchor name_anchor) -> Object&;
-
-  constexpr auto implements(Perimortem::System::Uuid requested) const
-      -> Bool override {
-    return requested == contract_id || Structure::implements(requested);
-  }
 };
 
 }  // namespace Tetrodotoxin::Library::Language::Types

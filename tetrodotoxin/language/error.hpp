@@ -15,17 +15,11 @@ namespace Tetrodotoxin::Language {
 // Dialect contract.
 class Error : public Ttx::Concept::Abstract {
  public:
-  using ClassCatagory = Error;
-  static constexpr Perimortem::System::Uuid contract_id{
-    0xf29c0b68bd8648e1,
-    0x917717c7a0bf3622,
-  };
-
-  constexpr auto implements(Perimortem::System::Uuid requested) const
-      -> Bool override {
-    return requested == contract_id ||
-           Ttx::Concept::Abstract::implements(requested);
-  }
+  TTX_CONTRACT(
+      Error,
+      Ttx::Concept::Abstract,
+      0xf29c0b68bd8648e1,
+      0x917717c7a0bf3622);
 
   constexpr auto get_name() const -> Perimortem::Core::View::Bytes override {
     return "Error"_view;

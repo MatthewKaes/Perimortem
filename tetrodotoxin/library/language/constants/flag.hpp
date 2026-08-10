@@ -12,12 +12,8 @@ namespace Tetrodotoxin::Library::Language::Constants {
 // every resolved Flag Type regardless of the toolchain's chosen storage width.
 class Flag : public Constant {
  public:
-  using ClassCatagory = Flag;
+  TTX_CONTRACT(Flag, Constant, 0x09d395cb5fea4765, 0x897a36a658c2486a);
   using Value = Bool;
-  static constexpr Perimortem::System::Uuid contract_id{
-    0x09d395cb5fea4765,
-    0x897a36a658c2486a,
-  };
 
   static auto create_authored(
       Perimortem::Memory::Allocator::Arena& domain,
@@ -35,11 +31,6 @@ class Flag : public Constant {
       Value value) -> Flag& {
     return Expression::create_synthetic<Flag>(
         domain, [&](auto source) -> Flag { return Flag(type, value, source); });
-  }
-
-  constexpr auto implements(Perimortem::System::Uuid requested) const
-      -> Bool override {
-    return requested == contract_id || Constant::implements(requested);
   }
 
   constexpr auto get_type() const -> const Ttx::Model::Types::Flag& override {

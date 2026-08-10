@@ -26,11 +26,7 @@ namespace Ttx::Model {
 // Alias becomes queryable.
 class Alias : public Concept::Abstract {
  public:
-  using ClassCatagory = Alias;
-  static constexpr Perimortem::System::Uuid contract_id{
-    0x58e8b4a115e9461a,
-    0x88a5767626d4a21a,
-  };
+  TTX_CONTRACT(Alias, Abstract, 0x58e8b4a115e9461a, 0x88a5767626d4a21a);
 
   constexpr Alias(
       Perimortem::Core::View::Bytes name,
@@ -42,11 +38,6 @@ class Alias : public Concept::Abstract {
       const Concept::Abstract& target,
       const Concept::Documentation& documentation)
       : name(name), target(target), documentation(documentation) {}
-
-  constexpr auto implements(Perimortem::System::Uuid requested) const
-      -> Bool override {
-    return requested == contract_id || Abstract::implements(requested);
-  }
 
   constexpr auto get_name() const -> Perimortem::Core::View::Bytes override {
     return name;

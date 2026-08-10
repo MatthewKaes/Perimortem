@@ -164,3 +164,13 @@ class Abstract {
 };
 
 }  // namespace Ttx::Concept
+
+// Keep each derived category declaration beside its stable identifier and
+// direct semantic base while preserving the shared proof implementation.
+#define TTX_CONTRACT(type, base, high, low)                           \
+  using ClassCatagory = type;                                         \
+  static constexpr Perimortem::System::Uuid contract_id{high, low};   \
+  constexpr auto implements(Perimortem::System::Uuid requested) const \
+      -> Bool override {                                              \
+    return requested == contract_id || base::implements(requested);   \
+  }

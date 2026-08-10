@@ -15,11 +15,7 @@ namespace Tetrodotoxin::Library::Language::Operations {
 // projects a value without changing that authored input or linked Type.
 class Negate : public Operation {
  public:
-  using ClassCatagory = Negate;
-  static constexpr Perimortem::System::Uuid contract_id{
-    0x6f4344a6178e459c,
-    0x90190b4e89612fbd,
-  };
+  TTX_CONTRACT(Negate, Operation, 0x6f4344a6178e459c, 0x90190b4e89612fbd);
 
   static auto parse(
       Perimortem::Memory::Allocator::Arena& domain,
@@ -37,11 +33,6 @@ class Negate : public Operation {
       Perimortem::Memory::Allocator::Arena& domain,
       Materializations& materializations,
       Expression& operand) -> Negate&;
-
-  constexpr auto implements(Perimortem::System::Uuid requested) const
-      -> Bool override {
-    return requested == contract_id || Operation::implements(requested);
-  }
 
   constexpr auto get_name() const -> Perimortem::Core::View::Bytes override {
     return "Negate"_view;

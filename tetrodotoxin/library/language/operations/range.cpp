@@ -3,8 +3,6 @@
 
 #include "tetrodotoxin/library/language/operations/range.hpp"
 
-#include "perimortem/core/static/vector.hpp"
-
 #include "tetrodotoxin/library/language/generics/range.hpp"
 #include "tetrodotoxin/library/language/parser/expression.hpp"
 #include "ttx/concept/invalid.hpp"
@@ -59,40 +57,7 @@ auto Language::Operations::Range::parse(
   return range;
 }
 
-auto Language::Operations::Range::create_authored(
-    Memory::Allocator::Arena& domain,
-    Materializations& materializations,
-    Expression& left,
-    Expression& right,
-    Anchor anchor) -> Range& {
-  return Expression::create_authored<Range>(
-      domain, anchor, [&](auto source) -> Range {
-        return Range(domain, materializations, left, right, source);
-      });
-}
-
-auto Language::Operations::Range::create_synthetic(
-    Memory::Allocator::Arena& domain,
-    Materializations& materializations,
-    Expression& left,
-    Expression& right) -> Range& {
-  return Expression::create_synthetic<Range>(domain, [&](auto source) -> Range {
-    return Range(domain, materializations, left, right, source);
-  });
-}
-
-Language::Operations::Range::Range(
-    Memory::Allocator::Arena& domain,
-    Materializations& materializations,
-    Expression& left,
-    Expression& right,
-    Core::Option<Anchor> anchor)
-    : Operation(
-          domain,
-          materializations,
-          Core::Static::Vector<Ttx::Concept::Reference<Expression>, 2>{
-            {left, right}},
-          anchor) {}
+TTX_BINARY_OP(Range);
 
 auto Language::Operations::Range::get_documentation() const
     -> const Documentation& {

@@ -14,16 +14,7 @@ namespace Ttx::Model::Types {
 // Any further contextual resolution on the type terminates to `Invalid`.
 class Value : public Type {
  public:
-  using ClassCatagory = Value;
-  static constexpr Perimortem::System::Uuid contract_id{
-    0x0904f828ec2a489f,
-    0x978eb1f113cb771f,
-  };
-
-  constexpr auto implements(Perimortem::System::Uuid requested) const
-      -> Bool override {
-    return requested == contract_id || Type::implements(requested);
-  }
+  TTX_CONTRACT(Value, Type, 0x0904f828ec2a489f, 0x978eb1f113cb771f);
 
   auto resolve_context(Perimortem::Core::View::Bytes) const
       -> const Concept::Abstract& override {

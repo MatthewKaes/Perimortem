@@ -3,7 +3,6 @@
 
 #include "tetrodotoxin/library/language/operations/add.hpp"
 
-#include "perimortem/core/static/vector.hpp"
 #include "perimortem/core/math.hpp"
 
 #include "tetrodotoxin/library/language/constants/real.hpp"
@@ -96,40 +95,7 @@ auto Language::Operations::Add::parse(
   return create_authored(domain, materializations, left, *right, anchor);
 }
 
-auto Language::Operations::Add::create_authored(
-    Memory::Allocator::Arena& domain,
-    Materializations& materializations,
-    Expression& left,
-    Expression& right,
-    Anchor anchor) -> Add& {
-  return Expression::create_authored<Add>(
-      domain, anchor, [&](auto source) -> Add {
-        return Add(domain, materializations, left, right, source);
-      });
-}
-
-auto Language::Operations::Add::create_synthetic(
-    Memory::Allocator::Arena& domain,
-    Materializations& materializations,
-    Expression& left,
-    Expression& right) -> Add& {
-  return Expression::create_synthetic<Add>(domain, [&](auto source) -> Add {
-    return Add(domain, materializations, left, right, source);
-  });
-}
-
-Language::Operations::Add::Add(
-    Memory::Allocator::Arena& domain,
-    Materializations& materializations,
-    Expression& left,
-    Expression& right,
-    Core::Option<Anchor> anchor)
-    : Operation(
-          domain,
-          materializations,
-          Core::Static::Vector<Ttx::Concept::Reference<Expression>, 2>{
-            {left, right}},
-          anchor) {}
+TTX_BINARY_OP(Add);
 
 auto Language::Operations::Add::get_documentation() const
     -> const Documentation& {

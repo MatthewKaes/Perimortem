@@ -20,11 +20,7 @@ namespace Tetrodotoxin::Library::Language {
 // the surrounding graph has completed.
 class Identifier : public Expression {
  public:
-  using ClassCatagory = Identifier;
-  static constexpr Perimortem::System::Uuid contract_id{
-    0xd747288c3703480b,
-    0x9cd07fbc8a1a7a84,
-  };
+  TTX_CONTRACT(Identifier, Expression, 0xd747288c3703480b, 0x9cd07fbc8a1a7a84);
 
   static auto create_authored(
       Perimortem::Memory::Allocator::Arena& domain,
@@ -39,11 +35,6 @@ class Identifier : public Expression {
       Tetrodotoxin::Language::Monograph& source,
       const Ttx::Concept::Abstract& context,
       Materializations& materializations) -> Bool override;
-
-  constexpr auto implements(Perimortem::System::Uuid requested) const
-      -> Bool override {
-    return requested == contract_id || Expression::implements(requested);
-  }
 
   constexpr auto get_name() const -> Perimortem::Core::View::Bytes override {
     return route;

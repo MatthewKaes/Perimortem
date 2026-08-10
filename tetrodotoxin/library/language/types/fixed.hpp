@@ -17,11 +17,7 @@ namespace Tetrodotoxin::Library::Language::Types {
 // and element edge while Ranged exposes the repeated identity without copies.
 class Fixed : public Ttx::Model::Type {
  public:
-  using ClassCatagory = Fixed;
-  static constexpr Perimortem::System::Uuid contract_id{
-    0xf1d212690ed5471f,
-    0x8f47246bd80d2cbe,
-  };
+  TTX_CONTRACT(Fixed, Ttx::Model::Type, 0xf1d212690ed5471f, 0x8f47246bd80d2cbe);
 
   Fixed(
       Perimortem::Core::View::Bytes name,
@@ -30,11 +26,6 @@ class Fixed : public Ttx::Model::Type {
       : name(name), layout(element, Count(extent)) {
     arguments[0] = Generic::Argument(element);
     arguments[1] = Generic::Argument(extent);
-  }
-
-  constexpr auto implements(Perimortem::System::Uuid requested) const
-      -> Bool override {
-    return requested == contract_id || Ttx::Model::Type::implements(requested);
   }
 
   constexpr auto get_name() const -> Perimortem::Core::View::Bytes override {

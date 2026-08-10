@@ -11,11 +11,7 @@ namespace Tetrodotoxin::Library::Language::Constants {
 // owns representation while this identity exposes the closed logical value.
 class True : public Flag {
  public:
-  using ClassCatagory = True;
-  static constexpr Perimortem::System::Uuid contract_id{
-    0x622f43659a9a4cc5,
-    0x935e114a9c2fc915,
-  };
+  TTX_CONTRACT(True, Flag, 0x622f43659a9a4cc5, 0x935e114a9c2fc915);
 
   static auto create_authored(
       Perimortem::Memory::Allocator::Arena& domain,
@@ -31,11 +27,6 @@ class True : public Flag {
       const Ttx::Model::Types::Flag& type) -> True& {
     return Expression::create_synthetic<True>(
         domain, [&](auto source) -> True { return True(type, source); });
-  }
-
-  constexpr auto implements(Perimortem::System::Uuid requested) const
-      -> Bool override {
-    return requested == contract_id || Flag::implements(requested);
   }
 
  private:

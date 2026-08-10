@@ -41,11 +41,7 @@ class Source : public Structure {
       -> const Ttx::Concept::Abstract& override;
 
  public:
-  using ClassCatagory = Source;
-  static constexpr Perimortem::System::Uuid contract_id{
-    0xa972070bd27746e0,
-    0x959dd29d7924aed4,
-  };
+  TTX_CONTRACT(Source, Structure, 0xa972070bd27746e0, 0x959dd29d7924aed4);
 
   static auto create_synthetic(
       Perimortem::Memory::Allocator::Arena& domain,
@@ -74,11 +70,6 @@ class Source : public Structure {
   auto can_bind_static(const Ttx::Concept::Abstract& binding) const -> Bool;
 
   auto retain_static_field(Field::Source field) -> Bool;
-
-  constexpr auto implements(Perimortem::System::Uuid requested) const
-      -> Bool override {
-    return requested == contract_id || Structure::implements(requested);
-  }
 
   constexpr auto resolve() const -> const Ttx::Concept::Abstract& override {
     return *this;

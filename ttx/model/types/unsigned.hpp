@@ -11,16 +11,7 @@ namespace Ttx::Model::Types {
 // negative integer values.
 class Unsigned : public Value {
  public:
-  using ClassCatagory = Unsigned;
-  static constexpr Perimortem::System::Uuid contract_id{
-    0x0a8a00d5ed054be1,
-    0x9e5d43885c4050b2,
-  };
-
-  constexpr auto implements(Perimortem::System::Uuid requested) const
-      -> Bool override {
-    return requested == contract_id || Value::implements(requested);
-  }
+  TTX_CONTRACT(Unsigned, Value, 0x0a8a00d5ed054be1, 0x9e5d43885c4050b2);
 };
 
 }  // namespace Ttx::Model::Types

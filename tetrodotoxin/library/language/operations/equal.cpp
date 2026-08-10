@@ -3,8 +3,6 @@
 
 #include "tetrodotoxin/library/language/operations/equal.hpp"
 
-#include "perimortem/core/static/vector.hpp"
-
 #include "tetrodotoxin/library/dialect.hpp"
 #include "tetrodotoxin/library/language/constants/bytes.hpp"
 #include "tetrodotoxin/library/language/constants/false.hpp"
@@ -112,40 +110,7 @@ auto Language::Operations::Equal::parse(
   return equal;
 }
 
-auto Language::Operations::Equal::create_authored(
-    Memory::Allocator::Arena& domain,
-    Materializations& materializations,
-    Expression& left,
-    Expression& right,
-    Anchor anchor) -> Equal& {
-  return Expression::create_authored<Equal>(
-      domain, anchor, [&](auto source) -> Equal {
-        return Equal(domain, materializations, left, right, source);
-      });
-}
-
-auto Language::Operations::Equal::create_synthetic(
-    Memory::Allocator::Arena& domain,
-    Materializations& materializations,
-    Expression& left,
-    Expression& right) -> Equal& {
-  return Expression::create_synthetic<Equal>(domain, [&](auto source) -> Equal {
-    return Equal(domain, materializations, left, right, source);
-  });
-}
-
-Language::Operations::Equal::Equal(
-    Memory::Allocator::Arena& domain,
-    Materializations& materializations,
-    Expression& left,
-    Expression& right,
-    Core::Option<Anchor> anchor)
-    : Operation(
-          domain,
-          materializations,
-          Core::Static::Vector<Ttx::Concept::Reference<Expression>, 2>{
-            {left, right}},
-          anchor) {}
+TTX_BINARY_OP(Equal);
 
 auto Language::Operations::Equal::get_documentation() const
     -> const Documentation& {

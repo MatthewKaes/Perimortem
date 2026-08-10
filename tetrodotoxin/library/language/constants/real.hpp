@@ -15,12 +15,8 @@ namespace Tetrodotoxin::Library::Language::Constants {
 // equivalence relation suitable for Generic materialization keys.
 class Real : public Constant {
  public:
-  using ClassCatagory = Real;
+  TTX_CONTRACT(Real, Constant, 0x4d64a697bce34b21, 0xb9669826f970ad9b);
   using Value = Real_64;
-  static constexpr Perimortem::System::Uuid contract_id{
-    0x4d64a697bce34b21,
-    0xb9669826f970ad9b,
-  };
 
   static auto create_authored(
       Perimortem::Memory::Allocator::Arena& domain,
@@ -38,11 +34,6 @@ class Real : public Constant {
       Value value) -> Real& {
     return Expression::create_synthetic<Real>(
         domain, [&](auto source) -> Real { return Real(type, value, source); });
-  }
-
-  constexpr auto implements(Perimortem::System::Uuid requested) const
-      -> Bool override {
-    return requested == contract_id || Constant::implements(requested);
   }
 
   constexpr auto get_type() const -> const Ttx::Model::Types::Real& override {

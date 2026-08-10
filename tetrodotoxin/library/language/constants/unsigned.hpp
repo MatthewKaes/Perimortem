@@ -13,12 +13,8 @@ namespace Tetrodotoxin::Library::Language::Constants {
 // to prove whether a narrower Unsigned target can represent it.
 class Unsigned : public Constant {
  public:
-  using ClassCatagory = Unsigned;
+  TTX_CONTRACT(Unsigned, Constant, 0xd48f7ac9d3454918, 0xb2b28b158d5034d8);
   using Value = Unsigned_64;
-  static constexpr Perimortem::System::Uuid contract_id{
-    0xd48f7ac9d3454918,
-    0xb2b28b158d5034d8,
-  };
 
   static auto create_authored(
       Perimortem::Memory::Allocator::Arena& domain,
@@ -37,11 +33,6 @@ class Unsigned : public Constant {
     return Expression::create_synthetic<Unsigned>(
         domain,
         [&](auto source) -> Unsigned { return Unsigned(type, value, source); });
-  }
-
-  constexpr auto implements(Perimortem::System::Uuid requested) const
-      -> Bool override {
-    return requested == contract_id || Constant::implements(requested);
   }
 
   constexpr auto get_type() const

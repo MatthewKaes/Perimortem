@@ -3,8 +3,6 @@
 
 #include "tetrodotoxin/library/language/operations/not_equal.hpp"
 
-#include "perimortem/core/static/vector.hpp"
-
 #include "tetrodotoxin/library/dialect.hpp"
 #include "tetrodotoxin/library/language/constants/bytes.hpp"
 #include "tetrodotoxin/library/language/constants/false.hpp"
@@ -114,41 +112,7 @@ auto Language::Operations::NotEqual::parse(
   return not_equal;
 }
 
-auto Language::Operations::NotEqual::create_authored(
-    Memory::Allocator::Arena& domain,
-    Materializations& materializations,
-    Expression& left,
-    Expression& right,
-    Anchor anchor) -> NotEqual& {
-  return Expression::create_authored<NotEqual>(
-      domain, anchor, [&](auto source) -> NotEqual {
-        return NotEqual(domain, materializations, left, right, source);
-      });
-}
-
-auto Language::Operations::NotEqual::create_synthetic(
-    Memory::Allocator::Arena& domain,
-    Materializations& materializations,
-    Expression& left,
-    Expression& right) -> NotEqual& {
-  return Expression::create_synthetic<NotEqual>(
-      domain, [&](auto source) -> NotEqual {
-        return NotEqual(domain, materializations, left, right, source);
-      });
-}
-
-Language::Operations::NotEqual::NotEqual(
-    Memory::Allocator::Arena& domain,
-    Materializations& materializations,
-    Expression& left,
-    Expression& right,
-    Core::Option<Anchor> anchor)
-    : Operation(
-          domain,
-          materializations,
-          Core::Static::Vector<Ttx::Concept::Reference<Expression>, 2>{
-            {left, right}},
-          anchor) {}
+TTX_BINARY_OP(NotEqual);
 
 auto Language::Operations::NotEqual::get_documentation() const
     -> const Documentation& {

@@ -15,11 +15,7 @@ namespace Tetrodotoxin::Library::Language::Operations {
 // a value without changing that authored input or linked Type.
 class Not : public Operation {
  public:
-  using ClassCatagory = Not;
-  static constexpr Perimortem::System::Uuid contract_id{
-    0x43149308999f46a0,
-    0x8530dac9156899bf,
-  };
+  TTX_CONTRACT(Not, Operation, 0x43149308999f46a0, 0x8530dac9156899bf);
 
   static auto parse(
       Perimortem::Memory::Allocator::Arena& domain,
@@ -37,11 +33,6 @@ class Not : public Operation {
       Perimortem::Memory::Allocator::Arena& domain,
       Materializations& materializations,
       Expression& operand) -> Not&;
-
-  constexpr auto implements(Perimortem::System::Uuid requested) const
-      -> Bool override {
-    return requested == contract_id || Operation::implements(requested);
-  }
 
   constexpr auto get_name() const -> Perimortem::Core::View::Bytes override {
     return "Not"_view;

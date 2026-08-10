@@ -18,16 +18,7 @@ namespace Ttx::Model {
 // contract. Callability alone does not imply an address to data.
 class Callable : public Concept::Abstract {
  public:
-  using ClassCatagory = Callable;
-  static constexpr Perimortem::System::Uuid contract_id{
-    0x01cc41c70a414b03,
-    0xacf5c601eccfd393,
-  };
-
-  constexpr auto implements(Perimortem::System::Uuid requested) const
-      -> Bool override {
-    return requested == contract_id || Abstract::implements(requested);
-  }
+  TTX_CONTRACT(Callable, Abstract, 0x01cc41c70a414b03, 0xacf5c601eccfd393);
 
   virtual constexpr auto get_parameters() const -> const Concept::Layout& = 0;
   virtual constexpr auto get_results() const -> const Concept::Layout& = 0;

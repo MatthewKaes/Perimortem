@@ -21,11 +21,7 @@ namespace Tetrodotoxin::Library::Language::Access {
 // while target generation owns its concrete representation.
 class Address : public Expression {
  public:
-  using ClassCatagory = Address;
-  static constexpr Perimortem::System::Uuid contract_id{
-    0xdf9d470a5b024335,
-    0xb38fc893710f519e,
-  };
+  TTX_CONTRACT(Address, Expression, 0xdf9d470a5b024335, 0xb38fc893710f519e);
 
   static auto parse(
       Perimortem::Memory::Allocator::Arena& domain,
@@ -49,11 +45,6 @@ class Address : public Expression {
       Tetrodotoxin::Language::Monograph& source,
       const Ttx::Concept::Abstract& context,
       Materializations& materializations) -> Bool override;
-
-  constexpr auto implements(Perimortem::System::Uuid requested) const
-      -> Bool override {
-    return requested == contract_id || Expression::implements(requested);
-  }
 
   constexpr auto get_name() const -> Perimortem::Core::View::Bytes override {
     return route;

@@ -15,11 +15,7 @@ namespace Tetrodotoxin::Library::Language::Operations {
 // Folding projects a product while every authored input and linked Type remain.
 class Multiply : public Operation {
  public:
-  using ClassCatagory = Multiply;
-  static constexpr Perimortem::System::Uuid contract_id{
-    0x5c072da344144a09,
-    0x8b5fc8dd12d91e3a,
-  };
+  BINARY_OP_CONTRACT(Multiply, 0x5c072da344144a09, 0x8b5fc8dd12d91e3a);
 
   static auto parse(
       Perimortem::Memory::Allocator::Arena& domain,
@@ -28,26 +24,6 @@ class Multiply : public Operation {
       const Ttx::Concept::Abstract& source_context,
       Expression& left) -> Perimortem::Core::Option<Expression&>;
 
-  static auto create_authored(
-      Perimortem::Memory::Allocator::Arena& domain,
-      Materializations& materializations,
-      Expression& left,
-      Expression& right,
-      Ttx::Lexical::Anchor anchor) -> Multiply&;
-  static auto create_synthetic(
-      Perimortem::Memory::Allocator::Arena& domain,
-      Materializations& materializations,
-      Expression& left,
-      Expression& right) -> Multiply&;
-
-  constexpr auto implements(Perimortem::System::Uuid requested) const
-      -> Bool override {
-    return requested == contract_id || Operation::implements(requested);
-  }
-
-  constexpr auto get_name() const -> Perimortem::Core::View::Bytes override {
-    return "Multiply"_view;
-  }
   auto get_documentation() const -> const Ttx::Concept::Documentation& override;
 
  protected:

@@ -42,11 +42,11 @@ class Function : public Ttx::Model::Callable {
       Ttx::Lexical::Token name_token);
 
  public:
-  using ClassCatagory = Function;
-  static constexpr Perimortem::System::Uuid contract_id{
-    0x6c76a9165a2640bf,
-    0xbbebc5e45cc6bd0f,
-  };
+  TTX_CONTRACT(
+      Function,
+      Ttx::Model::Callable,
+      0x6c76a9165a2640bf,
+      0xbbebc5e45cc6bd0f);
 
   static auto reserve(
       Perimortem::Memory::Allocator::Arena& domain,
@@ -71,12 +71,6 @@ class Function : public Ttx::Model::Callable {
   auto link() -> Bool;
 
   auto finalize() -> Bool;
-
-  constexpr auto implements(Perimortem::System::Uuid requested) const
-      -> Bool override {
-    return requested == contract_id ||
-           Ttx::Model::Callable::implements(requested);
-  }
 
   constexpr auto get_name() const -> Perimortem::Core::View::Bytes override {
     return name;

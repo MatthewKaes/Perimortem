@@ -32,16 +32,7 @@ namespace Ttx::Model {
 // semantic node per index.
 class Type : public Concept::Abstract {
  public:
-  using ClassCatagory = Type;
-  static constexpr Perimortem::System::Uuid contract_id{
-    0x94ee892e6e064e3b,
-    0x896512640a01b446,
-  };
-
-  constexpr auto implements(Perimortem::System::Uuid requested) const
-      -> Bool override {
-    return requested == contract_id || Abstract::implements(requested);
-  }
+  TTX_CONTRACT(Type, Abstract, 0x94ee892e6e064e3b, 0x896512640a01b446);
 
   virtual constexpr auto get_layout() const -> const Concept::Layout& {
     return empty_layout;

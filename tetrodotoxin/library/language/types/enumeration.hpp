@@ -46,11 +46,11 @@ class Enumeration : public Ttx::Model::Type {
       Ttx::Lexical::Anchor name_anchor);
 
  public:
-  using ClassCatagory = Enumeration;
-  static constexpr Perimortem::System::Uuid contract_id{
-    0x1fa6d62be44749db,
-    0xa9e71e448fbf3c53,
-  };
+  TTX_CONTRACT(
+      Enumeration,
+      Ttx::Model::Type,
+      0x1fa6d62be44749db,
+      0xa9e71e448fbf3c53);
 
   static auto interpret(
       Perimortem::Memory::Allocator::Arena& domain,
@@ -66,11 +66,6 @@ class Enumeration : public Ttx::Model::Type {
 
   auto link_storage() -> Bool;
   auto finalize() -> Bool;
-
-  constexpr auto implements(Perimortem::System::Uuid requested) const
-      -> Bool override {
-    return requested == contract_id || Ttx::Model::Type::implements(requested);
-  }
 
   constexpr auto get_name() const -> Perimortem::Core::View::Bytes override {
     return name;

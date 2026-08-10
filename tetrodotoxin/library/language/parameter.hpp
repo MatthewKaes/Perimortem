@@ -17,11 +17,11 @@ namespace Tetrodotoxin::Library::Language {
 // and the exact resolved TTX Type required by the semantic graph.
 class Parameter : public Ttx::Model::Addressable {
  public:
-  using ClassCatagory = Parameter;
-  static constexpr Perimortem::System::Uuid contract_id{
-    0xd422d050fce343c0,
-    0xbc6efef9f6271d15,
-  };
+  TTX_CONTRACT(
+      Parameter,
+      Ttx::Model::Addressable,
+      0xd422d050fce343c0,
+      0xbc6efef9f6271d15);
 
   static auto create_authored(
       Perimortem::Memory::Allocator::Arena& domain,
@@ -33,12 +33,6 @@ class Parameter : public Ttx::Model::Addressable {
   Parameter(Parameter&&) = delete;
   auto operator=(const Parameter&) -> Parameter& = delete;
   auto operator=(Parameter&&) -> Parameter& = delete;
-
-  constexpr auto implements(Perimortem::System::Uuid requested) const
-      -> Bool override {
-    return requested == contract_id ||
-           Ttx::Model::Addressable::implements(requested);
-  }
 
   constexpr auto get_name() const -> Perimortem::Core::View::Bytes override {
     return signature.get_parameter_name(index);

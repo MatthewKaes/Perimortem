@@ -15,11 +15,7 @@ namespace Tetrodotoxin::Library::Language::Operations {
 // shared signed or unsigned Type without claiming storage or iteration state.
 class Range : public Operation {
  public:
-  using ClassCatagory = Range;
-  static constexpr Perimortem::System::Uuid contract_id{
-    0x3d8f2d5c47a849b1,
-    0x9f12e0c4a6b7315d,
-  };
+  BINARY_OP_CONTRACT(Range, 0x3d8f2d5c47a849b1, 0x9f12e0c4a6b7315d);
 
   static auto parse(
       Perimortem::Memory::Allocator::Arena& domain,
@@ -27,28 +23,6 @@ class Range : public Operation {
       Ttx::Lexical::Cursor& cursor,
       const Ttx::Concept::Abstract& source_context,
       Expression& left) -> Perimortem::Core::Option<Expression&>;
-
-  static auto create_authored(
-      Perimortem::Memory::Allocator::Arena& domain,
-      Materializations& materializations,
-      Expression& left,
-      Expression& right,
-      Ttx::Lexical::Anchor anchor) -> Range&;
-
-  static auto create_synthetic(
-      Perimortem::Memory::Allocator::Arena& domain,
-      Materializations& materializations,
-      Expression& left,
-      Expression& right) -> Range&;
-
-  constexpr auto implements(Perimortem::System::Uuid requested) const
-      -> Bool override {
-    return requested == contract_id || Operation::implements(requested);
-  }
-
-  constexpr auto get_name() const -> Perimortem::Core::View::Bytes override {
-    return "Range"_view;
-  }
 
   auto get_documentation() const -> const Ttx::Concept::Documentation& override;
 

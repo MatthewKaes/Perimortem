@@ -15,21 +15,12 @@ namespace Tetrodotoxin::Library::Language::Types {
 // without a registry or copied shape.
 class View : public Ttx::Model::Type {
  public:
-  using ClassCatagory = View;
-  static constexpr Perimortem::System::Uuid contract_id{
-    0xdbd463c86a2c4a08,
-    0xb42869ffad9e4fc9,
-  };
+  TTX_CONTRACT(View, Ttx::Model::Type, 0xdbd463c86a2c4a08, 0xb42869ffad9e4fc9);
 
   constexpr View(
       Perimortem::Core::View::Bytes name,
       const Ttx::Model::Type& element)
       : name(name), argument(element) {}
-
-  constexpr auto implements(Perimortem::System::Uuid requested) const
-      -> Bool override {
-    return requested == contract_id || Ttx::Model::Type::implements(requested);
-  }
 
   constexpr auto get_name() const -> Perimortem::Core::View::Bytes override {
     return name;

@@ -13,12 +13,8 @@ namespace Tetrodotoxin::Library::Language::Constants {
 // for another Signed width.
 class Signed : public Constant {
  public:
-  using ClassCatagory = Signed;
+  TTX_CONTRACT(Signed, Constant, 0xb7e0f0e5d1b44874, 0x9361ac25cc53d15e);
   using Value = Signed_64;
-  static constexpr Perimortem::System::Uuid contract_id{
-    0xb7e0f0e5d1b44874,
-    0x9361ac25cc53d15e,
-  };
 
   static auto create_authored(
       Perimortem::Memory::Allocator::Arena& domain,
@@ -37,11 +33,6 @@ class Signed : public Constant {
     return Expression::create_synthetic<Signed>(
         domain,
         [&](auto source) -> Signed { return Signed(type, value, source); });
-  }
-
-  constexpr auto implements(Perimortem::System::Uuid requested) const
-      -> Bool override {
-    return requested == contract_id || Constant::implements(requested);
   }
 
   constexpr auto get_type() const -> const Ttx::Model::Types::Signed& override {

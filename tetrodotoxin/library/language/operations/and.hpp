@@ -15,11 +15,7 @@ namespace Tetrodotoxin::Library::Language::Operations {
 // right edge is reachable from the completed left value.
 class And : public Operation {
  public:
-  using ClassCatagory = And;
-  static constexpr Perimortem::System::Uuid contract_id{
-    0x88a98724a8b6405b,
-    0xa2e890aef8afda57,
-  };
+  BINARY_OP_CONTRACT(And, 0x88a98724a8b6405b, 0xa2e890aef8afda57);
 
   static auto parse(
       Perimortem::Memory::Allocator::Arena& domain,
@@ -28,26 +24,6 @@ class And : public Operation {
       const Ttx::Concept::Abstract& source_context,
       Expression& left) -> Perimortem::Core::Option<Expression&>;
 
-  static auto create_authored(
-      Perimortem::Memory::Allocator::Arena& domain,
-      Materializations& materializations,
-      Expression& left,
-      Expression& right,
-      Ttx::Lexical::Anchor anchor) -> And&;
-  static auto create_synthetic(
-      Perimortem::Memory::Allocator::Arena& domain,
-      Materializations& materializations,
-      Expression& left,
-      Expression& right) -> And&;
-
-  constexpr auto implements(Perimortem::System::Uuid requested) const
-      -> Bool override {
-    return requested == contract_id || Operation::implements(requested);
-  }
-
-  constexpr auto get_name() const -> Perimortem::Core::View::Bytes override {
-    return "And"_view;
-  }
   auto get_documentation() const -> const Ttx::Concept::Documentation& override;
 
  protected:

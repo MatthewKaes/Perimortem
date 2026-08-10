@@ -3,8 +3,6 @@
 
 #include "tetrodotoxin/library/language/operations/not.hpp"
 
-#include "perimortem/core/static/vector.hpp"
-
 #include "tetrodotoxin/library/dialect.hpp"
 #include "tetrodotoxin/library/language/constants/false.hpp"
 #include "tetrodotoxin/library/language/constants/flag.hpp"
@@ -67,37 +65,7 @@ auto Language::Operations::Not::parse(
   return create_authored(domain, materializations, *operand, anchor);
 }
 
-auto Language::Operations::Not::create_authored(
-    Memory::Allocator::Arena& domain,
-    Materializations& materializations,
-    Expression& operand,
-    Anchor anchor) -> Not& {
-  return Expression::create_authored<Not>(
-      domain, anchor, [&](auto source) -> Not {
-        return Not(domain, materializations, operand, source);
-      });
-}
-
-auto Language::Operations::Not::create_synthetic(
-    Memory::Allocator::Arena& domain,
-    Materializations& materializations,
-    Expression& operand) -> Not& {
-  return Expression::create_synthetic<Not>(domain, [&](auto source) -> Not {
-    return Not(domain, materializations, operand, source);
-  });
-}
-
-Language::Operations::Not::Not(
-    Memory::Allocator::Arena& domain,
-    Materializations& materializations,
-    Expression& operand,
-    Core::Option<Anchor> anchor)
-    : Operation(
-          domain,
-          materializations,
-          Core::Static::Vector<Ttx::Concept::Reference<Expression>, 1>{
-            {operand}},
-          anchor) {}
+TTX_UNARY_OP(Not);
 
 auto Language::Operations::Not::get_documentation() const
     -> const Documentation& {

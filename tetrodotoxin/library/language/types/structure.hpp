@@ -93,11 +93,11 @@ class Structure : public Ttx::Model::Type {
   constexpr auto get_source_monograph() -> Monograph& { return source; }
 
  public:
-  using ClassCatagory = Structure;
-  static constexpr Perimortem::System::Uuid contract_id{
-    0xe3773c0325224200,
-    0xaeb9a3131139c16f,
-  };
+  TTX_CONTRACT(
+      Structure,
+      Ttx::Model::Type,
+      0xe3773c0325224200,
+      0xaeb9a3131139c16f);
 
   static auto interpret(
       Perimortem::Memory::Allocator::Arena& domain,
@@ -142,11 +142,6 @@ class Structure : public Ttx::Model::Type {
   auto link_callable_signatures() -> Bool;
   auto link_callable_bodies() -> Bool;
   auto finalize() -> Bool;
-
-  constexpr auto implements(Perimortem::System::Uuid requested) const
-      -> Bool override {
-    return requested == contract_id || Ttx::Model::Type::implements(requested);
-  }
 
   constexpr auto get_name() const -> Perimortem::Core::View::Bytes override {
     return name;
