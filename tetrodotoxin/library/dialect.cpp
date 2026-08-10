@@ -8,6 +8,11 @@
 #include "perimortem/utility/pair.hpp"
 #include "perimortem/utility/table.hpp"
 
+#include "tetrodotoxin/library/language/constants/bytes.hpp"
+#include "tetrodotoxin/library/language/constants/false.hpp"
+#include "tetrodotoxin/library/language/constants/real.hpp"
+#include "tetrodotoxin/library/language/constants/signed.hpp"
+#include "tetrodotoxin/library/language/constants/unsigned.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
 #include "tetrodotoxin/library/language/types/bool.hpp"
 #include "tetrodotoxin/library/language/types/real_32.hpp"
@@ -21,6 +26,7 @@
 #include "tetrodotoxin/library/language/types/unsigned_32.hpp"
 #include "tetrodotoxin/library/language/types/unsigned_64.hpp"
 #include "tetrodotoxin/library/language/types/unsigned_8.hpp"
+#include "tetrodotoxin/library/language/types/view.hpp"
 #include "tetrodotoxin/library/language/types/void.hpp"
 #include "ttx/concept/invalid.hpp"
 
@@ -120,6 +126,41 @@ auto Library::Dialect::resolve_intrinsic(View::Bytes name) const
   // preserves their constexpr addresses without copying them into each
   // installed Dialect allowing the compiler to optimize a lot of the lookup.
   return *Intrinsics::find_or_default(name, &Invalid::get_invalid());
+}
+
+auto Library::Dialect::create_default(
+    Allocator::Arena& domain,
+    const Ttx::Model::Type& type) -> Option<Language::Constant&> {
+  // Defaults are attached to the exact Library identity selected by the
+  // caller. Category proof alone would let an unrelated language inherit a
+  // value policy that belongs only to this Dialect.
+  if (&type == &get_bool()) {
+    return Language::Constants::False::create_synthetic(domain, get_bool());
+  }
+
+  if (&type == &get_unsigned_8() || &type == &get_unsigned_16() ||
+      &type == &get_unsigned_32() || &type == &get_unsigned_64()) {
+    return Language::Constants::Unsigned::create_synthetic(
+        domain, static_cast<const Ttx::Model::Types::Unsigned&>(type), 0);
+  }
+
+  if (&type == &get_signed_8() || &type == &get_signed_16() ||
+      &type == &get_signed_32() || &type == &get_signed_64()) {
+    return Language::Constants::Signed::create_synthetic(
+        domain, static_cast<const Ttx::Model::Types::Signed&>(type), 0);
+  }
+
+  if (&type == &get_real_32() || &type == &get_real_64()) {
+    return Language::Constants::Real::create_synthetic(
+        domain, static_cast<const Ttx::Model::Types::Real&>(type), 0.0);
+  }
+
+  auto view = type.select<Language::Types::View>();
+  if (view) {
+    return Language::Constants::Bytes::create_synthetic(domain, type, {});
+  }
+
+  return {};
 }
 
 auto Library::Dialect::get_bool() -> const Ttx::Model::Types::Flag& {

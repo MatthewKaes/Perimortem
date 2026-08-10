@@ -6,6 +6,7 @@
 #include "tetrodotoxin/library/language/access/address.hpp"
 #include "tetrodotoxin/library/language/access/value.hpp"
 #include "tetrodotoxin/library/language/identifier.hpp"
+#include "tetrodotoxin/library/language/operations/add.hpp"
 #include "tetrodotoxin/library/language/operations/and.hpp"
 #include "tetrodotoxin/library/language/operations/divide.hpp"
 #include "tetrodotoxin/library/language/operations/equal.hpp"
@@ -64,6 +65,8 @@ static auto find_binary(Code::Type code) -> Option<BinaryRule> {
     return BinaryRule{30, &Library::Language::Operations::Modulo::parse};
   case Code::Type::MulOp:
     return BinaryRule{30, &Library::Language::Operations::Multiply::parse};
+  case Code::Type::AddOp:
+    return BinaryRule{20, &Library::Language::Operations::Add::parse};
   case Code::Type::SubOp:
     return BinaryRule{20, &Library::Language::Operations::Subtract::parse};
   case Code::Type::LessOp:

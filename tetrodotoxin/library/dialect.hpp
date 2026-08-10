@@ -6,6 +6,7 @@
 #include "perimortem/core/option.hpp"
 
 #include "tetrodotoxin/language/dialect.hpp"
+#include "tetrodotoxin/library/language/constant.hpp"
 #include "tetrodotoxin/library/language/materializations.hpp"
 #include "ttx/model/type.hpp"
 #include "ttx/model/types/flag.hpp"
@@ -31,6 +32,11 @@ class Dialect : public Tetrodotoxin::Language::Dialect {
 
   auto resolve_intrinsic(Perimortem::Core::View::Bytes name) const
       -> const Ttx::Concept::Abstract&;
+
+  static auto create_default(
+      Perimortem::Memory::Allocator::Arena& domain,
+      const Ttx::Model::Type& type)
+      -> Perimortem::Core::Option<Language::Constant&>;
 
   // Library scalar identities are binary wide rather than installed Dialect
   // state. Typed access keeps semantic checks out of the authored name path.

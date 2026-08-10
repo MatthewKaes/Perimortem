@@ -13,6 +13,7 @@
 #include "tetrodotoxin/library/language/expression.hpp"
 #include "tetrodotoxin/library/language/identifier.hpp"
 #include "tetrodotoxin/library/language/materializations.hpp"
+#include "tetrodotoxin/library/language/operations/add.hpp"
 #include "tetrodotoxin/library/language/operations/and.hpp"
 #include "tetrodotoxin/library/language/operations/divide.hpp"
 #include "tetrodotoxin/library/language/operations/equal.hpp"
@@ -296,6 +297,7 @@ PERIMORTEM_UNIT_TEST(ExpressionParserTests, authored_operation_anchors) {
 
   auto divide =
       parse_one(domain, materializations, context, "8 / 2"_view, errors);
+  auto add = parse_one(domain, materializations, context, "1 + 2"_view, errors);
   auto logical_and =
       parse_one(domain, materializations, context, "true & false"_view, errors);
   auto logical_or =
@@ -325,11 +327,12 @@ PERIMORTEM_UNIT_TEST(ExpressionParserTests, authored_operation_anchors) {
       parse_one(domain, materializations, context, "2 - 1"_view, errors);
 
   ASSERT(
-      divide && logical_and && logical_or && equal && greater &&
+      divide && add && logical_and && logical_or && equal && greater &&
       greater_equal && less && less_equal);
   ASSERT(modulo && multiply && negate && logical && not_equal && value);
   ASSERT(subtract);
   EXPECT(matches_anchor(*divide, "8 / 2"_view, "/"_view, "8 / 2"_view));
+  EXPECT(matches_anchor(*add, "1 + 2"_view, "+"_view, "1 + 2"_view));
   EXPECT(matches_anchor(
       *logical_and, "true & false"_view, "&"_view, "true & false"_view));
   EXPECT(matches_anchor(
@@ -420,6 +423,55 @@ PERIMORTEM_UNIT_TEST(ExpressionParserTests, subtract_associativity) {
   EXPECT((has_left_shape<
           Library::Language::Operations::Subtract,
           Library::Language::Operations::Subtract>(*subtract_chain)));
+  EXPECT(errors.is_empty());
+}
+
+PERIMORTEM_UNIT_TEST(ExpressionParserTests, add_associativity) {
+  Allocator::Arena domain;
+  Library::Language::Materializations materializations(domain);
+  ExpressionParserObservations observations;
+  ExpressionParserContext context(domain, observations);
+  Errors errors;
+  auto add_chain =
+      parse_one(domain, materializations, context, "1 + 2 + 3"_view, errors);
+  ASSERT(add_chain);
+  EXPECT((has_left_shape<
+          Library::Language::Operations::Add,
+          Library::Language::Operations::Add>(*add_chain)));
+  EXPECT(errors.is_empty());
+}
+
+PERIMORTEM_UNIT_TEST(ExpressionParserTests, additive_shared_precedence) {
+  Allocator::Arena domain;
+  Library::Language::Materializations materializations(domain);
+  ExpressionParserObservations observations;
+  ExpressionParserContext context(domain, observations);
+  Errors errors;
+  auto subtract_add =
+      parse_one(domain, materializations, context, "10 - 2 + 3"_view, errors);
+  auto add_subtract =
+      parse_one(domain, materializations, context, "10 + 2 - 3"_view, errors);
+  ASSERT(subtract_add && add_subtract);
+  EXPECT((has_left_shape<
+          Library::Language::Operations::Add,
+          Library::Language::Operations::Subtract>(*subtract_add)));
+  EXPECT((has_left_shape<
+          Library::Language::Operations::Subtract,
+          Library::Language::Operations::Add>(*add_subtract)));
+  EXPECT(errors.is_empty());
+}
+
+PERIMORTEM_UNIT_TEST(ExpressionParserTests, multiply_before_add) {
+  Allocator::Arena domain;
+  Library::Language::Materializations materializations(domain);
+  ExpressionParserObservations observations;
+  ExpressionParserContext context(domain, observations);
+  Errors errors;
+  auto parsed =
+      parse_one(domain, materializations, context, "1 + 2 * 3"_view, errors);
+  ASSERT(parsed && parsed->is<Library::Language::Operations::Add>());
+  auto right = get_input(*parsed, 1);
+  EXPECT(right && right->is<Library::Language::Operations::Multiply>());
   EXPECT(errors.is_empty());
 }
 
@@ -679,6 +731,7 @@ PERIMORTEM_UNIT_TEST(ExpressionParserTests, malformed_grammar_is_atomic) {
   ExpressionParserContext context(domain, observations);
 
   EXPECT(rejects_grammar(domain, materializations, context, "2 *"_view));
+  EXPECT(rejects_grammar(domain, materializations, context, "2 +"_view));
   EXPECT(rejects_grammar(domain, materializations, context, "true &"_view));
   EXPECT(rejects_grammar(domain, materializations, context, "false |"_view));
   EXPECT(rejects_grammar(domain, materializations, context, "!"_view));
