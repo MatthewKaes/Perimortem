@@ -1,9 +1,8 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 //
-// Records exact external Package requests and member Source routes.
-// Environment construction later resolves those requests and supplies shared
-// bindings to every member Source.
+// Records exact external Package requests and member Source routes. The Package
+// transaction resolves those requests before publishing any member Source.
 dialect : Package;
 
 resolve Math : Perimortem.Math = "1.0";

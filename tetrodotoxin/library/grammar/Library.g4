@@ -1,9 +1,9 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 //
-// Library dialect grammar prototype. Source adds extension declarations around
-// the same recursive declaration grammar used by every authored Structure.
-// Alias declarations are Type declarations and never Field declarations.
+// Canonical Library source shape. Source adds import and Foreign declarations
+// around the same recursive declaration grammar used by every authored
+// Structure. Alias declarations are Types and never Fields.
 
 parser grammar Library;
 
@@ -19,7 +19,7 @@ librarySource
     ;
 
 documentedSourceDeclaration
-    : documentation? DISABLED? attribute* librarySourceDeclaration
+    : documentation? attribute* librarySourceDeclaration
     ;
 
 librarySourceDeclaration
@@ -33,7 +33,7 @@ usingDeclaration
     ;
 
 documentedLibraryDeclaration
-    : documentation? DISABLED? attribute* libraryDeclaration
+    : documentation? attribute* libraryDeclaration
     ;
 
 libraryDeclaration
@@ -80,7 +80,18 @@ structureBody
 
 fieldDefinition
     : addressableName DEFINE
-      (typeReference (ASSIGN expression)? | ASSIGN expression) END_STATEMENT
+      (typeReference (ASSIGN declarationInitializer)?
+      | ASSIGN declarationInitializer)
+      END_STATEMENT
+    ;
+
+declarationInitializer
+    : expression
+    | objectConstruction
+    ;
+
+objectConstruction
+    : NEW argumentPack?
     ;
 
 functionDeclaration
@@ -106,7 +117,8 @@ statement
     ;
 
 conditionalStatement
-    : IF argumentPack block (ELSE (conditionalStatement | block))?
+    : IF PACKING_START expression PACKING_END block
+      (ELSE (conditionalStatement | block))?
     ;
 
 forStatement
@@ -114,7 +126,7 @@ forStatement
     ;
 
 whileStatement
-    : WHILE argumentPack block
+    : WHILE PACKING_START expression PACKING_END block
     ;
 
 matchStatement
@@ -139,7 +151,9 @@ breakStatement
 
 localDeclaration
     : fieldWritability addressableName DEFINE
-      (typeReference (ASSIGN expression)? | ASSIGN expression) END_STATEMENT
+      (typeReference (ASSIGN declarationInitializer)?
+      | ASSIGN declarationInitializer)
+      END_STATEMENT
     ;
 
 assignmentStatement
@@ -157,9 +171,8 @@ assignmentTarget
     ;
 
 assignmentSuffix
-    : ADDRESS (addressableName | typeName)
+    : ADDRESS addressableName
     | BRACKET_START expression BRACKET_END
-    | SWIZZLE swizzleSelection? BRACKET_END
     ;
 
 expressionStatement
@@ -205,34 +218,31 @@ unaryExpression
     ;
 
 postfixExpression
-    : primaryExpression postfixSuffix*
+    : staticInvocation postfixSuffix*
+    | primaryExpression postfixSuffix*
+    ;
+
+staticInvocation
+    : typeReference CALL addressableName argumentPack
     ;
 
 postfixSuffix
-    : ADDRESS (addressableName | typeName)
-    | CALL (addressableName | typeName) argumentPack
+    : ADDRESS addressableName
+    | CALL addressableName argumentPack
     | BRACKET_START expression BRACKET_END
     | SWIZZLE swizzleSelection? BRACKET_END
     | VALUE_ACCESS expression (PACK expression)? BRACKET_END
     ;
 
 swizzleSelection
-    : expression (PACK expression)* PACK?
+    : addressableName (PACK addressableName)* PACK?
     ;
 
 primaryExpression
     : literal
     | addressableName
     | SELF
-    | DISCARD
-    | constructionExpression
-    | typeReference
     | argumentPack
-    | dataExpression
-    ;
-
-constructionExpression
-    : typeReference argumentPack
     ;
 
 argumentPack
@@ -244,11 +254,7 @@ namedArguments
     ;
 
 namedArgument
-    : ADDRESS addressableName ASSIGN expression
-    ;
-
-dataExpression
-    : SCOPE_START expressionList? PACK? SCOPE_END
+    : ADDRESS (addressableName | NUMERIC | HEX) ASSIGN expression
     ;
 
 expressionList

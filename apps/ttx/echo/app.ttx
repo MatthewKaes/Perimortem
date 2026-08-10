@@ -6,22 +6,18 @@ dialect : App;
 // The profile chooses linked support libraries, generated platform entry code,
 // and package configuration. It is not a resolved Runtime Package.
 //
-// Options include:
-//   1. `Windowed`: Native window startup with System::Window and Vulkan support.
+// Profiles:
+//   1. `Windowed`: Native window startup with System::Window and Vulkan
+//      support.
 //   2. `Terminal`: Native terminal startup with standard input and output.
 //   3. `Headless`: Background startup without a presentation surface.
 runtime = Terminal {}
 
-// Program lifecycle just wraps a callable static entry point.
-// The declaration may have any authored name but it must take no arguments and have
-// a return type of `Void`.
-//
-// The selected lifecycle determines how the generated platform entry controls
-// execution around that Callable. Unlike other languages command line arguments are
-// not passed but instead can be fetched from anywhere.
-//
-// This program defines no arguments so they aren't provided. Later TTX might introduce
-// a schmea as part of the Program lifecycle for defining command line args.
+// Program lifecycle retains one exact Static entry Callable. It may have any
+// authored name, but it takes no arguments and returns `Void`. Generated
+// platform entry code invokes that Callable once.
+// Command line arguments remain queryable System state rather than becoming
+// implicit parameters of the selected Callable.
 lifecycle = Program {
   start Main -> run,
 }

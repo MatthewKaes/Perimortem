@@ -1,14 +1,9 @@
+//
 dialect : Library;
 
 // Packet is the broad fixture's inline value owner.
 //
 // The empty documentation line above must survive as a paragraph break.
-@serializable
-@revision(1)
-@priority(-1)
-@ratio(1.5)
-@enabled(true)
-@label("packet")
 public Packet : struct {
   public width : Unsigned_64 = 0;
   public height : Unsigned_64 = 0;
@@ -61,8 +56,8 @@ public default_packet : PacketAlias = (
 public dense_defaults : Fixed[Unsigned_64, 4] = (1, 2, 3, 4);
 
 public func broad_entry[
-  @input @slot(0) .limit : Unsigned_64,
-  @input @slot(1) .ready : Bool,
+  .limit : Unsigned_64,
+  .ready : Bool,
 ] -> Unsigned_64 {
   state local : Unsigned_64 = 0;
   state packet : Packet = default_packet;

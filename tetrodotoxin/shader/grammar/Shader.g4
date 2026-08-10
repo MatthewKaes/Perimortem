@@ -1,9 +1,8 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 //
-// Shader dialect grammar prototype. Its expression and body rules are spelled
-// here deliberately: similar surface syntax does not route GPU facts through
-// Library's CPU Expression model.
+// Canonical Shader source shape. Its expressions and bodies are spelled out
+// because similar syntax does not route GPU facts through Library's CPU model.
 
 parser grammar Shader;
 
@@ -19,7 +18,7 @@ shaderSource
     ;
 
 documentedShaderDefinition
-    : documentation? DISABLED? attribute* shaderDefinition
+    : documentation? attribute* shaderDefinition
     ;
 
 shaderDefinition
@@ -28,7 +27,7 @@ shaderDefinition
     ;
 
 documentedShaderDeclaration
-    : documentation? DISABLED? attribute* shaderDeclaration
+    : documentation? attribute* shaderDeclaration
     ;
 
 shaderDeclaration
@@ -39,7 +38,35 @@ shaderDeclaration
     ;
 
 shaderStageDeclaration
-    : FUNC typeName functionSignature shaderBlock
+    : FUNC typeName shaderStageSignature shaderBlock
+    ;
+
+shaderStageSignature
+    : shaderParameterLayout CALL shaderResultLayout
+    ;
+
+shaderParameterLayout
+    : typeReference
+    | BRACKET_START shaderParameterEntries? PACK? BRACKET_END
+    ;
+
+shaderParameterEntries
+    : shaderNamedLayoutSlot (PACK shaderNamedLayoutSlot)*
+    | typeReference (PACK typeReference)*
+    ;
+
+shaderResultLayout
+    : typeReference
+    | BRACKET_START shaderResultEntries? PACK? BRACKET_END
+    ;
+
+shaderResultEntries
+    : shaderNamedLayoutSlot (PACK shaderNamedLayoutSlot)*
+    | typeReference (PACK typeReference)*
+    ;
+
+shaderNamedLayoutSlot
+    : attribute* ADDRESS addressableName DEFINE typeReference
     ;
 
 shaderValueDeclaration
@@ -70,7 +97,7 @@ shaderStatement
     ;
 
 shaderConditional
-    : IF shaderArgumentPack shaderBlock
+    : IF PACKING_START shaderExpression PACKING_END shaderBlock
       (ELSE (shaderConditional | shaderBlock))?
     ;
 
@@ -93,17 +120,11 @@ shaderAssignmentTarget
     ;
 
 shaderAssignmentSuffix
-    : ADDRESS (addressableName | typeName)
-    | BRACKET_START shaderExpression BRACKET_END
-    | SWIZZLE shaderExpressionList? PACK? BRACKET_END
+    : ADDRESS addressableName
     ;
 
 shaderExpression
-    : shaderRangeExpression
-    ;
-
-shaderRangeExpression
-    : shaderOrExpression (RANGE shaderOrExpression)?
+    : shaderOrExpression
     ;
 
 shaderOrExpression
@@ -140,25 +161,34 @@ shaderUnaryExpression
     ;
 
 shaderPostfixExpression
-    : shaderPrimaryExpression shaderPostfixSuffix*
+    : shaderStaticInvocation shaderPostfixSuffix*
+    | shaderPrimaryExpression shaderPostfixSuffix*
+    ;
+
+shaderStaticInvocation
+    : typeReference CALL addressableName shaderArgumentPack
     ;
 
 shaderPostfixSuffix
-    : ADDRESS (addressableName | typeName)
-    | CALL (addressableName | typeName) shaderArgumentPack
-    | BRACKET_START shaderExpression BRACKET_END
-    | SWIZZLE shaderExpressionList? PACK? BRACKET_END
-    | VALUE_ACCESS shaderExpression (PACK shaderExpression)? BRACKET_END
+    : ADDRESS addressableName
+    | CALL addressableName shaderArgumentPack
+    | SWIZZLE shaderSwizzleSelection? BRACKET_END
+    ;
+
+shaderSwizzleSelection
+    : addressableName (PACK addressableName)* PACK?
     ;
 
 shaderPrimaryExpression
     : literal
     | addressableName
     | SELF
-    | DISCARD
-    | typeReference shaderArgumentPack
-    | typeReference
+    | shaderConstructionExpression
     | shaderArgumentPack
+    ;
+
+shaderConstructionExpression
+    : typeReference shaderArgumentPack
     ;
 
 shaderArgumentPack

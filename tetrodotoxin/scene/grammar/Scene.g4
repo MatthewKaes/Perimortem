@@ -1,8 +1,8 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 //
-// Scene dialect grammar prototype. Scene reuses Library declaration shapes but
-// owns child identity, signals, lifecycle roles, and the meaning of every body.
+// Canonical Scene source shape. Scene reuses Library declaration shapes but
+// owns signals, lifecycle roles, hosted graphics state, and every body.
 
 parser grammar Scene;
 
@@ -20,22 +20,17 @@ sceneSource
 sceneSourceDeclaration
     : documentedLibraryDeclaration
     | documentedSceneExtension
-    | documentation? DISABLED? attribute* usingDeclaration
-    | documentation? DISABLED? attribute* foreignBlock
+    | documentation? usingDeclaration
+    | documentation? foreignBlock
     ;
 
 documentedSceneExtension
-    : documentation? DISABLED? attribute* sceneExtension
+    : documentation? sceneExtension
     ;
 
 sceneExtension
-    : childDeclaration
-    | signalDeclaration
+    : signalDeclaration
     | lifecycleRoleDeclaration
-    ;
-
-childDeclaration
-    : CHILD addressableName DEFINE typeReference END_STATEMENT
     ;
 
 signalDeclaration

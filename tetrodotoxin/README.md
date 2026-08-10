@@ -127,7 +127,7 @@ fragment as building blocks for richer domain specific solutions:
 * [Library](library/README.md) defines reusable CPU Types, values, functions,
   expressions, Structs, Objects, and Enumerations.
 * [App](app/README.md) describes startup and application lifecycle.
-* [Scene](scene/README.md) describes scene state, signals, children, and
+* [Scene](scene/README.md) describes scene state, signals, hosted graphics, and
   lifecycle roles.
 * [Render](render/README.md) declares contracts for values and stages consumed
   by rendering.
@@ -138,6 +138,15 @@ fragment as building blocks for richer domain specific solutions:
 Each top level Dialect owns its source grammar and constructs concrete
 Monographs directly. Foreign is an embedded language fragment rather than an
 installed top level Dialect.
+
+[Graphics](graphics/README.md) is a language neutral runtime composition
+boundary rather than a Dialect. It collects exact hosted Scene state into
+stable frame submissions while Render, Shader, and the selected backend retain
+their own semantics.
+
+The [standard packages](../packages/ttx/README.md) provide ordinary Package and
+Library definitions for Math, System, and Graphics. They are linked by authored
+Package dependencies and do not become compiler builtins.
 
 The repository publishes canonical grammar references for authored language
 shape and parse order. The complete source entries are
@@ -257,5 +266,7 @@ payload needed to construct new Monographs.
 | Embed source interpretation and graph lifetime   | [Environment](environment/README.md)                                            |
 | Package or restore semantic programs             | [Package](package/README.md)                                                    |
 | Define reusable CPU code                         | [Library](library/README.md)                                                    |
+| Use the standard Math, System, and Graphics APIs  | [Standard packages](../packages/ttx/README.md)                                  |
 | Work with GPU stages                             | [Render](render/README.md) and [Shader](shader/README.md)                       |
+| Produce native objects and executables            | [Linker](linker/README.md)                                                      |
 | Use the command line or editor application shell | [Puffer](../puffer/README.md)                                                   |

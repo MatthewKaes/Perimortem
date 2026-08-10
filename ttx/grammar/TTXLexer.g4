@@ -1,12 +1,9 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 //
-// Shared lexical prototype for the Tetrodotoxin dialect grammars.
-//
-// The original omni grammar lived at tetrodotoxin/syntax/ttx.g4 through
-// eb53a0a. The runtime lexer remains handwritten. This file separates exact
-// grammar spellings for ANTLR readability and does not require the runtime Code
-// enum to promote every contextual word into a global keyword.
+// Canonical token reference for the Tetrodotoxin G4 language descriptions.
+// Concrete parsers are not generated from this file, so contextual words do
+// not have to become distinct runtime Token codes.
 
 lexer grammar TTXLexer;
 
@@ -38,6 +35,7 @@ SELF     : 'self';
 TRUE     : 'true';
 FALSE    : 'false';
 RETURN   : 'return';
+NEW      : 'new';
 RESOLVE  : 'resolve';
 SOURCE   : 'source';
 DIALECT  : 'dialect';
@@ -64,7 +62,6 @@ REPLACE   : 'replace';
 PUSH      : 'push';
 POP       : 'pop';
 EXIT      : 'exit';
-CHILD     : 'child';
 SIGNAL    : 'signal';
 PREPARE   : 'prepare';
 PAUSE     : 'pause';
@@ -76,7 +73,6 @@ RESOURCE  : 'resource';
 SHADER    : 'shader';
 
 COMMENT   : '//' ~[\r\n]*;
-DISABLED  : '/>';
 ATTRIBUTE : '@' [a-zA-Z_] [a-zA-Z0-9_]*;
 
 SWIZZLE     : '.[';

@@ -44,6 +44,7 @@ A tool installs the concrete Dialects accepted by one invocation. The exact
 installed name is the name authored after `dialect`:
 
 ```ttx
+//
 dialect : Library;
 ```
 
@@ -121,7 +122,7 @@ Workspace is an ordinary TTX Abstract context. Looking up an exact imported root
 name returns its retained Monograph. A missing name returns TTX `Invalid`.
 
 Deeper `::` access is interpreted by the returned Abstract contexts. Environment
-does not require every Monograph to expose a Type or one common child model.
+does not require every Monograph to expose a Type or one common member model.
 
 ## Diagnostics
 

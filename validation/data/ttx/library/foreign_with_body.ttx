@@ -1,6 +1,7 @@
+//
 dialect : Library;
 
-// Foreign declerations are just FFIs and should not contain a definition.
+// Foreign declarations are ABI contracts and cannot contain a definition.
 foreign "C" {
   public func illegal_definition[] -> Void {
     return;

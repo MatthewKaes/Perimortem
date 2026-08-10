@@ -1,9 +1,9 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 //
-// Parser fragments shared by concrete Tetrodotoxin dialect prototypes.
-// Semantic terminal categories remain the responsibility of the consuming
-// dialect even when two dialects reuse the same source shape.
+// Parser fragments shared by concrete Tetrodotoxin dialects. Semantic result
+// categories remain the responsibility of the consuming dialect even when two
+// dialects reuse the same authored shape.
 
 parser grammar Tetrodotoxin;
 
@@ -16,17 +16,17 @@ documentation
     ;
 
 attribute
-    : ATTRIBUTE attributeArguments?
+    : ATTRIBUTE (PACKING_START attributeValue PACKING_END)?
     ;
 
-attributeArguments
-    : PACKING_START attributeArgument (PACK attributeArgument)* PACK? PACKING_END
-    ;
-
-attributeArgument
-    : literal
-    | typeReference
-    | addressableName
+attributeValue
+    : NUMERIC
+    | HEX
+    | FLOAT
+    | STRING
+    | TRUE
+    | FALSE
+    | SUBTRACT (NUMERIC | HEX | FLOAT)
     ;
 
 visibility
@@ -93,7 +93,6 @@ addressableName
     | PUSH
     | POP
     | EXIT
-    | CHILD
     | SIGNAL
     | PREPARE
     | PAUSE

@@ -61,8 +61,10 @@ Leading `.value`, `.accepted`, and `.adjusted` spellings name Layout entries;
 they are not postfix Address access. Positional flow remains positional, and
 `packet.[width, height]` selects named Addressables for repacking.
 
-`access[index]` is the optional reference form for `Access[T]`.
-`value:[index]` and `value:[start, count]` are safe value forms; they supply a
+`access[index]` is the optional reference request for `Access[T]`. It does not
+create a Library Option Type. Indexed assignment writes through an engaged
+reference and leaves the receiver unchanged when it is absent.
+`value:[index]` and `value:[start, count]` are safe value forms. They supply a
 default element or empty ranged value when the requested start is unavailable.
 
 ## Library declarations
@@ -105,8 +107,8 @@ The corresponding C observation is:
 ```
 
 After both calls, the imported state is 40. `library_native` is the exported TTX
-entry; `PrivateOps`, local state, and helper calls remain source-local, while the
-three Foreign names are supplied by the C file.
+entry. `PrivateOps`, local state, and helper calls remain source-local, while
+the three Foreign names are supplied by the C file.
 
 The standalone Bazel target for `native_harness.c` proves only that the C side
 of this contract compiles. Native output evidence links an emitted TTX Terminal
@@ -133,6 +135,7 @@ Each remaining TTX file isolates one source condition:
 These files preserve the authored distinction being tested without serving as a
 general error taxonomy.
 
-See the [Library language reference](../../../../tetrodotoxin/library/README.md),
+See the
+[Library language reference](../../../../tetrodotoxin/library/README.md),
 [Foreign reference](../../../../tetrodotoxin/foreign/README.md), and
 [TTX semantics](../../../../ttx/ttx_semantics.md).

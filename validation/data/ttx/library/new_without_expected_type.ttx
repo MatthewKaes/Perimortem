@@ -1,3 +1,4 @@
+//
 dialect : Library;
 
-state inferred := new;
+private state inferred := new;

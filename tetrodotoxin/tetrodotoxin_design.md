@@ -269,14 +269,25 @@ identity and Layout. Its [language guide](library/README.md) explains those
 semantics.
 
 App owns startup profiles and application lifecycle. Scene owns live Scene
-state, signals, children, render submission facts, and lifecycle roles. App
-owns transitions between Scene identities rather than asking Library to turn
-those concepts into ordinary source declarations.
+state, signals, hosted graphics relationships, render submission facts, and
+lifecycle roles. App owns transitions between Scene identities instead of
+asking Library to turn those concepts into ordinary source declarations.
 
 Render declares the semantic interfaces used by rendering. Shader implements a
 Render contract, owns GPU Stage bodies, and lowers completed facts into a GPU
 Terminal product. Foreign embeds an external ABI declaration surface inside a
 parent Dialect that already supports CPU execution.
+
+Graphics is not another Dialect. It defines the language neutral hosting and
+frame submission boundary between completed Scene state and a rendering
+backend. Scene keeps exact Field and Object identity, Render and Shader keep
+their semantic contracts, and target resources remain with the backend
+consumer.
+
+The standard Math, System, and Graphics surfaces are ordinary Packages. They
+use the same dependency, Library, Foreign, persistence, and native publication
+contracts as application Packages. The compiler gives them no private lookup
+path or implicit namespace.
 
 These languages share only the TTX facts needed at their boundaries. Their
 differences remain visible to the consumers that understand them.
@@ -287,11 +298,13 @@ A Terminal product is the point where a consumer leaves the live TTX graph.
 Tetrodotoxin has several typed Terminal products because their formats,
 validation rules, and next consumers differ.
 
-A Linker object module is a native Terminal product owned by Linker. LLVM IR
-is a target Terminal product limited to the compilation request that emits it.
-SPIR-V words are a Shader Terminal product. Each product preserves the target
-facts its next consumer needs, which makes it useful precisely because it can
-leave unrelated language meaning behind.
+A Linker object module is a native Terminal product owned by Linker. The
+[Linker guide](linker/README.md) describes object input, archive resolution,
+dynamic dependencies, and executable production. LLVM IR is a target Terminal
+product limited to the compilation request that emits it. SPIR-V words are a
+Shader Terminal product. Each product preserves the target facts its next
+consumer needs, which makes it useful precisely because it can leave unrelated
+language meaning behind.
 
 The Package Archive is the canonical semantic Terminal product for
 Tetrodotoxin use without source. Package defines the envelope, Package identity,
@@ -376,6 +389,8 @@ for a different job.
 * [Environment and Workspace](environment/README.md)
 * [Package language](package/README.md)
 * [Library language](library/README.md)
+* [Standard packages](../packages/ttx/README.md)
+* [Linker](linker/README.md)
 * [App](app/README.md), [Scene](scene/README.md),
   [Render](render/README.md), [Shader](shader/README.md), and
   [Foreign](foreign/README.md)

@@ -1,3 +1,4 @@
+//
 dialect : Library;
 
 public func invalid_empty_return[] -> [] {

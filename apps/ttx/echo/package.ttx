@@ -1,17 +1,11 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 //
-// Records exact external Package requests and member Source routes.
-// Environment construction later resolves those requests and supplies shared
-// bindings to every member Source.
+// Records exact external Package requests and member Source routes. The Package
+// transaction resolves those requests before publishing any member Source.
 dialect : Package;
 
-// Core and Memory are always included for Tetrodotoxin and are upgraded to the
-// global namespaces.
-resolve Core : Perimortem.Core = "1.0";
-resolve Memory : Perimortem.Memory = "1.0";
 resolve System : Perimortem.System = "1.0";
 
 source Main from "main.ttx";
-// E10 restores this App membership for final binary acceptance.
-// source App from "app.ttx";
+source App from "app.ttx";

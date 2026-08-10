@@ -14,6 +14,7 @@ linking language.
 Canonical grammar reference: [App.g4](grammar/App.g4).
 
 ```ttx
+// Application policy.
 dialect : App;
 ```
 
@@ -66,8 +67,8 @@ Generated platform entry code invokes it once. The Function may have any
 authored name, and the source file may have any Package member name. App does
 not search for a conventional `main` Function.
 
-Command line arguments and process state are queried through linked system
-interfaces rather than injected into the entry Signature.
+Command line arguments are queried through the linked System package rather
+than injected into the entry Signature.
 
 ## Scene lifecycle
 
@@ -90,8 +91,28 @@ App owns the live Scene stack and four transition operations:
 * `exit` releases the complete stack from top to bottom without resuming it.
 
 A transition is applied after the active Scene has finished its update and its
-submission facts for that frame are stable. Scene owns state, signals, children,
-and lifecycle roles. App owns movement between Scene identities.
+submission facts for that frame are stable. Scene owns state, signals, hosted
+graphics relationships, and lifecycle roles. App owns movement between Scene
+identities.
+
+## Windowed execution
+
+The Windowed Scene driver realizes App policy without becoming another semantic
+owner. It opens the declared System window, creates the initial Scene instance,
+and calls `prepare` before the first frame.
+
+Each frame follows one observable order:
+
+1. System completes one immutable input snapshot and a monotonic delta time.
+2. App calls `update` on the active Scene exactly once.
+3. Scene and Graphics make that frame's submission stable.
+4. The selected backend presents the stable submission.
+5. App applies the returned Scene transition.
+
+A resize changes the System surface and the target presentation extent. It does
+not replace the active Scene or rewrite its semantic identities. Shutdown
+releases the Scene stack according to App policy before destroying the backend
+and window resources that realized it.
 
 ## Package selection
 
@@ -103,5 +124,15 @@ Embedded startup resources resolve beneath the App source's Package root. The
 Package retains their bytes and App interprets their role in the startup
 profile.
 
-See [Scene](../scene/README.md) for Scene roles and
-[Library](../library/README.md) for Callable and named Layout semantics.
+## Persistence
+
+App is a persistent Dialect. Its payload records the startup profile, exact
+resource relationships, selected Static entry Callable, initial Scene, and
+signal transition edges needed to reconstruct the policy in a fresh Workspace.
+It does not record a live Scene stack, process state, window, or generated entry
+code.
+
+See [Scene](../scene/README.md) for Scene roles,
+[Library](../library/README.md) for Callable and named Layout semantics, and the
+[standard packages](../../packages/ttx/README.md) for the source visible System
+terminal, argument, and input surfaces.

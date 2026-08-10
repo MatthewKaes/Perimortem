@@ -1,7 +1,7 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 //
-// Package dialect grammar prototype. Package owns manifest coordinates and
+// Canonical Package source shape. Package owns manifest coordinates and
 // confined source paths while semantic routes keep the shared Type shape.
 
 parser grammar Package;

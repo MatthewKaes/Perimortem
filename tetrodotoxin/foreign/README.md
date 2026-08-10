@@ -56,9 +56,9 @@ Publication inside the block controls which declarations are visible through
 the `foreign` context in that source. It does not automatically republish an
 external symbol through the containing Monograph or Package.
 
-The parent language supplies Documentation, Attributes, Type identity,
-writability, and invocation semantics. Foreign retains the ABI selector and
-external symbol facts without copying those parent contracts.
+The parent language supplies Documentation, Type identity, writability, and
+invocation semantics. Foreign retains the ABI selector and external symbol
+facts without copying those parent contracts.
 
 ## Linking boundary
 

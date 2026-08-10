@@ -1,8 +1,8 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 //
-// App dialect grammar prototype. App owns startup and lifecycle policy while
-// selected Types, Callables, Scenes, and Resources remain their real identities.
+// Canonical App source shape. App owns startup and lifecycle policy while
+// selected Types, Callables, Scenes, and Resources keep their real identities.
 
 parser grammar App;
 
@@ -18,7 +18,7 @@ appSource
     ;
 
 documentedAppDeclaration
-    : documentation? attribute* appDeclaration
+    : documentation? appDeclaration
     ;
 
 appDeclaration

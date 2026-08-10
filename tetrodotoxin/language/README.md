@@ -34,12 +34,19 @@ grammar reference for authored language shape and parse order. These references
 describe valid input. The toolchain does not generate or run its parsers from
 them. A custom Dialect owns its grammar but does not have to express it in G4.
 
+The shared grammar also defines the shape of a TTX Attribute as one key with at
+most one scalar value. That syntax does not create a universal annotation
+vocabulary. A concrete Dialect admits Attributes only where it defines their
+meaning, accepted values, and consumers. An unknown Attribute is not an opaque
+escape hatch that a later backend may reinterpret.
+
 ## Dialect
 
 A Dialect interprets one kind of source body. Environment installs each concrete
 Dialect under the exact name accepted by the source envelope:
 
 ```ttx
+// Reusable source.
 dialect : Library;
 ```
 

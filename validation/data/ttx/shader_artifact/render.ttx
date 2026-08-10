@@ -1,11 +1,12 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
-dialect : Gpu;
+dialect : Render;
 
-public Simple : ShaderFormat {
-  stage Fragment {
-    input [.color : Vec4D @location(0)];
-    output [.color : Vec4D @location(0)];
-  }
+public Simple : struct {
+  public stage Fragment[
+    @location(0) .color : Math::Vec4D,
+  ] -> [
+    @location(0) .color : Math::Vec4D,
+  ];
 }

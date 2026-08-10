@@ -42,7 +42,7 @@ algorithms on those foundations without becoming general object models.
 
 `System` owns operating-system concerns such as files, arguments, random and
 identity services, input, windows, platform events, and application lifecycle.
-The current window implementation uses Wayland. A Windows implementation
+The window implementation uses Wayland. Another platform implementation
 belongs behind the same System responsibility rather than inside Graphics or
 Vulkan.
 
@@ -70,7 +70,7 @@ actually uses.
 
 ## Building and validation
 
-Perimortem currently targets x86-64 Linux with Clang and Bazel. The windowed
+The supported build target is x86-64 Linux with Clang and Bazel. The windowed
 runtime requires Wayland, and the Vulkan backend requires a Vulkan loader and
 driver.
 
@@ -123,11 +123,12 @@ Package the extension without installing it by omitting `--install`. Editors
 that support LSP over a Unix-domain socket can run `puffer --pipe=<socket>`
 directly.
 
-## Project status
+## Support boundary
 
 Perimortem is an active research and development project rather than a
-production-supported runtime. Linux and Wayland are the current platform
-focus. Windows support and additional rendering backends are future work.
+production-supported runtime. Its supported environment is x86-64 Linux with
+Wayland and Vulkan. Other operating systems and rendering backends remain
+outside that support boundary.
 
 If you are interested in low-level performance engineering, Agner Fog's
 [optimization manuals](https://www.agner.org/optimize/) are an excellent

@@ -130,6 +130,13 @@ default address:
 access[index]                 // optional element reference
 ```
 
+This form does not introduce a Library `Option` Type. It is an address producing
+request whose evaluation either finds one element reference or reports absence
+to the statement that consumes it. Assignment writes through an engaged
+reference and leaves the receiver unchanged when the reference is absent. An
+indexed reference cannot be used as an ordinary value. Use `:[...]` when a
+value is required.
+
 Colon bracket value access selects values. A missing element yields its Type
 default. A ranged selection with a start outside the receiver yields the
 default empty View, while a count beyond the remaining values stops at the
@@ -164,12 +171,41 @@ Generic Types describe contiguous element flow:
 Fixed[Unsigned_8, 64]
 View[Unsigned_8]
 Access[Unsigned_8]
+Range[Unsigned_64]
 ```
 
 `Fixed` has a compile time element count. `View` is a borrowed contiguous view.
 `Access` additionally carries the language's writable contiguous capability.
-Materializing the same Generic with the same semantic arguments returns the
-same Type identity.
+`Range` describes a lazy ascending integer sequence. Materializing the same
+Generic with the same semantic arguments returns the same Type identity.
+
+### Default values
+
+A default is a Library Type fact. It is not inferred from target zero bits or
+from the storage chosen by a compiler.
+
+* `Bool` defaults to `false`.
+* Every signed, unsigned, and real scalar Type defaults to its exact zero value.
+* Every `View[T]` defaults to an empty View with that exact materialized Type.
+* An Alias uses the default of the Type it represents.
+
+`Void`, Enumerations, Structs, Objects, `Fixed[T, count]`, and `Access[T]` have
+no implicit default. A missing `value:[index]` is therefore legal only when the
+exact element Type admits a default. A missing ranged selection is always an
+empty `View[T]`. A Field initializer is an authored value and never defines a
+Type default for other declarations.
+
+### Integer ranges
+
+`start...end` constructs `Range[T]` when both endpoints have the same exact
+signed or unsigned integer Type `T`. The sequence is half open and advances by
+one, so it contains `start` and stops before `end`. It is empty when `start` is
+not less than `end`.
+
+A Range is lazy value flow rather than contiguous storage. It does not become a
+`View`, an `Access`, or an anonymous aggregate Type. Library does not widen the
+endpoints or use a general iterable registry. A `for` statement fits its one
+entry binding Layout against the exact `T` carried by the Range.
 
 ## Source Structure
 
@@ -203,9 +239,11 @@ semantic identity, and the receiving Structure routes that identity by its TTX
 category. The Monograph reaches those declarations only through the Source, so
 there is no parallel declaration tree.
 
-Completion follows the relationships in that tree. Enumeration storage settles
-before a Structure constructs Fields. Fields and initializers settle before
-Callable signatures, and signatures settle before Function bodies.
+Completion follows the relationships in that tree. Enumeration storage and
+explicit declaration Types settle first. An inferred Field then adopts the
+exact completed Type of its initializer. Explicit Fields fit their initializers
+against their declared Types. Every Field settles before Callable signatures,
+and signatures settle before Function bodies.
 
 Library owns the grammar that applies to a complete source. `using` selects
 Package members through the Monograph and installs Aliases owned by the
@@ -252,6 +290,11 @@ copy, and writability does not change the underlying TTX Addressable.
 A present initializer links through the Field in its containing Type's private
 context and must fit the declared Field Type. It remains one
 exact Expression supplying one value rather than a general value Flow.
+
+A declaration written as `name := expression` has no declared Type to fit. The
+Field retains the exact completed Type of that initializer without widening or
+retagging it. `new` cannot be used here because Object construction requires an
+exact receiving Object Type before the construction transaction begins.
 
 ## Structs
 
@@ -303,6 +346,39 @@ Library owns the lifetime semantics. Allocation strategy, pointer shape,
 collector policy, and reclamation timing belong to the compiler and runtime.
 Object exposes no finalizer, weak reference, explicit release, or observable
 reclamation order.
+
+### Construction
+
+Inline Struct values use positional or named value flow and are fitted by the
+typed declaration that receives them. Object construction uses `new` only as
+the initializer of a declaration that already names one exact Object Type:
+
+```ttx
+state session : Session = new;
+state configured : Session = new(.progress = 4);
+```
+
+The receiving declaration owns the transaction. It constructs one unpublished
+Object, applies initialization writes in authored order, and publishes the
+nonnull identity only after every initializer succeeds. `state session := new;`
+is invalid because inference cannot supply the Type that construction needs.
+Calls and returns may carry an already constructed Object while preserving its
+identity, but they do not infer an Object Type for a new transaction.
+
+Named arguments fit the receiving Object Type's initialization Layout. An
+external construction can name its public and exposed Fields. Code hosted by
+the Object Type can also name private Fields. An unknown, duplicate, or
+inaccessible name fails the transaction. Every Field without an authored
+initializer is required unless the construction supplies it.
+
+Supplied expressions evaluate in source order. The Object then initializes
+each Field exactly once in the Type's authored order, using the supplied fitted
+value when present and otherwise the Field's own initializer. A missing required
+Field or failed expression leaves no published Object identity.
+
+A chain of required Object initializers must terminate. Library rejects a
+mandatory construction cycle during completion rather than recursing while a
+runtime Object is being created.
 
 ## Enumerations
 
@@ -365,10 +441,53 @@ accepts signed integer and real domains. Integer overflow and division by zero
 are semantic failures in their owning operation. Safe `:[...]` selection
 uses a default value instead of publishing a bounds failure.
 
+Binary `+` accepts exact signed, unsigned, or real operands and returns that
+same Type. It does not concatenate Bytes or Views. An output owner that accepts
+several byte spans exposes that operation as a Callable instead of changing the
+numeric operator.
+
 Constant evaluation may cache a result, but it never replaces the authored
 expression or its exact edges. A compiler may fold a complete expression,
 address selection, or indexed byte value while the authored graph remains
 available to tools.
+
+## Statements and control flow
+
+A Function body is a Library semantic object, not a lowered control flow graph.
+It retains Blocks, local Addressables, effects, and control relationships in
+source order. Lowering derives target blocks and branches only after the body is
+complete.
+
+A local `state` declaration creates one mutable Addressable. A local `const`
+declaration can be initialized once. An explicit Type receives and fits the
+initializer. An inferred local retains the initializer's exact completed Type
+under the same rules as an inferred Field. A local becomes visible after its
+declaration. A nested Block may shadow it with a different identity.
+
+Assignment selects one exact writable Addressable. Compound assignment applies
+the corresponding exact Type operation before writing the result. Indexed
+assignment writes only when its optional reference is engaged. No assignment
+falls through from Address access to Type or Callable lookup.
+
+`return` fits its complete source Layout against the Function result Layout.
+Bare return and ordinary fallthrough are legal only for concrete `Void`. A
+Function with another result must return on every reachable path. An empty
+Layout is not another spelling for `Void`.
+
+`if` and `while` require one exact `Bool` expression. `for` consumes one
+`Range[T]` and fits its loop binding Layout against the Range entry. `break` and
+`continue` target the nearest enclosing loop and are illegal outside one.
+
+`match` evaluates its input once and compares cases in source order. Each case
+must fold to a Constant with the input's exact Type. The first equal case runs
+and there is no fallthrough. `_` is the final default case. It may be omitted
+only when Library can prove that the preceding cases cover the complete input
+domain.
+
+An expression statement must be a complete Callable invocation. Its effects
+run in source order and the statement deliberately discards its result Layout.
+A pure arithmetic, comparison, or access expression is not a statement merely
+because it is followed by an end marker.
 
 ## Imports and resources
 
@@ -402,6 +521,48 @@ Callable signatures, and every signature settles before any Function body in
 that closure begins. Source discovery order therefore cannot change the
 completed graph.
 
+## Native publication
+
+Semantic publication and native publication answer different questions. A
+public Callable can be selected by another Monograph without promising an
+unmangled platform symbol. Library recognizes two Function Attributes when a
+native ABI surface is required:
+
+```ttx
+@abi("C")
+@symbol("library_native")
+public func library_native[] -> Unsigned_64 {
+  return 42;
+}
+```
+
+`@abi("C")` is legal only on a public Static Function whose parameter and result
+Types have a complete C carrier. `@symbol` supplies the exact external symbol
+and is legal only with `@abi`. Duplicate external symbols fail before a native
+product is emitted. Library rejects unknown Attributes and Attributes attached
+to another declaration kind.
+
+A public Callable without `@abi` still participates in semantic lookup. The
+compiler gives any native carrier it needs a deterministic internal symbol
+derived from Package identity, member route, owning Type route, receiver role,
+and exact Signature. Private Callables never enter the exported symbol
+inventory.
+[Linker](../linker/README.md) owns the resulting Symbol records and native
+bytes.
+
+## Persistence
+
+Library is a persistent Dialect. Its payload records the owner facts needed to
+construct Types, Fields, Functions, expressions, access relationships, and
+publication policy in a fresh Workspace. It does not record parser state,
+process addresses, fold caches, LLVM IR, or native symbols.
+
+Restoration creates new semantic objects and reruns Library completion. The new
+graph must reproduce the observable names, categories, identity relationships,
+edges, order, Layout behavior, and concrete Library facts promised by the
+Archive. It does not have to reproduce the old allocation or internal graph
+shape.
+
 ## Compilation boundary
 
 Library lowering consumes completed CPU facts owned by Library, App, or Scene.
@@ -413,4 +574,6 @@ envelope while each persistent Dialect owns its reconstruction payload. Runtime
 allocation and execution remain separate from both.
 
 See [TTX semantics](../../ttx/ttx_semantics.md) for the shared contracts and
-[Package](../package/README.md) for `using` and resource contexts.
+[Package](../package/README.md) for `using` and resource contexts. The
+[standard packages](../../packages/ttx/README.md) apply these contracts to the
+provided Math, System, and Graphics surfaces.

@@ -1,3 +1,4 @@
+//
 dialect : Library;
 
 public func reveal[.value : Hidden] -> Unsigned_64 {

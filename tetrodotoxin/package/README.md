@@ -220,4 +220,6 @@ symbol locators, but the native bytes remain products of Linker and the selected
 compiler path.
 
 See [Environment](../environment/README.md) for Workspace import and
-[Library](../library/README.md) for `using` and Resource consumption.
+[Library](../library/README.md) for `using` and Resource consumption. The
+[standard packages](../../packages/ttx/README.md) are ordinary Package products
+that apply these contracts.

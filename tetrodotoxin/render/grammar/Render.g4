@@ -1,7 +1,7 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 //
-// Render dialect grammar prototype. Attributes carry bindings, locations,
+// Canonical Render source shape. Attributes carry bindings, locations,
 // builtins, and capabilities as separate facts instead of one opaque policy.
 
 parser grammar Render;
@@ -18,7 +18,7 @@ renderSource
     ;
 
 documentedRenderDeclaration
-    : documentation? DISABLED? attribute* renderDeclaration
+    : documentation? attribute* renderDeclaration
     ;
 
 renderDeclaration
@@ -43,7 +43,35 @@ renderResourceDeclaration
     ;
 
 renderStageDeclaration
-    : visibility STAGE typeName functionSignature END_STATEMENT
+    : visibility STAGE typeName renderStageSignature END_STATEMENT
+    ;
+
+renderStageSignature
+    : renderParameterLayout CALL renderResultLayout
+    ;
+
+renderParameterLayout
+    : typeReference
+    | BRACKET_START renderParameterEntries? PACK? BRACKET_END
+    ;
+
+renderParameterEntries
+    : renderNamedLayoutSlot (PACK renderNamedLayoutSlot)*
+    | typeReference (PACK typeReference)*
+    ;
+
+renderResultLayout
+    : typeReference
+    | BRACKET_START renderResultEntries? PACK? BRACKET_END
+    ;
+
+renderResultEntries
+    : renderNamedLayoutSlot (PACK renderNamedLayoutSlot)*
+    | typeReference (PACK typeReference)*
+    ;
+
+renderNamedLayoutSlot
+    : attribute* ADDRESS addressableName DEFINE typeReference
     ;
 
 renderStructureDeclaration

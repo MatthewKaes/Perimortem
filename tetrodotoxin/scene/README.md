@@ -2,8 +2,8 @@
 
 Scene is Tetrodotoxin's language for one retained unit of interactive state. It
 combines the ideas of a scene definition and a lifecycle contract. A Scene owns
-its state, signals, declared children, render submission facts, and lifecycle
-Callables.
+its state, signals, hosted graphics relationships, render submission facts, and
+lifecycle Callables.
 
 Use Scene when an application needs authored state with explicit prepare,
 update, pause, resume, and release behavior. App owns the live stack and the
@@ -13,8 +13,15 @@ without choosing its successor or global application flow.
 Canonical grammar reference: [Scene.g4](grammar/Scene.g4).
 
 ```ttx
+// Retained scene state.
 dialect : Scene;
 ```
+
+Each Scene Monograph owns one exact Scene Type. That Type hosts its state,
+signals, helper Functions, and lifecycle Self Callables. The Monograph remains
+the retained source root while the Scene Type is the receiver identity used by
+a live instance. Neither role is replaced with a Library Monograph or a generic
+scene node.
 
 ## Lifecycle roles
 
@@ -59,29 +66,46 @@ source Scenes::Title from "scenes/title.ttx";
 The paths locate confined inputs. Package never derives Scene identity from a
 directory or filename.
 
-## Declared children
+## Hosted graphics state
 
-A Scene instance is the root of one owned child tree. `child` declarations
-create nonnull values with stable identity for that Scene lifetime:
+A Scene instance is the root of one owned graphics tree. An ordinary private
+const Field initialized with `new` is hosted when its exact Object Type proves
+the Graphics hosting contract:
 
 ```ttx
-child top_icon : Graphics::Sprite;
-child bottom_icon : Graphics::Sprite;
+private const top_icon : Graphics::Sprite = new;
+private const bottom_icon : Graphics::Sprite = new;
 ```
 
-Children construct and attach in authored order before `prepare`. Prepare
-configures those existing values through ordinary Address access:
+The Fields are the real hosted identities. Scene does not create a second
+hosting declaration, node, or ordering table. It discovers hosted state from
+the exact Field Type and uses the Fields' authored order. Their nonnull Objects
+construct before `prepare`, which configures those existing values through
+ordinary Address access:
 
 ```ttx
 self.top_icon.image = image;
 self.top_icon.position = (.x = 200, .y = 100);
 ```
 
-Scene retains declared child order and publishes render submission facts after
-update. Runtime submission lies outside Scene semantics and does not change the
-semantic identity of a declared child.
+An ordinary Scene helper may perform that configuration. Moving the writes
+into a Function does not move construction or hosting away from the Field.
 
-`release` runs before reverse order destruction of the declared child subtree.
+Hosted values follow the real Field relationships recursively. Visibility and
+transform compose through those relationships, while authored Field order and
+`z_index` determine stable draw order. Scene publishes render submission facts
+after update. Runtime submission lies outside Scene semantics and does not
+change the semantic identity of a hosted Field or its Object value.
+
+The const Field keeps the hosting edge stable while the Object's admitted
+Fields remain mutable. Another alias may observe the same Object, but ordinary
+assignment never creates, moves, or removes a hosting edge. Reparenting is not
+part of the Scene hosting contract.
+
+`release` runs before the Scene instance relinquishes its hosted graphics
+roots. Library still makes Object reclamation timing and order unobservable. An
+Object Field whose Type does not prove the Graphics contract remains ordinary
+Scene state and is never submitted merely because it is an Object.
 
 ## Time and input
 
@@ -114,5 +138,16 @@ and lifetime.
 App applies a transition only after update and the retained submission facts for
 that frame are stable.
 
-See [App](../app/README.md) for transition policy and
-[Library](../library/README.md) for Object, Field, and Callable semantics.
+## Persistence
+
+Scene is a persistent Dialect. Its payload records the Scene Type, state and
+signal declarations, helper Functions, lifecycle role edges, and render
+relationships needed to construct a fresh graph. Hosted order is recovered
+from the reconstructed Fields and exact Graphics Type proofs. The payload does
+not record a live Scene instance, Object runtime values, elapsed time, input
+state, or backend resources.
+
+See [App](../app/README.md) for transition policy,
+[Library](../library/README.md) for Object, Field, and Callable semantics, and
+the [standard packages](../../packages/ttx/README.md) for the Graphics and
+System Types used by Scene sources.

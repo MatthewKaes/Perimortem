@@ -81,9 +81,10 @@ The Echo files define one exact stream interaction:
   status zero, and a one-second timeout.
 
 [`scene_lifetime.golden`](oracles/scene_lifetime.golden) records deterministic
-Scene clock steps, child attachment and submission order, signals, releases,
-destruction, and final process exit. Stable instance ordinals distinguish fresh
-Scene construction without using process addresses.
+Scene clock steps, hosted state and submission order, signals, releases,
+transition construction, and final process exit. Stable instance ordinals
+distinguish fresh Scene construction without using process addresses. It does
+not make managed Object reclamation observable.
 
 ## Shader source sample
 
